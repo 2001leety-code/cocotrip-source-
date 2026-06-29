@@ -307,6 +307,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 termsAgreed={termsAgreed}
                 onTermsChange={setTermsAgreed}
                 language={language}
+                hideTermsCheckbox
               />
             }
           />

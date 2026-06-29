@@ -142,9 +142,12 @@ interface Props {
   /** 약관 동의 토글 시 호출. */
   onTermsChange: (agreed: boolean) => void;
   language: Lang;
+  /** 약관 동의 체크박스 숨김 (default false). SMS 인증 UI 는 항상 렌더.
+   *  BookingInfoForm 약관카드가 약관 SSOT 일 때 이중노출 방지용 — termsAgreed 는 BookingInfoForm 이 set. */
+  hideTermsCheckbox?: boolean;
 }
 
-export function BookingConsent({ phone, onVerified, termsAgreed, onTermsChange, language }: Props) {
+export function BookingConsent({ phone, onVerified, termsAgreed, onTermsChange, language, hideTermsCheckbox = false }: Props) {
   const t = TEXT[language] || TEXT.en; // nullish 대신 || — language 빈/미지원이면 영어.
   // 🔴 reCAPTCHA container 고유 id — 같은 페이지에 BookingConsent 가 2개여도 절대 충돌 X.
   //   (a) useId 결과의 콜론을 *제거*하지 않고 안전 문자(`_`)로 치환 → useId 고유성 보존
@@ -322,7 +325,8 @@ export function BookingConsent({ phone, onVerified, termsAgreed, onTermsChange, 
         <div id={recaptchaContainerId} />
       </div>
 
-      {/* (b) 약관 동의 체크박스 */}
+      {/* (b) 약관 동의 체크박스 — hideTermsCheckbox 시 숨김(BookingInfoForm 약관카드가 SSOT). SMS 는 위에서 항상 렌더. */}
+      {!hideTermsCheckbox && (
       <label className="flex items-start gap-2.5 cursor-pointer select-none">
         <input
           type="checkbox"
@@ -356,6 +360,7 @@ export function BookingConsent({ phone, onVerified, termsAgreed, onTermsChange, 
           </span>
         </span>
       </label>
+      )}
     </div>
   );
 }

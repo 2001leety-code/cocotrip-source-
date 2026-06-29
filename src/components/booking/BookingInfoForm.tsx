@@ -4,6 +4,7 @@
 //   결제 실행·필수검증 게이트·SMS 인증은 호출처(CharterWizard/TourBookingDialog)에서 처리.
 // SSOT 색: 배경 #080b14 / 보라 #7C5CFC·#B9A4FF / 핑크 #EA537E·#FF6B9D / 민트 #00D28C / 골드 #C4956A.
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 export interface BookingFormData {
   lastName: string;
@@ -43,6 +44,9 @@ export interface BookingInfoFormProps {
   usdStr: string;
   ctaLabel: string;       // 예: "결제 진행"
   defaultPhoneDial?: string; // 국가번호 표시 (기본 +82)
+  /** 전화번호 입력 placeholder — 국가코드 포함 국제 예시(외국인이 +82 칸 믿고 국내번호 입력해 SMS 오발송하는 것 방지).
+   *  미제공 시 '+82 10 1234 5678' (국가코드 포함 기본). emit/정규화(toE164)는 불변 — 표기만. */
+  placeholderPhone?: string;
   onApplyDiscount?: (code: string) => void;
   onSubmit: (data: BookingFormData) => void;
   // ── 하위호환 옵셔널 props (2026-06-29, 투어 Step2 통합 / 방법 A) ──────────
@@ -54,9 +58,13 @@ export interface BookingInfoFormProps {
   onPhoneChange?: (v: string) => void;
   /** 폼 입력값 변화 emit — 호출처가 메모(요청사항·미팅장소 등) 결제 payload 반영용. */
   onFieldsChange?: (data: BookingFormData) => void;
-  /** 약관 SSOT 외부 제어 — 제공 시 agree1~4 대신 단일 동의 상태(호출처 termsAgreed)와 동기. */
+  /** 약관 SSOT 외부 제어 — 제공 시 agree1~3(필수) 대신 단일 동의 상태(호출처 termsAgreed)와 동기.
+   *  ⚠️ 마케팅(agree4=선택)은 이 채널에 안 섞임 — 외부모드에서도 내부 state(f.agree4)로만 관리. */
   externalAgreeAll?: boolean;
   onAgreeAllChange?: (agreed: boolean) => void;
+  /** 마케팅(선택) 동의 변화 emit — 외부 약관모드에서 마케팅을 필수 채널과 분리하기 위함.
+   *  미배선이면(현행) 마케팅은 내부 f.agree4 로만 유지 → payload 미반영(강제동의 제거가 목적). */
+  onMarketingChange?: (agreed: boolean) => void;
   /** 부가 서비스 섹션 숨김 (투어는 Step1 addon 에서 이미 선택 → 가격 재계산 방지). */
   hideAddons?: boolean;
   /** 할인코드 섹션 숨김. */
@@ -128,19 +136,30 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
   // 약관 SSOT 외부 제어 — externalAgreeAll 제공 시 단일 동의 상태(호출처)와 동기.
   const externallyControlledTerms = props.externalAgreeAll !== undefined;
-  const agreeAll = externallyControlledTerms
+  // 필수 동의(agree1~3)만의 상태. 외부모드면 호출처 termsAgreed, 내부모드면 필수 3개 AND.
+  //   마케팅(agree4=선택)은 절대 이 값에 안 섞임 — 강제동의 방지.
+  const requiredAgreed = externallyControlledTerms
     ? !!props.externalAgreeAll
-    : (f.agree1 && f.agree2 && f.agree3 && f.agree4);
+    : (f.agree1 && f.agree2 && f.agree3);
+  // "모두 동의" 상단 체크 = 필수 + 마케팅 모두 켜야 전체 표시.
+  const agreeAll = requiredAgreed && f.agree4;
   const toggleAll = () => {
     const v = !agreeAll;
-    if (externallyControlledTerms) { props.onAgreeAllChange?.(v); return; }
+    // 필수(외부 or 내부 agree1~3) + 마케팅(내부 agree4) 분리 호출.
+    if (externallyControlledTerms) {
+      props.onAgreeAllChange?.(v);
+      set({ agree4: v });
+      props.onMarketingChange?.(v);
+      return;
+    }
     set({ agree1: v, agree2: v, agree3: v, agree4: v });
   };
 
   const applyCode = (code: string) => { set({ discountCode: code }); setAppliedCode(code); props.onApplyDiscount?.(code); };
 
   const submit = () => {
-    const termsOk = externallyControlledTerms ? agreeAll : (f.agree1 && f.agree2 && f.agree3);
+    // 마케팅(선택)은 필수 게이트에 안 섞이게 — requiredAgreed 사용 (hideCta=true 라 미호출이나 정합성 위해).
+    const termsOk = requiredAgreed;
     const ok = f.lastName && f.firstName && (phoneValue) && f.email && f.meetingPlace && termsOk;
     if (!ok) { setError(true); return; }
     setError(false);
@@ -193,7 +212,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               <label style={C.label}>휴대폰 번호 <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', padding: '0 13px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 600 }}>{dial}</div>
-                <input value={phoneValue} onChange={(e) => { const v = e.target.value; if (props.onPhoneChange) props.onPhoneChange(v); else set({ phone: v }); }} placeholder="10 1234 5678" inputMode="tel" style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }} onFocus={focusable} onBlur={blurable} />
+                <input value={phoneValue} onChange={(e) => { const v = e.target.value; if (props.onPhoneChange) props.onPhoneChange(v); else set({ phone: v }); }} placeholder={props.placeholderPhone ?? '+82 10 1234 5678'} inputMode="tel" style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }} onFocus={focusable} onBlur={blurable} />
               </div>
             </div>
             <div>
@@ -291,10 +310,20 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           </label>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
-            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
-            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req text="개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다" />
-            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree4} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree4: v })} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
+            {/* 필수 3개 — 외부모드면 checked=requiredAgreed(마케팅 토글이 필수 표시에 안 새게), onChange=호출처 termsAgreed. */}
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req text="개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다" />
+            {/* 마케팅(선택) — 외부모드에서도 내부 state(f.agree4)로만. onMarketingChange 미배선이면 payload 미반영(강제동의 제거 목적). */}
+            <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
+          </div>
+          {/* 🔴 법적 근거 링크 — BookingConsent 약관부 숨김(hideTermsCheckbox) 시 /privacy·/terms 링크가 사라지므로
+              약관 SSOT 인 이 카드에 동일 링크를 유지(법무 근거 보존 의무). */}
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+            <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>개인정보 처리방침</Link>
+            <span> · </span>
+            <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>이용약관</Link>
+            <span> 보기</span>
           </div>
         </div>
 
