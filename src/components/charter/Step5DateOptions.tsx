@@ -1,4 +1,4 @@
-// Step 5: 날짜 + 일정(트립타입·멀티데이) + 옵션 + 트립닷컴식 예약정보(BookingInfoForm) · i18n
+﻿// Step 5: 날짜 + 일정(트립타입·멀티데이) + 옵션 + 트립닷컴식 예약정보(BookingInfoForm) · i18n
 // 2026-06-29 (방법 A): 고객정보 입력 UI(이름/연락처/메신저/미팅장소/항공편/수하물/메모)를
 //   BookingInfoForm 으로 교체. 결제·SMS·가격엔진 무수정 — 정보 UI 만 통합.
 //   가격에 영향 주는 스케줄 필드(날짜·픽업시각·트립타입·멀티데이·옵션 핀)는 BookingInfoForm 위에 유지.
@@ -370,6 +370,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
               )}
             </div>
           ) : undefined}
+          externalArrivalTime={isAirport ? (arr?.estimatedTime || arr?.scheduledTime) : undefined}
         />
       </div>
     </div>

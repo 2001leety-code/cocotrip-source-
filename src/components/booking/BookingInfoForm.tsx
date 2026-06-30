@@ -3,10 +3,17 @@
 // 순수 UI — 예약 요약·가격은 props, 입력값은 내부 state, 제출은 onSubmit 콜백.
 //   결제 실행·필수검증 게이트·SMS 인증은 호출처(CharterWizard/TourBookingDialog)에서 처리.
 // SSOT 색: 배경 #080b14 / 보라 #7C5CFC·#B9A4FF / 핑크 #EA537E·#FF6B9D / 민트 #00D28C / 골드 #C4956A.
-import { useEffect, useState } from 'react';
+//
+// 2026-06-30 (#3 미팅장소 자동완성 + #4 항공편 도착시간 자동채움):
+//   meetingPlace - AddressAutocomplete(Naver Local Search+미니지도) 추가. 자유입력도 병행 유지(예약막힘 방지).
+//     자동완성 확인 시 아래 텍스트 input 에 주소 자동 채움. 사용자가 직접 타이핑하면 자동완성 coord 초기화.
+//   externalArrivalTime prop - 호출처(Step5DateOptions)가 /api/flight-status 조회 결과를 전달하면
+//     arrivalTime 입력에 자동 채움(HH:mm 형식). 사용자가 직접 수정 시 input 을 덮어쓰지 않음(isTouched guard).
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
+import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 
 export interface BookingFormData {
   lastName: string;
@@ -80,6 +87,9 @@ export interface BookingInfoFormProps {
   /** 항공편 편명 입력 바로 아래 렌더 (예: 공공API 도착정보 "조회" 버튼 + 결과). isAirport 시에만 노출.
    *  차터(CharterWizard)의 #1012 /api/flight-status 자동조회 UI 를 BookingInfoForm 항공편 섹션에 통합. */
   flightLookupSlot?: React.ReactNode;
+  /** #4 항공편 도착시간 외부 채움 — /api/flight-status 조회 결과 estimatedTime/scheduledTime(HH:mm 형식).
+   *  사용자가 arrivalTime 을 직접 수정한 적 없으면 자동 채움. 직접 수정 후에는 덮어쓰지 않음. */
+  externalArrivalTime?: string;
 }
 
 // ── 스타일 토큰 ──────────────────────────────────────────────
@@ -109,7 +119,7 @@ function Counter({ label, value, onChange }: { label: string; value: number; onC
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '9px 14px' }}>
       <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} style={btn}>−</button>
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} style={btn}>{'−'}</button>
         <span style={{ width: 18, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>{value}</span>
         <button type="button" onClick={() => onChange(value + 1)} style={btn}>+</button>
       </div>
@@ -146,6 +156,32 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const [error, setError] = useState(false);
   const [appliedCode, setAppliedCode] = useState('');
   const [discountOpen, setDiscountOpen] = useState(false);
+
+  // #3 미팅장소 자동완성 state.
+  //   AddressAutocomplete 확인 시 f.meetingPlace 자동 채움.
+  //   사용자가 아래 plain input 을 직접 타이핑하면 coord 초기화(자유입력 우선).
+  const [meetingPlaceCoord, setMeetingPlaceCoord] = useState<AddressResult | null>(null);
+  const handleMeetingAutocomplete = (coord: AddressResult | null) => {
+    setMeetingPlaceCoord(coord);
+    if (coord) {
+      // 확인된 장소 → 텍스트 input 에 자동 채움.
+      const filled = coord.address ? `${coord.name} (${coord.address})` : coord.name;
+      set({ meetingPlace: filled });
+    }
+    // coord=null(변경 버튼) 시에는 f.meetingPlace 를 건드리지 않음 — 자유 타이핑 보존.
+  };
+
+  // #4 항공편 도착시간 외부 채움 — externalArrivalTime(HH:mm) 변경 시 arrivalTime 자동 set.
+  //   사용자가 직접 수정한 적 있으면(arrivalTimeTouched.current=true) 덮어쓰지 않음.
+  const arrivalTimeTouched = useRef(false);
+  useEffect(() => {
+    if (!props.externalArrivalTime) return;
+    if (arrivalTimeTouched.current) return;
+    // "HH:MM:SS" → "HH:MM" 로 잘라 time input 호환 형식 확보.
+    const t = props.externalArrivalTime.slice(0, 5);
+    if (/^\d{2}:\d{2}$/.test(t)) set({ arrivalTime: t });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.externalArrivalTime]);
 
   // 전화번호 controlled 위임 — props.phone 제공 시 호출처가 소유 (내부 f.phone 미사용).
   const phoneValue = props.phone !== undefined ? props.phone : f.phone;
@@ -219,6 +255,20 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
     e.target.style.borderColor = 'rgba(255,255,255,0.12)';
     e.target.style.background = 'rgba(255,255,255,0.03)';
   };
+
+  // AddressAutocomplete language 타입 가드.
+  const meetingAutocompleteLang: 'ko' | 'en' | 'ja' | 'zh' =
+    lang === 'ko' || lang === 'en' || lang === 'ja' || lang === 'zh' ? lang : 'en';
+  const meetingAutocompletePlaceholder =
+    lang === 'ko' ? '호텔 이름으로 검색 (예: L7 명동)' :
+    lang === 'ja' ? 'ホテル名で検索 (例: L7 明洞)' :
+    lang === 'zh' ? '搜索酒店名称 (例: L7 明洞)' :
+    'Search hotel/address (e.g. L7 Myeongdong)';
+  const meetingFreeTypeHint =
+    lang === 'ko' ? '위 검색으로 자동완성하거나 직접 입력하세요.' :
+    lang === 'ja' ? '上の検索で自動補完するか、直接入力してください。' :
+    lang === 'zh' ? '使用上方搜索自动填写，或直接输入。' :
+    'Use the search above or type the address directly.';
 
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 16px 0', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', color: '#fff' }}>
@@ -300,7 +350,33 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <SectionHead title="추가 정보" sub="Additional details" />
           <div style={{ marginBottom: 13 }}>
             <label style={C.label}>{meetingLabel} <span style={C.req}>*</span></label>
-            <input value={f.meetingPlace} onChange={(e) => set({ meetingPlace: e.target.value })} placeholder="예: L7 명동 바이 롯데호텔 (퇴계로 137)" style={C.input} onFocus={focusable} onBlur={blurable} />
+            {/* #3 미팅장소 자동완성 — AddressAutocomplete(Naver Local Search + 미니지도).
+                확인 시 아래 plain input 에 주소 자동 채움. 자유입력도 항상 가능(예약막힘 방지).
+                ⚠️ 자유입력 보존: 아래 input 직접 타이핑 시 meetingPlaceCoord 초기화. */}
+            <div style={{ marginBottom: 8 }}>
+              <AddressAutocomplete
+                id="booking-meeting-place-autocomplete"
+                label=""
+                placeholder={meetingAutocompletePlaceholder}
+                language={meetingAutocompleteLang}
+                value={meetingPlaceCoord ?? undefined}
+                onChange={handleMeetingAutocomplete}
+              />
+            </div>
+            {/* 자유입력 input — 자동완성이 채워주거나, 직접 타이핑도 가능. 항상 표시(예약막힘 방지). */}
+            <input
+              value={f.meetingPlace}
+              onChange={(e) => {
+                set({ meetingPlace: e.target.value });
+                // 직접 타이핑 시 자동완성 coord 초기화(자유입력 우선).
+                if (meetingPlaceCoord) setMeetingPlaceCoord(null);
+              }}
+              placeholder="예: L7 명동 바이 롯데호텔 (퇴계로 137)"
+              style={C.input}
+              onFocus={focusable}
+              onBlur={blurable}
+            />
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{meetingFreeTypeHint}</div>
           </div>
           {isAirport && (
             <>
@@ -311,7 +387,16 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                 </div>
                 <div>
                   <label style={C.label}>도착 시간 <span style={C.opt}>(현지)</span></label>
-                  <input type="time" value={f.arrivalTime} onChange={(e) => set({ arrivalTime: e.target.value })} style={{ ...C.input, colorScheme: 'dark' }} onFocus={focusable} onBlur={blurable} />
+                  {/* #4 도착시간 — externalArrivalTime(조회 결과)으로 자동 채움.
+                      사용자가 직접 수정하면 arrivalTimeTouched=true → 이후 조회 결과로 덮어쓰지 않음. */}
+                  <input
+                    type="time"
+                    value={f.arrivalTime}
+                    onChange={(e) => { arrivalTimeTouched.current = true; set({ arrivalTime: e.target.value }); }}
+                    style={{ ...C.input, colorScheme: 'dark' }}
+                    onFocus={focusable}
+                    onBlur={blurable}
+                  />
                 </div>
               </div>
               {/* 항공편 도착정보 자동조회 슬롯 (#1012 /api/flight-status — 호출처가 조회 버튼·결과 렌더). */}
