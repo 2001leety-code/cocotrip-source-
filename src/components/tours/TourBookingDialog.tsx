@@ -429,6 +429,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           <p className="text-[10px] text-white/45 uppercase tracking-widest mt-1">
             {step === 1 ? labels.step1Title : labels.step2Title}
           </p>
+          <div className="flex items-center gap-1 mt-2" aria-hidden="true">
+            <span className={`h-1 flex-1 rounded-full transition-colors ${step >= 1 ? 'bg-[#B9A4FF]' : 'bg-white/15'}`} />
+            <span className={`h-1 flex-1 rounded-full transition-colors ${step >= 2 ? 'bg-[#B9A4FF]' : 'bg-white/15'}`} />
+            <span className="h-1 flex-1 rounded-full bg-white/15" />
+          </div>
         </DialogHeader>
 
         {step === 1 && (
