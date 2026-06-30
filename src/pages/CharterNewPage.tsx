@@ -23,6 +23,7 @@ import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
+import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterPricing';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -124,6 +125,47 @@ function PaymentPanel({
 }) {
   const i18n = getWizardI18n(language);
   const resolved = resolveProductType(state);
+
+  // ── #1 번역: raw 코드값 → 사람이 읽는 레이블 ──
+  // 서비스 타입 레이블 (4언어)
+  const SERVICE_LABEL: Record<string, Record<'ko'|'en'|'ja'|'zh', string>> = {
+    airport_transfer: { ko: i18n.svcAirport, en: i18n.svcAirport, ja: i18n.svcAirport, zh: i18n.svcAirport },
+    day_tour:         { ko: i18n.svcDayTour, en: i18n.svcDayTour, ja: i18n.svcDayTour, zh: i18n.svcDayTour },
+    multi_day:        { ko: i18n.svcMultiDay, en: i18n.svcMultiDay, ja: i18n.svcMultiDay, zh: i18n.svcMultiDay },
+    kpop_shuttle:     { ko: i18n.svcKpop, en: i18n.svcKpop, ja: i18n.svcKpop, zh: i18n.svcKpop },
+    intercity:        { ko: i18n.svcTransfer, en: i18n.svcTransfer, ja: i18n.svcTransfer, zh: i18n.svcTransfer },
+  };
+  const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
+  const cities   = CITIES_CATALOG   as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
+  // 코드(ICN/SEL_METRO 등) → 현재 언어 레이블 반환. 없으면 코드 그대로.
+  function resolveLocationLabel(code: string | null | undefined, fallback?: string | null): string {
+    if (!code) return fallback ?? '-';
+    if (code in airports) {
+      const a = airports[code];
+      if (language === 'ko') return a.name_ko;
+      if (language === 'ja') return a.name_ja ?? a.name_en;
+      if (language === 'zh') return a.name_zh ?? a.name_en;
+      return a.name_en;
+    }
+    if (code in cities) {
+      const c = cities[code];
+      if (language === 'ko') return c.name_ko;
+      if (language === 'ja') return c.name_ja ?? c.name_en;
+      if (language === 'zh') return c.name_zh ?? c.name_en;
+      return c.name_en;
+    }
+    // 카탈로그에 없으면 fallback(originCustom/destinationCustom) → 코드 순
+    return fallback ?? code;
+  }
+  const serviceLabel = (state.service && SERVICE_LABEL[state.service]?.[language]) ?? state.service ?? '-';
+  const originLabel      = state.originName ?? resolveLocationLabel(state.origin, state.originCustom);
+  const destinationLabel = state.destinationCustom
+    ? state.destinationCustom
+    : resolveLocationLabel(state.destinationKey);
+  const vehicleKey = state.vehicle as keyof typeof VEHICLE_TYPES | undefined;
+  const vehicleLabel = vehicleKey && VEHICLE_TYPES[vehicleKey]
+    ? VEHICLE_TYPES[vehicleKey].name[language] ?? state.vehicle
+    : state.vehicle ?? '-';
   // 2026-05-07: useQuoteCalculator 반환 shape 변경 — { quote, loading, geocodingFailed, distanceSource }.
   // CharterWizard 내부에서 manual km 보정한 결과는 이 페이지에서 다시 계산되지 않음 (Wizard onComplete
   // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
@@ -186,10 +228,10 @@ function PaymentPanel({
 
       {/* 요약 박스 */}
       <div className="rounded-xl border border-[#B668FC]/30 bg-[#B668FC]/5 p-4 mb-4 text-sm space-y-1.5">
-        <Row label={i18n.payField_service} value={state.service ?? '-'} />
-        <Row label={i18n.payField_origin} value={state.origin ?? state.originCustom ?? '-'} />
-        <Row label={i18n.payField_destination} value={state.destinationKey ?? state.destinationCustom ?? '-'} />
-        <Row label={i18n.payField_vehiclePax} value={`${state.vehicle} · ${state.paxCount}${i18n.maxUnit}`} />
+        <Row label={i18n.payField_service} value={serviceLabel} />
+        <Row label={i18n.payField_origin} value={originLabel} />
+        <Row label={i18n.payField_destination} value={destinationLabel} />
+        <Row label={i18n.payField_vehiclePax} value={`${vehicleLabel} · ${state.paxCount}${i18n.maxUnit}`} />
         {/* 2026-06-11 검수 인라인 편집 (🔒 VITE_FEATURE_REVIEW_EDIT OFF=기존 요약 byte-identical). */}
         {reviewEditOn ? (
         <>

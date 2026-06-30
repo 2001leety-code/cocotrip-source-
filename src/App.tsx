@@ -200,10 +200,9 @@ function GlobalWidgets() {
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
 
-  // 위저드/예약 흐름(플래너·차터)·플랜 결과(my-plans)에선 플로팅 채팅이 콘텐츠/CTA(옵션
-  // 카드·결제·날짜 선택·플랜 슬라이드)를 덮어 방해 → 채팅만 숨김. 홈/마케팅 페이지는 유지.
-  // (운영자 #1, 2026-06-23 my-plans 추가. 다른 글로벌 위젯은 유지).
-  const hideChatOnFlow = ['/planner', '/charter', '/my-plans'].some(p => location.pathname.startsWith(p));
+  // ChatWidget — 홈(/)에서만 렌더. 위저드/결제/플랜 흐름에서 CTA를 덮어 방해하므로 홈 전용.
+  // (운영자 #7, 2026-06-30. 기존 hideTrigger 분기 통합 — 홈 외엔 컴포넌트 자체 마운트 안 함).
+  const isHome = location.pathname === '/';
 
   return (
     <>
@@ -215,7 +214,7 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <Suspense fallback={null}>
         <CookieBanner />
-        <ChatWidget language={language} hideTrigger={hideChatOnFlow} />
+        {isHome && <ChatWidget language={language} hideTrigger={false} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         <OnboardingCouponModal />
       </Suspense>
