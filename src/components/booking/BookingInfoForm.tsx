@@ -317,8 +317,8 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             {/* 마케팅(선택) — 외부모드에서도 내부 state(f.agree4)로만. onMarketingChange 미배선이면 payload 미반영(강제동의 제거 목적). */}
             <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
           </div>
-          {/* 🔴 법적 근거 링크 — BookingConsent 약관부 숨김(hideTermsCheckbox) 시 /privacy·/terms 링크가 사라지므로
-              약관 SSOT 인 이 카드에 동일 링크를 유지(법무 근거 보존 의무). */}
+          {/* 🔴 법적 근거 링크 — 이 약관 카드가 약관 SSOT 이므로 /privacy·/terms 링크를 유지(법무 근거 보존 의무).
+              (2026-06-30 SMS 본인인증 제거 후 약관 동의 게이트의 단일 소유처.) */}
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
             <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>개인정보 처리방침</Link>
             <span> · </span>

@@ -23,7 +23,6 @@ import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
-import { BookingConsent } from '@/components/booking/BookingConsent';
 import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
 import { formatPrice } from '@/lib/exchange-rate';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
@@ -231,10 +230,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   });
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
 
-  // 2026-06-28 트립닷컴식 예약정보: 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
-  //   phoneSmsVerified 는 세션 상태 — 보안상 24h snapshot 에 저장 안 함(재진입 시 재인증).
-  //   termsAgreed 도 매 결제마다 명시 동의 받도록 비저장 (재진입 시 다시 체크).
-  const [phoneSmsVerified, setPhoneSmsVerified] = useState<boolean>(false);
+  // 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자 결정): 결제 직전 약관 동의.
+  //   termsAgreed 는 매 결제마다 명시 동의 받도록 비저장 (재진입 시 다시 체크).
   const [termsAgreed, setTermsAgreed] = useState<boolean>(false);
   // 2026-06-29 마케팅(선택) 정보 수신 동의 — 약관(termsAgreed)과 독립. 결제 게이트(step2Complete)에
   //   절대 미포함(미동의해도 결제 진행). capture body 로만 전달돼 booking 레코드에 보존.
@@ -361,7 +358,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // Step 2 → checkout gate. isTourStep2Complete 헬퍼에 위임 (테스트 가능).
   // PR-F: minimal=true = 전화 1개만 필수. minimal=false = 5개 전부 필수 (기본).
   const step2Complete = isTourStep2Complete(
-    { phone, pickupAddress, messenger, memoText, phoneSmsVerified, termsAgreed },
+    { phone, pickupAddress, messenger, memoText, termsAgreed },
     FEATURE_TOUR_BOOKING_MINIMAL,
   );
 
@@ -377,9 +374,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       `Messenger: ${messenger}`,
       `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
       `Notes: ${memoText}`,
-      // 2026-06-28 트립닷컴식 예약정보 — SMS 인증/약관 동의 결과를 memo 에 기록.
+      // 2026-06-30 트립닷컴식 예약정보 — 약관 동의 결과를 memo 에 기록 (SMS 인증 제거 운영자).
       //   (결제 로직 무관 — backend 가 memo 를 그대로 booking 에 보존. 운영자 컴플라이언스 추적용.)
-      `Phone SMS verified: ${phoneSmsVerified ? 'yes' : 'no'}`,
       `Terms agreed: ${termsAgreed ? 'yes' : 'no'}`,
       `Marketing: ${marketingConsent ? 'yes' : 'no'}`,
     ];
@@ -390,7 +386,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed, marketingConsent]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, termsAgreed, marketingConsent]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -648,9 +644,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         )}
 
         {/* Step 2 — Contact + Pickup (트립닷컴식 BookingInfoForm 디자인 / 방법 A).
-            결제·SMS·가격·약관 게이트는 이 컴포넌트가 소유 — BookingInfoForm 은 입력 UI 만 제공.
+            결제·가격·약관 게이트는 이 컴포넌트가 소유 — BookingInfoForm 은 입력 UI 만 제공.
             phone 은 controlled, 약관은 termsAgreed SSOT 동기, addon/할인/CTA 는 숨기고
-            footerSlot 으로 BookingConsent + 가격 태그를 렌더 (PayPal 버튼은 DialogFooter 가 소유). */}
+            footerSlot 으로 가격 태그를 렌더 (PayPal 버튼은 DialogFooter 가 소유).
+            SMS 본인인증(BookingConsent)은 제거 (2026-06-30 운영자 결정). */}
         {step === 2 && (
         <BookingInfoForm
           eyebrow={labels.step2Title}
@@ -687,14 +684,6 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           onSubmit={() => { /* 결제는 footerSlot 의 PayPalBookingButton 이 담당 */ }}
           footerSlot={
             <div className="space-y-3">
-              <BookingConsent
-                phone={phone}
-                onVerified={setPhoneSmsVerified}
-                termsAgreed={termsAgreed}
-                onTermsChange={setTermsAgreed}
-                language={langKey}
-                hideTermsCheckbox
-              />
               <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
                 <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
@@ -764,9 +753,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     vehicleType={tour.vehicleType.toLowerCase()}
                     memo={fullMemo}
                     userEmail={userEmail}
-                    // 2026-06-28 트립닷컴식 예약정보 — 결제 게이트(step2Complete)가 이미 둘 다 true 를
-                    //   보장하지만, 백엔드 booking 레코드에 동의 증거를 남기도록 capture body 로 전달.
-                    phoneSmsVerified={phoneSmsVerified}
+                    // 2026-06-30 트립닷컴식 예약정보 — 결제 게이트(step2Complete)가 약관 동의를 보장.
+                    //   백엔드 booking 레코드에 동의 증거를 남기도록 capture body 로 전달 (SMS 인증 제거).
                     termsAgreed={termsAgreed}
                     marketingConsent={marketingConsent}
                     // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
