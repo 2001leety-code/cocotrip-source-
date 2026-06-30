@@ -23,6 +23,7 @@ import {
   ATTRACTION_FEES,
   AIRPORT_TRANSFER_PRICING_FORMULA,
   VEHICLE_INTERCITY,
+  CAPTAIN_PREMIUM_KRW,
 } from '@/data/charterPricing';
 import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/components/charter/types';
 import {
@@ -31,17 +32,17 @@ import {
 } from '@/components/charter/destinationKeyMap';
 import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
-import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW } from '@/lib/transferQuote';
+import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
-// vip 는 매트릭스 가격에 곱해야 할 일이 없음 (협의 → null 반환). 안전상 1.0.
+// staria_9(9인승) = staria 와 동일가(1.0). bus 는 결제 불가(협의 → null 반환). 안전상 3.0.
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
   staria: 1.0,
+  staria_9: 1.0,
   sprinter: 2.0,
   bus: 3.0,
-  vip: 1.0,
 };
 
 // pricing_spec.json staria.intercity 기준 (rate_per_km: 1000) — 매트릭스 km만 알 때 사용.
@@ -61,8 +62,8 @@ export function calcPickupTransferFormula(
   vehicleType: VehicleType,
   includeToll: boolean = true,
 ): { krw: number; breakdown: { base: number; perKm: number; toll: number } } | null {
-  // Bus/VIP 는 협의 (formula 미적용)
-  if (vehicleType === 'bus' || vehicleType === 'vip') return null;
+  // Bus 는 협의 (formula 미적용). staria_9 는 staria 기준(아래 staria formula 사용).
+  if (vehicleType === 'bus') return null;
   const safeKm = Number.isFinite(km) && km > 0 ? km : 0;
   if (safeKm === 0) return null;
 
@@ -114,9 +115,9 @@ export function calcPickupTransferFormula(
   };
 }
 
-// Bus/VIP는 결제 불가 — 항상 협의(상담 폼) 신호.
+// Bus는 결제 불가 — 항상 협의(상담 폼) 신호. staria/staria_9/sprinter 는 견적/결제 가능.
 function isInquiryOnly(vehicle: VehicleType): boolean {
-  return vehicle === 'bus' || vehicle === 'vip';
+  return vehicle === 'bus';
 }
 
 function matrixLookup(origin: string, destination: string): { km?: number; hours?: number; priceKRW?: number } | null {
@@ -260,7 +261,7 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       //   staria  : daily ₩200K + overnight ₩130K (SSOT staria.intercity)
       //   sprinter: daily ₩280K + overnight ₩180K (SSOT sprinter.intercity)
       //   기존 hardcode (200K/130K) 는 sprinter 도 staria 값 적용 → underprice.
-      const ic = VEHICLE_INTERCITY[vehicle as 'staria' | 'sprinter'] ?? VEHICLE_INTERCITY.staria;
+      const ic = VEHICLE_INTERCITY[vehicle as 'staria' | 'staria_9' | 'sprinter'] ?? VEHICLE_INTERCITY.staria;
       const daily = ic.daily_service_fee;
       const overnight = ic.overnight_driver_fee;
       const dayDiff = state.startDate && state.endDate
@@ -300,12 +301,22 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
         const tripType = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
         // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
         const curatedKRW = (state.origin && resolvedDest ? curatedStariaKRW(state.origin, resolvedDest) : null) ?? fourTierStariaKRW(kmT);
-        const tq = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled() }) : null;
+        const tq = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled(), captainPremiumKrw: captainPremiumKrwFor(vehicle) }) : null;
         if (tq) { vehicleChargeKRW = tq.total; receiptIsPackage = true; }
         else needsCustomQuote = true;
       } else if (state.destinationCustom) {
         needsCustomQuote = true;
       }
+    }
+
+    // 7인승 캡틴시트 프리미엄 정액(₩33,000, SSOT CAPTAIN_PREMIUM_KRW) — multiplier 적용 직후,
+    // 옵션/할증(야간·멀티데이 할인) 전에 가산. 표시가==청구가(P311): 백엔드(createPaypalOrder/
+    // charter-multiday-price/tour-price)도 동일 SSOT 로 가산. 9인승(staria_9)=0.
+    //   ⚠️ transfer 는 위 calcTransferQuote 가 자체적으로 프리미엄을 포함하므로 여기서 제외(중복 방지).
+    //   ⚠️ kpop_shuttle 은 차량 단일 정액 셔틀 상품(백엔드 vehicle 무관)이라 프리미엄 미적용.
+    const captainPremium = CAPTAIN_PREMIUM_KRW[vehicle] ?? 0;
+    if (captainPremium > 0 && vehicleChargeKRW > 0 && mode !== 'transfer' && mode !== 'kpop_shuttle') {
+      vehicleChargeKRW += captainPremium;
     }
   }
 

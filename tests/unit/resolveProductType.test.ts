@@ -131,7 +131,8 @@ describe('resolveProductType — 투어 시간제 (VITE_FEATURE_TOUR_HOURLY)', (
     const r = resolveProductType(tourState());
     expect(r.productType).toBe('tour_hourly');
     expect(r.payable).toBe(true);
-    expect(r.priceKRW).toBe(beTourQuote({ km, vehicle: 'staria' })!.total);
+    // 백엔드 pure 함수엔 캡틴프리미엄을 명시 전달(프론트 resolveProductType 는 내부 lookup). 둘 다 33,000 → 동일.
+    expect(r.priceKRW).toBe(beTourQuote({ km, vehicle: 'staria', captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
     expect(r.originKey).toBe('SEL_METRO');
     expect(r.destKey).toBe('GANGNEUNG');
   });
@@ -172,7 +173,8 @@ describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECK
     const r = resolveProductType(transferState({ tripType: 'oneway' }));
     expect(r.productType).toBe('charter_transfer');
     expect(r.payable).toBe(true);
-    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' })!.total);
+    // 백엔드 pure 함수엔 캡틴프리미엄 명시 전달(프론트는 내부 lookup). 둘 다 33,000 → 동일.
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
     expect(r.tripType).toBe('oneway');
     expect(r.originKey).toBe('SEL_METRO');
     expect(r.destKey).toBe('BUSAN');
@@ -182,7 +184,7 @@ describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECK
     vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
     const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
     const r = resolveProductType(transferState({ tripType: 'roundtrip' }));
-    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' })!.total);
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
     expect(r.tripType).toBe('roundtrip');
   });
 
@@ -230,7 +232,7 @@ describe('resolveProductType — FEATURE_DISCOUNT_V2 호출처 parity (표시==�
     vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
     const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
     const r = resolveProductType(base({ service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', tripType: 'roundtrip' }));
-    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true })!.total);
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true, captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
   });
 
   it('편도 transfer v2 ON: 5% 유지 (편도는 v2 무관, 무영향)', () => {
@@ -238,6 +240,6 @@ describe('resolveProductType — FEATURE_DISCOUNT_V2 호출처 parity (표시==�
     vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
     const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
     const r = resolveProductType(base({ service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', tripType: 'oneway' }));
-    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { discountV2: true })!.total);
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { discountV2: true, captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
   });
 });

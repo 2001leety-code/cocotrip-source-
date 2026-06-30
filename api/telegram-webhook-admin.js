@@ -2335,7 +2335,7 @@ async function handleQuickBook(botToken, p) {
     `예약:\n` +
     `[필수]\n` +
     `서비스: airport_transfer    ← day_tour/multi_day/kpop_shuttle\n` +
-    `차종: staria                ← sprinter/bus/vip\n` +
+    `차종: staria                ← staria_9/sprinter/bus\n` +
     `출발: 명동\n` +
     `도착: 인천공항\n` +
     `날짜: 2026-07-08\n` +
@@ -2504,7 +2504,7 @@ Extract and return EXACTLY this JSON (no explanation, no markdown):
 
 Rules:
 - service: one of airport_transfer / day_tour / multi_day / kpop_shuttle. Default: airport_transfer.
-- vehicle: one of staria / sprinter / bus / vip. Default: staria.
+- vehicle: one of staria / staria_9 / sprinter / bus. Default: staria.
 - date: absolute YYYY-MM-DD. Today is ${today}. "7월 8일" = "2026-07-08".
 - time: 24h HH:mm. "오후 6시" = "18:00", "18시" = "18:00".
 - customerPhone: preserve as-is (010-...).
@@ -2546,24 +2546,24 @@ function validateQuickBookFields(parsed) {
 
 /**
  * 견적 계산 (charter pricing 준용)
- * Staria: 기본 50,000 + km×2,000 / Sprinter: 100,000 + km×4,000 / Bus/VIP: 협의
- * 공항 고정 견적: staria 150,000 / sprinter 250,000
+ * Staria(7·9인승): 기본 50,000 + km×2,000 / Sprinter: 100,000 + km×4,000 / Bus: 협의
+ * 공항 고정 견적: staria(7·9인승) 150,000 / sprinter 250,000
  */
 function calcQuickBookEstimate(parsed) {
   const service = (parsed.service || '').toLowerCase();
   const vehicle = (parsed.vehicle || 'staria').toLowerCase();
   const pax = (parsed.adultCount || 1) + (parsed.childCount || 0);
 
-  // 공항 픽업/드롭 — 고정 요금
+  // 공항 픽업/드롭 — 고정 요금 (어드민 rough 견적). staria_9(9인승)=staria 동일가.
   if (service === 'airport_transfer' || /공항/.test(parsed.from || '') || /공항/.test(parsed.to || '')) {
-    if (vehicle === 'staria') return 150_000;
+    if (vehicle === 'staria' || vehicle === 'staria_9') return 150_000;
     if (vehicle === 'sprinter') return 250_000;
-    return null; // bus/vip → 협의
+    return null; // bus → 협의
   }
 
-  // 당일 투어 — vehicleAndPrice 기준 단가
+  // 당일 투어 — vehicleAndPrice 기준 단가. staria_9=staria 동일가.
   if (service === 'day_tour' || service === 'multi_day') {
-    if (vehicle === 'staria') return pax <= 8 ? 330_000 : 450_000;
+    if (vehicle === 'staria' || vehicle === 'staria_9') return pax <= 8 ? 330_000 : 450_000;
     if (vehicle === 'sprinter') return 450_000;
     return null;
   }
@@ -2571,8 +2571,8 @@ function calcQuickBookEstimate(parsed) {
   // K-pop 셔틀
   if (service === 'kpop_shuttle') return pax * 45_000;
 
-  // fallback
-  if (vehicle === 'staria') return 150_000;
+  // fallback. staria_9=staria 동일가.
+  if (vehicle === 'staria' || vehicle === 'staria_9') return 150_000;
   if (vehicle === 'sprinter') return 250_000;
   return null;
 }
@@ -2598,14 +2598,15 @@ function buildConfirmText(parsed, nameEn, estimate, dayOfWeek, totalLuggage) {
     ? `${escapeHtmlLocal(parsed.customerName)} (${escapeHtmlLocal(nameEn)})`
     : escapeHtmlLocal(parsed.customerName || '-');
   const vehicleLabel = {
-    staria: 'Staria', sprinter: 'Sprinter', bus: '버스', vip: 'VIP 리무진',
+    // staria_9 신규. vip 키는 과거 Firestore 예약/배차 레코드 표시 호환 위해 보존 (신규 선택지엔 없음).
+    staria: 'Staria 7인승', staria_9: 'Staria 9인승', sprinter: 'Sprinter', bus: '버스', vip: 'VIP 리무진',
   }[parsed.vehicle?.toLowerCase()] || parsed.vehicle || 'Staria';
   const luggageLine = totalLuggage > 0
     ? `S${luggage.small || 0} M${luggage.medium || 0} L${luggage.large || 0} (총 ${totalLuggage}개)`
     : '없음';
   const estimateLine = estimate != null
     ? `₩${estimate.toLocaleString('ko-KR')}`
-    : '협의 (bus/vip)';
+    : '협의 (bus)';
   const terminalLine = parsed.terminal ? ` ${parsed.terminal}` : '';
   const flightLine = parsed.flightNumber ? ` ${parsed.flightNumber}` : '';
   const optionsLine = parsed.options?.length ? parsed.options.join(', ') : '-';

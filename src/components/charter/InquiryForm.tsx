@@ -103,7 +103,8 @@ const STRINGS: Record<Lang, Strings> = {
 };
 
 interface Props {
-  vehicle: Extract<VehicleType, 'bus' | 'vip'>;
+  // 신규 협의 폼은 bus 만 진행 (vip 선택지 제거). 과거 vip 예약 표시는 vehicleLabel 딕셔너리로만 보존.
+  vehicle: Extract<VehicleType, 'bus'>;
   state: WizardState;
   language?: string;
 }
@@ -177,7 +178,9 @@ export function InquiryForm({ vehicle, state, language }: Props) {
     );
   }
 
-  const vehicleDisplay = vehicle === 'bus' ? s.vehicleBus : s.vehicleVip;
+  // 신규 협의 폼은 bus 만 (vip 제거). vehicleVip 문자열은 과거 예약 라벨 호환 위해 STRINGS 에 보존.
+  void vehicle; void s.vehicleVip;
+  const vehicleDisplay = s.vehicleBus;
 
   return (
     <form onSubmit={submit} className="space-y-5">

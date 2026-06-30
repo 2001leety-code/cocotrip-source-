@@ -8,10 +8,11 @@
  *   편도: tripBase=vehicleBase 쿠폰5% / 왕복: tripBase=vehicleBase×2 쿠폰10% / total=tripBase×(1-쿠폰)
  *   ICN→강남(65km, priceKRW145,600) 편도 ₩138,320 / 왕복 ₩262,080.
  */
-import { AIRPORT_TRANSFER_PRICING_FORMULA, DISTANCE_MATRIX } from '@/data/charterPricing';
+import { AIRPORT_TRANSFER_PRICING_FORMULA, DISTANCE_MATRIX, CAPTAIN_PREMIUM_KRW } from '@/data/charterPricing';
 import { tollEstimate } from '@/lib/calculator';
 
-const VEHICLE_MULT: Record<string, number> = { staria: 1.0, sprinter: 2.0 };
+// staria_9(9인승) = staria 와 동일가(1.0). bus = 결제 불가(협의).
+const VEHICLE_MULT: Record<string, number> = { staria: 1.0, staria_9: 1.0, sprinter: 2.0 };
 // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복 할인 10→5%. oneway 5% 유지. 백엔드 charter-transfer-price.js 와 byte-identical.
 const TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT = 5;
 
@@ -64,9 +65,18 @@ export interface TransferQuote {
 
 export interface TransferQuoteOpts {
   discountV2?: boolean;   // FEATURE_DISCOUNT_V2: true=왕복5%, false/undefined=현행10%
+  /** 7인승 캡틴시트 프리미엄 정액(SSOT). 호출처가 captainPremiumKrwFor(vehicle) 로 전달. 백 charter-transfer-price.js
+   *  calcTransferQuote(opts.captainPremiumKrw) 와 byte-identical (둘 다 opts 로 받아 동일 위치 가산) → 표시가==청구가(P311). */
+  captainPremiumKrw?: number;
 }
 
-/** transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 편도5%/왕복(×2)10%(v1)/5%(v2). 백엔드와 byte-identical. */
+/** vehicle 의 캡틴시트 프리미엄(SSOT CAPTAIN_PREMIUM_KRW). 호출처가 calcTransferQuote opts 로 전달용. */
+export function captainPremiumKrwFor(vehicle: string): number {
+  const p = CAPTAIN_PREMIUM_KRW[vehicle];
+  return Number.isFinite(p) && p > 0 ? p : 0;
+}
+
+/** transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 캡틴프리미엄 → 편도5%/왕복(×2)10%(v1)/5%(v2). 백엔드와 byte-identical. */
 export function calcTransferQuote(
   { curatedKRW = 0, tripType = 'oneway', vehicle }: { curatedKRW?: number; tripType?: TripType; vehicle: string },
   opts: TransferQuoteOpts = {},
@@ -76,7 +86,11 @@ export function calcTransferQuote(
   if (!Number.isFinite(curatedKRW) || curatedKRW <= 0) return null;
   const isRound = tripType === 'roundtrip';
   const vehicleBase = Math.round(curatedKRW * mult);
-  const tripBase = isRound ? vehicleBase * 2 : vehicleBase;
+  // 7인승 캡틴시트 프리미엄 정액 — multiplier·왕복 배수 직후, 쿠폰 할인 전 1회 가산(9인승=0).
+  // 호출처(resolveProductType/Receipt/useQuoteCalculator)가 captainPremiumKrwFor(vehicle) 전달. 백엔드 opts.captainPremiumKrw 와 동일.
+  const captainOpt = opts.captainPremiumKrw;
+  const captain = typeof captainOpt === 'number' && Number.isFinite(captainOpt) && captainOpt > 0 ? captainOpt : 0;
+  const tripBase = (isRound ? vehicleBase * 2 : vehicleBase) + captain;
   // v2: 왕복 10→5% (편도 5% 유지). 플래그 OFF(기본)=현행 10%.
   const couponPct = isRound ? (opts.discountV2 ? TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT : 10) : 5;
   const coupon = Math.round((tripBase * couponPct) / 100);

@@ -41,11 +41,11 @@ function vehicleLuggageNote(
     if (lang === 'zh') return `${total}件行李 — 建议${vehicles}辆车 (Staria)。运营审核后另议。`;
     return `${total} suitcases — ${vehicles} vehicles recommended (Staria). Separate quote after operator review.`;
   }
-  if (vehicle === 'bus' || vehicle === 'vip') {
-    if (lang === 'ko') return '버스/의전 차량은 캐리어 적재 협의 가능합니다.';
-    if (lang === 'ja') return 'バス／VIP車両は積載数を相談できます。';
-    if (lang === 'zh') return '巴士／礼宾车的行李数量可协商。';
-    return 'Bus/VIP vehicles: luggage count negotiable.';
+  if (vehicle === 'bus') {
+    if (lang === 'ko') return '버스는 캐리어 적재 협의 가능합니다.';
+    if (lang === 'ja') return 'バスは積載数を相談できます。';
+    if (lang === 'zh') return '巴士的行李数量可协商。';
+    return 'Bus: luggage count negotiable.';
   }
   // 일반 차량 — 7개 이하 안내 (Staria 1대 충분, 8+ 시 위 분기)
   if (lang === 'ko') return '캐리어는 기내 + 중형 + 대형을 합쳐서 입력해 주세요. 8개 이상이면 차량 2대를 권장합니다 (스타리아).';
