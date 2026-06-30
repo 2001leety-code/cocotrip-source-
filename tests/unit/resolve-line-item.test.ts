@@ -46,6 +46,16 @@ describe('resolveKrwAmount — 정본 복제 correctness', () => {
     const v = SPEC.airport_transfer_prices['seoul-central'].priceKRW;
     expect(resolveKrwAmount(SPEC, 'airport_seoul_central', 1, 1)).toBe(v);
   });
+  it('captain premium — staria(7인) +33000 / staria_9·미전달 +0 (cart day-tour/airport, createPaypalOrder 미러·P311 표시=청구)', () => {
+    const cap = SPEC.vehicles.staria.captain_premium_krw;
+    const daily = SPEC.daily_tour_prices['seoul-city'].priceKRW;
+    expect(resolveKrwAmount(SPEC, 'charter_seoul_city', 1, 1, 'staria')).toBe(daily + cap);   // 7인승 +33,000
+    expect(resolveKrwAmount(SPEC, 'charter_seoul_city', 1, 1, 'staria_9')).toBe(daily);        // 9인승 +0
+    expect(resolveKrwAmount(SPEC, 'charter_seoul_city', 1, 1)).toBe(daily);                    // vehicle 미전달 = 기존 동작
+    const ap = SPEC.airport_transfer_prices['seoul-central'].priceKRW;
+    expect(resolveKrwAmount(SPEC, 'airport_seoul_central', 1, 1, 'staria')).toBe(ap + cap);
+    expect(resolveKrwAmount(SPEC, 'airport_seoul_central', 1, 1, 'staria_9')).toBe(ap);
+  });
   it('combo = (airport+tour)×(1-할인) 정확', () => {
     const airport = SPEC.airport_transfer_prices['seoul-central'].priceKRW;
     const tour = SPEC.daily_tour_prices['seoul-city'].priceKRW;
