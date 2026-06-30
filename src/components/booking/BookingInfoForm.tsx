@@ -120,6 +120,13 @@ function Counter({ label, value, onChange }: { label: string; value: number; onC
 export function BookingInfoForm(props: BookingInfoFormProps) {
   const { isAirport, meetingLabel, baseStr, meetingStr, childSeatStr, totalStr, usdStr, ctaLabel } = props;
   const lang: DialLang = props.lang || 'ko';
+  // 신뢰 바(결제 직전 안심) 4언어 — 가이드 docs/DESIGN-BOOKING-FORM-UX.md §6. 표시만.
+  const trustItems = ({
+    ko: ['PayPal 보안결제', '무료 취소', 'KTO 등록사업자'],
+    en: ['PayPal Secure', 'Free cancellation', 'KTO Registered'],
+    ja: ['PayPal安全決済', '無料キャンセル', 'KTO登録事業者'],
+    zh: ['PayPal安全支付', '免费取消', 'KTO注册企业'],
+  } as Record<DialLang, string[]>)[lang] || ['PayPal Secure', 'Free cancellation', 'KTO Registered'];
   // 휴대폰 국가번호(dial, + 없는 숫자) 기본값 — props.defaultPhoneDial('+82' 형태) 파싱 우선,
   //   없으면 언어 기본(DEFAULT_DIAL_BY_LANG), 그래도 없으면 한국('82'). 국내 회귀 안전(KR 기본).
   const initialDial = (() => {
@@ -390,6 +397,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
         {/* CTA */}
         <div>
+          {/* 신뢰 바 — 결제 직전 안심(PayPal·무료취소·KTO). 가이드 §6. 표시만, 결제 무관. */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '9px 12px', borderRadius: 10, background: 'rgba(0,210,140,0.06)', marginBottom: 12, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#00D28C', fontSize: 12 }}>🔒</span> {trustItems[0]}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#00D28C', fontSize: 12 }}>✓</span> {trustItems[1]}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#B9A4FF', fontSize: 12 }}>🛡</span> {trustItems[2]}</span>
+          </div>
           {props.hideCta ? (
             props.footerSlot
           ) : (
