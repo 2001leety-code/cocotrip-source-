@@ -663,6 +663,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           totalStr={totalStr}
           usdStr={usdStr}
           ctaLabel={labels.next}
+          lang={langKey}
           phone={phone}
           onPhoneChange={setPhone}
           placeholderPhone={labels.phonePh}
