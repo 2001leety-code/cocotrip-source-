@@ -48,18 +48,27 @@ describe('CharterWizard — 게스트 견적 허용 + 가입 유도 카드 (운�
   });
 });
 
-describe('CRITICAL-2 회귀 — 차터 resume 결제 게이트 우회 차단 (2026-06-29)', () => {
+describe('CRITICAL-2 회귀 — 차터 resume 결제 게이트 우회 차단 (2026-06-29, SMS 인증 제거 2026-06-30)', () => {
   const src = readFileSync(r('src/components/charter/CharterWizard.tsx'), 'utf8');
-  it('case 6(결제 진입)에 consent 게이트 — phoneSmsVerified/termsAgreed 재검증', () => {
-    // case 5 에만 있던 consent 게이트가 case 6 에도 있어야 resume→Step6 직행 우회 차단.
+  it('case 6(결제 진입)에 약관 게이트 — termsAgreed 재검증 (SMS 인증 제거 후에도 약관 게이트 생존)', () => {
+    // case 5 에만 있던 약관 게이트가 case 6 에도 있어야 resume→Step6 직행 우회 차단.
     const case6 = src.match(/case 6:\s*\{[\s\S]*?\n {6}\}/);
     expect(case6, 'case 6 블록').toBeTruthy();
-    expect(case6![0]).toMatch(/!phoneSmsVerified \|\| !termsAgreed/);
+    expect(case6![0]).toMatch(/if \(!termsAgreed\) return false;/);
+    // SMS 인증 게이트(phoneSmsVerified)는 제거됐어야 함.
+    expect(case6![0]).not.toContain('phoneSmsVerified');
   });
   it('handleResumeContinue 가 Step6 복원 금지 — Math.min(5, ...) 로 클램프', () => {
-    // consent 는 비저장이라 resume 시 false → Step6 복원하면 사용자 혼란. Step5 로 클램프.
+    // 약관 동의는 비저장이라 resume 시 false → Step6 복원하면 사용자 혼란. Step5 로 클램프.
     expect(src).toMatch(/Math\.min\(5,\s*initialSnapStep\)/);
     expect(src).not.toMatch(/Math\.min\(6,\s*initialSnapStep\)/);
+  });
+  it('SMS 본인인증 제거 — phoneSmsVerified state/게이트 전부 삭제됨 (2026-06-30 운영자)', () => {
+    // 코드 토큰 phoneSmsVerified 가 완전히 사라졌어야 함 (주석 포함 — 더 이상 안 씀).
+    expect(src).not.toContain('phoneSmsVerified');
+    // BookingConsent import/렌더가 사라졌어야 함 (제거 사실을 적은 주석 텍스트는 무관).
+    expect(src).not.toMatch(/import\s*\{[^}]*BookingConsent[^}]*\}/);
+    expect(src).not.toMatch(/<BookingConsent/);
   });
 });
 

@@ -3,7 +3,7 @@
 //   BookingInfoForm 으로 교체. 결제·SMS·가격엔진 무수정 — 정보 UI 만 통합.
 //   가격에 영향 주는 스케줄 필드(날짜·픽업시각·트립타입·멀티데이·옵션 핀)는 BookingInfoForm 위에 유지.
 //   BookingInfoForm 은 hideCta(결제는 wizard nav/PaymentPanel 담당)·hideAddons·hideDiscount(차터 옵션은
-//   아래 옵션 핀에서 가산)로 렌더하고, footerSlot 에 BookingConsent(SMS 인증+약관) 를 배치.
+//   아래 옵션 핀에서 가산)로 렌더. SMS 본인인증(BookingConsent)은 제거 (2026-06-30 운영자) — footerSlot 미사용.
 //   ⚠️ 표시가=청구가(P311): totalStr/usdStr/baseStr 은 quote.subtotalKRW 파생만, 재계산 금지.
 //   ⚠️ #1012 항공편 자동조회(/api/flight-status) 보존: BookingInfoForm 항공편 필드 아래 flightLookupSlot 으로
 //     "조회" 버튼 + 도착정보 표시를 렌더. 편명은 BookingInfoForm → state.airport.flightNumber 동기.
@@ -73,8 +73,8 @@ interface Props {
   patch: (p: Partial<WizardState>) => void;
   language?: 'ko' | 'en' | 'ja' | 'zh';
   // 2026-06-29 (방법 A) — 트립닷컴식 예약정보 통합:
-  //   quote: 표시가(파생)·요약 표기용. footerSlot: BookingConsent(SMS+약관) — wizard 가 소유.
-  //   termsAgreed: 약관 SSOT 단일 상태(wizard) — BookingInfoForm 의 단일 동의와 동기.
+  //   quote: 표시가(파생)·요약 표기용. termsAgreed: 약관 SSOT 단일 상태(wizard) — BookingInfoForm 단일 동의와 동기.
+  //   footerSlot: optional — SMS 본인인증 제거(2026-06-30) 후 wizard 는 미전달. BookingInfoForm 하단 slot 으로 통과.
   quote?: QuoteBreakdown | null;
   footerSlot?: ReactNode;
   termsAgreed?: boolean;
@@ -319,9 +319,9 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       </div>
 
       {/* 트립닷컴식 예약정보 (방법 A) — 이름/연락처/메신저/미팅장소/항공편/수하물/메모 입력 UI.
-          결제·SMS·가격·약관 게이트는 wizard 가 소유 — BookingInfoForm 은 입력 UI 만 제공.
+          결제·가격·약관 게이트는 wizard 가 소유 — BookingInfoForm 은 입력 UI 만 제공.
           phone 은 state.customerPhone controlled, 약관은 termsAgreed SSOT 동기, addon/할인/CTA 숨김.
-          footerSlot 에 BookingConsent(SMS) 렌더 (결제 버튼은 wizard nav 가 소유).
+          SMS 본인인증(BookingConsent)은 제거 (2026-06-30 운영자) — footerSlot 미전달 (결제 버튼은 wizard nav 가 소유).
           flightLookupSlot 에 #1012 /api/flight-status 조회 버튼 + 도착정보 표시.
           phone placeholder: placeholderPhone 미전달 → 기본값 '+82 10 1234 5678'(국가코드 포함) 사용.
             wizard i18n.customerPhonePlaceholder ko='010-1234-5678'(국가코드 無)는 외국인이 +82 칸 믿고

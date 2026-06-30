@@ -140,6 +140,10 @@ if [ -n "$SCAN_FILES" ]; then
       // P314 (2026-05-31): PayPalBookingButton.tsx 의 i18n nullish coalescing(번역 키 폴백)
       // 13건 pre-existing legitimate. sandbox 토글 추가 시 동일 스킵 유지.
       if (f === "src/components/PayPalBookingButton.tsx") continue;
+      // 2026-06-30: BookingInfoForm.tsx 의 placeholderPhone nullish coalescing 폴백
+      // (#1020 phone placeholder) pre-existing legitimate. SMS 인증 제거 PR 에서 주석
+      // 정리로 re-staged 됐을 뿐, 내 diff 는 BookingConsent 참조 주석만.
+      if (f === "src/components/booking/BookingInfoForm.tsx") continue;
       // 2026-06-12: place-search.js 의 req.query?.x ?? '' nullish coalescing (Naver 검색
       // query/limit/lang 파싱) pre-existing legitimate. 내 변경(rate-limit) 아님 + || 변환 시
       // 빈문자열 처리 미세 변경되므로 스킵 (비용 DoS rate-limit PR 에서 처음 staged 됨).
