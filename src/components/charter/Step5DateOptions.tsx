@@ -340,6 +340,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           totalStr={totalStr}
           usdStr={usdStr}
           ctaLabel={i18n.payProceed}
+          lang={langCode}
           phone={state.customerPhone ?? ''}
           onPhoneChange={(v) => patch({ customerPhone: v })}
           externalAgreeAll={termsAgreed}

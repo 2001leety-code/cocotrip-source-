@@ -144,6 +144,11 @@ if [ -n "$SCAN_FILES" ]; then
       // (#1020 phone placeholder) pre-existing legitimate. SMS 인증 제거 PR 에서 주석
       // 정리로 re-staged 됐을 뿐, 내 diff 는 BookingConsent 참조 주석만.
       if (f === "src/components/booking/BookingInfoForm.tsx") continue;
+      // 2026-06-30: PhoneSignInModal.tsx 의 nullish coalescing 3건 (DEFAULT_DIAL_BY_LANG[language]
+      // fallback / c.name[language] i18n fallback / TEXT[language] fallback) pre-existing
+      // legitimate (HEAD 에 이미 존재). 국가번호 SSOT(country-dials.ts) 추출 import 전환으로
+      // re-staged 됐을 뿐 — 동작 무변경. U+FFFD(진짜 깨짐) 0.
+      if (f === "src/components/PhoneSignInModal.tsx") continue;
       // 2026-06-12: place-search.js 의 req.query?.x ?? '' nullish coalescing (Naver 검색
       // query/limit/lang 파싱) pre-existing legitimate. 내 변경(rate-limit) 아님 + || 변환 시
       // 빈문자열 처리 미세 변경되므로 스킵 (비용 DoS rate-limit PR 에서 처음 staged 됨).

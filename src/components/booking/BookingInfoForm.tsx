@@ -5,6 +5,8 @@
 // SSOT 색: 배경 #080b14 / 보라 #7C5CFC·#B9A4FF / 핑크 #EA537E·#FF6B9D / 민트 #00D28C / 골드 #C4956A.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
+import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
 
 export interface BookingFormData {
   lastName: string;
@@ -44,6 +46,8 @@ export interface BookingInfoFormProps {
   usdStr: string;
   ctaLabel: string;       // 예: "결제 진행"
   defaultPhoneDial?: string; // 국가번호 표시 (기본 +82)
+  /** 국가명·라벨 표시 언어 (휴대폰 국가번호 드롭다운 4언어). 미제공 시 'ko'. */
+  lang?: DialLang;
   /** 전화번호 입력 placeholder — 국가코드 포함 국제 예시(외국인이 +82 칸 믿고 국내번호 입력해 SMS 오발송하는 것 방지).
    *  미제공 시 '+82 10 1234 5678' (국가코드 포함 기본). emit/정규화(toE164)는 불변 — 표기만. */
   placeholderPhone?: string;
@@ -115,7 +119,15 @@ function Counter({ label, value, onChange }: { label: string; value: number; onC
 
 export function BookingInfoForm(props: BookingInfoFormProps) {
   const { isAirport, meetingLabel, baseStr, meetingStr, childSeatStr, totalStr, usdStr, ctaLabel } = props;
-  const dial = props.defaultPhoneDial || '+82';
+  const lang: DialLang = props.lang || 'ko';
+  // 휴대폰 국가번호(dial, + 없는 숫자) 기본값 — props.defaultPhoneDial('+82' 형태) 파싱 우선,
+  //   없으면 언어 기본(DEFAULT_DIAL_BY_LANG), 그래도 없으면 한국('82'). 국내 회귀 안전(KR 기본).
+  const initialDial = (() => {
+    const fromProp = (props.defaultPhoneDial || '').replace(/\D/g, '');
+    if (fromProp) return fromProp;
+    return DEFAULT_DIAL_BY_LANG[lang] || '82';
+  })();
+  const [selDial, setSelDial] = useState<string>(initialDial);
 
   const [f, setF] = useState<BookingFormData>({
     lastName: '', firstName: '', phone: '', email: '', messenger: 'WhatsApp', messengerId: '',
@@ -129,6 +141,31 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
   // 전화번호 controlled 위임 — props.phone 제공 시 호출처가 소유 (내부 f.phone 미사용).
   const phoneValue = props.phone !== undefined ? props.phone : f.phone;
+
+  // 국가번호 드롭다운 — 입력 칸엔 가입자번호(national)만, dial 은 selDial 로 분리 표시.
+  //   localNumber = 사용자가 번호 칸에 입력한 표시값(숫자/구분자 허용, emit 시 정규화).
+  const [localNumber, setLocalNumber] = useState<string>('');
+  // resume 역파싱 — 부모/내부 phoneValue("+82 1012345678" 또는 구 raw "01012345678")를
+  //   마운트/prop변경 시 selDial + localNumber 로 분리. 사용자 타이핑 중 덮어쓰지 않도록
+  //   합성값(composePhoneValue 결과)과 동일하면 skip (자기 emit 의 echo 무시 = 커서 점프 방지).
+  useEffect(() => {
+    if (!phoneValue) { setLocalNumber(''); return; }
+    // 현재 selDial+localNumber 합성과 같으면(내가 방금 emit 한 값) 역파싱 skip.
+    if (phoneValue === composePhoneValue(selDial, normalizeNationalNumber(localNumber, selDial))) return;
+    const { dial, national } = parsePhoneValue(phoneValue);
+    if (dial) setSelDial(dial);            // "+82 ..." → dial 동기. 구 raw(dial='')는 기존 selDial 유지.
+    setLocalNumber(national);
+    // selDial/localNumber 는 의도적으로 deps 제외 — phoneValue(부모 SSOT) 변할 때만 역파싱.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneValue]);
+
+  // dial 또는 번호 변경 시 합성값 emit — "+{dial} {national}" (공백 1개, leading 0 strip, 이중 prefix strip).
+  const emitPhone = (dial: string, rawNumber: string) => {
+    const national = normalizeNationalNumber(rawNumber, dial);
+    const composed = composePhoneValue(dial, national);
+    if (props.onPhoneChange) props.onPhoneChange(composed);
+    else set({ phone: composed });
+  };
 
   // 폼 입력값 변화를 호출처로 emit (메모/미팅장소 등 결제 payload 반영용).
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,8 +248,21 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <div>
               <label style={C.label}>휴대폰 번호 <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', padding: '0 13px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 600 }}>{dial}</div>
-                <input value={phoneValue} onChange={(e) => { const v = e.target.value; if (props.onPhoneChange) props.onPhoneChange(v); else set({ phone: v }); }} placeholder={props.placeholderPhone ?? '+82 10 1234 5678'} inputMode="tel" style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }} onFocus={focusable} onBlur={blurable} />
+                {/* 국가번호 picker — 트립닷컴식(검색+자주찾는+전세계 ~239국). COUNTRIES SSOT(로그인 전화인증과 공유). */}
+                <CountryDialPicker
+                  value={selDial}
+                  onChange={(d) => { setSelDial(d); emitPhone(d, localNumber); }}
+                  lang={lang}
+                />
+                <input
+                  value={localNumber}
+                  onChange={(e) => { const v = e.target.value; setLocalNumber(v); emitPhone(selDial, v); }}
+                  placeholder={props.placeholderPhone ?? '10 1234 5678'}
+                  inputMode="tel"
+                  style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }}
+                  onFocus={focusable}
+                  onBlur={blurable}
+                />
               </div>
             </div>
             <div>

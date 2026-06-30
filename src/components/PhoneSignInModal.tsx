@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import { setUpRecaptchaVerifier, signInWithPhone, verifyPhoneCode } from '@/lib/firebase';
+// 국가번호 SSOT — PhoneSignInModal(로그인 전화인증) + BookingInfoForm(예약폼 국가번호) 공유.
+// 동일 배열 import 로 전환했을 뿐 동작 무변경 (회귀 0).
+import { COUNTRIES, DEFAULT_DIAL_BY_LANG, flagOf } from '@/lib/country-dials';
 
 // PR #390 (2026-05-13): Firebase Phone Auth 2-step modal — 외국인 sign-in 옵션
 // 일환. LINE OIDC 는 Identity Platform 업그레이드 필요로 보류, Phone 우선 활성.
@@ -90,36 +93,8 @@ const RECAPTCHA_CONTAINER_ID = 'phone-recaptcha-container';
 // E.164: `+` 다음 국가코드(1~3자리) + 가입자 번호. 합계 8~15 자리.
 const PHONE_E164_REGEX = /^\+[1-9]\d{7,14}$/;
 // PR #399 (2026-05-13): 국가 select dropdown — CocoTrip 외국인 핵심 타겟 + 주요 국가.
-// `dial` 은 LINE/Phone Auth E.164 prefix (앞의 + 제외 1-3자리). emoji 는 BMP 외 surrogate
-// pair (Windows 글꼴 미지원 시 사각형 표시 가능 — 안전한 fallback).
-const COUNTRIES = [
-  { code: 'KR', dial: '82',  flag: '🇰🇷', name: { ko: '대한민국', en: 'South Korea',  ja: '韓国',     zh: '韩国' } },
-  { code: 'JP', dial: '81',  flag: '🇯🇵', name: { ko: '일본',     en: 'Japan',        ja: '日本',     zh: '日本' } },
-  { code: 'TW', dial: '886', flag: '🇹🇼', name: { ko: '대만',     en: 'Taiwan',       ja: '台湾',     zh: '台湾' } },
-  { code: 'HK', dial: '852', flag: '🇭🇰', name: { ko: '홍콩',     en: 'Hong Kong',    ja: '香港',     zh: '香港' } },
-  { code: 'CN', dial: '86',  flag: '🇨🇳', name: { ko: '중국',     en: 'China',        ja: '中国',     zh: '中国' } },
-  { code: 'US', dial: '1',   flag: '🇺🇸', name: { ko: '미국',     en: 'United States', ja: 'アメリカ', zh: '美国' } },
-  { code: 'SG', dial: '65',  flag: '🇸🇬', name: { ko: '싱가포르', en: 'Singapore',    ja: 'シンガポール', zh: '新加坡' } },
-  { code: 'MY', dial: '60',  flag: '🇲🇾', name: { ko: '말레이시아', en: 'Malaysia',    ja: 'マレーシア', zh: '马来西亚' } },
-  { code: 'TH', dial: '66',  flag: '🇹🇭', name: { ko: '태국',     en: 'Thailand',     ja: 'タイ',     zh: '泰国' } },
-  { code: 'ID', dial: '62',  flag: '🇮🇩', name: { ko: '인도네시아', en: 'Indonesia',   ja: 'インドネシア', zh: '印度尼西亚' } },
-  { code: 'VN', dial: '84',  flag: '🇻🇳', name: { ko: '베트남',   en: 'Vietnam',      ja: 'ベトナム', zh: '越南' } },
-  { code: 'PH', dial: '63',  flag: '🇵🇭', name: { ko: '필리핀',   en: 'Philippines',  ja: 'フィリピン', zh: '菲律宾' } },
-  { code: 'AU', dial: '61',  flag: '🇦🇺', name: { ko: '호주',     en: 'Australia',    ja: 'オーストラリア', zh: '澳大利亚' } },
-  { code: 'GB', dial: '44',  flag: '🇬🇧', name: { ko: '영국',     en: 'United Kingdom', ja: 'イギリス', zh: '英国' } },
-  { code: 'DE', dial: '49',  flag: '🇩🇪', name: { ko: '독일',     en: 'Germany',      ja: 'ドイツ',   zh: '德国' } },
-  { code: 'FR', dial: '33',  flag: '🇫🇷', name: { ko: '프랑스',   en: 'France',       ja: 'フランス', zh: '法国' } },
-  { code: 'CA', dial: '1',   flag: '🇨🇦', name: { ko: '캐나다',   en: 'Canada',       ja: 'カナダ',   zh: '加拿大' } },
-] as const;
-
-// 언어 → default 국가 dial code (사용자 진입 시 자동 선택).
-// CocoTrip 외국인 VIP 투어 타겟 분포 기반.
-const DEFAULT_DIAL_BY_LANG: Record<'ko' | 'en' | 'ja' | 'zh', string> = {
-  ko: '82',
-  ja: '81',
-  zh: '86', // 중국 본토 우선 (대만/홍콩 별도 선택)
-  en: '1',  // 미국 default — 영어권 사용자
-};
+// COUNTRIES / DEFAULT_DIAL_BY_LANG 는 src/lib/country-dials.ts 로 추출(SSOT, BookingInfoForm 공유).
+// 동작·배열 무변경 — import 출처만 모듈로.
 
 interface Props {
   language: 'ko' | 'en' | 'ja' | 'zh';
@@ -233,7 +208,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
             >
               {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.dial} style={{ background: '#0f1220', color: '#fff' }}>
-                  {c.flag} {c.name[language] ?? c.name.en} (+{c.dial})
+                  {flagOf(c.code)} {c.name[language] ?? c.name.en} (+{c.dial})
                 </option>
               ))}
             </select>
