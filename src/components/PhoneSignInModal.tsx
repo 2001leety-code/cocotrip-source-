@@ -3,7 +3,7 @@ import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import { setUpRecaptchaVerifier, signInWithPhone, verifyPhoneCode } from '@/lib/firebase';
 // 국가번호 SSOT — PhoneSignInModal(로그인 전화인증) + BookingInfoForm(예약폼 국가번호) 공유.
 // 동일 배열 import 로 전환했을 뿐 동작 무변경 (회귀 0).
-import { COUNTRIES, DEFAULT_DIAL_BY_LANG } from '@/lib/country-dials';
+import { COUNTRIES, DEFAULT_DIAL_BY_LANG, flagOf } from '@/lib/country-dials';
 
 // PR #390 (2026-05-13): Firebase Phone Auth 2-step modal — 외국인 sign-in 옵션
 // 일환. LINE OIDC 는 Identity Platform 업그레이드 필요로 보류, Phone 우선 활성.
@@ -208,7 +208,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
             >
               {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.dial} style={{ background: '#0f1220', color: '#fff' }}>
-                  {c.flag} {c.name[language] ?? c.name.en} (+{c.dial})
+                  {flagOf(c.code)} {c.name[language] ?? c.name.en} (+{c.dial})
                 </option>
               ))}
             </select>

@@ -1,44 +1,32 @@
 /**
  * country-dials — 국가번호(dial code) 공유 SSOT.
  *
- * 출처: PhoneSignInModal.tsx (PR #399, 2026-05-13) 의 COUNTRIES / DEFAULT_DIAL_BY_LANG 를
- * 그대로 추출(named export). 로그인 전화인증과 예약폼(BookingInfoForm) 국가번호 드롭다운이
- * 동일 배열을 공유 — 한 곳 갱신으로 두 표면 일치. PhoneSignInModal 동작은 무변경(동일 배열).
+ * COUNTRIES = 전세계 ~239국 (src/lib/country-dials.data.ts, 빌드타임 생성 — ITU-T E.164 dial +
+ *   Node Intl.DisplayNames 4언어명). 로그인 전화인증(PhoneSignInModal)·예약폼(BookingInfoForm)·
+ *   국가번호 picker(CountryDialPicker)가 동일 배열 공유 — 한 곳 갱신으로 모든 표면 일치.
  *
- * `dial` 은 E.164 prefix (앞의 + 제외 1~3자리). emoji flag 는 BMP 외 surrogate pair
- * (Windows 글꼴 미지원 시 사각형 표시 가능 — 안전한 fallback, 텍스트엔 영향 없음).
+ * flag emoji 는 데이터에 없음 — flagOf(code) 로 ISO2 → regional indicator surrogate pair 파생
+ *   (Windows 글꼴 미지원 시 사각형 표시 = 안전 fallback, 텍스트엔 영향 없음).
+ *
+ * ⚠️ 번들: 데이터 배열(country-dials.data.ts)은 이 모듈을 통해서만 노출 — import 처(BookingInfoForm/
+ *   PhoneSignInModal/CountryDialPicker)가 모두 lazy chunk 라 eager entry 번들에 안 샘(check:size 게이트).
  */
+import { RAW_COUNTRIES } from './country-dials.data';
 
 export type DialLang = 'ko' | 'en' | 'ja' | 'zh';
 
 export interface CountryDial {
   code: string;
   dial: string;
-  flag: string;
   name: { ko: string; en: string; ja: string; zh: string };
 }
 
-// PR #399 (2026-05-13): 국가 select dropdown — CocoTrip 외국인 핵심 타겟 + 주요 국가.
-// 정렬 = 동아시아·동남아(자주 쓰는 외국인 타겟) 상위, 이후 서구권. KR 첫번째(국내 회귀 안전).
-export const COUNTRIES: ReadonlyArray<CountryDial> = [
-  { code: 'KR', dial: '82',  flag: '🇰🇷', name: { ko: '대한민국', en: 'South Korea',  ja: '韓国',     zh: '韩国' } },
-  { code: 'JP', dial: '81',  flag: '🇯🇵', name: { ko: '일본',     en: 'Japan',        ja: '日本',     zh: '日本' } },
-  { code: 'TW', dial: '886', flag: '🇹🇼', name: { ko: '대만',     en: 'Taiwan',       ja: '台湾',     zh: '台湾' } },
-  { code: 'HK', dial: '852', flag: '🇭🇰', name: { ko: '홍콩',     en: 'Hong Kong',    ja: '香港',     zh: '香港' } },
-  { code: 'CN', dial: '86',  flag: '🇨🇳', name: { ko: '중국',     en: 'China',        ja: '中国',     zh: '中国' } },
-  { code: 'US', dial: '1',   flag: '🇺🇸', name: { ko: '미국',     en: 'United States', ja: 'アメリカ', zh: '美国' } },
-  { code: 'SG', dial: '65',  flag: '🇸🇬', name: { ko: '싱가포르', en: 'Singapore',    ja: 'シンガポール', zh: '新加坡' } },
-  { code: 'MY', dial: '60',  flag: '🇲🇾', name: { ko: '말레이시아', en: 'Malaysia',    ja: 'マレーシア', zh: '马来西亚' } },
-  { code: 'TH', dial: '66',  flag: '🇹🇭', name: { ko: '태국',     en: 'Thailand',     ja: 'タイ',     zh: '泰国' } },
-  { code: 'ID', dial: '62',  flag: '🇮🇩', name: { ko: '인도네시아', en: 'Indonesia',   ja: 'インドネシア', zh: '印度尼西亚' } },
-  { code: 'VN', dial: '84',  flag: '🇻🇳', name: { ko: '베트남',   en: 'Vietnam',      ja: 'ベトナム', zh: '越南' } },
-  { code: 'PH', dial: '63',  flag: '🇵🇭', name: { ko: '필리핀',   en: 'Philippines',  ja: 'フィリピン', zh: '菲律宾' } },
-  { code: 'AU', dial: '61',  flag: '🇦🇺', name: { ko: '호주',     en: 'Australia',    ja: 'オーストラリア', zh: '澳大利亚' } },
-  { code: 'GB', dial: '44',  flag: '🇬🇧', name: { ko: '영국',     en: 'United Kingdom', ja: 'イギリス', zh: '英国' } },
-  { code: 'DE', dial: '49',  flag: '🇩🇪', name: { ko: '독일',     en: 'Germany',      ja: 'ドイツ',   zh: '德国' } },
-  { code: 'FR', dial: '33',  flag: '🇫🇷', name: { ko: '프랑스',   en: 'France',       ja: 'フランス', zh: '法国' } },
-  { code: 'CA', dial: '1',   flag: '🇨🇦', name: { ko: '캐나다',   en: 'Canada',       ja: 'カナダ',   zh: '加拿大' } },
-] as const;
+// 전세계 국가 배열 (data 파일에서 그대로 노출). KR/US/CA(+1)/TW/JP/CN 등 핵심 포함.
+export const COUNTRIES: ReadonlyArray<CountryDial> = RAW_COUNTRIES;
+
+// 자주 찾는 dial (picker 상단 고정) — 한국 타겟 외국인 분포: KR/US·CA/JP/CN/TW/HK/VN/TH.
+//   '1' 은 US/CA 공유 → findCountryByDial 첫 일치(CA 알파벳순 우선이나 picker 는 dial 매칭이라 무관).
+export const PINNED_DIALS: ReadonlyArray<string> = ['82', '1', '81', '86', '886', '852', '84', '66'];
 
 // 언어 → default 국가 dial code (사용자 진입 시 자동 선택).
 // CocoTrip 외국인 VIP 투어 타겟 분포 기반.
@@ -48,6 +36,17 @@ export const DEFAULT_DIAL_BY_LANG: Record<DialLang, string> = {
   zh: '86', // 중국 본토 우선 (대만/홍콩 별도 선택)
   en: '1',  // 미국 default — 영어권 사용자
 };
+
+/**
+ * ISO3166-1 alpha-2 국가코드 → flag emoji (regional indicator symbols).
+ * 데이터에 flag 를 박지 않고 code 에서 파생 — 단일 출처(SSOT), 데이터 경량.
+ * 잘못된/2자 아닌 코드는 그대로 반환(안전).
+ */
+export function flagOf(code: string): string {
+  const cc = (code || '').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return code || '';
+  return cc.replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
 
 /**
  * dial code 로 국가 1개 찾기. dial 은 1:1 이 아님(US/CA 둘 다 '1') → 첫 일치 반환.
@@ -67,6 +66,13 @@ export function findCountryByDial(dial: string): CountryDial | undefined {
  *  - ""                                     → { dial:'', national:'' }
  *
  * 반환 national 은 숫자만(구분자 제거). dial 미검출 시 dial='' (호출처가 기본 dial 유지).
+ *
+ * ⚠️ 200국 확장 함정 (P-pattern, country-dials 설계 §5):
+ *   공백 없는 raw 의 무공백 분기는 최장 3자리(3→2→1)만 검사 → 4자리 dial(예 BS '1242',
+ *   US 와 prefix '1' 공유)은 무공백 시 dial='1' 로 오추정 가능. 단 *실제 emit 은 항상
+ *   composePhoneValue 로 "+{dial} {national}"(공백 1개) → spaceMatch 분기가 1~4자리 정확 매칭.
+ *   위험 = 외부에서 들어온 공백 없는 구 raw resume 시 dial *표시*만 틀어짐(결제/연락 무해 —
+ *   전체 숫자는 동일, 게이트 isValidInternationalPhone 무영향). spaceMatch 우선 유지로 정상 emit 안전.
  */
 export function parsePhoneValue(raw: string): { dial: string; national: string } {
   if (typeof raw !== 'string' || raw.trim() === '') return { dial: '', national: '' };
@@ -74,7 +80,7 @@ export function parsePhoneValue(raw: string): { dial: string; national: string }
   if (trimmed.startsWith('+')) {
     // '+' 뒤 전체 숫자
     const digits = trimmed.slice(1).replace(/\D/g, '');
-    // 공백/구분자 기준으로 dial 추출 시도 ("+82 10..." 형태가 가장 흔함)
+    // 공백/구분자 기준으로 dial 추출 시도 ("+82 10..." 형태가 가장 흔함). 1~4자리(4자리 dial 정확).
     const spaceMatch = trimmed.match(/^\+\s*(\d{1,4})[\s\-().]/);
     if (spaceMatch) {
       const cand = spaceMatch[1];
@@ -82,7 +88,7 @@ export function parsePhoneValue(raw: string): { dial: string; national: string }
         return { dial: cand, national: digits.slice(cand.length) };
       }
     }
-    // 구분자 없음 → 알려진 dial 최장(3→2→1자리) 우선 일치
+    // 구분자 없음 → 알려진 dial 최장(3→2→1자리) 우선 일치. (4자리 dial 은 위 spaceMatch 로만 정확.)
     for (const len of [3, 2, 1]) {
       const cand = digits.slice(0, len);
       if (findCountryByDial(cand)) {

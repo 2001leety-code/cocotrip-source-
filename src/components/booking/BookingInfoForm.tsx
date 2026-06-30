@@ -5,7 +5,8 @@
 // SSOT 색: 배경 #080b14 / 보라 #7C5CFC·#B9A4FF / 핑크 #EA537E·#FF6B9D / 민트 #00D28C / 골드 #C4956A.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { COUNTRIES, DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
+import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
+import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
 
 export interface BookingFormData {
   lastName: string;
@@ -247,19 +248,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <div>
               <label style={C.label}>휴대폰 번호 <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
-                {/* 국가번호 드롭다운 — COUNTRIES SSOT(로그인 전화인증과 공유). 외국인 정확 입력. */}
-                <select
+                {/* 국가번호 picker — 트립닷컴식(검색+자주찾는+전세계 ~239국). COUNTRIES SSOT(로그인 전화인증과 공유). */}
+                <CountryDialPicker
                   value={selDial}
-                  onChange={(e) => { const d = e.target.value; setSelDial(d); emitPhone(d, localNumber); }}
-                  aria-label="국가번호"
-                  style={{ ...C.input, flex: '0 0 auto', width: 116, cursor: 'pointer', paddingLeft: 10, paddingRight: 6 }}
-                >
-                  {COUNTRIES.map((c) => (
-                    <option key={c.code} value={c.dial} style={{ background: '#0f1220', color: '#fff' }}>
-                      {c.flag} {c.name[lang] || c.name.en} (+{c.dial})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(d) => { setSelDial(d); emitPhone(d, localNumber); }}
+                  lang={lang}
+                />
                 <input
                   value={localNumber}
                   onChange={(e) => { const v = e.target.value; setLocalNumber(v); emitPhone(selDial, v); }}
