@@ -226,6 +226,9 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <Chip>{props.dateText}</Chip>
               <Chip>{props.paxText}</Chip>
+              {/* 총금액 항상 노출 — 모달/모바일에서 우측 결제정보 카드가 아래로 밀려도 요약에서 즉시 확인.
+                  값=prop totalStr 그대로(재계산 X · PayPal priceKRW 와 동일 source). */}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, color: '#C99FFF', background: 'rgba(182,104,252,0.12)', border: '1px solid rgba(182,104,252,0.30)', padding: '4px 9px', borderRadius: 9999, whiteSpace: 'nowrap' }}>{totalStr}</span>
             </div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>✓ 사용일 1일 전까지 무료 취소</div>
           </div>
