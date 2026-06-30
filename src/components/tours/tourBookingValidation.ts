@@ -41,3 +41,34 @@ export function isTourStep2Complete(fields: {
     fields.memoText.trim().length > 0
   );
 }
+
+/**
+ * 투어 예약 표시 총액 (P311 — 표시가 = 청구가).
+ *
+ * 운영자 확정(2026-06-30): 투어 애드온(한복/카시트/가이드 등)은 **무료/현장결제** 라
+ *   PayPal 청구에 포함되지 않는다. 백엔드 createPaypalOrder 의 resolveKrwAmount 는 차터
+ *   productType 에 대해 `dailyPrice × days` (= baseKRW) 만 청구하고 애드온은 합산하지 않음.
+ *   따라서 화면 표시 총액에서도 애드온(addonKRW)을 빼야 표시가 == 청구가 가 성립한다.
+ *
+ * ⚠️ addonKRW 는 의도적으로 인자에서 제외했다 (재추가 = P311 위반). slotModifierKRW 는
+ *   애드온이 아니므로 그대로 포함 (공항 시간대 등). slot 의 백엔드 청구 누락 여부는 별도
+ *   운영자 결정사항(이번 스코프 X) — 여기선 기존 표시 동작을 보존한다.
+ *
+ * 순수 함수 — firebase/React 미접촉이라 CI vitest 가 컴포넌트 렌더 없이 검증 가능.
+ */
+export function computeTourBookingTotalKRW(baseKRW: number, slotModifierKRW: number): number {
+  return baseKRW + slotModifierKRW;
+}
+
+/**
+ * 한복 인원 카운터 clamp — 0 ~ pax 범위로 제한.
+ *
+ * 운영자 준비용 수량(몇 벌 준비할지)일 뿐 가격에는 미반영(애드온=무료). pax 가 줄면
+ *   기존 hanbokCount 가 새 pax 를 초과할 수 있어 clamp 필요(예: 4명→2명 변경 시 4→2).
+ *   음수/NaN 방어 포함.
+ */
+export function clampHanbokCount(count: number, pax: number): number {
+  const safeMax = Math.max(0, Math.floor(pax));
+  if (!Number.isFinite(count) || count < 0) return 0;
+  return Math.min(Math.floor(count), safeMax);
+}

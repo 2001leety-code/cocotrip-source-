@@ -25,7 +25,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
 import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
 import { formatPrice } from '@/lib/exchange-rate';
-import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
+import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete, computeTourBookingTotalKRW, clampHanbokCount } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
@@ -53,6 +53,8 @@ type TourBookingSnapshot = {
   memoText: string;
   /** Phase 1 (2026-05-19): 시간 슬롯 ID (tour.slots[].id). 슬롯 없는 투어는 null. */
   selectedSlotId?: string | null;
+  /** 2026-06-30: 한복 대여 인원 카운터(0~pax). 가격 미반영(애드온=무료) — 운영자 준비 수량용. */
+  hanbokCount?: number;
 };
 
 function isoFromDate(d: Date | undefined): string {
@@ -94,18 +96,8 @@ function formatKRW(n: number): string {
   return `₩${Math.round(n).toLocaleString('ko-KR')}`;
 }
 
-// batch 9 fix (B9-5, 2026-05-09): addon 가격이 투어별로 다르게 계산될 수 있도록
-// addons 인자 받음. attraction_pass 는 tour.stops 합산값으로 동적 override.
-function computeAddonTotal(selectedIds: Set<string>, pax: number, days: number, addons: AddonItem[]): number {
-  let total = 0;
-  for (const a of addons) {
-    if (!selectedIds.has(a.id)) continue;
-    if (a.unit === 'per_person') total += a.priceKRW * pax;
-    else if (a.unit === 'per_day') total += a.priceKRW * days;
-    else total += a.priceKRW;
-  }
-  return total;
-}
+// 2026-06-30: computeAddonTotal 제거 — 애드온=무료/현장결제 확정으로 totalKRW 에 더 이상
+//   합산하지 않음(P311 표시가=청구가). attraction_pass 동적 가격은 여전히 옵션 목록 참고표시에만 사용.
 
 const I18N: Record<Language, {
   title: string; pax: string; date: string; lang: string; addons: string;
@@ -122,6 +114,10 @@ const I18N: Record<Language, {
   required: string; missingFields: string;
   /** PR-F: 선택 필드 표기 — 플래그 ON 시에만 사용 */
   optional: string;
+  /** 2026-06-30 운영자 확정: 투어 애드온=무료/현장결제. 총액 미포함 인지용 라벨. */
+  addonOnsite: string;
+  /** 한복 인원 카운터 라벨 (가격 미반영 — 운영자 준비 수량용) */
+  hanbokCount: string;
 }> = {
   ko: { title: '투어 예약', pax: '인원수', date: '투어 날짜', lang: '기사 언어', addons: '추가 옵션',
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
@@ -134,7 +130,9 @@ const I18N: Record<Language, {
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '특별 요청 / 메모', memoPh: '알레르기, 아동 동반, 접근성 등',
         required: '필수', missingFields: '필수 항목을 모두 입력해주세요',
-        optional: '선택' },
+        optional: '선택',
+        addonOnsite: '선택 옵션 · 현장 결제 (총액 미포함)',
+        hanbokCount: '한복 대여 (인원)' },
   en: { title: 'Book This Tour', pax: 'Passengers', date: 'Tour date', lang: 'Driver language', addons: 'Add-ons',
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
         cancel: 'Cancel', submit: 'Get a quote', pickDate: 'Select date',
@@ -146,7 +144,9 @@ const I18N: Record<Language, {
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: 'Special requests / notes', memoPh: 'Allergies, kids, accessibility, etc.',
         required: 'required', missingFields: 'Please fill in all required fields',
-        optional: 'optional' },
+        optional: 'optional',
+        addonOnsite: 'Optional · pay on-site (not included in total)',
+        hanbokCount: 'Hanbok rental (count)' },
   ja: { title: 'ツアー予約', pax: '人数', date: 'ツアー日', lang: 'ドライバー言語', addons: '追加オプション',
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
         cancel: 'キャンセル', submit: '見積もりを取得', pickDate: '日付を選択',
@@ -158,7 +158,9 @@ const I18N: Record<Language, {
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '特別なリクエスト / メモ', memoPh: 'アレルギー、お子様連れ、バリアフリーなど',
         required: '必須', missingFields: '必須項目をすべて入力してください',
-        optional: '任意' },
+        optional: '任意',
+        addonOnsite: '任意オプション · 現地払い（合計に含まれません）',
+        hanbokCount: '韓服レンタル（人数）' },
   zh: { title: '预订旅游', pax: '人数', date: '旅游日期', lang: '司机语言', addons: '附加选项',
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
         cancel: '取消', submit: '获取报价', pickDate: '选择日期',
@@ -170,7 +172,9 @@ const I18N: Record<Language, {
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '特别要求 / 备注', memoPh: '过敏、儿童同行、无障碍需求等',
         required: '必填', missingFields: '请填写所有必填项',
-        optional: '选填' },
+        optional: '选填',
+        addonOnsite: '可选项 · 现场支付（不含在总额内）',
+        hanbokCount: '韩服租赁（人数）' },
 };
 
 const DRIVER_LANG_LABELS: Record<DriverLanguage, Record<Language, string>> = {
@@ -255,18 +259,29 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   );
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(initialSnap?.selectedSlotId ?? null);
 
+  // 2026-06-30: 한복 대여 인원 카운터 (0~pax). 가격 미반영(애드온=무료/현장결제) — 운영자가
+  //   몇 벌 준비할지 파악용. snapshot 복원 시 현재 pax 로 clamp(저장 후 pax 줄었을 수 있음).
+  const [hanbokCount, setHanbokCount] = useState<number>(
+    () => clampHanbokCount(initialSnap?.hanbokCount ?? 0, initialSnap?.pax ?? pax),
+  );
+
   // 날짜 변경 시 슬롯 선택 reset (날짜별 capacity 변할 수 있어 — 향후 확장 대비)
   useEffect(() => {
     if (activeSlots.length === 0) setSelectedSlotId(null);
   }, [date, activeSlots.length]);
+
+  // pax 감소 시 한복 인원 clamp (예: 4명→2명 변경 시 hanbokCount 4→2). 증가 시는 무변경.
+  useEffect(() => {
+    setHanbokCount((c) => clampHanbokCount(c, pax));
+  }, [pax]);
 
   // debounced autosave — 매 키 입력마다 저장 X, 500ms 후 1번. Set 직렬화 array 변환.
   const persistValues = useMemo<TourBookingSnapshot>(() => ({
     pax, date, driverLang,
     selectedAddons: Array.from(selectedAddons),
     step, phone, pickupAddress, messenger, memoText,
-    selectedSlotId,
-  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, messenger, memoText, selectedSlotId]);
+    selectedSlotId, hanbokCount,
+  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, messenger, memoText, selectedSlotId, hanbokCount]);
   useWizardPersistence(persistKey, persistValues, step);
 
   // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
@@ -295,8 +310,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const days = Math.max(1, tour.durationDays);
 
   // 비-영어 기사는 자동으로 해당 addon 추가
+  // 2026-06-30: hanbok_rental 은 인원 카운터(hanbokCount)로 분리됐으므로 애드온 집합에서 제외
+  //   (구 snapshot 에 남아있어도 이중계산/메모 중복 방지 — 어차피 totalKRW 는 애드온 제외라 가격 무관).
   const effectiveAddons = useMemo(() => {
     const next = new Set(selectedAddons);
+    next.delete('hanbok_rental');
     if (driverLang === 'ja') next.add('japanese_driver');
     if (driverLang === 'zh') next.add('chinese_driver');
     return next;
@@ -318,7 +336,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     );
   }, [tourAdmissionTotal]);
 
-  const addonKRW = computeAddonTotal(effectiveAddons, pax, days, dynamicAddons);
+  // 2026-06-30: addonKRW(애드온 소계) 제거 — 애드온=무료/현장결제라 totalKRW(=청구가)에 미포함.
+  //   computeAddonTotal 호출 삭제 → totalKRW 가 애드온과 무관해 P311(표시가=청구가) 정합.
 
   // Phase 1 (2026-05-19): 선택 슬롯의 price_modifier_krw 가 총액에 반영됨.
   // 슬롯 미선택이거나 슬롯 없는 투어는 0.
@@ -328,7 +347,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   );
   const slotModifierKRW = selectedSlot?.price_modifier_krw ?? 0;
 
-  const totalKRW = baseKRW + addonKRW + slotModifierKRW;
+  // P311 (2026-06-30 운영자 확정): 투어 애드온(한복/카시트/가이드)=무료/현장결제 →
+  //   PayPal 청구에 미포함(백엔드 resolveKrwAmount = dailyPrice×days = baseKRW 만 청구).
+  //   따라서 표시 총액에서도 addonKRW 를 제외해야 표시가 == 청구가(priceKRW={totalKRW}).
+  //   slotModifierKRW 는 애드온 아님(공항 시간대 등)이라 기존대로 포함(표시 동작 보존).
+  //   ⚠️ addonKRW 를 totalKRW 에 재합산하지 말 것 — P311 위반(표시가>청구가).
+  const totalKRW = computeTourBookingTotalKRW(baseKRW, slotModifierKRW);
 
   // 표시가 = 청구가 (P311): totalStr/usdStr 은 기존 totalKRW 에서 파생만. 재계산 금지.
   const totalStr = formatKRW(totalKRW);
@@ -373,6 +397,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       `Pickup: ${pickupAddress}`,
       `Messenger: ${messenger}`,
       `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
+      // 2026-06-30: 한복 대여 인원(가격 미반영 — 무료/현장결제). 운영자가 몇 벌 준비할지 파악용.
+      `Hanbok: ${hanbokCount} pax`,
       `Notes: ${memoText}`,
       // 2026-06-30 트립닷컴식 예약정보 — 약관 동의 결과를 memo 에 기록 (SMS 인증 제거 운영자).
       //   (결제 로직 무관 — backend 가 memo 를 그대로 booking 에 보존. 운영자 컴플라이언스 추적용.)
@@ -386,15 +412,21 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, termsAgreed, marketingConsent]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, hanbokCount, memoText, selectedSlot, termsAgreed, marketingConsent]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
   // (입장료 데이터가 없는 투어에 ₩0 옵션을 노출하면 혼란).
+  // 2026-06-30: hanbok_rental 은 체크박스 대신 인원 카운터로 분리 렌더 → 토글 목록에서 제외.
   const visibleAddons = dynamicAddons.filter(a =>
     a.applies_to.includes('tour') &&
-    !['japanese_driver', 'chinese_driver'].includes(a.id) &&
+    !['japanese_driver', 'chinese_driver', 'hanbok_rental'].includes(a.id) &&
     !(a.id === 'attraction_pass' && tourAdmissionTotal <= 0)
+  );
+  // 한복 애드온 메타(라벨·참고가). 투어 적용 가능할 때만 카운터 노출.
+  const hanbokAddon = useMemo(
+    () => ADDONS.find(a => a.id === 'hanbok_rental' && a.applies_to.includes('tour')) ?? null,
+    [],
   );
 
   const submitUrl = useMemo(() => {
@@ -571,9 +603,13 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             </div>
           </div>
 
-          {/* Add-ons */}
+          {/* Add-ons — 2026-06-30 운영자 확정: 무료/현장결제. 표시 총액(=청구가)에 미포함.
+              "현장 결제(선택)" 라벨로 사용자가 총액에 안 더해짐을 인지하게. 각 가격은 참고표시 유지. */}
           <div>
-            <p className="text-[11px] text-white/55 uppercase tracking-wider mb-1.5">{labels.addons}</p>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <p className="text-[11px] text-white/55 uppercase tracking-wider">{labels.addons}</p>
+              <p className="text-[10px] text-white/40">{labels.addonOnsite}</p>
+            </div>
             <div className="space-y-1.5">
               {visibleAddons.map(a => {
                 const checked = selectedAddons.has(a.id);
@@ -613,6 +649,47 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   </button>
                 );
               })}
+
+              {/* 한복 대여 — 인원 카운터 (가격 미반영·무료/현장결제). 운영자 준비 수량용.
+                  Counter 패턴 = BookingInfoForm 캐리어 카운터(미export → 인라인). max=pax. */}
+              {hanbokAddon && (
+                <div
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl"
+                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[12px] text-white/75 truncate">{labels.hanbokCount}</span>
+                    <span className="text-[10px] text-white/40">
+                      ₩{hanbokAddon.priceKRW.toLocaleString('ko-KR')}
+                      {language === 'ko' ? '/인' : language === 'ja' ? '/人' : language === 'zh' ? '/人' : '/pax'}
+                      {' · '}{labels.optional}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setHanbokCount(c => clampHanbokCount(c - 1, pax))}
+                      disabled={hanbokCount <= 0}
+                      className="w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                      aria-label={translations[language].a11y?.decreasePax || 'Decrease'}
+                    >
+                      <Minus className="w-3.5 h-3.5 text-white/70" />
+                    </button>
+                    <span className="text-[14px] font-black tabular-nums w-6 text-center">{hanbokCount}</span>
+                    <button
+                      type="button"
+                      onClick={() => setHanbokCount(c => clampHanbokCount(c + 1, pax))}
+                      disabled={hanbokCount >= pax}
+                      className="w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                      aria-label={translations[language].a11y?.increasePax || 'Increase'}
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white/70" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -629,12 +706,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               </span>
               <span>{formatKRW(baseKRW)}</span>
             </div>
-            {addonKRW > 0 && (
-              <div className="flex justify-between text-[11px] text-white/55 mb-1">
-                <span>{labels.priceAddons}</span>
-                <span>+{formatKRW(addonKRW)}</span>
-              </div>
-            )}
+            {/* 2026-06-30: 애드온 소계 라인 제거 — 애드온=무료/현장결제라 총액(=청구가)에 미포함.
+                "+₩X" 표기는 총액에 더해진다는 오해를 줘 P311(표시가>청구가) 인상 → 삭제.
+                각 애드온 참고가는 위 옵션 목록에서 유지(현장결제 라벨과 함께). */}
             <div className="h-px bg-white/[0.08] my-1.5" />
             <div className="flex justify-between text-[14px] font-black">
               <span className="text-white">{labels.priceTotal}</span>
