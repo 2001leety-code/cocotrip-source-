@@ -85,15 +85,15 @@ export interface BookingInfoFormProps {
 // ── 스타일 토큰 ──────────────────────────────────────────────
 const C = {
   card: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 22, backdropFilter: 'blur(20px)' } as React.CSSProperties,
-  input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.92)', fontSize: 14, fontFamily: 'inherit', outline: 'none' } as React.CSSProperties,
-  label: { display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: '0 0 7px', fontWeight: 500 } as React.CSSProperties,
+  input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.92)', fontSize: 16, fontFamily: 'inherit', outline: 'none' } as React.CSSProperties,
+  label: { display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: '0 0 9px', fontWeight: 500 } as React.CSSProperties,
   req: { color: '#FF6B9D' } as React.CSSProperties,
-  opt: { fontSize: 11, color: 'rgba(255,255,255,0.3)' } as React.CSSProperties,
+  opt: { fontSize: 12, color: 'rgba(255,255,255,0.4)' } as React.CSSProperties,
 };
 
 function SectionHead({ title, sub }: { title: string; sub: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 18 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 24 }}>
       <span style={{ display: 'flex', width: 32, height: 32, borderRadius: 9, background: 'rgba(124,92,252,0.12)', border: '1px solid rgba(124,92,252,0.25)', alignItems: 'center', justifyContent: 'center', color: '#B9A4FF', flex: '0 0 auto', fontSize: 15 }}>•</span>
       <div>
         <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em' }}>{title}</div>
@@ -104,7 +104,7 @@ function SectionHead({ title, sub }: { title: string; sub: string }) {
 }
 
 function Counter({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  const btn: React.CSSProperties = { width: 30, height: 30, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 18, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+  const btn: React.CSSProperties = { width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 18, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '9px 14px' }}>
       <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</span>
@@ -215,7 +215,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 16px 0', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', color: '#fff' }}>
       {/* ── LEFT COLUMN ── */}
-      <div style={{ flex: '1 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: '1 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* 요약 카드 */}
         <div style={{ ...C.card, display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -359,7 +359,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <span style={{ fontWeight: 700, fontSize: 14 }}>아래 항목에 모두 동의합니다</span>
           </label>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* 필수 3개 — 외부모드면 checked=requiredAgreed(마케팅 토글이 필수 표시에 안 새게), onChange=호출처 termsAgreed. */}
             <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
             <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
