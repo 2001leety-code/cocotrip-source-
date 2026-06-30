@@ -12,7 +12,7 @@
  *
  * client items[].priceKRW 완전 불신 — productType + 식별 키만으로 재계산 (변조 차단).
  */
-import { resolveMultiDayCheckoutKrw } from './charter-multiday-price.js';
+import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './charter-multiday-price.js';
 import { resolveTourCheckoutKrw } from './tour-price.js';
 import { resolveTransferCheckoutKrw } from './charter-transfer-price.js';
 import { isAiPlannerProduct } from './ai-planner-policy.js';
@@ -41,9 +41,13 @@ export const AI_PLANNER_FULL_KRW = 13_300;
  * 정본 resolveKrwAmount — createPaypalOrder.js L78-129 와 동일 공식 (SPEC 인자화).
  * @returns {number|null} KRW, 또는 결제 불가(미존재 키 등) 시 null.
  */
-export function resolveKrwAmount(SPEC, productType, passengers, durationDays) {
+export function resolveKrwAmount(SPEC, productType, passengers, durationDays, vehicle) {
   if (!SPEC) return null;
   const normalized = String(productType || '').replace(/-/g, '_');
+
+  // 7인승 캡틴시트 프리미엄 정액(SSOT vehicles.{vehicle}.captain_premium_krw) — createPaypalOrder.js 정본 미러.
+  // staria=33,000 / staria_9=0 / 그 외=0. vehicle 미전달 시 0(기존 동작 보존). CHARTER_MAP day-tour + airport 만 가산.
+  const captain = captainPremiumKrw(SPEC, vehicle);
 
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
 
@@ -62,14 +66,14 @@ export function resolveKrwAmount(SPEC, productType, passengers, durationDays) {
     const dailyPrice = dp && dp.priceKRW;
     if (!dailyPrice) return null;
     const days = Number.isFinite(durationDays) && durationDays >= 1 ? Math.min(30, Math.floor(durationDays)) : 1;
-    return dailyPrice * days;
+    return dailyPrice * days + captain;
   }
 
   // 공항 픽업
   if (normalized.startsWith('airport_')) {
     const key = normalized.slice('airport_'.length).replace(/_/g, '-');
     const ap = SPEC.airport_transfer_prices[key];
-    return (ap && ap.priceKRW) || null;
+    return ap && ap.priceKRW ? ap.priceKRW + captain : null;
   }
 
   // 콤보 — SSOT combo_packages 우선, 없으면 fallback. per-package discount_percent override.
@@ -117,7 +121,7 @@ export function resolveLineItemKrw(SPEC, booking, opts = {}) {
   if (productType === 'charter_transfer') {
     return resolveTransferCheckoutKrw(SPEC, booking, !!opts.transferEnabled, { marginGuardEnabled: opts.marginGuardEnabled, discountV2: opts.discountV2 });
   }
-  return resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays);
+  return resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays, booking.vehicle);
 }
 
 /**

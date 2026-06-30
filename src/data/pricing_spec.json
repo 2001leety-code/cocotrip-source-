@@ -97,12 +97,14 @@
 
   "vehicles": {
     "staria": {
-      "name_ko": "현대 스타리아",
-      "name_en": "Hyundai Staria",
-      "name_ja": "スターリア",
-      "name_zh": "星际旅行车",
+      "name_ko": "스타리아 7인승 (캡틴시트)",
+      "name_en": "Staria 7-seat (Captain seats)",
+      "name_ja": "スターリア 7人乗り (キャプテンシート)",
+      "name_zh": "星际旅行车 7座 (商务座椅)",
       "max_pax": 7,
-      "features_ko": ["1~7인 탑승 (운전자 제외)", "대형 캐리어 수납 가능", "전좌석 프리미엄 시트", "영어 소통 가능 기사"],
+      "captain_premium_krw": 33000,
+      "captain_premium_krw_comment": "7인승 캡틴시트 프리미엄 정액(VAT 포함, 2026-06-30 운영자 결정). multiplier 적용 직후·옵션/할증 전에 가산. 9인승(staria_9)은 0. 프론트(useQuoteCalculator/resolveProductType)+백(createPaypalOrder/charter-transfer·multiday·tour-price)이 이 SSOT 단일값을 공유 → 표시가==청구가(P311).",
+      "features_ko": ["1~7인 탑승 (운전자 제외)", "대형 캐리어 수납 가능", "전좌석 프리미엄 캡틴시트", "영어 소통 가능 기사"],
       "guide_required": false,
       "guide_daily_fee": 0,
       "metro_charter": {
@@ -118,10 +120,39 @@
         "daily_service_fee": 200000,
         "overnight_driver_fee": 130000
       },
-      "description_ko": "프라이빗 소그룹 (최대 7인)",
-      "description_en": "Private small group (up to 7)",
-      "description_ja": "プライベート小グループ（最大7名）",
-      "description_zh": "私人小团（最多7人）"
+      "description_ko": "프라이빗 소그룹 (최대 7인) · 캡틴시트",
+      "description_en": "Private small group (up to 7) · Captain seats",
+      "description_ja": "プライベート小グループ（最大7名）・キャプテンシート",
+      "description_zh": "私人小团（最多7人）· 商务座椅"
+    },
+    "staria_9": {
+      "name_ko": "스타리아 9인승",
+      "name_en": "Staria 9-seat",
+      "name_ja": "スターリア 9人乗り",
+      "name_zh": "星际旅行车 9座",
+      "max_pax": 9,
+      "captain_premium_krw": 0,
+      "captain_premium_krw_comment": "9인승은 캡틴시트 프리미엄 없음(현 staria 가격 유지, 2026-06-30 운영자 결정). multiplier 1.0 = 7인승 기본가와 동일가. 가이드 불필요(staria 처럼 즉시결제 허용).",
+      "features_ko": ["1~9인 탑승 (운전자 제외)", "대형 캐리어 수납 가능", "넉넉한 9인 좌석", "영어 소통 가능 기사"],
+      "guide_required": false,
+      "guide_daily_fee": 0,
+      "metro_charter": {
+        "h4":  291200,
+        "h8":  330000,
+        "h12": 572000,
+        "overtime_hourly": 33000
+      },
+      "intercity": {
+        "base_fee": 50000,
+        "rate_per_km": 1000,
+        "deadhead_factor": 1.8,
+        "daily_service_fee": 200000,
+        "overnight_driver_fee": 130000
+      },
+      "description_ko": "프라이빗 소그룹 (최대 9인)",
+      "description_en": "Private small group (up to 9)",
+      "description_ja": "プライベート小グループ（最大9名）",
+      "description_zh": "私人小团（最多9人）"
     },
     "sprinter": {
       "name_ko": "스프린터/스피너",

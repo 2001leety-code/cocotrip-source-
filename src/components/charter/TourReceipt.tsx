@@ -1,7 +1,7 @@
 // TourReceipt — 투어(시간제) 견적 영수증 (운영자 2026-06-02 "Vercel 영수증처럼 쿠폰 자동적용 총액").
 // 기본 9h + 거리추가(자동) + 쿠폰 5% + VAT 10% = 총액. 오버타임(9h 초과)은 현장결제 안내만.
 // 가격은 src/lib/tourQuote (백엔드 api/_shared/tour-price 와 1:1 일치). 플래그 ON + custom 목적지(km>0)에서만 노출.
-import { calcTourQuote } from '@/lib/tourQuote';
+import { calcTourQuote, captainPremiumKrwFor } from '@/lib/tourQuote';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -29,7 +29,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
 }
 
 export function TourReceipt({ km, vehicle, language = 'en' }: { km: number; vehicle: string; language?: Lang }) {
-  const q = calcTourQuote({ km, vehicle });
+  const q = calcTourQuote({ km, vehicle, captainPremiumKrw: captainPremiumKrwFor(vehicle) });
   if (!q) return null;
   const lbl = (k: string) => L[k]?.[language] ?? L[k]?.en ?? k;
   return (

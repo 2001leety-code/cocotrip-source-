@@ -1,6 +1,7 @@
 // 차종별 실차 사진 갤러리 (public/vehicles/). 첫 장 = 카드 대표(외부 측면).
-// staria = 7인승 갈색 캡틴시트(프리미엄), sprinter = 9인승 검정 벤치(실용).
-// bus/vip 는 상담 진행이라 사진 없음.
+// staria = 7인승 갈색 캡틴시트(프리미엄), staria_9 = 9인승 검정 벤치(실용).
+// 2026-06-30: 옛 'sprinter' 키가 9인 스타리아(staria9) 사진을 잘못 담고 있어 → staria_9 키로 이관(정배치).
+//   진짜 sprinter(중형 벤) 실사진은 아직 없음 → 운영자 준비. bus 도 상담 진행이라 사진 없음.
 export const VEHICLE_GALLERY: Partial<Record<string, string[]>> = {
   staria: [
     '/vehicles/staria7/staria7-03.webp', // 외부 측면 (대표)
@@ -10,7 +11,7 @@ export const VEHICLE_GALLERY: Partial<Record<string, string[]>> = {
     '/vehicles/staria7/staria7-05.webp', // 내부 앞좌석
     '/vehicles/staria7/staria7-06.webp', // 외부 후면
   ],
-  sprinter: [
+  staria_9: [
     '/vehicles/staria9/staria9-08.webp', // 외부 측면 (대표)
     '/vehicles/staria9/staria9-01.webp', // 트렁크 짐칸 (수하물)
     '/vehicles/staria9/staria9-04.webp', // 검정 벤치 내부
@@ -18,4 +19,5 @@ export const VEHICLE_GALLERY: Partial<Record<string, string[]>> = {
     '/vehicles/staria9/staria9-03.webp', // 내부 측면
     '/vehicles/staria9/staria9-02.webp', // 외부 후면
   ],
+  // sprinter: 진짜 중형 벤 실사진 운영자 준비 중 (placeholder 미배치 — 사진 없으면 갤러리 미표시).
 };

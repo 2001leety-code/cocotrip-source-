@@ -101,13 +101,14 @@ describe('resolveTourCheckoutKrw — 결제 게이트 (플래그 + matrix backen
     expect(resolveTourCheckoutKrw(SPEC, body, false)).toBeNull();
   });
 
-  it('플래그 ON + 춘천 85km → 영수증 총액 527,725 (오버타임 현장결제 제외)', () => {
-    // 기본 405,000 + 거리 100,000 = 505,000 → 쿠폰5% −25,250 → VAT10% +47,975
-    expect(resolveTourCheckoutKrw(SPEC, body, true)).toBe(527_725);
+  it('플래그 ON + 춘천 85km → 영수증 총액 562,210 (staria 7인 캡틴 +33,000, 오버타임 현장결제 제외)', () => {
+    // 기본 405,000 + 캡틴 33,000 + 거리 100,000 = 538,000 → 쿠폰5% −26,900 → VAT10% +51,110 = 562,210
+    expect(resolveTourCheckoutKrw(SPEC, body, true)).toBe(562_210);
   });
 
-  it('플래그 ON + 시내/matrix 미존재 → 거리추가 0 총액 423,225', () => {
-    expect(resolveTourCheckoutKrw(SPEC, { ...body, destKey: 'VOID_CITY' }, true)).toBe(423_225);
+  it('플래그 ON + 시내/matrix 미존재 → 거리추가 0 총액 457,710 (staria 7인 캡틴 +33,000)', () => {
+    // 기본 405,000 + 캡틴 33,000 = 438,000 → 쿠폰5% −21,900 → VAT10% +41,610 = 457,710
+    expect(resolveTourCheckoutKrw(SPEC, { ...body, destKey: 'VOID_CITY' }, true)).toBe(457_710);
   });
 
   it('client km/priceKRW 변조 무시 (backend matrix km만)', () => {

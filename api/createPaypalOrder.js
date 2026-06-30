@@ -14,7 +14,7 @@ import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
+import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
 import { verifyCouponForCharge } from './_shared/coupon-charge.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
@@ -80,9 +80,14 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
 const AI_PLANNER_FULL_KRW = 13_300;
 
-function resolveKrwAmount(productType, passengers, durationDays) {
+function resolveKrwAmount(productType, passengers, durationDays, vehicle) {
   if (!SPEC) return null;
   const normalized = productType.replace(/-/g, '_');
+
+  // 7인승 캡틴시트 프리미엄 정액(SSOT vehicles.{vehicle}.captain_premium_krw) — body.vehicle 로 조회.
+  // 프론트 resolveProductType.ts(airport/day_tour 패키지 경로) 가 동일 가산 → 표시가==청구가(P311).
+  // staria=33,000 / staria_9=0 / 그 외=0. vehicle 미전달(레거시 결제 호출) 시 0 — 기존 동작 보존.
+  const captain = captainPremiumKrw(SPEC, vehicle);
 
   // AI 플래너 — 디지털 상품, fixed price (durationDays 무관)
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
@@ -107,13 +112,17 @@ function resolveKrwAmount(productType, passengers, durationDays) {
     if (!dailyPrice) return null;
     // durationDays sanity: 1~30 cap (음수/0/거대 값 차단). undefined 면 1-day.
     const days = Number.isFinite(durationDays) && durationDays >= 1 ? Math.min(30, Math.floor(durationDays)) : 1;
-    return dailyPrice * days;
+    // 7인승 캡틴시트 프리미엄 정액 가산 (9인승=0). 프론트 resolveProductType.ts day_tour 패키지 경로와 동일 → P311.
+    return dailyPrice * days + captain;
   }
 
   // 공항 픽업
   if (normalized.startsWith('airport_')) {
     const key = normalized.slice('airport_'.length).replace(/_/g, '-');
-    return SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
+    const base = SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
+    if (base == null) return null;
+    // 7인승 캡틴시트 프리미엄 정액 가산 (9인승=0). 프론트 resolveProductType.ts airport 패키지 경로와 동일 → P311.
+    return base + captain;
   }
 
   // 콤보 패키지 — SSOT combo_packages 우선, 없으면 fallback (legacy 배포 환경 호환)
@@ -212,6 +221,9 @@ export default async function handler(req, res) {
     // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복/다일 5% + 가입 WELCOME 쿠폰 5% = 10%, EARLY50 비활성.
     // OFF(기본) = 현행 동작(다일/왕복 10%, EARLY50 20%, 쿠폰 미적용). 라이브 전 운영자 검토 후 활성화.
     const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
+    // 7인승 캡틴시트 프리미엄(staria +33,000) 가산용 — 프론트 PayPalBookingButton 이 charter 결제 시 body.vehicle 전달.
+    // staria_9/sprinter/미전달 = +0 (기존 동작 보존). resolveKrwAmount 만 사용(공항/당일패키지 경로); 다른 경로는 자체 spec 조회.
+    const bodyVehicle = typeof body.vehicle === 'string' ? body.vehicle.trim() : undefined;
     let krwAmount;
     if (productType === 'charter_multiday') {
       krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2 });
@@ -240,7 +252,8 @@ export default async function handler(req, res) {
         )));
       }
     } else {
-      krwAmount = resolveKrwAmount(productType, passengers, durationDays);
+      // 공항픽업/당일패키지 경로 — bodyVehicle 로 7인승 캡틴시트 프리미엄 가산(staria +33,000 / staria_9·미전달 +0).
+      krwAmount = resolveKrwAmount(productType, passengers, durationDays, bodyVehicle);
     }
     // 🔴 음수/0/NaN 금액 차단 — cart(resolve-line-item.js) 와 정합. 이전 `!krwAmount` 는
     //   음수를 truthy 로 통과시켜 PayPal 에 음수/잘못된 금액이 도달할 수 있었다.

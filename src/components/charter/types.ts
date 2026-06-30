@@ -9,8 +9,10 @@ export type OriginCode =
 // 'transfer' = 도시간 1회 이동(편도/왕복, 숙박 없음). 2026-06-02 추가 — multi_day(여러 날 동행)와 별개.
 export type ServiceMode = 'airport_transfer' | 'day_tour' | 'multi_day' | 'kpop_shuttle' | 'transfer';
 
-// 'vip' = 의전 차량 (행사 픽업 전용, 항상 협의 — Bus와 동일하게 결제 비활성).
-export type VehicleType = 'staria' | 'sprinter' | 'bus' | 'vip';
+// 차종 4종 (2026-06-30): staria=7인승(캡틴시트), staria_9=9인승, sprinter=중형단체, bus=대형단체.
+//   staria/staria_9 = 즉시결제 가능(가이드 없음), sprinter/bus = 협의/가이드 필수.
+//   'vip'(의전) 은 신규 선택지에서 제거 — 과거 예약 라벨 표시는 vehicleLabel 딕셔너리로만 보존.
+export type VehicleType = 'staria' | 'staria_9' | 'sprinter' | 'bus';
 
 export type DestinationKind = 'package' | 'matrix' | 'custom';
 

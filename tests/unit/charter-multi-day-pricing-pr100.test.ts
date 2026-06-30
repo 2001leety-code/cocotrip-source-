@@ -28,12 +28,14 @@ const src = readFileSync(
 );
 
 describe('P100 — Charter multi-day pricing', () => {
-  it('resolveKrwAmount 시그너처에 durationDays 인자 포함', () => {
-    expect(src).toMatch(/function\s+resolveKrwAmount\s*\(\s*productType\s*,\s*passengers\s*,\s*durationDays\s*\)/);
+  it('resolveKrwAmount 시그너처에 durationDays 인자 포함 (+ 2026-06-30 vehicle 4번째 인자)', () => {
+    expect(src).toMatch(/function\s+resolveKrwAmount\s*\(\s*productType\s*,\s*passengers\s*,\s*durationDays\s*,\s*vehicle\s*\)/);
   });
 
-  it('handler 가 body.durationDays 를 resolveKrwAmount 로 전달', () => {
-    expect(src).toMatch(/resolveKrwAmount\(\s*productType\s*,\s*passengers\s*,\s*durationDays\s*\)/);
+  it('handler 가 body.durationDays + body.vehicle 를 resolveKrwAmount 로 전달', () => {
+    // 2026-06-30: 캡틴프리미엄(7인승 +33,000) 가산 위해 vehicle 4번째 인자 추가.
+    expect(src).toMatch(/resolveKrwAmount\(\s*productType\s*,\s*passengers\s*,\s*durationDays\s*,/);
+    expect(src).toMatch(/body\.vehicle/);
   });
 
   it('CHARTER_MAP 매칭 시 daily price × days 곱셈', () => {
@@ -58,15 +60,15 @@ describe('P100 — Charter multi-day pricing', () => {
     expect(src).toMatch(/kpop_shuttle_oneway[\s\S]{0,260}Math\.floor\(Number\(passengers\)[\s\S]{0,160}price_one_way/);
   });
 
-  it('회귀 방지: 기존 (durationDays 누락) 시그너처 부재', () => {
+  it('회귀 방지: durationDays 누락 시그너처 부재 + vehicle 4번째 인자 포함', () => {
     // 단순 `resolveKrwAmount(productType, passengers)` 만 있는 호출은 회귀.
-    // handler 호출 라인의 인자 3개 확인. 2026-06-02 charter_multiday 삼항 분기 추가 →
-    // 호출이 `= resolveKrwAmount(...)` (단순) 또는 `: resolveKrwAmount(...)` (삼항 else) 형태.
-    // [=:] 로 둘 다 매치하되 `function resolveKrwAmount(` 정의 라인은 제외(앞에 =/: 없음).
+    // 2026-06-30: 캡틴프리미엄 위해 4번째 vehicle 인자 추가 → 호출 인자 4개(productType, passengers, durationDays, vehicle…).
+    // `= resolveKrwAmount(...)`(단순) 또는 `: resolveKrwAmount(...)`(삼항 else). 정의 라인(function …)은 제외.
     const handlerCallMatch = src.match(/[=:]\s*resolveKrwAmount\(([^)]+)\)/);
     expect(handlerCallMatch).not.toBeNull();
     const args = (handlerCallMatch![1] || '').split(',').map(s => s.trim());
-    expect(args.length).toBe(3); // productType, passengers, durationDays
+    expect(args.length).toBe(4); // productType, passengers, durationDays, vehicle
     expect(args[2]).toBe('durationDays');
+    expect(args[3]).toMatch(/vehicle/i); // 4번째 = bodyVehicle (body.vehicle trim 변수)
   });
 });

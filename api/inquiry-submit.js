@@ -1,13 +1,13 @@
 /**
  * POST /api/inquiry-submit
  *
- * Bus / VIP 차량 선택 시 노출되는 상담 폼 제출.
+ * Bus 차량 선택 시 노출되는 상담 폼 제출. (vip 선택지 제거 2026-06-30.)
  * Firestore `charter_inquiries/{inquiryId}` 저장 + InquiryCHAT_BOT 채널 알림.
  *
  * Body:
  *   {
  *     name, email, phone?, eventDate, pax,
- *     vehicle: 'bus' | 'vip',
+ *     vehicle: 'bus',
  *     details, language: 'ko'|'en'|'ja'|'zh',
  *     wizardSnapshot: { origin, service, destinationKey, destinationCustom }
  *   }
@@ -98,7 +98,8 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const ALLOWED_VEHICLES = new Set(['bus', 'vip']);
+// 2026-06-30: vip 선택지 제거 → 신규 협의 폼은 bus 만 허용. (과거 vip 예약 레코드 표시는 별도 라벨로 보존.)
+const ALLOWED_VEHICLES = new Set(['bus']);
 const ALLOWED_LANGS = new Set(['ko', 'en', 'ja', 'zh']);
 
 function _err(error, code = 'UNKNOWN_ERROR') {
@@ -165,7 +166,7 @@ export default async function handler(req, res) {
     }
     if (!ALLOWED_VEHICLES.has(String(vehicle))) {
       res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify(_err('vehicle must be bus|vip', 'INVALID_VEHICLE')));
+      return res.end(JSON.stringify(_err('vehicle must be bus', 'INVALID_VEHICLE')));
     }
     if (trimmedDetails.length < 5) {
       res.writeHead(400, JSON_HEADERS);
@@ -233,7 +234,8 @@ export default async function handler(req, res) {
     // 번역(PR-Q): 행사 내용이 한국어가 아니면 Gemini로 한글 번역 추가 (운영자 가독성).
     // 번역 실패는 silent — 원문은 항상 유지.
     try {
-      const vehicleLabel = vehicle === 'vip' ? '의전 차량 (VIP)' : '대형버스 (Bus)';
+      // 신규 협의 폼은 bus 만 허용(ALLOWED_VEHICLES). vip 는 더 이상 도달 안 함.
+      const vehicleLabel = '대형버스 (Bus)';
       const submittedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 
       // 행사 내용 한글 번역 시도.

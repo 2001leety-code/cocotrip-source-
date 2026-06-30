@@ -39,7 +39,8 @@ describe('calculateQuote — matrix priceKRW 우선 (airport_transfer)', () => {
     });
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
-    expect(q!.subtotalKRW).toBe(145_600);
+    // staria 7인 캡틴 +33,000: 145,600 + 33,000 = 178,600 (2026-06-30).
+    expect(q!.subtotalKRW).toBe(178_600);
     expect(q!.source).toBe('matrix');
   });
 
@@ -53,7 +54,8 @@ describe('calculateQuote — matrix priceKRW 우선 (airport_transfer)', () => {
       startTime: '14:00',
     });
     expect(q).not.toBeNull();
-    expect(q!.subtotalKRW).toBe(124_800);
+    // staria 7인 캡틴 +33,000: 124,800 + 33,000 = 157,800.
+    expect(q!.subtotalKRW).toBe(157_800);
     expect(q!.source).toBe('matrix');
   });
 
@@ -83,7 +85,8 @@ describe('calculateQuote — day_tour 매트릭스 hit', () => {
       startTime: '08:00',
     });
     expect(q).not.toBeNull();
-    expect(q!.subtotalKRW).toBe(600_000);
+    // staria 7인 캡틴 +33,000: 600,000 + 33,000 = 633,000.
+    expect(q!.subtotalKRW).toBe(633_000);
     expect(q!.source).toBe('package');
   });
 
@@ -99,8 +102,8 @@ describe('calculateQuote — day_tour 매트릭스 hit', () => {
     });
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
-    // 50,000 + 370km × 2 × 1000 = 790,000 (왕복 모델)
-    expect(q!.subtotalKRW).toBe(790_000);
+    // 50,000 + 370km × 2 × 1000 = 790,000 (왕복 모델) + staria 7인 캡틴 33,000 = 823,000.
+    expect(q!.subtotalKRW).toBe(823_000);
     expect(q!.source).toBe('formula');
   });
 });
@@ -120,9 +123,9 @@ describe('calculateQuote — multi_day 매트릭스 hit + 10% 할인', () => {
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
     // 매트릭스 SEL_METRO→YEOSU 370km — calcIntercityFormula = 50k + 370×2×1000 = 790k
-    // + daily 200k×3 = 600k + overnight 130k×2 = 260k → 1,650k
-    // -10% 할인 → 1,485k
-    expect(q!.subtotalKRW).toBe(1_485_000);
+    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 130k×2 = 260k → 1,683k
+    // -10% 할인 → 1,514,700 (2026-06-30 캡틴프리미엄 반영).
+    expect(q!.subtotalKRW).toBe(1_514_700);
     expect(q!.multiDayDiscountPercent).toBe(10);
   });
 });
@@ -177,7 +180,7 @@ describe('calculateQuote — matrix miss + 외부 km 없음 → needsCustomQuote
 // 3) calculateQuote — Bus/VIP → 결제 불가, 항상 needsCustomQuote
 // ─────────────────────────────────────────────────────────
 
-describe('calculateQuote — Bus/VIP 차량은 항상 needsCustomQuote (협의 폼)', () => {
+describe('calculateQuote — Bus 는 항상 needsCustomQuote (협의 폼), staria_9 는 결제 가능', () => {
   it('Bus + 매트릭스 hit 도시(강남): needsCustomQuote=true', () => {
     const q = calculateQuote({
       ...baseState,
@@ -194,19 +197,20 @@ describe('calculateQuote — Bus/VIP 차량은 항상 needsCustomQuote (협의 �
     expect(q!.vehicleChargeKRW).toBe(0);
   });
 
-  it('VIP + day_tour: needsCustomQuote=true', () => {
+  it('staria_9(9인승) + day_tour: 결제 가능(needsCustomQuote=false) + 캡틴 0 = 현 staria 원가', () => {
     const q = calculateQuote({
       ...baseState,
-      vehicle: 'vip',
+      vehicle: 'staria_9',
       service: 'day_tour',
+      destinationKey: 'gyeongju-jeonju',
       origin: 'SEL_METRO',
-      destinationCustom: '경주',
       startDate: '2026-04-29',
       startTime: '08:00',
     });
     expect(q).not.toBeNull();
-    expect(q!.needsCustomQuote).toBe(true);
-    expect(q!.vehicleChargeKRW).toBe(0);
+    expect(q!.needsCustomQuote).toBe(false);
+    // 9인승 = 캡틴 0 → 패키지 원가 600,000 그대로.
+    expect(q!.vehicleChargeKRW).toBe(600_000);
   });
 });
 
@@ -238,8 +242,11 @@ describe('calcSimpleByVehicle — 정책 B (matrix miss → Geocoding km × 공�
     expect(calcSimpleByVehicle('bus', 100)).toBeNull();
   });
 
-  it('VIP → null (협의 폼 트리거)', () => {
-    expect(calcSimpleByVehicle('vip', 100)).toBeNull();
+  it('staria_9(9인승) → staria 와 동일 (자동 견적, 캡틴 프리미엄은 formula 밖)', () => {
+    const s9 = calcSimpleByVehicle('staria_9', 100);
+    const s7 = calcSimpleByVehicle('staria', 100);
+    expect(s9).not.toBeNull();
+    expect(s9!.krw).toBe(s7!.krw); // 9인승 거리공식 = staria
   });
 
   it('음수 km은 0 처리', () => {

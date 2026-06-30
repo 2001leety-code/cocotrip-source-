@@ -181,8 +181,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     setState(prev => ({ ...prev, ...p }));
   }, []);
 
-  // Bus/VIP 는 InquiryForm 진행 — wizard 내 결제 X.
-  const isInquiryVehicle = state.vehicle === 'bus' || state.vehicle === 'vip';
+  // Bus 는 InquiryForm 진행 — wizard 내 결제 X. (staria/staria_9/sprinter 는 결제/견적 경로.)
+  const isInquiryVehicle = state.vehicle === 'bus';
 
   const canAdvance = useCallback(() => {
     switch (currentStep) {
@@ -320,9 +320,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         )}
         {currentStep === 6 && (
           isInquiryVehicle ? (
-            // Bus / VIP — 가격 카드 대신 상담 폼.
+            // Bus — 가격 카드 대신 상담 폼.
             <InquiryForm
-              vehicle={state.vehicle as 'bus' | 'vip'}
+              vehicle="bus"
               state={state}
               language={language}
             />
