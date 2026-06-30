@@ -21,6 +21,10 @@ import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
+// charter_custom_estimate (zone-fallback 추정가 즉시결제) SSOT — 상수/판별을 pricing.js 에서
+// 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
+// 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
+import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -219,6 +223,22 @@ export default async function handler(req, res) {
       // 2026-06-06 어드민 조종석: 마진가드는 런타임 토글(admin-runtime-flags) 우선. fail-safe → OFF.
       const _rtFlags = await getRuntimeFlags(initAdminDb('createPaypalOrder-rtflags'));
       krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2 });
+    } else if (isCustomEstimateProduct(productType)) {
+      // charter_custom_estimate = zone-fallback 추정가 즉시결제(운영자 사후 WhatsApp 확정+정산).
+      // 가격은 client wizard quote(customAmountKRW). 🔴 sanity range 가드 — pricing.js SSOT 상수
+      // (CUSTOM_ESTIMATE_MIN_KRW=30,000 / MAX=10,000,000). 1원·0·NaN·음수·이상 고액 차단.
+      // 범위 통과분만 PayPal order 금액으로 사용 → capture 는 PayPal 이 order 금액을 강제하므로 위조 불가.
+      const _customRaw = Number(body.customAmountKRW);
+      if (Number.isFinite(_customRaw) && _customRaw >= CUSTOM_ESTIMATE_MIN_KRW && _customRaw <= CUSTOM_ESTIMATE_MAX_KRW) {
+        krwAmount = Math.round(_customRaw);
+      } else {
+        console.warn('[createPaypalOrder] charter_custom_estimate customAmountKRW out of range:', body.customAmountKRW);
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          `charter_custom_estimate: customAmountKRW out of range (${CUSTOM_ESTIMATE_MIN_KRW.toLocaleString()}~${CUSTOM_ESTIMATE_MAX_KRW.toLocaleString()} KRW)`,
+          'INVALID_AMOUNT',
+        )));
+      }
     } else {
       krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     }
