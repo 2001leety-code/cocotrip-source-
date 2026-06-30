@@ -161,7 +161,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const { activeCoupons } = useLoyalty();
   // P1-②: AI 무료쿠폰(productScope='ai-plan')은 이 할인 picker 에서 제외 — 할인 적용 대상이 아니라
   //   PurchaseSection 의 "무료 쿠폰으로 받기"(0원) 버튼 전용. (MyPage 쿠폰함에는 그대로 노출.)
-  const discountCoupons = activeCoupons.filter(c => c.productScope !== 'ai-plan');
+  const discountCoupons = activeCoupons.filter(c => {
+    if (c.productScope === 'ai-plan') return false; // AI 무료쿠폰 제외(위)
+    // 상품 스코프 불일치 쿠폰 숨김 — 투어 전용 쿠폰을 차터/공항/콤보 결제에 노출 X.
+    // (서버 applyPromoCode 도 reject 하지만 프론트 picker 가 안 맞는 쿠폰을 보여주던 UX 갭 fix.)
+    const isCharterFamily = productType.startsWith('charter_') || productType.startsWith('airport_') || productType.startsWith('combo_');
+    if ((c.productScope === 'tour-package' || c.productScope === 'tour_package') && isCharterFamily) return false;
+    return true;
+  });
   // B-9 (2026-05-12): authUser / authUserId \ub294 \ucef4\ud3ec\ub10c\ud2b8 \uc0c1\ub2e8\uc5d0\uc11c \uc774\ubbf8 \ud638\ucd9c\ub428.
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
