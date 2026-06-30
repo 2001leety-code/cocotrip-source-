@@ -5,6 +5,8 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { formatPrice } from '@/lib/exchange-rate';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
@@ -239,11 +241,24 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   };
   const goPrev = () => setCurrentStep(s => Math.max(1, s - 1));
 
+  // 모바일(<768px) 전용 sticky 바 — 기존 useIsMobile 훅(=max-width:767px) 재사용(데스크탑 미렌더).
+  const isMobile = useIsMobile();
+  // 결제 진입 핸들러 — 인플로우 결제 버튼과 sticky 바가 동일 로직 공유(중복/게이트 복제 방지).
+  //   clearWizardSnapshot + onComplete(state, consent) — canAdvance(case6)가 약관 동의 이미 보장.
+  const handleProceedPayment = useCallback(() => {
+    clearWizardSnapshot('charter');
+    onComplete?.(state, { termsAgreed, marketingConsent });
+  }, [state, termsAgreed, marketingConsent, onComplete]);
+  // sticky 바 가격 — quote.subtotalKRW 파생값 재사용(재계산 X). 결제가능 견적일 때만 노출,
+  //   custom/미산출이면 null → 가격 숨김(formatPrice SSOT 포맷터, P311 표시가=청구가).
+  const stickyAmountKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
+
   const i18n = getWizardI18n(language);
   const STEP_LABELS = [i18n.step1, i18n.step2, i18n.step3, i18n.step4, i18n.step5, i18n.step6];
 
+  // 모바일은 하단 패딩 96px 확보(고정 sticky 바가 인플로우 nav/마지막 입력 가리지 않게). 데스크탑 무패딩.
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className="max-w-2xl mx-auto px-4 py-6" style={isMobile ? { paddingBottom: 96 } : undefined}>
       <div className="flex items-center justify-between mb-8">
         {STEP_LABELS.map((_, idx) => {
           const id = idx + 1;
@@ -385,13 +400,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         {currentStep === 6 && onComplete && !isInquiryVehicle && (
           <button
             type="button"
-            onClick={() => {
-              // 결제 진입 시 charter snapshot clear — 결제 완료/취소 후 빈 상태 재시작 보장.
-              clearWizardSnapshot('charter');
-              // 2026-06-30 트립닷컴식 예약정보 — Step 5 에서 받은 약관 동의를 결제 패널로 전달
-              //   (canAdvance 게이트가 이미 약관 동의 보장. 백엔드 booking 레코드 동의 증거 보존용. SMS 인증 제거).
-              onComplete(state, { termsAgreed, marketingConsent });
-            }}
+            onClick={handleProceedPayment}
             disabled={!canAdvance()}
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ background: '#0070BA' }}
@@ -400,6 +409,38 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
           </button>
         )}
       </div>
+
+      {/* 모바일(<768px) 전용 sticky 가격+CTA 바 — 기존 핸들러/게이트/라벨 재사용(PayPal 직접 호출 없음).
+          Step1~5: goNext(i18n.next). Step6 결제진입: handleProceedPayment(i18n.payProceed) = 인플로우 버튼과 동일.
+          Bus/VIP(InquiryForm) Step6 은 자체 CTA → 바 미노출. disabled=!canAdvance()(기존 진행조건 그대로). */}
+      {isMobile && onComplete && !(currentStep === 6 && isInquiryVehicle) && (() => {
+        const isPayStep = currentStep === 6;
+        const barDisabled = !canAdvance();
+        const barLabel = isPayStep ? i18n.payProceed : i18n.next;
+        const barOnClick = isPayStep ? handleProceedPayment : goNext;
+        return (
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              {stickyAmountKRW != null ? (
+                <>
+                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#fff' }}>{formatPrice(stickyAmountKRW, language)}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{formatPrice(stickyAmountKRW, 'en', { withCurrencyCode: true })}</div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>{`${currentStep} / 6`}</div>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={barDisabled}
+              onClick={barOnClick}
+              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 14, background: barDisabled ? 'rgba(255,255,255,0.08)' : (isPayStep ? '#0070BA' : 'linear-gradient(135deg,#B668FC,#FF6B9D)'), color: barDisabled ? 'rgba(255,255,255,0.4)' : '#fff', fontSize: 15, fontWeight: 800, cursor: barDisabled ? 'not-allowed' : 'pointer' }}
+            >
+              {barLabel}
+            </button>
+          </div>
+        );
+      })()}
 
       <ResumeWizardModal
         open={resumeOpen}

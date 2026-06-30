@@ -694,7 +694,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         />
         )}
 
-        <DialogFooter className="gap-2 mt-3 flex-col">
+        {/* 모바일(<768px) 전용: footer 를 모달 스크롤 하단 sticky 로 — 가격/CTA 항상 노출.
+            DialogContent 가 position:fixed+transform 조상이라 viewport fixed 불가 →
+            모달 내부 sticky (max-h-[85vh] overflow-y-auto 스크롤 컨테이너 기준).
+            -mx-6 px-6 = DialogContent p-6(24px) 좌우 패딩 상쇄. md: 부터 static 복귀(데스크탑 무변경).
+            배경 그라데이션 = 하단색 #0a0512 페이드(콘텐츠가 비쳐 잘리는 인상 방지). */}
+        <DialogFooter className="gap-2 mt-3 flex-col md:static sticky bottom-0 -mx-6 px-6 pt-3 pb-[calc(8px+env(safe-area-inset-bottom))] z-10 bg-gradient-to-t from-[#0a0512] via-[#0a0512]/95 to-transparent">
           {step === 1 && (
             canAdvanceStep1 ? (
               <button
