@@ -138,6 +138,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const set = (patch: Partial<BookingFormData>) => setF((p) => ({ ...p, ...patch }));
   const [error, setError] = useState(false);
   const [appliedCode, setAppliedCode] = useState('');
+  const [discountOpen, setDiscountOpen] = useState(false);
 
   // 전화번호 controlled 위임 — props.phone 제공 시 호출처가 소유 (내부 f.phone 미사용).
   const phoneValue = props.phone !== undefined ? props.phone : f.phone;
@@ -267,10 +268,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   onBlur={blurable}
                 />
               </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>투어 당일 연락에만 사용 · For tour-day contact only</div>
             </div>
             <div>
               <label style={C.label}>이메일 주소 <span style={C.req}>*</span></label>
               <input value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" inputMode="email" style={C.input} onFocus={focusable} onBlur={blurable} />
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>예약 확인서 발송에만 사용 · Only for booking confirmation</div>
             </div>
           </div>
           <div>
@@ -334,7 +337,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         )}
 
         {/* 할인코드 */}
-        {!props.hideDiscount && (
+        {!props.hideDiscount && ((discountOpen || appliedCode) ? (
         <div style={C.card}>
           <SectionHead title="할인코드" sub="Promo code" />
           <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
@@ -353,7 +356,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <CouponBtn pct="10%" title="신규 회원 대상 공항 픽업/샌딩 10% 할인" sub="유효기간 2026-07-05 · 코드 WELCOME10" onClick={() => applyCode('WELCOME10')} />
           </div>
         </div>
-        )}
+        ) : (
+          <button type="button" onClick={() => setDiscountOpen(true)} style={{ ...C.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textAlign: 'left', width: '100%', fontFamily: 'inherit' }}>
+            <span>🎟 할인코드가 있으신가요? <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 400 }}>Have a promo code?</span></span>
+            <span style={{ color: '#B9A4FF', fontSize: 18 }}>›</span>
+          </button>
+        ))}
 
         {/* 약관 동의 */}
         <div style={C.card}>
@@ -426,7 +434,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>취소 규정</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>무료 취소</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 1일 전까지 — 전액 환불</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>취소 수수료 100%</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 1일 전 이후 — 환불 불가</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>⚠ 취소 수수료 100%</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 1일 전 이후 — 환불 불가</div></div>
           </div>
         </div>
 
