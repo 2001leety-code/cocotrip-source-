@@ -515,6 +515,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          // 🔴 charter_custom_estimate 즉시결제 — 추정가(customAmountKRW)를 backend 로 전달(끊긴 고리 수정).
+          //   이 값 없으면 createPaypalOrder 가 금액 해석 실패→400("Unknown productType or invalid amount").
+          //   backend 가 pricing.js SSOT range(30,000~10,000,000)로 sanity 검증 후 PayPal order 금액 확정.
+          //   charter_custom_estimate 가 아니면 미전달(다른 상품 무영향).
+          ...(productType === 'charter_custom_estimate' && customAmountKRW != null && customAmountKRW > 0 ? { customAmountKRW } : {}),
           // 2026-06-30 트립닷컴식 예약정보 — 약관동의 메타(컴플라이언스). SMS 본인인증 제거 운영자.
           //   additive 전달만 — createPaypalOrder 는 금액을 productType/날짜/쿠폰으로만 산정,
           //   이 값은 무시(알 수 없는 필드). 멱등성/금액/환율/락 로직 무관.
