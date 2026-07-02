@@ -629,9 +629,9 @@ function App() {
   // App 마운트 = React 첫 페인트 직후이므로 여기서 1회 호출이 모든 경로를 커버.
   // 단 /mood 예외 — MoodPortal 이 인증 완료 후 직접 신호(여기서 먼저 쏘면 스플래시가 일찍 꺼져
   // MOOD 로딩 중 빈 화면 노출, index.html MAX 3.9s 캡이 안전망). 기존 호출은 멱등 가드로 흡수.
+  // /mood 예외는 정확 매치(/mood, /mood/*)만 — startsWith('/mood')는 /moodxyz 404까지
+  // 오매치되어 NotFound에서 스플래시가 3.9s 캡까지 강제 노출됨.
   useEffect(() => {
-    // startsWith('/mood')는 /moodxyz 같은 404 경로까지 오매치(NotFound는 신호 안 쏨
-    // → 스플래시가 3.9s 캡까지 강제) — 정확히 /mood 와 /mood/ 하위만 예외.
     const p = window.location.pathname;
     if (p === '/mood' || p.startsWith('/mood/')) return;
     signalAppReady();
