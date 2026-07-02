@@ -64,6 +64,8 @@ export default defineConfig({
         'favicon.png',
         'icons/icon-192.png',
         'icons/icon-512.png',
+        'images/pwa-intro/cocotrip-intro.webp',
+        'images/pwa-intro/mood-collab-intro.webp',
         'images/pwa-intro/cocotrip-intro.png',
         'images/pwa-intro/mood-collab-intro.png',
       ],
