@@ -625,10 +625,15 @@ function AnimatedRoutes() {
 
 function App() {
   // Bug #10: 모든 진입 경로(MOBILE_V2 OFF, 데스크탑, 어드민, 홈 외 라우트 등)에서
-  // signalAppReady 가 호출되지 않아 PWA 스플래시가 안전 캡(4.5s) 까지 강제 노출되는 문제 수정.
+  // signalAppReady 가 호출되지 않아 PWA 스플래시가 안전 캡까지 강제 노출되는 문제 수정.
   // App 마운트 = React 첫 페인트 직후이므로 여기서 1회 호출이 모든 경로를 커버.
-  // MobileHomeV2/MoodPortal 의 기존 호출은 appReady.ts 멱등성 가드로 무해하게 흡수됨.
+  // 단 /mood 예외 — MoodPortal 이 인증 완료 후 직접 신호(여기서 먼저 쏘면 스플래시가 일찍 꺼져
+  // MOOD 로딩 중 빈 화면 노출, index.html MAX 3.9s 캡이 안전망). 기존 호출은 멱등 가드로 흡수.
   useEffect(() => {
+    // startsWith('/mood')는 /moodxyz 같은 404 경로까지 오매치(NotFound는 신호 안 쏨
+    // → 스플래시가 3.9s 캡까지 강제) — 정확히 /mood 와 /mood/ 하위만 예외.
+    const p = window.location.pathname;
+    if (p === '/mood' || p.startsWith('/mood/')) return;
     signalAppReady();
   }, []);
 

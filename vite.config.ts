@@ -60,7 +60,13 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      includeAssets: ['favicon.png', 'icons/icon-192.png', 'icons/icon-512.png'],
+      includeAssets: [
+        'favicon.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'images/pwa-intro/cocotrip-intro.png',
+        'images/pwa-intro/mood-collab-intro.png',
+      ],
       // 기존 public/manifest.json 의 내용을 그대로 옮김. Vite가 빌드 시 자동 생성.
       manifest: {
         name: 'CocoTrip',
