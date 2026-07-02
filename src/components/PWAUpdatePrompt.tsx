@@ -21,6 +21,9 @@
 //     아무것도 안 한 상태라 강제 리로드해도 잃을 게 없음(URL 보존).
 //   - 세션 중(진입 한참 뒤, 작업 중) 감지된 새 버전 = 토스트로 사용자 선택 — #pwa-prompt 의
 //     "위저드·결제 화면 갑자기 새로고침" 회귀를 막던 보호 유지. (둘의 경계 = 로드 후 경과시간.)
+//
+// 2026-07-02: 결제 진행(PayPal iframe 존재/iframe 포커스) 감지 시 콜드 스타트 자동 리로드도 스킵
+//   → 토스트(수동 버튼)로 폴백. 결제 중 강제 새로고침 = 진행 중 결제 유실 위험.
 import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -28,6 +31,7 @@ import { RefreshCw, X } from 'lucide-react';
 
 // 진입 직후 이 시간(ms) 안에 감지된 업데이트 = "콜드 스타트" 로 보고 자동 적용. 이후 = 토스트.
 const AUTO_UPDATE_WINDOW_MS = 10_000;
+const AUTO_UPDATE_IDLE_MS = 1_200;
 
 // 설치된 PWA(standalone) 실행 여부. PC/모바일 브라우저 탭에선 false.
 function isStandalone(): boolean {
@@ -37,11 +41,33 @@ function isStandalone(): boolean {
   return mm || ios;
 }
 
+function hasFocusedEditable(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || (el as HTMLElement).isContentEditable;
+}
+
+// 결제 진행 중 감지 (2026-07-02) — 결제 중 강제 새로고침 = 진행 중 결제 유실 위험이라 자동 리로드 금지.
+// hasFocusedEditable 은 iframe 내부(PayPal 버튼/카드 입력)를 못 보므로 iframe 자체를 검사:
+//   (a) 포커스가 iframe 에 있음 = 결제 위젯 조작 중일 수 있음
+//   (b) PayPal iframe(src/name)이 DOM 에 존재 = 결제 UI 열림(TourBookingDialog/CartCheckout 등)
+// (레포에 "결제 다이얼로그 열림" 전역 마커 없음 — window.paypal 은 SDK 로드 여부일 뿐이라 미사용.)
+function isPaymentLikelyInProgress(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (document.activeElement?.tagName === 'IFRAME') return true;
+  return !!document.querySelector('iframe[src*="paypal"], iframe[name*="paypal"]');
+}
+
 export function PWAUpdatePrompt() {
   const { t } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
+  // 자동 리로드를 스킵(작업 중/결제 중)한 경우 true → 진입 창 안에서도 토스트(수동 버튼)로 즉시 폴백.
+  const [autoSkipped, setAutoSkipped] = useState(false);
   const loadedAtRef = useRef(Date.now());
   const autoUpdatedRef = useRef(false);
+  const userInteractedRef = useRef(false);
   // PC 웹(브라우저 탭)에선 업데이트 알림·자동 리로드 불필요(그냥 새로고침) → 설치 앱에서만 노출.
   const standaloneRef = useRef(isStandalone());
 
@@ -58,15 +84,48 @@ export function PWAUpdatePrompt() {
     },
   });
 
+  // 사용자가 이미 터치/입력/스크롤을 시작했으면 "작업 중" 으로 보고 자동 리로드 대신 버튼으로 전환.
+  useEffect(() => {
+    if (!standaloneRef.current) return;
+    const markInteracted = () => { userInteractedRef.current = true; };
+    const opts: AddEventListenerOptions = { passive: true, once: true };
+    window.addEventListener('pointerdown', markInteracted, opts);
+    window.addEventListener('keydown', markInteracted, opts);
+    window.addEventListener('touchstart', markInteracted, opts);
+    window.addEventListener('scroll', markInteracted, opts);
+    return () => {
+      window.removeEventListener('pointerdown', markInteracted);
+      window.removeEventListener('keydown', markInteracted);
+      window.removeEventListener('touchstart', markInteracted);
+      window.removeEventListener('scroll', markInteracted);
+    };
+  }, []);
+
   // 앱 진입 직후 새 버전 대기 감지 → 자동 업데이트(작업 전이라 안전). 페이지당 1회.
   // PC/모바일 브라우저 탭(비-standalone)에선 자동 리로드 안 함.
+  // 사용자 작업 중/입력 포커스/결제 진행(PayPal iframe) 중이면 자동 리로드 스킵 → 토스트로 폴백
+  // (결제 중 강제 새로고침 = 결제 유실 위험).
   useEffect(() => {
     if (!standaloneRef.current) return;
     if (!needRefresh || autoUpdatedRef.current) return;
-    if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) {
-      autoUpdatedRef.current = true;
-      void updateServiceWorker(true); // skipWaiting + 자동 reload → 최신 버전
-    }
+    if (Date.now() - loadedAtRef.current >= AUTO_UPDATE_WINDOW_MS) return;
+    const timer = window.setTimeout(() => {
+      if (userInteractedRef.current || hasFocusedEditable() || isPaymentLikelyInProgress()) {
+        setAutoSkipped(true); // 자동 리로드 대신 사용자 선택(토스트의 수동 버튼)으로
+        return;
+      }
+      // 진입 창 재확인(발화 시점) — 백그라운드 스로틀로 타이머가 늦게 발화해도
+      // 세션 중 무조건 강제 리로드는 금지(P235 잠금).
+      if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS + AUTO_UPDATE_IDLE_MS) {
+        autoUpdatedRef.current = true;
+        void updateServiceWorker(true); // skipWaiting + 자동 reload → 최신 버전
+      } else {
+        // 지연 발화로 자동 창을 놓친 경우 — state 무변화면 마지막 렌더(null)에 멈춰
+        // 토스트가 영영 안 뜰 수 있음 → 수동 버튼 폴백으로 전환해 재렌더 유도.
+        setAutoSkipped(true);
+      }
+    }, AUTO_UPDATE_IDLE_MS);
+    return () => window.clearTimeout(timer);
   }, [needRefresh, updateServiceWorker]);
 
   // dismissed 후 5분 뒤 자동 재표시 (사용자가 X 누른 경우).
@@ -80,11 +139,12 @@ export function PWAUpdatePrompt() {
   if (!standaloneRef.current) return null;
   if (!needRefresh || dismissed) return null;
   // 자동 업데이트 창 안에서는 토스트 대신 위 effect 가 리로드 → 깜빡임 방지로 숨김.
-  if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) return null;
+  // 단 자동 리로드를 스킵한 경우(작업 중/결제 중)는 즉시 토스트로 폴백(수동 [새로고침] 버튼).
+  if (!autoSkipped && Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) return null;
 
   const message = (t.pwa as { updateAvailable?: string })?.updateAvailable
     || '새 버전이 있습니다';
-  const refreshLabel = (t.pwa as { refresh?: string })?.refresh || '새로고침';
+  const refreshLabel = (t.pwa as { refresh?: string })?.refresh || '새 버전 업데이트';
 
   return (
     <div

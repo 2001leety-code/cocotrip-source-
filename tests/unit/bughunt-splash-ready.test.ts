@@ -42,7 +42,8 @@ describe('Bug #10 — App 최상위 signalAppReady 호출 (모든 진입 경로 
     const appFnStart = appSrc.indexOf('function App()');
     expect(appFnStart).toBeGreaterThan(0);
 
-    const appFnBody = appSrc.slice(appFnStart, appFnStart + 600);
+    // 900자: 2026-07-02 /mood 예외 주석 추가로 600자 밖으로 밀림 (불변식 자체는 동일 — deps=[])
+    const appFnBody = appSrc.slice(appFnStart, appFnStart + 900);
     // useEffect + signalAppReady + 빈 배열 deps
     expect(appFnBody).toContain('signalAppReady');
     expect(appFnBody).toMatch(/useEffect/);

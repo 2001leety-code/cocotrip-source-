@@ -46,9 +46,12 @@ describe('매끄러운 브랜드 스플래시 복원 (2026-06-14 운영자 선�
     expect(html).toContain('background:#0a0b14');
     expect(html).toContain('#0a0412');
   });
-  it('아이콘 중복 없이 워드마크(로고)+태그라인 — "아이콘 2개" 회귀 방지', () => {
-    expect(html).toContain('app-splash-wm');
-    expect(html).toContain('/images/logo-cocotrip.png');
+  it('아이콘 중복 없이 이미지 인트로(코코트립/무드 콜라보) — "아이콘 2개" 회귀 방지', () => {
+    // 2026-07-01 Codex: 텍스트 워드마크 → 이미지 기반 시작 인트로(intro-frame)로 개편.
+    // CocoTrip 단독/MOOD 콜라보 이미지 2종이 standalone 기동 시 배경으로 깔림.
+    expect(html).toContain('intro-frame');
+    expect(html).toContain('/images/pwa-intro/cocotrip-intro.png');
+    expect(html).toContain('/images/pwa-intro/mood-collab-intro.png');
     // 별도 아이콘(icon-192)을 splash 에서 또 그리지 않음
     expect(html).not.toMatch(/app-splash[\s\S]{0,400}icon-192\.png/);
   });
