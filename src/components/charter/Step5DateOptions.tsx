@@ -184,33 +184,35 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
 
   return (
     <div className="space-y-6">
-      {/* 날짜 */}
-      <div>
-        <Label>{i18n.date}</Label>
-        <input type="date" min={today}
-          value={state.startDate ?? ''}
-          onChange={e => patch({ startDate: e.target.value })}
-          className={inputCls}
-          style={{ colorScheme: 'dark' }} />
-      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* 날짜 */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+          <Label>{i18n.date}</Label>
+          <input type="date" min={today}
+            value={state.startDate ?? ''}
+            onChange={e => patch({ startDate: e.target.value })}
+            className={inputCls}
+            style={{ colorScheme: 'dark' }} />
+        </div>
 
-      {/* batch 9 fix (B9-1+B9-2): 픽업 시각 직접 입력 — Step 3 select 에서 이동.
-          type="time" 으로 30분 단위 제약 없이 자유 입력. 야간 할증 자동 계산. */}
-      <div>
-        <Label>{i18n.bookingPickupTimeLabel}</Label>
-        <input
-          type="time"
-          value={pickup}
-          onChange={e => {
-            const t = e.target.value;
-            const h = t && /^\d{2}:\d{2}$/.test(t) ? Number(t.slice(0, 2)) : -1;
-            const night = h >= 18 || (h >= 0 && h < 6);
-            patch({ pickupTime: t, options: { ...state.options, night } });
-          }}
-          placeholder="HH:mm"
-          className={inputCls}
-          style={{ colorScheme: 'dark' }} />
-        <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">{i18n.bookingCutoffNote}</p>
+        {/* batch 9 fix (B9-1+B9-2): 픽업 시각 직접 입력 — Step 3 select 에서 이동.
+            type="time" 으로 30분 단위 제약 없이 자유 입력. 야간 할증 자동 계산. */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+          <Label>{i18n.bookingPickupTimeLabel}</Label>
+          <input
+            type="time"
+            value={pickup}
+            onChange={e => {
+              const t = e.target.value;
+              const h = t && /^\d{2}:\d{2}$/.test(t) ? Number(t.slice(0, 2)) : -1;
+              const night = h >= 18 || (h >= 0 && h < 6);
+              patch({ pickupTime: t, options: { ...state.options, night } });
+            }}
+            placeholder="HH:mm"
+            className={inputCls}
+            style={{ colorScheme: 'dark' }} />
+          <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">{i18n.bookingCutoffNote}</p>
+        </div>
       </div>
 
       {/* 12h cutoff 임박 경고 — 날짜+픽업시각 선택 후 12h 이내이면 amber 배너 */}
@@ -289,7 +291,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       )}
 
       {/* 옵션 (가격 가산 — useQuoteCalculator 가 읽음. BookingInfoForm hideAddons 와 별개) */}
-      <div className="pt-4 border-t border-white/[0.06]">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
         <Label>{i18n.addons}</Label>
         <div className="flex flex-wrap gap-2">
           {/* P1 #9 fix (2026-05-12): sprinter 는 guide_required 자동 가산 → licensedGuide 옵션 숨김.
@@ -326,7 +328,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           phone placeholder: placeholderPhone 미전달 → 기본값 '+82 10 1234 5678'(국가코드 포함) 사용.
             wizard i18n.customerPhonePlaceholder ko='010-1234-5678'(국가코드 無)는 외국인이 +82 칸 믿고
             국내번호 입력 → SMS 오발송하는 바로 그 문제를 재유발하므로 의도적으로 안 씀. */}
-      <div className="pt-2 border-t border-white/[0.06]">
+      <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-3 sm:p-4">
         <BookingInfoForm
           eyebrow={i18n.step5}
           title={state.destinationKey ?? state.destinationCustom ?? (state.origin ?? '')}
@@ -377,7 +379,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   );
 }
 
-const inputCls = 'w-full px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-white/90 text-sm outline-none focus:border-[#B668FC]/50';
+const inputCls = 'w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-black/15 text-white/90 text-sm outline-none transition-colors focus:border-[#B668FC]/55 focus:bg-black/20';
 
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
@@ -388,7 +390,7 @@ function OptionPill({ label, sub, checked, onChange }: { label: string; sub: str
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium border transition-colors ${
+      className={`flex min-h-[46px] items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
         checked ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'
       }`}
     >

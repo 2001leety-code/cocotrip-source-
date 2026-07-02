@@ -100,11 +100,13 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       )}
 
       {/* 영수증 카드 — 항상 노출. */}
-      <div className="rounded-2xl border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/10 to-transparent p-6">
-        <p className="text-xs uppercase tracking-wider text-white/55 mb-1 font-semibold">{i18n.payBlock}</p>
-        <p className="text-base font-bold text-white/85 mb-4">{i18n.receiptTitle}</p>
+      <div className="overflow-hidden rounded-[26px] border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/12 via-white/[0.035] to-transparent shadow-[0_22px_70px_rgba(0,0,0,0.24)]">
+        <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+          <p className="text-xs uppercase tracking-wider text-white/55 mb-1 font-semibold">{i18n.payBlock}</p>
+          <p className="text-lg font-black text-white">{i18n.receiptTitle}</p>
+        </div>
 
-        <div className="space-y-2.5 text-sm border-t border-white/10 pt-3">
+        <div className="space-y-3 px-5 py-4 text-sm sm:px-6">
           {useFormulaRows ? (
             <>
               <Row label={i18n.receiptBaseFee}              value={KRW(r!.baseFeeKRW!)} />
@@ -130,19 +132,19 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
         </div>
 
         {/* 합계 행 */}
-        <div className="mt-5 pt-5 border-t border-white/10 flex items-end justify-between">
-          <span className="text-base text-white/70">{i18n.receiptTotal}</span>
+        <div className="flex items-end justify-between gap-4 border-t border-white/10 bg-black/10 px-5 py-5 sm:px-6">
+          <span className="text-base font-bold text-white/70">{i18n.receiptTotal}</span>
           <div className="text-right">
-            <div className="text-2xl font-bold text-white">{KRW(quote.subtotalKRW)}</div>
+            <div className="text-3xl font-black leading-tight text-white">{KRW(quote.subtotalKRW)}</div>
             <div className="text-xs text-white/55 mt-1">{USD(quote.subtotalKRW)}</div>
           </div>
         </div>
 
         {quote.vatExcluded ? (
-          <p className="mt-3 text-right text-xs text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
+          <p className="px-5 pb-4 text-right text-xs text-amber-300/80 sm:px-6">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
         ) : (
           /* batch 9 fix (B9-9, 2026-05-09): 부가세 포함 명시 — vatExcluded 가 false 일 때 작은 안내. */
-          <p className="mt-2 text-right text-[11px] text-white/50">{i18n.vatIncludedNote}</p>
+          <p className="px-5 pb-4 text-right text-[11px] text-white/50 sm:px-6">{i18n.vatIncludedNote}</p>
         )}
       </div>
 
@@ -193,9 +195,9 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
 function Row({ label, value, muted, warn, good }: { label: string; value: string; muted?: boolean; warn?: boolean; good?: boolean }) {
   const cls = warn ? 'text-amber-300' : good ? 'text-emerald-300' : muted ? 'text-white/50' : 'text-white/80';
   return (
-    <div className={`flex justify-between ${cls}`}>
-      <span>{label}</span>
-      <span>{value}</span>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 ${cls}`}>
+      <span className="min-w-0 leading-relaxed">{label}</span>
+      <span className="whitespace-nowrap font-semibold">{value}</span>
     </div>
   );
 }

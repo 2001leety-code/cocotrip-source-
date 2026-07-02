@@ -89,7 +89,7 @@ export function TourCard({ tour, language }: TourCardProps) {
   return (
     <Link
       to={`/tours/${tour.slug}`}
-      className="block rounded-2xl overflow-hidden group"
+      className="block rounded-[18px] sm:rounded-2xl overflow-hidden group"
       style={{
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.07)',
@@ -107,7 +107,7 @@ export function TourCard({ tour, language }: TourCardProps) {
       }}
     >
       {/* ── 썸네일 ── */}
-      <div className="relative w-full h-[190px] overflow-hidden">
+      <div className="relative w-full h-[136px] sm:h-[190px] overflow-hidden">
 
         {/* 실제 이미지 */}
         <img
@@ -133,10 +133,10 @@ export function TourCard({ tour, language }: TourCardProps) {
         />
 
         {/* 태그 (좌상단) */}
-        <div className="absolute top-3 left-3 flex gap-1.5">
+        <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 flex gap-1.5">
           {isNight && (
             <span
-              className="flex items-center gap-1 text-[9px] font-black tracking-[0.12em] px-2.5 py-1 rounded-full backdrop-blur-sm"
+              className="flex items-center gap-1 text-[8.5px] sm:text-[9px] font-black tracking-[0.12em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm"
               style={{ background: 'rgba(10,5,40,0.80)', border: '1px solid rgba(184,160,255,0.30)', color: '#B8A0FF' }}
             >
               <Moon className="w-2.5 h-2.5" />
@@ -144,7 +144,7 @@ export function TourCard({ tour, language }: TourCardProps) {
             </span>
           )}
           <span
-            className="text-[9px] font-black tracking-[0.12em] px-2.5 py-1 rounded-full backdrop-blur-sm"
+            className="text-[8.5px] sm:text-[9px] font-black tracking-[0.12em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm"
             style={{ background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.color}22` }}
           >
             {primaryTag.toUpperCase()}
@@ -153,7 +153,7 @@ export function TourCard({ tour, language }: TourCardProps) {
 
         {/* 이미지 갯수 표시 + 위시리스트 하트 (우상단) — 두 칩 가로 배치.
             WishlistToggle 자체가 e.stopPropagation 처리하므로 부모 Link 클릭 영향 없음. */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <div className="absolute top-2.5 sm:top-3 right-2.5 sm:right-3 flex items-center gap-1.5">
           {tour.images.length > 1 && (
             <div
               className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm"
@@ -179,13 +179,13 @@ export function TourCard({ tour, language }: TourCardProps) {
         </div>
 
         {/* 가격 (우하단) USD + 근사 KRW 병기 */}
-        <div className="absolute bottom-3 right-3">
+        <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3">
           <div
-            className="px-3 py-1.5 rounded-xl backdrop-blur-sm"
+            className="px-2.5 py-1.5 sm:px-3 rounded-xl backdrop-blur-sm"
             style={{ background: 'rgba(8,4,18,0.82)', border: '1px solid rgba(182,104,252,0.28)' }}
           >
             <p className="text-[9px] text-white/55 uppercase tracking-wider leading-none mb-0.5">{fromLabel}</p>
-            <p className="text-[17px] font-black text-white leading-none">
+            <p className="text-[15px] sm:text-[17px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
               <span className="text-[10px] text-white/55 font-medium ml-0.5">USD</span>
               {tour.priceUnit === 'per_person' && (
@@ -204,33 +204,33 @@ export function TourCard({ tour, language }: TourCardProps) {
       </div>
 
       {/* ── 정보 영역 ── */}
-      <div className="px-4 py-3.5">
+      <div className="px-3.5 py-3 sm:px-4 sm:py-3.5">
 
         {/* 제목 */}
-        <h3 className="text-[15px] font-bold text-white leading-snug mb-1 group-hover:text-purple-200 transition-colors duration-200 line-clamp-1">
+        <h3 className="text-[14px] sm:text-[15px] font-bold text-white leading-snug mb-1 group-hover:text-purple-200 transition-colors duration-200 line-clamp-1">
           {title}
         </h3>
 
         {/* 요약 */}
-        <p className="text-[11.5px] text-white/38 leading-relaxed mb-3 line-clamp-2">
+        <p className="text-[11px] sm:text-[11.5px] text-white/42 leading-relaxed mb-2.5 sm:mb-3 line-clamp-2">
           {summary}
         </p>
 
         {/* 메타 */}
-        <div className="flex items-center gap-2.5 mb-2">
-          <span className="flex items-center gap-1 text-[11px] text-white/50">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mb-2">
+          <span className="flex items-center gap-1 text-[10.5px] sm:text-[11px] text-white/50">
             <Clock className="w-3 h-3 text-purple-400/60" />
             {durationLabel}
           </span>
           <span className="w-px h-3 bg-white/10" />
-          <span className="flex items-center gap-1 text-[11px] text-white/50">
+          <span className="flex items-center gap-1 text-[10.5px] sm:text-[11px] text-white/50">
             <Users className="w-3 h-3 text-pink-400/60" />
             {vehicle.label} · max {vehicle.pax}
           </span>
         </div>
 
         {/* 포함 뱃지 — CocoTrip "No Hidden Fees" 표시 */}
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1 mb-2.5 sm:mb-3">
           {['Tolls', 'Parking', 'Tips'].map(item => (
             <span
               key={item}
@@ -243,10 +243,10 @@ export function TourCard({ tour, language }: TourCardProps) {
         </div>
 
         {/* 구분선 */}
-        <div className="h-px bg-white/[0.05] mb-3" />
+        <div className="h-px bg-white/[0.05] mb-2.5 sm:mb-3" />
 
         {/* 하단 행 */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {tour.rating && tour.rating > 0 && (
               <div className="flex items-center gap-1">
@@ -272,7 +272,7 @@ export function TourCard({ tour, language }: TourCardProps) {
             })()}
           </div>
           <div
-            className="flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full"
+            className="flex items-center gap-1 text-[11px] sm:text-[12px] font-bold px-3 py-1.5 sm:px-3.5 rounded-full shrink-0"
             style={{
               background: 'linear-gradient(135deg, rgba(182,104,252,0.15), rgba(255,107,157,0.10))',
               border: '1px solid rgba(182,104,252,0.22)',
