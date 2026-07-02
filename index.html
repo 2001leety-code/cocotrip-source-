@@ -58,15 +58,21 @@
       #app-splash:before{content:"";position:absolute;inset:-15%;background:radial-gradient(circle at 50% 50%,rgba(234,83,126,.22),rgba(124,92,252,.18) 20%,rgba(5,5,17,0) 56%);filter:blur(18px);opacity:.9;animation:introPulse 2.6s ease both}
       #app-splash:after{content:"";position:absolute;left:50%;top:50%;width:190vmax;height:190vmax;transform:translate(-50%,-50%);background:repeating-conic-gradient(from 0deg,rgba(182,104,252,0) 0 9deg,rgba(182,104,252,.14) 10deg,rgba(234,83,126,.08) 12deg,rgba(182,104,252,0) 15deg);opacity:.35;mix-blend-mode:screen;animation:introVortex 2.6s cubic-bezier(.2,.76,.22,1) both}
       #app-splash .intro-frame{position:absolute;inset:0;background-image:var(--intro-image);background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transform:scale(1.025);animation:introImage 2.6s cubic-bezier(.2,.76,.22,1) both}
+      /* 첫 비트 = OS 네이티브 스플래시와 동일한 "가운데 앱 아이콘" — 네이티브→커스텀 인트로가
+         같은 장면으로 이어져 "로고 떴다가 다시 켜지는" 이중 부팅감 제거 (2026-07-03 handoff).
+         아이콘이 잠깐 유지된 뒤 확대되며 인트로 이미지로 크로스페이드. */
+      #app-splash .intro-icon{position:absolute;left:50%;top:50%;width:112px;height:112px;transform:translate(-50%,-50%);border-radius:24%;background-image:var(--intro-icon);background-size:cover;background-position:center;opacity:1;animation:introIcon 1.05s ease both}
       #app-splash .intro-flash{position:absolute;left:50%;top:50%;width:18px;height:18px;border-radius:999px;background:#fff;box-shadow:0 0 26px #fff,0 0 80px #ea537e,0 0 150px #7c5cfc;transform:translate(-50%,-50%) scale(.2);opacity:0;animation:introFlash 2.6s ease both}
       #app-splash .intro-line{position:absolute;left:0;right:0;bottom:0;height:8px;background:linear-gradient(90deg,#5425ff,#b668fc,#ff2b92);box-shadow:0 0 18px #b668fc;transform-origin:center;animation:introLine 2.6s ease both}
       #app-splash.hide{opacity:0}
-      @keyframes introImage{0%{opacity:0;transform:scale(1.05)}16%{opacity:1;transform:scale(1.01)}68%{opacity:1;filter:saturate(1.1) brightness(1)}92%{opacity:.9;transform:scale(.82);filter:saturate(1.35) brightness(1.28)}100%{opacity:0;transform:scale(.18);filter:saturate(1.8) brightness(1.8) blur(2px)}}
+      /* 인트로 이미지는 아이콘 비트(0~0.34s) 동안 숨어 있다가 페이드인 — 무거운 이미지가 늦게 떠도 아이콘이 가림 */
+      @keyframes introImage{0%,13%{opacity:0;transform:scale(1.05)}30%{opacity:1;transform:scale(1.01)}68%{opacity:1;filter:saturate(1.1) brightness(1)}92%{opacity:.9;transform:scale(.82);filter:saturate(1.35) brightness(1.28)}100%{opacity:0;transform:scale(.18);filter:saturate(1.8) brightness(1.8) blur(2px)}}
+      @keyframes introIcon{0%,32%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.22)}}
       @keyframes introPulse{0%{opacity:.2;transform:scale(.8)}55%{opacity:.9;transform:scale(1)}100%{opacity:.15;transform:scale(.35)}}
       @keyframes introVortex{0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) scale(1.15)}24%{opacity:.34}100%{opacity:0;transform:translate(-50%,-50%) rotate(120deg) scale(.12)}}
       @keyframes introFlash{0%,55%{opacity:0;transform:translate(-50%,-50%) scale(.2)}76%{opacity:.9;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(4.2)}}
       @keyframes introLine{0%{opacity:0;transform:scaleX(.15)}35%{opacity:1;transform:scaleX(1)}100%{opacity:0;transform:scaleX(.1)}}
-      @media (prefers-reduced-motion:reduce){#app-splash:before,#app-splash:after,#app-splash .intro-frame,#app-splash .intro-flash,#app-splash .intro-line{animation:none}#app-splash .intro-frame{opacity:1;transform:none}}
+      @media (prefers-reduced-motion:reduce){#app-splash:before,#app-splash:after,#app-splash .intro-frame,#app-splash .intro-flash,#app-splash .intro-line,#app-splash .intro-icon{animation:none}#app-splash .intro-frame{opacity:1;transform:none}#app-splash .intro-icon{display:none}}
     </style>
 
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
@@ -146,6 +152,7 @@
     <!-- 설치 PWA 전용 시작 인트로. /mood 는 CocoTrip x MOOD, 그 외는 CocoTrip 단독. -->
     <div id="app-splash" aria-hidden="true">
       <div class="intro-frame"></div>
+      <div class="intro-icon"></div>
       <div class="intro-flash"></div>
       <div class="intro-line"></div>
     </div>
@@ -160,12 +167,20 @@
           if (!standalone && !previewIntro) return; // 일반 웹 방문(브라우저 탭)이면 스플래시 안 띄움
           var el = document.getElementById('app-splash');
           var isMood = location.pathname.indexOf('/mood') === 0 || params.get('intro') === 'mood';
-          var image = isMood ? '/images/pwa-intro/mood-collab-intro.png' : '/images/pwa-intro/cocotrip-intro.png';
+          // base 경로 — .webp(21~23KB, 즉시 페인트) 우선, 미지원 브라우저만 .png(1.2MB) 폴백
+          var base = isMood ? '/images/pwa-intro/mood-collab-intro' : '/images/pwa-intro/cocotrip-intro';
+          // 첫 비트 아이콘 = manifest 아이콘과 동일 — OS 네이티브 스플래시에서 그대로 이어지는 느낌
+          var icon = isMood ? '/icons/mood-512.png' : '/icons/icon-512.png';
           if (isMood) {
             el.className = 'mood';
           }
-          el.style.setProperty('--intro-image', 'url("' + image + '")');
-          try { var pre = new Image(); pre.src = image; } catch (_) {}
+          el.style.setProperty('--intro-icon', 'url("' + icon + '")');
+          el.style.setProperty('--intro-image', 'url("' + base + '.webp")');
+          try {
+            var probe = new Image();
+            probe.onerror = function () { el.style.setProperty('--intro-image', 'url("' + base + '.png")'); };
+            probe.src = base + '.webp';
+          } catch (_) {}
           el.style.display = 'flex';
           var t0 = Date.now();
           var MIN = 2600, MAX = 3900, done = false;

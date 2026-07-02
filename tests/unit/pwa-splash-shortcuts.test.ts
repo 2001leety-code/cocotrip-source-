@@ -46,14 +46,24 @@ describe('매끄러운 브랜드 스플래시 복원 (2026-06-14 운영자 선�
     expect(html).toContain('background:#0a0b14');
     expect(html).toContain('#0a0412');
   });
-  it('아이콘 중복 없이 이미지 인트로(코코트립/무드 콜라보) — "아이콘 2개" 회귀 방지', () => {
+  it('이미지 인트로(코코트립/무드 콜라보) — webp 우선 + png 폴백', () => {
     // 2026-07-01 Codex: 텍스트 워드마크 → 이미지 기반 시작 인트로(intro-frame)로 개편.
-    // CocoTrip 단독/MOOD 콜라보 이미지 2종이 standalone 기동 시 배경으로 깔림.
+    // 2026-07-03: base 경로 + .webp 우선(21~23KB 즉시 페인트), 미지원 브라우저만 .png 폴백.
     expect(html).toContain('intro-frame');
-    expect(html).toContain('/images/pwa-intro/cocotrip-intro.png');
-    expect(html).toContain('/images/pwa-intro/mood-collab-intro.png');
-    // 별도 아이콘(icon-192)을 splash 에서 또 그리지 않음
-    expect(html).not.toMatch(/app-splash[\s\S]{0,400}icon-192\.png/);
+    expect(html).toContain('/images/pwa-intro/cocotrip-intro');
+    expect(html).toContain('/images/pwa-intro/mood-collab-intro');
+    expect(html).toContain(".webp");
+    expect(html).toContain(".png"); // 폴백 유지
+  });
+
+  it('첫 비트 = manifest 아이콘 (OS 네이티브 스플래시→인트로 연속감, 이중 부팅감 제거)', () => {
+    // 2026-07-03 smoothness handoff: 네이티브 스플래시(가운데 아이콘)와 동일한 아이콘 비트로
+    // 시작해 인트로 이미지로 크로스페이드 — "로고 떴다가 다시 켜지는" 느낌 제거.
+    // (#951/#953 "아이콘 2개"와 다름: 그건 아이콘이 두 '장면'으로 따로 뜬 문제,
+    //  이건 같은 아이콘이 같은 자리에서 이어지는 연속 장면.)
+    expect(html).toContain('intro-icon');
+    expect(html).toContain('/icons/icon-512.png');
+    expect(html).toContain('/icons/mood-512.png');
   });
   it('standalone(설치 앱) 전용 — 일반 웹 탭에선 안 뜸', () => {
     expect(html).toContain("display-mode: standalone");
@@ -74,7 +84,9 @@ describe('App / 진입 페이지 — 스플래시 배선', () => {
     expect(readFileSync(r('src/pages/MobileHomeV2.tsx'), 'utf8')).toContain('signalAppReady');
     const mood = readFileSync(r('src/pages/MoodPortal.tsx'), 'utf8');
     expect(mood).toContain('signalAppReady');
-    expect(mood).toMatch(/if\s*\(!loading\)\s*signalAppReady\(\)/);
+    // 2026-07-03: loading 가드 + 더블 rAF(페인트 후 신호) 패턴으로 변경 — smoothness handoff.
+    expect(mood).toMatch(/if\s*\(loading\)\s*return/);
+    expect(mood).toMatch(/requestAnimationFrame\([\s\S]{0,120}signalAppReady\(\)/);
   });
 });
 

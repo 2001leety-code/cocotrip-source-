@@ -540,7 +540,16 @@ export default function MoodPortal() {
 
   // PWA 실행 스플래시 페이드아웃 — 인증 끝나 포털/로그인 화면이 그려질 때 신호(무드 standalone 진입점).
   // (인증 대기 중엔 스플래시가 유지되어 "검정 갭" 을 가린다. 훅은 게이트보다 위 = rules-of-hooks.)
-  useEffect(() => { if (!loading) signalAppReady(); }, [loading]);
+  // 더블 rAF: effect 시점엔 아직 페인트 전일 수 있음 — 다음 프레임이 실제로 그려진 뒤 신호해야
+  // 스플래시가 걷힐 때 밑에 로딩 스피너/빈 화면이 안 보임 (2026-07-03 smoothness handoff).
+  useEffect(() => {
+    if (loading) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => signalAppReady());
+    });
+    return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
+  }, [loading]);
 
   // ── 로딩 / 미로그인 / 권한없음 게이트 ─────────────────────────
   if (loading) {
