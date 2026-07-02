@@ -3,7 +3,7 @@
 // 2026-05-10 (B9-35 잔여): wizard 진행 자동 저장 + 24h 이내 재진입 시 ResumeWizardModal.
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, CreditCard, Loader2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -28,6 +28,7 @@ import {
   clearWizardSnapshot,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
+import { VEHICLE_TYPES } from '@/data/charterPricing';
 
 // localStorage 에 저장하는 charter wizard snapshot — state + manualKm + step.
 // state object 만 저장하면 manualKm (Geocoding fail 후 사용자 직접 km 입력) 가
@@ -91,6 +92,57 @@ const CARROT_CTA: Record<string, string> = {
   ja: '登録して割引を受ける',
   zh: '注册领取折扣',
 };
+
+const STEP_HELP: Record<string, string[]> = {
+  en: [
+    'Start with the pickup point. Airports, hotel zones, and custom addresses all work.',
+    'Pick the job type so the quote only asks for details that matter.',
+    'Choose a fixed zone or search a precise address for custom routes.',
+    'Set passengers and vehicle. The recommendation updates with your group size.',
+    'Add timing, contact details, luggage, and required booking consent.',
+    'Review the final fare before moving to secure checkout.',
+  ],
+  ko: [
+    '픽업 지점부터 정합니다. 공항, 호텔 권역, 직접 주소 모두 가능합니다.',
+    '필요한 서비스 종류를 고르면 이후 질문이 딱 맞게 줄어듭니다.',
+    '고정 권역을 고르거나 정확한 주소를 검색해 맞춤 동선을 만들 수 있습니다.',
+    '인원과 차종을 정합니다. 인원에 따라 추천 차량이 함께 바뀝니다.',
+    '날짜, 연락처, 수하물, 필수 약관 동의를 한 번에 정리합니다.',
+    '결제 전 최종 금액과 포함 내용을 확인합니다.',
+  ],
+  ja: [
+    'まずは出発地点を選びます。空港、ホテルエリア、住所検索に対応しています。',
+    'サービス種類を選ぶと、必要な質問だけに絞られます。',
+    '固定エリアまたは住所検索で目的地を指定できます。',
+    '人数と車両を選びます。人数に合わせておすすめ車両が変わります。',
+    '日時、連絡先、荷物、必須同意をまとめて入力します。',
+    '決済前に最終料金と含まれる内容を確認します。',
+  ],
+  zh: [
+    '先选择上车地点。机场、酒店区域和自定义地址都可以。',
+    '选择服务类型后，只显示相关问题。',
+    '选择固定区域，或搜索精确地址生成路线。',
+    '设置人数和车型。推荐车型会随人数更新。',
+    '填写日期、联系方式、行李和必要同意。',
+    '支付前确认最终费用和包含项目。',
+  ],
+};
+
+function compactValue(value: string | undefined | null, fallback: string): string {
+  const v = value?.trim();
+  return v && v.length > 0 ? v : fallback;
+}
+
+function vehicleSummaryLabel(vehicle: WizardState['vehicle'], lang: 'ko' | 'en' | 'ja' | 'zh'): string {
+  if (!vehicle) return '-';
+  if (vehicle === 'staria') {
+    if (lang === 'ko') return '프리미엄 비즈니스';
+    if (lang === 'ja') return 'プレミアムビジネス';
+    if (lang === 'zh') return '高端商务';
+    return 'Premium Business';
+  }
+  return VEHICLE_TYPES[vehicle]?.name[lang] ?? vehicle;
+}
 
 export function CharterWizard({ initialState, onComplete, language = 'en' }: CharterWizardProps) {
   // 2026-05-10 (B9-35 잔여): 마운트 시 24h 이내 미완 snapshot 있으면 modal 노출.
@@ -255,159 +307,267 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
 
   const i18n = getWizardI18n(language);
   const STEP_LABELS = [i18n.step1, i18n.step2, i18n.step3, i18n.step4, i18n.step5, i18n.step6];
+  const stepHelp = STEP_HELP[language] || STEP_HELP.en;
+  const progressPct = `${Math.round((currentStep / STEP_LABELS.length) * 100)}%`;
+  const summaryRows = [
+    {
+      label: language === 'ko' ? '출발' : language === 'ja' ? '出発' : language === 'zh' ? '出发' : 'Pickup',
+      value: compactValue(state.originName || state.originAddress || state.originCustom || state.origin, '-'),
+    },
+    {
+      label: language === 'ko' ? '서비스' : language === 'ja' ? 'サービス' : language === 'zh' ? '服务' : 'Service',
+      value: compactValue(state.service?.replace(/_/g, ' '), '-'),
+    },
+    {
+      label: language === 'ko' ? '도착' : language === 'ja' ? '目的地' : language === 'zh' ? '目的地' : 'Destination',
+      value: compactValue(state.destName || state.destAddress || state.destinationCustom || state.destinationKey, '-'),
+    },
+      {
+        label: language === 'ko' ? '인원/차량' : language === 'ja' ? '人数/車両' : language === 'zh' ? '人数/车型' : 'Party / car',
+      value: `${state.paxCount || '-'} ${language === 'ko' ? '명' : 'pax'} · ${vehicleSummaryLabel(state.vehicle, language)}`,
+      },
+    {
+      label: language === 'ko' ? '일정' : language === 'ja' ? '日程' : language === 'zh' ? '日期' : 'Date',
+      value: compactValue(`${state.startDate ?? ''}${state.pickupTime ? ` ${state.pickupTime}` : ''}`, '-'),
+    },
+  ];
+  const desktopAmount = stickyAmountKRW != null ? formatPrice(stickyAmountKRW, language) : null;
 
   // 모바일은 하단 패딩 96px 확보(고정 sticky 바가 인플로우 nav/마지막 입력 가리지 않게). 데스크탑 무패딩.
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6" style={isMobile ? { paddingBottom: 96 } : undefined}>
-      <div className="flex items-center justify-between mb-8">
-        {STEP_LABELS.map((_, idx) => {
-          const id = idx + 1;
-          return (
-            <div key={id} className="flex items-center flex-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                id < currentStep ? 'bg-emerald-500 text-white' :
-                id === currentStep ? 'bg-[#B668FC] text-white m-pulse-glow' :
-                'bg-white/10 text-white/55'
-              }`}>
-                {id < currentStep ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <motion.path
-                      d="M3.5 8.5 L7 12 L13 4.5"
-                      stroke="white"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      initial={{ pathLength: 0 }}
-                      animate={{ pathLength: 1 }}
-                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
-                    />
-                  </svg>
-                ) : id}
+    <div className="mx-auto w-full max-w-6xl px-0 py-2.5 sm:px-4 sm:py-6 lg:py-8" style={isMobile ? { paddingBottom: 88 } : undefined}>
+      <div className="grid gap-2.5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <section className="min-w-0">
+          <div className="mb-2 overflow-hidden rounded-[14px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,92,252,0.20),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.22)] sm:mb-5 sm:rounded-[28px] sm:p-5 sm:shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/25 bg-[#B668FC]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#D8C0FF] sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
+                <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                {i18n.stepOf} {currentStep} / {STEP_LABELS.length}
               </div>
-              {idx < STEP_LABELS.length - 1 && (
-                <div className={`flex-1 h-0.5 ${id < currentStep ? 'bg-emerald-500' : 'bg-white/10'}`} />
-              )}
+              <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/45 sm:flex">
+                <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#00D28C]" /> PayPal</span>
+                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> 12h cutoff</span>
+              </div>
             </div>
-          );
-        })}
-      </div>
 
-      <h2 className="text-2xl font-bold text-white mb-2">
-        {STEP_LABELS[currentStep - 1]}
-      </h2>
-      <p className="text-sm text-white/55 mb-8">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
-
-      <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 sm:p-8 mb-8">
-        {currentStep === 1 && <Step1Origin      state={state} patch={patch} language={language} />}
-        {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
-        {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
-        {currentStep === 4 && <Step4PaxVehicle  state={state} patch={patch} language={language} />}
-        {currentStep === 5 && (
-          /* 2026-06-29 (방법 A): Step 5 고객정보 UI 를 BookingInfoForm 으로 통합 (Step5DateOptions 내부).
-             약관은 termsAgreed SSOT 단일 — BookingInfoForm 의 "모두 동의" 와 동기 (externalAgreeAll).
-             #1012 항공편 자동조회(/api/flight-status)는 Step5DateOptions 가 보존(flightLookupSlot).
-             결제·가격 엔진·canAdvance 게이트(termsAgreed)는 무수정 그대로.
-             SMS 본인인증(BookingConsent)은 제거 (2026-06-30 운영자 결정) — footerSlot 미전달. */
-          <Step5DateOptions
-            state={state}
-            patch={patch}
-            language={language}
-            quote={quote}
-            termsAgreed={termsAgreed}
-            onTermsChange={setTermsAgreed}
-            onMarketingChange={setMarketingConsent}
-          />
-        )}
-        {currentStep === 6 && (
-          isInquiryVehicle ? (
-            // Bus — 가격 카드 대신 상담 폼.
-            <InquiryForm
-              vehicle="bus"
-              state={state}
-              language={language}
-            />
-          ) : (
-            <div className="space-y-4">
-              {loading && (
-                <div className="flex items-center gap-2 text-sm text-white/55">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Geocoding...
-                </div>
-              )}
-              {distanceSource && !loading && (
-                <p className="text-xs text-white/55">
-                  {language === 'ko' ? '거리 출처' : language === 'ja' ? '距離ソース' : language === 'zh' ? '距离来源' : 'Distance source'}:{' '}
-                  <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
-                </p>
-              )}
-              <Step6Quote quote={quote} state={state} language={language} />
-              {/* 2026-06-19 (운영자 B): 비로그인 게스트에게 견적은 보여주되 가입 시 최대 10% 할인 소프트 유도. */}
-              {!user && (
-                <div className="rounded-xl border border-[#B668FC]/40 bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 p-4">
-                  <p className="text-sm font-bold text-white mb-1">🎁 {CARROT_TITLE[language] || CARROT_TITLE.en}</p>
-                  <p className="text-xs text-white/70 mb-3 leading-relaxed">{CARROT_BODY[language] || CARROT_BODY.en}</p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10 sm:mt-4 sm:h-2">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-[#7C5CFC] to-[#EA537E]"
+                initial={false}
+                animate={{ width: progressPct }}
+                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+              />
+            </div>
+            <div className="mt-1 grid grid-cols-6 gap-1 sm:mt-3 sm:gap-1.5">
+              {STEP_LABELS.map((label, idx) => {
+                const id = idx + 1;
+                const active = id === currentStep;
+                const done = id < currentStep;
+                return (
                   <button
+                    key={label}
                     type="button"
-                    onClick={() => void signInWithGoogle()}
-                    className="w-full py-2.5 rounded-lg text-sm font-bold text-white transition-all active:scale-[0.99]"
-                    style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                    onClick={() => id < currentStep && setCurrentStep(id)}
+                    className={`min-h-[22px] rounded-md px-1 text-center text-[10px] font-bold leading-tight transition-colors sm:min-h-[42px] sm:rounded-xl sm:px-1.5 ${
+                      active ? 'bg-white/12 text-white' : done ? 'text-emerald-300 hover:bg-white/5' : 'text-white/35'
+                    }`}
                   >
-                    {CARROT_CTA[language] || CARROT_CTA.en}
+                    <span className="block text-[11px]">{done ? '✓' : id}</span>
+                    <span className="hidden xl:block">{label}</span>
                   </button>
-                </div>
-              )}
-              {geocodingFailed && (
-                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-                  <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
-                  <label className="block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={manualKm ?? ''}
-                    onChange={e => {
-                      const n = Number(e.target.value);
-                      setManualKm(Number.isFinite(n) && n > 0 ? n : null);
-                    }}
-                    className="w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
-                  />
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[16px] border border-white/10 bg-[#0B1020]/85 p-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:rounded-[30px] sm:p-7 sm:shadow-[0_24px_90px_rgba(0,0,0,0.34)] lg:p-8">
+            <div className="mb-2.5 flex flex-col gap-1 sm:mb-7 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+              <div>
+                <h2 className="text-[18px] font-black leading-tight text-white sm:text-[28px]">
+                  {STEP_LABELS[currentStep - 1]}
+                </h2>
+                <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-white/55 sm:mt-2 sm:text-sm">
+                  {stepHelp[currentStep - 1]}
+                </p>
+              </div>
+              {desktopAmount && (
+                <div className="hidden rounded-2xl border border-[#B668FC]/25 bg-[#B668FC]/10 px-4 py-3 text-right sm:block">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+                    {language === 'ko' ? '현재 견적' : language === 'ja' ? '現在の見積' : language === 'zh' ? '当前报价' : 'Live quote'}
+                  </p>
+                  <p className="mt-1 text-lg font-black text-white">{desktopAmount}</p>
                 </div>
               )}
             </div>
-          )
-        )}
-      </div>
 
-      <div className="flex gap-3">
-        {currentStep > 1 && (
-          <button
-            type="button"
-            onClick={goPrev}
-            className="flex-1 py-3 rounded-xl border border-white/15 text-white/70 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
-          >
-            <ChevronLeft className="w-4 h-4" /> {i18n.prev}
-          </button>
-        )}
-        {currentStep < 6 && (
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={!canAdvance()}
-            className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            {i18n.next} <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
-        {currentStep === 6 && onComplete && !isInquiryVehicle && (
-          <button
-            type="button"
-            onClick={handleProceedPayment}
-            disabled={!canAdvance()}
-            className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
-            style={{ background: '#0070BA' }}
-          >
-            {i18n.payProceed}
-          </button>
-        )}
+            {currentStep === 1 && <Step1Origin      state={state} patch={patch} language={language} />}
+            {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
+            {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
+            {currentStep === 4 && <Step4PaxVehicle  state={state} patch={patch} language={language} />}
+            {currentStep === 5 && (
+              /* 2026-06-29 (방법 A): Step 5 고객정보 UI 를 BookingInfoForm 으로 통합 (Step5DateOptions 내부).
+                 약관은 termsAgreed SSOT 단일 — BookingInfoForm 의 "모두 동의" 와 동기 (externalAgreeAll).
+                 #1012 항공편 자동조회(/api/flight-status)는 Step5DateOptions 가 보존(flightLookupSlot).
+                 결제·가격 엔진·canAdvance 게이트(termsAgreed)는 무수정 그대로.
+                 SMS 본인인증(BookingConsent)은 제거 (2026-06-30 운영자 결정) — footerSlot 미전달. */
+              <Step5DateOptions
+                state={state}
+                patch={patch}
+                language={language}
+                quote={quote}
+                termsAgreed={termsAgreed}
+                onTermsChange={setTermsAgreed}
+                onMarketingChange={setMarketingConsent}
+              />
+            )}
+            {currentStep === 6 && (
+              isInquiryVehicle ? (
+                // Bus — 가격 카드 대신 상담 폼.
+                <InquiryForm
+                  vehicle="bus"
+                  state={state}
+                  language={language}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {loading && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/55">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Geocoding...
+                    </div>
+                  )}
+                  {distanceSource && !loading && (
+                    <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55">
+                      {language === 'ko' ? '거리 출처' : language === 'ja' ? '距離ソース' : language === 'zh' ? '距离来源' : 'Distance source'}:{' '}
+                      <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
+                    </p>
+                  )}
+                  <Step6Quote quote={quote} state={state} language={language} />
+                  {/* 2026-06-19 (운영자 B): 비로그인 게스트에게 견적은 보여주되 가입 시 최대 10% 할인 소프트 유도. */}
+                  {!user && (
+                    <div className="rounded-2xl border border-[#B668FC]/40 bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 p-4">
+                      <p className="text-sm font-bold text-white mb-1">🎁 {CARROT_TITLE[language] || CARROT_TITLE.en}</p>
+                      <p className="text-xs text-white/70 mb-3 leading-relaxed">{CARROT_BODY[language] || CARROT_BODY.en}</p>
+                      <button
+                        type="button"
+                        onClick={() => void signInWithGoogle()}
+                        className="w-full rounded-xl py-3 text-sm font-bold text-white transition-all active:scale-[0.99]"
+                        style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                      >
+                        {CARROT_CTA[language] || CARROT_CTA.en}
+                      </button>
+                    </div>
+                  )}
+                  {geocodingFailed && (
+                    <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+                      <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
+                      <label className="block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={manualKm ?? ''}
+                        onChange={e => {
+                          const n = Number(e.target.value);
+                          setManualKm(Number.isFinite(n) && n > 0 ? n : null);
+                        }}
+                        className="w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="mt-5 hidden gap-3 sm:flex">
+            {currentStep > 1 && (
+              <button
+                type="button"
+                onClick={goPrev}
+                className="flex-1 rounded-2xl border border-white/15 py-4 text-sm font-bold text-white/70 transition-colors hover:bg-white/5 flex items-center justify-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" /> {i18n.prev}
+              </button>
+            )}
+            {currentStep < 6 && (
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={!canAdvance()}
+                className="flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
+              >
+                {i18n.next} <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+            {currentStep === 6 && onComplete && !isInquiryVehicle && (
+              <button
+                type="button"
+                onClick={handleProceedPayment}
+                disabled={!canAdvance()}
+                className="flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: '#0070BA' }}
+              >
+                {i18n.payProceed}
+              </button>
+            )}
+          </div>
+        </section>
+
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 space-y-4">
+            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+              <div className="border-b border-white/10 bg-gradient-to-br from-[#7C5CFC]/18 to-[#EA537E]/10 p-5">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#D8C0FF]">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {language === 'ko' ? '예약 요약' : language === 'ja' ? '予約サマリー' : language === 'zh' ? '预订摘要' : 'Trip summary'}
+                </div>
+                <p className="mt-2 text-xl font-black leading-tight text-white">
+                  {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : 'Quote appears as you choose')}
+                </p>
+                {desktopAmount && stickyAmountKRW != null && (
+                  <p className="mt-1 text-xs text-white/45">{formatPrice(stickyAmountKRW, 'en', { withCurrencyCode: true })}</p>
+                )}
+              </div>
+              <div className="space-y-3 p-5">
+                {summaryRows.map((row) => (
+                  <div key={row.label} className="rounded-2xl border border-white/[0.08] bg-black/10 px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">{row.label}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-white/80">{row.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-emerald-400/15 bg-emerald-400/[0.055] p-5">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-[#00D28C]" />
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    {language === 'ko' ? '현지 운영자가 확인합니다' : language === 'ja' ? '現地運営チームが確認' : language === 'zh' ? '本地团队确认' : 'Checked by our local team'}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                    {language === 'ko'
+                      ? '차량, 기사, 항공편, 수하물 정보를 결제 전 한 번에 맞춥니다.'
+                      : 'Vehicle, driver, flight, and luggage details stay together before checkout.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <Clock3 className="h-4 w-4 text-[#C4956A]" />
+                <p className="mt-2 text-xs font-bold text-white">12h</p>
+                <p className="text-[11px] text-white/45">booking cutoff</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <CreditCard className="h-4 w-4 text-[#B9A4FF]" />
+                <p className="mt-2 text-xs font-bold text-white">PayPal</p>
+                <p className="text-[11px] text-white/45">secure checkout</p>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
 
       {/* 모바일(<768px) 전용 sticky 가격+CTA 바 — 기존 핸들러/게이트/라벨 재사용(PayPal 직접 호출 없음).
@@ -419,7 +579,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         const barLabel = isPayStep ? i18n.payProceed : i18n.next;
         const barOnClick = isPayStep ? handleProceedPayment : goNext;
         return (
-          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(8,11,20,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.10)', boxShadow: '0 -18px 60px rgba(0,0,0,0.38)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               {stickyAmountKRW != null ? (
                 <>
@@ -434,7 +594,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               type="button"
               disabled={barDisabled}
               onClick={barOnClick}
-              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 14, background: barDisabled ? 'rgba(255,255,255,0.08)' : (isPayStep ? '#0070BA' : 'linear-gradient(135deg,#B668FC,#FF6B9D)'), color: barDisabled ? 'rgba(255,255,255,0.4)' : '#fff', fontSize: 15, fontWeight: 800, cursor: barDisabled ? 'not-allowed' : 'pointer' }}
+              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 16, background: barDisabled ? 'rgba(255,255,255,0.08)' : (isPayStep ? '#0070BA' : 'linear-gradient(135deg,#7C5CFC,#EA537E)'), color: barDisabled ? 'rgba(255,255,255,0.4)' : '#fff', fontSize: 15, fontWeight: 900, cursor: barDisabled ? 'not-allowed' : 'pointer' }}
             >
               {barLabel}
             </button>

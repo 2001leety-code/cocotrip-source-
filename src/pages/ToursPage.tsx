@@ -7,17 +7,19 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package, ShieldCheck, CreditCard, Phone,
-  Star, ExternalLink, ChevronRight, Languages, ArrowUpDown,
+  ChevronRight, Languages, ArrowUpDown, ExternalLink,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { TourCard } from '@/components/tours/TourCard';
+import { TourInquireModal } from '@/components/tours/TourInquireModal';
 import { TOUR_REGIONS, getToursByRegion } from '@/data/tours';
-import { HOTELS } from '@/data/hotels';
 import type { TourRegion, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
+import { buildHotelListLink } from '@/config/affiliateLinks';
+import { trackEvent, trackAdClick } from '@/lib/analytics';
 
 type SortKey = 'default' | 'price-asc' | 'price-desc';
 
@@ -29,16 +31,13 @@ const TL = {
     pageTitle: '투어 상품',
     pageSubtitle: '코코트립이 엄선한 한국 프라이빗 투어 패키지',
     filterLabel: '지역 필터',
-    hotelTitle: '추천 숙소',
-    hotelSubtitle: '투어와 함께 예약하면 더 편리해요',
-    hotelFrom: '최저',
-    hotelNight: '/ 박',
-    hotelScore: '점',
-    hotelBtn: 'Trip.com에서 보기',
-    hotelCommission: '* 예약 완료 시 코코트립에 수수료가 지급됩니다',
-    inquireTitle: '맞춤 투어가 필요하신가요?',
-    inquireSub: '차터 페이지에서 1:1 견적 받아보세요',
-    inquireBtn: '견적 받기',
+    inquireTitle: '원하는 투어가 없나요?',
+    inquireSub: '지역·테마·예산만 알려주시면 맞춤 견적을 보내드립니다',
+    inquireBtn: '맞춤 문의',
+    charterLink: '차터 견적폼',
+    hotelCtaText: '투어 전후 숙소가 필요하신가요?',
+    hotelCtaBtn: 'Trip.com에서 숙소 보기',
+    hotelCtaNew: '새 창에서 Trip.com이 열립니다',
     seoTitle: 'CocoTrip 투어 — 한국 프라이빗 투어',
     seoDesc: '서울·부산·제주 전세차량 투어. 톨비·주차비 포함, PayPal 안심결제.',
     noResults: '해당 지역 투어 상품이 없습니다',
@@ -47,16 +46,13 @@ const TL = {
     pageTitle: 'Tours',
     pageSubtitle: 'Handpicked Korea private tour packages by CocoTrip',
     filterLabel: 'Filter by region',
-    hotelTitle: 'Recommended Stays',
-    hotelSubtitle: 'Book with your tour for a seamless trip',
-    hotelFrom: 'from',
-    hotelNight: '/ night',
-    hotelScore: '/10',
-    hotelBtn: 'View on Trip.com',
-    hotelCommission: '* CocoTrip earns a commission on completed bookings',
     inquireTitle: 'Need a custom tour?',
-    inquireSub: 'Get a 1-on-1 quote on the Charter page',
-    inquireBtn: 'Get Quote',
+    inquireSub: 'Tell us your region, theme & budget — we will send a tailored quote',
+    inquireBtn: 'Inquire',
+    charterLink: 'Charter quote form',
+    hotelCtaText: 'Need a place to stay before or after your tour?',
+    hotelCtaBtn: 'Browse hotels on Trip.com',
+    hotelCtaNew: 'Opens Trip.com in a new tab',
     seoTitle: 'CocoTrip Tours — Korea Private Tours',
     seoDesc: 'Seoul, Busan & Jeju private van tours. Tolls and parking included. PayPal secure.',
     noResults: 'No tours available for this region',
@@ -65,16 +61,13 @@ const TL = {
     pageTitle: 'ツアー',
     pageSubtitle: 'CocoTripが厳選した韓国プライベートツアーパッケージ',
     filterLabel: '地域フィルター',
-    hotelTitle: 'おすすめ宿泊施設',
-    hotelSubtitle: 'ツアーと一緒に予約してスムーズな旅を',
-    hotelFrom: 'から',
-    hotelNight: '/ 泊',
-    hotelScore: '/10',
-    hotelBtn: 'Trip.comで見る',
-    hotelCommission: '* 予約完了時にCocoTripに手数料が支払われます',
-    inquireTitle: 'カスタムツアーが必要ですか？',
-    inquireSub: 'チャーターページで1対1の見積もりを',
-    inquireBtn: '見積もりを取る',
+    inquireTitle: '希望のツアーがありませんか？',
+    inquireSub: '地域・テーマ・予算を教えていただければ、お見積もりをお送りします',
+    inquireBtn: 'お問い合わせ',
+    charterLink: 'チャーター見積フォーム',
+    hotelCtaText: 'ツアー前後の宿泊先をお探しですか？',
+    hotelCtaBtn: 'Trip.comでホテルを見る',
+    hotelCtaNew: '新しいタブでTrip.comが開きます',
     seoTitle: 'CocoTrip ツアー — 韓国プライベートツアー',
     seoDesc: 'ソウル・釜山・済州の専用バンツアー。通行料・駐車場込み。PayPal安全決済。',
     noResults: 'このエリアのツアーはありません',
@@ -83,16 +76,13 @@ const TL = {
     pageTitle: '旅游产品',
     pageSubtitle: 'CocoTrip精选韩国私人旅游套餐',
     filterLabel: '按地区筛选',
-    hotelTitle: '推荐住宿',
-    hotelSubtitle: '与旅游同时预订，出行更便捷',
-    hotelFrom: '起',
-    hotelNight: '/ 晚',
-    hotelScore: '/10',
-    hotelBtn: '在Trip.com查看',
-    hotelCommission: '* 预订完成后CocoTrip将获得佣金',
-    inquireTitle: '需要定制旅游？',
-    inquireSub: '在包车页面获取一对一报价',
-    inquireBtn: '获取报价',
+    inquireTitle: '没有想要的路线？',
+    inquireSub: '告诉我们地区·主题·预算，我们将发送定制报价',
+    inquireBtn: '立即咨询',
+    charterLink: '包车报价表',
+    hotelCtaText: '旅游前后需要住宿吗？',
+    hotelCtaBtn: '在Trip.com查看酒店',
+    hotelCtaNew: '将在新窗口打开Trip.com',
     seoTitle: 'CocoTrip 旅游 — 韩国私人包车游',
     seoDesc: '首尔、釜山和济州私人包车游览，含过路费·停车费，PayPal安全支付。',
     noResults: '该地区暂无旅游产品',
@@ -109,6 +99,24 @@ export default function ToursPage() {
   const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
   const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
   const [sortBy, setSortBy] = useState<SortKey>('default');
+  const [inquireOpen, setInquireOpen] = useState(false);
+
+  // Trip.com 숙소 CTA — 활성 지역 필터에 맞춰 도시 좁힘 (hotels.ts REGION_MAP 과 동일 폴백).
+  const HOTEL_CITY_KEY: Partial<Record<TourRegion, string>> = {
+    Seoul: 'seoul', Busan: 'busan', Jeju: 'jeju', Gyeongju: 'gyeongju',
+    Chuncheon: 'chuncheon', Danyang: 'danyang', Incheon: 'incheon',
+    Ganghwa: 'seoul', DMZ: 'seoul', 'Multi-City': 'seoul',
+  };
+  const hotelSearchUrl = buildHotelListLink(
+    activeRegion === 'All' ? undefined : HOTEL_CITY_KEY[activeRegion],
+  );
+
+  // 맞춤투어 모달 지역 프리필 — 투어 필터가 서울/부산/제주면 그대로, 그 외 지역이면 '기타'.
+  const inquireDefaultRegion: '' | 'seoul' | 'busan' | 'jeju' | 'other' =
+    activeRegion === 'All' ? '' :
+    activeRegion === 'Seoul' ? 'seoul' :
+    activeRegion === 'Busan' ? 'busan' :
+    activeRegion === 'Jeju' ? 'jeju' : 'other';
 
   const toggleLang = (lang: DriverLanguage) => {
     setActiveLangs(prev => {
@@ -137,11 +145,6 @@ export default function ToursPage() {
     else if (sortBy === 'price-desc') arr.sort((a, b) => b.priceFrom - a.priceFrom);
     return arr;
   })();
-
-  // 호텔: 선택 지역 기준 / All이면 서울 기본
-  const visibleHotels = HOTELS.filter(h =>
-    activeRegion === 'All' ? true : h.region === activeRegion
-  ).slice(0, 3);
 
   usePageMeta({
     title: tl.seoTitle,
@@ -216,30 +219,44 @@ export default function ToursPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* ── 페이지 헤더 ── */}
-      <header className={`max-w-6xl mx-auto px-4 sm:px-6 pb-5 ${isMobile ? 'pt-20' : 'pt-24'}`}>
+      <header className={`max-w-6xl mx-auto px-4 sm:px-6 ${isMobile ? 'pt-3 pb-3' : 'pt-10 pb-5'}`}>
+        <div
+          className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
+          style={{
+            background: 'linear-gradient(135deg, rgba(19,45,88,0.92), rgba(24,13,42,0.86))',
+            border: '1px solid rgba(118,83,194,0.22)',
+            boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
+          }}
+        >
         <div className="flex items-center gap-3 mb-2">
           <div
-            className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
             style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
           >
             <Package className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-[28px] font-black leading-none tours-shimmer">
+          <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-purple-200/75 leading-none mb-1">
+            CocoTrip tours
+          </p>
+          <h1 className="text-[24px] sm:text-[34px] font-black leading-[1.05] tours-shimmer">
             {tl.pageTitle}
           </h1>
+          </div>
         </div>
-        <p className="text-[13px] text-white/55 ml-[52px] leading-relaxed">
+        <p className="text-[12px] sm:text-[14px] text-white/58 sm:ml-[52px] leading-relaxed">
           {tl.pageSubtitle}
         </p>
+        </div>
       </header>
 
       {/* ── 신뢰 배지 ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-5">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-3 sm:mb-5">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TRUST_BADGES.map(({ icon: Icon, color, label, sub }) => (
             <div
               key={label}
-              className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl"
+              className="shrink-0 flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl"
               style={{
                 background: `${color}0d`,
                 border: `1px solid ${color}28`,
@@ -256,14 +273,24 @@ export default function ToursPage() {
       </div>
 
       {/* ── 구분선 ── */}
-      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-5" />
+      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-4 sm:mb-5" />
 
       {/* ── 지역 필터 칩 ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
-          {tl.filterLabel}
-        </p>
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
+        <div
+          className="rounded-[22px] p-3 sm:p-4"
+          style={{
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+        <div className="flex items-center justify-between gap-3 mb-2.5">
+          <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold">
+            {tl.filterLabel}
+          </p>
+          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} tours</p>
+        </div>
+        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TOUR_REGIONS.map(({ key, label }) => {
             const isActive = activeRegion === key;
             const chipLabel = label[language] ?? label.en;
@@ -271,7 +298,7 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => setActiveRegion(key)}
-                className="tour-chip shrink-0 text-[12px] font-bold px-4 py-2.5 min-h-[44px] rounded-full"
+                className="tour-chip shrink-0 text-[11px] sm:text-[12px] font-bold px-3.5 sm:px-4 py-2 min-h-[36px] sm:min-h-[40px] rounded-full"
                 style={
                   isActive
                     ? {
@@ -294,7 +321,7 @@ export default function ToursPage() {
         </div>
 
         {/* 기간 필터 (2번째 행) */}
-        <div className="flex gap-2 mt-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {([
             { key: 'All',   label: { ko: '전체 기간',  en: 'All',        ja: '全期間',  zh: '全部' } },
             { key: 'Day',   label: { ko: '당일',       en: 'Day',        ja: '日帰り',  zh: '当天' } },
@@ -306,7 +333,7 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => setActiveDuration(key)}
-                className="tour-chip shrink-0 text-[11px] font-semibold px-3.5 py-2 min-h-[36px] rounded-full"
+                className="tour-chip shrink-0 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
                 style={
                   isActive
                     ? { background: 'rgba(182,104,252,0.15)', border: '1px solid rgba(182,104,252,0.40)', color: '#D0A8FF' }
@@ -320,7 +347,7 @@ export default function ToursPage() {
         </div>
 
         {/* 언어·정렬 필터 (3번째 행) */}
-        <div className="flex flex-wrap items-center gap-2 mt-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2">
           <Languages className="w-3.5 h-3.5 text-white/55" />
           {([
             { key: 'en' as DriverLanguage, label: { ko: '영어 기사', en: 'English driver',  ja: '英語ドライバー',  zh: '英语司机' } },
@@ -332,7 +359,7 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => toggleLang(key)}
-                className="tour-chip text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                className="tour-chip text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 min-h-[30px] rounded-full"
                 style={
                   isActive
                     ? { background: 'rgba(140,200,255,0.15)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
@@ -350,7 +377,7 @@ export default function ToursPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="text-[11px] font-semibold px-3 py-1.5 rounded-full cursor-pointer focus:outline-none"
+              className="text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 rounded-full cursor-pointer focus:outline-none"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
             >
               <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
@@ -359,10 +386,11 @@ export default function ToursPage() {
             </select>
           </div>
         </div>
+        </div>
       </div>
 
       {/* ── 투어 카드 리스트 ── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-10">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-8 sm:mb-10">
         {visibleTours.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div
@@ -374,7 +402,7 @@ export default function ToursPage() {
             <p className="text-[14px] text-white/55">{tl.noResults}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
             {visibleTours.map(tour => (
               <TourCard key={tour.id} tour={tour} language={language} />
             ))}
@@ -382,151 +410,10 @@ export default function ToursPage() {
         )}
       </section>
 
-      {/* ════════════════════════════════════════════════════════════════════
-          추천 숙소 섹션 — Trip.com 어필리에이트
-          경쟁사(Klook) 방식: 투어 카드 인라인이 아닌 별도 섹션으로 분리
-      ════════════════════════════════════════════════════════════════════ */}
-      {visibleHotels.length > 0 && (
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-8">
-          {/* 섹션 헤더 */}
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-[15px] font-black text-white">{tl.hotelTitle}</h2>
-              <p className="text-[11px] text-white/55 mt-0.5">{tl.hotelSubtitle}</p>
-            </div>
-            <span
-              className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{
-                background: 'rgba(0,115,230,0.12)',
-                border: '1px solid rgba(0,115,230,0.25)',
-                color: '#2979FF',
-              }}
-            >
-              Trip.com
-            </span>
-          </div>
-
-          {/* 호텔 카드 가로 스크롤 */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {visibleHotels.map(hotel => {
-              const loc = hotel.location[language] ?? hotel.location.en;
-              const stars = Array.from({ length: hotel.stars }, (_, i) => i);
-              return (
-                <a
-                  key={hotel.id}
-                  href={hotel.affiliateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  className="hotel-card-hover rounded-2xl overflow-hidden flex flex-col"
-                  style={{
-                    background: 'rgba(255,255,255,0.025)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                  }}
-                >
-                  {/* 호텔 이미지 */}
-                  <div className="relative w-full h-[110px] overflow-hidden bg-white/[0.04]">
-                    <img
-                      src={hotel.thumbnail}
-                      alt={hotel.name}
-                      className="w-full h-full object-cover"
-                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    {/* 플레이스홀더 */}
-                    <div
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ background: 'linear-gradient(135deg, #111827 0%, #0d0618 100%)' }}
-                      aria-hidden="true"
-                    >
-                      <p
-                        className="text-[11px] font-black text-center px-2 leading-snug"
-                        style={{ color: 'rgba(182,104,252,0.35)' }}
-                      >
-                        {hotel.region}
-                      </p>
-                    </div>
-                    {/* 별점 배지 */}
-                    {hotel.badge && (
-                      <div
-                        className="absolute bottom-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                        style={{
-                          background: 'rgba(8,11,20,0.85)',
-                          border: '1px solid rgba(182,104,252,0.25)',
-                          color: '#C99FFF',
-                        }}
-                      >
-                        {hotel.badge[language] ?? hotel.badge.en}
-                      </div>
-                    )}
-                    {/* 하단 페이드 */}
-                    <div
-                      className="absolute bottom-0 left-0 right-0 h-8"
-                      style={{ background: 'linear-gradient(to top, rgba(8,11,20,0.5) 0%, transparent 100%)' }}
-                    />
-                  </div>
-
-                  {/* 호텔 정보 */}
-                  <div className="p-3 flex flex-col gap-1.5 flex-1">
-                    <p className="text-[12px] font-bold text-white leading-tight line-clamp-2">
-                      {hotel.name}
-                    </p>
-                    <p className="text-[10px] text-white/55">{loc}</p>
-
-                    {/* 별 등급 */}
-                    <div className="flex gap-0.5">
-                      {stars.map(i => (
-                        <Star key={i} className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-
-                    {/* 평점 */}
-                    <div className="flex items-center gap-1">
-                      <span
-                        className="text-[11px] font-black px-1.5 py-0.5 rounded-md"
-                        style={{ background: '#0073E6', color: '#fff' }}
-                      >
-                        {hotel.rating.toFixed(1)}
-                      </span>
-                      <span className="text-[10px] text-white/55">
-                        {tl.hotelScore} · {hotel.reviewCount.toLocaleString()}
-                      </span>
-                    </div>
-
-                    {/* 가격 */}
-                    <div className="mt-auto pt-1.5 border-t border-white/[0.05]">
-                      <p className="text-[10px] text-white/55">{tl.hotelFrom}</p>
-                      <p className="text-[14px] font-black text-white">
-                        ${hotel.priceFrom}
-                        <span className="text-[10px] text-white/55 font-normal ml-0.5">{tl.hotelNight}</span>
-                      </p>
-                    </div>
-
-                    {/* CTA */}
-                    <div
-                      className="flex items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold"
-                      style={{
-                        background: '#0073E6',
-                        color: '#fff',
-                      }}
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      {tl.hotelBtn}
-                    </div>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-
-          {/* 어필리에이트 공시 */}
-          <p className="text-[9px] text-white/55 mt-2 text-center">{tl.hotelCommission}</p>
-        </section>
-      )}
-
-      {/* ── 맞춤 투어 문의 배너 ── */}
-      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 mt-2 mb-6">
-        <Link
-          to="/charter"
-          className="flex items-center gap-3 px-5 py-4 rounded-2xl"
+      {/* ── 맞춤 투어 문의 배너 — 클릭 시 견적 문의 모달 (결제 없음) ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-2 mb-3">
+        <div
+          className="flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4 rounded-2xl"
           style={{
             background: 'linear-gradient(135deg, rgba(182,104,252,0.10), rgba(255,107,157,0.07))',
             border: '1px solid rgba(182,104,252,0.18)',
@@ -540,17 +427,59 @@ export default function ToursPage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-bold text-white">{tl.inquireTitle}</p>
-            <p className="text-[11px] text-white/55 mt-0.5">{tl.inquireSub}</p>
+            <p className="text-[11px] text-white/55 mt-0.5">
+              {tl.inquireSub}
+              {' · '}
+              <Link to="/charter" className="underline underline-offset-2 text-white/65 hover:text-white/85">
+                {tl.charterLink}
+              </Link>
+            </p>
           </div>
-          <span
+          <button
+            type="button"
+            onClick={() => {
+              trackEvent('tour_custom_inquiry_open', { region: activeRegion });
+              setInquireOpen(true);
+            }}
             className="flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full shrink-0"
             style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)', color: '#fff' }}
           >
             {tl.inquireBtn}
             <ChevronRight className="w-3.5 h-3.5" />
-          </span>
-        </Link>
+          </button>
+        </div>
       </div>
+
+      {/* ── Trip.com 숙소 비교 소형 CTA — 맞춤투어 배너보다 약한 톤, 외부 새 창 ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
+        <div
+          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5 rounded-xl"
+          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          <p className="text-[11px] text-white/50 min-w-0">{tl.hotelCtaText}</p>
+          <a
+            href={hotelSearchUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            title={tl.hotelCtaNew}
+            aria-label={`${tl.hotelCtaBtn} — ${tl.hotelCtaNew}`}
+            onClick={() => trackAdClick('hotel', 'tours_page_bottom', hotelSearchUrl)}
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full"
+            style={{ background: 'rgba(0,115,230,0.10)', border: '1px solid rgba(0,115,230,0.30)', color: '#4D9FFF' }}
+          >
+            {tl.hotelCtaBtn}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+
+      {/* ── 맞춤형 투어 문의 모달 ── */}
+      <TourInquireModal
+        open={inquireOpen}
+        onClose={() => setInquireOpen(false)}
+        language={language}
+        defaultRegion={inquireDefaultRegion}
+      />
     </div>
   );
 }

@@ -78,21 +78,27 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           originLat: undefined, originLng: undefined,
           originAddress: undefined, originName: undefined, originCategory: undefined,
         })}
-        className={`flex flex-col items-center justify-center py-4 px-3 rounded-xl border text-center transition-all ${
+        className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[92px] sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-4 ${
           selected
-            ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 text-white'
-            : 'border-white/10 bg-white/[0.04] text-white/60 hover:border-[#B668FC]/40 hover:text-white/90'
+            ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 text-white shadow-[0_16px_40px_rgba(124,92,252,0.16)]'
+            : 'border-white/10 bg-white/[0.035] text-white/65 hover:border-[#B668FC]/40 hover:bg-white/[0.055] hover:text-white/90'
         }`}
       >
-        <Icon className="w-5 h-5 mb-1.5" />
-        <p className="text-xs font-semibold leading-tight">{title}</p>
-        <p className="text-[10px] opacity-55 mt-0.5">{sub}</p>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-11 sm:w-11 sm:rounded-2xl ${
+          selected ? 'border-[#B668FC]/35 bg-[#B668FC]/20 text-[#D8C0FF]' : 'border-white/10 bg-white/[0.035] text-white/45 group-hover:text-white/70'
+        }`}>
+          <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-bold leading-tight sm:text-sm">{title}</span>
+          <span className="mt-0.5 block text-[9px] opacity-55 sm:mt-1 sm:text-[11px]">{sub}</span>
+        </span>
       </button>
     );
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 sm:space-y-4">
       {/* 공항·도시 검색 (트립닷컴식) — 타이핑하면 카드 필터. 비우면 기존 주요/펼치기. */}
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
@@ -101,20 +107,20 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={lang === 'ko' ? '공항·도시 검색 (예: ICN, 인천, 부산)' : 'Search airport / city (e.g. ICN, Incheon, Busan)'}
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-white/10 bg-white/[0.04] text-white text-sm placeholder:text-white/40 outline-none focus:border-[#B668FC]/40"
+          className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#B668FC]/40 sm:py-2.5"
         />
       </div>
 
       {filtered ? (
         filtered.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">{filtered.map(card)}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{filtered.map(card)}</div>
         ) : (
           <p className="text-center text-white/40 text-sm py-6">
             {lang === 'ko' ? '검색 결과 없음 — 아래 자유 주소 검색을 써보세요' : 'No match — try the free address search below'}
           </p>
         )
       ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {PRIMARY.map(card)}
         </div>
       )}
@@ -122,7 +128,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-white/10 bg-white/[0.02] text-white/50 text-xs hover:bg-white/[0.05] transition-colors"
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] py-2 text-xs text-white/50 transition-colors hover:bg-white/[0.05] sm:py-2.5"
       >
         {i18n.otherOrigins} ({SECONDARY.length + 1})
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -131,7 +137,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       {expanded && (
         <>
           {!filtered && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {SECONDARY.map(card)}
             </div>
           )}

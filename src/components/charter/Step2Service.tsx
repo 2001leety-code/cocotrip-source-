@@ -21,7 +21,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
     ...(transferOn ? [{ id: 'transfer' as ServiceMode, title: i18n.svcTransfer, desc: i18n.svcTransferDesc, Icon: ArrowLeftRight }] : []),
   ];
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
       {OPTIONS.map(opt => {
         const selected = state.service === opt.id;
         return (
@@ -29,15 +29,21 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
             key={opt.id}
             type="button"
             onClick={() => patch({ service: opt.id })}
-            className={`flex flex-col items-start p-4 rounded-xl border text-left transition-all ${
+            className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[118px] sm:items-start sm:gap-4 sm:rounded-2xl sm:p-4 ${
               selected
-                ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10'
-                : 'border-white/10 bg-white/[0.04] hover:border-[#B668FC]/40'
+                ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 shadow-[0_16px_40px_rgba(124,92,252,0.16)]'
+                : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
             }`}
           >
-            <opt.Icon className={`w-5 h-5 mb-2 ${selected ? 'text-[#B668FC]' : 'text-white/50'}`} />
-            <p className={`text-sm font-semibold ${selected ? 'text-white' : 'text-white/80'}`}>{opt.title}</p>
-            <p className="text-[11px] text-white/55 mt-1 leading-snug">{opt.desc}</p>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-11 sm:w-11 sm:rounded-2xl ${
+              selected ? 'border-[#B668FC]/35 bg-[#B668FC]/20 text-[#D8C0FF]' : 'border-white/10 bg-white/[0.035] text-white/45 group-hover:text-white/70'
+            }`}>
+              <opt.Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
+            </span>
+            <span className="min-w-0 pt-0.5">
+              <span className={`block text-xs font-bold leading-tight sm:text-[15px] ${selected ? 'text-white' : 'text-white/82'}`}>{opt.title}</span>
+              <span className="mt-0.5 block truncate text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:line-clamp-2 sm:text-xs">{opt.desc}</span>
+            </span>
           </button>
         );
       })}

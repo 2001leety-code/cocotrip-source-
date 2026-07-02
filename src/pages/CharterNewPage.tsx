@@ -56,24 +56,24 @@ export default function CharterNewPage() {
     <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <section className="text-white pt-24 pb-8 px-4" style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
-        <div className="max-w-2xl mx-auto">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-5">
+      <section className="px-4 pb-3 pt-3 text-white sm:px-0 sm:pb-8 sm:pt-24" style={{ background: isMobile ? '#080b14' : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
+        <div className="mx-auto max-w-6xl rounded-[16px] px-4 py-4 sm:rounded-none sm:py-0" style={isMobile ? { background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' } : undefined}>
+          <Link to="/" className="mb-3 inline-flex items-center gap-1.5 text-xs text-white/55 transition-colors hover:text-white/60 sm:mb-5">
             <ArrowLeft className="w-3.5 h-3.5" />Home
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC] text-[11px] font-semibold tracking-wider uppercase mb-4">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#B668FC] sm:mb-4 sm:px-3 sm:text-[11px]">
             <Sparkles className="w-3.5 h-3.5" /> {completedState ? i18n.heroBadgePayment : i18n.heroBadgeNew}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight mb-2">
+          <h1 className="mb-1 text-[22px] font-bold leading-tight sm:mb-2 sm:text-3xl">
             {completedState ? i18n.heroTitlePayment : i18n.heroTitleWizard}
           </h1>
-          <p className="text-white/50 text-sm">
+          <p className="text-xs text-white/50 sm:text-sm">
             {completedState ? i18n.heroSubtitlePayment : i18n.heroSubtitleWizard}
           </p>
         </div>
       </section>
 
-      <main className={`max-w-2xl mx-auto px-4 ${isMobile ? 'pb-8' : 'pb-20'}`}>
+      <main className={`mx-auto max-w-6xl px-4 ${isMobile ? 'pb-8' : 'pb-20'}`}>
         {!completedState ? (
           <CharterWizard
             initialState={initial}
@@ -164,7 +164,9 @@ function PaymentPanel({
     : resolveLocationLabel(state.destinationKey);
   const vehicleKey = state.vehicle as keyof typeof VEHICLE_TYPES | undefined;
   const vehicleLabel = vehicleKey && VEHICLE_TYPES[vehicleKey]
-    ? VEHICLE_TYPES[vehicleKey].name[language] ?? state.vehicle
+    ? vehicleKey === 'staria'
+      ? language === 'ko' ? '프리미엄 비즈니스' : language === 'ja' ? 'プレミアムビジネス' : language === 'zh' ? '高端商务' : 'Premium Business'
+      : VEHICLE_TYPES[vehicleKey].name[language] ?? state.vehicle
     : state.vehicle ?? '-';
   // 2026-05-07: useQuoteCalculator 반환 shape 변경 — { quote, loading, geocodingFailed, distanceSource }.
   // CharterWizard 내부에서 manual km 보정한 결과는 이 페이지에서 다시 계산되지 않음 (Wizard onComplete
