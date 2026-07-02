@@ -7,9 +7,10 @@
  *   - 토큰 email 이 mood_config/allowlist.admins (운영자만) 에 없으면 403.
  *     (allowlist.emails 만 있고 admins 가 아닌 광고사 직원은 충전 불가.)
  *
- * Body: { clientId, amountKRW (양의 정수) }
+ * Body: { clientId, amountKRW (양의 정수), note? (입금 확인 메모, 최대 200자) }
  *
  * runTransaction 으로 ① 잔액 += amountKRW ② mood_topups 이력 기록 (한 트랜잭션).
+ * 이력에는 previousBalanceKRW/newBalanceKRW 를 함께 남겨 나중에 대조 가능(감사 추적).
  * client doc 이 없으면 생성하지 않음 (운영자가 먼저 client 등록해야 함) → CLIENT_NOT_FOUND.
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -49,17 +50,20 @@ export default async function handler(req, res) {
 
   let body = req.body || {};
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
-  const { clientId, amountKRW } = body;
+  const { clientId, amountKRW, note } = body;
 
   if (!clientId || typeof clientId !== 'string') {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'clientId 필수' }));
   }
   const amount = Number(amountKRW);
-  if (!Number.isFinite(amount) || amount <= 0) {
+  // 원화 충전 = 양의 정수만 (소수 잔액 방지)
+  if (!Number.isInteger(amount) || amount <= 0) {
     res.writeHead(400, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: 'amountKRW 는 양의 숫자' }));
+    return res.end(JSON.stringify({ ok: false, error: 'amountKRW 는 양의 정수(원)' }));
   }
+  // 입금 확인 메모 (선택) — 문자열만, 200자 cap
+  const depositNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
 
   try {
     const db = initAdminDb('mood-topup');
@@ -92,7 +96,10 @@ export default async function handler(req, res) {
       tx.set(topupRef, {
         clientId,
         amountKRW: amount,
+        previousBalanceKRW: balanceKRW,
+        newBalanceKRW: newBalance,
         byEmail: email,
+        ...(depositNote ? { note: depositNote } : {}),
         at,
       });
 
