@@ -218,8 +218,11 @@ export default function MoodPortal() {
   // 충전 폼 상태 (admin)
   const [topupClientId, setTopupClientId] = useState('');
   const [topupAmount, setTopupAmount] = useState('');
+  const [topupNote, setTopupNote] = useState(''); // 입금 확인 메모 (선택) — mood_topups 이력에 남음
   const [topupSubmitting, setTopupSubmitting] = useState(false);
   const [topupMsg, setTopupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const topupCardRef = useRef<HTMLDivElement | null>(null);
+  const topupAmountRef = useRef<HTMLInputElement | null>(null);
 
   // 광고사 생성 폼 상태 (admin)
   const [newClientName, setNewClientName] = useState('');
@@ -377,19 +380,37 @@ export default function MoodPortal() {
     }
   }, [data, date, startTime, durationHours, serviceType, airportDirection, origin, destination, waypoints, loadData]);
 
+  // 어드민 홈 "무드 충전" CTA(/mood#topup) — 로그인·데이터 로딩이 끝나 충전 카드가
+  // 실제로 렌더된 뒤 카드로 스크롤 + 금액칸 포커스. 운영자 아니면 카드가 없으니 무시.
+  useEffect(() => {
+    if (!data?.isAdmin) return;
+    if (window.location.hash !== '#topup') return;
+    const t = window.setTimeout(() => {
+      topupCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      topupAmountRef.current?.focus({ preventScroll: true });
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [data?.isAdmin]);
+
   const handleTopup = useCallback(async () => {
     setTopupSubmitting(true);
     setTopupMsg(null);
     try {
+      const note = topupNote.trim().slice(0, 200);
       const res = await authFetch('/api/mood-topup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: topupClientId.trim(), amountKRW: Number(topupAmount) }),
+        body: JSON.stringify({
+          clientId: topupClientId.trim(),
+          amountKRW: Number(topupAmount),
+          ...(note ? { note } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
         setTopupMsg({ kind: 'ok', text: `충전 완료 — 잔액 ${formatBalance(json.data.balanceKRW)}` });
         setTopupAmount('');
+        setTopupNote('');
         await loadData(data?.clientId);
       } else {
         setTopupMsg({ kind: 'err', text: json?.error || `충전 실패 (${res.status})` });
@@ -399,7 +420,7 @@ export default function MoodPortal() {
     } finally {
       setTopupSubmitting(false);
     }
-  }, [topupClientId, topupAmount, data, loadData]);
+  }, [topupClientId, topupAmount, topupNote, data, loadData]);
 
   // 광고사(client) 생성 — 성공 시 충전 폼 clientId 자동 채움 + 데이터 reload.
   const handleCreateClient = useCallback(async () => {
@@ -1337,9 +1358,9 @@ export default function MoodPortal() {
           </div>
         )}
 
-        {/* 충전 (admin 전용) */}
+        {/* 충전 (admin 전용) — 어드민 홈 "무드 충전" CTA가 /mood#topup 으로 진입 */}
         {data?.isAdmin && (
-          <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: '1px solid rgba(234,83,126,0.25)' }}>
+          <div ref={topupCardRef} id="topup" className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: '1px solid rgba(234,83,126,0.25)' }}>
             <h2 className="text-sm font-bold" style={{ color: C.text }}>잔액 충전 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
             <label className="flex flex-col gap-1.5">
               <span className="text-xs" style={{ color: C.textDim }}>clientId</span>
@@ -1353,11 +1374,23 @@ export default function MoodPortal() {
             <label className="flex flex-col gap-1.5">
               <span className="text-xs" style={{ color: C.textDim }}>충전 금액 (원)</span>
               <input
+                ref={topupAmountRef}
                 type="number"
                 min={1}
                 value={topupAmount}
                 onChange={(e) => setTopupAmount(e.target.value)}
                 placeholder="예: 1000000"
+                className="rounded-xl px-3 py-2.5 text-sm"
+                style={inputStyle}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs" style={{ color: C.textDim }}>입금 확인 메모 <span style={{ color: C.textDim }}>(선택 — 이력에 남음)</span></span>
+              <input
+                value={topupNote}
+                onChange={(e) => setTopupNote(e.target.value)}
+                maxLength={200}
+                placeholder="예: 7/2 국민은행 110만원 입금 확인"
                 className="rounded-xl px-3 py-2.5 text-sm"
                 style={inputStyle}
               />
