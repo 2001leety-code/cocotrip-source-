@@ -24,6 +24,8 @@ import { openDaumPostcode } from '@/lib/daumPostcode';
 import { signalAppReady } from '@/lib/appReady';
 import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
+import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
+import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -87,6 +89,9 @@ interface MoodData {
 }
 
 type LedgerTab = 'today' | 'upcoming' | 'settle' | 'calendar' | 'all';
+
+/** 상단 3-탭 — 현황 / 수기 예약 / AI 예약. */
+type PortalTab = 'status' | 'manual' | 'ai';
 
 /** 경로 마커 좌표 (출발/경유/도착) — 지도 핀용. */
 interface MoodRoutePoint {
@@ -191,6 +196,11 @@ export default function MoodPortal() {
   const [dataLoading, setDataLoading] = useState(false);
   const [forbidden, setForbidden] = useState(false);
 
+  // 상단 3-탭 (현황 / 수기 예약 / AI 예약)
+  const [portalTab, setPortalTab] = useState<PortalTab>('status');
+  // 예약 항목 클릭 시 영수증 모달 대상 (완료/일반 공용)
+  const [selectedBooking, setSelectedBooking] = useState<MoodBooking | null>(null);
+
   // 예약 폼 상태
   const [date, setDate] = useState(todayISO());
   const [startTime, setStartTime] = useState('10:00');
@@ -215,20 +225,7 @@ export default function MoodPortal() {
   const [calendarMonth, setCalendarMonth] = useState(monthKeyFromISO(todayISO()));
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayISO());
 
-  // 충전 폼 상태 (admin)
-  const [topupClientId, setTopupClientId] = useState('');
-  const [topupAmount, setTopupAmount] = useState('');
-  const [topupNote, setTopupNote] = useState(''); // 입금 확인 메모 (선택) — mood_topups 이력에 남음
-  const [topupSubmitting, setTopupSubmitting] = useState(false);
-  const [topupMsg, setTopupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const topupCardRef = useRef<HTMLDivElement | null>(null);
-  const topupAmountRef = useRef<HTMLInputElement | null>(null);
-
-  // 광고사 생성 폼 상태 (admin)
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientId, setNewClientId] = useState('');
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [createMsg, setCreateMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // (충전 폼·광고사 만들기 폼은 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
   // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
   const [settleId, setSettleId] = useState<string | null>(null);
@@ -271,13 +268,12 @@ export default function MoodPortal() {
       }
       setForbidden(false);
       setData(json.data as MoodData);
-      if (json.data?.clientId && !topupClientId) setTopupClientId(json.data.clientId);
     } catch (e) {
       setDataError(e instanceof Error ? e.message : '조회 실패');
     } finally {
       setDataLoading(false);
     }
-  }, [topupClientId]);
+  }, []);
 
   useEffect(() => {
     // 로그인 시 1회 데이터 로드 — loadData 내부 setState 는 의도된 fetch-on-mount 패턴.
@@ -380,75 +376,7 @@ export default function MoodPortal() {
     }
   }, [data, date, startTime, durationHours, serviceType, airportDirection, origin, destination, waypoints, loadData]);
 
-  // 어드민 홈 "무드 충전" CTA(/mood#topup) — 로그인·데이터 로딩이 끝나 충전 카드가
-  // 실제로 렌더된 뒤 카드로 스크롤 + 금액칸 포커스. 운영자 아니면 카드가 없으니 무시.
-  useEffect(() => {
-    if (!data?.isAdmin) return;
-    if (window.location.hash !== '#topup') return;
-    const t = window.setTimeout(() => {
-      topupCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      topupAmountRef.current?.focus({ preventScroll: true });
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [data?.isAdmin]);
-
-  const handleTopup = useCallback(async () => {
-    setTopupSubmitting(true);
-    setTopupMsg(null);
-    try {
-      const note = topupNote.trim().slice(0, 200);
-      const res = await authFetch('/api/mood-topup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: topupClientId.trim(),
-          amountKRW: Number(topupAmount),
-          ...(note ? { note } : {}),
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        setTopupMsg({ kind: 'ok', text: `충전 완료 — 잔액 ${formatBalance(json.data.balanceKRW)}` });
-        setTopupAmount('');
-        setTopupNote('');
-        // 방금 충전한 client로 재조회 — 다른 client 충전 시 화면 잔액 카드가 안 바뀌던 갭 fix
-        await loadData(topupClientId.trim() || data?.clientId);
-      } else {
-        setTopupMsg({ kind: 'err', text: json?.error || `충전 실패 (${res.status})` });
-      }
-    } catch (e) {
-      setTopupMsg({ kind: 'err', text: e instanceof Error ? e.message : '충전 실패' });
-    } finally {
-      setTopupSubmitting(false);
-    }
-  }, [topupClientId, topupAmount, topupNote, data, loadData]);
-
-  // 광고사(client) 생성 — 성공 시 충전 폼 clientId 자동 채움 + 데이터 reload.
-  const handleCreateClient = useCallback(async () => {
-    setCreatingClient(true);
-    setCreateMsg(null);
-    try {
-      const res = await authFetch('/api/mood-create-client', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newClientName.trim(), clientId: newClientId.trim() || undefined }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        setCreateMsg({ kind: 'ok', text: `생성됨 — ID: ${json.data.clientId}${json.data.setAsDefault ? ' (기본 지정)' : ''}` });
-        setTopupClientId(json.data.clientId); // 충전 폼에 자동 채움
-        setNewClientName('');
-        setNewClientId('');
-        await loadData(json.data.clientId);
-      } else {
-        setCreateMsg({ kind: 'err', text: json?.error || `생성 실패 (${res.status})` });
-      }
-    } catch (e) {
-      setCreateMsg({ kind: 'err', text: e instanceof Error ? e.message : '생성 실패' });
-    } finally {
-      setCreatingClient(false);
-    }
-  }, [newClientName, newClientId, loadData]);
+  // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
   // 운행 종료 정산 — 실제 시간 + (추가 방문지로) 실제 거리 재측정 → 최종 금액·잔액 조정 + 영수증.
   const handleSettle = useCallback(async (bookingId: string) => {
@@ -526,6 +454,7 @@ export default function MoodPortal() {
     setDestination(bd.destination || '');
     setWaypoints(Array.isArray(bd.waypoints) ? bd.waypoints.filter(Boolean) : []);
     setFormMsg({ kind: 'ok', text: '예약 폼에 복사했습니다. 날짜와 시간을 확인하세요.' });
+    setPortalTab('manual'); // 예약 폼이 수기 예약 탭으로 이동 — 복사 시 해당 탭으로 전환
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -642,6 +571,34 @@ export default function MoodPortal() {
           {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
         </div>
 
+        {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
+          {([
+            ['status', '현황'],
+            ['manual', '수기 예약'],
+            ['ai', 'AI 예약'],
+          ] as const).map(([tab, label]) => {
+            const active = portalTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setPortalTab(tab)}
+                className="py-2.5 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  background: active ? C.accent : 'transparent',
+                  color: active ? '#fff' : C.textDim,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ═══ 현황 탭 ═══ 잔액 · KPI · 공유 캘린더 · 예약 운영 보드 */}
+        {portalTab === 'status' && (
+        <>
         {/* 잔액 카드 (음수 = 빨강 마이너스, 외상 표시) */}
         <div className="rounded-2xl p-6" style={{ background: C.card, border: C.cardBorder }}>
           <p className="text-xs mb-1.5" style={{ color: C.textDim }}>선불 잔액</p>
@@ -764,7 +721,13 @@ export default function MoodPortal() {
             })}
           </div>
         </div>
+        {/* 예약 운영 보드는 아래 별도 status 블록으로 이동 — 수기 예약 폼을 탭으로 분리하기 위함 */}
+        </>
+        )}
 
+        {/* ═══ 수기 예약 탭 ═══ 기존 예약하기 폼 */}
+        {portalTab === 'manual' && (
+        <>
         {/* 예약 폼 */}
         <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
           <h2 className="text-sm font-bold" style={{ color: C.text }}>예약하기</h2>
@@ -1038,7 +1001,17 @@ export default function MoodPortal() {
             </p>
           )}
         </div>
+        </>
+        )}
 
+        {/* ═══ AI 예약 탭 ═══ 자연어로 예약(파트2 컴포넌트, 자체 완결) */}
+        {portalTab === 'ai' && (
+          <MoodAiBooking clientId={data?.clientId || ''} onBooked={() => { void loadData(data?.clientId); }} />
+        )}
+
+        {/* ═══ 현황 탭 (이어서) ═══ 예약 운영 보드 */}
+        {portalTab === 'status' && (
+        <>
         {/* 예약 운영 보드 — 오늘/예정/정산/전체를 나눠 보는 영역 */}
         <div className="rounded-2xl p-5" style={{ background: C.card, border: C.cardBorder }}>
           <div className="flex items-center justify-between gap-2 mb-3">
@@ -1160,6 +1133,14 @@ export default function MoodPortal() {
                         )}
 
                         <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooking(b)}
+                            className="col-span-2 rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            style={{ background: C.accent, color: '#fff' }}
+                          >
+                            영수증 보기
+                          </button>
                           <a
                             href={naverDirectionsUrl(bd)}
                             target="_blank"
@@ -1327,99 +1308,11 @@ export default function MoodPortal() {
             </ul>
           )}
         </div>
-
-        {/* 광고사 만들기 (admin 전용) — 충전·예약 대상 client 생성 */}
-        {data?.isAdmin && (
-          <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: C.cardBorder }}>
-            <h2 className="text-sm font-bold" style={{ color: C.text }}>광고사 만들기 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>광고사 이름</span>
-              <input
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                placeholder="예: MOOD"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>ID <span className="opacity-70">(선택 · 영문/숫자, 미입력 시 자동)</span></span>
-              <input
-                value={newClientId}
-                onChange={(e) => setNewClientId(e.target.value)}
-                placeholder="예: mood"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <button
-              onClick={() => { void handleCreateClient(); }}
-              disabled={creatingClient || !newClientName.trim()}
-              className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-              style={{ background: C.accent, color: '#fff' }}
-            >
-              {creatingClient ? '생성 중…' : '광고사 만들기'}
-            </button>
-            {createMsg && (
-              <p className="text-xs text-center" style={{ color: createMsg.kind === 'ok' ? C.ok : C.danger }}>
-                {createMsg.text}
-              </p>
-            )}
-          </div>
+        </>
         )}
 
-        {/* 충전 (admin 전용) — 어드민 홈 "무드 충전" CTA가 /mood#topup 으로 진입 */}
-        {data?.isAdmin && (
-          <div ref={topupCardRef} id="topup" className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: '1px solid rgba(234,83,126,0.25)' }}>
-            <h2 className="text-sm font-bold" style={{ color: C.text }}>잔액 충전 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>clientId</span>
-              <input
-                value={topupClientId}
-                onChange={(e) => setTopupClientId(e.target.value)}
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>충전 금액 (원)</span>
-              <input
-                ref={topupAmountRef}
-                type="number"
-                min={1}
-                value={topupAmount}
-                onChange={(e) => setTopupAmount(e.target.value)}
-                placeholder="예: 1000000"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>입금 확인 메모 <span style={{ color: C.textDim }}>(선택 — 이력에 남음)</span></span>
-              <input
-                value={topupNote}
-                onChange={(e) => setTopupNote(e.target.value)}
-                maxLength={200}
-                placeholder="예: 7/2 국민은행 110만원 입금 확인"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <button
-              onClick={() => { void handleTopup(); }}
-              disabled={topupSubmitting || !topupClientId.trim() || !(Number(topupAmount) > 0)}
-              className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #EA537E, #7C5CFC)', color: '#fff' }}
-            >
-              {topupSubmitting ? '충전 중…' : '충전하기'}
-            </button>
-            {topupMsg && (
-              <p className="text-xs text-center" style={{ color: topupMsg.kind === 'ok' ? C.ok : C.danger }}>
-                {topupMsg.text}
-              </p>
-            )}
-          </div>
-        )}
+        {/* 예약 항목 클릭 시 영수증 모달 (완료/일반 공용) — 파트2 컴포넌트 */}
+        <MoodReceiptModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
       </div>
     </div>
   );
