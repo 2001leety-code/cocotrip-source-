@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -206,5 +206,32 @@ describe('matchStopPlaces — 명시 장소 > 사람 우선순위 (2026-07-03 �
     const { matched, directorSignal } = m('강남 코엑스', '');
     expect(matched).toBeNull();
     expect(directorSignal).toBe(false);
+  });
+});
+
+describe('coordFromPlaceDoc — 손상 좌표 무효화 (2026-07-03 null-island 돈버그 방지)', () => {
+  it('정상 한국 좌표는 그대로', () => {
+    expect(coordFromPlaceDoc({ lat: 37.5230867, lng: 127.0468013 })).toEqual({ lat: 37.5230867, lng: 127.0468013 });
+  });
+
+  it('🔴 (0,0) null-island 은 무효 → {null,null} (geocode 경로로)', () => {
+    expect(coordFromPlaceDoc({ lat: 0, lng: 0 })).toEqual({ lat: null, lng: null });
+  });
+
+  it('lat/lng null·undefined·누락 → {null,null} (Number(null)=0 함정 차단)', () => {
+    expect(coordFromPlaceDoc({ lat: null, lng: null })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({ address: 'x' })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({})).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc(null)).toEqual({ lat: null, lng: null });
+  });
+
+  it('문자열 좌표("37.5")도 무효 — number 타입만 신뢰', () => {
+    expect(coordFromPlaceDoc({ lat: '37.5', lng: '127.0' })).toEqual({ lat: null, lng: null });
+  });
+
+  it('한국 범위 밖(해외·NaN)은 무효', () => {
+    expect(coordFromPlaceDoc({ lat: 48.85, lng: 2.35 })).toEqual({ lat: null, lng: null }); // 파리
+    expect(coordFromPlaceDoc({ lat: NaN, lng: 127 })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({ lat: 37.5, lng: null })).toEqual({ lat: null, lng: null }); // 한쪽만
   });
 });

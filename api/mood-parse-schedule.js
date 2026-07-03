@@ -219,6 +219,28 @@ async function extractStops(text, apiKey) {
  * 각 항목: { name, nameNorm, address, lat, lng, isDirector }.
  * lat/lng 는 숫자일 때만 유효 (문자열/누락은 null).
  */
+/**
+ * 주소록 문서의 좌표 정규화 — 손상/누락 좌표를 null 로 (2026-07-03 돈버그 fix).
+ *
+ * 🔴 기존 `Number(d.lat)` 는 lat 이 null/undefined 일 때 0 을 반환하고 `Number.isFinite(0)=true`
+ * 라 (0,0) = null island(아프리카 앞바다)를 "유효 좌표"로 오인 → handler 가 geocode 를
+ * 건너뛰고 (0,0) 재사용 → 거리요금이 지구 반바퀴로 폭발(과다청구). admin SDK 로 좌표 없이
+ * 저장된 항목(예: 지오코딩 실패한 '유진집')에서 실제 발생.
+ *
+ * 규칙: 실제 number 이고 유한하며 한국 범위(lat 33~39, lng 124~132) 안일 때만 좌표 유효.
+ * 무효면 {null,null} → handler 가 geocode 경로로 보냄(정상 처리 or 🔴 차단).
+ *
+ * @param {object} d - Firestore mood_places 문서 데이터.
+ * @returns {{lat:number|null, lng:number|null}}
+ */
+export function coordFromPlaceDoc(d) {
+  const lat = typeof d?.lat === 'number' && Number.isFinite(d.lat) ? d.lat : null;
+  const lng = typeof d?.lng === 'number' && Number.isFinite(d.lng) ? d.lng : null;
+  if (lat === null || lng === null) return { lat: null, lng: null };
+  const inKorea = lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
+  return inKorea ? { lat, lng } : { lat: null, lng: null };
+}
+
 async function loadPlacebook(db) {
   const snap = await db.collection('mood_places').get();
   const places = [];
@@ -226,14 +248,13 @@ async function loadPlacebook(db) {
     const d = doc.data() || {};
     const name = typeof d.name === 'string' ? d.name.trim() : '';
     if (!name) return;
-    const lat = Number(d.lat);
-    const lng = Number(d.lng);
+    const { lat, lng } = coordFromPlaceDoc(d);
     places.push({
       name,
       nameNorm: norm(name),
       address: typeof d.address === 'string' ? d.address.trim() : '',
-      lat: Number.isFinite(lat) ? lat : null,
-      lng: Number.isFinite(lng) ? lng : null,
+      lat,
+      lng,
       isDirector: d.isDirector === true,
     });
   });
