@@ -38,17 +38,18 @@ describe('mood-create-client 엔드포인트 — 보안 가드', () => {
   });
 });
 
-describe('MoodPortal — 광고사 만들기 배선', () => {
+describe('MoodPortal — 운영자 전용 기능 제거됨 (2026-07-03)', () => {
+  // /mood 는 MOOD(광고사)가 보는 곳 → 운영자 전용 충전·광고사관리는 어드민으로 이관.
+  // 광고사 생성은 어드민/콘솔에서. mood-create-client API(위 블록)는 그대로 유지.
   const portal = readFileSync(resolve(process.cwd(), 'src/pages/MoodPortal.tsx'), 'utf8');
-  it('handleCreateClient → /api/mood-create-client 호출 + 충전폼 자동채움', () => {
-    expect(portal).toContain('handleCreateClient');
-    expect(portal).toContain('/api/mood-create-client');
-    expect(portal).toMatch(/setTopupClientId\(json\.data\.clientId\)/);
+  it('충전 폼 제거 — /mood 에 topup UI 없음(어드민 MoodTopupModal 전용)', () => {
+    expect(portal).not.toContain('handleTopup');
+    expect(portal).not.toContain('setTopupClientId');
+    expect(portal).not.toContain('/api/mood-topup');
   });
-  it('admin 전용 노출 (data?.isAdmin 게이트)', () => {
-    expect(portal).toMatch(/광고사 만들기/);
-    // 광고사 만들기 카드도 isAdmin 게이트 안
-    const idx = portal.indexOf('광고사 만들기 (admin 전용)');
-    expect(idx).toBeGreaterThan(0);
+  it('광고사 만들기 제거 — /mood 에 create-client UI 없음', () => {
+    expect(portal).not.toContain('handleCreateClient');
+    expect(portal).not.toContain('/api/mood-create-client');
+    expect(portal).not.toMatch(/광고사 만들기 \(admin 전용\)/);
   });
 });
