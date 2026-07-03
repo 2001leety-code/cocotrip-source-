@@ -10,9 +10,12 @@
  *
  * 순수함수라 모킹 불필요 (api/_shared 핸들러 모킹 패턴과 달리 직접 호출).
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, looksLikeAirport, guessService, norm } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -102,5 +105,59 @@ describe('guessService — 서비스 추천 우선순위 (airport>vehicle>manage
 
   it('둘 다 없으면 manager (기본)', () => {
     expect(guessService(false, false)).toBe('manager');
+  });
+});
+
+describe('salvageStopsFromTruncatedJson — 잘린 AI 응답 부분 회수 (2026-07-03 prod fix)', () => {
+  // prod 재현: thinking 토큰이 maxOutputTokens 를 먹어 JSON 이 문자열 중간에서 잘림
+  // → "SyntaxError: Unterminated string in JSON at position 156".
+  const full = (stops: string) => `{"stops":[${stops}]}`;
+  const s1 = '{"order":1,"rawText":"9:30 이사님 픽업","personOrPlace":"이사님","addressHint":"인천 강화군","action":"pickup","timeHint":"09:30"}';
+  const s2 = '{"order":2,"rawText":"김포공항 드랍","personOrPlace":"김포공항","addressHint":"","action":"dropoff","timeHint":""}';
+
+  it('문자열 중간에서 잘린 응답 → 완성된 앞쪽 stop 만 회수 (prod 케이스)', () => {
+    const truncatedMidString = `{"stops":[${s1},{"order":2,"rawText":"서울시 영등포구 국제금융로 108-6(유진`;
+    const out = salvageStopsFromTruncatedJson(truncatedMidString);
+    expect(out).toHaveLength(1);
+    expect(out[0].personOrPlace).toBe('이사님');
+  });
+
+  it('객체 경계에서 잘린 응답 → 완성된 stop 전부 회수', () => {
+    const truncatedAtBoundary = `{"stops":[${s1},${s2},`;
+    const out = salvageStopsFromTruncatedJson(truncatedAtBoundary);
+    expect(out).toHaveLength(2);
+    expect(out[1].personOrPlace).toBe('김포공항');
+  });
+
+  it('정상 완결 JSON 도 전체 회수 (배열 종료 인지)', () => {
+    const out = salvageStopsFromTruncatedJson(full(`${s1},${s2}`));
+    expect(out).toHaveLength(2);
+  });
+
+  it('문자열 안의 중괄호/이스케이프에 안 속는다', () => {
+    const tricky = `{"stops":[{"order":1,"rawText":"괄호 {테스트} \\"인용\\"","personOrPlace":"강남역","addressHint":"","action":"via","timeHint":""}]}`;
+    const out = salvageStopsFromTruncatedJson(tricky);
+    expect(out).toHaveLength(1);
+    expect(out[0].personOrPlace).toBe('강남역');
+  });
+
+  it('stops 배열이 없거나 쓰레기 입력이면 빈 배열', () => {
+    expect(salvageStopsFromTruncatedJson('')).toEqual([]);
+    expect(salvageStopsFromTruncatedJson('not json at all')).toEqual([]);
+    expect(salvageStopsFromTruncatedJson('{"other":[1,2]}')).toEqual([]);
+  });
+});
+
+describe('thinkingBudget 소스 불변식 — truncation 근본원인 재발 방지', () => {
+  // gemini-2.5-flash 는 thinking 토큰이 maxOutputTokens 에서 차감된다.
+  // thinkingConfig 를 지우면 이 잠금이 터진다 (2026-07-03 prod "일정 해석 실패" 재발 방지).
+  it('mood-parse-schedule 은 thinkingBudget: 0 을 유지해야 한다', () => {
+    const src = readFileSync(resolve(__dirname, '../../api/mood-parse-schedule.js'), 'utf8');
+    expect(src).toMatch(/thinkingConfig:\s*\{\s*thinkingBudget:\s*0\s*\}/);
+  });
+
+  it('ai-planner-quick 도 thinkingBudget: 0 을 유지해야 한다 (동일 잠복버그)', () => {
+    const src = readFileSync(resolve(__dirname, '../../api/ai-planner-quick.js'), 'utf8');
+    expect(src).toMatch(/thinkingConfig:\s*\{\s*thinkingBudget:\s*0\s*\}/);
   });
 });
