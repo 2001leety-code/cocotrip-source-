@@ -79,6 +79,20 @@ jobs:
         run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
         continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
 
+      # ─── MOOD 로그인-뒤(인증) 스모크 — allowlist 게이트 뒤 MOOD 흐름 검증 ─────────
+      # #1046(AI 받아적기 예약)이 "검증 없이 머지"된 갭 차단. 실 Bearer 토큰으로
+      # mood-data(잔액)·mood-places(주소록)·mood-parse-schedule(AI 파싱) 인증 호출.
+      # 읽기전용/파싱만 — mood-book 은 잔액을 깎으므로 스모크에서 제외(돈 안 씀).
+      - name: MOOD auth smoke (login-gated)
+        if: always()
+        env:
+          BASE_URL: https://cocotripkr.com
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+        run: node scripts/mood-smoke.mjs
+        continue-on-error: true # 스모크 실패해도 health-log commit 실행 (로그로 확인)
+
       # ─── L3 Daily Sentinel — 받아적기 12항목 회귀 슈트 자동 실행 ────────────────
       # PR 없어도 prod 회귀를 매 cron 마다 검증. validate-prod-regression.mjs 는
       # ADMIN-BYPASS- prefix 로 실 결제 없이 5일 다도시 plan 1회 생성 + 12 assertion.

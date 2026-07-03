@@ -22,6 +22,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:unit:coverage": "vitest run --coverage",
+    "mood:smoke": "node scripts/mood-smoke.mjs",
     "check:size": "size-limit",
     "verify:all": "npm run check:types && npm run check:mojibake && npm run test:unit",
     "verify:prepush": "npm run build && npx vitest run && npx size-limit && node scripts/lint-mistake-patterns.mjs origin/main",
