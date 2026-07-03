@@ -59,6 +59,8 @@ interface ParseResult {
   serviceGuess: MoodServiceType;
   hasDirector: boolean;
   hasAirport: boolean;
+  /** AI 응답이 잘려 부분 회수됨 — 뒤쪽 일정 누락 가능(운영자 원문 대조 필수). */
+  truncated?: boolean;
 }
 
 /** MoodRouteMap 에 넘기는 경로 데이터 (지도 경로 선용). */
@@ -175,7 +177,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       const parsedStops: ParsedStop[] = Array.isArray(json.stops) ? json.stops : [];
       const guess: MoodServiceType =
         json.serviceGuess === 'vehicle' || json.serviceGuess === 'airport' ? json.serviceGuess : 'manager';
-      setResult({ stops: parsedStops, serviceGuess: guess, hasDirector: !!json.hasDirector, hasAirport: !!json.hasAirport });
+      setResult({ stops: parsedStops, serviceGuess: guess, hasDirector: !!json.hasDirector, hasAirport: !!json.hasAirport, truncated: !!json.truncated });
       setStops(parsedStops);
       setServiceType(guess); // AI 추천을 기본 선택으로 (운영자가 확정).
       setRoute(buildMapRoute(parsedStops));
@@ -330,6 +332,11 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               동선 {stops.length}개 {hasBlockingStop && <span style={{ color: C.danger }}>· 🔴 주소 확인 필요</span>}
               {tooManyWaypoints && <span style={{ color: C.danger }}>· 🔴 경유지 5개 초과 — 일정을 나눠 예약하세요(거리요금 계산 한도)</span>}
             </p>
+            {result.truncated && (
+              <p className="text-[11px] rounded-lg px-3 py-2" style={{ color: C.danger, background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)' }}>
+                ⚠️ AI 응답이 잘려 뒤쪽 일정이 빠졌을 수 있습니다 — 원문과 동선 개수를 대조하고, 빠진 곳이 있으면 다시 분석하세요. (누락된 채 예약하면 거리요금이 실제보다 적게 계산됩니다)
+              </p>
+            )}
             {stops.map((s, i) => {
               const badge = ACTION_BADGE[s.action] || ACTION_BADGE.via;
               return (

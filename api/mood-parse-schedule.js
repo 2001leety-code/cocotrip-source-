@@ -111,7 +111,59 @@ export function looksLikeAirport(...parts) {
 }
 
 /**
+ * 잘린 JSON 응답에서 완성된 stop 객체만 회수 (최후 방어).
+ *
+ * maxOutputTokens 초과 등으로 응답이 중간에서 끊기면 JSON.parse 가 통째로 실패해
+ * 멀쩡히 완성된 앞쪽 stop 들까지 다 버려졌다. "stops" 배열 안에서 중괄호 균형이
+ * 맞는(문자열/이스케이프 인지) 최상위 객체들만 스캔해 개별 파싱으로 회수한다.
+ * 뒤쪽 미완성 stop 은 버려지므로 호출측은 truncated 플래그로 운영자에게 경고할 것.
+ *
+ * @param {string} jsonStr - 잘렸을 수 있는 JSON 문자열.
+ * @returns {object[]} 회수된 stop 객체 배열 (없으면 []).
+ */
+export function salvageStopsFromTruncatedJson(jsonStr) {
+  const s = String(jsonStr || '');
+  const arrKey = s.indexOf('"stops"');
+  if (arrKey === -1) return [];
+  const arrStart = s.indexOf('[', arrKey);
+  if (arrStart === -1) return [];
+
+  const out = [];
+  let depth = 0;
+  let objStart = -1;
+  let inStr = false;
+  let escaped = false;
+  for (let i = arrStart + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{') {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && objStart !== -1) {
+        try {
+          out.push(JSON.parse(s.slice(objStart, i + 1)));
+        } catch { /* 개별 객체 불량 — skip */ }
+        objStart = -1;
+      }
+    } else if (ch === ']' && depth === 0) {
+      break; // 배열 정상 종료
+    }
+  }
+  return out;
+}
+
+/**
  * Gemini 로 자유 텍스트 → stops[] 추출. 실패 시 throw (상위에서 구조화 에러로 변환).
+ * @returns {{ stops: object[], truncated: boolean }} truncated=true 면 잘린 응답에서
+ *   부분 회수한 것 — 프론트가 운영자에게 "뒤쪽 일정 누락 가능" 경고를 띄워야 한다.
  */
 async function extractStops(text, apiKey) {
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -122,7 +174,13 @@ async function extractStops(text, apiKey) {
     systemInstruction: { role: 'system', parts: [{ text: SYSTEM_PROMPT }] },
     generationConfig: {
       temperature: 0.2, // 추출 태스크 — 낮은 온도로 안정화
-      maxOutputTokens: 2000,
+      // 🔴 2026-07-03 prod 버그 fix: gemini-2.5-flash 는 thinking 토큰이 maxOutputTokens
+      //   안에서 차감됨(geminiPipeline.js 문서화). thinkingConfig 없이 2000 이면 thinking 이
+      //   예산을 먹어 JSON 이 문자열 중간에서 잘림 → "Unterminated string in JSON at
+      //   position 156"(Sentry) → AI_PARSE_FAILED("일정 해석 실패"). 추출 태스크라 thinking
+      //   불필요 → 0 (chat.js·telegram-webhook-admin·BaseAgent 동일 규약).
+      thinkingConfig: { thinkingBudget: 0 },
+      maxOutputTokens: 4000, // 40 stops 상한 여유 (~1.6K 실사용)
       responseMimeType: 'application/json',
     },
   });
@@ -139,9 +197,21 @@ async function extractStops(text, apiKey) {
     if (first !== -1 && last > first) jsonStr = jsonStr.slice(first, last + 1);
   }
 
-  const parsed = JSON.parse(jsonStr);
+  let parsed;
+  let truncated = false;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    // 최후 방어: 응답이 그래도 잘렸으면 완성된 stop 객체만 회수(뒤쪽 미완성 stop 은 버림).
+    // ⚠️ 부분 회수 = 뒤 stop 누락 가능 → truncated 플래그를 반환에 실어 프론트가
+    //   운영자에게 경고(누락 확인) — 조용히 짧은 경로로 예약되는 과소청구 방지.
+    const salvaged = salvageStopsFromTruncatedJson(jsonStr);
+    if (!salvaged.length) throw new Error('AI 응답 JSON 파싱 실패 (수리 불가)');
+    parsed = { stops: salvaged };
+    truncated = true;
+  }
   const stops = Array.isArray(parsed?.stops) ? parsed.stops : [];
-  return stops;
+  return { stops, truncated };
 }
 
 /**
@@ -270,8 +340,14 @@ export default async function handler(req, res) {
     }
 
     let rawStops;
+    let truncated = false;
     try {
-      rawStops = await extractStops(rawText, apiKey);
+      const extracted = await extractStops(rawText, apiKey);
+      rawStops = extracted.stops;
+      truncated = extracted.truncated;
+      if (truncated) {
+        console.warn('[mood-parse-schedule] 응답 잘림 — 부분 회수', rawStops.length, 'stops');
+      }
     } catch (aiErr) {
       console.warn('[mood-parse-schedule] Gemini 추출 실패:', aiErr.message);
       await captureError(aiErr, { route: '/api/mood-parse-schedule', email, phase: 'gemini' });
@@ -390,6 +466,7 @@ export default async function handler(req, res) {
       hasDirector,
       hasAirport,
       needsConfirm: true, // 항상 true — 프론트가 서비스 추천 더블체크
+      truncated, // true 면 응답 잘림→부분 회수 — 프론트가 "뒤쪽 일정 누락 가능" 경고
     }));
   } catch (err) {
     console.error('[mood-parse-schedule] failed:', err.message);
