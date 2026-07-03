@@ -236,7 +236,7 @@ export default function PlannerPage() {
         )}
 
         {plannerMode === 'course' && status === 'idle' && (
-          <CourseBuilderShell isMobile={isMobile} />
+          <CourseBuilderShell />
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}

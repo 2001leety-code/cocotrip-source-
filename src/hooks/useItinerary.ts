@@ -154,10 +154,45 @@ export function useItinerary() {
     await deleteDoc(doc(db, 'users', user.uid, 'itineraries', itineraryId));
   }, [user?.uid]);
 
+  // ── 일정 생성 + 슬롯 일괄 (2026-07-04 코스 빌더 '내 계정에 저장') ──
+  // createItinerary 후 addSlot 연쇄는 onSnapshot 반영 지연으로 addSlot 이 문서를
+  // 못 찾는 race 가 있어, days+slots 를 완성해 setDoc 1회로 저장한다.
+  const createItineraryWithSlots = useCallback(async (
+    title: string,
+    startDate: string,
+    slotsPerDay: Omit<ItinerarySlot, 'slotId'>[][],
+  ): Promise<string | null> => {
+    if (!user?.uid) return null;
+
+    const id = genId();
+    const start = new Date(startDate);
+    const days: ItineraryDay[] = slotsPerDay.map((slots, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return {
+        dayNumber: i + 1,
+        date: d.toISOString().slice(0, 10),
+        slots: slots.map((s) => ({ ...s, slotId: genId() })),
+      };
+    });
+    const end = days.length ? days[days.length - 1].date : startDate;
+
+    await setDoc(doc(db, 'users', user.uid, 'itineraries', id), {
+      title,
+      startDate,
+      endDate: end,
+      days,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    return id;
+  }, [user?.uid]);
+
   return {
     itineraries,
     loading,
     createItinerary,
+    createItineraryWithSlots,
     addSlot,
     removeSlot,
     deleteItinerary,

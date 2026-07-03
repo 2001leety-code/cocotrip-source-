@@ -1,291 +1,479 @@
+/**
+ * CourseBuilderShell — "내 장소로 코스 만들기" MVP (2026-07-04, 정적 목업 → 실동작).
+ *
+ * 기능: 장소 추가/인라인 수정/삭제 · 시간 입력 · Day 탭 + Day 간 이동 · 추천 장소(정적
+ * attractions DB) 추가 · localStorage 자동저장 · 공유(mock URL = 코스를 #course= 해시에
+ * base64 로 실어 복사) · Naver/Google 지도 링크 · 로그인 시 내 계정 저장(useItinerary).
+ *
+ * 설계:
+ * - 로직 = courseBuilder/courseOps.ts 순수함수(잠금테스트) + useCourseBuilder 훅.
+ * - 디자인 = 차터 compact 카드 문법(모바일 초소형 기본 + sm: 확대). 기존 목업의
+ *   가짜 지도/가짜 환승/가짜 AI 패널은 제거(허위 데이터 + 큰 박스 남발 금지).
+ * - i18n = 컴포넌트 로컬 4-lang 딕셔너리 (AddressAutocomplete 패턴).
+ */
+import { useMemo, useState } from 'react';
 import {
-  Bus, CalendarDays, Car, Check, Eye, Globe2, GripVertical,
-  Link as LinkIcon, Lock, Map, MapPin, Navigation, PencilLine, Plus, Route,
-  Share2, Sparkles, Train, Utensils, Wand2,
+  CalendarDays, Check, Clock, ExternalLink, GripVertical, MapPin,
+  PencilLine, Plus, Share2, Sparkles, Trash2, X,
 } from 'lucide-react';
 
-type BuilderStop = {
-  id: number;
-  time: string;
-  type: string;
-  title: string;
-  detail: string;
+import { useLanguage } from '@/hooks/useLanguage';
+import { useAuth } from '@/hooks/useAuth';
+import { useItinerary } from '@/hooks/useItinerary';
+import { naverMapSearchUrl } from '@/lib/naverMap';
+import { useCourseBuilder } from './courseBuilder/useCourseBuilder';
+import { googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, type CourseStop } from './courseBuilder/courseOps';
+import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recommendations';
+
+// ── i18n (4-lang 컴포넌트 로컬 — AddressAutocomplete 패턴) ───────────────
+type Lang = 'ko' | 'en' | 'ja' | 'zh';
+const asLang = (s: string): Lang => (s === 'ko' || s === 'ja' || s === 'zh' ? s : 'en');
+
+const I18N: Record<Lang, Record<string, string>> = {
+  en: {
+    day: 'Day', addDay: '+ Day', delDay: 'Delete this day?', newCourse: 'New course',
+    resetConfirm: 'Clear this course and start over?',
+    addTitle: 'Add a place', namePh: 'Place name or address (e.g. Hongdae BBQ)',
+    time: 'Time', memoPh: 'Memo (optional)', addBtn: 'Add to Day',
+    catFood: 'Food', catSight: 'Sight', catShow: 'Show', catStay: 'Stay', catEtc: 'Etc',
+    empty: 'No places yet. Add your first stop above, or pick from recommendations.',
+    edit: 'Edit', done: 'Done', delete: 'Delete', delConfirm: 'Remove this place?',
+    moveTo: 'Move to', naver: 'Naver', google: 'Google',
+    recoTitle: 'Recommended places', recoAdd: '+ Add', allCities: 'All',
+    share: 'Share', shareCopied: 'Link copied!', shareFail: 'Copy failed — try again',
+    saveAccount: 'Save to my account', saveDone: 'Saved to My Page!', saveFail: 'Save failed — try again',
+    saved: 'Auto-saved on this device', stops: 'stops',
+  },
+  ko: {
+    day: 'Day', addDay: '+ 일차', delDay: '이 일차를 삭제할까요?', newCourse: '새 코스',
+    resetConfirm: '코스를 비우고 새로 시작할까요?',
+    addTitle: '장소 추가', namePh: '장소 이름이나 주소 (예: 홍대 고깃집)',
+    time: '시간', memoPh: '메모 (선택)', addBtn: 'Day에 추가',
+    catFood: '맛집', catSight: '관광', catShow: '공연', catStay: '숙소', catEtc: '기타',
+    empty: '아직 장소가 없어요. 위에서 직접 추가하거나 추천에서 골라보세요.',
+    edit: '수정', done: '완료', delete: '삭제', delConfirm: '이 장소를 삭제할까요?',
+    moveTo: '이동', naver: '네이버', google: '구글',
+    recoTitle: '추천 장소', recoAdd: '+ 추가', allCities: '전체',
+    share: '공유', shareCopied: '링크 복사됨!', shareFail: '복사 실패 — 다시 시도',
+    saveAccount: '내 계정에 저장', saveDone: '마이페이지에 저장됨!', saveFail: '저장 실패 — 다시 시도',
+    saved: '이 기기에 자동 저장됨', stops: '개 장소',
+  },
+  ja: {
+    day: 'Day', addDay: '+ 日目', delDay: 'この日を削除しますか？', newCourse: '新規コース',
+    resetConfirm: 'コースをクリアして最初からやり直しますか？',
+    addTitle: '場所を追加', namePh: '場所の名前や住所（例: ホンデ焼肉）',
+    time: '時間', memoPh: 'メモ（任意）', addBtn: 'Dayに追加',
+    catFood: 'グルメ', catSight: '観光', catShow: '公演', catStay: '宿泊', catEtc: 'その他',
+    empty: 'まだ場所がありません。上から追加するか、おすすめから選んでください。',
+    edit: '編集', done: '完了', delete: '削除', delConfirm: 'この場所を削除しますか？',
+    moveTo: '移動', naver: 'Naver', google: 'Google',
+    recoTitle: 'おすすめの場所', recoAdd: '+ 追加', allCities: 'すべて',
+    share: '共有', shareCopied: 'リンクをコピーしました！', shareFail: 'コピー失敗 — もう一度',
+    saveAccount: 'アカウントに保存', saveDone: 'マイページに保存しました！', saveFail: '保存失敗 — もう一度',
+    saved: 'この端末に自動保存', stops: 'か所',
+  },
+  zh: {
+    day: 'Day', addDay: '+ 天', delDay: '删除这一天？', newCourse: '新行程',
+    resetConfirm: '清空行程重新开始？',
+    addTitle: '添加地点', namePh: '地点名称或地址（例: 弘大烤肉店）',
+    time: '时间', memoPh: '备注（可选）', addBtn: '添加到Day',
+    catFood: '美食', catSight: '景点', catShow: '演出', catStay: '住宿', catEtc: '其他',
+    empty: '还没有地点。在上方直接添加，或从推荐中选择。',
+    edit: '编辑', done: '完成', delete: '删除', delConfirm: '删除这个地点？',
+    moveTo: '移动到', naver: 'Naver', google: 'Google',
+    recoTitle: '推荐地点', recoAdd: '+ 添加', allCities: '全部',
+    share: '分享', shareCopied: '链接已复制！', shareFail: '复制失败 — 请重试',
+    saveAccount: '保存到我的账户', saveDone: '已保存到我的页面！', saveFail: '保存失败 — 请重试',
+    saved: '已自动保存到本设备', stops: '个地点',
+  },
 };
 
-const SAMPLE_STOPS: BuilderStop[] = [
-  { id: 1, time: '15:00', type: 'Food', title: 'Hongdae BBQ restaurant', detail: 'Paste a Google/Naver place link or type the name' },
-  { id: 2, time: '17:00', type: 'Nearby pick', title: 'Yeonnam-dong cafe street', detail: 'AI suggested because it is close and walkable' },
-  { id: 3, time: '19:30', type: 'Show', title: 'Concert venue or address', detail: 'Fixed plan item from the traveler' },
-];
+const CATEGORIES = ['food', 'sight', 'show', 'stay', 'etc'] as const;
+const CAT_KEY: Record<string, string> = { food: 'catFood', sight: 'catSight', show: 'catShow', stay: 'catStay', etc: 'catEtc' };
 
-const RECOMMENDATIONS = [
-  { icon: Utensils, title: 'Nearby food', body: 'Add a dessert cafe within 10 minutes from stop 1.' },
-  { icon: Navigation, title: 'Route tip', body: 'Stop 2 to stop 3 is cleaner by subway than taxi at rush hour.' },
-  { icon: Sparkles, title: 'Local idea', body: 'Add a photo walk before dinner if the weather is clear.' },
-];
+// compact 카드 문법 (차터 PR #1037 컨벤션 — 모바일 초소형 기본, sm: 확대)
+const CARD = 'rounded-xl border border-white/10 bg-white/[0.035] sm:rounded-2xl';
+const INPUT = 'rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/30 outline-none focus:border-[#B668FC]/60 sm:rounded-xl sm:px-3 sm:py-2 sm:text-[13px]';
+const CHIP_BTN = 'rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px]';
 
-const ADD_METHODS = [
-  { icon: PencilLine, title: 'Type a place', body: 'Restaurant, hotel, venue, or address' },
-  { icon: LinkIcon, title: 'Paste map link', body: 'Google Maps or Naver Map URL' },
-  { icon: Sparkles, title: 'Ask AI nearby', body: 'Get ideas beside your fixed route' },
-];
+export function CourseBuilderShell() {
+  const { language } = useLanguage();
+  const t = I18N[asLang(language)];
+  const nameLang = asLang(language);
 
-const TRANSIT_OPTIONS = [
-  { icon: Train, label: 'Subway', meta: '14 min · ₩1,500', active: true },
-  { icon: Car, label: 'Taxi', meta: '11 min · ₩9,800', active: false },
-  { icon: Bus, label: 'Charter', meta: 'Comfort route', active: false },
-];
+  const cb = useCourseBuilder();
+  const { user } = useAuth();
+  const { createItineraryWithSlots } = useItinerary();
 
-export function CourseBuilderShell({ isMobile }: { isMobile: boolean }) {
+  // 새 장소 입력폼 상태
+  const [newTitle, setNewTitle] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [newCat, setNewCat] = useState<string>('sight');
+  const [newMemo, setNewMemo] = useState('');
+  // 인라인 수정 대상
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // 추천 도시 필터
+  const [recoCity, setRecoCity] = useState<string | null>(null);
+  // 상태 피드백 (공유/저장)
+  const [flash, setFlash] = useState<string | null>(null);
+  const showFlash = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 2500); };
+
+  const cities = useMemo(() => recoCities(), []);
+  const recos = useMemo(() => recoForCity(recoCity), [recoCity]);
+
+  const day = cb.draft.days[cb.activeDay] ?? { stops: [] };
+
+  const handleAdd = () => {
+    if (!newTitle.trim()) return;
+    cb.addStop(cb.activeDay, { title: newTitle, time: newTime, category: newCat, memo: newMemo });
+    setNewTitle(''); setNewTime(''); setNewMemo('');
+  };
+
+  const handleAddReco = (p: RecoPlace) => {
+    cb.addStop(cb.activeDay, {
+      title: p.name[nameLang] || p.name.en, time: '', category: p.theme === 'food' ? 'food' : 'sight',
+      memo: '', lat: p.lat, lng: p.lng,
+    });
+  };
+
+  const handleShare = async () => {
+    const url = await cb.share();
+    showFlash(url ? t.shareCopied : t.shareFail);
+  };
+
+  const handleSaveAccount = async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const slotsPerDay = cb.draft.days.map((d) => d.stops.map(toItinerarySlot));
+      const id = await createItineraryWithSlots(`Course ${today}`, today, slotsPerDay);
+      showFlash(id ? t.saveDone : t.saveFail);
+    } catch {
+      showFlash(t.saveFail);
+    }
+  };
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_360px]">
-      <section
-        className="overflow-hidden rounded-[22px]"
-        style={{
-          background: 'rgba(255,255,255,0.035)',
-          border: '1px solid rgba(255,255,255,0.08)',
-        }}
-      >
-        <div
-          className="relative h-[220px] sm:h-[310px] overflow-hidden"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(39,70,124,0.92), rgba(31,19,55,0.92)), radial-gradient(circle at 22% 30%, rgba(182,104,252,0.35), transparent 24%), radial-gradient(circle at 72% 65%, rgba(255,107,157,0.24), transparent 22%)',
-          }}
-        >
-          <div className="absolute inset-0 opacity-35" style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
-            backgroundSize: '44px 44px',
-          }} />
-          <div className="absolute left-[18%] top-[24%] flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-lime-300 text-[15px] font-black text-[#101522] shadow-lg">1</span>
-            <span className="rounded-full bg-white/90 px-3 py-1 text-[12px] font-black text-[#101522]">Hongdae</span>
-          </div>
-          <div className="absolute left-[46%] top-[54%] flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-lime-300 text-[15px] font-black text-[#101522] shadow-lg">2</span>
-            <span className="rounded-full bg-white/90 px-3 py-1 text-[12px] font-black text-[#101522]">Yeonnam</span>
-          </div>
-          <div className="absolute left-[68%] top-[34%] flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-lime-300 text-[15px] font-black text-[#101522] shadow-lg">3</span>
-            <span className="rounded-full bg-white/90 px-3 py-1 text-[12px] font-black text-[#101522]">Venue</span>
-          </div>
-          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M23 30 C35 42, 40 46, 49 58 S65 48, 72 38" fill="none" stroke="rgba(190,255,105,0.95)" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 2" />
-          </svg>
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-            <div className="rounded-2xl bg-black/45 px-3 py-2 backdrop-blur">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/50">Route preview</p>
-              <p className="text-[13px] font-bold text-white">3 stops · 42 min moving</p>
+    // grid-cols-1(=minmax(0,1fr)) 필수 — 템플릿 없는 auto 트랙은 overflow-x-auto 내용까지
+    // max-content 로 계산해 모바일 가로 폭주(도시 칩 스트립에서 실측 3200px 오버플로).
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* ── 메인: Day 탭 + 추가 폼 + 스탑 리스트 ── */}
+      <section className={`${CARD} p-2.5 sm:p-4`}>
+        {/* Day 탭 */}
+        <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {cb.draft.days.map((d, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => cb.setActiveDay(i)}
+              className={`h-8 shrink-0 rounded-full px-3.5 text-[11px] font-black sm:h-9 sm:px-4 sm:text-[12px] ${i === cb.activeDay ? 'text-white' : 'text-white/50'}`}
+              style={i === cb.activeDay
+                ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.52)' }
+                : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              {t.day} {i + 1}
+              <span className="ml-1 text-[9px] font-bold text-white/40">{d.stops.length}</span>
+            </button>
+          ))}
+          {cb.draft.days.length < COURSE_MAX_DAYS && (
+            <button
+              type="button"
+              onClick={cb.addDay}
+              className="h-8 shrink-0 rounded-full border border-dashed border-white/20 px-3 text-[11px] font-bold text-white/55 sm:h-9"
+            >
+              {t.addDay}
+            </button>
+          )}
+          {cb.draft.days.length > 1 && (
+            <button
+              type="button"
+              aria-label={t.delDay}
+              onClick={() => { if (window.confirm(t.delDay)) cb.removeDay(cb.activeDay); }}
+              className="ml-auto h-8 shrink-0 rounded-full border border-white/10 px-2.5 text-white/40 sm:h-9"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* 장소 추가 폼 — compact */}
+        <div className={`${CARD} mb-2.5 p-2.5 sm:p-3`} style={{ borderColor: 'rgba(182,104,252,0.18)' }}>
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-black text-white sm:text-[12px]">
+            <PencilLine className="h-3.5 w-3.5 text-[#B668FC]" /> {t.addTitle}
+          </p>
+          <div className="grid gap-1.5">
+            <input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+              placeholder={t.namePh}
+              className={INPUT}
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <label className="flex items-center gap-1 text-[10px] text-white/45">
+                <Clock className="h-3 w-3" />
+                <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className={`${INPUT} w-[92px] px-1.5`} />
+              </label>
+              <div className="flex gap-1">
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewCat(c)}
+                    className={CHIP_BTN}
+                    style={newCat === c
+                      ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
+                      : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+                  >
+                    {t[CAT_KEY[c]]}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-[#101522]" type="button" aria-label="Map view">
-                <Map className="h-4 w-4" />
-              </button>
-              <button className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-[#101522]" type="button" aria-label="Share route">
-                <Share2 className="h-4 w-4" />
+            <div className="flex gap-1.5">
+              <input value={newMemo} onChange={(e) => setNewMemo(e.target.value)} placeholder={t.memoPh} className={`${INPUT} flex-1 min-w-0`} />
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={!newTitle.trim()}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-40 sm:rounded-xl sm:px-4 sm:text-[12px]"
+                style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+              >
+                <Plus className="h-3.5 w-3.5" /> {t.addBtn} {cb.activeDay + 1}
               </button>
             </div>
           </div>
         </div>
 
-        <div className="p-3.5 sm:p-5">
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {['Day 1', 'Day 2', 'Day 3', '+'].map((day, index) => (
-              <button
-                key={day}
-                type="button"
-                className={`h-10 shrink-0 rounded-full px-5 text-[13px] font-black ${index === 0 ? 'text-white' : 'text-white/55'}`}
-                style={index === 0
-                  ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.52)' }
-                  : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                {day}
-              </button>
+        {/* 스탑 리스트 */}
+        {day.stops.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-white/[0.14] px-3 py-6 text-center text-[11px] leading-relaxed text-white/40 sm:text-[12px]">
+            {t.empty}
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {day.stops.map((stop, idx) => (
+              <StopRow
+                key={stop.id}
+                stop={stop}
+                index={idx}
+                t={t}
+                editing={editingId === stop.id}
+                dayCount={cb.draft.days.length}
+                activeDay={cb.activeDay}
+                onEdit={() => setEditingId(stop.id)}
+                onDone={() => setEditingId(null)}
+                onPatch={(patch) => cb.updateStop(cb.activeDay, stop.id, patch)}
+                onDelete={() => { if (window.confirm(t.delConfirm)) cb.removeStop(cb.activeDay, stop.id); }}
+                onMove={(toDay) => { cb.moveStopToDay(cb.activeDay, stop.id, toDay); setEditingId(null); }}
+              />
             ))}
           </div>
+        )}
 
-          <div className="mb-4 grid gap-2 sm:grid-cols-[130px_1fr_120px]">
-            <label className="rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 py-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white/40">Date</span>
-              <span className="mt-1 flex items-center gap-2 text-[13px] font-bold text-white">
-                <CalendarDays className="h-4 w-4 text-[#B668FC]" /> 2026.07.09
-              </span>
-            </label>
-            <label className="rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 py-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white/40">Start from</span>
-              <span className="mt-1 flex items-center gap-2 text-[13px] font-bold text-white">
-                <MapPin className="h-4 w-4 text-[#B668FC]" /> Myeongdong hotel or address
-              </span>
-            </label>
-            <button className="rounded-2xl text-[12px] font-black text-white" type="button" style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}>
-              Optimize
-            </button>
-          </div>
-
-          <div className="mb-4 grid gap-2 sm:grid-cols-3">
-            {ADD_METHODS.map(({ icon: Icon, title, body }) => (
-              <button
-                key={title}
-                type="button"
-                className="flex items-center gap-2.5 rounded-2xl p-3 text-left"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/[0.055] text-[#B668FC] shrink-0">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[12px] font-black text-white">{title}</span>
-                  <span className="mt-0.5 block text-[10.5px] leading-snug text-white/42">{body}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div
-            className="mb-4 rounded-2xl p-3"
-            style={{ background: 'rgba(182,104,252,0.055)', border: '1px solid rgba(182,104,252,0.15)' }}
+        {/* 하단 액션 바 */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-black text-white sm:rounded-xl sm:text-[12px]"
+            style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
           >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-black text-white">Move between stops</p>
-              <p className="text-[10px] font-bold text-white/38">placeholder for route engine</p>
+            <Share2 className="h-3.5 w-3.5" /> {t.share}
+          </button>
+          {user && (
+            <button
+              type="button"
+              onClick={handleSaveAccount}
+              disabled={cb.totalStops === 0}
+              className="flex items-center gap-1.5 rounded-lg border border-white/[0.14] px-3 py-2 text-[11px] font-bold text-white/70 disabled:opacity-40 sm:rounded-xl sm:text-[12px]"
+            >
+              <Check className="h-3.5 w-3.5" /> {t.saveAccount}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { if (window.confirm(t.resetConfirm)) cb.reset(); }}
+            className="rounded-lg border border-white/[0.10] px-3 py-2 text-[11px] font-bold text-white/45 sm:rounded-xl sm:text-[12px]"
+          >
+            {t.newCourse}
+          </button>
+          <span className="ml-auto flex items-center gap-1 text-[9.5px] text-white/35 sm:text-[10.5px]">
+            {flash ? (
+              <span className="font-bold text-[#B9F36E]">{flash}</span>
+            ) : (
+              <>
+                <CalendarDays className="h-3 w-3" />
+                {cb.totalStops}{t.stops} · {t.saved}
+              </>
+            )}
+          </span>
+        </div>
+      </section>
+
+      {/* ── 추천 패널 (정적 attractions DB — 진짜 데이터) ── */}
+      <aside className={`${CARD} h-fit p-2.5 sm:p-3.5`}>
+        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-white sm:text-[13px]">
+          <Sparkles className="h-3.5 w-3.5 text-[#B668FC]" /> {t.recoTitle}
+        </p>
+        <div className="mb-2 flex gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          <button
+            type="button"
+            onClick={() => setRecoCity(null)}
+            className={`${CHIP_BTN} shrink-0`}
+            style={recoCity === null
+              ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
+              : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+          >
+            {t.allCities}
+          </button>
+          {cities.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setRecoCity(c)}
+              className={`${CHIP_BTN} shrink-0 capitalize`}
+              style={recoCity === c
+                ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
+                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-1 max-h-[420px] overflow-y-auto pr-0.5">
+          {recos.map((p) => (
+            <div key={p.key} className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 py-1.5">
+              <MapPin className="h-3 w-3 shrink-0 text-white/30" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-bold text-white/85">{p.name[nameLang] || p.name.en}</p>
+                <p className="text-[9px] text-white/35 capitalize">{p.city}{typeof p.rating === 'number' ? ` · ★${p.rating}` : ''}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAddReco(p)}
+                className="shrink-0 rounded-full bg-lime-300/15 px-2 py-0.5 text-[10px] font-black text-lime-200"
+              >
+                {t.recoAdd}
+              </button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {TRANSIT_OPTIONS.map(({ icon: Icon, label, meta, active }) => (
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// ── 스탑 1행 (표시/인라인 수정) ─────────────────────────────────────────
+function StopRow({
+  stop, index, t, editing, dayCount, activeDay, onEdit, onDone, onPatch, onDelete, onMove,
+}: {
+  stop: CourseStop;
+  index: number;
+  t: Record<string, string>;
+  editing: boolean;
+  dayCount: number;
+  activeDay: number;
+  onEdit: () => void;
+  onDone: () => void;
+  onPatch: (patch: Partial<Omit<CourseStop, 'id'>>) => void;
+  onDelete: () => void;
+  onMove: (toDay: number) => void;
+}) {
+  const naverUrl = naverMapSearchUrl(stop.title);
+  const gUrl = googleMapsUrl(stop);
+
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-[#B668FC]/40 bg-[#B668FC]/[0.06] p-2.5">
+        <div className="grid gap-1.5">
+          <input
+            value={stop.title}
+            onChange={(e) => { if (e.target.value.trim()) onPatch({ title: e.target.value }); }}
+            className={INPUT}
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input type="time" value={stop.time} onChange={(e) => onPatch({ time: e.target.value })} className={`${INPUT} w-[92px] px-1.5`} />
+            <div className="flex gap-1">
+              {CATEGORIES.map((c) => (
                 <button
-                  key={label}
+                  key={c}
                   type="button"
-                  className="flex items-center gap-2 rounded-xl px-3 py-2 text-left"
-                  style={active
-                    ? { background: 'rgba(182,104,252,0.18)', border: '1px solid rgba(182,104,252,0.36)' }
-                    : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={() => onPatch({ category: c })}
+                  className={CHIP_BTN}
+                  style={stop.category === c
+                    ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
+                    : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
                 >
-                  <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-[#D9A8FF]' : 'text-white/45'}`} />
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-black text-white">{label}</span>
-                    <span className="block text-[10px] text-white/42">{meta}</span>
-                  </span>
+                  {t[CAT_KEY[c]]}
                 </button>
               ))}
             </div>
           </div>
-
-          <div className="space-y-2.5">
-            {SAMPLE_STOPS.map((stop, index) => (
-              <div key={stop.id}>
-                <div
-                  className="flex gap-3 rounded-2xl p-3"
-                  style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)' }}
+          <input value={stop.memo} onChange={(e) => onPatch({ memo: e.target.value })} placeholder={t.memoPh} className={INPUT} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {dayCount > 1 && (
+              <label className="flex items-center gap-1 text-[10px] text-white/45">
+                {t.moveTo}
+                <select
+                  value={activeDay}
+                  onChange={(e) => onMove(Number(e.target.value))}
+                  className="rounded-lg border border-white/10 bg-[#141824] px-1.5 py-1 text-[11px] text-white"
                 >
-                  <div className="flex flex-col items-center">
-                    <span className="grid h-8 w-8 place-items-center rounded-full bg-lime-300 text-[13px] font-black text-[#101522]">{stop.id}</span>
-                    <GripVertical className="mt-2 h-4 w-4 text-white/25" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-white/65">{stop.time}</span>
-                      <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-purple-200">{stop.type}</span>
-                    </div>
-                    <p className="text-[14px] font-black text-white">{stop.title}</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-white/45">{stop.detail}</p>
-                  </div>
-                  <button type="button" className="self-start rounded-full border border-white/[0.10] px-3 py-1.5 text-[11px] font-bold text-white/65">
-                    Edit
-                  </button>
-                </div>
-                {index < SAMPLE_STOPS.length - 1 && (
-                  <div className="ml-4 flex items-center gap-2 py-2 text-[11px] font-bold text-white/45">
-                    <span className="h-5 w-px bg-white/15" />
-                    <Route className="h-3.5 w-3.5 text-[#B668FC]" />
-                    <span>Subway 8 min · walk 6 min</span>
-                    <button className="text-[#B9A4FF]" type="button">Naver</button>
-                    <button className="text-[#B9A4FF]" type="button">Google</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <button
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/[0.18] bg-white/[0.025] py-3 text-[13px] font-black text-white/70"
-            type="button"
-          >
-            <Plus className="h-4 w-4" /> Add place, address, or map link
-          </button>
-        </div>
-      </section>
-
-      <aside className="space-y-3">
-        <div
-          className="rounded-[22px] p-4"
-          style={{
-            background: 'linear-gradient(135deg, rgba(182,104,252,0.10), rgba(255,107,157,0.06))',
-            border: '1px solid rgba(182,104,252,0.18)',
-          }}
-        >
-          <div className="mb-3 flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-2xl" style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}>
-              <Wand2 className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <p className="text-[14px] font-black text-white">AI route helper</p>
-              <p className="text-[11px] text-white/45">Suggestions while you build</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {RECOMMENDATIONS.map(({ icon: Icon, title, body }) => (
-              <button
-                key={title}
-                type="button"
-                className="w-full rounded-2xl p-3 text-left transition hover:bg-white/[0.04]"
-                style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <div className="flex gap-2">
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[#B668FC]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-black text-white">{title}</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-white/48">{body}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <span className="rounded-full bg-lime-300/15 px-2 py-0.5 text-[10px] font-black text-lime-200">+ Add</span>
-                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/55">Why?</span>
-                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/55">Skip</span>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className="rounded-[22px] p-4"
-          style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
-        >
-          <p className="text-[13px] font-black text-white">Share and publish</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-white/45">
-            The final page can show the full map, day tabs, editable stops, share link, and Naver/Google route buttons.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button className="flex items-center justify-center gap-1.5 rounded-xl border border-white/[0.10] py-2 text-[11px] font-bold text-white/65" type="button">
-              <Lock className="h-3.5 w-3.5" /> Private
+                  {Array.from({ length: dayCount }, (_, i) => (
+                    <option key={i} value={i}>{t.day} {i + 1}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button type="button" onClick={onDelete} className="flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[10px] font-bold text-rose-300">
+              <Trash2 className="h-3 w-3" /> {t.delete}
             </button>
-            <button className="flex items-center justify-center gap-1.5 rounded-xl border border-white/[0.10] py-2 text-[11px] font-bold text-white/65" type="button">
-              <Globe2 className="h-3.5 w-3.5" /> Public
-            </button>
-            <button className="flex items-center justify-center gap-1.5 rounded-xl border border-white/[0.10] py-2 text-[11px] font-bold text-white/65" type="button">
-              <Eye className="h-3.5 w-3.5" /> Preview
-            </button>
-            <button className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-black text-white" type="button" style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}>
-              <Check className="h-3.5 w-3.5" /> Share
+            <button
+              type="button"
+              onClick={onDone}
+              className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-black text-white"
+              style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+            >
+              <Check className="h-3 w-3" /> {t.done}
             </button>
           </div>
         </div>
-        {isMobile && (
-          <p className="text-center text-[10px] leading-relaxed text-white/35">
-            Shell only: map, AI suggestions, save, and share APIs are intentionally not connected yet.
-          </p>
-        )}
-      </aside>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 sm:gap-2.5 sm:p-2.5">
+      <div className="flex flex-col items-center pt-0.5">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-lime-300 text-[11px] font-black text-[#101522] sm:h-7 sm:w-7 sm:text-[12px]">{index + 1}</span>
+        <GripVertical className="mt-1 h-3 w-3 text-white/20" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {stop.time && <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9.5px] font-bold text-white/60">{stop.time}</span>}
+          <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-purple-200">
+            {t[CAT_KEY[stop.category] ?? 'catEtc']}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[12.5px] font-black leading-snug text-white sm:text-[13.5px]">{stop.title}</p>
+        {stop.memo && <p className="mt-0.5 text-[10px] leading-relaxed text-white/40 sm:text-[10.5px]">{stop.memo}</p>}
+        <div className="mt-1 flex items-center gap-2">
+          <a href={naverUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] font-bold text-[#7CE372]">
+            <ExternalLink className="h-2.5 w-2.5" /> {t.naver}
+          </a>
+          <a href={gUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] font-bold text-[#8AB4F8]">
+            <ExternalLink className="h-2.5 w-2.5" /> {t.google}
+          </a>
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <button type="button" onClick={onEdit} className="rounded-full border border-white/[0.10] px-2.5 py-1 text-[10px] font-bold text-white/60">
+          {t.edit}
+        </button>
+        <button type="button" aria-label={t.delete} onClick={onDelete} className="rounded-full border border-white/[0.08] p-1 text-white/30 hover:text-rose-300">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
     </div>
   );
 }
