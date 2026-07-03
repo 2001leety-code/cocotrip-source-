@@ -411,7 +411,8 @@ export default function MoodPortal() {
         setTopupMsg({ kind: 'ok', text: `충전 완료 — 잔액 ${formatBalance(json.data.balanceKRW)}` });
         setTopupAmount('');
         setTopupNote('');
-        await loadData(data?.clientId);
+        // 방금 충전한 client로 재조회 — 다른 client 충전 시 화면 잔액 카드가 안 바뀌던 갭 fix
+        await loadData(topupClientId.trim() || data?.clientId);
       } else {
         setTopupMsg({ kind: 'err', text: json?.error || `충전 실패 (${res.status})` });
       }
