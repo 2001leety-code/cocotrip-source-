@@ -4,7 +4,7 @@ import { Ticket, Check, Ban } from 'lucide-react';
 
 export function ComboPackageBanner({ p }: { p: PlannerDict }) {
   return (
-    <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-2xl p-6 mt-6 relative overflow-hidden">
+    <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-xl p-3.5 mt-3 sm:rounded-2xl sm:p-6 sm:mt-6 relative overflow-hidden">
       <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg shadow-lg">{p.comboSaveBadge}</div>
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
