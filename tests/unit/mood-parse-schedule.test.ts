@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -159,5 +159,52 @@ describe('thinkingBudget 소스 불변식 — truncation 근본원인 재발 방
   it('ai-planner-quick 도 thinkingBudget: 0 을 유지해야 한다 (동일 잠복버그)', () => {
     const src = readFileSync(resolve(__dirname, '../../api/ai-planner-quick.js'), 'utf8');
     expect(src).toMatch(/thinkingConfig:\s*\{\s*thinkingBudget:\s*0\s*\}/);
+  });
+});
+
+describe('matchStopPlaces — 명시 장소 > 사람 우선순위 (2026-07-03 주소록 오위치 돈버그 방지)', () => {
+  // 실사례: "9:50am 르픽(정유진 픽업)" — 정유진을 '르픽에서' 태움.
+  // 사람 매칭이 이기면 픽업 위치가 정유진 집으로 잡혀 km·요금 오계산.
+  const book = [
+    { name: '정유진', nameNorm: '정유진', address: '서울시 영등포구 국제금융로 108-6', lat: null, lng: null, isDirector: false },
+    { name: '르픽', nameNorm: '르픽', address: '서울특별시 강남구 도산대로78길 14 2층', lat: 37.5230867, lng: 127.0468013, isDirector: false },
+    { name: '이사님', nameNorm: '이사님', address: '인천 강화군 불은면', lat: 37.6, lng: 126.4, isDirector: true },
+    { name: '김포공항', nameNorm: '김포공항', address: '서울특별시 강서구 하늘길 38', lat: 37.5668999, lng: 126.8012509, isDirector: false },
+    { name: '김포공항 국내선', nameNorm: '김포공항 국내선', address: '서울특별시 강서구 하늘길 111', lat: 37.5587816, lng: 126.803009, isDirector: false },
+  ];
+  const m = (person: string, hint: string) => matchStopPlaces(person, hint, book);
+
+  it("'르픽(정유진 픽업)' → 위치는 르픽 (사람 집 아님)", () => {
+    const { matched } = m('정유진', '르픽');
+    expect(matched?.name).toBe('르픽');
+    expect(matched?.lat).toBe(37.5230867);
+  });
+
+  it('장소힌트 없으면 사람 매칭 → 집 주소 (기존 동작 보존)', () => {
+    const { matched } = m('정유진', '');
+    expect(matched?.name).toBe('정유진');
+  });
+
+  it("'르픽(이사님 픽업)' → 위치=르픽 이지만 이사님 신호(차량 판별)는 유지", () => {
+    const { matched, directorSignal } = m('이사님', '르픽');
+    expect(matched?.name).toBe('르픽');
+    expect(directorSignal).toBe(true);
+  });
+
+  it('이사님 단독(장소힌트 미등록 주소)이면 이사님 매칭 + 신호', () => {
+    const { matched, directorSignal } = m('이사님', '인천 강화군 불은면 어딘가');
+    expect(matched?.name).toBe('이사님');
+    expect(directorSignal).toBe(true);
+  });
+
+  it("plain '김포공항' 힌트는 국내선/국제선 모호성 없이 정확 일치 (대표 항목)", () => {
+    const { matched } = m('헤메실장님', '김포공항');
+    expect(matched?.name).toBe('김포공항');
+  });
+
+  it('둘 다 미매칭이면 matched=null (→ geocode 경로)', () => {
+    const { matched, directorSignal } = m('강남 코엑스', '');
+    expect(matched).toBeNull();
+    expect(directorSignal).toBe(false);
   });
 });
