@@ -85,8 +85,8 @@ export function PWAUpdatePrompt() {
   });
 
   // 사용자가 이미 터치/입력/스크롤을 시작했으면 "작업 중" 으로 보고 자동 리로드 대신 버튼으로 전환.
+  // (탭에도 콜드스타트 자동 갱신이 생겼으므로 상호작용 추적은 standalone 여부와 무관하게 켠다)
   useEffect(() => {
-    if (!standaloneRef.current) return;
     const markInteracted = () => { userInteractedRef.current = true; };
     const opts: AddEventListenerOptions = { passive: true, once: true };
     window.addEventListener('pointerdown', markInteracted, opts);
@@ -102,11 +102,12 @@ export function PWAUpdatePrompt() {
   }, []);
 
   // 앱 진입 직후 새 버전 대기 감지 → 자동 업데이트(작업 전이라 안전). 페이지당 1회.
-  // PC/모바일 브라우저 탭(비-standalone)에선 자동 리로드 안 함.
-  // 사용자 작업 중/입력 포커스/결제 진행(PayPal iframe) 중이면 자동 리로드 스킵 → 토스트로 폴백
+  // 2026-07-03: 브라우저 탭에도 콜드스타트 조용한 갱신 확장 — prompt 모드에선 탭 사용자가
+  // 새로고침해도 옛 SW가 옛 번들을 계속 서빙해 배포 후 영원히 stale(운영자 /admin 멈춤 재현).
+  // 토스트 UI는 여전히 설치앱 전용(운영자 결정 2026-06-14 = "탭에 알림 UI 불필요"는 유지).
+  // 사용자 작업 중/입력 포커스/결제 진행(PayPal iframe) 중이면 자동 리로드 스킵
   // (결제 중 강제 새로고침 = 결제 유실 위험).
   useEffect(() => {
-    if (!standaloneRef.current) return;
     if (!needRefresh || autoUpdatedRef.current) return;
     if (Date.now() - loadedAtRef.current >= AUTO_UPDATE_WINDOW_MS) return;
     const timer = window.setTimeout(() => {
