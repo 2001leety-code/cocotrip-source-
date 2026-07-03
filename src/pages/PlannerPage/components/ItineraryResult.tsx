@@ -168,7 +168,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       {result.accommodation
         ? <AccommodationCard acc={result.accommodation} p={p} region={result.meta.regions[0]} />
         : enriching && (
-          <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-5 mt-6 animate-pulse">
+          <div className="bg-white/[0.04] border border-white/8 rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6 animate-pulse">
             <div className="h-3 bg-white/10 rounded w-28 mb-4" />
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-white/10 shrink-0" />
@@ -186,7 +186,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       {result.budgetSummary
         ? <BudgetCard budget={result.budgetSummary} p={p} />
         : enriching && (
-          <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-5 mt-6 animate-pulse">
+          <div className="bg-white/[0.04] border border-white/8 rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6 animate-pulse">
             <div className="h-3 bg-white/10 rounded w-24 mb-4" />
             <div className="grid grid-cols-2 gap-2 mb-4">
               {[1,2,3,4].map(i => <div key={i} className="h-12 bg-white/6 rounded-xl" />)}

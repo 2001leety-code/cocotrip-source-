@@ -150,7 +150,7 @@ export function WizardStep3Review(props: Step3Props) {
       </div>
 
       {/* Price + Generate */}
-      <div className="bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 border border-[#7C5CFC]/20 rounded-2xl p-5 text-center space-y-4">
+      <div className="bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 border border-[#7C5CFC]/20 rounded-xl p-3.5 space-y-3 sm:rounded-2xl sm:p-5 sm:space-y-4 text-center">
         <div>
           <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
@@ -169,7 +169,7 @@ export function WizardStep3Review(props: Step3Props) {
         )}
 
         <button onClick={onGenerate} disabled={isLoading}
-          className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.03] disabled:opacity-50"
+          className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.03] disabled:opacity-50"
           style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
           <Shield className="w-5 h-5" />
           {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}

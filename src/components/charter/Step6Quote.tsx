@@ -37,7 +37,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   // 자유입력 + 매트릭스 미매칭 — 별도견적 안내로 분기
   if (quote.needsCustomQuote) {
     return (
-      <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-7 text-center">
+      <div className="rounded-xl p-4 sm:rounded-2xl sm:p-7 border border-amber-500/40 bg-amber-500/10 text-center">
         <p className="text-lg text-amber-100 font-bold mb-3">{i18n.customQuoteTitle}</p>
         <p className="text-sm text-white/70 mb-4 leading-relaxed">{i18n.customQuoteBody}</p>
         <p className="text-xs text-white/55">{i18n.customQuoteSub}</p>
@@ -160,7 +160,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
 
       {/* 별도 고지 박스 (always render for relevant modes) */}
       {(quote.showMeals || quote.showAttractions) && (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+        <div className="rounded-xl p-3.5 sm:rounded-2xl sm:p-6 border border-white/10 bg-white/[0.03]">
           <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.separateBlock}</p>
           <div className="space-y-2.5 text-sm text-white/65">
             {quote.showMeals && <Row label={i18n.estMeals} value={KRW(quote.estimatedMealsKRW)} muted />}
