@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { MoodTopupModal } from '@/components/admin/MoodTopupModal';
+import { MoodAccessManager } from '@/components/admin/MoodAccessManager';
+import { MoodPlacesManager } from '@/components/admin/MoodPlacesManager';
 import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -24,9 +26,11 @@ import {
   FileSearch,
   Gauge,
   Inbox,
+  KeyRound,
   Languages,
   List,
   Map,
+  MapPin,
   Megaphone,
   PackageOpen,
   Plus,
@@ -54,6 +58,9 @@ export default function Admin() {
 
   // ── 무드 선불 충전 모달 (어드민 인라인 — /mood 이동 없이 여기서 충전) ──
   const [moodTopupOpen, setMoodTopupOpen] = useState(false);
+  // ── MOOD 접근 관리 · 주소록 모달 (어드민 인라인) ──
+  const [moodAccessOpen, setMoodAccessOpen] = useState(false);
+  const [moodPlacesOpen, setMoodPlacesOpen] = useState(false);
 
   // ── Tour creation form ──
   const [title, setTitle] = useState('');
@@ -308,6 +315,8 @@ export default function Admin() {
     { href: '/admin/payments', title: '예약·결제', desc: '입금 확인·환불', icon: CreditCard, tone: 'text-sky-300' },
     { href: '/admin/all-bookings', title: '통합 예약', desc: '무드 + 코코트립', icon: ClipboardList, tone: 'text-violet-300' },
     { href: '/mood#topup', title: '무드 충전', desc: '입금 확인 후 선불 잔액', icon: WalletCards, tone: 'text-pink-300' },
+    { href: '#mood-access', title: 'MOOD 접근 관리', desc: '조회·충전 이메일 관리', icon: KeyRound, tone: 'text-violet-300' },
+    { href: '#mood-places', title: 'MOOD 주소록', desc: '자주 가는 곳·이사님 댁', icon: MapPin, tone: 'text-violet-300' },
     { href: '/admin/ops', title: '운영 허브', desc: '배차·텔레그램·시스템', icon: BriefcaseBusiness, tone: 'text-emerald-300' },
   ];
 
@@ -527,13 +536,18 @@ export default function Admin() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {quickActions.map((action) => {
               const ActionIcon = action.icon;
-              // 무드 충전 = /mood 이동 대신 어드민 인라인 모달
-              if (action.href === '/mood#topup') {
+              // MOOD 관련 3종 = /mood 이동 대신 어드민 인라인 모달
+              const modalOpener =
+                action.href === '/mood#topup' ? () => setMoodTopupOpen(true)
+                : action.href === '#mood-access' ? () => setMoodAccessOpen(true)
+                : action.href === '#mood-places' ? () => setMoodPlacesOpen(true)
+                : null;
+              if (modalOpener) {
                 return (
                   <button
                     type="button"
                     key={action.title}
-                    onClick={() => setMoodTopupOpen(true)}
+                    onClick={modalOpener}
                     className="group rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left transition-colors hover:bg-white/[0.08]"
                   >
                     <ActionIcon className={`mb-3 h-5 w-5 ${action.tone}`} />
@@ -731,6 +745,8 @@ export default function Admin() {
       </div>
 
       <MoodTopupModal open={moodTopupOpen} onClose={() => setMoodTopupOpen(false)} />
+      <MoodAccessManager open={moodAccessOpen} onClose={() => setMoodAccessOpen(false)} />
+      <MoodPlacesManager open={moodPlacesOpen} onClose={() => setMoodPlacesOpen(false)} />
     </div>
   );
 }

@@ -24,7 +24,7 @@ const DIRECTIONS_URL = 'https://maps.apigw.ntruss.com/map-direction/v1/driving';
  * Naver Geocoding — 주소/장소명 → { lat, lng }. 실패 시 null.
  * (api/calculator-distance.js geocode 패턴 재사용.)
  */
-async function geocode(query, clientId, clientSecret) {
+export async function geocode(query, clientId, clientSecret) {
   const res = await axios.get(GEOCODE_URL, {
     params: { query },
     headers: {
@@ -40,6 +40,49 @@ async function geocode(query, clientId, clientSecret) {
     };
   }
   return null;
+}
+
+/**
+ * NCP(Naver Cloud Maps) 키 해석 — computeRoute 와 동일한 폴백 규칙.
+ * CLAUDE.md I: 키는 .trim() 필수 (\n 손상 방지). 변수명 이원화(NCP_ / NAVER_ 계열) 둘 다 허용.
+ * @returns {{ clientId: string, clientSecret: string }} — 미설정이면 빈 문자열.
+ */
+function resolveNcpKeys() {
+  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
+  return { clientId, clientSecret };
+}
+
+/**
+ * 단일 주소 geocode — 키 해석까지 내부에서 처리 (호출자가 NCP 키 몰라도 됨).
+ * mood-places(주소록 저장) 같이 "주소 → 좌표" 만 필요한 곳에서 재사용.
+ *
+ * @param {string} query - 주소 또는 장소명
+ * @returns {Promise<
+ *     { ok: true, lat: number, lng: number }
+ *   | { ok: false, status: number, error: string }
+ * >}
+ *   - MISSING_PARAMS (400): 빈 주소
+ *   - NCP_NOT_CONFIGURED (500): NCP 키 미설정
+ *   - GEOCODING_FAILED (404): 좌표화 실패 (엉터리 주소)
+ */
+export async function geocodeAddress(query) {
+  const q = String(query || '').trim();
+  if (!q) return { ok: false, status: 400, error: 'MISSING_PARAMS' };
+
+  const { clientId, clientSecret } = resolveNcpKeys();
+  if (!clientId || !clientSecret) {
+    return { ok: false, status: 500, error: 'NCP_NOT_CONFIGURED' };
+  }
+
+  try {
+    const coord = await geocode(q, clientId, clientSecret);
+    if (!coord) return { ok: false, status: 404, error: 'GEOCODING_FAILED' };
+    return { ok: true, lat: coord.lat, lng: coord.lng };
+  } catch (err) {
+    // Naver 호출 자체 실패(네트워크/키오류) — 좌표 못 뽑았으니 저장 거부 대상.
+    return { ok: false, status: 404, error: 'GEOCODING_FAILED', detail: err?.message };
+  }
 }
 
 /** "lng,lat" 좌표 문자열 (Naver Directions 파라미터 포맷). */
@@ -74,8 +117,7 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
   // 변수명 폴백: 메인 플래너(RouteAgent/recalc-transit)는 NAVER_CLIENT_*, MOOD/calculator 는
   // NCP_CLIENT_* 로 같은 네이버 클라우드 Maps 키를 읽던 이원화 → 어느 이름으로 등록돼도 동작
   // (prod 는 NAVER_CLIENT_* 만 설정돼 MOOD 가 NCP_NOT_CONFIGURED 였음, 2026-06-13).
-  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
-  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
+  const { clientId, clientSecret } = resolveNcpKeys();
   if (!clientId || !clientSecret) {
     return { ok: false, status: 500, error: 'NCP_NOT_CONFIGURED' };
   }
