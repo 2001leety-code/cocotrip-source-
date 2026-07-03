@@ -34,7 +34,16 @@
     "plan:record": "node scripts/plan-local/record.mjs"
   },
   "overrides": {
-    "qs": "^6.15.3"
+    "qs": "^6.15.3",
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "1.9.16"
+    },
+    "google-gax": {
+      "@grpc/grpc-js": "^1.14.4"
+    },
+    "@opentelemetry/core": "^2.9.0",
+    "form-data": "^4.0.6",
+    "protobufjs": "^7.6.4"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
