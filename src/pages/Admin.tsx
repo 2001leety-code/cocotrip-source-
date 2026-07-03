@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { MoodTopupModal } from '@/components/admin/MoodTopupModal';
 import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -50,6 +51,9 @@ export default function Admin() {
   const { user, loading, error } = useAuth();
   const { t } = useLanguage();
   const ta = t.admin;
+
+  // ── 무드 선불 충전 모달 (어드민 인라인 — /mood 이동 없이 여기서 충전) ──
+  const [moodTopupOpen, setMoodTopupOpen] = useState(false);
 
   // ── Tour creation form ──
   const [title, setTitle] = useState('');
@@ -374,14 +378,15 @@ export default function Admin() {
                 <CreditCard className="h-4 w-4" />
                 입금 확인
               </Link>
-              <Link
-                to="/mood#topup"
+              <button
+                type="button"
+                onClick={() => setMoodTopupOpen(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-pink-300/25 bg-pink-300/[0.1] px-4 py-3 text-sm font-bold text-pink-100 transition-colors hover:bg-pink-300/[0.16]"
-                aria-label="무드 선불 잔액 충전으로 이동"
+                aria-label="무드 선불 잔액 충전"
               >
                 <WalletCards className="h-4 w-4" />
                 무드 충전
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -522,6 +527,21 @@ export default function Admin() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {quickActions.map((action) => {
               const ActionIcon = action.icon;
+              // 무드 충전 = /mood 이동 대신 어드민 인라인 모달
+              if (action.href === '/mood#topup') {
+                return (
+                  <button
+                    type="button"
+                    key={action.title}
+                    onClick={() => setMoodTopupOpen(true)}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left transition-colors hover:bg-white/[0.08]"
+                  >
+                    <ActionIcon className={`mb-3 h-5 w-5 ${action.tone}`} />
+                    <h3 className="text-sm font-bold text-white">{action.title}</h3>
+                    <p className="mt-1 text-xs text-slate-400">{action.desc}</p>
+                  </button>
+                );
+              }
               return (
                 <Link key={action.title} to={action.href} className="group rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:bg-white/[0.08]">
                   <ActionIcon className={`mb-3 h-5 w-5 ${action.tone}`} />
@@ -709,6 +729,8 @@ export default function Admin() {
           )}
         </section>
       </div>
+
+      <MoodTopupModal open={moodTopupOpen} onClose={() => setMoodTopupOpen(false)} />
     </div>
   );
 }
