@@ -85,7 +85,7 @@
     "inngest": "4.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "pdfkit": "^0.18.0",
     "posthog-js": "^1.373.5",
     "puppeteer-core": "^24.43.1",
