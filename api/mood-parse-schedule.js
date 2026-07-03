@@ -266,6 +266,27 @@ export function matchPlacebook(personOrPlace, places) {
 }
 
 /**
+ * stop 1건의 주소록 매칭 — 명시 장소(addressHint)가 사람 이름보다 우선 (2026-07-03).
+ *
+ * 왜: "르픽(정유진 픽업)" 은 정유진을 '르픽에서' 태우는 것. personOrPlace(정유진)만
+ * 매칭하면 주소록의 정유진 집 주소가 이겨서 픽업 위치가 집으로 잡힘 → 동선·km·요금
+ * 전부 오계산(돈 버그). 명시된 위치(addressHint)가 주소록에 있으면 그게 이긴다.
+ *
+ * 이사님(vehicle 판별) 신호는 위치 승자와 무관 — 어느 쪽이든 isDirector 면 켠다
+ * ("르픽(이사님 픽업)" 도 차량 서비스 신호 유지).
+ *
+ * @returns {{ matched: object|null, directorSignal: boolean }}
+ */
+export function matchStopPlaces(personOrPlace, addressHint, places) {
+  const byHint = matchPlacebook(addressHint, places);
+  const byPerson = matchPlacebook(personOrPlace, places);
+  return {
+    matched: byHint || byPerson,
+    directorSignal: !!(byHint?.isDirector || byPerson?.isDirector),
+  };
+}
+
+/**
  * 서비스 추천 (더블체크 대상 — 항상 needsConfirm=true 로 프론트가 재확인).
  * 우선순위: airport(공항 이동=명확한 구분) > vehicle(이사님 동승) > manager(그 외).
  * @param {boolean} hasAirport - stops 에 공항 지점 포함 여부.
@@ -390,9 +411,9 @@ export default async function handler(req, res) {
         const action = normAction(s?.action);
         const rawStopText = typeof s?.rawText === 'string' ? s.rawText.trim() : '';
 
-        // ② 주소록 매칭
-        const matched = matchPlacebook(personOrPlace, placebook);
-        if (matched?.isDirector) hasDirector = true;
+        // ② 주소록 매칭 — 명시 장소(addressHint) 우선, 이사님 신호는 양쪽 다 (matchStopPlaces).
+        const { matched, directorSignal } = matchStopPlaces(personOrPlace, addressHint, placebook);
+        if (directorSignal) hasDirector = true;
 
         // 공항 판정 (이름/주소힌트/rawText/매칭주소 전부 검사)
         if (looksLikeAirport(personOrPlace, addressHint, rawStopText, matched?.address)) {
