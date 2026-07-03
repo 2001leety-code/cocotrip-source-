@@ -97,10 +97,13 @@ async function main() {
   }
 
   // 1) mood-data — 잔액/원장 조회 (로그인-뒤 조회 게이트)
+  //    응답 봉투: { ok, data:{ clientId, client:{name,balanceKRW}, bookings, isAdmin } }
+  //    (mood-route 등과 동일 { ok, data } 계약. top-level 폴백도 허용.)
   try {
     const { status, body } = await jsonFetch(`/api/mood-data?clientId=${encodeURIComponent(CLIENT_ID)}`, idToken);
-    const ok = status === 200 && body?.client && typeof body.client.balanceKRW === 'number' && Array.isArray(body.bookings);
-    record('mood-data 잔액/원장 조회', ok, ok ? `balance=${body.client.balanceKRW} bookings=${body.bookings.length} isAdmin=${body.isAdmin}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
+    const d = body?.data || body;
+    const ok = status === 200 && d?.client && typeof d.client.balanceKRW === 'number' && Array.isArray(d.bookings);
+    record('mood-data 잔액/원장 조회', ok, ok ? `balance=${d.client.balanceKRW} bookings=${d.bookings.length} isAdmin=${d.isAdmin}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
   } catch (err) {
     record('mood-data 잔액/원장 조회', false, err.message);
   }
