@@ -29,6 +29,7 @@ import {
   fetchAvailableBlocks,
   expandBlocksToItinerary,
   matchFoodPlaceholder,
+  markReturnToAirport,
 } from './_ai_core/blockMode.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
@@ -718,6 +719,14 @@ export default async function handler(req, res) {
 
     // ── post-mutation validation. backfill end_time first.
     backfillStopEndTimes(itinerary);
+    // 2026-07-03 B-15 backfill: 기존 저장된 block_mode plan 은 출국일 공항 stop/메타가
+    // 구조적으로 없어(생성 당시 Gemini 파이프라인 스킵) 어떤 수정 요청이든 아래
+    // validatePatternStructure 의 B-15 에 걸려 422 PATTERN_VIOLATION — 유료 고객 수정
+    // 기능이 전면 고장이었다. 검증 전 메타를 backfill(검증 완화 아님 — 신규 생성분은
+    // blockMode.js 가 동일 메타를 주입).
+    if (itinerary.planner_pipeline === 'block_mode') {
+      markReturnToAirport(itinerary, planData.input || {});
+    }
     const patternErrors = validatePatternStructure(itinerary, {
       regions: Array.isArray(planData.input?.regions) ? planData.input.regions : [city],
       arrival_airport: planData.input?.arrival_airport || '',
