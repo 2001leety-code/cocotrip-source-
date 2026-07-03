@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
@@ -346,7 +347,10 @@ export default function Admin() {
   // 여기서 또 useAuth loading을 기다리면 "불러오는 중..."에 갇히는 화면이 생김(prod 재현).
   // 데이터 fetch effect들은 user && !loading 가드가 있어 콘솔 셸을 즉시 그려도 안전.
   return (
-    <div className="min-h-screen bg-[#111318] text-slate-100">
+    // translate="no": 어드민은 운영자 전용(번역 무의미) — 브라우저 자동번역기가
+    // 텍스트 노드를 바꿔치기해 React removeChild 충돌("예기치 않은 오류")을 일으키던 것 원천 차단.
+    // 사용자 페이지는 i18n 언어선택기 제공하므로 전역 아닌 어드민만 차단.
+    <div className="min-h-screen bg-[#111318] text-slate-100" translate="no">
       <Toaster position="top-center" richColors />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
         <section className="rounded-[28px] border border-white/10 bg-[#181b22] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)] sm:p-6">
@@ -363,21 +367,21 @@ export default function Admin() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <a
-                href="/admin/payments"
+              <Link
+                to="/admin/payments"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/[0.08] px-4 py-3 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-300/[0.14]"
               >
                 <CreditCard className="h-4 w-4" />
                 입금 확인
-              </a>
-              <a
-                href="/mood#topup"
+              </Link>
+              <Link
+                to="/mood#topup"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-pink-300/25 bg-pink-300/[0.1] px-4 py-3 text-sm font-bold text-pink-100 transition-colors hover:bg-pink-300/[0.16]"
                 aria-label="무드 선불 잔액 충전으로 이동"
               >
                 <WalletCards className="h-4 w-4" />
                 무드 충전
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -395,9 +399,9 @@ export default function Admin() {
                 </>
               );
               return card.href ? (
-                <a key={card.label} href={card.href} className={`rounded-2xl border p-4 transition-colors hover:bg-white/[0.08] ${card.panel}`}>
+                <Link key={card.label} to={card.href} className={`rounded-2xl border p-4 transition-colors hover:bg-white/[0.08] ${card.panel}`}>
                   {inner}
-                </a>
+                </Link>
               ) : (
                 <div key={card.label} className={`rounded-2xl border p-4 ${card.panel}`}>
                   {inner}
@@ -427,7 +431,7 @@ export default function Admin() {
             <div className="divide-y divide-white/10">
               {kpi.awaiting.length > 0 ? (
                 kpi.awaiting.slice(0, 6).map((b) => (
-                  <a key={b.id} href="/admin/payments" className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-white/[0.045]">
+                  <Link key={b.id} to="/admin/payments" className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-white/[0.045]">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-300/[0.12] text-amber-200">
                       <CreditCard className="h-4 w-4" />
                     </div>
@@ -437,7 +441,7 @@ export default function Admin() {
                     </div>
                     <span className="shrink-0 text-sm font-black text-white">{b.priceUSD ? `$${b.priceUSD}` : '-'}</span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-slate-500" />
-                  </a>
+                  </Link>
                 ))
               ) : (
                 <div className="flex items-center gap-3 px-5 py-8 text-sm text-slate-400">
@@ -519,11 +523,11 @@ export default function Admin() {
             {quickActions.map((action) => {
               const ActionIcon = action.icon;
               return (
-                <a key={action.title} href={action.href} className="group rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:bg-white/[0.08]">
+                <Link key={action.title} to={action.href} className="group rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:bg-white/[0.08]">
                   <ActionIcon className={`mb-3 h-5 w-5 ${action.tone}`} />
                   <h3 className="text-sm font-bold text-white">{action.title}</h3>
                   <p className="mt-1 text-xs text-slate-400">{action.desc}</p>
-                </a>
+                </Link>
               );
             })}
           </div>
@@ -542,7 +546,7 @@ export default function Admin() {
                   {section.items.map((item) => {
                     const MenuIcon = item.icon;
                     return (
-                      <a key={item.href} href={item.href} className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 transition-colors hover:bg-white/[0.075]">
+                      <Link key={item.href} to={item.href} className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 transition-colors hover:bg-white/[0.075]">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.055] text-slate-300 group-hover:text-white">
                           <MenuIcon className="h-4 w-4" />
                         </span>
@@ -551,7 +555,7 @@ export default function Admin() {
                           <span className="block truncate text-xs text-slate-500">{item.desc}</span>
                         </span>
                         <ArrowRight className="h-4 w-4 shrink-0 text-slate-600 group-hover:text-slate-300" />
-                      </a>
+                      </Link>
                     );
                   })}
                 </div>
