@@ -25,6 +25,7 @@ import {
   formatKRW,
   type MoodServiceType,
 } from '@/lib/moodPricing';
+import { exceedsWaypointCap, shouldSendRoute } from './moodBookingLogic';
 
 // ── 디자인 토큰 (MoodPortal 과 동일 팔레트: dark navy + purple/pink) ──
 const C = {
@@ -131,7 +132,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const geoStops = useMemo(() => stops.filter((s) => s.geocodeOk && s.lat != null && s.lng != null), [stops]);
   // 경유지(출발·도착 제외 중간 지점)는 네이버 경로 API 최대 5개. 초과 시 거리요금이 조용히
   // 0원(base-only)으로 청구되므로 예약 차단(과소청구 방지). = geoStops 8개 초과.
-  const tooManyWaypoints = geoStops.length - 2 > 5;
+  const tooManyWaypoints = exceedsWaypointCap(geoStops.length);
   const canBook = result != null && stops.length > 0 && !hasBlockingStop && geoStops.length >= 1 && !tooManyWaypoints;
 
   // ── 지도용 경로 데이터 구성 (좌표 있는 stops → origin/waypoint/destination) ──
@@ -259,7 +260,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       // ⚠️ 왕복(픽업지=드롭지)이어도 경유지가 있으면 실제 이동거리가 발생하므로 경로를 보낸다.
       //    origin!==dest 조건만 쓰면 '집→관광지→집' 왕복에서 거리요금이 통째로 누락됨(과소청구).
       //    실이동 판정 = 좌표 있는 지점 2곳 이상(usable≥2)이고, (다른 목적지 or 경유지 존재).
-      if (originAddr && destAddr && usable.length >= 2 && (originAddr !== destAddr || waypointAddrs.length > 0)) {
+      if (shouldSendRoute({ originAddr, destAddr, usableCount: usable.length, waypointCount: waypointAddrs.length })) {
         body.origin = originAddr;
         body.destination = destAddr;
         if (waypointAddrs.length) body.waypoints = waypointAddrs;

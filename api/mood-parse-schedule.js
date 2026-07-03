@@ -93,7 +93,7 @@ EXAMPLE OUTPUT:
 ]}`;
 
 /** 문자열 소문자 trim 정규화. */
-function norm(s) {
+export function norm(s) {
   return String(s || '').toLowerCase().trim();
 }
 
@@ -104,7 +104,7 @@ function normAction(a) {
 }
 
 /** 텍스트에 공항 키워드가 있는지. */
-function looksLikeAirport(...parts) {
+export function looksLikeAirport(...parts) {
   const hay = norm(parts.filter(Boolean).join(' '));
   if (!hay) return false;
   return AIRPORT_KEYWORDS.some((kw) => hay.includes(kw));
@@ -176,7 +176,7 @@ async function loadPlacebook(db) {
  * - 짧은 이름(1글자)은 오매칭 위험이 커 포함 매칭에서 제외.
  * @returns {object|null} 매칭된 place 또는 null.
  */
-function matchPlacebook(personOrPlace, places) {
+export function matchPlacebook(personOrPlace, places) {
   const q = norm(personOrPlace);
   if (!q) return null;
 
@@ -193,6 +193,19 @@ function matchPlacebook(personOrPlace, places) {
     if (contains.length === 1) return contains[0];
   }
   return null;
+}
+
+/**
+ * 서비스 추천 (더블체크 대상 — 항상 needsConfirm=true 로 프론트가 재확인).
+ * 우선순위: airport(공항 이동=명확한 구분) > vehicle(이사님 동승) > manager(그 외).
+ * @param {boolean} hasAirport - stops 에 공항 지점 포함 여부.
+ * @param {boolean} hasDirector - stops 에 이사님(isDirector) 포함 여부.
+ * @returns {'airport'|'vehicle'|'manager'}
+ */
+export function guessService(hasAirport, hasDirector) {
+  if (hasAirport) return 'airport';
+  if (hasDirector) return 'vehicle';
+  return 'manager';
 }
 
 export default async function handler(req, res) {
@@ -362,16 +375,8 @@ export default async function handler(req, res) {
     // order 순 정렬 (Gemini 순서 신뢰하되 방어적 정렬).
     stops.sort((a, b) => a.order - b.order);
 
-    // ── ④ 서비스 추천 ──
-    // airport 우선 (공항 이동은 명확한 서비스 구분) → 이사님(vehicle) → 그 외 manager.
-    let serviceGuess;
-    if (hasAirport) {
-      serviceGuess = 'airport';
-    } else if (hasDirector) {
-      serviceGuess = 'vehicle';
-    } else {
-      serviceGuess = 'manager';
-    }
+    // ── ④ 서비스 추천 (guessService 파생 — 테스트와 로직 공유) ──
+    const serviceGuess = guessService(hasAirport, hasDirector);
 
     console.log(
       `[mood-parse-schedule] ${email} → stops=${stops.length} service=${serviceGuess} director=${hasDirector} airport=${hasAirport}`

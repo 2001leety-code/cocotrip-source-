@@ -22,6 +22,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:unit:coverage": "vitest run --coverage",
+    "mood:smoke": "node scripts/mood-smoke.mjs",
     "check:size": "size-limit",
     "verify:all": "npm run check:types && npm run check:mojibake && npm run test:unit",
     "verify:prepush": "npm run build && npx vitest run && npx size-limit && node scripts/lint-mistake-patterns.mjs origin/main",
@@ -31,6 +32,9 @@
     "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com",
     "plan:test": "node scripts/plan-local/run.mjs",
     "plan:record": "node scripts/plan-local/record.mjs"
+  },
+  "overrides": {
+    "qs": "^6.15.3"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
