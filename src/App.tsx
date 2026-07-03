@@ -100,7 +100,7 @@ const DevTransitTest = import.meta.env.DEV
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
 // 비-critical UI는 lazy로 분리해서 first paint 줄임 (Suspense fallback=null 허용 — popup/toast는 보이지 않다가 로드 완료되면 등장).
-const KpopConcertPopup = lazy(() => import('@/components/KpopConcertPopup').then(m => ({ default: m.KpopConcertPopup })));
+// KpopConcertPopup 플로팅 배너 제거 (운영자 지시 2026-07-03) — 재활성화 시 lazy import + <KpopConcertPopup /> 복원
 const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ default: m.ChatWidget })));
 const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
@@ -208,9 +208,7 @@ function GlobalWidgets() {
     <>
       <PageViewTracker />
 
-      <Suspense fallback={null}>
-        <KpopConcertPopup />
-      </Suspense>
+      {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
       <MobileBottomNav />
       <Suspense fallback={null}>
         <CookieBanner />

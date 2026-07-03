@@ -342,14 +342,9 @@ export default function Admin() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#111318] text-slate-200">
-        {ta.loading}
-      </div>
-    );
-  }
-
+  // ⚠️ 자체 loading 게이트 제거 (2026-07-03) — 인증 게이트는 AdminRoute가 이미 담당.
+  // 여기서 또 useAuth loading을 기다리면 "불러오는 중..."에 갇히는 화면이 생김(prod 재현).
+  // 데이터 fetch effect들은 user && !loading 가드가 있어 콘솔 셸을 즉시 그려도 안전.
   return (
     <div className="min-h-screen bg-[#111318] text-slate-100">
       <Toaster position="top-center" richColors />

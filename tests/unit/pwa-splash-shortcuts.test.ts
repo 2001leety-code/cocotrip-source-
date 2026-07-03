@@ -112,13 +112,19 @@ describe('PWA 업데이트 토스트 — 무드 포함 전역(운영자 요청)'
     expect(src).toMatch(/autoUpdatedRef/);
   });
 
-  it('PC/모바일 웹 탭(비-standalone)에선 알림·자동리로드 안 뜸 — 설치 앱에서만', () => {
+  it('웹 탭(비-standalone): 알림 UI 없음 + 콜드스타트 조용한 갱신은 허용', () => {
+    // 2026-07-03 정책 변경: prompt 모드에선 탭 사용자가 새로고침해도 옛 SW가 옛 번들을
+    // 계속 서빙해 배포 후 영원히 stale(운영자 /admin "불러오는 중" 멈춤 재현) →
+    // 콜드스타트 조용한 자동 갱신을 탭에도 확장. 토스트 UI는 여전히 설치앱 전용(6/14 결정 유지).
     const src = readFileSync(r('src/components/PWAUpdatePrompt.tsx'), 'utf8');
     expect(src).toContain("display-mode: standalone");
     expect(src).toMatch(/standaloneRef/);
-    // 비-standalone 이면 렌더 null + 자동업데이트 effect early-return
+    // 탭에선 토스트 렌더 안 함 (UI는 설치앱 전용)
     expect(src).toMatch(/if\s*\(!standaloneRef\.current\)\s*return null/);
-    expect(src).toMatch(/if\s*\(!standaloneRef\.current\)\s*return;/);
+    // 자동 갱신 effect에는 standalone early-return이 없어야 함 (탭도 콜드스타트 갱신)
+    expect(src).not.toMatch(/if\s*\(!standaloneRef\.current\)\s*return;/);
+    // 대신 안전 가드는 유지 — 상호작용/입력/결제 중이면 스킵
+    expect(src).toMatch(/userInteractedRef\.current\s*\|\|\s*hasFocusedEditable\(\)\s*\|\|\s*isPaymentLikelyInProgress\(\)/);
   });
 });
 
