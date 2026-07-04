@@ -235,3 +235,56 @@ describe('coordFromPlaceDoc — 손상 좌표 무효화 (2026-07-03 null-island 
     expect(coordFromPlaceDoc({ lat: 37.5, lng: null })).toEqual({ lat: null, lng: null }); // 한쪽만
   });
 });
+
+describe('별칭 매칭 — expandPlaceEntries + key 기반 모호성 (2026-07-04 PR1-B)', () => {
+  it('별칭 각각이 같은 장소(대표명·주소·key)로 매칭', async () => {
+    const { expandPlaceEntries, matchPlacebook } = await import('../../api/mood-parse-schedule.js');
+    const entries = expandPlaceEntries('doc-t2', {
+      name: '인천공항 T2', address: '인천 영종구 제2터미널대로 446', lat: 37.4689, lng: 126.4333,
+      aliases: ['인천공항 터미널2', '제2여객터미널'],
+    });
+    expect(entries).toHaveLength(3);
+    const m = matchPlacebook('인천공항 터미널2', entries);
+    expect(m?.name).toBe('인천공항 T2'); // 표시는 대표명
+    expect(m?.lat).toBe(37.4689);
+  });
+
+  it('같은 장소의 별칭 여러 개가 포함매칭에 걸려도 모호 아님 (key 판정)', async () => {
+    const { expandPlaceEntries, matchPlacebook } = await import('../../api/mood-parse-schedule.js');
+    const entries = expandPlaceEntries('doc-cs', {
+      name: '최수현', address: '서울 송파구 잠실로 62', lat: 37.5099, lng: 127.0872,
+      aliases: ['트리지움아파트', '트리지움아파트 서문'],
+    });
+    // q='트리지움아파트' → 별칭 2개(트리지움아파트·트리지움아파트 서문)가 p⊇q 로 걸리지만 같은 doc → 매칭 OK
+    const m = matchPlacebook('트리지움아파트', entries);
+    expect(m?.name).toBe('최수현');
+  });
+
+  it('서로 다른 장소 2곳이면 여전히 모호 → null (기존 안전규칙 보존)', async () => {
+    const { expandPlaceEntries, matchPlacebook } = await import('../../api/mood-parse-schedule.js');
+    const a = expandPlaceEntries('doc-a', { name: '정유진', address: 'x', lat: 37.5, lng: 127 });
+    const b = expandPlaceEntries('doc-b', { name: '김유진', address: 'y', lat: 37.6, lng: 127.1 });
+    expect(matchPlacebook('유진', [...a, ...b])).toBeNull();
+  });
+
+  it('인천공항 시나리오 — 대표 항목 + T1/T2 별칭으로 스샷 3케이스 전부 매칭', async () => {
+    const { expandPlaceEntries, matchPlacebook } = await import('../../api/mood-parse-schedule.js');
+    const book = [
+      ...expandPlaceEntries('rep', { name: '인천공항', address: 'T1주소', lat: 37.44, lng: 126.45, aliases: ['인천국제공항', 'ICN'] }),
+      ...expandPlaceEntries('t1', { name: '인천공항 T1', address: 'T1주소', lat: 37.44, lng: 126.45, aliases: ['인천공항 터미널1', '제1여객터미널'] }),
+      ...expandPlaceEntries('t2', { name: '인천공항 T2', address: 'T2주소', lat: 37.46, lng: 126.43, aliases: ['인천공항 터미널2', '제2여객터미널'] }),
+    ];
+    expect(matchPlacebook('인천공항', book)?.name).toBe('인천공항');      // 정확 일치 — T1/T2 모호성 안 탐
+    expect(matchPlacebook('인천공항 터미널2', book)?.name).toBe('인천공항 T2');
+    expect(matchPlacebook('인천공항 터미널1', book)?.name).toBe('인천공항 T1');
+  });
+
+  it('searchGuessed 배선 소스 불변식 — 폴백 성공 시 플래그+주소 채움', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, '../../api/mood-parse-schedule.js'), 'utf8');
+    expect(src).toMatch(/searchPlaceFallback/);
+    expect(src).toMatch(/searchGuessed = true;/);
+    expect(src).toMatch(/resolveCredentialCandidates/);
+  });
+});

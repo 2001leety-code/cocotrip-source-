@@ -13,7 +13,7 @@
  *
  * 다크 톤(#0a0412 / #181b22, 포인트 #EA537E · #7C5CFC). 운영자 전용이라 한국어 단일.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import {
@@ -51,6 +51,8 @@ interface ParsedStop {
   action: 'pickup' | 'dropoff' | 'via' | 'arrive';
   matchedFromPlacebook: boolean;
   geocodeOk: boolean;
+  /** 서버 장소검색(POI) 폴백으로 추정된 좌표 — 지점 확인 유도 배지 (2026-07-04). */
+  searchGuessed?: boolean;
 }
 
 /** /api/mood-parse-schedule 성공 응답. */
@@ -103,6 +105,12 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const [stops, setStops] = useState<ParsedStop[]>([]);
   // 운영자가 직접입력한 주소로 재지오코딩 로딩 상태 (order → boolean).
   const [fixingOrder, setFixingOrder] = useState<number | null>(null);
+  // 실패 stop 장소검색(2026-07-04 A-2) — order별 후보 목록
+  const [searchHits, setSearchHits] = useState<{ order: number; items: Array<{ name: string; address: string; lat: number; lng: number }> } | null>(null);
+  const [searchBusy, setSearchBusy] = useState<number | null>(null);
+  // 실도로 경로 조회 결과의 요금 입력값(A-3) — 예상 금액에 거리·톨 반영(청구는 서버 SSOT)
+  const [routeKm, setRouteKm] = useState(0);
+  const [routeToll, setRouteToll] = useState(0);
 
   // 서비스 확정 (AI 추천을 기본값으로).
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
@@ -121,10 +129,10 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
   const isFixedPrice = serviceType === 'airport';
 
-  // 예상 금액 — 프론트 미러(표시 전용). 거리/톨비는 예약 시 서버가 반영하므로 여기선 base 만.
+  // 예상 금액 — 프론트 미러(표시 전용, 청구는 서버 SSOT). 실도로 경로 조회 성공 시 km·톨 반영(A-3).
   const estimate = useMemo(
-    () => computeMoodTotalKRW({ serviceType, durationHours, km: 0, tollKRW: 0 }),
-    [serviceType, durationHours],
+    () => computeMoodTotalKRW({ serviceType, durationHours, km: routeKm, tollKRW: routeToll }),
+    [serviceType, durationHours, routeKm, routeToll],
   );
 
   // geocode 실패로 예약 차단해야 하는 stop 이 남아 있는지.
@@ -148,6 +156,70 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       index: i === 0 || i === pts.length - 1 ? undefined : i - 1,
     }));
     return { km: 0, durationMin: 0, path: [] as [number, number][], points };
+  }, []);
+
+  // ── 실도로 경로(A-3, 2026-07-04) — 좌표 전부 확보되면 네이버 길찾기(자동차)로
+  //    실제 도로 경로선+km·톨 조회. 직선(핀 연결)은 로딩/실패 폴백으로만.
+  const routeSeq = useRef(0);
+  useEffect(() => {
+    const usable = stops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
+    if (usable.length < 2 || stops.some((st) => !st.geocodeOk)) {
+      setRouteKm(0); setRouteToll(0);
+      return;
+    }
+    const seq = ++routeSeq.current;
+    const t = window.setTimeout(async () => {
+      try {
+        const o = (usable[0].address || usable[0].label || '').trim();
+        const d = (usable[usable.length - 1].address || usable[usable.length - 1].label || '').trim();
+        const wp = usable.slice(1, -1).map((st) => (st.address || st.label || '').trim()).filter(Boolean);
+        if (!o || !d) return;
+        const params = new URLSearchParams({ origin: o, destination: d });
+        if (wp.length) params.set('waypoints', wp.join('|'));
+        const res = await authFetch(`/api/mood-route?${params.toString()}`);
+        const json = await res.json().catch(() => ({}));
+        if (seq !== routeSeq.current) return; // 최신 요청만
+        const data = json?.ok ? json.data : null;
+        if (data && Array.isArray(data.path) && data.path.length) {
+          setRoute({ km: Number(data.km || 0), durationMin: Number(data.durationMin || 0), path: data.path, points: data.points || [] });
+          setRouteKm(Number(data.km || 0));
+          setRouteToll(Number(data.tollKRW || 0));
+        }
+      } catch { /* 실패 시 기존 직선 폴백 유지 */ }
+    }, 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops]);
+
+  // ── 장소검색(A-2, 2026-07-04) — 실패 stop 을 수기예약 '🔍 주소'처럼 검색→후보→선택 ──
+  const handlePlaceSearch = useCallback(async (order: number, query: string) => {
+    const q = query.trim();
+    if (q.length < 2) { setBookMsg({ kind: 'err', text: '검색어를 2자 이상 입력하세요.' }); return; }
+    setSearchBusy(order);
+    setSearchHits(null);
+    try {
+      const res = await fetch(`/api/place-search?query=${encodeURIComponent(q)}&limit=5&lang=ko`);
+      const json = await res.json().catch(() => ({}));
+      const items = (Array.isArray(json?.items) ? json.items : [])
+        .filter((it: { lat?: number; lng?: number }) => Number.isFinite(Number(it.lat)) && Number.isFinite(Number(it.lng)))
+        .slice(0, 5)
+        .map((it: { name?: string; roadAddress?: string; address?: string; lat: number; lng: number }) => ({
+          name: String(it.name || ''), address: String(it.roadAddress || it.address || ''), lat: Number(it.lat), lng: Number(it.lng),
+        }));
+      if (!items.length) { setBookMsg({ kind: 'err', text: '검색 결과가 없습니다 — 다른 이름이나 도로명주소로 시도하세요.' }); return; }
+      setSearchHits({ order, items });
+    } catch {
+      setBookMsg({ kind: 'err', text: '장소 검색 실패 — 잠시 후 다시.' });
+    } finally {
+      setSearchBusy(null);
+    }
+  }, []);
+
+  const handlePickPlace = useCallback((order: number, hit: { name: string; address: string; lat: number; lng: number }) => {
+    setStops((prev) => prev.map((st) => (st.order === order
+      ? { ...st, address: hit.address || hit.name, lat: hit.lat, lng: hit.lng, geocodeOk: true, searchGuessed: false }
+      : st)));
+    setSearchHits(null);
   }, []);
 
   // ── ① 일정 분석 ──────────────────────────────────────────
@@ -377,7 +449,14 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         )}
                       </div>
                       {s.address && s.geocodeOk && (
-                        <p className="text-[11px] truncate" style={{ color: C.textDim }}>{s.address}</p>
+                        <p className="text-[11px] truncate" style={{ color: C.textDim }}>
+                          {s.address}
+                          {s.searchGuessed && (
+                            <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(245,158,11,0.15)', color: '#fcd34d' }}>
+                              🔍 검색추정 — 지점 확인
+                            </span>
+                          )}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -386,26 +465,52 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                   {!s.geocodeOk && (
                     <div className="flex flex-col gap-1.5 pl-7">
                       <p className="text-[11px]" style={{ color: C.danger }}>
-                        🔴 주소를 찾지 못했습니다. 도로명주소를 입력하고 확인하세요 (미확인 시 예약 불가).
+                        🔴 주소를 찾지 못했습니다 — 🔍 검색으로 장소를 찾아 선택하세요 (미확인 시 예약 불가).
                       </p>
                       <div className="flex gap-1.5">
                         <input
                           value={s.address}
                           onChange={(e) => setStopAddress(s.order, e.target.value)}
-                          placeholder="도로명주소 입력 (예: 서울 강남구 테헤란로 …)"
+                          onKeyDown={(e) => { if (e.key === 'Enter') void handlePlaceSearch(s.order, s.address || s.label); }}
+                          placeholder="장소 이름 또는 도로명주소 (예: 트리지움아파트, 테헤란로 …)"
                           className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
                           style={inputStyle}
                         />
                         <button
                           type="button"
-                          onClick={() => { void handleFixGeocode(s.order); }}
-                          disabled={fixingOrder === s.order || !s.address.trim()}
-                          className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shrink-0 disabled:opacity-50"
+                          onClick={() => { void handlePlaceSearch(s.order, s.address || s.label); }}
+                          disabled={searchBusy === s.order}
+                          className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold shrink-0 disabled:opacity-50"
                           style={{ background: C.accent, color: '#fff' }}
                         >
-                          {fixingOrder === s.order ? '확인 중…' : '확인'}
+                          {searchBusy === s.order ? '검색 중…' : '🔍 검색'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleFixGeocode(s.order); }}
+                          disabled={fixingOrder === s.order || !s.address.trim()}
+                          title="입력값이 정확한 도로명주소일 때"
+                          className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shrink-0 disabled:opacity-50"
+                          style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                        >
+                          {fixingOrder === s.order ? '확인 중…' : '주소로 확인'}
                         </button>
                       </div>
+                      {searchHits?.order === s.order && (
+                        <div className="flex flex-col gap-1 rounded-lg p-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
+                          {searchHits.items.map((hit, hi) => (
+                            <button
+                              key={hi}
+                              type="button"
+                              onClick={() => handlePickPlace(s.order, hit)}
+                              className="rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-white/[0.06]"
+                            >
+                              <span className="font-bold" style={{ color: C.text }}>{hit.name}</span>
+                              <span className="ml-1.5" style={{ color: C.textDim }}>{hit.address}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -542,9 +647,21 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               </span>
               <span style={{ color: C.text }}>{formatKRW(estimate.baseKRW)}</span>
             </div>
+            {estimate.ok && estimate.distanceSurchargeKRW > 0 && (
+              <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
+                <span>거리 추가요금 ({routeKm.toLocaleString('ko-KR')}km)</span>
+                <span style={{ color: C.text }}>+{formatKRW(estimate.distanceSurchargeKRW)}</span>
+              </div>
+            )}
+            {estimate.ok && routeToll > 0 && (
+              <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
+                <span>톨비(예상)</span>
+                <span style={{ color: C.text }}>+{formatKRW(routeToll)}</span>
+              </div>
+            )}
             <div className="h-px my-0.5" style={{ background: 'rgba(124,92,252,0.18)' }} />
             <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: C.textDim }}>예상 금액</span>
+              <span className="text-xs" style={{ color: C.textDim }}>예상 금액{routeKm > 0 ? ` (${routeKm.toLocaleString('ko-KR')}km 반영)` : ''}</span>
               <span className="text-lg font-bold" style={{ color: C.accentSolid }}>{formatKRW(estimate.amountKRW)}</span>
             </div>
             {!isFixedPrice && (

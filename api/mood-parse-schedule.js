@@ -42,6 +42,7 @@ import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
 import { geocode } from './_shared/mood-route.js';
+import { naverCoordToWgs84, resolveCredentialCandidates } from './place-search.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -241,22 +242,42 @@ export function coordFromPlaceDoc(d) {
   return inKorea ? { lat, lng } : { lat: null, lng: null };
 }
 
+/**
+ * 주소록 문서 1개 → 매칭 엔트리 배열 (2026-07-04 별칭 지원).
+ *
+ * aliases[] 로 표기 변형("인천공항 터미널2"↔"인천공항 T2", "트리지움아파트 311동"↔최수현)
+ * 을 같은 장소로 매칭. 각 엔트리는 key(문서 id)를 가짐 — matchPlacebook 의 모호성 판정이
+ * "서로 다른 장소 2곳"일 때만 포기하도록(같은 장소의 별칭 여러 개는 모호 아님).
+ */
+export function expandPlaceEntries(docId, d) {
+  const name = typeof d?.name === 'string' ? d.name.trim() : '';
+  if (!name) return [];
+  const { lat, lng } = coordFromPlaceDoc(d);
+  const base = {
+    key: docId,
+    name, // 표시는 항상 대표명
+    address: typeof d.address === 'string' ? d.address.trim() : '',
+    lat,
+    lng,
+    isDirector: d.isDirector === true,
+  };
+  const aliasList = Array.isArray(d.aliases) ? d.aliases : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of [name, ...aliasList]) {
+    const nm = norm(raw);
+    if (!nm || seen.has(nm)) continue;
+    seen.add(nm);
+    out.push({ ...base, nameNorm: nm });
+  }
+  return out;
+}
+
 async function loadPlacebook(db) {
   const snap = await db.collection('mood_places').get();
   const places = [];
   snap.forEach((doc) => {
-    const d = doc.data() || {};
-    const name = typeof d.name === 'string' ? d.name.trim() : '';
-    if (!name) return;
-    const { lat, lng } = coordFromPlaceDoc(d);
-    places.push({
-      name,
-      nameNorm: norm(name),
-      address: typeof d.address === 'string' ? d.address.trim() : '',
-      lat,
-      lng,
-      isDirector: d.isDirector === true,
-    });
+    places.push(...expandPlaceEntries(doc.id, doc.data() || {}));
   });
   return places;
 }
@@ -278,10 +299,47 @@ export function matchPlacebook(personOrPlace, places) {
   // 2) 포함 관계 — 오매칭 방지 규칙:
   //    - 방향은 "주소록명이 파싱명을 포함"(p⊇q)만 허용. 반대(q⊇p)는 짧은 주소록명이
   //      긴 이름에 잘못 걸림('유진'이 '정유진'에 매칭)이라 제거.
-  //    - 후보가 2개 이상이면 모호 → 매칭 포기(null) → geocode 경로로 보내 운영자 확인 강제.
+  //    - 서로 다른 장소 2곳 이상이면 모호 → 매칭 포기(null) → 운영자 확인 강제.
+  //      (2026-07-04: 같은 장소의 별칭 여러 개가 걸린 건 모호 아님 — key 로 판정)
   if (q.length >= 2) {
     const contains = places.filter((p) => p.nameNorm.length >= 2 && p.nameNorm.includes(q));
-    if (contains.length === 1) return contains[0];
+    if (contains.length) {
+      const uniquePlaces = new Set(contains.map((p) => p.key || p.nameNorm));
+      if (uniquePlaces.size === 1) return contains[0];
+    }
+  }
+  return null;
+}
+
+/**
+ * 네이버 장소검색 폴백 (2026-07-04) — 주소록 미스 + 주소 지오코딩 실패 시 3차 시도.
+ *
+ * 지오코더는 도로명주소 전용이라 "트리지움아파트 311동"·"인천공항 터미널2" 같은
+ * 건물/시설명을 못 받음 → 장소검색(POI)으로 도로명주소+좌표를 얻는다.
+ * place-search.js(#1059)의 키 폴백 체인·좌표 포맷 자동감지를 재사용.
+ * 성공 stop 은 searchGuessed=true — 프론트가 "검색추정, 지점 확인" 표시(오지점=요금 오차 방지).
+ */
+async function searchPlaceFallback(query) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return null;
+  for (const { id, secret } of resolveCredentialCandidates()) {
+    try {
+      const r = await fetch(
+        `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(q)}&display=1`,
+        { headers: { 'X-Naver-Client-Id': id, 'X-Naver-Client-Secret': secret } },
+      );
+      if (r.status === 401 || r.status === 403) continue; // 죽은 키 → 다음 키쌍
+      if (!r.ok) return null;
+      const j = await r.json().catch(() => null);
+      const it = j?.items?.[0];
+      if (!it) return null;
+      const coord = naverCoordToWgs84(it.mapx, it.mapy);
+      const address = String(it.roadAddress || it.address || '').trim();
+      if (!coord || !address) return null;
+      return { address, lat: coord.lat, lng: coord.lng };
+    } catch {
+      return null; // 네트워크 오류 — 폴백 실패로 처리(운영자 검색 UI 경로)
+    }
   }
   return null;
 }
@@ -449,6 +507,7 @@ export default async function handler(req, res) {
         let lng = null;
         let matchedFromPlacebook = false;
         let geocodeOk = false;
+        let searchGuessed = false;
         let address = '';
 
         if (matched && matched.lat !== null && matched.lng !== null) {
@@ -475,6 +534,20 @@ export default async function handler(req, res) {
               console.warn(`[mood-parse-schedule] geocode 실패 (stop ${order}):`, geoErr.message);
             }
           }
+          // 3차 폴백(2026-07-04): 지오코더는 주소 전용이라 "트리지움아파트 311동"·
+          // "인천공항 터미널2" 같은 건물/시설명 실패 → 네이버 장소검색(POI)으로 재시도.
+          // 성공 시 도로명주소를 채워(예약 시 서버 재지오코딩과 일관) searchGuessed 표시 —
+          // 프론트가 "검색추정, 지점 확인" 배지로 운영자 확인 유도(오지점=요금 오차 방지).
+          if (!geocodeOk) {
+            const found = await searchPlaceFallback(geoQuery || personOrPlace);
+            if (found) {
+              address = found.address;
+              lat = found.lat;
+              lng = found.lng;
+              geocodeOk = true;
+              searchGuessed = true;
+            }
+          }
         }
 
         return {
@@ -486,6 +559,7 @@ export default async function handler(req, res) {
           action,
           matchedFromPlacebook,
           geocodeOk,
+          searchGuessed,
         };
       })
     );
