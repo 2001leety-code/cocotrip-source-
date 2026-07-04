@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, MapPin, ChevronRight } from 'lucide-react';
+import { Sparkles, MapPin, ChevronRight, BookOpen } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useLanguage } from '@/hooks/useLanguage';
 import { signalAppReady } from '@/lib/appReady';
@@ -173,6 +173,26 @@ export default function MobileHomeV2() {
             </Link>
           ))}
         </div>
+      </section>
+
+      {/* Korea Travel Blog — 외부 링크. prod 모바일 홈=V2 라 v1(MobileHome)에만 넣으면
+          미노출(2026-07-05 prod 실렌더 검증에서 발견). 권위 전달 목적이라 nofollow 금지. */}
+      <section className="px-5 pt-4">
+        <a
+          href="https://cocotripkr.blogspot.com"
+          target="_blank"
+          rel="noopener"
+          className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-4 py-3.5 active:opacity-70"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/40 to-pink-500/40 ring-1 ring-purple-400/50">
+            <BookOpen size={18} className="text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{t.footer.blog || 'Korea Travel Blog'}</span>
+            <span className="mt-0.5 block truncate text-[11px] text-white/50">{t.blogTeaser?.subtitle || 'Real routes, prices and local picks'}</span>
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-white/30" />
+        </a>
       </section>
 
       {/* 하단 네비 = 앱 전역 mobile-bottom-nav 재사용 (중복 방지) */}
