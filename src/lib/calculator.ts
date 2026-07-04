@@ -27,9 +27,11 @@ interface VehicleFormula {
   perKm: number;
 }
 
-// Staria/Sprinter만 자동 견적. Bus/VIP는 사용자 정책상 항상 상담 폼.
+// Staria(7인)/Staria_9(9인)/Sprinter만 자동 견적. Bus는 사용자 정책상 항상 상담 폼.
+// staria_9 = staria 와 동일 거리공식(9인승은 가격 동일, 캡틴 프리미엄만 별도 0).
 const VEHICLE_FORMULAS: Partial<Record<VehicleType, VehicleFormula>> = {
   staria:   { base: 50_000,  perKm: 2_000 },
+  staria_9: { base: 50_000,  perKm: 2_000 },
   sprinter: { base: 100_000, perKm: 4_000 },
 };
 
@@ -59,7 +61,7 @@ export function tollEstimate(km: number): number {
   return Math.round(safeKm * 150);
 }
 
-// 음수/NaN km은 0 처리. Bus/VIP는 null (협의 신호).
+// 음수/NaN km은 0 처리. Bus는 null (협의 신호). staria/staria_9/sprinter는 자동 견적.
 export function calcSimpleByVehicle(vehicle: VehicleType, km: number): SimplePrice | null {
   const formula = VEHICLE_FORMULAS[vehicle];
   if (!formula) return null;

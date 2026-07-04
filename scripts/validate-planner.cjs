@@ -69,12 +69,17 @@ async function getIdToken() {
   return j.idToken;
 }
 
+// 2026-07-03 fix: 고정 '2026-05-01'(과거)이 서버 날짜검증(PLANNER_DATE_TOO_SOON)에 걸려
+// 5월 이후 5개 시나리오 전부 HTTP 400 → daily-health "Run Daily Health Check" 스텝 상시 FAIL.
+// validate-prod-regression.mjs 는 PR #986(b194181c)이 동적 미래날짜로 고쳤는데 이 파일만 남아있었음.
+const FUTURE_START = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+
 const scenarios = [
-  { id: 'seoul-meat',      area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: '2026-05-01', guestName: 'Validate-Test' },
-  { id: 'busan-halal',     area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],  priceRange: 'Moderate', language: 'ko', startDate: '2026-05-01', guestName: 'Validate-Test' },
-  { id: 'jeju-vegan',      area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],  priceRange: 'Budget',   language: 'en', startDate: '2026-05-01', guestName: 'Validate-Test' },
-  { id: 'seoul-meat-rep1', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: '2026-05-01', guestName: 'Validate-Test' },
-  { id: 'seoul-meat-rep2', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: '2026-05-01', guestName: 'Validate-Test' },
+  { id: 'seoul-meat',      area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
+  { id: 'busan-halal',     area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],  priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
+  { id: 'jeju-vegan',      area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],  priceRange: 'Budget',   language: 'en', startDate: FUTURE_START, guestName: 'Validate-Test' },
+  { id: 'seoul-meat-rep1', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
+  { id: 'seoul-meat-rep2', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
 ];
 
 function extractStops(data) {

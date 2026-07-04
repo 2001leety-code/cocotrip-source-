@@ -2,9 +2,10 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import { type MutableRefObject, useState, lazy, Suspense } from 'react';
+import { type MutableRefObject, useState, useEffect, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, LogIn, Phone,
+  Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, Mail, LogIn, Phone, Ticket,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
@@ -12,7 +13,7 @@ import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of the PlannerPage chunk; loads only when the user opens it.
@@ -37,7 +38,7 @@ interface PurchaseSectionProps {
   revisionReason?: string | null;
   revisionNote?: string | null;
   avoidList?: string | null;
-  onPaymentSuccess: (orderId: string) => void;
+  onPaymentSuccess: (orderId: string, aiCouponCode?: string) => void;
   onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
 }
 
@@ -62,6 +63,25 @@ export function PurchaseSection({
   const guestCheckoutEnabled = isGuestAnonEnabled();
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  // P1-②(여름 이벤트): 로그인 사용자의 AI 무료 쿠폰(1~3일) 조회 → "무료 쿠폰 사용" 버튼 노출.
+  const [aiCoupon, setAiCoupon] = useState<{ code: string; maxDays: number } | null>(null);
+  const [isSending, setIsSending] = useState(false); // 진행 버튼 더블클릭 방지 — 0원 결제 1회 보장(결제 적대검증 1🟡). 3초 후 자동 해제(에러 시 재시도 허용).
+  useEffect(() => {
+    if (!user) { setAiCoupon(null); return; }
+    const days = (lastValues?.current?.durationDays as number) || 3;
+    let on = true;
+    getAvailableAiCoupon(user.uid, days).then((c) => { if (on) setAiCoupon(c); });
+    return () => { on = false; };
+  }, [user, lastValues]);
+  // 쿠폰함 경유 흐름 (2026-06-28): 결제화면의 큰 "무료 쿠폰으로 받기" 버튼 폐기.
+  //   AI 무료쿠폰은 마이페이지 쿠폰함에서 "사용하기" → /planner?coupon=CODE 로 진입.
+  //   여기서 URL 코드가 사용자의 유효한 AI 무료쿠폰(getAvailableAiCoupon: ai-plan·미사용·
+  //   미만료·maxDays 검증)과 일치하면 "쿠폰 적용됨" 상태로 전환. 결제(0원) 로직은
+  //   기존 onPaymentSuccess('', code) 그대로 재사용 — 트리거 위치만 큰 버튼 → 쿠폰함 경유.
+  const [searchParams] = useSearchParams();
+  const couponParam = searchParams.get('coupon');
+  // URL ?coupon=CODE 가 검증된 AI 무료쿠폰과 일치할 때만 적용 (위조 코드 무시).
+  const couponApplied = !!(couponParam && aiCoupon && couponParam === aiCoupon.code);
   const handleSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
@@ -75,7 +95,7 @@ export function PurchaseSection({
   };
   return (
     <div className={isMobile
-      ? 'm-card m-appear p-6 text-center relative overflow-hidden'
+      ? 'm-card m-appear p-4 text-center relative overflow-hidden'
       : 'bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden'
     }
       style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.06), rgba(255,107,157,0.03), rgba(10,4,18,0.95))' } : undefined}
@@ -128,6 +148,7 @@ export function PurchaseSection({
           { icon: <UtensilsCrossed className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureRestaurant },
           { icon: <Camera className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featurePhoto },
           { icon: <Train className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureTransit },
+          { icon: <ShieldCheck className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureNoHallucination },
         ] as { icon: React.ReactNode; text: string }[]).map((item, i) => (
           <div key={i} className="flex items-center gap-2 text-sm text-white/70 py-1.5">
             {item.icon}
@@ -149,6 +170,8 @@ export function PurchaseSection({
           <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature1}</span></li>
           <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature2}</span></li>
           <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature3}</span></li>
+          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature4}</span></li>
+          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature5}</span></li>
           <li className={`flex gap-1.5 font-semibold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}><Check className="w-3 h-3 mt-0.5 shrink-0" /><span>{p.optionAfeatureRevision || '1 Free Revision included'}</span></li>
         </ul>
 
@@ -235,14 +258,37 @@ export function PurchaseSection({
                 </button>
               </div>
             )}
-            <PayPalBookingButton
-              productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-              priceKRW={13300} p={p} lang={language}
-              memo={`Full itinerary for: ${userEmail}`}
-              itineraryData={resultQuick}
-              onPaymentSuccess={onPaymentSuccess}
-              userEmail={userEmail}
-            />
+            {/* 쿠폰함 경유 흐름 (2026-06-28): 큰 "무료 쿠폰으로 받기" 버튼 제거.
+                ?coupon=CODE 가 검증된 AI 무료쿠폰과 일치 → "적용됨 · 0원" 안내 + 진행 버튼.
+                결제(0원) 로직은 기존 onPaymentSuccess('', code) 그대로 (트리거만 이동). */}
+            {user && couponApplied && aiCoupon ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-green-400/30 px-3.5 py-2.5"
+                  style={{ background: 'rgba(52,199,89,0.08)' }}>
+                  <Ticket className="w-4 h-4 text-green-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-green-300">
+                    {(p as { aiCouponApplied?: string }).aiCouponApplied || '무료 쿠폰 적용됨 · 0원'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => { if (isSending) return; setIsSending(true); onPaymentSuccess('', aiCoupon.code); setTimeout(() => setIsSending(false), 3000); }}
+                  disabled={isGeneratingPlan || isSending}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)', boxShadow: '0 4px 20px rgba(52,199,89,0.3)' }}
+                >
+                  🎟️ {(p as { aiCouponProceed?: string }).aiCouponProceed || '무료 쿠폰으로 일정표 받기'}
+                </button>
+              </div>
+            ) : (
+              <PayPalBookingButton
+                productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
+                priceKRW={13300} p={p} lang={language}
+                memo={`Full itinerary for: ${userEmail}`}
+                itineraryData={resultQuick}
+                onPaymentSuccess={onPaymentSuccess}
+                userEmail={userEmail}
+              />
+            )}
 
             {/* AI 플랜은 디지털 상품(즉시 다운로드)이라 환불 불가 — 소비자 사전 고지. */}
             <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">

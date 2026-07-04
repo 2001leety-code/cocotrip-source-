@@ -24,6 +24,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
+import { DayRouteMap } from './DayRouteMap';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { Language } from '@/i18n';
 import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
@@ -39,6 +40,8 @@ interface DayTimelineProps {
   onAddStop: (dayIdx: number) => void;
   /** 2026-05-08: 숙소 라벨 source — input.hotel_address 또는 zone 키. */
   plan?: PlanDocument;
+  /** plan 소유자 여부 — StopCard 의 즐겨찾기/공유 버튼을 소유자에게만 노출. */
+  isOwner?: boolean;
 }
 
 /** P140 (2026-05-22): per-day lodging label resolver. 다도시 plan 에서 Day N
@@ -84,7 +87,7 @@ function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): st
   return undefined;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan, isOwner }: DayTimelineProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -177,21 +180,21 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         <div className="relative">
           {/* DAY 라벨 + 일자 번호 */}
           <div className="flex items-baseline gap-2 mb-1.5">
-            <span className="text-[10px] font-extrabold tracking-[0.18em] uppercase bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] bg-clip-text text-transparent">
+            <span className="text-[12px] font-extrabold tracking-[0.18em] uppercase bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] bg-clip-text text-transparent">
               {pd.dayLabel || 'Day'}
             </span>
-            <span className="text-[18px] sm:text-[20px] font-black text-white leading-none">
+            <span className="text-[24px] sm:text-[28px] font-black tracking-tight text-white leading-none">
               {day.day || dayIndex + 1}
             </span>
           </div>
 
           {/* Theme — 큰 글씨 강조 */}
-          <h3 className="text-[15px] sm:text-base font-bold text-white leading-snug mb-2">
+          <h3 className="text-[20px] sm:text-[24px] font-extrabold tracking-tight text-white leading-tight mb-2">
             {day.theme || `Day ${day.day || dayIndex + 1}`}
           </h3>
 
           {/* Meta chips: 일자 / 시간 / stops 수 / city (다도시 plan) */}
-          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] sm:text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px]">
             {day.date && (
               <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
                 <Calendar className="w-2.5 h-2.5" /> {day.date}
@@ -223,6 +226,11 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
           )}
         </div>
       </div>
+
+      {/* Per-day route map (ulruru-style): numbered pins + polyline in visit order.
+          Renders nothing when <2 stops carry valid coords. Lazy-loads Leaflet so
+          it never bloats the main bundle. Sits at the top of the day's content. */}
+      <DayRouteMap stops={stops} />
 
       {/* B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 카드 (KTX/항공/버스).
           intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출.
@@ -284,7 +292,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       {isRecalculating && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl">
           <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[11px] text-[#7C5CFC]/80">{ed.routeRecalculating || 'Updating routes...'}</span>
+          <span className="text-[13px] text-[#7C5CFC]/80">{ed.routeRecalculating || 'Updating routes...'}</span>
         </div>
       )}
 
@@ -342,6 +350,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                       editMode={editMode}
                       onDelete={() => setDeleteTarget(si)}
                       lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)}
+                      isOwner={isOwner}
                     />
                   </div>
                 );
@@ -351,7 +360,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             {/* Add Stop button */}
             <button
               onClick={() => onAddStop(dayIndex)}
-              className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-white/10 text-white/55 text-xs font-medium flex items-center justify-center gap-1.5 hover:border-[#7C5CFC]/30 hover:text-[#7C5CFC]/60 transition-colors"
+              className="w-full mt-3 min-h-[44px] py-2.5 rounded-xl border border-dashed border-white/10 text-white/55 text-[14px] font-medium flex items-center justify-center gap-1.5 hover:border-[#7C5CFC]/30 hover:text-[#7C5CFC]/60 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               {ed.addStop || 'Add Stop'}
@@ -388,7 +397,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                     currName={destName}
                   />
                 )}
-                <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)} />
+                <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)} isOwner={isOwner} />
               </motion.div>
             );
           })}
@@ -515,7 +524,7 @@ function IntercityTransitCard({
             <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wider text-[#B9A4FF]">
+            <p className="text-[12px] sm:text-[13px] font-bold uppercase tracking-wider text-[#B9A4FF]">
               {title}
             </p>
             <p className="text-[13px] sm:text-[14px] font-bold text-white leading-tight mt-0.5">
@@ -524,7 +533,7 @@ function IntercityTransitCard({
               {toCity}
             </p>
             {/* Meta row: 출발 · 도착 · 소요시간 · 요금 */}
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] sm:text-[11px] text-white/70">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] sm:text-[13px] text-white/70">
               {departText && <span>{departText}</span>}
               {arriveText && <span>{arriveText}</span>}
               {durationText && <span className="text-white/55">· {durationText}</span>}
@@ -532,7 +541,7 @@ function IntercityTransitCard({
             </div>
             {/* instruction (사용자 언어) — backend 가 채움 */}
             {intercity.instruction && (
-              <p className="mt-1.5 text-[11px] sm:text-[11.5px] text-white/70 leading-snug">
+              <p className="mt-1.5 text-[13px] sm:text-[13px] text-white/70 leading-snug">
                 {intercity.instruction}
               </p>
             )}
@@ -542,7 +551,7 @@ function IntercityTransitCard({
                 href={intercity.booking_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-2 text-[10.5px] sm:text-[11px] font-semibold text-[#B9A4FF] hover:text-white transition-colors"
+                className="inline-flex items-center min-h-[44px] gap-1 mt-2 text-[12px] sm:text-[13px] font-semibold text-[#B9A4FF] hover:text-white transition-colors"
               >
                 {bookCta} →
               </a>

@@ -637,13 +637,15 @@ If NO "VERIFIED RESTAURANT DATABASE" appears in the message:
 
 ### Diet preferences:
 If diet_preferences includes "Halal":
-- ONLY recommend halal-certified restaurants
+- ONLY recommend halal-certified restaurants (lines marked [HALAL] in the provided list are DB-verified halal)
 - If verified halal restaurants are provided, use ONLY those
+- For EVERY halal food stop, add "dietary_tags": ["halal"] to the stop object AND include the word "halal" in the tip text
 - NEVER recommend pork or non-halal meat dishes
 
 If diet_preferences includes "Vegan":
-- ONLY recommend 100% plant-based restaurants
+- ONLY recommend 100% plant-based restaurants (lines marked [VEGAN] in the provided list are DB-verified vegan)
 - If verified vegan restaurants are provided, use ONLY those
+- For EVERY vegan food stop, add "dietary_tags": ["vegan"] to the stop object AND include the word "vegan" in the tip text
 - NEVER recommend dishes with fish sauce or anchovy stock
 
 If diet_preferences includes "Seafood":

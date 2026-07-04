@@ -48,13 +48,13 @@ describe('B-CHT1 — Staria + 서울 1-day 단일가', () => {
     });
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
-    // SSOT — pricing_spec.json daily_tour_prices['seoul-city'].priceKRW = 330_000
-    expect(q!.subtotalKRW).toBe(DAILY_TOUR_PRICES['seoul-city'].priceKRW);
+    // daily_tour_prices['seoul-city'].priceKRW(330,000) + staria 7인 캡틴 정액 33,000 = 363,000 (2026-06-30).
+    expect(q!.subtotalKRW).toBe(DAILY_TOUR_PRICES['seoul-city'].priceKRW + 33_000);
     expect(q!.source).toBe('package');
     expect(q!.vehicle).toBe('staria');
   });
 
-  it('Staria 배수 = 1.0 → DAILY_TOUR_PRICES 원가와 동일', () => {
+  it('Staria 7인 배수 = 1.0 + 캡틴 33,000 → DAILY_TOUR_PRICES 원가 + 33,000', () => {
     const q = calculateQuote({
       ...baseState,
       vehicle: 'staria',
@@ -64,8 +64,18 @@ describe('B-CHT1 — Staria + 서울 1-day 단일가', () => {
       startDate: '2026-06-01',
       startTime: '08:00',
     });
-    // 배수 1.0 — vehicleChargeKRW == DAILY_TOUR_PRICES.priceKRW
-    expect(q!.vehicleChargeKRW).toBe(DAILY_TOUR_PRICES['seoul-city'].priceKRW);
+    expect(q!.vehicleChargeKRW).toBe(DAILY_TOUR_PRICES['seoul-city'].priceKRW + 33_000);
+  });
+
+  it('Staria 9인승(staria_9) = 현 staria 원가 그대로 (캡틴 0) · 7인은 +33,000', () => {
+    const mk = (vehicle: VehicleType) => calculateQuote({
+      ...baseState, vehicle, service: 'day_tour',
+      destinationKey: 'seoul-city', origin: 'SEL_METRO', startDate: '2026-06-01', startTime: '08:00',
+    });
+    const q9 = mk('staria_9');
+    const q7 = mk('staria');
+    expect(q9!.vehicleChargeKRW).toBe(DAILY_TOUR_PRICES['seoul-city'].priceKRW); // 9인승=원가
+    expect(q7!.vehicleChargeKRW - q9!.vehicleChargeKRW).toBe(33_000);            // 7인=+33,000
   });
 });
 
@@ -248,11 +258,11 @@ describe('B-CHT5 — multi_day 다일 가격 합산 + 10% 할인', () => {
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
     // SEL_METRO→BUSAN km=400. intercity = 50k + 400×2×1000 = 850k
-    // + daily 200k×3 = 600k + overnight 130k×2 = 260k = 1,710k
-    // -10% = 1,539,000
-    expect(q!.subtotalKRW).toBe(1_539_000);
+    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 130k×2 = 260k = 1,743k
+    // -10% = 1,568,700 (2026-06-30 캡틴프리미엄 반영).
+    expect(q!.subtotalKRW).toBe(1_568_700);
     expect(q!.multiDayDiscountPercent).toBe(10);
-    expect(q!.multiDayDiscountKRW).toBe(171_000);
+    expect(q!.multiDayDiscountKRW).toBe(174_300);
   });
 
   it('day_tour 는 multi-day 할인 미적용 (mode 분기)', () => {
@@ -486,7 +496,8 @@ describe('B-CHT9 — PUS 픽업 ₩77,000 3 위치 SSOT 일관성', () => {
     });
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
-    expect(q!.vehicleChargeKRW).toBe(77000);
+    // PUS 픽업 77,000 + staria 7인 캡틴 33,000 = 110,000 (2026-06-30).
+    expect(q!.vehicleChargeKRW).toBe(110000);
   });
 });
 
@@ -506,10 +517,11 @@ describe('B-CHT10 — PayPal 4 공항 확대 (Staria payable=true)', () => {
     });
     expect(resolved.payable).toBe(true);
     expect(resolved.productType).toBe('airport_busan_metro');
-    expect(resolved.priceKRW).toBe(77000);
+    // 77,000 + staria 7인 캡틴 33,000 = 110,000.
+    expect(resolved.priceKRW).toBe(110000);
   });
 
-  it('GMP + gimpo-seoul-central + Staria → payable=true (₩90,000)', () => {
+  it('GMP + gimpo-seoul-central + Staria → payable=true (₩123,000 = 90,000 + 캡틴 33,000)', () => {
     const resolved = resolveProductType({
       ...baseState,
       vehicle: 'staria',
@@ -518,10 +530,10 @@ describe('B-CHT10 — PayPal 4 공항 확대 (Staria payable=true)', () => {
       destinationKey: 'gimpo-seoul-central',
     });
     expect(resolved.payable).toBe(true);
-    expect(resolved.priceKRW).toBe(90000);
+    expect(resolved.priceKRW).toBe(123000); // 90,000 + 캡틴 33,000
   });
 
-  it('CJU + jeju-metro + Staria → payable=true (₩72,800)', () => {
+  it('CJU + jeju-metro + Staria → payable=true (₩105,800 = 72,800 + 캡틴 33,000)', () => {
     const resolved = resolveProductType({
       ...baseState,
       vehicle: 'staria',
@@ -530,10 +542,10 @@ describe('B-CHT10 — PayPal 4 공항 확대 (Staria payable=true)', () => {
       destinationKey: 'jeju-metro',
     });
     expect(resolved.payable).toBe(true);
-    expect(resolved.priceKRW).toBe(72800);
+    expect(resolved.priceKRW).toBe(105800); // 72,800 + 캡틴 33,000
   });
 
-  it('ICN + seoul-central + Staria → 기존 동작 유지 (regression guard, ₩124,800)', () => {
+  it('ICN + seoul-central + Staria → ₩157,800 (124,800 + 캡틴 33,000)', () => {
     const resolved = resolveProductType({
       ...baseState,
       vehicle: 'staria',
@@ -542,7 +554,7 @@ describe('B-CHT10 — PayPal 4 공항 확대 (Staria payable=true)', () => {
       destinationKey: 'seoul-central',
     });
     expect(resolved.payable).toBe(true);
-    expect(resolved.priceKRW).toBe(124800);
+    expect(resolved.priceKRW).toBe(157800); // 124,800 + 캡틴 33,000
   });
 
   it('PUS + 등재 안된 destinationKey → payable=false (가드 유지)', () => {
@@ -586,10 +598,10 @@ describe('B-CHT11 — ICN → 부산 직행 ₩660,000', () => {
       startTime: '14:00',
     });
     expect(q).not.toBeNull();
-    expect(q!.vehicleChargeKRW).toBe(660000);
+    expect(q!.vehicleChargeKRW).toBe(693000); // 660,000 + staria 7인 캡틴 33,000
   });
 
-  it('ICN→busan + Staria resolveProductType → priceKRW=₩660,000 + payable=true', () => {
+  it('ICN→busan + Staria resolveProductType → priceKRW=₩693,000 (660,000+캡틴) + payable=true', () => {
     const resolved = resolveProductType({
       ...baseState,
       vehicle: 'staria',
@@ -598,7 +610,7 @@ describe('B-CHT11 — ICN → 부산 직행 ₩660,000', () => {
       destinationKey: 'busan',
     });
     expect(resolved.payable).toBe(true);
-    expect(resolved.priceKRW).toBe(660000);
+    expect(resolved.priceKRW).toBe(693000); // 660,000 + 캡틴 33,000
   });
 });
 
@@ -607,7 +619,7 @@ describe('B-CHT11 — ICN → 부산 직행 ₩660,000', () => {
 // (운영자 P0-Q4, 2026-05-12) — 협의 라벨만 표시
 // ─────────────────────────────────────────────────────────
 
-describe('B-CHT12 — Bus/VIP 협의 (가격 숫자 노출 차단)', () => {
+describe('B-CHT12 — Bus 협의 (가격 숫자 노출 차단) + staria_9 결제 허용', () => {
   it('Bus + airport_transfer → resolveProductType payable=false + priceKRW=null', () => {
     const resolved = resolveProductType({
       ...baseState,
@@ -621,16 +633,19 @@ describe('B-CHT12 — Bus/VIP 협의 (가격 숫자 노출 차단)', () => {
     expect(resolved.productType).toBeNull();
   });
 
-  it('VIP + airport_transfer → resolveProductType payable=false + priceKRW=null', () => {
-    const resolved = resolveProductType({
-      ...baseState,
-      vehicle: 'vip',
-      service: 'airport_transfer',
-      origin: 'ICN',
-      destinationKey: 'seoul-gangnam',
+  it('staria_9(9인승) + airport_transfer → payable=true + priceKRW=현 staria 원가(캡틴 0)', () => {
+    const r9 = resolveProductType({
+      ...baseState, vehicle: 'staria_9', service: 'airport_transfer',
+      origin: 'ICN', destinationKey: 'seoul-gangnam',
     });
-    expect(resolved.payable).toBe(false);
-    expect(resolved.priceKRW).toBeNull();
+    const r7 = resolveProductType({
+      ...baseState, vehicle: 'staria', service: 'airport_transfer',
+      origin: 'ICN', destinationKey: 'seoul-gangnam',
+    });
+    // 9인승 = 7인승처럼 즉시결제 허용. 9인 가격 = 원가, 7인 = 원가 + 33,000.
+    expect(r9.payable).toBe(true);
+    expect(r9.priceKRW).toBe(AIRPORT_TRANSFER_PRICES['seoul-gangnam'].priceKRW);
+    expect((r7.priceKRW ?? 0) - (r9.priceKRW ?? 0)).toBe(33_000);
   });
 
   it('Bus + day_tour → payable=false + priceKRW=null (가격 숨김)', () => {
@@ -645,14 +660,14 @@ describe('B-CHT12 — Bus/VIP 협의 (가격 숫자 노출 차단)', () => {
     expect(resolved.productType).toBeNull();
   });
 
-  it('VIP + kpop_shuttle → payable=false + priceKRW=null', () => {
+  it('staria_9 + kpop_shuttle → payable=true (셔틀 정액, 캡틴 미적용)', () => {
     const resolved = resolveProductType({
       ...baseState,
-      vehicle: 'vip',
+      vehicle: 'staria_9',
       service: 'kpop_shuttle',
     });
-    expect(resolved.payable).toBe(false);
-    expect(resolved.priceKRW).toBeNull();
+    expect(resolved.payable).toBe(true);
+    expect(resolved.priceKRW).toBeGreaterThan(0);
   });
 
   it('Bus + airport_transfer calculateQuote → needsCustomQuote=true + vehicleChargeKRW=0', () => {
@@ -738,9 +753,11 @@ describe('B-CHT13 — Pickup/Transfer Formula 1 (4-tier)', () => {
     expect(sprinter!.krw).toBe(Math.round(staria!.krw * 1.85));
   });
 
-  it('Bus/VIP → null (협의)', () => {
+  it('Bus → null (협의). staria_9 = staria formula 동일(9인승은 staria 기준).', () => {
     expect(calcPickupTransferFormula(50, 'bus', true)).toBeNull();
-    expect(calcPickupTransferFormula(50, 'vip', true)).toBeNull();
+    const staria = calcPickupTransferFormula(50, 'staria', true);
+    const staria9 = calcPickupTransferFormula(50, 'staria_9', true);
+    expect(staria9!.krw).toBe(staria!.krw); // 9인승 = staria formula (캡틴 프리미엄은 formula 밖에서 가산)
   });
 
   it('km=0/음수/NaN → null (안전)', () => {
@@ -774,7 +791,7 @@ describe('B-CHT14 — ICN 도심 단거리 Formula 검증', () => {
 // ─────────────────────────────────────────────────────────
 
 describe('B-CHT15 — ICN → 부산 매트릭스 vs Formula 일관성', () => {
-  it('매트릭스 hit: destinationKey="busan" → ₩660,000 (SSOT)', () => {
+  it('매트릭스 hit: destinationKey="busan" + staria 7인 → ₩693,000 (660,000 SSOT + 캡틴 33,000)', () => {
     const q = calculateQuote({
       ...baseState,
       vehicle: 'staria',
@@ -784,7 +801,7 @@ describe('B-CHT15 — ICN → 부산 매트릭스 vs Formula 일관성', () => {
       startDate: '2026-06-01',
       startTime: '14:00',
     });
-    expect(q!.vehicleChargeKRW).toBe(660_000);
+    expect(q!.vehicleChargeKRW).toBe(693_000);
   });
 
   it('Formula 직접 호출 450km → SSOT ₩660K ±5% 이내', () => {

@@ -19,6 +19,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
+import { MyCoursesTab } from '@/components/MyCoursesTab';
+
+// '내 코스' 탭 라벨 — 컴포넌트 로컬 4-lang (글로벌 locale JSON 무접촉)
+const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Courses', ja: 'マイコース', zh: '我的行程' };
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
@@ -44,7 +48,7 @@ const TIER_BENEFITS: Record<TierType, string[]> = {
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
 // 어디에도 없어 사용자가 일정을 만들 수 없는 상태였음. 백엔드 hook은 유지하되
 // 빈 탭은 노출하지 않음.
-type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'reviews' | 'history';
+type Tab = 'overview' | 'bookings' | 'courses' | 'coupons' | 'wishlist' | 'reviews' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -55,7 +59,7 @@ export default function MyPage() {
   const { items: wishlistItems } = useWishlist();
   // Deep-link 지원: ?tab=wishlist 등으로 특정 탭 직진입 (햄버거 메뉴와 sync).
   const [searchParams, setSearchParams] = useSearchParams();
-  const VALID_TABS: Tab[] = ['overview', 'bookings', 'coupons', 'wishlist', 'reviews', 'history'];
+  const VALID_TABS: Tab[] = ['overview', 'bookings', 'courses', 'coupons', 'wishlist', 'reviews', 'history'];
   const initialTab = (() => {
     const q = searchParams.get('tab') as Tab | null;
     return q && VALID_TABS.includes(q) ? q : 'overview';
@@ -247,6 +251,7 @@ export default function MyPage() {
           {([
             { id: 'overview', label: mp.tabOverview || 'Overview', icon: TrendingUp },
             { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
+            { id: 'courses', label: COURSES_TAB_LABEL[language as 'ko'|'en'|'ja'|'zh'] || COURSES_TAB_LABEL.en, icon: MapIcon },
             { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
             { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
             { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
@@ -422,6 +427,10 @@ export default function MyPage() {
         )}
 
         {/* ── 탭: Coupons ── */}
+        {tab === 'courses' && (
+          <MyCoursesTab />
+        )}
+
         {tab === 'coupons' && (
           <div className="space-y-6">
             {/* 교환 섹션 */}
@@ -540,6 +549,19 @@ export default function MyPage() {
                   <code className="text-xs bg-white/5 px-2 py-0.5 rounded text-[#C4956A]">{c.code}</code>
                   {c.isUsed && <span className="text-[10px] text-red-400/60 uppercase">Used</span>}
                 </div>
+                {/* AI 무료쿠폰(ai-plan)은 쿠폰함 경유로 사용 (2026-06-28): "사용하기" →
+                    /planner?coupon=CODE. PurchaseSection 이 URL 코드를 검증 후 0원 적용. */}
+                {c.productScope === 'ai-plan' && !c.isUsed && c.expiresAt > Date.now() && (
+                  <Link
+                    to={`/planner?coupon=${encodeURIComponent(c.code)}`}
+                    onClick={() => haptic('tap')}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                    style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)' }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {mp.useAiCoupon || '사용하기'}
+                  </Link>
+                )}
               </div>
             ))}
             </div>

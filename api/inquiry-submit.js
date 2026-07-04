@@ -1,14 +1,17 @@
 /**
  * POST /api/inquiry-submit
  *
- * Bus / VIP 차량 선택 시 노출되는 상담 폼 제출.
+ * Bus 차량 선택 시 노출되는 상담 폼 제출. (vip 선택지 제거 2026-06-30.)
+ * 2026-07-02: 투어 페이지 맞춤형 투어 문의(vehicle='tour_custom') 추가 —
+ *   region/theme/budget/whatsapp 필드, 이메일 또는 전화 중 하나 필수, 날짜/상세 선택.
  * Firestore `charter_inquiries/{inquiryId}` 저장 + InquiryCHAT_BOT 채널 알림.
  *
  * Body:
  *   {
- *     name, email, phone?, eventDate, pax,
- *     vehicle: 'bus' | 'vip',
- *     details, language: 'ko'|'en'|'ja'|'zh',
+ *     name, email, phone?, whatsapp?, eventDate, pax,
+ *     vehicle: 'bus' | 'tour_custom',
+ *     details, region?, theme?, budget?,
+ *     language: 'ko'|'en'|'ja'|'zh',
  *     wizardSnapshot: { origin, service, destinationKey, destinationCustom }
  *   }
  *
@@ -98,7 +101,9 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const ALLOWED_VEHICLES = new Set(['bus', 'vip']);
+// 2026-06-30: vip 선택지 제거 → 신규 협의 폼은 bus 만 허용. (과거 vip 예약 레코드 표시는 별도 라벨로 보존.)
+// 2026-07-02: tour_custom 추가 — 투어 페이지 맞춤형 투어 견적 문의 (결제 없음, 상담만).
+const ALLOWED_VEHICLES = new Set(['bus', 'tour_custom']);
 const ALLOWED_LANGS = new Set(['ko', 'en', 'ja', 'zh']);
 
 function _err(error, code = 'UNKNOWN_ERROR') {
@@ -134,29 +139,58 @@ export default async function handler(req, res) {
       name = '',
       email = '',
       phone = '',
+      whatsapp = '',
       eventDate = '',
       pax,
       vehicle = '',
       details = '',
+      region = '',
+      theme = '',
+      budget = '',
       language = 'en',
       wizardSnapshot = null,
     } = body;
 
     // 입력 검증 — silent fail X, 명시적 에러 코드.
+    // tour_custom (투어 페이지 맞춤 문의): 이메일 또는 전화 중 하나 필수, 날짜/상세는 선택.
+    const isTourCustom = String(vehicle) === 'tour_custom';
     const trimmedName = String(name).trim();
     const trimmedEmail = String(email).trim().toLowerCase();
+    const trimmedPhone = String(phone).trim().slice(0, 40);
+    const trimmedWhatsapp = String(whatsapp).trim().slice(0, 40);
+    const trimmedEventDate = String(eventDate || '').trim().slice(0, 40);
     const trimmedDetails = String(details).trim();
+    const trimmedRegion = String(region).trim().slice(0, 40);
+    const trimmedTheme = String(theme).trim().slice(0, 200);
+    const trimmedBudget = String(budget).trim().slice(0, 40);
     if (trimmedName.length < 2) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('name required (min 2 chars)', 'INVALID_NAME')));
     }
-    if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
+    const emailValid = /\S+@\S+\.\S+/.test(trimmedEmail);
+    if (isTourCustom) {
+      // 이메일 또는 전화 중 하나는 필수 — 입력된 이메일이 형식 불량이면 명시적 거부.
+      // 전화는 숫자 5자리 이상(길이만 재면 문자 5자도 유일 연락수단으로 통과).
+      if (!emailValid && trimmedPhone.replace(/\D/g, '').length < 5) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('email or phone required', 'INVALID_CONTACT')));
+      }
+      if (trimmedEmail && !emailValid) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('email invalid', 'INVALID_EMAIL')));
+      }
+    } else if (!emailValid) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('email required', 'INVALID_EMAIL')));
     }
-    if (!eventDate || typeof eventDate !== 'string') {
+    if (!isTourCustom) {
+      if (!eventDate || typeof eventDate !== 'string') {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('eventDate required', 'INVALID_DATE')));
+      }
+    } else if (eventDate && typeof eventDate !== 'string') {
       res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify(_err('eventDate required', 'INVALID_DATE')));
+      return res.end(JSON.stringify(_err('eventDate must be string', 'INVALID_DATE')));
     }
     const paxNum = Number(pax);
     if (!Number.isFinite(paxNum) || paxNum < 1 || paxNum > 999) {
@@ -165,9 +199,9 @@ export default async function handler(req, res) {
     }
     if (!ALLOWED_VEHICLES.has(String(vehicle))) {
       res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify(_err('vehicle must be bus|vip', 'INVALID_VEHICLE')));
+      return res.end(JSON.stringify(_err('vehicle not allowed', 'INVALID_VEHICLE')));
     }
-    if (trimmedDetails.length < 5) {
+    if (!isTourCustom && trimmedDetails.length < 5) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('details too short', 'INVALID_DETAILS')));
     }
@@ -213,12 +247,16 @@ export default async function handler(req, res) {
     await adminDb.collection('charter_inquiries').doc(inquiryId).set({
       inquiryId,
       name: trimmedName,
-      email: trimmedEmail,
-      phone: phone ? String(phone).trim() : null,
-      eventDate,
+      email: trimmedEmail || null,
+      phone: trimmedPhone || null,
+      whatsapp: trimmedWhatsapp || null,
+      eventDate: trimmedEventDate || null,
       pax: paxNum,
       vehicle,
       details: trimmedDetails,
+      region: trimmedRegion || null,
+      theme: trimmedTheme || null,
+      budget: trimmedBudget || null,
       language: lang,
       wizardSnapshot: wizardSnapshot || null,
       userId,
@@ -233,47 +271,67 @@ export default async function handler(req, res) {
     // 번역(PR-Q): 행사 내용이 한국어가 아니면 Gemini로 한글 번역 추가 (운영자 가독성).
     // 번역 실패는 silent — 원문은 항상 유지.
     try {
-      const vehicleLabel = vehicle === 'vip' ? '의전 차량 (VIP)' : '대형버스 (Bus)';
+      // 신규 협의 폼은 bus / tour_custom (vip 는 더 이상 도달 안 함).
+      const vehicleLabel = isTourCustom ? '맞춤형 투어 (Custom Tour)' : '대형버스 (Bus)';
       const submittedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 
-      // 행사 내용 한글 번역 시도.
+      // 행사 내용 한글 번역 시도. (tour_custom 은 요청사항 선택 입력 — 비어 있으면 스킵.)
       let detailsKo = null;
       let detailsLang = lang;
       let translateFailed = false;
-      try {
-        const det = await detectAndTranslate(trimmedDetails, 'ko');
-        detailsLang = det.sourceLang || lang;
-        if (!det.isOriginal) {
-          if (det.translation === null) translateFailed = true;
-          else detailsKo = det.translation;
+      if (trimmedDetails) {
+        try {
+          const det = await detectAndTranslate(trimmedDetails, 'ko');
+          detailsLang = det.sourceLang || lang;
+          if (!det.isOriginal) {
+            if (det.translation === null) translateFailed = true;
+            else detailsKo = det.translation;
+          }
+        } catch (e) {
+          console.warn('[inquiry-submit] translate failed:', e.message);
+          translateFailed = true;
         }
-      } catch (e) {
-        console.warn('[inquiry-submit] translate failed:', e.message);
-        translateFailed = true;
       }
 
       const detailsTrunc = trimmedDetails.length > 500 ? trimmedDetails.slice(0, 500) + '…' : trimmedDetails;
       const detailsKoTrunc = detailsKo && detailsKo.length > 500 ? detailsKo.slice(0, 500) + '…' : detailsKo;
 
+      // parse_mode HTML 에 사용자 입력 그대로 넣으면 '<' 하나로 Telegram 400 → 알림 통째 유실.
+      const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       const lines = [
-        '📨 <b>새 차터 상담 문의</b>',
+        isTourCustom ? '🎯 <b>새 맞춤 투어 문의</b>' : '📨 <b>새 차터 상담 문의</b>',
         '',
         `<b>문의번호:</b> <code>${inquiryId}</code>`,
-        `<b>행사 일자:</b> ${eventDate}`,
+        `<b>${isTourCustom ? '여행 일자' : '행사 일자'}:</b> ${esc(trimmedEventDate) || '(미정)'}`,
         `<b>인원:</b> ${paxNum}명`,
-        `<b>차량:</b> ${vehicleLabel}`,
-        '',
-        detailsKo ? `<b>📨 행사 내용 (${detailsLang}):</b>` : `<b>행사 내용:</b>${translateFailed ? ' ⚠️ 번역 실패' : ''}`,
-        detailsTrunc,
+        `<b>${isTourCustom ? '유형' : '차량'}:</b> ${vehicleLabel}`,
       ];
-      if (detailsKoTrunc) {
-        lines.push('', '<b>🇰🇷 한글 번역:</b>', detailsKoTrunc);
+      if (isTourCustom) {
+        lines.push(
+          `<b>지역:</b> ${esc(trimmedRegion) || '(미입력)'}`,
+          `<b>테마:</b> ${esc(trimmedTheme) || '(미입력)'}`,
+          `<b>예산:</b> ${esc(trimmedBudget) || '(미정)'}`,
+        );
       }
       lines.push(
         '',
-        phone ? `<b>연락처:</b> ${phone}` : '<b>연락처:</b> (미입력)',
-        `<b>이메일:</b> ${trimmedEmail}`,
-        `<b>이름:</b> ${trimmedName}`,
+        detailsKo ? `<b>📨 ${isTourCustom ? '요청사항' : '행사 내용'} (${detailsLang}):</b>` : `<b>${isTourCustom ? '요청사항' : '행사 내용'}:</b>${translateFailed ? ' ⚠️ 번역 실패' : ''}`,
+        esc(detailsTrunc) || '(미입력)',
+      );
+      if (detailsKoTrunc) {
+        lines.push('', '<b>🇰🇷 한글 번역:</b>', esc(detailsKoTrunc));
+      }
+      lines.push(
+        '',
+        trimmedPhone ? `<b>연락처:</b> ${esc(trimmedPhone)}` : '<b>연락처:</b> (미입력)',
+      );
+      if (trimmedWhatsapp) {
+        lines.push(`<b>WhatsApp:</b> ${esc(trimmedWhatsapp)}`);
+      }
+      lines.push(
+        `<b>이메일:</b> ${esc(trimmedEmail) || '(미입력)'}`,
+        `<b>이름:</b> ${esc(trimmedName)}`,
         `<b>언어:</b> ${detailsLang}`,
         `<b>제출 시각:</b> ${submittedAt}`,
       );

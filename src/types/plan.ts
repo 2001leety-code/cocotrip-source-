@@ -171,7 +171,7 @@ export interface TransitFromPrev {
   last_station?: string | null;
   est_min?: number;
   est_fare_krw?: number;
-  source?: 'odsay' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade';
+  source?: 'odsay' | 'tmap' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade' | 'blind_25_no_coords' | 'cache';
   from_label?: string;
   _downgraded_from?: string;
   _odsay_failed?: boolean;
@@ -208,6 +208,13 @@ export interface IntercityTransit {
   recommended_depart: string;
   /** "11:30" — Day 의 stops[0].start_time 보다 빠르거나 같아야 함. */
   arrival_at: string;
+  /**
+   * P-fix #8 (2026-06-20): true = recommended_depart/arrival_at 이 표준 fallback
+   * 추정값(실제 열차 시간표 아님). RouteAgent 의 P113 stitching 이 day stop1 기준으로
+   * 실제 출발시각을 도출하면 false. UI/PDF 가 true 일 때 "추정" 표기 → 손님이 이 시각을
+   * 정확한 열차 시간으로 오인해 KTX 놓치는 risk 차단. 없으면(legacy plan) false 취급.
+   */
+  depart_estimated?: boolean;
   /** 4-lang 안내 문구 (한 줄). 사용자 언어로. */
   instruction?: string;
   /** 예약 링크 (KTX = letskorail, SRT = srail, Air = trip.com 등). */

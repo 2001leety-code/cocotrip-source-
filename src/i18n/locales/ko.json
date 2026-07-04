@@ -57,7 +57,7 @@
     "tourCta": "투어 보기",
     "plannerTitle": "AI 여행 플래너",
     "plannerLine1": "AI가 맞춤 일정을 자동으로 생성",
-    "plannerLine2": "무료 · 즉시 · 4개 언어 지원",
+    "plannerLine2": "$9.90 · 즉시 · 4개 언어 지원",
     "plannerCta": "일정 만들기"
   },
   "hero": {
@@ -556,6 +556,9 @@
     "retry": "다시 시도하기",
     "loginRequired": "로그인 후 결제 가능",
     "loginToPay": "로그인 후 결제하기",
+    "useFreeAiCoupon": "무료 쿠폰으로 받기 (1~3일 일정)",
+    "aiCouponApplied": "무료 쿠폰 적용됨 · 0원",
+    "aiCouponProceed": "무료 쿠폰으로 일정표 받기",
     "guestSignupNudge": "무료 가입하면 — 플랜 저장 + 무료 수정 2회 + 차터 5% 쿠폰",
     "guestSignupCta": "무료 가입",
     "loginToPayDesc": "일정표를 안전하게 받아보려면 먼저 로그인해 주세요.",
@@ -1049,6 +1052,7 @@
     "quickPreviewTitle": "1일 차 핵심 하이라이트 미리보기",
     "quickPreviewTheme": "테마",
     "quickPreviewNarrative": "이 여행의 서사 리뷰",
+    "quickPreviewMapLabel": "지도",
     "fullPlanTitle": "나머지 2~3일차 완벽 로컬 일정을 받아보시겠습니까?",
     "fullPlanDesc": "숨겨진 로컬 맛집, 비밀 인생샷 촬영 팁, 10대 검수가 완료된 시간별 정확한 동선표 등 전체 3페이지 분량의 컨펌 리포트를 이메일로 100% 무료로 발송해 드립니다.",
     "emailPlaceholder": "이메일 주소를 입력해주세요",
@@ -1115,10 +1119,18 @@
     "loadingPleaseWait": "잠시만 기다려주세요!",
     "airport_pickup_select": "목적지 선택",
     "airport_pickup_select_hint": "위에서 목적지를 선택하면 바로 결제할 수 있습니다",
-    "featureItinerary": "3페이지 상세 일정표",
-    "featureRestaurant": "현지인 맛집 리스트",
-    "featurePhoto": "인생샷 촬영 스팟",
-    "featureTransit": "분단위 교통 동선",
+    "featureItinerary": "검증된 한국 코스",
+    "featureRestaurant": "검증된 맛집 (4.5★+, 리뷰 50+)",
+    "featurePhoto": "사진 가이드 (4개 언어)",
+    "featureTransit": "실제 대중교통 + T-money",
+    "featureNoHallucination": "실재 한국 DB로 검증",
+    "vpNoHallucinationTitle": "실재 한국 DB 검증",
+    "vpNoHallucinationDesc": "실재 한국 DB로 검증",
+    "vpStripTagline": "무료 AI는 가짜 장소를 엉뚱한 동선으로 던집니다. 우리는 검증된 한국 코스를 실제 동선까지 맞춰 짭니다.",
+    "vpCourseTitle": "검증된 한국 코스",
+    "vpCourseDesc": "검증된 한국 데이터 + 4.5★+ 맛집",
+    "vpRouteTitle": "동선까지 최적화",
+    "vpRouteDesc": "실제 대중교통(가능 구간) + T-money",
     "paypalSafeCheckout": "PayPal 안전결제 · 불만족 시 100% 환불",
     "checkoutSafe": "100% 안전 결제",
     "checkoutTip1": "톨비·주차 포함",
@@ -1180,8 +1192,10 @@
     "optionAtitle": "AI 맞춤 플랜 받기",
     "optionAdesc": "결제 즉시 전체 일정 받기",
     "optionAfeature1": "✓ 분 단위 일정표 + 지하철 안내",
-    "optionAfeature2": "✓ 맛집 + 메뉴 + 가격",
-    "optionAfeature3": "✓ PDF 다운로드",
+    "optionAfeature2": "✓ 검증된 맛집 (4.5★+, 리뷰 50+)",
+    "optionAfeature3": "✓ 사진 가이드 (4개 언어)",
+    "optionAfeature4": "✓ 구간별 실제 대중교통 + T-money",
+    "optionAfeature5": "✓ 실재 한국 DB로 검증 — 가짜 장소 없음",
     "optionAfeatureRevision": "무료 재생성 2회 포함 — 맘에 안 들면 다시!",
     "valueBannerMain": "$9.90로 일정 3개!",
     "valueBannerSub": "1회 결제 + 무료 재생성 2회 = 총 3가지 다른 버전. 맘에 안 드시면 무료로 다시 받아보세요",
@@ -1326,13 +1340,14 @@
     "bodyBefore": "더 나은 경험을 위해 쿠키를 사용합니다. 사이트를 계속 사용하시면 ",
     "bodyMiddle": "에 동의한 것으로 간주됩니다. 데이터 삭제 요청은 ",
     "bodyAfter": "로 문의해주세요.",
+    "bodyShort": "더 나은 경험을 위해 쿠키를 사용합니다.",
     "accept": "동의",
     "dismiss": "닫기"
   },
   "gallery": {
     "title": "행복한 여행자들",
     "subtitle": "한국을 탐험한 게스트들의 진짜 순간과 이야기",
-    "verifiedTraveler": "검증된 여행자"
+    "verifiedTraveler": "실제 고객 사진"
   },
   "googleReviews": {
     "subtitle": "함께 여행하셨나요? Google에 솔직한 후기를 남겨 다음 게스트에게 도움을 주세요.",
@@ -1490,7 +1505,8 @@
       "stationInfo": "역 정보",
       "lostAndFound": "분실물 센터",
       "firstTrain": "첫차",
-      "lastTrain": "막차"
+      "lastTrain": "막차",
+      "fareUnavailable": "요금 정보 없음"
     },
     "lodging": {
       "label": "숙소",
@@ -1576,6 +1592,12 @@
       "accomRecAffiliateNote": "어필리에이트 링크 — CocoTrip 운영에 도움이 됩니다.",
       "tabPreTrip": "여행 준비",
       "tabActivityGuide": "활동 가이드",
+      "tabIntro": "소개",
+      "tabDay": "Day",
+      "tabOutro": "마무리",
+      "streamingWait": "일정을 만드는 중...",
+      "translatingWait": "번역 중... 잠시만 기다려 주세요",
+      "translationFailedShowingOriginal": "번역을 사용할 수 없음 — 원문을 표시합니다",
       "preTripTitle": "여행 준비 안내",
       "preTripSubtitle": "도착 전 확인하시면 한국 여행이 더 매끄러워져요"
     },
@@ -1709,7 +1731,8 @@
       "pdfGeneratedBy": "CocoTrip AI가 생성함",
       "minUnit": "분",
       "adultsLabel": "성인",
-      "paxLabel": "명"
+      "paxLabel": "명",
+      "transfer": "환승"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",
@@ -1748,6 +1771,7 @@
     "couponAdTitle": "AI 플래너 1회 = 5% 쿠폰 1장",
     "couponAdBody": "124,000원 차량 예약 시 약 6,200원 절약. 플래너($9.90) 거의 무료!",
     "couponAdCta": "AI 플래너 만들기",
+    "useAiCoupon": "사용하기",
     "tabOverview": "개요",
     "tabBookings": "내 예약",
     "tabCoupons": "쿠폰 ({n})",
@@ -1983,7 +2007,7 @@
     },
     "planner": {
       "title": "AI 여행 플래너 — 맞춤 한국 일정",
-      "description": "AI로 맞춤형 한국 여행 일정을 만드세요. 무료, 즉시, 다국어 지원. 서울, 부산, 제주 및 더 많은 곳."
+      "description": "AI로 맞춤형 한국 여행 일정을 만드세요. AI 기반, 즉시, 다국어 지원. 서울, 부산, 제주 및 더 많은 곳."
     },
     "privacy": {
       "description": "CocoTrip 개인정보처리방침 — 개인정보 수집, 이용, 보호 방법."
@@ -2066,7 +2090,7 @@
     "customerName": "이름",
     "customerNamePlaceholder": "홍길동",
     "customerPhone": "연락처",
-    "customerPhonePlaceholder": "010-1234-5678",
+    "customerPhonePlaceholder": "+82 10-1234-5678",
     "customerMessenger": "메신저 (선택)",
     "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "숙소 위치 (운영 안내용)",
@@ -2129,7 +2153,7 @@
     "payGoToLegacy": "기존 차터 페이지로 가기",
     "heroBadgeNew": "신규 6단계 견적",
     "heroBadgePayment": "결제",
-    "heroTitleWizard": "코코트립 전세차량 (위저드)",
+    "heroTitleWizard": "한국 프라이빗 차량·밴 전세",
     "heroTitlePayment": "결제 진행",
     "heroSubtitleWizard": "공항 픽업 · 일일 투어 · 장거리 · K-pop 셔틀 — 2분 견적",
     "heroSubtitlePayment": "아래 선결제 또는 WhatsApp 문의로 진행하세요.",

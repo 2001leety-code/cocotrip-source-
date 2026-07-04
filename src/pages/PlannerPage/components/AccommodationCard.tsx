@@ -7,7 +7,7 @@ import type { Accommodation } from '../types';
 export function AccommodationCard({ acc, p, region }: { acc: Accommodation; p: PlannerDict; region?: string }) {
   const links = buildAccommodationLinks(acc.name, region ?? acc.area ?? '');
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+    <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 sm:rounded-2xl sm:p-5 sm:mb-6">
       <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-3 flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> {p.accommodationLabel}</p>
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">

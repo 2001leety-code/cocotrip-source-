@@ -24,7 +24,9 @@ function frontendMultiDay(spec: any, vehicle: string, km: number, tourDays: numb
   // multi_day 분기 (L261-282)
   const ic = spec.vehicles[vehicle].intercity;
   const nights = Math.max(0, tourDays - 1);
-  const base = intercity + ic.daily_service_fee * tourDays + ic.overnight_driver_fee * nights;
+  // 7인승 캡틴시트 프리미엄 정액(SSOT) — 거리부 직후 가산(9인승=0). 백/프론트 calc 와 동일 위치.
+  const captain = Number(spec.vehicles[vehicle].captain_premium_krw) > 0 ? Number(spec.vehicles[vehicle].captain_premium_krw) : 0;
+  const base = intercity + captain + ic.daily_service_fee * tourDays + ic.overnight_driver_fee * nights;
   // 운영자 정책 2026-06-02: 3일(durationDays>=3) 이상 10% 할인.
   return tourDays >= 3 ? Math.round(base * 0.9) : base;
 }
@@ -50,8 +52,10 @@ describe('calcMultiDayCharterKrw — 프론트 공식 1:1 일치 (P311 backend S
     const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
     const ic = SPEC.vehicles.staria.intercity;
     const distancePart = Math.round((STARIA_BASE_FEE + km * 2 * STARIA_RATE_PER_KM) * 1.0);
-    const base3 = distancePart + ic.daily_service_fee * 3 + ic.overnight_driver_fee * 2;
-    const base2 = distancePart + ic.daily_service_fee * 2 + ic.overnight_driver_fee * 1;
+    // staria 7인 캡틴 프리미엄 정액(33,000) — 거리부 직후 가산(2026-06-30).
+    const captain = SPEC.vehicles.staria.captain_premium_krw || 0;
+    const base3 = distancePart + captain + ic.daily_service_fee * 3 + ic.overnight_driver_fee * 2;
+    const base2 = distancePart + captain + ic.daily_service_fee * 2 + ic.overnight_driver_fee * 1;
     expect(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 3 })).toBe(Math.round(base3 * 0.9));
     expect(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 2 })).toBe(base2); // 2일 무할인
   });

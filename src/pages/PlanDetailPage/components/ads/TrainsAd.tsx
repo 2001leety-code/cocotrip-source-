@@ -29,17 +29,17 @@ export function TrainsAd({ fromCityKey, toCityKey }: TrainsAdProps) {
         </div>
         <div className="flex-1">
           <p className="font-bold text-white text-base leading-tight">{p.adTrainTitle || 'Travel Between Cities by KTX/SRT'}</p>
-          <p className="text-xs text-white/50 mt-0.5">{p.adTrainSub || 'Korea’s high-speed rail — Seoul to Busan in 2.5h.'}</p>
+          <p className="text-[14px] text-white/50 mt-0.5">{p.adTrainSub || "Korea's high-speed rail — Seoul to Busan in 2.5h."}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
         <a href={url} target="_blank" rel="noopener noreferrer"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] active:scale-95"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] active:scale-95 min-h-[44px]"
           style={{ background: '#0891B2', boxShadow: '0 4px 16px rgba(8,145,178,0.25)' }}>
           {p.adTrainCta || 'Search Trains on Trip.com'} {'→'}
         </a>
       </div>
-      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link — helps support CocoTrip.'}</p>
+      <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link — helps support CocoTrip.'}</p>
     </div>
   );
 }

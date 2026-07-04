@@ -26,7 +26,7 @@
  *   - origin/destination 이 있으면 경로 기반 거리/톨비 추가요금 반영.
  *   - 없으면 거리/톨비 0 (시간 단가 base 만).
  *
- * 성공 시 notifyOperator 텔레그램 알림 + 예약자 영수증 메일 (best-effort).
+ * 성공 시 notifyOperator 텔레그램 알림 (best-effort). 영수증은 화면 뷰로 대체(이메일 발송 없음, 2026-07-03).
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
@@ -36,8 +36,6 @@ import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-a
 import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
-import { buildMoodReceiptEmail } from './_shared/mood-receipt.js';
-import { sendEmail } from './_send-email.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -261,24 +259,7 @@ export default async function handler(req, res) {
       console.warn('[mood-book] notify failed:', notifyErr?.message);
     }
 
-    // ── 8) 예약자(고객) 확정메일 + 영수증 (best-effort) ──
-    try {
-      const receipt = buildMoodReceiptEmail({
-        bookingId: txResult.bookingId,
-        clientName: txResult.clientName,
-        date,
-        startTime,
-        durationHours: hours,
-        serviceType,
-        ratePerHour: txResult.ratePerHour,
-        amountKRW: txResult.amountKRW,
-        newBalance: txResult.newBalance,
-      });
-      await sendEmail({ to: email, subject: receipt.subject, html: receipt.html, text: receipt.text });
-    } catch (mailErr) {
-      // 메일 실패는 비치명적 — 로그만. (Gmail 쿼터 초과 GMAIL_QUOTA_EXCEEDED 포함)
-      console.warn('[mood-book] receipt email failed:', mailErr?.message);
-    }
+    // 이메일 영수증 발송 제거(2026-07-03 운영자 결정) — 화면 영수증 뷰로 대체. 텔레그램 알림만 유지.
 
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({

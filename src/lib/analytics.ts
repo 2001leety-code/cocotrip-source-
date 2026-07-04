@@ -65,7 +65,59 @@ export function trackPageView(path?: string) {
 // ── Track Custom Event ──────────────────────────────────────────────────
 export function trackEvent(eventName: string, params?: GtagEvent) {
   if (!GA_ID || !window.gtag) return;
-  window.gtag('event', eventName, params);
+  window.gtag('event', eventName, { ...getStoredUtm(), ...params });
+}
+
+// ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
+// 16곳에 흩어진 wa.me 링크를 위임 리스너 1개로 GA4에 잡는다. PostHog는 autocapture로
+// 이미 잡지만 GA4(=Google Ads 광고 귀속 채널)엔 없어 추가 — WhatsApp 문의가 어느
+// 캠페인에서 왔는지 측정해 광고 최적화. idempotent(여러 번 호출돼도 리스너 1개).
+let waTrackingAttached = false;
+export function initWhatsAppTracking() {
+  if (typeof document === 'undefined' || waTrackingAttached) return;
+  waTrackingAttached = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target as HTMLElement | null;
+    const link = el && el.closest ? (el.closest('a[href*="wa.me"]') as HTMLAnchorElement | null) : null;
+    if (link) trackEvent('whatsapp_click', { page_path: window.location.pathname });
+  }, { capture: true });
+}
+
+// ── UTM 보존 (광고 귀속) ──────────────────────────────────────────────
+// 광고 랜딩 시 utm_* 를 sessionStorage 에 저장 → SPA 내비게이션 후에도 유지된다.
+// getStoredUtm 을 모든 trackEvent 에 자동 첨부해 GA4/Google Ads 가 어느 캠페인에서
+// 온 전환인지 측정한다 (GA4 세션 소스 자동귀속의 보강 — SPA 이동 후 누락 방지).
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+const UTM_STORE = 'cocotrip_utm';
+
+/** 첫 랜딩 시 1회 호출 — URL 의 utm_* 를 sessionStorage 에 보존. */
+export function initUtmCapture() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (sessionStorage.getItem(UTM_STORE)) return;
+    const p = new URLSearchParams(window.location.search);
+    const utm: Record<string, string> = {};
+    for (const k of UTM_KEYS) { const v = p.get(k); if (v) utm[k] = v; }
+    if (Object.keys(utm).length > 0) sessionStorage.setItem(UTM_STORE, JSON.stringify(utm));
+  } catch { /* sessionStorage 차단 환경 무시 */ }
+}
+
+function getStoredUtm(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try { const raw = sessionStorage.getItem(UTM_STORE); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+}
+
+/** 채팅 위젯 열림 — 문의 의향 신호. */
+export function trackChatOpen(page?: string) {
+  trackEvent('chat_open', { page_path: page || (typeof window !== 'undefined' ? window.location.pathname : '') });
+}
+/** Book Now CTA 클릭. */
+export function trackBookNow(productType?: string) {
+  trackEvent('book_now_click', { product_type: productType || '' });
+}
+/** 예약 날짜 선택 완료. */
+export function trackDateSelect(productType?: string) {
+  trackEvent('date_select', { product_type: productType || '' });
 }
 
 // ── Predefined Events ───────────────────────────────────────────────────

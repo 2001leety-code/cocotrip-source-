@@ -1,0 +1,31 @@
+{
+  "durationDays": 5,
+  "regions": [
+    "seoul",
+    "busan"
+  ],
+  "area": "seoul",
+  "language": "en",
+  "pax": 2,
+  "vehicle": "staria_8",
+  "styles": [
+    "Food",
+    "Culture"
+  ],
+  "dietPrefs": [],
+  "allergies": [],
+  "startDate": "2026-07-01",
+  "arrival_airport": "ICN",
+  "departure_airport": "PUS",
+  "arrival_time": "10:00",
+  "departure_time": "19:00",
+  "tour_start_time": "09:00",
+  "tour_end_time": "21:00",
+  "hotel_address": "Myeongdong, Seoul",
+  "hotelByCity": {
+    "seoul": "Myeongdong, Seoul",
+    "busan": "Haeundae, Busan"
+  },
+  "recommendedZone": "Myeongdong",
+  "special_request": "Foodie trip, want famous local restaurants."
+}

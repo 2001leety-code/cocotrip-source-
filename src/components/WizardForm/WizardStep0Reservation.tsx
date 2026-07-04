@@ -58,12 +58,12 @@ export function WizardStep0Reservation({
   const airportOptions = getAirportOptions(mainCityKey || 'seoul');
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5 sm:space-y-5">
       <div>
-        <h2 className={`text-[17px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
+        <h2 className={`text-[16px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
           {p.resTitle || 'Where are you in your trip planning?'}
         </h2>
-        <p className="text-[13px] sm:text-sm text-white/55">
+        <p className="text-[12px] sm:text-sm text-white/55 leading-relaxed">
           {p.resSub || "We'll tailor the rest of the form based on what you've already booked"}
         </p>
       </div>
@@ -91,7 +91,7 @@ export function WizardStep0Reservation({
                 setArrivalAirport('');
               }
             }}
-              className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
+              className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border text-left min-h-[64px] sm:min-h-[78px] transition-all ${
                 sel
                   ? 'border-transparent text-white shadow-lg'
                   : 'border-white/[0.1] bg-white/[0.04] text-white/65 hover:border-white/25'
@@ -100,9 +100,19 @@ export function WizardStep0Reservation({
                 background: 'linear-gradient(135deg,rgba(124,92,252,.30),rgba(234,83,126,.20))',
                 borderColor: `${accent}90`,
               } : {}}>
-              <span className={sel ? 'text-white' : 'text-white/55'}>{q.icon}</span>
-              <p className="text-[13px] font-bold leading-tight">{title}</p>
-              <p className="text-[10px] text-white/55 leading-tight">{sub}</p>
+              <span
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${sel ? 'text-white' : 'text-white/55'}`}
+                style={{
+                  background: sel ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                {q.icon}
+              </span>
+              <span className="min-w-0">
+                <p className="text-[12px] sm:text-[13px] font-bold leading-tight line-clamp-2">{title}</p>
+                <p className="text-[9.5px] sm:text-[10px] text-white/50 leading-tight mt-0.5 line-clamp-1">{sub}</p>
+              </span>
             </button>
           );
         })}
@@ -110,7 +120,7 @@ export function WizardStep0Reservation({
 
       {/* Mini-form revealed when user has flight info */}
       {showAirportForm && (
-        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 space-y-3 animate-fadeIn">
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5 sm:p-4 space-y-3 animate-fadeIn">
           <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold">
             {p.resFlightDetails || 'Flight details (helps us recommend the right airport transit)'}
           </p>
@@ -155,7 +165,7 @@ export function WizardStep0Reservation({
       )}
 
       <button onClick={onNext} disabled={!canContinue}
-        className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.03] transition-all"
+        className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.02] transition-all"
         style={{ background: canContinue ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
         {/* P133: all_done 분기도 동일 CTA — 구 funnel 오해 소지 제거. resNext 재사용. */}
         {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />

@@ -91,7 +91,12 @@ export function HeroSlider({ t }: HeroSliderProps) {
           <div
             className="absolute inset-0 bg-cover bg-center transform transition-transform duration-[8000ms]"
             style={{
-              backgroundImage: `url(${isMobile ? slide.imageMobile : slide.image})`,
+              backgroundImage:
+                Math.abs(index - currentSlide) <= 1 ||
+                (currentSlide === 0 && index === slides.length - 1) ||
+                (currentSlide === slides.length - 1 && index === 0)
+                  ? `url(${isMobile ? slide.imageMobile : slide.image})`
+                  : 'none',
               transform: index === currentSlide ? 'scale(1.05)' : 'scale(1)',
             }}
           />

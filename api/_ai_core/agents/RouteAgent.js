@@ -480,6 +480,58 @@ function _haversineKmPure(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── (2026-06-23): intercity bookend fallback leg 합성 ─────────────────────────
+// ODsay 가 호텔↔역 bookend 구간에 null 응답을 주면(농어촌·시외·quota) 기존 코드는
+// it.lodging_to_station / it.station_to_lodging 를 비워 둬 UI(LodgingBookend)가 그
+// 구간 transit arrow 자체를 미렌더 → 사용자 화면에 "호텔→부산역" 화살표가 통째로
+// 빈칸. 두 좌표는 KNOWN(호텔 + 역 STATION_COORDS) 이므로 haversine 으로 거리/도보·택시
+// 추정 + 네이버 대중교통 길찾기 링크를 합성해 graceful 한 fallback leg 를 반환한다.
+//
+// 반환 shape = TransitFromPrev (src/types/plan.ts). frontend TransitArrow/LodgingBookend
+// 가 그대로 소비:
+//   - method 'walk'(<1.2km) | 'taxi' — 둘 다 isPublicTransitMethod=false → TransitArrow
+//     의 shouldShowFallbackWarning 이 발화 안 함(public-transit 전용 경고라 오탐 방지).
+//   - source 'naver_fallback' — TransitFromPrev enum 의 정식 값(types/plan.ts L174).
+//   - instruction/instruction_en + step_by_step 로 거리·시간·네이버 링크 인라인 표시.
+// 좌표가 하나라도 없으면 null → 호출부가 기존 skip 동작 유지(절대 깨지지 않음).
+function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel }) {
+    if (fromLat == null || fromLng == null || toLat == null || toLng == null) return null;
+    if (![fromLat, fromLng, toLat, toLng].every((n) => Number.isFinite(n))) return null;
+    const distKm = _haversineKmPure(fromLat, fromLng, toLat, toLng);
+    if (!Number.isFinite(distKm)) return null;
+    const distM = Math.round(distKm * 1000);
+    // 보행 70m/분(~4.2km/h). 짧으면 도보, 길면 택시 권장.
+    const isWalk = distKm < 1.2;
+    const method = isWalk ? 'walk' : 'taxi';
+    const walkMin = Math.max(3, Math.round(distM / 70));
+    // 한국 표준 택시: 기본 ₩4,800(1.6km) + 132m 당 ₩100. 100원 반올림.
+    const taxiKrw = Math.round((4800 + Math.max(0, Math.ceil((distM - 1600) / 132)) * 100) / 100) * 100;
+    const estMin = isWalk ? walkMin : Math.max(5, Math.round((distKm / 25) * 60)); // 택시 평속 ~25km/h
+    const enc = encodeURIComponent;
+    const naverUrl = `https://map.naver.com/v5/directions/${fromLng},${fromLat},${enc(fromLabel || '')}/${toLng},${toLat},${enc(toLabel || '')}/-/transit?c=15`;
+    const stepKo = isWalk
+        ? `도보 약 ${walkMin}분 (${distM}m)`
+        : `택시 약 ${estMin}분 · 추정 ${taxiKrw.toLocaleString('ko-KR')}원 (${distKm.toFixed(1)}km)`;
+    const stepEn = isWalk
+        ? `~${walkMin} min walk (${distM}m)`
+        : `Taxi ~${estMin} min · est. ₩${taxiKrw.toLocaleString('en-US')} (${distKm.toFixed(1)}km)`;
+    return {
+        method,
+        mode: methodToMode(method) || method,
+        instruction: `${stepKo} · 네이버 지도 길찾기: ${naverUrl}`,
+        instruction_en: `${stepEn} · Naver Map directions: ${naverUrl}`,
+        step_by_step: [stepKo, `네이버 지도 길찾기: ${naverUrl}`],
+        est_min: estMin,
+        est_fare_krw: isWalk ? 0 : taxiKrw,
+        distance_km: distKm,
+        source: 'naver_fallback',
+        from_label: fromLabel || 'Hotel',
+        to_label: toLabel || '',
+        naver_directions_url: naverUrl,
+        _bookend_fallback: true,
+    };
+}
+
 // ── P326 (2026-05-31): transit cache 지리 정합 검증 (pure, 회귀 테스트용 export) ──
 // block_mode transit cache(P228) 는 stop order 만 key 로 쓴다. food placeholder 치환
 // (matchFoodPlaceholder) 으로 venue 좌표가 바뀌면 같은 order 에 옛 거리/시간이 붙어
@@ -1048,7 +1100,11 @@ export class RouteAgent extends BaseAgent {
         const recommendedZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones))
             ? data.recommended_zones
             : null;
-        const tripFirstRegion = regionsList[0] ? String(regionsList[0]).toLowerCase().trim() : null;
+        // P-fix #3 (2026-06-20): normalizeRegionKey — 한글 '부산' → 'busan' (P321 재발 차단).
+        //   .toLowerCase() 만으론 '부산'.toLowerCase() === '부산' → getDayHotelCoord /
+        //   CITY_CENTER_COORDS 영문 키('busan') mismatch → 둘째 도시 숙소좌표 silent skip →
+        //   다도시 day 가 첫 도시 호텔로 폴백. ko/ja/zh 다도시 100% 영향.
+        const tripFirstRegion = regionsList[0] ? normalizeRegionKey(regionsList[0]) : null;
         // PDF-issue-3 v2 (2026-05-14): module-level helpers (getDayHotelCoord / isSameAsFirstCity)
         // 사용 — closure 제거 + unit test 가능. context 묶어서 전달.
         const dayHotelCtx = {
@@ -1101,9 +1157,14 @@ export class RouteAgent extends BaseAgent {
             const dayDate = dayPlan.date ? new Date(dayPlan.date) : null;
             const dayOfWeek = (dayDate && !isNaN(dayDate.getTime())) ? dayDate.getDay() : null;
             // Phase 3 (2026-05-27): day-level zone_id = block mode 의 source_block_id.
-            // trip-level zoneId (data.zone_id) 우선, 없으면 day-level source_block_id.
+            // P-fix #1 (2026-06-20): per-day source_block_id 우선, trip-level zoneId 폴백.
+            //   다도시 plan 은 day 마다 block 이 다르다 (부산 day = busan block, 서울 day =
+            //   seoul block). trip-level zoneId (data.zone_id = blocksUsed[0]) 우선 시
+            //   부산 day 가 서울 block 의 transit_matrix 를 조회 → 틀린 거리/시간/모드.
+            //   각 day 가 올바른 block_id 보유 → source_block_id 우선이 정답. 단일-block
+            //   plan 은 source_block_id === blocksUsed[0] === zoneId 라 동작 동일.
             // legacy path = 둘 다 null → cache miss → 기존 ODsay 경로.
-            const dayZoneId = zoneId || dayPlan.source_block_id || null;
+            const dayZoneId = dayPlan.source_block_id || zoneId || null;
 
             // ════════════════════════════════════════════════════════
             // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding) — 병렬화 (P138)
@@ -1447,19 +1508,44 @@ export class RouteAgent extends BaseAgent {
                             const prevHotelPlace = { lat: prevHotelEffective.lat, lng: prevHotelEffective.lng, name: prevHotelEffective.label || 'Hotel', display_name: prevHotelEffective.label || 'Hotel' };
                             const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
                             const pt = transitData.publicTransit;
+                            if (!pt) {
+                                // (2026-06-23): null 응답 → skip 대신 합성 fallback leg.
+                                // 두 좌표(prevHotel ↔ fromStation)는 KNOWN → 도보/택시 추정 +
+                                // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
+                                const fb = buildBookendFallbackLeg({
+                                    fromLat: prevHotelEffective.lat, fromLng: prevHotelEffective.lng,
+                                    fromLabel: prevHotelEffective.label || 'Hotel',
+                                    toLat: fromStationCoord.lat, toLng: fromStationCoord.lng,
+                                    toLabel: it.from_station,
+                                });
+                                if (fb) {
+                                    it.lodging_to_station = fb;
+                                    bookendFailReasons.push(`pre:odsay_null_fallback_synth`);
+                                    console.warn(`  - intercity bookend pre ODsay null (Day ${dayPlan.day}) → synth fallback ${fb.method} ${fb.est_min}min`);
+                                } else {
+                                    bookendFailReasons.push(`pre:odsay_null_response`);
+                                    console.warn(`  - intercity bookend pre ODsay returned null (Day ${dayPlan.day}) — skipping lodging_to_station (coords missing)`);
+                                }
+                            } else {
                             it.lodging_to_station = {
-                                method: pt?.method || 'subway',
-                                mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Take public transit from ${prevHotelEffective.label || 'hotel'} to ${it.from_station}`,
-                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                                steps_detail: pt?.steps || [],
-                                est_min: pt?.duration || transitData.durationMin || 30,
-                                est_fare_krw: pt?.fare || 0,
+                                method: pt.method || 'subway',
+                                mode: methodToMode(pt.method) || 'subway',
+                                instruction: pt.summary || `Take public transit from ${prevHotelEffective.label || 'hotel'} to ${it.from_station}`,
+                                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt.steps || [],
+                                est_min: pt.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt.fare || 0,
                                 source: 'odsay',
                                 from_label: prevHotelEffective.label || 'Hotel',
                                 to_label: it.from_station,
                             };
-                            console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
+                            }
+                            // 가드 (2026-06-23): pt(publicTransit)가 null 이면 위 else 가 안 돌아
+                            //   it.lodging_to_station 이 undefined → .est_min 읽기 throw
+                            //   ("Cannot read properties of undefined (reading 'est_min')") →
+                            //   catch 가 pre:odsay_throw 로 누적하며 leg skip. 정상 응답이면
+                            //   값 동일, null 응답이면 '(skipped)' 로 graceful 로그.
+                            console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station ? `${it.lodging_to_station.est_min}min` : '(skipped — no transit)'} (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
                         } catch (preErr) {
                             bookendFailReasons.push(`pre:odsay_throw:${(preErr.message || 'unknown').slice(0, 60)}`);
                             console.warn(`  - intercity bookend pre ODsay failed:`, preErr.message);
@@ -1484,19 +1570,42 @@ export class RouteAgent extends BaseAgent {
                             const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek);
                             const pt = transitData.publicTransit;
+                            if (!pt) {
+                                // (2026-06-23): null 응답 → skip 대신 합성 fallback leg.
+                                // 두 좌표(toStation ↔ dayHotel)는 KNOWN → 도보/택시 추정 +
+                                // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
+                                const fb = buildBookendFallbackLeg({
+                                    fromLat: toStationCoord.lat, fromLng: toStationCoord.lng,
+                                    fromLabel: it.to_station,
+                                    toLat: dayHotel.lat, toLng: dayHotel.lng,
+                                    toLabel: dayHotel.label || 'Hotel',
+                                });
+                                if (fb) {
+                                    it.station_to_lodging = fb;
+                                    bookendFailReasons.push(`post:odsay_null_fallback_synth`);
+                                    console.warn(`  - intercity bookend post ODsay null (Day ${dayPlan.day}) → synth fallback ${fb.method} ${fb.est_min}min`);
+                                } else {
+                                    bookendFailReasons.push(`post:odsay_null_response`);
+                                    console.warn(`  - intercity bookend post ODsay returned null (Day ${dayPlan.day}) — skipping station_to_lodging (coords missing)`);
+                                }
+                            } else {
                             it.station_to_lodging = {
-                                method: pt?.method || 'subway',
-                                mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Take public transit from ${it.to_station} to ${dayHotel.label || 'hotel'}`,
-                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                                steps_detail: pt?.steps || [],
-                                est_min: pt?.duration || transitData.durationMin || 30,
-                                est_fare_krw: pt?.fare || 0,
+                                method: pt.method || 'subway',
+                                mode: methodToMode(pt.method) || 'subway',
+                                instruction: pt.summary || `Take public transit from ${it.to_station} to ${dayHotel.label || 'hotel'}`,
+                                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt.steps || [],
+                                est_min: pt.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt.fare || 0,
                                 source: 'odsay',
                                 from_label: it.to_station,
                                 to_label: dayHotel.label || 'Hotel',
                             };
-                            console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging.est_min}min (intercity bookend post)`);
+                            }
+                            // 가드 (2026-06-23): pt 가 null 이면 it.station_to_lodging 미할당 →
+                            //   .est_min 읽기 throw → catch 가 post:odsay_throw 로 누적하며 leg skip.
+                            //   정상 응답이면 값 동일, null 응답이면 '(skipped)' 로 graceful 로그.
+                            console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging ? `${it.station_to_lodging.est_min}min` : '(skipped — no transit)'} (intercity bookend post)`);
                         } catch (postErr) {
                             bookendFailReasons.push(`post:odsay_throw:${(postErr.message || 'unknown').slice(0, 60)}`);
                             console.warn(`  - intercity bookend post ODsay failed:`, postErr.message);
@@ -1510,9 +1619,13 @@ export class RouteAgent extends BaseAgent {
                 // 없음" 으로 보고. lodging_to_station + station_to_lodging 둘 다 없으면
                 // UI 는 IntercityTransitCard 만 표시 + LodgingBookend 미표시 → 호텔→역,
                 // 역→호텔 transit arrow 누락.
-                if (bookendFailReasons.length > 0) {
+                // (2026-06-23): synth fallback(*_fallback_synth)은 leg 를 채워 UI 빈칸을
+                // 막은 GRACEFUL 케이스 → "silent fail" 알림 대상에서 제외. 실제로 leg 가
+                // 비어 있는(skip) 원인만 high-severity 알림 발화.
+                const hardFailReasons = bookendFailReasons.filter((r) => !r.includes('_fallback_synth'));
+                if (hardFailReasons.length > 0) {
                     const fromTo = `${it.from_city || '?'}→${it.to_city || '?'}`;
-                    const firstReason = bookendFailReasons[0].split(':')[0] + ':' + bookendFailReasons[0].split(':')[1];
+                    const firstReason = hardFailReasons[0].split(':')[0] + ':' + hardFailReasons[0].split(':')[1];
                     throttledTelegramAlert({
                         key: `intercity-bookend-fail:${firstReason}:${fromTo}`,
                         channel: 'admin',
@@ -1525,7 +1638,7 @@ export class RouteAgent extends BaseAgent {
                             `<b>to_station:</b> ${it.to_station || '(none)'}`,
                             `<b>prev_hotel:</b> ${prevDayHotelCoord ? prevDayHotelCoord.label || '(unlabeled)' : '(null)'} (${prevDayHotelCoord?.lat || '?'},${prevDayHotelCoord?.lng || '?'})`,
                             `<b>day_hotel:</b> ${dayHotel.label || '(unlabeled)'} (${dayHotel.lat || '?'},${dayHotel.lng || '?'}, source=${dayHotel.source || '?'})`,
-                            `<b>reasons:</b> ${bookendFailReasons.join(' | ').slice(0, 400)}`,
+                            `<b>reasons:</b> ${hardFailReasons.join(' | ').slice(0, 400)}`,
                             ``,
                             `→ 사용자 plan UI 에서 호텔→역 / 역→호텔 transit arrow 누락.`,
                             `→ user-facing 증상: "서울→부산 KTX 가이드가 그냥 부산 나옴" 류 신고.`,
@@ -1540,7 +1653,7 @@ export class RouteAgent extends BaseAgent {
                             fromCity: it.from_city,
                             toCity: it.to_city,
                             mode: it.mode,
-                            reasons: bookendFailReasons,
+                            reasons: hardFailReasons,
                             step: 'intercity-bookend',
                         },
                     }).catch(() => {});
@@ -1562,6 +1675,11 @@ export class RouteAgent extends BaseAgent {
                         const formattedDepart = this._formatTime(newDepartMin);
                         if (formattedDepart) {
                             it.recommended_depart = formattedDepart;
+                            // P-fix #8 (2026-06-20): stitching 성공 = day stop1 기준 실제
+                            //   출발시각 도출 → 더 이상 추정값 아님. depart_estimated 해제
+                            //   (있었다면). _enrichMultiCityDays 의 표준 fallback 이 셋했던
+                            //   추정 마킹을 여기서 신뢰 가능한 값으로 승격.
+                            if ('depart_estimated' in it) it.depart_estimated = false;
                             // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
                             if (Number.isFinite(it.est_min)) {
                                 const newArrivalMin = newDepartMin + Number(it.est_min);
@@ -2105,6 +2223,15 @@ export class RouteAgent extends BaseAgent {
         // PDF-issue-2 (2026-05-14): from_station/to_station + 좌표 추가 — RouteAgent
         //   bookend transit 계산 + UI 가 KTX 전후 segment 표시 가능. STATION_COORDS 는
         //   상수 헤더에서 정의 (모듈 레벨).
+        // P-fix #8 (2026-06-20): recommended_depart 는 모든 노선이 '09:00'/'08:30' 류
+        //   하드코딩 = 실제 출발시각 아님(손님 첫 stop·항공권 시간과 무관). arrival_at 도
+        //   양방향 동일 + est_min 과 불일치(165min 인데 08:30→11:30 = 180min). 정책:
+        //   (a) arrival_at 은 표에서 빼고 depart + est_min 으로 매 assignment 시 역산
+        //       → 내부 정합(08:30 + 165 = 11:15). (b) 이 값들은 estimate 라서 P113
+        //       stitching(아래) 이 day stop1 기준으로 덮어쓴다. stitching 실패 시엔
+        //       depart_estimated=true 로 마킹 → UI/PDF 가 "추정" 으로 표시, 손님이 이
+        //       시각을 실제 열차 시간표로 오인해 KTX 놓치는 risk 차단. recommended_depart
+        //       는 "오전 출발 권장" 정도의 가이드 값으로만 둔다.
         const STANDARD_INTERCITY = {
             'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '서울역' },
             'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '부산역' },
@@ -2155,6 +2282,9 @@ export class RouteAgent extends BaseAgent {
             const key = `${prevCity}-${dCity}`;
             const std = STANDARD_INTERCITY[key];
             if (std) {
+                // P-fix #8 (2026-06-20): arrival_at = depart + est_min 역산 (표 하드코딩
+                //   값은 est_min 과 불일치 — 165min 인데 08:30→11:30=180min). 내부 정합.
+                const stdArrival = this._formatTime(this._parseTime(std.recommended_depart) + Number(std.est_min)) || std.arrival_at;
                 d.intercity_transit = {
                     mode: std.mode,
                     from_city: prevCity,
@@ -2164,14 +2294,18 @@ export class RouteAgent extends BaseAgent {
                     est_min: std.est_min,
                     est_fare_krw: std.est_fare_krw,
                     recommended_depart: std.recommended_depart,
-                    arrival_at: std.arrival_at,
+                    arrival_at: stdArrival,
+                    // P-fix #8: 표준 depart/arrival 은 추정값(실제 열차 시간표 아님).
+                    //   P113 stitching 이 day stop1 기준으로 덮어쓰면 false 로 내려간다.
+                    //   stitching 실패 시 UI/PDF 가 "추정" 표시 → KTX 놓침 risk 차단.
+                    depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
                     booking_url: std.booking_url,
                     // PDF-issue-2 (2026-05-14): UI 가 intercity 전후 bookend segment 표시 가능.
                     from_station: std.from_station || null,
                     to_station: std.to_station || null,
                 };
-                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station})`);
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station}, depart~${std.recommended_depart} est arr ${stdArrival})`);
             } else {
                 // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간).
                 // PDF-issue-2 v4 (2026-05-14): from_station/to_station 도 city 기반 추론
@@ -2185,7 +2319,9 @@ export class RouteAgent extends BaseAgent {
                     est_min: 120,
                     est_fare_krw: 15000,
                     recommended_depart: '09:00',
-                    arrival_at: '11:00',
+                    // P-fix #8: depart + est_min 역산 (09:00 + 120 = 11:00) + 추정 마킹.
+                    arrival_at: this._formatTime(this._parseTime('09:00') + 120) || '11:00',
+                    depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via Bus (~2h, ₩15,000)`,
                     booking_url: 'https://www.kobus.co.kr',
                     from_station: inferDefaultStation(prevCity, 'Bus'),

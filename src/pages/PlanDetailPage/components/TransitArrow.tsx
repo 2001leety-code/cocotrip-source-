@@ -27,17 +27,22 @@ export function methodLabel(method: string | undefined, trKeys: Record<string, s
 
 /**
  * "예상 이동 시간 — 실시간 교통 정보 없음" 경고 노출 여부.
- * - source==='naver_fallback' AND 대중교통 모드일 때만 true.
- * - 개인 차량(car) 모드는 ODsay 대상이 아니라 'naver_fallback'이 정상 경로 → 경고 X.
+ * - deny-by-default: 신뢰 source(odsay/tmap/cache) 이외의 대중교통이면 경고.
+ * - 개인 차량(car) 모드는 ODsay 대상이 아니라 isPublicTransitMethod 가드로 제외.
  * - downgrade(public→walk 등)는 별도 isDowngraded 분기에서 처리.
+ * - 신뢰 source: 'odsay' | 'tmap' | 'cache' — 실측 데이터가 있는 경우.
  */
+const TRUSTED_TRANSIT_SOURCES = new Set(['odsay', 'tmap', 'cache']);
+
 export function shouldShowFallbackWarning(
   transit: { source?: string; method?: string; _downgraded_from?: unknown } | null | undefined,
 ): boolean {
   if (!transit) return false;
   if (transit._downgraded_from) return false;
-  if (transit.source !== 'naver_fallback') return false;
-  return isPublicTransitMethod(transit.method);
+  if (!isPublicTransitMethod(transit.method)) return false;
+  // source 미지정(undefined/null)이면 경고 X — 구형 plan 호환
+  if (!transit.source) return false;
+  return !TRUSTED_TRANSIT_SOURCES.has(transit.source);
 }
 
 import { useState } from 'react';
@@ -84,25 +89,25 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
     <div className="rounded-lg bg-[#7C5CFC]/[0.06] border border-[#7C5CFC]/15 p-2.5">
       <div className="flex items-center gap-2 mb-1.5">
         <Train className="w-3.5 h-3.5 text-[#7C5CFC]" />
-        <span className="text-[11px] font-bold text-[#7C5CFC]">{lineLabel}</span>
-        {wayLabel && <span className="text-[10px] text-white/55">{trKeys.toward || 'toward'} {wayLabel}</span>}
-        <span className="ml-auto text-[10px] text-white/55">{step.duration}{trKeys.minUnit || 'min'}</span>
+        <span className="text-[13px] font-bold text-[#7C5CFC]">{lineLabel}</span>
+        {wayLabel && <span className="text-[12px] text-white/65">{trKeys.toward || 'toward'} {wayLabel}</span>}
+        <span className="ml-auto text-[12px] text-white/65">{step.duration}{trKeys.minUnit || 'min'}</span>
       </div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[12px]">
         <LogIn className="w-3 h-3 text-emerald-400/70 mt-0.5" />
-        <span className="text-white/70">
+        <span className="text-white/75">
           <span className="font-semibold text-white/90">{fromLabel}</span>
           {step.fromExit && <span className="ml-1 text-emerald-400">{trKeys.exit || 'Exit'} {step.fromExit}</span>}
         </span>
         <LogOut className="w-3 h-3 text-pink-400/70 mt-0.5" />
-        <span className="text-white/70">
+        <span className="text-white/75">
           <span className="font-semibold text-white/90">{toLabel}</span>
           {step.toExit && <span className="ml-1 text-pink-400">{trKeys.exit || 'Exit'} {step.toExit}</span>}
         </span>
         {(step.stationCount || 0) > 0 && (
           <>
             <span />
-            <span className="text-white/55">
+            <span className="text-white/65">
               {step.stationCount} {trKeys.stops || 'stops'}
               {step.intervalMin && <> · <Clock className="w-2.5 h-2.5 inline -mt-0.5" /> {trKeys.every || 'every'} {step.intervalMin}{trKeys.minUnit || 'min'}</>}
             </span>
@@ -111,10 +116,10 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
       </div>
       {(step.passStops?.length || 0) > 2 && (
         <details className="mt-1.5">
-          <summary className="text-[9px] text-white/55 cursor-pointer hover:text-white/50 list-none">
+          <summary className="text-[13px] text-white/65 cursor-pointer hover:text-white/60 list-none">
             {trKeys.showAllStops || 'Show all stops'} ({step.passStops!.length})
           </summary>
-          <div className="mt-1 pl-4 text-[9px] text-white/55 space-y-0.5">
+          <div className="mt-1 pl-4 text-[13px] text-white/65 space-y-0.5">
             {step.passStops!.map((s, i) => (
               <div key={i}>{i + 1}. {s}</div>
             ))}
@@ -122,9 +127,9 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
         </details>
       )}
       {(step.fromStationInfo?.transferLines?.length || 0) > 0 && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[9px]">
-          <Repeat className="w-2.5 h-2.5 text-white/55" />
-          <span className="text-white/55">{trKeys.alsoTransfers || 'Also transfers'}:</span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[13px]">
+          <Repeat className="w-2.5 h-2.5 text-white/65" />
+          <span className="text-white/65">{trKeys.alsoTransfers || 'Also transfers'}:</span>
           {step.fromStationInfo!.transferLines!.map((l, i) => {
             let label = l.lineKo;
             if (lang !== 'ko') {
@@ -151,9 +156,9 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
         const chosen = matches(tt.up) ? tt.up : matches(tt.down) ? tt.down : (tt.up || tt.down);
         if (!chosen || (!chosen.first && !chosen.last)) return null;
         return (
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[9px]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
             {chosen.first && (
-              <span className="inline-flex items-center gap-1 text-white/50">
+              <span className="inline-flex items-center gap-1 text-white/65">
                 <Sunrise className="w-2.5 h-2.5" />
                 <span>{trKeys.firstTrain || 'First train'} {chosen.first}</span>
               </span>
@@ -168,17 +173,17 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
         );
       })()}
       {(step.toStationInfo?.hasElevator || step.toStationInfo?.hasWheelchairLift) && (
-        <div className="mt-1 flex items-center gap-1.5 text-[9px] text-emerald-400/70">
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-400/70">
           <Accessibility className="w-2.5 h-2.5" />
           <span>{trKeys.accessibleExit || 'Accessible exit available'}</span>
         </div>
       )}
       {step.toStationInfo?.lostCenterPhone && (
         <details className="mt-1">
-          <summary className="text-[9px] text-white/55 cursor-pointer hover:text-white/55 list-none flex items-center gap-1">
+          <summary className="text-[13px] text-white/65 cursor-pointer hover:text-white/65 list-none flex items-center gap-1">
             <Phone className="w-2.5 h-2.5" /> {trKeys.stationInfo || 'Station info'}
           </summary>
-          <div className="mt-1 pl-4 text-[9px] text-white/55 space-y-0.5">
+          <div className="mt-1 pl-4 text-[13px] text-white/65 space-y-0.5">
             {step.toStationInfo.address && <div>{step.toStationInfo.address}</div>}
             <div>
               {trKeys.lostAndFound || 'Lost & found'}:{' '}
@@ -211,27 +216,27 @@ function BusStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: Reco
     <div className="rounded-lg bg-green-500/[0.06] border border-green-500/15 p-2.5">
       <div className="flex items-center gap-2 mb-1.5">
         <Bus className="w-3.5 h-3.5 text-green-400" />
-        <span className="text-[11px] font-bold text-green-300">
+        <span className="text-[13px] font-bold text-green-300">
           {busTypeLabel && <span className="text-green-400/70 mr-1">{busTypeLabel}</span>}
           {step.busNo}
         </span>
-        <span className="ml-auto text-[10px] text-white/55">{step.duration}{trKeys.minUnit || 'min'}</span>
+        <span className="ml-auto text-[12px] text-white/65">{step.duration}{trKeys.minUnit || 'min'}</span>
       </div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[12px]">
         <LogIn className="w-3 h-3 text-emerald-400/70 mt-0.5" />
-        <span className="text-white/70">
+        <span className="text-white/75">
           <span className="font-semibold text-white/90">{fromLabel}</span>
-          {step.fromArs && <span className="ml-1 text-white/55 font-mono">#{step.fromArs}</span>}
+          {step.fromArs && <span className="ml-1 text-white/65 font-mono">#{step.fromArs}</span>}
         </span>
         <LogOut className="w-3 h-3 text-pink-400/70 mt-0.5" />
-        <span className="text-white/70">
+        <span className="text-white/75">
           <span className="font-semibold text-white/90">{toLabel}</span>
-          {step.toArs && <span className="ml-1 text-white/55 font-mono">#{step.toArs}</span>}
+          {step.toArs && <span className="ml-1 text-white/65 font-mono">#{step.toArs}</span>}
         </span>
         {(step.stationCount || 0) > 0 && (
           <>
             <span />
-            <span className="text-white/55">
+            <span className="text-white/65">
               {step.stationCount} {trKeys.stops || 'stops'}
               {step.intervalMin && <> · <Clock className="w-2.5 h-2.5 inline -mt-0.5" /> {trKeys.every || 'every'} {step.intervalMin}{trKeys.minUnit || 'min'}</>}
             </span>
@@ -249,7 +254,7 @@ function WalkStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<st
         <Footprints className="w-3.5 h-3.5 text-amber-300" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[12px] font-semibold text-white/90">
+        <p className="text-[14px] font-semibold text-white/90">
           {trKeys.walk || 'Walk'} {step.duration}{trKeys.minUnit || 'min'}
           {(step.distance || 0) > 0 && <span className="text-amber-300/80 ml-1.5 font-mono">{step.distance}m</span>}
         </p>
@@ -288,58 +293,65 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
     <div className="ml-4 my-1">
       <button
         onClick={() => (hasRichSteps || hasLegacySteps) && setShowSteps(!showSteps)}
-        className="flex items-center gap-2 text-[11px] text-white/60 hover:text-white/80 transition-colors"
+        className="flex items-center gap-2 text-[13px] text-white/70 hover:text-white/85 transition-colors min-h-[44px] flex-wrap"
       >
         <div className="w-0.5 h-4 bg-[#7C5CFC]/30" />
         <Icon className="w-3.5 h-3.5 text-[#7C5CFC]" />
         {transit.from_label && <span className="text-[#7C5CFC] font-semibold">{transit.from_label} {'\u2192'}</span>}
         <span className="font-semibold">{methodLabel(transit.method, trKeys)}</span>
-        <span className="text-white/50">{transit.est_min}{trKeys.minUnit || 'min'}</span>
-        {(transit.est_fare_krw || 0) > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>}
-        {(transit.transfers || 0) > 0 && <span className="text-white/55">· {transit.transfers} {trKeys.transfer || 'transfer'}</span>}
+        <span className="text-white/65">{transit.est_min}{trKeys.minUnit || 'min'}</span>
+        {isPublicTransit
+          ? (transit.est_fare_krw || 0) > 0
+            ? <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>
+            : <span className="text-white/55 text-[12px]">{trKeys.fareUnavailable || 'Fare N/A'}</span>
+          : (transit.est_fare_krw || 0) > 0
+            ? <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>
+            : null
+        }
+        {(transit.transfers || 0) > 0 && <span className="text-white/65">· {transit.transfers} {trKeys.transfer || 'transfer'}</span>}
         {/* 2026-04-27 이동 안내: 다음 목적지 명시. "차량 25분 → K-스타 로드" 형태로 사용자가 어디로 이동하는지 즉시 파악. */}
         {destinationName && !transit.from_label && (
-          <span className="text-white/70 truncate max-w-[180px]">{'→'} {destinationName}</span>
+          <span className="text-white/75 truncate max-w-[180px]">{'→'} {destinationName}</span>
         )}
         {(hasRichSteps || hasLegacySteps) && <ChevronDown className={`w-3 h-3 transition-transform ${showSteps ? 'rotate-180' : ''}`} />}
       </button>
       {/* Walk 정당화 라벨 — 사용자 신고 "왜 다 걷어?" 대응. 짧은 거리는 도보가 지하철보다
           빠르다는 사실을 명시. 신뢰 회복 + AI 게으른 plan 인상 차단. */}
       {transit.method === 'walk' && (transit.est_min || 0) <= 15 && (
-        <p className="text-[9px] text-emerald-400/65 ml-6 mt-0.5 italic">
+        <p className="text-[13px] text-emerald-400/75 ml-6 mt-0.5 italic">
           {trKeys.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 시간 포함)'}
         </p>
       )}
       {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}
       {!hasRichSteps && !hasLegacySteps && (transit.instruction_en || transit.instruction) && (
-        <p className="text-[10px] text-white/45 ml-6 mt-0.5 whitespace-pre-line">
+        <p className="text-[12px] text-white/60 ml-6 mt-0.5 whitespace-pre-line">
           {transit.instruction_en || transit.instruction}
         </p>
       )}
 
       {isDowngraded && (
-        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[10px] text-amber-400/80">
+        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[12px] text-amber-400/80">
           <AlertTriangle className="w-3 h-3" />
           <span>{trKeys.publicTransitUnavailable || 'Public transit unavailable'}</span>
         </div>
       )}
 
       {isFallback && !isDowngraded && (
-        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[10px] text-amber-400/80">
+        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[12px] text-amber-400/80">
           <AlertTriangle className="w-3 h-3" />
           <span>{trKeys.transitEstimated || 'Estimated travel time — live transit data unavailable'}</span>
         </div>
       )}
 
       {isStale && (
-        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[10px] text-amber-400/80">
+        <div className="ml-6 mt-1 flex items-center gap-1.5 text-[12px] text-amber-400/80">
           <AlertTriangle className="w-3 h-3" />
           <span>{trKeys.routeStale || (pd.editor && pd.editor.routeStale) || 'Route may have changed'}</span>
         </div>
       )}
 
-      {(transit.instruction_en || transit.instruction) && !hasRichSteps && (
-        <p className="text-[10px] text-white/55 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>
+      {(transit.instruction_en || transit.instruction) && !hasRichSteps && !hasLegacySteps && (
+        <p className="text-[12px] text-white/65 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>
       )}
 
       {showSteps && hasRichSteps && (
@@ -359,7 +371,7 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
                 background: 'linear-gradient(135deg, rgba(52,211,153,0.15), rgba(124,92,252,0.10))',
                 border: '1px solid rgba(52,211,153,0.35)',
               }}>
-              <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <p className="text-[12px] font-bold text-emerald-300 uppercase tracking-wider mb-1">
                 {trKeys.finalArrival || '도착'}
               </p>
               <div className="flex items-center gap-1.5 flex-wrap text-[12px] text-white">
@@ -384,7 +396,7 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
           )}
 
           {(transit.total_walk_m || 0) > 0 && !showFinalArrival && (
-            <p className="text-[9px] text-white/55 pl-1">
+            <p className="text-[13px] text-white/65 pl-1">
               <Footprints className="w-2.5 h-2.5 inline -mt-0.5" /> {trKeys.totalWalk || 'Total walk'}: {transit.total_walk_m}m
             </p>
           )}
@@ -396,8 +408,8 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
           {transit.step_by_step!.map((s: string, i: number) => {
             const StepIcon = transit.method === 'bus' ? Bus : Train;
             return (
-              <div key={i} className="flex items-start gap-1.5 text-[10px] text-white/55">
-                <StepIcon className="w-3 h-3 mt-0.5 text-[#7C5CFC]/60 flex-shrink-0" />
+              <div key={i} className="flex items-start gap-1.5 text-[12px] text-white/65">
+                <StepIcon className="w-3 h-3 mt-0.5 text-[#7C5CFC]/70 flex-shrink-0" />
                 <span>{i + 1}. {s}</span>
               </div>
             );

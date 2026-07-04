@@ -16,9 +16,11 @@ interface SortableStopCardProps {
   onDelete: () => void;
   /** P116: lodging bookend role 라벨링 — 호텔 카드 첫/마지막/중간 구분. */
   lodgingRole?: LodgingRole;
+  /** plan 소유자 여부 — StopCard 의 즐겨찾기/공유 버튼 노출 게이트. */
+  isOwner?: boolean;
 }
 
-export function SortableStopCard({ stop, stopId, editMode, onDelete, lodgingRole }: SortableStopCardProps) {
+export function SortableStopCard({ stop, stopId, editMode, onDelete, lodgingRole, isOwner }: SortableStopCardProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -100,7 +102,7 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete, lodgingRole
         )}
 
         <div className={editMode ? 'border border-dashed border-white/10 rounded-xl transition-colors' : ''}>
-          <StopCard stop={stop} lodgingRole={lodgingRole} />
+          <StopCard stop={stop} lodgingRole={lodgingRole} isOwner={isOwner} />
         </div>
       </motion.div>
     </div>

@@ -13,7 +13,9 @@
 // 이 모듈은 부수효과 없는 순수 로직만 담는다 (단위 테스트 용이). Firebase 호출/헤더
 // 조립은 호출처(usePlannerHandlers / PlanDetailPage)가 이 결정값을 보고 수행한다.
 
-/** 빌드타임 플래그 — 게스트 익명 read 기능 켜짐 여부. */
+/** 빌드타임 플래그 — 게스트 익명 read 기능 켜짐 여부.
+ *  2026-06-19: 운영자가 VITE_FEATURE_GUEST_ANON_AUTH 를 Production 스코프로 활성화 →
+ *  이 커밋의 fresh 배포로 prod 번들에 'true' 반영(Redeploy 는 옛 env 스냅샷이라 미반영). */
 export function isGuestAnonEnabled(): boolean {
   return import.meta.env.VITE_FEATURE_GUEST_ANON_AUTH === 'true';
 }

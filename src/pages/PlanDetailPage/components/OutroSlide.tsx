@@ -95,7 +95,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
+      <h2 className="text-3xl font-extrabold tracking-tight leading-tight text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
         {sw.outroTitle || 'Ready to go!'}
       </h2>
 
@@ -178,7 +178,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       {/* Trip Extras (D-option ad cards moved out of slides) */}
       {extras.length > 0 && (
         <div className="mt-8">
-          <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold mb-3">
+          <p className="text-[13px] uppercase tracking-wider text-white/55 font-semibold mb-3">
             {sw.outroExtrasTitle || 'Trip extras'}
           </p>
           <div className="space-y-3">

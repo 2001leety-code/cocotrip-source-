@@ -12,6 +12,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { buildCharterCartItem } from '@/components/charter/charterCartItem';
 import { CartAddButton } from '@/components/CartButton';
@@ -22,6 +23,7 @@ import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
+import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterPricing';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -29,6 +31,9 @@ export default function CharterNewPage() {
   const [params] = useSearchParams();
   const { user } = useAuth();
   const [completedState, setCompletedState] = useState<WizardState | null>(null);
+  // 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자) — 위저드 Step 5 의 약관 동의 결과.
+  //   WizardState(스냅샷)에 안 넣고 별도 보관(매 결제마다 재동의). 결제 패널 → PayPalBookingButton 전달.
+  const [consent, setConsent] = useState<{ termsAgreed: boolean; marketingConsent: boolean }>({ termsAgreed: false, marketingConsent: false });
 
   usePageMeta({
     title: t.pageMeta?.charterNew?.title ?? 'Charter Quote — Private Car in Korea',
@@ -51,36 +56,40 @@ export default function CharterNewPage() {
     <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <section className="text-white pt-24 pb-8 px-4" style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
-        <div className="max-w-2xl mx-auto">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-5">
+      <section className="px-4 pb-3 pt-3 text-white sm:px-0 sm:pb-8 sm:pt-24" style={{ background: isMobile ? '#080b14' : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
+        <div className="mx-auto max-w-6xl rounded-[16px] px-4 py-4 sm:rounded-none sm:py-0" style={isMobile ? { background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' } : undefined}>
+          <Link to="/" className="mb-3 inline-flex items-center gap-1.5 text-xs text-white/55 transition-colors hover:text-white/60 sm:mb-5">
             <ArrowLeft className="w-3.5 h-3.5" />Home
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC] text-[11px] font-semibold tracking-wider uppercase mb-4">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#B668FC] sm:mb-4 sm:px-3 sm:text-[11px]">
             <Sparkles className="w-3.5 h-3.5" /> {completedState ? i18n.heroBadgePayment : i18n.heroBadgeNew}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight mb-2">
+          <h1 className="mb-1 text-[22px] font-bold leading-tight sm:mb-2 sm:text-3xl">
             {completedState ? i18n.heroTitlePayment : i18n.heroTitleWizard}
           </h1>
-          <p className="text-white/50 text-sm">
+          <p className="text-xs text-white/50 sm:text-sm">
             {completedState ? i18n.heroSubtitlePayment : i18n.heroSubtitleWizard}
           </p>
         </div>
       </section>
 
-      <main className={`max-w-2xl mx-auto px-4 ${isMobile ? 'pb-8' : 'pb-20'}`}>
+      <main className={`mx-auto max-w-6xl px-4 ${isMobile ? 'pb-8' : 'pb-20'}`}>
         {!completedState ? (
           <CharterWizard
             initialState={initial}
-            onComplete={setCompletedState}
+            onComplete={(state, c) => {
+              setCompletedState(state);
+              setConsent(c ?? { termsAgreed: false, marketingConsent: false });
+            }}
             language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
           />
         ) : (
           <PaymentPanel
             state={completedState}
+            consent={consent}
             userEmail={user?.email ?? ''}
             language={language as 'ko' | 'en' | 'ja' | 'zh'}
-            onBack={() => setCompletedState(null)}
+            onBack={() => { setCompletedState(null); setConsent({ termsAgreed: false, marketingConsent: false }); }}
             onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
           />
         )}
@@ -104,9 +113,11 @@ export default function CharterNewPage() {
 
 // ─────────────────────────────────────────────────────────
 function PaymentPanel({
-  state, userEmail, language, onBack, onPatchState,
+  state, consent, userEmail, language, onBack, onPatchState,
 }: {
   state: WizardState;
+  /** 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자) — 위저드 Step 5 의 약관 동의 결과 (PayPalBookingButton 으로 전달). */
+  consent: { termsAgreed: boolean; marketingConsent: boolean };
   userEmail: string;
   language: 'ko' | 'en' | 'ja' | 'zh';
   onBack: () => void;
@@ -114,6 +125,49 @@ function PaymentPanel({
 }) {
   const i18n = getWizardI18n(language);
   const resolved = resolveProductType(state);
+
+  // ── #1 번역: raw 코드값 → 사람이 읽는 레이블 ──
+  // 서비스 타입 레이블 (4언어)
+  const SERVICE_LABEL: Record<string, Record<'ko'|'en'|'ja'|'zh', string>> = {
+    airport_transfer: { ko: i18n.svcAirport, en: i18n.svcAirport, ja: i18n.svcAirport, zh: i18n.svcAirport },
+    day_tour:         { ko: i18n.svcDayTour, en: i18n.svcDayTour, ja: i18n.svcDayTour, zh: i18n.svcDayTour },
+    multi_day:        { ko: i18n.svcMultiDay, en: i18n.svcMultiDay, ja: i18n.svcMultiDay, zh: i18n.svcMultiDay },
+    kpop_shuttle:     { ko: i18n.svcKpop, en: i18n.svcKpop, ja: i18n.svcKpop, zh: i18n.svcKpop },
+    intercity:        { ko: i18n.svcTransfer, en: i18n.svcTransfer, ja: i18n.svcTransfer, zh: i18n.svcTransfer },
+  };
+  const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
+  const cities   = CITIES_CATALOG   as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
+  // 코드(ICN/SEL_METRO 등) → 현재 언어 레이블 반환. 없으면 코드 그대로.
+  function resolveLocationLabel(code: string | null | undefined, fallback?: string | null): string {
+    if (!code) return fallback ?? '-';
+    if (code in airports) {
+      const a = airports[code];
+      if (language === 'ko') return a.name_ko;
+      if (language === 'ja') return a.name_ja ?? a.name_en;
+      if (language === 'zh') return a.name_zh ?? a.name_en;
+      return a.name_en;
+    }
+    if (code in cities) {
+      const c = cities[code];
+      if (language === 'ko') return c.name_ko;
+      if (language === 'ja') return c.name_ja ?? c.name_en;
+      if (language === 'zh') return c.name_zh ?? c.name_en;
+      return c.name_en;
+    }
+    // 카탈로그에 없으면 fallback(originCustom/destinationCustom) → 코드 순
+    return fallback ?? code;
+  }
+  const serviceLabel = (state.service && SERVICE_LABEL[state.service]?.[language]) ?? state.service ?? '-';
+  const originLabel      = state.originName ?? resolveLocationLabel(state.origin, state.originCustom);
+  const destinationLabel = state.destinationCustom
+    ? state.destinationCustom
+    : resolveLocationLabel(state.destinationKey);
+  const vehicleKey = state.vehicle as keyof typeof VEHICLE_TYPES | undefined;
+  const vehicleLabel = vehicleKey && VEHICLE_TYPES[vehicleKey]
+    ? vehicleKey === 'staria'
+      ? language === 'ko' ? '프리미엄 비즈니스' : language === 'ja' ? 'プレミアムビジネス' : language === 'zh' ? '高端商务' : 'Premium Business'
+      : VEHICLE_TYPES[vehicleKey].name[language] ?? state.vehicle
+    : state.vehicle ?? '-';
   // 2026-05-07: useQuoteCalculator 반환 shape 변경 — { quote, loading, geocodingFailed, distanceSource }.
   // CharterWizard 내부에서 manual km 보정한 결과는 이 페이지에서 다시 계산되지 않음 (Wizard onComplete
   // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
@@ -176,10 +230,10 @@ function PaymentPanel({
 
       {/* 요약 박스 */}
       <div className="rounded-xl border border-[#B668FC]/30 bg-[#B668FC]/5 p-4 mb-4 text-sm space-y-1.5">
-        <Row label={i18n.payField_service} value={state.service ?? '-'} />
-        <Row label={i18n.payField_origin} value={state.origin ?? state.originCustom ?? '-'} />
-        <Row label={i18n.payField_destination} value={state.destinationKey ?? state.destinationCustom ?? '-'} />
-        <Row label={i18n.payField_vehiclePax} value={`${state.vehicle} · ${state.paxCount}${i18n.maxUnit}`} />
+        <Row label={i18n.payField_service} value={serviceLabel} />
+        <Row label={i18n.payField_origin} value={originLabel} />
+        <Row label={i18n.payField_destination} value={destinationLabel} />
+        <Row label={i18n.payField_vehiclePax} value={`${vehicleLabel} · ${state.paxCount}${i18n.maxUnit}`} />
         {/* 2026-06-11 검수 인라인 편집 (🔒 VITE_FEATURE_REVIEW_EDIT OFF=기존 요약 byte-identical). */}
         {reviewEditOn ? (
         <>
@@ -235,6 +289,9 @@ function PaymentPanel({
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
+          // 2026-06-30 트립닷컴식 예약정보 — 위저드 Step 5 약관 동의 → capture body 보존 (SMS 인증 제거).
+          termsAgreed={consent.termsAgreed}
+          marketingConsent={consent.marketingConsent}
           // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
           pickupTime={state.pickupTime ?? '09:00'}
           durationDays={state.service === 'multi_day' && state.endDate && state.startDate
@@ -274,6 +331,9 @@ function PaymentPanel({
             memo={state.notes ?? ''}
             itineraryData={{ wizard: state, airport: state.airport ?? null, estimateBreakdown: quote }}
             userEmail={userEmail}
+            // 2026-06-30 트립닷컴식 예약정보 — 위저드 Step 5 약관 동의 → capture body 보존 (SMS 인증 제거).
+            termsAgreed={consent.termsAgreed}
+            marketingConsent={consent.marketingConsent}
             // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
             pickupTime={state.pickupTime ?? '09:00'}
             durationDays={state.service === 'multi_day' && state.endDate && state.startDate
@@ -301,6 +361,21 @@ function PaymentPanel({
         <p className="mt-3 text-center text-xs text-white/55">
           <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
         </p>
+      )}
+
+      {/* 고단가 차터 결제 직전 환불정책 노출 — 투어상세와 동일 RefundPolicyModal 재사용(신뢰).
+          "취소하면 어떻게 되지?" 확인 욕구 해소 = 결제 중단 방지. */}
+      {(resolved.payable || isEstimateOnly) && (
+        <div className="mt-2 text-center">
+          <RefundPolicyModal
+            language={language}
+            trigger={
+              <button className="text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline">
+                {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
+              </button>
+            }
+          />
+        </div>
       )}
 
       {/* 2026-06-11 검수 인라인 편집 모달 (가격무영향/가벼운재계산 필드) */}

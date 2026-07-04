@@ -16,6 +16,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 import { track as posthogTrack } from '@/lib/posthog';
+import { trackEvent } from '@/lib/analytics';
 import { requestNotifyPermission } from '@/lib/notify';
 import {
   useWizardPersistence,
@@ -143,6 +144,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       language,
       started_at: new Date().toISOString(),
     });
+    // GA4 planner_start — 위저드 진입 = 고의향 신호. Google Ads Smart Bidding 이 깔때기 상단
+    //   (방문→위저드시작→결제진입→구매)을 인식하게. trackEvent 는 GA 미설정 시 no-op.
+    trackEvent('planner_start', { language });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -888,26 +892,59 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         onRestart={discardResumeSnapshot}
       />
       <div className="w-full">
-        {/* Step Indicator — mobile mb 32px -> 20px, tighter spacing while preserving tap target */}
-        <div className="flex items-center justify-center gap-1 mb-5 sm:mb-8">
-          {STEPS.map((s, i) => (
-            <div key={i} className="flex items-center">
-              <button onClick={() => { if (i <= step) goToStep(i); }}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  i === step ? 'text-white' : i < step ? 'text-[#7C5CFC] cursor-pointer hover:text-white' : 'text-white/55 cursor-default'
-                }`}>
-                <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold transition-all ${
-                  i === step ? 'text-white shadow-lg' : i < step ? 'bg-[#7C5CFC]/25 text-[#7C5CFC]' : 'bg-white/[0.06] text-white/55'
-                }`} style={i === step ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 0 12px rgba(124,92,252,.5)' } : {}}>
-                  {i < step ? <Check className="w-3 h-3" /> : i + 1}
-                </span>
-                <span className="hidden sm:inline">{s.label}</span>
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className={`w-6 sm:w-14 h-0.5 rounded-full mx-1 transition-colors ${i < step ? 'bg-[#7C5CFC]/50' : 'bg-white/[0.06]'}`} />
-              )}
+        {/* Step Indicator — compact card aligned with charter/tours density */}
+        <div
+          className="rounded-[18px] px-3 py-3 sm:px-4 sm:py-3.5 mb-3.5 sm:mb-5"
+          style={{
+            background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.05))',
+            border: '1px solid rgba(182,104,252,0.18)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-2.5">
+            <div className="min-w-0">
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-[0.08em] uppercase"
+                style={{
+                  background: 'rgba(182,104,252,0.16)',
+                  border: '1px solid rgba(182,104,252,0.30)',
+                  color: '#D9A8FF',
+                }}
+              >
+                <Wand2 className="w-3 h-3" />
+                Step {step + 1} / {STEPS.length}
+              </div>
+              <p className="text-[13px] sm:text-[14px] font-bold text-white mt-1.5 leading-tight">
+                {STEPS[step]?.label}
+              </p>
             </div>
-          ))}
+            <p className="text-[11px] font-bold text-white/45 shrink-0">{Math.round(((step + 1) / STEPS.length) * 100)}%</p>
+          </div>
+          <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden mb-2.5">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${((step + 1) / STEPS.length) * 100}%`,
+                background: 'linear-gradient(90deg,#B668FC,#FF6B9D)',
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {STEPS.map((s, i) => (
+              <button
+                key={i}
+                aria-label={s.label}
+                onClick={() => { if (i <= step) goToStep(i); }}
+                className={`h-7 rounded-full text-[11px] font-black transition-all ${
+                  i <= step ? 'text-white' : 'text-white/35 cursor-default'
+                }`}
+                style={i <= step
+                  ? { background: i === step ? 'rgba(182,104,252,0.26)' : 'rgba(182,104,252,0.13)', border: '1px solid rgba(182,104,252,0.26)' }
+                  : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                {i < step ? <Check className="w-3.5 h-3.5 mx-auto" /> : i + 1}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="max-w-2xl mx-auto">

@@ -57,7 +57,7 @@
     "tourCta": "Browse Tours",
     "plannerTitle": "AI Travel Planner",
     "plannerLine1": "AI generates your custom itinerary",
-    "plannerLine2": "Free · Instant · 4 languages",
+    "plannerLine2": "$9.90 · Instant · 4 languages",
     "plannerCta": "Plan my trip"
   },
   "hero": {
@@ -556,6 +556,9 @@
     "retry": "Try Again",
     "loginRequired": "Sign in to pay",
     "loginToPay": "Sign in to continue",
+    "useFreeAiCoupon": "Get it FREE with coupon (1-3 days)",
+    "aiCouponApplied": "Free coupon applied · $0",
+    "aiCouponProceed": "Get itinerary with free coupon",
     "guestSignupNudge": "Sign up free — save your plan, 2 free revisions + 5% off charters",
     "guestSignupCta": "Sign up free",
     "loginToPayDesc": "Please sign in first so we can securely deliver your itinerary.",
@@ -1049,6 +1052,7 @@
     "quickPreviewTitle": "Day 1 Highlight Preview",
     "quickPreviewTheme": "Theme",
     "quickPreviewNarrative": "Trip Narrative Review",
+    "quickPreviewMapLabel": "Map",
     "fullPlanTitle": "Want to get the full 2-3 day local itinerary?",
     "fullPlanDesc": "We'll send you a complete 3-page confirmed report including hidden local restaurants, secret photo spot tips, and precisely timed routes — 100% free via email.",
     "emailPlaceholder": "Enter your email address",
@@ -1115,10 +1119,18 @@
     "loadingPleaseWait": "Please wait!",
     "airport_pickup_select": "Select Destination",
     "airport_pickup_select_hint": "Select a destination above to proceed with payment",
-    "featureItinerary": "3-page detailed itinerary",
-    "featureRestaurant": "Local restaurant guide",
-    "featurePhoto": "Photo spot recommendations",
-    "featureTransit": "Minute-by-minute transit routes",
+    "featureItinerary": "Verified Korean course",
+    "featureRestaurant": "Verified restaurants (4.5★+, 50+ reviews)",
+    "featurePhoto": "Photo guides (4 languages)",
+    "featureTransit": "Real transit + T-money guide",
+    "featureNoHallucination": "Checked vs real Korean data",
+    "vpNoHallucinationTitle": "Real Korean DB checked",
+    "vpNoHallucinationDesc": "Checked vs real Korean data",
+    "vpStripTagline": "Free AI throws fake places in a bad order. We build verified Korean courses, optimized down to the route.",
+    "vpCourseTitle": "Verified Korean courses",
+    "vpCourseDesc": "Verified Korean data + 4.5★+ restaurants",
+    "vpRouteTitle": "Optimized down to the route",
+    "vpRouteDesc": "Real transit where available + T-money",
     "paypalSafeCheckout": "PayPal secure · 100% refund if unsatisfied",
     "checkoutSafe": "100% Safe Checkout",
     "checkoutTip1": "Tolls & Parking Included",
@@ -1180,8 +1192,10 @@
     "optionAtitle": "Get Your AI Custom Plan",
     "optionAdesc": "Pay now and get your full itinerary instantly",
     "optionAfeature1": "✓ Minute-by-minute schedule with subway directions",
-    "optionAfeature2": "✓ Restaurants with menus & prices",
-    "optionAfeature3": "✓ PDF download",
+    "optionAfeature2": "✓ Verified restaurants (4.5★+, 50+ reviews)",
+    "optionAfeature3": "✓ Photo guides (4 languages)",
+    "optionAfeature4": "✓ Real transit every leg + T-money",
+    "optionAfeature5": "✓ Checked vs real Korean data — no fake places",
     "optionAfeatureRevision": "2 Free Revisions — not perfect? Tweak & regenerate!",
     "valueBannerMain": "$9.90 — 3 itineraries total!",
     "valueBannerSub": "1 purchase + 2 Free Revisions = 3 completely different versions. Not happy? Regenerate free!",
@@ -1236,7 +1250,7 @@
     "aiIntroStep2Title": "2. AI builds your itinerary",
     "aiIntroStep2Body": "Gemini AI analyzes routing, restaurants, and transit to propose a tailored plan in under a minute.",
     "aiIntroStep3Title": "3. Download & share the PDF",
-    "aiIntroStep3Body": "After checkout, download a polished PDF itinerary in your language and share it with your travel companions.",
+    "aiIntroStep3Body": "After payment, download a polished PDF itinerary in your language and share it with your travel companions.",
     "aiIntroDontShow": "Don't show again",
     "aiIntroClose": "Get started"
   },
@@ -1403,13 +1417,14 @@
     "bodyBefore": "We use cookies to improve your experience. By continuing to use this site, you agree to our ",
     "bodyMiddle": ". To request data deletion, contact us at ",
     "bodyAfter": ".",
+    "bodyShort": "We use cookies to improve your experience.",
     "accept": "Accept",
     "dismiss": "Dismiss"
   },
   "gallery": {
     "title": "Our Happy Travelers",
     "subtitle": "Real moments and stories from our guests exploring Korea",
-    "verifiedTraveler": "Verified Traveler"
+    "verifiedTraveler": "Guest Photo"
   },
   "googleReviews": {
     "subtitle": "Travelled with us? Share your honest experience on Google to help future guests.",
@@ -1490,7 +1505,8 @@
       "stationInfo": "Station info",
       "lostAndFound": "Lost & found",
       "firstTrain": "First train",
-      "lastTrain": "Last train"
+      "lastTrain": "Last train",
+      "fareUnavailable": "Fare N/A"
     },
     "lodging": {
       "label": "Stay",
@@ -1576,6 +1592,12 @@
       "accomRecAffiliateNote": "Affiliate link — helps support CocoTrip.",
       "tabPreTrip": "Pre-Trip",
       "tabActivityGuide": "Activity Guide",
+      "tabIntro": "Intro",
+      "tabDay": "Day",
+      "tabOutro": "Wrap-up",
+      "streamingWait": "Building itinerary...",
+      "translatingWait": "Translating... please wait",
+      "translationFailedShowingOriginal": "Translation unavailable — showing original",
       "preTripTitle": "Pre-Trip Essentials",
       "preTripSubtitle": "Check before arrival for a smoother Korea trip"
     },
@@ -1709,7 +1731,8 @@
       "pdfGeneratedBy": "Generated by CocoTrip AI",
       "minUnit": "min",
       "adultsLabel": "adults",
-      "paxLabel": "pax"
+      "paxLabel": "pax",
+      "transfer": "transfer"
     },
     "notices": {
       "title": "Plan Auto-Corrections Applied",
@@ -1748,6 +1771,7 @@
     "couponAdTitle": "1 AI plan = 1× 5% coupon",
     "couponAdBody": "Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.",
     "couponAdCta": "Make AI plan",
+    "useAiCoupon": "Use now",
     "tabOverview": "Overview",
     "tabBookings": "My Bookings",
     "tabCoupons": "Coupons ({n})",
@@ -1983,7 +2007,7 @@
     },
     "planner": {
       "title": "AI Travel Planner — Custom Korea Itinerary",
-      "description": "Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more."
+      "description": "Create your personalized Korea travel itinerary with AI. AI-powered, instant, multi-language support. Seoul, Busan, Jeju and more."
     },
     "privacy": {
       "description": "CocoTrip privacy policy — how we collect, use and protect your personal information."
@@ -2066,7 +2090,7 @@
     "customerName": "Name",
     "customerNamePlaceholder": "Your full name",
     "customerPhone": "Phone",
-    "customerPhonePlaceholder": "+82 10-1234-5678",
+    "customerPhonePlaceholder": "+1 555-123-4567",
     "customerMessenger": "Messenger (optional)",
     "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "Lodging location (operational)",
@@ -2129,7 +2153,7 @@
     "payGoToLegacy": "Go to legacy charter page",
     "heroBadgeNew": "New 6-Step Quote",
     "heroBadgePayment": "Payment",
-    "heroTitleWizard": "CocoTrip Charter (Wizard)",
+    "heroTitleWizard": "Private Car & Van Charter in Korea",
     "heroTitlePayment": "Proceed to Payment",
     "heroSubtitleWizard": "Airport transfer · Day tour · Multi-day · K-pop shuttle — 2-min quote",
     "heroSubtitlePayment": "Pay below or request a custom quote via WhatsApp.",

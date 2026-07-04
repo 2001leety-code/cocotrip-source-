@@ -42,7 +42,8 @@ describe('Bug #10 — App 최상위 signalAppReady 호출 (모든 진입 경로 
     const appFnStart = appSrc.indexOf('function App()');
     expect(appFnStart).toBeGreaterThan(0);
 
-    const appFnBody = appSrc.slice(appFnStart, appFnStart + 600);
+    // 900자: 2026-07-02 /mood 예외 주석 추가로 600자 밖으로 밀림 (불변식 자체는 동일 — deps=[])
+    const appFnBody = appSrc.slice(appFnStart, appFnStart + 900);
     // useEffect + signalAppReady + 빈 배열 deps
     expect(appFnBody).toContain('signalAppReady');
     expect(appFnBody).toMatch(/useEffect/);
@@ -129,7 +130,9 @@ describe('Bug #10 — 기존 호출 지점 유지 (MobileHomeV2·MoodPortal 제�
   it('MoodPortal 은 loading 끝난 뒤 signalAppReady 를 호출한다 (인증 완료 후 = 보존)', () => {
     const src = readFileSync(r('src/pages/MoodPortal.tsx'), 'utf8');
     expect(src).toContain('signalAppReady');
-    // loading 완료 조건부 호출 패턴 (if (!loading) signalAppReady())
-    expect(src).toMatch(/if\s*\(!loading\)\s*signalAppReady\(\)/);
+    // 2026-07-03: loading 가드 + 더블 rAF 뒤 호출(페인트 후 신호 — smoothness handoff).
+    // 불변식: loading 중엔 신호 안 쏨 + loading 끝나면 결국 signalAppReady() 호출.
+    expect(src).toMatch(/if\s*\(loading\)\s*return/);
+    expect(src).toMatch(/requestAnimationFrame\([\s\S]{0,120}signalAppReady\(\)/);
   });
 });

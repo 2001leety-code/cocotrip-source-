@@ -7,7 +7,7 @@ export function FlightSearchSection({ arrivalAirport, p, lang }: { arrivalAirpor
   const link = buildFlightLink(arrivalAirport ?? 'ICN', lang);
   if (!link) return null;
   return (
-    <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5 mt-6">
+    <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6">
       <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1 flex items-center gap-1"><Plane className="w-3.5 h-3.5" /> {p.flight_section_title}</p>
       <p className="text-[11px] text-white/55 mb-4">{p.flight_section_desc}</p>
       <a href={link.url} target="_blank" rel="noopener noreferrer"

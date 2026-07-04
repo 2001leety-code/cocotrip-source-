@@ -10,9 +10,9 @@ export type MoodServiceType = 'vehicle' | 'airport' | 'manager';
 
 /** 서비스별 시급 (원). 부가세 포함. 백엔드 MOOD_RATES 와 동일해야 함. 순서=UI 탭 순서. */
 export const MOOD_RATES: Record<MoodServiceType, number> = {
-  vehicle: 33000,
-  airport: 33000,
-  manager: 44000,
+  vehicle: 30000,
+  airport: 30000,
+  manager: 40000,
 };
 
 export const MOOD_MAX_DURATION_HOURS = 15;
@@ -35,11 +35,11 @@ export function fixedPriceFor(serviceType: MoodServiceType): number | null {
 }
 
 /**
- * 거리 추가요금 — 50km 이상부터 km × 660원 (= 33,000 ÷ 50, 부가세 포함, 비례).
+ * 거리 추가요금 — 50km 이상부터 km × 600원 (= 30,000 ÷ 50, 부가세 없음, 비례).
  * 50km 미만 = 0. 백엔드 mood-pricing.js 와 동일 공식이어야 함 (운영자 2026-06-12).
  */
 export const MOOD_DISTANCE_THRESHOLD_KM = 50;
-export const MOOD_SURCHARGE_PER_KM = 660; // 33,000 / 50km
+export const MOOD_SURCHARGE_PER_KM = 600; // 30,000 / 50km (부가세 없음, 2026-07-04)
 
 export function computeDistanceSurchargeKRW(km: number): number {
   const d = Number(km);

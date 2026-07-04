@@ -17,9 +17,10 @@
  *   total = round(tripBase × (1 - couponPct/100))   ← VAT 별도 가산 없음 (curatedKRW 에 이미 포함)
  *   예: ICN→강남(65km, priceKRW 145,600) 편도 ₩138,320 / 왕복 ₩262,080. ICN→부산(450km) 편도 ₩627,000.
  */
-import { lookupMatrixKm } from './charter-multiday-price.js';
+import { lookupMatrixKm, captainPremiumKrw } from './charter-multiday-price.js';
 
-const VEHICLE_MULT = { staria: 1.0, sprinter: 2.0 }; // bus/vip = inquiry(결제 불가)
+// staria_9(9인승) = staria 와 동일가(1.0). bus = inquiry(결제 불가).
+const VEHICLE_MULT = { staria: 1.0, staria_9: 1.0, sprinter: 2.0 };
 // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복 할인 10→5%. oneway 5% 유지. 프론트 transferQuote.ts 와 byte-identical.
 const TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT = 5;
 
@@ -75,10 +76,13 @@ export function curatedStariaKRW(spec, originKey, destKey) {
 }
 
 /**
- * transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 편도5%/왕복(×2)10% 할인.
+ * transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 캡틴프리미엄 → 편도5%/왕복(×2)10% 할인.
  * opts.discountV2=true: 왕복 할인 10→5% (편도 5% 유지). FEATURE_DISCOUNT_V2 플래그 ON 시만 전달. OFF(기본)=현행.
+ * opts.captainPremiumKrw: 7인승 캡틴시트 정액(SSOT, staria=33,000 / staria_9·sprinter=0). 호출처(resolveTransferCheckoutKrw)
+ *   가 spec 에서 captainPremiumKrw(spec, vehicle) 로 산출해 전달. 프론트 transferQuote.ts 는 CAPTAIN_PREMIUM_KRW[vehicle]
+ *   로 동일값 → byte-identical → 표시가==청구가(P311).
  * @param {{curatedKRW:number, tripType:'oneway'|'roundtrip', vehicle:string}} args
- * @param {{discountV2?:boolean}} [opts]
+ * @param {{discountV2?:boolean, captainPremiumKrw?:number}} [opts]
  */
 export function calcTransferQuote({ curatedKRW = 0, tripType = 'oneway', vehicle } = {}, opts = {}) {
   const mult = VEHICLE_MULT[vehicle];
@@ -86,7 +90,9 @@ export function calcTransferQuote({ curatedKRW = 0, tripType = 'oneway', vehicle
   if (!Number.isFinite(curatedKRW) || curatedKRW <= 0) return null;
   const isRound = tripType === 'roundtrip';
   const vehicleBase = Math.round(curatedKRW * mult);
-  const tripBase = isRound ? vehicleBase * 2 : vehicleBase;
+  // 캡틴프리미엄 정액 — multiplier·왕복 배수 직후, 쿠폰 할인 전 1회 가산 (프론트 transferQuote.ts 와 동일).
+  const captain = Number.isFinite(opts.captainPremiumKrw) && opts.captainPremiumKrw > 0 ? opts.captainPremiumKrw : 0;
+  const tripBase = (isRound ? vehicleBase * 2 : vehicleBase) + captain;
   // v2: 왕복 10→5% (편도 5% 유지). 플래그 OFF(기본)=현행 10%.
   const couponPct = isRound ? (opts.discountV2 ? TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT : 10) : 5;
   const coupon = Math.round((tripBase * couponPct) / 100);
@@ -128,7 +134,10 @@ export function resolveTransferCheckoutKrw(spec, body, featureEnabled, opts = {}
   const d = String(body.destKey || '').trim();
   const curatedKRW = curatedStariaKRW(spec, o, d);
   if (curatedKRW == null) return null; // 경로 미존재 → 결제 불가(협의)
-  const q = calcTransferQuote({ curatedKRW, tripType: body.tripType, vehicle: String(body.vehicle || '').trim() }, { discountV2: opts.discountV2 });
+  const vehicle = String(body.vehicle || '').trim();
+  // 7인승 캡틴시트 프리미엄 정액(SSOT) — body.vehicle 로 spec 조회 (프론트 CAPTAIN_PREMIUM_KRW 와 동일값 = P311).
+  const captain = captainPremiumKrw(spec, vehicle);
+  const q = calcTransferQuote({ curatedKRW, tripType: body.tripType, vehicle }, { discountV2: opts.discountV2, captainPremiumKrw: captain });
   if (!q) return null;
   const guard = spec && spec.transfer_margin_guard;
   // 2026-06-06 어드민 조종석: 런타임 토글(opts.marginGuardEnabled) 우선, 미지정 시 spec 기본값.

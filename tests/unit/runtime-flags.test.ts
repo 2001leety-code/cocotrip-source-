@@ -61,6 +61,7 @@ describe('resolveTransferCheckoutKrw — 런타임 토글 override', () => {
   });
   it('런타임 ON 이어도 단거리(ICN→강남)는 통과', () => {
     const r = resolveTransferCheckoutKrw(SPEC, { ...body, destKey: 'SEL_GANGNAM' }, true, { marginGuardEnabled: true });
-    expect(r).toBe(138_320);
+    // staria 7인 캡틴 +33,000: 145,600 + 33,000 = 178,600 → 편도 5% = 169,670 (2026-06-30).
+    expect(r).toBe(169_670);
   });
 });

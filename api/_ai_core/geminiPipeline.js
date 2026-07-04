@@ -20,6 +20,7 @@ import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
+import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // P169 (2026-05-23): Gemini Streaming + 점진 Firestore Write
@@ -100,6 +101,14 @@ export function logCacheMetrics(stage, cm) {
   if (!cm || cm.total === 0) return;
   const hitRate = cm.total > 0 ? (cm.cached / cm.total * 100).toFixed(1) : '0';
   console.log(`[P195 CACHE_METRICS] stage=${stage} cached=${cm.cached} total=${cm.total} hit_rate=${hitRate}% output=${cm.output}`);
+  // 사용량 트래커 (fire-and-forget, 완전 guard — 본 plan 생성 흐름 무영향).
+  // stage 로 모델 추론: pro-escalate=Pro, 그 외=main(resolveGeminiModel). recorder 내부 await 안 함.
+  try {
+    const model = /pro/i.test(stage)
+      ? ((process.env.P181_PRO_ESCALATE_MODEL || '').trim() || 'gemini-2.5-pro')
+      : resolveGeminiModel('main');
+    recordGeminiUsage({ stage, model, cm });
+  } catch { /* 트래커 실패는 본 흐름에 영향 0 */ }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -692,7 +701,12 @@ const PLAN_RESPONSE_SCHEMA = {
             items: {
               type: 'OBJECT',
               // P291 R5: stops.items propertyOrdering 추가 (기존 12 fields 유지, alphabetical default 회피).
-              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'lat', 'lng', 'entry_fee_krw', 'verified'],
+              // 2026-07-03 B-18 근본원인 fix: local_tag 가 스키마에 없어 구조화출력(responseSchema)이
+              //   필드를 물리적으로 못 냄 → 프롬프트 "LOCAL TAG — MANDATORY"(buildPrompt) 무력화,
+              //   P183 phase 2(5/24) 이후 모든 Gemini plan 이 local_tag 0% 확정(소프트경고 B-18
+              //   매 plan 발화). required 추가 X (P196 lesson) — '' = standard 는 생략과 동치라
+              //   optional 이 프롬프트 의미와 일치.
+              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified'],
               required: ['name', 'category', 'start_time'],
               properties: {
                 order: { type: 'INTEGER' },
@@ -703,6 +717,7 @@ const PLAN_RESPONSE_SCHEMA = {
                 stay_min: { type: 'INTEGER' },
                 address: { type: 'STRING' },
                 tip: { type: 'STRING' },
+                local_tag: { type: 'STRING' }, // B-18: '' | Local Pick | Hidden Gem | Bakery Pilgrimage | Blue Ribbon
                 lat: { type: 'NUMBER' },
                 lng: { type: 'NUMBER' },
                 entry_fee_krw: { type: 'NUMBER' },
@@ -973,8 +988,15 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
     expandedModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
       systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+      // #4 (2026-06-20): per-call generationConfig 가 buildModel 의 generationConfig 를
+      //   통째로 덮어쓴다 (Gemini SDK 는 merge 안 함). maxOutputTokens 만 명시하면
+      //   responseMimeType:'application/json' + responseSchema 가 빠져 → 재시도 응답이
+      //   markdown / schema 위반 plain text 로 와서 repairAndParseJSON 실패 → minimal fallback.
+      //   buildModel 초기 설정과 동일한 JSON 모드 2개를 maxOutputTokens 와 함께 재명시한다.
       generationConfig: {
         maxOutputTokens: 65000,
+        responseMimeType: 'application/json',
+        responseSchema: PLAN_RESPONSE_SCHEMA,
       },
     }),
     GEMINI_TIMEOUT_MS,

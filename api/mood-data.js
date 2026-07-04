@@ -87,8 +87,9 @@ export default async function handler(req, res) {
     const clientData = clientSnap.data() || {};
     const currentBalanceKRW = Number(clientData.balanceKRW) || 0;
 
-    // 캘린더 + 차감 리스트용 예약 목록 — 해당 client, 최근순. (인덱스 회피: clientId
-    // equality + createdAt desc 단일 필드 정렬은 자동 인덱스로 충분.)
+    // 캘린더 + 차감 리스트용 예약 목록 — 해당 client, 최근순.
+    // ⚠️ where(clientId ==) + orderBy(createdAt) 는 복합 인덱스 필요(자동 인덱스 X).
+    //    firestore.indexes.json: mood_bookings (clientId ASC, createdAt DESC).
     const bookingsSnap = await db.collection('mood_bookings')
       .where('clientId', '==', clientId)
       .orderBy('createdAt', 'desc')
@@ -111,6 +112,7 @@ export default async function handler(req, res) {
         durationHours: b.durationHours,
         serviceType: b.serviceType,
         amountKRW: amount,
+        ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
         runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,

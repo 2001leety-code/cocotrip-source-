@@ -17,6 +17,7 @@ import { getDepartureAirportOptions } from './helpers';
 // lazy chunk 가 fetch — 본 컴포넌트는 도시 라벨만 필요).
 import { CITY_NAME_BY_KEY } from './zoneHelpers';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
+import { HotelSuggestInput } from './HotelSuggestInput';
 
 const ZoneRecommender = lazy(() =>
   import('./ZoneRecommender').then(m => ({ default: m.ZoneRecommender })),
@@ -517,10 +518,11 @@ export function WizardStep2Details(props: Step2Props) {
                         </span>
                       )}
                     </label>
-                    <input type="text"
+                    <HotelSuggestInput
                       value={value}
-                      onChange={e => setHotelByCity({ ...hotelByCity, [ck]: e.target.value })}
+                      onChange={(v) => setHotelByCity({ ...hotelByCity, [ck]: v })}
                       placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+                      lang={lang}
                       className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
                   </div>
                 );
@@ -563,9 +565,10 @@ export function WizardStep2Details(props: Step2Props) {
               {p.hotel_address_title || 'Where are you staying?'}
               <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
             </p>
-            <input type="text" value={hotelAddress}
-              onChange={e => { setHotelAddress(e.target.value); }}
+            <HotelSuggestInput value={hotelAddress}
+              onChange={(v) => setHotelAddress(v)}
               placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+              lang={lang}
               className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
             {hotelAddress.trim().length === 0 && (
               <Suspense fallback={

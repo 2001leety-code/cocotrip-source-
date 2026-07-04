@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { trackViewItem } from '@/lib/analytics';
+import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { buildTourJsonLd } from './buildTourJsonLd';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
@@ -21,6 +21,7 @@ import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
+import { TrustBadges } from '@/components/TrustBadges';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
 import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
@@ -89,6 +90,9 @@ export default function TourDetailPage() {
     description: tour
       ? txt(tour.summary, language)
       : 'This tour could not be found.',
+    // 투어 공유(카톡·페북·X) 미리보기에 투어 사진 노출 — 미전달 시 홈 og-image 로 고정됨.
+    ogImage: tour?.images?.[0],
+    ogUrl: slug ? `https://cocotripkr.com/tours/${slug}` : undefined,
   });
 
   // GA4: view_item
@@ -557,6 +561,9 @@ export default function TourDetailPage() {
             </div>
           )}
           <ReviewList targetType="tour" targetId={slug || ''} />
+        {/* 결제 직전 신뢰 신호 — 홈 TrustBadges 재사용(투어상세 전환 보강). 마진은 페이지용으로 조정,
+            mb 는 하단 고정 CTA 바에 안 가리게 여유. */}
+        <TrustBadges className="relative z-10 mt-8 mb-32 px-4" />
         </div>
 
       {/* ── 하단 고정 CTA 바 ── */}
@@ -620,6 +627,7 @@ export default function TourDetailPage() {
                 type="button"
                 className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
                 style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                onClick={() => trackBookNow('tour')}
               >
                 <CalendarCheck className="w-4 h-4" />
                 {bookLabel}

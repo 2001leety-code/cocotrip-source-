@@ -3811,8 +3811,9 @@ function P111_intercityBookendSilentFailAlert({ changed }) {
     }
   }
   // Alert call guard + key pattern
-  if (!/if\s*\(\s*bookendFailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,3000}?throttledTelegramAlert\s*\(/.test(content)) {
-    violations.push(`${FILE}: bookendFailReasons.length>0 가드 + throttledTelegramAlert 호출 누락`);
+  // (2026-06-23): 가드는 hardFailReasons (synth fallback 제외 필터) 또는 구버전 bookendFailReasons 둘 다 허용.
+  if (!/if\s*\(\s*(?:hard|bookend)FailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,3000}?throttledTelegramAlert\s*\(/.test(content)) {
+    violations.push(`${FILE}: (hard|bookend)FailReasons.length>0 가드 + throttledTelegramAlert 호출 누락`);
   }
   if (!/key:\s*`intercity-bookend-fail:\$\{firstReason\}:\$\{fromTo\}`/.test(content)) {
     violations.push(`${FILE}: alert key 'intercity-bookend-fail:\${firstReason}:\${fromTo}' 패턴 누락 — dedup 깨짐`);
@@ -3826,7 +3827,7 @@ function P111_intercityBookendSilentFailAlert({ changed }) {
     fail(
       'P111_intercityBookendSilentFailAlert',
       violations.join(' | '),
-      '메모리 P111 — Phase 2.4 의 8 silent-fail 분기 (pre/post 각 4) 모두 reason push + bookendFailReasons.length>0 시 throttledTelegramAlert (admin/high/dedup by first reason + city pair). tests/unit/intercity-bookend-silent-fail-pr111.test.ts 10 케이스 참조.',
+      '메모리 P111 — Phase 2.4 의 silent-fail 분기 모두 reason push + hardFailReasons.length>0 시 throttledTelegramAlert (admin/high/dedup by first reason + city pair). synth fallback(*_fallback_synth)은 hardFailReasons 필터로 알림 제외. tests/unit/intercity-bookend-silent-fail-pr111.test.ts 11 케이스 참조.',
     );
   }
   return null;

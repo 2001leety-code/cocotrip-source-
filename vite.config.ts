@@ -1,4 +1,5 @@
 import path from "path"
+import fs from "node:fs"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
@@ -30,6 +31,24 @@ export default defineConfig({
   base: '/',
   plugins: [
     react(),
+    // DEV-only (로컬 플랜 하네스): scripts/plan-local/outputs/plan-<scenario>.json 을
+    //   /local-plans/<scenario>.json 으로 서빙 → PlanDetailPage ?localPlan=<scenario> 가 fetch 해 렌더.
+    //   apply:'serve' = dev 서버 전용 (prod 빌드/번들 무관). `npm run plan:test -- <scenario>` 후 사용.
+    {
+      name: 'local-plan-server',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use('/local-plans', (req, res, next) => {
+          let name = (req.url || '').slice(1).split('?')[0];
+          if (name.endsWith('.json')) name = name.slice(0, -5);
+          if (!/^[a-z0-9-]+$/i.test(name)) return next();
+          const file = path.resolve(__dirname, 'scripts/plan-local/outputs', `plan-${name}.json`);
+          if (!fs.existsSync(file)) return next();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(fs.readFileSync(file));
+        });
+      },
+    },
     // PWA — 홈 화면에 추가 + 오프라인 캐싱 + 자동 업데이트.
     // 기존 public/sw.js + index.html 수동 등록 코드 대체.
     VitePWA({
@@ -41,7 +60,15 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      includeAssets: ['favicon.png', 'icons/icon-192.png', 'icons/icon-512.png'],
+      includeAssets: [
+        'favicon.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'images/pwa-intro/cocotrip-intro.webp',
+        'images/pwa-intro/mood-collab-intro.webp',
+        'images/pwa-intro/cocotrip-intro.png',
+        'images/pwa-intro/mood-collab-intro.png',
+      ],
       // 기존 public/manifest.json 의 내용을 그대로 옮김. Vite가 빌드 시 자동 생성.
       manifest: {
         name: 'CocoTrip',

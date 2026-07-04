@@ -15,6 +15,10 @@ import {
   serverTimestamp,
   doc,
   setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -37,6 +41,36 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
+
+/**
+ * P1-②(여름 이벤트): 로그인 사용자의 AI 플랜 무료 쿠폰(미사용·미만료·일수 가능) 1장 조회.
+ * 없으면 null. PurchaseSection 의 "무료 쿠폰 사용" 버튼 노출 + 0원 결제 판단용.
+ * @param {string} uid
+ * @param {number} durationDays - 플랜 일수 (쿠폰 maxDays 이하여야 사용 가능, 1~3일)
+ * @returns {Promise<{code:string, maxDays:number}|null>}
+ */
+export async function getAvailableAiCoupon(uid, durationDays = 3) {
+  if (!uid) return null;
+  try {
+    const q = query(
+      collection(db, 'users', uid, 'coupons'),
+      where('productScope', '==', 'ai-plan'),
+      where('isUsed', '==', false),
+    );
+    const snap = await getDocs(q);
+    const now = Date.now();
+    for (const d of snap.docs) {
+      const c = d.data();
+      if (c.expiresAt && c.expiresAt < now) continue;       // 만료 제외
+      if ((c.maxDays || 3) < durationDays) continue;        // 일수 초과 제외 (4일+ plan)
+      return { code: c.code, maxDays: c.maxDays || 3 };
+    }
+    return null;
+  } catch (e) {
+    console.warn('[getAvailableAiCoupon] failed:', e && e.message);
+    return null;
+  }
+}
 
 // LINE OIDC provider (PR #396, 2026-05-13)
 // 일본/대만/홍콩 사용자 LINE 로그인 지원. Firebase Identity Platform 업그레이드
@@ -88,8 +122,6 @@ async function saveUserToFirestore(user) {
           totalSpentUSD: 0,
           bookingCount: 0,
           createdAt: serverTimestamp(),
-          // PR-E: 신규 가입자만 1-step 온보딩 (닉네임/휴대폰/약관) — 기존 회원은 영향 없음
-          needsOnboarding: true,
         } : {
           lastLoginAt: serverTimestamp(),
         }),
@@ -103,6 +135,13 @@ async function saveUserToFirestore(user) {
     //    로 거부되므로 절대 사용 금지.
     //    재시도: 최대 2회 (초기 1회 + 1회 retry, 1초 대기) — 네트워크 일시 장애 대비.
     if (isNewUser) {
+      // GA4 sign_up — 신규 가입을 Google Ads 신규고객 전환으로 카운트(Smart Bidding 최적화).
+      //   provider 도출(google.com→google). analytics 실패가 가입/쿠폰 흐름 막지 않게 try/catch.
+      try {
+        const provider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'unknown';
+        const { trackSignUp } = await import('./analytics');
+        trackSignUp(provider.replace('.com', ''));
+      } catch { /* analytics 실패 무시 */ }
       const MAX_ATTEMPTS = 2;
       let lastErr = null;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

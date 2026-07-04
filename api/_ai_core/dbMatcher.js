@@ -308,6 +308,20 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko', allergyP
         if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
       }
       stop.verified = !isCityMismatch; // city-mismatch is NOT fully verified for the requested city
+      // P325 (2026-06-28) SAFETY-CRITICAL: DB가 인증한 dietary tag(halal/vegan/vegetarian)를
+      // stop.dietary_tags 에 전파. 누락 시 responseValidator.checkDietaryViolation 이 진짜
+      // dietary 식당(이름에 halal 토큰 없는 ~80%)을 가짜 violation 처리 → 422 거짓 거부 → 환불.
+      // city-mismatch 는 제외(다른 도시 식당 = 요청 도시 기준 미검증).
+      if (!isCityMismatch && match.tag) {
+        const _dt = String(match.tag).toLowerCase();
+        if (_dt === 'halal' || _dt === 'vegan' || _dt === 'vegetarian') {
+          const _set = new Set(
+            (Array.isArray(stop.dietary_tags) ? stop.dietary_tags : []).map((t) => String(t).toLowerCase())
+          );
+          _set.add(_dt);
+          stop.dietary_tags = [..._set];
+        }
+      }
       // P227 bugfix: chain match (전국 체인) 은 _dbMatchedName / _db_city_mismatch 미설정.
       // isCityMismatch=true 는 coord override 방지용으로만 사용.
       // 메타 설정하면 Telegram alert 발동 → P227 목적(alert noise 제거) 무효화.

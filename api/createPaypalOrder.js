@@ -14,13 +14,17 @@ import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
+import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
 import { verifyCouponForCharge } from './_shared/coupon-charge.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
+// charter_custom_estimate (zone-fallback 추정가 즉시결제) SSOT — 상수/판별을 pricing.js 에서
+// 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
+// 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
+import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -76,9 +80,14 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
 const AI_PLANNER_FULL_KRW = 13_300;
 
-function resolveKrwAmount(productType, passengers, durationDays) {
+function resolveKrwAmount(productType, passengers, durationDays, vehicle) {
   if (!SPEC) return null;
   const normalized = productType.replace(/-/g, '_');
+
+  // 7인승 캡틴시트 프리미엄 정액(SSOT vehicles.{vehicle}.captain_premium_krw) — body.vehicle 로 조회.
+  // 프론트 resolveProductType.ts(airport/day_tour 패키지 경로) 가 동일 가산 → 표시가==청구가(P311).
+  // staria=33,000 / staria_9=0 / 그 외=0. vehicle 미전달(레거시 결제 호출) 시 0 — 기존 동작 보존.
+  const captain = captainPremiumKrw(SPEC, vehicle);
 
   // AI 플래너 — 디지털 상품, fixed price (durationDays 무관)
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
@@ -103,13 +112,17 @@ function resolveKrwAmount(productType, passengers, durationDays) {
     if (!dailyPrice) return null;
     // durationDays sanity: 1~30 cap (음수/0/거대 값 차단). undefined 면 1-day.
     const days = Number.isFinite(durationDays) && durationDays >= 1 ? Math.min(30, Math.floor(durationDays)) : 1;
-    return dailyPrice * days;
+    // 7인승 캡틴시트 프리미엄 정액 가산 (9인승=0). 프론트 resolveProductType.ts day_tour 패키지 경로와 동일 → P311.
+    return dailyPrice * days + captain;
   }
 
   // 공항 픽업
   if (normalized.startsWith('airport_')) {
     const key = normalized.slice('airport_'.length).replace(/_/g, '-');
-    return SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
+    const base = SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
+    if (base == null) return null;
+    // 7인승 캡틴시트 프리미엄 정액 가산 (9인승=0). 프론트 resolveProductType.ts airport 패키지 경로와 동일 → P311.
+    return base + captain;
   }
 
   // 콤보 패키지 — SSOT combo_packages 우선, 없으면 fallback (legacy 배포 환경 호환)
@@ -208,6 +221,9 @@ export default async function handler(req, res) {
     // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복/다일 5% + 가입 WELCOME 쿠폰 5% = 10%, EARLY50 비활성.
     // OFF(기본) = 현행 동작(다일/왕복 10%, EARLY50 20%, 쿠폰 미적용). 라이브 전 운영자 검토 후 활성화.
     const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
+    // 7인승 캡틴시트 프리미엄(staria +33,000) 가산용 — 프론트 PayPalBookingButton 이 charter 결제 시 body.vehicle 전달.
+    // staria_9/sprinter/미전달 = +0 (기존 동작 보존). resolveKrwAmount 만 사용(공항/당일패키지 경로); 다른 경로는 자체 spec 조회.
+    const bodyVehicle = typeof body.vehicle === 'string' ? body.vehicle.trim() : undefined;
     let krwAmount;
     if (productType === 'charter_multiday') {
       krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2 });
@@ -219,8 +235,25 @@ export default async function handler(req, res) {
       // 2026-06-06 어드민 조종석: 마진가드는 런타임 토글(admin-runtime-flags) 우선. fail-safe → OFF.
       const _rtFlags = await getRuntimeFlags(initAdminDb('createPaypalOrder-rtflags'));
       krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2 });
+    } else if (isCustomEstimateProduct(productType)) {
+      // charter_custom_estimate = zone-fallback 추정가 즉시결제(운영자 사후 WhatsApp 확정+정산).
+      // 가격은 client wizard quote(customAmountKRW). 🔴 sanity range 가드 — pricing.js SSOT 상수
+      // (CUSTOM_ESTIMATE_MIN_KRW=30,000 / MAX=10,000,000). 1원·0·NaN·음수·이상 고액 차단.
+      // 범위 통과분만 PayPal order 금액으로 사용 → capture 는 PayPal 이 order 금액을 강제하므로 위조 불가.
+      const _customRaw = Number(body.customAmountKRW);
+      if (Number.isFinite(_customRaw) && _customRaw >= CUSTOM_ESTIMATE_MIN_KRW && _customRaw <= CUSTOM_ESTIMATE_MAX_KRW) {
+        krwAmount = Math.round(_customRaw);
+      } else {
+        console.warn('[createPaypalOrder] charter_custom_estimate customAmountKRW out of range:', body.customAmountKRW);
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          `charter_custom_estimate: customAmountKRW out of range (${CUSTOM_ESTIMATE_MIN_KRW.toLocaleString()}~${CUSTOM_ESTIMATE_MAX_KRW.toLocaleString()} KRW)`,
+          'INVALID_AMOUNT',
+        )));
+      }
     } else {
-      krwAmount = resolveKrwAmount(productType, passengers, durationDays);
+      // 공항픽업/당일패키지 경로 — bodyVehicle 로 7인승 캡틴시트 프리미엄 가산(staria +33,000 / staria_9·미전달 +0).
+      krwAmount = resolveKrwAmount(productType, passengers, durationDays, bodyVehicle);
     }
     // 🔴 음수/0/NaN 금액 차단 — cart(resolve-line-item.js) 와 정합. 이전 `!krwAmount` 는
     //   음수를 truthy 로 통과시켜 PayPal 에 음수/잘못된 금액이 도달할 수 있었다.

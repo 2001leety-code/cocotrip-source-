@@ -7,8 +7,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db, getGuestDb, getGuestAuth, ensureGuestAnon } from '@/lib/firebase';
-import { chooseReaderContext, isGuestAnonEnabled } from '@/lib/guestReader';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { clearPlannerWizardSnapshot } from '@/hooks/useWizardPersistence';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -105,14 +104,34 @@ export default function PlanDetailPage() {
     setError(null);
     setLoading(true);
 
-    // feat/guest-anon-auth-pii (2026-06-15): 플래그 ON + 비로그인 게스트면 격리된 익명
-    // 인스턴스(getGuestDb/getGuestAuth)로 읽는다 → Firestore 룰 owner-read 통과.
-    // 플래그 OFF 또는 로그인 사용자면 useGuestReader=false → 기존 메인 db/uid 경로 그대로.
-    const flagOn = isGuestAnonEnabled();
-    const { useGuestReader } = chooseReaderContext({ loggedInUid: uid, flagOn });
+    // DEV-only (로컬 플랜 하네스): /my-plans/x?localPlan=<scenario> → vite dev 가 서빙하는
+    //   /local-plans/<scenario>.json(= scripts/plan-local/outputs/plan-<scenario>.json) 을 fetch 해
+    //   PlanDetailPage 로 렌더. `npm run plan:test -- <scenario>` 출력을 prod 처럼 눈으로 확인용.
+    //   import.meta.env.DEV 가드 → prod 빌드서 통째 tree-shake(무영향). 소유자로 표시(마스킹 없이 full).
+    if (import.meta.env.DEV) {
+      const localScenario = searchParams.get('localPlan');
+      if (localScenario && /^[a-z0-9-]+$/i.test(localScenario)) {
+        let devCancelled = false;
+        fetch(`/local-plans/${localScenario}.json`)
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
+          .then((p) => { if (devCancelled) return; setIsOwner(true); setPlan(p as PlanDocument); setLoading(false); })
+          .catch(() => { if (devCancelled) return; setError('notfound'); setLoading(false); });
+        return () => { devCancelled = true; };
+      }
+    }
 
-    // snapshot 처리 — viewerUid 는 ownerCheck 용 (로그인=uid, 게스트=익명 uid).
-    // 플래그 OFF 면 useGuestReader=false → viewerUid=uid → 기존 ownerCheck 동일.
+    // fix/plan-pii-wire-leak (2026-06-20): 공유 플랜 PII wire 누출 차단.
+    //   이전엔 비소유자/공개/게스트 플랜도 클라이언트 onSnapshot 으로 읽어(룰 19-21 이 허용)
+    //   원본 doc(accessToken·guestEmail·pricing·hotel_address 등)이 JS 마스킹 전에 WebSocket
+    //   프레임으로 브라우저에 전송 → Network 탭/프레임에서 raw PII 관측 가능했다. accessToken
+    //   이 새면 ?token= 으로 마스킹을 완전 우회(소유자급).
+    //   → 비소유자(비로그인 + 로그인 비소유자)는 /api/get-plan(resolvePlanAccess)로만 읽는다.
+    //     서버가 wire 전에 마스킹(공개=masked / 토큰=full / 그외=403) → 브라우저는 마스킹된
+    //     doc 만 받는다. 소유자(로그인 본인)만 onSnapshot 실시간 경로 유지(편집 즉시 반영).
+    //   firestore.rules plans read 도 소유자 전용으로 좁힘(룰 + 코드 이중 차단).
+
+    // snapshot/API 응답 공통 처리 — viewerUid 는 ownerCheck 용 (로그인=uid).
+    // API 경로 plan 은 이미 서버 마스킹됨 → 아래 마스킹은 멱등(방어심층). isOwner 도 set.
     const handleSnap = (data: PlanDocument, viewerUid: string | null | undefined) => {
       const ownerCheck = !!(viewerUid && data.uid === viewerUid);
       const hasToken = data.accessToken && data.accessToken === token;
@@ -121,17 +140,20 @@ export default function PlanDetailPage() {
       if (!ownerCheck && !hasToken && !isGuestPlan && !isPublicShared) { setError('unauthorized'); setLoading(false); return; }
       // PII masking — 소유자도 유효 토큰 보유자도 아닌 접근(공유 링크 또는 게스트 플랜 planId 노출).
       // 버그헌트 2026-06-14: 게스트 플랜(uid 없음)을 토큰 없이 보면 PII(이메일·주소·알레르기·토큰)가
-      // 그대로 노출되던 것 → 마스킹. itinerary 뷰는 유지(안 깨짐). rule-레벨 raw SDK read 차단은
-      // onSnapshot 스트리밍 의존 때문에 별도 아키텍처 과제(익명 auth / API 스트리밍).
+      // 그대로 노출되던 것 → 마스킹. itinerary 뷰는 유지(안 깨짐). 이제 wire-레벨 차단은 비소유자
+      // 가 /api/get-plan(서버 마스킹) 경유라 달성 — 이 JS 마스킹은 멱등 방어심층으로 유지.
       const noPiiAccess = !ownerCheck && !hasToken;
       if (noPiiAccess && (isPublicShared || isGuestPlan)) {
         delete data.uid; delete data.guestEmail;
         delete data.accessToken;
         if (data.input) {
+          delete data.input.guestName;
           delete data.input.specialRequest;
           delete data.input.hotel_address;
           delete data.input.arrival_airport;
           delete data.input.departure_airport;
+          delete data.input.dietary;
+          delete data.input.allergies;
         }
         delete data.pricing;
       }
@@ -140,7 +162,7 @@ export default function PlanDetailPage() {
       setLoading(false);
     };
 
-    // 비-게스트(기존) 경로의 에러 핸들러 — 동작 100% 동일.
+    // 소유자 onSnapshot 경로의 에러 핸들러 — 동작 100% 동일.
     const handleErrLegacy = (err: unknown) => {
       // P235: permission-denied = 인증 만료 또는 PWA 스테일 캐시 → 재로그인/새로고침 안내.
       // 그 외 (not-found, network 등) = 일반 notfound 처리.
@@ -154,54 +176,57 @@ export default function PlanDetailPage() {
       setLoading(false);
     };
 
-    // 플래그 OFF 또는 로그인 사용자 = 기존 동기 경로 (변경 없음).
-    if (!useGuestReader) {
-      const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
-        if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
-        handleSnap(snap.data() as PlanDocument, uid);
-      }, handleErrLegacy);
-      return () => unsub();
+    // cancelled 가드 — 비동기 fetch 가 effect cleanup 후 setState 하지 않도록.
+    let cancelled = false;
+
+    // 비소유자(비로그인 + 로그인 비소유자) 서버 경유 읽기 — wire 전에 서버 마스킹.
+    //   200 → handleSnap(json.plan, viewerUid) (서버가 공개=masked / 토큰=full 반환).
+    //   403 → unauthorized / 404 → notfound / 그 외 → autherror.
+    const fetchViaApi = async (viewerUid: string | null | undefined) => {
+      try {
+        const url = token
+          ? `/api/get-plan?planId=${encodeURIComponent(planId)}&token=${encodeURIComponent(token)}`
+          : `/api/get-plan?planId=${encodeURIComponent(planId)}`;
+        const resp = await fetch(url);
+        const json = await resp.json().catch(() => ({}));
+        if (cancelled) return;
+        if (resp.ok && json && json.ok && json.plan) {
+          handleSnap(json.plan as PlanDocument, viewerUid);
+          return;
+        }
+        if (resp.status === 403) { setError('unauthorized'); setLoading(false); return; }
+        if (resp.status === 404) { setError('notfound'); setLoading(false); return; }
+        setError('autherror'); setLoading(false);
+      } catch (fetchErr) {
+        if (cancelled) return;
+        console.error('[PlanDetail] get-plan fetch failed:', fetchErr);
+        setError('autherror'); setLoading(false);
+      }
+    };
+
+    // 비로그인 = 무조건 비소유자 → onSnapshot 절대 안 함, API 만.
+    //   (서버가 공개=masked / 토큰=full / 그외=403 으로 판정 → raw PII 가 브라우저에 안 옴.)
+    if (!uid) {
+      void fetchViaApi(uid);
+      return () => { cancelled = true; };
     }
 
-    // 플래그 ON + 비로그인 게스트 = 격리 익명 인스턴스 경로.
-    // ensureGuestAnon 은 비동기이므로 effect 내 async IIFE + cancelled 가드 + unsub ref.
-    let cancelled = false;
-    let unsub: (() => void) | null = null;
-    (async () => {
-      await ensureGuestAnon(); // 실패해도 graceful(null) — 아래 onSnapshot 이 permission-denied → API fallback.
+    // 로그인 = 소유자 실시간 경로(onSnapshot). 본인 plan 만 룰이 read 허용.
+    //   permission-denied = 로그인 비소유자(룰 거부) → API 로 폴백(서버가 공개/토큰 판정).
+    const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
       if (cancelled) return;
-      const guestDb = getGuestDb();
-      unsub = onSnapshot(doc(guestDb, 'plans', planId), (snap) => {
-        if (cancelled) return;
-        if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
-        const viewerUid = getGuestAuth().currentUser?.uid;
-        handleSnap(snap.data() as PlanDocument, viewerUid);
-      }, async (err) => {
-        if (cancelled) return;
-        const code = (err as { code?: string })?.code || '';
-        console.error('[PlanDetail] Guest Firestore read error:', code, err);
-        // permission-denied + URL token 보유 → 서버 경유 읽기(/api/get-plan) fallback.
-        // 실패 시에만 기존 autherror 로 폴백 (rule 거부지만 토큰 일치면 서버가 반환).
-        if ((code === 'permission-denied' || code === 'PERMISSION_DENIED') && token) {
-          try {
-            const resp = await fetch(`/api/get-plan?planId=${encodeURIComponent(planId)}&token=${encodeURIComponent(token)}`);
-            const json = await resp.json().catch(() => ({}));
-            if (cancelled) return;
-            if (resp.ok && json && json.ok && json.plan) {
-              const data = json.plan as PlanDocument;
-              const viewerUid = getGuestAuth().currentUser?.uid;
-              handleSnap(data, viewerUid);
-              return;
-            }
-          } catch (fetchErr) {
-            console.error('[PlanDetail] get-plan fallback failed:', fetchErr);
-          }
-          if (cancelled) return;
-        }
-        handleErrLegacy(err);
-      });
-    })();
-    return () => { cancelled = true; if (unsub) unsub(); };
+      if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
+      handleSnap(snap.data() as PlanDocument, uid);
+    }, (err) => {
+      if (cancelled) return;
+      const code = (err as { code?: string })?.code || '';
+      if (code === 'permission-denied' || code === 'PERMISSION_DENIED') {
+        void fetchViaApi(uid);
+        return;
+      }
+      handleErrLegacy(err);
+    });
+    return () => { cancelled = true; unsub(); };
   }, [planId, token, uid, authLoading]);
 
   // share_visit tracking
@@ -428,7 +453,7 @@ export default function PlanDetailPage() {
       case 'preTrip':
         return <PreTripSlide key={`preTrip-${idx}`} plan={plan} planId={planId || ''} />;
       case 'intro':
-        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
+        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} isOwner={isOwner} />;
       case 'day': {
         // P224: ?? instead of || so dayIndex=0 is preserved (|| treats 0 as falsy)
         const dayIdx = slide.dayIndex ?? 0;
@@ -473,6 +498,7 @@ export default function PlanDetailPage() {
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
                 plan={plan}
+                isOwner={isOwner}
               />
             </DndContext>
           </div>

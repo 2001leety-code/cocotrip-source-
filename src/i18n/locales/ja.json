@@ -57,7 +57,7 @@
     "tourCta": "ツアーを見る",
     "plannerTitle": "AI旅行プランナー",
     "plannerLine1": "AIがカスタム旅程を自動生成",
-    "plannerLine2": "無料 · 即時 · 4言語対応",
+    "plannerLine2": "$9.90 · 即時 · 4言語対応",
     "plannerCta": "旅程を作成"
   },
   "hero": {
@@ -556,6 +556,9 @@
     "retry": "もう一度試す",
     "loginRequired": "ログイン後に決済可能",
     "loginToPay": "ログインして続行",
+    "useFreeAiCoupon": "無料クーポンで受け取る (1〜3日)",
+    "aiCouponApplied": "無料クーポン適用済み · $0",
+    "aiCouponProceed": "無料クーポンで旅程を受け取る",
     "guestSignupNudge": "無料登録で — プラン保存 + 無料修正2回 + チャーター5%クーポン",
     "guestSignupCta": "無料登録",
     "loginToPayDesc": "旅程表を安全にお届けするため、先にログインしてください。",
@@ -1049,6 +1052,7 @@
     "quickPreviewTitle": "1日目ハイライトプレビュー",
     "quickPreviewTheme": "テーマ",
     "quickPreviewNarrative": "旅のストーリーレビュー",
+    "quickPreviewMapLabel": "地図",
     "fullPlanTitle": "残りの2〜3日の完全なローカル日程を受け取りますか？",
     "fullPlanDesc": "隠れたローカルグルメ、秘密の写真スポット、10項目の検証済みルートなど、全3ページのレポートをメールで100%無料でお届けします。",
     "emailPlaceholder": "メールアドレスを入力してください",
@@ -1115,10 +1119,18 @@
     "loadingPleaseWait": "お待ちください！",
     "airport_pickup_select": "目的地選択",
     "airport_pickup_select_hint": "上から目的地を選択すると決済できます",
-    "featureItinerary": "3ページ詳細スケジュール",
-    "featureRestaurant": "ローカルグルメリスト",
-    "featurePhoto": "写真スポットガイド",
-    "featureTransit": "分単位の交通ルート",
+    "featureItinerary": "検証済み韓国コース",
+    "featureRestaurant": "厳選レストラン (4.5★+、口コミ50件以上)",
+    "featurePhoto": "フォトガイド (4言語対応)",
+    "featureTransit": "実際の公共交通 + T-money",
+    "featureNoHallucination": "実在の韓国データで照合",
+    "vpNoHallucinationTitle": "実在の韓国データで照合",
+    "vpNoHallucinationDesc": "実在する韓国DBで検証済み",
+    "vpStripTagline": "無料AIは架空の場所を間違った順序で提示します。私たちは検証済み韓国コースをルートまで最適化して提供します。",
+    "vpCourseTitle": "検証済み韓国コース",
+    "vpCourseDesc": "検証済み韓国データ + 4.5★+グルメ",
+    "vpRouteTitle": "ルートまで最適化",
+    "vpRouteDesc": "実際の公共交通(可能区間) + T-money",
     "paypalSafeCheckout": "PayPal安全決済 · 不満足時100%返金",
     "checkoutSafe": "100%安全決済",
     "checkoutTip1": "通行料・駐車場込み",
@@ -1180,8 +1192,10 @@
     "optionAtitle": "AIカスタムプランを取得",
     "optionAdesc": "今すぐ支払って完全な旅程を受け取る",
     "optionAfeature1": "✓ 分単位のスケジュール + 地下鉄案内",
-    "optionAfeature2": "✓ レストラン + メニュー + 価格",
-    "optionAfeature3": "✓ PDFダウンロード",
+    "optionAfeature2": "✓ 厳選レストラン (4.5★+、口コミ50件以上)",
+    "optionAfeature3": "✓ フォトガイド (4言語対応)",
+    "optionAfeature4": "✓ 全区間リアルタイム交通 + T-money",
+    "optionAfeature5": "✓ 実在する韓国DBで検証済み — 架空スポットなし",
     "optionAfeatureRevision": "無料再生成2回付き — 不満なら再作成！",
     "valueBannerMain": "$9.90で3つの行程！",
     "valueBannerSub": "1回購入 + 無料再生成2回 = 合計3つの異なるバージョン。気に入らない場合は無料で作り直せます",
@@ -1403,13 +1417,14 @@
     "bodyBefore": "より良い体験のためクッキーを使用しています。本サイトを引き続きご利用いただく場合、",
     "bodyMiddle": "に同意したものとみなされます。データ削除のご依頼は ",
     "bodyAfter": " までご連絡ください。",
+    "bodyShort": "より良い体験のためCookieを使用します。",
     "accept": "同意する",
     "dismiss": "閉じる"
   },
   "gallery": {
     "title": "幸せな旅行者たち",
     "subtitle": "韓国を体験したゲストの本物の瞬間とストーリー",
-    "verifiedTraveler": "認証済み旅行者"
+    "verifiedTraveler": "ゲスト写真"
   },
   "googleReviews": {
     "subtitle": "ご利用いただいた方は、Googleに率直なご感想をお寄せください。今後のお客様の参考になります。",
@@ -1490,7 +1505,8 @@
       "stationInfo": "駅情報",
       "lostAndFound": "遺失物センター",
       "firstTrain": "始発",
-      "lastTrain": "終電"
+      "lastTrain": "終電",
+      "fareUnavailable": "運賃情報なし"
     },
     "lodging": {
       "label": "宿泊先",
@@ -1576,6 +1592,12 @@
       "accomRecAffiliateNote": "アフィリエイトリンク — CocoTripの運営支援に繋がります。",
       "tabPreTrip": "旅行準備",
       "tabActivityGuide": "アクティビティガイド",
+      "tabIntro": "はじめに",
+      "tabDay": "Day",
+      "tabOutro": "まとめ",
+      "streamingWait": "旅程を作成中...",
+      "translatingWait": "翻訳中... しばらくお待ちください",
+      "translationFailedShowingOriginal": "翻訳できません — 原文を表示しています",
       "preTripTitle": "旅行準備ガイド",
       "preTripSubtitle": "到着前にご確認いただくと韓国旅行がよりスムーズになります"
     },
@@ -1709,7 +1731,8 @@
       "pdfGeneratedBy": "CocoTrip AIが作成",
       "adultsLabel": "大人",
       "paxLabel": "名",
-      "minUnit": "分"
+      "minUnit": "分",
+      "transfer": "乗換"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",
@@ -1748,6 +1771,7 @@
     "couponAdTitle": "AIプラン1回 = 5%クーポン",
     "couponAdBody": "₩124,000のチャーター予約 ≅ ₩6,200の節約。プラン($9.90)はほぼ無料！",
     "couponAdCta": "AIプラン作成",
+    "useAiCoupon": "使う",
     "tabOverview": "概要",
     "tabBookings": "予約一覧",
     "tabCoupons": "クーポン ({n})",
@@ -1983,7 +2007,7 @@
     },
     "planner": {
       "title": "AI旅行プランナー — カスタム韓国日程",
-      "description": "AIで個別化された韓国旅行日程を作成。無料、即時、多言語対応。ソウル、釜山、済州など。"
+      "description": "AIで個別化された韓国旅行日程を作成。AI搭載、即時、多言語対応。ソウル、釜山、済州など。"
     },
     "privacy": {
       "description": "CocoTrip プライバシーポリシー — 個人情報の収集、利用、保護について。"
@@ -2129,7 +2153,7 @@
     "payGoToLegacy": "従来のチャーターページへ",
     "heroBadgeNew": "新6ステップ見積",
     "heroBadgePayment": "決済",
-    "heroTitleWizard": "CocoTrip チャーター（ウィザード）",
+    "heroTitleWizard": "韓国プライベート車・バンチャーター",
     "heroTitlePayment": "決済へ進む",
     "heroSubtitleWizard": "空港送迎 · 日帰り · 長距離 · K-popシャトル — 2分で見積",
     "heroSubtitlePayment": "事前決済またはWhatsAppでのお見積もり依頼にお進みください。",

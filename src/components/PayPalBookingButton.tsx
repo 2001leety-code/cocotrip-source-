@@ -73,6 +73,13 @@ interface Props {
   tripType?: 'oneway' | 'roundtrip';
   /** transfer/tour_hourly 결제 시 backend 차종 재계산용 */
   vehicle?: string;
+  /** 2026-06-28 트립닷컴식 예약정보 — 개인정보/이용약관 동의 여부. (금액 로직 무관, 추적용 보존.)
+   *  ⚠️ 결제 금액·capture·멱등성 로직 무관. createPaypalOrder/capturePaypalOrder body 에
+   *  additive 로 전달만 → 백엔드가 booking 레코드에 컴플라이언스 메타로 보존. 미전달 시 false. */
+  termsAgreed?: boolean;
+  /** 2026-06-29 마케팅(선택) 정보 수신 동의 — termsAgreed 와 독립. 금액/게이트 무관, capture body 로
+   *  보존만(미동의해도 결제 진행). 미전달 시 false. */
+  marketingConsent?: boolean;
 }
 
 interface RateInfo {
@@ -104,7 +111,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, termsAgreed, marketingConsent }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -152,6 +159,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // \ubcf4\uc720 \ucfe0\ud3f0 \u2014 \ubbf8\ub85c\uadf8\uc778 \uc2dc hook\uc740 \uc548\uc804 (loyalty=null, coupons=[]).
   const { activeCoupons } = useLoyalty();
+  // P1-②: AI 무료쿠폰(productScope='ai-plan')은 이 할인 picker 에서 제외 — 할인 적용 대상이 아니라
+  //   PurchaseSection 의 "무료 쿠폰으로 받기"(0원) 버튼 전용. (MyPage 쿠폰함에는 그대로 노출.)
+  const discountCoupons = activeCoupons.filter(c => {
+    if (c.productScope === 'ai-plan') return false; // AI 무료쿠폰 제외(위)
+    // 상품 스코프 불일치 쿠폰 숨김 — 투어 전용 쿠폰을 차터/공항/콤보 결제에 노출 X.
+    // (서버 applyPromoCode 도 reject 하지만 프론트 picker 가 안 맞는 쿠폰을 보여주던 UX 갭 fix.)
+    const isCharterFamily = productType.startsWith('charter_') || productType.startsWith('airport_') || productType.startsWith('combo_');
+    if ((c.productScope === 'tour-package' || c.productScope === 'tour_package') && isCharterFamily) return false;
+    return true;
+  });
   // B-9 (2026-05-12): authUser / authUserId \ub294 \ucef4\ud3ec\ub10c\ud2b8 \uc0c1\ub2e8\uc5d0\uc11c \uc774\ubbf8 \ud638\ucd9c\ub428.
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
@@ -353,7 +370,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           if (promoApplied && !promoCode) {
             console.warn('[PayPal onApprove] promoApplied=true but promoCode empty — global promo increment will be skipped');
           }
-          const res = await fetch('/api/capturePaypalOrder', {
+          // 버그헌트 2026-06-19 IDOR fix: 쿠폰 소유자 검증용 토큰 전송(authFetch — 로그인 시 자동
+          //   Bearer 첨부, 게스트는 헤더 없이 진행). 백엔드가 토큰 uid===couponUserId 확인.
+          const res = await authFetch('/api/capturePaypalOrder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -370,6 +389,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               ...(airport ? { airport } : {}),
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
               ...(promoApplied && promoCode ? { promoCode } : {}),
+              // 2026-06-30 트립닷컴식 예약정보 — 약관동의 컴플라이언스 메타 (SMS 본인인증 제거 운영자).
+              //   🔴 fix: 이 값을 capture body 에 전달하지 않으면 capturePaypalOrder.js 가
+              //   항상 false 로 기록(동의 증거 미보존). additive — 금액/capture/멱등성 로직 무관.
+              //   undefined 면 false 전달(백엔드 ===true 비교라 false 명시가 안전).
+              termsAgreed: termsAgreed === true,
+              ...(termsAgreed === true ? { termsAgreedAt: new Date().toISOString() } : {}),
+              // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 독립, capture body 보존만(게이트 X).
+              marketingConsent: marketingConsent === true,
+              ...(marketingConsent === true ? { marketingConsentAt: new Date().toISOString() } : {}),
             }),
           });
           const json = await res.json();
@@ -494,6 +522,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          // 🔴 charter_custom_estimate 즉시결제 — 추정가(customAmountKRW)를 backend 로 전달(끊긴 고리 수정).
+          //   이 값 없으면 createPaypalOrder 가 금액 해석 실패→400("Unknown productType or invalid amount").
+          //   backend 가 pricing.js SSOT range(30,000~10,000,000)로 sanity 검증 후 PayPal order 금액 확정.
+          //   charter_custom_estimate 가 아니면 미전달(다른 상품 무영향).
+          ...(productType === 'charter_custom_estimate' && customAmountKRW != null && customAmountKRW > 0 ? { customAmountKRW } : {}),
+          // 2026-06-30 트립닷컴식 예약정보 — 약관동의 메타(컴플라이언스). SMS 본인인증 제거 운영자.
+          //   additive 전달만 — createPaypalOrder 는 금액을 productType/날짜/쿠폰으로만 산정,
+          //   이 값은 무시(알 수 없는 필드). 멱등성/금액/환율/락 로직 무관.
+          ...(termsAgreed === true ? { termsAgreed: true } : {}),
         }),
       });
       const json = await res.json();
@@ -679,9 +716,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             <span className="flex items-center gap-2">
               <Ticket className="w-4 h-4 text-[#B668FC]" />
               <span className="text-sm font-semibold text-white">{pl.pickerOpen}</span>
-              {activeCoupons.length > 0 && (
+              {discountCoupons.length > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#B668FC]/20 text-[#B668FC] border border-[#B668FC]/25">
-                  {activeCoupons.length}
+                  {discountCoupons.length}
                 </span>
               )}
             </span>
@@ -699,7 +736,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   to { opacity: 1; transform: translateY(0); }
                 }
               `}</style>
-              {activeCoupons.length === 0 ? (
+              {discountCoupons.length === 0 ? (
                 /* Ad: AI planner → 5% coupon. Math is per user spec. */
                 <div className="rounded-xl border border-[#7C5CFC]/25 p-3.5"
                   style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}>
@@ -727,7 +764,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                 </div>
               ) : (
                 <ul className="space-y-2">
-                  {activeCoupons.map(c => {
+                  {discountCoupons.map(c => {
                     const valueLabel = c.type === 'percent' ? `${c.value}%` : (c.currency === 'KRW' ? `₩${c.value.toLocaleString()}` : `$${c.value}`);
                     const expDate = new Date(c.expiresAt).toLocaleDateString();
                     return (

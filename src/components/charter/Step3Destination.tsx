@@ -105,11 +105,11 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
   }, [state.service, state.origin, lang, i18n.minutesUnit]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2.5 sm:space-y-5">
       {options.length === 0 && (
         <p className="text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {options.map(opt => {
           const selected = state.destinationKey === opt.key;
           return (
@@ -123,18 +123,20 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
                 destLat: undefined, destLng: undefined,
                 destAddress: undefined, destName: undefined, destCategory: undefined,
               })}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                selected ? 'border-[#B668FC] bg-[#B668FC]/10' : 'border-white/10 bg-white/[0.03] hover:border-[#B668FC]/40'
+              className={`min-h-[48px] rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[92px] sm:rounded-2xl sm:p-4 ${
+                selected
+                  ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 shadow-[0_16px_40px_rgba(124,92,252,0.14)]'
+                  : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
               }`}
             >
-              <p className="text-sm text-white/90 font-medium truncate">{opt.title}</p>
-              {opt.sub && <p className="text-xs text-white/55 mt-1">{opt.sub}</p>}
+              <p className="truncate text-xs font-bold text-white/90 sm:text-[15px]">{opt.title}</p>
+              {opt.sub && <p className="mt-0.5 text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.sub}</p>}
             </button>
           );
         })}
       </div>
 
-      <div className="pt-4 border-t border-white/[0.06] space-y-3">
+      <div className="space-y-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3 sm:space-y-3 sm:p-4">
         {/* PR-H: 자유 입력 → AddressAutocomplete. 자동완성 클릭한 결과만 허용 — 좌표 보유. */}
         <AddressAutocomplete
           id="charter-dest-autocomplete"

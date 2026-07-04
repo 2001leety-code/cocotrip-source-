@@ -64,7 +64,27 @@ async function writeCache({ krwPerUsd, usdPerKrw, source, fetchedAt }) {
     const { initAdminDb } = await import('./_shared/firebase-admin.js');
     const db = initAdminDb('exchange-rate');
     if (!db) return;
-    await db.collection('system').doc('exchange_rate').set({
+    const ref = db.collection('system').doc('exchange_rate');
+    // 급변 감지: 직전 캐시 rate 대비 3%+ 변화 시 운영자 알림 (가격·마케팅 타이밍 판단용).
+    // floor 1450/sanity 2000 은 결제 보호일 뿐 "급변 사실"은 안 알려줌 → 여기서 통지. throttle 로 dedup.
+    try {
+      const prev = await ref.get();
+      const prevRate = prev.exists ? Number(prev.data()?.krwPerUsd) : 0;
+      if (prevRate > 0 && Number.isFinite(krwPerUsd) && krwPerUsd > 0) {
+        const pct = (Math.abs(krwPerUsd - prevRate) / prevRate) * 100;
+        if (pct >= 3) {
+          const { throttledTelegramAlert } = await import('./_shared/telegram-throttle.js');
+          await throttledTelegramAlert({
+            key: 'fx-spike',
+            message: `💱 환율 급변 감지\n직전 ₩${Math.round(prevRate)} → 현재 ₩${Math.round(krwPerUsd)} (${pct.toFixed(1)}% 변화)\nsource: ${source}\n→ USD 가격·마케팅 타이밍 점검 (floor/sanity 는 결제 보호용, 급변 통지는 별도)`,
+            severity: pct >= 7 ? 'high' : 'medium',
+          });
+        }
+      }
+    } catch (alertErr) {
+      console.warn('[exchange-rate] spike alert failed:', alertErr.message);
+    }
+    await ref.set({
       krwPerUsd,
       usdPerKrw,
       source,
@@ -224,7 +244,7 @@ export function applyRatePolicy(rate) {
  * @returns {Promise<number>} 환율 (cap된 값)
  */
 export async function getUsdToKrw(opts = {}) {
-  const cap = opts.cap ?? RATE_SANITY_MAX;
+  const cap = opts.cap || RATE_SANITY_MAX; // mojibake guard 정책: nullish 대신 || (cap 은 항상 양수)
   try {
     const { krwPerUsd } = await getExchangeRate();
     if (krwPerUsd && krwPerUsd > 0) return Math.min(applyRatePolicy(krwPerUsd), cap);

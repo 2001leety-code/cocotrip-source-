@@ -72,11 +72,12 @@ export default function ConversionFunnel() {
         const cur = thisMonthRange(now);
         const prv = prevMonthRange(now);
 
-        // plans (createdAt epoch ms)
+        // plans (createdAtMs epoch ms) — 버그헌트 #5: createdAt 은 ISO string 이라 number 와
+        //   비교 시 Firestore 타입버킷 불일치로 항상 0건. epoch ms 필드 createdAtMs 사용.
         const plansRef = collection(db, 'plans');
         const [thisPlansSnap, prevPlansSnap] = await Promise.all([
-          getCountFromServer(query(plansRef, where('createdAt', '>=', cur.start.getTime()), where('createdAt', '<', cur.end.getTime()))),
-          getCountFromServer(query(plansRef, where('createdAt', '>=', prv.start.getTime()), where('createdAt', '<', prv.end.getTime()))),
+          getCountFromServer(query(plansRef, where('createdAtMs', '>=', cur.start.getTime()), where('createdAtMs', '<', cur.end.getTime()))),
+          getCountFromServer(query(plansRef, where('createdAtMs', '>=', prv.start.getTime()), where('createdAtMs', '<', prv.end.getTime()))),
         ]);
         setThisPlans(thisPlansSnap.data().count);
         setPrevPlans(prevPlansSnap.data().count);

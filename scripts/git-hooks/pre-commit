@@ -46,6 +46,11 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/components/CommandPalette.tsx") continue;
       if (f === "src/components/MobileBottomNav.tsx") continue;
       if (f === "src/components/CookieBanner.tsx") continue;
+      // 2026-06-16 (전환 폴리시): AIIntroModal/CharterIntroModal 의 i18n nullish coalescing
+      // 폴백 (p.aiIntroTitle ?? '...' / .planner ?? {} 등) 정당. 모달 모바일 노출/체크박스
+      // 수정 시 처음 staged. U+FFFD(진짜 깨짐) 0 확인 — CookieBanner 등과 동일 케이스.
+      if (f === "src/components/AIIntroModal.tsx") continue;
+      if (f === "src/components/CharterIntroModal.tsx") continue;
       if (f === "src/pages/ToursPage.tsx") continue;
       if (f === "src/components/SeasonalBanner.tsx") continue;
       if (f === "src/components/PlannerForm.tsx") continue;
@@ -135,6 +140,15 @@ if [ -n "$SCAN_FILES" ]; then
       // P314 (2026-05-31): PayPalBookingButton.tsx 의 i18n nullish coalescing(번역 키 폴백)
       // 13건 pre-existing legitimate. sandbox 토글 추가 시 동일 스킵 유지.
       if (f === "src/components/PayPalBookingButton.tsx") continue;
+      // 2026-06-30: BookingInfoForm.tsx 의 placeholderPhone nullish coalescing 폴백
+      // (#1020 phone placeholder) pre-existing legitimate. SMS 인증 제거 PR 에서 주석
+      // 정리로 re-staged 됐을 뿐, 내 diff 는 BookingConsent 참조 주석만.
+      if (f === "src/components/booking/BookingInfoForm.tsx") continue;
+      // 2026-06-30: PhoneSignInModal.tsx 의 nullish coalescing 3건 (DEFAULT_DIAL_BY_LANG[language]
+      // fallback / c.name[language] i18n fallback / TEXT[language] fallback) pre-existing
+      // legitimate (HEAD 에 이미 존재). 국가번호 SSOT(country-dials.ts) 추출 import 전환으로
+      // re-staged 됐을 뿐 — 동작 무변경. U+FFFD(진짜 깨짐) 0.
+      if (f === "src/components/PhoneSignInModal.tsx") continue;
       // 2026-06-12: place-search.js 의 req.query?.x ?? '' nullish coalescing (Naver 검색
       // query/limit/lang 파싱) pre-existing legitimate. 내 변경(rate-limit) 아님 + || 변환 시
       // 빈문자열 처리 미세 변경되므로 스킵 (비용 DoS rate-limit PR 에서 처음 staged 됨).
@@ -150,6 +164,10 @@ if [ -n "$SCAN_FILES" ]; then
       // 2026-06-15: plan-detail-listener-leak-pr450.test.ts 의 주석/테스트명이 소스 패턴
       // user?.uid 의 nullish 폴백을 인용(PR#450 불변식 문서화) — pre-existing legitimate.
       if (f === "tests/unit/plan-detail-listener-leak-pr450.test.ts") continue;
+      // 2026-06-20: validate-prod-regression.mjs uses SCENARIO_DIETARY ?? 'Meat' (line 71) to
+      //   preserve empty-string (no-dietary matrix scenarios) vs forcing 'Meat'. Changing to ||
+      //   would break no-dietary scenarios. Pre-existing legit; re-staged by startDate dynamic fix.
+      if (f === "scripts/validate-prod-regression.mjs") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

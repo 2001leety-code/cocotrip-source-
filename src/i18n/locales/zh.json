@@ -57,7 +57,7 @@
     "tourCta": "查看旅游",
     "plannerTitle": "AI旅行规划师",
     "plannerLine1": "AI自动生成专属行程",
-    "plannerLine2": "免费 · 即时 · 支持4种语言",
+    "plannerLine2": "$9.90 · 即时 · 支持4种语言",
     "plannerCta": "制定行程"
   },
   "hero": {
@@ -556,6 +556,9 @@
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",
     "loginToPay": "登录后继续",
+    "useFreeAiCoupon": "用免费优惠券领取 (1-3天)",
+    "aiCouponApplied": "已应用免费优惠券 · $0",
+    "aiCouponProceed": "用免费优惠券领取行程",
     "guestSignupNudge": "免费注册即享 — 保存行程 + 2次免费修改 + 包车5%优惠券",
     "guestSignupCta": "免费注册",
     "loginToPayDesc": "请先登录，以便我们安全地向您发送行程。",
@@ -1049,6 +1052,7 @@
     "quickPreviewTitle": "第1天亮点预览",
     "quickPreviewTheme": "主题",
     "quickPreviewNarrative": "旅行故事回顾",
+    "quickPreviewMapLabel": "地图",
     "fullPlanTitle": "想获取剩余2-3天的完整本地行程吗？",
     "fullPlanDesc": "我们将通过邮件100%免费发送完整的3页确认报告，包括隐藏的本地美食、秘密拍照地点和精确的时间路线。",
     "emailPlaceholder": "请输入您的邮箱地址",
@@ -1115,10 +1119,18 @@
     "loadingPleaseWait": "请稍等！",
     "airport_pickup_select": "选择目的地",
     "airport_pickup_select_hint": "请在上方选择目的地即可支付",
-    "featureItinerary": "3页详细行程表",
-    "featureRestaurant": "当地美食清单",
-    "featurePhoto": "拍照打卡点",
-    "featureTransit": "精确到分钟的交通路线",
+    "featureItinerary": "经验证的韩国课程",
+    "featureRestaurant": "精选餐厅 (4.5★+，50条以上评价)",
+    "featurePhoto": "拍照指南 (4种语言)",
+    "featureTransit": "实际公共交通 + T-money",
+    "featureNoHallucination": "真实韩国数据核验",
+    "vpNoHallucinationTitle": "真实韩国数据核验",
+    "vpNoHallucinationDesc": "经实际韩国数据库验证",
+    "vpStripTagline": "免费AI把虚假地点以错误顺序呈现。我们提供经验证的韩国课程，并优化到路线级别。",
+    "vpCourseTitle": "经验证的韩国课程",
+    "vpCourseDesc": "经核验韩国数据 + 4.5★+餐厅",
+    "vpRouteTitle": "路线级别优化",
+    "vpRouteDesc": "实际公共交通(可用区段) + T-money",
     "paypalSafeCheckout": "PayPal安全支付 · 不满意100%退款",
     "checkoutSafe": "100%安全结账",
     "checkoutTip1": "含过路费·停车费",
@@ -1180,8 +1192,10 @@
     "optionAtitle": "获取AI定制计划",
     "optionAdesc": "立即付款,获得完整行程",
     "optionAfeature1": "✓ 分钟级日程 + 地铁指南",
-    "optionAfeature2": "✓ 餐厅 + 菜单 + 价格",
-    "optionAfeature3": "✓ PDF下载",
+    "optionAfeature2": "✓ 精选餐厅 (4.5★+，50条以上评价)",
+    "optionAfeature3": "✓ 拍照指南 (4种语言)",
+    "optionAfeature4": "✓ 全程实时交通 + T-money",
+    "optionAfeature5": "✓ 经实际韩国数据库验证 — 无虚假地点",
     "optionAfeatureRevision": "免费重新生成2次 — 不满意可重新生成！",
     "valueBannerMain": "$9.90 — 共3份行程！",
     "valueBannerSub": "1次购买 + 免费重新生成2次 = 共3个完全不同的版本。不满意？免费重新生成！",
@@ -1403,13 +1417,14 @@
     "bodyBefore": "我们使用Cookie来改善您的体验。继续使用本站即表示您同意我们的",
     "bodyMiddle": "。如需请求删除数据，请联系 ",
     "bodyAfter": "。",
+    "bodyShort": "我们使用Cookie来改善您的体验。",
     "accept": "同意",
     "dismiss": "关闭"
   },
   "gallery": {
     "title": "幸福的旅行者",
     "subtitle": "探索韩国的客人们的真实瞬间和故事",
-    "verifiedTraveler": "认证旅行者"
+    "verifiedTraveler": "客户照片"
   },
   "googleReviews": {
     "subtitle": "与我们同行过吗？欢迎在Google分享您的真实体验，帮助未来的客人。",
@@ -1490,7 +1505,8 @@
       "stationInfo": "车站信息",
       "lostAndFound": "失物招领",
       "firstTrain": "首班车",
-      "lastTrain": "末班车"
+      "lastTrain": "末班车",
+      "fareUnavailable": "票价信息不可用"
     },
     "lodging": {
       "label": "住宿",
@@ -1576,6 +1592,12 @@
       "accomRecAffiliateNote": "联盟链接 — 有助于支持 CocoTrip。",
       "tabPreTrip": "出行准备",
       "tabActivityGuide": "活动指南",
+      "tabIntro": "简介",
+      "tabDay": "Day",
+      "tabOutro": "总结",
+      "streamingWait": "正在生成行程...",
+      "translatingWait": "翻译中... 请稍候",
+      "translationFailedShowingOriginal": "翻译不可用 — 显示原文",
       "preTripTitle": "出行准备指南",
       "preTripSubtitle": "出发前查看让您的韩国之旅更顺畅"
     },
@@ -1709,7 +1731,8 @@
       "pdfGeneratedBy": "由 CocoTrip AI 生成",
       "adultsLabel": "成人",
       "paxLabel": "人",
-      "minUnit": "分钟"
+      "minUnit": "分钟",
+      "transfer": "换乘"
     },
     "notices": {
       "title": "行程自动校正提示",
@@ -1748,6 +1771,7 @@
     "couponAdTitle": "AI 行程 1 次 = 5% 优惠券",
     "couponAdBody": "预订 ₩124,000 包车 ≈ 节省 ₩6,200，行程($9.90)几乎免费！",
     "couponAdCta": "制作 AI 行程",
+    "useAiCoupon": "立即使用",
     "tabOverview": "概览",
     "tabBookings": "我的预订",
     "tabCoupons": "优惠券 ({n})",
@@ -1983,7 +2007,7 @@
     },
     "planner": {
       "title": "AI 旅行规划 — 定制韩国行程",
-      "description": "使用 AI 创建您的个性化韩国旅行行程。免费、即时、多语言支持。首尔、釜山、济州等。"
+      "description": "使用 AI 创建您的个性化韩国旅行行程。AI 驱动、即时、多语言支持。首尔、釜山、济州等。"
     },
     "privacy": {
       "description": "CocoTrip 隐私政策 — 我们如何收集、使用和保护您的个人信息。"
@@ -2129,7 +2153,7 @@
     "payGoToLegacy": "前往原包车页面",
     "heroBadgeNew": "全新6步报价",
     "heroBadgePayment": "支付",
-    "heroTitleWizard": "CocoTrip 包车（向导）",
+    "heroTitleWizard": "韩国私人包车·商务车服务",
     "heroTitlePayment": "前往支付",
     "heroSubtitleWizard": "机场接送 · 当日游 · 长途 · K-pop班车 — 2分钟报价",
     "heroSubtitlePayment": "请通过预付或WhatsApp咨询继续。",

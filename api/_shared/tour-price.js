@@ -14,12 +14,13 @@
  * 차종배수는 현행 day_tour 와 동일(VEHICLE_MULTIPLIER staria 1.0 / sprinter 2.0). bus=협의(결제 불가).
  */
 
-import { lookupMatrixKm } from './charter-multiday-price.js';
+import { lookupMatrixKm, captainPremiumKrw } from './charter-multiday-price.js';
 
 const TOUR_BASE_9H_KRW = 405_000;       // staria 기본 9시간
 const TOUR_OVERTIME_HOURLY_KRW = 54_000; // staria 오버타임 시간당 (+20%)
 const TOUR_BASE_HOURS = 9;
-const VEHICLE_MULT = { staria: 1.0, sprinter: 2.0 }; // 현행 day_tour 일관 (bus 협의=결제 불가)
+// staria_9(9인승) = staria 와 동일가(1.0). bus 협의=결제 불가.
+const VEHICLE_MULT = { staria: 1.0, staria_9: 1.0, sprinter: 2.0 };
 
 /**
  * 거리 추가요금 (편도 km 기준). 30km 이내 0, 초과 시 50km 구간마다 +5만. 차종 무관.
@@ -34,11 +35,13 @@ export function tourDistanceSurcharge(km) {
  * @param {{km:number, hours:number, vehicle:string}} args  km=편도 이동거리, hours=투어 시간(기본 9)
  * @returns {number|null} 순수 가격, 또는 결제 불가(차종) 시 null
  */
-export function calcTourKrw({ km = 0, hours = TOUR_BASE_HOURS, vehicle } = {}) {
+export function calcTourKrw({ km = 0, hours = TOUR_BASE_HOURS, vehicle, captainPremiumKrw: captain = 0 } = {}) {
   const mult = VEHICLE_MULT[vehicle];
-  if (!mult) return null; // staria/sprinter 만 즉시결제 (bus=협의)
+  if (!mult) return null; // staria/staria_9/sprinter 만 즉시결제 (bus=협의)
   const h = Number.isFinite(hours) && hours >= TOUR_BASE_HOURS ? Math.min(24, hours) : TOUR_BASE_HOURS;
-  const base = TOUR_BASE_9H_KRW * mult;
+  // 7인승 캡틴시트 프리미엄 정액(SSOT) — base(multiplier 적용) 직후 가산 (9인승=0).
+  const cap = Number.isFinite(captain) && captain > 0 ? captain : 0;
+  const base = TOUR_BASE_9H_KRW * mult + cap;
   const overtime = (h - TOUR_BASE_HOURS) * TOUR_OVERTIME_HOURLY_KRW * mult;
   const surcharge = tourDistanceSurcharge(km); // 차종 무관
   return Math.round(base + overtime + surcharge);
@@ -48,13 +51,17 @@ export function calcTourKrw({ km = 0, hours = TOUR_BASE_HOURS, vehicle } = {}) {
  * 투어 사전결제 영수증 breakdown (운영자 2026-06-02 "Vercel 영수증처럼 쿠폰 자동적용 총액").
  * ⚠️ 오버타임(9h 초과)은 **현장결제** → 사전 total 에서 제외, overtimeHourly(시간당 안내)만 반환.
  * 쿠폰 자동적용(투어 기본 5%) + VAT 10%. 거리추가는 차종 무관 정액.
- * @param {{km:number, vehicle:string, couponPct:number}} args
+ * captainPremiumKrw: 7인승 캡틴시트 정액(SSOT). resolveTourCheckoutKrw 가 spec 에서 산출해 전달. 프론트
+ *   tourQuote.ts 는 CAPTAIN_PREMIUM_KRW[vehicle] 로 동일값 → byte-identical → 표시가==청구가(P311). base 직후 가산.
+ * @param {{km:number, vehicle:string, couponPct:number, captainPremiumKrw:number}} args
  * @returns {object|null} { base, distance, subtotal, couponPct, coupon, vat, total, overtimeHourly }
  */
-export function calcTourQuote({ km = 0, vehicle, couponPct = 5 } = {}) {
+export function calcTourQuote({ km = 0, vehicle, couponPct = 5, captainPremiumKrw: captain = 0 } = {}) {
   const mult = VEHICLE_MULT[vehicle];
-  if (!mult) return null; // staria/sprinter 만 (bus=협의)
-  const base = Math.round(TOUR_BASE_9H_KRW * mult);
+  if (!mult) return null; // staria/staria_9/sprinter 만 (bus=협의)
+  // 7인승 캡틴시트 프리미엄 정액(SSOT) — base(multiplier 적용) 직후 가산 (9인승=0).
+  const cap = Number.isFinite(captain) && captain > 0 ? captain : 0;
+  const base = Math.round(TOUR_BASE_9H_KRW * mult) + cap;
   const distance = tourDistanceSurcharge(km);     // 차종 무관
   const subtotal = base + distance;                // 오버타임 제외 (현장결제)
   const pct = Number.isFinite(couponPct) && couponPct >= 0 ? couponPct : 0;
@@ -74,7 +81,9 @@ export function calcTourQuote({ km = 0, vehicle, couponPct = 5 } = {}) {
 export function resolveTourCheckoutKrw(spec, body, featureEnabled) {
   if (!featureEnabled || !body) return null; // 플래그 OFF = 투어 시간제 비활성 (현행 권역 고정가 유지)
   const km = lookupMatrixKm(spec, String(body.originKey || '').trim(), String(body.destKey || '').trim());
-  const quote = calcTourQuote({ km: km == null ? 0 : km, vehicle: String(body.vehicle || '').trim() });
+  const vehicle = String(body.vehicle || '').trim();
+  // 7인승 캡틴시트 프리미엄 정액(SSOT) — body.vehicle 로 spec 조회 (프론트 CAPTAIN_PREMIUM_KRW 와 동일값 = P311).
+  const quote = calcTourQuote({ km: km == null ? 0 : km, vehicle, captainPremiumKrw: captainPremiumKrw(spec, vehicle) });
   return quote ? quote.total : null; // 오버타임 현장결제 제외 = 기본+거리+VAT−쿠폰
 }
 

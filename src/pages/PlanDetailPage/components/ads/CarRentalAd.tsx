@@ -21,17 +21,17 @@ export function CarRentalAd({ region }: CarRentalAdProps) {
         </div>
         <div className="flex-1">
           <p className="font-bold text-white text-base leading-tight">{p.adCarTitle || 'Rent a Car in Korea'}</p>
-          <p className="text-xs text-white/50 mt-0.5">{p.adCarSub || 'Explore at your own pace \u2014 international license accepted'}</p>
+          <p className="text-[14px] text-white/50 mt-0.5">{p.adCarSub || 'Explore at your own pace \u2014 international license accepted'}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
         <a href={carLink.url} target="_blank" rel="noopener noreferrer"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
           style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
           {carLink.label} {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
+      <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }

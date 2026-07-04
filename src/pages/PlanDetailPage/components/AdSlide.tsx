@@ -78,7 +78,7 @@ export function AdSlide({ adType, plan }: AdSlideProps) {
     <div ref={containerRef} className="relative" onClick={handleAdClick}>
       {/* Sponsored badge (regulatory transparency) */}
       <div className="flex justify-end mb-2">
-        <span className="text-[10px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
+        <span className="text-[12px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
           {sw.sponsoredLabel || 'Sponsored'}
         </span>
       </div>

@@ -9,8 +9,10 @@ export type OriginCode =
 // 'transfer' = 도시간 1회 이동(편도/왕복, 숙박 없음). 2026-06-02 추가 — multi_day(여러 날 동행)와 별개.
 export type ServiceMode = 'airport_transfer' | 'day_tour' | 'multi_day' | 'kpop_shuttle' | 'transfer';
 
-// 'vip' = 의전 차량 (행사 픽업 전용, 항상 협의 — Bus와 동일하게 결제 비활성).
-export type VehicleType = 'staria' | 'sprinter' | 'bus' | 'vip';
+// 차종 4종 (2026-06-30): staria=프리미엄 비즈니스(캡틴시트), staria_9=9인승, sprinter=중형단체, bus=대형단체.
+//   staria/staria_9 = 즉시결제 가능(가이드 없음), sprinter/bus = 협의/가이드 필수.
+//   'vip'(의전) 은 신규 선택지에서 제거 — 과거 예약 라벨 표시는 vehicleLabel 딕셔너리로만 보존.
+export type VehicleType = 'staria' | 'staria_9' | 'sprinter' | 'bus';
 
 export type DestinationKind = 'package' | 'matrix' | 'custom';
 
@@ -53,6 +55,11 @@ export interface WizardState {
   customerName?: string;
   customerPhone?: string;
   customerMessenger?: string;  // WhatsApp / LINE / 카카오 ID (선택, non-blocking)
+  // MEDIUM fix (2026-06-29): BookingInfoForm 이 email/meetingPlace 를 필수(*)로 수집하는데
+  //   차터 handleFieldsChange 가 매핑 안 해 silent drop 됐음(게스트 확인메일·미팅장소 누락).
+  //   운영 정보로 보존 (결제 자체는 userEmail=auth 유지, 이건 운영자 연락/확인용 보강).
+  customerEmail?: string;
+  meetingPlace?: string;
   // multi_day 전용 — 숙소 위치 (운영 정보)
   lodgingLocation?: LodgingLocation;
   lodgingCustom?: string;        // lodgingLocation = 'custom' 일 때
@@ -70,6 +77,15 @@ export interface WizardState {
       small?: number;                 // 기내 반입 (캐리어 S 또는 배낭)
       medium?: number;                // 24인치
       large?: number;                 // 28인치+
+    };
+    // 편명 자동조회 결과 (data.go.kr 인천공항 API → /api/flight-status)
+    arrival?: {
+      scheduledTime?: string;         // 예정 도착 "05:00"
+      estimatedTime?: string;         // 변경(지연) "04:35"
+      gate?: string;
+      origin?: string;                // 출발지 공항 (예: TAIPEI)
+      status?: string;                // Arrived / Delayed 등
+      lookedUp?: boolean;             // 조회 성공 여부
     };
   };
   notes?: string;
@@ -122,7 +138,7 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   paxCount: 2,
   adultCount: 2,
   childCount: 0,
-  vehicle: 'staria',
+  vehicle: 'staria_9',
   pickupTime: '09:00',  // PR-R: 마감 검증 기본값. Step3 select 로 사용자 변경 가능.
   options: {},
 };

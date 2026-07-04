@@ -1,9 +1,9 @@
 // resolveProductType — wizard state → PayPal productType 매핑 + 가격
 // createPaypalOrder.js의 CHARTER_MAP/COMBO_MAP와 1:1로 동기화됨.
-import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data/charterPricing';
+import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE, CAPTAIN_PREMIUM_KRW } from '@/data/charterPricing';
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
-import { calcTourQuote } from '@/lib/tourQuote';
-import { calcTransferQuote, curatedStariaKRW } from '@/lib/transferQuote';
+import { calcTourQuote, captainPremiumKrwFor as tourCaptainPremiumKrwFor } from '@/lib/tourQuote';
+import { calcTransferQuote, curatedStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
@@ -21,9 +21,11 @@ const DAY_TOUR_PRODUCT_MAP: Record<string, string> = {
 
 // 차종 배수 (useQuoteCalculator와 동일)
 // 2026-05-03 사용자 정책 변경: sprinter 1.45→2.0, bus 2.3→3.0.
+// 2026-06-30: staria_9(9인승) 추가 = staria 와 동일가(1.0).
 // useQuoteCalculator.ts와 항상 동기화 필수 (PayPal 결제 금액 = 견적 화면 금액).
 const VEHICLE_MULTIPLIER: Record<string, number> = {
   staria: 1.0,
+  staria_9: 1.0,
   sprinter: 2.0,
   bus: 3.0,
 };
@@ -63,36 +65,39 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   //   조건: AIRPORT_TRANSFER_PRICES SSOT 에 등재된 destinationKey 만 결제 가능.
   //   ICN 외 공항은 SSOT 에 'busan-metro', 'gimpo-seoul-central', 'gimpo-seoul-gangnam', 'jeju-metro' 신규 등재됨.
   if (state.service === 'airport_transfer') {
-    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 차종은 결제 영수증·UI 에 가격 숫자 노출 금지 — 협의 라벨만.
-    if (vehicle === 'bus' || vehicle === 'vip') {
-      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    // 운영자 P0-Q4 (2026-05-12): Bus 차종은 결제 영수증·UI 에 가격 숫자 노출 금지 — 협의 라벨만.
+    if (vehicle === 'bus') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus 별도 견적 (협의)' };
     }
     const dest = state.destinationKey;
     if (!dest || !(AIRPORT_TRANSFER_PRICES[dest])) {
       return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '목적지 미선택' };
     }
     const base = AIRPORT_TRANSFER_PRICES[dest].priceKRW;
+    // 7인승 캡틴시트 프리미엄 정액(SSOT) — multiplier 적용 직후 가산(9인승=0). 백 createPaypalOrder.resolveKrwAmount
+    // 가 body.vehicle 로 동일 가산 → 표시가==청구가(P311).
+    const priceKRW = Math.round(base * mult) + (CAPTAIN_PREMIUM_KRW[vehicle] ?? 0);
     // createPaypalOrder.js는 'airport_'+key(dash→underscore)로 매핑
     const productType = `airport_${dest.replace(/-/g, '_')}`;
-    return { productType, priceKRW: Math.round(base * mult), passengers: pax, payable: vehicle === 'staria' };
-    // sprinter는 별도 견적 — 가이드비 등 추가 계산 복잡해서 즉시결제 아님 (priceKRW 노출은 유지: 견적 화면 정상)
+    // staria/staria_9(9인승) 즉시결제 허용. sprinter는 별도 견적 (가이드비 등 추가 계산 복잡 — priceKRW 노출은 유지).
+    return { productType, priceKRW, passengers: pax, payable: vehicle === 'staria' || vehicle === 'staria_9' };
   }
 
   // 당일 투어
   if (state.service === 'day_tour') {
-    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 가격 숨김.
-    if (vehicle === 'bus' || vehicle === 'vip') {
-      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    // 운영자 P0-Q4 (2026-05-12): Bus 가격 숨김.
+    if (vehicle === 'bus') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus 별도 견적 (협의)' };
     }
     // 투어 시간제 즉시결제 (2026-06-02). VITE_FEATURE_TOUR_HOURLY(프론트) + FEATURE_TOUR_HOURLY(백엔드) 둘 다 ON.
-    // 매트릭스 해석 가능한 목적지(km>0) + staria/sprinter 만. 패키지(DAY_TOUR_PRODUCT_MAP, dmz 등)는 매트릭스 키가
-    // 아니므로 아래 패키지 경로 유지(자동 fall-through). 가격 = calcTourQuote(쿠폰5%+VAT 포함) = backend SSOT (P311).
-    if (TOUR_HOURLY_ON && (vehicle === 'staria' || vehicle === 'sprinter') && !DAY_TOUR_PRODUCT_MAP[state.destinationKey ?? '']) {
+    // 매트릭스 해석 가능한 목적지(km>0) + staria/staria_9/sprinter 만. 패키지(DAY_TOUR_PRODUCT_MAP, dmz 등)는 매트릭스 키가
+    // 아니므로 아래 패키지 경로 유지(자동 fall-through). 가격 = calcTourQuote(캡틴프리미엄+쿠폰5%+VAT 포함) = backend SSOT (P311).
+    if (TOUR_HOURLY_ON && (vehicle === 'staria' || vehicle === 'staria_9' || vehicle === 'sprinter') && !DAY_TOUR_PRODUCT_MAP[state.destinationKey ?? '']) {
       const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
       const destKey = resolveDestMatrixKey(state);
       const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
       if (km != null && km > 0) {
-        const q = calcTourQuote({ km, vehicle });
+        const q = calcTourQuote({ km, vehicle, captainPremiumKrw: tourCaptainPremiumKrwFor(vehicle) });
         if (q) {
           return { productType: 'tour_hourly', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey };
         }
@@ -103,19 +108,21 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
       return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '패키지 미선택' };
     }
     const base = DAILY_TOUR_PRICES[dest].priceKRW;
+    // 7인승 캡틴시트 프리미엄 정액(SSOT) — multiplier 직후 가산(9인승=0). 백 createPaypalOrder 동일 가산 → P311.
     return {
       productType: DAY_TOUR_PRODUCT_MAP[dest],
-      priceKRW: Math.round(base * mult),
+      priceKRW: Math.round(base * mult) + (CAPTAIN_PREMIUM_KRW[vehicle] ?? 0),
       passengers: pax,
-      payable: vehicle === 'staria',
+      // staria/staria_9(9인승) 즉시결제 허용.
+      payable: vehicle === 'staria' || vehicle === 'staria_9',
     };
   }
 
   // K-pop 셔틀 — 왕복 기본, per-vehicle 가격 (createPaypalOrder.js는 인원수 × 단가지만 위저드는 차량 단일가 사용)
   if (state.service === 'kpop_shuttle') {
-    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 가격 숨김.
-    if (vehicle === 'bus' || vehicle === 'vip') {
-      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    // 운영자 P0-Q4 (2026-05-12): Bus 가격 숨김.
+    if (vehicle === 'bus') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus 별도 견적 (협의)' };
     }
     return {
       productType: 'kpop_shuttle_roundtrip',
@@ -129,17 +136,17 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   // FEATURE_TRANSFER_CHECKOUT(백엔드) 둘 다 ON. 매트릭스 매칭 + staria/sprinter. 가격 = calcTransferQuote
   // (편도 km×1500 / 왕복 ×2, 쿠폰 5%/10% + VAT) = backend SSOT (P311). service='transfer' 는 항상 여기서 종료.
   if (state.service === 'transfer') {
-    if (vehicle === 'bus' || vehicle === 'vip') {
-      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    if (vehicle === 'bus') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus 별도 견적 (협의)' };
     }
-    if (TRANSFER_CHECKOUT_ON && (vehicle === 'staria' || vehicle === 'sprinter')) {
+    if (TRANSFER_CHECKOUT_ON && (vehicle === 'staria' || vehicle === 'staria_9' || vehicle === 'sprinter')) {
       const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
       const destKey = resolveDestMatrixKey(state);
       // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
       const curatedKRW = originKey && destKey ? curatedStariaKRW(originKey, destKey) : null;
       if (curatedKRW != null) {
         const tripType: 'oneway' | 'roundtrip' = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
-        const q = calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled() });
+        const q = calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled(), captainPremiumKrw: captainPremiumKrwFor(vehicle) });
         if (q) {
           return { productType: 'charter_transfer', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey, tripType };
         }
@@ -149,9 +156,9 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   }
 
   // 멀티데이(1박+) 차터 즉시결제 (2026-06-02). VITE_FEATURE_MULTIDAY_CHECKOUT(프론트) + FEATURE_MULTIDAY_CHECKOUT(백엔드)
-  // 둘 다 ON 이어야 실제 결제 통과. 매트릭스 매칭 + staria/sprinter + 1박+ 만 결제 가능. 그 외 = 아래 WhatsApp.
-  // 가격 = calcMultiDayCharterKrw (= backend SSOT, 3일+ durationDays>=3 시 10% 할인 반영) → 표시가==청구가 (P311). matrix km 으로 산출.
-  if (MULTIDAY_CHECKOUT_ON && state.service === 'multi_day' && (vehicle === 'staria' || vehicle === 'sprinter')) {
+  // 둘 다 ON 이어야 실제 결제 통과. 매트릭스 매칭 + staria/staria_9/sprinter + 1박+ 만 결제 가능. 그 외 = 아래 WhatsApp.
+  // 가격 = calcMultiDayCharterKrw (= backend SSOT, 캡틴프리미엄 + 3일+ durationDays>=3 시 10% 할인 반영) → 표시가==청구가 (P311). matrix km 으로 산출.
+  if (MULTIDAY_CHECKOUT_ON && state.service === 'multi_day' && (vehicle === 'staria' || vehicle === 'staria_9' || vehicle === 'sprinter')) {
     const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
     const destKey = resolveDestMatrixKey(state);
     const durationDays = state.startDate && state.endDate
@@ -169,6 +176,6 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     }
   }
 
-  // 1박 이상 장거리 — 위 즉시결제 조건 미충족(플래그 OFF / 비매트릭스 / bus·vip 등). WhatsApp 견적.
+  // 1박 이상 장거리 — 위 즉시결제 조건 미충족(플래그 OFF / 비매트릭스 / bus 등). WhatsApp 견적.
   return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '장거리 투어는 맞춤 견적' };
 }

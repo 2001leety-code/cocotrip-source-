@@ -38,7 +38,7 @@ function summarizePlan(d, id) {
     revisionCredits: typeof d.revisionCredits === 'number' ? d.revisionCredits : 0,
     paymentStatus: d.paymentStatus || null,
     transactionId: d.transactionId || null,
-    createdAt: d.createdAt?.toDate?.()?.toISOString?.() || null,
+    createdAt: typeof d.createdAt === 'string' ? d.createdAt : (d.createdAt?.toDate?.()?.toISOString?.() || null), // 버그헌트 #11: plans.createdAt 은 ISO string(toDate 없음)
     updatedAt: d.updatedAt?.toDate?.()?.toISOString?.() || null,
     language: d.language || null,
     complaintsCount: 0,  // populated separately

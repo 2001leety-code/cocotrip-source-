@@ -101,7 +101,7 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
               role="tab"
               aria-selected={active}
               onClick={() => onJump(sec.slideIndex)}
-              className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all whitespace-nowrap"
+              className="shrink-0 px-3 py-1.5 rounded-full text-[14px] font-semibold transition-all whitespace-nowrap min-h-[44px] inline-flex items-center"
               style={{
                 background: active
                   ? BRAND.gradient.primary

@@ -124,6 +124,22 @@ export function buildZoneHotelLink(zoneKoName: string, cityKey: string): string 
   return `${AFFILIATE_CONFIG.tripcom.hotel}?keyword=${keyword}&${TRIP_AFF}`;
 }
 
+/**
+ * Trip.com 호텔 리스트 링크 (도시 단위, 키워드 없음).
+ * 투어 페이지 하단 "숙소 비교" 소형 CTA 용 — 도시 ID 가 있으면 city= 로 좁히고,
+ * 없으면(All/기타) 어필리에이트 파라미터만 붙인 전체 리스트로 폴백.
+ *
+ * @param cityKey  lowercase cityKey (e.g. "seoul"). 생략/미매칭 시 전체 리스트.
+ */
+export function buildHotelListLink(cityKey?: string): string {
+  const region = cityKey ? CITY_KEY_TO_REGION[cityKey] : undefined;
+  const cityId = region != null ? CITY_IDS[region] : undefined;
+  if (cityId != null) {
+    return `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&${TRIP_AFF}`;
+  }
+  return `${AFFILIATE_CONFIG.tripcom.hotel}?${TRIP_AFF}`;
+}
+
 /* ── Flights ─────────────────────────────────────────── */
 // Default departure city by user language
 const DEFAULT_DCITY: Record<string, string> = {

@@ -58,7 +58,7 @@ export function OwnTourUpsellSection({ result, p, lang }: OwnTourUpsellSectionPr
   const viewAll = viewAllLabel[language] || viewAllLabel.en;
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5 mt-6">
+    <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6">
       <div className="flex items-start justify-between mb-1">
         <p className="text-xs font-semibold text-white/55 uppercase tracking-widest flex items-center gap-1">
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />

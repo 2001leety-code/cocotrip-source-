@@ -12,7 +12,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
 import { AIIntroModal } from '@/components/AIIntroModal';
-import { Sparkles, AlertTriangle } from 'lucide-react';
+import { Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck, ListPlus, Wand2 } from 'lucide-react';
 import { PAGE_STYLE } from './constants';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
@@ -20,11 +20,17 @@ import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 // ItineraryResult is used within PlanDetailPage, not here directly
 import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PurchaseSection } from './components/PurchaseSection';
+import { CourseBuilderShell } from './components/CourseBuilderShell';
+
+type PlannerMode = 'ai' | 'course';
 
 export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const p = t.planner;
+  // ?mode=course — 공유 코스 수신/'내 코스 열기' 딥링크 (2026-07-04). 초기값만 — 결제 흐름 무접촉.
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>(() =>
+    new URLSearchParams(window.location.search).get('mode') === 'course' ? 'course' : 'ai');
   const [searchParams] = useSearchParams();
   // preset reserved for future WizardForm preset routing
   const revisionMode = searchParams.get('revision') === 'true';
@@ -109,33 +115,130 @@ export default function PlannerPage() {
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      {/* Hero — mobile py 64px -> 40px, h1 30px -> 24px to surface wizard above the fold */}
-      <section className="text-white py-10 sm:py-16 px-4"
-        style={{ background: isMobile
-          ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
-          : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
-        <div className="max-w-2xl mx-auto text-center">
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full border text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase mb-3 sm:mb-5 ${
-            isMobile
-              ? 'border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC]'
-              : 'border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574]'
-          }`}
-            style={{ animation: 'fade-slide-up 0.5s ease forwards' }}>
-            <Sparkles className="w-3 h-3" />{p.badgeLabel}
+      <section className={`max-w-5xl mx-auto px-4 sm:px-6 ${isMobile ? 'pt-3 pb-3' : 'pt-10 pb-5'}`}>
+        <div
+          className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
+          style={{
+            background: 'linear-gradient(135deg, rgba(18,45,88,0.92), rgba(26,12,43,0.88))',
+            border: '1px solid rgba(118,83,194,0.24)',
+            boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+            >
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-purple-200/75 leading-none mb-1">
+                {p.badgeLabel}
+              </p>
+              <h1 className={`text-[24px] sm:text-[34px] font-black leading-[1.05] whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
+                {p.heroTitle}
+              </h1>
+              <p className="text-[12px] sm:text-[14px] text-white/58 leading-relaxed mt-2 whitespace-pre-line">
+                {p.heroSubtitle}
+              </p>
+            </div>
           </div>
-          <h1 className={`text-2xl sm:text-4xl font-bold leading-tight mb-3 sm:mb-4 whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}
-            style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.1s', opacity: 0 }}>{p.heroTitle}</h1>
-          <p className="text-white/50 text-[13px] sm:text-base whitespace-pre-line"
-            style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.2s', opacity: 0 }}>{p.heroSubtitle}</p>
         </div>
       </section>
 
-      <main className={`max-w-3xl mx-auto px-4 ${isMobile ? 'py-5 space-y-5' : 'py-12 space-y-8'}`}>
+      {/* VP strip — compact trust chips */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-3 sm:mb-5">
+        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {([
+            { Icon: MapPin,      titleKey: 'vpCourseTitle',      descKey: 'vpCourseDesc' },
+            { Icon: Navigation,  titleKey: 'vpRouteTitle',       descKey: 'vpRouteDesc'  },
+            { Icon: ShieldCheck, titleKey: 'vpNoHallucinationTitle', descKey: 'vpNoHallucinationDesc' },
+          ] as { Icon: React.ComponentType<{ className?: string }>; titleKey: string; descKey: string }[]).map(({ Icon, titleKey, descKey }) => (
+            <div
+              key={titleKey}
+              className="shrink-0 flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl"
+              style={{
+                background: 'rgba(182,104,252,0.07)',
+                border: '1px solid rgba(182,104,252,0.18)',
+              }}
+            >
+              <Icon className="w-4 h-4 shrink-0 text-[#B668FC]" />
+              <div>
+                <p className="text-[11px] font-black text-white leading-none">
+                  {(p as unknown as Record<string, string>)[titleKey] || ''}
+                </p>
+                <p className="text-[10px] text-white/45 mt-0.5 leading-none">
+                  {(p as unknown as Record<string, string>)[descKey] || ''}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <main className={`max-w-5xl mx-auto px-4 sm:px-6 ${isMobile ? 'py-2 space-y-5' : 'py-5 space-y-8'}`}>
+        {status === 'idle' && (
+          <section
+            className="grid gap-2 rounded-[22px] p-2 sm:grid-cols-2"
+            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            {([
+              {
+                key: 'ai' as PlannerMode,
+                icon: Wand2,
+                title: 'Let AI plan everything',
+                body: 'Answer the survey and get a complete Korea itinerary.',
+              },
+              {
+                key: 'course' as PlannerMode,
+                icon: ListPlus,
+                title: 'Build from my places',
+                body: 'Add restaurants, addresses, and fixed plans. AI helps beside you.',
+              },
+            ]).map(({ key, icon: Icon, title, body }) => {
+              const active = plannerMode === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPlannerMode(key)}
+                  className="flex items-center gap-3 rounded-[18px] p-3 text-left transition-all"
+                  style={active
+                    ? {
+                        background: 'linear-gradient(135deg, rgba(182,104,252,0.18), rgba(255,107,157,0.10))',
+                        border: '1px solid rgba(182,104,252,0.42)',
+                        boxShadow: '0 0 18px rgba(182,104,252,0.12)',
+                      }
+                    : {
+                        background: 'rgba(255,255,255,0.025)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                      }}
+                >
+                  <span
+                    className="grid h-10 w-10 place-items-center rounded-2xl shrink-0"
+                    style={{ background: active ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'rgba(255,255,255,0.06)' }}
+                  >
+                    <Icon className={`h-4 w-4 ${active ? 'text-white' : 'text-white/55'}`} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-black text-white">{title}</span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-white/45">{body}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        )}
+
         {/* Wizard form */}
-        {(status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div className={isMobile ? 'm-card m-appear p-4 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
+        {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
+          <div className={isMobile ? 'm-card m-appear p-3.5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-[22px] p-5 sm:p-6 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
           </div>
+        )}
+
+        {plannerMode === 'course' && status === 'idle' && (
+          <CourseBuilderShell />
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}
@@ -147,7 +250,7 @@ export default function PlannerPage() {
 
         {/* Error */}
         {status === 'error' && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 text-center mt-8">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mt-4 sm:rounded-2xl sm:p-8 sm:mt-8 text-center">
             <p className="text-3xl mb-3"><AlertTriangle className="w-10 h-10 text-red-400 mx-auto" /></p>
             <p className="font-semibold text-red-300 mb-1">{p.errorTitle}</p>
             <p className="text-sm text-red-400/70 mb-5">{localizedError}</p>

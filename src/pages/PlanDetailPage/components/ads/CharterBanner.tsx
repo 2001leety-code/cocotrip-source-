@@ -101,12 +101,12 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
             <Car className="w-6 h-6 text-cyan-300" />
             <div>
               <p className="font-bold text-white text-base">{p.adCharterTitle || 'Private Charter Vehicle'}</p>
-              <p className="text-xs text-cyan-300/70 mt-0.5">{p.adCharterSub || 'Skip public transit \u2014 ride in comfort'}</p>
+              <p className="text-[14px] text-cyan-300/70 mt-0.5">{p.adCharterSub || 'Skip public transit \u2014 ride in comfort'}</p>
             </div>
           </div>
           <div className="text-right">
             <p className="text-lg font-bold text-cyan-300">{'\u20A9'}{pricing.priceKRW.toLocaleString()}</p>
-            <p className="text-xs text-white/55">{pricing.hours}hrs</p>
+            <p className="text-[14px] text-white/55">{pricing.hours}hrs</p>
           </div>
         </div>
       </div>
@@ -118,17 +118,17 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
             p.adCharterFeatWifi || 'Free WiFi',
             p.adCharterFeatLuggage || 'Luggage space',
           ].map(f => (
-            <span key={f} className="text-[11px] text-cyan-200/70 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">{'\u2713'} {f}</span>
+            <span key={f} className="text-[13px] text-cyan-200/70 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">{'\u2713'} {f}</span>
           ))}
         </div>
         <button
           type="button" onClick={() => setInquireOpen(true)}
-          className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
+          className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90 min-h-[44px]"
           style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', boxShadow: '0 4px 20px rgba(6,182,212,0.3)' }}>
           {p.adCharterCtaInApp || 'Request quote in-app'} {'\u2192'}
         </button>
         <a href={waUrl} target="_blank" rel="noopener noreferrer"
-          className="block w-full mt-2 py-2 text-center text-[11px] text-cyan-300/70 hover:text-cyan-200 underline">
+          className="block w-full mt-2 py-2 text-center text-[13px] text-cyan-300/70 hover:text-cyan-200 underline min-h-[44px] flex items-center justify-center">
           {p.adCharterCtaWa || 'Or send via WhatsApp instead'}
         </a>
       </div>

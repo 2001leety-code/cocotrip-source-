@@ -16,6 +16,7 @@ const CustomerGallery = lazy(() => import('@/sections/CustomerGallery').then(m =
 const GoogleReviews = lazy(() => import('@/sections/GoogleReviews').then(m => ({ default: m.GoogleReviews })));
 const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })));
 const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
+const ExampleItinerariesSection = lazy(() => import('@/sections/ExampleItinerariesSection').then(m => ({ default: m.ExampleItinerariesSection })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 // MobileHome (mobile only)  → tours.ts (~92 KB raw) leak 방지
@@ -53,6 +54,7 @@ const AdminProductEditor = lazy(() => import('@/pages/AdminProductEditor'));
 const AdminZoneCourses = lazy(() => import('@/pages/AdminZoneCourses'));
 const AdminZoneCourseEditor = lazy(() => import('@/pages/AdminZoneCourseEditor'));
 const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier'));
+const AdminPromoStats = lazy(() => import('@/pages/AdminPromoStats'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 const MobileHomeV2 = lazy(() => import('@/pages/MobileHomeV2'));
 const MobileTourDetailV2 = lazy(() => import('@/pages/MobileTourDetailV2'));
@@ -86,6 +88,7 @@ function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
   );
 }
 const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
+const SharedCoursePage = lazy(() => import('@/pages/SharedCoursePage')); // 코스 빌더 공유 수신 /s/:id (2026-07-04)
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 // DEV-only test harness — prod 빌드에서 chunk 자체가 emit되지 않도록 lazy 호출을 조건부로.
@@ -98,7 +101,7 @@ const DevTransitTest = import.meta.env.DEV
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
 // 비-critical UI는 lazy로 분리해서 first paint 줄임 (Suspense fallback=null 허용 — popup/toast는 보이지 않다가 로드 완료되면 등장).
-const KpopConcertPopup = lazy(() => import('@/components/KpopConcertPopup').then(m => ({ default: m.KpopConcertPopup })));
+// KpopConcertPopup 플로팅 배너 제거 (운영자 지시 2026-07-03) — 재활성화 시 lazy import + <KpopConcertPopup /> 복원
 const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ default: m.ChatWidget })));
 const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
@@ -106,7 +109,7 @@ const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponMo
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
-import { trackPageView } from '@/lib/analytics';
+import { trackPageView, initWhatsAppTracking, initUtmCapture } from '@/lib/analytics';
 import { signalAppReady } from '@/lib/appReady';
 
 function HomePage() {
@@ -164,6 +167,7 @@ function HomePage() {
         <TrustBadges />
         <HeroCards t={t} />
         <Suspense fallback={null}>
+          <ExampleItinerariesSection />
           <CustomerGallery />
           <GoogleReviews />
         </Suspense>
@@ -203,20 +207,20 @@ function GlobalWidgets() {
   const isSharedPlan = location.pathname.startsWith('/my-plans/') &&
     new URLSearchParams(location.search).get('shared') === '1';
 
+  // ChatWidget — 홈(/)에서만 렌더. 위저드/결제/플랜 흐름에서 CTA를 덮어 방해하므로 홈 전용.
+  // (운영자 #7, 2026-06-30. 기존 hideTrigger 분기 통합 — 홈 외엔 컴포넌트 자체 마운트 안 함).
+  const isHome = location.pathname === '/';
+
   return (
     <>
       <PageViewTracker />
 
-      {!isSharedPlan && (
-        <Suspense fallback={null}>
-          <KpopConcertPopup />
-        </Suspense>
-      )}
+      {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
       {!isSharedPlan && <MobileBottomNav />}
       <Suspense fallback={null}>
         <CookieBanner />
-        {!isSharedPlan && <ChatWidget language={language} />}
-        {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반 */}
+        {isHome && <ChatWidget language={language} hideTrigger={false} />}
+        {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         {!isSharedPlan && <OnboardingCouponModal />}
       </Suspense>
     </>
@@ -226,6 +230,11 @@ function GlobalWidgets() {
 // ── GA4 SPA page view tracking ──
 function PageViewTracker() {
   const location = useLocation();
+  // 전역 WhatsApp 클릭 추적 — mount 1회만 (idempotent). 16곳 wa.me 링크를 위임 리스너로 잡음.
+  useEffect(() => {
+    initWhatsAppTracking();
+    initUtmCapture();
+  }, []);
   useEffect(() => {
     trackPageView(location.pathname + location.search);
   }, [location.pathname, location.search]);
@@ -498,6 +507,16 @@ function AnimatedRoutes() {
             }
           />
           <Route
+            path="/admin/promo-stats"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminPromoStats />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
             path="/charter"
             element={
               // 비로그인도 견적(1~5단계)까지 구경 가능 — 광고 트래픽 안 튕김. 로그인은 6단계(견적)
@@ -565,6 +584,15 @@ function AnimatedRoutes() {
               </AuthRequired>
             }
           />
+          {/* 코스 빌더 공유 수신 — 공개, 로그인 불필요 (2026-07-04) */}
+          <Route
+            path="/s/:id"
+            element={
+              <Suspense fallback={<PlannerSkeleton />}>
+                <SharedCoursePage />
+              </Suspense>
+            }
+          />
           <Route
             path="/my-plans/:planId"
             element={
@@ -611,10 +639,15 @@ function AnimatedRoutes() {
 
 function App() {
   // Bug #10: 모든 진입 경로(MOBILE_V2 OFF, 데스크탑, 어드민, 홈 외 라우트 등)에서
-  // signalAppReady 가 호출되지 않아 PWA 스플래시가 안전 캡(4.5s) 까지 강제 노출되는 문제 수정.
+  // signalAppReady 가 호출되지 않아 PWA 스플래시가 안전 캡까지 강제 노출되는 문제 수정.
   // App 마운트 = React 첫 페인트 직후이므로 여기서 1회 호출이 모든 경로를 커버.
-  // MobileHomeV2/MoodPortal 의 기존 호출은 appReady.ts 멱등성 가드로 무해하게 흡수됨.
+  // 단 /mood 예외 — MoodPortal 이 인증 완료 후 직접 신호(여기서 먼저 쏘면 스플래시가 일찍 꺼져
+  // MOOD 로딩 중 빈 화면 노출, index.html MAX 3.9s 캡이 안전망). 기존 호출은 멱등 가드로 흡수.
+  // /mood 예외는 정확 매치(/mood, /mood/*)만 — startsWith('/mood')는 /moodxyz 404까지
+  // 오매치되어 NotFound에서 스플래시가 3.9s 캡까지 강제 노출됨.
   useEffect(() => {
+    const p = window.location.pathname;
+    if (p === '/mood' || p.startsWith('/mood/')) return;
     signalAppReady();
   }, []);
 

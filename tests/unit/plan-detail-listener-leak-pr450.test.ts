@@ -74,7 +74,11 @@ describe('PR #450 W-H16 — onSnapshot effect deps use uid (stable string), not 
   });
 
   it('cleanup return-unsub still in place (no listener leak path)', () => {
-    expect(src).toMatch(/return\s*\(\s*\)\s*=>\s*unsub\(\)/);
+    // fix/plan-pii-wire-leak (2026-06-20): owner onSnapshot cleanup gained a
+    // `cancelled` guard (so the API-fallback fetch can't setState after unmount),
+    // so the cleanup is now `return () => { cancelled = true; unsub(); };`.
+    // The unsubscribe is still called on every cleanup → no listener leak.
+    expect(src).toMatch(/return\s*\(\s*\)\s*=>\s*\{\s*cancelled\s*=\s*true;\s*unsub\(\);\s*\}/);
   });
 });
 

@@ -115,12 +115,15 @@ const LODGING_ROLE_LABEL: Record<LodgingRole, Record<string, string>> = {
   return:   { ko: '🌙 취침 복귀', en: '🌙 Return',    ja: '🌙 帰着',         zh: '🌙 归来' },
 };
 
-export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: LodgingRole }) {
+export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgingRole?: LodgingRole; isOwner?: boolean }) {
   const { t, language } = useLanguage();
   const ui = getPlanDetailUI(t);
   // 다국어 concat 누수 안전망 (사용자 PDF 보고). 백엔드 sanitize 누락 시 display-time fix.
   const lng = (language as 'ko'|'en'|'ja'|'zh') || 'ko';
-  const cleanDisplayName = sanitizeStopName(stop.display_name || stop.name_en || stop.name || stop.name_ko || '', lng);
+  const _rawDisplayName = sanitizeStopName(stop.display_name || stop.name_en || stop.name || stop.name_ko || '', lng);
+  // #16 fix: 모든 이름 필드가 빈 값이면 'Unnamed stop' 폴백 (4언어)
+  const UNNAMED: Record<string, string> = { ko: '이름 없는 장소', en: 'Unnamed stop', ja: '名称不明', zh: '未命名地点' };
+  const cleanDisplayName = _rawDisplayName || UNNAMED[lng] || 'Unnamed stop';
   const cleanKoName = sanitizeStopName(stop.name || stop.name_ko || '', 'ko');
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
@@ -140,10 +143,6 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
     setIsFav(!!set[stopKey]);
   }, [planId, stopKey]);
 
-  // 공유 제안서(/my-plans/{id}?shared=1)에선 장소별 Favorite/Share(앱 기능)를 숨기고 Directions만
-  //   남겨 고객 핵심 동선(지도 열기)에 집중. 일반(소유자) 화면은 3버튼 유지.
-  const isShared = typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('shared') === '1';
   const toggleFav: React.MouseEventHandler = (e) => {
     e.stopPropagation();
     if (!planId) return;
@@ -222,8 +221,8 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
-      aria-label={`${cleanDisplayName}, ${stop.start_time}`}
-      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
+      aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}, ${stop.start_time}`}
+      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.28)] hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
       onClick={toggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -254,7 +253,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                 패턴을 사용자가 "중복 버그" 로 오인하지 않게 명시 구분. */}
             {lodgingRole && (
               <span
-                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-[#7C5CFC]/15 border-[#7C5CFC]/30 text-[#B9A4FF]"
+                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold border bg-[#7C5CFC]/15 border-[#7C5CFC]/30 text-[#B9A4FF]"
                 title={`Lodging ${lodgingRole}`}
               >
                 {LODGING_ROLE_LABEL[lodgingRole][language] || LODGING_ROLE_LABEL[lodgingRole].en}
@@ -267,13 +266,16 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                 'Bakery Pilgrimage': { bg: 'bg-amber-500/20 border-amber-500/30', text: 'text-amber-300', emoji: '\u{1F950}' },
                 'Blue Ribbon': { bg: 'bg-blue-500/20 border-blue-500/30', text: 'text-blue-300', emoji: '\u{1F3C5}' },
               };
-              const cfg = tagConfig[stop.local_tag] || { bg: 'bg-white/10 border-white/20', text: 'text-white/60', emoji: '\u2B50' };
-              return <span className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${cfg.bg} ${cfg.text}`}>{cfg.emoji} {stop.local_tag}</span>;
+              const cfg = tagConfig[stop.local_tag];
+              // [live MED] fix: tagConfig\uC5D0 \uC5C6\uB294 raw \uB0B4\uBD80\uD0A4(snake_case, \uD30C\uC774\uD504 \uAD6C\uBD84)\uB294 \uC228\uAE40.
+              // zone_courses DB\uAC00 local_tag\uC5D0 "downtown_temple | lotus_lantern_festival" \uD615\uD0DC \uC800\uC7A5 \u2192 UI \uB178\uCD9C \uBC29\uC9C0.
+              if (!cfg) return null;
+              return <span className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold border ${cfg.bg} ${cfg.text}`}>{cfg.emoji} {stop.local_tag}</span>;
             })()}
             {isUnverifiedFood && (
               <span
                 title={ui.unverifiedHint || 'Not in our verified DB — double-check before visiting.'}
-                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-amber-500/15 border-amber-500/35 text-amber-300"
+                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold border bg-amber-500/15 border-amber-500/35 text-amber-300"
               >
                 <AlertTriangle className="w-2.5 h-2.5" /> {ui.unverifiedBadge || 'Unverified'}
               </span>
@@ -281,19 +283,19 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
           </div>
           {/* Korean name as subtle subtitle (when display_name is in another language) */}
           {cleanKoName && cleanKoName !== cleanDisplayName && (
-            <p className="text-[11px] text-white/55 mt-0.5">{cleanKoName}</p>
+            <p className="text-[13px] text-white/65 mt-0.5">{cleanKoName}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[10px] text-white/65">
+            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[12px] text-white/70">
               <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
             </span>
             {(stop.entry_fee_krw || 0) > 0 ? (
-              <span className="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/25 rounded-md px-1.5 py-0.5 text-[10px] text-yellow-200 font-semibold">
+              <span className="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-yellow-200 font-semibold">
                 {formatKRW(stop.entry_fee_krw || 0)}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/25 rounded-md px-1.5 py-0.5 text-[10px] text-emerald-200 font-semibold">
+              <span className="inline-flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-emerald-200 font-semibold">
                 {ui.free || 'Free'}
               </span>
             )}
@@ -302,7 +304,11 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
         {isFav && (
           <Heart aria-hidden className="w-3.5 h-3.5 text-pink-400 fill-current shrink-0 mt-1" />
         )}
-        <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        {/* 운영자: 화살표만으론 펼침 가능 여부를 모를 수 있어 밑에 "자세히" 텍스트(접힘 상태). */}
+        <div className="flex flex-col items-center shrink-0 mt-1 gap-0.5">
+          <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+          {!expanded && <span className="text-[9px] leading-none text-white/45 whitespace-nowrap">{({ ko: '자세히', en: 'Details', ja: '詳細', zh: '详情' } as Record<string, string>)[lng] || '자세히'}</span>}
+        </div>
       </div>
 
       {/* Expanded details — mobile: viewport-based 동적 cap (콘텐츠 잘림 방지).
@@ -334,7 +340,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                   alt={cleanDisplayName}
                   loading="lazy"
                   decoding="async"
-                  className={`w-full h-full object-cover transition-opacity duration-300 group-hover:scale-[1.02] group-active:scale-[0.99] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`w-full h-full rounded-lg object-cover transition-opacity duration-300 group-hover:scale-[1.02] group-active:scale-[0.99] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   style={{ transitionProperty: 'opacity, transform' }}
                   onLoad={() => setImageLoaded(true)}
                   onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
@@ -351,42 +357,42 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
           )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
-            <p className="text-[12px] text-white/55 flex items-start gap-1.5 leading-relaxed">
+            <p className="text-[14px] text-white/65 flex items-start gap-1.5 leading-relaxed">
               <MapPin className="w-3.5 h-3.5 shrink-0 text-[#7C5CFC]/70 mt-0.5" />
               <span>{stop.address}</span>
             </p>
           )}
           {stop.personalization_reasoning && (
             <div className="bg-[#7C5CFC]/[0.08] border border-[#7C5CFC]/25 rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
-              <p className="text-[12px] text-white/85 leading-relaxed">{stop.personalization_reasoning}</p>
+              <p className="text-[13px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
+              <p className="text-[14px] text-white/85 leading-relaxed">{stop.personalization_reasoning}</p>
             </div>
           )}
           {(stop.tip || stop.tip_en) && (
             <div className="bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
-              <p className="text-[12px] text-white/85 leading-relaxed">{stop.tip || stop.tip_en}</p>
+              <p className="text-[13px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
+              <p className="text-[14px] text-white/85 leading-relaxed">{stop.tip || stop.tip_en}</p>
             </div>
           )}
           {isUnverifiedFood && (
-            <p className="text-[10px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
+            <p className="text-[12px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
               <span>{ui.unverifiedHint || 'Not in our verified DB — double-check the address before visiting.'}</span>
             </p>
           )}
-          {stop.entry_fee_note && <p className="text-[10px] text-yellow-400/60">{stop.entry_fee_note}</p>}
+          {stop.entry_fee_note && <p className="text-[13px] text-yellow-400/70">{stop.entry_fee_note}</p>}
 
           {/* Reservation info */}
           {stop.reservation_required && (
             <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
-              <p className="text-[11px] text-orange-400/80 font-semibold">Reservation required</p>
-              {stop.reservation_note && <p className="text-[10px] text-orange-400/60 mt-0.5">{stop.reservation_note}</p>}
-              <div className="flex gap-3 mt-1">
+              <p className="text-[13px] text-orange-400/80 font-semibold">Reservation required</p>
+              {stop.reservation_note && <p className="text-[12px] text-orange-400/70 mt-0.5">{stop.reservation_note}</p>}
+              <div className="flex flex-wrap gap-3 mt-1">
                 {stop.reservation_phone && (
-                  <a href={`tel:${stop.reservation_phone}`} className="text-[10px] text-orange-400/70 underline">{stop.reservation_phone}</a>
+                  <a href={`tel:${stop.reservation_phone}`} className="text-[12px] text-orange-400/70 underline min-h-[44px] inline-flex items-center">{stop.reservation_phone}</a>
                 )}
                 {stop.reservation_url && (
-                  <a href={stop.reservation_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-400/70 underline flex items-center gap-0.5">
+                  <a href={stop.reservation_url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-orange-400/70 underline min-h-[44px] flex items-center gap-0.5">
                     <ExternalLink className="w-2.5 h-2.5" /> Book online
                   </a>
                 )}
@@ -395,7 +401,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
           )}
 
           {stop.accessibility_note && (
-            <p className="text-[10px] text-blue-400/70 flex items-center gap-1">
+            <p className="text-[13px] text-blue-400/80 flex items-center gap-1">
               <Accessibility className="w-3 h-3" /> {stop.accessibility_note}
             </p>
           )}
@@ -403,7 +409,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
           {/* Recommended items */}
           {(stop.recommended_items?.length || 0) > 0 && (
             <div>
-              <p className="text-[10px] text-white/55 mb-1.5 uppercase tracking-wider">Recommended</p>
+              <p className="text-[13px] text-white/65 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
                 {stop.recommended_items!.map((rawItem, i: number) => {
                   const item = normalizeRecommendedItem(rawItem);
@@ -411,10 +417,10 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                   return (
                     <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[11px] text-white/70">{item.name}</span>
-                        {item.note && <span className="text-[9px] text-white/55 ml-1.5">{'\u00B7'} {item.note}</span>}
+                        <span className="text-[13px] text-white/75">{item.name}</span>
+                        {item.note && <span className="text-[13px] text-white/60 ml-1.5">{'\u00B7'} {item.note}</span>}
                       </div>
-                      {(item.price_krw || 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
+                      {(item.price_krw || 0) > 0 && <span className="text-[13px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
                     </div>
                   );
                 })}
@@ -425,60 +431,63 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
           {/* ODsay public-transit route (real transit data) */}
           {publicTransit && publicTransit.method !== 'walk' && (
             <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Train className="w-3.5 h-3.5 text-blue-400" />
-                <p className="text-[11px] font-bold text-blue-400">Public Transit Route</p>
-                <span className="ml-auto text-[10px] text-white/55">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
+                <p className="text-[13px] font-bold text-blue-400">Public Transit Route</p>
+                <span className="ml-auto text-[12px] text-white/65">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
               </div>
               {publicTransit.steps?.length > 0 && (
                 <div className="space-y-1">
                   {publicTransit.steps.map((step: { mode?: string; description?: string }, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <div key={i} className="flex items-center gap-2 text-[12px]">
                       {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
                       {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
                       {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/55 shrink-0" />}
-                      <span className={step.mode === 'walk' ? 'text-white/55' : 'text-white/60'}>{step.description}</span>
+                      <span className={step.mode === 'walk' ? 'text-white/65' : 'text-white/70'}>{step.description}</span>
                     </div>
                   ))}
                 </div>
               )}
               {publicTransit.transfers > 0 && (
-                <p className="text-[9px] text-white/55 mt-1.5">Transfers: {publicTransit.transfers}</p>
+                <p className="text-[13px] text-white/65 mt-1.5">Transfers: {publicTransit.transfers}</p>
               )}
             </div>
           )}
 
           {/* Sprint 1 Step 5: Action row — favorite, share, directions */}
           <div className="flex items-center gap-2 pt-1">
-            {!isShared && (<>
-            <button
-              type="button"
-              onClick={toggleFav}
-              aria-pressed={isFav}
-              aria-label={isFav ? (ui.favoriteRemove || 'Remove from favorites') : (ui.favoriteAdd || 'Add to favorites')}
-              className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border transition-colors active:scale-[0.98]
-                ${isFav
-                  ? 'bg-pink-500/15 border-pink-500/40 text-pink-300 hover:bg-pink-500/20'
-                  : 'bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85'}`}
-            >
-              <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
-              {isFav ? (ui.favoriteSaved || 'Saved') : (ui.favoriteLabel || 'Favorite')}
-            </button>
-            <button
-              type="button"
-              onClick={handleShare}
-              aria-label={ui.shareLabel || 'Share'}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85 transition-colors active:scale-[0.98]"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              {ui.shareLabel || 'Share'}
-            </button>
-            </>)}
+            {/* Favorite/Share = plan 소유자 전용 — 공유/비소유자 뷰어한텐 숨김. */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={toggleFav}
+                aria-pressed={isFav}
+                aria-label={isFav ? (ui.favoriteRemove || 'Remove from favorites') : (ui.favoriteAdd || 'Add to favorites')}
+                className={`flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border transition-colors active:scale-[0.98]
+                  ${isFav
+                    ? 'bg-pink-500/15 border-pink-500/40 text-pink-300 hover:bg-pink-500/20'
+                    : 'bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85'}`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
+                {isFav ? (ui.favoriteSaved || 'Saved') : (ui.favoriteLabel || 'Favorite')}
+              </button>
+            )}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={handleShare}
+                aria-label={ui.shareLabel || 'Share'}
+                className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85 transition-colors active:scale-[0.98]"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                {ui.shareLabel || 'Share'}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDirections}
               aria-label={ui.directionsLabel || 'Directions'}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/15 transition-colors active:scale-[0.98]"
+              className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/15 transition-colors active:scale-[0.98]"
             >
               <Navigation className="w-3.5 h-3.5" />
               {ui.directionsLabel || 'Directions'}
@@ -498,7 +507,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
+                className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
               >
                 <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}
               </a>
@@ -510,7 +519,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
             // 1. RouteAgent-provided URL (most accurate)
             if (stop.naverMapUrl) {
               return (
-                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
                   <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
@@ -519,7 +528,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
             if (stop.lat && stop.lng) {
               const coordUrl = `https://map.naver.com/v5/search/${encodeURIComponent(stop.name || stop.name_ko || stop.display_name || stop.name_en || '')}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
               return (
-                <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+                <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
                   <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
@@ -532,7 +541,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
             const searchQuery = district ? `${district} ${nameKo}` : (nameKo || stop.display_name || stop.name_en || '');
             const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`;
             return (
-              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
                 <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
               </a>
             );

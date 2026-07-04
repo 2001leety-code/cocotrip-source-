@@ -58,20 +58,25 @@ describe('소스 회귀 가드 — 플래그 게이트 + OFF 경로 보존', () 
     expect(src.includes('?' + '?')).toBe(false);
   });
 
-  it('PlanDetailPage: 플래그 분기 + OFF 경로(메인 db/uid/autherror) 보존', () => {
+  it('PlanDetailPage: 소유자 onSnapshot + 비소유자 /api/get-plan (PII wire 누출 차단)', () => {
+    // fix/plan-pii-wire-leak (2026-06-20): 게스트 익명 onSnapshot read 경로 제거.
+    //   이전엔 비로그인 게스트가 격리 익명 인스턴스(getGuestDb/ensureGuestAnon)로 plans 를
+    //   직접 onSnapshot → raw doc 이 WebSocket 프레임에 노출됐다. 이제 비소유자(비로그인 +
+    //   로그인 비소유자)는 /api/get-plan(서버 마스킹) 경유만, 소유자만 onSnapshot.
     const src = readFileSync(resolve(ROOT, 'src/pages/PlanDetailPage/index.tsx'), 'utf8');
-    // 플래그 게이트 (chooseReaderContext + isGuestAnonEnabled)
-    expect(src).toContain('chooseReaderContext');
-    expect(src).toContain('isGuestAnonEnabled');
-    // OFF/로그인 경로 = 기존 메인 db onSnapshot 그대로
+    // 소유자(로그인 본인) 경로 = 메인 db onSnapshot 유지
     expect(src).toContain("onSnapshot(doc(db, 'plans', planId)");
-    // OFF 경로 에러 핸들러 = 기존 autherror 보존
     expect(src).toContain("setError('autherror')");
-    // 게스트 경로 = 격리 인스턴스 + API fallback
-    expect(src).toContain('getGuestDb');
-    expect(src).toContain('ensureGuestAnon');
+    // 비소유자 경로 = 서버 경유 읽기 (wire 전에 서버 마스킹)
+    expect(src).toContain('fetchViaApi');
     expect(src).toContain('/api/get-plan');
-    // 마스킹 로직 보존 (게스트 플랜 PII 제거)
+    // 비로그인은 onSnapshot 절대 안 함 → uid 없으면 fetchViaApi 후 early return
+    expect(src).toMatch(/if\s*\(\s*!uid\s*\)\s*\{[\s\S]*?fetchViaApi/);
+    // 게스트 익명 onSnapshot read 경로(누출 원인)는 완전히 제거됨
+    expect(src).not.toContain('getGuestDb');
+    expect(src).not.toContain('ensureGuestAnon');
+    expect(src).not.toContain('chooseReaderContext');
+    // 마스킹 로직 보존 (방어심층 — 멱등)
     expect(src).toContain('delete data.accessToken');
   });
 

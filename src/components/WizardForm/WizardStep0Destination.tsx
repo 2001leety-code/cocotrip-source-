@@ -264,7 +264,7 @@ export function WizardStep0Destination(props: Step0Props) {
         <textarea value={freeText} onChange={e => setFreeText(e.target.value)}
           placeholder={p.wizardFreeInputPh || 'e.g. Gyeongbokgung Palace, Myeongdong...'}
           rows={2}
-          className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
+          className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-3.5 py-2.5 sm:rounded-2xl sm:px-5 sm:py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
       </div>
 
       {/* Nav — back to reservation status if available */}

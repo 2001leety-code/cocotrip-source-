@@ -1,8 +1,9 @@
 /**
- * 차터 로그인 게이트 — 비로그인도 1~5단계 견적 입력은 가능, 6단계(견적) 진입 시 로그인 (2026-06-14).
+ * 차터 게스트 견적 — 비로그인도 1~6단계(견적)까지 전부 가능 (2026-06-19 운영자 B 결정).
  *
- * 광고 트래픽이 로그인 벽에 안 튕기게 라우트 게이트 제거 + 견적 보기 직전(5→6) 로그인으로 이동
- * (리드 캡처 + 봇/저관심 거름). 결제는 백엔드가 미로그인 401 로 일관 차단.
+ * 광고 트래픽이 로그인 벽에 안 튕기게: 옛 5→6 하드 로그인 게이트 제거 → 비로그인도 견적 본다.
+ * 강제 리드캡처 대신 6단계 "가입하면 최대 10% 할인" 소프트 유도 카드.
+ * ("가입유도는 하되 게스트는 가능하게" 방침. 곱연산 실제 ~9.75% → '최대 10%' 정직 표기 #968)
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -22,19 +23,73 @@ describe('차터 라우트 — 비로그인 접근 허용', () => {
   });
 });
 
-describe('CharterWizard — 6단계(견적) 진입 로그인 게이트', () => {
+describe('CharterWizard — 게스트 견적 허용 + 가입 유도 카드 (운영자 B)', () => {
   const src = readFileSync(r('src/components/charter/CharterWizard.tsx'), 'utf8');
-  it('5→6 전환 시 비로그인이면 Google 로그인 (goNext 게이트)', () => {
+  it('하드 로그인 게이트 제거 — goNext 가 5→6 전환 시 강제 로그인 안 함', () => {
+    // 옛 게이트(currentStep === 5 && !user → signInWithGoogle) 가 사라졌어야 함.
+    expect(src).not.toMatch(/currentStep === 5 && !user[\s\S]{0,80}signInWithGoogle/);
+    // 옛 로그인 라벨 records 제거됨.
+    expect(src).not.toContain('LOGIN_QUOTE_LABEL');
+  });
+  it('6단계 견적에 가입 유도 카드 — 비로그인(!user)일 때만 + signInWithGoogle 재사용', () => {
     expect(src).toContain('useAuth');
     expect(src).toContain('signInWithGoogle');
-    expect(src).toMatch(/currentStep === 5 && !user[\s\S]{0,80}signInWithGoogle/);
+    expect(src).toContain('CARROT_TITLE');
+    expect(src).toContain('CARROT_CTA');
+    expect(src).toContain('{!user && (');
   });
-  it('5단계 [다음] 버튼이 비로그인 시 "견적 보려면 로그인" 라벨 (4언어)', () => {
-    expect(src).toContain('LOGIN_QUOTE_LABEL');
+  it('할인 문구 4언어 + "최대 10%" 정직 표기 (곱연산 ~9.75% → 정확히 10% 금지, #968)', () => {
     for (const lang of ['en', 'ko', 'ja', 'zh']) expect(src).toContain(`${lang}:`);
-    expect(src).toMatch(/currentStep === 5 && !user \? \(LOGIN_QUOTE_LABEL/);
+    expect(src).toContain('최대 10%');
+    expect(src).toContain('up to 10%');
   });
-  it('nullish 연산자 미사용(내 게이트 코드) — || 폴백', () => {
-    expect(src).toContain('LOGIN_QUOTE_LABEL[language] || LOGIN_QUOTE_LABEL.en');
+  it('nullish 미사용 — || 폴백 (CARROT_TITLE[language] || CARROT_TITLE.en)', () => {
+    expect(src).toContain('CARROT_TITLE[language] || CARROT_TITLE.en');
+  });
+});
+
+describe('CRITICAL-2 회귀 — 차터 resume 결제 게이트 우회 차단 (2026-06-29, SMS 인증 제거 2026-06-30)', () => {
+  const src = readFileSync(r('src/components/charter/CharterWizard.tsx'), 'utf8');
+  it('case 6(결제 진입)에 약관 게이트 — termsAgreed 재검증 (SMS 인증 제거 후에도 약관 게이트 생존)', () => {
+    // case 5 에만 있던 약관 게이트가 case 6 에도 있어야 resume→Step6 직행 우회 차단.
+    const case6 = src.match(/case 6:\s*\{[\s\S]*?\n {6}\}/);
+    expect(case6, 'case 6 블록').toBeTruthy();
+    expect(case6![0]).toMatch(/if \(!termsAgreed\) return false;/);
+    // SMS 인증 게이트(phoneSmsVerified)는 제거됐어야 함.
+    expect(case6![0]).not.toContain('phoneSmsVerified');
+  });
+  it('handleResumeContinue 가 Step6 복원 금지 — Math.min(5, ...) 로 클램프', () => {
+    // 약관 동의는 비저장이라 resume 시 false → Step6 복원하면 사용자 혼란. Step5 로 클램프.
+    expect(src).toMatch(/Math\.min\(5,\s*initialSnapStep\)/);
+    expect(src).not.toMatch(/Math\.min\(6,\s*initialSnapStep\)/);
+  });
+  it('SMS 본인인증 제거 — phoneSmsVerified state/게이트 전부 삭제됨 (2026-06-30 운영자)', () => {
+    // 코드 토큰 phoneSmsVerified 가 완전히 사라졌어야 함 (주석 포함 — 더 이상 안 씀).
+    expect(src).not.toContain('phoneSmsVerified');
+    // BookingConsent import/렌더가 사라졌어야 함 (제거 사실을 적은 주석 텍스트는 무관).
+    expect(src).not.toMatch(/import\s*\{[^}]*BookingConsent[^}]*\}/);
+    expect(src).not.toMatch(/<BookingConsent/);
+  });
+});
+
+describe('CRITICAL-1 회귀 — 투어 메신저 배선 + memo (2026-06-29)', () => {
+  const dialog = readFileSync(r('src/components/tours/TourBookingDialog.tsx'), 'utf8');
+  const validation = readFileSync(r('src/components/tours/tourBookingValidation.ts'), 'utf8');
+  it('messenger 단일 state + 세터 (read-only whatsappId/lineId 버그 재발 금지)', () => {
+    expect(dialog).toMatch(/const \[messenger, setMessenger\] = useState/);
+    // 구 read-only 패턴(세터 없는 useState 로 whatsappId/lineId 보유)이 부활하면 안 됨.
+    expect(dialog).not.toMatch(/const \[whatsappId\] = useState/);
+    expect(dialog).not.toMatch(/const \[lineId\] = useState/);
+  });
+  it('onFieldsChange 가 messenger 배선 (d.messengerId → setMessenger)', () => {
+    expect(dialog).toMatch(/if \(d\.messengerId\) setMessenger/);
+  });
+  it('fullMemo 가 단일 Messenger 라인 (WhatsApp:/LINE: 2줄 누락 버그 재발 금지)', () => {
+    expect(dialog).toContain('`Messenger: ${messenger}`');
+    expect(dialog).not.toContain('`WhatsApp: ${whatsappId}`');
+  });
+  it('isTourStep2Complete 게이트가 messenger 요구 (못 채우는 whatsapp|line 제거)', () => {
+    expect(validation).toMatch(/fields\.messenger\.trim\(\)\.length > 0/);
+    expect(validation).not.toMatch(/fields\.whatsappId/);
   });
 });

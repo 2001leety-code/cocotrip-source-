@@ -81,12 +81,20 @@ export const DAILY_TOUR_PRICES: Record<string, DailyTourEntry> = Object.fromEntr
 );
 
 // ────────────────────────────────────────
-// 차량 타입 (staria / sprinter / bus)
-// - 기존 스키마 보존: staria는 guideFee, sprinter/bus는 guideFeeDailyKRW (calculateTotalPrice 호환)
+// 차량 타입 (staria / staria_9 / sprinter / bus)
+// - 기존 스키마 보존: staria/staria_9는 guideFee, sprinter/bus는 guideFeeDailyKRW (calculateTotalPrice 호환)
 // ────────────────────────────────────────
 const _staria   = spec.vehicles.staria;
+const _staria9  = spec.vehicles.staria_9;
 const _sprinter = spec.vehicles.sprinter;
 const _bus      = spec.vehicles.bus;
+
+// 7인승 캡틴시트 프리미엄 정액(VAT 포함, SSOT). 9인승=0. 프론트/백 공유 — 표시가==청구가(P311).
+// 가산 위치: vehicle multiplier 적용 직후, 옵션/할증 전 (useQuoteCalculator/resolveProductType/백엔드 동일).
+export const CAPTAIN_PREMIUM_KRW: Record<string, number> = {
+  staria:   (_staria   as { captain_premium_krw?: number }).captain_premium_krw ?? 0,
+  staria_9: (_staria9  as { captain_premium_krw?: number }).captain_premium_krw ?? 0,
+};
 
 export const VEHICLE_TYPES = {
   staria: {
@@ -99,6 +107,18 @@ export const VEHICLE_TYPES = {
       en: _staria.description_en,
       ja: _staria.description_ja,
       zh: _staria.description_zh,
+    },
+  },
+  staria_9: {
+    name: { ko: _staria9.name_ko, en: _staria9.name_en, ja: _staria9.name_ja, zh: _staria9.name_zh },
+    maxPassengers: _staria9.max_pax,
+    guideRequired: _staria9.guide_required,
+    guideFee: _staria9.guide_daily_fee,
+    description: {
+      ko: _staria9.description_ko,
+      en: _staria9.description_en,
+      ja: _staria9.description_ja,
+      zh: _staria9.description_zh,
     },
   },
   sprinter: {
@@ -275,8 +295,10 @@ type VehicleIntercity = {
   daily_service_fee: number;
   overnight_driver_fee: number;
 };
-export const VEHICLE_INTERCITY: { staria: VehicleIntercity; sprinter: VehicleIntercity } = {
+export const VEHICLE_INTERCITY: { staria: VehicleIntercity; staria_9: VehicleIntercity; sprinter: VehicleIntercity } = {
   staria: spec.vehicles.staria.intercity as VehicleIntercity,
+  // staria_9 = staria 와 동일 거리/운영비 (9인승은 가격 동일, 캡틴 프리미엄만 없음).
+  staria_9: spec.vehicles.staria_9.intercity as VehicleIntercity,
   sprinter: spec.vehicles.sprinter.intercity as VehicleIntercity,
 };
 

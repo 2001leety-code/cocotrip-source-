@@ -29,17 +29,17 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    // Vercel Deployment Protection bypass (Pro plan).
-    // Preview URL (cocotrip-source2026-*.vercel.app) returns 401 + SSO redirect
-    // unless this header is sent. Token is created in:
-    //   Vercel → Project → Settings → Deployment Protection
-    //     → Protection Bypass for Automation → Generate.
-    // Stored as GH repo secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
+    // Vercel Deployment Protection bypass — 쿠키 방식 (tests/global-setup.ts).
+    // 기존 extraHTTPHeaders 는 cross-origin(gstatic 폰트) 요청에도 헤더를 붙여
+    // CORS preflight 가 거부 → 폰트 로드 실패로 visual/wizard spec fail (#1006).
+    // globalSetup 이 1회 쿠키를 받아 storageState 로 저장, same-origin 만 인증.
+    // secret = GH repo secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
     // Docs: https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection
-    extraHTTPHeaders: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-      ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+    storageState: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+      ? 'tests/.auth/vercel-bypass.json'
       : undefined,
   },
+  globalSetup: './tests/global-setup.ts',
   projects: [
     { name: 'Desktop Chrome', use: { ...devices['Desktop Chrome'] } },
     { name: 'Pixel 5', use: { ...devices['Pixel 5'] } },

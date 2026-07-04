@@ -16,6 +16,7 @@ import {
 } from '../_shared/morningBriefingAggregate.js';
 import { fetchMarketingMetrics } from '../_shared/morningBriefingMarketing.js';
 import { aggregateDecisionSummary, DECISION_COLLECTION } from '../_shared/decisionQueue.js';
+import { aggregateApiUsage } from '../_shared/apiPricing.js';
 
 const FALLBACK_RATE = 1450;
 
@@ -30,7 +31,7 @@ function ymdKST(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} (${wd})`;
 }
 
-function buildMessage(agg, rate, marketing, decisions, failedSections) {
+function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections) {
   const { revenue, trends, byProduct, aiPlanner, newUsers, errors, customer, meta, window } = agg;
   const L = [
     '☀️ <b>코코트립 모닝 브리핑</b>',
@@ -79,6 +80,16 @@ function buildMessage(agg, rate, marketing, decisions, failedSections) {
     L.push('대기 중인 결정 없음 ✅');
   }
 
+  // 💸 AI 사용 (이번달, 자동측정 — api_usage 트래커)
+  L.push('', '━━━ 💸 AI 사용 (이번달) ━━━');
+  if (apiCost && apiCost.totalUsd > 0) {
+    L.push(`Gemini 예상 <b>${fmtUsd(apiCost.totalUsd)}</b> (${fmtKrw(apiCost.totalUsd, rate)})`);
+    Object.entries(apiCost.byModel).sort((a, b) => b[1].usd - a[1].usd).slice(0, 4)
+      .forEach(([m, v]) => L.push(`  · ${esc(m)} 출력 ${Math.round((v.output || 0) / 1000)}K토큰 ${fmtUsd(v.usd)}`));
+  } else {
+    L.push('<i>기록 없음(트래커 신규 — 다음 플랜부터 집계)</i>');
+  }
+
   // footer
   const foot = [`환율 ₩${rate.toLocaleString()}/$`, `제외 ${meta.excludedBypass + meta.excludedCanceled}건(테스트·취소)`];
   if (failedSections.length) foot.push(`⚠️ 조회실패: ${failedSections.join(',')}`);
@@ -108,13 +119,14 @@ export async function morningBriefingTask() {
   const sinceY = Timestamp.fromMillis(yStartMs);
   const untilY = Timestamp.fromMillis(todayStartMs);
 
-  const [bk, pl, us, er, cs, dq] = await Promise.allSettled([
+  const [bk, pl, us, er, cs, dq, au] = await Promise.allSettled([
     db.collection('bookings').where('createdAt', '>=', sinceTrend).get(),                                  // 추세용 ~한달치
     db.collection('plans').where('createdAtMs', '>=', yStartMs).where('createdAtMs', '<', todayStartMs).get(),
     db.collection('users').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(),
     db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
     db.collection('cs_tickets').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(), // Timestamp
     db.collection(DECISION_COLLECTION).where('status', '==', 'pending').limit(50).get(),                   // 📥 결정 대기(현재)
+    db.collection('api_usage').where('ms', '>=', monthStartMs).get(),                                      // 💸 이번달 AI 사용량(number ms)
   ]);
 
   const failed = [];
@@ -134,6 +146,7 @@ export async function morningBriefingTask() {
   }, { now });
 
   const decisions = aggregateDecisionSummary(docs(dq, '결정'));
+  const apiCost = aggregateApiUsage(docs(au, 'API사용량'));
 
   // 마케팅 — graceful (네트워크).
   const marketing = await fetchMarketingMetrics(yStartMs, todayStartMs).catch((e) => ({ skipped: true, reason: (e && e.message) || 'error' }));
@@ -141,7 +154,7 @@ export async function morningBriefingTask() {
   let rate = FALLBACK_RATE;
   try { const r = await getUsdToKrwRaw(); if (Number.isFinite(r) && r > 0) rate = r; } catch { /* fallback */ }
 
-  const msg = buildMessage(agg, rate, marketing, decisions, failed);
+  const msg = buildMessage(agg, rate, marketing, decisions, apiCost, failed);
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
   if (!result.ok) {
     console.error('[morning-briefing] 텔레그램 발송 실패:', result.error);

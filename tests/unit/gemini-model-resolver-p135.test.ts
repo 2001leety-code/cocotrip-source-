@@ -44,9 +44,9 @@ describe('P135 resolveGeminiModel', () => {
     expect(resolveGeminiModel('block')).toBe('gemini-3.5-flash');
   });
 
-  it('default — classifier role 은 3.5 Flash Lite 유지', async () => {
+  it('default — classifier role 은 3.1 Flash Lite (3.5-lite 미출시 → 실존 모델로 정정)', async () => {
     const { resolveGeminiModel } = await freshResolver();
-    expect(resolveGeminiModel('classifier')).toBe('gemini-3.5-flash-lite');
+    expect(resolveGeminiModel('classifier')).toBe('gemini-3.1-flash-lite');
   });
 
   it('default — translate role 은 3.5 Flash (2.0 → 3.5 업그레이드)', async () => {
@@ -70,7 +70,7 @@ describe('P135 resolveGeminiModel', () => {
     expect(resolveGeminiModel('main')).toBe('gemini-3.5-pro');
     expect(resolveGeminiModel('block')).toBe('gemini-2.5-flash');
     // 미설정 role 은 default
-    expect(resolveGeminiModel('classifier')).toBe('gemini-3.5-flash-lite');
+    expect(resolveGeminiModel('classifier')).toBe('gemini-3.1-flash-lite');
   });
 
   it('GEMINI_MODEL_OVERRIDE 가 GEMINI_{ROLE}_MODEL 보다 우선 (emergency 최우선)', async () => {

@@ -4,6 +4,7 @@ import { translations, type Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { signInWithGoogle } from '@/lib/firebase';
+import { trackChatOpen } from '@/lib/analytics';
 
 interface Message {
   id: string;
@@ -15,6 +16,7 @@ interface Message {
 
 interface ChatWidgetProps {
   language: Language;
+  hideTrigger?: boolean;
 }
 
 const WELCOME: Record<Language, string> = {
@@ -168,7 +170,7 @@ const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInp
   <input ref={ref} {...props} />
 ));
 
-export function ChatWidget({ language }: ChatWidgetProps) {
+export function ChatWidget({ language, hideTrigger }: ChatWidgetProps) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   // 모바일에선 bottom-nav(높이 ~62px)와 겹치지 않도록 위로 띄우고 살짝 작게.
@@ -424,8 +426,8 @@ export function ChatWidget({ language }: ChatWidgetProps) {
             position: 'fixed',
             bottom: popupBottom,
             right: popupRight,
-            width: '360px',
-            height: '500px',
+            width: 'min(360px, calc(100vw - 28px))',
+            height: 'min(500px, calc(100dvh - 160px))',
             borderRadius: '16px',
             background: '#1a1a2e',
             boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
@@ -783,7 +785,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
 
       {/* ── 토글 버튼 ─────────────────────────────────────────── */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { const next = !open; if (next) trackChatOpen(); setOpen(next); }}
         aria-label={translations[language].a11y?.openChat ||'Open chat'}
         style={{
           position: 'fixed',
@@ -796,7 +798,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           border: 'none',
           cursor: 'pointer',
           boxShadow: '0 4px 24px rgba(124,92,252,0.5), 0 0 40px rgba(124,92,252,0.25)',
-          display: 'flex',
+          display: hideTrigger ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 10000,

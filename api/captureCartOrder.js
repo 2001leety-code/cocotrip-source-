@@ -146,6 +146,10 @@ export default async function handler(req, res) {
 
     // 4. 라인별 child booking doc batch + 부모 carts/{orderID} + cart_orders status.
     const children = buildCartChildBookings(orderID, snapshot, { payerEmail, payerName, userEmail, captureID });
+    // 🔴 ghost 예약 fix (버그헌트 #4 2026-06-19): batch.commit() 실패해도 catch 가 return 없어 아래
+    //   booking-processor fan-out 이 강행 → booking doc 없는 childOrderID 로 확인메일/텔레그램 유령발송
+    //   + my-bookings/cancel/voucher 404. batchOk 로 게이트(성공 시에만 발송).
+    let batchOk = false;
     try {
       const batch = db.batch();
       for (const child of children) {
@@ -166,6 +170,7 @@ export default async function handler(req, res) {
         status: 'captured', captureID, capturedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
       await batch.commit();
+      batchOk = true;
     } catch (batchErr) {
       // CRITICAL — 캡처됐는데 booking doc 저장 실패. alert (운영자 admin-replay 복구).
       throttledTelegramAlert({
@@ -187,9 +192,15 @@ export default async function handler(req, res) {
     //    retryDocId=childOrderID 라인별 독립 retry). 부분 실패 = 롤백 없음(retry 큐 + 알림).
     //    병렬 await — retry 큐가 실패 라인 포착 보장 후 응답.
     const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
-    await Promise.allSettled(children.map((child) => triggerBookingProcessor({
-      db, siteUrl, payload: child.processorPayload, source: 'captureCartOrder', notify, retryDocId: child.retryDocId,
-    })));
+    // 🔴 #4: batch.commit() 성공 시에만 fan-out — 실패 시 booking doc 없어 유령발송 방지.
+    //   batch 실패는 위 critical 알림 + 운영자 admin-replay(booking doc 생성 후 재발송)로 복구.
+    if (batchOk) {
+      await Promise.allSettled(children.map((child) => triggerBookingProcessor({
+        db, siteUrl, payload: child.processorPayload, source: 'captureCartOrder', notify, retryDocId: child.retryDocId,
+      })));
+    } else {
+      console.error('[captureCartOrder] batch.commit 실패 → booking-processor fan-out 스킵(유령예약 방지), 운영자 admin-replay 필요:', orderID);
+    }
 
     // 6. 응답
     res.writeHead(200, JSON_CORS);

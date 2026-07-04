@@ -110,13 +110,14 @@ describe('P137 — departure < 11:00 (이른 출국): breakfast 의무', () => {
   });
 
   it('afternoon snack at 15:00 (wrong slot for early departure) → B-MEAL fires (breakfast 필요)', () => {
-    // 이른 출국 (07:00) 인데 snack만 15:00에 넣으면 — departure 전에 이미 공항 가야 하므로
-    // 실제론 불가능하지만, departure_time < 11:00 이면 breakfast slot 의무
-    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '07:00');
-    // 15:00은 departure 07:00 buffer 위반이라 B-EARLY-DEPARTURE로도 잡히지만
+    // #7 (2026-06-20): departure 를 10:00 (non-red-eye, depHour=10<11) 로 사용 — 09:00 이상은
+    //   조식 의무 유지. (이전엔 07:00 = red-eye 였으나 red-eye 는 조식 면제로 정책 변경되어
+    //   조식 의무 테스트로 부적합. 10:00 으로 교체해 "이른 출국 = 조식 의무" 의도 보존.)
+    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '10:00');
+    // 15:00은 departure 10:00 buffer 위반이라 B-EARLY-DEPARTURE로도 잡히지만
     // B-MEAL도 별도로 확인 (breakfast count=0)
     const errors = validatePatternStructure(itinerary, request);
-    // departure 07:00이면 breakfast [06-11) = 0 → B-MEAL fires
+    // departure 10:00이면 breakfast [06-11) = 0 → B-MEAL fires
     expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5') && e.includes('조식'))).toBe(true);
   });
 
@@ -202,16 +203,35 @@ describe('P137 — departure >= 17:00 (저녁 출국): breakfast + lunch/snack �
   });
 });
 
-// ─── 4. departure_time 미제공 → 기존 로직 유지 ─────────────────────────────
+// ─── 4. departure_time 미제공 ──────────────────────────────────────────────
+// 2026-06-22 (Sentry JAVASCRIPT-REACT-3, 103건): departure_time 모를 때 출국일 food 0이면
+//   매번 B-MEAL → 500 이던 것. 공항/이동 stop 있는 실제 출국일은 이른/red-eye 출국으로
+//   식사 시간이 없는 정상 케이스라 면제. 공항/이동 없는 마지막날(풀데이 오인)만 식사 요구 유지.
 
-describe('P137 — departure_time 미제공: 기존 로직 (3개 slot 모두 0이면 에러)', () => {
-  it('food 0건 + no departure_time → B-MEAL fires (기존 로직)', () => {
+describe('P137 — departure_time 미제공', () => {
+  it('공항 stop 있는 출국일 food 0 → B-MEAL 면제 (실 출국일 이른 출국, 500 방지)', () => {
     const { itinerary, request } = makePlan(departureDayWithFood(5, []), undefined);
+    const errors = validatePatternStructure(itinerary, request);
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
+  });
+
+  it('공항/이동 stop 없는 마지막날 food 0 → B-MEAL fires (풀데이 오인 방지)', () => {
+    const lastDayNoAirport: Day = {
+      day: 5,
+      city: 'Seoul',
+      stops: [
+        { category: 'lodging', name: '호텔 체크아웃', start_time: '09:00' },
+        { category: 'attraction', name: '관광지', start_time: '10:00' },
+        { category: 'attraction', name: '관광지2', start_time: '14:00' },
+        { category: 'lodging', name: '호텔 복귀', start_time: '20:00' },
+      ],
+    };
+    const { itinerary, request } = makePlan(lastDayNoAirport, undefined);
     const errors = validatePatternStructure(itinerary, request);
     expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toBe(true);
   });
 
-  it('snack at 15:30 + no departure_time → passes (기존 로직: 1개 slot이면 통과)', () => {
+  it('snack at 15:30 + no departure_time → passes (1개 slot이면 통과)', () => {
     const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:30']), undefined);
     const errors = validatePatternStructure(itinerary, request);
     expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);

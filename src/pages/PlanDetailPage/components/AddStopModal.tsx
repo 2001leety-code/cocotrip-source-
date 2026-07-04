@@ -87,7 +87,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-white/50 text-xs mb-1.5">{ed.nameLabel || 'Place name'}</label>
+            <label className="block text-white/50 text-[14px] mb-1.5">{ed.nameLabel || 'Place name'}</label>
             <input
               type="text"
               value={name}
@@ -103,7 +103,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
 
           {/* Address */}
           <div>
-            <label className="block text-white/50 text-xs mb-1.5">{ed.addressLabel || 'Address (optional)'}</label>
+            <label className="block text-white/50 text-[14px] mb-1.5">{ed.addressLabel || 'Address (optional)'}</label>
             <input
               type="text"
               value={address}
@@ -117,7 +117,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
           {/* Start Time + Duration */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-white/50 text-xs mb-1.5">{ed.startTimeLabel || 'Start time'}</label>
+              <label className="block text-white/50 text-[14px] mb-1.5">{ed.startTimeLabel || 'Start time'}</label>
               <input
                 type="time"
                 value={startTime}
@@ -128,7 +128,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               />
             </div>
             <div>
-              <label className="block text-white/50 text-xs mb-1.5">{ed.stayMinLabel || 'Duration (min)'}</label>
+              <label className="block text-white/50 text-[14px] mb-1.5">{ed.stayMinLabel || 'Duration (min)'}</label>
               <input
                 type="number"
                 value={stayMin}
@@ -145,14 +145,14 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
 
           {/* Category */}
           <div>
-            <label className="block text-white/50 text-xs mb-1.5">{ed.categoryLabel || 'Category'}</label>
+            <label className="block text-white/50 text-[14px] mb-1.5">{ed.categoryLabel || 'Category'}</label>
             <div className="flex flex-wrap gap-2">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
                   type="button"
                   onClick={() => setCategory(cat.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-[14px] font-medium transition-colors min-h-[44px] ${
                     category === cat.value
                       ? 'bg-[#7C5CFC] text-white'
                       : 'bg-white/5 text-white/55 hover:bg-white/10'

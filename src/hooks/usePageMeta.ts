@@ -47,7 +47,26 @@ export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
         ogImg.setAttribute('property', 'og:image');
         document.head.appendChild(ogImg);
       }
-      ogImg.content = ogImage;
+      // 소셜 공유(카카오톡·페이스북·트위터) 미리보기는 절대 URL 필요 — 상대경로면
+      //   크롤러가 이미지를 못 불러와 빈 썸네일. '/hero.webp' → 'https://cocotripkr.com/hero.webp'.
+      ogImg.content = ogImage.startsWith('http')
+        ? ogImage
+        : `https://cocotripkr.com${ogImage.startsWith('/') ? '' : '/'}${ogImage}`;
+    }
+
+    // twitter:image — og:image 와 별도 meta. index.html 정적값(홈 이미지)이 전 라우트에 남아
+    //   X(Twitter) 카드가 홈 이미지로 고정되던 것 해소. og:image 와 같은 절대 URL로 동기화.
+    if (ogImage) {
+      const absImg = ogImage.startsWith('http')
+        ? ogImage
+        : `https://cocotripkr.com${ogImage.startsWith('/') ? '' : '/'}${ogImage}`;
+      let twImg = document.querySelector('meta[name="twitter:image"]') as HTMLMetaElement | null;
+      if (!twImg) {
+        twImg = document.createElement('meta');
+        twImg.setAttribute('name', 'twitter:image');
+        document.head.appendChild(twImg);
+      }
+      twImg.content = absImg;
     }
 
     // OG URL

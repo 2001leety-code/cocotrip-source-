@@ -1,0 +1,67 @@
+name: Prod Uptime Smoke
+
+# 상시(매시간) 가벼운 prod 감시 — daily-health.yml(주3회 깊은 Playwright E2E)의 보완.
+# 홈·플래너·핵심 API 200/응답시간만 체크(curl 수준, Gemini/결제 호출 없음 → 거의 공짜).
+# 실패 시 텔레그램 + 디스코드 동시 알림. secret 미설정 시 graceful skip.
+on:
+  schedule:
+    - cron: '17 * * * *' # 매시간 17분 (정시 혼잡 회피)
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run uptime smoke
+        id: smoke
+        env:
+          BASE_URL: https://cocotripkr.com
+        run: |
+          set -o pipefail
+          if node scripts/prod-uptime-smoke.mjs 2>&1 | tee smoke-out.txt; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 텔레그램 — secret 미설정 시 graceful skip (마스킹 때문에 step 내부 [ -z ] 가드).
+      - name: Telegram alert on fail
+        if: steps.smoke.outputs.result == 'fail'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "TELEGRAM secret 미설정 — skip"; exit 0
+          fi
+          BODY=$(tail -c 800 smoke-out.txt 2>/dev/null || echo "(로그 없음)")
+          MSG="[Prod Uptime 실패] $(date -u +%Y-%m-%dT%H:%MZ) UTC%0A대상: https://cocotripkr.com%0A%0A${BODY}%0A%0Arun: ${WORKFLOW_URL}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MSG}" \
+            -d "disable_web_page_preview=true" > /dev/null || echo "Telegram API 실패(non-fatal)"
+        continue-on-error: true
+
+      # 디스코드 — webhook URL secret(DISCORD_WEBHOOK_URL). JSON escape 는 node 로 안전하게.
+      - name: Discord alert on fail
+        if: steps.smoke.outputs.result == 'fail'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL 미설정 — skip"; exit 0
+          fi
+          node -e "const fs=require('fs'); const out=fs.existsSync('smoke-out.txt')?fs.readFileSync('smoke-out.txt','utf8').slice(-1500):'(로그 없음)'; const content='[Prod Uptime 실패] '+new Date().toISOString()+'\n대상: https://cocotripkr.com\n\n'+out+'\n\nrun: '+process.env.WORKFLOW_URL; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "Discord webhook 실패(non-fatal)"
+        continue-on-error: true

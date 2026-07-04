@@ -22,7 +22,11 @@ import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
 import { signalAppReady } from '@/lib/appReady';
+import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
+import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
+import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
+import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -85,6 +89,11 @@ interface MoodData {
   isAdmin: boolean;
 }
 
+type LedgerTab = 'today' | 'upcoming' | 'settle' | 'calendar' | 'all';
+
+/** 상단 3-탭 — 현황 / 수기 예약 / AI 예약. */
+type PortalTab = 'status' | 'manual' | 'ai';
+
 /** 경로 마커 좌표 (출발/경유/도착) — 지도 핀용. */
 interface MoodRoutePoint {
   lat: number;
@@ -113,11 +122,71 @@ function todayISO(): string {
   return tz.toISOString().slice(0, 10);
 }
 
+function monthKeyFromISO(iso: string): string {
+  return /^\d{4}-\d{2}/.test(iso) ? iso.slice(0, 7) : todayISO().slice(0, 7);
+}
+
+function addMonths(monthKey: string, delta: number): string {
+  const [y, m] = monthKey.split('-').map(Number);
+  const d = new Date(y, (m || 1) - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function daysInMonthGrid(monthKey: string): Array<{ iso: string; day: number; inMonth: boolean }> {
+  const [year, month] = monthKey.split('-').map(Number);
+  const first = new Date(year, month - 1, 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { iso, day: d.getDate(), inMonth: d.getMonth() === month - 1 };
+  });
+}
+
 /** 음수 잔액은 빨강 마이너스로 — "-123,000원". */
 function formatBalance(n: number): string {
   const v = Math.round(Number(n) || 0);
   if (v < 0) return `-${Math.abs(v).toLocaleString('ko-KR')}원`;
   return `${v.toLocaleString('ko-KR')}원`;
+}
+
+function cleanStops(bd?: MoodBreakdown | null): string[] {
+  if (!bd) return [];
+  return [
+    bd.origin,
+    ...(Array.isArray(bd.waypoints) ? bd.waypoints : []),
+    bd.destination,
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+}
+
+function routeTextFromBreakdown(bd?: MoodBreakdown | null): string | null {
+  const stops = cleanStops(bd);
+  return stops.length >= 2 ? stops.join(' → ') : null;
+}
+
+function googleDirectionsUrl(bd?: MoodBreakdown | null): string {
+  const stops = cleanStops(bd);
+  if (stops.length >= 2) {
+    const params = new URLSearchParams({
+      api: '1',
+      origin: stops[0],
+      destination: stops[stops.length - 1],
+      travelmode: 'driving',
+    });
+    if (stops.length > 2) params.set('waypoints', stops.slice(1, -1).join('|'));
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  const target = stops[0] || '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`;
+}
+
+function naverDirectionsUrl(bd?: MoodBreakdown | null): string {
+  const target = cleanStops(bd).join(' ') || '';
+  return `https://map.naver.com/p/search/${encodeURIComponent(target)}`;
 }
 
 export default function MoodPortal() {
@@ -127,6 +196,11 @@ export default function MoodPortal() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [forbidden, setForbidden] = useState(false);
+
+  // 상단 3-탭 (현황 / 수기 예약 / AI 예약)
+  const [portalTab, setPortalTab] = useState<PortalTab>('status');
+  // 예약 항목 클릭 시 영수증 모달 대상 (완료/일반 공용)
+  const [selectedBooking, setSelectedBooking] = useState<MoodBooking | null>(null);
 
   // 예약 폼 상태
   const [date, setDate] = useState(todayISO());
@@ -141,22 +215,24 @@ export default function MoodPortal() {
   const [origin, setOrigin] = useState('');
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [destination, setDestination] = useState('');
+  // AddressAutocomplete(네이버 검색+미니지도 핀) 표시용 병렬 상태. 돈 경로는 위 문자열이 SSOT —
+  // 서버가 재지오코딩(P311)하므로 API엔 문자열만 보낸다. AC는 확정 UI·좌표 보너스일 뿐.
+  // waypointsAC 는 waypoints 와 인덱스·길이 항상 동기(add/remove/copy 시 함께 갱신).
+  const [originAC, setOriginAC] = useState<AddressResult | null>(null);
+  const [destinationAC, setDestinationAC] = useState<AddressResult | null>(null);
+  const [waypointsAC, setWaypointsAC] = useState<(AddressResult | null)[]>([]);
   const [route, setRoute] = useState<MoodRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const routeSeq = useRef(0); // 경합 방지 — 최신 요청만 반영
 
-  // 충전 폼 상태 (admin)
-  const [topupClientId, setTopupClientId] = useState('');
-  const [topupAmount, setTopupAmount] = useState('');
-  const [topupSubmitting, setTopupSubmitting] = useState(false);
-  const [topupMsg, setTopupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // 운영용 예약 리스트 상태
+  const [ledgerTab, setLedgerTab] = useState<LedgerTab>('today');
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(monthKeyFromISO(todayISO()));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayISO());
 
-  // 광고사 생성 폼 상태 (admin)
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientId, setNewClientId] = useState('');
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [createMsg, setCreateMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // (충전 폼·광고사 만들기 폼은 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
   // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
   const [settleId, setSettleId] = useState<string | null>(null);
@@ -199,13 +275,12 @@ export default function MoodPortal() {
       }
       setForbidden(false);
       setData(json.data as MoodData);
-      if (json.data?.clientId && !topupClientId) setTopupClientId(json.data.clientId);
     } catch (e) {
       setDataError(e instanceof Error ? e.message : '조회 실패');
     } finally {
       setDataLoading(false);
     }
-  }, [topupClientId]);
+  }, []);
 
   useEffect(() => {
     // 로그인 시 1회 데이터 로드 — loadData 내부 setState 는 의도된 fetch-on-mount 패턴.
@@ -308,56 +383,7 @@ export default function MoodPortal() {
     }
   }, [data, date, startTime, durationHours, serviceType, airportDirection, origin, destination, waypoints, loadData]);
 
-  const handleTopup = useCallback(async () => {
-    setTopupSubmitting(true);
-    setTopupMsg(null);
-    try {
-      const res = await authFetch('/api/mood-topup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: topupClientId.trim(), amountKRW: Number(topupAmount) }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        setTopupMsg({ kind: 'ok', text: `충전 완료 — 잔액 ${formatBalance(json.data.balanceKRW)}` });
-        setTopupAmount('');
-        await loadData(data?.clientId);
-      } else {
-        setTopupMsg({ kind: 'err', text: json?.error || `충전 실패 (${res.status})` });
-      }
-    } catch (e) {
-      setTopupMsg({ kind: 'err', text: e instanceof Error ? e.message : '충전 실패' });
-    } finally {
-      setTopupSubmitting(false);
-    }
-  }, [topupClientId, topupAmount, data, loadData]);
-
-  // 광고사(client) 생성 — 성공 시 충전 폼 clientId 자동 채움 + 데이터 reload.
-  const handleCreateClient = useCallback(async () => {
-    setCreatingClient(true);
-    setCreateMsg(null);
-    try {
-      const res = await authFetch('/api/mood-create-client', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newClientName.trim(), clientId: newClientId.trim() || undefined }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        setCreateMsg({ kind: 'ok', text: `생성됨 — ID: ${json.data.clientId}${json.data.setAsDefault ? ' (기본 지정)' : ''}` });
-        setTopupClientId(json.data.clientId); // 충전 폼에 자동 채움
-        setNewClientName('');
-        setNewClientId('');
-        await loadData(json.data.clientId);
-      } else {
-        setCreateMsg({ kind: 'err', text: json?.error || `생성 실패 (${res.status})` });
-      }
-    } catch (e) {
-      setCreateMsg({ kind: 'err', text: e instanceof Error ? e.message : '생성 실패' });
-    } finally {
-      setCreatingClient(false);
-    }
-  }, [newClientName, newClientId, loadData]);
+  // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
   // 운행 종료 정산 — 실제 시간 + (추가 방문지로) 실제 거리 재측정 → 최종 금액·잔액 조정 + 영수증.
   const handleSettle = useCallback(async (bookingId: string) => {
@@ -415,14 +441,41 @@ export default function MoodPortal() {
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
   //    게이트 아래 두면 loading/미로그인 렌더 땐 안 불려 "더 많은 훅" 크래시).
+  // waypoints(문자열=돈 SSOT)와 waypointsAC(표시용)를 항상 함께 갱신 — 인덱스·길이 동기 유지.
   const addWaypoint = useCallback(() => {
     setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+    setWaypointsAC((w) => (w.length >= 5 ? w : [...w, null]));
   }, []);
   const removeWaypoint = useCallback((i: number) => {
     setWaypoints((w) => w.filter((_, idx) => idx !== i));
+    setWaypointsAC((w) => w.filter((_, idx) => idx !== i));
   }, []);
   const setWaypointAt = useCallback((i: number, val: string) => {
     setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
+  const setWaypointACAt = useCallback((i: number, val: AddressResult | null) => {
+    setWaypointsAC((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
+
+  const copyBookingToForm = useCallback((b: MoodBooking) => {
+    const bd = b.breakdown || {};
+    setServiceType(b.serviceType);
+    setDate(b.date || todayISO());
+    setStartTime(b.startTime || '10:00');
+    setDurationHours(Math.max(MOOD_MIN_DURATION_HOURS, Number(b.durationHours) || MOOD_MIN_DURATION_HOURS));
+    const wps = Array.isArray(bd.waypoints) ? bd.waypoints.filter(Boolean) : [];
+    setOrigin(bd.origin || '');
+    setDestination(bd.destination || '');
+    setWaypoints(wps);
+    // breakdown 엔 좌표 미저장(주소 문자열만) → AC 는 비움. 복사된 주소는 각 칸 밑
+    // "현재: {주소}" 힌트로 노출되고, 경로/금액은 문자열 기준으로 그대로 계산된다.
+    // 바꾸려면 검색해서 핀 재확정. (배열 길이는 waypoints 와 동기)
+    setOriginAC(null);
+    setDestinationAC(null);
+    setWaypointsAC(wps.map(() => null));
+    setFormMsg({ kind: 'ok', text: '예약 폼에 복사했습니다. 날짜·시간을 확인하고, 경로를 바꾸려면 지도에서 다시 검색하세요.' });
+    setPortalTab('manual'); // 예약 폼이 수기 예약 탭으로 이동 — 복사 시 해당 탭으로 전환
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   // 다음 우편번호 팝업 → 선택 주소를 콜백으로 적용. 로드 실패/취소는 무시(수동 입력 가능).
@@ -437,7 +490,16 @@ export default function MoodPortal() {
 
   // PWA 실행 스플래시 페이드아웃 — 인증 끝나 포털/로그인 화면이 그려질 때 신호(무드 standalone 진입점).
   // (인증 대기 중엔 스플래시가 유지되어 "검정 갭" 을 가린다. 훅은 게이트보다 위 = rules-of-hooks.)
-  useEffect(() => { if (!loading) signalAppReady(); }, [loading]);
+  // 더블 rAF: effect 시점엔 아직 페인트 전일 수 있음 — 다음 프레임이 실제로 그려진 뒤 신호해야
+  // 스플래시가 걷힐 때 밑에 로딩 스피너/빈 화면이 안 보임 (2026-07-03 smoothness handoff).
+  useEffect(() => {
+    if (loading) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => signalAppReady());
+    });
+    return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
+  }, [loading]);
 
   // ── 로딩 / 미로그인 / 권한없음 게이트 ─────────────────────────
   if (loading) {
@@ -482,6 +544,37 @@ export default function MoodPortal() {
 
   const balance = data?.client.balanceKRW || 0;
   const balanceNegative = balance < 0;
+  const bookings = data?.bookings || [];
+  const today = todayISO();
+  const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed');
+  const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed');
+  const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
+  const completedBookings = bookings.filter((b) => b.status === 'completed');
+  const calendarDays = daysInMonthGrid(calendarMonth);
+  const bookingsByDate = bookings.reduce<Record<string, MoodBooking[]>>((acc, b) => {
+    if (!b.date) return acc;
+    acc[b.date] = [...(acc[b.date] || []), b];
+    return acc;
+  }, {});
+  // 동일 시간대 겹침(중립 표시) — 날짜별 최대 동시 건수(startTime+durationHours 비교, 2건 이상만 기록).
+  // ⚠️ 충돌 "경고" 아님: 스키마에 managerId/vehicleId 가 없어 충돌 정의 불가(운영자 결정 2026-07-02,
+  //    docs/MOOD-CONFLICT-DETECTION-TODO.md). 빨간색/경고 아이콘 금지 — 회색/보라 중립 톤만.
+  const overlapByDate = Object.entries(bookingsByDate).reduce<Record<string, number>>((acc, [iso, list]) => {
+    const n = maxConcurrentCount(list);
+    if (n >= 2) acc[iso] = n;
+    return acc;
+  }, {});
+  const selectedDateBookings = bookingsByDate[selectedCalendarDate] || [];
+  const selectedOverlapCount = overlapByDate[selectedCalendarDate];
+  const visibleBookings = ledgerTab === 'today'
+    ? todayBookings
+    : ledgerTab === 'upcoming'
+      ? upcomingBookings
+      : ledgerTab === 'settle'
+        ? settleBookings
+        : ledgerTab === 'calendar'
+          ? selectedDateBookings
+          : bookings;
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
 
@@ -498,6 +591,34 @@ export default function MoodPortal() {
           {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
         </div>
 
+        {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
+          {([
+            ['status', '현황'],
+            ['manual', '수기 예약'],
+            ['ai', 'AI 예약'],
+          ] as const).map(([tab, label]) => {
+            const active = portalTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setPortalTab(tab)}
+                className="py-2.5 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  background: active ? C.accent : 'transparent',
+                  color: active ? '#fff' : C.textDim,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ═══ 현황 탭 ═══ 잔액 · KPI · 공유 캘린더 · 예약 운영 보드 */}
+        {portalTab === 'status' && (
+        <>
         {/* 잔액 카드 (음수 = 빨강 마이너스, 외상 표시) */}
         <div className="rounded-2xl p-6" style={{ background: C.card, border: C.cardBorder }}>
           <p className="text-xs mb-1.5" style={{ color: C.textDim }}>선불 잔액</p>
@@ -513,6 +634,120 @@ export default function MoodPortal() {
           {dataError && <p className="text-xs mt-2" style={{ color: C.danger }}>{dataError}</p>}
         </div>
 
+        {/* 운영 요약 — 무드 직원이 오늘/예정/정산 상태를 바로 보는 영역 */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ['오늘', todayBookings.length, '오늘 운행'],
+            ['예정', upcomingBookings.length, '대기 중'],
+            ['정산', settleBookings.length, '확인 필요'],
+          ].map(([label, count, caption]) => (
+            <button
+              key={String(label)}
+              type="button"
+              onClick={() => setLedgerTab(label === '오늘' ? 'today' : label === '예정' ? 'upcoming' : 'settle')}
+              className="rounded-2xl px-3 py-3 text-left transition-all hover:scale-[1.01]"
+              style={{ background: C.card, border: C.cardBorder }}
+            >
+              <span className="block text-[11px]" style={{ color: C.textDim }}>{caption}</span>
+              <span className="mt-1 block text-xl font-extrabold" style={{ color: label === '정산' && Number(count) > 0 ? C.danger : C.text }}>
+                {count}
+              </span>
+              <span className="block text-[11px] font-semibold" style={{ color: C.accentSolid }}>{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* 공유 캘린더 — 무드와 운영자가 날짜별 예약을 같이 확인 */}
+        <div className="rounded-2xl p-5" style={{ background: C.card, border: C.cardBorder }}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: C.text }}>공유 캘린더</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
+                {selectedCalendarDate} · {selectedDateBookings.length}건
+                {selectedOverlapCount !== undefined && (
+                  // 중립 정보 표시(회색/보라) — 충돌 경고 아님(스키마상 정의 불가, 2026-07-02 운영자 결정)
+                  <span style={{ color: C.accentSolid }}> · 동시간대 {selectedOverlapCount}건</span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
+                className="h-8 w-8 rounded-xl text-sm font-bold"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                aria-label="이전 달"
+              >
+                ‹
+              </button>
+              <span className="min-w-[74px] text-center text-xs font-bold" style={{ color: C.text }}>{calendarMonth}</span>
+              <button
+                type="button"
+                onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
+                className="h-8 w-8 rounded-xl text-sm font-bold"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                aria-label="다음 달"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold mb-1.5" style={{ color: C.textDim }}>
+            {['일', '월', '화', '수', '목', '금', '토'].map((d) => <span key={d}>{d}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((d) => {
+              const dayBookings = bookingsByDate[d.iso] || [];
+              const hasSettle = dayBookings.some((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
+              const selected = selectedCalendarDate === d.iso;
+              const isToday = d.iso === today;
+              return (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCalendarDate(d.iso);
+                    setCalendarMonth(monthKeyFromISO(d.iso));
+                    setLedgerTab('calendar');
+                  }}
+                  className="relative min-h-[46px] rounded-xl px-1 py-1 text-left transition-all"
+                  style={{
+                    background: selected ? C.accent : isToday ? 'rgba(124,92,252,0.14)' : C.inputBg,
+                    border: selected ? '1px solid transparent' : C.inputBorder,
+                    color: d.inMonth ? C.text : 'rgba(255,255,255,0.28)',
+                  }}
+                >
+                  <span className="block text-[11px] font-bold">{d.day}</span>
+                  {dayBookings.length > 0 && (
+                    <span
+                      className="absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                      style={{ background: hasSettle ? 'rgba(248,113,113,0.26)' : 'rgba(110,231,183,0.20)', color: hasSettle ? '#fecaca' : C.ok }}
+                    >
+                      {dayBookings.length}
+                    </span>
+                  )}
+                  {overlapByDate[d.iso] !== undefined && (
+                    // 동시간대 겹침 힌트 — 중립 보라 점(경고 아님). 상세 수치는 위 "동시간대 N건" 문구로.
+                    <span
+                      className="absolute bottom-1.5 right-1.5 h-1.5 w-1.5 rounded-full"
+                      style={{ background: selected ? 'rgba(255,255,255,0.8)' : 'rgba(182,104,252,0.6)' }}
+                      title={`동시간대 ${overlapByDate[d.iso]}건`}
+                      aria-label={`동시간대 ${overlapByDate[d.iso]}건`}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {/* 예약 운영 보드는 아래 별도 status 블록으로 이동 — 수기 예약 폼을 탭으로 분리하기 위함 */}
+        </>
+        )}
+
+        {/* ═══ 수기 예약 탭 ═══ 기존 예약하기 폼 */}
+        {portalTab === 'manual' && (
+        <>
         {/* 예약 폼 */}
         <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
           <h2 className="text-sm font-bold" style={{ color: C.text }}>예약하기</h2>
@@ -630,57 +865,52 @@ export default function MoodPortal() {
           </div>
           )}
 
-          {/* 경로 (출발 / 경유지 N / 도착) — 다음 우편번호 주소검색 + 거리/톨비 자동 계산 */}
+          {/* 경로 (출발 / 경유지 N / 도착) — 네이버 지도 검색+미니지도 핀 확정 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
             <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(픽업·샌딩 위치)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
 
-            {/* 출발지 */}
-            <div className="flex gap-2">
-              <input
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                placeholder="출발지 (예: 강남역, 도로명주소)"
-                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={() => searchAddress(setOrigin)}
-                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-              >
-                🔍 주소
-              </button>
-            </div>
+            {/* 출발지 — 네이버 검색 + 미니지도 핀 확정 (AddressAutocomplete). 확정 시 origin 문자열 갱신. */}
+            <AddressAutocomplete
+              id="mood-origin"
+              label="출발지"
+              language="ko"
+              placeholder="출발지 검색 (예: 강남역, 롯데호텔)"
+              value={originAC ?? undefined}
+              onChange={(c) => { setOriginAC(c); setOrigin(c?.address ?? ''); }}
+            />
+            {!originAC && origin.trim() && (
+              <p className="text-[11px]" style={{ color: C.textDim }}>
+                현재 출발지: {origin} <span className="opacity-70">— 바꾸려면 위에서 검색</span>
+              </p>
+            )}
 
-            {/* 경유지 — 네이버 지도처럼 추가/삭제 */}
+            {/* 경유지 — 네이버 검색+핀. 추가/삭제. (waypoints 문자열 = 돈 SSOT, waypointsAC = 표시) */}
             {waypoints.map((wp, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  value={wp}
-                  onChange={(e) => setWaypointAt(i, e.target.value)}
-                  placeholder={`경유지 ${i + 1}`}
-                  className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                  style={inputStyle}
+              <div key={i} className="flex flex-col gap-1">
+                <AddressAutocomplete
+                  id={`mood-wp-${i}`}
+                  label={`경유지 ${i + 1}`}
+                  language="ko"
+                  placeholder={`경유지 ${i + 1} 검색`}
+                  value={waypointsAC[i] ?? undefined}
+                  onChange={(c) => { setWaypointACAt(i, c); setWaypointAt(i, c?.address ?? ''); }}
                 />
-                <button
-                  type="button"
-                  onClick={() => searchAddress((v) => setWaypointAt(i, v))}
-                  aria-label={`경유지 ${i + 1} 주소 검색`}
-                  className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                  style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-                >
-                  🔍
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeWaypoint(i)}
-                  aria-label={`경유지 ${i + 1} 삭제`}
-                  className="rounded-xl px-3 py-2.5 text-xs shrink-0"
-                  style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', color: C.danger }}
-                >
-                  ✕
-                </button>
+                <div className="flex items-center justify-between gap-2">
+                  {!waypointsAC[i] && wp.trim() ? (
+                    <p className="text-[11px] min-w-0 truncate" style={{ color: C.textDim }}>현재: {wp}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeWaypoint(i)}
+                    aria-label={`경유지 ${i + 1} 삭제`}
+                    className="rounded-lg px-2.5 py-1 text-xs shrink-0"
+                    style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', color: C.danger }}
+                  >
+                    ✕ 경유지 삭제
+                  </button>
+                </div>
               </div>
             ))}
 
@@ -695,24 +925,20 @@ export default function MoodPortal() {
               </button>
             )}
 
-            {/* 도착지 */}
-            <div className="flex gap-2">
-              <input
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="도착지 (예: 인천공항)"
-                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={() => searchAddress(setDestination)}
-                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-              >
-                🔍 주소
-              </button>
-            </div>
+            {/* 도착지 — 네이버 검색 + 미니지도 핀 확정. 확정 시 destination 문자열 갱신. */}
+            <AddressAutocomplete
+              id="mood-destination"
+              label="도착지"
+              language="ko"
+              placeholder="도착지 검색 (예: 인천공항, 명동)"
+              value={destinationAC ?? undefined}
+              onChange={(c) => { setDestinationAC(c); setDestination(c?.address ?? ''); }}
+            />
+            {!destinationAC && destination.trim() && (
+              <p className="text-[11px]" style={{ color: C.textDim }}>
+                현재 도착지: {destination} <span className="opacity-70">— 바꾸려면 위에서 검색</span>
+              </p>
+            )}
             {routeLoading && (
               <p className="text-[11px]" style={{ color: C.textDim }}>경로 계산 중…</p>
             )}
@@ -786,19 +1012,77 @@ export default function MoodPortal() {
             </p>
           )}
         </div>
+        </>
+        )}
 
-        {/* 차감 내역 (ledger) — 각 예약 분해 + 차감액 + 잔액(running) */}
+        {/* ═══ AI 예약 탭 ═══ 자연어로 예약(파트2 컴포넌트, 자체 완결) */}
+        {portalTab === 'ai' && (
+          <MoodAiBooking clientId={data?.clientId || ''} onBooked={() => { void loadData(data?.clientId); }} />
+        )}
+
+        {/* ═══ 현황 탭 (이어서) ═══ 예약 운영 보드 */}
+        {portalTab === 'status' && (
+        <>
+        {/* 예약 운영 보드 — 오늘/예정/정산/전체를 나눠 보는 영역 */}
         <div className="rounded-2xl p-5" style={{ background: C.card, border: C.cardBorder }}>
-          <h2 className="text-sm font-bold mb-3" style={{ color: C.text }}>차감 내역</h2>
-          {!data || data.bookings.length === 0 ? (
-            <p className="text-xs" style={{ color: C.textDim }}>예약 내역이 없습니다.</p>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: C.text }}>예약 운영</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
+                완료 {completedBookings.length}건 · 총 {bookings.length}건
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { void loadData(data?.clientId); }}
+              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+              style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+            >
+              새로고침
+            </button>
+          </div>
+
+          <div className="grid grid-cols-5 gap-1.5 mb-3">
+            {([
+              ['today', '오늘', todayBookings.length],
+              ['upcoming', '예정', upcomingBookings.length],
+              ['settle', '정산', settleBookings.length],
+              ['calendar', '날짜', selectedDateBookings.length],
+              ['all', '전체', bookings.length],
+            ] as const).map(([tab, label, count]) => {
+              const active = ledgerTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setLedgerTab(tab)}
+                  className="rounded-xl px-2 py-2 text-[11px] font-bold transition-all"
+                  style={{
+                    background: active ? C.accent : C.inputBg,
+                    border: active ? '1px solid transparent' : C.inputBorder,
+                    color: active ? '#fff' : C.textDim,
+                  }}
+                >
+                  {label}
+                  <span className="ml-1 opacity-80">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {!data || visibleBookings.length === 0 ? (
+            <p className="text-xs" style={{ color: C.textDim }}>
+              {bookings.length === 0 ? '예약 내역이 없습니다.' : '이 탭에 표시할 예약이 없습니다.'}
+            </p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {data.bookings.map((b) => {
+              {visibleBookings.map((b) => {
                 const bd = b.breakdown;
-                const routeText = bd?.origin || bd?.destination
-                  ? `${bd?.origin || '?'} → ${bd?.destination || '?'}`
-                  : null;
+                const routeText = routeTextFromBreakdown(bd);
+                const stops = cleanStops(bd);
+                const expanded = expandedBookingId === b.id;
+                const canSettle = data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport';
+                const serviceTime = b.serviceType === 'airport' ? '정액' : `${b.durationHours}시간`;
                 return (
                   <li
                     key={b.id}
@@ -806,20 +1090,24 @@ export default function MoodPortal() {
                     style={{ background: C.inputBg, border: C.inputBorder }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: C.text }}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedBookingId((id) => (id === b.id ? null : b.id))}
+                        className="min-w-0 text-left flex-1"
+                      >
+                        <span className="block text-sm font-semibold" style={{ color: C.text }}>
                           {b.date} · {b.startTime}
-                        </p>
-                        <p className="text-[11px] truncate" style={{ color: C.textDim }}>
-                          {SERVICE_LABEL[b.serviceType] || b.serviceType} {b.durationHours}시간 · {b.createdByEmail}
-                        </p>
+                        </span>
+                        <span className="block text-[11px] truncate" style={{ color: C.textDim }}>
+                          {SERVICE_LABEL[b.serviceType] || b.serviceType} {serviceTime} · {b.status === 'completed' ? '정산 완료' : '예약 확정'}
+                        </span>
                         {routeText && (
-                          <p className="text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</p>
+                          <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>
                         )}
-                      </div>
+                      </button>
                       <div className="text-right shrink-0">
-                        <span className="text-sm font-bold" style={{ color: C.danger }}>
-                          −{formatKRW(b.amountKRW)}
+                        <span className="text-sm font-bold" style={{ color: b.status === 'completed' ? C.ok : C.danger }}>
+                          −{formatKRW(b.finalAmountKRW || b.amountKRW)}
                         </span>
                         {typeof b.runningBalanceKRW === 'number' && (
                           <p className="text-[11px]" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
@@ -828,10 +1116,92 @@ export default function MoodPortal() {
                         )}
                       </div>
                     </div>
+
+                    {expanded && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {stops.length > 0 && (
+                          <div className="rounded-xl p-3" style={{ background: 'rgba(2,6,23,0.32)', border: '1px solid rgba(124,92,252,0.14)' }}>
+                            <p className="text-[11px] font-bold mb-2" style={{ color: C.text }}>동선</p>
+                            <div className="flex flex-col gap-1.5">
+                              {stops.map((stop, i) => (
+                                <div key={`${stop}-${i}`} className="flex gap-2">
+                                  <span
+                                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                                    style={{ background: i === 0 ? '#22c55e' : i === stops.length - 1 ? '#ef4444' : C.accentSolid, color: '#fff' }}
+                                  >
+                                    {i + 1}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold truncate" style={{ color: C.text }}>{stop}</p>
+                                    {i < stops.length - 1 && (
+                                      <p className="text-[10px]" style={{ color: C.textDim }}>차량 이동</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooking(b)}
+                            className="col-span-2 rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            style={{ background: C.accent, color: '#fff' }}
+                          >
+                            영수증 보기
+                          </button>
+                          <a
+                            href={naverDirectionsUrl(bd)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl px-3 py-2 text-center text-[11px] font-semibold"
+                            style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+                          >
+                            네이버 지도
+                          </a>
+                          <a
+                            href={googleDirectionsUrl(bd)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl px-3 py-2 text-center text-[11px] font-semibold"
+                            style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+                          >
+                            구글 지도
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => copyBookingToForm(b)}
+                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                          >
+                            이 예약 복사
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSettleId(b.id);
+                              setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS));
+                              setSettleOrigin(b.breakdown?.origin || '');
+                              setSettleDestination(b.breakdown?.destination || '');
+                              setSettleWaypoints(Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : []);
+                              setSettleMsg(null);
+                            }}
+                            disabled={!canSettle}
+                            className="rounded-xl px-3 py-2 text-[11px] font-semibold disabled:opacity-40"
+                            style={{ background: canSettle ? C.accent : C.inputBg, border: canSettle ? '1px solid transparent' : C.inputBorder, color: canSettle ? '#fff' : C.textDim }}
+                          >
+                            운행 종료 정산
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 분해: 시급/거리추가/톨비 (값 있을 때만) */}
                     {bd && (bd.baseKRW != null || bd.distanceSurchargeKRW || bd.tollKRW) && (
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]" style={{ color: C.textDim }}>
-                        {bd.baseKRW != null && <span>시급 {formatKRW(bd.baseKRW)}</span>}
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]" style={{ color: C.textDim }}>
+                        {bd.baseKRW != null && <span>기본 {formatKRW(bd.baseKRW)}</span>}
                         {!!bd.distanceSurchargeKRW && (
                           <span>거리 +{formatKRW(bd.distanceSurchargeKRW)}{bd.km ? ` (${bd.km}km)` : ''}</span>
                         )}
@@ -840,9 +1210,8 @@ export default function MoodPortal() {
                     )}
 
                     {/* 운행 종료 정산 (admin · 시간제 · 미정산) */}
-                    {data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport' && (
+                    {data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport' && settleId === b.id && (
                       <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(124,92,252,0.12)' }}>
-                        {settleId === b.id ? (
                           <div className="flex flex-col gap-2">
                             {/* 실제 시간 */}
                             <label className="flex items-center gap-2">
@@ -929,23 +1298,6 @@ export default function MoodPortal() {
                               </button>
                             </div>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSettleId(b.id);
-                              setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS));
-                              setSettleOrigin(b.breakdown?.origin || '');
-                              setSettleDestination(b.breakdown?.destination || '');
-                              setSettleWaypoints(Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : []);
-                              setSettleMsg(null);
-                            }}
-                            className="text-[11px] underline"
-                            style={{ color: C.accentSolid }}
-                          >
-                            운행 종료 · 정산
-                          </button>
-                        )}
                         {settleId === b.id && settleMsg && (
                           <p className="text-[11px] mt-1" style={{ color: settleMsg.kind === 'ok' ? C.ok : C.danger }}>{settleMsg.text}</p>
                         )}
@@ -967,87 +1319,11 @@ export default function MoodPortal() {
             </ul>
           )}
         </div>
-
-        {/* 광고사 만들기 (admin 전용) — 충전·예약 대상 client 생성 */}
-        {data?.isAdmin && (
-          <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: C.cardBorder }}>
-            <h2 className="text-sm font-bold" style={{ color: C.text }}>광고사 만들기 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>광고사 이름</span>
-              <input
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                placeholder="예: MOOD"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>ID <span className="opacity-70">(선택 · 영문/숫자, 미입력 시 자동)</span></span>
-              <input
-                value={newClientId}
-                onChange={(e) => setNewClientId(e.target.value)}
-                placeholder="예: mood"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <button
-              onClick={() => { void handleCreateClient(); }}
-              disabled={creatingClient || !newClientName.trim()}
-              className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-              style={{ background: C.accent, color: '#fff' }}
-            >
-              {creatingClient ? '생성 중…' : '광고사 만들기'}
-            </button>
-            {createMsg && (
-              <p className="text-xs text-center" style={{ color: createMsg.kind === 'ok' ? C.ok : C.danger }}>
-                {createMsg.text}
-              </p>
-            )}
-          </div>
+        </>
         )}
 
-        {/* 충전 (admin 전용) */}
-        {data?.isAdmin && (
-          <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: '1px solid rgba(234,83,126,0.25)' }}>
-            <h2 className="text-sm font-bold" style={{ color: C.text }}>잔액 충전 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>clientId</span>
-              <input
-                value={topupClientId}
-                onChange={(e) => setTopupClientId(e.target.value)}
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>충전 금액 (원)</span>
-              <input
-                type="number"
-                min={1}
-                value={topupAmount}
-                onChange={(e) => setTopupAmount(e.target.value)}
-                placeholder="예: 1000000"
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-            </label>
-            <button
-              onClick={() => { void handleTopup(); }}
-              disabled={topupSubmitting || !topupClientId.trim() || !(Number(topupAmount) > 0)}
-              className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #EA537E, #7C5CFC)', color: '#fff' }}
-            >
-              {topupSubmitting ? '충전 중…' : '충전하기'}
-            </button>
-            {topupMsg && (
-              <p className="text-xs text-center" style={{ color: topupMsg.kind === 'ok' ? C.ok : C.danger }}>
-                {topupMsg.text}
-              </p>
-            )}
-          </div>
-        )}
+        {/* 예약 항목 클릭 시 영수증 모달 (완료/일반 공용) — 파트2 컴포넌트 */}
+        <MoodReceiptModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
       </div>
     </div>
   );
