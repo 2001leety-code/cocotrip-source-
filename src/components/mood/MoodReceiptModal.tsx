@@ -143,6 +143,8 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   const km = Number(bd.km || 0);
   const amountKRW = Number(booking.amountKRW || 0);
   const ratePerHour = Number(booking.ratePerHour || 0);
+  // 거리 단가 — 저장된 breakdown 에서 유도(요율 개정 전 660·후 600 예약 각각 정확 표기). 유도 불가 시 현행 상수.
+  const perKm = km > 0 && distanceSurchargeKRW > 0 ? Math.round(distanceSurchargeKRW / km) : MOOD_SURCHARGE_PER_KM;
   const isAirport = booking.serviceType === 'airport';
 
   const hasRunningBalance = typeof booking.runningBalanceKRW === 'number';
@@ -252,7 +254,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
               <span>
                 거리 추가요금
                 {distanceSurchargeKRW > 0
-                  ? ` (${km.toLocaleString('ko-KR')}km × ${MOOD_SURCHARGE_PER_KM}원)`
+                  ? ` (${km.toLocaleString('ko-KR')}km × ${perKm}원)`
                   : ` (${km.toLocaleString('ko-KR')}km — 50km 미만 무료)`}
               </span>
               <span style={{ color: C.text }}>+{formatKRW(distanceSurchargeKRW)}</span>

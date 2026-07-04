@@ -4,19 +4,19 @@ import { MOOD_RATES, computeAmountKRW, isValidServiceType, rateForServiceType, M
 
 // MOOD B2B 포털 가격 SSOT — mood-book.js 가 이 함수로 잔액 차감액 재계산(클라이언트 금액 무시).
 describe('mood-pricing — 단가 SSOT (부가세 포함)', () => {
-  it('단가: 차량 33,000 / 매니저 44,000', () => {
-    expect(MOOD_RATES.vehicle).toBe(33000);
-    expect(MOOD_RATES.manager).toBe(44000);
+  it('단가: 차량 30,000 / 매니저 40,000', () => {
+    expect(MOOD_RATES.vehicle).toBe(30000);
+    expect(MOOD_RATES.manager).toBe(40000);
   });
   it('computeAmountKRW = rate × max(3, hours) — 최소 3시간 고정', () => {
-    expect(computeAmountKRW('vehicle', 3)).toEqual({ ok: true, amountKRW: 99000, ratePerHour: 33000 });   // 3h
-    expect(computeAmountKRW('manager', 5)).toEqual({ ok: true, amountKRW: 220000, ratePerHour: 44000 });  // 5h
+    expect(computeAmountKRW('vehicle', 3)).toEqual({ ok: true, amountKRW: 90000, ratePerHour: 30000 });   // 3h
+    expect(computeAmountKRW('manager', 5)).toEqual({ ok: true, amountKRW: 200000, ratePerHour: 40000 });  // 5h
   });
   it('3시간 미만은 3시간 청구(floor), 그 이상만 추가', () => {
-    expect(computeAmountKRW('vehicle', 1).amountKRW).toBe(99000);    // 1h → 3h 청구
-    expect(computeAmountKRW('vehicle', 2).amountKRW).toBe(99000);    // 2h → 3h 청구
-    expect(computeAmountKRW('manager', 1.5).amountKRW).toBe(132000); // 1.5h → 3h 청구
-    expect(computeAmountKRW('vehicle', 4.5).amountKRW).toBe(148500); // 4.5h → 33000×4.5 (floor 무관, 소수 허용)
+    expect(computeAmountKRW('vehicle', 1).amountKRW).toBe(90000);    // 1h → 3h 청구
+    expect(computeAmountKRW('vehicle', 2).amountKRW).toBe(90000);    // 2h → 3h 청구
+    expect(computeAmountKRW('manager', 1.5).amountKRW).toBe(120000); // 1.5h → 3h 청구
+    expect(computeAmountKRW('vehicle', 4.5).amountKRW).toBe(135000); // 4.5h → 30000×4.5 (floor 무관, 소수 허용)
   });
   it('잘못된 serviceType → ok:false', () => {
     expect(computeAmountKRW('bus', 1).ok).toBe(false);
@@ -33,33 +33,63 @@ describe('mood-pricing — 단가 SSOT (부가세 포함)', () => {
   });
 });
 
-// 거리 추가요금 + 총액 (운영자 2026-06-12: 50km↑ km×660 비례 + 톨비, 부가세 포함)
+// 거리 추가요금 + 총액 (운영자 2026-06-12: 50km↑ km×600 비례 + 톨비, 부가세 포함)
 describe('mood-pricing — 거리 추가요금 + 총액', () => {
   it('50km 미만 = 추가요금 0', () => {
     expect(computeDistanceSurchargeKRW(0)).toBe(0);
     expect(computeDistanceSurchargeKRW(49)).toBe(0);
     expect(computeDistanceSurchargeKRW(49.9)).toBe(0);
   });
-  it('50km 이상 = km × 660 (비례)', () => {
-    expect(computeDistanceSurchargeKRW(50)).toBe(33000);
-    expect(computeDistanceSurchargeKRW(100)).toBe(66000);
-    expect(computeDistanceSurchargeKRW(75)).toBe(49500);
-    expect(computeDistanceSurchargeKRW(120)).toBe(79200);
+  it('50km 이상 = km × 600 (비례)', () => {
+    expect(computeDistanceSurchargeKRW(50)).toBe(30000);
+    expect(computeDistanceSurchargeKRW(100)).toBe(60000);
+    expect(computeDistanceSurchargeKRW(75)).toBe(45000);
+    expect(computeDistanceSurchargeKRW(120)).toBe(72000);
   });
   it('총액 = 시급×max(3,시간) + 거리추가 + 톨비', () => {
     const r = computeMoodTotalKRW({ serviceType: 'manager', durationHours: 2, km: 100, tollKRW: 5000 });
     expect(r.ok).toBe(true);
-    expect(r.baseKRW).toBe(132000);           // 44000 × max(3,2) = 44000×3 (최소 3시간)
-    expect(r.distanceSurchargeKRW).toBe(66000); // 100km
+    expect(r.baseKRW).toBe(120000);           // 40000 × max(3,2) = 40000×3 (최소 3시간)
+    expect(r.distanceSurchargeKRW).toBe(60000); // 100km
     expect(r.tollKRW).toBe(5000);
-    expect(r.amountKRW).toBe(203000);          // 132000 + 66000 + 5000
+    expect(r.amountKRW).toBe(185000);          // 120000 + 60000 + 5000
   });
   it('단거리(50km 미만)·톨비 0 = base 만', () => {
     const r = computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3, km: 20 });
-    expect(r.amountKRW).toBe(99000);           // 33000 × 3, 추가 0
+    expect(r.amountKRW).toBe(90000);           // 30000 × 3, 추가 0
     expect(r.distanceSurchargeKRW).toBe(0);
   });
   it('잘못된 serviceType → ok:false 전파', () => {
     expect(computeMoodTotalKRW({ serviceType: 'bus', durationHours: 1 }).ok).toBe(false);
+  });
+});
+
+describe('정산 단가 보존 — ratePerHourOverride (2026-07-04 요율 개정 33k→30k)', () => {
+  it('override 있으면 예약 당시 단가로 계산 (옛 33,000 예약 정산 보존)', async () => {
+    const { computeMoodTotalKRW } = await import('../../api/_shared/mood-pricing.js');
+    const r = computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 9, km: 0, tollKRW: 0, ratePerHourOverride: 33000 });
+    expect(r.ok).toBe(true);
+    expect(r.ratePerHour).toBe(33000);
+    expect(r.baseKRW).toBe(297000); // 33,000 × 9 — 새 단가(270,000) 아님
+  });
+
+  it('override 없거나 불량(0/NaN/음수)이면 현행 단가', async () => {
+    const { computeMoodTotalKRW } = await import('../../api/_shared/mood-pricing.js');
+    expect(computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3 }).ratePerHour).toBe(30000);
+    expect(computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3, ratePerHourOverride: 0 }).ratePerHour).toBe(30000);
+    expect(computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3, ratePerHourOverride: NaN }).ratePerHour).toBe(30000);
+  });
+
+  it('공항 정액(110,000)은 override 무관 그대로', async () => {
+    const { computeMoodTotalKRW } = await import('../../api/_shared/mood-pricing.js');
+    const r = computeMoodTotalKRW({ serviceType: 'airport', durationHours: 2, ratePerHourOverride: 33000 });
+    expect(r.amountKRW).toBe(110000);
+  });
+
+  it('mood-settle 배선 소스 불변식 — pre.ratePerHour 전달', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, '../../api/mood-settle.js'), 'utf8');
+    expect(src).toMatch(/ratePerHourOverride: Number\(pre\.ratePerHour\)/);
   });
 });
