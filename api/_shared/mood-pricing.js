@@ -18,17 +18,17 @@
 
 /** @typedef {'vehicle' | 'airport' | 'manager'} MoodServiceType */
 
-/** 서비스별 시급 (원). 부가세 포함. 순서 = UI 탭 순서(차량/공항/매니저).
+/** 서비스별 시급 (원). 부가세 없음(2026-07-04 운영자 — 기존 33,000/44,000은 부가세 포함가 착오). 순서 = UI 탭 순서(차량/공항/매니저).
  *  ⚠️ airport 는 정액 서비스라 시급 미사용(MOOD_FIXED_PRICE_KRW 참조) — 탭 존재용 placeholder. */
 export const MOOD_RATES = Object.freeze({
-  vehicle: 33000,
-  airport: 33000,
-  manager: 44000,
+  vehicle: 30000,
+  airport: 30000,
+  manager: 40000,
 });
 
 /**
  * 정액 서비스 — 공항(airport) 픽업/샌딩은 거리·시간 무관 110,000원 고정(운영자 2026-06-14).
- * 부가세 포함. 시급×시간/거리추가/톨비 전부 무시하고 이 정액만 청구.
+ * 부가세 없음(운영자 확인 2026-07-04 — 공항은 원래 부가세 없이 책정). 시급×시간/거리추가/톨비 전부 무시하고 이 정액만 청구.
  */
 export const MOOD_FIXED_PRICE_KRW = Object.freeze({ airport: 110000 });
 
@@ -67,8 +67,11 @@ export function rateForServiceType(serviceType) {
  *   - 알 수 없는 serviceType
  *   - durationHours 가 숫자 아님 / NaN / 0 이하 / 15 초과
  */
-export function computeAmountKRW(serviceType, durationHours) {
-  const ratePerHour = rateForServiceType(serviceType);
+export function computeAmountKRW(serviceType, durationHours, ratePerHourOverride) {
+  // 정산 보존(2026-07-04): 요율 개정 후에도 기존 예약은 예약 당시 단가로 정산 —
+  // override 가 유효(양수 finite)하면 현행 MOOD_RATES 대신 사용.
+  const _ov = Number(ratePerHourOverride);
+  const ratePerHour = Number.isFinite(_ov) && _ov > 0 ? _ov : rateForServiceType(serviceType);
   if (ratePerHour === null) {
     return { ok: false, error: `INVALID_SERVICE_TYPE: ${String(serviceType)}` };
   }
@@ -86,11 +89,11 @@ export function computeAmountKRW(serviceType, durationHours) {
 }
 
 /**
- * 거리 추가요금 — 50km 이상부터 km × 660원 (= 33,000 ÷ 50, 부가세 포함, 비례).
- * 50km 미만 = 0. 운영자 정책 2026-06-12: 50km=33,000 / 100km=66,000 (비례).
+ * 거리 추가요금 — 50km 이상부터 km × 600원 (= 30,000 ÷ 50, 부가세 없음, 비례).
+ * 50km 미만 = 0. 운영자 정책 2026-06-12(비례) + 2026-07-04 부가세 제외: 50km=30,000 / 100km=60,000.
  */
 export const MOOD_DISTANCE_THRESHOLD_KM = 50;
-export const MOOD_SURCHARGE_PER_KM = 660; // 33,000 / 50km
+export const MOOD_SURCHARGE_PER_KM = 600; // 30,000 / 50km (부가세 없음, 2026-07-04)
 
 export function computeDistanceSurchargeKRW(km) {
   const d = Number(km);
@@ -105,7 +108,7 @@ export function computeDistanceSurchargeKRW(km) {
  * @param {{ serviceType: MoodServiceType, durationHours: number, km?: number, tollKRW?: number }} input
  * @returns {{ ok:true, amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW, tollKRW, km } | { ok:false, error }}
  */
-export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0 } = {}) {
+export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0, ratePerHourOverride } = {}) {
   // 정액 서비스(공항) — 시간/거리/톨비 전부 무시하고 정액만 청구.
   if (isValidServiceType(serviceType)) {
     const fixed = fixedPriceFor(serviceType);
@@ -113,7 +116,7 @@ export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKR
       return { ok: true, amountKRW: fixed, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: 0, tollKRW: 0, km: 0 };
     }
   }
-  const base = computeAmountKRW(serviceType, durationHours);
+  const base = computeAmountKRW(serviceType, durationHours, ratePerHourOverride);
   if (!base.ok) return base;
   const distanceSurchargeKRW = computeDistanceSurchargeKRW(km);
   const toll = Math.max(0, Math.round(Number(tollKRW) || 0));

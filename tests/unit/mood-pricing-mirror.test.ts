@@ -13,13 +13,13 @@ import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, MOOD_FIXED_P
 // 🔴 프론트 미러(src/lib/moodPricing.ts)가 백엔드 SSOT(api/_shared/mood-pricing.js)와
 //    동일한 단가·공식을 유지하는지 검증. 어긋나면 "표시가 ≠ 청구가" → 신뢰 붕괴(P311).
 describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
-  it('단가 상수 동일 (차량 33,000 / 공항 33,000 / 매니저 44,000)', () => {
+  it('단가 상수 동일 (차량 30,000 / 공항 30,000 / 매니저 40,000)', () => {
     expect(FE_RATES.vehicle).toBe(BE_RATES.vehicle);
     expect(FE_RATES.airport).toBe(BE_RATES.airport);
     expect(FE_RATES.manager).toBe(BE_RATES.manager);
-    expect(FE_RATES.vehicle).toBe(33000);
-    expect(FE_RATES.airport).toBe(33000);
-    expect(FE_RATES.manager).toBe(44000);
+    expect(FE_RATES.vehicle).toBe(30000);
+    expect(FE_RATES.airport).toBe(30000);
+    expect(FE_RATES.manager).toBe(40000);
   });
 
   it('공항 = 정액 110,000 — 시간/거리/톨비 전부 무시 (위조 방지, FE=BE)', () => {
@@ -52,8 +52,8 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
       expect(feSurcharge(km)).toBe(beSurcharge(km));
     }
     // 절대값 sanity
-    expect(feSurcharge(50)).toBe(33000);
-    expect(feSurcharge(100)).toBe(66000);
+    expect(feSurcharge(50)).toBe(30000);
+    expect(feSurcharge(100)).toBe(60000);
   });
 
   it('총액 분해 동일 — 시급×시간 + 거리추가 + 톨비 (여러 케이스)', () => {
@@ -79,7 +79,7 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
 
   it('경로 없음(거리/톨비 0) = base 만 — 톨비/거리 0 폴백', () => {
     const fe = feTotal({ serviceType: 'manager', durationHours: 4 });
-    expect(fe.amountKRW).toBe(176000); // 44000 × 4
+    expect(fe.amountKRW).toBe(160000); // 40000 × 4
     expect(fe.distanceSurchargeKRW).toBe(0);
     expect(fe.tollKRW).toBe(0);
     // base helper 와도 일치

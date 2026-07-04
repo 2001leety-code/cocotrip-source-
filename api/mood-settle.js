@@ -141,11 +141,14 @@ export default async function handler(req, res) {
     }
 
     // ── 3) 최종 금액 (백엔드 SSOT — 클라 금액 무시) ──
+    // 예약 당시 단가 보존(2026-07-04 요율 개정 33k→30k/44k→40k) — 옛 예약을 새 단가로
+    // 정산하면 예약가와 어긋남. 거리단가는 현행 상수(재측정 km 대상, ±60원/km 허용).
     const finalPriced = computeMoodTotalKRW({
       serviceType: pre.serviceType,
       durationHours: actualHours,
       km,
       tollKRW,
+      ratePerHourOverride: Number(pre.ratePerHour) > 0 ? Number(pre.ratePerHour) : undefined,
     });
     if (!finalPriced.ok) {
       res.writeHead(400, JSON_HEADERS);
