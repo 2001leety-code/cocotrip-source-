@@ -141,11 +141,13 @@ describe('P291 PLAN_RESPONSE_SCHEMA properties hint 확장 (cache miss 0 대안)
 
   // ── R5: stops.items propertyOrdering ─────────────────────────────────────
 
-  it('R5 — stops.items propertyOrdering 12 fields (P200 required:[name,category,start_time] 유지)', () => {
+  it('R5 — stops.items propertyOrdering 13 fields (P200 required:[name,category,start_time] 유지)', () => {
+    // 2026-07-03 B-18 fix: local_tag 추가(12→13). responseSchema 에 없는 필드는 구조화출력이
+    // 물리적으로 못 내서 프롬프트 LOCAL TAG MANDATORY 가 무력화됐었다 (5/24 이후 전 plan 0%).
     const stopsItems = PLAN_RESPONSE_SCHEMA.properties.days.items.properties.stops.items;
     expect(stopsItems.propertyOrdering).toEqual([
       'order', 'start_time', 'name', 'display_name', 'category',
-      'stay_min', 'address', 'tip', 'lat', 'lng', 'entry_fee_krw', 'verified',
+      'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified',
     ]);
     expect(stopsItems.required).toEqual(['name', 'category', 'start_time']);
   });

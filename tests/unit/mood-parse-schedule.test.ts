@@ -10,9 +10,12 @@
  *
  * 순수함수라 모킹 불필요 (api/_shared 핸들러 모킹 패턴과 달리 직접 호출).
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, looksLikeAirport, guessService, norm } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -102,5 +105,133 @@ describe('guessService — 서비스 추천 우선순위 (airport>vehicle>manage
 
   it('둘 다 없으면 manager (기본)', () => {
     expect(guessService(false, false)).toBe('manager');
+  });
+});
+
+describe('salvageStopsFromTruncatedJson — 잘린 AI 응답 부분 회수 (2026-07-03 prod fix)', () => {
+  // prod 재현: thinking 토큰이 maxOutputTokens 를 먹어 JSON 이 문자열 중간에서 잘림
+  // → "SyntaxError: Unterminated string in JSON at position 156".
+  const full = (stops: string) => `{"stops":[${stops}]}`;
+  const s1 = '{"order":1,"rawText":"9:30 이사님 픽업","personOrPlace":"이사님","addressHint":"인천 강화군","action":"pickup","timeHint":"09:30"}';
+  const s2 = '{"order":2,"rawText":"김포공항 드랍","personOrPlace":"김포공항","addressHint":"","action":"dropoff","timeHint":""}';
+
+  it('문자열 중간에서 잘린 응답 → 완성된 앞쪽 stop 만 회수 (prod 케이스)', () => {
+    const truncatedMidString = `{"stops":[${s1},{"order":2,"rawText":"서울시 영등포구 국제금융로 108-6(유진`;
+    const out = salvageStopsFromTruncatedJson(truncatedMidString);
+    expect(out).toHaveLength(1);
+    expect(out[0].personOrPlace).toBe('이사님');
+  });
+
+  it('객체 경계에서 잘린 응답 → 완성된 stop 전부 회수', () => {
+    const truncatedAtBoundary = `{"stops":[${s1},${s2},`;
+    const out = salvageStopsFromTruncatedJson(truncatedAtBoundary);
+    expect(out).toHaveLength(2);
+    expect(out[1].personOrPlace).toBe('김포공항');
+  });
+
+  it('정상 완결 JSON 도 전체 회수 (배열 종료 인지)', () => {
+    const out = salvageStopsFromTruncatedJson(full(`${s1},${s2}`));
+    expect(out).toHaveLength(2);
+  });
+
+  it('문자열 안의 중괄호/이스케이프에 안 속는다', () => {
+    const tricky = `{"stops":[{"order":1,"rawText":"괄호 {테스트} \\"인용\\"","personOrPlace":"강남역","addressHint":"","action":"via","timeHint":""}]}`;
+    const out = salvageStopsFromTruncatedJson(tricky);
+    expect(out).toHaveLength(1);
+    expect(out[0].personOrPlace).toBe('강남역');
+  });
+
+  it('stops 배열이 없거나 쓰레기 입력이면 빈 배열', () => {
+    expect(salvageStopsFromTruncatedJson('')).toEqual([]);
+    expect(salvageStopsFromTruncatedJson('not json at all')).toEqual([]);
+    expect(salvageStopsFromTruncatedJson('{"other":[1,2]}')).toEqual([]);
+  });
+});
+
+describe('thinkingBudget 소스 불변식 — truncation 근본원인 재발 방지', () => {
+  // gemini-2.5-flash 는 thinking 토큰이 maxOutputTokens 에서 차감된다.
+  // thinkingConfig 를 지우면 이 잠금이 터진다 (2026-07-03 prod "일정 해석 실패" 재발 방지).
+  it('mood-parse-schedule 은 thinkingBudget: 0 을 유지해야 한다', () => {
+    const src = readFileSync(resolve(__dirname, '../../api/mood-parse-schedule.js'), 'utf8');
+    expect(src).toMatch(/thinkingConfig:\s*\{\s*thinkingBudget:\s*0\s*\}/);
+  });
+
+  it('ai-planner-quick 도 thinkingBudget: 0 을 유지해야 한다 (동일 잠복버그)', () => {
+    const src = readFileSync(resolve(__dirname, '../../api/ai-planner-quick.js'), 'utf8');
+    expect(src).toMatch(/thinkingConfig:\s*\{\s*thinkingBudget:\s*0\s*\}/);
+  });
+});
+
+describe('matchStopPlaces — 명시 장소 > 사람 우선순위 (2026-07-03 주소록 오위치 돈버그 방지)', () => {
+  // 실사례: "9:50am 르픽(정유진 픽업)" — 정유진을 '르픽에서' 태움.
+  // 사람 매칭이 이기면 픽업 위치가 정유진 집으로 잡혀 km·요금 오계산.
+  const book = [
+    { name: '정유진', nameNorm: '정유진', address: '서울시 영등포구 국제금융로 108-6', lat: null, lng: null, isDirector: false },
+    { name: '르픽', nameNorm: '르픽', address: '서울특별시 강남구 도산대로78길 14 2층', lat: 37.5230867, lng: 127.0468013, isDirector: false },
+    { name: '이사님', nameNorm: '이사님', address: '인천 강화군 불은면', lat: 37.6, lng: 126.4, isDirector: true },
+    { name: '김포공항', nameNorm: '김포공항', address: '서울특별시 강서구 하늘길 38', lat: 37.5668999, lng: 126.8012509, isDirector: false },
+    { name: '김포공항 국내선', nameNorm: '김포공항 국내선', address: '서울특별시 강서구 하늘길 111', lat: 37.5587816, lng: 126.803009, isDirector: false },
+  ];
+  const m = (person: string, hint: string) => matchStopPlaces(person, hint, book);
+
+  it("'르픽(정유진 픽업)' → 위치는 르픽 (사람 집 아님)", () => {
+    const { matched } = m('정유진', '르픽');
+    expect(matched?.name).toBe('르픽');
+    expect(matched?.lat).toBe(37.5230867);
+  });
+
+  it('장소힌트 없으면 사람 매칭 → 집 주소 (기존 동작 보존)', () => {
+    const { matched } = m('정유진', '');
+    expect(matched?.name).toBe('정유진');
+  });
+
+  it("'르픽(이사님 픽업)' → 위치=르픽 이지만 이사님 신호(차량 판별)는 유지", () => {
+    const { matched, directorSignal } = m('이사님', '르픽');
+    expect(matched?.name).toBe('르픽');
+    expect(directorSignal).toBe(true);
+  });
+
+  it('이사님 단독(장소힌트 미등록 주소)이면 이사님 매칭 + 신호', () => {
+    const { matched, directorSignal } = m('이사님', '인천 강화군 불은면 어딘가');
+    expect(matched?.name).toBe('이사님');
+    expect(directorSignal).toBe(true);
+  });
+
+  it("plain '김포공항' 힌트는 국내선/국제선 모호성 없이 정확 일치 (대표 항목)", () => {
+    const { matched } = m('헤메실장님', '김포공항');
+    expect(matched?.name).toBe('김포공항');
+  });
+
+  it('둘 다 미매칭이면 matched=null (→ geocode 경로)', () => {
+    const { matched, directorSignal } = m('강남 코엑스', '');
+    expect(matched).toBeNull();
+    expect(directorSignal).toBe(false);
+  });
+});
+
+describe('coordFromPlaceDoc — 손상 좌표 무효화 (2026-07-03 null-island 돈버그 방지)', () => {
+  it('정상 한국 좌표는 그대로', () => {
+    expect(coordFromPlaceDoc({ lat: 37.5230867, lng: 127.0468013 })).toEqual({ lat: 37.5230867, lng: 127.0468013 });
+  });
+
+  it('🔴 (0,0) null-island 은 무효 → {null,null} (geocode 경로로)', () => {
+    expect(coordFromPlaceDoc({ lat: 0, lng: 0 })).toEqual({ lat: null, lng: null });
+  });
+
+  it('lat/lng null·undefined·누락 → {null,null} (Number(null)=0 함정 차단)', () => {
+    expect(coordFromPlaceDoc({ lat: null, lng: null })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({ address: 'x' })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({})).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc(null)).toEqual({ lat: null, lng: null });
+  });
+
+  it('문자열 좌표("37.5")도 무효 — number 타입만 신뢰', () => {
+    expect(coordFromPlaceDoc({ lat: '37.5', lng: '127.0' })).toEqual({ lat: null, lng: null });
+  });
+
+  it('한국 범위 밖(해외·NaN)은 무효', () => {
+    expect(coordFromPlaceDoc({ lat: 48.85, lng: 2.35 })).toEqual({ lat: null, lng: null }); // 파리
+    expect(coordFromPlaceDoc({ lat: NaN, lng: 127 })).toEqual({ lat: null, lng: null });
+    expect(coordFromPlaceDoc({ lat: 37.5, lng: null })).toEqual({ lat: null, lng: null }); // 한쪽만
   });
 });

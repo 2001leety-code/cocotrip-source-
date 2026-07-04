@@ -14,13 +14,13 @@ interface QuickPreviewData {
 export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: QuickPreviewData; p: PlannerDict; isMobile: boolean }) {
   return (
     <div className={isMobile
-      ? 'm-card m-appear p-5 border-[#B668FC]/30 shadow-[0_0_20px_rgba(182,104,252,0.2)]'
+      ? 'm-card m-appear p-3.5 border-[#B668FC]/30 shadow-[0_0_20px_rgba(182,104,252,0.2)]'
       : 'bg-gradient-to-br from-[#1a0f14] to-[#0a1628] rounded-2xl p-6 border border-[#7C5CFC]/30 shadow-[0_0_20px_rgba(124,92,252,0.2)]'
     }>
       <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className={`w-5 h-5 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />{p.quickPreviewTitle}</h2>
       <p className={`font-bold text-sm mb-4 ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>{p.quickPreviewTheme}: {resultQuick.themes?.join(', ') || 'Healing, Luxury'}</p>
       
-      <div className="text-sm text-white/80 leading-relaxed mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
+      <div className="text-sm text-white/80 leading-relaxed mb-3 sm:mb-6 bg-white/5 p-3 sm:p-4 rounded-xl border border-white/10">
         <strong className="text-white block mb-1">{p.quickPreviewNarrative}:</strong>
         {(() => {
           let narrative = resultQuick.marketingNarrative;

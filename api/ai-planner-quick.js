@@ -171,7 +171,9 @@ export default async function handler(req, res) {
           result = await model.generateContent({
             contents: [{ role: 'user', parts: [{ text: fullUserPrompt }] }],
             systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-            generationConfig: { temperature: 0.7, maxOutputTokens: 2000, responseMimeType: 'application/json' },
+            // thinkingBudget:0 — 2.5-flash 는 thinking 토큰이 maxOutputTokens 에서 차감돼
+            // 2000 예산이 잘린 JSON(truncated) 원인 (mood-parse-schedule 2026-07-03 동일 버그 fix).
+            generationConfig: { temperature: 0.7, maxOutputTokens: 2000, thinkingConfig: { thinkingBudget: 0 }, responseMimeType: 'application/json' },
           });
         } finally {
           clearTimeout(timer);

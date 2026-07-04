@@ -5,7 +5,8 @@
  * 사용처: src/components/charter/AddressAutocomplete.tsx — 차터 위저드의 출발/도착 주소 자동완성.
  *
  * 정확도 우선 — Naver Local Search 는 한국 비즈니스 색인이 가장 풍부하다 (구글/카카오 대비).
- * 응답 좌표는 TM128 (KATEC) 형식 — WGS84 (lat/lng) 로 변환해서 클라이언트에 전달한다.
+ * 응답 좌표: 현행 API 는 WGS84 × 1e7 정수, 구형은 TM128 (KATEC) × 10 —
+ * naverCoordToWgs84 가 포맷을 감지해 WGS84 (lat/lng) 로 변환해서 전달한다.
  *
  * PR-S — 외국인 자동완성 정확도 4-layer:
  *   `?lang=en|ja|zh` 파라미터 전달 시 name/address/category 를 해당 언어로 번역.
@@ -19,6 +20,10 @@
  *   3. NAVER_CLIENT_ID + NAVER_CLIENT_SECRET (기존 ai-planner 와 호환)
  *   4. NCP_CLIENT_ID + NCP_CLIENT_SECRET (마지막 fallback — 단, NCP 키와 Naver
  *      Developers Local Search 키는 시스템이 다르므로 401 가능; 그래도 fallback 시도).
+ *
+ * "모두 시도"는 요청 레벨: 앞 순위 키가 등록돼 있어도 Naver 가 401/403 으로
+ * 거부하면 (만료·앱 삭제) 다음 키쌍으로 재시도한다. 성공한 키쌍은 module scope
+ * 에 기억해 cold start 후 첫 요청만 폴백 비용을 낸다.
  *
  * 출력:
  *   { items: [ { name, address, roadAddress, category, lat, lng, tel,
@@ -113,19 +118,59 @@ function tm128ToWgs84(mapx, mapy) {
   return { lat: Math.round(latDeg * 1e7) / 1e7, lng: Math.round(lngDeg * 1e7) / 1e7 };
 }
 
+// ── Naver mapx/mapy → WGS84 (포맷 자동 감지) ─────────────────────────────
+// 현행 Local Search API 는 WGS84 × 1e7 정수를 반환한다 (2026-07 실측:
+// mapx=1269816207 → lng 126.9816207). 구형 문서/응답은 TM128 × 10.
+// WGS84 × 1e7 로 해석했을 때 한국 영역 (lat 33~39, lng 124~132) 이면 그대로
+// 나누고, 아니면 TM128 변환을 시도한다. 둘 다 실패하면 null (항목 drop).
+export function naverCoordToWgs84(mapx, mapy) {
+  const x = Number(mapx);
+  const y = Number(mapy);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const lng = x / 1e7;
+  const lat = y / 1e7;
+  if (lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132) {
+    return { lat: Math.round(lat * 1e7) / 1e7, lng: Math.round(lng * 1e7) / 1e7 };
+  }
+  return tm128ToWgs84(mapx, mapy);
+}
+
 // ── env var fallback chain ────────────────────────────────────────────────
-function resolveCredentials() {
+// 등록된 (id+secret 둘 다 존재) 키쌍 전부를 우선순위대로 반환한다.
+export function resolveCredentialCandidates(env = process.env) {
   const trim = (s) => (s || '').trim();
   const tries = [
-    [trim(process.env.NAVER_LOCAL_SEARCH_CLIENT_ID), trim(process.env.NAVER_LOCAL_SEARCH_SECRET), 'NAVER_LOCAL_SEARCH_*'],
-    [trim(process.env.NAVER_DEVELOPERS_CLIENT_ID), trim(process.env.NAVER_DEVELOPERS_SECRET), 'NAVER_DEVELOPERS_*'],
-    [trim(process.env.NAVER_CLIENT_ID), trim(process.env.NAVER_CLIENT_SECRET), 'NAVER_CLIENT_*'],
-    [trim(process.env.NCP_CLIENT_ID), trim(process.env.NCP_CLIENT_SECRET), 'NCP_CLIENT_*'],
+    [trim(env.NAVER_LOCAL_SEARCH_CLIENT_ID), trim(env.NAVER_LOCAL_SEARCH_SECRET), 'NAVER_LOCAL_SEARCH_*'],
+    [trim(env.NAVER_DEVELOPERS_CLIENT_ID), trim(env.NAVER_DEVELOPERS_SECRET), 'NAVER_DEVELOPERS_*'],
+    [trim(env.NAVER_CLIENT_ID), trim(env.NAVER_CLIENT_SECRET), 'NAVER_CLIENT_*'],
+    [trim(env.NCP_CLIENT_ID), trim(env.NCP_CLIENT_SECRET), 'NCP_CLIENT_*'],
   ];
-  for (const [id, secret, source] of tries) {
-    if (id && secret) return { id, secret, source };
+  return tries
+    .filter(([id, secret]) => id && secret)
+    .map(([id, secret, source]) => ({ id, secret, source }));
+}
+
+// 마지막으로 성공한 키쌍 source — warm instance 는 죽은 앞순위 키를 건너뛴다.
+let lastGoodSource = null;
+
+// 후보 키쌍을 차례로 시도해 첫 비-401/403 응답을 반환한다.
+// 401/403 = 그 키가 Naver 에서 거부됨 (만료·앱 삭제) → 다음 후보로.
+// 그 외 상태 (200, 429, 5xx...) 는 키 문제가 아니므로 즉시 반환.
+// preferred 가 후보에 있으면 그 키쌍부터 시도한다.
+export async function searchWithCredentialFallback(candidates, doRequest, preferred = null) {
+  const ordered = preferred
+    ? [...candidates.filter((c) => c.source === preferred), ...candidates.filter((c) => c.source !== preferred)]
+    : candidates;
+  const rejected = [];
+  for (const creds of ordered) {
+    const upstream = await doRequest(creds);
+    if (upstream.status === 401 || upstream.status === 403) {
+      rejected.push({ source: creds.source, status: upstream.status, data: upstream.data });
+      continue;
+    }
+    return { upstream, source: creds.source, rejected };
   }
-  return null;
+  return { upstream: null, source: null, rejected };
 }
 
 export default async function handler(req, res) {
@@ -158,8 +203,8 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ error: 'QUERY_TOO_SHORT', detail: 'min 2 chars' }));
   }
 
-  const creds = resolveCredentials();
-  if (!creds) {
+  const candidates = resolveCredentialCandidates();
+  if (!candidates.length) {
     console.error('[place-search] no credentials — checked NAVER_LOCAL_SEARCH_*, NAVER_DEVELOPERS_*, NAVER_CLIENT_*, NCP_CLIENT_*');
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify({ error: 'CREDENTIALS_NOT_CONFIGURED' }));
@@ -170,7 +215,7 @@ export default async function handler(req, res) {
   // 파라미터: query (필수), display (1-30, 기본 5), sort=random|comment
   const url = 'https://openapi.naver.com/v1/search/local.json';
   try {
-    const upstream = await axios.get(url, {
+    const doRequest = (creds) => axios.get(url, {
       params: {
         query: queryRaw,
         display: limit,
@@ -186,13 +231,23 @@ export default async function handler(req, res) {
       validateStatus: () => true, // 401/4xx 도 직접 처리
     });
 
-    if (upstream.status === 401 || upstream.status === 403) {
-      console.error(`[place-search] auth error ${upstream.status} from ${creds.source}:`, upstream.data);
+    const { upstream, source, rejected } = await searchWithCredentialFallback(candidates, doRequest, lastGoodSource);
+    for (const r of rejected) {
+      console.error(`[place-search] auth error ${r.status} from ${r.source} — trying next key pair:`, r.data);
+    }
+
+    if (!upstream) {
       res.writeHead(401, JSON_CORS);
       return res.end(JSON.stringify({
         error: 'AUTH_FAILED',
-        detail: `${creds.source} rejected — check Naver Developers Local Search key registration`,
+        detail: `${rejected.map((r) => r.source).join(', ')} all rejected — check Naver Developers Local Search key registration`,
       }));
+    }
+
+    if (source !== lastGoodSource) {
+      // 운영자가 로그에서 살아있는 키 / 죽은 키를 식별할 수 있도록 남긴다.
+      console.log(`[place-search] source=${source}${rejected.length ? ` (fell back past: ${rejected.map((r) => r.source).join(', ')})` : ''}`);
+      lastGoodSource = source;
     }
 
     if (upstream.status !== 200) {
@@ -204,7 +259,7 @@ export default async function handler(req, res) {
     const items = Array.isArray(upstream.data?.items) ? upstream.data.items : [];
     const rawOut = [];
     for (const it of items) {
-      const coord = tm128ToWgs84(it.mapx, it.mapy);
+      const coord = naverCoordToWgs84(it.mapx, it.mapy);
       if (!coord) continue; // 좌표 변환 실패한 항목은 사용자 픽 불가 — drop
       rawOut.push({
         name: stripTags(it.title),

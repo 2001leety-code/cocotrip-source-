@@ -95,7 +95,7 @@ export function PurchaseSection({
   };
   return (
     <div className={isMobile
-      ? 'm-card m-appear p-6 text-center relative overflow-hidden'
+      ? 'm-card m-appear p-4 text-center relative overflow-hidden'
       : 'bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden'
     }
       style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.06), rgba(255,107,157,0.03), rgba(10,4,18,0.95))' } : undefined}

@@ -498,10 +498,13 @@ if (isMultiCity) {
 // 마지막 day 의 stops 중 category=='airport' 또는 name/address 에 공항/airport/ICN/GMP/PUS/CJU
 const lastDay = days[days.length - 1];
 const lastStops = (lastDay && lastDay.stops) || [];
-const airportTokens = ['공항', 'airport', 'ICN', 'GMP', 'PUS', 'CJU', '인천', '김포', '김해', '제주'];
+// 2026-07-03: 서버 B-15 가드(responseValidator.js)와 동기화 — case-insensitive 토큰
+// + travel category 인정 (기존엔 'Airport' 대문자 미매칭 등 Gemini 정상 plan 위양성 가능).
+const airportTokens = ['공항', 'airport', 'icn', 'gmp', 'pus', 'cju', '인천', '김포', '김해', '제주'];
 const hasAirportStop = lastStops.some((s) => {
-  const name = (s.name || '') + (s.display_name || '') + (s.address || '');
-  return s.category === 'airport' || airportTokens.some((t) => name.includes(t));
+  const name = ((s.name || '') + (s.display_name || '') + (s.address || '')).toLowerCase();
+  const cat = String(s.category || '').toLowerCase();
+  return cat === 'airport' || (cat === 'travel' && airportTokens.some((t) => name.includes(t))) || airportTokens.some((t) => name.includes(t));
 });
 // 또는 day.last_to_lodging / day.return_to_airport 등 메타 필드
 const hasAirportMeta =
@@ -554,6 +557,10 @@ const basePrice =
   Number(data.total_cost_krw) ||
   Number(itin.base_price_krw) ||
   Number(data.total_cost) ||
+  // block_mode: itinerary 에 base_price_krw 없음(legacy Gemini 계약 전용 필드) —
+  // 서버 계산 가격 SSOT(vehicleAndPrice.calcPrice)가 항상 실리는 pricing.priceKRW 사용.
+  // 2026-07-03 B-17 거짓 FAIL fix (6/22 이후 block_mode 서빙 plan 에서 base_price=0 오탐).
+  Number(data.pricing?.priceKRW) ||
   0;
 let b17Result;
 if (!Array.isArray(dailyBudget) || dailyBudget.length === 0) {
@@ -590,13 +597,23 @@ if (!Array.isArray(dailyBudget) || dailyBudget.length === 0) {
 results.push(b17Result);
 
 // ─── B-18: 다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%) ──
+// 2026-07-03 fix: local_tag 검사를 responseValidator.checkSoftQualityWarnings 와 미러.
+// block_mode(큐레이션 블록) stop 의 local_tag 는 zone_courses 시드 키워드라 4-value enum 과
+// 어휘가 달라 결정론적 0% 거짓 FAIL 이었다 (6/29 커밋 53c7fe11 이 서버 소프트경고만 fix,
+// 회귀 스크립트 미반영). source_block_id stop + lodging/travel/airport 제외, eligible<5 skip.
 const allNames = [];
 let localTagCount = 0;
+let eligibleCount = 0;
+const B18_EXCLUDED_CATEGORIES = ['lodging', 'travel', 'airport'];
 const validLocalTags = ['Local Pick', 'Hidden Gem', 'Bakery Pilgrimage', 'Blue Ribbon'];
 for (const d of days) {
   for (const s of d.stops || []) {
     const nm = (s.name || s.display_name || '').trim();
-    if (nm) allNames.push(nm);
+    if (nm) allNames.push(nm); // unique name 은 기존대로 전체 stop 대상
+    const cat = String(s.category || '').toLowerCase();
+    if (B18_EXCLUDED_CATEGORIES.includes(cat)) continue;
+    if (s.source_block_id) continue; // 큐레이션 블록 — enum tag 없음(의도된 semantics)
+    eligibleCount++;
     const tag = (s.local_tag || '').trim();
     if (tag && validLocalTags.includes(tag)) localTagCount++;
   }
@@ -604,12 +621,13 @@ for (const d of days) {
 const totalNames = allNames.length;
 const uniqueNames = new Set(allNames).size;
 const uniqueRatio = totalNames > 0 ? uniqueNames / totalNames : 0;
-const localTagRatio = totalNames > 0 ? localTagCount / totalNames : 0;
-const b18Pass = uniqueRatio >= 0.7 && localTagRatio >= 0.3;
+const localTagRatio = eligibleCount > 0 ? localTagCount / eligibleCount : 0;
+// eligible < 5 = 사실상 pure-block plan — local_tag 검사 skip (서버 소프트경고와 동일 기준)
+const b18Pass = uniqueRatio >= 0.7 && (eligibleCount < 5 || localTagRatio >= 0.3);
 results.push({
   id: 'B-18',
   label: '다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)',
-  actual: `unique=${uniqueNames}/${totalNames} (${(uniqueRatio * 100).toFixed(0)}%), local_tag=${localTagCount}/${totalNames} (${(localTagRatio * 100).toFixed(0)}%)`,
+  actual: `unique=${uniqueNames}/${totalNames} (${(uniqueRatio * 100).toFixed(0)}%), local_tag=${eligibleCount < 5 ? `skip(block, eligible=${eligibleCount})` : `${localTagCount}/${eligibleCount} (${(localTagRatio * 100).toFixed(0)}%)`}`,
   pass: b18Pass,
 });
 
@@ -634,7 +652,7 @@ console.log(`  planId: ${data.planId || data.id || 'unknown'}`);
 console.log(`  planUrl: ${BASE_URL}/my-plans/${data.planId || data.id || ''}`);
 console.log(`  days: ${days.length}`);
 console.log(`  total stops: ${days.reduce((s, d) => s + (d.stops?.length || 0), 0)}`);
-console.log(`  total cost: ${data.total_cost_krw || itin.base_price_krw || 'n/a'}`);
+console.log(`  total cost: ${data.total_cost_krw || itin.base_price_krw || data.pricing?.priceKRW || 'n/a'}`);
 console.log(`  generation time: ${(planMs / 1000).toFixed(1)}s`);
 
 // GitHub Actions markdown summary (CI 친화)
