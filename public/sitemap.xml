@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 2026-06-09: 정적 7 URL -> 26 URL (투어 상세 9 + 지역 9 추가). 투어/지역 추가 시 갱신.
-     소스: src/data/tours.ts(slug) + src/sections/Regions.tsx(regionId). -->
+<!-- 2026-06-09: 정적 7 URL -> 25 URL (투어 상세 9 + 지역 9 추가, /charter 제외). 투어/지역 추가 시 갱신.
+     소스: src/data/tours.ts(slug) + src/sections/Regions.tsx(regionId).
+     외부 blogspot URL은 여기 넣지 않음(타 도메인) — 블로그 연결은 HTML 링크(footer·홈)로. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- 핵심 -->
   <url><loc>https://cocotripkr.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>

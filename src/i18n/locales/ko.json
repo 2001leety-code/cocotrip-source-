@@ -436,7 +436,13 @@
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
     "travelTerms": "여행약관",
-    "quickLinks": "빠른 링크"
+    "quickLinks": "빠른 링크",
+    "blog": "코리아 여행 블로그"
+  },
+  "blogTeaser": {
+    "title": "코코트립 여행 팁",
+    "subtitle": "실제 동선·가격·로컬 추천 — 코코트립 여행 블로그",
+    "viewAll": "전체 글 보기"
   },
   "booking": {
     "error": {

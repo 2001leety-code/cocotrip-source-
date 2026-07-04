@@ -36,6 +36,9 @@ export function Footer({ t }: FooterProps) {
             <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
             <span className="text-white/15 self-center">·</span>
             <Link to="/travel-terms" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.travelTerms}</Link>
+            <span className="text-white/15 self-center">·</span>
+            {/* 외부 블로그 — 권위 전달 목적이라 nofollow 금지 */}
+            <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.blog || 'Korea Travel Blog'}</a>
           </div>
 
           {/* Info - compact */}
@@ -83,6 +86,8 @@ export function Footer({ t }: FooterProps) {
             <Link to="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.privacy}</Link>
             <span className="text-white/55">|</span>
             <Link to="/travel-terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.travelTerms}</Link>
+            <span className="text-white/55">|</span>
+            <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.blog || 'Korea Travel Blog'}</a>
           </div>
         </div>
 
@@ -141,6 +146,7 @@ export function Footer({ t }: FooterProps) {
               <a href="#services" className="block text-white/60 hover:text-white transition-colors">{t.nav.privateTour}</a>
               <a href="#services" className="block text-white/60 hover:text-white transition-colors">{t.nav.groupTour}</a>
               <a href="#regions" className="block text-white/60 hover:text-white transition-colors">{t.nav.packages}</a>
+              <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" className="block text-white/60 hover:text-white transition-colors">{t.footer.blog || 'Korea Travel Blog'}</a>
             </nav>
           </div>
         </div>
