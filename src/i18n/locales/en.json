@@ -436,7 +436,13 @@
     "terms": "Terms of Service",
     "privacy": "Privacy Policy",
     "travelTerms": "Travel Terms",
-    "quickLinks": "Quick Links"
+    "quickLinks": "Quick Links",
+    "blog": "Korea Travel Blog"
+  },
+  "blogTeaser": {
+    "title": "Travel tips from CocoTrip",
+    "subtitle": "Real routes, prices and local picks from our Korea travel blog",
+    "viewAll": "View all posts"
   },
   "booking": {
     "error": {

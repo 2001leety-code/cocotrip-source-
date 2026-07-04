@@ -436,7 +436,13 @@
     "terms": "使用条款",
     "privacy": "隐私政策",
     "travelTerms": "旅游条款",
-    "quickLinks": "快速链接"
+    "quickLinks": "快速链接",
+    "blog": "韩国旅行博客"
+  },
+  "blogTeaser": {
+    "title": "CocoTrip 旅行小贴士",
+    "subtitle": "真实路线、价格与本地推荐 — 韩国旅行博客",
+    "viewAll": "查看全部文章"
   },
   "booking": {
     "error": {

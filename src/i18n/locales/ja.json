@@ -436,7 +436,13 @@
     "terms": "利用規約",
     "privacy": "プライバシーポリシー",
     "travelTerms": "旅行約款",
-    "quickLinks": "クイックリンク"
+    "quickLinks": "クイックリンク",
+    "blog": "韓国旅行ブログ"
+  },
+  "blogTeaser": {
+    "title": "CocoTripの旅行ヒント",
+    "subtitle": "実際のルート・料金・ローカル情報 — 韓国旅行ブログ",
+    "viewAll": "すべての記事を見る"
   },
   "booking": {
     "error": {

@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import {
   Car, Sparkles, Music2, Wand2, ChevronRight, Star,
   ArrowRight, Clock, Users, Shield, Crown, Gift,
-  CloudSun, Thermometer, Timer, FileText, ShieldCheck,
+  CloudSun, Thermometer, Timer, FileText, ShieldCheck, BookOpen,
 } from 'lucide-react';
 import { haptic } from '@/lib/haptic';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
@@ -322,6 +322,15 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-bold text-white">{m.googleReview || 'Google Reviews'}</p>
             <p className="text-[10px] text-white/55 mt-0.5">{m.googleReviewSub || 'Share your experience on Google'}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
+        </a>
+        {/* 외부 블로그 — 권위 전달 목적이라 nofollow 금지 */}
+        <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" onClick={() => haptic('tap')} className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] m-btn">
+          <BookOpen className="w-5 h-5 text-[#B668FC]/70 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-white">{_t.footer?.blog || 'Korea Travel Blog'}</p>
+            <p className="text-[10px] text-white/55 mt-0.5">{_t.blogTeaser?.subtitle || 'Real routes, prices and local picks'}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
         </a>
