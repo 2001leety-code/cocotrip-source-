@@ -112,6 +112,7 @@ export default async function handler(req, res) {
         durationHours: b.durationHours,
         serviceType: b.serviceType,
         amountKRW: amount,
+        ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
         runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,

@@ -2,15 +2,23 @@
  * MoodReceiptModal — MOOD 예약 영수증 모달 (운영자 전용)
  *
  * mood-data 가 내려준 예약 doc(booking) 을 영수증 카드로 보여준다:
- *   - 경로(출발 → 경유들 → 도착) · 서비스 종류 · 총 km · 톨비(breakdown)
- *   - 요금 내역: 기본요금 + 거리추가 + 톨비 = amountKRW
+ *   - 동선 지도(2026-07-04 운영자 요청) — breakdown 주소로 /api/mood-route 재조회해
+ *     경로선+번호핀 렌더. 지도는 시각화 전용, 요금·km 은 저장된 breakdown(SSOT)만 표시.
+ *   - 경로(출발 → 경유들 → 도착) · 서비스 종류 · 총 km
+ *   - 요금 내역 + 산식(2026-07-04): 기본요금(시간당 단가 × 시간), 거리 추가요금
+ *     (km × 660원/50km 이상), 톨비는 0원이어도 항상 표시("통행료 없는 경로"와
+ *     "기록 없음"을 구분 — 운영자가 '톨비가 안 보인다' 오해했던 원인).
  *   - 차감 후 잔액(runningBalanceKRW) — null 이면 '기록 없음'(레거시 예약)
  *   - 정산 완료(finalAmountKRW) 시: 실제 시간 · 최종 금액 · 조정액
  *
  * booking 이 null 이면 아무것도 렌더하지 않음(모달 닫힘 상태).
  * 다크 톤(#0a0412 / #181b22, 포인트 #EA537E · #7C5CFC). 운영자 한국어 단일.
  */
-import { formatKRW, type MoodServiceType } from '@/lib/moodPricing';
+import { useEffect, useRef, useState } from 'react';
+
+import { authFetch } from '@/lib/authFetch';
+import { MoodRouteMap } from '@/components/MoodRouteMap';
+import { formatKRW, MOOD_SURCHARGE_PER_KM, type MoodServiceType } from '@/lib/moodPricing';
 
 const C = {
   overlay: 'rgba(5,2,12,0.72)',
@@ -48,6 +56,7 @@ export interface MoodBookingLike {
   durationHours?: number;
   serviceType?: MoodServiceType | string;
   amountKRW?: number;
+  ratePerHour?: number | null;
   breakdown?: MoodBreakdownLike | null;
   runningBalanceKRW?: number | null;
   finalAmountKRW?: number | null;
@@ -74,10 +83,55 @@ function stopsFrom(bd?: MoodBreakdownLike | null): string[] {
     .filter(Boolean);
 }
 
+/** /api/mood-route 응답 data — 지도 렌더용 (MoodPortal 과 동일 계약). */
+interface ReceiptRouteData {
+  km: number;
+  durationMin: number;
+  path: [number, number][];
+  points: Array<{ lat: number; lng: number; role: 'origin' | 'waypoint' | 'destination'; index?: number }>;
+}
+
 export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
+  const bd = booking?.breakdown || {};
+  const bdOrigin = String(bd.origin || '').trim();
+  const bdDest = String(bd.destination || '').trim();
+  const bdWaypoints = (Array.isArray(bd.waypoints) ? bd.waypoints : []).map((s) => String(s || '').trim()).filter(Boolean);
+
+  // ── 동선 지도 (2026-07-04) — 저장된 주소로 경로 재조회(시각화 전용, 요금은 breakdown SSOT) ──
+  const [route, setRoute] = useState<ReceiptRouteData | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const fetchedFor = useRef<string | null>(null);
+
+  const bookingId = booking?.id || null;
+  useEffect(() => {
+    if (!bookingId || !bdOrigin || !bdDest) { setRoute(null); return; }
+    if (fetchedFor.current === bookingId) return; // 같은 예약 재열람 시 재호출 방지
+    fetchedFor.current = bookingId;
+    setRoute(null);
+    setRouteLoading(true);
+    let alive = true;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ origin: bdOrigin, destination: bdDest });
+        if (bdWaypoints.length) params.set('waypoints', bdWaypoints.join('|'));
+        const res = await authFetch(`/api/mood-route?${params.toString()}`);
+        const json = await res.json().catch(() => ({}));
+        if (!alive) return;
+        const d = json?.ok ? json.data : null;
+        if (d && Array.isArray(d.path) && Array.isArray(d.points)) {
+          setRoute({ km: Number(d.km || 0), durationMin: Number(d.durationMin || 0), path: d.path, points: d.points });
+        }
+      } catch { /* 지도는 부가 정보 — 실패해도 영수증 텍스트는 그대로 */ } finally {
+        if (alive) setRouteLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+    // bdWaypoints 는 booking 파생이라 bookingId 로 충분
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, bdOrigin, bdDest]);
+
   if (!booking) return null;
 
-  const bd = booking.breakdown || {};
   const stops = stopsFrom(bd);
   const serviceLabel = SERVICE_LABEL[String(booking.serviceType)] || String(booking.serviceType || '서비스');
   const settled = booking.finalAmountKRW != null;
@@ -85,8 +139,11 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   const baseKRW = Number(bd.baseKRW || 0);
   const distanceSurchargeKRW = Number(bd.distanceSurchargeKRW || 0);
   const tollKRW = Number(bd.tollKRW || 0);
+  const hasBreakdown = bd.baseKRW != null || bd.km != null; // 레거시(상세 미기록) 구분
   const km = Number(bd.km || 0);
   const amountKRW = Number(booking.amountKRW || 0);
+  const ratePerHour = Number(booking.ratePerHour || 0);
+  const isAirport = booking.serviceType === 'airport';
 
   const hasRunningBalance = typeof booking.runningBalanceKRW === 'number';
   const runningBalance = Number(booking.runningBalanceKRW || 0);
@@ -156,7 +213,24 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
           </div>
         )}
 
-        {/* 요금 내역 */}
+        {/* 동선 지도 (2026-07-04) — 경로 재조회 성공 시 표시, 실패는 조용히 생략 */}
+        {routeLoading && (
+          <p className="text-[11px]" style={{ color: C.textDim }}>동선 지도 불러오는 중…</p>
+        )}
+        {route && (
+          <MoodRouteMap
+            origin={bdOrigin}
+            waypoints={bdWaypoints}
+            destination={bdDest}
+            route={route}
+            accent={C.accentSolid}
+            inputBg={C.chip}
+            inputBorder={C.chipBorder}
+            textDim={C.textDim}
+          />
+        )}
+
+        {/* 요금 내역 — 산식 포함 (2026-07-04: 어떻게 계산됐는지 + 톨비 0원도 명시) */}
         <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: C.chip, border: C.chipBorder }}>
           <p className="text-[11px] font-bold" style={{ color: C.textDim }}>요금 내역</p>
 
@@ -164,22 +238,35 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
             <div className={rowStyle} style={{ color: C.textDim }}>
               <span>
                 기본요금
-                {booking.serviceType !== 'airport' && booking.durationHours ? ` (${booking.durationHours}시간)` : ' (정액)'}
+                {!isAirport && booking.durationHours
+                  ? (ratePerHour > 0
+                      ? ` (${formatKRW(ratePerHour)}/시간 × ${booking.durationHours}시간)`
+                      : ` (${booking.durationHours}시간)`)
+                  : ' (공항 정액)'}
               </span>
               <span style={{ color: C.text }}>{formatKRW(baseKRW)}</span>
             </div>
           )}
-          {distanceSurchargeKRW > 0 && (
+          {!isAirport && (distanceSurchargeKRW > 0 || km > 0) && (
             <div className={rowStyle} style={{ color: C.textDim }}>
-              <span>거리 추가요금{km > 0 ? ` (${km.toLocaleString('ko-KR')}km)` : ''}</span>
+              <span>
+                거리 추가요금
+                {distanceSurchargeKRW > 0
+                  ? ` (${km.toLocaleString('ko-KR')}km × ${MOOD_SURCHARGE_PER_KM}원)`
+                  : ` (${km.toLocaleString('ko-KR')}km — 50km 미만 무료)`}
+              </span>
               <span style={{ color: C.text }}>+{formatKRW(distanceSurchargeKRW)}</span>
             </div>
           )}
-          {tollKRW > 0 && (
+          {/* 톨비 — 0원도 항상 표시: '통행료 없는 경로'와 '기록 없음'을 구분 */}
+          {hasBreakdown && !isAirport && (
             <div className={rowStyle} style={{ color: C.textDim }}>
-              <span>톨비</span>
+              <span>톨비{tollKRW <= 0 ? ' (통행료 없는 경로)' : ''}</span>
               <span style={{ color: C.text }}>+{formatKRW(tollKRW)}</span>
             </div>
+          )}
+          {!hasBreakdown && (
+            <p className="text-[10px]" style={{ color: C.textDim }}>상세 내역 미기록 예약(레거시) — 합계만 표시</p>
           )}
 
           <div className="h-px my-0.5" style={{ background: C.line }} />

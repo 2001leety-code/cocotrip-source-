@@ -1,0 +1,99 @@
+// @vitest-environment jsdom
+/**
+ * MoodReceiptModal 상세표시 회귀 슬롯 (2026-07-04 운영자 요청 fix).
+ *
+ * 잠금:
+ *   1. 톨비 0원도 항상 표시("통행료 없는 경로") — 숨겨서 '톨비가 안 나온다' 오해했던 원인.
+ *   2. 요금 산식: 기본요금(단가 × 시간)·거리 추가(km × 660원) 계산 근거 표기.
+ *   3. 레거시(상세 미기록) 예약은 "상세 내역 미기록" 안내.
+ *   4. 동선 지도: breakdown 주소 있으면 /api/mood-route 재조회(시각화 전용).
+ *
+ * authFetch·MoodRouteMap 은 mock (지도 SDK/네트워크 무의존).
+ */
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const authFetchMock = vi.fn();
+vi.mock('@/lib/authFetch', () => ({ authFetch: (...a: unknown[]) => authFetchMock(...a) }));
+vi.mock('@/components/MoodRouteMap', () => ({
+  MoodRouteMap: () => <div data-testid="route-map" />,
+}));
+
+import { MoodReceiptModal } from '../../src/components/mood/MoodReceiptModal';
+
+// 실제 7/4 운행 실데이터 형태 (톨비 0 케이스)
+const REAL_BOOKING = {
+  id: 'rAYZlLg6VcaByp',
+  date: '2026-07-04',
+  startTime: '09:20',
+  durationHours: 9,
+  serviceType: 'vehicle',
+  amountKRW: 387420,
+  ratePerHour: 33000,
+  runningBalanceKRW: 662580,
+  breakdown: {
+    baseKRW: 297000,
+    distanceSurchargeKRW: 90420,
+    tollKRW: 0,
+    km: 137,
+    origin: '서울특별시 송파구 잠실동',
+    destination: '서울특별시 송파구 잠실동',
+    waypoints: ['르픽', '브이스페이스', '김포공항', '유진집'],
+  },
+};
+
+beforeEach(() => {
+  authFetchMock.mockReset();
+  authFetchMock.mockResolvedValue({
+    json: async () => ({ ok: true, data: { km: 137, durationMin: 180, path: [[127, 37.5]], points: [{ lat: 37.5, lng: 127, role: 'origin' }] } }),
+  });
+});
+
+describe('MoodReceiptModal — 요금 상세 (2026-07-04)', () => {
+  it('톨비 0원도 항상 표시 — "통행료 없는 경로" 명시', () => {
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+    expect(screen.getByText(/톨비/)).toBeTruthy();
+    expect(screen.getByText(/통행료 없는 경로/)).toBeTruthy();
+  });
+
+  it('기본요금 산식 — 단가 × 시간 표기', () => {
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+    expect(screen.getByText(/33,000원\/시간 × 9시간/)).toBeTruthy();
+  });
+
+  it('거리 추가요금 산식 — km × 660원 표기', () => {
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+    expect(screen.getByText(/137km × 660원/)).toBeTruthy();
+  });
+
+  it('50km 미만이면 "무료" 근거 표시 + 0원', () => {
+    const b = { ...REAL_BOOKING, breakdown: { ...REAL_BOOKING.breakdown, km: 30, distanceSurchargeKRW: 0 } };
+    render(<MoodReceiptModal booking={b} onClose={() => {}} />);
+    expect(screen.getByText(/30km — 50km 미만 무료/)).toBeTruthy();
+  });
+
+  it('레거시(상세 미기록) 예약은 안내 문구 + 톨비 행 없음', () => {
+    const legacy = { id: 'x', serviceType: 'vehicle', amountKRW: 99000, breakdown: { origin: 'A', destination: 'B' } };
+    render(<MoodReceiptModal booking={legacy} onClose={() => {}} />);
+    expect(screen.getByText(/상세 내역 미기록/)).toBeTruthy();
+    expect(screen.queryByText(/통행료 없는 경로/)).toBeNull();
+  });
+
+  it('동선 지도 — breakdown 주소로 mood-route 재조회 후 렌더', async () => {
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('route-map')).toBeTruthy());
+    const url = String(authFetchMock.mock.calls[0][0]);
+    expect(url).toContain('/api/mood-route?');
+    expect(url).toContain('origin=');
+    expect(url).toContain('waypoints=');
+  });
+
+  it('경로 조회 실패해도 영수증 텍스트는 그대로 (지도만 생략)', async () => {
+    authFetchMock.mockRejectedValueOnce(new Error('network'));
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+    await waitFor(() => expect(screen.queryByText(/불러오는 중/)).toBeNull());
+    expect(screen.queryByTestId('route-map')).toBeNull();
+    expect(screen.getByText(/요금 내역/)).toBeTruthy();
+  });
+});
