@@ -12,9 +12,14 @@
  * 첫 baseline 생성: README.md "Baseline 생성" 섹션 참조 (Docker 명령).
  */
 import { test, expect } from '@playwright/test';
+import { suppressCookieBanner } from './helpers';
 
 test.describe('Landing page — mobile visual regression', () => {
   test.beforeEach(async ({ page }) => {
+    // 쿠키 배너 사전 차단 (helpers.ts) — 현재 clip 은 상단 320px 라 직접
+    // 영향 없지만, networkidle+500ms 대기가 배너 1500ms 타이머를 넘겨
+    // 이후 clip 확장 시 같은 flaky 재발 — 선제 차단.
+    await suppressCookieBanner(page);
     await page.goto('/', { waitUntil: 'load' });
     // Network 정착 + framer-motion 초기 animation 종료 대기.
     await page.waitForLoadState('networkidle');
