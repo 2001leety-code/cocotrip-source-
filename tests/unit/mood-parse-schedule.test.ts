@@ -288,3 +288,50 @@ describe('별칭 매칭 — expandPlaceEntries + key 기반 모호성 (2026-07-0
     expect(src).toMatch(/resolveCredentialCandidates/);
   });
 });
+
+describe('날짜 해석 resolveDateHint (2026-07-05 PR3)', () => {
+  it('다양한 표기 → ISO', async () => {
+    const { resolveDateHint } = await import('../../api/mood-parse-schedule.js');
+    const today = '2026-07-05';
+    expect(resolveDateHint('7/15', today)).toBe('2026-07-15');
+    expect(resolveDateHint('7월 15일', today)).toBe('2026-07-15');
+    expect(resolveDateHint('7월15일', today)).toBe('2026-07-15');
+    expect(resolveDateHint('07.15', today)).toBe('2026-07-15');
+    expect(resolveDateHint('2027-01-05', today)).toBe('2027-01-05');
+  });
+
+  it('연도 추론 — 90일 넘게 과거면 내년 (12월에 받은 1/5 = 내년 1월)', async () => {
+    const { resolveDateHint } = await import('../../api/mood-parse-schedule.js');
+    expect(resolveDateHint('1/5', '2026-12-20')).toBe('2027-01-05');
+    // 어제(같은 달) 는 올해 그대로 — 지난 날짜 기록도 정확히
+    expect(resolveDateHint('7/4', '2026-07-05')).toBe('2026-07-04');
+  });
+
+  it('해석 불가/무효 날짜 → null (기존 단일날짜 흐름 유지)', async () => {
+    const { resolveDateHint } = await import('../../api/mood-parse-schedule.js');
+    expect(resolveDateHint('', '2026-07-05')).toBeNull();
+    expect(resolveDateHint('다음주 화요일', '2026-07-05')).toBeNull();
+    expect(resolveDateHint('2/30', '2026-07-05')).toBeNull();
+    expect(resolveDateHint('13/40', '2026-07-05')).toBeNull();
+  });
+});
+
+describe('항공편 정제 sanitizeFlights (2026-07-05 PR3)', () => {
+  it('유효 편명만 통과 (대문자화·공백제거·중복제거·상한 8)', async () => {
+    const { sanitizeFlights } = await import('../../api/mood-parse-schedule.js');
+    const out = sanitizeFlights([
+      { flightNo: 'ke765', timeHint: '15:10', dateHint: '7/15' },
+      { flightNo: 'KE 765', timeHint: '15:10', dateHint: '7/15' }, // 중복 (공백 제거 후)
+      { flightNo: '7C1301', timeHint: '', dateHint: '' },
+      { flightNo: '무효편명', timeHint: '', dateHint: '' },
+      { flightNo: '12345', timeHint: '', dateHint: '' }, // 숫자만 = 무효
+    ]);
+    expect(out.map((f: { flightNo: string }) => f.flightNo)).toEqual(['KE765', '7C1301']);
+  });
+
+  it('배열 아님/빈 입력 → []', async () => {
+    const { sanitizeFlights } = await import('../../api/mood-parse-schedule.js');
+    expect(sanitizeFlights(null)).toEqual([]);
+    expect(sanitizeFlights('KE765')).toEqual([]);
+  });
+});

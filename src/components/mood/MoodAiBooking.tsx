@@ -53,6 +53,15 @@ interface ParsedStop {
   geocodeOk: boolean;
   /** 서버 장소검색(POI) 폴백으로 추정된 좌표 — 지점 확인 유도 배지 (2026-07-04). */
   searchGuessed?: boolean;
+  /** 이 stop 의 날짜 (YYYY-MM-DD | null) — 여러 날짜 일정을 날짜별 예약으로 분리 (2026-07-05). */
+  date?: string | null;
+}
+
+/** 일정에서 추출된 항공편 (예약 메모 자동 첨부용). */
+interface ParsedFlight {
+  flightNo: string;
+  timeHint: string;
+  date: string | null;
 }
 
 /** /api/mood-parse-schedule 성공 응답. */
@@ -63,6 +72,10 @@ interface ParseResult {
   hasAirport: boolean;
   /** AI 응답이 잘려 부분 회수됨 — 뒤쪽 일정 누락 가능(운영자 원문 대조 필수). */
   truncated?: boolean;
+  /** 추출된 항공편 (없으면 []). */
+  flights?: ParsedFlight[];
+  /** 서로 다른 stop 날짜 (ISO 정렬) — 2개 이상이면 날짜별 예약 분리 UI. */
+  dates?: string[];
 }
 
 /** MoodRouteMap 에 넘기는 경로 데이터 (지도 경로 선용). */
@@ -111,6 +124,9 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 실도로 경로 조회 결과의 요금 입력값(A-3) — 예상 금액에 거리·톨 반영(청구는 서버 SSOT)
   const [routeKm, setRouteKm] = useState(0);
   const [routeToll, setRouteToll] = useState(0);
+  // 날짜별 예약 분리(2026-07-05 PR3) — 일정에 날짜가 2개 이상이면 activeDate 로 그룹 선택,
+  // 선택 그룹의 stops 만 경로/예약에 사용. null = 전체(단일 날짜 or 날짜 없음).
+  const [activeDate, setActiveDate] = useState<string | null>(null);
 
   // 서비스 확정 (AI 추천을 기본값으로).
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
@@ -135,15 +151,29 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     [serviceType, durationHours, routeKm, routeToll],
   );
 
-  // geocode 실패로 예약 차단해야 하는 stop 이 남아 있는지.
-  const hasBlockingStop = useMemo(() => stops.some((s) => !s.geocodeOk), [stops]);
+  // 활성 날짜 그룹의 stops — 날짜 미상(date 없음) stop 은 어느 그룹에나 포함(안전측: 누락 방지).
+  const visibleStops = useMemo(
+    () => (activeDate ? stops.filter((s) => s.date === activeDate || !s.date) : stops),
+    [stops, activeDate],
+  );
+
+  // 이 예약(활성 그룹)에 첨부할 항공편 메모 — "✈️ KE765 15:10". 날짜 있는 항공편은 그룹 일치만.
+  const flightNote = useMemo(() => {
+    const flights = result?.flights || [];
+    const relevant = activeDate ? flights.filter((f) => !f.date || f.date === activeDate) : flights;
+    if (!relevant.length) return '';
+    return relevant.map((f) => `✈️ ${f.flightNo}${f.timeHint ? ` ${f.timeHint}` : ''}`).join(' · ');
+  }, [result, activeDate]);
+
+  // geocode 실패로 예약 차단해야 하는 stop 이 남아 있는지 (활성 그룹만 — 다른 날짜 실패가 이 예약을 막지 않게).
+  const hasBlockingStop = useMemo(() => visibleStops.some((s) => !s.geocodeOk), [visibleStops]);
 
   // 파싱 결과가 있고, geocode 성공 stop 이 2개 이상이면 예약 가능(출발·도착 필요).
-  const geoStops = useMemo(() => stops.filter((s) => s.geocodeOk && s.lat != null && s.lng != null), [stops]);
+  const geoStops = useMemo(() => visibleStops.filter((s) => s.geocodeOk && s.lat != null && s.lng != null), [visibleStops]);
   // 경유지(출발·도착 제외 중간 지점)는 네이버 경로 API 최대 5개. 초과 시 거리요금이 조용히
   // 0원(base-only)으로 청구되므로 예약 차단(과소청구 방지). = geoStops 8개 초과.
   const tooManyWaypoints = exceedsWaypointCap(geoStops.length);
-  const canBook = result != null && stops.length > 0 && !hasBlockingStop && geoStops.length >= 1 && !tooManyWaypoints;
+  const canBook = result != null && visibleStops.length > 0 && !hasBlockingStop && geoStops.length >= 1 && !tooManyWaypoints;
 
   // ── 지도용 경로 데이터 구성 (좌표 있는 stops → origin/waypoint/destination) ──
   const buildMapRoute = useCallback((list: ParsedStop[]) => {
@@ -162,14 +192,16 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   //    실제 도로 경로선+km·톨 조회. 직선(핀 연결)은 로딩/실패 폴백으로만.
   const routeSeq = useRef(0);
   useEffect(() => {
-    const usable = stops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
-    if (usable.length < 2 || stops.some((st) => !st.geocodeOk)) {
+    const usable = visibleStops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
+    if (usable.length < 2 || visibleStops.some((st) => !st.geocodeOk)) {
       setRouteKm(0); setRouteToll(0);
       return;
     }
     const seq = ++routeSeq.current;
     const t = window.setTimeout(async () => {
       try {
+        // 그룹 전환 직후엔 우선 직선(핀 연결)으로 갱신 — 실도로 응답 오면 교체.
+        setRoute(buildMapRoute(visibleStops));
         const o = (usable[0].address || usable[0].label || '').trim();
         const d = (usable[usable.length - 1].address || usable[usable.length - 1].label || '').trim();
         const wp = usable.slice(1, -1).map((st) => (st.address || st.label || '').trim()).filter(Boolean);
@@ -189,7 +221,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     }, 500);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops]);
+  }, [visibleStops]);
 
   // ── 장소검색(A-2, 2026-07-04) — 실패 stop 을 수기예약 '🔍 주소'처럼 검색→후보→선택 ──
   const handlePlaceSearch = useCallback(async (order: number, query: string) => {
@@ -243,21 +275,34 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         setResult(null);
         setStops([]);
         setRoute(null);
+        setActiveDate(null);
         setParseErr(json?.error || `일정 분석 실패 (${res.status})`);
         return;
       }
       const parsedStops: ParsedStop[] = Array.isArray(json.stops) ? json.stops : [];
       const guess: MoodServiceType =
         json.serviceGuess === 'vehicle' || json.serviceGuess === 'airport' ? json.serviceGuess : 'manager';
-      setResult({ stops: parsedStops, serviceGuess: guess, hasDirector: !!json.hasDirector, hasAirport: !!json.hasAirport, truncated: !!json.truncated });
+      const parsedDates: string[] = Array.isArray(json.dates) ? json.dates : [];
+      const parsedFlights: ParsedFlight[] = Array.isArray(json.flights) ? json.flights : [];
+      setResult({
+        stops: parsedStops, serviceGuess: guess, hasDirector: !!json.hasDirector,
+        hasAirport: !!json.hasAirport, truncated: !!json.truncated,
+        flights: parsedFlights, dates: parsedDates,
+      });
       setStops(parsedStops);
       setServiceType(guess); // AI 추천을 기본 선택으로 (운영자가 확정).
-      setRoute(buildMapRoute(parsedStops));
+      // 날짜별 예약 분리(PR3): 날짜 2개 이상 → 첫 날짜 그룹 활성 + 날짜 입력 prefill.
+      const firstGroup = parsedDates.length >= 2 ? parsedDates[0] : null;
+      setActiveDate(firstGroup);
+      if (parsedDates.length >= 1) setDate(parsedDates[0]);
+      const initialVisible = firstGroup ? parsedStops.filter((s) => s.date === firstGroup || !s.date) : parsedStops;
+      setRoute(buildMapRoute(initialVisible));
       // 첫 stop 시각 힌트로 시작시각 prefill 은 하지 않음(파서는 timeHint 를 stop 응답에 내리지 않음).
     } catch (e) {
       setResult(null);
       setStops([]);
       setRoute(null);
+      setActiveDate(null);
       setParseErr(e instanceof Error ? e.message : '일정 분석 실패');
     } finally {
       setParsing(false);
@@ -312,8 +357,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     setBooking(true);
     setBookMsg(null);
     try {
-      // 좌표 있는 stops = 실제 이동 지점. 첫=출발, 끝=도착, 중간=경유.
-      const usable = stops.filter((s) => s.geocodeOk);
+      // 좌표 있는 stops = 실제 이동 지점(활성 날짜 그룹만). 첫=출발, 끝=도착, 중간=경유.
+      const usable = visibleStops.filter((s) => s.geocodeOk);
       const originStop = usable[0];
       const destStop = usable[usable.length - 1];
       const waypointStops = usable.slice(1, -1);
@@ -330,6 +375,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         startTime,
         durationHours: isFixedPrice ? 0 : durationHours,
       };
+      // 항공편 메모 자동 첨부 (PR3) — 있으면 예약 doc 에 표시용으로 저장.
+      if (flightNote) body.note = flightNote;
       // origin·destination 은 함께 있어야 서버가 거리 재계산 (한쪽만 = 400).
       // ⚠️ 왕복(픽업지=드롭지)이어도 경유지가 있으면 실제 이동거리가 발생하므로 경로를 보낸다.
       //    origin!==dest 조건만 쓰면 '집→관광지→집' 왕복에서 거리요금이 통째로 누락됨(과소청구).
@@ -360,7 +407,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } finally {
       setBooking(false);
     }
-  }, [canBook, stops, clientId, serviceType, date, startTime, durationHours, isFixedPrice, onBooked]);
+  }, [canBook, visibleStops, flightNote, clientId, serviceType, date, startTime, durationHours, isFixedPrice, onBooked]);
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
@@ -398,10 +445,45 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       {/* ② 분석 결과 */}
       {result && (
         <div className="flex flex-col gap-4">
-          {/* stops 리스트 */}
+          {/* 날짜별 예약 분리 (PR3) — 날짜 2개 이상이면 그룹 선택 칩 */}
+          {(result.dates?.length || 0) >= 2 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[11px] rounded-lg px-3 py-2" style={{ color: '#fcd34d', background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }}>
+                📅 날짜가 {result.dates!.length}개인 일정입니다 — 날짜를 골라 <b>각각 따로</b> 예약하세요. (한 예약으로 뭉치면 요금·동선이 틀어집니다)
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {result.dates!.map((d) => {
+                  const cnt = stops.filter((s) => s.date === d).length;
+                  const active = activeDate === d;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => { setActiveDate(d); setDate(d); }}
+                      className="rounded-full px-3 py-1.5 text-[11px] font-bold transition-all"
+                      style={active
+                        ? { background: C.accent, color: '#fff', border: '1px solid transparent' }
+                        : { background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                    >
+                      {d.slice(5).replace('-', '/')} ({cnt}곳)
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 항공편 정보 (PR3) — 예약 메모로 자동 첨부 */}
+          {flightNote && (
+            <p className="text-[11px] rounded-lg px-3 py-2" style={{ color: '#93c5fd', background: 'rgba(59,130,246,0.10)', border: '1px solid rgba(59,130,246,0.30)' }}>
+              {flightNote} <span style={{ color: C.textDim }}>— 예약 메모에 자동 첨부됩니다</span>
+            </p>
+          )}
+
+          {/* stops 리스트 (활성 날짜 그룹만) */}
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold" style={{ color: C.textDim }}>
-              동선 {stops.length}개 {hasBlockingStop && <span style={{ color: C.danger }}>· 🔴 주소 확인 필요</span>}
+              동선 {visibleStops.length}개{activeDate ? ` (${activeDate.slice(5).replace('-', '/')})` : ''} {hasBlockingStop && <span style={{ color: C.danger }}>· 🔴 주소 확인 필요</span>}
               {tooManyWaypoints && <span style={{ color: C.danger }}>· 🔴 경유지 5개 초과 — 일정을 나눠 예약하세요(거리요금 계산 한도)</span>}
             </p>
             {result.truncated && (
@@ -409,7 +491,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                 ⚠️ AI 응답이 잘려 뒤쪽 일정이 빠졌을 수 있습니다 — 원문과 동선 개수를 대조하고, 빠진 곳이 있으면 다시 분석하세요. (누락된 채 예약하면 거리요금이 실제보다 적게 계산됩니다)
               </p>
             )}
-            {stops.map((s, i) => {
+            {visibleStops.map((s, i) => {
               const badge = ACTION_BADGE[s.action] || ACTION_BADGE.via;
               return (
                 <div
@@ -424,7 +506,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                     <span
                       className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
                       style={{
-                        background: i === 0 ? '#22c55e' : i === stops.length - 1 ? '#ef4444' : C.accentSolid,
+                        background: i === 0 ? '#22c55e' : i === visibleStops.length - 1 ? '#ef4444' : C.accentSolid,
                         color: '#fff',
                       }}
                     >

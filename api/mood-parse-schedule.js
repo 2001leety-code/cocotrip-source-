@@ -71,13 +71,18 @@ RULES:
 - addressHint: a fuller address if present in the text (e.g. "인천 강화군 ...", "서울 강남구 테헤란로 ..."). Empty string if none.
 - action: one of "pickup" (손님/사람 태움), "dropoff" (내려줌), "arrive" (목적지 도착), "via" (경유/들름). If unclear, use "via".
 - timeHint: the time string if present (e.g. "09:30", "오전 10시", "14:00"). Empty string if none.
+- dateHint: the date string for this stop's day, copied as written (e.g. "7/15", "7월 15일", "07.15"). A date header line (e.g. "7/15 일정") applies to ALL stops below it until the next date header. Empty string if no date anywhere.
+- flights: flight numbers mentioned anywhere (e.g. KE765, OZ102, 7C1301) with their time/date if shown. A flight-number line is flight info, NOT a stop by itself — the actual pickup/dropoff line is the stop.
 - Do NOT invent coordinates or addresses. Only extract what is written.
 - If a line clearly refers to an airport (공항/ICN/GMP/인천공항/김포공항), keep that word in personOrPlace or addressHint.
 
 OUTPUT — STRICT JSON ONLY, no markdown, no explanation:
 {
   "stops": [
-    { "order": 1, "rawText": "original line/snippet", "personOrPlace": "홍길동 or 강남역", "addressHint": "", "action": "pickup", "timeHint": "09:30" }
+    { "order": 1, "rawText": "original line/snippet", "personOrPlace": "홍길동 or 강남역", "addressHint": "", "action": "pickup", "timeHint": "09:30", "dateHint": "7/15" }
+  ],
+  "flights": [
+    { "flightNo": "KE765", "timeHint": "15:10", "dateHint": "7/15" }
   ]
 }
 
@@ -88,9 +93,26 @@ EXAMPLE INPUT:
 
 EXAMPLE OUTPUT:
 {"stops":[
- {"order":1,"rawText":"9:30 이사님 픽업 (인천 강화군 불은면)","personOrPlace":"이사님","addressHint":"인천 강화군 불은면","action":"pickup","timeHint":"09:30"},
- {"order":2,"rawText":"11:00 강남 코엑스 도착","personOrPlace":"강남 코엑스","addressHint":"","action":"arrive","timeHint":"11:00"},
- {"order":3,"rawText":"오후 3시 인천공항 T2 드랍","personOrPlace":"인천공항 T2","addressHint":"","action":"dropoff","timeHint":"15:00"}
+ {"order":1,"rawText":"9:30 이사님 픽업 (인천 강화군 불은면)","personOrPlace":"이사님","addressHint":"인천 강화군 불은면","action":"pickup","timeHint":"09:30","dateHint":""},
+ {"order":2,"rawText":"11:00 강남 코엑스 도착","personOrPlace":"강남 코엑스","addressHint":"","action":"arrive","timeHint":"11:00","dateHint":""},
+ {"order":3,"rawText":"오후 3시 인천공항 T2 드랍","personOrPlace":"인천공항 T2","addressHint":"","action":"dropoff","timeHint":"15:00","dateHint":""}
+],"flights":[]}
+
+EXAMPLE 2 INPUT (multi-date with flight):
+"7/15 일정
+KE765 15:10 인천 도착
+■ 15:30 인천공항 T2 픽업
+■ 17:00 신라호텔 도착
+7/18 일정
+■ 10:00 신라호텔 픽업"
+
+EXAMPLE 2 OUTPUT:
+{"stops":[
+ {"order":1,"rawText":"15:30 인천공항 T2 픽업","personOrPlace":"인천공항 T2","addressHint":"","action":"pickup","timeHint":"15:30","dateHint":"7/15"},
+ {"order":2,"rawText":"17:00 신라호텔 도착","personOrPlace":"신라호텔","addressHint":"","action":"arrive","timeHint":"17:00","dateHint":"7/15"},
+ {"order":3,"rawText":"10:00 신라호텔 픽업","personOrPlace":"신라호텔","addressHint":"","action":"pickup","timeHint":"10:00","dateHint":"7/18"}
+],"flights":[
+ {"flightNo":"KE765","timeHint":"15:10","dateHint":"7/15"}
 ]}`;
 
 /** 문자열 소문자 trim 정규화. */
@@ -102,6 +124,76 @@ export function norm(s) {
 function normAction(a) {
   const v = norm(a);
   return ALLOWED_ACTIONS.has(v) ? v : 'via';
+}
+
+/**
+ * 날짜 힌트("7/15"·"7월 15일"·"07.15"·"2026-07-15") → ISO(YYYY-MM-DD) (2026-07-05 PR3).
+ *
+ * 연도 없는 표기(카톡 일정 대부분)는 오늘 기준 연도로 해석하되, 그러면 90일 넘게
+ * 과거가 되는 날짜는 내년으로 넘긴다(일정은 미래 지향 — 12월에 "1/5" 받으면 내년 1월).
+ * 해석 불가/무효 날짜(2/30 등)는 null — 프론트는 날짜 없음으로 취급(기존 흐름 유지).
+ *
+ * @param {string} hint - Gemini 가 원문 그대로 복사한 날짜 문자열.
+ * @param {string} todayIso - 기준 오늘(KST) YYYY-MM-DD.
+ * @returns {string|null}
+ */
+export function resolveDateHint(hint, todayIso) {
+  const s = String(hint || '').trim();
+  if (!s) return null;
+  let year = null;
+  let mo;
+  let day;
+  let m = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})\.?$/);
+  if (m) {
+    year = Number(m[1]);
+    mo = Number(m[2]);
+    day = Number(m[3]);
+  } else {
+    // "7/15" "7.15" "07-15" "7월 15일" "7월15일"
+    m = s.match(/^(\d{1,2})\s*[/.월-]\s*(\d{1,2})\s*일?\.?$/);
+    if (!m) return null;
+    mo = Number(m[1]);
+    day = Number(m[2]);
+  }
+  if (!(mo >= 1 && mo <= 12 && day >= 1 && day <= 31)) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const build = (y) => {
+    const d = new Date(Date.UTC(y, mo - 1, day));
+    // 2/30 → 3/2 처럼 넘어가면 무효 (월/일이 안 맞음)
+    if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== day) return null;
+    return `${y}-${pad(mo)}-${pad(day)}`;
+  };
+  if (year != null) return build(year);
+  const ty = Number(String(todayIso).slice(0, 4));
+  if (!Number.isFinite(ty)) return null;
+  const cand = build(ty);
+  if (!cand) return null;
+  // 단일 날짜 변환(구간 아님) — 며칠 전인지(daysAgo)만 보고 연도 추론. 90일 초과 과거 = 내년.
+  const daysAgo = (Date.parse(todayIso) - Date.parse(cand)) / 86400000;
+  return daysAgo > 90 ? build(ty + 1) : cand;
+}
+
+/**
+ * Gemini flights 응답 정제 (2026-07-05 PR3) — 편명 형식 검증 + 상한.
+ * 편명: 항공사 코드(영숫자 2~3, 숫자 시작 가능 — 7C 등) + 편수 1~4자리.
+ * @returns {Array<{flightNo:string, timeHint:string, dateHint:string}>}
+ */
+export function sanitizeFlights(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const f of raw.slice(0, 8)) {
+    const no = String(f && f.flightNo ? f.flightNo : '').toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(no) || !/\d/.test(no) || /^\d+$/.test(no)) continue;
+    if (seen.has(no)) continue;
+    seen.add(no);
+    out.push({
+      flightNo: no,
+      timeHint: String(f && f.timeHint ? f.timeHint : '').slice(0, 20).trim(),
+      dateHint: String(f && f.dateHint ? f.dateHint : '').slice(0, 20).trim(),
+    });
+  }
+  return out;
 }
 
 /** 텍스트에 공항 키워드가 있는지. */
@@ -181,7 +273,7 @@ async function extractStops(text, apiKey) {
       //   position 156"(Sentry) → AI_PARSE_FAILED("일정 해석 실패"). 추출 태스크라 thinking
       //   불필요 → 0 (chat.js·telegram-webhook-admin·BaseAgent 동일 규약).
       thinkingConfig: { thinkingBudget: 0 },
-      maxOutputTokens: 4000, // 40 stops 상한 여유 (~1.6K 실사용)
+      maxOutputTokens: 5000, // 40 stops 상한 여유 (dateHint·flights 필드 추가로 4000→5000, ~2K 실사용)
       responseMimeType: 'application/json',
     },
   });
@@ -206,13 +298,15 @@ async function extractStops(text, apiKey) {
     // 최후 방어: 응답이 그래도 잘렸으면 완성된 stop 객체만 회수(뒤쪽 미완성 stop 은 버림).
     // ⚠️ 부분 회수 = 뒤 stop 누락 가능 → truncated 플래그를 반환에 실어 프론트가
     //   운영자에게 경고(누락 확인) — 조용히 짧은 경로로 예약되는 과소청구 방지.
+    //   flights 는 부분 회수 미지원(빈 배열) — 항공편 메모는 보조 정보라 fail-soft.
     const salvaged = salvageStopsFromTruncatedJson(jsonStr);
     if (!salvaged.length) throw new Error('AI 응답 JSON 파싱 실패 (수리 불가)');
     parsed = { stops: salvaged };
     truncated = true;
   }
   const stops = Array.isArray(parsed?.stops) ? parsed.stops : [];
-  return { stops, truncated };
+  const flights = sanitizeFlights(parsed?.flights);
+  return { stops, flights, truncated };
 }
 
 /**
@@ -440,10 +534,12 @@ export default async function handler(req, res) {
     }
 
     let rawStops;
+    let rawFlights = [];
     let truncated = false;
     try {
       const extracted = await extractStops(rawText, apiKey);
       rawStops = extracted.stops;
+      rawFlights = extracted.flights;
       truncated = extracted.truncated;
       if (truncated) {
         console.warn('[mood-parse-schedule] 응답 잘림 — 부분 회수', rawStops.length, 'stops');
@@ -482,6 +578,9 @@ export default async function handler(req, res) {
     let hasDirector = false;
     let hasAirport = false;
 
+    // 날짜 해석 기준 = 오늘(KST). 서버는 UTC 라 +9h 보정 (연도 추론용).
+    const todayKst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+
     const stops = await Promise.all(
       trimmedStops.map(async (s, idx) => {
         const order = Number.isInteger(s?.order) ? s.order : idx + 1;
@@ -489,6 +588,9 @@ export default async function handler(req, res) {
         const addressHint = typeof s?.addressHint === 'string' ? s.addressHint.trim() : '';
         const action = normAction(s?.action);
         const rawStopText = typeof s?.rawText === 'string' ? s.rawText.trim() : '';
+        // 날짜(2026-07-05 PR3) — "7/15 일정 + 7/18 일정" 이 한 예약으로 뭉치는 문제 해결용.
+        // 해석 실패 = null (날짜 없음과 동일 취급 — 기존 단일날짜 흐름 그대로).
+        const stopDate = resolveDateHint(s?.dateHint, todayKst);
 
         // ② 주소록 매칭 — 명시 장소(addressHint) 우선, 이사님 신호는 양쪽 다 (matchStopPlaces).
         const { matched, directorSignal } = matchStopPlaces(personOrPlace, addressHint, placebook);
@@ -560,12 +662,23 @@ export default async function handler(req, res) {
           matchedFromPlacebook,
           geocodeOk,
           searchGuessed,
+          date: stopDate, // YYYY-MM-DD | null — 프론트 날짜별 예약 분리용
         };
       })
     );
 
     // order 순 정렬 (Gemini 순서 신뢰하되 방어적 정렬).
     stops.sort((a, b) => a.order - b.order);
+
+    // 항공편(2026-07-05 PR3) — 편명·시각·날짜(ISO 해석). 예약 메모 자동 첨부용 보조 정보.
+    const flights = rawFlights.map((f) => ({
+      flightNo: f.flightNo,
+      timeHint: f.timeHint,
+      date: resolveDateHint(f.dateHint, todayKst),
+    }));
+
+    // 서로 다른 날짜 목록 (정렬) — 2개 이상이면 프론트가 날짜별 예약 분리 UI 를 띄운다.
+    const dates = [...new Set(stops.map((s) => s.date).filter(Boolean))].sort();
 
     // ── ④ 서비스 추천 (guessService 파생 — 테스트와 로직 공유) ──
     const serviceGuess = guessService(hasAirport, hasDirector);
@@ -583,6 +696,8 @@ export default async function handler(req, res) {
       hasAirport,
       needsConfirm: true, // 항상 true — 프론트가 서비스 추천 더블체크
       truncated, // true 면 응답 잘림→부분 회수 — 프론트가 "뒤쪽 일정 누락 가능" 경고
+      flights, // [{flightNo, timeHint, date}] — 예약 메모 자동 첨부용 (없으면 [])
+      dates, // 서로 다른 stop 날짜 (ISO, 정렬) — 2개 이상이면 날짜별 예약 분리
     }));
   } catch (err) {
     console.error('[mood-parse-schedule] failed:', err.message);

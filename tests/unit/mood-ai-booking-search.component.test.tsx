@@ -66,12 +66,12 @@ afterEach(() => {
 });
 
 async function renderAndParse() {
-  render(<MoodAiBooking clientId="mood" />);
+  render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
   fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), {
     target: { value: '■ 9:30 이사님 픽업\n■ 오후 3시 인천공항 터미널2 드랍' },
   });
   fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
-  await waitFor(() => expect(screen.getByText('이사님 픽업')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/동선 \d+개/)).toBeTruthy());
 }
 
 describe('MoodAiBooking 주소 검색 UI (PR1 실렌더 잠금)', () => {
@@ -124,5 +124,72 @@ describe('MoodAiBooking 주소 검색 UI (PR1 실렌더 잠금)', () => {
       },
       { timeout: 3000 },
     );
+  });
+});
+
+// ── 날짜별 예약 분리 + 항공편 메모 (2026-07-05 PR3) ──────────────────────
+const MULTI_DATE_RESPONSE = {
+  ok: true,
+  serviceGuess: 'airport',
+  hasDirector: false,
+  hasAirport: true,
+  truncated: false,
+  dates: ['2026-07-15', '2026-07-18'],
+  flights: [
+    { flightNo: 'KE765', timeHint: '15:10', date: '2026-07-15' },
+    { flightNo: 'KE764', timeHint: '11:00', date: '2026-07-18' },
+  ],
+  stops: [
+    { order: 1, label: '인천공항 T2', address: 'T2주소', lat: 37.46, lng: 126.43, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true, date: '2026-07-15' },
+    { order: 2, label: '신라호텔', address: '서울 중구 동호로 249', lat: 37.556, lng: 127.005, action: 'arrive', matchedFromPlacebook: false, geocodeOk: true, date: '2026-07-15' },
+    { order: 3, label: '신라호텔', address: '서울 중구 동호로 249', lat: 37.556, lng: 127.005, action: 'pickup', matchedFromPlacebook: false, geocodeOk: true, date: '2026-07-18' },
+    { order: 4, label: '인천공항 T2', address: 'T2주소', lat: 37.46, lng: 126.43, action: 'dropoff', matchedFromPlacebook: true, geocodeOk: true, date: '2026-07-18' },
+  ],
+};
+
+describe('MoodAiBooking 날짜별 예약 분리 (PR3 실렌더 잠금)', () => {
+  beforeEach(() => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) return { status: 200, json: async () => MULTI_DATE_RESPONSE };
+      if (String(url).includes('mood-route')) return { status: 200, json: async () => ROUTE_RESPONSE };
+      if (String(url).includes('mood-book')) return { status: 200, json: async () => ({ ok: true, data: { amountKRW: 110000, balanceKRW: 500000 } }) };
+      return { status: 404, json: async () => ({}) };
+    });
+  });
+
+  it('날짜 2개 → 분리 배너+칩, 첫 그룹만 표시, 칩 전환 시 그룹·항공편 전환', async () => {
+    await renderAndParse();
+
+    // 배너 + 날짜 칩 2개
+    expect(screen.getByText(/날짜가 2개인 일정/)).toBeTruthy();
+    const chip15 = screen.getByRole('button', { name: /07\/15 \(2곳\)/ });
+    const chip18 = screen.getByRole('button', { name: /07\/18 \(2곳\)/ });
+    expect(chip15).toBeTruthy();
+
+    // 첫 그룹(7/15) 활성 — 동선 2개 + 해당 날짜 항공편만
+    expect(screen.getByText(/동선 2개 \(07\/15\)/)).toBeTruthy();
+    expect(screen.getByText(/✈️ KE765 15:10/)).toBeTruthy();
+    expect(screen.queryByText(/KE764/)).toBeNull();
+
+    // 칩 전환 → 7/18 그룹 + 항공편 교체
+    fireEvent.click(chip18);
+    await waitFor(() => {
+      expect(screen.getByText(/동선 2개 \(07\/18\)/)).toBeTruthy();
+      expect(screen.getByText(/✈️ KE764 11:00/)).toBeTruthy();
+      expect(screen.queryByText(/KE765/)).toBeNull();
+    });
+  });
+
+  it('예약 요청에 활성 그룹 날짜 + 항공편 메모(note) 자동 첨부', async () => {
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      expect(bookCall).toBeTruthy();
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.date).toBe('2026-07-15'); // 첫 그룹 날짜 prefill
+      expect(body.note).toBe('✈️ KE765 15:10'); // 그룹 항공편만 첨부
+    });
   });
 });
