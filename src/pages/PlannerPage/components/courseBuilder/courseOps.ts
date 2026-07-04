@@ -165,19 +165,69 @@ export function decodeSharedCourse(encoded: string, now: number = Date.now()): C
   }
 }
 
-// ── useItinerary 호환 변환 (로그인 시 '내 계정에 저장') ──────────────────
+// ── useItinerary 호환 변환 (로그인 시 '내 계정에 저장' ↔ '내 코스 불러오기') ──
 
-/** CourseStop → ItinerarySlot shape (useItinerary.addSlot 의 slot 인자와 호환). */
-export function toItinerarySlot(s: CourseStop): {
-  productId: string; productType: 'planner'; name: string; timeStart?: string; notes?: string;
-} {
+/** 계정 저장 슬롯 shape — ItinerarySlot 호환 + 코스 복원용 확장 필드(category/lat/lng). */
+export interface CourseSlotShape {
+  productId: string;
+  productType: 'planner';
+  name: string;
+  timeStart?: string;
+  notes?: string;
+  category?: string;
+  lat?: number;
+  lng?: number;
+}
+
+/** CourseStop → ItinerarySlot shape (useItinerary.createItineraryWithSlots 인자와 호환). */
+export function toItinerarySlot(s: CourseStop): CourseSlotShape {
   return {
     productId: `course-${s.id}`,
     productType: 'planner',
     name: s.title,
     ...(s.time ? { timeStart: s.time } : {}),
     ...(s.memo ? { notes: s.memo } : {}),
+    ...(s.category ? { category: s.category } : {}),
+    ...(typeof s.lat === 'number' && Number.isFinite(s.lat) ? { lat: s.lat } : {}),
+    ...(typeof s.lng === 'number' && Number.isFinite(s.lng) ? { lng: s.lng } : {}),
   };
+}
+
+/**
+ * 저장된 itinerary(days[].slots[]) → CourseDraft ('내 코스 → 플래너에서 열기').
+ * 구버전/타 출처 슬롯(category 없음)도 안전 복원 — toItinerarySlot 과 라운드트립 잠금.
+ */
+export function fromItinerarySlots(
+  slotsPerDay: Array<Array<Partial<CourseSlotShape> & { name?: string }>>,
+  now: number = Date.now(),
+): CourseDraft {
+  const days: CourseDay[] = slotsPerDay.slice(0, COURSE_MAX_DAYS).map((slots) => ({
+    stops: (Array.isArray(slots) ? slots : []).slice(0, COURSE_MAX_STOPS_PER_DAY).flatMap((sl) => {
+      const title = typeof sl?.name === 'string' ? sl.name.trim() : '';
+      if (!title) return [];
+      return [{
+        id: genStopId(now),
+        time: typeof sl.timeStart === 'string' && isValidTime(sl.timeStart) ? sl.timeStart : '',
+        title: title.slice(0, 120),
+        category: typeof sl.category === 'string' && sl.category ? sl.category.slice(0, 20) : 'etc',
+        memo: typeof sl.notes === 'string' ? sl.notes.slice(0, 500) : '',
+        ...(typeof sl.lat === 'number' && Number.isFinite(sl.lat) ? { lat: sl.lat } : {}),
+        ...(typeof sl.lng === 'number' && Number.isFinite(sl.lng) ? { lng: sl.lng } : {}),
+      }];
+    }),
+  }));
+  if (!days.length) return emptyDraft(now);
+  return { v: 1, days, updatedAt: now };
+}
+
+/** 외부(공유 조회/불러오기)에서 받은 코스를 draft 로 로컬 저장 — 다음 /planner 진입 시 로드됨. */
+export function persistDraft(d: CourseDraft): boolean {
+  try {
+    localStorage.setItem(COURSE_STORAGE_KEY, JSON.stringify(d));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── 지도 링크 (기존 패턴: naverMapSearchUrl / google maps search) ─────────

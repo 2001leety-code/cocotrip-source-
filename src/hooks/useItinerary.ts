@@ -21,6 +21,10 @@ export interface ItinerarySlot {
   timeEnd?: string;    // "12:00"
   priceUSD?: number;
   notes?: string;
+  // 코스 빌더 확장(2026-07-04) — '내 코스' 복원 시 카테고리·좌표 보존 (optional, 비파괴)
+  category?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface ItineraryDay {

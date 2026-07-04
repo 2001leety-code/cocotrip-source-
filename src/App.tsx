@@ -88,6 +88,7 @@ function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
   );
 }
 const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
+const SharedCoursePage = lazy(() => import('@/pages/SharedCoursePage')); // 코스 빌더 공유 수신 /s/:id (2026-07-04)
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 // DEV-only test harness — prod 빌드에서 chunk 자체가 emit되지 않도록 lazy 호출을 조건부로.
@@ -575,6 +576,15 @@ function AnimatedRoutes() {
                   <MyPlansPage />
                 </Suspense>
               </AuthRequired>
+            }
+          />
+          {/* 코스 빌더 공유 수신 — 공개, 로그인 불필요 (2026-07-04) */}
+          <Route
+            path="/s/:id"
+            element={
+              <Suspense fallback={<PlannerSkeleton />}>
+                <SharedCoursePage />
+              </Suspense>
             }
           />
           <Route
