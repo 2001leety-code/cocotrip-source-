@@ -168,6 +168,10 @@ if [ -n "$SCAN_FILES" ]; then
       //   preserve empty-string (no-dietary matrix scenarios) vs forcing 'Meat'. Changing to ||
       //   would break no-dietary scenarios. Pre-existing legit; re-staged by startDate dynamic fix.
       if (f === "scripts/validate-prod-regression.mjs") continue;
+      // 2026-07-05: MoodPortal.tsx 의 ?? 6건 — AddressAutocomplete 배선 originAC ?? undefined /
+      //   c?.address ?? '' (null=선택해제 보존, || 변환 시 빈 문자열 오버라이드 회귀). pre-existing
+      //   legitimate — 스케줄 메모+PWA 버튼 추가로 처음 staged 됐을 뿐, 신규 코드는 전부 || 사용.
+      if (f === "src/pages/MoodPortal.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

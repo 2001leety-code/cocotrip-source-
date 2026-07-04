@@ -89,6 +89,9 @@ export default async function handler(req, res) {
   const airportDirection = serviceType === 'airport'
     ? (body.airportDirection === 'sending' ? 'sending' : 'pickup')
     : null;
+  // 예약 메모 (2026-07-05 PR3) — AI 예약이 항공편 정보(✈️ KE765 15:10) 자동 첨부. 표시용 메타,
+  // 금액 계산과 무관. 상한 500자 (폭주 방지).
+  const note = String(body.note || '').slice(0, 500).trim();
 
   if (!clientId || typeof clientId !== 'string') {
     res.writeHead(400, JSON_HEADERS);
@@ -215,6 +218,7 @@ export default async function handler(req, res) {
         breakdown,
         balanceAfterKRW: newBalance, // 이 예약 후 잔액 (외상 추적용)
         status: 'confirmed',
+        note: note || null, // 예약 메모 (항공편 등 — 표시용)
         createdByEmail: email,
         createdAt,
       });

@@ -120,6 +120,7 @@ export default async function handler(req, res) {
         actualHours: typeof b.actualHours === 'number' ? b.actualHours : null,
         finalAmountKRW: typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : null,
         adjustmentKRW: typeof b.adjustmentKRW === 'number' ? b.adjustmentKRW : null,
+        note: typeof b.note === 'string' && b.note ? b.note : null, // 예약 메모 (항공편 등, 2026-07-05)
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
       };
