@@ -201,6 +201,12 @@ function GlobalWidgets() {
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
 
+  // 2026-06-16: 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱/마케팅 chrome
+  //   (하단탭·채팅버튼·K-pop 팝업·가입쿠폰)을 숨겨 "프리미엄 여행 제안서"처럼 보이게.
+  //   문의는 OutroSlide 의 WhatsApp CTA 로 유도. (쿠키배너는 GDPR 이라 유지.)
+  const isSharedPlan = location.pathname.startsWith('/my-plans/') &&
+    new URLSearchParams(location.search).get('shared') === '1';
+
   // ChatWidget — 홈(/)에서만 렌더. 위저드/결제/플랜 흐름에서 CTA를 덮어 방해하므로 홈 전용.
   // (운영자 #7, 2026-06-30. 기존 hideTrigger 분기 통합 — 홈 외엔 컴포넌트 자체 마운트 안 함).
   const isHome = location.pathname === '/';
@@ -210,12 +216,12 @@ function GlobalWidgets() {
       <PageViewTracker />
 
       {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
-      <MobileBottomNav />
+      {!isSharedPlan && <MobileBottomNav />}
       <Suspense fallback={null}>
         <CookieBanner />
         {isHome && <ChatWidget language={language} hideTrigger={false} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
-        <OnboardingCouponModal />
+        {!isSharedPlan && <OnboardingCouponModal />}
       </Suspense>
     </>
   );

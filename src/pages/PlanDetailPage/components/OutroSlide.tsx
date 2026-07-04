@@ -127,9 +127,9 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
         <button onClick={handleDownloadMarkdown} disabled={isMdDownloading}
           className="w-full py-3 rounded-2xl text-sm font-semibold text-white/85 flex items-center justify-center gap-2 border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] transition-colors disabled:opacity-60">
           {isMdDownloading ? (
-            <><div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> 다운로드 중...</>
+            <><div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> {sw.downloading || 'Downloading...'}</>
           ) : (
-            <><FileText className="w-4 h-4 text-white/70" /> 텍스트로 다운로드 (.md)</>
+            <><FileText className="w-4 h-4 text-white/70" /> {sw.outroMarkdownCta || 'Download text itinerary'}</>
           )}
         </button>
 

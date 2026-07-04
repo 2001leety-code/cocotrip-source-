@@ -1,6 +1,6 @@
 // Intro slide: plan title, date, stats, arrival guide.
 // First slide in the swipe carousel.
-import { Calendar, MapPin, Users, CreditCard } from 'lucide-react';
+import { Calendar, MapPin, Users, CreditCard, MessageCircle } from 'lucide-react';
 import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
@@ -8,6 +8,12 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument, PlanDay } from '../types';
 import { getPlanDetailDict } from '../types';
+
+// 차량 내부키 → 고객용 라벨 (vehicleLabel[백엔드 humanize] 없을 때만 폴백 — staria_8 같은 raw 키 노출 방지).
+const VEHICLE_LABELS: Record<string, string> = {
+  staria_8: 'Private Staria Van (up to 7)', staria: 'Private Staria Van',
+  sprinter: 'Mercedes Sprinter (8-12)', bus: 'Private Bus', vip: 'VIP Vehicle',
+};
 
 interface IntroSlideProps {
   plan: PlanDocument;
@@ -75,12 +81,18 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
         <p className="text-white/55 text-sm mt-2">
+
           {input.startDate}
           {/* 2026-06-23 (운영자 #3): pax 값 있을 때만 노출 — 없으면 "undefined pax" 방지. */}
           {hasAdults ? ` | ${adultsNum} adults` : hasPax ? ` | ${paxRaw} pax` : ''}
           {childrenNum > 0 && ` + ${childrenNum} children`}
-          {((plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle) && ` | ${(plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle}`}
+          {(() => { const pr = plan.pricing as Record<string, any> | undefined; const v = pr?.vehicleLabel || (pr?.vehicle ? (VEHICLE_LABELS[pr.vehicle] || pr.vehicle) : ''); return v ? ` | ${v}` : ''; })()}
         </p>
+        {Array.isArray((input as Record<string, any>).regions) && (input as Record<string, any>).regions.length > 0 && (
+          <p className="text-white/75 text-sm mt-1.5 font-semibold tracking-wide">
+            {((input as Record<string, any>).regions as string[]).map((r) => r.charAt(0).toUpperCase() + r.slice(1)).join('  →  ')}
+          </p>
+        )}
       </div>
 
       {/* Summary stats */}
@@ -99,6 +111,12 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
           </div>
         ))}
       </div>
+
+      {/* 상단 고객 CTA — 공유 제안서에서 바로 맞춤/문의 (전환 동선 앞당김). */}
+      <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+        className="w-full mb-6 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
+        <MessageCircle className="w-5 h-5 text-green-400" /> {sw.customizeWhatsApp || 'Customize this trip on WhatsApp'}
+      </a>
 
       {/* Arrival Guide */}
       {arrival && <ArrivalGuide guide={arrival as any} />}
