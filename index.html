@@ -73,6 +73,11 @@
       @keyframes introFlash{0%,55%{opacity:0;transform:translate(-50%,-50%) scale(.2)}76%{opacity:.9;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(4.2)}}
       @keyframes introLine{0%{opacity:0;transform:scaleX(.15)}35%{opacity:1;transform:scaleX(1)}100%{opacity:0;transform:scaleX(.1)}}
       @media (prefers-reduced-motion:reduce){#app-splash:before,#app-splash:after,#app-splash .intro-frame,#app-splash .intro-flash,#app-splash .intro-line,#app-splash .intro-icon{animation:none}#app-splash .intro-frame{opacity:1;transform:none}#app-splash .intro-icon{display:none}}
+      /* 무드 정적 인트로 (2026-07-04 운영자 요청) — "영상 같은" 애니메이션(줌·소용돌이·
+         플래시·라인·아이콘 비트) 전부 제거, 협업 사진만 잠깐 떴다 사라짐. 코코트립 인트로는 유지. */
+      #app-splash.static:before,#app-splash.static:after{content:none;animation:none}
+      #app-splash.static .intro-icon,#app-splash.static .intro-flash,#app-splash.static .intro-line{display:none}
+      #app-splash.static .intro-frame{animation:none;opacity:1;transform:none}
     </style>
 
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
@@ -172,7 +177,8 @@
           // 첫 비트 아이콘 = manifest 아이콘과 동일 — OS 네이티브 스플래시에서 그대로 이어지는 느낌
           var icon = isMood ? '/icons/mood-512.png' : '/icons/icon-512.png';
           if (isMood) {
-            el.className = 'mood';
+            // 2026-07-04 운영자 요청: 무드 인트로는 애니메이션 없이 사진만(정적) + 짧게.
+            el.className = 'mood static';
           }
           el.style.setProperty('--intro-icon', 'url("' + icon + '")');
           el.style.setProperty('--intro-image', 'url("' + base + '.webp")');
@@ -183,7 +189,7 @@
           } catch (_) {}
           el.style.display = 'flex';
           var t0 = Date.now();
-          var MIN = 2600, MAX = 3900, done = false;
+          var MIN = isMood ? 1200 : 2600, MAX = isMood ? 2200 : 3900, done = false;
           function hide() {
             if (done) return; done = true;
             el.classList.add('hide');
