@@ -6,7 +6,7 @@ import type { CustomerSupport } from '../types';
 export function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: PlannerDict }) {
   if (!cs) return null;
   return (
-    <div className="bg-[#1A233A]/80 border border-[#C4956A]/30 rounded-2xl p-6 mt-6">
+    <div className="bg-[#1A233A]/80 border border-[#C4956A]/30 rounded-xl p-3.5 mt-3 sm:rounded-2xl sm:p-6 sm:mt-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-white text-lg flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-[#C4956A]" /> {p.csSectionTitle}

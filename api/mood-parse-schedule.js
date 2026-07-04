@@ -111,7 +111,59 @@ export function looksLikeAirport(...parts) {
 }
 
 /**
+ * 잘린 JSON 응답에서 완성된 stop 객체만 회수 (최후 방어).
+ *
+ * maxOutputTokens 초과 등으로 응답이 중간에서 끊기면 JSON.parse 가 통째로 실패해
+ * 멀쩡히 완성된 앞쪽 stop 들까지 다 버려졌다. "stops" 배열 안에서 중괄호 균형이
+ * 맞는(문자열/이스케이프 인지) 최상위 객체들만 스캔해 개별 파싱으로 회수한다.
+ * 뒤쪽 미완성 stop 은 버려지므로 호출측은 truncated 플래그로 운영자에게 경고할 것.
+ *
+ * @param {string} jsonStr - 잘렸을 수 있는 JSON 문자열.
+ * @returns {object[]} 회수된 stop 객체 배열 (없으면 []).
+ */
+export function salvageStopsFromTruncatedJson(jsonStr) {
+  const s = String(jsonStr || '');
+  const arrKey = s.indexOf('"stops"');
+  if (arrKey === -1) return [];
+  const arrStart = s.indexOf('[', arrKey);
+  if (arrStart === -1) return [];
+
+  const out = [];
+  let depth = 0;
+  let objStart = -1;
+  let inStr = false;
+  let escaped = false;
+  for (let i = arrStart + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{') {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && objStart !== -1) {
+        try {
+          out.push(JSON.parse(s.slice(objStart, i + 1)));
+        } catch { /* 개별 객체 불량 — skip */ }
+        objStart = -1;
+      }
+    } else if (ch === ']' && depth === 0) {
+      break; // 배열 정상 종료
+    }
+  }
+  return out;
+}
+
+/**
  * Gemini 로 자유 텍스트 → stops[] 추출. 실패 시 throw (상위에서 구조화 에러로 변환).
+ * @returns {{ stops: object[], truncated: boolean }} truncated=true 면 잘린 응답에서
+ *   부분 회수한 것 — 프론트가 운영자에게 "뒤쪽 일정 누락 가능" 경고를 띄워야 한다.
  */
 async function extractStops(text, apiKey) {
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -122,7 +174,13 @@ async function extractStops(text, apiKey) {
     systemInstruction: { role: 'system', parts: [{ text: SYSTEM_PROMPT }] },
     generationConfig: {
       temperature: 0.2, // 추출 태스크 — 낮은 온도로 안정화
-      maxOutputTokens: 2000,
+      // 🔴 2026-07-03 prod 버그 fix: gemini-2.5-flash 는 thinking 토큰이 maxOutputTokens
+      //   안에서 차감됨(geminiPipeline.js 문서화). thinkingConfig 없이 2000 이면 thinking 이
+      //   예산을 먹어 JSON 이 문자열 중간에서 잘림 → "Unterminated string in JSON at
+      //   position 156"(Sentry) → AI_PARSE_FAILED("일정 해석 실패"). 추출 태스크라 thinking
+      //   불필요 → 0 (chat.js·telegram-webhook-admin·BaseAgent 동일 규약).
+      thinkingConfig: { thinkingBudget: 0 },
+      maxOutputTokens: 4000, // 40 stops 상한 여유 (~1.6K 실사용)
       responseMimeType: 'application/json',
     },
   });
@@ -139,9 +197,21 @@ async function extractStops(text, apiKey) {
     if (first !== -1 && last > first) jsonStr = jsonStr.slice(first, last + 1);
   }
 
-  const parsed = JSON.parse(jsonStr);
+  let parsed;
+  let truncated = false;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    // 최후 방어: 응답이 그래도 잘렸으면 완성된 stop 객체만 회수(뒤쪽 미완성 stop 은 버림).
+    // ⚠️ 부분 회수 = 뒤 stop 누락 가능 → truncated 플래그를 반환에 실어 프론트가
+    //   운영자에게 경고(누락 확인) — 조용히 짧은 경로로 예약되는 과소청구 방지.
+    const salvaged = salvageStopsFromTruncatedJson(jsonStr);
+    if (!salvaged.length) throw new Error('AI 응답 JSON 파싱 실패 (수리 불가)');
+    parsed = { stops: salvaged };
+    truncated = true;
+  }
   const stops = Array.isArray(parsed?.stops) ? parsed.stops : [];
-  return stops;
+  return { stops, truncated };
 }
 
 /**
@@ -149,6 +219,28 @@ async function extractStops(text, apiKey) {
  * 각 항목: { name, nameNorm, address, lat, lng, isDirector }.
  * lat/lng 는 숫자일 때만 유효 (문자열/누락은 null).
  */
+/**
+ * 주소록 문서의 좌표 정규화 — 손상/누락 좌표를 null 로 (2026-07-03 돈버그 fix).
+ *
+ * 🔴 기존 `Number(d.lat)` 는 lat 이 null/undefined 일 때 0 을 반환하고 `Number.isFinite(0)=true`
+ * 라 (0,0) = null island(아프리카 앞바다)를 "유효 좌표"로 오인 → handler 가 geocode 를
+ * 건너뛰고 (0,0) 재사용 → 거리요금이 지구 반바퀴로 폭발(과다청구). admin SDK 로 좌표 없이
+ * 저장된 항목(예: 지오코딩 실패한 '유진집')에서 실제 발생.
+ *
+ * 규칙: 실제 number 이고 유한하며 한국 범위(lat 33~39, lng 124~132) 안일 때만 좌표 유효.
+ * 무효면 {null,null} → handler 가 geocode 경로로 보냄(정상 처리 or 🔴 차단).
+ *
+ * @param {object} d - Firestore mood_places 문서 데이터.
+ * @returns {{lat:number|null, lng:number|null}}
+ */
+export function coordFromPlaceDoc(d) {
+  const lat = typeof d?.lat === 'number' && Number.isFinite(d.lat) ? d.lat : null;
+  const lng = typeof d?.lng === 'number' && Number.isFinite(d.lng) ? d.lng : null;
+  if (lat === null || lng === null) return { lat: null, lng: null };
+  const inKorea = lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
+  return inKorea ? { lat, lng } : { lat: null, lng: null };
+}
+
 async function loadPlacebook(db) {
   const snap = await db.collection('mood_places').get();
   const places = [];
@@ -156,14 +248,13 @@ async function loadPlacebook(db) {
     const d = doc.data() || {};
     const name = typeof d.name === 'string' ? d.name.trim() : '';
     if (!name) return;
-    const lat = Number(d.lat);
-    const lng = Number(d.lng);
+    const { lat, lng } = coordFromPlaceDoc(d);
     places.push({
       name,
       nameNorm: norm(name),
       address: typeof d.address === 'string' ? d.address.trim() : '',
-      lat: Number.isFinite(lat) ? lat : null,
-      lng: Number.isFinite(lng) ? lng : null,
+      lat,
+      lng,
       isDirector: d.isDirector === true,
     });
   });
@@ -193,6 +284,27 @@ export function matchPlacebook(personOrPlace, places) {
     if (contains.length === 1) return contains[0];
   }
   return null;
+}
+
+/**
+ * stop 1건의 주소록 매칭 — 명시 장소(addressHint)가 사람 이름보다 우선 (2026-07-03).
+ *
+ * 왜: "르픽(정유진 픽업)" 은 정유진을 '르픽에서' 태우는 것. personOrPlace(정유진)만
+ * 매칭하면 주소록의 정유진 집 주소가 이겨서 픽업 위치가 집으로 잡힘 → 동선·km·요금
+ * 전부 오계산(돈 버그). 명시된 위치(addressHint)가 주소록에 있으면 그게 이긴다.
+ *
+ * 이사님(vehicle 판별) 신호는 위치 승자와 무관 — 어느 쪽이든 isDirector 면 켠다
+ * ("르픽(이사님 픽업)" 도 차량 서비스 신호 유지).
+ *
+ * @returns {{ matched: object|null, directorSignal: boolean }}
+ */
+export function matchStopPlaces(personOrPlace, addressHint, places) {
+  const byHint = matchPlacebook(addressHint, places);
+  const byPerson = matchPlacebook(personOrPlace, places);
+  return {
+    matched: byHint || byPerson,
+    directorSignal: !!(byHint?.isDirector || byPerson?.isDirector),
+  };
 }
 
 /**
@@ -270,8 +382,14 @@ export default async function handler(req, res) {
     }
 
     let rawStops;
+    let truncated = false;
     try {
-      rawStops = await extractStops(rawText, apiKey);
+      const extracted = await extractStops(rawText, apiKey);
+      rawStops = extracted.stops;
+      truncated = extracted.truncated;
+      if (truncated) {
+        console.warn('[mood-parse-schedule] 응답 잘림 — 부분 회수', rawStops.length, 'stops');
+      }
     } catch (aiErr) {
       console.warn('[mood-parse-schedule] Gemini 추출 실패:', aiErr.message);
       await captureError(aiErr, { route: '/api/mood-parse-schedule', email, phase: 'gemini' });
@@ -314,9 +432,9 @@ export default async function handler(req, res) {
         const action = normAction(s?.action);
         const rawStopText = typeof s?.rawText === 'string' ? s.rawText.trim() : '';
 
-        // ② 주소록 매칭
-        const matched = matchPlacebook(personOrPlace, placebook);
-        if (matched?.isDirector) hasDirector = true;
+        // ② 주소록 매칭 — 명시 장소(addressHint) 우선, 이사님 신호는 양쪽 다 (matchStopPlaces).
+        const { matched, directorSignal } = matchStopPlaces(personOrPlace, addressHint, placebook);
+        if (directorSignal) hasDirector = true;
 
         // 공항 판정 (이름/주소힌트/rawText/매칭주소 전부 검사)
         if (looksLikeAirport(personOrPlace, addressHint, rawStopText, matched?.address)) {
@@ -390,6 +508,7 @@ export default async function handler(req, res) {
       hasDirector,
       hasAirport,
       needsConfirm: true, // 항상 true — 프론트가 서비스 추천 더블체크
+      truncated, // true 면 응답 잘림→부분 회수 — 프론트가 "뒤쪽 일정 누락 가능" 경고
     }));
   } catch (err) {
     console.error('[mood-parse-schedule] failed:', err.message);

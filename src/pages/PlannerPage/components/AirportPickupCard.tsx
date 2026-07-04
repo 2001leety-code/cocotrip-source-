@@ -19,7 +19,7 @@ export function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?
     : 0;
 
   return (
-    <div className="rounded-2xl border border-[rgba(196,149,106,.3)] p-5 mt-6"
+    <div className="rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6 border border-[rgba(196,149,106,.3)]"
       style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.08) 0%, rgba(10,16,32,0.95) 100%)' }}>
       <div className="flex items-start gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-[rgba(196,149,106,.15)] border border-[rgba(196,149,106,.3)] flex items-center justify-center shrink-0">

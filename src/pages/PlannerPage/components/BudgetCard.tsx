@@ -11,7 +11,7 @@ export function BudgetCard({ budget, p }: { budget: BudgetSummary; p: PlannerDic
     { label: p.budgetAccommodation, value: budget.accommodation, icon: <Hotel className="w-4 h-4" /> },
   ];
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mt-6">
+    <div className="bg-white/5 border border-white/10 rounded-xl p-3 mt-3 sm:rounded-2xl sm:p-5 sm:mt-6">
       <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-4 flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" /> {p.budgetLabel}</p>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {items.map((item) => (

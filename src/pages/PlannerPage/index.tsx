@@ -236,7 +236,7 @@ export default function PlannerPage() {
         )}
 
         {plannerMode === 'course' && status === 'idle' && (
-          <CourseBuilderShell isMobile={isMobile} />
+          <CourseBuilderShell />
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}
@@ -248,7 +248,7 @@ export default function PlannerPage() {
 
         {/* Error */}
         {status === 'error' && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 text-center mt-8">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mt-4 sm:rounded-2xl sm:p-8 sm:mt-8 text-center">
             <p className="text-3xl mb-3"><AlertTriangle className="w-10 h-10 text-red-400 mx-auto" /></p>
             <p className="font-semibold text-red-300 mb-1">{p.errorTitle}</p>
             <p className="text-sm text-red-400/70 mb-5">{localizedError}</p>

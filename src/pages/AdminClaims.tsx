@@ -14,6 +14,7 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp
 import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, ExternalLink, Gift } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { inquiryKind, normalizeInquiryStatus, inquiryContact, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
 
 type Tab = 'claims' | 'inquiries';
 type Status = 'pending' | 'approved' | 'rejected';
@@ -41,6 +42,15 @@ interface ClaimRow {
   dayCount?: number;
   itinerarySummary?: { day: number; theme: string; stopCount: number }[];
   rejectReason?: string;
+  // inquiry-submit(서버 API) 저장 필드 — 맞춤 투어(tour_custom)/버스 문의 (2026-07-04)
+  vehicle?: 'tour_custom' | 'bus' | string;
+  whatsapp?: string | null;
+  eventDate?: string | null;
+  details?: string | null;
+  region?: string | null;
+  theme?: string | null;
+  budget?: string | null;
+  inquiryId?: string;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -52,6 +62,8 @@ export default function AdminClaims() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('claims');
   const [filter, setFilter] = useState<Status | 'all'>('pending');
+  // 문의 유형 필터 — 맞춤투어/버스/차터가 한 목록에 섞여 보이던 것 분리 (2026-07-04)
+  const [kindFilter, setKindFilter] = useState<InquiryKind | 'all'>('all');
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [inquiries, setInquiries] = useState<ClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +85,14 @@ export default function AdminClaims() {
       setLoading(false);
     }, err => { console.error('claims:', err); setLoading(false); });
     const u2 = onSnapshot(iQ, snap => {
-      setInquiries(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClaimRow)));
+      setInquiries(snap.docs.map(d => {
+        const data = d.data() as ClaimRow & { status: string };
+        // 서버 API(inquiry-submit)는 status 'NEW' 로 저장 — 읽기 시점에만 pending 으로
+        // 정규화(필터·대기 카운트·승인/거절 버튼·뱃지 전부 정상화). Firestore 원본은
+        // 불변 — 텔레그램 /inquiries 명령·운영자 to-do 크론이 ['pending','NEW'] in-쿼리 의존.
+        const status = normalizeInquiryStatus(data.status as string);
+        return { ...data, id: d.id, status } as ClaimRow;
+      }));
     }, err => console.error('inquiries:', err));
     return () => { u1(); u2(); };
   }, [isAdmin]);
@@ -139,10 +158,13 @@ export default function AdminClaims() {
   }, [couponFixInput, user]);
 
   const list = tab === 'claims' ? claims : inquiries;
-  const filtered = useMemo(
-    () => filter === 'all' ? list : list.filter(r => r.status === filter),
-    [list, filter]
-  );
+  const filtered = useMemo(() => {
+    let rows = filter === 'all' ? list : list.filter(r => r.status === filter);
+    if (tab === 'inquiries' && kindFilter !== 'all') {
+      rows = rows.filter(r => inquiryKind(r) === kindFilter);
+    }
+    return rows;
+  }, [list, filter, tab, kindFilter]);
 
   if (!isAdmin) {
     return (
@@ -169,7 +191,13 @@ export default function AdminClaims() {
   };
   const TAB_LABELS: Record<Tab, string> = {
     claims: '무료 신청',
-    inquiries: '차터 문의',
+    inquiries: '문의 (차터·맞춤투어·버스)',
+  };
+  const KIND_LABELS: Record<InquiryKind | 'all', string> = {
+    all: '전체 유형',
+    tour_custom: '맞춤 투어',
+    bus: '버스',
+    charter: '차터',
   };
 
   return (
@@ -239,7 +267,7 @@ export default function AdminClaims() {
         </div>
 
         {/* Filter pills — 모바일 가로 스크롤 가능 */}
-        <div className="flex gap-2 mb-4 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">
+        <div className="flex gap-2 mb-2 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">
           {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3.5 py-1.5 rounded-full text-xs sm:text-[11px] font-bold transition-colors shrink-0 min-h-[44px] whitespace-nowrap ${
@@ -249,6 +277,20 @@ export default function AdminClaims() {
             </button>
           ))}
         </div>
+
+        {/* 문의 유형 sub-filter — 맞춤투어/버스/차터 분리 (inquiries 탭 전용) */}
+        {tab === 'inquiries' && (
+          <div className="flex gap-2 mb-4 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">
+            {(['all', 'tour_custom', 'bus', 'charter'] as const).map(k => (
+              <button key={k} onClick={() => setKindFilter(k)}
+                className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors shrink-0 whitespace-nowrap ${
+                  kindFilter === k ? 'bg-[#B668FC]/25 text-[#E4CCFF] border border-[#B668FC]/40' : 'bg-white/[0.04] text-white/45 border border-white/[0.08]'
+                }`}>
+                {KIND_LABELS[k]}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <p className="text-white/55 text-sm">불러오는 중…</p>
@@ -262,7 +304,17 @@ export default function AdminClaims() {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <p className="text-sm font-bold text-white break-all flex-1 min-w-0">{row.email}</p>
+                      {/* tour_custom 은 이메일 없이 전화만 가능 — 폴백 표시 */}
+                      <p className="text-sm font-bold text-white break-all flex-1 min-w-0">{inquiryContact(row)}</p>
+                      {tab === 'inquiries' && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                          inquiryKind(row) === 'tour_custom' ? 'bg-[#B668FC]/20 text-[#D9A8FF]'
+                          : inquiryKind(row) === 'bus' ? 'bg-sky-500/15 text-sky-300'
+                          : 'bg-white/[0.08] text-white/60'
+                        }`}>
+                          {KIND_LABELS[inquiryKind(row)]}
+                        </span>
+                      )}
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                         row.status === 'pending' ? 'bg-amber-500/15 text-amber-400'
                         : row.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
@@ -301,9 +353,28 @@ export default function AdminClaims() {
                     {tab === 'inquiries' && (
                       <div className="text-sm sm:text-[12px] text-white/60 space-y-1 sm:space-y-0.5">
                         {row.recommendedTour && <p className="break-words">투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}시간</p>}
-                        {row.name && <p className="break-words">성함: <span className="text-white/80">{row.name}</span> {row.phone && `· ${row.phone}`}</p>}
-                        {row.startDate && <p>일정: <span className="text-white/80">{row.startDate}</span> · {row.pax}명 · {row.dayCount}일</p>}
-                        {row.notes && <p className="text-white/50 break-words">메모: {row.notes}</p>}
+                        {row.name && (
+                          <p className="break-words">성함: <span className="text-white/80">{row.name}</span>
+                            {row.phone && ` · ${row.phone}`}
+                            {row.whatsapp && <span> · WhatsApp: <span className="text-emerald-300">{row.whatsapp}</span></span>}
+                          </p>
+                        )}
+                        {/* 일정 — 차터(startDate) / tour_custom·bus(eventDate) 폴백 */}
+                        {(row.startDate || row.eventDate) && (
+                          <p>일정: <span className="text-white/80">{row.startDate || row.eventDate}</span>
+                            {row.pax != null && ` · ${row.pax}명`}{row.dayCount != null && ` · ${row.dayCount}일`}
+                          </p>
+                        )}
+                        {/* 맞춤 투어 전용 — 지역·테마·예산 */}
+                        {inquiryKind(row) === 'tour_custom' && (row.region || row.theme || row.budget) && (
+                          <p className="break-words">
+                            {row.region && <span>지역: <span className="text-white/80">{REGION_LABELS[row.region] || row.region}</span></span>}
+                            {row.theme && <span>{row.region ? ' · ' : ''}테마: <span className="text-white/80">{row.theme}</span></span>}
+                            {row.budget && <span>{(row.region || row.theme) ? ' · ' : ''}예산: <span className="text-white/80">{row.budget}</span></span>}
+                          </p>
+                        )}
+                        {/* 요청사항 — 차터(notes) / tour_custom·bus(details) 폴백 */}
+                        {(row.details || row.notes) && <p className="text-white/50 break-words">요청사항: {row.details || row.notes}</p>}
                         {row.planId && (
                           <p className="break-all">플랜: <a href={`/my-plans/${row.planId}`} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{row.planId}</a></p>
                         )}
@@ -314,13 +385,13 @@ export default function AdminClaims() {
                   {row.status === 'pending' && (
                     <div className="flex flex-row sm:flex-col gap-2 sm:gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/[0.08]">
                       <button disabled={busyId === row.id}
-                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'approved')}
+                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, tab === 'claims' ? row.email : inquiryContact(row), 'approved')}
                         className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
                         {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                         승인
                       </button>
                       <button disabled={busyId === row.id}
-                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'rejected')}
+                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, tab === 'claims' ? row.email : inquiryContact(row), 'rejected')}
                         className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
                         <XCircle className="w-3.5 h-3.5" /> 거절
                       </button>

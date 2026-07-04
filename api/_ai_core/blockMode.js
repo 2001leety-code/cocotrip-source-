@@ -92,6 +92,32 @@ export function isLimitedMobility(mobility) {
 }
 
 /**
+ * 출국일 공항 복귀 메타 주입 (2026-07-03 Daily Sentinel B-15 fix).
+ *
+ * 배경: block_mode 성공 시 handlerCore 가 Gemini 파이프라인을 스킵하는데, 출국일 공항
+ * stop 을 보장하는 3중 장치(ABSOLUTE MUST 프롬프트·validatePatternStructure B-15·강화
+ * 재시도)가 전부 그 파이프라인 안에만 있다. 큐레이션 블록엔 공항 stop 이 없으므로
+ * block_mode 출국일엔 공항 흔적이 구조적으로 0개 → Sentinel B-15 연속 fail + 저장된
+ * block_mode plan 의 수정 요청이 전부 422 PATTERN_VIOLATION(ai-planner-modify 재검증).
+ *
+ * fix: 마지막 day 에 return_to_airport 메타 1개 주입 — 서버 B-15 가드
+ * (responseValidator.js)·회귀 어서션(validate-prod-regression.mjs)·buildPrompt GOOD
+ * 패턴 2 가 모두 정식 PASS 기준으로 인정하는 필드. 프롬프트·돈 코드 무접촉, UI 소비자 0.
+ * 공항 travel stop 합성(시각 재계산·RouteAgent 영향)은 별도 후속.
+ *
+ * @param {object} itinerary — { days: [...] } (마지막 day 에 in-place 주입)
+ * @param {object} userInput — { departure_airport, arrival_airport }
+ * @returns {boolean} 주입했으면 true (한국 거주 already_* / 공항 미지정 / days 없음 = false)
+ */
+export function markReturnToAirport(itinerary, userInput) {
+  const dep = String(userInput?.departure_airport || userInput?.arrival_airport || '').trim();
+  if (!dep || /^already/i.test(dep)) return false; // already_in_korea 등 = 출국편 없음
+  if (!Array.isArray(itinerary?.days) || itinerary.days.length === 0) return false;
+  itinerary.days[itinerary.days.length - 1].return_to_airport = true;
+  return true;
+}
+
+/**
  * 위저드 취미 스타일 키 → 후보 블록 매칭 predicate (결정론적 pin 용).
  * zone_courses 블록에 구조화된 style 필드가 없어(best_for 컨벤션 오염) id/block_type/theme 로 매칭.
  * 향후 개선: 블록에 activity_styles:[] 필드 추가 후 그걸로 대체하면 더 견고 (재시드 필요).
@@ -1876,6 +1902,7 @@ export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKe
         userInput: { ...userInput, foodIndex, area: city },
         geminiClient: { apiKey },
       });
+      markReturnToAirport(blockOut.itinerary, userInput); // B-15: 출국일 공항 메타 (Gemini 파이프라인 스킵 보완)
       return {
         skipped: false,
         itinerary: blockOut.itinerary,
@@ -1896,6 +1923,7 @@ export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKe
       userInput: { ...userInput, foodIndex },
       geminiClient: { apiKey },
     });
+    markReturnToAirport(blockOut.itinerary, userInput); // B-15: 출국일 공항 메타 (Gemini 파이프라인 스킵 보완)
     return {
       skipped: false,
       itinerary: blockOut.itinerary,

@@ -701,7 +701,12 @@ const PLAN_RESPONSE_SCHEMA = {
             items: {
               type: 'OBJECT',
               // P291 R5: stops.items propertyOrdering 추가 (기존 12 fields 유지, alphabetical default 회피).
-              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'lat', 'lng', 'entry_fee_krw', 'verified'],
+              // 2026-07-03 B-18 근본원인 fix: local_tag 가 스키마에 없어 구조화출력(responseSchema)이
+              //   필드를 물리적으로 못 냄 → 프롬프트 "LOCAL TAG — MANDATORY"(buildPrompt) 무력화,
+              //   P183 phase 2(5/24) 이후 모든 Gemini plan 이 local_tag 0% 확정(소프트경고 B-18
+              //   매 plan 발화). required 추가 X (P196 lesson) — '' = standard 는 생략과 동치라
+              //   optional 이 프롬프트 의미와 일치.
+              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified'],
               required: ['name', 'category', 'start_time'],
               properties: {
                 order: { type: 'INTEGER' },
@@ -712,6 +717,7 @@ const PLAN_RESPONSE_SCHEMA = {
                 stay_min: { type: 'INTEGER' },
                 address: { type: 'STRING' },
                 tip: { type: 'STRING' },
+                local_tag: { type: 'STRING' }, // B-18: '' | Local Pick | Hidden Gem | Bakery Pilgrimage | Blue Ribbon
                 lat: { type: 'NUMBER' },
                 lng: { type: 'NUMBER' },
                 entry_fee_krw: { type: 'NUMBER' },

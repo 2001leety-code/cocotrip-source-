@@ -26,6 +26,7 @@ import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
+import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -214,6 +215,12 @@ export default function MoodPortal() {
   const [origin, setOrigin] = useState('');
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [destination, setDestination] = useState('');
+  // AddressAutocomplete(네이버 검색+미니지도 핀) 표시용 병렬 상태. 돈 경로는 위 문자열이 SSOT —
+  // 서버가 재지오코딩(P311)하므로 API엔 문자열만 보낸다. AC는 확정 UI·좌표 보너스일 뿐.
+  // waypointsAC 는 waypoints 와 인덱스·길이 항상 동기(add/remove/copy 시 함께 갱신).
+  const [originAC, setOriginAC] = useState<AddressResult | null>(null);
+  const [destinationAC, setDestinationAC] = useState<AddressResult | null>(null);
+  const [waypointsAC, setWaypointsAC] = useState<(AddressResult | null)[]>([]);
   const [route, setRoute] = useState<MoodRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -434,14 +441,20 @@ export default function MoodPortal() {
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
   //    게이트 아래 두면 loading/미로그인 렌더 땐 안 불려 "더 많은 훅" 크래시).
+  // waypoints(문자열=돈 SSOT)와 waypointsAC(표시용)를 항상 함께 갱신 — 인덱스·길이 동기 유지.
   const addWaypoint = useCallback(() => {
     setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+    setWaypointsAC((w) => (w.length >= 5 ? w : [...w, null]));
   }, []);
   const removeWaypoint = useCallback((i: number) => {
     setWaypoints((w) => w.filter((_, idx) => idx !== i));
+    setWaypointsAC((w) => w.filter((_, idx) => idx !== i));
   }, []);
   const setWaypointAt = useCallback((i: number, val: string) => {
     setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
+  const setWaypointACAt = useCallback((i: number, val: AddressResult | null) => {
+    setWaypointsAC((w) => w.map((x, idx) => (idx === i ? val : x)));
   }, []);
 
   const copyBookingToForm = useCallback((b: MoodBooking) => {
@@ -450,10 +463,17 @@ export default function MoodPortal() {
     setDate(b.date || todayISO());
     setStartTime(b.startTime || '10:00');
     setDurationHours(Math.max(MOOD_MIN_DURATION_HOURS, Number(b.durationHours) || MOOD_MIN_DURATION_HOURS));
+    const wps = Array.isArray(bd.waypoints) ? bd.waypoints.filter(Boolean) : [];
     setOrigin(bd.origin || '');
     setDestination(bd.destination || '');
-    setWaypoints(Array.isArray(bd.waypoints) ? bd.waypoints.filter(Boolean) : []);
-    setFormMsg({ kind: 'ok', text: '예약 폼에 복사했습니다. 날짜와 시간을 확인하세요.' });
+    setWaypoints(wps);
+    // breakdown 엔 좌표 미저장(주소 문자열만) → AC 는 비움. 복사된 주소는 각 칸 밑
+    // "현재: {주소}" 힌트로 노출되고, 경로/금액은 문자열 기준으로 그대로 계산된다.
+    // 바꾸려면 검색해서 핀 재확정. (배열 길이는 waypoints 와 동기)
+    setOriginAC(null);
+    setDestinationAC(null);
+    setWaypointsAC(wps.map(() => null));
+    setFormMsg({ kind: 'ok', text: '예약 폼에 복사했습니다. 날짜·시간을 확인하고, 경로를 바꾸려면 지도에서 다시 검색하세요.' });
     setPortalTab('manual'); // 예약 폼이 수기 예약 탭으로 이동 — 복사 시 해당 탭으로 전환
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -845,57 +865,52 @@ export default function MoodPortal() {
           </div>
           )}
 
-          {/* 경로 (출발 / 경유지 N / 도착) — 다음 우편번호 주소검색 + 거리/톨비 자동 계산 */}
+          {/* 경로 (출발 / 경유지 N / 도착) — 네이버 지도 검색+미니지도 핀 확정 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
             <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(픽업·샌딩 위치)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
 
-            {/* 출발지 */}
-            <div className="flex gap-2">
-              <input
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                placeholder="출발지 (예: 강남역, 도로명주소)"
-                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={() => searchAddress(setOrigin)}
-                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-              >
-                🔍 주소
-              </button>
-            </div>
+            {/* 출발지 — 네이버 검색 + 미니지도 핀 확정 (AddressAutocomplete). 확정 시 origin 문자열 갱신. */}
+            <AddressAutocomplete
+              id="mood-origin"
+              label="출발지"
+              language="ko"
+              placeholder="출발지 검색 (예: 강남역, 롯데호텔)"
+              value={originAC ?? undefined}
+              onChange={(c) => { setOriginAC(c); setOrigin(c?.address ?? ''); }}
+            />
+            {!originAC && origin.trim() && (
+              <p className="text-[11px]" style={{ color: C.textDim }}>
+                현재 출발지: {origin} <span className="opacity-70">— 바꾸려면 위에서 검색</span>
+              </p>
+            )}
 
-            {/* 경유지 — 네이버 지도처럼 추가/삭제 */}
+            {/* 경유지 — 네이버 검색+핀. 추가/삭제. (waypoints 문자열 = 돈 SSOT, waypointsAC = 표시) */}
             {waypoints.map((wp, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  value={wp}
-                  onChange={(e) => setWaypointAt(i, e.target.value)}
-                  placeholder={`경유지 ${i + 1}`}
-                  className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                  style={inputStyle}
+              <div key={i} className="flex flex-col gap-1">
+                <AddressAutocomplete
+                  id={`mood-wp-${i}`}
+                  label={`경유지 ${i + 1}`}
+                  language="ko"
+                  placeholder={`경유지 ${i + 1} 검색`}
+                  value={waypointsAC[i] ?? undefined}
+                  onChange={(c) => { setWaypointACAt(i, c); setWaypointAt(i, c?.address ?? ''); }}
                 />
-                <button
-                  type="button"
-                  onClick={() => searchAddress((v) => setWaypointAt(i, v))}
-                  aria-label={`경유지 ${i + 1} 주소 검색`}
-                  className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                  style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-                >
-                  🔍
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeWaypoint(i)}
-                  aria-label={`경유지 ${i + 1} 삭제`}
-                  className="rounded-xl px-3 py-2.5 text-xs shrink-0"
-                  style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', color: C.danger }}
-                >
-                  ✕
-                </button>
+                <div className="flex items-center justify-between gap-2">
+                  {!waypointsAC[i] && wp.trim() ? (
+                    <p className="text-[11px] min-w-0 truncate" style={{ color: C.textDim }}>현재: {wp}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeWaypoint(i)}
+                    aria-label={`경유지 ${i + 1} 삭제`}
+                    className="rounded-lg px-2.5 py-1 text-xs shrink-0"
+                    style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', color: C.danger }}
+                  >
+                    ✕ 경유지 삭제
+                  </button>
+                </div>
               </div>
             ))}
 
@@ -910,24 +925,20 @@ export default function MoodPortal() {
               </button>
             )}
 
-            {/* 도착지 */}
-            <div className="flex gap-2">
-              <input
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="도착지 (예: 인천공항)"
-                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={() => searchAddress(setDestination)}
-                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
-                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
-              >
-                🔍 주소
-              </button>
-            </div>
+            {/* 도착지 — 네이버 검색 + 미니지도 핀 확정. 확정 시 destination 문자열 갱신. */}
+            <AddressAutocomplete
+              id="mood-destination"
+              label="도착지"
+              language="ko"
+              placeholder="도착지 검색 (예: 인천공항, 명동)"
+              value={destinationAC ?? undefined}
+              onChange={(c) => { setDestinationAC(c); setDestination(c?.address ?? ''); }}
+            />
+            {!destinationAC && destination.trim() && (
+              <p className="text-[11px]" style={{ color: C.textDim }}>
+                현재 도착지: {destination} <span className="opacity-70">— 바꾸려면 위에서 검색</span>
+              </p>
+            )}
             {routeLoading && (
               <p className="text-[11px]" style={{ color: C.textDim }}>경로 계산 중…</p>
             )}
