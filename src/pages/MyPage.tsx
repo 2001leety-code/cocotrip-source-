@@ -19,6 +19,11 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
+import { MyCoursesTab } from '@/components/MyCoursesTab';
+import { Map as MapIcon } from 'lucide-react';
+
+// '내 코스' 탭 라벨 — 컴포넌트 로컬 4-lang (글로벌 locale JSON 무접촉)
+const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Courses', ja: 'マイコース', zh: '我的行程' };
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
@@ -44,7 +49,7 @@ const TIER_BENEFITS: Record<TierType, string[]> = {
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
 // 어디에도 없어 사용자가 일정을 만들 수 없는 상태였음. 백엔드 hook은 유지하되
 // 빈 탭은 노출하지 않음.
-type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'reviews' | 'history';
+type Tab = 'overview' | 'bookings' | 'courses' | 'coupons' | 'wishlist' | 'reviews' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -55,7 +60,7 @@ export default function MyPage() {
   const { items: wishlistItems } = useWishlist();
   // Deep-link 지원: ?tab=wishlist 등으로 특정 탭 직진입 (햄버거 메뉴와 sync).
   const [searchParams, setSearchParams] = useSearchParams();
-  const VALID_TABS: Tab[] = ['overview', 'bookings', 'coupons', 'wishlist', 'reviews', 'history'];
+  const VALID_TABS: Tab[] = ['overview', 'bookings', 'courses', 'coupons', 'wishlist', 'reviews', 'history'];
   const initialTab = (() => {
     const q = searchParams.get('tab') as Tab | null;
     return q && VALID_TABS.includes(q) ? q : 'overview';
@@ -247,6 +252,7 @@ export default function MyPage() {
           {([
             { id: 'overview', label: mp.tabOverview || 'Overview', icon: TrendingUp },
             { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
+            { id: 'courses', label: COURSES_TAB_LABEL[language as 'ko'|'en'|'ja'|'zh'] || COURSES_TAB_LABEL.en, icon: MapIcon },
             { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
             { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
             { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
@@ -422,6 +428,10 @@ export default function MyPage() {
         )}
 
         {/* ── 탭: Coupons ── */}
+        {tab === 'courses' && (
+          <MyCoursesTab />
+        )}
+
         {tab === 'coupons' && (
           <div className="space-y-6">
             {/* 교환 섹션 */}

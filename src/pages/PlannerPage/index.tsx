@@ -28,7 +28,9 @@ export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const p = t.planner;
-  const [plannerMode, setPlannerMode] = useState<PlannerMode>('ai');
+  // ?mode=course — 공유 코스 수신/'내 코스 열기' 딥링크 (2026-07-04). 초기값만 — 결제 흐름 무접촉.
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>(() =>
+    new URLSearchParams(window.location.search).get('mode') === 'course' ? 'course' : 'ai');
   const [searchParams] = useSearchParams();
   // preset reserved for future WizardForm preset routing
   const revisionMode = searchParams.get('revision') === 'true';

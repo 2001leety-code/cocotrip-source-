@@ -75,9 +75,24 @@ export function useCourseBuilder() {
     }, []),
   };
 
-  /** 공유 mock URL 생성 + clipboard 복사. 반환 = 복사된 URL (실패 시 null). */
+  /**
+   * 공유 URL 생성 + clipboard 복사. 반환 = 복사된 URL (실패 시 null).
+   *
+   * 2026-07-04 저장형 업그레이드: /api/course-share 로 저장해 짧은 주소(/s/{id}) 발급.
+   * 20곳 코스도 ~40자 — 기존 해시 방식(20곳 ≈ 3,120자)의 메신저 절단 문제 해소.
+   * API 실패(오프라인·레이트리밋) 시 기존 해시 방식으로 폴백(공유 자체는 항상 동작).
+   */
   const share = useCallback(async (): Promise<string | null> => {
-    const url = `${window.location.origin}/planner#course=${encodeCourseForShare(draft)}`;
+    let url = `${window.location.origin}/planner#course=${encodeCourseForShare(draft)}`; // 폴백
+    try {
+      const res = await fetch('/api/course-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course: { v: draft.v, days: draft.days } }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.ok && json.id) url = `${window.location.origin}/s/${json.id}`;
+    } catch { /* 폴백 URL 유지 */ }
     if (navigator.share) {
       try {
         await navigator.share({ title: 'CocoTrip Course', url });

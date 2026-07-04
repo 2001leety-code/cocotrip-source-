@@ -161,3 +161,31 @@ describe('recoCities — 도시 필터 상한 (UI 폭주 방지)', () => {
     expect(cities[0]).toBe('seoul'); // 최다 장소 도시가 첫번째
   });
 });
+
+describe('계정 저장 ↔ 불러오기 라운드트립 (2026-07-04 내 코스 탭)', () => {
+  it('toItinerarySlot → fromItinerarySlots 로 title/time/memo/category/좌표 보존', async () => {
+    const { toItinerarySlot, fromItinerarySlots } = await import('../../src/pages/PlannerPage/components/courseBuilder/courseOps');
+    let d = emptyDraft(1000);
+    d = addStop(d, 0, { title: '경복궁', time: '09:00', category: 'sight', memo: '한복', lat: 37.58, lng: 126.98 });
+    d = addDay(d);
+    d = addStop(d, 1, { title: '해운대', time: '', category: 'food', memo: '' });
+    const slotsPerDay = d.days.map((day) => day.stops.map(toItinerarySlot));
+    const restored = fromItinerarySlots(slotsPerDay, 2000);
+    expect(restored.days).toHaveLength(2);
+    const s0 = restored.days[0].stops[0];
+    expect(s0.title).toBe('경복궁');
+    expect(s0.time).toBe('09:00');
+    expect(s0.category).toBe('sight');
+    expect(s0.memo).toBe('한복');
+    expect(s0.lat).toBe(37.58);
+    expect(restored.days[1].stops[0].category).toBe('food');
+  });
+
+  it('구버전 슬롯(category 없음)도 안전 복원 — etc 폴백, 이름 없는 슬롯 스킵', async () => {
+    const { fromItinerarySlots } = await import('../../src/pages/PlannerPage/components/courseBuilder/courseOps');
+    const restored = fromItinerarySlots([[{ name: '옛코스', timeStart: '10:00' }, { name: '' }]], 3000);
+    expect(restored.days[0].stops).toHaveLength(1);
+    expect(restored.days[0].stops[0].category).toBe('etc');
+    expect(restored.days[0].stops[0].time).toBe('10:00');
+  });
+});
