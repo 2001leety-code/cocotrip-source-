@@ -27,6 +27,8 @@ import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
+import { PwaInstallButton } from '@/components/PwaInstallButton';
+import { getLocaleSync } from '@/i18n';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -80,6 +82,8 @@ interface MoodBooking {
   adjustmentKRW?: number | null;
   /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
   runningBalanceKRW?: number | null;
+  /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
+  note?: string | null;
 }
 
 interface MoodData {
@@ -232,6 +236,13 @@ export default function MoodPortal() {
   const [calendarMonth, setCalendarMonth] = useState(monthKeyFromISO(todayISO()));
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayISO());
 
+  // ── 운영자 스케줄 메모 (2026-07-05, 운영자 전용) ─────────────────────
+  // 무드 계정과 기능 분리: 서버(mood-notes)가 admins 만 허용(403) + 프론트는 isAdmin 일 때만 렌더.
+  const [scheduleNotes, setScheduleNotes] = useState<Record<string, string>>({});
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteMsg, setNoteMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
   // (충전 폼·광고사 만들기 폼은 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
   // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
@@ -287,6 +298,57 @@ export default function MoodPortal() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) loadData();
   }, [user, loadData]);
+
+  // 스케줄 메모 로드 — 운영자만, 캘린더 달 바뀔 때마다. 무드 계정은 호출 자체를 안 함(서버도 403).
+  const isAdmin = !!data?.isAdmin;
+  useEffect(() => {
+    if (!isAdmin) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await authFetch(`/api/mood-notes?month=${encodeURIComponent(calendarMonth)}`);
+        const json = await res.json().catch(() => ({}));
+        if (!alive || !json?.ok) return;
+        setScheduleNotes((prev) => ({ ...prev, ...(json.notes || {}) }));
+      } catch { /* 메모는 보조 기능 — 로드 실패해도 포털 동작에 영향 없음 */ }
+    })();
+    return () => { alive = false; };
+  }, [isAdmin, calendarMonth]);
+
+  // 날짜 선택/메모 로드 시 입력칸 동기화 (저장 직후엔 같은 텍스트라 체감 무변화).
+  useEffect(() => {
+    setNoteDraft(scheduleNotes[selectedCalendarDate] || '');
+    setNoteMsg(null);
+  }, [selectedCalendarDate, scheduleNotes]);
+
+  const saveNote = useCallback(async () => {
+    setNoteSaving(true);
+    setNoteMsg(null);
+    try {
+      const text = noteDraft.trim();
+      const res = await authFetch('/api/mood-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedCalendarDate, text }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!json?.ok) {
+        setNoteMsg({ kind: 'err', text: json?.error || `저장 실패 (${res.status})` });
+        return;
+      }
+      setScheduleNotes((prev) => {
+        const next = { ...prev };
+        if (text) next[selectedCalendarDate] = text;
+        else delete next[selectedCalendarDate];
+        return next;
+      });
+      setNoteMsg({ kind: 'ok', text: text ? '저장했습니다.' : '메모를 지웠습니다.' });
+    } catch (e) {
+      setNoteMsg({ kind: 'err', text: e instanceof Error ? e.message : '저장 실패' });
+    } finally {
+      setNoteSaving(false);
+    }
+  }, [noteDraft, selectedCalendarDate]);
 
   // ── 경로 조회 (디바운스) — 출발+도착 둘 다 있을 때만 /api/mood-route ──
   // 모든 setState 는 디바운스 timeout 안에서만 호출(이펙트 본문 동기 setState 회피 →
@@ -588,7 +650,11 @@ export default function MoodPortal() {
           <h1 className="text-lg font-bold" style={{ color: C.text }}>
             MOOD <span style={{ color: C.accentSolid }}>예약 포털</span>
           </h1>
-          {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
+          <div className="flex items-center gap-1">
+            {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
+            {/* 홈화면 추가(PWA) — 폰에서 앱처럼 쓰도록 (설치돼 있으면 자동 숨김) */}
+            <PwaInstallButton t={getLocaleSync('ko')} />
+          </div>
         </div>
 
         {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
@@ -736,10 +802,51 @@ export default function MoodPortal() {
                       aria-label={`동시간대 ${overlapByDate[d.iso]}건`}
                     />
                   )}
+                  {isAdmin && !!scheduleNotes[d.iso] && (
+                    // 운영자 스케줄 메모 있는 날 — 앰버 점 (운영자에게만 보임)
+                    <span
+                      className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+                      style={{ background: '#fbbf24' }}
+                      title="내 스케줄 메모"
+                      aria-label="내 스케줄 메모"
+                    />
+                  )}
                 </button>
               );
             })}
           </div>
+
+          {/* 운영자 스케줄 메모 — 서버(mood-notes)가 admins 만 허용. 무드 계정엔 렌더 자체 안 됨. */}
+          {isAdmin && (
+            <div className="mt-3 flex flex-col gap-1.5 rounded-xl p-3" style={{ background: C.inputBg, border: C.inputBorder }}>
+              <span className="text-[11px] font-bold" style={{ color: C.accentSolid }}>
+                📝 {selectedCalendarDate} 내 스케줄 메모 <span style={{ color: C.textDim }}>(운영자 전용 — 무드에겐 안 보임)</span>
+              </span>
+              <textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="예: 오후 병원 / 저녁 미팅 — 이 날 예약 잡지 말 것"
+                rows={2}
+                maxLength={2000}
+                className="w-full rounded-lg px-2.5 py-2 text-xs resize-y"
+                style={{ background: 'rgba(10,4,18,0.6)', border: C.inputBorder, color: C.text }}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void saveNote(); }}
+                  disabled={noteSaving}
+                  className="rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-50"
+                  style={{ background: C.accent, color: '#fff' }}
+                >
+                  {noteSaving ? '저장 중…' : '메모 저장'}
+                </button>
+                {noteMsg && (
+                  <span className="text-[11px]" style={{ color: noteMsg.kind === 'ok' ? C.ok : C.danger }}>{noteMsg.text}</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         {/* 예약 운영 보드는 아래 별도 status 블록으로 이동 — 수기 예약 폼을 탭으로 분리하기 위함 */}
         </>
@@ -1103,6 +1210,9 @@ export default function MoodPortal() {
                         </span>
                         {routeText && (
                           <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>
+                        )}
+                        {b.note && (
+                          <span className="block text-[11px] truncate" style={{ color: '#93c5fd' }}>{b.note}</span>
                         )}
                       </button>
                       <div className="text-right shrink-0">
