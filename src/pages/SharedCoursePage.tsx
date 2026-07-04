@@ -194,7 +194,7 @@ export default function SharedCoursePage() {
           </>
         )}
       </main>
-      <Footer language={language} t={gt} onLanguageChange={changeLanguage} />
+      <Footer t={gt} />
     </div>
   );
 }

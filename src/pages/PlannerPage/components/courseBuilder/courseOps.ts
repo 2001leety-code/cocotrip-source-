@@ -193,12 +193,22 @@ export function toItinerarySlot(s: CourseStop): CourseSlotShape {
   };
 }
 
+/** 복원 입력 최소 계약 — ItinerarySlot(charter/tour 포함 union)도 구조적으로 만족. */
+export interface SlotLike {
+  name?: string;
+  timeStart?: string;
+  notes?: string;
+  category?: string;
+  lat?: number;
+  lng?: number;
+}
+
 /**
  * 저장된 itinerary(days[].slots[]) → CourseDraft ('내 코스 → 플래너에서 열기').
  * 구버전/타 출처 슬롯(category 없음)도 안전 복원 — toItinerarySlot 과 라운드트립 잠금.
  */
 export function fromItinerarySlots(
-  slotsPerDay: Array<Array<Partial<CourseSlotShape> & { name?: string }>>,
+  slotsPerDay: SlotLike[][],
   now: number = Date.now(),
 ): CourseDraft {
   const days: CourseDay[] = slotsPerDay.slice(0, COURSE_MAX_DAYS).map((slots) => ({
