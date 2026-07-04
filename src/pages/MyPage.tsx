@@ -20,7 +20,6 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
 import { MyCoursesTab } from '@/components/MyCoursesTab';
-import { Map as MapIcon } from 'lucide-react';
 
 // '내 코스' 탭 라벨 — 컴포넌트 로컬 4-lang (글로벌 locale JSON 무접촉)
 const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Courses', ja: 'マイコース', zh: '我的行程' };
