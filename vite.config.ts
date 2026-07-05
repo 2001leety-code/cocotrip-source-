@@ -76,6 +76,10 @@ export default defineConfig({
       ],
       // 기존 public/manifest.json 의 내용을 그대로 옮김. Vite가 빌드 시 자동 생성.
       manifest: {
+        // id 명시 (2026-07-05): MOOD(/mood) PWA 와 별개 앱 구분용. id 없으면 크롬이
+        // 같은 origin 의 설치된 앱과 동일시해 MOOD 설치 시 "이미 설치됨"으로 거부.
+        // "/" = 기존 설치본의 computed id(start_url) 와 동일 → 기존 설치 identity 불변.
+        id: '/',
         name: 'CocoTrip',
         short_name: 'CocoTrip',
         description: 'Premium Korea Travel — AI Planner & Private Charter',
