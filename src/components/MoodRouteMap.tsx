@@ -11,7 +11,7 @@
  * 🔴 훅은 전부 early-return 위.
  */
 import { useEffect, useRef, useState } from 'react';
-import { loadNaverMaps, getNaver, naverMapSearchUrl } from '@/lib/naverMap';
+import { loadNaverMaps, getNaver, naverMapSearchUrl, naverMapDirectionsUrl } from '@/lib/naverMap';
 
 interface RoutePoint {
   lat: number;
@@ -97,7 +97,23 @@ export function MoodRouteMap({ origin, waypoints, destination, route, accent, in
   }, [clientId, hasRoute, authFailed, route]);
 
   const linkTarget = destination.trim() || origin.trim() || waypoints.find((w) => w.trim()) || '';
-  const linkUrl = naverMapSearchUrl(linkTarget);
+  // 경로 좌표가 있으면 "네이버 지도" 링크 = 길찾기(출발·경유·도착 동선). 없으면 단일 위치 검색 폴백.
+  // (route.points 를 role 별 이름과 매칭 — origin/waypoint[index]/destination.)
+  const directionsUrl = hasRoute && route
+    ? naverMapDirectionsUrl(
+        route.points.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          name: p.role === 'origin'
+            ? origin
+            : p.role === 'destination'
+              ? destination
+              : (waypoints[typeof p.index === 'number' ? p.index : 0] || ''),
+        })),
+      )
+    : '';
+  const linkUrl = directionsUrl || naverMapSearchUrl(linkTarget);
+  const isDirections = !!directionsUrl;
   const showEmbed = !!clientId && hasRoute && !authFailed && status !== 'error';
 
   if (!linkTarget && !hasRoute) return null;
@@ -122,9 +138,9 @@ export function MoodRouteMap({ origin, waypoints, destination, route, accent, in
         </span>
       )}
       <div className="flex items-center gap-2">
-        {linkTarget && (
+        {(linkTarget || isDirections) && (
           <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] underline" style={{ color: accent }}>
-            📍 네이버 지도에서 보기
+            {isDirections ? '🗺️ 네이버 지도에서 동선 보기' : '📍 네이버 지도에서 보기'}
           </a>
         )}
         {!!clientId && hasRoute && status === 'loading' && !authFailed && (
