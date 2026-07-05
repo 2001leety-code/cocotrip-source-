@@ -652,8 +652,13 @@ export default function MoodPortal() {
           </h1>
           <div className="flex items-center gap-1">
             {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
-            {/* 홈화면 추가(PWA) — 폰에서 앱처럼 쓰도록 (설치돼 있으면 자동 숨김) */}
-            <PwaInstallButton t={getLocaleSync('ko')} />
+            {/* 홈화면 추가(PWA) — MOOD 전용 앱 설치. MOOD 앱으로 실행 중일 때만 자동 숨김
+                (코코트립 앱 안에서 /mood 를 볼 땐 노출 + 브라우저로 열기 안내). */}
+            <PwaInstallButton
+              t={getLocaleSync('ko')}
+              appScope="/mood"
+              browserOpenHint="지금은 코코트립 앱 안이에요. MOOD 전용 앱으로 설치하려면 크롬 브라우저에서 cocotripkr.com/mood 를 연 뒤 메뉴(⋮) → '홈 화면에 추가'를 누르세요."
+            />
           </div>
         </div>
 
