@@ -99,8 +99,12 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
 
         <Section title="❓ 자주 묻는 질문">
           <div className="space-y-2">
-            <p><b style={{ color: C.text }}>Q. 예약을 취소·변경하고 싶어요</b><br />
-              포털에서 직접 취소는 안 됩니다 — 운영자(코코트립)에게 연락 주세요.</p>
+            <p><b style={{ color: C.text }}>Q. 예약을 취소하고 싶어요</b><br />
+              현황 탭에서 예약을 눌러 펼치면 <b style={{ color: C.text }}>예약 취소</b> 버튼이 있어요.
+              운행 전(예약 확정 상태)이면 전액이 잔액으로 즉시 환불됩니다. 정산이 끝난 예약은 운영자에게 문의하세요.</p>
+            <p><b style={{ color: C.text }}>Q. 시간·장소를 바꾸고 싶어요</b><br />
+              예약을 펼쳐 <b style={{ color: C.text }}>이 예약 복사</b> → 폼에서 바뀐 내용만 고쳐 새로 예약 →
+              기존 예약을 취소하세요. 새 경로 기준으로 금액이 자동 재계산됩니다.</p>
             <p><b style={{ color: C.text }}>Q. 주소를 계속 못 찾아요</b><br />
               장소 이름 대신 도로명주소로 검색해 보세요. 자주 가는 곳은 운영자에게 말하면 주소록에 등록해 드립니다 (다음부터 자동 인식).</p>
             <p><b style={{ color: C.text }}>Q. 이용 시간이 늘어나면?</b><br />

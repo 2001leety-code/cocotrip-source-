@@ -25,12 +25,14 @@ describe('MoodGuideModal', () => {
     expect(screen.getByText(new RegExp(`${MOOD_DISTANCE_THRESHOLD_KM}km 이상.*${formatKRW(MOOD_SURCHARGE_PER_KM)}`))).toBeTruthy();
   });
 
-  it('핵심 섹션 + 취소는 운영자 연락 안내', () => {
+  it('핵심 섹션 + 취소·변경 셀프서비스 안내 (2026-07-05 취소 기능 추가)', () => {
     render(<MoodGuideModal open onClose={() => {}} />);
     expect(screen.getByText(/이용 안내/)).toBeTruthy();
     expect(screen.getByText(/예약하는 법/)).toBeTruthy();
     expect(screen.getByText(/자주 묻는 질문/)).toBeTruthy();
-    expect(screen.getByText(/직접 취소는 안 됩니다/)).toBeTruthy();
+    // 취소 = 포털에서 직접 (버튼 안내), 변경 = 복사→재예약→기존 취소
+    expect(screen.getByText(/전액이 잔액으로 즉시 환불/)).toBeTruthy();
+    expect(screen.getByText(/기존 예약을 취소하세요/)).toBeTruthy();
     expect(screen.getByText(/날짜별로 각각/)).toBeTruthy();
   });
 
