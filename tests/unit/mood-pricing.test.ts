@@ -80,10 +80,31 @@ describe('정산 단가 보존 — ratePerHourOverride (2026-07-04 요율 개정
     expect(computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3, ratePerHourOverride: NaN }).ratePerHour).toBe(30000);
   });
 
-  it('공항 정액(110,000)은 override 무관 그대로', async () => {
+  it('공항 정액(110,000)은 override·시간 무관 그대로 (직행)', async () => {
     const { computeMoodTotalKRW } = await import('../../api/_shared/mood-pricing.js');
     const r = computeMoodTotalKRW({ serviceType: 'airport', durationHours: 2, ratePerHourOverride: 33000 });
     expect(r.amountKRW).toBe(110000);
+    expect(r.distanceSurchargeKRW).toBe(0);
+  });
+
+  it('공항 경유 우회거리 요금 (2026-07-05) — 정액 + 우회km×600, 임계값 없음', async () => {
+    const { computeMoodTotalKRW, computeAirportDetourSurchargeKRW } = await import('../../api/_shared/mood-pricing.js');
+    // 우회 15km → 110,000 + 15×600 = 119,000
+    const r = computeMoodTotalKRW({ serviceType: 'airport', durationHours: 0, airportDetourKm: 15 });
+    expect(r.amountKRW).toBe(119000);
+    expect(r.baseKRW).toBe(110000);
+    expect(r.distanceSurchargeKRW).toBe(9000);
+    expect(r.km).toBe(15); // breakdown.km = 우회 km
+    // 우회 0(직행) → 순수 정액
+    expect(computeMoodTotalKRW({ serviceType: 'airport', durationHours: 0, airportDetourKm: 0 }).amountKRW).toBe(110000);
+    // 임계값 없음 — 우회 5km도 과금 (차량 50km 임계값과 다름)
+    expect(computeAirportDetourSurchargeKRW(5)).toBe(3000);
+    expect(computeAirportDetourSurchargeKRW(0)).toBe(0);
+    expect(computeAirportDetourSurchargeKRW(-3)).toBe(0); // 음수 방어
+    // km/tollKRW(전체 거리)는 공항에서 무시 — 우회만 반영 (위조 방지)
+    const r2 = computeMoodTotalKRW({ serviceType: 'airport', durationHours: 99, km: 250, tollKRW: 9000, airportDetourKm: 20 });
+    expect(r2.amountKRW).toBe(110000 + 20 * 600); // 122,000 — km/toll 무시, detour만
+    expect(r2.tollKRW).toBe(0);
   });
 
   it('mood-settle 배선 소스 불변식 — pre.ratePerHour 전달', async () => {

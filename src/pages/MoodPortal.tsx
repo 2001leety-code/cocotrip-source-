@@ -35,6 +35,7 @@ import {
   MOOD_MAX_DURATION_HOURS,
   MOOD_MIN_DURATION_HOURS,
   MOOD_FIXED_PRICE_KRW,
+  MOOD_SURCHARGE_PER_KM,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
@@ -227,6 +228,8 @@ export default function MoodPortal() {
   const [destinationAC, setDestinationAC] = useState<AddressResult | null>(null);
   const [waypointsAC, setWaypointsAC] = useState<(AddressResult | null)[]>([]);
   const [route, setRoute] = useState<MoodRoute | null>(null);
+  // 공항 경유 우회거리(km) — 경유포함 − 직행 (2026-07-05). 예상 금액 detour 요금 표시용.
+  const [airportDetourKm, setAirportDetourKm] = useState(0);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const routeSeq = useRef(0); // 경합 방지 — 최신 요청만 반영
@@ -264,7 +267,7 @@ export default function MoodPortal() {
   const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
   const [settleDestination, setSettleDestination] = useState('');
 
-  // 예상 금액 분해 — base + 거리추가 + 톨비. 경로 없으면 거리/톨비 0 (base 만).
+  // 예상 금액 분해 — base + 거리추가 + 톨비. 공항은 정액 + 경유 우회거리 요금.
   const breakdown = useMemo(
     () =>
       computeMoodTotalKRW({
@@ -272,8 +275,9 @@ export default function MoodPortal() {
         durationHours,
         km: route?.km || 0,
         tollKRW: route?.tollKRW || 0,
+        airportDetourKm, // 공항 경유 우회거리 (직행이면 0)
       }),
-    [serviceType, durationHours, route],
+    [serviceType, durationHours, route, airportDetourKm],
   );
   const estimate = breakdown.amountKRW;
 
@@ -366,45 +370,71 @@ export default function MoodPortal() {
     const o = origin.trim();
     const d = destination.trim();
     const seq = ++routeSeq.current;
+    const isAirport = serviceType === 'airport';
+    const wpList = waypoints.map((s) => s.trim()).filter(Boolean);
     const t = setTimeout(async () => {
       if (seq !== routeSeq.current) return;
-      // 공항=정액이라 거리계산 불필요 → 스킵(경로 표시도 숨김).
-      if (!o || !d || serviceType === 'airport') {
+      // 공항 직행(경유 0)이거나 주소 미완성 → 거리계산 불필요(경로 표시도 숨김).
+      if (!o || !d || (isAirport && wpList.length === 0)) {
         setRoute(null);
         setRouteError(null);
         setRouteLoading(false);
+        setAirportDetourKm(0);
         return;
       }
       setRouteLoading(true);
       setRouteError(null);
       try {
-        const params = new URLSearchParams({ origin: o, destination: d });
-        const wp = waypoints
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join('|');
-        if (wp) params.set('waypoints', wp);
-        const res = await authFetch(`/api/mood-route?${params.toString()}`);
-        const json = await res.json().catch(() => ({}));
-        if (seq !== routeSeq.current) return; // 더 최신 요청이 있으면 폐기
-        if (json?.ok) {
-          // 백엔드 응답은 { ok, data:{ km, tollKRW, durationMin } } 중첩 — data 에서 읽는다.
-          const dd = json.data || {};
-          setRoute({
-            km: Number(dd.km) || 0,
-            tollKRW: Number(dd.tollKRW) || 0,
-            durationMin: Number(dd.durationMin) || 0,
-            path: Array.isArray(dd.path) ? dd.path : [],
-            points: Array.isArray(dd.points) ? dd.points : [],
-          });
-          setRouteError(null);
+        const viaParams = new URLSearchParams({ origin: o, destination: d });
+        if (wpList.length) viaParams.set('waypoints', wpList.join('|'));
+        if (isAirport) {
+          // 공항 + 경유 → 경유포함/직행 각각 측정해 우회거리(백엔드 SSOT 와 동일). 지도=경유 경로.
+          const [viaRes, directRes] = await Promise.all([
+            authFetch(`/api/mood-route?${viaParams.toString()}`),
+            authFetch(`/api/mood-route?${new URLSearchParams({ origin: o, destination: d }).toString()}`),
+          ]);
+          const [vj, dj] = await Promise.all([viaRes.json().catch(() => ({})), directRes.json().catch(() => ({}))]);
+          if (seq !== routeSeq.current) return;
+          if (vj?.ok && dj?.ok) {
+            const via = vj.data || {};
+            setRoute({
+              km: Number(via.km) || 0,
+              tollKRW: Number(via.tollKRW) || 0,
+              durationMin: Number(via.durationMin) || 0,
+              path: Array.isArray(via.path) ? via.path : [],
+              points: Array.isArray(via.points) ? via.points : [],
+            });
+            setAirportDetourKm(Math.max(0, (Number(via.km) || 0) - (Number(dj.data?.km) || 0)));
+            setRouteError(null);
+          } else {
+            setRoute(null);
+            setAirportDetourKm(0);
+            setRouteError((vj?.error || dj?.error) || '경로 조회 실패');
+          }
         } else {
-          setRoute(null);
-          setRouteError(json?.error || `경로 조회 실패 (${res.status})`);
+          const res = await authFetch(`/api/mood-route?${viaParams.toString()}`);
+          const json = await res.json().catch(() => ({}));
+          if (seq !== routeSeq.current) return; // 더 최신 요청이 있으면 폐기
+          if (json?.ok) {
+            // 백엔드 응답은 { ok, data:{ km, tollKRW, durationMin } } 중첩 — data 에서 읽는다.
+            const dd = json.data || {};
+            setRoute({
+              km: Number(dd.km) || 0,
+              tollKRW: Number(dd.tollKRW) || 0,
+              durationMin: Number(dd.durationMin) || 0,
+              path: Array.isArray(dd.path) ? dd.path : [],
+              points: Array.isArray(dd.points) ? dd.points : [],
+            });
+            setRouteError(null);
+          } else {
+            setRoute(null);
+            setRouteError(json?.error || `경로 조회 실패 (${res.status})`);
+          }
         }
       } catch (e) {
         if (seq !== routeSeq.current) return;
         setRoute(null);
+        setAirportDetourKm(0);
         setRouteError(e instanceof Error ? e.message : '경로 조회 실패');
       } finally {
         if (seq === routeSeq.current) setRouteLoading(false);
@@ -1025,7 +1055,7 @@ export default function MoodPortal() {
 
           {/* 경로 (출발 / 경유지 N / 도착) — 네이버 지도 검색+미니지도 핀 확정 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
-            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(픽업·샌딩 위치)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
+            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(직행 정액 · 경유 시 우회거리 요금)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
 
             {/* 출발지 — 네이버 검색 + 미니지도 핀 확정 (AddressAutocomplete). 확정 시 origin 문자열 갱신. */}
             <AddressAutocomplete
@@ -1133,7 +1163,9 @@ export default function MoodPortal() {
             </div>
             {breakdown.distanceSurchargeKRW > 0 && (
               <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
-                <span>거리 추가요금 ({breakdown.km.toLocaleString('ko-KR')}km, 50km↑)</span>
+                <span>{serviceType === 'airport'
+                  ? `경유 우회거리 (${breakdown.km.toLocaleString('ko-KR')}km × ${MOOD_SURCHARGE_PER_KM}원)`
+                  : `거리 추가요금 (${breakdown.km.toLocaleString('ko-KR')}km, 50km↑)`}</span>
                 <span style={{ color: C.text }}>+{formatKRW(breakdown.distanceSurchargeKRW)}</span>
               </div>
             )}

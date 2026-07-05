@@ -71,8 +71,10 @@ describe('MoodPortal — 경유지 배열 + 주소검색 배선 (소스가드)',
   });
 
   it('경유지를 | 로 join 해 백엔드 전달(split 잔재 없음)', () => {
-    // 배열 → .filter(Boolean).join('|') 로 전달. 과거 split('|') 단일문자열 방식 제거 확인.
-    expect(src).toMatch(/\.filter\(Boolean\)\s*\.join\('\|'\)/s);
+    // 배열 → filter(Boolean) 로 빈칸 제거 후 join('|') 전달. 과거 split('|') 단일문자열 방식 제거 확인.
+    // (2026-07-05: 공항 우회거리 계산 위해 wpList 변수로 분리 — filter/join 연속 체인은 아니지만 의도 동일.)
+    expect(src).toMatch(/\.filter\(Boolean\)/);
+    expect(src).toMatch(/\.join\('\|'\)/);
     expect(src).not.toMatch(/waypoints[\s.]*\.split\('\|'\)/);
   });
 });

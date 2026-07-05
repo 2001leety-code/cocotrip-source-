@@ -72,8 +72,9 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
           <ul className="list-disc pl-4 space-y-1">
             <li>🚗 차량: <b style={{ color: C.text }}>{formatKRW(MOOD_RATES.vehicle)}/시간</b> (최소 {MOOD_MIN_DURATION_HOURS}시간)</li>
             <li>🧑‍💼 매니저: <b style={{ color: C.text }}>{formatKRW(MOOD_RATES.manager)}/시간</b> (최소 {MOOD_MIN_DURATION_HOURS}시간)</li>
-            <li>✈️ 공항 픽업/샌딩: <b style={{ color: C.text }}>{formatKRW(airportFixed)} 정액</b> (시간·거리 무관)</li>
-            <li>총 이동거리 {MOOD_DISTANCE_THRESHOLD_KM}km 이상이면 km당 {formatKRW(MOOD_SURCHARGE_PER_KM)} 거리요금 + 톨비 실비</li>
+            <li>✈️ 공항 픽업/샌딩: <b style={{ color: C.text }}>{formatKRW(airportFixed)} 정액</b> (직행 기준, 시간 무관)</li>
+            <li>공항에 <b style={{ color: C.text }}>경유지</b>가 생기면 직행 대비 늘어난 거리에 km당 {formatKRW(MOOD_SURCHARGE_PER_KM)} (예: 집→용산역→공항)</li>
+            <li>차량·매니저는 총 이동거리 {MOOD_DISTANCE_THRESHOLD_KM}km 이상이면 km당 {formatKRW(MOOD_SURCHARGE_PER_KM)} 거리요금 + 톨비 실비</li>
           </ul>
           <p className="mt-1.5">화면의 예상 금액은 참고용이고, 확정 금액은 서버가 실제 경로(거리·톨비)로 계산합니다.</p>
         </Section>

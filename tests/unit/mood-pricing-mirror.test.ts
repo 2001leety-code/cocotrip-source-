@@ -42,6 +42,24 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
     }
   });
 
+  it('공항 경유 우회거리 요금 동일 (FE=BE, 2026-07-05) — 정액 + 우회km×600', () => {
+    const cases = [
+      { serviceType: 'airport' as const, durationHours: 0, airportDetourKm: 15 },
+      { serviceType: 'airport' as const, durationHours: 0, airportDetourKm: 0 },   // 직행 = 정액
+      { serviceType: 'airport' as const, durationHours: 0, airportDetourKm: 5 },   // 임계값 없음
+      { serviceType: 'airport' as const, durationHours: 2, km: 250, tollKRW: 9000, airportDetourKm: 20 }, // km/toll 무시, detour만
+    ];
+    for (const c of cases) {
+      const fe = feTotal(c);
+      const be = beTotal(c);
+      expect(fe.amountKRW).toBe(be.amountKRW);
+      expect(fe.distanceSurchargeKRW).toBe(be.distanceSurchargeKRW);
+      expect(fe.km).toBe(be.km);
+      expect(fe.tollKRW).toBe(be.tollKRW);
+    }
+    expect(feTotal({ serviceType: 'airport', durationHours: 0, airportDetourKm: 15 }).amountKRW).toBe(119000);
+  });
+
   it('최대 시간 한도 동일', () => {
     expect(FE_MAX).toBe(BE_MAX);
     expect(FE_MAX).toBe(15);

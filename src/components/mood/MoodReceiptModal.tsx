@@ -260,6 +260,13 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
               <span style={{ color: C.text }}>+{formatKRW(distanceSurchargeKRW)}</span>
             </div>
           )}
+          {/* 공항 경유 우회거리 요금 (2026-07-05) — 직행 대비 늘어난 거리. 직행이면 0 이라 미표시. */}
+          {isAirport && distanceSurchargeKRW > 0 && (
+            <div className={rowStyle} style={{ color: C.textDim }}>
+              <span>경유 우회거리 ({km.toLocaleString('ko-KR')}km × {perKm}원)</span>
+              <span style={{ color: C.text }}>+{formatKRW(distanceSurchargeKRW)}</span>
+            </div>
+          )}
           {/* 톨비 — 0원도 항상 표시: '통행료 없는 경로'와 '기록 없음'을 구분 */}
           {hasBreakdown && !isAirport && (
             <div className={rowStyle} style={{ color: C.textDim }}>

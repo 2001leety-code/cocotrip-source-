@@ -47,6 +47,16 @@ export function computeDistanceSurchargeKRW(km: number): number {
   return Math.round(d * MOOD_SURCHARGE_PER_KM);
 }
 
+/**
+ * 공항 경유 우회거리 추가요금 (2026-07-05) — 백엔드 mood-pricing.js 와 동일 공식.
+ * 공항 직행은 정액이지만 경유지가 끼면 직행 대비 늘어난 거리에 km × 600원 (임계값 없음).
+ */
+export function computeAirportDetourSurchargeKRW(detourKm: number): number {
+  const d = Number(detourKm);
+  if (!Number.isFinite(d) || d <= 0) return 0;
+  return Math.round(d * MOOD_SURCHARGE_PER_KM);
+}
+
 /** 예상 금액 (원). 표시 전용 — 실제 청구는 백엔드 재계산. (base = 시급×시간) */
 export function estimateMoodAmountKRW(serviceType: MoodServiceType, durationHours: number): number {
   // 정액 서비스(공항)는 시간 무관 정액.
@@ -85,12 +95,15 @@ export function computeMoodTotalKRW(input: {
   durationHours: number;
   km?: number;
   tollKRW?: number;
+  airportDetourKm?: number;
 }): MoodTotalBreakdown {
-  const { serviceType, durationHours, km = 0, tollKRW = 0 } = input;
-  // 정액 서비스(공항) — 시간/거리/톨비 무시하고 정액만 (백엔드 SSOT 와 동일).
+  const { serviceType, durationHours, km = 0, tollKRW = 0, airportDetourKm = 0 } = input;
+  // 정액 서비스(공항) — 정액 + 경유 우회거리 요금(경유 없으면 0). 백엔드 SSOT 와 동일.
   const fixed = fixedPriceFor(serviceType);
   if (fixed !== null) {
-    return { ok: true, amountKRW: fixed, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: 0, tollKRW: 0, km: 0 };
+    const detourSurcharge = computeAirportDetourSurchargeKRW(airportDetourKm);
+    const dk = Number.isFinite(Number(airportDetourKm)) ? Math.max(0, Number(airportDetourKm)) : 0;
+    return { ok: true, amountKRW: fixed + detourSurcharge, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: detourSurcharge, tollKRW: 0, km: dk };
   }
   const ratePerHour = MOOD_RATES[serviceType] || 0;
   const baseKRW = estimateMoodAmountKRW(serviceType, durationHours);
