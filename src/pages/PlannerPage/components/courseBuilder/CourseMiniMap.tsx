@@ -37,10 +37,20 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** 팝업/hover title HTML — 마커 생성과 라벨/시간 갱신이 같은 문구를 쓰도록 단일 소스. */
+function popupHtml(p: MapPoint): string {
+  const timeHtml = p.time ? `<div style="color:#B9A4FF;font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>` : '';
+  return `<div style="font-weight:700;font-size:13px;color:#1a1024;">${p.order}. ${escapeHtml(p.label || `#${p.order}`)}</div>${timeHtml}`;
+}
+
 export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const domId = useId().replace(/[:]/g, '');
   const [failed, setFailed] = useState(false);
+  // 방문순서(order) → Leaflet marker. 좌표/순서 불변인 제목·시간 편집 시 지도 전체를
+  // 재구성(타일 refetch flicker)하지 않고 이 ref 로 팝업/title 만 갱신하려고 보관.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<Map<number, any>>(new Map());
 
   const points = toMapPoints(stops);
   const enoughPoints = points.length >= 2;
@@ -70,16 +80,17 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
 
         L.polyline(latLngs, { color: '#B668FC', weight: 3, opacity: 0.85, lineJoin: 'round' }).addTo(map);
 
+        markersRef.current.clear();
         points.forEach((p) => {
           const icon = L.divIcon({
             className: 'cocotrip-course-pin',
             html: `<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7C5CFC,#EA537E);color:#fff;font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,0.9);box-shadow:0 2px 6px rgba(0,0,0,0.5);">${p.order}</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
           });
-          const timeHtml = p.time ? `<div style="color:#B9A4FF;font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>` : '';
-          L.marker([p.lat, p.lng], { icon, title: p.label })
+          const marker = L.marker([p.lat, p.lng], { icon, title: p.label })
             .addTo(map)
-            .bindPopup(`<div style="font-weight:700;font-size:13px;color:#1a1024;">${p.order}. ${escapeHtml(p.label || `#${p.order}`)}</div>${timeHtml}`, { closeButton: true });
+            .bindPopup(popupHtml(p), { closeButton: true });
+          markersRef.current.set(p.order, marker);
         });
 
         map.fitBounds(L.latLngBounds(latLngs), { padding: [28, 28], maxZoom: 15 });
@@ -91,10 +102,26 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
 
     return () => {
       cancelled = true;
+      markersRef.current.clear();
       if (mapInstance) { try { mapInstance.remove(); } catch { /* disposed */ } mapInstance = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order]))]);
+
+  // 제목/시간만 바뀐 경우(좌표·순서 불변 → 위 effect 미실행) 지도 재구성 없이 팝업·hover
+  // title 텍스트만 갱신 → 편집 중 타일 refetch flicker 없이 stale 표시 방지.
+  useEffect(() => {
+    for (const p of points) {
+      const m = markersRef.current.get(p.order);
+      if (!m) continue;
+      try {
+        m.setPopupContent(popupHtml(p));
+        const el = typeof m.getElement === 'function' ? m.getElement() : null;
+        if (el) el.setAttribute('title', p.label || `#${p.order}`);
+      } catch { /* marker disposed mid-rebuild — 다음 렌더에 반영 */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(points.map((p) => [p.order, p.label, p.time]))]);
 
   if (!enoughPoints || failed) return null;
 

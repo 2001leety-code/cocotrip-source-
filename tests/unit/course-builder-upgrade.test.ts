@@ -54,6 +54,36 @@ describe('course-ai 배선 불변식', () => {
     expect(src).toMatch(/n\.lat >= 33 && n\.lat <= 39/);
     expect(src).toMatch(/\.slice\(0, 5\)/);
   });
+
+  it('유료 Gemini 호출 전 IP rate-limit (비용-DoS 방어, place-search 패턴)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, '../../api/course-ai.js'), 'utf8');
+    expect(src).toMatch(/checkIpRateLimit/);                 // 공용 rate-limit 헬퍼
+    expect(src).toMatch(/course_ai_rate_limits/);            // 전용 버킷
+    // rate-limit 체크는 반드시 GoogleGenerativeAI(유료) 호출보다 앞에 와야 비용 차단됨
+    const rateIdx = src.indexOf('checkIpRateLimit({');
+    const geminiIdx = src.indexOf('new GoogleGenerativeAI');
+    expect(rateIdx).toBeGreaterThan(0);
+    expect(rateIdx).toBeLessThan(geminiIdx);                 // 순서: rate-limit → Gemini
+  });
+});
+
+describe('course-ai rate-limit degrade 동작', () => {
+  it('한도 초과 시 500/429 아니라 nn 폴백으로 degrade (사용자는 순서 받음)', async () => {
+    // Firestore 없이(fail-OPEN) 실행되면 rate-limit 통과 → 키 없으면 nn.
+    // 여기선 소스 불변식으로 degrade 경로 존재 확인(실 Gemini 호출 없이).
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, '../../api/course-ai.js'), 'utf8');
+    // 한도 초과 분기가 fallbackOrder + rateLimited:true 로 200 반환하는지
+    expect(src).toMatch(/if \(!_rate\.ok\)/);
+    expect(src).toMatch(/rateLimited: true/);
+    // 그 분기 안에서 fallbackOrder 를 쓰는지(throw/500 아님)
+    const branch = src.slice(src.indexOf('if (!_rate.ok)'), src.indexOf('if (!_rate.ok)') + 240);
+    expect(branch).toMatch(/optimizedOrder: fallbackOrder/);
+    expect(branch).not.toMatch(/writeHead\(429|writeHead\(500/);
+  });
 });
 
 describe('CourseBuilder UI 배선 불변식', () => {

@@ -29,6 +29,15 @@ interface Props {
 
 interface Hit { name: string; address: string; lat: number; lng: number; }
 
+// 0-hit 자유입력 폴백 라벨 — 4언어. placeholder substring 휴리스틱 대신 lang prop 으로 분기
+// (일본어 '住所'·중국어 '地址' 는 한글 '주소' 를 포함하지 않아 영어로 새던 문제 해소).
+const ADD_AS_IS: Record<string, string> = {
+  ko: '그대로 추가 (좌표 없음)',
+  en: 'add as-is (no map pin)',
+  ja: 'そのまま追加（座標なし）',
+  zh: '直接添加（无坐标）',
+};
+
 export function CoursePlaceSearch({
   value, onChange, onPick, onEnterFreeText, placeholder, searchLabel, lang, inputClassName,
 }: Props) {
@@ -99,7 +108,7 @@ export function CoursePlaceSearch({
               onClick={() => { onEnterFreeText(); setHits(null); }}
               className="rounded-md px-2 py-1.5 text-left text-[11px] text-white/60 hover:bg-white/[0.06]"
             >
-              {`"${value.trim()}"`} — {placeholder.includes('주소') ? '그대로 추가 (좌표 없음)' : 'add as-is (no map pin)'}
+              {`"${value.trim()}"`} — {ADD_AS_IS[lang] || ADD_AS_IS.en}
             </button>
           ) : (
             hits.map((h, i) => (

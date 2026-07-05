@@ -13,9 +13,15 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { captureError } from './_shared/sentry.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
+
+// IP rate-limit — 이 엔드포인트는 무인증 공개인데 Gemini(유료)를 호출하므로 place-search
+// 와 동일하게 비용-DoS 방어. fail-OPEN(Firestore 장애 시 실사용자 안 막음). 시간당 40회.
+const _rateDb = initAdminDb('course-ai');
 
 // 공개 기능(플래너) — place-search 와 동일한 개방 CORS(인증 없음, 좌표·상한으로 남용 방어).
 const JSON_HEADERS = {
@@ -101,6 +107,20 @@ export default async function handler(req, res) {
     // 키 없으면 순수계산 순서만 (추천 없음)
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn' }));
+  }
+
+  // 유료 Gemini 호출 직전 IP rate-limit. 한도 초과 시 500/429 대신 nn 폴백으로 degrade —
+  // 사용자는 무료 순서라도 받고(추천만 없음), 비용 소진만 차단. fail-OPEN(장애 시 통과).
+  const _rate = await checkIpRateLimit({
+    db: _rateDb,
+    ip: getClientIp(req),
+    collection: 'course_ai_rate_limits',
+    maxRequests: 40,
+    errorLabel: 'course AI requests',
+  });
+  if (!_rate.ok) {
+    res.writeHead(200, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn', rateLimited: true }));
   }
 
   try {
