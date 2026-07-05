@@ -20,6 +20,14 @@
     "navigation": "탐색",
     "myAccount": "내 계정",
     "myPlans": "내 여행",
+    "groupTrips": "내 여행 관리",
+    "groupRewards": "혜택·저장",
+    "groupAccount": "계정",
+    "myBookings": "예약 내역",
+    "myCourses": "내 코스",
+    "myCoupons": "쿠폰",
+    "savedTours": "저장한 투어",
+    "myPoints": "포인트 내역",
     "wishlist": "위시리스트",
     "bookingHistory": "예약 내역",
     "coupons": "쿠폰",
@@ -1944,10 +1952,12 @@
     "s5": "최고"
   },
   "wishlist": {
-    "title": "위시리스트",
-    "empty": "위시리스트가 비어 있어요",
+    "title": "저장한 투어",
+    "empty": "저장한 투어가 없어요",
     "tapToSave": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
-    "signInHint": "💡 로그인하면 기기 간 위시리스트가 동기화됩니다"
+    "signInHint": "💡 로그인하면 기기 간에 저장 목록이 동기화됩니다",
+    "viewDetail": "상세보기",
+    "remove": "삭제"
   },
   "cart": {
     "title": "장바구니",

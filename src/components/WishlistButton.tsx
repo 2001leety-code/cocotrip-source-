@@ -3,10 +3,25 @@
  * Guest/Login 모두 동작, 로그인 시 Firestore 동기화
  */
 import { useState, useEffect, useRef } from 'react';
-import { Heart, X, Calendar, Trash2, ShoppingBag } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Heart, X, Calendar, Trash2, ShoppingBag, ChevronRight } from 'lucide-react';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+
+/**
+ * 위시리스트 아이템 → 상세 경로. 저장 href 우선, 없으면 상품 목록 폴백.
+ * ⚠️ 여기서 tours.ts(slugForTourId) 를 import 하면 전체 투어 데이터가 Header(eager)
+ *    메인 번들로 끌려와 first-paint +27KB → size-limit 초과. 패널은 목록 폴백만 쓰고,
+ *    id→slug 정확 매핑은 lazy 페이지인 MyPage 에서 처리(main 무관). 새 데이터는 href 저장돼
+ *    패널에서도 정확히 이동, 과도기 기존(id-only) 데이터만 목록으로 폴백.
+ */
+function wishlistHref(item: { id: string; productType: string; href?: string }): string {
+  if (item.href) return item.href;
+  if (item.productType === 'charter') return '/charter';
+  if (item.productType === 'planner') return '/planner';
+  return '/tours';
+}
 
 // ── 하트 토글 버튼 (상품 카드에 삽입) ──
 export function WishlistToggle({
@@ -15,6 +30,7 @@ export function WishlistToggle({
   name,
   priceUSD,
   thumbnailUrl,
+  href,
   size = 20,
 }: {
   productId: string;
@@ -22,6 +38,8 @@ export function WishlistToggle({
   name: string;
   priceUSD?: number;
   thumbnailUrl?: string;
+  /** 상세 페이지 경로 — 저장해두면 위시리스트에서 정확히 이동 (2026-07-05). */
+  href?: string;
   size?: number;
 }) {
   const { toggle, isWishlisted } = useWishlist();
@@ -33,7 +51,7 @@ export function WishlistToggle({
     e.stopPropagation();
     e.preventDefault();
     setAnimating(true);
-    await toggle({ id: productId, productType, name, priceUSD, thumbnailUrl });
+    await toggle({ id: productId, productType, name, priceUSD, thumbnailUrl, href });
     setTimeout(() => setAnimating(false), 300);
   };
 
@@ -135,10 +153,15 @@ export function WishlistPanel() {
                 {items.map(item => (
                   <div
                     key={item.id}
-                    className="group bg-white/[0.04] rounded-xl p-3 border border-white/5 hover:border-[#7C5CFC]/30 transition-all"
+                    className="group bg-white/[0.04] rounded-xl border border-white/5 hover:border-[#7C5CFC]/30 transition-all"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
+                    <div className="flex items-stretch">
+                      {/* 카드 본문 = 상세 이동 링크 (href 우선, 투어는 slug 폴백) */}
+                      <Link
+                        to={wishlistHref(item)}
+                        onClick={() => setIsOpen(false)}
+                        className="flex-1 min-w-0 p-3 pr-1"
+                      >
                         <p className="text-white text-sm font-medium truncate">{item.name}</p>
                         <div className="flex items-center gap-2 mt-1.5">
                           {item.priceUSD && (
@@ -150,22 +173,31 @@ export function WishlistPanel() {
                             {item.productType}
                           </span>
                         </div>
-                      </div>
+                        <div className="mt-2 flex items-center gap-1.5 text-white/55 text-[10px]">
+                          <Calendar size={10} />
+                          <span>{new Date(item.addedAt).toLocaleDateString()}</span>
+                          <span className="ml-auto flex items-center gap-0.5 text-[#7C5CFC] font-semibold">
+                            {wl.viewDetail || '상세보기'}<ChevronRight size={11} />
+                          </span>
+                        </div>
+                      </Link>
+                      {/* 삭제 — stopPropagation 으로 이동 차단, 삭제만 */}
                       <button
-                        onClick={() => toggle({
-                          id: item.id,
-                          productType: item.productType,
-                          name: item.name,
-                          priceUSD: item.priceUSD,
-                        })}
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          toggle({
+                            id: item.id,
+                            productType: item.productType,
+                            name: item.name,
+                            priceUSD: item.priceUSD,
+                          });
+                        }}
+                        aria-label={wl.remove || 'Remove'}
+                        className="px-2.5 flex items-center rounded-r-xl opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all"
                       >
                         <Trash2 size={14} className="text-red-400/60" />
                       </button>
-                    </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-white/55 text-[10px]">
-                      <Calendar size={10} />
-                      <span>{new Date(item.addedAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}

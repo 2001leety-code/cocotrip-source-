@@ -20,6 +20,9 @@ export interface WishlistItem {
   name: string;
   priceUSD?: number;
   thumbnailUrl?: string;
+  /** 상세 페이지 경로 (예: '/tours/seoul-city-full-day'). 2026-07-05 추가.
+   *  기존 데이터엔 없음(optional) → 소비처가 slugForTourId(id) 로 폴백. */
+  href?: string;
   addedAt: number; // timestamp ms
 }
 
@@ -71,8 +74,12 @@ export function useWishlist() {
         if (exists) {
           await deleteDoc(ref);
         } else {
+          // Firestore 는 undefined 필드를 거부 → optional(href/priceUSD/thumbnailUrl 등) 제거.
+          const clean = Object.fromEntries(
+            Object.entries(item).filter(([, v]) => v !== undefined),
+          );
           await setDoc(ref, {
-            ...item,
+            ...clean,
             addedAt: Date.now(),
             serverAddedAt: serverTimestamp(),
           });
