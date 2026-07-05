@@ -112,6 +112,34 @@ export function moveStopToDay(
   return touch({ ...d, days }, now);
 }
 
+/**
+ * Day 내 stop 순서 재정렬 (2026-07-05, AI 동선 최적화용).
+ * orderedIds = 새 순서의 stop id 배열. 기존 stop 은 손실 없이 그 순서로 재배치하고,
+ * orderedIds 에 없는 stop(누락/신규)은 원래 상대순서 유지하며 뒤에 붙인다(안전측: 절대 삭제 안 함).
+ */
+export function reorderStops(
+  d: CourseDraft, dayIdx: number, orderedIds: string[], now: number = Date.now(),
+): CourseDraft {
+  if (dayIdx < 0 || dayIdx >= d.days.length) return d;
+  const stops = d.days[dayIdx].stops;
+  const byId = new Map(stops.map((s) => [s.id, s]));
+  const seen = new Set<string>();
+  const reordered: CourseStop[] = [];
+  for (const id of orderedIds) {
+    const s = byId.get(id);
+    if (s && !seen.has(id)) { reordered.push(s); seen.add(id); }
+  }
+  // orderedIds 에 빠진 stop 은 원래 순서대로 뒤에 (손실 방지)
+  for (const s of stops) {
+    if (!seen.has(s.id)) reordered.push(s);
+  }
+  // 순서가 실제로 안 바뀌면 no-op (불필요한 updatedAt 갱신 회피)
+  const same = reordered.length === stops.length && reordered.every((s, i) => s.id === stops[i].id);
+  if (same) return d;
+  const days = d.days.map((day, i) => (i === dayIdx ? { stops: reordered } : day));
+  return touch({ ...d, days }, now);
+}
+
 export function addDay(d: CourseDraft, now: number = Date.now()): CourseDraft {
   if (d.days.length >= COURSE_MAX_DAYS) return d;
   return touch({ ...d, days: [...d.days, { stops: [] }] }, now);

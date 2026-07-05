@@ -172,6 +172,11 @@ if [ -n "$SCAN_FILES" ]; then
       //   c?.address ?? '' (null=선택해제 보존, || 변환 시 빈 문자열 오버라이드 회귀). pre-existing
       //   legitimate — 스케줄 메모+PWA 버튼 추가로 처음 staged 됐을 뿐, 신규 코드는 전부 || 사용.
       if (f === "src/pages/MoodPortal.tsx") continue;
+      // 2026-07-06: SharedCoursePage.tsx 의 ?? 3건 — course?.days.length ?? 1 / reduce(...) ?? 0
+      //   / CAT_LABEL[lang][cat] ?? etc (0/누락 보존 + i18n 폴백). 다른 세션이 07-04 생성한
+      //   pre-existing legitimate. 코스빌더 미니지도(CourseMiniMap) 삽입으로 처음 staged 됐을
+      //   뿐 — 내 diff 는 ?? 0추가, U+FFFD 0 확인. 신규 코드는 전부 || 사용.
+      if (f === "src/pages/SharedCoursePage.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

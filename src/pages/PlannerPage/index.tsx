@@ -182,20 +182,20 @@ export default function PlannerPage() {
             className="grid gap-2 rounded-[22px] p-2 sm:grid-cols-2"
             style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
-            {([
-              {
-                key: 'ai' as PlannerMode,
-                icon: Wand2,
-                title: 'Let AI plan everything',
-                body: 'Answer the survey and get a complete Korea itinerary.',
-              },
-              {
-                key: 'course' as PlannerMode,
-                icon: ListPlus,
-                title: 'Build from my places',
-                body: 'Add restaurants, addresses, and fixed plans. AI helps beside you.',
-              },
-            ]).map(({ key, icon: Icon, title, body }) => {
+            {(() => {
+              // 모드 선택 문구 4언어 (2026-07-05 — 기존 영어 고정 해소).
+              const L = (language === 'ko' || language === 'ja' || language === 'zh') ? language : 'en';
+              const MODE_TEXT = {
+                en: { aiT: 'Let AI plan everything', aiB: 'Answer the survey and get a complete Korea itinerary.', cT: 'Build from my places', cB: 'Add restaurants, addresses, and fixed plans. AI helps beside you.' },
+                ko: { aiT: 'AI가 전부 짜드려요', aiB: '설문에 답하면 완성된 한국 일정을 받아요.', cT: '내 장소로 만들기', cB: '맛집·주소·확정 일정을 넣으면 AI가 옆에서 도와줘요.' },
+                ja: { aiT: 'AIがすべて計画', aiB: 'アンケートに答えると完成した韓国旅程が届きます。', cT: '自分の場所で作る', cB: 'グルメ・住所・確定予定を入れるとAIが横でサポート。' },
+                zh: { aiT: 'AI帮你全部规划', aiB: '回答问卷即可获得完整的韩国行程。', cT: '用我的地点创建', cB: '添加美食·地址·固定安排，AI在旁协助。' },
+              }[L];
+              return [
+                { key: 'ai' as PlannerMode, icon: Wand2, title: MODE_TEXT.aiT, body: MODE_TEXT.aiB },
+                { key: 'course' as PlannerMode, icon: ListPlus, title: MODE_TEXT.cT, body: MODE_TEXT.cB },
+              ];
+            })().map(({ key, icon: Icon, title, body }) => {
               const active = plannerMode === key;
               return (
                 <button
