@@ -29,6 +29,11 @@ if (process.env.PRERENDER === '1' && !PRERENDER_EXEC_PATH && process.env.VERCEL)
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
+  // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
+  server: {
+    proxy: { '/api': { target: 'https://cocotripkr.com', changeOrigin: true } },
+  },
   plugins: [
     react(),
     // DEV-only (로컬 플랜 하네스): scripts/plan-local/outputs/plan-<scenario>.json 을
