@@ -43,13 +43,20 @@ export async function geocode(query, clientId, clientSecret) {
 }
 
 /**
- * NCP(Naver Cloud Maps) 키 해석 — computeRoute 와 동일한 폴백 규칙.
- * CLAUDE.md I: 키는 .trim() 필수 (\n 손상 방지). 변수명 이원화(NCP_ / NAVER_ 계열) 둘 다 허용.
+ * NCP(Naver Cloud Maps) 키 해석 — geocode/directions API 인증.
+ * CLAUDE.md I: 키는 .trim() 필수 (\n 손상 방지).
+ *
+ * 폴백 순서 (2026-07-05 확장): NCP_CLIENT_* → VITE_NAVER_CLIENT_* → NAVER_CLIENT_*.
+ *   ⚠️ 2026-07-04 place-search 장애 fix 때 NAVER_CLIENT_* 를 Developers(openapi 검색) 키로
+ *   갱신 → NCP Maps API 에 401(다른 시스템). 살아있는 NCP Maps 키는 VITE_NAVER_CLIENT_* 에
+ *   있어(prod Directions 200 확인) 이를 NAVER_CLIENT_ 보다 우선. VITE_ secret 은 프론트가
+ *   참조하지 않아 번들 미노출(서버 serverless 는 모든 env 접근 가능). 운영자가 서버 전용
+ *   NCP_CLIENT_* 를 명시하면 그게 최우선.
  * @returns {{ clientId: string, clientSecret: string }} — 미설정이면 빈 문자열.
  */
 function resolveNcpKeys() {
-  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
-  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
+  const clientId = (process.env.NCP_CLIENT_ID || process.env.VITE_NAVER_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.VITE_NAVER_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
   return { clientId, clientSecret };
 }
 
