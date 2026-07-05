@@ -13,17 +13,20 @@
  */
 import { useMemo, useState } from 'react';
 import {
-  CalendarDays, Check, Clock, ExternalLink, GripVertical, MapPin,
-  PencilLine, Plus, Share2, Sparkles, Trash2, X,
+  CalendarDays, Check, Clock, ExternalLink, MapPin,
+  PencilLine, Plus, Share2, Sparkles, Trash2, X, Wand2, LogIn,
 } from 'lucide-react';
 
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
+import { signInWithGoogle } from '@/lib/firebase';
 import { useItinerary } from '@/hooks/useItinerary';
 import { naverMapSearchUrl } from '@/lib/naverMap';
 import { useCourseBuilder } from './courseBuilder/useCourseBuilder';
 import { googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, type CourseStop } from './courseBuilder/courseOps';
 import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recommendations';
+import { CoursePlaceSearch, type CoursePlacePick } from './courseBuilder/CoursePlaceSearch';
+import { CourseMiniMap } from './courseBuilder/CourseMiniMap';
 
 // ── i18n (4-lang 컴포넌트 로컬 — AddressAutocomplete 패턴) ───────────────
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -43,6 +46,11 @@ const I18N: Record<Lang, Record<string, string>> = {
     share: 'Share', shareCopied: 'Link copied!', shareFail: 'Copy failed — try again',
     saveAccount: 'Save to my account', saveDone: 'Saved to My Page!', saveFail: 'Save failed — try again',
     saved: 'Auto-saved on this device', stops: 'stops',
+    search: 'Search', mapTitle: "This day's route",
+    aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
+    saveTitleField: 'Course title', saveDateField: 'Trip date', saveTitlePh: 'e.g. My Seoul food trip',
+    saveCta: 'Save', cancel: 'Cancel',
+    loginToSave: 'Sign in to save, share, and open on any device.', loginBtn: 'Sign in',
   },
   ko: {
     day: 'Day', addDay: '+ 일차', delDay: '이 일차를 삭제할까요?', newCourse: '새 코스',
@@ -57,6 +65,11 @@ const I18N: Record<Lang, Record<string, string>> = {
     share: '공유', shareCopied: '링크 복사됨!', shareFail: '복사 실패 — 다시 시도',
     saveAccount: '내 계정에 저장', saveDone: '마이페이지에 저장됨!', saveFail: '저장 실패 — 다시 시도',
     saved: '이 기기에 자동 저장됨', stops: '개 장소',
+    search: '검색', mapTitle: '이 날의 동선',
+    aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
+    saveTitleField: '코스 제목', saveDateField: '여행 날짜', saveTitlePh: '예: 나의 서울 맛집 투어',
+    saveCta: '저장', cancel: '취소',
+    loginToSave: '로그인하면 저장·공유·다른 기기에서 볼 수 있어요.', loginBtn: '로그인',
   },
   ja: {
     day: 'Day', addDay: '+ 日目', delDay: 'この日を削除しますか？', newCourse: '新規コース',
@@ -71,6 +84,11 @@ const I18N: Record<Lang, Record<string, string>> = {
     share: '共有', shareCopied: 'リンクをコピーしました！', shareFail: 'コピー失敗 — もう一度',
     saveAccount: 'アカウントに保存', saveDone: 'マイページに保存しました！', saveFail: '保存失敗 — もう一度',
     saved: 'この端末に自動保存', stops: 'か所',
+    search: '検索', mapTitle: 'この日のルート',
+    aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
+    saveTitleField: 'コース名', saveDateField: '旅行日', saveTitlePh: '例: ソウルグルメ旅',
+    saveCta: '保存', cancel: 'キャンセル',
+    loginToSave: 'ログインすると保存・共有・他の端末で表示できます。', loginBtn: 'ログイン',
   },
   zh: {
     day: 'Day', addDay: '+ 天', delDay: '删除这一天？', newCourse: '新行程',
@@ -85,8 +103,15 @@ const I18N: Record<Lang, Record<string, string>> = {
     share: '分享', shareCopied: '链接已复制！', shareFail: '复制失败 — 请重试',
     saveAccount: '保存到我的账户', saveDone: '已保存到我的页面！', saveFail: '保存失败 — 请重试',
     saved: '已自动保存到本设备', stops: '个地点',
+    search: '搜索', mapTitle: '当天路线',
+    aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
+    saveTitleField: '行程名称', saveDateField: '出行日期', saveTitlePh: '例: 我的首尔美食之旅',
+    saveCta: '保存', cancel: '取消',
+    loginToSave: '登录后可保存·分享·在其他设备查看。', loginBtn: '登录',
   },
 };
+
+interface AiNearby { name: string; lat: number; lng: number; category: string; reason: string; }
 
 const CATEGORIES = ['food', 'sight', 'show', 'stay', 'etc'] as const;
 const CAT_KEY: Record<string, string> = { food: 'catFood', sight: 'catSight', show: 'catShow', stay: 'catStay', etc: 'catEtc' };
@@ -117,6 +142,14 @@ export function CourseBuilderShell() {
   // 상태 피드백 (공유/저장)
   const [flash, setFlash] = useState<string | null>(null);
   const showFlash = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 2500); };
+  // AI 동선 최적화
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiRecos, setAiRecos] = useState<AiNearby[]>([]);
+  // 저장 모달 (제목/날짜)
+  const [showSave, setShowSave] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
+  const [saveDate, setSaveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
 
   const cities = useMemo(() => recoCities(), []);
   const recos = useMemo(() => recoForCity(recoCity), [recoCity]);
@@ -129,6 +162,62 @@ export function CourseBuilderShell() {
     setNewTitle(''); setNewTime(''); setNewMemo('');
   };
 
+  // 자동완성에서 장소 선택 → 좌표까지 저장 (지도 동선 가능). 주소는 memo 로 보존.
+  const handlePickPlace = (p: CoursePlacePick) => {
+    cb.addStop(cb.activeDay, {
+      title: p.title, time: newTime, category: newCat,
+      memo: p.address || newMemo,
+      ...(typeof p.lat === 'number' ? { lat: p.lat } : {}),
+      ...(typeof p.lng === 'number' ? { lng: p.lng } : {}),
+    });
+    setNewTitle(''); setNewTime(''); setNewMemo('');
+  };
+
+  // AI 동선 최적화 — 활성 Day stop(좌표 있는) 을 course-ai 로 재정렬 + 주변 추천.
+  const handleAiOptimize = async () => {
+    const stops = day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
+    if (stops.length < 2) { showFlash(t.aiBusy); return; }
+    setAiBusy(true);
+    try {
+      const res = await fetch('/api/course-ai', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stops: day.stops.map((s) => ({ id: s.id, title: s.title, category: s.category, lat: s.lat, lng: s.lng })),
+          lang: nameLang,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        if (Array.isArray(json.optimizedOrder) && json.optimizedOrder.length) {
+          cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));
+        }
+        setAiRecos(Array.isArray(json.nearby) ? json.nearby : []);
+      }
+    } catch { /* fail-soft: 조용히 무시 */ } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const handleAddAiReco = (n: AiNearby) => {
+    cb.addStop(cb.activeDay, { title: n.name, time: '', category: n.category || 'sight', memo: '', lat: n.lat, lng: n.lng });
+    setAiRecos((prev) => prev.filter((x) => x !== n));
+  };
+
+  const handleSaveWithMeta = async () => {
+    setSaving(true);
+    try {
+      const title = saveTitle.trim() || `Course ${saveDate}`;
+      const slotsPerDay = cb.draft.days.map((d) => d.stops.map(toItinerarySlot));
+      const id = await createItineraryWithSlots(title, saveDate, slotsPerDay);
+      showFlash(id ? t.saveDone : t.saveFail);
+      if (id) setShowSave(false);
+    } catch {
+      showFlash(t.saveFail);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAddReco = (p: RecoPlace) => {
     cb.addStop(cb.activeDay, {
       title: p.name[nameLang] || p.name.en, time: '', category: p.theme === 'food' ? 'food' : 'sight',
@@ -139,17 +228,6 @@ export function CourseBuilderShell() {
   const handleShare = async () => {
     const url = await cb.share();
     showFlash(url ? t.shareCopied : t.shareFail);
-  };
-
-  const handleSaveAccount = async () => {
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const slotsPerDay = cb.draft.days.map((d) => d.stops.map(toItinerarySlot));
-      const id = await createItineraryWithSlots(`Course ${today}`, today, slotsPerDay);
-      showFlash(id ? t.saveDone : t.saveFail);
-    } catch {
-      showFlash(t.saveFail);
-    }
   };
 
   return (
@@ -201,12 +279,16 @@ export function CourseBuilderShell() {
             <PencilLine className="h-3.5 w-3.5 text-[#B668FC]" /> {t.addTitle}
           </p>
           <div className="grid gap-1.5">
-            <input
+            {/* 장소 자동완성 — 검색해서 고르면 좌표까지 저장(지도 동선). 자유입력도 유지. */}
+            <CoursePlaceSearch
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+              onChange={setNewTitle}
+              onPick={handlePickPlace}
+              onEnterFreeText={handleAdd}
               placeholder={t.namePh}
-              className={INPUT}
+              searchLabel={t.search}
+              lang={nameLang}
+              inputClassName={INPUT}
             />
             <div className="flex flex-wrap items-center gap-1.5">
               <label className="flex items-center gap-1 text-[10px] text-white/45">
@@ -244,6 +326,49 @@ export function CourseBuilderShell() {
           </div>
         </div>
 
+        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선) */}
+        <CourseMiniMap stops={day.stops} title={t.mapTitle} />
+
+        {/* AI 동선 최적화 + 주변 추천 — 좌표 있는 stop 2곳 이상일 때만 노출 */}
+        {day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number').length >= 2 && (
+          <div className="mb-2.5">
+            <button
+              type="button"
+              onClick={() => { void handleAiOptimize(); }}
+              disabled={aiBusy}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50 sm:rounded-xl sm:text-[12px]"
+              style={{ background: 'rgba(182,104,252,0.16)', border: '1px solid rgba(182,104,252,0.45)' }}
+            >
+              <Wand2 className="h-3.5 w-3.5 text-[#E4CCFF]" /> {aiBusy ? t.aiBusy : t.aiOptimize}
+            </button>
+            {aiRecos.length > 0 && (
+              <div className="mt-2 rounded-xl border border-white/10 p-2" style={{ background: 'rgba(182,104,252,0.05)' }}>
+                <p className="mb-1.5 flex items-center gap-1 text-[10.5px] font-bold text-[#B9A4FF]">
+                  <Sparkles className="h-3 w-3" /> {t.aiRecosTitle}
+                </p>
+                <div className="flex flex-col gap-1">
+                  {aiRecos.map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[11.5px] font-bold text-white">{n.name}</p>
+                        {n.reason && <p className="truncate text-[10px] text-white/45">{n.reason}</p>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddAiReco(n)}
+                        className="shrink-0 rounded-md px-2 py-1 text-[10px] font-bold text-white"
+                        style={{ background: 'rgba(182,104,252,0.25)' }}
+                      >
+                        {t.aiAdd}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 스탑 리스트 */}
         {day.stops.length === 0 ? (
           <p className="rounded-xl border border-dashed border-white/[0.14] px-3 py-6 text-center text-[11px] leading-relaxed text-white/40 sm:text-[12px]">
@@ -280,15 +405,27 @@ export function CourseBuilderShell() {
           >
             <Share2 className="h-3.5 w-3.5" /> {t.share}
           </button>
-          {user && (
+          {user ? (
             <button
               type="button"
-              onClick={handleSaveAccount}
+              onClick={() => { setSaveTitle(''); setShowSave(true); }}
               disabled={cb.totalStops === 0}
               className="flex items-center gap-1.5 rounded-lg border border-white/[0.14] px-3 py-2 text-[11px] font-bold text-white/70 disabled:opacity-40 sm:rounded-xl sm:text-[12px]"
             >
               <Check className="h-3.5 w-3.5" /> {t.saveAccount}
             </button>
+          ) : (
+            cb.totalStops > 0 && (
+              <button
+                type="button"
+                onClick={signInWithGoogle}
+                className="flex items-center gap-1.5 rounded-lg border border-[#B668FC]/35 px-3 py-2 text-[11px] font-bold text-[#E4CCFF] sm:rounded-xl sm:text-[12px]"
+                style={{ background: 'rgba(182,104,252,0.10)' }}
+                title={t.loginToSave}
+              >
+                <LogIn className="h-3.5 w-3.5" /> {t.loginBtn}
+              </button>
+            )
           )}
           <button
             type="button"
@@ -359,6 +496,48 @@ export function CourseBuilderShell() {
           ))}
         </div>
       </aside>
+
+      {/* ── 저장 모달 (제목/여행 날짜) — 로그인 사용자만 진입 ── */}
+      {showSave && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSave(false); }}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSave(false)} />
+          <div className="relative w-full max-w-xs rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(15,10,26,0.98)', border: '1px solid rgba(182,104,252,0.25)' }}>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-white">{t.saveAccount}</p>
+              <button type="button" onClick={() => setShowSave(false)} className="rounded-lg p-1 text-white/50 hover:bg-white/[0.06]"><X className="h-4 w-4" /></button>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-white/55">{t.saveTitleField}</span>
+              <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} placeholder={t.saveTitlePh} className={INPUT} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-white/55">{t.saveDateField}</span>
+              <input type="date" value={saveDate} onChange={(e) => setSaveDate(e.target.value)} className={INPUT} />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { void handleSaveWithMeta(); }}
+                disabled={saving}
+                className="flex-1 rounded-lg py-2 text-[12px] font-black text-white disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+              >
+                {saving ? t.aiBusy : t.saveCta}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSave(false)}
+                className="rounded-lg border border-white/[0.12] px-3 py-2 text-[12px] font-bold text-white/55"
+              >
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -444,9 +623,10 @@ function StopRow({
 
   return (
     <div className="flex gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 sm:gap-2.5 sm:p-2.5">
+      {/* 순서 번호 — 드래그 아이콘은 실제 드래그 미지원이라 제거(오해 방지). 순서변경은
+          Move(다른 Day 이동)·AI 최적화로. 2026-07-05. */}
       <div className="flex flex-col items-center pt-0.5">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-lime-300 text-[11px] font-black text-[#101522] sm:h-7 sm:w-7 sm:text-[12px]">{index + 1}</span>
-        <GripVertical className="mt-1 h-3 w-3 text-white/20" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
