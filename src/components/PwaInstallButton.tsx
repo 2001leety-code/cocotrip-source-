@@ -7,6 +7,22 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface PwaInstallButtonProps {
   t: Translations;
+  /** 이 버튼이 설치를 담당하는 앱의 scope — '/'(코코트립, 기본) 또는 '/mood'(MOOD).
+   *  같은 origin 에 PWA 가 2개(코코트립·MOOD)라, "앱으로 실행 중 = 숨김" 판정을
+   *  '지금 실행된 앱이 이 버튼의 앱인가'로 정교화 (2026-07-05 — 코코트립 앱 안에서
+   *  /mood 를 볼 때도 MOOD 설치 안내가 떠야 함). */
+  appScope?: string;
+  /** 다른 앱(standalone) 안에서 열렸을 때 보여줄 전용 설치 안내 문구. */
+  browserOpenHint?: string;
+}
+
+/** 이번 실행이 어느 앱으로 켜졌는지 — main.tsx 가 첫 진입 경로를 기록. */
+function launchPath(): string {
+  try {
+    return sessionStorage.getItem('pwa_launch_path') || window.location.pathname;
+  } catch {
+    return window.location.pathname;
+  }
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -14,12 +30,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export function PwaInstallButton({ t }: PwaInstallButtonProps) {
+export function PwaInstallButton({ t, appScope = '/', browserOpenHint }: PwaInstallButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isInApp, setIsInApp] = useState(false); // 카톡·인스타 등 인앱 브라우저 — PWA 설치 이벤트 안 뜸
+  const [inOtherApp, setInOtherApp] = useState(false); // 다른 PWA(예: 코코트립 앱) 안에서 열림 — 프롬프트 불가, 브라우저 안내
   const [showManual, setShowManual] = useState(false); // 설치 프롬프트 없을 때 수동 안내 노출
   const push = usePushSubscription();
   const { user } = useAuth();
@@ -36,10 +53,17 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   const m = t.pwaInstall || {};
 
   useEffect(() => {
-    // 이미 PWA로 실행 중이면 숨기기
+    // PWA(standalone)로 실행 중일 때 — "어느 앱으로 켜졌는지"까지 확인 (2026-07-05).
+    // 첫 진입 경로가 /mood 면 MOOD 앱, 아니면 코코트립 앱 실행. 이 버튼의 앱이면 숨기고,
+    // 다른 앱 안(예: 코코트립 앱에서 /mood 열람)이면 계속 노출해 전용 앱 설치를 안내.
     if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true);
-      return;
+      const launchedMood = launchPath().startsWith('/mood');
+      const buttonIsMood = appScope.startsWith('/mood');
+      if (launchedMood === buttonIsMood) {
+        setIsInstalled(true);
+        return;
+      }
+      setInOtherApp(true); // standalone 안에선 설치 프롬프트 불가 — 브라우저로 열기 안내
     }
 
     // iOS 감지
@@ -219,6 +243,14 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                       {m.iosAddBtn || '"Add to Home Screen"'}
                     </span>
                   </div>
+                </div>
+              ) : inOtherApp ? (
+                /* 다른 PWA(코코트립 앱 등) 안 — 프롬프트 불가 → 브라우저로 열어 설치 안내 */
+                <div className="px-4 py-3.5 rounded-xl text-center" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                  <p className="text-[12px] text-white/70 leading-relaxed">
+                    {browserOpenHint || (m as { otherAppHint?: string }).otherAppHint
+                      || 'You are inside another app. Open this page in Chrome, then use menu (⋮) → "Add to Home screen" to install it as its own app.'}
+                  </p>
                 </div>
               ) : isInApp ? (
                 /* 인앱 브라우저(카톡·인스타 등) — PWA 설치 불가 → 외부 브라우저로 열기 안내 */
