@@ -20,6 +20,14 @@
     "navigation": "导航",
     "myAccount": "我的账户",
     "myPlans": "我的行程",
+    "groupTrips": "行程管理",
+    "groupRewards": "优惠·收藏",
+    "groupAccount": "账户",
+    "myBookings": "预订记录",
+    "myCourses": "我的路线",
+    "myCoupons": "优惠券",
+    "savedTours": "已收藏的行程",
+    "myPoints": "积分记录",
     "wishlist": "收藏夹",
     "bookingHistory": "预订记录",
     "coupons": "优惠券",
@@ -1944,10 +1952,12 @@
     "s5": "极佳"
   },
   "wishlist": {
-    "title": "心愿单",
-    "empty": "心愿单是空的",
+    "title": "已收藏的行程",
+    "empty": "还没有收藏的行程",
     "tapToSave": "点击旅游照片上的 ❤ 即可收藏",
-    "signInHint": "💡 登录后心愿单将在设备间同步"
+    "signInHint": "💡 登录后收藏将在设备间同步",
+    "viewDetail": "查看",
+    "remove": "删除"
   },
   "cart": {
     "title": "购物车",

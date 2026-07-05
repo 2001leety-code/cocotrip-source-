@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useWishlist } from '@/hooks/useWishlist';
+import { slugForTourId } from '@/data/tours';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -576,11 +577,12 @@ export default function MyPage() {
                 <EmptyState icon={Heart} text={mp.wlEmptyTitle || 'No wishlisted items'} sub={mp.wlEmptySub || 'Tap ❤ on any tour to save it here'} />
               </div>
             ) : wishlistItems.map(item => {
-              // tours have a slug-based detail; for non-tour types we fall back
-              // to /tours (better than dead link).
-              const href = item.productType === 'tour'
-                ? `/tours/${item.id.replace(/^tour-/, '')}`
-                : '/tours';
+              // 상세 링크: 저장된 href 우선(2026-07-05) → 없으면 투어 id→slug 매핑 폴백
+              // (기존 id-only 데이터 호환). id.replace('tour-','') 억지변환은 slug 와 달라 깨졌음.
+              const href = item.href
+                || (item.productType === 'tour'
+                  ? (slugForTourId(item.id) ? `/tours/${slugForTourId(item.id)}` : '/tours')
+                  : item.productType === 'charter' ? '/charter' : '/planner');
               return (
                 <Link
                   key={item.id}

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   COURSE_STORAGE_KEY, type CourseDraft, type CourseStop,
   addDay, addStop, decodeSharedCourse, emptyDraft, encodeCourseForShare,
-  moveStopToDay, removeDay, removeStop, updateStop,
+  moveStopToDay, removeDay, removeStop, reorderStops, updateStop,
 } from './courseOps';
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -65,6 +65,10 @@ export function useCourseBuilder() {
     }, []),
     moveStopToDay: useCallback((fromDay: number, stopId: string, toDay: number) => {
       setDraft((d) => moveStopToDay(d, fromDay, stopId, toDay));
+    }, []),
+    // AI 동선 최적화 결과(새 방문순서 id 배열) 적용. courseOps 가 손실 방지 보장.
+    reorderStops: useCallback((dayIdx: number, orderedIds: string[]) => {
+      setDraft((d) => reorderStops(d, dayIdx, orderedIds));
     }, []),
     addDay: useCallback(() => { setDraft((d) => addDay(d)); }, []),
     removeDay: useCallback((dayIdx: number) => { setDraft((d) => removeDay(d, dayIdx)); }, []),

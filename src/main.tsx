@@ -11,6 +11,15 @@ import { initSentry } from './lib/sentry'
 // false-positive on index.html (html2canvas comment trigger).
 document.documentElement.classList.add('dark');
 
+// PWA 실행 구분 (2026-07-05): 같은 origin 에 앱이 2개(코코트립 '/' · MOOD '/mood').
+// 이번 실행이 어느 앱으로 켜졌는지 = 첫 진입 경로. SPA 라우팅으로 바뀌기 전에 1회 기록
+// (PwaInstallButton 이 "이 앱으로 실행 중인가" 판정에 사용 — 앱 전환 착시/설치버튼 숨김 버그 방지).
+try {
+  if (!sessionStorage.getItem('pwa_launch_path')) {
+    sessionStorage.setItem('pwa_launch_path', window.location.pathname);
+  }
+} catch { /* sessionStorage 차단 환경 — 버튼이 현재 경로로 폴백 */ }
+
 // 2026-06-01: Fraunces 세리프 (정제 퍼플·핑크 디자인 — hero/제목/가격). main.tsx 주입
 // (index.html 미수정 — 위와 동일한 PDF_KOREAN_FONT lint false-positive 회피). display=swap.
 const frauncesLink = document.createElement('link');

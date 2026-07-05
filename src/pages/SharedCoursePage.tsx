@@ -16,6 +16,7 @@ import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { naverMapSearchUrl } from '@/lib/naverMap';
+import { CourseMiniMap } from './PlannerPage/components/courseBuilder/CourseMiniMap';
 import {
   googleMapsUrl, persistDraft, type CourseDraft, type CourseStop,
 } from './PlannerPage/components/courseBuilder/courseOps';
@@ -27,28 +28,28 @@ const I18N: Record<Lang, Record<string, string>> = {
   en: {
     title: 'Shared course', loading: 'Loading course…',
     notFound: 'This shared course was not found or has been removed.',
-    day: 'Day', stops: 'stops', naver: 'Naver', google: 'Google',
+    day: 'Day', stops: 'stops', naver: 'Naver', google: 'Google', mapTitle: "This day's route",
     start: 'Use this course in my planner', startHint: 'Opens the course builder with these places — free, no login.',
     home: 'Go home',
   },
   ko: {
     title: '공유된 코스', loading: '코스 불러오는 중…',
     notFound: '공유 코스를 찾을 수 없거나 삭제되었습니다.',
-    day: 'Day', stops: '개 장소', naver: '네이버', google: '구글',
+    day: 'Day', stops: '개 장소', naver: '네이버', google: '구글', mapTitle: '이 날의 동선',
     start: '이 코스로 시작하기', startHint: '이 장소들로 코스 빌더가 열립니다 — 무료, 로그인 불필요.',
     home: '홈으로',
   },
   ja: {
     title: '共有されたコース', loading: 'コースを読み込み中…',
     notFound: '共有コースが見つからないか、削除されました。',
-    day: 'Day', stops: 'か所', naver: 'Naver', google: 'Google',
+    day: 'Day', stops: 'か所', naver: 'Naver', google: 'Google', mapTitle: 'この日のルート',
     start: 'このコースで始める', startHint: 'この場所でコースビルダーが開きます — 無料・ログイン不要。',
     home: 'ホームへ',
   },
   zh: {
     title: '共享行程', loading: '正在加载行程…',
     notFound: '找不到该共享行程，或已被删除。',
-    day: 'Day', stops: '个地点', naver: 'Naver', google: 'Google',
+    day: 'Day', stops: '个地点', naver: 'Naver', google: 'Google', mapTitle: '当天路线',
     start: '用这个行程开始', startHint: '将用这些地点打开行程编辑器 — 免费，无需登录。',
     home: '回到首页',
   },
@@ -149,6 +150,9 @@ export default function SharedCoursePage() {
                 </button>
               ))}
             </div>
+
+            {/* 동선 미니지도 (좌표 있을 때만) */}
+            <CourseMiniMap stops={day.stops} title={t.mapTitle} />
 
             {/* 스탑 리스트 (읽기전용) */}
             <div className="space-y-1.5">

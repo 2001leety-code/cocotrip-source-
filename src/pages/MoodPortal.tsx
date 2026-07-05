@@ -26,6 +26,7 @@ import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
+import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { getLocaleSync } from '@/i18n';
@@ -34,6 +35,7 @@ import {
   MOOD_MAX_DURATION_HOURS,
   MOOD_MIN_DURATION_HOURS,
   MOOD_FIXED_PRICE_KRW,
+  MOOD_SURCHARGE_PER_KM,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
@@ -226,6 +228,8 @@ export default function MoodPortal() {
   const [destinationAC, setDestinationAC] = useState<AddressResult | null>(null);
   const [waypointsAC, setWaypointsAC] = useState<(AddressResult | null)[]>([]);
   const [route, setRoute] = useState<MoodRoute | null>(null);
+  // 공항 경유 우회거리(km) — 경유포함 − 직행 (2026-07-05). 예상 금액 detour 요금 표시용.
+  const [airportDetourKm, setAirportDetourKm] = useState(0);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const routeSeq = useRef(0); // 경합 방지 — 최신 요청만 반영
@@ -236,6 +240,9 @@ export default function MoodPortal() {
   const [calendarMonth, setCalendarMonth] = useState(monthKeyFromISO(todayISO()));
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayISO());
 
+  // 이용 안내 & Q&A 모달 (2026-07-05 — 직원 온보딩용, 헤더 ❓ 버튼)
+  const [guideOpen, setGuideOpen] = useState(false);
+
   // ── 운영자 스케줄 메모 (2026-07-05, 운영자 전용) ─────────────────────
   // 무드 계정과 기능 분리: 서버(mood-notes)가 admins 만 허용(403) + 프론트는 isAdmin 일 때만 렌더.
   const [scheduleNotes, setScheduleNotes] = useState<Record<string, string>>({});
@@ -244,6 +251,11 @@ export default function MoodPortal() {
   const [noteMsg, setNoteMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   // (충전 폼·광고사 만들기 폼은 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
+
+  // 예약 취소 (2026-07-05) — 2단계 확인. 돈은 서버(mood-cancel)가 전액 환원(SSOT).
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelMsg, setCancelMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
   const [settleId, setSettleId] = useState<string | null>(null);
@@ -255,7 +267,7 @@ export default function MoodPortal() {
   const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
   const [settleDestination, setSettleDestination] = useState('');
 
-  // 예상 금액 분해 — base + 거리추가 + 톨비. 경로 없으면 거리/톨비 0 (base 만).
+  // 예상 금액 분해 — base + 거리추가 + 톨비. 공항은 정액 + 경유 우회거리 요금.
   const breakdown = useMemo(
     () =>
       computeMoodTotalKRW({
@@ -263,8 +275,9 @@ export default function MoodPortal() {
         durationHours,
         km: route?.km || 0,
         tollKRW: route?.tollKRW || 0,
+        airportDetourKm, // 공항 경유 우회거리 (직행이면 0)
       }),
-    [serviceType, durationHours, route],
+    [serviceType, durationHours, route, airportDetourKm],
   );
   const estimate = breakdown.amountKRW;
 
@@ -357,45 +370,71 @@ export default function MoodPortal() {
     const o = origin.trim();
     const d = destination.trim();
     const seq = ++routeSeq.current;
+    const isAirport = serviceType === 'airport';
+    const wpList = waypoints.map((s) => s.trim()).filter(Boolean);
     const t = setTimeout(async () => {
       if (seq !== routeSeq.current) return;
-      // 공항=정액이라 거리계산 불필요 → 스킵(경로 표시도 숨김).
-      if (!o || !d || serviceType === 'airport') {
+      // 공항 직행(경유 0)이거나 주소 미완성 → 거리계산 불필요(경로 표시도 숨김).
+      if (!o || !d || (isAirport && wpList.length === 0)) {
         setRoute(null);
         setRouteError(null);
         setRouteLoading(false);
+        setAirportDetourKm(0);
         return;
       }
       setRouteLoading(true);
       setRouteError(null);
       try {
-        const params = new URLSearchParams({ origin: o, destination: d });
-        const wp = waypoints
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join('|');
-        if (wp) params.set('waypoints', wp);
-        const res = await authFetch(`/api/mood-route?${params.toString()}`);
-        const json = await res.json().catch(() => ({}));
-        if (seq !== routeSeq.current) return; // 더 최신 요청이 있으면 폐기
-        if (json?.ok) {
-          // 백엔드 응답은 { ok, data:{ km, tollKRW, durationMin } } 중첩 — data 에서 읽는다.
-          const dd = json.data || {};
-          setRoute({
-            km: Number(dd.km) || 0,
-            tollKRW: Number(dd.tollKRW) || 0,
-            durationMin: Number(dd.durationMin) || 0,
-            path: Array.isArray(dd.path) ? dd.path : [],
-            points: Array.isArray(dd.points) ? dd.points : [],
-          });
-          setRouteError(null);
+        const viaParams = new URLSearchParams({ origin: o, destination: d });
+        if (wpList.length) viaParams.set('waypoints', wpList.join('|'));
+        if (isAirport) {
+          // 공항 + 경유 → 경유포함/직행 각각 측정해 우회거리(백엔드 SSOT 와 동일). 지도=경유 경로.
+          const [viaRes, directRes] = await Promise.all([
+            authFetch(`/api/mood-route?${viaParams.toString()}`),
+            authFetch(`/api/mood-route?${new URLSearchParams({ origin: o, destination: d }).toString()}`),
+          ]);
+          const [vj, dj] = await Promise.all([viaRes.json().catch(() => ({})), directRes.json().catch(() => ({}))]);
+          if (seq !== routeSeq.current) return;
+          if (vj?.ok && dj?.ok) {
+            const via = vj.data || {};
+            setRoute({
+              km: Number(via.km) || 0,
+              tollKRW: Number(via.tollKRW) || 0,
+              durationMin: Number(via.durationMin) || 0,
+              path: Array.isArray(via.path) ? via.path : [],
+              points: Array.isArray(via.points) ? via.points : [],
+            });
+            setAirportDetourKm(Math.max(0, (Number(via.km) || 0) - (Number(dj.data?.km) || 0)));
+            setRouteError(null);
+          } else {
+            setRoute(null);
+            setAirportDetourKm(0);
+            setRouteError((vj?.error || dj?.error) || '경로 조회 실패');
+          }
         } else {
-          setRoute(null);
-          setRouteError(json?.error || `경로 조회 실패 (${res.status})`);
+          const res = await authFetch(`/api/mood-route?${viaParams.toString()}`);
+          const json = await res.json().catch(() => ({}));
+          if (seq !== routeSeq.current) return; // 더 최신 요청이 있으면 폐기
+          if (json?.ok) {
+            // 백엔드 응답은 { ok, data:{ km, tollKRW, durationMin } } 중첩 — data 에서 읽는다.
+            const dd = json.data || {};
+            setRoute({
+              km: Number(dd.km) || 0,
+              tollKRW: Number(dd.tollKRW) || 0,
+              durationMin: Number(dd.durationMin) || 0,
+              path: Array.isArray(dd.path) ? dd.path : [],
+              points: Array.isArray(dd.points) ? dd.points : [],
+            });
+            setRouteError(null);
+          } else {
+            setRoute(null);
+            setRouteError(json?.error || `경로 조회 실패 (${res.status})`);
+          }
         }
       } catch (e) {
         if (seq !== routeSeq.current) return;
         setRoute(null);
+        setAirportDetourKm(0);
         setRouteError(e instanceof Error ? e.message : '경로 조회 실패');
       } finally {
         if (seq === routeSeq.current) setRouteLoading(false);
@@ -519,6 +558,31 @@ export default function MoodPortal() {
     setWaypointsAC((w) => w.map((x, idx) => (idx === i ? val : x)));
   }, []);
 
+  // 예약 취소 실행 — confirmed 만 서버가 허용(멱등·IDOR 가드는 서버). 성공 시 목록 갱신.
+  const handleCancelBooking = useCallback(async (bookingId: string) => {
+    setCancelling(true);
+    setCancelMsg(null);
+    try {
+      const res = await authFetch('/api/mood-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!json?.ok) {
+        setCancelMsg({ kind: 'err', text: json?.error || `취소 실패 (${res.status})` });
+        return;
+      }
+      setCancelMsg({ kind: 'ok', text: `취소 완료 — ${formatKRW(json.refundKRW)} 환불, 잔액 ${formatKRW(json.balanceKRW)}` });
+      setCancelConfirmId(null);
+      await loadData(data?.clientId);
+    } catch (e) {
+      setCancelMsg({ kind: 'err', text: e instanceof Error ? e.message : '취소 실패' });
+    } finally {
+      setCancelling(false);
+    }
+  }, [data, loadData]);
+
   const copyBookingToForm = useCallback((b: MoodBooking) => {
     const bd = b.breakdown || {};
     setServiceType(b.serviceType);
@@ -608,13 +672,13 @@ export default function MoodPortal() {
   const balanceNegative = balance < 0;
   const bookings = data?.bookings || [];
   const today = todayISO();
-  const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed');
-  const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed');
+  const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled');
+  const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled');
   const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
   const completedBookings = bookings.filter((b) => b.status === 'completed');
   const calendarDays = daysInMonthGrid(calendarMonth);
   const bookingsByDate = bookings.reduce<Record<string, MoodBooking[]>>((acc, b) => {
-    if (!b.date) return acc;
+    if (!b.date || b.status === 'cancelled') return acc; // 취소 건은 캘린더에서 제외 (배차 없음)
     acc[b.date] = [...(acc[b.date] || []), b];
     return acc;
   }, {});
@@ -652,10 +716,27 @@ export default function MoodPortal() {
           </h1>
           <div className="flex items-center gap-1">
             {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
-            {/* 홈화면 추가(PWA) — 폰에서 앱처럼 쓰도록 (설치돼 있으면 자동 숨김) */}
-            <PwaInstallButton t={getLocaleSync('ko')} />
+            {/* 이용 안내 & Q&A (직원 온보딩) */}
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              aria-label="이용 안내"
+              title="이용 안내"
+              className="h-7 w-7 rounded-lg text-sm font-bold"
+              style={{ background: 'rgba(124,92,252,0.10)', border: C.inputBorder, color: C.accentSolid }}
+            >
+              ?
+            </button>
+            {/* 홈화면 추가(PWA) — MOOD 전용 앱 설치. MOOD 앱으로 실행 중일 때만 자동 숨김
+                (코코트립 앱 안에서 /mood 를 볼 땐 노출 + 브라우저로 열기 안내). */}
+            <PwaInstallButton
+              t={getLocaleSync('ko')}
+              appScope="/mood"
+              browserOpenHint="지금은 코코트립 앱 안이에요. MOOD 전용 앱으로 설치하려면 크롬 브라우저에서 cocotripkr.com/mood 를 연 뒤 메뉴(⋮) → '홈 화면에 추가'를 누르세요."
+            />
           </div>
         </div>
+        <MoodGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
 
         {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
         <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
@@ -974,7 +1055,7 @@ export default function MoodPortal() {
 
           {/* 경로 (출발 / 경유지 N / 도착) — 네이버 지도 검색+미니지도 핀 확정 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
-            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(픽업·샌딩 위치)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
+            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(직행 정액 · 경유 시 우회거리 요금)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
 
             {/* 출발지 — 네이버 검색 + 미니지도 핀 확정 (AddressAutocomplete). 확정 시 origin 문자열 갱신. */}
             <AddressAutocomplete
@@ -1082,7 +1163,9 @@ export default function MoodPortal() {
             </div>
             {breakdown.distanceSurchargeKRW > 0 && (
               <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
-                <span>거리 추가요금 ({breakdown.km.toLocaleString('ko-KR')}km, 50km↑)</span>
+                <span>{serviceType === 'airport'
+                  ? `경유 우회거리 (${breakdown.km.toLocaleString('ko-KR')}km × ${MOOD_SURCHARGE_PER_KM}원)`
+                  : `거리 추가요금 (${breakdown.km.toLocaleString('ko-KR')}km, 50km↑)`}</span>
                 <span style={{ color: C.text }}>+{formatKRW(breakdown.distanceSurchargeKRW)}</span>
               </div>
             )}
@@ -1205,8 +1288,8 @@ export default function MoodPortal() {
                         <span className="block text-sm font-semibold" style={{ color: C.text }}>
                           {b.date} · {b.startTime}
                         </span>
-                        <span className="block text-[11px] truncate" style={{ color: C.textDim }}>
-                          {SERVICE_LABEL[b.serviceType] || b.serviceType} {serviceTime} · {b.status === 'completed' ? '정산 완료' : '예약 확정'}
+                        <span className="block text-[11px] truncate" style={{ color: b.status === 'cancelled' ? '#fca5a5' : C.textDim }}>
+                          {SERVICE_LABEL[b.serviceType] || b.serviceType} {serviceTime} · {b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정'}
                         </span>
                         {routeText && (
                           <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>
@@ -1288,6 +1371,16 @@ export default function MoodPortal() {
                           >
                             이 예약 복사
                           </button>
+                          {b.status === 'confirmed' && (
+                            <button
+                              type="button"
+                              onClick={() => { setCancelConfirmId((id) => (id === b.id ? null : b.id)); setCancelMsg(null); }}
+                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
+                            >
+                              예약 취소
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -1305,6 +1398,41 @@ export default function MoodPortal() {
                             운행 종료 정산
                           </button>
                         </div>
+
+                        {/* 취소 2단계 확인 — 환불액 명시 후 확정 */}
+                        {cancelConfirmId === b.id && (
+                          <div className="mt-2 rounded-xl p-3 flex flex-col gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.30)' }}>
+                            <p className="text-[11px]" style={{ color: '#fca5a5' }}>
+                              이 예약을 취소하면 <b style={{ color: C.text }}>{formatKRW(b.amountKRW)}</b>이 잔액으로 환불됩니다.
+                              배차도 함께 취소돼요. 되돌릴 수 없습니다.
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { void handleCancelBooking(b.id); }}
+                                disabled={cancelling}
+                                className="rounded-lg px-3 py-2 text-[11px] font-bold disabled:opacity-50"
+                                style={{ background: '#ef4444', color: '#fff' }}
+                              >
+                                {cancelling ? '취소 중…' : '진짜 취소하기'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setCancelConfirmId(null); setCancelMsg(null); }}
+                                className="rounded-lg px-3 py-2 text-[11px] font-semibold"
+                                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                              >
+                                닫기
+                              </button>
+                            </div>
+                            {cancelMsg && (
+                              <p className="text-[11px]" style={{ color: cancelMsg.kind === 'ok' ? C.ok : C.danger }}>{cancelMsg.text}</p>
+                            )}
+                          </div>
+                        )}
+                        {cancelMsg && cancelConfirmId !== b.id && expanded && cancelMsg.kind === 'ok' && (
+                          <p className="mt-2 text-[11px]" style={{ color: C.ok }}>{cancelMsg.text}</p>
+                        )}
                       </div>
                     )}
 

@@ -29,6 +29,11 @@ if (process.env.PRERENDER === '1' && !PRERENDER_EXEC_PATH && process.env.VERCEL)
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
+  // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
+  server: {
+    proxy: { '/api': { target: 'https://cocotripkr.com', changeOrigin: true } },
+  },
   plugins: [
     react(),
     // DEV-only (로컬 플랜 하네스): scripts/plan-local/outputs/plan-<scenario>.json 을
@@ -71,6 +76,10 @@ export default defineConfig({
       ],
       // 기존 public/manifest.json 의 내용을 그대로 옮김. Vite가 빌드 시 자동 생성.
       manifest: {
+        // id 명시 (2026-07-05): MOOD(/mood) PWA 와 별개 앱 구분용. id 없으면 크롬이
+        // 같은 origin 의 설치된 앱과 동일시해 MOOD 설치 시 "이미 설치됨"으로 거부.
+        // "/" = 기존 설치본의 computed id(start_url) 와 동일 → 기존 설치 identity 불변.
+        id: '/',
         name: 'CocoTrip',
         short_name: 'CocoTrip',
         description: 'Premium Korea Travel — AI Planner & Private Charter',

@@ -173,6 +173,7 @@ export function TourCard({ tour, language }: TourCardProps) {
               name={txt(tour.title, language)}
               priceUSD={tour.priceFrom}
               thumbnailUrl={tour.thumbnail}
+              href={`/tours/${tour.slug}`}
               size={16}
             />
           </div>

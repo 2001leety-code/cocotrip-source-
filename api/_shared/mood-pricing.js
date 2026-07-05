@@ -102,18 +102,44 @@ export function computeDistanceSurchargeKRW(km) {
 }
 
 /**
- * 예약 총액 = 시급×시간(base) + 거리 추가요금(50km↑) + 톨비. 전부 부가세 포함.
- * mood-book.js 가 이 함수로 잔액 차감액을 재계산한다 (클라이언트가 보낸 금액 무시).
+ * 공항 경유 우회거리 추가요금 (2026-07-05 운영자) — 공항 직행은 11만 정액이지만,
+ * 경유지가 끼면 직행 대비 늘어난(우회) 거리에 km × 600원. 우회분에는 50km 임계값
+ * 없음 — 첫 km부터 과금(정액에 이미 직행 거리가 포함됐고, 추가 이동만 별도라).
  *
- * @param {{ serviceType: MoodServiceType, durationHours: number, km?: number, tollKRW?: number }} input
+ * @param {number} detourKm - 경유포함 실도로거리 − 직행 실도로거리 (음수/0 이면 0).
+ */
+export function computeAirportDetourSurchargeKRW(detourKm) {
+  const d = Number(detourKm);
+  if (!Number.isFinite(d) || d <= 0) return 0;
+  return Math.round(d * MOOD_SURCHARGE_PER_KM);
+}
+
+/**
+ * 예약 총액.
+ *   - 차량/매니저: 시급×시간(base) + 거리 추가요금(50km↑) + 톨비.
+ *   - 공항: 110,000 정액 + 경유 우회거리 요금(airportDetourKm × 600, 경유 없으면 0).
+ * 전부 부가세 없음(2026-07-04). mood-book.js 가 이 함수로 잔액 차감액을 재계산(클라 금액 무시).
+ *
+ * @param {{ serviceType: MoodServiceType, durationHours: number, km?: number, tollKRW?: number,
+ *           ratePerHourOverride?: number, airportDetourKm?: number }} input
  * @returns {{ ok:true, amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW, tollKRW, km } | { ok:false, error }}
  */
-export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0, ratePerHourOverride } = {}) {
-  // 정액 서비스(공항) — 시간/거리/톨비 전부 무시하고 정액만 청구.
+export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0, ratePerHourOverride, airportDetourKm = 0 } = {}) {
+  // 정액 서비스(공항) — 시간/톨비 무시, 정액 + 경유 우회거리 요금만.
   if (isValidServiceType(serviceType)) {
     const fixed = fixedPriceFor(serviceType);
     if (fixed !== null) {
-      return { ok: true, amountKRW: fixed, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: 0, tollKRW: 0, km: 0 };
+      const detourSurcharge = computeAirportDetourSurchargeKRW(airportDetourKm);
+      const dk = Number.isFinite(Number(airportDetourKm)) ? Math.max(0, Number(airportDetourKm)) : 0;
+      return {
+        ok: true,
+        amountKRW: fixed + detourSurcharge,
+        baseKRW: fixed,
+        ratePerHour: 0,
+        distanceSurchargeKRW: detourSurcharge, // 우회거리 요금 (경유 없으면 0)
+        tollKRW: 0,
+        km: dk, // 우회 km (직행이면 0)
+      };
     }
   }
   const base = computeAmountKRW(serviceType, durationHours, ratePerHourOverride);

@@ -148,21 +148,41 @@ export default async function handler(req, res) {
     // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
     let km = 0;
     let tollKRW = 0;
-    if (origin && destination && !isFixedPrice) {
-      const route = await computeRoute({ origin, destination, waypoints });
-      if (route.ok) {
-        km = route.km;
-        tollKRW = route.tollKRW;
+    let airportDetourKm = 0;
+    if (origin && destination) {
+      if (isFixedPrice) {
+        // 공항(정액) — 직행은 11만 그대로. 경유지가 있으면 "직행 대비 늘어난 거리"에만
+        // 거리요금(2026-07-05 운영자). 경유포함 경로 − 직행 경로를 각각 측정해 우회분 산출.
+        //   예: 집→공항 직행 50km / 집→용산역→공항 65km → 우회 15km × 600원.
+        if (waypoints.length) {
+          const [viaRoute, directRoute] = await Promise.all([
+            computeRoute({ origin, destination, waypoints }),
+            computeRoute({ origin, destination }), // 경유 제외 직행
+          ]);
+          if (viaRoute.ok && directRoute.ok) {
+            airportDetourKm = Math.max(0, viaRoute.km - directRoute.km);
+          } else {
+            // 둘 중 하나라도 실패 = 비치명적 → 우회요금 제외(정액만). 과소청구 안전측.
+            console.warn('[mood-book] 공항 우회거리 계산 실패 → 정액만:',
+              viaRoute.ok ? directRoute.error : viaRoute.error);
+          }
+        }
       } else {
-        // 경로 계산 실패 = 비치명적 → base-only(km=0, tollKRW=0) 로 진행.
-        // UI 가 "경로 실패 시 거리 추가요금 제외하고 예약 가능" 이라 약속하므로 일치시킨다
-        // (외상 "막지 않는다" 철학과도 일관). breakdown 에 origin/destination 은 남아 추적 가능.
-        console.warn('[mood-book] computeRoute failed → base-only:', route.error, route.detail || '');
+        const route = await computeRoute({ origin, destination, waypoints });
+        if (route.ok) {
+          km = route.km;
+          tollKRW = route.tollKRW;
+        } else {
+          // 경로 계산 실패 = 비치명적 → base-only(km=0, tollKRW=0) 로 진행.
+          // UI 가 "경로 실패 시 거리 추가요금 제외하고 예약 가능" 이라 약속하므로 일치시킨다
+          // (외상 "막지 않는다" 철학과도 일관). breakdown 에 origin/destination 은 남아 추적 가능.
+          console.warn('[mood-book] computeRoute failed → base-only:', route.error, route.detail || '');
+        }
       }
     }
 
     // ── 5) 백엔드 금액 재계산 (body.amountKRW 무시) ─────────
-    const priced = computeMoodTotalKRW({ serviceType, durationHours: hours, km, tollKRW });
+    const priced = computeMoodTotalKRW({ serviceType, durationHours: hours, km, tollKRW, airportDetourKm });
     if (!priced.ok) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: priced.error }));

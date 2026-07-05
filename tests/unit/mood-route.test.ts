@@ -28,8 +28,15 @@ function directionsOK(distanceM: number, durationMs: number, tollFare?: number) 
 }
 
 describe('mood-route — computeRoute (Naver Directions)', () => {
+  // 로컬 .env 의 VITE_NAVER_CLIENT_* 실값이 폴백에 새지 않도록 저장·복원 (2026-07-05 폴백 확장).
+  let savedViteId: string | undefined;
+  let savedViteSecret: string | undefined;
   beforeEach(() => {
     mockGet.mockReset();
+    savedViteId = process.env.VITE_NAVER_CLIENT_ID;
+    savedViteSecret = process.env.VITE_NAVER_CLIENT_SECRET;
+    delete process.env.VITE_NAVER_CLIENT_ID;
+    delete process.env.VITE_NAVER_CLIENT_SECRET;
     process.env.NCP_CLIENT_ID = 'test-id';
     process.env.NCP_CLIENT_SECRET = 'test-secret';
   });
@@ -38,6 +45,10 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
     delete process.env.NCP_CLIENT_SECRET;
     delete process.env.NAVER_CLIENT_ID;
     delete process.env.NAVER_CLIENT_SECRET;
+    delete process.env.VITE_NAVER_CLIENT_ID;
+    delete process.env.VITE_NAVER_CLIENT_SECRET;
+    if (savedViteId !== undefined) process.env.VITE_NAVER_CLIENT_ID = savedViteId;
+    if (savedViteSecret !== undefined) process.env.VITE_NAVER_CLIENT_SECRET = savedViteSecret;
   });
 
   it('성공: geocode×2 + directions → km/tollKRW/durationMin', async () => {
@@ -162,5 +173,27 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('DIRECTIONS_FAILED');
+  });
+});
+
+describe('resolveNcpKeys 폴백 순서 — NCP Maps 키 (2026-07-05 장애 fix)', () => {
+  it('소스 불변식: NCP_CLIENT_* → VITE_NAVER_CLIENT_* → NAVER_CLIENT_* 순', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, '../../api/_shared/mood-route.js'), 'utf8');
+    // 살아있는 NCP Maps 키(VITE_NAVER_CLIENT_*)를 오염된 NAVER_CLIENT_(Developers) 보다 우선
+    expect(src).toMatch(/NCP_CLIENT_ID\s*\|\|\s*process\.env\.VITE_NAVER_CLIENT_ID\s*\|\|\s*process\.env\.NAVER_CLIENT_ID/);
+    expect(src).toMatch(/NCP_CLIENT_SECRET\s*\|\|\s*process\.env\.VITE_NAVER_CLIENT_SECRET\s*\|\|\s*process\.env\.NAVER_CLIENT_SECRET/);
+  });
+
+  it('폴백 순서 재현 — VITE_NAVER 가 NAVER_(오염) 보다 우선', () => {
+    const pick = (env: Record<string, string | undefined>) =>
+      (env.NCP_CLIENT_ID || env.VITE_NAVER_CLIENT_ID || env.NAVER_CLIENT_ID || '').trim();
+    // NCP_ 없음, NAVER_=Developers(오염), VITE_NAVER=살아있는 Maps → VITE 잡아야
+    expect(pick({ NAVER_CLIENT_ID: 'developers', VITE_NAVER_CLIENT_ID: 'ncp-maps' })).toBe('ncp-maps');
+    // NCP_ 명시되면 최우선 (운영자가 서버 전용 넣은 경우)
+    expect(pick({ NCP_CLIENT_ID: 'explicit', VITE_NAVER_CLIENT_ID: 'ncp-maps', NAVER_CLIENT_ID: 'dev' })).toBe('explicit');
+    // 셋 다 없으면 빈 문자열
+    expect(pick({})).toBe('');
   });
 });

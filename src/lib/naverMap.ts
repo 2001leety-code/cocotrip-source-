@@ -76,7 +76,25 @@ export function geocodeAddress(query: string): Promise<{ lat: number; lng: numbe
   });
 }
 
-/** 네이버 지도 검색 딥링크 (키 불필요 폴백). 새 탭에서 주소 확인. */
+/** 네이버 지도 검색 딥링크 (키 불필요 폴백). 새 탭에서 단일 위치 확인 (주소검색용). */
 export function naverMapSearchUrl(query: string): string {
   return `https://map.naver.com/p/search/${encodeURIComponent(String(query || '').trim())}`;
+}
+
+/**
+ * 네이버 지도 길찾기(자동차) 딥링크 — 출발·경유·도착 동선을 지도에서 연다 (2026-07-05).
+ * 경로 확정된 예약에서 "네이버 지도" 링크가 위치가 아닌 실제 동선을 띄우도록.
+ * (주소검색 미니지도는 단일 위치라 naverMapSearchUrl 그대로.)
+ *
+ * 형식: map.naver.com/p/directions/{경도,위도,이름,,}/…경유…/{도착}/-/car
+ * @param stops 출발→(경유…)→도착 순 좌표+이름. 2개 미만이면 빈 문자열.
+ */
+export function naverMapDirectionsUrl(
+  stops: Array<{ lat: number; lng: number; name: string }>,
+): string {
+  const valid = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  if (valid.length < 2) return '';
+  const seg = (s: { lat: number; lng: number; name: string }) =>
+    `${s.lng},${s.lat},${encodeURIComponent((s.name || '').trim())},,`;
+  return `https://map.naver.com/p/directions/${valid.map(seg).join('/')}/-/car`;
 }
