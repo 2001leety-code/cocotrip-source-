@@ -26,6 +26,7 @@ import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
+import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { getLocaleSync } from '@/i18n';
@@ -235,6 +236,9 @@ export default function MoodPortal() {
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(monthKeyFromISO(todayISO()));
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayISO());
+
+  // 이용 안내 & Q&A 모달 (2026-07-05 — 직원 온보딩용, 헤더 ❓ 버튼)
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // ── 운영자 스케줄 메모 (2026-07-05, 운영자 전용) ─────────────────────
   // 무드 계정과 기능 분리: 서버(mood-notes)가 admins 만 허용(403) + 프론트는 isAdmin 일 때만 렌더.
@@ -652,6 +656,17 @@ export default function MoodPortal() {
           </h1>
           <div className="flex items-center gap-1">
             {data && <span className="text-xs" style={{ color: C.textDim }}>{data.client.name}</span>}
+            {/* 이용 안내 & Q&A (직원 온보딩) */}
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              aria-label="이용 안내"
+              title="이용 안내"
+              className="h-7 w-7 rounded-lg text-sm font-bold"
+              style={{ background: 'rgba(124,92,252,0.10)', border: C.inputBorder, color: C.accentSolid }}
+            >
+              ?
+            </button>
             {/* 홈화면 추가(PWA) — MOOD 전용 앱 설치. MOOD 앱으로 실행 중일 때만 자동 숨김
                 (코코트립 앱 안에서 /mood 를 볼 땐 노출 + 브라우저로 열기 안내). */}
             <PwaInstallButton
@@ -661,6 +676,7 @@ export default function MoodPortal() {
             />
           </div>
         </div>
+        <MoodGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
 
         {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
         <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
