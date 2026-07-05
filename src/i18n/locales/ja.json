@@ -20,6 +20,14 @@
     "navigation": "ナビゲーション",
     "myAccount": "マイアカウント",
     "myPlans": "マイプラン",
+    "groupTrips": "旅行の管理",
+    "groupRewards": "特典・保存",
+    "groupAccount": "アカウント",
+    "myBookings": "予約履歴",
+    "myCourses": "マイコース",
+    "myCoupons": "クーポン",
+    "savedTours": "保存したツアー",
+    "myPoints": "ポイント履歴",
     "wishlist": "ウィッシュリスト",
     "bookingHistory": "予約履歴",
     "coupons": "クーポン",
@@ -1944,10 +1952,12 @@
     "s5": "最高"
   },
   "wishlist": {
-    "title": "ウィッシュリスト",
-    "empty": "ウィッシュリストは空です",
+    "title": "保存したツアー",
+    "empty": "保存したツアーはありません",
     "tapToSave": "ツアー写真の ❤ ボタンを押して保存できます",
-    "signInHint": "💡 ログインすると端末間で同期されます"
+    "signInHint": "💡 ログインすると端末間で同期されます",
+    "viewDetail": "詳細",
+    "remove": "削除"
   },
   "cart": {
     "title": "カート",

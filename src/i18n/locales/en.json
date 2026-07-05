@@ -20,6 +20,14 @@
     "navigation": "Navigation",
     "myAccount": "My Account",
     "myPlans": "My Plans",
+    "groupTrips": "My Trips",
+    "groupRewards": "Rewards & Saved",
+    "groupAccount": "Account",
+    "myBookings": "My Bookings",
+    "myCourses": "My Courses",
+    "myCoupons": "Coupons",
+    "savedTours": "Saved Tours",
+    "myPoints": "Points",
     "wishlist": "Wishlist",
     "bookingHistory": "Booking History",
     "coupons": "Coupons",
@@ -1944,10 +1952,12 @@
     "s5": "Excellent"
   },
   "wishlist": {
-    "title": "Wishlist",
-    "empty": "No items in wishlist",
+    "title": "Saved Tours",
+    "empty": "No saved tours yet",
     "tapToSave": "Tap the ❤ on any tour photo to save it here",
-    "signInHint": "💡 Sign in to sync your wishlist across devices"
+    "signInHint": "💡 Sign in to sync your saved tours across devices",
+    "viewDetail": "View",
+    "remove": "Remove"
   },
   "cart": {
     "title": "Cart",

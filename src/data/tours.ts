@@ -1170,6 +1170,15 @@ export function getTourBySlug(slug: string): Tour | undefined {
   return TOURS.find(t => t.slug === slug);
 }
 
+/**
+ * 투어 id → slug 매핑 (2026-07-05, 위시리스트 상세링크 폴백용).
+ * 위시리스트 기존 데이터는 id 만 저장돼 있어(예: 'tour-seoul-city') 상세 URL(slug) 로 정확히
+ * 이을 수 없었다 → 실제 tours 정의에서 slug 를 찾아 링크를 정확히 만든다. 없으면 undefined.
+ */
+export function slugForTourId(id: string): string | undefined {
+  return TOURS.find(t => t.id === id)?.slug;
+}
+
 export function getToursByRegion(region: TourRegion | 'All'): Tour[] {
   if (region === 'All') return TOURS;
   return TOURS.filter(t => t.region === region);

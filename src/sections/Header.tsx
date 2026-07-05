@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search, ShieldCheck } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search, ShieldCheck, Gift, Heart, Clock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -249,15 +249,25 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <DropdownMenuContent
                   align="end"
                   sideOffset={8}
-                  className="w-40 rounded-xl border-white/[0.08] bg-[#0f1220]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] p-1.5"
+                  className="w-44 rounded-xl border-white/[0.08] bg-[#0f1220]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] p-1.5"
                 >
-                  <DropdownMenuItem
-                    onClick={() => navigate('/mypage')}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium cursor-pointer transition-all focus:bg-white/[0.04] text-white/70"
-                  >
-                    <User className="w-4 h-4" />
-                    <span>{t.nav.myPage ?? 'My Page'}</span>
-                  </DropdownMenuItem>
+                  {/* 2026-07-05: 데스크탑 드롭다운 보강 — 마이페이지 외 예약내역·내여행·쿠폰 딥링크 */}
+                  {[
+                    { to: '/mypage', icon: User, label: t.nav.myPage ?? 'My Page' },
+                    { to: '/mypage?tab=bookings', icon: Package, label: t.nav.myBookings ?? 'My Bookings' },
+                    { to: '/my-plans', icon: FileText, label: t.nav.myPlans ?? 'My Plans' },
+                    { to: '/mypage?tab=coupons', icon: Gift, label: t.nav.myCoupons ?? 'Coupons' },
+                  ].map(({ to, icon: Icon, label }) => (
+                    <DropdownMenuItem
+                      key={to}
+                      onClick={() => navigate(to)}
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium cursor-pointer transition-all focus:bg-white/[0.04] text-white/70"
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{label}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  <div className="my-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
                   <DropdownMenuItem
                     onClick={async () => {
                       await signOut(auth);
@@ -472,64 +482,78 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               ))}
             </nav>
 
-            {/* ── My Account ── */}
-            <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
-                {t.nav.myAccount ?? 'My Account'}
-              </p>
-              <div className="space-y-0.5">
-                <Link
-                  to="/mypage"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{
-                    color: isActive('/mypage') ? '#fff' : 'rgba(255,255,255,0.55)',
-                    background: isActive('/mypage') ? 'rgba(124,92,252,0.1)' : 'transparent',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <User className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.myPage ?? 'My Page'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                <Link
-                  to="/my-plans"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{
-                    color: isActive('/my-plans') ? '#fff' : 'rgba(255,255,255,0.55)',
-                    background: isActive('/my-plans') ? 'rgba(124,92,252,0.1)' : 'transparent',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.myPlans ?? 'My Plans'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                {isAdmin && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                    style={{
-                      color: isActive('/admin') ? '#fbbf24' : 'rgba(251,191,36,0.85)',
-                      background: isActive('/admin') ? 'rgba(251,191,36,0.12)' : 'rgba(251,191,36,0.05)',
-                      border: '1px solid rgba(251,191,36,0.18)',
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <ShieldCheck className="w-[18px] h-[18px]" />
-                      <span className="text-[15px] font-semibold">{t.nav.adminHome ?? 'Admin Home'}</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-amber-400/40" />
-                  </Link>
-                )}
-                {/* 위시리스트/예약내역/쿠폰/리뷰/포인트 deep link는 마이페이지 본체의
-                    카테고리 nav에서 처리. 역할 분리: 햄버거 = 사이트 nav, 마이페이지 = 개인 영역. */}
+            {/* ── 내 여행 관리 + 혜택·저장 (2026-07-05: 실제 마이페이지 기능 바로가기.
+                각 링크는 /mypage?tab= 딥링크 — 미로그인 시 AuthRequired 로 로그인 유도) ── */}
+            {[
+              {
+                heading: t.nav.groupTrips ?? '내 여행 관리',
+                links: [
+                  { to: '/mypage', icon: User, label: t.nav.myPage ?? 'My Page' },
+                  { to: '/my-plans', icon: FileText, label: t.nav.myPlans ?? 'My Plans' },
+                  { to: '/mypage?tab=bookings', icon: Package, label: t.nav.myBookings ?? 'My Bookings' },
+                  { to: '/mypage?tab=courses', icon: Map, label: t.nav.myCourses ?? 'My Courses' },
+                ],
+              },
+              {
+                heading: t.nav.groupRewards ?? '혜택·저장',
+                links: [
+                  { to: '/mypage?tab=coupons', icon: Gift, label: t.nav.myCoupons ?? 'Coupons' },
+                  { to: '/mypage?tab=wishlist', icon: Heart, label: t.nav.savedTours ?? 'Saved Tours' },
+                  { to: '/mypage?tab=history', icon: Clock, label: t.nav.myPoints ?? 'Points' },
+                ],
+              },
+            ].map((group) => (
+              <div className="mt-6" key={group.heading}>
+                <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
+                  {group.heading}
+                </p>
+                <div className="space-y-0.5">
+                  {group.links.map(({ to, icon: Icon, label }) => (
+                    <Link
+                      key={to}
+                      to={to}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
+                      style={{
+                        color: isActive(to.split('?')[0]) ? '#fff' : 'rgba(255,255,255,0.55)',
+                        background: 'transparent',
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-[18px] h-[18px]" />
+                        <span className="text-[15px] font-semibold">{label}</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/15" />
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            ))}
+
+            {/* ── 계정 (admin 진입 — 운영자만) ── */}
+            {isAdmin && (
+              <div className="mt-6">
+                <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
+                  {t.nav.groupAccount ?? '계정'}
+                </p>
+                <Link
+                  to="/admin"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
+                  style={{
+                    color: isActive('/admin') ? '#fbbf24' : 'rgba(251,191,36,0.85)',
+                    background: isActive('/admin') ? 'rgba(251,191,36,0.12)' : 'rgba(251,191,36,0.05)',
+                    border: '1px solid rgba(251,191,36,0.18)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-[18px] h-[18px]" />
+                    <span className="text-[15px] font-semibold">{t.nav.adminHome ?? 'Admin Home'}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-amber-400/40" />
+                </Link>
+              </div>
+            )}
 
             {/* ── Settings ── */}
             <div className="mt-6">
