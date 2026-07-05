@@ -21,6 +21,7 @@ import {
   MOOD_MIN_DURATION_HOURS,
   MOOD_MAX_DURATION_HOURS,
   MOOD_FIXED_PRICE_KRW,
+  MOOD_SURCHARGE_PER_KM,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
@@ -124,6 +125,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 실도로 경로 조회 결과의 요금 입력값(A-3) — 예상 금액에 거리·톨 반영(청구는 서버 SSOT)
   const [routeKm, setRouteKm] = useState(0);
   const [routeToll, setRouteToll] = useState(0);
+  // 공항 경유 우회거리(km) — 경유포함 − 직행 (2026-07-05). 공항 예상 금액 detour 요금.
+  const [airportDetourKm, setAirportDetourKm] = useState(0);
   // 날짜별 예약 분리(2026-07-05 PR3) — 일정에 날짜가 2개 이상이면 activeDate 로 그룹 선택,
   // 선택 그룹의 stops 만 경로/예약에 사용. null = 전체(단일 날짜 or 날짜 없음).
   const [activeDate, setActiveDate] = useState<string | null>(null);
@@ -146,9 +149,10 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const isFixedPrice = serviceType === 'airport';
 
   // 예상 금액 — 프론트 미러(표시 전용, 청구는 서버 SSOT). 실도로 경로 조회 성공 시 km·톨 반영(A-3).
+  // 공항은 정액 + 경유 우회거리 요금(airportDetourKm).
   const estimate = useMemo(
-    () => computeMoodTotalKRW({ serviceType, durationHours, km: routeKm, tollKRW: routeToll }),
-    [serviceType, durationHours, routeKm, routeToll],
+    () => computeMoodTotalKRW({ serviceType, durationHours, km: routeKm, tollKRW: routeToll, airportDetourKm }),
+    [serviceType, durationHours, routeKm, routeToll, airportDetourKm],
   );
 
   // 활성 날짜 그룹의 stops — 날짜 미상(date 없음) stop 은 어느 그룹에나 포함(안전측: 누락 방지).
@@ -194,9 +198,10 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   useEffect(() => {
     const usable = visibleStops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
     if (usable.length < 2 || visibleStops.some((st) => !st.geocodeOk)) {
-      setRouteKm(0); setRouteToll(0);
+      setRouteKm(0); setRouteToll(0); setAirportDetourKm(0);
       return;
     }
+    const isAirport = serviceType === 'airport';
     const seq = ++routeSeq.current;
     const t = window.setTimeout(async () => {
       try {
@@ -206,22 +211,45 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         const d = (usable[usable.length - 1].address || usable[usable.length - 1].label || '').trim();
         const wp = usable.slice(1, -1).map((st) => (st.address || st.label || '').trim()).filter(Boolean);
         if (!o || !d) return;
-        const params = new URLSearchParams({ origin: o, destination: d });
-        if (wp.length) params.set('waypoints', wp.join('|'));
-        const res = await authFetch(`/api/mood-route?${params.toString()}`);
-        const json = await res.json().catch(() => ({}));
-        if (seq !== routeSeq.current) return; // 최신 요청만
-        const data = json?.ok ? json.data : null;
-        if (data && Array.isArray(data.path) && data.path.length) {
-          setRoute({ km: Number(data.km || 0), durationMin: Number(data.durationMin || 0), path: data.path, points: data.points || [] });
-          setRouteKm(Number(data.km || 0));
-          setRouteToll(Number(data.tollKRW || 0));
+        const viaParams = new URLSearchParams({ origin: o, destination: d });
+        if (wp.length) viaParams.set('waypoints', wp.join('|'));
+        if (isAirport) {
+          // 공항: 직행이면 정액(detour 0). 경유 있으면 경유포함−직행 우회거리(백엔드 SSOT 동일).
+          if (!wp.length) {
+            if (seq === routeSeq.current) { setAirportDetourKm(0); setRouteKm(0); setRouteToll(0); }
+            return;
+          }
+          const [viaRes, directRes] = await Promise.all([
+            authFetch(`/api/mood-route?${viaParams.toString()}`),
+            authFetch(`/api/mood-route?${new URLSearchParams({ origin: o, destination: d }).toString()}`),
+          ]);
+          const [vj, dj] = await Promise.all([viaRes.json().catch(() => ({})), directRes.json().catch(() => ({}))]);
+          if (seq !== routeSeq.current) return;
+          if (vj?.ok && dj?.ok) {
+            const via = vj.data || {};
+            if (Array.isArray(via.path) && via.path.length) {
+              setRoute({ km: Number(via.km || 0), durationMin: Number(via.durationMin || 0), path: via.path, points: via.points || [] });
+            }
+            setAirportDetourKm(Math.max(0, (Number(via.km) || 0) - (Number(dj.data?.km) || 0)));
+            setRouteKm(0); setRouteToll(0); // 공항은 km 요금 대신 우회거리만
+          }
+        } else {
+          const res = await authFetch(`/api/mood-route?${viaParams.toString()}`);
+          const json = await res.json().catch(() => ({}));
+          if (seq !== routeSeq.current) return; // 최신 요청만
+          const data = json?.ok ? json.data : null;
+          if (data && Array.isArray(data.path) && data.path.length) {
+            setRoute({ km: Number(data.km || 0), durationMin: Number(data.durationMin || 0), path: data.path, points: data.points || [] });
+            setRouteKm(Number(data.km || 0));
+            setRouteToll(Number(data.tollKRW || 0));
+          }
+          setAirportDetourKm(0);
         }
       } catch { /* 실패 시 기존 직선 폴백 유지 */ }
     }, 500);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleStops]);
+  }, [visibleStops, serviceType]);
 
   // ── 장소검색(A-2, 2026-07-04) — 실패 stop 을 수기예약 '🔍 주소'처럼 검색→후보→선택 ──
   const handlePlaceSearch = useCallback(async (order: number, query: string) => {
@@ -731,7 +759,9 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
             </div>
             {estimate.ok && estimate.distanceSurchargeKRW > 0 && (
               <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
-                <span>거리 추가요금 ({routeKm.toLocaleString('ko-KR')}km)</span>
+                <span>{isFixedPrice
+                  ? `경유 우회거리 (${airportDetourKm.toLocaleString('ko-KR')}km × ${MOOD_SURCHARGE_PER_KM}원)`
+                  : `거리 추가요금 (${routeKm.toLocaleString('ko-KR')}km)`}</span>
                 <span style={{ color: C.text }}>+{formatKRW(estimate.distanceSurchargeKRW)}</span>
               </div>
             )}
@@ -746,9 +776,13 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               <span className="text-xs" style={{ color: C.textDim }}>예상 금액{routeKm > 0 ? ` (${routeKm.toLocaleString('ko-KR')}km 반영)` : ''}</span>
               <span className="text-lg font-bold" style={{ color: C.accentSolid }}>{formatKRW(estimate.amountKRW)}</span>
             </div>
-            {!isFixedPrice && (
+            {!isFixedPrice ? (
               <p className="text-[10px]" style={{ color: C.textDim }}>
                 * 경로 거리요금·톨비는 예약 시 서버가 자동 반영합니다 (표시는 기본요금 기준).
+              </p>
+            ) : (
+              <p className="text-[10px]" style={{ color: C.textDim }}>
+                * 공항은 직행 정액. 경유지가 있으면 직행 대비 늘어난 거리에 km당 {MOOD_SURCHARGE_PER_KM}원 (예약 시 서버 확정).
               </p>
             )}
           </div>
