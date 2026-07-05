@@ -12,12 +12,39 @@
  * 첫 baseline 생성: README.md "Baseline 생성" 섹션 참조 (Docker 명령).
  */
 import { test, expect } from '@playwright/test';
+import { suppressCookieBanner } from './helpers';
 
 test.describe('Landing page — mobile visual regression', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/', { waitUntil: 'load' });
-    // Network 정착 + framer-motion 초기 animation 종료 대기.
-    await page.waitForLoadState('networkidle');
+    // 쿠키 배너 사전 차단 (helpers.ts) — 현재 clip 은 상단 320px 라 직접
+    // 영향 없지만, 대기 중 배너 1500ms 타이머를 넘겨 이후 clip 확장 시
+    // 같은 flaky 재발 — 선제 차단.
+    await suppressCookieBanner(page);
+
+    // P233/P244 패턴 (plan-detail-mobile.spec.ts 와 동일): networkidle 은 SPA 에서
+    // chronic flaky — analytics beacon / Sentry / 폰트·이미지 로딩이 "500ms 무요청"
+    // 조건을 못 만들면 waitForLoadState 가 그대로 timeout (본 spec 의 로드 타임아웃
+    // flake 원인). 아래 3단계 명시적 신호로 교체:
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    // 1) hero headline 렌더 = lazy chunk (MobileHomeV2/MobileHome) 로드 +
+    //    React 초기 렌더 완료 신호. 두 홈 변형 모두 h1 존재.
+    await page.waitForSelector('h1', { state: 'visible', timeout: 20000 });
+
+    // 2) clip (상단 320px) 에 걸리는 이미지 (로고·카테고리 아이콘) 디코드 완료.
+    //    below-fold lazy 이미지는 로드가 시작조차 안 될 수 있어 clip 교차분만 검사.
+    await page.waitForFunction(() => {
+      const imgs = Array.from(document.images).filter((img) => {
+        const r = img.getBoundingClientRect();
+        return r.bottom > 0 && r.top < 320 && r.width > 0;
+      });
+      return imgs.every((img) => img.complete && img.naturalWidth > 0);
+    }, { timeout: 20000 });
+
+    // 3) 웹폰트 적용 완료 — 폰트 swap 전 capture 는 kerning pixel diff.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+
+    // React 리렌더 정착 여유 (framer-motion 은 config animations:'disabled' 처리).
     await page.waitForTimeout(500);
   });
 

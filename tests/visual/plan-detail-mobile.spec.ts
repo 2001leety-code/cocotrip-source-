@@ -47,6 +47,7 @@
  *        not URL change — window.__pageReady custom flag pattern preferred.
  */
 import { test, expect } from '@playwright/test';
+import { suppressCookieBanner } from './helpers';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 /**
@@ -109,6 +110,10 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
   test.beforeEach(async ({ page }) => {
     // Firebase auth inject 먼저 (page.goto 전에 addInitScript 해야 적용).
     await injectFirebaseAuth(page);
+
+    // 쿠키 배너 사전 차단 — mount 1500ms 후 fixed-bottom 배너가 T3 하단
+    // clip (및 T2 하단 경계) 에 껴들어 flaky diff 유발. helpers.ts 참조.
+    await suppressCookieBanner(page);
 
     // P233/P244: waitUntil='domcontentloaded' — networkidle 대신.
     // Firestore onSnapshot WebSocket 이 Vercel Preview 에서 networkidle 500ms 조건
