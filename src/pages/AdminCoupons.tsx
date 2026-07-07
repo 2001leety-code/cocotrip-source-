@@ -33,7 +33,7 @@ const PRESETS: Array<{
 }> = [
   { key: 'percent-5',  label: '5% OFF',    type: 'percent', value: 5,  color: 'border-purple-500/40 bg-purple-500/10 text-purple-200' },
   { key: 'percent-10', label: '10% OFF',   type: 'percent', value: 10, color: 'border-blue-500/40 bg-blue-500/10 text-blue-200' },
-  { key: 'percent-15', label: '15% OFF',   type: 'percent', value: 15, color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200' },
+  // 2026-07-07: 15% 프리셋 제거 — 운영자 정책 "총 할인 최대 10%" 상한 초과. 10% 가 percent 최대.
   // 2026-05-13 PR #389: fixed-USD ($5/$10 OFF) 신규 발급 차단 — 환율 drift 로 redeem 시 KRW 환산 불일치 위험.
   // 운영자 정책 (5/5 PR #270 후): Trip Coins = percent type 로 통일. 기존 발급된 fixed-USD 쿠폰은
   // api/applyPromoCode.js 의 fixed-USD 처리 로직이 유지되어 redeem 가능 (사용자 컴플레인 0). 신규 발급만 차단.

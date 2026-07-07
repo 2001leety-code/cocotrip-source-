@@ -14,6 +14,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
 import { featureEnabled } from './_shared/feature-flag.js';
+import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -450,6 +451,28 @@ export default async function handler(req, res) {
         ].join('\n'),
         context: { orderID, captureID, amountUSD: amount, amountKRW, source: 'capturePaypalOrder' },
       }).catch(() => {});
+    }
+
+    // 🎟️ $9.90 AI 플래너 구매 완료 후속 (운영자 2026-07-07 요금제): ① AI 추천/최적화 영구 해금
+    //   (aiFeaturesUnlocked — course-ai 게이트가 이 플래그를 봄. 구매 자체가 자격이라 v2 무관)
+    //   ② 차터5%+투어5% 쿠폰 발급(가입 쿠폰과 별개, 구매 1건당 1쌍, orderID 멱등, v2 활성 시만).
+    //   둘 다 로그인 구매자만(uid 필요). non-fatal — 결제/부킹은 이미 완료, 실패 시 경고만.
+    if (/^ai_planner/.test(String(product || ''))) {
+      try {
+        const buyerUid = await verifyTokenUid(req.headers?.authorization);
+        if (buyerUid) {
+          await dbForLock.collection('users').doc(buyerUid)
+            .set({ aiFeaturesUnlocked: true, aiFeaturesUnlockedAt: Date.now() }, { merge: true });
+          if (discountV2) {
+            const r = await issuePurchaseCouponsForOrder(dbForLock, buyerUid, orderID);
+            if (r.issued) console.log('[capturePaypalOrder] purchase coupons issued:', r.issued, '| uid', buyerUid.slice(0, 8), '| order', orderID);
+          }
+        } else {
+          console.log('[capturePaypalOrder] ai_planner purchase but no auth uid — AI unlock/coupons skipped (guest)');
+        }
+      } catch (postPurchaseErr) {
+        console.warn('[capturePaypalOrder] ai_planner post-purchase (unlock/coupons) failed (non-fatal):', postPurchaseErr.message);
+      }
     }
 
     // P108 (2026-05-20): 슬롯 capacity confirm — bookings doc 저장 성공 후 pending

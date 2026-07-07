@@ -43,7 +43,7 @@ const COMBO_LABELS: Record<string, ComboLabel> = {
   },
   combo_airport_busan: {
     ko: '부산 콤보', en: 'Busan Combo', ja: '釜山コンボ', zh: '釜山套餐',
-    subKo: '공항 픽업 + 부산 1일 투어 (10% 할인)', subEn: 'Pickup + Busan tour (10% off)', subJa: '空港送迎 + 釜山 (10%OFF)', subZh: '机场接送 + 釜山 (10%折扣)',
+    subKo: '공항 픽업 + 부산 1일 투어 (5% 할인)', subEn: 'Pickup + Busan tour (5% off)', subJa: '空港送迎 + 釜山 (5%OFF)', subZh: '机场接送 + 釜山 (5%折扣)',
   },
 };
 

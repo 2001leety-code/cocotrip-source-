@@ -15,6 +15,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { captureError } from './_shared/sentry.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { verifyUidFromAuthHeader, hasAiFeatureEntitlement } from './_shared/ai-entitlement.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -27,7 +28,7 @@ const _rateDb = initAdminDb('course-ai');
 const JSON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Content-Type': 'application/json',
   'Cache-Control': 'no-store',
 };
@@ -98,6 +99,15 @@ export default async function handler(req, res) {
   if (stops.length < 2) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: '장소가 2곳 이상이어야 합니다', code: 'TOO_FEW_STOPS' }));
+  }
+
+  // 🔒 유료 AI 기능 게이트 (운영자 2026-07-07 요금제): AI 동선최적화+주변추천 = $9.90 구매자 전용.
+  // 무료 쿠폰/비로그인은 잠김 → 프론트가 업셀 표시. Gemini(유료) 호출 전에 차단. 자격 없으면 403.
+  const _uid = await verifyUidFromAuthHeader(req.headers?.authorization);
+  const _entitled = await hasAiFeatureEntitlement(_rateDb, _uid);
+  if (!_entitled) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, code: 'AI_FEATURE_LOCKED', error: 'AI optimize & nearby picks are unlocked with the $9.90 planner.' }));
   }
 
   const apiKey = process.env.GEMINI_API_KEY || '';

@@ -139,6 +139,55 @@ export async function issueOnboardingCouponsForUid(db, uid) {
   });
 }
 
+/**
+ * $9.90 AI 플래너 구매 완료 시 차터5%+투어5% 쿠폰 발급 (멱등, orderID 기준).
+ * 운영자 정책 2026-07-07: "가입 때도, 구매 때도 둘 다" → 가입(issueOnboardingCouponsForUid)과
+ * 별개로 구매 1건당 1쌍 발급. 같은 orderID 재캡처(멱등 재시도)는 users/{uid}/purchaseCouponOrders/{orderID}
+ * 마커로 중복 발급 차단. 발급 실패는 호출처(capturePaypalOrder)에서 non-fatal 처리(결제는 이미 완료).
+ * 소진(redeem) 시 총 할인 10% 상한은 createPaypalOrder total-discount cap 이 강제.
+ * @returns {Promise<{issued:number, alreadyIssued?:boolean}>}
+ */
+export async function issuePurchaseCouponsForOrder(db, uid, orderID) {
+  if (!db || !uid || !orderID) return { issued: 0 };
+  const userRef = db.collection('users').doc(uid);
+  const markerRef = userRef.collection('purchaseCouponOrders').doc(String(orderID));
+
+  return db.runTransaction(async (tx) => {
+    const markerSnap = await tx.get(markerRef);
+    if (markerSnap.exists) return { issued: 0, alreadyIssued: true };
+
+    const now = Date.now();
+    const expiresAt = now + COUPON_VALIDITY_MS;
+    const couponsRef = userRef.collection('coupons');
+
+    tx.set(couponsRef.doc(), {
+      code: `BUY-CHARTER-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Charter 5% off (AI plan purchase)',
+      productScope: 'charter',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'ai-plan-purchase',
+    });
+    tx.set(couponsRef.doc(), {
+      code: `BUY-TOUR-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Tour 5% off (AI plan purchase)',
+      productScope: 'tour-package',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'ai-plan-purchase',
+    });
+    tx.set(markerRef, { issuedAt: now, orderID: String(orderID) });
+
+    return { issued: 2, alreadyIssued: false };
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
