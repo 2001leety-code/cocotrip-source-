@@ -150,4 +150,22 @@ export function resolveTransferCheckoutKrw(spec, body, featureEnabled, opts = {}
   return q.total;
 }
 
+/**
+ * 총 할인 상한(10%) 계산용 — transfer 의 '정가'(왕복/편도 할인 전 tripBase) 반환.
+ * resolveTransferCheckoutKrw 와 동일 입력으로 산출하되 할인 전 tripBase 만 취한다.
+ * createPaypalOrder 가 딜(왕복 5%)+쿠폰(5%) 합산 할인을 정가 대비 10% 로 clamp 할 때 기준선.
+ * @returns {number|null} 할인 전 정가 KRW, 또는 결제 불가 조건 시 null
+ */
+export function transferListBaseKrw(spec, body, featureEnabled, opts = {}) {
+  if (!featureEnabled || !body) return null;
+  const o = String(body.originKey || '').trim();
+  const d = String(body.destKey || '').trim();
+  const curatedKRW = curatedStariaKRW(spec, o, d);
+  if (curatedKRW == null) return null;
+  const vehicle = String(body.vehicle || '').trim();
+  const captain = captainPremiumKrw(spec, vehicle);
+  const q = calcTransferQuote({ curatedKRW, tripType: body.tripType, vehicle }, { discountV2: opts.discountV2, captainPremiumKrw: captain });
+  return q ? q.tripBase : null;
+}
+
 export { VEHICLE_MULT as TRANSFER_VEHICLE_MULT };

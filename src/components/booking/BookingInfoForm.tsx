@@ -442,10 +442,11 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               <button type="button" onClick={() => { setAppliedCode(''); set({ discountCode: '' }); }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>취소</button>
             </div>
           )}
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 9, fontWeight: 600 }}>사용 가능한 할인코드</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <CouponBtn pct="12%" highlight title="신규 회원 대상 공항 픽업/샌딩 12% 할인" sub="유효기간 2026-07-05 · 코드 WELCOME12" onClick={() => applyCode('WELCOME12')} />
-            <CouponBtn pct="10%" title="신규 회원 대상 공항 픽업/샌딩 10% 할인" sub="유효기간 2026-07-05 · 코드 WELCOME10" onClick={() => applyCode('WELCOME10')} />
+          {/* 2026-07-07: 가짜 공개코드(WELCOME12/10 — 서버 미존재, 클릭 시 실패) 제거.
+              실제 5% 쿠폰은 가입 시 개인 코드로 발급 → 마이페이지에서 확인·입력. */}
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4, lineHeight: 1.5 }}>
+            가입 시 발급된 차터·투어 5% 쿠폰 코드는 마이페이지 › 쿠폰에서 확인하세요.
+            <br /><span style={{ color: 'rgba(255,255,255,0.25)' }}>Your 5% charter/tour coupon codes are in My Page › Coupons.</span>
           </div>
         </div>
         ) : (
@@ -563,19 +564,6 @@ function AddonRow({ label, desc, price, checked, onChange }: { label: string; de
       <span style={{ fontSize: 14, fontWeight: 700, color: '#C4956A', whiteSpace: 'nowrap' }}>{price}</span>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: '#7C5CFC', cursor: 'pointer', flex: '0 0 auto' }} />
     </label>
-  );
-}
-
-function CouponBtn({ pct, title, sub, highlight, onClick }: { pct: string; title: string; sub: string; highlight?: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 14px', borderRadius: 12, border: highlight ? '1px solid rgba(124,92,252,0.25)' : '1px solid rgba(255,255,255,0.1)', background: highlight ? 'rgba(124,92,252,0.07)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', color: '#fff' }}>
-      <span style={{ fontSize: 17, fontWeight: 900, color: highlight ? '#B9A4FF' : 'rgba(255,255,255,0.7)', flex: '0 0 auto' }}>{pct}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{sub}</div>
-      </div>
-      <span style={{ fontSize: 12, color: highlight ? '#B9A4FF' : 'rgba(255,255,255,0.6)', fontWeight: 700, whiteSpace: 'nowrap' }}>적용 ›</span>
-    </button>
   );
 }
 

@@ -245,8 +245,9 @@ export default async function handler(req, res) {
         }
       }
 
-      // 최대 할인 cap: 30%
-      totalDiscount = Math.min(totalDiscount, 0.30);
+      // 🔴 최대 할인 cap: 10% (운영자 정책 "딜+쿠폰 합산 최대 10%"). 표시가 청구가(createPaypalOrder
+      // total-discount cap)와 동일 상한을 약속하도록 10% 로 통일 — 표시>청구 과대약속 방지.
+      totalDiscount = Math.min(totalDiscount, 0.10);
 
       const savedAmount = Math.round(originalPrice * totalDiscount * 100) / 100;
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
