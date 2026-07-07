@@ -551,7 +551,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           {(() => {
             const q = (stop.lat && stop.lng)
               ? `${stop.lat},${stop.lng}`
-              : (stop.name || stop.name_ko || stop.display_name || stop.name_en || '');
+              : (cleanKoName || cleanDisplayName || '');
             if (!q) return null;
             const gUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
             return (
