@@ -326,8 +326,8 @@ export function CourseBuilderShell() {
           </div>
         </div>
 
-        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선) */}
-        <CourseMiniMap stops={day.stops} title={t.mapTitle} />
+        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선 + AI 주변추천 앰버 마커) */}
+        <CourseMiniMap stops={day.stops} title={t.mapTitle} nearby={aiRecos} />
 
         {/* AI 동선 최적화 + 주변 추천 — 좌표 있는 stop 2곳 이상일 때만 노출 */}
         {day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number').length >= 2 && (

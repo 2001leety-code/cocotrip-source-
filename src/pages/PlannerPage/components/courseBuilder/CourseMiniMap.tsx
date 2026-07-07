@@ -11,12 +11,30 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { CourseStop } from './courseOps';
 
+interface NearbyPlace { name: string; lat?: number; lng?: number; category?: string; reason?: string; }
+
 interface CourseMiniMapProps {
   stops: CourseStop[];
   title: string; // 지도 헤더 라벨 (i18n 은 호출처가 넘김)
+  nearby?: NearbyPlace[]; // AI 주변추천 — 코스 핀과 다른 색 마커로 "가볼만한 곳" 표시
 }
 
 interface MapPoint { lat: number; lng: number; order: number; label: string; time?: string; }
+interface NearbyPoint { lat: number; lng: number; name: string; category?: string; reason?: string; }
+
+// 카테고리별 이모지(주변 마커 안에 표시).
+const CAT_EMOJI: Record<string, string> = { food: '🍽', sight: '📷', show: '🎫', stay: '🛏', etc: '📍' };
+
+/** 좌표 유효한 주변추천만. */
+function toNearbyPoints(list: NearbyPlace[] | undefined): NearbyPoint[] {
+  const out: NearbyPoint[] = [];
+  for (const p of list || []) {
+    if (!isFiniteNum(p.lat) || !isFiniteNum(p.lng)) continue;
+    if ((p.lat as number) < -90 || (p.lat as number) > 90 || (p.lng as number) < -180 || (p.lng as number) > 180) continue;
+    out.push({ lat: p.lat as number, lng: p.lng as number, name: p.name || '', category: p.category, reason: p.reason });
+  }
+  return out;
+}
 
 const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -43,7 +61,7 @@ function popupHtml(p: MapPoint): string {
   return `<div style="font-weight:700;font-size:13px;color:#1a1024;">${p.order}. ${escapeHtml(p.label || `#${p.order}`)}</div>${timeHtml}`;
 }
 
-export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
+export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const domId = useId().replace(/[:]/g, '');
   const [failed, setFailed] = useState(false);
@@ -53,6 +71,7 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
   const markersRef = useRef<Map<number, any>>(new Map());
 
   const points = toMapPoints(stops);
+  const nearbyPoints = toNearbyPoints(nearby);
   const enoughPoints = points.length >= 2;
 
   useEffect(() => {
@@ -73,7 +92,8 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
         });
         mapInstance = map;
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // voyager = 밝은 컬러 타일(주변 상점·지명 보임). dark_all 은 너무 어두워 핀·동선 안 보였음.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
           subdomains: 'abcd', maxZoom: 20,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         }).addTo(map);
@@ -93,6 +113,20 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
           markersRef.current.set(p.order, marker);
         });
 
+        // 주변추천 마커 — 코스 번호핀(보라/핑크 원)과 구분되는 앰버 물방울핀 + 카테고리 이모지.
+        // "가볼만한 곳"을 지도에서 바로 보이게. 좌표는 course-ai 응답(nearby)에서.
+        nearbyPoints.forEach((p) => {
+          const emoji = CAT_EMOJI[p.category || 'etc'] || CAT_EMOJI.etc;
+          const icon = L.divIcon({
+            className: 'cocotrip-nearby-pin',
+            html: `<div style="width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:#F5B942;border:2px solid rgba(255,255,255,0.92);box-shadow:0 2px 5px rgba(0,0,0,0.4);"><span style="transform:rotate(45deg);font-size:11px;line-height:1;">${emoji}</span></div>`,
+            iconSize: [24, 24], iconAnchor: [12, 22], popupAnchor: [0, -18],
+          });
+          const reasonHtml = p.reason ? `<div style="color:#8a6a00;font-size:11px;margin-top:2px;">${escapeHtml(p.reason)}</div>` : '';
+          const html = `<div style="font-weight:700;font-size:12px;color:#1a1024;">${escapeHtml(p.name || '')}</div>${reasonHtml}`;
+          L.marker([p.lat, p.lng], { icon, title: p.name }).addTo(map).bindPopup(html, { closeButton: true });
+        });
+
         map.fitBounds(L.latLngBounds(latLngs), { padding: [28, 28], maxZoom: 15 });
         setTimeout(() => { if (!cancelled) map.invalidateSize(); }, 0);
       } catch {
@@ -106,7 +140,7 @@ export function CourseMiniMap({ stops, title }: CourseMiniMapProps) {
       if (mapInstance) { try { mapInstance.remove(); } catch { /* disposed */ } mapInstance = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order]))]);
+  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order])), JSON.stringify(nearbyPoints.map((p) => [p.lat, p.lng]))]);
 
   // 제목/시간만 바뀐 경우(좌표·순서 불변 → 위 effect 미실행) 지도 재구성 없이 팝업·hover
   // title 텍스트만 갱신 → 편집 중 타일 refetch flicker 없이 stale 표시 방지.
