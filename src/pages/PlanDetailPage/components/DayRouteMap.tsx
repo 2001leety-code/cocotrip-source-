@@ -118,9 +118,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         });
         mapInstance = map;
 
-        // CARTO dark basemap — free, no key, English labels, suits the dark UI.
+        // CARTO voyager basemap — free, no key, English labels. 밝은 컬러라 핀·동선·주변 상점이 잘 보임
+        // (기존 dark_all 은 너무 어두워 동선/핀이 묻혔음).
         L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
           {
             subdomains: 'abcd',
             maxZoom: 20,
