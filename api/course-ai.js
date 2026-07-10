@@ -150,6 +150,8 @@ export default async function handler(req, res) {
         responseMimeType: 'application/json',
       },
     });
+    // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('course-ai', 'gemini-2.5-flash', result.response)).catch(() => {});
     const raw = result.response.text() || '';
     let parsed;
     try { parsed = JSON.parse(raw); } catch { parsed = null; }

@@ -33,6 +33,17 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
+import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+
+// 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 어떤 실패도 본 흐름에 영향 0.
+// block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
+function recordBlockUsage(cm) {
+  try {
+    import('./geminiModelResolver.js')
+      .then((m) => recordGeminiUsage({ stage: 'block', model: m.resolveGeminiModel('block'), cm }))
+      .catch(() => {});
+  } catch { /* ignore */ }
+}
 
 /** 기본 ENV mode — 운영자가 PLANNER_BLOCK_MODE 미설정 시 'auto' (자동 폴백). */
 export function getBlockModeEnv() {
@@ -1242,6 +1253,7 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
   // 이전: block_mode 46/100 plan _cache_metadata 0% (legacy 만 측정) sleeper bug.
   if (selections.cacheMetadata) {
     itinerary._cache_metadata = selections.cacheMetadata;
+    recordBlockUsage(selections.cacheMetadata);
   }
   return {
     itinerary,
@@ -1848,6 +1860,7 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   // P278 (2026-05-29): multi-city block_mode cache_metadata attach (P266 chain layer 1 호환).
   if (selections.cacheMetadata) {
     itinerary._cache_metadata = selections.cacheMetadata;
+    recordBlockUsage(selections.cacheMetadata);
   }
 
   return {

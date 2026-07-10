@@ -28,6 +28,24 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { readFileSync } from 'fs';
+import { recordGeminiUsage } from './apiUsageRecorder.js';
+
+// 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 번역 흐름 영향 0.
+function recordTranslatorUsage(stage, r) {
+  try {
+    const um = r && r.response && r.response.usageMetadata;
+    if (!um) return;
+    recordGeminiUsage({
+      stage,
+      model: 'gemini-2.5-flash',
+      cm: {
+        total: Number(um.promptTokenCount) || 0,
+        cached: Number(um.cachedContentTokenCount) || 0,
+        output: Number(um.candidatesTokenCount) || 0,
+      },
+    });
+  } catch { /* ignore */ }
+}
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import {
@@ -105,6 +123,7 @@ export async function detectLanguage(text) {
     });
     const prompt = `Detect the language of the following text. Reply with ONE of: ko, en, ja, zh, other. No explanation.\n\nText: ${s.slice(0, 500)}`;
     const r = await model.generateContent(prompt);
+    recordTranslatorUsage('translator-detect', r);
     const out = (r.response.text() || '').trim().toLowerCase();
     if (['ko', 'en', 'ja', 'zh', 'other'].includes(out)) return out;
     return 'en';
@@ -166,6 +185,7 @@ ${s}`;
       },
     });
     const r = await model.generateContent(prompt);
+    recordTranslatorUsage('translator-translate', r);
     const out = (r.response.text() || '').trim();
     if (!out) return null;
     cacheSet(cacheKey, out);
@@ -381,6 +401,7 @@ async function geminiTranslatePlaceName(text, targetLang) {
       },
     });
     const r = await model.generateContent(buildPlaceNamePrompt(text, targetLang));
+    recordTranslatorUsage('translator-place', r);
     let out = (r.response.text() || '').trim();
     // Gemini 가 quotes 또는 explanation 을 반환하면 정리
     out = out.replace(/^["'`]+|["'`]+$/g, '').trim();
