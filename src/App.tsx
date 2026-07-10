@@ -62,6 +62,10 @@ const MobileTourDetailV2 = lazy(() => import('@/pages/MobileTourDetailV2'));
 const MobilePlannerResultV2 = lazy(() => import('@/pages/MobilePlannerResultV2'));
 const MobileCharterV2 = lazy(() => import('@/pages/MobileCharterV2'));
 const MobileIconsPreview = lazy(() => import('@/pages/MobileIconsPreview'));
+const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
+const CommunityPostPage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityPostPage })));
+const CommunityComposePage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityComposePage })));
+const CommunityModerationPage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityModerationPage })));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 import { TrustBadges } from '@/components/TrustBadges';
@@ -142,7 +146,7 @@ function HomePage() {
       );
     }
     return (
-      <div className="min-h-screen bg-[#0a0b14]">
+      <div className="min-h-screen bg-[#0a0b14] cocotrip-mobile-home">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <main className="pt-14">
           {/* MobileHome lazy chunk — tours.ts (~92 KB raw) 가 메인 번들에 진입하지 않도록 분리.
@@ -212,18 +216,19 @@ function GlobalWidgets() {
   // ChatWidget — 홈(/)에서만 렌더. 위저드/결제/플랜 흐름에서 CTA를 덮어 방해하므로 홈 전용.
   // (운영자 #7, 2026-06-30. 기존 hideTrigger 분기 통합 — 홈 외엔 컴포넌트 자체 마운트 안 함).
   const isHome = location.pathname === '/';
+  const isCommunity = location.pathname === '/community' || location.pathname.startsWith('/community/');
 
   return (
     <>
       <PageViewTracker />
 
       {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
-      {!isSharedPlan && <MobileBottomNav />}
+      {!isSharedPlan && !isCommunity && <MobileBottomNav />}
       <Suspense fallback={null}>
         <CookieBanner />
         {isHome && <ChatWidget language={language} hideTrigger={false} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
-        {!isSharedPlan && <OnboardingCouponModal />}
+        {!isSharedPlan && !isCommunity && <OnboardingCouponModal />}
       </Suspense>
     </>
   );
@@ -284,6 +289,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminReviews />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/community"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <CommunityModerationPage />
                 </Suspense>
               </AdminRoute>
             }
@@ -552,6 +567,11 @@ function AnimatedRoutes() {
           />
           <Route path="/tours" element={<Suspense fallback={<PlannerSkeleton />}><ToursPage /></Suspense>} />
           <Route path="/tours/:slug" element={<Suspense fallback={<PlannerSkeleton />}><TourDetailPage /></Suspense>} />
+          {/* 커뮤니티 UI 껍데기 — 실제 DB·번역·신고·moderation 연결은 Claude handoff 범위. */}
+          <Route path="/community" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPage /></Suspense>} />
+          <Route path="/community/moderation-preview" element={<Suspense fallback={<PlannerSkeleton />}><CommunityModerationPage /></Suspense>} />
+          <Route path="/community/post/:postId" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPostPage /></Suspense>} />
+          <Route path="/community/new" element={<Suspense fallback={<PlannerSkeleton />}><CommunityComposePage /></Suspense>} />
           <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />
           <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
@@ -677,7 +697,7 @@ function App() {
 // 상단 프로모 배너/팝업 — MOOD 포털(/mood)에선 숨김(고객 비노출 내부 사이트).
 function NonMoodChrome() {
   const location = useLocation();
-  if (location.pathname.startsWith('/mood')) return null;
+  if (location.pathname.startsWith('/mood') || location.pathname.startsWith('/community')) return null;
   return (
     <>
       <PromoBanner />

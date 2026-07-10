@@ -15,7 +15,10 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AlertCircle, Flag, RefreshCw } from 'lucide-react';
+import {
+  AlertCircle, CalendarDays, Flag, Hotel, MapPinned, RefreshCw, Route,
+  Sparkles, Users, Zap, type LucideIcon,
+} from 'lucide-react';
 
 // P225: streaming hang timeout (default 5분). Vercel maxDuration=300s 기준.
 // ENV로 오버라이드 가능하지만 빌드타임 상수이므로 기본값 안전 default 보장.
@@ -48,12 +51,165 @@ import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
-import { buildSlides } from './lib/buildSlides';
+import { buildSlides, getDaySlideIndex } from './lib/buildSlides';
 import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { BRAND } from '@/lib/design-tokens';
+
+function ResultIcon({ icon: Icon, active = false }: { icon: LucideIcon; active?: boolean }) {
+  return (
+    <span className={`plan-mobile-icon ${active ? 'is-active' : ''}`}>
+      <Icon className="h-4 w-4" strokeWidth={2.25} />
+    </span>
+  );
+}
+
+function getPrimaryRegion(plan: PlanDocument): string {
+  const input = plan.input || {};
+  const regions = Array.isArray(input.regions) ? input.regions.filter(Boolean) as string[] : [];
+  const raw = regions[0] || (input.destination as string) || input.area || 'Korea';
+  return String(raw).replace(/_city$|_suburb$/i, '').replace(/_/g, ' ').trim() || 'Korea';
+}
+
+function getHeroImage(plan: PlanDocument): string {
+  const region = getPrimaryRegion(plan).toLowerCase();
+  if (region.includes('busan')) return '/hero-busan-real.webp';
+  if (region.includes('gyeongju')) return '/hero-gyeongju.webp';
+  return '/hero-seoul-real.webp';
+}
+
+function getStayLabel(plan: PlanDocument): string {
+  const input = plan.input || {};
+  const it = plan.itinerary || {};
+  const acc = (it.accommodation as Record<string, unknown> | undefined)
+    || (plan.accommodation as Record<string, unknown> | undefined)
+    || {};
+  const hotel = input.hotel_address
+    || input.recommended_zone_address
+    || input.recommended_zone
+    || acc.hotel_name
+    || acc.name
+    || acc.area
+    || acc.neighborhood;
+  return hotel ? String(hotel) : 'Smart stay suggestions ready';
+}
+
+function MobilePlanResultHero({
+  plan,
+  slides,
+  current,
+  onJump,
+}: {
+  plan: PlanDocument;
+  slides: ReturnType<typeof buildSlides>;
+  current: number;
+  onJump: (slideIndex: number) => void;
+}) {
+  const days = plan.itinerary?.days || [];
+  const title = plan.itinerary?.tour_title || 'Your Korea Itinerary';
+  const stopCount = days.reduce((sum, day) => sum + (day.stops?.length || 0), 0);
+  const primaryRegion = getPrimaryRegion(plan);
+  const heroImage = getHeroImage(plan);
+  const startDate = plan.input?.startDate ? String(plan.input.startDate) : '';
+  const pax = Number(plan.input?.adults || plan.input?.pax || 0);
+  const activeDayIndex = slides[current]?.type === 'day' ? (slides[current].dayIndex || 0) : -1;
+
+  return (
+    <section className="plan-mobile-summary mx-auto max-w-[430px] px-4 pt-4 pb-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black text-[#7653F6] shadow-[0_8px_18px_rgba(124,92,255,0.10)]">
+            <Sparkles className="h-3 w-3" /> AI itinerary
+          </span>
+          <h1 className="mt-2 line-clamp-2 text-[22px] font-black leading-[1.08] tracking-[-0.01em] text-[#15143d]">
+            {title}
+          </h1>
+          <p className="mt-1 text-[11px] font-semibold text-[#7b719f]">
+            {primaryRegion}{startDate ? ` · ${startDate}` : ''}{pax > 0 ? ` · ${pax} travelers` : ''}
+          </p>
+        </div>
+        <ResultIcon icon={Sparkles} active />
+      </div>
+
+      <div className="relative overflow-hidden rounded-[24px] shadow-[0_18px_38px_rgba(51,42,116,0.16)]">
+        <img src={heroImage} alt="" className="h-[154px] w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#15143d]/70 via-transparent to-[#15143d]/16" />
+        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
+          <div>
+            <p className="text-[26px] font-black leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]">
+              {primaryRegion}
+            </p>
+            <p className="mt-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/88">Korea route</p>
+          </div>
+          <span className="rounded-2xl bg-white/22 px-3 py-2 text-right backdrop-blur-md">
+            <span className="block text-[16px] font-black">{days.length || 1}D</span>
+            <span className="block text-[9px] font-semibold text-white/80">{stopCount || '-'} stops</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="plan-mobile-panel -mt-7 relative z-10 mx-3 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <ResultIcon icon={Route} active />
+          <div className="min-w-0">
+            <p className="text-[14px] font-black text-[#17163d]">Route timeline</p>
+            <p className="text-[10px] font-semibold text-[#7b719f]">Day-by-day plan with maps and transit guidance</p>
+          </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {days.map((day, idx) => {
+            const slideIndex = getDaySlideIndex(slides, idx + 1);
+            const active = idx === activeDayIndex;
+            return (
+              <button
+                key={`${day.day || idx}-${idx}`}
+                type="button"
+                onClick={() => slideIndex >= 0 && onJump(slideIndex)}
+                className={`plan-mobile-day-chip ${active ? 'is-active' : ''}`}
+              >
+                <span>{idx + 1}</span>
+                <small>Day {idx + 1}</small>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="plan-mobile-mini-panel">
+          <div className="flex items-center gap-2">
+            <ResultIcon icon={Zap} />
+            <span className="text-[11px] font-black text-[#7653F6]">Optimize your trip</span>
+          </div>
+          <p className="mt-2 text-[13px] font-black leading-tight text-[#17163d]">Transit, charter, and walking details are inside each day.</p>
+        </div>
+        <div className="plan-mobile-mini-panel">
+          <div className="flex items-center gap-2">
+            <ResultIcon icon={Hotel} />
+            <span className="text-[11px] font-black text-[#7653F6]">Stay suggestion</span>
+          </div>
+          <p className="mt-2 line-clamp-2 text-[13px] font-black leading-tight text-[#17163d]">{getStayLabel(plan)}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {[
+          { icon: CalendarDays, label: 'Days', value: String(days.length || '-') },
+          { icon: MapPinned, label: 'Stops', value: String(stopCount || '-') },
+          { icon: Users, label: 'Travelers', value: pax > 0 ? String(pax) : '-' },
+        ].map((item) => (
+          <div key={item.label} className="plan-mobile-stat">
+            <ResultIcon icon={item.icon} />
+            <span>{item.value}</span>
+            <small>{item.label}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function PlanDetailPage() {
   const { planId } = useParams();
@@ -73,6 +229,14 @@ export default function PlanDetailPage() {
   // P225: streaming hang timeout — 스트리밍 시작 시각 + timed-out 플래그
   const streamingStartRef = useRef<number | null>(null);
   const [streamingTimedOut, setStreamingTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    document.documentElement.classList.add('planner-mobile-active');
+    return () => {
+      document.documentElement.classList.remove('planner-mobile-active');
+    };
+  }, [isMobile]);
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
@@ -533,9 +697,17 @@ export default function PlanDetailPage() {
     || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
 
   return (
-    <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'} ${REFINED ? 'refined-plandetail' : ''}`}>
+    <div className={`min-h-screen ${isMobile ? 'planner-detail-mobile-ai text-[#15143d]' : 'bg-[#0a0b14] text-white'} ${REFINED ? 'refined-plandetail' : ''}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
+      {isMobile && (
+        <MobilePlanResultHero
+          plan={plan}
+          slides={slides}
+          current={current}
+          onJump={goToSlide}
+        />
+      )}
+      <main className={isMobile ? 'max-w-[430px] mx-auto pt-2 pb-4 px-4' : 'max-w-3xl mx-auto pt-20 pb-4 px-4'}>
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
         {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}
         {isStreamingInProgress && !streamingTimedOut && (

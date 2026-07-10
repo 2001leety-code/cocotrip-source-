@@ -48,7 +48,7 @@ export default function MyPlansPage() {
   }, [user?.uid]);
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    <div className="min-h-screen bg-[#0a0b14] text-white cocotrip-mobile-plans">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto px-4 py-12 pt-24">
         <div className="flex items-center gap-3 mb-8">

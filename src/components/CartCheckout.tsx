@@ -161,7 +161,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
 
   if (status === 'success') {
     return (
-      <div className="p-6 text-center">
+      <div className="cocotrip-mobile-cart-checkout p-6 text-center">
         <div className="text-4xl mb-3">✅</div>
         <p className="text-white font-semibold mb-1">{c.checkoutDone || 'Booking confirmed!'}</p>
         <p className="text-white/55 text-sm mb-5">{c.checkoutDoneSub || 'Confirmation emails are on the way.'}</p>
@@ -176,7 +176,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const displaySumKRW = items.reduce((s, it) => s + (Number(it.priceKRW) || 0), 0);
 
   return (
-    <div className="p-5">
+    <div className="cocotrip-mobile-cart-checkout p-5">
       {/* 검수 헤더 */}
       <div className="mb-3">
         <p className="text-white font-semibold text-sm">{REVIEW_TEXT.title[lng]}</p>
