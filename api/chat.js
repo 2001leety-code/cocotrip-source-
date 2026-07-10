@@ -390,6 +390,8 @@ export default wrapHandler(async function handler(req, res) {
       const chat = model.startChat({ history });
       result = await chat.sendMessage(message);
     }
+    // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 채팅 흐름 영향 0.
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('chat', 'gemini-2.5-flash', result.response)).catch(() => {});
     aiResponse = result.response.text()?.trim() ||
       "I'm sorry, I couldn't process your request. Please contact us via WhatsApp: +82-10-8714-0611";
   } catch (err) {

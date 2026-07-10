@@ -228,6 +228,8 @@ Input:
 ${JSON.stringify({ descriptive: descTexts, transit: transitTexts })}`;
 
     const result = await model.generateContent(prompt);
+    // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('translate-plan', 'gemini-2.5-flash', result.response)).catch(() => {});
     const responseText = result.response.text();
 
     // Robust JSON extract: outermost braces
