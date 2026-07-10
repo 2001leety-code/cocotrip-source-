@@ -89,22 +89,85 @@ export function initWhatsAppTracking() {
 // 온 전환인지 측정한다 (GA4 세션 소스 자동귀속의 보강 — SPA 이동 후 누락 방지).
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 const UTM_STORE = 'cocotrip_utm';
+// P1 (2026-07-11 마케팅 지시서): 장기 유입 귀속 — sessionStorage 는 탭 닫으면 소실되어
+// 며칠 뒤 결제 시 최초 유입이 끊겼다. localStorage 에 first(최초 1회 고정)/last(매 유입 갱신)
+// 분리 보존 → 가입·예약·결제 문서에 스냅샷으로 저장(getAttributionSnapshot).
+// ⚠️ PII 금지: utm 5필드 + 시각만. 이메일·전화·주소 절대 미포함.
+const UTM_FIRST_STORE = 'cocotrip_utm_first';
+const UTM_LAST_STORE = 'cocotrip_utm_last';
+// 값 방어: 비정상 길이/PII 의심('@' 포함) 값은 저장 자체를 스킵 (광고 UTM 값엔 @ 없음)
+const UTM_VALUE_MAX = 120;
+function sanitizeUtmValue(v: string | null): string | null {
+  if (!v) return null;
+  const t = v.trim().slice(0, UTM_VALUE_MAX);
+  if (!t || t.includes('@')) return null; // 이메일 유입 방지 (PII 최소수집)
+  return t;
+}
 
-/** 첫 랜딩 시 1회 호출 — URL 의 utm_* 를 sessionStorage 에 보존. */
+function readUrlUtm(): Record<string, string> {
+  const p = new URLSearchParams(window.location.search);
+  const utm: Record<string, string> = {};
+  for (const k of UTM_KEYS) { const v = sanitizeUtmValue(p.get(k)); if (v) utm[k] = v; }
+  return utm;
+}
+
+/** 매 랜딩 시 호출 — 세션(기존 GA 첨부용) + first/last(장기 귀속) 보존. */
 export function initUtmCapture() {
   if (typeof window === 'undefined') return;
+  let utm: Record<string, string> = {};
+  try { utm = readUrlUtm(); } catch { return; }
+
+  // 기존 동작 유지: 세션 내 첫 UTM 을 sessionStorage 에 (모든 trackEvent 자동 첨부용)
   try {
-    if (sessionStorage.getItem(UTM_STORE)) return;
-    const p = new URLSearchParams(window.location.search);
-    const utm: Record<string, string> = {};
-    for (const k of UTM_KEYS) { const v = p.get(k); if (v) utm[k] = v; }
-    if (Object.keys(utm).length > 0) sessionStorage.setItem(UTM_STORE, JSON.stringify(utm));
+    if (!sessionStorage.getItem(UTM_STORE) && Object.keys(utm).length > 0) {
+      sessionStorage.setItem(UTM_STORE, JSON.stringify(utm));
+    }
   } catch { /* sessionStorage 차단 환경 무시 */ }
+
+  // P1: first = 최초 1회만 기록(이후 절대 덮지 않음), last = UTM 있는 유입마다 갱신
+  if (Object.keys(utm).length === 0) return;
+  try {
+    const stamped = { ...utm, ts: new Date().toISOString() };
+    if (!localStorage.getItem(UTM_FIRST_STORE)) {
+      localStorage.setItem(UTM_FIRST_STORE, JSON.stringify(stamped));
+    }
+    localStorage.setItem(UTM_LAST_STORE, JSON.stringify(stamped));
+  } catch { /* localStorage 차단(시크릿 등) — 추적 실패가 앱을 막으면 안 됨 */ }
 }
 
 function getStoredUtm(): Record<string, string> {
   if (typeof window === 'undefined') return {};
   try { const raw = sessionStorage.getItem(UTM_STORE); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+}
+
+function readStore(key: string): Record<string, string> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    // 허용 키만 통과 (utm 5종 + ts) — 저장소 오염 방어
+    const out: Record<string, string> = {};
+    for (const k of [...UTM_KEYS, 'ts']) {
+      if (typeof parsed[k] === 'string') out[k] = parsed[k].slice(0, UTM_VALUE_MAX);
+    }
+    return Object.keys(out).length > 0 ? out : null;
+  } catch { return null; }
+}
+
+/**
+ * 유입 스냅샷 (가입·예약·결제 문서 저장용) — { first?, last? }.
+ * PII 없음(UTM 5필드+ts). 유입 기록이 전혀 없으면 null (필드 자체 생략용).
+ * 어떤 경우에도 throw 하지 않는다 — 추적 실패가 로그인·예약·결제를 막으면 안 됨.
+ */
+export function getAttributionSnapshot(): { first?: Record<string, string>; last?: Record<string, string> } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const first = readStore(UTM_FIRST_STORE);
+    const last = readStore(UTM_LAST_STORE);
+    if (!first && !last) return null;
+    return { ...(first ? { first } : {}), ...(last ? { last } : {}) };
+  } catch { return null; }
 }
 
 /** 채팅 위젯 열림 — 문의 의향 신호. */
@@ -230,4 +293,48 @@ export function trackPaidConversion(params: {
 /** User signs up / first login */
 export function trackSignUp(method: string) {
   trackEvent('sign_up', { method });
+}
+
+// ── P1 전환 퍼널 이벤트 (2026-07-11 마케팅 지시서) ─────────────────────────
+// 프로모션 배너·가입혜택·플래너의 노출/클릭/완료를 GA4 로 측정 — 무료→유료 전환
+// 퍼널(PR-C 운영자 화면)의 데이터 기반. PostHog 는 autocapture 로 행동 분석 담당
+// (역할 중복 금지 — 여기 이벤트는 GA4 광고 귀속 전용).
+
+/** 프로모 배너 노출 (마운트 후 표시 시 1회). */
+export function trackPromoView(placement: string) {
+  trackEvent('promo_view', { placement });
+}
+/** 프로모 배너 CTA 클릭. */
+export function trackPromoClick(placement: string, targetHref?: string) {
+  trackEvent('promo_click', { placement, target_url: targetHref });
+}
+/** 프로모 배너 닫기(X). */
+export function trackPromoDismiss(placement: string) {
+  trackEvent('promo_dismiss', { placement });
+}
+/** 가입 웰컴 쿠폰 발급 성공 (firebase.js — issued>0 일 때). */
+export function trackWelcomeCouponIssued(issuedCount: number) {
+  trackEvent('welcome_coupon_issued', { issued_count: issuedCount });
+}
+/** 가입 웰컴 모달 노출. */
+export function trackWelcomeCouponModalView() {
+  trackEvent('welcome_coupon_modal_view', {});
+}
+/** AI 플랜 생성 완료 (planner_start 는 WizardForm 에서 기존 발화). */
+export function trackPlannerComplete(params?: { durationDays?: number; freeCoupon?: boolean }) {
+  trackEvent('planner_complete', {
+    duration_days: params?.durationDays,
+    free_coupon: params?.freeCoupon ? 'true' : 'false',
+  });
+}
+/** 가입 무료 AI 플랜 쿠폰으로 플랜 생성 (무료→유료 전환 퍼널 시작점). */
+export function trackFreePlanRedeemed(durationDays?: number) {
+  trackEvent('free_plan_redeemed', { duration_days: durationDays });
+}
+/** 차터 견적 시작/완료. */
+export function trackCharterQuoteStart() {
+  trackEvent('charter_quote_start', {});
+}
+export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }) {
+  trackEvent('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
 }

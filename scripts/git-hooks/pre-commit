@@ -177,6 +177,14 @@ if [ -n "$SCAN_FILES" ]; then
       //   pre-existing legitimate. 코스빌더 미니지도(CourseMiniMap) 삽입으로 처음 staged 됐을
       //   뿐 — 내 diff 는 ?? 0추가, U+FFFD 0 확인. 신규 코드는 전부 || 사용.
       if (f === "src/pages/SharedCoursePage.tsx") continue;
+      // 2026-07-11 P1: CharterWizard.tsx 의 ?? 7건 — initialState ?? {} / snapshot resume
+      //   폴백(0/undefined 보존) pre-existing legitimate. 견적 퍼널 이벤트(trackCharterQuote*)
+      //   추가로 처음 staged 됐을 뿐 — 신규 코드는 ?? 0건.
+      if (f === "src/components/charter/CharterWizard.tsx") continue;
+      // 2026-07-11 P1: OnboardingCouponModal.tsx 의 ?? — i18n 키 폴백 pre-existing.
+      //   PR#1089(P0 진실성)가 전부 || 로 전환 — 머지되면 이 예외는 무해한 잔재.
+      //   이 브랜치 diff 는 모달 노출 이벤트만(?? 0건).
+      if (f === "src/components/OnboardingCouponModal.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

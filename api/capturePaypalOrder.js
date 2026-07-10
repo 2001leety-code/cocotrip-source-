@@ -14,6 +14,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
 import { featureEnabled } from './_shared/feature-flag.js';
+import { sanitizeAttribution } from './_shared/attribution.js';
 import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
@@ -96,7 +97,10 @@ export default async function handler(req, res) {
       // 2026-06-30 트립닷컴식 예약정보 — 결제 직전 약관 동의 메타데이터(컴플라이언스 추적용). SMS 본인인증 제거 운영자.
       // 결제/금액/멱등성 로직 무관 — booking 레코드에 그대로 보존만. 미전달 시 기본값(false/'').
       // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 완전 독립. 미동의해도 결제 진행됨(강제동의 X).
-      termsAgreed, termsAgreedAt, marketingConsent, marketingConsentAt } = body;
+      termsAgreed, termsAgreedAt, marketingConsent, marketingConsentAt,
+      // P1 (2026-07-11): 장기 유입 귀속 스냅샷 (first/last UTM) — 결제/금액/멱등성 무관,
+      // sanitizeAttribution 화이트리스트 통과분만 booking 레코드에 보존 (PII 미포함).
+      attribution } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
@@ -376,6 +380,7 @@ export default async function handler(req, res) {
     //     (operator can recover via /api/admin-replay-booking-notifications)
     //   - payment is NOT rolled back — money was captured, the right move is
     //     to recover the booking record, not refund
+    const bookingAttribution = sanitizeAttribution(attribution);
     const bookingDocPayload = {
       bookingRef: orderID,
       orderID,
@@ -407,6 +412,9 @@ export default async function handler(req, res) {
       capturedExchangeRate: usdToKrw,
       currency: 'USD',
       rawCapturePayload,
+      // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷 (화이트리스트 통과분만, PII 없음).
+      // 유효 데이터 없으면 필드 생략. 어떤 실패도 결제/기록을 막지 않음(sanitize 는 throw 안 함).
+      ...(bookingAttribution ? { attribution: bookingAttribution } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };

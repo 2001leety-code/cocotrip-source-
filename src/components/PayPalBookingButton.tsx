@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
-import { trackPaidConversion, trackBeginCheckout } from '@/lib/analytics';
+import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
@@ -398,6 +398,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 독립, capture body 보존만(게이트 X).
               marketingConsent: marketingConsent === true,
               ...(marketingConsent === true ? { marketingConsentAt: new Date().toISOString() } : {}),
+              // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷(PII 없음, null 이면 생략).
+              //   서버(sanitizeAttribution)가 화이트리스트 재검증. 금액/capture/멱등성 무관.
+              ...((() => { const a = getAttributionSnapshot(); return a ? { attribution: a } : {}; })()),
             }),
           });
           const json = await res.json();
