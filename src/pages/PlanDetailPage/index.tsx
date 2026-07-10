@@ -112,6 +112,7 @@ function MobilePlanResultHero({
   const stopCount = days.reduce((sum, day) => sum + (day.stops?.length || 0), 0);
   const primaryRegion = getPrimaryRegion(plan);
   const heroImage = getHeroImage(plan);
+  // startDate = 표시 전용 원문(첫날, inclusive) — 날짜 산술 없음, 기간 계산은 days.length 사용
   const startDate = plan.input?.startDate ? String(plan.input.startDate) : '';
   const pax = Number(plan.input?.adults || plan.input?.pax || 0);
   const activeDayIndex = slides[current]?.type === 'day' ? (slides[current].dayIndex || 0) : -1;
