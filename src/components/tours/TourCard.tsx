@@ -107,7 +107,7 @@ export function TourCard({ tour, language }: TourCardProps) {
       }}
     >
       {/* ── 썸네일 ── */}
-      <div className="relative w-full h-[136px] sm:h-[190px] overflow-hidden">
+      <div className="tour-card-media relative w-full h-[136px] sm:h-[190px] overflow-hidden">
 
         {/* 실제 이미지 */}
         <img

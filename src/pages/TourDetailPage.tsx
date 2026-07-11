@@ -202,7 +202,7 @@ export default function TourDetailPage() {
     || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
   return (
     <div
-      className={`min-h-screen pb-36 ${REFINED ? 'refined-page' : ''}`}
+      className={`min-h-screen pb-36 ${isMobile ? 'cocotrip-mobile-tour-detail' : ''} ${REFINED ? 'refined-page' : ''}`}
       style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
     >
       <style>{`
@@ -245,7 +245,7 @@ export default function TourDetailPage() {
       <ImageGallery images={tour.images} title={title} region={tour.region} isNight={tour.isNightTour} />
 
       {/* ── 본문 ── */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-4 relative z-10">
+      <div className="tour-detail-content max-w-4xl mx-auto px-4 sm:px-6 -mt-4 relative z-10">
 
         {/* 제목 */}
         <h1 className="text-[22px] font-black text-white leading-tight mb-1.5">{title}</h1>
@@ -667,7 +667,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
 
   return (
     <div
-      className="relative w-full h-[300px] md:h-[380px] lg:h-[440px] overflow-hidden"
+      className="tour-detail-gallery relative w-full h-[300px] md:h-[380px] lg:h-[440px] overflow-hidden"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >

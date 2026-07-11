@@ -190,7 +190,7 @@ export default function ToursPage() {
 
   return (
     <div
-      className={`min-h-screen pb-28 ${REFINED ? 'refined-tours' : ''}`}
+      className={`min-h-screen pb-28 ${isMobile ? 'cocotrip-mobile-tours' : ''} ${REFINED ? 'refined-tours' : ''}`}
       style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
     >
       <style>{`

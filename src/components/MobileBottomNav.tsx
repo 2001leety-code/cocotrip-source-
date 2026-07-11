@@ -8,6 +8,9 @@ export function MobileBottomNav() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+  const isMobileAppLight = !location.pathname.startsWith('/admin') && !location.pathname.startsWith('/mood');
+  const activeColor = isMobileAppLight ? '#7653F6' : '#7C5CFC';
+  const inactiveColor = isMobileAppLight ? 'rgba(21,20,61,0.42)' : 'rgba(255,255,255,0.35)';
 
   const nav = t.nav as Record<string, string | undefined>;
   // Icon size: 17px is one notch tighter than 18px while staying glanceable.
@@ -26,10 +29,11 @@ export function MobileBottomNav() {
     <nav
       className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden"
       style={{
-        background: 'rgba(8,11,20,0.97)',
+        background: isMobileAppLight ? 'rgba(255,255,255,0.92)' : 'rgba(8,11,20,0.97)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(255,255,255,0.07)',
+        borderTop: isMobileAppLight ? '1px solid rgba(124,92,255,0.12)' : '1px solid rgba(255,255,255,0.07)',
+        boxShadow: isMobileAppLight ? '0 -14px 34px rgba(48,39,118,0.10)' : undefined,
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
@@ -41,14 +45,14 @@ export function MobileBottomNav() {
               key={item.to + item.label}
               to={item.to}
               className="flex flex-col items-center justify-center gap-px flex-1 h-full transition-all"
-              style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}
+              style={{ color: active ? activeColor : inactiveColor }}
             >
-              <span style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}>
+              <span style={{ color: active ? activeColor : inactiveColor }}>
                 {item.icon}
               </span>
               <span className="text-[10px] font-semibold tracking-wide leading-tight">{item.label}</span>
               {active && (
-                <span className="absolute bottom-0 w-7 h-[2px] rounded-full" style={{ background: '#7C5CFC' }} />
+                <span className="absolute bottom-0 w-7 h-[2px] rounded-full" style={{ background: activeColor }} />
               )}
             </Link>
           );
@@ -60,5 +64,7 @@ export function MobileBottomNav() {
 
 /** 하단 네비 높이만큼 콘텐츠 여백 확보 — 페이지 레이아웃 맨 아래에 배치 */
 export function MobileBottomSpacer() {
+  const location = useLocation();
+  if (location.pathname === '/community' || location.pathname.startsWith('/community/')) return null;
   return <div className="md:hidden h-[68px]" />;
 }

@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gift, Ticket, X } from 'lucide-react';
+import { Gift, Sparkles, Ticket, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackWelcomeCouponModalView } from '@/lib/analytics';
 
@@ -21,7 +21,7 @@ export function OnboardingCouponModal() {
   const viewTracked = useRef(false);
 
   // i18n — mypage 네임스페이스 사용 (4개 언어 모두 키 존재)
-  const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage ?? {};
+  const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
 
   // 페이지 마운트 시 + 새로 flag 세팅될 때 감지 (storage event 포함)
   useEffect(() => {
@@ -93,18 +93,33 @@ export function OnboardingCouponModal() {
             </div>
           </div>
           <h2 className="text-white font-bold text-xl leading-tight">
-            {mp.welcomeModalTitle ?? 'Welcome to CocoTrip!'}
+            {mp.welcomeModalTitle || 'Welcome to CocoTrip!'}
           </h2>
           <p className="text-white/60 text-sm mt-1">
-            {mp.welcomeModalSubtitle ?? 'Your sign-up is complete.'}
+            {mp.welcomeModalSubtitle || 'Your sign-up is complete.'}
           </p>
         </div>
 
-        {/* Coupon pills */}
+        {/* Coupon pills — 실발급(onboarding-coupons.js) 3혜택·1년과 반드시 일치 (P0 진실성) */}
         <div className="px-6 pb-2 space-y-2">
           <p className="text-[#a78bfa] font-semibold text-sm text-center mb-3">
-            🎟️ {mp.welcomeModalCouponHeading ?? '2 welcome coupons issued'}
+            🎟️ {mp.welcomeModalCouponHeading || '3 welcome gifts issued'}
           </p>
+
+          {/* Gift 0 — Free AI Plan (고객이 받는 결과 1순위) */}
+          <div
+            className="flex items-center gap-3 rounded-xl px-4 py-3"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(124,92,252,0.3)' }}
+          >
+            <Sparkles className="text-[#7c5cfc] shrink-0" size={20} />
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm">
+                {mp.welcomeModalCoupon0 || 'Free AI Plan (1–3 days)'}
+              </p>
+              <p className="text-white/50 text-xs">{mp.welcomeModalExpiry || 'Valid for 1 year'}</p>
+            </div>
+            <span className="text-[#a78bfa] font-bold text-sm shrink-0">FREE</span>
+          </div>
 
           {/* Coupon 1 — Charter */}
           <div
@@ -114,9 +129,9 @@ export function OnboardingCouponModal() {
             <Ticket className="text-[#7c5cfc] shrink-0" size={20} />
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm">
-                {mp.welcomeModalCoupon1 ?? 'Charter 5% OFF'}
+                {mp.welcomeModalCoupon1 || 'Charter 5% OFF'}
               </p>
-              <p className="text-white/50 text-xs">{mp.welcomeModalExpiry ?? 'Valid for 90 days'}</p>
+              <p className="text-white/50 text-xs">{mp.welcomeModalExpiry || 'Valid for 1 year'}</p>
             </div>
             <span className="text-[#a78bfa] font-bold text-sm shrink-0">5%</span>
           </div>
@@ -129,9 +144,9 @@ export function OnboardingCouponModal() {
             <Ticket className="text-[#7c5cfc] shrink-0" size={20} />
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm">
-                {mp.welcomeModalCoupon2 ?? 'Tour Package 5% OFF'}
+                {mp.welcomeModalCoupon2 || 'Tour Package 5% OFF'}
               </p>
-              <p className="text-white/50 text-xs">{mp.welcomeModalExpiry ?? 'Valid for 90 days'}</p>
+              <p className="text-white/50 text-xs">{mp.welcomeModalExpiry || 'Valid for 1 year'}</p>
             </div>
             <span className="text-[#a78bfa] font-bold text-sm shrink-0">5%</span>
           </div>
@@ -139,7 +154,7 @@ export function OnboardingCouponModal() {
 
         {/* Body text */}
         <p className="text-white/50 text-xs text-center px-6 pt-3 pb-1">
-          {mp.welcomeModalBody ?? 'Use them at checkout when booking a charter or tour package.'}
+          {mp.welcomeModalBody || 'Use the AI plan in the planner, and the coupons at checkout for charter or tour bookings.'}
         </p>
 
         {/* CTA buttons */}
@@ -149,13 +164,13 @@ export function OnboardingCouponModal() {
             className="w-full rounded-xl py-3 font-semibold text-white text-sm transition-opacity hover:opacity-90 active:opacity-75"
             style={{ background: 'linear-gradient(135deg, #7c5cfc, #6d28d9)' }}
           >
-            {mp.welcomeModalCta ?? 'View My Coupons'}
+            {mp.welcomeModalCta || 'View My Coupons'}
           </button>
           <button
             onClick={handleClose}
             className="w-full rounded-xl py-2.5 font-medium text-white/60 hover:text-white text-sm transition-colors"
           >
-            {mp.welcomeModalClose ?? 'Got it'}
+            {mp.welcomeModalClose || 'Got it'}
           </button>
         </div>
       </div>

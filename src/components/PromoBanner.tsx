@@ -33,12 +33,14 @@ const CTA_HREF = '/tours';
 
 // 문구 — 운영자가 여기만 바꾸면 됨. (긴급성 꼬리말은 urgency() 가 자동 부착)
 // 🚨 2026-07-07: 거짓 '50% OFF'·'첫 예약 10%' 제거 — 실제 최대 할인은 총 10%(가입 5%+5% 쿠폰).
-//    onboarding-coupons.js 가 가입 시 차터5%+투어5% 실발급 → 문구가 코드와 일치.
+// 🚨 2026-07-10 P0: 서버 DEFAULT(api/_shared/promo-config.js)와 반드시 동일하게 유지 —
+//    7/7에 여기만 고치고 서버를 빼먹어 prod API 가 낡은 50% 문구를 계속 반환했음.
+//    실발급(onboarding-coupons.js) = AI플랜 무료(1~3일) + 차터5% + 투어5% → 문구 일치.
 const COPY: Record<string, string> = {
-  en: '🎉 Grand Opening — free 5% charter + 5% tour coupons when you sign up',
-  ko: '🎉 오픈 기념 — 가입하면 차터·투어 5% 쿠폰 무료 증정',
-  ja: '🎉 オープン記念 — 登録でチャーター・ツアー5%クーポン進呈',
-  zh: '🎉 开业纪念 — 注册即送包车·行程5%优惠券',
+  en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
+  ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
+  zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
 };
 
 // 클릭 가능 CTA — 끝에 밑줄로 노출 (리서치: 'your'→'my'/명확한 CTA 가 클릭률↑)

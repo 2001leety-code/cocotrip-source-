@@ -97,7 +97,13 @@ const SCENARIO_RECOMMENDED_ZONES = Object.fromEntries(
 );
 const SCENARIO_ARRIVAL_TERMINAL = TERMINAL_BY_AIRPORT[SCENARIO_ARRIVAL_AIRPORT] || 'T1';
 
-if (!apiKey || !email || !password) {
+// ─── Replay 모드 (2026-07-10): 저장된 plan JSON 으로 assertion 만 로컬 실행 ───
+// 용법: SCENARIO_REPLAY_FILE=path/to/plan.json node scripts/validate-prod-regression.mjs
+//   파일 shape = API 응답 planBody ({ data: {...} }) 또는 plan 문서 자체 ({ itinerary: ... } — 자동 wrap).
+//   auth/Gemini 호출 0 — assertion 수정 시 prod plan 재생성 없이 실측 plan 으로 로컬 검증.
+const REPLAY_FILE = process.env.SCENARIO_REPLAY_FILE || '';
+
+if (!REPLAY_FILE && (!apiKey || !email || !password)) {
   console.error('❌ Missing credentials. Set FIREBASE_WEB_API_KEY, HEALTH_CHECK_EMAIL, HEALTH_CHECK_PASSWORD');
   console.error('   (CI: GitHub Secrets / Local: .env.local)');
   process.exit(1);
@@ -109,68 +115,77 @@ console.log(`   Target: ${BASE_URL}`);
 console.log(`   Scenario: regions=[${SCENARIO_REGIONS.join(',')}] duration=${SCENARIO_DURATION}d lang=${SCENARIO_LANG} dietary=[${SCENARIO_DIETARY.join(',') || '-'}] airport=${SCENARIO_ARRIVAL_AIRPORT}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-// ─── Step 1: Firebase Auth ────────────────────────────────
-console.log('[1/3] Firebase Auth signInWithPassword...');
-const authRes = await fetch(
-  `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
-  {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, returnSecureToken: true }),
+let planBody;
+let planMs = 0;
+if (REPLAY_FILE) {
+  // ─── Replay: 저장된 plan JSON 로드 (auth/plan 생성 skip) ────
+  console.log(`[1-2/3] replay 모드 — ${REPLAY_FILE} 로드 (auth/plan 생성 skip)\n`);
+  const raw = JSON.parse(readFileSync(REPLAY_FILE, 'utf8'));
+  planBody = raw && raw.data ? raw : { data: raw };
+} else {
+  // ─── Step 1: Firebase Auth ────────────────────────────────
+  console.log('[1/3] Firebase Auth signInWithPassword...');
+  const authRes = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    }
+  );
+  const auth = await authRes.json();
+  if (!auth.idToken) {
+    console.error('❌ Auth failed:', JSON.stringify(auth).slice(0, 400));
+    process.exit(1);
   }
-);
-const auth = await authRes.json();
-if (!auth.idToken) {
-  console.error('❌ Auth failed:', JSON.stringify(auth).slice(0, 400));
-  process.exit(1);
-}
-console.log(`✅ idToken 발급 (uid=${auth.localId})\n`);
+  console.log(`✅ idToken 발급 (uid=${auth.localId})\n`);
 
-// ─── Step 2: plan 생성 (시나리오 매개변수) ──────────────────
-console.log(`[2/3] POST /api/ai-planner-full — [${SCENARIO_NAME}] ${SCENARIO_REGIONS.join('+')} ${SCENARIO_DURATION}일 plan 생성...`);
-const planStart = Date.now();
-const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${auth.idToken}`,
-  },
-  body: JSON.stringify({
-    paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
-    uid: auth.localId,
-    guestName: 'RegressionSuite',
-    pax: 2,
-    durationDays: SCENARIO_DURATION,
-    // Dynamic future date (today + 14d). Hardcoded '2026-06-15' became a past date,
-    //   so every scenario was rejected with PLANNER_DATE_TOO_SOON (scenario-matrix red 6+ days,
-    //   regression net effectively down). Date.now()+14d always lands in the future.
-    startDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-    area: SCENARIO_AREA,
-    regions: SCENARIO_REGIONS,
-    recommendedZones: SCENARIO_RECOMMENDED_ZONES,
-    dietPrefs: SCENARIO_DIETARY,
-    priceRange: 'Moderate',
-    language: SCENARIO_LANG,
-    styles: ['Food', 'Photo'],
-    arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
-    arrival_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
-    departure_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
-    arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
-    arrivalTime: '14:00',
-    departureTime: '10:00',
-    luggage: { small: 1, medium: 2, large: 0 },
-  }),
-  signal: AbortSignal.timeout(300000),
-});
-const planMs = Date.now() - planStart;
-console.log(`   status: ${planRes.status} (${(planMs / 1000).toFixed(1)}s)`);
+  // ─── Step 2: plan 생성 (시나리오 매개변수) ──────────────────
+  console.log(`[2/3] POST /api/ai-planner-full — [${SCENARIO_NAME}] ${SCENARIO_REGIONS.join('+')} ${SCENARIO_DURATION}일 plan 생성...`);
+  const planStart = Date.now();
+  const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${auth.idToken}`,
+    },
+    body: JSON.stringify({
+      paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
+      uid: auth.localId,
+      guestName: 'RegressionSuite',
+      pax: 2,
+      durationDays: SCENARIO_DURATION,
+      // Dynamic future date (today + 14d). Hardcoded '2026-06-15' became a past date,
+      //   so every scenario was rejected with PLANNER_DATE_TOO_SOON (scenario-matrix red 6+ days,
+      //   regression net effectively down). Date.now()+14d always lands in the future.
+      startDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+      area: SCENARIO_AREA,
+      regions: SCENARIO_REGIONS,
+      recommendedZones: SCENARIO_RECOMMENDED_ZONES,
+      dietPrefs: SCENARIO_DIETARY,
+      priceRange: 'Moderate',
+      language: SCENARIO_LANG,
+      styles: ['Food', 'Photo'],
+      arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
+      arrival_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
+      departure_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
+      arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
+      arrivalTime: '14:00',
+      departureTime: '10:00',
+      luggage: { small: 1, medium: 2, large: 0 },
+    }),
+    signal: AbortSignal.timeout(300000),
+  });
+  planMs = Date.now() - planStart;
+  console.log(`   status: ${planRes.status} (${(planMs / 1000).toFixed(1)}s)`);
 
-const planBody = await planRes.json();
-if (planRes.status !== 200) {
-  console.error('❌ Plan creation failed:', JSON.stringify(planBody, null, 2).slice(0, 1500));
-  process.exit(1);
+  planBody = await planRes.json();
+  if (planRes.status !== 200) {
+    console.error('❌ Plan creation failed:', JSON.stringify(planBody, null, 2).slice(0, 1500));
+    process.exit(1);
+  }
+  console.log('✅ Plan 생성 성공\n');
 }
-console.log('✅ Plan 생성 성공\n');
 
 // ─── Step 3: 받아적기 15항목 검증 ──────────────────────────
 console.log('[3/3] 받아적기 15항목 assertion 실행\n');
@@ -274,11 +289,20 @@ results.push({
 
 // ─── B-7: transit_from_prev 채움률 >= 80% ─────────────────
 // 첫 stop 제외, 모든 stop 의 transit_from_prev 또는 transit 필드 존재 비율
+// 2026-07-10 fix (run 29076906549): selfHealLodgingBookend(planPersister P160/P270) 합성 호텔
+//   bookend(_self_healed + lodging)는 RouteAgent "이후" append 라 설계상 transit 없음. block_mode
+//   는 zone_courses 에 lodging 이 없어 매 day 합성 → 결정적 미달 (busan 10/13=77%, jeju 14/18=78%,
+//   미달분 전원이 합성 bookend — Firestore 실측). B-7 의도 = RouteAgent 실패 감지 → 분모 제외.
 let transitFound = 0;
 let totalStopsForTransit = 0;
+let bookendExcluded = 0;
 for (const day of days) {
   const stops = day.stops || [];
   for (let i = 1; i < stops.length; i++) {
+    if (stops[i]._self_healed && String(stops[i].category || '').toLowerCase() === 'lodging') {
+      bookendExcluded++;
+      continue;
+    }
     totalStopsForTransit++;
     const t = stops[i].transit_from_prev || stops[i].transit;
     if (t && (typeof t === 'object' ? Object.keys(t).length > 0 : true)) {
@@ -290,7 +314,7 @@ const transitRate = totalStopsForTransit > 0 ? transitFound / totalStopsForTrans
 results.push({
   id: 'B-7',
   label: 'transit_from_prev 채움률 >= 80%',
-  actual: `${transitFound}/${totalStopsForTransit} (${(transitRate * 100).toFixed(0)}%)`,
+  actual: `${transitFound}/${totalStopsForTransit} (${(transitRate * 100).toFixed(0)}%)${bookendExcluded > 0 ? `, 합성 bookend ${bookendExcluded}개 제외` : ''}`,
   pass: totalStopsForTransit > 0 && transitRate >= 0.8,
   note: transitRate < 0.8 && transitRate >= 0.3
     ? 'ℹ️ 부분 채움 — RouteAgent 활성화 필요. 시범 단계는 경고만'
@@ -528,7 +552,10 @@ const departureGuide = data.departure_guide || itin.departure_guide || '';
 const arrivalGuideObj = data.arrival_guide || itin.arrival_guide || {};
 const arrivalAirportField =
   arrivalGuideObj.airport || data.arrival_airport || itin.arrival_airport || '';
-const requestedAirport = 'ICN'; // Step 2 request body 와 일치
+// 2026-07-10 fix (run 29076906549): 시나리오 매트릭스가 공항을 매개변수화 (busan=PUS, jeju=CJU)
+//   했는데 여기만 'ICN' 하드코딩 잔존 → 비-ICN 시나리오 결정적 거짓 FAIL (서버는 arrival_guide
+//   .airport='PUS'/'CJU' 정상 반환 — Firestore 실측). Step 2 request body 와 동일 env 사용.
+const requestedAirport = SCENARIO_ARRIVAL_AIRPORT;
 const arrivalOk =
   !!arrivalAirportField &&
   String(arrivalAirportField).toUpperCase().includes(requestedAirport);
@@ -573,8 +600,21 @@ if (!Array.isArray(dailyBudget) || dailyBudget.length === 0) {
   };
 } else {
   const lengthMatch = dailyBudget.length === days.length;
+  // 2026-07-10 fix (run 29076906549): stops 가 전부 lodging/travel/airport 인 day (출국일 =
+  //   체크아웃+공항 이동만, halal D4=[lodging,airport]·vegan D3=[lodging,travel] 실측)는 소비
+  //   stop 0 → Gemini 가 total_krw 0 출력이 정당. 해당 day 만 total=0 허용. 소비 카테고리
+  //   (food/culture/cafe 등) stop 이 있는 day 의 total=0 은 여전히 FAIL (빈 예산 회귀망 유지).
+  const NON_SPEND_CATEGORIES = ['lodging', 'travel', 'airport'];
+  const dayAllNonSpend = (dayNum) => {
+    const d = days.find((x) => Number(x.day) === Number(dayNum));
+    const stops = (d && d.stops) || [];
+    return stops.length > 0 &&
+      stops.every((s) => NON_SPEND_CATEGORIES.includes(String(s.category || '').toLowerCase()));
+  };
   const allDaysHaveTotal = dailyBudget.every(
-    (d) => (Number(d.total_krw) || Number(d.total) || Number(d.amount_krw) || 0) > 0,
+    (d, idx) =>
+      (Number(d.total_krw) || Number(d.total) || Number(d.amount_krw) || 0) > 0 ||
+      dayAllNonSpend(d.day ?? idx + 1),
   );
   const basePriceOk = basePrice > 0;
   const dailySum = dailyBudget.reduce(
@@ -608,10 +648,14 @@ const B18_EXCLUDED_CATEGORIES = ['lodging', 'travel', 'airport'];
 const validLocalTags = ['Local Pick', 'Hidden Gem', 'Bakery Pilgrimage', 'Blue Ribbon'];
 for (const d of days) {
   for (const s of d.stops || []) {
-    const nm = (s.name || s.display_name || '').trim();
-    if (nm) allNames.push(nm); // unique name 은 기존대로 전체 stop 대상
     const cat = String(s.category || '').toLowerCase();
+    // 2026-07-10 fix (run 29076906549): unique name 도 lodging/travel/airport 제외. B-10 이
+    //   매일 동일 호텔 bookend 를 "강제"하므로 호텔명 중복은 구조적 (4개 실패 plan 의 중복명이
+    //   전원 호텔 — Firestore 실측: busan 69%→100%, jeju 68%→100%). 다양성 = 관광·식사 다변화
+    //   측정이 의도. 큐레이션 블록(source_block_id) stop 의 중복은 진짜 이슈라 name 은 블록 미제외.
     if (B18_EXCLUDED_CATEGORIES.includes(cat)) continue;
+    const nm = (s.name || s.display_name || '').trim();
+    if (nm) allNames.push(nm);
     if (s.source_block_id) continue; // 큐레이션 블록 — enum tag 없음(의도된 semantics)
     eligibleCount++;
     const tag = (s.local_tag || '').trim();
@@ -623,7 +667,8 @@ const uniqueNames = new Set(allNames).size;
 const uniqueRatio = totalNames > 0 ? uniqueNames / totalNames : 0;
 const localTagRatio = eligibleCount > 0 ? localTagCount / eligibleCount : 0;
 // eligible < 5 = 사실상 pure-block plan — local_tag 검사 skip (서버 소프트경고와 동일 기준)
-const b18Pass = uniqueRatio >= 0.7 && (eligibleCount < 5 || localTagRatio >= 0.3);
+// totalNames === 0 (전 stop 이 제외 카테고리) 은 B-12/B-10 이 잡는 degenerate — 여기선 skip.
+const b18Pass = (totalNames === 0 || uniqueRatio >= 0.7) && (eligibleCount < 5 || localTagRatio >= 0.3);
 results.push({
   id: 'B-18',
   label: '다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)',

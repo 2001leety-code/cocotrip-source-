@@ -66,7 +66,7 @@ export function RefundPolicyModal({ language, trigger }: { language: Language; t
     <Dialog>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent
-        className="max-w-md mx-auto"
+        className="cocotrip-mobile-refund-modal max-w-md mx-auto"
         style={{
           background: 'linear-gradient(180deg, #0f0820 0%, #0a0512 100%)',
           border: '1px solid rgba(182,104,252,0.20)',

@@ -30,16 +30,22 @@ const ALLOWED_FREQUENCY = ['once', 'daily', 'every_visit'];
 const LANG_KEYS = ['ko', 'en', 'ja', 'zh'];
 
 /**
- * DEFAULT_PROMO_CONFIG — PromoBanner.tsx 코드 상수와 동일 값.
+ * DEFAULT_PROMO_CONFIG — PromoBanner.tsx 코드 상수와 동일 값 (둘 다 같이 고칠 것).
  * Firestore 문서가 없거나 읽기 실패 시 폴백.
+ *
+ * 🚨 2026-07-10 P0 프로모션 진실성: 거짓 '50% OFF'·'첫 예약 10%'·지난 '6/28' 제거.
+ *    프론트(PromoBanner.tsx)는 7/7에 고쳤으나 이 서버 DEFAULT 가 남아 prod API 가
+ *    낡은 문구를 반환하고 있었음. 실발급(onboarding-coupons.js) = AI플랜 무료(1~3일)
+ *    + 차터 5% + 투어 5%, 총 할인 상한 10% — 문구는 실발급과 일치해야 한다.
+ *    가짜 긴급성·가짜 재고·근거 없는 할인율 금지 (Booking €413M 벌금 사례).
  */
 export const DEFAULT_PROMO_CONFIG = {
   enabled: true,
   copy: {
-    en: '🎉 Grand Opening — up to 50% OFF · 10% off your 1st booking',
-    ko: '🎉 오픈 기념 — 최대 50% 할인 · 첫 예약 10% 추가',
-    ja: '🎉 オープン記念 — 最大50%OFF · 初回ご予約10%OFF',
-    zh: '🎉 开业纪念 — 最高50%折扣 · 首单再减10%',
+    en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
+    ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
+    ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
+    zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
   },
   ctaText: {
     en: 'See deals →',
@@ -48,7 +54,7 @@ export const DEFAULT_PROMO_CONFIG = {
     zh: '查看优惠 →',
   },
   ctaHref: '/tours',
-  endDate: '6/28',
+  endDate: '', // 지난 6/28 제거 — 빈값이면 프론트가 '선착순'류 표시 (가짜 마감일 금지)
 };
 
 /**

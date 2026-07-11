@@ -248,12 +248,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   };
 
   const focusable = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.target.style.borderColor = 'rgba(124,92,252,0.55)';
-    e.target.style.background = 'rgba(124,92,252,0.06)';
+    e.target.style.borderColor = 'rgba(124,92,255,0.45)';
+    e.target.style.background = 'rgba(255,255,255,0.98)';
   };
   const blurable = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.target.style.borderColor = 'rgba(255,255,255,0.12)';
-    e.target.style.background = 'rgba(255,255,255,0.03)';
+    e.target.style.borderColor = 'rgba(124,92,255,0.16)';
+    e.target.style.background = 'rgba(255,255,255,0.94)';
   };
 
   // AddressAutocomplete language 타입 가드.
@@ -271,7 +271,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
     'Use the search above or type the address directly.';
 
   return (
-    <div style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 16px 0', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', color: '#fff' }}>
+    <div className="cocotrip-mobile-booking-form" style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 16px 0', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', color: '#fff' }}>
       {/* ── LEFT COLUMN ── */}
       <div style={{ flex: '1 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
