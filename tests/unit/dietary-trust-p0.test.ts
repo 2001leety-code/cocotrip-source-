@@ -67,7 +67,13 @@ describe('실데이터 가드 — api/_food_index.json', () => {
     for (const r of dietary) {
       expect(r.verification_status, `${r.name} 등급 누락`).toBeTypeOf('string');
       if (['naver_local', 'ai_curated_2026_05_21'].includes(r.source)) {
-        expect(r.verification_status, `${r.name} 격리 누락`).toBe('unverified');
+        // 2026-07-12: 운영자 검증 승격(verified_overrides.json — verified_by+source_url 필수)만 예외
+        if (r.verified_by && r.source_url) {
+          expect(['halal_certified', 'muslim_friendly', 'vegan_restaurant', 'vegan_options'],
+            `${r.name} 승격 등급 이상`).toContain(r.verification_status);
+        } else {
+          expect(r.verification_status, `${r.name} 격리 누락`).toBe('unverified');
+        }
       }
     }
   });
