@@ -13,6 +13,27 @@ function kstDayStr(ms) {
  * Gemini 사용량 1건 기록. 비동기지만 호출자는 await 하지 않는다(fire-and-forget).
  * @param {{stage:string, model:string, cm:{total:number,output:number,cached:number}}} p
  */
+/**
+ * SDK 응답 객체에서 usageMetadata를 뽑아 바로 기록 (편의 헬퍼, 2026-07-09 비용 가시화).
+ * 사용: recordUsageFromResponse('chat', 'gemini-2.5-flash', result.response)
+ * fire-and-forget — 호출자는 await 불필요, 어떤 실패도 본 흐름 영향 0.
+ */
+export function recordUsageFromResponse(stage, model, response) {
+  try {
+    const um = response && response.usageMetadata;
+    if (!um) return;
+    recordGeminiUsage({
+      stage,
+      model,
+      cm: {
+        total: Number(um.promptTokenCount) || 0,
+        cached: Number(um.cachedContentTokenCount) || 0,
+        output: Number(um.candidatesTokenCount) || 0,
+      },
+    });
+  } catch { /* ignore */ }
+}
+
 export async function recordGeminiUsage({ stage, model, cm } = {}) {
   try {
     if (!cm || (!cm.total && !cm.output)) return;

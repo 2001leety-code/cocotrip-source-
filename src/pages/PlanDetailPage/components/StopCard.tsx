@@ -546,6 +546,20 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               </a>
             );
           })()}
+
+          {/* Google Maps 링크 — 무료 딥링크 URL(API 키 불필요). 외국인 선호. 좌표 우선, 없으면 이름 검색. */}
+          {(() => {
+            const q = (stop.lat && stop.lng)
+              ? `${stop.lat},${stop.lng}`
+              : (cleanKoName || cleanDisplayName || '');
+            if (!q) return null;
+            const gUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+            return (
+              <a href={gUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-sky-400/70 hover:text-sky-400 bg-sky-500/10 rounded-lg px-3 py-2">
+                <ExternalLink className="w-3 h-3" /> {ui.openGoogleMap || 'Open in Google Maps'}
+              </a>
+            );
+          })()}
         </div>
       </div>
     </div>

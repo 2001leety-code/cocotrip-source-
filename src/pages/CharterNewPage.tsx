@@ -53,7 +53,7 @@ export default function CharterNewPage() {
   const initial = useMemo<Partial<WizardState>>(() => buildCharterPrefill(params), [params]);
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
+    <div className={isMobile ? 'm-page cocotrip-mobile-charter' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <section className="px-4 pb-3 pt-3 text-white sm:px-0 sm:pb-8 sm:pt-24" style={{ background: isMobile ? '#080b14' : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
-import { trackPaidConversion, trackBeginCheckout } from '@/lib/analytics';
+import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
@@ -398,6 +398,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 독립, capture body 보존만(게이트 X).
               marketingConsent: marketingConsent === true,
               ...(marketingConsent === true ? { marketingConsentAt: new Date().toISOString() } : {}),
+              // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷(PII 없음, null 이면 생략).
+              //   서버(sanitizeAttribution)가 화이트리스트 재검증. 금액/capture/멱등성 무관.
+              ...((() => { const a = getAttributionSnapshot(); return a ? { attribution: a } : {}; })()),
             }),
           });
           const json = await res.json();
@@ -585,8 +588,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const cl = CONFIRM_LABELS[lang] ?? CONFIRM_LABELS.en;
     
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out]">
+      <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+        <div className="cocotrip-mobile-paypal-success w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out]">
           {/* Header with gradient */}
           <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: 'linear-gradient(180deg, rgba(124,92,252,0.15) 0%, transparent 100%)' }}>
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.3)]">
@@ -698,7 +701,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
 
   return (
-    <div className="space-y-3">
+    <div className="cocotrip-mobile-paypal space-y-3">
       {/* Coupon picker — replaces the legacy text-input. Closed: a single
           row "Use a coupon ▼". Open: list of the user's owned coupons; an
           empty state shows the AI-planner ad copy. Picking a card calls

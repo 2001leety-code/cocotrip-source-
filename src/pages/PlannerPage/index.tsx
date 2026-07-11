@@ -12,8 +12,12 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
 import { AIIntroModal } from '@/components/AIIntroModal';
-import { Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck, ListPlus, Wand2 } from 'lucide-react';
+import {
+  Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck, ListPlus, Wand2,
+} from 'lucide-react';
 import { PAGE_STYLE } from './constants';
+// Codex 모바일 라이트 히어로 3종 — index 400줄 잠금으로 추출(내용 무변경).
+import { CocoIcon, MobilePlannerHero, MobilePlannerPrinciples } from './components/MobilePlannerHero';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
@@ -74,6 +78,14 @@ export default function PlannerPage() {
     if (authUser?.email && !userEmail) setUserEmail(authUser.email);
   }, [authUser?.email, userEmail]);
 
+  useEffect(() => {
+    if (!isMobile || typeof document === 'undefined') return;
+    document.documentElement.classList.add('planner-mobile-active');
+    return () => {
+      document.documentElement.classList.remove('planner-mobile-active');
+    };
+  }, [isMobile]);
+
   const {
     status, resultQuick, errorMsg, errorCode,
     isGeneratingPlan, planError, planErrorCode, lastValues,
@@ -111,43 +123,47 @@ export default function PlannerPage() {
     || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
 
   return (
-    <div className={`${isMobile ? 'm-page' : 'min-h-screen'} ${REFINED ? 'refined-planner' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
+    <div className={`${isMobile ? 'm-page planner-mobile-ai' : 'min-h-screen'} ${REFINED ? 'refined-planner' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <section className={`max-w-5xl mx-auto px-4 sm:px-6 ${isMobile ? 'pt-3 pb-3' : 'pt-10 pb-5'}`}>
-        <div
-          className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
-          style={{
-            background: 'linear-gradient(135deg, rgba(18,45,88,0.92), rgba(26,12,43,0.88))',
-            border: '1px solid rgba(118,83,194,0.24)',
-            boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
-          }}
-        >
-          <div className="flex items-start gap-3">
-            <div
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
-            >
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-purple-200/75 leading-none mb-1">
-                {p.badgeLabel}
-              </p>
-              <h1 className={`text-[24px] sm:text-[34px] font-black leading-[1.05] whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
-                {p.heroTitle}
-              </h1>
-              <p className="text-[12px] sm:text-[14px] text-white/58 leading-relaxed mt-2 whitespace-pre-line">
-                {p.heroSubtitle}
-              </p>
+      {isMobile ? (
+        <MobilePlannerHero language={language} onLanguageChange={changeLanguage} />
+      ) : (
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-5">
+          <div
+            className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(18,45,88,0.92), rgba(26,12,43,0.88))',
+              border: '1px solid rgba(118,83,194,0.24)',
+              boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
+                style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+              >
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-purple-200/75 leading-none mb-1">
+                  {p.badgeLabel}
+                </p>
+                <h1 className="text-[34px] font-black leading-[1.05] whitespace-pre-line text-white">
+                  {p.heroTitle}
+                </h1>
+                <p className="text-[14px] text-white/58 leading-relaxed mt-2 whitespace-pre-line">
+                  {p.heroSubtitle}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* VP strip — compact trust chips */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-3 sm:mb-5">
+      {isMobile ? <MobilePlannerPrinciples /> : <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-5">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {([
             { Icon: MapPin,      titleKey: 'vpCourseTitle',      descKey: 'vpCourseDesc' },
@@ -174,13 +190,13 @@ export default function PlannerPage() {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <main className={`max-w-5xl mx-auto px-4 sm:px-6 ${isMobile ? 'py-2 space-y-5' : 'py-5 space-y-8'}`}>
+      <main className={`${isMobile ? 'mx-auto max-w-[430px] px-4 py-3 space-y-4' : 'max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-8'}`}>
         {status === 'idle' && (
           <section
-            className="grid gap-2 rounded-[22px] p-2 sm:grid-cols-2"
-            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
+            className={isMobile ? 'planner-mobile-mode-grid' : 'grid gap-2 rounded-[22px] p-2 sm:grid-cols-2'}
+            style={isMobile ? undefined : { background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {(() => {
               // 모드 선택 문구 4언어 (2026-07-05 — 기존 영어 고정 해소).
@@ -197,13 +213,17 @@ export default function PlannerPage() {
               ];
             })().map(({ key, icon: Icon, title, body }) => {
               const active = plannerMode === key;
+              const displayTitle = isMobile ? (key === 'ai' ? 'AI itinerary' : 'Build my course') : title;
+              const displayBody = isMobile
+                ? (key === 'ai' ? 'Fast survey, complete Korea plan.' : 'Add places, map pins, and fixed plans.')
+                : body;
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setPlannerMode(key)}
-                  className="flex items-center gap-3 rounded-[18px] p-3 text-left transition-all"
-                  style={active
+                  className={`${isMobile ? 'planner-mobile-mode-card' : 'flex items-center gap-3 rounded-[18px] p-3 text-left transition-all'} ${active ? 'is-active' : ''}`}
+                  style={isMobile ? undefined : active
                     ? {
                         background: 'linear-gradient(135deg, rgba(182,104,252,0.18), rgba(255,107,157,0.10))',
                         border: '1px solid rgba(182,104,252,0.42)',
@@ -214,15 +234,17 @@ export default function PlannerPage() {
                         border: '1px solid rgba(255,255,255,0.07)',
                       }}
                 >
-                  <span
-                    className="grid h-10 w-10 place-items-center rounded-2xl shrink-0"
-                    style={{ background: active ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'rgba(255,255,255,0.06)' }}
-                  >
-                    <Icon className={`h-4 w-4 ${active ? 'text-white' : 'text-white/55'}`} />
-                  </span>
+                  {isMobile ? <CocoIcon icon={Icon} active={active} /> : (
+                    <span
+                      className="grid h-10 w-10 place-items-center rounded-2xl shrink-0"
+                      style={{ background: active ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'rgba(255,255,255,0.06)' }}
+                    >
+                      <Icon className={`h-4 w-4 ${active ? 'text-white' : 'text-white/55'}`} />
+                    </span>
+                  )}
                   <span className="min-w-0">
-                    <span className="block text-[13px] font-black text-white">{title}</span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-white/45">{body}</span>
+                    <span className={isMobile ? 'block text-[13px] font-black text-[#15143d]' : 'block text-[13px] font-black text-white'}>{displayTitle}</span>
+                    <span className={isMobile ? 'mt-0.5 block text-[11px] font-semibold leading-relaxed text-[#7b719f]' : 'mt-0.5 block text-[11px] leading-relaxed text-white/45'}>{displayBody}</span>
                   </span>
                 </button>
               );
@@ -232,13 +254,15 @@ export default function PlannerPage() {
 
         {/* Wizard form */}
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div className={isMobile ? 'm-card m-appear p-3.5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-[22px] p-5 sm:p-6 shadow-2xl'}>
+          <div className={isMobile ? 'planner-mobile-form m-card m-appear p-3.5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-[22px] p-5 sm:p-6 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
           </div>
         )}
 
         {plannerMode === 'course' && status === 'idle' && (
-          <CourseBuilderShell />
+          <div className={isMobile ? 'planner-mobile-course-shell' : undefined}>
+            <CourseBuilderShell />
+          </div>
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}
@@ -263,7 +287,7 @@ export default function PlannerPage() {
 
         {/* Quick Success */}
         {status === 'quickSuccess' && resultQuick && (
-          <div id="planner-quick-result" className="space-y-6">
+          <div id="planner-quick-result" className={isMobile ? 'planner-mobile-result space-y-4' : 'space-y-6'}>
             <QuickPreviewCard resultQuick={resultQuick} p={p} isMobile={isMobile} />
             <PurchaseSection
               p={p}

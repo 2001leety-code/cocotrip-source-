@@ -107,4 +107,20 @@ export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled, opts = {}
   return calcMultiDayCharterKrw(spec, { vehicle, km, durationDays: body.durationDays, discountPct });
 }
 
+/**
+ * 총 할인 상한(10%) 계산용 — 다일 차터의 '정가'(3일+ 할인 적용 전 base) 반환.
+ * resolveMultiDayCheckoutKrw 와 동일 입력(km/vehicle/durationDays)으로 discountPct=0 만 다름.
+ * createPaypalOrder 가 딜(다일 5%)+쿠폰(5%) 합산 할인을 정가 대비 10% 로 clamp 할 때 기준선.
+ * @returns {number|null} 할인 전 정가 KRW, 또는 결제 불가 조건(차종/거리 무효) 시 null
+ */
+export function multiDayListBaseKrw(spec, body, featureEnabled) {
+  if (!featureEnabled || !body) return null;
+  const originKey = typeof body.originKey === 'string' ? body.originKey.trim() : '';
+  const destKey   = typeof body.destKey === 'string' ? body.destKey.trim() : '';
+  const vehicle   = typeof body.vehicle === 'string' ? body.vehicle.trim() : '';
+  const km = lookupMatrixKm(spec, originKey, destKey);
+  if (km == null) return null;
+  return calcMultiDayCharterKrw(spec, { vehicle, km, durationDays: body.durationDays, discountPct: 0 });
+}
+
 export { VEHICLE_MULTIPLIER as MULTIDAY_VEHICLE_MULTIPLIER };

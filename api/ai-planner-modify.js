@@ -213,6 +213,8 @@ Confidence 0-1. day_index 1-based. stop_order 1-based.`;
     callPromise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('LLM classify timeout')), 12000)),
   ]);
+  // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
+  import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('planner-modify', 'gemini-2.5-flash-lite', result?.response)).catch(() => {});
   const raw = result?.response?.text?.()?.trim() || '';
   if (!raw) return null;
   let parsed;

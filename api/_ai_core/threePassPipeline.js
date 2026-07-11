@@ -12,6 +12,25 @@
  */
 
 import { extractTextFromResponse } from './geminiPipeline.js';
+import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+
+// 사용량 실측 기록 — fire-and-forget, 절대 throw 안 함(recorder 내부 완전 guard).
+// 3-pass 는 legacy(logCacheMetrics 경유)와 달리 기록이 전혀 없었음(2026-07-09 비용 가시화).
+function recordUsage(stage, response) {
+  try {
+    const um = response && response.usageMetadata;
+    if (!um) return;
+    recordGeminiUsage({
+      stage,
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      cm: {
+        total: Number(um.promptTokenCount) || 0,
+        cached: Number(um.cachedContentTokenCount) || 0,
+        output: Number(um.candidatesTokenCount) || 0,
+      },
+    });
+  } catch { /* 기록 실패 = 무시 (본 흐름 영향 0) */ }
+}
 
 // ── Pass 1: Intent Generation ────────────────────────────────────────────────
 // Calls Gemini with an instruction to output food slots as "intent" objects
@@ -42,6 +61,7 @@ Non-food stops (culture, shopping, nature, etc.) should use real place names as 
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: augmentedSystem }] },
   });
+  recordUsage('3pass-intent', result.response);
 
   // P219: thought:true part 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).
   return extractTextFromResponse(result.response).trim();
@@ -186,6 +206,7 @@ ${JSON.stringify(foodStops, null, 2)}`;
         parts: [{ text: `You are a Korean food and restaurant expert. Always respond with valid JSON array. Language: ${langLabel}.` }],
       },
     });
+    recordUsage('3pass-enrich', result.response);
 
     // P219: thought:true part 필터 — Pass3 enrich 응답에 thought leak 금지.
     const rawEnrich = extractTextFromResponse(result.response).trim();

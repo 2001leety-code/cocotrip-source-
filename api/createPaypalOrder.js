@@ -14,11 +14,12 @@ import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
+import { resolveMultiDayCheckoutKrw, multiDayListBaseKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
 import { verifyCouponForCharge } from './_shared/coupon-charge.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
-import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
+import { resolveTransferCheckoutKrw, transferListBaseKrw } from './_shared/charter-transfer-price.js';
+import { applyTotalDiscountCap, TOTAL_DISCOUNT_CAP_PCT } from './_shared/total-discount-cap.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 // charter_custom_estimate (zone-fallback 추정가 즉시결제) SSOT — 상수/판별을 pricing.js 에서
@@ -262,6 +263,17 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Unknown productType or invalid amount: ${productType}`, 'INVALID_PRODUCT')));
     }
 
+    // 총 할인 상한 10% (운영자 정책): 딜(다일/왕복)+쿠폰 합산이 정가의 10% 를 못 넘게 clamp 할
+    // 기준선(정가=할인 전). 딜 있는 경로만 별도 산출, 나머지는 청구가가 곧 정가. v2 에서만 사용.
+    let listBaseKrw = krwAmount;
+    if (discountV2) {
+      if (productType === 'charter_multiday') {
+        listBaseKrw = multiDayListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT)) ?? krwAmount;
+      } else if (productType === 'charter_transfer') {
+        listBaseKrw = transferListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { discountV2 }) ?? krwAmount;
+      }
+    }
+
     // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.
     if (!discountV2 && promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
 
@@ -272,6 +284,16 @@ export default async function handler(req, res) {
       if (cv.valid) {
         krwAmount = Math.round(krwAmount * (1 - cv.discountPct / 100));
         console.log('[createPaypalOrder] coupon applied:', couponDocId, cv.discountPct + '%');
+      }
+    }
+
+    // 🔴 총 할인 상한 10% (운영자 정책 "딜+쿠폰 최대 10%"): 딜+쿠폰 합산이 정가 10% 를 넘으면
+    // 정가×0.9 로 floor. v2 에서만 적용(v1/OFF 는 현행 동작 보존 — 회귀 0). 정가 산출 실패 시 skip(안전).
+    if (discountV2) {
+      const cappedKrw = applyTotalDiscountCap(krwAmount, listBaseKrw, TOTAL_DISCOUNT_CAP_PCT);
+      if (cappedKrw !== krwAmount) {
+        console.log('[createPaypalOrder] total-discount cap 10% → floored', krwAmount, '→', cappedKrw);
+        krwAmount = cappedKrw;
       }
     }
 

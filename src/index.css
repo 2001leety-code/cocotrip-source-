@@ -810,3 +810,3218 @@ html[data-menu-open="true"] .early-bird-banner {
 @media (max-width: 767px) {
   .refined .m-cta-refined, .refined .m-cta { min-height: 44px; }
 }
+
+/* CocoTrip Community design shell — backend, translation and moderation wiring are handed off separately. */
+.community-app {
+  --community-ink: #17163d;
+  --community-muted: #716d8c;
+  --community-line: #e7e4f2;
+  --community-purple: #7653f6;
+  --community-pink: #ec4fa6;
+  --community-green: #12866f;
+  min-height: 100vh;
+  color: var(--community-ink);
+  background: #f7f8fc;
+  padding-bottom: 84px;
+}
+
+.community-app button,
+.community-app a,
+.community-app input,
+.community-app textarea,
+.community-app select {
+  letter-spacing: 0;
+}
+
+.community-header {
+  position: sticky;
+  top: 0;
+  z-index: 180;
+  height: 60px;
+  border-bottom: 1px solid var(--community-line);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.community-header-inner {
+  width: min(1240px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.community-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+
+.community-brand img {
+  border-radius: 8px;
+  box-shadow: 0 7px 17px rgba(118, 83, 246, 0.18);
+}
+
+.community-brand span {
+  color: var(--community-ink);
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.community-search {
+  height: 40px;
+  width: min(440px, 40vw);
+  margin: 0 auto;
+  padding: 0 13px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  color: #8a86a1;
+  background: #f5f4fa;
+}
+
+.community-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--community-ink);
+  background: transparent;
+  font-size: 13px;
+}
+
+.community-search input::placeholder {
+  color: #9b97ae;
+}
+
+.community-icon-button {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  color: #605b79;
+  background: #fff;
+  transition: transform 150ms ease, border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.community-icon-button:hover {
+  color: var(--community-purple);
+  border-color: rgba(118, 83, 246, 0.35);
+  background: #faf9ff;
+}
+
+.community-icon-button:active,
+.community-primary-button:active,
+.community-secondary-button:active,
+.community-post-actions button:active,
+.community-post-actions a:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+.community-icon-button:disabled {
+  opacity: 0.36;
+}
+
+.community-language-button {
+  width: auto;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.community-primary-button,
+.community-secondary-button {
+  min-height: 38px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.community-primary-button {
+  color: #fff;
+  background: linear-gradient(100deg, var(--community-purple), var(--community-pink));
+  box-shadow: 0 8px 18px rgba(118, 83, 246, 0.18);
+}
+
+.community-primary-button:hover {
+  box-shadow: 0 10px 22px rgba(118, 83, 246, 0.26);
+}
+
+.community-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.community-secondary-button {
+  color: var(--community-ink);
+  border: 1px solid var(--community-line);
+  background: #fff;
+}
+
+.community-layout {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 22px 20px 60px;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 650px) 280px;
+  gap: 30px;
+  align-items: start;
+}
+
+.community-left-rail {
+  position: sticky;
+  top: 82px;
+}
+
+.community-left-rail nav {
+  margin-bottom: 16px;
+  display: grid;
+  gap: 5px;
+}
+
+.community-left-rail nav a {
+  min-height: 43px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: 8px;
+  color: #615d79;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.community-left-rail nav a:hover,
+.community-left-rail nav a.is-active {
+  color: var(--community-purple);
+  background: #ece8ff;
+}
+
+.community-main {
+  min-width: 0;
+}
+
+.community-intro {
+  min-height: 120px;
+  padding: 2px 2px 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.community-eyebrow {
+  margin-bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--community-purple);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.community-intro h1,
+.community-compose-heading h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.community-intro p,
+.community-compose-heading p {
+  margin-top: 7px;
+  color: var(--community-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.community-tabs {
+  height: 48px;
+  padding: 0 6px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border: 1px solid var(--community-line);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+
+.community-tabs button {
+  position: relative;
+  min-width: 84px;
+  padding: 0 14px;
+  color: #7a7690;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.community-tabs button.is-active {
+  color: var(--community-purple);
+}
+
+.community-tabs button.is-active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--community-purple);
+}
+
+.community-feed {
+  display: grid;
+  gap: 10px;
+}
+
+.community-post-card {
+  padding: 17px 18px 12px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(39, 34, 78, 0.045);
+}
+
+.community-feed .community-post-card:first-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.community-post-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.community-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #7653f6;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.community-avatar.is-small {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  font-size: 11px;
+  background: #1a9a83;
+}
+
+.community-author {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-author > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.community-author strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.community-author svg {
+  color: var(--community-purple);
+}
+
+.community-author span {
+  display: block;
+  overflow: hidden;
+  color: #8b879e;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-post-head .community-icon-button {
+  border-color: transparent;
+}
+
+.community-post-content {
+  display: block;
+  margin: 12px 0 0 48px;
+}
+
+.community-post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-post-meta span {
+  min-height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  color: #6a4be3;
+  background: #eeeaff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.community-post-meta span:nth-child(2) {
+  color: #087b68;
+  background: #e7f7f2;
+}
+
+.community-post-content h2 {
+  margin: 9px 0 5px;
+  color: var(--community-ink);
+  font-size: 18px;
+  line-height: 1.38;
+  font-weight: 850;
+}
+
+.community-post-content p {
+  color: #615d76;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.community-post-image {
+  width: 100%;
+  height: 220px;
+  margin-top: 12px;
+  display: block;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.community-translate-button {
+  min-height: 30px;
+  margin: 8px 0 0 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--community-purple);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.community-translate-button small {
+  margin-left: 3px;
+  color: #9894a9;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.community-post-actions {
+  min-height: 42px;
+  margin: 8px 0 0 48px;
+  padding-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid #f0eef6;
+}
+
+.community-post-actions button,
+.community-post-actions a {
+  min-height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 7px;
+  color: #817d94;
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.community-post-actions button:hover,
+.community-post-actions a:hover,
+.community-post-actions .is-active {
+  color: var(--community-purple);
+  background: #f3f0ff;
+}
+
+.community-post-actions .is-liked {
+  color: #d93e78;
+  background: #fff0f5;
+}
+
+.community-right-rail {
+  position: sticky;
+  top: 82px;
+  display: grid;
+  gap: 12px;
+}
+
+.community-right-rail > section {
+  padding: 15px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-section-title {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--community-ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.community-trend {
+  width: 100%;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border-bottom: 1px solid #f0eef5;
+}
+
+.community-trend:last-child {
+  border-bottom: 0;
+}
+
+.community-trend span {
+  color: #373252;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-trend small,
+.community-person small {
+  display: block;
+  color: #9995a8;
+  font-size: 10px;
+}
+
+.community-person {
+  padding: 9px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-person > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-person strong {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-person button {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(118, 83, 246, 0.25);
+  border-radius: 7px;
+  color: var(--community-purple);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.community-right-rail > .community-safety-card {
+  display: flex;
+  gap: 10px;
+  color: #147763;
+  border-color: #cce9e1;
+  background: #f2fbf8;
+}
+
+.community-safety-card strong {
+  font-size: 12px;
+}
+
+.community-safety-card p {
+  margin-top: 3px;
+  color: #547a70;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.community-bottom-nav {
+  display: none;
+}
+
+.community-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(17, 15, 37, 0.42);
+}
+
+.community-sheet {
+  width: min(440px, 100%);
+  padding: 22px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(20, 17, 46, 0.25);
+}
+
+.community-sheet-handle {
+  display: none;
+}
+
+.community-sheet-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.community-sheet-heading > div {
+  flex: 1;
+}
+
+.community-sheet-heading h2 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.community-sheet-heading p {
+  margin-top: 5px;
+  color: var(--community-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.community-report-options {
+  margin-top: 16px;
+  display: grid;
+  gap: 7px;
+}
+
+.community-report-options button {
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  color: #514d66;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.community-report-options button.is-selected {
+  color: var(--community-purple);
+  border-color: rgba(118, 83, 246, 0.55);
+  background: #f5f2ff;
+}
+
+.community-sheet-actions,
+.community-compose-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.community-detail-title {
+  height: 48px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--community-line);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+  font-size: 13px;
+}
+
+.community-detail-title + .community-post-card {
+  border-radius: 0 0 8px 8px;
+}
+
+.community-comments {
+  margin-top: 10px;
+  padding: 18px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-comments > h2 {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.community-comments > h2 span {
+  color: var(--community-purple);
+}
+
+.community-reply-box {
+  min-height: 54px;
+  margin: 14px 0 8px;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #faf9fc;
+}
+
+.community-reply-box input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--community-ink);
+  background: transparent;
+  font-size: 12px;
+}
+
+.community-comment {
+  padding: 15px 2px;
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #f0eef5;
+}
+
+.community-comment:last-child {
+  border-bottom: 0;
+}
+
+.community-comment > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-comment header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.community-comment header strong {
+  font-size: 12px;
+}
+
+.community-comment header span {
+  color: #9995a8;
+  font-size: 10px;
+}
+
+.community-comment p {
+  margin-top: 5px;
+  color: #58546c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.community-comment .community-translate-button {
+  margin-left: 0;
+}
+
+.community-comment-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.community-comment-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #898599;
+  font-size: 10px;
+}
+
+.community-compose-heading {
+  padding: 8px 2px 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.community-compose-heading > span {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  color: var(--community-purple);
+  background: #eeeaff;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.community-compose-form {
+  padding: 20px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-compose-form > label {
+  margin: 17px 0 7px;
+  display: block;
+  color: #454159;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.community-compose-form > label:first-child {
+  margin-top: 0;
+}
+
+.community-segmented-control {
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #f5f4fa;
+}
+
+.community-segmented-control button {
+  min-height: 36px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #767289;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.community-segmented-control button.is-active {
+  color: var(--community-purple);
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(39, 34, 78, 0.08);
+}
+
+.community-select-wrap {
+  position: relative;
+}
+
+.community-select-wrap select,
+.community-field {
+  width: 100%;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  outline: 0;
+  color: var(--community-ink);
+  background: #fff;
+  font-size: 13px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.community-select-wrap select {
+  height: 44px;
+  padding: 0 38px 0 12px;
+  appearance: none;
+}
+
+.community-select-wrap svg {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  color: #88849a;
+  pointer-events: none;
+}
+
+.community-field {
+  min-height: 44px;
+  padding: 11px 12px;
+}
+
+textarea.community-field {
+  min-height: 170px;
+  resize: vertical;
+}
+
+.community-field:focus,
+.community-select-wrap select:focus {
+  border-color: rgba(118, 83, 246, 0.62);
+  box-shadow: 0 0 0 3px rgba(118, 83, 246, 0.09);
+}
+
+.community-field-counter {
+  margin-top: 4px;
+  color: #9b97a9;
+  font-size: 9px;
+  text-align: right;
+}
+
+.community-upload-button {
+  width: 100%;
+  min-height: 78px;
+  margin-top: 16px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed #cbc4e7;
+  border-radius: 8px;
+  color: var(--community-purple);
+  background: #fbfaff;
+  text-align: left;
+}
+
+.community-upload-button span {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.community-upload-button small {
+  margin-left: auto;
+  color: #9995a8;
+  font-size: 9px;
+}
+
+.community-compose-safety,
+.community-draft-notice {
+  min-height: 46px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  color: #287565;
+  background: #edf9f6;
+}
+
+.community-compose-safety p,
+.community-draft-notice span {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.community-draft-notice {
+  color: #75572a;
+  background: #fff8e7;
+}
+
+@media (max-width: 1050px) {
+  .community-layout {
+    grid-template-columns: 170px minmax(0, 1fr);
+    max-width: 900px;
+  }
+
+  .community-right-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .community-app {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+
+  .community-header {
+    height: 54px;
+  }
+
+  .community-header-inner {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .community-header .community-primary-button {
+    display: none;
+  }
+
+  .community-brand {
+    gap: 7px;
+  }
+
+  .community-brand span {
+    font-size: 18px;
+  }
+
+  .community-layout {
+    width: 100%;
+    padding: 0 0 18px;
+    display: block;
+  }
+
+  .community-left-rail,
+  .community-right-rail {
+    display: none;
+  }
+
+  .community-main {
+    width: 100%;
+  }
+
+  .community-intro {
+    min-height: 100px;
+    padding: 17px 14px 12px;
+  }
+
+  .community-intro .community-primary-button {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .community-intro h1,
+  .community-compose-heading h1 {
+    font-size: 23px;
+  }
+
+  .community-intro p,
+  .community-compose-heading p {
+    max-width: 290px;
+    font-size: 12px;
+  }
+
+  .community-mobile-search {
+    width: auto;
+    margin: 0 12px 15px;
+    display: flex;
+  }
+
+  .community-mobile-topics {
+    padding: 0 0 14px;
+  }
+
+  .community-mobile-topics .community-section-title {
+    padding: 0 14px 8px;
+  }
+
+  .community-topic-scroll {
+    padding: 0 12px 2px;
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .community-topic-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .community-topic-scroll button {
+    min-height: 36px;
+    padding: 0 11px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--community-line);
+    border-radius: 8px;
+    color: #6f6a82;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  .community-topic-scroll button.is-active {
+    color: #fff;
+    border-color: var(--community-purple);
+    background: var(--community-purple);
+  }
+
+  .community-tabs {
+    height: 44px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .community-tabs button {
+    min-width: 74px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .community-feed {
+    gap: 8px;
+  }
+
+  .community-post-card,
+  .community-feed .community-post-card:first-child {
+    padding: 14px 13px 9px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .community-post-content {
+    margin-left: 0;
+  }
+
+  .community-post-content h2 {
+    font-size: 16px;
+  }
+
+  .community-post-content p {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 12px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .community-post-card.is-expanded .community-post-content p {
+    display: block;
+    overflow: visible;
+  }
+
+  .community-post-image {
+    height: 180px;
+  }
+
+  .community-translate-button,
+  .community-post-actions {
+    margin-left: 0;
+  }
+
+  .community-post-actions {
+    justify-content: space-between;
+  }
+
+  .community-post-actions button,
+  .community-post-actions a {
+    padding: 0 6px;
+  }
+
+  .community-post-actions button:nth-child(3) span {
+    display: none;
+  }
+
+  .community-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 190;
+    min-height: 56px;
+    padding-bottom: env(safe-area-inset-bottom);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--community-line);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 -8px 24px rgba(39, 34, 78, 0.07);
+  }
+
+  .community-bottom-nav a {
+    min-width: 0;
+    height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #8b879d;
+  }
+
+  .community-bottom-nav a span {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 9px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-bottom-nav a.is-active {
+    color: var(--community-purple);
+  }
+
+  .community-bottom-nav a:nth-child(3) svg {
+    width: 35px;
+    height: 35px;
+    padding: 8px;
+    margin-top: -14px;
+    border-radius: 50%;
+    color: #fff;
+    background: linear-gradient(100deg, var(--community-purple), var(--community-pink));
+    box-shadow: 0 8px 18px rgba(118, 83, 246, 0.24);
+  }
+
+  .community-sheet-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .community-sheet {
+    width: 100%;
+    padding: 9px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 8px 8px 0 0;
+  }
+
+  .community-sheet-handle {
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 14px;
+    display: block;
+    border-radius: 4px;
+    background: #d8d5e2;
+  }
+
+  .community-detail-title {
+    display: none;
+  }
+
+  .community-detail-title + .community-post-card {
+    border-radius: 0;
+  }
+
+  .community-comments {
+    margin-top: 8px;
+    padding: 15px 13px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .community-compose-heading {
+    padding: 18px 14px 14px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .community-compose-heading > span {
+    min-height: 27px;
+  }
+
+  .community-compose-form {
+    padding: 16px 13px 24px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .community-segmented-control {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .community-compose-actions {
+    position: sticky;
+    bottom: calc(56px + env(safe-area-inset-bottom));
+    z-index: 10;
+    margin: 18px -13px -24px;
+    padding: 10px 13px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--community-line);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .community-compose-actions > * {
+    flex: 1;
+  }
+}
+
+.community-alert-list {
+  overflow: hidden;
+  border: 1px solid var(--community-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-alert-row {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid #f0eef5;
+  text-align: left;
+}
+
+.community-alert-row:last-child {
+  border-bottom: 0;
+}
+
+.community-alert-row > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-alert-row strong {
+  display: block;
+  overflow: hidden;
+  color: #39354f;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-alert-row small {
+  margin-top: 3px;
+  display: block;
+  color: #9995a8;
+  font-size: 10px;
+}
+
+.community-alert-row > svg {
+  color: #a19dad;
+  transform: rotate(-90deg);
+}
+
+.community-alert-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #7653f6;
+  background: #eeeaff;
+}
+
+.community-alert-icon.is-pink { color: #d93e78; background: #fff0f5; }
+.community-alert-icon.is-green { color: #12866f; background: #e7f7f2; }
+
+.community-moderation-app {
+  min-height: 100vh;
+  color: #17163d;
+  background: #f5f6fa;
+}
+
+.community-moderation-header {
+  min-height: 76px;
+  padding: 12px max(24px, calc((100vw - 1240px) / 2));
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #e3e1ec;
+  background: #fff;
+}
+
+.community-moderation-header > div:nth-child(2) {
+  flex: 1;
+}
+
+.community-moderation-header h1 {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.community-moderation-header p {
+  margin-top: 2px;
+  color: #7b778f;
+  font-size: 11px;
+}
+
+.community-moderation-app > main {
+  width: min(1240px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 24px 0 60px;
+}
+
+.community-moderation-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.community-moderation-stats article {
+  min-height: 86px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e3e1ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-moderation-stats article > span {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #7653f6;
+  background: #eeeaff;
+}
+
+.community-moderation-stats article > span.is-urgent { color: #c63b5f; background: #fff0f3; }
+.community-moderation-stats article > span.is-safe { color: #12866f; background: #e9f8f4; }
+
+.community-moderation-stats strong {
+  display: block;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.community-moderation-stats small {
+  margin-top: 6px;
+  display: block;
+  color: #7d798e;
+  font-size: 10px;
+}
+
+.community-moderation-workspace {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #e3e1ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.community-moderation-workspace > aside {
+  min-height: 560px;
+  padding: 14px 10px;
+  border-right: 1px solid #e3e1ec;
+  background: #fafafd;
+}
+
+.community-moderation-workspace > aside .community-section-title {
+  padding: 0 7px 9px;
+}
+
+.community-moderation-workspace > aside > button {
+  width: 100%;
+  min-height: 66px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.community-moderation-workspace > aside > button.is-active {
+  background: #eeeaff;
+}
+
+.community-moderation-workspace > aside > button > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.community-moderation-workspace > aside strong,
+.community-moderation-workspace > aside small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-moderation-workspace > aside strong { font-size: 11px; }
+.community-moderation-workspace > aside small { margin-top: 3px; color: #8e8a9d; font-size: 9px; }
+.community-moderation-workspace > aside b { color: #c63b5f; font-size: 11px; }
+
+.community-risk-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #e6a72b;
+}
+
+.community-risk-dot.is-high { background: #d34063; }
+
+.community-moderation-detail {
+  padding: 22px;
+}
+
+.community-moderation-detail > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.community-moderation-detail > header > div > span {
+  color: #9692a5;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.community-moderation-detail h2 {
+  margin-top: 3px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.community-moderation-detail h2 small {
+  color: #8d899b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.community-risk-badge {
+  min-height: 30px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 7px;
+  color: #9a6921;
+  background: #fff5df;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.community-risk-badge.is-high {
+  color: #b32f51;
+  background: #fff0f3;
+}
+
+.community-moderation-copy {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.community-moderation-copy section {
+  min-height: 150px;
+  padding: 14px;
+  border: 1px solid #e5e2ed;
+  border-radius: 8px;
+  background: #fafafd;
+}
+
+.community-moderation-copy section:nth-child(2) {
+  background: #f7f5ff;
+}
+
+.community-moderation-copy label {
+  color: #7653f6;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.community-moderation-copy p {
+  margin-top: 12px;
+  color: #454158;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.community-moderation-evidence {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.community-moderation-evidence > div {
+  min-height: 64px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid #ebe9f1;
+  border-radius: 8px;
+}
+
+.community-moderation-evidence strong { font-size: 15px; }
+.community-moderation-evidence span { margin-top: 2px; color: #8e8a9d; font-size: 9px; }
+
+.community-moderation-detail > footer {
+  margin-top: 18px;
+  padding-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #ebe9f1;
+}
+
+.community-danger-button {
+  min-height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  color: #fff;
+  background: #c83b5e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-moderation-status {
+  min-height: 40px;
+  margin-top: 12px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  color: #147763;
+  background: #eaf8f4;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.community-moderation-status.is-hidden { color: #a12f4c; background: #fff0f3; }
+
+@media (max-width: 760px) {
+  .community-alerts-page .community-intro { min-height: 90px; }
+  .community-alert-list { border-left: 0; border-right: 0; border-radius: 0; }
+  .community-moderation-header { padding: 12px; flex-wrap: wrap; }
+  .community-moderation-header .community-brand span { display: none; }
+  .community-moderation-header > div:nth-child(2) { order: 3; flex-basis: 100%; }
+  .community-moderation-app > main { width: calc(100% - 24px); padding-top: 12px; }
+  .community-moderation-stats { grid-template-columns: 1fr; gap: 7px; }
+  .community-moderation-stats article { min-height: 68px; }
+  .community-moderation-workspace { display: block; }
+  .community-moderation-workspace > aside { min-height: 0; border-right: 0; border-bottom: 1px solid #e3e1ec; }
+  .community-moderation-workspace > aside > button:not(.is-active) { display: none; }
+  .community-moderation-detail { padding: 16px 12px; }
+  .community-moderation-detail > header { flex-direction: column; }
+  .community-moderation-copy { grid-template-columns: 1fr; }
+  .community-moderation-detail > footer { flex-wrap: wrap; }
+  .community-moderation-detail > footer button { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-app *,
+  .community-app *::before,
+  .community-app *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog {
+    width: calc(100vw - 12px) !important;
+    max-width: 430px !important;
+    max-height: min(94vh, 800px) !important;
+    padding: 18px 16px !important;
+    gap: 12px !important;
+    border-radius: 22px !important;
+  }
+
+  .cocotrip-mobile-booking-dialog [data-slot="dialog-header"] {
+    gap: 6px !important;
+  }
+
+  .cocotrip-mobile-booking-dialog [data-slot="dialog-title"] {
+    font-size: 21px !important;
+    line-height: 1.18 !important;
+  }
+
+  .cocotrip-mobile-booking-dialog [aria-hidden="true"] {
+    margin-top: 8px !important;
+  }
+
+  .cocotrip-mobile-booking-dialog label {
+    margin-bottom: 6px !important;
+  }
+
+  .cocotrip-mobile-booking-dialog :is(button, a) {
+    min-height: 42px;
+  }
+
+  .cocotrip-mobile-booking-popover {
+    width: min(320px, calc(100vw - 48px)) !important;
+    padding: 10px !important;
+    border-radius: 18px !important;
+  }
+
+  .cocotrip-mobile-booking-popover .rdp,
+  .cocotrip-mobile-booking-popover [role="application"] {
+    width: 100% !important;
+  }
+
+  .cocotrip-mobile-booking-form {
+    padding-top: 6px !important;
+  }
+
+  .cocotrip-mobile-booking-form > div {
+    gap: 12px !important;
+  }
+
+  .cocotrip-mobile-booking-form > div > div {
+    gap: 12px !important;
+  }
+
+  .cocotrip-mobile-booking-form > div > div {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .cocotrip-mobile-booking-form img {
+    width: 62px !important;
+    height: 62px !important;
+    border-radius: 14px !important;
+  }
+
+  .cocotrip-mobile-booking-form label,
+  .cocotrip-mobile-inquiry-modal label,
+  .cocotrip-mobile-phone-modal label {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .cocotrip-mobile-booking-form :is(input, textarea, select),
+  .cocotrip-mobile-inquiry-modal :is(input, textarea, select),
+  .cocotrip-mobile-phone-modal :is(input, textarea, select) {
+    min-height: 44px !important;
+    padding: 9px 12px !important;
+    border-radius: 14px !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+  }
+
+  .cocotrip-mobile-booking-form textarea,
+  .cocotrip-mobile-inquiry-modal textarea {
+    min-height: 78px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="margin-bottom: 24px"] {
+    margin-bottom: 14px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="margin-bottom: 13px"] {
+    margin-bottom: 10px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="gap: 12px"],
+  .cocotrip-mobile-booking-form [style*="gap: 14px"] {
+    gap: 10px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="font-size: 24px"] {
+    font-size: 20px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="font-size: 15px"] {
+    font-size: 14px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="font-size: 13px"],
+  .cocotrip-mobile-booking-form [style*="font-size: 14px"] {
+    line-height: 1.35 !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="width: 32px"] {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 9px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="width: 44px"] {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="padding: 14px"] {
+    padding: 11px 12px !important;
+  }
+
+  .cocotrip-mobile-booking-footer {
+    position: static !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 6px !important;
+    padding-top: 10px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .cocotrip-mobile-booking-footer :is(button, a)[style*="linear-gradient"] {
+    min-height: 50px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    border-radius: 18px !important;
+    font-size: 15px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal,
+  .cocotrip-mobile-phone-modal {
+    width: calc(100vw - 22px) !important;
+    max-height: 86vh !important;
+    border-radius: 22px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal > div:first-child {
+    padding: 14px 16px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal form {
+    padding: 14px 16px 16px !important;
+    gap: 12px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal form > div + div {
+    margin-top: 3px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal form > div:nth-child(3) {
+    margin-top: 9px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal p {
+    line-height: 1.35 !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal .grid {
+    column-gap: 8px !important;
+    row-gap: 12px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal button[style*="linear-gradient"] {
+    min-height: 50px !important;
+    padding-top: 11px !important;
+    padding-bottom: 11px !important;
+    border-radius: 18px !important;
+    font-size: 14px !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal button:not([style*="linear-gradient"]) {
+    min-height: 34px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .cocotrip-mobile-modal-backdrop {
+    background:
+      radial-gradient(circle at 80% 8%, rgba(255, 107, 215, 0.20), transparent 30%),
+      radial-gradient(circle at 12% 24%, rgba(124, 92, 255, 0.18), transparent 34%),
+      rgba(21, 19, 45, 0.38) !important;
+    backdrop-filter: blur(18px) saturate(1.12) !important;
+    z-index: 10020 !important;
+  }
+
+  body:has(.cocotrip-mobile-booking-dialog) [data-slot="dialog-overlay"],
+  body:has(.cocotrip-mobile-refund-modal) [data-slot="dialog-overlay"],
+  body:has(.cocotrip-mobile-booking-popover) [data-slot="dialog-overlay"] {
+    z-index: 10010 !important;
+    background: rgba(21, 19, 45, 0.42) !important;
+    backdrop-filter: blur(14px) saturate(1.08) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal-success
+  ) {
+    background:
+      radial-gradient(circle at 86% 0%, rgba(255, 107, 215, 0.13), transparent 34%),
+      linear-gradient(180deg, #ffffff 0%, #f9f6ff 100%) !important;
+    background-color: #ffffff !important;
+    border-color: rgba(124, 92, 255, 0.16) !important;
+    color: #15143d !important;
+    box-shadow: 0 24px 60px rgba(48, 39, 118, 0.18) !important;
+    isolation: isolate !important;
+  }
+
+  .cocotrip-mobile-booking-dialog {
+    max-height: min(88vh, 760px) !important;
+    border-radius: 24px !important;
+    z-index: 10020 !important;
+  }
+
+  .cocotrip-mobile-refund-modal {
+    z-index: 10020 !important;
+  }
+
+  .cocotrip-mobile-booking-popover {
+    z-index: 10030 !important;
+  }
+
+  .cocotrip-mobile-booking-footer {
+    background: linear-gradient(to top, #ffffff 0%, rgba(255, 255, 255, 0.98) 78%, transparent 100%) !important;
+    border-top: 1px solid rgba(124, 92, 255, 0.10) !important;
+  }
+
+  .cocotrip-mobile-booking-form {
+    padding: 12px 0 0 !important;
+    color: #15143d !important;
+  }
+
+  .cocotrip-mobile-booking-form > div {
+    gap: 14px !important;
+  }
+
+  .cocotrip-mobile-booking-form * {
+    color: #15143d !important;
+  }
+
+  .cocotrip-mobile-booking-form > div > div,
+  .cocotrip-mobile-booking-form [style*="rgba(255,255,255,0.04"],
+  .cocotrip-mobile-booking-form [style*="rgba(255, 255, 255, 0.04"],
+  .cocotrip-mobile-booking-form [style*="rgba(255,255,255,0.03"],
+  .cocotrip-mobile-booking-form [style*="rgba(255, 255, 255, 0.03"],
+  .cocotrip-mobile-booking-form [style*="rgba(255,255,255,0.05"],
+  .cocotrip-mobile-booking-form [style*="rgba(255, 255, 255, 0.05"] {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border-color: rgba(124, 92, 255, 0.14) !important;
+    box-shadow: 0 14px 30px rgba(48, 39, 118, 0.08) !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="rgba(255,255,255,0.08"],
+  .cocotrip-mobile-booking-form [style*="rgba(255, 255, 255, 0.08"],
+  .cocotrip-mobile-booking-form [style*="rgba(255,255,255,0.12"],
+  .cocotrip-mobile-booking-form [style*="rgba(255, 255, 255, 0.12"] {
+    border-color: rgba(124, 92, 255, 0.14) !important;
+  }
+
+  .cocotrip-mobile-booking-form :is(input, textarea, select),
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal
+  ) :is(input, textarea, select) {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border-color: rgba(124, 92, 255, 0.18) !important;
+    color: #15143d !important;
+    box-shadow: 0 1px 0 rgba(124, 92, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+  }
+
+  .cocotrip-mobile-booking-form :is(input, textarea)::placeholder,
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal
+  ) :is(input, textarea)::placeholder {
+    color: #9b93b7 !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) [class*="text-white"] {
+    color: #15143d !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) [class*="text-white/"] {
+    color: #756d96 !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) [class*="bg-white/"] {
+    background: rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255,255,255,0.03"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255, 255, 255, 0.03"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255,255,255,0.04"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255, 255, 255, 0.04"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255,255,255,0.02"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(255, 255, 255, 0.02"],
+  .cocotrip-mobile-booking-dialog div[style*="rgba(255,255,255,0.02"],
+  .cocotrip-mobile-booking-dialog div[style*="rgba(255, 255, 255, 0.02"],
+  .cocotrip-mobile-booking-dialog div[style*="rgba(255,255,255,0.03"],
+  .cocotrip-mobile-booking-dialog div[style*="rgba(255, 255, 255, 0.03"] {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(124, 92, 255, 0.14) !important;
+    color: #756d96 !important;
+  }
+
+  .cocotrip-mobile-booking-dialog button[style*="rgba(140,200,255"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(140, 200, 255"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(182,104,252"],
+  .cocotrip-mobile-booking-dialog button[style*="rgba(182, 104, 252"] {
+    background: rgba(124, 92, 255, 0.12) !important;
+    border-color: rgba(124, 92, 255, 0.30) !important;
+    color: #6f4df5 !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal > div:first-child {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal > div:first-child [class*="text-white"] {
+    color: #15143d !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal > div:first-child [class*="text-white/"] {
+    color: #756d96 !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal button[style*="rgba(255,255,255"],
+  .cocotrip-mobile-inquiry-modal button[style*="rgba(255, 255, 255"] {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(124, 92, 255, 0.14) !important;
+    color: #756d96 !important;
+  }
+
+  .cocotrip-mobile-inquiry-modal button[style*="rgba(182,104,252"],
+  .cocotrip-mobile-inquiry-modal button[style*="rgba(182, 104, 252"] {
+    background: rgba(124, 92, 255, 0.12) !important;
+    border-color: rgba(124, 92, 255, 0.30) !important;
+    color: #6f4df5 !important;
+  }
+
+  .cocotrip-mobile-booking-dialog :is(button, div)[style*="rgba(255,255,255"] *,
+  .cocotrip-mobile-booking-dialog :is(button, div)[style*="rgba(255, 255, 255"] * {
+    color: inherit !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) [class*="border-white"] {
+    border-color: rgba(124, 92, 255, 0.14) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-booking-popover,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a) {
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal
+  ) :is(button, a):active {
+    transform: translateY(1px) scale(0.985) !important;
+    filter: brightness(0.98) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[style*="linear-gradient"],
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[style*="#0070BA"],
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[class*="bg-[#7C5CFC"] {
+    color: #fff !important;
+    box-shadow: 0 12px 24px rgba(124, 92, 255, 0.20) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[style*="linear-gradient"] *,
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[style*="#0070BA"] *,
+  :is(
+    .cocotrip-mobile-booking-form,
+    .cocotrip-mobile-booking-dialog,
+    .cocotrip-mobile-inquiry-modal,
+    .cocotrip-mobile-phone-modal,
+    .cocotrip-mobile-refund-modal,
+    .cocotrip-mobile-cart-checkout,
+    .cocotrip-mobile-paypal,
+    .cocotrip-mobile-paypal-success
+  ) :is(button, a)[class*="bg-[#7C5CFC"] * {
+    color: #fff !important;
+  }
+
+  .cocotrip-mobile-paypal-success .bg-gradient-to-tr,
+  .cocotrip-mobile-paypal-success .bg-gradient-to-tr * {
+    color: #fff !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="#C99FFF"],
+  .cocotrip-mobile-booking-dialog [style*="#C99FFF"],
+  .cocotrip-mobile-paypal [class*="text-[#B668FC]"] {
+    color: #6f4df5 !important;
+  }
+
+  .cocotrip-mobile-booking-form [style*="#00D28C"],
+  .cocotrip-mobile-booking-form [style*="#7ee29c"],
+  .cocotrip-mobile-refund-modal [style*="#7ee29c"] {
+    color: #0c9f72 !important;
+  }
+
+  .cocotrip-mobile-refund-modal table {
+    background: rgba(255, 255, 255, 0.72) !important;
+    border: 1px solid rgba(124, 92, 255, 0.12) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .cocotrip-mobile-refund-modal tr {
+    border-color: rgba(124, 92, 255, 0.10) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(
+      .cocotrip-mobile-booking-dialog,
+      .cocotrip-mobile-inquiry-modal,
+      .cocotrip-mobile-phone-modal,
+      .cocotrip-mobile-cart-checkout,
+      .cocotrip-mobile-paypal
+    ) :is(button, a):active {
+      transform: none !important;
+      filter: none !important;
+    }
+  }
+}
+
+/* CocoTrip AI Planner mobile light system */
+@media (max-width: 768px) {
+  .planner-mobile-ai {
+    min-height: 100vh;
+    color: #15143d;
+    background:
+      radial-gradient(circle at 85% 8%, rgba(255, 107, 215, 0.18), transparent 28%),
+      radial-gradient(circle at 12% 26%, rgba(124, 92, 255, 0.16), transparent 30%),
+      linear-gradient(180deg, #fbfaff 0%, #f5f2ff 45%, #ffffff 100%);
+    padding-bottom: 86px;
+  }
+
+  .planner-mobile-ai > header {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-bottom: 1px solid rgba(124, 92, 255, 0.10) !important;
+    box-shadow: 0 10px 30px rgba(48, 39, 118, 0.08);
+  }
+  .planner-mobile-ai > header a,
+  .planner-mobile-ai > header button {
+    color: #15143d !important;
+  }
+  .planner-mobile-ai > header svg {
+    color: #7653f6 !important;
+  }
+
+  .planner-mobile-ai .mobile-bottom-nav,
+  .planner-mobile-active .mobile-bottom-nav {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-top: 1px solid rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 -14px 34px rgba(48, 39, 118, 0.10);
+  }
+
+  .coco-ai-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #7653f6;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,255,0.88)),
+      radial-gradient(circle at 70% 10%, rgba(255, 107, 215, 0.22), transparent 48%);
+    border: 1px solid rgba(124, 92, 255, 0.12);
+    box-shadow: 0 10px 22px rgba(124, 92, 255, 0.14);
+  }
+  .coco-ai-icon.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, #7c5cff 0%, #ff5fc8 100%);
+    box-shadow: 0 12px 24px rgba(124, 92, 255, 0.24);
+  }
+
+  .planner-mobile-panel,
+  .planner-mobile-mini-card,
+  .planner-mobile-mode-card,
+  .planner-mobile-ai .m-card {
+    background: rgba(255, 255, 255, 0.86) !important;
+    border: 1px solid rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .planner-mobile-panel {
+    border-radius: 20px;
+  }
+
+  .planner-mobile-principles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .planner-mobile-mini-card {
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    gap: 8px;
+    border-radius: 18px;
+    padding: 9px;
+  }
+  .planner-mobile-mini-card span:last-child {
+    color: #191840;
+    font-size: 10.5px;
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  .planner-mobile-mode-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .planner-mobile-mode-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 20px;
+    padding: 12px;
+    text-align: left;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .planner-mobile-mode-card.is-active {
+    border-color: rgba(124, 92, 255, 0.38);
+    box-shadow: 0 18px 34px rgba(124, 92, 255, 0.16);
+  }
+  .planner-mobile-mode-card:active {
+    transform: scale(.985);
+  }
+
+  .planner-mobile-form,
+  .planner-mobile-course-shell,
+  .planner-mobile-result {
+    color: #15143d;
+  }
+
+  .planner-mobile-form [class*="text-white"],
+  .planner-mobile-course-shell [class*="text-white"],
+  .planner-mobile-result [class*="text-white"] {
+    color: #15143d !important;
+  }
+  .planner-mobile-form [class*="text-white/"],
+  .planner-mobile-course-shell [class*="text-white/"],
+  .planner-mobile-result [class*="text-white/"] {
+    color: #746b94 !important;
+  }
+  .planner-mobile-form button[style*="linear-gradient"],
+  .planner-mobile-course-shell button[style*="linear-gradient"],
+  .planner-mobile-result button[style*="linear-gradient"],
+  .planner-mobile-form button[style*="linear-gradient"] *,
+  .planner-mobile-course-shell button[style*="linear-gradient"] *,
+  .planner-mobile-result button[style*="linear-gradient"] *,
+  .planner-mobile-form .m-cta,
+  .planner-mobile-course-shell .m-cta,
+  .planner-mobile-result .m-cta,
+  .planner-mobile-form .m-cta *,
+  .planner-mobile-course-shell .m-cta *,
+  .planner-mobile-result .m-cta * {
+    color: #fff !important;
+  }
+
+  .planner-mobile-form input,
+  .planner-mobile-form textarea,
+  .planner-mobile-form select,
+  .planner-mobile-course-shell input,
+  .planner-mobile-course-shell textarea,
+  .planner-mobile-course-shell select,
+  .planner-mobile-result input,
+  .planner-mobile-result textarea,
+  .planner-mobile-result select {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(124, 92, 255, 0.16) !important;
+    color: #15143d !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .planner-mobile-form input::placeholder,
+  .planner-mobile-form textarea::placeholder,
+  .planner-mobile-course-shell input::placeholder,
+  .planner-mobile-course-shell textarea::placeholder,
+  .planner-mobile-result input::placeholder,
+  .planner-mobile-result textarea::placeholder {
+    color: #9b93b7 !important;
+  }
+
+  .planner-mobile-course-shell section,
+  .planner-mobile-course-shell aside,
+  .planner-mobile-course-shell [style*="rgba(12,8,24"],
+  .planner-mobile-course-shell [style*="rgba(10,4,18"] {
+    background: rgba(255, 255, 255, 0.86) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+  }
+
+  .planner-mobile-course-shell a {
+    color: #6f4df5 !important;
+  }
+
+  .planner-mobile-ai .leaflet-container {
+    filter: saturate(1.04) brightness(1.04);
+  }
+
+  /* CocoTrip AI Planner result mobile light system */
+  .planner-detail-mobile-ai {
+    min-height: 100vh;
+    color: #15143d;
+    background:
+      radial-gradient(circle at 88% 9%, rgba(255, 107, 215, 0.17), transparent 28%),
+      radial-gradient(circle at 10% 30%, rgba(124, 92, 255, 0.16), transparent 31%),
+      linear-gradient(180deg, #fbfaff 0%, #f4f0ff 46%, #ffffff 100%);
+    padding-bottom: 88px;
+  }
+
+  .planner-detail-mobile-ai > header {
+    background: rgba(255, 255, 255, 0.82) !important;
+    border-bottom: 1px solid rgba(124, 92, 255, 0.10) !important;
+    box-shadow: 0 10px 30px rgba(48, 39, 118, 0.08);
+  }
+  .planner-detail-mobile-ai > header a,
+  .planner-detail-mobile-ai > header button {
+    color: #15143d !important;
+  }
+  .planner-detail-mobile-ai > header svg {
+    color: #7653f6 !important;
+  }
+  .planner-detail-mobile-ai footer {
+    display: none;
+  }
+
+  .plan-mobile-summary {
+    background: linear-gradient(180deg, rgba(255,255,255,0.58), rgba(255,255,255,0));
+  }
+  .plan-mobile-icon {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #7653f6;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,241,255,0.9)),
+      radial-gradient(circle at 70% 10%, rgba(255, 107, 215, 0.22), transparent 48%);
+    border: 1px solid rgba(124, 92, 255, 0.14);
+    box-shadow: 0 10px 22px rgba(124, 92, 255, 0.14);
+  }
+  .plan-mobile-icon.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, #7c5cff 0%, #ff5fc8 100%);
+    box-shadow: 0 12px 24px rgba(124, 92, 255, 0.24);
+  }
+  .plan-mobile-panel,
+  .plan-mobile-mini-panel,
+  .plan-mobile-stat {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(124, 92, 255, 0.12);
+    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .plan-mobile-panel {
+    border-radius: 22px;
+  }
+  .plan-mobile-mini-panel {
+    min-height: 128px;
+    border-radius: 22px;
+    padding: 14px;
+  }
+  .plan-mobile-stat {
+    display: flex;
+    min-height: 82px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: 20px;
+    padding: 10px 6px;
+    text-align: center;
+  }
+  .plan-mobile-stat span {
+    color: #15143d;
+    font-size: 16px;
+    font-weight: 950;
+    line-height: 1;
+  }
+  .plan-mobile-stat small {
+    color: #7b719f;
+    font-size: 10px;
+    font-weight: 850;
+  }
+  .plan-mobile-day-chip {
+    display: inline-flex;
+    min-width: 58px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 18px;
+    border: 1px solid rgba(124, 92, 255, 0.14);
+    background: rgba(255,255,255,0.9);
+    padding: 8px 10px;
+    color: #7b719f;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .plan-mobile-day-chip span {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border-radius: 999px;
+    background: #f1ecff;
+    color: #7653f6;
+    font-size: 12px;
+    font-weight: 950;
+  }
+  .plan-mobile-day-chip small {
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .plan-mobile-day-chip.is-active {
+    background: linear-gradient(135deg, rgba(124,92,255,0.12), rgba(255,95,200,0.12));
+    box-shadow: 0 10px 22px rgba(124,92,255,0.14);
+  }
+  .plan-mobile-day-chip.is-active span {
+    background: linear-gradient(135deg, #7c5cff 0%, #ff5fc8 100%);
+    color: #fff;
+  }
+
+  .planner-detail-mobile-ai main {
+    color: #15143d;
+  }
+  .planner-detail-mobile-ai main [class*="text-white"] {
+    color: #15143d !important;
+  }
+  .planner-detail-mobile-ai main [class*="text-white/"] {
+    color: #746b94 !important;
+  }
+  .planner-detail-mobile-ai main [class*="text-[#B9A4FF]"],
+  .planner-detail-mobile-ai main [class*="text-[#7C5CFC]"],
+  .planner-detail-mobile-ai main [class*="text-[#B668FC]"] {
+    color: #7653f6 !important;
+  }
+  .planner-detail-mobile-ai main [class*="bg-white/["],
+  .planner-detail-mobile-ai main [class*="bg-white\\/\["] {
+    background: rgba(255, 255, 255, 0.86) !important;
+  }
+  .planner-detail-mobile-ai main [class*="border-white/["],
+  .planner-detail-mobile-ai main [class*="border-white\\/\["] {
+    border-color: rgba(124, 92, 255, 0.14) !important;
+  }
+  .planner-detail-mobile-ai main [style*="rgba(10,4,18"],
+  .planner-detail-mobile-ai main [style*="rgba(10, 4, 18"],
+  .planner-detail-mobile-ai main [style*="rgba(10,11,20"],
+  .planner-detail-mobile-ai main [style*="rgba(10, 11, 20"],
+  .planner-detail-mobile-ai main [style*="rgba(124,92,252,0.18"] {
+    background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,242,255,0.86)) !important;
+    border-color: rgba(124, 92, 255, 0.14) !important;
+  }
+  .planner-detail-mobile-ai main button[style*="linear-gradient"],
+  .planner-detail-mobile-ai main a[style*="linear-gradient"],
+  .planner-detail-mobile-ai main button[style*="linear-gradient"] *,
+  .planner-detail-mobile-ai main a[style*="linear-gradient"] * {
+    color: #fff !important;
+  }
+  .planner-detail-mobile-ai main [data-testid="section-tabs-scroll"] {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .planner-detail-mobile-ai main [data-testid="section-tabs-scroll"] button {
+    background: rgba(255,255,255,0.86) !important;
+    border-color: rgba(124,92,255,0.14) !important;
+    color: #746b94 !important;
+    box-shadow: 0 8px 18px rgba(48,39,118,0.08);
+  }
+  .planner-detail-mobile-ai main [data-testid="section-tabs-scroll"] button[aria-selected="true"] {
+    background: linear-gradient(135deg, #7c5cff 0%, #ff5fc8 100%) !important;
+    color: #fff !important;
+    border-color: transparent !important;
+  }
+  .planner-detail-mobile-ai main [data-testid="section-tabs-scroll"] + div {
+    background: linear-gradient(to left, #fbfaff, rgba(251,250,255,0)) !important;
+  }
+  .planner-detail-mobile-ai main .sticky {
+    background: rgba(251, 250, 255, 0.92) !important;
+    border-bottom-color: rgba(124,92,255,0.10) !important;
+  }
+  .planner-detail-mobile-ai main input,
+  .planner-detail-mobile-ai main textarea,
+  .planner-detail-mobile-ai main select {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(124,92,255,0.16) !important;
+    color: #15143d !important;
+  }
+  .planner-detail-mobile-ai main .leaflet-container {
+    filter: saturate(1.04) brightness(1.04);
+  }
+}
+
+/* CocoTrip mobile-wide light app shell
+   Keeps business logic and data wiring intact; only mobile surfaces are restyled. */
+@media (max-width: 768px) {
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) {
+    min-height: 100vh;
+    color: #15143d !important;
+    background:
+      radial-gradient(circle at 88% 8%, rgba(255, 107, 215, 0.16), transparent 28%),
+      radial-gradient(circle at 12% 24%, rgba(124, 92, 255, 0.14), transparent 30%),
+      linear-gradient(180deg, #fbfaff 0%, #f5f2ff 44%, #ffffff 100%) !important;
+  }
+
+  .cocotrip-mobile-home-surface,
+  .cocotrip-mobile-charter,
+  .cocotrip-mobile-tours,
+  .cocotrip-mobile-tour-detail,
+  .cocotrip-mobile-account,
+  .cocotrip-mobile-plans {
+    padding-bottom: 88px;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans,
+    .planner-mobile-ai,
+    .planner-detail-mobile-ai,
+    .cocotrip-mobile-auth
+  ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button[style*="linear-gradient"], a[style*="linear-gradient"], button[style*="#B668FC"], a[style*="#B668FC"], button[style*="#7C5CFC"], a[style*="#7C5CFC"], button[style*="#EA537E"], a[style*="#EA537E"]) {
+    transition-property: transform, box-shadow, filter, background-color, border-color, color, opacity;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0.2, 1);
+    will-change: transform;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans,
+    .planner-mobile-ai,
+    .planner-detail-mobile-ai,
+    .cocotrip-mobile-auth
+  ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button[style*="linear-gradient"], a[style*="linear-gradient"], button[style*="#B668FC"], a[style*="#B668FC"], button[style*="#7C5CFC"], a[style*="#7C5CFC"], button[style*="#EA537E"], a[style*="#EA537E"]):active {
+    transform: translateY(1px) scale(0.98) !important;
+    filter: brightness(0.98) saturate(0.98);
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans,
+    .planner-mobile-ai,
+    .planner-detail-mobile-ai
+  ) :where(.m-cta, .m-cta-refined, button[style*="linear-gradient"], a[style*="linear-gradient"]):active {
+    box-shadow: 0 8px 18px rgba(124, 92, 255, 0.22) !important;
+  }
+
+  .mobile-app-light-header :where(button, a),
+  .mobile-bottom-nav a,
+  .cocotrip-mobile-auth button {
+    transition-property: transform, box-shadow, filter, background-color, border-color, color, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0.2, 1);
+  }
+
+  .mobile-app-light-header :where(button, a):active,
+  .mobile-bottom-nav a:active,
+  .cocotrip-mobile-auth button:active {
+    transform: translateY(1px) scale(0.97) !important;
+    filter: brightness(0.98);
+  }
+
+  .mobile-app-light-header {
+    background: rgba(255, 255, 255, 0.84) !important;
+    border-bottom: 1px solid rgba(124, 92, 255, 0.10) !important;
+    box-shadow: 0 10px 30px rgba(48, 39, 118, 0.08) !important;
+  }
+
+  .mobile-app-light-header a,
+  .mobile-app-light-header button {
+    color: #15143d !important;
+  }
+
+  .mobile-app-light-header svg {
+    color: #7653f6 !important;
+  }
+
+  .mobile-menu-light {
+    color: #15143d !important;
+    background:
+      radial-gradient(circle at 80% 10%, rgba(255, 107, 215, 0.16), transparent 28%),
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,242,255,0.96)) !important;
+  }
+
+  .mobile-menu-light [class*="text-white"] {
+    color: #15143d !important;
+  }
+
+  .mobile-menu-light [class*="text-white/"] {
+    color: #756d96 !important;
+  }
+
+  .mobile-menu-light [style*="rgba(8,11,20"],
+  .mobile-menu-light [style*="rgba(8, 11, 20"],
+  .mobile-menu-light [style*="rgba(255,255,255,0.02"],
+  .mobile-menu-light [style*="rgba(255,255,255,0.03"],
+  .mobile-menu-light [style*="rgba(255,255,255,0.04"] {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="text-white"] {
+    color: #15143d !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="text-white/"] {
+    color: #756d96 !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="bg-white/["],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="bg-white\\/\["] {
+    background: rgba(255, 255, 255, 0.86) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="border-white/["],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [class*="border-white\\/\["] {
+    border-color: rgba(124, 92, 255, 0.14) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) .m-card {
+    background: rgba(255, 255, 255, 0.86) !important;
+    border: 1px solid rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="#080210"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="#0a0412"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="#0a0b14"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="#0B1020"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="rgba(8,11,20"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="rgba(8, 11, 20"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="rgba(255,255,255,0.02"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="rgba(255,255,255,0.03"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) [style*="rgba(255,255,255,0.04"] {
+    background: rgba(255, 255, 255, 0.86) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 12px 28px rgba(48, 39, 118, 0.08) !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#B668FC"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#7C5CFC"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#EA537E"] {
+    color: #fff !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(182, 104, 252)"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(124, 92, 252)"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(234, 83, 126)"],
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(255, 107, 157)"] {
+    color: #fff !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#B668FC"] *,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#7C5CFC"] *,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="#EA537E"] * {
+    color: #fff !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(182, 104, 252)"] *,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(124, 92, 252)"] *,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(234, 83, 126)"] *,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) :is(button, a)[style*="rgb(255, 107, 157)"] * {
+    color: #fff !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) input,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) textarea,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) select {
+    background: rgba(255, 255, 255, 0.94) !important;
+    border-color: rgba(124, 92, 255, 0.16) !important;
+    color: #15143d !important;
+  }
+
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) input::placeholder,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) textarea::placeholder {
+    color: #9b93b7 !important;
+  }
+
+  .cocotrip-mobile-home-surface section {
+    position: relative;
+  }
+
+  .cocotrip-mobile-home-surface .m-shimmer,
+  .cocotrip-mobile-home-surface .m-shimmer-text,
+  .cocotrip-mobile-tours .tours-shimmer,
+  .cocotrip-mobile-tour-detail .detail-shimmer {
+    background-image: linear-gradient(100deg, #6f4df5, #f052b5) !important;
+    animation: none !important;
+  }
+
+  .cocotrip-mobile-charter > section {
+    background: transparent !important;
+    color: #15143d !important;
+  }
+
+  .cocotrip-mobile-charter > section > div,
+  .cocotrip-mobile-charter main > div > div > section > div:first-child,
+  .cocotrip-mobile-charter main > div > div > section > div:nth-child(2) {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10) !important;
+  }
+
+  .cocotrip-mobile-charter main {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .cocotrip-mobile-charter div[style*="position: fixed"][style*="rgba(8,11,20"] {
+    background: rgba(255, 255, 255, 0.94) !important;
+    border-top: 1px solid rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 -14px 34px rgba(48,39,118,0.10) !important;
+  }
+
+  .cocotrip-mobile-tours header > div,
+  .cocotrip-mobile-tours [style*="rgba(19,45,88"],
+  .cocotrip-mobile-tours [style*="rgba(24,13,42"] {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10) !important;
+  }
+
+  .cocotrip-mobile-tours .group > div:first-child {
+    height: 124px !important;
+  }
+
+  .cocotrip-mobile-tours .group {
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 14px 28px rgba(48, 39, 118, 0.08) !important;
+  }
+
+  .cocotrip-mobile-home-surface .mobile-home-tour-card [class*="text-white"],
+  .cocotrip-mobile-tours .tour-card-media [class*="text-white"],
+  .cocotrip-mobile-tour-detail .tour-detail-gallery [class*="text-white"] {
+    color: #ffffff !important;
+  }
+
+  .cocotrip-mobile-home-surface .mobile-home-tour-card [class*="text-white/"],
+  .cocotrip-mobile-tours .tour-card-media [class*="text-white/"],
+  .cocotrip-mobile-tour-detail .tour-detail-gallery [class*="text-white/"] {
+    color: rgba(255, 255, 255, 0.72) !important;
+  }
+
+  .cocotrip-mobile-tours button.tour-chip[style*="rgba(255,255,255,0.02"],
+  .cocotrip-mobile-tours button.tour-chip[style*="rgba(255,255,255,0.03"],
+  .cocotrip-mobile-tours button.tour-chip[style*="rgba(255, 255, 255, 0.02"],
+  .cocotrip-mobile-tours button.tour-chip[style*="rgba(255, 255, 255, 0.03"] {
+    color: #756d96 !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    border-color: rgba(124, 92, 255, 0.12) !important;
+  }
+
+  .cocotrip-mobile-tours button.tour-chip[style*="#D0A8FF"],
+  .cocotrip-mobile-tours button.tour-chip[style*="#A0CBFF"] {
+    color: #6f4df5 !important;
+  }
+
+  .cocotrip-mobile-tours button.tour-chip[style*="rgb(208, 168, 255)"],
+  .cocotrip-mobile-tours button.tour-chip[style*="rgb(160, 203, 255)"] {
+    color: #6f4df5 !important;
+  }
+
+  .cocotrip-mobile-tour-detail > div[style*="linear-gradient(to top"],
+  .cocotrip-mobile-tour-detail div[style*="linear-gradient(to top, rgba(8,11,20"] {
+    background: linear-gradient(to top, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.88) 66%, transparent 100%) !important;
+  }
+
+  .cocotrip-mobile-tour-detail .tour-detail-content {
+    margin-top: 0 !important;
+    padding-top: 16px !important;
+  }
+
+  .cocotrip-mobile-tour-detail .fixed {
+    background: rgba(255,255,255,0.94) !important;
+    border-top: 1px solid rgba(124, 92, 255, 0.12) !important;
+    box-shadow: 0 -14px 34px rgba(48,39,118,0.10) !important;
+  }
+
+  .cocotrip-mobile-tour-detail .fixed :is(button, a)[style*="#B668FC"],
+  .cocotrip-mobile-tour-detail .fixed :is(button, a)[style*="#EA537E"] {
+    color: #fff !important;
+  }
+
+  .cocotrip-mobile-account .rounded-2xl,
+  .cocotrip-mobile-plans main > div,
+  .cocotrip-mobile-plans a.block {
+    border-color: rgba(124, 92, 255, 0.12) !important;
+  }
+
+  .cocotrip-mobile-plans footer,
+  .cocotrip-mobile-tour-detail footer,
+  .cocotrip-mobile-charter footer {
+    display: none;
+  }
+
+  .cocotrip-mobile-auth {
+    min-height: calc(100vh - 56px);
+    color: #15143d !important;
+    background:
+      radial-gradient(circle at 84% 10%, rgba(255, 107, 215, 0.16), transparent 28%),
+      radial-gradient(circle at 14% 30%, rgba(124, 92, 255, 0.14), transparent 30%),
+      linear-gradient(180deg, #fbfaff 0%, #f5f2ff 48%, #ffffff 100%) !important;
+    padding-bottom: 110px !important;
+  }
+
+  .cocotrip-mobile-auth > div {
+    background: rgba(255, 255, 255, 0.90) !important;
+    border-color: rgba(124, 92, 255, 0.14) !important;
+    box-shadow: 0 18px 38px rgba(48, 39, 118, 0.12) !important;
+  }
+
+  .cocotrip-mobile-auth [class*="text-white"] {
+    color: #15143d !important;
+  }
+
+  .cocotrip-mobile-auth [class*="text-white/"] {
+    color: #756d96 !important;
+  }
+
+  .cocotrip-mobile-auth > div > div:first-child svg {
+    color: #ffffff !important;
+  }
+
+  .cocotrip-mobile-auth button[style*="rgba(255,255,255,0.08"],
+  .cocotrip-mobile-auth button[style*="rgba(255, 255, 255, 0.08"] {
+    background: rgba(255, 255, 255, 0.86) !important;
+    border-color: rgba(124, 92, 255, 0.16) !important;
+    color: #15143d !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(
+      .cocotrip-mobile-home,
+      .cocotrip-mobile-home-surface,
+      .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours,
+      .cocotrip-mobile-tour-detail,
+      .cocotrip-mobile-account,
+      .cocotrip-mobile-plans,
+      .planner-mobile-ai,
+      .planner-detail-mobile-ai,
+      .cocotrip-mobile-auth
+    ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button, a):active,
+    .mobile-app-light-header :where(button, a):active,
+    .mobile-bottom-nav a:active,
+    .cocotrip-mobile-auth button:active {
+      transform: none !important;
+      filter: none !important;
+    }
+  }
+}

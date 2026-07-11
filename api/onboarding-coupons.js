@@ -24,6 +24,7 @@
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
+import { sanitizeAttribution } from './_shared/attribution.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -139,6 +140,55 @@ export async function issueOnboardingCouponsForUid(db, uid) {
   });
 }
 
+/**
+ * $9.90 AI 플래너 구매 완료 시 차터5%+투어5% 쿠폰 발급 (멱등, orderID 기준).
+ * 운영자 정책 2026-07-07: "가입 때도, 구매 때도 둘 다" → 가입(issueOnboardingCouponsForUid)과
+ * 별개로 구매 1건당 1쌍 발급. 같은 orderID 재캡처(멱등 재시도)는 users/{uid}/purchaseCouponOrders/{orderID}
+ * 마커로 중복 발급 차단. 발급 실패는 호출처(capturePaypalOrder)에서 non-fatal 처리(결제는 이미 완료).
+ * 소진(redeem) 시 총 할인 10% 상한은 createPaypalOrder total-discount cap 이 강제.
+ * @returns {Promise<{issued:number, alreadyIssued?:boolean}>}
+ */
+export async function issuePurchaseCouponsForOrder(db, uid, orderID) {
+  if (!db || !uid || !orderID) return { issued: 0 };
+  const userRef = db.collection('users').doc(uid);
+  const markerRef = userRef.collection('purchaseCouponOrders').doc(String(orderID));
+
+  return db.runTransaction(async (tx) => {
+    const markerSnap = await tx.get(markerRef);
+    if (markerSnap.exists) return { issued: 0, alreadyIssued: true };
+
+    const now = Date.now();
+    const expiresAt = now + COUPON_VALIDITY_MS;
+    const couponsRef = userRef.collection('coupons');
+
+    tx.set(couponsRef.doc(), {
+      code: `BUY-CHARTER-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Charter 5% off (AI plan purchase)',
+      productScope: 'charter',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'ai-plan-purchase',
+    });
+    tx.set(couponsRef.doc(), {
+      code: `BUY-TOUR-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Tour 5% off (AI plan purchase)',
+      productScope: 'tour-package',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'ai-plan-purchase',
+    });
+    tx.set(markerRef, { issuedAt: now, orderID: String(orderID) });
+
+    return { issued: 2, alreadyIssued: false };
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
@@ -161,6 +211,27 @@ export default async function handler(req, res) {
     if (!db) {
       res.writeHead(500, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'Firestore unavailable' }));
+    }
+
+    // P1 (2026-07-11): 가입 유입 스냅샷 (first/last UTM, PII 최소화) — 쿠폰 발급과 독립.
+    // 최초 1회만 저장(가입 시점 귀속이 목적). 트랜잭션으로 원자화(운영자 보완 지시) —
+    // 동시 로그인 두 요청이 둘 다 "없음"을 보고 쓰는 race 차단. 실패해도 발급/로그인 무영향.
+    try {
+      let body = req.body;
+      if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+      const attribution = sanitizeAttribution(body && body.attribution);
+      if (attribution) {
+        const userRef = db.collection('users').doc(uid);
+        await db.runTransaction(async (tx) => {
+          const userSnap = await tx.get(userRef);
+          const existing = userSnap.exists ? (userSnap.data() || {}) : {};
+          if (!existing.attribution) {
+            tx.set(userRef, { attribution: { ...attribution, storedAt: Date.now() } }, { merge: true });
+          }
+        });
+      }
+    } catch (attrErr) {
+      console.warn('[onboarding-coupons] attribution 저장 실패 (비치명적):', attrErr.message);
     }
 
     const result = await issueOnboardingCouponsForUid(db, uid);

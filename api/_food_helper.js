@@ -11,6 +11,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { isDietaryTrusted } from './_shared/dietary-trust.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,19 @@ const CITY_MAP = {
   yeosu: 'yeosu', '여수': 'yeosu',             // P188: DB 25 rows — 직접 매핑
   daegu: 'daegu', '대구': 'daegu',             // P188: DB 43 rows — 직접 매핑
 };
+
+/**
+ * 도시 표시명/키 → _food_index city 코드 (2026-07-11: getFoodContext 내부 로직 추출 —
+ * 사전 커버리지 체크(handlerCore)와 동일 규칙 공유. 파생 금지·중복 금지 원칙).
+ * ⚠️ 미등재 도시는 seoul 폴백 — 기존 프롬프트 주입과 동일 규칙 (감사 보고서에 잔여 리스크 명시).
+ */
+export function resolveCityCode(destination) {
+  const dest = (destination || '').toLowerCase().trim();
+  return CITY_MAP[dest] ||
+    (dest.includes('seoul') ? 'seoul' :
+     dest.includes('busan') ? 'busan' :
+     dest.includes('jeju') ? 'jeju' : 'seoul');
+}
 
 // ── P189 (2026-05-25): allergen tag constants ────────────────────────────
 // WizardForm allergy keys: 'Nuts', 'Shellfish', 'Gluten', 'Dairy'
@@ -227,10 +241,7 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   const tags = getTagsForDiet(dietPrefs);
 
   // ── Step 1: City filtering ────────────────────────────────────────────
-  const cityCode = CITY_MAP[dest] ||
-    (dest.includes('seoul') ? 'seoul' :
-     dest.includes('busan') ? 'busan' :
-     dest.includes('jeju') ? 'jeju' : 'seoul'); // default to seoul
+  const cityCode = resolveCityCode(dest);
 
   let candidates = index.filter(r => r.city === cityCode);
 
@@ -240,7 +251,10 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   }
 
   // ── Step 2: Tag filtering (vegan/halal/general) ───────────────────────
-  let tagFiltered = candidates.filter(r => tags.includes(r.tag || 'general'));
+  // 2026-07-11 SAFETY (3단계-B): dietary 태그는 신뢰 등급 통과분만 —
+  // unverified(naver 키워드·AI-curated) 태그를 "Recommended Halal ..." 헤더 아래
+  // 주입하면 생선회집 vegan·치킨집 halal 이 인증 도장 달고 프롬프트에 들어간다.
+  let tagFiltered = candidates.filter(r => tags.includes(r.tag || 'general') && isDietaryTrusted(r));
 
   // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan) 존재 여부 — general 폴백 게이트.
   const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan');

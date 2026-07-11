@@ -100,7 +100,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   // Firebase auth 초기화 OR redirect 처리 중엔 스피너 표시
   if (loading || redirectChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#faf9f6]">
+      <div className="cocotrip-mobile-auth min-h-screen flex items-center justify-center bg-[#faf9f6]">
         <div className="w-8 h-8 border-2 border-[#0f3460] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -109,7 +109,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6"
+      <div className="cocotrip-mobile-auth min-h-screen flex items-center justify-center p-6"
         style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="w-full max-w-sm rounded-2xl p-8 text-center"
           style={{ background: 'rgba(15,18,32,0.95)', border: '1px solid rgba(124,92,252,0.15)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>

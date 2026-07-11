@@ -20,6 +20,7 @@ import {
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
+import { authFetch } from '@/lib/authFetch';
 import { useItinerary } from '@/hooks/useItinerary';
 import { naverMapSearchUrl } from '@/lib/naverMap';
 import { useCourseBuilder } from './courseBuilder/useCourseBuilder';
@@ -48,6 +49,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'Auto-saved on this device', stops: 'stops',
     search: 'Search', mapTitle: "This day's route",
     aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
+    aiLocked: 'AI optimize & nearby picks unlock with the $9.90 planner.',
     saveTitleField: 'Course title', saveDateField: 'Trip date', saveTitlePh: 'e.g. My Seoul food trip',
     saveCta: 'Save', cancel: 'Cancel',
     loginToSave: 'Sign in to save, share, and open on any device.', loginBtn: 'Sign in',
@@ -67,6 +69,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '이 기기에 자동 저장됨', stops: '개 장소',
     search: '검색', mapTitle: '이 날의 동선',
     aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
+    aiLocked: 'AI 동선 최적화·주변 추천은 $9.90 플래너에서 열려요.',
     saveTitleField: '코스 제목', saveDateField: '여행 날짜', saveTitlePh: '예: 나의 서울 맛집 투어',
     saveCta: '저장', cancel: '취소',
     loginToSave: '로그인하면 저장·공유·다른 기기에서 볼 수 있어요.', loginBtn: '로그인',
@@ -86,6 +89,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'この端末に自動保存', stops: 'か所',
     search: '検索', mapTitle: 'この日のルート',
     aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
+    aiLocked: 'AIルート最適化・周辺のおすすめは$9.90プランで解放。',
     saveTitleField: 'コース名', saveDateField: '旅行日', saveTitlePh: '例: ソウルグルメ旅',
     saveCta: '保存', cancel: 'キャンセル',
     loginToSave: 'ログインすると保存・共有・他の端末で表示できます。', loginBtn: 'ログイン',
@@ -105,6 +109,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '已自动保存到本设备', stops: '个地点',
     search: '搜索', mapTitle: '当天路线',
     aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
+    aiLocked: 'AI优化路线·周边推荐需$9.90行程解锁。',
     saveTitleField: '行程名称', saveDateField: '出行日期', saveTitlePh: '例: 我的首尔美食之旅',
     saveCta: '保存', cancel: '取消',
     loginToSave: '登录后可保存·分享·在其他设备查看。', loginBtn: '登录',
@@ -179,7 +184,8 @@ export function CourseBuilderShell() {
     if (stops.length < 2) { showFlash(t.aiBusy); return; }
     setAiBusy(true);
     try {
-      const res = await fetch('/api/course-ai', {
+      // authFetch = Firebase 토큰 첨부 → course-ai 가 $9.90 구매자(aiFeaturesUnlocked)만 허용.
+      const res = await authFetch('/api/course-ai', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stops: day.stops.map((s) => ({ id: s.id, title: s.title, category: s.category, lat: s.lat, lng: s.lng })),
@@ -187,6 +193,8 @@ export function CourseBuilderShell() {
         }),
       });
       const json = await res.json().catch(() => ({}));
+      // 무료/비로그인 = 유료 AI 기능 잠김 → 업셀 안내(에러 아님).
+      if (res.status === 403 && json?.code === 'AI_FEATURE_LOCKED') { showFlash(t.aiLocked); return; }
       if (json?.ok) {
         if (Array.isArray(json.optimizedOrder) && json.optimizedOrder.length) {
           cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));
@@ -326,8 +334,8 @@ export function CourseBuilderShell() {
           </div>
         </div>
 
-        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선) */}
-        <CourseMiniMap stops={day.stops} title={t.mapTitle} />
+        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선 + AI 주변추천 앰버 마커) */}
+        <CourseMiniMap stops={day.stops} title={t.mapTitle} nearby={aiRecos} />
 
         {/* AI 동선 최적화 + 주변 추천 — 좌표 있는 stop 2곳 이상일 때만 노출 */}
         {day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number').length >= 2 && (

@@ -40,6 +40,17 @@ interface PromoData {
     region: string | null;
     days: number | null;
   }>;
+  // PR-C (2026-07-11): 무료→유료 전환 퍼널
+  conversion?: {
+    freeUserBase: number;
+    converted7d: number;
+    converted30d: number;
+    rate7d: number;
+    rate30d: number;
+    byChannel: Record<string, number>;
+    byProduct: Record<string, number>;
+    note: string;
+  };
   generatedAt: number;
 }
 
@@ -205,6 +216,57 @@ export default function AdminPromoStats() {
                 </div>
               </div>
             </section>
+
+            {/* ── PR-C: 무료→유료 전환 퍼널 (2026-07-11 마케팅 지시서) ── */}
+            {data.conversion && (
+              <section>
+                <h2 className="text-xs font-bold text-white/45 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  무료→유료 전환 (진짜 전환율)
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-extrabold text-white">{data.conversion.freeUserBase.toLocaleString()}</p>
+                    <p className="text-[11px] text-white/45 mt-1">무료플랜 사용자</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">이메일 기준 고유 사용자</p>
+                  </div>
+                  <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-extrabold text-white">{data.conversion.converted30d.toLocaleString()}</p>
+                    <p className="text-[11px] text-white/45 mt-1">유료 결제 전환</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">무료 사용 후 차터·투어 결제</p>
+                  </div>
+                  <div className="bg-[#7C5CFC]/10 border border-[#7C5CFC]/30 rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-extrabold text-[#B9A4FF]">{data.conversion.rate7d}%</p>
+                    <p className="text-[11px] text-white/45 mt-1">7일 전환율</p>
+                  </div>
+                  <div className="bg-[#7C5CFC]/10 border border-[#7C5CFC]/30 rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-extrabold text-[#B9A4FF]">{data.conversion.rate30d}%</p>
+                    <p className="text-[11px] text-white/45 mt-1">30일 전환율</p>
+                  </div>
+                </div>
+                {(Object.keys(data.conversion.byChannel).length > 0 || Object.keys(data.conversion.byProduct).length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4">
+                      <p className="text-[11px] font-bold text-white/45 mb-2">채널별 전환 (first UTM)</p>
+                      {Object.entries(data.conversion.byChannel).sort((a, b) => b[1] - a[1]).map(([ch, n]) => (
+                        <div key={ch} className="flex justify-between text-[12px] text-white/80 py-0.5">
+                          <span>{ch}</span><span className="font-bold">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4">
+                      <p className="text-[11px] font-bold text-white/45 mb-2">상품별 전환</p>
+                      {Object.entries(data.conversion.byProduct).sort((a, b) => b[1] - a[1]).map(([pt, n]) => (
+                        <div key={pt} className="flex justify-between text-[12px] text-white/80 py-0.5">
+                          <span>{pt}</span><span className="font-bold">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="text-[10px] text-white/30 mt-2">{data.conversion.note}</p>
+              </section>
+            )}
 
             {/* ── 쿠폰 종류별 현황 ── */}
             <section>

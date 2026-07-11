@@ -49,6 +49,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const isAdmin = !!(user?.email && ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL);
   const location = useLocation();
   const navigate = useNavigate();
+  const isPlannerLike = isMobile && (
+    location.pathname === '/planner'
+    || location.pathname.startsWith('/planner/')
+    || location.pathname.startsWith('/my-plans/')
+  );
+  const isMobileAppLight = isMobile && !location.pathname.startsWith('/admin') && !location.pathname.startsWith('/mood');
   const { toggle: toggleCommandPalette } = useCommandPalette();
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -116,6 +122,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     { label: t.nav.charter  ?? 'Charter',     to: '/charter' },
     { label: t.nav.tours   ?? 'Tours',          to: '/tours'   },
     { label: t.nav.planner  ?? 'AI Planner',  to: '/planner' },
+    { label: ({ en: 'Community', ko: '커뮤니티', ja: 'コミュニティ', zh: '社区' } as Record<Language, string>)[language], to: '/community' },
     { label: t.nav.about    ?? 'About',        to: '/about'   },
   ];
 
@@ -128,14 +135,17 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   return (
     <>
     <header
-      className={`sticky top-0 transition-all duration-300 ${isMobileMenuOpen ? 'z-[9999]' : 'z-[100]'}`}
+      className={`sticky top-0 transition-all duration-300 ${isMobileAppLight ? 'mobile-app-light-header' : ''} ${isMobileMenuOpen ? 'z-[9999]' : 'z-[100]'}`}
       style={{
-        background: isScrolled
-          ? 'rgba(8,11,20,0.92)'
-          : 'rgba(8,11,20,0.65)',
+        background: isMobileAppLight
+          ? (isScrolled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.78)')
+          : isScrolled
+            ? 'rgba(8,11,20,0.92)'
+            : 'rgba(8,11,20,0.65)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: isMobileAppLight ? '1px solid rgba(124,92,255,0.10)' : '1px solid rgba(255,255,255,0.04)',
+        boxShadow: isMobileAppLight ? '0 10px 30px rgba(48,39,118,0.08)' : undefined,
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -144,7 +154,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           {/* ═══ Left: Logo ═══ */}
           <Link to="/" className="flex items-center gap-2 md:gap-2.5 shrink-0">
             {/* 브랜드 로고 — 홈(MobileHomeV2)과 동일한 이미지로 통일(전 페이지 일관). */}
-            <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-7 md:h-8 w-auto" />
+            {isMobileAppLight ? (
+              <>
+                <img src="/icons/icon-192.png" alt="CocoTrip" className="h-8 w-8 rounded-xl shadow-[0_8px_18px_rgba(124,92,255,0.22)]" />
+                <span className="bg-gradient-to-r from-[#6F4DF5] to-[#F052B5] bg-clip-text text-[21px] font-black tracking-[-0.02em] text-transparent">
+                  CocoTrip
+                </span>
+              </>
+            ) : (
+              <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-7 md:h-8 w-auto" />
+            )}
             {/* Beta badge — 상용화 전 기대치 조절. 공유 제안서(isPublicView)에선 숨김. */}
             {!isPublicView && (
             <span
@@ -162,7 +181,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           </Link>
 
           {/* ═══ PWA Install (mobile only) ═══ */}
-          {isMobile && <PwaInstallButton t={t} />}
+          {isMobile && !isMobileAppLight && <PwaInstallButton t={t} />}
 
           {/* ═══ Center: Desktop Navigation ═══ */}
           {!isMobile && (
@@ -199,7 +218,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto lg:ml-0 shrink-0">
 
             {/* Global Search (Cmd/Ctrl+K) — 공유 제안서에선 숨김 */}
-            {!isPublicView && (
+            {!isPublicView && !isPlannerLike && !isMobileAppLight && (
             <button
               onClick={toggleCommandPalette}
               className="flex items-center gap-2 px-2 py-1.5 md:px-2.5 rounded-lg transition-all duration-200 text-white/50 hover:text-white hover:bg-white/[0.06]"
@@ -404,9 +423,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
       {/* ═══ Mobile Full-screen Menu ═══ */}
       {isMobile && isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[9998] pt-14 md:pt-[68px] overflow-y-auto"
+          className={`fixed inset-0 z-[9998] pt-14 md:pt-[68px] overflow-y-auto ${isMobileAppLight ? 'mobile-menu-light' : ''}`}
           style={{
-            background: 'rgba(8,11,20,0.98)',
+            background: isMobileAppLight ? 'rgba(255,255,255,0.97)' : 'rgba(8,11,20,0.98)',
             backdropFilter: 'blur(24px)',
           }}
           onClick={(e) => {

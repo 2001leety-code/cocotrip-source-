@@ -3,7 +3,8 @@
  *
  * 운영자 2026-06-07: 마케팅 리서치 반영 — ① 클릭 가능 CTA(전환↑) ② 마감일(긴급성) ③ 4언어.
  *   - 배너 클릭 → /tours (할인 적용 차터/투어). 끝에 밑줄 CTA 로 클릭 가능 표시.
- *   - ⚠️ 문구는 COPY/CTA 만 바꾸면 됨. 실제 할인은 EARLY50/WELCOME 쿠폰이 적용.
+ *   - ⚠️ 문구는 COPY/CTA 만 바꾸면 됨. 실제 할인은 가입 WELCOME 쿠폰(차터5%+투어5%)이 적용
+ *     (2026-07-07 v2: EARLY50 비활성·총 할인 상한 10%).
  *
  * 어드민 설정 (2026-06-07):
  *   - 마운트 시 /api/promo-config fetch → 성공 + enabled 면 Firestore 값 사용.
@@ -15,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
+import { trackPromoView, trackPromoClick, trackPromoDismiss } from '@/lib/analytics';
 
 const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 
@@ -23,17 +25,22 @@ const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 // 🚨 운영자: 오픈 프로모 마감일 표시 문자열 (예: '6/30', 'Jun 30').
 //    비우면('') → "선착순"만 표시(현행). 넣으면 자동으로 "~6/30 마감" 등 4언어 표시(긴급성).
 //    🚨 마감일이 지나면 반드시 비우거나 새 날짜로 교체 — 가짜 긴급성 금지(신뢰·규제, Booking €413M 벌금 사례).
-const PROMO_END_DATE = '6/28';
+// 2026-07-07: 지난 날짜('6/28') 비움 — 가짜 긴급성 제거(코드에 강제 마감일 없음). '선착순'만 표시.
+const PROMO_END_DATE = '';
 
 // CTA 클릭 이동 — 할인 적용 상품(차터/투어) 목록
 const CTA_HREF = '/tours';
 
 // 문구 — 운영자가 여기만 바꾸면 됨. (긴급성 꼬리말은 urgency() 가 자동 부착)
+// 🚨 2026-07-07: 거짓 '50% OFF'·'첫 예약 10%' 제거 — 실제 최대 할인은 총 10%(가입 5%+5% 쿠폰).
+// 🚨 2026-07-10 P0: 서버 DEFAULT(api/_shared/promo-config.js)와 반드시 동일하게 유지 —
+//    7/7에 여기만 고치고 서버를 빼먹어 prod API 가 낡은 50% 문구를 계속 반환했음.
+//    실발급(onboarding-coupons.js) = AI플랜 무료(1~3일) + 차터5% + 투어5% → 문구 일치.
 const COPY: Record<string, string> = {
-  en: '🎉 Grand Opening — up to 50% OFF · 10% off your 1st booking',
-  ko: '🎉 오픈 기념 — 최대 50% 할인 · 첫 예약 10% 추가',
-  ja: '🎉 オープン記念 — 最大50%OFF · 初回ご予約10%OFF',
-  zh: '🎉 开业纪念 — 最高50%折扣 · 首单再减10%',
+  en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
+  ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
+  zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
 };
 
 // 클릭 가능 CTA — 끝에 밑줄로 노출 (리서치: 'your'→'my'/명확한 CTA 가 클릭률↑)
@@ -75,6 +82,15 @@ export function PromoBanner() {
   // 어드민 설정 — null=로딩중/미설정(코드상수 사용), PromoConfig=원격 설정 사용
   const [remoteConfig, setRemoteConfig] = useState<PromoConfig | null>(null);
 
+  // P1 (2026-07-11): 배너 노출 이벤트 — 표시 조건 확정 후 1회 (GA4 퍼널: 노출→클릭→가입).
+  useEffect(() => {
+    if (dismissed) return;
+    if (remoteConfig && !remoteConfig.enabled) return;
+    trackPromoView('top_banner');
+    // remoteConfig 로딩 전후 각 1회가 아니라 최초 표시 시 1회만 — deps 는 dismissed 만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissed]);
+
   useEffect(() => {
     // 이미 닫혔으면 fetch 불필요
     if (dismissed) return;
@@ -105,6 +121,7 @@ export function PromoBanner() {
   const text = (activeCopy[language] || activeCopy.en) + urgency(language, activeEndDate);
   const cta = activeCta[language] || activeCta.en;
   const close = () => {
+    trackPromoDismiss('top_banner');
     try { localStorage.setItem(DISMISS_KEY, 'true'); } catch { /* noop */ }
     setDismissed(true);
   };
@@ -114,6 +131,7 @@ export function PromoBanner() {
     <div className="relative w-full" style={{ background: BRAND.gradient.primary }} role="region" aria-label="Promotion">
       <Link
         to={activeCtaHref}
+        onClick={() => trackPromoClick('top_banner', activeCtaHref)}
         className="block w-full text-center text-white text-[12px] sm:text-sm font-semibold py-2 px-9 leading-snug hover:brightness-110 transition"
       >
         <span>{text} </span>

@@ -10,6 +10,7 @@
  */
 import { sanitizeStopName } from './sanitizeName.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { isDietaryTrusted } from '../_shared/dietary-trust.js';
 
 // PR #462 (Audit X-H3 — 2026-05-16): keys that the cut-and-close repair
 // path in repairAndParseJSON may lose when Gemini truncates the response
@@ -90,7 +91,28 @@ export function sanitizeStops(data, lang = 'ko') {
  *
  * 음식 카테고리 만 체크 — non-food stop 은 dietary 와 무관.
  */
-function checkDietaryViolation(stop, dietary) {
+/**
+ * 2026-07-10 (주간 halal 422 근본 fix) — 부정문 제거 후 conflict 검사.
+ *
+ * 문제: conflict regex 가 부정문을 못 읽음 — "Halal certified — no pork served" 의
+ * 'pork' 단어만 보고 violation 처리(거짓 거부). 재시도 프롬프트가 안심 문구를 유도해
+ * Gemini 가 "no pork" 를 반복 → 매주 422. 부정된 언급("no pork"/"pork-free"/"돼지고기 없음")은
+ * 위반 증거가 아니라 오히려 안전 확인 문구 → 벗겨낸 뒤 남은 언급만 conflict 로 판정.
+ * 이름에 든 돼지/삼겹(식당 정체성)은 부정문 형태가 아니므로 그대로 걸림 — 안전 유지.
+ */
+function stripNegatedConflicts(hayLow) {
+  return hayLow
+    .replace(/\b(?:no|without|non|zero|never\s+(?:serves?|uses?d?)?|free\s+(?:of|from)|contains?\s+no)[\s-]*(?:any\s+)?(?:pork|beef|chicken|fish|seafood|meat)\b/gi, ' ')
+    .replace(/\b(?:pork|beef|chicken|fish|seafood|meat)[\s-]?free\b/gi, ' ')
+    .replace(/(?:돼지(?:고기)?|소고기|닭(?:고기)?|생선|해산물|고기)\s*(?:없|무\b|안\s*(?:씀|들어|사용))[가-힣]*/g, ' ');
+}
+
+/**
+ * @param {string|null} dbTag — foodIndex 에서 이름 정합 매칭된 행의 tag ('halal'|'vegan'|'vegetarian').
+ *   2026-07-10 fix: 검증이 dbMatcher(P325 태그 전파)보다 먼저 돌아 DB 인증을 못 보던 순서 버그 보완 —
+ *   validateResponse 가 이미 받는 foodIndex 로 DB 인증을 검증 시점에 직접 대조(증거 강화, 기준 완화 아님).
+ */
+function checkDietaryViolation(stop, dietary, dbTag = null) {
   if (!Array.isArray(dietary) || dietary.length === 0) return null;
   if (stop.category !== 'food') return null;
 
@@ -106,21 +128,27 @@ function checkDietaryViolation(stop, dietary) {
     .concat(stop.tags || [])
     .map((t) => String(t).toLowerCase());
   const hayLow = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''} ${stop.reason || ''}`.toLowerCase();
+  // 부정문("no pork"/"pork-free"/"돼지고기 없음")을 벗긴 텍스트로만 conflict 판정.
+  const hayConflict = stripNegatedConflicts(hayLow);
+  const db = String(dbTag || '').toLowerCase();
 
   if (wantsHalal) {
-    const claimsHalal = tags.some((t) => t.includes('halal')) || /halal|할랄/i.test(hayLow);
-    const conflicts   = /pork|돼지|삼겹/i.test(hayLow);
+    const claimsHalal = tags.some((t) => t.includes('halal')) || /halal|할랄/i.test(hayLow)
+      || db === 'halal';  // DB 인증(가장 강한 증거) — 텍스트 문구 누락으로 인증 식당을 거짓 거부하지 않기
+    const conflicts   = /pork|돼지|삼겹/i.test(hayConflict);
     if (!claimsHalal || conflicts) return 'halal';
   }
   if (wantsVegan) {
-    const claimsVegan = tags.some((t) => t.includes('vegan')) || /vegan|비건/i.test(hayLow);
-    const conflicts   = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hayLow);
+    const claimsVegan = tags.some((t) => t.includes('vegan')) || /vegan|비건/i.test(hayLow)
+      || db === 'vegan';
+    const conflicts   = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hayConflict);
     if (!claimsVegan || conflicts) return 'vegan';
   }
   if (wantsVeggie && !wantsVegan) {
     const claimsVeg = tags.some((t) => t.includes('vegetarian') || t.includes('vegan'))
-      || /vegetarian|vegan|채식|비건/i.test(hayLow);
-    const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hayLow);
+      || /vegetarian|vegan|채식|비건/i.test(hayLow)
+      || db === 'vegetarian' || db === 'vegan';
+    const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hayConflict);
     if (!claimsVeg || conflicts) return 'vegetarian';
   }
   return null;
@@ -1121,16 +1149,24 @@ export function validateResponse(data, request, foodIndex) {
       issues.push({ type: 'address_missing_number', stop: stopLabel });
     }
     // DB 매칭 (food 카테고리만)
+    // 2026-07-10: 매칭된 행의 dietary tag 를 dietary 검사에 전달 — 검증이 dbMatcher(P325)보다
+    // 먼저 돌아 DB 인증을 못 보고 인증 halal 식당을 422 거짓 거부하던 순서 버그 보완.
+    let dbDietTag = null;
     if (stop.category === 'food' && Array.isArray(foodIndex) && foodIndex.length > 0) {
-      const inDB = foodIndex.some(r => {
+      const dnEn = stop.display_name || stop.name_en || '';
+      const dbRow = foodIndex.find(r => {
         const dbName = (r.name || '').split('|')[0].trim();
-        return dbName === stopLabel || r.nameEn === (stop.display_name || stop.name_en || '');
+        return dbName === stopLabel || (r.nameEn && r.nameEn === dnEn);
       });
-      if (!inDB) issues.push({ type: 'unverified_restaurant', stop: stopLabel });
+      if (!dbRow) issues.push({ type: 'unverified_restaurant', stop: stopLabel });
+      // 2026-07-11 (3단계-B, 검증 강화): unverified dietary 태그(naver 키워드·AI-curated)는
+      // 위반 면제 증거로 인정 금지 — 치킨집 halal 태그가 검증을 통과시키면 안 된다.
+      // 완화 아님: 증거 불인정 → 위반 검출이 더 엄격해짐.
+      else if (dbRow.tag && isDietaryTrusted(dbRow)) dbDietTag = String(dbRow.tag).toLowerCase();
     }
     // P0-3 SAFETY-CRITICAL: 식이제한 위반 (halal/vegan/vegetarian)
     // critical severity — caller 가 plan 저장 차단할 수 있도록 표시.
-    const dietViolation = checkDietaryViolation(stop, dietary);
+    const dietViolation = checkDietaryViolation(stop, dietary, dbDietTag);
     if (dietViolation) {
       issues.push({
         type: 'dietary_violation',

@@ -31,6 +31,7 @@ import { captureError } from '../_shared/sentry.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
+import { enforceDietaryCoverage } from './dietaryCoverageGate.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SAFETY: Trekking/Hallasan
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
@@ -204,6 +205,7 @@ export default async function handler(req, res) {
     const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
     // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 allergies 칸으로 들어옴 (WizardForm P10 4/24 ALLERGY_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
     const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(allergies) ? allergies : [])])].filter((d) => d && d !== 'None');
+    enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll }); // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422 (dietaryCoverageGate.js)
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
     // sessionId 는 client 가 보낼 수 있는 anonymous 식별자 (현재 미사용이지만 향후

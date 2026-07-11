@@ -127,7 +127,8 @@ export async function notify(channel, text, options = {}) {
   const discordMirror = sendDiscord(text);
   try {
     const token = resolveToken(channel);
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    // 2026-07-11 (3단계-A): options.chatId — 테스트 알림 분리 채널(TELEGRAM_TEST_CHAT_ID) 용
+    const chatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
 
     if (!token || !chatId) {
       console.warn(`[notify:${channel}] 토큰 또는 chat_id 미설정 — skip`);

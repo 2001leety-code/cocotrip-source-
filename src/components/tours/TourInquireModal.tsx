@@ -271,11 +271,11 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3"
+      className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#B668FC]/25 bg-[#120a1f]"
+        className="cocotrip-mobile-inquiry-modal w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#B668FC]/25 bg-[#120a1f]"
         onClick={e => e.stopPropagation()}
       >
         {/* 헤더 */}

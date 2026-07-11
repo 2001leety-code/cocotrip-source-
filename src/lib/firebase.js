@@ -147,9 +147,18 @@ async function saveUserToFirestore(user) {
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
           const idToken = await user.getIdToken(/* forceRefresh */ attempt > 1);
+          // P1 (2026-07-11): 가입 유입 스냅샷(first/last UTM, PII 없음) 동봉 — 서버가
+          // users/{uid}.attribution 에 최초 1회 저장. 실패해도 발급/가입 무영향.
+          let attributionBody = {};
+          try {
+            const { getAttributionSnapshot } = await import('./analytics');
+            const a = getAttributionSnapshot();
+            if (a) attributionBody = { attribution: a };
+          } catch { /* 추적 실패 무시 */ }
           const resp = await fetch('/api/onboarding-coupons', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${idToken}` },
+            headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(attributionBody),
           });
           const json = await resp.json().catch(() => ({}));
           console.log(`[firebase] onboarding coupons attempt ${attempt}:`, json);
@@ -160,6 +169,11 @@ async function saveUserToFirestore(user) {
               try {
                 sessionStorage.setItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED', String(json.issued));
               } catch { /* SSR / 시크릿 모드 등 silent */ }
+              // P1: 발급 성공 이벤트 (GA4 퍼널 — 가입혜택 단계). 실패 무해.
+              try {
+                const { trackWelcomeCouponIssued } = await import('./analytics');
+                trackWelcomeCouponIssued(json.issued);
+              } catch { /* analytics 실패 무시 */ }
             }
             // ok=true 면 alreadyIssued 포함 모든 성공 케이스 → loop 종료
             lastErr = null;
