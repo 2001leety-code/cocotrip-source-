@@ -15,6 +15,7 @@
  * throttled admin alert fires when mismatch ratio crosses a threshold.
  */
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { isDietaryTrusted } from '../_shared/dietary-trust.js';
 
 // ── P227 (2026-05-27): 전국 체인 브랜드 목록 ──────────────────────────────
 // 이 브랜드들은 전국 매장이 있으나 foodIndex 에 1개 city 에만 row 가 존재하는 경우
@@ -312,7 +313,9 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko', allergyP
       // stop.dietary_tags 에 전파. 누락 시 responseValidator.checkDietaryViolation 이 진짜
       // dietary 식당(이름에 halal 토큰 없는 ~80%)을 가짜 violation 처리 → 422 거짓 거부 → 환불.
       // city-mismatch 는 제외(다른 도시 식당 = 요청 도시 기준 미검증).
-      if (!isCityMismatch && match.tag) {
+      // 2026-07-11 (3단계-B): unverified dietary 태그(naver 키워드·AI-curated)는 인증 도장
+      // 전파 금지 — 생선회집 vegan 태그가 dietary_tags 로 전파되면 검증까지 통과해버림.
+      if (!isCityMismatch && match.tag && isDietaryTrusted(match)) {
         const _dt = String(match.tag).toLowerCase();
         if (_dt === 'halal' || _dt === 'vegan' || _dt === 'vegetarian') {
           const _set = new Set(

@@ -10,6 +10,7 @@
  */
 import { sanitizeStopName } from './sanitizeName.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { isDietaryTrusted } from '../_shared/dietary-trust.js';
 
 // PR #462 (Audit X-H3 — 2026-05-16): keys that the cut-and-close repair
 // path in repairAndParseJSON may lose when Gemini truncates the response
@@ -1158,7 +1159,10 @@ export function validateResponse(data, request, foodIndex) {
         return dbName === stopLabel || (r.nameEn && r.nameEn === dnEn);
       });
       if (!dbRow) issues.push({ type: 'unverified_restaurant', stop: stopLabel });
-      else if (dbRow.tag) dbDietTag = String(dbRow.tag).toLowerCase();
+      // 2026-07-11 (3단계-B, 검증 강화): unverified dietary 태그(naver 키워드·AI-curated)는
+      // 위반 면제 증거로 인정 금지 — 치킨집 halal 태그가 검증을 통과시키면 안 된다.
+      // 완화 아님: 증거 불인정 → 위반 검출이 더 엄격해짐.
+      else if (dbRow.tag && isDietaryTrusted(dbRow)) dbDietTag = String(dbRow.tag).toLowerCase();
     }
     // P0-3 SAFETY-CRITICAL: 식이제한 위반 (halal/vegan/vegetarian)
     // critical severity — caller 가 plan 저장 차단할 수 있도록 표시.

@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { sanitizeStopName } from '../api/_ai_core/sanitizeName.js';
+import { deriveVerificationStatus, DIETARY_TAGS } from '../api/_shared/dietary-trust.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -31,6 +32,8 @@ const KEEP_FIELDS = [
   'rating', 'reviewCount', 'cuisine', 'cuisineKo',
   'priceLevel', 'priceLabel', 'priceLabelKo', 'priceRange',
   'tag', 'placeId', 'googleMapsUrl',
+  // 2026-07-11 식단 안전 신뢰 등급 (docs/DIETARY-DATA-AUDIT-2026-07-11.md)
+  'dietary_claim', 'verification_status', 'source_url', 'verified_at', 'verified_by', 'certification_type',
   'city', 'dong', 'dongEn', 'district',
   'source', 'naverLink', // for Naver-collected data traceability
   // Phase 6 (Busan) — foreigner-friendly meta
@@ -245,6 +248,20 @@ function main() {
     deduped.push(pickFields(item));
   }
   console.log(`  🔄 After dedup: ${deduped.length}`);
+
+  // 2026-07-11 식단 안전 신뢰 등급 파생 (운영자 지시 3단계-B) —
+  // dietary 태그 레코드에 dietary_claim + verification_status 부여.
+  // 수동 승격(halal_certified/vegan_restaurant)은 verified_overrides.json 이 SSOT
+  // (migrate-dietary-verification.mjs 와 동일 규칙) — 여기선 기존 값 보존 + 자동 파생만.
+  let quarantined = 0;
+  for (const r of deduped) {
+    const tag = String(r.tag || '').toLowerCase();
+    if (!DIETARY_TAGS.includes(tag)) continue;
+    r.dietary_claim = r.dietary_claim || tag;
+    r.verification_status = deriveVerificationStatus(r);
+    if (r.verification_status === 'unverified') quarantined++;
+  }
+  console.log(`  🛡️ dietary verification: unverified(격리)=${quarantined}`);
 
   // Sort by rating desc, then reviewCount desc
   deduped.sort((a, b) => {

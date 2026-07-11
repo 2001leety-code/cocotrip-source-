@@ -21,6 +21,7 @@ import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // P169 (2026-05-23): Gemini Streaming + 점진 Firestore Write
@@ -1296,6 +1297,14 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
 
     // P0-3: dietary 전달 + violation 시 retry. 3pass 는 retry 비용 큼 — pass1 만 재호출.
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+    // 2026-07-11 (3단계-C): legacy 경로와 동일한 결정론적 교체 — 두 경로 다 (block_mode 사각 교훈).
+    if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
+      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area);
+      if (_rep.replaced > 0) {
+        console.log('[planner] dietary deterministic replacement (3pass):', _rep.detail.join(' | '));
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+      }
+    }
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying pass1 with reinforced prompt');
       recordRetryAttempt('dietary-3pass');
@@ -1322,6 +1331,19 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         await captureError(new Error('Dietary violation persists after retry'), {
           route: 'ai-planner-full', mode: '3pass', dietary: dietaryArr.join(','),
           violationCount: violations.length, violations: violations.slice(0, 5),
+        }).catch(() => {});
+        // 2026-07-11 (3단계-A): legacy 경로와 동일한 텔레그램 알림 — 두 경로 다
+        // (block_mode 사각 교훈). test/customer 분리 동일 규칙.
+        sendErrorAlert({
+          title: 'SAFETY-CRITICAL: dietary_violation persisted',
+          testOrigin: !!isAdminBypass || String(body?.paypalOrderId || '').startsWith('TEST-'),
+          context: {
+            mode: '3pass',
+            city: [body?.area, ...(Array.isArray(body?.regions) ? body.regions : [])].filter(Boolean).join(',').slice(0, 60),
+            dietary: dietaryArr.join(','),
+            violations: violations.length,
+            sample: violations.slice(0, 3).map((v) => `${v.diet}:${v.stop}`).join(' | '),
+          },
         }).catch(() => {});
         const e = new Error(
           'AI failed to respect your dietary requirements (' +
@@ -1528,6 +1550,16 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     sanitizeStops(itinerary, language);
     // P0-3 SAFETY-CRITICAL: dietary 전달 + violation 시 1회 retry → 그래도 violation 시 throw.
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+    // 2026-07-11 (3단계-C): 재생성 의존 전에 결정론적 교체 — 위반 food stop 만
+    // 검증된(unverified 제외) DB 후보로 교체 후 재검증. 후보 부족 시 완화 없이
+    // 기존 retry→throw 경로 유지 (교체는 검증 완화가 아님 — 재검증 필수).
+    if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
+      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area);
+      if (_rep.replaced > 0) {
+        console.log('[planner] dietary deterministic replacement (legacy):', _rep.detail.join(' | '));
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+      }
+    }
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying with reinforced prompt');
       recordRetryAttempt('dietary-legacy');
@@ -1565,9 +1597,14 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           route: 'ai-planner-full', mode: 'legacy', dietary: dietaryArr.join(','),
           violationCount: violations.length, violations: violations.slice(0, 5),
         }).catch(() => {});
+        // 2026-07-11 (3단계-A): test/customer 분리 — isAdminBypass(게이트 인증済) 또는
+        // TEST- 주문(admin 계정 전용)만 test. 고객 요청만 urgent 등급으로 간다.
         sendErrorAlert({
-          title: '🚨 SAFETY-CRITICAL: dietary_violation persisted',
+          title: 'SAFETY-CRITICAL: dietary_violation persisted',
+          testOrigin: !!isAdminBypass || String(body?.paypalOrderId || '').startsWith('TEST-'),
           context: {
+            mode: 'legacy',
+            city: [body?.area, ...(Array.isArray(body?.regions) ? body.regions : [])].filter(Boolean).join(',').slice(0, 60),
             dietary: dietaryArr.join(','),
             violations: violations.length,
             sample: violations.slice(0, 3).map((v) => `${v.diet}:${v.stop}`).join(' | '),

@@ -202,16 +202,52 @@ export async function sendBookingPaymentAlert(booking) {
 }
 
 /**
- * 에러 알림 → error 채널
- * @param {string} funcName - 함수명
- * @param {Error} error
+ * 에러 알림 → error 채널.
+ *
+ * 두 가지 호출 형태 지원:
+ *   sendErrorAlert('funcName', error)                       — 기존 (하위호환)
+ *   sendErrorAlert({ title, context, testOrigin })          — 구조화 (2026-07-11 3단계-A)
+ *
+ * 2026-07-11 (운영자 지시 3단계-A): 테스트 발신(health check·scenario matrix ·
+ * ADMIN-BYPASS)과 실제 고객 오류가 같은 긴급 채널에 섞여 있었음 →
+ *   - testOrigin=true → 제목에 [TEST] prefix + '테스트 실패 — 고객 영향 없음' 등급 문구.
+ *     TELEGRAM_TEST_CHAT_ID env 가 있으면 그 채널로 분리 발송(없으면 동일 채널에 라벨만).
+ *   - testOrigin 판정은 호출부(서버)가 인증된 신호(paymentGate 통과한 ADMIN-BYPASS-/TEST-
+ *     주문)로만 세팅 — 클라이언트 헤더/바디 위조로 test 처리되지 않음.
+ *   - ⚠️ 기존 객체-인자 호출(geminiPipeline dietary alert)이 (funcName, error) 서명과
+ *     불일치해 error.message TypeError → .catch 무음이던 버그도 이 확장으로 해소.
  */
-export async function sendErrorAlert(funcName, error) {
+export async function sendErrorAlert(funcNameOrOpts, error) {
   const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
+  // 구조화 형태
+  if (funcNameOrOpts && typeof funcNameOrOpts === 'object') {
+    const { title, context = {}, testOrigin = false } = funcNameOrOpts;
+    const label = testOrigin ? '[TEST] ' : '';
+    const grade = testOrigin
+      ? 'ℹ️ 자동 테스트 실패 — 고객 영향 없음 (원인만 확인)'
+      : '🚨 실제 고객 요청 실패 — 즉시 확인 필요';
+    const ctxLines = Object.entries(context)
+      .map(([k, v]) => `${k}: ${String(v).slice(0, 300)}`)
+      .join('\n');
+    const msg = `${label}<b>${title || '오류'}</b>
+
+${grade}
+origin: ${testOrigin ? 'test' : 'customer'}
+${ctxLines}
+시간: ${kst}`;
+    // 테스트 전용 채널이 설정돼 있으면 분리 발송 (없으면 error 채널에 라벨만)
+    if (testOrigin && process.env.TELEGRAM_TEST_CHAT_ID) {
+      return notify('error', msg, { chatId: process.env.TELEGRAM_TEST_CHAT_ID });
+    }
+    return notify('error', msg);
+  }
+
+  // 기존 형태 (하위호환)
   const msg = `⚠️ <b>자동화 오류 발생</b>
 
-함수: ${funcName}
-오류: ${error.message}
+함수: ${funcNameOrOpts}
+오류: ${error && error.message}
 시간: ${kst}
 
 수동 확인이 필요합니다.`;

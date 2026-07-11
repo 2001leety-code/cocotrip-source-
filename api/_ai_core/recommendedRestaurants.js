@@ -26,6 +26,7 @@
  *   - regions.length===2 → 5+5, regions.length===3 → 4+3+3, 등등.
  *   - 각 도시 별 plan stops 좌표만으로 5km filter (서울 식당 ↔ 부산 stop 매칭 X).
  */
+import { isDietaryTrusted } from '../_shared/dietary-trust.js';
 
 const KEEP_FIELDS = [
   'name', 'nameEn', 'address',
@@ -139,6 +140,9 @@ function pickBucket(foodIndex, cityKey, tag, planNames, planCoords, limit = TARG
   for (const entry of foodIndex) {
     if (entry.city !== cityKey) continue;
     if (entry.tag !== tag) continue;
+    // 2026-07-11 SAFETY (3단계-B): unverified dietary 태그(naver 키워드·AI-curated)는
+    // 추천 버킷 진입 금지 — 생선회집 vegan 실증. general 은 항상 통과(무해).
+    if (!isDietaryTrusted(entry)) continue;
     if (!entry.lat || !entry.lng) continue;
     if (planNames.has(entry.name) || planNames.has(entry.nameEn)) continue;
 

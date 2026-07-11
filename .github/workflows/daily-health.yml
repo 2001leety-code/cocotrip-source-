@@ -199,7 +199,7 @@ jobs:
             echo "ℹ️  TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정 — alert skip"
             exit 0
           fi
-          MSG="🔴 *Daily Sentinel — Regression FAIL*%0A%0A날짜 (UTC): $(date -u +%Y-%m-%d)%0A대상: https://cocotripkr.com%0A%0AGitHub run:%0A${WORKFLOW_URL}%0A%0A자동 issue 생성됨 — repo Issues 확인"
+          MSG="🧪 [TEST] *Daily Sentinel — Regression FAIL (자동 테스트 — 고객 영향 아님, 원인 확인 필요)*%0A%0A날짜 (UTC): $(date -u +%Y-%m-%d)%0A대상: https://cocotripkr.com%0A%0AGitHub run:%0A${WORKFLOW_URL}%0A%0A자동 issue 생성됨 — repo Issues 확인"
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MSG}" \
@@ -218,7 +218,7 @@ jobs:
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
             echo "DISCORD_WEBHOOK_URL 미설정 — skip"; exit 0
           fi
-          node -e "const fs=require('fs'); const out=fs.existsSync('regression-output.txt')?fs.readFileSync('regression-output.txt','utf8').slice(-1200):''; const content='[Daily Sentinel — Regression FAIL] '+new Date().toISOString().slice(0,10)+'\n대상: https://cocotripkr.com\n자동 issue 생성됨 — repo Issues 확인\n\n'+out+'\n\nrun: '+process.env.WORKFLOW_URL; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
+          node -e "const fs=require('fs'); const out=fs.existsSync('regression-output.txt')?fs.readFileSync('regression-output.txt','utf8').slice(-1200):''; const content='🧪 [TEST] [Daily Sentinel — Regression FAIL — 자동 테스트, 고객 영향 아님] '+new Date().toISOString().slice(0,10)+'\n대상: https://cocotripkr.com\n자동 issue 생성됨 — repo Issues 확인\n\n'+out+'\n\nrun: '+process.env.WORKFLOW_URL; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
           curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "Discord webhook 실패(non-fatal)"
         continue-on-error: true
 
