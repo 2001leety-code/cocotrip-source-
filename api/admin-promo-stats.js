@@ -14,6 +14,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
+import { computeFreeToPaidConversion } from './_shared/funnel-conversion.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -120,6 +121,35 @@ export default async function handler(req, res) {
       }
     }
 
+    // ── 6. 무료→유료 전환율 7일·30일 (PR-C, 2026-07-11 마케팅 지시서) ──
+    // 연결 키: 무료 플랜의 email(guestEmail/email) → 이후 CONFIRMED bookings 의
+    //   userEmail/payerEmail (소문자 비교). bookings 문서엔 uid 가 없어 이메일 연결
+    //   (docs/ANALYTICS-FUNNEL.md). 윈도우: 무료 플랜 생성 시각 기준 +7일/+30일 내 결제.
+    // 채널 = booking.attribution.first.utm_source (P1 스냅샷 — 없으면 'direct'),
+    // 상품 = productType. 최근 90일 bookings 만 조회(읽기 비용 cap).
+    let conversion;
+    try {
+      const freePlans = freePlansSnap.docs.map((doc) => doc.data());
+      let bookings = [];
+      if (freePlans.length > 0) {
+        const since = new Date(Date.now() - 90 * 24 * 3600 * 1000);
+        const bookingsSnap = await db.collection('bookings')
+          .where('createdAt', '>=', since).get();
+        bookings = bookingsSnap.docs.map((bdoc) => {
+          const b = bdoc.data();
+          return {
+            ...b,
+            createdAtMs: b.createdAt && typeof b.createdAt.toMillis === 'function' ? b.createdAt.toMillis() : 0,
+          };
+        });
+      }
+      conversion = computeFreeToPaidConversion(freePlans, bookings);
+    } catch (convErr) {
+      // 전환 집계 실패는 나머지 통계를 막지 않음 (fail-open)
+      console.warn('[admin-promo-stats] conversion 집계 실패:', convErr.message);
+      conversion = { freeUserBase: 0, converted7d: 0, converted30d: 0, rate7d: 0, rate30d: 0, byChannel: {}, byProduct: {}, note: '집계 실패: ' + convErr.message };
+    }
+
     const data = {
       // 쿠폰 현황
       coupons: {
@@ -139,6 +169,8 @@ export default async function handler(req, res) {
         freePlanUsageRate, // 프로모션 가입자 중 무료플랜 생성률(%) — '유료 전환율' 아님(버그헌트 E)
       },
       recentFreePlans,
+      // PR-C (2026-07-11): 무료→유료 전환 퍼널 — 채널·상품별 포함
+      conversion,
       generatedAt: Date.now(),
     };
 
