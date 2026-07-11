@@ -6,7 +6,7 @@ import type { PlannerFormValues } from '@/components/PlannerForm';
 import { cityNameToAreaKey } from '../lib/formatters';
 import { auth as firebaseAuth } from '@/lib/firebase';
 import { isGuestAnonEnabled, shouldAttachGuestAnonToken } from '@/lib/guestReader';
-import { trackPlannerComplete, trackFreePlanRedeemed } from '@/lib/analytics';
+import { markPlannerPendingComplete } from '@/lib/analytics';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -318,13 +318,17 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       setStreamStep(4);
       setStreamAgent('done');
 
-      // P1 (2026-07-11): 플랜 생성 성공 이벤트 — GA4 퍼널(planner_start→planner_complete).
-      // aiCouponCode 존재 = 가입 무료 AI플랜 쿠폰 소진 → free_plan_redeemed (무료→유료 전환 시작점).
-      // analytics 실패가 navigate 를 막으면 안 됨(trackEvent 는 GA 미설정 시 no-op + 방어).
+      // P1 보완 (운영자 2026-07-11): 여기서는 이벤트를 발화하지 않는다 — 이 시점은 API 가
+      // streaming 을 "수락"한 것일 뿐 플랜 완성이 아니다(최종 실패 가능). pending marker 만
+      // 심고, PlanDetailPage(usePlanCompletionTracking)가 Firestore plan.status 'ready' 확정
+      // 시 정확히 1회 발화 / 'error' 면 발화 없이 marker 폐기.
       try {
-        trackPlannerComplete({ durationDays: values.durationDays, freeCoupon: !!aiCouponCode });
-        if (aiCouponCode) trackFreePlanRedeemed(values.durationDays);
-      } catch { /* analytics 실패 무시 */ }
+        const newPlanId = data?.planId
+          || (typeof data?.planUrl === 'string' ? (data.planUrl.split('/my-plans/')[1] || '').split('?')[0] : '');
+        if (newPlanId) {
+          markPlannerPendingComplete(newPlanId, { durationDays: values.durationDays, freeCoupon: !!aiCouponCode });
+        }
+      } catch { /* analytics 실패 무시 — navigate 를 막지 않음 */ }
 
       // P169: streaming 모드 — status: 'streaming' 이면 planId 받아서 바로 navigate.
       // PlanDetailPage 가 onSnapshot 으로 Firestore 점진 update 자동 감지 (이미 사용 중).

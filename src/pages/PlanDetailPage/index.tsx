@@ -48,6 +48,7 @@ import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
+import { usePlanCompletionTracking } from './hooks/usePlanCompletionTracking';
 import { buildSlides } from './lib/buildSlides';
 import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
@@ -86,6 +87,9 @@ export default function PlanDetailPage() {
   // Build slide array from plan data
   const slides = useMemo(() => (plan ? buildSlides(plan) : []), [plan]);
   const { current, goToSlide } = useSwipeNavigation(slides.length);
+
+  // P1 보완 (2026-07-11): planner_complete/free_plan_redeemed — plan.status 확정 시점 1회.
+  usePlanCompletionTracking(planId, plan?.status, !!plan);
 
   // Firestore listener
   //

@@ -26,10 +26,27 @@ describe('sanitizeAttribution', () => {
     expect(Object.keys(out.first).sort()).toEqual(['utm_source']);
   });
 
-  it("PII 방어: '@' 포함 값 폐기", () => {
+  it("PII 최소화: '@' 포함 값 폐기", () => {
     const out = sanitizeAttribution({ last: { utm_source: 'user@example.com', utm_medium: 'cpc' } })!;
     expect(out.last.utm_source).toBeUndefined();
     expect(out.last.utm_medium).toBe('cpc');
+  });
+
+  it('PII 최소화: 전화형 값 폐기 (클라 isSuspectPiiValue 와 동일 규칙 명세)', () => {
+    const out = sanitizeAttribution({
+      first: {
+        utm_source: '010-1234-5678',      // 구분자 전화 → 폐기
+        utm_medium: '+82 10 1234 5678',   // 국제전화 → 폐기
+        utm_campaign: '01012345678',      // 0시작 순수숫자(한국 전화) → 폐기
+        utm_term: '1234567890123456',     // 0 미시작 순수숫자(광고 ID) → 허용
+        utm_content: 'camp-2026-07-11',   // 날짜 포함 캠페인명 → 허용
+      },
+    })!;
+    expect(out.first.utm_source).toBeUndefined();
+    expect(out.first.utm_medium).toBeUndefined();
+    expect(out.first.utm_campaign).toBeUndefined();
+    expect(out.first.utm_term).toBe('1234567890123456');
+    expect(out.first.utm_content).toBe('camp-2026-07-11');
   });
 
   it('utm 키 없이 ts 만 있으면 null (의미 없는 저장 방지)', () => {

@@ -9,6 +9,10 @@
  * If not set, all tracking calls are silently no-ops.
  */
 
+// P1 이중 전송(운영자 2026-07-11): 퍼널 이벤트는 GA4(광고 귀속) + PostHog(퍼널 조회) 둘 다.
+// posthog.ts 는 lazy-init(키 없으면 no-op)이라 이 import 가 번들/부팅에 SDK 를 당기지 않음.
+import { track as posthogTrack, type PostHogEventName } from './posthog';
+
 // ── Types ───────────────────────────────────────────────────────────────
 interface GtagEvent {
   [key: string]: string | number | boolean | undefined;
@@ -92,15 +96,28 @@ const UTM_STORE = 'cocotrip_utm';
 // P1 (2026-07-11 마케팅 지시서): 장기 유입 귀속 — sessionStorage 는 탭 닫으면 소실되어
 // 며칠 뒤 결제 시 최초 유입이 끊겼다. localStorage 에 first(최초 1회 고정)/last(매 유입 갱신)
 // 분리 보존 → 가입·예약·결제 문서에 스냅샷으로 저장(getAttributionSnapshot).
-// ⚠️ PII 금지: utm 5필드 + 시각만. 이메일·전화·주소 절대 미포함.
+// ⚠️ PII 최소화: 수집 필드는 utm 5종 + 시각뿐이며, 값도 아래 휴리스틱으로 이메일·전화형을
+//    걸러낸다. URL 파라미터는 임의 입력이라 "완전 차단"은 불가 — 정확한 차단 범위는
+//    tests/unit/utm-attribution-p1.test.ts 가 명세한다. (서버측 동일 규칙: api/_shared/attribution.js)
 const UTM_FIRST_STORE = 'cocotrip_utm_first';
 const UTM_LAST_STORE = 'cocotrip_utm_last';
-// 값 방어: 비정상 길이/PII 의심('@' 포함) 값은 저장 자체를 스킵 (광고 UTM 값엔 @ 없음)
 const UTM_VALUE_MAX = 120;
+// PII 의심 값 휴리스틱 (client/server 동일 규칙 유지):
+//  ① '@' 포함 = 이메일류  ② '+' 시작 + 숫자 8자↑ = 국제전화
+//  ③ 0 시작 순수 숫자 9~11자 = 한국 전화  ④ 전체가 숫자·구분자(공백/-/괄호/.)뿐 + 숫자 9자↑ = 구분자 전화
+//  순수 숫자(0 미시작)는 광고 ID(Meta 등)일 수 있어 허용.
+function isSuspectPiiValue(v: string): boolean {
+  if (v.includes('@')) return true;
+  const digits = (v.match(/\d/g) || []).length;
+  if (/^\+/.test(v) && digits >= 8) return true;
+  if (/^0\d{8,10}$/.test(v)) return true;
+  if (/^[\d\s\-().]+$/.test(v) && /[\s\-().]/.test(v) && digits >= 9) return true;
+  return false;
+}
 function sanitizeUtmValue(v: string | null): string | null {
   if (!v) return null;
   const t = v.trim().slice(0, UTM_VALUE_MAX);
-  if (!t || t.includes('@')) return null; // 이메일 유입 방지 (PII 최소수집)
+  if (!t || isSuspectPiiValue(t)) return null;
   return t;
 }
 
@@ -157,7 +174,8 @@ function readStore(key: string): Record<string, string> | null {
 
 /**
  * 유입 스냅샷 (가입·예약·결제 문서 저장용) — { first?, last? }.
- * PII 없음(UTM 5필드+ts). 유입 기록이 전혀 없으면 null (필드 자체 생략용).
+ * PII 최소화(UTM 5필드+ts만, 값은 isSuspectPiiValue 휴리스틱 통과분).
+ * 유입 기록이 전혀 없으면 null (필드 자체 생략용).
  * 어떤 경우에도 throw 하지 않는다 — 추적 실패가 로그인·예약·결제를 막으면 안 됨.
  */
 export function getAttributionSnapshot(): { first?: Record<string, string>; last?: Record<string, string> } | null {
@@ -295,46 +313,88 @@ export function trackSignUp(method: string) {
   trackEvent('sign_up', { method });
 }
 
-// ── P1 전환 퍼널 이벤트 (2026-07-11 마케팅 지시서) ─────────────────────────
-// 프로모션 배너·가입혜택·플래너의 노출/클릭/완료를 GA4 로 측정 — 무료→유료 전환
-// 퍼널(PR-C 운영자 화면)의 데이터 기반. PostHog 는 autocapture 로 행동 분석 담당
-// (역할 중복 금지 — 여기 이벤트는 GA4 광고 귀속 전용).
+// ── P1 전환 퍼널 이벤트 (2026-07-11 마케팅 지시서 + 운영자 보완) ─────────────
+// 프로모션 배너·가입혜택·플래너의 노출/클릭/완료 측정 — 무료→유료 전환 퍼널
+// (PR-C 운영자 화면)의 데이터 기반.
+// 데이터 소스 결정(운영자 2026-07-11): GA4 = 광고 귀속(Google Ads import),
+// PostHog = 제품 퍼널 조회(admin-posthog-funnel 이 PostHog 를 읽음, autocapture:false
+// 라 수동 track 만 잡힘) → PII 없는 퍼널 이벤트는 두 곳에 이중 전송한다.
+function trackFunnel(eventName: PostHogEventName, params?: GtagEvent) {
+  trackEvent(eventName, params);                    // GA4 (광고 귀속)
+  try { void posthogTrack(eventName, params); } catch { /* 분석 실패 무해 */ } // PostHog (퍼널 조회)
+}
 
 /** 프로모 배너 노출 (마운트 후 표시 시 1회). */
 export function trackPromoView(placement: string) {
-  trackEvent('promo_view', { placement });
+  trackFunnel('promo_view', { placement });
 }
 /** 프로모 배너 CTA 클릭. */
 export function trackPromoClick(placement: string, targetHref?: string) {
-  trackEvent('promo_click', { placement, target_url: targetHref });
+  trackFunnel('promo_click', { placement, target_url: targetHref });
 }
 /** 프로모 배너 닫기(X). */
 export function trackPromoDismiss(placement: string) {
-  trackEvent('promo_dismiss', { placement });
+  trackFunnel('promo_dismiss', { placement });
 }
 /** 가입 웰컴 쿠폰 발급 성공 (firebase.js — issued>0 일 때). */
 export function trackWelcomeCouponIssued(issuedCount: number) {
-  trackEvent('welcome_coupon_issued', { issued_count: issuedCount });
+  trackFunnel('welcome_coupon_issued', { issued_count: issuedCount });
 }
 /** 가입 웰컴 모달 노출. */
 export function trackWelcomeCouponModalView() {
-  trackEvent('welcome_coupon_modal_view', {});
-}
-/** AI 플랜 생성 완료 (planner_start 는 WizardForm 에서 기존 발화). */
-export function trackPlannerComplete(params?: { durationDays?: number; freeCoupon?: boolean }) {
-  trackEvent('planner_complete', {
-    duration_days: params?.durationDays,
-    free_coupon: params?.freeCoupon ? 'true' : 'false',
-  });
-}
-/** 가입 무료 AI 플랜 쿠폰으로 플랜 생성 (무료→유료 전환 퍼널 시작점). */
-export function trackFreePlanRedeemed(durationDays?: number) {
-  trackEvent('free_plan_redeemed', { duration_days: durationDays });
+  trackFunnel('welcome_coupon_modal_view', {});
 }
 /** 차터 견적 시작/완료. */
 export function trackCharterQuoteStart() {
-  trackEvent('charter_quote_start', {});
+  trackFunnel('charter_quote_start', {});
 }
 export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }) {
-  trackEvent('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
+  trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
+}
+
+// ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──
+// 이전 구현은 API 가 streaming 을 수락한 시점(usePlannerHandlers navigate 직전)에 발화
+// → 스트리밍이 최종 실패(status:'error')해도 planner_complete 가 잡히는 오류.
+// 지금 구조:
+//   1) usePlannerHandlers: API 수락 시 sessionStorage 에 pending marker 만 심음 (이벤트 X)
+//   2) PlanDetailPage(usePlanCompletionTracking): plan.status 관찰 —
+//      'ready' 확정 → 발화 + marker 제거 (정확히 1회)
+//      'error'(스트리밍 최종 실패) → 발화 없이 marker 제거
+//      'streaming' → 대기. marker 의 planId 불일치(다른/옛 플랜 열람) → 무시.
+const PENDING_COMPLETE_KEY = 'coco_planner_pending_complete';
+
+export function markPlannerPendingComplete(planId: string, meta: { durationDays?: number; freeCoupon?: boolean }) {
+  if (!planId || typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(PENDING_COMPLETE_KEY, JSON.stringify({ planId, ...meta }));
+  } catch { /* 저장 차단 환경 — 이벤트 유실만, 흐름 무영향 */ }
+}
+
+/**
+ * plan.status 확정에 따라 완료 이벤트 발화. 반환값은 테스트/디버깅용.
+ * marker 를 발화 전에 제거하므로 onSnapshot 이 여러 번 와도 정확히 1회.
+ */
+export function trackPlannerOutcomeFromStatus(
+  planId: string | undefined,
+  status: 'ready' | 'streaming' | 'error' | undefined,
+): 'completed' | 'failed' | null {
+  if (!planId || typeof window === 'undefined') return null;
+  let marker: { planId?: string; durationDays?: number; freeCoupon?: boolean } | null = null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_COMPLETE_KEY);
+    marker = raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+  if (!marker || marker.planId !== planId) return null;
+  if (status === 'streaming') return null; // 아직 미확정 — marker 유지
+  try { sessionStorage.removeItem(PENDING_COMPLETE_KEY); } catch { /* noop */ }
+  if (status === 'error') return 'failed'; // 스트리밍 최종 실패 — 완료 이벤트 금지
+  // 'ready' (legacy 무상태 doc 은 호출부가 'ready' 로 정규화) → 발화
+  trackFunnel('planner_complete', {
+    duration_days: marker.durationDays,
+    free_coupon: marker.freeCoupon ? 'true' : 'false',
+  });
+  if (marker.freeCoupon) {
+    trackFunnel('free_plan_redeemed', { duration_days: marker.durationDays });
+  }
+  return 'completed';
 }
