@@ -11,6 +11,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
+import { trackCharterQuoteStart, trackCharterQuoteComplete } from '@/lib/analytics';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
@@ -179,6 +180,22 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
   const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm);
+
+  // P1 (2026-07-11): 차터 견적 퍼널 이벤트 — 시작(마운트 1회) / 완료(유효 견적으로 step6 도달 1회).
+  // GA4 광고 귀속용. analytics 실패는 위저드 흐름 무영향(trackEvent no-op 방어).
+  const quoteStartTracked = useRef(false);
+  const quoteCompleteTracked = useRef(false);
+  useEffect(() => {
+    if (quoteStartTracked.current) return;
+    quoteStartTracked.current = true;
+    trackCharterQuoteStart();
+  }, []);
+  useEffect(() => {
+    if (quoteCompleteTracked.current || currentStep < 6 || !quote) return;
+    if (!quote.needsCustomQuote && !(quote.subtotalKRW > 0)) return;
+    quoteCompleteTracked.current = true;
+    trackCharterQuoteComplete({ vehicleType: state.vehicle || '' });
+  }, [currentStep, quote, state.vehicle]);
 
   // 2026-06-11 가입 프로필 prefill — customerName/customerPhone 빈 필드만 (메신저는 프로필 미수집 → 무변경).
   // resume 결정 전(resumeOpen)엔 주입 안 함(snapshot 복원 충돌 방지) + 마운트당 1회 + fill-only-empty(사용자/snapshot 안 덮음).

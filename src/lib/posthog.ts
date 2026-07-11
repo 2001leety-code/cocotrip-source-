@@ -85,7 +85,18 @@ export type PostHogEventName =
   | 'language_switched'
   | 'payment_started'
   | 'payment_completed'
-  | 'payment_failed';
+  | 'payment_failed'
+  // P1 마케팅 퍼널 (2026-07-11 운영자 보완 지시): GA4(광고 귀속)와 이중 전송.
+  // PostHog = 제품 퍼널 조회(admin-posthog-funnel) 데이터 소스. PII 없는 속성만.
+  | 'promo_view'
+  | 'promo_click'
+  | 'promo_dismiss'
+  | 'welcome_coupon_issued'
+  | 'welcome_coupon_modal_view'
+  | 'planner_complete'
+  | 'free_plan_redeemed'
+  | 'charter_quote_start'
+  | 'charter_quote_complete';
 
 export async function track(event: PostHogEventName, props?: Record<string, unknown>): Promise<void> {
   const ph = await ensureInit();

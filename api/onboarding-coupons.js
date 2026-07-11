@@ -24,6 +24,7 @@
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
+import { sanitizeAttribution } from './_shared/attribution.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -210,6 +211,27 @@ export default async function handler(req, res) {
     if (!db) {
       res.writeHead(500, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'Firestore unavailable' }));
+    }
+
+    // P1 (2026-07-11): 가입 유입 스냅샷 (first/last UTM, PII 최소화) — 쿠폰 발급과 독립.
+    // 최초 1회만 저장(가입 시점 귀속이 목적). 트랜잭션으로 원자화(운영자 보완 지시) —
+    // 동시 로그인 두 요청이 둘 다 "없음"을 보고 쓰는 race 차단. 실패해도 발급/로그인 무영향.
+    try {
+      let body = req.body;
+      if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+      const attribution = sanitizeAttribution(body && body.attribution);
+      if (attribution) {
+        const userRef = db.collection('users').doc(uid);
+        await db.runTransaction(async (tx) => {
+          const userSnap = await tx.get(userRef);
+          const existing = userSnap.exists ? (userSnap.data() || {}) : {};
+          if (!existing.attribution) {
+            tx.set(userRef, { attribution: { ...attribution, storedAt: Date.now() } }, { merge: true });
+          }
+        });
+      }
+    } catch (attrErr) {
+      console.warn('[onboarding-coupons] attribution 저장 실패 (비치명적):', attrErr.message);
     }
 
     const result = await issueOnboardingCouponsForUid(db, uid);

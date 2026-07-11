@@ -5,10 +5,11 @@
  * 위치:   App.tsx GlobalWidgets 에 마운트 → 어느 페이지에 있어도 노출됨
  * 닫기:   "확인" 클릭 또는 배경 클릭 시 sessionStorage 플래그 제거
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gift, Sparkles, Ticket, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { trackWelcomeCouponModalView } from '@/lib/analytics';
 
 const SESSION_KEY = 'COCO_ONBOARDING_COUPONS_JUST_ISSUED';
 
@@ -16,6 +17,8 @@ export function OnboardingCouponModal() {
   const [open, setOpen] = useState(false);
   const { t } = useLanguage();
   const navigate = useNavigate();
+  // P1: 모달 노출 이벤트 1회 가드 (setState updater 는 순수해야 하므로 ref 사용)
+  const viewTracked = useRef(false);
 
   // i18n — mypage 네임스페이스 사용 (4개 언어 모두 키 존재)
   const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
@@ -26,6 +29,11 @@ export function OnboardingCouponModal() {
       try {
         const flag = sessionStorage.getItem(SESSION_KEY);
         if (flag && Number(flag) > 0) {
+          // P1 (2026-07-11): 모달 노출 이벤트 — 1회 (GA4 가입혜택 퍼널).
+          if (!viewTracked.current) {
+            viewTracked.current = true;
+            trackWelcomeCouponModalView();
+          }
           setOpen(true);
         }
       } catch { /* SSR / 시크릿 모드 */ }

@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
+import { trackPromoView, trackPromoClick, trackPromoDismiss } from '@/lib/analytics';
 
 const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 
@@ -81,6 +82,15 @@ export function PromoBanner() {
   // 어드민 설정 — null=로딩중/미설정(코드상수 사용), PromoConfig=원격 설정 사용
   const [remoteConfig, setRemoteConfig] = useState<PromoConfig | null>(null);
 
+  // P1 (2026-07-11): 배너 노출 이벤트 — 표시 조건 확정 후 1회 (GA4 퍼널: 노출→클릭→가입).
+  useEffect(() => {
+    if (dismissed) return;
+    if (remoteConfig && !remoteConfig.enabled) return;
+    trackPromoView('top_banner');
+    // remoteConfig 로딩 전후 각 1회가 아니라 최초 표시 시 1회만 — deps 는 dismissed 만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissed]);
+
   useEffect(() => {
     // 이미 닫혔으면 fetch 불필요
     if (dismissed) return;
@@ -111,6 +121,7 @@ export function PromoBanner() {
   const text = (activeCopy[language] || activeCopy.en) + urgency(language, activeEndDate);
   const cta = activeCta[language] || activeCta.en;
   const close = () => {
+    trackPromoDismiss('top_banner');
     try { localStorage.setItem(DISMISS_KEY, 'true'); } catch { /* noop */ }
     setDismissed(true);
   };
@@ -120,6 +131,7 @@ export function PromoBanner() {
     <div className="relative w-full" style={{ background: BRAND.gradient.primary }} role="region" aria-label="Promotion">
       <Link
         to={activeCtaHref}
+        onClick={() => trackPromoClick('top_banner', activeCtaHref)}
         className="block w-full text-center text-white text-[12px] sm:text-sm font-semibold py-2 px-9 leading-snug hover:brightness-110 transition"
       >
         <span>{text} </span>
