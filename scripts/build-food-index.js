@@ -251,17 +251,31 @@ function main() {
 
   // 2026-07-11 식단 안전 신뢰 등급 파생 (운영자 지시 3단계-B) —
   // dietary 태그 레코드에 dietary_claim + verification_status 부여.
-  // 수동 승격(halal_certified/vegan_restaurant)은 verified_overrides.json 이 SSOT
-  // (migrate-dietary-verification.mjs 와 동일 규칙) — 여기선 기존 값 보존 + 자동 파생만.
-  let quarantined = 0;
+  // 2026-07-12: 수동 검증 SSOT = food_data/verified_overrides.json — 재수집해도
+  // 승격(vegan_restaurant/muslim_friendly 등)이 유지되도록 파생 후 오버라이드 적용
+  // (migrate-dietary-verification.mjs 와 동일 규칙).
+  const overridesPath = join(FOOD_DATA_DIR, 'verified_overrides.json');
+  const overrides = existsSync(overridesPath) ? JSON.parse(readFileSync(overridesPath, 'utf-8')) : [];
+  const ovMap = new Map(overrides.map((o) => [`${o.name}|${o.city}`, o]));
+  let quarantined = 0, promoted = 0;
   for (const r of deduped) {
     const tag = String(r.tag || '').toLowerCase();
     if (!DIETARY_TAGS.includes(tag)) continue;
     r.dietary_claim = r.dietary_claim || tag;
+    const ov = ovMap.get(`${r.name}|${r.city}`);
+    if (ov && ov.verification_status) {
+      r.verification_status = ov.verification_status;
+      if (ov.source_url) r.source_url = ov.source_url;
+      if (ov.certification_type) r.certification_type = ov.certification_type;
+      r.verified_by = ov.verified_by || 'operator';
+      r.verified_at = ov.verified_at || new Date().toISOString().slice(0, 10);
+      promoted++;
+      continue;
+    }
     r.verification_status = deriveVerificationStatus(r);
     if (r.verification_status === 'unverified') quarantined++;
   }
-  console.log(`  🛡️ dietary verification: unverified(격리)=${quarantined}`);
+  console.log(`  🛡️ dietary verification: unverified(격리)=${quarantined}, 수동승격=${promoted}`);
 
   // Sort by rating desc, then reviewCount desc
   deduped.sort((a, b) => {

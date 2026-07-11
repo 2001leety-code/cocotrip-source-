@@ -60,3 +60,23 @@
 node -e "const d=require('./api/_food_index.json');
 console.log(d.filter(r=>['vegan','halal','vegetarian'].includes(r.tag)&&['naver_local','ai_curated_2026_05_21'].includes(r.source)).length)"
 ```
+
+## 복구 1차 (2026-07-12) — 공식 소스 검증 7건 승격
+
+KMF·KTO·지자체 공식 관광 소스를 실측 조사(287건 수집) 후 우리 후보 218건과 대조 —
+매칭 8건 중 적대 검증(출처 URL 실열람·도시·등급·동명이의) 통과 **7건만** 승격:
+
+| 식당 | 도시 | 등급 | 근거 |
+|---|---|---|---|
+| 쑥부쟁이 | gyeongju | vegan_restaurant | 경주 공식 관광포털 — 채식 코스 전문점 |
+| 채식주의자의무화과 | jeonju | vegan_restaurant | 전주시 공식 관광사이트 |
+| AND유CAFE | jeju | vegan_restaurant | 비짓제주 공식 — 동물성 미사용 명시 |
+| 바그다드 | jeju | muslim_friendly | KTO Muslim Friendly |
+| 타지마할인코리아 | daegu | muslim_friendly | KTO |
+| 인도요리전문점마하라자 | changwon | muslim_friendly | KTO |
+| 타지마할인도요리전문점 | changwon | muslim_friendly | KTO |
+
+- **halal_certified 0건** — KMF 인증 확인 안 된 곳은 전부 muslim_friendly 로 하향 (정직 원칙).
+- 복구된 커버리지: 제주 halal/vegan/vegetarian · 경주 vegan/vegetarian · 전주 vegan/vegetarian · 창원 halal · 대구 halal.
+- 나머지 도시(강릉·여수·속초 등 vegan 등)는 여전히 공식 근거 없음 → unverified 유지, 422 유지.
+- SSOT: food_data/verified_overrides.json (재수집 시 build-food-index.js 가 자동 적용).
