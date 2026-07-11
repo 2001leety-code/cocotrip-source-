@@ -181,12 +181,12 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      className="cocotrip-mobile-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.7)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-6"
+        className="cocotrip-mobile-phone-modal w-full max-w-sm rounded-2xl p-6"
         style={{ background: '#0f1220', border: '1px solid rgba(124,92,252,0.25)' }}
         onClick={(e) => e.stopPropagation()}
       >

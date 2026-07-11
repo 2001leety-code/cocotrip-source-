@@ -453,7 +453,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     <Dialog>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent
-        className="max-w-md mx-auto max-h-[85vh] overflow-y-auto"
+        className="cocotrip-mobile-booking-dialog max-w-md mx-auto max-h-[85vh] overflow-y-auto"
         style={{ background: 'linear-gradient(180deg, #0f0820 0%, #0a0512 100%)', border: '1px solid rgba(182,104,252,0.20)', color: 'white' }}
       >
         <DialogHeader>
@@ -522,7 +522,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="p-0 w-auto"
+                className="cocotrip-mobile-booking-popover p-0 w-auto"
                 align="start"
                 style={{ background: '#0f0820', border: '1px solid rgba(182,104,252,0.25)' }}
               >
@@ -778,7 +778,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             모달 내부 sticky (max-h-[85vh] overflow-y-auto 스크롤 컨테이너 기준).
             -mx-6 px-6 = DialogContent p-6(24px) 좌우 패딩 상쇄. md: 부터 static 복귀(데스크탑 무변경).
             배경 그라데이션 = 하단색 #0a0512 페이드(콘텐츠가 비쳐 잘리는 인상 방지). */}
-        <DialogFooter className="gap-2 mt-3 flex-col md:static sticky bottom-0 -mx-6 px-6 pt-3 pb-[calc(8px+env(safe-area-inset-bottom))] z-10 bg-gradient-to-t from-[#0a0512] via-[#0a0512]/95 to-transparent">
+        <DialogFooter className="cocotrip-mobile-booking-footer gap-2 mt-3 flex-col md:static sticky bottom-0 -mx-6 px-6 pt-3 pb-[calc(8px+env(safe-area-inset-bottom))] z-10 bg-gradient-to-t from-[#0a0512] via-[#0a0512]/95 to-transparent">
           {step === 1 && (
             canAdvanceStep1 ? (
               <button

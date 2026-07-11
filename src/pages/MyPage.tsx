@@ -178,7 +178,7 @@ export default function MyPage() {
 
   if (loading) {
     return (
-      <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-[#080b14] flex items-center justify-center'}>
+      <div className={isMobile ? 'm-page cocotrip-mobile-account flex items-center justify-center' : 'min-h-screen bg-[#080b14] flex items-center justify-center'}>
         <div className="w-8 h-8 border-2 border-[#B668FC] border-t-transparent animate-spin rounded-full" />
       </div>
     );
@@ -188,7 +188,7 @@ export default function MyPage() {
   const tc = TIER_COLORS[tier];
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#080b14]'}>
+    <div className={isMobile ? 'm-page cocotrip-mobile-account' : 'min-h-screen bg-[#080b14]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <div className={`max-w-4xl mx-auto px-4 pt-6 ${isMobile ? 'pb-4' : 'pb-20'}`}>

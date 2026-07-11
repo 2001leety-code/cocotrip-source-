@@ -101,7 +101,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   ];
 
   return (
-    <div className={`min-h-screen pb-24 ${REFINED ? 'm-refined' : ''}`} style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
+    <div className={`min-h-screen pb-24 cocotrip-mobile-home-surface ${REFINED ? 'm-refined' : ''}`} style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
       <style>{`
         /* 정제 퍼플·핑크 (2026-06-01 채택) — REFINED 플래그 ON 일 때만 적용 */
         .m-hero-serif { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif; font-weight: 600; letter-spacing: -0.01em; }
@@ -209,7 +209,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
                   key={`${tour.id}-${i}`}
                   to={`/tours/${tour.slug}`}
                   onClick={() => haptic('tap')}
-                  className="m-btn shrink-0 w-[140px] h-[185px] rounded-2xl overflow-hidden relative bg-white/[0.04] border border-white/[0.06] block"
+                  className="mobile-home-tour-card m-btn shrink-0 w-[140px] h-[185px] rounded-2xl overflow-hidden relative bg-white/[0.04] border border-white/[0.06] block"
                   aria-label={title}
                 >
                   <img
