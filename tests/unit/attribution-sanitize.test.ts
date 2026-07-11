@@ -49,6 +49,26 @@ describe('sanitizeAttribution', () => {
     expect(out.first.utm_content).toBe('camp-2026-07-11');
   });
 
+  it('PII 최소화: URL 값 폐기 (http/https/:///www.)', () => {
+    const out = sanitizeAttribution({
+      first: {
+        utm_source: 'https://evil.example.com/steal?token=x',
+        utm_medium: 'ftp://host/file',
+        utm_campaign: 'www.example.com',
+        utm_term: 'summer_sale', // 정상 허용
+      },
+    })!;
+    expect(out.first.utm_source).toBeUndefined();
+    expect(out.first.utm_medium).toBeUndefined();
+    expect(out.first.utm_campaign).toBeUndefined();
+    expect(out.first.utm_term).toBe('summer_sale');
+  });
+
+  it('개행·제어문자 제거 후 저장 (로그 인젝션·저장 오염 방지)', () => {
+    const out = sanitizeAttribution({ first: { utm_source: 'goo\ngle\tads' } })!;
+    expect(out.first.utm_source).toBe('googleads');
+  });
+
   it('utm 키 없이 ts 만 있으면 null (의미 없는 저장 방지)', () => {
     expect(sanitizeAttribution({ first: { ts: '2026-07-11T00:00:00Z' } })).toBeNull();
   });

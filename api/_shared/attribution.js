@@ -20,6 +20,8 @@ const VALUE_MAX = 120;
 
 function isSuspectPiiValue(v) {
   if (v.includes('@')) return true;
+  // URL(임의 링크·토큰) 차단
+  if (/^https?:/i.test(v) || v.includes('://') || /^www\./i.test(v)) return true;
   const digits = (v.match(/\d/g) || []).length;
   if (/^\+/.test(v) && digits >= 8) return true;
   if (/^0\d{8,10}$/.test(v)) return true;
@@ -33,7 +35,9 @@ function sanitizeTouch(touch) {
   for (const k of UTM_KEYS) {
     const v = touch[k];
     if (typeof v !== 'string') continue;
-    const t = v.trim().slice(0, VALUE_MAX);
+    // 개행·제어문자 제거(저장 오염 방지) → trim → 길이 컷
+    // eslint-disable-next-line no-control-regex
+    const t = v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, VALUE_MAX);
     if (!t || isSuspectPiiValue(t)) continue;
     out[k] = t;
   }

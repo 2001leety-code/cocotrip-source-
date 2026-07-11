@@ -113,6 +113,15 @@ describe('initUtmCapture — first/last 분리', () => {
     const last = JSON.parse(localStorage.getItem(LAST)!);
     expect(last.utm_campaign.length).toBeLessThanOrEqual(120);
   });
+
+  it('PII 최소화: URL 값 차단 + 개행·제어문자 제거', async () => {
+    setUrl(`?utm_source=${encodeURIComponent('https://evil.example.com/x')}&utm_medium=${encodeURIComponent('goo\ngle\tads')}&utm_campaign=${encodeURIComponent('www.example.com')}`);
+    (await freshAnalytics()).initUtmCapture();
+    const last = JSON.parse(localStorage.getItem(LAST)!);
+    expect(last.utm_source).toBeUndefined();      // URL 차단
+    expect(last.utm_campaign).toBeUndefined();    // www. 차단
+    expect(last.utm_medium).toBe('googleads');    // 제어문자 제거 후 저장
+  });
 });
 
 describe('getAttributionSnapshot — 예약·가입 문서 저장용', () => {

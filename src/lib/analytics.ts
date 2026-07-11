@@ -103,11 +103,13 @@ const UTM_FIRST_STORE = 'cocotrip_utm_first';
 const UTM_LAST_STORE = 'cocotrip_utm_last';
 const UTM_VALUE_MAX = 120;
 // PII 의심 값 휴리스틱 (client/server 동일 규칙 유지):
-//  ① '@' 포함 = 이메일류  ② '+' 시작 + 숫자 8자↑ = 국제전화
-//  ③ 0 시작 순수 숫자 9~11자 = 한국 전화  ④ 전체가 숫자·구분자(공백/-/괄호/.)뿐 + 숫자 9자↑ = 구분자 전화
+//  ① '@' 포함 = 이메일류  ② URL(http 시작·'://'·www.) = 임의 링크/토큰 유입
+//  ③ '+' 시작 + 숫자 8자↑ = 국제전화  ④ 0 시작 순수 숫자 9~11자 = 한국 전화
+//  ⑤ 전체가 숫자·구분자(공백/-/괄호/.)뿐 + 숫자 9자↑ = 구분자 전화
 //  순수 숫자(0 미시작)는 광고 ID(Meta 등)일 수 있어 허용.
 function isSuspectPiiValue(v: string): boolean {
   if (v.includes('@')) return true;
+  if (/^https?:/i.test(v) || v.includes('://') || /^www\./i.test(v)) return true;
   const digits = (v.match(/\d/g) || []).length;
   if (/^\+/.test(v) && digits >= 8) return true;
   if (/^0\d{8,10}$/.test(v)) return true;
@@ -116,7 +118,9 @@ function isSuspectPiiValue(v: string): boolean {
 }
 function sanitizeUtmValue(v: string | null): string | null {
   if (!v) return null;
-  const t = v.trim().slice(0, UTM_VALUE_MAX);
+  // 개행·제어문자 제거(저장 오염·로그 인젝션 방지) → trim → 길이 컷
+  // eslint-disable-next-line no-control-regex
+  const t = v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, UTM_VALUE_MAX);
   if (!t || isSuspectPiiValue(t)) return null;
   return t;
 }
