@@ -45,7 +45,8 @@ const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; ch
     charterTitle: /チャーター/,
   },
   zh: {
-    homeNav: ['首页', '旅游', 'AI 规划师'],
+    // nav.planner zh 실값 = 'AI规划师'(공백 없음) — 데스크톱 헤더 매칭용으로 정확히.
+    homeNav: ['首页', '旅游', 'AI规划师'],
     aboutHeading: '关于 COCOTRIP',
     charterTitle: /包车/,
   },
