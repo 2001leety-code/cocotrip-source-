@@ -140,7 +140,8 @@ function HomePage() {
   if (isMobile) {
     if (MOBILE_V2) {
       return (
-        <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0b14' }} aria-hidden />}>
+        // V2 홈은 라이트 서피스 — 로드 중 placeholder 도 라이트로 (다크 플래시 방지)
+        <Suspense fallback={<div className="min-h-screen" style={{ background: '#fbfaff' }} aria-hidden />}>
           <MobileHomeV2 />
         </Suspense>
       );
