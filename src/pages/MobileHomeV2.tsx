@@ -67,7 +67,10 @@ export default function MobileHomeV2() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
+    // cocotrip-mobile-home-surface = 기존 모바일 라이트 앱 셸(index.css)이 다크 클래스
+    // (text-white·bg-white/[..]·다크 inline bg)를 흰색·소프트 라벤더 라이트로 변환.
+    // bg-[#0a0b14]는 라이트 CSS 미적용 폭(>768px 데스크톱 프리뷰) 폴백.
+    <div className="cocotrip-mobile-home-surface min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
       {/* Header: C+비행기 로고 lockup + 언어 전환.
           로고 주변 여백을 사방 균일하게(운영자: 위=아래=왼쪽 여백 동일). 로고·EN 둘 다 h-9(36px),
           헤더 패딩 = 위·아래·좌·우 모두 12px(px-3 pb-3) → items-center 라 로고 위/아래 여백 12px 동일,
@@ -75,7 +78,14 @@ export default function MobileHomeV2() {
           화면(노치 없음/브라우저)에선 12px 균일, 노치 폰에선 상태바만큼만 위가 늘어남(시스템 강제, 불가피).
           (로고 PNG 내부 투명여백 상하 2.8/좌 2.4px 이라 보이는 여백도 0.4px 내 균일.) */}
       <header className="flex items-center justify-between px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-9 w-auto" />
+        {/* 라이트 배경에서 기존 logo-cocotrip.png 의 흰색 "trip" 글자가 안 보임 →
+            전역 Header 라이트 모드와 동일한 아이콘+그라데이션 텍스트 lockup 재사용. */}
+        <span className="flex h-9 items-center gap-2">
+          <img src="/icons/icon-192.png" alt="CocoTrip" className="h-8 w-8 rounded-xl shadow-[0_8px_18px_rgba(124,92,255,0.22)]" />
+          <span className="bg-gradient-to-r from-[#6F4DF5] to-[#F052B5] bg-clip-text text-[21px] font-black tracking-[-0.02em] text-transparent">
+            CocoTrip
+          </span>
+        </span>
         <button
           onClick={cycleLanguage}
           aria-label="Language"
@@ -94,9 +104,12 @@ export default function MobileHomeV2() {
           <h1 className="text-[22px] font-bold leading-[1.15] tracking-tight">
             {m.headline1}<br />{m.headline2}
           </h1>
+          {/* CTA 그라데이션을 inline style 로 — 라이트 셸의 [style*="#7C5CFC"] 규칙이
+              글자를 흰색으로 강제해 root 딥네이비 상속을 막음(Tailwind 클래스 그라데이션은 미매칭). */}
           <Link
             to="/planner"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold shadow-lg shadow-purple-500/30 active:scale-95 transition-transform"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full px-6 py-3 text-sm font-semibold active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(135deg, #7C5CFC 0%, #EA537E 100%)', boxShadow: '0 10px 28px rgba(124,92,255,0.30)', color: '#fff' }}
           >
             <Sparkles size={16} /> {m.cta}
           </Link>
@@ -162,13 +175,14 @@ export default function MobileHomeV2() {
             <Link
               key={r.id}
               to={`/region/${r.id}`}
-              className="relative h-24 overflow-hidden rounded-2xl active:scale-[0.98] transition-transform"
+              className="mobile-home-tour-card relative h-24 overflow-hidden rounded-2xl active:scale-[0.98] transition-transform"
             >
               <img src={r.image} alt={regionNames[r.id] || r.id} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
               <div className="absolute bottom-2.5 left-3 flex items-center gap-1">
                 <MapPin size={14} className="text-pink-400" />
-                <span className="text-sm font-semibold drop-shadow">{regionNames[r.id] || r.id}</span>
+                {/* mobile-home-tour-card 예외 셀렉터가 사진 위 text-white 를 라이트 변환에서 제외 */}
+                <span className="text-sm font-semibold text-white drop-shadow">{regionNames[r.id] || r.id}</span>
               </div>
             </Link>
           ))}
