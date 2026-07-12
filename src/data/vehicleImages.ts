@@ -19,5 +19,13 @@ export const VEHICLE_GALLERY: Partial<Record<string, string[]>> = {
     '/vehicles/staria9/staria9-03.webp', // 내부 측면
     '/vehicles/staria9/staria9-02.webp', // 외부 후면
   ],
-  // sprinter: 진짜 중형 벤 실사진 운영자 준비 중 (placeholder 미배치 — 사진 없으면 갤러리 미표시).
+  // 2026-07-12: 운영자 제공 스프린터(10~15인 중형 벤) 사진 5장 반입 (운영자 확정 안내용 이미지).
+  sprinter: [
+    '/vehicles/sprinter/sprinter-02.webp', // 외부 측면 (대표)
+    '/vehicles/sprinter/sprinter-04.webp', // 내부 좌석 전경
+    '/vehicles/sprinter/sprinter-01.webp', // 외부 정면 사선
+    '/vehicles/sprinter/sprinter-05.webp', // 내부 앞좌석
+    '/vehicles/sprinter/sprinter-03.webp', // 외부 후면
+  ],
+  // bus(16+·45석): 실상품 확정(운영자 2026-07-12) — 사진 준비되면 반입.
 };

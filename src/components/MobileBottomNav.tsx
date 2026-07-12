@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Package, Car, Sparkles, User } from 'lucide-react';
+import { Home, Package, CalendarCheck, Sparkles, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 
@@ -15,14 +15,16 @@ export function MobileBottomNav() {
   const nav = t.nav as Record<string, string | undefined>;
   // Icon size: 17px is one notch tighter than 18px while staying glanceable.
   // Label was 9px (too small per WCAG); bumped to 10px and trimmed gap to keep total height ~52px.
+  // 2026-07-12 운영자 승인: UI/UX 가이드 내비로 교체 — 차터 탭 제거(홈 카테고리/투어에서 접근),
+  // 예약(Bookings) 탭 신설. Map·Assistant 탭은 해당 화면 구현 후 추가 (죽은 탭 금지).
+  // 매출 모니터링: 차터 유입 감소 시 운영자 지시로 즉시 롤백.
   const items = [
-    { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home ?? '홈' },
-    { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours ?? '투어' },
-    { to: '/charter', icon: <Car className="w-[17px] h-[17px]" />,      label: nav.charter ?? '전세차량' },
-    { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner ?? 'AI 플래너' },
-    // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도). 이전 /planner 는
-    // AI 플래너 탭과 목적지 중복 + 라벨('로그인')↔목적지 불일치였음.
-    { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage ?? '마이페이지') : (nav.login ?? '로그인') },
+    { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
+    { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours || '투어' },
+    { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'AI 플래너' },
+    { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
+    // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도).
+    { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
   ];
 
   return (
