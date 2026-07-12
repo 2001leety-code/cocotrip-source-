@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, MapPin, ChevronRight, BookOpen } from 'lucide-react';
+import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useLanguage } from '@/hooks/useLanguage';
 import { signalAppReady } from '@/lib/appReady';
@@ -9,12 +9,15 @@ import { formatPrice } from '@/lib/exchange-rate';
 import type { Language } from '@/i18n';
 
 /**
- * 모바일 v2 홈 - talabat 스타일(깔끔 카드) + 커스텀 보라 3D 아이콘.
+ * 모바일 v2 홈 — 레퍼런스 디자인 가이드(2026-07 운영자 제공 5장) 기반 라이트 UI.
+ * 구성: 인사말 헤더 → 히어로 목적지 카드(실시간 날씨 칩) → 플로팅 AI 일정 제안 카드(시그니처)
+ *       → 카테고리 타일 → Smart Picks(실투어·SSOT 가격) → 지역 그리드 → 블로그.
  * 라이브 전환: App.tsx HomePage 가 VITE_FEATURE_MOBILE_V2(또는 ?v2)일 때 본 컴포넌트 렌더.
- * OFF 기본 = 기존 MobileHome 그대로. /preview/mobile-home 프리뷰 라우트는 항상 본 컴포넌트.
+ * /preview/mobile-home 프리뷰 라우트는 항상 본 컴포넌트.
  *
- * 실데이터: TOURS(가격 SSOT getTourPriceKRW) + t.regions(기존 번역 재사용) + mobileHomeV2 i18n 4-lang.
- * 카테고리 아이콘: public/images/icons/sm/ (128px 경량판).
+ * 디자인 토큰(가이드 p.2): #7C5CFF 퍼플 / #FF6DB7 핑크 / #D9D3FF 라벤더 / #0F1230 딥네이비.
+ * 정직 원칙: 리뷰 평점·호텔 Book Now 등 실데이터 없는 섹션은 넣지 않음(환각 금지).
+ * 날씨=wttr.in 실측(v1 MobileHome 과 동일 패턴), 투어 가격=getTourPriceKRW SSOT.
  */
 
 type CategoryKey = 'catPlanner' | 'catTours' | 'catCharter' | 'catAirport' | 'catKpop';
@@ -39,10 +42,18 @@ const REGIONS = [
 const LANG_CYCLE: Language[] = ['en', 'ko', 'ja', 'zh'];
 const LANG_LABEL: Record<Language, string> = { en: 'EN', ko: '한', ja: '日', zh: '中' };
 
+const NAVY = '#0F1230';
+const MUTED = '#6E6A8F';
+const PURPLE = '#7C5CFF';
+const CTA_GRADIENT = 'linear-gradient(100deg, #7C5CFF 0%, #FF5FC8 100%)';
+const CARD_BORDER = '1px solid rgba(124, 92, 255, 0.14)';
+const CARD_SHADOW = '0 14px 30px rgba(48, 39, 118, 0.10)';
+
 export default function MobileHomeV2() {
   const { language, t, changeLanguage } = useLanguage();
   const m = t.mobileHomeV2;
   const regionNames = t.regions as unknown as Record<string, string>;
+  const [weather, setWeather] = useState<{ temp: string; desc: string } | null>(null);
 
   usePageMeta({
     title: `${m.headline1} ${m.headline2}`,
@@ -51,6 +62,18 @@ export default function MobileHomeV2() {
 
   // PWA 실행 스플래시 페이드아웃 — 홈 첫 화면 준비됨 신호 (코코트립 standalone 진입점).
   useEffect(() => { signalAppReady(); }, []);
+
+  // 히어로 날씨 칩 — v1 MobileHome 과 동일한 실측 소스(wttr.in). 실패 시 칩 미노출(silent).
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('https://wttr.in/Seoul?format=j1');
+        const data = await res.json();
+        const cur = data.current_condition?.[0];
+        if (cur) setWeather({ temp: `${cur.temp_C}°C`, desc: cur.weatherDesc?.[0]?.value || '' });
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   const featuredTours = TOURS.slice(0, 6);
   const priceLabel = (tourId: string, priceFrom: number, unit: 'group' | 'per_person') => {
@@ -67,145 +90,192 @@ export default function MobileHomeV2() {
   };
 
   return (
-    // cocotrip-mobile-home-surface = 기존 모바일 라이트 앱 셸(index.css)이 다크 클래스
-    // (text-white·bg-white/[..]·다크 inline bg)를 흰색·소프트 라벤더 라이트로 변환.
-    // bg-[#0a0b14]는 라이트 CSS 미적용 폭(>768px 데스크톱 프리뷰) 폴백.
-    <div className="cocotrip-mobile-home-surface min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
-      {/* Header: C+비행기 로고 lockup + 언어 전환.
-          로고 주변 여백을 사방 균일하게(운영자: 위=아래=왼쪽 여백 동일). 로고·EN 둘 다 h-9(36px),
-          헤더 패딩 = 위·아래·좌·우 모두 12px(px-3 pb-3) → items-center 라 로고 위/아래 여백 12px 동일,
-          왼쪽 여백 12px 동일. 상단 노치 안전영역은 헤더 pt 에 흡수(max(safe-area,0.75rem)) — 일반
-          화면(노치 없음/브라우저)에선 12px 균일, 노치 폰에선 상태바만큼만 위가 늘어남(시스템 강제, 불가피).
-          (로고 PNG 내부 투명여백 상하 2.8/좌 2.4px 이라 보이는 여백도 0.4px 내 균일.) */}
-      <header className="flex items-center justify-between px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        {/* 라이트 배경에서 기존 logo-cocotrip.png 의 흰색 "trip" 글자가 안 보임 →
-            전역 Header 라이트 모드와 동일한 아이콘+그라데이션 텍스트 lockup 재사용. */}
-        <span className="flex h-9 items-center gap-2">
-          <img src="/icons/icon-192.png" alt="CocoTrip" className="h-8 w-8 rounded-xl shadow-[0_8px_18px_rgba(124,92,255,0.22)]" />
-          <span className="bg-gradient-to-r from-[#6F4DF5] to-[#F052B5] bg-clip-text text-[21px] font-black tracking-[-0.02em] text-transparent">
-            CocoTrip
-          </span>
-        </span>
-        <button
-          onClick={cycleLanguage}
-          aria-label="Language"
-          className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white/[0.07] px-2.5 text-xs font-bold text-white/80 active:opacity-70"
-        >
-          {LANG_LABEL[language]}
-        </button>
+    <div
+      className="min-h-screen pb-28 max-w-md mx-auto"
+      style={{
+        color: NAVY,
+        background:
+          'radial-gradient(circle at 88% 6%, rgba(255, 109, 183, 0.14), transparent 30%),' +
+          'radial-gradient(circle at 8% 22%, rgba(124, 92, 255, 0.12), transparent 32%),' +
+          'linear-gradient(180deg, #fbfaff 0%, #f5f2ff 46%, #ffffff 100%)',
+      }}
+    >
+      {/* ── 인사말 헤더 (가이드 p.3 01 Home: greeting + avatar) ── */}
+      <header className="flex items-start justify-between gap-3 px-5 pb-1 pt-[max(env(safe-area-inset-top),1rem)]">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-[13px] font-bold" style={{ color: PURPLE }}>
+            {m.greeting} <Sparkles size={12} aria-hidden />
+          </p>
+          <h1 className="mt-0.5 text-[19px] font-extrabold leading-[1.25] tracking-tight">
+            {m.greetingSub}
+          </h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <button
+            onClick={cycleLanguage}
+            aria-label="Language"
+            className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-2.5 text-xs font-bold active:opacity-70"
+            style={{ color: PURPLE, border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
+          >
+            {LANG_LABEL[language]}
+          </button>
+          <Link
+            to="/mypage"
+            aria-label="My page"
+            className="flex h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+            style={{ background: CTA_GRADIENT, boxShadow: '0 8px 18px rgba(124,92,255,0.28)' }}
+          >
+            <User size={16} className="text-white" />
+          </Link>
+        </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden px-5 pt-3 pb-4">
-        <div className="pointer-events-none absolute -top-12 -right-14 h-60 w-60 rounded-full bg-purple-600/25 blur-3xl" />
-        <div className="pointer-events-none absolute top-16 -left-12 h-48 w-48 rounded-full bg-pink-500/20 blur-3xl" />
-        <div className="relative">
-          <p className="mb-1.5 text-sm font-medium text-purple-300">{m.tagline}</p>
-          <h1 className="text-[22px] font-bold leading-[1.15] tracking-tight">
-            {m.headline1}<br />{m.headline2}
-          </h1>
-          {/* CTA 그라데이션을 inline style 로 — 라이트 셸의 [style*="#7C5CFC"] 규칙이
-              글자를 흰색으로 강제해 root 딥네이비 상속을 막음(Tailwind 클래스 그라데이션은 미매칭). */}
+      {/* ── 히어로 목적지 카드 + 플로팅 AI 제안 카드 (시그니처) ── */}
+      <section className="px-5 pt-3">
+        <div className="relative h-52 overflow-hidden rounded-[24px]" style={{ boxShadow: CARD_SHADOW }}>
+          {/* 야경 도시 무드(레퍼런스 p.1/p.3 히어로) — region-seoul.jpg(벚꽃)보다 hero-seoul(반포대교+남산타워) */}
+          <img src="/hero-seoul.webp" alt={regionNames.seoul || 'Seoul'} className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F1230]/75 via-[#0F1230]/10 to-transparent" />
+          {weather && (
+            <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-[#0F1230]/35 px-2.5 py-1.5 backdrop-blur-md">
+              <CloudSun size={13} className="text-white" />
+              <span className="text-[11px] font-bold text-white">{weather.temp}</span>
+              <span className="max-w-24 truncate text-[10px] text-white/85">{weather.desc}</span>
+            </div>
+          )}
+          <div className="absolute bottom-9 left-4">
+            <p className="text-[26px] font-extrabold leading-none text-white drop-shadow">{regionNames.seoul || 'Seoul'}</p>
+            <p className="mt-1 text-[9.5px] font-bold tracking-[0.22em] text-white/80">SOUTH KOREA</p>
+          </div>
+        </div>
+
+        {/* 히어로 하단에 겹쳐 뜨는 elevated 카드 (가이드 p.1 mock 구조) */}
+        <div
+          className="relative z-10 -mt-7 rounded-[20px] p-4 backdrop-blur-xl mx-1"
+          style={{ background: 'rgba(255,255,255,0.96)', border: CARD_BORDER, boxShadow: '0 20px 44px rgba(48, 39, 118, 0.16)' }}
+        >
+          <p className="flex items-center gap-1.5 text-[11.5px] font-bold" style={{ color: PURPLE }}>
+            <Sparkles size={12} /> {m.aiCardTitle}
+          </p>
+          <p className="mt-0.5 text-[10.5px]" style={{ color: MUTED }}>{m.aiCardSub}</p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-[17px] font-extrabold tracking-tight">{m.aiCardSample}</p>
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold"
+              style={{ background: 'rgba(124,92,255,0.12)', color: PURPLE }}
+            >
+              {m.bestMatch}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[11px]" style={{ color: MUTED }}>{m.aiCardTags}</p>
           <Link
             to="/planner"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full px-6 py-3 text-sm font-semibold active:scale-95 transition-transform"
-            style={{ background: 'linear-gradient(135deg, #7C5CFC 0%, #EA537E 100%)', boxShadow: '0 10px 28px rgba(124,92,255,0.30)', color: '#fff' }}
+            className="mt-3 flex items-center justify-center gap-1.5 rounded-full py-3 text-[13px] font-bold text-white active:scale-[0.98] transition-transform"
+            style={{ background: CTA_GRADIENT, boxShadow: '0 10px 26px rgba(124,92,255,0.30)' }}
           >
-            <Sparkles size={16} /> {m.cta}
+            {m.viewFullPlan} <ArrowRight size={15} />
           </Link>
         </div>
       </section>
 
-      {/* Categories - 커스텀 보라 3D 아이콘 */}
-      <section className="px-4 py-1">
+      {/* ── 카테고리 타일 ── */}
+      <section className="px-4 pt-4">
         <div className="grid grid-cols-5 gap-1">
           {CATEGORIES.map((c) => (
-            <Link key={c.key} to={c.to} className="flex flex-col items-center gap-1 py-2 active:opacity-70">
+            <Link key={c.key} to={c.to} className="flex flex-col items-center gap-1.5 py-2 active:opacity-70">
               <span
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                  c.accent ? 'bg-gradient-to-br from-purple-500/40 to-pink-500/40 ring-1 ring-purple-400/50' : 'bg-white/[0.06]'
-                }`}
+                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white"
+                style={{
+                  border: c.accent ? '1px solid rgba(124,92,255,0.35)' : CARD_BORDER,
+                  boxShadow: c.accent ? '0 10px 22px rgba(124,92,255,0.20)' : '0 8px 18px rgba(48,39,118,0.07)',
+                }}
               >
                 <img src={c.icon} alt="" className="h-9 w-9 object-contain" loading="lazy" />
               </span>
-              <span className="text-center text-[10px] leading-tight text-white/70">{m[c.key]}</span>
+              <span className="text-center text-[10px] font-semibold leading-tight" style={{ color: MUTED }}>{m[c.key]}</span>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* Popular Tours - 실데이터 (TOURS + 가격 SSOT) */}
+      {/* ── Smart Picks — 실데이터 (TOURS + 가격 SSOT) ── */}
       <section className="pt-4">
         <div className="mb-2 flex items-center justify-between px-5">
-          <h2 className="text-base font-bold">{m.toursTitle}</h2>
-          <Link to="/tours" className="flex items-center text-sm text-purple-300">
-            {m.seeAll} <ChevronRight size={16} />
+          <h2 className="text-[16px] font-extrabold tracking-tight">{m.smartPicks}</h2>
+          <Link to="/tours" className="flex items-center text-[12.5px] font-semibold" style={{ color: PURPLE }}>
+            {m.seeAll} <ChevronRight size={15} />
           </Link>
         </div>
-        <div className="flex gap-2.5 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-3 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {featuredTours.map((tour) => (
             <Link
               key={tour.slug}
               to={`/tours/${tour.slug}`}
-              className="w-36 shrink-0 active:scale-[0.98] transition-transform"
+              className="w-40 shrink-0 active:scale-[0.98] transition-transform"
             >
-              <div className="relative h-24 overflow-hidden rounded-2xl">
+              <div className="relative h-28 overflow-hidden rounded-[18px]" style={{ boxShadow: '0 10px 24px rgba(48,39,118,0.10)' }}>
                 <img src={tour.images[0]} alt={tour.title[language]} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0F1230]/55 via-transparent to-transparent" />
+                <span className="absolute right-2 top-2 rounded-full bg-white/25 px-2 py-0.5 text-[9.5px] font-bold text-white backdrop-blur-sm">
+                  {priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
+                </span>
               </div>
-              <p className="mt-1.5 line-clamp-2 text-xs font-semibold leading-tight">{tour.title[language]}</p>
-              <p className="mt-0.5 text-xs text-purple-300">
-                <span className="text-white/40">{m.from} </span>{priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
+              <p className="mt-1.5 line-clamp-2 text-[12.5px] font-bold leading-tight">{tour.title[language]}</p>
+              <p className="mt-0.5 text-[11px] font-semibold" style={{ color: PURPLE }}>
+                <span style={{ color: MUTED }}>{m.from} </span>{priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
               </p>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* Regions - 기존 t.regions 번역 재사용 */}
+      {/* ── 지역 그리드 — 기존 t.regions 번역 재사용 ── */}
       <section className="px-5 pt-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-base font-bold">{m.exploreTitle}</h2>
-          <Link to="/tours" className="flex items-center text-sm text-purple-300">
-            {m.seeAll} <ChevronRight size={16} />
+          <h2 className="text-[16px] font-extrabold tracking-tight">{m.exploreTitle}</h2>
+          <Link to="/tours" className="flex items-center text-[12.5px] font-semibold" style={{ color: PURPLE }}>
+            {m.seeAll} <ChevronRight size={15} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {REGIONS.map((r) => (
             <Link
               key={r.id}
               to={`/region/${r.id}`}
-              className="mobile-home-tour-card relative h-24 overflow-hidden rounded-2xl active:scale-[0.98] transition-transform"
+              className="relative h-24 overflow-hidden rounded-[18px] active:scale-[0.98] transition-transform"
+              style={{ boxShadow: '0 10px 24px rgba(48,39,118,0.09)' }}
             >
               <img src={r.image} alt={regionNames[r.id] || r.id} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0F1230]/75 via-[#0F1230]/10 to-transparent" />
               <div className="absolute bottom-2.5 left-3 flex items-center gap-1">
-                <MapPin size={14} className="text-pink-400" />
-                {/* mobile-home-tour-card 예외 셀렉터가 사진 위 text-white 를 라이트 변환에서 제외 */}
-                <span className="text-sm font-semibold text-white drop-shadow">{regionNames[r.id] || r.id}</span>
+                <MapPin size={13} className="text-[#FF6DB7]" />
+                <span className="text-sm font-bold text-white drop-shadow">{regionNames[r.id] || r.id}</span>
               </div>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* Korea Travel Blog — 외부 링크. prod 모바일 홈=V2 라 v1(MobileHome)에만 넣으면
-          미노출(2026-07-05 prod 실렌더 검증에서 발견). 권위 전달 목적이라 nofollow 금지. */}
+      {/* ── Korea Travel Blog — 외부 링크. 권위 전달 목적이라 nofollow 금지. ── */}
       <section className="px-5 pt-4">
         <a
           href="https://cocotripkr.blogspot.com"
           target="_blank"
           rel="noopener"
-          className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-4 py-3.5 active:opacity-70"
+          className="flex items-center gap-3 rounded-[18px] bg-white px-4 py-3.5 active:opacity-70"
+          style={{ border: CARD_BORDER, boxShadow: '0 10px 24px rgba(48,39,118,0.08)' }}
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/40 to-pink-500/40 ring-1 ring-purple-400/50">
-            <BookOpen size={18} className="text-white" />
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: 'rgba(124,92,255,0.12)' }}
+          >
+            <BookOpen size={18} style={{ color: PURPLE }} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">{t.footer.blog || 'Korea Travel Blog'}</span>
-            <span className="mt-0.5 block truncate text-[11px] text-white/50">{t.blogTeaser?.subtitle || 'Real routes, prices and local picks'}</span>
+            <span className="block text-[13px] font-bold">{t.footer.blog || 'Korea Travel Blog'}</span>
+            <span className="mt-0.5 block truncate text-[11px]" style={{ color: MUTED }}>{t.blogTeaser?.subtitle || 'Real routes, prices and local picks'}</span>
           </span>
-          <ChevronRight size={16} className="shrink-0 text-white/30" />
+          <ChevronRight size={16} className="shrink-0" style={{ color: 'rgba(110,106,143,0.5)' }} />
         </a>
       </section>
 

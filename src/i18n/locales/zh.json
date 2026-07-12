@@ -1401,7 +1401,16 @@
     "exploreTitle": "探索韩国",
     "seeAll": "查看全部",
     "toursTitle": "热门行程",
-    "from": "低至"
+    "from": "低至",
+    "greeting": "你好，旅行者",
+    "greetingSub": "今天想探索韩国的哪里？",
+    "aiCardTitle": "AI行程建议",
+    "aiCardSub": "根据你的喜好定制的智能计划",
+    "aiCardSample": "首尔精华",
+    "aiCardTags": "5天 · 文化 · 自然 · 夜景",
+    "bestMatch": "最佳匹配",
+    "viewFullPlan": "查看完整行程",
+    "smartPicks": "智能推荐"
   },
   "pwaInstall": {
     "modalTitle": "添加CocoTrip快捷方式",

@@ -1401,7 +1401,16 @@
     "exploreTitle": "Explore Korea",
     "seeAll": "See all",
     "toursTitle": "Popular Tours",
-    "from": "from"
+    "from": "from",
+    "greeting": "Hello, Traveler",
+    "greetingSub": "Where in Korea shall we explore today?",
+    "aiCardTitle": "AI Itinerary Suggestion",
+    "aiCardSub": "Smart plan based on your preferences",
+    "aiCardSample": "Seoul Highlights",
+    "aiCardTags": "5 Days · Culture · Nature · Night View",
+    "bestMatch": "Best Match",
+    "viewFullPlan": "View Full Plan",
+    "smartPicks": "Smart Picks"
   },
   "pwaInstall": {
     "modalTitle": "Add CocoTrip Shortcut",

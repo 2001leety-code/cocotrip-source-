@@ -3854,12 +3854,6 @@ textarea.community-field {
     position: relative;
   }
 
-  /* MobileHomeV2 보라 액센트 — 다크용 purple-300 은 라이트 배경에서 대비 미달이라
-     planner-detail 라이트 규칙과 동일한 브랜드 퍼플로 치환 */
-  .cocotrip-mobile-home-surface [class*="text-purple-300"] {
-    color: #7653f6 !important;
-  }
-
   .cocotrip-mobile-home-surface .m-shimmer,
   .cocotrip-mobile-home-surface .m-shimmer-text,
   .cocotrip-mobile-tours .tours-shimmer,

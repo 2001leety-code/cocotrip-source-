@@ -1401,7 +1401,16 @@
     "exploreTitle": "韓国を探す",
     "seeAll": "すべて見る",
     "toursTitle": "人気ツアー",
-    "from": "最低"
+    "from": "最低",
+    "greeting": "こんにちは、旅人さん",
+    "greetingSub": "今日は韓国のどこへ行きましょう？",
+    "aiCardTitle": "AIプラン提案",
+    "aiCardSub": "好みに合わせたスマートプラン",
+    "aiCardSample": "ソウルハイライト",
+    "aiCardTags": "5日間 · 文化 · 自然 · 夜景",
+    "bestMatch": "ベストマッチ",
+    "viewFullPlan": "プラン全体を見る",
+    "smartPicks": "おすすめピック"
   },
   "pwaInstall": {
     "modalTitle": "CocoTripショートカット追加",
