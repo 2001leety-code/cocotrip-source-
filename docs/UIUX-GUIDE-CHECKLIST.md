@@ -88,12 +88,16 @@
 - [ ] Charter Segment 카드(ITX-청춘 42min faster — intercity_transit 실데이터)
 - [ ] Tour Card·Weather Card·AI Assistant 패널(음성 오브 = 신규 기능, 후순위)·Coupon Wallet(빈 상태 포함)·Community Translation·Booking Status 타임라인
 
-## 운영자 결정 대기 (블로커)
-1. 하단 내비 교체 여부 (Plan·Map·Assistant·Bookings·Profile)
-2. 취소/환불 % 임계값 확정 (P8 표기)
-3. 리뷰: REAL_TOUR_RATINGS 데이터 소스(구글리뷰 수집?) 확정
-4. Travel Style(Solo/Couple/Family)을 플래너 프롬프트에 전파할지 (UI만 vs AI 반영)
-5. 차터버스(16+·45석) 실상품 여부
+## 운영자 결정 — 2026-07-12 확정 ✅
+1. **내비 교체 승인** → 실존 라우트 매핑: 홈·투어·AI플래너·예약(/my-plans)·프로필(/mypage).
+   Map·Assistant 탭은 해당 화면 생기면 추가. ⚠️차터 탭 제거 — 홈 카테고리/투어에서 접근 유지
+   (매출 영향 모니터링, 운영자 "차터 유지" 시 즉시 롤백).
+2. **취소 48시간 전 무료** 확정 — P8 화면 + 약관 표기.
+3. **리뷰 가짜 금지** (법·PayPal 리스크 — 운영자에게 고지 완료). 대체: 실후기 수집 스프린트
+   (과거 고객 + 후기 쿠폰) → 쌓이면 REAL_TOUR_RATINGS ON. 리뷰 0 동안 실수치 신뢰 신호로 대체.
+4. **Travel Style = 솔로/커플/가족/친구 4옵션** — UI + 플래너 프롬프트 반영.
+5. **차터버스(16+·45석) 실상품 확정** — 사진 없음(public/vehicles = staria7·staria9 만).
+   🔲 운영자: 스프린터 + 차터버스 사진 2장 제공(실사 또는 생성) → 받으면 P5/P6 차량 카드 완성.
 
 ## 진행 로그
 - 2026-07-12: 홈 리디자인+아이콘 13종 (#1096) · 라이트 셸 연결 (#1094) · visual baseline (#1095)
