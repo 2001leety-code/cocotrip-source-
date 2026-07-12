@@ -1266,7 +1266,12 @@
     "aiIntroStep3Title": "3. PDFのダウンロードと共有",
     "aiIntroStep3Body": "決済完了後、お好きな言語のPDF旅程表をダウンロードして同行者と共有できます。",
     "aiIntroDontShow": "次回から表示しない",
-    "aiIntroClose": "はじめる"
+    "aiIntroClose": "はじめる",
+    "companionsLabel": "誰と旅行しますか？（任意）",
+    "companionsSolo": "ひとり",
+    "companionsCouple": "カップル",
+    "companionsFamily": "家族",
+    "companionsFriends": "友達"
   },
   "charterPage": {
     "backToHome": "ホームに戻る",

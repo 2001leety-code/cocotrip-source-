@@ -74,6 +74,7 @@ export interface PlannerFormValues {
   spiceLevel?: string;          // 'none' | 'mild' | 'medium' | 'hot' (P10)
   bucketDishes?: string[];      // KOREAN_BUCKET_LIST keys (P10)
   tourPace?: string;            // 'half' | 'short' | 'full' | 'action' (P7)
+  companions?: string;          // 'solo' | 'couple' | 'family' | 'friends' (UIUX P3, 2026-07-13 — 미선택 undefined)
   arrival_airport?: string;
   departure_airport?: string;
   hotel_address?: string;

@@ -1266,7 +1266,12 @@
     "aiIntroStep3Title": "3. 下载并分享PDF",
     "aiIntroStep3Body": "支付完成后，可下载多语言PDF行程表并与同行者分享。",
     "aiIntroDontShow": "不再显示",
-    "aiIntroClose": "开始"
+    "aiIntroClose": "开始",
+    "companionsLabel": "和谁一起旅行？（可选）",
+    "companionsSolo": "独自",
+    "companionsCouple": "情侣",
+    "companionsFamily": "家庭",
+    "companionsFriends": "朋友"
   },
   "charterPage": {
     "backToHome": "返回首页",

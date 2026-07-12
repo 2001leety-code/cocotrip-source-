@@ -1332,6 +1332,8 @@ export async function persistPlan(adminDb, {
       spice_level: body.spiceLevel || null,
       bucket_dishes: Array.isArray(body.bucketDishes) ? body.bucketDishes : null,
       tour_pace: body.tourPace || null,
+      // UIUX P3 (2026-07-13): 동행 유형 — retryOf 재생성·어드민 조회용 입력 보존.
+      companions: body.companions || null,
       // 2026-05-08: zone-only 사용자도 PlanDetailPage 가 라벨링할 수 있도록 보존.
       // hotel_address 가 null/빈 값인데 zone 만 골랐을 때, LodgingBookend 가
       // "Stay" 가 아니라 zone 명("명동" 등) 을 보여주려면 이 필드가 필수.

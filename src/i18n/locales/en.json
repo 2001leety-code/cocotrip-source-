@@ -1266,7 +1266,12 @@
     "aiIntroStep3Title": "3. Download & share the PDF",
     "aiIntroStep3Body": "After payment, download a polished PDF itinerary in your language and share it with your travel companions.",
     "aiIntroDontShow": "Don't show again",
-    "aiIntroClose": "Get started"
+    "aiIntroClose": "Get started",
+    "companionsLabel": "Who are you traveling with? (optional)",
+    "companionsSolo": "Solo",
+    "companionsCouple": "Couple",
+    "companionsFamily": "Family",
+    "companionsFriends": "Friends"
   },
   "charterPage": {
     "backToHome": "Back to Home",

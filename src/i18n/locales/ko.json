@@ -1266,7 +1266,12 @@
     "aiIntroStep3Title": "3. PDF 다운로드 & 공유",
     "aiIntroStep3Body": "결제 완료 후 4개 언어 PDF 일정표를 다운로드하고 동행자와 공유하세요.",
     "aiIntroDontShow": "다시 보지 않기",
-    "aiIntroClose": "시작하기"
+    "aiIntroClose": "시작하기",
+    "companionsLabel": "누구와 함께 여행하나요? (선택)",
+    "companionsSolo": "혼자",
+    "companionsCouple": "커플",
+    "companionsFamily": "가족",
+    "companionsFriends": "친구"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
