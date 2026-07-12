@@ -5,6 +5,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { useLanguage } from '@/hooks/useLanguage';
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
+import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { Language } from '@/i18n';
 
@@ -21,12 +22,13 @@ import type { Language } from '@/i18n';
  */
 
 type CategoryKey = 'catPlanner' | 'catTours' | 'catCharter' | 'catAirport' | 'catKpop';
-const CATEGORIES: { icon: string; key: CategoryKey; to: string; accent?: boolean }[] = [
-  { icon: '/images/icons/sm/ai-planner.png', key: 'catPlanner', to: '/planner', accent: true },
-  { icon: '/images/icons/sm/tours.png', key: 'catTours', to: '/tours' },
-  { icon: '/images/icons/sm/charter.png', key: 'catCharter', to: '/charter' },
-  { icon: '/images/icons/sm/airport.png', key: 'catAirport', to: '/charter' },
-  { icon: '/images/icons/sm/kpop.png', key: 'catKpop', to: '/tours' },
+// 아이콘: 옛 3D PNG → 가이드 p.2 규격 선 아이콘(CocoIcons, 운영자 시안 컨펌 2026-07-12)
+const CATEGORIES: { icon: keyof typeof COCO_CATEGORY_ICONS; key: CategoryKey; to: string; accent?: boolean }[] = [
+  { icon: 'planner', key: 'catPlanner', to: '/planner', accent: true },
+  { icon: 'tours', key: 'catTours', to: '/tours' },
+  { icon: 'charter', key: 'catCharter', to: '/charter' },
+  { icon: 'airport', key: 'catAirport', to: '/charter' },
+  { icon: 'kpop', key: 'catKpop', to: '/tours' },
 ];
 
 const REGIONS = [
@@ -181,20 +183,24 @@ export default function MobileHomeV2() {
       {/* ── 카테고리 타일 ── */}
       <section className="px-4 pt-4">
         <div className="grid grid-cols-5 gap-1">
-          {CATEGORIES.map((c) => (
-            <Link key={c.key} to={c.to} className="flex flex-col items-center gap-1.5 py-2 active:opacity-70">
-              <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white"
-                style={{
-                  border: c.accent ? '1px solid rgba(124,92,255,0.35)' : CARD_BORDER,
-                  boxShadow: c.accent ? '0 10px 22px rgba(124,92,255,0.20)' : '0 8px 18px rgba(48,39,118,0.07)',
-                }}
-              >
-                <img src={c.icon} alt="" className="h-9 w-9 object-contain" loading="lazy" />
-              </span>
-              <span className="text-center text-[10px] font-semibold leading-tight" style={{ color: MUTED }}>{m[c.key]}</span>
-            </Link>
-          ))}
+          {CATEGORIES.map((c) => {
+            const Icon = COCO_CATEGORY_ICONS[c.icon];
+            return (
+              <Link key={c.key} to={c.to} className="flex flex-col items-center gap-1.5 py-2 active:opacity-70">
+                <span
+                  className="flex h-12 w-12 items-center justify-center rounded-[15px]"
+                  style={{
+                    background: 'linear-gradient(180deg, #F7F5FE 0%, #EEEAFB 100%)',
+                    border: c.accent ? '1px solid rgba(124,92,255,0.35)' : CARD_BORDER,
+                    boxShadow: c.accent ? '0 10px 22px rgba(124,92,255,0.20)' : '0 8px 18px rgba(48,39,118,0.07)',
+                  }}
+                >
+                  <Icon size={25} />
+                </span>
+                <span className="text-center text-[10px] font-semibold leading-tight" style={{ color: MUTED }}>{m[c.key]}</span>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
