@@ -16,7 +16,7 @@ import { Header } from '@/sections/Header';
 import { TourCard } from '@/components/tours/TourCard';
 import { TourInquireModal } from '@/components/tours/TourInquireModal';
 import { TOUR_REGIONS, getToursByRegion } from '@/data/tours';
-import type { TourRegion, DriverLanguage } from '@/data/tours';
+import type { TourRegion, DriverLanguage, TourTag } from '@/data/tours';
 import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
 import { trackEvent, trackAdClick } from '@/lib/analytics';
@@ -93,10 +93,13 @@ const TL = {
 export default function ToursPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const tl = TL[language] ?? TL.en;
+  const tl = TL[language] || TL.en;
 
   const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
   const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
+  // Interests 필터 (UIUX 가이드 P7 'Filter Your Interests') — TourTag 실데이터만 칩으로 노출.
+  // 데이터 없는 관심사(Food·Wellness 등)는 칩 자체를 만들지 않음(죽은 필터 금지). OR 매칭.
+  const [activeTags, setActiveTags] = useState<Set<TourTag>>(new Set());
   const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
   const [sortBy, setSortBy] = useState<SortKey>('default');
   const [inquireOpen, setInquireOpen] = useState(false);
@@ -126,6 +129,14 @@ export default function ToursPage() {
     });
   };
 
+  const toggleTag = (tag: TourTag) => {
+    setActiveTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  };
+
   const regionTours = getToursByRegion(activeRegion);
   const filteredTours = regionTours.filter(t => {
     if (activeDuration === 'Day'   && t.durationDays !== 1)  return false;
@@ -136,6 +147,7 @@ export default function ToursPage() {
       const hasAll = Array.from(activeLangs).every(l => langs.includes(l));
       if (!hasAll) return false;
     }
+    if (activeTags.size > 0 && !t.tags.some(tag => activeTags.has(tag))) return false;
     return true;
   });
 
@@ -293,7 +305,7 @@ export default function ToursPage() {
         <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TOUR_REGIONS.map(({ key, label }) => {
             const isActive = activeRegion === key;
-            const chipLabel = label[language] ?? label.en;
+            const chipLabel = label[language] || label.en;
             return (
               <button
                 key={key}
@@ -340,7 +352,34 @@ export default function ToursPage() {
                     : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
                 }
               >
-                {label[language] ?? label.en}
+                {label[language] || label.en}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Interests 필터 (가이드 P7) — TOURS 실태그만. 데이터 없는 관심사 칩 금지. */}
+        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {([
+            { key: 'Popular' as TourTag,    label: { ko: '인기',     en: 'Popular',    ja: '人気',       zh: '热门' } },
+            { key: 'Nature' as TourTag,     label: { ko: '자연',     en: 'Nature',     ja: '自然',       zh: '自然' } },
+            { key: 'History' as TourTag,    label: { ko: '역사·문화', en: 'History',    ja: '歴史・文化', zh: '历史文化' } },
+            { key: 'Night Tour' as TourTag, label: { ko: '야경',     en: 'Night view', ja: '夜景',       zh: '夜景' } },
+            { key: 'Multi-City' as TourTag, label: { ko: '다도시',   en: 'Multi-city', ja: '複数都市',   zh: '多城市' } },
+          ]).map(({ key, label }) => {
+            const isActive = activeTags.has(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggleTag(key)}
+                className="tour-chip shrink-0 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                style={
+                  isActive
+                    ? { background: 'rgba(255,107,157,0.14)', border: '1px solid rgba(255,107,157,0.45)', color: '#FF9DC0' }
+                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
+                }
+              >
+                {label[language] || label.en}
               </button>
             );
           })}
@@ -365,9 +404,9 @@ export default function ToursPage() {
                     ? { background: 'rgba(140,200,255,0.15)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
                     : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
                 }
-                title={label[language] ?? label.en}
+                title={label[language] || label.en}
               >
-                {label[language] ?? label.en}
+                {label[language] || label.en}
               </button>
             );
           })}
