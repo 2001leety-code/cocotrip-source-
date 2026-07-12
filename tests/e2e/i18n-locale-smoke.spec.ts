@@ -28,19 +28,24 @@ const STORAGE_KEY = 'cocotrip_lang';
 // charterTitle uses regex with optional whitespace because the actual UI
 // renders "전세차량 예약" (no space) while nav uses "전세 차량" (with space).
 // We accept either form so the test isn't brittle to typography choices.
+// 2026-07-13: charterTitle 을 /charter 실제 히어로(charterWizard.heroTitleWizard) 기준으로 수정 —
+//   ko "한국 프라이빗 차량·밴 전세", ja "韓国プライベート車・バンチャーター".
+//   기존 정규식(전세차량/チャーター車両)은 하단 내비의 '전세차량' 라벨이 우연히 매칭시켜 통과하던 것
+//   (PR#1097 내비 개편에서 차터 탭 제거 → 모바일 뷰포트에서 표면화). homeNav 기대값도 새 내비
+//   (홈·투어·AI플래너·예약·프로필)에 맞춤 — '전세차량' 제거.
 const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; charterTitle: RegExp }> = {
   ko: {
-    homeNav: ['홈', '투어', '전세차량', 'AI 플래너'],
+    homeNav: ['홈', '투어', 'AI 플래너'],
     aboutHeading: 'COCOTRIP 소개',
-    charterTitle: /전세\s*차량/,
+    charterTitle: /차량·밴 전세|전세\s*차량/,
   },
   ja: {
-    homeNav: ['ホーム', 'ツアー', 'チャーター車両', 'AIプランナー'],
+    homeNav: ['ホーム', 'ツアー', 'AIプランナー'],
     aboutHeading: 'COCOTRIPについて',
-    charterTitle: /チャーター\s*車両/,
+    charterTitle: /チャーター/,
   },
   zh: {
-    homeNav: ['首页', '旅游', '包车', 'AI 规划师'],
+    homeNav: ['首页', '旅游', 'AI 规划师'],
     aboutHeading: '关于 COCOTRIP',
     charterTitle: /包车/,
   },
