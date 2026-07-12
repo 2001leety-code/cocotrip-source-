@@ -570,7 +570,7 @@ function AnimatedRoutes() {
           <Route path="/tours/:slug" element={<Suspense fallback={<PlannerSkeleton />}><TourDetailPage /></Suspense>} />
           {/* 커뮤니티 UI 껍데기 — 실제 DB·번역·신고·moderation 연결은 Claude handoff 범위. */}
           <Route path="/community" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPage /></Suspense>} />
-          <Route path="/community/moderation-preview" element={<Suspense fallback={<PlannerSkeleton />}><CommunityModerationPage /></Suspense>} />
+          {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
           <Route path="/community/post/:postId" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPostPage /></Suspense>} />
           <Route path="/community/new" element={<Suspense fallback={<PlannerSkeleton />}><CommunityComposePage /></Suspense>} />
           <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />

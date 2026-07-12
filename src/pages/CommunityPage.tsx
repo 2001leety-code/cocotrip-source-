@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Bell,
-  Bookmark,
   Check,
   ChevronDown,
   Compass,
@@ -11,8 +10,8 @@ import {
   Globe2,
   Heart,
   Home,
-  ImagePlus,
   Languages,
+  Loader2,
   MapPin,
   MessageCircle,
   MoreHorizontal,
@@ -28,194 +27,204 @@ import {
   UserRoundX,
   X,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { signalAppReady } from '@/lib/appReady';
 import type { Language } from '@/i18n';
 
+/**
+ * 커뮤니티 — UIUX 가이드 P9 실전화 (2026-07-12).
+ * 이전 버전은 하드코딩 가짜 글(POSTS)·가짜 알림·가짜 추천 사용자를 노출하는 디자인 셸이었음
+ * → 전부 제거하고 실 Firestore 백엔드(api/community-posts·-post-actions·-translate) 연결.
+ * 번역 = 원탭(Gemini, 언어당 1회 캐시). 작성 = 로그인 필수 + 연락처 유도 감지 시 운영자 검토.
+ */
+
+const LANGUAGES: Language[] = ['en', 'ko', 'ja', 'zh'];
+const LANGUAGE_SHORT: Record<Language, string> = { en: 'EN', ko: '한', ja: '日', zh: '中' };
+const LANGUAGE_NAME: Record<Language, string> = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文' };
+
 type Copy = {
-  community: string;
-  exploreKorea: string;
-  search: string;
-  latest: string;
-  popular: string;
-  following: string;
-  write: string;
-  translate: string;
-  showOriginal: string;
-  translatedFrom: string;
-  replies: string;
-  save: string;
-  report: string;
-  reportTitle: string;
-  reportHelp: string;
-  reportReasons: string[];
-  cancel: string;
-  submit: string;
-  categories: string;
-  trending: string;
-  suggested: string;
-  follow: string;
-  followingLabel: string;
-  communityGuide: string;
-  guideBody: string;
-  navHome: string;
-  navExplore: string;
-  navCreate: string;
-  navAlerts: string;
-  navProfile: string;
-  back: string;
-  comments: string;
-  replyPlaceholder: string;
-  composeTitle: string;
-  composeSubtitle: string;
-  postType: string;
-  postTypes: string[];
-  chooseCategory: string;
-  titleLabel: string;
-  titlePlaceholder: string;
-  bodyLabel: string;
-  bodyPlaceholder: string;
-  addPhoto: string;
-  detectedLanguage: string;
-  publish: string;
-  preview: string;
-  safetyNote: string;
-  draftNotice: string;
+  community: string; exploreKorea: string; search: string; latest: string; popular: string;
+  write: string; translate: string; showOriginal: string; translatedFrom: string; translating: string;
+  translateFailed: string; replies: string; save: string; report: string; reportTitle: string;
+  reportHelp: string; reportReasons: [string, string, string, string]; reportDone: string;
+  cancel: string; submit: string; categories: string; all: string;
+  communityGuide: string; guideBody: string;
+  navHome: string; navExplore: string; navCreate: string; navAlerts: string; navProfile: string;
+  back: string; comments: string; replyPlaceholder: string;
+  composeTitle: string; composeSubtitle: string; postType: string;
+  postTypes: [string, string, string, string]; chooseCategory: string; titleLabel: string;
+  titlePlaceholder: string; bodyLabel: string; bodyPlaceholder: string;
+  publish: string; publishing: string; safetyNote: string;
+  loginRequired: string; goLogin: string;
+  emptyTitle: string; emptyBody: string; loadFailed: string; retry: string;
+  postInReview: string; deleteConfirm: string; deleted: string;
+  alertsEmptyTitle: string; alertsEmptyBody: string;
+  justNow: string; minutesAgo: string; hoursAgo: string; daysAgo: string;
 };
 
 const COPY: Record<Language, Copy> = {
   en: {
     community: 'Community', exploreKorea: 'Korea, shared by people who are here', search: 'Search Korea tips, places and people',
-    latest: 'Latest', popular: 'Popular', following: 'Following', write: 'Create post', translate: 'Translate', showOriginal: 'View original',
-    translatedFrom: 'Translated from', replies: 'replies', save: 'Save', report: 'Report', reportTitle: 'Why are you reporting this?',
+    latest: 'Latest', popular: 'Popular', write: 'Create post', translate: 'Translate', showOriginal: 'View original',
+    translatedFrom: 'Translated from', translating: 'Translating…', translateFailed: 'Translation failed — showing original',
+    replies: 'replies', save: 'Save', report: 'Report', reportTitle: 'Why are you reporting this?',
     reportHelp: 'Your report is private. A moderator will review the original post and its translation.',
     reportReasons: ['Spam or advertising', 'Harassment or hate', 'Sexual or unsafe content', 'Scam or false information'],
-    cancel: 'Cancel', submit: 'Send report', categories: 'Browse topics', trending: 'Trending in Korea', suggested: 'People to follow', follow: 'Follow',
-    followingLabel: 'Following', communityGuide: 'Travel kindly', guideBody: 'Keep personal details private and meet new people in public places.',
+    reportDone: 'Report received. Thank you for keeping the community safe.',
+    cancel: 'Cancel', submit: 'Send report', categories: 'Browse topics', all: 'All',
+    communityGuide: 'Travel kindly', guideBody: 'Keep personal details private and meet new people in public places.',
     navHome: 'Feed', navExplore: 'Explore', navCreate: 'Post', navAlerts: 'Alerts', navProfile: 'Profile', back: 'Back', comments: 'Comments',
     replyPlaceholder: 'Join the conversation', composeTitle: 'Share with the community', composeSubtitle: 'Ask, recommend, or find people for your Korea trip.',
     postType: 'Post type', postTypes: ['Question', 'Tip', 'Travel buddy', 'Itinerary'], chooseCategory: 'Category', titleLabel: 'Title',
     titlePlaceholder: 'What would you like to share?', bodyLabel: 'Details', bodyPlaceholder: 'Add the details people need to help or join you.',
-    addPhoto: 'Add photos', detectedLanguage: 'Writing in English', publish: 'Publish', preview: 'Preview',
-    safetyNote: 'Phone numbers and private contact details will be checked before publishing.', draftNotice: 'Design preview: publishing will be connected by Claude.',
+    publish: 'Publish', publishing: 'Publishing…',
+    safetyNote: 'Phone numbers and private contact details are checked before publishing.',
+    loginRequired: 'Sign in to join the conversation.', goLogin: 'Sign in',
+    emptyTitle: 'Be the first to post', emptyBody: 'Ask a question or share a tip about traveling Korea — travelers and locals are here to help.',
+    loadFailed: 'Could not load the community feed.', retry: 'Try again',
+    postInReview: 'Your post is being reviewed for safety and will appear once approved.',
+    deleteConfirm: 'Delete this post?', deleted: 'Deleted.',
+    alertsEmptyTitle: 'No alerts yet', alertsEmptyBody: 'Replies and likes on your posts will show up here.',
+    justNow: 'just now', minutesAgo: 'm', hoursAgo: 'h', daysAgo: 'd',
   },
   ko: {
     community: '커뮤니티', exploreKorea: '한국에 있는 사람들이 함께 만드는 정보', search: '한국 팁, 장소, 사람 검색',
-    latest: '최신', popular: '인기', following: '팔로잉', write: '글쓰기', translate: '번역 보기', showOriginal: '원문 보기',
-    translatedFrom: '번역 언어', replies: '댓글', save: '저장', report: '신고', reportTitle: '신고하는 이유를 알려주세요',
+    latest: '최신', popular: '인기', write: '글쓰기', translate: '번역 보기', showOriginal: '원문 보기',
+    translatedFrom: '번역 언어', translating: '번역 중…', translateFailed: '번역에 실패했어요 — 원문을 표시합니다',
+    replies: '댓글', save: '저장', report: '신고', reportTitle: '신고하는 이유를 알려주세요',
     reportHelp: '신고 내용은 공개되지 않으며 운영자가 원문과 번역문을 함께 확인합니다.',
     reportReasons: ['도배 또는 광고', '괴롭힘 또는 혐오 표현', '성적이거나 위험한 내용', '사기 또는 허위 정보'],
-    cancel: '취소', submit: '신고 보내기', categories: '주제 둘러보기', trending: '한국에서 인기', suggested: '추천 사용자', follow: '팔로우',
-    followingLabel: '팔로잉 중', communityGuide: '안전하게 여행하기', guideBody: '개인정보는 공개하지 말고 새로운 사람과는 공공장소에서 만나세요.',
+    reportDone: '신고가 접수됐어요. 안전한 커뮤니티를 만들어 주셔서 감사합니다.',
+    cancel: '취소', submit: '신고 보내기', categories: '주제 둘러보기', all: '전체',
+    communityGuide: '안전하게 여행하기', guideBody: '개인정보는 공개하지 말고 새로운 사람과는 공공장소에서 만나세요.',
     navHome: '피드', navExplore: '탐색', navCreate: '작성', navAlerts: '알림', navProfile: '내 정보', back: '뒤로', comments: '댓글',
     replyPlaceholder: '대화에 참여해 보세요', composeTitle: '커뮤니티에 공유하기', composeSubtitle: '한국 여행 질문, 추천, 동행 모집을 올려보세요.',
     postType: '글 종류', postTypes: ['질문', '여행 팁', '동행 모집', '여행 코스'], chooseCategory: '카테고리', titleLabel: '제목',
     titlePlaceholder: '무엇을 공유하고 싶나요?', bodyLabel: '상세 내용', bodyPlaceholder: '사람들이 답하거나 참여하는 데 필요한 내용을 적어주세요.',
-    addPhoto: '사진 추가', detectedLanguage: '한국어로 작성 중', publish: '게시하기', preview: '미리보기',
-    safetyNote: '전화번호와 개인 연락처는 게시 전에 안전 검사를 진행합니다.', draftNotice: '디자인 미리보기입니다. 실제 게시는 클로드가 연결합니다.',
+    publish: '게시하기', publishing: '게시 중…',
+    safetyNote: '전화번호와 개인 연락처는 게시 전에 안전 검사를 진행합니다.',
+    loginRequired: '대화에 참여하려면 로그인하세요.', goLogin: '로그인',
+    emptyTitle: '첫 글의 주인공이 되어보세요', emptyBody: '한국 여행 질문이나 팁을 올려보세요 — 여행자와 현지인이 함께 답해드립니다.',
+    loadFailed: '커뮤니티 피드를 불러오지 못했어요.', retry: '다시 시도',
+    postInReview: '안전 검토 후 공개됩니다. 승인되면 피드에 표시돼요.',
+    deleteConfirm: '이 글을 삭제할까요?', deleted: '삭제됐어요.',
+    alertsEmptyTitle: '아직 알림이 없어요', alertsEmptyBody: '내 글에 달린 댓글과 좋아요가 여기에 표시됩니다.',
+    justNow: '방금', minutesAgo: '분 전', hoursAgo: '시간 전', daysAgo: '일 전',
   },
   ja: {
     community: 'コミュニティ', exploreKorea: '韓国にいる人たちと共有するリアルな情報', search: '韓国の情報・場所・仲間を検索',
-    latest: '新着', popular: '人気', following: 'フォロー中', write: '投稿する', translate: '翻訳を見る', showOriginal: '原文を見る',
-    translatedFrom: '翻訳元', replies: '件の返信', save: '保存', report: '報告', reportTitle: '報告する理由を選んでください',
-    reportHelp: '報告内容は非公開です。モデレーターが原文と翻訳を確認します。',
-    reportReasons: ['スパム・広告', '嫌がらせ・差別', '性的・危険な内容', '詐欺・誤情報'],
-    cancel: 'キャンセル', submit: '報告を送信', categories: 'トピック', trending: '韓国で話題', suggested: 'おすすめユーザー', follow: 'フォロー',
-    followingLabel: 'フォロー中', communityGuide: '安全な旅のために', guideBody: '個人情報を公開せず、初対面の人とは公共の場所で会いましょう。',
-    navHome: 'フィード', navExplore: '見つける', navCreate: '投稿', navAlerts: '通知', navProfile: 'プロフィール', back: '戻る', comments: 'コメント',
-    replyPlaceholder: 'コメントを書く', composeTitle: 'コミュニティに共有', composeSubtitle: '質問、おすすめ、旅仲間募集を投稿できます。',
-    postType: '投稿タイプ', postTypes: ['質問', '旅行情報', '旅仲間', '旅程'], chooseCategory: 'カテゴリー', titleLabel: 'タイトル',
+    latest: '新着', popular: '人気', write: '投稿する', translate: '翻訳を見る', showOriginal: '原文を見る',
+    translatedFrom: '翻訳元', translating: '翻訳中…', translateFailed: '翻訳に失敗しました — 原文を表示します',
+    replies: '返信', save: '保存', report: '報告', reportTitle: '報告する理由を教えてください',
+    reportHelp: '報告内容は公開されません。運営者が原文と翻訳を確認します。',
+    reportReasons: ['スパム・広告', '嫌がらせ・ヘイト', '性的・危険な内容', '詐欺・虚偽情報'],
+    reportDone: '報告を受け付けました。安全なコミュニティへのご協力ありがとうございます。',
+    cancel: 'キャンセル', submit: '報告を送信', categories: 'トピックを見る', all: 'すべて',
+    communityGuide: '安全に旅する', guideBody: '個人情報は公開せず、新しい人とは公共の場所で会いましょう。',
+    navHome: 'フィード', navExplore: '探索', navCreate: '投稿', navAlerts: '通知', navProfile: 'プロフィール', back: '戻る', comments: 'コメント',
+    replyPlaceholder: '会話に参加しましょう', composeTitle: 'コミュニティに共有', composeSubtitle: '韓国旅行の質問、おすすめ、旅仲間の募集を投稿しましょう。',
+    postType: '投稿の種類', postTypes: ['質問', '旅のヒント', '旅仲間募集', '旅程'], chooseCategory: 'カテゴリー', titleLabel: 'タイトル',
     titlePlaceholder: '何を共有しますか？', bodyLabel: '詳細', bodyPlaceholder: '回答や参加に必要な情報を書いてください。',
-    addPhoto: '写真を追加', detectedLanguage: '日本語で入力中', publish: '投稿する', preview: 'プレビュー',
-    safetyNote: '電話番号や個人連絡先は投稿前に安全確認されます。', draftNotice: 'デザインプレビューです。投稿機能はClaudeが接続します。',
+    publish: '投稿する', publishing: '投稿中…',
+    safetyNote: '電話番号や個人の連絡先は、公開前に安全チェックを行います。',
+    loginRequired: '会話に参加するにはサインインしてください。', goLogin: 'サインイン',
+    emptyTitle: '最初の投稿者になりましょう', emptyBody: '韓国旅行の質問やヒントを投稿してみてください — 旅行者と現地の人が答えます。',
+    loadFailed: 'フィードを読み込めませんでした。', retry: '再試行',
+    postInReview: '安全確認の後に公開されます。承認されるとフィードに表示されます。',
+    deleteConfirm: 'この投稿を削除しますか？', deleted: '削除しました。',
+    alertsEmptyTitle: 'まだ通知はありません', alertsEmptyBody: '投稿への返信やいいねがここに表示されます。',
+    justNow: 'たった今', minutesAgo: '分前', hoursAgo: '時間前', daysAgo: '日前',
   },
   zh: {
-    community: '社区', exploreKorea: '分享在韩国的真实生活与旅行信息', search: '搜索韩国攻略、地点和同伴',
-    latest: '最新', popular: '热门', following: '关注', write: '发布内容', translate: '查看翻译', showOriginal: '查看原文',
-    translatedFrom: '翻译自', replies: '条回复', save: '收藏', report: '举报', reportTitle: '请选择举报原因',
+    community: '社区', exploreKorea: '由在韩国的人们共同分享的真实信息', search: '搜索韩国攻略、地点和伙伴',
+    latest: '最新', popular: '热门', write: '发帖', translate: '查看翻译', showOriginal: '查看原文',
+    translatedFrom: '翻译自', translating: '翻译中…', translateFailed: '翻译失败 — 显示原文',
+    replies: '回复', save: '收藏', report: '举报', reportTitle: '请告诉我们举报原因',
     reportHelp: '举报内容不会公开，管理员会同时查看原文和译文。',
     reportReasons: ['垃圾信息或广告', '骚扰或仇恨言论', '色情或危险内容', '诈骗或虚假信息'],
-    cancel: '取消', submit: '提交举报', categories: '浏览话题', trending: '韩国热门', suggested: '推荐关注', follow: '关注',
-    followingLabel: '已关注', communityGuide: '安全旅行', guideBody: '请勿公开个人信息，与新朋友见面时请选择公共场所。',
-    navHome: '动态', navExplore: '发现', navCreate: '发布', navAlerts: '通知', navProfile: '我的', back: '返回', comments: '评论',
-    replyPlaceholder: '加入讨论', composeTitle: '分享到社区', composeSubtitle: '发布韩国旅行问题、推荐或寻找同伴。',
-    postType: '内容类型', postTypes: ['提问', '旅行攻略', '寻找同伴', '旅行路线'], chooseCategory: '分类', titleLabel: '标题',
-    titlePlaceholder: '你想分享什么？', bodyLabel: '详细内容', bodyPlaceholder: '请填写方便他人回答或参与的信息。',
-    addPhoto: '添加照片', detectedLanguage: '正在使用中文', publish: '发布', preview: '预览',
-    safetyNote: '电话号码和私人联系方式将在发布前进行安全检查。', draftNotice: '这是设计预览，发布功能将由Claude连接。',
+    reportDone: '已收到举报。感谢你共同维护安全的社区。',
+    cancel: '取消', submit: '发送举报', categories: '浏览话题', all: '全部',
+    communityGuide: '安全出行', guideBody: '请勿公开个人信息，与新朋友见面请选择公共场所。',
+    navHome: '动态', navExplore: '探索', navCreate: '发布', navAlerts: '通知', navProfile: '我的', back: '返回', comments: '评论',
+    replyPlaceholder: '参与讨论吧', composeTitle: '与社区分享', composeSubtitle: '发布韩国旅行问题、推荐或寻找同伴。',
+    postType: '帖子类型', postTypes: ['提问', '旅行贴士', '寻找同伴', '行程'], chooseCategory: '分类', titleLabel: '标题',
+    titlePlaceholder: '想分享什么？', bodyLabel: '详情', bodyPlaceholder: '写下别人帮助你或加入你所需要的信息。',
+    publish: '发布', publishing: '发布中…',
+    safetyNote: '电话号码和私人联系方式会在发布前进行安全检查。',
+    loginRequired: '登录后即可参与讨论。', goLogin: '登录',
+    emptyTitle: '来发布第一条帖子吧', emptyBody: '发布一个关于韩国旅行的问题或贴士 — 旅行者和当地人都会来帮你。',
+    loadFailed: '无法加载社区动态。', retry: '重试',
+    postInReview: '你的帖子正在安全审核中，通过后将显示在动态里。',
+    deleteConfirm: '删除这条帖子？', deleted: '已删除。',
+    alertsEmptyTitle: '暂无通知', alertsEmptyBody: '你帖子收到的回复和点赞会显示在这里。',
+    justNow: '刚刚', minutesAgo: '分钟前', hoursAgo: '小时前', daysAgo: '天前',
   },
 };
 
-const LANGUAGE_NAME: Record<Language, string> = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文' };
-const LANGUAGE_SHORT: Record<Language, string> = { en: 'EN', ko: 'KO', ja: 'JA', zh: 'ZH' };
-const LANGUAGES: Language[] = ['en', 'ko', 'ja', 'zh'];
+// 카테고리 (서버 enum 과 1:1)
+const TOPICS: { key: 'seoul' | 'tips' | 'buddies' | 'living'; icon: typeof MapPin; labels: Record<Language, string> }[] = [
+  { key: 'seoul', icon: MapPin, labels: { en: 'Seoul', ko: '서울', ja: 'ソウル', zh: '首尔' } },
+  { key: 'tips', icon: Compass, labels: { en: 'Travel tips', ko: '여행 팁', ja: '旅行情報', zh: '旅行攻略' } },
+  { key: 'buddies', icon: Users, labels: { en: 'Travel buddies', ko: '동행 찾기', ja: '旅仲間', zh: '寻找同伴' } },
+  { key: 'living', icon: MessageCircle, labels: { en: 'Living in Korea', ko: '한국생활', ja: '韓国生活', zh: '韩国生活' } },
+];
+const POST_TYPE_KEYS = ['question', 'tip', 'buddy', 'itinerary'] as const;
+const REPORT_REASON_KEYS = ['spam', 'harassment', 'unsafe', 'scam'] as const;
 
-type Localized = Record<Language, string>;
-type Post = {
-  id: string;
-  author: string;
-  handle: string;
-  avatar: string;
-  country: string;
-  originalLanguage: Language;
-  time: string;
-  category: Localized;
-  title: Localized;
-  body: Localized;
-  image?: string;
-  location?: string;
-  likes: number;
-  replies: number;
-  verified?: boolean;
+// ── API 타입/클라이언트 ──
+type ApiPost = {
+  id: string; title: string; body: string; lang: Language; type: string; category: string;
+  authorName: string; authorUid: string; likeCount: number; replyCount: number;
+  createdAt: number | null; translations: Partial<Record<Language, { title: string | null; body: string }>>;
+};
+type ApiReply = {
+  id: string; body: string; lang: Language; authorName: string; authorUid: string;
+  createdAt: number | null; translations: Partial<Record<Language, { title: string | null; body: string }>>;
 };
 
-const POSTS: Post[] = [
-  {
-    id: 'seoul-first-week', author: 'Mika', handle: '@mika_in_seoul', avatar: 'M', country: 'JP', originalLanguage: 'ja', time: '12m',
-    category: { en: 'Living in Korea', ko: '한국생활', ja: '韓国生活', zh: '韩国生活' },
-    title: { en: 'What I wish I knew during my first week in Seoul', ko: '서울 첫 일주일에 미리 알았으면 좋았을 것들', ja: 'ソウル生活の最初の1週間で知っておきたかったこと', zh: '在首尔第一周希望早点知道的事' },
-    body: {
-      en: 'Get a transport card at the airport, save your address in Korean, and do not be afraid to ask station staff. Here are five small things that made my first week much easier.',
-      ko: '공항에서 교통카드를 사고, 숙소 주소는 한국어로 저장하고, 역무원에게 편하게 물어보세요. 첫 일주일을 훨씬 편하게 해준 다섯 가지를 정리했어요.',
-      ja: '空港で交通カードを買うこと、滞在先の住所を韓国語で保存すること、駅員さんに気軽に聞くこと。最初の1週間が楽になった5つのことをまとめました。',
-      zh: '在机场购买交通卡、用韩文保存住宿地址，也不要害怕向地铁工作人员求助。这里整理了让我第一周轻松很多的五件小事。',
-    },
-    image: '/hero-seoul-real.webp', location: 'Seoul', likes: 284, replies: 39, verified: true,
-  },
-  {
-    id: 'busan-food-route', author: 'Daniel', handle: '@danieltravels', avatar: 'D', country: 'US', originalLanguage: 'en', time: '34m',
-    category: { en: 'Food & Cafes', ko: '맛집·카페', ja: 'グルメ・カフェ', zh: '美食·咖啡' },
-    title: { en: 'My one-day Busan food route without rushing', ko: '서두르지 않고 즐긴 부산 하루 맛집 코스', ja: '急がず楽しむ釜山1日グルメコース', zh: '不赶时间的釜山一日美食路线' },
-    body: {
-      en: 'Jagalchi in the morning, a quiet coffee near Huinnyeoul, then Gwangalli after sunset. The route worked well by public transport and left enough time to enjoy each stop.',
-      ko: '아침에는 자갈치시장, 오후에는 흰여울 근처 조용한 카페, 해가 진 뒤에는 광안리로 갔어요. 대중교통으로 무리 없고 장소마다 충분히 머물 수 있는 코스였습니다.',
-      ja: '朝はチャガルチ市場、午後はヒンヨウル近くの静かなカフェ、日没後は広安里へ。公共交通で無理なく、それぞれの場所をゆっくり楽しめました。',
-      zh: '早上去札嘎其市场，下午在白浅文化村附近喝咖啡，日落后前往广安里。公共交通很方便，每一站也有充足时间。',
-    },
-    image: '/hero-busan-real.webp', location: 'Busan', likes: 167, replies: 22,
-  },
-  {
-    id: 'gyeongju-buddy', author: 'Yuxin', handle: '@yuxin_go', avatar: 'Y', country: 'CN', originalLanguage: 'zh', time: '1h',
-    category: { en: 'Find a travel buddy', ko: '동행 찾기', ja: '旅仲間募集', zh: '寻找同伴' },
-    title: { en: 'Looking for a Gyeongju day-trip buddy this Saturday', ko: '이번 토요일 경주 당일치기 동행을 찾아요', ja: '今週土曜日、慶州日帰り旅行の仲間を募集', zh: '寻找本周六庆州一日游同伴' },
-    body: {
-      en: 'I plan to start near Singyeongju Station at 9:30 and visit Bulguksa, Hwangridan-gil, and Donggung Palace at night. Two seats are still open.',
-      ko: '오전 9시 30분 신경주역 근처에서 출발해 불국사, 황리단길, 저녁 동궁과 월지를 갈 예정이에요. 두 자리 남았습니다.',
-      ja: '午前9時30分に新慶州駅付近を出発し、仏国寺、皇理団通り、夜の東宮と月池を回る予定です。あと2名参加できます。',
-      zh: '计划上午9:30从新庆州站附近出发，游览佛国寺、皇理团路，晚上去东宫与月池。还剩两个名额。',
-    },
-    location: 'Gyeongju', likes: 48, replies: 17,
-  },
-];
+async function apiGet(path: string) {
+  const res = await fetch(path);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  return data.data;
+}
+async function apiPost(path: string, body: unknown, token?: string | null) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.ok) {
+    const err = new Error((data && data.error) || `HTTP ${res.status}`) as Error & { code?: string };
+    err.code = data && data.code;
+    throw err;
+  }
+  return data.data;
+}
 
-const TOPICS = [
-  { icon: MapPin, labels: { en: 'Seoul', ko: '서울', ja: 'ソウル', zh: '首尔' }, count: '18.4K' },
-  { icon: Compass, labels: { en: 'Travel tips', ko: '여행 팁', ja: '旅行情報', zh: '旅行攻略' }, count: '12.8K' },
-  { icon: Users, labels: { en: 'Travel buddies', ko: '동행 찾기', ja: '旅仲間', zh: '寻找同伴' }, count: '8.2K' },
-  { icon: MessageCircle, labels: { en: 'Living in Korea', ko: '한국생활', ja: '韓国生活', zh: '韩国生活' }, count: '7.6K' },
-];
+function timeAgo(ms: number | null, copy: Copy): string {
+  if (!ms) return '';
+  const diff = Date.now() - ms;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return copy.justNow;
+  if (min < 60) return `${min}${copy.minutesAgo}`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}${copy.hoursAgo}`;
+  return `${Math.floor(h / 24)}${copy.daysAgo}`;
+}
 
+function displayName(user: { displayName?: string | null; email?: string | null } | null): string {
+  if (!user) return 'Traveler';
+  return user.displayName || (user.email ? user.email.split('@')[0] : 'Traveler');
+}
+
+function categoryLabel(key: string, language: Language): string {
+  const t = TOPICS.find((topic) => topic.key === key);
+  return t ? t.labels[language] : key;
+}
+
+// ── 공통 셸 ──
 function CommunityBrand({ compact = false }: { compact?: boolean }) {
   return (
     <Link to="/community" className="community-brand" aria-label="CocoTrip Community">
@@ -255,7 +264,7 @@ function CommunityHeader({ backTo }: { backTo?: string }) {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LanguageButton />
-          <button type="button" className="community-icon-button" aria-label={copy.navAlerts}><Bell size={18} /></button>
+          <Link to="/community?tab=alerts" className="community-icon-button" aria-label={copy.navAlerts}><Bell size={18} /></Link>
           <Link to="/community/new" className="community-primary-button hidden sm:inline-flex"><PenLine size={17} />{copy.write}</Link>
         </div>
       </div>
@@ -301,21 +310,11 @@ function RightRail() {
   return (
     <aside className="community-right-rail">
       <section>
-        <div className="community-section-title"><span>{copy.trending}</span><MoreHorizontal size={18} /></div>
-        {['#CherryBlossomNight', '#SeoulCafe', '#KoreaTransit'].map((tag, index) => (
-          <button type="button" className="community-trend" key={tag}>
-            <span>{tag}</span><small>{[2480, 1720, 936][index].toLocaleString()} posts</small>
-          </button>
-        ))}
-      </section>
-      <section>
-        <div className="community-section-title"><span>{copy.suggested}</span></div>
-        {[['S', 'Seoul Local', 'KO'], ['A', 'Aiko in Korea', 'JP'], ['J', 'Jin Travels', 'US']].map(([avatar, name, country]) => (
-          <div className="community-person" key={name}>
-            <span className="community-avatar is-small">{avatar}</span>
-            <div><strong>{name}</strong><small>{country}</small></div>
-            <button type="button">{copy.follow}</button>
-          </div>
+        <div className="community-section-title"><span>{copy.categories}</span></div>
+        {TOPICS.map(({ key, icon: Icon, labels }) => (
+          <Link to={`/community?topic=${key}`} className="community-trend" key={key}>
+            <span className="flex items-center gap-2"><Icon size={15} />{labels[language]}</span>
+          </Link>
         ))}
       </section>
       <section className="community-safety-card">
@@ -326,81 +325,151 @@ function RightRail() {
   );
 }
 
-function ReportSheet({ onClose }: { onClose: () => void }) {
+function ReportSheet({ postId, replyId, onClose }: { postId: string; replyId?: string; onClose: () => void }) {
   const { language } = useLanguage();
   const copy = COPY[language];
   const [reason, setReason] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    setSending(true);
+    try {
+      await apiPost('/api/community-post-actions', { action: 'report', postId, replyId, reason: REPORT_REASON_KEYS[reason] });
+      setDone(true);
+      setTimeout(onClose, 1600);
+    } catch {
+      onClose();
+    }
+  };
+
   return (
     <div className="community-sheet-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="community-sheet" role="dialog" aria-modal="true" aria-labelledby="report-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="community-sheet-handle" />
         <div className="community-sheet-heading">
-          <div><h2 id="report-title">{copy.reportTitle}</h2><p>{copy.reportHelp}</p></div>
+          <div><h2 id="report-title">{copy.reportTitle}</h2><p>{done ? copy.reportDone : copy.reportHelp}</p></div>
           <button type="button" className="community-icon-button" onClick={onClose} aria-label={copy.cancel}><X size={19} /></button>
         </div>
-        <div className="community-report-options">
-          {copy.reportReasons.map((item, index) => (
-            <button type="button" key={item} onClick={() => setReason(index)} className={reason === index ? 'is-selected' : ''}>
-              <span>{item}</span>{reason === index && <Check size={17} />}
-            </button>
-          ))}
-        </div>
-        <div className="community-sheet-actions">
-          <button type="button" className="community-secondary-button" onClick={onClose}>{copy.cancel}</button>
-          <button type="button" className="community-primary-button" onClick={onClose}><Flag size={16} />{copy.submit}</button>
-        </div>
+        {!done && (
+          <>
+            <div className="community-report-options">
+              {copy.reportReasons.map((item, index) => (
+                <button type="button" key={item} onClick={() => setReason(index)} className={reason === index ? 'is-selected' : ''}>
+                  <span>{item}</span>{reason === index && <Check size={17} />}
+                </button>
+              ))}
+            </div>
+            <div className="community-sheet-actions">
+              <button type="button" className="community-secondary-button" onClick={onClose}>{copy.cancel}</button>
+              <button type="button" className="community-primary-button" disabled={sending} onClick={submit}>
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Flag size={16} />}{copy.submit}
+              </button>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
 }
 
-function PostCard({ post, expanded = false }: { post: Post; expanded?: boolean }) {
+// ── 글 카드 (실데이터 + 원탭 번역) ──
+function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expanded?: boolean; onDeleted?: () => void }) {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[language];
-  const [translated, setTranslated] = useState(language !== post.originalLanguage);
+  const navigate = useNavigate();
+  const [translated, setTranslated] = useState(false);
+  const [translation, setTranslation] = useState<{ title: string | null; body: string } | null>(post.translations[language] || null);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [likeCount, setLikeCount] = useState(post.likeCount);
   const [reportOpen, setReportOpen] = useState(false);
-  const displayLanguage = translated ? language : post.originalLanguage;
-  const isTranslationAvailable = language !== post.originalLanguage;
+  const isTranslationAvailable = language !== post.lang;
+  const isMine = !!user && user.uid === post.authorUid;
+
+  const toggleTranslate = async () => {
+    if (translated) { setTranslated(false); return; }
+    if (translation) { setTranslated(true); return; }
+    setTranslating(true);
+    setTranslateError(false);
+    try {
+      const result = await apiPost('/api/community-translate', { postId: post.id, targetLang: language });
+      setTranslation({ title: result.title, body: result.body });
+      setTranslated(true);
+    } catch {
+      setTranslateError(true);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const toggleLike = async () => {
+    if (!user) { navigate('/mypage'); return; }
+    const next = !liked;
+    setLiked(next);
+    setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
+    try {
+      const token = await user.getIdToken();
+      const result = await apiPost('/api/community-post-actions', { action: next ? 'like' : 'unlike', postId: post.id }, token);
+      setLiked(result.liked);
+      setLikeCount(result.likeCount);
+    } catch {
+      setLiked(!next);
+      setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
+    }
+  };
+
+  const deletePost = async () => {
+    if (!user || !window.confirm(copy.deleteConfirm)) return;
+    try {
+      const token = await user.getIdToken();
+      await apiPost('/api/community-post-actions', { action: 'delete', postId: post.id }, token);
+      if (onDeleted) onDeleted();
+    } catch { /* silent */ }
+  };
+
+  const shownTitle = translated && translation ? (translation.title || post.title) : post.title;
+  const shownBody = translated && translation ? translation.body : post.body;
 
   return (
     <article className={`community-post-card ${expanded ? 'is-expanded' : ''}`}>
       <div className="community-post-head">
-        <span className="community-avatar">{post.avatar}</span>
+        <span className="community-avatar">{post.authorName.slice(0, 1).toUpperCase()}</span>
         <div className="community-author">
-          <div><strong>{post.author}</strong>{post.verified && <ShieldCheck size={14} />}</div>
-          <span>{post.handle} · {post.country} · {post.time}</span>
+          <div><strong>{post.authorName}</strong></div>
+          <span>{timeAgo(post.createdAt, copy)}</span>
         </div>
-        <button type="button" className="community-icon-button" onClick={() => setReportOpen(true)} aria-label={copy.report}><MoreHorizontal size={19} /></button>
+        {isMine ? (
+          <button type="button" className="community-icon-button" onClick={deletePost} aria-label="Delete"><Trash2 size={17} /></button>
+        ) : (
+          <button type="button" className="community-icon-button" onClick={() => setReportOpen(true)} aria-label={copy.report}><MoreHorizontal size={19} /></button>
+        )}
       </div>
       <Link to={`/community/post/${post.id}`} className="community-post-content">
         <div className="community-post-meta">
-          <span>{post.category[language]}</span>
-          {post.location && <span><MapPin size={12} />{post.location}</span>}
+          <span>{categoryLabel(post.category, language)}</span>
         </div>
-        <h2>{post.title[displayLanguage]}</h2>
-        <p>{post.body[displayLanguage]}</p>
-        {post.image && <img src={post.image} alt="" className="community-post-image" />}
+        <h2>{shownTitle}</h2>
+        <p>{shownBody}</p>
       </Link>
       {isTranslationAvailable && (
-        <button type="button" className="community-translate-button" onClick={() => setTranslated((value) => !value)}>
-          <Languages size={15} />
-          <span>{translated ? copy.showOriginal : copy.translate}</span>
-          {translated && <small>{copy.translatedFrom} {LANGUAGE_NAME[post.originalLanguage]}</small>}
+        <button type="button" className="community-translate-button" onClick={toggleTranslate} disabled={translating}>
+          {translating ? <Loader2 size={15} className="animate-spin" /> : <Languages size={15} />}
+          <span>{translating ? copy.translating : translated ? copy.showOriginal : copy.translate}</span>
+          {translated && <small>{copy.translatedFrom} {LANGUAGE_NAME[post.lang] || post.lang}</small>}
+          {translateError && <small>{copy.translateFailed}</small>}
         </button>
       )}
       <div className="community-post-actions">
-        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={() => setLiked((value) => !value)} aria-label="Like">
-          <Heart size={18} fill={liked ? 'currentColor' : 'none'} /><span>{post.likes + (liked ? 1 : 0)}</span>
+        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={toggleLike} aria-label="Like">
+          <Heart size={18} fill={liked ? 'currentColor' : 'none'} /><span>{likeCount}</span>
         </button>
-        <Link to={`/community/post/${post.id}`}><MessageCircle size={18} /><span>{post.replies} {copy.replies}</span></Link>
-        <button type="button" className={saved ? 'is-active' : ''} onClick={() => setSaved((value) => !value)} aria-label={copy.save}>
-          <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /><span>{copy.save}</span>
-        </button>
+        <Link to={`/community/post/${post.id}`}><MessageCircle size={18} /><span>{post.replyCount} {copy.replies}</span></Link>
         <button type="button" onClick={() => setReportOpen(true)} aria-label={copy.report}><Flag size={17} /></button>
       </div>
-      {reportOpen && <ReportSheet onClose={() => setReportOpen(false)} />}
+      {reportOpen && <ReportSheet postId={post.id} onClose={() => setReportOpen(false)} />}
     </article>
   );
 }
@@ -418,165 +487,346 @@ function CommunityLayout({ children, active = 'feed', backTo }: { children: Reac
   );
 }
 
+function FeedState({ icon: Icon, title, body, action }: { icon: typeof Sparkles; title: string; body: string; action?: React.ReactNode }) {
+  return (
+    <div className="community-post-card" style={{ textAlign: 'center', padding: '36px 20px' }}>
+      <Icon size={28} style={{ margin: '0 auto 10px', color: '#7C5CFF' }} />
+      <h2 style={{ fontSize: 17, fontWeight: 800 }}>{title}</h2>
+      <p style={{ marginTop: 6, fontSize: 13, color: '#6E6A8F' }}>{body}</p>
+      {action && <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>{action}</div>}
+    </div>
+  );
+}
+
+// ── 피드 ──
 export default function CommunityPage() {
   const { language } = useLanguage();
   const copy = COPY[language];
   const location = useLocation();
-  const [tab, setTab] = useState<'latest' | 'popular' | 'following'>('latest');
-  const [selectedTopic, setSelectedTopic] = useState(0);
-  const posts = useMemo(() => tab === 'popular' ? [...POSTS].sort((a, b) => b.likes - a.likes) : POSTS, [tab]);
-  const requestedView = new URLSearchParams(location.search).get('tab');
+  const [tab, setTab] = useState<'latest' | 'popular'>('latest');
+  const [topic, setTopic] = useState<string | null>(null);
+  const [posts, setPosts] = useState<ApiPost[] | null>(null);
+  const [error, setError] = useState(false);
+  const params = new URLSearchParams(location.search);
+  const requestedView = params.get('tab');
   const activeRail = requestedView === 'alerts' ? 'alerts' : requestedView === 'popular' ? 'explore' : 'feed';
 
   usePageMeta({ title: `${copy.community} | CocoTrip`, description: copy.exploreKorea });
   useEffect(() => { signalAppReady(); }, []);
   useEffect(() => {
     if (requestedView === 'popular') setTab('popular');
-  }, [requestedView]);
+    const topicParam = params.get('topic');
+    if (topicParam) setTopic(topicParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
+  const load = useCallback(async (sort: 'latest' | 'popular') => {
+    setError(false);
+    setPosts(null);
+    try {
+      const data = await apiGet(`/api/community-posts?sort=${sort}`);
+      setPosts(data.posts);
+    } catch {
+      setError(true);
+      setPosts([]);
+    }
+  }, []);
+
+  useEffect(() => { void load(tab); }, [tab, load]);
+
+  const visible = useMemo(() => {
+    if (!posts) return null;
+    return topic ? posts.filter((p) => p.category === topic) : posts;
+  }, [posts, topic]);
 
   return (
     <CommunityLayout active={activeRail}>
       {requestedView === 'alerts' ? (
-        <CommunityAlerts copy={copy} />
+        <section className="community-alerts-page">
+          <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />CocoTrip Together</span><h1>{copy.navAlerts}</h1></div></div>
+          <FeedState icon={Bell} title={copy.alertsEmptyTitle} body={copy.alertsEmptyBody} />
+        </section>
       ) : (
-      <>
-      <section className="community-intro">
-        <div><span className="community-eyebrow"><Sparkles size={14} />CocoTrip Together</span><h1>{copy.community}</h1><p>{copy.exploreKorea}</p></div>
-        <Link to="/community/new" className="community-primary-button"><PenLine size={17} />{copy.write}</Link>
-      </section>
-      <div className="community-search community-mobile-search md:hidden"><Search size={17} /><input aria-label={copy.search} placeholder={copy.search} /></div>
-      <section className="community-mobile-topics md:hidden">
-        <div className="community-section-title"><span>{copy.categories}</span><SlidersHorizontal size={17} /></div>
-        <div className="community-topic-scroll">
-          {TOPICS.map(({ icon: Icon, labels }, index) => (
-            <button type="button" key={labels.en} className={selectedTopic === index ? 'is-active' : ''} onClick={() => setSelectedTopic(index)}>
-              <Icon size={16} /><span>{labels[language]}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <div className="community-tabs" role="tablist">
-        {(['latest', 'popular', 'following'] as const).map((key) => (
-          <button type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key)}>
-            {copy[key]}
-          </button>
-        ))}
-      </div>
-      <div className="community-feed">{posts.map((post) => <PostCard key={post.id} post={post} />)}</div>
-      </>
+        <>
+          <section className="community-intro">
+            <div><span className="community-eyebrow"><Sparkles size={14} />CocoTrip Together</span><h1>{copy.community}</h1><p>{copy.exploreKorea}</p></div>
+            <Link to="/community/new" className="community-primary-button"><PenLine size={17} />{copy.write}</Link>
+          </section>
+          <section className="community-mobile-topics md:hidden">
+            <div className="community-section-title"><span>{copy.categories}</span><SlidersHorizontal size={17} /></div>
+            <div className="community-topic-scroll">
+              <button type="button" className={!topic ? 'is-active' : ''} onClick={() => setTopic(null)}><span>{copy.all}</span></button>
+              {TOPICS.map(({ key, icon: Icon, labels }) => (
+                <button type="button" key={key} className={topic === key ? 'is-active' : ''} onClick={() => setTopic(topic === key ? null : key)}>
+                  <Icon size={16} /><span>{labels[language]}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <div className="community-tabs" role="tablist">
+            {(['latest', 'popular'] as const).map((key) => (
+              <button type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key)}>
+                {copy[key]}
+              </button>
+            ))}
+          </div>
+          <div className="community-feed">
+            {visible === null && (
+              <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+                <Loader2 size={22} className="animate-spin" style={{ color: '#7C5CFF' }} />
+              </div>
+            )}
+            {visible !== null && error && (
+              <FeedState icon={Flag} title={copy.loadFailed} body="" action={
+                <button type="button" className="community-primary-button" onClick={() => load(tab)}>{copy.retry}</button>
+              } />
+            )}
+            {visible !== null && !error && visible.length === 0 && (
+              <FeedState icon={Sparkles} title={copy.emptyTitle} body={copy.emptyBody} action={
+                <Link to="/community/new" className="community-primary-button"><PenLine size={16} />{copy.write}</Link>
+              } />
+            )}
+            {visible !== null && visible.map((post) => (
+              <PostCard key={post.id} post={post} onDeleted={() => setPosts((prev) => prev ? prev.filter((p) => p.id !== post.id) : prev)} />
+            ))}
+          </div>
+        </>
       )}
     </CommunityLayout>
   );
 }
 
-function CommunityAlerts({ copy }: { copy: Copy }) {
-  const { language } = useLanguage();
-  const alerts = [
-    { icon: Heart, tone: 'pink', title: { en: 'Mika liked your Busan cafe list', ko: 'Mika님이 부산 카페 목록을 좋아합니다', ja: 'Mikaさんが釜山カフェリストにいいねしました', zh: 'Mika赞了你的釜山咖啡清单' }, time: '8m' },
-    { icon: MessageCircle, tone: 'purple', title: { en: 'Daniel replied to your Seoul transport question', ko: 'Daniel님이 서울 교통 질문에 답했습니다', ja: 'Danielさんがソウル交通の質問に返信しました', zh: 'Daniel回复了你的首尔交通问题' }, time: '24m' },
-    { icon: ShieldCheck, tone: 'green', title: { en: 'Your report was reviewed by the community team', ko: '커뮤니티 운영팀이 신고를 검토했습니다', ja: 'コミュニティ運営チームが報告を確認しました', zh: '社区管理团队已审核你的举报' }, time: '2h' },
-  ];
-  return (
-    <section className="community-alerts-page">
-      <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />CocoTrip Together</span><h1>{copy.navAlerts}</h1><p>{copy.communityGuide}</p></div></div>
-      <div className="community-alert-list">
-        {alerts.map(({ icon: Icon, tone, title, time }) => (
-          <button type="button" key={title.en} className="community-alert-row">
-            <span className={`community-alert-icon is-${tone}`}><Icon size={18} /></span>
-            <span><strong>{title[language]}</strong><small>{time}</small></span>
-            <ChevronDown size={17} />
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
+// ── 글 상세 + 댓글 ──
 export function CommunityPostPage() {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[language];
   const { postId } = useParams();
-  const post = POSTS.find((item) => item.id === postId) || POSTS[0];
+  const navigate = useNavigate();
+  const [post, setPost] = useState<ApiPost | null>(null);
+  const [replies, setReplies] = useState<ApiReply[]>([]);
+  const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState('');
-  usePageMeta({ title: `${post.title[language]} | CocoTrip`, description: post.body[language] });
+  const [sending, setSending] = useState(false);
+  const [replyNotice, setReplyNotice] = useState<string | null>(null);
 
-  const comments = [
-    { avatar: 'L', name: 'Leo', country: 'SG', original: 'This is exactly what I needed before arriving. Saving the Korean address was a lifesaver.', translated: { ko: '한국에 도착하기 전에 딱 필요했던 정보예요. 한국어 주소를 저장해 둔 것이 정말 큰 도움이 됐어요.', ja: '到着前にまさに必要だった情報です。韓国語の住所を保存しておいて本当に助かりました。', zh: '这正是我抵达前需要的信息，保存韩文地址真的非常有用。', en: 'This is exactly what I needed before arriving. Saving the Korean address was a lifesaver.' } },
-    { avatar: 'H', name: 'Hana', country: 'KR', original: 'You can also use the help intercom near subway ticket machines. Most major stations support English.', translated: { ko: '지하철 발권기 근처 도움 호출 버튼도 사용할 수 있어요. 주요 역은 대부분 영어 안내가 가능합니다.', ja: '地下鉄の券売機近くにある案内インターホンも使えます。主要駅では英語対応も可能です。', zh: '也可以使用地铁售票机旁的求助对讲机，大多数主要车站都支持英语。', en: 'You can also use the help intercom near subway ticket machines. Most major stations support English.' } },
-  ];
+  usePageMeta({ title: `${post ? post.title : copy.community} | CocoTrip`, description: post ? post.body.slice(0, 140) : copy.exploreKorea });
+
+  const load = useCallback(async () => {
+    if (!postId) return;
+    setLoading(true);
+    try {
+      const data = await apiGet(`/api/community-posts?id=${encodeURIComponent(postId)}`);
+      setPost(data.post);
+      setReplies(data.replies);
+    } catch {
+      setPost(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [postId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const submitReply = async () => {
+    if (!post || !reply.trim()) return;
+    if (!user) { navigate('/mypage'); return; }
+    setSending(true);
+    setReplyNotice(null);
+    try {
+      const token = await user.getIdToken();
+      const result = await apiPost('/api/community-post-actions', {
+        action: 'reply', postId: post.id, body: reply.trim(), authorName: displayName(user),
+      }, token);
+      setReply('');
+      if (result.status === 'review') setReplyNotice(copy.postInReview);
+      else await load();
+    } catch (err) {
+      setReplyNotice((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <CommunityLayout backTo="/community">
-      <div className="community-detail-title"><button type="button" onClick={() => history.back()} className="community-icon-button"><ArrowLeft size={20} /></button><strong>{copy.back}</strong></div>
-      <PostCard post={post} expanded />
-      <section className="community-comments">
-        <h2>{copy.comments} <span>{post.replies}</span></h2>
-        <div className="community-reply-box">
-          <span className="community-avatar">T</span>
-          <input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={copy.replyPlaceholder} />
-          <button type="button" className="community-icon-button" disabled={!reply.trim()} aria-label={copy.submit}><Send size={18} /></button>
+      <div className="community-detail-title">
+        <button type="button" onClick={() => navigate('/community')} className="community-icon-button"><ArrowLeft size={20} /></button>
+        <strong>{copy.back}</strong>
+      </div>
+      {loading && (
+        <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+          <Loader2 size={22} className="animate-spin" style={{ color: '#7C5CFF' }} />
         </div>
-        {comments.map((comment) => <CommentCard key={comment.name} comment={comment} />)}
-      </section>
+      )}
+      {!loading && !post && <FeedState icon={Flag} title={copy.loadFailed} body="" />}
+      {!loading && post && (
+        <>
+          <PostCard post={post} expanded onDeleted={() => navigate('/community')} />
+          <section className="community-comments">
+            <h2>{copy.comments} <span>{replies.length}</span></h2>
+            {user ? (
+              <div className="community-reply-box">
+                <span className="community-avatar">{displayName(user).slice(0, 1).toUpperCase()}</span>
+                <input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={copy.replyPlaceholder} maxLength={500}
+                  onKeyDown={(event) => { if (event.key === 'Enter') void submitReply(); }} />
+                <button type="button" className="community-icon-button" disabled={!reply.trim() || sending} onClick={submitReply} aria-label={copy.submit}>
+                  {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                </button>
+              </div>
+            ) : (
+              <div className="community-reply-box" style={{ justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, color: '#6E6A8F' }}>{copy.loginRequired}</span>
+                <Link to="/mypage" className="community-primary-button">{copy.goLogin}</Link>
+              </div>
+            )}
+            {replyNotice && <p style={{ fontSize: 12.5, color: '#7C5CFF', marginTop: 8 }}>{replyNotice}</p>}
+            {replies.map((item) => <CommentCard key={item.id} postId={post.id} comment={item} onDeleted={load} />)}
+          </section>
+        </>
+      )}
     </CommunityLayout>
   );
 }
 
-function CommentCard({ comment }: { comment: { avatar: string; name: string; country: string; original: string; translated: Localized } }) {
+function CommentCard({ postId, comment, onDeleted }: { postId: string; comment: ApiReply; onDeleted: () => void }) {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[language];
-  const [translated, setTranslated] = useState(language !== 'en');
+  const [translated, setTranslated] = useState(false);
+  const [translation, setTranslation] = useState<string | null>(
+    comment.translations[language] ? comment.translations[language]!.body : null
+  );
+  const [translating, setTranslating] = useState(false);
+  const isMine = !!user && user.uid === comment.authorUid;
+
+  const toggleTranslate = async () => {
+    if (translated) { setTranslated(false); return; }
+    if (translation) { setTranslated(true); return; }
+    setTranslating(true);
+    try {
+      const result = await apiPost('/api/community-translate', { postId, replyId: comment.id, targetLang: language });
+      setTranslation(result.body);
+      setTranslated(true);
+    } catch { /* 원문 유지 */ } finally {
+      setTranslating(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!user || !window.confirm(copy.deleteConfirm)) return;
+    try {
+      const token = await user.getIdToken();
+      await apiPost('/api/community-post-actions', { action: 'delete', postId, replyId: comment.id }, token);
+      onDeleted();
+    } catch { /* silent */ }
+  };
+
   return (
     <article className="community-comment">
-      <span className="community-avatar is-small">{comment.avatar}</span>
+      <span className="community-avatar is-small">{comment.authorName.slice(0, 1).toUpperCase()}</span>
       <div>
-        <header><strong>{comment.name}</strong><span>{comment.country} · 8m</span></header>
-        <p>{translated ? comment.translated[language] : comment.original}</p>
-        {language !== 'en' && <button type="button" className="community-translate-button" onClick={() => setTranslated((value) => !value)}><Languages size={14} />{translated ? copy.showOriginal : copy.translate}</button>}
-        <div className="community-comment-actions"><button type="button"><Heart size={15} />18</button><button type="button"><MessageCircle size={15} />{copy.replies}</button><button type="button"><MoreHorizontal size={16} /></button></div>
+        <header><strong>{comment.authorName}</strong><span>{timeAgo(comment.createdAt, copy)}</span></header>
+        <p>{translated && translation ? translation : comment.body}</p>
+        {language !== comment.lang && (
+          <button type="button" className="community-translate-button" onClick={toggleTranslate} disabled={translating}>
+            {translating ? <Loader2 size={14} className="animate-spin" /> : <Languages size={14} />}
+            {translating ? copy.translating : translated ? copy.showOriginal : copy.translate}
+          </button>
+        )}
+        {isMine && (
+          <div className="community-comment-actions">
+            <button type="button" onClick={remove}><Trash2 size={15} />{copy.cancel === '취소' ? '삭제' : 'Delete'}</button>
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
+// ── 작성 ──
 export function CommunityComposePage() {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[language];
+  const navigate = useNavigate();
   const [type, setType] = useState(0);
-  const [category, setCategory] = useState(TOPICS[0].labels[language]);
+  const [category, setCategory] = useState<string>(TOPICS[1].key);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [preview, setPreview] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   usePageMeta({ title: `${copy.composeTitle} | CocoTrip`, description: copy.composeSubtitle });
+
+  const publish = async () => {
+    if (!user) { navigate('/mypage'); return; }
+    setPublishing(true);
+    setNotice(null);
+    try {
+      const token = await user.getIdToken();
+      const result = await apiPost('/api/community-posts', {
+        title: title.trim(), body: body.trim(),
+        type: POST_TYPE_KEYS[type], category, authorName: displayName(user),
+      }, token);
+      if (result.status === 'review') {
+        setNotice(copy.postInReview);
+        setTitle(''); setBody('');
+      } else {
+        navigate(`/community/post/${result.postId}`);
+      }
+    } catch (err) {
+      setNotice((err as Error).message);
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   return (
     <CommunityLayout active="create" backTo="/community">
-      <section className="community-compose-heading"><div><h1>{copy.composeTitle}</h1><p>{copy.composeSubtitle}</p></div><span><Languages size={15} />{copy.detectedLanguage}</span></section>
-      <section className="community-compose-form">
-        <label>{copy.postType}</label>
-        <div className="community-segmented-control">
-          {copy.postTypes.map((item, index) => <button type="button" key={item} className={type === index ? 'is-active' : ''} onClick={() => setType(index)}>{item}</button>)}
-        </div>
-        <label htmlFor="community-category">{copy.chooseCategory}</label>
-        <div className="community-select-wrap"><select id="community-category" value={category} onChange={(event) => setCategory(event.target.value)}>{TOPICS.map((topic) => <option key={topic.labels.en}>{topic.labels[language]}</option>)}</select><ChevronDown size={17} /></div>
-        <label htmlFor="community-title">{copy.titleLabel}</label>
-        <input id="community-title" className="community-field" value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.titlePlaceholder} maxLength={100} />
-        <div className="community-field-counter">{title.length}/100</div>
-        <label htmlFor="community-body">{copy.bodyLabel}</label>
-        <textarea id="community-body" className="community-field" value={body} onChange={(event) => setBody(event.target.value)} placeholder={copy.bodyPlaceholder} rows={8} maxLength={2000} />
-        <div className="community-field-counter">{body.length}/2000</div>
-        <button type="button" className="community-upload-button"><ImagePlus size={21} /><span>{copy.addPhoto}</span><small>JPG, PNG · max 10</small></button>
-        <div className="community-compose-safety"><ShieldCheck size={19} /><p>{copy.safetyNote}</p></div>
-        {preview && <div className="community-draft-notice"><Sparkles size={17} /><span>{copy.draftNotice}</span></div>}
-        <div className="community-compose-actions">
-          <button type="button" className="community-secondary-button" onClick={() => setPreview((value) => !value)}>{copy.preview}</button>
-          <button type="button" className="community-primary-button" disabled={!title.trim() || !body.trim()} onClick={() => setPreview(true)}><Send size={16} />{copy.publish}</button>
-        </div>
+      <section className="community-compose-heading">
+        <div><h1>{copy.composeTitle}</h1><p>{copy.composeSubtitle}</p></div>
+        <span><Languages size={15} />{LANGUAGE_NAME[language]}</span>
       </section>
+      {!user && (
+        <FeedState icon={Users} title={copy.loginRequired} body="" action={
+          <Link to="/mypage" className="community-primary-button">{copy.goLogin}</Link>
+        } />
+      )}
+      {user && (
+        <section className="community-compose-form">
+          <label>{copy.postType}</label>
+          <div className="community-segmented-control">
+            {copy.postTypes.map((item, index) => <button type="button" key={item} className={type === index ? 'is-active' : ''} onClick={() => setType(index)}>{item}</button>)}
+          </div>
+          <label htmlFor="community-category">{copy.chooseCategory}</label>
+          <div className="community-select-wrap">
+            <select id="community-category" value={category} onChange={(event) => setCategory(event.target.value)}>
+              {TOPICS.map((topicItem) => <option key={topicItem.key} value={topicItem.key}>{topicItem.labels[language]}</option>)}
+            </select>
+            <ChevronDown size={17} />
+          </div>
+          <label htmlFor="community-title">{copy.titleLabel}</label>
+          <input id="community-title" className="community-field" value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.titlePlaceholder} maxLength={100} />
+          <div className="community-field-counter">{title.length}/100</div>
+          <label htmlFor="community-body">{copy.bodyLabel}</label>
+          <textarea id="community-body" className="community-field" value={body} onChange={(event) => setBody(event.target.value)} placeholder={copy.bodyPlaceholder} rows={8} maxLength={2000} />
+          <div className="community-field-counter">{body.length}/2000</div>
+          <div className="community-compose-safety"><ShieldCheck size={19} /><p>{copy.safetyNote}</p></div>
+          {notice && <div className="community-draft-notice"><Sparkles size={17} /><span>{notice}</span></div>}
+          <div className="community-compose-actions">
+            <button type="button" className="community-secondary-button" onClick={() => navigate('/community')}>{copy.cancel}</button>
+            <button type="button" className="community-primary-button" disabled={!title.trim() || !body.trim() || publishing} onClick={publish}>
+              {publishing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {publishing ? copy.publishing : copy.publish}
+            </button>
+          </div>
+        </section>
+      )}
     </CommunityLayout>
   );
 }
 
+// ── 어드민 모더레이션 (디자인 데모 — 실배선은 후속 PR. /admin/community 어드민 게이트 하위에서만 사용) ──
 const MODERATION_COPY: Record<Language, { title: string; subtitle: string; pending: string; urgent: string; blocked: string; queue: string; original: string; translation: string; approve: string; hide: string; warn: string; risk: string; links: string; similar: string; accountAge: string }> = {
   en: { title: 'Community moderation', subtitle: 'Review original content and translations before taking action.', pending: 'Pending review', urgent: 'High priority', blocked: 'Bots blocked today', queue: 'Review queue', original: 'Original', translation: 'Translation', approve: 'Approve', hide: 'Hide post', warn: 'Warn user', risk: 'Detected risk', links: 'links detected', similar: 'similar posts', accountAge: 'account age' },
   ko: { title: '커뮤니티 안전 관리', subtitle: '조치하기 전에 원문과 번역문을 함께 확인합니다.', pending: '검토 대기', urgent: '긴급 검토', blocked: '오늘 차단한 봇', queue: '검토 목록', original: '원문', translation: '번역문', approve: '승인', hide: '글 숨김', warn: '사용자 경고', risk: '감지된 위험', links: '외부 링크 감지', similar: '유사 게시글', accountAge: '계정 생성 후' },
