@@ -175,6 +175,9 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
     large: Number(body.luggage.large) || 0,
   } : null;
   const spiceLevel = typeof body.spiceLevel === 'string' ? body.spiceLevel : '';
+  // UIUX 가이드 P3 (2026-07-13, 운영자 승인): 동행 유형 4옵션 — 미선택('') = 기존 동작 byte-identical.
+  // 프롬프트에는 userInput JSON 필드로만 주입(system prompt 불변 = Gemini 캐시 prefix 무손상, P166/P273).
+  const companions = ['solo', 'couple', 'family', 'friends'].includes(body.companions) ? body.companions : '';
   const bucketDishes = Array.isArray(body.bucketDishes)
     ? body.bucketDishes.filter((d) => typeof d === 'string').slice(0, 10)
     : [];
@@ -199,7 +202,7 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
     dietPrefs, allergies, priceRange,
     revisionReason, revisionNote, avoidListBody,
     wantAccom, accomBudget,
-    arrivalTime, departureTime, luggage, spiceLevel, bucketDishes, pace,
+    arrivalTime, departureTime, luggage, spiceLevel, bucketDishes, pace, companions,
     // P239 (2026-05-27): tourStartTime export — handlerCore destructure + userMessageBuilder
     // inject + buildPrompt 의 tourStartTime instruction 분기. default '09:00' (옛 client 호환).
     tourStartTime,

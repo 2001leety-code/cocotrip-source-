@@ -23,6 +23,8 @@ export function buildBlockModePrompt(blocks, userInput) {
   const styles = Array.isArray(userInput?.styles) ? userInput.styles : [];
   const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
   const specialRequest = String(userInput?.special_request || '').slice(0, 800);
+  // UIUX P3 (2026-07-13): 동행 유형 — 블록 선택 취향 힌트(JSON 필드만, system 불변=캐시 안전).
+  const companions = ['solo', 'couple', 'family', 'friends'].includes(userInput?.companions) ? userInput.companions : '';
 
   const blockCards = (Array.isArray(blocks) ? blocks : []).map((b) => ({
     id: b?.id,
@@ -59,6 +61,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    travel_party: companions || undefined, // solo|couple|family|friends — family=kid-friendly pacing 등 소프트 힌트
     available_blocks: blockCards,
   });
 

@@ -264,6 +264,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
           ...(values.tourPace ? { tourPace: values.tourPace } : {}),
+          // UIUX P3 (2026-07-13): 동행 유형 — 미선택이면 필드 미전송(기존 동작 그대로).
+          ...(values.companions ? { companions: values.companions } : {}),
           // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
           recommended_zone: values.recommended_zone || '',
           // 2026-05-11 (B-2 fix): 도시별 zone Record. 다도시 plan 시 backend
@@ -435,6 +437,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
           ...(values.tourPace ? { tourPace: values.tourPace } : {}),
+          // UIUX P3 (2026-07-13): 동행 유형 — 미선택이면 필드 미전송(기존 동작 그대로).
+          ...(values.companions ? { companions: values.companions } : {}),
           // W4: revision reason → server buildRevisionInstruction
           ...(revisionReason ? { revisionReason } : {}),
           ...(revisionNote   ? { revisionNote }   : {}),

@@ -59,6 +59,7 @@ export function buildUserMessage({
     mobility, luggage, specialRequest, dietPrefs, allergies,
     spiceLevel, bucketDishes, priceRange,
     pace, wantAccom, accomBudget, language,
+    companions, // UIUX P3 (2026-07-13): 동행 유형 — userInput JSON 소프트 힌트
   } = shaped;
 
   // 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J).
@@ -146,6 +147,8 @@ export function buildUserMessage({
     food_allergies: allergies.length > 0 ? allergies : undefined,
     // 2026-05-10 (P1): 매운맛 / 한국 음식 bucket — 식당 매칭 정확도 개선.
     spice_level: spiceLevel || undefined,
+    // UIUX P3 (2026-07-13): 동행 유형 — family=아이 동반 페이스·couple=분위기 등 소프트 힌트 (JSON 필드만, 캐시 안전)
+    travel_party: companions || undefined,
     bucket_dishes: bucketDishes.length > 0 ? bucketDishes : undefined,
     meal_budget: priceRange !== 'Any' ? priceRange : undefined, ...buildFoodPrefSnippet(body),
     pace, // relaxed: 단일 zone / standard: 2 인접 zone / packed: 자유

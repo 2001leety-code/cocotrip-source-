@@ -105,6 +105,8 @@ interface PlannerSnapshotValues {
   // 기존 사용자는 recommendedZone (legacy) 만 갖고 있을 수 있어 복원 시 fallback 처리.
   recommendedZones: Record<string, string>;
   tourPace: TourPace;
+  /** UIUX P3 (2026-07-13): 동행 유형 — 선택형. 옛 snapshot 엔 없음 → 복원 시 '' 폴백. */
+  companions?: '' | 'solo' | 'couple' | 'family' | 'friends';
   /** PR-D (2026-06-01): "사고 이탈" 마커. pagehide 가 동기 기록 → resume modal 의
    *  좁힌 트리거(flag ON)가 dirtyExit 있을 때만 노출. 사용자 입력 시그널이 아니라
    *  라이프사이클 신호 — autosaveValues 에는 직렬화하지 않고(markWizardDirtyExit 가
@@ -237,6 +239,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   }, [reservationStatus]);
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
   const [tourPace, setTourPace]               = useState<TourPace>('full');
+  // UIUX P3 (2026-07-13, 운영자 승인): 동행 유형 — 선택형(강제 X). ''=미선택=기존 동작 그대로.
+  const [companions, setCompanions]           = useState<'' | 'solo' | 'couple' | 'family' | 'friends'>('');
   const mobility = 'ok' as const;
 
   // Responsive — mobile vs desktop for calendar
@@ -459,6 +463,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       }
     }
     setTourPace((v.tourPace as TourPace) ?? 'full');
+    setCompanions((v.companions as '' | 'solo' | 'couple' | 'family' | 'friends') ?? '');
     // #resume-instant: 애니 억제 플래그를 먼저 켜(현재 step 이 instant 로 재렌더된 뒤),
     // 다음 커밋에서 step 점프(jumpToStep) → exit/enter 둘 다 0ms = 제자리 즉시 (mode="wait" 빈틈 제거).
     setNoStepAnim(true);
@@ -556,7 +561,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     paxInput, arrivalTerminal, departureTerminal, hotelAddress,
     arrivalTime, departureTime,
     luggageSmall, luggageMedium, luggageLarge,
-    wantAccom, accomBudget, recommendedZones, tourPace,
+    wantAccom, accomBudget, recommendedZones, tourPace, companions,
     // PR-D 주의: dirtyExit 는 일부러 여기 넣지 않는다. 이 라이프사이클 마커는
     // markWizardDirtyExit 가 저장된 snapshot 에 직접(out-of-band) 기록한다. 여기에
     // 넣으면(예: false 고정) autosave 가 디바운스마다 마커를 덮어써 사고 이탈 신호가
@@ -794,6 +799,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
         bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
         tourPace: tourPace !== 'full' ? tourPace : undefined,
+        // UIUX P3: 동행 유형 — 미선택('')이면 필드 자체 미전송 = 기존 동작 그대로.
+        companions: companions || undefined,
         // New: airport-transport context (all optional)
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
@@ -1034,6 +1041,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   wantAccom={wantAccom} setWantAccom={setWantAccom}
                   accomBudget={accomBudget} setAccomBudget={setAccomBudget}
                   tourPace={tourPace} setTourPace={setTourPace}
+                  companions={companions} setCompanions={setCompanions}
                   recommendedZones={recommendedZones}
                   cityKeys={cityKeys}
                   onPickZone={handlePickZone}

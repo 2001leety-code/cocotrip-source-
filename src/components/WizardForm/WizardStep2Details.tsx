@@ -69,6 +69,9 @@ interface Step2Props {
   // P7 (2026-04-24): daily tour pace — controls Gemini's hours-per-day budget.
   tourPace: TourPace;
   setTourPace: (v: TourPace) => void;
+  // UIUX P3 (2026-07-13, 운영자 승인): 동행 유형 — 선택형(강제 X), 재탭 시 해제.
+  companions: '' | 'solo' | 'couple' | 'family' | 'friends';
+  setCompanions: (v: '' | 'solo' | 'couple' | 'family' | 'friends') => void;
   // Sprint 2 #5: recommended zone (when hotel undecided) + city key for picker scoping.
   // 2026-05-10 다도시 plan UX fix: cityKeys (모든 selected cities). zone 선택 시 cityKey
   // 도 같이 받아 부모가 mainCity auto-swap. mainCityKey 는 cityKeys[0] 로 대체됨.
@@ -159,7 +162,7 @@ export function WizardStep2Details(props: Step2Props) {
     tourEndTime, setTourEndTime,
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
-    tourPace, setTourPace,
+    tourPace, setTourPace, companions, setCompanions,
     recommendedZones, cityKeys, onPickZone,
     isMultiCity, mainCityKey, onEntryCityChange, hotelByCity, setHotelByCity,
     canGoStep3, onPrev, onNext, onEditStep0,
@@ -287,6 +290,35 @@ export function WizardStep2Details(props: Step2Props) {
         <p className="text-sm text-white/50 mb-2.5 font-medium">{p.planner_step2_adults || 'How many travelers?'}</p>
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+      </div>
+
+      {/* UIUX P3 (2026-07-13): 동행 유형 — 선택형(강제 X), 재탭 해제. AI 플랜 소프트 힌트(travel_party). */}
+      <div>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.companionsLabel || 'Who are you traveling with? (optional)'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {([
+            { key: 'solo' as const,    fb: 'Solo' },
+            { key: 'couple' as const,  fb: 'Couple' },
+            { key: 'family' as const,  fb: 'Family' },
+            { key: 'friends' as const, fb: 'Friends' },
+          ]).map(({ key, fb }) => {
+            const cap = key.charAt(0).toUpperCase() + key.slice(1);
+            const label = (p[`companions${cap}` as keyof typeof p] as string) || fb;
+            const sel = companions === key;
+            return (
+              <button key={key} type="button" onClick={() => setCompanions(sel ? '' : key)}
+                className={`px-3 py-2.5 rounded-xl border text-left transition-all ${
+                  sel
+                    ? (isMobile
+                        ? 'bg-[#B668FC]/20 border-[#B668FC]/55 text-white'
+                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white')
+                    : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
+                }`}>
+                <span className="text-[13px] font-bold leading-tight">{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* P7: Daily tour pace — feeds Gemini hours-per-day budget */}
