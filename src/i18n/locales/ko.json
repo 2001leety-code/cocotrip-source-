@@ -1324,7 +1324,16 @@
     "exploreTitle": "한국 둘러보기",
     "seeAll": "전체보기",
     "toursTitle": "인기 투어",
-    "from": "최저"
+    "from": "최저",
+    "greeting": "안녕하세요, 여행자님",
+    "greetingSub": "오늘은 한국 어디로 떠나볼까요?",
+    "aiCardTitle": "AI 일정 제안",
+    "aiCardSub": "취향에 맞춘 스마트 플랜",
+    "aiCardSample": "서울 하이라이트",
+    "aiCardTags": "5일 · 문화 · 자연 · 야경",
+    "bestMatch": "최적 매칭",
+    "viewFullPlan": "전체 일정 보기",
+    "smartPicks": "추천 픽"
   },
   "pwaInstall": {
     "modalTitle": "코코트립 바로가기 추가",
