@@ -288,7 +288,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   값=prop totalStr 그대로(재계산 X · PayPal priceKRW 와 동일 source). */}
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, color: '#C99FFF', background: 'rgba(182,104,252,0.12)', border: '1px solid rgba(182,104,252,0.30)', padding: '4px 9px', borderRadius: 9999, whiteSpace: 'nowrap' }}>{totalStr}</span>
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>✓ 사용일 1일 전까지 무료 취소</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>✓ 사용일 24시간 전까지 무료 취소</div>
           </div>
         </div>
 
@@ -532,8 +532,8 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         <div style={{ ...C.card, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>취소 규정</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>무료 취소</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 1일 전까지 — 전액 환불</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>⚠ 취소 수수료 100%</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 1일 전 이후 — 환불 불가</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>무료 취소</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 24시간 전까지 — 전액 환불</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>⚠ 취소 수수료 100%</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 24시간 전 이후 — 환불 불가</div></div>
           </div>
         </div>
 

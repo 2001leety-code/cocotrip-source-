@@ -6,7 +6,8 @@
  * 로직:
  *   - Firestore bookings where status=CONFIRMED, freeCancelReminderSent absent
  *   - tourDate == today_KST + 4d (D-4)
- *   - Bronze 자유 취소 데드라인이 D-3(72h 전)이므로 D-4에 알리면 약 24h 결정 시간 제공
+ *   - 자유 취소 데드라인 = 투어 24h 전(2026-07-14 정책). D-4 조기 알림 = 여유 있게 결정 시간 제공.
+ *     (원한다면 발송일 D-2로 재조정 가능 — 운영자 판단. 현 이메일 본문은 24h 정책 정확 반영.)
  *   - 4언어 i18n (ko/en/ja/zh) — payerName/payerEmail로 detectLanguage
  *   - 발송 후 freeCancelReminderSent: serverTimestamp() 마킹 → 중복 발송 방지
  *
@@ -71,15 +72,13 @@ const I18N = {
     subject: '[CocoTrip] 투어 4일 전 안내 — 자유 취소 데드라인 임박',
     greeting: (n) => `안녕하세요 ${n || '고객'}님,`,
     intro: '예약하신 투어가 4일 앞으로 다가왔습니다. 일정 변경이나 취소가 필요하시면 미리 알려주세요.',
-    deadlineBox: '⏰ 자유 취소(100% 환불) 마감까지 약 24시간 남았습니다.',
-    refundTitle: '환불 정책 (일반 등급 기준)',
+    deadlineBox: '⏰ 투어 시작 24시간 전까지 무료 취소(100% 환불) 가능합니다.',
+    refundTitle: '환불 정책',
     refundLines: [
-      '투어 출발 72시간(3일) 전까지: 100% 환불',
-      '48~72시간 전: 80% 환불',
-      '24~48시간 전: 50% 환불',
-      '24시간 이내·노쇼: 환불 불가',
+      '투어 시작 24시간 이상 전: 100% 환불',
+      '투어 시작 24시간 이내·노쇼: 환불 불가',
     ],
-    tierNote: '* Gold/Platinum 등급은 더 관대한 정책이 적용됩니다. 자세한 내용은 마이페이지에서 확인해주세요.',
+    tierNote: '* 전 고객 동일 정책입니다.',
     bookingTitle: '📋 예약 정보',
     refLabel: '예약번호',
     productLabel: '상품',
@@ -99,15 +98,13 @@ const I18N = {
     subject: '[CocoTrip] Tour in 4 Days — Free Cancellation Deadline Approaching',
     greeting: (n) => `Hi ${n || 'there'},`,
     intro: 'Your booked tour is 4 days away. If you need to modify or cancel, please let us know soon.',
-    deadlineBox: '⏰ About 24 hours left until the free cancellation (100% refund) deadline.',
-    refundTitle: 'Refund Policy (General Tier)',
+    deadlineBox: '⏰ Free cancellation (100% refund) is available up to 24 hours before the tour start.',
+    refundTitle: 'Refund Policy',
     refundLines: [
-      '72+ hours before tour: 100% refund',
-      '48–72 hours before: 80% refund',
-      '24–48 hours before: 50% refund',
+      '24+ hours before tour start: 100% refund',
       'Within 24 hours / no-show: no refund',
     ],
-    tierNote: '* Gold/Platinum members enjoy more lenient terms. See your account page for details.',
+    tierNote: '* Same policy for all customers.',
     bookingTitle: '📋 Booking Details',
     refLabel: 'Booking Ref',
     productLabel: 'Service',
@@ -127,15 +124,13 @@ const I18N = {
     subject: '[CocoTrip] ツアー4日前のご案内 — 無料キャンセル期限が近づいています',
     greeting: (n) => `${n || 'お客様'}、こんにちは。`,
     intro: 'ご予約のツアーまであと4日です。日程の変更やキャンセルが必要な場合は、お早めにご連絡ください。',
-    deadlineBox: '⏰ 無料キャンセル(100%返金)期限まで残り約24時間です。',
-    refundTitle: 'キャンセル・返金ポリシー(一般)',
+    deadlineBox: '⏰ ツアー開始24時間前まで無料キャンセル(100%返金)が可能です。',
+    refundTitle: 'キャンセル・返金ポリシー',
     refundLines: [
-      'ツアー開始72時間以上前: 100%返金',
-      '48〜72時間前: 80%返金',
-      '24〜48時間前: 50%返金',
-      '24時間以内・ノーショー: 返金不可',
+      'ツアー開始24時間以上前: 100%返金',
+      'ツアー開始24時間以内・ノーショー: 返金不可',
     ],
-    tierNote: '* Gold/Platinum会員はより寛容な条件が適用されます。マイページでご確認ください。',
+    tierNote: '* 全てのお客様に同一のポリシーです。',
     bookingTitle: '📋 ご予約内容',
     refLabel: '予約番号',
     productLabel: 'サービス',
@@ -155,15 +150,13 @@ const I18N = {
     subject: '[CocoTrip] 行程前4日提醒 — 免费取消截止日临近',
     greeting: (n) => `${n || '尊敬的客户'},您好,`,
     intro: '您预订的行程距出发还有4天。如需更改或取消,请尽早告知我们。',
-    deadlineBox: '⏰ 距免费取消(全额退款)截止日仅剩约24小时。',
-    refundTitle: '退款政策(普通等级)',
+    deadlineBox: '⏰ 旅游开始24小时前均可免费取消(全额退款)。',
+    refundTitle: '退款政策',
     refundLines: [
-      '出发前72小时以上: 全额退款',
-      '48–72小时前: 退款80%',
-      '24–48小时前: 退款50%',
-      '24小时内·未到场: 不予退款',
+      '旅游开始24小时以上前: 全额退款',
+      '旅游开始24小时内·未到场: 不予退款',
     ],
-    tierNote: '* Gold/Platinum 会员享有更宽松的条款,详情请在会员页面查看。',
+    tierNote: '* 所有客户政策相同。',
     bookingTitle: '📋 预订信息',
     refLabel: '预订编号',
     productLabel: '服务',

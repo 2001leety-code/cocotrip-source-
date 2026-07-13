@@ -4,25 +4,22 @@
  * 투어일까지 남은 시간 + 고객 등급(Bronze/Silver/Gold/Platinum)을 입력으로
  * 환불율(0.0~1.0), 자유취소 데드라인, 최종 취소 가능 데드라인을 산출한다.
  *
- * 마스터 플랜 Phase C 취소 정책 표 (2026-04-24 합의):
- *   기간               일반  Gold  Platinum
- *   ≥72h 전            100%  100%  100%
- *   48~72h 전           80%  100%  100%
- *   24~48h 전           50%   80%  100%
- *   12~24h 전            0%   50%   80%
- *   <12h / no-show       0%    0%    0%
+ * 취소 정책 (2026-07-14 운영자 확정 — 24시간 바이너리):
+ *   기간               환불
+ *   24h 이상 전         100% (전액 무료 취소)
+ *   <24h / no-show       0% (환불 불가)
  *
- * Silver는 일반과 동일. 등급 미지정 시 'Bronze' 취급.
+ * 등급(Gold/Platinum) 차등 폐지 — 전 고객 동일(운영자 결정 2026-07-14).
+ * 이전 그래주에이티드(72/48/24/12h·등급별) 표는 폐기.
+ * ⚠️ 돈 로직 SSOT — 운영자 실 PayPal 환불 e2e 검증 후 머지.
  */
 
 /** @typedef {'Bronze'|'Silver'|'Gold'|'Platinum'} TierType */
 
+// 바이너리: 24h 이상=100%, 미만=0%. 등급 컬럼은 하위호환 위해 유지하되 전부 동일.
 const BASE_TABLE = [
-  { thresholdHours: 72, general: 1.0,  gold: 1.0, platinum: 1.0 },
-  { thresholdHours: 48, general: 0.8,  gold: 1.0, platinum: 1.0 },
-  { thresholdHours: 24, general: 0.5,  gold: 0.8, platinum: 1.0 },
-  { thresholdHours: 12, general: 0.0,  gold: 0.5, platinum: 0.8 },
-  { thresholdHours: 0,  general: 0.0,  gold: 0.0, platinum: 0.0 },
+  { thresholdHours: 24, general: 1.0, gold: 1.0, platinum: 1.0 },
+  { thresholdHours: 0,  general: 0.0, gold: 0.0, platinum: 0.0 },
 ];
 
 function tierKey(tier) {
