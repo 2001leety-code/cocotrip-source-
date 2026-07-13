@@ -33,6 +33,39 @@ export interface DayTotals {
   hasAny: boolean;
 }
 
+/** 좌표 있는 stop 최소 타입 (거리 합산용) */
+interface CoordStop { lat?: number; lng?: number }
+
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLng = ((bLng - aLng) * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/**
+ * 플랜 전체 이동거리(km) — UIUX 가이드 P4 Trip Overview 통계칩.
+ * 각 day 내 인접 stop 쌍의 haversine 합(좌표 둘 다 있는 구간만). day 간 이동은 제외
+ * (도시 간 = intercity_transit 별도). 좌표 없어 0 이면 null(칩 '-' 폴백).
+ */
+export function computePlanKm(days: Array<{ stops?: CoordStop[] }> | null | undefined): number | null {
+  if (!Array.isArray(days)) return null;
+  let km = 0;
+  for (const day of days) {
+    const stops = day?.stops || [];
+    for (let i = 1; i < stops.length; i++) {
+      const a = stops[i - 1], b = stops[i];
+      if (typeof a?.lat === 'number' && typeof a?.lng === 'number' &&
+          typeof b?.lat === 'number' && typeof b?.lng === 'number') {
+        km += haversineKm(a.lat, a.lng, b.lat, b.lng);
+      }
+    }
+  }
+  return km > 0 ? Math.round(km) : null;
+}
+
 /**
  * 하루 stops 총계 계산 (UIUX 가이드 P4 Day Timeline 하단 총계 3칩).
  * 도보=total_walk_m 합/70, 교통=public 구간 est_min 합, 비용=public 구간 est_fare_krw 합.

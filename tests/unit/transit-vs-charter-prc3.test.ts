@@ -215,3 +215,42 @@ describe('computeDayTotals — 하루 도보/교통/비용 총계', () => {
     expect(r.fareKrw).toBe(0);
   });
 });
+
+// ────── 6. computePlanKm (UIUX P4 Trip Overview 총거리) ──────
+
+import { computePlanKm } from '../../src/pages/PlanDetailPage/lib/transitVsCharter';
+
+describe('computePlanKm — 플랜 총 이동거리(km)', () => {
+  const s = (lat: number, lng: number) => ({ lat, lng });
+  it('day 내 인접 stop haversine 합 (day 간 제외), 반올림', () => {
+    // 서울역(37.5547,126.9707) → 명동(37.5636,126.9869) ≈ 1.7km
+    const days = [{ stops: [s(37.5547, 126.9707), s(37.5636, 126.9869)] }];
+    const km = computePlanKm(days);
+    expect(km).not.toBeNull();
+    expect(km).toBeGreaterThanOrEqual(1);
+    expect(km).toBeLessThan(3);
+    expect(Number.isInteger(km)).toBe(true);
+  });
+
+  it('좌표 없는 stop 이 섞이면 그 구간만 스킵', () => {
+    const days = [{ stops: [s(37.55, 126.97), {}, s(37.56, 126.98)] }];
+    // 첫→둘 스킵, 둘→셋 스킵 (둘은 좌표 없음) → 0 → null
+    expect(computePlanKm(days)).toBeNull();
+  });
+
+  it('좌표 전무 = null (칩 미노출)', () => {
+    expect(computePlanKm([{ stops: [{}, {}] }])).toBeNull();
+    expect(computePlanKm([])).toBeNull();
+    expect(computePlanKm(null)).toBeNull();
+  });
+
+  it('여러 day 합산 (day 간 이동은 미포함)', () => {
+    const days = [
+      { stops: [s(37.55, 126.97), s(37.56, 126.98)] },
+      { stops: [s(35.10, 129.03), s(35.15, 129.06)] }, // 부산 day — 서울↔부산 구간은 안 더함
+    ];
+    const km = computePlanKm(days);
+    expect(km).toBeGreaterThan(0);
+    expect(km).toBeLessThan(20); // 서울↔부산(325km)을 안 더했으므로 작음
+  });
+});

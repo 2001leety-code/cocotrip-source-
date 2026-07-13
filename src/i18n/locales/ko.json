@@ -1594,7 +1594,11 @@
       "insightTransfers": "환승 {n}회",
       "insightWalk": "도보 약 {min}분",
       "insightDuration": "대중교통 {min}분",
-      "insightCta": "프라이빗 차터로 편하게 이동하기"
+      "insightCta": "프라이빗 차터로 편하게 이동하기",
+      "badgeLessWalk": "도보 감소",
+      "badgeSaveTime": "시간 절약",
+      "badgeDoorToDoor": "도어투도어",
+      "badgeAddWhenNeeded": "필요할 때만"
     },
     "optimize": {
       "panelTitle": "최적화 제안",

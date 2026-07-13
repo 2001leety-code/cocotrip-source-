@@ -1594,7 +1594,11 @@
       "insightTransfers": "{n} transfers",
       "insightWalk": "~{min} min walking",
       "insightDuration": "{min} min by transit",
-      "insightCta": "Skip it with a private charter"
+      "insightCta": "Skip it with a private charter",
+      "badgeLessWalk": "Less walking",
+      "badgeSaveTime": "Save time",
+      "badgeDoorToDoor": "Door to door",
+      "badgeAddWhenNeeded": "Add only when needed"
     },
     "optimize": {
       "panelTitle": "Optimize suggestions",
