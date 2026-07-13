@@ -28,11 +28,11 @@
 - [x] 🟢 My Bookings 카드형 목록 — /my-plans 에 AI플랜/예약 탭 통합(MyBookingsTab 재사용) #1106
 
 ## P3 — 위자드 5-step (🟡 5-step audit 의무 + dietary SAFETY)
-- [ ] 상단 진행바 ✓✓③④⑤ 형
-- [ ] Step1 Travel Dates(체크인/아웃 카드)
-- [ ] Step2 Cities(썸네일 리스트 선택)
+- [x] 상단 진행바 ✓✓③④⑤ 형 — 이미 구현(index.tsx step 인디케이터: 완료 step=Check 아이콘, 현재=번호, %바+5칩). 스태일 [ ] 정정(2026-07-13 검증)
+- [x] Step1 Travel Dates(체크인/아웃 카드) — DayPicker range 아래 호텔식 체크인/체크아웃 요약 카드 추가(WizardStep2Details, additive·기능 불변·순수 inline lang 4언어). 2026-07-13
+- [ ] 🟡🧠 Step2 Cities(썸네일 리스트 선택) — **데이터 게이트**: 현재 lucide 벡터 아이콘 칩. 사진 썸네일화는 도시별 큐레이션 사진 필요(KTO 광역도≠시 = 잘못된 사진 라벨 위험). 아이콘 = 정직한 현 선택. 큐레이션 자산 확보 후.
 - [x] **Step3 Travel Style — 솔로/커플/가족/친구 4옵션(운영자 확정)** + 플래너 프롬프트 travel_party 소프트 힌트 전파 #1102
-- [ ] Step4 Interests 칩(Culture·Food·Shopping·Nature·History·Nightlife)
+- [~] Step4 Interests 칩 — 이미 구현+AI 전파(Step0Destination, categories→selectedActivities). **의도적 편차**: 실제 키=Kpop/Kbeauty/Hanbok/Food/Night/Photo/Shopping/Drama/Temple/DMZ(한국 특화·가이드 generic Culture/Nature/History 보다 정직·풍부). nav 편차와 동일 성격 — 강제 교체 X(AI category 매핑 회귀 위험)
 - [x] Step5 Budget + Dietary(Halal·Vegan·**Vegetarian**·No Preference) — Vegetarian 추가 완결 #1106
   (백엔드 안전체인 이미 지원, 위자드 UI 만 갭이었음. dietary-trust lowercase+vegan⊃vegetarian, P324/P325 무회귀)
 - [x] 하단 신뢰 4배지(Fast Setup·Safe Preferences·Multilingual·Editable) — WizardForm 하단 정적 배지, 실약속만(4언어·편집·안전취향) C-sweep
@@ -43,13 +43,13 @@
 - [x] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+**하단 총계 3칩(도보/교통/교통비)** #1106 (computeDayTotals, public+walk 실측)
 - [x] Interactive Route Map: 번호 핀+정거장 리스트 (기존 Leaflet 재스킨) — DayRouteMap 지도 아래 번호 정거장 ol 리스트(핀 order 1:1 매칭, toMapPoints 재사용) C-sweep
 - [x] Edit & Optimize: 정거장 재정렬·삭제(기존 EditModeToggle) + **최적화 제안(Time/Transport/Walking)** — anchor 세그먼트 경계 준수 실좌표 최적화 #1106
-- [ ] Save·Share with Friends·Export PDF 액션 행 (PDF 기존, Share=신규 공유 링크)
+- [x] Save·Share with Friends·Export PDF 액션 행 — 이미 구현(OutroSlide: Download PDF + Download text(.md 폴백) + WhatsApp + ShareButton=Web Share/클립보드+공개/비공개 토글+공유링크 shareUrl). Save=Firestore 자동저장(별도 버튼 불필요). 스태일 [ ] 정정(2026-07-13 검증)
 
 ## P5 — 교통 + 차터 업셀 (신규 킬러 기능)
 - [x] 🟡 일정 세그먼트 난이도 판정 로직 — `routeInsight.ts` 순수함수(환승2+/도보900m+/60분+, RouteAgent 실측만) #1103
 - [x] AI Route Insight 카드 + [Book 3-Hour Charter] CTA — `RouteInsightCard`, 하루 최고점 1구간 #1103
-- [ ] 지도 범례(Easy 실선/Challenging 점선/Recommended)
-- [ ] 차량 3종 선택 카드(스타리아 프리미엄/9인/스프린터) — 실차량 사진·SSOT 가격
+- [ ] 🟠 지도 범례(Easy 실선/Challenging 점선/Recommended) — **baseline+복잡 게이트**: Leaflet polyline 난이도 styling 동반 필요(provider-isolated). 또한 DayRouteMap = 비주얼 baseline 클립(timeline-mid) 내 → 편집 시 baseline 재생성(Ubuntu/Docker 전용) 필요, Windows 자율 머지 불가. CI 아티팩트 승격 세션 필요.
+- [~] 차량 3종 선택 카드(스타리아 프리미엄/9인/스프린터) — 이미 구현(charter/Step4PaxVehicle: staria_9/staria/sprinter/bus 카드 + 실사진 갤러리 webp staria7·staria9·sprinter). 가격=선택카드 비표시(견적 step에서 노출=의도). 잔여 🔴 bus 사진(운영자)
 - [x] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed) — CharterCTA 에 추가 #1106 (진실 static, i18n 4언어)
 
 ## P6 — 차터 예약 6-step (🔴 SSOT byte-identical·P311 멱등성·운영자 승인)
@@ -63,7 +63,7 @@
 
 ## P7 — 투어 4-step
 - [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. **C4: 사진 카드화**(REGION_IMAGE 실존자산 Seoul/Busan/Gyeongju/Danyang, 없는 지역 그라디언트 폴백=잘못된 사진 라벨 금지). 검색바 기존.
-  - [ ] 잔여 P7: Trip Style 필터(Relaxed/Balanced/Active) = tours 에 pace 실필드 없어 보류(가짜필터 방지, 데이터 작업 필요) · Show N Tours 버튼(라이브필터라 마진) · 별점(🔴게이트)
+  - [ ] 🧠 잔여 P7: Trip Style 필터(Relaxed/Balanced/Active) = **데이터 게이트 확정**: tours 에 pace 실필드 없음, suitability.fitness_level 도 34개 중 0개 populated → 파생 시 dead 필터. 정직 구현하려면 34투어 pace 실큐레이션 필요(운영자/도메인). 파생 매핑=주관 fabricate=금지. · Show N Tours 버튼(라이브필터라 마진) · 별점(🔴게이트)
 - [ ] Filter: Interests 8칩 + Trip Style 3 + Duration 4 + "Show N Tours"(실카운트) — Interests 실데이터 5칩(#1099)·기간/지역/언어 필터 기존. Trip Style·Show N 잔여
 - [ ] 투어 상세: 뱃지·별점(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)·칩 3종·하이라이트 체크
 - [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·**Travel Style 페이스 라디오(Relaxed/Balanced/Active)**·duration select. 백엔드 inquiry-submit 도 travelStyle/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정.
@@ -81,14 +81,14 @@
 - [x] Community Home: 카테고리 탭+인기+글쓰기 — #1098 실전화
 - [x] Ask & Translate: 원탭 번역(EN/한/日/中) — #1098 Gemini 번역 캐시
 - [x] Create Post: **사진 첨부(community/{uid}/ Storage + 서버 sanitizeImages 화이트리스트)** #1106 + Safety Check(연락처 감지) #1098
-- [ ] Shared Itinerary: 플랜 공유 카드 — 잔여(기존 플랜 공유 링크 연동)
+- [x] Shared Itinerary: 플랜 공유 카드 — 이미 구현(/my-plans/:id?shared=1 = PlanDetailPage 읽기전용 렌더, App.tsx:623 라우트 + 마케팅/앱 크롬 스트립, isPublic 인가, 비소유자 PII 마스킹(uid/email/호텔/공항/알러지/가격/토큰), 소유자만 편집). ShareButton 공개/비공개 토글+링크. 스태일 [ ] 정정(2026-07-13 검증)
 - [x] 신고(Report)·**어드민 모더레이션 실배선**(/api/community-admin 검토대기·신고 실조회+승인/숨김) #1106
 
 ## P10 — 컴포넌트 라이브러리 (공용화)
-- [ ] AI Planner Summary 카드 (홈에 1차 적용됨 — 공용 추출)
-- [ ] Smart Pick Card("Why we love it" — 투어별 실 설명 데이터에서 파생)
-- [ ] Interactive Route Map 카드(Optimize 토글)
-- [ ] Charter Segment 카드(ITX-청춘 42min faster — intercity_transit 실데이터)
+- [~] AI Planner Summary 카드 — 홈에 인라인 구현(MobileHomeV2). 공용 추출은 🟢저가치+baseline 게이트(홈 히어로=`/` header-fold 클립 내 → 소비처 스왑 시 baseline 재생성 Linux 전용). 강제 리팩터=리스크(#1097 CocoUI 미채택 선례). 보류.
+- [~] Smart Pick Card("Why we love it") — 홈에 인라인 구현(MobileHomeV2, whyWeLove 실설명 파생). 추출=위와 동일 baseline 게이트. 보류.
+- [x] Interactive Route Map 카드(Optimize 토글) — 이미 공용 컴포넌트(PlanDetailPage/components/DayRouteMap + OptimizePanel, DayTimeline 소비). 스태일 [ ] 정정.
+- [x] Charter Segment 카드(intercity 업셀) — 이미 공용 컴포넌트(RouteInsightCard·TransitVsCharterCard·CharterCTA, DayTimeline 소비 #1103). 스태일 [ ] 정정.
 - [~] **Booking Status 타임라인** 완료(C2: BookingStatusTimeline, b.status 실값 Confirmed→투어당일→Completed, CANCELED 분기, 조작단계X). 잔여 추출: Tour Card·Weather Card·AI Assistant 패널(음성 오브=후순위)·Coupon Wallet·Community Translation
 
 ## 운영자 결정 — 2026-07-12 확정 ✅
