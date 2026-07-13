@@ -402,7 +402,7 @@ export default function ToursPage() {
           <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold">
             {tl.filterLabel}
           </p>
-          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} tours</p>
+          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} {tl.toursUnit}</p>
         </div>
         <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TOUR_REGIONS.map(({ key, label }) => {

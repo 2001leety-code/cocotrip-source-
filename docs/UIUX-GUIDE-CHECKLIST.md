@@ -53,28 +53,28 @@
 - [x] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed) — CharterCTA 에 추가 #1106 (진실 static, i18n 4언어)
 
 ## P6 — 차터 예약 6-step (🔴 SSOT byte-identical·P311 멱등성·운영자 승인)
-- [ ] 진행바 6단계(Pickup→Destination→Date&Time→Vehicle→Contact→Review)
-- [ ] Step1: 타입 4탭(공항/데이투어/멀티데이/K-pop) + 픽업지 + 항공편(선택) + 터미널/게이트
-- [ ] Step2: 목적지 + 경유지 추가 + 편도/왕복
-- [ ] Step4: 차량 4종 카드(스타리아 프리미엄·9인·스프린터·**차터버스 16+는 실상품 존재 확인 후**) + 좌석/짐 수
-- [ ] Step6 Review: Trip Summary + What's Included(**실제 포함 내역만** — 전문기사·톨비주차비·24/7)
-- [ ] 가치 4배지(Upfront Quote·Professional Driver·Flexible Stops·Multilingual)
+- [~] 진행바 6단계 — 구현됨(CharterWizard 클릭형 스테퍼+애니 progress). **순서 편차(의도)**: 실제=Origin→Service→Destination→Pax·Vehicle→Date·Options→FinalQuote(가이드 Pickup→Dest→Date→Vehicle→Contact→Review 와 다름, nav 편차와 동일 성격). 2026-07-14 검증
+- [~] Step1 타입 4탭 등 — 기능 전부 존재하나 **분산 배치**: 4탭(공항/데이투어/멀티데이/K-pop)=Step2Service, 픽업지=Step1Origin, 항공편+터미널(T1/T2)+게이트(/api/flight-status 조회)=Step5DateOptions. 가이드의 단일 Step1 개념을 3스텝에 나눔.
+- [~] Step2 목적지+경유지+편도/왕복 — 목적지 select DONE(Step3Destination). **경유지 추가=MISSING**(waypoint 코드 없음). 편도/왕복=Step5, transfer 서비스 한정+feature flag.
+- [~] Step4 차량 4종 카드 — 이미 구현(Step4PaxVehicle: staria_9/staria/sprinter/bus + 실사진 갤러리). 🔴 bus 사진(운영자).
+- [~] Review(FinalQuote): Trip Summary DONE(Step6Quote+사이드바). What's Included=quote.includes(fuel/tolls/parking) — 전문기사·24/7 은 Step5 BookingInfoForm trust 에 있고 Review 엔 미표기(재배치 여지, 저가치).
+- [ ] 가치 4배지(Upfront Quote·Professional Driver·Flexible Stops·Multilingual) — **MISSING**(해당 4종 세트 없음). 🟢 저가치 static 배지 추가 가능(비게이트) — 후속 소형.
 - 보존: multidayQuote.ts ≡ charter-multiday-price.js·front/back FEATURE 쌍·국가번호 드롭다운
 
 ## P7 — 투어 4-step
 - [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. **C4: 사진 카드화**(REGION_IMAGE 실존자산 Seoul/Busan/Gyeongju/Danyang, 없는 지역 그라디언트 폴백=잘못된 사진 라벨 금지). 검색바 기존.
   - [ ] 🧠 잔여 P7: Trip Style 필터(Relaxed/Balanced/Active) = **데이터 게이트 확정**: tours 에 pace 실필드 없음, suitability.fitness_level 도 34개 중 0개 populated → 파생 시 dead 필터. 정직 구현하려면 34투어 pace 실큐레이션 필요(운영자/도메인). 파생 매핑=주관 fabricate=금지. · Show N Tours 버튼(라이브필터라 마진) · 별점(🔴게이트)
-- [ ] Filter: Interests 8칩 + Trip Style 3 + Duration 4 + "Show N Tours"(실카운트) — Interests 실데이터 5칩(#1099)·기간/지역/언어 필터 기존. Trip Style·Show N 잔여
-- [ ] 투어 상세: 뱃지·별점(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)·칩 3종·하이라이트 체크
+- [~] Filter: Interests+Duration+언어 필터 기존, **"Show N Tours" 실카운트 = 이미 구현**(ToursPage:405 `{visibleTours.length} {toursUnit}` 라이브, 2026-07-14 4언어 로케일화). Trip Style 3칩만 잔여=데이터 게이트(위 참조).
+- [ ] 투어 상세: 칩·하이라이트 체크 기존, 별점만 잔여(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)
 - [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·**Travel Style 페이스 라디오(Relaxed/Balanced/Active)**·duration select. 백엔드 inquiry-submit 도 travelStyle/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정.
   ⚠️정정(C4 레퍼런스 대조): C3 초판은 companions(Solo/Couple/Family) 넣었으나 가이드 P7 Custom=페이스(Relaxed/Balanced/Active)라 정정. companions 는 위자드 P3 전용.
 - 보존: 결제 다이얼로그 배선(#1019)·tours SSOT
 
 ## P8 — 결제 4-step (🔴 운영자 승인 + 실 PayPal e2e)
-- [ ] Booking Summary: Included Services = **실제 포함만** (호텔4박·보험 = 실상품 생기기 전 표기 금지)
-- [ ] Contact Details: 기존 BookingInfoForm 재스킨(국가번호 드롭다운 유지)
+- [x] Booking Summary: Included Services = **실제 포함만** — 이미 구현(BookingInfoForm:514-546 우측 결제 요약 PayRow+총액+포함/취소 블록, 톨비팁·EN/KO 기사·24h·항공지연 무료대기). 스태일 [ ] 정정(2026-07-14)
+- [x] Contact Details: BookingInfoForm — 이미 구현(:295-344 연락처 섹션 + CountryDialPicker 국가번호 드롭다운). 스태일 [ ] 정정
 - [x] **쿠폰 지갑**: Available/Used/Expired 탭 (MyPage) — 기존 useLoyalty 실쿠폰 위 순수 표시, 결제·환불·상한 로직 무변 #1106
-- [ ] Booking Confirmed: 예약번호·Paid 배지·취소정책(**% 임계값 운영자 확정 후**)·지원 연락처
+- [~] Booking Confirmed: 예약번호 DONE(PayPalBookingButton:606 Order No.)·Amount Paid 그린수치·지원연락처(WhatsApp) DONE. 🔴 **취소정책 미표기=게이트**: confirmed 화면에 취소정책 없음, 추가하려면 #1108(48h) % 확정 필요(현 Draft). Paid=별도 배지 아닌 금액 표기.
 - 보존: capture 금액 대조·게스트 PII 마스킹·멱등성
 
 ## P9 — 커뮤니티 4화면 (기존 /community 셸에 스킨+기능)
@@ -89,7 +89,9 @@
 - [~] Smart Pick Card("Why we love it") — 홈에 인라인 구현(MobileHomeV2, whyWeLove 실설명 파생). 추출=위와 동일 baseline 게이트. 보류.
 - [x] Interactive Route Map 카드(Optimize 토글) — 이미 공용 컴포넌트(PlanDetailPage/components/DayRouteMap + OptimizePanel, DayTimeline 소비). 스태일 [ ] 정정.
 - [x] Charter Segment 카드(intercity 업셀) — 이미 공용 컴포넌트(RouteInsightCard·TransitVsCharterCard·CharterCTA, DayTimeline 소비 #1103). 스태일 [ ] 정정.
-- [~] **Booking Status 타임라인** 완료(C2: BookingStatusTimeline, b.status 실값 Confirmed→투어당일→Completed, CANCELED 분기, 조작단계X). 잔여 추출: Tour Card·Weather Card·AI Assistant 패널(음성 오브=후순위)·Coupon Wallet·Community Translation
+- [x] **Booking Status 타임라인**(C2: BookingStatusTimeline, b.status 실값 Confirmed→투어당일→Completed, CANCELED 분기, 조작단계X)
+- [x] Tour Card = 이미 공용 컴포넌트(components/tours/TourCard.tsx, ToursPage+OwnTourUpsellSection 재사용). 스태일 정정(2026-07-14)
+- [~] 잔여 추출(🟢 저가치·비게이트): Coupon Wallet(MyPage 인라인)·Community Translation(CommunityPage 2곳 중복)·Weather Card(3곳 중복, 단 홈=baseline 게이트). 강제 리팩터 리스크 대비 저가치 → 신규 화면 생길 때 dedup.
 
 ## 운영자 결정 — 2026-07-12 확정 ✅
 1. **내비 교체 승인** → 실존 라우트 매핑: 홈·투어·AI플래너·예약(/my-plans)·프로필(/mypage).
