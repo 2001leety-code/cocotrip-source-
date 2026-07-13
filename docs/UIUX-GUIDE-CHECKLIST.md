@@ -106,3 +106,9 @@
   Edit&Optimize 실기능만 신규기능 배치로 이관.
 - 🔧 후속: visual 스펙에서 홈 히어로 **날씨 칩 마스킹** 필요 — 라이브 데이터라 pixel-diff flaky
   (#1099 에서 2회 관측). playwright toHaveScreenshot mask 옵션 사용.
+- 2026-07-13 (2차): 위자드 Travel Style 4옵션 (#1102) · **AI Route Insight 세그먼트 차터 업셀** (#1103)
+  · **커뮤니티 알림 MVP + 홈 벨 뱃지** (#1104) — 전부 prod.
+- 확인된 기존 구현(항목 완료 처리): 위시리스트(useWishlist·투어카드 하트·마이페이지 탭),
+  플랜 Edit(재정렬·삭제·추가 = EditModeToggle), day 단위 CharterCTA.
+- 잔여 대형: 🔴차터(P6)·결제(P8) 스킨+쿠폰 지갑 / 플랜 Optimize 제안(경로 재계산) /
+  커뮤니티 사진 첨부·어드민 모더레이션 실배선 / 실후기 → docs/REVIEW-SPRINT.md
