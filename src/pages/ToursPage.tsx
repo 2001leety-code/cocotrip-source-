@@ -110,6 +110,14 @@ const TL = {
   },
 } satisfies Record<Language, Record<string, string>>;
 
+// 지역 대표 이미지 — 실존 public 자산만 매핑. 없는 지역은 그라디언트 폴백(잘못된 사진 라벨링 금지).
+const REGION_IMAGE: Record<string, string> = {
+  Seoul: '/region-seoul.jpg',
+  Busan: '/region-busan.webp',
+  Gyeongju: '/region-gyeongju.jpg',
+  Danyang: '/region-danyang.webp',
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ToursPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -323,30 +331,31 @@ export default function ToursPage() {
             const count = getToursByRegion(key).length;
             if (count === 0) return null;
             const isActive = activeRegion === key;
+            const img = REGION_IMAGE[key];
             return (
               <button
                 key={key}
                 onClick={() => setActiveRegion(key)}
                 aria-pressed={isActive}
-                className="shrink-0 w-[112px] sm:w-[128px] rounded-2xl px-3.5 py-3 text-left active:scale-[0.98] transition-transform"
-                style={
-                  isActive
-                    ? {
-                        background: 'linear-gradient(135deg, rgba(182,104,252,0.18), rgba(255,107,157,0.12))',
-                        border: '1px solid rgba(182,104,252,0.45)',
-                        boxShadow: '0 0 14px rgba(182,104,252,0.18)',
-                      }
-                    : {
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }
-                }
+                className="relative shrink-0 w-[124px] sm:w-[144px] h-[92px] rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform"
+                style={{
+                  border: isActive ? '1px solid rgba(182,104,252,0.55)' : '1px solid rgba(255,255,255,0.08)',
+                  boxShadow: isActive ? '0 0 14px rgba(182,104,252,0.22)' : 'none',
+                }}
               >
-                <p className="text-[13px] font-black text-white leading-tight truncate">{label[language] || label.en}</p>
-                <p className="mt-1.5 flex items-baseline gap-1">
-                  <span className="text-[18px] font-black" style={{ color: '#D0A8FF' }}>{count}</span>
-                  <span className="text-[10px] font-semibold text-white/45">{tl.toursUnit}</span>
-                </p>
+                {img ? (
+                  <img src={img} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <span className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.22), rgba(255,107,157,0.14))' }} />
+                )}
+                <span className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(10,4,18,0.04) 0%, rgba(10,4,18,0.80) 100%)' }} />
+                <div className="absolute bottom-2 left-2.5 right-2.5">
+                  <p className="text-[13px] font-black text-white leading-tight truncate drop-shadow">{label[language] || label.en}</p>
+                  <p className="mt-0.5 flex items-baseline gap-1">
+                    <span className="text-[15px] font-black text-white">{count}</span>
+                    <span className="text-[10px] font-semibold text-white/70">{tl.toursUnit}</span>
+                  </p>
+                </div>
               </button>
             );
           })}

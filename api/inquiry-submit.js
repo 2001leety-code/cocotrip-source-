@@ -147,7 +147,7 @@ export default async function handler(req, res) {
       region = '',
       theme = '',
       budget = '',
-      companions = '',
+      travelStyle = '',
       duration = '',
       language = 'en',
       wizardSnapshot = null,
@@ -165,7 +165,7 @@ export default async function handler(req, res) {
     const trimmedRegion = String(region).trim().slice(0, 40);
     const trimmedTheme = String(theme).trim().slice(0, 200);
     const trimmedBudget = String(budget).trim().slice(0, 40);
-    const trimmedCompanions = String(companions).trim().slice(0, 40);
+    const trimmedTravelStyle = String(travelStyle).trim().slice(0, 40);
     const trimmedDuration = String(duration).trim().slice(0, 40);
     if (trimmedName.length < 2) {
       res.writeHead(400, JSON_HEADERS);
@@ -261,7 +261,7 @@ export default async function handler(req, res) {
       region: trimmedRegion || null,
       theme: trimmedTheme || null,
       budget: trimmedBudget || null,
-      companions: trimmedCompanions || null,
+      travelStyle: trimmedTravelStyle || null,
       duration: trimmedDuration || null,
       language: lang,
       wizardSnapshot: wizardSnapshot || null,
@@ -316,7 +316,7 @@ export default async function handler(req, res) {
       if (isTourCustom) {
         lines.push(
           `<b>지역:</b> ${esc(trimmedRegion) || '(미입력)'}`,
-          `<b>동행:</b> ${esc(trimmedCompanions) || '(미입력)'}`,
+          `<b>여행 스타일:</b> ${esc(trimmedTravelStyle) || '(미입력)'}`,
           `<b>기간:</b> ${esc(trimmedDuration) || '(미입력)'}`,
           `<b>테마:</b> ${esc(trimmedTheme) || '(미입력)'}`,
           `<b>예산:</b> ${esc(trimmedBudget) || '(미정)'}`,
