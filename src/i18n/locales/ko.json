@@ -1584,7 +1584,12 @@
       "suggestHeader": "오늘은 이동이 많아요",
       "suggestBody": "전용 차량으로 이동을 편하게 즐기세요",
       "viewCharterCTA": "차량 옵션 보기",
-      "hoursLabel": "시간"
+      "hoursLabel": "시간",
+      "insightTitle": "이 구간은 대중교통으로 이동하기 힘들어요",
+      "insightTransfers": "환승 {n}회",
+      "insightWalk": "도보 약 {min}분",
+      "insightDuration": "대중교통 {min}분",
+      "insightCta": "프라이빗 차터로 편하게 이동하기"
     },
     "transitVsCharter": {
       "cardTitle": "오늘 이동 비교",

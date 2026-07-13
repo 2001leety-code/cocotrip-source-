@@ -22,6 +22,8 @@ import { SortableStopCard } from './SortableStopCard';
 import { StopCard, type LodgingRole } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
+import { RouteInsightCard } from './RouteInsightCard';
+import { findMostTiringSegment } from '../lib/routeInsight';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
 import { DayRouteMap } from './DayRouteMap';
@@ -94,6 +96,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
 
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const stops = day.stops || [];
+  // UIUX P5 (2026-07-13): 하루 최대 1개 — 가장 힘든 대중교통 구간에 Route Insight 카드.
+  const tiringSegment = findMostTiringSegment(stops);
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
 
   // Sprint 1 Step 2: 풍부한 day 헤더 메타 (사용자 신고 "UI 개선 심각")
@@ -334,6 +338,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 return (
                   <div key={stopIds[si]}>
                     {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                    {!skipFirstTransit && tiringSegment && tiringSegment.index === si && (
+                      <RouteInsightCard segment={tiringSegment} day={day} plan={plan} />
+                    )}
                     {!skipFirstTransit && !stop.transit_from_prev && si > 0 && (
                       <TransitFallback
                         prevLat={(prevStop as { lat?: number | null })?.lat}
@@ -387,6 +394,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 animate="visible"
               >
                 {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                {!skipFirstTransit && tiringSegment && tiringSegment.index === si && (
+                  <RouteInsightCard segment={tiringSegment} day={day} plan={plan} />
+                )}
                 {!skipFirstTransit && !stop.transit_from_prev && si > 0 && (
                   <TransitFallback
                     prevLat={(prevStop as { lat?: number | null })?.lat}

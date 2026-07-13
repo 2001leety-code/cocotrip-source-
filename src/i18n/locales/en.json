@@ -1584,7 +1584,12 @@
       "suggestHeader": "This day has many transit transfers",
       "suggestBody": "Skip the hassle -- ride in comfort with a private driver",
       "viewCharterCTA": "View Charter Options",
-      "hoursLabel": "hours"
+      "hoursLabel": "hours",
+      "insightTitle": "This segment is tiring by public transit",
+      "insightTransfers": "{n} transfers",
+      "insightWalk": "~{min} min walking",
+      "insightDuration": "{min} min by transit",
+      "insightCta": "Skip it with a private charter"
     },
     "transitVsCharter": {
       "cardTitle": "Today's Transit Comparison",
