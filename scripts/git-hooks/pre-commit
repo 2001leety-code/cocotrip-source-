@@ -185,6 +185,10 @@ if [ -n "$SCAN_FILES" ]; then
       //   PR#1089(P0 진실성)가 전부 || 로 전환 — 머지되면 이 예외는 무해한 잔재.
       //   이 브랜치 diff 는 모달 노출 이벤트만(?? 0건).
       if (f === "src/components/OnboardingCouponModal.tsx") continue;
+      // 2026-07-14: CancellationTab.tsx 의 ?? 4건 — cancellation_policy/tiers/extra_notes
+      //   nullish 폴백(pre-existing). ||로 바꾸면 빈배열([]) 보존 의미 달라짐 → 유지.
+      //   24h 정책 변경(DEFAULT_TIERS)으로 처음 staged 됐을 뿐, 신규 ?? 0건.
+      if (f === "src/components/admin/ProductEditor/CancellationTab.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

@@ -8,11 +8,10 @@ interface Props {
   onChange: (patch: Partial<Tour>) => void;
 }
 
+// 2026-07-14 운영자 확정: 24시간 바이너리(24h 이상=100% / 24h 미만=0%), 등급 차등 폐지.
+// api/_refund-policy.js BASE_TABLE 과 동일 구조.
 const DEFAULT_TIERS: CancellationTier[] = [
-  { hours_before: 72, refund_percent: { general: 100, gold: 100, platinum: 100 } },
-  { hours_before: 48, refund_percent: { general: 80, gold: 100, platinum: 100 } },
-  { hours_before: 24, refund_percent: { general: 50, gold: 80, platinum: 100 } },
-  { hours_before: 12, refund_percent: { general: 0, gold: 50, platinum: 80 } },
+  { hours_before: 24, refund_percent: { general: 100, gold: 100, platinum: 100 } },
   { hours_before: 0,  refund_percent: { general: 0, gold: 0, platinum: 0 } },
 ];
 
