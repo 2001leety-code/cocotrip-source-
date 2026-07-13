@@ -40,6 +40,7 @@ import { ErrorState } from './components/ErrorState';
 import { ReportPlanModal } from './components/ReportPlanModal';
 import { RecommendedRestaurants } from './components/RecommendedRestaurants';
 import { SwipeContainer } from './components/SwipeContainer';
+import { TripHighlights } from './components/TripHighlights';
 // SlideProgress 제거됨 (2026-05-03) — 탭만으로 네비게이션 일원화.
 // import { SlideProgress } from './components/SlideProgress';
 import { PreTripSlide } from './components/PreTripSlide';
@@ -717,6 +718,7 @@ export default function PlanDetailPage() {
           onJump={goToSlide}
         />
       )}
+      {isMobile && <TripHighlights plan={plan} language={language} />}
       <main className={isMobile ? 'max-w-[430px] mx-auto pt-2 pb-4 px-4' : 'max-w-3xl mx-auto pt-20 pb-4 px-4'}>
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
         {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink, Download } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
+import { BookingStatusTimeline } from '@/components/BookingStatusTimeline';
 import { useAuth } from '@/hooks/useAuth';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
@@ -524,6 +525,14 @@ function BookingDetailModal({
         <div className="p-5 space-y-2.5 text-sm overflow-y-auto">
           <DetailRow label={fallback.bookingRef} value={<code className="text-[#C4956A] font-mono text-xs">{booking.bookingRef}</code>} />
           <DetailRow label="Status" value={<StatusBadge status={booking.status} i18n={i18n} />} />
+          {/* 예약 진행 타임라인 (가이드 P10) — b.status 실값 기반. 조작된 시각·단계 없음. */}
+          <div className="pt-0.5 pb-1">
+            <BookingStatusTimeline
+              status={booking.status}
+              language={language}
+              labels={{ confirmed: i18n.statusConfirmed, completed: i18n.statusCompleted, canceled: i18n.statusCanceled }}
+            />
+          </div>
           <DetailRow label={fallback.service} value={prettyProductLabel(booking.productType, language)} />
           <DetailRow label={fallback.date} value={booking.tourDate || '-'} />
           {booking.pickupLocation && <DetailRow label={fallback.pickup} value={booking.pickupLocation} />}
