@@ -2402,7 +2402,99 @@ textarea.community-field {
 
 .community-moderation-status.is-hidden { color: #a12f4c; background: #fff0f3; }
 
+/* 커뮤니티 사진 첨부 (UIUX P9, 2026-07-13) — 게시글 이미지 + 작성폼 썸네일 */
+.community-post-images {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+.community-post-images[data-count="1"] { grid-template-columns: 1fr; }
+.community-post-images[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.community-post-images[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.community-post-images img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+.community-photo-grid {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.community-photo-thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e5e2ed;
+}
+.community-photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.community-photo-thumb button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(15, 18, 48, 0.65);
+}
+.community-photo-add {
+  width: 84px;
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 10px;
+  border: 1.5px dashed #cfc9e6;
+  color: #7653f6;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.community-photo-add:hover { border-color: #7653f6; background: #f7f5ff; }
+
+/* 어드민 모더레이션 실배선 (UIUX P9, 2026-07-13) — 카드형 목록 */
+.community-moderation-empty {
+  margin-top: 28px;
+  padding: 40px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #8d899b;
+  font-size: 13px;
+}
+.community-moderation-list { margin-top: 18px; display: flex; flex-direction: column; gap: 22px; }
+.community-mod-group { display: flex; flex-direction: column; gap: 10px; }
+.community-mod-card {
+  padding: 16px;
+  border: 1px solid #e5e2ed;
+  border-radius: 12px;
+  background: #fff;
+}
+.community-mod-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.community-mod-card > header strong { display: block; font-size: 14px; font-weight: 850; color: var(--community-ink); }
+.community-mod-card > header small { color: #8d899b; font-size: 10px; font-weight: 600; }
+.community-mod-body { margin-top: 10px; color: #454158; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.community-mod-thumbs { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.community-mod-thumbs img { width: 96px; height: 72px; object-fit: cover; border-radius: 8px; }
+.community-mod-card > footer { margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px; }
+.community-risk-badge.is-medium { color: #9a6921; background: #fff5df; }
+
 @media (max-width: 760px) {
+  .community-mod-card > footer { flex-wrap: wrap; }
+  .community-mod-card > footer button { flex: 1; }
   .community-alerts-page .community-intro { min-height: 90px; }
   .community-alert-list { border-left: 0; border-right: 0; border-radius: 0; }
   .community-moderation-header { padding: 12px; flex-wrap: wrap; }

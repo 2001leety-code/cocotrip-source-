@@ -1415,7 +1415,8 @@
     "aiCardTags": "5天 · 文化 · 自然 · 夜景",
     "bestMatch": "最佳匹配",
     "viewFullPlan": "查看完整行程",
-    "smartPicks": "智能推荐"
+    "smartPicks": "智能推荐",
+    "searchPlaceholder": "搜索目的地、景点..."
   },
   "pwaInstall": {
     "modalTitle": "添加CocoTrip快捷方式",
@@ -1590,6 +1591,16 @@
       "insightWalk": "步行约{min}分钟",
       "insightDuration": "公共交通{min}分钟",
       "insightCta": "改用包车轻松直达"
+    },
+    "optimize": {
+      "panelTitle": "优化建议",
+      "timeTitle": "有更短的游览顺序",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "应用新顺序",
+      "transportTitle": "今天换乘{n}次",
+      "transportDetail": "私人包车可全天门到门直达",
+      "walkingTitle": "今天步行约{min}分钟",
+      "walkingDetail": "步行较多的日子，建议调整顺序或选择包车"
     },
     "transitVsCharter": {
       "cardTitle": "今日出行对比",

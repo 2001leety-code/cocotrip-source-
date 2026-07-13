@@ -1338,7 +1338,8 @@
     "aiCardTags": "5일 · 문화 · 자연 · 야경",
     "bestMatch": "최적 매칭",
     "viewFullPlan": "전체 일정 보기",
-    "smartPicks": "추천 픽"
+    "smartPicks": "추천 픽",
+    "searchPlaceholder": "여행지·명소 검색..."
   },
   "pwaInstall": {
     "modalTitle": "코코트립 바로가기 추가",
@@ -1590,6 +1591,16 @@
       "insightWalk": "도보 약 {min}분",
       "insightDuration": "대중교통 {min}분",
       "insightCta": "프라이빗 차터로 편하게 이동하기"
+    },
+    "optimize": {
+      "panelTitle": "최적화 제안",
+      "timeTitle": "더 짧은 방문 순서가 있어요",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "새 순서 적용",
+      "transportTitle": "오늘 환승 {n}회",
+      "transportDetail": "프라이빗 차터면 이 하루를 문앞까지 한 번에",
+      "walkingTitle": "오늘 도보 약 {min}분",
+      "walkingDetail": "도보가 많은 날은 순서 조정이나 차터를 고려해 보세요"
     },
     "transitVsCharter": {
       "cardTitle": "오늘 이동 비교",

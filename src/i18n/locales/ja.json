@@ -1415,7 +1415,8 @@
     "aiCardTags": "5日間 · 文化 · 自然 · 夜景",
     "bestMatch": "ベストマッチ",
     "viewFullPlan": "プラン全体を見る",
-    "smartPicks": "おすすめピック"
+    "smartPicks": "おすすめピック",
+    "searchPlaceholder": "目的地・観光スポットを検索..."
   },
   "pwaInstall": {
     "modalTitle": "CocoTripショートカット追加",
@@ -1590,6 +1591,16 @@
       "insightWalk": "徒歩約{min}分",
       "insightDuration": "公共交通で{min}分",
       "insightCta": "プライベートチャーターで快適に移動"
+    },
+    "optimize": {
+      "panelTitle": "最適化の提案",
+      "timeTitle": "より短い訪問順があります",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "新しい順序を適用",
+      "transportTitle": "本日の乗り換え{n}回",
+      "transportDetail": "プライベートチャーターなら1日ドアツードア",
+      "walkingTitle": "本日の徒歩 約{min}分",
+      "walkingDetail": "徒歩が多い日は順序の調整やチャーターをご検討ください"
     },
     "transitVsCharter": {
       "cardTitle": "本日の移動比較",

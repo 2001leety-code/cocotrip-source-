@@ -666,6 +666,7 @@ export default function PlanDetailPage() {
                 isRecalculating={editor.isRecalculating}
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
+                onApplyOrder={(di, order) => editor.applyStopOrder(di, order, token)}
                 plan={plan}
                 isOwner={isOwner}
               />

@@ -182,5 +182,35 @@ export function usePlanEditor(
     scheduleRecalc(dayIdx, token || null);
   }
 
-  return { deleteStop, addStop, reorderStops, recalcTransit, isRecalculating };
+  /**
+   * UIUX P4 Optimize (2026-07-13): 제안된 방문 순서를 한 번에 적용.
+   * order = 기존 stops 인덱스의 permutation (optimizeSuggestions.suggestTimeOrder 출력).
+   * 전 세그먼트 _stale 처리 후 기존 recalc 파이프라인이 실측 transit 으로 재계산.
+   */
+  async function applyStopOrder(dayIdx: number, order: number[], token?: string | null) {
+    if (!plan || !plan.itinerary) return;
+    const snapshot = structuredClone(plan) as PlanDocument;
+    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
+    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
+    // permutation 검증 — 길이 일치 + 인덱스 전수 포함 (아니면 no-op)
+    if (order.length !== stops.length) return;
+    if ([...order].sort((a, b) => a - b).some((v, i) => v !== i)) return;
+    const reordered = order.map((i) => stops[i]);
+    reordered.forEach((s, i) => {
+      s.order = i + 1;
+      if (s.transit_from_prev) s.transit_from_prev._stale = true;
+    });
+    nextDays[dayIdx].stops = reordered;
+
+    setPlan((prev) => prev ? ({
+      ...prev,
+      itinerary: { ...prev.itinerary, days: nextDays },
+      edited: true,
+      lastEditedAt: Date.now(),
+    }) : prev);
+    await commitDays(nextDays, snapshot);
+    scheduleRecalc(dayIdx, token || null);
+  }
+
+  return { deleteStop, addStop, reorderStops, applyStopOrder, recalcTransit, isRecalculating };
 }

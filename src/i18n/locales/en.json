@@ -1415,7 +1415,8 @@
     "aiCardTags": "5 Days · Culture · Nature · Night View",
     "bestMatch": "Best Match",
     "viewFullPlan": "View Full Plan",
-    "smartPicks": "Smart Picks"
+    "smartPicks": "Smart Picks",
+    "searchPlaceholder": "Search destinations, attractions..."
   },
   "pwaInstall": {
     "modalTitle": "Add CocoTrip Shortcut",
@@ -1590,6 +1591,16 @@
       "insightWalk": "~{min} min walking",
       "insightDuration": "{min} min by transit",
       "insightCta": "Skip it with a private charter"
+    },
+    "optimize": {
+      "panelTitle": "Optimize suggestions",
+      "timeTitle": "Shorter route order available",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "Apply new order",
+      "transportTitle": "{n} transfers today",
+      "transportDetail": "A private charter covers this day door-to-door",
+      "walkingTitle": "~{min} min of walking today",
+      "walkingDetail": "Consider reordering stops or a charter for heavy-walk days"
     },
     "transitVsCharter": {
       "cardTitle": "Today's Transit Comparison",

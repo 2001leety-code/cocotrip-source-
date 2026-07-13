@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, Bell } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, Bell, Search } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -55,10 +55,12 @@ const CARD_SHADOW = '0 14px 30px rgba(48, 39, 118, 0.10)';
 export default function MobileHomeV2() {
   const { language, t, changeLanguage } = useLanguage();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const m = t.mobileHomeV2;
   const regionNames = t.regions as unknown as Record<string, string>;
   const [weather, setWeather] = useState<{ temp: string; desc: string } | null>(null);
   const [unreadAlerts, setUnreadAlerts] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 알림 뱃지 (UIUX P1, 2026-07-13) — 로그인 시 1회 조회. 실패 = 뱃지 0(무해).
   useEffect(() => {
@@ -162,6 +164,34 @@ export default function MobileHomeV2() {
           </Link>
         </div>
       </header>
+
+      {/* ── 검색바 (가이드 p.1 "Search destinations, attractions...") — 제출 시 투어 검색으로 라우팅 ── */}
+      <form
+        className="px-5 pt-2"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const q = searchQuery.trim();
+          navigate(q ? `/tours?q=${encodeURIComponent(q)}` : '/tours');
+        }}
+      >
+        <div
+          className="flex items-center gap-2.5 rounded-full bg-white px-4 py-3"
+          style={{ border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
+        >
+          <Search size={16} aria-hidden style={{ color: PURPLE }} className="shrink-0" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={m.searchPlaceholder}
+            aria-label={m.searchPlaceholder}
+            enterKeyHint="search"
+            className="w-full bg-transparent text-[13px] font-medium outline-none placeholder:text-[#9B96BC]"
+            style={{ color: NAVY }}
+          />
+        </div>
+      </form>
 
       {/* ── 히어로 목적지 카드 + 플로팅 AI 제안 카드 (시그니처) ── */}
       <section className="px-5 pt-3">

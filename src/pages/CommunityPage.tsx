@@ -24,13 +24,15 @@ import {
   Sparkles,
   Trash2,
   Users,
-  UserRoundX,
   X,
 } from 'lucide-react';
+import { ImagePlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { signalAppReady } from '@/lib/appReady';
+import { uploadCommunityPhoto } from '@/lib/storage-upload';
+import { authFetch } from '@/lib/authFetch';
 import type { Language } from '@/i18n';
 
 /**
@@ -60,6 +62,7 @@ type Copy = {
   loginRequired: string; goLogin: string;
   emptyTitle: string; emptyBody: string; loadFailed: string; retry: string;
   postInReview: string; deleteConfirm: string; deleted: string;
+  addPhotos: string; photoTooMany: string;
   alertsEmptyTitle: string; alertsEmptyBody: string;
   alertReply: string; alertLike: string;
   justNow: string; minutesAgo: string; hoursAgo: string; daysAgo: string;
@@ -87,6 +90,7 @@ const COPY: Record<Language, Copy> = {
     loadFailed: 'Could not load the community feed.', retry: 'Try again',
     postInReview: 'Your post is being reviewed for safety and will appear once approved.',
     deleteConfirm: 'Delete this post?', deleted: 'Deleted.',
+    addPhotos: 'Add photos', photoTooMany: 'Up to 3 photos (5MB each).',
     alertsEmptyTitle: 'No alerts yet', alertsEmptyBody: 'Replies and likes on your posts will show up here.',
     alertReply: '{name} replied to "{title}"', alertLike: '{name} liked "{title}"',
     justNow: 'just now', minutesAgo: 'm', hoursAgo: 'h', daysAgo: 'd',
@@ -112,6 +116,7 @@ const COPY: Record<Language, Copy> = {
     loadFailed: '커뮤니티 피드를 불러오지 못했어요.', retry: '다시 시도',
     postInReview: '안전 검토 후 공개됩니다. 승인되면 피드에 표시돼요.',
     deleteConfirm: '이 글을 삭제할까요?', deleted: '삭제됐어요.',
+    addPhotos: '사진 추가', photoTooMany: '사진은 최대 3장(각 5MB)까지예요.',
     alertsEmptyTitle: '아직 알림이 없어요', alertsEmptyBody: '내 글에 달린 댓글과 좋아요가 여기에 표시됩니다.',
     alertReply: '{name}님이 "{title}"에 댓글을 남겼어요', alertLike: '{name}님이 "{title}"을 좋아합니다',
     justNow: '방금', minutesAgo: '분 전', hoursAgo: '시간 전', daysAgo: '일 전',
@@ -137,6 +142,7 @@ const COPY: Record<Language, Copy> = {
     loadFailed: 'フィードを読み込めませんでした。', retry: '再試行',
     postInReview: '安全確認の後に公開されます。承認されるとフィードに表示されます。',
     deleteConfirm: 'この投稿を削除しますか？', deleted: '削除しました。',
+    addPhotos: '写真を追加', photoTooMany: '写真は最大3枚（各5MB）までです。',
     alertsEmptyTitle: 'まだ通知はありません', alertsEmptyBody: '投稿への返信やいいねがここに表示されます。',
     alertReply: '{name}さんが「{title}」に返信しました', alertLike: '{name}さんが「{title}」にいいねしました',
     justNow: 'たった今', minutesAgo: '分前', hoursAgo: '時間前', daysAgo: '日前',
@@ -162,6 +168,7 @@ const COPY: Record<Language, Copy> = {
     loadFailed: '无法加载社区动态。', retry: '重试',
     postInReview: '你的帖子正在安全审核中，通过后将显示在动态里。',
     deleteConfirm: '删除这条帖子？', deleted: '已删除。',
+    addPhotos: '添加照片', photoTooMany: '最多3张照片（每张5MB）。',
     alertsEmptyTitle: '暂无通知', alertsEmptyBody: '你帖子收到的回复和点赞会显示在这里。',
     alertReply: '{name}回复了"{title}"', alertLike: '{name}赞了"{title}"',
     justNow: '刚刚', minutesAgo: '分钟前', hoursAgo: '小时前', daysAgo: '天前',
@@ -183,6 +190,7 @@ type ApiPost = {
   id: string; title: string; body: string; lang: Language; type: string; category: string;
   authorName: string; authorUid: string; likeCount: number; replyCount: number;
   createdAt: number | null; translations: Partial<Record<Language, { title: string | null; body: string }>>;
+  images?: string[];
 };
 type ApiReply = {
   id: string; body: string; lang: Language; authorName: string; authorUid: string;
@@ -458,6 +466,11 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
         </div>
         <h2>{shownTitle}</h2>
         <p>{shownBody}</p>
+        {(post.images || []).length > 0 && (
+          <div className="community-post-images" data-count={post.images!.length}>
+            {post.images!.map((src) => <img key={src} src={src} alt="" loading="lazy" />)}
+          </div>
+        )}
       </Link>
       {isTranslationAvailable && (
         <button type="button" className="community-translate-button" onClick={toggleTranslate} disabled={translating}>
@@ -823,27 +836,63 @@ export function CommunityComposePage() {
   const [body, setBody] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // 사진 첨부 (UIUX P9, 2026-07-13) — 최대 3장, 게시 시점에 Storage 업로드
+  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   usePageMeta({ title: `${copy.composeTitle} | CocoTrip`, description: copy.composeSubtitle });
+
+  const addPhotos = (files: FileList | null) => {
+    if (!files) return;
+    setNotice(null);
+    const next = [...photos];
+    for (const file of Array.from(files)) {
+      if (next.length >= 3 || file.size > 5 * 1024 * 1024 || !file.type.startsWith('image/')) {
+        setNotice(copy.photoTooMany);
+        continue;
+      }
+      next.push({ file, preview: URL.createObjectURL(file) });
+    }
+    setPhotos(next.slice(0, 3));
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[index]?.preview || '');
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   const publish = async () => {
     if (!user) { navigate('/mypage'); return; }
     setPublishing(true);
     setNotice(null);
     try {
+      // 1) 사진 업로드 (본인 community/{uid}/ 경로 — 서버가 경로 재검증)
+      const images: string[] = [];
+      for (let i = 0; i < photos.length; i++) {
+        setUploadPct(Math.round((i / photos.length) * 100));
+        images.push(await uploadCommunityPhoto(user.uid, photos[i].file));
+      }
+      setUploadPct(null);
+      // 2) 글 작성
       const token = await user.getIdToken();
       const result = await apiPost('/api/community-posts', {
         title: title.trim(), body: body.trim(),
         type: POST_TYPE_KEYS[type], category, authorName: displayName(user),
+        images,
       }, token);
       if (result.status === 'review') {
         setNotice(copy.postInReview);
         setTitle(''); setBody('');
+        photos.forEach((p) => URL.revokeObjectURL(p.preview));
+        setPhotos([]);
       } else {
         navigate(`/community/post/${result.postId}`);
       }
     } catch (err) {
       setNotice((err as Error).message);
     } finally {
+      setUploadPct(null);
       setPublishing(false);
     }
   };
@@ -878,13 +927,33 @@ export function CommunityComposePage() {
           <label htmlFor="community-body">{copy.bodyLabel}</label>
           <textarea id="community-body" className="community-field" value={body} onChange={(event) => setBody(event.target.value)} placeholder={copy.bodyPlaceholder} rows={8} maxLength={2000} />
           <div className="community-field-counter">{body.length}/2000</div>
+
+          {/* 사진 첨부 (UIUX P9) — 최대 3장, 게시 시 본인 Storage 경로 업로드 */}
+          <label>{copy.addPhotos}</label>
+          <div className="community-photo-grid">
+            {photos.map((p, index) => (
+              <div key={p.preview} className="community-photo-thumb">
+                <img src={p.preview} alt="" />
+                <button type="button" onClick={() => removePhoto(index)} aria-label={copy.cancel}><X size={14} /></button>
+              </div>
+            ))}
+            {photos.length < 3 && (
+              <label className="community-photo-add">
+                <ImagePlus size={22} />
+                <span>{copy.addPhotos}</span>
+                <input type="file" accept="image/*" multiple hidden onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+              </label>
+            )}
+          </div>
+          <div className="community-field-counter">{photos.length}/3</div>
+
           <div className="community-compose-safety"><ShieldCheck size={19} /><p>{copy.safetyNote}</p></div>
           {notice && <div className="community-draft-notice"><Sparkles size={17} /><span>{notice}</span></div>}
           <div className="community-compose-actions">
             <button type="button" className="community-secondary-button" onClick={() => navigate('/community')}>{copy.cancel}</button>
             <button type="button" className="community-primary-button" disabled={!title.trim() || !body.trim() || publishing} onClick={publish}>
               {publishing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              {publishing ? copy.publishing : copy.publish}
+              {publishing ? (uploadPct !== null ? `${uploadPct}%` : copy.publishing) : copy.publish}
             </button>
           </div>
         </section>
@@ -893,62 +962,165 @@ export function CommunityComposePage() {
   );
 }
 
-// ── 어드민 모더레이션 (디자인 데모 — 실배선은 후속 PR. /admin/community 어드민 게이트 하위에서만 사용) ──
-const MODERATION_COPY: Record<Language, { title: string; subtitle: string; pending: string; urgent: string; blocked: string; queue: string; original: string; translation: string; approve: string; hide: string; warn: string; risk: string; links: string; similar: string; accountAge: string }> = {
-  en: { title: 'Community moderation', subtitle: 'Review original content and translations before taking action.', pending: 'Pending review', urgent: 'High priority', blocked: 'Bots blocked today', queue: 'Review queue', original: 'Original', translation: 'Translation', approve: 'Approve', hide: 'Hide post', warn: 'Warn user', risk: 'Detected risk', links: 'links detected', similar: 'similar posts', accountAge: 'account age' },
-  ko: { title: '커뮤니티 안전 관리', subtitle: '조치하기 전에 원문과 번역문을 함께 확인합니다.', pending: '검토 대기', urgent: '긴급 검토', blocked: '오늘 차단한 봇', queue: '검토 목록', original: '원문', translation: '번역문', approve: '승인', hide: '글 숨김', warn: '사용자 경고', risk: '감지된 위험', links: '외부 링크 감지', similar: '유사 게시글', accountAge: '계정 생성 후' },
-  ja: { title: 'コミュニティ管理', subtitle: '対応前に原文と翻訳を一緒に確認します。', pending: '確認待ち', urgent: '優先確認', blocked: '本日ブロックしたBot', queue: '確認リスト', original: '原文', translation: '翻訳', approve: '承認', hide: '非表示', warn: '警告', risk: '検出リスク', links: 'リンクを検出', similar: '類似投稿', accountAge: 'アカウント期間' },
-  zh: { title: '社区安全管理', subtitle: '处理前同时检查原文与译文。', pending: '待审核', urgent: '优先审核', blocked: '今日拦截机器人', queue: '审核列表', original: '原文', translation: '译文', approve: '通过', hide: '隐藏内容', warn: '警告用户', risk: '检测风险', links: '检测到链接', similar: '相似内容', accountAge: '账号注册时间' },
+// ── 어드민 모더레이션 (UIUX P9 실배선 2026-07-13 — /api/community-admin, 어드민 게이트 하위) ──
+const MODERATION_COPY: Record<Language, {
+  title: string; subtitle: string; pending: string; openReports: string; queue: string; reportsTitle: string;
+  post: string; images: string; approve: string; hide: string; resolve: string; reportedFor: string;
+  empty: string; loadFailed: string; retry: string; done: string; reasonLabels: Record<string, string>;
+}> = {
+  en: {
+    title: 'Community moderation', subtitle: 'Review held posts and reports, then approve or hide.',
+    pending: 'Pending review', openReports: 'Open reports', queue: 'Held for review', reportsTitle: 'Reports',
+    post: 'Post', images: 'photos', approve: 'Approve', hide: 'Hide', resolve: 'Mark resolved', reportedFor: 'Reported for',
+    empty: 'Nothing needs review right now.', loadFailed: 'Could not load the moderation queue.', retry: 'Try again', done: 'Done',
+    reasonLabels: { spam: 'Spam / advertising', harassment: 'Harassment', unsafe: 'Unsafe content', scam: 'Scam / fraud' },
+  },
+  ko: {
+    title: '커뮤니티 안전 관리', subtitle: '검토 대기 글과 신고를 확인하고 승인 또는 숨김 처리하세요.',
+    pending: '검토 대기', openReports: '열린 신고', queue: '검토 대기 글', reportsTitle: '신고',
+    post: '게시글', images: '사진', approve: '승인', hide: '숨김', resolve: '처리 완료', reportedFor: '신고 사유',
+    empty: '지금 검토할 항목이 없어요.', loadFailed: '검토 목록을 불러오지 못했어요.', retry: '다시 시도', done: '완료',
+    reasonLabels: { spam: '도배·광고', harassment: '괴롭힘', unsafe: '위험한 내용', scam: '사기·허위' },
+  },
+  ja: {
+    title: 'コミュニティ管理', subtitle: '確認待ちの投稿と報告を確認し、承認または非表示にします。',
+    pending: '確認待ち', openReports: '未対応の報告', queue: '確認待ち投稿', reportsTitle: '報告',
+    post: '投稿', images: '写真', approve: '承認', hide: '非表示', resolve: '対応済み', reportedFor: '報告理由',
+    empty: '現在確認が必要な項目はありません。', loadFailed: 'リストを読み込めませんでした。', retry: '再試行', done: '完了',
+    reasonLabels: { spam: 'スパム・広告', harassment: '嫌がらせ', unsafe: '危険な内容', scam: '詐欺・虚偽' },
+  },
+  zh: {
+    title: '社区安全管理', subtitle: '查看待审帖子和举报，然后通过或隐藏。',
+    pending: '待审核', openReports: '未处理举报', queue: '待审帖子', reportsTitle: '举报',
+    post: '帖子', images: '照片', approve: '通过', hide: '隐藏', resolve: '标记已处理', reportedFor: '举报原因',
+    empty: '目前没有需要审核的内容。', loadFailed: '无法加载审核列表。', retry: '重试', done: '完成',
+    reasonLabels: { spam: '垃圾·广告', harassment: '骚扰', unsafe: '危险内容', scam: '诈骗·虚假' },
+  },
+};
+
+type ModQueueItem = {
+  postId: string; title: string; body: string; lang: Language; category: string;
+  authorName: string; authorEmail: string | null; images: string[]; createdAt: number | null;
+};
+type ModReport = {
+  reportId: string; postId: string; replyId: string | null; reason: string; createdAt: number | null;
+  post: { title: string; body: string; status: string; authorName: string } | null;
 };
 
 export function CommunityModerationPage() {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const copy = MODERATION_COPY[language];
-  const [selected, setSelected] = useState(0);
-  const [status, setStatus] = useState<'pending' | 'approved' | 'hidden'>('pending');
-  const cases = [
-    { id: 'MOD-0184', risk: { en: 'Spam / external contact', ko: '광고·외부 연락 유도', ja: 'スパム・外部連絡', zh: '广告·引导外部联系' }, score: 94, author: '@best_korea_deal', country: 'US', original: 'Best Korea tour! Contact me now on Telegram for a private discount.', translation: '한국 최고의 투어! 텔레그램으로 지금 연락하면 개인 할인을 드립니다.', age: '2m', tone: 'high' },
-    { id: 'MOD-0183', risk: { en: 'Harassment', ko: '괴롭힘·공격', ja: '嫌がらせ', zh: '骚扰·攻击' }, score: 81, author: '@citywalker', country: 'JP', original: 'その人の投稿は全部うそ。二度とここに書くな。', translation: '저 사람의 글은 전부 거짓말입니다. 다시는 여기에 글을 쓰지 마세요.', age: '7m', tone: 'high' },
-    { id: 'MOD-0182', risk: { en: 'Repeated content', ko: '같은 내용 반복', ja: '同一内容の繰り返し', zh: '重复内容' }, score: 68, author: '@seoul_room', country: 'CN', original: '首尔短租房，有兴趣请私信。首尔短租房，有兴趣请私信。', translation: '서울 단기 임대, 관심 있으면 개인 메시지를 보내세요. 같은 문구가 반복되었습니다.', age: '16m', tone: 'medium' },
-  ];
-  const activeCase = cases[selected];
+  const [queue, setQueue] = useState<ModQueueItem[]>([]);
+  const [reports, setReports] = useState<ModReport[]>([]);
+  const [stats, setStats] = useState<{ pendingReview: number; openReports: number }>({ pendingReview: 0, openReports: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   usePageMeta({ title: `${copy.title} | CocoTrip Admin`, description: copy.subtitle });
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await authFetch('/api/community-admin');
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setQueue(data.data.queue || []);
+      setReports(data.data.reports || []);
+      setStats(data.data.stats || { pendingReview: 0, openReports: 0 });
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (user) load(); }, [user, load]);
+
+  const act = async (body: Record<string, unknown>, key: string) => {
+    setBusyId(key);
+    try {
+      const res = await authFetch('/api/community-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await load();
+    } catch { /* keep item — 재시도 가능 */ } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="community-moderation-app">
-      <header className="community-moderation-header"><CommunityBrand /><div><h1>{copy.title}</h1><p>{copy.subtitle}</p></div><Link to="/admin" className="community-secondary-button"><ArrowLeft size={16} />Admin</Link></header>
+      <header className="community-moderation-header">
+        <CommunityBrand />
+        <div><h1>{copy.title}</h1><p>{copy.subtitle}</p></div>
+        <Link to="/admin" className="community-secondary-button"><ArrowLeft size={16} />Admin</Link>
+      </header>
       <main>
         <section className="community-moderation-stats">
-          <article><span><MessageCircle size={19} /></span><div><strong>18</strong><small>{copy.pending}</small></div></article>
-          <article><span className="is-urgent"><Flag size={19} /></span><div><strong>3</strong><small>{copy.urgent}</small></div></article>
-          <article><span className="is-safe"><ShieldCheck size={19} /></span><div><strong>42</strong><small>{copy.blocked}</small></div></article>
+          <article><span><MessageCircle size={19} /></span><div><strong>{stats.pendingReview}</strong><small>{copy.pending}</small></div></article>
+          <article><span className="is-urgent"><Flag size={19} /></span><div><strong>{stats.openReports}</strong><small>{copy.openReports}</small></div></article>
+          <article><span className="is-safe"><ShieldCheck size={19} /></span><div><strong>{queue.length + reports.length}</strong><small>{copy.queue}</small></div></article>
         </section>
-        <section className="community-moderation-workspace">
-          <aside>
-            <div className="community-section-title"><span>{copy.queue}</span><SlidersHorizontal size={17} /></div>
-            {cases.map((item, index) => (
-              <button type="button" key={item.id} className={selected === index ? 'is-active' : ''} onClick={() => { setSelected(index); setStatus('pending'); }}>
-                <span className={`community-risk-dot is-${item.tone}`} />
-                <div><strong>{item.risk[language]}</strong><small>{item.author} · {item.age}</small></div>
-                <b>{item.score}</b>
-              </button>
-            ))}
-          </aside>
-          <article className="community-moderation-detail">
-            <header><div><span>{activeCase.id}</span><h2>{activeCase.author} <small>{activeCase.country}</small></h2></div><span className={`community-risk-badge is-${activeCase.tone}`}><Flag size={13} />{copy.risk}: {activeCase.risk[language]} · {activeCase.score}%</span></header>
-            <div className="community-moderation-copy"><section><label>{copy.original}</label><p>{activeCase.original}</p></section><section><label>{copy.translation}</label><p>{activeCase.translation}</p></section></div>
-            <div className="community-moderation-evidence">
-              <div><strong>3</strong><span>{copy.links}</span></div><div><strong>5</strong><span>{copy.similar}</span></div><div><strong>1d</strong><span>{copy.accountAge}</span></div>
-            </div>
-            {status !== 'pending' && <div className={`community-moderation-status is-${status}`}><Check size={17} />{status === 'approved' ? copy.approve : copy.hide}</div>}
-            <footer>
-              <button type="button" className="community-secondary-button" onClick={() => setStatus('approved')}><Check size={16} />{copy.approve}</button>
-              <button type="button" className="community-secondary-button"><UserRoundX size={16} />{copy.warn}</button>
-              <button type="button" className="community-danger-button" onClick={() => setStatus('hidden')}><Trash2 size={16} />{copy.hide}</button>
-            </footer>
-          </article>
-        </section>
+
+        {loading ? (
+          <div className="community-moderation-empty"><Loader2 size={22} className="animate-spin" /></div>
+        ) : error ? (
+          <div className="community-moderation-empty">
+            <p>{copy.loadFailed}</p>
+            <button type="button" className="community-secondary-button" onClick={load}>{copy.retry}</button>
+          </div>
+        ) : queue.length === 0 && reports.length === 0 ? (
+          <div className="community-moderation-empty"><ShieldCheck size={26} /><p>{copy.empty}</p></div>
+        ) : (
+          <section className="community-moderation-list">
+            {queue.length > 0 && (
+              <div className="community-mod-group">
+                <div className="community-section-title"><span>{copy.queue}</span><SlidersHorizontal size={17} /></div>
+                {queue.map((item) => (
+                  <article key={item.postId} className="community-mod-card">
+                    <header>
+                      <div><strong>{item.title}</strong><small>{item.authorName}{item.authorEmail ? ` · ${item.authorEmail}` : ''} · {timeAgo(item.createdAt, COPY[language] as unknown as Copy)}</small></div>
+                      <span className="community-risk-badge is-high"><Flag size={13} />{copy.pending}</span>
+                    </header>
+                    <p className="community-mod-body">{item.body}</p>
+                    {item.images.length > 0 && <div className="community-mod-thumbs">{item.images.map((src) => <img key={src} src={src} alt="" loading="lazy" />)}</div>}
+                    <footer>
+                      <button type="button" className="community-secondary-button" disabled={busyId === item.postId} onClick={() => act({ action: 'approve', postId: item.postId }, item.postId)}><Check size={16} />{copy.approve}</button>
+                      <button type="button" className="community-danger-button" disabled={busyId === item.postId} onClick={() => act({ action: 'hide', postId: item.postId }, item.postId)}><Trash2 size={16} />{copy.hide}</button>
+                    </footer>
+                  </article>
+                ))}
+              </div>
+            )}
+            {reports.length > 0 && (
+              <div className="community-mod-group">
+                <div className="community-section-title"><span>{copy.reportsTitle}</span><Flag size={17} /></div>
+                {reports.map((r) => (
+                  <article key={r.reportId} className="community-mod-card">
+                    <header>
+                      <div><strong>{r.post?.title || r.postId}</strong><small>{copy.reportedFor}: {copy.reasonLabels[r.reason] || r.reason} · {timeAgo(r.createdAt, COPY[language] as unknown as Copy)}</small></div>
+                      <span className="community-risk-badge is-medium"><Flag size={13} />{r.reason}</span>
+                    </header>
+                    {r.post && <p className="community-mod-body">{r.post.body}</p>}
+                    <footer>
+                      {r.post && r.post.status === 'active' && !r.replyId && (
+                        <button type="button" className="community-danger-button" disabled={busyId === r.reportId} onClick={() => act({ action: 'hide', postId: r.postId }, r.reportId)}><Trash2 size={16} />{copy.hide}</button>
+                      )}
+                      <button type="button" className="community-secondary-button" disabled={busyId === r.reportId} onClick={() => act({ action: 'resolve_report', reportId: r.reportId }, r.reportId)}><Check size={16} />{copy.resolve}</button>
+                    </footer>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

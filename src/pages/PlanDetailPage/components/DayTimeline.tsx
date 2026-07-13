@@ -23,6 +23,7 @@ import { StopCard, type LodgingRole } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { RouteInsightCard } from './RouteInsightCard';
+import { OptimizePanel } from './OptimizePanel';
 import { findMostTiringSegment } from '../lib/routeInsight';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
@@ -40,6 +41,8 @@ interface DayTimelineProps {
   isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
   onAddStop: (dayIdx: number) => void;
+  /** UIUX P4 Optimize (2026-07-13): 제안 순서 일괄 적용 — usePlanEditor.applyStopOrder 배선. */
+  onApplyOrder?: (dayIdx: number, order: number[]) => void | Promise<void>;
   /** 2026-05-08: 숙소 라벨 source — input.hotel_address 또는 zone 키. */
   plan?: PlanDocument;
   /** plan 소유자 여부 — StopCard 의 즐겨찾기/공유 버튼을 소유자에게만 노출. */
@@ -89,7 +92,7 @@ function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): st
   return undefined;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan, isOwner }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner }: DayTimelineProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -315,6 +318,11 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             || (stops[0] as { display_name?: string; name?: string }).name
             || ''}
         />
+      )}
+
+      {/* UIUX P4 Optimize (2026-07-13): 편집 모드 전용 최적화 제안 — 실데이터 파생만. */}
+      {editMode && onApplyOrder && (
+        <OptimizePanel day={day} dayIndex={dayIndex} plan={plan} onApplyOrder={onApplyOrder} />
       )}
 
       {editMode ? (
