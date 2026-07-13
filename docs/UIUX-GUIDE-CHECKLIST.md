@@ -33,7 +33,8 @@
 - [ ] Step2 Cities(썸네일 리스트 선택)
 - [x] **Step3 Travel Style — 솔로/커플/가족/친구 4옵션(운영자 확정)** + 플래너 프롬프트 travel_party 소프트 힌트 전파 #1102
 - [ ] Step4 Interests 칩(Culture·Food·Shopping·Nature·History·Nightlife)
-- [ ] Step5 Budget(Mid-range 등) + Dietary(Halal·Vegan·Vegetarian·No Preference) — 🔴 dietary 전파 5지점 grep + P325 회귀 유지
+- [x] Step5 Budget + Dietary(Halal·Vegan·**Vegetarian**·No Preference) — Vegetarian 추가 완결 #1106
+  (백엔드 안전체인 이미 지원, 위자드 UI 만 갭이었음. dietary-trust lowercase+vegan⊃vegetarian, P324/P325 무회귀)
 - [ ] 하단 신뢰 4배지(Fast Setup·Safe Preferences·Multilingual·Editable)
 - 보존: 호텔=anchor·도시 cycle 동기화·resume modal·dateRange.to·4-lang lint
 
@@ -117,4 +118,20 @@
 - 🔴 **취소 정책 48h 미결(운영자 결정 필요)**: SSOT `_refund-policy.js` general=72h 100%·48h 80% ↔ `BookingInfoForm`(L291·535)
   한국어 하드코딩 "1일 전 무료·전액환불" = SSOT·운영자확정(48h) 모두 불일치. 환불 지급액 변경=돈 로직이라 미착수.
   운영자 결정: (a) 48h 무료를 전 등급 SSOT 에 반영 vs (b) 표기만 SSOT 에 맞춤 → 별도 PR.
-- 잔여: 커뮤니티 Shared Itinerary 카드 / 결제(P8) 캡처·환불 스킨(실 PayPal e2e) / 실후기 → docs/REVIEW-SPRINT.md
+- **2026-07-13 (후속 PR#1106)**: 모바일 햄버거 메뉴 라이트셸 흰글자 버그 fix(인라인 색 셸별 분기) +
+  위자드 **Vegetarian 식이옵션** 추가(SAFETY 완결 — 백엔드 이미 지원, UI 갭이었음).
+
+## 🔍 기능 감사 결과 (2026-07-13) — 실제 갭 (다음 작업 후보)
+가이드 미체크 항목 코드 대조. **[구현됨]은 체크 처리, 아래는 진짜 갭만**:
+- **[P10] CocoUI 죽은 코드** — `CocoUI.tsx`의 GradientCTA/StatusChip/CocoCard export 전부 소비처 0
+  (grep 결과 자기 파일만). #1097 [x] 표기와 실코드 불일치 → 신규 화면서 채택하거나 인라인 유지 결정 필요.
+- **[P3 부분]** 위자드 Cities=lucide 아이콘 칩(사진 썸네일 아님), Interests 택소노미 가이드와 상이, 하단 신뢰 4배지 없음(플래너 히어로에 유사).
+- **[P4 부분]** Trip Overview 통계칩=Days/Stops/Pax(km·최적화분 없음)·Top Highlights 섹션 없음 / Day Timeline 하단 총계 3칩 없음 / 명시 "Save" 버튼 없음(자동저장).
+- **[P5 미구현]** 지도 범례(Easy/Challenging/Recommended)·가치 4배지·플랜상세 차량 3종 카드 전무(차량카드는 차터 위자드에만).
+- **[P7 부분]** Trip Style 3필터·"Show N Tours" 적용버튼·도시별 N Tours 카드 없음(라이브 카운트 텍스트만).
+- **[P5 주의]** TransitVsCharterCard 기본 OFF(`VITE_FEATURE_TRANSIT_VS_CHARTER`) — 완성 기능이 미노출(운영자 env).
+- 정직 폴백(버그 아님): TourDetail 'coming soon'=stops 없을 때만, 커뮤니티 샘플 제거됨.
+
+- 🔴 **취소 정책 48h 미결(운영자 결정 필요)**: SSOT `_refund-policy.js` general=72h 100%·48h 80% ↔ `BookingInfoForm`(L291·535)
+  한국어 하드코딩 "1일 전 무료·전액환불" = SSOT·운영자확정(48h) 모두 불일치. (a) 48h 무료를 전 등급 SSOT 반영 vs (b) 표기만 SSOT 맞춤 → 별도 PR.
+- 잔여 대형: 커뮤니티 Shared Itinerary 카드 / 결제(P8) 캡처·환불 스킨(실 PayPal e2e) / 실후기 → docs/REVIEW-SPRINT.md
