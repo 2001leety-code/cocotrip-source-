@@ -1584,7 +1584,12 @@
       "suggestHeader": "今天换乘较多",
       "suggestBody": "选择专车出行更舒适",
       "viewCharterCTA": "查看包车选项",
-      "hoursLabel": "小时"
+      "hoursLabel": "小时",
+      "insightTitle": "这一段乘坐公共交通比较辛苦",
+      "insightTransfers": "换乘{n}次",
+      "insightWalk": "步行约{min}分钟",
+      "insightDuration": "公共交通{min}分钟",
+      "insightCta": "改用包车轻松直达"
     },
     "transitVsCharter": {
       "cardTitle": "今日出行对比",

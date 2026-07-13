@@ -1584,7 +1584,12 @@
       "suggestHeader": "本日は移動が多いです",
       "suggestBody": "プライベート専用車で快適に移動しましょう",
       "viewCharterCTA": "チャーター車を見る",
-      "hoursLabel": "時間"
+      "hoursLabel": "時間",
+      "insightTitle": "この区間は公共交通では大変です",
+      "insightTransfers": "乗り換え{n}回",
+      "insightWalk": "徒歩約{min}分",
+      "insightDuration": "公共交通で{min}分",
+      "insightCta": "プライベートチャーターで快適に移動"
     },
     "transitVsCharter": {
       "cardTitle": "本日の移動比較",
