@@ -55,6 +55,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     || location.pathname.startsWith('/my-plans/')
   );
   const isMobileAppLight = isMobile && !location.pathname.startsWith('/admin') && !location.pathname.startsWith('/mood');
+  // 모바일 풀스크린 메뉴 텍스트 색 — 라이트 셸(mobile-menu-light 흰 배경)에서는 어둡게.
+  // 기존엔 인라인 흰색(rgba(255,255,255,*)/#fff)이라 CSS text-white 오버라이드가 못 잡아 흰글자가
+  // 흰 배경에 묻혔음(햄버거 메뉴 색 버그, 2026-07-13). 인라인 색을 셸별로 분기해 근본 해소.
+  const menuInk = isMobileAppLight ? '#15143d' : '#fff';                       // active/primary
+  const menuInkDim = isMobileAppLight ? 'rgba(21,20,61,0.62)' : 'rgba(255,255,255,0.55)'; // inactive
+  const menuInkFaint = isMobileAppLight ? 'rgba(21,20,61,0.30)' : 'rgba(255,255,255,0.40)'; // 비활성 칩
   const { toggle: toggleCommandPalette } = useCommandPalette();
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -483,7 +489,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
                   style={{
-                    color: isActive(item.to) ? '#fff' : 'rgba(255,255,255,0.55)',
+                    color: isActive(item.to) ? menuInk : menuInkDim,
                     background: isActive(item.to) ? 'rgba(124,92,252,0.1)' : 'transparent',
                   }}
                 >
@@ -534,7 +540,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                       onClick={() => setIsMobileMenuOpen(false)}
                       className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
                       style={{
-                        color: isActive(to.split('?')[0]) ? '#fff' : 'rgba(255,255,255,0.55)',
+                        color: isActive(to.split('?')[0]) ? menuInk : menuInkDim,
                         background: 'transparent',
                       }}
                     >
@@ -582,7 +588,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               <div className="space-y-0.5">
                 {/* Language Selector inline */}
                 <div className="py-3 px-3 rounded-xl">
-                  <div className="flex items-center gap-3 mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  <div className="flex items-center gap-3 mb-3" style={{ color: menuInkDim }}>
                     <Globe className="w-[18px] h-[18px]" />
                     <span className="text-[15px] font-semibold">{t.nav.language ?? 'Language'}</span>
                   </div>
@@ -593,9 +599,11 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                         onClick={() => { handleLangChange(lang.code as Language); }}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                         style={{
-                          background: language === lang.code ? 'rgba(124,92,252,0.2)' : 'rgba(255,255,255,0.04)',
-                          color: language === lang.code ? '#7C5CFC' : 'rgba(255,255,255,0.4)',
-                          border: language === lang.code ? '1px solid rgba(124,92,252,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                          // 활성 칩: 라이트 셸=솔리드 퍼플+흰글자(가독+ .cocotrip-mobile-* 의 [style*=rgb(124,92,252)] 흰글자 규칙과 정합),
+                          // 다크 셸=반투명 퍼플+흰글자. 비활성은 셸별 은은한 배경 + menuInkFaint.
+                          background: language === lang.code ? (isMobileAppLight ? '#7C5CFC' : 'rgba(124,92,252,0.2)') : (isMobileAppLight ? 'rgba(124,92,255,0.06)' : 'rgba(255,255,255,0.04)'),
+                          color: language === lang.code ? '#fff' : menuInkFaint,
+                          border: language === lang.code ? '1px solid rgba(124,92,252,0.3)' : (isMobileAppLight ? '1px solid rgba(124,92,255,0.14)' : '1px solid rgba(255,255,255,0.06)'),
                         }}
                       >
                         {lang.short}
@@ -616,7 +624,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 py-3 px-3 rounded-xl transition-all"
-                style={{ color: 'rgba(255,255,255,0.55)' }}
+                style={{ color: menuInkDim }}
               >
                 <Headphones className="w-[18px] h-[18px]" />
                 <span className="text-[15px] font-semibold">{t.nav.liveSupport ?? '1:1 Support'}</span>
@@ -625,7 +633,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               <a
                 href="mailto:help@cocotripkr.com"
                 className="flex items-center gap-3 py-3 px-3 rounded-xl transition-all"
-                style={{ color: 'rgba(255,255,255,0.55)' }}
+                style={{ color: menuInkDim }}
               >
                 <MessageCircle className="w-[18px] h-[18px]" />
                 <span className="text-[15px] font-semibold">{t.nav.emailSupport ?? 'Email Support'}</span>

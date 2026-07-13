@@ -234,7 +234,10 @@ export const FOOD_STYLE_ICONS: Record<string, ReactNode> = {
 
 // 'None' must remain LAST — Step1Food's toggle treats it as the "clear all"
 // option (selected when allergies array is empty).
-export const ALLERGY_KEYS = ['Halal', 'Vegan', 'Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
+// 2026-07-13: 'Vegetarian' 추가 — 백엔드 안전 체인(dietary-trust.checkDietaryCoverage lowercase
+// 필터 + vegan-covers-vegetarian, responseValidator /vegetarian/i, _food_helper [VEGETARIAN])이
+// 이미 전부 지원하는데 위자드 UI 만 누락돼 채식 사용자가 표현 불가였음(SAFETY 갭 완결).
+export const ALLERGY_KEYS = ['Halal', 'Vegan', 'Vegetarian', 'Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
 export const PRICE_KEYS = ['Budget', 'Moderate', 'Premium', 'Any'] as const;
 
 // P10 매운맛 4단계 슬라이더 (Step1Food에서 사용).
