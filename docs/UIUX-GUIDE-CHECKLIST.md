@@ -65,7 +65,7 @@
 - [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. 검색바 기존.
 - [ ] Filter: Interests 8칩 + Trip Style 3 + Duration 4 + "Show N Tours"(실카운트) — Interests 실데이터 5칩(#1099)·기간/지역/언어 필터 기존. Trip Style·Show N 잔여
 - [ ] 투어 상세: 뱃지·별점(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)·칩 3종·하이라이트 체크
-- [ ] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → 기존 맞춤투어 폼(#1037)/어드민 연동 재사용
+- [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·companions 4옵션 라디오·duration select. 백엔드 inquiry-submit 도 companions/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정 규약 유지.
 - 보존: 결제 다이얼로그 배선(#1019)·tours SSOT
 
 ## P8 — 결제 4-step (🔴 운영자 승인 + 실 PayPal e2e)

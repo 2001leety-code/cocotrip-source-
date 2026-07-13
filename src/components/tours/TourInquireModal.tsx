@@ -168,6 +168,26 @@ const THEME_OPTIONS: Array<{ value: string; label: Record<Lang, string> }> = [
   { value: 'Photo',    label: { ko: '사진 명소', en: 'Photo spots', ja: '写真スポット', zh: '拍照打卡' } },
 ];
 
+// 동행 유형(운영자 확정 4옵션) — value 영문 고정(텔레그램 규약), 라벨만 4-lang. 위자드 Travel Style 과 동일 셋.
+const COMPANION_OPTIONS: Array<{ value: string; label: Record<Lang, string> }> = [
+  { value: 'Solo',    label: { ko: '혼자', en: 'Solo',    ja: 'ひとり',   zh: '独自' } },
+  { value: 'Couple',  label: { ko: '커플', en: 'Couple',  ja: 'カップル', zh: '情侣' } },
+  { value: 'Family',  label: { ko: '가족', en: 'Family',  ja: '家族',     zh: '家庭' } },
+  { value: 'Friends', label: { ko: '친구', en: 'Friends', ja: '友達',     zh: '朋友' } },
+];
+
+// 기간 — value 영문 고정, 라벨 4-lang.
+const DURATION_OPTIONS: Array<{ value: string; label: Record<Lang, string> }> = [
+  { value: 'Day trip', label: { ko: '당일',   en: 'Day trip', ja: '日帰り',   zh: '当天' } },
+  { value: '2 days',   label: { ko: '1박 2일', en: '2 days',  ja: '1泊2日',   zh: '2天' } },
+  { value: '3 days',   label: { ko: '2박 3일', en: '3 days',  ja: '2泊3日',   zh: '3天' } },
+  { value: '4-5 days', label: { ko: '3~4박',   en: '4-5 days', ja: '3~4泊',   zh: '4-5天' } },
+  { value: '6+ days',  label: { ko: '5일 이상', en: '6+ days', ja: '5日以上', zh: '6天以上' } },
+];
+
+const COMPANIONS_LABEL: Record<Lang, string> = { ko: '동행 유형', en: 'Travel Style', ja: '旅行スタイル', zh: '出行方式' };
+const DURATION_LABEL: Record<Lang, string> = { ko: '기간', en: 'Duration', ja: '期間', zh: '时长' };
+
 const BUDGET_OPTIONS = ['~$500', '$500-1000', '$1000-3000', '$3000+'] as const;
 
 type RegionValue = '' | 'seoul' | 'busan' | 'jeju' | 'other';
@@ -196,6 +216,8 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
   const [pax, setPax] = useState<number>(2);
   const [region, setRegion] = useState<RegionValue>(defaultRegion);
   const [themes, setThemes] = useState<Set<string>>(new Set());
+  const [companions, setCompanions] = useState<string>('');
+  const [duration, setDuration] = useState<string>('');
   const [budget, setBudget] = useState<string>('');
   const [details, setDetails] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -221,7 +243,8 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
   const toggleTheme = (value: string) => {
     setThemes(prev => {
       const next = new Set(prev);
-      if (next.has(value)) next.delete(value); else next.add(value);
+      if (next.has(value)) next.delete(value);
+      else if (next.size < 5) next.add(value); // 가이드 P7: 관심사 ≤5 상한
       return next;
     });
   };
@@ -250,6 +273,8 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
           details: details.trim(),
           region,
           theme: Array.from(themes).join(', '),
+          companions: companions || '',
+          duration: duration || '',
           budget: budget || 'undecided',
           language: lang,
           wizardSnapshot: null,
@@ -379,20 +404,61 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
               </div>
             </div>
 
-            {/* 테마 멀티선택 칩 */}
+            {/* 동행 유형(라디오) | 기간(select) — 가이드 P7 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                  {COMPANIONS_LABEL[lang]}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {COMPANION_OPTIONS.map(opt => {
+                    const active = companions === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCompanions(active ? '' : opt.value)}
+                        aria-pressed={active}
+                        className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors"
+                        style={
+                          active
+                            ? { background: 'rgba(182,104,252,0.18)', border: '1px solid rgba(182,104,252,0.50)', color: '#D0A8FF' }
+                            : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.45)' }
+                        }
+                      >
+                        {opt.label[lang]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                  {DURATION_LABEL[lang]}
+                </label>
+                <select value={duration} onChange={e => setDuration(e.target.value)}
+                  className={`${inputCls} cursor-pointer`}>
+                  <option value="">{s.regionUnset}</option>
+                  {DURATION_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label[lang]}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* 테마 멀티선택 칩 (≤5) */}
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
-                {s.themeLabel}
+                {s.themeLabel} <span className="text-white/35 normal-case">({themes.size}/5)</span>
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {THEME_OPTIONS.map(opt => {
                   const active = themes.has(opt.value);
+                  const atCap = !active && themes.size >= 5;
                   return (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => toggleTheme(opt.value)}
-                      className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors"
+                      className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors ${atCap ? 'opacity-40' : ''}`}
                       style={
                         active
                           ? { background: 'rgba(182,104,252,0.18)', border: '1px solid rgba(182,104,252,0.50)', color: '#D0A8FF' }
