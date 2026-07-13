@@ -8,8 +8,8 @@
 ## 공통 디자인 시스템 (전 화면)
 - [x] 팔레트 토큰: #7C5CFF·#FF6DB7·#D9D3FF·#0F1230·#FFFFFF·#F2F3F7 (MobileHomeV2 적용, 공용 토큰화는 P10 항목) — #1096
 - [x] 아이콘 시스템: 스쿼클 라벤더 타일 + 퍼플 그라데이션 2px 선 아이콘 13종 (`CocoIcons.tsx`) — #1096
-- [x] 🟢 CTA 그라데이션 버튼 공용 컴포넌트 (View Full Plan 형) — `CocoUI.GradientCTA` #1097
-- [x] 🟢 상태칩 공용: Best Match·Recommended·Saved·Confirmed·42 min faster·Popular·New — `CocoUI.StatusChip` (tone 5종) #1097
+- [~] 🟢 CTA 그라데이션 버튼 공용 컴포넌트 — `CocoUI.GradientCTA` **정의됨(#1097)이나 소비처 0**(각 화면 인라인). 신규 화면 채택 대기.
+- [~] 🟢 상태칩 공용 — `CocoUI.StatusChip` (tone 5종) **정의됨이나 미사용**. 채택 대기(감사 2026-07-13).
 - [ ] 🟢 언어 칩 4종 (EN·한국어·日本語·中文) 공용 셀렉터 (현: MobileHomeV2 헤더 순환 버튼 — 칩 셀렉터 공용화 잔여)
 - [x] 🟡 하단 내비 구성 — **운영자 결정 확정(2026-07-12)**: 홈·투어·AI플래너·예약(/my-plans)·프로필. 차터 탭 제거(매출 모니터링, 롤백 가능) #1097
 
@@ -40,7 +40,7 @@
 
 ## P4 — 플랜 결과 4화면 (🟡 stop 신스키마·PDF 금지사항·validator)
 - [ ] Trip Overview: 히어로+통계 4칩(일수/정거장/km/최적화분)+Top Highlights
-- [ ] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+하단 총계 3칩
+- [x] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+**하단 총계 3칩(도보/교통/교통비)** #1106 (computeDayTotals, public+walk 실측)
 - [ ] Interactive Route Map: 번호 핀+정거장 리스트 (기존 Leaflet 재스킨)
 - [x] Edit & Optimize: 정거장 재정렬·삭제(기존 EditModeToggle) + **최적화 제안(Time/Transport/Walking)** — anchor 세그먼트 경계 준수 실좌표 최적화 #1106
 - [ ] Save·Share with Friends·Export PDF 액션 행 (PDF 기존, Share=신규 공유 링크)
