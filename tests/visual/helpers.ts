@@ -27,3 +27,25 @@ export async function suppressCookieBanner(page: { addInitScript: Function }) {
     } catch {}
   });
 }
+
+/**
+ * 홈 히어로 날씨 칩 비결정성 차단 (UIUX 체크리스트 후속 — #1099 에서 2회 flaky 관측).
+ *
+ * MobileHome(v1)/MobileHomeV2 는 mount 후 wttr.in 을 fetch 해 성공 시에만
+ * 날씨 칩을 렌더 → 응답 타이밍·실측값(기온/설명 텍스트)이 매 run 달라
+ * pixel diff 유발. 현재 baseline 은 칩 미노출 상태로 캡처되어 있음.
+ *
+ * mask 옵션 대신 요청 자체를 abort 하는 이유: 칩은 fetch 실패 시 아예
+ * 렌더되지 않는 silent 폴백이라, abort = "칩 없음" 상태가 결정론적으로
+ * 고정되고 기존 baseline 재생성이 필요 없음. mask 는 칩이 "가끔만" 존재해
+ * 마스크 박스 유무 자체가 diff 가 되는 문제를 못 푼다.
+ *
+ * page.goto 보다 먼저 호출해야 함 (route 는 등록 이후 요청부터 적용).
+ */
+export async function stubWeatherUnavailable(page: {
+  route: (url: string, handler: (route: { abort: () => Promise<void> }) => Promise<void>) => Promise<void>;
+}) {
+  await page.route('https://wttr.in/**', async (route) => {
+    await route.abort();
+  });
+}

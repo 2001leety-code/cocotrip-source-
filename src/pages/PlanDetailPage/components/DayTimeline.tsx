@@ -23,7 +23,10 @@ import { StopCard, type LodgingRole } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { RouteInsightCard } from './RouteInsightCard';
+import { OptimizePanel } from './OptimizePanel';
 import { findMostTiringSegment } from '../lib/routeInsight';
+import { computeDayTotals } from '../lib/transitVsCharter';
+import { Footprints, Wallet } from 'lucide-react';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
 import { DayRouteMap } from './DayRouteMap';
@@ -40,6 +43,8 @@ interface DayTimelineProps {
   isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
   onAddStop: (dayIdx: number) => void;
+  /** UIUX P4 Optimize (2026-07-13): 제안 순서 일괄 적용 — usePlanEditor.applyStopOrder 배선. */
+  onApplyOrder?: (dayIdx: number, order: number[]) => void | Promise<void>;
   /** 2026-05-08: 숙소 라벨 source — input.hotel_address 또는 zone 키. */
   plan?: PlanDocument;
   /** plan 소유자 여부 — StopCard 의 즐겨찾기/공유 버튼을 소유자에게만 노출. */
@@ -89,7 +94,7 @@ function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): st
   return undefined;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan, isOwner }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner }: DayTimelineProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -98,6 +103,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const stops = day.stops || [];
   // UIUX P5 (2026-07-13): 하루 최대 1개 — 가장 힘든 대중교통 구간에 Route Insight 카드.
   const tiringSegment = findMostTiringSegment(stops);
+  // UIUX P4 (2026-07-13): 하루 하단 총계 3칩 (도보/교통/비용) — 실측 데이터 있을 때만.
+  const dayTotals = computeDayTotals(stops);
+  const trDict = (pd.transit || {}) as Record<string, string>;
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
 
   // Sprint 1 Step 2: 풍부한 day 헤더 메타 (사용자 신고 "UI 개선 심각")
@@ -317,6 +325,11 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         />
       )}
 
+      {/* UIUX P4 Optimize (2026-07-13): 편집 모드 전용 최적화 제안 — 실데이터 파생만. */}
+      {editMode && onApplyOrder && (
+        <OptimizePanel day={day} dayIndex={dayIndex} plan={plan} onApplyOrder={onApplyOrder} />
+      )}
+
       {editMode ? (
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1 pl-8">
@@ -428,6 +441,34 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             || (stops[stops.length - 1] as { display_name?: string; name?: string }).name
             || ''}
         />
+      )}
+
+      {/* UIUX P4 (2026-07-13): 하루 하단 총계 3칩 — 도보/교통/교통비. 실측 데이터 있을 때만.
+          편집 모드에선 순서 변경 중이라 stale 수치 노출 방지 위해 숨김. */}
+      {!editMode && dayTotals.hasAny && (
+        <div className="mt-3 flex items-center gap-2">
+          {dayTotals.walkMin > 0 && (
+            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
+              <Footprints className="h-3.5 w-3.5 text-[#7C5CFC]" />
+              <span className="text-[11.5px] font-bold text-white/80">{dayTotals.walkMin}<span className="ml-0.5 font-medium text-white/45">{trDict.minUnit || 'min'}</span></span>
+              <span className="text-[10px] text-white/40">{trDict.dayWalk || 'Walking'}</span>
+            </div>
+          )}
+          {dayTotals.transitMin > 0 && (
+            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
+              <TrainFront className="h-3.5 w-3.5 text-[#FF6B9D]" />
+              <span className="text-[11.5px] font-bold text-white/80">{dayTotals.transitMin}<span className="ml-0.5 font-medium text-white/45">{trDict.minUnit || 'min'}</span></span>
+              <span className="text-[10px] text-white/40">{trDict.dayTransit || 'Transit'}</span>
+            </div>
+          )}
+          {dayTotals.fareKrw > 0 && (
+            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
+              <Wallet className="h-3.5 w-3.5 text-[#7C5CFC]" />
+              <span className="text-[11.5px] font-bold text-white/80">₩{dayTotals.fareKrw.toLocaleString()}</span>
+              <span className="text-[10px] text-white/40">{trDict.dayFare || 'Fare'}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Delete confirmation */}

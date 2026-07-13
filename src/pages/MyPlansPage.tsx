@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Calendar, ChevronRight, Sparkles, Plane } from 'lucide-react';
+import { useLoyalty } from '@/hooks/useLoyalty';
+import { Calendar, ChevronRight, Sparkles, Plane, Package } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { MyBookingsTab } from '@/components/MyBookingsTab';
 // 2026-05-05: PendingClaimsWidget 제거 — free-claim funnel 폐기에 따라.
 // charter_inquiries 표시는 추후 재도입 시 별도 widget으로 분리.
+// 2026-07-13 (UIUX P2): 하단 내비 '예약' 랜딩 = 이 페이지 — AI 플랜 + 투어/차터 예약을
+// 탭으로 통합(My Bookings 카드형 목록). 예약 데이터·취소/변경은 MyBookingsTab 재사용
+// (단일 bookings 컬렉션 + /api/my-bookings, tier 는 refundPercent 표시에 쓰이므로 실값 전달).
 
 interface PlanRef {
   id: string;
@@ -25,9 +30,17 @@ interface PlanRef {
 export default function MyPlansPage() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
+  const { loyalty } = useLoyalty();
   const p = t.planner as unknown as Record<string, string>;
+  const mp = t.mypage as unknown as Record<string, string>;
   const [plans, setPlans] = useState<PlanRef[]>([]);
   const [loading, setLoading] = useState(true);
+  // ?tab=bookings 딥링크 허용 (탭 전환 시 URL 동기화 — 뒤로가기 시 탭 복원)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: 'plans' | 'bookings' = searchParams.get('tab') === 'bookings' ? 'bookings' : 'plans';
+  const setTab = (next: 'plans' | 'bookings') => {
+    setSearchParams(next === 'plans' ? {} : { tab: next }, { replace: true });
+  };
 
   usePageMeta({
     title: t.pageMeta?.myPlans?.title ||'My Plans — AI Travel Itineraries',
@@ -62,7 +75,34 @@ export default function MyPlansPage() {
           </div>
         </div>
 
-        {loading ? (
+        {/* ── 탭: AI 플랜 / 예약 (UIUX P2 My Bookings 통합뷰) ── */}
+        <div className="flex gap-2 mb-6">
+          {([
+            { id: 'plans' as const, label: p.my_plans || 'My Plans', icon: Sparkles },
+            { id: 'bookings' as const, label: mp.tabBookings || 'My Bookings', icon: Package },
+          ]).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors"
+              style={
+                tab === id
+                  ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff' }
+                  : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)' }
+              }
+            >
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'bookings' ? (
+          <MyBookingsTab
+            userEmail={user?.email ?? ''}
+            tier={loyalty?.tier || 'Bronze'}
+            language={(['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
+          />
+        ) : loading ? (
           <div className="space-y-4">
             {[1,2,3].map(i => (
               <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-5 animate-pulse">

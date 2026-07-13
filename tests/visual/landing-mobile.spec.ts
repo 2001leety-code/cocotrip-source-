@@ -12,7 +12,7 @@
  * 첫 baseline 생성: README.md "Baseline 생성" 섹션 참조 (Docker 명령).
  */
 import { test, expect } from '@playwright/test';
-import { suppressCookieBanner } from './helpers';
+import { suppressCookieBanner, stubWeatherUnavailable } from './helpers';
 
 test.describe('Landing page — mobile visual regression', () => {
   test.beforeEach(async ({ page }) => {
@@ -20,6 +20,10 @@ test.describe('Landing page — mobile visual regression', () => {
     // 영향 없지만, 대기 중 배너 1500ms 타이머를 넘겨 이후 clip 확장 시
     // 같은 flaky 재발 — 선제 차단.
     await suppressCookieBanner(page);
+
+    // 날씨 칩 비결정성 차단 — wttr.in 응답이 빠른 run 에서만 칩이 렌더되어
+    // baseline(칩 없음)과 diff (#1099 CI 2회 관측). goto 전에 등록.
+    await stubWeatherUnavailable(page);
 
     // P233/P244 패턴 (plan-detail-mobile.spec.ts 와 동일): networkidle 은 SPA 에서
     // chronic flaky — analytics beacon / Sentry / 폰트·이미지 로딩이 "500ms 무요청"

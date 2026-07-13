@@ -928,6 +928,7 @@
     "foodStreetSub": "시장 · 포장마차",
     "allergyHalal": "할랄",
     "allergyVegan": "비건",
+    "allergyVegetarian": "채식",
     "allergyNuts": "견과류 없음",
     "allergyShellfish": "갑각류 없음",
     "allergyGluten": "글루텐 프리",
@@ -1338,7 +1339,8 @@
     "aiCardTags": "5일 · 문화 · 자연 · 야경",
     "bestMatch": "최적 매칭",
     "viewFullPlan": "전체 일정 보기",
-    "smartPicks": "추천 픽"
+    "smartPicks": "추천 픽",
+    "searchPlaceholder": "여행지·명소 검색..."
   },
   "pwaInstall": {
     "modalTitle": "코코트립 바로가기 추가",
@@ -1526,6 +1528,9 @@
       "methodFerry": "페리",
       "walk": "도보",
       "totalWalk": "총 도보",
+      "dayWalk": "도보",
+      "dayTransit": "대중교통",
+      "dayFare": "교통비",
       "finalArrival": "도착",
       "showAllStops": "전체 정거장 보기",
       "alsoTransfers": "환승 가능",
@@ -1589,7 +1594,21 @@
       "insightTransfers": "환승 {n}회",
       "insightWalk": "도보 약 {min}분",
       "insightDuration": "대중교통 {min}분",
-      "insightCta": "프라이빗 차터로 편하게 이동하기"
+      "insightCta": "프라이빗 차터로 편하게 이동하기",
+      "badgeLessWalk": "도보 감소",
+      "badgeSaveTime": "시간 절약",
+      "badgeDoorToDoor": "도어투도어",
+      "badgeAddWhenNeeded": "필요할 때만"
+    },
+    "optimize": {
+      "panelTitle": "최적화 제안",
+      "timeTitle": "더 짧은 방문 순서가 있어요",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "새 순서 적용",
+      "transportTitle": "오늘 환승 {n}회",
+      "transportDetail": "프라이빗 차터면 이 하루를 문앞까지 한 번에",
+      "walkingTitle": "오늘 도보 약 {min}분",
+      "walkingDetail": "도보가 많은 날은 순서 조정이나 차터를 고려해 보세요"
     },
     "transitVsCharter": {
       "cardTitle": "오늘 이동 비교",
@@ -1807,6 +1826,12 @@
     "couponAdBody": "차터도 투어도 5% 할인. $9.90 플래너 본전 뽑고 남아요.",
     "couponAdCta": "AI 플래너 만들기",
     "useAiCoupon": "사용하기",
+    "walletAvailable": "사용 가능",
+    "walletUsed": "사용됨",
+    "walletExpired": "만료됨",
+    "walletEmptyAvailable": "지금 사용 가능한 쿠폰이 없어요.",
+    "walletEmptyUsed": "아직 사용한 쿠폰이 없어요.",
+    "walletEmptyExpired": "만료된 쿠폰이 없어요.",
     "tabOverview": "개요",
     "tabBookings": "내 예약",
     "tabCoupons": "쿠폰 ({n})",

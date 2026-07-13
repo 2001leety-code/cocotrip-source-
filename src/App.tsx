@@ -18,6 +18,8 @@ const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })))
 const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
 const ExampleItinerariesSection = lazy(() => import('@/sections/ExampleItinerariesSection').then(m => ({ default: m.ExampleItinerariesSection })));
 const BlogTeaser = lazy(() => import('@/sections/BlogTeaser').then(m => ({ default: m.BlogTeaser })));
+// UIUX 가이드 P2 6기능 총람 (2026-07-13) — eager 캡 보호 위해 lazy, i18n 도 chunk 내 로컬.
+const FeatureOverview = lazy(() => import('@/sections/FeatureOverview').then(m => ({ default: m.FeatureOverview })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 // MobileHome (mobile only)  → tours.ts (~92 KB raw) leak 방지
@@ -173,6 +175,7 @@ function HomePage() {
         <TrustBadges />
         <HeroCards t={t} />
         <Suspense fallback={null}>
+          <FeatureOverview />
           <ExampleItinerariesSection />
           <CustomerGallery />
           <GoogleReviews />

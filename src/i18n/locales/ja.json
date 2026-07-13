@@ -928,6 +928,7 @@
     "foodStreetSub": "市場・屋台",
     "allergyHalal": "ハラル",
     "allergyVegan": "ビーガン",
+    "allergyVegetarian": "ベジタリアン",
     "allergyNuts": "ナッツ不可",
     "allergyShellfish": "甲殻類不可",
     "allergyGluten": "グルテンフリー",
@@ -1415,7 +1416,8 @@
     "aiCardTags": "5日間 · 文化 · 自然 · 夜景",
     "bestMatch": "ベストマッチ",
     "viewFullPlan": "プラン全体を見る",
-    "smartPicks": "おすすめピック"
+    "smartPicks": "おすすめピック",
+    "searchPlaceholder": "目的地・観光スポットを検索..."
   },
   "pwaInstall": {
     "modalTitle": "CocoTripショートカット追加",
@@ -1526,6 +1528,9 @@
       "methodFerry": "フェリー",
       "walk": "徒歩",
       "totalWalk": "徒歩合計",
+      "dayWalk": "徒歩",
+      "dayTransit": "公共交通",
+      "dayFare": "交通費",
       "finalArrival": "到着",
       "showAllStops": "全駅を表示",
       "alsoTransfers": "乗換可能",
@@ -1589,7 +1594,21 @@
       "insightTransfers": "乗り換え{n}回",
       "insightWalk": "徒歩約{min}分",
       "insightDuration": "公共交通で{min}分",
-      "insightCta": "プライベートチャーターで快適に移動"
+      "insightCta": "プライベートチャーターで快適に移動",
+      "badgeLessWalk": "徒歩軽減",
+      "badgeSaveTime": "時間短縮",
+      "badgeDoorToDoor": "ドアツードア",
+      "badgeAddWhenNeeded": "必要な時だけ"
+    },
+    "optimize": {
+      "panelTitle": "最適化の提案",
+      "timeTitle": "より短い訪問順があります",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "新しい順序を適用",
+      "transportTitle": "本日の乗り換え{n}回",
+      "transportDetail": "プライベートチャーターなら1日ドアツードア",
+      "walkingTitle": "本日の徒歩 約{min}分",
+      "walkingDetail": "徒歩が多い日は順序の調整やチャーターをご検討ください"
     },
     "transitVsCharter": {
       "cardTitle": "本日の移動比較",
@@ -1807,6 +1826,12 @@
     "couponAdBody": "チャーターもツアーも5%割引。$9.90プランは十分に元が取れます。",
     "couponAdCta": "AIプラン作成",
     "useAiCoupon": "使う",
+    "walletAvailable": "利用可能",
+    "walletUsed": "使用済み",
+    "walletExpired": "期限切れ",
+    "walletEmptyAvailable": "現在利用可能なクーポンはありません。",
+    "walletEmptyUsed": "使用済みのクーポンはまだありません。",
+    "walletEmptyExpired": "期限切れのクーポンはありません。",
     "tabOverview": "概要",
     "tabBookings": "予約一覧",
     "tabCoupons": "クーポン ({n})",

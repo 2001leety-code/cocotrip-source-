@@ -4,7 +4,7 @@
 //   prefills destinationKey from the day's actual region/city (not hardcoded Seoul).
 //   Flag OFF (unset) -> current hardcoded URL byte-identical.
 // PR-C3 (2026-06-01): TransitVsCharterCard 비교 카드 (flag: VITE_FEATURE_TRANSIT_VS_CHARTER).
-import { Car } from 'lucide-react';
+import { Car, Footprints, Timer, DoorOpen, Sparkles } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { detectCharterRecommendation } from '@/data/charterPricing';
 import { formatKRW } from '../constants';
@@ -85,6 +85,20 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
             </p>
           )}
         </div>
+      </div>
+      {/* UIUX P5 (2026-07-13): 가치 4배지 — 차터 장점(진실 static). */}
+      <div className="mt-3 grid grid-cols-2 gap-1.5">
+        {[
+          { icon: Footprints, label: ch.badgeLessWalk || 'Less walking' },
+          { icon: Timer, label: ch.badgeSaveTime || 'Save time' },
+          { icon: DoorOpen, label: ch.badgeDoorToDoor || 'Door to door' },
+          { icon: Sparkles, label: ch.badgeAddWhenNeeded || 'Add only when needed' },
+        ].map(({ icon: Icon, label }) => (
+          <div key={label} className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-[#7C5CFC]" />
+            <span className="text-[11px] font-semibold text-white/65 leading-tight">{label}</span>
+          </div>
+        ))}
       </div>
       <a
         href={charterHref}

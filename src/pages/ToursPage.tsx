@@ -4,10 +4,10 @@
 // 통합 시: App.tsx 라우터에 <Route path="/tours" element={<ToursPage />} /> 추가
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Package, ShieldCheck, CreditCard, Phone,
-  ChevronRight, Languages, ArrowUpDown, ExternalLink,
+  ChevronRight, Languages, ArrowUpDown, ExternalLink, Search, X,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -20,6 +20,7 @@ import type { TourRegion, DriverLanguage, TourTag } from '@/data/tours';
 import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
 import { trackEvent, trackAdClick } from '@/lib/analytics';
+import { matchesTourQuery } from '@/lib/tourSearch';
 
 type SortKey = 'default' | 'price-asc' | 'price-desc';
 
@@ -41,6 +42,9 @@ const TL = {
     seoTitle: 'CocoTrip 투어 — 한국 프라이빗 투어',
     seoDesc: '서울·부산·제주 전세차량 투어. 톨비·주차비 포함, PayPal 안심결제.',
     noResults: '해당 지역 투어 상품이 없습니다',
+    noSearchResults: '검색어와 일치하는 투어가 없어요',
+    searchPlaceholder: '여행지·명소 검색...',
+    clearSearch: '검색어 지우기',
   },
   en: {
     pageTitle: 'Tours',
@@ -56,6 +60,9 @@ const TL = {
     seoTitle: 'CocoTrip Tours — Korea Private Tours',
     seoDesc: 'Seoul, Busan & Jeju private van tours. Tolls and parking included. PayPal secure.',
     noResults: 'No tours available for this region',
+    noSearchResults: 'No tours match your search',
+    searchPlaceholder: 'Search destinations, attractions...',
+    clearSearch: 'Clear search',
   },
   ja: {
     pageTitle: 'ツアー',
@@ -71,6 +78,9 @@ const TL = {
     seoTitle: 'CocoTrip ツアー — 韓国プライベートツアー',
     seoDesc: 'ソウル・釜山・済州の専用バンツアー。通行料・駐車場込み。PayPal安全決済。',
     noResults: 'このエリアのツアーはありません',
+    noSearchResults: '検索に一致するツアーがありません',
+    searchPlaceholder: '目的地・観光スポットを検索...',
+    clearSearch: '検索をクリア',
   },
   zh: {
     pageTitle: '旅游产品',
@@ -86,6 +96,9 @@ const TL = {
     seoTitle: 'CocoTrip 旅游 — 韩国私人包车游',
     seoDesc: '首尔、釜山和济州私人包车游览，含过路费·停车费，PayPal安全支付。',
     noResults: '该地区暂无旅游产品',
+    noSearchResults: '没有符合搜索的旅游产品',
+    searchPlaceholder: '搜索目的地、景点...',
+    clearSearch: '清除搜索',
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -95,6 +108,9 @@ export default function ToursPage() {
   const isMobile = useIsMobile();
   const tl = TL[language] || TL.en;
 
+  // 홈 검색바(?q=) 시딩 — 초기값만 URL에서 읽고, 타이핑마다 history 는 쌓지 않음.
+  const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
   const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
   const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
   // Interests 필터 (UIUX 가이드 P7 'Filter Your Interests') — TourTag 실데이터만 칩으로 노출.
@@ -138,7 +154,9 @@ export default function ToursPage() {
   };
 
   const regionTours = getToursByRegion(activeRegion);
+
   const filteredTours = regionTours.filter(t => {
+    if (!matchesTourQuery(t, searchQuery)) return false;
     if (activeDuration === 'Day'   && t.durationDays !== 1)  return false;
     if (activeDuration === 'Short' && !(t.durationDays === 2 || t.durationDays === 3)) return false;
     if (activeDuration === 'Long'  && t.durationDays < 4)    return false;
@@ -296,6 +314,33 @@ export default function ToursPage() {
             border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
+        {/* 텍스트 검색 (가이드 P7 Discover) — 홈 검색바 ?q= 시딩과 연동 */}
+        <div
+          className="mb-3 flex items-center gap-2.5 rounded-full px-4 py-2.5"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
+        >
+          <Search className="w-4 h-4 shrink-0 text-white/45" aria-hidden />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={tl.searchPlaceholder}
+            aria-label={tl.searchPlaceholder}
+            enterKeyHint="search"
+            className="w-full bg-transparent text-[13px] font-medium text-white outline-none placeholder:text-white/35"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label={tl.clearSearch}
+              className="shrink-0 text-white/45 hover:text-white/80"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         <div className="flex items-center justify-between gap-3 mb-2.5">
           <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold">
             {tl.filterLabel}
@@ -438,7 +483,7 @@ export default function ToursPage() {
             >
               <Package className="w-7 h-7" style={{ color: 'rgba(182,104,252,0.5)' }} />
             </div>
-            <p className="text-[14px] text-white/55">{tl.noResults}</p>
+            <p className="text-[14px] text-white/55">{searchQuery.trim() ? tl.noSearchResults : tl.noResults}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">

@@ -106,6 +106,48 @@ export async function uploadTourPhoto(
   });
 }
 
+/**
+ * 커뮤니티 글 사진 업로드 (UIUX P9, 2026-07-13).
+ * 경로: community/{uid}/{ts}-{name} — storage.rules 가 본인 경로 + 5MB + image/* 강제.
+ * 반환: 다운로드 URL (community-posts API 가 본인 경로 여부를 서버측 재검증).
+ */
+export async function uploadCommunityPhoto(
+  uid: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  if (!uid) throw new Error('로그인이 필요합니다.');
+  if (!file) throw new Error('파일이 비어있습니다.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('파일이 너무 큽니다 (최대 5MB).');
+  if (!file.type.startsWith('image/')) throw new Error('이미지만 업로드할 수 있습니다.');
+
+  const path = `community/${uid}/${Date.now()}-${sanitizeFilename(file.name)}`;
+  const task = uploadBytesResumable(ref(storage, path), file, { contentType: file.type });
+
+  let lastEmit = 0;
+  return new Promise<string>((resolve, reject) => {
+    task.on(
+      'state_changed',
+      (snap) => {
+        const pct = snap.totalBytes > 0 ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0;
+        const now = Date.now();
+        if (now - lastEmit >= 100 || pct === 100) {
+          lastEmit = now;
+          onProgress?.(pct);
+        }
+      },
+      (err) => reject(new Error(`업로드 실패: ${err.message || err.code || 'unknown'}`)),
+      async () => {
+        try {
+          resolve(await getDownloadURL(task.snapshot.ref));
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      },
+    );
+  });
+}
+
 /** URL 로부터 storage 객체 삭제. 객체 없음 에러는 idempotent 하게 무시. */
 export async function deleteTourPhoto(url: string): Promise<void> {
   if (!url || !url.startsWith('http')) return;

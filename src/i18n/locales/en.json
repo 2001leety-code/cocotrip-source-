@@ -928,6 +928,7 @@
     "foodStreetSub": "Markets · Stalls",
     "allergyHalal": "Halal",
     "allergyVegan": "Vegan",
+    "allergyVegetarian": "Vegetarian",
     "allergyNuts": "No Nuts",
     "allergyShellfish": "No Shellfish",
     "allergyGluten": "Gluten Free",
@@ -1415,7 +1416,8 @@
     "aiCardTags": "5 Days · Culture · Nature · Night View",
     "bestMatch": "Best Match",
     "viewFullPlan": "View Full Plan",
-    "smartPicks": "Smart Picks"
+    "smartPicks": "Smart Picks",
+    "searchPlaceholder": "Search destinations, attractions..."
   },
   "pwaInstall": {
     "modalTitle": "Add CocoTrip Shortcut",
@@ -1526,6 +1528,9 @@
       "methodFerry": "Ferry",
       "walk": "Walk",
       "totalWalk": "Total walk",
+      "dayWalk": "Walking",
+      "dayTransit": "Transit",
+      "dayFare": "Fare",
       "finalArrival": "Arrival",
       "showAllStops": "Show all stops",
       "alsoTransfers": "Also transfers",
@@ -1589,7 +1594,21 @@
       "insightTransfers": "{n} transfers",
       "insightWalk": "~{min} min walking",
       "insightDuration": "{min} min by transit",
-      "insightCta": "Skip it with a private charter"
+      "insightCta": "Skip it with a private charter",
+      "badgeLessWalk": "Less walking",
+      "badgeSaveTime": "Save time",
+      "badgeDoorToDoor": "Door to door",
+      "badgeAddWhenNeeded": "Add only when needed"
+    },
+    "optimize": {
+      "panelTitle": "Optimize suggestions",
+      "timeTitle": "Shorter route order available",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "Apply new order",
+      "transportTitle": "{n} transfers today",
+      "transportDetail": "A private charter covers this day door-to-door",
+      "walkingTitle": "~{min} min of walking today",
+      "walkingDetail": "Consider reordering stops or a charter for heavy-walk days"
     },
     "transitVsCharter": {
       "cardTitle": "Today's Transit Comparison",
@@ -1807,6 +1826,12 @@
     "couponAdBody": "Book a charter and a tour — save 5% on both. The $9.90 planner pays for itself.",
     "couponAdCta": "Make AI plan",
     "useAiCoupon": "Use now",
+    "walletAvailable": "Available",
+    "walletUsed": "Used",
+    "walletExpired": "Expired",
+    "walletEmptyAvailable": "No available coupons right now.",
+    "walletEmptyUsed": "No used coupons yet.",
+    "walletEmptyExpired": "No expired coupons.",
     "tabOverview": "Overview",
     "tabBookings": "My Bookings",
     "tabCoupons": "Coupons ({n})",

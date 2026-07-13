@@ -928,6 +928,7 @@
     "foodStreetSub": "市场·小吃摊",
     "allergyHalal": "清真",
     "allergyVegan": "纯素",
+    "allergyVegetarian": "素食",
     "allergyNuts": "无坚果",
     "allergyShellfish": "无贝类",
     "allergyGluten": "无麸质",
@@ -1415,7 +1416,8 @@
     "aiCardTags": "5天 · 文化 · 自然 · 夜景",
     "bestMatch": "最佳匹配",
     "viewFullPlan": "查看完整行程",
-    "smartPicks": "智能推荐"
+    "smartPicks": "智能推荐",
+    "searchPlaceholder": "搜索目的地、景点..."
   },
   "pwaInstall": {
     "modalTitle": "添加CocoTrip快捷方式",
@@ -1526,6 +1528,9 @@
       "methodFerry": "渡轮",
       "walk": "步行",
       "totalWalk": "步行总计",
+      "dayWalk": "步行",
+      "dayTransit": "公共交通",
+      "dayFare": "交通费",
       "finalArrival": "到达",
       "showAllStops": "显示所有站点",
       "alsoTransfers": "可换乘",
@@ -1589,7 +1594,21 @@
       "insightTransfers": "换乘{n}次",
       "insightWalk": "步行约{min}分钟",
       "insightDuration": "公共交通{min}分钟",
-      "insightCta": "改用包车轻松直达"
+      "insightCta": "改用包车轻松直达",
+      "badgeLessWalk": "减少步行",
+      "badgeSaveTime": "节省时间",
+      "badgeDoorToDoor": "门到门",
+      "badgeAddWhenNeeded": "按需添加"
+    },
+    "optimize": {
+      "panelTitle": "优化建议",
+      "timeTitle": "有更短的游览顺序",
+      "timeDetail": "{cur} km → {new} km (−{pct}%)",
+      "timeApply": "应用新顺序",
+      "transportTitle": "今天换乘{n}次",
+      "transportDetail": "私人包车可全天门到门直达",
+      "walkingTitle": "今天步行约{min}分钟",
+      "walkingDetail": "步行较多的日子，建议调整顺序或选择包车"
     },
     "transitVsCharter": {
       "cardTitle": "今日出行对比",
@@ -1807,6 +1826,12 @@
     "couponAdBody": "包车和行程各省5%。$9.90 行程规划物超所值。",
     "couponAdCta": "制作 AI 行程",
     "useAiCoupon": "立即使用",
+    "walletAvailable": "可使用",
+    "walletUsed": "已使用",
+    "walletExpired": "已过期",
+    "walletEmptyAvailable": "当前没有可使用的优惠券。",
+    "walletEmptyUsed": "还没有已使用的优惠券。",
+    "walletEmptyExpired": "没有已过期的优惠券。",
     "tabOverview": "概览",
     "tabBookings": "我的预订",
     "tabCoupons": "优惠券 ({n})",

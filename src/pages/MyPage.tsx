@@ -75,6 +75,8 @@ export default function MyPage() {
   };
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
+  // UIUX 가이드 P8 쿠폰 지갑 — Available/Used/Expired 탭 필터 (2026-07-13)
+  const [walletFilter, setWalletFilter] = useState<'available' | 'used' | 'expired'>('available');
 
   // Travel-dashboard data — D-day to next trip + recent plans + weather.
   // Mirrors what MobileHome does so the dashboard reflects the same state
@@ -488,32 +490,60 @@ export default function MyPage() {
               </p>
             </div>
 
-            {/* 기존 쿠폰 리스트 */}
+            {/* 쿠폰 지갑 탭 (UIUX P8) — Available/Used/Expired. 실쿠폰(useLoyalty)만, 가짜 수치 없음. */}
+            {coupons.length > 0 && (() => {
+              const now = Date.now();
+              const counts = {
+                available: coupons.filter((c) => !c.isUsed && c.expiresAt > now).length,
+                used: coupons.filter((c) => c.isUsed).length,
+                expired: coupons.filter((c) => !c.isUsed && c.expiresAt <= now).length,
+              };
+              const tabs: { key: 'available' | 'used' | 'expired'; label: string }[] = [
+                { key: 'available', label: `${mp.walletAvailable || 'Available'} (${counts.available})` },
+                { key: 'used', label: `${mp.walletUsed || 'Used'} (${counts.used})` },
+                { key: 'expired', label: `${mp.walletExpired || 'Expired'} (${counts.expired})` },
+              ];
+              return (
+                <div className="flex gap-2">
+                  {tabs.map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setWalletFilter(key)}
+                      className="px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors"
+                      style={
+                        walletFilter === key
+                          ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff' }
+                          : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)' }
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* 쿠폰 리스트 (지갑 필터 적용) */}
             <div className="space-y-3">
-              {coupons.length === 0 ? (
-                /* AI-planner ad — same copy as PayPal checkout picker. */
-                <Link
-                  to="/planner"
-                  onClick={() => haptic('tap')}
-                  className="block rounded-xl border border-[#7C5CFC]/25 p-4 hover:border-[#7C5CFC]/45 transition-all"
-                  style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
-                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{mp.couponAdBody || 'Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.'}</p>
-                      <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
-                        {mp.couponAdCta || 'Make AI plan'}
-                        <ChevronRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ) : coupons.map(c => (
+              {(() => {
+                if (coupons.length === 0) return null;
+                const now = Date.now();
+                const filtered = coupons.filter((c) => {
+                  if (walletFilter === 'available') return !c.isUsed && c.expiresAt > now;
+                  if (walletFilter === 'used') return c.isUsed;
+                  return !c.isUsed && c.expiresAt <= now; // expired
+                });
+                if (filtered.length === 0) {
+                  const emptyMsg = walletFilter === 'available'
+                    ? (mp.walletEmptyAvailable || 'No available coupons.')
+                    : walletFilter === 'used'
+                      ? (mp.walletEmptyUsed || 'No used coupons yet.')
+                      : (mp.walletEmptyExpired || 'No expired coupons.');
+                  return (
+                    <p className="text-center text-white/45 text-[13px] py-8">{emptyMsg}</p>
+                  );
+                }
+                return filtered.map((c) => (
               <div
                 key={c.id}
                 className={`p-4 rounded-xl border transition-all ${
@@ -548,7 +578,7 @@ export default function MyPage() {
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <code className="text-xs bg-white/5 px-2 py-0.5 rounded text-[#C4956A]">{c.code}</code>
-                  {c.isUsed && <span className="text-[10px] text-red-400/60 uppercase">Used</span>}
+                  {c.isUsed && <span className="text-[10px] text-red-400/60 uppercase">{mp.walletUsed || 'Used'}</span>}
                 </div>
                 {/* AI 무료쿠폰(ai-plan)은 쿠폰함 경유로 사용 (2026-06-28): "사용하기" →
                     /planner?coupon=CODE. PurchaseSection 이 URL 코드를 검증 후 0원 적용. */}
@@ -564,7 +594,32 @@ export default function MyPage() {
                   </Link>
                 )}
               </div>
-            ))}
+                ));
+              })()}
+              {coupons.length === 0 && (
+                /* AI-planner ad — same copy as PayPal checkout picker. */
+                <Link
+                  to="/planner"
+                  onClick={() => haptic('tap')}
+                  className="block rounded-xl border border-[#7C5CFC]/25 p-4 hover:border-[#7C5CFC]/45 transition-all"
+                  style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
+                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{mp.couponAdBody || 'Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.'}</p>
+                      <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
+                        {mp.couponAdCta || 'Make AI plan'}
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              )}
             </div>
           </div>
         )}

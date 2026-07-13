@@ -51,6 +51,48 @@ function sanitizeName(raw) {
   return (s || 'Traveler').slice(0, 30);
 }
 
+/**
+ * 앱 자체 Storage 버킷 화이트리스트 (핫링크·외부버킷 주입 차단, 2026-07-13 리뷰 fix).
+ * 프로젝트 버킷은 `{projectId}.appspot.com`(레거시) 또는 `{projectId}.firebasestorage.app`(신규).
+ * FIREBASE_STORAGE_BUCKET 명시값도 허용. 하나도 못 구하면 fail-closed(빈 set → 전 이미지 거부).
+ */
+function allowedBuckets() {
+  const set = new Set();
+  const pid = (process.env.FIREBASE_PROJECT_ID || '').trim();
+  if (pid) { set.add(`${pid}.appspot.com`); set.add(`${pid}.firebasestorage.app`); }
+  const explicit = (process.env.FIREBASE_STORAGE_BUCKET || '').trim();
+  if (explicit) set.add(explicit);
+  return set;
+}
+
+/**
+ * 사진 첨부 검증 (UIUX P9, 2026-07-13) — 본인 Firebase Storage community/{uid}/ 경로의
+ * 다운로드 URL 만 허용. 임의 외부 URL(핫링크·피싱 이미지)·타인 경로·타 프로젝트 버킷 주입 차단.
+ * 다운로드 URL 형식: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>?...
+ * ⚠️ 버킷 세그먼트를 반드시 앱 자체 버킷과 대조(리뷰 fix): firebasestorage.googleapis.com 은
+ *    전 세계 Firebase 프로젝트 공용 호스트라 host 만 검사하면 공격자 버킷 이미지가 통과됨.
+ */
+export function sanitizeImages(rawImages, uid) {
+  if (!Array.isArray(rawImages)) return [];
+  const buckets = allowedBuckets();
+  if (buckets.size === 0) return []; // 버킷 확인 불가 = fail-closed
+  const out = [];
+  for (const raw of rawImages.slice(0, 3)) {
+    if (typeof raw !== 'string') continue;
+    let url;
+    try { url = new URL(raw); } catch { continue; }
+    if (url.protocol !== 'https:' || url.hostname !== 'firebasestorage.googleapis.com') continue;
+    const m = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+    if (!m) continue;
+    if (!buckets.has(m[1])) continue; // 앱 자체 버킷만
+    let objectPath;
+    try { objectPath = decodeURIComponent(m[2]); } catch { continue; }
+    if (!objectPath.startsWith(`community/${uid}/`)) continue;
+    out.push(raw);
+  }
+  return out;
+}
+
 export function serializePost(id, d) {
   return {
     id,
@@ -65,6 +107,7 @@ export function serializePost(id, d) {
     replyCount: d.replyCount || 0,
     createdAt: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : null,
     translations: d.translations || {},
+    images: Array.isArray(d.images) ? d.images : [],
   };
 }
 
@@ -139,6 +182,8 @@ async function handlePost(req, res, db) {
   const combined = `${title}\n${text}`;
   const needsReview = CONTACT_RE.test(combined);
   const lang = await detectLanguage(combined);
+  // 사진 첨부 (UIUX P9): 본인 community/{uid}/ Storage 경로만 최대 3장
+  const images = sanitizeImages(body.images, auth.uid);
 
   const docRef = await db.collection('community_posts').add({
     title,
@@ -154,6 +199,7 @@ async function handlePost(req, res, db) {
     status: needsReview ? 'review' : 'active',
     createdAt: FieldValue.serverTimestamp(),
     translations: {},
+    images,
   });
 
   if (needsReview) {

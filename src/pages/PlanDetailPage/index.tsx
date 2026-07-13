@@ -33,6 +33,7 @@ import { ReviewList } from '@/components/ReviewList';
 import { useAutoTranslate } from './useAutoTranslate';
 import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
+import { computePlanKm } from './lib/transitVsCharter';
 import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
 import { ErrorState } from './components/ErrorState';
@@ -111,6 +112,8 @@ function MobilePlanResultHero({
   const days = plan.itinerary?.days || [];
   const title = plan.itinerary?.tour_title || 'Your Korea Itinerary';
   const stopCount = days.reduce((sum, day) => sum + (day.stops?.length || 0), 0);
+  // UIUX P4 (2026-07-13): Trip Overview 총 이동거리 km — 좌표 있는 구간만 haversine 합(없으면 null→'-').
+  const totalKm = computePlanKm(days as Array<{ stops?: { lat?: number; lng?: number }[] }>);
   const primaryRegion = getPrimaryRegion(plan);
   const heroImage = getHeroImage(plan);
   // startDate = 표시 전용 원문(첫날, inclusive) — 날짜 산술 없음, 기간 계산은 days.length 사용
@@ -196,11 +199,12 @@ function MobilePlanResultHero({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className={`mt-3 grid gap-2 ${totalKm != null ? 'grid-cols-4' : 'grid-cols-3'}`}>
         {[
           { icon: CalendarDays, label: 'Days', value: String(days.length || '-') },
           { icon: MapPinned, label: 'Stops', value: String(stopCount || '-') },
           { icon: Users, label: 'Travelers', value: pax > 0 ? String(pax) : '-' },
+          ...(totalKm != null ? [{ icon: Route, label: 'Distance', value: `${totalKm}km` }] : []),
         ].map((item) => (
           <div key={item.label} className="plan-mobile-stat">
             <ResultIcon icon={item.icon} />
@@ -666,6 +670,7 @@ export default function PlanDetailPage() {
                 isRecalculating={editor.isRecalculating}
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
+                onApplyOrder={(di, order) => editor.applyStopOrder(di, order, token)}
                 plan={plan}
                 isOwner={isOwner}
               />
