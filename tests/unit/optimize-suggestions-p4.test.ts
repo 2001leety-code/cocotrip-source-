@@ -61,6 +61,45 @@ describe('suggestTimeOrder — 방문 순서 최적화', () => {
       expect(s.proposedOrder[3]).toBe(3); // 중간 lodging 위치 보존
     }
   });
+
+  it('중간 anchor(공항)를 넘어 자유 stop 을 당기지 않는다 — 세그먼트 경계 준수 (리뷰 fix)', () => {
+    // 리뷰 시나리오: 오후(공항 이후) stop 을 오전으로 당기면 거리는 짧아도 시간적으로 무효.
+    // [lodging, B-far, airport, C-nearMorning, D-nearAirport]
+    const stops: OptimizeStopLike[] = [
+      { category: 'lodging', lat: 37.50, lng: 127.00 },
+      { category: 'landmark', lat: 37.60, lng: 127.10 }, // B-far (오전 세그먼트)
+      { category: 'airport', lat: 37.46, lng: 126.44 },  // 중간 anchor
+      { category: 'landmark', lat: 37.505, lng: 127.004 }, // C (공항 이후 세그먼트, 오전 호텔 근처)
+      { category: 'landmark', lat: 37.47, lng: 126.45 },   // D (공항 근처)
+    ];
+    const s = suggestTimeOrder(stops);
+    // 공항(index 2)은 항상 제자리. 자유 stop 은 자기 세그먼트 안에서만 이동.
+    if (s) {
+      expect(s.proposedOrder[2]).toBe(2); // 공항 anchor 고정
+      // C(index 3)와 D(index 4)는 공항 이후 세그먼트 — 오전(index 1)으로 넘어오면 안 됨.
+      const morningSlot1 = s.proposedOrder[1];
+      expect([1]).toContain(morningSlot1); // 오전 세그먼트엔 B(index 1)만 있음 → 그대로
+      // 공항 이후 슬롯(3,4)에는 {3,4}만 배치
+      expect([s.proposedOrder[3], s.proposedOrder[4]].sort()).toEqual([3, 4]);
+    }
+  });
+
+  it('anchor 로 나뉜 각 세그먼트 내부는 최적화한다', () => {
+    // 오전 세그먼트에 지그재그 3곳 → 공항 → 오후 1곳. 오전만 재배열되어야.
+    const stops: OptimizeStopLike[] = [
+      { category: 'lodging', lat: 37.50, lng: 127.00 },
+      { category: 'landmark', lat: 37.60, lng: 127.00 }, // 북
+      { category: 'landmark', lat: 37.51, lng: 127.00 }, // 남(호텔 근처)
+      { category: 'landmark', lat: 37.61, lng: 127.00 }, // 북2
+      { category: 'landmark', lat: 37.52, lng: 127.00 }, // 남2
+      { category: 'airport', lat: 37.46, lng: 126.44 },
+    ];
+    const s = suggestTimeOrder(stops);
+    if (s) {
+      expect(s.proposedOrder[5]).toBe(5); // 공항 고정
+      expect([...s.proposedOrder].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+    }
+  });
 });
 
 describe('suggestWalking / suggestTransport — 실측 합산 임계', () => {

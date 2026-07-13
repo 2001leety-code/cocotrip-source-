@@ -1821,6 +1821,7 @@
     "walletAvailable": "사용 가능",
     "walletUsed": "사용됨",
     "walletExpired": "만료됨",
+    "walletEmptyAvailable": "지금 사용 가능한 쿠폰이 없어요.",
     "walletEmptyUsed": "아직 사용한 쿠폰이 없어요.",
     "walletEmptyExpired": "만료된 쿠폰이 없어요.",
     "tabOverview": "개요",

@@ -1821,6 +1821,7 @@
     "walletAvailable": "利用可能",
     "walletUsed": "使用済み",
     "walletExpired": "期限切れ",
+    "walletEmptyAvailable": "現在利用可能なクーポンはありません。",
     "walletEmptyUsed": "使用済みのクーポンはまだありません。",
     "walletEmptyExpired": "期限切れのクーポンはありません。",
     "tabOverview": "概要",

@@ -42,6 +42,7 @@ const TL = {
     seoTitle: 'CocoTrip 투어 — 한국 프라이빗 투어',
     seoDesc: '서울·부산·제주 전세차량 투어. 톨비·주차비 포함, PayPal 안심결제.',
     noResults: '해당 지역 투어 상품이 없습니다',
+    noSearchResults: '검색어와 일치하는 투어가 없어요',
     searchPlaceholder: '여행지·명소 검색...',
     clearSearch: '검색어 지우기',
   },
@@ -59,6 +60,7 @@ const TL = {
     seoTitle: 'CocoTrip Tours — Korea Private Tours',
     seoDesc: 'Seoul, Busan & Jeju private van tours. Tolls and parking included. PayPal secure.',
     noResults: 'No tours available for this region',
+    noSearchResults: 'No tours match your search',
     searchPlaceholder: 'Search destinations, attractions...',
     clearSearch: 'Clear search',
   },
@@ -76,6 +78,7 @@ const TL = {
     seoTitle: 'CocoTrip ツアー — 韓国プライベートツアー',
     seoDesc: 'ソウル・釜山・済州の専用バンツアー。通行料・駐車場込み。PayPal安全決済。',
     noResults: 'このエリアのツアーはありません',
+    noSearchResults: '検索に一致するツアーがありません',
     searchPlaceholder: '目的地・観光スポットを検索...',
     clearSearch: '検索をクリア',
   },
@@ -93,6 +96,7 @@ const TL = {
     seoTitle: 'CocoTrip 旅游 — 韩国私人包车游',
     seoDesc: '首尔、釜山和济州私人包车游览，含过路费·停车费，PayPal安全支付。',
     noResults: '该地区暂无旅游产品',
+    noSearchResults: '没有符合搜索的旅游产品',
     searchPlaceholder: '搜索目的地、景点...',
     clearSearch: '清除搜索',
   },
@@ -479,7 +483,7 @@ export default function ToursPage() {
             >
               <Package className="w-7 h-7" style={{ color: 'rgba(182,104,252,0.5)' }} />
             </div>
-            <p className="text-[14px] text-white/55">{tl.noResults}</p>
+            <p className="text-[14px] text-white/55">{searchQuery.trim() ? tl.noSearchResults : tl.noResults}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">

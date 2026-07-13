@@ -534,10 +534,13 @@ export default function MyPage() {
                   return !c.isUsed && c.expiresAt <= now; // expired
                 });
                 if (filtered.length === 0) {
+                  const emptyMsg = walletFilter === 'available'
+                    ? (mp.walletEmptyAvailable || 'No available coupons.')
+                    : walletFilter === 'used'
+                      ? (mp.walletEmptyUsed || 'No used coupons yet.')
+                      : (mp.walletEmptyExpired || 'No expired coupons.');
                   return (
-                    <p className="text-center text-white/45 text-[13px] py-8">
-                      {walletFilter === 'used' ? (mp.walletEmptyUsed || 'No used coupons yet.') : (mp.walletEmptyExpired || 'No expired coupons.')}
-                    </p>
+                    <p className="text-center text-white/45 text-[13px] py-8">{emptyMsg}</p>
                   );
                 }
                 return filtered.map((c) => (

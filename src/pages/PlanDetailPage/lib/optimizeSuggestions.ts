@@ -78,67 +78,101 @@ export interface TimeSuggestion {
 }
 
 /**
+ * 고정 anchor(첫 stop·lodging·travel·airport)로 하루를 세그먼트 분할.
+ * anchor 는 위치 고정 — 자유 stop 은 자기 세그먼트(같은 두 anchor 사이) 안에서만 재배열.
+ * 이렇게 안 하면 오후 stop 이 공항 anchor 를 넘어 오전으로 당겨지는 시간적 무효 순서 발생(리뷰 fix).
+ * 반환: 각 세그먼트 = 그 안의 자유 stop 인덱스 배열(원래 방문 순서). anchor 인덱스는 제외.
+ */
+function freeSegments(stops: OptimizeStopLike[]): number[][] {
+  const segments: number[][] = [];
+  let cur: number[] = [];
+  stops.forEach((s, i) => {
+    const fixed = i === 0 || FIXED_CATEGORIES.has(String(s.category || ''));
+    if (fixed) {
+      if (cur.length > 0) { segments.push(cur); cur = []; }
+    } else {
+      cur.push(i);
+    }
+  });
+  if (cur.length > 0) segments.push(cur);
+  return segments;
+}
+
+/**
+ * 한 세그먼트(자유 stop 인덱스 배열) 내부 최적 방문 순서.
+ * prevAnchorIdx = 세그먼트 직전 고정 stop 인덱스(없으면 -1, greedy 시작점 없음).
+ * ≤6 이면 완전탐색, 그 이상은 nearest-neighbor 근사. 반환: 재배열된 인덱스 배열.
+ */
+function optimizeSegment(stops: OptimizeStopLike[], seg: number[], prevAnchorIdx: number): number[] {
+  if (seg.length <= 1) return [...seg];
+  const localPath = (perm: number[]): number => {
+    let total = 0;
+    let prev = prevAnchorIdx >= 0 ? prevAnchorIdx : perm[0];
+    const startK = prevAnchorIdx >= 0 ? 0 : 1;
+    for (let k = startK; k < perm.length; k++) {
+      total += haversineKm(stops[prev].lat!, stops[prev].lng!, stops[perm[k]].lat!, stops[perm[k]].lng!);
+      prev = perm[k];
+    }
+    return total;
+  };
+  if (seg.length <= MAX_FREE_BRUTE) {
+    let best = [...seg];
+    let bestKm = localPath(seg);
+    for (const perm of permutations(seg)) {
+      const km = localPath(perm);
+      if (km < bestKm) { bestKm = km; best = perm; }
+    }
+    return best;
+  }
+  // greedy nearest-neighbor
+  const remaining = new Set(seg);
+  const order: number[] = [];
+  let prev = prevAnchorIdx >= 0 ? prevAnchorIdx : seg[0];
+  if (prevAnchorIdx < 0) { order.push(seg[0]); remaining.delete(seg[0]); prev = seg[0]; }
+  while (remaining.size > 0) {
+    let nearest = -1;
+    let nearestKm = Infinity;
+    remaining.forEach((idx) => {
+      const km = haversineKm(stops[prev].lat!, stops[prev].lng!, stops[idx].lat!, stops[idx].lng!);
+      if (km < nearestKm) { nearestKm = km; nearest = idx; }
+    });
+    remaining.delete(nearest);
+    order.push(nearest);
+    prev = nearest;
+  }
+  return order;
+}
+
+/**
  * 방문 순서 최적화 제안. 조건:
  *  - 모든 stop 에 실좌표 존재 (하나라도 없으면 null — 부분 좌표로 오제안 금지)
  *  - 자유 stop(고정 카테고리·첫 stop 제외) ≥ 3
  *  - 개선폭 ≥ 15% AND ≥ 0.8km
- * 자유 stop ≤ 6 이면 완전탐색(최적해), 그 이상은 nearest-neighbor 근사.
+ * anchor(lodging/travel/airport)는 위치 고정 — 자유 stop 은 자기 세그먼트 안에서만 재배열.
  */
 export function suggestTimeOrder(stops: OptimizeStopLike[] | null | undefined): TimeSuggestion | null {
   if (!Array.isArray(stops) || stops.length < 4) return null;
   if (!stops.every(hasCoords)) return null;
 
-  const freeIdx: number[] = [];
-  const slots: number[] = []; // 자유 stop 이 들어가는 위치들
-  stops.forEach((s, i) => {
-    const fixed = i === 0 || FIXED_CATEGORIES.has(String(s.category || ''));
-    if (!fixed) {
-      freeIdx.push(i);
-      slots.push(i);
-    }
-  });
-  if (freeIdx.length < 3) return null;
+  const segments = freeSegments(stops);
+  const totalFree = segments.reduce((n, s) => n + s.length, 0);
+  if (totalFree < 3) return null;
 
   const currentOrder = stops.map((_, i) => i);
   const currentKm = pathKm(stops, currentOrder);
   if (currentKm <= 0) return null;
 
-  const buildOrder = (freePerm: number[]): number[] => {
-    const order = [...currentOrder];
-    slots.forEach((slot, k) => { order[slot] = freePerm[k]; });
-    return order;
-  };
-
-  let bestOrder = currentOrder;
-  let bestKm = currentKm;
-
-  if (freeIdx.length <= MAX_FREE_BRUTE) {
-    for (const perm of permutations(freeIdx)) {
-      const order = buildOrder(perm);
-      const km = pathKm(stops, order);
-      if (km < bestKm) { bestKm = km; bestOrder = order; }
-    }
-  } else {
-    // greedy nearest-neighbor: 슬롯을 앞에서부터 채우며, 직전 위치(고정 stop 또는
-    // 이미 채운 슬롯)의 stop 에서 가장 가까운 자유 stop 을 선택. 슬롯이 비연속
-    // (사이에 고정 stop)이어도 order[slot-1] 은 항상 확정 상태.
-    const order = [...currentOrder];
-    const remaining = new Set(freeIdx);
-    slots.forEach((slot) => {
-      const prev = stops[order[slot - 1]];
-      let nearest = -1;
-      let nearestKm = Infinity;
-      remaining.forEach((idx) => {
-        const km = haversineKm(prev.lat!, prev.lng!, stops[idx].lat!, stops[idx].lng!);
-        if (km < nearestKm) { nearestKm = km; nearest = idx; }
-      });
-      remaining.delete(nearest);
-      order[slot] = nearest;
-    });
-    const km = pathKm(stops, order);
-    if (km < bestKm) { bestKm = km; bestOrder = order; }
+  // 각 세그먼트를 독립 최적화 후 원래 슬롯 자리에 재배치. anchor 는 그대로.
+  const bestOrder = [...currentOrder];
+  for (const seg of segments) {
+    const prevAnchorIdx = seg[0] - 1 >= 0 && !seg.includes(seg[0] - 1) ? seg[0] - 1 : -1;
+    const optimized = optimizeSegment(stops, seg, prevAnchorIdx);
+    // seg 의 슬롯 위치들(오름차순)에 optimized 순서를 채움
+    const slotPositions = [...seg].sort((a, b) => a - b);
+    slotPositions.forEach((pos, k) => { bestOrder[pos] = optimized[k]; });
   }
 
+  const bestKm = pathKm(stops, bestOrder);
   const savingKm = currentKm - bestKm;
   const savingPct = (savingKm / currentKm) * 100;
   if (savingPct < TIME_MIN_SAVING_PCT || savingKm < TIME_MIN_SAVING_KM) return null;

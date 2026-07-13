@@ -111,17 +111,23 @@ async function handlePost(req, res, db) {
 
   if (replyId) {
     const replyRef = postRef.collection('replies').doc(replyId);
-    const replyDoc = await replyRef.get();
-    if (!replyDoc.exists) return json(res, 404, _err('Reply not found', 'NOT_FOUND'));
-    const prev = replyDoc.data().status;
-    if (prev === nextStatus) return json(res, 200, _ok({ postId, replyId, status: nextStatus })); // 멱등
-    await replyRef.update({ status: nextStatus, moderatedAt: FieldValue.serverTimestamp() });
-    // 공개 카운트 정합: review/hidden→active = +1, active→hidden = -1
-    if (nextStatus === 'active' && prev !== 'active') {
-      await postRef.update({ replyCount: FieldValue.increment(1) });
-    } else if (prev === 'active' && nextStatus !== 'active') {
-      await postRef.update({ replyCount: FieldValue.increment(-1) });
-    }
+    // 트랜잭션: 동시 approve/hide(더블클릭·재시도)로 replyCount 이중 증감·음수화 방지(리뷰 fix).
+    // like/unlike 경로와 동일하게 read+status write+counter increment 를 원자화.
+    const result = await db.runTransaction(async (tx) => {
+      const replyDoc = await tx.get(replyRef);
+      if (!replyDoc.exists) return { error: 'NOT_FOUND' };
+      const prev = replyDoc.data().status;
+      if (prev === nextStatus) return { status: nextStatus }; // 멱등 — 카운트 무변
+      tx.update(replyRef, { status: nextStatus, moderatedAt: FieldValue.serverTimestamp() });
+      // 공개 카운트 정합: review/hidden→active = +1, active→hidden = -1
+      if (nextStatus === 'active' && prev !== 'active') {
+        tx.update(postRef, { replyCount: FieldValue.increment(1) });
+      } else if (prev === 'active' && nextStatus !== 'active') {
+        tx.update(postRef, { replyCount: FieldValue.increment(-1) });
+      }
+      return { status: nextStatus };
+    });
+    if (result.error) return json(res, 404, _err('Reply not found', result.error));
     return json(res, 200, _ok({ postId, replyId, status: nextStatus }));
   }
 

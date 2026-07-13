@@ -1821,6 +1821,7 @@
     "walletAvailable": "可使用",
     "walletUsed": "已使用",
     "walletExpired": "已过期",
+    "walletEmptyAvailable": "当前没有可使用的优惠券。",
     "walletEmptyUsed": "还没有已使用的优惠券。",
     "walletEmptyExpired": "没有已过期的优惠券。",
     "tabOverview": "概览",

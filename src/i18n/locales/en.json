@@ -1821,6 +1821,7 @@
     "walletAvailable": "Available",
     "walletUsed": "Used",
     "walletExpired": "Expired",
+    "walletEmptyAvailable": "No available coupons right now.",
     "walletEmptyUsed": "No used coupons yet.",
     "walletEmptyExpired": "No expired coupons.",
     "tabOverview": "Overview",

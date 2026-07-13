@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -841,6 +841,12 @@ export function CommunityComposePage() {
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   usePageMeta({ title: `${copy.composeTitle} | CocoTrip`, description: copy.composeSubtitle });
 
+  // object URL 누수 방지 (리뷰 fix): 언마운트·발행이동 시 남은 미리보기 blob 해제.
+  // photosRef 로 최신 previews 를 추적 → cleanup 이 stale 클로저를 잡지 않게.
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+  useEffect(() => () => { photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)); }, []);
+
   const addPhotos = (files: FileList | null) => {
     if (!files) return;
     setNotice(null);
@@ -881,11 +887,12 @@ export function CommunityComposePage() {
         type: POST_TYPE_KEYS[type], category, authorName: displayName(user),
         images,
       }, token);
+      // 성공 시 미리보기 blob 해제 (review 유지·게시 이동 양쪽 — 리뷰 fix: navigate 전 revoke)
+      photos.forEach((p) => URL.revokeObjectURL(p.preview));
+      setPhotos([]);
       if (result.status === 'review') {
         setNotice(copy.postInReview);
         setTitle(''); setBody('');
-        photos.forEach((p) => URL.revokeObjectURL(p.preview));
-        setPhotos([]);
       } else {
         navigate(`/community/post/${result.postId}`);
       }

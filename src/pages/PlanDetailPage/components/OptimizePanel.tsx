@@ -39,7 +39,13 @@ export function OptimizePanel({ day, dayIndex, plan, onApplyOrder }: OptimizePan
   const handleApply = async (s: TimeSuggestion) => {
     setApplied(true);
     trackEvent('plan_optimize_apply', { day: day.day, saving_pct: s.savingPct });
-    await onApplyOrder(dayIndex, s.proposedOrder);
+    try {
+      await onApplyOrder(dayIndex, s.proposedOrder);
+    } catch {
+      // 저장 실패(오프라인·권한·일시장애) = usePlanEditor 가 원래 순서로 롤백함.
+      // 버튼도 원복해 재시도 가능하게(잘못된 체크마크·영구 비활성 방지, 리뷰 fix).
+      setApplied(false);
+    }
   };
 
   return (
