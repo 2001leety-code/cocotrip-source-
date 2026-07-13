@@ -247,6 +247,31 @@ export function WizardStep2Details(props: Step2Props) {
             }}
           />
         </div>
+        {/* UIUX P3 (2026-07-13): 체크인/체크아웃 요약 카드 (호텔식) — 선택한 날짜를 카드로 시각화.
+            달력 보조(additive), 기능 불변. 순수 inline lang(위 '내일 이후' 안내와 동일 패턴 — dict/i18n 무변경). */}
+        {(() => {
+          const localeTag = lang === 'ko' ? 'ko-KR' : lang === 'ja' ? 'ja-JP' : lang === 'zh' ? 'zh-CN' : 'en-US';
+          const fmt = (d?: Date) => d ? d.toLocaleDateString(localeTag, { month: 'short', day: 'numeric', weekday: 'short' }) : null;
+          const ph = lang === 'ko' ? '날짜 선택' : lang === 'ja' ? '日付を選択' : lang === 'zh' ? '选择日期' : 'Select date';
+          const inLabel = lang === 'ko' ? '체크인' : lang === 'ja' ? 'チェックイン' : lang === 'zh' ? '入住' : 'Check-in';
+          const outLabel = lang === 'ko' ? '체크아웃' : lang === 'ja' ? 'チェックアウト' : lang === 'zh' ? '退房' : 'Check-out';
+          const cells = [
+            { label: inLabel, val: fmt(dateRange?.from), Icon: PlaneLanding },
+            { label: outLabel, val: fmt(dateRange?.to), Icon: PlaneTakeoff },
+          ];
+          return (
+            <div className="grid grid-cols-2 gap-2.5 mt-3">
+              {cells.map(({ label, val, Icon }, i) => (
+                <div key={i} className="rounded-2xl border border-white/[0.1] bg-white/[0.04] px-3.5 py-3">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/45 mb-1">
+                    <Icon className="w-3.5 h-3.5" />{label}
+                  </span>
+                  <p className={`text-[15px] font-bold leading-tight ${val ? 'text-white' : 'text-white/35'}`}>{val || ph}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
         {nights > 0 && (
           <>
             <p className="text-sm text-[#7C5CFC] font-semibold mt-2">

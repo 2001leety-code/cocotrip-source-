@@ -321,6 +321,29 @@ export default function ToursPage() {
       {/* ── 구분선 ── */}
       <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-4 sm:mb-5" />
 
+      {/* UIUX 계절 팁 (운영자 아이디어 2026-07-14): 현재 월 기준 한국 계절 실팩트 안내.
+          per-tour 가짜 별점 대신 정직한 계절 가이드(무슨 시즌·뭐가 좋고 힘든지). 4언어.
+          투어별 세분화(예: 여름 레일바이크 더위 주의)는 실계절 적합도 큐레이션 필요=후속. */}
+      {(() => {
+        const mo = new Date().getMonth() + 1; // 1-12
+        const season = mo >= 3 && mo <= 5 ? 'spring' : mo >= 6 && mo <= 8 ? 'summer' : mo >= 9 && mo <= 11 ? 'autumn' : 'winter';
+        const TIP = {
+          spring: { emoji: '🌸', ko: '봄 — 벚꽃 시즌(3월말~4월)이라 야외 투어 최적기예요. 일교차가 크니 겉옷을 챙기세요.', en: 'Spring — cherry-blossom season (late Mar–Apr) is prime time for outdoor tours. Pack a layer for chilly mornings.', ja: '春 — 桜シーズン(3月末〜4月)は屋外ツアーに最適。朝晩は冷えるので上着を。', zh: '春季 — 樱花季(3月底~4月)最适合户外行程。早晚温差大，请带外套。' },
+          summer: { emoji: '☀️', ko: '여름 — 덥고 습해요(장마 6월말~7월). 한낮 야외·등산은 힘들 수 있어 이른 아침·저녁이나 실내·계곡·해변 투어를 추천해요.', en: 'Summer — hot & humid (rainy season late Jun–Jul). Midday outdoor/hiking can be tough; prefer early/late hours or indoor·valley·beach tours.', ja: '夏 — 蒸し暑い(梅雨6月末〜7月)。日中の屋外・登山は大変。早朝・夕方や室内・渓谷・海のツアーがおすすめ。', zh: '夏季 — 炎热潮湿(梅雨6月底~7月)。正午户外·登山较吃力，建议清晨/傍晚或室内·溪谷·海滨行程。' },
+          autumn: { emoji: '🍁', ko: '가을 — 단풍 시즌(10~11월)이라 여행하기 가장 좋은 날씨예요. 야외 투어 강력 추천!', en: 'Autumn — foliage season (Oct–Nov) is the best weather of the year. Outdoor tours highly recommended!', ja: '秋 — 紅葉シーズン(10〜11月)は一年で最も快適。屋外ツアーが断然おすすめ。', zh: '秋季 — 红叶季(10~11月)是全年最佳天气，强烈推荐户外行程!' },
+          winter: { emoji: '❄️', ko: '겨울 — 춥고 건조해요. 방한 필수! 실내·온천·설경 투어를 추천해요.', en: 'Winter — cold & dry. Bundle up! Indoor·hot-spring·snow-scenery tours recommended.', ja: '冬 — 寒く乾燥。防寒必須! 室内・温泉・雪景色ツアーがおすすめ。', zh: '冬季 — 寒冷干燥。请注意保暖! 推荐室内·温泉·雪景行程。' },
+        } as const;
+        const tip = TIP[season];
+        return (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4">
+            <div className="flex items-start gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+              <span className="text-lg leading-none mt-0.5 shrink-0">{tip.emoji}</span>
+              <p className="text-[12.5px] leading-relaxed text-white/70">{tip[language] || tip.en}</p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Discover: 인기 목적지 카드 (가이드 P7) — N Tours = getToursByRegion 실카운트(TOURS SSOT 파생) ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
         <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
@@ -402,7 +425,7 @@ export default function ToursPage() {
           <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold">
             {tl.filterLabel}
           </p>
-          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} tours</p>
+          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} {tl.toursUnit}</p>
         </div>
         <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TOUR_REGIONS.map(({ key, label }) => {

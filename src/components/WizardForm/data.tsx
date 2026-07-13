@@ -25,6 +25,23 @@ export const CITY_CHIPS: { key: string; icon: ReactNode }[] = [
   { key: 'daegu',     icon: <TreePine className="w-4 h-4" /> },
 ];
 
+// UIUX P3 (2026-07-14): 도시 선택 칩 썸네일 — KTO PhotoGalleryService 실사진 중
+//   photographyLocation 이 실제 그 도시(시 단위)를 포함 + 올바른 광역 폴더에 저장된
+//   것만 채택(광역도≠시 오라벨 방지). all-season/nature·landmark 우선, 최소 파일.
+//   public/city-thumbs/<key>.jpg 로 committable 사본만 배치(원본 3GB 갤러리는 미커밋).
+//   yeosu = 검증된 전남-저장 여수 사진 0장 → 매핑 없음(아이콘 폴백 유지, 가짜 X).
+export const CITY_PHOTO: Record<string, string> = {
+  seoul: '/city-thumbs/seoul.jpg',
+  busan: '/city-thumbs/busan.jpg',
+  jeju: '/city-thumbs/jeju.jpg',
+  gyeongju: '/city-thumbs/gyeongju.jpg',
+  jeonju: '/city-thumbs/jeonju.jpg',
+  gangneung: '/city-thumbs/gangneung.jpg',
+  incheon: '/city-thumbs/incheon.jpg',
+  suwon: '/city-thumbs/suwon.jpg',
+  daegu: '/city-thumbs/daegu.jpg',
+};
+
 export const AIRPORT_OPTIONS: Record<string, AirportOption[]> = {
   seoul: [
     { value: 'ICN_T1', label: 'ICN Terminal 1' },

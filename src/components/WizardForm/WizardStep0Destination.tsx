@@ -16,7 +16,7 @@ import { Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { WizardNav } from './WizardNav';
 import {
-  CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS,
+  CITY_CHIPS, CITY_PHOTO, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS,
   getActivitiesForCities, ACTIVITY_CHIPS_EXPANDED, EXPANDED_ACTIVITY_ICONS,
 } from './data';
 import type { WizardDict } from './types';
@@ -148,15 +148,22 @@ export function WizardStep0Destination(props: Step0Props) {
             const cityName = getCityName(key);
             const sel = isCitySelected(cityName);
             const isMain = mainCity === cityName;
+            const photo = CITY_PHOTO[key];
             return (
               <button key={key} onClick={() => handleCityClick(cityName, key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
+                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-xl border text-left transition-all ${
                   sel
                     ? 'border-[#7C5CFC]/60 text-white'
                     : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
-                <span className={sel ? 'text-[#7C5CFC]' : 'text-white/55'}>{icon}</span>
+                {/* UIUX P3: 도시 실사진 썸네일 (KTO 검증). 매핑 없는 도시(yeosu)=아이콘 폴백. */}
+                {photo ? (
+                  <img src={photo} alt="" loading="lazy" width={44} height={44}
+                    className={`w-11 h-11 rounded-lg object-cover shrink-0 ${sel ? '' : 'opacity-90'}`} />
+                ) : (
+                  <span className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 bg-white/[0.05] ${sel ? 'text-[#7C5CFC]' : 'text-white/55'}`}>{icon}</span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate">{cityName}</p>
                   {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">{p.wizardMainBase || 'Main base'}</p>}

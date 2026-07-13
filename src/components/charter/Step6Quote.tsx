@@ -179,6 +179,20 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
         ))}
       </div>
 
+      {/* UIUX P6 가치 4배지 — 차터 서비스 실약속(static, 가격·로직 무관). 견적은 위에 사전 표시. */}
+      <div className="grid grid-cols-2 gap-2">
+        {([
+          { ko: '사전 확정 견적', en: 'Upfront Quote',       ja: '事前確定見積り',   zh: '预先确定报价' },
+          { ko: '전문 기사',      en: 'Professional Driver', ja: 'プロドライバー',   zh: '专业司机' },
+          { ko: '유연한 경유',    en: 'Flexible Stops',      ja: '柔軟な立ち寄り',   zh: '灵活停靠' },
+          { ko: '다국어 지원',    en: 'Multilingual',        ja: '多言語対応',       zh: '多语言支持' },
+        ] as const).map((b, i) => (
+          <div key={i} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/70">
+            <span className="text-emerald-400 shrink-0">✓</span>{b[language] || b.en}
+          </div>
+        ))}
+      </div>
+
       {quote.warnings.length > 0 && (
         <div className="text-sm text-amber-300">⚠ {quote.warnings.join(' · ')}</div>
       )}
