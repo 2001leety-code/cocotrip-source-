@@ -19,13 +19,13 @@
 - [x] Quick Actions 5 카테고리(신규 아이콘) — #1096
 - [x] Recommended for You = Smart Picks(실투어+SSOT 가격) — #1096
 - [x] 🟢 알림 벨 — community_notifications 인프라 + 홈 벨 뱃지 #1104 (P8 예약상태 연동은 잔여)
-- [ ] 🟢 검색바("Search destinations, attractions...") — 투어/지역 검색 라우팅
+- [x] 🟢 검색바("Search destinations, attractions...") — 홈→/tours?q= 라우팅 + ToursPage 전 언어 매칭 #1106
 - [x] 🟡 위시리스트 탭/하트 — 기존 구현 확인(useWishlist·투어카드 하트·마이페이지 wishlist 탭, 2026-07-13)
 - [ ] 🟡 프로모 배너 라이트 스킨 — ⚠️ 문구는 서버 promo-config DEFAULT 와 동일성 테스트 강제(promo-truth-p0)
 
 ## P2 — 6대 기능 총람 (마케팅 페이지 성격 — 웹 랜딩 반영)
-- [ ] 🟢 데스크톱/랜딩에 6기능 소개 섹션 정합 (AI Planner·Charter·Tours·Route Map·Community·My Bookings)
-- [ ] 🟢 My Bookings 카드형 목록 화면 (기존 /my-plans + bookings 통합 뷰)
+- [x] 🟢 데스크톱 랜딩 6기능 소개 섹션 — `FeatureOverview`(lazy), AI Planner·Tours·Charter·Route Map·Community·My Bookings #1106
+- [x] 🟢 My Bookings 카드형 목록 — /my-plans 에 AI플랜/예약 탭 통합(MyBookingsTab 재사용) #1106
 
 ## P3 — 위자드 5-step (🟡 5-step audit 의무 + dietary SAFETY)
 - [ ] 상단 진행바 ✓✓③④⑤ 형
@@ -41,7 +41,7 @@
 - [ ] Trip Overview: 히어로+통계 4칩(일수/정거장/km/최적화분)+Top Highlights
 - [ ] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+하단 총계 3칩
 - [ ] Interactive Route Map: 번호 핀+정거장 리스트 (기존 Leaflet 재스킨)
-- [ ] Edit & Optimize: 정거장 재정렬·삭제 + 최적화 제안(Time/Transport/Walking) — 신규 로직
+- [x] Edit & Optimize: 정거장 재정렬·삭제(기존 EditModeToggle) + **최적화 제안(Time/Transport/Walking)** — anchor 세그먼트 경계 준수 실좌표 최적화 #1106
 - [ ] Save·Share with Friends·Export PDF 액션 행 (PDF 기존, Share=신규 공유 링크)
 
 ## P5 — 교통 + 차터 업셀 (신규 킬러 기능)
@@ -70,16 +70,16 @@
 ## P8 — 결제 4-step (🔴 운영자 승인 + 실 PayPal e2e)
 - [ ] Booking Summary: Included Services = **실제 포함만** (호텔4박·보험 = 실상품 생기기 전 표기 금지)
 - [ ] Contact Details: 기존 BookingInfoForm 재스킨(국가번호 드롭다운 유지)
-- [ ] **쿠폰 지갑**: Available/Used/Expired 탭 + AI PLAN 무료·CHARTER 5%·Multi-Day 보너스 — 기존 쿠폰 백엔드(FEATURE_DISCOUNT_V2) 연동, 총10% 상한 로직 무변
+- [x] **쿠폰 지갑**: Available/Used/Expired 탭 (MyPage) — 기존 useLoyalty 실쿠폰 위 순수 표시, 결제·환불·상한 로직 무변 #1106
 - [ ] Booking Confirmed: 예약번호·Paid 배지·취소정책(**% 임계값 운영자 확정 후**)·지원 연락처
 - 보존: capture 금액 대조·게스트 PII 마스킹·멱등성
 
 ## P9 — 커뮤니티 4화면 (기존 /community 셸에 스킨+기능)
-- [ ] Community Home: 검색+카테고리 4탭(Travel·Living·Study·Food)+인기질문+➕FAB
-- [ ] Ask & Translate: 원탭 번역(EN/한/日/中) + 번역 도움됐나요 👍👎 — 번역 백엔드 신규(Gemini 활용)
-- [ ] Create Post: 언어탭+사진/위치/일정 첨부+Safety Check(모더레이션 기존 #1088 셸 확인)+Verified Helper
-- [ ] Shared Itinerary: 플랜 공유 카드(지도+Day탭+타임라인)+Save Course — 기존 플랜 공유 링크 연동
-- [ ] 신고(Report)·차단어 감지 — 기존 moderation 재사용
+- [x] Community Home: 카테고리 탭+인기+글쓰기 — #1098 실전화
+- [x] Ask & Translate: 원탭 번역(EN/한/日/中) — #1098 Gemini 번역 캐시
+- [x] Create Post: **사진 첨부(community/{uid}/ Storage + 서버 sanitizeImages 화이트리스트)** #1106 + Safety Check(연락처 감지) #1098
+- [ ] Shared Itinerary: 플랜 공유 카드 — 잔여(기존 플랜 공유 링크 연동)
+- [x] 신고(Report)·**어드민 모더레이션 실배선**(/api/community-admin 검토대기·신고 실조회+승인/숨김) #1106
 
 ## P10 — 컴포넌트 라이브러리 (공용화)
 - [ ] AI Planner Summary 카드 (홈에 1차 적용됨 — 공용 추출)
@@ -110,5 +110,11 @@
   · **커뮤니티 알림 MVP + 홈 벨 뱃지** (#1104) — 전부 prod.
 - 확인된 기존 구현(항목 완료 처리): 위시리스트(useWishlist·투어카드 하트·마이페이지 탭),
   플랜 Edit(재정렬·삭제·추가 = EditModeToggle), day 단위 CharterCTA.
-- 잔여 대형: 🔴차터(P6)·결제(P8) 스킨+쿠폰 지갑 / 플랜 Optimize 제안(경로 재계산) /
-  커뮤니티 사진 첨부·어드민 모더레이션 실배선 / 실후기 → docs/REVIEW-SPRINT.md
+- **2026-07-13 (B트랙 스윕 PR#1106, 머지대기)**: 홈 검색바(P1)·데스크톱 6기능 총람+My Bookings 통합(P2)·
+  플랜 Optimize 제안 Time/Transport/Walking(P4, anchor 세그먼트 경계)·커뮤니티 사진 첨부+어드민 모더레이션 실배선(P9)·
+  쿠폰 지갑 Available/Used/Expired 탭(P8, 표시만)·날씨칩 flaky fix. 적대검토 7결함(보안2·정확성5) fix 포함.
+  유닛 4881 pass. **P6 차터 6-step = 이미 #1037 구현(재스킨 불필요)**.
+- 🔴 **취소 정책 48h 미결(운영자 결정 필요)**: SSOT `_refund-policy.js` general=72h 100%·48h 80% ↔ `BookingInfoForm`(L291·535)
+  한국어 하드코딩 "1일 전 무료·전액환불" = SSOT·운영자확정(48h) 모두 불일치. 환불 지급액 변경=돈 로직이라 미착수.
+  운영자 결정: (a) 48h 무료를 전 등급 SSOT 에 반영 vs (b) 표기만 SSOT 에 맞춤 → 별도 PR.
+- 잔여: 커뮤니티 Shared Itinerary 카드 / 결제(P8) 캡처·환불 스킨(실 PayPal e2e) / 실후기 → docs/REVIEW-SPRINT.md
