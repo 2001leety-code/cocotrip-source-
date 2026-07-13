@@ -39,7 +39,7 @@
 - 보존: 호텔=anchor·도시 cycle 동기화·resume modal·dateRange.to·4-lang lint
 
 ## P4 — 플랜 결과 4화면 (🟡 stop 신스키마·PDF 금지사항·validator)
-- [ ] Trip Overview: 히어로+통계 4칩(일수/정거장/km/최적화분)+Top Highlights
+- [~] Trip Overview: 히어로+통계칩(일수/정거장/여행자/**km** #1106)+T-money. **km칩 추가**(computePlanKm, 좌표 haversine). 최적화분·Top Highlights 잔여
 - [x] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+**하단 총계 3칩(도보/교통/교통비)** #1106 (computeDayTotals, public+walk 실측)
 - [ ] Interactive Route Map: 번호 핀+정거장 리스트 (기존 Leaflet 재스킨)
 - [x] Edit & Optimize: 정거장 재정렬·삭제(기존 EditModeToggle) + **최적화 제안(Time/Transport/Walking)** — anchor 세그먼트 경계 준수 실좌표 최적화 #1106
@@ -50,7 +50,7 @@
 - [x] AI Route Insight 카드 + [Book 3-Hour Charter] CTA — `RouteInsightCard`, 하루 최고점 1구간 #1103
 - [ ] 지도 범례(Easy 실선/Challenging 점선/Recommended)
 - [ ] 차량 3종 선택 카드(스타리아 프리미엄/9인/스프린터) — 실차량 사진·SSOT 가격
-- [ ] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed)
+- [x] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed) — CharterCTA 에 추가 #1106 (진실 static, i18n 4언어)
 
 ## P6 — 차터 예약 6-step (🔴 SSOT byte-identical·P311 멱등성·운영자 승인)
 - [ ] 진행바 6단계(Pickup→Destination→Date&Time→Vehicle→Contact→Review)
