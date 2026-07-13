@@ -1272,7 +1272,11 @@
     "companionsSolo": "Solo",
     "companionsCouple": "Couple",
     "companionsFamily": "Family",
-    "companionsFriends": "Friends"
+    "companionsFriends": "Friends",
+    "trustFastSetup": "Fast Setup",
+    "trustSafePrefs": "Safe Preferences",
+    "trustMultilingual": "Multilingual",
+    "trustEditable": "Editable"
   },
   "charterPage": {
     "backToHome": "Back to Home",
@@ -1417,7 +1421,8 @@
     "bestMatch": "Best Match",
     "viewFullPlan": "View Full Plan",
     "smartPicks": "Smart Picks",
-    "searchPlaceholder": "Search destinations, attractions..."
+    "searchPlaceholder": "Search destinations, attractions...",
+    "whyWeLove": "Why we love it"
   },
   "pwaInstall": {
     "modalTitle": "Add CocoTrip Shortcut",

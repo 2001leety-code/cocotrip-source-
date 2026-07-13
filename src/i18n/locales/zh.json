@@ -1272,7 +1272,11 @@
     "companionsSolo": "独自",
     "companionsCouple": "情侣",
     "companionsFamily": "家庭",
-    "companionsFriends": "朋友"
+    "companionsFriends": "朋友",
+    "trustFastSetup": "快速设置",
+    "trustSafePrefs": "安全偏好",
+    "trustMultilingual": "多语言",
+    "trustEditable": "可编辑"
   },
   "charterPage": {
     "backToHome": "返回首页",
@@ -1417,7 +1421,8 @@
     "bestMatch": "最佳匹配",
     "viewFullPlan": "查看完整行程",
     "smartPicks": "智能推荐",
-    "searchPlaceholder": "搜索目的地、景点..."
+    "searchPlaceholder": "搜索目的地、景点...",
+    "whyWeLove": "推荐理由"
   },
   "pwaInstall": {
     "modalTitle": "添加CocoTrip快捷方式",

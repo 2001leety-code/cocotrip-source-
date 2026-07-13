@@ -45,6 +45,8 @@ const TL = {
     noSearchResults: '검색어와 일치하는 투어가 없어요',
     searchPlaceholder: '여행지·명소 검색...',
     clearSearch: '검색어 지우기',
+    popularDestinations: '인기 목적지',
+    toursUnit: '투어',
   },
   en: {
     pageTitle: 'Tours',
@@ -63,6 +65,8 @@ const TL = {
     noSearchResults: 'No tours match your search',
     searchPlaceholder: 'Search destinations, attractions...',
     clearSearch: 'Clear search',
+    popularDestinations: 'Popular Destinations',
+    toursUnit: 'tours',
   },
   ja: {
     pageTitle: 'ツアー',
@@ -81,6 +85,8 @@ const TL = {
     noSearchResults: '検索に一致するツアーがありません',
     searchPlaceholder: '目的地・観光スポットを検索...',
     clearSearch: '検索をクリア',
+    popularDestinations: '人気の目的地',
+    toursUnit: '件',
   },
   zh: {
     pageTitle: '旅游产品',
@@ -99,6 +105,8 @@ const TL = {
     noSearchResults: '没有符合搜索的旅游产品',
     searchPlaceholder: '搜索目的地、景点...',
     clearSearch: '清除搜索',
+    popularDestinations: '热门目的地',
+    toursUnit: '条',
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -304,6 +312,46 @@ export default function ToursPage() {
 
       {/* ── 구분선 ── */}
       <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-4 sm:mb-5" />
+
+      {/* ── Discover: 인기 목적지 카드 (가이드 P7) — N Tours = getToursByRegion 실카운트(TOURS SSOT 파생) ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
+        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
+          {tl.popularDestinations}
+        </p>
+        <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {TOUR_REGIONS.filter((r) => r.key !== 'All').map(({ key, label }) => {
+            const count = getToursByRegion(key).length;
+            if (count === 0) return null;
+            const isActive = activeRegion === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveRegion(key)}
+                aria-pressed={isActive}
+                className="shrink-0 w-[112px] sm:w-[128px] rounded-2xl px-3.5 py-3 text-left active:scale-[0.98] transition-transform"
+                style={
+                  isActive
+                    ? {
+                        background: 'linear-gradient(135deg, rgba(182,104,252,0.18), rgba(255,107,157,0.12))',
+                        border: '1px solid rgba(182,104,252,0.45)',
+                        boxShadow: '0 0 14px rgba(182,104,252,0.18)',
+                      }
+                    : {
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                      }
+                }
+              >
+                <p className="text-[13px] font-black text-white leading-tight truncate">{label[language] || label.en}</p>
+                <p className="mt-1.5 flex items-baseline gap-1">
+                  <span className="text-[18px] font-black" style={{ color: '#D0A8FF' }}>{count}</span>
+                  <span className="text-[10px] font-semibold text-white/45">{tl.toursUnit}</span>
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ── 지역 필터 칩 ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">

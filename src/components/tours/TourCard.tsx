@@ -249,7 +249,8 @@ export function TourCard({ tour, language }: TourCardProps) {
         {/* 하단 행 */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {tour.rating && tour.rating > 0 && (
+            {/* 별점 = REAL_TOUR_RATINGS 플래그 게이팅(가짜 별점 차단, 운영자 결정 #3). JSON-LD(buildTourJsonLd)와 동일 조건. */}
+            {import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true' && tour.rating && tour.rating > 0 && (
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                 <span className="text-[11px] text-white/50">{tour.rating.toFixed(1)}</span>

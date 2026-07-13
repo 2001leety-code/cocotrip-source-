@@ -217,6 +217,25 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           style={{ height: 240, zIndex: 0 }}
         />
       </div>
+      {/* 번호 정거장 리스트 (가이드 P4) — 지도 핀 번호(order)와 1:1 매칭. toMapPoints 재사용(좌표 없는 stop 은 자동 skip). */}
+      <ol className="mt-2 space-y-1">
+        {points.map((p) => (
+          <li
+            key={p.order}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5"
+            style={{ background: 'rgba(255,255,255,0.03)' }}
+          >
+            <span
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white"
+              style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+            >
+              {p.order}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/85">{p.label}</span>
+            {p.time && <span className="shrink-0 text-[11px] font-medium text-white/45">{p.time}</span>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
