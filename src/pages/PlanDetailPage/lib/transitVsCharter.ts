@@ -21,6 +21,43 @@ export interface StopLikeForComparison {
   transit_from_prev?: TransitSegmentLike;
 }
 
+/** 하루 총계 3칩(도보/교통/비용, UIUX P4) — RouteAgent 실측 필드만 합산. */
+export interface DayTotals {
+  /** 도보 총 분 (total_walk_m 합 / 70m·분) */
+  walkMin: number;
+  /** 대중교통 총 이동 분 (public 구간 est_min 합) */
+  transitMin: number;
+  /** 교통비 총 KRW (public 구간 est_fare_krw 합) */
+  fareKrw: number;
+  /** 하나라도 실데이터 있으면 true (전무 시 칩 미노출) */
+  hasAny: boolean;
+}
+
+/**
+ * 하루 stops 총계 계산 (UIUX 가이드 P4 Day Timeline 하단 총계 3칩).
+ * 도보=total_walk_m 합/70, 교통=public 구간 est_min 합, 비용=public 구간 est_fare_krw 합.
+ * 추정·환각 없음 — 필드 없는 값은 0. 전 구간 데이터 전무면 hasAny=false.
+ */
+export function computeDayTotals(stops: StopLikeForComparison[]): DayTotals {
+  let walkM = 0;
+  let transitMin = 0;
+  let fareKrw = 0;
+  let sawData = false;
+  for (const stop of stops || []) {
+    const t = stop.transit_from_prev;
+    if (!t) continue;
+    const wm = typeof t.total_walk_m === 'number' ? t.total_walk_m : 0;
+    if (wm > 0) { walkM += wm; sawData = true; }
+    const method = String(t.method || '').toLowerCase();
+    const isPublic = method === 'subway' || method === 'bus' || method === 'transit' || method === 'subway+bus';
+    if (isPublic) {
+      if (typeof t.est_min === 'number' && t.est_min > 0) { transitMin += t.est_min; sawData = true; }
+      if (typeof t.est_fare_krw === 'number' && t.est_fare_krw > 0) { fareKrw += t.est_fare_krw; sawData = true; }
+    }
+  }
+  return { walkMin: Math.round(walkM / 70), transitMin: Math.round(transitMin), fareKrw, hasAny: sawData };
+}
+
 /** 하루 대중교통 합계 */
 export interface DayTransitSummary {
   /** T-money 환승/지하철/버스 총 이동 시간(분) */

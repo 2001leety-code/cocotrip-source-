@@ -167,3 +167,51 @@ describe('timeSavedMin 경계', () => {
     expect(result!.timeSavedMin).toBe(0);
   });
 });
+
+// ────── 5. computeDayTotals (UIUX P4 하단 총계 3칩) ──────
+
+import { computeDayTotals } from '../../src/pages/PlanDetailPage/lib/transitVsCharter';
+
+describe('computeDayTotals — 하루 도보/교통/비용 총계', () => {
+  it('public 구간 est_min·fare 합 + total_walk_m 합/70', () => {
+    const stops: StopLikeForComparison[] = [
+      { transit_from_prev: { method: 'subway', est_min: 25, est_fare_krw: 1500, total_walk_m: 700 } },
+      { transit_from_prev: { method: 'bus', est_min: 15, est_fare_krw: 1200, total_walk_m: 350 } },
+      { transit_from_prev: { method: 'walk', total_walk_m: 210 } }, // walk 구간도 도보엔 합산
+    ];
+    const r = computeDayTotals(stops);
+    expect(r.transitMin).toBe(40);       // 25+15 (public만)
+    expect(r.fareKrw).toBe(2700);        // 1500+1200
+    expect(r.walkMin).toBe(Math.round((700 + 350 + 210) / 70)); // 18
+    expect(r.hasAny).toBe(true);
+  });
+
+  it('transit 데이터 전무 = hasAny false (칩 미노출)', () => {
+    const stops: StopLikeForComparison[] = [{}, { transit_from_prev: undefined }];
+    const r = computeDayTotals(stops);
+    expect(r.hasAny).toBe(false);
+    expect(r.walkMin).toBe(0);
+    expect(r.transitMin).toBe(0);
+    expect(r.fareKrw).toBe(0);
+  });
+
+  it('도보만 있고 교통 없으면 walkMin>0, transit/fare=0, hasAny true', () => {
+    const stops: StopLikeForComparison[] = [
+      { transit_from_prev: { method: 'walk', total_walk_m: 900 } },
+    ];
+    const r = computeDayTotals(stops);
+    expect(r.walkMin).toBe(Math.round(900 / 70));
+    expect(r.transitMin).toBe(0);
+    expect(r.fareKrw).toBe(0);
+    expect(r.hasAny).toBe(true);
+  });
+
+  it('taxi/car 구간은 교통·비용 합산 제외 (public만)', () => {
+    const stops: StopLikeForComparison[] = [
+      { transit_from_prev: { method: 'taxi', est_min: 30, est_fare_krw: 12000 } },
+    ];
+    const r = computeDayTotals(stops);
+    expect(r.transitMin).toBe(0);
+    expect(r.fareKrw).toBe(0);
+  });
+});
