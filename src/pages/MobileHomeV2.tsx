@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, Bell, Search } from 'lucide-react';
+import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, Bell, Search, Check } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -45,6 +45,10 @@ const REGIONS = [
 // 언어 전환 사이클 (전역 Header 없이 렌더되므로 v2 자체에서 언어 전환 제공)
 const LANG_CYCLE: Language[] = ['en', 'ko', 'ja', 'zh'];
 const LANG_LABEL: Record<Language, string> = { en: 'EN', ko: '한', ja: '日', zh: '中' };
+// P1 (2026-07-14): 언어 셀렉터 — 순환 버튼 대신 이름 있는 드롭다운 메뉴(발견성↑).
+// 트리거 버튼 외형은 기존과 픽셀 동일(홈 above-fold visual baseline 무변경) —
+// 메뉴는 탭 시에만 열리므로 정적 fold 스크린샷에 안 잡힘.
+const LANG_FULL: Record<Language, string> = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文' };
 
 // 팔레트 토큰 = CocoUI 단일 원천(COCO)에서 파생 — 가이드 p.2 값 중복 정의 제거(P10 공용화).
 const NAVY = COCO.navy;
@@ -108,10 +112,7 @@ export default function MobileHomeV2() {
     return formatPrice(krw, language, { approximate: true });
   };
 
-  const cycleLanguage = () => {
-    const next = LANG_CYCLE[(LANG_CYCLE.indexOf(language) + 1) % LANG_CYCLE.length];
-    changeLanguage(next);
-  };
+  const [langOpen, setLangOpen] = useState(false);
 
   return (
     <div
@@ -148,14 +149,48 @@ export default function MobileHomeV2() {
               </span>
             )}
           </Link>
-          <button
-            onClick={cycleLanguage}
-            aria-label="Language"
-            className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-2.5 text-xs font-bold active:opacity-70"
-            style={{ color: PURPLE, border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
-          >
-            {LANG_LABEL[language]}
-          </button>
+          <div className="relative">
+            <button
+              // 열기는 idempotent(setTrue) — dev StrictMode/이중마운트로 핸들러가
+              // 2회 발화해도 열림 유지(토글 !o 였다면 짝수 발화 시 도로 닫힘).
+              // 닫기는 backdrop(열렸을 때 버튼 위 오버레이) 또는 항목 선택이 담당.
+              onClick={() => setLangOpen(true)}
+              aria-label="Language"
+              aria-haspopup="menu"
+              aria-expanded={langOpen}
+              className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-2.5 text-xs font-bold active:opacity-70"
+              style={{ color: PURPLE, border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
+            >
+              {LANG_LABEL[language]}
+            </button>
+            {langOpen && (
+              <>
+                {/* 바깥 클릭 닫기 */}
+                <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} aria-hidden />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+6px)] z-50 w-36 overflow-hidden rounded-2xl bg-white py-1"
+                  style={{ border: CARD_BORDER, boxShadow: '0 12px 30px rgba(48,39,118,0.18)' }}
+                >
+                  {LANG_CYCLE.map((lng) => {
+                    const active = lng === language;
+                    return (
+                      <button
+                        key={lng}
+                        role="menuitem"
+                        onClick={() => { changeLanguage(lng); setLangOpen(false); }}
+                        className="flex w-full items-center justify-between px-3.5 py-2 text-left text-[13px] active:opacity-70"
+                        style={{ color: active ? PURPLE : NAVY, fontWeight: active ? 700 : 500 }}
+                      >
+                        {LANG_FULL[lng]}
+                        {active && <Check size={14} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
           <Link
             to="/mypage"
             aria-label="My page"
