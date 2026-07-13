@@ -39,7 +39,7 @@
 - 보존: 호텔=anchor·도시 cycle 동기화·resume modal·dateRange.to·4-lang lint
 
 ## P4 — 플랜 결과 4화면 (🟡 stop 신스키마·PDF 금지사항·validator)
-- [~] Trip Overview: 히어로+통계칩(일수/정거장/여행자/**km** #1106)+T-money+**Top Highlights**(C2: TripHighlights, 날짜별 대표 1스팟·사진/개인화사유·별점X). 최적화분 칩 잔여
+- [x] Trip Overview: 히어로+통계칩(일수/정거장/**km** #1106)+T-money+**Top Highlights**(C2)+**최적화칩**(C5: optimizePct=날짜별 suggestTimeOrder km절약 합의 %, 15%/0.8km 게이트 내장·제안0이면 Travelers 폴백·분 표기 안 함=가짜방지). 가이드 4칩(Days/Stops/Distance/Optimize) 정합
 - [x] Day Timeline: 시각축+교통 세그먼트(도보/지하철 아이콘)+**하단 총계 3칩(도보/교통/교통비)** #1106 (computeDayTotals, public+walk 실측)
 - [x] Interactive Route Map: 번호 핀+정거장 리스트 (기존 Leaflet 재스킨) — DayRouteMap 지도 아래 번호 정거장 ol 리스트(핀 order 1:1 매칭, toMapPoints 재사용) C-sweep
 - [x] Edit & Optimize: 정거장 재정렬·삭제(기존 EditModeToggle) + **최적화 제안(Time/Transport/Walking)** — anchor 세그먼트 경계 준수 실좌표 최적화 #1106

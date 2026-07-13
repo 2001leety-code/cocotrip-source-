@@ -34,6 +34,7 @@ import { useAutoTranslate } from './useAutoTranslate';
 import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
 import { computePlanKm } from './lib/transitVsCharter';
+import { suggestTimeOrder, type OptimizeStopLike } from './lib/optimizeSuggestions';
 import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
 import { ErrorState } from './components/ErrorState';
@@ -115,6 +116,18 @@ function MobilePlanResultHero({
   const stopCount = days.reduce((sum, day) => sum + (day.stops?.length || 0), 0);
   // UIUX P4 (2026-07-13): Trip Overview 총 이동거리 km — 좌표 있는 구간만 haversine 합(없으면 null→'-').
   const totalKm = computePlanKm(days as Array<{ stops?: { lat?: number; lng?: number }[] }>);
+  // UIUX P4: 최적화 가능분 — 날짜별 suggestTimeOrder(15%/0.8km 게이트 내장)의 km 절약 합을 % 로.
+  // 실 haversine 파생만. '분' 절약값은 실존 안 함 → % 로만 표기(가짜 분 금지). 제안 0 이면 미노출.
+  const optimizePct = (() => {
+    let curr = 0, prop = 0;
+    for (const d of days) {
+      const s = suggestTimeOrder((d.stops || []) as unknown as OptimizeStopLike[]);
+      if (s) { curr += s.currentKm; prop += s.proposedKm; }
+    }
+    if (curr <= 0) return null;
+    const pct = Math.round(((curr - prop) / curr) * 100);
+    return pct > 0 ? pct : null;
+  })();
   const primaryRegion = getPrimaryRegion(plan);
   const heroImage = getHeroImage(plan);
   // startDate = 표시 전용 원문(첫날, inclusive) — 날짜 산술 없음, 기간 계산은 days.length 사용
@@ -204,7 +217,10 @@ function MobilePlanResultHero({
         {[
           { icon: CalendarDays, label: 'Days', value: String(days.length || '-') },
           { icon: MapPinned, label: 'Stops', value: String(stopCount || '-') },
-          { icon: Users, label: 'Travelers', value: pax > 0 ? String(pax) : '-' },
+          // 최적화 가능 시 Optimize 칩(가이드 Trip Overview 4번째 칩), 아니면 Travelers(부제에도 노출).
+          optimizePct != null
+            ? { icon: Sparkles, label: 'Optimize', value: `${optimizePct}%` }
+            : { icon: Users, label: 'Travelers', value: pax > 0 ? String(pax) : '-' },
           ...(totalKm != null ? [{ icon: Route, label: 'Distance', value: `${totalKm}km` }] : []),
         ].map((item) => (
           <div key={item.label} className="plan-mobile-stat">
