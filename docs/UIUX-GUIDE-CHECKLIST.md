@@ -62,10 +62,12 @@
 - 보존: multidayQuote.ts ≡ charter-multiday-price.js·front/back FEATURE 쌍·국가번호 드롭다운
 
 ## P7 — 투어 4-step
-- [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. 검색바 기존.
+- [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. **C4: 사진 카드화**(REGION_IMAGE 실존자산 Seoul/Busan/Gyeongju/Danyang, 없는 지역 그라디언트 폴백=잘못된 사진 라벨 금지). 검색바 기존.
+  - [ ] 잔여 P7: Trip Style 필터(Relaxed/Balanced/Active) = tours 에 pace 실필드 없어 보류(가짜필터 방지, 데이터 작업 필요) · Show N Tours 버튼(라이브필터라 마진) · 별점(🔴게이트)
 - [ ] Filter: Interests 8칩 + Trip Style 3 + Duration 4 + "Show N Tours"(실카운트) — Interests 실데이터 5칩(#1099)·기간/지역/언어 필터 기존. Trip Style·Show N 잔여
 - [ ] 투어 상세: 뱃지·별점(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)·칩 3종·하이라이트 체크
-- [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·companions 4옵션 라디오·duration select. 백엔드 inquiry-submit 도 companions/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정 규약 유지.
+- [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·**Travel Style 페이스 라디오(Relaxed/Balanced/Active)**·duration select. 백엔드 inquiry-submit 도 travelStyle/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정.
+  ⚠️정정(C4 레퍼런스 대조): C3 초판은 companions(Solo/Couple/Family) 넣었으나 가이드 P7 Custom=페이스(Relaxed/Balanced/Active)라 정정. companions 는 위자드 P3 전용.
 - 보존: 결제 다이얼로그 배선(#1019)·tours SSOT
 
 ## P8 — 결제 4-step (🔴 운영자 승인 + 실 PayPal e2e)
