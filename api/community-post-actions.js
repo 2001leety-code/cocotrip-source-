@@ -40,6 +40,26 @@ function sanitizeName(raw) {
   return (s || 'Traveler').slice(0, 30);
 }
 
+/**
+ * 커뮤니티 알림 기록 (2026-07-13 UIUX P1/P9) — 글 작성자의 community_notifications 에 적재.
+ * 자기 글에 자기 액션 = 기록 안 함. 실패해도 본 액션 흐름 무영향(fire-and-forget 전용).
+ */
+async function writeNotification(db, postRef, auth, type, fromName = '') {
+  const postDoc = await postRef.get();
+  if (!postDoc.exists) return;
+  const d = postDoc.data();
+  if (!d.authorUid || d.authorUid === auth.uid) return;
+  await db.collection('community_notifications').add({
+    toUid: d.authorUid,
+    type, // 'reply' | 'like'
+    postId: postRef.id,
+    postTitle: String(d.title || '').slice(0, 80),
+    fromName: fromName || 'Traveler',
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
@@ -106,6 +126,10 @@ export default async function handler(req, res) {
         return { likeCount: postDoc.data().likeCount || 0, liked }; // 멱등: 이미 원하는 상태
       });
       if (result.error) return json(res, 404, _err('Post not found', result.error));
+      // 알림 (2026-07-13 UIUX P1/P9): 첫 like 만 — 글 작성자에게. 자기 글 제외, fire-and-forget.
+      if (action === 'like' && result.liked && result.likeCount) {
+        void writeNotification(db, postRef, auth, 'like').catch(() => {});
+      }
       return json(res, 200, _ok(result));
     }
 
@@ -132,8 +156,11 @@ export default async function handler(req, res) {
         createdAt: FieldValue.serverTimestamp(),
         translations: {},
       });
-      if (!needsReview) await postRef.update({ replyCount: FieldValue.increment(1) });
-      else void notify('booking', `🛡️ 커뮤니티 댓글 검토 대기 → <code>community_posts/${postId}/replies/${replyRef.id}</code>`).catch(() => {});
+      if (!needsReview) {
+        await postRef.update({ replyCount: FieldValue.increment(1) });
+        // 알림 (2026-07-13): 공개 댓글만 — 글 작성자에게. 자기 댓글 제외, fire-and-forget.
+        void writeNotification(db, postRef, auth, 'reply', sanitizeName(body.authorName)).catch(() => {});
+      } else void notify('booking', `🛡️ 커뮤니티 댓글 검토 대기 → <code>community_posts/${postId}/replies/${replyRef.id}</code>`).catch(() => {});
       return json(res, 200, _ok({ replyId: replyRef.id, status: needsReview ? 'review' : 'active' }));
     }
 

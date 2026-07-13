@@ -61,6 +61,7 @@ type Copy = {
   emptyTitle: string; emptyBody: string; loadFailed: string; retry: string;
   postInReview: string; deleteConfirm: string; deleted: string;
   alertsEmptyTitle: string; alertsEmptyBody: string;
+  alertReply: string; alertLike: string;
   justNow: string; minutesAgo: string; hoursAgo: string; daysAgo: string;
 };
 
@@ -87,6 +88,7 @@ const COPY: Record<Language, Copy> = {
     postInReview: 'Your post is being reviewed for safety and will appear once approved.',
     deleteConfirm: 'Delete this post?', deleted: 'Deleted.',
     alertsEmptyTitle: 'No alerts yet', alertsEmptyBody: 'Replies and likes on your posts will show up here.',
+    alertReply: '{name} replied to "{title}"', alertLike: '{name} liked "{title}"',
     justNow: 'just now', minutesAgo: 'm', hoursAgo: 'h', daysAgo: 'd',
   },
   ko: {
@@ -111,6 +113,7 @@ const COPY: Record<Language, Copy> = {
     postInReview: '안전 검토 후 공개됩니다. 승인되면 피드에 표시돼요.',
     deleteConfirm: '이 글을 삭제할까요?', deleted: '삭제됐어요.',
     alertsEmptyTitle: '아직 알림이 없어요', alertsEmptyBody: '내 글에 달린 댓글과 좋아요가 여기에 표시됩니다.',
+    alertReply: '{name}님이 "{title}"에 댓글을 남겼어요', alertLike: '{name}님이 "{title}"을 좋아합니다',
     justNow: '방금', minutesAgo: '분 전', hoursAgo: '시간 전', daysAgo: '일 전',
   },
   ja: {
@@ -135,6 +138,7 @@ const COPY: Record<Language, Copy> = {
     postInReview: '安全確認の後に公開されます。承認されるとフィードに表示されます。',
     deleteConfirm: 'この投稿を削除しますか？', deleted: '削除しました。',
     alertsEmptyTitle: 'まだ通知はありません', alertsEmptyBody: '投稿への返信やいいねがここに表示されます。',
+    alertReply: '{name}さんが「{title}」に返信しました', alertLike: '{name}さんが「{title}」にいいねしました',
     justNow: 'たった今', minutesAgo: '分前', hoursAgo: '時間前', daysAgo: '日前',
   },
   zh: {
@@ -159,6 +163,7 @@ const COPY: Record<Language, Copy> = {
     postInReview: '你的帖子正在安全审核中，通过后将显示在动态里。',
     deleteConfirm: '删除这条帖子？', deleted: '已删除。',
     alertsEmptyTitle: '暂无通知', alertsEmptyBody: '你帖子收到的回复和点赞会显示在这里。',
+    alertReply: '{name}回复了"{title}"', alertLike: '{name}赞了"{title}"',
     justNow: '刚刚', minutesAgo: '分钟前', hoursAgo: '小时前', daysAgo: '天前',
   },
 };
@@ -542,10 +547,7 @@ export default function CommunityPage() {
   return (
     <CommunityLayout active={activeRail}>
       {requestedView === 'alerts' ? (
-        <section className="community-alerts-page">
-          <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />CocoTrip Together</span><h1>{copy.navAlerts}</h1></div></div>
-          <FeedState icon={Bell} title={copy.alertsEmptyTitle} body={copy.alertsEmptyBody} />
-        </section>
+        <CommunityAlertsView copy={copy} />
       ) : (
         <>
           <section className="community-intro">
@@ -593,6 +595,71 @@ export default function CommunityPage() {
         </>
       )}
     </CommunityLayout>
+  );
+}
+
+// ── 알림 (2026-07-13 MVP): 내 글의 댓글·좋아요 — community_notifications 실데이터 ──
+type ApiNotification = { id: string; type: 'reply' | 'like'; postId: string; postTitle: string; fromName: string; read: boolean; createdAt: number };
+
+function CommunityAlertsView({ copy }: { copy: Copy }) {
+  const { user } = useAuth();
+  const [items, setItems] = useState<ApiNotification[] | null>(null);
+
+  useEffect(() => {
+    if (!user) { setItems([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/community-notifications', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (cancelled || !data.ok) { if (!cancelled) setItems([]); return; }
+        setItems(data.data.items);
+        // 표시 직후 읽음 처리 (뱃지 소거) — 실패해도 무해
+        if (data.data.unread > 0) {
+          void apiPost('/api/community-notifications', { action: 'markAllRead' }, token).catch(() => {});
+        }
+      } catch { if (!cancelled) setItems([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  return (
+    <section className="community-alerts-page">
+      <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />CocoTrip Together</span><h1>{copy.navAlerts}</h1></div></div>
+      {!user && (
+        <FeedState icon={Users} title={copy.loginRequired} body="" action={
+          <Link to="/mypage" className="community-primary-button">{copy.goLogin}</Link>
+        } />
+      )}
+      {user && items === null && (
+        <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+          <Loader2 size={20} className="animate-spin" style={{ color: '#7C5CFF' }} />
+        </div>
+      )}
+      {user && items !== null && items.length === 0 && (
+        <FeedState icon={Bell} title={copy.alertsEmptyTitle} body={copy.alertsEmptyBody} />
+      )}
+      {user && items !== null && items.length > 0 && (
+        <div className="community-alert-list">
+          {items.map((n) => (
+            <Link to={`/community/post/${n.postId}`} key={n.id} className="community-alert-row" style={!n.read ? { background: 'rgba(124,92,255,0.06)' } : undefined}>
+              <span className={`community-alert-icon is-${n.type === 'like' ? 'pink' : 'purple'}`}>
+                {n.type === 'like' ? <Heart size={18} /> : <MessageCircle size={18} />}
+              </span>
+              <span>
+                <strong>
+                  {(n.type === 'like' ? copy.alertLike : copy.alertReply)
+                    .replace('{name}', n.fromName)
+                    .replace('{title}', n.postTitle)}
+                </strong>
+                <small>{timeAgo(n.createdAt, copy)}</small>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

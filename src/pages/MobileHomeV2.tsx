@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User } from 'lucide-react';
+import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, Bell } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
@@ -53,9 +54,26 @@ const CARD_SHADOW = '0 14px 30px rgba(48, 39, 118, 0.10)';
 
 export default function MobileHomeV2() {
   const { language, t, changeLanguage } = useLanguage();
+  const { user } = useAuth();
   const m = t.mobileHomeV2;
   const regionNames = t.regions as unknown as Record<string, string>;
   const [weather, setWeather] = useState<{ temp: string; desc: string } | null>(null);
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+
+  // 알림 뱃지 (UIUX P1, 2026-07-13) — 로그인 시 1회 조회. 실패 = 뱃지 0(무해).
+  useEffect(() => {
+    if (!user) { setUnreadAlerts(0); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/community-notifications', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!cancelled && data.ok) setUnreadAlerts(data.data.unread || 0);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   usePageMeta({
     title: `${m.headline1} ${m.headline2}`,
@@ -113,6 +131,19 @@ export default function MobileHomeV2() {
           </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <Link
+            to="/community?tab=alerts"
+            aria-label="Alerts"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white active:opacity-70"
+            style={{ color: PURPLE, border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
+          >
+            <Bell size={15} />
+            {unreadAlerts > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white" style={{ background: '#FF6B9D' }}>
+                {unreadAlerts > 9 ? '9+' : unreadAlerts}
+              </span>
+            )}
+          </Link>
           <button
             onClick={cycleLanguage}
             aria-label="Language"
