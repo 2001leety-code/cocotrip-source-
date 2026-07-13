@@ -27,5 +27,8 @@ export const VEHICLE_GALLERY: Partial<Record<string, string[]>> = {
     '/vehicles/sprinter/sprinter-05.webp', // 내부 앞좌석
     '/vehicles/sprinter/sprinter-03.webp', // 외부 후면
   ],
-  // bus(16+·45석): 실상품 확정(운영자 2026-07-12) — 사진 준비되면 반입.
+  // bus(16+·45석): 운영자 제공 대표 사진 반입(2026-07-14, 1장). 흰색 45석 대형 코치.
+  bus: [
+    '/vehicles/bus/bus-01.webp', // 외부 측면 (대표)
+  ],
 };
