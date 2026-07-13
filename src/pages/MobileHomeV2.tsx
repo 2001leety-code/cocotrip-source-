@@ -7,6 +7,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
+import { COCO, GradientCTA, StatusChip } from '@/components/coco/CocoUI';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { Language } from '@/i18n';
 
@@ -45,12 +46,13 @@ const REGIONS = [
 const LANG_CYCLE: Language[] = ['en', 'ko', 'ja', 'zh'];
 const LANG_LABEL: Record<Language, string> = { en: 'EN', ko: '한', ja: '日', zh: '中' };
 
-const NAVY = '#0F1230';
-const MUTED = '#6E6A8F';
-const PURPLE = '#7C5CFF';
-const CTA_GRADIENT = 'linear-gradient(100deg, #7C5CFF 0%, #FF5FC8 100%)';
-const CARD_BORDER = '1px solid rgba(124, 92, 255, 0.14)';
-const CARD_SHADOW = '0 14px 30px rgba(48, 39, 118, 0.10)';
+// 팔레트 토큰 = CocoUI 단일 원천(COCO)에서 파생 — 가이드 p.2 값 중복 정의 제거(P10 공용화).
+const NAVY = COCO.navy;
+const MUTED = COCO.muted;
+const PURPLE = COCO.purple;
+const CTA_GRADIENT = COCO.ctaGradient;
+const CARD_BORDER = COCO.cardBorder;
+const CARD_SHADOW = COCO.cardShadow;
 
 export default function MobileHomeV2() {
   const { language, t, changeLanguage } = useLanguage();
@@ -223,21 +225,12 @@ export default function MobileHomeV2() {
           <p className="mt-0.5 text-[10.5px]" style={{ color: MUTED }}>{m.aiCardSub}</p>
           <div className="mt-2 flex items-center justify-between gap-2">
             <p className="text-[17px] font-extrabold tracking-tight">{m.aiCardSample}</p>
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold"
-              style={{ background: 'rgba(124,92,255,0.12)', color: PURPLE }}
-            >
-              {m.bestMatch}
-            </span>
+            <StatusChip tone="purple">{m.bestMatch}</StatusChip>
           </div>
           <p className="mt-0.5 text-[11px]" style={{ color: MUTED }}>{m.aiCardTags}</p>
-          <Link
-            to="/planner"
-            className="mt-3 flex items-center justify-center gap-1.5 rounded-full py-3 text-[13px] font-bold text-white active:scale-[0.98] transition-transform"
-            style={{ background: CTA_GRADIENT, boxShadow: '0 10px 26px rgba(124,92,255,0.30)' }}
-          >
+          <GradientCTA to="/planner" className="mt-3 w-full">
             {m.viewFullPlan} <ArrowRight size={15} />
-          </Link>
+          </GradientCTA>
         </div>
       </section>
 
@@ -283,12 +276,18 @@ export default function MobileHomeV2() {
               <div className="relative h-28 overflow-hidden rounded-[18px]" style={{ boxShadow: '0 10px 24px rgba(48,39,118,0.10)' }}>
                 <img src={tour.images[0]} alt={tour.title[language]} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0F1230]/55 via-transparent to-transparent" />
+                {tour.tags[0] && (
+                  <span className="absolute left-2 top-2"><StatusChip tone="purple">{tour.tags[0]}</StatusChip></span>
+                )}
                 <span className="absolute right-2 top-2 rounded-full bg-white/25 px-2 py-0.5 text-[9.5px] font-bold text-white backdrop-blur-sm">
                   {priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
                 </span>
               </div>
-              <p className="mt-1.5 line-clamp-2 text-[12.5px] font-bold leading-tight">{tour.title[language]}</p>
-              <p className="mt-0.5 text-[11px] font-semibold" style={{ color: PURPLE }}>
+              <p className="mt-1.5 line-clamp-1 text-[12.5px] font-bold leading-tight">{tour.title[language]}</p>
+              {/* Why we love it — tour.summary 실데이터 파생(가이드 p.10 Smart Pick). 별점·리뷰수 삽입 금지. */}
+              <p className="mt-0.5 text-[8.5px] font-bold uppercase tracking-wide" style={{ color: PURPLE }}>{m.whyWeLove}</p>
+              <p className="line-clamp-2 text-[10.5px] leading-snug" style={{ color: MUTED }}>{tour.summary[language]}</p>
+              <p className="mt-1 text-[11px] font-semibold" style={{ color: PURPLE }}>
                 <span style={{ color: MUTED }}>{m.from} </span>{priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
               </p>
             </Link>

@@ -1272,7 +1272,11 @@
     "companionsSolo": "혼자",
     "companionsCouple": "커플",
     "companionsFamily": "가족",
-    "companionsFriends": "친구"
+    "companionsFriends": "친구",
+    "trustFastSetup": "빠른 설정",
+    "trustSafePrefs": "안전한 취향",
+    "trustMultilingual": "다국어 지원",
+    "trustEditable": "수정 가능"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1340,7 +1344,8 @@
     "bestMatch": "최적 매칭",
     "viewFullPlan": "전체 일정 보기",
     "smartPicks": "추천 픽",
-    "searchPlaceholder": "여행지·명소 검색..."
+    "searchPlaceholder": "여행지·명소 검색...",
+    "whyWeLove": "이래서 좋아요"
   },
   "pwaInstall": {
     "modalTitle": "코코트립 바로가기 추가",

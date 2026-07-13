@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
+  Zap, ShieldCheck, Languages, Pencil,
 } from 'lucide-react';
 
 import type { DateRange } from 'react-day-picker';
@@ -1082,6 +1083,25 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
               </Suspense>
             </motion.div>
           </AnimatePresence>
+
+          {/* 하단 신뢰 4배지 (가이드 P3) — 정적, 제품 실약속(빠른설정·안전취향·4언어·편집가능). 없는 지표/리뷰수 금지. */}
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { icon: Zap, label: p.trustFastSetup },
+              { icon: ShieldCheck, label: p.trustSafePrefs },
+              { icon: Languages, label: p.trustMultilingual },
+              { icon: Pencil, label: p.trustEditable },
+            ].map(({ icon: Icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 rounded-xl px-3 py-2.5"
+                style={{ background: 'rgba(124,92,252,0.10)', border: '1px solid rgba(182,104,252,0.22)' }}
+              >
+                <Icon className="h-4 w-4 shrink-0" style={{ color: '#D9A8FF' }} />
+                <span className="text-[11px] font-bold text-white/80">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </>

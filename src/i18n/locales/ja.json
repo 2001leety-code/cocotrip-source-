@@ -1272,7 +1272,11 @@
     "companionsSolo": "ひとり",
     "companionsCouple": "カップル",
     "companionsFamily": "家族",
-    "companionsFriends": "友達"
+    "companionsFriends": "友達",
+    "trustFastSetup": "かんたん設定",
+    "trustSafePrefs": "安全な設定",
+    "trustMultilingual": "多言語対応",
+    "trustEditable": "編集可能"
   },
   "charterPage": {
     "backToHome": "ホームに戻る",
@@ -1417,7 +1421,8 @@
     "bestMatch": "ベストマッチ",
     "viewFullPlan": "プラン全体を見る",
     "smartPicks": "おすすめピック",
-    "searchPlaceholder": "目的地・観光スポットを検索..."
+    "searchPlaceholder": "目的地・観光スポットを検索...",
+    "whyWeLove": "おすすめポイント"
   },
   "pwaInstall": {
     "modalTitle": "CocoTripショートカット追加",

@@ -265,7 +265,8 @@ export default function TourDetailPage() {
           >
             <Users className="w-3 h-3" />{t.vehicle?.[VEHICLE_KEY[tour.vehicleType]] || VEHICLE_FALLBACK[tour.vehicleType]}
           </span>
-          {resolvedRating.rating && resolvedRating.rating > 0 && (
+          {/* 별점 = REAL_TOUR_RATINGS 플래그 게이팅(가짜 별점 차단, 운영자 결정 #3). JSON-LD(L108)와 동일 조건. */}
+          {import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true' && resolvedRating.rating && resolvedRating.rating > 0 && (
             <span
               className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
               style={{ background: 'rgba(255,200,80,0.08)', border: '1px solid rgba(255,200,80,0.20)', color: '#FFD250' }}
