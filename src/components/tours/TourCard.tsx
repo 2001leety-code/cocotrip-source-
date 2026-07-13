@@ -9,6 +9,7 @@ import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
+import { getSeasonalTip } from '@/data/tourSeasons';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -85,6 +86,9 @@ export function TourCard({ tour, language }: TourCardProps) {
 
   // 나이트 투어 오버레이
   const isNight = tour.isNightTour === true;
+
+  // 계절 적합도 칩 (운영자 아이디어) — 현재 월 기준. 데이터 없으면 null(미표시).
+  const seasonalTip = getSeasonalTip(tour.id, new Date().getMonth() + 1, language);
 
   return (
     <Link
@@ -178,6 +182,20 @@ export function TourCard({ tour, language }: TourCardProps) {
             />
           </div>
         </div>
+
+        {/* 계절 적합도 칩 (좌하단) — best=그린 긍정 / caution=앰버 여름주의. 데이터 있는 투어만. */}
+        {seasonalTip && (
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3">
+            <span
+              className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-full backdrop-blur-sm"
+              style={seasonalTip.tone === 'best'
+                ? { background: 'rgba(12,64,40,0.74)', border: '1px solid rgba(80,220,150,0.40)', color: '#7DF0B8' }
+                : { background: 'rgba(84,56,10,0.74)', border: '1px solid rgba(255,200,80,0.42)', color: '#FFD37A' }}
+            >
+              <span aria-hidden>{seasonalTip.emoji}</span>{seasonalTip.label}
+            </span>
+          </div>
+        )}
 
         {/* 가격 (우하단) USD + 근사 KRW 병기 */}
         <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3">
