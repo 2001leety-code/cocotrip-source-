@@ -122,6 +122,43 @@ describe('resolveTransferCheckoutKrw — 결제 게이트', () => {
   });
 });
 
+describe('resolveTransferCheckoutKrw — 경유지 routeKm override (FEATURE_CHARTER_WAYPOINTS)', () => {
+  const body = { originKey: 'ICN', destKey: 'SEL_GANGNAM', tripType: 'oneway', vehicle: 'staria' };
+
+  it('opts.routeKm 없음(기본)=현행 curated 경로 무영향', () => {
+    const base = resolveTransferCheckoutKrw(SPEC, body, true);
+    expect(resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: null })).toBe(base);
+    expect(base).toBe(169_670); // curated 145,600 기준
+  });
+
+  it('opts.routeKm(경유지) → curated priceKRW 대신 4-tier(routeKm)', () => {
+    // routeKm 65 → fourTier 146,500 + 캡틴 33,000 = 179,500, 편도 5% −8,975 = 170,525.
+    const priced = resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: 65 });
+    expect(priced).toBe(170_525);
+    // curated(145,600) 경로와 다른 값 = zone 직선가가 아니라 실제 경로 반영됨
+    expect(priced).not.toBe(169_670);
+  });
+
+  it('routeKm 이 길수록 청구가 ↑ (detour 반영)', () => {
+    const short = resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: 65 })!;
+    const long = resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: 210 })!;
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it('routeKm 은 curated 미존재(협의) 경로도 결제 가능케 함', () => {
+    const custom = { originKey: 'NOWHERE', destKey: 'VOID', tripType: 'oneway', vehicle: 'staria' };
+    expect(resolveTransferCheckoutKrw(SPEC, custom, true)).toBeNull(); // curated 없음
+    expect(resolveTransferCheckoutKrw(SPEC, custom, true, { routeKm: 65 })).toBe(170_525);
+  });
+
+  it('routeKm 0/음수/NaN → 무시하고 curated 폴백', () => {
+    const base = resolveTransferCheckoutKrw(SPEC, body, true);
+    expect(resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: 0 })).toBe(base);
+    expect(resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: -5 })).toBe(base);
+    expect(resolveTransferCheckoutKrw(SPEC, body, true, { routeKm: NaN })).toBe(base);
+  });
+});
+
 describe('estimateTransferCostKrw + 최소마진 가드 (transfer_margin_guard)', () => {
   it('추정 원가 산정 (ICN→강남 65km 편도 = 105,340)', () => {
     // 65×1.8=117km / fuel 117×170=19,890 / hours 117/60+1=2.95 driver 73,750 / toll 6500×1.8=11,700

@@ -14,7 +14,7 @@ import { resolveProductType } from '../../src/components/charter/resolveProductT
 import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
 import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
-import { calcTransferQuote as beTransferQuote, curatedStariaKRW as beCuratedStaria } from '../../api/_shared/charter-transfer-price.js';
+import { calcTransferQuote as beTransferQuote, curatedStariaKRW as beCuratedStaria, fourTierStariaKRW as beFourTier } from '../../api/_shared/charter-transfer-price.js';
 import { calcMultiDayQuote } from '../../src/lib/multidayQuote';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -202,6 +202,37 @@ describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECK
     vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
     const r = resolveProductType(transferState({ destinationKey: undefined, destinationCustom: '없는곳ZZZ' }));
     expect(r.payable).toBe(false);
+  });
+});
+
+// FEATURE_CHARTER_WAYPOINTS 경유지 routeKm 호출처 parity (표시==청구 P311) — discountV2 버그와 동일 부류:
+//   resolveProductType 가 opts.routeKm 를 안 쓰면 표시=matrix 직선가, 백엔드 청구=TMAP 경로가 → 오과금.
+describe('resolveProductType — 경유지 routeKm 호출처 parity (표시==청구 P311)', () => {
+  it('멀티데이: routeKm 전달 시 matrix 대신 routeKm 으로 산정 = 백엔드 청구가', () => {
+    vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
+    const matrixKm = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const routeKm = matrixKm + 90; // 경유지 detour
+    const r = resolveProductType(multidayState(), { routeKm });
+    expect(r.priceKRW).toBe(beMultiday(SPEC, { vehicle: 'staria', km: routeKm, durationDays: 3 }));
+    // matrix 직선가와 달라야 함(= routeKm 이 실제로 반영됨)
+    expect(r.priceKRW).not.toBe(beMultiday(SPEC, { vehicle: 'staria', km: matrixKm, durationDays: 3 }));
+  });
+
+  it('멀티데이: routeKm 없으면 기존 matrix (무경유 무영향)', () => {
+    vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    expect(resolveProductType(multidayState()).priceKRW).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
+  });
+
+  it('transfer: routeKm 전달 시 4-tier(routeKm) = 백엔드 청구가', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    const routeKm = 210;
+    const transferState = base({ service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', tripType: 'oneway' });
+    const r = resolveProductType(transferState, { routeKm });
+    const curatedKRW = beFourTier(SPEC, routeKm)!;
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
+    // zone 직선 curated 와 다른 값 = 경로가 반영됨
+    expect(r.priceKRW).not.toBe(beTransferQuote({ curatedKRW: beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!, tripType: 'oneway', vehicle: 'staria' }, { captainPremiumKrw: SPEC.vehicles.staria.captain_premium_krw })!.total);
   });
 });
 

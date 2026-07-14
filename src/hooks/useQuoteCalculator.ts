@@ -149,7 +149,9 @@ function surchargeForNight(baseKRW: number, isNight: boolean): number {
 }
 
 // 외부 거리 입력 (Geocoding 결과 또는 manual km). 동기 함수 — useEffect에서 호출.
-function calculateQuoteWithKm(state: WizardState, externalKm: number | null): QuoteBreakdown | null {
+// routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km(서버 /api/charter-route-km). transfer/multi_day 에서
+//   matrix·externalKm 보다 **우선**(detour 반영). 결제(createPaypalOrder)도 동일 좌표로 재조회 → 표시가==청구가.
+function calculateQuoteWithKm(state: WizardState, externalKm: number | null, routeKm: number | null = null): QuoteBreakdown | null {
   const warnings: string[] = [];
   if (!state.service || !state.vehicle) return null;
 
@@ -271,7 +273,11 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       const nights = Math.max(0, tourDays - 1);
 
       let kmForFormula: number | null = null;
-      if (state.origin && resolvedDest) {
+      // 경유지 경로 km 우선 (matrix 직선 대신 detour 반영).
+      if (routeKm != null && routeKm > 0) {
+        kmForFormula = routeKm; distanceKm = routeKm; source = 'formula';
+      }
+      if (kmForFormula == null && state.origin && resolvedDest) {
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
           kmForFormula = m.km; distanceKm = m.km; durationHours = m.hours; source = 'matrix';
@@ -292,7 +298,9 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       // 결제가는 resolveProductType(charter_transfer)=calcTransferQuote 가 권위. 여기 vehicleChargeKRW 는
       // canAdvance(subtotalKRW>0) + displayKRW fallback 용. multiDayDiscount/lodging 미적용(transfer=숙박 없음).
       let kmT: number | null = null;
-      if (state.origin && resolvedDest) {
+      // 경유지 경로 km 우선 (matrix 직선 대신 detour 반영).
+      if (routeKm != null && routeKm > 0) { kmT = routeKm; distanceKm = routeKm; source = 'formula'; }
+      if (kmT == null && state.origin && resolvedDest) {
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) { kmT = m.km; distanceKm = m.km; durationHours = m.hours; source = 'matrix'; }
       }
@@ -300,7 +308,10 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       if (kmT != null) {
         const tripType = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
         // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
-        const curatedKRW = (state.origin && resolvedDest ? curatedStariaKRW(state.origin, resolvedDest) : null) ?? fourTierStariaKRW(kmT);
+        // 경유지 시(routeKm): zone 직선 priceKRW 대신 4-tier(경로km) — 백 hasRoute 경로와 동일.
+        const curatedKRW = routeKm != null
+          ? fourTierStariaKRW(routeKm)
+          : ((state.origin && resolvedDest ? curatedStariaKRW(state.origin, resolvedDest) : null) ?? fourTierStariaKRW(kmT));
         const tq = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled(), captainPremiumKrw: captainPremiumKrwFor(vehicle) }) : null;
         if (tq) { vehicleChargeKRW = tq.total; receiptIsPackage = true; }
         else needsCustomQuote = true;
@@ -455,7 +466,9 @@ function hasSpecOrMatrixPrice(state: WizardState): boolean {
 }
 
 // React 훅 — Geocoding 호출 캐시 + 로딩/실패 상태 노출. CharterWizard Step 6 에서 manual km override 가능.
-export function useQuoteCalculator(state: WizardState, manualKm?: number | null): QuoteCalculatorResult {
+// routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km — CharterWizard/PaymentPanel 이 useCharterRouteKm 로
+//   조회해 주입. transfer/multi_day 에서 matrix 보다 우선. 미전달=현행 동작(무경유).
+export function useQuoteCalculator(state: WizardState, manualKm?: number | null, routeKm?: number | null): QuoteCalculatorResult {
   const [externalKm, setExternalKm] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [geocodingFailed, setGeocodingFailed] = useState(false);
@@ -534,7 +547,7 @@ export function useQuoteCalculator(state: WizardState, manualKm?: number | null)
   const effectiveKm = manualKm != null && manualKm > 0 ? manualKm : externalKm;
   const effectiveSource: DistanceSourceLabel = manualKm != null && manualKm > 0 ? 'manual' : distanceSource;
 
-  const quote = calculateQuoteWithKm(state, effectiveKm);
+  const quote = calculateQuoteWithKm(state, effectiveKm, routeKm ?? null);
   return {
     quote,
     loading,

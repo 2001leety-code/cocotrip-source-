@@ -76,4 +76,27 @@ export async function fetchTmapCarRouteKm(origin, dest, waypoints = []) {
   }
 }
 
+/**
+ * 결제/견적 body 에서 차터 경로 좌표를 안전 추출. 프론트는 body.routeCoords 에
+ *   { origin:{lng,lat}, dest:{lng,lat}, waypoints:[{lng,lat}...] } 를 담아 보낸다.
+ * origin·dest 둘 다 유효 좌표일 때만 객체 반환 (경유지는 유효한 것만·최대 5). 아니면 null
+ *   → 호출처는 기존 matrix km 경로로 폴백(경유지 없는 예약 = 무영향).
+ * ⚠️ 좌표 위조는 자기 여정을 바꾸는 것뿐 — 서버가 이 좌표로 TMAP km 를 직접 재조회하므로
+ *   가격은 항상 실제 경로에 정직(P311). 위조된 좌표 = 위조된(그러나 그 좌표 기준 정확한) 거리.
+ * @param {object} body
+ * @returns {{origin:{lng:number,lat:number}, dest:{lng:number,lat:number}, waypoints:{lng:number,lat:number}[]} | null}
+ */
+export function extractRouteCoords(body) {
+  const rc = body && typeof body === 'object' ? body.routeCoords : null;
+  if (!rc || typeof rc !== 'object') return null;
+  const origin = rc.origin, dest = rc.dest;
+  if (!validPoint(origin) || !validPoint(dest)) return null;
+  const waypoints = (Array.isArray(rc.waypoints) ? rc.waypoints : []).filter(validPoint).slice(0, 5);
+  return {
+    origin: { lng: origin.lng, lat: origin.lat },
+    dest: { lng: dest.lng, lat: dest.lat },
+    waypoints: waypoints.map((p) => ({ lng: p.lng, lat: p.lat })),
+  };
+}
+
 export default fetchTmapCarRouteKm;

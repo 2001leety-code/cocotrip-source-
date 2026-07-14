@@ -36,14 +36,18 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, language = 'en' }: {
+export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, routeKm, language = 'en' }: {
   originKey?: string | null;
   destKey?: string | null;
   vehicle: string;
   durationDays: number;
+  // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km. 있으면 matrix 직선 대신 이 km 으로 산정(백 결제와 동일).
+  routeKm?: number | null;
   language?: Lang;
 }) {
-  const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
+  const km = typeof routeKm === 'number' && routeKm > 0
+    ? routeKm
+    : (originKey && destKey ? lookupMatrixKm(originKey, destKey) : null);
   const q = km != null ? calcMultiDayQuote({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() }) : null;
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;

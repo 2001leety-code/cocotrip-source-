@@ -3,7 +3,7 @@
 import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE, CAPTAIN_PREMIUM_KRW } from '@/data/charterPricing';
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote, captainPremiumKrwFor as tourCaptainPremiumKrwFor } from '@/lib/tourQuote';
-import { calcTransferQuote, curatedStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
+import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
@@ -52,7 +52,11 @@ export interface ResolvedPayment {
   durationDays?: number;           // charter_multiday 전용 (1박+ 일수)
 }
 
-export function resolveProductType(state: WizardState): ResolvedPayment {
+// opts.routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km(서버 /api/charter-route-km 조회). 있으면
+//   transfer/multiday 를 이 km 로 산정(matrix 직선 대신 detour 반영). createPaypalOrder 도 동일 좌표로
+//   재조회해 청구 → 표시가==청구가(P311). 미전달(기존 호출)=현행 matrix 경로 그대로.
+export function resolveProductType(state: WizardState, opts: { routeKm?: number | null } = {}): ResolvedPayment {
+  const routeKm = typeof opts.routeKm === 'number' && opts.routeKm > 0 ? opts.routeKm : null;
   const pax = state.paxCount ?? 1;
   const vehicle = state.vehicle ?? 'staria';
   const mult = VEHICLE_MULTIPLIER[vehicle] ?? 1.0;
@@ -143,7 +147,10 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
       const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
       const destKey = resolveDestMatrixKey(state);
       // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
-      const curatedKRW = originKey && destKey ? curatedStariaKRW(originKey, destKey) : null;
+      // 경유지 시(routeKm): zone 직선 priceKRW 대신 4-tier(경로km) — 백 resolveTransferCheckoutKrw hasRoute 와 동일.
+      const curatedKRW = routeKm != null
+        ? fourTierStariaKRW(routeKm)
+        : (originKey && destKey ? curatedStariaKRW(originKey, destKey) : null);
       if (curatedKRW != null) {
         const tripType: 'oneway' | 'roundtrip' = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
         const q = calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled(), captainPremiumKrw: captainPremiumKrwFor(vehicle) });
@@ -164,7 +171,8 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     const durationDays = state.startDate && state.endDate
       ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) + 1)
       : 1;
-    const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
+    // 경유지 시(routeKm): matrix 직선 대신 경로 km 으로 산정(백 resolveMultiDayCheckoutKrw routeKm 과 동일).
+    const km = routeKm != null ? routeKm : (originKey && destKey ? lookupMatrixKm(originKey, destKey) : null);
     if (km != null && km > 0 && durationDays >= 2) {
       const price = calcMultiDayCharterKrw({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() });
       if (price != null) {

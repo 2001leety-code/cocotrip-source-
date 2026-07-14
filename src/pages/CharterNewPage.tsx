@@ -20,6 +20,7 @@ import { isFeatureFlagOn } from '@/lib/featureFlag';
 import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewEditModals';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
+import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
@@ -124,7 +125,10 @@ function PaymentPanel({
   onPatchState: (patch: Partial<WizardState>) => void;
 }) {
   const i18n = getWizardI18n(language);
-  const resolved = resolveProductType(state);
+  // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km + 결제 body 좌표. 무경유/플래그OFF = null(무영향).
+  //   resolveProductType/useQuoteCalculator 에 routeKm 주입 → 표시가==청구가. routeCoords 는 결제 body 로.
+  const { routeKm, routeCoords } = useCharterRouteKm(state);
+  const resolved = resolveProductType(state, { routeKm });
 
   // ── #1 번역: raw 코드값 → 사람이 읽는 레이블 ──
   // 서비스 타입 레이블 (4언어)
@@ -172,7 +176,7 @@ function PaymentPanel({
   // CharterWizard 내부에서 manual km 보정한 결과는 이 페이지에서 다시 계산되지 않음 (Wizard onComplete
   // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
   // resolved.priceKRW 또는 quote.subtotalKRW 0 → estimateOnlyNote 분기로 빠져 WhatsApp 요청.
-  const { quote } = useQuoteCalculator(state);
+  const { quote } = useQuoteCalculator(state, null, routeKm);
   // 결제 패널 가격 — 사용자 언어 기반 자동 환산. ko 만 ₩, 그 외는 USD/JPY/CNY 표시.
   // 결제 직전 명시 (withCurrencyCode) 로 잘못된 통화 인지 방지 — 실 결제는 PayPal USD 그대로.
   const KRW = (n: number | null | undefined) => formatPrice(n, language, { withCurrencyCode: true });
@@ -286,6 +290,9 @@ function PaymentPanel({
           destKey={resolved.destKey ?? undefined}
           tripType={resolved.tripType}
           vehicle={state.vehicle ?? 'staria'}
+          // FEATURE_CHARTER_WAYPOINTS: 경유지 좌표 → 백엔드가 동일 좌표로 TMAP km 재조회해 청구(P311).
+          //   null(무경유/플래그OFF)이면 미전달 → 기존 matrix 경로.
+          routeCoords={routeCoords ?? undefined}
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}

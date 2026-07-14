@@ -1,7 +1,7 @@
 // TransferReceipt — 도시간/공항 차터 transfer 편도/왕복 영수증.
 // 2026-06-05 통일: 4-tier(톨 포함) ‖ 매트릭스 priceKRW × 차종 × 편도5%/왕복(×2)10%. 거리·VAT 별도행 폐기(curatedKRW 내장).
 // 가격은 src/lib/transferQuote (백엔드 charter-transfer-price.js 와 1:1). 표시가 == 결제가 (P311).
-import { calcTransferQuote, curatedStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
+import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import type { TripType } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
@@ -31,14 +31,18 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehicle, language = 'en' }: {
+export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehicle, routeKm, language = 'en' }: {
   originKey: string;
   destKey: string;
   tripType?: TripType;
   vehicle: string;
+  // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km. 있으면 zone 직선 priceKRW 대신 4-tier(경로km) — 백 결제와 동일.
+  routeKm?: number | null;
   language?: Lang;
 }) {
-  const curatedKRW = curatedStariaKRW(originKey, destKey);
+  const curatedKRW = typeof routeKm === 'number' && routeKm > 0
+    ? fourTierStariaKRW(routeKm)
+    : curatedStariaKRW(originKey, destKey);
   const q = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled(), captainPremiumKrw: captainPremiumKrwFor(vehicle) }) : null;
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;

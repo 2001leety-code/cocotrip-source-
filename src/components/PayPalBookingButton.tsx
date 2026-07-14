@@ -73,6 +73,9 @@ interface Props {
   tripType?: 'oneway' | 'roundtrip';
   /** transfer/tour_hourly 결제 시 backend 차종 재계산용 */
   vehicle?: string;
+  /** FEATURE_CHARTER_WAYPOINTS: 경유지 경로 좌표(출발/경유/도착 lng·lat). 있으면 createPaypalOrder 가
+   *  동일 좌표로 TMAP 경로 km 를 재조회해 청구(P311, 클라 가격 불신). 미전달=기존 matrix 경로. */
+  routeCoords?: { origin: { lng: number; lat: number }; dest: { lng: number; lat: number }; waypoints: { lng: number; lat: number }[] };
   /** 2026-06-28 트립닷컴식 예약정보 — 개인정보/이용약관 동의 여부. (금액 로직 무관, 추적용 보존.)
    *  ⚠️ 결제 금액·capture·멱등성 로직 무관. createPaypalOrder/capturePaypalOrder body 에
    *  additive 로 전달만 → 백엔드가 booking 레코드에 컴플라이언스 메타로 보존. 미전달 시 false. */
@@ -111,7 +114,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, termsAgreed, marketingConsent }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -521,6 +524,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(destKey ? { destKey } : {}),
           ...(tripType ? { tripType } : {}),
           ...(vehicle ? { vehicle } : {}),
+          // FEATURE_CHARTER_WAYPOINTS: 경유지 좌표 — 백엔드가 동일 좌표로 TMAP km 재조회해 청구(P311).
+          ...(routeCoords ? { routeCoords } : {}),
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.

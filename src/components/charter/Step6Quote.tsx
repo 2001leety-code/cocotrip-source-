@@ -14,6 +14,8 @@ import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 interface Props {
   quote: QuoteBreakdown | null;
   state?: WizardState;
+  // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km — 견적 표시==청구가 위해 resolveProductType/영수증에 주입.
+  routeKm?: number | null;
   language?: 'ko' | 'en' | 'ja' | 'zh';
 }
 
@@ -21,7 +23,7 @@ const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
 // 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
 const USD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`;
 
-export function Step6Quote({ quote, state, language = 'en' }: Props) {
+export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
   if (!quote) {
     return (
@@ -69,18 +71,18 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   // charter_multiday 로 판정하면(매트릭스+staria/sprinter+1박+, 플래그 ON) backend 와 동일한 base 가격 영수증 표시.
   // transfer 보다 먼저 — 멀티데이(1박+)가 우선. 표시가 == 결제가 (P311).
   if (state) {
-    const md = resolveProductType(state);
+    const md = resolveProductType(state, { routeKm });
     if (md.productType === 'charter_multiday' && md.payable) {
-      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} language={language} />;
+      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} routeKm={routeKm} language={language} />;
     }
   }
 
   // 도시간 transfer 영수증 (VITE_FEATURE_TRANSFER_CHECKOUT): resolveProductType=charter_transfer 판정 시
   // backend 와 동일하게 originKey/destKey 로 curatedKRW 재계산 (4-tier ‖ 매트릭스 priceKRW). 표시가==결제가 (P311).
   if (state) {
-    const tf = resolveProductType(state);
+    const tf = resolveProductType(state, { routeKm });
     if (tf.productType === 'charter_transfer' && tf.payable && tf.originKey && tf.destKey) {
-      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} language={language} />;
+      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} routeKm={routeKm} language={language} />;
     }
   }
 
@@ -200,6 +202,16 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       {quote.distanceKm && (
         <p className="text-xs text-white/55">
           {i18n.onewayLabel}: {quote.distanceKm}km · ~{quote.durationHours}h · source: {quote.source}
+        </p>
+      )}
+
+      {/* FEATURE_CHARTER_WAYPOINTS: 경유지 반영 경로 안내 — routeKm 이 있으면 실제 도로 경로 기반 견적임을 표기. */}
+      {routeKm != null && routeKm > 0 && (state?.waypoints?.length ?? 0) > 0 && (
+        <p className="text-xs text-emerald-300/85">
+          {language === 'ko' ? `경유 ${state!.waypoints!.length}곳 반영 · 실제 도로 경로 ${routeKm}km 기준`
+            : language === 'ja' ? `経由${state!.waypoints!.length}ヶ所 · 実際の道路経路${routeKm}km基準`
+            : language === 'zh' ? `含${state!.waypoints!.length}个经停 · 按实际道路${routeKm}km计`
+            : `${state!.waypoints!.length} stop${state!.waypoints!.length > 1 ? 's' : ''} via actual road route (${routeKm}km)`}
         </p>
       )}
     </div>
