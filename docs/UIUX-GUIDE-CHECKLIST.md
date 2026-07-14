@@ -65,7 +65,7 @@
 - [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. **C4: 사진 카드화**(REGION_IMAGE 실존자산 Seoul/Busan/Gyeongju/Danyang, 없는 지역 그라디언트 폴백=잘못된 사진 라벨 금지). 검색바 기존.
   - [x] Trip Style 필터(Relaxed/Balanced/Active) — 2026-07-14 구현. `tourPace.ts` 9투어 pace 실데이터(소요시간+야외/도보량 근거, 계절칩 패턴). ToursPage 칩 행+OR 필터. 검증: Active 클릭→4투어(danyang·nami-chuncheon·gyeongju·multicity). 운영자 검수 후 tourPace.ts 조정. 별점만 잔여(🔴게이트).
 - [x] Filter: Interests+Duration+언어+**Trip Style 3칩**+"Show N Tours" 실카운트 전부 구현. 별점 제외 완료.
-- [ ] 투어 상세: 칩·하이라이트 체크 기존, 별점만 잔여(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)
+- [x] 투어 상세: 칩·하이라이트 기존 + **별점 = 실 후기 집계 배선**(2026-07-14). /api/reviews 에 aggregate 액션 추가 → published 리뷰 평균·개수. useTourRatingAggregates 배치훅. TourCard·TourDetail 배지 = 내부 실후기(count>0)면 **무조건 노출**(실데이터=가짜 아님, 플래그 불필요), static/Google 은 기존 플래그 유지. JSON-LD 동일조건. 리뷰 제출/모더레이션/리워드는 기존(ReviewList·/api/reviews·review-request 크론). 운영자: 실 고객 후기 쌓이면 자동 노출.
 - [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·**Travel Style 페이스 라디오(Relaxed/Balanced/Active)**·duration select. 백엔드 inquiry-submit 도 travelStyle/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정.
   ⚠️정정(C4 레퍼런스 대조): C3 초판은 companions(Solo/Couple/Family) 넣었으나 가이드 P7 Custom=페이스(Relaxed/Balanced/Active)라 정정. companions 는 위자드 P3 전용.
 - 보존: 결제 다이얼로그 배선(#1019)·tours SSOT

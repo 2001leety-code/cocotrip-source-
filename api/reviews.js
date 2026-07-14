@@ -266,6 +266,38 @@ export default async function handler(req, res) {
     }
 
     // ════════════════════════════════════════════════════════
+    // ACTION: aggregate — targetType 별 targetId 평균평점/개수 (무인증, 배지용)
+    //   실 published 리뷰만 집계 → 가짜 없음. 배지는 count>0 일 때만 노출(프론트).
+    // ════════════════════════════════════════════════════════
+    if (action === 'aggregate') {
+      const { targetType } = body;
+      if (!targetType) {
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('targetType required', 'BAD_REQUEST')));
+      }
+      const snap = await db.collection('reviews')
+        .where('status', '==', 'published')
+        .where('targetType', '==', targetType)
+        .get();
+      const acc = {};
+      snap.docs.forEach(d => {
+        const x = d.data();
+        const id = x.targetId;
+        const r = Number(x.rating) || 0;
+        if (!id || r < 1) return;
+        if (!acc[id]) acc[id] = { sum: 0, count: 0 };
+        acc[id].sum += r;
+        acc[id].count += 1;
+      });
+      const aggregates = {};
+      for (const id in acc) {
+        aggregates[id] = { rating: Math.round((acc[id].sum / acc[id].count) * 10) / 10, count: acc[id].count };
+      }
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ aggregates })));
+    }
+
+    // ════════════════════════════════════════════════════════
     // ACTION: my-reviews — 내 리뷰 목록 (서버사이드 필터)
     // ════════════════════════════════════════════════════════
     if (action === 'my-reviews') {

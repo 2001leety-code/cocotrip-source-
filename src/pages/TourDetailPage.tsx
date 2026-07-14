@@ -28,6 +28,7 @@ import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
 import { TourFAQ } from '@/components/tours/TourFAQ';
 import { SuitabilityChips } from '@/components/tours/SuitabilityChips';
 import { useTourRating } from '@/hooks/useTourRating';
+import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 import { useTour } from '@/hooks/useTour';
 import type { I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
@@ -70,11 +71,14 @@ export default function TourDetailPage() {
   const { tour } = useTour(slug);
   const hotels = tour ? getRecommendedHotels(tour.region, 3) : [];
 
-  // P2-B: 외부 리뷰 fetch (env 키 있으면 Google Places, 없으면 internal fallback)
+  // 별점 소스 우선순위: Google(키 있으면) > 내부 실후기 집계(published) > static.
+  // 내부 published 리뷰 집계(count>0)면 그걸 fallback 으로 → 실 고객 별점이 배지에 반영.
+  const ratingAgg = useTourRatingAggregates()[slug || ''];
+  const hasInternal = !!ratingAgg && ratingAgg.count > 0;
   const resolvedRating = useTourRating(tour?.id || '', {
-    rating: tour?.rating,
-    reviewCount: tour?.reviewCount,
-    reviewSource: tour?.reviewSource,
+    rating: hasInternal ? ratingAgg.rating : tour?.rating,
+    reviewCount: hasInternal ? ratingAgg.count : tour?.reviewCount,
+    reviewSource: hasInternal ? 'internal' : tour?.reviewSource,
   });
 
   const backLabel =
@@ -117,7 +121,8 @@ export default function TourDetailPage() {
       tourPrice: tour.priceFrom,
       rating: resolvedRating.rating,
       reviewCount: resolvedRating.reviewCount,
-      featureFlag,
+      // 내부 실후기(published)면 온페이지 배지와 동일하게 JSON-LD 도 aggregateRating 노출(실데이터).
+      featureFlag: resolvedRating.reviewSource === 'internal' || featureFlag,
     }));
     // Remove old if exists
     document.getElementById('tour-jsonld')?.remove();
@@ -265,8 +270,8 @@ export default function TourDetailPage() {
           >
             <Users className="w-3 h-3" />{t.vehicle?.[VEHICLE_KEY[tour.vehicleType]] || VEHICLE_FALLBACK[tour.vehicleType]}
           </span>
-          {/* 별점 = REAL_TOUR_RATINGS 플래그 게이팅(가짜 별점 차단, 운영자 결정 #3). JSON-LD(L108)와 동일 조건. */}
-          {import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true' && resolvedRating.rating && resolvedRating.rating > 0 && (
+          {/* 별점 = 내부 실후기(published 집계) OR static+플래그. 실데이터만(가짜 차단). JSON-LD 와 동일 조건. */}
+          {(resolvedRating.reviewSource === 'internal' || import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true') && resolvedRating.rating && resolvedRating.rating > 0 && (
             <span
               className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
               style={{ background: 'rgba(255,200,80,0.08)', border: '1px solid rgba(255,200,80,0.20)', color: '#FFD250' }}
