@@ -19,6 +19,16 @@ export type DestinationKind = 'package' | 'matrix' | 'custom';
 // multi_day 숙소 위치 — 운영 안내용 (가격 분기는 추후)
 export type LodgingLocation = 'seoul' | 'local' | 'daily_return' | 'custom';
 
+// FEATURE_CHARTER_WAYPOINTS: 경유지 1곳 = 좌표 + 표시 라벨. AddressAutocomplete 로 확정한 것만.
+// 있으면 useQuoteCalculator/resolveProductType 가 /api/charter-route-km 로 실제 도로 경로 km 를 받아
+// 견적하고, 결제 body 에 routeCoords 로 실려 서버가 동일 좌표로 재조회(P311). 최대 5 (TMAP passList 제한).
+export interface WaypointStop {
+  lat: number;
+  lng: number;
+  name?: string;      // 표시용 장소명
+  address?: string;   // 표시용 주소
+}
+
 export interface WizardState {
   origin?: OriginCode;
   originCustom?: string;        // origin = 'CUSTOM' 일 때 자유 입력
@@ -63,6 +73,9 @@ export interface WizardState {
   // multi_day 전용 — 숙소 위치 (운영 정보)
   lodgingLocation?: LodgingLocation;
   lodgingCustom?: string;        // lodgingLocation = 'custom' 일 때
+  // FEATURE_CHARTER_WAYPOINTS (경유지 경로기반 가격) — transfer/multi_day 전용. 좌표 확정된 경유지만.
+  //   origin+dest 좌표까지 있어야 경로 km 계산됨(없으면 무시 → 기존 matrix). 플래그 OFF=미노출/무영향.
+  waypoints?: WaypointStop[];
   options: {
     licensedGuide?: boolean;     // 면허 가이드 (300k/일) — staria 옵션. sprinter/bus는 자동 가산이라 무의미
     airportPicket?: boolean;

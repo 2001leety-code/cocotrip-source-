@@ -145,3 +145,39 @@ describe('resolveMultiDayCheckoutKrw — 결제 핸들러 게이트 (플래그 +
     expect(r1).toBe(r3);
   });
 });
+
+describe('resolveMultiDayCheckoutKrw — 경유지 routeKm override (FEATURE_CHARTER_WAYPOINTS)', () => {
+  const validBody = { originKey: 'ICN', destKey: 'BUSAN', vehicle: 'staria', durationDays: 3 };
+
+  it('opts.routeKm 없음(기본) → matrix km 그대로 (무영향, 무경유 예약)', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const withMatrix = resolveMultiDayCheckoutKrw(SPEC, validBody, true);
+    const explicitNull = resolveMultiDayCheckoutKrw(SPEC, validBody, true, { routeKm: null });
+    expect(explicitNull).toBe(withMatrix);
+    expect(withMatrix).toBe(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
+  });
+
+  it('opts.routeKm(경유지 경로) → matrix 대신 routeKm 으로 계산 (detour 반영)', () => {
+    const matrixKm = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const routeKm = matrixKm + 80; // 경유지로 80km 더 돎
+    const priced = resolveMultiDayCheckoutKrw(SPEC, validBody, true, { routeKm });
+    expect(priced).toBe(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km: routeKm, durationDays: 3 }));
+    // detour 가 더 길므로 청구가도 더 큼
+    expect(priced!).toBeGreaterThan(resolveMultiDayCheckoutKrw(SPEC, validBody, true)!);
+  });
+
+  it('opts.routeKm 는 custom(matrix 미존재) 목적지도 결제 가능케 함 (좌표만 있으면)', () => {
+    const custom = { originKey: 'NOWHERE', destKey: 'VOID', vehicle: 'staria', durationDays: 2 };
+    expect(resolveMultiDayCheckoutKrw(SPEC, custom, true)).toBeNull(); // matrix 없음 → null
+    const withRoute = resolveMultiDayCheckoutKrw(SPEC, custom, true, { routeKm: 210 });
+    expect(withRoute).toBe(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km: 210, durationDays: 2 }));
+  });
+
+  it('opts.routeKm 0/음수/NaN → 무시하고 matrix 폴백 (방어)', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const expected = calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 3 });
+    expect(resolveMultiDayCheckoutKrw(SPEC, validBody, true, { routeKm: 0 })).toBe(expected);
+    expect(resolveMultiDayCheckoutKrw(SPEC, validBody, true, { routeKm: -10 })).toBe(expected);
+    expect(resolveMultiDayCheckoutKrw(SPEC, validBody, true, { routeKm: NaN })).toBe(expected);
+  });
+});

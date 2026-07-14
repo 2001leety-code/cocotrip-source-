@@ -19,6 +19,7 @@ import { verifyCouponForCharge } from './_shared/coupon-charge.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw, transferListBaseKrw } from './_shared/charter-transfer-price.js';
+import { fetchTmapCarRouteKm, extractRouteCoords } from './_tmap_car_route.js';
 import { applyTotalDiscountCap, TOTAL_DISCOUNT_CAP_PCT } from './_shared/total-discount-cap.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
@@ -225,9 +226,30 @@ export default async function handler(req, res) {
     // 7인승 캡틴시트 프리미엄(staria +33,000) 가산용 — 프론트 PayPalBookingButton 이 charter 결제 시 body.vehicle 전달.
     // staria_9/sprinter/미전달 = +0 (기존 동작 보존). resolveKrwAmount 만 사용(공항/당일패키지 경로); 다른 경로는 자체 spec 조회.
     const bodyVehicle = typeof body.vehicle === 'string' ? body.vehicle.trim() : undefined;
+
+    // FEATURE_CHARTER_WAYPOINTS (경유지 경로기반 가격, 운영자 e2e 후 ON): 플래그 ON + body.routeCoords
+    //   (origin/dest 좌표) 있으면 서버가 TMAP 자동차경로로 총 주행거리(경유지 반영)를 직접 재조회(P311,
+    //   클라 위조 방어) → routeKm. 아래 charter 가격 함수에 opts.routeKm 으로 주입(경유지 detour 반영).
+    //   좌표가 있는데 TMAP 재조회 실패 = 표시가==청구가 보장 불가 → 결제 차단(협의). 좌표 없으면 routeKm=null
+    //   → 기존 matrix km 경로 그대로(무경유 예약 = 무영향). 플래그 OFF = 항상 기존 동작.
+    const waypointsEnabled = featureEnabled(process.env.FEATURE_CHARTER_WAYPOINTS);
+    let routeKm = null;
+    if (waypointsEnabled && (productType === 'charter_multiday' || productType === 'charter_transfer')) {
+      const coords = extractRouteCoords(body);
+      if (coords) {
+        const route = await fetchTmapCarRouteKm(coords.origin, coords.dest, coords.waypoints);
+        routeKm = route && route.km > 0 ? route.km : null;
+        if (routeKm == null) {
+          console.warn('[createPaypalOrder] charter waypoint route km unavailable — 결제 차단(표시가==청구가)');
+          res.writeHead(502, JSON_CORS);
+          return res.end(JSON.stringify(_err('경로 거리 조회에 실패했습니다. 잠시 후 다시 시도하거나 챗 상담을 이용해주세요.', 'ROUTE_KM_UNAVAILABLE')));
+        }
+      }
+    }
+
     let krwAmount;
     if (productType === 'charter_multiday') {
-      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2 });
+      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2, routeKm });
     } else if (productType === 'tour_hourly') {
       // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
       krwAmount = resolveTourCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TOUR_HOURLY));
@@ -235,7 +257,7 @@ export default async function handler(req, res) {
       // 도시간 transfer — backend SSOT 재계산(matrix km, client 불신). 플래그 OFF 기본.
       // 2026-06-06 어드민 조종석: 마진가드는 런타임 토글(admin-runtime-flags) 우선. fail-safe → OFF.
       const _rtFlags = await getRuntimeFlags(initAdminDb('createPaypalOrder-rtflags'));
-      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2 });
+      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2, routeKm });
     } else if (isCustomEstimateProduct(productType)) {
       // charter_custom_estimate = zone-fallback 추정가 즉시결제(운영자 사후 WhatsApp 확정+정산).
       // 가격은 client wizard quote(customAmountKRW). 🔴 sanity range 가드 — pricing.js SSOT 상수
@@ -268,9 +290,9 @@ export default async function handler(req, res) {
     let listBaseKrw = krwAmount;
     if (discountV2) {
       if (productType === 'charter_multiday') {
-        listBaseKrw = multiDayListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT)) ?? krwAmount;
+        listBaseKrw = multiDayListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { routeKm }) ?? krwAmount;
       } else if (productType === 'charter_transfer') {
-        listBaseKrw = transferListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { discountV2 }) ?? krwAmount;
+        listBaseKrw = transferListBaseKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { discountV2, routeKm }) ?? krwAmount;
       }
     }
 

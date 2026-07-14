@@ -132,7 +132,11 @@ export function resolveTransferCheckoutKrw(spec, body, featureEnabled, opts = {}
   if (!featureEnabled || !body) return null;
   const o = String(body.originKey || '').trim();
   const d = String(body.destKey || '').trim();
-  const curatedKRW = curatedStariaKRW(spec, o, d);
+  // 경유지(FEATURE_CHARTER_WAYPOINTS): opts.routeKm(서버 TMAP 재조회) 있으면 4-tier(경로km) 로 산정.
+  //   zone 큐레이션 priceKRW 는 무경유 직선가라 경유지 경로엔 부적합 → 4-tier(실제 주행 km) 로 대체.
+  //   routeKm 없으면 기존 curatedStariaKRW(matrix priceKRW 우선) = 무영향. P311: routeKm 은 서버 산출값.
+  const hasRoute = Number.isFinite(opts.routeKm) && opts.routeKm > 0;
+  const curatedKRW = hasRoute ? fourTierStariaKRW(spec, opts.routeKm) : curatedStariaKRW(spec, o, d);
   if (curatedKRW == null) return null; // 경로 미존재 → 결제 불가(협의)
   const vehicle = String(body.vehicle || '').trim();
   // 7인승 캡틴시트 프리미엄 정액(SSOT) — body.vehicle 로 spec 조회 (프론트 CAPTAIN_PREMIUM_KRW 와 동일값 = P311).
@@ -143,7 +147,7 @@ export function resolveTransferCheckoutKrw(spec, body, featureEnabled, opts = {}
   // 2026-06-06 어드민 조종석: 런타임 토글(opts.marginGuardEnabled) 우선, 미지정 시 spec 기본값.
   const guardEnabled = typeof opts.marginGuardEnabled === 'boolean' ? opts.marginGuardEnabled : (guard && guard.enabled);
   if (guard && guardEnabled) {
-    const km = lookupMatrixKm(spec, o, d);
+    const km = hasRoute ? opts.routeKm : lookupMatrixKm(spec, o, d); // 경유지 시 실제 경로 km 로 원가 추정
     const cost = km != null ? estimateTransferCostKrw(spec, km, body.tripType) : null;
     if (cost != null && q.total < cost * (guard.margin_multiple || 1.2)) return null; // 마진 미달 → 협의
   }
@@ -160,7 +164,9 @@ export function transferListBaseKrw(spec, body, featureEnabled, opts = {}) {
   if (!featureEnabled || !body) return null;
   const o = String(body.originKey || '').trim();
   const d = String(body.destKey || '').trim();
-  const curatedKRW = curatedStariaKRW(spec, o, d);
+  // 정가 기준선도 결제와 동일 소스: 경유지 시 4-tier(routeKm), 아니면 기존 curated.
+  const hasRoute = Number.isFinite(opts.routeKm) && opts.routeKm > 0;
+  const curatedKRW = hasRoute ? fourTierStariaKRW(spec, opts.routeKm) : curatedStariaKRW(spec, o, d);
   if (curatedKRW == null) return null;
   const vehicle = String(body.vehicle || '').trim();
   const captain = captainPremiumKrw(spec, vehicle);

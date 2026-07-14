@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clock3, CreditCard, Loader2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
+import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -179,7 +180,10 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
-  const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm);
+  // FEATURE_CHARTER_WAYPOINTS: 경유지 좌표 → /api/charter-route-km 경로 km. 견적/영수증에 주입해
+  //   표시가==청구가(백 createPaypalOrder 도 동일 좌표 재조회). 무경유/플래그OFF = routeKm null(무영향).
+  const { routeKm } = useCharterRouteKm(state);
+  const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm, routeKm);
 
   // P1 (2026-07-11): 차터 견적 퍼널 이벤트 — 시작(마운트 1회) / 완료(유효 견적으로 step6 도달 1회).
   // GA4 광고 귀속용. analytics 실패는 위저드 흐름 무영향(trackEvent no-op 방어).
@@ -458,7 +462,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                       <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
                     </p>
                   )}
-                  <Step6Quote quote={quote} state={state} language={language} />
+                  <Step6Quote quote={quote} state={state} routeKm={routeKm} language={language} />
                   {/* 2026-06-19 (운영자 B): 비로그인 게스트에게 견적은 보여주되 가입 시 최대 10% 할인 소프트 유도. */}
                   {!user && (
                     <div className="rounded-2xl border border-[#B668FC]/40 bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 p-4">

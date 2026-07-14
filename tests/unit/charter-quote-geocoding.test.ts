@@ -123,9 +123,9 @@ describe('calculateQuote — multi_day 매트릭스 hit + 10% 할인', () => {
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
     // 매트릭스 SEL_METRO→YEOSU 370km — calcIntercityFormula = 50k + 370×2×1000 = 790k
-    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 130k×2 = 260k → 1,683k
-    // -10% 할인 → 1,514,700 (2026-06-30 캡틴프리미엄 반영).
-    expect(q!.subtotalKRW).toBe(1_514_700);
+    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 100k×2 = 200k → 1,623k
+    // -10% 할인 → 1,460,700 (2026-07-14 숙박료 10만원).
+    expect(q!.subtotalKRW).toBe(1_460_700);
     expect(q!.multiDayDiscountPercent).toBe(10);
   });
 });

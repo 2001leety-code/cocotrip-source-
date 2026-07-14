@@ -100,7 +100,12 @@ export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled, opts = {}
   const originKey = typeof body.originKey === 'string' ? body.originKey.trim() : '';
   const destKey   = typeof body.destKey === 'string' ? body.destKey.trim() : '';
   const vehicle   = typeof body.vehicle === 'string' ? body.vehicle.trim() : '';
-  const km = lookupMatrixKm(spec, originKey, destKey);
+  // 경유지(FEATURE_CHARTER_WAYPOINTS) 인식: createPaypalOrder 가 서버에서 TMAP 로 재조회한 경로 km(opts.routeKm)
+  //   가 있으면 그것을(경유지 detour 반영), 없으면 기존 matrix km(무경유 = 무영향). routeKm 은 서버 산출값
+  //   이므로 클라 위조 불가(P311). 견적표시==청구가는 프론트가 /api/charter-route-km 로 동일 TMAP km 를 받아 보장.
+  const km = (Number.isFinite(opts.routeKm) && opts.routeKm > 0)
+    ? opts.routeKm
+    : lookupMatrixKm(spec, originKey, destKey);
   if (km == null) return null; // matrix 미존재 custom 목적지 → 결제 불가(협의)
   // FEATURE_DISCOUNT_V2 ON → 다일 기본할인 5% (기본 10%). 쿠폰 5% 는 createPaypalOrder 가 별도 가산.
   const discountPct = opts.discountV2 ? DISCOUNT_V2_MULTIDAY_PCT : MULTIDAY_DISCOUNT_PCT;
@@ -113,12 +118,15 @@ export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled, opts = {}
  * createPaypalOrder 가 딜(다일 5%)+쿠폰(5%) 합산 할인을 정가 대비 10% 로 clamp 할 때 기준선.
  * @returns {number|null} 할인 전 정가 KRW, 또는 결제 불가 조건(차종/거리 무효) 시 null
  */
-export function multiDayListBaseKrw(spec, body, featureEnabled) {
+export function multiDayListBaseKrw(spec, body, featureEnabled, opts = {}) {
   if (!featureEnabled || !body) return null;
   const originKey = typeof body.originKey === 'string' ? body.originKey.trim() : '';
   const destKey   = typeof body.destKey === 'string' ? body.destKey.trim() : '';
   const vehicle   = typeof body.vehicle === 'string' ? body.vehicle.trim() : '';
-  const km = lookupMatrixKm(spec, originKey, destKey);
+  // 정가 산출도 결제 km 과 동일 소스 사용(경유지 시 routeKm) — 아니면 할인 상한 기준선이 틀어짐.
+  const km = (Number.isFinite(opts.routeKm) && opts.routeKm > 0)
+    ? opts.routeKm
+    : lookupMatrixKm(spec, originKey, destKey);
   if (km == null) return null;
   return calcMultiDayCharterKrw(spec, { vehicle, km, durationDays: body.durationDays, discountPct: 0 });
 }
