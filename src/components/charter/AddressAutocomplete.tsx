@@ -184,6 +184,26 @@ interface ApiItem {
   translationSource?: 'cache' | 'mapping' | 'gemini' | 'partial_fallback' | 'original';
 }
 
+// #4 결과 재정렬 — Naver Local Search 가 가끔 엉뚱한 첫 결과(예: "Seoul Station" → 인근 EV충전소)를
+//   반환한다. 쿼리 구문이 이름/원문에 포함된 결과를 앞으로 **안정 정렬**한다. 결과를 버리거나 좌표를
+//   바꾸지 않고 순서만 개선 — 사용자는 여전히 전체 후보 + 확인 카드로 최종 선택. 출발/도착/경유/MOOD 공용.
+export function rankByQueryMatch(items: ApiItem[], query: string): ApiItem[] {
+  const q = (query || '').trim().toLowerCase();
+  if (!q || items.length < 2) return items;
+  const score = (it: ApiItem): number => {
+    const name = (it.name || '').toLowerCase();
+    const orig = (it.originalName || '').toLowerCase();
+    const addr = (it.roadAddress || it.address || '').toLowerCase();
+    if (name.includes(q) || orig.includes(q)) return 0; // 이름에 쿼리 구문 포함 = 최우선
+    if (addr.includes(q)) return 1;                      // 주소 포함 = 차선
+    return 2;                                            // 그 외 = Naver 원래 순서 유지
+  };
+  return items
+    .map((it, i) => ({ it, i, s: score(it) }))
+    .sort((a, b) => (a.s - b.s) || (a.i - b.i)) // 동점은 원래 순서 유지(stable)
+    .map((o) => o.it);
+}
+
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────
 let mapInstanceCounter = 0;
 
@@ -245,7 +265,8 @@ export function AddressAutocomplete({
         }
         const data = await res.json();
         const items: ApiItem[] = Array.isArray(data?.items) ? data.items : [];
-        setResults(items);
+        // #4: 쿼리 구문 매칭 우선 안정정렬 — 엉뚱한 첫 결과 방지 (순서만; 결과/좌표 불변).
+        setResults(rankByQueryMatch(items, query.trim()));
         setShowDropdown(true);
       } catch (e) {
         console.error('[AddressAutocomplete] fetch err:', e);
