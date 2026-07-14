@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
+import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
@@ -580,10 +580,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   if (showSuccess && successData) {
     const CONFIRM_LABELS: Record<string, Record<string, string>> = {
-      ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', close: '확인', contact: '문의하기' },
-      en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via WhatsApp/LINE', step3: 'Your driver will be waiting at the pickup location', close: 'Done', contact: 'Contact Us' },
-      ja: { title: '予約が確定しました！', subtitle: '確認メールが送信されます。', orderNo: '注文番号', payer: '予約者', amount: '支払金額', date: '利用日', next: '次のステップ', step1: '確認メールをご確認ください', step2: 'ドライバー情報をWhatsApp/LINEでお送りします', step3: '当日ドライバーがピックアップ場所でお待ちします', close: '確認', contact: 'お問い合わせ' },
-      zh: { title: '预订已确认！', subtitle: '确认邮件将很快发送。', orderNo: '订单号', payer: '预订人', amount: '支付金额', date: '服务日期', next: '下一步', step1: '请查收确认邮件', step2: '司机信息将通过WhatsApp/LINE发送', step3: '当天司机将在接机地点等候', close: '确认', contact: '联系我们' },
+      ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', cancelPolicy: '투어 24시간 전까지 무료 취소 (100% 환불)', close: '확인', contact: '문의하기' },
+      en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via WhatsApp/LINE', step3: 'Your driver will be waiting at the pickup location', cancelPolicy: 'Free cancellation up to 24 hours before your tour (100% refund)', close: 'Done', contact: 'Contact Us' },
+      ja: { title: '予約が確定しました！', subtitle: '確認メールが送信されます。', orderNo: '注文番号', payer: '予約者', amount: '支払金額', date: '利用日', next: '次のステップ', step1: '確認メールをご確認ください', step2: 'ドライバー情報をWhatsApp/LINEでお送りします', step3: '当日ドライバーがピックアップ場所でお待ちします', cancelPolicy: 'ツアー24時間前まで無料キャンセル（100%返金）', close: '確認', contact: 'お問い合わせ' },
+      zh: { title: '预订已确认！', subtitle: '确认邮件将很快发送。', orderNo: '订单号', payer: '预订人', amount: '支付金额', date: '服务日期', next: '下一步', step1: '请查收确认邮件', step2: '司机信息将通过WhatsApp/LINE发送', step3: '当天司机将在接机地点等候', cancelPolicy: '旅游24小时前免费取消（全额退款）', close: '确认', contact: '联系我们' },
     };
     const cl = CONFIRM_LABELS[lang] ?? CONFIRM_LABELS.en;
     
@@ -630,7 +630,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               </div>
             </div>
           </div>
-          
+
+          {/* 취소정책 안내 (P8, 2026-07-14 24h 확정) — Terms/모달/엔진과 동일 문구 */}
+          <div className="px-6 pb-2">
+            <div className="flex items-center gap-2 text-[12px] text-emerald-300/90 bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl px-3 py-2">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>{cl.cancelPolicy}</span>
+            </div>
+          </div>
+
           {/* Next Steps */}
           <div className="px-6 pb-4">
             <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{cl.next}</p>

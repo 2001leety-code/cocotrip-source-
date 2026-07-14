@@ -74,7 +74,7 @@
 - [x] Booking Summary: Included Services = **실제 포함만** — 이미 구현(BookingInfoForm:514-546 우측 결제 요약 PayRow+총액+포함/취소 블록, 톨비팁·EN/KO 기사·24h·항공지연 무료대기). 스태일 [ ] 정정(2026-07-14)
 - [x] Contact Details: BookingInfoForm — 이미 구현(:295-344 연락처 섹션 + CountryDialPicker 국가번호 드롭다운). 스태일 [ ] 정정
 - [x] **쿠폰 지갑**: Available/Used/Expired 탭 (MyPage) — 기존 useLoyalty 실쿠폰 위 순수 표시, 결제·환불·상한 로직 무변 #1106
-- [~] Booking Confirmed: 예약번호 DONE(PayPalBookingButton:606 Order No.)·Amount Paid 그린수치·지원연락처(WhatsApp) DONE. 🔴 **취소정책 미표기=게이트**: confirmed 화면에 취소정책 없음, 추가하려면 #1108(48h) % 확정 필요(현 Draft). Paid=별도 배지 아닌 금액 표기.
+- [x] Booking Confirmed: 예약번호(Order No.)·Amount Paid·지원연락처(WhatsApp)·**취소정책(24h 무료) 표기** 완료 — 2026-07-14: CONFIRM_LABELS.cancelPolicy 4언어 + ShieldCheck 트러스트 라인(Terms/모달/엔진과 동일 문구). 24h 결정(#1116)으로 게이트 해소.
 - 보존: capture 금액 대조·게스트 PII 마스킹·멱등성
 
 ## P9 — 커뮤니티 4화면 (기존 /community 셸에 스킨+기능)
