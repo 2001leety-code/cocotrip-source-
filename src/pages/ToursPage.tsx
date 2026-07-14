@@ -21,6 +21,7 @@ import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
 import { trackEvent, trackAdClick } from '@/lib/analytics';
 import { matchesTourQuery } from '@/lib/tourSearch';
+import { TOUR_PACE, PACE_ORDER, paceEmoji, paceLabel, type TripPace } from '@/data/tourPace';
 
 type SortKey = 'default' | 'price-asc' | 'price-desc';
 
@@ -133,6 +134,8 @@ export default function ToursPage() {
   // 데이터 없는 관심사(Food·Wellness 등)는 칩 자체를 만들지 않음(죽은 필터 금지). OR 매칭.
   const [activeTags, setActiveTags] = useState<Set<TourTag>>(new Set());
   const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
+  // Trip Style(pace) 필터 (가이드 P7) — tourPace.ts 실데이터. OR 매칭.
+  const [activePace, setActivePace] = useState<Set<TripPace>>(new Set());
   const [sortBy, setSortBy] = useState<SortKey>('default');
   const [inquireOpen, setInquireOpen] = useState(false);
 
@@ -169,6 +172,14 @@ export default function ToursPage() {
     });
   };
 
+  const togglePace = (pace: TripPace) => {
+    setActivePace(prev => {
+      const next = new Set(prev);
+      if (next.has(pace)) next.delete(pace); else next.add(pace);
+      return next;
+    });
+  };
+
   const regionTours = getToursByRegion(activeRegion);
 
   const filteredTours = regionTours.filter(t => {
@@ -182,6 +193,10 @@ export default function ToursPage() {
       if (!hasAll) return false;
     }
     if (activeTags.size > 0 && !t.tags.some(tag => activeTags.has(tag))) return false;
+    if (activePace.size > 0) {
+      const p = TOUR_PACE[t.id];
+      if (!p || !activePace.has(p)) return false;
+    }
     return true;
   });
 
@@ -505,6 +520,26 @@ export default function ToursPage() {
                 }
               >
                 {label[language] || label.en}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Trip Style(pace) 필터 (가이드 P7) — tourPace.ts 실데이터. OR 매칭. */}
+        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {PACE_ORDER.map((pace) => {
+            const isActive = activePace.has(pace);
+            return (
+              <button
+                key={pace}
+                onClick={() => togglePace(pace)}
+                aria-pressed={isActive}
+                className="tour-chip shrink-0 flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                style={isActive
+                  ? { background: 'rgba(0,200,140,0.14)', border: '1px solid rgba(0,200,140,0.45)', color: '#5FE3B0' }
+                  : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}
+              >
+                <span aria-hidden>{paceEmoji(pace)}</span>{paceLabel(pace, language)}
               </button>
             );
           })}

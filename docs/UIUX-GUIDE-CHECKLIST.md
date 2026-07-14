@@ -63,8 +63,8 @@
 
 ## P7 — 투어 4-step
 - [x] Discover: 검색 + 인기 목적지 칩 + 도시 카드(N Tours 카운트=실데이터) — ToursPage 도시 카드 그리드(getToursByRegion 실카운트, 클릭=필터, count0 skip) C-sweep. **C4: 사진 카드화**(REGION_IMAGE 실존자산 Seoul/Busan/Gyeongju/Danyang, 없는 지역 그라디언트 폴백=잘못된 사진 라벨 금지). 검색바 기존.
-  - [ ] 🧠 잔여 P7: Trip Style 필터(Relaxed/Balanced/Active) = **데이터 게이트 확정**: tours 에 pace 실필드 없음, suitability.fitness_level 도 34개 중 0개 populated → 파생 시 dead 필터. 정직 구현하려면 34투어 pace 실큐레이션 필요(운영자/도메인). 파생 매핑=주관 fabricate=금지. · Show N Tours 버튼(라이브필터라 마진) · 별점(🔴게이트)
-- [~] Filter: Interests+Duration+언어 필터 기존, **"Show N Tours" 실카운트 = 이미 구현**(ToursPage:405 `{visibleTours.length} {toursUnit}` 라이브, 2026-07-14 4언어 로케일화). Trip Style 3칩만 잔여=데이터 게이트(위 참조).
+  - [x] Trip Style 필터(Relaxed/Balanced/Active) — 2026-07-14 구현. `tourPace.ts` 9투어 pace 실데이터(소요시간+야외/도보량 근거, 계절칩 패턴). ToursPage 칩 행+OR 필터. 검증: Active 클릭→4투어(danyang·nami-chuncheon·gyeongju·multicity). 운영자 검수 후 tourPace.ts 조정. 별점만 잔여(🔴게이트).
+- [x] Filter: Interests+Duration+언어+**Trip Style 3칩**+"Show N Tours" 실카운트 전부 구현. 별점 제외 완료.
 - [ ] 투어 상세: 칩·하이라이트 체크 기존, 별점만 잔여(🔴 REAL_TOUR_RATINGS 실데이터 채운 후 ON — 가짜 금지)
 - [x] Custom Tour Inquiry: 관심사 태그(≤5)+Style 라디오+기간+인원 → TourInquireModal 확장(C3): 테마 ≤5 캡·**Travel Style 페이스 라디오(Relaxed/Balanced/Active)**·duration select. 백엔드 inquiry-submit 도 travelStyle/duration 구조분해+Firestore+텔레그램 relay(가짜필드 방지). value 영문 고정.
   ⚠️정정(C4 레퍼런스 대조): C3 초판은 companions(Solo/Couple/Family) 넣었으나 가이드 P7 Custom=페이스(Relaxed/Balanced/Active)라 정정. companions 는 위자드 P3 전용.
