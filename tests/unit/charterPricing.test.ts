@@ -258,11 +258,11 @@ describe('B-CHT5 — multi_day 다일 가격 합산 + 10% 할인', () => {
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
     // SEL_METRO→BUSAN km=400. intercity = 50k + 400×2×1000 = 850k
-    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 130k×2 = 260k = 1,743k
-    // -10% = 1,568,700 (2026-06-30 캡틴프리미엄 반영).
-    expect(q!.subtotalKRW).toBe(1_568_700);
+    // + staria 7인 캡틴 33k + daily 200k×3 = 600k + overnight 100k×2 = 200k = 1,683k
+    // -10% = 1,514,700 (2026-07-14 숙박료 10만원).
+    expect(q!.subtotalKRW).toBe(1_514_700);
     expect(q!.multiDayDiscountPercent).toBe(10);
-    expect(q!.multiDayDiscountKRW).toBe(174_300);
+    expect(q!.multiDayDiscountKRW).toBe(168_300);
   });
 
   it('day_tour 는 multi-day 할인 미적용 (mode 분기)', () => {
@@ -814,18 +814,18 @@ describe('B-CHT15 — ICN → 부산 매트릭스 vs Formula 일관성', () => {
 // ─────────────────────────────────────────────────────────
 // B-CHT16: Sprinter multi_day daily/overnight (P1 #6 fix) —
 //   기존 hardcode (200K/130K) → SSOT VEHICLE_INTERCITY.sprinter
-//   sprinter intercity.daily_service_fee = 280K, overnight = 180K
+//   sprinter intercity.daily_service_fee = 280K, overnight = 100K (2026-07-14 숙박료 10만원)
 // ─────────────────────────────────────────────────────────
 
 describe('B-CHT16 — Sprinter multi_day SSOT 가격 사용 (P1 #6 fix)', () => {
-  it('SSOT VEHICLE_INTERCITY.sprinter = daily ₩280K / overnight ₩180K', () => {
+  it('SSOT VEHICLE_INTERCITY.sprinter = daily ₩280K / overnight ₩100K', () => {
     expect(VEHICLE_INTERCITY.sprinter.daily_service_fee).toBe(280_000);
-    expect(VEHICLE_INTERCITY.sprinter.overnight_driver_fee).toBe(180_000);
+    expect(VEHICLE_INTERCITY.sprinter.overnight_driver_fee).toBe(100_000);
   });
 
-  it('SSOT VEHICLE_INTERCITY.staria = daily ₩200K / overnight ₩130K (regression guard)', () => {
+  it('SSOT VEHICLE_INTERCITY.staria = daily ₩200K / overnight ₩100K (regression guard, 2026-07-14 숙박료 10만원)', () => {
     expect(VEHICLE_INTERCITY.staria.daily_service_fee).toBe(200_000);
-    expect(VEHICLE_INTERCITY.staria.overnight_driver_fee).toBe(130_000);
+    expect(VEHICLE_INTERCITY.staria.overnight_driver_fee).toBe(100_000);
   });
 
   it('Sprinter 부산 2박3일 vs Staria 가격 차이 — sprinter underprice 해소 확인', () => {
