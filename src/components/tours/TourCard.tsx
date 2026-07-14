@@ -10,6 +10,7 @@ import { WishlistToggle } from '@/components/WishlistButton';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { getSeasonalTip } from '@/data/tourSeasons';
+import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -89,6 +90,13 @@ export function TourCard({ tour, language }: TourCardProps) {
 
   // 계절 적합도 칩 (운영자 아이디어) — 현재 월 기준. 데이터 없으면 null(미표시).
   const seasonalTip = getSeasonalTip(tour.id, new Date().getMonth() + 1, language);
+
+  // 별점 = 실 후기 우선. 내부 published 리뷰 집계(count>0)면 무조건 노출(실데이터=가짜 아님).
+  //   없으면 static+플래그 경로(REAL_TOUR_RATINGS) 폴백. targetId = slug.
+  const ratingAgg = useTourRatingAggregates()[tour.slug];
+  const flagStatic = import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true' && !!tour.rating && tour.rating > 0;
+  const displayRating = ratingAgg && ratingAgg.count > 0 ? ratingAgg.rating : (flagStatic ? tour.rating : null);
+  const displayCount = ratingAgg && ratingAgg.count > 0 ? ratingAgg.count : (flagStatic ? tour.reviewCount : undefined);
 
   return (
     <Link
@@ -267,13 +275,13 @@ export function TourCard({ tour, language }: TourCardProps) {
         {/* 하단 행 */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {/* 별점 = REAL_TOUR_RATINGS 플래그 게이팅(가짜 별점 차단, 운영자 결정 #3). JSON-LD(buildTourJsonLd)와 동일 조건. */}
-            {import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true' && tour.rating && tour.rating > 0 && (
+            {/* 별점 = 실 후기(내부 published 집계) 우선, 없으면 static+플래그 폴백. 가짜 없음. */}
+            {displayRating && displayRating > 0 && (
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                <span className="text-[11px] text-white/50">{tour.rating.toFixed(1)}</span>
-                {tour.reviewCount && tour.reviewCount > 0 && (
-                  <span className="text-[11px] text-white/55">({tour.reviewCount})</span>
+                <span className="text-[11px] text-white/50">{displayRating.toFixed(1)}</span>
+                {displayCount && displayCount > 0 && (
+                  <span className="text-[11px] text-white/55">({displayCount})</span>
                 )}
               </div>
             )}
