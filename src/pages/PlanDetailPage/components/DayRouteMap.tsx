@@ -20,6 +20,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { PlanStop } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
+import { segmentTiringReasons } from '../lib/routeInsight';
 
 interface DayRouteMapProps {
   stops: PlanStop[];
@@ -32,6 +33,7 @@ interface MapPoint {
   order: number;        // 1-based visit order (the pin number)
   label: string;        // display name for the popup
   time?: string;        // start_time for the popup, if present
+  hard: boolean;        // 이 stop 으로의 이동(transit_from_prev)이 힘든 대중교통 구간인지 (P5 범례)
 }
 
 const isFiniteNum = (v: unknown): v is number =>
@@ -60,17 +62,20 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
       order: n,
       label: stopLabel(stop),
       time: typeof stop.start_time === 'string' ? stop.start_time : undefined,
+      // 이 stop 으로의 대중교통 이동이 힘든 구간(환승2+/도보900m+/60분+)이면 hard.
+      // routeInsight 와 동일 판정(RouteAgent 실측 필드만) — 추정·환각 없음.
+      hard: segmentTiringReasons((stop as { transit_from_prev?: unknown }).transit_from_prev as never).length > 0,
     });
   }
   return points;
 }
 
-function mapLabels(language: string): { title: string } {
+function mapLabels(language: string): { title: string; easy: string; hard: string } {
   switch (language) {
-    case 'ko': return { title: '오늘의 동선' };
-    case 'ja': return { title: '本日のルート' };
-    case 'zh': return { title: '今日路线' };
-    default: return { title: "Today's Route" };
+    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간' };
+    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間' };
+    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段' };
+    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging' };
   }
 }
 
@@ -130,13 +135,20 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           },
         ).addTo(map);
 
-        // Route polyline connecting stops in visit order.
-        L.polyline(latLngs, {
-          color: '#B668FC',
-          weight: 3,
-          opacity: 0.85,
-          lineJoin: 'round',
-        }).addTo(map);
+        // Route polylines — 구간별로 그려 난이도 styling (P5 범례).
+        // 쉬운 구간 = 퍼플 실선 / 힘든 대중교통 구간 = 앰버 점선(주의 신호).
+        // 난이도는 도착 stop 의 transit_from_prev 판정(points[k].hard).
+        for (let k = 1; k < points.length; k++) {
+          const a = points[k - 1];
+          const b = points[k];
+          L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+            color: b.hard ? '#FFB020' : '#B668FC',
+            weight: 3,
+            opacity: 0.85,
+            lineJoin: 'round',
+            ...(b.hard ? { dashArray: '6, 9' } : {}),
+          }).addTo(map);
+        }
 
         // Numbered markers (1, 2, 3 … in visit order).
         points.forEach((p) => {
@@ -197,6 +209,8 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
   if (!enoughPoints || failed) return null;
 
   const labels = mapLabels(language);
+  // 힘든 구간이 하나라도 있을 때만 범례 노출(전부 쉬우면 단일 스타일이라 불필요).
+  const hasHard = points.some((p) => p.hard);
 
   return (
     <div className="mb-4">
@@ -217,6 +231,19 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           style={{ height: 240, zIndex: 0 }}
         />
       </div>
+      {/* 지도 범례 (가이드 P5) — 실선=쉬운 이동 / 점선=힘든 대중교통 구간(routeInsight 실판정). 힘든 구간 있을 때만. */}
+      {hasHard && (
+        <div className="mt-2 flex items-center gap-4 px-0.5 text-[11px] text-white/55">
+          <span className="flex items-center gap-1.5">
+            <span style={{ width: 18, height: 0, borderTop: '3px solid #B668FC', borderRadius: 2 }} aria-hidden />
+            {labels.easy}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span style={{ width: 18, height: 0, borderTop: '3px dashed #FFB020' }} aria-hidden />
+            {labels.hard}
+          </span>
+        </div>
+      )}
       {/* 번호 정거장 리스트 (가이드 P4) — 지도 핀 번호(order)와 1:1 매칭. toMapPoints 재사용(좌표 없는 stop 은 자동 skip). */}
       <ol className="mt-2 space-y-1">
         {points.map((p) => (
