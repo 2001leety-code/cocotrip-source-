@@ -254,7 +254,10 @@ function WaypointsSection({ state, patch, language = 'en' }: Props) {
       ))}
 
       {waypoints.length < MAX_WAYPOINTS && (
+        // key = 현재 경유지 수 → 하나 추가되면 remount → AddressAutocomplete 내부 selected/confirm 카드 리셋
+        //   (안 그러면 추가 후에도 직전 확인 카드가 남아 중복 추가처럼 보임). 각 경유지 confirmed 행은 위 map.
         <AddressAutocomplete
+          key={`charter-wp-add-${waypoints.length}`}
           id={`charter-waypoint-add-${waypoints.length}`}
           label=""
           placeholder={t.add}
