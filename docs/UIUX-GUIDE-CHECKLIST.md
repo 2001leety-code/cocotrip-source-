@@ -48,7 +48,7 @@
 ## P5 — 교통 + 차터 업셀 (신규 킬러 기능)
 - [x] 🟡 일정 세그먼트 난이도 판정 로직 — `routeInsight.ts` 순수함수(환승2+/도보900m+/60분+, RouteAgent 실측만) #1103
 - [x] AI Route Insight 카드 + [Book 3-Hour Charter] CTA — `RouteInsightCard`, 하루 최고점 1구간 #1103
-- [ ] 🟠 지도 범례(Easy 실선/Challenging 점선/Recommended) — **baseline+복잡 게이트**: Leaflet polyline 난이도 styling 동반 필요(provider-isolated). 또한 DayRouteMap = 비주얼 baseline 클립(timeline-mid) 내 → 편집 시 baseline 재생성(Ubuntu/Docker 전용) 필요, Windows 자율 머지 불가. CI 아티팩트 승격 세션 필요.
+- [x] 지도 범례(Easy 실선/Challenging 점선) — 2026-07-14: DayRouteMap 구간별 폴리라인 난이도 styling(쉬운=퍼플 실선/힘든 대중교통 구간=앰버 점선 dashArray) + 범례(힘든 구간 있을 때만). 난이도=segmentTiringReasons(routeInsight 실판정, 환승2+/도보900m+/60분+, 추정 없음). 검증(dev hardtest): 점선 1개 dashArray "6,9"+범례 렌더. **Recommended 라인=데이터 없어 생략(가짜 금지)**. ⚠️plan-detail=baseline 클립(timeline-mid) — 실 baseline 플랜=car(전부 실선·범례無)라 diff 최소 예상, red 시 운영자 diff 검토.
 - [x] 차량 선택 카드(스타리아 7/9·스프린터·버스) — Step4PaxVehicle 카드 + 실사진 갤러리 webp(staria7·staria9·sprinter 5장 + **bus 1장 #1115** 운영자 제공). 가격=견적 step 노출(의도). 스프린터=기존 유지(운영자 확정).
 - [x] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed) — CharterCTA 에 추가 #1106 (진실 static, i18n 4언어)
 
