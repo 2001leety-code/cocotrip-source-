@@ -10,7 +10,7 @@
 - [x] 아이콘 시스템: 스쿼클 라벤더 타일 + 퍼플 그라데이션 2px 선 아이콘 13종 (`CocoIcons.tsx`) — #1096
 - [x] 🟢 CTA 그라데이션 버튼 공용 컴포넌트 — `CocoUI.GradientCTA` **MobileHomeV2 채택**(AI카드 CTA) + 토큰 COCO 파생 dedup — C-sweep. CocoCard 는 스타일 상이로 미채택(신규 카드 대기).
 - [x] 🟢 상태칩 공용 — `CocoUI.StatusChip` **MobileHomeV2 채택**(bestMatch·Smart Pick 태그) — C-sweep.
-- [ ] 🟢 언어 칩 4종 (EN·한국어·日本語·中文) 공용 셀렉터 (현: MobileHomeV2 헤더 순환 버튼 — 칩 셀렉터 공용화 잔여)
+- [x] 🟢 언어 4종 (EN·한국어·日本語·中文) 셀렉터 — #1114: MobileHomeV2 헤더 순환버튼 → 이름 있는 드롭다운 메뉴(현재언어 체크). idempotent open(dev 이중마운트 회피).
 - [x] 🟡 하단 내비 구성 — **운영자 결정 확정(2026-07-12)**: 홈·투어·AI플래너·예약(/my-plans)·프로필. 차터 탭 제거(매출 모니터링, 롤백 가능) #1097
 
 ## P1 — 플랫폼 홈
@@ -30,7 +30,7 @@
 ## P3 — 위자드 5-step (🟡 5-step audit 의무 + dietary SAFETY)
 - [x] 상단 진행바 ✓✓③④⑤ 형 — 이미 구현(index.tsx step 인디케이터: 완료 step=Check 아이콘, 현재=번호, %바+5칩). 스태일 [ ] 정정(2026-07-13 검증)
 - [x] Step1 Travel Dates(체크인/아웃 카드) — DayPicker range 아래 호텔식 체크인/체크아웃 요약 카드 추가(WizardStep2Details, additive·기능 불변·순수 inline lang 4언어). 2026-07-13
-- [ ] 🟡🧠 Step2 Cities(썸네일 리스트 선택) — **데이터 게이트**: 현재 lucide 벡터 아이콘 칩. 사진 썸네일화는 도시별 큐레이션 사진 필요(KTO 광역도≠시 = 잘못된 사진 라벨 위험). 아이콘 = 정직한 현 선택. 큐레이션 자산 확보 후.
+- [x] Step2 Cities(썸네일 리스트 선택) — #1113: 위자드 도시 칩에 KTO 실사진 썸네일(photographyLocation 시단위 매칭+올바른 광역폴더만, 9/10 도시, yeosu=아이콘 폴백). public/city-thumbs/. 운영자 검수 대상=CITY_PHOTO(data.tsx).
 - [x] **Step3 Travel Style — 솔로/커플/가족/친구 4옵션(운영자 확정)** + 플래너 프롬프트 travel_party 소프트 힌트 전파 #1102
 - [~] Step4 Interests 칩 — 이미 구현+AI 전파(Step0Destination, categories→selectedActivities). **의도적 편차**: 실제 키=Kpop/Kbeauty/Hanbok/Food/Night/Photo/Shopping/Drama/Temple/DMZ(한국 특화·가이드 generic Culture/Nature/History 보다 정직·풍부). nav 편차와 동일 성격 — 강제 교체 X(AI category 매핑 회귀 위험)
 - [x] Step5 Budget + Dietary(Halal·Vegan·**Vegetarian**·No Preference) — Vegetarian 추가 완결 #1106
@@ -49,16 +49,16 @@
 - [x] 🟡 일정 세그먼트 난이도 판정 로직 — `routeInsight.ts` 순수함수(환승2+/도보900m+/60분+, RouteAgent 실측만) #1103
 - [x] AI Route Insight 카드 + [Book 3-Hour Charter] CTA — `RouteInsightCard`, 하루 최고점 1구간 #1103
 - [ ] 🟠 지도 범례(Easy 실선/Challenging 점선/Recommended) — **baseline+복잡 게이트**: Leaflet polyline 난이도 styling 동반 필요(provider-isolated). 또한 DayRouteMap = 비주얼 baseline 클립(timeline-mid) 내 → 편집 시 baseline 재생성(Ubuntu/Docker 전용) 필요, Windows 자율 머지 불가. CI 아티팩트 승격 세션 필요.
-- [~] 차량 3종 선택 카드(스타리아 프리미엄/9인/스프린터) — 이미 구현(charter/Step4PaxVehicle: staria_9/staria/sprinter/bus 카드 + 실사진 갤러리 webp staria7·staria9·sprinter). 가격=선택카드 비표시(견적 step에서 노출=의도). 잔여 🔴 bus 사진(운영자)
+- [x] 차량 선택 카드(스타리아 7/9·스프린터·버스) — Step4PaxVehicle 카드 + 실사진 갤러리 webp(staria7·staria9·sprinter 5장 + **bus 1장 #1115** 운영자 제공). 가격=견적 step 노출(의도). 스프린터=기존 유지(운영자 확정).
 - [x] 가치 4배지(Less Walking·Save Time·Door to Door·Add Only When Needed) — CharterCTA 에 추가 #1106 (진실 static, i18n 4언어)
 
 ## P6 — 차터 예약 6-step (🔴 SSOT byte-identical·P311 멱등성·운영자 승인)
 - [~] 진행바 6단계 — 구현됨(CharterWizard 클릭형 스테퍼+애니 progress). **순서 편차(의도)**: 실제=Origin→Service→Destination→Pax·Vehicle→Date·Options→FinalQuote(가이드 Pickup→Dest→Date→Vehicle→Contact→Review 와 다름, nav 편차와 동일 성격). 2026-07-14 검증
 - [~] Step1 타입 4탭 등 — 기능 전부 존재하나 **분산 배치**: 4탭(공항/데이투어/멀티데이/K-pop)=Step2Service, 픽업지=Step1Origin, 항공편+터미널(T1/T2)+게이트(/api/flight-status 조회)=Step5DateOptions. 가이드의 단일 Step1 개념을 3스텝에 나눔.
 - [~] Step2 목적지+경유지+편도/왕복 — 목적지 select DONE(Step3Destination). **경유지 추가=MISSING**(waypoint 코드 없음). 편도/왕복=Step5, transfer 서비스 한정+feature flag.
-- [~] Step4 차량 4종 카드 — 이미 구현(Step4PaxVehicle: staria_9/staria/sprinter/bus + 실사진 갤러리). 🔴 bus 사진(운영자).
+- [x] Step4 차량 4종 카드 — Step4PaxVehicle: staria_9/staria/sprinter/bus + 실사진 갤러리(bus 1장 #1115 반입 완료).
 - [~] Review(FinalQuote): Trip Summary DONE(Step6Quote+사이드바). What's Included=quote.includes(fuel/tolls/parking) — 전문기사·24/7 은 Step5 BookingInfoForm trust 에 있고 Review 엔 미표기(재배치 여지, 저가치).
-- [ ] 가치 4배지(Upfront Quote·Professional Driver·Flexible Stops·Multilingual) — **MISSING**(해당 4종 세트 없음). 🟢 저가치 static 배지 추가 가능(비게이트) — 후속 소형.
+- [x] 가치 4배지(사전확정견적·전문기사·유연한경유·다국어) — #1113: Step6Quote 하단 static 4배지, i18n 4언어.
 - 보존: multidayQuote.ts ≡ charter-multiday-price.js·front/back FEATURE 쌍·국가번호 드롭다운
 
 ## P7 — 투어 4-step
