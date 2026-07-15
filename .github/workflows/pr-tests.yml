@@ -46,6 +46,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # vercel-ignore.sh 는 프리뷰 배포 여부를 결정한다 — 잘못되면 프리뷰가 조용히 사라진다.
+      # #1125: 멀티커밋 PR 의 마지막 커밋이 tests/ 하나라 PR 전체 빌드가 스킵 → 프리뷰 URL
+      # 소실 → 운영자 sandbox 결제 e2e(머지 게이트) 차단. 스크립트 주석은 이 테스트를
+      # "회귀 차단" 수단으로 명시했지만 실제로는 어디서도 실행되지 않아 가드가 죽어 있었다.
+      # npm 불필요(순수 bash+git)라 수초면 끝난다.
+      - name: vercel-ignore.sh 회귀 테스트 (프리뷰 스킵 로직)
+        run: bash scripts/test-vercel-ignore.sh
+
       # NOTE: tsc -b 단계 의도적 제거. Vercel preview 가 동일 작업 수행 →
       # 이중 빌드 회피 (Build CPU 시간 대폭 절감, 5/1~5/8 244h → 추정 50%↓).
       # 타입 오류 시 Vercel preview deployment가 fail → PR Bundle Size 도
