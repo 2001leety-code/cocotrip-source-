@@ -221,7 +221,18 @@ export default async function handler(req, res) {
         }
         const result = await refundPaypalCapture({
           captureID,
+          // 🔴 이중환불 방어 키 (2026-07-15). bookingRef(pending_bookings 문서 id) + 금액.
+          //   금액을 포함하는 이유: 운영자가 AdminPayments 의 window.prompt 로 **임의 금액**을
+          //   넣는다. bookingRef 단독 키면 "실패 후 다른 금액으로 재시도" 가 첫 요청의 캐시된
+          //   응답을 받아 원하는 금액이 환불되지 않는다. 금액을 넣으면 같은 금액 재시도만
+          //   멱등이 되고(= 타임아웃 재클릭 방어), 다른 금액은 별개 환불로 취급된다.
+          //   ⚠️ captureID 단독 금지 — cart 자식들이 captureID 를 공유한다(helper 주석 참조).
+          //   ⚠️ 영구 중복 방어는 이 키가 아니라 위 status!=='CONFIRMED' 가드가 담당한다.
+          //      (PayPal 은 PayPal-Request-Id 보존 기간을 공식화하지 않는다.)
+          idempotencyKey: `${bookingRef}:${refundUSD || 'full'}`,
           refundUSD,
+          // capture 통화 우선. bookings 문서가 없으면 bookingData={} → undefined → helper 가 USD 폴백.
+          currency: bookingData.currency,
           note: reason
             ? `CocoTrip admin refund: ${String(reason).slice(0, 80)}`
             : 'CocoTrip admin refund',

@@ -289,7 +289,17 @@ export default async function handler(req, res) {
     // sync if PayPal's API ever shifts.
     const refundResult = await refundPaypalCapture({
       captureID: booking.captureID,
+      // 🔴 이중환불 방어 키 (2026-07-15). **captureID 가 아니라 bookingID 다.**
+      //   cart 자식 예약 N개가 하나의 captureID 를 공유하고(_shared/cart-capture.js) 각자
+      //   `${orderID}__${lineId}` 로 자기 문서를 갖는다 → 라인별 개별 취소 = 같은 capture 에
+      //   서로 다른 금액의 정당한 환불 2회. captureID 를 키로 쓰면 두 번째가 첫 번째 응답으로
+      //   캐시 반환돼 **돈은 안 나갔는데 refundID 가 기록되고 CANCELED 로 확정된다**(미환불 은폐).
+      //   bookingID 는 문서 id 라 재시도해도 동일하고 예약당 환불은 1회뿐이라 키로 정확하다.
+      //   이 키가 없으면 아래 !ok 분기(CONFIRMED 복구 → 재시도 허용)가 곧 이중환불 경로다.
+      idempotencyKey: bookingID,
       refundUSD: policy.refundRatio < 1.0 ? refundUSD : null,
+      // capture 통화 우선(레거시 문서엔 필드가 없을 수 있어 helper 가 USD 폴백).
+      currency: booking.currency,
       note: policy.refundRatio < 1.0
         ? `CocoTrip cancellation: ${policy.refundPercent}% refund`
         : 'CocoTrip cancellation: full refund',

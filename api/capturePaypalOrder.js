@@ -721,7 +721,14 @@ export default async function handler(req, res) {
             try {
               const refundRes = await refundPaypalCapture({
                 captureID,
+                // 🔴 이중환불 방어 키 (2026-07-15). orderID + 사유 — 이 주문의 PROMO 자동환불 1건.
+                //   used_paypal_orders 락이 재capture 를 막아 여기 두 번 도달하지 않지만,
+                //   helper 가 키를 필수로 요구하고(fail-closed) 이 경로도 타임아웃 창이 있다.
+                //   captureID 단독 금지 — cart 자식들이 captureID 를 공유한다(helper 주석 참조).
+                idempotencyKey: `${orderID}:promo-limit`,
                 refundUSD: amount,
+                // capture 통화 우선 — 이 스코프에 검증된 통화가 이미 있다.
+                currency: _verdict && _verdict.currency,
                 note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
                 isSandbox: _isSandboxCapture,
               });
