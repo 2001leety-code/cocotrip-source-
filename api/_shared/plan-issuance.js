@@ -18,10 +18,17 @@
  *                                             ├─ plans/{planId} 저장  ← tx **밖**
  *                                             └─ finalize tx ─→ ISSUED
  *
- * **왜 3단계인가 — plans 문서를 트랜잭션에 넣을 수 없기 때문이다.**
- *   plans 문서는 최대 900KB(planPersister SIZE_LIMIT_BYTES)이고, 저장 직전 truncation 루프가
- *   `days.pop()` 으로 문서를 **in-place mutate** 한다. 트랜잭션 재시도는 콜백을 재실행하므로
- *   이미 pop 된 days 위에서 다시 돌아 데이터가 손상된다.
+ * **왜 3단계인가 — plans 저장을 지금 구조에서 트랜잭션에 넣을 수 없기 때문이다.**
+ *   저장 직전 truncation 루프가 `days.pop()` 으로 문서를 **in-place mutate** 한다. 트랜잭션은
+ *   충돌 시 콜백을 재실행하므로, 이미 pop 된 days 위에서 다시 돌아 데이터가 손상된다.
+ *   (Firestore 공식: 트랜잭션 콜백 안에서 application state 를 직접 mutate 하지 말 것.)
+ *
+ *   ⚠️ 정정 (2026-07-15, 적대적 리뷰 지적): 이전 주석은 "900KB 라서 트랜잭션에 못 넣는다" 고 썼는데
+ *      **크기는 블로커가 아니다** — Firestore 트랜잭션 request 상한은 10MiB 다. 진짜 블로커는
+ *      위의 in-place mutation 이고, 그건 truncation 을 트랜잭션 **밖**에서 끝내고 완성된 immutable
+ *      finalDoc 만 콜백에서 set 하면 사라진다. 즉 3단계는 **현 구조에 대한 최소 침습 선택**이지
+ *      물리적 불가능이 아니다. 대안(원자적 plan+claim 트랜잭션)은 index entry 크기·lock deadline
+ *      실측이 필요해 이번 범위에서 채택하지 않았다 — 미검증으로 남긴다.
  *   → 대용량 write 를 tx 밖에 두되, 그 **직전에** COMMITTING 을 원자적으로 선점한다.
  *     그러면 takeover 된 오래된 attempt 는 beginCommit 에서 fencing 에 걸려 plans 저장 단계에
  *     아예 진입하지 못한다. ISSUING 에서 바로 plans 를 저장하면 이 TOCTOU 가 남는다.
@@ -235,11 +242,35 @@ export async function beginPlanCommit(adminDb, claim, { now } = {}) {
     const snap = await tx.get(ref);
     if (!snap.exists) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'claim gone' };
     const d = snap.data() || {};
+
+    // 소유권을 status 보다 **먼저** 본다 — 남의 claim 이면 어떤 status 든 차단(fencing).
+    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
+    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+
+    // 🔴 재진입 멱등 (2026-07-15, 적대적 리뷰 지적으로 발견).
+    //   Inngest step 은 **성공한 뒤에도** 재실행될 수 있다 — 성공 acknowledgement 가 유실되면
+    //   같은 event·같은 attempt 로 persistPlan step 전체가 다시 돈다(event.data 는 불변이라
+    //   attemptId/planId 도 동일하다).
+    //   이전엔 `status !== ISSUING` 을 무조건 CLAIM_LOST 로 봐서 이렇게 됐다:
+    //     첫 실행 성공(ISSUED) → step 재실행 → beginCommit CLAIM_LOST → persistPlan throw →
+    //     retry 소진 → onFailure 가 **이미 ready 인 plan 을 status:'error' 로 merge**
+    //     → 결제도 발급도 성공했는데 사용자 화면엔 실패로 보인다.
+    //   finalizePlanIssuance 는 같은 attempt 의 ISSUED 재진입을 이미 멱등 처리하고 있었는데
+    //   beginPlanCommit 만 빠져 있었다. 대칭을 맞춘다.
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUED) {
+      // 내 attempt 가 이미 확정했다 → 호출자는 plans 를 **다시 쓰면 안 된다**.
+      // 재실행된 step 의 itinerary 는 재생성된 것이라 정상 plan 을 덮어쓸 수 있다.
+      return { ok: true, alreadyIssued: true };
+    }
+    if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 내 attempt 가 저장 중이었다가 재실행됐다(확정 전 종료). 이어서 진행 = 안전 —
+      // 예약 planId 로 같은 문서를 덮어쓰므로 두 번째 plan 문서가 생기지 않는다.
+      return { ok: true, resumed: true };
+    }
     if (d.status !== PLAN_ISSUANCE_STATUS.ISSUING) {
       return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: `status=${String(d.status)}` };
     }
-    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
-    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+
     tx.update(ref, {
       status: PLAN_ISSUANCE_STATUS.COMMITTING,
       updatedAt: new Date(nowMs).toISOString(),

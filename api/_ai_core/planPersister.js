@@ -1493,13 +1493,21 @@ export async function persistPlan(adminDb, {
   // 🔴 P0 fencing (2026-07-15): plans 대용량 저장 **직전**에 COMMITTING 을 원자 선점한다.
   //   여기까지 오는 사이 lease 가 만료돼 다른 attempt 가 takeover 했을 수 있다. 그 경우 이 attempt 는
   //   발급권을 잃었으므로 **plan 을 저장하면 안 된다**(저장하면 완성 plan 이 2개가 된다).
-  //   plans 문서 자체를 트랜잭션에 넣지 못하는 이유는 _shared/plan-issuance.js 헤더 참조
-  //   (900KB + 저장 직전 truncation 이 days.pop() 으로 in-place mutate → tx 재시도 시 손상).
+  //   plans 문서를 트랜잭션에 넣지 않는 이유는 _shared/plan-issuance.js 헤더 참조
+  //   (저장 직전 truncation 이 days.pop() 으로 문서를 in-place mutate → tx 재시도 시 손상).
   if (issuanceClaim) {
     const begun = await beginPlanCommit(adminDb, issuanceClaim);
     if (!begun.ok) {
       console.error('[planPersister] 발급권 상실 → plan 저장 중단:', begun.code, begun.detail);
       throw new Error(`Plan issuance claim lost before save (${begun.code}). This payment is being processed by another attempt.`);
+    }
+    // 🔴 이 attempt 가 **이미 확정했다**(Inngest step 성공 후 ack 유실 → step 전체 재실행).
+    //   plans 를 다시 쓰면 재생성된 itinerary 가 정상 plan 을 덮어쓴다 → 조기 반환.
+    //   이 분기가 없으면 재실행이 CLAIM_LOST 로 throw 되고, retry 소진 후 onFailure 가
+    //   이미 ready 인 plan 을 status:'error' 로 만들어 "결제·발급은 성공했는데 화면엔 실패" 가 된다.
+    if (begun.alreadyIssued) {
+      console.warn('[planPersister] 이 attempt 가 이미 발급 확정함 — plan 재저장 skip (step 재실행):', planId);
+      return { planId, planUrl: `/my-plans/${planId}` };
     }
   }
 

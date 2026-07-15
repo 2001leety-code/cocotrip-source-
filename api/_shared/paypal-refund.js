@@ -68,8 +68,12 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
   let token;
   let baseUrl;
   try {
+    // 토큰 요청에도 타임아웃이 있다(paypal.js 의 TOKEN_TIMEOUT_MS). 이전엔 없어서, refund POST 에만
+    // 20초를 걸어둔 이 함수의 "무한 대기 금지" 가 **절반만 참**이었다 — 토큰에서 멈추면 서버리스가
+    // 죽을 때까지 대기했다(적대적 리뷰 지적, 2026-07-15).
     ({ accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox));
   } catch (e) {
+    // 토큰 단계 실패는 **환불 요청이 나가기 전**이라 결과가 미상이 아니다 — 돈은 확실히 안 움직였다.
     return { ok: false, code: 'PAYPAL_AUTH_FAILED', error: e.message, status: 502 };
   }
 

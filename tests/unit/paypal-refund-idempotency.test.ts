@@ -18,8 +18,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const tokenHolder: { fn: () => Promise<{ accessToken: string; baseUrl: string }> } = {
+  fn: async () => ({ accessToken: 'tok', baseUrl: 'https://api.sandbox.paypal.com' }),
+};
 vi.mock('../../api/_shared/paypal.js', () => ({
-  getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.sandbox.paypal.com' }),
+  getPaypalAccessToken: () => tokenHolder.fn(),
 }));
 
 const { refundPaypalCapture } = await import('../../api/_shared/paypal-refund.js');
@@ -39,7 +42,32 @@ const lastBody = () => JSON.parse(calls[calls.length - 1].init.body);
 
 beforeEach(() => {
   calls = [];
+  tokenHolder.fn = async () => ({ accessToken: 'tok', baseUrl: 'https://api.sandbox.paypal.com' });
   mockPaypal();
+});
+
+// 🔴 적대적 리뷰(2026-07-15) 지적: 20초 signal 이 refund POST 에만 붙어 있어서 그 **앞의**
+// getPaypalAccessToken() 이 멈추면 서버리스가 죽을 때까지 대기했다 = "무한 대기 금지" 가 절반만 참.
+// 토큰 타임아웃은 paypal.js(TOKEN_TIMEOUT_MS)로 들어갔고, 여기서는 그 실패가 **결과 미상이 아님**을
+// 고정한다 — 환불 요청이 나가기 전이라 돈은 확실히 안 움직였다.
+describe('토큰 단계 실패 — 환불 요청 전이라 결과 미상 아님', () => {
+  it('토큰 타임아웃 → PAYPAL_AUTH_FAILED, refund POST 0회', async () => {
+    tokenHolder.fn = async () => { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; throw e; };
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe('PAYPAL_AUTH_FAILED');
+    // 🔴 돈이 움직이지 않았다 — refund 엔드포인트를 아예 안 쳤다.
+    expect(calls).toHaveLength(0);
+    // 결과 미상(재시도 시 이중환불 위험)이 아니므로 REFUND_TIMEOUT 으로 분류하면 안 된다.
+    expect(r.code).not.toBe('PAYPAL_REFUND_TIMEOUT');
+  });
+
+  it('자격증명 미설정 → PAYPAL_AUTH_FAILED, refund POST 0회', async () => {
+    tokenHolder.fn = async () => { throw new Error('PayPal credentials not configured'); };
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.code).toBe('PAYPAL_AUTH_FAILED');
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe('🔴 멱등키 — 없으면 환불 자체를 거부(fail-closed)', () => {
