@@ -67,6 +67,7 @@ export type PlannerErrorCode =
   // resolveErrorMessage 가 서버 한국어 details 로 폴백해 en/ja/zh 사용자가 경고를 못 읽고 재결제한다.
   | 'PLAN_GENERATION_IN_PROGRESS'
   | 'PLAN_ISSUANCE_CHECK_UNAVAILABLE'
+  | 'PLAN_ISSUANCE_NEEDS_REVIEW'
   | 'DUPLICATE_ORDER'
   | 'REVISION_EXHAUSTED'
   | 'FORBIDDEN'

@@ -67,6 +67,16 @@ export const PLAN_ISSUANCE_STATUS = {
   ISSUING: 'ISSUING',
   COMMITTING: 'COMMITTING',
   ISSUED: 'ISSUED',
+  /**
+   * COMMITTING 인데 lease 가 만료됐고 완성 plan 도 없다 = 저장 도중 죽었거나 저장이 실패했다.
+   * **자동 takeover 하지 않는다**(아래 §takeover 참조) → 운영자가 봐야 하는 상태로 못박는다.
+   *
+   * 이 상태가 없었을 때: 그런 claim 은 영구히 IN_PROGRESS 를 뱉었다. 고객은 결제했는데 플랜을
+   * 영영 못 받고, 운영자에게 알림도 없고, 콘솔에서 문서를 지우는 것 말고 길이 없었다.
+   * (적대적 리뷰 지적, 2026-07-15 — "중복 발급보다 잠금이 낫다" 는 **일시적이고 관측·복구
+   *  가능한** 잠금에만 해당한다. 영구 + 무알림 + 복구API 없음은 완료가 아니다.)
+   */
+  NEEDS_REVIEW: 'NEEDS_REVIEW',
 };
 
 /**
@@ -86,6 +96,8 @@ export const PLAN_ISSUANCE_CODE = {
   IN_PROGRESS: 'PLAN_GENERATION_IN_PROGRESS',
   UNAVAILABLE: 'PLAN_ISSUANCE_CHECK_UNAVAILABLE',
   CLAIM_LOST: 'PLAN_CLAIM_LOST',
+  /** 저장 도중 중단 → 자동 복구 불가. 운영자 확인 필요(재결제 유도 금지). */
+  NEEDS_REVIEW: 'PLAN_ISSUANCE_NEEDS_REVIEW',
 };
 
 function issuanceRef(adminDb, orderId) {
@@ -176,9 +188,40 @@ export async function claimPlanIssuance(adminDb, orderId, { uid, now } = {}) {
     // 완성 plan 이 있으면 새 생성 없이 ISSUED 로 복구하고, 없으면 **takeover 하지 않는다**
     // (저장 중일 수 있으므로 — 여기서 뺏으면 이중 저장 창이 열린다).
     if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 완성 plan 이 있으면 "저장 성공 + 확정 직전 종료" → 새 생성 없이 ISSUED 복구.
       const recovered = await recoverIfPlanComplete(tx, adminDb, ref, { orderId, planId: reservedPlanId }, nowMs);
       if (recovered) return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'recovered committing → issued' };
-      return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'commit in progress' };
+
+      // 아직 저장 중일 수 있다 → 뺏지 않는다.
+      if (leaseAlive) return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'commit in progress' };
+
+      // 🔴 lease 만료 + 완성 plan 없음 = 저장 도중 죽었거나 저장이 실패했다.
+      //
+      //   **자동 takeover 하지 않는다.** 내가 처음 생각한 근거("두 attempt 가 예약 planId 를
+      //   공유하니 같은 문서를 덮어쓸 뿐 → 안전")는 틀렸다:
+      //     ① persistPlan 의 plans.set 은 merge 없는 **전체 교체**다. 죽은 줄 알았던 A 의 늦은
+      //        set 이 B 의 완성 plan 을 통째로 덮는다. claim fencing 은 claim 만 막지 **이미
+      //        실행된 plan write 를 되돌리지 못한다** — "문서 1개" ≠ "올바른 결과 1개".
+      //     ② 더 나쁜 것: geminiPipeline 의 updatePlanProgressive 는 fire-and-forget 이고
+      //        `_streaming_in_progress: true` 를 **무조건 재설정**한다. A 의 지연 progressive
+      //        write 가 B 의 ready plan 뒤에 도착하면 사용자는 영원히 streaming 화면을 본다.
+      //     ③ lease 만료를 "worker 사망" 으로 단정할 수 없다 — Inngest worker 는 별 invocation
+      //        이라 최초 HTTP 요청(=lease 기준)보다 오래 산다.
+      //
+      //   → 중복 발급보다 잠금이 낫지만, 잠금은 **관측 가능하고 복구 가능**해야 한다.
+      //     NEEDS_REVIEW 로 못박아 호출자가 운영자에게 알리게 한다(paymentGate 가 알림 발사).
+      tx.update(ref, {
+        status: PLAN_ISSUANCE_STATUS.NEEDS_REVIEW,
+        needsReviewAt: new Date(nowMs).toISOString(),
+        needsReviewReason: 'commit lease expired without completed plan',
+        updatedAt: new Date(nowMs).toISOString(),
+      });
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'commit stalled — operator must reconcile' };
+    }
+
+    // 이미 NEEDS_REVIEW → 재알림 없이 같은 코드. (운영자가 콘솔에서 문서를 지우면 재시도 가능.)
+    if (d.status === PLAN_ISSUANCE_STATUS.NEEDS_REVIEW) {
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'already flagged for operator' };
     }
 
     if (d.status === PLAN_ISSUANCE_STATUS.ISSUING) {

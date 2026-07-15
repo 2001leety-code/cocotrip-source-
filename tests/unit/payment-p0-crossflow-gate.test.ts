@@ -329,6 +329,50 @@ describe('paymentGate — order status fail-closed (COMPLETED 만 통과)', () =
     expect(r.rejection?.code).toBe('PAYMENT_UNDER_REVIEW');
   });
 
+  // 🔴 적대적 리뷰(2026-07-15) 지적: 이전엔 MANUALLY_CONFIRMED 를 기록해도 아래 capture 재검증이
+  //   격리를 만든 그 불일치를 **똑같이 다시 잡아** 거부했다 → 운영자 큐가 "해결 UI" 가 아니라
+  //   감사 메모였다. PAYMENT_REVIEW_RESOLUTION 의 SSOT 주석은 이 값을 "이행 허용" 이라 정의하는데
+  //   코드가 그걸 안 지켰다(상수의 문서화된 의미와 코드의 모순).
+  it('🔴 MANUALLY_CONFIRMED → 금액 불일치여도 통과 (운영자가 돈을 직접 확인 = 이행 허용)', async () => {
+    mockOrder({ value: '1.00' });   // capture 금액이 스냅샷과 다름 → 원래는 PAYMENT_NOT_CAPTURED
+    const r = await enforcePaymentAndRevision(
+      { paypalOrderId: PAYPAL_ORDER },
+      gateDb({ review: { resolvedAt: 123, resolution: 'MANUALLY_CONFIRMED', resolvedBy: 'admin@x.com' } }),
+      'u@e.com',
+    );
+    expect(r.rejection).toBeUndefined();
+    expect(r.planClaim).toBeDefined();
+  });
+
+  it('🔴 MANUALLY_CONFIRMED 여도 **상품 불일치는 거부** (돈 확인 ≠ AI 플래너 주문)', async () => {
+    mockOrder({});
+    const r = await enforcePaymentAndRevision(
+      { paypalOrderId: PAYPAL_ORDER },
+      gateDb({
+        review: { resolvedAt: 123, resolution: 'MANUALLY_CONFIRMED' },
+        snapshot: { productType: 'charter_multiday', expectedUSD: '9.90', expectedCurrency: 'USD' },
+      }),
+      'u@e.com',
+    );
+    expect(r.rejection?.code).toBe('ORDER_PRODUCT_MISMATCH');
+  });
+
+  it('🔴 MANUALLY_CONFIRMED 여도 **스냅샷 없으면 거부** (provenance 는 우회 대상 아님)', async () => {
+    mockOrder({});
+    const r = await enforcePaymentAndRevision(
+      { paypalOrderId: PAYPAL_ORDER },
+      gateDb({ review: { resolvedAt: 123, resolution: 'MANUALLY_CONFIRMED' }, snapshot: null }),
+      'u@e.com',
+    );
+    expect(r.rejection?.code).toBe('ORDER_PROVENANCE_MISSING');
+  });
+
+  it('🔴 MANUALLY_CONFIRMED 없이는 금액 불일치가 그대로 거부 (우회가 기본값이 아니다)', async () => {
+    mockOrder({ value: '1.00' });
+    const r = await enforcePaymentAndRevision({ paypalOrderId: PAYPAL_ORDER }, gateDb(), 'u@e.com');
+    expect(r.rejection?.code).toBe('PAYMENT_NOT_CAPTURED');
+  });
+
   // mutant 가드: 조건의 resolvedAt 쪽을 지워도 잡히도록.
   it('resolution=MANUALLY_CONFIRMED 이지만 resolvedAt 없음 → 거부 (미해결)', async () => {
     mockOrder({});

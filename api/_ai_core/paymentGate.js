@@ -11,7 +11,8 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
-import { isReviewFulfillable } from '../_shared/payment-review.js';
+import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION } from '../_shared/payment-review.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
 import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
@@ -342,6 +343,9 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
       }
 
+      // 운영자가 payment_review 를 MANUALLY_CONFIRMED 로 확정했는가 — 아래 capture 판정만 우회한다.
+      // provenance(스냅샷·상품)는 우회하지 않는다.
+      let operatorConfirmedPayment = false;
       {
         // 🔴 격리(payment_reviews)를 **서버** 신뢰 경계로 사용 (2026-07-15).
         //   capture 무결성 불일치로 격리된 주문은 프론트가 202 안내 화면을 띄우지만,
@@ -359,6 +363,25 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
               console.warn('[planner] payment_review 미해결/미허용 → 발급 거부:', paypalOrderId, rv.resolution ?? '(unresolved)');
               return reject(403, 'PAYMENT_UNDER_REVIEW', 'Payment is under manual review',
                 '결제 확인 중입니다. 확인 후 안내드립니다. 다시 결제하지 마세요.');
+            }
+            // 🔴 운영자가 MANUALLY_CONFIRMED 로 해결함 = "돈을 직접 확인하고 확정했다".
+            //   PAYMENT_REVIEW_RESOLUTION 의 SSOT 주석이 이 값을 **"이행 허용"** 이라고 정의한다.
+            //
+            //   그런데 아래 capture 무결성 재검증(verifyCaptureIntegrity)이 격리를 만든 그 불일치를
+            //   **똑같이 다시 잡아** 거부한다. 즉 이 플래그를 존중하지 않으면 MANUALLY_CONFIRMED 는
+            //   아무것도 해제하지 못하고 운영자 큐는 "해결 UI" 가 아니라 감사 메모가 된다
+            //   (적대적 리뷰 지적, 2026-07-15 — 상수의 문서화된 의미와 코드가 모순이었다).
+            //
+            //   → capture **금액/통화/정산상태 판정만** 건너뛴다. 그건 사람이 이미 확인한 영역이다.
+            //   ⚠️ provenance(스냅샷 존재·상품 일치)는 **건너뛰지 않는다** — 운영자가 확인한 건
+            //      "돈이 들어왔다" 이지 "그 주문이 AI 플래너용이다" 가 아니다. 차터 주문 ID 로
+            //      플랜을 받는 경로는 이 플래그로도 열리면 안 된다.
+            //   ⚠️ 새 권한이 아니다 — 운영자는 이미 ADMIN-BYPASS- 로 무료 발급이 가능하다.
+            //      대신 여기엔 resolvedBy/resolvedAt 감사 흔적이 남는다.
+            if (rv.resolution === PAYMENT_REVIEW_RESOLUTION.MANUALLY_CONFIRMED) {
+              operatorConfirmedPayment = true;
+              console.warn('[planner] payment_review MANUALLY_CONFIRMED — capture 판정 우회(운영자 확정):',
+                paypalOrderId, '| by:', rv.resolvedBy || '(unknown)');
             }
           }
         } catch (reviewErr) {
@@ -426,10 +449,16 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         }
 
         // 실제 capture 검증 — amount/currency/capture status/cardinality.
+        // ⚠️ 운영자가 MANUALLY_CONFIRMED 로 확정한 건은 이 **판정만** 건너뛴다(위 review 분기 참조).
+        //   검증 자체는 그대로 돌려 로그에 남긴다 — 무엇을 우회했는지 모르면 사후 추적이 안 된다.
         const verdict = verifyCaptureIntegrity({
           capture: orderData, expectedAmountMinor: expectedMinor, expectedCurrency,
         });
-        if (verdict.pending) {
+        if (operatorConfirmedPayment && !verdict.ok) {
+          console.warn('[planner] 운영자 확정으로 capture 판정 우회:', paypalOrderId,
+            '| 원래 판정:', verdict.code || (verdict.pending ? 'PENDING' : 'unknown'), '|', verdict.detail || '');
+        }
+        if (verdict.pending && !operatorConfirmedPayment) {
           // ⚠️ capture-verify 의 pending 은 "예약 handler 는 booking doc 을 남긴다" 는 맥락의 신호다.
           //   디지털 상품 발급은 다르다 — PayPal 공식이 "Wait until COMPLETED or DECLINED before
           //   fulfilling" 이라고 명시하므로 **여기서는 이행하지 않는다**. 재결제 유도도 금지.
@@ -437,7 +466,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           return reject(403, 'PAYMENT_PENDING_SETTLEMENT', 'Payment is pending settlement',
             '결제가 확인 중입니다(정산 대기). 완료되면 안내드립니다 — 다시 결제하지 마세요.');
         }
-        if (!verdict.ok) {
+        if (!verdict.ok && !operatorConfirmedPayment) {
           // DECLINED / FAILED / REFUNDED / PARTIALLY_REFUNDED / 금액·통화·구조 불일치.
           // 이 작업에서 자동환불은 하지 않는다 (운영자 판단).
           console.warn('[planner] capture 무결성 실패 → 발급 거부:', paypalOrderId, verdict.code, verdict.detail);
@@ -479,6 +508,31 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           // 같은 주문이 이미 생성 중 — 재결제 유도 금지. 내부 상태/attemptId 는 노출하지 않는다.
           return reject(409, 'PLAN_GENERATION_IN_PROGRESS', 'Plan generation already in progress',
             '이 결제로 플랜을 생성하는 중입니다. 잠시 기다려 주세요 — 다시 결제하지 마세요.');
+        }
+        if (claimResult.code === PLAN_ISSUANCE_CODE.NEEDS_REVIEW) {
+          // 🔴 저장 도중 중단 → 자동 복구 불가. 잠금은 유지하되 **관측 가능**하게 만든다.
+          //   이 알림이 없으면 고객은 결제하고 영영 플랜을 못 받는데 아무도 모른다
+          //   (적대적 리뷰 지적 전까지 실제로 그랬다).
+          //   claimPlanIssuance 가 이미 문서를 NEEDS_REVIEW 로 못박았으므로 재요청마다 여기 온다 →
+          //   throttledTelegramAlert 의 key dedup(5분 윈도우)이 알림 스톰을 막는다.
+          await throttledTelegramAlert({
+            key: `plan-issuance-needs-review:${paypalOrderId}`,
+            channel: 'admin',
+            severity: 'high',
+            message: [
+              '🔴 <b>AI 플랜 발급 중단 — 운영자 확인 필요</b>',
+              '',
+              `<b>order:</b> <code>${paypalOrderId}</code>`,
+              '<b>상태:</b> COMMITTING 중 lease 만료 + 완성 plan 없음 (저장 도중 종료/실패 추정)',
+              '',
+              '→ 고객은 결제했으나 플랜을 못 받고 재시도도 막혀 있다.',
+              '→ 조치: plans 문서 확인 후 정상이면 plan_issued_orders 를 ISSUED 로,',
+              '  없으면 문서를 삭제해 재시도를 열거나 환불.',
+            ].join('\n'),
+            context: { orderId: paypalOrderId, detail: claimResult.detail || null },
+          }).catch(() => {});
+          return reject(409, 'PLAN_ISSUANCE_NEEDS_REVIEW', 'Plan issuance needs manual review',
+            '플랜 발급을 확인 중입니다. 곧 안내드립니다 — 다시 결제하지 마세요.');
         }
         if (!claimResult.claim) {
           console.error('[planner] plan issuance claim 실패:', paypalOrderId, claimResult.code, claimResult.detail);
