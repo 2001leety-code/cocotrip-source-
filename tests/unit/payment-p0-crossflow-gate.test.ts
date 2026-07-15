@@ -205,36 +205,73 @@ function mockOrder(o: OrderOpts = {}) {
 const AI_SNAPSHOT = { productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000 };
 
 type GateOpts = {
-  issuedExists?: boolean;
+  issuedExists?: boolean; issuedData?: Record<string, unknown>;
   review?: Record<string, unknown> | null; reviewThrows?: boolean;
   snapshot?: Record<string, unknown> | null; snapshotThrows?: boolean;
+  claimTxThrows?: boolean;
 };
+// 2026-07-15 (P0 원자 발급): gate 가 plan_issued_orders 를 **transaction 으로 선점**하도록 바뀌어
+// runTransaction 이 필수가 됐다(없으면 이 파일 전체가 TypeError).
+// 함께 고친 것: 기존 set/update 가 `async () => {}` **no-op** 이라 gate 가 write 를 해도 mock 이
+// 삼켜서 "통과" 했다 — 가드를 지워도 green 이 되는 구조였다. 이제 _writes 로 관찰한다.
+// 이 tx 는 **직렬 실행**만 모델링한다(경합 X). 이 파일의 목적은 검증 **순서** 계약이고,
+// 실제 race 증명은 payment-p0-atomic-issuance.test.ts 가 담당한다.
 function gateDb(opts: GateOpts = {}) {
   const reads: string[] = [];
+  const writes: Array<{ path: string; data: Record<string, unknown> }> = [];
+  const store = new Map<string, Record<string, unknown>>();
   const snapshot = opts.snapshot === undefined ? AI_SNAPSHOT : opts.snapshot;
+
+  function snapshotFor(name: string, id: string) {
+    reads.push(`${name}/${id}`);
+    if (name === 'payment_reviews') {
+      if (opts.reviewThrows) throw new Error('firestore unavailable');
+      return opts.review ? { exists: true, data: () => opts.review } : { exists: false, data: () => ({}) };
+    }
+    if (name === 'paypal_order_snapshots') {
+      if (opts.snapshotThrows) throw new Error('firestore unavailable');
+      return snapshot ? { exists: true, data: () => snapshot } : { exists: false, data: () => ({}) };
+    }
+    if (name === 'plan_issued_orders') {
+      const seeded = store.get(`${name}/${id}`);
+      if (seeded) return { exists: true, data: () => seeded };
+      // issuedExists 기본 = status 없는 레거시 마커 → DUPLICATE (기존 테스트 의미 보존).
+      if (opts.issuedExists) return { exists: true, data: () => opts.issuedData || { planId: 'p1', provider: 'paypal' } };
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function docRef(name: string, id: string) {
+    return {
+      __c: name, __id: id,
+      get: async () => snapshotFor(name, id),
+      set: async (data: Record<string, unknown>) => { writes.push({ path: `${name}/${id}`, data }); },
+      update: async (data: Record<string, unknown>) => { writes.push({ path: `${name}/${id}`, data }); },
+    };
+  }
+
   return {
     _reads: reads,
-    collection(name: string) {
-      return {
-        doc(id: string) {
-          return {
-            get: async () => {
-              reads.push(`${name}/${id}`);
-              if (name === 'payment_reviews') {
-                if (opts.reviewThrows) throw new Error('firestore unavailable');
-                return opts.review ? { exists: true, data: () => opts.review } : { exists: false, data: () => ({}) };
-              }
-              if (name === 'paypal_order_snapshots') {
-                if (opts.snapshotThrows) throw new Error('firestore unavailable');
-                return snapshot ? { exists: true, data: () => snapshot } : { exists: false, data: () => ({}) };
-              }
-              if (name === 'plan_issued_orders') return { exists: !!opts.issuedExists, data: () => ({}) };
-              return { exists: false, data: () => ({}) };
-            },
-            set: async () => {}, update: async () => {},
-          };
-        },
+    _writes: writes,
+    collection: (name: string) => ({ doc: (id: string) => docRef(name, id) }),
+    async runTransaction(cb: (tx: unknown) => Promise<unknown>) {
+      if (opts.claimTxThrows) throw new Error('firestore unavailable');
+      const staged: Array<{ ref: ReturnType<typeof docRef>; data: Record<string, unknown>; op: string }> = [];
+      const tx = {
+        get: async (ref: ReturnType<typeof docRef>) => snapshotFor(ref.__c, ref.__id),
+        set: (ref: ReturnType<typeof docRef>, data: Record<string, unknown>) => staged.push({ ref, data, op: 'set' }),
+        update: (ref: ReturnType<typeof docRef>, data: Record<string, unknown>) => staged.push({ ref, data, op: 'update' }),
+        delete: (ref: ReturnType<typeof docRef>) => staged.push({ ref, data: {}, op: 'delete' }),
       };
+      const result = await cb(tx);
+      for (const w of staged) {
+        writes.push({ path: `${w.ref.__c}/${w.ref.__id}`, data: w.data });
+        const path = `${w.ref.__c}/${w.ref.__id}`;
+        if (w.op === 'delete') store.delete(path);
+        else store.set(path, { ...(store.get(path) || {}), ...w.data });
+      }
+      return result;
     },
   };
 }

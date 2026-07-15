@@ -574,7 +574,9 @@
       "ORDER_PRODUCT_MISMATCH": "此订单并非购买 AI 行程规划。其他商品的付款无法发放规划。",
       "ORDER_PROVENANCE_INVALID": "无法确认此订单的金额。请联系客服 — 请勿重复付款。",
       "PAYMENT_PENDING_SETTLEMENT": "付款正在确认中(等待结算)。完成后将通知您 — 请勿重复付款。",
-      "PAYMENT_NOT_CAPTURED": "付款未成功完成。请在重试前联系客服。"
+      "PAYMENT_NOT_CAPTURED": "付款未成功完成。请在重试前联系客服。",
+      "PLAN_GENERATION_IN_PROGRESS": "正在使用此笔付款生成您的行程，请稍候 — 请勿重复付款。",
+      "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "目前无法查询行程发放状态，请稍后重试 — 如已付款，请勿重复付款。"
     },
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",

@@ -63,6 +63,10 @@ export type PlannerErrorCode =
   | 'ORDER_PROVENANCE_INVALID'
   | 'PAYMENT_PENDING_SETTLEMENT'
   | 'PAYMENT_NOT_CAPTURED'
+  // 원자 발급 claim (P0, 2026-07-15). 둘 다 "다시 결제하지 마세요" 를 담고 있어 사전에 없으면
+  // resolveErrorMessage 가 서버 한국어 details 로 폴백해 en/ja/zh 사용자가 경고를 못 읽고 재결제한다.
+  | 'PLAN_GENERATION_IN_PROGRESS'
+  | 'PLAN_ISSUANCE_CHECK_UNAVAILABLE'
   | 'DUPLICATE_ORDER'
   | 'REVISION_EXHAUSTED'
   | 'FORBIDDEN'

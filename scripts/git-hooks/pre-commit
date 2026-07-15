@@ -88,6 +88,12 @@ if [ -n "$SCAN_FILES" ]; then
       //   금액·상태 감사 필드는 falsy 실값 보존이 계약이므로 || 금지.
       if (f === "api/_shared/paypal-capture-verify.js") continue;
       if (f === "api/_shared/payment-review.js") continue;
+      // 2026-07-15: ai-planner-policy.js 의 ?? 1건은 **pre-existing** —
+      //   checkAiPlannerCouponPolicy 의 `product ?? productType ?? null` (product/productType
+      //   별칭 폴백). || 로 바꾸면 동작이 달라진다: product='' 일 때 ?? 는 '' 를 유지하지만
+      //   || 는 productType 으로 넘어간다. P1-A(isAiPlannerFullProduct) 추가로 이 파일이
+      //   처음 staged 됐을 뿐이고 내 신규 코드의 ?? 는 0건. U+FFFD 0 확인.
+      if (f === "api/_shared/ai-planner-policy.js") continue;
       // 2026-07-15 (결제 P0): capture 검증 테스트의 order fixture 빌더.
       //   purchaseUnits ?? [...] / captures ?? [node] — 테스트가 "purchase_unit 0개",
       //   "capture 0개" 같은 구조 위반 케이스를 명시적으로 주입할 때 기본값이 덮어쓰지

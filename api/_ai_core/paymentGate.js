@@ -12,8 +12,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
 import { isReviewFulfillable } from '../_shared/payment-review.js';
-import { isAiPlannerProduct } from '../_shared/ai-planner-policy.js';
+import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
+import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
 // 정책: BRAINTREE_ENV='production' → TEST- prefix order ID 전면 reject.
@@ -97,8 +98,10 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
 
 /**
  * 버그헌트 A fix (2026-06-27): 무료 쿠폰 소비 후 plan 생성 실패 시 롤백(isUsed=false).
- * PayPal 경로는 plan_issued_orders 를 set 성공 후 마킹(재시도 허용)인데, 무료 쿠폰은
- * 게이트에서 즉시 소비되므로 생성 실패 시 1장뿐인 가입 쿠폰이 영구 소실된다(재시도=COUPON_USED).
+ * 무료 쿠폰은 게이트에서 즉시 소비되므로 생성 실패 시 1장뿐인 가입 쿠폰이 영구 소실된다
+ * (재시도=COUPON_USED).
+ * (2026-07-15 정정: "PayPal 경로는 set 성공 후 마킹" 은 옛 설계다. 이제 PayPal 경로도 게이트에서
+ *  발급권을 선점하며, 대칭 보상은 releasePlanIssuance 가 담당한다 → _shared/plan-issuance.js.)
  * → handlerCore catch 에서 plan 미저장(planPersisted=false) 일 때만 호출해 되살린다(저장 성공 후엔 정당 소비).
  * 더블클릭 중복생성 방지는 consumeAiPlanCoupon 의 트랜잭션이 그대로 담당(이 함수는 실패 보상 전용).
  */
@@ -120,6 +123,10 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   const revisionToken = body.revisionToken;
   let isRevision = false;
   let isAdminBypass = false;
+  // P0 원자 발급 (2026-07-15): 유료 PayPal 경로에서만 채워진다. 호출자(handlerCore)가 이 값을
+  // inline savePlan 과 Inngest dispatch payload 양쪽에 명시 전달해야 한다 — 지역변수에만 두면
+  // dispatch 조기 return 이 catch 를 건너뛰어 유실된다. 상세 = _shared/plan-issuance.js.
+  let planClaim = null;
 
   if (revisionOf && adminDb) {
     console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
@@ -398,7 +405,12 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
 
         // 상품 바인딩 — 하이픈/언더스코어 변형이 섞여 쓰이므로 SSOT 헬퍼로 정규화 비교.
         // (프론트는 'ai-planner-full' 을 보내고 스냅샷엔 원본이 저장된다 → 문자열 직접 비교 금지.)
-        if (!isAiPlannerProduct(snapData.productType)) {
+        // P1-A (2026-07-15): 유료 발급 provenance 는 **정확히 ai_planner_full** 만 통과한다.
+        //   기존 isAiPlannerProduct 는 startsWith('ai_planner') 라 ai_planner_quick 류도 통과했다.
+        //   지금은 금액 검증이 받쳐서 안전하지만, 다른 가격의 ai_planner_* 상품이 생기면 뚫린다.
+        //   isAiPlannerProduct 의 "AI 상품군" 넓은 의미는 쿠폰 정책·주문 생성·line item 에서 정당하므로
+        //   전역 의미를 바꾸지 않고 정확 helper 를 따로 쓴다.
+        if (!isAiPlannerFullProduct(snapData.productType)) {
           console.warn('[planner] 다른 상품 주문으로 플랜 요청 → 거부:', paypalOrderId, snapData.productType);
           return reject(403, 'ORDER_PRODUCT_MISMATCH', 'Order is not an AI planner purchase',
             'AI 플래너 결제 주문이 아닙니다. 다른 상품의 결제로는 플랜을 발급할 수 없습니다.');
@@ -434,29 +446,52 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         }
         // ─────────────────────────────────────────────────────────────────
 
-        // B3 S1-a (P311, 2026-05-30): plan-발급 멱등성을 plan_issued_orders 로 분리 (검사만).
+        // B3 S1-a (P311, 2026-05-30): plan-발급 멱등성은 plan_issued_orders 로 분리한다.
+        //   - used_paypal_orders (capturePaypalOrder 결제 capture 멱등성) 와 공유하면 capture 가
+        //     먼저 만든 doc 을 DUPLICATE 로 오인해 유료 첫 plan 이 100% 403 이 된다 → 절대 불변.
         //
-        // 이전 BUG (출시 blocker): used_paypal_orders 를 capturePaypalOrder (결제 capture
-        // 멱등성) 와 공유. capturePaypalOrder.js:233 이 capture 성공 시 used_paypal_orders/
-        // {orderID}='captured' 를 먼저 만드는데, 여기서 같은 doc 존재를 DUPLICATE 로 오인
-        // → 실제 유료 첫 plan 도 100% DUPLICATE_ORDER 403. 현재는 전 트래픽이 ADMIN-BYPASS
-        // 라 미발현이나, 6월 상용화 실제 PayPal 결제 시작 시 즉시 터짐.
+        // 🔴 P0 원자화 (2026-07-15): 여기는 원래 `issuedRef.get()` **읽기 전용** 검사였다.
+        //   동시 요청 둘이 모두 "없음" 을 읽고 둘 다 유료 플랜을 생성할 수 있었다(비원자 read-then-pass).
+        //   또 마킹이 planPersister 의 non-fatal .set().catch() 라 실패해도 삼켜져 결제 ID 가 재사용됐다.
+        //   → 이제 transaction 으로 발급권을 **선점**하고 planId 를 **예약**한다(ISSUING).
+        //     확정은 plans 저장 성공 후 finalize tx 가 한다 → _shared/plan-issuance.js 의 상태 모델 참조.
         //
-        // Fix: plan-발급 멱등성을 plan_issued_orders 별도 컬렉션으로 분리.
-        //   - 검사만 여기서 (존재 시 DUPLICATE → 이중 plan 차단).
-        //   - write 는 planPersister set 성공 후 (B3 S1-b) → plan 발급 완료 전 실패 시 doc
-        //     없음 → 재시도 통과 (B3 옵션 a: 재시도만, 환불 X).
-        //   - used_paypal_orders (capturePaypalOrder 결제 capture 멱등성) 는 절대 불변.
-        const issuedRef = adminDb.collection('plan_issued_orders').doc(paypalOrderId);
-        const issuedDoc = await issuedRef.get();
-        if (issuedDoc.exists) {
+        //   재시도 보장은 어떻게 되나: 예전엔 "write 를 persistPlan 까지 미룸" 이 그 답이었다.
+        //   이제는 **release(생성 실패 시 claim 삭제) + lease 만료 + 완성 plan 대조 복구** 가 대신한다.
+        //   claim 이 이 위치인 이유: 위의 payment_review·provenance·상품·금액·capture 무결성 검증이
+        //   전부 끝난 뒤여야 한다. 검증 실패 주문이 발급권을 선점한 채 reject 되면 정당한 재시도가
+        //   DUPLICATE 로 막히는 self-DoS 가 된다.
+        let claimResult;
+        try {
+          claimResult = await claimPlanIssuance(adminDb, paypalOrderId, { uid: authenticatedUid });
+        } catch (claimErr) {
+          // transaction 최종 실패(충돌 재시도 소진·DB 장애) → Gemini 호출 **전** 에 retryable 로 중단.
+          console.error('[planner] plan issuance claim tx 실패 → 발급 거부(fail-closed):', claimErr.message);
+          await captureError(claimErr, { route: 'paymentGate', step: 'plan_issuance_claim', orderId: paypalOrderId });
+          return reject(503, 'PLAN_ISSUANCE_CHECK_UNAVAILABLE', 'Could not reserve plan issuance',
+            '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+        }
+        if (claimResult.code === PLAN_ISSUANCE_CODE.DUPLICATE) {
+          // 문자열 3종은 기존 계약 그대로 유지 — 프론트가 이 코드로 분기할 수 있다.
           return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
         }
-        // write 제거 — planPersister 가 plan set 성공 후 plan_issued_orders 마킹 (재시도 허용).
+        if (claimResult.code === PLAN_ISSUANCE_CODE.IN_PROGRESS) {
+          // 같은 주문이 이미 생성 중 — 재결제 유도 금지. 내부 상태/attemptId 는 노출하지 않는다.
+          return reject(409, 'PLAN_GENERATION_IN_PROGRESS', 'Plan generation already in progress',
+            '이 결제로 플랜을 생성하는 중입니다. 잠시 기다려 주세요 — 다시 결제하지 마세요.');
+        }
+        if (!claimResult.claim) {
+          console.error('[planner] plan issuance claim 실패:', paypalOrderId, claimResult.code, claimResult.detail);
+          return reject(503, 'PLAN_ISSUANCE_CHECK_UNAVAILABLE', 'Could not reserve plan issuance',
+            '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+        }
+        planClaim = claimResult.claim;
       }
     }
   }
 
   console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
-  return { isRevision, isAdminBypass };
+  // planClaim 은 유료 PayPal 경로에서만 실린다 — 여기는 revision/admin-bypass/TEST-/MANUAL-/유료가
+  // 합류하는 지점이라 무조건 실으면 claim 하지 않은 경로도 attemptId 를 갖게 된다. 조건부 spread 유지.
+  return { isRevision, isAdminBypass, ...(planClaim ? { planClaim } : {}) };
 }

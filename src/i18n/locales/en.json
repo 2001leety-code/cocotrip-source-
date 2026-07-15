@@ -574,7 +574,9 @@
       "ORDER_PRODUCT_MISMATCH": "This order was not a purchase of the AI planner, so a plan cannot be issued for it.",
       "ORDER_PROVENANCE_INVALID": "We could not confirm the amount for this order. Please contact support — do not pay again.",
       "PAYMENT_PENDING_SETTLEMENT": "Your payment is still being confirmed (awaiting settlement). We will notify you once it completes — please do not pay again.",
-      "PAYMENT_NOT_CAPTURED": "Your payment did not complete successfully. Please contact support before trying again."
+      "PAYMENT_NOT_CAPTURED": "Your payment did not complete successfully. Please contact support before trying again.",
+      "PLAN_GENERATION_IN_PROGRESS": "Your plan is already being generated for this payment. Please wait a moment — do not pay again.",
+      "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "We can't check your plan status right now. Please try again shortly — if you already paid, do not pay again."
     },
     "retry": "Try Again",
     "loginRequired": "Sign in to pay",
