@@ -565,7 +565,16 @@
       "ABORT_TIMEOUT": "服务器响应超时。您的支付是安全的 — 请通过WhatsApp联系我们获取行程。",
       "MISSING_FORM": "表单数据已丢失，请重新填写规划表。",
       "NO_PLAN_URL": "行程已创建但无法打开，请查看您的邮箱。",
-      "UNKNOWN_ERROR": "发生未知错误，请重试或通过WhatsApp联系我们。"
+      "UNKNOWN_ERROR": "发生未知错误，请重试或通过WhatsApp联系我们。",
+      "PAYMENT_UNDER_REVIEW": "已收到您的付款，正在核实。确认后将通过邮件与您联系 — 请勿重复付款。",
+      "PAYMENT_VERIFY_FAILED": "无法通过 PayPal 确认您的付款。请稍后重试 — 如已扣款请勿重复付款。",
+      "PAYMENT_VERIFY_UNAVAILABLE": "目前无法确认您的付款，请稍后重试。",
+      "PAYMENT_REVIEW_CHECK_UNAVAILABLE": "目前无法确认您的付款状态，请稍后重试。",
+      "ORDER_PROVENANCE_MISSING": "找不到此订单的付款记录。请联系客服 — 请勿重复付款。",
+      "ORDER_PRODUCT_MISMATCH": "此订单并非购买 AI 行程规划。其他商品的付款无法发放规划。",
+      "ORDER_PROVENANCE_INVALID": "无法确认此订单的金额。请联系客服 — 请勿重复付款。",
+      "PAYMENT_PENDING_SETTLEMENT": "付款正在确认中(等待结算)。完成后将通知您 — 请勿重复付款。",
+      "PAYMENT_NOT_CAPTURED": "付款未成功完成。请在重试前联系客服。"
     },
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",
@@ -2026,7 +2035,10 @@
     "loadingPay": "正在加载支付方式...",
     "checkoutDone": "预订已确认！",
     "checkoutDoneSub": "确认邮件即将发送。",
-    "close": "确认"
+    "close": "确认",
+    "checkoutReview": "已收到您的付款",
+    "checkoutReviewSub": "正在确认您的预订，确认后将通过邮件与您联系。",
+    "checkoutReviewWarn": "请勿重复付款 — 可能导致重复扣款。"
   },
   "a11y": {
     "openChat": "打开聊天",

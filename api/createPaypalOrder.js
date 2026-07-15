@@ -388,24 +388,35 @@ export default async function handler(req, res) {
     if (!order.id) throw new Error(order.message || 'Order creation failed');
 
     // SECURITY (버그헌트 #11 2026-06-14): 주문 스냅샷 영속화 → capturePaypalOrder 가 capture-time 클라
-    // body 대신 이 스냅샷의 product/pax/date 를 booking 에 사용해 위조(저가결제로 고가서비스 기록)
-    // 무력화. best-effort — 쓰기 실패해도 주문 생성은 진행(결제 차단 금지). 스냅샷 없으면 capture graceful.
+    // body 대신 이 스냅샷의 product/pax/date 를 booking 에 사용해 위조(저가결제로 고가서비스 기록) 무력화.
+    //
+    // 🔴 fail-closed 로 전환 (2026-07-15). 이전엔 best-effort — 쓰기 실패해도 주문을 진행했다.
+    //   이제 이 스냅샷이 **결제 provenance 의 유일한 근거**다: AI 플래너 gate 가 "이 주문이 정말
+    //   AI 플래너용이고 금액·통화가 맞는가" 를 오직 여기서 확인한다. 따라서 best-effort 를 유지하면
+    //   create 시점의 Firestore 깜빡임 하나가 "고객은 결제했는데 상품은 영구 거부"로 이어진다
+    //   (게다가 격리 해제 경로가 없다).
+    //   → 돈이 움직이기 **전인 주문 생성 시점**에 실패시킨다. 사용자는 안전하게 재시도하면 되고,
+    //     캡처되지 않은 PayPal 주문은 무해하게 만료된다. createCartOrder.js 가 이미 동일 정책이다.
     try {
       const _snapDb = initAdminDb('createPaypalOrder-snapshot');
-      if (_snapDb) {
-        await _snapDb.collection('paypal_order_snapshots').doc(order.id).set({
-          productType,
-          expectedKRW: krwAmount,
-          expectedUSD: usdAmount,
-          passengers,
-          durationDays: durationDays || null,
-          dateStart: dateStart || null,
-          dateEnd: dateEnd || null,
-          createdAt: new Date().toISOString(),
-        });
-      }
+      if (!_snapDb) throw new Error('Firestore unavailable');
+      await _snapDb.collection('paypal_order_snapshots').doc(order.id).set({
+        productType,
+        expectedKRW: krwAmount,
+        expectedUSD: usdAmount,
+        // PayPal order 는 위에서 항상 USD 로 생성된다(purchase_units amount.currency_code: 'USD').
+        // 명시 저장 → gate 가 legacy 기본값 추정에 의존하지 않게 한다.
+        expectedCurrency: 'USD',
+        passengers,
+        durationDays: durationDays || null,
+        dateStart: dateStart || null,
+        dateEnd: dateEnd || null,
+        createdAt: new Date().toISOString(),
+      });
     } catch (_snapErr) {
-      console.warn('[createPaypalOrder] order snapshot write failed (non-fatal):', _snapErr.message);
+      console.error('[createPaypalOrder] order snapshot write failed → 주문 반환 차단(fail-closed):', _snapErr.message);
+      res.writeHead(500, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order setup failed — please retry', 'SNAPSHOT_FAILED')));
     }
 
     res.writeHead(200, JSON_CORS);

@@ -17,7 +17,10 @@ vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }))
 import { enforcePaymentAndRevision, restoreAiPlanCoupon } from '../../api/_ai_core/paymentGate.js';
 
 beforeEach(() => {
-  global.fetch = vi.fn(async () => ({ json: async () => ({ status: 'COMPLETED' }) })) as never;
+  // `ok: true` 포함 — 실제 fetch Response 는 항상 ok 를 갖는다. paymentGate 는 HTTP 실패(!ok)를
+  // 명시적으로 거부하므로 ok 없는 mock 은 실물과 다르다. (쿠폰 경로는 이 mock 을 소비하지 않지만,
+  // 다음 사람이 복사해 쓰면 PAYMENT_VERIFY_FAILED 로 헛디딘다.)
+  global.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ status: 'COMPLETED' }) })) as never;
 });
 
 // users/{uid}/coupons.where('code','==',code).limit(1).get() + runTransaction 흐름 mock.

@@ -4,12 +4,14 @@
  * createCartOrder 가 만든 cart_orders/{orderID} 스냅샷(서버 재계산 SSOT)을 신뢰원으로:
  *   1. used_paypal_orders 트랜잭션 락 (capturePaypalOrder 동일 — 이중청구 차단)
  *   2. PayPal 캡처 (멱등 헤더)
- *   3. ⚠️ 캡처 금액 == 스냅샷 합계 검증 (capturePaypalOrder L260 무검증 보완)
- *   4. 라인별 child booking doc(bookings/{orderID}__{lineId}) batch + 부모 carts/{orderID}
- *   5. 라인별 booking-processor fan-out (retryDocId=childOrderID, PR2a 멱등 활용)
+ *   3. ⚠️ capture 무결성 검증 (_shared/paypal-capture-verify.js — 단건과 공통 SSOT):
+ *      amount(정수 minor) + currency + 개별 capture status + purchase-unit/capture cardinality.
+ *      불일치 = 예약 미확정 + payment_reviews durable 격리 + 202(retryable:false).
+ *   4. (검증 통과 시에만) 라인별 child booking doc batch + 부모 carts/{orderID}
+ *   5. (검증 통과 시에만) 라인별 booking-processor fan-out (retryDocId=childOrderID)
  *
  * ⚠️ flag OFF(FEATURE_CART) = 404. v1 = 쿠폰 미지원(promoCode 거부 → PR#434 promo cap 이슈 자체 없음).
- *    부분 실패 = 결제 롤백 없음(운영자 정책, capturePaypalOrder L375 승계) + 라인별 retry.
+ *    부분 실패 = 결제 롤백 없음(운영자 정책) + 라인별 retry. 자동환불 안 함 = 운영자 판단.
  *    실 캡처는 운영자 실 PayPal e2e 로 검증 (자동 테스트는 주문생성/모킹까지).
  */
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
@@ -18,7 +20,9 @@ import { featureEnabled } from './_shared/feature-flag.js';
 import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { notify } from './_shared/notify.js';
-import { verifyCartCaptureAmount, buildCartChildBookings } from './_shared/cart-capture.js';
+import { buildCartChildBookings } from './_shared/cart-capture.js';
+import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
+import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export const maxDuration = 60;
@@ -123,25 +127,80 @@ export default async function handler(req, res) {
     const capturedUsd = (captureNode && captureNode.amount && captureNode.amount.value) || '';
     const captureID = (captureNode && captureNode.id) || '';
 
-    // 3. ⚠️ 캡처 금액 == 스냅샷 합계 검증. 불일치 = 변조/stale 의심 → critical alert.
-    //    money 는 이미 캡처됨 → 자동환불 안 함(위험). 스냅샷이 라인 amount SSOT 이므로 진행.
-    const amountCheck = verifyCartCaptureAmount(snapshot.usdAmount, capturedUsd);
-    if (!amountCheck.ok) {
-      throttledTelegramAlert({
-        key: 'cart-amount-mismatch',
+    // 3. ⚠️ capture 무결성 검증 (money-critical) — amount(정수 minor) + currency +
+    //    개별 capture status + purchase-unit/capture cardinality 를 스냅샷과 대조.
+    //
+    //    이전 동작: 금액만 parseFloat 비교하고, 불일치해도 Telegram alert 만 쏘고 CONFIRMED 로
+    //      **그대로 진행**했다 → 결제와 다른 예약이 확정 + 알림 유실 시 사고 은폐(Telegram=SSOT 아님).
+    //    현재: 불일치 = 예약 확정·fan-out 중단 + durable payment_reviews 격리 + 202(재시도 금지).
+    //      돈은 이미 캡처됐으므로 일반 실패로 버리지 않는다(사용자 재결제 = 이중청구).
+    //      자동환불도 하지 않는다 — 운영자 판단(cocotrip-money-safety).
+    const expectedMinor = toMinorUnits(snapshot.usdAmount, 'USD');
+    const verdict = verifyCaptureIntegrity({
+      capture, expectedAmountMinor: expectedMinor, expectedCurrency: 'USD',
+    });
+    if (verdict.pending) {
+      // 🔴 PENDING = PayPal 리스크 홀드 / eCheck = 정상 결제 흐름 (금액·통화는 이미 정합).
+      //   격리하면 booking doc 이 없어 홀드 해제 webhook 이 예약을 못 찾음 → 돈만 정산되고 예약 없음.
+      //   → 기존대로 예약 확정 진행하고 정산 대기만 기록/알림.
+      console.warn('[captureCartOrder] capture PENDING (정산 대기) — 예약 진행:', orderID, verdict.detail);
+      await throttledTelegramAlert({
+        key: `cart-capture-pending-${orderID}`,
+        channel: 'admin',
+        severity: 'warning',
+        message: [
+          '🕒 <b>CART capture PENDING (정산 대기 · 예약은 확정 진행)</b>',
+          `<b>OrderID:</b> <code>${orderID}</code> <b>CaptureID:</b> <code>${captureID}</code>`,
+          `<b>사유:</b> ${verdict.detail}`,
+          '→ PayPal 리스크 홀드/eCheck 추정. 금액·통화는 정합. 정산 완료 여부 확인 필요.',
+        ].join('\n'),
+        context: { orderID, captureID, code: verdict.code },
+      }).catch(() => {});
+    } else if (!verdict.ok) {
+      // durable 기록이 최우선 — 캡처된 돈의 유일한 SSOT.
+      let reviewRecorded = false;
+      try {
+        await recordPaymentReview({
+          db, serverTimestamp: FieldValue.serverTimestamp(),
+          flow: 'cart', orderID, verdict, capture,
+          expectedAmountMinor: expectedMinor, expectedCurrency: 'USD',
+          userEmail, payerEmail,
+          // 운영자 해결에 필요 — cart 는 라인 구성이 스냅샷에 있으므로 참조만 남긴다.
+          bookingPayload: { snapshotRef: `cart_orders/${orderID}`, lineCount: Array.isArray(snapshot.lines) ? snapshot.lines.length : 0, totalKRW: snapshot.totalKRW ?? null },
+        });
+        await db.collection('cart_orders').doc(orderID).set(
+          { status: 'payment_review', captureID, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true },
+        );
+        reviewRecorded = true;
+      } catch (reviewErr) {
+        console.error('[captureCartOrder] payment_review 기록 실패 (캡처된 돈의 durable 기록 없음):', reviewErr);
+      }
+      // ⚠️ await 필수 — 서버리스는 res.end() 후 정지 가능. fire-and-forget 이면 review 기록까지
+      //   실패한 최악의 경우 돈만 나가고 기록도 알림도 0. key 는 주문별(상수 key = 다른 주문 억제).
+      await throttledTelegramAlert({
+        key: `cart-capture-mismatch-${orderID}`,
         channel: 'admin',
         severity: 'critical',
         message: [
-          '🚨 <b>CART 캡처 금액 불일치 (결제 완료됨)</b>',
+          '🚨 <b>CART capture 무결성 불일치 (예약 미확정)</b>',
           '',
           `<b>OrderID:</b> <code>${orderID}</code>`,
           `<b>CaptureID:</b> <code>${captureID}</code>`,
-          `<b>스냅샷 USD:</b> ${amountCheck.expected} / <b>캡처 USD:</b> ${amountCheck.captured} (diff ${amountCheck.diff})`,
+          `<b>capture status:</b> ${captureNode?.status ?? 'unknown'}`,
+          `<b>사유:</b> ${verdict.code} — ${verdict.detail}`,
           '',
-          '→ 변조/snapshot stale 의심. 운영자 수동 검토 (자동환불 안 함).',
+          reviewRecorded
+            ? '→ payment_reviews/{orderID} 격리됨(Firebase 콘솔에서 확인). 예약 미확정 · 이메일/바우처 미발송.'
+            : '🔴 payment_reviews 기록도 실패 — 즉시 수동 확인 필요(durable 기록 없음).',
         ].join('\n'),
-        context: { orderID, captureID, expected: amountCheck.expected, captured: amountCheck.captured },
-      }).catch(() => {});
+        context: { orderID, captureID, code: verdict.code, reviewRecorded },
+      }).catch((e) => { console.error('[captureCartOrder] mismatch 알림 실패:', e?.message); });
+
+      // 202 Accepted — 예약 미확정. retryable:false (재결제 = 이중청구).
+      // paymentCaptured 는 실제 capture status 파생 (돈 안 움직인 verdict 에 "결제됨" 이라 하지 않음).
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(buildPaymentReviewResponse({ orderID, captureID, capture })));
     }
 
     // 4. 라인별 child booking doc batch + 부모 carts/{orderID} + cart_orders status.

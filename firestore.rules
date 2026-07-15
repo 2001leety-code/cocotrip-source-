@@ -267,6 +267,21 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // payment_reviews/{orderID} — capture 무결성 불일치 격리 (money-critical)
+    //   capture 응답의 amount/currency/status 가 서버 주문 스냅샷과 불일치하면
+    //   예약을 확정하지 않고 여기에 durable 격리한다. 돈은 이미 캡처된 뒤일 수 있으므로
+    //   이 문서가 유일한 SSOT 다 (Telegram 알림은 통지 수단일 뿐).
+    //
+    //   read:  admin only — 미해결(resolvedAt == null) 건 조회·수동 해결용.
+    //   write: 서버 Admin SDK 만 (rules 우회). 클라이언트는 운영자라도 쓰기 금지 —
+    //          금액·해결상태를 클라에서 조작할 수 있으면 격리의 의미가 없다.
+    // ─────────────────────────────────────────────────────────
+    match /payment_reviews/{orderID} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // trend_signals/{signalId} — Track B trend cron (2026-05-21)
     //   Naver Blog 게시 빈도, Google Trends 등 trending 신호.
     //   read:  admin only.

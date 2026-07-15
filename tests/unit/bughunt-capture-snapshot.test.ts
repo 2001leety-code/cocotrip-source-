@@ -23,8 +23,25 @@ describe('버그헌트 #11 — createPaypalOrder 가 주문 스냅샷 영속화'
     expect(createSrc).toMatch(/expectedUSD:\s*usdAmount/);
     expect(createSrc).toMatch(/expectedKRW:\s*krwAmount/);
   });
-  it('best-effort — 스냅샷 쓰기 실패해도 주문 생성 진행(try/catch, 결제 차단 금지)', () => {
-    expect(createSrc).toMatch(/try\s*\{[\s\S]{0,400}paypal_order_snapshots[\s\S]{0,400}catch\s*\(/);
+  // 🔄 정책 반전 (2026-07-15): 이전엔 best-effort — 스냅샷 쓰기가 실패해도 주문을 진행했다.
+  //   이제 이 스냅샷은 AI 플래너 gate 의 **유일한 provenance 근거**다(productType·expectedUSD).
+  //   best-effort 를 유지하면 create 시점의 Firestore 깜빡임 하나가 "고객은 결제했는데 상품은
+  //   영구 거부"로 이어진다(격리 해제 경로도 없음). → 돈이 움직이기 전인 주문 생성 시점에
+  //   fail-closed 로 막는다. 미캡처 PayPal 주문은 무해하게 만료되고 사용자는 안전하게 재시도한다.
+  //   createCartOrder.js 가 이미 동일 정책(SNAPSHOT_FAILED 500).
+  it('fail-closed — 스냅샷 쓰기 실패 시 주문 ID 를 반환하지 않음 (SNAPSHOT_FAILED)', () => {
+    expect(createSrc).toMatch(/SNAPSHOT_FAILED/);
+    // 스냅샷 catch 안에서 조기 return — orderID 를 프론트에 주지 않는다.
+    const snapIdx = createSrc.indexOf("collection('paypal_order_snapshots')");
+    const okIdx = createSrc.indexOf('_ok({ orderID: order.id');
+    expect(snapIdx).toBeGreaterThan(-1);
+    expect(okIdx).toBeGreaterThan(-1);
+    expect(snapIdx).toBeLessThan(okIdx);
+    expect(createSrc.slice(snapIdx, okIdx)).toMatch(/catch\s*\([\s\S]{0,400}return res\.end/);
+  });
+
+  it('gate provenance 를 위해 expectedCurrency 를 명시 저장', () => {
+    expect(createSrc).toMatch(/expectedCurrency:\s*'USD'/);
   });
 });
 

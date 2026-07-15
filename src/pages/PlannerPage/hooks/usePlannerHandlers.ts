@@ -49,6 +49,20 @@ export type PlannerErrorCode =
   | 'GEMINI_ERROR'
   | 'PAYMENT_REQUIRED'
   | 'PAYMENT_INCOMPLETE'
+  // 결제 신뢰 검증 실패 계열 (paymentGate, 2026-07-15). 지역화 필수 —
+  // PAYMENT_UNDER_REVIEW 는 "다시 결제하지 마세요"(이중청구 방지) 안내를 담고 있어,
+  // 사전에 없으면 resolveErrorMessage 가 서버의 한국어 details 로 폴백해
+  // en/ja/zh 사용자가 경고를 못 읽고 재결제할 위험이 있다.
+  | 'PAYMENT_UNDER_REVIEW'
+  | 'PAYMENT_VERIFY_FAILED'
+  | 'PAYMENT_VERIFY_UNAVAILABLE'
+  | 'PAYMENT_REVIEW_CHECK_UNAVAILABLE'
+  // 주문 provenance + 실제 capture 검증 (P0-A/P0-B, 2026-07-15).
+  | 'ORDER_PROVENANCE_MISSING'
+  | 'ORDER_PRODUCT_MISMATCH'
+  | 'ORDER_PROVENANCE_INVALID'
+  | 'PAYMENT_PENDING_SETTLEMENT'
+  | 'PAYMENT_NOT_CAPTURED'
   | 'DUPLICATE_ORDER'
   | 'REVISION_EXHAUSTED'
   | 'FORBIDDEN'

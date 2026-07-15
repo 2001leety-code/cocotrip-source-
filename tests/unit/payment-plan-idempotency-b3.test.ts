@@ -29,8 +29,20 @@ vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }))
 import { enforcePaymentAndRevision } from '../../api/_ai_core/paymentGate.js';
 
 // PayPal order status fetch mock (COMPLETED 반환).
+// `ok: true` 필수 — 실제 fetch Response 는 항상 ok 를 갖는다. paymentGate 는 2026-07-15 부터
+// HTTP 실패(!ok)를 명시적으로 거부하므로(조회 불가 = 결제 확인 불가 = 발급 금지), ok 없는
+// mock 은 실물과 달라 PAYMENT_VERIFY_FAILED 로 떨어진다. 단언 약화가 아니라 mock 현실화.
 beforeEach(() => {
-  global.fetch = vi.fn(async () => ({ json: async () => ({ status: 'COMPLETED' }) })) as never;
+  // 실제 PayPal `order` 스키마를 모델링한다. paymentGate 는 2026-07-15 부터 top-level status 뿐
+  // 아니라 purchase_units[].payments.captures[] 의 실제 capture 상태·금액·통화를 검증한다
+  // (GET order 200 은 capture 응답과 동일한 order 스키마 + payments 기본 포함 — PayPal OpenAPI).
+  global.fetch = vi.fn(async () => ({
+    ok: true, status: 200,
+    json: async () => ({
+      id: PAYPAL_ORDER, intent: 'CAPTURE', status: 'COMPLETED',
+      purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '9.90', currency_code: 'USD' } }] } }],
+    }),
+  })) as never;
 });
 
 // mock adminDb — collection().doc().get/set 추적.
@@ -47,6 +59,11 @@ function mockDb(opts: { issuedExists?: boolean } = {}) {
           return {
             get: async () => {
               reads.push({ collection: name, id });
+              // paymentGate 는 이제 AI 플래너 주문 provenance(paypal_order_snapshots)를 요구한다.
+              // 스냅샷이 없으면 ORDER_PROVENANCE_MISSING 으로 거부되므로 정상 주문을 모델링한다.
+              if (name === 'paypal_order_snapshots') {
+                return { exists: true, data: () => ({ productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD' }) };
+              }
               const exists = name === 'plan_issued_orders' ? !!opts.issuedExists : false;
               return { exists, data: () => ({}) };
             },

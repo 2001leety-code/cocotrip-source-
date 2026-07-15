@@ -1,27 +1,16 @@
 /**
  * cart-capture — captureCartOrder 순수 코어 (firebase/paypal 무관 = 단위 테스트 용이).
  *
- * (1) verifyCartCaptureAmount: 캡처된 USD == cart_orders 스냅샷 합계 검증
- *     (capturePaypalOrder L260 은 amount 무검증 → cart 는 변조/불일치 감지 강화).
- * (2) buildCartChildBookings: 스냅샷 lines → 라인별 child booking doc + fan-out payload.
- *     - childOrderID = `${orderID}__${lineId}` (부모 bookings/{orderID} doc 충돌 회피 = batch-fanout 결함#1 방지)
- *     - retryDocId = childOrderID (PR2a retryDocId 활용 — 라인별 독립 retry)
- *     - amountKRW = 스냅샷 값(고정 1400 기준 authoritative). amount(USD)=KRW/rate.
+ * buildCartChildBookings: 스냅샷 lines → 라인별 child booking doc + fan-out payload.
+ *   - childOrderID = `${orderID}__${lineId}` (부모 bookings/{orderID} doc 충돌 회피 = batch-fanout 결함#1 방지)
+ *   - retryDocId = childOrderID (PR2a retryDocId 활용 — 라인별 독립 retry)
+ *   - amountKRW = 스냅샷 값(고정 1400 기준 authoritative). amount(USD)=KRW/rate.
+ *
+ * ⚠️ 캡처 금액 검증은 여기 있던 verifyCartCaptureAmount(parseFloat 비교 + currency 미검증)에서
+ *    `_shared/paypal-capture-verify.js` 로 이전됐다 — 부동소수점 대신 통화 최소단위 정수 비교 +
+ *    currency + 개별 capture status + cardinality 를 단건/cart 공통으로 검증한다.
+ *    약한 float 비교로 되돌리지 말 것.
  */
-
-/**
- * @param {string} expectedUsd  cart_orders 스냅샷 usdAmount
- * @param {string|number} capturedUsd  PayPal capture amount.value
- * @returns {{ok:boolean, expected:number, captured:number, diff:number, code?:string}}
- */
-export function verifyCartCaptureAmount(expectedUsd, capturedUsd) {
-  const exp = parseFloat(expectedUsd || '0');
-  const got = parseFloat(String(capturedUsd == null ? '' : capturedUsd) || '0');
-  if (!(exp > 0)) return { ok: false, expected: exp, captured: got, diff: 0, code: 'NO_EXPECTED' };
-  const diff = Math.abs(exp - got);
-  // 센트 미만 = 일치 (round 오차 허용). 그 이상 = 불일치(변조/snapshot stale 의심).
-  return { ok: diff < 0.01, expected: exp, captured: got, diff };
-}
 
 /**
  * 스냅샷 lines → 라인별 child booking doc + booking-processor fan-out payload.

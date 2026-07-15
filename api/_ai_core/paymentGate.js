@@ -11,6 +11,9 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
+import { isReviewFulfillable } from '../_shared/payment-review.js';
+import { isAiPlannerProduct } from '../_shared/ai-planner-policy.js';
+import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
 // 정책: BRAINTREE_ENV='production' → TEST- prefix order ID 전면 reject.
@@ -293,14 +296,144 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
         headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
       });
-      const orderData = await orderRes.json();
-      console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+      // PayPal GET order 의 HTTP 자체가 실패하면 body 에 status 가 없다 — JSON 만 보고
+      // 판단하지 말고 명시적으로 거부한다(조회 불가 = 결제 확인 불가 = 발급 금지).
+      if (!orderRes.ok) {
+        console.warn('[planner] PayPal order lookup HTTP 실패:', orderRes.status, paypalOrderId);
+        return reject(403, 'PAYMENT_VERIFY_FAILED', 'Could not verify payment with PayPal',
+          '결제 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+      let orderData;
+      try {
+        orderData = await orderRes.json();
+      } catch (parseErr) {
+        // JSON parse 실패도 "결제 확인 불가" — 발급 금지.
+        console.warn('[planner] PayPal order 응답 parse 실패:', parseErr.message, paypalOrderId);
+        return reject(403, 'PAYMENT_VERIFY_FAILED', 'Could not verify payment with PayPal',
+          '결제 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+      console.log('[planner] PayPal order status:', orderData?.status, 'id:', paypalOrderId);
 
-      if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
-        return reject(403, 'PAYMENT_INCOMPLETE', 'Payment not completed', `Order status: ${orderData.status}`);
+      // 🔴 fail-closed: COMPLETED 만 통과 (2026-07-15).
+      //   이전엔 APPROVED 도 통과시켰다. APPROVED = 구매자 승인만 끝났고 **capture 되지 않은**
+      //   상태 = 돈이 들어오지 않았다. PayPal 승인 후 브라우저에서 capture 호출만 차단하고
+      //   이 endpoint 를 order ID 로 직접 호출하면 $9.90 이 캡처되지 않아도 플랜을 받을 수 있었다.
+      //   CREATED / SAVED / VOIDED / PAYER_ACTION_REQUIRED / 미지 상태도 모두 거부한다.
+      //   APPROVED 는 "결제 미완료" 로 안내하되 플랜은 절대 발급하지 않는다.
+      if (orderData.status !== 'COMPLETED') {
+        const detail = orderData.status === 'APPROVED'
+          ? '결제가 아직 완료되지 않았습니다(승인만 완료). 결제를 마친 뒤 다시 시도해주세요.'
+          : `Order status: ${orderData.status}`;
+        return reject(403, 'PAYMENT_INCOMPLETE', 'Payment not completed', detail);
       }
 
-      if (adminDb) {
+      // 🔴 Admin DB 없이는 결제 신뢰 검증(격리 확인 + 발급 멱등성)을 할 수 없다 → 발급 금지.
+      //   이전엔 `if (adminDb)` 로 감싸 DB 부재 시 두 검사가 통째로 스킵됐다(fail-open).
+      if (!adminDb) {
+        console.error('[planner] Admin DB unavailable — 결제 검증 불가, 발급 거부:', paypalOrderId);
+        return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Cannot verify payment state',
+          '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+      }
+
+      {
+        // 🔴 격리(payment_reviews)를 **서버** 신뢰 경계로 사용 (2026-07-15).
+        //   capture 무결성 불일치로 격리된 주문은 프론트가 202 안내 화면을 띄우지만,
+        //   프론트를 우회해 이 endpoint 를 직접 호출하면 막을 수 없었다.
+        //   plan_issued_orders 최종 통과 **전에** 확인한다.
+        try {
+          const reviewDoc = await adminDb.collection('payment_reviews').doc(paypalOrderId).get();
+          if (reviewDoc.exists) {
+            const rv = reviewDoc.data() || {};
+            // resolvedAt 이 설정됐다고 자동 발급하지 않는다 — 어떻게 해결됐는지가 중요하다.
+            // 환불(REFUNDED)로 해결된 건은 돈이 없으므로 발급하면 안 된다.
+            // 판정은 _shared/payment-review.js 의 SSOT 헬퍼로 (리터럴 하드코딩 시 기록부와 드리프트).
+            const allowed = isReviewFulfillable(rv);
+            if (!allowed) {
+              console.warn('[planner] payment_review 미해결/미허용 → 발급 거부:', paypalOrderId, rv.resolution ?? '(unresolved)');
+              return reject(403, 'PAYMENT_UNDER_REVIEW', 'Payment is under manual review',
+                '결제 확인 중입니다. 확인 후 안내드립니다. 다시 결제하지 마세요.');
+            }
+          }
+        } catch (reviewErr) {
+          // 조회 실패를 "격리 없음" 으로 간주해 유료 콘텐츠를 발급하지 않는다.
+          console.error('[planner] payment_review 조회 실패 → 발급 거부(fail-closed):', reviewErr.message);
+          await captureError(reviewErr, { route: 'paymentGate', step: 'payment_review_check', orderId: paypalOrderId });
+          return reject(503, 'PAYMENT_REVIEW_CHECK_UNAVAILABLE', 'Could not verify payment review state',
+            '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // 🔴 P0-A/P0-B (2026-07-15): 주문 provenance + 실제 capture 무결성.
+        //
+        //   이전엔 order status 만 봤다. 두 가지가 뚫려 있었다:
+        //     (A) Order `COMPLETED` 는 "capture 라이프사이클이 시작됐다" 는 뜻일 뿐 돈이 들어왔다는
+        //         뜻이 아니다. PayPal 공식: "The Order and Capture objects have separate lifecycles",
+        //         Order COMPLETED 의 next step = "checking the Capture object status in the Order
+        //         API response". 즉 COMPLETED 인데 capture 가 PENDING(eCheck/리스크홀드) 이거나
+        //         DECLINED 일 수 있다.
+        //     (B) 이 주문이 **AI 플래너용이었는지** 를 확인하지 않았다 → 정상 결제한 차터/공항 주문
+        //         ID 를 여기에 넣으면 추가 결제 없이 플랜이 나왔다.
+        //
+        //   GET /v2/checkout/orders/{id} 200 은 capture 응답과 **동일한 `order` 스키마**를 반환하고
+        //   (PayPal OpenAPI: 둘 다 `#/components/schemas/order`), payments.captures[] 가 기본 포함된다
+        //   → capture 핸들러와 같은 검증기(verifyCaptureIntegrity)를 그대로 재사용한다. 복제 금지.
+        let snap;
+        try {
+          snap = await adminDb.collection('paypal_order_snapshots').doc(paypalOrderId).get();
+        } catch (snapErr) {
+          // 조회 실패를 "스냅샷 없음" 으로 취급하지 않는다 (인프라 장애 ≠ 무결성 실패).
+          console.error('[planner] order snapshot 조회 실패 → 발급 거부(fail-closed):', snapErr.message);
+          await captureError(snapErr, { route: 'paymentGate', step: 'order_snapshot_check', orderId: paypalOrderId });
+          return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify order provenance',
+            '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+        }
+        if (!snap.exists) {
+          // body fallback 금지 — 스냅샷이 유일한 provenance 근거다.
+          // (createPaypalOrder 는 2026-07-15 부터 스냅샷 쓰기가 fail-closed 라 정상 신규 주문엔 항상 있다.)
+          console.warn('[planner] order snapshot 없음 → 발급 거부:', paypalOrderId);
+          return reject(403, 'ORDER_PROVENANCE_MISSING', 'Order provenance not found',
+            '이 주문의 결제 정보를 확인할 수 없습니다. 고객센터로 문의해주세요.');
+        }
+        const snapData = snap.data() || {};
+
+        // 상품 바인딩 — 하이픈/언더스코어 변형이 섞여 쓰이므로 SSOT 헬퍼로 정규화 비교.
+        // (프론트는 'ai-planner-full' 을 보내고 스냅샷엔 원본이 저장된다 → 문자열 직접 비교 금지.)
+        if (!isAiPlannerProduct(snapData.productType)) {
+          console.warn('[planner] 다른 상품 주문으로 플랜 요청 → 거부:', paypalOrderId, snapData.productType);
+          return reject(403, 'ORDER_PRODUCT_MISMATCH', 'Order is not an AI planner purchase',
+            'AI 플래너 결제 주문이 아닙니다. 다른 상품의 결제로는 플랜을 발급할 수 없습니다.');
+        }
+
+        // 금액은 주문 생성 당시 스냅샷 값 기준 (현재 환율로 재계산 금지) + 정수 minor 비교.
+        const expectedCurrency = snapData.expectedCurrency || 'USD'; // legacy: create 가 항상 USD 로 주문 생성
+        const expectedMinor = toMinorUnits(snapData.expectedUSD, expectedCurrency);
+        if (expectedMinor === null) {
+          console.warn('[planner] snapshot expectedUSD 무효 → 발급 거부:', paypalOrderId);
+          return reject(403, 'ORDER_PROVENANCE_INVALID', 'Order snapshot amount invalid',
+            '이 주문의 결제 금액을 확인할 수 없습니다. 고객센터로 문의해주세요.');
+        }
+
+        // 실제 capture 검증 — amount/currency/capture status/cardinality.
+        const verdict = verifyCaptureIntegrity({
+          capture: orderData, expectedAmountMinor: expectedMinor, expectedCurrency,
+        });
+        if (verdict.pending) {
+          // ⚠️ capture-verify 의 pending 은 "예약 handler 는 booking doc 을 남긴다" 는 맥락의 신호다.
+          //   디지털 상품 발급은 다르다 — PayPal 공식이 "Wait until COMPLETED or DECLINED before
+          //   fulfilling" 이라고 명시하므로 **여기서는 이행하지 않는다**. 재결제 유도도 금지.
+          console.warn('[planner] capture PENDING → 발급 보류:', paypalOrderId, verdict.detail);
+          return reject(403, 'PAYMENT_PENDING_SETTLEMENT', 'Payment is pending settlement',
+            '결제가 확인 중입니다(정산 대기). 완료되면 안내드립니다 — 다시 결제하지 마세요.');
+        }
+        if (!verdict.ok) {
+          // DECLINED / FAILED / REFUNDED / PARTIALLY_REFUNDED / 금액·통화·구조 불일치.
+          // 이 작업에서 자동환불은 하지 않는다 (운영자 판단).
+          console.warn('[planner] capture 무결성 실패 → 발급 거부:', paypalOrderId, verdict.code, verdict.detail);
+          return reject(403, 'PAYMENT_NOT_CAPTURED', `Capture not usable: ${verdict.code}`,
+            '결제가 정상적으로 완료되지 않았습니다. 고객센터로 문의해주세요.');
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         // B3 S1-a (P311, 2026-05-30): plan-발급 멱등성을 plan_issued_orders 로 분리 (검사만).
         //
         // 이전 BUG (출시 blocker): used_paypal_orders 를 capturePaypalOrder (결제 capture
