@@ -296,6 +296,84 @@ export async function finalizePlanIssuance(adminDb, claim, { now } = {}) {
  *
  * @returns {Promise<{released: boolean, code?: string, detail?: string}>}
  */
+/**
+ * handlerCore 용 발급권 컨텍스트. 요청 수명 동안 claim 과 소유권 이관 여부를 들고 다닌다.
+ *
+ * **전역변수를 쓰지 않는다** — 요청마다 새 객체를 만들어 명시적으로 넘긴다.
+ *
+ * handlerCore 는 500줄 cap(P129 아키텍처 가드)이 걸려 있고 이미 499줄이었다. 발급권 배관을
+ * 인라인으로 두면 cap 을 넘긴다 — cap 의 목적이 바로 이 분리 강제이므로 배관을 여기로 모은다.
+ *
+ * ⚠️ dispatch 성공 시 반드시 handOff() 를 부를 것. 소유권이 Inngest worker 로 넘어가므로
+ *   handler 가 release 하면 안 된다(worker 가 이어서 확정하거나 onFailure 가 처리한다).
+ */
+export function createIssuanceContext() {
+  return {
+    /** gate 가 선점한 { orderId, attemptId, planId } — 유료 PayPal 경로만 채워진다. */
+    claim: null,
+    /** dispatch 성공 = 소유권이 worker 로 이관됨 → handler 는 release 금지. */
+    handedToWorker: false,
+
+    /** paymentGate 결과에서 claim 을 흡수. 비유료 경로면 no-op. */
+    adopt(gate) {
+      if (gate && gate.planClaim) this.claim = gate.planClaim;
+      return this;
+    },
+    /** skeleton/persist 가 쓸 예약 planId. 비유료 경로는 null → 기존 randomUUID 동작. */
+    reservedPlanId() {
+      return (this.claim && this.claim.planId) || null;
+    },
+    handOff() {
+      this.handedToWorker = true;
+    },
+    /**
+     * plan 이 저장되지 않았고 worker 로 넘기지도 않았을 때만 발급권을 되돌린다.
+     * ⚠️ 호출자는 **await** 할 것 — fire-and-forget 이면 serverless freeze 로 해제가 유실되고
+     *   사용자는 재시도해도 lease 만료까지 409 로 막힌다.
+     */
+    async releaseIfUnused(adminDb, planPersisted, reason) {
+      if (!this.claim || planPersisted || this.handedToWorker) return false;
+      const released = await releasePlanIssuanceSafely(adminDb, this.claim, reason);
+      this.claim = null;
+      return released;
+    },
+  };
+}
+
+/**
+ * releasePlanIssuance 를 삼켜서(throw 없이) 호출하는 래퍼. 실패·미해제를 **소리나게 로그**한다.
+ *
+ * handlerCore 는 500줄 cap(P129)이 걸려 있어 이 정리 로직을 인라인으로 두면 cap 을 넘긴다.
+ * 여기 모아두면 호출부가 한 줄이 되고, 왜 이렇게 하는지도 한 곳에 남는다.
+ *
+ * ⚠️ 호출자는 **반드시 await** 할 것. fire-and-forget 으로 두면 serverless 가 응답 후 인스턴스를
+ *   얼려 해제가 유실되고(P790 이 markPlanIssued 에서 겪은 그 문제), 사용자는 재시도해도 lease
+ *   만료까지 409 로 막힌다. 해제는 재시도 가능성을 지키는 유일한 장치다.
+ *
+ * ⚠️ fail-open 하지 않는다 — 해제에 실패하면 lease 만료까지 잠긴 채 둔다. 중복 발급보다 일시적
+ *   잠금이 낫다(돈이 이미 오갔으므로).
+ *
+ * @param {object} adminDb
+ * @param {{orderId: string, attemptId: string, planId?: string}} claim
+ * @param {string} reason — 로그용 (예: 'start-date-rejected', 'handler-catch', 'worker-onFailure')
+ * @returns {Promise<boolean>} 실제로 해제됐으면 true
+ */
+export async function releasePlanIssuanceSafely(adminDb, claim, reason) {
+  try {
+    const rel = await releasePlanIssuance(adminDb, claim);
+    if (rel.released) {
+      console.warn(`[plan-issuance] 발급권 해제 (${reason}) — 같은 결제로 재시도 가능`);
+      return true;
+    }
+    // 미해제가 정상인 경우도 있다: COMMITTING(plans 저장됐을 수 있음) / 남이 takeover(attemptId 불일치).
+    console.warn(`[plan-issuance] 발급권 해제 안 됨 (${reason}, 잠금 유지): ${rel.code || ''} ${rel.detail || ''}`);
+    return false;
+  } catch (e) {
+    console.error(`[plan-issuance] 발급권 해제 실패 (${reason}) — lease 만료까지 잠김: ${e.message}`);
+    return false;
+  }
+}
+
 export async function releasePlanIssuance(adminDb, claim) {
   if (!adminDb || !claim || !claim.orderId || !claim.attemptId) {
     return { released: false, code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: 'incomplete claim' };

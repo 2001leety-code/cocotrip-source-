@@ -114,6 +114,7 @@ export function buildPlanAiCompletePayload(args) {
     plannerMode, abReason, abBucket, blocksUsed,
     isAdminBypass, identifierForBucketing,
     forceGuestToken,  // FEATURE_GUEST_ANON_AUTH: worker persistPlan accessToken 발급용.
+    issuanceClaim,    // P0 (2026-07-15): 유료 PayPal 발급권 { orderId, attemptId, planId }.
   } = args;
 
   // P256 (2026-05-28): zone_id 도출 — Inngest worker 의 4번째 layer fix.
@@ -162,6 +163,17 @@ export function buildPlanAiCompletePayload(args) {
       // worker Step 0 가 skeletonCtx 있으면 savePlanSkeleton 호출 (stub → full skeleton).
       // skeletonCtx 없으면 (ENV off) worker 가 무시 — backward compat.
       ...(skeletonCtx ? { skeletonCtx } : {}),
+      // 🔴 P0 원자 발급 (2026-07-15): 유료 PayPal 발급권 { orderId, attemptId, planId }.
+      //   dispatch 성공 순간 claim 소유권이 worker 로 넘어간다 — worker 가 plans 저장 직전
+      //   beginPlanCommit 으로 fencing 하고 저장 후 finalize 로 확정한다.
+      //   **ctx 의 1급 필드여야 한다** — itinerary 에 몰래 붙이면 step output store 왕복(JSON
+      //   round-trip)에서 유실된다. P266 이 _cache_metadata 로 정확히 그 사고를 겪고 ctx 명시
+      //   pass-through 로 바꿨다.
+      //   orderId 는 ctx.body.paypalOrderId 로도 이미 오지만, 두 소스가 드리프트하면 안 되므로
+      //   claim 안에 함께 실어 worker/persister 가 대조하게 한다.
+      //   secret 아님: attemptId 는 서버 생성 UUID, planId 는 예약 ID. (ctx.apiKey/ctx.body 가
+      //   이미 payload 에 있는 건 이번 작업 이전부터의 별개 이슈.)
+      ...(issuanceClaim ? { issuanceClaim } : {}),
     },
   };
 }
@@ -245,6 +257,10 @@ export async function dispatchOrInlineForHandlerCore({
   // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid (=planOwnerUid) 가 부여된 경우 true.
   // worker persistPlan/skeleton 이 accessToken 발급. 플래그 OFF (handlerCore 기본) 시 false.
   forceGuestToken = false,
+  // 🔴 P0 (2026-07-15): 유료 PayPal 발급권 { orderId, attemptId, planId }.
+  //   ⚠️ **구조분해 시그니처다** — 여기 명시하지 않으면 handlerCore 가 넘겨도 에러 없이 조용히
+  //     버려지고, worker 가 fencing 없이 plans 를 저장하게 된다(= 이중 발급 창).
+  issuanceClaim = null,
 }) {
   return tryDispatchAndLog({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
@@ -255,6 +271,6 @@ export async function dispatchOrInlineForHandlerCore({
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,
     blocksUsed: blockModeUsed ? blocksUsed : null,
-    isAdminBypass, identifierForBucketing, forceGuestToken,
+    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim,
   }, handlerStart);
 }

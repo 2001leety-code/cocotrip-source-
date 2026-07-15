@@ -44,6 +44,38 @@ import { isPass3BackgroundEnabled, isStreamingEnabled, buildModel } from './gemi
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { randomUUID } from 'crypto';
+import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
+
+/**
+ * plan 발급 완료 후 비차단 알림 3종 — 이메일 / Google Sheets 리드 / 텔레그램+웹푸시.
+ *
+ * handlerCore 에서 추출 (2026-07-15). 이유: handlerCore 는 500줄 cap(P129)의 orchestrator 이고
+ * 이미 cap 에 정확히 도달해 있었다. cap 테스트 주석이 "추가 로직은 backgroundPipelines 로 추가"
+ * 라고 지시하며, 이 셋은 전부 fire-and-forget 부수효과라 이 모듈(triggerPass3BackgroundIfPending
+ * 과 동일 성격)이 제 집이다.
+ *
+ * 동작 무변경 — 호출 순서·조건·에러 삼킴 방식 그대로 옮겼다.
+ *   - 이메일/시트는 email 이 있을 때만.
+ *   - 셋 다 await 하지 않는다(응답 지연 금지). 실패는 warn 만 — 알림 실패가 plan 발급을 되돌리지 않는다.
+ *   - push 는 동적 import (버그헌트 #12: unhandled rejection 차단용 .catch 유지).
+ */
+export function sendPlanReadyNotifications({
+  adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language,
+}) {
+  if (email) {
+    sendNotificationEmail({
+      email, guestName,
+      tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
+      planId, planUrl,
+    }).catch((e) => console.warn('[planner] Email error:', e.message));
+    recordLeadToSheets({ email, guestName, area, styles, pax, planId })
+      .catch((e) => console.warn('[planner] Sheets error:', e.message));
+  }
+  import('../_plan-ready-push.js').then(({ sendPlanCreatedTelegram, sendPlanReadyPush }) => {
+    sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId });
+    if (uid) sendPlanReadyPush(adminDb, uid, { planId, planUrl, tourTitle: itinerary.tour_title, language });
+  }).catch((e) => console.warn('[ai-planner-full] plan-ready-push import/dispatch failed:', e?.message));
+}
 
 // P231 (2026-05-27): skeleton 저장을 Inngest worker 의 첫 step 으로 이동.
 // ENV off (default) = 기존 동작 100% 유지 (rollback 안전).
@@ -126,6 +158,12 @@ export async function tryInitStreamingSkeleton({
   // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 부여 시 true → savePlanSkeleton 이
   // accessToken 발급. 플래그 OFF (handlerCore 기본) 시 false → 기존 동작 byte-identical.
   forceGuestToken = false,
+  // P0 원자 발급 (2026-07-15): claim 이 예약한 planId. 유료 PayPal 경로만 값이 있다.
+  //   skeleton 과 최종 persistPlan 이 **같은 문서**를 써야 claim 이 그 planId 로 완성 여부를
+  //   직접 읽어 복구할 수 있다(plans.input.paypalOrderId 는 persistPlan 이 실행돼야 생기므로
+  //   streaming 창에서는 주문으로 조회가 불가능하다).
+  //   null (비유료 경로) = 기존 randomUUID 동작 그대로.
+  reservedPlanId = null,
 }) {
   try {
     const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
@@ -135,7 +173,9 @@ export async function tryInitStreamingSkeleton({
     // P231: skeleton-in-worker 모드 — stub doc 만 저장해 HTTP 응답 경로에서 1-2s 절감.
     if (isSkeletonInWorkerEnabled()) {
       if (!adminDb) throw new Error('[P231] Firebase not configured — cannot save stub');
-      const planId = randomUUID();
+      // P0 (2026-07-15): claim 이 예약한 planId 우선 — 이 경로는 savePlanSkeleton 을 우회해
+      //   직접 randomUUID 를 부르므로, savePlanSkeleton 에만 구멍을 뚫으면 여기에 구멍이 남는다.
+      const planId = reservedPlanId || randomUUID();
       const planUrl = `/my-plans/${planId}`;
       // stub doc: 404 차단 전용. PlanDetailPage 가 _streaming_in_progress 감지 가능.
       // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 의무.
@@ -167,6 +207,7 @@ export async function tryInitStreamingSkeleton({
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body, forceGuestToken,
+      planIdOverride: reservedPlanId,  // P0: claim 예약 planId (null = 기존 randomUUID)
     });
     console.log('[planner P169] Skeleton saved:', sk.planId);
     return { planId: sk.planId, planUrl: sk.planUrl };
@@ -200,9 +241,11 @@ export async function tryInitStreamingSkeleton({
 export async function tryBlockModeInngestPath({
   adminDb, isInngestEnabled, blockModeUsed, itinerary, uid, email, area, startDate, guestName, pax,
   language, vehicle, durationDays, body, dispatchFn, sendEarlyResponse, buildDebug, handlerStart,
+  // P0 (2026-07-15): claim 예약 planId. null = 기존 randomUUID 동작.
+  reservedPlanId = null,
 }) {
   if (!blockModeUsed || !itinerary || !isInngestEnabled) return null;
-  const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary });
+  const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary, reservedPlanId });
   if (!sk) return null;
   // P231: sk.skeletonCtx → dispatchFn 에 전달 → worker Step 0 가 full skeleton 저장.
   const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null });
@@ -250,6 +293,8 @@ export async function tryBlockModeInngestPath({
  */
 export async function tryInitBlockModeForInngest({
   adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary,
+  // P0 (2026-07-15): claim 예약 planId. null = 기존 randomUUID 동작.
+  reservedPlanId = null,
 }) {
   if (!adminDb || !itinerary) return null;
   try {
@@ -260,7 +305,9 @@ export async function tryInitBlockModeForInngest({
     // P231: skeleton-in-worker 모드 — stub doc 만 저장 (full skeleton + itinerary merge 는 worker Step 0).
     // 기존 2 Firestore 호출 (~2-3s) → stub 1 호출 (~150ms) 로 단축.
     if (isSkeletonInWorkerEnabled()) {
-      const planId = randomUUID();
+      // P0 (2026-07-15): claim 예약 planId 우선 — planId 생성점 4곳 중 하나. 여기를 빠뜨리면
+      //   P231 ON + block-mode 조합에서만 claim 이 우회돼 skeleton 과 최종 plan 이 갈라진다.
+      const planId = reservedPlanId || randomUUID();
       const planUrl = `/my-plans/${planId}`;
       // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 (block-mode 도 동일 fix).
       //   Firestore Rules race window 차단 (sync path 의 stub fix 와 동일 의도).
@@ -289,6 +336,7 @@ export async function tryInitBlockModeForInngest({
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+      planIdOverride: reservedPlanId,  // P0: claim 예약 planId (null = 기존 randomUUID)
     });
     // block-mode 결과를 skeleton 위에 merge — _streaming_in_progress / status / pricing 유지하면서
     // itinerary.days 만 block-mode 결과로 덮어씀. 사용자는 PlanDetailPage 진입 시 빈 days 가

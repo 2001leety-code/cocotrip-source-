@@ -40,9 +40,9 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
-import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision, restoreAiPlanCoupon } from './paymentGate.js';
+import { createIssuanceContext } from '../_shared/plan-issuance.js';
 import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
@@ -55,6 +55,7 @@ import {
   tryInitStreamingSkeleton,
   tryBlockModeInngestPath,
   sendStreamingEarlyResponse,
+  sendPlanReadyNotifications,
 } from './backgroundPipelines.js';
 
 import { shapeRequest } from './requestShaper.js';
@@ -99,6 +100,8 @@ export default async function handler(req, res) {
   let lastEmail = null;
   let consumedCouponInfo = null; // 버그헌트 A(2026-06-27): 무료쿠폰 소비 정보 — plan 생성 실패 시 롤백용
   let planPersisted = false;     // 버그헌트 A: plan 저장 성공 여부 — 성공 후엔 정당 소비라 롤백 X
+  // P0 원자 발급 (2026-07-15): 유료 PayPal 발급권 배관. 상세 = _shared/plan-issuance.js.
+  const issuance = createIssuanceContext();
   async function withStep(label, fn) {
     currentStep = label;
     currentStepStart = Date.now();
@@ -180,11 +183,13 @@ export default async function handler(req, res) {
     }
     // 버그헌트 A(2026-06-27): 무료쿠폰이 게이트에서 소비됨 — 이후 plan 생성 실패 시 catch 에서 롤백하려고 정보 보관.
     if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
+    issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
     const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
     if (tooSoon) {
       console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
+      await issuance.releaseIfUnused(adminDb, false, 'start-date-rejected');  // P0: 생성 전 거부 → 재시도 가능
       res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err('Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.', 'PLANNER_DATE_TOO_SOON', { details: `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}` })));
     }
@@ -298,7 +303,7 @@ export default async function handler(req, res) {
     let streamingResponseSent = false;
     let skeletonCtx = null; // P231: worker Step 0 에 전달할 full skeleton 파라미터 (ENV off 시 null)
     if (useStreaming) {
-      const sk = await tryInitStreamingSkeleton({ adminDb, uid: planOwnerUid, forceGuestToken, email, area, startDate, guestName, pax, language, vehicle, durationDays, body });
+      const sk = await tryInitStreamingSkeleton({ adminDb, uid: planOwnerUid, forceGuestToken, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, reservedPlanId: issuance.reservedPlanId() });
       if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; skeletonCtx = sk.skeletonCtx || null; }
     }
 
@@ -346,24 +351,28 @@ export default async function handler(req, res) {
       ? await tryBlockModeInngestPath({
           adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid, email, area,
           startDate, guestName, pax, language, vehicle, durationDays, body, handlerStart,
+          reservedPlanId: issuance.reservedPlanId(),  // P0: 예약 planId (skeleton == 최종 plan 문서)
           dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
             streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
             area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
-            isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart,
+            isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim,
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
         })
       : null;
-    if (blkInn && blkInn.dispatched) { streamingResponseSent = true; return; }
+    // P0: dispatch 성공 = 소유권 worker 이관 → handler release 금지(worker/onFailure 가 처리).
+    if (blkInn && blkInn.dispatched) { issuance.handOff(); streamingResponseSent = true; return; }
+    // dispatch 실패 → inline fallback. 같은 claim 을 계속 쓴다(새로 선점하지 않는다).
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
     // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
     // P231 (2026-05-27): skeletonCtx 전달 — worker Step 0 가 full skeleton 저장 (PLANNER_SKELETON_IN_WORKER=true 시).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
+    // P0: issuanceClaim 전달 + dispatch 성공 시 소유권 이관 표시(handler release 금지).
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -397,6 +406,7 @@ export default async function handler(req, res) {
       abReason: abDecision.reason, abBucket: abDecision.bucket,
       blocksUsed: blockModeUsed ? blocksUsed : null,
       ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),  // P169: streaming 모드 skeleton planId 재사용
+      issuanceClaim: issuance.claim,  // P0: persistPlan 이 저장 직전 fencing + 저장 후 확정
     }));
     planPersisted = true; // 버그헌트 A: plan 저장 성공 → 무료쿠폰 정당 소비(catch 롤백 안 함)
 
@@ -421,26 +431,9 @@ export default async function handler(req, res) {
     }
 
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
-    // ── 알림 이메일 (non-blocking) ───────────────────────────────────────
-    if (email) {
-      sendNotificationEmail({
-        email, guestName,
-        tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
-        planId, planUrl,
-      }).catch((e) => console.warn('[planner] Email error:', e.message));
-    }
-
-    // ── Google Sheets 리드 기록 (non-blocking) ──────────────────────────
-    if (email) {
-      recordLeadToSheets({ email, guestName, area, styles, pax, planId })
-        .catch((e) => console.warn('[planner] Sheets error:', e.message));
-    }
-
-    // ── Telegram + Web Push 알림 (non-blocking) ─────────────────────
-    import('../_plan-ready-push.js').then(({ sendPlanCreatedTelegram, sendPlanReadyPush }) => {
-      sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId });
-      if (uid) sendPlanReadyPush(adminDb, uid, { planId, planUrl, tourTitle: itinerary.tour_title, language });
-    }).catch((e) => console.warn('[ai-planner-full] plan-ready-push import/dispatch failed:', e?.message)); // 버그헌트 #12: unhandled rejection 차단
+    // ── 알림 3종: 이메일 / Sheets 리드 / Telegram+Push (전부 non-blocking) ──
+    //    backgroundPipelines.js 로 추출 (2026-07-15) — cap 테스트가 지시하는 위치. 동작 무변경.
+    sendPlanReadyNotifications({ adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language });
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
@@ -462,12 +455,14 @@ export default async function handler(req, res) {
       })));
     }
     // 버그헌트 A fix (2026-06-27): 무료 쿠폰으로 시작했는데 plan 저장 전 실패 → 쿠폰 롤백(재시도 가능하게).
-    //   PayPal 경로(plan_issued_orders set 성공 후 마킹=재시도 허용)와 대칭. 저장 성공(planPersisted) 후엔
-    //   정당 소비라 롤백 X. fire-and-forget(응답 후) — 롤백 실패해도 사용자 응답엔 영향 없음.
+    //   저장 성공(planPersisted) 후엔 정당 소비라 롤백 X. fire-and-forget(응답 후) — 롤백 실패해도
+    //   사용자 응답엔 영향 없음.
     if (consumedCouponInfo && !planPersisted) {
       restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code)
         .catch((e) => console.warn('[ai-planner-full] coupon rollback failed:', e.message));
     }
+    // 🔴 P0: 발급권 해제(plan 미저장 + worker 미이관일 때만). await 필수 — freeze 유실 방지.
+    await issuance.releaseIfUnused(adminDb, planPersisted, 'handler-catch');
     // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
     // catch 블록 첫 응답 전에 await 하면 telemetry throw 시 응답 못 감 → 분리.
     Promise.resolve().then(async () => {

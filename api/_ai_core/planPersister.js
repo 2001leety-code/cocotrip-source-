@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { computeQualityScore } from './qualityMetrics.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
+import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -1063,10 +1064,14 @@ export async function savePlanSkeleton(adminDb, {
   // accessToken 을 발급해 기존 게스트 공유 링크 흐름 유지. 플래그 OFF 시 항상 false 로 전달
   // → accessToken 식이 기존 (uid ? null : random) 과 동일 (byte-identical).
   forceGuestToken = false,
+  // P0 원자 발급 (2026-07-15): claim 이 예약한 planId. 유료 PayPal 경로만 값이 있다.
+  //   skeleton 과 최종 persistPlan 이 같은 문서를 써야 claim 이 그 planId 로 완성 여부를 직접
+  //   읽어 복구할 수 있다. null/undefined = 기존 randomUUID 동작 byte-identical.
+  planIdOverride = null,
 }) {
   if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
 
-  const planId = randomUUID();
+  const planId = planIdOverride || randomUUID();
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
@@ -1171,12 +1176,20 @@ export async function finalizeStreamingPlan(adminDb, planId, finalDoc) {
 }
 
 /**
- * plan 발급 멱등성 마킹 (P311 / P790). 실 PayPal 결제(17자 orderId)만 plan_issued_orders 기록.
- * ADMIN-BYPASS/TEST/MANUAL prefix 제외. paymentGate 가 다음 호출 시 이 doc 으로 중복 plan 차단.
+ * plan 발급 멱등성 마킹 (P311 / P790) — **레거시 폴백. 유료 PayPal 경로는 더 이상 여기로 오지 않는다.**
+ *
+ * ⚠️ 2026-07-15 (P0 원자 발급): 유료 PayPal 발급 확정은 finalizePlanIssuance 가 담당한다
+ * (_shared/plan-issuance.js). 이 함수의 **non-fatal `.catch()` → `return true`** 가 바로 P0 의
+ * 원인 절반이었다 — 마커가 안 박히면 플랜은 저장됐는데 결제 ID 는 다시 쓸 수 있었다.
+ * persistPlan 은 issuanceClaim 이 있으면 이 함수를 호출하지 않는다.
+ *
+ * 남은 도달 경로: 사실상 없다. prefix 3종은 아래에서 스스로 걸러지고, revision 요청은 body 에
+ * paypalOrderId 를 보내지 않으며(프론트 실측 2026-07-15), 그 외 유료 주문은 전부 claim 을 가진다.
+ * 호출 계약과 P790 회귀 가드(plan-issued-mark-p790.test.ts)를 깨지 않으려고 남겨둔 폴백이다.
+ * **이 함수를 유료 경로로 되돌리지 말 것.**
  *
  * P790 (2026-06-03): await 가능하도록 추출 — 기존 fire-and-forget 은 serverless 응답 후 instance
  * freeze(P222/P319) 시 마킹 미완 → 재시도 plan 중복발급. 호출자가 plan set 성공 후 await → persist 보장.
- * non-fatal: set 실패해도 throw 안 함(.catch). plan 은 이미 저장됨 → plan loss 없음.
  *
  * @param {object} adminDb
  * @param {string} ppOrderId — body.paypalOrderId
@@ -1215,6 +1228,11 @@ export async function persistPlan(adminDb, {
   // P169 (2026-05-23): streaming 모드에서 skeleton 에서 미리 생성한 planId 재사용.
   // undefined 시 기존 randomUUID() 생성 (비스트리밍 호환).
   planIdOverride,
+  // P0 원자 발급 (2026-07-15): paymentGate 가 선점한 { orderId, attemptId, planId }.
+  //   유료 PayPal 경로에서만 존재한다(revision/무료쿠폰/ADMIN-BYPASS-/TEST-/MANUAL- 은 null).
+  //   있으면 plans 저장 직전 beginPlanCommit 으로 fencing 하고, 저장 성공 후 finalize 로 확정한다.
+  //   ⚠️ 구조분해 시그니처다 — 여기 명시하지 않으면 ctx 에 담아 보내도 에러 없이 조용히 버려진다.
+  issuanceClaim,
   // P266 (2026-05-28): P195 cache instrumentation persistence — explicit cacheMetadata 인자.
   //   기존: itinerary._cache_metadata hidden mutation 의존 → worker dispatch path 에서 80% 손실
   //         (5/25~5/28 100 plans inspect: legacy 51 plans 중 10 plans 만 저장).
@@ -1233,7 +1251,22 @@ export async function persistPlan(adminDb, {
     throw new Error('Firebase not configured — cannot save plan');
   }
 
-  const planId = planIdOverride || randomUUID();
+  // P0 원자 발급 (2026-07-15): claim 이 있으면 **claim 이 예약한 planId 가 진실**이다.
+  //   inline/worker/skeleton 이 서로 다른 plan 문서를 만들면 복구가 불가능해진다(claim 은
+  //   예약 planId 로 plans 를 직접 읽어 완성 여부를 판정한다).
+  //   ⚠️ planIdOverride 는 `||` 폴백이라 빈 문자열이 오면 조용히 새 UUID 가 생겨 고아 plan +
+  //      이중 발급이 된다. claim 경로에서는 소리나게 실패시킨다.
+  if (issuanceClaim) {
+    if (!issuanceClaim.planId) throw new Error('Plan issuance claim has no reserved planId');
+    if (planIdOverride && planIdOverride !== issuanceClaim.planId) {
+      throw new Error('Plan issuance claim planId does not match planIdOverride');
+    }
+    // gate 가 검증한 orderId 와 persister 가 보는 body 가 다르면 두 소스가 드리프트한 것이다.
+    if (issuanceClaim.orderId !== body?.paypalOrderId) {
+      throw new Error('Plan issuance claim orderId does not match request');
+    }
+  }
+  const planId = (issuanceClaim && issuanceClaim.planId) || planIdOverride || randomUUID();
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
@@ -1457,20 +1490,47 @@ export async function persistPlan(adminDb, {
     }).catch(() => {});
   }
 
+  // 🔴 P0 fencing (2026-07-15): plans 대용량 저장 **직전**에 COMMITTING 을 원자 선점한다.
+  //   여기까지 오는 사이 lease 가 만료돼 다른 attempt 가 takeover 했을 수 있다. 그 경우 이 attempt 는
+  //   발급권을 잃었으므로 **plan 을 저장하면 안 된다**(저장하면 완성 plan 이 2개가 된다).
+  //   plans 문서 자체를 트랜잭션에 넣지 못하는 이유는 _shared/plan-issuance.js 헤더 참조
+  //   (900KB + 저장 직전 truncation 이 days.pop() 으로 in-place mutate → tx 재시도 시 손상).
+  if (issuanceClaim) {
+    const begun = await beginPlanCommit(adminDb, issuanceClaim);
+    if (!begun.ok) {
+      console.error('[planPersister] 발급권 상실 → plan 저장 중단:', begun.code, begun.detail);
+      throw new Error(`Plan issuance claim lost before save (${begun.code}). This payment is being processed by another attempt.`);
+    }
+  }
+
   try {
     await adminDb.collection('plans').doc(planId).set(docToSave);
   } catch (saveErr) {
     // Firestore set() 실패 시 마지막 안전망 — 사용자 결제 후 plan loss 회피.
     // throw 시 ai-planner-full handler 가 catch 해서 사용자에게 명확한 에러 + 환불 안내.
+    // ⚠️ claim 은 COMMITTING 으로 남는다 — 일부러 해제하지 않는다. 저장이 부분 성공했을 수 있고,
+    //    재요청 시 claim 이 예약 planId 로 완성 여부를 대조해 복구하거나 IN_PROGRESS 로 잠근다.
     console.error('[planPersister] Firestore set failed:', saveErr.message);
     throw new Error(`Plan save failed (${saveErr.code || saveErr.name}). Contact WhatsApp for refund.`);
   }
 
-  // B3 S1-b (P311, 2026-05-30) + P790 (2026-06-03): plan 발급 *성공 후* plan_issued_orders 멱등성 마킹.
-  //   - paymentGate 가 진입 시 검사 (존재 시 DUPLICATE 403 → 이중 plan 차단). write 는 여기 (plan set 성공
-  //     후) → 발급 완료 전 실패 시 doc 없음 → 재시도 통과 (B3 옵션 a). capture 멱등성(used_paypal_orders) 과 별도.
-  //   - P790: await — 기존 fire-and-forget 은 serverless freeze(P222/P319) 시 마킹 유실 → 재시도 plan 중복발급.
-  await markPlanIssued(adminDb, body?.paypalOrderId, { planId, uid });
+  if (issuanceClaim) {
+    // 🔴 유료 PayPal 경로의 발급 확정. **실패를 삼키지 않는다** — 구 markPlanIssued 의
+    //   .set().catch() → return true 가 P0 의 원인 절반이었다(마커 실패 시 결제 ID 재사용).
+    const finalized = await finalizePlanIssuance(adminDb, issuanceClaim);
+    if (!finalized.ok) {
+      console.error('[planPersister] 발급 확정 실패:', finalized.code, finalized.detail);
+      throw new Error(`Plan issuance finalize failed (${finalized.code}).`);
+    }
+  } else {
+    // claim 없는 경로 전용 레거시 마킹.
+    // B3 S1-b (P311) + P790 (2026-06-03): plan 발급 성공 후 plan_issued_orders 마킹.
+    //   markPlanIssued 는 ADMIN-BYPASS-/TEST-/MANUAL- prefix 와 빈 orderId 를 스스로 걸러내고,
+    //   revision 요청은 body 에 paypalOrderId 를 아예 보내지 않는다(프론트 실측 2026-07-15).
+    //   즉 유료 PayPal 경로가 claim 으로 이관된 지금 이 분기는 사실상 도달하지 않는다 —
+    //   호출 계약을 깨지 않으려고 남겨둔 폴백이다.
+    await markPlanIssued(adminDb, body?.paypalOrderId, { planId, uid });
+  }
 
   if (uid) {
     await adminDb
