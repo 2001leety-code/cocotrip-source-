@@ -116,7 +116,7 @@ const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponMo
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
-import { trackPageView, initWhatsAppTracking, initUtmCapture } from '@/lib/analytics';
+import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture } from '@/lib/analytics';
 import { signalAppReady } from '@/lib/appReady';
 
 function HomePage() {
@@ -244,6 +244,7 @@ function PageViewTracker() {
   // 전역 WhatsApp 클릭 추적 — mount 1회만 (idempotent). 16곳 wa.me 링크를 위임 리스너로 잡음.
   useEffect(() => {
     initWhatsAppTracking();
+    initBlogTracking();
     initUtmCapture();
   }, []);
   useEffect(() => {
