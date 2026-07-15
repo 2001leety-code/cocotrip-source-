@@ -97,7 +97,7 @@
 1. **내비 교체 승인** → 실존 라우트 매핑: 홈·투어·AI플래너·예약(/my-plans)·프로필(/mypage).
    Map·Assistant 탭은 해당 화면 생기면 추가. ⚠️차터 탭 제거 — 홈 카테고리/투어에서 접근 유지
    (매출 영향 모니터링, 운영자 "차터 유지" 시 즉시 롤백).
-2. **취소 48시간 전 무료** 확정 — P8 화면 + 약관 표기.
+2. **취소 24시간 전 무료** 확정(#1116 2026-07-14, 24h 바이너리) — P8 화면 + 약관 표기. ✅ 전 계층 정합(감사 2026-07-14).
 3. **리뷰 가짜 금지** (법·PayPal 리스크 — 운영자에게 고지 완료). 대체: 실후기 수집 스프린트
    (과거 고객 + 후기 쿠폰) → 쌓이면 REAL_TOUR_RATINGS ON. 리뷰 0 동안 실수치 신뢰 신호로 대체.
 4. **Travel Style = 솔로/커플/가족/친구 4옵션** — UI + 플래너 프롬프트 반영.
@@ -119,9 +119,10 @@
   플랜 Optimize 제안 Time/Transport/Walking(P4, anchor 세그먼트 경계)·커뮤니티 사진 첨부+어드민 모더레이션 실배선(P9)·
   쿠폰 지갑 Available/Used/Expired 탭(P8, 표시만)·날씨칩 flaky fix. 적대검토 7결함(보안2·정확성5) fix 포함.
   유닛 4881 pass. **P6 차터 6-step = 이미 #1037 구현(재스킨 불필요)**.
-- 🔴 **취소 정책 48h 미결(운영자 결정 필요)**: SSOT `_refund-policy.js` general=72h 100%·48h 80% ↔ `BookingInfoForm`(L291·535)
-  한국어 하드코딩 "1일 전 무료·전액환불" = SSOT·운영자확정(48h) 모두 불일치. 환불 지급액 변경=돈 로직이라 미착수.
-  운영자 결정: (a) 48h 무료를 전 등급 SSOT 에 반영 vs (b) 표기만 SSOT 에 맞춤 → 별도 PR.
+- ✅ **취소 정책 = 24h 바이너리 통일 완료** (#1116 운영자 확정 2026-07-14 + 정합 감사 2026-07-14): 엔진
+  `_refund-policy.js`·`/api/refundPolicy`·`cancelBooking`·RefundPolicyModal·BookingInfoForm·refund cron·
+  Terms 제4조(EN/KO/JA/ZH)·AI config·차터위자드·확정모달 전부 24h 바이너리(24h+=100%/미만·노쇼=0%, 등급 폐지)
+  일치. **돈 버그 없음.** 잔재였던 CancellationTab 죽은 custom 티어 편집기(엔진 미적용)= 정직 정리로 제거.
 - **2026-07-13 (후속 PR#1106)**: 모바일 햄버거 메뉴 라이트셸 흰글자 버그 fix(인라인 색 셸별 분기) +
   위자드 **Vegetarian 식이옵션** 추가(SAFETY 완결 — 백엔드 이미 지원, UI 갭이었음).
 - 🔴🧪 **2026-07-13 visual baseline 함정 (머지 blocker 해소)**: #1106 머지 직전 `visual` deployment_status
@@ -144,8 +145,7 @@
 - **[P5 주의]** TransitVsCharterCard 기본 OFF(`VITE_FEATURE_TRANSIT_VS_CHARTER`) — 완성 기능이 미노출(운영자 env).
 - 정직 폴백(버그 아님): TourDetail 'coming soon'=stops 없을 때만, 커뮤니티 샘플 제거됨.
 
-- 🔴 **취소 정책 48h 미결(운영자 결정 필요)**: SSOT `_refund-policy.js` general=72h 100%·48h 80% ↔ `BookingInfoForm`(L291·535)
-  한국어 하드코딩 "1일 전 무료·전액환불" = SSOT·운영자확정(48h) 모두 불일치. (a) 48h 무료를 전 등급 SSOT 반영 vs (b) 표기만 SSOT 맞춤 → 별도 PR.
+- ✅ **취소 정책 = 24h 바이너리 통일 완료** (#1116 + 정합 감사 2026-07-14) — 위 항목 참조. 전 계층(엔진·엔드포인트·표시·Terms 4언어·AI) 정합 확인, 돈 버그 없음.
 - **2026-07-13 (C트랙 스윕)**: P10 CocoUI 채택(MobileHomeV2 GradientCTA/StatusChip + 토큰 COCO dedup, 죽은코드·[x]불일치 해소)·Smart Pick "Why we love it"(tour.summary 실4언어)·P7 Discover 도시 카드(실카운트)·P7 별점 SAFETY 게이트(화면 별점 `VITE_FEATURE_REAL_TOUR_RATINGS` 게이팅=우발적 가짜별점 차단, JSON-LD와 동일조건)·P3 위자드 신뢰 4배지·P4 Route Map 번호 정거장 리스트. 유닛 4894 pass·tsc clean·i18n 4언어 2090키 정합.
   ⚠️ 시각 baseline: MobileHomeV2 변경=320px fold 밖+토큰 동일이라 landing 무영향. plan-detail timeline-mid 는 DayRouteMap 리스트로 밀릴 수 있음 → CI diff 시 actual PNG 재생성.
 - **C-sweep 보류(정직·게이트)**: P4 Top Highlights·최적화칩·Save/Share/PDF 행 / P3 도시 썸네일(광역도≠시 사진)·Interests 6칩(백엔드 category 매핑 미검증) / P7 Trip Style 3필터(백킹필드 없음)·Custom Inquiry companions / P10 나머지 추출(PlannerSummaryCard·WeatherChip·TourCard 통합·CouponWallet·TranslateToggle·BookingStatusTimeline). recon 맵=이 세션.
