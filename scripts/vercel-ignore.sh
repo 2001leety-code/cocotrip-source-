@@ -29,6 +29,21 @@ fi
 #   c) HEAD^ (단일 커밋 fallback)
 BASE=""
 
+# ── TEMP DIAG — Vercel 빌드 환경 실측용. 증거 수집 후 제거. ──
+# 목적: origin/main 이 Vercel shallow clone 에 존재하는지 / fetch 로 복구 가능한지 확인.
+# 주의: remote URL 에 access token 이 박혀 있을 수 있어 절대 echo 하지 않는다 (remote 이름만).
+echo "[diag] PR_ID='${VERCEL_GIT_PULL_REQUEST_ID:-<unset>}' REF='${VERCEL_GIT_COMMIT_REF:-<unset>}' PREV='${VERCEL_GIT_PREVIOUS_SHA:-<unset>}'"
+echo "[diag] shallow=$(git rev-parse --is-shallow-repository 2>&1)"
+echo "[diag] remotes=$(git remote 2>&1 | tr '\n' ' ')"
+echo "[diag] remote-tracking refs=$(git for-each-ref --format='%(refname)' refs/remotes 2>&1 | tr '\n' ' ')"
+echo "[diag] origin/main before fetch=$(git rev-parse origin/main 2>&1 | head -1)"
+git fetch --depth=50 origin '+refs/heads/main:refs/remotes/origin/main' >/dev/null 2>&1
+echo "[diag] fetch exit=$?"
+echo "[diag] origin/main after fetch=$(git rev-parse origin/main 2>&1 | head -1)"
+echo "[diag] merge-base=$(git merge-base HEAD origin/main 2>&1 | head -1)"
+echo "[diag] commit count HEAD=$(git rev-list --count HEAD 2>&1 | head -1)"
+# ── END TEMP DIAG ──
+
 # is_commit_reachable <sha> — 로컬 (shallow) clone 에 commit object 있는지 확인. set -e 없이도 안전.
 is_commit_reachable() {
   git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
