@@ -136,6 +136,48 @@ export async function recordPaymentReview({ db, serverTimestamp, ...rest }) {
 }
 
 /**
+ * 격리 해결 **기록** (P1, 2026-07-15). 환불·확정을 실행하지 않는다 — 기록만.
+ *
+ * 이전엔 이 writer 가 코드베이스에 없어서 격리 해제가 **Firebase 콘솔 수동 편집뿐**이었다.
+ * 정상 고객이 오격리되면 풀어줄 제품 표면이 아예 없었다.
+ *
+ * ⚠️ recordPaymentReview 를 재사용할 수 없다 — 그 함수는 해결 필드를 의도적으로 벗겨내고
+ *    기존 문서엔 재주입하지 않는다(바로 위 주석). 그래서 별도 경로다.
+ * ⚠️ 4필드를 **원자적으로 함께** 쓴다. isReviewFulfillable 이 `resolvedAt != null &&
+ *    resolution === MANUALLY_CONFIRMED` 를 AND 로 보므로, 한쪽만 쓰면 영구 격리(또는 무단 해제).
+ * ⚠️ 이미 해결된 건은 덮어쓰지 않는다(멱등 + 감사 무결성). 운영자 더블클릭에도 최초 판단이 남는다.
+ *
+ * @param {object} args
+ * @param {object} args.db — Admin SDK Firestore
+ * @param {*} args.serverTimestamp — FieldValue.serverTimestamp()
+ * @param {string} args.orderID
+ * @param {string} args.resolution — PAYMENT_REVIEW_RESOLUTION 의 값 (리터럴 하드코딩 금지)
+ * @param {string} args.resolvedBy — 운영자 이메일 (verifyAdminToken 의 auth.email)
+ * @param {string} [args.auditNote]
+ * @returns {Promise<{ok: true, alreadyResolved?: boolean} | {ok: false, code: string}>}
+ */
+export async function resolvePaymentReview({ db, serverTimestamp, orderID, resolution, resolvedBy, auditNote }) {
+  if (!db || !orderID) return { ok: false, code: 'BAD_REQUEST' };
+  if (!Object.values(PAYMENT_REVIEW_RESOLUTION).includes(resolution)) return { ok: false, code: 'INVALID_RESOLUTION' };
+  if (!resolvedBy) return { ok: false, code: 'NO_RESOLVER' };
+
+  const ref = db.collection('payment_reviews').doc(orderID);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, code: 'REVIEW_NOT_FOUND' };
+  const cur = snap.data() || {};
+  if (cur.resolvedAt != null) return { ok: true, alreadyResolved: true };
+
+  await ref.set({
+    resolution,
+    resolvedBy,
+    resolvedAt: serverTimestamp,
+    auditNote: auditNote || null,
+    updatedAt: serverTimestamp,
+  }, { merge: true });
+  return { ok: true, alreadyResolved: false };
+}
+
+/**
  * 불일치 시 클라이언트 응답 본문.
  * 핵심: `retryable:false` — 사용자가 재결제하면 이중청구. 일반 성공/실패로 표시 금지.
  *
