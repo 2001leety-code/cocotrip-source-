@@ -59,15 +59,22 @@ run_case "WIP prefix" 0 '
   echo "x" > a.txt && git add . && git commit -q -m "WIP: refactor"
 '
 
+# NOTE (#1125): HEAD^ fallback 제거 후로는 base 를 못 구하면 무조건 build (fail-safe) 다.
+# 따라서 "skip 이 나와야 하는" 케이스는 반드시 base 를 하나 쥐어줘야 한다 (origin/main 또는 PREV).
+# base 없는 케이스가 build 로 통과하면 IGNORE_RE 로직이 아니라 fail-safe 를 테스트하는 셈이라
+# 가드가 조용히 죽는다 → 아래 케이스들은 init 직후 origin/main 을 심어준다.
+
 # Case 3: code change (src/) → exit 1 (build)
 run_case "code change → build" 1 '
   mkdir -p src && echo "x" > src/foo.ts && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > src/foo.ts && git add . && git commit -q -m "code change"
 '
 
 # Case 4: docs-only change → exit 0 (skip)
 run_case "docs-only change → skip" 0 '
   mkdir -p docs && echo "x" > docs/a.md && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > docs/a.md && git add . && git commit -q -m "docs update"
 '
 
@@ -109,12 +116,14 @@ run_case "no parent, no origin → build (fail-safe)" 1 '
 # Case 10: image-only change → exit 0 (skip)
 run_case "image-only change → skip" 0 '
   echo "x" > a.txt && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > pic.png && git add . && git commit -q -m "img"
 '
 
 # Case 11: mixed code + docs → exit 1 (build, code wins)
 run_case "mixed code + docs → build" 1 '
   mkdir -p src docs && echo "x" > src/a.ts && echo "x" > docs/a.md && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > src/a.ts && echo "y" > docs/a.md && git add . && git commit -q -m "mixed"
 '
 
@@ -131,19 +140,53 @@ run_case "VERCEL_GIT_PREVIOUS_SHA unreachable + origin/main valid → fallback" 
 # public/ 밑 자산은 배포돼야 prod 반영 → 이미지여도 빌드해야 함 (Case 10 루트 png 스킵과 대비).
 run_case "public/ image-only change → build" 1 '
   mkdir -p public/images && echo "x" > public/images/logo.png && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > public/images/logo.png && git add . && git commit -q -m "logo update"
 '
 
 # Case 14: public/ 매니페스트/favicon 변경 → exit 1 (build)
 run_case "public/ manifest change → build" 1 '
   mkdir -p public && echo "x" > public/favicon.png && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   printf "%s" "{}" > public/manifest.webmanifest && git add . && git commit -q -m "manifest"
 '
 
 # Case 15: public/ 변경 + 루트 잡png 섞임 → exit 1 (public 가 빌드 트리거, 루트 png 스킵에도 우선)
 run_case "public/ asset + root png → build" 1 '
   mkdir -p public/icons && echo "x" > public/icons/icon.png && git add . && git commit -q -m "init"
+  git update-ref refs/remotes/origin/main HEAD
   echo "y" > public/icons/icon.png && echo "z" > screenshot.png && git add . && git commit -q -m "mixed"
+'
+
+# Case 16: 멀티커밋 푸시 + origin/main unreachable + 마지막 커밋만 ignorable → exit 1 (build)
+# 핵심 회귀 가드 — PR #1125 사고. Vercel shallow clone 에는 origin/main 이 없어서
+# merge-base 경로가 불발하고 HEAD^ 로 떨어졌다. 그 결과 PR 전체(api/·src/ 35파일)가 아니라
+# 마지막 tests/ 커밋 하나만 보고 빌드를 통째로 스킵 → 프리뷰 URL 소실 → sandbox 결제 e2e 차단.
+# HEAD^ 는 "이번 푸시의 새 커밋 전체"를 대표하지 못하므로 스킵 근거가 될 수 없다.
+run_case "multi-commit + origin/main unreachable + last commit ignorable → build" 1 '
+  mkdir -p src tests && echo "x" > src/a.ts && git add . && git commit -q -m "init"
+  echo "y" > src/a.ts && git add . && git commit -q -m "feat: code change"
+  mkdir -p tests && echo "t" > tests/a.test.ts && git add . && git commit -q -m "test: add coverage"
+'
+
+# Case 17: 멀티커밋 + origin/main reachable + 마지막 커밋만 ignorable → exit 1 (build)
+# merge-base 경로가 살아있으면 PR 전체 diff(code 포함)를 보므로 당연히 build.
+run_case "multi-commit + origin/main reachable + last commit ignorable → build" 1 '
+  mkdir -p src && echo "x" > src/a.ts && git add . && git commit -q -m "init"
+  git remote add origin "$PWD"
+  git update-ref refs/remotes/origin/main HEAD
+  echo "y" > src/a.ts && git add . && git commit -q -m "feat: code change"
+  mkdir -p tests && echo "t" > tests/a.test.ts && git add . && git commit -q -m "test: add coverage"
+'
+
+# Case 18: 과잉수정 방지 — PR 전체가 ignorable 이면 여전히 skip 해야 한다 (비용).
+# 목표는 "항상 빌드" 가 아니라 "PR 전체 diff 로 판단".
+run_case "multi-commit docs-only PR + origin/main reachable → skip" 0 '
+  mkdir -p docs && echo "x" > docs/a.md && git add . && git commit -q -m "init"
+  git remote add origin "$PWD"
+  git update-ref refs/remotes/origin/main HEAD
+  echo "y" > docs/a.md && git add . && git commit -q -m "docs: update"
+  echo "z" > docs/b.md && git add . && git commit -q -m "docs: more"
 '
 
 # Summary

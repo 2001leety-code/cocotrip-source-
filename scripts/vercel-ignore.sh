@@ -24,49 +24,75 @@ fi
 # 2) 변경 파일 diff base — Vercel 멀티커밋 푸시 + 신규 PR 정확도.
 # Preference order:
 #   a) VERCEL_GIT_PREVIOUS_SHA (Vercel 이 직전 deploy 기준 비교용으로 제공)
-#      ⚠️ abandoned/recreated PR 의 경우 shallow clone 에 없을 수 있음 → 도달 가능성 검증 후 사용
-#   b) origin/main 머지 base (신규 PR — 전체 PR diff 평가)
-#   c) HEAD^ (단일 커밋 fallback)
+#      직전 배포 시점 프리뷰가 이미 존재하고, 그 이후 커밋을 "누적" 으로 보므로
+#      멀티커밋 푸시에서도 앞 커밋을 놓치지 않는다.
+#      ⚠️ abandoned/recreated PR 의 경우 shallow clone 에 없을 수 있음 → 도달 가능성 검증 후 사용 (#477)
+#   b) main 머지 base (신규 PR — 전체 PR diff 평가)
+#   c) base 를 못 구하면 build (fail-safe)
+#
+# ⚠️ HEAD^ fallback 은 의도적으로 제거됨 (#1125). HEAD^ 는 "이번 푸시로 들어온 새 커밋 전체"를
+# 대표하지 못한다 — 멀티커밋 푸시면 마지막 커밋 하나만 보게 된다. 실제 사고:
+# feat/payment-p0-capture-integrity 가 api/·src/·firestore.rules 35파일을 바꿨는데
+# 마지막 커밋이 tests/ 하나뿐이라 IGNORE_RE 에 걸려 PR 전체 빌드가 스킵 → 프리뷰 URL 소실 →
+# 운영자 sandbox 결제 e2e(머지 게이트) 차단. base 불명이면 스킵하지 말고 빌드해야 한다.
 BASE=""
-
-# ── TEMP DIAG — Vercel 빌드 환경 실측용. 증거 수집 후 제거. ──
-# 목적: origin/main 이 Vercel shallow clone 에 존재하는지 / fetch 로 복구 가능한지 확인.
-# 주의: remote URL 에 access token 이 박혀 있을 수 있어 절대 echo 하지 않는다 (remote 이름만).
-echo "[diag] probe2 — PREV semantics check"
-echo "[diag] PR_ID='${VERCEL_GIT_PULL_REQUEST_ID:-<unset>}' REF='${VERCEL_GIT_COMMIT_REF:-<unset>}' PREV='${VERCEL_GIT_PREVIOUS_SHA:-<unset>}'"
-echo "[diag] shallow=$(git rev-parse --is-shallow-repository 2>&1)"
-echo "[diag] remotes=$(git remote 2>&1 | tr '\n' ' ')"
-echo "[diag] remote-tracking refs=$(git for-each-ref --format='%(refname)' refs/remotes 2>&1 | tr '\n' ' ')"
-echo "[diag] origin/main before fetch=$(git rev-parse origin/main 2>&1 | head -1)"
-git fetch --depth=50 origin '+refs/heads/main:refs/remotes/origin/main' >/dev/null 2>&1
-echo "[diag] fetch exit=$?"
-echo "[diag] origin/main after fetch=$(git rev-parse origin/main 2>&1 | head -1)"
-echo "[diag] merge-base=$(git merge-base HEAD origin/main 2>&1 | head -1)"
-echo "[diag] commit count HEAD=$(git rev-list --count HEAD 2>&1 | head -1)"
-# ── END TEMP DIAG ──
+BASE_SRC=""
 
 # is_commit_reachable <sha> — 로컬 (shallow) clone 에 commit object 있는지 확인. set -e 없이도 안전.
 is_commit_reachable() {
   git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
+# resolve_main_ref — main 을 가리키는 사용 가능한 ref 를 stdout 으로 반환. 없으면 비어있음.
+#
+# 2026-07-15 Vercel 빌드 환경 실측 (#1125 진단 배포):
+#   shallow=true / `git remote` = 빈 값 / refs/remotes/* = 없음
+# → Vercel clone 에는 remote 자체가 없어서 origin/main 이 영영 안 잡히고, `git fetch origin` 은
+#   exit 128 로 죽는다. 그래서 owner/slug 로 URL 을 직접 만들어 익명 fetch 한다 (public repo).
+# repo 가 private 로 바뀌거나 GitHub 장애면 fetch 실패 → base 없음 → build (fail-safe).
+resolve_main_ref() {
+  if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    echo "origin/main"
+    return 0
+  fi
+  # stdout 은 ref 이름 전용 — 진단은 stderr 로 (Vercel 빌드 로그에 같이 남는다).
+  if [ -n "$VERCEL_GIT_REPO_OWNER" ] && [ -n "$VERCEL_GIT_REPO_SLUG" ]; then
+    # --depth=50: PR 분기점이 main 최근 50커밋 안에 있으면 merge-base 성립.
+    # 그보다 오래된 브랜치면 merge-base 불발 → build (fail-safe) 로 떨어진다.
+    if git fetch --quiet --depth=50 \
+        "https://github.com/${VERCEL_GIT_REPO_OWNER}/${VERCEL_GIT_REPO_SLUG}.git" main >/dev/null 2>&1; then
+      echo "FETCH_HEAD"
+      return 0
+    fi
+    echo "[ignore] main fetch failed (repo private/GitHub 장애?) → base 불명" >&2
+  else
+    echo "[ignore] VERCEL_GIT_REPO_OWNER/SLUG unset → main ref 복원 불가" >&2
+  fi
+  return 1
+}
+
 if [ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && is_commit_reachable "$VERCEL_GIT_PREVIOUS_SHA"; then
   BASE="$VERCEL_GIT_PREVIOUS_SHA"
-elif git rev-parse origin/main >/dev/null 2>&1; then
-  MB=$(git merge-base HEAD origin/main 2>/dev/null)
-  if [ -n "$MB" ] && is_commit_reachable "$MB"; then
-    BASE="$MB"
-  elif HEAD_PARENT=$(git rev-parse HEAD^ 2>/dev/null) && is_commit_reachable "$HEAD_PARENT"; then
-    BASE="$HEAD_PARENT"
+  BASE_SRC="VERCEL_GIT_PREVIOUS_SHA"
+else
+  MAIN_REF=$(resolve_main_ref)
+  if [ -n "$MAIN_REF" ]; then
+    MB=$(git merge-base HEAD "$MAIN_REF" 2>/dev/null)
+    if [ -n "$MB" ] && is_commit_reachable "$MB"; then
+      BASE="$MB"
+      BASE_SRC="merge-base($MAIN_REF)"
+    fi
   fi
-elif HEAD_PARENT=$(git rev-parse HEAD^ 2>/dev/null) && is_commit_reachable "$HEAD_PARENT"; then
-  BASE="$HEAD_PARENT"
 fi
 
 if [ -z "$BASE" ]; then
-  echo "[ignore] no diff base resolvable → build (fail-safe)"
+  echo "[ignore] no PR-wide diff base resolvable → build (fail-safe)"
   exit 1
 fi
+
+# 어느 base 로 판단했는지 항상 남긴다 — #1125 때 이 로그가 없어서 (a)/(c) 중 무엇을 탔는지
+# 빌드 로그만으로 알 수 없었고 원인 추정에 시간이 갈렸다.
+echo "[ignore] diff base=$BASE (via $BASE_SRC)"
 
 # git diff 가 실패하면 (BASE 가 갑자기 unreachable 되는 등) build (fail-safe).
 # command substitution + set -e 미사용 패턴이라 git diff 실패 시 CHANGED 가 빈 문자열로 떨어지고 아래 분기에서 build 진행.
