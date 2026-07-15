@@ -32,6 +32,7 @@ BASE=""
 # ── TEMP DIAG — Vercel 빌드 환경 실측용. 증거 수집 후 제거. ──
 # 목적: origin/main 이 Vercel shallow clone 에 존재하는지 / fetch 로 복구 가능한지 확인.
 # 주의: remote URL 에 access token 이 박혀 있을 수 있어 절대 echo 하지 않는다 (remote 이름만).
+echo "[diag] probe2 — PREV semantics check"
 echo "[diag] PR_ID='${VERCEL_GIT_PULL_REQUEST_ID:-<unset>}' REF='${VERCEL_GIT_COMMIT_REF:-<unset>}' PREV='${VERCEL_GIT_PREVIOUS_SHA:-<unset>}'"
 echo "[diag] shallow=$(git rev-parse --is-shallow-repository 2>&1)"
 echo "[diag] remotes=$(git remote 2>&1 | tr '\n' ' ')"
