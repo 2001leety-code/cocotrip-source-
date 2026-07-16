@@ -168,7 +168,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 </span>
               </>
             ) : (
-              <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-7 md:h-8 w-auto" />
+              // 전환 감사 C2: 1359×388 PNG 165KB 원본 대신 3x 표시크기 lossless WebP 20KB.
+              // width/height = intrinsic ratio 고정(CLS 방지) — 실제 크기는 h-7/h-8 이 결정.
+              <img src="/images/logo-cocotrip.webp" alt="CocoTrip" width={336} height={96} className="h-7 md:h-8 w-auto" />
             )}
             {/* Beta badge — 상용화 전 기대치 조절. 공유 제안서(isPublicView)에선 숨김. */}
             {!isPublicView && (
