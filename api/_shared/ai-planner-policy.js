@@ -30,6 +30,28 @@ export function isAiPlannerProduct(productType) {
 }
 
 /**
+ * P1-A (2026-07-15): **정확히** 유료 AI 플래너 상품(ai_planner_full)인지.
+ *
+ * isAiPlannerProduct 의 `startsWith('ai_planner')` 는 "AI 상품군" 을 뜻한다 — 쿠폰 정책
+ * (checkAiPlannerCouponPolicy), 주문 생성(createPaypalOrder), line item 해석(resolve-line-item)
+ * 에서는 그 넓은 의미가 정당하므로 **전역 의미를 좁히지 않는다.**
+ *
+ * 반면 **유료 플랜 발급 provenance**(paymentGate)는 정확 비교여야 한다. 넓은 판별이면 다른 가격의
+ * ai_planner_* 상품이 추가되는 순간 그 주문으로도 full 플랜이 발급된다. 지금은 capture 금액·통화
+ * 대조가 받쳐서 안전하지만 그 방어 하나에만 기대지 않는다.
+ *
+ * 하이픈/언더스코어 변형은 정규화해 통과(프론트는 'ai-planner-full' 을 보내고 스냅샷엔 원본이 저장된다).
+ * ai_planner_quick / ai_planner_full_extra / 차터·투어 상품은 전부 false.
+ *
+ * @param {string|undefined|null} productType
+ * @returns {boolean}
+ */
+export function isAiPlannerFullProduct(productType) {
+  if (!productType || typeof productType !== 'string') return false;
+  return productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
+}
+
+/**
  * Returns the AI-Planner-no-coupon rejection if the (product, coupon-or-promo)
  * tuple violates policy. Caller fires it back to the client as a 400.
  *

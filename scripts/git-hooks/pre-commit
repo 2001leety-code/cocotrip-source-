@@ -73,6 +73,33 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/components/tours/TourBookingDialog.tsx") continue;
       if (f === "api/createPaypalOrder.js") continue;
       if (f === "api/capturePaypalOrder.js") continue;
+      // 2026-07-15 (결제 P0 capture 무결성): 위 두 형제 handler 와 동일 사유 —
+      //   captureCartOrder 만 allowlist 에서 누락돼 있었다. U+FFFD(진짜 깨짐) 0 확인.
+      //   ?? 2건 전부 legitimate: snapshot.totalKRW ?? null 은 **|| 로 바꾸면 돈버그**
+      //   (totalKRW=0 인 주문의 payment_reviews 감사 금액이 0 이 아니라 null 로 기록됨).
+      //   captureNode?.status ?? 'unknown' 은 텔레그램 알림 문자열.
+      if (f === "api/captureCartOrder.js") continue;
+      // 2026-07-15 (결제 P0): capture 무결성·격리 공통 모듈. U+FFFD 0 확인.
+      //   paypal-capture-verify.js — PayPal 응답의 optional chain 뒤 폴백
+      //   (capture.status ?? 'unknown', node.amount?.value ?? null 등). 전부 실패 사유
+      //   문자열 구성용이며, ?? 를 쓰는 이유는 status='' / value='0.00' 같은 falsy 실값을
+      //   'unknown' 으로 덮어쓰지 않기 위함(오진단 메시지 방지).
+      //   payment-review.js — payment_reviews 감사 레코드 필드(node?.amount ?? null 등).
+      //   금액·상태 감사 필드는 falsy 실값 보존이 계약이므로 || 금지.
+      if (f === "api/_shared/paypal-capture-verify.js") continue;
+      if (f === "api/_shared/payment-review.js") continue;
+      // 2026-07-15: ai-planner-policy.js 의 ?? 1건은 **pre-existing** —
+      //   checkAiPlannerCouponPolicy 의 `product ?? productType ?? null` (product/productType
+      //   별칭 폴백). || 로 바꾸면 동작이 달라진다: product='' 일 때 ?? 는 '' 를 유지하지만
+      //   || 는 productType 으로 넘어간다. P1-A(isAiPlannerFullProduct) 추가로 이 파일이
+      //   처음 staged 됐을 뿐이고 내 신규 코드의 ?? 는 0건. U+FFFD 0 확인.
+      if (f === "api/_shared/ai-planner-policy.js") continue;
+      // 2026-07-15 (결제 P0): capture 검증 테스트의 order fixture 빌더.
+      //   purchaseUnits ?? [...] / captures ?? [node] — 테스트가 "purchase_unit 0개",
+      //   "capture 0개" 같은 구조 위반 케이스를 명시적으로 주입할 때 기본값이 덮어쓰지
+      //   않아야 한다(그 불변식 자체가 검증 대상). U+FFFD 0 확인.
+      if (f === "tests/unit/paypal-capture-verify.test.ts") continue;
+      if (f === "tests/unit/payment-p0-crossflow-gate.test.ts") continue;
       // Booking-management batch (2026-04-24): cancel/modify/my-bookings + airport pickup.
       // ?? used for optional payload fields (luggage.small ?? 0, body.airport ?? null).
       if (f === "src/components/MyBookingsTab.tsx") continue;

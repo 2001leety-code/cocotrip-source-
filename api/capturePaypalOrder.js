@@ -16,6 +16,8 @@ import { notify } from './_shared/notify.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { sanitizeAttribution } from './_shared/attribution.js';
 import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
+import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
+import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -103,12 +105,51 @@ export default async function handler(req, res) {
       attribution } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
+    // 🔴 cross-flow 가드 (money-critical) — 장바구니 주문을 단건 endpoint 로 캡처하는 경로 차단.
+    //
+    //   cart 주문은 cart_orders/{orderID} 에만 있고 단건 스냅샷(paypal_order_snapshots/{orderID})
+    //   에는 없다. 스냅샷이 없으면 아래 금액 검증이 스킵되므로(PAYMENT_STRICT_PROVENANCE 기본 off),
+    //   싼 cart 주문을 승인한 뒤 이 endpoint 에 비싼 product/pax 를 body 로 보내면 낮은 금액으로
+    //   고가 예약이 CONFIRMED 로 기록될 수 있다.
+    //
+    //   배치 이유:
+    //     - PayPal capture 호출 **전** = 돈이 움직이지 않음 → 사용자는 정상 cart 경로로 안전하게 재시도.
+    //     - 단건 결제 lock 획득 **전** = 그 lock 을 소비해 정상 cart capture 를 막지 않음.
+    //   조회 실패를 "문서 없음" 으로 취급하지 않는다 — 인프라 장애와 무결성 실패는 다르다.
+    //   (아래 lock 획득도 이미 Firestore 를 필수로 요구하므로 새 의존성이 추가되는 것은 아니다.)
+    //   역방향(단건 주문 → cart endpoint)은 captureCartOrder 가 cart_orders 스냅샷을 필수로
+    //   요구해 capture 전 400(NO_SNAPSHOT) 으로 이미 차단된다 — 중복 방어 불필요.
+    //   DB init 실패도 cart lookup 실패와 **동일한 안전 정책**을 쓴다. 이전엔 여기서 throw 해
+    //   outer catch 의 500 INTERNAL_ERROR 로 빠졌고, 응답 메시지에 내부 env 변수명이 실릴 수 있었다.
+    const _db = initAdminDb('capturePaypalOrder');
+    try {
+      if (!_db) throw new Error('admin db unavailable');
+      const _cartDoc = await _db.collection('cart_orders').doc(orderID).get();
+      if (_cartDoc.exists) {
+        console.warn('[capturePaypalOrder] cross-flow 거부 (cart 주문이 단건 endpoint 로 들어옴):', orderID);
+        res.writeHead(400, JSON_CORS);
+        // 문구는 이 파일의 기존 관례대로 영어 — 프론트가 code 로 지역화한다(Korean-only 금지).
+        return res.end(JSON.stringify(_err('Cart orders must be paid through cart checkout', 'CROSS_FLOW_ORDER')));
+      }
+    } catch (_cfErr) {
+      // fail-closed — 돈이 움직이기 전이라 재시도가 안전하다.
+      console.error('[capturePaypalOrder] cross-flow 조회 실패 → capture 미호출 (fail-closed):', _cfErr.message);
+      res.writeHead(503, JSON_CORS);
+      return res.end(JSON.stringify(_err('Could not verify the order right now — please retry', 'ORDER_CHECK_UNAVAILABLE')));
+    }
+
     // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
     // 가져와 capture-time body 위조(저가결제로 고가서비스 booking 기록)를 무력화. AI-planner-gate 등 모든
     // 후속 로직이 보정된 product 를 쓰도록 gate 전에 수행. 스냅샷 없으면(client-side 주문/legacy/쓰기실패)
-    // body 유지 = graceful(결제 차단 금지). PayPal 이 capture 금액을 order amount 로 강제하므로 금액은 위조 불가.
+    // body 유지 = graceful(결제 차단 금지).
+    //
+    // 🔴 금액 검증 (신규): 이전 주석은 "PayPal 이 capture 금액을 order amount 로 강제하므로 금액은
+    //   위조 불가" 였다. 그것은 PayPal **내부** 일관성에만 참이고, "이 order 가 우리 서버 견적에서
+    //   났는가 / currency 가 예상과 같은가" 라는 merchant invariant 는 보장하지 않는다.
+    //   → snapshot 의 expectedUSD 를 아래 capture 검증에 사용한다 (createPaypalOrder 가 이미 저장 중).
+    let _snapExpectedUSD = null;
     try {
-      const _snapDb = initAdminDb('capturePaypalOrder-snapshot');
+      const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
       if (_snapDb) {
         const _snap = await _snapDb.collection('paypal_order_snapshots').doc(orderID).get();
         if (_snap.exists) {
@@ -116,7 +157,8 @@ export default async function handler(req, res) {
           if (_s.productType) product = _s.productType;
           if (_s.passengers != null) paxCount = _s.passengers;
           if (!tourDate && _s.dateStart) tourDate = _s.dateStart;
-          console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType });
+          if (_s.expectedUSD != null) _snapExpectedUSD = _s.expectedUSD;
+          console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType, hasExpectedUSD: _snapExpectedUSD != null });
         }
       }
     } catch (_snapErr) {
@@ -337,6 +379,114 @@ export default async function handler(req, res) {
       console.error('[capturePaypalOrder] field missing:', { hasPayer, hasCapture, hasAmount, orderID });
     }
 
+    // 🔴 capture 무결성 검증 (money-critical) — _shared/paypal-capture-verify.js (cart 와 공통 SSOT).
+    //   amount(정수 minor) + currency + 개별 capture status + purchase-unit/capture cardinality 를
+    //   서버 snapshot(expectedUSD)과 대조. 이전에 이 경로엔 금액 검증이 **전혀 없었고**
+    //   booking currency 는 'USD' 하드코딩이었다.
+    //
+    //   ⚠️ 마이그레이션 안전장치: snapshot 이 없는 order(레거시 / client-side 주문 / create 시
+    //     snapshot 쓰기 실패 — createPaypalOrder 의 snapshot 쓰기는 best-effort)는 expectedUSD 를
+    //     알 수 없다. 이를 즉시 fail-closed 하면 **배포 시점 in-flight 주문이 깨진다**.
+    //     → 기본 = "알림 후 진행"(기존 동작 유지). PAYMENT_STRICT_PROVENANCE=true 로 켜면 격리.
+    //     snapshot 이 **있는** order 는 플래그와 무관하게 항상 엄격 검증된다(= 실질 보안 이득).
+    const _expectedMinor = toMinorUnits(_snapExpectedUSD, 'USD');
+    const _strictProvenance = featureEnabled(process.env.PAYMENT_STRICT_PROVENANCE);
+    let _verdict = null;
+    if (_expectedMinor === null && !_strictProvenance) {
+      console.warn('[capturePaypalOrder] snapshot expectedUSD 없음 — 금액 검증 스킵(관대 모드):', orderID);
+      throttledTelegramAlert({
+        key: 'capture-no-snapshot',
+        channel: 'admin',
+        severity: 'warning',
+        message: [
+          '⚠️ <b>단건 capture — 주문 스냅샷 없음 (금액 미검증 진행)</b>',
+          `<b>OrderID:</b> <code>${orderID}</code> <b>CaptureID:</b> <code>${captureID}</code>`,
+          '→ 레거시/클라이언트 주문 또는 create 시 스냅샷 쓰기 실패 = provenance 확인 불가.',
+          '→ 이런 주문이 0 이 되면 PAYMENT_STRICT_PROVENANCE=true 로 격리 전환 가능.',
+        ].join('\n'),
+        context: { orderID, captureID, source: 'capturePaypalOrder' },
+      }).catch(() => {});
+    } else {
+      _verdict = verifyCaptureIntegrity({
+        capture, expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD',
+      });
+    }
+
+    if (_verdict && _verdict.pending) {
+      // 🔴 PENDING = PayPal 리스크 홀드 / eCheck = **정상 결제 흐름** (금액·통화는 이미 정합 확인됨).
+      //   격리하면 booking doc 이 생기지 않고, 홀드 해제 시 오는 PAYMENT.CAPTURE.COMPLETED webhook 이
+      //   예약을 못 찾아 'unmatched' 로 흘러 → 돈은 정산되고 예약은 영영 없음.
+      //   → 기존 동작대로 예약을 진행하고, 정산 대기 사실만 기록/알림한다.
+      console.warn('[capturePaypalOrder] capture PENDING (정산 대기) — 예약 진행:', orderID, _verdict.detail);
+      await throttledTelegramAlert({
+        key: `single-capture-pending-${orderID}`,
+        channel: 'admin',
+        severity: 'warning',
+        message: [
+          '🕒 <b>단건 capture PENDING (정산 대기 · 예약은 확정 진행)</b>',
+          `<b>OrderID:</b> <code>${orderID}</code> <b>CaptureID:</b> <code>${captureID}</code>`,
+          `<b>사유:</b> ${_verdict.detail}`,
+          '→ PayPal 리스크 홀드/eCheck 추정. 금액·통화는 정합. 정산 완료 여부 확인 필요.',
+        ].join('\n'),
+        context: { orderID, captureID, code: _verdict.code },
+      }).catch(() => {});
+    } else if (_verdict && !_verdict.ok) {
+      // 무결성 불일치 → 예약 확정 + 후속처리(booking doc·슬롯·이메일·바우처·processor) 전부 중단.
+      // 일반 실패로 버리지 않는다 (사용자 재결제 = 이중청구). 자동환불도 안 함 = 운영자 판단.
+      let _reviewRecorded = false;
+      try {
+        const _rdb = initAdminDb('capturePaypalOrder-review');
+        if (!_rdb) throw new Error('Firestore unavailable');
+        await recordPaymentReview({
+          db: _rdb, serverTimestamp: FieldValue.serverTimestamp(),
+          flow: 'single', orderID, verdict: _verdict, capture,
+          expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD',
+          userEmail, payerEmail,
+          // 운영자 해결(MANUALLY_CONFIRMED/REFUNDED)에 필요한 최소 정보 — 없으면 해결 자체가 불가능.
+          // 쿠폰은 이 시점에 이미 소진(pre-lock)됐다 → 자동 복구하지 않고(운영자 판단) 기록만 남긴다.
+          coupon: (couponDocId || promoCode) ? { couponDocId: couponDocId || null, couponUserId: couponUserId || null, promoCode: promoCode || null } : null,
+          bookingPayload: {
+            productType: product || '', tourDate: tourDate || '', tourTime: tourTime || '',
+            paxCount: paxCount || 0, pickupLocation: pickupLocation || '', dropoffLocation: dropoffLocation || '',
+            vehicleType: vehicleType || '', airport: airport || null,
+            tourId: tourId || null, tourSlotId: tourSlotId || null, bookingDate: bookingDate || null,
+          },
+        });
+        _reviewRecorded = true;
+      } catch (_revErr) {
+        console.error('[capturePaypalOrder] payment_review 기록 실패 (캡처된 돈의 durable 기록 없음):', _revErr);
+      }
+      // ⚠️ await 필수 — 서버리스는 res.end() 후 실행이 정지될 수 있다. fire-and-forget 이면
+      //   review 기록까지 실패한 최악의 경우에 **돈만 나가고 기록도 알림도 0** 이 된다.
+      //   throttle key 는 주문별 — 상수 key 면 5분 창 안의 다른 주문 불일치가 통째로 억제된다.
+      await throttledTelegramAlert({
+        key: `single-capture-mismatch-${orderID}`,
+        channel: 'admin',
+        severity: 'critical',
+        message: [
+          '🚨 <b>단건 capture 무결성 불일치 (예약 미확정)</b>',
+          '',
+          `<b>OrderID:</b> <code>${orderID}</code>`,
+          `<b>CaptureID:</b> <code>${captureID}</code>`,
+          `<b>capture status:</b> ${capture?.purchase_units?.[0]?.payments?.captures?.[0]?.status ?? 'unknown'}`,
+          `<b>사유:</b> ${_verdict.code} — ${_verdict.detail}`,
+          (couponDocId || promoCode) ? '<b>쿠폰/프로모 소진됨</b> — 해결 시 복구 판단 필요' : '',
+          '',
+          _reviewRecorded
+            ? '→ payment_reviews/{orderID} 격리됨(Firebase 콘솔에서 확인). 예약 미확정 · 이메일/바우처/슬롯 미실행.'
+            : '🔴 payment_reviews 기록도 실패 — 즉시 수동 확인 필요(durable 기록 없음).',
+        ].filter(Boolean).join('\n'),
+        context: { orderID, captureID, code: _verdict.code, reviewRecorded: _reviewRecorded },
+      }).catch((e) => { console.error('[capturePaypalOrder] mismatch 알림 실패:', e?.message); });
+
+      // 202 Accepted — 예약 미확정. retryable:false (재결제 = 이중청구).
+      // paymentCaptured 는 실제 capture status 에서 파생 (돈이 안 움직인 verdict 에 "결제됨" 이라 하지 않음).
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(buildPaymentReviewResponse({
+        orderID, captureID, capture,
+      })));
+    }
+
     // PayPal capture 응답에서 민감정보 없는 필드만 추려서 Firestore에 보존 (디버깅 + 운영자 매칭용).
     const rawCapturePayload = {
       payer: { email_address: payerEmail },
@@ -410,7 +560,13 @@ export default async function handler(req, res) {
       amountUSD: amount,
       amountKRW,
       capturedExchangeRate: usdToKrw,
-      currency: 'USD',
+      // 검증 통과 시 = PayPal capture 응답에서 실제 확인된 통화. 검증 스킵(스냅샷 없는 레거시)이면 'USD' 가정.
+      currency: (_verdict && _verdict.currency) || 'USD',
+      // 감사/대사용 — false = 주문 스냅샷이 없어 amount/currency 검증을 못 한 레거시 경로.
+      // (pending 은 금액·통화 검증을 통과한 상태이므로 verified 로 본다.)
+      paymentVerified: !!(_verdict && (_verdict.ok || _verdict.pending)),
+      // 🕒 PayPal 리스크 홀드/eCheck = 자금 정산 대기. 예약은 확정하되 정산 확인이 필요함을 남긴다.
+      paymentPending: !!(_verdict && _verdict.pending),
       rawCapturePayload,
       // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷 (화이트리스트 통과분만, PII 없음).
       // 유효 데이터 없으면 필드 생략. 어떤 실패도 결제/기록을 막지 않음(sanitize 는 throw 안 함).
@@ -565,11 +721,21 @@ export default async function handler(req, res) {
             try {
               const refundRes = await refundPaypalCapture({
                 captureID,
+                // 🔴 이중환불 방어 키 (2026-07-15). orderID + 사유 — 이 주문의 PROMO 자동환불 1건.
+                //   used_paypal_orders 락이 재capture 를 막아 여기 두 번 도달하지 않지만,
+                //   helper 가 키를 필수로 요구하고(fail-closed) 이 경로도 타임아웃 창이 있다.
+                //   captureID 단독 금지 — cart 자식들이 captureID 를 공유한다(helper 주석 참조).
+                idempotencyKey: `${orderID}:promo-limit`,
                 refundUSD: amount,
+                // capture 통화 우선 — 이 스코프에 검증된 통화가 이미 있다.
+                currency: _verdict && _verdict.currency,
                 note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
                 isSandbox: _isSandboxCapture,
               });
-              refundOk = !!refundRes?.ok;
+              // 🔴 F3b (2026-07-16): PENDING(비종단)을 REFUNDED 로 확정하면 미환불 은폐다. final 이
+              //   true(=COMPLETED)일 때만 REFUNDED, PENDING 은 아래 REFUND_PENDING 분기로 떨어뜨린다.
+              //   (helper F3a 가 PENDING 에 final:false 를 준다 — paypal-refund-idempotency.test.ts 보증.)
+              refundOk = !!(refundRes?.ok && refundRes?.final);
             } catch (refundErr) {
               console.error('[capturePaypalOrder] auto-refund failed (operator must refund manually):', refundErr.message);
             }

@@ -139,6 +139,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [showPaypal,  setShowPaypal]  = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
+  // 🔴 무결성 불일치 = 예약 미확정(PAYMENT_REVIEW). 성공/실패와 구분되는 제3의 상태.
+  //   paymentCaptured=false 면 돈이 실제로 안 빠진 경우(DECLINED 등) — 문구를 달리해야 한다.
+  const [paymentReview, setPaymentReview] = useState<{ orderID: string; captureID: string; paymentCaptured: boolean } | null>(null);
   const [error,       setError]       = useState<string | null>(null);
   const [rateInfo,    setRateInfo]    = useState<RateInfo | null>(null);
   const buttonsRendered = useRef(false);
@@ -410,6 +413,24 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           if (import.meta.env.DEV) {
             console.log('[PayPal onApprove] capture result:', JSON.stringify(json));
           }
+          // 🔴 결제는 캡처됐지만 서버의 capture 무결성 검증이 불일치 → 예약 미확정(PAYMENT_REVIEW, HTTP 202).
+          //   일반 성공/실패 **어느 쪽으로도** 처리하면 안 된다:
+          //     - 성공 표시 = 미확정 예약을 확정으로 오인 + GA4 purchase/posthog 전환 오발화(허위 매출).
+          //     - 실패 표시 = 사용자가 재결제 → 이중청구.
+          //   → 전용 "결제 접수 · 확인 중" 화면. 전환 미발화, 재시도 유도 없음.
+          if (json.finalized === false || json.bookingStatus === 'PAYMENT_REVIEW') {
+            setPaymentReview({
+              orderID: json.orderID || data.orderID,
+              captureID: json.captureID || '',
+              paymentCaptured: json.paymentCaptured !== false,
+            });
+            setShowPaypal(false);
+            setLoading(false);
+            // rateInfo 를 비워 결제 폼으로 되돌아가지 못하게 한다 — 이 주문은 이미 PayPal 에서
+            // 처리됐고 lock 이 걸려 재시도는 409 다. 재결제 유도 = 이중청구 위험.
+            setRateInfo(null);
+            return;
+          }
           const isSuccess = json.ok === true;
           const result = json.data;
           if (isSuccess) {
@@ -583,6 +604,49 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`;
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
+  // 🔴 결제 접수 · 예약 확인 중 (PAYMENT_REVIEW) — 성공 화면보다 먼저 분기.
+  //   "확정"이라 말하지 않고, 재결제하지 말라고 명시한다(이중청구 방지). 운영자가 수동 확인 후 연락.
+  if (paymentReview) {
+    const REVIEW_LABELS: Record<string, Record<string, string>> = {
+      ko: { title: '결제가 접수되었습니다', subtitle: '예약을 확인하는 중입니다. 확인 후 이메일로 연락드립니다.', titleNc: '결제를 완료하지 못했습니다', subtitleNc: '담당자가 확인 중입니다. 직접 결제를 다시 시도하지 마시고 문의해 주세요.', warn: '⚠️ 다시 결제하지 마세요 — 중복 청구될 수 있습니다.', orderNo: '주문 번호', close: '확인', contact: '문의하기' },
+      en: { title: 'Payment received', subtitle: 'Your booking is pending verification. We will contact you by email once confirmed.', titleNc: 'We could not complete your payment', subtitleNc: 'Our team is checking it. Please contact us instead of trying to pay again.', warn: '⚠️ Please do not pay again — it may result in a duplicate charge.', orderNo: 'Order No.', close: 'Done', contact: 'Contact Us' },
+      ja: { title: 'お支払いを受け付けました', subtitle: 'ご予約を確認中です。確認後メールでご連絡します。', titleNc: 'お支払いを完了できませんでした', subtitleNc: '担当者が確認中です。再度お支払いせず、お問い合わせください。', warn: '⚠️ 再度お支払いしないでください — 二重請求の恐れがあります。', orderNo: '注文番号', close: '確認', contact: 'お問い合わせ' },
+      zh: { title: '已收到您的付款', subtitle: '正在确认您的预订，确认后将通过邮件与您联系。', titleNc: '未能完成付款', subtitleNc: '我们正在核查。请勿重复付款，请直接联系我们。', warn: '⚠️ 请勿重复付款 — 可能导致重复扣款。', orderNo: '订单号', close: '确认', contact: '联系我们' },
+    };
+    const rl = REVIEW_LABELS[lang] ?? REVIEW_LABELS.en;
+    const captured = paymentReview.paymentCaptured;
+    return (
+      <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden">
+          <div className="px-6 pt-8 pb-6 text-center">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+              <span className="text-3xl" aria-hidden="true">🕒</span>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-1">{captured ? rl.title : rl.titleNc}</h2>
+            <p className="text-sm text-white/60">{captured ? rl.subtitle : rl.subtitleNc}</p>
+          </div>
+          <div className="px-6 pb-6 space-y-3">
+            <p className="text-sm text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-xl px-4 py-3">{rl.warn}</p>
+            <div className="flex justify-between text-sm text-white/70">
+              <span>{rl.orderNo}</span>
+              <span className="font-mono text-white/90">{paymentReview.orderID}</span>
+            </div>
+            {/* 닫아도 결제 폼으로 돌아가지 않는다(rateInfo=null) — 이 주문은 lock 이 걸려 재시도 시 409.
+                재결제 유도 = 이중청구 위험. 사용자가 할 일은 문의뿐. */}
+            <button
+              onClick={() => { setPaymentReview(null); setShowPaypal(false); setError(null); }}
+              className="w-full min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white"
+            >{rl.close}</button>
+            <a
+              href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+              className="block w-full min-h-[44px] py-3 rounded-xl border border-white/10 text-white/60 text-sm font-medium text-center hover:border-white/25 hover:text-white/80 transition-all"
+            >{rl.contact}</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (showSuccess && successData) {
     const CONFIRM_LABELS: Record<string, Record<string, string>> = {
       ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', cancelPolicy: '투어 24시간 전까지 무료 취소 (100% 환불)', close: '확인', contact: '문의하기' },

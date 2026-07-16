@@ -151,14 +151,15 @@ function CartPanelInner() {
               </div>
             )}
 
+            {/* 🔴 순서 주의: showCheckout 을 items.length===0 보다 **먼저** 판정한다.
+                결제 완료/PAYMENT_REVIEW 후 CartCheckout 이 장바구니를 비우는데(중복결제 방지),
+                empty 분기가 앞서면 그 순간 CartCheckout 이 언마운트되어 결과 화면(성공 안내,
+                그리고 "다시 결제하지 마세요" 경고)이 아예 렌더되지 않는다.
+                showCheckout 은 아래 item 목록 분기에서만 true 가 되므로(= items 존재가 전제)
+                빈 장바구니로 체크아웃 화면에 갇힐 일은 없다. */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
-              </div>
-            ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-white/55">
-                <ShoppingCart size={40} className="mb-3 opacity-30" />
-                <p className="text-sm">{c.empty || 'Your cart is empty'}</p>
               </div>
             ) : showCheckout ? (
               <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" /></div>}>
@@ -167,6 +168,11 @@ function CartPanelInner() {
                   onBack={() => setShowCheckout(false)}
                 />
               </Suspense>
+            ) : items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-white/55">
+                <ShoppingCart size={40} className="mb-3 opacity-30" />
+                <p className="text-sm">{c.empty || 'Your cart is empty'}</p>
+              </div>
             ) : (
               <div className="p-4 space-y-3">
                 {items.map(item => (

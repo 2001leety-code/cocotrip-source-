@@ -47,6 +47,7 @@ import {
 } from '../../_ai_core/postResponsePipeline.js';
 import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipelines.js';
 import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
+import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onFailure 시 발급권 해제
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
 import { throttledTelegramAlert } from '../../_shared/telegram-throttle.js';
@@ -117,6 +118,31 @@ export const processPlanAfterAI = inngest.createFunction(
         console.warn(`[P307] onFailure marked plan ${planId} as error: ${error?.message?.slice(0, 100)}`);
       } catch (markErr) {
         console.error(`[P307] onFailure mark failed (P292 cron sweep 가 30분 후 정리): ${markErr.message}`);
+      }
+
+      // 🔴 P0 원자 발급 (2026-07-15): worker 가 retry 를 다 쓰고 최종 실패했다 → 발급권을 되돌려
+      //   사용자가 같은 결제로 재시도할 수 있게 한다. 안 풀면 lease 만료(15분)까지 409 로 잠긴다.
+      //
+      //   원본 이벤트는 inngest/function.failed 의 event.data.event 에 통째로 중첩된다
+      //   (planId 를 꺼낼 때 이미 쓰는 그 경로).
+      //
+      //   ⚠️ 오래된 worker 의 onFailure 가 새 attempt 의 claim 을 지우면 안 된다 →
+      //     releasePlanIssuance 가 **status===ISSUING + attemptId 일치**일 때만 삭제하므로
+      //     구조적으로 안전하다. takeover 됐거나(attemptId 불일치) 이미 COMMITTING/ISSUED 면
+      //     (= plans 가 저장됐을 수 있음) 건드리지 않고 reconcile 대상으로 남긴다.
+      const failedClaim = event?.data?.event?.data?.ctx?.issuanceClaim;
+      if (failedClaim && failedClaim.orderId && failedClaim.attemptId) {
+        try {
+          const rel = await releasePlanIssuance(adminDb, failedClaim);
+          if (rel.released) {
+            console.warn(`[P307] onFailure: 발급권 해제 — 같은 결제로 재시도 가능 (order=${String(failedClaim.orderId).slice(0, 6)}...)`);
+          } else {
+            // 해제 못 함 = 정상일 수 있다(COMMITTING = plan 저장됨 / 남이 takeover). fail-open 금지.
+            console.warn(`[P307] onFailure: 발급권 해제 안 됨(잠금 유지): ${rel.code || ''} ${rel.detail || ''}`);
+          }
+        } catch (relErr) {
+          console.error(`[P307] onFailure: 발급권 해제 실패 — lease 만료까지 잠김: ${relErr.message}`);
+        }
       }
       // 운영자 escalation — sweep 30분 net 보다 빠르게 manual 환불 안내 시작 가능.
       try {
@@ -310,6 +336,12 @@ export const processPlanAfterAI = inngest.createFunction(
         //   fallback: itinAfterBackfill._cache_metadata (step output store reconstruction 통과한 경우)
         //   둘 다 없으면 null → persistPlan silent skip (block_mode / non-Gemini).
         cacheMetadata: ctx.cacheMetadata || itinAfterBackfill?._cache_metadata || null,
+        // 🔴 P0 원자 발급 (2026-07-15): dispatch 시 handler 가 넘긴 발급권.
+        //   persistPlan 이 plans 저장 직전 beginPlanCommit 으로 fencing 하고 저장 후 finalize 로 확정한다.
+        //   step retry 는 event.data 를 그대로 재수화하므로 **같은 attemptId/planId** 가 유지된다
+        //   (event.data 는 불변). 따라서 재시도해도 같은 발급권으로 같은 plan 문서에 쓴다.
+        //   claim 이 예약한 planId 가 planIdOverride 보다 우선한다(persistPlan 이 대조·강제).
+        issuanceClaim: ctx.issuanceClaim || null,
       });
     });
 

@@ -565,7 +565,19 @@
       "ABORT_TIMEOUT": "サーバーの応答に時間がかかりすぎました。お支払いは安全です — WhatsAppでプランをお受け取りください。",
       "MISSING_FORM": "入力情報が失われました。プランナーフォームをもう一度ご記入ください。",
       "NO_PLAN_URL": "プランは作成されましたが開けません。メールをご確認ください。",
-      "UNKNOWN_ERROR": "予期しない問題が発生しました。再試行またはWhatsAppでお問い合わせください。"
+      "UNKNOWN_ERROR": "予期しない問題が発生しました。再試行またはWhatsAppでお問い合わせください。",
+      "PAYMENT_UNDER_REVIEW": "お支払いを受け付け、確認中です。確認後メールでご連絡します — 再度お支払いしないでください。",
+      "PAYMENT_VERIFY_FAILED": "PayPal でのお支払い確認に失敗しました。少し経ってからお試しください — すでに決済済みの場合は再度お支払いしないでください。",
+      "PAYMENT_VERIFY_UNAVAILABLE": "現在お支払いを確認できません。少し経ってからお試しください。",
+      "PAYMENT_REVIEW_CHECK_UNAVAILABLE": "現在お支払い状況を確認できません。少し経ってからお試しください。",
+      "ORDER_PROVENANCE_MISSING": "この注文の決済情報が見つかりません。カスタマーサポートへお問い合わせください — 再度お支払いしないでください。",
+      "ORDER_PRODUCT_MISMATCH": "AIプランナーのご購入注文ではありません。他商品の決済ではプランを発行できません。",
+      "ORDER_PROVENANCE_INVALID": "この注文の金額を確認できません。カスタマーサポートへお問い合わせください — 再度お支払いしないでください。",
+      "PAYMENT_PENDING_SETTLEMENT": "お支払いを確認中です(入金待ち)。完了しましたらご連絡します — 再度お支払いしないでください。",
+      "PAYMENT_NOT_CAPTURED": "お支払いが正常に完了しませんでした。再試行の前にカスタマーサポートへお問い合わせください。",
+      "PLAN_GENERATION_IN_PROGRESS": "このお支払いでプランを生成中です。少々お待ちください — 再度お支払いなさらないでください。",
+      "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "ただいまプランの発行状況を確認できません。しばらくしてから再度お試しください — すでにお支払い済みの場合は再度お支払いなさらないでください。",
+      "PLAN_ISSUANCE_NEEDS_REVIEW": "プランの発行を確認しています。まもなくご案内します — 再度お支払いなさらないでください。"
     },
     "retry": "もう一度試す",
     "loginRequired": "ログイン後に決済可能",
@@ -2026,7 +2038,10 @@
     "loadingPay": "決済手段を読み込み中...",
     "checkoutDone": "予約が確定しました！",
     "checkoutDoneSub": "確認メールを送信中です。",
-    "close": "確認"
+    "close": "確認",
+    "checkoutReview": "お支払いを受け付けました",
+    "checkoutReviewSub": "ご予約を確認中です。確認後メールでご連絡します。",
+    "checkoutReviewWarn": "再度お支払いしないでください — 二重請求の恐れがあります。"
   },
   "a11y": {
     "openChat": "チャットを開く",

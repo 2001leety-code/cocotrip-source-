@@ -565,7 +565,19 @@
       "ABORT_TIMEOUT": "The server took too long. Your payment is safe — please contact us on WhatsApp to receive your plan.",
       "MISSING_FORM": "Form data was lost. Please fill in the planner form again.",
       "NO_PLAN_URL": "Plan was created but couldn't be opened. Please check your email.",
-      "UNKNOWN_ERROR": "Something unexpected happened. Please try again or contact us on WhatsApp."
+      "UNKNOWN_ERROR": "Something unexpected happened. Please try again or contact us on WhatsApp.",
+      "PAYMENT_UNDER_REVIEW": "Your payment was received and is being verified. We will contact you by email once confirmed — please do not pay again.",
+      "PAYMENT_VERIFY_FAILED": "We couldn't verify your payment with PayPal. Please retry in a moment — do not pay again if you were already charged.",
+      "PAYMENT_VERIFY_UNAVAILABLE": "We could not verify your payment right now. Please retry in a moment.",
+      "PAYMENT_REVIEW_CHECK_UNAVAILABLE": "We could not verify your payment status right now. Please retry in a moment.",
+      "ORDER_PROVENANCE_MISSING": "We could not find the payment record for this order. Please contact support — do not pay again.",
+      "ORDER_PRODUCT_MISMATCH": "This order was not a purchase of the AI planner, so a plan cannot be issued for it.",
+      "ORDER_PROVENANCE_INVALID": "We could not confirm the amount for this order. Please contact support — do not pay again.",
+      "PAYMENT_PENDING_SETTLEMENT": "Your payment is still being confirmed (awaiting settlement). We will notify you once it completes — please do not pay again.",
+      "PAYMENT_NOT_CAPTURED": "Your payment did not complete successfully. Please contact support before trying again.",
+      "PLAN_GENERATION_IN_PROGRESS": "Your plan is already being generated for this payment. Please wait a moment — do not pay again.",
+      "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "We can't check your plan status right now. Please try again shortly — if you already paid, do not pay again.",
+      "PLAN_ISSUANCE_NEEDS_REVIEW": "We're checking your plan issuance and will follow up shortly — please do not pay again."
     },
     "retry": "Try Again",
     "loginRequired": "Sign in to pay",
@@ -2026,7 +2038,10 @@
     "loadingPay": "Loading payment...",
     "checkoutDone": "Booking confirmed!",
     "checkoutDoneSub": "Confirmation emails are on the way.",
-    "close": "Done"
+    "close": "Done",
+    "checkoutReview": "Payment received",
+    "checkoutReviewSub": "Your booking is pending verification. We will contact you by email once confirmed.",
+    "checkoutReviewWarn": "Please do not pay again — it may result in a duplicate charge."
   },
   "a11y": {
     "openChat": "Open chat",

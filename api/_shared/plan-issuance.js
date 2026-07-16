@@ -1,0 +1,471 @@
+/**
+ * PayPal AI 플랜 발급권 원자 claim (P0, 2026-07-15).
+ *
+ * 불변식: **정상 PayPal 결제 order ID 1개 → 발급 완료된 AI 플랜 최대 1개.**
+ *
+ * 이전 구조는 이 불변식을 지키지 못했다:
+ *   - paymentGate 가 plan_issued_orders 를 `get()` 으로 **읽기만** 했다(비원자 read-then-pass).
+ *     같은 order ID 의 동시 요청 둘이 모두 "없음" 을 읽고 둘 다 유료 플랜을 생성할 수 있었다.
+ *   - planPersister.markPlanIssued 가 `.set()` 실패를 `.catch()` 로 삼키고 `true` 를 반환했다.
+ *     마커가 안 박히면 플랜은 저장됐는데 결제 ID 는 다시 쓸 수 있었다.
+ *
+ * ## 상태 모델 — ISSUING → COMMITTING → ISSUED
+ *
+ *   없음
+ *     └─ claim tx ─→ ISSUING
+ *                      ├─ 생성 실패(플랜 미저장) ─→ release(삭제) ─→ 같은 결제로 재시도 가능
+ *                      └─ beginCommit tx ─→ COMMITTING
+ *                                             ├─ plans/{planId} 저장  ← tx **밖**
+ *                                             └─ finalize tx ─→ ISSUED
+ *
+ * **왜 3단계인가 — plans 저장을 지금 구조에서 트랜잭션에 넣을 수 없기 때문이다.**
+ *   저장 직전 truncation 루프가 `days.pop()` 으로 문서를 **in-place mutate** 한다. 트랜잭션은
+ *   충돌 시 콜백을 재실행하므로, 이미 pop 된 days 위에서 다시 돌아 데이터가 손상된다.
+ *   (Firestore 공식: 트랜잭션 콜백 안에서 application state 를 직접 mutate 하지 말 것.)
+ *
+ *   ⚠️ 정정 (2026-07-15, 적대적 리뷰 지적): 이전 주석은 "900KB 라서 트랜잭션에 못 넣는다" 고 썼는데
+ *      **크기는 블로커가 아니다** — Firestore 트랜잭션 request 상한은 10MiB 다. 진짜 블로커는
+ *      위의 in-place mutation 이고, 그건 truncation 을 트랜잭션 **밖**에서 끝내고 완성된 immutable
+ *      finalDoc 만 콜백에서 set 하면 사라진다. 즉 3단계는 **현 구조에 대한 최소 침습 선택**이지
+ *      물리적 불가능이 아니다. 대안(원자적 plan+claim 트랜잭션)은 index entry 크기·lock deadline
+ *      실측이 필요해 이번 범위에서 채택하지 않았다 — 미검증으로 남긴다.
+ *   → 대용량 write 를 tx 밖에 두되, 그 **직전에** COMMITTING 을 원자적으로 선점한다.
+ *     그러면 takeover 된 오래된 attempt 는 beginCommit 에서 fencing 에 걸려 plans 저장 단계에
+ *     아예 진입하지 못한다. ISSUING 에서 바로 plans 를 저장하면 이 TOCTOU 가 남는다.
+ *
+ * ## fencing
+ *   모든 전이 tx 가 `status` + `attemptId` + `planId` 3개를 다시 확인한다. attemptId 는 서버가
+ *   tx **밖에서 한 번** 생성한다(tx 콜백은 재시도 시 재실행되므로 안쪽에서 만들면 값이 흔들린다).
+ *
+ * ## lease 와 takeover
+ *   Vercel 은 maxDuration(vercel.json 의 api/ai-planner-full.js) 도달 시 프로세스를 **강제 종료**한다.
+ *   catch/finally 가 실행되지 않으므로 claim 해제를 코드 정리 경로에만 의존할 수 없다 → 자기만료.
+ *   다만 Inngest worker 는 별 invocation + step retry 라 최초 HTTP 요청보다 오래 살 수 있어서,
+ *   "TTL 만료 = 죽었다" 로 단정하지 않는다. **안전은 TTL 이 아니라 fencing 이 담당한다** —
+ *   takeover 는 새 attemptId 를 발급하므로 이전 attempt 는 beginCommit 에서 반드시 차단된다.
+ *   takeover 전에 예약된 planId 로 완성 plan 을 먼저 대조해, "플랜 저장 성공 + 확정 직전 종료" 를
+ *   새 생성 없이 ISSUED 로 복구한다.
+ *
+ * ## 시간 필드
+ *   `leaseExpiresAt` 은 **ms 정수**(Date.now() 기준)다. 기존 `issuedAt`(ISO 문자열)을 lease 계산
+ *   근거로 재사용하지 않는다. serverTimestamp 는 tx 안에서 되읽어 비교할 수 없어 쓰지 않았다.
+ *   (레포 선례: _crons/plan-streaming-sweep.js 도 _streaming_started_at ms 로 판정한다.)
+ *   ⚠️ 서버 로컬 시계 기반이므로 인스턴스 간 clock skew 는 보정하지 않는다. lease 를 실행시간보다
+ *   넉넉히 잡아 흡수한다.
+ *
+ * ## 범위
+ *   **유료 PayPal 경로 전용.** revision / 무료쿠폰 / ADMIN-BYPASS- / TEST- / MANUAL- 은 대상이 아니다
+ *   (각자 별도 멱등성 정책 보유). 호출부(paymentGate)가 이미 provider==='paypal' 분기 안이라
+ *   여기서 prefix 를 다시 판정하지 않는다 — prefix 판별 SSOT 는 _shared/admin-bypass-detector.js 의
+ *   detectPaymentSource 이며 4번째 구현을 만들지 않는다.
+ *
+ * 신규 코드 규약: nullish coalescing 금지, OR 사용 (레포 전역 규약).
+ */
+import { randomUUID } from 'crypto';
+
+export const PLAN_ISSUANCE_STATUS = {
+  ISSUING: 'ISSUING',
+  COMMITTING: 'COMMITTING',
+  ISSUED: 'ISSUED',
+  /**
+   * COMMITTING 인데 lease 가 만료됐고 완성 plan 도 없다 = 저장 도중 죽었거나 저장이 실패했다.
+   * **자동 takeover 하지 않는다**(아래 §takeover 참조) → 운영자가 봐야 하는 상태로 못박는다.
+   *
+   * 이 상태가 없었을 때: 그런 claim 은 영구히 IN_PROGRESS 를 뱉었다. 고객은 결제했는데 플랜을
+   * 영영 못 받고, 운영자에게 알림도 없고, 콘솔에서 문서를 지우는 것 말고 길이 없었다.
+   * (적대적 리뷰 지적, 2026-07-15 — "중복 발급보다 잠금이 낫다" 는 **일시적이고 관측·복구
+   *  가능한** 잠금에만 해당한다. 영구 + 무알림 + 복구API 없음은 완료가 아니다.)
+   */
+  NEEDS_REVIEW: 'NEEDS_REVIEW',
+};
+
+/**
+ * lease 유효기간. vercel.json 의 api/ai-planner-full.js maxDuration(현재 800초) 보다 길어야 한다 —
+ * 짧으면 첫 요청이 **아직 살아 있는 동안** takeover 가 열려 동시 생성이 재발한다.
+ * ⚠️ maxDuration 을 바꾸면 이 값도 함께 올릴 것. (P270: vercel.json 이 export 보다 우선하며,
+ *    export=600/vercel.json=300 불일치로 296초 사망을 실측한 이력이 있다.)
+ * ⚠️ 이 값은 "이 시간이 지나면 죽었다" 는 단정이 아니다 — 실제 안전은 fencing 이 담당한다.
+ */
+export const PLAN_ISSUANCE_LEASE_MS = 900_000; // 15분 (= 800초 하드킬 + 여유)
+
+export const PLAN_ISSUANCE_COLLECTION = 'plan_issued_orders';
+
+/** 발급 claim 실패 코드 — 호출자가 HTTP 응답으로 변환한다. */
+export const PLAN_ISSUANCE_CODE = {
+  DUPLICATE: 'DUPLICATE_ORDER',
+  IN_PROGRESS: 'PLAN_GENERATION_IN_PROGRESS',
+  UNAVAILABLE: 'PLAN_ISSUANCE_CHECK_UNAVAILABLE',
+  CLAIM_LOST: 'PLAN_CLAIM_LOST',
+  /** 저장 도중 중단 → 자동 복구 불가. 운영자 확인 필요(재결제 유도 금지). */
+  NEEDS_REVIEW: 'PLAN_ISSUANCE_NEEDS_REVIEW',
+};
+
+function issuanceRef(adminDb, orderId) {
+  return adminDb.collection(PLAN_ISSUANCE_COLLECTION).doc(orderId);
+}
+
+/**
+ * 완성 plan 인정 조건 (COMMITTING/만료 ISSUING 복구 판정).
+ *
+ * status==='ready' 가 **유일한 완료 신호**다. `_streaming_in_progress: false` 로 판정하면 안 된다 —
+ * 정상 완료 경로는 그 필드를 명시적으로 false 로 쓰지 않고, persistPlan 의 merge 없는 .set() 이
+ * 필드를 **삭제**해 falsy 가 될 뿐이다(false 를 쓰는 곳은 Inngest onFailure 와 sweep cron 뿐).
+ *
+ * streaming skeleton / P231 stub / error 문서를 완료로 오인하면 결제한 사용자가 플랜을 영영 못 받는다.
+ *
+ * @param {{exists?: boolean, data?: Function}|null} planSnap
+ * @param {{orderId: string, planId: string}} claim
+ * @returns {boolean}
+ */
+export function isCompletedPlanForClaim(planSnap, claim) {
+  if (!planSnap || !planSnap.exists) return false;
+  const d = (typeof planSnap.data === 'function' ? planSnap.data() : null) || {};
+  if (d.status !== 'ready') return false;
+  if (d._streaming_in_progress === true) return false;
+  if (d._p231_stub === true) return false;
+  if (d.planId !== claim.planId) return false;
+  const input = d.input || {};
+  if (input.paypalOrderId !== claim.orderId) return false;
+  return true;
+}
+
+/**
+ * 발급권 원자 선점. **모든 결제 검증(capture 무결성·provenance·payment_reviews) 통과 후,
+ * AI 생성 시작 전**에 호출한다. 검증 전에 부르면 실패한 주문이 발급권을 선점한 채 reject 되어
+ * 정당한 재시도를 DUPLICATE 로 막는 self-DoS 가 된다.
+ *
+ * planId 를 여기서 **예약**해 반환한다 — skeleton/inline/worker 가 전부 같은 문서를 쓰게 해
+ * "attempt 마다 다른 plan 문서" 를 원천 차단하고, 복구 시 쿼리 없이 직접 읽을 수 있게 한다
+ * (plans.input.paypalOrderId 는 persistPlan 이 실행돼야 생기므로 streaming 창에서는 조회 불가).
+ *
+ * @param {object} adminDb — firebase-admin Firestore
+ * @param {string} orderId — 검증 완료된 PayPal order ID
+ * @param {{uid?: string|null, now?: number}} [opts]
+ * @returns {Promise<{claim: {orderId, attemptId, planId}} | {code: string, detail?: string}>}
+ */
+export async function claimPlanIssuance(adminDb, orderId, { uid, now } = {}) {
+  if (!adminDb || !orderId) return { code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: 'missing db or orderId' };
+
+  // tx 콜백 밖에서 1회 생성 — 콜백은 충돌 시 재실행되므로 안쪽에서 만들면 attempt/plan ID 가 흔들린다.
+  const attemptId = randomUUID();
+  const freshPlanId = randomUUID();
+  const nowMs = typeof now === 'number' ? now : Date.now();
+  const ref = issuanceRef(adminDb, orderId);
+
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+
+    if (!snap.exists) {
+      const claim = { orderId, attemptId, planId: freshPlanId };
+      tx.set(ref, {
+        status: PLAN_ISSUANCE_STATUS.ISSUING,
+        attemptId,
+        planId: freshPlanId,
+        provider: 'paypal',
+        claimedAt: new Date(nowMs).toISOString(),
+        updatedAt: new Date(nowMs).toISOString(),
+        leaseExpiresAt: nowMs + PLAN_ISSUANCE_LEASE_MS,
+        uid: uid || null,
+      });
+      return { claim };
+    }
+
+    const d = snap.data() || {};
+
+    // 레거시 마커(2026-07-15 이전 markPlanIssued 산출물)는 status 필드가 없다.
+    // { planId, issuedAt, uid, provider } 만 있고 존재 자체가 "이미 발급함" 을 뜻했다 → ISSUED 취급.
+    if (!d.status) return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'legacy issued marker' };
+
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUED) {
+      return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'already issued' };
+    }
+
+    const reservedPlanId = d.planId || freshPlanId;
+    const leaseExpiresAt = Number(d.leaseExpiresAt) || 0;
+    const leaseAlive = leaseExpiresAt > nowMs;
+
+    // COMMITTING = plans 저장이 진행 중이거나 저장 후 확정 직전에 종료됐다.
+    // 완성 plan 이 있으면 새 생성 없이 ISSUED 로 복구하고, 없으면 **takeover 하지 않는다**
+    // (저장 중일 수 있으므로 — 여기서 뺏으면 이중 저장 창이 열린다).
+    if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 완성 plan 이 있으면 "저장 성공 + 확정 직전 종료" → 새 생성 없이 ISSUED 복구.
+      const recovered = await recoverIfPlanComplete(tx, adminDb, ref, { orderId, planId: reservedPlanId }, nowMs);
+      if (recovered) return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'recovered committing → issued' };
+
+      // 아직 저장 중일 수 있다 → 뺏지 않는다.
+      if (leaseAlive) return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'commit in progress' };
+
+      // 🔴 lease 만료 + 완성 plan 없음 = 저장 도중 죽었거나 저장이 실패했다.
+      //
+      //   **자동 takeover 하지 않는다.** 내가 처음 생각한 근거("두 attempt 가 예약 planId 를
+      //   공유하니 같은 문서를 덮어쓸 뿐 → 안전")는 틀렸다:
+      //     ① persistPlan 의 plans.set 은 merge 없는 **전체 교체**다. 죽은 줄 알았던 A 의 늦은
+      //        set 이 B 의 완성 plan 을 통째로 덮는다. claim fencing 은 claim 만 막지 **이미
+      //        실행된 plan write 를 되돌리지 못한다** — "문서 1개" ≠ "올바른 결과 1개".
+      //     ② 더 나쁜 것: geminiPipeline 의 updatePlanProgressive 는 fire-and-forget 이고
+      //        `_streaming_in_progress: true` 를 **무조건 재설정**한다. A 의 지연 progressive
+      //        write 가 B 의 ready plan 뒤에 도착하면 사용자는 영원히 streaming 화면을 본다.
+      //     ③ lease 만료를 "worker 사망" 으로 단정할 수 없다 — Inngest worker 는 별 invocation
+      //        이라 최초 HTTP 요청(=lease 기준)보다 오래 산다.
+      //
+      //   → 중복 발급보다 잠금이 낫지만, 잠금은 **관측 가능하고 복구 가능**해야 한다.
+      //     NEEDS_REVIEW 로 못박아 호출자가 운영자에게 알리게 한다(paymentGate 가 알림 발사).
+      tx.update(ref, {
+        status: PLAN_ISSUANCE_STATUS.NEEDS_REVIEW,
+        needsReviewAt: new Date(nowMs).toISOString(),
+        needsReviewReason: 'commit lease expired without completed plan',
+        updatedAt: new Date(nowMs).toISOString(),
+      });
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'commit stalled — operator must reconcile' };
+    }
+
+    // 이미 NEEDS_REVIEW → 재알림 없이 같은 코드. (운영자가 콘솔에서 문서를 지우면 재시도 가능.)
+    if (d.status === PLAN_ISSUANCE_STATUS.NEEDS_REVIEW) {
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'already flagged for operator' };
+    }
+
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUING) {
+      if (leaseAlive) return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'lease alive' };
+
+      // lease 만료 — takeover 전에 "저장 성공 + 마킹 직전 종료" 를 먼저 복구한다.
+      const recovered = await recoverIfPlanComplete(tx, adminDb, ref, { orderId, planId: reservedPlanId }, nowMs);
+      if (recovered) return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'recovered stale issuing → issued' };
+
+      // fencing takeover: 새 attemptId 발급 → 이전 attempt 는 beginPlanCommit 에서 반드시 차단된다.
+      // 예약 planId 는 **유지**한다 — 같은 문서를 재사용해야 고아 plan 이 생기지 않는다.
+      const claim = { orderId, attemptId, planId: reservedPlanId };
+      tx.update(ref, {
+        status: PLAN_ISSUANCE_STATUS.ISSUING,
+        attemptId,
+        planId: reservedPlanId,
+        updatedAt: new Date(nowMs).toISOString(),
+        leaseExpiresAt: nowMs + PLAN_ISSUANCE_LEASE_MS,
+        takenOverAt: new Date(nowMs).toISOString(),
+      });
+      return { claim };
+    }
+
+    // 미지 status — fail-closed.
+    return { code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: `unknown status: ${String(d.status)}` };
+  });
+}
+
+/**
+ * 예약된 planId 로 plans 문서를 **직접 읽어**(쿼리·신규 index 불필요) 완성 여부를 판정하고,
+ * 완성이면 같은 tx 안에서 ISSUED 로 복구한다.
+ * @returns {Promise<boolean>} 복구했으면 true
+ */
+async function recoverIfPlanComplete(tx, adminDb, ref, claim, nowMs) {
+  if (!claim.planId) return false;
+  const planSnap = await tx.get(adminDb.collection('plans').doc(claim.planId));
+  if (!isCompletedPlanForClaim(planSnap, claim)) return false;
+  tx.update(ref, {
+    status: PLAN_ISSUANCE_STATUS.ISSUED,
+    issuedAt: new Date(nowMs).toISOString(),
+    updatedAt: new Date(nowMs).toISOString(),
+    recoveredAt: new Date(nowMs).toISOString(),
+  });
+  return true;
+}
+
+/**
+ * plans 대용량 저장 **직전** fencing. status/attemptId/planId 3개가 전부 일치할 때만 COMMITTING 전이.
+ * 하나라도 다르면 이 attempt 는 발급권을 잃은 것이므로 plan 을 저장하면 안 된다.
+ *
+ * @returns {Promise<{ok: true} | {code: string, detail?: string}>}
+ */
+export async function beginPlanCommit(adminDb, claim, { now } = {}) {
+  if (!adminDb || !claim || !claim.orderId || !claim.attemptId || !claim.planId) {
+    return { code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: 'incomplete claim' };
+  }
+  const nowMs = typeof now === 'number' ? now : Date.now();
+  const ref = issuanceRef(adminDb, claim.orderId);
+
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'claim gone' };
+    const d = snap.data() || {};
+
+    // 소유권을 status 보다 **먼저** 본다 — 남의 claim 이면 어떤 status 든 차단(fencing).
+    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
+    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+
+    // 🔴 재진입 멱등 (2026-07-15, 적대적 리뷰 지적으로 발견).
+    //   Inngest step 은 **성공한 뒤에도** 재실행될 수 있다 — 성공 acknowledgement 가 유실되면
+    //   같은 event·같은 attempt 로 persistPlan step 전체가 다시 돈다(event.data 는 불변이라
+    //   attemptId/planId 도 동일하다).
+    //   이전엔 `status !== ISSUING` 을 무조건 CLAIM_LOST 로 봐서 이렇게 됐다:
+    //     첫 실행 성공(ISSUED) → step 재실행 → beginCommit CLAIM_LOST → persistPlan throw →
+    //     retry 소진 → onFailure 가 **이미 ready 인 plan 을 status:'error' 로 merge**
+    //     → 결제도 발급도 성공했는데 사용자 화면엔 실패로 보인다.
+    //   finalizePlanIssuance 는 같은 attempt 의 ISSUED 재진입을 이미 멱등 처리하고 있었는데
+    //   beginPlanCommit 만 빠져 있었다. 대칭을 맞춘다.
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUED) {
+      // 내 attempt 가 이미 확정했다 → 호출자는 plans 를 **다시 쓰면 안 된다**.
+      // 재실행된 step 의 itinerary 는 재생성된 것이라 정상 plan 을 덮어쓸 수 있다.
+      return { ok: true, alreadyIssued: true };
+    }
+    if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 내 attempt 가 저장 중이었다가 재실행됐다(확정 전 종료). 이어서 진행 = 안전 —
+      // 예약 planId 로 같은 문서를 덮어쓰므로 두 번째 plan 문서가 생기지 않는다.
+      return { ok: true, resumed: true };
+    }
+    if (d.status !== PLAN_ISSUANCE_STATUS.ISSUING) {
+      return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: `status=${String(d.status)}` };
+    }
+
+    tx.update(ref, {
+      status: PLAN_ISSUANCE_STATUS.COMMITTING,
+      updatedAt: new Date(nowMs).toISOString(),
+      // 저장이 오래 걸릴 수 있으므로 같은 attempt 에 한해 lease 갱신.
+      leaseExpiresAt: nowMs + PLAN_ISSUANCE_LEASE_MS,
+    });
+    return { ok: true };
+  });
+}
+
+/**
+ * plans 저장 성공 후 최종 확정. **실패를 삼키지 않는다** — 호출자가 결과를 반드시 확인해야 한다.
+ * (구 markPlanIssued 는 .set() 실패를 .catch() 로 먹고 true 를 반환했다. 그게 이 P0 의 원인 절반이다.)
+ *
+ * @returns {Promise<{ok: true} | {code: string, detail?: string}>}
+ */
+export async function finalizePlanIssuance(adminDb, claim, { now } = {}) {
+  if (!adminDb || !claim || !claim.orderId || !claim.attemptId || !claim.planId) {
+    return { code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: 'incomplete claim' };
+  }
+  const nowMs = typeof now === 'number' ? now : Date.now();
+  const ref = issuanceRef(adminDb, claim.orderId);
+
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'claim gone' };
+    const d = snap.data() || {};
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUED && d.attemptId === claim.attemptId) {
+      return { ok: true }; // 멱등 — Inngest step retry 로 같은 attempt 가 두 번 확정해도 성공.
+    }
+    if (d.status !== PLAN_ISSUANCE_STATUS.COMMITTING) {
+      return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: `status=${String(d.status)}` };
+    }
+    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
+    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+    tx.update(ref, {
+      status: PLAN_ISSUANCE_STATUS.ISSUED,
+      issuedAt: new Date(nowMs).toISOString(),
+      updatedAt: new Date(nowMs).toISOString(),
+    });
+    return { ok: true };
+  });
+}
+
+/**
+ * 생성이 **확실히 시작되지 않았거나 플랜이 저장되지 않은** 조기 실패에서 발급권을 되돌린다.
+ * doc 을 삭제해 같은 결제로 재시도가 통과하게 한다(구 설계의 "write 를 persistPlan 까지 미룸" 이
+ * 담당하던 재시도 보장을 대체).
+ *
+ * 안전 규칙:
+ *   - `status === ISSUING` + attemptId 일치일 때만 삭제한다.
+ *   - **COMMITTING 은 절대 삭제하지 않는다** — plans 가 이미 저장됐을 수 있다. reconcile 대상으로 남긴다.
+ *   - 다른 attempt 가 takeover 한 claim 을 오래된 cleanup 이 지우지 못한다(attemptId 대조).
+ *
+ * @returns {Promise<{released: boolean, code?: string, detail?: string}>}
+ */
+/**
+ * handlerCore 용 발급권 컨텍스트. 요청 수명 동안 claim 과 소유권 이관 여부를 들고 다닌다.
+ *
+ * **전역변수를 쓰지 않는다** — 요청마다 새 객체를 만들어 명시적으로 넘긴다.
+ *
+ * handlerCore 는 500줄 cap(P129 아키텍처 가드)이 걸려 있고 이미 499줄이었다. 발급권 배관을
+ * 인라인으로 두면 cap 을 넘긴다 — cap 의 목적이 바로 이 분리 강제이므로 배관을 여기로 모은다.
+ *
+ * ⚠️ dispatch 성공 시 반드시 handOff() 를 부를 것. 소유권이 Inngest worker 로 넘어가므로
+ *   handler 가 release 하면 안 된다(worker 가 이어서 확정하거나 onFailure 가 처리한다).
+ */
+export function createIssuanceContext() {
+  return {
+    /** gate 가 선점한 { orderId, attemptId, planId } — 유료 PayPal 경로만 채워진다. */
+    claim: null,
+    /** dispatch 성공 = 소유권이 worker 로 이관됨 → handler 는 release 금지. */
+    handedToWorker: false,
+
+    /** paymentGate 결과에서 claim 을 흡수. 비유료 경로면 no-op. */
+    adopt(gate) {
+      if (gate && gate.planClaim) this.claim = gate.planClaim;
+      return this;
+    },
+    /** skeleton/persist 가 쓸 예약 planId. 비유료 경로는 null → 기존 randomUUID 동작. */
+    reservedPlanId() {
+      return (this.claim && this.claim.planId) || null;
+    },
+    handOff() {
+      this.handedToWorker = true;
+    },
+    /**
+     * plan 이 저장되지 않았고 worker 로 넘기지도 않았을 때만 발급권을 되돌린다.
+     * ⚠️ 호출자는 **await** 할 것 — fire-and-forget 이면 serverless freeze 로 해제가 유실되고
+     *   사용자는 재시도해도 lease 만료까지 409 로 막힌다.
+     */
+    async releaseIfUnused(adminDb, planPersisted, reason) {
+      if (!this.claim || planPersisted || this.handedToWorker) return false;
+      const released = await releasePlanIssuanceSafely(adminDb, this.claim, reason);
+      this.claim = null;
+      return released;
+    },
+  };
+}
+
+/**
+ * releasePlanIssuance 를 삼켜서(throw 없이) 호출하는 래퍼. 실패·미해제를 **소리나게 로그**한다.
+ *
+ * handlerCore 는 500줄 cap(P129)이 걸려 있어 이 정리 로직을 인라인으로 두면 cap 을 넘긴다.
+ * 여기 모아두면 호출부가 한 줄이 되고, 왜 이렇게 하는지도 한 곳에 남는다.
+ *
+ * ⚠️ 호출자는 **반드시 await** 할 것. fire-and-forget 으로 두면 serverless 가 응답 후 인스턴스를
+ *   얼려 해제가 유실되고(P790 이 markPlanIssued 에서 겪은 그 문제), 사용자는 재시도해도 lease
+ *   만료까지 409 로 막힌다. 해제는 재시도 가능성을 지키는 유일한 장치다.
+ *
+ * ⚠️ fail-open 하지 않는다 — 해제에 실패하면 lease 만료까지 잠긴 채 둔다. 중복 발급보다 일시적
+ *   잠금이 낫다(돈이 이미 오갔으므로).
+ *
+ * @param {object} adminDb
+ * @param {{orderId: string, attemptId: string, planId?: string}} claim
+ * @param {string} reason — 로그용 (예: 'start-date-rejected', 'handler-catch', 'worker-onFailure')
+ * @returns {Promise<boolean>} 실제로 해제됐으면 true
+ */
+export async function releasePlanIssuanceSafely(adminDb, claim, reason) {
+  try {
+    const rel = await releasePlanIssuance(adminDb, claim);
+    if (rel.released) {
+      console.warn(`[plan-issuance] 발급권 해제 (${reason}) — 같은 결제로 재시도 가능`);
+      return true;
+    }
+    // 미해제가 정상인 경우도 있다: COMMITTING(plans 저장됐을 수 있음) / 남이 takeover(attemptId 불일치).
+    console.warn(`[plan-issuance] 발급권 해제 안 됨 (${reason}, 잠금 유지): ${rel.code || ''} ${rel.detail || ''}`);
+    return false;
+  } catch (e) {
+    console.error(`[plan-issuance] 발급권 해제 실패 (${reason}) — lease 만료까지 잠김: ${e.message}`);
+    return false;
+  }
+}
+
+export async function releasePlanIssuance(adminDb, claim) {
+  if (!adminDb || !claim || !claim.orderId || !claim.attemptId) {
+    return { released: false, code: PLAN_ISSUANCE_CODE.UNAVAILABLE, detail: 'incomplete claim' };
+  }
+  const ref = issuanceRef(adminDb, claim.orderId);
+
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { released: false, detail: 'already absent' };
+    const d = snap.data() || {};
+    if (d.status !== PLAN_ISSUANCE_STATUS.ISSUING) {
+      // COMMITTING/ISSUED — 플랜이 저장됐을 수 있으므로 건드리지 않는다.
+      return { released: false, detail: `not releasable: status=${String(d.status)}` };
+    }
+    if (d.attemptId !== claim.attemptId) {
+      return { released: false, detail: 'attempt fenced — not mine' };
+    }
+    tx.delete(ref);
+    return { released: true };
+  });
+}

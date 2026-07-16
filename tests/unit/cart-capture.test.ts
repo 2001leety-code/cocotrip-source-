@@ -1,29 +1,17 @@
 /**
  * cart-capture 단위 테스트 — captureCartOrder 순수 코어 (PR2d, money-critical).
- * (1) 캡처 금액 검증 (2) 라인 child booking/fan-out 빌더 (3) 핸들러 머니 안전 가드(source).
+ * (1) 라인 child booking/fan-out 빌더 (2) 핸들러 머니 안전 가드(source).
+ *
+ * ⚠️ 캡처 금액 검증은 구 verifyCartCaptureAmount(float 비교, currency 미검증)에서
+ *    _shared/paypal-capture-verify.js(정수 minor + currency + status + cardinality)로 이전됨.
+ *    검증기 자체 테스트 = tests/unit/paypal-capture-verify.test.ts.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { verifyCartCaptureAmount, buildCartChildBookings } from '../../api/_shared/cart-capture.js';
+import { buildCartChildBookings } from '../../api/_shared/cart-capture.js';
 
 const captureSrc = readFileSync(resolve(process.cwd(), 'api/captureCartOrder.js'), 'utf8');
-
-describe('verifyCartCaptureAmount — 캡처 금액 == 스냅샷', () => {
-  it('일치 (센트 미만 오차 허용)', () => {
-    expect(verifyCartCaptureAmount('99.00', '99.00').ok).toBe(true);
-    expect(verifyCartCaptureAmount('99.00', 99).ok).toBe(true);
-    expect(verifyCartCaptureAmount('99.00', '99.009').ok).toBe(true);
-  });
-  it('불일치 = ok:false (변조/stale 감지)', () => {
-    expect(verifyCartCaptureAmount('99.00', '50.00').ok).toBe(false);
-    expect(verifyCartCaptureAmount('99.00', '100.00').ok).toBe(false);
-  });
-  it('expected 없음/0 = NO_EXPECTED', () => {
-    expect(verifyCartCaptureAmount('', '99.00')).toMatchObject({ ok: false, code: 'NO_EXPECTED' });
-    expect(verifyCartCaptureAmount('0', '99.00').ok).toBe(false);
-  });
-});
 
 describe('buildCartChildBookings — 라인 child + fan-out', () => {
   const snapshot = {
@@ -75,9 +63,31 @@ describe('captureCartOrder 핸들러 — 머니 안전 가드 (source)', () => {
     expect(captureSrc).toMatch(/DUPLICATE_ORDER/);
     expect(captureSrc).toMatch(/runTransaction/);
   });
-  it('캡처 금액 == 스냅샷 검증', () => {
-    expect(captureSrc).toMatch(/verifyCartCaptureAmount\(snapshot\.usdAmount/);
-    expect(captureSrc).toMatch(/cart-amount-mismatch/);
+  it('capture 무결성 검증 — 스냅샷 기준 amount(정수 minor) + currency + status', () => {
+    expect(captureSrc).toMatch(/toMinorUnits\(snapshot\.usdAmount/);
+    expect(captureSrc).toMatch(/verifyCaptureIntegrity\(/);
+    expect(captureSrc).toMatch(/expectedCurrency:\s*'USD'/);
+  });
+  it('불일치 = 예약 미확정 + durable 격리 + 202 (구: alert 후 CONFIRMED 강행)', () => {
+    expect(captureSrc).toMatch(/if\s*\(!verdict\.ok\)/);
+    expect(captureSrc).toMatch(/recordPaymentReview/);
+    expect(captureSrc).toMatch(/buildPaymentReviewResponse/);
+    expect(captureSrc).toMatch(/writeHead\(202/);
+    // 불일치 분기는 batch(CONFIRMED)/fan-out 호출부 이전에 return 해야 함.
+    // (import 줄이 아니라 실제 호출부 기준 — indexOf('triggerBookingProcessor') 는 import 에 먼저 걸림.)
+    const mismatchIdx = captureSrc.indexOf('if (!verdict.ok)');
+    const confirmIdx = captureSrc.indexOf("status: 'CONFIRMED'");
+    const fanoutCallIdx = captureSrc.indexOf('triggerBookingProcessor({');
+    expect(mismatchIdx).toBeGreaterThan(-1);
+    expect(confirmIdx).toBeGreaterThan(-1);
+    expect(fanoutCallIdx).toBeGreaterThan(-1);
+    expect(mismatchIdx).toBeLessThan(confirmIdx);
+    expect(mismatchIdx).toBeLessThan(fanoutCallIdx);
+    // 불일치 분기 안에서 먼저 응답을 끝내고 빠져나감.
+    expect(captureSrc.slice(mismatchIdx, confirmIdx)).toMatch(/return res\.end/);
+  });
+  it('구 float 비교(verifyCartCaptureAmount) 미사용 — 정수 minor 로 대체', () => {
+    expect(captureSrc).not.toMatch(/verifyCartCaptureAmount/);
   });
   it('라인별 fan-out (retryDocId=childOrderID, PR2a 활용)', () => {
     expect(captureSrc).toMatch(/triggerBookingProcessor/);

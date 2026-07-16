@@ -106,6 +106,25 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Invalid action. Allowed: ${[...VALID_ACTIONS].join(', ')}`, 'INVALID_ACTION')));
     }
 
+    // 🔴 F1 money 가드 (2026-07-16): refundedKRW 는 운영자 자유입력(AdminPayments window.prompt)이라
+    //   '50,000'(한국 로케일 콤마)·'abc'·{} 가 들어올 수 있다. Number() 가 NaN 을 만들고
+    //   **NaN 과의 모든 비교는 false** 라 아래 mark-refunded 의 REFUND_EXCEEDS_ORIGINAL /
+    //   REFUND_ORIGINAL_UNKNOWN 가드가 둘 다 조용히 통과한다 → refundUSD=null → refundPaypalCapture
+    //   가 amount 를 생략 → PayPal 이 capture **전액** 환불(부분환불 의도가 전액환불로 집행 = 직접 손실).
+    //   ⚠️ 비교 연산으로는 NaN 을 원리적으로 못 거른다 — 반드시 별도 유한성 검사여야 한다.
+    //   ⚠️ 감사로그(admin_actions.add)보다 **앞**에 둔다: Firestore 는 NaN 을 doubleValue:null 로
+    //      수용해 throw 하지 않으므로, 뒤에 두면 "운영자가 얼마를 의도했는가" 포렌식이 오염된다.
+    //   refundedKRW 미지정(전액환불 의도)은 통과 — != null 로 걸러 amount 미지정 경로를 보존한다.
+    if (refundedKRW != null) {
+      const _krw = Number(refundedKRW);
+      if (!Number.isFinite(_krw) || _krw <= 0) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          `환불액이 올바른 숫자가 아닙니다 (받은 값: ${JSON.stringify(refundedKRW)})`,
+          'REFUND_AMOUNT_INVALID')));
+      }
+    }
+
     const adminDb = initAdminDb('admin-booking-action');
     if (!adminDb) {
       res.writeHead(500, JSON_HEADERS);
@@ -194,8 +213,10 @@ export default async function handler(req, res) {
           `환불액(₩${refundKrw.toLocaleString('ko-KR')})이 결제 원금(₩${originalKRW.toLocaleString('ko-KR')})을 초과합니다`,
           'REFUND_EXCEEDS_ORIGINAL')));
       }
-      // 부분환불 명시(refundedKRW 입력)인데 원금 정보가 없어 비례 검증 불가 → 자동 전액환불 대신 차단.
-      if (originalKRW <= 0 && refundedKRW != null) {
+      // 부분환불 명시(refundedKRW 입력)인데 원금 정보가 없거나 손상(NaN)이라 비례 검증 불가 →
+      //   자동 전액환불 대신 차단. F1b(2026-07-16): amountKRW 가 손상 문자열('1,000,000')이면
+      //   originalKRW=NaN 이 되고 NaN<=0 이 false 라 이 가드를 빠져나가 전액환불이 나갔다 → isFinite 확장.
+      if ((!Number.isFinite(originalKRW) || originalKRW <= 0) && refundedKRW != null) {
         res.writeHead(400, JSON_HEADERS);
         return res.end(JSON.stringify(_err(
           '결제 원금 정보가 없어 부분환불 금액을 검증할 수 없습니다 (전액환불은 금액 미지정으로 재시도)',
@@ -221,7 +242,18 @@ export default async function handler(req, res) {
         }
         const result = await refundPaypalCapture({
           captureID,
+          // 🔴 이중환불 방어 키 (2026-07-15). bookingRef(pending_bookings 문서 id) + 금액.
+          //   금액을 포함하는 이유: 운영자가 AdminPayments 의 window.prompt 로 **임의 금액**을
+          //   넣는다. bookingRef 단독 키면 "실패 후 다른 금액으로 재시도" 가 첫 요청의 캐시된
+          //   응답을 받아 원하는 금액이 환불되지 않는다. 금액을 넣으면 같은 금액 재시도만
+          //   멱등이 되고(= 타임아웃 재클릭 방어), 다른 금액은 별개 환불로 취급된다.
+          //   ⚠️ captureID 단독 금지 — cart 자식들이 captureID 를 공유한다(helper 주석 참조).
+          //   ⚠️ 영구 중복 방어는 이 키가 아니라 위 status!=='CONFIRMED' 가드가 담당한다.
+          //      (PayPal 은 PayPal-Request-Id 보존 기간을 공식화하지 않는다.)
+          idempotencyKey: `${bookingRef}:${refundUSD || 'full'}`,
           refundUSD,
+          // capture 통화 우선. bookings 문서가 없으면 bookingData={} → undefined → helper 가 USD 폴백.
+          currency: bookingData.currency,
           note: reason
             ? `CocoTrip admin refund: ${String(reason).slice(0, 80)}`
             : 'CocoTrip admin refund',
@@ -234,6 +266,11 @@ export default async function handler(req, res) {
           return res.end(JSON.stringify(_err(result.error, result.code)));
         }
         paypalRefund = result.refund;
+        // 🟠 F3c-lite (옵션 B, 2026-07-16): PENDING 은 비종단 — REFUNDED 종단은 유지하되 운영자에게
+        //   관측 알럿. FAILED 뒤집힘은 F4 webhook(REFUND_FAILED)이 치유. strict 전환은 샌드박스 실측 후.
+        if (result.pending) {
+          notify('admin', `🟠 <b>admin 환불 PENDING 관측 (eCheck?)</b>\n<code>${bookingRef}</code>\nrefund: <code>${paypalRefund.id}</code>\n→ 실패 시 REFUND.FAILED webhook 이 REFUND_FAILED 로 전환`).catch(() => {});
+        }
       } else {
         console.warn('[admin-booking-action] mark-refunded without captureID — Firestore-only refund (manual PayPal expected):', bookingRef);
       }

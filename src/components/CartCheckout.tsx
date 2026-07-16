@@ -20,7 +20,9 @@ function getPaypal(): PaypalButtonsApi | undefined {
   return (window as unknown as { paypal?: PaypalButtonsApi }).paypal;
 }
 
-type Status = 'idle' | 'creating' | 'ready' | 'processing' | 'success' | 'error';
+// 🔴 'review' = 결제는 캡처됐지만 서버 무결성 검증 불일치 → 예약 미확정(PAYMENT_REVIEW).
+//   success/error 와 반드시 구분: success 표시 = 미확정 예약 오인, error 표시 = 재결제 → 이중청구.
+type Status = 'idle' | 'creating' | 'ready' | 'processing' | 'success' | 'review' | 'error';
 
 // ── 검수 라벨 (인라인 4-lang — locale JSON 무수정) ──
 type Lang = 'en' | 'ko' | 'ja' | 'zh';
@@ -146,7 +148,13 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
             body: JSON.stringify({ orderID: data.orderID, userEmail: user?.email || '' }),
           });
           const json = await res.json();
-          if (json.ok) { setStatus('success'); await clear(); }
+          // 🔴 결제 캡처됨 + 무결성 불일치 → 예약 미확정(HTTP 202). 성공으로 표시하면 미확정 예약을
+          //   확정으로 오인시키고, 실패로 표시하면 사용자가 재결제해 이중청구가 된다 → 전용 상태.
+          //   장바구니는 비운다 — 남겨두면 같은 항목으로 재결제할 수 있어 중복 결제 위험.
+          if (json.finalized === false || json.bookingStatus === 'PAYMENT_REVIEW') {
+            setStatus('review'); await clear();
+          }
+          else if (json.ok) { setStatus('success'); await clear(); }
           else { setError(json.error || 'Capture failed'); setStatus('error'); }
         } catch (e) {
           setError(e instanceof Error ? e.message : 'capture error');
@@ -158,6 +166,25 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' },
     }).render('#cart-paypal-btn');
   }, [orderID, paypalReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🔴 결제 접수 · 예약 확인 중 — "확정" 표현 금지 + 재결제 만류(이중청구 방지).
+  if (status === 'review') {
+    return (
+      <div className="cocotrip-mobile-cart-checkout p-6 text-center">
+        <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
+        <p className="text-white font-semibold mb-1">{c.checkoutReview || 'Payment received'}</p>
+        <p className="text-white/55 text-sm mb-3">
+          {c.checkoutReviewSub || 'Your booking is pending verification. We will contact you by email once confirmed.'}
+        </p>
+        <p className="text-amber-300 text-xs mb-5 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2">
+          {c.checkoutReviewWarn || 'Please do not pay again — it may result in a duplicate charge.'}
+        </p>
+        <button onClick={onClose} className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
+          {c.close || 'Done'}
+        </button>
+      </div>
+    );
+  }
 
   if (status === 'success') {
     return (
