@@ -18,10 +18,17 @@
  *                                             ├─ plans/{planId} 저장  ← tx **밖**
  *                                             └─ finalize tx ─→ ISSUED
  *
- * **왜 3단계인가 — plans 문서를 트랜잭션에 넣을 수 없기 때문이다.**
- *   plans 문서는 최대 900KB(planPersister SIZE_LIMIT_BYTES)이고, 저장 직전 truncation 루프가
- *   `days.pop()` 으로 문서를 **in-place mutate** 한다. 트랜잭션 재시도는 콜백을 재실행하므로
- *   이미 pop 된 days 위에서 다시 돌아 데이터가 손상된다.
+ * **왜 3단계인가 — plans 저장을 지금 구조에서 트랜잭션에 넣을 수 없기 때문이다.**
+ *   저장 직전 truncation 루프가 `days.pop()` 으로 문서를 **in-place mutate** 한다. 트랜잭션은
+ *   충돌 시 콜백을 재실행하므로, 이미 pop 된 days 위에서 다시 돌아 데이터가 손상된다.
+ *   (Firestore 공식: 트랜잭션 콜백 안에서 application state 를 직접 mutate 하지 말 것.)
+ *
+ *   ⚠️ 정정 (2026-07-15, 적대적 리뷰 지적): 이전 주석은 "900KB 라서 트랜잭션에 못 넣는다" 고 썼는데
+ *      **크기는 블로커가 아니다** — Firestore 트랜잭션 request 상한은 10MiB 다. 진짜 블로커는
+ *      위의 in-place mutation 이고, 그건 truncation 을 트랜잭션 **밖**에서 끝내고 완성된 immutable
+ *      finalDoc 만 콜백에서 set 하면 사라진다. 즉 3단계는 **현 구조에 대한 최소 침습 선택**이지
+ *      물리적 불가능이 아니다. 대안(원자적 plan+claim 트랜잭션)은 index entry 크기·lock deadline
+ *      실측이 필요해 이번 범위에서 채택하지 않았다 — 미검증으로 남긴다.
  *   → 대용량 write 를 tx 밖에 두되, 그 **직전에** COMMITTING 을 원자적으로 선점한다.
  *     그러면 takeover 된 오래된 attempt 는 beginCommit 에서 fencing 에 걸려 plans 저장 단계에
  *     아예 진입하지 못한다. ISSUING 에서 바로 plans 를 저장하면 이 TOCTOU 가 남는다.
@@ -60,6 +67,16 @@ export const PLAN_ISSUANCE_STATUS = {
   ISSUING: 'ISSUING',
   COMMITTING: 'COMMITTING',
   ISSUED: 'ISSUED',
+  /**
+   * COMMITTING 인데 lease 가 만료됐고 완성 plan 도 없다 = 저장 도중 죽었거나 저장이 실패했다.
+   * **자동 takeover 하지 않는다**(아래 §takeover 참조) → 운영자가 봐야 하는 상태로 못박는다.
+   *
+   * 이 상태가 없었을 때: 그런 claim 은 영구히 IN_PROGRESS 를 뱉었다. 고객은 결제했는데 플랜을
+   * 영영 못 받고, 운영자에게 알림도 없고, 콘솔에서 문서를 지우는 것 말고 길이 없었다.
+   * (적대적 리뷰 지적, 2026-07-15 — "중복 발급보다 잠금이 낫다" 는 **일시적이고 관측·복구
+   *  가능한** 잠금에만 해당한다. 영구 + 무알림 + 복구API 없음은 완료가 아니다.)
+   */
+  NEEDS_REVIEW: 'NEEDS_REVIEW',
 };
 
 /**
@@ -79,6 +96,8 @@ export const PLAN_ISSUANCE_CODE = {
   IN_PROGRESS: 'PLAN_GENERATION_IN_PROGRESS',
   UNAVAILABLE: 'PLAN_ISSUANCE_CHECK_UNAVAILABLE',
   CLAIM_LOST: 'PLAN_CLAIM_LOST',
+  /** 저장 도중 중단 → 자동 복구 불가. 운영자 확인 필요(재결제 유도 금지). */
+  NEEDS_REVIEW: 'PLAN_ISSUANCE_NEEDS_REVIEW',
 };
 
 function issuanceRef(adminDb, orderId) {
@@ -169,9 +188,40 @@ export async function claimPlanIssuance(adminDb, orderId, { uid, now } = {}) {
     // 완성 plan 이 있으면 새 생성 없이 ISSUED 로 복구하고, 없으면 **takeover 하지 않는다**
     // (저장 중일 수 있으므로 — 여기서 뺏으면 이중 저장 창이 열린다).
     if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 완성 plan 이 있으면 "저장 성공 + 확정 직전 종료" → 새 생성 없이 ISSUED 복구.
       const recovered = await recoverIfPlanComplete(tx, adminDb, ref, { orderId, planId: reservedPlanId }, nowMs);
       if (recovered) return { code: PLAN_ISSUANCE_CODE.DUPLICATE, detail: 'recovered committing → issued' };
-      return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'commit in progress' };
+
+      // 아직 저장 중일 수 있다 → 뺏지 않는다.
+      if (leaseAlive) return { code: PLAN_ISSUANCE_CODE.IN_PROGRESS, detail: 'commit in progress' };
+
+      // 🔴 lease 만료 + 완성 plan 없음 = 저장 도중 죽었거나 저장이 실패했다.
+      //
+      //   **자동 takeover 하지 않는다.** 내가 처음 생각한 근거("두 attempt 가 예약 planId 를
+      //   공유하니 같은 문서를 덮어쓸 뿐 → 안전")는 틀렸다:
+      //     ① persistPlan 의 plans.set 은 merge 없는 **전체 교체**다. 죽은 줄 알았던 A 의 늦은
+      //        set 이 B 의 완성 plan 을 통째로 덮는다. claim fencing 은 claim 만 막지 **이미
+      //        실행된 plan write 를 되돌리지 못한다** — "문서 1개" ≠ "올바른 결과 1개".
+      //     ② 더 나쁜 것: geminiPipeline 의 updatePlanProgressive 는 fire-and-forget 이고
+      //        `_streaming_in_progress: true` 를 **무조건 재설정**한다. A 의 지연 progressive
+      //        write 가 B 의 ready plan 뒤에 도착하면 사용자는 영원히 streaming 화면을 본다.
+      //     ③ lease 만료를 "worker 사망" 으로 단정할 수 없다 — Inngest worker 는 별 invocation
+      //        이라 최초 HTTP 요청(=lease 기준)보다 오래 산다.
+      //
+      //   → 중복 발급보다 잠금이 낫지만, 잠금은 **관측 가능하고 복구 가능**해야 한다.
+      //     NEEDS_REVIEW 로 못박아 호출자가 운영자에게 알리게 한다(paymentGate 가 알림 발사).
+      tx.update(ref, {
+        status: PLAN_ISSUANCE_STATUS.NEEDS_REVIEW,
+        needsReviewAt: new Date(nowMs).toISOString(),
+        needsReviewReason: 'commit lease expired without completed plan',
+        updatedAt: new Date(nowMs).toISOString(),
+      });
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'commit stalled — operator must reconcile' };
+    }
+
+    // 이미 NEEDS_REVIEW → 재알림 없이 같은 코드. (운영자가 콘솔에서 문서를 지우면 재시도 가능.)
+    if (d.status === PLAN_ISSUANCE_STATUS.NEEDS_REVIEW) {
+      return { code: PLAN_ISSUANCE_CODE.NEEDS_REVIEW, detail: 'already flagged for operator' };
     }
 
     if (d.status === PLAN_ISSUANCE_STATUS.ISSUING) {
@@ -235,11 +285,35 @@ export async function beginPlanCommit(adminDb, claim, { now } = {}) {
     const snap = await tx.get(ref);
     if (!snap.exists) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'claim gone' };
     const d = snap.data() || {};
+
+    // 소유권을 status 보다 **먼저** 본다 — 남의 claim 이면 어떤 status 든 차단(fencing).
+    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
+    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+
+    // 🔴 재진입 멱등 (2026-07-15, 적대적 리뷰 지적으로 발견).
+    //   Inngest step 은 **성공한 뒤에도** 재실행될 수 있다 — 성공 acknowledgement 가 유실되면
+    //   같은 event·같은 attempt 로 persistPlan step 전체가 다시 돈다(event.data 는 불변이라
+    //   attemptId/planId 도 동일하다).
+    //   이전엔 `status !== ISSUING` 을 무조건 CLAIM_LOST 로 봐서 이렇게 됐다:
+    //     첫 실행 성공(ISSUED) → step 재실행 → beginCommit CLAIM_LOST → persistPlan throw →
+    //     retry 소진 → onFailure 가 **이미 ready 인 plan 을 status:'error' 로 merge**
+    //     → 결제도 발급도 성공했는데 사용자 화면엔 실패로 보인다.
+    //   finalizePlanIssuance 는 같은 attempt 의 ISSUED 재진입을 이미 멱등 처리하고 있었는데
+    //   beginPlanCommit 만 빠져 있었다. 대칭을 맞춘다.
+    if (d.status === PLAN_ISSUANCE_STATUS.ISSUED) {
+      // 내 attempt 가 이미 확정했다 → 호출자는 plans 를 **다시 쓰면 안 된다**.
+      // 재실행된 step 의 itinerary 는 재생성된 것이라 정상 plan 을 덮어쓸 수 있다.
+      return { ok: true, alreadyIssued: true };
+    }
+    if (d.status === PLAN_ISSUANCE_STATUS.COMMITTING) {
+      // 내 attempt 가 저장 중이었다가 재실행됐다(확정 전 종료). 이어서 진행 = 안전 —
+      // 예약 planId 로 같은 문서를 덮어쓰므로 두 번째 plan 문서가 생기지 않는다.
+      return { ok: true, resumed: true };
+    }
     if (d.status !== PLAN_ISSUANCE_STATUS.ISSUING) {
       return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: `status=${String(d.status)}` };
     }
-    if (d.attemptId !== claim.attemptId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'attempt fenced' };
-    if (d.planId !== claim.planId) return { code: PLAN_ISSUANCE_CODE.CLAIM_LOST, detail: 'planId mismatch' };
+
     tx.update(ref, {
       status: PLAN_ISSUANCE_STATUS.COMMITTING,
       updatedAt: new Date(nowMs).toISOString(),

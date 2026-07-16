@@ -295,9 +295,14 @@ export default async function handler(req, res) {
       headers, bodyString, webhookId, isSandbox: false,
     });
     if (!verifyResult.verified && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
-      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook)
+      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook).
+      // 🔴 (2026-07-16) sandbox 웹훅은 **자기만의 Webhook ID** 를 갖는다(대시보드 별도 등록).
+      //   live ID 로 sandbox verify 를 치면 무조건 FAILURE → 샌드박스 이벤트 전부 폐기
+      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가. 미설정 시 기존 폴백 유지.
       const sandboxResult = await verifyWebhookSignature({
-        headers, bodyString, webhookId, isSandbox: true,
+        headers, bodyString,
+        webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || webhookId,
+        isSandbox: true,
       });
       if (sandboxResult.verified) verifyResult = sandboxResult;
     }
@@ -516,9 +521,29 @@ export default async function handler(req, res) {
         priceKRW = bookingDoc.data().amountKRW || 0;
       } else {
         // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
+        // 🔴 F6 (2026-07-16): .limit(1) 제거. cart 형제 예약 N개가 하나의 captureID 를 공유하므로
+        //   (cart-capture.js) limit(1) 은 임의 1건이 아니라 Firestore equality 쿼리의 암묵
+        //   __name__ ASC 정렬 때문에 **항상 첫 라인(__L0)**만 골라 REFUNDED 로 마킹한다 → 실제
+        //   환불된 라인은 CONFIRMED 로 남고 엉뚱한 라인이 환불처리된다(기록 오류). size>1 이면
+        //   captureID 만으로 어느 라인 환불인지 특정 불가 → 자동 마킹 금지, 운영자 수동 확인.
         const captureFieldMatch = await adminDb.collection('bookings')
           .where('captureID', '==', captureId)
-          .limit(1).get();
+          .get();
+        if (captureFieldMatch.size > 1) {
+          await logWebhookEvent({
+            db: adminDb, eventId, eventType,
+            status: 'ambiguous',
+            detail: {
+              reason: 'captureID_shared_by_cart_siblings',
+              captureId,
+              candidates: captureFieldMatch.docs.map((d) => d.id),
+              refundedUSD,
+            },
+          });
+          await alertAdmin(`⚠️ <b>cart 환불 webhook — 형제 ${captureFieldMatch.size}건이 captureID 공유</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n→ 어느 라인 환불인지 수동 확인 필요`);
+          res.writeHead(200, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: true, status: 'ambiguous' }));
+        }
         if (!captureFieldMatch.empty) {
           bookingDoc = captureFieldMatch.docs[0];
           bookingsDocId = bookingDoc.id;
@@ -607,6 +632,105 @@ export default async function handler(req, res) {
 
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: true, status: 'refunded', bookingRef }));
+    }
+
+    // ─── PAYMENT.REFUND.FAILED / PAYMENT.REFUND.PENDING ─────────────
+    // 🔴 F4 (2026-07-16): 이전엔 이 두 이벤트에 핸들러가 없어 'unsupported' 로 폐기 + 200 ack 로
+    //   PayPal 재시도까지 차단됐다. PENDING 환불(eCheck)이 FAILED 로 뒤집혀도 DB 는 CANCELED/REFUNDED
+    //   그대로 = 고객은 "환불됨" 메일을 받았는데 돈은 안 감(미환불 은폐). 성공(CAPTURE.REFUNDED)만
+    //   처리되고 실패만 버려지는 비대칭이 핵심이었다.
+    //   ⚠️ PAYMENT.REFUND.COMPLETED 는 존재하지 않는다 — 완료는 PAYMENT.CAPTURE.REFUNDED 로 온다.
+    //   🔑 운영자: PayPal Developer Dashboard → Webhooks 에 두 이벤트 구독을 추가해야 실제로 도착한다.
+    if (eventType === 'PAYMENT.REFUND.FAILED' || eventType === 'PAYMENT.REFUND.PENDING') {
+      const refundId = event?.resource?.id || null;
+      const captureId = extractRefundedCaptureId(event); // refund 이벤트도 links.up 이 capture 를 가리킴
+      const isFailed = eventType === 'PAYMENT.REFUND.FAILED';
+
+      // 매칭 1순위 = refundID (cancelBooking·admin 이 저장, 환불 1건당 유일 → 형제 모호성 없음).
+      let matched = null;
+      if (refundId) {
+        const byRefund = await adminDb.collection('bookings').where('refundID', '==', refundId).get();
+        if (byRefund.size === 1) matched = byRefund.docs[0];
+      }
+      // 폴백 = captureID. cart 형제가 공유하므로 F6 과 동일한 모호성 가드.
+      if (!matched && captureId) {
+        const byCapture = await adminDb.collection('bookings').where('captureID', '==', captureId).get();
+        if (byCapture.size > 1) {
+          await logWebhookEvent({
+            db: adminDb, eventId, eventType,
+            status: 'ambiguous',
+            detail: { reason: 'captureID_shared_by_cart_siblings', refundId, captureId, candidates: byCapture.docs.map((d) => d.id) },
+          });
+          await alertAdmin(`⚠️ <b>환불 ${isFailed ? '실패' : 'PENDING'} webhook — cart 형제 공유로 특정 불가</b>\n\nRefund: <code>${refundId}</code>\nCapture: <code>${captureId}</code>\n→ 수동 확인 필요`);
+          res.writeHead(200, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: true, status: 'ambiguous' }));
+        }
+        if (byCapture.size === 1) matched = byCapture.docs[0];
+      }
+
+      if (!matched) {
+        await logWebhookEvent({
+          db: adminDb, eventId, eventType,
+          status: 'unmatched',
+          detail: { reason: 'refund_not_in_bookings', refundId, captureId },
+        });
+        // FAILED 는 돈 문제 — 매칭 실패도 조용히 버리지 않는다.
+        if (isFailed) await alertAdmin(`🚨 <b>환불 실패 webhook — booking 미매칭</b>\n\nRefund: <code>${refundId}</code>\nCapture: <code>${captureId}</code>\n→ PayPal 거래내역에서 수동 대조 필요`);
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'unmatched' }));
+      }
+
+      if (!isFailed) {
+        // PENDING = 관측 기록만. 종단 status 는 건드리지 않는다 (정상 eCheck 흐름일 수 있음 —
+        //   완료되면 PAYMENT.CAPTURE.REFUNDED 가 온다).
+        try {
+          await adminDb.collection('bookings').doc(matched.id).set({
+            refundStatus: 'PENDING', updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (e) { console.warn('[paypal-webhook] refund-pending mark failed:', e.message); }
+        await logWebhookEvent({
+          db: adminDb, eventId, eventType,
+          status: 'processed',
+          detail: { bookingsDocId: matched.id, refundId, captureId, refundStatus: 'PENDING' },
+        });
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'refund_pending_recorded' }));
+      }
+
+      // FAILED — 돈이 고객에게 안 갔다. 종단 상태를 되돌려 은폐를 끊고 운영자를 부른다.
+      //   자동 재환불은 하지 않는다(운영자가 원인 확인 후 수동 — 재시도 폭주 방지).
+      const failUpdates = {
+        status: 'REFUND_FAILED',
+        refundStatus: 'FAILED',
+        refundFailedAt: FieldValue.serverTimestamp(),
+        refundFailedSource: 'webhook',
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      try {
+        await adminDb.collection('bookings').doc(matched.id).set(failUpdates, { merge: true });
+      } catch (e) { console.warn('[paypal-webhook] refund-failed mark failed:', e.message); }
+      // admin mark-refunded 경로는 pending_bookings 에도 REFUNDED 를 썼다 — best-effort 동기화.
+      const failBookingRef = matched.data().bookingRef || matched.id;
+      try {
+        await adminDb.collection('pending_bookings').doc(failBookingRef).update(failUpdates);
+      } catch (e) { console.warn('[paypal-webhook] pending_bookings refund-failed sync skipped:', e.message); }
+
+      await logWebhookEvent({
+        db: adminDb, eventId, eventType,
+        status: 'processed',
+        detail: { bookingsDocId: matched.id, bookingRef: failBookingRef, refundId, captureId },
+      });
+      await alertAdmin([
+        '🚨 <b>환불 실패 (PayPal Webhook) — 고객에게 돈이 안 갔음</b>',
+        '',
+        `<b>예약번호:</b> <code>${failBookingRef}</code>`,
+        `<b>Refund:</b> <code>${refundId}</code>`,
+        `<b>Capture:</b> <code>${captureId}</code>`,
+        '→ status=REFUND_FAILED 로 전환됨. PayPal 에서 원인 확인 후 수동 재환불 필요',
+      ].join('\n'));
+
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: true, status: 'refund_failed', bookingRef: failBookingRef }));
     }
 
     // ─── 그 외 이벤트 ────────────────────────────────────────────────

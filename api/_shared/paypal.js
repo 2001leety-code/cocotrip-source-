@@ -33,6 +33,20 @@ export function getPaypalCredentials(isSandbox) {
   return { clientId, secret, baseUrl };
 }
 
+/**
+ * 토큰 요청 상한 (2026-07-15, 적대적 리뷰 지적).
+ *
+ * 이전엔 타임아웃이 **없었다**. 정상은 1초 미만인데, 멈추면 서버리스 인스턴스가 죽을 때까지
+ * (ai-planner-full 은 최대 800초) 대기했다. 그 사이 사용자는 재시도하고, **환불 경로에서는
+ * 그게 곧 이중환불 창**이다(paypal-refund.js 가 refund POST 에만 20초를 걸어놔서
+ * "무한 대기 금지" 가 절반만 참이었다).
+ *
+ * 15초는 정상 응답(<1초)의 10배 이상이라 정상 트래픽에 영향이 없고, 병적으로 느린 경우만 끊는다.
+ * ⚠️ 이 모듈은 create/capture/refund/gate 가 **전부** 쓴다. 값을 줄이려면 각 호출자의 재시도
+ *    의미를 함께 봐야 한다 — 특히 환불은 타임아웃이 "실패" 가 아니라 "결과 미상" 이다.
+ */
+const TOKEN_TIMEOUT_MS = 15_000;
+
 export async function getPaypalAccessToken(isSandbox) {
   const { clientId, secret, baseUrl } = getPaypalCredentials(isSandbox);
   if (!clientId || !secret) {
@@ -46,6 +60,7 @@ export async function getPaypalAccessToken(isSandbox) {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

@@ -192,6 +192,65 @@ describe('상태 전이와 fencing', () => {
   });
 });
 
+// 🔴 적대적 리뷰(2026-07-15)가 지적한 실패 모드. Inngest step 은 **성공한 뒤에도** 재실행될 수
+// 있다 — 성공 acknowledgement 가 유실되면 같은 event·같은 attempt 로 persistPlan step 전체가
+// 다시 돈다(event.data 는 불변이라 attemptId/planId 도 동일).
+// 이전 구현은 `status !== ISSUING` 을 무조건 CLAIM_LOST 로 봐서:
+//   첫 실행 성공(ISSUED) → step 재실행 → CLAIM_LOST → throw → retry 소진 → onFailure 가
+//   **이미 ready 인 plan 을 status:'error' 로 merge** → 결제·발급은 성공했는데 화면엔 실패.
+// finalizePlanIssuance 는 같은 attempt 의 ISSUED 재진입을 이미 멱등 처리했는데 beginPlanCommit 만
+// 빠져 있었다.
+describe('🔴 beginPlanCommit 재진입 — Inngest step 재실행 (같은 attempt)', () => {
+  it('이미 ISSUED + 같은 attempt → alreadyIssued (CLAIM_LOST 아님)', async () => {
+    const db = makeFakeDb();
+    const { claim } = (await claimPlanIssuance(db, ORDER, {})) as { claim: { orderId: string; attemptId: string; planId: string } };
+    await beginPlanCommit(db, claim);
+    await finalizePlanIssuance(db, claim);
+    const again = await beginPlanCommit(db, claim);   // step 성공 후 재실행
+    expect(again).toEqual({ ok: true, alreadyIssued: true });
+    expect(db._peek(CLAIM_PATH)!.status).toBe(PLAN_ISSUANCE_STATUS.ISSUED);  // 되돌아가지 않는다
+  });
+
+  it('COMMITTING + 같은 attempt → resumed (확정 전 죽었다가 재실행 = 이어서 진행)', async () => {
+    const db = makeFakeDb();
+    const { claim } = (await claimPlanIssuance(db, ORDER, {})) as { claim: { orderId: string; attemptId: string; planId: string } };
+    await beginPlanCommit(db, claim);
+    const again = await beginPlanCommit(db, claim);
+    expect(again).toEqual({ ok: true, resumed: true });
+    expect(db._peek(CLAIM_PATH)!.status).toBe(PLAN_ISSUANCE_STATUS.COMMITTING);
+  });
+
+  it('🔴 ISSUED 인데 **다른** attempt → 여전히 CLAIM_LOST (멱등이 fencing 을 뚫으면 안 된다)', async () => {
+    const db = makeFakeDb();
+    const { claim } = (await claimPlanIssuance(db, ORDER, {})) as { claim: { orderId: string; attemptId: string; planId: string } };
+    await beginPlanCommit(db, claim);
+    await finalizePlanIssuance(db, claim);
+    const r = await beginPlanCommit(db, { ...claim, attemptId: 'someone-else' });
+    expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.CLAIM_LOST);
+  });
+
+  it('🔴 ISSUED 인데 planId 불일치 → CLAIM_LOST', async () => {
+    const db = makeFakeDb();
+    const { claim } = (await claimPlanIssuance(db, ORDER, {})) as { claim: { orderId: string; attemptId: string; planId: string } };
+    await beginPlanCommit(db, claim);
+    await finalizePlanIssuance(db, claim);
+    const r = await beginPlanCommit(db, { ...claim, planId: 'other-plan' });
+    expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.CLAIM_LOST);
+  });
+
+  it('전체 재실행 시퀀스: claim→begin→finalize→(재실행)begin→finalize 가 전부 성공', async () => {
+    const db = makeFakeDb();
+    const { claim } = (await claimPlanIssuance(db, ORDER, {})) as { claim: { orderId: string; attemptId: string; planId: string } };
+    expect(await beginPlanCommit(db, claim)).toEqual({ ok: true });
+    db._seed(`plans/${claim.planId}`, readyPlan(claim.planId));
+    expect(await finalizePlanIssuance(db, claim)).toEqual({ ok: true });
+    // Inngest ack 유실 → step 전체 재실행. 어느 단계도 throw 하면 안 된다.
+    expect(await beginPlanCommit(db, claim)).toEqual({ ok: true, alreadyIssued: true });
+    expect(await finalizePlanIssuance(db, claim)).toEqual({ ok: true });
+    expect(db._peek(CLAIM_PATH)!.status).toBe(PLAN_ISSUANCE_STATUS.ISSUED);
+  });
+});
+
 describe('COMMITTING 복구 — 저장 성공 + 확정 직전 종료', () => {
   it('COMMITTING + 완성 plan 존재 → 새 생성 없이 ISSUED 복구 후 DUPLICATE', async () => {
     const db = makeFakeDb();
@@ -204,12 +263,56 @@ describe('COMMITTING 복구 — 저장 성공 + 확정 직전 종료', () => {
     expect(doc.recoveredAt).toBeTruthy();
   });
 
-  it('COMMITTING + plan 없음 → takeover 하지 않고 IN_PROGRESS (저장 중일 수 있음)', async () => {
+  it('COMMITTING + plan 없음 + lease 살아있음 → takeover 안 함 (저장 중일 수 있음)', async () => {
     const db = makeFakeDb();
-    db._seed(CLAIM_PATH, { status: PLAN_ISSUANCE_STATUS.COMMITTING, attemptId: 'busy', planId: 'plan-1' });
+    db._seed(CLAIM_PATH, {
+      status: PLAN_ISSUANCE_STATUS.COMMITTING, attemptId: 'busy', planId: 'plan-1',
+      leaseExpiresAt: Date.now() + PLAN_ISSUANCE_LEASE_MS,
+    });
     const r = await claimPlanIssuance(db, ORDER, {});
     expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.IN_PROGRESS);
     expect(db._peek(CLAIM_PATH)!.attemptId).toBe('busy');
+  });
+
+  // 🔴 적대적 리뷰(2026-07-15) 지적: 이전엔 COMMITTING 에 lease 검사가 아예 없어서 저장 도중
+  //   죽으면 **영구히 IN_PROGRESS** 였다. 고객은 결제했는데 플랜을 영영 못 받고 알림도 없었다.
+  //   자동 takeover 는 하지 않는다 — persistPlan 의 plans.set 이 merge 없는 전체 교체라 죽은 줄
+  //   알았던 attempt 의 늦은 write 가 새 결과를 덮고, updatePlanProgressive 는 fire-and-forget 으로
+  //   `_streaming_in_progress:true` 를 되살린다. 대신 **관측 가능한** NEEDS_REVIEW 로 못박는다.
+  it('🔴 COMMITTING + plan 없음 + lease 만료 → NEEDS_REVIEW (영구 무알림 잠금 아님)', async () => {
+    const db = makeFakeDb();
+    db._seed(CLAIM_PATH, {
+      status: PLAN_ISSUANCE_STATUS.COMMITTING, attemptId: 'dead', planId: 'plan-1',
+      leaseExpiresAt: Date.now() - 1,
+    });
+    const r = await claimPlanIssuance(db, ORDER, {});
+    expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.NEEDS_REVIEW);
+    const doc = db._peek(CLAIM_PATH)!;
+    expect(doc.status).toBe(PLAN_ISSUANCE_STATUS.NEEDS_REVIEW);
+    expect(doc.needsReviewAt).toBeTruthy();
+    expect(doc.needsReviewReason).toBeTruthy();
+    // 🔴 takeover 하지 않았다 — 새 attempt 에게 발급권을 주지 않는다.
+    expect('claim' in r).toBe(false);
+  });
+
+  it('🔴 COMMITTING + lease 만료인데 완성 plan 이 있으면 → NEEDS_REVIEW 아니라 ISSUED 복구', async () => {
+    const db = makeFakeDb();
+    db._seed(CLAIM_PATH, {
+      status: PLAN_ISSUANCE_STATUS.COMMITTING, attemptId: 'dead', planId: 'plan-1',
+      leaseExpiresAt: Date.now() - 1,
+    });
+    db._seed('plans/plan-1', readyPlan('plan-1'));
+    const r = await claimPlanIssuance(db, ORDER, {});
+    expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.DUPLICATE);
+    expect(db._peek(CLAIM_PATH)!.status).toBe(PLAN_ISSUANCE_STATUS.ISSUED);
+  });
+
+  it('이미 NEEDS_REVIEW → 같은 코드 반환 (재알림은 호출자의 throttle 이 담당)', async () => {
+    const db = makeFakeDb();
+    db._seed(CLAIM_PATH, { status: PLAN_ISSUANCE_STATUS.NEEDS_REVIEW, attemptId: 'dead', planId: 'plan-1' });
+    const r = await claimPlanIssuance(db, ORDER, {});
+    expect((r as { code: string }).code).toBe(PLAN_ISSUANCE_CODE.NEEDS_REVIEW);
+    expect('claim' in r).toBe(false);
   });
 
   it('만료 ISSUING + 완성 plan 존재 → 새 생성 없이 ISSUED 복구', async () => {

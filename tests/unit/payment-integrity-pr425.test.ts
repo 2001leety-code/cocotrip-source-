@@ -78,27 +78,31 @@ describe('PR #425 CY5 — admin mark-refunded calls PayPal API when captureID pr
     expect(adminAction).toMatch(/from\s+['"]\.\/_shared\/paypal-refund\.js['"]/);
   });
 
-  it('invokes refundPaypalCapture inside the mark-refunded branch', () => {
-    // Pull the mark-refunded section and assert the call appears there.
+  // ⚠️ 고정 길이 slice(idx, idx+5000) 는 함정이었다 — 분기 안에 주석 한 줄만 추가돼도
+  //   검사 대상이 윈도우 밖으로 밀려 무관한 실패가 난다(2026-07-16 F3c-lite 추가로 실제 발생).
+  //   섹션 경계 = 다음 action 분기(mark-canceled)까지로 잡는다.
+  function markRefundedSection() {
     const idx = adminAction.indexOf("action === 'mark-refunded'");
     expect(idx).toBeGreaterThan(-1);
-    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
-    expect(section).toMatch(/refundPaypalCapture\s*\(/);
+    const end = adminAction.indexOf("action === 'mark-canceled'", idx);
+    return adminAction.slice(idx, end > idx ? end : undefined);
+  }
+
+  it('invokes refundPaypalCapture inside the mark-refunded branch', () => {
+    expect(markRefundedSection()).toMatch(/refundPaypalCapture\s*\(/);
   });
 
   it('aborts the Firestore update when PayPal refund fails', () => {
     // If PayPal refund fails we must NOT set status='REFUNDED' — otherwise
     // mypage/email say "refunded" but the money is still with the merchant
     // (exactly the CY5 production bug we are fixing).
-    const idx = adminAction.indexOf("action === 'mark-refunded'");
-    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
+    const section = markRefundedSection();
     expect(section).toMatch(/if\s*\(\s*!result\.ok\s*\)/);
     expect(section).toMatch(/return\s+res\.end\(JSON\.stringify\(_err/);
   });
 
   it('records refundSource=paypal-api vs manual on the Firestore doc', () => {
-    const idx = adminAction.indexOf("action === 'mark-refunded'");
-    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
+    const section = markRefundedSection();
     expect(section).toMatch(/refundSource:\s*['"]paypal-api['"]/);
     expect(section).toMatch(/refundSource:\s*['"]manual['"]/);
   });
