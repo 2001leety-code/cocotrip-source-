@@ -732,7 +732,10 @@ export default async function handler(req, res) {
                 note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
                 isSandbox: _isSandboxCapture,
               });
-              refundOk = !!refundRes?.ok;
+              // 🔴 F3b (2026-07-16): PENDING(비종단)을 REFUNDED 로 확정하면 미환불 은폐다. final 이
+              //   true(=COMPLETED)일 때만 REFUNDED, PENDING 은 아래 REFUND_PENDING 분기로 떨어뜨린다.
+              //   (helper F3a 가 PENDING 에 final:false 를 준다 — paypal-refund-idempotency.test.ts 보증.)
+              refundOk = !!(refundRes?.ok && refundRes?.final);
             } catch (refundErr) {
               console.error('[capturePaypalOrder] auto-refund failed (operator must refund manually):', refundErr.message);
             }

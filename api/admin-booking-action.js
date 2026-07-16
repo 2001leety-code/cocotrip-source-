@@ -106,6 +106,25 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Invalid action. Allowed: ${[...VALID_ACTIONS].join(', ')}`, 'INVALID_ACTION')));
     }
 
+    // 🔴 F1 money 가드 (2026-07-16): refundedKRW 는 운영자 자유입력(AdminPayments window.prompt)이라
+    //   '50,000'(한국 로케일 콤마)·'abc'·{} 가 들어올 수 있다. Number() 가 NaN 을 만들고
+    //   **NaN 과의 모든 비교는 false** 라 아래 mark-refunded 의 REFUND_EXCEEDS_ORIGINAL /
+    //   REFUND_ORIGINAL_UNKNOWN 가드가 둘 다 조용히 통과한다 → refundUSD=null → refundPaypalCapture
+    //   가 amount 를 생략 → PayPal 이 capture **전액** 환불(부분환불 의도가 전액환불로 집행 = 직접 손실).
+    //   ⚠️ 비교 연산으로는 NaN 을 원리적으로 못 거른다 — 반드시 별도 유한성 검사여야 한다.
+    //   ⚠️ 감사로그(admin_actions.add)보다 **앞**에 둔다: Firestore 는 NaN 을 doubleValue:null 로
+    //      수용해 throw 하지 않으므로, 뒤에 두면 "운영자가 얼마를 의도했는가" 포렌식이 오염된다.
+    //   refundedKRW 미지정(전액환불 의도)은 통과 — != null 로 걸러 amount 미지정 경로를 보존한다.
+    if (refundedKRW != null) {
+      const _krw = Number(refundedKRW);
+      if (!Number.isFinite(_krw) || _krw <= 0) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          `환불액이 올바른 숫자가 아닙니다 (받은 값: ${JSON.stringify(refundedKRW)})`,
+          'REFUND_AMOUNT_INVALID')));
+      }
+    }
+
     const adminDb = initAdminDb('admin-booking-action');
     if (!adminDb) {
       res.writeHead(500, JSON_HEADERS);
@@ -194,8 +213,10 @@ export default async function handler(req, res) {
           `환불액(₩${refundKrw.toLocaleString('ko-KR')})이 결제 원금(₩${originalKRW.toLocaleString('ko-KR')})을 초과합니다`,
           'REFUND_EXCEEDS_ORIGINAL')));
       }
-      // 부분환불 명시(refundedKRW 입력)인데 원금 정보가 없어 비례 검증 불가 → 자동 전액환불 대신 차단.
-      if (originalKRW <= 0 && refundedKRW != null) {
+      // 부분환불 명시(refundedKRW 입력)인데 원금 정보가 없거나 손상(NaN)이라 비례 검증 불가 →
+      //   자동 전액환불 대신 차단. F1b(2026-07-16): amountKRW 가 손상 문자열('1,000,000')이면
+      //   originalKRW=NaN 이 되고 NaN<=0 이 false 라 이 가드를 빠져나가 전액환불이 나갔다 → isFinite 확장.
+      if ((!Number.isFinite(originalKRW) || originalKRW <= 0) && refundedKRW != null) {
         res.writeHead(400, JSON_HEADERS);
         return res.end(JSON.stringify(_err(
           '결제 원금 정보가 없어 부분환불 금액을 검증할 수 없습니다 (전액환불은 금액 미지정으로 재시도)',

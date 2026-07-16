@@ -184,3 +184,88 @@ describe('성공/실패 판정 — 기존 계약 보존', () => {
     expect(r.error).toMatch(/HTTP 422/);
   });
 });
+
+// F1c (2026-07-16) — refundUSD 백스톱. 호출자가 NaN/0/음수를 흘려도 helper 에서 fail-closed.
+// amount 없는 body = capture 전액환불이라, 잘못된 숫자가 조용히 전액환불로 승격되는 것을 막는다.
+describe('F1c — refundUSD 유한성 백스톱 (helper fail-closed, 미래 호출자까지 방어)', () => {
+  it.each([
+    ['비숫자 문자열', 'abc'],
+    ['실제 NaN', NaN],
+    ['Infinity', Infinity],
+    ['0', 0],
+    ['음수', -1],
+    ['빈 객체', {}],
+  ])('잘못된 refundUSD=%s → REFUND_AMOUNT_INVALID, fetch 0회 (돈 안 움직임)', async (_l, bad) => {
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k', refundUSD: bad as never });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe('REFUND_AMOUNT_INVALID');
+    expect(calls).toHaveLength(0);   // ★ 뮤테이션 실증: 백스톱 삭제 시 amount 생략 = 전액환불 요청이 나감
+  });
+
+  it('refundUSD 미지정 (전액환불 의도) → fetch 호출 + amount 생략 (회귀 없음)', async () => {
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(true);
+    expect(lastBody().amount).toBeUndefined();
+  });
+
+  it('정상 refundUSD="357.14" → fetch 호출 + amount.value 전달', async () => {
+    await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k', refundUSD: '357.14' });
+    expect(lastBody().amount.value).toBe('357.14');
+  });
+});
+
+// F5 (2026-07-16) — 송신 전 확정실패 vs 송신 후 미상 분리.
+// 요청 생성 단계의 동기 throw(헤더 ByteString 위반 등)는 바이트가 나가기 전이라 돈이 확실히 안 움직였다.
+// 타임아웃/소켓단절(미상)과 성격이 정반대다. 판별자 = e.cause (송신 전=undefined / 송신 후=Error).
+describe('F5 — 송신 전 확정실패(REFUND_REQUEST_INVALID) vs 송신 후 미상(NETWORK_ERROR)', () => {
+  it('송신 전 TypeError(cause 없음) → REFUND_REQUEST_INVALID (돈 안 움직임)', async () => {
+    global.fetch = vi.fn(async () => { throw new TypeError('Cannot convert argument to a ByteString'); }) as never;
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe('REFUND_REQUEST_INVALID');
+    expect(r.error).toMatch(/no money moved/);
+  });
+
+  it('송신 후 TypeError(cause 있음) → PAYPAL_NETWORK_ERROR (미상 유지, 회귀 없음)', async () => {
+    global.fetch = vi.fn(async () => { throw Object.assign(new TypeError('fetch failed'), { cause: new Error('ECONNRESET') }); }) as never;
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.code).toBe('PAYPAL_NETWORK_ERROR');
+  });
+
+  it('🔴 실제 non-ASCII 멱등키 → undici Headers 가 던짐 → REFUND_REQUEST_INVALID', async () => {
+    // 모킹된 status 로 뭉개지 않고 실제 Headers 생성자로 ByteString 검증을 트리거한다.
+    global.fetch = vi.fn(async (_url: unknown, init: any) => {
+      new Headers(init.headers);  // 비-ASCII 헤더 값이면 여기서 TypeError(cause 없음)
+      return { ok: true, status: 201, json: async () => ({ id: 'R', status: 'COMPLETED' }) };
+    }) as never;
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: '예약123' });
+    expect(r.code).toBe('REFUND_REQUEST_INVALID');
+  });
+});
+
+// F3 (2026-07-16) — PENDING 은 COMPLETED 와 다르다. 이전엔 둘 다 ok:true 로 뭉개 호출자가
+// PENDING(비종단, eCheck 등)을 REFUNDED 로 확정했다. final 플래그로 종단 성공만 표시한다.
+// ok:true 는 **유지**한다(기존 계약 보존) — final 로만 구분.
+describe('F3 — 환불 상태: COMPLETED 만 final, PENDING 은 비종단, 미지의 값은 fail-safe', () => {
+  it('COMPLETED → ok:true, final:true', async () => {
+    mockPaypal({ id: 'R', status: 'COMPLETED' });
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(true);
+    expect(r.final).toBe(true);
+  });
+
+  it('PENDING → ok:true, final:false, pending:true (종단 아님)', async () => {
+    mockPaypal({ id: 'R', status: 'PENDING' });
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(true);
+    expect(r.final).toBe(false);
+    expect(r.pending).toBe(true);
+  });
+
+  it.each(['CANCELLED', 'FAILED', 'SOME_NEW_STATUS'])('미지/실패 status=%s → ok:false (열린 enum fail-safe)', async (s) => {
+    mockPaypal({ id: 'R', status: s });
+    const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: 'k' });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe('PAYPAL_REFUND_FAILED');
+  });
+});

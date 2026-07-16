@@ -41,6 +41,12 @@ const CORS = {
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 const _ok  = (data) => ({ ok: true, data });
+
+// 🔴 F2 (2026-07-16): 결과 **미상**(요청은 나갔으나 응답을 못 봄) 코드 집합. "환불 안 됨" 이 아니다 —
+//   PayPal 이 처리했을 수 있다. 이 코드들은 CONFIRMED 로 되돌리면 안 된다(재시도 → 이중환불 위험).
+//   확정 실패(돈 확실히 안 움직임)는 helper 가 별도 코드로 준다: PAYPAL_AUTH_FAILED / NO_CAPTURE_ID /
+//   NO_IDEMPOTENCY_KEY / REFUND_REQUEST_INVALID(F5) / REFUND_AMOUNT_INVALID(F1c) / PAYPAL_REFUND_FAILED.
+const REFUND_OUTCOME_UNKNOWN = new Set(['PAYPAL_REFUND_TIMEOUT', 'PAYPAL_NETWORK_ERROR']);
 const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 
 // Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
@@ -211,6 +217,20 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('captureID missing — PayPal refund impossible', 'NO_CAPTURE_ID')));
     }
 
+    // 🔴 F7/F8 보호조치 (2026-07-16): cart 자식 예약(parentOrderID 보유)은 형제와 하나의 captureID 를
+    //   공유한다(cart-capture.js). 여기서 개별 취소하면 24h 바이너리 정책상 refundRatio=1.0 →
+    //   refundUSD=null → refundPaypalCapture 가 amount 를 생략 → **capture 전액환불**(카트 전체)이 되어
+    //   라인 1건 취소가 카트 전부를 환불시킨다(직접 손실). 현재는 child doc 에 userEmail 이 없어 위
+    //   소유자 가드(403)가 우연히 막지만, 그건 설계가 아니라 필드 누락 사고다 — userEmail 한 줄만
+    //   추가되면 이 경로가 무장된다. parentOrderID 를 명시 거부해 그 사고를 원천 차단한다.
+    //   ⚠️ cart 라인별 환불의 올바른 해법은 capture 단위 환불 원장(capture_refunds/{captureID})이며 P1 밖이다.
+    if (booking.parentOrderID) {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err(
+        'Cart line items cannot be individually cancelled here — please contact support for cart refunds.',
+        'CART_CHILD_REFUND_UNSUPPORTED')));
+    }
+
     // 2026-05-03: AI 플래너 ($9.90)는 디지털 상품 — 결제 즉시 itinerary + PDF
     // 다운로드 가능 (캡쳐 가능). 환불해주면 사업자만 손해. 명시적 거부.
     // 차터/투어/공항픽업은 시간 기반 환불 정책 적용 (evaluateRefundPolicy).
@@ -306,8 +326,51 @@ export default async function handler(req, res) {
       isSandbox,
     });
     if (!refundResult.ok) {
-      // 환불 실패 → 선점(CANCELING) 해제해 CONFIRMED 복구(사용자 재시도 가능). best-effort.
-      try { await ref.update({ status: 'CONFIRMED', cancelClaimedAt: FieldValue.delete() }); } catch { /* non-critical */ }
+      const outcomeUnknown = REFUND_OUTCOME_UNKNOWN.has(refundResult.code);
+      // 🔴 F2 (2026-07-16): CAS 로만 상태를 되돌린다. 이전엔 무조건 `ref.update({status:'CONFIRMED'})`
+      //   였는데, 환불 처리 후 PayPal 이 쏘는 webhook(PAYMENT.CAPTURE.REFUNDED, t≈3s)이 먼저 REFUNDED
+      //   를 써놓으면 우리 복구(t≈21s)가 그걸 **덮어썼다**. webhook 은 eventId 멱등 + 이미 200 이라
+      //   재전송이 없어 복구 불능(영구 clobber). 그래서 선점 상태(CANCELING)일 때만 쓴다.
+      //   (tx 안에는 외부호출 없음 — get/update 만.)
+      try {
+        await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(ref);
+          const f = fresh.exists ? fresh.data() : null;
+          if (!f || f.status !== 'CANCELING') return; // webhook 등이 이미 확정 — 건드리지 않는다
+          if (outcomeUnknown) {
+            // 돈이 움직였는지 모른다 → CONFIRMED 로 되돌리는 것은 "환불 안 됨" 단정이므로 금지.
+            //   재시도도 막는다(멱등키 보존기간 미문서화 → 창 밖 재시도 = 진짜 이중환불).
+            tx.update(ref, {
+              status: 'REFUND_UNKNOWN',
+              refundUnknownAt: FieldValue.serverTimestamp(),
+              refundUnknownCode: refundResult.code,
+              refundIdempotencyKey: bookingID, // 운영자 수동 재시도가 같은 키를 쓸 수 있게 박제
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          } else {
+            // 확정 실패만 CONFIRMED 복구 = 사용자 재시도 허용. CAS 가 CONFIRMED 를 요구하므로 필수.
+            tx.update(ref, { status: 'CONFIRMED', cancelClaimedAt: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+          }
+        });
+      } catch (e) { console.error('[cancelBooking] post-refund state write failed:', e.message); }
+
+      if (outcomeUnknown) {
+        // 🔴 이 알럿이 load-bearing 이다. REFUND_UNKNOWN 상태는 읽는 코드가 없다(CANCELING 과 동일) →
+        //   텔레그램이 유일한 탐지 수단. throttle key 로 storm 시 flood 방지.
+        throttledTelegramAlert({
+          key: 'refund-outcome-unknown',
+          channel: 'admin',
+          severity: 'critical',
+          message: `🚨 <b>환불 결과 미상 — PayPal 대조 필요</b>\n`
+            + `<code>${escHtml(bookingID)}</code>\n`
+            + `capture: <code>${escHtml(booking.captureID)}</code>\n`
+            + `코드: ${escHtml(refundResult.code)}\n`
+            + `→ PayPal 거래내역에서 환불 여부 확인 후 수동 확정`,
+          context: { bookingID, code: refundResult.code },
+        }).catch(() => {});
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(_err('환불 처리를 확인 중입니다. 운영자가 확인 후 연락드립니다.', 'REFUND_PENDING_VERIFICATION')));
+      }
       res.writeHead(refundResult.status || 502, JSON_CORS);
       return res.end(JSON.stringify(_err(refundResult.error, refundResult.code || 'REFUND_FAILED')));
     }

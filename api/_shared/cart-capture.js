@@ -47,6 +47,11 @@ export function buildCartChildBookings(orderID, snapshot, base = {}) {
 
     // bookings/{childOrderID} child doc (capturePaypalOrder bookingDocPayload 와 동형 +
     // parent/line 식별). amountKRW = 스냅샷(고정 1400) authoritative — 라인별 환불(결정#5) 기준.
+    // ⚠️🔴 userEmail 을 여기 추가하지 말 것 (2026-07-16, F7/F8). 이 doc 에 userEmail 이 없어서
+    //   cancelBooking 의 소유자 가드가 cart 자식의 개별 취소를 막고 있다. userEmail 한 줄을 추가하면
+    //   그 가드가 풀리고 → refundRatio=1.0 → refundUSD=null → **capture 전액환불**(카트 전체)이 무장된다.
+    //   cancelBooking 에 parentOrderID 명시 거부 가드를 넣어 이중 방어했지만(그 가드가 진짜 방어벽),
+    //   cart 라인별 환불이 필요하면 capture 단위 환불 원장부터 설계할 것 — userEmail 추가가 먼저가 아니다.
     const bookingDoc = {
       bookingRef: childOrderID,
       orderID: childOrderID,

@@ -516,9 +516,29 @@ export default async function handler(req, res) {
         priceKRW = bookingDoc.data().amountKRW || 0;
       } else {
         // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
+        // 🔴 F6 (2026-07-16): .limit(1) 제거. cart 형제 예약 N개가 하나의 captureID 를 공유하므로
+        //   (cart-capture.js) limit(1) 은 임의 1건이 아니라 Firestore equality 쿼리의 암묵
+        //   __name__ ASC 정렬 때문에 **항상 첫 라인(__L0)**만 골라 REFUNDED 로 마킹한다 → 실제
+        //   환불된 라인은 CONFIRMED 로 남고 엉뚱한 라인이 환불처리된다(기록 오류). size>1 이면
+        //   captureID 만으로 어느 라인 환불인지 특정 불가 → 자동 마킹 금지, 운영자 수동 확인.
         const captureFieldMatch = await adminDb.collection('bookings')
           .where('captureID', '==', captureId)
-          .limit(1).get();
+          .get();
+        if (captureFieldMatch.size > 1) {
+          await logWebhookEvent({
+            db: adminDb, eventId, eventType,
+            status: 'ambiguous',
+            detail: {
+              reason: 'captureID_shared_by_cart_siblings',
+              captureId,
+              candidates: captureFieldMatch.docs.map((d) => d.id),
+              refundedUSD,
+            },
+          });
+          await alertAdmin(`⚠️ <b>cart 환불 webhook — 형제 ${captureFieldMatch.size}건이 captureID 공유</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n→ 어느 라인 환불인지 수동 확인 필요`);
+          res.writeHead(200, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: true, status: 'ambiguous' }));
+        }
         if (!captureFieldMatch.empty) {
           bookingDoc = captureFieldMatch.docs[0];
           bookingsDocId = bookingDoc.id;
