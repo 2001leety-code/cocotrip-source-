@@ -295,9 +295,14 @@ export default async function handler(req, res) {
       headers, bodyString, webhookId, isSandbox: false,
     });
     if (!verifyResult.verified && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
-      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook)
+      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook).
+      // 🔴 (2026-07-16) sandbox 웹훅은 **자기만의 Webhook ID** 를 갖는다(대시보드 별도 등록).
+      //   live ID 로 sandbox verify 를 치면 무조건 FAILURE → 샌드박스 이벤트 전부 폐기
+      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가. 미설정 시 기존 폴백 유지.
       const sandboxResult = await verifyWebhookSignature({
-        headers, bodyString, webhookId, isSandbox: true,
+        headers, bodyString,
+        webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || webhookId,
+        isSandbox: true,
       });
       if (sandboxResult.verified) verifyResult = sandboxResult;
     }
