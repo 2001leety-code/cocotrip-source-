@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { buildTourJsonLd } from './buildTourJsonLd';
+import { buildGallerySlides } from './buildGallerySlides';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
   CalendarCheck, Package, ChevronRight, Languages,
@@ -30,7 +31,7 @@ import { SuitabilityChips } from '@/components/tours/SuitabilityChips';
 import { useTourRating } from '@/hooks/useTourRating';
 import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 import { useTour } from '@/hooks/useTour';
-import type { I18nString, DriverLanguage } from '@/data/tours';
+import type { I18nString, DriverLanguage, TourPhoto } from '@/data/tours';
 import type { Language } from '@/i18n';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = {
@@ -247,7 +248,7 @@ export default function TourDetailPage() {
       </div>
 
       {/* ── 이미지 갤러리 슬라이더 ── */}
-      <ImageGallery images={tour.images} title={title} region={tour.region} isNight={tour.isNightTour} />
+      <ImageGallery images={tour.images} photos={tour.photos} title={title} region={tour.region} isNight={tour.isNightTour} />
 
       {/* ── 본문 ── */}
       <div className="tour-detail-content max-w-4xl mx-auto px-4 sm:px-6 -mt-4 relative z-10">
@@ -651,16 +652,19 @@ export default function TourDetailPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 interface ImageGalleryProps {
   images: string[];
+  /** 어드민 투어 photos[] (webp variants 보유) — 있으면 images 대신 srcset 렌더 */
+  photos?: TourPhoto[];
   title: string;
   region: string;
   isNight?: boolean;
 }
 
-function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
+function ImageGallery({ images, photos, title, isNight }: ImageGalleryProps) {
   const { t } = useLanguage();
   const [current, setCurrent] = useState(0);
   const [touchStartX, setTouchStartX] = useState(0);
-  const total = images.length;
+  const slides = buildGallerySlides(images, photos);
+  const total = slides.length;
 
   const prev = () => setCurrent(c => (c - 1 + total) % total);
   const next = () => setCurrent(c => (c + 1) % total);
@@ -677,15 +681,17 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 슬라이드 이미지들 */}
-      {images.map((src, i) => (
+      {/* 슬라이드 이미지들 — srcSet 은 variants 있는 photos[] 일 때만 (없으면 omit) */}
+      {slides.map((slide, i) => (
         <div
           key={i}
           className="absolute inset-0 transition-opacity duration-400"
           style={{ opacity: i === current ? 1 : 0, pointerEvents: i === current ? 'auto' : 'none' }}
         >
           <img
-            src={src}
+            src={slide.src}
+            srcSet={slide.srcSet}
+            sizes={slide.srcSet ? '100vw' : undefined}
             alt={`${title} ${i + 1}`}
             className="w-full h-full object-cover"
             loading={i === 0 ? 'eager' : 'lazy'}

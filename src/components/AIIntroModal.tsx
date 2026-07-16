@@ -4,7 +4,6 @@
  * 트리거: localStorage `COCO_AI_INTRO_SEEN_v1` 미존재 시 페이지 마운트 직후 자동 노출
  * 위치:   PlannerPage 에 마운트
  * 닫기:   "시작하기" 버튼, 배경 클릭, X 버튼 → 항상 flag 저장 (1회 노출 정책)
- *         "다시 보지 않기" 체크는 명시적 영구 차단 의도 (현재는 동일 동작이지만 별도 UX)
  *
  * 디자인은 OnboardingCouponModal 과 일관 유지 (Tailwind, 다크 그라데이션, lucide-react 아이콘).
  */
