@@ -87,6 +87,26 @@ export function initWhatsAppTracking() {
   }, { capture: true });
 }
 
+// One delegated listener covers desktop, mobile, and footer links even when
+// those layouts change independently.
+let blogTrackingAttached = false;
+export function initBlogTracking() {
+  if (typeof document === 'undefined' || blogTrackingAttached) return;
+  blogTrackingAttached = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target as HTMLElement | null;
+    const link = el && el.closest
+      ? (el.closest('a[href*="cocotripkr.blogspot.com"]') as HTMLAnchorElement | null)
+      : null;
+    if (!link) return;
+    trackEvent('blog_click', {
+      page_path: window.location.pathname,
+      target_url: link.href,
+      link_text: (link.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120),
+    });
+  }, { capture: true });
+}
+
 // ── UTM 보존 (광고 귀속) ──────────────────────────────────────────────
 // 광고 랜딩 시 utm_* 를 sessionStorage 에 저장 → SPA 내비게이션 후에도 유지된다.
 // getStoredUtm 을 모든 trackEvent 에 자동 첨부해 GA4/Google Ads 가 어느 캠페인에서
