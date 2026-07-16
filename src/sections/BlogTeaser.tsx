@@ -6,9 +6,9 @@ const BLOG_URL = 'https://cocotripkr.blogspot.com';
 // 추천 글 하드코딩 — 블로그가 영어 채널이라 제목은 영어 고정.
 // 피드 연동은 과설계(외부 요청·CLS 리스크) — 에버그린 3개만 수동 큐레이션, 갱신은 이 목록만.
 const POSTS = [
-  { title: 'Korea food guide: Must-try dishes beyond KBBQ', url: `${BLOG_URL}/2026/07/korea-food-guide-must-try-dishes-beyond.html` },
-  { title: 'Getting around Korea: essential transit tips', url: `${BLOG_URL}/2026/07/korea-transit-tips-getting-around-seoul.html` },
-  { title: 'Seoul local spots: Euljiro, Mangwon & Seongsu', url: `${BLOG_URL}/2026/07/seoul-local-spots-neighborhoods.html` },
+  { title: 'Seoul Cafe Guide 2026: Best Neighborhoods & What to Know', url: `${BLOG_URL}/2026/07/seoul-cafe-guide-2026-best.html` },
+  { title: 'How to Ace Your First K-Pop Concert in Korea', url: `${BLOG_URL}/2026/07/how-to-ace-your-first-k-pop-concert-in.html` },
+  { title: 'How to Find Halal Food in Seoul', url: `${BLOG_URL}/2026/07/how-to-find-halal-food-in-seoul-2026.html` },
 ];
 
 interface BlogTeaserProps {
