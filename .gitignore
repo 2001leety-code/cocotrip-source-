@@ -77,7 +77,12 @@ scripts/inspect-live-plan-state.mjs
 scripts/inspect-streaming-plans.mjs
 scripts/p[0-9][0-9][0-9]-*.mjs
 .claude/worktrees/
+CLAUDE.local.md
 outputs/
+# KTO 사진 갤러리 — 3GB/5300장 로컬 자산. 커밋하면 레포·Vercel 배포가 터진다.
+public/kto-photo-gallery/
+# 로컬 시각확인 스크린샷 아티팩트
+tests/screenshots/mobile-home-v2-light/
 
 # Playwright Vercel bypass storageState (CI 생성, 커밋 안 함)
 tests/.auth/
