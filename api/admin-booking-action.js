@@ -266,6 +266,11 @@ export default async function handler(req, res) {
           return res.end(JSON.stringify(_err(result.error, result.code)));
         }
         paypalRefund = result.refund;
+        // 🟠 F3c-lite (옵션 B, 2026-07-16): PENDING 은 비종단 — REFUNDED 종단은 유지하되 운영자에게
+        //   관측 알럿. FAILED 뒤집힘은 F4 webhook(REFUND_FAILED)이 치유. strict 전환은 샌드박스 실측 후.
+        if (result.pending) {
+          notify('admin', `🟠 <b>admin 환불 PENDING 관측 (eCheck?)</b>\n<code>${bookingRef}</code>\nrefund: <code>${paypalRefund.id}</code>\n→ 실패 시 REFUND.FAILED webhook 이 REFUND_FAILED 로 전환`).catch(() => {});
+        }
       } else {
         console.warn('[admin-booking-action] mark-refunded without captureID — Firestore-only refund (manual PayPal expected):', bookingRef);
       }

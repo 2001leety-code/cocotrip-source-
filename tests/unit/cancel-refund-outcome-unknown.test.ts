@@ -130,6 +130,18 @@ describe('F2 — 미상 결과는 CONFIRMED 로 단정하지 않는다', () => {
     expect(bookingState.status).toBe('CANCELED');
     expect(r.statusCode).toBe(200);
   });
+
+  // F3c-lite (옵션 B, 2026-07-16): PENDING 은 종단 유지(CANCELED) + 관측 알럿.
+  //   비종단 REFUND_PENDING 상태로 바꾸는 strict 버전은 eCheck 가 API 에서 영구 PENDING 으로 남으면
+  //   정상 경로가 퇴행하는 리스크 → 샌드박스 실측 전엔 관측만. FAILED 뒤집힘은 F4 webhook 이 치유.
+  it('성공이지만 PENDING(eCheck) → CANCELED 유지 + 관측 알럿 발화', async () => {
+    refundHolder.r = { ok: true, final: false, pending: true, refund: { id: 'RF-1', status: 'PENDING' } };
+    const r = await cancel();
+    expect(r.statusCode).toBe(200);
+    expect(bookingState.status).toBe('CANCELED');          // 옵션 B: 종단 유지
+    expect(bookingState.refundStatus).toBe('PENDING');     // 기록은 남음
+    expect(alertSpy).toHaveBeenCalledTimes(1);             // ★ 관측 알럿 (빈도 측정 = F3c strict 게이트 데이터)
+  });
 });
 
 // F7/F8 보호조치 (2026-07-16): cart 자식 예약(parentOrderID 보유)은 형제와 captureID 를 공유하므로

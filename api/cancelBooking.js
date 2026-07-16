@@ -376,6 +376,21 @@ export default async function handler(req, res) {
     }
     const refundData = refundResult.refund;
 
+    // 🟠 F3c-lite (옵션 B, 2026-07-16): PENDING(eCheck 등)은 비종단이지만 CANCELED 종단은 유지한다 —
+    //   strict(비종단 REFUND_PENDING 상태 도입)는 eCheck 가 API 에서 영구 PENDING 으로 남으면 정상
+    //   경로 전체가 퇴행하는 리스크가 있어 샌드박스 실측 전 금지. 대신 관측 알럿으로 빈도를 측정하고
+    //   (throttle 의 error_log 가 raw 전건 저장 → 측정기), FAILED 뒤집힘은 F4 webhook 이 REFUND_FAILED
+    //   로 치유한다. refundStatus 는 아래 update 가 이미 PENDING 그대로 기록한다.
+    if (refundResult.pending) {
+      throttledTelegramAlert({
+        key: 'refund-pending-observed',
+        channel: 'admin',
+        severity: 'high',
+        message: `🟠 <b>환불 PENDING 관측 (eCheck?)</b>\n<code>${escHtml(bookingID)}</code>\nrefund: <code>${escHtml(refundData.id)}</code>\n→ 완료되면 CAPTURE.REFUNDED, 실패하면 REFUND.FAILED webhook 이 온다`,
+        context: { bookingID, refundID: refundData.id },
+      }).catch(() => {});
+    }
+
     // 4. Firestore 업데이트
     await ref.update({
       status: 'CANCELED',

@@ -131,6 +131,22 @@ describe('과환불/원금부재 가드 — 행위 (소스 정규식 대체)', (
   });
 });
 
+// F3c-lite (옵션 B, 2026-07-16): admin 환불이 PENDING 으로 돌아오면 REFUNDED 종단은 유지하되
+//   운영자 알럿으로 관측한다. FAILED 뒤집힘은 F4 webhook 이 REFUND_FAILED 로 치유.
+describe('F3c-lite — admin 환불 PENDING 관측', () => {
+  it('PayPal 이 PENDING 반환 → 200 유지 + 운영자 알럿(notify) 발화', async () => {
+    refundSpy.mockResolvedValueOnce({ ok: true, final: false, pending: true, refund: { id: 'RF-P', status: 'PENDING' } });
+    const notifyMod = await import('../../api/_shared/notify.js');
+    const notifySpy = notifyMod.notify as ReturnType<typeof vi.fn>;
+    notifySpy.mockClear();
+    const r = await call({ bookingRef: 'CT-20260716-001', action: 'mark-refunded', refundedKRW: 500000 });
+    expect(r.statusCode).toBe(200);
+    // 알럿 중 하나에 PENDING 경고가 포함돼야 한다 (기존 '환불 완료' 텔레그램과 별개)
+    const pendingAlert = notifySpy.mock.calls.some((c: any[]) => String(c[1]).includes('PENDING'));
+    expect(pendingAlert).toBe(true);                       // ★ 관측 알럿
+  });
+});
+
 describe('F1b — 원금(originalKRW) 이 NaN 이면 부분환불 검증 불가 → fail-closed', () => {
   it.each([
     ['콤마 문자열', '1,000,000'],
