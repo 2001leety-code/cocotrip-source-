@@ -262,6 +262,15 @@ function CommunityHeader({ backTo }: { backTo?: string }) {
   const { language } = useLanguage();
   const copy = COPY[language];
   const navigate = useNavigate();
+  const location = useLocation();
+  // 2026-07-17: 장식용이던 검색 input 실배선 — Enter 시 /community?q= 로 이동,
+  // 피드(CommunityPage)가 q 로 로드된 글을 클라이언트 필터. 초기값=현재 ?q=.
+  const initialQ = new URLSearchParams(location.search).get('q') || '';
+  const [searchQ, setSearchQ] = useState(initialQ);
+  const submitSearch = () => {
+    const q = searchQ.trim();
+    navigate(q ? `/community?q=${encodeURIComponent(q)}` : '/community');
+  };
   return (
     <header className="community-header">
       <div className="community-header-inner">
@@ -273,7 +282,13 @@ function CommunityHeader({ backTo }: { backTo?: string }) {
         {backTo && <div className="hidden md:block"><CommunityBrand compact /></div>}
         <div className="community-search hidden md:flex">
           <Search size={17} />
-          <input aria-label={copy.search} placeholder={copy.search} />
+          <input
+            aria-label={copy.search}
+            placeholder={copy.search}
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitSearch(); }}
+          />
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LanguageButton />
@@ -527,6 +542,7 @@ export default function CommunityPage() {
   const [error, setError] = useState(false);
   const params = new URLSearchParams(location.search);
   const requestedView = params.get('tab');
+  const searchQ = (params.get('q') || '').trim().toLowerCase();
   const activeRail = requestedView === 'alerts' ? 'alerts' : requestedView === 'popular' ? 'explore' : 'feed';
 
   usePageMeta({ title: `${copy.community} | CocoTrip`, description: copy.exploreKorea });
@@ -554,8 +570,17 @@ export default function CommunityPage() {
 
   const visible = useMemo(() => {
     if (!posts) return null;
-    return topic ? posts.filter((p) => p.category === topic) : posts;
-  }, [posts, topic]);
+    let list = topic ? posts.filter((p) => p.category === topic) : posts;
+    // 2026-07-17: 헤더 검색(?q=) 배선 — 로드된 글의 제목/본문/작성자 대소문자 무시 매칭.
+    // 서버측 전문검색은 글 누적 후 별도(현재 피드 자체가 최신 30~60건 클라 필터 구조와 동일 층위).
+    if (searchQ) {
+      list = list.filter((p) =>
+        (p.title || '').toLowerCase().includes(searchQ)
+        || (p.body || '').toLowerCase().includes(searchQ)
+        || (p.authorName || '').toLowerCase().includes(searchQ));
+    }
+    return list;
+  }, [posts, topic, searchQ]);
 
   return (
     <CommunityLayout active={activeRail}>

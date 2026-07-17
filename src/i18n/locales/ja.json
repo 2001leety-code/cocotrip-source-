@@ -2280,6 +2280,8 @@
     "mbDetailDownloadVoucher": "バウチャーをダウンロード",
     "mbCancelReasonPrompt": "キャンセル理由（任意）:",
     "mbCancelConfirm": "この予約をキャンセルしますか？\\n返金 {pct}% · 約 ₩{amt}\\nPayPalで3〜5営業日以内に返金されます。",
+    "mbCancelModalConfirm": "はい、キャンセルする",
+    "mbCancelModalKeep": "予約を維持",
     "modifyModalTitle": "予約変更",
     "modifyFieldDate": "ツアー日",
     "modifyFieldPax": "人数",

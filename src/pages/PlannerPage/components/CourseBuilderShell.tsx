@@ -50,6 +50,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     search: 'Search', mapTitle: "This day's route",
     aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
     aiLocked: 'AI optimize & nearby picks unlock with the $9.90 planner.',
+    aiNeedTwo: 'Add at least 2 places with map pins to optimize.',
+    aiFail: 'Optimization failed — please try again.',
     saveTitleField: 'Course title', saveDateField: 'Trip date', saveTitlePh: 'e.g. My Seoul food trip',
     saveCta: 'Save', cancel: 'Cancel',
     loginToSave: 'Sign in to save, share, and open on any device.', loginBtn: 'Sign in',
@@ -70,6 +72,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     search: '검색', mapTitle: '이 날의 동선',
     aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
     aiLocked: 'AI 동선 최적화·주변 추천은 $9.90 플래너에서 열려요.',
+    aiNeedTwo: '지도핀이 있는 장소를 2곳 이상 추가하면 최적화할 수 있어요.',
+    aiFail: '최적화에 실패했어요 — 다시 시도해 주세요.',
     saveTitleField: '코스 제목', saveDateField: '여행 날짜', saveTitlePh: '예: 나의 서울 맛집 투어',
     saveCta: '저장', cancel: '취소',
     loginToSave: '로그인하면 저장·공유·다른 기기에서 볼 수 있어요.', loginBtn: '로그인',
@@ -90,6 +94,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     search: '検索', mapTitle: 'この日のルート',
     aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
     aiLocked: 'AIルート最適化・周辺のおすすめは$9.90プランで解放。',
+    aiNeedTwo: '地図ピン付きの場所を2か所以上追加すると最適化できます。',
+    aiFail: '最適化に失敗しました — もう一度お試しください。',
     saveTitleField: 'コース名', saveDateField: '旅行日', saveTitlePh: '例: ソウルグルメ旅',
     saveCta: '保存', cancel: 'キャンセル',
     loginToSave: 'ログインすると保存・共有・他の端末で表示できます。', loginBtn: 'ログイン',
@@ -110,6 +116,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     search: '搜索', mapTitle: '当天路线',
     aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
     aiLocked: 'AI优化路线·周边推荐需$9.90行程解锁。',
+    aiNeedTwo: '添加至少2个带地图标记的地点后即可优化。',
+    aiFail: '优化失败 — 请重试。',
     saveTitleField: '行程名称', saveDateField: '出行日期', saveTitlePh: '例: 我的首尔美食之旅',
     saveCta: '保存', cancel: '取消',
     loginToSave: '登录后可保存·分享·在其他设备查看。', loginBtn: '登录',
@@ -181,7 +189,8 @@ export function CourseBuilderShell() {
   // AI 동선 최적화 — 활성 Day stop(좌표 있는) 을 course-ai 로 재정렬 + 주변 추천.
   const handleAiOptimize = async () => {
     const stops = day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
-    if (stops.length < 2) { showFlash(t.aiBusy); return; }
+    // 2026-07-17: 기존엔 t.aiBusy('최적화 중…')를 안내문으로 오용 — 전용 문구로 교체.
+    if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
     setAiBusy(true);
     try {
       // authFetch = Firebase 토큰 첨부 → course-ai 가 $9.90 구매자(aiFeaturesUnlocked)만 허용.
@@ -200,8 +209,14 @@ export function CourseBuilderShell() {
           cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));
         }
         setAiRecos(Array.isArray(json.nearby) ? json.nearby : []);
+      } else {
+        // 2026-07-17: 서버 실패(!ok)도 무피드백이었음 — 사용자 안내(코스 데이터는 무변).
+        showFlash(t.aiFail);
       }
-    } catch { /* fail-soft: 조용히 무시 */ } finally {
+    } catch {
+      // 2026-07-17: 네트워크 실패 시 조용히 무시 → 버튼만 원복되고 아무 일도 없는 것처럼 보이던 갭.
+      showFlash(t.aiFail);
+    } finally {
       setAiBusy(false);
     }
   };
