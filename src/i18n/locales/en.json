@@ -1673,6 +1673,8 @@
     "share": {
       "shareButton": "Share",
       "shareSuccess": "URL copied!",
+      "shareCopyFail": "Failed to copy URL",
+      "shareUpdateFail": "Failed to update sharing setting",
       "sharePublic": "Public",
       "sharePrivate": "Private",
       "privateNotice": "This plan is private",

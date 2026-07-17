@@ -1673,6 +1673,8 @@
     "share": {
       "shareButton": "シェア",
       "shareSuccess": "URLをコピーしました",
+      "shareCopyFail": "URLのコピーに失敗しました",
+      "shareUpdateFail": "共有設定の変更に失敗しました",
       "sharePublic": "公開",
       "sharePrivate": "非公開",
       "privateNotice": "このプランは非公開です",

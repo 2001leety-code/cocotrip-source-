@@ -88,10 +88,11 @@ export default function TourDetailPage() {
     language === 'zh' ? '旅游列表' : 'Tours';
 
   // SEO (404일 때도 usePageMeta 호출 — hook 순서 고정)
+  // usePageMeta 가 '| CocoTrip' 을 붙이므로 여기선 안 붙임 ('X | CocoTrip Tours | CocoTrip' 중복 방지).
   usePageMeta({
     title: tour
-      ? `${txt(tour.title, language)} | CocoTrip Tours`
-      : 'Tour Not Found | CocoTrip',
+      ? `${txt(tour.title, language)} — CocoTrip Tours`
+      : 'Tour Not Found',
     description: tour
       ? txt(tour.summary, language)
       : 'This tour could not be found.',

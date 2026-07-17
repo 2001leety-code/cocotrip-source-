@@ -1673,6 +1673,8 @@
     "share": {
       "shareButton": "分享",
       "shareSuccess": "链接已复制",
+      "shareCopyFail": "复制链接失败",
+      "shareUpdateFail": "共享设置更新失败",
       "sharePublic": "公开",
       "sharePrivate": "私密",
       "privateNotice": "此计划为私密",

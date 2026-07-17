@@ -27,6 +27,7 @@ const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Co
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
+import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -128,18 +129,18 @@ export default function MyPage() {
     } catch { /* silent */ }
     (async () => {
       try {
-        const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+        const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1${wttrLangParam(language)}`);
         const data = await res.json();
         const cur = data.current_condition?.[0];
         if (cur) setWeather({
           temp: cur.temp_C + '°C',
-          desc: cur.weatherDesc?.[0]?.value || '',
+          desc: pickWeatherDesc(cur, language),
           icon: Number(cur.temp_C) > 20 ? '☀️' : Number(cur.temp_C) > 10 ? '⛅' : '❄️',
           city,
         });
       } catch { /* silent */ }
     })();
-  }, []);
+  }, [language]);
 
   usePageMeta({
     title: t.pageMeta?.myPage?.title ?? 'My Page — Membership & Rewards',
