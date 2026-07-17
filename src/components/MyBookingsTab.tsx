@@ -8,6 +8,7 @@ import { BookingStatusTimeline } from '@/components/BookingStatusTimeline';
 import { useAuth } from '@/hooks/useAuth';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
+import { toast } from 'sonner';
 
 interface Booking {
   id: string;
@@ -108,24 +109,35 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
 
   useEffect(() => { if (userEmail) load(); }, [userEmail, load]);
 
-  const handleCancel = async (b: Booking) => {
-    const reason = prompt(i18n.mbCancelReasonPrompt) ?? '';
-    const amountStr = Math.round((b.amountKRW * b.refundPercent) / 100).toLocaleString('ko-KR');
-    const ok = confirm(`${b.bookingRef}\n${i18n.mbCancelConfirm(b.refundPercent, amountStr)}`);
-    if (!ok) return;
+  // 2026-07-17: 브라우저 기본 prompt/confirm → 인앱 취소 확인 모달.
+  //   게이트 의미는 동일 — 명시적 확인 버튼을 눌러야만 /api/cancelBooking(실환불) 호출.
+  //   금액·payload·API 무변경 (표시/확인 UI만 교체).
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const handleCancel = (b: Booking) => {
+    setCancelReason('');
+    setCancelTarget(b);
+  };
+
+  const confirmCancel = async () => {
+    const b = cancelTarget;
+    if (!b) return;
+    setCancelTarget(null);
     setCancelingId(b.id);
     try {
       // PR #418 IDOR fix: Authorization Bearer.
       const res = await authFetch('/api/cancelBooking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingID: b.id, reason, tier }),
+        body: JSON.stringify({ bookingID: b.id, reason: cancelReason.trim(), tier }),
       });
       const json = await res.json();
       if (json.ok) await load();
-      else alert(json.error || 'Error');
+      else toast.error(json.error || 'Error');
     } finally {
       setCancelingId(null);
+      setCancelReason('');
     }
   };
 
@@ -301,6 +313,45 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
         />
       )}
 
+      {/* 2026-07-17: 취소 확인 모달 — 기존 native prompt/confirm 대체. 확인 버튼 = 실환불 게이트. */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setCancelTarget(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-red-500/25 bg-[#0f1117] p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <XCircle size={18} className="text-red-400" />
+              <span className="text-white font-bold text-sm font-mono">{cancelTarget.bookingRef}</span>
+            </div>
+            <p className="text-white/80 text-sm whitespace-pre-line leading-relaxed mb-4">
+              {i18n.mbCancelConfirm(cancelTarget.refundPercent, Math.round((cancelTarget.amountKRW * cancelTarget.refundPercent) / 100).toLocaleString('ko-KR'))}
+            </p>
+            <label className="block text-white/50 text-xs mb-1.5">{i18n.mbCancelReasonPrompt}</label>
+            <textarea
+              rows={2}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-red-400/60 resize-none mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-white/15 text-white/70 text-sm font-semibold hover:bg-white/5"
+              >
+                {i18n.mbCancelModalKeep}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void confirmCancel(); }}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold"
+                style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+              >
+                {i18n.mbCancelModalConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {reviewTarget && user?.uid && (
         <ReviewSubmitModal
           open={true}
@@ -472,7 +523,7 @@ function BookingDetailModal({
       const url = `/api/voucher?bookingID=${encodeURIComponent(booking.id)}`;
       await authDownload(url, `voucher_${booking.bookingRef || booking.id}.pdf`);
     } catch (e) {
-      alert((e instanceof Error ? e.message : 'Download failed'));
+      toast.error(e instanceof Error ? e.message : 'Download failed');
     } finally {
       setVoucherDownloading(false);
     }
@@ -643,7 +694,7 @@ function BookingDetailModal({
           {showRefundClosedNote && (
             <button
               type="button"
-              onClick={() => alert(`${fallback.refundClosed}\n\n${fallback.contact}`)}
+              onClick={() => toast(fallback.refundClosed, { description: fallback.contact, duration: 8000 })}
               className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/35 text-sm font-semibold cursor-not-allowed flex items-center justify-center gap-1.5"
               title={fallback.refundClosed}
             >

@@ -159,6 +159,9 @@ export interface WizardI18n {
   mbDetailDownloadVoucher?: string;
   mbCancelReasonPrompt: string;
   mbCancelConfirm: (pct: number, amountKRW: string) => string;
+  // 2026-07-17: native confirm() → 인앱 취소 확인 모달 버튼 라벨
+  mbCancelModalConfirm: string;
+  mbCancelModalKeep: string;
 
   // ModifyModal
   modifyModalTitle: string;
@@ -372,6 +375,8 @@ export function getWizardI18n(language: string): WizardI18n {
     mbDetailDownloadVoucher: get('mbDetailDownloadVoucher'),
     mbCancelReasonPrompt: get('mbCancelReasonPrompt'),
     mbCancelConfirm: (pct, amt) => fmt(get('mbCancelConfirm'), { pct, amt }),
+    mbCancelModalConfirm: get('mbCancelModalConfirm'),
+    mbCancelModalKeep: get('mbCancelModalKeep'),
 
     modifyModalTitle: get('modifyModalTitle'),
     modifyFieldDate: get('modifyFieldDate'),

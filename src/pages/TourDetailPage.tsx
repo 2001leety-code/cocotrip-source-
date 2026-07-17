@@ -745,9 +745,9 @@ function ImageGallery({ images, photos, title, isNight }: ImageGalleryProps) {
             <ChevronRight className="w-4 h-4 text-white/80" />
           </button>
 
-          {/* 하단 인디케이터 점 */}
+          {/* 하단 인디케이터 점 — slides 기준(2026-07-17: photos[] 만 있는 admin 투어에서 images 기준이면 점 0개/개수 불일치) */}
           <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
-            {images.map((_, i) => (
+            {slides.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrent(i)}

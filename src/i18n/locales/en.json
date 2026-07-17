@@ -2282,6 +2282,8 @@
     "mbDetailDownloadVoucher": "Download Voucher",
     "mbCancelReasonPrompt": "Cancellation reason (optional):",
     "mbCancelConfirm": "Cancel this booking?\\nRefund {pct}% · approx ₩{amt}\\nRefund via PayPal in 3-5 business days.",
+    "mbCancelModalConfirm": "Yes, cancel booking",
+    "mbCancelModalKeep": "Keep booking",
     "modifyModalTitle": "Modify Booking",
     "modifyFieldDate": "Tour Date",
     "modifyFieldPax": "Pax",

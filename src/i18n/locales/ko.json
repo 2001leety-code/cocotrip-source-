@@ -2282,6 +2282,8 @@
     "mbDetailDownloadVoucher": "Voucher 다운로드",
     "mbCancelReasonPrompt": "취소 사유 (선택):",
     "mbCancelConfirm": "예약을 취소하시겠어요?\\n환불 {pct}% · 약 ₩{amt}\\nPayPal로 3~5영업일 내 환불됩니다.",
+    "mbCancelModalConfirm": "네, 예약 취소",
+    "mbCancelModalKeep": "예약 유지",
     "modifyModalTitle": "예약 변경",
     "modifyFieldDate": "투어 날짜",
     "modifyFieldPax": "인원",

@@ -2282,6 +2282,8 @@
     "mbDetailDownloadVoucher": "下载凭证",
     "mbCancelReasonPrompt": "取消原因（选填）:",
     "mbCancelConfirm": "确定取消此预订？\\n退款 {pct}% · 约 ₩{amt}\\n将在3-5个工作日内通过PayPal退款。",
+    "mbCancelModalConfirm": "是，取消预订",
+    "mbCancelModalKeep": "保留预订",
     "modifyModalTitle": "修改预订",
     "modifyFieldDate": "游玩日期",
     "modifyFieldPax": "人数",
