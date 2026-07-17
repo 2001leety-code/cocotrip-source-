@@ -1,6 +1,11 @@
-// Mock 가용성 데이터 (P2-A 1차).
-// 실제 운영 시 Firestore tour_availability/{tourSlug}/{YYYY-MM-DD} 에서 fetch 예정.
-// 현재는 토요일·매월 25일 이후·과거 날짜를 만석으로 가정해 UI 흐름을 검증.
+// 투어 가용성 검사 (클라이언트 게이트).
+// 운영 SSOT = Firestore tour_availability/{tourId}/dates/{YYYY-MM-DD} (fully_booked/blackout).
+// 이 모듈은 Firestore 조회 실패·미등록 날짜의 기본 판정만 담당: 과거 날짜 + 정적 blackout.
+//
+// 2026-07-17: P2-A 시절 mock 만석 룰(토요일 전부 + 매월 25일 이후 = fully_booked)이
+// TourBookingDialog 실예약 게이트에 그대로 물려 prod 예약을 차단하던 문제 제거.
+// Firestore 는 "차단 추가"만 가능했고 이 mock 이 최종 거부권을 가져 운영자가 열 수 없었음.
+// 날짜별 만석/휴무는 운영자가 admin(AdminTourAvailability)에서 Firestore 로 지정한다.
 
 export type AvailabilityCheck = {
   available: boolean;
@@ -13,7 +18,9 @@ const SCHEDULED_BLACKOUTS: Record<string, string[]> = {
 };
 
 /**
- * Mock 가용성 검사. 향후 Firestore tour_availability 컬렉션 연동.
+ * 기본 가용성 검사 — 과거 날짜와 정적 blackout 만 차단한다.
+ * 만석(fully_booked)·운영 휴무는 Firestore(tour_availability)가 결정하며
+ * 호출처(TourBookingDialog.isDateBlocked)가 Firestore 우선으로 결합한다.
  * @param tourId  Tour ID (예: 'tour-seoul-city')
  * @param dateISO YYYY-MM-DD
  */
@@ -34,14 +41,6 @@ export function checkAvailability(tourId: string, dateISO: string): Availability
   if (blackouts.includes(dateISO)) {
     return { available: false, reason: 'blackout' };
   }
-
-  // 3. mock 만석 룰 (나중에 Firestore 가용성으로 교체)
-  const dow = target.getDay(); // 0=Sun, 6=Sat
-  const dom = target.getDate();
-  // 매주 토요일은 만석으로 가정 (인기 시즌)
-  if (dow === 6) return { available: false, reason: 'fully_booked' };
-  // 매월 25일 이후 만석으로 가정 (월말 운영 마감)
-  if (dom >= 25) return { available: false, reason: 'fully_booked' };
 
   return { available: true };
 }
