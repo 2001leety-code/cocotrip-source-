@@ -25,6 +25,14 @@ updates:
       # Major bumps require manual review (breaking changes)
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
+      # firebase minors pinned at 12.13.0: 12.15.0+ (=@firebase/firestore 4.16.0,
+      # upstream PR #9929) bundles the offline pipeline + re2js into the eager
+      # Firestore vendor chunk (gzip +48.55KB, breaks the 120KB gate), is not
+      # tree-shakeable, and carries no security fixes (verified 2026-07-17,
+      # PR #1100). Patches still allowed. Unpin when upstream makes the
+      # pipeline opt-in — recheck quarterly.
+      - dependency-name: 'firebase'
+        update-types: ['version-update:semver-minor']
     commit-message:
       prefix: 'chore(deps)'
       prefix-development: 'chore(deps-dev)'
