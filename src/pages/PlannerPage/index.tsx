@@ -201,22 +201,21 @@ export default function PlannerPage() {
             {(() => {
               // 모드 선택 문구 4언어 (2026-07-05 — 기존 영어 고정 해소).
               const L = (language === 'ko' || language === 'ja' || language === 'zh') ? language : 'en';
+              // 2026-07-17: 모바일 축약 문구(mAiT 등)도 4언어 — 기존엔 모바일만 영어 고정이었음.
               const MODE_TEXT = {
-                en: { aiT: 'Let AI plan everything', aiB: 'Answer the survey and get a complete Korea itinerary.', cT: 'Build from my places', cB: 'Add restaurants, addresses, and fixed plans. AI helps beside you.' },
-                ko: { aiT: 'AI가 전부 짜드려요', aiB: '설문에 답하면 완성된 한국 일정을 받아요.', cT: '내 장소로 만들기', cB: '맛집·주소·확정 일정을 넣으면 AI가 옆에서 도와줘요.' },
-                ja: { aiT: 'AIがすべて計画', aiB: 'アンケートに答えると完成した韓国旅程が届きます。', cT: '自分の場所で作る', cB: 'グルメ・住所・確定予定を入れるとAIが横でサポート。' },
-                zh: { aiT: 'AI帮你全部规划', aiB: '回答问卷即可获得完整的韩国行程。', cT: '用我的地点创建', cB: '添加美食·地址·固定安排，AI在旁协助。' },
+                en: { aiT: 'Let AI plan everything', aiB: 'Answer the survey and get a complete Korea itinerary.', cT: 'Build from my places', cB: 'Add restaurants, addresses, and fixed plans. AI helps beside you.', mAiT: 'AI itinerary', mAiB: 'Fast survey, complete Korea plan.', mCT: 'Build my course', mCB: 'Add places, map pins, and fixed plans.' },
+                ko: { aiT: 'AI가 전부 짜드려요', aiB: '설문에 답하면 완성된 한국 일정을 받아요.', cT: '내 장소로 만들기', cB: '맛집·주소·확정 일정을 넣으면 AI가 옆에서 도와줘요.', mAiT: 'AI 일정 만들기', mAiB: '빠른 설문으로 완성 일정 받기.', mCT: '내 코스 만들기', mCB: '장소·지도핀·확정 일정 직접 추가.' },
+                ja: { aiT: 'AIがすべて計画', aiB: 'アンケートに答えると完成した韓国旅程が届きます。', cT: '自分の場所で作る', cB: 'グルメ・住所・確定予定を入れるとAIが横でサポート。', mAiT: 'AI旅程を作る', mAiB: '簡単アンケートで完成旅程。', mCT: '自分のコース作成', mCB: '場所・ピン・確定予定を追加。' },
+                zh: { aiT: 'AI帮你全部规划', aiB: '回答问卷即可获得完整的韩国行程。', cT: '用我的地点创建', cB: '添加美食·地址·固定安排，AI在旁协助。', mAiT: 'AI行程规划', mAiB: '快速问卷，完整韩国行程。', mCT: '创建我的路线', mCB: '添加地点·地图标记·固定安排。' },
               }[L];
               return [
-                { key: 'ai' as PlannerMode, icon: Wand2, title: MODE_TEXT.aiT, body: MODE_TEXT.aiB },
-                { key: 'course' as PlannerMode, icon: ListPlus, title: MODE_TEXT.cT, body: MODE_TEXT.cB },
+                { key: 'ai' as PlannerMode, icon: Wand2, title: MODE_TEXT.aiT, body: MODE_TEXT.aiB, mTitle: MODE_TEXT.mAiT, mBody: MODE_TEXT.mAiB },
+                { key: 'course' as PlannerMode, icon: ListPlus, title: MODE_TEXT.cT, body: MODE_TEXT.cB, mTitle: MODE_TEXT.mCT, mBody: MODE_TEXT.mCB },
               ];
-            })().map(({ key, icon: Icon, title, body }) => {
+            })().map(({ key, icon: Icon, title, body, mTitle, mBody }) => {
               const active = plannerMode === key;
-              const displayTitle = isMobile ? (key === 'ai' ? 'AI itinerary' : 'Build my course') : title;
-              const displayBody = isMobile
-                ? (key === 'ai' ? 'Fast survey, complete Korea plan.' : 'Add places, map pins, and fixed plans.')
-                : body;
+              const displayTitle = isMobile ? mTitle : title;
+              const displayBody = isMobile ? mBody : body;
               return (
                 <button
                   key={key}

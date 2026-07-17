@@ -29,9 +29,11 @@ const CATEGORIES = [
 ];
 
 export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
+  // 장소명 예시 placeholder 4언어 (2026-07-17 — 영어 고정 해소).
+  const namePh = language === 'ko' ? '예: 경복궁' : language === 'ja' ? '例: 景福宮' : language === 'zh' ? '例: 景福宫' : 'e.g. Gyeongbokgung';
 
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -92,7 +94,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Gyeongbokgung"
+              placeholder={namePh}
               onFocus={() => setKeyboardOpen(true)}
               onBlur={() => setKeyboardOpen(false)}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/55 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"

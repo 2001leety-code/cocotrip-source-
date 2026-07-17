@@ -76,7 +76,7 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
         trackShare('clipboard', planId);
         shareMethod = 'clipboard';
       } catch {
-        toast.error('Failed to copy URL');
+        toast.error((sh as Record<string, string>).shareCopyFail || 'Failed to copy URL');
         return;
       }
     }
@@ -99,7 +99,7 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
       );
     } catch (e) {
       console.error('[ShareButton] toggle error:', e);
-      toast.error('Failed to update');
+      toast.error((sh as Record<string, string>).shareUpdateFail || 'Failed to update');
     } finally {
       setToggling(false);
     }

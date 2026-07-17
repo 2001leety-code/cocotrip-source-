@@ -12,6 +12,7 @@ import {
 import { haptic } from '@/lib/haptic';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { formatPrice } from '@/lib/exchange-rate';
+import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
 import type { Translations } from '@/i18n';
 import { ExampleItinerariesSection } from './ExampleItinerariesSection';
 
@@ -80,13 +81,13 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`https://wttr.in/${encodeURIComponent(weatherCity)}?format=j1`);
+        const res = await fetch(`https://wttr.in/${encodeURIComponent(weatherCity)}?format=j1${wttrLangParam(language)}`);
         const data = await res.json();
         const cur = data.current_condition?.[0];
-        if (cur) setWeather({ temp: cur.temp_C + '\u00b0C', desc: cur.weatherDesc?.[0]?.value || '', icon: Number(cur.temp_C) > 20 ? '\u2600\ufe0f' : Number(cur.temp_C) > 10 ? '\u26c5' : '\u2744\ufe0f' });
+        if (cur) setWeather({ temp: cur.temp_C + '\u00b0C', desc: pickWeatherDesc(cur, language), icon: Number(cur.temp_C) > 20 ? '\u2600\ufe0f' : Number(cur.temp_C) > 10 ? '\u26c5' : '\u2744\ufe0f' });
       } catch { /* silent */ }
     })();
-  }, [weatherCity]);
+  }, [weatherCity, language]);
 
   const svcButtons = [
     { icon: Car, label: m.svcCharter || 'Charter', sub: m.svcCharterSub || 'Vehicle', link: '/charter', color: '#B668FC' },

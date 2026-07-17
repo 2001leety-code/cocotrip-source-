@@ -1673,6 +1673,8 @@
     "share": {
       "shareButton": "공유하기",
       "shareSuccess": "URL이 복사됐어요",
+      "shareCopyFail": "URL 복사에 실패했어요",
+      "shareUpdateFail": "공유 설정 변경에 실패했어요",
       "sharePublic": "공개",
       "sharePrivate": "비공개",
       "privateNotice": "이 플랜은 비공개입니다",

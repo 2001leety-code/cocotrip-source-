@@ -230,9 +230,12 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     if (s.origin) parts.push(s.origin === 'CUSTOM' ? (s.originAddress || 'Custom') : s.origin);
     if (s.service) parts.push(s.service.replace(/_/g, ' '));
     if (s.destinationKey) parts.push(s.destinationKey);
-    if (s.paxCount && s.paxCount > 0) parts.push(`${s.paxCount} pax`);
+    if (s.paxCount && s.paxCount > 0) {
+      const paxUnit = language === 'ko' ? '명' : language === 'ja' ? '名' : language === 'zh' ? '人' : 'pax';
+      parts.push(`${s.paxCount} ${paxUnit}`);
+    }
     return parts.join(' · ');
-  }, [initialSnap]);
+  }, [initialSnap, language]);
 
   function handleResumeContinue() {
     if (!initialSnap) { setResumeOpen(false); return; }
@@ -345,7 +348,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     },
       {
         label: language === 'ko' ? '인원/차량' : language === 'ja' ? '人数/車両' : language === 'zh' ? '人数/车型' : 'Party / car',
-      value: `${state.paxCount || '-'} ${language === 'ko' ? '명' : 'pax'} · ${vehicleSummaryLabel(state.vehicle, language)}`,
+      value: `${state.paxCount || '-'} ${language === 'ko' ? '명' : language === 'ja' ? '名' : language === 'zh' ? '人' : 'pax'} · ${vehicleSummaryLabel(state.vehicle, language)}`,
       },
     {
       label: language === 'ko' ? '일정' : language === 'ja' ? '日程' : language === 'zh' ? '日期' : 'Date',
@@ -367,7 +370,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               </div>
               <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/45 sm:flex">
                 <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#00D28C]" /> PayPal</span>
-                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> 12h cutoff</span>
+                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> {language === 'ko' ? '12시간 전 마감' : language === 'ja' ? '12時間前締切' : language === 'zh' ? '提前12小时截止' : '12h cutoff'}</span>
               </div>
             </div>
 
@@ -543,7 +546,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {language === 'ko' ? '예약 요약' : language === 'ja' ? '予約サマリー' : language === 'zh' ? '预订摘要' : 'Trip summary'}
                 </div>
                 <p className="mt-2 text-xl font-black leading-tight text-white">
-                  {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : 'Quote appears as you choose')}
+                  {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
                 </p>
                 {desktopAmount && stickyAmountKRW != null && (
                   <p className="mt-1 text-xs text-white/45">{formatPrice(stickyAmountKRW, 'en', { withCurrencyCode: true })}</p>
@@ -569,6 +572,10 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   <p className="mt-1 text-xs leading-relaxed text-white/55">
                     {language === 'ko'
                       ? '차량, 기사, 항공편, 수하물 정보를 결제 전 한 번에 맞춥니다.'
+                      : language === 'ja'
+                      ? '車両、ドライバー、フライト、荷物の情報を決済前にまとめて確認します。'
+                      : language === 'zh'
+                      ? '车辆、司机、航班、行李信息在支付前一并核对。'
                       : 'Vehicle, driver, flight, and luggage details stay together before checkout.'}
                   </p>
                 </div>
@@ -579,12 +586,12 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <Clock3 className="h-4 w-4 text-[#C4956A]" />
                 <p className="mt-2 text-xs font-bold text-white">12h</p>
-                <p className="text-[11px] text-white/45">booking cutoff</p>
+                <p className="text-[11px] text-white/45">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <CreditCard className="h-4 w-4 text-[#B9A4FF]" />
                 <p className="mt-2 text-xs font-bold text-white">PayPal</p>
-                <p className="text-[11px] text-white/45">secure checkout</p>
+                <p className="text-[11px] text-white/45">{language === 'ko' ? '보안 결제' : language === 'ja' ? '安全な決済' : language === 'zh' ? '安全支付' : 'secure checkout'}</p>
               </div>
             </div>
           </div>

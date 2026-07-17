@@ -829,10 +829,13 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
       if (res && !res.ok) {
         const data = res.data || {};
+        // 2026-07-17: 실패 문구 4언어 — i18n planner.errors.* 가 이미 4언어인데
+        // 여기만 영어 하드코딩이었음. code 매칭 우선, 없으면 서버 error, 최후 영어 폴백.
+        const genErrors = (t.planner as unknown as { errors?: Record<string, string> }).errors || {};
         if (data.code === 'GEMINI_TIMEOUT') {
-          setErrorMsg('AI is taking too long. Please try again in a moment.');
+          setErrorMsg(genErrors.GEMINI_TIMEOUT || 'AI is taking too long. Please try again in a moment.');
         } else {
-          setErrorMsg(data.error || 'Something went wrong. Please try again.');
+          setErrorMsg((data.code && genErrors[data.code]) || data.error || genErrors.UNKNOWN_ERROR || 'Something went wrong. Please try again.');
         }
       } else {
         // P316 (2026-05-30): 제출(quick preview 생성) 성공 시점에는 'planner'
@@ -863,7 +866,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         }
       }
     } catch {
-      setErrorMsg('Network error. Please check your connection and try again.');
+      const genErrors = (t.planner as unknown as { errors?: Record<string, string> }).errors || {};
+      setErrorMsg(genErrors.NETWORK_ERROR || 'Network error. Please check your connection and try again.');
     }
   }
 

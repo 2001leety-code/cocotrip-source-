@@ -322,6 +322,78 @@ async function tryServerPdf(plan: PlanDocument, opts: { force?: boolean } = {}):
   }
 }
 
+// PDF 실패 안내 토스트 4언어 (2026-07-17 — 영어 하드코딩 해소).
+// generatePDF(lang) 스코프에서 resolvePdfToast(lang) 로 조회. 신규 문자열 4언어 동시 유지.
+const PDF_TOAST_STR = {
+  en: {
+    empty: 'PDF content is empty. Please wait for the plan to fully load.',
+    fontFail: 'PDF font load failed',
+    fontFailDesc: 'Korean fonts did not load in time. Try again in a moment, or request a manual PDF via WhatsApp.',
+    renderFail: 'PDF content failed to render',
+    renderFailDesc: 'Try refreshing the page and download again.',
+    tooLong: 'Itinerary too long for in-browser PDF',
+    tooLongDesc: 'Very long plans (15+ days) hit mobile memory limits. We can send a manually-rendered PDF via WhatsApp.',
+    missingDays: 'PDF generated with missing days',
+    missingDaysDesc: 'Auto-recovery failed. We can send a manually-rendered full PDF via WhatsApp.',
+    manualDesc: 'We can send the PDF manually via WhatsApp.',
+    openWhatsApp: 'Open WhatsApp',
+    requestWhatsApp: 'Request via WhatsApp',
+    stillBuilding: 'AI is still building your plan — please try again shortly.',
+    notReady: 'Plan is not ready yet — please try again.',
+  },
+  ko: {
+    empty: 'PDF 내용이 비어 있어요. 플랜이 모두 로드된 뒤 다시 시도해 주세요.',
+    fontFail: 'PDF 폰트 로드 실패',
+    fontFailDesc: '한글 폰트가 제때 로드되지 않았어요. 잠시 후 다시 시도하거나 WhatsApp 으로 수동 PDF 를 요청하세요.',
+    renderFail: 'PDF 내용 렌더링 실패',
+    renderFailDesc: '페이지를 새로고침한 뒤 다시 다운로드해 보세요.',
+    tooLong: '일정이 너무 길어 브라우저 PDF 생성이 어려워요',
+    tooLongDesc: '아주 긴 플랜(15일+)은 모바일 메모리 한계에 걸려요. WhatsApp 으로 수동 제작 PDF 를 보내드릴 수 있어요.',
+    missingDays: '일부 날짜가 누락된 PDF 가 생성됐어요',
+    missingDaysDesc: '자동 복구에 실패했어요. WhatsApp 으로 전체 PDF 를 보내드릴 수 있어요.',
+    manualDesc: 'WhatsApp 으로 PDF 를 수동 전송해 드릴 수 있어요.',
+    openWhatsApp: 'WhatsApp 열기',
+    requestWhatsApp: 'WhatsApp 으로 요청',
+    stillBuilding: 'AI가 아직 플랜을 만들고 있어요. 완료 후 다시 시도해 주세요.',
+    notReady: '플랜이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  },
+  ja: {
+    empty: 'PDFの内容が空です。プランが完全に読み込まれてから再試行してください。',
+    fontFail: 'PDFフォントの読み込みに失敗しました',
+    fontFailDesc: '韓国語フォントが時間内に読み込まれませんでした。しばらくして再試行するか、WhatsAppで手動PDFをご依頼ください。',
+    renderFail: 'PDF内容のレンダリングに失敗しました',
+    renderFailDesc: 'ページを更新してから再度ダウンロードしてください。',
+    tooLong: '旅程が長すぎてブラウザでのPDF生成ができません',
+    tooLongDesc: '非常に長いプラン（15日以上）はモバイルのメモリ制限にかかります。WhatsAppで手動作成PDFをお送りできます。',
+    missingDays: '一部の日程が欠けたPDFが生成されました',
+    missingDaysDesc: '自動復旧に失敗しました。WhatsAppで完全なPDFをお送りできます。',
+    manualDesc: 'WhatsAppでPDFを手動送信できます。',
+    openWhatsApp: 'WhatsAppを開く',
+    requestWhatsApp: 'WhatsAppで依頼',
+    stillBuilding: 'AIがまだプランを作成中です。完成後にもう一度お試しください。',
+    notReady: 'プランはまだ準備できていません。しばらくしてから再試行してください。',
+  },
+  zh: {
+    empty: 'PDF内容为空。请等待行程完全加载后重试。',
+    fontFail: 'PDF字体加载失败',
+    fontFailDesc: '韩文字体未能及时加载。请稍后重试，或通过WhatsApp索取手动PDF。',
+    renderFail: 'PDF内容渲染失败',
+    renderFailDesc: '请刷新页面后重新下载。',
+    tooLong: '行程过长，无法在浏览器中生成PDF',
+    tooLongDesc: '超长行程（15天以上）会超出手机内存限制。我们可以通过WhatsApp发送手动制作的PDF。',
+    missingDays: '生成的PDF缺少部分日程',
+    missingDaysDesc: '自动恢复失败。我们可以通过WhatsApp发送完整PDF。',
+    manualDesc: '我们可以通过WhatsApp手动发送PDF。',
+    openWhatsApp: '打开WhatsApp',
+    requestWhatsApp: '通过WhatsApp索取',
+    stillBuilding: 'AI仍在生成您的行程，请稍后重试。',
+    notReady: '行程尚未准备好，请稍后重试。',
+  },
+};
+function resolvePdfToast(lang: string) {
+  return PDF_TOAST_STR[lang as keyof typeof PDF_TOAST_STR] || PDF_TOAST_STR.en;
+}
+
 export async function generatePDF(
   plan: PlanDocument,
   uiDict?: PdfUiDict,
@@ -329,6 +401,7 @@ export async function generatePDF(
   lang: string = 'en',
 ): Promise<void> {
   if (!plan) return;
+  const toastStr = resolvePdfToast(lang);
 
   // P207 Layer 2 — frontend guard (client PDF path 도 막음).
   // server 422 가 client fallback path 를 통해 우회되는 경우 대비.
@@ -337,8 +410,8 @@ export async function generatePDF(
     const isStreaming = (plan as Record<string, unknown>)._streaming_in_progress === true;
     toast.error(
       isStreaming
-        ? 'AI가 아직 플랜을 만들고 있어요. 완료 후 다시 시도해 주세요. / AI is still building your plan — please try again shortly.'
-        : '플랜이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요. / Plan is not ready yet — please try again.',
+        ? toastStr.stillBuilding
+        : toastStr.notReady,
     );
     return;
   }
@@ -1188,7 +1261,7 @@ export async function generatePDF(
     console.error('[PDF] Empty content detected — aborting PDF generation');
     document.body.removeChild(container);
     document.body.removeChild(overlay);
-    toast.error('PDF content is empty. Please wait for the plan to fully load.');
+    toast.error(toastStr.empty);
     return;
   }
 
@@ -1245,9 +1318,9 @@ export async function generatePDF(
         : '');
       const fontFailMsg = `Hi CocoTrip! Korean font failed to load for my PDF${fontPlanId ? ` (plan ${fontPlanId})` : ''}. Could you send it manually?`;
       const fontFailUrl = `https://wa.me/821087140611?text=${encodeURIComponent(fontFailMsg)}`;
-      toast.error('PDF font load failed', {
-        description: 'Korean fonts did not load in time. Try again in a moment, or request a manual PDF via WhatsApp.',
-        action: { label: 'Open WhatsApp', onClick: () => window.open(fontFailUrl, '_blank') },
+      toast.error(toastStr.fontFail, {
+        description: toastStr.fontFailDesc,
+        action: { label: toastStr.openWhatsApp, onClick: () => window.open(fontFailUrl, '_blank') },
         duration: 12000,
       });
       return;
@@ -1358,8 +1431,8 @@ export async function generatePDF(
     console.error('[PDF] container.scrollHeight=0 — content not rendered. Aborting.');
     document.body.removeChild(container);
     document.body.removeChild(overlay);
-    toast.error('PDF content failed to render', {
-      description: 'Try refreshing the page and download again.',
+    toast.error(toastStr.renderFail, {
+      description: toastStr.renderFailDesc,
       duration: 8000,
     });
     return;
@@ -1388,9 +1461,9 @@ export async function generatePDF(
     const tooLongUrl = `https://wa.me/821087140611?text=${encodeURIComponent(tooLongMsg)}`;
     document.body.removeChild(container);
     document.body.removeChild(overlay);
-    toast.warning('Itinerary too long for in-browser PDF', {
-      description: 'Very long plans (15+ days) hit mobile memory limits. We can send a manually-rendered PDF via WhatsApp.',
-      action: { label: 'Request via WhatsApp', onClick: () => window.open(tooLongUrl, '_blank') },
+    toast.warning(toastStr.tooLong, {
+      description: toastStr.tooLongDesc,
+      action: { label: toastStr.requestWhatsApp, onClick: () => window.open(tooLongUrl, '_blank') },
       duration: 12000,
     });
     return;
@@ -1475,9 +1548,9 @@ export async function generatePDF(
     // server 도 실패하면 그제야 WhatsApp fallback (수동 개입 경로).
     const cutMsg = `Hi CocoTrip! PDF capture cut-off detected for my plan${cutPlanId ? ` (${cutPlanId})` : ''} — auto-recovery also failed. Could you send it manually?`;
     const cutUrl = `https://wa.me/821087140611?text=${encodeURIComponent(cutMsg)}`;
-    toast.error('PDF generated with missing days', {
-      description: 'Auto-recovery failed. We can send a manually-rendered full PDF via WhatsApp.',
-      action: { label: 'Request via WhatsApp', onClick: () => window.open(cutUrl, '_blank') },
+    toast.error(toastStr.missingDays, {
+      description: toastStr.missingDaysDesc,
+      action: { label: toastStr.requestWhatsApp, onClick: () => window.open(cutUrl, '_blank') },
       duration: 15000,
     });
     return;
@@ -1497,8 +1570,8 @@ export async function generatePDF(
   // and doesn't yank focus / require modal dismissal.
   const offerWhatsapp = (reason: string) => {
     toast.error(reason, {
-      description: 'We can send the PDF manually via WhatsApp.',
-      action: { label: 'Open WhatsApp', onClick: () => window.open(whatsappFallback, '_blank') },
+      description: toastStr.manualDesc,
+      action: { label: toastStr.openWhatsApp, onClick: () => window.open(whatsappFallback, '_blank') },
       duration: 10000,
     });
   };

@@ -9,6 +9,7 @@ import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
 import { COCO, GradientCTA, StatusChip } from '@/components/coco/CocoUI';
 import { formatPrice } from '@/lib/exchange-rate';
+import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
 import type { Language } from '@/i18n';
 
 /**
@@ -92,16 +93,17 @@ export default function MobileHomeV2() {
   useEffect(() => { signalAppReady(); }, []);
 
   // 히어로 날씨 칩 — v1 MobileHome 과 동일한 실측 소스(wttr.in). 실패 시 칩 미노출(silent).
+  // 2026-07-17: 설명 텍스트 UI 언어 반영 (영어 "Partly cloudy" 잔존 해소, 없으면 영어 폴백).
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('https://wttr.in/Seoul?format=j1');
+        const res = await fetch(`https://wttr.in/Seoul?format=j1${wttrLangParam(language)}`);
         const data = await res.json();
         const cur = data.current_condition?.[0];
-        if (cur) setWeather({ temp: `${cur.temp_C}°C`, desc: cur.weatherDesc?.[0]?.value || '' });
+        if (cur) setWeather({ temp: `${cur.temp_C}°C`, desc: pickWeatherDesc(cur, language) });
       } catch { /* silent */ }
     })();
-  }, []);
+  }, [language]);
 
   const featuredTours = TOURS.slice(0, 6);
   const priceLabel = (tourId: string, priceFrom: number, unit: 'group' | 'per_person') => {

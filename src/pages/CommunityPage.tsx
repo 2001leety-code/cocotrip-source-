@@ -529,7 +529,8 @@ export default function CommunityPage() {
   const requestedView = params.get('tab');
   const activeRail = requestedView === 'alerts' ? 'alerts' : requestedView === 'popular' ? 'explore' : 'feed';
 
-  usePageMeta({ title: `${copy.community} | CocoTrip`, description: copy.exploreKorea });
+  // usePageMeta 가 '| CocoTrip' 접미사를 붙임 — 중복 방지 위해 여기선 안 붙인다.
+  usePageMeta({ title: copy.community, description: copy.exploreKorea });
   useEffect(() => { signalAppReady(); }, []);
   useEffect(() => {
     if (requestedView === 'popular') setTab('popular');
@@ -690,7 +691,7 @@ export function CommunityPostPage() {
   const [sending, setSending] = useState(false);
   const [replyNotice, setReplyNotice] = useState<string | null>(null);
 
-  usePageMeta({ title: `${post ? post.title : copy.community} | CocoTrip`, description: post ? post.body.slice(0, 140) : copy.exploreKorea });
+  usePageMeta({ title: post ? post.title : copy.community, description: post ? post.body.slice(0, 140) : copy.exploreKorea });
 
   const load = useCallback(async () => {
     if (!postId) return;
@@ -839,7 +840,7 @@ export function CommunityComposePage() {
   // 사진 첨부 (UIUX P9, 2026-07-13) — 최대 3장, 게시 시점에 Storage 업로드
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
-  usePageMeta({ title: `${copy.composeTitle} | CocoTrip`, description: copy.composeSubtitle });
+  usePageMeta({ title: copy.composeTitle, description: copy.composeSubtitle });
 
   // object URL 누수 방지 (리뷰 fix): 언마운트·발행이동 시 남은 미리보기 blob 해제.
   // photosRef 로 최신 previews 를 추적 → cleanup 이 stale 클로저를 잡지 않게.
@@ -1025,7 +1026,7 @@ export function CommunityModerationPage() {
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  usePageMeta({ title: `${copy.title} | CocoTrip Admin`, description: copy.subtitle });
+  usePageMeta({ title: `${copy.title} — Admin`, description: copy.subtitle });
 
   const load = useCallback(async () => {
     setLoading(true);

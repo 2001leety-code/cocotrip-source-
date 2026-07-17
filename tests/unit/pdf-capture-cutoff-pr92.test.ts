@@ -69,7 +69,10 @@ describe('P92 —pdfGenerator capture cut-off prevention (frontend)', () => {
     expect(generatorSrc).toMatch(/expectedMinH\s*=\s*days\.length\s*\*\s*800/);
     expect(generatorSrc).toMatch(/scrollH\s*<\s*expectedMinH/);
     // Toast + return (not just console.warn + continue).
-    expect(generatorSrc).toMatch(/toast\.error\(\s*['"]PDF generated with missing days['"]/);
+    // 2026-07-17: 토스트 문구가 4언어 사전(PDF_TOAST_STR.missingDays)으로 이동 —
+    // 잠금 의도(에러 토스트 존재)는 사전 키 + toast.error 호출로 검증.
+    expect(generatorSrc).toMatch(/toast\.error\(\s*toastStr\.missingDays/);
+    expect(generatorSrc).toMatch(/missingDays:\s*'PDF generated with missing days'/);
     expect(generatorSrc).toMatch(/wa\.me\/821087140611/);
   });
 
