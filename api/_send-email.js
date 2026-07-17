@@ -273,11 +273,95 @@ function renderItineraryText(itinerary) {
   return text;
 }
 
-export function buildDefaultConfirmationEmail(booking, walletUrl = null, itineraryData = null) {
+// 기본(폴백) 확인 이메일 4언어 사전 — Gemini 이메일 생성 실패 시에만 쓰이는 템플릿.
+// 2026-07-17: 영어 하드코딩이던 것을 language 파라미터 기준 ko/en/ja/zh 로 교체.
+// 신규 문자열은 4언어 동시 유지(CLAUDE.md). reconciliation 고지·Wallet 버튼은
+// 드문 경로 + 법적 정밀성 사유로 영어 유지.
+const FALLBACK_EMAIL_STR = {
+  en: {
+    subject: (ref) => `[CocoTrip] Your Booking is Confirmed! 🎉 — ${ref}`,
+    tagline: 'Korea Private Tour & Transfer Service',
+    greeting: (name) => `Hi <strong>${name}</strong>,`,
+    intro: "Your booking is confirmed. We're excited to take you on an amazing journey through Korea! 🇰🇷",
+    summaryTitle: '📋 Booking Summary',
+    service: 'Service', tourDate: 'Tour Date', pickup: 'Pickup', partySize: 'Party Size',
+    amountPaid: 'Amount Paid', bookingRefLabel: 'Booking Ref', persons: 'person(s)', hotelLobby: 'Hotel Lobby',
+    driverTitle: '🚐 Your Driver',
+    notesTitle: '📌 Important Notes',
+    note1: 'Please be ready <strong>10 minutes before</strong> pickup time',
+    note2: 'Driver will hold a <strong>name sign</strong> at hotel lobby',
+    note3: 'Contact driver via <strong>WhatsApp</strong> if needed',
+    pdfNote: '📎 Your <strong>PDF Voucher</strong> is attached to this email.<br>Please show it to your driver on tour day.',
+    footer: "We can't wait to show you the best of Korea! 🎌",
+    textGreeting: (name) => `Hi ${name},`,
+    textConfirmed: 'Your CocoTripKR booking is confirmed!',
+    textNotes: ['Please be ready 10 minutes before pickup time', 'Driver will hold a name sign at hotel lobby', 'Your PDF voucher is attached — show it on tour day'],
+  },
+  ko: {
+    subject: (ref) => `[CocoTrip] 예약이 확정되었습니다! 🎉 — ${ref}`,
+    tagline: '한국 프라이빗 투어 & 차량 서비스',
+    greeting: (name) => `<strong>${name}</strong>님, 안녕하세요!`,
+    intro: '예약이 확정되었습니다. 멋진 한국 여행을 함께하게 되어 기쁩니다! 🇰🇷',
+    summaryTitle: '📋 예약 요약',
+    service: '서비스', tourDate: '이용 날짜', pickup: '픽업', partySize: '인원',
+    amountPaid: '결제 금액', bookingRefLabel: '예약 번호', persons: '명', hotelLobby: '호텔 로비',
+    driverTitle: '🚐 담당 드라이버',
+    notesTitle: '📌 안내사항',
+    note1: '픽업 시간 <strong>10분 전</strong>까지 준비해 주세요',
+    note2: '기사가 호텔 로비에서 <strong>이름 피켓</strong>을 들고 대기합니다',
+    note3: '필요 시 <strong>WhatsApp</strong>으로 기사에게 연락하세요',
+    pdfNote: '📎 <strong>PDF 바우처</strong>가 이 이메일에 첨부되어 있습니다.<br>투어 당일 기사에게 보여주세요.',
+    footer: '한국의 가장 멋진 모습을 보여드리겠습니다! 🎌',
+    textGreeting: (name) => `${name}님, 안녕하세요!`,
+    textConfirmed: 'CocoTripKR 예약이 확정되었습니다!',
+    textNotes: ['픽업 시간 10분 전까지 준비해 주세요', '기사가 호텔 로비에서 이름 피켓을 들고 대기합니다', 'PDF 바우처 첨부 — 투어 당일 보여주세요'],
+  },
+  ja: {
+    subject: (ref) => `[CocoTrip] ご予約が確定しました！ 🎉 — ${ref}`,
+    tagline: '韓国プライベートツアー＆送迎サービス',
+    greeting: (name) => `<strong>${name}</strong>様、こんにちは！`,
+    intro: 'ご予約が確定しました。素敵な韓国の旅をご一緒できることを楽しみにしています！ 🇰🇷',
+    summaryTitle: '📋 予約サマリー',
+    service: 'サービス', tourDate: 'ご利用日', pickup: 'ピックアップ', partySize: '人数',
+    amountPaid: 'お支払い金額', bookingRefLabel: '予約番号', persons: '名', hotelLobby: 'ホテルロビー',
+    driverTitle: '🚐 担当ドライバー',
+    notesTitle: '📌 ご案内',
+    note1: 'ピックアップ時間の<strong>10分前</strong>までにご準備ください',
+    note2: 'ドライバーがホテルロビーで<strong>ネームボード</strong>を持ってお待ちします',
+    note3: '必要な場合は<strong>WhatsApp</strong>でドライバーにご連絡ください',
+    pdfNote: '📎 <strong>PDFバウチャー</strong>がこのメールに添付されています。<br>ツアー当日ドライバーにご提示ください。',
+    footer: '韓国の最高の姿をお見せします！ 🎌',
+    textGreeting: (name) => `${name}様、こんにちは！`,
+    textConfirmed: 'CocoTripKRのご予約が確定しました！',
+    textNotes: ['ピックアップ時間の10分前までにご準備ください', 'ドライバーがホテルロビーでネームボードを持ってお待ちします', 'PDFバウチャー添付 — ツアー当日ご提示ください'],
+  },
+  zh: {
+    subject: (ref) => `[CocoTrip] 您的预订已确认！ 🎉 — ${ref}`,
+    tagline: '韩国私人旅游&包车服务',
+    greeting: (name) => `<strong>${name}</strong>您好！`,
+    intro: '您的预订已确认。期待与您一起开启精彩的韩国之旅！ 🇰🇷',
+    summaryTitle: '📋 预订摘要',
+    service: '服务', tourDate: '出行日期', pickup: '接送', partySize: '人数',
+    amountPaid: '支付金额', bookingRefLabel: '预订编号', persons: '人', hotelLobby: '酒店大堂',
+    driverTitle: '🚐 您的司机',
+    notesTitle: '📌 温馨提示',
+    note1: '请在接送时间<strong>前10分钟</strong>做好准备',
+    note2: '司机将在酒店大堂<strong>举名牌</strong>等候',
+    note3: '如有需要请通过<strong>WhatsApp</strong>联系司机',
+    pdfNote: '📎 <strong>PDF凭证</strong>已附在本邮件中。<br>出行当天请出示给司机。',
+    footer: '我们迫不及待想带您领略韩国之美！ 🎌',
+    textGreeting: (name) => `${name}您好！`,
+    textConfirmed: '您的CocoTripKR预订已确认！',
+    textNotes: ['请在接送时间前10分钟做好准备', '司机将在酒店大堂举名牌等候', 'PDF凭证已附上 — 出行当天请出示'],
+  },
+};
+
+export function buildDefaultConfirmationEmail(booking, walletUrl = null, itineraryData = null, language = 'en') {
   // PR #421 (CZ2): bookingRef appears in the subject (text/plain context, no
   // escape needed) and in HTML body (escape needed below). Build once.
   const bookingRef = booking.bookingRef || 'CT-' + Date.now();
-  const subject = `[CocoTrip] Your Booking is Confirmed! 🎉 — ${bookingRef}`;
+  const L = FALLBACK_EMAIL_STR[language] || FALLBACK_EMAIL_STR.en;
+  const subject = L.subject(bookingRef);
 
   const walletSection = walletUrl ? `
     <!-- Google Wallet 버튼 -->
@@ -318,24 +402,24 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
   <!-- 헤더 -->
   <div style="background:#1a1a2e;border-radius:12px 12px 0 0;padding:28px 30px;text-align:center;">
     <h1 style="color:#C4956A;margin:0;font-size:26px;letter-spacing:2px;">COCOTRIPKR</h1>
-    <p style="color:#aaa;margin:6px 0 0;font-size:12px;">Korea Private Tour & Transfer Service</p>
+    <p style="color:#aaa;margin:6px 0 0;font-size:12px;">${L.tagline}</p>
   </div>
 
   <div style="background:#fff;padding:30px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-    <p style="font-size:16px;margin-top:0;">Hi <strong>${escapeHtml(booking.customerName || 'there')}</strong>, 안녕하세요!</p>
-    <p style="color:#374151;">Your booking is confirmed. We're excited to take you on an amazing journey through Korea! 🇰🇷</p>
+    <p style="font-size:16px;margin-top:0;">${L.greeting(escapeHtml(booking.customerName || 'there'))}</p>
+    <p style="color:#374151;">${L.intro}</p>
 
     <!-- 예약 요약 -->
     <div style="background:#eff6ff;border-left:4px solid #C4956A;border-radius:8px;padding:20px;margin:24px 0;">
-      <h2 style="color:#1a1a2e;margin:0 0 14px;font-size:16px;">📋 Booking Summary</h2>
+      <h2 style="color:#1a1a2e;margin:0 0 14px;font-size:16px;">${L.summaryTitle}</h2>
       <table style="width:100%;border-collapse:collapse;">
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;width:130px;font-size:13px;">Service</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.product || '-')}</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Tour Date</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.tourDate || '-')}</td></tr>
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Pickup</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.pickupLocation || 'Hotel Lobby')}</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Party Size</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.paxCount || '-')} person(s)</td></tr>
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:7px 8px;font-weight:bold;color:#059669;font-size:13px;">$${escapeHtml(booking.amountUSD || '0')} USD</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Booking Ref</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${escapeHtml(bookingRef)}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;width:130px;font-size:13px;">${L.service}</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.product || '-')}</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">${L.tourDate}</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.tourDate || '-')}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">${L.pickup}</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.pickupLocation || L.hotelLobby)}</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">${L.partySize}</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.paxCount || '-')} ${L.persons}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">${L.amountPaid}</td><td style="padding:7px 8px;font-weight:bold;color:#059669;font-size:13px;">$${escapeHtml(booking.amountUSD || '0')} USD</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">${L.bookingRefLabel}</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${escapeHtml(bookingRef)}</td></tr>
       </table>
     </div>
 
@@ -347,7 +431,7 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
 
     <!-- 담당 드라이버 -->
     <div style="background:#f0fdf4;border-radius:8px;padding:18px;margin:20px 0;">
-      <h3 style="color:#166534;margin:0 0 10px;font-size:14px;">🚐 Your Driver</h3>
+      <h3 style="color:#166534;margin:0 0 10px;font-size:14px;">${L.driverTitle}</h3>
       <p style="margin:0;font-size:15px;font-weight:bold;color:#1a1a2e;">Taeo</p>
       <p style="margin:6px 0 0;font-size:13px;color:#374151;">
         <a href="https://wa.me/821087140611" style="color:#25d366;text-decoration:none;font-weight:bold;">📱 WhatsApp: +82-10-8714-0611</a><br>
@@ -356,37 +440,37 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
     </div>
 
     <!-- 안내사항 -->
-    <h3 style="color:#374151;margin-top:22px;font-size:14px;">📌 Important Notes</h3>
+    <h3 style="color:#374151;margin-top:22px;font-size:14px;">${L.notesTitle}</h3>
     <ul style="color:#4b5563;line-height:2;font-size:13px;padding-left:20px;">
-      <li>Please be ready <strong>10 minutes before</strong> pickup time</li>
-      <li>Driver will hold a <strong>name sign</strong> at hotel lobby</li>
-      <li>Contact driver via <strong>WhatsApp</strong> if needed</li>
+      <li>${L.note1}</li>
+      <li>${L.note2}</li>
+      <li>${L.note3}</li>
     </ul>
 
     <!-- PDF 안내 -->
     <div style="background:#fafafa;border:1px dashed #d1d5db;border-radius:8px;padding:14px;margin:20px 0;text-align:center;">
-      <p style="margin:0;color:#6b7280;font-size:12px;">📎 Your <strong>PDF Voucher</strong> is attached to this email.<br>Please show it to your driver on tour day.</p>
+      <p style="margin:0;color:#6b7280;font-size:12px;">${L.pdfNote}</p>
     </div>
 
     <!-- 푸터 -->
     <p style="text-align:center;color:#9ca3af;font-size:13px;margin-top:24px;">
-      We can't wait to show you the best of Korea! 🎌<br>
+      ${L.footer}<br>
       <a href="https://cocotripkr.com" style="color:#C4956A;text-decoration:none;font-weight:bold;">cocotripkr.com</a>
     </p>
   </div>
 </body>
 </html>`;
 
-  const text = `Hi ${booking.customerName || 'there'},
+  const text = `${L.textGreeting(booking.customerName || 'there')}
 
-Your CocoTripKR booking is confirmed!
+${L.textConfirmed}
 
-Booking Ref:  ${booking.bookingRef || '-'}
-Service:      ${booking.product || '-'}
-Tour Date:    ${booking.tourDate || '-'}
-Pickup:       ${booking.pickupLocation || 'Hotel Lobby'}
-Party Size:   ${booking.paxCount || '-'} person(s)
-Amount Paid:  $${booking.amountUSD || '0'} USD
+${L.bookingRefLabel}:  ${booking.bookingRef || '-'}
+${L.service}:      ${booking.product || '-'}
+${L.tourDate}:    ${booking.tourDate || '-'}
+${L.pickup}:       ${booking.pickupLocation || L.hotelLobby}
+${L.partySize}:   ${booking.paxCount || '-'} ${L.persons}
+${L.amountPaid}:  $${booking.amountUSD || '0'} USD
 
 Your Driver: Taeo
 WhatsApp: +82-10-8714-0611
@@ -398,10 +482,10 @@ distance / driving duration differs from the estimate by more than ±10%,
 we'll reconcile (additional charge or partial refund) within 1 business
 day after the trip. Itemized statement will be sent before any adjustment.
 ` : ''}
-IMPORTANT:
-- Please be ready 10 minutes before pickup time
-- Driver will hold a name sign at hotel lobby
-- Your PDF voucher is attached — show it on tour day
+${L.notesTitle.replace(/^📌 /, '').toUpperCase()}:
+- ${L.textNotes[0]}
+- ${L.textNotes[1]}
+- ${L.textNotes[2]}
 ${walletUrl ? `
 Google Wallet: ${walletUrl}
 ` : ''}${renderItineraryText(itineraryData)}

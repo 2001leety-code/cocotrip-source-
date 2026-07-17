@@ -173,6 +173,7 @@ const originalHandler = async (event) => {
     userEmail,          // 이슈#1 fix: 로열티 적립 등에 활용
     bookingRef: externalBookingRef,  // 이슈#2 fix: capturePaypalOrder에서 생성한 CT- 번호
     requiresReconciliation,  // 2026-05-04: charter_custom_estimate booking 표식
+    language: requestedLanguage,  // 2026-07-17: 고객 실제 UI 언어 (capture body 경유). 없으면 휴리스틱 폴백.
   } = body;
 
   if (!orderID || !payerEmail) {
@@ -307,7 +308,10 @@ const originalHandler = async (event) => {
     requiresReconciliation: !!requiresReconciliation,
   };
 
-  const language = detectLanguage(payerEmail, payerName);
+  // 2026-07-17: 고객이 결제한 화면의 실제 UI 언어를 우선 사용. 미전달(구 클라이언트·cart 경로)
+  // 이면 기존 휴리스틱(이메일 도메인·이름 문자) 폴백 — gmail 일본인이 영어 이메일 받던 갭 해소.
+  const VALID_LANGS = new Set(['en', 'ko', 'ja', 'zh']);
+  const language = VALID_LANGS.has(requestedLanguage) ? requestedLanguage : detectLanguage(payerEmail, payerName);
   const results = { bookingRef, steps: {} };
 
   // ── Step 2: Google Sheets 예약 기록 추가 (멱등: 원자 선점으로 동시 호출 중복 방지) ──
@@ -446,7 +450,7 @@ const originalHandler = async (event) => {
         ]);
       } catch (aiErr) {
         console.warn('[booking-processor] AI 이메일 생성 실패, 기본 템플릿 사용:', aiErr.message);
-        emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData);
+        emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData, language);
       }
 
       await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
