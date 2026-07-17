@@ -92,6 +92,165 @@ export interface BookingInfoFormProps {
   externalArrivalTime?: string;
 }
 
+// ── 폼 내부 라벨 4언어 사전 (2026-07-17 — 한국어 하드코딩 해소) ─────────────
+// 외국인 인바운드 결제 직전 폼이 한국어 고정이던 문제. lang prop(DialLang) 기준.
+// 새 사용자노출 텍스트 = ko/en/ja/zh 동시 유지 (CLAUDE.md 배포 전 체크).
+const STR = {
+  ko: {
+    freeCancel24h: '✓ 사용일 24시간 전까지 무료 취소',
+    travelerSection: '이용객 · 연락처 정보', travelerSub: 'Traveler & contact',
+    lastName: '영문 성 (Last name)', firstName: '영문 이름 (First name)',
+    phone: '휴대폰 번호', phoneHint: '투어 당일 연락에만 사용',
+    email: '이메일 주소', emailHint: '예약 확인서 발송에만 사용',
+    messenger: '메신저 연락처', optQuick: '(선택 · 빠른 안내)',
+    messengerPh: '메신저 ID 또는 번호',
+    messengerHint: '여행 일정·픽업 관련 안내가 연락처로 발송됩니다. 정확한 정보를 입력해 주세요.',
+    addInfoSection: '추가 정보', addInfoSub: 'Additional details',
+    meetingPh: '예: L7 명동 바이 롯데호텔 (퇴계로 137)',
+    flightNo: '항공편 편명', optional: '(선택)', arrivalTime: '도착 시간', localTime: '(현지)',
+    luggage: '캐리어 (사이즈별 수량)', lugSmall: '소형 (기내반입)', lugMedium: '중형 (24인치)', lugLarge: '대형 (28인치+)',
+    notes: '추가 요청사항', notesPh: '예: 유아 카시트 필요, 한국어 기사 선호, 특정 시간 픽업…',
+    addonsSection: '부가 서비스', addonsSub: 'Optional add-ons',
+    addonMeeting: '공항 미팅 & 피켓 서비스',
+    addonMeetingDesc: '픽업 담당직원이 도착 출구(세관 통과 후)에서 피켓을 들고 대기합니다',
+    addonChildSeat: '유아 카시트',
+    addonChildSeatDesc: '신생아·유아 동반 시 안전 카시트를 미리 장착해 드립니다',
+    promoSection: '할인코드', promoSub: 'Promo code', promoPh: '할인코드 입력', promoApply: '사용',
+    promoApplied: '할인코드가 적용되었습니다', promoRemove: '취소',
+    promoHint: '가입 시 발급된 차터·투어 5% 쿠폰 코드는 마이페이지 › 쿠폰에서 확인하세요.',
+    promoToggle: '🎟 할인코드가 있으신가요?',
+    agreeAll: '아래 항목에 모두 동의합니다', req: '필수', opt: '선택',
+    agree1: '만 18세 이상이며 이용약관 및 취소 규정에 동의합니다',
+    agree2: '개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다',
+    agree3: '개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다',
+    agree4: '한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다',
+    privacyLink: '개인정보 처리방침', termsLink: '이용약관',
+    errRequired: (meeting: string) => `필수 항목(성·이름·연락처·이메일·${meeting})과 필수 약관 동의를 확인해 주세요.`,
+    disclaimer: '코코트립은 통신판매중개자로서 차량 공급업체가 제공하는 서비스의 당사자가 아니며, 예약·이용·환불 관련 의무와 책임은 각 공급업체에 있습니다.',
+    payInfo: '결제 정보', payBase: '선택 옵션', payMeeting: '공항 미팅 & 피켓', payPromo: '할인코드 적용', payTotal: '예약 총금액',
+    cancelPolicy: '취소 규정', cancelFreeTitle: '무료 취소', cancelFreeDesc: '사용일 24시간 전까지 — 전액 환불',
+    cancelFeeTitle: '⚠ 취소 수수료 100%', cancelFeeDesc: '사용일 24시간 전 이후 — 환불 불가',
+    trust1: '단일요금, 모든 서비스 투명하게', trust1Sub: '팁·통행료 포함, 별도 추가요금 없음',
+    trust2: '항공편 지연 시 무료 대기', trust2Sub: '도착 후 약 90분간 무료 대기',
+    trust3: '영어·한국어 가능 기사 · 24시간 지원', trust3Sub: '노쇼·지각 시 보상 보장',
+  },
+  en: {
+    freeCancel24h: '✓ Free cancellation until 24h before use',
+    travelerSection: 'Traveler & contact', travelerSub: '',
+    lastName: 'Last name (passport)', firstName: 'First name (passport)',
+    phone: 'Mobile number', phoneHint: 'For tour-day contact only',
+    email: 'Email address', emailHint: 'Only for booking confirmation',
+    messenger: 'Messenger contact', optQuick: '(optional · faster updates)',
+    messengerPh: 'Messenger ID or number',
+    messengerHint: 'Trip and pickup updates are sent to this contact. Please enter accurate details.',
+    addInfoSection: 'Additional details', addInfoSub: '',
+    meetingPh: 'e.g. L7 Myeongdong by Lotte (137 Toegye-ro)',
+    flightNo: 'Flight number', optional: '(optional)', arrivalTime: 'Arrival time', localTime: '(local)',
+    luggage: 'Luggage (count by size)', lugSmall: 'Small (carry-on)', lugMedium: 'Medium (24")', lugLarge: 'Large (28"+)',
+    notes: 'Special requests', notesPh: 'e.g. child seat needed, Korean-speaking driver, specific pickup time…',
+    addonsSection: 'Optional add-ons', addonsSub: '',
+    addonMeeting: 'Airport meet & greet (name board)',
+    addonMeetingDesc: 'Staff waits at the arrival exit (after customs) holding a name board',
+    addonChildSeat: 'Child car seat',
+    addonChildSeatDesc: 'We pre-install a safety seat for infants and toddlers',
+    promoSection: 'Promo code', promoSub: '', promoPh: 'Enter promo code', promoApply: 'Apply',
+    promoApplied: 'applied', promoRemove: 'Remove',
+    promoHint: 'Find your 5% charter/tour coupon codes in My Page › Coupons.',
+    promoToggle: '🎟 Have a promo code?',
+    agreeAll: 'I agree to all items below', req: 'Required', opt: 'Optional',
+    agree1: 'I am 18 or older and agree to the Terms of Service and cancellation policy',
+    agree2: 'I consent to sharing my personal data with third parties (vehicle suppliers and drivers)',
+    agree3: 'I consent to cross-border transfer of my personal data and collection/use of unique identification information',
+    agree4: 'I agree to receive marketing updates (limited deals, events, travel news)',
+    privacyLink: 'Privacy Policy', termsLink: 'Terms of Service',
+    errRequired: (meeting: string) => `Please complete the required fields (last name, first name, phone, email, ${meeting}) and the required consents.`,
+    disclaimer: 'CocoTrip acts as a booking intermediary and is not a party to the services provided by vehicle suppliers. Obligations and liability for reservations, service, and refunds lie with each supplier.',
+    payInfo: 'Payment summary', payBase: 'Selected option', payMeeting: 'Airport meet & greet', payPromo: 'Promo applied', payTotal: 'Total',
+    cancelPolicy: 'Cancellation policy', cancelFreeTitle: 'Free cancellation', cancelFreeDesc: 'Until 24h before use — full refund',
+    cancelFeeTitle: '⚠ 100% cancellation fee', cancelFeeDesc: 'Within 24h of use — non-refundable',
+    trust1: 'One transparent price', trust1Sub: 'Tips & tolls included, no extra charges',
+    trust2: 'Free waiting for flight delays', trust2Sub: 'Up to ~90 minutes free waiting after arrival',
+    trust3: 'English/Korean-speaking drivers · 24/7 support', trust3Sub: 'Compensation guaranteed for no-show or lateness',
+  },
+  ja: {
+    freeCancel24h: '✓ ご利用日の24時間前まで無料キャンセル',
+    travelerSection: '利用者・連絡先情報', travelerSub: 'Traveler & contact',
+    lastName: '姓（ローマ字）', firstName: '名（ローマ字）',
+    phone: '携帯電話番号', phoneHint: 'ツアー当日の連絡のみに使用',
+    email: 'メールアドレス', emailHint: '予約確認書の送付のみに使用',
+    messenger: 'メッセンジャー連絡先', optQuick: '（任意・迅速なご案内）',
+    messengerPh: 'メッセンジャーIDまたは番号',
+    messengerHint: '旅行日程・ピックアップのご案内がこの連絡先に送信されます。正確にご入力ください。',
+    addInfoSection: '追加情報', addInfoSub: 'Additional details',
+    meetingPh: '例: L7明洞 バイ ロッテ（退渓路137）',
+    flightNo: 'フライト便名', optional: '（任意）', arrivalTime: '到着時間', localTime: '（現地）',
+    luggage: 'スーツケース（サイズ別数量）', lugSmall: '小型（機内持込）', lugMedium: '中型（24インチ）', lugLarge: '大型（28インチ以上）',
+    notes: '追加リクエスト', notesPh: '例: チャイルドシート必要、韓国語ドライバー希望、特定時間ピックアップ…',
+    addonsSection: 'オプションサービス', addonsSub: 'Optional add-ons',
+    addonMeeting: '空港ミーティング＆ネームボード',
+    addonMeetingDesc: '担当スタッフが到着出口（税関通過後）でネームボードを持ってお待ちします',
+    addonChildSeat: 'チャイルドシート',
+    addonChildSeatDesc: '乳幼児同伴時、安全なチャイルドシートを事前に設置します',
+    promoSection: '割引コード', promoSub: 'Promo code', promoPh: '割引コードを入力', promoApply: '適用',
+    promoApplied: 'を適用しました', promoRemove: '解除',
+    promoHint: '登録時に発行されたチャーター・ツアー5%クーポンはマイページ › クーポンでご確認ください。',
+    promoToggle: '🎟 割引コードをお持ちですか？',
+    agreeAll: '以下すべてに同意します', req: '必須', opt: '任意',
+    agree1: '満18歳以上であり、利用規約およびキャンセル規定に同意します',
+    agree2: '個人情報の第三者提供（車両供給業者・ドライバー）に同意します',
+    agree3: '個人情報の国外移転および固有識別情報の収集・利用に同意します',
+    agree4: '限定特価・イベント・旅行情報などのマーケティング情報の受信に同意します',
+    privacyLink: 'プライバシーポリシー', termsLink: '利用規約',
+    errRequired: (meeting: string) => `必須項目（姓・名・連絡先・メール・${meeting}）と必須規約への同意をご確認ください。`,
+    disclaimer: 'CocoTripは通信販売仲介者であり、車両供給業者が提供するサービスの当事者ではありません。予約・利用・返金に関する義務と責任は各供給業者にあります。',
+    payInfo: 'お支払い情報', payBase: '選択オプション', payMeeting: '空港ミーティング＆ネームボード', payPromo: '割引コード適用', payTotal: '予約総額',
+    cancelPolicy: 'キャンセル規定', cancelFreeTitle: '無料キャンセル', cancelFreeDesc: 'ご利用24時間前まで — 全額返金',
+    cancelFeeTitle: '⚠ キャンセル料100%', cancelFeeDesc: 'ご利用24時間前以降 — 返金不可',
+    trust1: '単一料金・すべて透明', trust1Sub: 'チップ・通行料込み、追加料金なし',
+    trust2: 'フライト遅延時は無料待機', trust2Sub: '到着後約90分間無料待機',
+    trust3: '英語・韓国語対応ドライバー・24時間サポート', trust3Sub: 'ノーショー・遅刻時は補償保証',
+  },
+  zh: {
+    freeCancel24h: '✓ 使用日前24小时可免费取消',
+    travelerSection: '乘客·联系信息', travelerSub: 'Traveler & contact',
+    lastName: '姓（英文/拼音）', firstName: '名（英文/拼音）',
+    phone: '手机号码', phoneHint: '仅用于出行当天联系',
+    email: '电子邮箱', emailHint: '仅用于发送预订确认函',
+    messenger: '即时通讯联系方式', optQuick: '（可选·更快通知）',
+    messengerPh: '账号ID或号码',
+    messengerHint: '行程与接送通知将发送至此联系方式，请填写准确信息。',
+    addInfoSection: '补充信息', addInfoSub: 'Additional details',
+    meetingPh: '例: L7明洞乐天酒店（退溪路137）',
+    flightNo: '航班号', optional: '（可选）', arrivalTime: '到达时间', localTime: '（当地）',
+    luggage: '行李箱（按尺寸数量）', lugSmall: '小型（登机箱）', lugMedium: '中型（24寸）', lugLarge: '大型（28寸以上）',
+    notes: '其他要求', notesPh: '例: 需要儿童座椅、希望韩语司机、指定接送时间…',
+    addonsSection: '附加服务', addonsSub: 'Optional add-ons',
+    addonMeeting: '机场接机举牌服务',
+    addonMeetingDesc: '工作人员将在到达出口（过海关后）举牌等候',
+    addonChildSeat: '儿童安全座椅',
+    addonChildSeatDesc: '携带婴幼儿时，我们会提前安装安全座椅',
+    promoSection: '优惠码', promoSub: 'Promo code', promoPh: '输入优惠码', promoApply: '使用',
+    promoApplied: '已应用', promoRemove: '取消',
+    promoHint: '注册时发放的包车·跟团5%优惠码请在“我的页面 › 优惠券”中查看。',
+    promoToggle: '🎟 有优惠码吗？',
+    agreeAll: '同意以下全部条款', req: '必选', opt: '可选',
+    agree1: '本人已满18岁，并同意服务条款及取消政策',
+    agree2: '同意向第三方（车辆供应商·司机）提供个人信息',
+    agree3: '同意个人信息跨境传输及唯一识别信息的收集·使用',
+    agree4: '同意接收限时特价·活动·旅行资讯等营销信息',
+    privacyLink: '隐私政策', termsLink: '服务条款',
+    errRequired: (meeting: string) => `请填写必填项（姓、名、联系方式、邮箱、${meeting}）并勾选必选条款。`,
+    disclaimer: 'CocoTrip作为交易中介，并非车辆供应商所提供服务的当事方；预订、使用及退款相关义务与责任由各供应商承担。',
+    payInfo: '支付信息', payBase: '所选项目', payMeeting: '机场接机举牌', payPromo: '已用优惠码', payTotal: '预订总额',
+    cancelPolicy: '取消政策', cancelFreeTitle: '免费取消', cancelFreeDesc: '使用前24小时 — 全额退款',
+    cancelFeeTitle: '⚠ 取消手续费100%', cancelFeeDesc: '使用前24小时内 — 不可退款',
+    trust1: '一口价，全程透明', trust1Sub: '含小费·过路费，无额外费用',
+    trust2: '航班延误免费等候', trust2Sub: '抵达后约90分钟免费等候',
+    trust3: '英语·韩语司机·24小时支持', trust3Sub: '爽约·迟到有补偿保障',
+  },
+} satisfies Record<DialLang, unknown>;
+type FormStrings = (typeof STR)['ko'];
+
 // ── 스타일 토큰 ──────────────────────────────────────────────
 const C = {
   card: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 22, backdropFilter: 'blur(20px)' } as React.CSSProperties,
@@ -107,7 +266,7 @@ function SectionHead({ title, sub }: { title: string; sub: string }) {
       <span style={{ display: 'flex', width: 32, height: 32, borderRadius: 9, background: 'rgba(124,92,252,0.12)', border: '1px solid rgba(124,92,252,0.25)', alignItems: 'center', justifyContent: 'center', color: '#B9A4FF', flex: '0 0 auto', fontSize: 15 }}>•</span>
       <div>
         <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em' }}>{title}</div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{sub}</div>
+        {sub ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{sub}</div> : null}
       </div>
     </div>
   );
@@ -130,6 +289,8 @@ function Counter({ label, value, onChange }: { label: string; value: number; onC
 export function BookingInfoForm(props: BookingInfoFormProps) {
   const { isAirport, meetingLabel, baseStr, meetingStr, childSeatStr, totalStr, usdStr, ctaLabel } = props;
   const lang: DialLang = props.lang || 'ko';
+  // 폼 내부 라벨 4언어 — 한국어 하드코딩 해소 (2026-07-17).
+  const s: FormStrings = STR[lang] || STR.en;
   // 신뢰 바(결제 직전 안심) 4언어 — 가이드 docs/DESIGN-BOOKING-FORM-UX.md §6. 표시만.
   const trustItems = ({
     ko: ['PayPal 보안결제', '무료 취소', 'KTO 등록사업자'],
@@ -288,26 +449,26 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   값=prop totalStr 그대로(재계산 X · PayPal priceKRW 와 동일 source). */}
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, color: '#C99FFF', background: 'rgba(182,104,252,0.12)', border: '1px solid rgba(182,104,252,0.30)', padding: '4px 9px', borderRadius: 9999, whiteSpace: 'nowrap' }}>{totalStr}</span>
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>✓ 사용일 24시간 전까지 무료 취소</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>{s.freeCancel24h}</div>
           </div>
         </div>
 
         {/* 이용객·연락처 */}
         <div style={C.card}>
-          <SectionHead title="이용객 · 연락처 정보" sub="Traveler & contact" />
+          <SectionHead title={s.travelerSection} sub={s.travelerSub} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 13 }}>
             <div>
-              <label style={C.label}>영문 성 (Last name) <span style={C.req}>*</span></label>
+              <label style={C.label}>{s.lastName} <span style={C.req}>*</span></label>
               <input value={f.lastName} onChange={(e) => set({ lastName: e.target.value })} placeholder="HONG" style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
             <div>
-              <label style={C.label}>영문 이름 (First name) <span style={C.req}>*</span></label>
+              <label style={C.label}>{s.firstName} <span style={C.req}>*</span></label>
               <input value={f.firstName} onChange={(e) => set({ firstName: e.target.value })} placeholder="GILDONG" style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 13 }}>
             <div>
-              <label style={C.label}>휴대폰 번호 <span style={C.req}>*</span></label>
+              <label style={C.label}>{s.phone} <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {/* 국가번호 picker — 트립닷컴식(검색+자주찾는+전세계 ~239국). COUNTRIES SSOT(로그인 전화인증과 공유). */}
                 <CountryDialPicker
@@ -325,29 +486,29 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   onBlur={blurable}
                 />
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>투어 당일 연락에만 사용 · For tour-day contact only</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.phoneHint}</div>
             </div>
             <div>
-              <label style={C.label}>이메일 주소 <span style={C.req}>*</span></label>
+              <label style={C.label}>{s.email} <span style={C.req}>*</span></label>
               <input value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" inputMode="email" style={C.input} onFocus={focusable} onBlur={blurable} />
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>예약 확인서 발송에만 사용 · Only for booking confirmation</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.emailHint}</div>
             </div>
           </div>
           <div>
-            <label style={C.label}>메신저 연락처 <span style={C.opt}>(선택 · 빠른 안내)</span></label>
+            <label style={C.label}>{s.messenger} <span style={C.opt}>{s.optQuick}</span></label>
             <div style={{ display: 'grid', gridTemplateColumns: '128px 1fr', gap: 8 }}>
               <select value={f.messenger} onChange={(e) => set({ messenger: e.target.value })} style={{ ...C.input, cursor: 'pointer' }}>
                 <option>WhatsApp</option><option>KakaoTalk</option><option>LINE</option><option>WeChat</option>
               </select>
-              <input value={f.messengerId} onChange={(e) => set({ messengerId: e.target.value })} placeholder="메신저 ID 또는 번호" style={C.input} onFocus={focusable} onBlur={blurable} />
+              <input value={f.messengerId} onChange={(e) => set({ messengerId: e.target.value })} placeholder={s.messengerPh} style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, lineHeight: 1.5 }}>여행 일정·픽업 관련 안내가 연락처로 발송됩니다. 정확한 정보를 입력해 주세요.</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, lineHeight: 1.5 }}>{s.messengerHint}</div>
           </div>
         </div>
 
         {/* 추가 정보 */}
         <div style={C.card}>
-          <SectionHead title="추가 정보" sub="Additional details" />
+          <SectionHead title={s.addInfoSection} sub={s.addInfoSub} />
           <div style={{ marginBottom: 13 }}>
             <label style={C.label}>{meetingLabel} <span style={C.req}>*</span></label>
             {/* #3 미팅장소 자동완성 — AddressAutocomplete(Naver Local Search + 미니지도).
@@ -371,7 +532,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                 // 직접 타이핑 시 자동완성 coord 초기화(자유입력 우선).
                 if (meetingPlaceCoord) setMeetingPlaceCoord(null);
               }}
-              placeholder="예: L7 명동 바이 롯데호텔 (퇴계로 137)"
+              placeholder={s.meetingPh}
               style={C.input}
               onFocus={focusable}
               onBlur={blurable}
@@ -382,11 +543,11 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={C.label}>항공편 편명 <span style={C.opt}>(선택)</span></label>
+                  <label style={C.label}>{s.flightNo} <span style={C.opt}>{s.optional}</span></label>
                   <input value={f.flightNo} onChange={(e) => set({ flightNo: e.target.value.toUpperCase() })} placeholder="예: KE5760, OZ521" style={{ ...C.input, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }} onFocus={focusable} onBlur={blurable} />
                 </div>
                 <div>
-                  <label style={C.label}>도착 시간 <span style={C.opt}>(현지)</span></label>
+                  <label style={C.label}>{s.arrivalTime} <span style={C.opt}>{s.localTime}</span></label>
                   {/* #4 도착시간 — externalArrivalTime(조회 결과)으로 자동 채움.
                       사용자가 직접 수정하면 arrivalTimeTouched=true → 이후 조회 결과로 덮어쓰지 않음. */}
                   <input
@@ -402,28 +563,28 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               {/* 항공편 도착정보 자동조회 슬롯 (#1012 /api/flight-status — 호출처가 조회 버튼·결과 렌더). */}
               {props.flightLookupSlot && <div style={{ marginBottom: 14 }}>{props.flightLookupSlot}</div>}
               <div style={{ marginBottom: 13 }}>
-                <label style={{ ...C.label, display: 'flex', alignItems: 'center', gap: 6 }}>캐리어 (사이즈별 수량)</label>
+                <label style={{ ...C.label, display: 'flex', alignItems: 'center', gap: 6 }}>{s.luggage}</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Counter label="소형 (기내반입)" value={f.lugSmall} onChange={(v) => set({ lugSmall: v })} />
-                  <Counter label="중형 (24인치)" value={f.lugMedium} onChange={(v) => set({ lugMedium: v })} />
-                  <Counter label="대형 (28인치+)" value={f.lugLarge} onChange={(v) => set({ lugLarge: v })} />
+                  <Counter label={s.lugSmall} value={f.lugSmall} onChange={(v) => set({ lugSmall: v })} />
+                  <Counter label={s.lugMedium} value={f.lugMedium} onChange={(v) => set({ lugMedium: v })} />
+                  <Counter label={s.lugLarge} value={f.lugLarge} onChange={(v) => set({ lugLarge: v })} />
                 </div>
               </div>
             </>
           )}
           <div>
-            <label style={C.label}>추가 요청사항 <span style={C.opt}>(선택)</span></label>
-            <textarea value={f.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} placeholder="예: 유아 카시트 필요, 한국어 기사 선호, 특정 시간 픽업…" style={{ ...C.input, resize: 'none', lineHeight: 1.55 }} onFocus={focusable} onBlur={blurable} />
+            <label style={C.label}>{s.notes} <span style={C.opt}>{s.optional}</span></label>
+            <textarea value={f.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} placeholder={s.notesPh} style={{ ...C.input, resize: 'none', lineHeight: 1.55 }} onFocus={focusable} onBlur={blurable} />
           </div>
         </div>
 
         {/* 부가 서비스 */}
         {!props.hideAddons && (
         <div style={C.card}>
-          <SectionHead title="부가 서비스" sub="Optional add-ons" />
+          <SectionHead title={s.addonsSection} sub={s.addonsSub} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <AddonRow label="공항 미팅 & 피켓 서비스" desc="픽업 담당직원이 도착 출구(세관 통과 후)에서 피켓을 들고 대기합니다" price={meetingStr} checked={f.addonMeeting} onChange={(v) => set({ addonMeeting: v })} />
-            <AddonRow label="유아 카시트" desc="신생아·유아 동반 시 안전 카시트를 미리 장착해 드립니다" price={childSeatStr} checked={f.addonChildSeat} onChange={(v) => set({ addonChildSeat: v })} />
+            <AddonRow label={s.addonMeeting} desc={s.addonMeetingDesc} price={meetingStr} checked={f.addonMeeting} onChange={(v) => set({ addonMeeting: v })} />
+            <AddonRow label={s.addonChildSeat} desc={s.addonChildSeatDesc} price={childSeatStr} checked={f.addonChildSeat} onChange={(v) => set({ addonChildSeat: v })} />
           </div>
         </div>
         )}
@@ -431,27 +592,26 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         {/* 할인코드 */}
         {!props.hideDiscount && ((discountOpen || appliedCode) ? (
         <div style={C.card}>
-          <SectionHead title="할인코드" sub="Promo code" />
+          <SectionHead title={s.promoSection} sub={s.promoSub} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
-            <input value={f.discountCode} onChange={(e) => set({ discountCode: e.target.value.toUpperCase() })} placeholder="할인코드 입력" style={{ ...C.input, flex: '1 1 auto', minWidth: 0, textTransform: 'uppercase' }} onFocus={focusable} onBlur={blurable} />
-            <button type="button" onClick={() => applyCode(f.discountCode)} style={{ flex: '0 0 auto', padding: '0 22px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>사용</button>
+            <input value={f.discountCode} onChange={(e) => set({ discountCode: e.target.value.toUpperCase() })} placeholder={s.promoPh} style={{ ...C.input, flex: '1 1 auto', minWidth: 0, textTransform: 'uppercase' }} onFocus={focusable} onBlur={blurable} />
+            <button type="button" onClick={() => applyCode(f.discountCode)} style={{ flex: '0 0 auto', padding: '0 22px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{s.promoApply}</button>
           </div>
           {appliedCode && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(0,210,140,0.3)', background: 'rgba(0,210,140,0.08)', marginBottom: 13 }}>
-              <span style={{ flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.85)' }}><b style={{ color: '#00D28C' }}>{appliedCode}</b> 할인코드가 적용되었습니다</span>
-              <button type="button" onClick={() => { setAppliedCode(''); set({ discountCode: '' }); }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>취소</button>
+              <span style={{ flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.85)' }}><b style={{ color: '#00D28C' }}>{appliedCode}</b> {s.promoApplied}</span>
+              <button type="button" onClick={() => { setAppliedCode(''); set({ discountCode: '' }); }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>{s.promoRemove}</button>
             </div>
           )}
           {/* 2026-07-07: 가짜 공개코드(WELCOME12/10 — 서버 미존재, 클릭 시 실패) 제거.
               실제 5% 쿠폰은 가입 시 개인 코드로 발급 → 마이페이지에서 확인·입력. */}
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4, lineHeight: 1.5 }}>
-            가입 시 발급된 차터·투어 5% 쿠폰 코드는 마이페이지 › 쿠폰에서 확인하세요.
-            <br /><span style={{ color: 'rgba(255,255,255,0.25)' }}>Your 5% charter/tour coupon codes are in My Page › Coupons.</span>
+            {s.promoHint}
           </div>
         </div>
         ) : (
           <button type="button" onClick={() => setDiscountOpen(true)} style={{ ...C.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textAlign: 'left', width: '100%', fontFamily: 'inherit' }}>
-            <span>🎟 할인코드가 있으신가요? <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 400 }}>Have a promo code?</span></span>
+            <span>{s.promoToggle}</span>
             <span style={{ color: '#B9A4FF', fontSize: 18 }}>›</span>
           </button>
         ))}
@@ -460,24 +620,23 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         <div style={C.card}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', marginBottom: 6 }}>
             <input type="checkbox" checked={agreeAll} onChange={toggleAll} style={{ width: 20, height: 20, accentColor: '#7C5CFC', cursor: 'pointer' }} />
-            <span style={{ fontWeight: 700, fontSize: 14 }}>아래 항목에 모두 동의합니다</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{s.agreeAll}</span>
           </label>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* 필수 3개 — 외부모드면 checked=requiredAgreed(마케팅 토글이 필수 표시에 안 새게), onChange=호출처 termsAgreed. */}
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req text="개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree1} />
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree2} />
+            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree3} />
             {/* 마케팅(선택) — 외부모드에서도 내부 state(f.agree4)로만. onMarketingChange 미배선이면 payload 미반영(강제동의 제거 목적). */}
-            <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
+            <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} reqLabel={s.req} optLabel={s.opt} text={s.agree4} />
           </div>
           {/* 🔴 법적 근거 링크 — 이 약관 카드가 약관 SSOT 이므로 /privacy·/terms 링크를 유지(법무 근거 보존 의무).
               (2026-06-30 SMS 본인인증 제거 후 약관 동의 게이트의 단일 소유처.) */}
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-            <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>개인정보 처리방침</Link>
+            <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>{s.privacyLink}</Link>
             <span> · </span>
-            <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>이용약관</Link>
-            <span> 보기</span>
+            <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>{s.termsLink}</Link>
           </div>
         </div>
 
@@ -495,14 +654,14 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <>
               {error && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,100,100,0.3)', background: 'rgba(255,100,100,0.08)', marginBottom: 11, fontSize: 13, color: '#ffb4b4' }}>
-                  필수 항목(성·이름·연락처·이메일·{meetingLabel})과 필수 약관 동의를 확인해 주세요.
+                  {s.errRequired(meetingLabel)}
                 </div>
               )}
               <button type="button" onClick={submit} style={{ width: '100%', padding: 16, border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#7C5CFC 0%,#EA537E 100%)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 24px rgba(124,92,252,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '-0.01em' }}>
                 {ctaLabel} <span style={{ opacity: 0.85, fontWeight: 700 }}>{totalStr}</span>
               </button>
               <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 11, lineHeight: 1.6 }}>
-                코코트립은 통신판매중개자로서 차량 공급업체가 제공하는 서비스의 당사자가 아니며,<br />예약·이용·환불 관련 의무와 책임은 각 공급업체에 있습니다.
+                {s.disclaimer}
               </div>
             </>
           )}
@@ -512,16 +671,16 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
       {/* ── RIGHT RAIL ── */}
       <div style={{ flex: '1 1 300px', maxWidth: 360, minWidth: 280, position: 'sticky', top: 74, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ ...C.card, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>결제 정보</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>{s.payInfo}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-            <PayRow label={`선택 옵션 · ${props.paxText}`} value={baseStr} />
-            {!props.hideAddons && f.addonMeeting && <PayRow label="공항 미팅 & 피켓" value={meetingStr} />}
-            {!props.hideAddons && f.addonChildSeat && <PayRow label="유아 카시트" value={childSeatStr} />}
-            {!props.hideDiscount && appliedCode && <PayRow label={`할인코드 적용 (${appliedCode})`} value="" pink />}
+            <PayRow label={`${s.payBase} · ${props.paxText}`} value={baseStr} />
+            {!props.hideAddons && f.addonMeeting && <PayRow label={s.payMeeting} value={meetingStr} />}
+            {!props.hideAddons && f.addonChildSeat && <PayRow label={s.addonChildSeat} value={childSeatStr} />}
+            {!props.hideDiscount && appliedCode && <PayRow label={`${s.payPromo} (${appliedCode})`} value="" pink />}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '15px 0' }} />
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>예약 총금액</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>{s.payTotal}</span>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{totalStr}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{usdStr}</div>
@@ -530,18 +689,18 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         </div>
 
         <div style={{ ...C.card, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>취소 규정</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>{s.cancelPolicy}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>무료 취소</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 24시간 전까지 — 전액 환불</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>⚠ 취소 수수료 100%</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>사용일 24시간 전 이후 — 환불 불가</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>{s.cancelFreeTitle}</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{s.cancelFreeDesc}</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>{s.cancelFeeTitle}</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{s.cancelFeeDesc}</div></div>
           </div>
         </div>
 
         <div style={{ ...C.card, padding: '18px 20px', background: 'rgba(255,255,255,0.03)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Trust title="단일요금, 모든 서비스 투명하게" sub="팁·통행료 포함, 별도 추가요금 없음" />
-            <Trust title="항공편 지연 시 무료 대기" sub="도착 후 약 90분간 무료 대기" />
-            <Trust title="영어·한국어 가능 기사 · 24시간 지원" sub="노쇼·지각 시 보상 보장" />
+            <Trust title={s.trust1} sub={s.trust1Sub} />
+            <Trust title={s.trust2} sub={s.trust2Sub} />
+            <Trust title={s.trust3} sub={s.trust3Sub} />
           </div>
         </div>
       </div>
@@ -567,12 +726,12 @@ function AddonRow({ label, desc, price, checked, onChange }: { label: string; de
   );
 }
 
-function AgreeRow({ checked, onChange, text, req }: { checked: boolean; onChange: (v: boolean) => void; text: string; req?: boolean }) {
+function AgreeRow({ checked, onChange, text, req, reqLabel, optLabel }: { checked: boolean; onChange: (v: boolean) => void; text: string; req?: boolean; reqLabel: string; optLabel: string }) {
   return (
     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 4px', cursor: 'pointer' }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#7C5CFC', marginTop: 1, flex: '0 0 auto' }} />
       <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5 }}>
-        <span style={{ color: req ? '#FF6B9D' : 'rgba(255,255,255,0.4)', fontWeight: 600 }}>({req ? '필수' : '선택'})</span> {text}
+        <span style={{ color: req ? '#FF6B9D' : 'rgba(255,255,255,0.4)', fontWeight: 600 }}>({req ? reqLabel : optLabel})</span> {text}
       </span>
     </label>
   );
