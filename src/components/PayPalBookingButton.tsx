@@ -407,6 +407,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷(PII 없음, null 이면 생략).
               //   서버(sanitizeAttribution)가 화이트리스트 재검증. 금액/capture/멱등성 무관.
               ...((() => { const a = getAttributionSnapshot(); return a ? { attribution: a } : {}; })()),
+              // 2026-07-17: 확인 이메일 언어 — 기존엔 booking-processor 가 이메일 도메인/이름
+              //   휴리스틱으로 추측(gmail 일본인 → 영어 이메일). 실제 UI 언어를 전달(additive,
+              //   금액/capture/멱등성 무관 — 이메일 생성 언어에만 사용).
+              ...(lang ? { language: lang } : {}),
             }),
           });
           const json = await res.json();

@@ -102,7 +102,9 @@ export default async function handler(req, res) {
       termsAgreed, termsAgreedAt, marketingConsent, marketingConsentAt,
       // P1 (2026-07-11): 장기 유입 귀속 스냅샷 (first/last UTM) — 결제/금액/멱등성 무관,
       // sanitizeAttribution 화이트리스트 통과분만 booking 레코드에 보존 (PII 미포함).
-      attribution } = body;
+      attribution,
+      // 2026-07-17: 고객 UI 언어 — booking-processor 이메일 언어 결정용(additive, 금액/멱등성 무관).
+      language } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     // 🔴 cross-flow 가드 (money-critical) — 장바구니 주문을 단건 endpoint 로 캡처하는 경로 차단.
@@ -794,7 +796,7 @@ export default async function handler(req, res) {
     // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
     // resolve 하므로 정상 흐름에 영향 없음. 25s + Vercel maxDuration 60s 안에 안전.
     const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
-    const processorPayload = { orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport };
+    const processorPayload = { orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport, language };
     // Fire-and-don't-await: respond to the user immediately, helper records its
     // own outcome and operator alert in background.
     void triggerBookingProcessor({
