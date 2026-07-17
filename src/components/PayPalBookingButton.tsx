@@ -566,7 +566,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       const d = json.data;
       // PR-R (2026-05-08): BOOKING_CLOSED → 토스트 + ChatWidget 자동 오픈
       if (!res.ok && json.code === 'BOOKING_CLOSED') {
-        const msg = json.error ??
+        // 2026-07-17: 언어별 문구를 서버 error(한국어 고정)보다 우선 — 기존 `json.error ??` 는
+        // 서버 한국어가 항상 이겨 en/ja/zh 사용자에게 한국어가 노출되던 버그.
+        const msg =
           (lang === 'ko' ? '예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.'
           : lang === 'ja' ? '予約締切時間を過ぎました。お急ぎの方はチャットでご相談ください。'
           : lang === 'zh' ? '预订已截止。如需紧急预订，请使用聊天咨询。'
