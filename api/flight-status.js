@@ -40,7 +40,12 @@ export function addDaysYmd(ymdStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
-// 예약일 vs 조회창(D+0~D+6) 판정 — 'past' | 'beyond' | 'in_window'
+// 예약일 vs 조회창 판정 — 'past' | 'beyond' | 'in_window'.
+// 경계 규약(P10, 양끝 inclusive): 창 = [today, today+6] — 오늘(D+0)과 6일 후(D+6) 당일 포함.
+//   date < today          → 'past'   (어제까지 — today 는 past 아님)
+//   today ≤ date ≤ D+6    → 'in_window' (공공API DSOdp 데이터 범위와 동일)
+//   date ≥ D+7            → 'beyond'
+// 회귀 테스트: flight-status-normalize.test.ts (D+6 경계 포함·D+7 밖·월말 경계).
 export function classifyDate(date, today) {
   if (date < today) return 'past';
   if (date > addDaysYmd(today, 6)) return 'beyond';
