@@ -5,6 +5,8 @@ import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumK
 import type { TripType } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
+import { charterExtrasKrw, charterAddonLabel } from '@/lib/charterExtras';
+import type { WizardState } from '@/components/charter/types';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -31,13 +33,15 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehicle, routeKm, language = 'en' }: {
+export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehicle, routeKm, options, language = 'en' }: {
   originKey: string;
   destKey: string;
   tripType?: TripType;
   vehicle: string;
   // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km. 있으면 zone 직선 priceKRW 대신 4-tier(경로km) — 백 결제와 동일.
   routeKm?: number | null;
+  // 🔴 2026-07-18: 옵션·야간할증 — 청구(charter-extras) 가산분 표시용.
+  options?: WizardState['options'];
   language?: Lang;
 }) {
   const curatedKRW = typeof routeKm === 'number' && routeKm > 0
@@ -47,6 +51,9 @@ export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehic
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;
   const modeLabel = tripType === 'roundtrip' ? lbl('roundtrip') : lbl('oneway');
+  // 🔴 2026-07-18: 옵션·야간할증 — 청구(charter-extras) 가산분을 영수증에도 표시 (표시가==청구가).
+  const extras = charterExtrasKrw(q.total, vehicle, options);
+  const grandTotal = q.total + extras.totalKRW;
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-1">
       <p className="text-base font-bold text-white/85 mb-1">{lbl('title')}</p>
@@ -54,9 +61,15 @@ export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehic
       <Row label={lbl('base')} value={KRW(q.tripBase)} />
       <div className="border-t border-white/10 my-2" />
       <Row label={`${lbl('coupon')} ${q.couponPct}%`} value={`−${KRW(q.coupon)}`} accent="good" />
+      {extras.addons.map((a) => (
+        <Row key={a.key} label={`+ ${charterAddonLabel(a.key, language)}`} value={KRW(a.amountKRW)} accent="muted" />
+      ))}
+      {extras.surchargeKRW > 0 && (
+        <Row label={`+ ${charterAddonLabel('night', language)} ${extras.surchargePercent}%`} value={KRW(extras.surchargeKRW)} accent="muted" />
+      )}
       <div className="border-t border-white/10 my-2" />
-      <Row label={lbl('total')} value={KRW(q.total)} accent="muted" />
-      <Row label={lbl('pay_usd')} value={`$${Math.round(q.total / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`} accent="bold" />
+      <Row label={lbl('total')} value={KRW(grandTotal)} accent="muted" />
+      <Row label={lbl('pay_usd')} value={`$${Math.round(grandTotal / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
   );

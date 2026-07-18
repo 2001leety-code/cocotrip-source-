@@ -20,10 +20,13 @@ export interface CharterCartItem {
  * 차터 결제 가능 항목 → 장바구니 항목. 부적합이면 null(담기 버튼 미노출).
  * 제외: 비결제(payable=false) / 견적문의(charter_custom_estimate, backend SSOT 미해석=INVALID_LINE) / AI플래너(정책).
  */
-export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayment): CharterCartItem | null {
+export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayment, opts: { hasRoute?: boolean } = {}): CharterCartItem | null {
   if (!resolved.payable || !resolved.productType || resolved.priceKRW == null || resolved.priceKRW <= 0) return null;
   if (resolved.productType === 'charter_custom_estimate') return null; // backend 미해석 → cart 전체거부 회피
   if (isAiPlannerProduct(resolved.productType)) return null;            // 방어적(차터엔 미발생)
+  // 🔴 2026-07-18: 경유지 경로 견적(routeKm 기반)은 cart 금지 — cart 재계산 경로(resolve-line-item)는
+  //   routeCoords 미지원이라 matrix 직선가로 회귀 → 표시≠청구. 단건 PayPal 결제(routeCoords 전달)만 허용.
+  if (opts.hasRoute === true) return null;
 
   const vehicle = state.vehicle || 'staria';
   const durationDays = resolved.durationDays
@@ -63,11 +66,22 @@ export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayme
     pickupLocation: origin,
     vehicleType: vehicle,
     memo,
+    // 🔴 2026-07-18 옵션 청구 fix — backend resolve-line-item(charter-extras)이 spec 으로 재계산 가산.
+    options: {
+      licensedGuide: state.options?.licensedGuide === true,
+      airportPicket: state.options?.airportPicket === true,
+      childSeat: state.options?.childSeat === true,
+      night: state.options?.night === true,
+    },
   };
 
   // 같은 조건 중복 담기 방지 합성 키 (TourBookingDialog `${tour.id}-${date}-${pax}` 패턴 따름).
   // vehicle/tripType/durationDays 포함: 같은 경로·날짜·인원이라도 차종·편도왕복·박수가 다르면 별개 항목.
-  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}-${vehicle || ''}-${resolved.tripType || ''}-${durationDays || ''}`;
+  // 2026-07-18: 옵션이 가격에 반영되면서 옵션 조합도 키에 포함 — 옵션만 다른 재담기가 조용히
+  // 무시되지 않도록 (g=가이드 p=픽켓 s=카시트 n=야간).
+  const o = booking.options || {};
+  const optSig = `g${o.licensedGuide ? 1 : 0}p${o.airportPicket ? 1 : 0}s${o.childSeat ? 1 : 0}n${o.night ? 1 : 0}`;
+  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}-${vehicle || ''}-${resolved.tripType || ''}-${durationDays || ''}-${optSig}`;
   const displayName = state.startDate ? `${routeLabel} (${state.startDate})` : routeLabel;
 
   return { id, booking, displayName, priceKRW: resolved.priceKRW };

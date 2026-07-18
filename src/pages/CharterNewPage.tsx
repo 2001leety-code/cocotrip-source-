@@ -24,7 +24,7 @@ import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
-import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterPricing';
+import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -181,12 +181,17 @@ function PaymentPanel({
   // 결제 직전 명시 (withCurrencyCode) 로 잘못된 통화 인지 방지 — 실 결제는 PayPal USD 그대로.
   const KRW = (n: number | null | undefined) => formatPrice(n, language, { withCurrencyCode: true });
 
-  // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback
+  // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback.
+  // 🔴 2026-07-18: 비-payable(estimate) 경로는 quote.subtotalKRW(옵션·필수가이드 포함 = 실제
+  //   charter_custom_estimate 청구액)를 우선 — 이전엔 sprinter 공항픽업처럼 resolved.priceKRW
+  //   (payable=false 지만 값 존재, 가이드비 미포함)가 이겨 헤더 표시 < 청구(2.2배) 사고.
   const estimateKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
-  const displayKRW = resolved.priceKRW ?? estimateKRW;
+  const displayKRW = resolved.payable ? resolved.priceKRW : (estimateKRW != null ? estimateKRW : resolved.priceKRW);
   const isEstimateOnly = !resolved.payable && estimateKRW != null;
   // 2026-06-11 장바구니 담기 — 결제 가능 항목만(estimate/AI플래너/비결제=null). CartAddButton 은 플래그 OFF 시 자체 null.
-  const cartItem = buildCharterCartItem(state, resolved);
+  // 🔴 2026-07-18: 경유지(routeKm) 견적은 cart 담기 금지 — cart 재계산(resolve-line-item)이
+  //   routeCoords 를 모른 채 matrix 직선가로 회귀해 표시≠청구가 되므로 단건 결제만 허용.
+  const cartItem = buildCharterCartItem(state, resolved, { hasRoute: routeKm != null });
 
   // 2026-06-11 검수 인라인 편집 — 가격무영향(이름/연락처/메모/항공편) + 가벼운 재계산(날짜/시각) 필드만.
   // 저장 → onPatchState → CharterNewPage state patch → useQuoteCalculator/resolveProductType 자동 재계산.
@@ -263,7 +268,14 @@ function PaymentPanel({
         )}
         <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
           <span className="text-white/60">{i18n.payPrepayAmount}</span>
-          <span className="text-lg font-bold text-white">{KRW(displayKRW)}</span>
+          {/* 🔴 2026-07-18 환율 이중장부 fix: en(USD) 표시를 실제 청구 공식(고정환율 1400 + 정수 반올림
+              = createPaypalOrder usesFixedUsdRate)과 동일하게. 이전 formatPrice 는 표시환율(1430)이라
+              표시 $ < 청구 $ (en/ja/zh 사용자 과소표시). ja/zh 는 참고 환산 유지(실 결제는 USD). */}
+          <span className="text-lg font-bold text-white">
+            {language === 'en' && displayKRW != null && displayKRW > 0
+              ? `$${Math.round(displayKRW / CHARTER_USD_FIX_RATE)} USD`
+              : KRW(displayKRW)}
+          </span>
         </div>
         {isEstimateOnly && (
           <p className="text-xs text-amber-300 mt-2 text-right">
@@ -304,6 +316,8 @@ function PaymentPanel({
           durationDays={state.service === 'multi_day' && state.endDate && state.startDate
             ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86400000) + 1)
             : 1}
+          // 🔴 2026-07-18 옵션 청구 fix — 옵션 flag 를 결제 body 로 전달, 서버가 spec 재계산 가산.
+          options={state.options}
         />
         {/* 2026-06-11 장바구니 담기 (PayPal 옆) — flag OFF=null, estimate/AI플래너 제외. 표시가 무시·booking키로 backend 재계산(P311). */}
         {cartItem && (

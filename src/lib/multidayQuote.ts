@@ -24,7 +24,7 @@ const VEHICLE_MULT: Record<string, number> = { staria: 1.0, staria_9: 1.0, sprin
 const MULTIDAY_DISCOUNT_MIN_DAYS = 3;
 const MULTIDAY_DISCOUNT_PCT = 10;
 // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 다일 기본할인 5%. 백엔드 DISCOUNT_V2_MULTIDAY_PCT 와 byte-identical.
-const DISCOUNT_V2_MULTIDAY_PCT = 5;
+export const DISCOUNT_V2_MULTIDAY_PCT = 5; // useQuoteCalculator 표시 pct 동기용 export (2026-07-18)
 
 /**
  * SSOT distance_matrix km 조회 — 백엔드 _shared/charter-multiday-price.js lookupMatrixKm 와 동일 (fwd/rev 만).
