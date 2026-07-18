@@ -117,9 +117,14 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
     setFlightLoading(true);
     setFlightErr('');
     try {
-      const r = await fetch(`/api/flight-status?flightId=${encodeURIComponent(fn)}&lang=${apiLang}`);
-      const j = await r.json();
-      if (j.ok && j.found && j.flight) {
+      // 🔧 2026-07-18: 예약일(state.startDate) 전달 — 공공API 조회창(오늘~6일)이 있어서 서버가
+      //   예약일 기준으로 창 밖(beyond_window)·과거(past_date)를 정직하게 구분해 준다.
+      //   이전엔 날짜 미전달이라 매일 운항편은 '오늘' 도착정보가 미래 예약에 잘못 채워졌고,
+      //   1주+ 전 예약은 무조건 "편명 없음"으로 표시됐다.
+      const dateParam = state.startDate ? `&date=${encodeURIComponent(state.startDate)}` : '';
+      const r = await fetch(`/api/flight-status?flightId=${encodeURIComponent(fn)}&lang=${apiLang}${dateParam}`);
+      const j = await r.json().catch(() => null);
+      if (r.ok && j && j.ok && j.found && j.flight) {
         const f = j.flight;
         patchAirport({
           terminal: f.terminal === 'T2' ? 'T2' : 'T1',
@@ -128,11 +133,17 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             gate: f.gate, origin: f.origin, status: f.status, lookedUp: true,
           },
         });
+      } else if (j && (j.reason === 'beyond_window' || j.reason === 'past_date')) {
+        // 조회창 밖 — 편명이 틀린 게 아니라 아직/이미 조회 불가. 직접 입력 안내.
+        setFlightErr(i18n.flightLookupWindow);
+      } else if (!r.ok || !j || !j.ok) {
+        // 서버 키미설정(500)·공공API 장애/쿼터초과(502) — "편명 없음"과 구분(사용자 입력 탓 아님).
+        setFlightErr(i18n.flightLookupError);
       } else {
         setFlightErr(i18n.flightLookupFail);
       }
     } catch {
-      setFlightErr(i18n.flightLookupFail);
+      setFlightErr(i18n.flightLookupError);
     }
     setFlightLoading(false);
   };
@@ -146,6 +157,35 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   const totalStr = subtotalKRW > 0 ? formatKRW(subtotalKRW) : '—';
   const usdStr = subtotalKRW > 0 ? formatCharterUSD(subtotalKRW) : '';
   const baseStr = baseChargeKRW > 0 ? formatKRW(baseChargeKRW) : '—';
+
+  // 🔧 2026-07-18: 결제 정보 카드 내역 행 — 이전엔 기본요금 1줄+총액만 렌더돼 옵션(면허가이드
+  //   ₩300,000 등)·야간할증·멀티데이 할인이 총액에 숨은 채 "₩124,800 인데 총액 ₩424,800" 처럼
+  //   설명 없는 차액으로 보였다. quote 파생 표시 전용 (P311 재계산 금지).
+  //   라벨 4언어 — 키셋은 useQuoteCalculator addons 와 동일(licensed_guide/guide_required/
+  //   airport_picket/child_seat). (돈버그 PR 의 charterExtras.ADDON_LABELS 와 동일 문구 유지.)
+  const addonLabel = (key: string, fallback: string): string => {
+    const M: Record<string, Record<'ko' | 'en' | 'ja' | 'zh', string>> = {
+      licensed_guide: { ko: '면허 가이드 (영/일/중)', en: 'Licensed guide (EN/JA/ZH)', ja: '有資格ガイド（英/日/中）', zh: '持证导游（英/日/中）' },
+      guide_required: { ko: '면허 가이드 동행 (법적 필수)', en: 'Licensed guide (legally required)', ja: '有資格ガイド同行（法定必須）', zh: '持证导游随行（法定必须）' },
+      airport_picket: { ko: '공항 픽켓 서비스', en: 'Airport pickup sign', ja: '空港ピケットサービス', zh: '机场举牌服务' },
+      child_seat: { ko: '카시트', en: 'Child seat', ja: 'チャイルドシート', zh: '儿童安全座椅' },
+    };
+    const e = M[key];
+    return e ? e[langCode] : fallback;
+  };
+  const nightLabel = { ko: '야간 할증', en: 'Night surcharge', ja: '夜間割増', zh: '夜间附加费' }[langCode];
+  const mdDiscountLabel = { ko: '멀티데이 할인', en: 'Multi-day discount', ja: '複数日割引', zh: '多日折扣' }[langCode];
+  const extraRows = quote && !quote.needsCustomQuote
+    ? [
+        ...quote.addons.map((a) => ({ key: a.key, label: `+ ${addonLabel(a.key, a.label)}`, value: formatKRW(a.amountKRW) })),
+        ...(quote.surchargeKRW > 0
+          ? [{ key: 'night', label: `+ ${nightLabel} ${quote.surchargePercent}%`, value: formatKRW(quote.surchargeKRW) }]
+          : []),
+        ...(quote.multiDayDiscountKRW > 0
+          ? [{ key: 'md_discount', label: `− ${mdDiscountLabel} ${quote.multiDayDiscountPercent}%`, value: `−${formatKRW(quote.multiDayDiscountKRW)}`, negative: true }]
+          : []),
+      ]
+    : [];
   const meetingLabel = isAirport
     ? (language === 'ko' ? '미팅 장소' : language === 'ja' ? 'ミーティング場所' : language === 'zh' ? '会面地点' : 'Meeting point')
     : (language === 'ko' ? '픽업 장소' : language === 'ja' ? 'ピックアップ場所' : language === 'zh' ? '上车地点' : 'Pickup location');
@@ -349,12 +389,16 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           onAgreeAllChange={onTermsChange}
           onMarketingChange={onMarketingChange}
           onFieldsChange={handleFieldsChange}
+          // 🔧 2026-07-18: 옵션·야간할증·할인 내역 행 (표시 전용, quote 파생 — 총액 차액 설명).
+          extraRows={extraRows}
           hideAddons
           hideDiscount
           hideCta
           onSubmit={() => { /* 결제는 wizard nav 의 결제 버튼이 담당 (PaymentPanel) */ }}
           footerSlot={footerSlot}
-          flightLookupSlot={isAirport ? (
+          // 🔧 2026-07-18: 조회 버튼은 인천공항(ICN)만 — 백엔드(B551177)가 인천공항 데이터 전용이라
+          //   김포/부산/제주/대구 출발에선 100% 실패하던 버튼을 숨김(편명 수동 입력은 그대로 가능).
+          flightLookupSlot={isAirport && isICN ? (
             <div>
               <button type="button" onClick={lookupFlight}
                 disabled={flightLoading || !(airport.flightNumber ?? '').trim()}

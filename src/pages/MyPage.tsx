@@ -40,11 +40,13 @@ const TIER_EMOJI: Record<TierType, string> = {
   Bronze: '🥉', Silver: '🥈', Gold: '🥇', Platinum: '💎',
 };
 
+// 🔧 2026-07-18: 'Free cancellation 48h/72h' 티어혜택 문구 제거 — PR#1116 에서 취소정책이
+//   24h 바이너리(등급 무관)로 통일돼 서버가 적용하지 않는 혜택을 고객에게 표기하던 회귀 잔재.
 const TIER_BENEFITS: Record<TierType, string[]> = {
   Bronze:   ['Basic 1% Trip Coins earn', 'Welcome 5% coupon'],
   Silver:   ['1.5% Trip Coins earn', '$5 season coupon', 'Priority support'],
-  Gold:     ['2% Trip Coins earn', '$10 season coupon', 'Priority vehicle assignment', 'Free cancellation 48h'],
-  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Free cancellation 72h', 'Airport lounge access'],
+  Gold:     ['2% Trip Coins earn', '$10 season coupon', 'Priority vehicle assignment'],
+  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Airport lounge access'],
 };
 
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
