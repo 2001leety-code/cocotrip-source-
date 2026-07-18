@@ -2,6 +2,8 @@
 // 기본 9h + 거리추가(자동) + 쿠폰 5% + VAT 10% = 총액. 오버타임(9h 초과)은 현장결제 안내만.
 // 가격은 src/lib/tourQuote (백엔드 api/_shared/tour-price 와 1:1 일치). 플래그 ON + custom 목적지(km>0)에서만 노출.
 import { calcTourQuote, captainPremiumKrwFor } from '@/lib/tourQuote';
+import { charterExtrasKrw, charterAddonLabel } from '@/lib/charterExtras';
+import type { WizardState } from '@/components/charter/types';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -28,10 +30,13 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function TourReceipt({ km, vehicle, language = 'en' }: { km: number; vehicle: string; language?: Lang }) {
+export function TourReceipt({ km, vehicle, options, language = 'en' }: { km: number; vehicle: string; options?: WizardState['options']; language?: Lang }) {
   const q = calcTourQuote({ km, vehicle, captainPremiumKrw: captainPremiumKrwFor(vehicle) });
   if (!q) return null;
   const lbl = (k: string) => L[k]?.[language] ?? L[k]?.en ?? k;
+  // 🔴 2026-07-18: 옵션·야간할증 — 청구(charter-extras) 가산분을 영수증에도 표시 (표시가==청구가).
+  const extras = charterExtrasKrw(q.total, vehicle, options);
+  const grandTotal = q.total + extras.totalKRW;
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <p className="text-base font-bold text-white/85 mb-4">{lbl('title')}</p>
@@ -41,8 +46,14 @@ export function TourReceipt({ km, vehicle, language = 'en' }: { km: number; vehi
       <Row label={lbl('subtotal')} value={KRW(q.subtotal)} />
       <Row label={`${lbl('coupon')} ${q.couponPct}%`} value={`−${KRW(q.coupon)}`} accent="good" />
       <Row label={`${lbl('vat')} 10%`} value={`+${KRW(q.vat)}`} accent="muted" />
+      {extras.addons.map((a) => (
+        <Row key={a.key} label={`+ ${charterAddonLabel(a.key, language)}`} value={KRW(a.amountKRW)} accent="muted" />
+      ))}
+      {extras.surchargeKRW > 0 && (
+        <Row label={`+ ${charterAddonLabel('night', language)} ${extras.surchargePercent}%`} value={KRW(extras.surchargeKRW)} accent="muted" />
+      )}
       <div className="border-t border-white/10 my-2" />
-      <Row label={lbl('total')} value={KRW(q.total)} accent="bold" />
+      <Row label={lbl('total')} value={KRW(grandTotal)} accent="bold" />
       <p className="mt-3 text-right text-xs text-amber-300/80">⚠ {lbl('overtime')}: {KRW(q.overtimeHourly)}/h</p>
     </div>
   );

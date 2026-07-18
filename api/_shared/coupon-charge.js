@@ -48,7 +48,7 @@ export function couponMatchesProduct(productScope, productType) {
  * @param {string} couponUserId  쿠폰 소유 uid
  * @param {string} couponDocId   쿠폰 문서 id
  * @param {string} productType   결제 상품 (scope 가드)
- * @returns {Promise<{valid:boolean, discountPct?:number}>}
+ * @returns {Promise<{valid:boolean, kind?:'percent'|'fixed', discountPct?:number, currency?:'KRW'|'USD', amount?:number}>}
  */
 export async function verifyCouponForCharge(db, couponUserId, couponDocId, productType) {
   if (!db || !couponUserId || !couponDocId) return { valid: false };
@@ -60,15 +60,22 @@ export async function verifyCouponForCharge(db, couponUserId, couponDocId, produ
     if (c.isUsed === true) return { valid: false };
     if (typeof c.expiresAt === 'number' && c.expiresAt < Date.now()) return { valid: false };
     if (!couponMatchesProduct(c.productScope, productType)) return { valid: false };
-    // 정액(fixed) 쿠폰은 청구 경로에서 미적용 → 정가(안전). 이 함수는 c.value 를 퍼센트로
-    // 읽으므로 fixed($X off)면 X% 로 오해석된다(예: $8 off → 8% off, 표시≠청구). v1 은
-    // 정가 청구로 수렴(과/오할인 방지). 표시단(applyPromoCode)도 fixed 쿠폰을 이 경로로
-    // 넘기지 않도록 호출처에서 방어 권장.
+    // 정액(fixed) 쿠폰 (2026-07-18 fix) — 이전엔 청구 경로 미적용(표시 할인 + capture 소진 +
+    // 청구 정가 = 고객 피해형 반쪽 구현). 이제 kind:'fixed' 로 반환 → createPaypalOrder 가
+    // 환율 확정 후 차감(최소가 플로어). currency 는 admin-issue-coupon 이 KRW|USD 만 발급.
+    if (c.type === 'fixed') {
+      const currency = c.currency === 'KRW' ? 'KRW' : c.currency === 'USD' ? 'USD' : null;
+      const amount = typeof c.value === 'number' ? c.value : 0;
+      if (!currency || !(amount > 0)) return { valid: false };
+      // 이상치 방어 — 관리자 오입력/변조 상한 (₩1,000,000 / $700 상당).
+      const cap = currency === 'KRW' ? 1_000_000 : 700;
+      return { valid: true, kind: 'fixed', currency, amount: Math.min(amount, cap) };
+    }
     if (c.type && c.type !== 'percent') return { valid: false };
     const pct = typeof c.value === 'number' ? c.value : 0;
     if (!(pct > 0)) return { valid: false };
     // 안전 상한 10% — 개인 쿠폰 단일 적용 (운영자 정책: 쿠폰 5%). 변조/이상치 방어.
-    return { valid: true, discountPct: Math.min(pct, 10) };
+    return { valid: true, kind: 'percent', discountPct: Math.min(pct, 10) };
   } catch (err) {
     return { valid: false }; // 검증 중 에러 = 미적용(정가). 과할인보다 미적용이 안전.
   }

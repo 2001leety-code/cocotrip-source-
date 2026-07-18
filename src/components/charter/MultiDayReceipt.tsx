@@ -1,9 +1,12 @@
 // MultiDayReceipt — 멀티데이(1박+) 차터 견적 영수증 (2026-06-02). TransferReceipt 패턴 복제.
 // 거리 운행 + 일일 운영비×일수 + 숙박 기사비×박수 = 소계, 3일 이상 10% 할인 → 총액 (= 백엔드 결제 SSOT).
 // 가격은 src/lib/multidayQuote (백엔드 charter-multiday-price 와 1:1). 표시가 == 결제가 (P311).
-// ⚠️ 가이드·카시트 옵션 / 야간할증은 온라인 즉시결제 base 에 미포함 (현장/별도). 할인은 운영자 정책(3일+ 10%) 반영.
+// 🔴 2026-07-18: 옵션(가이드·픽켓·카시트)·야간할증이 청구에 가산되도록 바뀜(charter-extras) —
+//   영수증에도 동일 행 표시(charterExtrasKrw 미러). 이전 "현장/별도" 주석 정책은 폐기.
 import { lookupMatrixKm, calcMultiDayQuote } from '@/lib/multidayQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
+import { charterExtrasKrw, charterAddonLabel } from '@/lib/charterExtras';
+import type { WizardState } from '@/components/charter/types';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -36,13 +39,15 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, routeKm, language = 'en' }: {
+export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, routeKm, options, language = 'en' }: {
   originKey?: string | null;
   destKey?: string | null;
   vehicle: string;
   durationDays: number;
   // FEATURE_CHARTER_WAYPOINTS: 경유지 경로 km. 있으면 matrix 직선 대신 이 km 으로 산정(백 결제와 동일).
   routeKm?: number | null;
+  // 🔴 2026-07-18: 옵션·야간할증 — 청구(charter-extras) 가산분을 영수증에도 표시 (표시가==청구가).
+  options?: WizardState['options'];
   language?: Lang;
 }) {
   const km = typeof routeKm === 'number' && routeKm > 0
@@ -51,6 +56,8 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, rou
   const q = km != null ? calcMultiDayQuote({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() }) : null;
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;
+  const extras = charterExtrasKrw(q.total, vehicle, options);
+  const grandTotal = q.total + extras.totalKRW;
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-1">
       <p className="text-base font-bold text-white/85 mb-4">{lbl('title')}</p>
@@ -64,7 +71,14 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, rou
           <Row label={`${lbl('discount')} ${q.discountPct}% (${lbl('discountNote')})`} value={`−${KRW(q.discount)}`} accent="good" />
         </>
       )}
-      <Row label={lbl('total')} value={KRW(q.total)} accent="bold" />
+      {extras.addons.map((a) => (
+        <Row key={a.key} label={`+ ${charterAddonLabel(a.key, language)}`} value={KRW(a.amountKRW)} accent="muted" />
+      ))}
+      {extras.surchargeKRW > 0 && (
+        <Row label={`+ ${charterAddonLabel('night', language)} ${extras.surchargePercent}%`} value={KRW(extras.surchargeKRW)} accent="muted" />
+      )}
+      {extras.totalKRW > 0 && <div className="border-t border-white/10 my-2" />}
+      <Row label={lbl('total')} value={KRW(grandTotal)} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
   );

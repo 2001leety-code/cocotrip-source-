@@ -5,6 +5,7 @@ import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote, captainPremiumKrwFor as tourCaptainPremiumKrwFor } from '@/lib/tourQuote';
 import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
+import { charterExtrasKrw } from '@/lib/charterExtras';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -55,7 +56,19 @@ export interface ResolvedPayment {
 // opts.routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km(서버 /api/charter-route-km 조회). 있으면
 //   transfer/multiday 를 이 km 로 산정(matrix 직선 대신 detour 반영). createPaypalOrder 도 동일 좌표로
 //   재조회해 청구 → 표시가==청구가(P311). 미전달(기존 호출)=현행 matrix 경로 그대로.
+//
+// 🔴 2026-07-18 옵션 미청구 fix: payable 상품의 priceKRW 에 옵션(면허가이드·픽켓·카시트)·야간할증을
+//   가산한다(charterExtrasKrw = 서버 api/_shared/charter-extras.js 미러). 이전엔 Step5/Step6 표시
+//   총액에만 옵션이 있고 결제패널·청구액엔 빠져 과소청구(면허가이드 예약당 ₩300,000 손실)였다.
 export function resolveProductType(state: WizardState, opts: { routeKm?: number | null } = {}): ResolvedPayment {
+  const core = resolveProductTypeCore(state, opts);
+  if (!core.payable || core.priceKRW == null || core.priceKRW <= 0) return core;
+  const extras = charterExtrasKrw(core.priceKRW, state.vehicle || 'staria', state.options);
+  if (extras.totalKRW <= 0) return core;
+  return { ...core, priceKRW: core.priceKRW + extras.totalKRW };
+}
+
+function resolveProductTypeCore(state: WizardState, opts: { routeKm?: number | null } = {}): ResolvedPayment {
   const routeKm = typeof opts.routeKm === 'number' && opts.routeKm > 0 ? opts.routeKm : null;
   const pax = state.paxCount ?? 1;
   const vehicle = state.vehicle ?? 'staria';

@@ -42,6 +42,8 @@ export interface CartItemBooking {
   pickupLocation?: string;
   vehicleType?: string;
   memo?: string;
+  // 🔴 2026-07-18 차터 옵션 청구 — backend resolve-line-item(charter-extras)이 spec 재계산 가산 키.
+  options?: { licensedGuide?: boolean; airportPicket?: boolean; childSeat?: boolean; night?: boolean };
 }
 
 export interface CartItem {

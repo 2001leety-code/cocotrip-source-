@@ -10,6 +10,8 @@ import {
   DAILY_TOUR_PRICES,
   VEHICLE_TYPES,
   EXTRA_CHARGES,
+  CAPTAIN_PREMIUM_KRW,
+  CHARTER_USD_FIX_RATE,
 } from '@/data/charterPricing';
 import { CalendarPicker } from '@/components/PlannerForm';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
@@ -89,7 +91,11 @@ export default function CharterPage() {
       if (!dest) return null;
       const base = dest.priceKRW;
       if (vehicle === 'staria') {
-        return { priceKRW: base, priceUSD: dest.priceUSD, label: dest[lk], guideFee: 0, guideRequired: false };
+        // 🔴 2026-07-18: 7인승 캡틴시트 프리미엄(+₩33,000) 표시 반영 — 백엔드 청구(createPaypalOrder,
+        //   body.vehicle 기반 가산)와 동일. 이전엔 프리미엄 없는 표시가로 위저드보다 ₩33,000 싸게 보였고
+        //   vehicle 미전달로 청구도 누락됐다(아래 PayPalBookingButton vehicle prop 과 세트 fix).
+        const priceKRW = base + (CAPTAIN_PREMIUM_KRW.staria || 0);
+        return { priceKRW, priceUSD: Math.round(priceKRW / CHARTER_USD_FIX_RATE), label: dest[lk], guideFee: 0, guideRequired: false };
       }
       if (vehicle === 'sprinter') {
         const guide = VEHICLE_TYPES.sprinter.guideFeeDailyKRW ?? 300000;
@@ -102,7 +108,9 @@ export default function CharterPage() {
       if (!tour) return null;
       const base = tour.priceKRW;
       if (vehicle === 'staria') {
-        return { priceKRW: base, priceUSD: tour.priceUSD, label: tour[lk], guideFee: 0, guideRequired: false };
+        // 🔴 2026-07-18: 캡틴시트 프리미엄 표시 반영 (위 airport 분기와 동일).
+        const priceKRW = base + (CAPTAIN_PREMIUM_KRW.staria || 0);
+        return { priceKRW, priceUSD: Math.round(priceKRW / CHARTER_USD_FIX_RATE), label: tour[lk], guideFee: 0, guideRequired: false };
       }
       if (vehicle === 'sprinter') {
         const guide = VEHICLE_TYPES.sprinter.guideFeeDailyKRW ?? 300000;
@@ -113,7 +121,10 @@ export default function CharterPage() {
     return null;
   }, [vehicle, service, destination, tourType, adults, c, lk]);
 
-  const canPayPal = vehicle === 'staria' && quote?.priceKRW != null && !!startDate;
+  // 🔴 2026-07-18: 인원 상한 검증 — 7인승(staria)에 정원 초과 인원 입력해도 1대 가격으로 결제되던 갭.
+  //   정원 초과 = PayPal 차단 → 맞춤 견적 CTA (다차량/스프린터 협의).
+  const paxOverCapacity = (adults + children) > (VEHICLE_TYPES.staria.maxPassengers || 7);
+  const canPayPal = vehicle === 'staria' && quote?.priceKRW != null && !!startDate && !paxOverCapacity;
   const needsCustom = vehicle === 'sprinter' || vehicle === 'bus' || service === 'multiday' || service === 'other';
 
   const luggageParts: string[] = [];
@@ -441,7 +452,10 @@ export default function CharterPage() {
                         {/* 주 통화 = 사용자 언어 (ko→₩ / en→$ / ja→¥JPY / zh→¥CNY).
                             보조 = 결제 통화 USD (실 결제 시 PayPal USD 그대로). */}
                         <span className="text-3xl font-bold text-white">
-                          {formatPrice(quote.priceKRW, language)}
+                          {/* 🔴 2026-07-18 환율 이중장부 fix: en(USD) 주 표시는 실제 청구 공식
+                              (고정환율 1400 = quote.priceUSD)과 동일하게. 이전 formatPrice(1430)는
+                              표시 $ < 청구 $. ja/zh 참고 환산은 유지(실 결제는 USD). */}
+                          {language === 'en' ? `$${quote.priceUSD}` : formatPrice(quote.priceKRW, language)}
                         </span>
                         <span className="text-sm text-white/55">
                           {language === 'en'
@@ -467,6 +481,18 @@ export default function CharterPage() {
                   )}
 
                   {/* CTA */}
+                  {paxOverCapacity && quote.priceKRW != null && (
+                    <p className="text-xs text-amber-300/90 mb-3 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {language === 'ko'
+                        ? `정원 초과 (최대 ${VEHICLE_TYPES.staria.maxPassengers}명) — 다차량·대형차는 맞춤 견적으로 도와드려요.`
+                        : language === 'ja'
+                        ? `定員超過（最大${VEHICLE_TYPES.staria.maxPassengers}名）— 複数台・大型車はお見積りにて対応します。`
+                        : language === 'zh'
+                        ? `超出车辆定员（最多${VEHICLE_TYPES.staria.maxPassengers}人）— 多车/大型车请联系我们定制报价。`
+                        : `Over vehicle capacity (max ${VEHICLE_TYPES.staria.maxPassengers}) — contact us for multi-vehicle or larger options.`}
+                    </p>
+                  )}
                   {canPayPal ? (
                     <PayPalBookingButton
                       productType={(() => {
@@ -495,6 +521,9 @@ export default function CharterPage() {
                       pickupLocation={service === 'airport' ? airport : ''}
                       dropoffLocation={service === 'airport' ? destination : tourType}
                       vehicleType={vehicle}
+                      // 🔴 2026-07-18: 캡틴시트 프리미엄 청구 — body.vehicle 미전달이면 서버 가산 0
+                      //   (위저드 대비 ₩33,000 과소청구). 표시가(quote.priceKRW)와 세트 fix.
+                      vehicle={vehicle}
                       memo={notes}
                     />
                   ) : (

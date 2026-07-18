@@ -9,7 +9,11 @@
  * - 합산 가능: COCO5 + WELCOME5 = 총 10% 할인
  */
 
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { getUsdToKrw } from './_exchange-rate.js';
+import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { featureEnabled } from './_shared/feature-flag.js';
@@ -37,6 +41,18 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 // (capturePaypalOrder 의 incrementGlobalPromoUsage 가 transaction 으로 cap-check 후 +1).
 import { GLOBAL_PROMO_DEFAULTS, resolveGlobalPromoLimit } from './_shared/global-promo.js';
 const GLOBAL_PROMOS = GLOBAL_PROMO_DEFAULTS;
+
+// 차터 고정 청구환율 (spec SSOT, createPaypalOrder 와 동일 로드 패턴) — fixed USD 쿠폰의
+// KRW 환산을 청구와 동형으로 만들기 위함. 로드 실패 시 운영자 정책값 1400.
+const __pdir = dirname(fileURLToPath(import.meta.url));
+let CHARTER_USD_FIX_RATE = 1400;
+try {
+  const __spec = JSON.parse(readFileSync(join(__pdir, '_pricing_spec.json'), 'utf-8'));
+  if (__spec && __spec.charter_usd_fix_rate > 0) CHARTER_USD_FIX_RATE = __spec.charter_usd_fix_rate;
+} catch { /* fallback 1400 유지 */ }
+
+// 정액 쿠폰 차감 후 표시 최소가 — createPaypalOrder MIN_CHARGE_KRW(1,000) 미러.
+const MIN_CHARGE_KRW = 1_000;
 
 // FEATURE_DISCOUNT_V2 ON 시 EARLY50 비활성 — 청구 경로(createPaypalOrder.js L229
 // `if (!discountV2 && promoCode === 'EARLY50')`)는 v2 ON 에서 EARLY50 을 청구가에 반영하지
@@ -189,6 +205,10 @@ export default async function handler(req, res) {
 
     // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
     const usdToKrw = await getUsdToKrw();
+    // 정액(fixed USD) 쿠폰 환산율 — 차터(usesFixedUsdRate)는 청구와 동일한 고정환율(1400)로
+    // 환산해야 표시=청구 (createPaypalOrder 의 fixed 쿠폰 차감과 동형). 그 외(ai_planner — 쿠폰
+    // 자체가 정책상 거부되지만 방어)는 live 환율.
+    const couponRateFor = (pt) => (usesFixedUsdRate(pt) ? CHARTER_USD_FIX_RATE : usdToKrw);
 
     // Firestore admin db (글로벌 프로모 사용량 검증용 — 실패해도 soft fail)
     const db = initAdminDb('applyPromoCode');
@@ -196,6 +216,7 @@ export default async function handler(req, res) {
     // ── 복수 코드 적용 (5+5% 합산) ──
     if (codes && Array.isArray(codes)) {
       let totalDiscount = 0;
+      let fixedSavedKRW = 0; // 정액(fixed) 쿠폰 KRW 합 — 정률 cap 과 분리 (청구 경로 동형)
       const appliedCodes = [];
       const seenCodes = new Set(); // 중복 코드 방지
 
@@ -233,24 +254,33 @@ export default async function handler(req, res) {
           continue;
         }
         if (fsCoupon && fsCoupon.stackable) {
-          let disc;
-          if (fsCoupon.type === 'fixed' && fsCoupon.currency === 'USD') {
-            const discountKRW = fsCoupon.value * usdToKrw;
-            disc = Math.min(discountKRW, originalPrice) / originalPrice;
+          // 정액(fixed) 쿠폰 (2026-07-18 fix): KRW/USD 모두 지원 — 이전엔 fixed KRW 를 percent 로
+          // 오해석(value=50000 → 500x)했다. fixed 는 바우처라 10% cap 대상이 아님(청구 경로와 동형)
+          // — 정률 합산과 분리 집계.
+          if (fsCoupon.type === 'fixed') {
+            const discountKRW = fsCoupon.currency === 'KRW'
+              ? fsCoupon.value
+              : fsCoupon.value * couponRateFor(productType);
+            fixedSavedKRW += discountKRW;
+            appliedCodes.push({ code: upper, discount: originalPrice > 0 ? Math.min(discountKRW, originalPrice) / originalPrice : 0, label: fsCoupon.label, couponDocId: fsCoupon.couponDocId, fixed: true });
           } else {
-            disc = fsCoupon.value / 100;
+            const disc = fsCoupon.value / 100;
+            totalDiscount += disc;
+            appliedCodes.push({ code: upper, discount: disc, label: fsCoupon.label, couponDocId: fsCoupon.couponDocId });
           }
-          totalDiscount += disc;
-          appliedCodes.push({ code: upper, discount: disc, label: fsCoupon.label, couponDocId: fsCoupon.couponDocId });
         }
       }
 
-      // 🔴 최대 할인 cap: 10% (운영자 정책 "딜+쿠폰 합산 최대 10%"). 표시가 청구가(createPaypalOrder
-      // total-discount cap)와 동일 상한을 약속하도록 10% 로 통일 — 표시>청구 과대약속 방지.
+      // 🔴 최대 할인 cap: 10% (운영자 정책 "딜+쿠폰 합산 최대 10%") — 정률만. 정액(fixed)은
+      // 바우처(관리자 발급 정액권)라 cap 미적용, 청구 경로(createPaypalOrder)와 동일 정책.
+      // 최소가 ₩1,000 플로어도 청구 미러.
       totalDiscount = Math.min(totalDiscount, 0.10);
 
-      const savedAmount = Math.round(originalPrice * totalDiscount * 100) / 100;
+      const rawSaved = originalPrice * totalDiscount + fixedSavedKRW;
+      const savedAmount = Math.round(Math.min(rawSaved, Math.max(0, originalPrice - MIN_CHARGE_KRW)) * 100) / 100;
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
+      // 응답 totalDiscount = 실효 할인율 (소비자 backward-compat — savedAmount/originalPrice).
+      totalDiscount = originalPrice > 0 ? savedAmount / originalPrice : 0;
 
       res.writeHead(200, JSON_CORS);
       return res.end(JSON.stringify(_ok({
@@ -316,11 +346,14 @@ export default async function handler(req, res) {
       let savedAmount;
       let discountRate;
 
-      if (fsCoupon.type === 'fixed' && fsCoupon.currency === 'USD') {
-        // USD 고정 금액 쿠폰 → KRW 환산 (실시간 환율)
-        const discountKRW = fsCoupon.value * usdToKrw;
-        savedAmount = Math.min(discountKRW, originalPrice); // 주문액 초과 방지
-        discountRate = savedAmount / originalPrice;
+      if (fsCoupon.type === 'fixed') {
+        // 정액 쿠폰 (2026-07-18 fix): KRW/USD 모두 지원 — 이전엔 fixed KRW 를 percent 로 오해석.
+        // USD 는 청구와 동일 환율(차터=고정 1400)로 환산. 최소가 ₩1,000 플로어 = 청구 미러.
+        const discountKRW = fsCoupon.currency === 'KRW'
+          ? fsCoupon.value
+          : fsCoupon.value * couponRateFor(productType);
+        savedAmount = Math.min(discountKRW, Math.max(0, originalPrice - MIN_CHARGE_KRW));
+        discountRate = originalPrice > 0 ? savedAmount / originalPrice : 0;
       } else {
         // percent 쿠폰
         discountRate = fsCoupon.value / 100;

@@ -13,6 +13,7 @@ import { join } from 'path';
 import { resolveProductType } from '../../src/components/charter/resolveProductType';
 import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
+import { charterExtrasKrw as beExtras } from '../../api/_shared/charter-extras.js';
 import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
 import { calcTransferQuote as beTransferQuote, curatedStariaKRW as beCuratedStaria, fourTierStariaKRW as beFourTier } from '../../api/_shared/charter-transfer-price.js';
 import { calcMultiDayQuote } from '../../src/lib/multidayQuote';
@@ -66,12 +67,17 @@ describe('resolveProductType — VITE_FEATURE_MULTIDAY_CHECKOUT ON', () => {
     expect(r.durationDays).toBe(3);
   });
 
-  it('sprinter 도 결제 가능 (가격 == 백엔드)', () => {
+  it('sprinter 도 결제 가능 (가격 == 백엔드 코어 + 필수가이드 extras)', () => {
+    // 2026-07-18 옵션 청구 fix: sprinter 는 면허가이드 법적 필수(₩300,000)가 표시·청구 양쪽에
+    // 자동 가산된다(charter-extras). 백엔드 청구 = beMultiday(코어) + serverExtras — 표시==청구 유지.
     vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
     const r = resolveProductType(multidayState({ vehicle: 'sprinter' }));
     const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
     expect(r.productType).toBe('charter_multiday');
-    expect(r.priceKRW).toBe(beMultiday(SPEC, { vehicle: 'sprinter', km, durationDays: 3 }));
+    const core = beMultiday(SPEC, { vehicle: 'sprinter', km, durationDays: 3 })!;
+    const extras = beExtras(SPEC, core, { vehicle: 'sprinter', options: {} });
+    expect(extras.addonsKRW).toBe(300_000); // 필수 가이드
+    expect(r.priceKRW).toBe(core + extras.totalKRW);
   });
 
   it('bus/vip → 결제 불가 (inquiry-only, fall-through)', () => {

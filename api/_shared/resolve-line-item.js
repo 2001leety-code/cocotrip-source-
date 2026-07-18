@@ -13,6 +13,7 @@
  * client items[].priceKRW 완전 불신 — productType + 식별 키만으로 재계산 (변조 차단).
  */
 import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './charter-multiday-price.js';
+import { isCharterExtrasProduct, charterExtrasKrw } from './charter-extras.js';
 import { resolveTourCheckoutKrw } from './tour-price.js';
 import { resolveTransferCheckoutKrw } from './charter-transfer-price.js';
 import { isAiPlannerProduct } from './ai-planner-policy.js';
@@ -112,16 +113,25 @@ export function resolveLineItemKrw(SPEC, booking, opts = {}) {
   const productType = booking.productType;
   if (!productType) return null;
 
+  let core;
   if (productType === 'charter_multiday') {
-    return resolveMultiDayCheckoutKrw(SPEC, booking, !!opts.multidayEnabled, { discountV2: opts.discountV2 });
+    core = resolveMultiDayCheckoutKrw(SPEC, booking, !!opts.multidayEnabled, { discountV2: opts.discountV2 });
+  } else if (productType === 'tour_hourly') {
+    core = resolveTourCheckoutKrw(SPEC, booking, !!opts.tourHourlyEnabled);
+  } else if (productType === 'charter_transfer') {
+    core = resolveTransferCheckoutKrw(SPEC, booking, !!opts.transferEnabled, { marginGuardEnabled: opts.marginGuardEnabled, discountV2: opts.discountV2 });
+  } else {
+    core = resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays, booking.vehicle);
   }
-  if (productType === 'tour_hourly') {
-    return resolveTourCheckoutKrw(SPEC, booking, !!opts.tourHourlyEnabled);
+  if (core == null || !(core > 0)) return core;
+
+  // 🔴 차터 옵션·야간할증 가산 (2026-07-18 돈버그 fix) — createPaypalOrder 단건 경로와 동일.
+  //   booking.options 는 charterCartItem.ts 가 위저드 state.options 를 boolean 으로 담는다.
+  if (isCharterExtrasProduct(productType)) {
+    const extras = charterExtrasKrw(SPEC, core, { vehicle: booking.vehicle, options: booking.options });
+    if (extras.totalKRW > 0) return core + extras.totalKRW;
   }
-  if (productType === 'charter_transfer') {
-    return resolveTransferCheckoutKrw(SPEC, booking, !!opts.transferEnabled, { marginGuardEnabled: opts.marginGuardEnabled, discountV2: opts.discountV2 });
-  }
-  return resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays, booking.vehicle);
+  return core;
 }
 
 /**

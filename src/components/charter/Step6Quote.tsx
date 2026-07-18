@@ -64,7 +64,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const tourHourlyOn = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true';
   const tourVehicle = state?.vehicle;
   if (tourHourlyOn && quote.mode === 'day_tour' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TourReceipt km={km} vehicle={tourVehicle} language={language} />;
+    return <TourReceipt km={km} vehicle={tourVehicle} options={state?.options} language={language} />;
   }
 
   // 멀티데이(1박+) 차터 영수증 (2026-06-02, VITE_FEATURE_MULTIDAY_CHECKOUT): resolveProductType 가
@@ -73,7 +73,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   if (state) {
     const md = resolveProductType(state, { routeKm });
     if (md.productType === 'charter_multiday' && md.payable) {
-      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} routeKm={routeKm} language={language} />;
+      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} routeKm={routeKm} options={state.options} language={language} />;
     }
   }
 
@@ -82,7 +82,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   if (state) {
     const tf = resolveProductType(state, { routeKm });
     if (tf.productType === 'charter_transfer' && tf.payable && tf.originKey && tf.destKey) {
-      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} routeKm={routeKm} language={language} />;
+      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} routeKm={routeKm} options={state.options} language={language} />;
     }
   }
 

@@ -10,6 +10,7 @@ import { authFetch } from '@/lib/authFetch';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { discountV2Enabled } from '@/lib/discountFlags';
+import { charterOptionsBody } from '@/lib/charterExtras';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -83,6 +84,9 @@ interface Props {
   /** 2026-06-29 마케팅(선택) 정보 수신 동의 — termsAgreed 와 독립. 금액/게이트 무관, capture body 로
    *  보존만(미동의해도 결제 진행). 미전달 시 false. */
   marketingConsent?: boolean;
+  /** 🔴 2026-07-18 차터 옵션 청구 fix: 위저드 옵션(면허가이드·픽켓·카시트·야간) — createPaypalOrder 가
+   *  서버 spec 으로 금액 재계산해 가산(api/_shared/charter-extras.js). 미전달 = 옵션 없음(기존 동작). */
+  options?: { licensedGuide?: boolean; airportPicket?: boolean; childSeat?: boolean; night?: boolean };
 }
 
 interface RateInfo {
@@ -114,7 +118,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -551,6 +555,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(vehicle ? { vehicle } : {}),
           // FEATURE_CHARTER_WAYPOINTS: 경유지 좌표 — 백엔드가 동일 좌표로 TMAP km 재조회해 청구(P311).
           ...(routeCoords ? { routeCoords } : {}),
+          // 🔴 2026-07-18 차터 옵션 청구 fix — 옵션 flag 만 전달, 금액은 서버가 spec 으로 재계산(가산).
+          ...(options ? { options: charterOptionsBody(options) } : {}),
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.

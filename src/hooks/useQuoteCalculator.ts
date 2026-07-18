@@ -15,7 +15,6 @@ import { useEffect, useState } from 'react';
 import {
   AIRPORT_TRANSFER_PRICES,
   DAILY_TOUR_PRICES,
-  VEHICLE_TYPES,
   EXTRA_CHARGES,
   KPOP_SHUTTLE,
   DISTANCE_MATRIX,
@@ -34,6 +33,7 @@ import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
 import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
+import { charterExtrasKrw } from '@/lib/charterExtras';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
@@ -144,9 +144,8 @@ function calcIntercityFormula(vehicle: VehicleType, km: number): number {
   return Math.round(staria * VEHICLE_MULTIPLIER[vehicle]);
 }
 
-function surchargeForNight(baseKRW: number, isNight: boolean): number {
-  return isNight ? Math.round(baseKRW * (EXTRA_CHARGES.nightSurchargePercent / 100)) : 0;
-}
+// (야간할증 계산은 2026-07-18 부터 src/lib/charterExtras.ts charterExtrasKrw 로 일원화 —
+//  청구 정본 api/_shared/charter-extras.js 미러.)
 
 // 외부 거리 입력 (Geocoding 결과 또는 manual km). 동기 함수 — useEffect에서 호출.
 // routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km(서버 /api/charter-route-km). transfer/multi_day 에서
@@ -187,7 +186,10 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
 
   if (!isInquiryOnly(vehicle)) {
     if (mode === 'kpop_shuttle') {
-      vehicleChargeKRW = KPOP_SHUTTLE.pricePerVehicle;
+      // 🔴 2026-07-18 표시≠청구 fix: 청구(resolveProductType/createPaypalOrder)는 인원 × 왕복단가
+      // (pax × price_round_trip)인데 견적은 차량 단일가(pricePerVehicle 260,000)를 보여줬다 —
+      // 2인이면 표시 260,000 vs 청구 130,000. 청구 공식으로 통일.
+      vehicleChargeKRW = Math.max(1, Math.floor(state.paxCount || 1)) * KPOP_SHUTTLE.priceRoundTrip;
       source = 'package';
       receiptIsPackage = true;
     } else if (mode === 'airport_transfer') {
@@ -335,31 +337,9 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
     warnings.push('견적을 산출하기에 입력이 부족합니다.');
   }
 
-  // ── 추가 옵션 ──
-  const addons: QuoteAddon[] = [];
-  if (!isInquiryOnly(vehicle)) {
-    // P1 #9 fix (2026-05-12): sprinter 는 guide_required 자동 가산이므로 licensed_guide 옵션을 무시.
-    // 사용자가 sprinter + licensedGuide 둘 다 켜도 ₩300K 가 두 번 가산되지 않도록 server-side dedup.
-    // UI Step5DateOptions 도 sprinter 선택 시 OptionPill 숨김 — 양쪽 다 방어.
-    const licensedGuideApplies = state.options?.licensedGuide && vehicle !== 'sprinter';
-    if (licensedGuideApplies)         addons.push({ key: 'licensed_guide', label: '면허 가이드 (영/일/중)', amountKRW: EXTRA_CHARGES.englishGuidePerDay });
-    if (state.options?.airportPicket) addons.push({ key: 'airport_picket', label: '공항 픽켓 서비스',         amountKRW: EXTRA_CHARGES.airportPicketService });
-    if (state.options?.childSeat)     addons.push({ key: 'child_seat',     label: '카시트',                   amountKRW: EXTRA_CHARGES.childSeatPerTrip });
-
-    // sprinter는 가이드 필수료 자동 가산. bus/vip는 needsCustomQuote 분기로 빠지므로 도달 안 함.
-    if (vehicle === 'sprinter') {
-      const v = VEHICLE_TYPES[vehicle] as unknown as { guideFeeDailyKRW?: number };
-      const fee = v.guideFeeDailyKRW ?? 300_000;
-      addons.push({ key: 'guide_required', label: `면허 가이드 동행 (${vehicle}, 법적 필수)`, amountKRW: fee });
-    }
-  }
-
-  const addonsSum = addons.reduce((s, a) => s + a.amountKRW, 0);
-
-  const isNight = state.options?.night ?? false;
-  const surchargeKRW = surchargeForNight(vehicleChargeKRW + addonsSum, isNight);
-  const surchargePercent = isNight ? EXTRA_CHARGES.nightSurchargePercent : 0;
-
+  // ── 멀티데이 할인 — 차량요금(코어)에만 적용 (2026-07-18 청구 공식 정렬) ──
+  // 이전엔 (코어+옵션+야간할증) 전체에 할인해 표시가 청구(서버: 코어만 내부 할인 + 옵션·할증
+  // 정액 가산)보다 낮게 나왔다. 순서 = 코어 할인 → 옵션 → 야간할증, 서버와 동일.
   let multiDayDiscountKRW = 0;
   let multiDayDiscountPercent = 0;
   if (mode === 'multi_day') {
@@ -367,7 +347,6 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
     // 체류 일수(durationDays) = dayDiff + 1. (1박2일: dayDiff=1, 2박3일: dayDiff=2.)
     // 백엔드 SSOT (src/lib/multidayQuote.ts MULTIDAY_DISCOUNT_MIN_DAYS=3, 즉 3일+=2박+):
     //   할인 조건: durationDays >= 3  ↔  dayDiff >= 2
-    // 이전 dayDiff >= 1 (1박=2일~)은 백엔드보다 과도한 할인 → 표시/청구 불일치.
     const MULTIDAY_DISCOUNT_MIN_NIGHTS = 2; // multidayQuote.ts MULTIDAY_DISCOUNT_MIN_DAYS(3) - 1
     const dayDiff = state.startDate && state.endDate
       ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
@@ -375,11 +354,21 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
     if (dayDiff >= MULTIDAY_DISCOUNT_MIN_NIGHTS) {
       const pct = EXTRA_CHARGES.multiDayDiscountPercent || 10;
       multiDayDiscountPercent = pct;
-      multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
+      multiDayDiscountKRW = Math.round(vehicleChargeKRW * (pct / 100));
     }
   }
+  const coreAfterDiscountKRW = vehicleChargeKRW - multiDayDiscountKRW;
 
-  const subtotalKRW = vehicleChargeKRW + addonsSum + surchargeKRW - multiDayDiscountKRW;
+  // ── 추가 옵션·야간할증 — 청구 정본(api/_shared/charter-extras.js) 미러 charterExtrasKrw 로 일원화 ──
+  // sprinter 가이드 필수료 자동 가산·licensedGuide 중복 방지(P1 #9)·야간 20% 기준액 규칙 전부 helper 안.
+  const extras = isInquiryOnly(vehicle)
+    ? { addons: [] as QuoteAddon[], addonsKRW: 0, surchargeKRW: 0, surchargePercent: 0, totalKRW: 0 }
+    : charterExtrasKrw(coreAfterDiscountKRW, vehicle, state.options);
+  const addons: QuoteAddon[] = extras.addons;
+  const surchargeKRW = extras.surchargeKRW;
+  const surchargePercent = extras.surchargePercent;
+
+  const subtotalKRW = coreAfterDiscountKRW + extras.totalKRW;
 
   // VAT 정보 — pricing_spec.json 의 vat_excluded 가 false 로 바뀌면 가산 처리. 현재는 부가세 포함 표기.
   const vatExcluded = (EXTRA_CHARGES as Record<string, unknown>).vatExcluded === true;

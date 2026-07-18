@@ -27,6 +27,9 @@ import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 // 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
 // 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
 import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
+// 🔴 2026-07-18 차터 옵션 미청구 fix: 옵션(면허가이드 30만 등)·야간할증이 표시 총액에만 있고
+//   청구에서 통째로 빠지던 돈버그. 프론트 미러 = src/lib/charterExtras.ts (P311).
+import { isCharterExtrasProduct, charterExtrasKrw } from './_shared/charter-extras.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -81,6 +84,9 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
 const AI_PLANNER_FULL_KRW = 13_300;
+
+// 정액 쿠폰 차감 후 주문 최소가 — $0/음수 주문 방지 플로어 (fixed 쿠폰 ≥ 주문액 케이스).
+const MIN_CHARGE_KRW = 1_000;
 
 function resolveKrwAmount(productType, passengers, durationDays, vehicle) {
   if (!SPEC) return null;
@@ -296,14 +302,32 @@ export default async function handler(req, res) {
       }
     }
 
+    // 🔴 차터 옵션·야간할증 가산 (2026-07-18 돈버그 fix) — 위저드 표시 총액(quote.subtotalKRW)에는
+    // 포함되던 면허가이드(30만)·픽켓·카시트·야간 20% 가 청구액에서 통째로 빠져 과소청구.
+    // charter_custom_estimate 는 customAmountKRW 가 이미 옵션 포함(위저드 견적 총액)이라 제외(이중가산 금지).
+    // 정가(listBaseKrw)에도 동일 가산 — 할인 상한 10% 의 기준선 유지.
+    if (isCharterExtrasProduct(productType)) {
+      const extras = charterExtrasKrw(SPEC, krwAmount, { vehicle: bodyVehicle, options: body.options });
+      if (extras.totalKRW > 0) {
+        console.log('[createPaypalOrder] charter extras:', extras.addons.map((a) => a.key).join(','),
+          `+₩${extras.addonsKRW}`, extras.surchargeKRW > 0 ? `night +₩${extras.surchargeKRW}` : '');
+        krwAmount += extras.totalKRW;
+        listBaseKrw += extras.totalKRW;
+      }
+    }
+
     // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.
     if (!discountV2 && promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
 
     // v2: WELCOME 개인 쿠폰을 실제 청구가에 적용 (표시=청구 버그 fix). 검증 실패=정가(안전).
     // 소진(isUsed)은 capturePaypalOrder 트랜잭션 락이 담당 — 여기선 할인%만 반영.
+    // 정액(fixed) 쿠폰은 환율 확정 후 아래에서 차감 (2026-07-18 fix — 이전엔 표시·소진만 되고 청구는 정가).
+    let fixedCoupon = null;
     if (discountV2 && couponDocId && couponUserId && !isAiPlanner) {
       const cv = await verifyCouponForCharge(initAdminDb('createPaypalOrder-coupon'), couponUserId, couponDocId, productType);
-      if (cv.valid) {
+      if (cv.valid && cv.kind === 'fixed') {
+        fixedCoupon = cv;
+      } else if (cv.valid) {
         krwAmount = Math.round(krwAmount * (1 - cv.discountPct / 100));
         console.log('[createPaypalOrder] coupon applied:', couponDocId, cv.discountPct + '%');
       }
@@ -372,6 +396,18 @@ export default async function handler(req, res) {
       const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
       usdToKrw = await getUsdToKrwRaw();
     }
+    // 정액(fixed) 쿠폰 차감 (2026-07-18 fix) — 관리자 발급 바우처(₩50,000 등). 정률 프로모의
+    // 10% 상한과 별개 정책이라 cap 미적용. USD 쿠폰은 이 주문과 동일 환율로 환산(표시=청구 동형).
+    // 주문 최소가 MIN_CHARGE_KRW 플로어 — 쿠폰가치 ≥ 주문액이어도 $0 주문 생성 금지.
+    if (fixedCoupon) {
+      const discKrw = fixedCoupon.currency === 'KRW'
+        ? Math.round(fixedCoupon.amount)
+        : Math.round(fixedCoupon.amount * usdToKrw);
+      const beforeFixed = krwAmount;
+      krwAmount = Math.max(MIN_CHARGE_KRW, krwAmount - discKrw);
+      console.log('[createPaypalOrder] fixed coupon applied:', couponDocId, `-₩${discKrw.toLocaleString('ko-KR')}`, beforeFixed, '→', krwAmount);
+    }
+
     const _usdRaw = krwAmount / usdToKrw;
     const usdAmount = (roundUsdWhole ? Math.round(_usdRaw) : _usdRaw).toFixed(2);
 
