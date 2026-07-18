@@ -78,6 +78,10 @@ export interface BookingInfoFormProps {
   onMarketingChange?: (agreed: boolean) => void;
   /** 부가 서비스 섹션 숨김 (투어는 Step1 addon 에서 이미 선택 → 가격 재계산 방지). */
   hideAddons?: boolean;
+  /** 🔧 2026-07-18 결제 정보 내역 라인 (차터 위저드: 옵션·야간할증·멀티데이 할인) — 이전엔
+   *  기본요금 1줄+총액만 렌더돼 "옵션 ₩124,800 vs 총액 ₩424,800" 처럼 내역 없는 차액이 보였다.
+   *  표시 전용(라벨·금액 문자열) — 가격 재계산 없음(P311: 값은 quote 파생). */
+  extraRows?: { key: string; label: string; value: string; negative?: boolean }[];
   /** 할인코드 섹션 숨김. */
   hideDiscount?: boolean;
   /** 내부 CTA 버튼 숨김 — 호출처가 자체 결제 버튼(PayPalBookingButton) 렌더 시. */
@@ -127,7 +131,7 @@ const STR = {
     privacyLink: '개인정보 처리방침', termsLink: '이용약관',
     errRequired: (meeting: string) => `필수 항목(성·이름·연락처·이메일·${meeting})과 필수 약관 동의를 확인해 주세요.`,
     disclaimer: '코코트립은 통신판매중개자로서 차량 공급업체가 제공하는 서비스의 당사자가 아니며, 예약·이용·환불 관련 의무와 책임은 각 공급업체에 있습니다.',
-    payInfo: '결제 정보', payBase: '선택 옵션', payMeeting: '공항 미팅 & 피켓', payPromo: '할인코드 적용', payTotal: '예약 총금액',
+    payInfo: '결제 정보', payBase: '차량 기본요금', payMeeting: '공항 미팅 & 피켓', payPromo: '할인코드 적용', payTotal: '예약 총금액',
     cancelPolicy: '취소 규정', cancelFreeTitle: '무료 취소', cancelFreeDesc: '사용일 24시간 전까지 — 전액 환불',
     cancelFeeTitle: '⚠ 취소 수수료 100%', cancelFeeDesc: '사용일 24시간 전 이후 — 환불 불가',
     trust1: '단일요금, 모든 서비스 투명하게', trust1Sub: '팁·통행료 포함, 별도 추가요금 없음',
@@ -165,7 +169,7 @@ const STR = {
     privacyLink: 'Privacy Policy', termsLink: 'Terms of Service',
     errRequired: (meeting: string) => `Please complete the required fields (last name, first name, phone, email, ${meeting}) and the required consents.`,
     disclaimer: 'CocoTrip acts as a booking intermediary and is not a party to the services provided by vehicle suppliers. Obligations and liability for reservations, service, and refunds lie with each supplier.',
-    payInfo: 'Payment summary', payBase: 'Selected option', payMeeting: 'Airport meet & greet', payPromo: 'Promo applied', payTotal: 'Total',
+    payInfo: 'Payment summary', payBase: 'Vehicle base fare', payMeeting: 'Airport meet & greet', payPromo: 'Promo applied', payTotal: 'Total',
     cancelPolicy: 'Cancellation policy', cancelFreeTitle: 'Free cancellation', cancelFreeDesc: 'Until 24h before use — full refund',
     cancelFeeTitle: '⚠ 100% cancellation fee', cancelFeeDesc: 'Within 24h of use — non-refundable',
     trust1: 'One transparent price', trust1Sub: 'Tips & tolls included, no extra charges',
@@ -203,7 +207,7 @@ const STR = {
     privacyLink: 'プライバシーポリシー', termsLink: '利用規約',
     errRequired: (meeting: string) => `必須項目（姓・名・連絡先・メール・${meeting}）と必須規約への同意をご確認ください。`,
     disclaimer: 'CocoTripは通信販売仲介者であり、車両供給業者が提供するサービスの当事者ではありません。予約・利用・返金に関する義務と責任は各供給業者にあります。',
-    payInfo: 'お支払い情報', payBase: '選択オプション', payMeeting: '空港ミーティング＆ネームボード', payPromo: '割引コード適用', payTotal: '予約総額',
+    payInfo: 'お支払い情報', payBase: '車両基本料金', payMeeting: '空港ミーティング＆ネームボード', payPromo: '割引コード適用', payTotal: '予約総額',
     cancelPolicy: 'キャンセル規定', cancelFreeTitle: '無料キャンセル', cancelFreeDesc: 'ご利用24時間前まで — 全額返金',
     cancelFeeTitle: '⚠ キャンセル料100%', cancelFeeDesc: 'ご利用24時間前以降 — 返金不可',
     trust1: '単一料金・すべて透明', trust1Sub: 'チップ・通行料込み、追加料金なし',
@@ -241,7 +245,7 @@ const STR = {
     privacyLink: '隐私政策', termsLink: '服务条款',
     errRequired: (meeting: string) => `请填写必填项（姓、名、联系方式、邮箱、${meeting}）并勾选必选条款。`,
     disclaimer: 'CocoTrip作为交易中介，并非车辆供应商所提供服务的当事方；预订、使用及退款相关义务与责任由各供应商承担。',
-    payInfo: '支付信息', payBase: '所选项目', payMeeting: '机场接机举牌', payPromo: '已用优惠码', payTotal: '预订总额',
+    payInfo: '支付信息', payBase: '车辆基本费用', payMeeting: '机场接机举牌', payPromo: '已用优惠码', payTotal: '预订总额',
     cancelPolicy: '取消政策', cancelFreeTitle: '免费取消', cancelFreeDesc: '使用前24小时 — 全额退款',
     cancelFeeTitle: '⚠ 取消手续费100%', cancelFeeDesc: '使用前24小时内 — 不可退款',
     trust1: '一口价，全程透明', trust1Sub: '含小费·过路费，无额外费用',
@@ -293,11 +297,11 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const s: FormStrings = STR[lang] || STR.en;
   // 신뢰 바(결제 직전 안심) 4언어 — 가이드 docs/DESIGN-BOOKING-FORM-UX.md §6. 표시만.
   const trustItems = ({
-    ko: ['PayPal 보안결제', '무료 취소', 'KTO 등록사업자'],
-    en: ['PayPal Secure', 'Free cancellation', 'KTO Registered'],
-    ja: ['PayPal安全決済', '無料キャンセル', 'KTO登録事業者'],
-    zh: ['PayPal安全支付', '免费取消', 'KTO注册企业'],
-  } as Record<DialLang, string[]>)[lang] || ['PayPal Secure', 'Free cancellation', 'KTO Registered'];
+    ko: ['PayPal 보안결제', '24h+ 무료 취소', 'KTO 등록사업자'],
+    en: ['PayPal Secure', 'Free 24h+ cancellation', 'KTO Registered'],
+    ja: ['PayPal安全決済', '24h+前無料キャンセル', 'KTO登録事業者'],
+    zh: ['PayPal安全支付', '提前24h+免费取消', 'KTO注册企业'],
+  } as Record<DialLang, string[]>)[lang] || ['PayPal Secure', 'Free 24h+ cancellation', 'KTO Registered'];
   // 휴대폰 국가번호(dial, + 없는 숫자) 기본값 — props.defaultPhoneDial('+82' 형태) 파싱 우선,
   //   없으면 언어 기본(DEFAULT_DIAL_BY_LANG), 그래도 없으면 한국('82'). 국내 회귀 안전(KR 기본).
   const initialDial = (() => {
@@ -674,6 +678,10 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>{s.payInfo}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             <PayRow label={`${s.payBase} · ${props.paxText}`} value={baseStr} />
+            {/* 🔧 2026-07-18: 차터 옵션·야간할증·할인 내역 — 총액과 기본요금 차액이 설명되도록. */}
+            {(props.extraRows || []).map((r) => (
+              <PayRow key={r.key} label={r.label} value={r.value} pink={r.negative === true} />
+            ))}
             {!props.hideAddons && f.addonMeeting && <PayRow label={s.payMeeting} value={meetingStr} />}
             {!props.hideAddons && f.addonChildSeat && <PayRow label={s.addonChildSeat} value={childSeatStr} />}
             {!props.hideDiscount && appliedCode && <PayRow label={`${s.payPromo} (${appliedCode})`} value="" pink />}
@@ -690,9 +698,11 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
         <div style={{ ...C.card, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>{s.cancelPolicy}</div>
+          {/* 🔧 2026-07-18: 조건 문구 대비 상향(0.45→0.72 + 굵게) — 굵은 제목("무료 취소"/"수수료
+              100%")만 읽으면 모순처럼 보이던 정적 2행 안내표. 조건이 제목만큼 읽히게. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>{s.cancelFreeTitle}</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{s.cancelFreeDesc}</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>{s.cancelFeeTitle}</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{s.cancelFeeDesc}</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>{s.cancelFreeTitle}</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFreeDesc}</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>{s.cancelFeeTitle}</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFeeDesc}</div></div>
           </div>
         </div>
 
