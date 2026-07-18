@@ -34,7 +34,7 @@ import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
 import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { DISCOUNT_V2_MULTIDAY_PCT } from '@/lib/multidayQuote';
-import { charterExtrasKrw } from '@/lib/charterExtras';
+import { charterExtrasKrw, withDerivedNight } from '@/lib/charterExtras';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
@@ -368,7 +368,8 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
   // sprinter 가이드 필수료 자동 가산·licensedGuide 중복 방지(P1 #9)·야간 20% 기준액 규칙 전부 helper 안.
   const extras = isInquiryOnly(vehicle)
     ? { addons: [] as QuoteAddon[], addonsKRW: 0, surchargeKRW: 0, surchargePercent: 0, totalKRW: 0 }
-    : charterExtrasKrw(coreAfterDiscountKRW, vehicle, state.options);
+    // night = pickupTime 재파생(withDerivedNight) — 서버 청구 override 와 동형 (2026-07-18 재점검).
+    : charterExtrasKrw(coreAfterDiscountKRW, vehicle, withDerivedNight(state.options, state.pickupTime));
   const addons: QuoteAddon[] = extras.addons;
   const surchargeKRW = extras.surchargeKRW;
   const surchargePercent = extras.surchargePercent;

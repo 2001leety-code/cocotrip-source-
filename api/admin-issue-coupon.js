@@ -66,9 +66,20 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'value는 양의 숫자' }));
   }
+  // 2026-07-18 재점검: 발급단 상한 — 청구 경로(coupon-charge.js)가 percent 는 10% 클램프,
+  // fixed 는 FIXED_COUPON_CAP(₩1,000,000/$700) 클램프하므로 그보다 큰 쿠폰은 표시>청구
+  // 괴리만 만든다. 발급 자체를 거부해 근본 차단 (운영자 표준 쿠폰 = 5%/₩50,000).
+  if (type === 'percent' && value > 10) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'percent 쿠폰은 최대 10% (청구 클램프와 동일 상한)' }));
+  }
   if (type === 'fixed' && !['USD', 'KRW'].includes(currency)) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'fixed type은 currency 필수 (USD/KRW)' }));
+  }
+  if (type === 'fixed' && ((currency === 'KRW' && value > 1_000_000) || (currency === 'USD' && value > 700))) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'fixed 쿠폰 상한 초과 (KRW ≤1,000,000 / USD ≤700 — 청구 클램프와 동일)' }));
   }
 
   try {

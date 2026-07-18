@@ -141,3 +141,19 @@ describe('deriveNightFromPickup — 야간 flag 서버 파생 (위조 우회 차
     expect(deriveNightFromPickup(undefined)).toBe(null);
   });
 });
+
+describe('withDerivedNight(front) ↔ 서버 pickupTime override 동형 — 결제패널 시간 edit 회귀 가드', () => {
+  it('stale night flag 를 pickupTime 이 이긴다 (09:00 선택 후 19:00 수정 시나리오)', async () => {
+    const { withDerivedNight, deriveNightFromPickup: frontDerive } = await import('../../src/lib/charterExtras');
+    // 표시측: night:false 로 남은 stale options + 19:00 → night true 로 재파생
+    expect(withDerivedNight({ night: false }, '19:00')).toEqual({ night: true });
+    // 역방향: night:true stale + 10:00 → false
+    expect(withDerivedNight({ night: true, childSeat: true }, '10:00')).toEqual({ night: false, childSeat: true });
+    // 시각 무효 → 클라 flag 유지 (서버 deriveNightFromPickup null 폴백과 동형)
+    expect(withDerivedNight({ night: true }, '')).toEqual({ night: true });
+    // 경계값이 서버 파생과 1:1
+    for (const t of ['18:00', '17:59', '06:00', '05:59', '00:00', '23:59']) {
+      expect(frontDerive(t), t).toBe(deriveNightFromPickup(t));
+    }
+  });
+});

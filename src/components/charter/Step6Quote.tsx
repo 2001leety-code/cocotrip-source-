@@ -9,6 +9,7 @@ import { TransferReceipt } from './TransferReceipt';
 import { MultiDayReceipt } from './MultiDayReceipt';
 import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
+import { charterAddonLabel, withDerivedNight } from '@/lib/charterExtras';
 import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 interface Props {
@@ -64,7 +65,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const tourHourlyOn = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true';
   const tourVehicle = state?.vehicle;
   if (tourHourlyOn && quote.mode === 'day_tour' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TourReceipt km={km} vehicle={tourVehicle} options={state?.options} language={language} />;
+    return <TourReceipt km={km} vehicle={tourVehicle} options={withDerivedNight(state?.options, state?.pickupTime)} language={language} />;
   }
 
   // 멀티데이(1박+) 차터 영수증 (2026-06-02, VITE_FEATURE_MULTIDAY_CHECKOUT): resolveProductType 가
@@ -73,7 +74,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   if (state) {
     const md = resolveProductType(state, { routeKm });
     if (md.productType === 'charter_multiday' && md.payable) {
-      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} routeKm={routeKm} options={state.options} language={language} />;
+      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} routeKm={routeKm} options={withDerivedNight(state.options, state.pickupTime)} language={language} />;
     }
   }
 
@@ -82,7 +83,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   if (state) {
     const tf = resolveProductType(state, { routeKm });
     if (tf.productType === 'charter_transfer' && tf.payable && tf.originKey && tf.destKey) {
-      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} routeKm={routeKm} options={state.options} language={language} />;
+      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} routeKm={routeKm} options={withDerivedNight(state.options, state.pickupTime)} language={language} />;
     }
   }
 
@@ -121,9 +122,10 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
             <Row label={i18n.packageRowLabel} value={KRW(quote.vehicleChargeKRW)} />
           )}
 
-          {/* 옵션/할증/할인 */}
+          {/* 옵션/할증/할인 — 라벨은 4언어 사전(charterAddonLabel). 이전 a.label(한국어 하드코딩)은
+              sprinter 필수가이드 행 등이 en/ja/zh 고객에게 한국어로 노출됐다 (2026-07-18 재점검). */}
           {quote.addons.map(a => (
-            <Row key={a.key} label={`+ ${a.label}`} value={KRW(a.amountKRW)} muted />
+            <Row key={a.key} label={`+ ${charterAddonLabel(a.key, language)}`} value={KRW(a.amountKRW)} muted />
           ))}
           {quote.surchargeKRW > 0 && (
             <Row label={i18n.nightSurcharge(quote.surchargePercent)} value={KRW(quote.surchargeKRW)} warn />

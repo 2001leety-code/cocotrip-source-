@@ -23,6 +23,28 @@ export interface CharterExtras {
 
 const EMPTY: CharterExtras = { addons: [], addonsKRW: 0, surchargeKRW: 0, surchargePercent: 0, totalKRW: 0 };
 
+/** 픽업시각(HH:mm) → 야간 여부 (18:00~05:59). 서버 api/_shared/charter-extras.js deriveNightFromPickup 미러.
+ *  유효 시각 아니면 null. */
+export function deriveNightFromPickup(pickupTime: string | null | undefined): boolean | null {
+  const m = String(pickupTime || '').match(/^([01]\d|2[0-3]):[0-5]\d/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  return h >= 18 || h < 6;
+}
+
+/** night 를 pickupTime 에서 재파생한 options — 서버(createPaypalOrder)가 청구 시 동일 override 를
+ *  하므로 표시측도 이 함수를 거쳐야 표시가==청구가. (2026-07-18 재점검: 결제패널 시간 edit 등
+ *  options.night 갱신을 놓치는 writer 가 생겨도 여기서 구조적으로 봉합.) */
+export function withDerivedNight(
+  options: WizardState['options'] | null | undefined,
+  pickupTime: string | null | undefined,
+): WizardState['options'] {
+  const base = options || {};
+  const derived = deriveNightFromPickup(pickupTime);
+  if (derived === null) return base;
+  return { ...base, night: derived };
+}
+
 /** 옵션·야간할증 KRW — coreKrw(코어 상품가) 기준. 서버 charterExtrasKrw 미러. */
 export function charterExtrasKrw(
   coreKrw: number | null | undefined,
