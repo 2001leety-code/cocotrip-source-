@@ -55,6 +55,8 @@ export interface WizardI18n {
   flightLookup: string;
   flightLookupHint: string;
   flightLookupFail: string;
+  flightLookupWindow: string;
+  flightLookupError: string;
   flightArrivalLabel: string;
   luggage: string;
   luggageSmall: string; luggageMedium: string; luggageLarge: string;
@@ -245,6 +247,10 @@ export function getWizardI18n(language: string): WizardI18n {
     flightLookup: get('flightLookup') || (lang === 'ko' ? '도착정보 조회' : lang === 'ja' ? '到着情報照会' : lang === 'zh' ? '查询到达信息' : 'Look up arrival'),
     flightLookupHint: get('flightLookupHint') || (lang === 'ko' ? '편명을 넣고 누르면 도착시간·터미널이 자동 입력돼요' : lang === 'ja' ? '便名を入力して押すと到着時刻・ターミナルが自動入力されます' : lang === 'zh' ? '输入航班号后点击，自动填入到达时间和航站楼' : 'Enter your flight number to auto-fill arrival time & terminal'),
     flightLookupFail: get('flightLookupFail') || (lang === 'ko' ? '해당 편명을 찾을 수 없어요. 직접 입력해 주세요.' : lang === 'ja' ? '該当する便名が見つかりません。手動で入力してください。' : lang === 'zh' ? '未找到该航班号，请手动输入。' : 'Flight not found — please enter details manually.'),
+    // 🔧 2026-07-18: 공공API 조회창(도착 6일 전~) 밖 — 편명 오류가 아님을 정직 안내.
+    flightLookupWindow: get('flightLookupWindow') || (lang === 'ko' ? '도착 6일 전부터 자동조회가 가능해요. 예정 도착시간만 직접 입력해 주세요.' : lang === 'ja' ? '到着6日前から自動照会が可能です。到着予定時刻を直接ご入力ください。' : lang === 'zh' ? '抵达前6天起可自动查询。请先手动填写预计到达时间。' : 'Auto-lookup opens 6 days before arrival — please enter the arrival time manually for now.'),
+    // 🔧 2026-07-18: 키미설정·공공API 장애·쿼터초과 — 사용자 입력 탓이 아닌 서비스 오류 구분.
+    flightLookupError: get('flightLookupError') || (lang === 'ko' ? '조회 서비스가 일시적으로 원활하지 않아요. 잠시 후 다시 시도하거나 직접 입력해 주세요.' : lang === 'ja' ? '照会サービスが一時的に不安定です。しばらくして再試行するか、直接ご入力ください。' : lang === 'zh' ? '查询服务暂时不可用。请稍后重试或手动输入。' : 'Lookup service is temporarily unavailable — try again later or enter details manually.'),
     flightArrivalLabel: get('flightArrivalLabel') || (lang === 'ko' ? '도착' : lang === 'ja' ? '到着' : lang === 'zh' ? '到达' : 'Arrival'),
     luggage: get('luggage'),
     luggageSmall: get('luggageSmall'),
