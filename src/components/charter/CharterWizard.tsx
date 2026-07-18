@@ -30,7 +30,7 @@ import {
   clearWizardSnapshot,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
-import { VEHICLE_TYPES } from '@/data/charterPricing';
+import { VEHICLE_TYPES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 // localStorage 에 저장하는 charter wizard snapshot — state + manualKm + step.
 // state object 만 저장하면 manualKm (Geocoding fail 후 사용자 직접 km 입력) 가
@@ -355,7 +355,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       value: compactValue(`${state.startDate ?? ''}${state.pickupTime ? ` ${state.pickupTime}` : ''}`, '-'),
     },
   ];
-  const desktopAmount = stickyAmountKRW != null ? formatPrice(stickyAmountKRW, language) : null;
+  // 🔧 2026-07-18 재점검: USD 표시는 실제 청구 공식(고정환율 1400 + 정수 반올림 = createPaypalOrder
+  //   usesFixedUsdRate)과 동일하게. 이전 formatPrice 는 표시환율(1430)이라 같은 화면의 Step6
+  //   영수증·실청구 $ 와 ~2.1% 어긋났다. ja/zh 참고 환산은 유지(실 결제는 USD).
+  const stickyUsdFixed = stickyAmountKRW != null ? `$${Math.round(stickyAmountKRW / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}` : null;
+  const desktopAmount = stickyAmountKRW != null
+    ? (language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language))
+    : null;
 
   // 모바일은 하단 패딩 96px 확보(고정 sticky 바가 인플로우 nav/마지막 입력 가리지 않게). 데스크탑 무패딩.
   return (
@@ -549,7 +555,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
                 </p>
                 {desktopAmount && stickyAmountKRW != null && (
-                  <p className="mt-1 text-xs text-white/45">{formatPrice(stickyAmountKRW, 'en', { withCurrencyCode: true })}</p>
+                  <p className="mt-1 text-xs text-white/45">{`${stickyUsdFixed} USD`}</p>
                 )}
               </div>
               <div className="space-y-3 p-5">
@@ -611,8 +617,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             <div style={{ minWidth: 0 }}>
               {stickyAmountKRW != null ? (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#fff' }}>{formatPrice(stickyAmountKRW, language)}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{formatPrice(stickyAmountKRW, 'en', { withCurrencyCode: true })}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#fff' }}>{language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language)}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{`${stickyUsdFixed} USD`}</div>
                 </>
               ) : (
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>{`${currentStep} / 6`}</div>

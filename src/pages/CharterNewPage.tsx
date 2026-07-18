@@ -24,6 +24,7 @@ import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
+import { deriveNightFromPickup } from '@/lib/charterExtras';
 import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 export default function CharterNewPage() {
@@ -203,6 +204,16 @@ function PaymentPanel({
     if (!editing) return;
     if (editing.key === 'terminal') onPatchState({ airport: { ...(state.airport ?? {}), terminal: (v || undefined) as 'T1' | 'T2' | undefined } });
     else if (editing.key === 'flightNumber') onPatchState({ airport: { ...(state.airport ?? {}), flightNumber: v } });
+    else if (editing.key === 'pickupTime') {
+      // 🔧 2026-07-18 재점검: 시간 수정 시 야간(night) 재파생 — Step5 와 동일 규칙. 이전엔 시간만
+      // patch 돼 서버(pickupTime 기반 청구 override)와 표시(options.night)가 갈라져 09:00→19:00
+      // 수정 시 표시 그대로 청구만 +20% 야간할증 되는 경로였다 (VITE_FEATURE_REVIEW_EDIT ON 시).
+      const derived = deriveNightFromPickup(v);
+      onPatchState({
+        pickupTime: v,
+        ...(derived !== null ? { options: { ...state.options, night: derived } } : {}),
+      } as Partial<WizardState>);
+    }
     else onPatchState({ [editing.key]: v } as Partial<WizardState>);
     setEditing(null);
   };

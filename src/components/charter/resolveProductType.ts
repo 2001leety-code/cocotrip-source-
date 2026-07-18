@@ -5,7 +5,7 @@ import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote, captainPremiumKrwFor as tourCaptainPremiumKrwFor } from '@/lib/tourQuote';
 import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
-import { charterExtrasKrw } from '@/lib/charterExtras';
+import { charterExtrasKrw, withDerivedNight } from '@/lib/charterExtras';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -63,7 +63,9 @@ export interface ResolvedPayment {
 export function resolveProductType(state: WizardState, opts: { routeKm?: number | null } = {}): ResolvedPayment {
   const core = resolveProductTypeCore(state, opts);
   if (!core.payable || core.priceKRW == null || core.priceKRW <= 0) return core;
-  const extras = charterExtrasKrw(core.priceKRW, state.vehicle || 'staria', state.options);
+  // night 는 pickupTime 재파생(withDerivedNight) — 서버 청구가 pickupTime 으로 override 하므로
+  // 표시도 동형. options.night 갱신을 놓치는 writer(결제패널 시간 edit 등)가 생겨도 구조적 봉합.
+  const extras = charterExtrasKrw(core.priceKRW, state.vehicle || 'staria', withDerivedNight(state.options, state.pickupTime));
   if (extras.totalKRW <= 0) return core;
   return { ...core, priceKRW: core.priceKRW + extras.totalKRW };
 }

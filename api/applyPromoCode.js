@@ -369,8 +369,9 @@ export default async function handler(req, res) {
         savedAmount = Math.min(discountKRW, Math.max(0, originalPrice - MIN_CHARGE_KRW));
         discountRate = originalPrice > 0 ? savedAmount / originalPrice : 0;
       } else {
-        // percent 쿠폰
-        discountRate = fsCoupon.value / 100;
+        // percent 쿠폰 — 청구측(coupon-charge.js Math.min(pct,10))과 동일 10% 클램프 (2026-07-18
+        // 재점검: 클램프 없으면 >10% 쿠폰 발급 시 표시할인 > 청구할인 = 청구가 표시보다 비쌈).
+        discountRate = Math.min(fsCoupon.value, 10) / 100;
         savedAmount = Math.round(originalPrice * discountRate * 100) / 100;
       }
 
