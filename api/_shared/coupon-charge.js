@@ -12,6 +12,10 @@
  * 변경 시 두 곳 동기. coupon-charge.test.js 가 동작(scope) 가드.
  */
 
+/** 정액(fixed) 쿠폰 이상치 방어 상한 — 관리자 오입력/변조 (₩1,000,000 / $700 상당).
+ *  표시(applyPromoCode)·청구(verifyCouponForCharge) 양쪽이 이 상수를 공유해 표시=청구 유지. */
+export const FIXED_COUPON_CAP = { KRW: 1_000_000, USD: 700 };
+
 /** 쿠폰 productScope ↔ productType 매칭 (applyPromoCode.couponMatchesProduct mirror). */
 export function couponMatchesProduct(productScope, productType) {
   if (!productScope) return true; // legacy 쿠폰 — 모든 productType 허용
@@ -62,20 +66,28 @@ export async function verifyCouponForCharge(db, couponUserId, couponDocId, produ
     if (!couponMatchesProduct(c.productScope, productType)) return { valid: false };
     // 정액(fixed) 쿠폰 (2026-07-18 fix) — 이전엔 청구 경로 미적용(표시 할인 + capture 소진 +
     // 청구 정가 = 고객 피해형 반쪽 구현). 이제 kind:'fixed' 로 반환 → createPaypalOrder 가
-    // 환율 확정 후 차감(최소가 플로어). currency 는 admin-issue-coupon 이 KRW|USD 만 발급.
+    // 환율 확정 후 차감(최소가 플로어). currency: admin-issue-coupon 은 KRW|USD 발급,
+    // 레거시(currency 미기록) fixed = $ 쿠폰 → USD 간주 — 표시단(applyPromoCode
+    // verifyFirestoreCoupon 의 `currency || 'USD'`)과 동형이라 표시=청구 유지.
     if (c.type === 'fixed') {
-      const currency = c.currency === 'KRW' ? 'KRW' : c.currency === 'USD' ? 'USD' : null;
+      const currency = c.currency === 'KRW' ? 'KRW' : (c.currency === 'USD' || !c.currency) ? 'USD' : null;
       const amount = typeof c.value === 'number' ? c.value : 0;
       if (!currency || !(amount > 0)) return { valid: false };
-      // 이상치 방어 — 관리자 오입력/변조 상한 (₩1,000,000 / $700 상당).
-      const cap = currency === 'KRW' ? 1_000_000 : 700;
-      return { valid: true, kind: 'fixed', currency, amount: Math.min(amount, cap) };
+      return {
+        valid: true, kind: 'fixed', currency,
+        amount: Math.min(amount, FIXED_COUPON_CAP[currency]),
+        minOrderUSD: typeof c.minOrderUSD === 'number' && c.minOrderUSD > 0 ? c.minOrderUSD : 0,
+      };
     }
     if (c.type && c.type !== 'percent') return { valid: false };
     const pct = typeof c.value === 'number' ? c.value : 0;
     if (!(pct > 0)) return { valid: false };
     // 안전 상한 10% — 개인 쿠폰 단일 적용 (운영자 정책: 쿠폰 5%). 변조/이상치 방어.
-    return { valid: true, kind: 'percent', discountPct: Math.min(pct, 10) };
+    // minOrderUSD: admin-issue-coupon 발급 필드 — createPaypalOrder 가 주문액 미달 시 미적용.
+    return {
+      valid: true, kind: 'percent', discountPct: Math.min(pct, 10),
+      minOrderUSD: typeof c.minOrderUSD === 'number' && c.minOrderUSD > 0 ? c.minOrderUSD : 0,
+    };
   } catch (err) {
     return { valid: false }; // 검증 중 에러 = 미적용(정가). 과할인보다 미적용이 안전.
   }

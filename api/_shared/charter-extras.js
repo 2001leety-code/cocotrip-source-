@@ -31,6 +31,16 @@ export function isCharterExtrasProduct(productType) {
   );
 }
 
+/** 픽업시각(HH:mm) → 야간 여부 (18:00~05:59). 프론트 Step5DateOptions 자동 파생과 동일 규칙.
+ *  유효한 시각이 아니면 null (판정 불가 — 클라 flag 사용). 서버가 직접 파생해 night flag
+ *  위조(야간 예약을 night:false 로 보내 20% 할증 우회)를 차단한다. */
+export function deriveNightFromPickup(pickupTime) {
+  const m = String(pickupTime || '').match(/^([01]\d|2[0-3]):[0-5]\d/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  return h >= 18 || h < 6;
+}
+
 /** body.options 위생 처리 — boolean true 만 통과. */
 export function sanitizeCharterOptions(raw) {
   const o = raw && typeof raw === 'object' ? raw : {};

@@ -11,6 +11,7 @@ import spec from '../../src/data/pricing_spec.json';
 import {
   isCharterExtrasProduct,
   sanitizeCharterOptions,
+  deriveNightFromPickup,
   charterExtrasKrw as serverExtras,
 } from '../../api/_shared/charter-extras.js';
 import { charterExtrasKrw as frontExtras } from '../../src/lib/charterExtras';
@@ -121,5 +122,22 @@ describe('cart 경로(resolve-line-item) — 옵션 가산 회귀 가드', () =>
     }) as number;
     const expected = core + PICKET + SEAT + Math.round((core + PICKET + SEAT) * 0.2);
     expect(total).toBe(expected);
+  });
+});
+
+describe('deriveNightFromPickup — 야간 flag 서버 파생 (위조 우회 차단)', () => {
+  it('18:00~05:59 = 야간, 06:00~17:59 = 주간 (프론트 Step5 파생 규칙과 동일)', () => {
+    expect(deriveNightFromPickup('18:00')).toBe(true);
+    expect(deriveNightFromPickup('23:30')).toBe(true);
+    expect(deriveNightFromPickup('05:59')).toBe(true);
+    expect(deriveNightFromPickup('00:10')).toBe(true);
+    expect(deriveNightFromPickup('06:00')).toBe(false);
+    expect(deriveNightFromPickup('09:00')).toBe(false);
+    expect(deriveNightFromPickup('17:59')).toBe(false);
+  });
+  it('유효하지 않은 시각 → null (판정 불가 시 클라 flag 사용)', () => {
+    expect(deriveNightFromPickup('')).toBe(null);
+    expect(deriveNightFromPickup('25:00')).toBe(null);
+    expect(deriveNightFromPickup(undefined)).toBe(null);
   });
 });

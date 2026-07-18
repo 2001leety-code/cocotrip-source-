@@ -181,9 +181,12 @@ function PaymentPanel({
   // 결제 직전 명시 (withCurrencyCode) 로 잘못된 통화 인지 방지 — 실 결제는 PayPal USD 그대로.
   const KRW = (n: number | null | undefined) => formatPrice(n, language, { withCurrencyCode: true });
 
-  // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback
+  // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback.
+  // 🔴 2026-07-18: 비-payable(estimate) 경로는 quote.subtotalKRW(옵션·필수가이드 포함 = 실제
+  //   charter_custom_estimate 청구액)를 우선 — 이전엔 sprinter 공항픽업처럼 resolved.priceKRW
+  //   (payable=false 지만 값 존재, 가이드비 미포함)가 이겨 헤더 표시 < 청구(2.2배) 사고.
   const estimateKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
-  const displayKRW = resolved.priceKRW ?? estimateKRW;
+  const displayKRW = resolved.payable ? resolved.priceKRW : (estimateKRW != null ? estimateKRW : resolved.priceKRW);
   const isEstimateOnly = !resolved.payable && estimateKRW != null;
   // 2026-06-11 장바구니 담기 — 결제 가능 항목만(estimate/AI플래너/비결제=null). CartAddButton 은 플래그 OFF 시 자체 null.
   // 🔴 2026-07-18: 경유지(routeKm) 견적은 cart 담기 금지 — cart 재계산(resolve-line-item)이

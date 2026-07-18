@@ -33,6 +33,7 @@ import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
 import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW, captainPremiumKrwFor } from '@/lib/transferQuote';
 import { discountV2Enabled } from '@/lib/discountFlags';
+import { DISCOUNT_V2_MULTIDAY_PCT } from '@/lib/multidayQuote';
 import { charterExtrasKrw } from '@/lib/charterExtras';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
@@ -352,7 +353,11 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null, rou
       ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
       : 0;
     if (dayDiff >= MULTIDAY_DISCOUNT_MIN_NIGHTS) {
-      const pct = EXTRA_CHARGES.multiDayDiscountPercent || 10;
+      // v2(FEATURE_DISCOUNT_V2 ON, prod 현행) = 5% — 청구(calcMultiDayCharterKrw discountV2)와 동일.
+      // 이전엔 무조건 10% 표시라 v2 환경에서 표시 < 청구 drift (Step5 스티키바 포함).
+      const pct = discountV2Enabled()
+        ? DISCOUNT_V2_MULTIDAY_PCT
+        : (EXTRA_CHARGES.multiDayDiscountPercent || 10);
       multiDayDiscountPercent = pct;
       multiDayDiscountKRW = Math.round(vehicleChargeKRW * (pct / 100));
     }

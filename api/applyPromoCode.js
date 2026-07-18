@@ -40,6 +40,7 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 // 실 사용량 카운트는 Firestore global_promo_usage/{code} 에서 추적
 // (capturePaypalOrder 의 incrementGlobalPromoUsage 가 transaction 으로 cap-check 후 +1).
 import { GLOBAL_PROMO_DEFAULTS, resolveGlobalPromoLimit } from './_shared/global-promo.js';
+import { FIXED_COUPON_CAP } from './_shared/coupon-charge.js';
 const GLOBAL_PROMOS = GLOBAL_PROMO_DEFAULTS;
 
 // 차터 고정 청구환율 (spec SSOT, createPaypalOrder 와 동일 로드 패턴) — fixed USD 쿠폰의
@@ -171,6 +172,8 @@ async function verifyFirestoreCoupon(userId, code, productType) {
       value: coupon.value,
       currency: coupon.currency || 'USD',
       productScope: coupon.productScope || null,
+      // 최소 주문금액(발급 조건) — 청구(createPaypalOrder)와 동일 강제해 표시=청구 유지.
+      minOrderUSD: typeof coupon.minOrderUSD === 'number' && coupon.minOrderUSD > 0 ? coupon.minOrderUSD : 0,
       stackable: true,
     };
   } catch (err) {
@@ -257,10 +260,13 @@ export default async function handler(req, res) {
           // 정액(fixed) 쿠폰 (2026-07-18 fix): KRW/USD 모두 지원 — 이전엔 fixed KRW 를 percent 로
           // 오해석(value=50000 → 500x)했다. fixed 는 바우처라 10% cap 대상이 아님(청구 경로와 동형)
           // — 정률 합산과 분리 집계.
-          if (fsCoupon.type === 'fixed') {
-            const discountKRW = fsCoupon.currency === 'KRW'
-              ? fsCoupon.value
-              : fsCoupon.value * couponRateFor(productType);
+          if (fsCoupon.minOrderUSD > 0 && originalPrice < fsCoupon.minOrderUSD * couponRateFor(productType)) {
+            // 최소 주문금액 미달 — 청구(createPaypalOrder)가 미적용하므로 표시도 동일하게 거절 표기.
+            appliedCodes.push({ code: upper, discount: 0, label: fsCoupon.label, rejected: true, rejectCode: 'COUPON_MIN_ORDER' });
+          } else if (fsCoupon.type === 'fixed') {
+            // 청구측 클램프(FIXED_COUPON_CAP) 미러 — 상한 초과 쿠폰에서 표시 할인 > 청구 할인 방지.
+            const v = Math.min(fsCoupon.value, fsCoupon.currency === 'KRW' ? FIXED_COUPON_CAP.KRW : FIXED_COUPON_CAP.USD);
+            const discountKRW = fsCoupon.currency === 'KRW' ? v : v * couponRateFor(productType);
             fixedSavedKRW += discountKRW;
             appliedCodes.push({ code: upper, discount: originalPrice > 0 ? Math.min(discountKRW, originalPrice) / originalPrice : 0, label: fsCoupon.label, couponDocId: fsCoupon.couponDocId, fixed: true });
           } else {
@@ -346,12 +352,20 @@ export default async function handler(req, res) {
       let savedAmount;
       let discountRate;
 
+      // 최소 주문금액(발급 조건) 미달 — 청구가 미적용하므로 표시도 명시 거절 (표시=청구).
+      if (fsCoupon.minOrderUSD > 0 && originalPrice < fsCoupon.minOrderUSD * couponRateFor(productType)) {
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          `Coupon "${fsCoupon.label || upper}" requires a minimum order of $${fsCoupon.minOrderUSD}.`,
+          'COUPON_MIN_ORDER',
+        )));
+      }
       if (fsCoupon.type === 'fixed') {
         // 정액 쿠폰 (2026-07-18 fix): KRW/USD 모두 지원 — 이전엔 fixed KRW 를 percent 로 오해석.
-        // USD 는 청구와 동일 환율(차터=고정 1400)로 환산. 최소가 ₩1,000 플로어 = 청구 미러.
-        const discountKRW = fsCoupon.currency === 'KRW'
-          ? fsCoupon.value
-          : fsCoupon.value * couponRateFor(productType);
+        // USD 는 청구와 동일 환율(차터=고정 1400)로 환산. 청구측 클램프(FIXED_COUPON_CAP)·
+        // 최소가 ₩1,000 플로어 = 청구 미러.
+        const v = Math.min(fsCoupon.value, fsCoupon.currency === 'KRW' ? FIXED_COUPON_CAP.KRW : FIXED_COUPON_CAP.USD);
+        const discountKRW = fsCoupon.currency === 'KRW' ? v : v * couponRateFor(productType);
         savedAmount = Math.min(discountKRW, Math.max(0, originalPrice - MIN_CHARGE_KRW));
         discountRate = originalPrice > 0 ? savedAmount / originalPrice : 0;
       } else {

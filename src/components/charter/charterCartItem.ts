@@ -77,7 +77,11 @@ export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayme
 
   // 같은 조건 중복 담기 방지 합성 키 (TourBookingDialog `${tour.id}-${date}-${pax}` 패턴 따름).
   // vehicle/tripType/durationDays 포함: 같은 경로·날짜·인원이라도 차종·편도왕복·박수가 다르면 별개 항목.
-  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}-${vehicle || ''}-${resolved.tripType || ''}-${durationDays || ''}`;
+  // 2026-07-18: 옵션이 가격에 반영되면서 옵션 조합도 키에 포함 — 옵션만 다른 재담기가 조용히
+  // 무시되지 않도록 (g=가이드 p=픽켓 s=카시트 n=야간).
+  const o = booking.options || {};
+  const optSig = `g${o.licensedGuide ? 1 : 0}p${o.airportPicket ? 1 : 0}s${o.childSeat ? 1 : 0}n${o.night ? 1 : 0}`;
+  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}-${vehicle || ''}-${resolved.tripType || ''}-${durationDays || ''}-${optSig}`;
   const displayName = state.startDate ? `${routeLabel} (${state.startDate})` : routeLabel;
 
   return { id, booking, displayName, priceKRW: resolved.priceKRW };

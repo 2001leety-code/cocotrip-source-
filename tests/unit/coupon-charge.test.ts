@@ -39,7 +39,7 @@ describe('verifyCouponForCharge — docId 기준 결제 검증', () => {
 
   it('유효 쿠폰(미사용·미만료·scope 일치) → valid + discountPct', async () => {
     const db = mockDb({ value: 5, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 5 });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 5, minOrderUSD: 0 });
   });
   it('isUsed=true → invalid (이중 소진 방지)', async () => {
     const db = mockDb({ value: 5, isUsed: true, expiresAt: FUTURE, productScope: 'charter' });
@@ -60,23 +60,31 @@ describe('verifyCouponForCharge — docId 기준 결제 검증', () => {
   });
   it('value 안전 상한 10% (변조/이상치 방어)', async () => {
     const db = mockDb({ value: 50, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 10 });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 10, minOrderUSD: 0 });
   });
   // 2026-07-18 fix: fixed(정액) 쿠폰 — 이전엔 청구 경로에서 거부(표시 할인 + capture 소진 +
   // 청구 정가 = 고객 피해형 반쪽 구현). 이제 kind:'fixed' 로 반환해 createPaypalOrder 가 차감.
   it('fixed USD 쿠폰 → valid + kind:fixed + currency/amount', async () => {
     const db = mockDb({ type: 'fixed', currency: 'USD', value: 8, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'USD', amount: 8 });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'USD', amount: 8, minOrderUSD: 0 });
   });
   it('fixed KRW 쿠폰(₩50,000 preset) → valid + kind:fixed', async () => {
     const db = mockDb({ type: 'fixed', currency: 'KRW', value: 50000, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'KRW', amount: 50000 });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'KRW', amount: 50000, minOrderUSD: 0 });
   });
   it('fixed 이상치 상한 — KRW 1,000,000 / USD 700 클램프 (변조 방어)', async () => {
     const dbK = mockDb({ type: 'fixed', currency: 'KRW', value: 99_999_999, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(dbK, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'KRW', amount: 1_000_000 });
+    expect(await verifyCouponForCharge(dbK, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'KRW', amount: 1_000_000, minOrderUSD: 0 });
     const dbU = mockDb({ type: 'fixed', currency: 'USD', value: 99_999, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(dbU, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'USD', amount: 700 });
+    expect(await verifyCouponForCharge(dbU, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'USD', amount: 700, minOrderUSD: 0 });
+  });
+  it('레거시 fixed(currency 미기록) → USD 간주 — 표시단(applyPromoCode `currency||USD`)과 동형', async () => {
+    const db = mockDb({ type: 'fixed', value: 8, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'USD', amount: 8, minOrderUSD: 0 });
+  });
+  it('minOrderUSD 발급 조건 → 반환에 포함 (createPaypalOrder 가 주문액 미달 시 미적용)', async () => {
+    const db = mockDb({ type: 'fixed', currency: 'KRW', value: 50000, minOrderUSD: 100, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'fixed', currency: 'KRW', amount: 50000, minOrderUSD: 100 });
   });
   it('fixed 인데 currency 불명/value≤0 → invalid (정가 안전)', async () => {
     const db1 = mockDb({ type: 'fixed', currency: 'EUR', value: 8, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
@@ -86,6 +94,6 @@ describe('verifyCouponForCharge — docId 기준 결제 검증', () => {
   });
   it('type:"percent" 명시 쿠폰 → 정상 valid (게이트 무영향)', async () => {
     const db = mockDb({ type: 'percent', value: 5, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
-    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 5 });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, kind: 'percent', discountPct: 5, minOrderUSD: 0 });
   });
 });

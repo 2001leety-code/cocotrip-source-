@@ -29,7 +29,7 @@ import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
 // 🔴 2026-07-18 차터 옵션 미청구 fix: 옵션(면허가이드 30만 등)·야간할증이 표시 총액에만 있고
 //   청구에서 통째로 빠지던 돈버그. 프론트 미러 = src/lib/charterExtras.ts (P311).
-import { isCharterExtrasProduct, charterExtrasKrw } from './_shared/charter-extras.js';
+import { isCharterExtrasProduct, charterExtrasKrw, sanitizeCharterOptions, deriveNightFromPickup } from './_shared/charter-extras.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -307,7 +307,13 @@ export default async function handler(req, res) {
     // charter_custom_estimate 는 customAmountKRW 가 이미 옵션 포함(위저드 견적 총액)이라 제외(이중가산 금지).
     // 정가(listBaseKrw)에도 동일 가산 — 할인 상한 10% 의 기준선 유지.
     if (isCharterExtrasProduct(productType)) {
-      const extras = charterExtrasKrw(SPEC, krwAmount, { vehicle: bodyVehicle, options: body.options });
+      // 야간(20%)은 클라 flag 불신 — pickupTime(서버가 이미 받는 마감검증 필드)에서 직접 파생.
+      // 프론트도 pickupTime → options.night 자동 파생(수동 토글 없음)이라 정직 클라와 항상 일치,
+      // night:false 위조로 야간할증만 우회하는 경로를 차단. 시각 미전달 시에만 클라 flag 사용.
+      const _opts = sanitizeCharterOptions(body.options);
+      const _nightDerived = deriveNightFromPickup(pickupTime);
+      if (_nightDerived != null) _opts.night = _nightDerived;
+      const extras = charterExtrasKrw(SPEC, krwAmount, { vehicle: bodyVehicle, options: _opts });
       if (extras.totalKRW > 0) {
         console.log('[createPaypalOrder] charter extras:', extras.addons.map((a) => a.key).join(','),
           `+₩${extras.addonsKRW}`, extras.surchargeKRW > 0 ? `night +₩${extras.surchargeKRW}` : '');
@@ -319,13 +325,21 @@ export default async function handler(req, res) {
     // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.
     if (!discountV2 && promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
 
-    // v2: WELCOME 개인 쿠폰을 실제 청구가에 적용 (표시=청구 버그 fix). 검증 실패=정가(안전).
-    // 소진(isUsed)은 capturePaypalOrder 트랜잭션 락이 담당 — 여기선 할인%만 반영.
-    // 정액(fixed) 쿠폰은 환율 확정 후 아래에서 차감 (2026-07-18 fix — 이전엔 표시·소진만 되고 청구는 정가).
+    // v2: 개인 쿠폰을 실제 청구가에 적용 (표시=청구). 검증 실패=정가(안전).
+    // ⚠️ discountV2 게이트 유지 필수 — capturePaypalOrder 의 쿠폰 소진(isUsed pre-lock)도 같은
+    //   플래그로 게이트되어 '정가·미노출·미소진' 3경로 일관(버그헌트 #2, 2026-06-14 불변식).
+    //   여기만 게이트를 풀면 v2 OFF 에서 할인은 적용되고 소진은 안 돼 정액쿠폰 무한 재사용 구멍.
+    //   bughunt-payment-core.test.ts 가 이 게이트 문자열을 가드한다.
+    // 정액(fixed)은 환율 확정 후 아래에서 차감 (2026-07-18 fix — 이전엔 표시·소진만 되고 청구는 정가).
+    // minOrderUSD(발급 조건): 할인 전 주문액 미달 시 미적용(정가) — 표시단(applyPromoCode)도 동일 강제.
     let fixedCoupon = null;
     if (discountV2 && couponDocId && couponUserId && !isAiPlanner) {
       const cv = await verifyCouponForCharge(initAdminDb('createPaypalOrder-coupon'), couponUserId, couponDocId, productType);
-      if (cv.valid && cv.kind === 'fixed') {
+      const _minUsd = cv.valid ? (cv.minOrderUSD || 0) : 0;
+      const _minOk = _minUsd <= 0 || krwAmount >= _minUsd * ((SPEC && SPEC.charter_usd_fix_rate) || 1400);
+      if (cv.valid && !_minOk) {
+        console.warn('[createPaypalOrder] coupon below minOrderUSD — 미적용(정가):', couponDocId, `$${_minUsd}`);
+      } else if (cv.valid && cv.kind === 'fixed') {
         fixedCoupon = cv;
       } else if (cv.valid) {
         krwAmount = Math.round(krwAmount * (1 - cv.discountPct / 100));
