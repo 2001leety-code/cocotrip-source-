@@ -197,11 +197,13 @@ export default function TourDetailPage() {
   const hotelDiscl     = language === 'ko' ? '* 예약 완료 시 코코트립에 수수료가 지급됩니다' : language === 'ja' ? '* 予約完了時にCocoTripに手数料が支払われます' : language === 'zh' ? '* 预订完成后CocoTrip将获得佣金' : '* CocoTrip earns a commission on completed bookings';
   const noHiddenFees   = language === 'ko' ? '톨비·주차 포함' : language === 'ja' ? '通行料·駐車込み' : language === 'zh' ? '含过路费·停车费' : 'Tolls · Parking incl.';
   const paypalLabel    = language === 'ko' ? 'PayPal 안심결제' : language === 'ja' ? 'PayPal 安全決済' : language === 'zh' ? 'PayPal 安全支付' : 'PayPal Secure Pay';
-  // PR-R (2026-05-08): 예약 마감 정책 안내 (가격 카드 옆)
-  const cutoffNote     = language === 'ko' ? '예약 마감: 출발 24시간 전 (멀티데이는 48시간)'
-                       : language === 'ja' ? '予約締切: 出発24時間前（マルチデー: 48時間）'
-                       : language === 'zh' ? '预订截止：出发前24小时（多日游：48小时）'
-                       : 'Booking closes 24h before departure (multi-day: 48h)';
+  // 예약 마감 정책 안내 (가격 카드 옆) — 서버 SSOT api/_shared/booking-cutoff.js = 전 상품 12h 통일
+  // (운영자 2026-05-07). 이전 "24h/멀티데이 48h" 문구는 옛 정책 잔존 — 실제론 12h 전까지 예약
+  // 가능한데 24h 로 안내해 고객이 포기하던 과소약속 (2026-07-19 예약 기준 조사에서 확정).
+  const cutoffNote     = language === 'ko' ? '예약 마감: 출발 12시간 전'
+                       : language === 'ja' ? '予約締切: 出発12時間前'
+                       : language === 'zh' ? '预订截止：出发前12小时'
+                       : 'Booking closes 12h before departure';
 
   // ─────────────────────────────────────────────────────────────────────────
   // 정제 퍼플·핑크 (시각만). OFF=현재 그대로.
