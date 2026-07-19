@@ -299,13 +299,10 @@ export function TourCard({ tour, language }: TourCardProps) {
               );
             })()}
           </div>
+          {/* 2026-07-19 가이드 p.7: 고스트 필 → 풀 그라데이션 CTA (m-cta = 셸 흰글자·active 보정) */}
           <div
-            className="flex items-center gap-1 text-[11px] sm:text-[12px] font-bold px-3 py-1.5 sm:px-3.5 rounded-full shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(182,104,252,0.15), rgba(255,107,157,0.10))',
-              border: '1px solid rgba(182,104,252,0.22)',
-              color: '#C99FFF',
-            }}
+            className="m-cta flex items-center gap-1 text-[11px] sm:text-[12px] font-bold px-3 py-1.5 sm:px-3.5 rounded-full shrink-0 text-white"
+            style={{ background: 'var(--coco-cta-gradient)', boxShadow: '0 6px 16px rgba(124,92,255,0.25)' }}
           >
             {detailLabel}
             <ChevronRight className="w-3.5 h-3.5" />
