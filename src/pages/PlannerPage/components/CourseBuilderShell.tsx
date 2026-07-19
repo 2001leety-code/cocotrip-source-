@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 import {
   CalendarDays, Check, Clock, ExternalLink, MapPin,
   PencilLine, Plus, Share2, Sparkles, Trash2, X, Wand2, LogIn,
+  Map as MapIcon,
 } from 'lucide-react';
 
 import { useLanguage } from '@/hooks/useLanguage';
@@ -28,6 +29,7 @@ import { googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, type CourseStop } from
 import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recommendations';
 import { CoursePlaceSearch, type CoursePlacePick } from './courseBuilder/CoursePlaceSearch';
 import { CourseMiniMap } from './courseBuilder/CourseMiniMap';
+import type { TransitStepLike } from '@/lib/routeSegments';
 
 // ── i18n (4-lang 컴포넌트 로컬 — AddressAutocomplete 패턴) ───────────────
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -49,6 +51,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'Auto-saved on this device', stops: 'stops',
     search: 'Search', mapTitle: "This day's route",
     aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
+    routeShow: 'Show transit route', routeAgain: 'Refresh route', routeBusy: 'Finding route…',
+    routeNone: 'No transit route found for these stops', routeFail: "Couldn't load the route",
     aiLocked: 'AI optimize & nearby picks unlock with the $9.90 planner.',
     aiNeedTwo: 'Add at least 2 places with map pins to optimize.',
     aiFail: 'Optimization failed — please try again.',
@@ -71,6 +75,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '이 기기에 자동 저장됨', stops: '개 장소',
     search: '검색', mapTitle: '이 날의 동선',
     aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
+    routeShow: '실제 경로 보기', routeAgain: '경로 다시 계산', routeBusy: '경로 찾는 중…',
+    routeNone: '이 구간의 대중교통 경로를 못 찾았어요', routeFail: '경로를 불러오지 못했어요',
     aiLocked: 'AI 동선 최적화·주변 추천은 $9.90 플래너에서 열려요.',
     aiNeedTwo: '지도핀이 있는 장소를 2곳 이상 추가하면 최적화할 수 있어요.',
     aiFail: '최적화에 실패했어요 — 다시 시도해 주세요.',
@@ -93,6 +99,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'この端末に自動保存', stops: 'か所',
     search: '検索', mapTitle: 'この日のルート',
     aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
+    routeShow: '実際の経路を見る', routeAgain: '経路を再計算', routeBusy: '経路を検索中…',
+    routeNone: 'この区間の公共交通の経路が見つかりません', routeFail: '経路を読み込めませんでした',
     aiLocked: 'AIルート最適化・周辺のおすすめは$9.90プランで解放。',
     aiNeedTwo: '地図ピン付きの場所を2か所以上追加すると最適化できます。',
     aiFail: '最適化に失敗しました — もう一度お試しください。',
@@ -115,6 +123,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '已自动保存到本设备', stops: '个地点',
     search: '搜索', mapTitle: '当天路线',
     aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
+    routeShow: '查看实际路线', routeAgain: '重新计算路线', routeBusy: '正在查找路线…',
+    routeNone: '未找到该区间的公共交通路线', routeFail: '无法加载路线',
     aiLocked: 'AI优化路线·周边推荐需$9.90行程解锁。',
     aiNeedTwo: '添加至少2个带地图标记的地点后即可优化。',
     aiFail: '优化失败 — 请重试。',
@@ -157,6 +167,9 @@ export function CourseBuilderShell() {
   const showFlash = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 2500); };
   // AI 동선 최적화
   const [aiBusy, setAiBusy] = useState(false);
+  // 실경로(대중교통) 세그먼트 — /api/course-route 응답. 비어 있으면 지도는 직선 폴백.
+  const [routeSegs, setRouteSegs] = useState<{ steps_detail?: TransitStepLike[] }[]>([]);
+  const [routeBusy, setRouteBusy] = useState(false);
   const [aiRecos, setAiRecos] = useState<AiNearby[]>([]);
   // 저장 모달 (제목/날짜)
   const [showSave, setShowSave] = useState(false);
@@ -184,6 +197,28 @@ export function CourseBuilderShell() {
       ...(typeof p.lng === 'number' ? { lng: p.lng } : {}),
     });
     setNewTitle(''); setNewTime(''); setNewMemo('');
+  };
+
+  // 실경로 조회 — 활성 Day 의 좌표 있는 stop 을 course-route(TMAP)로 보내 실제
+  // 대중교통 경로를 받는다. 인증 불필요(공개 기능), 서버가 IP rate-limit·구간 상한으로 방어.
+  const handleShowRoute = async () => {
+    const stops = day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
+    if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
+    setRouteBusy(true);
+    try {
+      const res = await fetch('/api/course-route', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stops: stops.map((s) => ({ lat: s.lat, lng: s.lng, name: s.title })) }),
+      });
+      const json = await res.json().catch(() => null);
+      const segs = Array.isArray(json?.segments) ? json.segments : [];
+      setRouteSegs(segs);
+      if (!segs.length) showFlash(t.routeNone);
+    } catch {
+      showFlash(t.routeFail);
+    } finally {
+      setRouteBusy(false);
+    }
   };
 
   // AI 동선 최적화 — 활성 Day stop(좌표 있는) 을 course-ai 로 재정렬 + 주변 추천.
@@ -349,8 +384,9 @@ export function CourseBuilderShell() {
           </div>
         </div>
 
-        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선 + AI 주변추천 앰버 마커) */}
-        <CourseMiniMap stops={day.stops} title={t.mapTitle} nearby={aiRecos} />
+        {/* 동선 미니지도 — 좌표 있는 stop 2곳 이상일 때만 (번호핀+선 + AI 주변추천 앰버 마커).
+            routeSegments 가 있으면 직선 대신 실제 대중교통 경로(노선색·승차핀·수단칩). */}
+        <CourseMiniMap stops={day.stops} title={t.mapTitle} nearby={aiRecos} routeSegments={routeSegs} />
 
         {/* AI 동선 최적화 + 주변 추천 — 좌표 있는 stop 2곳 이상일 때만 노출 */}
         {day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number').length >= 2 && (
@@ -363,6 +399,18 @@ export function CourseBuilderShell() {
               style={{ background: 'rgba(182,104,252,0.16)', border: '1px solid rgba(182,104,252,0.45)' }}
             >
               <Wand2 className="h-3.5 w-3.5 text-[#E4CCFF]" /> {aiBusy ? t.aiBusy : t.aiOptimize}
+            </button>
+            {/* 실경로 보기 — 온디맨드로만 TMAP 을 부른다(코스는 편집 중 자주 바뀌므로
+                자동 호출하면 비용이 샌다). 실패해도 지도는 직선으로 유지(fail-soft). */}
+            <button
+              type="button"
+              onClick={() => { void handleShowRoute(); }}
+              disabled={routeBusy}
+              className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50 sm:rounded-xl sm:text-[12px]"
+              style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
+            >
+              <MapIcon className="h-3.5 w-3.5 text-[#9CC4FF]" />
+              {routeBusy ? t.routeBusy : (routeSegs.length > 0 ? t.routeAgain : t.routeShow)}
             </button>
             {aiRecos.length > 0 && (
               <div className="mt-2 rounded-xl border border-white/10 p-2" style={{ background: 'rgba(182,104,252,0.05)' }}>

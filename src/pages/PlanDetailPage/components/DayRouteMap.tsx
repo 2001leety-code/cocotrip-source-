@@ -21,6 +21,7 @@ import { Map as MapIcon } from 'lucide-react';
 import type { PlanStop } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { segmentTiringReasons } from '../lib/routeInsight';
+import { stepsToSegments, type RouteSegment, type TransitStepLike } from '@/lib/routeSegments';
 
 interface DayRouteMapProps {
   stops: PlanStop[];
@@ -73,72 +74,14 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
 // ── (2026-07-19) 실경로 세그먼트 ──────────────────────────────────────────────
 // RouteAgent 가 저장한 steps_detail[].path (TMAP passShape 실좌표)를 그대로 그린다.
 // 없으면(구형 플랜·ODsay 경로) stop→stop 직선으로 폴백 — 절대 빈 지도가 되지 않게.
-interface RouteSegment {
-  path: [number, number][];
-  color: string;
-  dashed: boolean;
-  label: string | null;          // "🚌 472" / "🚇 2호선" — 지도 위 수단 칩
-  board: { lat: number; lng: number; name: string } | null; // 승차 지점
-}
-
-/** 수단별 기본색 — TMAP routeColor 가 있으면 그쪽을 우선한다(노선 공식 색). */
-const MODE_COLOR: Record<string, string> = { walk: '#8B93A7', bus: '#2563EB', subway: '#7C5CFC' };
-
-interface TransitStepLike {
-  mode?: string;
-  path?: number[] | [number, number][];   // 저장은 평탄 배열, 구형 문서는 중첩
-  routeColor?: string;
-  busNo?: string;
-  line?: string;
-  lineKo?: string;
-  fromPoint?: { lat?: number; lng?: number; name?: string | null } | null;
-}
-
-/**
- * 저장된 path 는 **평탄 배열** [lat,lng,lat,lng, …] 이다.
- * Firestore 가 중첩 배열을 저장하지 못해서(2026-07-19 prod 장애) 평탄하게 넣는다.
- * 여기서 좌표쌍으로 복원한다. 구형 [[lat,lng], …] 형태도 함께 받아준다.
- */
-function chunkPath(p: unknown): [number, number][] | null {
-  if (!Array.isArray(p) || p.length < 4) {
-    // 구형(중첩) 형태 호환 — 혹시 저장된 문서가 있으면 그대로 쓴다.
-    if (Array.isArray(p) && p.length >= 2 && p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]))) {
-      return p as [number, number][];
-    }
-    return null;
-  }
-  if (!p.every(isFiniteNum)) {
-    if (p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]))) {
-      return p as unknown as [number, number][];
-    }
-    return null;
-  }
-  const out: [number, number][] = [];
-  for (let i = 0; i + 1 < p.length; i += 2) out.push([p[i] as number, p[i + 1] as number]);
-  return out.length >= 2 ? out : null;
-}
+// 변환 로직은 코스 빌더(CourseMiniMap)와 공유한다 → src/lib/routeSegments.ts
 
 /** stops → 실경로 세그먼트. 각 stop 의 transit_from_prev.steps_detail 을 펼친다. */
 function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
   const segs: RouteSegment[] = [];
   for (const stop of stops || []) {
     const t = (stop as { transit_from_prev?: { steps_detail?: TransitStepLike[] } }).transit_from_prev;
-    for (const st of (t?.steps_detail || [])) {
-      const path = chunkPath(st.path);
-      if (!path) continue;
-      const mode = String(st.mode || '').toLowerCase();
-      const isWalk = mode.includes('walk');
-      const line = st.lineKo || st.line || '';
-      segs.push({
-        path,
-        color: st.routeColor || MODE_COLOR[isWalk ? 'walk' : mode.includes('bus') ? 'bus' : 'subway'] || '#7C5CFC',
-        dashed: isWalk,
-        label: isWalk ? null : (st.busNo ? `🚌 ${st.busNo}` : line ? `🚇 ${line}` : null),
-        board: (!isWalk && st.fromPoint && isFiniteNum(st.fromPoint.lat) && isFiniteNum(st.fromPoint.lng))
-          ? { lat: st.fromPoint.lat, lng: st.fromPoint.lng, name: st.fromPoint.name || '' }
-          : null,
-      });
-    }
+    segs.push(...stepsToSegments(t?.steps_detail));
   }
   return segs;
 }

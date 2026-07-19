@@ -10,6 +10,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { CourseStop } from './courseOps';
+import { stepsToSegments, type TransitStepLike } from '@/lib/routeSegments';
 
 interface NearbyPlace { name: string; lat?: number; lng?: number; category?: string; reason?: string; }
 
@@ -17,6 +18,8 @@ interface CourseMiniMapProps {
   stops: CourseStop[];
   title: string; // 지도 헤더 라벨 (i18n 은 호출처가 넘김)
   nearby?: NearbyPlace[]; // AI 주변추천 — 코스 핀과 다른 색 마커로 "가볼만한 곳" 표시
+  /** /api/course-route 응답의 segments — 있으면 실경로(노선색·승차핀·수단칩)로 그린다. */
+  routeSegments?: { steps_detail?: TransitStepLike[] }[];
 }
 
 interface MapPoint { lat: number; lng: number; order: number; label: string; time?: string; }
@@ -61,7 +64,7 @@ function popupHtml(p: MapPoint): string {
   return `<div style="font-weight:700;font-size:13px;color:#1a1024;">${p.order}. ${escapeHtml(p.label || `#${p.order}`)}</div>${timeHtml}`;
 }
 
-export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
+export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMiniMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const domId = useId().replace(/[:]/g, '');
   const [failed, setFailed] = useState(false);
@@ -73,6 +76,9 @@ export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
   const points = toMapPoints(stops);
   const nearbyPoints = toNearbyPoints(nearby);
   const enoughPoints = points.length >= 2;
+  // 실경로 세그먼트(플랜 상세와 동일 변환 — src/lib/routeSegments).
+  const segments = (routeSegments || []).flatMap((s) => stepsToSegments(s.steps_detail));
+  const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
 
   useEffect(() => {
     if (!enoughPoints || !containerRef.current) return;
@@ -98,7 +104,46 @@ export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         }).addTo(map);
 
-        L.polyline(latLngs, { color: '#B668FC', weight: 3, opacity: 0.85, lineJoin: 'round' }).addTo(map);
+        // (2026-07-19) 실경로 우선 — /api/course-route 가 준 TMAP 좌표가 있으면
+        // 도로·철도를 따라 노선 공식 색으로 그린다. 없으면 기존 stop→stop 직선 폴백.
+        if (segments.length > 0) {
+          for (const seg of segments) {
+            L.polyline(seg.path, {
+              color: seg.color,
+              weight: seg.dashed ? 3 : 5,
+              opacity: seg.dashed ? 0.75 : 0.9,
+              lineJoin: 'round', lineCap: 'round',
+              ...(seg.dashed ? { dashArray: '4, 8' } : {}),
+            }).addTo(map);
+            if (seg.board) {
+              L.marker([seg.board.lat, seg.board.lng], {
+                icon: L.divIcon({
+                  className: 'cocotrip-board-pin',
+                  html: `<div style="width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid ${seg.color};box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                  iconSize: [11, 11], iconAnchor: [5.5, 5.5],
+                }),
+                title: seg.board.name, zIndexOffset: -100,
+              }).addTo(map).bindPopup(
+                `<div style="font-size:12px;color:#1a1024;"><b>${escapeHtml(seg.label || '')}</b><br/>${escapeHtml(seg.board.name)}</div>`,
+                { closeButton: true },
+              );
+            }
+            if (seg.label && seg.path.length >= 2) {
+              const mid = seg.path[Math.floor(seg.path.length / 2)];
+              const chipW = seg.label.length * 7 + 20;
+              L.marker(mid, {
+                icon: L.divIcon({
+                  className: 'cocotrip-mode-chip',
+                  html: `<div style="white-space:nowrap;padding:3px 8px;border-radius:999px;background:${seg.color};color:#fff;font-size:10px;font-weight:800;line-height:1.1;text-align:center;border:1.5px solid rgba(255,255,255,0.95);box-shadow:0 2px 6px rgba(0,0,0,0.35);">${escapeHtml(seg.label)}</div>`,
+                  iconSize: [chipW, 18], iconAnchor: [chipW / 2, 26],
+                }),
+                interactive: false, zIndexOffset: 200,
+              }).addTo(map);
+            }
+          }
+        } else {
+          L.polyline(latLngs, { color: '#B668FC', weight: 3, opacity: 0.85, lineJoin: 'round' }).addTo(map);
+        }
 
         markersRef.current.clear();
         points.forEach((p) => {
@@ -127,7 +172,10 @@ export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
           L.marker([p.lat, p.lng], { icon, title: p.name }).addTo(map).bindPopup(html, { closeButton: true });
         });
 
-        map.fitBounds(L.latLngBounds(latLngs), { padding: [28, 28], maxZoom: 15 });
+        // 실경로가 있으면 경로 좌표까지 포함해야 노선이 화면 밖으로 잘리지 않는다.
+        const bounds = L.latLngBounds(latLngs);
+        for (const seg of segments) for (const pt of seg.path) bounds.extend(pt);
+        map.fitBounds(bounds, { padding: [28, 28], maxZoom: 15 });
         setTimeout(() => { if (!cancelled) map.invalidateSize(); }, 0);
       } catch {
         if (!cancelled) setFailed(true);
@@ -140,7 +188,7 @@ export function CourseMiniMap({ stops, title, nearby }: CourseMiniMapProps) {
       if (mapInstance) { try { mapInstance.remove(); } catch { /* disposed */ } mapInstance = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order])), JSON.stringify(nearbyPoints.map((p) => [p.lat, p.lng]))]);
+  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order])), JSON.stringify(nearbyPoints.map((p) => [p.lat, p.lng])), segmentsKey]);
 
   // 제목/시간만 바뀐 경우(좌표·순서 불변 → 위 effect 미실행) 지도 재구성 없이 팝업·hover
   // title 텍스트만 갱신 → 편집 중 타일 refetch flicker 없이 stale 표시 방지.
