@@ -15,6 +15,7 @@
  */
 
 import { localizeLineName, romanizeStation } from './_transit_localization.js';
+import { resolveBusArs } from './_seoul_bus_ars.js';
 
 const TMAP_ENDPOINT = 'https://apis.openapi.sk.com/transit/routes';
 
@@ -159,8 +160,15 @@ export function mapTmapItineraryToRoute(it) {
       const route = String(l.route || '');
       const busType = route.includes(':') ? route.split(':')[0] : null;
       const busNo = route.includes(':') ? route.split(':').slice(1).join(':') : route;
+      // 🚏 간판 ARS 번호 — TMAP 응답엔 없지만(raw 전수 스캔 확인) 좌표는 주므로
+      // 서울시 정류소 데이터와 좌표로 매칭해 되살린다. TransitArrow·PDF 가 이미 렌더한다.
+      // 확신이 없으면 null 을 받는다 — 틀린 번호는 사람을 반대편 승강장으로 보낸다.
+      const fromArs = fromPoint ? resolveBusArs(fromPoint.lat, fromPoint.lng, from) : null;
+      const toArs = toPoint ? resolveBusArs(toPoint.lat, toPoint.lng, to) : null;
       steps.push({
         mode: 'bus', busNo, busType, from, to, duration: durMin, stationCount, passStops, ...geo,
+        ...(fromArs ? { fromArs } : {}),
+        ...(toArs ? { toArs } : {}),
         description: `${route || 'Bus'} ${from} → ${to} (${stationCount ? `${stationCount}정거장, ` : ''}${durMin}분)`,
       });
     } else {
@@ -169,7 +177,7 @@ export function mapTmapItineraryToRoute(it) {
       // TMAP 은 한국어만 주고(lang=1 은 한글을 잃고 품질도 낮다: 홍대입구→"Hongdae"),
       // translate-plan 은 en 을 "lineEn/fromRoman 이 이미 있다"고 보고 건너뛴다
       // → 이 필드를 안 채우면 영어 사용자 화면·PDF 에 역명이 순 한글로 나온다.
-      // 우리 표가 공식 표기라 TMAP 영문보다 정확: 홍대입구→"Hongik Univ.", 디지털미디어시티→"DMC".
+      // 우리 표가 공식 표기라 TMAP 영문보다 정확: 홍대입구→"Hongik Univ."(TMAP 은 "Hongdae").
       const lineKo = localizeLineName(line, 'ko').display || line;
       const lineEn = localizeLineName(line, 'en').display || null;
       const fromRoman = romanizeStation(from, 'en');
