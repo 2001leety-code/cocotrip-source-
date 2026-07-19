@@ -3216,11 +3216,22 @@ textarea.community-field {
     background: #ffffff;
     border-color: rgba(124, 92, 255, 0.22);
   }
+  /* is-done/is-active 는 배경까지 재명시 — 위 라이트 기본 dot 규칙(background:#fff)이
+     같은 명시도·뒤 순서라 base 의 .is-active 그라데이션을 덮어버림 (2026-07-19 실검증에서 발견). */
   :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
-      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot:is(.is-done, .is-active) {
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-done {
     color: #ffffff !important;
+    background: var(--coco-purple);
     border-color: transparent;
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-active {
+    color: #ffffff !important;
+    background: var(--coco-cta-gradient);
+    border-color: transparent;
+    box-shadow: 0 6px 14px rgba(124, 92, 255, 0.35);
   }
   :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
