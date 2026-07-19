@@ -108,6 +108,9 @@ export default function NotFoundPage() {
           padding: '4rem 1.5rem',
           textAlign: 'center',
           gap: '1.5rem',
+          // 2026-07-19: 본문 텍스트가 다크 네이비(#0f172a)인데 배경을 body(다크)에 상속받고 있었음 —
+          // 라이트 페이지 배경 토큰 명시로 대비 확보.
+          background: 'var(--coco-page-bg)',
         }}
       >
         <div

@@ -3586,6 +3586,8 @@ textarea.community-field {
     padding-bottom: 88px;
   }
 
+  /* 2026-07-19: var(--coco-cta-gradient) 인라인 배경은 [style*="linear-gradient"] 등
+     기존 속성 선택자에 안 잡힘 — 토큰화된 CTA 는 반드시 .m-cta 클래스를 달아 여기 매칭. */
   :is(
     .cocotrip-mobile-home,
     .cocotrip-mobile-home-surface,

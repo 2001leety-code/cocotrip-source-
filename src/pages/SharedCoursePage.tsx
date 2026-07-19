@@ -106,7 +106,8 @@ export default function SharedCoursePage() {
   const total = course?.days.reduce((n, d) => n + d.stops.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    // cocotrip-mobile-plans: 모바일(≤768px) 라이트 셸 — 공개 공유 수신 페이지도 앱 라이트 톤 통일 (2026-07-19).
+    <div className="cocotrip-mobile-plans min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={gt} onLanguageChange={changeLanguage} />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
         <h1 className="mb-3 flex items-center gap-2 text-lg font-black sm:text-xl">
