@@ -34,6 +34,9 @@ const SPECIAL_LINES = {
   '경강선': { en: 'Gyeonggang Line', ja: '京江線', zh: '京江线' },
   '공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '인천공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
+  // TMAP 은 "수도권공항철도1호선" 으로 준다 — 수도권 prefix 를 떼도 "공항철도1호선" 이라
+  // 위 '공항철도' 키에 안 걸리고 숫자 패턴(^\d+호선)에도 안 걸려 미번역으로 새던 것.
+  '공항철도1호선': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '우이신설선': { en: 'Ui-Sinseol Line', ja: '牛耳新設線', zh: '牛耳新设线' },
   '신림선': { en: 'Sillim Line', ja: '新林線', zh: '新林线' },
   '김포골드라인': { en: 'Gimpo Goldline', ja: '金浦ゴールドライン', zh: '金浦金线' },
@@ -64,6 +67,17 @@ const SPECIAL_LINES = {
 };
 
 /**
+ * 열차 등급 접미사. TMAP 은 "공항철도(급행)", ODsay 는 "9호선(급행)" 형태로 준다.
+ * 급행/특급은 정차역을 건너뛰어 소요시간이 달라지므로 표기에서 지우면 안 된다.
+ */
+const LINE_GRADES = {
+  '급행': { ko: '급행', en: 'Express', ja: '急行', zh: '快速' },
+  '특급': { ko: '특급', en: 'Ltd. Express', ja: '特急', zh: '特快' },
+  '일반': { ko: '일반', en: 'Local', ja: '普通', zh: '普通' },
+  '완행': { ko: '완행', en: 'Local', ja: '各駅停車', zh: '慢车' },
+};
+
+/**
  * Normalise ODsay verbose line name to short canonical form + localize.
  * @param {string} rawName e.g. "수도권 2호선", "신분당선", "서울 지하철 5호선"
  * @param {string} lang 'ko' | 'en' | 'ja' | 'zh'
@@ -77,6 +91,19 @@ export function localizeLineName(rawName, lang = 'ko') {
     .replace(/^서울\s*지하철\s*/, '')
     .replace(/^서울\s*/, '')
     .trim();
+
+  // 등급 접미사 분리: "공항철도(급행)", "9호선(급행)", "경의중앙선(급행)".
+  // 급행은 정차역을 건너뛰므로 여행자에게 의미 있는 정보 — 떼지 말고 번역해서 되붙인다.
+  // 등급을 뗀 본체로 재귀 조회하면 숫자 노선·이름 노선을 한 경로로 처리할 수 있다.
+  const graded = stripped.match(/^(.+?)\s*\((급행|특급|일반|완행)\)$/);
+  if (graded) {
+    const base = localizeLineName(graded[1], lang);
+    const suffix = LINE_GRADES[graded[2]]?.[lang];
+    return {
+      ko: stripped,
+      display: suffix && base.display ? `${base.display} ${suffix}` : (base.display || stripped),
+    };
+  }
 
   // Numeric lines: 2호선 → "Line 2"
   const numMatch = stripped.match(/^(\d+)호선$/);
@@ -162,7 +189,7 @@ const STATION_OVERRIDES = {
   '창동': 'Chang-dong', '노원': 'Nowon', '이촌': 'Ichon', '동작': 'Dongjak',
   '남태령': 'Namtaeryeong', '선바위': 'Seonbawi', '과천': 'Gwacheon',
   // Line 5
-  '광화문': 'Gwanghwamun', '서대문': 'Seodaemun', '충정로': 'Chungjeongno',
+  '광화문': 'Gwanghwamun', '서대문': 'Seodaemun',
   '애오개': 'Aeogae', '공덕': 'Gongdeok', '마포': 'Mapo', '여의나루': 'Yeouinaru',
   '여의도': 'Yeouido', '신길': 'Singil', '영등포시장': 'Yeongdeungpo Market',
   '목동': 'Mok-dong', '오목교': 'Omokgyo', '김포공항': 'Gimpo Int\'l Airport',
@@ -173,7 +200,9 @@ const STATION_OVERRIDES = {
   // Line 7
   '내방': 'Naebang', '논현': 'Nonhyeon', '청담': 'Cheongdam',
   '강남구청': 'Gangnam-gu Office', '학동': 'Hak-dong', '뚝섬유원지': 'Ttukseom Resort',
-  '어린이대공원': 'Children\'s Grand Park', '군자': 'Gunja', '중화': 'Jungnang',
+  // 🔴 '중화' 는 Junghwa(7호선). 예전엔 경의중앙선 '중랑'(Jungnang) 의 로마자가 잘못 붙어 있었다.
+  //    전국도시철도역사정보표준데이터(국가철도공단) 대조로 발견.
+  '어린이대공원': 'Children\'s Grand Park', '군자': 'Gunja', '중화': 'Junghwa',
   '상봉': 'Sangbong', '면목': 'Myeonmok', '태릉입구': 'Taereung',
   // Line 8
   '모란': 'Moran', '수진': 'Sujin', '산성': 'Sanseong', '남한산성입구': 'Namhansanseong',
@@ -181,24 +210,26 @@ const STATION_OVERRIDES = {
   // Line 9
   '신논현': 'Sinnonhyeon', '언주': 'Eonju', '선정릉': 'Seonjeongneung',
   '봉은사': 'Bongeunsa', '국회의사당': 'National Assembly', '노량진': 'Noryangjin',
-  '샛강': 'Saetgang', '당산': 'Dangsan', '선유도': 'Seonyudo', '가양': 'Gayang',
+  '샛강': 'Saetgang', '선유도': 'Seonyudo', '가양': 'Gayang',
   '등촌': 'Deungchon', '염창': 'Yeomchang',
   // Airport Railroad
   '인천공항1터미널': 'Incheon Int\'l Airport T1', '인천공항2터미널': 'Incheon Int\'l Airport T2',
-  '검암': 'Geomam', '계양': 'Gyeyang', '디지털미디어시티': 'DMC',
+  // '디지털미디어시티' 는 위 6호선 구역(199행)에 이미 있다 — 여기서 다시 'DMC' 로 정의하면
+  // 나중 정의가 앞을 조용히 덮어쓴다. 공식 영문역명은 'Digital Media City'(역 안내판과 동일).
+  '검암': 'Geomam', '계양': 'Gyeyang',
   // Shinbundang
   '정자': 'Jeongja', '미금': 'Migeum', '동천': 'Dongcheon', '수지구청': 'Suji-gu Office',
   '성복': 'Seongbok', '상현': 'Sanghyeon', '광교': 'Gwanggyo',
   '광교중앙': 'Gwanggyo Jungang', '양재': 'Yangjae', '양재시민의숲': 'Yangjae Citizen\'s Forest',
   // Gyeongui-Jungang
-  '용산': 'Yongsan', '옥수': 'Oksu', '응봉': 'Eungbong', '중랑': 'Jungnang',
+  '용산': 'Yongsan', '응봉': 'Eungbong', '중랑': 'Jungnang',
   '팔당': 'Paldang', '양수': 'Yangsu', '신원': 'Sinwon',
   // Bundang
-  '수서': 'Suseo', '복정': 'Bokjeong', '가천대': 'Gachon Univ.',
-  // K-Pop / tourist hotspots
-  '동대문역사문화공원': 'Dongdaemun History & Culture Park',
-  '광화문': 'Gwanghwamun', '경복궁': 'Gyeongbokgung', '안국': 'Anguk',
-  '인사동': 'Insadong', '북촌': 'Bukchon', '명동': 'Myeong-dong',
+  '수서': 'Suseo', '가천대': 'Gachon Univ.',
+  // 관광지 별칭 — 지하철역이 아니라서 호선별 구역에 못 넣는 것만 남긴다.
+  // (동대문역사문화공원·광화문·경복궁·안국·명동은 위 호선 구역에 이미 있어 중복 제거했다.
+  //  객체 리터럴은 같은 키를 두 번 쓰면 에러 없이 뒤엣것이 이겨서, 값이 갈리면 조용히 깨진다.)
+  '인사동': 'Insadong', '북촌': 'Bukchon',
 };
 
 // Revised Romanization tables (Korean Ministry of Culture, 2000)
