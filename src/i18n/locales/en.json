@@ -1533,6 +1533,8 @@
       "transitDowngraded": "Switched to driving directions",
       "transitEstimated": "Estimated travel time — live transit data unavailable",
       "walkFasterNote": "🚶 Walking is faster than the subway here (including wait & transfer)",
+      "openInGoogleMaps": "Google Maps",
+      "openInNaverMap": "Naver Map",
       "realTimeRoute": "Real-time transit route",
       "stepsLabel": "Route steps",
       "exit": "Exit",

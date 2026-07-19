@@ -70,6 +70,58 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
   return points;
 }
 
+// ── (2026-07-19) 실경로 세그먼트 ──────────────────────────────────────────────
+// RouteAgent 가 저장한 steps_detail[].path (TMAP passShape 실좌표)를 그대로 그린다.
+// 없으면(구형 플랜·ODsay 경로) stop→stop 직선으로 폴백 — 절대 빈 지도가 되지 않게.
+interface RouteSegment {
+  path: [number, number][];
+  color: string;
+  dashed: boolean;
+  label: string | null;          // "🚌 472" / "🚇 2호선" — 지도 위 수단 칩
+  board: { lat: number; lng: number; name: string } | null; // 승차 지점
+}
+
+/** 수단별 기본색 — TMAP routeColor 가 있으면 그쪽을 우선한다(노선 공식 색). */
+const MODE_COLOR: Record<string, string> = { walk: '#8B93A7', bus: '#2563EB', subway: '#7C5CFC' };
+
+interface TransitStepLike {
+  mode?: string;
+  path?: [number, number][];
+  routeColor?: string;
+  busNo?: string;
+  line?: string;
+  lineKo?: string;
+  fromPoint?: { lat?: number; lng?: number; name?: string | null } | null;
+}
+
+const validPath = (p: unknown): p is [number, number][] =>
+  Array.isArray(p) && p.length >= 2 &&
+  p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]));
+
+/** stops → 실경로 세그먼트. 각 stop 의 transit_from_prev.steps_detail 을 펼친다. */
+function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
+  const segs: RouteSegment[] = [];
+  for (const stop of stops || []) {
+    const t = (stop as { transit_from_prev?: { steps_detail?: TransitStepLike[] } }).transit_from_prev;
+    for (const st of (t?.steps_detail || [])) {
+      if (!validPath(st.path)) continue;
+      const mode = String(st.mode || '').toLowerCase();
+      const isWalk = mode.includes('walk');
+      const line = st.lineKo || st.line || '';
+      segs.push({
+        path: st.path,
+        color: st.routeColor || MODE_COLOR[isWalk ? 'walk' : mode.includes('bus') ? 'bus' : 'subway'] || '#7C5CFC',
+        dashed: isWalk,
+        label: isWalk ? null : (st.busNo ? `🚌 ${st.busNo}` : line ? `🚇 ${line}` : null),
+        board: (!isWalk && st.fromPoint && isFiniteNum(st.fromPoint.lat) && isFiniteNum(st.fromPoint.lng))
+          ? { lat: st.fromPoint.lat, lng: st.fromPoint.lng, name: st.fromPoint.name || '' }
+          : null,
+      });
+    }
+  }
+  return segs;
+}
+
 function mapLabels(language: string): { title: string; easy: string; hard: string } {
   switch (language) {
     case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간' };
@@ -90,6 +142,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
   // whether to render at all *before* hooks run conditionally.
   const points = toMapPoints(stops);
   const enoughPoints = points.length >= 2;
+  // 실경로 세그먼트(TMAP passShape). 없으면 빈 배열 → effect 안에서 직선 폴백.
+  const segments = toRouteSegments(stops);
+  // effect 의존성용 서명 — 좌표 배열을 그대로 넣으면 매 렌더 재실행된다.
+  const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
 
   useEffect(() => {
     if (!enoughPoints || !containerRef.current) return;
@@ -135,19 +191,78 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           },
         ).addTo(map);
 
-        // Route polylines — 구간별로 그려 난이도 styling (P5 범례).
-        // 쉬운 구간 = 퍼플 실선 / 힘든 대중교통 구간 = 앰버 점선(주의 신호).
-        // 난이도는 도착 stop 의 transit_from_prev 판정(points[k].hard).
-        for (let k = 1; k < points.length; k++) {
-          const a = points[k - 1];
-          const b = points[k];
-          L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
-            color: b.hard ? '#FFB020' : '#B668FC',
-            weight: 3,
-            opacity: 0.85,
-            lineJoin: 'round',
-            ...(b.hard ? { dashArray: '6, 9' } : {}),
-          }).addTo(map);
+        // Route polylines.
+        // (2026-07-19) 실경로 우선: TMAP passShape 좌표가 있으면 도로·철도를 따라 그리고
+        // 노선 공식 색을 쓴다. 좌표가 없는 구형 플랜은 기존 stop→stop 직선으로 폴백해
+        // 지도가 비지 않게 한다(난이도 styling = P5 범례 유지).
+        if (segments.length > 0) {
+          for (const seg of segments) {
+            L.polyline(seg.path, {
+              color: seg.color,
+              weight: seg.dashed ? 3 : 5,
+              opacity: seg.dashed ? 0.75 : 0.9,
+              lineJoin: 'round',
+              lineCap: 'round',
+              ...(seg.dashed ? { dashArray: '4, 8' } : {}),
+            }).addTo(map);
+
+            // 승차 지점 — "여기서 탄다". 작은 흰 점 + 정류장/역 이름 팝업.
+            if (seg.board) {
+              L.marker([seg.board.lat, seg.board.lng], {
+                icon: L.divIcon({
+                  className: 'cocotrip-board-pin',
+                  html:
+                    `<div style="width:11px;height:11px;border-radius:50%;background:#fff;` +
+                    `border:3px solid ${seg.color};box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                  iconSize: [11, 11],
+                  iconAnchor: [5.5, 5.5],
+                }),
+                title: seg.board.name,
+                zIndexOffset: -100,
+              })
+                .addTo(map)
+                .bindPopup(
+                  `<div style="font-size:12px;color:#1a1024;"><b>${escapeHtml(seg.label || '')}</b><br/>` +
+                  `${escapeHtml(seg.board.name)}</div>`,
+                  { closeButton: true },
+                );
+            }
+
+            // 수단 칩 — 경로 중간에 "🚇 2호선" 을 얹어 지도만 봐도 뭘 타는지 읽히게.
+            // 번호핀(26px)과 겹쳐 잘리지 않도록 중앙 정렬 + 위로 살짝 띄운다.
+            if (seg.label && seg.path.length >= 2) {
+              const mid = seg.path[Math.floor(seg.path.length / 2)];
+              const chipW = seg.label.length * 7 + 20;
+              L.marker(mid, {
+                icon: L.divIcon({
+                  className: 'cocotrip-mode-chip',
+                  html:
+                    `<div style="white-space:nowrap;padding:3px 8px;border-radius:999px;` +
+                    `background:${seg.color};color:#fff;font-size:10px;font-weight:800;` +
+                    `line-height:1.1;text-align:center;` +
+                    `border:1.5px solid rgba(255,255,255,0.95);box-shadow:0 2px 6px rgba(0,0,0,0.35);` +
+                    `">${escapeHtml(seg.label)}</div>`,
+                  iconSize: [chipW, 18],
+                  iconAnchor: [chipW / 2, 26], // 경로 위쪽으로 띄워 핀과 충돌 완화
+                }),
+                interactive: false,
+                zIndexOffset: 200, // 폴리라인·승차핀 위, 번호핀과는 위치로 분리
+              }).addTo(map);
+            }
+          }
+        } else {
+          // 폴백: 구형 플랜 — stop→stop 직선 + 난이도 styling.
+          for (let k = 1; k < points.length; k++) {
+            const a = points[k - 1];
+            const b = points[k];
+            L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+              color: b.hard ? '#FFB020' : '#B668FC',
+              weight: 3,
+              opacity: 0.85,
+              lineJoin: 'round',
+              ...(b.hard ? { dashArray: '6, 9' } : {}),
+            }).addTo(map);
+          }
         }
 
         // Numbered markers (1, 2, 3 … in visit order).
@@ -181,7 +296,9 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         });
 
         // Auto fit-bounds to all markers with a little padding.
+        // 실경로가 있으면 경로 좌표까지 포함해야 노선이 화면 밖으로 잘리지 않는다.
         const bounds = L.latLngBounds(latLngs);
+        for (const seg of segments) for (const pt of seg.path) bounds.extend(pt);
         map.fitBounds(bounds, { padding: [28, 28], maxZoom: 15 });
 
         // Tiles can render before the container has its final size (it lives in
@@ -203,7 +320,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
     };
     // points is derived from stops; re-init when the stop set changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order]))]);
+  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order])), segmentsKey]);
 
   // Graceful no-op: fewer than 2 mappable stops, or the map library failed.
   if (!enoughPoints || failed) return null;

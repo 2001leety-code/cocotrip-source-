@@ -1533,6 +1533,8 @@
       "transitDowngraded": "已切换为驾车路线",
       "transitEstimated": "预计出行时间 — 暂无实时公交数据",
       "walkFasterNote": "🚶 此距离步行比地铁更快（含等待和换乘时间）",
+      "openInGoogleMaps": "谷歌地图",
+      "openInNaverMap": "Naver 地图",
       "realTimeRoute": "实时公交路线",
       "stepsLabel": "路线步骤",
       "exit": "出口",
