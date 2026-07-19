@@ -14,6 +14,8 @@
  * v1 한계: P184 per-coord 캐시 미적용(TMAP 저렴 + 상위 zone_courses 캐시는 provider 무관 적용).
  */
 
+import { localizeLineName, romanizeStation } from './_transit_localization.js';
+
 const TMAP_ENDPOINT = 'https://apis.openapi.sk.com/transit/routes';
 
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -163,8 +165,20 @@ export function mapTmapItineraryToRoute(it) {
       });
     } else {
       const line = String(l.route || l.Lane?.[0]?.name || '');
+      // 🌏 외국어 표기 — ODsay 분기(_odsay_helper parseSubPath)와 동일 정책.
+      // TMAP 은 한국어만 주고(lang=1 은 한글을 잃고 품질도 낮다: 홍대입구→"Hongdae"),
+      // translate-plan 은 en 을 "lineEn/fromRoman 이 이미 있다"고 보고 건너뛴다
+      // → 이 필드를 안 채우면 영어 사용자 화면·PDF 에 역명이 순 한글로 나온다.
+      // 우리 표가 공식 표기라 TMAP 영문보다 정확: 홍대입구→"Hongik Univ.", 디지털미디어시티→"DMC".
+      const lineKo = localizeLineName(line, 'ko').display || line;
+      const lineEn = localizeLineName(line, 'en').display || null;
+      const fromRoman = romanizeStation(from, 'en');
+      const toRoman = romanizeStation(to, 'en');
       steps.push({
-        mode: 'subway', line, lineKo: line, from, to, duration: durMin, stationCount, passStops, ...geo,
+        mode: 'subway', line, lineKo, from, to, duration: durMin, stationCount, passStops, ...geo,
+        ...(lineEn && lineEn !== lineKo ? { lineEn } : {}),
+        ...(fromRoman ? { fromRoman } : {}),
+        ...(toRoman ? { toRoman } : {}),
         description: `${line} ${from} → ${to} (${stationCount ? `${stationCount}정거장, ` : ''}${durMin}분)`,
       });
     }

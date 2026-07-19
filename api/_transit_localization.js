@@ -34,6 +34,9 @@ const SPECIAL_LINES = {
   '경강선': { en: 'Gyeonggang Line', ja: '京江線', zh: '京江线' },
   '공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '인천공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
+  // TMAP 은 "수도권공항철도1호선" 으로 준다 — 수도권 prefix 를 떼도 "공항철도1호선" 이라
+  // 위 '공항철도' 키에 안 걸리고 숫자 패턴(^\d+호선)에도 안 걸려 미번역으로 새던 것.
+  '공항철도1호선': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '우이신설선': { en: 'Ui-Sinseol Line', ja: '牛耳新設線', zh: '牛耳新设线' },
   '신림선': { en: 'Sillim Line', ja: '新林線', zh: '新林线' },
   '김포골드라인': { en: 'Gimpo Goldline', ja: '金浦ゴールドライン', zh: '金浦金线' },
@@ -64,6 +67,17 @@ const SPECIAL_LINES = {
 };
 
 /**
+ * 열차 등급 접미사. TMAP 은 "공항철도(급행)", ODsay 는 "9호선(급행)" 형태로 준다.
+ * 급행/특급은 정차역을 건너뛰어 소요시간이 달라지므로 표기에서 지우면 안 된다.
+ */
+const LINE_GRADES = {
+  '급행': { ko: '급행', en: 'Express', ja: '急行', zh: '快速' },
+  '특급': { ko: '특급', en: 'Ltd. Express', ja: '特急', zh: '特快' },
+  '일반': { ko: '일반', en: 'Local', ja: '普通', zh: '普通' },
+  '완행': { ko: '완행', en: 'Local', ja: '各駅停車', zh: '慢车' },
+};
+
+/**
  * Normalise ODsay verbose line name to short canonical form + localize.
  * @param {string} rawName e.g. "수도권 2호선", "신분당선", "서울 지하철 5호선"
  * @param {string} lang 'ko' | 'en' | 'ja' | 'zh'
@@ -77,6 +91,19 @@ export function localizeLineName(rawName, lang = 'ko') {
     .replace(/^서울\s*지하철\s*/, '')
     .replace(/^서울\s*/, '')
     .trim();
+
+  // 등급 접미사 분리: "공항철도(급행)", "9호선(급행)", "경의중앙선(급행)".
+  // 급행은 정차역을 건너뛰므로 여행자에게 의미 있는 정보 — 떼지 말고 번역해서 되붙인다.
+  // 등급을 뗀 본체로 재귀 조회하면 숫자 노선·이름 노선을 한 경로로 처리할 수 있다.
+  const graded = stripped.match(/^(.+?)\s*\((급행|특급|일반|완행)\)$/);
+  if (graded) {
+    const base = localizeLineName(graded[1], lang);
+    const suffix = LINE_GRADES[graded[2]]?.[lang];
+    return {
+      ko: stripped,
+      display: suffix && base.display ? `${base.display} ${suffix}` : (base.display || stripped),
+    };
+  }
 
   // Numeric lines: 2호선 → "Line 2"
   const numMatch = stripped.match(/^(\d+)호선$/);
