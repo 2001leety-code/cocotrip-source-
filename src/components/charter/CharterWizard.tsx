@@ -2,8 +2,8 @@
 // 2026-05-07 정책 B: matrix miss → Geocoding 우선. Bus/VIP 차량은 가격 카드 대신 InquiryForm.
 // 2026-05-10 (B9-35 잔여): wizard 진행 자동 저장 + 24h 이내 재진입 시 ResumeWizardModal.
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clock3, CreditCard, Loader2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import { CocoStepper } from '@/components/coco/CocoUI';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -332,7 +332,6 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const i18n = getWizardI18n(language);
   const STEP_LABELS = [i18n.step1, i18n.step2, i18n.step3, i18n.step4, i18n.step5, i18n.step6];
   const stepHelp = STEP_HELP[language] || STEP_HELP.en;
-  const progressPct = `${Math.round((currentStep / STEP_LABELS.length) * 100)}%`;
   const summaryRows = [
     {
       label: language === 'ko' ? '출발' : language === 'ja' ? '出発' : language === 'zh' ? '出发' : 'Pickup',
@@ -370,7 +369,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         <section className="min-w-0">
           <div className="mb-2 overflow-hidden rounded-[14px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,92,252,0.20),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.22)] sm:mb-5 sm:rounded-[28px] sm:p-5 sm:shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/25 bg-[#B668FC]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#D8C0FF] sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
+              <div className="coco-step-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
                 <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 {i18n.stepOf} {currentStep} / {STEP_LABELS.length}
               </div>
@@ -380,33 +379,14 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               </div>
             </div>
 
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10 sm:mt-4 sm:h-2">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#7C5CFC] to-[#EA537E]"
-                initial={false}
-                animate={{ width: progressPct }}
-                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+            {/* 가이드 p.6 점+체크 스테퍼 — 위자드와 동일 공용 CocoStepper (완료 스텝만 클릭 이동, 기존 게이트 동일) */}
+            <div className="mt-2 sm:mt-4">
+              <CocoStepper
+                current={currentStep - 1}
+                total={STEP_LABELS.length}
+                labels={STEP_LABELS}
+                onStepClick={(i) => setCurrentStep(i + 1)}
               />
-            </div>
-            <div className="mt-1 grid grid-cols-6 gap-1 sm:mt-3 sm:gap-1.5">
-              {STEP_LABELS.map((label, idx) => {
-                const id = idx + 1;
-                const active = id === currentStep;
-                const done = id < currentStep;
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => id < currentStep && setCurrentStep(id)}
-                    className={`min-h-[22px] rounded-md px-1 text-center text-[10px] font-bold leading-tight transition-colors sm:min-h-[42px] sm:rounded-xl sm:px-1.5 ${
-                      active ? 'bg-white/12 text-white' : done ? 'text-emerald-300 hover:bg-white/5' : 'text-white/35'
-                    }`}
-                  >
-                    <span className="block text-[11px]">{done ? '✓' : id}</span>
-                    <span className="hidden xl:block">{label}</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -612,23 +592,26 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         const barDisabled = !canAdvance();
         const barLabel = isPayStep ? i18n.payProceed : i18n.next;
         const barOnClick = isPayStep ? handleProceedPayment : goNext;
+        // 2026-07-19 라이트 스킨: 모바일 차터는 라이트 셸(cocotrip-mobile-charter)이므로 바도 라이트로.
+        // 가격 표기·핸들러·게이트는 무변경. 결제 진입 버튼은 PayPal 인지색(#0070BA) 유지.
         return (
-          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(8,11,20,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.10)', boxShadow: '0 -18px 60px rgba(0,0,0,0.38)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(124,92,255,0.14)', boxShadow: '0 -18px 60px rgba(48,39,118,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               {stickyAmountKRW != null ? (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#fff' }}>{language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language)}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{`${stickyUsdFixed} USD`}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#15143d' }}>{language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language)}</div>
+                  <div style={{ fontSize: 11, color: '#756d96' }}>{`${stickyUsdFixed} USD`}</div>
                 </>
               ) : (
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>{`${currentStep} / 6`}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#756d96' }}>{`${currentStep} / 6`}</div>
               )}
             </div>
             <button
               type="button"
               disabled={barDisabled}
               onClick={barOnClick}
-              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 16, background: barDisabled ? 'rgba(255,255,255,0.08)' : (isPayStep ? '#0070BA' : 'linear-gradient(135deg,#7C5CFC,#EA537E)'), color: barDisabled ? 'rgba(255,255,255,0.4)' : '#fff', fontSize: 15, fontWeight: 900, cursor: barDisabled ? 'not-allowed' : 'pointer' }}
+              className={barDisabled ? undefined : 'm-cta'}
+              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 999, background: barDisabled ? 'rgba(124,92,255,0.10)' : (isPayStep ? '#0070BA' : 'var(--coco-cta-gradient)'), color: barDisabled ? 'rgba(21,20,61,0.35)' : '#fff', fontSize: 15, fontWeight: 900, cursor: barDisabled ? 'not-allowed' : 'pointer', boxShadow: barDisabled ? undefined : 'var(--coco-cta-shadow)' }}
             >
               {barLabel}
             </button>
