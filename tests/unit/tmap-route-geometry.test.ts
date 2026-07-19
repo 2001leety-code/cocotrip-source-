@@ -4,16 +4,31 @@
 import { describe, it, expect } from 'vitest';
 import { parseLinestring, mapTmapItineraryToRoute } from '../../api/_tmap_helper.js';
 
-describe('parseLinestring — "lon,lat …" → [[lat,lng], …]', () => {
-  it('경도/위도 순서를 뒤집어 지도 라이브러리 순서로 만든다', () => {
+/** 🔴 Firestore 는 중첩 배열을 저장하지 못한다(2026-07-19 prod 장애: "Plan save failed").
+ *  저장되는 모든 좌표 필드가 평탄한지 재귀 검사 — 이 가드가 회귀를 막는다. */
+function assertNoNestedArray(value: unknown, path = 'root'): void {
+  if (Array.isArray(value)) {
+    for (const [i, v] of value.entries()) {
+      if (Array.isArray(v)) throw new Error(`중첩 배열 발견 (Firestore 저장 불가): ${path}[${i}]`);
+      if (v && typeof v === 'object') assertNoNestedArray(v, `${path}[${i}]`);
+    }
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) assertNoNestedArray(v, `${path}.${k}`);
+  }
+}
+
+describe('parseLinestring — "lon,lat …" → 평탄 [lat,lng,lat,lng, …]', () => {
+  it('경도/위도 순서를 뒤집고 평탄 배열로 만든다 (Firestore 중첩 배열 금지)', () => {
     expect(parseLinestring('126.9784,37.5665 127.0276,37.4979')).toEqual([
-      [37.5665, 126.9784],
-      [37.4979, 127.0276],
+      37.5665, 126.9784,
+      37.4979, 127.0276,
     ]);
   });
 
   it('좌표를 5자리(≈1m)로 반올림해 문서 비대를 막는다', () => {
-    const [[lat, lng]] = parseLinestring('126.97841234,37.56651234')!;
+    const [lat, lng] = parseLinestring('126.97841234,37.56651234')!;
     expect(lat).toBe(37.56651);
     expect(lng).toBe(126.97841);
   });
@@ -21,9 +36,9 @@ describe('parseLinestring — "lon,lat …" → [[lat,lng], …]', () => {
   it('maxPoints 초과 시 균등 샘플링하되 시작·끝은 보존한다', () => {
     const pts = Array.from({ length: 500 }, (_, i) => `127.${String(i).padStart(5, '0')},37.5`).join(' ');
     const out = parseLinestring(pts, 50)!;
-    expect(out.length).toBe(50);
-    expect(out[0]).toEqual([37.5, 127.0]);
-    expect(out[out.length - 1]).toEqual([37.5, 127.00499]);
+    expect(out.length).toBe(100);              // 50점 × (lat,lng)
+    expect(out.slice(0, 2)).toEqual([37.5, 127.0]);
+    expect(out.slice(-2)).toEqual([37.5, 127.00499]);
   });
 
   it('빈 값·잘못된 입력은 null (지도가 폴백으로 직선을 그리게)', () => {
@@ -56,8 +71,8 @@ describe('mapTmapItineraryToRoute — geometry 보존', () => {
   it('지하철 leg 에 실경로·노선색·승하차 좌표가 실린다', () => {
     const r = mapTmapItineraryToRoute(itinerary)!;
     const subway = r.steps.find((s: { mode: string }) => s.mode === 'subway')!;
-    expect(subway.path.length).toBe(3);
-    expect(subway.path[0]).toEqual([37.50449, 127.04896]);
+    expect(subway.path.length).toBe(6);              // 3점 × (lat,lng)
+    expect(subway.path.slice(0, 2)).toEqual([37.50449, 127.04896]);
     expect(subway.routeColor).toBe('#009D3E');       // 2호선 공식 초록
     expect(subway.fromPoint).toMatchObject({ name: '선릉' });
     expect(subway.toPoint).toMatchObject({ name: '잠실' });
@@ -66,8 +81,18 @@ describe('mapTmapItineraryToRoute — geometry 보존', () => {
   it('도보 leg 은 steps[].linestring 을 합쳐 경로 + 길안내를 만든다', () => {
     const r = mapTmapItineraryToRoute(itinerary)!;
     const walk = r.steps.find((s: { mode: string }) => s.mode === 'walk')!;
-    expect(walk.path.length).toBe(2);
+    expect(walk.path.length).toBe(4);                // 2점 × (lat,lng)
     expect(walk.walk_guide[0]).toMatchObject({ street: '테헤란로', distance: 59 });
+  });
+
+  // 🔴 prod 장애 회귀 가드 — 저장 대상 전체에 중첩 배열이 없어야 한다.
+  it('반환 객체 어디에도 중첩 배열이 없다 (Firestore 저장 가능)', () => {
+    const r = mapTmapItineraryToRoute(itinerary)!;
+    expect(() => assertNoNestedArray(r)).not.toThrow();
+  });
+
+  it('가드 자체가 중첩 배열을 실제로 잡는다 (테스트의 테스트)', () => {
+    expect(() => assertNoNestedArray({ steps: [{ path: [[1, 2], [3, 4]] }] })).toThrow(/중첩 배열/);
   });
 
   it('geometry 가 없는 응답도 깨지지 않는다 (구형/부분 응답 방어)', () => {

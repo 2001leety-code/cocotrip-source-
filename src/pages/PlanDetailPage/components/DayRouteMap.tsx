@@ -86,7 +86,7 @@ const MODE_COLOR: Record<string, string> = { walk: '#8B93A7', bus: '#2563EB', su
 
 interface TransitStepLike {
   mode?: string;
-  path?: [number, number][];
+  path?: number[] | [number, number][];   // 저장은 평탄 배열, 구형 문서는 중첩
   routeColor?: string;
   busNo?: string;
   line?: string;
@@ -94,9 +94,29 @@ interface TransitStepLike {
   fromPoint?: { lat?: number; lng?: number; name?: string | null } | null;
 }
 
-const validPath = (p: unknown): p is [number, number][] =>
-  Array.isArray(p) && p.length >= 2 &&
-  p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]));
+/**
+ * 저장된 path 는 **평탄 배열** [lat,lng,lat,lng, …] 이다.
+ * Firestore 가 중첩 배열을 저장하지 못해서(2026-07-19 prod 장애) 평탄하게 넣는다.
+ * 여기서 좌표쌍으로 복원한다. 구형 [[lat,lng], …] 형태도 함께 받아준다.
+ */
+function chunkPath(p: unknown): [number, number][] | null {
+  if (!Array.isArray(p) || p.length < 4) {
+    // 구형(중첩) 형태 호환 — 혹시 저장된 문서가 있으면 그대로 쓴다.
+    if (Array.isArray(p) && p.length >= 2 && p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]))) {
+      return p as [number, number][];
+    }
+    return null;
+  }
+  if (!p.every(isFiniteNum)) {
+    if (p.every((pt) => Array.isArray(pt) && pt.length === 2 && isFiniteNum(pt[0]) && isFiniteNum(pt[1]))) {
+      return p as unknown as [number, number][];
+    }
+    return null;
+  }
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < p.length; i += 2) out.push([p[i] as number, p[i + 1] as number]);
+  return out.length >= 2 ? out : null;
+}
 
 /** stops → 실경로 세그먼트. 각 stop 의 transit_from_prev.steps_detail 을 펼친다. */
 function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
@@ -104,12 +124,13 @@ function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
   for (const stop of stops || []) {
     const t = (stop as { transit_from_prev?: { steps_detail?: TransitStepLike[] } }).transit_from_prev;
     for (const st of (t?.steps_detail || [])) {
-      if (!validPath(st.path)) continue;
+      const path = chunkPath(st.path);
+      if (!path) continue;
       const mode = String(st.mode || '').toLowerCase();
       const isWalk = mode.includes('walk');
       const line = st.lineKo || st.line || '';
       segs.push({
-        path: st.path,
+        path,
         color: st.routeColor || MODE_COLOR[isWalk ? 'walk' : mode.includes('bus') ? 'bus' : 'subway'] || '#7C5CFC',
         dashed: isWalk,
         label: isWalk ? null : (st.busNo ? `🚌 ${st.busNo}` : line ? `🚇 ${line}` : null),
