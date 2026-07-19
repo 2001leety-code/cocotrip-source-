@@ -240,6 +240,13 @@ img {
   box-shadow: 0 6px 14px rgba(124, 92, 255, 0.35);
 }
 
+/* Step 배지 (위자드·차터 공용) — 다크 기본값. 라이트 셸 오버라이드는 @media 블록에. */
+.coco-step-badge {
+  background: rgba(124, 92, 255, 0.16);
+  border: 1px solid rgba(124, 92, 255, 0.30);
+  color: #D9A8FF;
+}
+
 /*
 @theme {
   --color-bg-base:             #0a0f1e;
@@ -3214,6 +3221,13 @@ textarea.community-field {
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot:is(.is-done, .is-active) {
     color: #ffffff !important;
     border-color: transparent;
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-step-badge {
+    background: rgba(124, 92, 255, 0.10) !important;
+    border-color: rgba(124, 92, 255, 0.25) !important;
+    color: var(--coco-purple) !important;
   }
 
   .planner-mobile-panel,
