@@ -38,6 +38,56 @@ function legModeToStepMode(mode) {
  * @returns {object|null} { type, totalTime(분), fare(원), transfers, distance(m), totalWalk(m),
  *   firstStation, lastStation, steps[], alternatives, _provider:'tmap' }
  */
+// ── (2026-07-19) 실경로 좌표(geometry) ────────────────────────────────────────
+// TMAP 응답은 leg 마다 실제 도로·철도를 따라가는 좌표열을 준다 — 이미 호출 중이라
+// 추가 비용 0인데 그동안 통째로 버려 지도가 stop→stop 직선만 그렸다.
+//   · 대중교통 leg: passShape.linestring ("lon,lat lon,lat …")
+//   · 도보 leg: steps[].linestring (+ streetName/description = "테헤란로를 따라 59m")
+// Firestore 문서 비대를 막으려고 (a) 좌표 5자리 반올림(≈1m) (b) 최대 점수 샘플링.
+const GEO_PRECISION = 1e5;
+const MAX_GEO_POINTS = 100;
+
+/** "lon,lat lon,lat …" → [[lat,lng], …]. 지도 라이브러리(Leaflet/Naver)가 쓰는 순서로 뒤집는다. */
+export function parseLinestring(ls, maxPoints = MAX_GEO_POINTS) {
+  if (!ls || typeof ls !== 'string') return null;
+  const pts = [];
+  for (const pair of ls.trim().split(/\s+/)) {
+    const [lonS, latS] = pair.split(',');
+    const lon = Number(lonS), lat = Number(latS);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    pts.push([Math.round(lat * GEO_PRECISION) / GEO_PRECISION, Math.round(lon * GEO_PRECISION) / GEO_PRECISION]);
+  }
+  if (!pts.length) return null;
+  if (pts.length <= maxPoints) return pts;
+  // 균등 샘플링 — 시작/끝은 반드시 보존(구간이 끊겨 보이지 않게).
+  const step = (pts.length - 1) / (maxPoints - 1);
+  const out = [];
+  for (let i = 0; i < maxPoints; i++) out.push(pts[Math.round(i * step)]);
+  out[out.length - 1] = pts[pts.length - 1];
+  return out;
+}
+
+/** 도보 leg 의 상세 안내(steps[])를 하나의 좌표열 + 길안내 배열로 합친다. */
+function walkGeometry(leg) {
+  const sub = Array.isArray(leg.steps) ? leg.steps : [];
+  if (sub.length) {
+    const merged = [];
+    const guide = [];
+    for (const s of sub) {
+      const p = parseLinestring(s.linestring, MAX_GEO_POINTS);
+      if (p) merged.push(...p);
+      if (s.description) guide.push({ street: s.streetName || null, distance: s.distance || 0, text: s.description });
+    }
+    const path = merged.length ? (merged.length > MAX_GEO_POINTS ? parseLinestring(merged.map(([la, ln]) => `${ln},${la}`).join(' ')) : merged) : null;
+    return { path, guide: guide.length ? guide : null };
+  }
+  return { path: parseLinestring(leg.passShape?.linestring), guide: null };
+}
+
+const legPoint = (p) => (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)
+  ? { name: p.name || null, lat: Math.round(p.lat * GEO_PRECISION) / GEO_PRECISION, lng: Math.round(p.lon * GEO_PRECISION) / GEO_PRECISION }
+  : null);
+
 export function mapTmapItineraryToRoute(it) {
   if (!it) return null;
   const legs = Array.isArray(it.legs) ? it.legs : [];
@@ -45,14 +95,23 @@ export function mapTmapItineraryToRoute(it) {
   for (const l of legs) {
     const mode = legModeToStepMode(l.mode);
     const durMin = Math.round((l.sectionTime || 0) / 60);
+    // 승하차 지점 + 노선 색 — 지도에 "여기서 탄다" 마커와 노선 색 폴리라인을 그리는 근거.
+    const fromPoint = legPoint(l.start);
+    const toPoint = legPoint(l.end);
+    const routeColor = l.routeColor ? `#${String(l.routeColor).replace(/^#/, '')}` : null;
     if (mode === 'walk') {
       // 0초/극단거리 walk leg 스킵 (ODsay parseSubPath 와 동일 정책).
       if ((l.sectionTime || 0) < 30 && (l.distance || 0) < 30) continue;
+      const { path, guide } = walkGeometry(l);
       steps.push({
         mode: 'walk',
         distance: l.distance || 0,
         duration: Math.max(1, durMin),
         description: `도보 ${l.distance || 0}m`,
+        ...(path ? { path } : {}),
+        ...(guide ? { walk_guide: guide } : {}),
+        ...(fromPoint ? { fromPoint } : {}),
+        ...(toPoint ? { toPoint } : {}),
       });
       continue;
     }
@@ -61,18 +120,25 @@ export function mapTmapItineraryToRoute(it) {
     const stationList = l.passStopList?.stationList || [];
     const stationCount = stationList.length || 0;
     const passStops = stationList.map((s) => s.stationName || s.name).filter(Boolean);
+    const path = parseLinestring(l.passShape?.linestring);
+    const geo = {
+      ...(path ? { path } : {}),
+      ...(routeColor ? { routeColor } : {}),
+      ...(fromPoint ? { fromPoint } : {}),
+      ...(toPoint ? { toPoint } : {}),
+    };
     if (mode === 'bus') {
       const route = String(l.route || '');
       const busType = route.includes(':') ? route.split(':')[0] : null;
       const busNo = route.includes(':') ? route.split(':').slice(1).join(':') : route;
       steps.push({
-        mode: 'bus', busNo, busType, from, to, duration: durMin, stationCount, passStops,
+        mode: 'bus', busNo, busType, from, to, duration: durMin, stationCount, passStops, ...geo,
         description: `${route || 'Bus'} ${from} → ${to} (${stationCount ? `${stationCount}정거장, ` : ''}${durMin}분)`,
       });
     } else {
       const line = String(l.route || l.Lane?.[0]?.name || '');
       steps.push({
-        mode: 'subway', line, lineKo: line, from, to, duration: durMin, stationCount, passStops,
+        mode: 'subway', line, lineKo: line, from, to, duration: durMin, stationCount, passStops, ...geo,
         description: `${line} ${from} → ${to} (${stationCount ? `${stationCount}정거장, ` : ''}${durMin}분)`,
       });
     }
