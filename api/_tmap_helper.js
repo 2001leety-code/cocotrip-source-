@@ -47,7 +47,16 @@ function legModeToStepMode(mode) {
 const GEO_PRECISION = 1e5;
 const MAX_GEO_POINTS = 100;
 
-/** "lon,lat lon,lat …" → [[lat,lng], …]. 지도 라이브러리(Leaflet/Naver)가 쓰는 순서로 뒤집는다. */
+/**
+ * "lon,lat lon,lat …" → **평탄 배열** [lat,lng,lat,lng, …] (지도 순서로 뒤집어서).
+ *
+ * 🔴 평탄 배열인 이유 (2026-07-19 prod 장애로 학습):
+ *   Firestore 는 **중첩 배열(배열 안의 배열)을 저장할 수 없다.** 처음에 [[lat,lng], …]
+ *   형태로 저장했다가 persistPlan 이 "Plan save failed" 로 전량 실패해 prod 플랜 생성이
+ *   막혔다. 로컬 하네스는 JSON 파일이라 이 제약이 안 걸려 못 잡았다.
+ *   평탄 배열은 Firestore 가 허용하고 키 반복도 없어 [{lat,lng}] 보다 작다.
+ *   소비 측은 chunkPath()(프론트) 로 2개씩 묶어 쓴다.
+ */
 export function parseLinestring(ls, maxPoints = MAX_GEO_POINTS) {
   if (!ls || typeof ls !== 'string') return null;
   const pts = [];
@@ -58,13 +67,17 @@ export function parseLinestring(ls, maxPoints = MAX_GEO_POINTS) {
     pts.push([Math.round(lat * GEO_PRECISION) / GEO_PRECISION, Math.round(lon * GEO_PRECISION) / GEO_PRECISION]);
   }
   if (!pts.length) return null;
-  if (pts.length <= maxPoints) return pts;
-  // 균등 샘플링 — 시작/끝은 반드시 보존(구간이 끊겨 보이지 않게).
-  const step = (pts.length - 1) / (maxPoints - 1);
-  const out = [];
-  for (let i = 0; i < maxPoints; i++) out.push(pts[Math.round(i * step)]);
-  out[out.length - 1] = pts[pts.length - 1];
-  return out;
+  let picked = pts;
+  if (pts.length > maxPoints) {
+    // 균등 샘플링 — 시작/끝은 반드시 보존(구간이 끊겨 보이지 않게).
+    const step = (pts.length - 1) / (maxPoints - 1);
+    picked = [];
+    for (let i = 0; i < maxPoints; i++) picked.push(pts[Math.round(i * step)]);
+    picked[picked.length - 1] = pts[pts.length - 1];
+  }
+  const flat = [];
+  for (const [la, ln] of picked) flat.push(la, ln);
+  return flat;
 }
 
 /** 도보 leg 의 상세 안내(steps[])를 하나의 좌표열 + 길안내 배열로 합친다. */
@@ -74,11 +87,24 @@ function walkGeometry(leg) {
     const merged = [];
     const guide = [];
     for (const s of sub) {
-      const p = parseLinestring(s.linestring, MAX_GEO_POINTS);
+      const p = parseLinestring(s.linestring, MAX_GEO_POINTS); // 평탄 [lat,lng,…]
       if (p) merged.push(...p);
       if (s.description) guide.push({ street: s.streetName || null, distance: s.distance || 0, text: s.description });
     }
-    const path = merged.length ? (merged.length > MAX_GEO_POINTS ? parseLinestring(merged.map(([la, ln]) => `${ln},${la}`).join(' ')) : merged) : null;
+    if (!merged.length) return { path: null, guide: guide.length ? guide : null };
+    // 병합 결과가 상한을 넘으면 좌표쌍 단위로 다시 균등 샘플링(평탄 배열 유지).
+    let path = merged;
+    const pairCount = Math.floor(merged.length / 2);
+    if (pairCount > MAX_GEO_POINTS) {
+      const step = (pairCount - 1) / (MAX_GEO_POINTS - 1);
+      path = [];
+      for (let i = 0; i < MAX_GEO_POINTS; i++) {
+        const idx = Math.round(i * step) * 2;
+        path.push(merged[idx], merged[idx + 1]);
+      }
+      path[path.length - 2] = merged[(pairCount - 1) * 2];
+      path[path.length - 1] = merged[(pairCount - 1) * 2 + 1];
+    }
     return { path, guide: guide.length ? guide : null };
   }
   return { path: parseLinestring(leg.passShape?.linestring), guide: null };
