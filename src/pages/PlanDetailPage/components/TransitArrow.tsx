@@ -46,7 +46,7 @@ export function shouldShowFallbackWarning(
 }
 
 import { useState } from 'react';
-import { Car, ChevronDown, Bus, Train, AlertTriangle, Footprints, Clock, LogOut, LogIn, Repeat, Accessibility, Phone, Sunrise, Moon } from 'lucide-react';
+import { Car, ChevronDown, Bus, Train, AlertTriangle, Footprints, Clock, LogOut, LogIn, Repeat, Accessibility, Phone, Sunrise, Moon, Navigation } from 'lucide-react';
 import { TRANSIT_ICON, formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { TransitFromPrev, TransitStepDetail } from '@/types/plan';
@@ -263,6 +263,35 @@ function WalkStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<st
   );
 }
 
+// ── (2026-07-19) 구간 길찾기 딥링크 ──────────────────────────────────────────
+// 현장에서 실제로 쓰는 앱으로 넘겨준다. 둘 다 URL 이라 API 키·과금 없음
+// (유료는 지도를 우리 페이지에 심는 Maps JS/Embed API 쪽 — 여기선 안 씀).
+//  · 구글맵: 외국인이 이미 깔려 있고 익숙 → 첫 버튼
+//  · 네이버: 한국 대중교통 정확도 우위(한/영/중/일 지원) → 보조. 앱 언어 설정을 따른다.
+// 좌표는 RouteAgent 가 저장한 승하차 지점(fromPoint/toPoint) 우선, 없으면 anchor.
+interface GeoPoint { lat?: number; lng?: number; name?: string | null }
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+export function buildTransitDirectionsLinks(
+  transit: Record<string, unknown>,
+  destinationName?: string,
+): { google: string; naver: string } | null {
+  const steps = (transit.steps_detail as Array<Record<string, unknown>> | undefined) || [];
+  const from = steps.map(s => s.fromPoint as GeoPoint | undefined).find(p => p && isNum(p.lat) && isNum(p.lng));
+  const to = [...steps].reverse().map(s => s.toPoint as GeoPoint | undefined).find(p => p && isNum(p.lat) && isNum(p.lng));
+  const oLat = from?.lat, oLng = from?.lng;
+  const dLat = isNum(to?.lat) ? to?.lat : (transit.anchor_lat as number | undefined);
+  const dLng = isNum(to?.lng) ? to?.lng : (transit.anchor_lng as number | undefined);
+  if (!isNum(oLat) || !isNum(oLng) || !isNum(dLat) || !isNum(dLng)) return null;
+  const enc = encodeURIComponent;
+  const oName = from?.name || (transit.from_label as string | undefined) || '';
+  const dName = to?.name || destinationName || (transit.anchor_label as string | undefined) || '';
+  return {
+    google: `https://www.google.com/maps/dir/?api=1&origin=${oLat},${oLng}&destination=${dLat},${dLng}&travelmode=transit`,
+    naver: `https://map.naver.com/v5/directions/${oLng},${oLat},${enc(oName)}/${dLng},${dLat},${enc(dName)}/-/transit?c=15`,
+  };
+}
+
 export function TransitArrow({ transit, destinationName }: { transit: TransitFromPrev & Record<string, unknown>; destinationName?: string }) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
@@ -288,6 +317,8 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
   const walkM = (lastWalkStep?.distance as number | undefined) || transit.total_walk_m || 0;
   const walkMin = (lastWalkStep?.duration as number | undefined) || (walkM > 0 ? Math.max(1, Math.round(walkM / 70)) : 0);
   const showFinalArrival = !!destinationName && hasRichSteps && (exitNum || walkM > 0);
+  // 승하차 좌표가 저장된 구간에서만 노출(구형 플랜은 좌표가 없어 null → 버튼 미표시).
+  const directionsLinks = buildTransitDirectionsLinks(transit, destinationName);
 
   return (
     <div className="ml-4 my-1">
@@ -399,6 +430,36 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
             <p className="text-[13px] text-white/65 pl-1">
               <Footprints className="w-2.5 h-2.5 inline -mt-0.5" /> {trKeys.totalWalk || 'Total walk'}: {transit.total_walk_m}m
             </p>
+          )}
+
+          {/* 현장용 길찾기 — 실제로 쓰는 앱으로 넘긴다. 둘 다 딥링크(URL)라 과금 없음.
+              구글맵을 먼저 두는 이유: 외국인에게 이미 깔려 있고 언어가 자동. 네이버는
+              한국 대중교통 정확도가 높지만 앱 언어 설정을 따라간다. */}
+          {directionsLinks && (
+            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+              <a
+                href={directionsLinks.google}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                           bg-white/10 border border-white/20 text-white/85 hover:bg-white/15 transition-colors"
+              >
+                <Navigation className="w-3 h-3" />
+                {trKeys.openInGoogleMaps || 'Google Maps'}
+              </a>
+              <a
+                href={directionsLinks.naver}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                           bg-[#03C75A]/15 border border-[#03C75A]/35 text-[#5DDB91] hover:bg-[#03C75A]/25 transition-colors"
+              >
+                <Navigation className="w-3 h-3" />
+                {trKeys.openInNaverMap || 'Naver Map'}
+              </a>
+            </div>
           )}
         </div>
       )}

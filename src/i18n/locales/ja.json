@@ -1533,6 +1533,8 @@
       "transitDowngraded": "車のルートに切り替え",
       "transitEstimated": "推定移動時間 — リアルタイム交通情報なし",
       "walkFasterNote": "🚶 この距離は地下鉄より徒歩が速いです（待ち時間・乗り換え含む）",
+      "openInGoogleMaps": "Google マップ",
+      "openInNaverMap": "Naver マップ",
       "realTimeRoute": "リアルタイム交通ルート",
       "stepsLabel": "移動ステップ",
       "exit": "出口",
