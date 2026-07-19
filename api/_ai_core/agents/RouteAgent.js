@@ -532,6 +532,33 @@ function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, to
     };
 }
 
+// ── (2026-07-19): 도보 override 판정 (pure, 회귀 테스트용 export) ────────────────
+// 배경: 기존 walk-first override 는 "직선 1.5km 미만이면 무조건 도보"였다. 의도는
+// "북촌→인사동 차로 25분" 오답 교정이었지만, 서울 도심 코스는 대부분 1.5km 이내라
+// 교통 API 가 준 지하철 경로까지 전부 도보로 덮여 운영자 신고("각 장소 이동이 다
+// 도보")로 이어졌다. 실측 플랜(9f42660f): 공항행 1560m·호텔행 1472m/1165m 도보.
+//
+// 3중 가드:
+//  1) 상한 — 직선 walkMin > MAX_WALK_OVERRIDE_MIN 이면 override 금지. 직선거리 기반이라
+//     실제 보행은 우회로 더 길다(체감 1.3~1.5배). 20분 초과는 "걸어가라"가 아니다.
+//  2) 짐 구간 — 공항·역·터미널이 양끝 중 하나면 캐리어 전제라 도보 강권 금지.
+//  3) 실시간 비교 — 교통 API 가 실제 소요(duration)를 줬으면 도보가 그보다 빠를 때만
+//     덮는다. 기존엔 지하철 8분 경로도 도보 20분으로 갈아치웠다.
+// API 결과가 없을 때(transitMin=null)는 기존대로 도보 우선(대안이 blind car 추정뿐).
+export const MAX_WALK_OVERRIDE_MIN = 20;
+// 이름 '각각'에 적용한다. 합쳐서 검사하면 '역$'(이름 끝이 역) 같은 앵커가
+// 뒤 이름에만 걸려 '서울역 → 명동 호텔' 을 놓친다.
+const LUGGAGE_LEG_RE = /airport|공항|terminal|터미널|\bstation\b|역$|KTX|SRT/i;
+const isLuggageStop = (s) => LUGGAGE_LEG_RE.test(String(s || '').trim());
+
+export function shouldOverrideToWalk({ walkMin, transitMin, fromName, toName }) {
+    if (!Number.isFinite(walkMin)) return false;
+    if (walkMin > MAX_WALK_OVERRIDE_MIN) return false;
+    if (isLuggageStop(fromName) || isLuggageStop(toName)) return false;
+    if (Number.isFinite(transitMin) && walkMin > transitMin) return false;
+    return true;
+}
+
 // ── P326 (2026-05-31): transit cache 지리 정합 검증 (pure, 회귀 테스트용 export) ──
 // block_mode transit cache(P228) 는 stop order 만 key 로 쓴다. food placeholder 치환
 // (matchFoodPlaceholder) 으로 venue 좌표가 바뀌면 같은 order 에 옛 거리/시간이 붙어
@@ -2140,23 +2167,30 @@ export class RouteAgent extends BaseAgent {
         if (havKm != null && havKm < SHORT_LEG_KM) {
             const walkM = Math.round(havKm * 1000);
             const walkMin = havWalkMin || Math.max(3, Math.round(walkM / 70));
-            // Only override when ODsay didn't already say "walk".
-            if (!publicTransit || publicTransit.method !== 'walk') {
-                publicTransit = {
-                    method: 'walk',
-                    duration: walkMin,
-                    summary: `Walk ${walkMin}min (${walkM}m)`,
-                    steps: [
-                        { mode: 'walk', duration: walkMin, distance: walkM, from: fromName, to: name }
-                    ],
-                    fare: 0,
-                    transfers: 0,
-                    totalWalk: walkM,
-                };
-                console.log(`  ↪ [${fromName}→${name}] short leg ${havKm.toFixed(2)}km → walk ${walkMin}min`);
+            // (2026-07-19) 3중 가드 — 상한/짐 구간/실소요 비교. 근거는 shouldOverrideToWalk 주석.
+            const transitMin = Number.isFinite(publicTransit?.duration) ? publicTransit.duration : null;
+            const canOverride = shouldOverrideToWalk({ walkMin, transitMin, fromName, toName: name });
+            if (!canOverride) {
+                console.log(`  ↪ [${fromName}→${name}] short leg ${havKm.toFixed(2)}km 이지만 도보 override 보류 (walk ${walkMin}min / transit ${transitMin ?? '-'}min)`);
+            } else {
+                // Only override when the provider didn't already say "walk".
+                if (!publicTransit || publicTransit.method !== 'walk') {
+                    publicTransit = {
+                        method: 'walk',
+                        duration: walkMin,
+                        summary: `Walk ${walkMin}min (${walkM}m)`,
+                        steps: [
+                            { mode: 'walk', duration: walkMin, distance: walkM, from: fromName, to: name }
+                        ],
+                        fare: 0,
+                        transfers: 0,
+                        totalWalk: walkM,
+                    };
+                    console.log(`  ↪ [${fromName}→${name}] short leg ${havKm.toFixed(2)}km → walk ${walkMin}min`);
+                }
+                durationMin = walkMin;
+                drivingMin = walkMin;
             }
-            durationMin = walkMin;
-            drivingMin = walkMin;
         }
 
         return { index, durationMin, distanceKm, drivingMin, publicTransit };
