@@ -6,19 +6,18 @@
 import type { ReactNode, CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 
+/* 값 SSOT = src/index.css :root --coco-* 블록. 여기는 var 참조만 (파생, 중복 금지). */
 export const COCO = {
-  purple: '#7C5CFF',
-  pink: '#FF6DB7',
-  lavender: '#D9D3FF',
-  navy: '#0F1230',
-  muted: '#6E6A8F',
-  ctaGradient: 'linear-gradient(100deg, #7C5CFF 0%, #FF5FC8 100%)',
-  cardBorder: '1px solid rgba(124, 92, 255, 0.14)',
-  cardShadow: '0 14px 30px rgba(48, 39, 118, 0.10)',
-  pageBg:
-    'radial-gradient(circle at 88% 6%, rgba(255, 109, 183, 0.14), transparent 30%),' +
-    'radial-gradient(circle at 8% 22%, rgba(124, 92, 255, 0.12), transparent 32%),' +
-    'linear-gradient(180deg, #fbfaff 0%, #f5f2ff 46%, #ffffff 100%)',
+  purple: 'var(--coco-purple)',            /* #7C5CFF */
+  pink: 'var(--coco-pink)',                /* #FF6DB7 */
+  lavender: 'var(--coco-lavender)',        /* #D9D3FF */
+  navy: 'var(--coco-navy)',                /* #0F1230 */
+  muted: 'var(--coco-muted)',              /* #6E6A8F */
+  ctaGradient: 'var(--coco-cta-gradient)', /* 보라→핑크 100deg */
+  ctaShadow: 'var(--coco-cta-shadow)',
+  cardBorder: 'var(--coco-card-border)',
+  cardShadow: 'var(--coco-card-shadow)',
+  pageBg: 'var(--coco-page-bg)',
 } as const;
 
 /** 상태칩 — 가이드 p.10 Tags/Badges. variant 별 파스텔 톤. */
@@ -50,7 +49,7 @@ export function GradientCTA({ to, onClick, children, className = '', style, type
   style?: CSSProperties; type?: 'button' | 'submit';
 }) {
   const cls = `flex items-center justify-center gap-1.5 rounded-full py-3 text-[13px] font-bold text-white active:scale-[0.98] transition-transform ${className}`;
-  const sty: CSSProperties = { background: COCO.ctaGradient, boxShadow: '0 10px 26px rgba(124,92,255,0.30)', ...style };
+  const sty: CSSProperties = { background: COCO.ctaGradient, boxShadow: COCO.ctaShadow, ...style };
   if (to) {
     return <Link to={to} onClick={onClick} className={cls} style={sty}>{children}</Link>;
   }

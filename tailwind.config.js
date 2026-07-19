@@ -40,6 +40,15 @@ module.exports = {
           warning: "var(--color-warning)",
           error:   "var(--color-error)",
         },
+        // CocoTrip 라이트 모바일 팔레트 (src/index.css :root --coco-* SSOT)
+        // Usage: text-coco-navy / bg-coco-lavender / border-coco-purple
+        coco: {
+          purple:   "var(--coco-purple)",
+          pink:     "var(--coco-pink)",
+          lavender: "var(--coco-lavender)",
+          navy:     "var(--coco-navy)",
+          muted:    "var(--coco-muted)",
+        },
         // shadcn/ui semantic tokens (keep as-is)
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
