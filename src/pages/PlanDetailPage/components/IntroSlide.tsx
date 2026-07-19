@@ -5,7 +5,6 @@ import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument, PlanDay } from '../types';
 import { getPlanDetailDict } from '../types';
 
@@ -74,7 +73,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h1>
         <div className="flex items-center justify-center mt-1">

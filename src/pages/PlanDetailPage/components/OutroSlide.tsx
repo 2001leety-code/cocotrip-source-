@@ -19,7 +19,6 @@ import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
 import { AccommodationRecommendation } from './AccommodationRecommendation';
 import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 import { getOutroExtras } from '../lib/buildSlides';
@@ -95,7 +94,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
 
   return (
     <div>
-      <h2 className="text-3xl font-extrabold tracking-tight leading-tight text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
+      <h2 className="text-3xl font-extrabold tracking-tight leading-tight text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
         {sw.outroTitle || 'Ready to go!'}
       </h2>
 
@@ -109,8 +108,8 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       <div className="mt-8 space-y-3">
         {/* P207: isStreamingInProgress 추가 — 빈 plan PDF 다운로드 차단 */}
         <button onClick={onDownloadPDF} disabled={isPdfGenerating || isTranslating || !!isStreamingInProgress}
-          className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: BRAND.gradient.primary }}>
+          className="m-cta w-full py-4 rounded-full text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}>
           {isPdfGenerating ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.outroPdfCta || 'Generating PDF...'}</>
           ) : isTranslating ? (

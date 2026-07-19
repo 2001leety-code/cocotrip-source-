@@ -60,10 +60,13 @@ const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier')
 const AdminPromoStats = lazy(() => import('@/pages/AdminPromoStats'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 const MobileHomeV2 = lazy(() => import('@/pages/MobileHomeV2'));
-const MobileTourDetailV2 = lazy(() => import('@/pages/MobileTourDetailV2'));
-const MobilePlannerResultV2 = lazy(() => import('@/pages/MobilePlannerResultV2'));
-const MobileCharterV2 = lazy(() => import('@/pages/MobileCharterV2'));
-const MobileIconsPreview = lazy(() => import('@/pages/MobileIconsPreview'));
+// V2 목업 프리뷰 3종 + 아이콘 시트 — 로컬 검수 전용 (2026-07-19: DEV 게이트로 prod 제외.
+// 다크 목업이 운영 경로와 혼동되는 것 방지 + prod 번들에서 chunk 자체 제거).
+// MobileHomeV2 는 라이브 홈(V2 플래그)에서 쓰므로 게이트 대상 아님.
+const MobileTourDetailV2 = import.meta.env.DEV ? lazy(() => import('@/pages/MobileTourDetailV2')) : null;
+const MobilePlannerResultV2 = import.meta.env.DEV ? lazy(() => import('@/pages/MobilePlannerResultV2')) : null;
+const MobileCharterV2 = import.meta.env.DEV ? lazy(() => import('@/pages/MobileCharterV2')) : null;
+const MobileIconsPreview = import.meta.env.DEV ? lazy(() => import('@/pages/MobileIconsPreview')) : null;
 const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
 const CommunityPostPage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityPostPage })));
 const CommunityComposePage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityComposePage })));
@@ -76,6 +79,10 @@ const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
+// /map 독립 경로 지도 (2026-07-19 UI 리디자인) — DayRouteMap 재사용, Leaflet 은 그 컴포넌트의 lazy chunk.
+const MapPage = lazy(() => import('@/pages/MapPage'));
+// /assistant AI 어시스턴트 전면 화면 — ChatWidget 과 useChatSession 코어 공유.
+const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
 const SignupOnboarding = lazy(() => import('@/pages/SignupOnboarding'));
 // MOOD B2B 선불 예약 포털 — 숨은 내부 모듈. 공개 네비/프리렌더에 절대 추가 금지.
 // 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
@@ -272,12 +279,20 @@ function AnimatedRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
-          {/* 모바일 v2 홈 미리보기 (증분1, 라이브 무영향) — 운영자 검토용 */}
-          <Route path="/preview/mobile-home" element={<Suspense fallback={<PlannerSkeleton />}><MobileHomeV2 /></Suspense>} />
-          <Route path="/preview/mobile-tour" element={<Suspense fallback={<PlannerSkeleton />}><MobileTourDetailV2 /></Suspense>} />
-          <Route path="/preview/mobile-planner" element={<Suspense fallback={<PlannerSkeleton />}><MobilePlannerResultV2 /></Suspense>} />
-          <Route path="/preview/mobile-charter" element={<Suspense fallback={<PlannerSkeleton />}><MobileCharterV2 /></Suspense>} />
-          <Route path="/preview/icons" element={<Suspense fallback={<PlannerSkeleton />}><MobileIconsPreview /></Suspense>} />
+          {/* 경로 지도 — 내 플랜 day 별 동선 (비로그인/플랜없음 빈 상태 포함, 게스트 접근 허용) */}
+          <Route path="/map" element={<Suspense fallback={<PlannerSkeleton />}><MapPage /></Suspense>} />
+          {/* AI 어시스턴트 전면 화면 — 비로그인은 페이지 내 로그인 게이트 (위젯과 동일 정책) */}
+          <Route path="/assistant" element={<Suspense fallback={<PlannerSkeleton />}><AssistantPage /></Suspense>} />
+          {/* 모바일 v2 미리보기 — 로컬(DEV) 검수 전용. prod 는 라우트 자체 미등록(2026-07-19, 혼동 방지). */}
+          {import.meta.env.DEV && (
+            <>
+              <Route path="/preview/mobile-home" element={<Suspense fallback={<PlannerSkeleton />}><MobileHomeV2 /></Suspense>} />
+              {MobileTourDetailV2 && <Route path="/preview/mobile-tour" element={<Suspense fallback={<PlannerSkeleton />}><MobileTourDetailV2 /></Suspense>} />}
+              {MobilePlannerResultV2 && <Route path="/preview/mobile-planner" element={<Suspense fallback={<PlannerSkeleton />}><MobilePlannerResultV2 /></Suspense>} />}
+              {MobileCharterV2 && <Route path="/preview/mobile-charter" element={<Suspense fallback={<PlannerSkeleton />}><MobileCharterV2 /></Suspense>} />}
+              {MobileIconsPreview && <Route path="/preview/icons" element={<Suspense fallback={<PlannerSkeleton />}><MobileIconsPreview /></Suspense>} />}
+            </>
+          )}
           <Route
             path="/admin"
             element={

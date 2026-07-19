@@ -29,14 +29,12 @@ export function WizardNav({
   nextLabel,
   prevLabel = 'Back',
   disabled = false,
-  isMobile,
+  // 2026-07-19 토큰 통일: 모바일/데스크톱 그라데이션 분기 제거(--coco-cta-gradient 단일).
+  // prop 은 호출부 호환 위해 유지.
+  isMobile: _isMobile,
   emphasis = 'next',
 }: WizardNavProps) {
-  const nextBg = disabled
-    ? 'rgba(255,255,255,.1)'
-    : isMobile
-      ? 'linear-gradient(135deg,#B668FC,#FF6B9D)'
-      : 'linear-gradient(135deg,#7C5CFC,#EA537E)';
+  const nextBg = disabled ? 'rgba(255,255,255,.1)' : 'var(--coco-cta-gradient)';
 
   return (
     <div className="flex gap-3 pt-2">
@@ -45,19 +43,20 @@ export function WizardNav({
           type="button"
           onClick={onPrev}
           aria-label={prevLabel}
-          className="shrink-0 px-3 sm:px-4 py-3 rounded-xl border border-white/[0.12] text-white/55 hover:text-white hover:border-white/25 text-sm font-semibold flex items-center gap-1 whitespace-nowrap transition-all"
+          className="shrink-0 px-3 sm:px-4 py-3 rounded-full border border-white/[0.12] text-white/55 hover:text-white hover:border-white/25 text-sm font-semibold flex items-center gap-1 whitespace-nowrap transition-all"
         >
           <ChevronLeft className="w-4 h-4" />
           <span className="hidden sm:inline">{prevLabel}</span>
         </button>
       )}
+      {/* m-cta: 라이트 셸이 이 클래스로 흰 글자·active 보정 매칭 (var() 배경은 속성 선택자에 안 잡힘) */}
       <button
         type="button"
         onClick={onNext}
         disabled={disabled}
         aria-label={nextLabel}
-        className="flex-1 min-w-0 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] disabled:hover:scale-100 whitespace-nowrap transition-all"
-        style={{ background: nextBg }}
+        className="m-cta flex-1 min-w-0 py-3 rounded-full text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] disabled:hover:scale-100 whitespace-nowrap transition-all"
+        style={{ background: nextBg, boxShadow: disabled ? undefined : 'var(--coco-cta-shadow)' }}
       >
         <span className="truncate">{nextLabel}</span>
         <ChevronRight className="w-5 h-5 shrink-0" />

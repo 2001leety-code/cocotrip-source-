@@ -174,6 +174,79 @@ img {
   --ring-focus:                0 0 0 3px rgba(124, 58, 237, 0.5);
 }
 
+/* =======================================================
+   CocoTrip 라이트 모바일 토큰 — UI/UX 가이드 p.2 팔레트 SSOT
+   소비처: src/components/coco/CocoUI.tsx COCO 객체(var 참조) + tailwind coco-* 유틸.
+   위자드·차터 등 흩어진 보라→핑크 인라인 그라데이션은 --coco-cta-gradient 참조로 통일.
+   값 수정은 여기 한 곳에서만.
+   ======================================================= */
+:root {
+  --coco-purple:       #7C5CFF;
+  --coco-pink:         #FF6DB7;
+  --coco-lavender:     #D9D3FF;
+  --coco-navy:         #0F1230;
+  --coco-muted:        #6E6A8F;
+  --coco-cta-gradient: linear-gradient(100deg, #7C5CFF 0%, #FF5FC8 100%);
+  --coco-cta-shadow:   0 10px 26px rgba(124, 92, 255, 0.30);
+  --coco-card-border:  1px solid rgba(124, 92, 255, 0.14);
+  --coco-card-shadow:  0 14px 30px rgba(48, 39, 118, 0.10);
+  --coco-radius-card:  18px;
+  --coco-page-bg:
+    radial-gradient(circle at 88% 6%, rgba(255, 109, 183, 0.14), transparent 30%),
+    radial-gradient(circle at 8% 22%, rgba(124, 92, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, #fbfaff 0%, #f5f2ff 46%, #ffffff 100%);
+}
+
+/* CocoStepper (CocoUI.tsx) — 점+체크 진행 표시. 기본값=다크 배경용,
+   모바일 라이트 셸 오버라이드는 아래 @media(max-width:768px) 블록에. */
+.coco-stepper-rail {
+  display: flex;
+  align-items: center;
+}
+.coco-stepper-line {
+  flex: 1 1 0;
+  height: 2px;
+  margin: 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.coco-stepper-line.is-done {
+  background: var(--coco-cta-gradient);
+}
+.coco-stepper-dot {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.coco-stepper-dot.is-done {
+  color: #fff;
+  background: var(--coco-purple);
+  border-color: transparent;
+}
+.coco-stepper-dot.is-active {
+  color: #fff;
+  background: var(--coco-cta-gradient);
+  border-color: transparent;
+  box-shadow: 0 6px 14px rgba(124, 92, 255, 0.35);
+}
+
+/* Step 배지 (위자드·차터 공용) — 다크 기본값. 라이트 셸 오버라이드는 @media 블록에. */
+.coco-step-badge {
+  background: rgba(124, 92, 255, 0.16);
+  border: 1px solid rgba(124, 92, 255, 0.30);
+  color: #D9A8FF;
+}
+
 /*
 @theme {
   --color-bg-base:             #0a0f1e;
@@ -3125,6 +3198,49 @@ textarea.community-field {
     box-shadow: 0 12px 24px rgba(124, 92, 255, 0.24);
   }
 
+  /* CocoStepper 라이트 셸 값 — 위자드(planner-mobile-ai)·차터(cocotrip-mobile-charter) 공통 */
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-line {
+    background: rgba(124, 92, 255, 0.16);
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-line.is-done {
+    background: var(--coco-cta-gradient);
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot {
+    color: #9b93b7 !important;
+    background: #ffffff;
+    border-color: rgba(124, 92, 255, 0.22);
+  }
+  /* is-done/is-active 는 배경까지 재명시 — 위 라이트 기본 dot 규칙(background:#fff)이
+     같은 명시도·뒤 순서라 base 의 .is-active 그라데이션을 덮어버림 (2026-07-19 실검증에서 발견). */
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-done {
+    color: #ffffff !important;
+    background: var(--coco-purple);
+    border-color: transparent;
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-active {
+    color: #ffffff !important;
+    background: var(--coco-cta-gradient);
+    border-color: transparent;
+    box-shadow: 0 6px 14px rgba(124, 92, 255, 0.35);
+  }
+  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+      .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
+      .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-step-badge {
+    background: rgba(124, 92, 255, 0.10) !important;
+    border-color: rgba(124, 92, 255, 0.25) !important;
+    color: var(--coco-purple) !important;
+  }
+
   .planner-mobile-panel,
   .planner-mobile-mini-card,
   .planner-mobile-mode-card,
@@ -3481,6 +3597,8 @@ textarea.community-field {
     padding-bottom: 88px;
   }
 
+  /* 2026-07-19: var(--coco-cta-gradient) 인라인 배경은 [style*="linear-gradient"] 등
+     기존 속성 선택자에 안 잡힘 — 토큰화된 CTA 는 반드시 .m-cta 클래스를 달아 여기 매칭. */
   :is(
     .cocotrip-mobile-home,
     .cocotrip-mobile-home-surface,
@@ -3605,6 +3723,29 @@ textarea.community-field {
     .cocotrip-mobile-plans
   ) [class*="text-white/"] {
     color: #756d96 !important;
+  }
+
+  /* GradientCTA(.m-cta)는 셸 안에서도 흰 글자 유지 — 위 [class*="text-white"] 남색 강제를 되돌림.
+     (이 규칙은 반드시 text-white 오버라이드 뒤에 있어야 같은 명시도에서 이김) */
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) .m-cta,
+  :is(
+    .cocotrip-mobile-home,
+    .cocotrip-mobile-home-surface,
+    .cocotrip-mobile-charter,
+    .cocotrip-mobile-tours,
+    .cocotrip-mobile-tour-detail,
+    .cocotrip-mobile-account,
+    .cocotrip-mobile-plans
+  ) .m-cta * {
+    color: #ffffff !important;
   }
 
   :is(

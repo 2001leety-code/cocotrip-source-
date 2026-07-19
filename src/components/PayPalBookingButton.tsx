@@ -661,10 +661,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   if (showSuccess && successData) {
     const CONFIRM_LABELS: Record<string, Record<string, string>> = {
-      ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', cancelPolicy: '투어 24시간 전까지 무료 취소 (100% 환불)', close: '확인', contact: '문의하기' },
-      en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via WhatsApp/LINE', step3: 'Your driver will be waiting at the pickup location', cancelPolicy: 'Free cancellation up to 24 hours before your tour (100% refund)', close: 'Done', contact: 'Contact Us' },
-      ja: { title: '予約が確定しました！', subtitle: '確認メールが送信されます。', orderNo: '注文番号', payer: '予約者', amount: '支払金額', date: '利用日', next: '次のステップ', step1: '確認メールをご確認ください', step2: 'ドライバー情報をWhatsApp/LINEでお送りします', step3: '当日ドライバーがピックアップ場所でお待ちします', cancelPolicy: 'ツアー24時間前まで無料キャンセル（100%返金）', close: '確認', contact: 'お問い合わせ' },
-      zh: { title: '预订已确认！', subtitle: '确认邮件将很快发送。', orderNo: '订单号', payer: '预订人', amount: '支付金额', date: '服务日期', next: '下一步', step1: '请查收确认邮件', step2: '司机信息将通过WhatsApp/LINE发送', step3: '当天司机将在接机地点等候', cancelPolicy: '旅游24小时前免费取消（全额退款）', close: '确认', contact: '联系我们' },
+      ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', cancelPolicy: '투어 24시간 전까지 무료 취소 (100% 환불)', close: '확인', contact: '문의하기', viewBooking: '예약 내역 보기' },
+      en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via WhatsApp/LINE', step3: 'Your driver will be waiting at the pickup location', cancelPolicy: 'Free cancellation up to 24 hours before your tour (100% refund)', close: 'Done', contact: 'Contact Us', viewBooking: 'View Booking' },
+      ja: { title: '予約が確定しました！', subtitle: '確認メールが送信されます。', orderNo: '注文番号', payer: '予約者', amount: '支払金額', date: '利用日', next: '次のステップ', step1: '確認メールをご確認ください', step2: 'ドライバー情報をWhatsApp/LINEでお送りします', step3: '当日ドライバーがピックアップ場所でお待ちします', cancelPolicy: 'ツアー24時間前まで無料キャンセル（100%返金）', close: '確認', contact: 'お問い合わせ', viewBooking: '予約を確認' },
+      zh: { title: '预订已确认！', subtitle: '确认邮件将很快发送。', orderNo: '订单号', payer: '预订人', amount: '支付金额', date: '服务日期', next: '下一步', step1: '请查收确认邮件', step2: '司机信息将通过WhatsApp/LINE发送', step3: '当天司机将在接机地点等候', cancelPolicy: '旅游24小时前免费取消（全额退款）', close: '确认', contact: '联系我们', viewBooking: '查看预订' },
     };
     const cl = CONFIRM_LABELS[lang] ?? CONFIRM_LABELS.en;
     
@@ -733,18 +733,27 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             </div>
           </div>
           
-          {/* Actions */}
-          <div className="px-6 pb-6 flex gap-3">
-            <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
-              className="flex-1 py-3 rounded-xl border border-white/10 text-white/50 text-sm font-medium text-center hover:border-white/25 hover:text-white/70 transition-all">
-              {cl.contact}
-            </a>
-            <button
+          {/* Actions — 가이드 p.8 Booking Confirmed: View Booking 주 CTA(실경로 /my-plans?tab=bookings) + 보조 2버튼.
+              표시 계층만 — 상태 정리 핸들러는 close 와 동일 로직 재사용. */}
+          <div className="px-6 pb-6 space-y-3">
+            <Link
+              to="/my-plans?tab=bookings"
               onClick={() => { setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
-              className="flex-1 py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
+              className="block w-full py-3 rounded-full text-white font-bold text-sm text-center transition-all hover:opacity-90"
               style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}>
-              {cl.close}
-            </button>
+              {cl.viewBooking}
+            </Link>
+            <div className="flex gap-3">
+              <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+                className="flex-1 py-3 rounded-full border border-white/10 text-white/50 text-sm font-medium text-center hover:border-white/25 hover:text-white/70 transition-all">
+                {cl.contact}
+              </a>
+              <button
+                onClick={() => { setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
+                className="flex-1 py-3 rounded-full border border-white/10 text-white/70 font-bold text-sm transition-all hover:border-white/25">
+                {cl.close}
+              </button>
+            </div>
           </div>
         </div>
       </div>

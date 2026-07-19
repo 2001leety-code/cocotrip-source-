@@ -15,7 +15,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND } from '@/lib/design-tokens';
 import { trackPromoView, trackPromoClick, trackPromoDismiss } from '@/lib/analytics';
 
 const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
@@ -128,7 +127,9 @@ export function PromoBanner() {
 
   return (
     // 닫기(X)는 Link 밖 형제 — 중첩 인터랙티브 회피 + X 클릭 시 네비게이션 안 됨.
-    <div className="relative w-full" style={{ background: BRAND.gradient.primary }} role="region" aria-label="Promotion">
+    // 2026-07-19 라이트 스킨(체크리스트 P1 잔여): 배경을 통일 CTA 토큰(--coco-cta-gradient)으로 —
+    // 라이트 셸 CTA 와 동일 그라데이션. 문구·로직은 무변경 (서버 promo-config 동일성 테스트 보호).
+    <div className="relative w-full" style={{ background: 'var(--coco-cta-gradient)' }} role="region" aria-label="Promotion">
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}

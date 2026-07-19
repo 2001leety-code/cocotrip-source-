@@ -1,7 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Package, CalendarCheck, Sparkles, User } from 'lucide-react';
+import { Home, Package, CalendarCheck, Sparkles, User, Map as MapIcon, Bot } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+
+// 2026-07-19 리디자인: 탭 배열 프리셋 분리 — 'standard'(현행 매출 동선 유지) ↔
+// 'guide'(가이드 p.10: Plan·Map·Assistant·Bookings·Profile). 운영자가 A안 원하면
+// 아래 상수만 'guide' 로 바꾸면 됨. /map·/assistant 실화면은 이미 존재(죽은 탭 아님).
+const NAV_PRESET = 'standard' as 'standard' | 'guide';
 
 export function MobileBottomNav() {
   const location = useLocation();
@@ -16,16 +21,23 @@ export function MobileBottomNav() {
   // Icon size: 17px is one notch tighter than 18px while staying glanceable.
   // Label was 9px (too small per WCAG); bumped to 10px and trimmed gap to keep total height ~52px.
   // 2026-07-12 운영자 승인: UI/UX 가이드 내비로 교체 — 차터 탭 제거(홈 카테고리/투어에서 접근),
-  // 예약(Bookings) 탭 신설. Map·Assistant 탭은 해당 화면 구현 후 추가 (죽은 탭 금지).
-  // 매출 모니터링: 차터 유입 감소 시 운영자 지시로 즉시 롤백.
-  const items = [
-    { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
-    { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours || '투어' },
-    { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'AI 플래너' },
-    { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
-    // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도).
-    { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
-  ];
+  // 예약(Bookings) 탭 신설. 매출 모니터링: 차터 유입 감소 시 운영자 지시로 즉시 롤백.
+  const items = NAV_PRESET === 'guide'
+    ? [
+        { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'Plan' },
+        { to: '/map', icon: <MapIcon className="w-[17px] h-[17px]" />, label: nav.map || 'Map' },
+        { to: '/assistant', icon: <Bot className="w-[17px] h-[17px]" />, label: nav.assistant || 'Assistant' },
+        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
+        { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
+      ]
+    : [
+        { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
+        { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours || '투어' },
+        { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'AI 플래너' },
+        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
+        // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도).
+        { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
+      ];
 
   return (
     <nav
@@ -49,13 +61,24 @@ export function MobileBottomNav() {
               className="flex flex-col items-center justify-center gap-px flex-1 h-full transition-all"
               style={{ color: active ? activeColor : inactiveColor }}
             >
-              <span style={{ color: active ? activeColor : inactiveColor }}>
+              {/* 활성 = 라벤더 필 + 퍼플 아이콘 (가이드 p.10 하단 네비 활성 상태) */}
+              <span
+                className="flex h-[24px] w-[40px] items-center justify-center rounded-full transition-colors"
+                style={{
+                  color: active ? activeColor : inactiveColor,
+                  background: active
+                    ? (isMobileAppLight ? 'rgba(124,92,255,0.13)' : 'rgba(124,92,255,0.22)')
+                    : 'transparent',
+                }}
+              >
                 {item.icon}
               </span>
-              <span className="text-[10px] font-semibold tracking-wide leading-tight">{item.label}</span>
-              {active && (
-                <span className="absolute bottom-0 w-7 h-[2px] rounded-full" style={{ background: activeColor }} />
-              )}
+              <span
+                className="text-[10px] tracking-wide leading-tight"
+                style={{ fontWeight: active ? 800 : 600 }}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}

@@ -4,9 +4,10 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
+  MapPin, Calendar, Wand2, UtensilsCrossed, Plane,
   Zap, ShieldCheck, Languages, Pencil,
 } from 'lucide-react';
+import { CocoStepper } from '@/components/coco/CocoUI';
 
 import type { DateRange } from 'react-day-picker';
 import { differenceInCalendarDays, format } from 'date-fns';
@@ -904,24 +905,17 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         onRestart={discardResumeSnapshot}
       />
       <div className="w-full">
-        {/* Step Indicator — compact card aligned with charter/tours density */}
+        {/* Step Indicator — 가이드 p.3 점+체크 스테퍼 (CocoStepper 공용, 차터와 동일 시각 언어) */}
         <div
           className="rounded-[18px] px-3 py-3 sm:px-4 sm:py-3.5 mb-3.5 sm:mb-5"
           style={{
-            background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.05))',
-            border: '1px solid rgba(182,104,252,0.18)',
+            background: 'linear-gradient(135deg, rgba(124,92,255,0.08), rgba(255,95,200,0.05))',
+            border: '1px solid rgba(124,92,255,0.18)',
           }}
         >
           <div className="flex items-center justify-between gap-3 mb-2.5">
             <div className="min-w-0">
-              <div
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-[0.08em] uppercase"
-                style={{
-                  background: 'rgba(182,104,252,0.16)',
-                  border: '1px solid rgba(182,104,252,0.30)',
-                  color: '#D9A8FF',
-                }}
-              >
+              <div className="coco-step-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-[0.08em] uppercase">
                 <Wand2 className="w-3 h-3" />
                 Step {step + 1} / {STEPS.length}
               </div>
@@ -931,32 +925,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
             </div>
             <p className="text-[11px] font-bold text-white/45 shrink-0">{Math.round(((step + 1) / STEPS.length) * 100)}%</p>
           </div>
-          <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden mb-2.5">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${((step + 1) / STEPS.length) * 100}%`,
-                background: 'linear-gradient(90deg,#B668FC,#FF6B9D)',
-              }}
-            />
-          </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {STEPS.map((s, i) => (
-              <button
-                key={i}
-                aria-label={s.label}
-                onClick={() => { if (i <= step) goToStep(i); }}
-                className={`h-7 rounded-full text-[11px] font-black transition-all ${
-                  i <= step ? 'text-white' : 'text-white/35 cursor-default'
-                }`}
-                style={i <= step
-                  ? { background: i === step ? 'rgba(182,104,252,0.26)' : 'rgba(182,104,252,0.13)', border: '1px solid rgba(182,104,252,0.26)' }
-                  : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}
-              >
-                {i < step ? <Check className="w-3.5 h-3.5 mx-auto" /> : i + 1}
-              </button>
-            ))}
-          </div>
+          <CocoStepper
+            current={step}
+            total={STEPS.length}
+            labels={STEPS.map((s) => s.label)}
+            onStepClick={goToStep}
+          />
         </div>
 
         <div className="max-w-2xl mx-auto">

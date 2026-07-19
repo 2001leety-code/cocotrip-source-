@@ -102,8 +102,8 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
       </div>
       <a
         href={charterHref}
-        className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] hover:border-[#7C5CFC]/50 min-h-[44px]"
-        style={{ background: 'linear-gradient(135deg,#7C5CFC,#a855f7)' }}
+        className="m-cta mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
+        style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}
       >
         {ch.viewCharterCTA || 'View Charter Options'} {'→'}
       </a>

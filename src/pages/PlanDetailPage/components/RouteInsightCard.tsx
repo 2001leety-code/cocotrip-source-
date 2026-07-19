@@ -53,8 +53,8 @@ export function RouteInsightCard({ segment, day, plan }: RouteInsightCardProps) 
       <a
         href={charterHref}
         onClick={() => trackEvent('charter_upsell_insight_click', { day: day.day, transfers: segment.transfers, walk_min: segment.walkMin, est_min: segment.estMin })}
-        className="mt-2.5 flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-bold text-white transition-all hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg,#7C5CFC,#FF6B9D)' }}
+        className="m-cta mt-2.5 flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-full py-2 text-[12.5px] font-bold text-white transition-all hover:opacity-90"
+        style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}
       >
         <Car className="h-3.5 w-3.5" />
         {ch.insightCta || 'Skip it with a private charter'} {'→'}
