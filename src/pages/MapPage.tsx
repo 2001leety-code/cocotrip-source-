@@ -149,9 +149,11 @@ export default function MapPage() {
         const snap = await getDoc(doc(db, 'plans', selectedPlanId));
         if (cancelled) return;
         const data = snap.exists() ? snap.data() as Record<string, unknown> : null;
-        const itinerary = (data && data.itinerary) as { days?: PlanDay[]; tour_title?: string } | undefined;
-        setDays((itinerary && itinerary.days) || []);
-        setPlanTitle((itinerary && itinerary.tour_title) || '');
+        const itinerary = (data && data.itinerary) as { days?: unknown; tour_title?: unknown } | undefined;
+        // Firestore 문서는 런타임 스키마 무보증 — days 가 배열이 아니면 [] 로 방어(하위 .map/.filter 크래시 차단).
+        const rawDays = itinerary && itinerary.days;
+        setDays(Array.isArray(rawDays) ? (rawDays as PlanDay[]) : []);
+        setPlanTitle(typeof (itinerary && itinerary.tour_title) === 'string' ? (itinerary!.tour_title as string) : '');
         setDayIdx(0);
       } catch {
         if (!cancelled) { setDays([]); setPlanTitle(''); }
@@ -163,7 +165,8 @@ export default function MapPage() {
   }, [selectedPlanId, user?.uid]);
 
   const selectedDay = days[dayIdx];
-  const dayStops = (selectedDay && selectedDay.stops) || [];
+  // stops 도 스키마 무보증 — 배열 아니면 빈 배열로 (지도·리스트 렌더 안전).
+  const dayStops = Array.isArray(selectedDay && selectedDay.stops) ? selectedDay.stops! : [];
   const hasMappable = dayStops.filter(s => typeof s.lat === 'number' && typeof s.lng === 'number').length >= 2;
 
   return (
