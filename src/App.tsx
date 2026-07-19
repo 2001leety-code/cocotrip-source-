@@ -76,6 +76,8 @@ const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
+// /map 독립 경로 지도 (2026-07-19 UI 리디자인) — DayRouteMap 재사용, Leaflet 은 그 컴포넌트의 lazy chunk.
+const MapPage = lazy(() => import('@/pages/MapPage'));
 const SignupOnboarding = lazy(() => import('@/pages/SignupOnboarding'));
 // MOOD B2B 선불 예약 포털 — 숨은 내부 모듈. 공개 네비/프리렌더에 절대 추가 금지.
 // 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
@@ -272,6 +274,8 @@ function AnimatedRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
+          {/* 경로 지도 — 내 플랜 day 별 동선 (비로그인/플랜없음 빈 상태 포함, 게스트 접근 허용) */}
+          <Route path="/map" element={<Suspense fallback={<PlannerSkeleton />}><MapPage /></Suspense>} />
           {/* 모바일 v2 홈 미리보기 (증분1, 라이브 무영향) — 운영자 검토용 */}
           <Route path="/preview/mobile-home" element={<Suspense fallback={<PlannerSkeleton />}><MobileHomeV2 /></Suspense>} />
           <Route path="/preview/mobile-tour" element={<Suspense fallback={<PlannerSkeleton />}><MobileTourDetailV2 /></Suspense>} />
