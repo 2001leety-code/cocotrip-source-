@@ -16,6 +16,7 @@
 
 import { localizeLineName, romanizeStation } from './_transit_localization.js';
 import { resolveBusArs } from './_seoul_bus_ars.js';
+import { resolveStationExit } from './_subway_exits.js';
 
 const TMAP_ENDPOINT = 'https://apis.openapi.sk.com/transit/routes';
 
@@ -121,7 +122,16 @@ export function mapTmapItineraryToRoute(it) {
   if (!it) return null;
   const legs = Array.isArray(it.legs) ? it.legs : [];
   const steps = [];
-  for (const l of legs) {
+  // 🚪 출구 안내는 지하철 시스템에 **들어갈 때와 나올 때**만 의미가 있다.
+  // 중간 환승은 역 안에서 일어나므로 출구를 안내하면 오히려 오해를 부른다.
+  // → 첫 대중교통 구간의 승차역(출발지 기준)과 마지막 구간의 하차역(목적지 기준)만 채운다.
+  const transitIdx = legs.map((l, i) => (legModeToStepMode(l.mode) === 'walk' ? -1 : i)).filter((i) => i >= 0);
+  const firstTransitLeg = transitIdx.length ? transitIdx[0] : -1;
+  const lastTransitLeg = transitIdx.length ? transitIdx[transitIdx.length - 1] : -1;
+  const tripOrigin = legPoint(legs[0]?.start);
+  const tripDest = legPoint(legs[legs.length - 1]?.end);
+  for (let legIdx = 0; legIdx < legs.length; legIdx++) {
+    const l = legs[legIdx];
     const mode = legModeToStepMode(l.mode);
     const durMin = Math.round((l.sectionTime || 0) / 60);
     // 승하차 지점 + 노선 색 — 지도에 "여기서 탄다" 마커와 노선 색 폴리라인을 그리는 근거.
@@ -182,11 +192,17 @@ export function mapTmapItineraryToRoute(it) {
       const lineEn = localizeLineName(line, 'en').display || null;
       const fromRoman = romanizeStation(from, 'en');
       const toRoman = romanizeStation(to, 'en');
+      // 🚪 출구 번호 — TMAP 도 TAGO 도 주지 않아 OSM 출입구 좌표에서 고른다.
+      // 승차역은 출발지에서, 하차역은 목적지에서 가장 가까운 출구.
+      const fromExit = legIdx === firstTransitLeg ? resolveStationExit(fromPoint, tripOrigin) : null;
+      const toExit = legIdx === lastTransitLeg ? resolveStationExit(toPoint, tripDest) : null;
       steps.push({
         mode: 'subway', line, lineKo, from, to, duration: durMin, stationCount, passStops, ...geo,
         ...(lineEn && lineEn !== lineKo ? { lineEn } : {}),
         ...(fromRoman ? { fromRoman } : {}),
         ...(toRoman ? { toRoman } : {}),
+        ...(fromExit ? { fromExit } : {}),
+        ...(toExit ? { toExit } : {}),
         description: `${line} ${from} → ${to} (${stationCount ? `${stationCount}정거장, ` : ''}${durMin}분)`,
       });
     }
