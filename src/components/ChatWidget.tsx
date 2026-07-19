@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
-import { Bot, MessageCircle, X, Send, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bot, MessageCircle, X, Send, Plus, Maximize2 } from 'lucide-react';
 import { translations, type Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { signInWithGoogle } from '@/lib/firebase';
@@ -26,6 +27,7 @@ const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInp
 ));
 
 export function ChatWidget({ language, hideTrigger }: ChatWidgetProps) {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   // 모바일에선 bottom-nav(높이 ~62px)와 겹치지 않도록 위로 띄우고 살짝 작게.
   const togglePos = isMobile ? { bottom: '76px', right: '14px', size: '52px' } : { bottom: '24px', right: '24px', size: '60px' };
@@ -200,23 +202,44 @@ export function ChatWidget({ language, hideTrigger }: ChatWidgetProps) {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <X size={14} color="#fff" />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* 전면 화면(/assistant)으로 확장 — 같은 useChatSession 코어 (2026-07-19) */}
+              <button
+                onClick={() => { setOpen(false); navigate('/assistant'); }}
+                aria-label="Open full screen assistant"
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Maximize2 size={13} color="#fff" />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={14} color="#fff" />
+              </button>
+            </div>
           </div>
 
           {/* 메시지 영역 */}

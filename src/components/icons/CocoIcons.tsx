@@ -208,4 +208,7 @@ export const COCO_CATEGORY_ICONS = {
   charter: IconVan,
   airport: IconPlane,
   kpop: IconKpop,
+  // 2026-07-19 홈 Quick Actions 개편(가이드 p.1: AI Plan·Charter·Tours·Map·Community)
+  map: IconMap,
+  community: IconGlobe,
 } as const;

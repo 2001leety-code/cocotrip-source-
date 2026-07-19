@@ -24,14 +24,16 @@ import type { Language } from '@/i18n';
  * 날씨=wttr.in 실측(v1 MobileHome 과 동일 패턴), 투어 가격=getTourPriceKRW SSOT.
  */
 
-type CategoryKey = 'catPlanner' | 'catTours' | 'catCharter' | 'catAirport' | 'catKpop';
+type CategoryKey = 'catPlanner' | 'catTours' | 'catCharter' | 'catMap' | 'catCommunity';
 // 아이콘: 옛 3D PNG → 가이드 p.2 규격 선 아이콘(CocoIcons, 운영자 시안 컨펌 2026-07-12)
+// 2026-07-19: 가이드 p.1 Quick Actions 정렬 — airport(/charter 중복)·kpop(/tours 중복) 타일을
+// Map(/map)·Community(/community) 실화면 진입으로 교체.
 const CATEGORIES: { icon: keyof typeof COCO_CATEGORY_ICONS; key: CategoryKey; to: string; accent?: boolean }[] = [
   { icon: 'planner', key: 'catPlanner', to: '/planner', accent: true },
   { icon: 'tours', key: 'catTours', to: '/tours' },
   { icon: 'charter', key: 'catCharter', to: '/charter' },
-  { icon: 'airport', key: 'catAirport', to: '/charter' },
-  { icon: 'kpop', key: 'catKpop', to: '/tours' },
+  { icon: 'map', key: 'catMap', to: '/map' },
+  { icon: 'community', key: 'catCommunity', to: '/community' },
 ];
 
 const REGIONS = [
