@@ -189,7 +189,7 @@ const STATION_OVERRIDES = {
   '창동': 'Chang-dong', '노원': 'Nowon', '이촌': 'Ichon', '동작': 'Dongjak',
   '남태령': 'Namtaeryeong', '선바위': 'Seonbawi', '과천': 'Gwacheon',
   // Line 5
-  '광화문': 'Gwanghwamun', '서대문': 'Seodaemun', '충정로': 'Chungjeongno',
+  '광화문': 'Gwanghwamun', '서대문': 'Seodaemun',
   '애오개': 'Aeogae', '공덕': 'Gongdeok', '마포': 'Mapo', '여의나루': 'Yeouinaru',
   '여의도': 'Yeouido', '신길': 'Singil', '영등포시장': 'Yeongdeungpo Market',
   '목동': 'Mok-dong', '오목교': 'Omokgyo', '김포공항': 'Gimpo Int\'l Airport',
@@ -200,7 +200,9 @@ const STATION_OVERRIDES = {
   // Line 7
   '내방': 'Naebang', '논현': 'Nonhyeon', '청담': 'Cheongdam',
   '강남구청': 'Gangnam-gu Office', '학동': 'Hak-dong', '뚝섬유원지': 'Ttukseom Resort',
-  '어린이대공원': 'Children\'s Grand Park', '군자': 'Gunja', '중화': 'Jungnang',
+  // 🔴 '중화' 는 Junghwa(7호선). 예전엔 경의중앙선 '중랑'(Jungnang) 의 로마자가 잘못 붙어 있었다.
+  //    전국도시철도역사정보표준데이터(국가철도공단) 대조로 발견.
+  '어린이대공원': 'Children\'s Grand Park', '군자': 'Gunja', '중화': 'Junghwa',
   '상봉': 'Sangbong', '면목': 'Myeonmok', '태릉입구': 'Taereung',
   // Line 8
   '모란': 'Moran', '수진': 'Sujin', '산성': 'Sanseong', '남한산성입구': 'Namhansanseong',
@@ -208,24 +210,26 @@ const STATION_OVERRIDES = {
   // Line 9
   '신논현': 'Sinnonhyeon', '언주': 'Eonju', '선정릉': 'Seonjeongneung',
   '봉은사': 'Bongeunsa', '국회의사당': 'National Assembly', '노량진': 'Noryangjin',
-  '샛강': 'Saetgang', '당산': 'Dangsan', '선유도': 'Seonyudo', '가양': 'Gayang',
+  '샛강': 'Saetgang', '선유도': 'Seonyudo', '가양': 'Gayang',
   '등촌': 'Deungchon', '염창': 'Yeomchang',
   // Airport Railroad
   '인천공항1터미널': 'Incheon Int\'l Airport T1', '인천공항2터미널': 'Incheon Int\'l Airport T2',
-  '검암': 'Geomam', '계양': 'Gyeyang', '디지털미디어시티': 'DMC',
+  // '디지털미디어시티' 는 위 6호선 구역(199행)에 이미 있다 — 여기서 다시 'DMC' 로 정의하면
+  // 나중 정의가 앞을 조용히 덮어쓴다. 공식 영문역명은 'Digital Media City'(역 안내판과 동일).
+  '검암': 'Geomam', '계양': 'Gyeyang',
   // Shinbundang
   '정자': 'Jeongja', '미금': 'Migeum', '동천': 'Dongcheon', '수지구청': 'Suji-gu Office',
   '성복': 'Seongbok', '상현': 'Sanghyeon', '광교': 'Gwanggyo',
   '광교중앙': 'Gwanggyo Jungang', '양재': 'Yangjae', '양재시민의숲': 'Yangjae Citizen\'s Forest',
   // Gyeongui-Jungang
-  '용산': 'Yongsan', '옥수': 'Oksu', '응봉': 'Eungbong', '중랑': 'Jungnang',
+  '용산': 'Yongsan', '응봉': 'Eungbong', '중랑': 'Jungnang',
   '팔당': 'Paldang', '양수': 'Yangsu', '신원': 'Sinwon',
   // Bundang
-  '수서': 'Suseo', '복정': 'Bokjeong', '가천대': 'Gachon Univ.',
-  // K-Pop / tourist hotspots
-  '동대문역사문화공원': 'Dongdaemun History & Culture Park',
-  '광화문': 'Gwanghwamun', '경복궁': 'Gyeongbokgung', '안국': 'Anguk',
-  '인사동': 'Insadong', '북촌': 'Bukchon', '명동': 'Myeong-dong',
+  '수서': 'Suseo', '가천대': 'Gachon Univ.',
+  // 관광지 별칭 — 지하철역이 아니라서 호선별 구역에 못 넣는 것만 남긴다.
+  // (동대문역사문화공원·광화문·경복궁·안국·명동은 위 호선 구역에 이미 있어 중복 제거했다.
+  //  객체 리터럴은 같은 키를 두 번 쓰면 에러 없이 뒤엣것이 이겨서, 값이 갈리면 조용히 깨진다.)
+  '인사동': 'Insadong', '북촌': 'Bukchon',
 };
 
 // Revised Romanization tables (Korean Ministry of Culture, 2000)

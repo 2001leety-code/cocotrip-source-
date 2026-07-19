@@ -50,7 +50,8 @@ describe('TMAP 지하철 step — 영어 표기 필드', () => {
     // TMAP lang=1 실측: 홍대입구→"Hongdae", 잠실역.롯데월드→"Jamsil Station.Rosdeweoldeu".
     // 우리 표는 서울교통공사 공식 영문명을 쓴다.
     expect(subwayStep('수도권2호선', '홍대입구', '디지털미디어시티').fromRoman).toBe('Hongik Univ.');
-    expect(subwayStep('수도권2호선', '홍대입구', '디지털미디어시티').toRoman).toBe('DMC');
+    // 공식 영문역명 = 역 안내판 표기. 이전엔 중복키 때문에 'DMC' 로 덮어써져 있었다.
+    expect(subwayStep('수도권2호선', '홍대입구', '디지털미디어시티').toRoman).toBe('Digital Media City');
   });
 
   it('공항철도 — TMAP 의 "수도권공항철도1호선" 도 영문으로 번역된다', () => {
