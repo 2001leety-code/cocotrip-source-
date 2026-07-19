@@ -60,7 +60,6 @@ import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
-import { BRAND } from '@/lib/design-tokens';
 
 function ResultIcon({ icon: Icon, active = false }: { icon: LucideIcon; active?: boolean }) {
   return (
@@ -542,12 +541,13 @@ export default function PlanDetailPage() {
   // Loading / Error states
   if (loading) {
     const ui = getPlanDetailUI(t);
+    // planner-detail-mobile-ai + <main>: 모바일(≤768px)은 라이트 셸 CSS 가 색 반전, 데스크톱은 다크 유지.
     return (
-    <div className="min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
-      <div className="text-center">
+    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
+      <main className="text-center">
         <div className="w-10 h-10 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-white/55 text-sm">{ui.loadingPlan || 'Loading your plan...'}</p>
-      </div>
+      </main>
     </div>
   );
   }
@@ -555,14 +555,14 @@ export default function PlanDetailPage() {
   if (error === 'notfound') {
     const ui = getPlanDetailUI(t);
     return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-red-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.planNotFound || 'Plan Not Found'}</h1>
         <p className="text-white/55 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
-        <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: BRAND.gradient.primary }}>{ui.createNewPlan || 'Create New Plan'}</Link>
-      </div>
+        <Link to="/planner" className="m-cta px-6 py-3 rounded-full text-sm font-bold text-white" style={{ background: 'var(--coco-cta-gradient)' }}>{ui.createNewPlan || 'Create New Plan'}</Link>
+      </main>
     </div>
   );
   }
@@ -570,13 +570,13 @@ export default function PlanDetailPage() {
   if (error === 'unauthorized') {
     const ui = getPlanDetailUI(t);
     return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-yellow-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.accessDenied || 'Access Denied'}</h1>
         <p className="text-white/55 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
-      </div>
+      </main>
     </div>
   );
   }
@@ -587,9 +587,9 @@ export default function PlanDetailPage() {
   // 새로고침 시 SW 가 새 JS 를 받아 Firebase 재인증 → 정상 표시.
   if (error === 'autherror') {
     return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <RefreshCw className="w-16 h-16 text-[#7C5CFC]/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">
           {language === 'ko' ? '세션이 만료되었습니다' :
@@ -605,8 +605,8 @@ export default function PlanDetailPage() {
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="px-6 py-3 rounded-xl text-sm font-bold text-white flex items-center gap-2"
-          style={{ background: BRAND.gradient.primary }}
+          className="m-cta px-6 py-3 rounded-full text-sm font-bold text-white flex items-center gap-2"
+          style={{ background: 'var(--coco-cta-gradient)' }}
         >
           <RefreshCw className="w-4 h-4" />
           {language === 'ko' ? '새로고침' :
@@ -614,7 +614,7 @@ export default function PlanDetailPage() {
            language === 'zh' ? '刷新' :
            'Refresh Page'}
         </button>
-      </div>
+      </main>
     </div>
   );
   }
