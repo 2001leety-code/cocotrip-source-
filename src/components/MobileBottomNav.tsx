@@ -3,10 +3,11 @@ import { Home, Package, CalendarCheck, Sparkles, User, Map as MapIcon, Bot } fro
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 
-// 2026-07-19 리디자인: 탭 배열 프리셋 분리 — 'standard'(현행 매출 동선 유지) ↔
-// 'guide'(가이드 p.10: Plan·Map·Assistant·Bookings·Profile). 운영자가 A안 원하면
-// 아래 상수만 'guide' 로 바꾸면 됨. /map·/assistant 실화면은 이미 존재(죽은 탭 아님).
-const NAV_PRESET = 'standard' as 'standard' | 'guide';
+// 2026-07-19 리디자인: 탭 배열 프리셋 — 'six'(홈·투어·AI Plan·Map·예약·마이, 운영자
+// 결정 2026-07-19) / 'standard'(구 5탭) / 'guide'(가이드 p.10: Plan·Map·Assistant·
+// Bookings·Profile). /map·/assistant 실화면 존재(죽은 탭 아님). 6탭은 라벨 짧은
+// nav.*Short 세트 사용(390px 폭에서 잘림 방지 — 실측 검증됨).
+const NAV_PRESET = 'six' as 'six' | 'standard' | 'guide';
 
 export function MobileBottomNav() {
   const location = useLocation();
@@ -18,6 +19,7 @@ export function MobileBottomNav() {
   const inactiveColor = isMobileAppLight ? 'rgba(21,20,61,0.42)' : 'rgba(255,255,255,0.35)';
 
   const nav = t.nav as Record<string, string | undefined>;
+  const six = NAV_PRESET === 'six';
   // Icon size: 17px is one notch tighter than 18px while staying glanceable.
   // Label was 9px (too small per WCAG); bumped to 10px and trimmed gap to keep total height ~52px.
   // 2026-07-12 운영자 승인: UI/UX 가이드 내비로 교체 — 차터 탭 제거(홈 카테고리/투어에서 접근),
@@ -25,10 +27,20 @@ export function MobileBottomNav() {
   const items = NAV_PRESET === 'guide'
     ? [
         { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'Plan' },
-        { to: '/map', icon: <MapIcon className="w-[17px] h-[17px]" />, label: nav.map || 'Map' },
-        { to: '/assistant', icon: <Bot className="w-[17px] h-[17px]" />, label: nav.assistant || 'Assistant' },
+        { to: '/map', icon: <MapIcon className="w-[17px] h-[17px]" />, label: nav.mapShort || 'Map' },
+        { to: '/assistant', icon: <Bot className="w-[17px] h-[17px]" />, label: nav.assistantShort || 'Assistant' },
         { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
         { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
+      ]
+    : six
+    ? [
+        // 6탭 — 라벨은 짧은 세트(65px 폭). AI Plan·예약·마이 축약.
+        { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,        label: nav.home || '홈' },
+        { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,     label: nav.tours || '투어' },
+        { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />,    label: nav.planShort || 'Plan' },
+        { to: '/map',     icon: <MapIcon className="w-[17px] h-[17px]" />,     label: nav.mapShort || 'Map' },
+        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.bookShort || '예약' },
+        { to: '/mypage',  icon: <User className="w-[17px] h-[17px]" />,        label: user ? (nav.meShort || '마이') : (nav.login || '로그인') },
       ]
     : [
         { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
