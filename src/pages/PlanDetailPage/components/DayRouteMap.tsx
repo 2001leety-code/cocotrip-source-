@@ -86,12 +86,12 @@ function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
   return segs;
 }
 
-function mapLabels(language: string): { title: string; easy: string; hard: string } {
+function mapLabels(language: string): { title: string; easy: string; hard: string; showRoute: string; loading: string; none: string } {
   switch (language) {
-    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간' };
-    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間' };
-    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段' };
-    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging' };
+    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 못 찾았어요' };
+    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この区間の公共交通の経路が見つかりません' };
+    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到该路线的公共交通路径' };
+    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route found for this day' };
   }
 }
 
@@ -104,10 +104,39 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
 
   // Compute points once per render — cheap, and we need the count to decide
   // whether to render at all *before* hooks run conditionally.
+  const labels = mapLabels(language);
   const points = toMapPoints(stops);
   const enoughPoints = points.length >= 2;
-  // 실경로 세그먼트(TMAP passShape). 없으면 빈 배열 → effect 안에서 직선 폴백.
-  const segments = toRouteSegments(stops);
+  // 저장된 실경로(신규 플랜). 구형 플랜은 비어 있다.
+  const storedSegments = toRouteSegments(stops);
+  // (2026-07-19) 구형 플랜 구제 — 저장된 경로가 없으면 버튼으로 course-route 를 불러
+  // 지도만 실경로로 바꾼다. Firestore 는 건드리지 않는다(읽기 전용 개선).
+  const [fetchedSegments, setFetchedSegments] = useState<RouteSegment[]>([]);
+  const [routeBusy, setRouteBusy] = useState(false);
+  const [routeMsg, setRouteMsg] = useState<string | null>(null);
+  const segments = storedSegments.length > 0 ? storedSegments : fetchedSegments;
+  const canFetchRoute = storedSegments.length === 0 && fetchedSegments.length === 0 && enoughPoints;
+
+  const fetchRoute = async () => {
+    setRouteBusy(true);
+    setRouteMsg(null);
+    try {
+      const res = await fetch('/api/course-route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stops: points.map((p) => ({ lat: p.lat, lng: p.lng, name: p.label })) }),
+      });
+      const json = await res.json().catch(() => null);
+      const segs = (Array.isArray(json?.segments) ? json.segments : [])
+        .flatMap((s: { steps_detail?: TransitStepLike[] }) => stepsToSegments(s.steps_detail));
+      setFetchedSegments(segs);
+      if (!segs.length) setRouteMsg(labels.none);
+    } catch {
+      setRouteMsg(labels.none);
+    } finally {
+      setRouteBusy(false);
+    }
+  };
   // effect 의존성용 서명 — 좌표 배열을 그대로 넣으면 매 렌더 재실행된다.
   const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
 
@@ -289,7 +318,6 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
   // Graceful no-op: fewer than 2 mappable stops, or the map library failed.
   if (!enoughPoints || failed) return null;
 
-  const labels = mapLabels(language);
   // 힘든 구간이 하나라도 있을 때만 범례 노출(전부 쉬우면 단일 스타일이라 불필요).
   const hasHard = points.some((p) => p.hard);
 
@@ -300,6 +328,20 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         <span className="text-[12px] font-bold uppercase tracking-wider text-[#B9A4FF]">
           {labels.title}
         </span>
+        {/* (2026-07-19) 구형 플랜 구제 — 저장된 실경로가 없을 때만 노출.
+            누르면 course-route 로 실제 대중교통 경로를 받아 지도를 갈아끼운다.
+            Firestore 는 수정하지 않는다(이 화면 한정 개선). 자동 호출 안 함 = 비용 방어. */}
+        {canFetchRoute && (
+          <button
+            type="button"
+            onClick={() => { void fetchRoute(); }}
+            disabled={routeBusy}
+            className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 disabled:opacity-50 min-h-[32px]"
+            style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
+          >
+            {routeBusy ? labels.loading : labels.showRoute}
+          </button>
+        )}
       </div>
       <div
         className="relative overflow-hidden rounded-2xl border border-white/[0.08]"
@@ -312,6 +354,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           style={{ height: 240, zIndex: 0 }}
         />
       </div>
+      {routeMsg && <p className="mt-1.5 px-0.5 text-[11px] text-white/50">{routeMsg}</p>}
       {/* 지도 범례 (가이드 P5) — 실선=쉬운 이동 / 점선=힘든 대중교통 구간(routeInsight 실판정). 힘든 구간 있을 때만. */}
       {hasHard && (
         <div className="mt-2 flex items-center gap-4 px-0.5 text-[11px] text-white/55">
