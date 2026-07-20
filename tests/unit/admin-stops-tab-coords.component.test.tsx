@@ -17,6 +17,17 @@ void React;
 vi.mock('@/components/admin/PhotoUploader', () => ({
   PhotoUploader: () => <div data-testid="photo-uploader" />,
 }));
+// I18nField → useAuth → src/lib/firebase.js 가 모듈 로드 시점에 getAuth(app) 을 부른다.
+// CI 에는 VITE_FIREBASE_* 가 없어 auth/invalid-api-key 로 스위트 전체가 죽는다
+// (로컬은 .env 가 있어 통과 → 로컬만 보고 넘기면 CI 에서 터지는 함정).
+// 좌표 UI 는 인증과 무관하므로 훅 자체를 대체해 firebase 로드를 끊는다.
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { uid: 'test-admin', email: 'admin@test.local' }, loading: false }),
+}));
+vi.mock('@/lib/admin-translate', () => ({
+  translateFromSource: vi.fn(),
+  translateKoreanToOthers: vi.fn(),
+}));
 vi.mock('@/components/tours/TourStopMap', () => ({
   TourStopMap: ({ stops }: { stops: Array<{ lat?: number; lng?: number }> }) => (
     <div data-testid="map-preview">
