@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { hasStopCoords, parseCoordInput, countStopsWithCoords, MIN_STOPS_FOR_MAP } from '../../src/lib/tourStopCoords';
 import { toPlaceQuery, rankByQueryMatch, type PlaceSearchItem } from '../../src/lib/placeSearch';
+import { Timestamp } from 'firebase/firestore';
 import { stripUndefined } from '../../src/lib/firestore-safe';
 
 describe('parseCoordInput — 좌표 입력 파싱', () => {
@@ -176,5 +177,43 @@ describe('투어 draft 저장 — undefined 가 Firestore 에 안 간다', () =>
   it('0 과 null 은 살아남는다 (undefined 만 제거)', () => {
     const out = stripUndefined({ a: 0, b: null, c: undefined, d: { e: 0 } });
     expect(out).toEqual({ a: 0, b: null, d: { e: 0 } });
+  });
+});
+
+// ── 🔴 Firestore 특수 타입 보존 ─────────────────────────────────────────────
+// publishDraft 는 Firestore 에서 읽은 draft 를 그대로 다시 쓴다 → 그 안에 Timestamp 가 들어있다.
+// strip 이 클래스 인스턴스까지 분해하면 createdAt 이 {seconds, nanoseconds} 평범한 맵으로
+// 저장된다. 에러가 안 나서 저장 시점엔 멀쩡해 보이고, 나중에 날짜를 읽을 때 드러난다.
+describe('stripUndefined — Timestamp 같은 클래스 인스턴스를 분해하지 않는다', () => {
+  it('Firestore Timestamp 는 같은 인스턴스 그대로 통과한다', () => {
+    const ts = Timestamp.fromMillis(1_700_000_000_000);
+    const out = stripUndefined({ createdAt: ts, gone: undefined as unknown as string });
+    expect(out.createdAt).toBe(ts);                 // 새 객체로 바뀌면 안 됨
+    expect(out.createdAt).toBeInstanceOf(Timestamp);
+    expect(out.createdAt.toMillis()).toBe(1_700_000_000_000);
+    expect('gone' in out).toBe(false);
+  });
+
+  it('중첩·배열 안의 Timestamp 도 보존된다', () => {
+    const ts = Timestamp.fromMillis(1_700_000_000_000);
+    const out = stripUndefined({
+      meta: { at: ts },
+      log: [{ at: ts, x: undefined as unknown as string }],
+    });
+    expect(out.meta.at).toBe(ts);
+    expect(out.log[0].at).toBe(ts);
+    expect('x' in out.log[0]).toBe(false);
+  });
+
+  it('Date 도 평범한 맵으로 뭉개지지 않는다', () => {
+    const d = new Date('2026-07-20T00:00:00Z');
+    const out = stripUndefined({ when: d });
+    expect(out.when).toBe(d);
+    expect(out.when).toBeInstanceOf(Date);
+  });
+
+  it('평범한 객체는 여전히 파고들어 undefined 를 턴다 (가드가 과보호 아님)', () => {
+    const out = stripUndefined({ nested: { keep: 1, drop: undefined as unknown as number } });
+    expect(out.nested).toEqual({ keep: 1 });
   });
 });
