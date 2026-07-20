@@ -3,6 +3,12 @@
 Generated: 2026-05-04. Scope: web admin pages (`/admin/*`) + 3 telegram bots + auto notifications. Source files are
 absolute paths under `홈페이지 클로드ai/홈페이지 사이트 최근/`.
 
+> ⚠️ **2026-07-20 부분 갱신**: 결제/환불/reconciliation 기술만 현재 코드 기준으로 교정 (§1 의 `/admin/payments`·
+> `/admin/reconciliation` 행, §8-A, §8-B). Braintree 는 `a091e19a`/`40b4e96f` (2026-05-06~07) 에서 전량 제거됐다.
+> **나머지는 2026-05-04 스냅샷** — 라우트 표는 11개만 담고 있으나 `src/App.tsx` 기준 실제 `/admin/*` 라우트는
+> **26개**다 (community, all-bookings, briefing, decisions, quality, translations, coupons, products, zone-courses,
+> intent-classifier, promo-stats 등 누락). 라우트는 `App.tsx` 가 진실.
+
 ---
 
 ## 1. Admin Pages Table
@@ -16,7 +22,8 @@ All routes are gated by `AdminRoute` (`src/components/AdminRoute.tsx`) → Googl
 | `/admin` | `src/pages/Admin.tsx` | Home dashboard — 9 quick-link cards + Google Sheets booking table + collapsible tour-creation form | List `/api/admin-bookings`, "🔔 Test Push" via `/api/admin-test-push`, create new tour doc in Firestore `tours/` |
 | `/admin/reviews` | `src/pages/AdminReviews.tsx` | Reported-review moderation | List `reported`/`hidden`/`all` via `POST /api/reviews {action:'admin-list'}`, moderate via `{action:'moderate', decision:'keep'\|'hide'\|'delete'}` |
 | `/admin/claims` | `src/pages/AdminClaims.tsx` | 2-tab moderation: **무료 신청** (`pending_free_claims`) + **차터 문의** (`charter_inquiries`) | Realtime `onSnapshot`, approve/reject via direct `updateDoc` (status + reviewedAt + reviewedBy + optional rejectReason). Pending counts shown per tab. |
-| `/admin/reconciliation` | `src/pages/AdminReconciliation.tsx` | Suspect-booking scan + notification replay (PR #224) | `GET /api/admin-scan-suspect-bookings` lists candidates (CONFIRMED + braintree + replayedAt missing), `POST /api/admin-scan-suspect-bookings {dryRun:false}` bulk replay, `POST /api/admin-replay-booking-notifications {bookingId}` single replay. Flags `charter_custom_estimate` rows as 정산 필요. |
+| `/admin/payments` | `src/pages/AdminPayments.tsx` | 💰 PayPal 수동 결제(paypal.me QR) + `pending_bookings` 관리 — 2026-05-04 스냅샷에 누락됐던 항목 | `POST /api/admin-booking-action` 3종: `mark-paid` (입금 확인 → CONFIRMED + `booking-processor` 트리거 + AI 플랜 자동 생성), `mark-refunded` (**실제 PayPal 환불 API 호출** — §8-B 참조), `mark-canceled`. 모든 action 은 `admin_actions` 에 감사 로그. |
+| `/admin/reconciliation` | `src/pages/AdminReconciliation.tsx` | Suspect-booking scan + notification replay (PR #224) | `GET /api/admin-scan-suspect-bookings` lists candidates (status=CONFIRMED + `replayedAt` 미기록 + createdAt 구간, **provider 무관** — 2026-05-07 Braintree 제거 후 default `provider=null` = 전체 검색), `POST /api/admin-scan-suspect-bookings {dryRun:false}` bulk replay, `POST /api/admin-replay-booking-notifications {bookingId}` single replay. Flags `charter_custom_estimate` rows as 정산 필요. (2026-07-20: 화면 안내 문구가 "provider=braintree" 라고 잘못 표시하던 것을 "provider 무관 — 전체" 로 정정했다. 프론트는 요청 body 에 provider 를 보내지 않는다.) |
 | `/admin/plans` | `src/pages/AdminPlans.tsx` | AI plan lookup + revisionCredits adjustment | `GET /api/admin-plan-lookup?email=` (list) or `?planId=` (detail w/ complaints), `POST {action:'addCredits', credits:±N}` adjust |
 | `/admin/availability` | `src/pages/AdminTourAvailability.tsx` | Per-tour day toggle: available → fully_booked → blackout (cycle) | `fetchMonthAvailability` / `setAvailability` writes to Firestore `tour_availability/{tourId}/dates/{YYYY-MM-DD}` |
 | `/admin/calendar` | `src/pages/AdminCalendar.tsx` | Monthly calendar of bookings + `calendar_blocks` | Realtime `onSnapshot` (current month ±1). Click date → drawer. Status cycling (pending→confirmed→completed→cancelled→pending) writes `bookings.adminStatus`. Add manual booking or block (`addDoc`/`setDoc` to either collection). |
@@ -160,16 +167,26 @@ callbacks with toast "관리자봇은 일반 콜백 사용 안 함".
 ## 8. Common Workflows
 
 ### A. Booking 검증·복구 (paid booking missed notification)
-1. Admin opens `/admin/reconciliation` → autoload `GET /api/admin-scan-suspect-bookings` (CONFIRMED + braintree
-   provider + replayedAt missing, ~last 24h).
+1. Admin opens `/admin/reconciliation` → autoload `GET /api/admin-scan-suspect-bookings`
+   (status=CONFIRMED + `replayedAt` 미기록, provider 무관, createdAt ≥ `DEFAULT_SINCE`=2026-05-03T11:51:00Z).
+   2026-05-07 Braintree 제거로 default `provider=null` (전체 검색) — 호출자가 명시하면 `'paypal'` / `'braintree'`(레거시)
+   로 좁힐 수 있다. 프론트는 provider 를 안 보낸다.
 2. Reviews candidates table; flagged 정산 필요 = `charter_custom_estimate` (post-trip distance reconciliation).
 3. Click "알림 재전송" (single) or "일괄 재전송" (bulk, with confirm) → triggers replay endpoint → re-sends
    telegram + email + sheets + PDF, marks `replayedAt`.
 
 ### B. 환불 처리 (refund)
-- API only — `api/cancelBooking.js`. UI sits on user-facing pages. Admin sees the result via parallel
-  `notify('booking', refundMsg)` + `notify('dispatch', dispatchMsg)`. AdminCalendar can mark a booking
-  `cancelled` via status cycling (writes `adminStatus`), but actual money refund is not in the admin UI.
+
+> ⚠️ 2026-07-20 교정. 구 기술("actual money refund is not in the admin UI")은 **더 이상 사실이 아니다** —
+> PR #425 (Audit CY5) 이후 어드민 UI 가 실제로 PayPal 에서 돈을 뺀다.
+
+- **경로 2개, 둘 다 실제 PayPal 환불 API 호출** (`_shared/paypal-refund.js::refundPaypalCapture` 공용 SSOT):
+  - 사용자 개시 — `api/cancelBooking.js` (`evaluateRefundPolicy` 시간 기반 비율).
+  - 운영자 개시 — `/admin/payments` (`src/pages/AdminPayments.tsx`) → `POST /api/admin-booking-action {action:'mark-refunded', refundedKRW?}`. `refundedKRW` 미지정 = 전액. PR #425 이전엔 이 경로가 PayPal 을 안 부르고 Firestore 만 `REFUNDED` 로 바꾼 뒤 "환불됐다" 메일을 보냈다 — 돈은 머천트 계정에 남아 고객이 며칠씩 쫓아다녔다.
+- **멱등 키**: `${bookingRef}:${refundUSD || 'full'}`. captureID 단독 금지 — cart 자식 예약 N개가 captureID 를 공유한다. 영구 중복 방어는 키가 아니라 `status !== 'CONFIRMED'` 가드가 담당.
+- PayPal 호출 실패 시 **Firestore 를 건드리지 않고** 원본 status code 를 그대로 반환 — 운영자가 사유를 보고 수동 처리.
+- 레거시 `provider === 'braintree'` booking 은 `cancelBooking.js` 가 `LEGACY_BRAINTREE_BOOKING` 으로 거부한다 (captureID 가 Braintree transaction id 형식이라 PayPal refund 가 404) → 어드민 콘솔에서 수동 환불 필요.
+- AdminCalendar 의 status cycling 은 `adminStatus` 만 쓴다 — **돈이 움직이지 않는다**. 표시용 상태일 뿐.
 
 ### C. 클레임 승인/거부 (free-plan claim)
 - Two equivalent paths:

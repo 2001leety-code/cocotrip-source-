@@ -160,7 +160,8 @@ export default function AdminReconciliation() {
             </button>
           </div>
           <div className="text-xs text-gray-500 mb-4 space-y-0.5">
-            <p>대상: status=CONFIRMED + provider=braintree + replayedAt 미기록 booking</p>
+            {/* 2026-07-20: Braintree 제거(a091e19a/40b4e96f) 후 스캔은 provider 필터 없음 — 문구 정정. */}
+            <p>대상: status=CONFIRMED + replayedAt 미기록 booking (provider 무관 — 전체)</p>
             <p>범위: {rangeSince} ~ {rangeUntil}</p>
             <p>스캔: {scanned}건 / 후보: <strong>{candidates.length}건</strong></p>
           </div>

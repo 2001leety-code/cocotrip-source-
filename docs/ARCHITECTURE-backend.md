@@ -2,6 +2,11 @@
 
 > Generated 2026-05-04. Sourced from `api/`, `vercel.json`, `firestore.indexes.json`, `firestore.rules`, `CLAUDE.md`.
 > This file is a static map for future Claude sessions. Re-generate if `api/` structure changes substantially.
+>
+> ⚠️ **2026-07-20 부분 갱신**: 결제 관련 기술(§1 Tech Stack, §2.1/2.3/2.6, §4, §5, §7, §8, §9)만 현재 코드 기준으로
+> 교정했다 — Braintree 는 커밋 `a091e19a` / `40b4e96f` (2026-05-06~07) 에서 전량 제거됐고 결제 경로는 PayPal 단일이다.
+> **결제 외 섹션은 여전히 2026-05-04 스냅샷**이라 drift 가 있다 (예: §2 "53 files" → 실제 119, §2.2 admin endpoint 7개 →
+> 실제 26개). 개수·목록은 코드가 진실 — 이 문서 수치를 그대로 믿지 말고 재확인할 것.
 
 ---
 
@@ -12,7 +17,7 @@
 | Runtime | Vercel Serverless (Node.js, ESM) |
 | Database | Firebase Firestore (Admin SDK) |
 | AI | Google Gemini 2.5 Flash (`@google/generative-ai`) |
-| Payments | Braintree (current) + PayPal (legacy refunds only) |
+| Payments | **PayPal 단일** — Smart Buttons 캡처 (`createPaypalOrder` → `capturePaypalOrder` / `captureCartOrder`) + paypal.me QR 수동 신고 (`manual-payment-request` → `pending_bookings` → admin [입금 확인]) + PayPal Webhook 자동 매칭 (`paypal-webhook`). Braintree 는 2026-05-06~07 (`a091e19a`/`40b4e96f`) 전량 제거. |
 | Maps / Transit | Naver Maps NCP (Geocoding/Directions) + ODsay (대중교통) |
 | Email | Gmail SMTP via `nodemailer` |
 | Sheets / Wallet | Google Sheets API + Google Wallet (issuer pass) |
@@ -40,8 +45,10 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `api/plan-status.js` | Polling status for async plan generation. |
 | `api/submit-plan-complaint.js` | User-submitted plan complaint → `plan_complaints`. |
 | `api/booking-processor.js` | Post-payment booking creation pipeline. `maxDuration=60`. |
-| `api/braintreeClientToken.js` | Issues Braintree client token. |
-| `api/braintreeCheckout.js` | Server-side Braintree transaction.sale(). |
+| `api/createPaypalOrder.js` | 서버 가격 재계산(`_pricing_spec.json` SSOT) + PayPal order 생성 + slot lock. |
+| `api/capturePaypalOrder.js` | 단건 PayPal 캡처 → capture 무결성 검증 → booking + `booking-processor` 트리거. |
+| `api/captureCartOrder.js` | 장바구니(멀티상품) 캡처 → `cart_orders` 스냅샷 기준 라인별 child booking fan-out. `FEATURE_CART` flag OFF 시 404. |
+| `api/manual-payment-request.js` | paypal.me QR 결제 후 사용자 [결제 완료 신고] → `pending_bookings/{bookingRef}` + 텔레그램 알림. |
 | `api/applyPromoCode.js` | Validate + redeem promo/coupon. |
 | `api/loyalty.js` | Points / coupons / share & review rewards. |
 | `api/my-bookings.js` | User booking list (auth scoped). |
@@ -79,8 +86,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `api/telegram-webhook-admin.js` | Admin bot — `/dispatches`, `/drivers`, `/cs`, `/claims` etc. Most complex (~1000L). Verifies `TELEGRAM_WEBHOOK_SECRET`. |
 | `api/telegram-webhook-driver.js` | Driver bot — accept/decline dispatch, status updates. |
 | `api/telegram-webhook-inquiry.js` | Customer inquiry bot — relays to `chat_sessions` via `_shared/chat-relay.js`. |
-
-(No PayPal webhook endpoint found — refunds are admin-initiated.)
+| `api/paypal-webhook.js` | PayPal Business webhook. `PAYMENT.CAPTURE.COMPLETED` / `PAYMENT.SALE.COMPLETED` → memo 의 `bookingRef` (CT-YYYYMMDD-XXX) 로 `pending_bookings` 자동 매칭 = admin 클릭 0건 확정. `PAYMENT.CAPTURE.REFUNDED` / `PAYMENT.SALE.REFUNDED` → 자동 환불 반영. 서명 검증 = PayPal verify-webhook-signature API + `PAYPAL_WEBHOOK_ID` (미설정 시 전 이벤트 거부). 멱등 = `paypal_webhook_log/{eventId}`. |
 
 ### 2.4 Cron — Routed through `api/cron-runner.js`
 
@@ -124,8 +130,10 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | File | Role |
 |---|---|
 | `admin-auth.js` | Verifies admin Firebase ID token; matches `ADMIN_EMAIL`. |
-| `braintree.js` | Braintree gateway singleton. |
-| `paypal.js` | PayPal access-token (legacy refunds). |
+| `paypal.js` | PayPal 자격증명 + access token. `resolveIsSandbox()` 이중 가드 — `VERCEL_ENV !== 'production'` (HARD) **and** `PAYPAL_ENV === 'sandbox'` (SOFT). prod 는 코드상 무조건 live. |
+| `paypal-capture-verify.js` | 💰 capture 무결성 SSOT (순수 함수) — amount(통화 최소단위 **정수** 비교, float 금지) + currency + 개별 capture status + purchase-unit/capture cardinality. 단건·cart 공통. |
+| `paypal-refund.js` | PayPal capture 환불 헬퍼. `idempotencyKey` **필수** (cart 는 자식 N개가 captureID 공유 → captureID 를 키로 쓰면 안 됨). user cancelBooking + admin mark-refunded 공용. |
+| `payment-review.js` | capture 검증 실패 시 durable 격리 (`payment_reviews`) + 202 응답 작성. |
 | `firebase-admin.js` | Admin SDK init (handles `FIREBASE_PRIVATE_KEY` `\n` decode + `GOOGLE_SERVICE_ACCOUNT_KEY` base64 fallback). |
 | `pricing.js` | Charter / tour pricing. |
 | `notify.js` | Multi-bot Telegram dispatch (admin/driver/inquiry tokens). |
@@ -149,7 +157,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `threePassPipeline.js` | New 3-pass mode (`PLANNER_MODE=3pass`). |
 | `routeEnrichment.js` | Calls RouteAgent (Naver Geocoding + ODsay). |
 | `planPersister.js` | T-money calc + Firestore `plans` write. |
-| `paymentGate.js` | PayPal/Braintree verification + revision counter. |
+| `paymentGate.js` | PayPal order 검증 + revision counter + `used_paypal_orders` 중복 차단. orderId prefix 분기: 실 PayPal(17자) / `ADMIN-BYPASS-`(admin token 검증) / `MANUAL-{bookingRef}`(pending_bookings CONFIRMED 매칭) / `TEST-`(sandbox 전용). |
 | `vehicleAndPrice.js` | `selectVehicle`, `calcPrice`, `VEHICLE_LABELS`. |
 | `recommendedRestaurants.js` | `pickRecommendedRestaurants`. |
 | `avoidListQuery.js` | `buildAvoidClause` for user avoid list. |
@@ -196,6 +204,8 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `availability/{date}` | server-only | Slot inventory. |
 | `reservations/{id}` | server-only | Slot holds. |
 | `used_paypal_orders/{orderId}` | server-only | PayPal idempotency. |
+| `pending_bookings/{bookingRef}` | server-only | paypal.me QR 결제 신고 큐 (`CT-YYYYMMDD-XXX`). admin [입금 확인] 또는 PayPal Webhook 이 CONFIRMED 로 전환. |
+| `paypal_webhook_log/{eventId}` | server-only | PayPal webhook 멱등 마커. |
 | `api_stats/{YYYY-MM}/daily/{YYYY-MM-DD}` | server-only | Usage stats (daily-report cron consumer). |
 | `chat_rate_limits/{key}` | server-only | Chat rate limit. |
 
@@ -223,8 +233,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | Service | Env Vars | Purpose | Files |
 |---|---|---|---|
 | Gemini AI | `GEMINI_API_KEY` | Plan generation, chat, content | `_ai_core/*`, `chat.js`, `translate-plan.js`, `_ai-employees.js` |
-| Braintree (current) | `BRAINTREE_MERCHANT_ID`, `BRAINTREE_PUBLIC_KEY`, `BRAINTREE_PRIVATE_KEY`, `BRAINTREE_ENV` (`sandbox` / `production`) | Card payments | `_shared/braintree.js`, `braintreeClientToken.js`, `braintreeCheckout.js` |
-| PayPal (legacy) | `PAYPAL_CLIENT_ID` / `SECRET` + `PAYPAL_SANDBOX_*` | Old order verify, refunds only | `_shared/paypal.js`, `_ai_core/paymentGate.js` |
+| PayPal (**유일한 결제 수단**) | `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` + `PAYPAL_SANDBOX_CLIENT_ID` / `PAYPAL_SANDBOX_SECRET`, `PAYPAL_ENV` (preview 에서만 `sandbox` 유효), `PAYPAL_WEBHOOK_ID`, frontend `VITE_PAYPAL_ME_USERNAME` | 주문 생성·캡처·환불·webhook 자동매칭 | `_shared/paypal.js`, `_shared/paypal-capture-verify.js`, `_shared/paypal-refund.js`, `createPaypalOrder.js`, `capturePaypalOrder.js`, `captureCartOrder.js`, `paypal-webhook.js`, `manual-payment-request.js`, `_ai_core/paymentGate.js` |
 | Firebase Admin | `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (or `GOOGLE_SERVICE_ACCOUNT_KEY` base64 fallback) | Firestore admin | `_shared/firebase-admin.js`, `_ai_core/firestoreAdmin.js` |
 | Naver Maps NCP | `NCP_CLIENT_ID` / `_SECRET` (legacy) **and** `NAVER_CLIENT_ID` / `_SECRET` | Geocoding, directions | `_ai_core/agents/RouteAgent.js`, `recalc-transit.js`, `_crons/traffic-alert.js` |
 | ODsay | `ODSAY_API_KEY` + `SUBWAY_REALTIME_KEY` | Public transit | `_odsay_helper.js`, `_ai_core/routeEnrichment.js` |
@@ -248,7 +257,7 @@ Per `CLAUDE.md` D 절. `api/ai-planner-full.js` (307L) is now thin — branches 
 ```
 WizardForm (frontend)
   → POST /api/ai-planner-full
-    1. paymentGate.js              — Verify PayPal/Braintree, count revisions
+    1. paymentGate.js              — Verify PayPal order (or ADMIN-BYPASS-/MANUAL- prefix), count revisions
     2. avoidListQuery.js           — buildAvoidClause from user avoid list
     3. _food_helper.js             — getFoodContext from _food_index.json
     4. _spots_helper.js            — Spot context
@@ -285,13 +294,19 @@ Disabled jobs (files retained, not wired in `cron-runner.js`): `traffic-alert`, 
 
 ## 7. Observability
 
-`_shared/sentry.js` exposes `captureError(err, context)` and `captureMessage`. Currently called from:
+`_shared/sentry.js` exposes `captureError(err, context)` and `captureMessage`. 2026-05-04 스냅샷에는 5개 파일로 적혀
+있었으나 현재는 `api/` 전반 30개 이상에서 호출된다 (`grep -rl captureError api/` 로 확인). 대표:
 
 - `api/ai-planner-full.js` (planner pipeline failures)
 - `api/booking-processor.js` (booking creation failures)
-- `api/braintreeCheckout.js` (payment failures)
 - `api/cancelBooking.js` (cancellation/refund failures)
+- `api/manual-payment-request.js` (paypal.me 결제 신고 실패)
+- `api/admin-scan-suspect-bookings.js` / `api/admin-replay-booking-notifications.js` (reconciliation)
 - `api/chat.js` (Gemini chat failures)
+
+⚠️ **`capturePaypalOrder.js` / `captureCartOrder.js` 는 `captureError` 를 호출하지 않는다** (2026-07-20 확인).
+결제 캡처 경로의 이상은 Sentry 대신 `throttledTelegramAlert` + `payment_reviews` durable 격리 + `notifyOperator`
+로 나간다. 즉 **결제 실패는 Sentry 대시보드에 안 뜬다** — 텔레그램/어드민 큐를 봐야 한다.
 
 Sentry release = `VERCEL_GIT_COMMIT_SHA`. Environment = `VERCEL_ENV` (`production`/`preview`/`development`).
 
@@ -311,7 +326,9 @@ Other observability:
 | `FIREBASE_PRIVATE_KEY` | DO NOT trim. Pattern: `(env || '').replace(/\\n/g, '\n')` only. Trim/PEM-reformat caused PR #171/#172/#173 prod outages. |
 | `NCP_CLIENT_ID` | MUST `.trim()` — invisible newline causes 401. |
 | `GEMINI_API_KEY` | Trim only. |
-| `BRAINTREE_ENV` | `sandbox` until live cutover. |
+| `BRAINTREE_ENV` | ⚠️ **이름만 Braintree 유산 — 게이트웨이는 제거됐지만 이 env var 는 아직 살아있다.** `_ai_core/paymentGate.js` 가 `TEST-` prefix orderId 허용 여부에만 사용: `sandbox`/`development`/`dev` 일 때만 허용, 그 외(미설정 포함) 전부 reject (fail-closed). prod 에서는 설정하지 말 것. |
+| `PAYPAL_ENV` | preview 에서만 `sandbox` 유효. prod 는 `VERCEL_ENV==='production'` HARD 가드로 무조건 live. |
+| `PAYPAL_WEBHOOK_ID` | 미설정 시 `paypal-webhook.js` 가 모든 이벤트 거부 → paypal.me 자동매칭 침묵 실패. |
 | `TELEGRAM_WEBHOOK_SECRET` | Verifies webhook headers. |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | base64-encoded JSON; fallback path for both Firebase Admin and Sheets. |
 
@@ -324,8 +341,9 @@ Preview deploys silently fail when a new key is added to production only — reg
 - **Dual `.js` + `.ts` in `_ai_core/`** for `orchestrator`, `models`, `config`, and all `agents/*`. Runtime uses `.js`; `.ts` is reference. Watch for drift.
 - **Legacy planner** `_ai-planner-legacy.js` still in tree but only reachable via `PLANNER_MODE=legacy` branch of `geminiPipeline.js`.
 - **8 unwired cron files** in `_crons/` — disabled 2026-04-10 but JS still ships.
-- **Two parallel booking surfaces**: top-level `bookings/{id}` (Braintree path, server-created via Admin SDK) **and** `tours/{tourId}/bookings/{bookingId}` (user-created subcollection, used by older tour catalog flow).
-- **Two PayPal env-var sets** (`PAYPAL_CLIENT_ID/SECRET` + `PAYPAL_SANDBOX_*`) — runtime picks based on env flag; Braintree migration in progress (PR #213-#222).
+- **Two parallel booking surfaces**: top-level `bookings/{id}` (PayPal capture 경로, server-created via Admin SDK) **and** `tours/{tourId}/bookings/{bookingId}` (user-created subcollection, used by older tour catalog flow). 여기에 더해 paypal.me QR 경로는 `pending_bookings/{bookingRef}` 라는 **세 번째 표면**을 쓴다 — 확정 시 `bookings` 로 미러링되지만 webhook 이 pending 만 매칭하는 케이스도 있다 (`paypal-webhook.js` 의 `bookingsDocId stays null` 분기).
+- **Two PayPal env-var sets** (`PAYPAL_CLIENT_ID/SECRET` + `PAYPAL_SANDBOX_*`) — `_shared/paypal.js::resolveIsSandbox()` 가 `VERCEL_ENV`(HARD) + `PAYPAL_ENV`(SOFT) 이중 가드로 선택. prod 는 항상 live.
+- **Braintree 는 전량 제거됨** (`a091e19a` / `40b4e96f`, 2026-05-06~07). 잔여물 2종: (1) `BRAINTREE_ENV` env var = `TEST-` prefix 게이트로 재활용 중, (2) `bookings` 중 `provider==='braintree'` 인 레거시 도큐먼트 — `cancelBooking.js` 가 이를 감지해 `LEGACY_BRAINTREE_BOOKING` 으로 거부하고 어드민 수동 환불을 요구한다 (captureID 형식이 달라 PayPal refund API 가 404).
 - **Single admin email** `2001leety@gmail.com` is hard-coded in `firestore.rules` `isAdminEmail()`. Adding admins requires rule change.
-- **No PayPal webhook endpoint** — refunds are admin-initiated, not webhook-driven.
+- **PayPal webhook 존재** (`api/paypal-webhook.js`) — paypal.me QR 입금을 `bookingRef` memo 로 자동 매칭해 admin 클릭 없이 확정한다. 환불은 여전히 user(`cancelBooking`) / admin(`mark-refunded`) 개시이며, webhook 은 그 결과를 반영·동기화하는 쪽.
 - `availability/{date}` + `reservations/{id}` collections exist but only `tour_availability/...` is exposed to clients — the older two are server-only (rule: deny all).
