@@ -260,8 +260,13 @@ ai-planner-full.js (307L, maxDuration=800)
 ## 10. 환경변수 (Vercel UI 직접 입력만)
 
 ### 결제
-- `BRAINTREE_ENV` (sandbox/production), `BRAINTREE_MERCHANT_ID`, `BRAINTREE_PUBLIC_KEY`, `BRAINTREE_PRIVATE_KEY`
-- `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` (legacy 환불용)
+- `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` — 주문 생성·캡처·환불 (PayPal 단일 결제수단)
+- `PAYPAL_SANDBOX_CLIENT_ID`, `PAYPAL_SANDBOX_SECRET`, `PAYPAL_ENV` — preview 전용 sandbox 토글
+- `PAYPAL_WEBHOOK_ID` — 미설정 시 webhook 전 이벤트 거부
+- ⛔ `PAYMENT_BYPASS_ENV` — `TEST-` orderId 의 결제 검증 스킵 게이트. **prod 설정 금지.**
+- 2026-05-06~07 Braintree 전량 제거 → `BRAINTREE_MERCHANT_ID`/`PUBLIC_KEY`/`PRIVATE_KEY` 는 코드에서
+  사라진 죽은 키다. `BRAINTREE_ENV` 는 2026-07-20 `PAYMENT_BYPASS_ENV` 로 리네임됐다. Vercel 에 남아
+  있으면 전부 제거할 것.
 
 ### 인프라
 - `FIREBASE_PRIVATE_KEY` ⚠️ **CLI 변경 절대 금지** (줄바꿈/특수문자 손상 → 401)

@@ -9,7 +9,7 @@
  * 비즈니스 집계에서 일관되게 제외.
  *
  * Prefix 규약 (paymentGate.js detectProvider 와 동일):
- *   - TEST-          : 🧪 Test Mode 버튼 (BRAINTREE_ENV ∈ {sandbox,dev,development})
+ *   - TEST-          : 🧪 Test Mode 버튼 (PAYMENT_BYPASS_ENV ∈ {sandbox,dev,development})
  *   - ADMIN-BYPASS-  : 어드민 결제 우회 (LIVE 모드, ADMIN_BYPASS_EMAILS 검증)
  *
  * MANUAL- prefix 는 실제 입금 확인 후 admin 이 mark-paid 클릭 → 실제 매출이므로

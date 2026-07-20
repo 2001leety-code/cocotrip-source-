@@ -18,14 +18,14 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
-// 정책: BRAINTREE_ENV='production' → TEST- prefix order ID 전면 reject.
-// BRAINTREE_ENV='sandbox' (또는 미설정 dev) → TEST- 허용 (E2E 테스트용).
+// 정책: PAYMENT_BYPASS_ENV ∈ {sandbox, development, dev} 일 때만 TEST- prefix 허용.
+// 그 외 — 미설정·빈문자열·'production'·오타 — 전부 reject (fail-closed, audit P1-A).
 // 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
 // 로 전달해야 함. body.email 신뢰 종료.
 
 // PayPal 단일 (5/3 Braintree 제거 + 5/7 PayPal Smart Buttons 복구).
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
-// TEST orderId: 'TEST-' prefix (BRAINTREE_ENV ∈ {sandbox,dev} 일 때만 허용)
+// TEST orderId: 'TEST-' prefix (PAYMENT_BYPASS_ENV ∈ {sandbox,development,dev} 일 때만 허용)
 // ADMIN-BYPASS- prefix: LIVE 모드에서 어드민 이메일로 인증된 사용자가 결제 없이
 //   즉시 예약/플랜 생성. ADMIN_EMAIL env var + Firebase ID token 서버 검증 이중 인증.
 //   body.email 신뢰 종료 — authenticatedEmail(토큰에서 추출) 만 사용.
@@ -43,6 +43,30 @@ function getAdminBypassEmails() {
   const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
   if (adminEmail) return [adminEmail, ...HARDCODED_ADMIN_EMAILS];
   return HARDCODED_ADMIN_EMAILS;
+}
+
+// TEST- prefix 결제 우회 게이트 (audit P1-A, 2026-05-05). 순수 함수로 분리한 이유:
+// 이 한 줄이 "결제 검증을 통째로 건너뛸 것인가" 의 유일한 방어선인데 2026-07-20 감사
+// 시점까지 이 분기를 밟는 테스트·CI·헬스체크가 0건이었다. P174 가 validate-planner 를
+// TEST- 에서 ADMIN-BYPASS- 로 옮기면서 자동화가 이 경로를 아예 안 지나가게 됐고, 그래서
+// 깨져도 아무도 모른다. resolveIsSandbox() 와 같은 결로 순수 함수화해 테스트로 박제한다.
+//
+// 구 이름 BRAINTREE_ENV 는 폴백하지 않는다 — 결제 우회를 열 수 있는 키가 2개가 되면
+// config 실수 표면이 2배가 되고, 그 상태가 무기한 지속된다. 대신 반쪽 마이그레이션
+// (구 변수만 남음) 을 감지해 시끄럽게 만든다: 게이트는 닫히되 침묵하지 않는다.
+const ALLOWED_TEST_ENVS = new Set(['sandbox', 'development', 'dev']);
+const LEGACY_TEST_ENV_VAR = 'BRAINTREE_ENV';
+
+export function resolveTestBypassEnv() {
+  const value = (process.env.PAYMENT_BYPASS_ENV || '').toLowerCase().trim();
+  const legacy = (process.env[LEGACY_TEST_ENV_VAR] || '').toLowerCase().trim();
+  return {
+    allowed: ALLOWED_TEST_ENVS.has(value),
+    value,
+    // 새 이름이 비어있는데 구 이름이 허용값이면 = Vercel 이 아직 마이그레이션 안 됨.
+    staleLegacy: !value && ALLOWED_TEST_ENVS.has(legacy),
+    legacyValue: legacy,
+  };
 }
 
 function detectProvider(orderId) {
@@ -237,23 +261,44 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
       }
     } else if (provider === 'test') {
-      // Audit P1-A (2026-05-05): fail-closed — TEST- prefix는 BRAINTREE_ENV가 정확히
+      // Audit P1-A (2026-05-05): fail-closed — PAYMENT_BYPASS_ENV 가 정확히
       // {sandbox, development, dev} 중 하나일 때만 허용. 빈 문자열/production/오타/미설정
       // 전부 reject. 이전 P0-#2 fix는 'production' strict equal 만 reject 했고 빈 문자열은
-      // 통과 → 운영자가 prod 에 BRAINTREE_ENV='' 로 둔 상태에서 인증 토큰만 가지면 무한
-      // TEST- 우회 가능했음. 이제 운영자가 prod 에 의도적으로 'sandbox' 명시해야만 동작.
+      // 통과 → 운영자가 prod 에 빈 값으로 둔 상태에서 인증 토큰만 가지면 무한 TEST- 우회
+      // 가능했음. 이제 운영자가 prod 에 의도적으로 'sandbox' 명시해야만 동작.
       // dev 로컬은 .env 로 'development' 또는 'dev' 자유 선택 가능.
-      const ALLOWED_TEST_ENVS = new Set(['sandbox', 'development', 'dev']);
-      const env = (process.env.BRAINTREE_ENV || '').toLowerCase().trim();
-      if (!ALLOWED_TEST_ENVS.has(env)) {
+      const gate = resolveTestBypassEnv();
+      if (!gate.allowed) {
+        if (gate.staleLegacy) {
+          // 반쪽 마이그레이션: Vercel 에 구 변수만 남아있다. 게이트는 닫혀 있으므로
+          // 돈이 새지는 않지만, preview E2E 가 조용히 죽는 상태라 운영자에게 알린다.
+          console.error(
+            `[planner] ⚠️ 반쪽 마이그레이션 감지 — PAYMENT_BYPASS_ENV 미설정인데 legacy ` +
+            `${LEGACY_TEST_ENV_VAR}="${gate.legacyValue}" 가 남아있다. 구 변수는 더 이상 읽지 않는다. ` +
+            `Vercel 에 PAYMENT_BYPASS_ENV 를 등록하고 ${LEGACY_TEST_ENV_VAR} 를 제거하라.`
+          );
+          throttledTelegramAlert({
+            key: 'payment-bypass-env-half-migrated',
+            message:
+              `⚠️ PAYMENT_BYPASS_ENV 미설정 + legacy ${LEGACY_TEST_ENV_VAR}="${gate.legacyValue}" 잔존 — ` +
+              `TEST- 결제 우회 경로가 닫혀 있다(안전). preview E2E 를 쓰려면 Vercel 에 ` +
+              `PAYMENT_BYPASS_ENV 를 등록할 것.`,
+            severity: 'low',
+            context: { route: 'ai-planner-full', legacyVar: LEGACY_TEST_ENV_VAR },
+          }).catch((e) => console.warn('[planner] half-migration alert failed:', e.message));
+        }
         return reject(
           403,
           'FORBIDDEN',
           'Test mode not allowed',
-          `TEST- prefix only allowed when BRAINTREE_ENV ∈ {sandbox, development, dev}; got "${env || '(unset)'}"`
+          `TEST- prefix only allowed when PAYMENT_BYPASS_ENV ∈ {sandbox, development, dev}; ` +
+          `read PAYMENT_BYPASS_ENV="${gate.value || '(unset)'}"` +
+          (gate.staleLegacy
+            ? ` — legacy ${LEGACY_TEST_ENV_VAR} is set but is no longer read (half-migrated environment)`
+            : '')
         );
       }
-      console.log('[planner] ✅ TEST MODE accepted (env=' + env + ') — skipping payment verification for:', requestEmail || 'anonymous');
+      console.log('[planner] ✅ TEST MODE accepted (env=' + gate.value + ') — skipping payment verification for:', requestEmail || 'anonymous');
     } else if (provider === 'manual') {
       // 2026-05-06: PayPal QR 수동 결제 — admin 이 mark-paid 클릭 시 server-side 트리거.
       // orderId 형식: `MANUAL-${bookingRef}` — pending_bookings 에서 status='CONFIRMED'

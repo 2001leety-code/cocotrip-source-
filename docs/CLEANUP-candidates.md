@@ -73,7 +73,8 @@ Method: read-only — `git ls-files` + ripgrep usage analysis. No deletions perf
 | `api/admin-test-push.js` | Used by `src/pages/Admin.tsx:40` (POST `/api/admin-test-push`). Active feature. | KEEP — but consider gating behind admin-only env flag in prod |
 | `src/pages/DevTransitTest.tsx` | `src/App.tsx:64-65` lazy-loads it ONLY in `import.meta.env.DEV`. Tree-shaken from prod bundle. | KEEP — useful for transit debugging |
 | `src/components/PayPalBookingButton.tsx` | ~~Braintree 로 forward 하는 thin wrapper~~ → **2026-07-20 정정**: Braintree 제거(`a091e19a`/`40b4e96f`, 2026-05-06~07) 후 이 파일이 **실 결제 컴포넌트**다 — PayPal JS SDK Smart Buttons + 쿠폰/프로모 + 어드민 `ADMIN-BYPASS-` 우회를 직접 구현하고, SDK CDN 차단 시 `PayPalQrPanel` (paypal.me QR) 로 lazy fallback 한다. 16개 surface 에서 임포트. | **KEEP — cleanup 후보 아님.** 이름이 실제와 일치하므로 rename 도 불필요. |
-| `package.json` 의 `braintree`, `braintree-web`, `braintree-web-drop-in`, `@types/braintree-web-drop-in` | Braintree 게이트웨이는 2026-05-06~07 에 전량 제거됐고 `src/`·`api/` 어디서도 import 하지 않는다 (2026-07-20 grep 0건). 번들에는 안 들어가지만 `npm install` 시간·lockfile·의존성 감사 노이즈로 남는다. | ✅ DELETED — 2026-07-20 제거 완료 (`npm run build` / `npm run verify:all` 통과). `BRAINTREE_ENV` **env var 는 그대로 유지** — `_ai_core/paymentGate.js` 가 `TEST-` prefix 게이트로 아직 읽는다. |
+| `package.json` 의 `braintree`, `braintree-web`, `braintree-web-drop-in`, `@types/braintree-web-drop-in` | Braintree 게이트웨이는 2026-05-06~07 에 전량 제거됐고 `src/`·`api/` 어디서도 import 하지 않는다 (2026-07-20 grep 0건). 번들에는 안 들어가지만 `npm install` 시간·lockfile·의존성 감사 노이즈로 남는다. | ✅ DELETED — 2026-07-20 제거 완료 (`npm run build` / `npm run verify:all` 통과). env var 는 2026-07-20 `BRAINTREE_ENV` → `PAYMENT_BYPASS_ENV` 로 리네임됨(폴백 없음). Vercel 에서 구 변수 제거 필요 — 아래 항목 참조. |
+| `BRAINTREE_ENV` (Vercel 환경변수) | 2026-07-20 리네임 후 코드 어디서도 읽지 않는다. 남아 있어도 게이트는 닫혀 있어 위험하지 않지만, `PAYMENT_BYPASS_ENV` 없이 이것만 있는 상태는 "반쪽 마이그레이션" 으로 감지돼 텔레그램 경고가 나간다. | DELETE — Vercel 대시보드에서 preview/production 양쪽 제거. `node scripts/check-vercel-envs.mjs` 로 잔존 확인 가능. |
 
 ---
 

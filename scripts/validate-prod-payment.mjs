@@ -25,7 +25,7 @@
 //
 // 결제 흐름 학습 (paymentGate.js):
 //   - PayPal real flow: 17자 alphanumeric order ID → API status 검증
-//   - TEST-* prefix: BRAINTREE_ENV ∈ {sandbox,dev,development} 일 때만 허용
+//   - TEST-* prefix: PAYMENT_BYPASS_ENV ∈ {sandbox,dev,development} 일 때만 허용
 //   - ADMIN-BYPASS-* prefix: LIVE 모드 admin 우회 (ADMIN_BYPASS_EMAILS 매칭)
 //   - MANUAL-* prefix: paypal.me QR 결제 후 admin mark-paid → server-side ai-planner 트리거
 //
