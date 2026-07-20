@@ -163,7 +163,7 @@ Firestore INTERNAL ASSERTION errors are globally suppressed in `src/main.tsx` L1
 - `src/components/PayPalBookingButton.tsx` L119: `const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com']`
 - L129-130: `adminEmailMatched` (prop `userEmail`) + `firebaseEmailMatched` (`authUser.email`) — **버튼 노출 여부만** 결정하는 UX 게이트
 - L993: 클릭 시 `orderId = \`ADMIN-BYPASS-${Date.now()}\`` 전송. 실제 권한 판정은 서버 `_ai_core/paymentGate.js` 가 Firebase ID token 의 email 을 `ADMIN_BYPASS_EMAILS`/`ADMIN_EMAIL` 과 대조해서 한다 — `body.email` 은 신뢰하지 않는다.
-- 구 `TEST-` prefix 경로는 2026-05-07 (이슈 17) 에 `ADMIN-BYPASS-` 로 교체됐다. `TEST-` 는 `BRAINTREE_ENV ∈ {sandbox, development, dev}` 일 때만 서버가 받는다(fail-closed) — prod 에서는 reject.
+- 구 `TEST-` prefix 경로는 2026-05-07 (이슈 17) 에 `ADMIN-BYPASS-` 로 교체됐다. `TEST-` 경로는 **2026-07-20 완전 폐지** — 환경·env 무관 항상 403. 그 게이트를 열던 `BRAINTREE_ENV` 는 Vercel 에 등록된 적조차 없어 이미 상시 거부 상태였고, admin 검사가 없는 무인증 우회라 경로를 제거했다.
 
 ---
 

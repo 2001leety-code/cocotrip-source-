@@ -6,7 +6,7 @@ async function createTempPlan() {
     departure_airport: 'ICN_T1',
     styles: ['food'],
     allergies: [],
-    paypalOrderId: `TEST-VALIDATE-temp-${Date.now()}`,
+    paypalOrderId: `ADMIN-BYPASS-VALIDATE-temp-${Date.now()}`,
     guestName: 'E2E Test',
     pax: 2,
     area: 'Seoul',

@@ -326,7 +326,7 @@ Other observability:
 | `FIREBASE_PRIVATE_KEY` | DO NOT trim. Pattern: `(env || '').replace(/\\n/g, '\n')` only. Trim/PEM-reformat caused PR #171/#172/#173 prod outages. |
 | `NCP_CLIENT_ID` | MUST `.trim()` — invisible newline causes 401. |
 | `GEMINI_API_KEY` | Trim only. |
-| `BRAINTREE_ENV` | ⚠️ **이름만 Braintree 유산 — 게이트웨이는 제거됐지만 이 env var 는 아직 살아있다.** `_ai_core/paymentGate.js` 가 `TEST-` prefix orderId 허용 여부에만 사용: `sandbox`/`development`/`dev` 일 때만 허용, 그 외(미설정 포함) 전부 reject (fail-closed). prod 에서는 설정하지 말 것. |
+| ~~`BRAINTREE_ENV`~~ | **2026-07-20 폐기. 코드에서 이 변수를 읽는 곳은 0곳이다.** 원래 `TEST-` prefix orderId 의 결제 검증 전면 스킵을 여는 스위치였으나, ① 프론트가 2026-05-07 부터 `TEST-` 를 안 보내고 ② 이 변수는 **Vercel 에 등록된 적이 없어** 배포 환경에서 이미 상시 403 이었으며 ③ `ADMIN-BYPASS-` 와 달리 admin 이메일 검사가 없어 env 만 잘못 켜면 로그인한 아무 계정이나 유료 플랜을 받을 수 있었다 → **경로 자체를 제거**했다. `PAYMENT_BYPASS_ENV` 로 리네임하는 안도 검토했으나 쓰는 사람이 없어 폐기가 맞다고 판단. **어떤 이름으로도 다시 넣지 말 것** — `tests/unit/test-prefix-bypass-removed.test.ts` 가 부활을 막는다. |
 | `PAYPAL_ENV` | preview 에서만 `sandbox` 유효. prod 는 `VERCEL_ENV==='production'` HARD 가드로 무조건 live. |
 | `PAYPAL_WEBHOOK_ID` | 미설정 시 `paypal-webhook.js` 가 모든 이벤트 거부 → paypal.me 자동매칭 침묵 실패. |
 | `TELEGRAM_WEBHOOK_SECRET` | Verifies webhook headers. |
@@ -343,7 +343,7 @@ Preview deploys silently fail when a new key is added to production only — reg
 - **8 unwired cron files** in `_crons/` — disabled 2026-04-10 but JS still ships.
 - **Two parallel booking surfaces**: top-level `bookings/{id}` (PayPal capture 경로, server-created via Admin SDK) **and** `tours/{tourId}/bookings/{bookingId}` (user-created subcollection, used by older tour catalog flow). 여기에 더해 paypal.me QR 경로는 `pending_bookings/{bookingRef}` 라는 **세 번째 표면**을 쓴다 — 확정 시 `bookings` 로 미러링되지만 webhook 이 pending 만 매칭하는 케이스도 있다 (`paypal-webhook.js` 의 `bookingsDocId stays null` 분기).
 - **Two PayPal env-var sets** (`PAYPAL_CLIENT_ID/SECRET` + `PAYPAL_SANDBOX_*`) — `_shared/paypal.js::resolveIsSandbox()` 가 `VERCEL_ENV`(HARD) + `PAYPAL_ENV`(SOFT) 이중 가드로 선택. prod 는 항상 live.
-- **Braintree 는 전량 제거됨** (`a091e19a` / `40b4e96f`, 2026-05-06~07). 잔여물 2종: (1) `BRAINTREE_ENV` env var = `TEST-` prefix 게이트로 재활용 중, (2) `bookings` 중 `provider==='braintree'` 인 레거시 도큐먼트 — `cancelBooking.js` 가 이를 감지해 `LEGACY_BRAINTREE_BOOKING` 으로 거부하고 어드민 수동 환불을 요구한다 (captureID 형식이 달라 PayPal refund API 가 404).
+- **Braintree 는 전량 제거됨** (`a091e19a` / `40b4e96f`, 2026-05-06~07). 잔여물 1종: `bookings` 중 `provider==='braintree'` 인 레거시 도큐먼트 — `cancelBooking.js` 가 이를 감지해 `LEGACY_BRAINTREE_BOOKING` 으로 거부하고 어드민 수동 환불을 요구한다 (captureID 형식이 달라 PayPal refund API 가 404).
 - **Single admin email** `2001leety@gmail.com` is hard-coded in `firestore.rules` `isAdminEmail()`. Adding admins requires rule change.
 - **PayPal webhook 존재** (`api/paypal-webhook.js`) — paypal.me QR 입금을 `bookingRef` memo 로 자동 매칭해 admin 클릭 없이 확정한다. 환불은 여전히 user(`cancelBooking`) / admin(`mark-refunded`) 개시이며, webhook 은 그 결과를 반영·동기화하는 쪽.
 - `availability/{date}` + `reservations/{id}` collections exist but only `tour_availability/...` is exposed to clients — the older two are server-only (rule: deny all).

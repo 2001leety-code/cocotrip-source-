@@ -18,14 +18,14 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
-// 정책: BRAINTREE_ENV='production' → TEST- prefix order ID 전면 reject.
-// BRAINTREE_ENV='sandbox' (또는 미설정 dev) → TEST- 허용 (E2E 테스트용).
 // 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
 // 로 전달해야 함. body.email 신뢰 종료.
 
 // PayPal 단일 (5/3 Braintree 제거 + 5/7 PayPal Smart Buttons 복구).
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
-// TEST orderId: 'TEST-' prefix (BRAINTREE_ENV ∈ {sandbox,dev} 일 때만 허용)
+// TEST orderId: 'TEST-' prefix — 2026-07-20 폐지. 항상 403. 대체 = ADMIN-BYPASS-.
+//   (구 게이트는 BRAINTREE_ENV 로 열렸으나 그 env 는 Vercel 에 등록된 적이 없었고,
+//    admin 검사 없는 무인증 우회라 경로 자체를 제거했다.)
 // ADMIN-BYPASS- prefix: LIVE 모드에서 어드민 이메일로 인증된 사용자가 결제 없이
 //   즉시 예약/플랜 생성. ADMIN_EMAIL env var + Firebase ID token 서버 검증 이중 인증.
 //   body.email 신뢰 종료 — authenticatedEmail(토큰에서 추출) 만 사용.
@@ -237,23 +237,28 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
       }
     } else if (provider === 'test') {
-      // Audit P1-A (2026-05-05): fail-closed — TEST- prefix는 BRAINTREE_ENV가 정확히
-      // {sandbox, development, dev} 중 하나일 때만 허용. 빈 문자열/production/오타/미설정
-      // 전부 reject. 이전 P0-#2 fix는 'production' strict equal 만 reject 했고 빈 문자열은
-      // 통과 → 운영자가 prod 에 BRAINTREE_ENV='' 로 둔 상태에서 인증 토큰만 가지면 무한
-      // TEST- 우회 가능했음. 이제 운영자가 prod 에 의도적으로 'sandbox' 명시해야만 동작.
-      // dev 로컬은 .env 로 'development' 또는 'dev' 자유 선택 가능.
-      const ALLOWED_TEST_ENVS = new Set(['sandbox', 'development', 'dev']);
-      const env = (process.env.BRAINTREE_ENV || '').toLowerCase().trim();
-      if (!ALLOWED_TEST_ENVS.has(env)) {
-        return reject(
-          403,
-          'FORBIDDEN',
-          'Test mode not allowed',
-          `TEST- prefix only allowed when BRAINTREE_ENV ∈ {sandbox, development, dev}; got "${env || '(unset)'}"`
-        );
-      }
-      console.log('[planner] ✅ TEST MODE accepted (env=' + env + ') — skipping payment verification for:', requestEmail || 'anonymous');
+      // 2026-07-20: TEST- 결제 우회 경로 폐지 — env 설정 여부와 무관하게 항상 reject.
+      //
+      // 폐지 근거:
+      //   1. 프론트는 2026-05-07 (이슈 17) 부터 TEST- 를 보내지 않는다 — ADMIN-BYPASS- 로 교체됨.
+      //   2. 이 분기를 열어주던 BRAINTREE_ENV 는 Vercel 에 등록된 적이 없다(2026-07-20 대시보드
+      //      확인). 즉 배포 환경에서는 이미 상시 403 이었고, 아무도 없어진 걸 몰랐다.
+      //   3. 이 분기에는 admin 이메일 검사가 없다. ADMIN-BYPASS- 와 달리 env 만 보고 통과시키므로,
+      //      env 가 잘못 설정된 환경에서는 유효한 Firebase 토큰을 가진 아무 계정이나 유료 플랜을
+      //      무료로 받는다. config 하나에 의존하는 무인증 우회는 남겨둘 이유가 없다.
+      //
+      // 대체 경로 = ADMIN-BYPASS- (admin 이메일 + Firebase ID token 이중 검증 + admin_bypass_audit
+      // 감사 기록). P174 가 scripts/validate-planner.cjs 를 이 방식으로 이미 이주시켰다.
+      //
+      // detectProvider 의 TEST- 인식 자체는 남긴다 — Firestore 에 과거 TEST- booking 이 실재하고
+      // _shared/admin-bypass-detector.js 가 매출 집계에서 제외하는 데 쓴다(AdminSales).
+      return reject(
+        403,
+        'FORBIDDEN',
+        'Test mode removed',
+        'TEST- prefix orderId 는 2026-07-20 부로 폐지됐다 (인증 없는 결제 우회 경로 제거). ' +
+        'admin 검증 테스트는 ADMIN-BYPASS- prefix 를 사용할 것 — admin 이메일 + Firebase ID token 이중 검증이 붙는다.'
+      );
     } else if (provider === 'manual') {
       // 2026-05-06: PayPal QR 수동 결제 — admin 이 mark-paid 클릭 시 server-side 트리거.
       // orderId 형식: `MANUAL-${bookingRef}` — pending_bookings 에서 status='CONFIRMED'

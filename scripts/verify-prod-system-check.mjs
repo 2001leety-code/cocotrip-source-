@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // 2026-05-13 사용자 종합 검증 요청 — AI 플래너 100 + 차터 10 + 투어 10
 //
-// ⚠️ 중요: PROD 환경 (BRAINTREE_ENV='production') 에서는 TEST- prefix orderId 거부.
-//          paymentGate.js:16 — "TEST- prefix order ID 전면 reject".
-//          본 스크립트로 100 plan 검증하려면 BRAINTREE_ENV=sandbox 환경 사용:
-//            a. Vercel preview URL (PR preview 는 자동 sandbox)
-//            b. ADMIN-BYPASS-{admin_email} prefix (admin 권한 필요)
+// ⚠️ 중요 (2026-07-20 갱신): TEST- prefix orderId 경로는 **폐지됐다**. 환경과 무관하게 항상 403.
+//          구 안내였던 "BRAINTREE_ENV=sandbox 환경 사용" 은 더 이상 유효하지 않다 —
+//          그 env var 는 Vercel 에 등록된 적조차 없었고, admin 검사 없는 우회라 제거했다.
+//          이제 유일한 경로는 ADMIN-BYPASS- prefix + admin Firebase ID token 이다
+//          (아래 orderId 는 이미 이주 완료). 토큰 발급 패턴 = scripts/validate-planner.cjs::getIdToken.
 //
 // 사용법:
 //   1. Vercel preview URL 결정 (예: https://cocotrip-source2026-xxxxx.vercel.app)
@@ -87,7 +87,7 @@ function buildPlannerPayload(i) {
   const isMulti = Math.random() < 0.35 && days >= 2;
   const cities = isMulti ? [pick(CITIES), pick(CITIES.filter(c => c !== 'Seoul'))] : [pick(CITIES)];
   return {
-    orderId: `TEST-VERIFY-${Date.now()}-${i}`,
+    orderId: `ADMIN-BYPASS-VERIFY-${Date.now()}-${i}`,
     guest_name: `Guest-${i}`,
     pax: 1 + Math.floor(Math.random() * 5),
     styles: pick(STYLES_POOL),
@@ -104,7 +104,7 @@ function buildPlannerPayload(i) {
 
 function buildCharterPayload(i) {
   return {
-    orderId: `TEST-VERIFY-CHARTER-${Date.now()}-${i}`,
+    orderId: `ADMIN-BYPASS-VERIFY-CHARTER-${Date.now()}-${i}`,
     serviceMode: pick(['airport_transfer', 'day_tour', 'multi_day']),
     vehicleType: pick(['staria_8', 'sprinter', 'large_bus']),
     paxAdult: 2 + Math.floor(Math.random() * 6),
@@ -117,7 +117,7 @@ function buildCharterPayload(i) {
 
 function buildTourPayload(i) {
   return {
-    orderId: `TEST-VERIFY-TOUR-${Date.now()}-${i}`,
+    orderId: `ADMIN-BYPASS-VERIFY-TOUR-${Date.now()}-${i}`,
     tourSlug: pick(['gyeongju-day-tour', 'busan-1day', 'jeju-east-circle']),
     date: tomorrow(1 + Math.floor(Math.random() * 30)),
     paxAdult: 1 + Math.floor(Math.random() * 4),

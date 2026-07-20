@@ -20,7 +20,7 @@ for (const file of ['.env', '.env.admin.local', '.env.test.local']) {
 }
 
 const body = {
-  paypalOrderId: `TEST-${Date.now()}`,
+  paypalOrderId: `ADMIN-BYPASS-SMOKE-${Date.now()}`,
   guestName: 'SmokeTest',
   email: '2001leety@gmail.com',
   startDate: '2026-05-15',
