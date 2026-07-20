@@ -99,6 +99,13 @@ export type TourStop = {
   tip?: I18nString;
   /** 네이버 지도 직링크 (없으면 PlanDetailPage 패턴으로 자동 생성 가능) */
   naver_map_url?: string;
+  /**
+   * 위경도 (WGS84). 투어 상세 지도(CourseMiniMap)에 핀을 찍는 근거.
+   * 없으면 그 stop은 지도에서 생략된다(핀 없이 타임라인에만 표시).
+   * 점심 등 식당이 고정되지 않은 stop은 근사 좌표라 어드민에서 보정 가능.
+   */
+  lat?: number;
+  lng?: number;
   /** 이전 stop에서 여기로 오는 방법. 첫 stop은 생략. */
   transit_from_prev?: TourTransit;
 };
@@ -376,6 +383,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '09:30',
         name: { ko: '경복궁', en: 'Gyeongbokgung Palace', ja: '景福宮', zh: '景福宫' },
+        lat: 37.57861, lng: 126.97722,
         stay_min: 90,
         photo: '/JnR5Ie_경복궁(1).webp',
         description: {
@@ -395,6 +403,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '11:00',
         name: { ko: '북촌한옥마을', en: 'Bukchon Hanok Village', ja: '北村韓屋村', zh: '北村韩屋村' },
+        lat: 37.58239, lng: 126.98586,
         stay_min: 60,
         photo: '/3Xgcka_북촌한옥마을(1).webp',
         description: {
@@ -415,6 +424,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '12:00',
         name: { ko: '인사동·익선동 점심', en: 'Insadong / Ikseondong Lunch', ja: '仁寺洞・益善洞ランチ', zh: '仁寺洞·益善洞午餐' },
+        lat: 37.5709, lng: 126.9844,
         stay_min: 75,
         photo: '/서울/서울 (1).jpg',
         description: {
@@ -435,6 +445,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '13:30',
         name: { ko: '명동 쇼핑', en: 'Myeongdong Shopping', ja: '明洞ショッピング', zh: '明洞购物' },
+        lat: 37.5636, lng: 126.9827,
         stay_min: 90,
         photo: '/서울/서울 (3).jpg',
         description: {
@@ -455,6 +466,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '15:00',
         name: { ko: 'N서울타워 (남산)', en: 'N Seoul Tower (Namsan)', ja: 'Nソウルタワー（南山）', zh: 'N首尔塔（南山）' },
+        lat: 37.55143, lng: 126.988,
         stay_min: 90,
         photo: '/서울/서울 (7).jpg',
         description: {
@@ -475,6 +487,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '16:45',
         name: { ko: '광장시장', en: 'Gwangjang Market', ja: '広蔵市場', zh: '广藏市场' },
+        lat: 37.57, lng: 126.999,
         stay_min: 60,
         photo: '/서울/서울 (10).jpg',
         description: {
@@ -495,6 +508,7 @@ const TOURS_RAW: Tour[] = [
       {
         time: '18:00',
         name: { ko: '한강공원 (반포 무지개분수)', en: 'Han River Park (Banpo Rainbow Fountain)', ja: '漢江公園（盤浦虹噴水）', zh: '汉江公园（盘浦彩虹喷泉）' },
+        lat: 37.5155, lng: 126.9959,
         stay_min: 60,
         photo: '/1uA0qa_반포대교(1).webp',
         description: {
@@ -958,6 +972,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     {
       time: '18:00',
       name: { ko: '명동역 3번출구 작은 공원 (집합)', en: 'Myeongdong Station Exit 3 Small Park (Meeting Point)', ja: '明洞駅3番出口の小さな公園（集合）', zh: '明洞站3号出口的小公园（集合）' },
+      lat: 37.5608, lng: 126.9867,
       stay_min: 10,
       description: {
         ko: '저녁 6시 정각 명동역 3번 출구 옆 작은 공원에서 가이드와 만나 출발. 전용 스타리아 차량 픽업.',
@@ -970,6 +985,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     },
     {
       time: '18:25', name: { ko: '북악스카이웨이', en: 'Bukak Skyway', ja: '北岳スカイウェイ', zh: '北岳天路' },
+      lat: 37.6089, lng: 126.9816,
       stay_min: 40, photo: '/서울/서울 (14).jpg',
       description: { ko: '북악산 능선을 따라 이어지는 야경 드라이브 코스. 팔각정 전망대에서 서울 도심 야경 한눈에.', en: 'Scenic ridgeline drive on Bukak Mountain. Stop at Palgakjeong Pavilion for a panoramic Seoul night skyline.', ja: '北岳山の稜線をたどる夜景ドライブ。八角亭展望台からソウル都心の夜景を一望。', zh: '沿北岳山山脊的夜景驾车路线，在八角亭观景台俯瞰首尔市区夜景。' },
       entry_fee_krw: 0,
@@ -978,6 +994,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     },
     {
       time: '19:35', name: { ko: '반포대교 달빛무지개분수', en: 'Banpo Bridge Rainbow Fountain', ja: '盤浦大橋月光虹噴水', zh: '盘浦大桥月光彩虹喷泉' },
+      lat: 37.51554, lng: 126.99594,
       stay_min: 120, photo: '/1uA0qa_반포대교(1).webp',
       description: { ko: '4-10월 한정 야간 분수쇼와 한강 야경. 분수쇼 관람 + 한강공원 산책 + 야식 포장마차까지 2시간 여유롭게.', en: 'April-October night fountain show + Han River views. 2 hours: fountain show, riverside stroll, and street-food stalls.', ja: '4-10月限定の夜の噴水ショー＋漢江夜景。ショー観賞、漢江公園散策、屋台まで2時間ゆったり。', zh: '4-10月限定夜间喷泉表演＋汉江夜景。2小时含喷泉表演、江边漫步、夜宵摊位。' },
       entry_fee_krw: 0,
@@ -986,6 +1003,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     },
     {
       time: '22:00', name: { ko: '해방촌', en: 'Haebangchon', ja: '解放村', zh: '解放村' },
+      lat: 37.54354, lng: 126.98559,
       stay_min: 60, photo: '/서울/해방촌-남산야경.jpg',
       description: { ko: '남산 자락 옛 달동네에 자리잡은 핫플 골목. 루프탑 바, 빈티지 카페, 외국인 친화 펍이 모인 야경 산책 코스.', en: "Trendy hillside neighborhood under Namsan — rooftop bars, vintage cafés, expat-friendly pubs lit up at night.", ja: '南山の麓、レトロな路地に若者文化が集う街。ルーフトップバーやヴィンテージカフェの夜景散策。', zh: '南山脚下的潮人街区，云集天台酒吧、复古咖啡馆、外国人友好酒馆的夜景漫步路线。' },
       entry_fee_krw: 0,
@@ -994,6 +1012,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     },
     {
       time: '23:05', name: { ko: '명동 드랍오프', en: 'Drop-off at Myeongdong', ja: '明洞ドロップオフ', zh: '明洞下车' },
+      lat: 37.5636, lng: 126.9827,
       stay_min: 0,
       description: { ko: '명동역 3번 출구 인근 안전 지점에 도착 후 투어 종료. 호텔이 명동권이면 호텔 앞 추가 드랍 가능 (사전 협의).', en: 'Tour ends near Myeongdong Station Exit 3. Hotel drop-off available within Myeongdong area (request in advance).', ja: '明洞駅3番出口付近で解散。明洞圏のホテルは事前依頼で前まで送迎可。', zh: '在明洞站3号出口附近结束行程。明洞区酒店可提前申请送至门口。' },
       entry_fee_krw: 0,
@@ -1004,20 +1023,25 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-danyang': [
     { time: '09:30', name: { ko: '도담삼봉', en: 'Dodamsambong', ja: '島潭三峯', zh: '岛潭三峰' }, stay_min: 60, photo: '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
+    lat: 37.00028, lng: 128.34389,
       description: { ko: '남한강 위 세 봉우리. 단양의 상징적 풍경, 정도전 일화 유명.', en: 'Three rocky peaks rising from Namhangang River, the icon of Danyang.', ja: '南漢江に三つの岩峰がそびえる丹陽の象徴。', zh: '南汉江上三座岩峰，丹阳的标志景观。' },
       entry_fee_krw: 0, tip: { ko: '유람선 ₩13,000으로 가까이 감상 가능.', en: 'Sightseeing boat ₩13,000 for closer view.', ja: '遊覧船₩13,000で近くから観賞可能。', zh: '可乘游船₩13,000近距离观赏。' } },
     { time: '10:45', name: { ko: '단양강 잔도', en: 'Danyanggang Cliff Trail', ja: '丹陽江桟道', zh: '丹阳江栈道' }, stay_min: 90, photo: '/Type1_단양강 잔도_한국관광공사 김지호_6yEHMa(1).jpg',
+    lat: 36.9781, lng: 128.33955,
       description: { ko: '절벽 위 1.2km 데크길. 남한강 절경을 따라 걸으며 사진 명소.', en: '1.2km cliff-side deck along the Namhangang River — a scenic photo trail.', ja: '崖沿いに1.2kmのデッキ歩道。南漢江の絶景。', zh: '崖边1.2km栈道，沿南汉江绝景拍照。' },
       entry_fee_krw: 0, transit_from_prev: { method: 'car', minutes: 10, distance_km: 7 } },
     { time: '12:30', name: { ko: '점심 — 마늘정식', en: 'Garlic-Set Lunch', ja: 'ニンニク定食ランチ', zh: '大蒜套餐午餐' }, stay_min: 60,
+    lat: 36.9808, lng: 128.3509,
       description: { ko: '단양 명물 마늘 요리 한정식 (성원마늘약선요리, 장다리식당 등).', en: 'Danyang specialty garlic-themed Korean set menu.', ja: '丹陽名物のニンニク韓定食。', zh: '丹阳特色大蒜韩定食。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩20,000~30,000. 마늘닭, 마늘갈비 추천.', en: '₩20-30k per person. Try garlic chicken or garlic ribs.', ja: '1人₩20,000~30,000。ニンニクチキン·カルビ推奨。', zh: '人均₩20-30k。推荐蒜鸡、蒜排。' },
       transit_from_prev: { method: 'car', minutes: 8, distance_km: 5 } },
     { time: '14:00', name: { ko: '만천하스카이워크', en: 'Mancheonha Skywalk', ja: '万天下スカイウォーク', zh: '万天河天空走廊' }, stay_min: 75, photo: '/Type1_만천하스카이워크_한국관광공사 김지호_dAeuea(1).jpg',
+    lat: 36.9776, lng: 128.3372,
       description: { ko: '지상 80m 강화유리 전망대. 단양강 360° 풍경, 짚라인 옵션.', en: '80m-high glass-floor observatory with 360° view; zipline optional.', ja: '地上80mのガラス展望台。360°ビュー、ジップラインも。', zh: '80米高玻璃观景台，360°景观，可选高空滑索。' },
       entry_fee_krw: 4000, tip: { ko: '짚라인 ₩42,000 별도. 고소공포증 주의.', en: 'Zipline ₩42,000 extra. Not for fear of heights.', ja: 'ジップライン₩42,000別途。高所恐怖症は注意。', zh: '高空滑索₩42,000另付。恐高慎入。' },
       transit_from_prev: { method: 'car', minutes: 15, distance_km: 9 } },
     { time: '15:45', name: { ko: '고수동굴', en: 'Gosu Cave', ja: '高首洞窟', zh: '高首洞窟' }, stay_min: 75, photo: '/Type1_고수동굴_우창민_OKkx36(1).jpg',
+    lat: 36.98833, lng: 128.38139,
       description: { ko: '천연기념물 석회동굴. 1.7km 코스, 종유석·석순 장관.', en: 'Natural monument limestone cave. 1.7km course of stalactites/stalagmites.', ja: '天然記念物の石灰洞窟。1.7kmコース、鍾乳石が見事。', zh: '国家级石灰岩洞窟，1.7km路线，钟乳石壮观。' },
       entry_fee_krw: 9000, tip: { ko: '동굴 내 일정 온도 15°C. 미끄러우니 운동화.', en: 'Cave is 15°C year-round; wear sneakers (slippery).', ja: '洞内15°C一定。滑るのでスニーカー必須。', zh: '洞内常年15°C，路面湿滑请穿运动鞋。' },
       transit_from_prev: { method: 'car', minutes: 18, distance_km: 11 } },
@@ -1025,17 +1049,21 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-ganghwa': [
     { time: '10:30', name: { ko: '전등사', en: 'Jeondeungsa Temple', ja: '伝燈寺', zh: '传灯寺' }, stay_min: 75,
+    lat: 37.63194, lng: 126.48444,
       description: { ko: '천년 고찰. 산성 안의 사찰로 단군 유적과 이어진다.', en: 'Millennium-old temple within Samrangseong Fortress, tied to Dangun lore.', ja: '1000年の古刹。三郎城内、檀君伝説と関連。', zh: '千年古刹，位于三郎城内，与檀君传说相连。' },
       entry_fee_krw: 4000, tip: { ko: '사찰 입장 시 모자 벗기. 사진 촬영 일부 제한.', en: 'Remove hats inside; photography limited in some halls.', ja: '入場時帽子を脱ぐ。一部撮影制限。', zh: '入殿请脱帽，部分殿堂禁拍照。' } },
     { time: '12:15', name: { ko: '점심 — 강화 인삼한정식', en: 'Lunch — Ganghwa Ginseng Set', ja: 'ランチ — 江華人参定食', zh: '午餐 — 江华人参定食' }, stay_min: 75,
+    lat: 37.6483, lng: 126.5075,
       description: { ko: '강화 인삼 명물. 인삼 닭백숙·전·튀김 코스.', en: "Ganghwa's signature ginseng course — chicken stew, pancake, fried set.", ja: '江華人参の定食。鶏湯、チヂミ、揚物コース。', zh: '江华人参定食。人参鸡汤、煎饼、炸物。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩25,000~35,000. 동원아트홀 인근 권장.', en: '₩25-35k pp. Restaurants near Dongwon Art Hall recommended.', ja: '1人₩25,000~35,000。Dongwon Art Hall周辺推奨。', zh: '人均₩25-35k。推荐Dongwon艺术厅附近。' },
       transit_from_prev: { method: 'car', minutes: 12, distance_km: 8 } },
     { time: '14:00', name: { ko: '광성보', en: 'Gwangseongbo Fortress', ja: '広城堡', zh: '广城堡' }, stay_min: 60,
+    lat: 37.66393, lng: 126.52784,
       description: { ko: '신미양요 격전지 해안 요새. 바다와 어우러진 사적지.', en: 'Coastal fortress of the 1871 US-Korea Battle. Sea-side historic site.', ja: '辛未洋擾の戦跡。海辺の史跡。', zh: '辛未洋扰激战地，海边古迹。' },
       entry_fee_krw: 1100, tip: { ko: '느린 산책 코스. 운동화 권장.', en: 'Easy walking course; sneakers recommended.', ja: 'ゆっくり散策コース。運動靴推奨。', zh: '慢步路线，建议运动鞋。' },
       transit_from_prev: { method: 'car', minutes: 18, distance_km: 12 } },
     { time: '15:30', name: { ko: '동막해변', en: 'Dongmak Beach', ja: '東幕海辺', zh: '东幕海边' }, stay_min: 60,
+    lat: 37.59213, lng: 126.459,
       description: { ko: '서해 갯벌과 일몰 명소. 조개 캐기·갯벌 체험 가능.', en: 'West Sea mudflat and sunset spot; clam digging available.', ja: '西海の干潟と夕日スポット。潮干狩り体験可能。', zh: '西海滩涂与日落胜地，可挖蛤。' },
       entry_fee_krw: 0, tip: { ko: '물때표 미리 확인. 갯벌 들어갈 시 장화 대여.', en: 'Check tide chart; rent boots before entering mudflats.', ja: '潮見表確認。長靴レンタル可能。', zh: '请查潮汐时间，下滩前租雨鞋。' },
       transit_from_prev: { method: 'car', minutes: 15, distance_km: 10 } },
@@ -1043,21 +1071,26 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-dmz': [
     { time: '08:30', name: { ko: '임진각 평화공원', en: 'Imjingak Peace Park', ja: '臨津閣平和公園', zh: '临津阁和平公园' }, stay_min: 60,
+    lat: 37.8923, lng: 126.744,
       description: { ko: '분단의 상징 공원. 자유의 다리, 평화의 종, 망배단.', en: 'Park symbolizing division — Freedom Bridge, Peace Bell, Mangbaedan.', ja: '分断の象徴公園。自由の橋、平和の鐘、望拜壇。', zh: '分裂象征公园。自由之桥、和平之钟、望拜坛。' },
       entry_fee_krw: 0, tip: { ko: '주차장 입구에서 통합 신청서 작성 (여권 지참).', en: 'Combo permit form at entrance (passport required).', ja: '入口で総合申請書記入（パスポート必須）。', zh: '入口处填写综合申请表（请带护照）。' } },
     { time: '10:00', name: { ko: '제3땅굴', en: '3rd Tunnel', ja: '第3トンネル', zh: '第三隧道' }, stay_min: 75,
+    lat: 37.9166, lng: 126.6991,
       description: { ko: '북한이 판 침투 땅굴. 73m 아래 모노레일 또는 도보 진입.', en: 'North Korean infiltration tunnel; descend 73m by monorail or walking.', ja: '北朝鮮の侵入トンネル。73m下までモノレールまたは徒歩。', zh: '朝鲜挖的渗透隧道，可乘单轨或步行下73m。' },
       entry_fee_krw: 7700, tip: { ko: '입장료는 도라산·통일촌 통합권. 헬멧·카메라 보관 필수.', en: 'Combo ticket with Dorasan & Unification Village. Helmet required, no cameras inside.', ja: '都羅山·統一村との通票。ヘルメット必須、カメラ預け。', zh: '与都罗山·统一村通票。需戴头盔、相机寄存。' },
       transit_from_prev: { method: 'car', minutes: 12, distance_km: 7 } },
     { time: '11:45', name: { ko: '도라산 전망대', en: 'Dorasan Observatory', ja: '都羅山展望台', zh: '都罗山观景台' }, stay_min: 45,
+    lat: 37.9101, lng: 126.7055,
       description: { ko: '북한 개성공단·송악산 조망. 망원경으로 북측 마을 관찰.', en: 'View Kaesong Industrial Region and Mt. Songak; binoculars to observe NK villages.', ja: '北朝鮮·開城工業団地と松岳山を望む。望遠鏡で北側の村を観察。', zh: '远眺朝鲜开城工业区和松岳山，望远镜观察北方村庄。' },
       entry_fee_krw: 0, tip: { ko: '날씨 맑은 날 가시거리 좋음. 망원경 ₩500.', en: 'Clear days = better visibility. Binoculars ₩500 each.', ja: '晴天なら視界良好。望遠鏡₩500。', zh: '晴天视野最佳。望远镜₩500。' },
       transit_from_prev: { method: 'car', minutes: 8, distance_km: 5 } },
     { time: '12:45', name: { ko: '도라산역', en: 'Dorasan Station', ja: '都羅山駅', zh: '都罗山站' }, stay_min: 30,
+    lat: 37.89864, lng: 126.70987,
       description: { ko: '남북 연결 철도역. "Pyongyang →" 방향판 포토 스팟.', en: 'Inter-Korean railway station with iconic "To Pyongyang" sign photo spot.', ja: '南北連結鉄道駅。"平壌→"の方向板フォトスポット。', zh: '南北连接铁路站，"开往平壤"路牌拍照点。' },
       entry_fee_krw: 0, tip: { ko: '입장권 패스 포함. 통일 우표 기념품샵.', en: 'Included in combo pass. Unification stamps souvenir shop.', ja: '通票に含まれる。統一切手土産。', zh: '含在通票内。统一邮票纪念品店。' },
       transit_from_prev: { method: 'car', minutes: 5, distance_km: 3 } },
     { time: '13:30', name: { ko: '통일촌 점심', en: 'Unification Village Lunch', ja: '統一村ランチ', zh: '统一村午餐' }, stay_min: 75,
+    lat: 37.9071, lng: 126.7314,
       description: { ko: '민통선 안 마을 식당. 마을 콩으로 만든 청국장·두부 정식.', en: 'Restaurant in Civilian Control Zone village; cheonggukjang and tofu sets.', ja: '民統線内の村レストラン。村産大豆の清麹醤·豆腐定食。', zh: '民统线内村庄餐馆。村产大豆制成的清麹酱·豆腐定食。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩15,000~20,000. 마을 콩나물·된장 구매 가능.', en: '₩15-20k pp. Village soybean sprouts and miso for sale.', ja: '1人₩15,000~20,000。村のもやしや味噌販売。', zh: '人均₩15-20k。村产豆芽、大酱可购。' },
       transit_from_prev: { method: 'car', minutes: 6, distance_km: 4 } },
@@ -1065,17 +1098,21 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-nami-chuncheon': [
     { time: '09:30', name: { ko: '남이섬', en: 'Nami Island', ja: '南怡島', zh: '南怡岛' }, stay_min: 180,
+    lat: 37.7917, lng: 127.5251,
       description: { ko: '겨울연가 촬영지로 유명한 반달형 섬. 메타세쿼이아 길과 자전거 추천.', en: 'Half-moon island famous from Winter Sonata. Metasequoia path, rental bikes.', ja: '「冬のソナタ」ロケ地で有名な半月島。メタセコイア並木、自転車。', zh: '《冬季恋歌》取景地半月岛。水杉小道、可租自行车。' },
       entry_fee_krw: 16000, tip: { ko: '도선료 ₩16,000 (왕복). 짚와이어 ₩44,000 옵션.', en: 'Ferry ₩16,000 round-trip. Zipwire option ₩44,000.', ja: 'フェリー往復₩16,000。ジップワイヤ₩44,000。', zh: '渡轮往返₩16,000。可选高空索道₩44,000。' } },
     { time: '13:00', name: { ko: '점심 — 가평 잣국수', en: 'Lunch — Gapyeong Pine Nut Noodles', ja: 'ランチ — 加平松の実麺', zh: '午餐 — 加平松子面' }, stay_min: 60,
+    lat: 37.7767, lng: 127.4623,
       description: { ko: '가평 명물 잣 들어간 시원한 국수.', en: "Gapyeong's famous chilled noodles with pine nuts.", ja: '加平名物の冷たい松の実麺。', zh: '加平特色冷面，配松子。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩12,000~15,000. 호명별곡, 산뜻한 잣국수 추천.', en: '₩12-15k pp. Try Homyeong-byeolgok or local jat-guksu spots.', ja: '1人₩12,000~15,000。Homyeong-byeolgok等推奨。', zh: '人均₩12-15k。推荐Homyeong-byeolgok等。' },
       transit_from_prev: { method: 'car', minutes: 15, distance_km: 8 } },
     { time: '14:30', name: { ko: '쁘띠프랑스', en: 'Petite France', ja: 'プチフランス', zh: '小法兰西' }, stay_min: 90,
+    lat: 37.71508, lng: 127.49053,
       description: { ko: '프랑스 마을 테마파크. 별주부전 등 K-드라마 촬영지.', en: 'French-themed village park. K-drama filming locations like Beethoven Virus.', ja: 'フランステーマパーク。Kドラマロケ地。', zh: '法国主题村庄主题公园。多部韩剧取景。' },
       entry_fee_krw: 12000, tip: { ko: '인형극·마리오네트 공연 시간표 미리 확인.', en: 'Check puppet show schedule beforehand.', ja: '人形劇のスケジュール確認推奨。', zh: '请提前确认木偶戏时间表。' },
       transit_from_prev: { method: 'car', minutes: 25, distance_km: 18 } },
     { time: '16:30', name: { ko: '춘천 닭갈비 골목', en: 'Chuncheon Dakgalbi Alley', ja: '春川タッカルビ通り', zh: '春川炒鸡排街' }, stay_min: 90,
+    lat: 37.8793, lng: 127.7272,
       description: { ko: '춘천 명동 닭갈비 거리. 매콤한 닭갈비와 막국수 결합 메뉴.', en: 'Chuncheon Myeongdong dakgalbi alley — spicy chicken stir-fry with makguksu.', ja: '春川明洞タッカルビ通り。タッカルビとマッククス。', zh: '春川明洞炒鸡排街。辣味鸡排配荞麦冷面。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩14,000~18,000. 춘천 닭갈비1번지·우성닭갈비 추천.', en: '₩14-18k pp. Chuncheon Dakgalbi 1st St., Useong recommended.', ja: '1人₩14,000~18,000。춘천닭갈비1번지·우성推奨。', zh: '人均₩14-18k。推荐春川炒鸡排1号街、又圣等。' },
       transit_from_prev: { method: 'car', minutes: 30, distance_km: 22 } },
@@ -1083,21 +1120,26 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-gyeongju': [
     { time: '10:00', name: { ko: '불국사', en: 'Bulguksa Temple', ja: '仏国寺', zh: '佛国寺' }, stay_min: 90,
+    lat: 35.79028, lng: 129.33194,
       description: { ko: 'UNESCO 세계유산. 다보탑·석가탑·청운교 등 신라 불교 미술의 정수.', en: 'UNESCO World Heritage. Dabotap & Seokgatap pagodas, the pinnacle of Silla Buddhist art.', ja: 'ユネスコ世界遺産。多宝塔·釈迦塔など新羅仏教美術の精華。', zh: '联合国教科文组织世界遗产。多宝塔·释迦塔等新罗佛教艺术精华。' },
       entry_fee_krw: 6000, tip: { ko: '오전 도착 권장 (햇빛 좋고 한적). 입구에서 한복 무료 입장.', en: 'Arrive in morning (best light, fewer crowds). Free entry in hanbok.', ja: '午前推奨。韓服着用なら無料。', zh: '建议早晨到访。着韩服免费入场。' } },
     { time: '12:00', name: { ko: '석굴암', en: 'Seokguram Grotto', ja: '石窟庵', zh: '石窟庵' }, stay_min: 60,
+    lat: 35.79506, lng: 129.34964,
       description: { ko: '8세기 석굴 사원. 본존불상이 동해 일출 방향. 자연 채광이 신비로움.', en: '8th-century stone-cave temple. Buddha statue faces East Sea sunrise.', ja: '8世紀の石窟寺院。本尊仏は東海の日の出方向。', zh: '8世纪石窟寺院。本尊佛朝向东海日出方向。' },
       entry_fee_krw: 6000, tip: { ko: '석굴 내부 사진 촬영 금지. 한 줄로 천천히 입장.', en: 'No photography inside; single-file entry.', ja: '内部撮影禁止。一列で入場。', zh: '洞内禁止拍照，单列入场。' },
       transit_from_prev: { method: 'car', minutes: 15, distance_km: 4 } },
     { time: '13:30', name: { ko: '점심 — 경주 한정식', en: 'Lunch — Gyeongju Hanjeongsik', ja: 'ランチ — 慶州韓定食', zh: '午餐 — 庆州韩定食' }, stay_min: 75,
+    lat: 35.8123, lng: 129.3063,
       description: { ko: '신라 궁중요리 컨셉의 한정식. 보리굴비·황남빵 디저트.', en: 'Hanjeongsik in Silla royal cuisine style. Boriguibi and Hwangnam-bbang dessert.', ja: '新羅宮中料理風の韓定食。麦塩漬け·黄南パン。', zh: '新罗宫廷料理风格韩定食。麦盐渍鱼·黄南面包。' },
       entry_fee_krw: 0, tip: { ko: '1인 ₩30,000~50,000. 명승가, 큰가야 한정식 추천.', en: '₩30-50k pp. Myeongseunga or Keun Gaya recommended.', ja: '1人₩30,000~50,000。Myeongseunga, Keun Gaya推奨。', zh: '人均₩30-50k。推荐明胜家、큰가야等。' },
       transit_from_prev: { method: 'car', minutes: 18, distance_km: 9 } },
     { time: '15:00', name: { ko: '대릉원·천마총', en: 'Daereungwon & Cheonmachong', ja: '大陵苑·天馬塚', zh: '大陵苑·天马冢' }, stay_min: 90,
+    lat: 35.83895, lng: 129.21193,
       description: { ko: '신라 왕족 고분군. 천마총 내부 관람 가능, 황남대총 외관.', en: 'Royal Silla burial mounds. Enter Cheonmachong; view Hwangnam-daechong.', ja: '新羅王族墳墓群。天馬塚内部見学可能。', zh: '新罗王族墓群。可入天马冢，观皇南大冢外观。' },
       entry_fee_krw: 3000, tip: { ko: '주변 첨성대·계림 함께 도보 산책 (30분).', en: 'Walk to Cheomseongdae and Gyerim Forest nearby (30 min).', ja: '徒歩で瞻星台·鶏林も(30分)。', zh: '可步行至瞻星台·鸡林（30分）。' },
       transit_from_prev: { method: 'car', minutes: 12, distance_km: 6 } },
     { time: '17:00', name: { ko: '동궁과 월지 (안압지)', en: 'Donggung Palace & Wolji Pond', ja: '東宮と月池（雁鴨池）', zh: '东宫与月池（雁鸭池）' }, stay_min: 75,
+    lat: 35.83481, lng: 129.22656,
       description: { ko: '신라 별궁터. 일몰 후 야경 조명이 환상적, 신라 기와 반영.', en: 'Silla detached palace site; after-sunset reflections of illuminated rooflines.', ja: '新羅別宮跡。日没後のライトアップが幻想的。', zh: '新罗别宫遗址，日落后灯光倒影梦幻。' },
       entry_fee_krw: 3000, tip: { ko: '일몰 30분 전 도착 권장. 야경 사진 명소.', en: 'Arrive 30 min before sunset; iconic night-photo spot.', ja: '日没30分前推奨。夜景フォトスポット。', zh: '建议日落前30分到达。夜景拍照胜地。' },
       transit_from_prev: { method: 'car', minutes: 6, distance_km: 3 } },
@@ -1105,21 +1147,26 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-busan-day': [
     { time: '09:30', name: { ko: '감천문화마을', en: 'Gamcheon Culture Village', ja: '甘川文化村', zh: '甘川文化村' }, stay_min: 90, photo: '/부산/부산 (1).jpg',
+    lat: 35.09634, lng: 129.00879,
       description: { ko: '산비탈 알록달록 마을. 어린왕자 포토 스팟·골목 스탬프투어.', en: 'Colorful hillside village; Little Prince photo spot, alley stamp tour.', ja: '山肌のカラフルな村。星の王子さまフォトスポット·路地スタンプ。', zh: '山坡彩色村庄。小王子拍照点·小巷盖章游。' },
       entry_fee_krw: 0, tip: { ko: '관광안내소 ₩2,000 지도 구매 → 스탬프 8개 모으면 기념품.', en: 'Buy ₩2,000 map at info center; 8 stamps earn a souvenir.', ja: '案内所で₩2,000の地図購入→スタンプ8個で記念品。', zh: '游客中心购₩2,000地图，集8章可得纪念品。' } },
     { time: '11:30', name: { ko: '자갈치시장 + 점심', en: 'Jagalchi Market + Lunch', ja: 'チャガルチ市場+ランチ', zh: '札嘎其市场+午餐' }, stay_min: 90,
+    lat: 35.0967, lng: 129.03,
       description: { ko: '한국 최대 수산시장. 회·해산물 즉석 식사. 부산 명물.', en: "Korea's largest fish market. On-the-spot raw fish and seafood platters.", ja: '韓国最大の水産市場。刺身·海鮮その場で。', zh: '韩国最大水产市场。生鱼片·海鲜现场品尝。' },
       entry_fee_krw: 0, tip: { ko: '2층 식당가 추천. 1인 ₩30,000부터.', en: '2nd-floor restaurants recommended. From ₩30,000 per person.', ja: '2階の食堂街推奨。1人₩30,000から。', zh: '推荐2楼餐厅街。人均₩30,000起。' },
       transit_from_prev: { method: 'car', minutes: 15, distance_km: 6 } },
     { time: '13:30', name: { ko: '용두산공원·부산타워', en: 'Yongdusan Park & Busan Tower', ja: '龍頭山公園·釜山タワー', zh: '龙头山公园·釜山塔' }, stay_min: 75,
+    lat: 35.10056, lng: 129.03278,
       description: { ko: '부산 도심 정원과 120m 전망탑. 부산항 360° 조망.', en: 'Downtown garden and 120m observation tower with 360° harbor view.', ja: '釜山市内庭園と120m展望塔。港の360°ビュー。', zh: '釜山市区花园和120m观景塔。港口360°景观。' },
       entry_fee_krw: 12000, tip: { ko: '광복로 쇼핑거리 도보 5분.', en: '5-min walk to Gwangbok-ro shopping street.', ja: '光復路ショッピング街まで徒歩5分。', zh: '步行5分至光复路购物街。' },
       transit_from_prev: { method: 'car', minutes: 8, distance_km: 3 } },
     { time: '15:15', name: { ko: '광안리 해변', en: 'Gwangalli Beach', ja: '広安里ビーチ', zh: '广安里海滩' }, stay_min: 60, photo: '/부산/부산 (3).jpg',
+    lat: 35.1543, lng: 129.1205,
       description: { ko: '광안대교 전망 해변. SUP·요트 액티비티, 해변 카페 인기.', en: 'Beach with Gwangan Bridge view; SUP/yacht activities, café row.', ja: '広安大橋ビュービーチ。SUP·ヨット·カフェ。', zh: '可观广安大桥的海滩。SUP·游艇·咖啡馆。' },
       entry_fee_krw: 0, tip: { ko: '저녁 야경 추천. 광안대교 라이트쇼 21시(주말).', en: 'Evening view recommended; bridge light show 21:00 (weekends).', ja: '夜景推奨。21時の橋ライトショー(週末)。', zh: '推荐傍晚夜景，21点桥梁灯光秀(周末)。' },
       transit_from_prev: { method: 'car', minutes: 18, distance_km: 9 } },
     { time: '16:45', name: { ko: '해운대', en: 'Haeundae Beach', ja: '海雲台', zh: '海云台' }, stay_min: 75, photo: '/부산/부산 (7).jpg',
+    lat: 35.1608, lng: 129.1639,
       description: { ko: '한국 대표 해변. 겨울에도 백사장 산책, 동백섬 누리마루 APEC하우스.', en: "Korea's top beach. Winter beach walks, Dongbaekseom & Nurimaru APEC House.", ja: '韓国代表ビーチ。冬の散歩、東柏島·ヌリマルAPECハウス。', zh: '韩国代表海滩。冬日散步、东柏岛·韩流亚太APEC会馆。' },
       entry_fee_krw: 0, tip: { ko: '동백섬 산책로 (40분 round) 강추.', en: 'Dongbaekseom walking loop (40 min) highly recommended.', ja: '東柏島周遊コース(40分)推奨。', zh: '强烈推荐东柏岛环路(40分)。' },
       transit_from_prev: { method: 'car', minutes: 12, distance_km: 5 } },
@@ -1127,21 +1174,27 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 
   'tour-multicity-3d': [
     { time: 'D1 09:30', name: { ko: '서울 — 경복궁', en: 'Day 1 — Gyeongbokgung', ja: 'D1 — 景福宮', zh: 'D1 — 景福宫' }, stay_min: 90,
+    lat: 37.57861, lng: 126.97722,
       description: { ko: '조선 정궁. 수문장 교대식 09:30. 한복 입장 무료.', en: 'Joseon main palace. Guard ceremony 09:30. Free entry in hanbok.', ja: '朝鮮正宮。9:30衛兵交代。韓服無料。', zh: '朝鲜正宫。9:30换岗仪式。韩服免费。' },
       entry_fee_krw: 3000 },
     { time: 'D1 12:00', name: { ko: '서울 — 북촌·인사동', en: 'Day 1 — Bukchon & Insadong', ja: 'D1 — 北村·仁寺洞', zh: 'D1 — 北村·仁寺洞' }, stay_min: 150,
+    lat: 37.5824, lng: 126.9859,
       description: { ko: '한옥 골목과 전통 공예 거리. 점심 + 도보 산책.', en: 'Hanok alleys and traditional crafts street. Lunch + walking tour.', ja: '韓屋路地と伝統工芸街。ランチ+散歩。', zh: '韩屋小巷与传统工艺街。午餐+步行。' },
       entry_fee_krw: 0, transit_from_prev: { method: 'car', minutes: 8, distance_km: 2 } },
     { time: 'D2 08:30', name: { ko: '안동 — 하회마을', en: 'Day 2 — Andong Hahoe Folk Village', ja: 'D2 — 安東河回村', zh: 'D2 — 安东河回村' }, stay_min: 180,
+    lat: 36.53806, lng: 128.52056,
       description: { ko: 'UNESCO 세계유산 전통마을. 양반 문화·하회별신굿탈놀이.', en: 'UNESCO World Heritage village. Yangban culture, mask dance show.', ja: 'ユネスコ伝統村。両班文化·河回別神タル劇。', zh: '联合国教科文遗产村。两班文化·河回别神面舞。' },
       entry_fee_krw: 5000, tip: { ko: '서울→안동 차량 2시간 30분. 출발 06:00.', en: 'Seoul→Andong 2.5h drive; depart 06:00.', ja: 'ソウル→安東2時間半。6:00出発。', zh: '首尔→安东车程2.5小时，6:00出发。' } },
     { time: 'D2 14:00', name: { ko: '경주 — 불국사·석굴암', en: 'Day 2 — Bulguksa & Seokguram', ja: 'D2 — 仏国寺·石窟庵', zh: 'D2 — 佛国寺·石窟庵' }, stay_min: 180,
+    lat: 35.79028, lng: 129.33194,
       description: { ko: '신라 불교 미술의 정수. UNESCO 세계유산 2곳.', en: 'Pinnacle of Silla Buddhist art. Two UNESCO World Heritage sites.', ja: '新羅仏教美術の精華。ユネスコ2件。', zh: '新罗佛教艺术精华。两处联合国教科文遗产。' },
       entry_fee_krw: 12000, transit_from_prev: { method: 'car', minutes: 90, distance_km: 130 } },
     { time: 'D3 09:00', name: { ko: '부산 — 감천문화마을', en: 'Day 3 — Gamcheon Village', ja: 'D3 — 甘川文化村', zh: 'D3 — 甘川文化村' }, stay_min: 90, photo: '/부산/부산 (1).jpg',
+    lat: 35.09634, lng: 129.00879,
       description: { ko: '산비탈 알록달록 마을. 부산의 마추픽추.', en: 'Colorful hillside village — "Machu Picchu of Busan".', ja: '山肌のカラフル村。釜山のマチュピチュ。', zh: '山坡彩色村庄。釜山的马丘比丘。' },
       entry_fee_krw: 0, tip: { ko: '경주에서 부산 차량 1시간. 호텔 체크인 후 출발.', en: 'Gyeongju→Busan 1h drive; depart after hotel check-in.', ja: '慶州→釜山1時間。ホテルチェックイン後。', zh: '庆州→釜山1小时。酒店入住后出发。' } },
     { time: 'D3 12:00', name: { ko: '부산 — 자갈치시장 + 광안리', en: 'Day 3 — Jagalchi & Gwangalli', ja: 'D3 — チャガルチ·広安里', zh: 'D3 — 札嘎其·广安里' }, stay_min: 240,
+    lat: 35.09667, lng: 129.03,
       description: { ko: '점심(회) + 광안대교 야경 + 해운대까지 부산 정수 코스.', en: 'Sashimi lunch + Gwangan Bridge view + Haeundae — essential Busan.', ja: '刺身ランチ+広安大橋夜景+海雲台の釜山エッセンス。', zh: '生鱼片午餐+广安大桥夜景+海云台。釜山精华。' },
       entry_fee_krw: 0, transit_from_prev: { method: 'car', minutes: 15, distance_km: 8 } },
   ],

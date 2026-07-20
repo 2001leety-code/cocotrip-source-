@@ -21,6 +21,7 @@ import { Header } from '@/sections/Header';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
+import { TourStopMap } from '@/components/tours/TourStopMap';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { TrustBadges } from '@/components/TrustBadges';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
@@ -369,7 +370,11 @@ export default function TourDetailPage() {
         <section className="mb-8">
           <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{itineraryTitle}</h2>
           {tour.stops && tour.stops.length > 0 ? (
-            <TourStopList stops={tour.stops} language={language} />
+            <>
+              {/* 좌표가 있으면 타임라인 위에 지도 — 없으면 스스로 렌더 안 함 */}
+              <TourStopMap stops={tour.stops} language={language} title={itineraryTitle} />
+              <TourStopList stops={tour.stops} language={language} />
+            </>
           ) : (
             <div
               className="flex items-center gap-3 px-4 py-4 rounded-2xl"
