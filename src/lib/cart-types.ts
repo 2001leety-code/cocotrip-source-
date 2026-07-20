@@ -80,18 +80,11 @@ export function isCartEnabled(): boolean {
  * 🔴 Firestore setDoc 은 undefined 값을 거부(throw) — cart booking 의 미적용 키(nullish 폴백으로 undefined 가 된 값,
  *    예: airport_transfer 는 tripType/originKey 미사용)가 섞이면 담기 전체가 조용히 실패(2026-06-11 사고).
  *    serverTimestamp 등 FieldValue 는 호출부에서 strip 후 별도 부착.
+ *
+ * 구현은 `@/lib/firestore-safe` 로 옮겼다 — 장바구니 전용이 아니라 Firestore 쓰기 공통 문제라서.
+ * (어드민 투어 저장도 같은 함정을 밟고 있었다.) 기존 import 경로 호환을 위해 재수출한다.
  */
-export function stripUndefined<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((v) => stripUndefined(v)) as unknown as T;
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) out[k] = stripUndefined(v);
-    }
-    return out as T;
-  }
-  return value;
-}
+export { stripUndefined } from './firestore-safe';
 
 /** AI 플래너 상품 여부 — cart 담기 제외 가드 (위 주석 사유). */
 export function isAiPlannerProduct(productType: string): boolean {
