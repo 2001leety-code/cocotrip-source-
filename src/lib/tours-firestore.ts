@@ -24,6 +24,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { stripUndefined } from '@/lib/firestore-safe';
 import type { Tour, TourPhoto, TourStatus, I18nString } from '@/data/tours';
 
 const COL_TOURS = 'tours';
@@ -99,11 +100,17 @@ export async function fetchDraft(tourId: string): Promise<Tour | null> {
   return normalizeTour(snap.id, snap.data());
 }
 
-/** Draft 저장 (1초 throttle 호출용 — 호출자 책임). admin only by rules. */
+/** Draft 저장 (1초 throttle 호출용 — 호출자 책임). admin only by rules.
+ *
+ * 🔴 stripUndefined 필수: 어드민 폼은 "값을 비웠다"를 `undefined` 로 표현한다
+ *    (`e.target.value ? Number(...) : undefined`). Firestore 는 undefined 를 거부(throw)하므로
+ *    입장료를 0 으로 두거나 stop 좌표를 지우기만 해도 자동저장이 통째로 실패한다.
+ *    FieldValue(serverTimestamp)는 strip 하면 망가지므로 **strip 뒤에** 붙인다.
+ */
 export async function saveDraft(tourId: string, draft: Partial<Tour>, uid: string): Promise<void> {
   const ref = doc(db, COL_DRAFTS, tourId);
   await setDoc(ref, {
-    ...draft,
+    ...stripUndefined(draft),
     id: tourId,
     status: 'draft' as TourStatus,
     updatedAt: serverTimestamp(),
@@ -125,16 +132,25 @@ export async function publishDraft(tourId: string, uid: string): Promise<void> {
   }
   const nextVersion = existingVersion + 1;
 
+  // 기존 문서에 createdAt/createdBy 가 없으면 undefined 가 그대로 실린다 → strip 대상.
+  // (merge:false 라 한 필드만 undefined 여도 publish 전체가 거부된다.)
+  const carriedCreatedAt = existingSnap.exists() ? (existingSnap.data() as Tour).createdAt : undefined;
+  const carriedCreatedBy = existingSnap.exists() ? (existingSnap.data() as Tour).createdBy : undefined;
+
   await setDoc(doc(db, COL_TOURS, tourId), {
-    ...draft,
-    id: tourId,
-    status: 'published' as TourStatus,
-    version: nextVersion,
+    ...stripUndefined({
+      ...draft,
+      id: tourId,
+      status: 'published' as TourStatus,
+      version: nextVersion,
+      createdBy: carriedCreatedBy || uid,
+      ...(carriedCreatedAt !== undefined ? { createdAt: carriedCreatedAt } : {}),
+    }),
+    // FieldValue 는 strip 후 부착 (strip 이 클래스 인스턴스를 평범한 객체로 분해해버린다).
     publishedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     updatedBy: uid,
-    createdAt: existingSnap.exists() ? (existingSnap.data() as Tour).createdAt : serverTimestamp(),
-    createdBy: existingSnap.exists() ? (existingSnap.data() as Tour).createdBy : uid,
+    ...(carriedCreatedAt === undefined ? { createdAt: serverTimestamp() } : {}),
   }, { merge: false });
 }
 
@@ -169,7 +185,7 @@ export function resolvePhotoUrl(
     return photo.variants[preferredWidth] as string;
   }
   if (photo.url?.startsWith('http')) return photo.url;
-  return photo.legacy_public_path ?? photo.url ?? '';
+  return photo.legacy_public_path || photo.url || '';
 }
 
 /**
@@ -219,7 +235,7 @@ export async function importStaticTour(staticTour: Tour, uid: string): Promise<s
     ? legacyToTourPhoto(staticTour.thumbnail)
     : undefined;
 
-  const photos: TourPhoto[] = (staticTour.images ?? []).map(legacyToTourPhoto);
+  const photos: TourPhoto[] = (staticTour.images || []).map(legacyToTourPhoto);
 
   // Stops 의 photo 도 변환 (string → TourPhoto)
   const stops = staticTour.stops?.map((s) => ({
@@ -238,8 +254,9 @@ export async function importStaticTour(staticTour: Tour, uid: string): Promise<s
   };
 
   // tours_drafts/{tourId} 에 저장 (publish 는 운영자 후속 액션)
+  // 정적 투어에도 optional 미설정 필드(thumbnail 없음 등)가 있어 undefined 가 실린다 → strip.
   await setDoc(doc(db, 'tours_drafts', tourId), {
-    ...draftBody,
+    ...stripUndefined(draftBody),
     id: tourId,
     updatedAt: serverTimestamp(),
     updatedBy: uid,

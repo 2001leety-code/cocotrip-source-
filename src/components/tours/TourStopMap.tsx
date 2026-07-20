@@ -11,6 +11,7 @@ import { lazy, Suspense } from 'react';
 import type { TourStop, I18nString } from '@/data/tours';
 import type { Language } from '@/i18n';
 import type { CourseStop } from '@/pages/PlannerPage/components/courseBuilder/courseOps';
+import { countStopsWithCoords, MIN_STOPS_FOR_MAP } from '@/lib/tourStopCoords';
 
 // CourseMiniMap 은 Leaflet 을 자체 chunk 로 로드한다 → lazy 로 감싸 투어 상세 초기 번들 무영향.
 const CourseMiniMap = lazy(() =>
@@ -45,8 +46,9 @@ interface TourStopMapProps {
 export function TourStopMap({ stops, language, title }: TourStopMapProps) {
   // 좌표를 가진 stop 이 2개 미만이면 지도를 아예 안 그린다(CourseMiniMap 도 null 을 반환하지만,
   // Suspense·컨테이너를 만들기 전에 여기서 먼저 끊어 불필요한 청크 로드를 막는다).
-  const withCoords = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
-  if (withCoords.length < 2) return null;
+  // 판정은 `@/lib/tourStopCoords` 한 곳 — 어드민의 "좌표 n곳 입력됨" 표시와 같은 기준이어야
+  // "어드민엔 핀 2개인데 손님 화면엔 지도가 없다"가 안 생긴다.
+  if (countStopsWithCoords(stops) < MIN_STOPS_FOR_MAP) return null;
 
   return (
     <div className="mb-4">

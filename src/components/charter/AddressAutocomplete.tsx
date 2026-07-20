@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPin, Edit2, Loader2, X, Check } from 'lucide-react';
+import { rankByQueryMatch, type PlaceSearchItem } from '@/lib/placeSearch';
 
 // ── Naver Maps SDK 타입 (전역) ────────────────────────────────────────────
 declare global {
@@ -168,41 +169,18 @@ export interface AddressAutocompleteProps {
   disabled?: boolean;
 }
 
-interface ApiItem {
-  name: string;
-  address: string;
-  roadAddress: string;
-  category: string;
-  tel: string;
-  lat: number;
-  lng: number;
+interface ApiItem extends PlaceSearchItem {
   // PR-S: 외국인 사용자에게 번역된 결과가 노출되어도, 백엔드 매칭 / 운영자 검수용으로 한글 원문을 항상 보존.
-  originalName?: string;
+  // (originalName 은 PlaceSearchItem 에 있음 — 검색 정렬이 그걸 본다.)
   originalAddress?: string;
   originalRoadAddress?: string;
   originalCategory?: string;
   translationSource?: 'cache' | 'mapping' | 'gemini' | 'partial_fallback' | 'original';
 }
 
-// #4 결과 재정렬 — Naver Local Search 가 가끔 엉뚱한 첫 결과(예: "Seoul Station" → 인근 EV충전소)를
-//   반환한다. 쿼리 구문이 이름/원문에 포함된 결과를 앞으로 **안정 정렬**한다. 결과를 버리거나 좌표를
-//   바꾸지 않고 순서만 개선 — 사용자는 여전히 전체 후보 + 확인 카드로 최종 선택. 출발/도착/경유/MOOD 공용.
-export function rankByQueryMatch(items: ApiItem[], query: string): ApiItem[] {
-  const q = (query || '').trim().toLowerCase();
-  if (!q || items.length < 2) return items;
-  const score = (it: ApiItem): number => {
-    const name = (it.name || '').toLowerCase();
-    const orig = (it.originalName || '').toLowerCase();
-    const addr = (it.roadAddress || it.address || '').toLowerCase();
-    if (name.includes(q) || orig.includes(q)) return 0; // 이름에 쿼리 구문 포함 = 최우선
-    if (addr.includes(q)) return 1;                      // 주소 포함 = 차선
-    return 2;                                            // 그 외 = Naver 원래 순서 유지
-  };
-  return items
-    .map((it, i) => ({ it, i, s: score(it) }))
-    .sort((a, b) => (a.s - b.s) || (a.i - b.i)) // 동점은 원래 순서 유지(stable)
-    .map((o) => o.it);
-}
+// #4 결과 재정렬 — 구현은 `@/lib/placeSearch` 로 옮겼다(어드민 투어 stop 좌표 채우기와 공용).
+//   기존 import 경로 호환을 위해 여기서 재수출한다.
+export { rankByQueryMatch };
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────
 let mapInstanceCounter = 0;
