@@ -10,9 +10,11 @@
  * 검증 항목:
  *   1. /api/ai-planner-full        — Bearer 미포함 → 401 AUTH_REQUIRED (P0-#2)
  *   2. /api/onboarding-coupons     — Bearer 미포함 → 401 (PR #253)
- *   3. /api/braintreeClientToken   — GET → 200 + JWT 응답 (Drop-in 결제 준비)
- *   4. /api/cancelBooking          — POST 빈 body → 400 또는 405 (handler 살아있음)
- *   5. /api/voucher                — GET → 401 (인증 필요, 핸들러 살아있음)
+ *   3. /api/cancelBooking          — POST 빈 body → 400 또는 405 (handler 살아있음)
+ *   4. /api/voucher                — GET → 401 (인증 필요, 핸들러 살아있음)
+ *
+ * 참고: Braintree Drop-in(/api/braintreeClientToken) 검증은 게이트웨이 제거(2026-05-06~07)로
+ * 엔드포인트가 사라져 함께 삭제됨. PayPal 결제 경로는 아직 스모크 커버리지 없음.
  *
  * Exit code 0 = all pass, 1 = 1+ fail
  */
@@ -41,13 +43,6 @@ const tests = [
     method: 'POST',
     path: '/api/onboarding-coupons',
     expectStatus: 401,
-  },
-  {
-    name: 'Braintree Drop-in — /api/braintreeClientToken GET → 200 + clientToken',
-    method: 'GET',
-    path: '/api/braintreeClientToken',
-    expectStatus: 200,
-    expectBodyContains: 'clientToken',
   },
   {
     name: 'Refund handler alive — /api/cancelBooking POST → 400 or 405 (no auth)',

@@ -1,12 +1,19 @@
 # CocoTrip Frontend Architecture Map
 
 > READ-ONLY orientation doc generated 2026-05-04. Source of truth: `src/App.tsx`, `package.json`, `src/main.tsx`. If routes diverge from this file, App.tsx wins.
+>
+> ⚠️ **2026-07-20 부분 갱신**: 결제 관련 기술(§1, §3 F1/F2, §6, §8)만 교정 — `BraintreePaymentButton.tsx` 는
+> 커밋 `a091e19a`/`40b4e96f` (2026-05-06~07) 에서 삭제됐고 결제 컴포넌트는 `PayPalBookingButton.tsx` 다.
+> **결제 외 섹션(라우트 표·줄 수·컴포넌트 목록)은 2026-05-04 스냅샷** — drift 가정하고 코드로 재확인할 것.
 
 ---
 
 ## 1. Tech Stack
 
-Vite 7 + React 19 + TypeScript 5.9 + react-router-dom 7 + Tailwind 3 + Radix UI + Firebase 12 (Auth + Firestore) + Braintree (`braintree-web-drop-in`) + Sentry + PostHog + Framer Motion + Zod. PWA via `vite-plugin-pwa`. Build output deployed to Vercel (`cocotripkr.com`).
+Vite 7 + React 19 + TypeScript 5.9 + react-router-dom 7 + Tailwind 3 + Radix UI + Firebase 12 (Auth + Firestore) + PayPal (JS SDK Smart Buttons, `<script>` 주입 — npm 패키지 아님) + `qrcode` (paypal.me QR fallback) + Sentry + PostHog + Framer Motion + Zod. PWA via `vite-plugin-pwa`. Build output deployed to Vercel (`cocotripkr.com`).
+
+참고: `braintree` / `braintree-web` / `braintree-web-drop-in` / `@types/braintree-web-drop-in` 은 게이트웨이 제거 후에도
+`package.json` 에 남아 있었으나 import 0건인 dead dependency 였고, 2026-07-20 에 제거됐다.
 
 ---
 
@@ -53,14 +60,14 @@ All page modules are `lazy()`-imported with `<Suspense fallback={<PlannerSkeleto
 ### F1 — AI Plan flow (paid, $9.90)
 1. User lands on `/planner` → `src/pages/PlannerPage/index.tsx`
 2. WizardForm at `src/components/WizardForm/index.tsx` (390L) drives Step0 Reservation → Step0 Destination → Step1 Food (halal/vegan/allergy SAFETY-CRITICAL) → Step2 Details → Step3 Review
-3. Review step triggers payment via `src/components/BraintreePaymentButton.tsx` (TEST_ACCOUNTS bypass `2001leety@gmail.com`, line 164/173)
+3. 결제는 `src/components/PayPalBookingButton.tsx` (PayPal JS SDK Smart Buttons). SDK CDN 차단 시 `PayPalQrPanel.tsx` 로 lazy fallback — paypal.me QR → 사용자 [결제 완료 신고] → `POST /api/manual-payment-request` → `pending_bookings` → 운영자 [입금 확인] 또는 PayPal Webhook 자동매칭. 어드민 본인은 `ADMIN-BYPASS-` orderId 로 결제 우회 (서버가 Firebase ID token 으로 재검증)
 4. POST → `api/ai-planner-full.js` (Gemini 2.5 + DB matcher + RouteAgent + Firestore)
 5. Redirect → `/my-plans/:planId` → `src/pages/PlanDetailPage/index.tsx` renders Day timelines + ad slides + PDF download via `pdfGenerator.ts` (933L)
 
 ### F2 — Charter flow (vehicle hire)
 1. `/charter` → `CharterNewPage` (266L) wraps `<CharterWizard>` (`src/components/charter/CharterWizard.tsx` 170L)
 2. Steps 1-6: Origin → Service → Destination → Pax+Vehicle → Date+Options → Quote
-3. Step6 Quote calls Braintree payment; on success writes `bookings` + `charter_inquiries` Firestore docs
+3. Step6 Quote 는 `PayPalBookingButton` 으로 결제 (`CharterNewPage.tsx` 에서 마운트); 캡처 성공 시 서버(`capturePaypalOrder` → `booking-processor`)가 `bookings` 를 쓰고, 견적 문의 흐름은 `charter_inquiries` 를 쓴다
 4. Auth gate: `<AuthRequired>` wraps the route
 
 ### F3 — Tours flow (catalog)
@@ -152,9 +159,11 @@ Firestore INTERNAL ASSERTION errors are globally suppressed in `src/main.tsx` L1
 - `<AuthRequired>` — wraps `/charter`, `/charter-legacy`, `/mypage`, `/my-plans`. Shows branded 4-lang login card if `!user`. Spinner while `loading || redirectChecking`.
 - `<AdminRoute>` — wraps all `/admin/*`. Email match: `user.email.toLowerCase() === VITE_ADMIN_EMAIL`. Shows "Access denied" card if mismatched.
 
-**TEST_ACCOUNTS bypass:**
-- Defined in `src/components/BraintreePaymentButton.tsx` L164: `['2001leety@gmail.com']`
-- L173: `isTestAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim())` — bypasses real Braintree charge in sandbox flow
+**어드민 결제 우회 (구 TEST_ACCOUNTS):**
+- `src/components/PayPalBookingButton.tsx` L119: `const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com']`
+- L129-130: `adminEmailMatched` (prop `userEmail`) + `firebaseEmailMatched` (`authUser.email`) — **버튼 노출 여부만** 결정하는 UX 게이트
+- L993: 클릭 시 `orderId = \`ADMIN-BYPASS-${Date.now()}\`` 전송. 실제 권한 판정은 서버 `_ai_core/paymentGate.js` 가 Firebase ID token 의 email 을 `ADMIN_BYPASS_EMAILS`/`ADMIN_EMAIL` 과 대조해서 한다 — `body.email` 은 신뢰하지 않는다.
+- 구 `TEST-` prefix 경로는 2026-05-07 (이슈 17) 에 `ADMIN-BYPASS-` 로 교체됐다. `TEST-` 는 `BRAINTREE_ENV ∈ {sandbox, development, dev}` 일 때만 서버가 받는다(fail-closed) — prod 에서는 reject.
 
 ---
 
@@ -186,7 +195,8 @@ No explicit ad-blocker handling beyond Sentry's `ChunkLoadError` ignore list and
 |---|---|---|
 | `AuthRequired` | `src/components/AuthRequired.tsx` | Login gate with 4-lang Google button |
 | `AdminRoute` | `src/components/AdminRoute.tsx` | Admin email check |
-| `BraintreePaymentButton` | `src/components/BraintreePaymentButton.tsx` | Drop-in payment + TEST_ACCOUNTS bypass |
+| `PayPalBookingButton` | `src/components/PayPalBookingButton.tsx` | PayPal Smart Buttons 결제 + 쿠폰/프로모 + 어드민 `ADMIN-BYPASS-` 우회. 16개 surface 에서 임포트 (Charter, Tour, Cart, Kpop, PlannerPage PurchaseSection, PlanDetail InlineBookingCard 등) |
+| `PayPalQrPanel` | `src/components/PayPalQrPanel.tsx` | SDK CDN 차단 시 lazy fallback — paypal.me QR + [결제 완료 신고] → `pending_bookings` |
 | `WizardForm/` | `src/components/WizardForm/` | AI Planner 5-step wizard (data + helpers + steps) |
 | `charter/CharterWizard` | `src/components/charter/CharterWizard.tsx` | Charter 6-step wizard host |
 | `ChatWidget` | `src/components/ChatWidget.tsx` | Chat (lazy-loaded global widget; ChatFAB removed → Telegram bot) |
