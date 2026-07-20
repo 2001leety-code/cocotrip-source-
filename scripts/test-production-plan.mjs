@@ -1,30 +1,30 @@
-// Exercise the full production /api/ai-planner-full pipeline via the TEST-
-// PayPal bypass, then query Firestore to confirm the newly-created plan
+// Exercise the full production /api/ai-planner-full pipeline via the ADMIN-BYPASS-
+// order id, then query Firestore to confirm the newly-created plan
 // has ODsay enrichment (steps_detail, exits, station info).
-import { readFileSync } from 'fs';
+//
+// 2026-07-20 수리. 그 전까지 두 가지 이유로 동작하지 않았다:
+//   1. Authorization 헤더 없음 → PR #247 (audit P0-#2) 이후 401 AUTH_REQUIRED 로 즉사.
+//   2. startDate 가 '2026-05-15' 하드코딩 → 서버 날짜검증 PLANNER_DATE_TOO_SOON 으로 400.
+// 구 TEST- bypass 경로도 2026-07-20 폐지돼 ADMIN-BYPASS- 로 이주했다.
+import {
+  loadDotEnv,
+  getIdToken,
+  futureDate,
+  adminBypassOrderId,
+  postPlanner,
+} from './_lib/planner-smoke.mjs';
 
-for (const file of ['.env', '.env.admin.local', '.env.test.local']) {
-  try {
-    const envText = readFileSync(file, 'utf8');
-    const pattern = /^([A-Z0-9_]+)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|.*)$/gm;
-    let m;
-    while ((m = pattern.exec(envText)) !== null) {
-      const key = m[1];
-      let val = m[2];
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1).replace(/\\n/g, '\n');
-      }
-      if (!process.env[key]) process.env[key] = val;
-    }
-  } catch {}
-}
+loadDotEnv();
+
+const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
+const START_DATE = futureDate(14);
 
 const body = {
-  paypalOrderId: `ADMIN-BYPASS-SMOKE-${Date.now()}`,
+  paypalOrderId: adminBypassOrderId('SMOKE'),
   guestName: 'SmokeTest',
-  email: '2001leety@gmail.com',
-  startDate: '2026-05-15',
-  endDate: '2026-05-16',
+  email: process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com',
+  startDate: START_DATE,
+  endDate: futureDate(15),
   destination: 'Seoul',
   area: 'seoul_city',
   preferences: 'culture, kpop, shopping',
@@ -43,25 +43,23 @@ const body = {
   special_request: 'Use Seoul subway for all transit. Visit Gangnam, Hongdae, and Dongdaemun on different days.',
 };
 
-console.log('→ POST https://cocotripkr.com/api/ai-planner-full');
-console.log('  TEST order:', body.paypalOrderId);
+console.log(`→ POST ${BASE_URL}/api/ai-planner-full`);
+console.log('  admin bypass order:', body.paypalOrderId, '| startDate:', START_DATE);
 const start = Date.now();
 
-const res = await fetch('https://cocotripkr.com/api/ai-planner-full', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(body),
-  signal: AbortSignal.timeout(240000),
-});
+const idToken = await getIdToken();
 
-const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-const json = await res.json().catch(() => null);
-console.log(`  HTTP ${res.status} in ${elapsed}s`);
-
-if (!res.ok) {
-  console.log('  ❌ ERROR:', JSON.stringify(json, null, 2).slice(0, 500));
+let json;
+try {
+  json = await postPlanner(BASE_URL, body, idToken);
+} catch (err) {
+  console.log(`  ❌ ${err.message}`);
+  if (err.body) console.log('  body:', JSON.stringify(err.body, null, 2).slice(0, 500));
   process.exit(1);
 }
+
+const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+console.log(`  HTTP 200 in ${elapsed}s`);
 
 const planId = json?.data?.planId;
 console.log(`  ✅ Plan created: ${planId}`);
