@@ -976,7 +976,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       )}
 
       {/* 🧪 어드민 결제 우회 — TEST_ACCOUNTS(운영자 본인)만 보임.
-           이슈 17 fix (2026-05-07): TEST- prefix → prod PAYMENT_BYPASS_ENV 미설정 시 reject.
+           이슈 17 fix (2026-05-07): TEST- → ADMIN-BYPASS- 교체. TEST- 경로는 2026-07-20 완전 폐지(항상 403).
            ADMIN-BYPASS- prefix 사용 — paymentGate.js가 Firebase ID token + admin email
            이중 인증 후 허용.
            2026-05-12 (B-9 fix): 가정 명시화 — Test Mode 버튼은 위 isSandboxAccount 가드가

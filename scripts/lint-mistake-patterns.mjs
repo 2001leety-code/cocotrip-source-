@@ -1592,7 +1592,7 @@ function P174_validatePlannerSilentFail({ changed }) {
   if (isModified(vp, changed)) {
     const content = getChangedFileContent(vp);
     if (/paypalOrderId\s*:\s*`TEST-/.test(content)) {
-      return `R-P174a: scripts/validate-planner.cjs paypalOrderId='TEST-...' 사용 — prod (PAYMENT_BYPASS_ENV 미설정) 에서 403 reject (audit P1-A). ADMIN-BYPASS- prefix 사용 필수 (admin email 인증 + LIVE bypass).`;
+      return `R-P174a: scripts/validate-planner.cjs paypalOrderId='TEST-...' 사용 — 2026-07-20 부로 TEST- 는 환경 무관 항상 403 (경로 폐지). ADMIN-BYPASS- prefix 사용 필수 (admin email 인증 + LIVE bypass).`;
     }
   }
   // (2) daily-health-check.mjs
