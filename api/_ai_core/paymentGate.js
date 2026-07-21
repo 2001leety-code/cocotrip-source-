@@ -149,7 +149,16 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     const hasValidOwnerUid = origData.uid &&
                              typeof origData.uid === 'string' &&
                              origData.uid.length > 0;
-    if (!isOwner && !hasToken && hasValidOwnerUid) {
+    // 2026-07-21 (보안 감사 후속): 게스트 플랜(uid=null)은 accessToken 이 유일한 보호 수단이다
+    // (planPersister 가 게스트 플랜에 accessToken=randomUUID + revisionCredits=2 로 저장).
+    // 기존 가드는 hasValidOwnerUid 를 reject 의 필수항으로 둬서, uid 없는 게스트 플랜은
+    // accessToken 검사를 통째로 건너뛰었다 — 토큰이 없거나 틀려도 절대 거부되지 않아
+    // planId 만 알면 무결제 revision 생성이 가능했다(fail-open, IDOR).
+    // → 보호 수단이 하나라도 있으면(소유 uid OR accessToken) 소유/토큰 일치를 강제한다.
+    //   둘 다 없는 진짜 무보호 레거시 플랜만 기존처럼 통과(동작 보존).
+    const hasAccessToken = typeof origData.accessToken === 'string' && origData.accessToken.length > 0;
+    const isProtectedPlan = hasValidOwnerUid || hasAccessToken;
+    if (!isOwner && !hasToken && isProtectedPlan) {
       return reject(403, 'FORBIDDEN', 'Unauthorized revision');
     }
     const credits = origData.revisionCredits ?? 0;

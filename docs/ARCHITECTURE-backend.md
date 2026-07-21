@@ -157,7 +157,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `threePassPipeline.js` | New 3-pass mode (`PLANNER_MODE=3pass`). |
 | `routeEnrichment.js` | Calls RouteAgent (Naver Geocoding + ODsay). |
 | `planPersister.js` | T-money calc + Firestore `plans` write. |
-| `paymentGate.js` | PayPal order 검증 + revision counter + `used_paypal_orders` 중복 차단. orderId prefix 분기: 실 PayPal(17자) / `ADMIN-BYPASS-`(admin token 검증) / `MANUAL-{bookingRef}`(pending_bookings CONFIRMED 매칭) / `TEST-`(sandbox 전용). |
+| `paymentGate.js` | PayPal order 검증 + revision counter + `used_paypal_orders` 중복 차단. orderId prefix 분기: 실 PayPal(17자) / `ADMIN-BYPASS-`(admin token 검증) / `MANUAL-{bookingRef}`(pending_bookings CONFIRMED 매칭) / `TEST-`(2026-07-20 폐지 — 항상 403). |
 | `vehicleAndPrice.js` | `selectVehicle`, `calcPrice`, `VEHICLE_LABELS`. |
 | `recommendedRestaurants.js` | `pickRecommendedRestaurants`. |
 | `avoidListQuery.js` | `buildAvoidClause` for user avoid list. |
