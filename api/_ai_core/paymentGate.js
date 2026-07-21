@@ -286,6 +286,34 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         if (pending.status !== 'CONFIRMED') {
           return reject(403, 'PAYMENT_NOT_CONFIRMED', `pending_bookings status: ${pending.status} (expected CONFIRMED)`);
         }
+        // 2026-07-21 (보안 감사): 예전엔 status==='CONFIRMED' 하나만 보고 통과했다 — 상품종류·
+        // 소유자 검증이 없어, 로그인한 아무나 CONFIRMED 상태인 아무 예약(값싼 투어 등)의
+        // bookingRef 를 `MANUAL-<ref>` 로 실으면 유료 AI 플랜($9.90)을 무료로 받았다. bookingRef
+        // (CT-YYYYMMDD-XXX)가 열거 가능해 남의 예약 ref 로도 통과하고 플랜은 공격자 uid 로
+        // 저장됐다(교차사용자 IDOR). PayPal 분기(상품·금액·소유 검증)와 대칭으로 막는다.
+        //
+        // ① 상품 바인딩: pending_bookings 는 투어·차터·AI플래너 공유 컬렉션이므로 AI플래너
+        //    주문인지 확인한다. 이 검사만으로 '값싼 투어 ref' 공격이 끊긴다.
+        if (!isAiPlannerFullProduct(pending.productType)) {
+          return reject(
+            403, 'ORDER_PRODUCT_MISMATCH', 'This booking is not an AI-planner order',
+            `pending_bookings/${bookingRef} productType='${pending.productType}' — MANUAL- AI 플랜 발급 대상 아님`
+          );
+        }
+        // ② 소유자 바인딩: 예약 소유자(uid 또는 예약 시 입력 email)와 인증 사용자가 일치해야 한다.
+        //    남의 CONFIRMED AI플래너 ref 를 대입하는 교차사용자 위조를 차단한다. 정당 흐름은
+        //    서버 트리거(triggerAiPlanner)가 무토큰이라 애초에 이 분기 이전 401 이므로, 이 강화로
+        //    깨질 정당 토큰 흐름은 없다(2026-07-21 조사).
+        const pendingOwnerUid = typeof pending.userId === 'string' && pending.userId.length > 0 ? pending.userId : null;
+        const pendingEmail = typeof pending.customerEmail === 'string' ? pending.customerEmail.toLowerCase().trim() : '';
+        const ownerByUid = pendingOwnerUid && pendingOwnerUid === authenticatedUid;
+        const ownerByEmail = pendingEmail && requestEmail && pendingEmail === requestEmail;
+        if (!ownerByUid && !ownerByEmail) {
+          return reject(
+            403, 'FORBIDDEN', 'Manual order does not belong to the authenticated user',
+            'pending_bookings 소유자 ≠ 인증 사용자 (교차사용자 MANUAL- 위조 차단)'
+          );
+        }
         // 멱등성: 같은 bookingRef 로 ai-planner-full 두 번 호출 차단
         const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
         const usedDoc = await usedRef.get();
