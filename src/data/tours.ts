@@ -358,12 +358,15 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/JnR5Ie_경복궁(1).webp',
     images: [
       '/JnR5Ie_경복궁(1).webp',
+      '/tourists/people-seoul-gyeongbokgung-hanbok.webp',
       '/3Xgcka_북촌한옥마을(1).webp',
       '/서울/서울 (1).jpg',
       '/서울/서울 (3).jpg',
       '/서울/서울 (7).jpg',
       '/서울/서울 (10).jpg',
       '/1uA0qa_반포대교(1).webp',
+      '/tourists/people-seoul-bukchon.webp',
+      '/tourists/people-seoul-hanriver.webp',
     ],
     tags: ['Popular', 'AI-Curated'],
     highlights: [
@@ -565,12 +568,14 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/J7FqPa_서울 밤도깨비 야시장(1).webp',
     images: [
       '/J7FqPa_서울 밤도깨비 야시장(1).webp',
+      '/tourists/people-seoul-myeongdong-night.webp',
       '/1uA0qa_반포대교(1).webp',
       '/서울/서울 (2).jpg',
       '/서울/서울 (14).jpg',
       '/서울/서울 (15).jpg',
       '/서울/해방촌-남산야경.jpg',
       '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
+      '/tourists/people-seoul-ddp-night.webp',
     ],
     tags: ['Popular', 'Night Tour'],
     highlights: [
@@ -615,6 +620,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
     images: [
       '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
+      '/tourists/people-danyang-dodamsambong.webp',
       '/Type1_만천하스카이워크_한국관광공사 김지호_dAeuea(1).jpg',
       '/Type1_고수동굴_우창민_OKkx36(1).jpg',
       '/Type1_고수동굴_우창민_bq6ita(1).jpg',
@@ -623,6 +629,8 @@ const TOURS_RAW: Tour[] = [
       '/단양/단양 (5).jpg',
       '/Type1_단양강 잔도_한국관광공사 김지호_6yEHMa(1).jpg',
       '/Type1_단양 구인사_심현우_I9Wwhg(1).jpg',
+      '/tourists/people-danyang-mancheonha.webp',
+      '/tourists/people-danyang-gosucave.webp',
     ],
     tags: ['Nature', 'Popular'],
     highlights: [
@@ -667,6 +675,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/region-ganghwa.webp',
     images: [
       '/region-ganghwa.webp',
+      '/tourists/people-ganghwa-jeondeungsa.webp',
       '/강화도/강화도 (1).jpg',
       '/강화도/강화도 (2).jpg',
       '/강화도/강화도 (4).jpg',
@@ -675,6 +684,8 @@ const TOURS_RAW: Tour[] = [
       '/강화도/강화도 (10).jpg',
       '/인천/인천 (1).jpg',
       '/인천/인천 (3).jpg',
+      '/tourists/people-ganghwa-dongmak.webp',
+      '/tourists/people-ganghwa-observatory.webp',
     ],
     tags: ['History', 'Nature'],
     highlights: [
@@ -719,6 +730,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/region-dmz.webp',
     images: [
       '/region-dmz.webp',
+      '/tourists/people-dmz-imjingak.webp',
       '/파주_dmz/파주 (1).jpg',
       '/파주_dmz/파주 (2).jpg',
       '/파주_dmz/파주 (3).jpg',
@@ -727,6 +739,8 @@ const TOURS_RAW: Tour[] = [
       '/파주_dmz/파주 (6).jpg',
       '/파주_dmz/파주 (7).jpg',
       '/파주_dmz/파주 (9).jpg',
+      '/tourists/people-dmz-dora-observatory.webp',
+      '/tourists/people-dmz-third-tunnel.webp',
     ],
     tags: ['History', 'Popular', 'AI-Curated'],
     highlights: [
@@ -771,6 +785,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
     images: [
       '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
+      '/tourists/people-nami-island.webp',
       '/춘천/춘천 (1).jpeg',
       '/춘천/춘천 (2).jpeg',
       '/춘천/춘천 (3).jpeg',
@@ -778,6 +793,8 @@ const TOURS_RAW: Tour[] = [
       '/춘천/춘천 (5).jpeg',
       '/춘천/춘천 (6).jpeg',
       '/hero-chuncheon.webp',
+      '/tourists/people-chuncheon-dakgalbi.webp',
+      '/tourists/people-chuncheon-skywalk.webp',
     ],
     tags: ['Popular', 'AI-Curated'],
     highlights: [
@@ -822,6 +839,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/Type1_불국사_두드림_z0WAPa.jpg',
     images: [
       '/Type1_불국사_두드림_z0WAPa.jpg',
+      '/tourists/people-gyeongju-bulguksa.webp',
       '/Type1_첨성대_한국관광공사 김지호_r4H57a.jpg',
       '/Type1_대릉원(천마총)_한국관광공사, 엠엠피 김진규_651iea(1).jpg',
       '/Type1_황리단길_한국관광공사 김지호_p6JHdG.jpg',
@@ -830,6 +848,8 @@ const TOURS_RAW: Tour[] = [
       '/경주/경주 (5).jpg',
       '/경주/경주 (7).jpg',
       '/경주/경주 (10).jpg',
+      '/tourists/people-gyeongju-cheomseongdae.webp',
+      '/tourists/people-gyeongju-hwangnidan.webp',
     ],
     tags: ['History', 'Popular'],
     highlights: [
@@ -874,6 +894,7 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
     images: [
       '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
+      '/tourists/people-busan-haeundae.webp',
       '/Type1_해동용궁사_한국관광공사 김지호_Ha9TWa.jpg',
       '/Type1_자갈치시장_IR 스튜디오_LNrJOa.jpg',
       '/Type1_깡통야시장_한국관광공사 김지호_sS5JDa(1).jpg',
@@ -881,6 +902,8 @@ const TOURS_RAW: Tour[] = [
       '/부산/부산 (3).jpg',
       '/부산/부산 (5).jpg',
       '/부산/부산 (7).jpg',
+      '/tourists/people-busan-gamcheon.webp',
+      '/tourists/people-busan-jagalchi.webp',
     ],
     tags: ['Popular', 'Best Value'],
     highlights: [
@@ -925,12 +948,15 @@ const TOURS_RAW: Tour[] = [
     thumbnail: '/hero-gyeongju.webp',
     images: [
       '/hero-gyeongju.webp',
+      '/tourists/people-seoul-gyeongbokgung-hanbok.webp',
       '/JnR5Ie_경복궁(1).webp',
       '/Type1_불국사_두드림_z0WAPa.jpg',
       '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
       '/hero-busan-real.webp',
       '/경주/경주 (2).jpg',
       '/부산/부산 (2).jpg',
+      '/tourists/people-gyeongju-bulguksa.webp',
+      '/tourists/people-busan-haeundae.webp',
     ],
     tags: ['Popular', 'Multi-City', 'AI-Curated'],
     highlights: [
