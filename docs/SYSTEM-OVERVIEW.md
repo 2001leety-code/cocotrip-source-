@@ -75,7 +75,7 @@
 ### 공통 결제 인프라 (모든 상품 동일)
 - **쿠폰**: `applyPromoCode.js` — COCO5/COCO10/EARLY50 글로벌 + Firestore 개인 쿠폰 (5+5% 합산)
 - **환불**: `cancelBooking.js` — Bronze tier 정책 + PayPal legacy 분기 보존
-- **이메일**: `_email-renderer.js` (4-lang, 신/구 stop 필드 폴백)
+- **이메일**: `_send-email.js` (실제 발송 경로). ⚠️ `_email-renderer.js` 는 **미사용(importer 0, 2026-07-25 확인)** — 메일 문구 고칠 때 착각 주의
 - **Telegram 알림**: 결제 영수증 + 배차 + 에러 dedup
 - **Voucher PDF**: `_generate-voucher.js` (PDFKit) — booking-processor 첨부 + `/api/voucher` public 다운로드 동일 출력
 - **Wallet pass**: `_create-wallet-pass.js` — Google Wallet `LocalizedString` 4-lang

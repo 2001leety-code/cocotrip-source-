@@ -108,7 +108,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `api/_ai-planner-legacy.js` | Pre-modularization fallback. |
 | `api/_booking-templates.js` | Email + Telegram booking message templates. |
 | `api/_create-wallet-pass.js` | Google Wallet JWT for boarding pass. |
-| `api/_email-renderer.js` | Confirmation email HTML/text (with `name`/`display_name` fallback). |
+| `api/_email-renderer.js` | ⚠️ **DEAD (2026-07-25 확인) — importer 0.** 실제 확인메일 렌더·발송은 `api/_send-email.js`. 여기를 고쳐도 손님 메일은 안 바뀐다. |
 | `api/_exchange-rate.js` | KRW/USD helper. |
 | `api/_food_helper.js` | Loads `_food_index.json`, builds `getFoodContext` for prompt injection. |
 | `api/_food_index.json` | ⚠️ 1.2MB DO NOT DELETE. Built by `scripts/build-food-index.js`. |

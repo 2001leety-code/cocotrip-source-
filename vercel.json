@@ -80,6 +80,10 @@
     {
       "path": "/api/cron-runner?job=ops-watchdog",
       "schedule": "45 23 * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=kpop-calendar-check",
+      "schedule": "0 1 1 * *"
     }
   ],
   "functions": {
@@ -99,7 +103,8 @@
       "maxDuration": 60
     },
     "api/cron-runner.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "src/data/kpopConcerts.json"
     },
     "api/pdf/generate.js": {
       "maxDuration": 60,

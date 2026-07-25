@@ -154,7 +154,8 @@ KRW: ₩{amountKRW}
 환율: {exchangeRate}
 ```
 
-### 5.2 고객 이메일 (`api/_email-renderer.js`)
+### 5.2 고객 이메일 (`api/_send-email.js`)
+> ⚠️ 2026-07-25 정정: 이전 표기 `api/_email-renderer.js` 는 **미사용 모듈**(importer 0). 실제 렌더·발송은 `_send-email.js`.
 - 제목: `[CocoTrip] 예약 확인 — {productType} on {tourDate}`
 - 본문: 4언어 자동 (Gemini 기반)
 - 첨부: PDF 바우처 (운전기사 스캔용)
