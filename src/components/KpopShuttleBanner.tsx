@@ -67,6 +67,14 @@ export function KpopShuttleBanner({ p }: Props) {
           <h3 className="text-lg font-bold text-white">{t.title}</h3>
         </div>
         <p className="text-xs text-white/55 ml-7">{t.subtitle}</p>
+        {/* 2026-07-25: "티켓 파는 곳" 오해 차단. 우리가 파는 건 **셔틀(차량+기사)** 이고
+            공연 티켓은 손님이 따로 사야 한다. 이 안내는 원래 공연을 고른 뒤에야 떴는데,
+            배너를 로그인 없는 /charter 에 노출하면서 **처음부터** 보이도록 헤더로 올렸다.
+            (아래 예약 패널에도 동일 문구가 한 번 더 나온다 — 결제 직전 재확인) */}
+        <div className="ml-7 mt-2 flex items-start gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-[11px] leading-relaxed text-white/60">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{t.ticketNote}</span>
+        </div>
       </div>
 
       {/* Concert Cards - Horizontal Scroll */}

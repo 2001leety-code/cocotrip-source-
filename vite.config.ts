@@ -103,7 +103,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg}', 'icons/*.png', 'favicon.png'],
         globIgnores: [
           '**/og-image-original-backup.png',  // 20MB 백업 파일 — 절대 precache 금지
-          '**/AdobeStock_*.webp',
+          // 2026-07-25: AdobeStock_*.webp 8장은 참조 0 으로 삭제됨 → 제외 규칙도 함께 제거.
+          //   (규칙만 남으면 "이 자산 쓰는 중" 이라는 착시가 생긴다)
           '**/Type1_*.jpg',
           '**/hero-*.webp',
           '**/[가-힣]*.webp',

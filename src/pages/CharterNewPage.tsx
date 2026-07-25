@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
+import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { resolveProductType } from '@/components/charter/resolveProductType';
@@ -94,6 +95,18 @@ export default function CharterNewPage() {
             onBack={() => { setCompletedState(null); setConsent({ termsAgreed: false, marketingConsent: false }); }}
             onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
           />
+        )}
+
+        {/* K-pop 콘서트 셔틀 — 2026-07-25 이식.
+            이전에는 이 상품이 `/charter-legacy`(CharterPage)에만 있었는데, 그 페이지는
+            ① AuthRequired 로 로그인 벽 뒤에 있고 ② 아래 legacy 링크가 DEV 전용이라
+            **prod 손님에게는 도달 경로가 0** 이었다(URL 직접 입력 외 불가).
+            차터와 같은 성격(차량+기사)의 상품이므로 위저드 아래에 별도 섹션으로 노출한다.
+            공연이 0건이면 배너가 스스로 안내 문구를 렌더한다(무음 아님). */}
+        {!completedState && (
+          <section className="mt-10">
+            <KpopShuttleBanner p={(t as unknown as { planner?: Record<string, string | undefined> }).planner ?? {}} />
+          </section>
         )}
 
         {/* legacy 링크는 admin/dev에서만 노출. 일반 사용자에게 혼란 주는 운영용 링크. */}
