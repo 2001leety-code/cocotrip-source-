@@ -44,6 +44,9 @@ interface RecommendedOption {
 
 interface RouteToHotel extends TransitFromPrev {
   recommended_option?: RecommendedOption;
+  // RouteAgent 는 arrival 경로 조회 실패(ODsay unavailable 등) 시 route_to_hotel 에
+  // _failed 마커(est_min 없음, mode/method="unknown")를 저장한다.
+  _failed?: boolean;
 }
 
 interface ArrivalStep {
@@ -85,7 +88,11 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
   const ui = getPlanDetailUI(t);
   const [open, setOpen] = useState(true);  // Default open — user paid for this guide
 
-  const route = guide.route_to_hotel;
+  // 유효 경로일 때만 요약 라인/HERO 를 렌더한다. RouteAgent 가 실패 마커(_failed, est_min 없음,
+  // mode/method="unknown")를 저장한 경우 그대로 렌더하면 "· undefinedmin"·"unknown" 이 손님에게
+  // 노출된다(단계별 transport_to_hotel 옵션은 별개라 계속 표시됨).
+  const rawRoute = guide.route_to_hotel;
+  const route = rawRoute && !rawRoute._failed && Number.isFinite(rawRoute.est_min) ? rawRoute : undefined;
   const rec = route?.recommended_option;
   const recReason = rec
     ? ((language === 'ko' && rec.reason_ko) || (language === 'ja' && rec.reason_ja) || (language === 'zh' && rec.reason_zh) || rec.reason_en || '')
