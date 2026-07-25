@@ -27,7 +27,30 @@ export function KpopShuttleBanner({ p }: Props) {
   const totalPrice = unitPrice * pax;
   const canBook = selected && pickup && pax > 0;
 
-  if (concerts.length === 0) return null;
+  // 예정 공연이 0건이면 예전엔 null 을 반환해 K-pop 탭이 **아무 설명 없는 빈 화면**이 됐다
+  // (2026-07 감사: 10건 중 7건 만료로 실제 소멸 직전이었음). 손님이 "고장났나?" 하고 이탈하지
+  // 않도록 정직한 안내 + 문의 경로를 보여준다. 목록 갱신은 매월 1일 크론이 운영자에게 알린다.
+  if (concerts.length === 0) {
+    const empty = ({
+      ko: { t: '예정된 K-pop 콘서트 셔틀이 없습니다', d: '새 공연이 확정되면 여기에 올라옵니다. 원하시는 공연이 있으면 문의해 주세요 — 전세 차량으로 맞춰드립니다.', c: '문의하기' },
+      en: { t: 'No K-pop concert shuttles scheduled right now', d: 'New concerts appear here once confirmed. Have a show in mind? Message us — we can arrange a private charter.', c: 'Contact us' },
+    } as const)[lk];
+    return (
+      <div className="rounded-2xl overflow-hidden px-5 py-6"
+        style={{ background: 'rgba(124,92,252,0.08)', border: '1px solid rgba(124,92,252,0.2)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <Music className="w-5 h-5 text-[#7C5CFC]" />
+          <h3 className="text-lg font-bold text-white">{empty.t}</h3>
+        </div>
+        <p className="text-sm text-white/60 mb-4 ml-7">{empty.d}</p>
+        <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+          className="ml-7 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] min-h-[44px]"
+          style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+          {empty.c} <ArrowRight className="w-4 h-4" />
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div
