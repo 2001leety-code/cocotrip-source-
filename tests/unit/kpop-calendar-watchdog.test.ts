@@ -15,6 +15,8 @@ import { describe, it, expect } from 'vitest';
 import rawConcerts from '../../src/data/kpopConcerts.json';
 import { KPOP_CONCERTS, getUpcomingConcerts } from '../../src/data/kpopConcerts';
 import { kpopCalendarTask, splitByDate } from '../../api/_crons/kpop-calendar-check.js';
+import frontSpec from '../../src/data/pricing_spec.json';
+import backSpec from '../../api/_pricing_spec.json';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -55,6 +57,28 @@ describe('kpopConcerts 데이터 무결성', () => {
   it('id 가 중복되지 않는다', () => {
     const ids = KPOP_CONCERTS.map(c => c.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('🔴 표시가 == 청구가 (K-pop 셔틀)', () => {
+  // 배너는 공연 데이터의 oneWayPrice/roundTripPrice 를 곱해 **표시**하는데,
+  // 백엔드(createPaypalOrder.js:104-110)는 공연과 무관하게 **항상 pricing_spec 의
+  // kpop_shuttle 값**으로 청구한다. 둘이 어긋나면 손님이 본 금액과 실제 결제액이 달라진다.
+  // 2026-07-25: K-pop 셔틀을 로그인 없는 /charter 에 노출하면서 이 가드를 세운다.
+  const ow = (frontSpec as { kpop_shuttle: { price_one_way: number } }).kpop_shuttle.price_one_way;
+  const rt = (frontSpec as { kpop_shuttle: { price_round_trip: number } }).kpop_shuttle.price_round_trip;
+
+  it('프론트 spec 과 백엔드 spec 의 셔틀 요금이 같다', () => {
+    const b = (backSpec as { kpop_shuttle: { price_one_way: number; price_round_trip: number } }).kpop_shuttle;
+    expect(b.price_one_way).toBe(ow);
+    expect(b.price_round_trip).toBe(rt);
+  });
+
+  it('모든 공연의 표시가가 spec 청구가와 일치한다', () => {
+    for (const c of KPOP_CONCERTS) {
+      expect(c.oneWayPrice, `${c.id} 편도 표시가≠청구가`).toBe(ow);
+      expect(c.roundTripPrice, `${c.id} 왕복 표시가≠청구가`).toBe(rt);
+    }
   });
 });
 
