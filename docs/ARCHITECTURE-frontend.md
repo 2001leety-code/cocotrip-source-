@@ -73,7 +73,8 @@ All page modules are `lazy()`-imported with `<Suspense fallback={<PlannerSkeleto
 ### F3 — Tours flow (catalog)
 1. `/tours` → `ToursPage` (554L) — Firestore `tours` collection + `tour_availability` realtime
 2. `/tours/:slug` → `TourDetailPage` (698L) → `<TourBookingDialog>` (`src/components/tours/TourBookingDialog.tsx`)
-3. Booking writes via `src/services/bookingService.js` to `tours/{tourId}/bookings`
+3. ⚠️ **정정(2026-07-25)**: `src/services/bookingService.js` 의 `reserveTourSeats` 는 **호출자 0 = 미사용**.
+   좌석 원자 차감이 동작한다고 가정하지 말 것. 실제 예약 쓰기는 결제 백엔드(booking-processor) 경로다.
 
 ### F4 — Auth / login
 - Firebase Google SSO via `src/lib/firebase.js::signInWithGoogle` (popup + redirect fallback)

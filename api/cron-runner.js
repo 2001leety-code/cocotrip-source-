@@ -34,6 +34,7 @@ import morningBriefing from './_crons/morning-briefing.js';
 import reviewRequest from './_crons/review-request.js';
 import contentDraft from './_crons/content-draft.js';
 import opsWatchdog from './_crons/ops-watchdog.js';
+import kpopCalendarCheck from './_crons/kpop-calendar-check.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -66,6 +67,9 @@ const JOBS = {
   'content-draft':               contentDraft,
   // 2026-06-10 자가운영 에이전시 P2심화 — 수정팀(운영 감시원). 어제 데이터 재검산→의사결정 큐 (🔒 OPS_WATCHDOG_ENABLED OFF, 발견만/수정 X).
   'ops-watchdog':                opsWatchdog,
+  // 2026-07-25 — K-pop 공연 목록 소진 감시 (매월 1일). AI 0·외부 API 0, JSON 만 읽음.
+  //   목록이 마르면 차터 K-pop 탭이 조용히 빈 화면이 되던 것 방지.
+  'kpop-calendar-check':         kpopCalendarCheck,
 };
 
 const CORS = {
