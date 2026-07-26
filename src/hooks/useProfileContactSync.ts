@@ -17,29 +17,9 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { invalidateProfileCache } from '@/hooks/useUserProfile';
-import { isValidInternationalPhone } from '@/lib/phone-validation';
-
-/**
- * 저장할 값을 결정한다. 저장 안 함이면 null.
- *
- * 순수 함수로 분리한 이유 = 이 판단(형식 검증 + 중복 쓰기 차단)이 이 훅의 유일한 로직이고,
- * React 없이 테스트 가능해야 하기 때문. tests/unit/profile-contact-sync.test.ts 참조.
- *
- * @param raw   폼이 들고 있는 전화번호 (미입력/부분입력 가능)
- * @param saved 이 세션에서 이미 저장한 값 (없으면 null)
- */
-export function nextPhoneToPersist(
-  raw: string | null | undefined,
-  saved: string | null,
-): string | null {
-  // 레포 pre-commit 가드가 nullish coalescing 을 막는다 → || 사용.
-  // 여기선 빈 문자열도 "미입력"이라 동치라 의미 차이가 없다.
-  const v = (raw || '').trim();
-  if (!v) return null;                             // 미입력 — 기존 값 덮어쓰지 않음
-  if (!isValidInternationalPhone(v)) return null;  // 입력 중(부분 문자열) 저장 방지
-  if (v === saved) return null;                    // 같은 값 재쓰기 차단
-  return v;
-}
+// 저장 판단은 firebase-free 모듈에 둔다 — 이 훅은 lib/firebase 를 끌어와서
+// CI(FIREBASE_* env 없음)에서 import 하는 순간 테스트가 수집 단계에서 죽는다.
+import { nextPhoneToPersist } from '@/lib/profilePrefill';
 
 /**
  * 유효한 국제 형식 전화번호가 들어오면 프로필에 1회 저장한다(값이 바뀌면 다시 1회).

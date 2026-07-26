@@ -6,7 +6,10 @@
 //  - 중복 차단이 빠지면 리렌더마다 같은 값을 다시 쓴다.
 //  - 빈 값 가드가 빠지면 폼을 비운 사용자의 기존 프로필 번호가 지워진다.
 import { describe, it, expect } from 'vitest';
-import { nextPhoneToPersist } from '@/hooks/useProfileContactSync';
+// 🔴 훅(useProfileContactSync)이 아니라 firebase-free 모듈에서 import 한다.
+//    훅은 lib/firebase 를 끌어오는데 CI 는 FIREBASE_* env 가 없어 getAuth() 가 throw →
+//    테스트 파일이 수집 단계에서 통째로 죽는다(2026-07-26 CI 실패로 실측).
+import { nextPhoneToPersist } from '@/lib/profilePrefill';
 
 const VALID = '+821012345678';
 
