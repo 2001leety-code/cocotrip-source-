@@ -48,7 +48,9 @@ export function useUserProfile(): { profile: PrefillProfile | null; loading: boo
         const p: PrefillProfile = {
           name: (data?.name as string) || user?.displayName || undefined,
           nickname: (data?.nickname as string) || undefined,
-          phone: (data?.phone as string) || undefined,
+          // phoneNumber = firestore.rules allowlist 에 있는 정식 키(useProfileContactSync 가 씀).
+          // phone 은 폐기된 SignupOnboarding 시절 키 — 남아있는 문서를 위한 폴백.
+          phone: (data?.phoneNumber as string) || (data?.phone as string) || undefined,
           countryCode: (data?.countryCode as string) || undefined,
           email: (data?.email as string) || user?.email || undefined,
         };

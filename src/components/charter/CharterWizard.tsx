@@ -9,6 +9,7 @@ import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
@@ -213,6 +214,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       customerPhone: normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode),
     }, ['customerName', 'customerPhone']));
   }, [prefillProfile, resumeOpen]);
+
+  // 2026-07-26: 위 prefill 이 읽는 값을 쓰는 코드가 없어 매 예약마다 재입력이었다 → 저장 배선.
+  useProfileContactSync(state.customerPhone);
 
   // Resume modal 활성 시 'charter_paused' namespace 로 저장 → 사용자가 '새로 시작'
   // 누르기 전까지 원본 snapshot 유지. WizardForm/index.tsx 와 동일 패턴.
