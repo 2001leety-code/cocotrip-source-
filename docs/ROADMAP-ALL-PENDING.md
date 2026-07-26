@@ -178,23 +178,13 @@
 
 # 📂 Section 5 — 얼리버드 / 프로모
 
-## P1-1. earlybird/counter 문서 생성
+## ~~P1-1. earlybird/counter 문서 생성~~ — ❌ 무효 (2026-07-26)
 
 **배경**: 문서 미생성 → D4 보안 테스트 404. EarlyBirdBanner fallback 경로 사용 중.
 
-**작업**:
-```javascript
-// scripts/create-earlybird-counter.mjs
-await db.collection('earlybird').doc('counter').set({
-  count: 0,
-  capacity: 100,
-  startDate: '2026-04-01',
-  endDate: '2026-12-31',
-  updatedAt: FieldValue.serverTimestamp()
-});
-```
-
-**검증**: 프로덕션 홈에서 배너 정상 렌더 + 보안 테스트 D4 PASS.
+**종결 사유**: `EarlyBirdBanner` 컴포넌트가 `src/` 에서 제거돼 얼리버드 배너 자체가 없다.
+카운터 문서를 만들 대상이 사라졌고, 생성용 `scripts/create-earlybird-counter.mjs` 도 삭제했다.
+자세한 내용은 `docs/HANDOFF-next-sprint-3.md` §3 참조.
 
 ---
 
