@@ -6,10 +6,10 @@
 //
 // critique fix:
 //  #2 "빈" 정의 = null/undefined/공백 (charter customerName/Phone 은 키 자체가 undefined 로 시작 — '' 만 보면 누락).
-//     프로필 쪽 빈 값(SignupOnboarding 이 phone 을 null 저장 / 기존 회원 nickname 부재)도 주입 금지(controlled-input 경고 방지).
+//     프로필 쪽 빈 값(phone 미저장 / 기존 회원 nickname 부재)도 주입 금지(controlled-input 경고 방지).
 //  #3 trunk-zero(선행 0) strip 을 KR 특례가 아닌 전 국가 공통(JP 090→+8190 등 — 나이브 prepend 시 오번호가 기사 배차에 들어감).
 
-// 온보딩 countryCode → 국제 다이얼 코드 (SignupOnboarding 의 국가 목록).
+// 프로필 countryCode → 국제 다이얼 코드.
 const DIAL_CODE: Record<string, string> = {
   KR: '+82', US: '+1', JP: '+81', CN: '+86', SG: '+65',
   TH: '+66', VN: '+84', MY: '+60', PH: '+63',

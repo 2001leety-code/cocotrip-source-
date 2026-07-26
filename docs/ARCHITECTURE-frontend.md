@@ -110,7 +110,6 @@ All page modules are `lazy()`-imported with `<Suspense fallback={<PlannerSkeleto
 | `users/{uid}/plans` | `MyPlansPage.tsx` |
 | `users/{uid}/coupons`, `users/{uid}/pointHistory` | `useLoyalty.ts` |
 | `users/{uid}/wishlist` | `useWishlist.ts` |
-| `users/{uid}/recentlyViewed` | `useRecentlyViewed.ts` |
 | `plans` | `MyPage.tsx`, `MobileHome.tsx`, `ConversionFunnel.tsx` |
 | `bookings` | `AdminCalendar.tsx`, `AdminAnalytics.tsx`, `DispatchTimeline.tsx`, `ProfitSettlement.tsx`, `ConversionFunnel.tsx` |
 | `tours/{tourId}/bookings` | `services/bookingService.js` |
@@ -206,7 +205,7 @@ No explicit ad-blocker handling beyond Sentry's `ChunkLoadError` ignore list and
 | `ErrorBoundary` | `src/components/ErrorBoundary.tsx` | Top-level boundary, mounted between Language + Router |
 | `ui/` (Radix wrappers) | `src/components/ui/` | shadcn-style primitives — Dialog/AlertDialog/Select/Tabs/etc |
 
-Notable secondary: `KpopConcertPopup`, `CookieBanner`, `PWAUpdatePrompt`, `SeasonalBanner`, `EarlyBirdBanner`, `PendingClaimsWidget`, `ReviewSubmitModal`, `WishlistButton`, `TravelTimeline`, `LoyaltyBadge`.
+Notable secondary: `KpopConcertPopup`, `CookieBanner`, `PWAUpdatePrompt`, `SeasonalBanner`, `EarlyBirdBanner`, `PendingClaimsWidget`, `ReviewSubmitModal`, `WishlistButton`, `LoyaltyBadge`.
 
 Page subfolders (decomposed): `pages/PlannerPage/{index,components,hooks,lib,constants,types}` and `pages/PlanDetailPage/{index,components,hooks,lib,pdfGenerator,useAutoTranslate,constants,types}`. Backup file `WizardForm.backup.tsx` exists at component root.
 

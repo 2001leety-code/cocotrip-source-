@@ -2216,26 +2216,6 @@ function R_Plaunch_departureAirportDerive(ctx) {
 }
 
 /**
- * R_Phase0_flagStringCompare (2026-06-01): Vite env 플래그는 항상 string → boolean truthy 비교 금지,
- * 반드시 `=== 'true'`. 안 그러면 OFF(미설정)가 안 되어 swap-in 패턴 깨짐. PR-A own-tour upsell.
- */
-function R_Phase0_flagStringCompare(ctx) {
-  const FILE = 'src/pages/PlannerPage/components/OwnTourUpsellSection.tsx';
-  if (!isModified(FILE, ctx.changed)) return { skipped: true };
-  let src = '';
-  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
-  if (!/VITE_FEATURE_OWN_TOUR_UPSELL/.test(src)) return null;
-  if (!/VITE_FEATURE_OWN_TOUR_UPSELL\s*===\s*['"]true['"]/.test(src)) {
-    fail(
-      'R_Phase0_flagStringCompare',
-      "OwnTourUpsellSection: VITE_FEATURE_OWN_TOUR_UPSELL 를 === 'true' 로 비교 안 함 — Vite env 는 항상 string 이라 truthy 비교 시 OFF(미설정)가 안 됨 (PR-A 플래그 무력화)",
-      "const FLAG_ON = import.meta.env.VITE_FEATURE_OWN_TOUR_UPSELL === 'true';",
-    );
-  }
-  return null;
-}
-
-/**
  * R_Phase0_jsonldTestNoFirebase (2026-06-01): tour-jsonld 테스트는 순수 모듈 buildTourJsonLd 에서
  * import — TourDetailPage(클라이언트 컴포넌트 → src/lib/firebase getAuth) import 시 CI(키 없음)
  * "0 test" crash. PR-B CI 실패 재발 차단. (교훈: 순수함수 테스트는 firebase-free 모듈만 import.)
@@ -2776,7 +2756,6 @@ const RULES = [
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['R_Plaunch_departureAirportDerive', R_Plaunch_departureAirportDerive],
-  ['R_Phase0_flagStringCompare', R_Phase0_flagStringCompare],
   ['R_Phase0_jsonldTestNoFirebase', R_Phase0_jsonldTestNoFirebase],
   ['R_Phase0_charterPriceSSOT', R_Phase0_charterPriceSSOT],
   ['R_Phase0_resumeStrictGate', R_Phase0_resumeStrictGate],

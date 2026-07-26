@@ -187,7 +187,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `tours/{tourId}/bookings/{bookingId}` | user-create | Per-tour booking subcollection (legacy/parallel). |
 | `tour_availability/{tourId}/dates/{YYYY-MM-DD}` | admin-write, public-read | `available` / `fully_booked` / `blackout`. |
 | `tours` | admin-write, public-read | Catalog. |
-| `users/{uid}` | owner | Subcollections: `plans`, `pointHistory`, `coupons`, `wishlist`, `recentlyViewed`, `itineraries`, `shareRewards`, `reviewRewards`. |
+| `users/{uid}` | owner | Subcollections: `plans`, `pointHistory`, `coupons`, `wishlist`, `itineraries`, `shareRewards`, `reviewRewards`. |
 | `push_subscriptions/{uid_subId}` | owner | VAPID Web Push. |
 | `earlybird/{docId}` | public-read | Counter. |
 | `reviews` | server-create, admin-mod | Public read. Schema validated in rules. |

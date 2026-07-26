@@ -90,7 +90,7 @@
 - [x] Interactive Route Map 카드(Optimize 토글) — 이미 공용 컴포넌트(PlanDetailPage/components/DayRouteMap + OptimizePanel, DayTimeline 소비). 스태일 [ ] 정정.
 - [x] Charter Segment 카드(intercity 업셀) — 이미 공용 컴포넌트(RouteInsightCard·TransitVsCharterCard·CharterCTA, DayTimeline 소비 #1103). 스태일 [ ] 정정.
 - [x] **Booking Status 타임라인**(C2: BookingStatusTimeline, b.status 실값 Confirmed→투어당일→Completed, CANCELED 분기, 조작단계X)
-- [x] Tour Card = 이미 공용 컴포넌트(components/tours/TourCard.tsx, ToursPage+OwnTourUpsellSection 재사용). 스태일 정정(2026-07-14)
+- [x] Tour Card = 이미 공용 컴포넌트(components/tours/TourCard.tsx, ToursPage 재사용). 스태일 정정(2026-07-14)
 - [~] 잔여 추출(🟢 저가치·비게이트): Coupon Wallet(MyPage 인라인)·Community Translation(CommunityPage 2곳 중복)·Weather Card(3곳 중복, 단 홈=baseline 게이트). 강제 리팩터 리스크 대비 저가치 → 신규 화면 생길 때 dedup.
 
 ## 운영자 결정 — 2026-07-12 확정 ✅

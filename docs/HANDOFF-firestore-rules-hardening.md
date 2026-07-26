@@ -88,7 +88,6 @@ service cloud.firestore {
 | `users/{uid}/pointHistory/{id}` | useLoyalty (read) | read: 본인, write: false | 서버(loyalty API)가 기록 |
 | `users/{uid}/coupons/{id}` | useLoyalty (read), applyPromoCode (server) | read: 본인, write: false | 서버가 발급/소진 |
 | `users/{uid}/wishlist/{id}` | useWishlist (r/w) | 본인 r/w | 클라이언트 관리 |
-| `users/{uid}/recentlyViewed/{id}` | useRecentlyViewed (r/w) | 본인 r/w | 클라이언트 관리 |
 | `users/{uid}/itineraries/{id}` | useItinerary (r/w) | 본인 r/w | 클라이언트 관리 |
 | `tours/{tourId}` | Booking.tsx (read), Admin.tsx (create), bookingService (update) | read: public, update: 로그인, create/delete: 어드민 | 예약 트랜잭션이 currentBookings 증가 |
 | `tours/{tourId}/bookings/{id}` | bookingService (create transaction) | read/create: 본인 (userId=auth.uid), u/d: 어드민 | 예약 레코드 |

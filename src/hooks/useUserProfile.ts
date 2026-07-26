@@ -3,7 +3,8 @@
 // 2026-06-11. getDoc 1회(onSnapshot 구독 아님 — 폼 기본값엔 일회성이 적합, useLoyalty 의 실시간 구독은 과함).
 // useAuth 는 Firebase Auth 만(Firestore 필드 없음)이라 재사용 불가 → 신규 훅. AuthRequired L116-130 getDoc 패턴 복제.
 // 🔴 graceful: 로그아웃/에러/빈 프로필 = profile:null (throw 금지 — 폼은 항상 동작). uid별 모듈 캐시로 중복 read 차단.
-// critique fix #7: needsOnboarding=true 프로필은 캐시 안 함(온보딩 전 stale 방지) + invalidate export(온보딩 저장 후 호출용).
+// invalidate export — 프로필을 갱신한 폼이 저장 직후 호출해 캐시를 무효화한다.
+// 2026-07-26: needsOnboarding 캐시 분기 제거. PR#996 이 온보딩 페이지를 폐기한 뒤 그 필드를 쓰는 코드가 0이 됐다.
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -51,7 +52,7 @@ export function useUserProfile(): { profile: PrefillProfile | null; loading: boo
           countryCode: (data?.countryCode as string) || undefined,
           email: (data?.email as string) || user?.email || undefined,
         };
-        if (data?.needsOnboarding !== true) cache.set(uid, p); // 온보딩 미완은 캐시 제외
+        cache.set(uid, p);
         setProfile(p);
       } catch (e) {
         if (!cancelled) setProfile(null); // graceful — 폼은 빈칸으로 정상 동작

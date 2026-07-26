@@ -21,7 +21,6 @@ import { CocoIcon, MobilePlannerHero, MobilePlannerPrinciples } from './componen
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
-// ItineraryResult is used within PlanDetailPage, not here directly
 import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PurchaseSection } from './components/PurchaseSection';
 import { CourseBuilderShell } from './components/CourseBuilderShell';
