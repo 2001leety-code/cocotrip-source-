@@ -95,7 +95,6 @@ npm audit --audit-level=critical
 - [ ] `api/loyalty.js` — Firestore 트랜잭션 정상 동작 (earn-share, redeem-coupon, earn)
 - [ ] `api/applyPromoCode.js` — 쿠폰 검증 + 환율 계산
 - [ ] `api/capturePaypalOrder.js` — 쿠폰 `isUsed` 마킹
-- [ ] `api/reserve-slot.js` + `check-availability.js` — 슬롯 예약
 - [ ] `plan-status`, `plan-delete` — 플랜 CRUD
 - [ ] Firebase Admin 초기화 (`GOOGLE_SERVICE_ACCOUNT_KEY` 파싱)
 

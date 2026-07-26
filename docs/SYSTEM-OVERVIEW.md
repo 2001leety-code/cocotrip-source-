@@ -202,7 +202,7 @@ ai-planner-full.js (307L, maxDuration=800)
 
 ### Sentry (활성)
 - **Frontend** (`src/lib/sentry.ts`): PROD only, sample 0.1, beforeSend PII strip (email/IP), Firestore noise drop
-- **Backend** (`api/_shared/sentry.js`): 17 endpoint에 `captureError` (booking-processor, braintreeCheckout, ai-planner-full, cancelBooking, voucher, applyPromoCode, loyalty, my-bookings, modifyBooking, check-availability, reserve-slot, notify-claim, admin-bookings, admin-replay-..., admin-scan-..., chat, braintreeClientToken)
+- **Backend** (`api/_shared/sentry.js`): 15 endpoint에 `captureError` (booking-processor, braintreeCheckout, ai-planner-full, cancelBooking, voucher, applyPromoCode, loyalty, my-bookings, modifyBooking, notify-claim, admin-bookings, admin-replay-..., admin-scan-..., chat, braintreeClientToken)
 - DSN env: `VITE_SENTRY_DSN` + `SENTRY_DSN` 둘 다 등록
 
 ### PostHog (lazy, opt-in)
