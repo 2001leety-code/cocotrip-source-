@@ -76,7 +76,7 @@ export function MetaTab({ draft, onChange }: Props) {
               type="email"
               value={draft.verified_by || ''}
               onChange={(e) => onChange({ verified_by: e.target.value })}
-              placeholder="2001leety@gmail.com"
+              placeholder="admin@example.com"
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
             />
           </div>

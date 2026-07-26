@@ -33,7 +33,6 @@ const CORS = {
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
-const ADMIN_EMAILS = ['2001leety@gmail.com'];
 const MAX_TEXT = 500;
 const MAX_PHOTOS = 3;
 const REVIEW_REWARD = 50;
@@ -332,8 +331,6 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify(_err(adminAuth.error, 'FORBIDDEN')));
       }
       const { filter } = body;
-      // Belt-and-suspenders: 보조 allowlist 비교 (legacy fallback).
-      void ADMIN_EMAILS;
 
       let query;
       if (filter === 'hidden') {
