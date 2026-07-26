@@ -22,7 +22,7 @@
 | A2 | Charter estimate, ICN→부산시내 (zone fallback) | `charter_custom_estimate` | krwAmount = `customAmountKRW`, `requiresReconciliation: true` flag in booking doc, "권역 평균 추정가" notice in voucher | `/charter` → 부산시내 → quote shows estimate → Pay sandbox | Sandbox |
 | A3 | AI Planner, 2 days, Seoul | `ai-planner-full` | $9.90 charge → Firestore `plans/{id}` doc + revisionCredits=2 + AI plan generation triggered + email confirmation w/o voucher (digital) | `/planner` → Wizard 5 steps → Pay sandbox → wait for plan generation | Sandbox |
 | A4 | Tour booking, 1 tour | `tour_<id>` | Tour availability decremented in `tour_availability/{tourId}/dates/{date}` + booking written under `tours/{tourId}/bookings/{id}` (legacy nested surface) + voucher email | `/tours/<slug>` → "Book" → date picker → Pay sandbox | Sandbox |
-| A5 | Airport pickup standalone | `airport_transfer` | matrix-priced booking + voucher | `/planner` → AirportPickupCard → Pay sandbox | Sandbox |
+| A5 | Airport pickup standalone | `airport_transfer` | matrix-priced booking + voucher | `/charter` 위저드 (`service=airport_transfer`) → Step6Quote → Pay sandbox | Sandbox |
 | A6 | K-pop shuttle one-way | `kpop_shuttle_oneway` | matrix-priced booking + voucher | `KpopShuttleBanner` (homepage) → Pay sandbox | Sandbox |
 
 ---

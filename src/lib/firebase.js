@@ -226,23 +226,6 @@ async function syncGuestDataToFirestore(uid) {
       localStorage.removeItem('COCO_WISHLIST');
       console.log(`[firebase] 위시리스트 ${items.length}건 동기화 완료`);
     }
-
-    // 최근 본 상품 동기화
-    const recentRaw = localStorage.getItem('COCO_RECENTLY_VIEWED');
-    if (recentRaw) {
-      let items = [];
-      try { items = JSON.parse(recentRaw); } catch { items = []; }
-      for (const item of items) {
-        if (!item?.id) continue;
-        await setDoc(
-          doc(db, 'users', uid, 'recentlyViewed', item.id),
-          { ...item, serverViewedAt: serverTimestamp() },
-          { merge: true }
-        );
-      }
-      localStorage.removeItem('COCO_RECENTLY_VIEWED');
-      console.log(`[firebase] 최근 본 ${items.length}건 동기화 완료`);
-    }
   } catch (e) {
     console.warn('[firebase] Guest sync failed:', e.message);
   }

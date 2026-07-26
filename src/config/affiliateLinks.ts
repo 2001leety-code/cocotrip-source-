@@ -241,7 +241,8 @@ export function buildCarLink(city: string) {
 // 옵션 C-FINAL (2026-05-12): SSOT 단일화 — pricing_spec.json:airport_transfer_prices 에서 동적 import.
 //   기존 hardcode (PUS/GMP/ICN/CJU 4 도시 × 8개 가격) → SSOT 자동 매핑.
 //   PR #381 의 PUS=₩77K / GMP 90K/100K / busan=₩660K 변경 시 SSOT 1 곳만 수정.
-// 사용처: src/pages/PlannerPage/components/AirportPickupCard.tsx (UI 카드).
+// 사용처: 현재 UI 소비자 없음(2026-07-26, AirportPickupCard 삭제). 가격 파리티 테스트
+//   tests/unit/charterPricing.test.ts 가 SSOT 대조용으로 사용하므로 유지한다.
 //
 // 매핑 규칙: 공항 코드 → AIRPORT_TRANSFER_PRICES 의 키 목록 + 한국어 라벨.
 //   각 항목은 productType 변환 (createPaypalOrder.js `airport_<key>` 규약) 도 가능하도록 key 보존.

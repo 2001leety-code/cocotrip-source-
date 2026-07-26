@@ -83,7 +83,6 @@ const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 const MapPage = lazy(() => import('@/pages/MapPage'));
 // /assistant AI 어시스턴트 전면 화면 — ChatWidget 과 useChatSession 코어 공유.
 const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
-const SignupOnboarding = lazy(() => import('@/pages/SignupOnboarding'));
 // MOOD B2B 선불 예약 포털 — 숨은 내부 모듈. 공개 네비/프리렌더에 절대 추가 금지.
 // 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
 const MoodPortal = lazy(() => import('@/pages/MoodPortal'));
@@ -596,16 +595,6 @@ function AnimatedRoutes() {
           <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
           <Route path="/travel-terms" element={<Suspense fallback={<PlannerSkeleton />}><TravelTerms /></Suspense>} />
-          <Route
-            path="/onboarding"
-            element={
-              <AuthRequired>
-                <Suspense fallback={<PlannerSkeleton />}>
-                  <SignupOnboarding />
-                </Suspense>
-              </AuthRequired>
-            }
-          />
           <Route
             path="/mypage"
             element={

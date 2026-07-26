@@ -129,7 +129,7 @@ ai-planner-full.js (307L, maxDuration=800)
 
 ### Firestore 컬렉션 (~24개)
 
-**핵심**: `plans` (+ subcoll `translations`), `plan_complaints`, `bookings`, `booking_costs`, `tours` (+ `bookings` subcoll), `tour_availability`, `users` (+ 7 subcolls: plans/pointHistory/coupons/wishlist/recentlyViewed/itineraries/shareRewards/reviewRewards), `push_subscriptions`, `earlybird`, `reviews`, `charter_inquiries`, `pending_free_claims`, `calendar_blocks`, `cs_tickets`, `drivers`, `dispatch_messages`, `chat_sessions` (+ `messages`), `inquiry_messages`, `availability` (server-only), `reservations` (server-only), `used_paypal_orders`, `api_stats`, `chat_rate_limits`.
+**핵심**: `plans` (+ subcoll `translations`), `plan_complaints`, `bookings`, `booking_costs`, `tours` (+ `bookings` subcoll), `tour_availability`, `users` (+ 7 subcolls: plans/pointHistory/coupons/wishlist/itineraries/shareRewards/reviewRewards), `push_subscriptions`, `earlybird`, `reviews`, `charter_inquiries`, `pending_free_claims`, `calendar_blocks`, `cs_tickets`, `drivers`, `dispatch_messages`, `chat_sessions` (+ `messages`), `inquiry_messages`, `availability` (server-only), `reservations` (server-only), `used_paypal_orders`, `api_stats`, `chat_rate_limits`.
 
 **Indexes**: 6 composite (bookings × 3, plan_complaints, plans, dispatch_messages). `firestore.indexes.json` + `firebase deploy --only firestore:indexes` 워크플로우.
 
