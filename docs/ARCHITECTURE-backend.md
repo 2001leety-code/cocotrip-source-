@@ -54,8 +54,6 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `api/my-bookings.js` | User booking list (auth scoped). |
 | `api/cancelBooking.js` | User cancel + refund routing. |
 | `api/modifyBooking.js` | User edit booking. |
-| `api/check-availability.js` | Reads `availability/{date}`. |
-| `api/reserve-slot.js` | Holds inventory in `reservations/{id}` + `availability/{date}`. |
 | `api/voucher.js` | Booking voucher data. |
 | `api/refundPolicy.js` | Refund policy quote. |
 | `api/reviews.js` | Create / list / moderate reviews. |
