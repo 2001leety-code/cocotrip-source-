@@ -23,6 +23,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { internalApiBase } from './_shared/internal-base-url.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -92,7 +93,7 @@ export default async function handler(req, res) {
       bookingRef: booking.bookingRef || undefined,
     };
 
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
     const procRes = await fetch(`${siteUrl}/api/booking-processor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

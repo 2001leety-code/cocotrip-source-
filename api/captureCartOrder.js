@@ -23,6 +23,7 @@ import { notify } from './_shared/notify.js';
 import { buildCartChildBookings } from './_shared/cart-capture.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
+import { internalApiBase } from './_shared/internal-base-url.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export const maxDuration = 60;
@@ -250,7 +251,7 @@ export default async function handler(req, res) {
     // 5. 라인별 booking-processor fan-out (payload.orderID=childOrderID 부모 doc 충돌 회피,
     //    retryDocId=childOrderID 라인별 독립 retry). 부분 실패 = 롤백 없음(retry 큐 + 알림).
     //    병렬 await — retry 큐가 실패 라인 포착 보장 후 응답.
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
     // 🔴 #4: batch.commit() 성공 시에만 fan-out — 실패 시 booking doc 없어 유령발송 방지.
     //   batch 실패는 위 critical 알림 + 운영자 admin-replay(booking doc 생성 후 재발송)로 복구.
     if (batchOk) {
