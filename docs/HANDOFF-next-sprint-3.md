@@ -122,40 +122,25 @@ curl -X POST https://cocotripkr.com/api/applyPromoCode \
 
 ---
 
-# 3. 📍 earlybird/counter 문서 생성 [P1]
+# 3. 📍 earlybird/counter 문서 생성 [P1] — ❌ 무효 (2026-07-26)
 
-## 3.1 배경
+> **이 항목은 더 이상 유효하지 않다.** `EarlyBirdBanner` 컴포넌트가 `src/` 에서 사라져
+> 얼리버드 배너 자체가 없다 (남은 것은 `src/i18n/.../earlyBirdLeft` 키와
+> `src/index.css` 의 고아 셀렉터뿐). 따라서 `earlybird/counter` 문서를 만들 이유가 없고,
+> 생성용 스크립트 `scripts/create-earlybird-counter.mjs` 는 삭제했다.
+> `firestore.rules` 의 `earlybird` 공개 read 룰은 그대로 두었다 —
+> 지우면 `scripts/test-firestore-rules-hardening.mjs` 의 D4 케이스가 깨진다.
+> 배너를 되살릴 일이 생기면 이 문서가 아니라 새 이슈로 다룰 것.
+
+## 3.1 배경 (당시 기록)
 
 감사 결과 `earlybird/counter` 문서가 Firestore에 없어 D4 보안 테스트가 404로 실패. 문서 자체가 누락 → EarlyBirdBanner 표시 로직이 fallback 경로로 동작 중일 가능성.
 
-## 3.2 실행
+## 3.2 당시 계획 (실행 금지 — 스크립트 삭제됨)
 
-```bash
-# scripts/create-earlybird-counter.mjs 신규 작성
-# Firebase Admin으로 초기 문서 생성:
-# {
-#   count: 0,
-#   capacity: 100,
-#   startDate: '2026-04-01',
-#   endDate: '2026-12-31',
-#   updatedAt: FieldValue.serverTimestamp()
-# }
-node scripts/create-earlybird-counter.mjs
-```
+Firebase Admin 으로 `earlybird/counter` 에 `{ count: 0, capacity: 100, startDate: '2026-04-01', endDate: '2026-12-31', updatedAt: serverTimestamp() }` 를 1회 생성하는 내용이었다.
 
-## 3.3 검증
-
-```bash
-# 무인증 read 가능 확인 (Rules: earlybird public read)
-curl 'https://firestore.googleapis.com/v1/projects/planning-with-ai-a0801/databases/(default)/documents/earlybird/counter'
-# 기대: 200 + 문서 데이터
-```
-
-## 3.4 완료 기준
-
-- [ ] `earlybird/counter` 문서 생성
-- [ ] 프로덕션 홈페이지에서 EarlyBirdBanner 정상 렌더 확인
-- [ ] 보안 테스트 D4 재실행 → PASS
+## 3.3 완료 기준 — 해당 없음 (기능 제거로 종결)
 
 ---
 
