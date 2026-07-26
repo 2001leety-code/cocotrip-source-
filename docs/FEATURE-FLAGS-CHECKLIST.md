@@ -97,5 +97,9 @@ Vercel → Settings → Environment Variables → **Production** 에서 **값**�
 - [ ] `TRANSFER` / `MULTIDAY` / `TOUR_HOURLY` 3종 프론트·백 값 일치 + true 인가
 - [ ] `CHARTER_WAYPOINTS` 프론트·백 값 일치 (장거리 경유 청구 정확도)
 - [ ] `GUEST_ANON_AUTH` 값 (비회원 결제 = 전환율 직결)
-- [ ] `OWN_TOUR_UPSELL` · `TRANSIT_VS_CHARTER` 값 (업셀 깔때기)
-- [ ] `PAYPAL_MODE` 삭제
+- [x] `OWN_TOUR_UPSELL` — **값 확인 불필요, 코드 리더 0 (2026-07-26 실측)**. `getMatchedOwnTours`
+      (`src/data/tours.ts`)를 부르는 곳이 테스트뿐이고 업셀 UI 컴포넌트 자체가 없다. 켜든 끄든
+      화면이 안 바뀐다 → **Vercel preview+production 에서 삭제 권장**(운영자 결정 대기).
+- [ ] `TRANSIT_VS_CHARTER` 값 — 🔴 이건 **살아있다**(`src/pages/PlanDetailPage/lib/transitVsCharter.ts`
+      가 `=== 'true'` 로 읽음). 위 항목과 묶어서 지우면 완성된 비교 카드가 사라진다.
+- [ ] `PAYPAL_MODE` 삭제 — 2026-07-26 재확인: 코드 참조 여전히 0, dev+preview+production 등록됨.
