@@ -308,34 +308,42 @@ results.push({
         : undefined),
 });
 
-// ─── B-ADM4: admin token + admin-issue-onboarding-coupons → 200 ─
-// uid 미지정 시 전체 스캔 (pageSize=1 로 비용 최소화)
-// 응답: { ok: true, results: { issued, alreadyIssued, errors } } 또는 { issued, ... }
+// ─── B-ADM4: admin token + admin-issue-onboarding-coupons → 200 (dryRun) ─
+// 2026-07-26: dryRun 으로 전환 — 이전엔 실발급 모드라 PR 열 때마다 스캔에 걸린 실제 유저에게
+// 쿠폰이 나갔다(운영자 의도와 무관). dryRun 은 인증·스캔·응답 셰이프를 그대로 검증하되 쓰기 0.
+// 응답: { ok: true, results: { issued: 0, alreadyIssued: 0, errors: 0, dryRun: true, candidates } }
 let adm4Pass = false;
 let adm4Detail = '';
 try {
   const r = await adminFetch('/api/admin-issue-onboarding-coupons', {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminAuth.idToken}` },
-    body: JSON.stringify({ pageSize: 1 }),
+    body: JSON.stringify({ pageSize: 1, dryRun: true }),
   });
   const txt = await r.text();
   let body;
   try { body = JSON.parse(txt); } catch { body = { raw: txt.slice(0, 200) }; }
   const payload = body.results || body.data || body;
-  const isShapeOk =
-    r.status === 200 &&
-    (typeof payload.issued === 'number' || typeof payload.alreadyIssued === 'number');
-  adm4Pass = isShapeOk;
+  // 신버전 서버: dryRun echo + candidates + 발급 0 을 강제.
+  // 구버전 서버(이 PR 자신의 CI 가 밟는 과도기): dryRun 미지원 → 기존 셰이프면 통과시키되
+  // actual 에 구버전임을 남긴다. 배포 후엔 항상 신버전 분기를 탄다.
+  const isNewServer = payload.dryRun === true;
+  const nothingIssued = payload.issued === 0 && payload.alreadyIssued === 0;
+  const legacyShapeOk = typeof payload.issued === 'number' || typeof payload.alreadyIssued === 'number';
+  adm4Pass = r.status === 200 && (isNewServer
+    ? (typeof payload.candidates === 'number' && nothingIssued)
+    : legacyShapeOk);
   adm4Detail = r.status === 200
-    ? `status=200, issued=${payload.issued ?? '?'}, alreadyIssued=${payload.alreadyIssued ?? '?'}, errors=${payload.errors ?? '?'}`
+    ? (isNewServer
+        ? `status=200, dryRun=true, candidates=${payload.candidates}, issued=${payload.issued} (0이어야 정상)`
+        : `status=200, 구버전 서버(dryRun 미지원) — issued=${typeof payload.issued === 'number' ? payload.issued : '?'}, 배포 후 dryRun 강제됨`)
     : `status=${r.status}, body=${txt.slice(0, 120)}`;
 } catch (err) {
   adm4Detail = `ERR: ${err.message}`;
 }
 results.push({
   id: 'B-ADM4',
-  label: 'admin token + admin-issue-onboarding-coupons → 200',
+  label: 'admin token + admin-issue-onboarding-coupons → 200 (dryRun, prod 쓰기 0)',
   actual: adm4Detail,
   pass: adm4Pass,
 });
