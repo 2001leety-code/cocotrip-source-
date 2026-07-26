@@ -330,6 +330,8 @@ export default function Admin() {
         { href: '/admin/calendar', title: '캘린더', desc: '월별 예약과 투어 일정', icon: CalendarDays },
         { href: '/admin/availability', title: '투어 가용성', desc: '일자별 운영 가능 여부', icon: Truck },
         { href: '/admin/reconciliation', title: '정산 · 복구', desc: '추정가 정산과 알림 복구', icon: ShieldCheck },
+        // 링크가 없으면 라우트가 있어도 운영자가 못 찾는다 — /onboarding 이 그렇게 죽었다(미사용 감사).
+        { href: '/admin/payment-reviews', title: '결제 격리', desc: '금액 불일치로 미확정된 주문', icon: AlertTriangle },
       ],
     },
     {

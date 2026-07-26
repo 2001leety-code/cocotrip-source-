@@ -9,7 +9,17 @@
  *
  * 왜 실행 버튼이 없나: 환불 멱등키(PayPal-Request-Id)가 방금 들어갔지만 **실 PayPal 로는 아직
  * 미검증**이다(sandbox 운영자 확인 대기). 검증 안 된 환불 경로를 운영자 원클릭에 노출하면
- * 그 결함이 곧바로 돈 경로가 된다. 실제 환불은 기존 admin-booking-action 의 mark-refunded 로.
+ * 그 결함이 곧바로 돈 경로가 된다.
+ *
+ * ⚠️ 실제 환불 경로 정정(2026-07-26 실측): admin-booking-action 의 `mark-refunded` 는
+ *    body 가 `bookingRef`(= **pending_bookings** doc ID)라, 격리 건처럼 booking doc 이
+ *    애초에 생성되지 않은 주문에는 **무조건 404** 다. 격리 건 환불은 PayPal 대시보드에서
+ *    직접 처리한 뒤 여기에 REFUNDED 로 **기록**하는 것이 유일한 경로다.
+ *
+ * ⚠️ MANUALLY_CONFIRMED 가 푸는 범위(실측): isReviewFulfillable 의 유일한 소비자는
+ *    `_ai_core/paymentGate.js` — 즉 **AI 플랜 발급만** 풀린다. `bookingPayload` 는 저장만 되고
+ *    읽는 코드가 0이라 투어·차터 예약 doc 은 자동 생성되지 않는다(운영자 수동 생성 필요).
+ *    UI(AdminPaymentReviews.tsx)가 이 한계를 화면에 그대로 고지한다.
  *
  * ## 왜 필요한가
  * 이전엔 resolution writer 가 코드베이스에 아예 없었다 → 격리 해제 = Firebase 콘솔 수동 편집뿐.
@@ -81,13 +91,11 @@ export default async function handler(req, res) {
           captureID: v.captureID || null,
           captureStatus: v.captureStatus || null,
           userEmail: v.userEmail || null,
-          createdAt: v.createdAt || null,
+          // ⚠️ Timestamp 를 그대로 내려보내면 JSON 직렬화가 `{_seconds,_nanoseconds}` 로 뭉개져
+          //   클라가 그 사설 형태를 파싱해야 한다. admin-decisions 관례대로 epoch ms 숫자로.
+          createdAtMs: v.createdAt && typeof v.createdAt.toMillis === 'function' ? v.createdAt.toMillis() : 0,
         };
-      }).sort((a, b) => {
-        const ta = a.createdAt && typeof a.createdAt.toMillis === 'function' ? a.createdAt.toMillis() : 0;
-        const tb = b.createdAt && typeof b.createdAt.toMillis === 'function' ? b.createdAt.toMillis() : 0;
-        return tb - ta;
-      });
+      }).sort((a, b) => b.createdAtMs - a.createdAtMs);
       return json(req, res, 200, { items, count: items.length, truncated: snap.size >= MAX_QUEUE });
     }
 

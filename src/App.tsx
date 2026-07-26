@@ -41,6 +41,7 @@ const AdminClaims = lazy(() => import('@/pages/AdminClaims'));
 const AdminPayments = lazy(() => import('@/pages/AdminPayments'));
 const AdminAllBookings = lazy(() => import('@/pages/AdminAllBookings'));
 const AdminReconciliation = lazy(() => import('@/pages/AdminReconciliation'));
+const AdminPaymentReviews = lazy(() => import('@/pages/AdminPaymentReviews'));
 const AdminPlans = lazy(() => import('@/pages/AdminPlans'));
 const AdminTourAvailability = lazy(() => import('@/pages/AdminTourAvailability'));
 const AdminSales = lazy(() => import('@/pages/AdminSales'));
@@ -408,6 +409,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminDecisions />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/payment-reviews"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminPaymentReviews />
                 </Suspense>
               </AdminRoute>
             }
