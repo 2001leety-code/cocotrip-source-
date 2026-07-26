@@ -21,6 +21,7 @@ import { triggerBookingProcessor } from './booking-processor-trigger.js';
 import { sendCustomerEmailWithAlert } from './customer-email-trigger.js';
 import { triggerAiPlanner } from './ai-planner-trigger.js';
 import { throttledTelegramAlert } from './telegram-throttle.js';
+import { internalApiBase } from './internal-base-url.js';
 
 async function sendCustomerConfirmEmail(db, booking) {
   if (!booking?.customerEmail) return { ok: true, skipped: 'no-email' };
@@ -42,7 +43,7 @@ async function sendCustomerConfirmEmail(db, booking) {
 
 function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
   try {
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
     const isAiPlanner = String(pending.productType || '').startsWith('ai-planner');
 
     if (isAiPlanner) {

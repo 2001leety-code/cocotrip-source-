@@ -32,6 +32,8 @@
  * (every 5 minutes — see api/_crons/processor-retry-sweep.js).
  */
 
+import { vercelBypassHeaders } from './internal-base-url.js';
+
 const RETRY_COLLECTION = 'pending_processor_retries';
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_BODY_LOG = 300; // chars — error response body excerpt
@@ -74,7 +76,7 @@ export async function triggerBookingProcessor({
   try {
     const r = await fetch(`${siteUrl}/api/booking-processor`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders() },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });

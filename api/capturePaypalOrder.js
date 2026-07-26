@@ -18,6 +18,7 @@ import { sanitizeAttribution } from './_shared/attribution.js';
 import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
+import { internalApiBase } from './_shared/internal-base-url.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -795,7 +796,7 @@ export default async function handler(req, res) {
     //   - 5분 마다 processor-retry-sweep cron 이 재시도
     // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
     // resolve 하므로 정상 흐름에 영향 없음. 25s + Vercel maxDuration 60s 안에 안전.
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
     const processorPayload = { orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport, language };
     // Fire-and-don't-await: respond to the user immediately, helper records its
     // own outcome and operator alert in background.
