@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { normalizeProfilePhone, isEmptyVal } from '@/lib/profilePrefill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -251,6 +252,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     const p = normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode);
     if (!isEmptyVal(p)) setPhone((cur) => (isEmptyVal(cur) ? p : cur));
   }, [prefillProfile]);
+
+  // 2026-07-26: 위 prefill 이 읽는 값을 쓰는 코드가 없어 매 예약마다 재입력이었다 → 저장 배선.
+  useProfileContactSync(phone);
 
   // Phase 1 (2026-05-19): 시간 슬롯 선택 (tour.slots 가 정의된 어드민 투어용)
   const activeSlots = useMemo(
