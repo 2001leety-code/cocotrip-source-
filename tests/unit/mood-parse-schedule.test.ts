@@ -217,6 +217,34 @@ describe('salvageStopsFromTruncatedJson — 잘린 AI 응답 부분 회수 (2026
   });
 });
 
+// 🔴 2026-07-27 prod 사고: 파서가 NCP 키 목록을 복붙해 두고 VITE_NAVER_CLIENT_* 를 빠뜨려
+//    geocodeConfigured=false → 주소 지오코딩을 아예 호출조차 안 함 → 완전한 도로명주소까지
+//    전부 "주소 못 찾음"(5/5). mood-route 는 같은 주소를 정상 처리해 원인이 가려져 있었다.
+//    키 해석은 mood-route 의 resolveNcpKeys 하나만 SSOT — 복제 금지.
+describe('지오코딩 키 해석 SSOT — 키 목록 복제 금지 (2026-07-27 사고 잠금)', () => {
+  const parseSrc = readFileSync(resolve(__dirname, '../../api/mood-parse-schedule.js'), 'utf8');
+
+  it('파서는 process.env 로 NCP/NAVER 키를 직접 읽지 않는다', () => {
+    // 주석 제외한 실제 코드 라인만 검사 (설명용 주석엔 키 이름이 등장한다).
+    const code = parseSrc
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('*') && !l.trimStart().startsWith('//') && !l.trimStart().startsWith('/*'))
+      .join('\n');
+    expect(code).not.toMatch(/process\.env\.(NCP|NAVER|VITE_NAVER)_CLIENT_(ID|SECRET)/);
+  });
+
+  it('파서는 키 해석이 내장된 geocodeAddress 를 쓴다', () => {
+    expect(parseSrc).toMatch(/import\s*\{[^}]*geocodeAddress[^}]*\}\s*from\s*'\.\/_shared\/mood-route\.js'/);
+    expect(parseSrc).toMatch(/await geocodeAddress\(/);
+  });
+
+  it('mood-route 의 키 폴백에 VITE_NAVER_CLIENT_* 가 살아 있다 (prod 유일 생존 키)', () => {
+    const routeSrc = readFileSync(resolve(__dirname, '../../api/_shared/mood-route.js'), 'utf8');
+    expect(routeSrc).toContain('VITE_NAVER_CLIENT_ID');
+    expect(routeSrc).toContain('VITE_NAVER_CLIENT_SECRET');
+  });
+});
+
 describe('thinkingBudget 소스 불변식 — truncation 근본원인 재발 방지', () => {
   // gemini-2.5-flash 는 thinking 토큰이 maxOutputTokens 에서 차감된다.
   // thinkingConfig 를 지우면 이 잠금이 터진다 (2026-07-03 prod "일정 해석 실패" 재발 방지).
