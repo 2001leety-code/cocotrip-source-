@@ -11,9 +11,10 @@
  * 비용: Naver Geocoding ~$0 (NCP Free $30/월), 호출당 2건. 자유 입력이므로 캐시 효과 낮음.
  */
 
-import axios from 'axios';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+// NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
+import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -39,26 +40,6 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
-
-async function geocode(query, clientId, clientSecret) {
-  // CLAUDE.md I 섹션: NCP_CLIENT_ID는 .trim() 필수 (보이지 않는 \n으로 401 발생).
-  const url = 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode';
-  const res = await axios.get(url, {
-    params: { query },
-    headers: {
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    },
-    timeout: 5000,
-  });
-  if (res.status === 200 && res.data?.addresses?.length > 0) {
-    return {
-      lat: parseFloat(res.data.addresses[0].y),
-      lng: parseFloat(res.data.addresses[0].x),
-    };
-  }
-  return null;
 }
 
 export default async function handler(req, res) {
@@ -90,11 +71,12 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ error: 'RATE_LIMITED', detail: rl.error }));
   }
 
-  // CLAUDE.md I 섹션 — NCP 키는 .trim() 필수 (\n 손상 방지).
-  // 변수명 폴백(2026-06-13): 같은 네이버 클라우드 Maps 키가 NCP_CLIENT_* 또는 NAVER_CLIENT_*
-  // 어느 이름으로 등록돼도 동작 (메인 플래너는 NAVER_CLIENT_* 사용).
-  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
-  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
+  // 키 해석 = mood-route.resolveNcpKeys (SSOT). 여기서 process.env 를 직접 읽지 않는다.
+  //   🔴 2026-07-27 실측 장애: 이 자리에 `NCP_CLIENT_* || NAVER_CLIENT_*` 를 복붙해 두어
+  //   **VITE_NAVER_CLIENT_* 가 빠져** 있었다. prod 의 NAVER_CLIENT_* 는 Developers(openapi
+  //   검색) 키로 갱신돼 있어 maps.apigw.ntruss.com 에는 401 → 완전한 도로명주소를 넣어도
+  //   `GEOCODING_FAILED / status code 401` 로 전멸 (/calculator 거리 fallback 상시 사망).
+  const { clientId, clientSecret } = resolveNcpKeys();
   if (!clientId || !clientSecret) {
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify({ error: 'NCP_NOT_CONFIGURED' }));

@@ -16,6 +16,8 @@
 import { RouteAgent } from './agents/RouteAgent.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { computeDayRouteMetrics, isExcessiveDayRoute } from './routeQuality.js';
+// 진단 로그가 "어느 env 이름이 있나" 가 아니라 "RouteAgent 가 실제로 쓸 키가 있나" 를 찍게.
+import { resolveNcpKeys } from '../_shared/mood-route.js';
 
 /** Haversine distance in meters between two {lat, lng} points. */
 function distanceMeters(a, b) {
@@ -139,9 +141,12 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
   // 수가 얼마나 되는지, 출력에 transit 가 attach 됐는지 한 줄에 요약. 머지 후
   // Vercel 로그에서 RouteAgent 호출 결과 즉시 확인 가능.
   const totalInputStops = (itinerary.days || []).reduce((s, d) => s + (d.stops?.length || 0), 0);
+  // 🔴 2026-07-27: 여기서 NAVER_CLIENT_ID 존재만 찍던 탓에 "NAVER: true" 인데 실제 NCP Maps
+  //   호출은 전부 401 이던 상태가 로그상 정상으로 보였다. RouteAgent 가 실제 쓰는 키를 찍는다.
+  const _ncp = resolveNcpKeys();
   console.log('[planner] Step 2: RouteAgent...', {
-    NAVER: !!process.env.NAVER_CLIENT_ID,
-    NAVER_SECRET: !!process.env.NAVER_CLIENT_SECRET,
+    NCP_MAPS_ID: !!_ncp.clientId,
+    NCP_MAPS_SECRET: !!_ncp.clientSecret,
     ODSAY: !!process.env.ODSAY_API_KEY,
     GOOGLE_PLACES: !!process.env.GOOGLE_PLACES_API_KEY,
     inputStops: totalInputStops,

@@ -26,6 +26,8 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { argv, stdin, stdout, exit, env } from 'node:process';
+// NCP Maps 키 해석 SSOT — 키 목록 복제 금지 (api/_shared/mood-route.js:45~ 주석).
+import { resolveNcpKeys } from '../api/_shared/mood-route.js';
 
 const NAVER_GEOCODE_URL = 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode';
 const ODSAY_BASE = 'https://api.odsay.com/v1/api';
@@ -138,8 +140,9 @@ function buildNaverRouteUrl(fromName, fromLat, fromLng, toName, toLat, toLng) {
 // ── Main build flow ─────────────────────────────────────────────
 async function buildBlock(template) {
   const today = new Date().toISOString().slice(0, 10);
-  const NCP_ID = (env.NCP_CLIENT_ID || '').trim();
-  const NCP_SECRET = (env.NCP_CLIENT_SECRET || '').trim();
+  // 키 해석 = resolveNcpKeys (SSOT). NCP_CLIENT_* 만 읽으면 살아있는 NCP Maps 키가
+  //   VITE_NAVER_CLIENT_* 에 있는 환경에서 조용히 lat/lng=0 placeholder 로 떨어진다 (2026-07-27).
+  const { clientId: NCP_ID, clientSecret: NCP_SECRET } = resolveNcpKeys();
   const ODSAY_KEY = (env.ODSAY_API_KEY || '').trim();
   const hasNaver = NCP_ID && NCP_SECRET;
   const hasOdsay = !!ODSAY_KEY;
@@ -147,7 +150,7 @@ async function buildBlock(template) {
   const warnings = [];
   if (!hasNaver) {
     warnings.push(
-      'NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env.'
+      'NCP Maps key not set (NCP_CLIENT_* / VITE_NAVER_CLIENT_* / NAVER_CLIENT_* all empty) — lat/lng will be 0 placeholders. Re-run in prod env.'
     );
     console.warn(`[build-zone-course] WARN: ${warnings[warnings.length - 1]}`);
   }

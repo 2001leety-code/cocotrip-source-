@@ -26,6 +26,8 @@ import axios from 'axios';
 import { formatTransitSummary } from './_odsay_helper.js';
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP.
 import { searchTransit } from './_transit_provider.js';
+// NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
+import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -113,8 +115,12 @@ export default async function handler(req, res) {
 
     console.log(`[recalc-transit] Plan ${planId} Day ${dayIndex}: ${staleIndices.length} stale segment(s)`);
 
-    const clientId = (process.env.NAVER_CLIENT_ID || '').trim();
-    const clientSecret = (process.env.NAVER_CLIENT_SECRET || '').trim();
+    // 키 해석 = mood-route.resolveNcpKeys (SSOT). 여기서 process.env 를 직접 읽지 않는다.
+    //   🔴 2026-07-27 실측 장애: 이 자리에 `NAVER_CLIENT_*` 만 있었다. prod 의 NAVER_CLIENT_*
+    //   는 Developers(openapi 검색) 키로 갱신돼 maps.apigw.ntruss.com 에 401 → 아래 geocode
+    //   와 map-direction/v1/driving 이 전부 실패하고, 편집 후 재계산이 조용히 flat 25분
+    //   fallback 으로 떨어져 있었다 (같은 병으로 죽은 5곳 중 하나 — #1183 참조).
+    const { clientId, clientSecret } = resolveNcpKeys();
 
     // 3. Geocode stops that lack coordinates
     for (const stop of stops) {
@@ -127,17 +133,10 @@ export default async function handler(req, res) {
 
       for (const query of queries) {
         try {
-          const geoRes = await axios.get('https://maps.apigw.ntruss.com/map-geocode/v2/geocode', {
-            params: { query },
-            headers: {
-              'X-NCP-APIGW-API-KEY-ID': clientId,
-              'X-NCP-APIGW-API-KEY': clientSecret,
-            },
-            timeout: 5000,
-          });
-          if (geoRes.status === 200 && geoRes.data.addresses && geoRes.data.addresses.length > 0) {
-            stop.lng = parseFloat(geoRes.data.addresses[0].x);
-            stop.lat = parseFloat(geoRes.data.addresses[0].y);
+          const coord = await geocode(query, clientId, clientSecret);
+          if (coord) {
+            stop.lng = coord.lng;
+            stop.lat = coord.lat;
             stop._geocoded = true;
             break;
           }
