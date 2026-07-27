@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessAirportCode, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -90,6 +90,27 @@ describe('looksLikeAirport — 공항 판정', () => {
   it('빈 입력은 false', () => {
     expect(looksLikeAirport()).toBe(false);
     expect(looksLikeAirport('', null, undefined)).toBe(false);
+  });
+});
+
+// 💰 공항 정액이 공항마다 다름(ICN 110,000 / GMP 80,000, 2026-07-27) → 오판정 = 금액 오차 3만원.
+describe('guessAirportCode — 어느 공항인지 (정액 결정)', () => {
+  it('김포 신호(한글/약어)는 GMP', () => {
+    expect(guessAirportCode('김포공항')).toBe('GMP');
+    expect(guessAirportCode('GMP terminal 1')).toBe('GMP');
+    expect(guessAirportCode('픽업', '', '', '서울 강서구 김포공항로')).toBe('GMP');
+  });
+
+  it('그 외 공항은 전부 ICN (애매하면 비싼 쪽 = 과소청구 방지)', () => {
+    expect(guessAirportCode('인천공항 T2')).toBe('ICN');
+    expect(guessAirportCode('ICN')).toBe('ICN');
+    expect(guessAirportCode('제주공항')).toBe('ICN'); // 미지원 공항도 기본가로
+  });
+
+  it('공항 신호가 없으면 null (공항 서비스 아님)', () => {
+    expect(guessAirportCode('강남 코엑스')).toBe(null);
+    expect(guessAirportCode()).toBe(null);
+    expect(guessAirportCode('', null, undefined)).toBe(null);
   });
 });
 

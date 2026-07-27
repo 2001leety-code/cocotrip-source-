@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- 핸들러/Firestore 모킹 스캐폴딩 (mood-money-guards 동일 패턴). */
 /**
- * mood-notes 운영자 전용 게이트 잠금 (2026-07-05 PR2).
+ * mood-notes 게이트 (2026-07-05 PR2 → 2026-07-27 무드 공개로 변경).
  *
- * 운영자 요구: "어드민 아이디만 — 무드 아이디랑 기능 분리".
+ * 운영자 요구(2026-07-27): "내 스케줄을 무드에게도 노출" — 무드가 '이 날 예약 잡지 말 것'
+ * 을 봐야 그날을 피한다. 대신 쓰기는 여전히 운영자만.
  * 재발 시 터지는 것:
- *   1. 무드(allowlist 직원, 비-admin) 계정이 GET/POST → 403 (읽기조차 불가 — 개인 스케줄)
- *   2. 운영자(admin) GET → month 필터로 notes 맵 반환
- *   3. 운영자 POST → upsert (month 필드 파생 저장), 빈 text → delete
+ *   1. 무드(allowlist 직원, 비-admin) GET → 200 (읽기 허용 — 이게 기능의 핵심)
+ *   2. 무드 POST → 403 (쓰기는 운영자만 — 무드가 운영자 스케줄을 못 고침)
+ *   3. allowlist 밖 계정 → GET/POST 모두 403
+ *   4. 운영자 POST → upsert (month 필드 파생 저장), 빈 text → delete
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -69,16 +71,19 @@ beforeEach(() => {
   getMock.mockReset();
 });
 
-describe('mood-notes 운영자 전용 게이트', () => {
-  it('무드(비-admin) 계정 GET → 403 (읽기조차 차단)', async () => {
+describe('mood-notes 게이트 — 읽기=전원, 쓰기=운영자', () => {
+  it('무드(비-admin) 계정 GET → 200 + canEdit:false (공개 읽기)', async () => {
     verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+    getMock.mockResolvedValue({
+      forEach: (cb: any) => { cb({ id: '2026-07-15', data: () => ({ text: '이 날 예약 잡지 말 것' }) }); },
+    });
     const { res, json } = await call({ method: 'GET', query: { month: '2026-07' }, headers: {} });
-    expect(res.statusCode).toBe(403);
-    expect(json.ok).toBe(false);
-    expect(getMock).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(json.notes).toEqual({ '2026-07-15': '이 날 예약 잡지 말 것' });
+    expect(json.canEdit).toBe(false);
   });
 
-  it('무드(비-admin) 계정 POST → 403 (쓰기 차단)', async () => {
+  it('무드(비-admin) 계정 POST → 403 (쓰기는 운영자만)', async () => {
     verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
     const { res } = await call({ method: 'POST', body: { date: '2026-07-15', text: 'x' }, headers: {} });
     expect(res.statusCode).toBe(403);
@@ -86,7 +91,17 @@ describe('mood-notes 운영자 전용 게이트', () => {
     expect(deleteMock).not.toHaveBeenCalled();
   });
 
-  it('운영자 GET → month 노트 맵 반환', async () => {
+  it('allowlist 밖 계정 → GET/POST 모두 403', async () => {
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'stranger@x.com', emailVerified: true });
+    const g = await call({ method: 'GET', query: { month: '2026-07' }, headers: {} });
+    expect(g.res.statusCode).toBe(403);
+    expect(getMock).not.toHaveBeenCalled();
+    const p = await call({ method: 'POST', body: { date: '2026-07-15', text: 'x' }, headers: {} });
+    expect(p.res.statusCode).toBe(403);
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('운영자 GET → month 노트 맵 반환 + canEdit:true', async () => {
     verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'admin@x.com', emailVerified: true });
     getMock.mockResolvedValue({
       forEach: (cb: any) => {
@@ -97,6 +112,7 @@ describe('mood-notes 운영자 전용 게이트', () => {
     const { res, json } = await call({ method: 'GET', query: { month: '2026-07' }, headers: {} });
     expect(res.statusCode).toBe(200);
     expect(json.notes).toEqual({ '2026-07-15': '오후 병원' });
+    expect(json.canEdit).toBe(true);
   });
 
   it('운영자 POST → upsert (month 파생 저장), 빈 text → delete', async () => {
