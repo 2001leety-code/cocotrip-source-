@@ -42,7 +42,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
-import { geocode } from './_shared/mood-route.js';
+import { geocodeAddress } from './_shared/mood-route.js';
 import { naverCoordToWgs84, resolveCredentialCandidates } from './place-search.js';
 
 export const maxDuration = 15;
@@ -636,10 +636,14 @@ export default async function handler(req, res) {
       console.warn('[mood-parse-schedule] 주소록 로드 실패 (geocode 로 진행):', pbErr.message);
     }
 
-    // NCP/NAVER 키 (mood-route.computeRoute 와 동일 폴백 — 어느 이름으로 등록돼도 동작).
-    const ncpId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
-    const ncpSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
-    const geocodeConfigured = !!(ncpId && ncpSecret);
+    // 🔴 키 해석은 여기서 하지 않는다 — geocodeAddress() 안의 resolveNcpKeys 가 SSOT.
+    //   2026-07-27 사고: 이 자리에 키 목록을 복붙해 두고 주석엔 "computeRoute 와 동일 폴백"
+    //   이라 적혀 있었지만 실제로는 **VITE_NAVER_CLIENT_* 가 빠져** 있었다. prod 는 살아있는
+    //   NCP Maps 키를 VITE_NAVER_CLIENT_* 에만 두고 있어(mood-route.js:49~54 참조),
+    //   파서는 geocodeConfigured=false 로 판정해 **주소 지오코딩을 아예 호출조차 안 했다**.
+    //   → 완전한 도로명주소("서울특별시 종로구 자하문로8길 27")까지 전부 '주소 못 찾음'.
+    //   POI 폴백(searchPlaceFallback)은 상호명 검색이라 도로명주소를 대신 못 찾아 무력.
+    //   교훈: 키 목록은 복제 금지, 반드시 공유 함수에서 파생.
 
     // ── ②③ 각 stop: 주소록 매칭 → 좌표(재사용 or geocode) ──
     let hasDirector = false;
@@ -696,17 +700,17 @@ export default async function handler(req, res) {
           // geocode 대상: 매칭 주소 > addressHint > personOrPlace
           const geoQuery = (matched?.address || addressHint || personOrPlace || '').trim();
           address = geoQuery;
-          if (geoQuery && geocodeConfigured) {
-            try {
-              const coord = await geocode(geoQuery, ncpId, ncpSecret);
-              if (coord && Number.isFinite(coord.lat) && Number.isFinite(coord.lng)) {
-                lat = coord.lat;
-                lng = coord.lng;
-                geocodeOk = true;
-              }
-            } catch (geoErr) {
-              // fail-soft: 이 stop 만 geocodeOk=false (전체는 계속).
-              console.warn(`[mood-parse-schedule] geocode 실패 (stop ${order}):`, geoErr.message);
+          if (geoQuery) {
+            // geocodeAddress = 키 해석 포함(mood-route SSOT). 실패해도 이 stop 만 false.
+            const geo = await geocodeAddress(geoQuery);
+            if (geo.ok) {
+              lat = geo.lat;
+              lng = geo.lng;
+              geocodeOk = true;
+            } else {
+              // NCP_NOT_CONFIGURED 면 전 stop 이 같은 이유로 실패한다 — 운영자가 원인을
+              // 바로 알 수 있게 에러 코드를 남긴다(2026-07-27 사고: 조용히 전멸했었음).
+              console.warn(`[mood-parse-schedule] geocode 실패 (stop ${order}): ${geo.error}`);
             }
           }
           // 3차 폴백(2026-07-04): 지오코더는 주소 전용이라 "트리지움아파트 311동"·
