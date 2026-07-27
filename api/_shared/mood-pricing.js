@@ -27,16 +27,41 @@ export const MOOD_RATES = Object.freeze({
 });
 
 /**
- * 정액 서비스 — 공항(airport) 픽업/샌딩은 거리·시간 무관 110,000원 고정(운영자 2026-06-14).
- * 부가세 없음(운영자 확인 2026-07-04 — 공항은 원래 부가세 없이 책정). 시급×시간/거리추가/톨비 전부 무시하고 이 정액만 청구.
+ * 공항별 정액 (원) — 공항(airport) 픽업/샌딩은 거리·시간 무관 정액(운영자 2026-06-14).
+ * 부가세 없음(운영자 확인 2026-07-04 — 공항은 원래 부가세 없이 책정).
+ *   - ICN 인천공항 : 110,000
+ *   - GMP 김포공항 :  80,000 (운영자 2026-07-27 — 거리가 짧아 별도 정액)
+ * 시급×시간/거리추가/톨비 전부 무시하고 이 정액만 청구.
  */
-export const MOOD_FIXED_PRICE_KRW = Object.freeze({ airport: 110000 });
+export const MOOD_AIRPORT_PRICE_KRW = Object.freeze({ ICN: 110000, GMP: 80000 });
 
-/** serviceType 이 정액 서비스면 그 정액(원), 아니면 null. */
-export function fixedPriceFor(serviceType) {
-  return Object.prototype.hasOwnProperty.call(MOOD_FIXED_PRICE_KRW, serviceType)
-    ? MOOD_FIXED_PRICE_KRW[serviceType]
-    : null;
+/** 공항 코드 표시명 (알림·영수증용). */
+export const MOOD_AIRPORT_LABEL = Object.freeze({ ICN: '인천공항', GMP: '김포공항' });
+
+/** 기본 공항 = 인천 — airportCode 미지정(레거시 예약/구 클라이언트)일 때의 값. */
+export const MOOD_DEFAULT_AIRPORT_CODE = 'ICN';
+
+/**
+ * 정액 서비스 — 공항 기본가(인천). 하위호환용 상수.
+ * 🔴 공항별 금액은 MOOD_AIRPORT_PRICE_KRW 가 SSOT. 이 상수는 "airport 는 정액 서비스"
+ *    라는 사실과 기본가만 표현한다.
+ */
+export const MOOD_FIXED_PRICE_KRW = Object.freeze({ airport: MOOD_AIRPORT_PRICE_KRW[MOOD_DEFAULT_AIRPORT_CODE] });
+
+/** 공항 코드 정규화 — 알 수 없는 값/미지정은 전부 기본(인천). 대소문자 무관. */
+export function normalizeAirportCode(code) {
+  const c = String(code || '').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(MOOD_AIRPORT_PRICE_KRW, c) ? c : MOOD_DEFAULT_AIRPORT_CODE;
+}
+
+/**
+ * serviceType 이 정액 서비스면 그 정액(원), 아니면 null.
+ * @param {MoodServiceType} serviceType
+ * @param {string} [airportCode] - 'ICN' | 'GMP'. 생략/미지원 코드 = ICN(기본가).
+ */
+export function fixedPriceFor(serviceType, airportCode) {
+  if (serviceType !== 'airport') return null;
+  return MOOD_AIRPORT_PRICE_KRW[normalizeAirportCode(airportCode)];
 }
 
 /** 예약 1건 최대 시간 (mood-book.js maxDuration 가드와 동일 의미의 비즈 한도). */
@@ -117,17 +142,17 @@ export function computeAirportDetourSurchargeKRW(detourKm) {
 /**
  * 예약 총액.
  *   - 차량/매니저: 시급×시간(base) + 거리 추가요금(50km↑) + 톨비.
- *   - 공항: 110,000 정액 + 경유 우회거리 요금(airportDetourKm × 600, 경유 없으면 0).
+ *   - 공항: 공항별 정액(ICN 110,000 / GMP 80,000) + 경유 우회거리 요금(airportDetourKm × 600, 경유 없으면 0).
  * 전부 부가세 없음(2026-07-04). mood-book.js 가 이 함수로 잔액 차감액을 재계산(클라 금액 무시).
  *
  * @param {{ serviceType: MoodServiceType, durationHours: number, km?: number, tollKRW?: number,
- *           ratePerHourOverride?: number, airportDetourKm?: number }} input
+ *           ratePerHourOverride?: number, airportDetourKm?: number, airportCode?: string }} input
  * @returns {{ ok:true, amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW, tollKRW, km } | { ok:false, error }}
  */
-export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0, ratePerHourOverride, airportDetourKm = 0 } = {}) {
-  // 정액 서비스(공항) — 시간/톨비 무시, 정액 + 경유 우회거리 요금만.
+export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0, ratePerHourOverride, airportDetourKm = 0, airportCode } = {}) {
+  // 정액 서비스(공항) — 시간/톨비 무시, 공항별 정액 + 경유 우회거리 요금만.
   if (isValidServiceType(serviceType)) {
-    const fixed = fixedPriceFor(serviceType);
+    const fixed = fixedPriceFor(serviceType, airportCode);
     if (fixed !== null) {
       const detourSurcharge = computeAirportDetourSurchargeKRW(airportDetourKm);
       const dk = Number.isFinite(Number(airportDetourKm)) ? Math.max(0, Number(airportDetourKm)) : 0;

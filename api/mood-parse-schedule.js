@@ -29,7 +29,7 @@
  * 반환:
  *   { ok: true,
  *     stops: [{ order, label, address, lat, lng, action, matchedFromPlacebook, geocodeOk }],
- *     serviceGuess, hasDirector, hasAirport, needsConfirm: true }
+ *     serviceGuess, hasDirector, hasAirport, airportCodeGuess, needsConfirm: true }
  *   - needsConfirm 은 항상 true (프론트가 서비스 추천을 더블체크).
  *   - geocode 실패 stop 이 있어도 ok:true (그 stop 만 geocodeOk:false) → 프론트가 개별 차단.
  *
@@ -201,6 +201,20 @@ export function looksLikeAirport(...parts) {
   const hay = norm(parts.filter(Boolean).join(' '));
   if (!hay) return false;
   return AIRPORT_KEYWORDS.some((kw) => hay.includes(kw));
+}
+
+/**
+ * 어느 공항인지 판정 (정액이 공항마다 달라 금액에 영향 — ICN 110,000 / GMP 80,000).
+ * 김포 신호가 있을 때만 'GMP', 그 외 공항은 전부 기본 'ICN'.
+ * 🔴 애매하면 비싼 쪽(ICN) — 운영자가 화면에서 김포로 바꾸는 건 쉽지만,
+ *    싸게 잡힌 걸 못 보고 지나가면 과소청구가 된다.
+ * @returns {'ICN'|'GMP'|null} 공항 신호가 아예 없으면 null.
+ */
+export function guessAirportCode(...parts) {
+  const hay = norm(parts.filter(Boolean).join(' '));
+  if (!hay) return null;
+  if (hay.includes('김포') || hay.includes('gmp')) return 'GMP';
+  return AIRPORT_KEYWORDS.some((kw) => hay.includes(kw)) ? 'ICN' : null;
 }
 
 /**
@@ -579,6 +593,8 @@ export default async function handler(req, res) {
     // ── ②③ 각 stop: 주소록 매칭 → 좌표(재사용 or geocode) ──
     let hasDirector = false;
     let hasAirport = false;
+    // 어느 공항인지 (금액 영향 — GMP 8만 / ICN 11만). 김포 신호가 하나라도 있으면 GMP.
+    let airportCodeGuess = null;
 
     // 날짜 해석 기준 = 오늘(KST). 서버는 UTC 라 +9h 보정 (연도 추론용).
     const todayKst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -601,6 +617,9 @@ export default async function handler(req, res) {
         // 공항 판정 (이름/주소힌트/rawText/매칭주소 전부 검사)
         if (looksLikeAirport(personOrPlace, addressHint, rawStopText, matched?.address)) {
           hasAirport = true;
+          const code = guessAirportCode(personOrPlace, addressHint, rawStopText, matched?.address);
+          // 김포가 한 번이라도 잡히면 GMP 유지 (ICN 이 덮어쓰지 않게).
+          if (code === 'GMP' || !airportCodeGuess) airportCodeGuess = code;
         }
 
         // 라벨: 매칭된 주소록 이름 우선, 없으면 추출된 이름.
@@ -686,7 +705,7 @@ export default async function handler(req, res) {
     const serviceGuess = guessService(hasAirport, hasDirector);
 
     console.log(
-      `[mood-parse-schedule] ${email} → stops=${stops.length} service=${serviceGuess} director=${hasDirector} airport=${hasAirport}`
+      `[mood-parse-schedule] ${email} → stops=${stops.length} service=${serviceGuess} director=${hasDirector} airport=${hasAirport}${airportCodeGuess ? `(${airportCodeGuess})` : ''}`
     );
 
     res.writeHead(200, JSON_HEADERS);
@@ -696,6 +715,7 @@ export default async function handler(req, res) {
       serviceGuess,
       hasDirector,
       hasAirport,
+      airportCodeGuess, // 'ICN' | 'GMP' | null — 공항 정액이 달라 프론트가 기본 선택으로 사용(운영자 확정)
       needsConfirm: true, // 항상 true — 프론트가 서비스 추천 더블체크
       truncated, // true 면 응답 잘림→부분 회수 — 프론트가 "뒤쪽 일정 누락 가능" 경고
       flights, // [{flightNo, timeHint, date}] — 예약 메모 자동 첨부용 (없으면 [])

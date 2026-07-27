@@ -12,7 +12,9 @@ import {
   MOOD_MIN_DURATION_HOURS,
   MOOD_DISTANCE_THRESHOLD_KM,
   MOOD_SURCHARGE_PER_KM,
-  MOOD_FIXED_PRICE_KRW,
+  MOOD_AIRPORT_PRICE_KRW,
+  MOOD_AIRPORT_LABEL,
+  MOOD_AIRPORT_CODES,
   formatKRW,
 } from '@/lib/moodPricing';
 
@@ -43,7 +45,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
   if (!open) return null;
-  const airportFixed = MOOD_FIXED_PRICE_KRW.airport || 0;
+  // 공항별 정액 문구 — 상수에서 파생(하드코딩 금지). 예: "인천공항 110,000원 · 김포공항 80,000원"
+  const airportFixedText = MOOD_AIRPORT_CODES
+    .map((code) => `${MOOD_AIRPORT_LABEL[code]} ${formatKRW(MOOD_AIRPORT_PRICE_KRW[code])}`)
+    .join(' · ');
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
@@ -72,7 +77,7 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
           <ul className="list-disc pl-4 space-y-1">
             <li>🚗 차량: <b style={{ color: C.text }}>{formatKRW(MOOD_RATES.vehicle)}/시간</b> (최소 {MOOD_MIN_DURATION_HOURS}시간)</li>
             <li>🧑‍💼 매니저: <b style={{ color: C.text }}>{formatKRW(MOOD_RATES.manager)}/시간</b> (최소 {MOOD_MIN_DURATION_HOURS}시간)</li>
-            <li>✈️ 공항 픽업/샌딩: <b style={{ color: C.text }}>{formatKRW(airportFixed)} 정액</b> (직행 기준, 시간 무관)</li>
+            <li>✈️ 공항 픽업/샌딩: <b style={{ color: C.text }}>{airportFixedText}</b> 정액 (직행 기준, 시간 무관 — 예약 시 공항을 고르세요)</li>
             <li>공항에 <b style={{ color: C.text }}>경유지</b>가 생기면 직행 대비 늘어난 거리에 km당 {formatKRW(MOOD_SURCHARGE_PER_KM)} (예: 집→용산역→공항)</li>
             <li>차량·매니저는 총 이동거리 {MOOD_DISTANCE_THRESHOLD_KM}km 이상이면 km당 {formatKRW(MOOD_SURCHARGE_PER_KM)} 거리요금 + 톨비 실비</li>
           </ul>

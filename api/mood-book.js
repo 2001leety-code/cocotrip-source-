@@ -22,7 +22,8 @@
  *   - 토큰 email 이 mood_config/allowlist.emails 에 없으면 403.
  *
  * Body: { clientId, date(YYYY-MM-DD), startTime(HH:mm), durationHours, serviceType,
- *         origin?, destination?, waypoints?(string[] | "A|B") }
+ *         origin?, destination?, waypoints?(string[] | "A|B"),
+ *         airportDirection?('pickup'|'sending'), airportCode?('ICN'|'GMP') }
  *   - origin/destination 이 있으면 경로 기반 거리/톨비 추가요금 반영.
  *   - 없으면 거리/톨비 0 (시간 단가 base 만).
  *
@@ -33,7 +34,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
-import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, normalizeAirportCode, MOOD_AIRPORT_LABEL, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
 
@@ -89,6 +90,10 @@ export default async function handler(req, res) {
   const airportDirection = serviceType === 'airport'
     ? (body.airportDirection === 'sending' ? 'sending' : 'pickup')
     : null;
+  // 🔴 공항 코드 — 정액이 공항마다 다름(ICN 110,000 / GMP 80,000, 운영자 2026-07-27).
+  //   금액에 직접 영향 → 정규화 필수. 알 수 없는 값/미지정은 전부 ICN(비싼 쪽) 으로 폴백해
+  //   조작으로 싼 요금을 받는 경로를 막는다(과소청구 방지).
+  const airportCode = serviceType === 'airport' ? normalizeAirportCode(body.airportCode) : null;
   // 예약 메모 (2026-07-05 PR3) — AI 예약이 항공편 정보(✈️ KE765 15:10) 자동 첨부. 표시용 메타,
   // 금액 계산과 무관. 상한 500자 (폭주 방지).
   const note = String(body.note || '').slice(0, 500).trim();
@@ -182,7 +187,7 @@ export default async function handler(req, res) {
     }
 
     // ── 5) 백엔드 금액 재계산 (body.amountKRW 무시) ─────────
-    const priced = computeMoodTotalKRW({ serviceType, durationHours: hours, km, tollKRW, airportDetourKm });
+    const priced = computeMoodTotalKRW({ serviceType, durationHours: hours, km, tollKRW, airportDetourKm, airportCode });
     if (!priced.ok) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: priced.error }));
@@ -233,6 +238,7 @@ export default async function handler(req, res) {
         durationHours: hours,
         serviceType,
         airportDirection, // 공항 픽업/샌딩 (그 외 null)
+        airportCode,      // 'ICN' | 'GMP' — 정액 단가 근거 (그 외 null)
         ratePerHour,
         amountKRW,
         breakdown,
@@ -264,7 +270,9 @@ export default async function handler(req, res) {
     // ── 7) 텔레그램 알림 (best-effort — 실패해도 예약은 확정됨) ──
     const fmt = (n) => Number(n).toLocaleString('ko-KR');
     const SERVICE_LABELS = { vehicle: '차량', airport: '공항', manager: '매니저' };
-    const serviceLabel = SERVICE_LABELS[serviceType] || serviceType;
+    const serviceLabel = airportCode
+      ? (MOOD_AIRPORT_LABEL[airportCode] || SERVICE_LABELS.airport)
+      : (SERVICE_LABELS[serviceType] || serviceType);
     const directionLabel = airportDirection === 'pickup' ? ' (픽업)' : airportDirection === 'sending' ? ' (샌딩)' : '';
     const routeLine = origin && destination
       ? `\n${origin} → ${destination}${isFixedPrice ? '' : ` (${priced.km}km)`}`

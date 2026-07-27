@@ -3,12 +3,14 @@ import {
   MOOD_RATES as FE_RATES,
   MOOD_MAX_DURATION_HOURS as FE_MAX,
   MOOD_FIXED_PRICE_KRW as FE_FIXED,
+  MOOD_AIRPORT_PRICE_KRW as FE_AIRPORT,
+  normalizeAirportCode as feNormAirport,
   computeDistanceSurchargeKRW as feSurcharge,
   computeMoodTotalKRW as feTotal,
   estimateMoodAmountKRW,
 } from '../../src/lib/moodPricing';
 // @ts-expect-error — ESM .js (Vercel serverless 공유 모듈, 백엔드 SSOT)
-import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, MOOD_FIXED_PRICE_KRW as BE_FIXED, computeDistanceSurchargeKRW as beSurcharge, computeMoodTotalKRW as beTotal } from '../../api/_shared/mood-pricing.js';
+import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, MOOD_FIXED_PRICE_KRW as BE_FIXED, MOOD_AIRPORT_PRICE_KRW as BE_AIRPORT, normalizeAirportCode as beNormAirport, computeDistanceSurchargeKRW as beSurcharge, computeMoodTotalKRW as beTotal } from '../../api/_shared/mood-pricing.js';
 
 // 🔴 프론트 미러(src/lib/moodPricing.ts)가 백엔드 SSOT(api/_shared/mood-pricing.js)와
 //    동일한 단가·공식을 유지하는지 검증. 어긋나면 "표시가 ≠ 청구가" → 신뢰 붕괴(P311).
@@ -40,6 +42,44 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
       expect(fe.tollKRW).toBe(0);
       expect(fe.amountKRW).toBe(be.amountKRW);
     }
+  });
+
+  it('공항별 정액 동일 (FE=BE) — 인천 110,000 / 김포 80,000 (2026-07-27)', () => {
+    expect(FE_AIRPORT.ICN).toBe(BE_AIRPORT.ICN);
+    expect(FE_AIRPORT.GMP).toBe(BE_AIRPORT.GMP);
+    expect(FE_AIRPORT.ICN).toBe(110000);
+    expect(FE_AIRPORT.GMP).toBe(80000);
+    for (const c of [{ durationHours: 0 }, { durationHours: 9, km: 300, tollKRW: 9000 }]) {
+      // 김포 = 8만 정액 (시간/거리/톨비 조작 무시)
+      expect(feTotal({ serviceType: 'airport', airportCode: 'GMP', ...c }).amountKRW).toBe(80000);
+      expect(beTotal({ serviceType: 'airport', airportCode: 'GMP', ...c }).amountKRW).toBe(80000);
+      // 인천 = 11만
+      expect(feTotal({ serviceType: 'airport', airportCode: 'ICN', ...c }).amountKRW).toBe(110000);
+      expect(beTotal({ serviceType: 'airport', airportCode: 'ICN', ...c }).amountKRW).toBe(110000);
+    }
+  });
+
+  it('🔴 알 수 없는/미지정 공항 코드 = 인천(비싼 쪽) 폴백 — 과소청구 방지, FE=BE', () => {
+    // 소문자·공백은 정상 해석, 그 외 쓰레기 값은 전부 ICN.
+    for (const code of ['gmp', ' GMP ', 'icn', 'CJU', '', null, undefined, 'GMP; DROP', 0 as unknown as string]) {
+      expect(feNormAirport(code)).toBe(beNormAirport(code));
+    }
+    expect(feNormAirport('gmp')).toBe('GMP');
+    expect(feNormAirport('CJU')).toBe('ICN');
+    expect(feNormAirport(undefined)).toBe('ICN');
+    // 코드 미지정 예약(레거시) = 기존 11만 그대로
+    expect(feTotal({ serviceType: 'airport', durationHours: 0 }).amountKRW).toBe(110000);
+    expect(beTotal({ serviceType: 'airport', durationHours: 0 }).amountKRW).toBe(110000);
+    // 조작된 코드로 싸게 받는 경로 없음
+    expect(beTotal({ serviceType: 'airport', durationHours: 0, airportCode: 'FREE' }).amountKRW).toBe(110000);
+  });
+
+  it('김포도 경유 우회거리 요금 동일 공식 (8만 + 우회km×600, FE=BE)', () => {
+    const c = { serviceType: 'airport' as const, durationHours: 0, airportCode: 'GMP', airportDetourKm: 15 };
+    expect(feTotal(c).amountKRW).toBe(89000);
+    expect(beTotal(c).amountKRW).toBe(89000);
+    expect(feTotal(c).baseKRW).toBe(80000);
+    expect(feTotal(c).distanceSurchargeKRW).toBe(beTotal(c).distanceSurchargeKRW);
   });
 
   it('공항 경유 우회거리 요금 동일 (FE=BE, 2026-07-05) — 정액 + 우회km×600', () => {

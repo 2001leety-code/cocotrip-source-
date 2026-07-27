@@ -193,3 +193,78 @@ describe('MoodAiBooking 날짜별 예약 분리 (PR3 실렌더 잠금)', () => {
     });
   });
 });
+
+// ── 💰 김포/인천 공항 정액 분리 (2026-07-27) ────────────────────────────
+// 공항마다 정액이 다름(ICN 110,000 / GMP 80,000) → 오선택/미전달 = 3만원 오차.
+function airportParseResponse(airportCodeGuess: string | null) {
+  return {
+    ok: true,
+    serviceGuess: 'airport',
+    hasDirector: false,
+    hasAirport: true,
+    airportCodeGuess,
+    truncated: false,
+    stops: [
+      { order: 1, label: '김포공항 국제선', address: '서울 강서구 하늘길 112', lat: 37.558, lng: 126.79, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true },
+      { order: 2, label: '신라호텔', address: '서울 중구 동호로 249', lat: 37.556, lng: 127.005, action: 'arrive', matchedFromPlacebook: false, geocodeOk: true },
+    ],
+  };
+}
+
+describe('MoodAiBooking 공항 정액 분리 (김포 80,000 / 인천 110,000)', () => {
+  function mockParse(airportCodeGuess: string | null) {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) return { status: 200, json: async () => airportParseResponse(airportCodeGuess) };
+      if (String(url).includes('mood-route')) return { status: 200, json: async () => ROUTE_RESPONSE };
+      if (String(url).includes('mood-book')) return { status: 200, json: async () => ({ ok: true, data: { amountKRW: 80000, balanceKRW: 500000 } }) };
+      return { status: 404, json: async () => ({}) };
+    });
+  }
+
+  it('AI 가 김포 감지 → 김포 기본 선택 + 예상 금액 80,000원', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    expect(screen.getByText(/공항 이동이 감지되었습니다 \(김포공항\)/)).toBeTruthy();
+    expect(screen.getByText(/김포공항 \(정액\)/)).toBeTruthy();
+    // 서비스 버튼 요약가·예상 금액 모두 8만
+    expect(screen.getAllByText('80,000원').length).toBeGreaterThan(0);
+  });
+
+  it('예약 요청 body 에 airportCode 전달 — 서버가 이 값으로 재계산', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      expect(bookCall).toBeTruthy();
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.serviceType).toBe('airport');
+      expect(body.airportCode).toBe('GMP');
+    });
+  });
+
+  it('운영자가 인천으로 바꾸면 110,000원 — 최종 확정은 사람 (AI 추천은 기본값일 뿐)', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /인천공항/ }));
+    await waitFor(() => expect(screen.getByText(/인천공항 \(정액\)/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.airportCode).toBe('ICN');
+    });
+  });
+
+  it('🔴 서버가 airportCodeGuess 를 안 주면(구버전 API) 인천 기본 = 비싼 쪽 폴백', async () => {
+    mockParse(null);
+    await renderAndParse();
+
+    expect(screen.getByText(/인천공항 \(정액\)/)).toBeTruthy();
+    expect(screen.queryByText(/김포공항 \(정액\)/)).toBeNull();
+  });
+});
