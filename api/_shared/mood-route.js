@@ -52,9 +52,17 @@ export async function geocode(query, clientId, clientSecret) {
  *   있어(prod Directions 200 확인) 이를 NAVER_CLIENT_ 보다 우선. VITE_ secret 은 프론트가
  *   참조하지 않아 번들 미노출(서버 serverless 는 모든 env 접근 가능). 운영자가 서버 전용
  *   NCP_CLIENT_* 를 명시하면 그게 최우선.
+ *
+ * 🔴 이 함수가 레포 전체의 NCP Maps 키 해석 SSOT 다 (maps.apigw.ntruss.com 의
+ *   map-geocode/map-direction 양쪽 모두). 키 목록을 각 파일에 복붙하면 폴백 한 칸이
+ *   누락돼도 아무 테스트가 안 깨지고 prod 에서만 조용히 401 로 죽는다 — 실제로
+ *   2026-07-27 에 mood-parse-schedule(#1183) / calculator-distance / recalc-transit /
+ *   admin-rebuild-zone-course-transit / RouteAgent 5곳이 이 방식으로 동시 사망해 있었다.
+ *   ⇒ 새 호출자는 반드시 이 함수(또는 geocodeAddress/computeRoute)에서 파생할 것.
+ *   잠금 테스트: tests/unit/ncp-key-ssot.test.ts
  * @returns {{ clientId: string, clientSecret: string }} — 미설정이면 빈 문자열.
  */
-function resolveNcpKeys() {
+export function resolveNcpKeys() {
   const clientId = (process.env.NCP_CLIENT_ID || process.env.VITE_NAVER_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
   const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.VITE_NAVER_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
   return { clientId, clientSecret };

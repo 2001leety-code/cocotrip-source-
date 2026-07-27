@@ -25,12 +25,14 @@
  *   - ODsay searchPubTransPathT (transit 매트릭스)
  *   - API key 부재 시 mock fallback (haversine 거리 기반 15분 default)
  *
- * 운영자는 ENV (NCP_CLIENT_ID/SECRET, ODSAY_API_KEY) 부재로 mock 결과만 받을 수
+ * 운영자는 ENV (NCP Maps 키, ODSAY_API_KEY) 부재로 mock 결과만 받을 수
  * 있음 — notices 에 명시. 그 외엔 silent fail 금지.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+// NCP Maps 키 해석 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
+import { resolveNcpKeys } from './_shared/mood-route.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -154,14 +156,17 @@ async function handler(req, res) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const NCP_ID = (process.env.NCP_CLIENT_ID || '').trim();
-  const NCP_SECRET = (process.env.NCP_CLIENT_SECRET || '').trim();
+  // 키 해석 = mood-route.resolveNcpKeys (SSOT). 여기서 process.env 를 직접 읽지 않는다.
+  //   🔴 2026-07-27 실측: 이 자리에 `NCP_CLIENT_*` 만 있고 폴백이 아예 없었다. prod 는
+  //   NCP_CLIENT_* 를 등록하지 않고 살아있는 NCP Maps 키를 VITE_NAVER_CLIENT_* 에만 두고
+  //   있어 hasNaver=false → geocode 를 호출조차 안 하고 항상 lat/lng=0 placeholder 였다.
+  const { clientId: NCP_ID, clientSecret: NCP_SECRET } = resolveNcpKeys();
   const ODSAY_KEY = (process.env.ODSAY_API_KEY || '').trim();
   const hasNaver = !!(NCP_ID && NCP_SECRET);
   const hasOdsay = !!ODSAY_KEY;
 
   const notices = [];
-  if (!hasNaver) notices.push('NCP_CLIENT_ID/SECRET 부재 — lat/lng=0 placeholder (운영자 수동 입력 또는 Vercel ENV 등록 후 재실행).');
+  if (!hasNaver) notices.push('NCP Maps 키 부재 (NCP_CLIENT_* / VITE_NAVER_CLIENT_* / NAVER_CLIENT_* 전부 미설정) — lat/lng=0 placeholder (운영자 수동 입력 또는 Vercel ENV 등록 후 재실행).');
   if (!hasOdsay) notices.push('ODSAY_API_KEY 부재 — transit_matrix 항목 mock (haversine 거리 + 15분 default).');
 
   try {
