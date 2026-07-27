@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessAirportCode, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessAirportCode, guessAirportDirection, normalizeTimeHint, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -111,6 +111,54 @@ describe('guessAirportCode — 어느 공항인지 (정액 결정)', () => {
     expect(guessAirportCode('강남 코엑스')).toBe(null);
     expect(guessAirportCode()).toBe(null);
     expect(guessAirportCode('', null, undefined)).toBe(null);
+  });
+});
+
+// 🕘 AI 가 뽑은 시각을 버려서 운영자가 손으로 다시 치던 것 (2026-07-27).
+describe('normalizeTimeHint — 시각 힌트 → HH:mm', () => {
+  it('숫자 표기', () => {
+    expect(normalizeTimeHint('9:30')).toBe('09:30');
+    expect(normalizeTimeHint('09:30')).toBe('09:30');
+    expect(normalizeTimeHint('15:05')).toBe('15:05');
+    expect(normalizeTimeHint('7')).toBe('07:00');
+  });
+
+  it('한글 오전/오후', () => {
+    expect(normalizeTimeHint('오후 3시')).toBe('15:00');
+    expect(normalizeTimeHint('오후 3시 30분')).toBe('15:30');
+    expect(normalizeTimeHint('오전 10시')).toBe('10:00');
+    expect(normalizeTimeHint('오전 12시')).toBe('00:00'); // 자정
+    expect(normalizeTimeHint('오후 12시')).toBe('12:00'); // 정오 — 24시로 넘기면 안 됨
+    expect(normalizeTimeHint('9시')).toBe('09:00');
+  });
+
+  it('해석 불가/무효는 빈 문자열 (억지 추측 금지)', () => {
+    expect(normalizeTimeHint('')).toBe('');
+    expect(normalizeTimeHint(null)).toBe('');
+    expect(normalizeTimeHint('아침 일찍')).toBe('');
+    expect(normalizeTimeHint('25:00')).toBe('');
+    expect(normalizeTimeHint('10:99')).toBe('');
+  });
+});
+
+// ✈️ AI 예약이 방향을 아예 안 보내 전부 'pickup' 으로 저장되던 실버그 (2026-07-27).
+describe('guessAirportDirection — 픽업/샌딩', () => {
+  it('action 이 명시되면 그걸 따른다 (가장 강한 신호)', () => {
+    expect(guessAirportDirection([{ isAirport: true, action: 'pickup' }, { isAirport: false, action: 'arrive' }])).toBe('pickup');
+    expect(guessAirportDirection([{ isAirport: false, action: 'pickup' }, { isAirport: true, action: 'dropoff' }])).toBe('sending');
+  });
+
+  it('action 이 모호하면 위치로 — 뒤쪽이면 샌딩, 앞쪽이면 픽업', () => {
+    // 공항이 마지막 = 공항으로 가는 것 = 샌딩
+    expect(guessAirportDirection([{ isAirport: false, action: 'via' }, { isAirport: true, action: 'via' }])).toBe('sending');
+    // 공항이 처음 = 공항에서 오는 것 = 픽업
+    expect(guessAirportDirection([{ isAirport: true, action: 'via' }, { isAirport: false, action: 'via' }])).toBe('pickup');
+  });
+
+  it('공항 지점이 없으면 null', () => {
+    expect(guessAirportDirection([{ isAirport: false, action: 'via' }])).toBe(null);
+    expect(guessAirportDirection([])).toBe(null);
+    expect(guessAirportDirection(null)).toBe(null);
   });
 });
 
