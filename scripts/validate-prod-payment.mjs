@@ -1,4 +1,4 @@
-// CocoTrip prod 결제 흐름 회귀 검증 슈트 — 자율 검증 v2 P0 (8 assertion)
+// CocoTrip prod 결제 흐름 회귀 검증 슈트 — 자율 검증 v2 P0 (8 assertion + 정리 1)
 // validate-prod-regression.mjs 와 동일 패턴 (parseEnv / Firebase auth / SCENARIO_NAME).
 //
 // 검증 대상 (B-PAY1 ~ B-PAY8):
@@ -78,7 +78,7 @@ if (!apiKey || !email || !password) {
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
+console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
 console.log(`   Target: ${BASE_URL}`);
 console.log(`   PayPal Client ID: ${PAYPAL_CLIENT_ID ? PAYPAL_CLIENT_ID.slice(0, 8) + '...' : '(unset)'}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -224,6 +224,43 @@ if (!PAYPAL_CLIENT_ID) {
     actual: `status=${resM.status}, ok=${resM.json?.ok}, data.status=${resM.json?.data?.status || '?'}, adminBypass=${resM.json?.data?.adminBypass || false}, bookingRef=${bookingRef}`,
     pass: okStatus && okData,
   });
+
+  // ─── B-PAY3-CLEAN: 스모크 예약 즉시 삭제 (2026-07-26) ─────
+  // 위에서 만든 pending_bookings 문서는 진짜 예약이 아니다 — 두면 PR 마다 prod 에 쌓여
+  // 어드민 결제 화면·매출 KPI 를 오염시킨다. firestore.rules 가 pending_bookings 에
+  // `allow delete: if isAdminEmail()` 을 이미 열어놨으므로(§578), 서버 코드 변경 없이
+  // 헬스체크(admin) 계정 idToken 으로 Firestore REST DELETE 한다.
+  // 정리 실패는 조용히 넘기지 않고 결과 행으로 드러낸다 — 청소가 안 되면 슈트가 빨간불.
+  {
+    const projectId =
+      process.env.FIREBASE_PROJECT_ID ||
+      envMain.VITE_FIREBASE_PROJECT_ID ||
+      envLocal.VITE_FIREBASE_PROJECT_ID ||
+      'planning-with-ai-a0801'; // count-test-bookings.mjs 와 동일 폴백
+    let cleanPass = false;
+    let cleanDetail = '';
+    try {
+      const delRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/pending_bookings/${bookingRef}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${auth.idToken}` } },
+      );
+      // Firestore REST delete 는 idempotent — 문서가 이미 없어도 200.
+      cleanPass = delRes.ok;
+      cleanDetail = `status=${delRes.status}, bookingRef=${bookingRef}`;
+      if (!delRes.ok) {
+        const errTxt = await delRes.text();
+        cleanDetail += `, body=${errTxt.slice(0, 120)}`;
+      }
+    } catch (err) {
+      cleanDetail = `ERR: ${err.message}`;
+    }
+    results.push({
+      id: 'B-PAY3-CLEAN',
+      label: '스모크 예약 정리 (pending_bookings 삭제 — prod 잔여물 0)',
+      actual: cleanDetail,
+      pass: cleanPass,
+    });
+  }
 }
 
 // ─── B-PAY4: 5% 쿠폰 productScope ───────────────────────────
@@ -375,7 +412,7 @@ if (!PAYPAL_CLIENT_ID) {
 
 // ─── Summary ──────────────────────────────────────────────
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion) — [${SCENARIO_NAME}]`);
+console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1) — [${SCENARIO_NAME}]`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 let passCount = 0;
 for (const r of results) {
@@ -397,7 +434,7 @@ console.log('  - admin endpoint: /api/admin-coupon-audit 추가 시 B-PAY5 정�
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import('fs');
   const md = [
-    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
+    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
     '',
     `**Target:** ${BASE_URL}`,
     `**총합:** ${passCount}/${results.length} pass`,

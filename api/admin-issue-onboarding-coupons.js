@@ -54,7 +54,10 @@ export default async function handler(req, res) {
   let body = req.body || {};
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
 
-  const { uid: targetUid, pageSize = 100 } = body;
+  // dryRun (2026-07-26): CI 회귀검증(validate-prod-admin-auth B-ADM4)이 이 엔드포인트를 매 PR
+  // 호출하는데, 실발급 모드면 PR 열 때마다 실제 유저에게 쿠폰이 나간다(운영자 의도와 무관한 발급).
+  // dryRun=true 면 스캔·인증·응답 셰이프는 동일하게 검증되고 Firestore 쓰기만 생략된다.
+  const { uid: targetUid, pageSize = 100, dryRun = false } = body;
 
   try {
     const db = initAdminDb('admin-issue-onboarding-coupons');
@@ -64,9 +67,15 @@ export default async function handler(req, res) {
     }
 
     const results = { issued: 0, alreadyIssued: 0, errors: 0, errorDetails: [] };
+    if (dryRun === true) results.dryRun = true;
 
     if (targetUid) {
       // 단일 유저 보정
+      if (dryRun === true) {
+        // 존재 확인까지만 — 발급 없음.
+        const userSnap = await db.collection('users').doc(targetUid).get();
+        results.candidates = userSnap.exists ? 1 : 0;
+      } else {
       try {
         const r = await issueOnboardingCouponsForUid(db, targetUid);
         if (r.alreadyIssued) results.alreadyIssued++;
@@ -74,6 +83,7 @@ export default async function handler(req, res) {
       } catch (err) {
         results.errors++;
         results.errorDetails.push({ uid: targetUid, error: err.message });
+      }
       }
     } else {
       // 전체 스캔 — onboardingCouponsIssued != true 인 유저
@@ -83,8 +93,11 @@ export default async function handler(req, res) {
         .limit(Math.min(Number(pageSize) || 100, 500))
         .get();
 
-      console.log(`[admin-issue-onboarding-coupons] scan found ${snap.size} candidates`);
+      console.log(`[admin-issue-onboarding-coupons] scan found ${snap.size} candidates${dryRun === true ? ' (dryRun — 발급 생략)' : ''}`);
 
+      if (dryRun === true) {
+        results.candidates = snap.size;
+      } else {
       for (const docSnap of snap.docs) {
         const uid = docSnap.id;
         try {
@@ -96,6 +109,7 @@ export default async function handler(req, res) {
           results.errorDetails.push({ uid, error: err.message });
           console.error(`[admin-issue-onboarding-coupons] uid=${uid} failed:`, err.message);
         }
+      }
       }
     }
 
