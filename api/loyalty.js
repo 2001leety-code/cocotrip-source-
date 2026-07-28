@@ -12,6 +12,8 @@
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { verifyUserToken } from './_shared/user-auth.js';
+// 운영자 테스트 결제 식별 SSOT — 매출 카운터와 동일 기준으로 포인트도 제외한다.
+import { isAdminBypassOrderId } from './_shared/admin-bypass-detector.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -133,7 +135,32 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify(_err('Invalid amountUSD for earn', 'INVALID_AMOUNT')));
       }
 
+      // 🔴 2026-07-28: 운영자 테스트 결제는 원장에서 제외한다.
+      //   매출 카운터(api_stats)는 이미 같은 prefix 로 제외하고 있었는데 포인트만 빠져 있어
+      //   운영자 테스트가 등급·코인을 올렸다. 같은 SSOT helper 로 통일.
+      //   MANUAL- 은 실입금이므로 제외 대상이 아니다(helper 규약).
+      if (isAdminBypassOrderId(bookingRef)) {
+        console.log('[loyalty] earn skipped — admin/test order:', bookingRef);
+        res.writeHead(200, JSON_CORS);
+        return res.end(JSON.stringify(_ok({ skipped: 'admin-bypass or test order', earnedCoins: 0 })));
+      }
+
+      // 🔴 2026-07-28: 멱등. bookingRef 당 적립 1회.
+      //   호출부(booking-processor)에 선점 마커가 있지만, 마커는 예약 처리 재시도 시
+      //   해제되고 다른 호출부가 생기면 무방비다. 코인 발급은 돈이므로 발급 지점 자체가
+      //   멱등이어야 한다 → pointHistory 문서 ID 를 bookingRef 로 고정해 트랜잭션 안에서
+      //   존재 여부를 확인한다(같은 트랜잭션이라 동시 호출도 하나만 통과).
+      const earnLogId = bookingRef ? `earn_${String(bookingRef).replace(/\//g, '_')}` : null;
+
       const result = await db.runTransaction(async (tx) => {
+        if (earnLogId) {
+          const dupRef = db.collection('users').doc(userId).collection('pointHistory').doc(earnLogId);
+          const dupSnap = await tx.get(dupRef);
+          if (dupSnap.exists) {
+            const prev = dupSnap.data() || {};
+            return { duplicate: true, earnedCoins: 0, alreadyEarnedCoins: prev.amount || 0 };
+          }
+        }
         const userSnap = await tx.get(userRef);
         if (!userSnap.exists) throw new Error('User not found');
 
@@ -160,8 +187,11 @@ export default async function handler(req, res) {
           tierUpdatedAt: FieldValue.serverTimestamp(),
         });
 
-        // 포인트 이력 추가
-        const logRef = db.collection('users').doc(userId).collection('pointHistory').doc();
+        // 포인트 이력 추가 — bookingRef 가 있으면 문서 ID 를 고정해 재호출이 덮어쓰기가
+        // 되게 한다(새 문서 추가 = 이중 적립). bookingRef 가 없으면 기존대로 자동 ID.
+        const logRef = earnLogId
+          ? db.collection('users').doc(userId).collection('pointHistory').doc(earnLogId)
+          : db.collection('users').doc(userId).collection('pointHistory').doc();
         tx.set(logRef, {
           type: 'earn',
           amount: earnedCoins,
