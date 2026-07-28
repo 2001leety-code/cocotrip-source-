@@ -21,7 +21,8 @@ import { Map as MapIcon } from 'lucide-react';
 import type { PlanStop } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { segmentTiringReasons } from '../lib/routeInsight';
-import { stepsToSegments, type RouteSegment, type TransitStepLike } from '@/lib/routeSegments';
+import { pointsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
+import { naverMapDirectionsUrl, NAVER_DIRECTIONS_MAX_STOPS } from '@/lib/naverMap';
 
 interface DayRouteMapProps {
   stops: PlanStop[];
@@ -35,6 +36,8 @@ interface MapPoint {
   label: string;        // display name for the popup
   time?: string;        // start_time for the popup, if present
   hard: boolean;        // 이 stop 으로의 이동(transit_from_prev)이 힘든 대중교통 구간인지 (P5 범례)
+  /** 이 stop 으로 오는 구간의 실경로 step 들 (없으면 직선 폴백 — pointsToSegments 가 처리). */
+  legSteps?: TransitStepLike[];
 }
 
 const isFiniteNum = (v: unknown): v is number =>
@@ -66,6 +69,7 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
       // 이 stop 으로의 대중교통 이동이 힘든 구간(환승2+/도보900m+/60분+)이면 hard.
       // routeInsight 와 동일 판정(RouteAgent 실측 필드만) — 추정·환각 없음.
       hard: segmentTiringReasons((stop as { transit_from_prev?: unknown }).transit_from_prev as never).length > 0,
+      legSteps: (stop as { transit_from_prev?: { steps_detail?: TransitStepLike[] } }).transit_from_prev?.steps_detail,
     });
   }
   return points;
@@ -73,25 +77,21 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
 
 // ── (2026-07-19) 실경로 세그먼트 ──────────────────────────────────────────────
 // RouteAgent 가 저장한 steps_detail[].path (TMAP passShape 실좌표)를 그대로 그린다.
-// 없으면(구형 플랜·ODsay 경로) stop→stop 직선으로 폴백 — 절대 빈 지도가 되지 않게.
-// 변환 로직은 코스 빌더(CourseMiniMap)와 공유한다 → src/lib/routeSegments.ts
+// 좌표가 없는 구간은 stop→stop 직선으로 폴백 — 절대 선이 끊기지 않게.
+// (2026-07-28) 폴백을 **구간 단위**로 내림 — 지하철+도보가 섞인 날 도보 구간만
+// 통째로 안 그려지던 구멍 제거. 변환·폴백 로직은 코스 빌더와 공유 → lib/routeSegments.
 
-/** stops → 실경로 세그먼트. 각 stop 의 transit_from_prev.steps_detail 을 펼친다. */
-function toRouteSegments(stops: PlanStop[]): RouteSegment[] {
-  const segs: RouteSegment[] = [];
-  for (const stop of stops || []) {
-    const t = (stop as { transit_from_prev?: { steps_detail?: TransitStepLike[] } }).transit_from_prev;
-    segs.push(...stepsToSegments(t?.steps_detail));
-  }
-  return segs;
-}
+type MapLabels = {
+  title: string; easy: string; hard: string; showRoute: string; loading: string;
+  none: string; openNaver: string; naverCapped: string;
+};
 
-function mapLabels(language: string): { title: string; easy: string; hard: string; showRoute: string; loading: string; none: string } {
+function mapLabels(language: string): MapLabels {
   switch (language) {
-    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 못 찾았어요' };
-    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この区間の公共交通の経路が見つかりません' };
-    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到该路线的公共交通路径' };
-    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route found for this day' };
+    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 못 찾았어요', openNaver: '네이버 지도', naverCapped: `네이버 지도는 한 번에 ${NAVER_DIRECTIONS_MAX_STOPS}곳까지만 열려요 — 앞 ${NAVER_DIRECTIONS_MAX_STOPS}곳만 표시됩니다.` };
+    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この区間の公共交通の経路が見つかりません', openNaver: 'NAVER 地図', naverCapped: `NAVER 地図は一度に${NAVER_DIRECTIONS_MAX_STOPS}か所までです — 最初の${NAVER_DIRECTIONS_MAX_STOPS}か所のみ表示されます。` };
+    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到该路线的公共交通路径', openNaver: 'NAVER 地图', naverCapped: `NAVER 地图一次最多支持 ${NAVER_DIRECTIONS_MAX_STOPS} 个地点 — 仅显示前 ${NAVER_DIRECTIONS_MAX_STOPS} 个。` };
+    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route found for this day', openNaver: 'Naver Map', naverCapped: `Naver Map supports up to ${NAVER_DIRECTIONS_MAX_STOPS} places per route — showing the first ${NAVER_DIRECTIONS_MAX_STOPS}.` };
   }
 }
 
@@ -107,15 +107,21 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
   const labels = mapLabels(language);
   const points = toMapPoints(stops);
   const enoughPoints = points.length >= 2;
-  // 저장된 실경로(신규 플랜). 구형 플랜은 비어 있다.
-  const storedSegments = toRouteSegments(stops);
   // (2026-07-19) 구형 플랜 구제 — 저장된 경로가 없으면 버튼으로 course-route 를 불러
   // 지도만 실경로로 바꾼다. Firestore 는 건드리지 않는다(읽기 전용 개선).
-  const [fetchedSegments, setFetchedSegments] = useState<RouteSegment[]>([]);
+  // 응답의 segment.to = points 인덱스 → 구간별로 꽂아 폴백 로직을 그대로 태운다.
+  const [fetchedLegs, setFetchedLegs] = useState<Record<number, TransitStepLike[]>>({});
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeMsg, setRouteMsg] = useState<string | null>(null);
-  const segments = storedSegments.length > 0 ? storedSegments : fetchedSegments;
-  const canFetchRoute = storedSegments.length === 0 && fetchedSegments.length === 0 && enoughPoints;
+
+  const routePoints: RoutePoint[] = points.map((p, i) => ({
+    lat: p.lat,
+    lng: p.lng,
+    legSteps: p.legSteps?.length ? p.legSteps : fetchedLegs[i],
+    legHard: p.hard,
+  }));
+  const { segments, realLegs } = pointsToSegments(routePoints);
+  const canFetchRoute = realLegs === 0 && enoughPoints;
 
   const fetchRoute = async () => {
     setRouteBusy(true);
@@ -127,16 +133,25 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         body: JSON.stringify({ stops: points.map((p) => ({ lat: p.lat, lng: p.lng, name: p.label })) }),
       });
       const json = await res.json().catch(() => null);
-      const segs = (Array.isArray(json?.segments) ? json.segments : [])
-        .flatMap((s: { steps_detail?: TransitStepLike[] }) => stepsToSegments(s.steps_detail));
-      setFetchedSegments(segs);
-      if (!segs.length) setRouteMsg(labels.none);
+      const legs: Record<number, TransitStepLike[]> = {};
+      for (const s of (Array.isArray(json?.segments) ? json.segments : []) as Array<{ to?: number; steps_detail?: TransitStepLike[] }>) {
+        if (typeof s?.to === 'number' && Array.isArray(s.steps_detail)) legs[s.to] = s.steps_detail;
+      }
+      setFetchedLegs(legs);
+      if (!Object.keys(legs).length) setRouteMsg(labels.none);
     } catch {
       setRouteMsg(labels.none);
     } finally {
       setRouteBusy(false);
     }
   };
+
+  // 네이버 지도 딥링크 — 하루 동선을 경유지로 묶어 앱/웹에서 연다.
+  // 네이버는 경유지를 **자동차 길찾기에서만** 지원한다(대중교통 길찾기는 2점만) → mode='car'.
+  const naverCapped = points.length > NAVER_DIRECTIONS_MAX_STOPS;
+  const naverUrl = naverMapDirectionsUrl(
+    points.slice(0, NAVER_DIRECTIONS_MAX_STOPS).map((p) => ({ lat: p.lat, lng: p.lng, name: p.label })),
+  );
   // effect 의존성용 서명 — 좌표 배열을 그대로 넣으면 매 렌더 재실행된다.
   const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
 
@@ -186,9 +201,9 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
 
         // Route polylines.
         // (2026-07-19) 실경로 우선: TMAP passShape 좌표가 있으면 도로·철도를 따라 그리고
-        // 노선 공식 색을 쓴다. 좌표가 없는 구형 플랜은 기존 stop→stop 직선으로 폴백해
-        // 지도가 비지 않게 한다(난이도 styling = P5 범례 유지).
-        if (segments.length > 0) {
+        // 노선 공식 색을 쓴다. (2026-07-28) 좌표 없는 구간(도보 등)은 pointsToSegments 가
+        // 이미 직선 세그먼트로 메워 넘겨준다 — 여기선 분기 없이 전부 그리기만 한다.
+        {
           for (const seg of segments) {
             L.polyline(seg.path, {
               color: seg.color,
@@ -242,19 +257,6 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
                 zIndexOffset: 200, // 폴리라인·승차핀 위, 번호핀과는 위치로 분리
               }).addTo(map);
             }
-          }
-        } else {
-          // 폴백: 구형 플랜 — stop→stop 직선 + 난이도 styling.
-          for (let k = 1; k < points.length; k++) {
-            const a = points[k - 1];
-            const b = points[k];
-            L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
-              color: b.hard ? '#FFB020' : '#B668FC',
-              weight: 3,
-              opacity: 0.85,
-              lineJoin: 'round',
-              ...(b.hard ? { dashArray: '6, 9' } : {}),
-            }).addTo(map);
           }
         }
 
@@ -331,17 +333,32 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         {/* (2026-07-19) 구형 플랜 구제 — 저장된 실경로가 없을 때만 노출.
             누르면 course-route 로 실제 대중교통 경로를 받아 지도를 갈아끼운다.
             Firestore 는 수정하지 않는다(이 화면 한정 개선). 자동 호출 안 함 = 비용 방어. */}
-        {canFetchRoute && (
-          <button
-            type="button"
-            onClick={() => { void fetchRoute(); }}
-            disabled={routeBusy}
-            className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 disabled:opacity-50 min-h-[32px]"
-            style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
-          >
-            {routeBusy ? labels.loading : labels.showRoute}
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {canFetchRoute && (
+            <button
+              type="button"
+              onClick={() => { void fetchRoute(); }}
+              disabled={routeBusy}
+              className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 disabled:opacity-50 min-h-[32px]"
+              style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
+            >
+              {routeBusy ? labels.loading : labels.showRoute}
+            </button>
+          )}
+          {/* (2026-07-28) 하루 동선을 네이버 지도로 — 핀 여러 개 + 경유 동선.
+              네이버는 경유지를 자동차 길찾기에서만 지원한다(대중교통은 2점 전용). */}
+          {naverUrl && (
+            <a
+              href={naverUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 min-h-[32px] flex items-center"
+              style={{ background: 'rgba(3,199,90,0.16)', border: '1px solid rgba(3,199,90,0.45)' }}
+            >
+              {labels.openNaver}
+            </a>
+          )}
+        </div>
       </div>
       <div
         className="relative overflow-hidden rounded-2xl border border-white/[0.08]"
@@ -355,6 +372,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         />
       </div>
       {routeMsg && <p className="mt-1.5 px-0.5 text-[11px] text-white/50">{routeMsg}</p>}
+      {/* 잘라낸 사실을 숨기지 않는다 — 네이버 경유지 상한을 넘긴 날은 명시. */}
+      {naverCapped && naverUrl && (
+        <p className="mt-1.5 px-0.5 text-[11px] text-white/40">{labels.naverCapped}</p>
+      )}
       {/* 지도 범례 (가이드 P5) — 실선=쉬운 이동 / 점선=힘든 대중교통 구간(routeInsight 실판정). 힘든 구간 있을 때만. */}
       {hasHard && (
         <div className="mt-2 flex items-center gap-4 px-0.5 text-[11px] text-white/55">

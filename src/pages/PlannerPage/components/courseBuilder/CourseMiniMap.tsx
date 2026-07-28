@@ -10,7 +10,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { CourseStop } from './courseOps';
-import { stepsToSegments, type TransitStepLike } from '@/lib/routeSegments';
+import { pointsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
 
 interface NearbyPlace { name: string; lat?: number; lng?: number; category?: string; reason?: string; }
 
@@ -18,8 +18,9 @@ interface CourseMiniMapProps {
   stops: CourseStop[];
   title: string; // 지도 헤더 라벨 (i18n 은 호출처가 넘김)
   nearby?: NearbyPlace[]; // AI 주변추천 — 코스 핀과 다른 색 마커로 "가볼만한 곳" 표시
-  /** /api/course-route 응답의 segments — 있으면 실경로(노선색·승차핀·수단칩)로 그린다. */
-  routeSegments?: { steps_detail?: TransitStepLike[] }[];
+  /** /api/course-route 응답의 segments — 있으면 실경로(노선색·승차핀·수단칩)로 그린다.
+   *  `to` = 도착 지점 인덱스. 좌표가 없는 구간(도보 등)은 직선으로 메워진다. */
+  routeSegments?: { to?: number; steps_detail?: TransitStepLike[] }[];
 }
 
 interface MapPoint { lat: number; lng: number; order: number; label: string; time?: string; }
@@ -76,8 +77,15 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
   const points = toMapPoints(stops);
   const nearbyPoints = toNearbyPoints(nearby);
   const enoughPoints = points.length >= 2;
-  // 실경로 세그먼트(플랜 상세와 동일 변환 — src/lib/routeSegments).
-  const segments = (routeSegments || []).flatMap((s) => stepsToSegments(s.steps_detail));
+  // 실경로 세그먼트(플랜 상세와 동일 변환·폴백 — src/lib/routeSegments).
+  // (2026-07-28) 좌표 없는 구간(도보 등)은 직선으로 메운다 — 이전에는 실경로가 하나라도
+  // 있으면 그것만 그려서 도보 구간이 지도에서 통째로 사라졌다.
+  const legSteps: Record<number, TransitStepLike[]> = {};
+  for (const s of routeSegments || []) {
+    if (typeof s?.to === 'number' && Array.isArray(s.steps_detail)) legSteps[s.to] = s.steps_detail;
+  }
+  const routePoints: RoutePoint[] = points.map((p, i) => ({ lat: p.lat, lng: p.lng, legSteps: legSteps[i] }));
+  const { segments } = pointsToSegments(routePoints);
   const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
 
   useEffect(() => {
@@ -105,8 +113,9 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
         }).addTo(map);
 
         // (2026-07-19) 실경로 우선 — /api/course-route 가 준 TMAP 좌표가 있으면
-        // 도로·철도를 따라 노선 공식 색으로 그린다. 없으면 기존 stop→stop 직선 폴백.
-        if (segments.length > 0) {
+        // 도로·철도를 따라 노선 공식 색으로 그린다. (2026-07-28) 좌표 없는 구간은
+        // pointsToSegments 가 이미 직선으로 메워 넘겨준다 — 여기선 그리기만.
+        {
           for (const seg of segments) {
             L.polyline(seg.path, {
               color: seg.color,
@@ -141,8 +150,6 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
               }).addTo(map);
             }
           }
-        } else {
-          L.polyline(latLngs, { color: '#B668FC', weight: 3, opacity: 0.85, lineJoin: 'round' }).addTo(map);
         }
 
         markersRef.current.clear();

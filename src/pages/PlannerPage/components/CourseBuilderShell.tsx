@@ -168,7 +168,8 @@ export function CourseBuilderShell() {
   // AI 동선 최적화
   const [aiBusy, setAiBusy] = useState(false);
   // 실경로(대중교통) 세그먼트 — /api/course-route 응답. 비어 있으면 지도는 직선 폴백.
-  const [routeSegs, setRouteSegs] = useState<{ steps_detail?: TransitStepLike[] }[]>([]);
+  // `to` = 도착 지점 인덱스 — 지도가 구간별로 실경로/직선을 섞어 그리는 데 쓴다.
+  const [routeSegs, setRouteSegs] = useState<{ to?: number; steps_detail?: TransitStepLike[] }[]>([]);
   const [routeBusy, setRouteBusy] = useState(false);
   const [aiRecos, setAiRecos] = useState<AiNearby[]>([]);
   // 저장 모달 (제목/날짜)
@@ -202,7 +203,13 @@ export function CourseBuilderShell() {
   // 실경로 조회 — 활성 Day 의 좌표 있는 stop 을 course-route(TMAP)로 보내 실제
   // 대중교통 경로를 받는다. 인증 불필요(공개 기능), 서버가 IP rate-limit·구간 상한으로 방어.
   const handleShowRoute = async () => {
-    const stops = day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
+    // 지도(CourseMiniMap.toMapPoints)·서버(validCoord)와 **동일한** 유효성 기준이어야
+    // 응답 segment 의 `to` 인덱스가 지도 지점과 어긋나지 않는다.
+    const stops = day.stops.filter(
+      (s) => Number.isFinite(s.lat) && Number.isFinite(s.lng)
+        && (s.lat as number) >= -90 && (s.lat as number) <= 90
+        && (s.lng as number) >= -180 && (s.lng as number) <= 180,
+    );
     if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
     setRouteBusy(true);
     try {
