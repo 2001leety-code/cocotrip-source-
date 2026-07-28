@@ -453,35 +453,40 @@ export function TransitArrow({ transit, destinationName, endpoints }: { transit:
             </p>
           )}
 
-          {/* 현장용 길찾기 — 실제로 쓰는 앱으로 넘긴다. 둘 다 딥링크(URL)라 과금 없음.
-              구글맵을 먼저 두는 이유: 외국인에게 이미 깔려 있고 언어가 자동. 네이버는
-              한국 대중교통 정확도가 높지만 앱 언어 설정을 따라간다. */}
-          {directionsLinks && (
-            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-              <a
-                href={directionsLinks.google}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
-                           bg-white/10 border border-white/20 text-white/85 hover:bg-white/15 transition-colors"
-              >
-                <Navigation className="w-3 h-3" />
-                {trKeys.openInGoogleMaps || 'Google Maps'}
-              </a>
-              <a
-                href={directionsLinks.naver}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
-                           bg-[#03C75A]/15 border border-[#03C75A]/35 text-[#5DDB91] hover:bg-[#03C75A]/25 transition-colors"
-              >
-                <Navigation className="w-3 h-3" />
-                {trKeys.openInNaverMap || 'Naver Map'}
-              </a>
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* 현장용 길찾기 — 실제로 쓰는 앱으로 넘긴다. 둘 다 딥링크(URL)라 과금 없음.
+          구글맵을 먼저 두는 이유: 외국인에게 이미 깔려 있고 언어가 자동. 네이버는
+          한국 대중교통 정확도가 높지만 앱 언어 설정을 따라간다.
+          🔴 2026-07-28: 이 버튼이 `showSteps && hasRichSteps` 안에 들어 있었다. 도보 구간은
+          백엔드가 steps_detail 을 안 만들어 hasRichSteps=false → **도보 구간에서만 버튼이
+          통째로 사라졌다**(사용자 신고 "도보에서 도보로 갈 때 지도가 안 뜬다"). 접힘 상태와
+          무관하게 항상 노출한다. */}
+      {directionsLinks && (
+        <div className="ml-6 mt-1.5 flex items-center gap-1.5 flex-wrap">
+          <a
+            href={directionsLinks.google}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                       bg-white/10 border border-white/20 text-white/85 hover:bg-white/15 transition-colors"
+          >
+            <Navigation className="w-3 h-3" />
+            {trKeys.openInGoogleMaps || 'Google Maps'}
+          </a>
+          <a
+            href={directionsLinks.naver}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                       bg-[#03C75A]/15 border border-[#03C75A]/35 text-[#5DDB91] hover:bg-[#03C75A]/25 transition-colors"
+          >
+            <Navigation className="w-3 h-3" />
+            {trKeys.openInNaverMap || 'Naver Map'}
+          </a>
         </div>
       )}
 
