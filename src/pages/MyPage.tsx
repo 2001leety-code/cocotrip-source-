@@ -43,12 +43,21 @@ const TIER_EMOJI: Record<TierType, string> = {
 
 // 🔧 2026-07-18: 'Free cancellation 48h/72h' 티어혜택 문구 제거 — PR#1116 에서 취소정책이
 //   24h 바이너리(등급 무관)로 통일돼 서버가 적용하지 않는 혜택을 고객에게 표기하던 회귀 잔재.
-const TIER_BENEFITS: Record<TierType, string[]> = {
-  Bronze:   ['Basic 1% Trip Coins earn', 'Welcome 5% coupon'],
+// 🔴 2026-07-29: 영어 하드코딩을 번역 파일로 옮겼다(mypage.tierBenefits, 4개 국어).
+//   한국어 화면에서 등급 혜택만 영어로 남아 있던 문제. 아래는 번역 누락 시 폴백.
+const TIER_BENEFITS_FALLBACK: Record<TierType, string[]> = {
+  Bronze:   ['1% Trip Coins earn', 'Welcome 5% coupon'],
   Silver:   ['1.5% Trip Coins earn', '$5 season coupon', 'Priority support'],
   Gold:     ['2% Trip Coins earn', '$10 season coupon', 'Priority vehicle assignment'],
-  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Airport lounge access'],
+  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaoTalk support', 'Airport lounge access'],
 };
+
+/** 번역 파일의 등급 혜택 목록. 없거나 형식이 다르면 영어 폴백. */
+function tierBenefits(dict: Record<string, unknown>, t: TierType): string[] {
+  const table = dict.tierBenefitList as Record<string, unknown> | undefined;
+  const list = table?.[t];
+  return Array.isArray(list) && list.length ? (list as string[]) : TIER_BENEFITS_FALLBACK[t];
+}
 
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
 // 어디에도 없어 사용자가 일정을 만들 수 없는 상태였음. 백엔드 hook은 유지하되
@@ -245,7 +254,7 @@ export default function MyPage() {
               {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
             </p>
             <div className="flex flex-wrap gap-2">
-              {TIER_BENEFITS[tier].map((b, i) => (
+              {tierBenefits(mp as unknown as Record<string, unknown>, tier).map((b, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-white/50 border border-white/5">
                   {b}
                 </span>

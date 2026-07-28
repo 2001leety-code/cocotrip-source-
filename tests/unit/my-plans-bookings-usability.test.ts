@@ -21,7 +21,9 @@ describe('내 플랜 — 전량 렌더 금지', () => {
   const code = codeOf('src/pages/MyPlansPage.tsx');
 
   it('Firestore 쿼리에 limit 이 걸려 있다', () => {
-    expect(code).toContain('limit(pageSize)');
+    // 2026-07-29: limit 증가 방식 → startAfter 커서로 교체. 상수 페이지 크기를 쓴다.
+    expect(code).toContain('limit(PAGE_SIZE)');
+    expect(code).toContain('startAfter(lastDoc)');
     // orderBy 만 있고 limit 이 없던 구조로 되돌아가면 실패한다.
     const q = code.slice(code.indexOf('query('), code.indexOf('query(') + 260);
     expect(q).toContain('limit(');

@@ -128,7 +128,7 @@ export default async function handler(req, res) {
         res.writeHead(403, JSON_CORS);
         return res.end(JSON.stringify(_err('earn is internal-only', 'FORBIDDEN')));
       }
-      const { bookingRef, description, captureId } = body;
+      const { bookingRef, description, captureId, ledgerKey } = body;
       const amountUSD = Number(body.amountUSD);
       if (!Number.isFinite(amountUSD) || amountUSD <= 0) {
         res.writeHead(400, JSON_CORS);
@@ -150,7 +150,14 @@ export default async function handler(req, res) {
       //   해제되고 다른 호출부가 생기면 무방비다. 코인 발급은 돈이므로 발급 지점 자체가
       //   멱등이어야 한다 → pointHistory 문서 ID 를 bookingRef 로 고정해 트랜잭션 안에서
       //   존재 여부를 확인한다(같은 트랜잭션이라 동시 호출도 하나만 통과).
-      const earnLogId = bookingRef ? `earn_${String(bookingRef).replace(/\//g, '_')}` : null;
+      // 🔴 2026-07-29: 멱등 키를 **PayPal orderID** 로 고정한다.
+      //   이전엔 bookingRef(CT-YYYYMMDD-XXX)를 썼는데, 이 번호는 booking-processor 가
+      //   호출마다 새로 만들 수 있다(externalBookingRef 미전달 시 generateBookingRef()).
+      //   같은 결제를 재처리하면 다른 CT 번호 → 다른 문서 ID → **이중 적립**이 뚫린다.
+      //   PayPal orderID 는 결제 1건에 영구 고정이라 멱등 키로 유일하게 안전하다.
+      //   ledgerKey 미전달(레거시 호출)만 bookingRef 로 폴백한다.
+      const idemSource = ledgerKey || bookingRef;
+      const earnLogId = idemSource ? `earn_${String(idemSource).replace(/\//g, '_')}` : null;
 
       const result = await db.runTransaction(async (tx) => {
         if (earnLogId) {
@@ -198,6 +205,8 @@ export default async function handler(req, res) {
           balance: newBalance,
           description: description || `Tour completed: $${amountUSD} (${newTier.name} ${(newTier.earnRate * 100).toFixed(1)}%)`,
           bookingRef: bookingRef || null,
+          // 멱등 키(=PayPal orderID). 대사 시 결제 1건 ↔ 적립 1건을 이걸로 맞춘다.
+          ledgerKey: idemSource || null,
           // 2026-07-29: 이 적립이 어느 PayPal capture 에서 나왔는지 남긴다.
           //   대사(reconciliation) 때 "결제 없는 적립"을 즉시 가려낼 수 있다.
           captureId: captureId || null,

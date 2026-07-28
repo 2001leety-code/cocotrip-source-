@@ -11,11 +11,15 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { logger } from './log.js';
+// 🔴 2026-07-29: Preview 배포가 운영 Firebase 를 그대로 쓰면 테스트 결제가 운영
+//   예약·포인트를 실제로 쓴다. 부팅 시 1회 검사한다(기본 warn, enforce 시 중단).
+import { assertFirebaseEnvMatch } from './firebase-env-guard.js';
 
 let _adminDb = null;
 
 (function bootstrap() {
   try {
+    assertFirebaseEnvMatch('firebase-admin');
     const projectId = process.env.FIREBASE_PROJECT_ID || '';
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
     const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');

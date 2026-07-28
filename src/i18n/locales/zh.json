@@ -1928,7 +1928,29 @@
     "myPlansShowing": "显示 {n} 个",
     "pointHistoryTitle": "积分记录",
     "noReviewsYet": "还没有评价",
-    "noReviewsSub": "撰写旅行评价可获得 +50 Trip Coins"
+    "noReviewsSub": "撰写旅行评价可获得 +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 返还",
+        "入会 5% 优惠券"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 返还",
+        "季度 $5 优惠券",
+        "优先客服"
+      ],
+      "Gold": [
+        "Trip Coins 2% 返还",
+        "季度 $10 优惠券",
+        "优先安排车辆"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 返还",
+        "季度 $20 优惠券",
+        "VIP KakaoTalk 客服",
+        "机场贵宾室"
+      ]
+    }
   },
   "admin": {
     "backToHome": "返回管理后台",

@@ -1928,7 +1928,29 @@
     "myPlansShowing": "{n}개 표시 중",
     "pointHistoryTitle": "포인트 내역",
     "noReviewsYet": "아직 작성한 후기가 없어요",
-    "noReviewsSub": "여행 후기를 남기면 +50 Trip Coins"
+    "noReviewsSub": "여행 후기를 남기면 +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 적립",
+        "가입 축하 5% 쿠폰"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 적립",
+        "시즌 $5 쿠폰",
+        "우선 응대"
+      ],
+      "Gold": [
+        "Trip Coins 2% 적립",
+        "시즌 $10 쿠폰",
+        "차량 우선 배정"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 적립",
+        "시즌 $20 쿠폰",
+        "VIP 카카오톡 응대",
+        "공항 라운지 이용"
+      ]
+    }
   },
   "admin": {
     "backToHome": "어드민 홈으로",

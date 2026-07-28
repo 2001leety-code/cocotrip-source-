@@ -24,7 +24,10 @@ describe('paypal-webhook 부분환불 status (소스 가드)', () => {
   });
   it('부분 판별은 USD 끼리 비교한다 (환율이 개입하면 안 된다)', () => {
     expect(src).toMatch(/isPartialRefund\s*=\s*originalUSD\s*>\s*0/);
-    expect(src).toMatch(/refundedUSD\s*<\s*originalUSD\s*\*\s*0\.99/);
+    // 2026-07-29: 여러 번 나눠 환불한 경우를 위해 **누적액**으로 비교한다.
+    //   ($5 + $4.90 처럼 쪼개면 이번 이벤트 금액만 보고는 영원히 부분환불로 남는다)
+    expect(src).toMatch(/cumulativeRefundedUSD\s*<\s*originalUSD\s*\*\s*0\.99/);
+    expect(src).toContain('refundedUSDTotal');
   });
 
   it('옛 KRW 기반 판정이 되살아나지 않는다', () => {

@@ -42,7 +42,7 @@ import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
 import { getUsdToKrwRaw } from './_exchange-rate.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
-import { bookingStepGuards, BOOKING_STEP_MARKERS } from './_shared/booking-idempotency.js';
+import { bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField, STEP_CLAIM_STALE_MS } from './_shared/booking-idempotency.js';
 
 
 // ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
@@ -140,11 +140,23 @@ async function claimBookingStep(orderID, field) {
   try {
     const { FieldValue } = await import('firebase-admin/firestore');
     const ref = db.collection('bookings').doc(orderID);
+    const stateField = stepStateField(field);
     const claimed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const data = snap.exists ? (snap.data() || {}) : {};
-      if (data[field]) return false; // 이미 처리됨 → 선점 실패
-      tx.set(ref, { [field]: FieldValue.serverTimestamp() }, { merge: true });
+      // 🔴 2026-07-29: 완료된 것만 스킵한다. 선점(in_progress)은 죽은 실행일 수 있다.
+      if (data[stateField] === 'completed') return false;
+      if (!data[stateField] && data[field]) return false;   // 레거시 완료 문서
+      if (data[stateField] === 'in_progress') {
+        // 다른 인스턴스가 처리 중일 수 있다 → 너무 오래된 선점만 회수(좀비 방지).
+        const startedMs = data[`${stateField}At`] || 0;
+        if (startedMs && Date.now() - startedMs < STEP_CLAIM_STALE_MS) return false;
+        console.warn(`[booking-processor] 좀비 선점 회수: ${field} (${orderID})`);
+      }
+      tx.set(ref, {
+        [stateField]: 'in_progress',
+        [`${stateField}At`]: Date.now(),
+      }, { merge: true });
       return true; // 내가 선점
     });
     return claimed;
@@ -154,6 +166,26 @@ async function claimBookingStep(orderID, field) {
     // 고객 메일 누락이 더 낫다. 트랜잭션 실패 시 처리 진행은 기존 가드 동작을 계승.
     console.warn(`[booking-processor] 단계 선점 ${field} 트랜잭션 실패 (처리 진행):`, e.message);
     return true;
+  }
+}
+
+/**
+ * 🔴 2026-07-29: 단계 **성공** 확정. 여기서만 완료 타임스탬프를 쓴다.
+ *   선점(in_progress)과 완료(completed)를 나눠, 선점 직후 함수가 죽어도
+ *   retry 가 다시 처리할 수 있게 한다(이전엔 영원히 스킵됐다).
+ */
+async function completeBookingStep(orderID, field) {
+  if (!orderID || !field) return;
+  try {
+    const db = initAdminDb('booking-processor');
+    if (!db) return;
+    const { FieldValue } = await import('firebase-admin/firestore');
+    await db.collection('bookings').doc(orderID).set({
+      [field]: FieldValue.serverTimestamp(),
+      [stepStateField(field)]: 'completed',
+    }, { merge: true });
+  } catch (e) {
+    console.warn(`[booking-processor] 단계 완료 기록 ${field} 실패 (비치명적):`, e.message);
   }
 }
 
@@ -167,7 +199,11 @@ async function releaseBookingStep(orderID, field) {
     if (db) {
       const { FieldValue } = await import('firebase-admin/firestore');
       await db.collection('bookings').doc(orderID).set(
-        { [field]: FieldValue.delete() },
+        {
+          [field]: FieldValue.delete(),
+          [stepStateField(field)]: FieldValue.delete(),
+          [`${stepStateField(field)}At`]: FieldValue.delete(),
+        },
         { merge: true },
       );
     }
@@ -366,7 +402,8 @@ const originalHandler = async (event) => {
       sheetsRowHint = sheetsResult.appendedRow || null;
       results.steps.sheets = 'ok';
       console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
-      // 마커는 claimBookingStep 트랜잭션에서 이미 set 됨 → 별도 setBookingMarker 불필요.
+      // 🔴 여기서 비로소 completed. 선점만으로는 완료로 치지 않는다.
+      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
     } catch (err) {
       // 버그 #17: 선점만 하고 append 실패/env-skip → 마커를 풀어 retry 가 재append 하도록.
       //   (기존: 성공 후에만 마커 set = 실패/env-skip 시 마커 없음 → retry 재시도.)
@@ -491,6 +528,8 @@ const originalHandler = async (event) => {
       await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
       results.steps.email = 'ok';
       voucherEmailOk = true;
+      // 🔴 실제 발송이 끝난 뒤에만 completed. 선점 상태로 죽으면 retry 가 다시 보낸다.
+      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
       console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
     } catch (err) {
       results.steps.email = `error: ${err.message}`;
@@ -611,6 +650,9 @@ const originalHandler = async (event) => {
             userId: ledgerUid,
             amountUSD: amountNum,
             bookingRef,
+            // 🔴 멱등 키 = PayPal orderID. CT 번호는 재처리 때 새로 생성될 수 있어
+            //   원장 키로 쓰면 이중 적립이 뚫린다.
+            ledgerKey: orderID,
             // PayPal capture 식별자 — 원장 항목이 어느 결제에서 왔는지 추적 가능하게.
             captureId: ledger.captureID,
             description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
@@ -620,6 +662,8 @@ const originalHandler = async (event) => {
         console.log('[booking-processor] 포인트 적립:', loyaltyData);
         results.loyalty = loyaltyData;
         loyaltyOk = loyaltyRes.ok;
+        // 🔴 적립이 실제로 성공했을 때만 completed (선점 != 완료).
+        if (loyaltyOk) await completeBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
       } finally {
         // 적립 실패(non-2xx/예외) 시 선점 마커 해제 → retry 재적립 (포인트 누락 방지).
         // 성공 시엔 선점 트랜잭션에서 박은 마커 유지.

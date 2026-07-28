@@ -1928,7 +1928,29 @@
     "myPlansShowing": "Showing {n}",
     "pointHistoryTitle": "Point history",
     "noReviewsYet": "No reviews yet",
-    "noReviewsSub": "Review a trip to earn +50 Trip Coins"
+    "noReviewsSub": "Review a trip to earn +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "1% Trip Coins earn",
+        "Welcome 5% coupon"
+      ],
+      "Silver": [
+        "1.5% Trip Coins earn",
+        "$5 season coupon",
+        "Priority support"
+      ],
+      "Gold": [
+        "2% Trip Coins earn",
+        "$10 season coupon",
+        "Priority vehicle assignment"
+      ],
+      "Platinum": [
+        "3% Trip Coins earn",
+        "$20 season coupon",
+        "VIP KakaoTalk support",
+        "Airport lounge access"
+      ]
+    }
   },
   "admin": {
     "backToHome": "Back to Admin Home",

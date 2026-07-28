@@ -517,6 +517,8 @@ export default async function handler(req, res) {
       //   capturedExchangeRate = 결제 당시 실제 적용 환율(표시용 KRW 환산에만 쓴다).
       let originalUSD = 0;
       let capturedRate = 0;
+      // 이 예약에 이미 환불된 USD 누계 (여러 번 나눠 환불한 경우).
+      let priorRefundedUSDRaw = 0;
 
       let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
       if (bookingDoc.exists) {
@@ -525,6 +527,7 @@ export default async function handler(req, res) {
         priceKRW = bookingDoc.data().amountKRW || 0;
         originalUSD = Number(bookingDoc.data().amountUSD) || 0;
         capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
+        priorRefundedUSDRaw = Number(bookingDoc.data().refundedUSDTotal) || 0;
       } else {
         // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
         // 🔴 F6 (2026-07-16): .limit(1) 제거. cart 형제 예약 N개가 하나의 captureID 를 공유하므로
@@ -557,6 +560,7 @@ export default async function handler(req, res) {
           priceKRW = bookingDoc.data().amountKRW || 0;
         originalUSD = Number(bookingDoc.data().amountUSD) || 0;
         capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
+        priorRefundedUSDRaw = Number(bookingDoc.data().refundedUSDTotal) || 0;
         } else {
           // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
           const pendingMatch = await adminDb.collection('pending_bookings')
@@ -596,18 +600,28 @@ export default async function handler(req, res) {
       //   ⚠️ refundedKRW 누적(increment) 은 도입 안 함: admin mark-refunded 가
       //   refundPaypalCapture 로 PayPal 환불을 트리거하면 이 webhook 도 같은 환불로 발사되어
       //   admin set + webhook increment 이중합산 위험. 이번 이벤트 금액(set) 유지가 안전.
-      // 🔴 2026-07-29 (#4): 부분/전액 판정에서 **환율을 완전히 제거**한다.
-      //   PayPal 은 USD 로 결제하고 USD 로 환불한다. 그 둘을 직접 비교하는 것이 진실이고,
-      //   KRW 를 거치면 환율 하나로 판정이 뒤집힌다.
-      //   실제 사고 구조: 원결제 ₩13,300 을 환율 1,468 로 $9.06 청구 → 전액 환불 $9.06 을
-      //   env 환율 1,430 으로 환산하면 ₩12,956 < ₩13,167(99%) → **전액인데 부분으로 오기록**.
-      //   원결제 USD 를 모르는 레거시 문서에서만 옛 KRW 비교로 폴백한다.
+      // 🔴 2026-07-29 (#4 + 누적): 부분/전액 판정에서 **환율을 완전히 제거**하고,
+      //   **여러 번 나눠 환불한 누적액**으로 판정한다.
+      //
+      //   환율 제거 이유: PayPal 은 USD 로 결제·환불한다. KRW 를 거치면 환율 하나로 뒤집힌다.
+      //     실제 구조: ₩13,300 을 환율 1,468 로 $9.06 청구 → 전액 환불 $9.06 을 env 1,430 으로
+      //     환산하면 ₩12,956 < ₩13,167(99%) → 전액인데 부분으로 오기록.
+      //   누적 이유: $5 + $4.90 처럼 두 번 나눠 전액을 돌려주면, 이번 이벤트 금액($4.90)만
+      //     보고는 영원히 PARTIALLY_REFUNDED 로 남는다. 이미 환불된 금액을 더해서 본다.
+      //
+      //   누적 근거는 이 webhook 이 남기는 refundedUSDTotal 이다(이벤트 멱등은 상단
+      //   paypal_webhook_log/{eventId} 가 이미 보장 → 같은 이벤트가 두 번 더해지지 않는다).
+      const priorRefundedUSD = Number(priorRefundedUSDRaw) || 0;
+      const cumulativeRefundedUSD = Math.round((priorRefundedUSD + refundedUSD) * 100) / 100;
       const isPartialRefund = originalUSD > 0
-        ? refundedUSD < originalUSD * 0.99
+        ? cumulativeRefundedUSD < originalUSD * 0.99
         : (priceKRW > 0 && refundedKRW < Math.round(priceKRW * 0.99));
 
       const updates = {
         status: isPartialRefund ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
+        // 누계 — 다음 부분환불 이벤트가 이 값을 이어서 더한다.
+        refundedUSDTotal: cumulativeRefundedUSD,
+        refundedUSD,
         refundedKRW,
         refundReason: 'PayPal webhook auto-refund',
         refundedAt: FieldValue.serverTimestamp(),

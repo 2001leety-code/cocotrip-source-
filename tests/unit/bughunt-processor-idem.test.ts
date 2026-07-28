@@ -133,7 +133,9 @@ describe('버그 #17 — booking-processor 가 원자 선점 패턴으로 배선
     const start = procSrc.indexOf('db.runTransaction(');
     expect(start).toBeGreaterThan(-1);
     // 트랜잭션 콜백 본문(대략 범위)에 외부 I/O 호출이 없어야 한다.
-    const txBlock = procSrc.slice(start, start + 600);
+    // 2026-07-29: 2단계 상태(in_progress/completed) 도입으로 블록이 길어져 창을 넓혔다.
+    //   검사하는 불변식(트랜잭션 안에 외부 I/O 금지)은 그대로다.
+    const txBlock = procSrc.slice(start, start + 1400);
     expect(txBlock).toMatch(/tx\.get\(/);
     expect(txBlock).toMatch(/tx\.set\(/);
     expect(txBlock).not.toMatch(/appendBooking\(/);
@@ -159,7 +161,7 @@ describe('버그 #17 — booking-processor 가 원자 선점 패턴으로 배선
     expect(procSrc).toMatch(/claimBookingStep\(\s*orderID\s*,\s*BOOKING_STEP_MARKERS\.voucher\s*\)/);
     const sendIdx = procSrc.indexOf('sendBookingConfirmation(');
     expect(sendIdx).toBeGreaterThan(-1);
-    const block = procSrc.slice(sendIdx, sendIdx + 600);
+    const block = procSrc.slice(sendIdx, sendIdx + 1200);
     expect(block).toMatch(/releaseBookingStep\(\s*orderID\s*,\s*BOOKING_STEP_MARKERS\.voucher\s*\)/);
   });
 

@@ -1928,7 +1928,29 @@
     "myPlansShowing": "{n}件表示中",
     "pointHistoryTitle": "ポイント履歴",
     "noReviewsYet": "まだレビューがありません",
-    "noReviewsSub": "旅行のレビューで +50 Trip Coins"
+    "noReviewsSub": "旅行のレビューで +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 還元",
+        "入会5%クーポン"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 還元",
+        "シーズン$5クーポン",
+        "優先サポート"
+      ],
+      "Gold": [
+        "Trip Coins 2% 還元",
+        "シーズン$10クーポン",
+        "車両の優先手配"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 還元",
+        "シーズン$20クーポン",
+        "VIP カカオトーク対応",
+        "空港ラウンジ利用"
+      ]
+    }
   },
   "admin": {
     "backToHome": "管理者ホームへ戻る",

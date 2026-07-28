@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit, startAfter, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -33,15 +33,19 @@ export default function MyPlansPage() {
   const { loyalty } = useLoyalty();
   const p = t.planner as unknown as Record<string, string>;
   const mp = t.mypage as unknown as Record<string, string>;
-  const [plans, setPlans] = useState<PlanRef[]>([]);
   const [loading, setLoading] = useState(true);
-  // 🔴 2026-07-28: 이전에는 limit 없이 전량 구독했다. 플랜 394개 계정에서 카드 394장을
-  //   한 번에 그려 모바일 문서 높이가 46,589px 까지 늘어나 사실상 사용 불가였다.
-  //   30개씩 늘려 가며 구독한다.
-  //   ponytail: limit 증가 방식 — 커서(startAfter) 대비 단순하고 실시간 갱신이 유지된다.
-  //   수천 개 규모로 커지면 커서 방식으로 교체할 것.
+  // 🔴 2026-07-29 (커서 페이지 나누기): 이전에는 limit 을 30씩 키워 **매번 처음부터 다시**
+  //   읽었다(30→60→90…). 페이지가 늘수록 읽기량이 누적 제곱으로 커진다.
+  //   이제 첫 페이지만 실시간 구독(onSnapshot)하고, 그 뒤는 startAfter 커서로 한 페이지씩
+  //   추가로 가져와 이어 붙인다 → 추가 로드 1회 = 정확히 PAGE_SIZE 건만 읽는다.
   const PAGE_SIZE = 30;
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [firstPage, setFirstPage] = useState<PlanRef[]>([]);
+  // 어느 계정의 페이지인지 함께 들고 있어야 계정이 바뀔 때 자동으로 버려진다
+  // (effect 로 비우면 렌더 중 setState 가 되어 불필요한 재렌더가 생긴다).
+  const [morePages, setMorePages] = useState<{ uid: string; items: PlanRef[] }>({ uid: '', items: [] });
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
   // ?tab=bookings 딥링크 허용 (탭 전환 시 URL 동기화 — 뒤로가기 시 탭 복원)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -57,17 +61,53 @@ export default function MyPlansPage() {
 
   useEffect(() => {
     if (!user?.uid) return;
+    // 첫 페이지만 실시간 구독 — 새 플랜이 생기면 바로 위에 뜬다.
     const q = query(
       collection(db, 'users', user.uid, 'plans'),
       orderBy('createdAt', 'desc'),
-      limit(pageSize),
+      limit(PAGE_SIZE),
     );
     const unsub = onSnapshot(q, (snap) => {
-      setPlans(snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanRef)));
+      setFirstPage(snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanRef)));
+      setLastDoc(snap.docs.length ? snap.docs[snap.docs.length - 1] : null);
+      setHasMore(snap.docs.length === PAGE_SIZE);
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [user?.uid, pageSize]);
+  }, [user?.uid]);
+
+  /** 커서 기준 다음 한 페이지만 추가로 읽는다. */
+  const loadMore = async () => {
+    if (!user?.uid || !lastDoc || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'users', user.uid, 'plans'),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastDoc),
+        limit(PAGE_SIZE),
+      ));
+      const uid = user.uid;
+      const page = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanRef));
+      setMorePages((prev) => (prev.uid === uid
+        ? { uid, items: [...prev.items, ...page] }
+        : { uid, items: page }));
+      if (snap.docs.length) setLastDoc(snap.docs[snap.docs.length - 1]);
+      setHasMore(snap.docs.length === PAGE_SIZE);
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // 첫 페이지(실시간) + 이후 페이지(커서). id 중복은 첫 페이지를 우선한다.
+  const plans = (() => {
+    const seen = new Set(firstPage.map((x) => x.id));
+    // 계정이 바뀌면 이전 계정의 누적 페이지는 자동으로 무시된다.
+    const extra = morePages.uid === (user?.uid || '') ? morePages.items : [];
+    return [...firstPage, ...extra.filter((x) => !seen.has(x.id))];
+  })();
 
   // 검색은 이미 불러온 목록 안에서만 거른다(추가 조회 없음). 더 넓게 찾으려면
   // "더 보기"로 범위를 늘린 뒤 다시 거르면 된다 — 조회 비용을 늘리지 않는 선택.
@@ -185,13 +225,14 @@ export default function MyPlansPage() {
               </Link>
             ))}
             {/* 더 보기 — 현재 페이지를 꽉 채워 받았으면 다음 30개가 더 있을 수 있다. */}
-            {plans.length >= pageSize && (
+            {hasMore && (
               <button
                 type="button"
-                onClick={() => setPageSize((n) => n + PAGE_SIZE)}
+                disabled={loadingMore}
+                onClick={() => { void loadMore(); }}
                 className="w-full min-h-[44px] rounded-xl border border-white/[0.10] bg-white/[0.03] py-2.5 text-[13px] font-semibold text-white/70 hover:text-white hover:border-white/20 transition-colors"
               >
-                {mp.myPlansLoadMore || 'Load more'}
+                {loadingMore ? '…' : (mp.myPlansLoadMore || 'Load more')}
               </button>
             )}
           </div>
