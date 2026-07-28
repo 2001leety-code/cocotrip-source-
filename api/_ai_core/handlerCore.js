@@ -388,8 +388,11 @@ export default async function handler(req, res) {
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language });
 
-    // ── 가격 계산 ────────────────────────────────────────────────────────
-    const { priceKRW, priceUSD } = computePricing(vehicle, durationDays);
+    // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
+    //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
+    const { priceKRW: estimatedTripKRW, priceUSD: estimatedTripUSD } = computePricing(vehicle, durationDays);
+    const priceKRW = estimatedTripKRW;   // 저장 필드명은 하위호환 유지
+    const priceUSD = estimatedTripUSD;
 
     // ── Firestore 저장 + Loyalty ──────────────────────────────────────────
     // Phase 4 (2026-05-13): plannerMode + abReason + abBucket — admin

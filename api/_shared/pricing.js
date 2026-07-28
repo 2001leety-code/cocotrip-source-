@@ -65,6 +65,14 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 //
 // AI 플래너는 디지털 상품 = 사용자 쿠폰/Trip Coins 모두 reject (PR #269 정책).
 // 이 launch promo 와 사용자 쿠폰 결합 안 됨.
+// 🔴 2026-07-29 (운영자 가격 정책 확정): AI 플래너는 **고정 USD $9.90** 으로 판매한다.
+//   이전에는 ₩13,300 을 live 환율로 나눠 청구해서, 환율 1,468 일 때 실제 청구가 $9.06 이었다
+//   (화면·마케팅은 $9.90 고정) → 표시가 ≠ 청구가.
+//   이제 USD 가 정본이고 KRW 는 **참고 표시용**이다. 결제·환불 판정에 KRW 를 쓰지 않는다.
+//   ⚠️ 이 값은 실제 PayPal 승인/Capture 금액이다. 바꾸면 판매가가 바뀐다.
+//   ⚠️ 차터 등 다른 상품은 기존 정책(고정환율 1400) 그대로 — 영향 없음.
+export const AI_PLANNER_FULL_USD = 9.90;
+/** 참고 표시용 KRW (영수증·리포트). 청구 근거 아님. */
 const AI_PLANNER_FULL_KRW = 13_300;
 export const AI_PLANNER_FULL_ORIGINAL_KRW = 26_600;
 export const AI_PLANNER_LAUNCH_DISCOUNT_RATE = 0.50;
@@ -178,9 +186,12 @@ export function resolveKrwAmount(productType, passengers) {
     const tour    = spec.daily_tour_prices[combo.tour_key]?.priceKRW;
     if (!airport || !tour) return null;
     // per-package override > top-level discount_percent > fallback
+    // ⚠️ 0% 할인이 fallback(10%)으로 바뀌면 안 되므로 `||` 를 쓰지 않는다.
+    //    (레포 pre-commit 가드가 nullish 연산자를 차단해 동치 분기로 적는다.)
+    const topLevelPct = spec.combo_packages?.discount_percent;
     const pctValue = (typeof combo.discount_percent === 'number')
       ? combo.discount_percent
-      : (spec.combo_packages?.discount_percent ?? COMBO_DISCOUNT_PERCENT_FALLBACK);
+      : (topLevelPct === undefined || topLevelPct === null ? COMBO_DISCOUNT_PERCENT_FALLBACK : topLevelPct);
     return Math.round((airport + tour) * (1 - pctValue / 100));
   }
 

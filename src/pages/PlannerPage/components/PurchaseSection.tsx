@@ -15,6 +15,7 @@ import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
+import { AI_PLANNER_FULL_USD, AI_PLANNER_ORIGINAL_USD, AI_PLANNER_REFERENCE_KRW, formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of the PlannerPage chunk; loads only when the user opens it.
 const PhoneSignInModal = lazy(() =>
@@ -107,15 +108,15 @@ export function PurchaseSection({
           쿠폰 미적용 정책 (디지털 상품) — 모든 사용자 동일 가격. */}
       <div className="relative text-center py-4 mb-4">
         <div className="text-white/55 text-sm mb-1">
-          <span className="line-through">$19.90</span>
+          <span className="line-through">{formatAiPlannerUsd(AI_PLANNER_ORIGINAL_USD)}</span>
           <span className="ml-2 text-[10px] uppercase tracking-wider">{p.originalPrice}</span>
         </div>
         <div className="flex items-baseline justify-center gap-2 mb-2">
-          <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>$9.90</span>
-          {/* 보조 통화 — 사용자 언어 기반 자동 환산.
-              ko → ₩13,300, en → KRW 병기 유지, ja → ¥JPY, zh → ¥CNY. 결제 자체는 PayPal USD $9.90. */}
+          <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>{formatAiPlannerUsd()}</span>
+          {/* 보조 통화 — 참고 표시용. 🔴 2026-07-29: 실제 청구는 고정 USD 이고 KRW 는 참고값이다
+              (환율에 따라 이 KRW 와 실제 결제 원화 인출액이 다를 수 있다). */}
           <span className="text-white/55 text-sm">
-            / {language === 'en' ? '₩13,300' : formatPrice(13300, language)}
+            / {language === 'en' ? `₩${AI_PLANNER_REFERENCE_KRW.toLocaleString('ko-KR')}` : formatPrice(AI_PLANNER_REFERENCE_KRW, language)}
           </span>
         </div>
         <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
@@ -282,7 +283,11 @@ export function PurchaseSection({
             ) : (
               <PayPalBookingButton
                 productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-                priceKRW={13300} p={p} lang={language}
+                priceKRW={AI_PLANNER_REFERENCE_KRW} p={p} lang={language}
+                // 🔴 2026-07-29: 화면이 보여준 금액을 서버에 함께 보낸다.
+                //   서버 산정치와 1센트 이상 다르면 createPaypalOrder 가 409 로 결제를 만들지 않는다
+                //   (표시가 ≠ 청구가 방지).
+                expectedUSD={AI_PLANNER_FULL_USD}
                 memo={`Full itinerary for: ${userEmail}`}
                 itineraryData={resultQuick}
                 onPaymentSuccess={onPaymentSuccess}

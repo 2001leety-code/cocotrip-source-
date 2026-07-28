@@ -45,6 +45,10 @@ interface Props {
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
+  /** 🔴 2026-07-29: 화면이 손님에게 보여준 USD 금액. 서버 산정치와 다르면
+   *  createPaypalOrder 가 409(AMOUNT_MISMATCH)로 결제를 만들지 않는다.
+   *  고정 USD 판매 상품(AI 플래너)에서 표시가 != 청구가를 구조적으로 차단한다. */
+  expectedUSD?: number;
   /** i18n dict — 옵션 (호출처 일부 InlineBookingCard 가 미전달, 기본값 {}로 처리) */
   p?: BookingDict;
   lang: string;
@@ -118,7 +122,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -545,6 +549,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         body: JSON.stringify({
           productType, passengers, dateStart, dateEnd, language: lang,
           userEmail,
+          // 표시가==청구가 대조용 (서버가 불일치 시 409).
+          ...(typeof expectedUSD === 'number' ? { expectedUSD } : {}),
           // PR-R (2026-05-08): 마감 검증용 — pickupTime + durationDays
           ...(pickupTime ? { pickupTime } : {}),
           ...(typeof durationDays === 'number' ? { durationDays } : {}),

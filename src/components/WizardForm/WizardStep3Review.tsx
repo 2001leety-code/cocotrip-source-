@@ -4,6 +4,7 @@ import { AIRPORT_DISPLAY } from './data';
 import { SummaryCard, formatDateShort } from './helpers';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardDict } from './types';
+import { formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
 
 interface Step3Props {
   p: WizardDict;
@@ -154,7 +155,7 @@ export function WizardStep3Review(props: Step3Props) {
         <div>
           <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
-            <span className="text-3xl font-bold text-white">$9.90</span>
+            <span className="text-3xl font-bold text-white">{formatAiPlannerUsd()}</span>
             {/* 사용자 언어 기반 보조 통화 — en/ko 는 ₩13,300, ja→¥JPY, zh→¥CNY. 결제는 PayPal USD $9.90. */}
             <span className="text-sm text-white/55">
               / {language === 'ja' || language === 'zh' ? formatPrice(13300, language) : '₩13,300'}

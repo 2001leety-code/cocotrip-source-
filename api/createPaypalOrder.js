@@ -22,7 +22,7 @@ import { resolveTransferCheckoutKrw, transferListBaseKrw } from './_shared/chart
 import { fetchTmapCarRouteKm, extractRouteCoords } from './_tmap_car_route.js';
 import { applyTotalDiscountCap, TOTAL_DISCOUNT_CAP_PCT } from './_shared/total-discount-cap.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
-import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
+import { usesFixedUsdRate, isFixedUsdPriceProduct, fixedUsdPriceFor } from './_shared/usd-rate-policy.js';
 // charter_custom_estimate (zone-fallback 추정가 즉시결제) SSOT — 상수/판별을 pricing.js 에서
 // 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
 // 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { productType, passengers = 1, dateStart = '', dateEnd = '', pickupTime = '', durationDays, language = 'en', promoCode, userEmail = '', couponDocId, couponUserId } = body;
+    const { productType, passengers = 1, dateStart = '', dateEnd = '', pickupTime = '', durationDays, language = 'en', promoCode, userEmail = '', couponDocId, couponUserId, expectedUSD } = body;
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     // AI 플래너 = 디지털 상품 — 모든 쿠폰/프로모 reject (운영자 정책 2026-05-05).
@@ -421,8 +421,29 @@ export default async function handler(req, res) {
       console.log('[createPaypalOrder] fixed coupon applied:', couponDocId, `-₩${discKrw.toLocaleString('ko-KR')}`, beforeFixed, '→', krwAmount);
     }
 
-    const _usdRaw = krwAmount / usdToKrw;
-    const usdAmount = (roundUsdWhole ? Math.round(_usdRaw) : _usdRaw).toFixed(2);
+    // 🔴 2026-07-29 (운영자 가격 정책): AI 플래너는 **고정 USD** 로 청구한다.
+    //   환율 나눗셈을 아예 타지 않으므로 환율이 어떻든 승인·Capture 금액이 정확히 $9.90 이다.
+    //   (이전: ₩13,300 / live 환율 → 1,468 환율에서 $9.06. 화면 $9.90 과 불일치.)
+    //   krwAmount 는 이 상품에서 **참고 표시용**으로만 남는다(영수증·리포트).
+    //   다른 상품은 기존 로직(고정환율 1400 또는 live) 그대로 — 영향 없음.
+    const fixedUsd = fixedUsdPriceFor(productType);
+    const _usdRaw = fixedUsd != null ? fixedUsd : krwAmount / usdToKrw;
+    const usdAmount = fixedUsd != null
+      ? fixedUsd.toFixed(2)
+      : (roundUsdWhole ? Math.round(_usdRaw) : _usdRaw).toFixed(2);
+
+    // 프론트가 기대한 금액을 함께 보냈다면 서버 산정치와 대조한다(표시가≠청구가 차단).
+    //   불일치면 결제를 만들지 않는다 — 손님이 본 금액과 다른 금액이 승인되는 일을 막는다.
+    if (expectedUSD != null) {
+      const clientUsd = Number(expectedUSD);
+      if (!Number.isFinite(clientUsd) || Math.abs(clientUsd - Number(usdAmount)) > 0.005) {
+        console.warn('[createPaypalOrder] client/server amount mismatch:', { productType, clientUsd: expectedUSD, serverUsd: usdAmount });
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          `표시 금액과 청구 금액이 다릅니다 (화면 $${expectedUSD} / 서버 $${usdAmount}). 새로고침 후 다시 시도해주세요.`,
+          'AMOUNT_MISMATCH')));
+      }
+    }
 
     const { accessToken, baseUrl } = await getPaypalAccessToken(isSandbox);
     const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {
