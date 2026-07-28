@@ -16,6 +16,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Calendar, Loader2 } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 type Source = 'cocotrip' | 'mood';
 type SourceFilter = Source | 'all';
@@ -78,6 +79,9 @@ const CANCEL_CATEGORY_OPTIONS: { key: CancelCategory; label: string }[] = [
 ];
 
 export default function AdminAllBookings() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 일반 CocoTrip 제목으로 같아
+  //   탭을 여러 개 띄우면 구분이 안 됐다.
+  usePageMeta({ title: '통합 예약 (관리자)', description: 'All CocoTrip and MOOD bookings in one list.' });
   const { user } = useAuth();
   const [items, setItems] = useState<BookingItem[] | null>(null);
   const [counts, setCounts] = useState<{ cocotrip: number; mood: number }>({ cocotrip: 0, mood: 0 });

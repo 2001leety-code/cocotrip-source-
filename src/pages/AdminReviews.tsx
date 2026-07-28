@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, ArrowLeft, CheckCircle, EyeOff, Trash2, RefreshCw, AlertTriangle, MessageSquare, Star, ExternalLink } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { authFetch } from '@/lib/authFetch';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 interface ReportedReview {
   id: string;
@@ -36,6 +37,9 @@ interface ReportedReview {
 // 권한 판단은 중앙 AdminRoute + 서버 verifyAdminToken 두 곳으로 통일한다.
 
 export default function AdminReviews() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 일반 CocoTrip 제목으로 같아
+  //   탭을 여러 개 띄우면 구분이 안 됐다.
+  usePageMeta({ title: '리뷰 관리 (관리자)', description: 'Reported review moderation.' });
   const { t } = useLanguage();
   const ta = t.admin;
   const tr = ta.reviews;

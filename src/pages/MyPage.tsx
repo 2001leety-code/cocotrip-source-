@@ -27,7 +27,7 @@ const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Co
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
-import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
+import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -137,7 +137,8 @@ export default function MyPage() {
         if (cur) setWeather({
           temp: cur.temp_C + '°C',
           desc: pickWeatherDesc(cur, language),
-          icon: Number(cur.temp_C) > 20 ? '☀️' : Number(cur.temp_C) > 10 ? '⛅' : '❄️',
+          // 아이콘과 설명을 같은 데이터에서 결정한다(기온으로 고르면 이슬비에 해가 뜬다).
+          icon: pickWeatherIcon(cur),
           city,
         });
       } catch { /* silent */ }
@@ -681,7 +682,7 @@ export default function MyPage() {
         {tab === 'history' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold text-lg">Point History</h3>
+              <h3 className="text-white font-bold text-lg">{mp.pointHistoryTitle || 'Point history'}</h3>
               <span className="text-white/55 text-sm">
                 Balance: <span className="text-[#FFD700] font-bold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span>
               </span>
@@ -758,6 +759,8 @@ interface MyReview {
 }
 
 function MyReviewsTab({ userId }: { userId: string }) {
+  const { t } = useLanguage();
+  const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
   const [reviews, setReviews] = useState<MyReview[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -800,7 +803,7 @@ function MyReviewsTab({ userId }: { userId: string }) {
   }
 
   if (reviews.length === 0) {
-    return <EmptyState icon={Star} text="No reviews yet" sub="Review a trip to earn +50 Trip Coins!" />;
+    return <EmptyState icon={Star} text={mp.noReviewsYet || 'No reviews yet'} sub={mp.noReviewsSub || 'Review a trip to earn +50 Trip Coins'} />;
   }
 
   return (

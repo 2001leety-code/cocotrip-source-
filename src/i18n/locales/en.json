@@ -1925,7 +1925,10 @@
     "myPlansStartCta": "Start planning",
     "myPlansPaxUnit": "pax",
     "myPlansNoMatch": "No matching plans",
-    "myPlansShowing": "Showing {n}"
+    "myPlansShowing": "Showing {n}",
+    "pointHistoryTitle": "Point history",
+    "noReviewsYet": "No reviews yet",
+    "noReviewsSub": "Review a trip to earn +50 Trip Coins"
   },
   "admin": {
     "backToHome": "Back to Admin Home",

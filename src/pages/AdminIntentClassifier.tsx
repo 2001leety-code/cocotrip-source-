@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, AlertTriangle, BarChart3, Database, ListChecks } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import {
   fetchRecentLogs,
   fetchWeeklyStats,
@@ -126,6 +127,9 @@ function MetricCard({ label, value, hint, warning }: MetricCardProps) {
 // Page
 // ─────────────────────────────────────────────────────────────────────
 export default function AdminIntentClassifier() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 일반 CocoTrip 제목으로 같아
+  //   탭을 여러 개 띄우면 구분이 안 됐다.
+  usePageMeta({ title: 'Intent Classifier (관리자)', description: 'Intent classifier accuracy and fallback stats.' });
   const { t } = useLanguage();
   const ta = (t as { admin?: Record<string, unknown> }).admin || {};
   const adminTitle = typeof ta.intentClassifierTitle === 'string' ? ta.intentClassifierTitle : '🧭 Intent Classifier 모니터링';

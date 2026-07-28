@@ -1925,7 +1925,10 @@
     "myPlansStartCta": "开始规划",
     "myPlansPaxUnit": "人",
     "myPlansNoMatch": "没有匹配的行程",
-    "myPlansShowing": "显示 {n} 个"
+    "myPlansShowing": "显示 {n} 个",
+    "pointHistoryTitle": "积分记录",
+    "noReviewsYet": "还没有评价",
+    "noReviewsSub": "撰写旅行评价可获得 +50 Trip Coins"
   },
   "admin": {
     "backToHome": "返回管理后台",
