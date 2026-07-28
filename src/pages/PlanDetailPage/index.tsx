@@ -110,9 +110,18 @@ function MobilePlanResultHero({
   current: number;
   onJump: (slideIndex: number) => void;
 }) {
+  const { t } = useLanguage();
+  const ui = getPlanDetailUI(t);
   const days = plan.itinerary?.days || [];
   const title = plan.itinerary?.tour_title || 'Your Korea Itinerary';
-  const stopCount = days.reduce((sum, day) => sum + (day.stops?.length || 0), 0);
+  // 🔴 2026-07-28: 방문지 수에서 숙소 출발·복귀를 뺀다. 이전에는 day.stops 를 통째로 세서
+  //   호텔 bookend 2개가 매일 방문지로 잡혔다(3일 일정이면 실제보다 6곳 많음).
+  const stopCount = days.reduce(
+    (sum, day) => sum + (day.stops || []).filter(
+      (st) => String((st as { category?: string }).category || '').toLowerCase() !== 'lodging',
+    ).length,
+    0,
+  );
   // UIUX P4 (2026-07-13): Trip Overview 총 이동거리 km — 좌표 있는 구간만 haversine 합(없으면 null→'-').
   const totalKm = computePlanKm(days as Array<{ stops?: { lat?: number; lng?: number }[] }>);
   // UIUX P4: 최적화 가능분 — 날짜별 suggestTimeOrder(15%/0.8km 게이트 내장)의 km 절약 합을 % 로.
@@ -139,13 +148,13 @@ function MobilePlanResultHero({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black text-[#7653F6] shadow-[0_8px_18px_rgba(124,92,255,0.10)]">
-            <Sparkles className="h-3 w-3" /> AI itinerary
+            <Sparkles className="h-3 w-3" /> {ui.planHeaderBadge || 'AI itinerary'}
           </span>
           <h1 className="mt-2 line-clamp-2 text-[22px] font-black leading-[1.08] tracking-[-0.01em] text-[#15143d]">
             {title}
           </h1>
           <p className="mt-1 text-[11px] font-semibold text-[#7b719f]">
-            {primaryRegion}{startDate ? ` · ${startDate}` : ''}{pax > 0 ? ` · ${pax} travelers` : ''}
+            {primaryRegion}{startDate ? ` · ${startDate}` : ''}{pax > 0 ? ` · ${pax} ${ui.planTravelersSuffix || 'travelers'}` : ''}
           </p>
         </div>
         <ResultIcon icon={Sparkles} active />
@@ -163,7 +172,7 @@ function MobilePlanResultHero({
           </div>
           <span className="rounded-2xl bg-white/22 px-3 py-2 text-right backdrop-blur-md">
             <span className="block text-[16px] font-black">{days.length || 1}D</span>
-            <span className="block text-[9px] font-semibold text-white/80">{stopCount || '-'} stops</span>
+            <span className="block text-[9px] font-semibold text-white/80">{stopCount || '-'} {ui.planStopsSuffix || 'stops'}</span>
           </span>
         </div>
       </div>
@@ -172,7 +181,7 @@ function MobilePlanResultHero({
         <div className="mb-2 flex items-center gap-2">
           <ResultIcon icon={Route} active />
           <div className="min-w-0">
-            <p className="text-[14px] font-black text-[#17163d]">Route timeline</p>
+            <p className="text-[14px] font-black text-[#17163d]">{ui.planRouteTimeline || 'Route timeline'}</p>
             <p className="text-[10px] font-semibold text-[#7b719f]">Day-by-day plan with maps and transit guidance</p>
           </div>
         </div>
@@ -199,14 +208,14 @@ function MobilePlanResultHero({
         <div className="plan-mobile-mini-panel">
           <div className="flex items-center gap-2">
             <ResultIcon icon={Zap} />
-            <span className="text-[11px] font-black text-[#7653F6]">Optimize your trip</span>
+            <span className="text-[11px] font-black text-[#7653F6]">{ui.planOptimizeChip || 'Optimize your trip'}</span>
           </div>
           <p className="mt-2 text-[13px] font-black leading-tight text-[#17163d]">Transit, charter, and walking details are inside each day.</p>
         </div>
         <div className="plan-mobile-mini-panel">
           <div className="flex items-center gap-2">
             <ResultIcon icon={Hotel} />
-            <span className="text-[11px] font-black text-[#7653F6]">Stay suggestion</span>
+            <span className="text-[11px] font-black text-[#7653F6]">{ui.planStayChip || 'Stay suggestion'}</span>
           </div>
           <p className="mt-2 line-clamp-2 text-[13px] font-black leading-tight text-[#17163d]">{getStayLabel(plan)}</p>
         </div>
@@ -214,13 +223,13 @@ function MobilePlanResultHero({
 
       <div className={`mt-3 grid gap-2 ${totalKm != null ? 'grid-cols-4' : 'grid-cols-3'}`}>
         {[
-          { icon: CalendarDays, label: 'Days', value: String(days.length || '-') },
-          { icon: MapPinned, label: 'Stops', value: String(stopCount || '-') },
+          { icon: CalendarDays, label: ui.planStatDays || 'Days', value: String(days.length || '-') },
+          { icon: MapPinned, label: ui.planStatStops || 'Stops', value: String(stopCount || '-') },
           // 최적화 가능 시 Optimize 칩(가이드 Trip Overview 4번째 칩), 아니면 Travelers(부제에도 노출).
           optimizePct != null
-            ? { icon: Sparkles, label: 'Optimize', value: `${optimizePct}%` }
-            : { icon: Users, label: 'Travelers', value: pax > 0 ? String(pax) : '-' },
-          ...(totalKm != null ? [{ icon: Route, label: 'Distance', value: `${totalKm}km` }] : []),
+            ? { icon: Sparkles, label: ui.planStatOptimize || 'Optimize', value: `${optimizePct}%` }
+            : { icon: Users, label: ui.planStatTravelers || 'Travelers', value: pax > 0 ? String(pax) : '-' },
+          ...(totalKm != null ? [{ icon: Route, label: ui.planStatDistance || 'Distance', value: `${totalKm}km` }] : []),
         ].map((item) => (
           <div key={item.label} className="plan-mobile-stat">
             <ResultIcon icon={item.icon} />

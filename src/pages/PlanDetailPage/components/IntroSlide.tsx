@@ -73,9 +73,12 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
+        {/* 🔴 2026-07-28: h1 → h2. 이 슬라이드와 페이지 헤더(index.tsx)가 동시에 h1 을
+            내보내 한 화면에 h1 이 둘이었다. 문서 제목은 헤더 하나로 통일하고 여기는
+            섹션 제목으로 낮춘다(보이는 크기·스타일은 그대로). */}
+        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
-        </h1>
+        </h2>
         <div className="flex items-center justify-center mt-1">
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>

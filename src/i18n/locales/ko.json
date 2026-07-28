@@ -1814,7 +1814,18 @@
       "transfer": "환승",
       "publicTransitRoute": "대중교통 경로",
       "transitTransfers": "환승",
-      "mealCostLabel": "식사비 별도"
+      "mealCostLabel": "식사비 별도",
+      "planHeaderBadge": "AI 일정",
+      "planRouteTimeline": "동선 타임라인",
+      "planOptimizeChip": "동선 최적화",
+      "planStayChip": "숙소 추천",
+      "planStatDays": "일",
+      "planStatStops": "방문지",
+      "planStatTravelers": "인원",
+      "planStatOptimize": "최적화",
+      "planStatDistance": "이동거리",
+      "planTravelersSuffix": "명",
+      "planStopsSuffix": "곳"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",

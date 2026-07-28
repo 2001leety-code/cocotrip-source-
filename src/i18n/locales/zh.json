@@ -1814,7 +1814,18 @@
       "transfer": "换乘",
       "publicTransitRoute": "公共交通路线",
       "transitTransfers": "换乘",
-      "mealCostLabel": "餐费另计"
+      "mealCostLabel": "餐费另计",
+      "planHeaderBadge": "AI 行程",
+      "planRouteTimeline": "路线时间轴",
+      "planOptimizeChip": "优化行程",
+      "planStayChip": "住宿推荐",
+      "planStatDays": "天",
+      "planStatStops": "景点",
+      "planStatTravelers": "人数",
+      "planStatOptimize": "优化",
+      "planStatDistance": "距离",
+      "planTravelersSuffix": "人",
+      "planStopsSuffix": "个"
     },
     "notices": {
       "title": "行程自动校正提示",

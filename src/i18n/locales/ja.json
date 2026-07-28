@@ -1814,7 +1814,18 @@
       "transfer": "乗換",
       "publicTransitRoute": "公共交通の経路",
       "transitTransfers": "乗り換え",
-      "mealCostLabel": "食事代は別"
+      "mealCostLabel": "食事代は別",
+      "planHeaderBadge": "AI 旅程",
+      "planRouteTimeline": "ルートタイムライン",
+      "planOptimizeChip": "ルート最適化",
+      "planStayChip": "宿泊のおすすめ",
+      "planStatDays": "日",
+      "planStatStops": "訪問地",
+      "planStatTravelers": "人数",
+      "planStatOptimize": "最適化",
+      "planStatDistance": "移動距離",
+      "planTravelersSuffix": "名",
+      "planStopsSuffix": "か所"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",
