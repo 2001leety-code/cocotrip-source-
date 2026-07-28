@@ -7,7 +7,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, ArrowLeft, CheckCircle, EyeOff, Trash2, RefreshCw, AlertTriangle, MessageSquare, Star, ExternalLink } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { authFetch } from '@/lib/authFetch';
 
@@ -29,10 +28,14 @@ interface ReportedReview {
   createdAt: number;
 }
 
-const ADMIN_EMAILS = [import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com'];
+// 🔴 2026-07-28: 자체 ADMIN_EMAILS 검사 제거.
+// 이 화면은 App.tsx 에서 이미 <AdminRoute> 로 감싸져 있고(중앙 가드), 서버도
+// verifyAdminToken 으로 막는다. 여기 있던 중복 검사가 관리자를 홈으로 튕겼다:
+// useAuth 는 공유 컨텍스트가 아니라 컴포넌트마다 새 인스턴스라 첫 렌더에서 항상
+// user=null 이고, loading 을 안 보고 navigate('/') 를 즉시 실행했다.
+// 권한 판단은 중앙 AdminRoute + 서버 verifyAdminToken 두 곳으로 통일한다.
 
 export default function AdminReviews() {
-  const { user } = useAuth();
   const { t } = useLanguage();
   const ta = t.admin;
   const tr = ta.reviews;
@@ -46,10 +49,7 @@ export default function AdminReviews() {
   // Before: catch {} + setReviews([]) → "신고 0건" 화면만 보고 fetch 실패 영영 모름.
   const [error, setError] = useState<string | null>(null);
 
-  const isAdmin = ADMIN_EMAILS.includes((user?.email || '').toLowerCase());
-
   const fetchReviews = useCallback(async () => {
-    if (!isAdmin) return;
     setLoading(true);
     setError(null); // A1-5: 재시도 시 이전 error 깨끗이 reset
     try {
@@ -64,21 +64,25 @@ export default function AdminReviews() {
       });
       // A1-5: HTTP non-2xx 도 throw 처리 — 401/403/500 silent fail 차단.
       // res.ok 먼저 검증 후 json 파싱 (error body 도 json 일 수 있으니 try-safe).
-      let data: { reviews?: unknown; error?: string } = {};
+      // 서버 규격: { ok: true, data: { reviews, count } } — api/reviews.js 의 _ok() 래퍼.
+      // 이전에는 최상위 body.reviews 를 읽어 항상 undefined → "Unexpected response shape".
+      let body: { ok?: boolean; data?: { reviews?: unknown }; error?: string } = {};
       try {
-        data = await res.json();
+        body = await res.json();
       } catch {
         // JSON 파싱 실패 — non-2xx 도 본문이 비어있을 수 있음
       }
       if (!res.ok) {
-        const serverMsg = typeof data?.error === 'string' ? data.error : res.statusText;
+        const serverMsg = typeof body?.error === 'string' ? body.error : res.statusText;
         throw new Error(`HTTP ${res.status}: ${serverMsg}`);
       }
-      // A1-5: data.reviews 가 array 가 아니면 명시적 error — undefined → [] silent fallback 차단.
-      if (!Array.isArray(data.reviews)) {
-        throw new Error(`Unexpected response shape: ${JSON.stringify(data).slice(0, 100)}`);
+      const reviewList = body?.data?.reviews;
+      // A1-5: array 가 아니면 명시적 error — undefined → [] silent fallback 차단.
+      // (0건은 빈 배열로 정상 도달한다 = "신고 없음" 화면, 실패와 구분됨)
+      if (!Array.isArray(reviewList)) {
+        throw new Error(`Unexpected response shape: ${JSON.stringify(body).slice(0, 100)}`);
       }
-      setReviews(data.reviews as ReportedReview[]);
+      setReviews(reviewList as ReportedReview[]);
     } catch (err) {
       // A1-5: catch (err) — error 변수 잡고 console.error + setError.
       // Before: catch {} → console 에 아무것도 안 찍히고 UI 알림 없음.
@@ -89,15 +93,15 @@ export default function AdminReviews() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filter]);
+  }, [filter]);
 
   useEffect(() => {
-    if (!isAdmin) {
-      navigate('/');
-      return;
-    }
-    fetchReviews();
-  }, [isAdmin, navigate, fetchReviews]);
+    // 마운트·필터 변경 시 조회. fetchReviews 가 첫 줄에서 setLoading(true) 를 하므로
+    // 린트가 "effect 안 setState" 로 잡지만, 이건 의도된 데이터 로딩이다.
+    // (이전에는 여기 있던 권한 검사가 관리자를 홈으로 튕겼다 — 파일 상단 주석 참조)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchReviews();
+  }, [fetchReviews]);
 
   const handleModerate = async (reviewId: string, decision: 'keep' | 'hide' | 'delete') => {
     setActionLoading(reviewId);
@@ -138,8 +142,6 @@ export default function AdminReviews() {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
-
-  if (!isAdmin) return null;
 
   const emptyMessage =
     filter === 'reported'
@@ -222,6 +224,10 @@ export default function AdminReviews() {
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
           </div>
+        ) : error ? (
+          // 🔴 2026-07-28: 조회 실패일 때 "신고 0건" 빈 상태를 같이 그리지 않는다.
+          //   위 빨간 배너만 남긴다 — 실패를 "없음"으로 오해하면 신고 리뷰가 방치된다.
+          null
         ) : reviews.length === 0 ? (
           <div className="text-center py-20">
             <MessageSquare size={48} className="mx-auto text-white/10 mb-4" />
