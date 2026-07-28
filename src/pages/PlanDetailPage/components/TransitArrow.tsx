@@ -313,6 +313,21 @@ export function buildTransitDirectionsLinks(
   };
 }
 
+/**
+ * 개발용 문구가 남아 있는 옛 플랜 방어 (2026-07-28).
+ *
+ * 생성 단계(transitCache.js)에서 `DB cached: … (zone_courses)` 를 손님 문구 필드에
+ * 넣던 버그를 고쳤지만, **이미 저장된 플랜에는 그 문자열이 그대로 남아 있다.**
+ * Firestore 를 일괄 수정하는 대신 표시 단에서 거른다 — 되돌리기 쉽고 데이터는 안 건드린다.
+ */
+const DEV_INSTRUCTION_RE = /(DB cached|zone_courses)/i;
+
+function customerInstruction(transit: Record<string, unknown>): string {
+  const raw = String(transit.instruction_en || transit.instruction || '');
+  if (!raw) return '';
+  return DEV_INSTRUCTION_RE.test(raw) ? '' : raw;
+}
+
 export function TransitArrow({ transit, destinationName, endpoints }: { transit: TransitFromPrev & Record<string, unknown>; destinationName?: string; endpoints?: SegmentEndpoints }) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
@@ -375,9 +390,9 @@ export function TransitArrow({ transit, destinationName, endpoints }: { transit:
         </p>
       )}
       {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}
-      {!hasRichSteps && !hasLegacySteps && (transit.instruction_en || transit.instruction) && (
+      {!hasRichSteps && !hasLegacySteps && customerInstruction(transit) && (
         <p className="text-[12px] text-white/60 ml-6 mt-0.5 whitespace-pre-line">
-          {transit.instruction_en || transit.instruction}
+          {customerInstruction(transit)}
         </p>
       )}
 
@@ -402,8 +417,8 @@ export function TransitArrow({ transit, destinationName, endpoints }: { transit:
         </div>
       )}
 
-      {(transit.instruction_en || transit.instruction) && !hasRichSteps && !hasLegacySteps && (
-        <p className="text-[12px] text-white/65 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>
+      {customerInstruction(transit) && !hasRichSteps && !hasLegacySteps && (
+        <p className="text-[12px] text-white/65 ml-6 mt-0.5 whitespace-pre-line">{customerInstruction(transit)}</p>
       )}
 
       {showSteps && hasRichSteps && (
