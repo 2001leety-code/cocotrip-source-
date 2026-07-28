@@ -534,11 +534,19 @@ export default async function handler(req, res) {
     //   - payment is NOT rolled back — money was captured, the right move is
     //     to recover the booking record, not refund
     const bookingAttribution = sanitizeAttribution(attribution);
+    // 🔴 2026-07-29 (#3 신뢰 가능한 uid 연결): 구매자 uid 를 **검증된 Firebase ID 토큰에서만**
+    //   뽑아 예약 문서에 남긴다. 이전에는 이 값이 어디에도 저장되지 않아, 뒤따르는
+    //   booking-processor 가 요청 body 의 userId 를 그대로 믿고 포인트를 적립했다
+    //   (= 외부에서 남의 uid 로 코인 발급 가능). 이제 원장은 이 필드만 본다.
+    //   비로그인 게스트 결제는 null → 적립 대상 아님(정상).
+    const verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
     const bookingDocPayload = {
       bookingRef: orderID,
       orderID,
       captureID,
       userEmail: (userEmail || '').toLowerCase(),
+      // 검증된 Firebase 토큰 uid (게스트 결제는 null). 포인트 원장의 유일한 uid 출처.
+      uid: verifiedBuyerUid || null,
       payerEmail,
       payerName,
       status: 'CONFIRMED',
@@ -626,7 +634,8 @@ export default async function handler(req, res) {
     //   둘 다 로그인 구매자만(uid 필요). non-fatal — 결제/부킹은 이미 완료, 실패 시 경고만.
     if (/^ai_planner/.test(String(product || ''))) {
       try {
-        const buyerUid = await verifyTokenUid(req.headers?.authorization);
+        // 위에서 이미 검증한 uid 재사용 (토큰 검증 2회 호출 방지).
+        const buyerUid = verifiedBuyerUid;
         if (buyerUid) {
           await dbForLock.collection('users').doc(buyerUid)
             .set({ aiFeaturesUnlocked: true, aiFeaturesUnlockedAt: Date.now() }, { merge: true });

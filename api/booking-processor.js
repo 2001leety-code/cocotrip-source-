@@ -44,6 +44,41 @@ import { getUsdToKrwRaw } from './_exchange-rate.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { bookingStepGuards, BOOKING_STEP_MARKERS } from './_shared/booking-idempotency.js';
 
+
+// ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
+/**
+ * bookings/{orderID} 에서 **PayPal capture 로 검증된** 적립 근거만 읽어온다.
+ *
+ * 왜 문서를 다시 읽나: 이 endpoint 의 요청 body 는 신뢰 대상이 아니다.
+ * 예약 문서는 capturePaypalOrder 가 PayPal capture 응답을 검증한 뒤에만 쓰므로,
+ * 금액(amountUSD)·구매자(uid)·캡처(captureID)의 유일한 신뢰 출처다.
+ *
+ * 하나라도 빠지면 적립하지 않는다(fail-closed). 게스트 결제(uid 없음)는 정상 skip.
+ */
+async function readVerifiedLedgerBasis(orderID) {
+  if (!orderID) return { ok: false, reason: 'no-orderID' };
+  // 운영자 테스트/우회 주문은 매출·포인트 어디에도 넣지 않는다(loyalty 쪽에도 같은 가드).
+  if (/^(TEST-|ADMIN-BYPASS-)/.test(String(orderID))) {
+    return { ok: false, reason: 'admin-or-test-order' };
+  }
+  let snap;
+  try {
+    const db = initAdminDb('booking-processor:ledger');
+    if (!db) return { ok: false, reason: 'firestore-unavailable' };
+    snap = await db.collection('bookings').doc(String(orderID)).get();
+  } catch (e) {
+    return { ok: false, reason: `lookup-failed: ${e.message}` };
+  }
+  if (!snap.exists) return { ok: false, reason: 'booking-not-found' };
+  const d = snap.data() || {};
+  if (d.paymentVerified !== true) return { ok: false, reason: 'payment-not-verified' };
+  if (!d.captureID) return { ok: false, reason: 'no-captureID' };
+  if (!d.uid) return { ok: false, reason: 'no-verified-uid (guest checkout)' };
+  const amountUSD = Number(d.amountUSD);
+  if (!Number.isFinite(amountUSD) || amountUSD <= 0) return { ok: false, reason: 'invalid-amount' };
+  return { ok: true, uid: String(d.uid), amountUSD, captureID: String(d.captureID) };
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -536,17 +571,31 @@ const originalHandler = async (event) => {
     // PR #452 (Z-H9): use the shared guard so 'abc' doesn't silently set
     // amountNum=0 + skip loyalty earn (the operator-alerted path above
     // already fired for the same NaN).
-    const amountNum = amountUSDSafe;
+    // 🔴 2026-07-29 (#2 원자적 적립 / #3 신뢰 가능한 uid):
+    //   적립 근거를 **요청 body 가 아니라 PayPal capture 가 검증된 예약 문서**에서만 읽는다.
+    //   이전에는 body.userId + body.amount 를 그대로 믿어, 이 endpoint 를 직접 호출하면
+    //   임의 uid 로 임의 금액이 적립됐다(코인→할인쿠폰 = 실 금전 손실).
+    //   조건 전부 만족해야 적립한다 — 하나라도 없으면 fail-closed:
+    //     · bookings/{orderID} 문서 존재
+    //     · paymentVerified === true  (PayPal capture 금액·통화 검증 통과)
+    //     · captureID 존재            (실제 캡처가 일어남)
+    //     · uid 존재                 (검증된 Firebase 토큰에서 저장된 값)
+    //   금액도 문서의 amountUSD 를 쓴다(요청 body 무시).
+    const ledger = await readVerifiedLedgerBasis(orderID);
+    const amountNum = ledger.ok ? ledger.amountUSD : 0;
+    const ledgerUid = ledger.ok ? ledger.uid : null;
+    if (!ledger.ok) {
+      results.loyalty = { skipped: `not eligible: ${ledger.reason}` };
+      console.log('[booking-processor] 적립 skip —', ledger.reason, orderID);
+    }
     // 버그 #17: loyaltyEarnedAt 마커를 earn 호출 전에 트랜잭션 선점 → 동시 호출 시
-    //   한 인스턴스만 적립 (중복 포인트 방지). earn 가능 조건(amount>0 && userId)일 때만
-    //   선점 시도. 선점 실패(stepGuards 빠른 경로 포함) = 이미 적립/선점됨 → 스킵.
-    //   earn 실패(non-2xx/예외) 시 releaseBookingStep 으로 마커를 풀어 retry 재적립 보장
-    //   (기존 '성공 시에만 마커' 의미 유지).
+    //   한 인스턴스만 적립 (중복 포인트 방지). 선점 실패(stepGuards 빠른 경로 포함) =
+    //   이미 적립/선점됨 → 스킵. earn 실패 시 releaseBookingStep 으로 마커를 풀어 retry 보장.
     let loyaltyClaimed = false;
-    if (!stepGuards.skipLoyalty && amountNum > 0 && body.userId) {
+    if (ledger.ok && !stepGuards.skipLoyalty && amountNum > 0 && ledgerUid) {
       loyaltyClaimed = await claimBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
     }
-    if (stepGuards.skipLoyalty || (amountNum > 0 && body.userId && !loyaltyClaimed)) {
+    if (ledger.ok && (stepGuards.skipLoyalty || (amountNum > 0 && ledgerUid && !loyaltyClaimed))) {
       // 멱등: 이미 적립됨/선점됨 → 재적립 안 함 (retry 중복 포인트 방지).
       results.loyalty = { skipped: 'already earned (idempotent)' };
     } else if (loyaltyClaimed) {
@@ -559,9 +608,11 @@ const originalHandler = async (event) => {
           headers: { 'Content-Type': 'application/json', 'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim() },
           body: JSON.stringify({
             action: 'earn',
-            userId: body.userId,
+            userId: ledgerUid,
             amountUSD: amountNum,
             bookingRef,
+            // PayPal capture 식별자 — 원장 항목이 어느 결제에서 왔는지 추적 가능하게.
+            captureId: ledger.captureID,
             description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
           }),
         });
@@ -594,6 +645,21 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
     return res.status(200).end();
+  }
+
+  // 🔴 2026-07-29 (#1 인증 없는 우회 경로 차단):
+  //   이 endpoint 는 서버→서버 전용인데 인증이 **하나도 없었다**. CORS 는 '*' 였고
+  //   요청 body 의 userId·amount 를 그대로 받아 loyalty earn 을 호출하면서
+  //   **서버가 내부 토큰까지 대신 붙여줬다** → 외부에서 임의 uid 로 코인 발급 가능.
+  //   loyalty earn 과 동일한 내부 서비스 토큰 게이트를 여기에도 건다(fail-closed).
+  //   호출처(capturePaypalOrder / booking-confirm / admin-replay / admin-scan / retry-sweep)는
+  //   전부 서버 코드라 헤더를 붙일 수 있다.
+  const internalToken = (process.env.INTERNAL_API_TOKEN || '').trim();
+  const reqToken = String(req.headers['x-internal-token'] || '').trim();
+  if (!internalToken || reqToken !== internalToken) {
+    console.warn('[booking-processor] rejected: internal token missing/mismatch');
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(403).json(_err('booking-processor is internal-only', 'FORBIDDEN'));
   }
 
   const event = {

@@ -76,7 +76,12 @@ export async function triggerBookingProcessor({
   try {
     const r = await fetch(`${siteUrl}/api/booking-processor`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders() },
+      // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
+        ...vercelBypassHeaders(),
+      },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });

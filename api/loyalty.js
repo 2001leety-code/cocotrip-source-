@@ -128,7 +128,7 @@ export default async function handler(req, res) {
         res.writeHead(403, JSON_CORS);
         return res.end(JSON.stringify(_err('earn is internal-only', 'FORBIDDEN')));
       }
-      const { bookingRef, description } = body;
+      const { bookingRef, description, captureId } = body;
       const amountUSD = Number(body.amountUSD);
       if (!Number.isFinite(amountUSD) || amountUSD <= 0) {
         res.writeHead(400, JSON_CORS);
@@ -198,6 +198,9 @@ export default async function handler(req, res) {
           balance: newBalance,
           description: description || `Tour completed: $${amountUSD} (${newTier.name} ${(newTier.earnRate * 100).toFixed(1)}%)`,
           bookingRef: bookingRef || null,
+          // 2026-07-29: 이 적립이 어느 PayPal capture 에서 나왔는지 남긴다.
+          //   대사(reconciliation) 때 "결제 없는 적립"을 즉시 가려낼 수 있다.
+          captureId: captureId || null,
           createdAt: Date.now(),
         });
 

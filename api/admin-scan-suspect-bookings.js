@@ -28,7 +28,7 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { internalApiBase } from './_shared/internal-base-url.js';
+import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
@@ -167,7 +167,12 @@ export default async function handler(req, res) {
       try {
         const procRes = await fetch(`${siteUrl}/api/booking-processor`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+          'Content-Type': 'application/json',
+          // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
+          'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
+          ...vercelBypassHeaders(),
+        },
           body: JSON.stringify(payload),
         });
         const procJson = await procRes.json().catch(() => null);
