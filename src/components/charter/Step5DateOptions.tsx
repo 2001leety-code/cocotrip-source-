@@ -58,7 +58,12 @@ function vehicleLuggageNote(
   return 'Enter total luggage (carry-on + medium + large). 8+ bags: 2 vehicles recommended (Staria).';
 }
 
-/** "YYYY-MM-DD" 다음 날. 오늘이 통째로 마감됐을 때 date input 의 min 을 미는 데 쓴다. */
+/**
+ * "YYYY-MM-DD" 다음 날. 오늘이 통째로 마감됐을 때 date input 의 min 을 미는 데 쓴다.
+ * ⚠️ 여기서 다루는 날짜는 전부 **inclusive** 다 — startDate/endDate 모두 여행에 포함되는
+ * 날이고(1박2일 = start~end 2일), 이 함수도 "선택 가능한 첫 날"을 그대로 돌려준다.
+ * 숙박수 계산(exclusive)과 섞지 말 것 — multidayQuote 가 별도로 처리한다.
+ */
 function nextDayISO(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
