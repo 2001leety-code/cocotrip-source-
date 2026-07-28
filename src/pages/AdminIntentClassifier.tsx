@@ -153,7 +153,14 @@ export default function AdminIntentClassifier() {
       setRecentLogs(recent);
       setFallbackSamples(fallback);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // 🔴 2026-07-28: Firestore 색인 오류는 원문이 매우 길고 콘솔 주소까지 들어 있다.
+      //   화면에는 운영자가 바로 이해할 짧은 문장만 띄우고, 원문은 콘솔에 남긴다.
+      console.error('[AdminIntentClassifier] load failed:', err);
+      const raw = err instanceof Error ? err.message : String(err);
+      const needsIndex = /index/i.test(raw) && /(requires|필요)/i.test(raw);
+      setError(needsIndex
+        ? 'Firestore 색인이 아직 배포되지 않았습니다. `firebase deploy --only firestore:indexes` 실행 후 다시 시도하세요. (상세 내용은 브라우저 콘솔)'
+        : '데이터를 불러오지 못했습니다. 상세 내용은 브라우저 콘솔을 확인하세요.');
     } finally {
       setLoading(false);
     }
@@ -195,8 +202,11 @@ export default function AdminIntentClassifier() {
     return entries.sort((a, b) => b.count - a.count).slice(0, 15);
   }, [fallbackSamples]);
 
+  // 🔴 2026-07-28: 모바일 390px 에서 문서 폭이 1,809px 까지 벌어졌다.
+  //   표가 페이지를 밀지 않도록 루트에서 가로 넘침을 막고, 표는 자기 컨테이너 안에서만
+  //   가로 스크롤하게 한다(아래 overflow-x-auto max-w-full + table min-w).
   return (
-    <div className="min-h-screen bg-[#faf9f6] p-4 sm:p-6">
+    <div className="min-h-screen bg-[#faf9f6] p-4 sm:p-6 overflow-x-hidden">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -224,7 +234,7 @@ export default function AdminIntentClassifier() {
         {error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            <span>데이터 로딩 실패: {error}</span>
+            <span>{error}</span>
           </div>
         ) : null}
 
@@ -288,8 +298,8 @@ export default function AdminIntentClassifier() {
           {trainingHints.length === 0 ? (
             <p className="text-sm text-gray-400 italic">폴백 sample 없음 — 데이터 누적 대기.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto max-w-full">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="text-gray-500 text-xs uppercase tracking-wider bg-gray-50">
                     <th className="text-left px-3 py-2 font-medium">후보 token</th>
@@ -326,8 +336,8 @@ export default function AdminIntentClassifier() {
           {recentLogs.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">데이터 없음</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto max-w-full">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="text-gray-500 text-xs uppercase tracking-wider bg-gray-50">
                     <th className="text-left px-3 py-2 font-medium">시각</th>
