@@ -22,6 +22,7 @@ import {
 import { dirname, extname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { pipeline } from 'stream/promises';
+import { classifyRegion } from './lib/kto-region.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -29,25 +30,6 @@ const OUTPUT_DIR = join(ROOT, 'public', 'kto-photo-gallery');
 const MANIFEST_PATH = join(OUTPUT_DIR, 'manifest.json');
 const API_BASE = 'https://apis.data.go.kr/B551011/PhotoGalleryService1/galleryList1';
 
-const REGION_KEYWORDS = [
-  ['seoul', ['서울', 'seoul']],
-  ['busan', ['부산', 'busan']],
-  ['jeju', ['제주', 'jeju']],
-  ['incheon', ['인천', 'incheon']],
-  ['gyeonggi', ['경기', '수원', '파주', '가평', '양평', '포천']],
-  ['gangwon', ['강원', '춘천', '속초', '강릉', '평창', '양양', '정선']],
-  ['chungbuk', ['충북', '충청북도', '단양', '제천', '청주']],
-  ['chungnam', ['충남', '충청남도', '공주', '부여', '천안']],
-  ['daejeon', ['대전']],
-  ['sejong', ['세종']],
-  ['daegu', ['대구']],
-  ['gyeongbuk', ['경북', '경상북도', '경주', '안동', '포항']],
-  ['gyeongnam', ['경남', '경상남도', '통영', '거제', '진주']],
-  ['ulsan', ['울산']],
-  ['gwangju', ['광주']],
-  ['jeonbuk', ['전북', '전라북도', '전주', '군산']],
-  ['jeonnam', ['전남', '전라남도', '여수', '순천', '목포', '담양']],
-];
 
 const THEME_KEYWORDS = {
   palace: ['궁', '경복궁', '창덕궁', '덕수궁', '궁궐', 'palace'],
@@ -148,13 +130,9 @@ function textOf(item) {
   ].filter(Boolean).join(' ');
 }
 
-function classifyRegion(item) {
-  const text = textOf(item).toLowerCase();
-  for (const [region, keywords] of REGION_KEYWORDS) {
-    if (keywords.some((keyword) => text.includes(keyword.toLowerCase()))) return region;
-  }
-  return 'unknown-region';
-}
+// 지역 분류는 scripts/lib/kto-region.mjs 로 분리(2026-07-28) — 잠금 테스트를 붙이기 위해서.
+// 🔴 거기서 고친 것: KTO 신표기 `전남광주통합특별시 여수시` 때문에 광역 '광주'가 먼저
+//    걸려 여수 사진 48장이 gwangju/ 로 들어가 있었다(= "여수 사진 0장" 오판의 원인).
 
 function classifySeason(item) {
   const raw = String(item.galPhotographyMonth || '').replace(/[^0-9]/g, '');
