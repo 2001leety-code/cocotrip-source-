@@ -137,10 +137,10 @@ describe('Preview / Production Firebase 혼용 차단', () => {
 });
 
 describe('감사 요약 — 개인정보 제거', () => {
-  const summary = JSON.parse(read('outputs/loyalty-pollution-summary.json'));
+  const summary = JSON.parse(read('docs/loyalty-pollution-summary.json'));
 
   it('uid·이메일·예약번호가 들어 있지 않다', () => {
-    const raw = read('outputs/loyalty-pollution-summary.json');
+    const raw = read('docs/loyalty-pollution-summary.json');
     expect(raw).not.toMatch(/@/);              // 이메일
     expect(raw).not.toMatch(/CT-\d{8}/);       // 예약번호
     expect(raw).not.toMatch(/"uid"/);

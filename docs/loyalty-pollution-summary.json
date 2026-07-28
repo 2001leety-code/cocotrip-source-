@@ -1,0 +1,60 @@
+{
+  "_note": "읽기 전용 감사 결과 요약. 개인정보(uid·이메일·전화·예약번호) 전부 제거됨. 계정은 오염 규모 내림차순 순번으로만 표시.",
+  "_source": "node scripts/audit-loyalty-pollution.mjs --json (Firestore 쓰기 0건)",
+  "_asOf": "2026-07-29",
+  "scannedUsers": 8,
+  "totals": {
+    "accounts": 4,
+    "coins": 629237,
+    "usd": 210219.21000000002,
+    "entries": 209,
+    "couponsUnused": 10,
+    "couponsUsed": 2
+  },
+  "exposure": {
+    "maxCoupons": 314,
+    "percent": 15
+  },
+  "accounts": [
+    {
+      "no": 1,
+      "pollutedEntries": 202,
+      "pollutedCoins": 617779,
+      "pollutedUSD": 205925.12,
+      "currentTier": "Platinum",
+      "currentCoins": 756986,
+      "couponsUnused": 6,
+      "couponsUsed": 1
+    },
+    {
+      "no": 2,
+      "pollutedEntries": 5,
+      "pollutedCoins": 8609,
+      "pollutedUSD": 2869.56,
+      "currentTier": "Platinum",
+      "currentCoins": 10044,
+      "couponsUnused": 0,
+      "couponsUsed": 0
+    },
+    {
+      "no": 3,
+      "pollutedEntries": 1,
+      "pollutedCoins": 1435,
+      "pollutedUSD": 717.39,
+      "currentTier": "Gold",
+      "currentCoins": 1435,
+      "couponsUnused": 2,
+      "couponsUsed": 0
+    },
+    {
+      "no": 4,
+      "pollutedEntries": 1,
+      "pollutedCoins": 1414,
+      "pollutedUSD": 707.14,
+      "currentTier": "Gold",
+      "currentCoins": 1414,
+      "couponsUnused": 2,
+      "couponsUsed": 1
+    }
+  ]
+}
