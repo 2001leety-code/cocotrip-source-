@@ -691,6 +691,10 @@ export default function MoodPortal() {
   const today = todayISO();
   const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled');
   const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled');
+  // 취소 건은 예약 운영 보드에서 제외 (운영자 2026-07-28: "확정된 것만 올려놔").
+  //   환불이 끝나 배차도 청구도 남지 않은 기록이라 보드에서는 노이즈다. 문서는 지우지 않으므로
+  //   (mood-cancel 이 status='cancelled' + refundKRW 로 남김) 감사 추적은 Firestore 에 보존된다.
+  const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
   const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
   const completedBookings = bookings.filter((b) => b.status === 'completed');
   const calendarDays = daysInMonthGrid(calendarMonth);
@@ -717,7 +721,7 @@ export default function MoodPortal() {
         ? settleBookings
         : ledgerTab === 'calendar'
           ? selectedDateBookings
-          : bookings;
+          : activeBookings;
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
 
@@ -1274,7 +1278,7 @@ export default function MoodPortal() {
             <div>
               <h2 className="text-sm font-bold" style={{ color: C.text }}>예약 운영</h2>
               <p className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
-                완료 {completedBookings.length}건 · 총 {bookings.length}건
+                완료 {completedBookings.length}건 · 총 {activeBookings.length}건
               </p>
             </div>
             <button
@@ -1293,7 +1297,7 @@ export default function MoodPortal() {
               ['upcoming', '예정', upcomingBookings.length],
               ['settle', '정산', settleBookings.length],
               ['calendar', '날짜', selectedDateBookings.length],
-              ['all', '전체', bookings.length],
+              ['all', '전체', activeBookings.length],
             ] as const).map(([tab, label, count]) => {
               const active = ledgerTab === tab;
               return (
@@ -1317,7 +1321,7 @@ export default function MoodPortal() {
 
           {!data || visibleBookings.length === 0 ? (
             <p className="text-xs" style={{ color: C.textDim }}>
-              {bookings.length === 0 ? '예약 내역이 없습니다.' : '이 탭에 표시할 예약이 없습니다.'}
+              {activeBookings.length === 0 ? '예약 내역이 없습니다.' : '이 탭에 표시할 예약이 없습니다.'}
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
