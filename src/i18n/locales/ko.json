@@ -1811,7 +1811,10 @@
       "minUnit": "분",
       "adultsLabel": "성인",
       "paxLabel": "명",
-      "transfer": "환승"
+      "transfer": "환승",
+      "publicTransitRoute": "대중교통 경로",
+      "transitTransfers": "환승",
+      "mealCostLabel": "식사비 별도"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",

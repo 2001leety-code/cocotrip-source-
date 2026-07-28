@@ -212,6 +212,10 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
   // explicitly failed to match. Non-food stops leave `verified` undefined
   // and must not display the badge.
   const isUnverifiedFood = stop.category === 'food' && stop.verified === false;
+  // 먹는 곳은 입장료 개념이 없다 — 아래 요금 칩이 "무료" 대신 "식사비 별도"를 쓰게 한다.
+  const isFoodStop = ['food', 'cafe', 'restaurant', 'dessert'].includes(
+    (stop.category || '').toLowerCase(),
+  );
   // Sprint 1 Step 1: 카테고리별 색 토큰 (UI 시각 차별화).
   const catColors = getCatColors(stop.category);
 
@@ -290,9 +294,17 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[12px] text-white/70">
               <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
             </span>
+            {/* 🔴 2026-07-28: 식당·카페에 초록 "무료" 칩이 붙던 것 수정.
+                entry_fee_krw 는 **입장료**다. 식당은 입장료가 0이라 전부 "무료"로 보여
+                손님이 공짜 식사로 오해했다. 먹는 곳은 입장료 개념이 없으므로 "식사비 별도"로
+                표시하고, 무료 칩은 실제로 입장료가 없는 관광지에만 쓴다. */}
             {(stop.entry_fee_krw || 0) > 0 ? (
               <span className="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-yellow-200 font-semibold">
                 {formatKRW(stop.entry_fee_krw || 0)}
+              </span>
+            ) : isFoodStop ? (
+              <span className="inline-flex items-center gap-1 bg-orange-400/10 border border-orange-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-orange-200 font-semibold">
+                {ui.mealCostLabel || 'Meal cost separate'}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-emerald-200 font-semibold">
@@ -433,7 +445,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Train className="w-3.5 h-3.5 text-blue-400" />
-                <p className="text-[13px] font-bold text-blue-400">Public Transit Route</p>
+                <p className="text-[13px] font-bold text-blue-400">{ui.publicTransitRoute || 'Public transit route'}</p>
                 <span className="ml-auto text-[12px] text-white/65">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
               </div>
               {publicTransit.steps?.length > 0 && (
@@ -449,7 +461,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                 </div>
               )}
               {publicTransit.transfers > 0 && (
-                <p className="text-[13px] text-white/65 mt-1.5">Transfers: {publicTransit.transfers}</p>
+                <p className="text-[13px] text-white/65 mt-1.5">{ui.transitTransfers || 'Transfers'}: {publicTransit.transfers}</p>
               )}
             </div>
           )}

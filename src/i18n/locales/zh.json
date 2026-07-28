@@ -1811,7 +1811,10 @@
       "adultsLabel": "成人",
       "paxLabel": "人",
       "minUnit": "分钟",
-      "transfer": "换乘"
+      "transfer": "换乘",
+      "publicTransitRoute": "公共交通路线",
+      "transitTransfers": "换乘",
+      "mealCostLabel": "餐费另计"
     },
     "notices": {
       "title": "行程自动校正提示",

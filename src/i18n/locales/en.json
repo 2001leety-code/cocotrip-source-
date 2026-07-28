@@ -1811,7 +1811,10 @@
       "minUnit": "min",
       "adultsLabel": "adults",
       "paxLabel": "pax",
-      "transfer": "transfer"
+      "transfer": "transfer",
+      "publicTransitRoute": "Public transit route",
+      "transitTransfers": "Transfers",
+      "mealCostLabel": "Meal cost separate"
     },
     "notices": {
       "title": "Plan Auto-Corrections Applied",

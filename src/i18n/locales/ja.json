@@ -1811,7 +1811,10 @@
       "adultsLabel": "大人",
       "paxLabel": "名",
       "minUnit": "分",
-      "transfer": "乗換"
+      "transfer": "乗換",
+      "publicTransitRoute": "公共交通の経路",
+      "transitTransfers": "乗り換え",
+      "mealCostLabel": "食事代は別"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",

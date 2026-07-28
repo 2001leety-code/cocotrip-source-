@@ -2430,6 +2430,19 @@ export class RouteAgent extends BaseAgent {
                     t.method = 'car';
                     t.mode = 'car';
                     t.source = 'downgrade';
+                    // 🔴 2026-07-28: 다운그레이드 전 수단을 가리키던 안내문·요금·환승을 함께 무효화.
+                    //   이전에는 method 만 'car' 로 바꾸고 나머지를 그대로 뒀다. 그래서 한 카드에
+                    //   "차량 12분"(새 method) + "대중교통 이용 불가"(다운그레이드 배지) +
+                    //   옛 대중교통 안내문이 동시에 떠 서로 모순됐다.
+                    //   자동차 이동은 대중교통 요금·환승 개념이 없으므로 0/빈값이 정확한 표현이다.
+                    t.instruction = '';
+                    t.instruction_en = '';
+                    t.step_by_step = [];
+                    t.steps_detail = [];
+                    t.est_fare_krw = 0;
+                    t.transfers = 0;
+                    t.fromStationName = null;
+                    t.toStationName = null;
                     downgradeCount++;
                 }
             }
