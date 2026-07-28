@@ -15,6 +15,7 @@ import { formatPrice } from '@/lib/exchange-rate';
 import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
 import type { Translations } from '@/i18n';
 import { ExampleItinerariesSection } from './ExampleItinerariesSection';
+import { formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
 
 interface MobileHomeProps {
   t: Translations;
@@ -276,7 +277,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         <Link to="/planner" className="flex items-center gap-3 px-4 py-4 rounded-2xl m-btn relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.12), rgba(255,107,157,0.08))', border: '1px solid rgba(182,104,252,0.15)' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}><Wand2 className="w-5 h-5 text-white" /></div>
           <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'AI Itinerary Generator'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
-          <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">$9.90</span>
+          <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">{formatAiPlannerUsd()}</span>
           <ChevronRight className="w-4 h-4 text-purple-400/30 shrink-0" />
         </Link>
       </section>

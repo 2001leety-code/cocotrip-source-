@@ -21,6 +21,8 @@ import {
   AI_PLANNER_FULL_USD as CLIENT_USD,
   AI_PLANNER_REFERENCE_KRW,
   formatAiPlannerUsd,
+  formatAiPlannerApproxKrw,
+  fillPrice,
 } from '@/lib/aiPlannerPrice';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
@@ -113,15 +115,53 @@ describe('KRW 는 참고 표시용', () => {
     expect(AI_PLANNER_REFERENCE_KRW).toBe(13300);
   });
 
-  it('화면에 $9.90 이 하드코딩돼 있지 않다', () => {
-    for (const f of [
+  it('🔴 레포 어디에도 가격이 하드코딩돼 있지 않다 (SSOT 한 곳만)', () => {
+    // 이전 보고에서 "모든 하드코딩 제거"라고 했지만 실제로는 2개 파일만 고쳤었다.
+    // 번역 JSON·MobileHome·HeroCards·MyPage·CourseBuilderShell·PayPalBookingButton 에
+    // $9.90 이, WizardStep3Review 에 ₩13,300 이 남아 있었다. 전수로 잠근다.
+    const targets = [
       'src/pages/PlannerPage/components/PurchaseSection.tsx',
       'src/components/WizardForm/WizardStep3Review.tsx',
-    ]) {
-      const code = codeOf(f);
-      expect(code, `${f}: $9.90 하드코딩 잔존`).not.toContain('>$9.90<');
-      expect(code).toContain('formatAiPlannerUsd');
+      'src/components/PayPalBookingButton.tsx',
+      'src/pages/PlannerPage/components/CourseBuilderShell.tsx',
+      'src/pages/MyPage.tsx',
+      'src/sections/HeroCards.tsx',
+      'src/sections/MobileHome.tsx',
+      'src/i18n/locales/ko.json',
+      'src/i18n/locales/en.json',
+      'src/i18n/locales/ja.json',
+      'src/i18n/locales/zh.json',
+    ];
+    for (const f of targets) {
+      const raw = read(f);
+      expect(raw, `${f}: $9.90 하드코딩 잔존`).not.toContain('$9.90');
+      expect(raw, `${f}: $19.90 하드코딩 잔존`).not.toContain('$19.90');
+      expect(raw, `${f}: ₩13,300 하드코딩 잔존`).not.toContain('₩13,300');
     }
+  });
+
+  it('번역 JSON 은 가격을 placeholder 로만 갖는다', () => {
+    for (const lang of ['ko', 'en', 'ja', 'zh']) {
+      expect(read(`src/i18n/locales/${lang}.json`)).toContain('{price}');
+    }
+  });
+
+  it('참고 원화에는 "약" 이 붙는다 (청구액으로 오해 금지)', () => {
+    expect(formatAiPlannerApproxKrw('ko')).toMatch(/^약 ₩/);
+    expect(formatAiPlannerApproxKrw('ja')).toMatch(/^約 ₩/);
+    expect(formatAiPlannerApproxKrw('zh')).toMatch(/^约 ₩/);
+    expect(formatAiPlannerApproxKrw('en')).toMatch(/^≈ ₩/);
+  });
+
+  it('참고 원화는 넘겨준 실환율로도 계산된다 (동적 참고 환율)', () => {
+    // 환율 1,468 이면 $9.90 -> 약 ₩14,500 (100원 단위 반올림)
+    expect(formatAiPlannerApproxKrw('ko', 1468)).toBe('약 ₩14,500');
+  });
+
+  it('fillPrice 가 placeholder 를 실제 값으로 채운다', () => {
+    expect(fillPrice('{price} 플래너', 'ko')).toBe('$9.90 플래너');
+    expect(fillPrice('{origPrice} → {price}', 'en')).toBe('$19.90 → $9.90');
+    expect(fillPrice('{krw}', 'ko')).toBe('약 ₩13,300');
   });
 
   it('환불 전액/부분 판정에 KRW 가 쓰이지 않는다 (USD 비교)', () => {

@@ -28,6 +28,7 @@ import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
 import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
+import { fillPrice } from '@/lib/aiPlannerPrice';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -615,7 +616,7 @@ export default function MyPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
-                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{mp.couponAdBody || 'Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.'}</p>
+                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{fillPrice(mp.couponAdBody || 'Book a ₩124,000 charter saves more than the planner ({price}).', language)}</p>
                       <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
                         {mp.couponAdCta || 'Make AI plan'}
                         <ChevronRight className="w-3 h-3" />

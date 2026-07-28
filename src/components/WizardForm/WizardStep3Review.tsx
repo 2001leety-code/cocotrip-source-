@@ -2,9 +2,8 @@
 import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield, Hotel, Navigation } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { SummaryCard, formatDateShort } from './helpers';
-import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardDict } from './types';
-import { formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
+import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPrice';
 
 interface Step3Props {
   p: WizardDict;
@@ -156,9 +155,10 @@ export function WizardStep3Review(props: Step3Props) {
           <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl font-bold text-white">{formatAiPlannerUsd()}</span>
-            {/* 사용자 언어 기반 보조 통화 — en/ko 는 ₩13,300, ja→¥JPY, zh→¥CNY. 결제는 PayPal USD $9.90. */}
+            {/* 참고 원화 — 실제 결제는 고정 USD 이고 카드사 환율에 따라 인출액이 다르다.
+                그래서 "약" 을 붙이고 값은 SSOT 에서만 만든다(하드코딩 금지). */}
             <span className="text-sm text-white/55">
-              / {language === 'ja' || language === 'zh' ? formatPrice(13300, language) : '₩13,300'}
+              / {formatAiPlannerApproxKrw(language)}
             </span>
           </div>
         </div>

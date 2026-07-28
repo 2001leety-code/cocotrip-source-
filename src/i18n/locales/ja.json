@@ -70,7 +70,7 @@
     "tourCta": "ツアーを見る",
     "plannerTitle": "AI旅行プランナー",
     "plannerLine1": "AIがカスタム旅程を自動生成",
-    "plannerLine2": "$9.90 · 即時 · 4言語対応",
+    "plannerLine2": "{price} · 即時 · 4言語対応",
     "plannerCta": "旅程を作成"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ 全区間リアルタイム交通 + T-money",
     "optionAfeature5": "✓ 実在する韓国DBで検証済み — 架空スポットなし",
     "optionAfeatureRevision": "無料再生成2回付き — 不満なら再作成！",
-    "valueBannerMain": "$9.90で3つの行程！",
+    "valueBannerMain": "{price}で3つの行程！",
     "valueBannerSub": "1回購入 + 無料修正2回 = 3バージョン — AIルート強化 + チャーター・ツアー5%クーポン付き。",
     "optionBtitle": "航空券 + ホテル予約で無料",
     "optionBdesc": "当サイトで航空券とホテルを予約すると、フルプランが無料",
@@ -1863,7 +1863,7 @@
     "wlEmptyTitle": "ウィッシュリストは空です",
     "wlEmptySub": "ツアー写真の ❤ ボタンで保存できます",
     "couponAdTitle": "AIプラン1回 = チャーター5% + ツアー5%クーポン",
-    "couponAdBody": "チャーターもツアーも5%割引。$9.90プランは十分に元が取れます。",
+    "couponAdBody": "チャーターもツアーも5%割引。{price}プランは十分に元が取れます。",
     "couponAdCta": "AIプラン作成",
     "useAiCoupon": "使う",
     "walletAvailable": "利用可能",
@@ -1914,7 +1914,7 @@
       "charter_busan": "釜山デイチャーター",
       "kpop_shuttle_oneway": "K-popシャトル(片道)",
       "kpop_shuttle_roundtrip": "K-popシャトル(往復)",
-      "ai_planner_full": "AIプランナー($9.90)"
+      "ai_planner_full": "AIプランナー({price})"
     },
     "myPlansSearch": "タイトル・地域で検索",
     "myPlansLoadMore": "もっと見る",

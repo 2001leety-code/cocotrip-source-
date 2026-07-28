@@ -11,11 +11,10 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
-import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
-import { AI_PLANNER_FULL_USD, AI_PLANNER_ORIGINAL_USD, AI_PLANNER_REFERENCE_KRW, formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
+import { AI_PLANNER_FULL_USD, AI_PLANNER_ORIGINAL_USD, AI_PLANNER_REFERENCE_KRW, formatAiPlannerUsd, formatAiPlannerApproxKrw, fillPrice } from '@/lib/aiPlannerPrice';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of the PlannerPage chunk; loads only when the user opens it.
 const PhoneSignInModal = lazy(() =>
@@ -104,8 +103,8 @@ export function PurchaseSection({
       {/* Decorative glow */}
       <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl ${isMobile ? 'bg-[#B668FC]/10' : 'bg-[#7C5CFC]/10'}`} />
 
-      {/* Price display — 마케팅 정가 비교: $19.90 → $9.90 (50% OFF). AI 플래너는
-          쿠폰 미적용 정책 (디지털 상품) — 모든 사용자 동일 가격. */}
+      {/* 가격 표시 — 값은 전부 lib/aiPlannerPrice SSOT 에서 온다(하드코딩 금지).
+          AI 플래너는 쿠폰 미적용 정책(디지털 상품) — 모든 사용자 동일 가격. */}
       <div className="relative text-center py-4 mb-4">
         <div className="text-white/55 text-sm mb-1">
           <span className="line-through">{formatAiPlannerUsd(AI_PLANNER_ORIGINAL_USD)}</span>
@@ -116,7 +115,7 @@ export function PurchaseSection({
           {/* 보조 통화 — 참고 표시용. 🔴 2026-07-29: 실제 청구는 고정 USD 이고 KRW 는 참고값이다
               (환율에 따라 이 KRW 와 실제 결제 원화 인출액이 다를 수 있다). */}
           <span className="text-white/55 text-sm">
-            / {language === 'en' ? `₩${AI_PLANNER_REFERENCE_KRW.toLocaleString('ko-KR')}` : formatPrice(AI_PLANNER_REFERENCE_KRW, language)}
+            / {formatAiPlannerApproxKrw(language)}
           </span>
         </div>
         <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
@@ -131,7 +130,7 @@ export function PurchaseSection({
         <div className="mt-3 mx-auto max-w-xs px-3.5 py-2.5 rounded-xl border border-amber-400/30"
           style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(182,104,252,0.08))' }}>
           <p className="text-amber-300 text-xs font-bold leading-snug">
-            {(p as { valueBannerMain?: string }).valueBannerMain || '$9.90 — 3 itineraries total!'}
+            {fillPrice((p as { valueBannerMain?: string }).valueBannerMain || '{price} — 3 itineraries total!', language)}
           </p>
           <p className="text-white/55 text-[11px] mt-0.5 leading-snug">
             {(p as { valueBannerSub?: string }).valueBannerSub || '1 purchase + 2 Free Revisions = 3 completely different versions'}

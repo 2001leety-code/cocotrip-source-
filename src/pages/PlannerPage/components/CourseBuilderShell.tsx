@@ -30,6 +30,7 @@ import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recomme
 import { CoursePlaceSearch, type CoursePlacePick } from './courseBuilder/CoursePlaceSearch';
 import { CourseMiniMap } from './courseBuilder/CourseMiniMap';
 import type { TransitStepLike } from '@/lib/routeSegments';
+import { fillPrice } from '@/lib/aiPlannerPrice';
 
 // ── i18n (4-lang 컴포넌트 로컬 — AddressAutocomplete 패턴) ───────────────
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -53,7 +54,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
     routeShow: 'Show transit route', routeAgain: 'Refresh route', routeBusy: 'Finding route…',
     routeNone: 'No transit route found for these stops', routeFail: "Couldn't load the route",
-    aiLocked: 'AI optimize & nearby picks unlock with the $9.90 planner.',
+    aiLocked: 'AI optimize & nearby picks unlock with the {price} planner.',
     aiNeedTwo: 'Add at least 2 places with map pins to optimize.',
     aiFail: 'Optimization failed — please try again.',
     saveTitleField: 'Course title', saveDateField: 'Trip date', saveTitlePh: 'e.g. My Seoul food trip',
@@ -77,7 +78,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
     routeShow: '실제 경로 보기', routeAgain: '경로 다시 계산', routeBusy: '경로 찾는 중…',
     routeNone: '이 구간의 대중교통 경로를 못 찾았어요', routeFail: '경로를 불러오지 못했어요',
-    aiLocked: 'AI 동선 최적화·주변 추천은 $9.90 플래너에서 열려요.',
+    aiLocked: 'AI 동선 최적화·주변 추천은 {price} 플래너에서 열려요.',
     aiNeedTwo: '지도핀이 있는 장소를 2곳 이상 추가하면 최적화할 수 있어요.',
     aiFail: '최적화에 실패했어요 — 다시 시도해 주세요.',
     saveTitleField: '코스 제목', saveDateField: '여행 날짜', saveTitlePh: '예: 나의 서울 맛집 투어',
@@ -101,7 +102,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
     routeShow: '実際の経路を見る', routeAgain: '経路を再計算', routeBusy: '経路を検索中…',
     routeNone: 'この区間の公共交通の経路が見つかりません', routeFail: '経路を読み込めませんでした',
-    aiLocked: 'AIルート最適化・周辺のおすすめは$9.90プランで解放。',
+    aiLocked: 'AIルート最適化・周辺のおすすめは{price}プランで解放。',
     aiNeedTwo: '地図ピン付きの場所を2か所以上追加すると最適化できます。',
     aiFail: '最適化に失敗しました — もう一度お試しください。',
     saveTitleField: 'コース名', saveDateField: '旅行日', saveTitlePh: '例: ソウルグルメ旅',
@@ -125,7 +126,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
     routeShow: '查看实际路线', routeAgain: '重新计算路线', routeBusy: '正在查找路线…',
     routeNone: '未找到该区间的公共交通路线', routeFail: '无法加载路线',
-    aiLocked: 'AI优化路线·周边推荐需$9.90行程解锁。',
+    aiLocked: 'AI优化路线·周边推荐需{price}行程解锁。',
     aiNeedTwo: '添加至少2个带地图标记的地点后即可优化。',
     aiFail: '优化失败 — 请重试。',
     saveTitleField: '行程名称', saveDateField: '出行日期', saveTitlePh: '例: 我的首尔美食之旅',
@@ -235,7 +236,7 @@ export function CourseBuilderShell() {
     if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
     setAiBusy(true);
     try {
-      // authFetch = Firebase 토큰 첨부 → course-ai 가 $9.90 구매자(aiFeaturesUnlocked)만 허용.
+      // authFetch = Firebase 토큰 첨부 → course-ai 가 유료 플래너 구매자(aiFeaturesUnlocked)만 허용.
       const res = await authFetch('/api/course-ai', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -245,7 +246,7 @@ export function CourseBuilderShell() {
       });
       const json = await res.json().catch(() => ({}));
       // 무료/비로그인 = 유료 AI 기능 잠김 → 업셀 안내(에러 아님).
-      if (res.status === 403 && json?.code === 'AI_FEATURE_LOCKED') { showFlash(t.aiLocked); return; }
+      if (res.status === 403 && json?.code === 'AI_FEATURE_LOCKED') { showFlash(fillPrice(t.aiLocked, language)); return; }
       if (json?.ok) {
         if (Array.isArray(json.optimizedOrder) && json.optimizedOrder.length) {
           cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));

@@ -70,7 +70,7 @@
     "tourCta": "투어 보기",
     "plannerTitle": "AI 여행 플래너",
     "plannerLine1": "AI가 맞춤 일정을 자동으로 생성",
-    "plannerLine2": "$9.90 · 즉시 · 4개 언어 지원",
+    "plannerLine2": "{price} · 즉시 · 4개 언어 지원",
     "plannerCta": "일정 만들기"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ 구간별 실제 대중교통 + T-money",
     "optionAfeature5": "✓ 실재 한국 DB로 검증 — 가짜 장소 없음",
     "optionAfeatureRevision": "무료 재생성 2회 포함 — 맘에 안 들면 다시!",
-    "valueBannerMain": "$9.90로 일정 3개!",
+    "valueBannerMain": "{price}로 일정 3개!",
     "valueBannerSub": "1회 결제 + 무료 수정 2회 = 3가지 버전 — AI 동선 업그레이드 + 차터·투어 5% 쿠폰까지.",
     "optionBtitle": "항공권 + 호텔 예약하고 무료로 받기",
     "optionBdesc": "저희 사이트에서 항공권과 호텔을 예약하면 전체 플랜 무료",
@@ -1863,7 +1863,7 @@
     "wlEmptyTitle": "위시리스트가 비어 있어요",
     "wlEmptySub": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
     "couponAdTitle": "AI 플랜 1회 = 차터 5% + 투어 5% 쿠폰",
-    "couponAdBody": "차터도 투어도 5% 할인. $9.90 플래너 본전 뽑고 남아요.",
+    "couponAdBody": "차터도 투어도 5% 할인. {price} 플래너 본전 뽑고 남아요.",
     "couponAdCta": "AI 플래너 만들기",
     "useAiCoupon": "사용하기",
     "walletAvailable": "사용 가능",
@@ -1914,7 +1914,7 @@
       "charter_busan": "부산 데이 차터",
       "kpop_shuttle_oneway": "K-pop 셔틀 (편도)",
       "kpop_shuttle_roundtrip": "K-pop 셔틀 (왕복)",
-      "ai_planner_full": "AI 플래너 ($9.90)"
+      "ai_planner_full": "AI 플래너 ({price})"
     },
     "myPlansSearch": "제목·지역으로 검색",
     "myPlansLoadMore": "더 보기",

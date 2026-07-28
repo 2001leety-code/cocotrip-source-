@@ -70,7 +70,7 @@
     "tourCta": "Browse Tours",
     "plannerTitle": "AI Travel Planner",
     "plannerLine1": "AI generates your custom itinerary",
-    "plannerLine2": "$9.90 · Instant · 4 languages",
+    "plannerLine2": "{price} · Instant · 4 languages",
     "plannerCta": "Plan my trip"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ Real transit every leg + T-money",
     "optionAfeature5": "✓ Checked vs real Korean data — no fake places",
     "optionAfeatureRevision": "2 Free Revisions — not perfect? Tweak & regenerate!",
-    "valueBannerMain": "$9.90 — 3 itineraries total!",
+    "valueBannerMain": "{price} — 3 itineraries total!",
     "valueBannerSub": "1 purchase + 2 free revisions = 3 versions — plus AI route upgrades & 5% charter + 5% tour coupons.",
     "optionBtitle": "Book Flight + Hotel — Get Plan FREE",
     "optionBdesc": "Book your flight and hotel through us, get the full plan free",
@@ -1863,7 +1863,7 @@
     "wlEmptyTitle": "No wishlisted items",
     "wlEmptySub": "Tap ❤ on any tour photo to save it here",
     "couponAdTitle": "1 AI plan = 5% charter + 5% tour coupons",
-    "couponAdBody": "Book a charter and a tour — save 5% on both. The $9.90 planner pays for itself.",
+    "couponAdBody": "Book a charter and a tour — save 5% on both. The {price} planner pays for itself.",
     "couponAdCta": "Make AI plan",
     "useAiCoupon": "Use now",
     "walletAvailable": "Available",
@@ -1914,7 +1914,7 @@
       "charter_busan": "Busan Day Charter",
       "kpop_shuttle_oneway": "K-pop Shuttle (One-way)",
       "kpop_shuttle_roundtrip": "K-pop Shuttle (Round-trip)",
-      "ai_planner_full": "AI Planner ($9.90)"
+      "ai_planner_full": "AI Planner ({price})"
     },
     "myPlansSearch": "Search by title or area",
     "myPlansLoadMore": "Load more",
