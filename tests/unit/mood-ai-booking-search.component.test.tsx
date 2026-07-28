@@ -193,3 +193,219 @@ describe('MoodAiBooking 날짜별 예약 분리 (PR3 실렌더 잠금)', () => {
     });
   });
 });
+
+// ── 💰 김포/인천 공항 정액 분리 (2026-07-27) ────────────────────────────
+// 공항마다 정액이 다름(ICN 110,000 / GMP 80,000) → 오선택/미전달 = 3만원 오차.
+function airportParseResponse(airportCodeGuess: string | null) {
+  return {
+    ok: true,
+    serviceGuess: 'airport',
+    hasDirector: false,
+    hasAirport: true,
+    airportCodeGuess,
+    truncated: false,
+    stops: [
+      { order: 1, label: '김포공항 국제선', address: '서울 강서구 하늘길 112', lat: 37.558, lng: 126.79, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true },
+      { order: 2, label: '신라호텔', address: '서울 중구 동호로 249', lat: 37.556, lng: 127.005, action: 'arrive', matchedFromPlacebook: false, geocodeOk: true },
+    ],
+  };
+}
+
+describe('MoodAiBooking 공항 정액 분리 (김포 80,000 / 인천 110,000)', () => {
+  function mockParse(airportCodeGuess: string | null) {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) return { status: 200, json: async () => airportParseResponse(airportCodeGuess) };
+      if (String(url).includes('mood-route')) return { status: 200, json: async () => ROUTE_RESPONSE };
+      if (String(url).includes('mood-book')) return { status: 200, json: async () => ({ ok: true, data: { amountKRW: 80000, balanceKRW: 500000 } }) };
+      return { status: 404, json: async () => ({}) };
+    });
+  }
+
+  it('AI 가 김포 감지 → 김포 기본 선택 + 예상 금액 80,000원', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    expect(screen.getByText(/공항 이동이 감지되었습니다 \(김포공항\)/)).toBeTruthy();
+    expect(screen.getByText(/김포공항 \(정액\)/)).toBeTruthy();
+    // 서비스 버튼 요약가·예상 금액 모두 8만
+    expect(screen.getAllByText('80,000원').length).toBeGreaterThan(0);
+  });
+
+  it('예약 요청 body 에 airportCode 전달 — 서버가 이 값으로 재계산', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      expect(bookCall).toBeTruthy();
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.serviceType).toBe('airport');
+      expect(body.airportCode).toBe('GMP');
+    });
+  });
+
+  it('운영자가 인천으로 바꾸면 110,000원 — 최종 확정은 사람 (AI 추천은 기본값일 뿐)', async () => {
+    mockParse('GMP');
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /인천공항/ }));
+    await waitFor(() => expect(screen.getByText(/인천공항 \(정액\)/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.airportCode).toBe('ICN');
+    });
+  });
+
+  it('🔴 서버가 airportCodeGuess 를 안 주면(구버전 API) 인천 기본 = 비싼 쪽 폴백', async () => {
+    mockParse(null);
+    await renderAndParse();
+
+    expect(screen.getByText(/인천공항 \(정액\)/)).toBeTruthy();
+    expect(screen.queryByText(/김포공항 \(정액\)/)).toBeNull();
+  });
+});
+
+// ── 🕘 자동 채움 + ✏️ 동선 직접 편집 (2026-07-27) ─────────────────────
+// "글씨를 똑바로 쓸 거면 수기 예약하지" — AI 가 읽은 시각을 버리고, 틀려도 못 고치던 문제.
+const TIMED_RESPONSE = {
+  ok: true,
+  serviceGuess: 'vehicle',
+  hasDirector: true,
+  hasAirport: false,
+  truncated: false,
+  stops: [
+    { order: 1, label: '이사님', address: '서울 송파구 잠실로 62', lat: 37.5099, lng: 127.0872, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true, timeHint: '09:30' },
+    { order: 2, label: '강남 코엑스', address: '서울 강남구 영동대로 513', lat: 37.5126, lng: 127.0588, action: 'via', matchedFromPlacebook: false, geocodeOk: true, timeHint: '11:00' },
+    { order: 3, label: '신라호텔', address: '서울 중구 동호로 249', lat: 37.556, lng: 127.005, action: 'arrive', matchedFromPlacebook: false, geocodeOk: true, timeHint: '15:00' },
+  ],
+};
+
+describe('MoodAiBooking 자동 채움 · 동선 편집', () => {
+  beforeEach(() => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) return { status: 200, json: async () => TIMED_RESPONSE };
+      if (String(url).includes('mood-route')) return { status: 200, json: async () => ROUTE_RESPONSE };
+      if (String(url).includes('mood-book')) return { status: 200, json: async () => ({ ok: true, data: { amountKRW: 180000, balanceKRW: 500000 } }) };
+      return { status: 404, json: async () => ({}) };
+    });
+  });
+
+  it('AI 가 읽은 시각으로 시작 시각·이용 시간이 채워지고 💰 확인 배지가 뜬다', async () => {
+    await renderAndParse();
+
+    // 09:30 시작, 09:30~15:00 = 5.5h → 올림 6시간
+    expect((screen.getByDisplayValue('09:30') as HTMLInputElement).type).toBe('time');
+    expect(screen.getByDisplayValue('6')).toBeTruthy();
+    expect(screen.getByText(/AI가 채움/)).toBeTruthy();
+    expect(screen.getByText(/실제 운행 시간이 맞는지 확인/)).toBeTruthy();
+    // 각 지점에 시각 배지
+    expect(screen.getByText(/🕘 09:30/)).toBeTruthy();
+    expect(screen.getByText(/🕘 15:00/)).toBeTruthy();
+  });
+
+  it('운영자가 시간을 직접 고치면 자동채움 배지가 사라진다', async () => {
+    await renderAndParse();
+    expect(screen.getByText(/AI가 채움/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '시간 증가' }));
+    await waitFor(() => expect(screen.getByDisplayValue('7')).toBeTruthy());
+    expect(screen.queryByText(/실제 운행 시간이 맞는지 확인/)).toBeNull();
+  });
+
+  it('좌표가 잡힌 지점도 🔍 지점 바꾸기로 다른 곳으로 교체할 수 있다', async () => {
+    await renderAndParse();
+
+    // 성공 stop 3개 모두 교체 버튼 노출 (예전엔 실패 stop 에만 있었음)
+    expect(screen.getAllByRole('button', { name: /지점 바꾸기/ })).toHaveLength(3);
+
+    fireEvent.click(screen.getAllByRole('button', { name: /지점 바꾸기/ })[2]);
+    const candidate = await screen.findByText('인천국제공항 제2여객터미널');
+    fireEvent.click(candidate.closest('button')!);
+
+    // 라벨까지 교체 — 화면 이름과 실제 좌표가 어긋나 운영자가 오인하는 것 방지
+    await waitFor(() => expect(screen.getByText('인천국제공항 제2여객터미널')).toBeTruthy());
+  });
+
+  it('✕ 로 지점을 빼면 예약 경로(waypoints)에서도 빠진다', async () => {
+    await renderAndParse();
+    expect(screen.getByText(/동선 3개/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /강남 코엑스 빼기/ }));
+    await waitFor(() => expect(screen.getByText(/동선 2개/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.waypoints).toBeUndefined(); // 경유지였던 코엑스가 빠짐
+      expect(body.origin).toContain('잠실로');
+      expect(body.destination).toContain('동호로');
+    });
+  });
+
+  it('↓ 로 순서를 바꾸면 출발·도착이 바뀐다', async () => {
+    await renderAndParse();
+
+    // 1번(이사님)을 아래로 → 코엑스가 출발지가 됨
+    fireEvent.click(screen.getByRole('button', { name: /이사님 아래로/ }));
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.origin).toContain('영동대로'); // 코엑스
+    });
+  });
+
+  it('+ 빠진 장소 추가 → 좌표 없으니 확인 전까지 예약 차단', async () => {
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /빠진 장소 추가/ }));
+    await waitFor(() => {
+      expect(screen.getByText(/동선 4개/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: /주소 확인 후 예약 가능/ })).toBeTruthy();
+    });
+  });
+});
+
+// ✈️ 공항 방향 — AI 예약이 값을 안 보내 서버가 전부 'pickup' 저장하던 실버그.
+describe('MoodAiBooking 공항 방향(픽업/샌딩)', () => {
+  beforeEach(() => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) {
+        return { status: 200, json: async () => ({ ...airportParseResponse('GMP'), airportDirectionGuess: 'sending' }) };
+      }
+      if (String(url).includes('mood-route')) return { status: 200, json: async () => ROUTE_RESPONSE };
+      if (String(url).includes('mood-book')) return { status: 200, json: async () => ({ ok: true, data: { amountKRW: 80000, balanceKRW: 500000 } }) };
+      return { status: 404, json: async () => ({}) };
+    });
+  });
+
+  it('AI 추정(샌딩)이 기본 선택되고 예약 body 에 실려 나간다', async () => {
+    await renderAndParse();
+
+    expect(screen.getByText(/AI 추정: 샌딩/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.airportDirection).toBe('sending');
+    });
+  });
+
+  it('운영자가 픽업으로 바꾸면 그 값이 나간다', async () => {
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: /픽업 \(공항 → 목적지\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.airportDirection).toBe('pickup');
+    });
+  });
+});

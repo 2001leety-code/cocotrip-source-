@@ -166,6 +166,10 @@
   ],
   "rewrites": [
     { "source": "/planstest", "destination": "/api/planstest" },
+    {
+      "source": "/blog-images/:year/:name",
+      "destination": "/api/blog-image?year=:year&name=:name"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
 
-import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
+import { matchPlacebook, matchStopPlaces, looksLikeAirport, guessAirportCode, guessAirportDirection, normalizeTimeHint, guessService, norm, salvageStopsFromTruncatedJson, coordFromPlaceDoc } from '../../api/mood-parse-schedule.js';
 
 // 주소록 인덱스 형태 { name, nameNorm, address, lat, lng, isDirector } — loadPlacebook 산출물과 동일.
 function place(name: string, extra: Record<string, unknown> = {}) {
@@ -93,6 +93,75 @@ describe('looksLikeAirport — 공항 판정', () => {
   });
 });
 
+// 💰 공항 정액이 공항마다 다름(ICN 110,000 / GMP 80,000, 2026-07-27) → 오판정 = 금액 오차 3만원.
+describe('guessAirportCode — 어느 공항인지 (정액 결정)', () => {
+  it('김포 신호(한글/약어)는 GMP', () => {
+    expect(guessAirportCode('김포공항')).toBe('GMP');
+    expect(guessAirportCode('GMP terminal 1')).toBe('GMP');
+    expect(guessAirportCode('픽업', '', '', '서울 강서구 김포공항로')).toBe('GMP');
+  });
+
+  it('그 외 공항은 전부 ICN (애매하면 비싼 쪽 = 과소청구 방지)', () => {
+    expect(guessAirportCode('인천공항 T2')).toBe('ICN');
+    expect(guessAirportCode('ICN')).toBe('ICN');
+    expect(guessAirportCode('제주공항')).toBe('ICN'); // 미지원 공항도 기본가로
+  });
+
+  it('공항 신호가 없으면 null (공항 서비스 아님)', () => {
+    expect(guessAirportCode('강남 코엑스')).toBe(null);
+    expect(guessAirportCode()).toBe(null);
+    expect(guessAirportCode('', null, undefined)).toBe(null);
+  });
+});
+
+// 🕘 AI 가 뽑은 시각을 버려서 운영자가 손으로 다시 치던 것 (2026-07-27).
+describe('normalizeTimeHint — 시각 힌트 → HH:mm', () => {
+  it('숫자 표기', () => {
+    expect(normalizeTimeHint('9:30')).toBe('09:30');
+    expect(normalizeTimeHint('09:30')).toBe('09:30');
+    expect(normalizeTimeHint('15:05')).toBe('15:05');
+    expect(normalizeTimeHint('7')).toBe('07:00');
+  });
+
+  it('한글 오전/오후', () => {
+    expect(normalizeTimeHint('오후 3시')).toBe('15:00');
+    expect(normalizeTimeHint('오후 3시 30분')).toBe('15:30');
+    expect(normalizeTimeHint('오전 10시')).toBe('10:00');
+    expect(normalizeTimeHint('오전 12시')).toBe('00:00'); // 자정
+    expect(normalizeTimeHint('오후 12시')).toBe('12:00'); // 정오 — 24시로 넘기면 안 됨
+    expect(normalizeTimeHint('9시')).toBe('09:00');
+  });
+
+  it('해석 불가/무효는 빈 문자열 (억지 추측 금지)', () => {
+    expect(normalizeTimeHint('')).toBe('');
+    expect(normalizeTimeHint(null)).toBe('');
+    expect(normalizeTimeHint('아침 일찍')).toBe('');
+    expect(normalizeTimeHint('25:00')).toBe('');
+    expect(normalizeTimeHint('10:99')).toBe('');
+  });
+});
+
+// ✈️ AI 예약이 방향을 아예 안 보내 전부 'pickup' 으로 저장되던 실버그 (2026-07-27).
+describe('guessAirportDirection — 픽업/샌딩', () => {
+  it('action 이 명시되면 그걸 따른다 (가장 강한 신호)', () => {
+    expect(guessAirportDirection([{ isAirport: true, action: 'pickup' }, { isAirport: false, action: 'arrive' }])).toBe('pickup');
+    expect(guessAirportDirection([{ isAirport: false, action: 'pickup' }, { isAirport: true, action: 'dropoff' }])).toBe('sending');
+  });
+
+  it('action 이 모호하면 위치로 — 뒤쪽이면 샌딩, 앞쪽이면 픽업', () => {
+    // 공항이 마지막 = 공항으로 가는 것 = 샌딩
+    expect(guessAirportDirection([{ isAirport: false, action: 'via' }, { isAirport: true, action: 'via' }])).toBe('sending');
+    // 공항이 처음 = 공항에서 오는 것 = 픽업
+    expect(guessAirportDirection([{ isAirport: true, action: 'via' }, { isAirport: false, action: 'via' }])).toBe('pickup');
+  });
+
+  it('공항 지점이 없으면 null', () => {
+    expect(guessAirportDirection([{ isAirport: false, action: 'via' }])).toBe(null);
+    expect(guessAirportDirection([])).toBe(null);
+    expect(guessAirportDirection(null)).toBe(null);
+  });
+});
+
 describe('guessService — 서비스 추천 우선순위 (airport>vehicle>manager)', () => {
   it('공항 포함이면 airport (vehicle보다 우선)', () => {
     expect(guessService(true, false)).toBe('airport');
@@ -145,6 +214,34 @@ describe('salvageStopsFromTruncatedJson — 잘린 AI 응답 부분 회수 (2026
     expect(salvageStopsFromTruncatedJson('')).toEqual([]);
     expect(salvageStopsFromTruncatedJson('not json at all')).toEqual([]);
     expect(salvageStopsFromTruncatedJson('{"other":[1,2]}')).toEqual([]);
+  });
+});
+
+// 🔴 2026-07-27 prod 사고: 파서가 NCP 키 목록을 복붙해 두고 VITE_NAVER_CLIENT_* 를 빠뜨려
+//    geocodeConfigured=false → 주소 지오코딩을 아예 호출조차 안 함 → 완전한 도로명주소까지
+//    전부 "주소 못 찾음"(5/5). mood-route 는 같은 주소를 정상 처리해 원인이 가려져 있었다.
+//    키 해석은 mood-route 의 resolveNcpKeys 하나만 SSOT — 복제 금지.
+describe('지오코딩 키 해석 SSOT — 키 목록 복제 금지 (2026-07-27 사고 잠금)', () => {
+  const parseSrc = readFileSync(resolve(__dirname, '../../api/mood-parse-schedule.js'), 'utf8');
+
+  it('파서는 process.env 로 NCP/NAVER 키를 직접 읽지 않는다', () => {
+    // 주석 제외한 실제 코드 라인만 검사 (설명용 주석엔 키 이름이 등장한다).
+    const code = parseSrc
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('*') && !l.trimStart().startsWith('//') && !l.trimStart().startsWith('/*'))
+      .join('\n');
+    expect(code).not.toMatch(/process\.env\.(NCP|NAVER|VITE_NAVER)_CLIENT_(ID|SECRET)/);
+  });
+
+  it('파서는 키 해석이 내장된 geocodeAddress 를 쓴다', () => {
+    expect(parseSrc).toMatch(/import\s*\{[^}]*geocodeAddress[^}]*\}\s*from\s*'\.\/_shared\/mood-route\.js'/);
+    expect(parseSrc).toMatch(/await geocodeAddress\(/);
+  });
+
+  it('mood-route 의 키 폴백에 VITE_NAVER_CLIENT_* 가 살아 있다 (prod 유일 생존 키)', () => {
+    const routeSrc = readFileSync(resolve(__dirname, '../../api/_shared/mood-route.js'), 'utf8');
+    expect(routeSrc).toContain('VITE_NAVER_CLIENT_ID');
+    expect(routeSrc).toContain('VITE_NAVER_CLIENT_SECRET');
   });
 });
 

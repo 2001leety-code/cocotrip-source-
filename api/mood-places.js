@@ -46,11 +46,49 @@ function slugify(name) {
     .slice(0, 40);
 }
 
-/** 문서 ID 생성 — slug 우선, 비영문이라 slug 가 비면 랜덤. */
+/**
+ * 이름 동일성 키 — 유니코드 NFC + 앞뒤 공백 제거 + 연속 공백 1칸.
+ * "엘스 동문앞" 과 "엘스동문앞" 은 운영자가 일부러 나눠 등록하는 별칭이라 서로 다른 키다
+ * (공백을 지우지 않고 접기만 한다).
+ */
+export function nameKey(name) {
+  return String(name || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+}
+
+/** FNV-1a 32bit → base36. 같은 이름이면 항상 같은 값(랜덤 아님). */
+function hashName(key) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i += 1) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+/**
+ * 문서 ID 생성 — slug 우선, 비영문이라 slug 가 비면 이름 해시.
+ *
+ * 🔴 2026-07-27 실측 버그: 여기가 `Math.random()` 이었다. slugify 는 a-z0-9 만 남기므로
+ *   **한글 전용 이름은 slug 가 항상 빈 문자열** → 같은 이름으로 다시 저장할 때마다 새 doc id
+ *   가 발급돼, 파일 헤더가 약속한 "같은 이름이면 수정(merge)" 이 성립하지 않았다.
+ *   MOOD 주소록 이름은 사실상 전부 한글이라 이게 기본 경로였다 — 좌표가 비어 있던 '유진집'
+ *   을 같은 이름·같은 주소로 재저장하니 고쳐지지 않고 중복 2벌이 됐다.
+ *   ⇒ 이름 해시로 결정화. 같은 이름 = 같은 id.
+ */
 function makeDocId(name) {
   const slug = slugify(name);
   if (slug) return slug;
-  return `place-${Math.random().toString(36).slice(2, 10)}`;
+  return `place-${hashName(nameKey(name))}`;
+}
+
+/**
+ * 같은 이름의 기존 문서 id — 있으면 그 문서를 수정 대상으로 삼는다.
+ * 랜덤 id 시절에 만들어진 레거시 문서(결정적 해시와 id 가 다름)도 이름으로 찾아 고칠 수 있게
+ * 하는 장치. 없으면 null.
+ */
+async function findIdByName(db, name) {
+  const snap = await db.collection(COLLECTION).where('name', '==', name).limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
 }
 
 export default async function handler(req, res) {
@@ -178,9 +216,10 @@ async function handlePost(db, req, res, JSON_HEADERS, email) {
 
   const { lat, lng } = geo;
 
-  // 문서 ID — 명시적 id 우선(수정), 없으면 이름 슬러그(같은 이름=수정, 다른 이름=새 항목).
+  // 문서 ID — ① 명시적 id(수정) ② 같은 이름의 기존 문서(수정) ③ 이름 기반 새 id.
+  //   ②가 없으면 랜덤 id 시절 만들어진 레거시 문서를 이름으로 못 찾아 중복이 쌓인다.
   const explicitId = String(body.id || '').trim();
-  const docId = explicitId || makeDocId(name);
+  const docId = explicitId || (await findIdByName(db, name)) || makeDocId(name);
   const placeRef = db.collection(COLLECTION).doc(docId);
 
   // director 유일성: isDirector=true 로 저장 시 기존 director 문서들을 미리 조회 →

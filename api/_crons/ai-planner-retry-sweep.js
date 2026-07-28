@@ -20,6 +20,7 @@ import {
   triggerAiPlanner,
   PENDING_AI_PLANNER_RETRIES_COLLECTION,
 } from '../_shared/ai-planner-trigger.js';
+import { internalApiBase } from '../_shared/internal-base-url.js';
 
 const MAX_ATTEMPTS = 3;
 const MAX_BATCH = 5;
@@ -33,7 +34,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
 
     const snap = await db.collection(PENDING_AI_PLANNER_RETRIES_COLLECTION)
       .where('status', '==', 'pending')

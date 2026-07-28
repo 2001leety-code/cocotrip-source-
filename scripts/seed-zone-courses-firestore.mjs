@@ -35,6 +35,8 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+// NCP Maps 키 해석 SSOT — 키 목록 복제 금지 (api/_shared/mood-route.js:45~ 주석).
+import { resolveNcpKeys } from '../api/_shared/mood-route.js';
 
 // 2026-06-03: 로컬 실행 지원 — .env 파일에서 FIREBASE/NCP/ODSAY env 로드. CI 는 process.env 사용
 // (파일 없으면 try/catch skip → CI 무영향). 기존엔 로더가 없어 로컬 실행 시 env 미주입으로 종료됐음.
@@ -318,13 +320,12 @@ async function main() {
   const opts = parseArgs(argv.slice(2));
   console.log('[seed] 옵션:', JSON.stringify(opts));
 
-  // ENV
-  // CLAUDE.md I: NCP_CLIENT_ID.trim() 필수
-  const ncpId = (env.NCP_CLIENT_ID || '').trim();
-  const ncpSecret = (env.NCP_CLIENT_SECRET || '').trim();
+  // ENV — 키 해석 = resolveNcpKeys (SSOT, .trim() 포함). NCP_CLIENT_* 만 읽으면 살아있는
+  //   NCP Maps 키가 VITE_NAVER_CLIENT_* 에 있는 환경에서 조용히 lat/lng=0 이 된다 (2026-07-27).
+  const { clientId: ncpId, clientSecret: ncpSecret } = resolveNcpKeys();
   const odsayKey = (env.ODSAY_API_KEY || '').trim();
 
-  if (!ncpId) console.warn('[seed] WARN: NCP_CLIENT_ID 미설정 — lat/lng=0 유지');
+  if (!ncpId) console.warn('[seed] WARN: NCP Maps 키 미설정 (NCP_CLIENT_* / VITE_NAVER_CLIENT_* / NAVER_CLIENT_* 전부 빔) — lat/lng=0 유지');
   if (!odsayKey) console.warn('[seed] WARN: ODSAY_API_KEY 미설정 — transit mock 유지');
 
   // Firestore 초기화

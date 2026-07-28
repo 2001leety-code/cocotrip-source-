@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { MoodGuideModal } from '../../src/components/mood/MoodGuideModal';
 import {
   MOOD_RATES, MOOD_SURCHARGE_PER_KM, MOOD_DISTANCE_THRESHOLD_KM,
-  MOOD_FIXED_PRICE_KRW, formatKRW,
+  MOOD_AIRPORT_PRICE_KRW, MOOD_AIRPORT_LABEL, MOOD_AIRPORT_CODES, formatKRW,
 } from '../../src/lib/moodPricing';
 
 describe('MoodGuideModal', () => {
@@ -21,8 +21,16 @@ describe('MoodGuideModal', () => {
     render(<MoodGuideModal open onClose={() => {}} />);
     expect(screen.getByText(new RegExp(`${formatKRW(MOOD_RATES.vehicle)}/시간`))).toBeTruthy();
     expect(screen.getByText(new RegExp(`${formatKRW(MOOD_RATES.manager)}/시간`))).toBeTruthy();
-    expect(screen.getByText(new RegExp(`${formatKRW(MOOD_FIXED_PRICE_KRW.airport || 0)} 정액`))).toBeTruthy();
     expect(screen.getByText(new RegExp(`${MOOD_DISTANCE_THRESHOLD_KM}km 이상.*${formatKRW(MOOD_SURCHARGE_PER_KM)}`))).toBeTruthy();
+  });
+
+  it('공항별 정액이 전부 안내에 나온다 (인천 110,000 / 김포 80,000 — 하나만 적으면 오해)', () => {
+    render(<MoodGuideModal open onClose={() => {}} />);
+    for (const code of MOOD_AIRPORT_CODES) {
+      expect(
+        screen.getByText(new RegExp(`${MOOD_AIRPORT_LABEL[code]} ${formatKRW(MOOD_AIRPORT_PRICE_KRW[code])}`)),
+      ).toBeTruthy();
+    }
   });
 
   it('핵심 섹션 + 취소·변경 셀프서비스 안내 (2026-07-05 취소 기능 추가)', () => {

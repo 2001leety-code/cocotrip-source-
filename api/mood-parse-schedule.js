@@ -29,7 +29,8 @@
  * 반환:
  *   { ok: true,
  *     stops: [{ order, label, address, lat, lng, action, matchedFromPlacebook, geocodeOk }],
- *     serviceGuess, hasDirector, hasAirport, needsConfirm: true }
+ *     serviceGuess, hasDirector, hasAirport, airportCodeGuess, airportDirectionGuess, needsConfirm: true }
+ *     각 stop 은 timeHint("HH:mm"|'')·isAirport 도 포함 — 프론트 자동 채움용.
  *   - needsConfirm 은 항상 true (프론트가 서비스 추천을 더블체크).
  *   - geocode 실패 stop 이 있어도 ok:true (그 stop 만 geocodeOk:false) → 프론트가 개별 차단.
  *
@@ -41,7 +42,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
-import { geocode } from './_shared/mood-route.js';
+import { geocodeAddress } from './_shared/mood-route.js';
 import { naverCoordToWgs84, resolveCredentialCandidates } from './place-search.js';
 
 export const maxDuration = 15;
@@ -201,6 +202,70 @@ export function looksLikeAirport(...parts) {
   const hay = norm(parts.filter(Boolean).join(' '));
   if (!hay) return false;
   return AIRPORT_KEYWORDS.some((kw) => hay.includes(kw));
+}
+
+/**
+ * 시각 힌트("9:30"·"09:30"·"오전 10시"·"오후 3시 30분"·"15시") → "HH:mm" (2026-07-27).
+ *
+ * Gemini 가 stop 마다 뽑아주는 timeHint 를 프론트 입력칸(시작 시각·이용 시간)에
+ * 바로 꽂을 수 있는 형태로 정규화한다. 이전엔 뽑아놓고 응답에서 버려서 운영자가
+ * 시각을 손으로 다시 쳐야 했다("AI 예약인데 수기랑 다를 게 없다").
+ *
+ * 💰 이용 시간은 시급×시간이라 돈에 직결 — 애매하면 **빈 문자열**을 돌려주고
+ *    프론트가 기본값(최소 3시간)을 쓰게 한다. 억지 추측으로 시간을 만들지 않는다.
+ *
+ * @param {string} hint - Gemini 가 원문에서 복사/정규화한 시각 문자열.
+ * @returns {string} "HH:mm" 또는 '' (해석 불가).
+ */
+export function normalizeTimeHint(hint) {
+  const s = String(hint || '').trim();
+  if (!s) return '';
+  const ampm = /오전|am/i.test(s) ? 'am' : /오후|pm/i.test(s) ? 'pm' : null;
+  // "9:30" · "09:30" · "9시 30분" · "9시" · "15"
+  const m = s.match(/(\d{1,2})\s*(?::|시)\s*(\d{1,2})?\s*분?/) || s.match(/^(\d{1,2})$/);
+  if (!m) return '';
+  let h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || min > 59) return '';
+  if (ampm === 'pm' && h < 12) h += 12;
+  if (ampm === 'am' && h === 12) h = 0;
+  if (h > 23) return '';
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+/**
+ * 공항 픽업/샌딩 판정 (2026-07-27) — AI 예약이 이 값을 안 보내서 서버가 전부
+ * 'pickup' 으로 저장하던 것 보완. 출국(샌딩) 건이 픽업으로 기록되던 실버그.
+ *
+ * 판정: 공항 지점이 동선의 **뒤쪽 절반**이면 샌딩(집→공항), 앞쪽이면 픽업(공항→집).
+ *      action('pickup'/'dropoff')이 명시돼 있으면 그쪽을 우선(더 강한 신호).
+ *
+ * @param {Array<{isAirport:boolean, action:string}>} marks - 순서대로의 stop 요약.
+ * @returns {'pickup'|'sending'|null} 공항 지점이 없으면 null.
+ */
+export function guessAirportDirection(marks) {
+  const list = Array.isArray(marks) ? marks : [];
+  const idx = list.findIndex((s) => s && s.isAirport);
+  if (idx < 0) return null;
+  const at = list[idx];
+  if (at.action === 'dropoff') return 'sending';
+  if (at.action === 'pickup') return 'pickup';
+  // action 이 모호(via/arrive) → 위치로 판정. 마지막 지점 쪽이면 공항으로 가는 것 = 샌딩.
+  return idx >= list.length / 2 ? 'sending' : 'pickup';
+}
+
+/**
+ * 어느 공항인지 판정 (정액이 공항마다 달라 금액에 영향 — ICN 110,000 / GMP 80,000).
+ * 김포 신호가 있을 때만 'GMP', 그 외 공항은 전부 기본 'ICN'.
+ * 🔴 애매하면 비싼 쪽(ICN) — 운영자가 화면에서 김포로 바꾸는 건 쉽지만,
+ *    싸게 잡힌 걸 못 보고 지나가면 과소청구가 된다.
+ * @returns {'ICN'|'GMP'|null} 공항 신호가 아예 없으면 null.
+ */
+export function guessAirportCode(...parts) {
+  const hay = norm(parts.filter(Boolean).join(' '));
+  if (!hay) return null;
+  if (hay.includes('김포') || hay.includes('gmp')) return 'GMP';
+  return AIRPORT_KEYWORDS.some((kw) => hay.includes(kw)) ? 'ICN' : null;
 }
 
 /**
@@ -571,14 +636,20 @@ export default async function handler(req, res) {
       console.warn('[mood-parse-schedule] 주소록 로드 실패 (geocode 로 진행):', pbErr.message);
     }
 
-    // NCP/NAVER 키 (mood-route.computeRoute 와 동일 폴백 — 어느 이름으로 등록돼도 동작).
-    const ncpId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
-    const ncpSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
-    const geocodeConfigured = !!(ncpId && ncpSecret);
+    // 🔴 키 해석은 여기서 하지 않는다 — geocodeAddress() 안의 resolveNcpKeys 가 SSOT.
+    //   2026-07-27 사고: 이 자리에 키 목록을 복붙해 두고 주석엔 "computeRoute 와 동일 폴백"
+    //   이라 적혀 있었지만 실제로는 **VITE_NAVER_CLIENT_* 가 빠져** 있었다. prod 는 살아있는
+    //   NCP Maps 키를 VITE_NAVER_CLIENT_* 에만 두고 있어(mood-route.js:49~54 참조),
+    //   파서는 geocodeConfigured=false 로 판정해 **주소 지오코딩을 아예 호출조차 안 했다**.
+    //   → 완전한 도로명주소("서울특별시 종로구 자하문로8길 27")까지 전부 '주소 못 찾음'.
+    //   POI 폴백(searchPlaceFallback)은 상호명 검색이라 도로명주소를 대신 못 찾아 무력.
+    //   교훈: 키 목록은 복제 금지, 반드시 공유 함수에서 파생.
 
     // ── ②③ 각 stop: 주소록 매칭 → 좌표(재사용 or geocode) ──
     let hasDirector = false;
     let hasAirport = false;
+    // 어느 공항인지 (금액 영향 — GMP 8만 / ICN 11만). 김포 신호가 하나라도 있으면 GMP.
+    let airportCodeGuess = null;
 
     // 날짜 해석 기준 = 오늘(KST). 서버는 UTC 라 +9h 보정 (연도 추론용).
     const todayKst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -599,8 +670,12 @@ export default async function handler(req, res) {
         if (directorSignal) hasDirector = true;
 
         // 공항 판정 (이름/주소힌트/rawText/매칭주소 전부 검사)
-        if (looksLikeAirport(personOrPlace, addressHint, rawStopText, matched?.address)) {
+        const isAirport = looksLikeAirport(personOrPlace, addressHint, rawStopText, matched?.address);
+        if (isAirport) {
           hasAirport = true;
+          const code = guessAirportCode(personOrPlace, addressHint, rawStopText, matched?.address);
+          // 김포가 한 번이라도 잡히면 GMP 유지 (ICN 이 덮어쓰지 않게).
+          if (code === 'GMP' || !airportCodeGuess) airportCodeGuess = code;
         }
 
         // 라벨: 매칭된 주소록 이름 우선, 없으면 추출된 이름.
@@ -625,17 +700,17 @@ export default async function handler(req, res) {
           // geocode 대상: 매칭 주소 > addressHint > personOrPlace
           const geoQuery = (matched?.address || addressHint || personOrPlace || '').trim();
           address = geoQuery;
-          if (geoQuery && geocodeConfigured) {
-            try {
-              const coord = await geocode(geoQuery, ncpId, ncpSecret);
-              if (coord && Number.isFinite(coord.lat) && Number.isFinite(coord.lng)) {
-                lat = coord.lat;
-                lng = coord.lng;
-                geocodeOk = true;
-              }
-            } catch (geoErr) {
-              // fail-soft: 이 stop 만 geocodeOk=false (전체는 계속).
-              console.warn(`[mood-parse-schedule] geocode 실패 (stop ${order}):`, geoErr.message);
+          if (geoQuery) {
+            // geocodeAddress = 키 해석 포함(mood-route SSOT). 실패해도 이 stop 만 false.
+            const geo = await geocodeAddress(geoQuery);
+            if (geo.ok) {
+              lat = geo.lat;
+              lng = geo.lng;
+              geocodeOk = true;
+            } else {
+              // NCP_NOT_CONFIGURED 면 전 stop 이 같은 이유로 실패한다 — 운영자가 원인을
+              // 바로 알 수 있게 에러 코드를 남긴다(2026-07-27 사고: 조용히 전멸했었음).
+              console.warn(`[mood-parse-schedule] geocode 실패 (stop ${order}): ${geo.error}`);
             }
           }
           // 3차 폴백(2026-07-04): 지오코더는 주소 전용이라 "트리지움아파트 311동"·
@@ -665,6 +740,10 @@ export default async function handler(req, res) {
           geocodeOk,
           searchGuessed,
           date: stopDate, // YYYY-MM-DD | null — 프론트 날짜별 예약 분리용
+          // 시각(2026-07-27) — 프론트가 시작 시각·이용 시간 자동 채움에 사용.
+          // 이전엔 Gemini 가 뽑고도 응답에서 버려 운영자가 손으로 다시 입력해야 했다.
+          timeHint: normalizeTimeHint(s?.timeHint), // "HH:mm" | ''
+          isAirport,                                // 공항 픽업/샌딩 판정용
         };
       })
     );
@@ -682,11 +761,14 @@ export default async function handler(req, res) {
     // 서로 다른 날짜 목록 (정렬) — 2개 이상이면 프론트가 날짜별 예약 분리 UI 를 띄운다.
     const dates = [...new Set(stops.map((s) => s.date).filter(Boolean))].sort();
 
+    // 공항 픽업/샌딩 (2026-07-27) — 정렬 뒤 순서 기준. 공항 없으면 null.
+    const airportDirectionGuess = guessAirportDirection(stops);
+
     // ── ④ 서비스 추천 (guessService 파생 — 테스트와 로직 공유) ──
     const serviceGuess = guessService(hasAirport, hasDirector);
 
     console.log(
-      `[mood-parse-schedule] ${email} → stops=${stops.length} service=${serviceGuess} director=${hasDirector} airport=${hasAirport}`
+      `[mood-parse-schedule] ${email} → stops=${stops.length} service=${serviceGuess} director=${hasDirector} airport=${hasAirport}${airportCodeGuess ? `(${airportCodeGuess})` : ''}`
     );
 
     res.writeHead(200, JSON_HEADERS);
@@ -696,6 +778,8 @@ export default async function handler(req, res) {
       serviceGuess,
       hasDirector,
       hasAirport,
+      airportCodeGuess, // 'ICN' | 'GMP' | null — 공항 정액이 달라 프론트가 기본 선택으로 사용(운영자 확정)
+      airportDirectionGuess, // 'pickup' | 'sending' | null — 공항 방향 기본 선택(운영자 확정)
       needsConfirm: true, // 항상 true — 프론트가 서비스 추천 더블체크
       truncated, // true 면 응답 잘림→부분 회수 — 프론트가 "뒤쪽 일정 누락 가능" 경고
       flights, // [{flightNo, timeHint, date}] — 예약 메모 자동 첨부용 (없으면 [])

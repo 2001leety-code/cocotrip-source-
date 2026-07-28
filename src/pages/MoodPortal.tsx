@@ -34,11 +34,16 @@ import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
   MOOD_MIN_DURATION_HOURS,
-  MOOD_FIXED_PRICE_KRW,
+  MOOD_AIRPORT_PRICE_KRW,
+  MOOD_AIRPORT_LABEL,
+  MOOD_AIRPORT_CODES,
+  MOOD_DEFAULT_AIRPORT_CODE,
   MOOD_SURCHARGE_PER_KM,
+  normalizeAirportCode,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
+  type MoodAirportCode,
 } from '@/lib/moodPricing';
 
 // ── 디자인 토큰 (DESIGN.md: dark navy + purple/pink gradient) ──────────
@@ -86,6 +91,9 @@ interface MoodBooking {
   runningBalanceKRW?: number | null;
   /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
   note?: string | null;
+  /** 공항 예약 메타 — 정액 근거(ICN 110,000 / GMP 80,000). 레거시 예약은 null = 인천 취급. */
+  airportCode?: MoodAirportCode | null;
+  airportDirection?: 'pickup' | 'sending' | null;
 }
 
 interface MoodData {
@@ -214,6 +222,8 @@ export default function MoodPortal() {
   const [durationHours, setDurationHours] = useState(3); // 차량/매니저 최소 3시간
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
   const [airportDirection, setAirportDirection] = useState<'pickup' | 'sending'>('pickup');
+  // 어느 공항인지 — 정액이 다름(인천 110,000 / 김포 80,000). 백엔드가 이 값으로 재계산.
+  const [airportCode, setAirportCode] = useState<MoodAirportCode>(MOOD_DEFAULT_AIRPORT_CODE);
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -243,8 +253,9 @@ export default function MoodPortal() {
   // 이용 안내 & Q&A 모달 (2026-07-05 — 직원 온보딩용, 헤더 ❓ 버튼)
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // ── 운영자 스케줄 메모 (2026-07-05, 운영자 전용) ─────────────────────
-  // 무드 계정과 기능 분리: 서버(mood-notes)가 admins 만 허용(403) + 프론트는 isAdmin 일 때만 렌더.
+  // ── 운영자 스케줄 메모 (2026-07-05 · 2026-07-27 무드에게도 공개) ──────
+  // 읽기 = 포털 사용자 전원(무드 포함) — "이 날은 예약 잡지 말 것" 을 무드가 봐야 피할 수 있음.
+  // 쓰기 = 운영자만 (서버 mood-notes 가 POST 를 admins 로 제한, 프론트는 isAdmin 일 때만 입력칸 렌더).
   const [scheduleNotes, setScheduleNotes] = useState<Record<string, string>>({});
   const [noteDraft, setNoteDraft] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
@@ -276,8 +287,9 @@ export default function MoodPortal() {
         km: route?.km || 0,
         tollKRW: route?.tollKRW || 0,
         airportDetourKm, // 공항 경유 우회거리 (직행이면 0)
+        airportCode,     // 인천/김포 정액 구분
       }),
-    [serviceType, durationHours, route, airportDetourKm],
+    [serviceType, durationHours, route, airportDetourKm, airportCode],
   );
   const estimate = breakdown.amountKRW;
 
@@ -312,10 +324,12 @@ export default function MoodPortal() {
     if (user) loadData();
   }, [user, loadData]);
 
-  // 스케줄 메모 로드 — 운영자만, 캘린더 달 바뀔 때마다. 무드 계정은 호출 자체를 안 함(서버도 403).
+  // 스케줄 메모 로드 — 포털 사용자 전원(무드 포함), 캘린더 달 바뀔 때마다.
+  // data 로드 전(=allowlist 통과 확인 전)엔 호출하지 않음.
   const isAdmin = !!data?.isAdmin;
+  const canReadNotes = !!data;
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canReadNotes) return;
     let alive = true;
     (async () => {
       try {
@@ -326,7 +340,7 @@ export default function MoodPortal() {
       } catch { /* 메모는 보조 기능 — 로드 실패해도 포털 동작에 영향 없음 */ }
     })();
     return () => { alive = false; };
-  }, [isAdmin, calendarMonth]);
+  }, [canReadNotes, calendarMonth]);
 
   // 날짜 선택/메모 로드 시 입력칸 동기화 (저장 직후엔 같은 텍스트라 체감 무변화).
   useEffect(() => {
@@ -465,6 +479,7 @@ export default function MoodPortal() {
           destination: destination.trim() || undefined,
           waypoints: wp.length ? wp : undefined,
           airportDirection: serviceType === 'airport' ? airportDirection : undefined,
+          airportCode: serviceType === 'airport' ? airportCode : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -482,7 +497,7 @@ export default function MoodPortal() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, airportDirection, origin, destination, waypoints, loadData]);
+  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, loadData]);
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
@@ -586,6 +601,8 @@ export default function MoodPortal() {
   const copyBookingToForm = useCallback((b: MoodBooking) => {
     const bd = b.breakdown || {};
     setServiceType(b.serviceType);
+    setAirportCode(normalizeAirportCode(b.airportCode)); // 레거시(null) = 인천
+    if (b.airportDirection === 'pickup' || b.airportDirection === 'sending') setAirportDirection(b.airportDirection);
     setDate(b.date || todayISO());
     setStartTime(b.startTime || '10:00');
     setDurationHours(Math.max(MOOD_MIN_DURATION_HOURS, Number(b.durationHours) || MOOD_MIN_DURATION_HOURS));
@@ -674,6 +691,10 @@ export default function MoodPortal() {
   const today = todayISO();
   const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled');
   const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled');
+  // 취소 건은 예약 운영 보드에서 제외 (운영자 2026-07-28: "확정된 것만 올려놔").
+  //   환불이 끝나 배차도 청구도 남지 않은 기록이라 보드에서는 노이즈다. 문서는 지우지 않으므로
+  //   (mood-cancel 이 status='cancelled' + refundKRW 로 남김) 감사 추적은 Firestore 에 보존된다.
+  const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
   const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
   const completedBookings = bookings.filter((b) => b.status === 'completed');
   const calendarDays = daysInMonthGrid(calendarMonth);
@@ -700,7 +721,7 @@ export default function MoodPortal() {
         ? settleBookings
         : ledgerTab === 'calendar'
           ? selectedDateBookings
-          : bookings;
+          : activeBookings;
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
 
@@ -883,13 +904,13 @@ export default function MoodPortal() {
                       aria-label={`동시간대 ${overlapByDate[d.iso]}건`}
                     />
                   )}
-                  {isAdmin && !!scheduleNotes[d.iso] && (
-                    // 운영자 스케줄 메모 있는 날 — 앰버 점 (운영자에게만 보임)
+                  {!!scheduleNotes[d.iso] && (
+                    // 운영자 스케줄 있는 날 — 앰버 점. 무드에게도 보임(2026-07-27) → 이 날은 예약을 피하라는 신호.
                     <span
                       className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
                       style={{ background: '#fbbf24' }}
-                      title="내 스케줄 메모"
-                      aria-label="내 스케줄 메모"
+                      title={`운영자 스케줄: ${scheduleNotes[d.iso]}`}
+                      aria-label={`운영자 스케줄 있음: ${scheduleNotes[d.iso]}`}
                     />
                   )}
                 </button>
@@ -897,16 +918,16 @@ export default function MoodPortal() {
             })}
           </div>
 
-          {/* 운영자 스케줄 메모 — 서버(mood-notes)가 admins 만 허용. 무드 계정엔 렌더 자체 안 됨. */}
-          {isAdmin && (
+          {/* 운영자 스케줄 — 무드에게도 공개(2026-07-27). 쓰기는 운영자만(서버 mood-notes 가 POST 제한). */}
+          {isAdmin ? (
             <div className="mt-3 flex flex-col gap-1.5 rounded-xl p-3" style={{ background: C.inputBg, border: C.inputBorder }}>
               <span className="text-[11px] font-bold" style={{ color: C.accentSolid }}>
-                📝 {selectedCalendarDate} 내 스케줄 메모 <span style={{ color: C.textDim }}>(운영자 전용 — 무드에겐 안 보임)</span>
+                📝 {selectedCalendarDate} 내 스케줄 <span style={{ color: '#fcd34d' }}>(무드에게 그대로 보임 — 개인 일정 상세는 쓰지 마세요)</span>
               </span>
               <textarea
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="예: 오후 병원 / 저녁 미팅 — 이 날 예약 잡지 말 것"
+                placeholder="예: 오후 일정 있음 — 이 날 예약 잡지 말 것"
                 rows={2}
                 maxLength={2000}
                 className="w-full rounded-lg px-2.5 py-2 text-xs resize-y"
@@ -927,7 +948,15 @@ export default function MoodPortal() {
                 )}
               </div>
             </div>
-          )}
+          ) : scheduleNotes[selectedCalendarDate] ? (
+            // 무드 계정 — 읽기 전용. 메모가 있는 날에만 노출(없는 날 빈 박스는 소음).
+            <div className="mt-3 flex flex-col gap-1 rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.30)' }}>
+              <span className="text-[11px] font-bold" style={{ color: '#fcd34d' }}>
+                📝 {selectedCalendarDate} 운영자 스케줄 — 이 날은 배차가 어려울 수 있어요
+              </span>
+              <p className="text-xs whitespace-pre-wrap" style={{ color: C.text }}>{scheduleNotes[selectedCalendarDate]}</p>
+            </div>
+          ) : null}
         </div>
         {/* 예약 운영 보드는 아래 별도 status 블록으로 이동 — 수기 예약 폼을 탭으로 분리하기 위함 */}
         </>
@@ -957,12 +986,42 @@ export default function MoodPortal() {
                 >
                   {SERVICE_LABEL[st]}
                   <span className="block text-[11px] font-normal mt-0.5 opacity-80">
-                    {st === 'airport' ? `${formatKRW(MOOD_FIXED_PRICE_KRW.airport || 0)} 고정` : `${formatKRW(MOOD_RATES[st])}/시간`}
+                    {st === 'airport' ? `${formatKRW(MOOD_AIRPORT_PRICE_KRW[airportCode])} 고정` : `${formatKRW(MOOD_RATES[st])}/시간`}
                   </span>
                 </button>
               );
             })}
           </div>
+
+          {/* 어느 공항 — 정액이 다름(인천 110,000 / 김포 80,000). 공항 선택 시만 표시 */}
+          {serviceType === 'airport' && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs" style={{ color: C.textDim }}>공항</span>
+              <div className="grid grid-cols-2 gap-2">
+                {MOOD_AIRPORT_CODES.map((code) => {
+                  const active = airportCode === code;
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => setAirportCode(code)}
+                      className="py-2.5 rounded-xl text-xs font-semibold transition-all"
+                      style={{
+                        background: active ? C.accent : C.inputBg,
+                        color: active ? '#fff' : C.textDim,
+                        border: active ? '1px solid transparent' : C.inputBorder,
+                      }}
+                    >
+                      ✈️ {MOOD_AIRPORT_LABEL[code]}
+                      <span className="block text-[11px] font-normal mt-0.5 opacity-80">
+                        {formatKRW(MOOD_AIRPORT_PRICE_KRW[code])} 정액
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 공항 픽업/샌딩 방향 — 공항 선택 시만 표시 */}
           {serviceType === 'airport' && (
@@ -1157,7 +1216,7 @@ export default function MoodPortal() {
           <div className="rounded-xl px-3 py-3 flex flex-col gap-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
             <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
               <span>{serviceType === 'airport'
-                ? `${SERVICE_LABEL[serviceType]} ${airportDirection === 'pickup' ? '픽업' : '샌딩'} (정액)`
+                ? `${MOOD_AIRPORT_LABEL[airportCode]} ${airportDirection === 'pickup' ? '픽업' : '샌딩'} (정액)`
                 : `${SERVICE_LABEL[serviceType]} ${durationHours}시간 (${formatKRW(MOOD_RATES[serviceType])}/시간)`}</span>
               <span style={{ color: C.text }}>{formatKRW(breakdown.baseKRW)}</span>
             </div>
@@ -1219,7 +1278,7 @@ export default function MoodPortal() {
             <div>
               <h2 className="text-sm font-bold" style={{ color: C.text }}>예약 운영</h2>
               <p className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
-                완료 {completedBookings.length}건 · 총 {bookings.length}건
+                완료 {completedBookings.length}건 · 총 {activeBookings.length}건
               </p>
             </div>
             <button
@@ -1238,7 +1297,7 @@ export default function MoodPortal() {
               ['upcoming', '예정', upcomingBookings.length],
               ['settle', '정산', settleBookings.length],
               ['calendar', '날짜', selectedDateBookings.length],
-              ['all', '전체', bookings.length],
+              ['all', '전체', activeBookings.length],
             ] as const).map(([tab, label, count]) => {
               const active = ledgerTab === tab;
               return (
@@ -1262,7 +1321,7 @@ export default function MoodPortal() {
 
           {!data || visibleBookings.length === 0 ? (
             <p className="text-xs" style={{ color: C.textDim }}>
-              {bookings.length === 0 ? '예약 내역이 없습니다.' : '이 탭에 표시할 예약이 없습니다.'}
+              {activeBookings.length === 0 ? '예약 내역이 없습니다.' : '이 탭에 표시할 예약이 없습니다.'}
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -1273,6 +1332,10 @@ export default function MoodPortal() {
                 const expanded = expandedBookingId === b.id;
                 const canSettle = data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport';
                 const serviceTime = b.serviceType === 'airport' ? '정액' : `${b.durationHours}시간`;
+                // 공항은 어느 공항인지가 금액을 결정 → 목록에서 바로 보이게 (레거시 예약=인천).
+                const serviceName = b.serviceType === 'airport'
+                  ? MOOD_AIRPORT_LABEL[normalizeAirportCode(b.airportCode)]
+                  : (SERVICE_LABEL[b.serviceType] || b.serviceType);
                 return (
                   <li
                     key={b.id}
@@ -1289,7 +1352,7 @@ export default function MoodPortal() {
                           {b.date} · {b.startTime}
                         </span>
                         <span className="block text-[11px] truncate" style={{ color: b.status === 'cancelled' ? '#fca5a5' : C.textDim }}>
-                          {SERVICE_LABEL[b.serviceType] || b.serviceType} {serviceTime} · {b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정'}
+                          {serviceName} {serviceTime} · {b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정'}
                         </span>
                         {routeText && (
                           <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>

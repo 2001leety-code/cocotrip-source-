@@ -31,6 +31,8 @@
  * confirms the issue is real before escalating.
  */
 
+import { vercelBypassHeaders } from './internal-base-url.js';
+
 const RETRY_COLLECTION = 'pending_ai_planner_retries';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_BODY_LOG = 300;
@@ -65,7 +67,7 @@ export async function triggerAiPlanner({
   try {
     const r = await fetch(`${siteUrl}/api/ai-planner-full`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders() },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });

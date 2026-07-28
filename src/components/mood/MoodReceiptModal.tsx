@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
-import { formatKRW, MOOD_SURCHARGE_PER_KM, type MoodServiceType } from '@/lib/moodPricing';
+import { formatKRW, MOOD_SURCHARGE_PER_KM, MOOD_AIRPORT_LABEL, normalizeAirportCode, type MoodServiceType } from '@/lib/moodPricing';
 
 const C = {
   overlay: 'rgba(5,2,12,0.72)',
@@ -55,6 +55,8 @@ export interface MoodBookingLike {
   startTime?: string;
   durationHours?: number;
   serviceType?: MoodServiceType | string;
+  /** 공항 정액 근거 — 'ICN' 인천 110,000 / 'GMP' 김포 80,000. 레거시 예약은 없음(=인천). */
+  airportCode?: string | null;
   amountKRW?: number;
   ratePerHour?: number | null;
   breakdown?: MoodBreakdownLike | null;
@@ -133,7 +135,10 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   if (!booking) return null;
 
   const stops = stopsFrom(bd);
-  const serviceLabel = SERVICE_LABEL[String(booking.serviceType)] || String(booking.serviceType || '서비스');
+  // 공항은 어느 공항인지가 정액을 결정 → 영수증엔 "인천공항"/"김포공항" 으로 표기(레거시=인천).
+  const serviceLabel = booking.serviceType === 'airport'
+    ? MOOD_AIRPORT_LABEL[normalizeAirportCode(booking.airportCode)]
+    : (SERVICE_LABEL[String(booking.serviceType)] || String(booking.serviceType || '서비스'));
   const settled = booking.finalAmountKRW != null;
 
   const baseKRW = Number(bd.baseKRW || 0);

@@ -28,6 +28,7 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { internalApiBase } from './_shared/internal-base-url.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
@@ -133,7 +134,7 @@ export default async function handler(req, res) {
     }
 
     // 실제 replay — booking-processor 를 sequence 로 호출 (Telegram rate limit 회피).
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+    const siteUrl = internalApiBase();
     const results = [];
     for (const c of candidates) {
       const docRef = db.collection('bookings').doc(c.bookingId);

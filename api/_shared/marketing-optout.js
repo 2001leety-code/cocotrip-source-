@@ -33,6 +33,7 @@
  */
 
 import crypto from 'crypto';
+import { internalApiBase } from './internal-base-url.js';
 
 export const OPTOUT_COLLECTION = 'marketing_optout';
 
@@ -97,16 +98,16 @@ export function verifyUnsubscribeToken(email, token) {
  * @param {string} email
  * @param {object} [opts]
  * @param {string} [opts.siteUrl] - override base URL. Defaults to
- *   `https://${VERCEL_URL}` when set, else https://cocotripkr.com.
+ *   internalApiBase() (production → https://cocotripkr.com).
  * @returns {string}
  */
 export function buildUnsubscribeUrl(email, opts = {}) {
   const emailLower = normalizeEmail(email);
   const token = generateUnsubscribeToken(emailLower);
   if (!emailLower || !token) return '';
-  const siteUrl =
-    opts.siteUrl ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com');
+  // 고객이 클릭하는 링크 — 배포 생성 URL(VERCEL_URL)은 Vercel SSO 벽 뒤라 prod 에서는
+  // 반드시 공개 도메인이어야 한다 (internalApiBase 가 production 에서 cocotripkr.com 반환).
+  const siteUrl = opts.siteUrl || internalApiBase();
   const qs = `email=${encodeURIComponent(emailLower)}&token=${encodeURIComponent(token)}`;
   return `${siteUrl}/api/marketing-unsubscribe?${qs}`;
 }

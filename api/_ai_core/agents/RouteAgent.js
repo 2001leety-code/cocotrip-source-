@@ -14,6 +14,8 @@ import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
 // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
 // 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
 import { loadPricingSpec } from "../../_shared/pricing.js";
+// NCP Maps(maps.apigw.ntruss.com) 키 해석 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
+import { resolveNcpKeys } from "../../_shared/mood-route.js";
 
 // ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
@@ -742,8 +744,12 @@ export class RouteAgent extends BaseAgent {
             console.warn("  [Route] JSON parse failed, falling back to LLM:", e.message);
             return super.call(userPrompt);
         }
-        const clientId = (process.env.NAVER_CLIENT_ID || "").trim();
-        const clientSecret = (process.env.NAVER_CLIENT_SECRET || "").trim();
+        // 키 해석 = mood-route.resolveNcpKeys (SSOT). 여기서 process.env 를 직접 읽지 않는다.
+        //   🔴 2026-07-27 실측 장애: `NAVER_CLIENT_*` 만 읽고 있었다. prod 의 NAVER_CLIENT_* 는
+        //   Developers(openapi 검색) 키로 갱신돼 maps.apigw.ntruss.com 에 401 → 호텔 anchor
+        //   geocoding·stop geocoding·Driving 이 전부 실패하고 city_center fallback / flat 25분
+        //   으로 조용히 떨어져 있었다 (운영자 신고 "시청→노량진 우회" 의 원인).
+        const { clientId, clientSecret } = resolveNcpKeys();
         // Support both Gemini output formats
         const rawItinerary = data.itinerary || {};
         const hotelAddress = data.hotel_address || '';
@@ -1871,7 +1877,7 @@ export class RouteAgent extends BaseAgent {
                         !transit.durationMin &&
                         !geminiOriginal.est_min;
                     if (isBlindFallback) {
-                        console.warn(`  ⚠ [transit ${i}] no coords + no Gemini est_min → using flat 25min fallback. Check NAVER_CLIENT_ID / Gemini prompt.`);
+                        console.warn(`  ⚠ [transit ${i}] no coords + no Gemini est_min → using flat 25min fallback. Check NCP Maps 키(resolveNcpKeys) / Gemini prompt.`);
                     }
 
                     // 이전 장소 체류 후 이동 시간 + 버퍼
@@ -2538,8 +2544,8 @@ export class RouteAgent extends BaseAgent {
     async _routeAirportHotel(from, to, direction) {
         const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
         const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
-        const cid = (process.env.NAVER_CLIENT_ID || '').trim();
-        const csec = (process.env.NAVER_CLIENT_SECRET || '').trim();
+        // 키 해석 = mood-route.resolveNcpKeys (SSOT) — 2026-07-27 죽은 NAVER_CLIENT_* 직독 제거.
+        const { clientId: cid, clientSecret: csec } = resolveNcpKeys();
         const MAX_ATTEMPTS = 2; // 1 try + 1 retry
         let lastErr = null;
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {

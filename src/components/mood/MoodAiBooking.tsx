@@ -20,13 +20,18 @@ import {
   MOOD_RATES,
   MOOD_MIN_DURATION_HOURS,
   MOOD_MAX_DURATION_HOURS,
-  MOOD_FIXED_PRICE_KRW,
+  MOOD_AIRPORT_PRICE_KRW,
+  MOOD_AIRPORT_LABEL,
+  MOOD_AIRPORT_CODES,
+  MOOD_DEFAULT_AIRPORT_CODE,
   MOOD_SURCHARGE_PER_KM,
+  normalizeAirportCode,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
+  type MoodAirportCode,
 } from '@/lib/moodPricing';
-import { exceedsWaypointCap, shouldSendRoute } from './moodBookingLogic';
+import { exceedsWaypointCap, shouldSendRoute, deriveScheduleTiming } from './moodBookingLogic';
 
 // ── 디자인 토큰 (MoodPortal 과 동일 팔레트: dark navy + purple/pink) ──
 const C = {
@@ -56,6 +61,10 @@ interface ParsedStop {
   searchGuessed?: boolean;
   /** 이 stop 의 날짜 (YYYY-MM-DD | null) — 여러 날짜 일정을 날짜별 예약으로 분리 (2026-07-05). */
   date?: string | null;
+  /** 이 stop 의 시각 "HH:mm" (없으면 ''). 시작 시각·이용 시간 자동 채움용 (2026-07-27). */
+  timeHint?: string;
+  /** 공항 지점 여부 — 픽업/샌딩 방향 판정용 (2026-07-27). */
+  isAirport?: boolean;
 }
 
 /** 일정에서 추출된 항공편 (예약 메모 자동 첨부용). */
@@ -71,6 +80,10 @@ interface ParseResult {
   serviceGuess: MoodServiceType;
   hasDirector: boolean;
   hasAirport: boolean;
+  /** 어느 공항으로 보이는지 — 정액이 다름(ICN 110,000 / GMP 80,000). 공항 신호 없으면 null. */
+  airportCodeGuess?: MoodAirportCode | null;
+  /** 공항 픽업/샌딩 추정 — 공항 지점 없으면 null (2026-07-27). */
+  airportDirectionGuess?: 'pickup' | 'sending' | null;
   /** AI 응답이 잘려 부분 회수됨 — 뒤쪽 일정 누락 가능(운영자 원문 대조 필수). */
   truncated?: boolean;
   /** 추출된 항공편 (없으면 []). */
@@ -133,6 +146,14 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
   // 서비스 확정 (AI 추천을 기본값으로).
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
+  // 어느 공항인지 — 정액이 다름(인천 110,000 / 김포 80,000). AI 가 김포를 감지하면 기본 선택,
+  // 운영자가 최종 확정. 실제 청구는 서버가 이 코드로 재계산.
+  const [airportCode, setAirportCode] = useState<MoodAirportCode>(MOOD_DEFAULT_AIRPORT_CODE);
+  // 공항 픽업/샌딩 — 이전엔 AI 예약이 이 값을 아예 안 보내서 서버가 전부 'pickup' 으로
+  // 저장했다(출국 건이 픽업으로 기록되던 실버그). AI 추정을 기본값으로, 운영자가 확정.
+  const [airportDirection, setAirportDirection] = useState<'pickup' | 'sending'>('pickup');
+  // AI 가 시각을 읽어 시작시각·이용시간을 자동으로 채웠는지 — 💰 확인 배지 노출용.
+  const [autoFilled, setAutoFilled] = useState<{ startTime: boolean; duration: boolean }>({ startTime: false, duration: false });
 
   // 날짜/시각/시간
   const [date, setDate] = useState(todayISO());
@@ -151,8 +172,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 예상 금액 — 프론트 미러(표시 전용, 청구는 서버 SSOT). 실도로 경로 조회 성공 시 km·톨 반영(A-3).
   // 공항은 정액 + 경유 우회거리 요금(airportDetourKm).
   const estimate = useMemo(
-    () => computeMoodTotalKRW({ serviceType, durationHours, km: routeKm, tollKRW: routeToll, airportDetourKm }),
-    [serviceType, durationHours, routeKm, routeToll, airportDetourKm],
+    () => computeMoodTotalKRW({ serviceType, durationHours, km: routeKm, tollKRW: routeToll, airportDetourKm, airportCode }),
+    [serviceType, durationHours, routeKm, routeToll, airportDetourKm, airportCode],
   );
 
   // 활성 날짜 그룹의 stops — 날짜 미상(date 없음) stop 은 어느 그룹에나 포함(안전측: 누락 방지).
@@ -277,9 +298,69 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
   const handlePickPlace = useCallback((order: number, hit: { name: string; address: string; lat: number; lng: number }) => {
     setStops((prev) => prev.map((st) => (st.order === order
-      ? { ...st, address: hit.address || hit.name, lat: hit.lat, lng: hit.lng, geocodeOk: true, searchGuessed: false }
+      // 라벨도 고른 장소 이름으로 갱신 — 성공 stop 을 다른 지점으로 바꿀 때 옛 이름이 남으면
+      // 화면엔 '신라호텔'인데 좌표는 다른 곳인 상태가 되어 운영자가 오인한다.
+      ? { ...st, label: hit.name || st.label, address: hit.address || hit.name, lat: hit.lat, lng: hit.lng, geocodeOk: true, searchGuessed: false }
       : st)));
     setSearchHits(null);
+  }, []);
+
+  // ── 동선 직접 편집 (2026-07-27) ────────────────────────────────
+  // AI 가 뽑은 결과를 화면에서 고칠 수 없어서, 한 곳만 틀려도 수기 예약으로 다시 하던 문제.
+  // 💰 삭제·추가·순서변경은 출발/경유/도착 구성을 바꿔 거리요금이 달라진다 —
+  //    실제 청구는 서버가 이 목록으로 다시 측정하므로(P311) 화면 조작만으로 과소청구는 안 된다.
+  const removeStop = useCallback((order: number) => {
+    setStops((prev) => {
+      const next = prev.filter((s) => s.order !== order);
+      setRoute(buildMapRoute(next));
+      return next;
+    });
+    setSearchHits(null);
+  }, [buildMapRoute]);
+
+  /** delta=-1 위로 / +1 아래로. 화면에 보이는 순서(배열 순서)를 바꾸고 order 를 다시 매긴다. */
+  const moveStop = useCallback((order: number, delta: number) => {
+    setStops((prev) => {
+      const i = prev.findIndex((s) => s.order === order);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = prev.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      const renumbered = next.map((s, idx) => ({ ...s, order: idx + 1 }));
+      setRoute(buildMapRoute(renumbered));
+      return renumbered;
+    });
+  }, [buildMapRoute]);
+
+  /** 빈 장소 추가 — 좌표 없음(geocodeOk=false)이라 검색으로 채우기 전엔 예약이 차단된다. */
+  const addStop = useCallback(() => {
+    setStops((prev) => [
+      ...prev,
+      {
+        order: prev.length + 1,
+        label: '새 장소',
+        address: '',
+        lat: null,
+        lng: null,
+        action: 'via' as const,
+        matchedFromPlacebook: false,
+        geocodeOk: false,
+        // 활성 날짜 그룹에 속하도록 — 날짜 분리 UI 에서 새 장소가 사라지지 않게.
+        date: activeDate,
+      },
+    ]);
+  }, [activeDate]);
+
+  // 동선의 시각들 → 시작 시각·이용 시간 폼 자동 채움 (2026-07-27).
+  // 시각이 없거나 해석 불가면 해당 칸은 손대지 않는다(기존 기본값 유지 = 억지 추측 금지).
+  const applyTiming = useCallback((list: ParsedStop[]) => {
+    const { startTime: st, durationHours: dh } = deriveScheduleTiming(
+      list.map((s) => s.timeHint || ''),
+      { minHours: MOOD_MIN_DURATION_HOURS, maxHours: MOOD_MAX_DURATION_HOURS },
+    );
+    if (st) setStartTime(st);
+    if (dh !== null) setDurationHours(dh);
+    setAutoFilled({ startTime: !!st, duration: dh !== null });
   }, []);
 
   // ── ① 일정 분석 ──────────────────────────────────────────
@@ -312,20 +393,32 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         json.serviceGuess === 'vehicle' || json.serviceGuess === 'airport' ? json.serviceGuess : 'manager';
       const parsedDates: string[] = Array.isArray(json.dates) ? json.dates : [];
       const parsedFlights: ParsedFlight[] = Array.isArray(json.flights) ? json.flights : [];
+      // 공항 신호가 없으면 null → 기본 인천. 있으면 서버 판정(김포/인천)을 기본 선택으로.
+      const airportGuess: MoodAirportCode | null = json.airportCodeGuess === 'GMP' || json.airportCodeGuess === 'ICN'
+        ? json.airportCodeGuess
+        : null;
+      const dirGuess: 'pickup' | 'sending' | null =
+        json.airportDirectionGuess === 'sending' || json.airportDirectionGuess === 'pickup'
+          ? json.airportDirectionGuess
+          : null;
       setResult({
         stops: parsedStops, serviceGuess: guess, hasDirector: !!json.hasDirector,
-        hasAirport: !!json.hasAirport, truncated: !!json.truncated,
-        flights: parsedFlights, dates: parsedDates,
+        hasAirport: !!json.hasAirport, airportCodeGuess: airportGuess, airportDirectionGuess: dirGuess,
+        truncated: !!json.truncated, flights: parsedFlights, dates: parsedDates,
       });
       setStops(parsedStops);
       setServiceType(guess); // AI 추천을 기본 선택으로 (운영자가 확정).
+      setAirportCode(normalizeAirportCode(airportGuess)); // 김포 감지 시 8만원으로 자동 전환
+      setAirportDirection(dirGuess || 'pickup'); // 공항 방향 추정 (없으면 기존 기본값)
       // 날짜별 예약 분리(PR3): 날짜 2개 이상 → 첫 날짜 그룹 활성 + 날짜 입력 prefill.
       const firstGroup = parsedDates.length >= 2 ? parsedDates[0] : null;
       setActiveDate(firstGroup);
       if (parsedDates.length >= 1) setDate(parsedDates[0]);
       const initialVisible = firstGroup ? parsedStops.filter((s) => s.date === firstGroup || !s.date) : parsedStops;
       setRoute(buildMapRoute(initialVisible));
-      // 첫 stop 시각 힌트로 시작시각 prefill 은 하지 않음(파서는 timeHint 를 stop 응답에 내리지 않음).
+      // 시작 시각·이용 시간 자동 채움 (2026-07-27) — AI 가 읽은 시각을 그대로 폼에 반영.
+      // 💰 이용 시간은 돈에 직결이라 화면에 "AI가 채움 — 확인" 배지를 함께 띄운다.
+      applyTiming(initialVisible);
     } catch (e) {
       setResult(null);
       setStops([]);
@@ -335,7 +428,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } finally {
       setParsing(false);
     }
-  }, [text, buildMapRoute]);
+  }, [text, buildMapRoute, applyTiming]);
 
   // ── ② geocode 실패 stop 주소 직접입력 반영 ──────────────
   const setStopAddress = useCallback((order: number, address: string) => {
@@ -403,6 +496,12 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         startTime,
         durationHours: isFixedPrice ? 0 : durationHours,
       };
+      // 공항 정액 근거 — 서버가 이 코드로 금액 재계산(ICN 110,000 / GMP 80,000).
+      // airportDirection 은 이전까지 아예 안 보내서 서버가 전부 'pickup' 저장했다(실버그 fix).
+      if (serviceType === 'airport') {
+        body.airportCode = airportCode;
+        body.airportDirection = airportDirection;
+      }
       // 항공편 메모 자동 첨부 (PR3) — 있으면 예약 doc 에 표시용으로 저장.
       if (flightNote) body.note = flightNote;
       // origin·destination 은 함께 있어야 서버가 거리 재계산 (한쪽만 = 400).
@@ -435,7 +534,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } finally {
       setBooking(false);
     }
-  }, [canBook, visibleStops, flightNote, clientId, serviceType, date, startTime, durationHours, isFixedPrice, onBooked]);
+  }, [canBook, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, onBooked]);
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
@@ -487,7 +586,12 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                     <button
                       key={d}
                       type="button"
-                      onClick={() => { setActiveDate(d); setDate(d); }}
+                      onClick={() => {
+                        setActiveDate(d);
+                        setDate(d);
+                        // 날짜 그룹마다 시각이 다르므로 시작시각·이용시간도 그 그룹 기준으로 다시 채움.
+                        applyTiming(stops.filter((s) => s.date === d || !s.date));
+                      }}
                       className="rounded-full px-3 py-1.5 text-[11px] font-bold transition-all"
                       style={active
                         ? { background: C.accent, color: '#fff', border: '1px solid transparent' }
@@ -511,8 +615,9 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
           {/* stops 리스트 (활성 날짜 그룹만) */}
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold" style={{ color: C.textDim }}>
-              동선 {visibleStops.length}개{activeDate ? ` (${activeDate.slice(5).replace('-', '/')})` : ''} {hasBlockingStop && <span style={{ color: C.danger }}>· 🔴 주소 확인 필요</span>}
-              {tooManyWaypoints && <span style={{ color: C.danger }}>· 🔴 경유지 5개 초과 — 일정을 나눠 예약하세요(거리요금 계산 한도)</span>}
+              동선 {visibleStops.length}개{activeDate ? ` (${activeDate.slice(5).replace('-', '/')})` : ''} <span className="font-normal opacity-80">— 틀린 곳은 🔍로 바꾸거나 ✕로 빼세요</span>
+              {hasBlockingStop && <span style={{ color: C.danger }}> · 🔴 주소 확인 필요</span>}
+              {tooManyWaypoints && <span style={{ color: C.danger }}> · 🔴 지점이 너무 많습니다(경유지 5개 한도) — 안 가는 곳을 ✕로 빼거나 일정을 나눠 예약하세요</span>}
             </p>
             {result.truncated && (
               <p className="text-[11px] rounded-lg px-3 py-2" style={{ color: C.danger, background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)' }}>
@@ -549,6 +654,14 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         >
                           {badge.text}
                         </span>
+                        {s.timeHint && (
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0"
+                            style={{ background: 'rgba(148,163,184,0.18)', color: '#cbd5e1' }}
+                          >
+                            🕘 {s.timeHint}
+                          </span>
+                        )}
                         {s.matchedFromPlacebook && (
                           <span
                             className="rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0"
@@ -569,7 +682,84 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         </p>
                       )}
                     </div>
+
+                    {/* 편집 버튼 — 성공한 지점도 바꿀 수 있어야 한다(엉뚱한 '신라호텔'을 못 고쳐
+                        수기 예약으로 도망가던 문제, 2026-07-27). 위/아래=순서, ✕=빼기. */}
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => moveStop(s.order, -1)}
+                        disabled={i === 0}
+                        aria-label={`${s.label} 위로`}
+                        title="위로"
+                        className="h-6 w-6 rounded-md text-[11px] disabled:opacity-25"
+                        style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveStop(s.order, 1)}
+                        disabled={i === visibleStops.length - 1}
+                        aria-label={`${s.label} 아래로`}
+                        title="아래로"
+                        className="h-6 w-6 rounded-md text-[11px] disabled:opacity-25"
+                        style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeStop(s.order)}
+                        aria-label={`${s.label} 빼기`}
+                        title="이 지점 빼기"
+                        className="h-6 w-6 rounded-md text-[11px]"
+                        style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
+
+                  {/* 좌표 성공 지점 — 지점이 틀렸을 때 다시 검색해 바꾸는 경로(예약은 안 막음). */}
+                  {s.geocodeOk && (
+                    <div className="flex flex-col gap-1.5 pl-7">
+                      <div className="flex gap-1.5">
+                        <input
+                          value={s.address}
+                          onChange={(e) => setStopAddress(s.order, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') void handlePlaceSearch(s.order, s.address || s.label); }}
+                          placeholder="다른 지점으로 바꾸려면 이름/주소 입력 후 🔍"
+                          className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                          style={inputStyle}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { void handlePlaceSearch(s.order, s.address || s.label); }}
+                          disabled={searchBusy === s.order}
+                          className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shrink-0 disabled:opacity-50"
+                          style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+                        >
+                          {searchBusy === s.order ? '검색 중…' : '🔍 지점 바꾸기'}
+                        </button>
+                      </div>
+                      {searchHits?.order === s.order && (
+                        <div className="flex flex-col gap-1 rounded-lg p-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
+                          {searchHits.items.map((hit, hi) => (
+                            <button
+                              key={hi}
+                              type="button"
+                              onClick={() => handlePickPlace(s.order, hit)}
+                              className="rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-white/[0.06]"
+                            >
+                              <span className="font-bold" style={{ color: C.text }}>{hit.name}</span>
+                              <span className="ml-1.5" style={{ color: C.textDim }}>{hit.address}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* geocode 실패 → 경고 + 주소 직접입력 (수정 전 예약 차단) */}
                   {!s.geocodeOk && (
@@ -626,6 +816,16 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                 </div>
               );
             })}
+
+            {/* 빠진 곳 직접 추가 — AI 가 놓친 지점을 넣으려고 수기로 넘어가지 않게. */}
+            <button
+              type="button"
+              onClick={addStop}
+              className="self-start rounded-xl px-3 py-2 text-xs"
+              style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+            >
+              + 빠진 장소 추가
+            </button>
           </div>
 
           {/* ③ 지도 (좌표 성공 stops 로 경로 미니맵 — 키 없으면 링크 폴백) */}
@@ -649,7 +849,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
             </span>
             {result.hasAirport && (
               <p className="text-[11px]" style={{ color: '#fcd34d' }}>
-                ✈️ 공항 이동이 감지되었습니다 — 공항 서비스가 맞는지 확인하세요.
+                ✈️ 공항 이동이 감지되었습니다{result.airportCodeGuess ? ` (${MOOD_AIRPORT_LABEL[result.airportCodeGuess]})` : ''} — 공항 서비스와 공항이 맞는지 확인하세요.
               </p>
             )}
             <div className="grid grid-cols-3 gap-2">
@@ -670,13 +870,71 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                     {SERVICE_ICON[st]} {SERVICE_LABEL[st]}
                     <span className="block text-[10px] font-normal mt-0.5 opacity-80">
                       {st === 'airport'
-                        ? `${formatKRW(MOOD_FIXED_PRICE_KRW.airport || 0)} 고정`
+                        ? `${formatKRW(MOOD_AIRPORT_PRICE_KRW[airportCode])} 고정`
                         : `${formatKRW(MOOD_RATES[st])}/시간`}
                     </span>
                   </button>
                 );
               })}
             </div>
+
+            {/* 어느 공항 — 정액이 다름(인천 110,000 / 김포 80,000). 금액이 바뀌므로 반드시 확정. */}
+            {isFixedPrice && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                <span className="text-xs font-semibold" style={{ color: C.textDim }}>공항 확정 <span className="font-normal">— 공항마다 정액이 다릅니다</span></span>
+                <div className="grid grid-cols-2 gap-2">
+                  {MOOD_AIRPORT_CODES.map((code) => {
+                    const active = airportCode === code;
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setAirportCode(code)}
+                        className="py-2.5 rounded-xl text-xs font-semibold transition-all"
+                        style={{
+                          background: active ? C.accent : C.inputBg,
+                          color: active ? '#fff' : C.textDim,
+                          border: active ? '1px solid transparent' : C.inputBorder,
+                        }}
+                      >
+                        ✈️ {MOOD_AIRPORT_LABEL[code]}
+                        <span className="block text-[10px] font-normal mt-0.5 opacity-80">
+                          {formatKRW(MOOD_AIRPORT_PRICE_KRW[code])} 정액
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 픽업/샌딩 — 이전엔 AI 예약에 이 선택지가 없어 전부 '픽업'으로 저장됐다. */}
+                <span className="text-xs font-semibold mt-1" style={{ color: C.textDim }}>
+                  공항 방향
+                  {result.airportDirectionGuess && (
+                    <span className="font-normal opacity-80"> — AI 추정: {result.airportDirectionGuess === 'sending' ? '샌딩' : '픽업'}</span>
+                  )}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {([['pickup', '픽업 (공항 → 목적지)'], ['sending', '샌딩 (출발지 → 공항)']] as const).map(([dir, label]) => {
+                    const active = airportDirection === dir;
+                    return (
+                      <button
+                        key={dir}
+                        type="button"
+                        onClick={() => setAirportDirection(dir)}
+                        className="py-2.5 rounded-xl text-xs font-semibold transition-all"
+                        style={{
+                          background: active ? C.accent : C.inputBg,
+                          color: active ? '#fff' : C.textDim,
+                          border: active ? '1px solid transparent' : C.inputBorder,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ⑤ 날짜 / 시작시각 / 이용시간 */}
@@ -692,11 +950,13 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               />
             </label>
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs" style={{ color: C.textDim }}>시작 시각</span>
+              <span className="text-xs" style={{ color: C.textDim }}>
+                시작 시각{autoFilled.startTime && <span style={{ color: '#fcd34d' }}> · AI가 채움</span>}
+              </span>
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={(e) => { setStartTime(e.target.value); setAutoFilled((p) => ({ ...p, startTime: false })); }}
                 className="rounded-xl px-3 py-2.5 text-sm"
                 style={{ ...inputStyle, colorScheme: 'dark' }}
               />
@@ -709,10 +969,16 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               <span className="text-xs" style={{ color: C.textDim }}>
                 이용 시간 <span className="opacity-70">· 최소 {MOOD_MIN_DURATION_HOURS}시간</span>
               </span>
+              {autoFilled.duration && (
+                // 💰 시급×시간이라 여기가 틀리면 바로 청구 오차 — 자동값은 반드시 눈으로 확인시킨다.
+                <span className="text-[11px] rounded-lg px-2.5 py-1.5" style={{ color: '#fcd34d', background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }}>
+                  💰 AI가 일정 시각으로 채운 값입니다 — 요금이 시간 × 단가라 <b>실제 운행 시간이 맞는지 확인</b>하세요.
+                </span>
+              )}
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setDurationHours((h) => Math.max(MOOD_MIN_DURATION_HOURS, h - 1))}
+                  onClick={() => { setDurationHours((h) => Math.max(MOOD_MIN_DURATION_HOURS, h - 1)); setAutoFilled((p) => ({ ...p, duration: false })); }}
                   className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
                   style={inputStyle}
                   aria-label="시간 감소"
@@ -728,6 +994,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                     const v = Math.round(Number(e.target.value));
                     if (Number.isFinite(v)) {
                       setDurationHours(Math.min(MOOD_MAX_DURATION_HOURS, Math.max(MOOD_MIN_DURATION_HOURS, v)));
+                      setAutoFilled((p) => ({ ...p, duration: false }));
                     }
                   }}
                   className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm"
@@ -736,7 +1003,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                 <span className="text-sm shrink-0" style={{ color: C.textDim }}>시간</span>
                 <button
                   type="button"
-                  onClick={() => setDurationHours((h) => Math.min(MOOD_MAX_DURATION_HOURS, h + 1))}
+                  onClick={() => { setDurationHours((h) => Math.min(MOOD_MAX_DURATION_HOURS, h + 1)); setAutoFilled((p) => ({ ...p, duration: false })); }}
                   className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
                   style={inputStyle}
                   aria-label="시간 증가"
@@ -752,7 +1019,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
             <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
               <span>
                 {isFixedPrice
-                  ? `${SERVICE_LABEL[serviceType]} (정액)`
+                  ? `${MOOD_AIRPORT_LABEL[airportCode]} (정액)`
                   : `${SERVICE_LABEL[serviceType]} ${durationHours}시간 (${formatKRW(MOOD_RATES[serviceType])}/시간)`}
               </span>
               <span style={{ color: C.text }}>{formatKRW(estimate.baseKRW)}</span>

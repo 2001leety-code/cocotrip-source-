@@ -111,6 +111,10 @@ export default async function handler(req, res) {
         startTime: b.startTime,
         durationHours: b.durationHours,
         serviceType: b.serviceType,
+        // 공항 예약 메타 — 정액 단가 근거(ICN 110,000 / GMP 80,000)와 픽업/샌딩 방향.
+        // 레거시 예약엔 없음 → null (프론트가 기본 인천으로 표시).
+        airportCode: b.airportCode === 'ICN' || b.airportCode === 'GMP' ? b.airportCode : null,
+        airportDirection: b.airportDirection === 'pickup' || b.airportDirection === 'sending' ? b.airportDirection : null,
         amountKRW: amount,
         ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
