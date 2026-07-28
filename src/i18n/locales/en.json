@@ -2303,11 +2303,12 @@
     "modifySaving": "Saving...",
     "modifyNetworkError": "Network error",
     "bookingPickupTimeLabel": "Pickup time",
-    "bookingCutoffNote": "Booking closes 12h before departure",
+    "bookingCutoffNote": "Booking closes {N}h before departure",
     "bookingCutoffImminent": "Booking closing soon ({N}h left)",
     "bookingClosedTitle": "Booking Closed",
-    "bookingClosedMessage": "Booking is closed. For urgent bookings, please contact us via chat.",
-    "bookingChatCta": "Open Chat"
+    "bookingClosedMessage": "Bookings close {N}h before departure, so this time is no longer available. Please pick another time or contact us via chat.",
+    "bookingChatCta": "Open Chat",
+    "dispatchFailAutoCancelNote": "If we cannot secure a vehicle, your booking is cancelled automatically and refunded in full."
   },
   "tourDetail": {
     "includedTitle": "Included",

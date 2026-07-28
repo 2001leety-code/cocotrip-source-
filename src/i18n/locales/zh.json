@@ -2303,11 +2303,12 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "网络错误",
     "bookingPickupTimeLabel": "接送时间",
-    "bookingCutoffNote": "预订截止：出发前12小时",
+    "bookingCutoffNote": "预订截止：出发前{N}小时",
     "bookingCutoffImminent": "预订即将截止（剩余{N}小时）",
     "bookingClosedTitle": "预订已截止",
-    "bookingClosedMessage": "预订已截止。如需紧急预订，请使用聊天咨询。",
-    "bookingChatCta": "开始聊天"
+    "bookingClosedMessage": "预订于出发前{N}小时截止，该时间已无法预订。请选择其他时间或使用聊天咨询。",
+    "bookingChatCta": "开始聊天",
+    "dispatchFailAutoCancelNote": "如无法安排车辆，订单将自动取消并全额退款。"
   },
   "tourDetail": {
     "includedTitle": "包含",

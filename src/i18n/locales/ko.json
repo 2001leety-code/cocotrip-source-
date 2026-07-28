@@ -2303,11 +2303,12 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류",
     "bookingPickupTimeLabel": "픽업 시각",
-    "bookingCutoffNote": "예약 마감: 출발 12시간 전",
+    "bookingCutoffNote": "예약 마감: 출발 {N}시간 전",
     "bookingCutoffImminent": "예약 마감 임박 ({N}시간 남음)",
     "bookingClosedTitle": "예약 마감",
-    "bookingClosedMessage": "예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.",
-    "bookingChatCta": "챗 상담하기"
+    "bookingClosedMessage": "출발 {N}시간 전에 마감돼 이 시각은 예약할 수 없습니다. 다른 시각을 골라주시거나 챗 상담을 이용해주세요.",
+    "bookingChatCta": "챗 상담하기",
+    "dispatchFailAutoCancelNote": "차량 배차를 못 구할 경우 예약은 자동 취소되며 전액 환불됩니다."
   },
   "tourDetail": {
     "includedTitle": "포함",

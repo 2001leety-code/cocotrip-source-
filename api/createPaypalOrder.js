@@ -193,7 +193,7 @@ export default async function handler(req, res) {
     const isAiPlanner = isAiPlannerProduct(productType);
 
     // PR-R (2026-05-08): 예약 마감 정책 검증 — 값의 SSOT = _shared/booking-cutoff.js
-    // (2026-05-07 운영자 통일: 전 상품 출발 12시간 전 마감. 옛 24h/48h 주석은 stale 이었음 — 2026-07-19 정정)
+    // (2026-07-28 운영자: 상품군 분리 — 전세차량 1h / 투어 8h. 옛 "전 상품 12h 통일"은 폐기)
     // - AI 플래너 = 디지털 상품 — 마감 검증 X (즉시 생성, 출발 일정 무관)
     // - charter_custom_estimate: dateStart + pickupTime 있으면 검증 (없으면 skip — 협의 폼)
     if (!isAiPlanner && dateStart) {
