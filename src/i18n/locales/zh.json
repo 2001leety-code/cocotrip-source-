@@ -1904,7 +1904,17 @@
       "kpop_shuttle_oneway": "K-pop班车 (单程)",
       "kpop_shuttle_roundtrip": "K-pop班车 (往返)",
       "ai_planner_full": "AI 行程 ($9.90)"
-    }
+    },
+    "myPlansSearch": "按标题或地区搜索",
+    "myPlansLoadMore": "加载更多",
+    "myPlansStatusReady": "已完成",
+    "myPlansStatusGenerating": "生成中",
+    "myPlansEmptyTitle": "还没有行程",
+    "myPlansEmptyBody": "创建您的第一个 AI 韩国行程",
+    "myPlansStartCta": "开始规划",
+    "myPlansPaxUnit": "人",
+    "myPlansNoMatch": "没有匹配的行程",
+    "myPlansShowing": "显示 {n} 个"
   },
   "admin": {
     "backToHome": "返回管理后台",
@@ -2311,7 +2321,8 @@
     "bookingClosedTitle": "预订已截止",
     "bookingClosedMessage": "预订于出发前{N}小时截止，该时间已无法预订。请选择其他时间或使用聊天咨询。",
     "bookingChatCta": "开始聊天",
-    "dispatchFailAutoCancelNote": "如无法安排车辆，订单将自动取消并全额退款。"
+    "dispatchFailAutoCancelNote": "如无法安排车辆，订单将自动取消并全额退款。",
+    "mbPastTour": "已过行程"
   },
   "tourDetail": {
     "includedTitle": "包含",

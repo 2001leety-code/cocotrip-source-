@@ -16,6 +16,8 @@ interface Booking {
   status: 'CONFIRMED' | 'CANCELED' | 'MODIFIED' | 'COMPLETED' | string;
   productType: string;
   tourDate: string;
+  /** AI 플래너 예약에서 해당 플랜 상세로 바로 가기 위한 값 (없으면 목록으로 폴백). */
+  planId?: string | null;
   pickupLocation: string;
   dropoffLocation: string;
   paxCount: number;
@@ -203,7 +205,17 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               {airportSummary(b.airport) && (
                 <p className="text-[#B668FC]/80 text-[11px] mt-0.5">{airportSummary(b.airport)}</p>
               )}
-              {b.hoursUntilTour != null && b.status === 'CONFIRMED' && (
+              {/* 🔴 2026-07-28: 남은 시간 문구 조건 정정.
+                  이전에는 CONFIRMED 이기만 하면 찍어서 (1) 지난 예약이 "0.0시간 후" 로 보이고
+                  (2) 날짜가 없는 디지털 상품(AI 플래너)도 카운트다운이 붙었다.
+                  → 미래 일정에만 카운트다운, 지난 일정은 "지난 일정" 라벨. */}
+              {b.status === 'CONFIRMED' && b.tourDate && b.hoursUntilTour != null && b.hoursUntilTour <= 0 && (
+                <p className="text-white/40 text-[11px] mt-1.5 flex items-center gap-1">
+                  <Clock size={10} />
+                  {i18n.mbPastTour || '지난 일정'}
+                </p>
+              )}
+              {b.status === 'CONFIRMED' && b.tourDate && b.hoursUntilTour != null && b.hoursUntilTour > 0 && (
                 <p className="text-white/55 text-[11px] mt-1.5 flex items-center gap-1">
                   <Clock size={10} />
                   {b.hoursUntilTour >= 24 ? i18n.mbDaysAway(Math.round(b.hoursUntilTour / 24)) : i18n.mbHoursAway(b.hoursUntilTour)}
@@ -248,7 +260,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                   사용자 신고: "어떤 예약 했는지 들어가볼 수도 없음". */}
               {(b.productType || '').toString().startsWith('ai-planner') && (
                 <Link
-                  to="/my-plans"
+                  to={b.planId ? `/my-plans/${b.planId}` : '/my-plans'}
                   onClick={(e) => e.stopPropagation()}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#7C5CFC]/40 text-[#B668FC] text-[11px] hover:bg-[#7C5CFC]/10"
                 >

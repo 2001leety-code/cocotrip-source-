@@ -1904,7 +1904,17 @@
       "kpop_shuttle_oneway": "K-pop 셔틀 (편도)",
       "kpop_shuttle_roundtrip": "K-pop 셔틀 (왕복)",
       "ai_planner_full": "AI 플래너 ($9.90)"
-    }
+    },
+    "myPlansSearch": "제목·지역으로 검색",
+    "myPlansLoadMore": "더 보기",
+    "myPlansStatusReady": "완료",
+    "myPlansStatusGenerating": "생성 중",
+    "myPlansEmptyTitle": "아직 플랜이 없어요",
+    "myPlansEmptyBody": "첫 AI 한국 여행 일정을 만들어 보세요",
+    "myPlansStartCta": "플랜 만들기",
+    "myPlansPaxUnit": "명",
+    "myPlansNoMatch": "검색 결과가 없어요",
+    "myPlansShowing": "{n}개 표시 중"
   },
   "admin": {
     "backToHome": "어드민 홈으로",
@@ -2311,7 +2321,8 @@
     "bookingClosedTitle": "예약 마감",
     "bookingClosedMessage": "출발 {N}시간 전에 마감돼 이 시각은 예약할 수 없습니다. 다른 시각을 골라주시거나 챗 상담을 이용해주세요.",
     "bookingChatCta": "챗 상담하기",
-    "dispatchFailAutoCancelNote": "차량 배차를 못 구할 경우 예약은 자동 취소되며 전액 환불됩니다."
+    "dispatchFailAutoCancelNote": "차량 배차를 못 구할 경우 예약은 자동 취소되며 전액 환불됩니다.",
+    "mbPastTour": "지난 일정"
   },
   "tourDetail": {
     "includedTitle": "포함",

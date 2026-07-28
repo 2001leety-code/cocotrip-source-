@@ -1904,7 +1904,17 @@
       "kpop_shuttle_oneway": "K-pop Shuttle (One-way)",
       "kpop_shuttle_roundtrip": "K-pop Shuttle (Round-trip)",
       "ai_planner_full": "AI Planner ($9.90)"
-    }
+    },
+    "myPlansSearch": "Search by title or area",
+    "myPlansLoadMore": "Load more",
+    "myPlansStatusReady": "Ready",
+    "myPlansStatusGenerating": "Generating",
+    "myPlansEmptyTitle": "No plans yet",
+    "myPlansEmptyBody": "Create your first AI-powered Korea itinerary",
+    "myPlansStartCta": "Start planning",
+    "myPlansPaxUnit": "pax",
+    "myPlansNoMatch": "No matching plans",
+    "myPlansShowing": "Showing {n}"
   },
   "admin": {
     "backToHome": "Back to Admin Home",
@@ -2311,7 +2321,8 @@
     "bookingClosedTitle": "Booking Closed",
     "bookingClosedMessage": "Bookings close {N}h before departure, so this time is no longer available. Please pick another time or contact us via chat.",
     "bookingChatCta": "Open Chat",
-    "dispatchFailAutoCancelNote": "If we cannot secure a vehicle, your booking is cancelled automatically and refunded in full."
+    "dispatchFailAutoCancelNote": "If we cannot secure a vehicle, your booking is cancelled automatically and refunded in full.",
+    "mbPastTour": "Past trip"
   },
   "tourDetail": {
     "includedTitle": "Included",

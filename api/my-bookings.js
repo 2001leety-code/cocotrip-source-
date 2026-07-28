@@ -72,6 +72,28 @@ export default async function handler(req, res) {
     const _seenIds = new Set(snapByEmail.docs.map(d => d.id));
     const snap = { docs: [...snapByEmail.docs, ...snapByPayer.docs.filter(d => !_seenIds.has(d.id))] };
 
+    // 🔴 2026-07-28: AI 플래너 예약의 "플랜 보기"가 목록(/my-plans)으로만 갔다.
+    //   해당 플랜으로 바로 가려면 planId 가 필요한데, 그 값은 발급 시점에
+    //   plan_issued_orders/{payPalOrderId} 에 기록된다(bookings doc id == orderId).
+    //   AI 플래너 행에 대해서만 조회한다(추가 읽기 최소화).
+    const planIdByBookingId = new Map();
+    try {
+      const aiDocIds = snap.docs
+        .filter(d => String((d.data() || {}).productType || '').startsWith('ai-planner'))
+        .map(d => d.id);
+      if (aiDocIds.length) {
+        const refs = aiDocIds.map(id => db.collection('plan_issued_orders').doc(id));
+        const issued = await db.getAll(...refs);
+        issued.forEach((snapDoc, i) => {
+          const pid = snapDoc.exists ? (snapDoc.data() || {}).planId : null;
+          if (pid) planIdByBookingId.set(aiDocIds[i], pid);
+        });
+      }
+    } catch (e) {
+      // 조회 실패해도 예약 목록은 떠야 한다 — 링크만 목록으로 폴백된다.
+      console.warn('[my-bookings] planId lookup failed (non-fatal):', e && e.message);
+    }
+
     const now = new Date();
     const bookings = snap.docs.map(doc => {
       const data = doc.data();
@@ -114,6 +136,8 @@ export default async function handler(req, res) {
         airport: data.airport || null,
         // 2026-05-03 P1 fix: AI 플래너 booking은 tourDate 없음 — UI에서 분기 표시용
         provider: data.provider || 'paypal',
+        // AI 플래너 예약에서 해당 플랜 상세로 바로 가기 위한 값 (없으면 목록으로 폴백).
+        planId: planIdByBookingId.get(doc.id) || null,
       };
     });
 

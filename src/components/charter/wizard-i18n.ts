@@ -126,6 +126,8 @@ export interface WizardI18n {
   mbEmpty: string; mbEmptySub: string;
   statusConfirmed: string; statusModified: string; statusCanceled: string; statusCompleted: string;
   mbHoursAway: (h: number) => string;
+  /** 이미 지난 일정 라벨 — 카운트다운 대신 표시 (2026-07-28). */
+  mbPastTour: string;
   mbDaysAway: (d: number) => string;
   mbRefundBadge: (pct: number) => string;
   mbRefundedAmount: string;  // "환불액"
@@ -350,6 +352,7 @@ export function getWizardI18n(language: string): WizardI18n {
     statusCompleted: get('statusCompleted'),
     // mbHoursAway: 모든 lang 동일하게 .toFixed(1)
     mbHoursAway: (h) => fmt(get('mbHoursAway'), { h: h.toFixed(1) }),
+    mbPastTour: get('mbPastTour'),
     // mbDaysAway: en 만 plural ({d} day{plural}) — 다른 lang 은 {plural} 키 자체가 없어 무영향.
     mbDaysAway: (d) => fmt(get('mbDaysAway'), { d, plural: lang === 'en' ? (d === 1 ? '' : 's') : '' }),
     mbRefundBadge: (pct) => fmt(get('mbRefundBadge'), { pct }),
