@@ -64,7 +64,22 @@ export const maxDuration = 30;
 const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
 const CORS_METHODS = 'POST, OPTIONS';
 
-const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled']);
+const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled', 'dispatch-cancel']);
+
+/**
+ * 'dispatch-cancel' — 차량·기사를 못 구해 우리 쪽 사정으로 취소하는 경우 (운영자 2026-07-28).
+ *
+ * 취소정책(24h 바이너리)은 **고객 귀책** 취소에만 적용된다. 이건 우리 귀책이므로
+ * 출발이 코앞이어도 **항상 전액 환불**이고, 사유가 필수다(고객에게 그대로 전달된다).
+ * 사유 분류는 고객 안내 문구 키로도 쓰이므로 자유 문자열을 허용하지 않는다.
+ */
+const DISPATCH_CANCEL_CATEGORIES = new Set(['no_vehicle', 'no_driver', 'other']);
+
+const DISPATCH_CANCEL_LABEL = {
+  no_vehicle: { ko: '차량 미확보', en: 'No vehicle available', ja: '車両を確保できず', zh: '无法安排车辆' },
+  no_driver: { ko: '기사 미확보', en: 'No driver available', ja: 'ドライバーを確保できず', zh: '无法安排司机' },
+  other: { ko: '운영 사정', en: 'Operational reason', ja: '運営上の事情', zh: '运营原因' },
+};
 
 function _err(error, code = 'UNKNOWN_ERROR') {
   return { ok: false, error, code };
@@ -95,7 +110,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { bookingRef, action, paypalTransactionId, refundedKRW, reason } = body;
+    const { bookingRef, action, paypalTransactionId, refundedKRW, reason, cancelCategory } = body;
 
     if (!bookingRef) {
       res.writeHead(400, JSON_HEADERS);
@@ -104,6 +119,19 @@ export default async function handler(req, res) {
     if (!VALID_ACTIONS.has(action)) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err(`Invalid action. Allowed: ${[...VALID_ACTIONS].join(', ')}`, 'INVALID_ACTION')));
+    }
+    // dispatch-cancel 은 사유가 고객에게 그대로 전달된다 → 빈 사유로 집행 금지.
+    if (action === 'dispatch-cancel') {
+      if (!DISPATCH_CANCEL_CATEGORIES.has(cancelCategory)) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          `cancelCategory required. Allowed: ${[...DISPATCH_CANCEL_CATEGORIES].join(', ')}`,
+          'MISSING_CANCEL_CATEGORY')));
+      }
+      if (!String(reason || '').trim()) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('취소 사유를 입력해주세요 (고객에게 그대로 전달됩니다)', 'MISSING_REASON')));
+      }
     }
 
     // 🔴 F1 money 가드 (2026-07-16): refundedKRW 는 운영자 자유입력(AdminPayments window.prompt)이라
@@ -146,6 +174,7 @@ export default async function handler(req, res) {
       bookingRef,
       action,
       reason: reason || null,
+      cancelCategory: cancelCategory || null,
       previousStatus: pending.status,
       paypalTransactionId: paypalTransactionId || null,
       refundedKRW: refundedKRW != null ? Number(refundedKRW) : null,
@@ -321,6 +350,102 @@ export default async function handler(req, res) {
           status: 'REFUNDED',
           refundedKRW: refundKrw,
           refundSource: paypalRefund ? 'paypal-api' : 'manual',
+          ...(paypalRefund ? { refundID: paypalRefund.id } : {}),
+        },
+      }));
+    }
+
+    // ──────── Action 4: dispatch-cancel (배차 실패 = 우리 귀책 취소) ────────
+    // 고객 귀책 취소(24h 바이너리)와 달리 **항상 전액 환불**. 부분환불 인자를 받지 않는다.
+    if (action === 'dispatch-cancel') {
+      if (pending.status !== 'CONFIRMED') {
+        // 이미 취소/환불된 건을 다시 누르면 두 번째 환불이 나갈 수 있다 → 상태 가드가 영구 방어선.
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(`취소할 수 없는 상태입니다: ${pending.status}`, 'INVALID_STATUS')));
+      }
+
+      const bookingId = pending.paypalTransactionId || bookingRef;
+      const bookingSnap = await adminDb.collection('bookings').doc(bookingId).get();
+      const bookingData = bookingSnap.exists ? (bookingSnap.data() || {}) : {};
+      const captureID = bookingData.captureID || pending.paypalCaptureId || null;
+      const refundKrw = Number(bookingData.amountKRW || pending.priceKRW || 0) || 0;
+      const lang = pending.language || bookingData.language || 'en';
+      const categoryLabel = (DISPATCH_CANCEL_LABEL[cancelCategory] || DISPATCH_CANCEL_LABEL.other);
+      const reasonText = `${categoryLabel[lang] || categoryLabel.en} — ${String(reason).trim()}`;
+
+      // PayPal 자동 환불 — refundUSD 를 주지 않으면 capture 전액이 환불된다(= 의도).
+      // captureID 가 없으면 수동 입금 건이므로 운영자가 별도 환불(기존 mark-refunded 와 동일 정책).
+      let paypalRefund = null;
+      if (captureID) {
+        const result = await refundPaypalCapture({
+          captureID,
+          // 같은 예약에 대한 배차실패 취소는 1회뿐 — 재클릭/타임아웃 재시도를 멱등 처리.
+          idempotencyKey: `${bookingRef}:dispatch-cancel`,
+          refundUSD: null,
+          currency: bookingData.currency,
+          note: `CocoTrip dispatch failure refund: ${String(reason).slice(0, 60)}`,
+        });
+        if (!result.ok) {
+          console.error('[admin-booking-action] dispatch-cancel refund failed:', result.code, result.error);
+          // 환불이 안 됐는데 CANCELED 로 적으면 "취소됐는데 돈은 안 온" 상태가 된다 → 상태 미변경.
+          res.writeHead(result.status, JSON_HEADERS);
+          return res.end(JSON.stringify(_err(result.error, result.code)));
+        }
+        paypalRefund = result.refund;
+        if (result.pending) {
+          notify('admin', `🟠 <b>배차실패 취소 환불 PENDING (eCheck?)</b>\n<code>${bookingRef}</code>\nrefund: <code>${paypalRefund.id}</code>`).catch(() => {});
+        }
+      } else {
+        console.warn('[admin-booking-action] dispatch-cancel without captureID — 수동 환불 필요:', bookingRef);
+      }
+
+      const update = {
+        status: 'CANCELED',
+        canceledAt: FieldValue.serverTimestamp(),
+        canceledByUid: adminUid,
+        canceledReason: reasonText,
+        cancelReason: reasonText,          // mark-canceled 와 필드명 호환
+        cancelCategory,
+        cancelFault: 'operator',           // 우리 귀책 — 취소율 집계에서 고객 귀책과 분리
+        dispatchFailed: true,
+        refundedKRW: refundKrw,
+        refundPercent: 100,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(paypalRefund
+          ? { refundID: paypalRefund.id, refundStatus: paypalRefund.status, refundSource: 'paypal-api' }
+          : { refundSource: 'manual-pending' }),
+      };
+      await pendingRef.update(update);
+      await adminDb.collection('bookings').doc(bookingId).set(update, { merge: true });
+
+      notify('booking', [
+        '🚐 <b>배차 실패 — 예약 취소 + 전액 환불</b>',
+        '',
+        `<b>예약번호:</b> <code>${bookingRef}</code>`,
+        `<b>사유:</b> ${reasonText}`,
+        `<b>환불액:</b> ₩${refundKrw.toLocaleString('ko-KR')}`,
+        `<b>이메일:</b> ${pending.customerEmail}`,
+        paypalRefund ? `<b>PayPal refund:</b> <code>${paypalRefund.id}</code>` : '⚠️ captureID 없음 — 수동 환불 필요',
+      ].filter(Boolean).join('\n')).catch(() => {});
+
+      // 고객 안내 — 사유를 그대로 전달한다(운영자가 남긴 문장이 곧 고객 안내문).
+      sendCustomerNotification('refunded', {
+        ...pending,
+        refundedKRW: refundKrw,
+        refundReason: reasonText,
+        language: lang,
+      }).catch(() => {});
+
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({
+        ok: true,
+        data: {
+          bookingRef,
+          status: 'CANCELED',
+          cancelCategory,
+          reason: reasonText,
+          refundedKRW: refundKrw,
+          refundSource: paypalRefund ? 'paypal-api' : 'manual-pending',
           ...(paypalRefund ? { refundID: paypalRefund.id } : {}),
         },
       }));
