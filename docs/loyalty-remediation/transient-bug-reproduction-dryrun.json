@@ -1,0 +1,184 @@
+{
+  "_note": "읽기 전용 dry-run 결과. 개인정보(uid·이메일·예약번호·PayPal ID) 미포함. 계정은 순번만.",
+  "generatedForProject": "plan…(마스킹)",
+  "planHash": "98b493fabb8b45e2",
+  "firestore": {
+    "reads": 26,
+    "writeAttempts": 0,
+    "writesAllowed": 0,
+    "guard": "dry-run 에서는 set/update/delete/add/batch/runTransaction 호출이 예외를 던진다"
+  },
+  "totals": {
+    "scannedUsers": 8,
+    "accountsToFix": 2,
+    "before": {
+      "totalSpentUSD": 47996.81,
+      "bookingCount": 59,
+      "tripCoins": 140642
+    },
+    "after": {
+      "totalSpentUSD": 0,
+      "bookingCount": 0,
+      "tripCoins": 0
+    },
+    "pollutedEntries": 207,
+    "pollutedCoins": 626388,
+    "pollutedUSD": 208794.68,
+    "ambiguousEntries": 3,
+    "ambiguousOrdersInAccounts": 0,
+    "ambiguousCoupons": 0,
+    "couponsHeldTotal": 7,
+    "couponsUsedTotal": 1,
+    "couponsToRevoke": 0,
+    "couponsGrandfathered": 0,
+    "grandfatheredDiscountPercentSum": 0,
+    "grandfatheredCoinDebt": 2000,
+    "afterUnbackedUSD": 0,
+    "afterBackedUSD": 0,
+    "preservedLegitCoins": 0,
+    "preservedVerifiedOrders": 0,
+    "docsToWrite": 6,
+    "modes": {
+      "subtract_pollution_only": 2
+    }
+  },
+  "accounts": [
+    {
+      "no": 1,
+      "mode": "subtract_pollution_only",
+      "before": {
+        "totalSpentUSD": 47279.42,
+        "bookingCount": 58,
+        "tripCoins": 139207,
+        "tier": "Platinum"
+      },
+      "after": {
+        "totalSpentUSD": 0,
+        "bookingCount": 0,
+        "tripCoins": 0,
+        "tier": "Bronze"
+      },
+      "delta": {
+        "totalSpentUSD": -47279.42,
+        "bookingCount": -58,
+        "tripCoins": -139207
+      },
+      "ledger": {
+        "pollutedEntries": 202,
+        "pollutedCoins": 617779,
+        "pollutedUSD": 205925.12,
+        "legitEntries": 0,
+        "legitEarnCoins": 0,
+        "ambiguousEntries": 3,
+        "ambiguousCoins": 90,
+        "spendCoins": 2000,
+        "correctionEntries": 1,
+        "correctionCoins": -617779
+      },
+      "orders": {
+        "verifiedPaidOrders": 0,
+        "countedBookings": 0,
+        "fullyRefundedOrders": 0,
+        "partiallyRefundedOrders": 0,
+        "notMoneyOrders": 0,
+        "ambiguousOrders": 0,
+        "ambiguousOrderReasons": []
+      },
+      "coupons": {
+        "couponsTotal": 7,
+        "couponsUsedTotal": 1,
+        "redemptionTotal": 4,
+        "legitRedemption": 0,
+        "toRevoke": 0,
+        "grandfathered": 0,
+        "ambiguous": 0
+      },
+      "grandfatheredCoinDebt": 2000,
+      "ledgerBasedIfComplete": {
+        "totalSpentUSD": 0,
+        "bookingCount": 0,
+        "tripCoins": 0
+      },
+      "docsToWrite": 3,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 0
+      }
+    },
+    {
+      "no": 2,
+      "mode": "subtract_pollution_only",
+      "before": {
+        "totalSpentUSD": 717.39,
+        "bookingCount": 1,
+        "tripCoins": 1435,
+        "tier": "Gold"
+      },
+      "after": {
+        "totalSpentUSD": 0,
+        "bookingCount": 0,
+        "tripCoins": 0,
+        "tier": "Bronze"
+      },
+      "delta": {
+        "totalSpentUSD": -717.39,
+        "bookingCount": -1,
+        "tripCoins": -1435
+      },
+      "ledger": {
+        "pollutedEntries": 5,
+        "pollutedCoins": 8609,
+        "pollutedUSD": 2869.56,
+        "legitEntries": 0,
+        "legitEarnCoins": 0,
+        "ambiguousEntries": 0,
+        "ambiguousCoins": 0,
+        "spendCoins": 0,
+        "correctionEntries": 1,
+        "correctionCoins": -8609
+      },
+      "orders": {
+        "verifiedPaidOrders": 0,
+        "countedBookings": 0,
+        "fullyRefundedOrders": 0,
+        "partiallyRefundedOrders": 0,
+        "notMoneyOrders": 0,
+        "ambiguousOrders": 0,
+        "ambiguousOrderReasons": []
+      },
+      "coupons": {
+        "couponsTotal": 0,
+        "couponsUsedTotal": 0,
+        "redemptionTotal": 0,
+        "legitRedemption": 0,
+        "toRevoke": 0,
+        "grandfathered": 0,
+        "ambiguous": 0
+      },
+      "grandfatheredCoinDebt": 0,
+      "ledgerBasedIfComplete": {
+        "totalSpentUSD": 0,
+        "bookingCount": 0,
+        "tripCoins": 0
+      },
+      "docsToWrite": 3,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 0
+      }
+    }
+  ],
+  "bookingLedger": {
+    "total": 29,
+    "withUid": 0,
+    "paymentVerified": 0,
+    "unattributable": 29,
+    "note": "uid·paymentVerified 는 2026-07-29 PR 에서 추가된 필드다. 그 이전 결제 문서에는 없어 계정에 귀속되지 않는다."
+  },
+  "_status": "transient-bug-reproduction",
+  "_warning": "현재 상태 아님. 이중 차감 결함이 남아 있던 시점(2026-07-29 보정 직후)의 dry-run. 여기 제안된 추가 차감은 실행하지 않았다. 현재 상태는 04-post-execution-dryrun.md 참조."
+}
