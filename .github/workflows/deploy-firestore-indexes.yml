@@ -42,22 +42,20 @@ jobs:
           node-version: '20'
 
       - name: Validate index file
-        run: node -e "const j=require('./firestore.indexes.json'); if(!Array.isArray(j.indexes)) { console.error('firestore.indexes.json: indexes 배열이 없습니다'); process.exit(1); } console.log('indexes:', j.indexes.length);"
+        run: |
+          node -e "const j=require('./firestore.indexes.json'); if(!Array.isArray(j.indexes)) { console.error('firestore.indexes.json: indexes 배열이 없습니다'); process.exit(1); } console.log('indexes:', j.indexes.length);"
 
-      - name: Skip when credentials are missing
-        id: gate
+      - name: Require deployment credentials
         env:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
-          if [ -z "$SA" ]; then
-            echo "FIREBASE_SERVICE_ACCOUNT 미설정 — 색인 배포 SKIP (운영자가 시크릿 등록 후 재실행)"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$SA" ] || [ -z "$PROJECT_ID" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT 또는 FIREBASE_PROJECT_ID가 없습니다."
+            exit 1
           fi
 
       - name: Deploy indexes
-        if: steps.gate.outputs.skip == 'false'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
           FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
