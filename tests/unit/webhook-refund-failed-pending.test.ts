@@ -26,6 +26,8 @@ let byCaptureId: Array<{ id: string; data: any }>;
 
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.paypal.com' }),
+  // 2026-07-29: 핸들러가 sandbox 폴백을 이 게이트 뒤로 옮겼다 (운영에서 sandbox 웹훅 수용 금지).
+  resolveIsSandbox: () => false,
 }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: (...a: any[]) => notifySpy(...a) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
@@ -38,7 +40,7 @@ function q(rows: Array<{ id: string; data: any }>) {
 function makeDb() {
   return {
     collection: (name: string) => ({
-      doc: (_id: string) => ({
+      doc: () => ({
         get: async () => ({ exists: false, data: () => undefined }),
         set: (...a: any[]) => (name === 'paypal_webhook_log' ? logSet(...a) : bookingsSet(...a)),
         update: (...a: any[]) => (name === 'pending_bookings' ? pendingUpdate(...a) : bookingsUpdate(...a)),

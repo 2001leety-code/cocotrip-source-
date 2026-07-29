@@ -114,10 +114,55 @@ Preview 에 운영 ID 를 넣는 것은 **비교 대상**으로 쓰기 위함이
 
 ---
 
+## 배포 환경 선행조건 (2026-07-29 확인 — 셋 다 아직 없음)
+
+| 키 | 스코프 | 없으면 무슨 일이 생기나 |
+|---|---|---|
+| `FIREBASE_PRODUCTION_PROJECT_ID` | Production + Preview | 가드가 **판정 자체를 못 한다** → 무조건 통과 |
+| `FIREBASE_ENV_GUARD=enforce` | Preview (분리 완료 후) | 경고만 찍고 그대로 운영 데이터를 쓴다 |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Preview | 프리뷰 자기호출이 SSO 벽에 막혀 401 |
+
+> 두 번째 값은 **Preview 에 먼저** 넣는다. Production 에 먼저 걸면 설정 실수 하나로
+> 운영 결제 API 가 통째로 멈춘다. Preview 가 조용한 것을 확인한 뒤 Production 에도 올린다.
+
+`VERCEL_AUTOMATION_BYPASS_SECRET` 은 Vercel → Settings → Deployment Protection →
+"Protection Bypass for Automation" 에서 생성하면 자동 주입된다. 직접 값을 적지 않는다.
+
+### 왜 이게 Firebase 분리와 세트인가
+
+`booking-processor` 의 적립 호출은 이제 `internalMoneyApiBase()` 를 쓴다.
+이 함수는 **운영이 아니면 운영 도메인을 절대 돌려주지 않는다**(주소 특정 불가 시 `null` → 적립 보류).
+그래서 Preview 에서 적립을 돌리려면 프리뷰 자기호출이 SSO 벽을 넘어야 하고,
+그건 위 bypass secret 이 있어야 가능하다. 셋이 갖춰져야 샌드박스 e2e 가 성립한다.
+
+## PayPal 자격증명 스코프 정리
+
+| 키 | Production | Preview |
+|---|---|---|
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | ✅ Live 값 | (프리뷰도 서명 검증용으로 필요) |
+| `PAYPAL_WEBHOOK_ID` | ✅ Live 웹훅 ID | 프리뷰용 값 |
+| `PAYPAL_SANDBOX_CLIENT_ID` | ❌ **두지 않는다** | ✅ |
+| `PAYPAL_SANDBOX_SECRET` | ❌ **두지 않는다** | ✅ |
+| `PAYPAL_SANDBOX_WEBHOOK_ID` | ❌ **두지 않는다** | ✅ |
+| `VITE_PAYPAL_SANDBOX_CLIENT_ID` | ❌ **두지 않는다** | ✅ |
+| `PAYPAL_ENV` | 설정하지 않음 | `sandbox` |
+
+코드 쪽 방어는 이미 들어가 있다 — `resolveIsSandbox()` 가 `VERCEL_ENV==='production'` 이면
+무조건 `false` 라, 운영에 `PAYPAL_ENV=sandbox` 를 실수로 넣어도 샌드박스 경로가 열리지 않는다.
+위 표는 **그 방어에 기대지 않기 위한** 2차선이다.
+
+> 비밀값은 어디에도 적지 않는다. 이 문서는 "어느 스코프에 무엇을 두는가" 만 다룬다.
+
 ## 이 다음에 할 일
 
-분리가 끝나야 **샌드박스 결제 전 과정 시험**을 안전하게 할 수 있다:
+위 선행조건 + 분리가 끝나야 **샌드박스 결제 전 과정 시험**을 안전하게 할 수 있다:
 
 승인 → 적립 → 중복 호출 → 부분 환불 → 전액 환불 → 중복 웹훅
 
-각 단계에서 확인할 항목은 `docs/SANDBOX-PAYMENT-TEST-PLAN.md` 참조.
+확인 순서:
+
+1. 프리뷰 함수 로그에 `[firebase-env-guard]` 경고가 **없다**
+2. 프리뷰에서 `bookings` 문서가 **프리뷰 Firestore 에만** 생긴다
+3. 적립 호출 주소가 프리뷰 배포 URL 이다(운영 도메인이 아니다)
+4. 프리뷰가 운영 Firebase 를 가리키도록 되돌려 놓으면 API 가 **실제로 실패**한다 (enforce 확인)
+5. 운영 `paypal_webhook_log` 에 `paypalEnvironment: 'sandbox'` 인 문서가 하나도 없다

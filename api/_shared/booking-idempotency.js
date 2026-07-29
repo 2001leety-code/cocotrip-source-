@@ -173,6 +173,51 @@ export async function completeStep({ db, FieldValue, orderID, field, detail } = 
   await db.collection('bookings').doc(orderID).set(patch, { merge: true });
 }
 
+/** 완료 기록 재시도 횟수 — Firestore 순간 장애를 넘기기 위한 짧은 재시도. */
+export const COMPLETE_STEP_MAX_ATTEMPTS = 3;
+
+/**
+ * 🔴 외부 작업 성공 후 **완료 기록**까지 확정한다 (booking-processor 가 실제로 부르는 경로).
+ *
+ * 완료 기록이 끝내 실패했을 때 어떻게 할지는 **단계마다 다르다**:
+ *
+ *   quarantine (voucher) — 메일은 다시 보내면 손님에게 두 번 간다. 보냈는지 확신할 수 없으므로
+ *                          outcome_unknown 으로 격리하고 사람이 판단한다.
+ *   reclaim (sheets/loyalty) — 외부 쪽에 멱등 키가 있다(시트 N열 주문 ID / 원장 문서 ID).
+ *                          격리해 버리면 **영원히 미완료로 남는다**. in_progress 그대로 두어
+ *                          다음 재시도가 회수 → 외부 중복 확인 → completed 로 수렴하게 한다.
+ *
+ * @returns {Promise<{ok: boolean, state: 'completed'|'retry'|'outcome_unknown', attempts: number, error?: string}>}
+ */
+export async function finalizeStep({ db, FieldValue, orderID, field, detail, maxAttempts } = {}) {
+  if (!db || !orderID || !field) {
+    return { ok: false, state: 'retry', attempts: 0, error: 'store_unavailable' };
+  }
+  const limit = Number(maxAttempts) || COMPLETE_STEP_MAX_ATTEMPTS;
+  let lastError = '';
+  for (let attempt = 1; attempt <= limit; attempt += 1) {
+    try {
+      await completeStep({ db, FieldValue, orderID, field, detail });
+      return { ok: true, state: 'completed', attempts: attempt };
+    } catch (e) {
+      lastError = e.message;
+      console.warn(`[booking-idempotency] 단계 완료 기록 ${field} 실패 (${attempt}/${limit}): ${e.message}`);
+    }
+  }
+
+  const policy = STEP_ZOMBIE_POLICY[field] || 'quarantine';
+  if (policy === 'reclaim') {
+    // 재실행해도 결과가 1건인 단계 — 격리하지 않고 재시도 가능 상태(in_progress)로 둔다.
+    console.warn(`[booking-idempotency] ${field} 완료 기록 실패 — 재시도 대기(외부 멱등 키 있음)`);
+    return { ok: false, state: 'retry', attempts: limit, error: lastError };
+  }
+  await markOutcomeUnknown({
+    db, orderID, field,
+    reason: `external_ok_but_completion_write_failed: ${lastError}`,
+  });
+  return { ok: false, state: 'outcome_unknown', attempts: limit, error: lastError };
+}
+
 /**
  * 외부 작업은 성공했는데 완료 기록을 못 남긴 상태 — 자동 재시도가 아니라 **검토 대기**.
  * (이 쓰기마저 실패하면 in_progress 로 남고, 다음 실행의 quarantine 정책이 같은 결론을 낸다.)

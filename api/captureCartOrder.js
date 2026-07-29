@@ -216,6 +216,8 @@ export default async function handler(req, res) {
         batch.set(db.collection('bookings').doc(child.childOrderID), {
           ...child.bookingDoc,
           rawCapturePayload: { captureID, amount: (captureNode && captureNode.amount) || null, status: capture.status || '' },
+          // 🔴 2026-07-29: 이 예약이 어느 PayPal 환경에서 만들어졌는지 (환경 교차 웹훅 차단 근거).
+          paypalEnvironment: isSandbox ? 'sandbox' : 'live',
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });

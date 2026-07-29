@@ -573,6 +573,9 @@ export default async function handler(req, res) {
       capturedExchangeRate: usdToKrw,
       // 검증 통과 시 = PayPal capture 응답에서 실제 확인된 통화. 검증 스킵(스냅샷 없는 레거시)이면 'USD' 가정.
       currency: (_verdict && _verdict.currency) || 'USD',
+      // 🔴 2026-07-29: 이 예약이 **어느 PayPal 환경**에서 만들어졌는지. 웹훅이 환경을 넘나들며
+      //   문서를 건드리지 못하게 하는 근거값이다(샌드박스 웹훅이 운영 예약을 환불처리하는 사고 차단).
+      paypalEnvironment: _isSandboxCapture ? 'sandbox' : 'live',
       // 감사/대사용 — false = 주문 스냅샷이 없어 amount/currency 검증을 못 한 레거시 경로.
       // (pending 은 금액·통화 검증을 통과한 상태이므로 verified 로 본다.)
       paymentVerified: !!(_verdict && (_verdict.ok || _verdict.pending)),

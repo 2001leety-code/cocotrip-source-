@@ -44,8 +44,9 @@ import { getUsdToKrwRaw } from './_exchange-rate.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import {
   bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField,
-  claimStepSafe, completeStep, markOutcomeUnknown, CLAIM,
+  claimStepSafe, finalizeStep, markOutcomeUnknown, CLAIM,
 } from './_shared/booking-idempotency.js';
+import { internalMoneyApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
 
 
 // ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
@@ -184,22 +185,8 @@ async function completeBookingStep(orderID, field, detail) {
   const db = stepDb();
   if (!db || !orderID) return false;
   const { FieldValue } = await import('firebase-admin/firestore');
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      await completeStep({ db, FieldValue, orderID, field, detail });
-      return true;
-    } catch (e) {
-      console.warn(`[booking-processor] 단계 완료 기록 ${field} 실패 (${attempt}/3):`, e.message);
-      if (attempt === 3) {
-        await markOutcomeUnknown({
-          db, orderID, field,
-          reason: `external_ok_but_completion_write_failed: ${e.message}`,
-        });
-        return false;
-      }
-    }
-  }
-  return false;
+  const outcome = await finalizeStep({ db, FieldValue, orderID, field, detail });
+  return outcome.ok;
 }
 
 // 버그 #17: loyalty 는 선점 후 earn 실패 시 재적립을 위해 마커를 풀어야 한다
@@ -677,12 +664,29 @@ const originalHandler = async (event) => {
       results.loyalty = { skipped: `not earned now: ${loyaltyClaim.reason}` };
     } else if (loyaltyClaimed) {
       let loyaltyOk = false;
+      // 🔴 2026-07-29 (환경 교차 차단): 이전엔 주소가 `https://cocotripkr.com/api/loyalty` 로
+      //   **하드코딩**돼 있었다. 그래서 Preview 배포에서 돌린 샌드박스 결제의 적립이
+      //   운영 API 로 날아가 **운영 Firestore 원장**에 꽂혔다. Firebase 를 분리해도
+      //   이 한 줄 때문에 그대로 새는 구조였다.
+      //   internalMoneyApiBase() 는 운영이 아니면 운영 도메인을 절대 돌려주지 않는다.
+      //   주소를 특정할 수 없으면 적립을 건너뛰고 마커를 풀어 재시도로 넘긴다.
+      const moneyBase = internalMoneyApiBase();
+      if (!moneyBase) {
+        results.loyalty = { skipped: 'internal base URL unresolved (환경 교차 방지)' };
+        console.warn('[booking-processor] 적립 주소 특정 불가 — 운영 도메인 폴백 금지, 재시도 대기:', orderID);
+        await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+      } else {
       try {
-        const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
+        const loyaltyRes = await fetch(`${moneyBase}/api/loyalty`, {
           method: 'POST',
           // earn 은 내부 전용 — 서비스 토큰 동봉 (loyalty.js earn 게이트). 미설정 시 earn 403
           // → 적립 일시 중단(비치명적, best-effort). 운영자 INTERNAL_API_TOKEN 설정 필요.
-          headers: { 'Content-Type': 'application/json', 'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim() },
+          // 프리뷰 자기호출은 Deployment Protection(SSO) 벽을 bypass 헤더로 넘는다.
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
+            ...vercelBypassHeaders(),
+          },
           body: JSON.stringify({
             action: 'earn',
             userId: ledgerUid,
@@ -708,6 +712,7 @@ const originalHandler = async (event) => {
         if (!loyaltyOk) {
           await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
         }
+      }
       }
     }
   } catch (loyaltyErr) {

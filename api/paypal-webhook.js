@@ -182,12 +182,15 @@ function extractPaypalOrderId(event) {
       || null;
 }
 
-async function logWebhookEvent({ db, eventId, eventType, status, detail }) {
+async function logWebhookEvent({ db, eventId, eventType, status, detail, environment }) {
   try {
     await db.collection('paypal_webhook_log').doc(eventId).set({
       eventId,
       eventType: eventType || 'unknown',
-      status, // 'processed' | 'duplicate' | 'unmatched' | 'unsupported' | 'verify_failed' | 'error'
+      status, // 'processed' | 'duplicate' | 'unmatched' | 'unsupported' | 'verify_failed' | 'error' | 'environment_mismatch'
+      // 🔴 2026-07-29: 어느 PayPal 환경에서 **검증에 통과한** 이벤트인지. 사후 대사·격리 판정 근거.
+      //   서명 검증 전 단계에서 남기는 로그는 'unverified'.
+      paypalEnvironment: environment || 'unverified',
       detail: detail || null,
       receivedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -291,27 +294,37 @@ export default async function handler(req, res) {
     // raw body 읽기
     const bodyString = await readRawBody(req);
 
-    // signature 검증 — sandbox / live 양쪽 시도 (PayPal 은 sandbox/live 가 다른 API 베이스)
+    // ── signature 검증 ────────────────────────────────────────────────
+    // 🔴 2026-07-29 (환경 교차 차단): 이전엔 **운영에서도** live 검증이 실패하면
+    //   PAYPAL_SANDBOX_CLIENT_ID 만 있으면 sandbox 로 다시 검증했다.
+    //   그 결과 운영 배포가 **샌드박스(가짜 돈) 웹훅을 받아 운영 예약을 환불처리**할 수 있었다.
+    //   이제 sandbox 검증은 resolveIsSandbox() 가 true 인 배포(= Preview + PAYPAL_ENV=sandbox)
+    //   에서만 시도한다. resolveIsSandbox() 는 VERCEL_ENV==='production' 이면 무조건 false 라,
+    //   운영에 PAYPAL_ENV=sandbox 를 잘못 넣어도 sandbox 경로가 열리지 않는다.
+    const sandboxAllowed = resolveIsSandbox();
+    let verifiedEnvironment = 'live';
     let verifyResult = await verifyWebhookSignature({
       headers, bodyString, webhookId, isSandbox: false,
     });
-    if (!verifyResult.verified && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
-      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook).
+    if (!verifyResult.verified && sandboxAllowed && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
       // 🔴 (2026-07-16) sandbox 웹훅은 **자기만의 Webhook ID** 를 갖는다(대시보드 별도 등록).
       //   live ID 로 sandbox verify 를 치면 무조건 FAILURE → 샌드박스 이벤트 전부 폐기
-      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가. 미설정 시 기존 폴백 유지.
+      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가.
       const sandboxResult = await verifyWebhookSignature({
         headers, bodyString,
         webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || webhookId,
         isSandbox: true,
       });
-      if (sandboxResult.verified) verifyResult = sandboxResult;
+      if (sandboxResult.verified) {
+        verifyResult = sandboxResult;
+        verifiedEnvironment = 'sandbox';
+      }
     }
 
     if (!verifyResult.verified) {
       console.error('[paypal-webhook] signature verification failed:', verifyResult.reason);
       await logWebhookEvent({
-        db: adminDb, eventId,
+        db: adminDb, environment: verifiedEnvironment, eventId,
         eventType: verifyResult.webhookEvent?.event_type,
         status: 'verify_failed',
         detail: { reason: verifyResult.reason },
@@ -368,7 +381,7 @@ export default async function handler(req, res) {
           if (directBookingDoc.exists) {
             const directData = directBookingDoc.data() || {};
             await logWebhookEvent({
-              db: adminDb, eventId, eventType,
+              db: adminDb, environment: verifiedEnvironment, eventId, eventType,
               status: 'processed',
               detail: {
                 reason: 'already_confirmed_via_capture_endpoint',
@@ -383,7 +396,7 @@ export default async function handler(req, res) {
         }
         console.warn('[paypal-webhook] no bookingRef in memo — manual review:', eventId);
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'no_booking_ref', amountUSD, currency, paypalTxId, paypalOrderId },
         });
@@ -402,7 +415,7 @@ export default async function handler(req, res) {
       const pendingSnap = await adminDb.collection('pending_bookings').doc(bookingRef).get();
       if (!pendingSnap.exists) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'pending_not_found', bookingRef, amountUSD, paypalTxId },
         });
@@ -433,7 +446,7 @@ export default async function handler(req, res) {
       const expectedUSD = parseFloat(pending.priceUSD || (Number(pending.priceKRW || 0) / fallbackUsdToKrw));
       if (expectedUSD > 0 && Math.abs(amountUSD - expectedUSD) / expectedUSD > tolerance) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: {
             reason: 'amount_mismatch',
@@ -463,7 +476,7 @@ export default async function handler(req, res) {
       });
       if (!result.ok) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'error',
           detail: { reason: result.code, error: result.error, bookingRef, paypalTxId },
         });
@@ -473,7 +486,7 @@ export default async function handler(req, res) {
       }
 
       await logWebhookEvent({
-        db: adminDb, eventId, eventType,
+        db: adminDb, environment: verifiedEnvironment, eventId, eventType,
         status: 'processed',
         detail: {
           bookingRef, paypalTxId,
@@ -495,7 +508,7 @@ export default async function handler(req, res) {
 
       if (!captureId) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'no_capture_id_in_links' },
         });
@@ -536,7 +549,7 @@ export default async function handler(req, res) {
           .get();
         if (captureFieldMatch.size > 1) {
           await logWebhookEvent({
-            db: adminDb, eventId, eventType,
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
             detail: {
               reason: 'captureID_shared_by_cart_siblings',
@@ -568,7 +581,7 @@ export default async function handler(req, res) {
 
       if (!bookingRef) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'capture_not_in_bookings', captureId },
         });
@@ -619,13 +632,15 @@ export default async function handler(req, res) {
           bookingsDocId,
           bookingRef,
           authoritativeCaptureStatus,
+          // 🔴 검증에 실제로 통과한 PayPal 환경. 예약 문서의 환경과 다르면 원장이 격리한다.
+          webhookEnvironment: verifiedEnvironment,
         });
       } catch (e) {
         // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
         console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
         captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'retryable_error',
           detail: { reason: e.message, captureId, refundId },
         });
@@ -635,9 +650,14 @@ export default async function handler(req, res) {
       }
 
       if (!refundOutcome.applied) {
+        if (refundOutcome.reason === 'environment_mismatch') {
+          // 샌드박스 웹훅이 운영 예약을(또는 그 반대) 건드리려 한 것. 데이터는 손대지 않았다.
+          console.error('[paypal-webhook] 환경 불일치로 격리:', verifiedEnvironment, '→', refundOutcome.bookingEnvironment);
+          await alertAdmin(`🚨 <b>환불 웹훅 환경 불일치 — 격리</b>\n\n웹훅: ${verifiedEnvironment}\n예약: ${refundOutcome.bookingEnvironment || '표시없음'}\nCapture: <code>${captureId}</code>\n→ 데이터를 갱신하지 않았습니다.`);
+        }
         if (refundOutcome.reason === 'unmatched') {
           await logWebhookEvent({
-            db: adminDb, eventId, eventType,
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'unmatched',
             detail: { reason: 'booking_docs_missing', captureId, refundId },
           });
@@ -691,7 +711,7 @@ export default async function handler(req, res) {
         const byCapture = await adminDb.collection('bookings').where('captureID', '==', captureId).get();
         if (byCapture.size > 1) {
           await logWebhookEvent({
-            db: adminDb, eventId, eventType,
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
             detail: { reason: 'captureID_shared_by_cart_siblings', refundId, captureId, candidates: byCapture.docs.map((d) => d.id) },
           });
@@ -704,7 +724,7 @@ export default async function handler(req, res) {
 
       if (!matched) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'refund_not_in_bookings', refundId, captureId },
         });
@@ -723,7 +743,7 @@ export default async function handler(req, res) {
           }, { merge: true });
         } catch (e) { console.warn('[paypal-webhook] refund-pending mark failed:', e.message); }
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'processed',
           detail: { bookingsDocId: matched.id, refundId, captureId, refundStatus: 'PENDING' },
         });
@@ -750,7 +770,7 @@ export default async function handler(req, res) {
       } catch (e) { console.warn('[paypal-webhook] pending_bookings refund-failed sync skipped:', e.message); }
 
       await logWebhookEvent({
-        db: adminDb, eventId, eventType,
+        db: adminDb, environment: verifiedEnvironment, eventId, eventType,
         status: 'processed',
         detail: { bookingsDocId: matched.id, bookingRef: failBookingRef, refundId, captureId },
       });
@@ -769,7 +789,7 @@ export default async function handler(req, res) {
 
     // ─── 그 외 이벤트 ────────────────────────────────────────────────
     await logWebhookEvent({
-      db: adminDb, eventId, eventType,
+      db: adminDb, environment: verifiedEnvironment, eventId, eventType,
       status: 'unsupported',
       detail: { resource_type: event?.resource_type },
     });

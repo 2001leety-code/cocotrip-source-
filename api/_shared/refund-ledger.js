@@ -70,6 +70,34 @@ export function decideRefundStatus({
   return rankOf(next) >= rankOf(priorStatus) ? next : priorStatus;
 }
 
+/**
+ * 두 저장소의 상태 중 **서열이 높은 쪽**을 이전 상태로 본다.
+ *
+ * 🔴 bookings 우선으로 고르면 안 된다: pending_bookings 만 REFUNDED 로 갱신된 레거시 문서에서
+ *   bookings 의 PARTIALLY_REFUNDED(또는 CONFIRMED)를 기준 삼으면, 이미 전액 환불된 예약이
+ *   늦은 부분환불 이벤트 한 방에 **부분환불로 되돌아간다**. 단조성은 두 문서를 함께 봐야 성립한다.
+ */
+export function higherStatus(a, b) {
+  return rankOf(a) >= rankOf(b) ? (a || b || null) : (b || null);
+}
+
+/**
+ * 이 환불 웹훅이 이 예약 문서를 건드려도 되는 환경인가?
+ *
+ * 🔴 샌드박스(가짜 돈) 웹훅이 운영 예약을 환불처리하거나, 라이브 웹훅이 샌드박스 예약을
+ *   건드리는 것을 막는다. 환경이 어긋나면 **데이터를 갱신하지 않고 격리**한다.
+ *   환경 표시가 없는 레거시 문서는 live 웹훅만 허용한다(sandbox 는 확실할 때만 쓴다).
+ *
+ * @returns {{ok: true} | {ok: false, bookingEnvironment: string|null}}
+ */
+export function checkEnvironmentMatch(docEnv, webhookEnv) {
+  const doc = docEnv ? String(docEnv).toLowerCase() : null;
+  const hook = String(webhookEnv || 'live').toLowerCase();
+  if (doc === hook) return { ok: true };
+  if (!doc && hook === 'live') return { ok: true };   // 환경 표시 이전에 만들어진 운영 예약
+  return { ok: false, bookingEnvironment: doc };
+}
+
 /** 이미 기록된 환불 이벤트인지 — refundId 기준(이벤트 재전송·eventId 변경에 견딘다). */
 function alreadyCounted(ledgerData, refundId) {
   if (!refundId) return false;
@@ -96,6 +124,7 @@ export async function applyRefundEvent({
   bookingsDocId,
   bookingRef,
   authoritativeCaptureStatus,
+  webhookEnvironment,
   nowMs,
 }) {
   if (!db) throw new Error('refund-ledger: db required');
@@ -131,12 +160,40 @@ export async function applyRefundEvent({
       return { applied: false, reason: 'unmatched' };
     }
 
+    // 🔴 환경 교차 차단 — 샌드박스 웹훅이 운영 예약을(또는 그 반대) 건드리지 못한다.
+    //   갱신은 전혀 하지 않고 이벤트만 격리 기록한다(운영자 확인 대상).
+    const docEnv = (bookingData && bookingData.paypalEnvironment)
+      || (pendingData && pendingData.paypalEnvironment)
+      || null;
+    const envMatch = checkEnvironmentMatch(docEnv, webhookEnvironment);
+    if (!envMatch.ok) {
+      tx.set(logRef, {
+        eventId,
+        eventType: eventType || 'unknown',
+        status: 'environment_mismatch',
+        paypalEnvironment: String(webhookEnvironment || 'live').toLowerCase(),
+        detail: {
+          reason: 'webhook_environment_differs_from_booking',
+          bookingEnvironment: envMatch.bookingEnvironment,
+          captureId: captureId || null,
+          refundId: refundId || null,
+        },
+        receivedAtMs: now,
+      }, { merge: true });
+      return {
+        applied: false,
+        reason: 'environment_mismatch',
+        bookingEnvironment: envMatch.bookingEnvironment,
+      };
+    }
+
     // 같은 환불이 다른 eventId 로 재전송된 경우 — 두 저장소 어느 쪽에든 기록이 있으면 중복.
     if (alreadyCounted(bookingData, refundId) || alreadyCounted(pendingData, refundId)) {
       tx.set(logRef, {
         eventId,
         eventType: eventType || 'unknown',
         status: 'processed',
+        paypalEnvironment: String(webhookEnvironment || 'live').toLowerCase(),
         detail: { reason: 'duplicate_refund_id', refundId: refundId || null, captureId: captureId || null },
         receivedAtMs: now,
       }, { merge: true });
@@ -152,7 +209,12 @@ export async function applyRefundEvent({
       Number(bookingData && bookingData.refundedKRWTotal) || 0,
       Number(pendingData && pendingData.refundedKRWTotal) || 0,
     );
-    const priorStatus = (bookingData && bookingData.status) || (pendingData && pendingData.status) || null;
+    // 🔴 bookings 우선이 아니라 **서열이 높은 쪽**. 한쪽만 REFUNDED 로 갱신된 레거시 문서에서
+    //   낮은 쪽을 기준 삼으면 전액 환불이 늦은 부분환불 한 방에 되돌아간다.
+    const priorStatus = higherStatus(
+      bookingData && bookingData.status,
+      pendingData && pendingData.status,
+    );
 
     const thisUSD = round2(refundedUSD);
     const thisKRW = Number(refundedKRW) || 0;
@@ -187,6 +249,7 @@ export async function applyRefundEvent({
       lastRefundEventId: eventId,
       lastRefundId: refundId || null,
       lastRefundCaptureId: captureId || null,
+      lastRefundEnvironment: String(webhookEnvironment || 'live').toLowerCase(),
     };
     if (usdToKrw) updates.refundExchangeRate = Number(usdToKrw);
     if (refundId) {
@@ -205,6 +268,8 @@ export async function applyRefundEvent({
       eventId,
       eventType: eventType || 'unknown',
       status: 'processed',
+      // 어느 PayPal 환경에서 검증된 이벤트인지 — 사후 대사·격리 판정 근거.
+      paypalEnvironment: String(webhookEnvironment || 'live').toLowerCase(),
       detail: {
         bookingRef: bookingRef || null,
         bookingsDocId: bookingsDocId || null,

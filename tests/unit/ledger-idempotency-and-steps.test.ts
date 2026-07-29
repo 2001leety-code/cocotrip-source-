@@ -119,10 +119,12 @@ describe('2단계 완료 처리 — 선점 != 완료', () => {
     expect(code).toContain("[stateField]: 'in_progress'");
   });
 
-  it('완료 기록이 끝내 실패하면 outcome_unknown 으로 격리한다 (자동 재발송 금지)', () => {
-    const code = codeOf('api/booking-processor.js');
-    expect(code).toContain('markOutcomeUnknown(');
-    expect(code).toContain('external_ok_but_completion_write_failed');
+  it('완료 기록이 끝내 실패하면 단계 정책에 따라 격리/재시도로 갈린다', () => {
+    // 2026-07-29: 정책 분기가 공용 finalizeStep 으로 이동(한 곳에서만 결정).
+    const idem = codeOf('api/_shared/booking-idempotency.js');
+    expect(idem).toContain('external_ok_but_completion_write_failed');
+    expect(idem).toMatch(/if \(policy === 'reclaim'\)/);
+    expect(codeOf('api/booking-processor.js')).toContain('finalizeStep(');
   });
 });
 
