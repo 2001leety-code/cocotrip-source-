@@ -65,7 +65,7 @@ const accountLimit = limitIdx >= 0 ? Number(args[limitIdx + 1]) || 0 : 0;
 
 import {
   classifyBooking, classifyHistoryEntry, guardFirestore, loadAccount,
-  planHashOf, buildReport, toMarkdown, loadTierPolicy,
+  planHashOf, buildReport, toMarkdown, loadTierPolicy, checkProductionTarget,
 } from './lib/loyalty-remediation-core.mjs';
 
 async function main() {
@@ -74,6 +74,8 @@ async function main() {
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const prodProject = (process.env.FIREBASE_PRODUCTION_PROJECT_ID || '').trim();
+  // 자격증명 안에 들어 있는 프로젝트 ID (쓰기 모드 대상 확인용). 값 자체는 출력하지 않는다.
+  let credentialProject = projectId || '';
 
   if (!getApps().length) {
     const email = process.env.FIREBASE_CLIENT_EMAIL;
@@ -82,7 +84,9 @@ async function main() {
       initializeApp({ credential: cert({ projectId, clientEmail: email, privateKey: key }) });
     } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
       const raw = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8');
-      initializeApp({ credential: cert(JSON.parse(raw)) });
+      const parsed = JSON.parse(raw);
+      credentialProject = parsed.project_id || '';
+      initializeApp({ credential: cert(parsed) });
     } else {
       console.error('[remediation] Firebase 자격증명 없음 — FIREBASE_* 또는 GOOGLE_SERVICE_ACCOUNT_KEY 필요');
       process.exit(1);
@@ -119,6 +123,22 @@ async function main() {
       console.error('🚫 --execute 거부: --confirm=<dry-run 의 planHash> 필요');
       process.exit(3);
     }
+    // FAIL-5: Production 대상 확인 fail-closed. ID 는 출력하지 않고 일치 여부만 본다.
+    const apps = getApps();
+    const verdict = checkProductionTarget({
+      declaredProdId: prodProject,
+      credentialProjectId: credentialProject,
+      appProjectId: apps[0] && apps[0].options && apps[0].options.projectId,
+      previewMarkers: [process.env.VERCEL_ENV, process.env.PAYPAL_ENV, process.env.NODE_ENV]
+        .filter(Boolean).join(','),
+      forWrite: true,
+    });
+    if (!verdict.ok) {
+      console.error(`[중단] --execute 거부: Production 대상 확인 실패 (${verdict.reason})`);
+      console.error('       명시 Production ID · Admin 앱 연결 ID · 자격증명 ID 가 모두 같아야 한다.');
+      process.exit(5);
+    }
+    console.log('Production 대상 : 세 값 일치 확인됨 (ID 는 출력하지 않음)');
     allowWrites = true;   // 실제 쓰기는 planHash 재확인 후 executeRemediation 에서만 일어난다
   }
 
@@ -165,6 +185,16 @@ async function main() {
     const { executeRemediation } = await import('./loyalty-remediation-execute.mjs');
     const result = await executeRemediation({ db, accounts, planHash });
     console.log(JSON.stringify({ executed: true, planHash, result }, null, 2));
+    console.log(`성공 ${result.applied.length} / 건너뜀 ${result.skipped.length} / 실패 ${result.failed.length}`);
+    // FAIL-6: 부분 실패를 명령 성공으로 보이게 하지 않는다.
+    if (result.failed.length > 0) {
+      console.error(`[중단] 실패한 계정 ${result.failed.length}건 — 전체 성공이 아니다. 실패 계정만 다시 실행하라(멱등).`);
+      process.exit(6);
+    }
+    if (result.skipped.some((sk) => sk.reason === 'stale_plan')) {
+      console.error('[중단] dry-run 이후 값이 바뀐 계정이 있어 건너뛰었다 — 새 dry-run 후 재승인 필요.');
+      process.exit(7);
+    }
     return;
   }
 
@@ -176,7 +206,8 @@ async function main() {
   console.log(`예약  ${String(t.before.bookingCount).padStart(14)} → ${String(t.after.bookingCount).padStart(10)}`);
   console.log(`코인  ${t.before.tripCoins.toLocaleString().padStart(14)} → ${t.after.tripCoins.toLocaleString().padStart(10)}`);
   console.log(`오염 이력       : ${t.pollutedEntries}건 (코인 ${t.pollutedCoins.toLocaleString()} / 지출 $${t.pollutedUSD.toLocaleString()})`);
-  console.log(`보류(애매)      : 이력 ${t.ambiguousEntries} · 주문 ${t.ambiguousOrders} · 쿠폰 ${t.ambiguousCoupons}`);
+  console.log(`보류(애매)      : 이력 ${t.ambiguousEntries} · 계정내 주문 ${t.ambiguousOrdersInAccounts} · 쿠폰 ${t.ambiguousCoupons}`);
+  console.log(`전역 귀속불가   : 레거시 주문 ${report.bookingLedger.unattributable}건 (계정에 안 붙어 검증 불가 — 위 '계정내 주문' 과 별개)`);
   console.log(`쿠폰            : 회수 대상 ${t.couponsToRevoke}장 / 이미 사용 ${t.couponsGrandfathered}장(유지)`);
   console.log(`보정 방식       : ${JSON.stringify(t.modes)}`);
   console.log(`보정 후 잔액    : 근거 있음 $${t.afterBackedUSD.toLocaleString()} / 근거 없음 $${t.afterUnbackedUSD.toLocaleString()}`);

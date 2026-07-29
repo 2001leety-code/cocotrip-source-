@@ -37,6 +37,12 @@ export interface Coupon {
   label: string;
   minOrderUSD: number;
   isUsed: boolean;
+  /**
+   * 🔴 서버가 회수한 쿠폰 (2026-07-29). 결제 경로 5곳 — applyPromoCode · capturePaypalOrder ·
+   * paymentGate · coupon-charge · refund-ledger — 이 전부 `isRevoked === true` 를 보고 거절한다.
+   * 화면 목록도 같은 기준을 써야 "결제는 막히는데 마이페이지엔 계속 보이는" 상태가 안 생긴다.
+   */
+  isRevoked?: boolean;
   expiresAt: number;
   createdAt: number;
   productScope?: string;   // 'charter' | 'tour-package' | 'ai-plan' — AI 무료쿠폰은 할인 picker 제외용 (P1-②)
@@ -59,6 +65,10 @@ const TIER_EARN_RATE: Record<TierType, number> = {
   Platinum: 0.03,
 };
 
+/** 로그아웃·로딩 구간에서 매 렌더 새 배열을 만들지 않도록 고정 참조를 쓴다. */
+const EMPTY_COUPONS: Coupon[] = [];
+const EMPTY_HISTORY: PointLog[] = [];
+
 export function useLoyalty() {
   // 🔴 2026-07-28: useAuth 는 공유 컨텍스트가 아니라 컴포넌트마다 새 인스턴스다.
   //   그래서 항상 user=null, loading=true 로 시작해 비동기로 채워진다.
@@ -66,6 +76,8 @@ export function useLoyalty() {
   const { user, loading: authLoading } = useAuth();
   const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  // 만료·회수 판정을 렌더가 아니라 스냅샷 콜백에서 하기 위해 따로 들고 있는다.
+  const [activeCoupons, setActiveCoupons] = useState<Coupon[]>([]);
   const [pointHistory, setPointHistory] = useState<PointLog[]>([]);
   // 어느 uid 의 회원 문서까지 도착했는지. loading 을 따로 저장하지 않고 여기서 파생한다
   // → uid 가 바뀌는 순간 자동으로 다시 "로딩 중"이 된다(리셋을 잊을 수 없다).
@@ -81,13 +93,10 @@ export function useLoyalty() {
   // ── 등급/포인트 실시간 구독 ──
   useEffect(() => {
     if (authLoading) return;          // 인증 복원 중 — 판단 보류(로그아웃으로 오인 금지)
-    if (!user?.uid) {
-      setLoyalty(null);
-      setCoupons([]);
-      setPointHistory([]);
-      setLoadedUid(null);
-      return;
-    }
+    // 🔴 2026-07-29: 로그아웃 구간에서 setState 로 초기화하지 않는다(렌더 연쇄 유발).
+    //   대신 아래에서 "현재 uid 의 데이터가 도착했을 때만" 노출하도록 파생한다.
+    //   그러면 이전 계정 잔상도 구조적으로 새어 나올 수 없다.
+    if (!user?.uid) return;
 
     const unsubs: (() => void)[] = [];
 
@@ -113,13 +122,23 @@ export function useLoyalty() {
     );
 
     // 2. Coupons
+    const adminNow = isAdminEmail(user.email);
     unsubs.push(
       onSnapshot(collection(db, 'users', user.uid, 'coupons'), (snap) => {
-        setCoupons(
-          snap.docs.map(d => ({
-            id: d.id,
-            ...(d.data() as Omit<Coupon, 'id'>),
-          }))
+        const all = snap.docs.map(d => ({
+          id: d.id,
+          ...(d.data() as Omit<Coupon, 'id'>),
+        }));
+        setCoupons(all);
+        // 🔴 만료 판정은 **스냅샷 콜백(이벤트)** 에서 한다. 렌더 중 시계를 읽으면
+        //   같은 입력에 다른 결과가 나와 렌더가 불안정해진다(react-hooks/purity).
+        // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.
+        // 🔴 2026-07-29: 회수(isRevoked)된 쿠폰은 **어드민에게도** 숨긴다.
+        //   결제 5경로가 이미 isRevoked 로 거절하므로, 목록에만 남으면
+        //   "보이는데 안 되는" 쿠폰이 된다.
+        const now = Date.now();
+        setActiveCoupons(
+          all.filter(c => c.isRevoked !== true && (adminNow || !c.isUsed) && c.expiresAt > now),
         );
       })
     );
@@ -144,17 +163,22 @@ export function useLoyalty() {
     );
 
     return () => unsubs.forEach(fn => fn());
-  }, [user?.uid, authLoading]);
+    // user.email 은 어드민 판정(쿠폰 노출 규칙)에 쓰이므로 의존성에 포함한다.
+  }, [user?.uid, user?.email, authLoading]);
 
-  // ── 사용 가능한 쿠폰만 필터 ──
-  // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.
-  const isAdmin = isAdminEmail(user?.email);
-  const activeCoupons = coupons.filter(
-    c => (isAdmin || !c.isUsed) && c.expiresAt > Date.now()
-  );
+  // 🔴 현재 uid 의 데이터가 도착했을 때만 노출한다.
+  //   로그아웃·계정 전환 구간에서 이전 계정 값이 잠깐 보이는 것을 구조적으로 막는다.
+  const ready = !!user?.uid && loadedUid === user.uid;
 
   // ── Trip Coins → USD 환산 ──
   const coinsToUSD = (coins: number) => (coins * 0.01).toFixed(2);
 
-  return { loyalty, coupons, activeCoupons, pointHistory, loading, coinsToUSD };
+  return {
+    loyalty: ready ? loyalty : null,
+    coupons: ready ? coupons : EMPTY_COUPONS,
+    activeCoupons: ready ? activeCoupons : EMPTY_COUPONS,
+    pointHistory: ready ? pointHistory : EMPTY_HISTORY,
+    loading,
+    coinsToUSD,
+  };
 }

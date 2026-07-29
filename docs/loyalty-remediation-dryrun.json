@@ -25,7 +25,7 @@
     "pollutedCoins": 629237,
     "pollutedUSD": 210219.21,
     "ambiguousEntries": 3,
-    "ambiguousOrders": 0,
+    "ambiguousOrdersInAccounts": 0,
     "ambiguousCoupons": 0,
     "couponsHeldTotal": 12,
     "couponsUsedTotal": 2,
@@ -37,7 +37,7 @@
     "afterBackedUSD": 0,
     "preservedLegitCoins": 0,
     "preservedVerifiedOrders": 0,
-    "docsToWrite": 12,
+    "docsToWrite": 16,
     "modes": {
       "subtract_pollution_only": 4
     }
@@ -99,7 +99,13 @@
         "bookingCount": 0,
         "tripCoins": 0
       },
-      "docsToWrite": 6
+      "docsToWrite": 7,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 4
+      }
     },
     {
       "no": 2,
@@ -157,7 +163,13 @@
         "bookingCount": 0,
         "tripCoins": 0
       },
-      "docsToWrite": 2
+      "docsToWrite": 3,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 0
+      }
     },
     {
       "no": 3,
@@ -215,7 +227,13 @@
         "bookingCount": 0,
         "tripCoins": 0
       },
-      "docsToWrite": 2
+      "docsToWrite": 3,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 0
+      }
     },
     {
       "no": 4,
@@ -273,7 +291,13 @@
         "bookingCount": 0,
         "tripCoins": 0
       },
-      "docsToWrite": 2
+      "docsToWrite": 3,
+      "docsBreakdown": {
+        "snapshot": 1,
+        "user": 1,
+        "correction": 1,
+        "coupons": 0
+      }
     }
   ],
   "bookingLedger": {

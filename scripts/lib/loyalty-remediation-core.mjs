@@ -245,7 +245,8 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
         id: c.id, coinsSpent: num(cd.coinsSpent), isUsed: cd.isUsed === true,
         createdAt: num(cd.createdAt), percent: num(cd.value),
         // 이미 회수된 쿠폰은 다시 회수 대상으로 세지 않는다(재실행 수렴).
-        alreadyRevoked: cd.status === 'revoked',
+        // 🔴 실제 차단 스위치는 isRevoked 다. status 는 감사용 보조 표시.
+        alreadyRevoked: cd.isRevoked === true || cd.status === 'revoked',
       });
     } else if (cd.source) otherCoupons += 1;
     else ambiguousCoupons += 1;   // 출처 불명 — 오염 여부 판단 불가 → 보류
@@ -341,8 +342,13 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
       pollutionFundedCoins,
     },
     grandfatheredCoinDebt,
-    // 실행 시 이 계정에서 바뀔 문서 수 — user 1 + correction 1 + 회수 쿠폰 N
-    docsToWrite: changed ? 2 + pollutedCouponsUnused.length : 0,
+    // 🔴 FAIL-2: 실행 시 이 계정에서 바뀔 문서 수.
+    //   복구 스냅샷 1 + 사용자 문서 1 + correction 원장 1 + 회수 쿠폰 N.
+    //   이전 계산은 복구 스냅샷을 빠뜨려 계정마다 1건씩 적게 보고했다.
+    docsToWrite: changed ? 3 + pollutedCouponsUnused.length : 0,
+    docsBreakdown: changed
+      ? { snapshot: 1, user: 1, correction: 1, coupons: pollutedCouponsUnused.length }
+      : { snapshot: 0, user: 0, correction: 0, coupons: 0 },
     _pollutedUnusedCouponIds: pollutedCouponsUnused.map((c) => c.id),   // 실행 전용, 보고서 제외
   };
 }
@@ -377,7 +383,9 @@ export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
     pollutedCoins: sum((a) => a.ledger.pollutedCoins),
     pollutedUSD: round2(sum((a) => a.ledger.pollutedUSD)),
     ambiguousEntries: sum((a) => a.ledger.ambiguousEntries),
-    ambiguousOrders: sum((a) => a.orders.ambiguousOrders),
+    // 🔴 FAIL-7: "계정 안에서 애매한 주문" 과 "아예 계정에 붙지 않는 레거시 주문" 은 다르다.
+    //   전자만 0 이라고 보고하면 후자 29건이 정상 검증된 것처럼 보인다.
+    ambiguousOrdersInAccounts: sum((a) => a.orders.ambiguousOrders),
     ambiguousCoupons: sum((a) => a.coupons.ambiguous),
     couponsHeldTotal: sum((a) => a.coupons.couponsTotal),
     couponsUsedTotal: sum((a) => a.coupons.couponsUsedTotal),
@@ -426,6 +434,7 @@ export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
       grandfatheredCoinDebt: a.grandfatheredCoinDebt,
       ledgerBasedIfComplete: a.ledgerBasedIfComplete,
       docsToWrite: a.docsToWrite,
+      docsBreakdown: a.docsBreakdown,
     })),
   };
 }
@@ -448,7 +457,14 @@ export function toMarkdown(r) {
   L.push('');
   L.push(`- 보정 대상 계정: **${r.totals.accountsToFix}** (스캔 ${r.totals.scannedUsers})`);
   L.push(`- 오염 적립 이력: ${r.totals.pollutedEntries}건 / 코인 ${r.totals.pollutedCoins.toLocaleString()} / 지출 $${r.totals.pollutedUSD.toLocaleString()}`);
-  L.push(`- 실행 시 바뀔 문서 수: **${r.totals.docsToWrite}**`, '');
+  const br = r.accounts.reduce((t, a) => ({
+    snapshot: t.snapshot + a.docsBreakdown.snapshot,
+    user: t.user + a.docsBreakdown.user,
+    correction: t.correction + a.docsBreakdown.correction,
+    coupons: t.coupons + a.docsBreakdown.coupons,
+  }), { snapshot: 0, user: 0, correction: 0, coupons: 0 });
+  L.push(`- 실행 시 바뀔 문서 수: **${r.totals.docsToWrite}**`);
+  L.push(`  (복구 스냅샷 ${br.snapshot} + 사용자 ${br.user} + correction 원장 ${br.correction} + 회수 쿠폰 ${br.coupons})`, '');
 
   L.push('## 🔴 보정 방식 (계정별)', '');
   L.push('| 방식 | 계정 수 | 뜻 |');
@@ -473,7 +489,10 @@ export function toMarkdown(r) {
 
   L.push('## 애매하여 보류한 데이터 (자동 수정 안 함)', '');
   L.push(`- 결제 근거가 불완전한 적립 이력: ${r.totals.ambiguousEntries}건`);
-  L.push(`- 통화·금액이 불완전한 주문: ${r.totals.ambiguousOrders}건`);
+  L.push(`- **계정 내부** 애매 주문(통화·금액 불완전): ${r.totals.ambiguousOrdersInAccounts}건`);
+  if (r.bookingLedger) {
+    L.push(`- **전역 귀속 불가 레거시 주문: ${r.bookingLedger.unattributable}건** — 계정에 붙지 않아 검증 자체가 불가능하다. "애매 주문 0건" 과 별개 항목이다.`);
+  }
   L.push(`- 출처 불명 쿠폰: ${r.totals.ambiguousCoupons}장`, '');
 
   L.push('## 쿠폰 처리 계획', '');
@@ -503,4 +522,35 @@ export function toMarkdown(r) {
   L.push('- 실행 직전 dry-run 을 다시 돌려 planHash 가 다르면 중단한다.');
   L.push('- 되돌리기: `node scripts/loyalty-remediation-rollback.mjs --confirm=<runId>` (별도 승인 필요)');
   return L.join('\n');
+}
+
+/**
+ * FAIL-5: 쓰기 모드에서는 Production 대상 확인이 **fail-closed** 여야 한다.
+ *
+ * dry-run 은 프로젝트가 불명확해도 읽기만 하므로 진행할 수 있다.
+ * 그러나 `--execute` 와 rollback `--execute` 는 아래가 **전부 같지 않으면** 즉시 중단한다.
+ *   · 명시한 Production 프로젝트 ID (FIREBASE_PRODUCTION_PROJECT_ID)
+ *   · Firebase Admin 앱이 실제로 연결한 프로젝트 ID
+ *   · 자격증명 안에 들어 있는 프로젝트 ID
+ * Preview·Sandbox 표식이 있으면 Production 쓰기를 금지한다.
+ *
+ * 프로젝트 ID·비밀값은 출력하지 않는다. **일치 여부만** 돌려준다.
+ */
+export function checkProductionTarget({
+  declaredProdId, credentialProjectId, appProjectId, previewMarkers, forWrite,
+}) {
+  if (!forWrite) return { ok: true, mode: 'read-only' };
+  if (!declaredProdId) return { ok: false, reason: 'production_project_id_not_declared' };
+  if (!credentialProjectId) return { ok: false, reason: 'credential_project_unknown' };
+  if (!appProjectId) return { ok: false, reason: 'app_project_unknown' };
+  if (String(declaredProdId) !== String(credentialProjectId)) {
+    return { ok: false, reason: 'credential_project_mismatch' };
+  }
+  if (String(declaredProdId) !== String(appProjectId)) {
+    return { ok: false, reason: 'app_project_mismatch' };
+  }
+  if (/preview|sandbox|development/i.test(String(previewMarkers || ''))) {
+    return { ok: false, reason: 'preview_or_sandbox_markers_present' };
+  }
+  return { ok: true, mode: 'production-write' };
 }
