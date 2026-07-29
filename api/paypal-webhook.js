@@ -534,15 +534,23 @@ export default async function handler(req, res) {
               res.writeHead(200, JSON_HEADERS);
               return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
             }
-            await logWebhookEvent({
-              db: adminDb, environment: verifiedEnvironment, eventId, eventType,
-              status: 'processed',
-              detail: {
-                reason: 'already_confirmed_via_capture_endpoint',
-                bookingRef: directData.bookingRef || paypalOrderId,
-                paypalOrderId, paypalTxId, amountUSD, currency,
-              },
-            });
+            // 🔴 2026-07-29: 이 경로도 processed 기록을 삼키지 않는다.
+            //   로그가 조용히 실패하면 PayPal 재전송 때 멱등 확인이 헛돌아 매번 다시 처리된다.
+            //   재전송은 안전하다 — 예약은 capture endpoint 가 이미 CONFIRMED 로 저장했고
+            //   이 분기는 **읽기만** 한다(확정·적립·메일 없음). 그래서 processed 로그만 수렴한다.
+            try {
+              await logWebhookEventStrict({
+                db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+                status: 'processed',
+                detail: {
+                  reason: 'already_confirmed_via_capture_endpoint',
+                  bookingRef: directData.bookingRef || paypalOrderId,
+                  paypalOrderId, paypalTxId, amountUSD, currency,
+                },
+              });
+            } catch (e) {
+              return respondRetryable(res, 'processed_log_write_failed', e.message);
+            }
             console.log('[paypal-webhook] PayPal-direct capture ack (no alert):', paypalOrderId);
             res.writeHead(200, JSON_HEADERS);
             return res.end(JSON.stringify({ ok: true, status: 'already_confirmed' }));

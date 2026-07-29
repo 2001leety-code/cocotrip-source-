@@ -146,10 +146,12 @@ describe('2. trigger 가 outcome 에 맞는 status 로 저장한다', () => {
     expect(meta.stepStatus).toEqual({ email: 'outcome_unknown' });
   });
 
-  it('알림 문구가 자동 재시도 여부와 일치한다', () => {
+  it('알림 문구가 상태별로 갈린다', () => {
+    // 2026-07-29: 문구 조립이 operatorGuidance() 로 분리됐다.
+    //   문구별 실제 내용 검증은 direct-capture-log-and-alert-guidance.test.ts 담당.
     const src = read('api/_shared/booking-processor-trigger.js');
-    // 수동 확인/영구 실패인데 "5분 cron 이 자동 재시도" 라고 안내하면 안 된다.
-    expect(src).toMatch(/result\.retryable === false/);
+    expect(src).toContain('export function operatorGuidance');
+    expect(src).toContain('...operatorGuidance({ orderID, result })');
     expect(src).toContain('자동 재시도 없음');
   });
 
