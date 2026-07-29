@@ -133,6 +133,28 @@ async function getAccessToken() {
   return tokenData.access_token;
 }
 
+// ── 고유 키(주문 ID)로 기존 행 찾기 ───────────────────────────────────
+/**
+ * N열(PayPal 거래/주문 ID)에서 key 를 찾아 **1-기반 행 번호**를 돌려준다. 없으면 null.
+ * 조회 실패(네트워크·권한)는 throw 한다 — "못 찾았다" 로 취급해 중복 추가하면 안 된다.
+ */
+export async function findBookingRowByKey(spreadsheetId, key) {
+  const accessToken = await getAccessToken();
+  const range = `${SHEET_NAME}!N:N`;
+  const res = await fetch(
+    `${SHEETS_BASE_URL}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(`Sheets 조회 실패: ${data.error.message}`);
+  const rows = data.values || [];
+  const target = String(key).trim();
+  for (let i = 0; i < rows.length; i += 1) {
+    if (String((rows[i] || [])[0] || '').trim() === target) return i + 1;
+  }
+  return null;
+}
+
 // ── 예약 기록 추가 (행 추가) ──────────────────────────────────────────
 /**
  * Google Sheets에 예약 정보 한 행 추가
@@ -147,6 +169,20 @@ export async function appendBooking(booking) {
       _envWarnedOnce = true;
     }
     throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
+
+  // 🔴 2026-07-29: 추가 전에 **고유 키로 조회**한다.
+  //   시트 append 에는 멱등 키가 없다. append 는 성공했는데 그 직후 함수가 죽어
+  //   "완료" 기록을 못 남기면, 재시도가 같은 예약을 한 줄 더 넣는다.
+  //   N열 = PayPal 주문 ID(booking.transactionId = orderID) 라 그것이 곧 고유 키다.
+  //   이미 있으면 추가하지 않고 기존 행 번호를 돌려준다 → 재시도해도 정확히 1행.
+  const dedupeKey = String(booking.transactionId || '').trim();
+  if (dedupeKey) {
+    const existingRow = await findBookingRowByKey(spreadsheetId, dedupeKey);
+    if (existingRow) {
+      console.log('[google-sheets] 이미 기록된 예약 — 추가 생략:', dedupeKey, 'row', existingRow);
+      return { deduped: true, appendedRow: `${SHEET_NAME}!A${existingRow}`, rowNumber: existingRow };
+    }
   }
 
   const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });

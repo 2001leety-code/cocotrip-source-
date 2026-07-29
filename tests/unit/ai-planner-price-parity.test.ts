@@ -165,7 +165,9 @@ describe('KRW 는 참고 표시용', () => {
   });
 
   it('환불 전액/부분 판정에 KRW 가 쓰이지 않는다 (USD 비교)', () => {
-    const code = codeOf('api/paypal-webhook.js');
-    expect(code).toMatch(/isPartialRefund\s*=\s*originalUSD\s*>\s*0/);
+    // 2026-07-29: 판정이 api/_shared/refund-ledger.js 로 이동(트랜잭션 원자화).
+    const code = codeOf('api/_shared/refund-ledger.js');
+    expect(code).toMatch(/Number\(originalUSD\)\s*>\s*0/);
+    expect(code).toMatch(/round2\(cumulativeRefundedUSD\)\s*<\s*Number\(originalUSD\)/);
   });
 });

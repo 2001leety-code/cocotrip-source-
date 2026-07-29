@@ -62,3 +62,132 @@ export const BOOKING_STEP_MARKERS = {
   loyalty: 'loyaltyEarnedAt',
   voucher: 'voucherSentAt',
 };
+
+/**
+ * 🔴 2026-07-29 (좀비 선점 정책): "선점만 하고 죽은" 단계를 어떻게 다룰지는 단계마다 다르다.
+ *
+ *   reclaim    — 다시 실행해도 안전한 단계. **외부 쪽에도 중복 방지 키가 있어야만** 이걸 쓴다.
+ *                sheets  = 시트에 orderID 로 조회 후 없을 때만 추가 (아래 appendBooking)
+ *                loyalty = 원장 문서 ID 가 orderID 로 고정 (api/loyalty.js)
+ *   quarantine — 다시 실행하면 **손님에게 두 번 간다**. 자동 재시도 금지.
+ *                voucher = SMTP 는 멱등 키가 없다. 보냈는지 확신할 수 없으면 보내지 않고
+ *                          outcome_unknown 으로 격리해 운영자가 판단하게 한다.
+ *
+ * "확실치 않으면 한 번 더 보낸다" 는 결제 확인 메일에서 최악의 기본값이다.
+ */
+export const STEP_ZOMBIE_POLICY = {
+  sheetsAppendedAt: 'reclaim',
+  loyaltyEarnedAt: 'reclaim',
+  voucherSentAt: 'quarantine',
+};
+
+/** 선점 결과. 호출부는 claimed 가 true 일 때만 외부 작업을 실행해야 한다. */
+export const CLAIM = {
+  CLAIMED: 'claimed',
+  ALREADY_COMPLETED: 'already_completed',
+  IN_FLIGHT: 'in_flight',
+  OUTCOME_UNKNOWN: 'outcome_unknown',
+  STORE_UNAVAILABLE: 'store_unavailable',
+};
+
+/**
+ * 단계 선점 — transaction 안에서 원자적으로.
+ *
+ * 🔴 이전 구현의 치명적 기본값: Firestore 가 없거나 transaction 이 실패하면 `true` 를 돌려
+ *   **외부 작업을 그냥 진행**했다(fail-open). 중복 방지 장치가 죽었는데 중복 위험이 있는
+ *   작업은 계속 나가는 구조라, Firestore 장애 시 확인 메일이 손님에게 여러 번 갔다.
+ *   → 이제 선점 저장소가 불능이면 외부 작업을 **멈추고** 재시도 상태로 남긴다.
+ *
+ * @param {{db: object, FieldValue?: object, orderID: string, field: string, nowMs?: number}} args
+ * @returns {Promise<{claimed: boolean, reason: string}>}
+ */
+export async function claimStep({ db, orderID, field, nowMs } = {}) {
+  if (!db || !orderID || !field) {
+    return { claimed: false, reason: CLAIM.STORE_UNAVAILABLE };
+  }
+  const now = Number(nowMs) || Date.now();
+  const stateField = stepStateField(field);
+  const policy = STEP_ZOMBIE_POLICY[field] || 'quarantine';
+  const ref = db.collection('bookings').doc(orderID);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? (snap.data() || {}) : {};
+
+    if (isStepCompleted(data, field)) {
+      return { claimed: false, reason: CLAIM.ALREADY_COMPLETED };
+    }
+    const state = data[stateField];
+    if (state === CLAIM.OUTCOME_UNKNOWN) {
+      return { claimed: false, reason: CLAIM.OUTCOME_UNKNOWN };
+    }
+    if (state === 'in_progress') {
+      const startedMs = Number(data[`${stateField}At`]) || 0;
+      if (startedMs && now - startedMs < STEP_CLAIM_STALE_MS) {
+        return { claimed: false, reason: CLAIM.IN_FLIGHT };
+      }
+      if (policy === 'quarantine') {
+        // 보냈는지 알 수 없다 → 다시 보내지 않고 운영자 검토 대기로 격리.
+        tx.set(ref, {
+          [stateField]: CLAIM.OUTCOME_UNKNOWN,
+          [`${stateField}UnknownAtMs`]: now,
+          [`${stateField}UnknownReason`]: 'claim_expired_without_completion',
+        }, { merge: true });
+        return { claimed: false, reason: CLAIM.OUTCOME_UNKNOWN };
+      }
+      // reclaim — 외부 쪽 중복 방지 키가 있으므로 재실행해도 결과는 1건이다.
+    }
+
+    tx.set(ref, {
+      [stateField]: 'in_progress',
+      [`${stateField}At`]: now,
+      [`${stateField}Attempts`]: (Number(data[`${stateField}Attempts`]) || 0) + 1,
+    }, { merge: true });
+    return { claimed: true, reason: CLAIM.CLAIMED };
+  });
+}
+
+/**
+ * claimStep 의 예외까지 흡수한 버전 — **실패는 절대 "진행" 으로 해석하지 않는다.**
+ * (이 함수가 true 를 돌려주는 유일한 경우는 transaction 이 실제로 커밋된 때다.)
+ */
+export async function claimStepSafe(args) {
+  try {
+    return await claimStep(args);
+  } catch (e) {
+    console.error(`[booking-idempotency] 선점 실패 — 외부 작업 중단(재시도 대기): ${e.message}`);
+    return { claimed: false, reason: CLAIM.STORE_UNAVAILABLE };
+  }
+}
+
+/** 단계 완료 확정 — **외부 작업이 실제로 성공한 뒤에만** 호출한다. */
+export async function completeStep({ db, FieldValue, orderID, field, detail } = {}) {
+  if (!db || !orderID || !field) throw new Error('completeStep: db/orderID/field required');
+  const patch = {
+    [field]: FieldValue ? FieldValue.serverTimestamp() : Date.now(),
+    [stepStateField(field)]: 'completed',
+  };
+  if (detail && typeof detail === 'object') {
+    patch[`${field}Detail`] = detail;
+  }
+  await db.collection('bookings').doc(orderID).set(patch, { merge: true });
+}
+
+/**
+ * 외부 작업은 성공했는데 완료 기록을 못 남긴 상태 — 자동 재시도가 아니라 **검토 대기**.
+ * (이 쓰기마저 실패하면 in_progress 로 남고, 다음 실행의 quarantine 정책이 같은 결론을 낸다.)
+ */
+export async function markOutcomeUnknown({ db, orderID, field, reason, nowMs } = {}) {
+  if (!db || !orderID || !field) return false;
+  const stateField = stepStateField(field);
+  try {
+    await db.collection('bookings').doc(orderID).set({
+      [stateField]: CLAIM.OUTCOME_UNKNOWN,
+      [`${stateField}UnknownAtMs`]: Number(nowMs) || Date.now(),
+      [`${stateField}UnknownReason`]: String(reason || 'unknown').slice(0, 300),
+    }, { merge: true });
+    return true;
+  } catch {
+    return false;
+  }
+}

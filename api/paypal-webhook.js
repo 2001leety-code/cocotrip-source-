@@ -37,8 +37,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { notify } from './_shared/notify.js';
-import { getPaypalAccessToken } from './_shared/paypal.js';
+import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
+import { applyRefundEvent, fetchAuthoritativeCaptureStatus } from './_shared/refund-ledger.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
 // PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
@@ -510,24 +511,19 @@ export default async function handler(req, res) {
       // Capture the actual bookings doc ID (could be captureId OR orderID) so
       // the subsequent update writes to the RIGHT doc rather than creating an
       // orphan at bookings/{captureId} (the Y-H7 silent bug).
+      // 🔴 2026-07-29 (원자화): 여기서는 **어느 문서인지** 만 찾는다.
+      //   금액(원결제·이미 환불된 누계)은 transaction 안에서 다시 읽는다 —
+      //   여기서 읽어 두면 읽기와 쓰기 사이에 다른 환불이 끼어들어 누계가 유실된다.
+      //   capturedExchangeRate 만 예외: 표시용 KRW 환산에만 쓰고 판정에는 안 쓴다.
       let bookingsDocId = null;
       let bookingRef = null;
-      let priceKRW = 0;
-      // 🔴 2026-07-29 (#4): 부분/전액 판정을 **USD 끼리** 하기 위해 원결제 USD 를 같이 읽는다.
-      //   capturedExchangeRate = 결제 당시 실제 적용 환율(표시용 KRW 환산에만 쓴다).
-      let originalUSD = 0;
       let capturedRate = 0;
-      // 이 예약에 이미 환불된 USD 누계 (여러 번 나눠 환불한 경우).
-      let priorRefundedUSDRaw = 0;
 
       let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
       if (bookingDoc.exists) {
         bookingsDocId = captureId;
         bookingRef = bookingDoc.data().bookingRef || captureId;
-        priceKRW = bookingDoc.data().amountKRW || 0;
-        originalUSD = Number(bookingDoc.data().amountUSD) || 0;
         capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
-        priorRefundedUSDRaw = Number(bookingDoc.data().refundedUSDTotal) || 0;
       } else {
         // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
         // 🔴 F6 (2026-07-16): .limit(1) 제거. cart 형제 예약 N개가 하나의 captureID 를 공유하므로
@@ -557,10 +553,7 @@ export default async function handler(req, res) {
           bookingDoc = captureFieldMatch.docs[0];
           bookingsDocId = bookingDoc.id;
           bookingRef = bookingDoc.data().bookingRef || bookingDoc.id;
-          priceKRW = bookingDoc.data().amountKRW || 0;
-        originalUSD = Number(bookingDoc.data().amountUSD) || 0;
-        capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
-        priorRefundedUSDRaw = Number(bookingDoc.data().refundedUSDTotal) || 0;
+          capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
         } else {
           // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
           const pendingMatch = await adminDb.collection('pending_bookings')
@@ -568,7 +561,6 @@ export default async function handler(req, res) {
             .limit(1).get();
           if (!pendingMatch.empty) {
             bookingRef = pendingMatch.docs[0].id;
-            priceKRW = pendingMatch.docs[0].data().priceKRW || 0;
             // bookingsDocId stays null — pending_bookings update only.
           }
         }
@@ -594,75 +586,86 @@ export default async function handler(req, res) {
         || Number(process.env.VITE_USD_KRW_RATE)
         || 1430;
       const refundedKRW = Math.round(refundedUSD * usdToKrw);
-      // 🟡 부분/전체 판별: 이번 환불액이 원결제 KRW 보다 (1% 이상) 작으면 부분환불 →
-      //   status='REFUNDED'(전액) 로 오기록하지 않고 'PARTIALLY_REFUNDED' 로 기록.
-      //   (이전엔 부분환불도 무조건 REFUNDED → 운영자/고객 화면에 전액환불로 오표시.)
-      //   ⚠️ refundedKRW 누적(increment) 은 도입 안 함: admin mark-refunded 가
-      //   refundPaypalCapture 로 PayPal 환불을 트리거하면 이 webhook 도 같은 환불로 발사되어
-      //   admin set + webhook increment 이중합산 위험. 이번 이벤트 금액(set) 유지가 안전.
-      // 🔴 2026-07-29 (#4 + 누적): 부분/전액 판정에서 **환율을 완전히 제거**하고,
-      //   **여러 번 나눠 환불한 누적액**으로 판정한다.
+      // 🔴 2026-07-29 (원자화): 판정·누적·두 저장소 갱신·이벤트 완료 기록을
+      //   **하나의 transaction** 으로 묶는다. 자세한 이유는 _shared/refund-ledger.js 머리말.
+      //   여기서는 transaction 밖에서만 해도 되는 것(권위 상태 조회)만 미리 한다.
       //
-      //   환율 제거 이유: PayPal 은 USD 로 결제·환불한다. KRW 를 거치면 환율 하나로 뒤집힌다.
-      //     실제 구조: ₩13,300 을 환율 1,468 로 $9.06 청구 → 전액 환불 $9.06 을 env 1,430 으로
+      //   부분/전액 판정에서 환율을 쓰지 않는 이유: PayPal 은 USD 로 결제·환불한다.
+      //     ₩13,300 을 환율 1,468 로 $9.06 청구 → 전액 환불 $9.06 을 env 1,430 으로
       //     환산하면 ₩12,956 < ₩13,167(99%) → 전액인데 부분으로 오기록.
-      //   누적 이유: $5 + $4.90 처럼 두 번 나눠 전액을 돌려주면, 이번 이벤트 금액($4.90)만
-      //     보고는 영원히 PARTIALLY_REFUNDED 로 남는다. 이미 환불된 금액을 더해서 본다.
-      //
-      //   누적 근거는 이 webhook 이 남기는 refundedUSDTotal 이다(이벤트 멱등은 상단
-      //   paypal_webhook_log/{eventId} 가 이미 보장 → 같은 이벤트가 두 번 더해지지 않는다).
-      const priorRefundedUSD = Number(priorRefundedUSDRaw) || 0;
-      const cumulativeRefundedUSD = Math.round((priorRefundedUSD + refundedUSD) * 100) / 100;
-      const isPartialRefund = originalUSD > 0
-        ? cumulativeRefundedUSD < originalUSD * 0.99
-        : (priceKRW > 0 && refundedKRW < Math.round(priceKRW * 0.99));
+      //   누적으로 판정하는 이유: $5 + $4.90 처럼 나눠 전액을 돌려주면, 이번 이벤트
+      //     금액만 보고는 영원히 PARTIALLY_REFUNDED 로 남는다.
+      const refundId = event?.resource?.id || null;
 
-      const updates = {
-        status: isPartialRefund ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
-        // 누계 — 다음 부분환불 이벤트가 이 값을 이어서 더한다.
-        refundedUSDTotal: cumulativeRefundedUSD,
-        refundedUSD,
-        refundedKRW,
-        refundReason: 'PayPal webhook auto-refund',
-        refundedAt: FieldValue.serverTimestamp(),
-        refundedBySource: 'webhook',
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      // pending_bookings 업데이트 (없을 수도 있음 — bookings only 케이스)
-      try {
-        await adminDb.collection('pending_bookings').doc(bookingRef).update(updates);
-      } catch (e) {
-        console.warn('[paypal-webhook] pending_bookings update skipped:', e.message);
-      }
-      // bookings doc 업데이트 — PR #438: use the actual doc ID we matched on
-      // (captureId for legacy shape, orderID for PayPal-direct). Skip when we
-      // matched via pending_bookings only (no bookings mirror exists yet).
-      if (bookingsDocId) {
-        try {
-          await adminDb.collection('bookings').doc(bookingsDocId).set(updates, { merge: true });
-        } catch (e) {
-          console.warn('[paypal-webhook] bookings update failed:', e.message);
-        }
-      }
-
-      await logWebhookEvent({
-        db: adminDb, eventId, eventType,
-        status: 'processed',
-        detail: { bookingRef, captureId, refundedUSD, refundedKRW },
+      // PayPal 이 아는 capture 상태가 최종 진실이다(우리 누계는 이벤트 유실에 취약).
+      // 실패하면 null → 누적 계산으로 판정한다. 조회 실패로 환불 기록이 멈추면 안 된다.
+      const authoritativeCaptureStatus = await fetchAuthoritativeCaptureStatus(captureId, {
+        getPaypalAccessToken,
+        isSandbox: resolveIsSandbox(),
       });
+
+      let refundOutcome;
+      try {
+        refundOutcome = await applyRefundEvent({
+          db: adminDb,
+          FieldValue,
+          eventId,
+          eventType,
+          refundId,
+          captureId,
+          refundedUSD,
+          refundedKRW,
+          usdToKrw,
+          bookingsDocId,
+          bookingRef,
+          authoritativeCaptureStatus,
+        });
+      } catch (e) {
+        // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
+        console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
+        captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
+        await logWebhookEvent({
+          db: adminDb, eventId, eventType,
+          status: 'retryable_error',
+          detail: { reason: e.message, captureId, refundId },
+        });
+        await alertAdmin(`🚨 <b>환불 웹훅 처리 실패 (재시도 대기)</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n사유: ${e.message}`);
+        res.writeHead(503, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, status: 'retryable', error: 'refund ledger unavailable' }));
+      }
+
+      if (!refundOutcome.applied) {
+        if (refundOutcome.reason === 'unmatched') {
+          await logWebhookEvent({
+            db: adminDb, eventId, eventType,
+            status: 'unmatched',
+            detail: { reason: 'booking_docs_missing', captureId, refundId },
+          });
+          await alertAdmin(`⚠️ <b>PayPal 환불 webhook — booking 미매칭</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}`);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: refundOutcome.reason, bookingRef }));
+      }
 
       const telText = [
         '💸 <b>환불 자동 처리 (PayPal Webhook)</b>',
         '',
         `<b>예약번호:</b> <code>${bookingRef}</code>`,
-        `<b>환불액:</b> $${refundedUSD} (≈ ₩${refundedKRW.toLocaleString('ko-KR')})`,
+        `<b>이번 환불:</b> $${refundedUSD} (≈ ₩${refundedKRW.toLocaleString('ko-KR')})`,
+        `<b>누적 환불:</b> $${refundOutcome.cumulativeRefundedUSD}`,
+        `<b>상태:</b> ${refundOutcome.status}`,
         `<b>Capture:</b> <code>${captureId}</code>`,
       ].join('\n');
       notify('booking', telText).catch(() => {});
 
       res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, status: 'refunded', bookingRef }));
+      return res.end(JSON.stringify({
+        ok: true,
+        status: 'refunded',
+        bookingRef,
+        bookingStatus: refundOutcome.status,
+        cumulativeRefundedUSD: refundOutcome.cumulativeRefundedUSD,
+      }));
     }
 
     // ─── PAYMENT.REFUND.FAILED / PAYMENT.REFUND.PENDING ─────────────

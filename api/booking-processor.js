@@ -42,7 +42,10 @@ import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
 import { getUsdToKrwRaw } from './_exchange-rate.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
-import { bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField, STEP_CLAIM_STALE_MS } from './_shared/booking-idempotency.js';
+import {
+  bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField,
+  claimStepSafe, completeStep, markOutcomeUnknown, CLAIM,
+} from './_shared/booking-idempotency.js';
 
 
 // ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
@@ -128,65 +131,75 @@ function detectLanguage(email = '', name = '') {
 //  - 선점 성공 후 단계가 실패하면 마커가 이미 박혀 retry 가 재실행 안 함—
 //    기존 setBookingMarker 동작과 동일(성공한 단계만 마커). loyalty 는 실패 시
 //    재적립 위해 명시적으로 마커 해제(아래 참조).
-async function claimBookingStep(orderID, field) {
-  if (!orderID || !field) return true; // db/orderID 없으면 처리 진행 (안전 기본)
-  let db;
+//
+// 🔴 2026-07-29 (fail-open 제거): 이전에는 Firestore 가 없거나 transaction 이 실패하면
+//   `true`(=진행) 를 돌려줬다. **중복 방지 장치가 죽었는데 중복 위험 작업만 계속 나가는**
+//   구조라, Firestore 장애 때 확인 메일이 손님에게 여러 번 갔다.
+//   이제 선점 저장소가 불능이면 외부 작업을 하지 않고 재시도 상태로 남긴다.
+function stepDb() {
   try {
-    db = initAdminDb('booking-processor');
+    return initAdminDb('booking-processor');
   } catch {
-    return true;
+    return null;
   }
-  if (!db) return true; // Firestore unavailable → 기존 동작(전 단계 처리)
-  try {
-    const { FieldValue } = await import('firebase-admin/firestore');
-    const ref = db.collection('bookings').doc(orderID);
-    const stateField = stepStateField(field);
-    const claimed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const data = snap.exists ? (snap.data() || {}) : {};
-      // 🔴 2026-07-29: 완료된 것만 스킵한다. 선점(in_progress)은 죽은 실행일 수 있다.
-      if (data[stateField] === 'completed') return false;
-      if (!data[stateField] && data[field]) return false;   // 레거시 완료 문서
-      if (data[stateField] === 'in_progress') {
-        // 다른 인스턴스가 처리 중일 수 있다 → 너무 오래된 선점만 회수(좀비 방지).
-        const startedMs = data[`${stateField}At`] || 0;
-        if (startedMs && Date.now() - startedMs < STEP_CLAIM_STALE_MS) return false;
-        console.warn(`[booking-processor] 좀비 선점 회수: ${field} (${orderID})`);
-      }
-      tx.set(ref, {
-        [stateField]: 'in_progress',
-        [`${stateField}At`]: Date.now(),
-      }, { merge: true });
-      return true; // 내가 선점
-    });
-    return claimed;
-  } catch (e) {
-    // 트랜잭션 자체 실패(Firestore 오류) → 안전 기본 = 처리 진행.
-    // (기존도 마커 읽기 실패 시 전 단계 처리) — 극도의 race 중복보다
-    // 고객 메일 누락이 더 낫다. 트랜잭션 실패 시 처리 진행은 기존 가드 동작을 계승.
-    console.warn(`[booking-processor] 단계 선점 ${field} 트랜잭션 실패 (처리 진행):`, e.message);
-    return true;
-  }
+}
+
+/**
+ * SMTP 오류가 "확실히 안 나갔다" 인지 "나갔는지 모른다" 인지 가른다.
+ *
+ * 확실히 안 나감 — 연결 자체를 못 맺음(EAUTH/ECONNECTION/EENVELOPE/EDNS) → 재발송 안전.
+ * 알 수 없음   — 타임아웃·소켓 끊김은 **DATA 를 이미 보낸 뒤**일 수 있다. 재발송하면 중복.
+ *   SMTP 에는 멱등 키가 없어서 서버가 이미 받았는지 확인할 방법이 없다.
+ */
+export function isAmbiguousSendError(err) {
+  // _send-email.js 가 "SMTP 에 넘기기 전 실패" 에 preSend 를 붙인다 (env 미설정·일일 한도).
+  if (err && err.preSend === true) return false;
+  const code = String((err && err.code) || '').toUpperCase();
+  // 연결·인증·수신자 거절 — SMTP 서버가 본문을 받기 전에 끝난 실패다.
+  const CERTAIN_FAILURES = new Set(['EAUTH', 'ECONNECTION', 'EENVELOPE', 'EDNS', 'EMESSAGE']);
+  if (CERTAIN_FAILURES.has(code)) return false;
+  // 그 외(타임아웃·소켓 끊김·정체불명)는 DATA 를 이미 보낸 뒤일 수 있다 → 재발송 금지.
+  return true;
+}
+
+/** @returns {Promise<{claimed:boolean, reason:string}>} — claimed=true 일 때만 외부 작업 실행. */
+async function claimBookingStep(orderID, field) {
+  const db = stepDb();
+  if (!db || !orderID) return { claimed: false, reason: CLAIM.STORE_UNAVAILABLE };
+  return claimStepSafe({ db, orderID, field });
 }
 
 /**
  * 🔴 2026-07-29: 단계 **성공** 확정. 여기서만 완료 타임스탬프를 쓴다.
  *   선점(in_progress)과 완료(completed)를 나눠, 선점 직후 함수가 죽어도
  *   retry 가 다시 처리할 수 있게 한다(이전엔 영원히 스킵됐다).
+ *
+ * 🔴 외부 작업은 성공했는데 이 기록이 실패하면 상태가 in_progress 로 남는다.
+ *   그 상태를 다음 실행이 "다시 보내도 되는 것" 으로 오해하면 중복 발송이다.
+ *   → 짧게 재시도하고, 그래도 안 되면 outcome_unknown 으로 격리한다.
+ *     (격리 쓰기마저 실패하면 in_progress 로 남지만, 다음 실행의 quarantine 정책이
+ *      같은 결론을 내므로 자동 재발송은 여전히 일어나지 않는다.)
  */
-async function completeBookingStep(orderID, field) {
-  if (!orderID || !field) return;
-  try {
-    const db = initAdminDb('booking-processor');
-    if (!db) return;
-    const { FieldValue } = await import('firebase-admin/firestore');
-    await db.collection('bookings').doc(orderID).set({
-      [field]: FieldValue.serverTimestamp(),
-      [stepStateField(field)]: 'completed',
-    }, { merge: true });
-  } catch (e) {
-    console.warn(`[booking-processor] 단계 완료 기록 ${field} 실패 (비치명적):`, e.message);
+async function completeBookingStep(orderID, field, detail) {
+  const db = stepDb();
+  if (!db || !orderID) return false;
+  const { FieldValue } = await import('firebase-admin/firestore');
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await completeStep({ db, FieldValue, orderID, field, detail });
+      return true;
+    } catch (e) {
+      console.warn(`[booking-processor] 단계 완료 기록 ${field} 실패 (${attempt}/3):`, e.message);
+      if (attempt === 3) {
+        await markOutcomeUnknown({
+          db, orderID, field,
+          reason: `external_ok_but_completion_write_failed: ${e.message}`,
+        });
+        return false;
+      }
+    }
   }
+  return false;
 }
 
 // 버그 #17: loyalty 는 선점 후 earn 실패 시 재적립을 위해 마커를 풀어야 한다
@@ -390,20 +403,21 @@ const originalHandler = async (event) => {
   //   stepGuards.skipSheets = 빠른 경로(이미 기록된 게 명백) / claim 실패 = 동시 호출이
   //   먼저 선점함 → 둘 다 'skip'. 선점 성공한 인스턴스만 appendBooking 1회 실행.
   let sheetsRowHint = null;
-  const claimedSheets = stepGuards.skipSheets
-    ? false
+  const sheetsClaim = stepGuards.skipSheets
+    ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
-  if (!claimedSheets) {
-    results.steps.sheets = 'skip: already appended (idempotent)';
-    console.log('[booking-processor] Sheets 스킵 (멱등 — 이미 기록/선점됨):', orderID);
+  if (!sheetsClaim.claimed) {
+    results.steps.sheets = `skip: ${sheetsClaim.reason}`;
+    console.log('[booking-processor] Sheets 스킵:', sheetsClaim.reason, orderID);
   } else {
     try {
+      // appendBooking 이 N열(주문 ID)로 조회 후 없을 때만 추가한다 → 재시도해도 1행.
       const sheetsResult = await appendBooking(booking);
       sheetsRowHint = sheetsResult.appendedRow || null;
-      results.steps.sheets = 'ok';
+      results.steps.sheets = sheetsResult.deduped ? 'ok (already present)' : 'ok';
       console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
       // 🔴 여기서 비로소 completed. 선점만으로는 완료로 치지 않는다.
-      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
+      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets, { row: sheetsRowHint });
     } catch (err) {
       // 버그 #17: 선점만 하고 append 실패/env-skip → 마커를 풀어 retry 가 재append 하도록.
       //   (기존: 성공 후에만 마커 set = 실패/env-skip 시 마커 없음 → retry 재시도.)
@@ -500,15 +514,22 @@ const originalHandler = async (event) => {
   //   확인메일 발송 (중복 메일 방지). 선점 실패(stepGuards 빠른 경로 포함) = 이미 발송/선점됨.
   //   원래 voucherSentAt 은 Step 6.5 성공 시에만 set 됐으나, 이제 선점이 미리 박는다.
   //   발송 실패 시 releaseBookingStep 으로 마커를 풀어 retry 재발송 보장(기존 의미 유지).
-  const claimedVoucher = stepGuards.skipVoucher
-    ? false
+  const voucherClaim = stepGuards.skipVoucher
+    ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
-  if (!claimedVoucher) {
-    // 멱등: 이미 발송됨/선점됨 (voucherSentAt 존재) → 재발송 안 함.
+  if (!voucherClaim.claimed) {
+    // 🔴 여기서 재발송하지 않는다. 이유는 reason 별로 다르다:
+    //   already_completed = 확실히 보냈다 / in_flight = 다른 실행이 보내는 중
+    //   outcome_unknown   = 보냈는지 알 수 없다 → 운영자 검토(자동 재발송 금지)
+    //   store_unavailable = 중복 방지 장치가 죽었다 → 보내지 않고 재시도 대기
     voucherSkipped = true;
-    voucherEmailOk = true;
-    results.steps.email = 'skip: already sent (idempotent)';
-    console.log('[booking-processor] 이메일 스킵 (멱등 — 이미 발송/선점됨):', orderID);
+    voucherEmailOk = voucherClaim.reason === CLAIM.ALREADY_COMPLETED
+      || voucherClaim.reason === CLAIM.IN_FLIGHT;
+    results.steps.email = `skip: ${voucherClaim.reason}`;
+    console.log('[booking-processor] 이메일 스킵:', voucherClaim.reason, orderID);
+    if (voucherClaim.reason === CLAIM.OUTCOME_UNKNOWN) {
+      notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
+    }
   } else {
     try {
       let emailContent;
@@ -528,15 +549,31 @@ const originalHandler = async (event) => {
       await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
       results.steps.email = 'ok';
       voucherEmailOk = true;
-      // 🔴 실제 발송이 끝난 뒤에만 completed. 선점 상태로 죽으면 retry 가 다시 보낸다.
-      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
+      // 🔴 실제 발송이 끝난 뒤에만 completed. 이 기록이 실패하면 completeBookingStep 이
+      //   outcome_unknown 으로 격리한다(자동 재발송 금지 — 손님에게 두 번 가는 것보다 낫다).
+      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher, { to: 'redacted' });
       console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
     } catch (err) {
       results.steps.email = `error: ${err.message}`;
       voucherEmailErr = err.message || 'unknown';
       console.error('[booking-processor] 이메일 발송 실패:', err.message);
-      // 버그 #17: 선점만 하고 발송 실패 → 마커를 풀어 retry 가 재발송하도록 (메일 누락 방지).
-      await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
+      // 🔴 2026-07-29: "실패" 와 "결과 미상" 을 구분한다.
+      //   연결·인증·수신자 오류는 **메일이 나가지 않은 것이 확실**하다 → 마커를 풀어 재발송.
+      //   타임아웃·소켓 끊김은 DATA 를 이미 보낸 뒤일 수 있다 → 재발송하면 중복이다.
+      //   확신이 없으면 보내지 않고 운영자 검토로 넘긴다.
+      if (isAmbiguousSendError(err)) {
+        const db = stepDb();
+        if (db) {
+          await markOutcomeUnknown({
+            db, orderID, field: BOOKING_STEP_MARKERS.voucher,
+            reason: `send_result_unknown: ${err.code || err.message}`,
+          });
+        }
+        results.steps.email = `outcome_unknown: ${err.code || err.message}`;
+        notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n오류: ${err.code || err.message}\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
+      } else {
+        await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
+      }
     }
   }
 
@@ -545,8 +582,8 @@ const originalHandler = async (event) => {
   // 포함 (voucherFailedAt + voucherError) — 어드민이 명시적으로 인지 가능.
   // 비치명적 — Firestore unavailable 이어도 전체 처리는 계속.
   if (voucherSkipped) {
-    // 멱등: voucherSentAt 이미 기록됨 → 재기록 불필요.
-    results.steps.voucherStatus = 'skip: already recorded (idempotent)';
+    // 발송을 하지 않은 경우 — 왜 안 했는지가 운영자에게 중요하다(이미 보냄 / 결과 미상 / 저장소 불능).
+    results.steps.voucherStatus = `skip: ${voucherClaim.reason}`;
   } else if (voucherEmailOk) {
     // 버그 #17: voucherSentAt 은 claimBookingStep 선점 트랜잭션에서 이미 set 됨 →
     //   Step 6.5 에서 재기록 불필요. (기존엔 여기서 처음 박았으나 이제 선점이 담당.)
@@ -630,13 +667,14 @@ const originalHandler = async (event) => {
     // 버그 #17: loyaltyEarnedAt 마커를 earn 호출 전에 트랜잭션 선점 → 동시 호출 시
     //   한 인스턴스만 적립 (중복 포인트 방지). 선점 실패(stepGuards 빠른 경로 포함) =
     //   이미 적립/선점됨 → 스킵. earn 실패 시 releaseBookingStep 으로 마커를 풀어 retry 보장.
-    let loyaltyClaimed = false;
+    let loyaltyClaim = { claimed: false, reason: CLAIM.ALREADY_COMPLETED };
     if (ledger.ok && !stepGuards.skipLoyalty && amountNum > 0 && ledgerUid) {
-      loyaltyClaimed = await claimBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+      loyaltyClaim = await claimBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
     }
+    const loyaltyClaimed = loyaltyClaim.claimed;
     if (ledger.ok && (stepGuards.skipLoyalty || (amountNum > 0 && ledgerUid && !loyaltyClaimed))) {
       // 멱등: 이미 적립됨/선점됨 → 재적립 안 함 (retry 중복 포인트 방지).
-      results.loyalty = { skipped: 'already earned (idempotent)' };
+      results.loyalty = { skipped: `not earned now: ${loyaltyClaim.reason}` };
     } else if (loyaltyClaimed) {
       let loyaltyOk = false;
       try {

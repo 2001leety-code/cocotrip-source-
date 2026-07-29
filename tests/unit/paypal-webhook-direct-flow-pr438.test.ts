@@ -74,9 +74,14 @@ describe('PR #438 Y-H7 — refund handler captureID field lookup + safe update',
   it('refund update writes to the matched doc id (bookingsDocId), not bookings/{captureId} blindly', () => {
     const refundPos = src.indexOf("PAYMENT.CAPTURE.REFUNDED'");
     const handlerBlock = src.slice(refundPos, refundPos + 8000);
+    // 2026-07-29: 실제 쓰기가 api/_shared/refund-ledger.js 의 transaction 으로 옮겨졌다.
+    //   핸들러는 "어느 문서인지"(bookingsDocId)를 찾아 넘기고, 원장이 그 문서에만 쓴다.
+    //   불변식(엉뚱한 bookings/{captureId} 에 쓰지 않는다)은 동일.
     expect(handlerBlock).toMatch(/bookingsDocId/);
-    expect(handlerBlock).toMatch(/if\s*\(\s*bookingsDocId\s*\)/);
-    expect(handlerBlock).toMatch(/collection\(['"]bookings['"]\)\.doc\(\s*bookingsDocId\s*\)/);
+    expect(handlerBlock).toMatch(/bookingsDocId,/);
+    const ledger = readFileSync(resolve(process.cwd(), 'api/_shared/refund-ledger.js'), 'utf8');
+    expect(ledger).toMatch(/bookingsDocId\s*\?\s*db\.collection\('bookings'\)\.doc\(bookingsDocId\)\s*:\s*null/);
+    expect(ledger).toMatch(/if\s*\(bookingData\)\s*tx\.set\(bookingDocRef/);
   });
 
   it('regression guard: blind write to bookings/{captureId} is gone', () => {

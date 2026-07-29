@@ -18,23 +18,31 @@ import { resolve } from 'node:path';
 
 const src = readFileSync(resolve(process.cwd(), 'api/paypal-webhook.js'), 'utf8');
 
+// 🔴 2026-07-29 (원자화): 판정 로직이 api/_shared/refund-ledger.js 로 옮겨졌다.
+//   읽기-판정-쓰기-완료기록을 하나의 transaction 에 넣기 위해서다(동시 부분환불 갱신 유실 차단).
+//   불변식은 그대로라 검사 대상 파일만 따라간다.
+//   실제 금액·상태 **행위 검증은 tests/unit/refund-ledger-race.test.ts** 가 담당한다.
+const ledgerSrc = readFileSync(resolve(process.cwd(), 'api/_shared/refund-ledger.js'), 'utf8');
+
 describe('paypal-webhook 부분환불 status (소스 가드)', () => {
   it('PARTIALLY_REFUNDED status 도입', () => {
-    expect(src).toContain('PARTIALLY_REFUNDED');
+    expect(ledgerSrc).toContain('PARTIALLY_REFUNDED');
   });
   it('부분 판별은 USD 끼리 비교한다 (환율이 개입하면 안 된다)', () => {
-    expect(src).toMatch(/isPartialRefund\s*=\s*originalUSD\s*>\s*0/);
+    expect(ledgerSrc).toMatch(/Number\(originalUSD\)\s*>\s*0/);
     // 2026-07-29: 여러 번 나눠 환불한 경우를 위해 **누적액**으로 비교한다.
     //   ($5 + $4.90 처럼 쪼개면 이번 이벤트 금액만 보고는 영원히 부분환불로 남는다)
-    expect(src).toMatch(/cumulativeRefundedUSD\s*<\s*originalUSD\s*\*\s*0\.99/);
-    expect(src).toContain('refundedUSDTotal');
+    expect(ledgerSrc).toMatch(/round2\(cumulativeRefundedUSD\)\s*<\s*Number\(originalUSD\)\s*\*\s*FULL_REFUND_RATIO/);
+    expect(ledgerSrc).toContain('refundedUSDTotal');
   });
 
   it('옛 KRW 기반 판정이 되살아나지 않는다', () => {
     // 이 형태로 되돌아가면 환율 하나로 전액/부분이 뒤집힌다.
-    expect(src).not.toMatch(
-      /isPartialRefund\s*=\s*priceKRW\s*>\s*0\s*&&\s*refundedKRW\s*<\s*Math\.round\(priceKRW\s*\*\s*0\.99\)/,
-    );
+    for (const s of [src, ledgerSrc]) {
+      expect(s).not.toMatch(
+        /isPartialRefund\s*=\s*priceKRW\s*>\s*0\s*&&\s*refundedKRW\s*<\s*Math\.round\(priceKRW\s*\*\s*0\.99\)/,
+      );
+    }
   });
 
   it('표시용 KRW 환산은 결제 당시 환율을 우선한다', () => {
@@ -43,11 +51,17 @@ describe('paypal-webhook 부분환불 status (소스 가드)', () => {
   });
 
   it('원결제 USD 를 모르는 레거시 문서만 KRW 비교로 폴백한다', () => {
-    expect(src).toMatch(/priceKRW\s*>\s*0\s*&&\s*refundedKRW\s*<\s*Math\.round\(priceKRW\s*\*\s*0\.99\)/);
+    // USD 분기가 먼저 오고, KRW 는 그 다음 else 가지에서만 쓰인다.
+    const usdBranch = ledgerSrc.indexOf('Number(originalUSD) > 0');
+    const krwBranch = ledgerSrc.indexOf('Number(priceKRW) > 0');
+    expect(usdBranch).toBeGreaterThan(-1);
+    expect(krwBranch).toBeGreaterThan(usdBranch);
   });
-  it('status 가 isPartialRefund 분기로 결정 (전액환불 무조건 REFUNDED 제거)', () => {
-    expect(src).toMatch(
-      /status:\s*isPartialRefund\s*\?\s*['"]PARTIALLY_REFUNDED['"]\s*:\s*['"]REFUNDED['"]/,
-    );
+  it('status 는 전액/부분 두 값 중 하나로 결정된다 (전액환불 무조건 REFUNDED 제거)', () => {
+    expect(ledgerSrc).toContain("? 'PARTIALLY_REFUNDED'");
+    expect(ledgerSrc).toContain(": 'REFUNDED'");
+  });
+  it('상태 서열이 낮은 쪽으로 내려가지 않는다 (늦게 온 부분환불 방어)', () => {
+    expect(ledgerSrc).toMatch(/rankOf\(next\)\s*>=\s*rankOf\(priorStatus\)/);
   });
 });

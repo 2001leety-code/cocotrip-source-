@@ -47,16 +47,33 @@ describe('원장 멱등 키 = PayPal orderID', () => {
 });
 
 describe('환불 판정 — 누적액 기준', () => {
-  const code = codeOf('api/paypal-webhook.js');
+  // 2026-07-29: 판정+누적+쓰기가 api/_shared/refund-ledger.js 의 단일 transaction 으로 이동.
+  //   행위(동시 부분환불·중복 이벤트·실패 주입) 검증은 refund-ledger-race.test.ts 담당.
+  const code = codeOf('api/_shared/refund-ledger.js');
 
   it('이번 환불액에 기존 누계를 더해 판정한다', () => {
     expect(code).toContain('cumulativeRefundedUSD');
-    expect(code).toMatch(/cumulativeRefundedUSD\s*<\s*originalUSD\s*\*\s*0\.99/);
+    expect(code).toMatch(/round2\(cumulativeRefundedUSD\)\s*<\s*Number\(originalUSD\)\s*\*\s*FULL_REFUND_RATIO/);
   });
 
   it('누계를 예약 문서에 남겨 다음 이벤트가 이어받는다', () => {
     expect(code).toContain('refundedUSDTotal: cumulativeRefundedUSD');
-    expect(code).toContain('Number(bookingDoc.data().refundedUSDTotal)');
+    expect(code).toContain('refundedUSDTotal) || 0');
+  });
+
+  it('누계 읽기와 쓰기가 같은 transaction 안에 있다 (갱신 유실 차단)', () => {
+    const txStart = code.indexOf('db.runTransaction(');
+    expect(txStart).toBeGreaterThan(-1);
+    const tx = code.slice(txStart);
+    expect(tx).toContain('refundedUSDTotal');           // 읽기
+    expect(tx).toContain('tx.set(logRef');              // 이벤트 완료 기록
+    expect(tx).toContain('tx.set(bookingDocRef');       // 예약 갱신
+    expect(tx).toContain('tx.set(pendingDocRef');       // 대기예약 갱신
+  });
+
+  it('같은 환불(refundId)은 다른 eventId 로 와도 두 번 세지 않는다', () => {
+    expect(code).toContain('refundEvents');
+    expect(code).toMatch(/function alreadyCounted/);
   });
 
   it('환율은 판정에 개입하지 않는다', () => {
@@ -91,14 +108,21 @@ describe('2단계 완료 처리 — 선점 != 완료', () => {
   it('booking-processor 가 성공 시에만 완료를 기록한다', () => {
     const code = codeOf('api/booking-processor.js');
     expect(code).toContain('async function completeBookingStep');
-    expect(code).toContain("completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets)");
-    expect(code).toContain("completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher)");
+    expect(code).toContain('completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets');
+    expect(code).toContain('completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher');
     expect(code).toContain('if (loyaltyOk) await completeBookingStep');
   });
 
   it('선점은 in_progress 로만 기록한다 (완료 타임스탬프를 미리 쓰지 않는다)', () => {
-    const code = codeOf('api/booking-processor.js');
+    // 2026-07-29: 선점 transaction 이 공용 모듈로 이동.
+    const code = codeOf('api/_shared/booking-idempotency.js');
     expect(code).toContain("[stateField]: 'in_progress'");
+  });
+
+  it('완료 기록이 끝내 실패하면 outcome_unknown 으로 격리한다 (자동 재발송 금지)', () => {
+    const code = codeOf('api/booking-processor.js');
+    expect(code).toContain('markOutcomeUnknown(');
+    expect(code).toContain('external_ok_but_completion_write_failed');
   });
 });
 
