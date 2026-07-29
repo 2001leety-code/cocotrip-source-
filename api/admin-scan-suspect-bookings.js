@@ -29,6 +29,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
+import { outcomeFromResponseBody, isSemanticallyDone, OUTCOME } from './_shared/processor-outcome.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
@@ -185,14 +186,25 @@ export default async function handler(req, res) {
           body: JSON.stringify(payload),
         });
         const procJson = await procRes.json().catch(() => null);
-        if (procRes.ok) {
-          await docRef.update({ replayedAt: FieldValue.serverTimestamp(), replayedBy: tokenAuth.email || 'admin' });
+        // 🔴 2026-07-29 (의미상 성공 계약): HTTP 200 을 완료로 보면 안 된다.
+        //   booking-processor 는 내부 단계가 실패해도 200 을 준다. replayedAt 을 찍으면
+        //   이 예약은 다시는 재처리 대상이 되지 않는다 — 시트도 메일도 적립도 없는 채로.
+        const outcome = procRes.ok ? outcomeFromResponseBody(procJson) : OUTCOME.RETRYABLE;
+        const done = isSemanticallyDone(outcome);
+        if (done) {
+          await docRef.update({
+            replayedAt: FieldValue.serverTimestamp(),
+            replayedBy: tokenAuth.email || 'admin',
+            replayOutcome: outcome,
+          });
         }
         results.push({
           bookingId: c.bookingId,
-          ok: procRes.ok,
+          ok: done,
+          outcome,
           status: procRes.status,
           steps: procJson?.data?.steps || null,
+          stepStatus: procJson?.data?.stepStatus || null,
         });
       } catch (err) {
         results.push({ bookingId: c.bookingId, ok: false, error: err.message });

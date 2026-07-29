@@ -153,6 +153,83 @@ Preview 에 운영 ID 를 넣는 것은 **비교 대상**으로 쓰기 위함이
 
 > 비밀값은 어디에도 적지 않는다. 이 문서는 "어느 스코프에 무엇을 두는가" 만 다룬다.
 
+## 🔴 지금 해야 하는 Vercel 설정 변경 (정확한 목록·순서)
+
+> 코드는 다 들어갔다. 아래는 **운영자만 할 수 있는** 대시보드 작업이다.
+> 비밀값은 이 문서에 적지 않는다 — 어느 스코프에 무엇을 두는지만 다룬다.
+> 순서를 지켜라. 4번을 1~3번보다 먼저 하면 프리뷰 결제가 통째로 죽는다.
+
+### 1단계 — Production 에서 **삭제**
+
+현재 Production 에 들어 있는 것으로 확인된 값들이다. 코드가 이미 막고 있지만
+(`resolveIsSandbox()` 는 production 에서 무조건 false), 값 자체를 두지 않는 것이 2차선이다.
+
+| 키 | 조치 |
+|---|---|
+| `PAYPAL_SANDBOX_CLIENT_ID` | Production 스코프에서 **삭제** |
+| `PAYPAL_SANDBOX_SECRET` | Production 스코프에서 **삭제** |
+| `PAYPAL_SANDBOX_WEBHOOK_ID` | Production 스코프에서 **삭제** |
+| `VITE_PAYPAL_SANDBOX_CLIENT_ID` | Production 스코프에서 **삭제** |
+
+Production 에 남는 PayPal 값: `PAYPAL_CLIENT_ID` · `PAYPAL_CLIENT_SECRET` · `PAYPAL_WEBHOOK_ID` (전부 Live).
+`PAYPAL_ENV` 는 Production 에 **두지 않는다**.
+
+### 2단계 — Preview 전용으로 **추가**
+
+Environment = **Preview 만 체크**.
+
+| 키 | 값 |
+|---|---|
+| `PAYPAL_SANDBOX_CLIENT_ID` | 샌드박스 앱 client id |
+| `PAYPAL_SANDBOX_SECRET` | 샌드박스 앱 secret |
+| `PAYPAL_SANDBOX_WEBHOOK_ID` | **샌드박스 대시보드에서 별도 등록한** webhook id |
+| `VITE_PAYPAL_SANDBOX_CLIENT_ID` | 프론트용 샌드박스 client id |
+| `PAYPAL_ENV` | `sandbox` |
+| `FIREBASE_PROJECT_ID` 외 `FIREBASE_*` | 프리뷰 전용 Firebase 서비스 계정 |
+| `VITE_FIREBASE_*` | 프리뷰 웹앱 설정값 |
+
+⚠️ `PAYPAL_SANDBOX_WEBHOOK_ID` 가 없으면 프리뷰 웹훅은 **503 으로 거부**된다.
+live ID 로 대체하지 않는다(다른 환경 자격으로 검증을 시도하는 것 자체를 막았다).
+
+### 3단계 — 양쪽 스코프 공통
+
+| 키 | Production | Preview |
+|---|---|---|
+| `FIREBASE_PRODUCTION_PROJECT_ID` | 운영 프로젝트 ID | **같은 운영 프로젝트 ID**(비교 대상) |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | — | Vercel → Deployment Protection → "Protection Bypass for Automation" 생성 시 자동 주입 |
+
+`VERCEL_AUTOMATION_BYPASS_SECRET` 이 없으면 프리뷰 자기호출이 SSO 벽에 막혀
+적립이 `retryable` 로 보류된다(운영 API 로 새지는 않는다 — 그게 이번 수정이다).
+
+### 4단계 — Sandbox Webhook 수신 주소
+
+PayPal **Sandbox** 대시보드의 webhook URL 을 프리뷰/스테이징 주소로 둔다.
+운영 도메인(`https://cocotripkr.com/api/paypal-webhook`)을 가리키면 안 된다 —
+운영 배포는 sandbox 서명을 아예 검증하지 않으므로 전부 `verify_failed` 로 쌓인다.
+
+### 5단계 — enforce 로 올린다 (Preview 먼저)
+
+프리뷰 로그에 `[firebase-env-guard]` 경고가 없는 것을 확인한 뒤:
+
+| 키 | 스코프 | 값 |
+|---|---|---|
+| `FIREBASE_ENV_GUARD` | **Preview 먼저** | `enforce` |
+
+Preview 가 조용한 것을 며칠 확인한 뒤 Production 에도 올린다.
+Production 에 먼저 걸면 설정 실수 하나로 운영 결제 API 가 통째로 멈춘다.
+
+> ⚠️ Vercel 의 "Redeploy" 는 **옛 env 스냅샷을 재사용한다.** 위 변경은 전부
+> **새 커밋을 푸시해 프레시 빌드**를 만들어야 반영된다.
+
+### 확인 (설정 후)
+
+1. 프리뷰 함수 로그에 `[firebase-env-guard]` 없음
+2. 프리뷰 결제 → `bookings` 문서가 **프리뷰 Firestore 에만** 생성
+3. 프리뷰 적립 호출 주소가 프리뷰 배포 URL (운영 도메인 아님)
+4. 프리뷰를 일부러 운영 Firebase 로 되돌리면 API 가 **실제로 실패**(enforce 확인)
+5. 운영 `paypal_webhook_log` 에 `paypalEnvironment: 'sandbox'` 문서가 0건
+6. 프리뷰 `paypal_webhook_log` 에 `paypalEnvironment: 'live'` 문서가 0건
+
 ## 이 다음에 할 일
 
 위 선행조건 + 분리가 끝나야 **샌드박스 결제 전 과정 시험**을 안전하게 할 수 있다:

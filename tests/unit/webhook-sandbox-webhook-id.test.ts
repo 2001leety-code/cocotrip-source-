@@ -2,22 +2,28 @@
 /**
  * PAYPAL_SANDBOX_WEBHOOK_ID (2026-07-16) — 샌드박스 이벤트 서명 검증에 샌드박스 웹훅 ID 사용.
  *
- * 갭: 웹훅은 live/sandbox 가 **각자 다른 Webhook ID** 를 갖는데(대시보드에서 별도 등록),
+ * 원래 갭: 웹훅은 live/sandbox 가 **각자 다른 Webhook ID** 를 갖는데(대시보드에서 별도 등록),
  *   핸들러는 PAYPAL_WEBHOOK_ID(live) 하나로 양쪽 검증을 시도했다. sandbox verify 호출에
- *   live ID 를 보내면 PayPal 이 FAILURE 를 반환 → 샌드박스 웹훅 이벤트 전부 verify_failed 로
- *   폐기 = 샌드박스 e2e(eCheck 환불 PENDING→FAILED 관찰)가 원천 불가능.
+ *   live ID 를 보내면 PayPal 이 FAILURE 를 반환 → 샌드박스 웹훅 이벤트 전부 폐기.
  *
- * fix: sandbox 재시도에는 PAYPAL_SANDBOX_WEBHOOK_ID 를 사용(미설정 시 기존처럼 live ID 폴백).
+ * 🔴 2026-07-29 갱신 — **단일 환경 검증**으로 바뀌었다.
+ *   샌드박스 배포는 sandbox ID 로만, 운영 배포는 live ID 로만 검증한다. 폴백이 없다.
+ *   그래서 "sandbox ID 미설정 시 live ID 로 폴백" 은 더 이상 안전한 동작이 아니다 —
+ *   다른 환경의 자격으로 검증을 시도하는 것 자체가 이번에 막으려는 행위다.
+ *   (양방향 차단 전반은 tests/unit/webhook-single-environment.test.ts 가 담당한다.)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// 🔴 2026-07-29: resolveIsSandbox 는 **모킹하지 않는다**. sandbox 폴백이 실제 환경 게이트
-//   뒤로 옮겨졌으므로, 그 게이트가 진짜로 작동하는지 env 로 확인해야 의미가 있다.
+const notifySpy = vi.fn(async () => ({ ok: true }));
+
 vi.mock('../../api/_shared/paypal.js', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.paypal.com' }),
+  getPaypalAccessToken: async (isSandbox: boolean) => ({
+    accessToken: 'tok',
+    baseUrl: isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com',
+  }),
 }));
-vi.mock('../../api/_shared/notify.js', () => ({ notify: vi.fn(async () => ({ ok: true })) }));
+vi.mock('../../api/_shared/notify.js', () => ({ notify: (...a: any[]) => notifySpy(...a) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true })) }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
@@ -33,6 +39,7 @@ vi.mock('../../api/_shared/firebase-admin.js', () => ({
 const { default: handler } = await import('../../api/paypal-webhook.js');
 
 let verifyBodies: any[];
+const savedEnv = { ...process.env };
 
 function mockRes() {
   const out = { statusCode: 0, body: '' };
@@ -58,77 +65,51 @@ async function fire() {
 
 beforeEach(() => {
   verifyBodies = [];
+  notifySpy.mockClear();
   process.env.PAYPAL_WEBHOOK_ID = 'LIVE-WH-ID';
   process.env.PAYPAL_SANDBOX_WEBHOOK_ID = 'SBX-WH-ID';
   process.env.PAYPAL_SANDBOX_CLIENT_ID = 'sbx-client';
-  // sandbox 폴백이 열리는 유일한 조합 = 프리뷰 배포 + PAYPAL_ENV=sandbox.
   process.env.VERCEL_ENV = 'preview';
   process.env.PAYPAL_ENV = 'sandbox';
-  // 1차(live) 검증 = FAILURE, 2차(sandbox) 검증 = SUCCESS — 각 호출의 요청 body 를 기록.
-  global.fetch = vi.fn(async (_url: unknown, init: any) => {
-    const body = JSON.parse(init.body);
-    verifyBodies.push(body);
-    const status = verifyBodies.length === 1 ? 'FAILURE' : 'SUCCESS';
-    return { ok: true, status: 200, json: async () => ({ verification_status: status }), text: async () => '' };
+  global.fetch = vi.fn(async (url: unknown, init: any) => {
+    verifyBodies.push({ url: String(url), ...JSON.parse(init.body) });
+    return { ok: true, status: 200, json: async () => ({ verification_status: 'SUCCESS' }), text: async () => '' };
   }) as never;
+});
+afterEach(() => {
+  for (const k of ['VERCEL_ENV', 'PAYPAL_ENV', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_SANDBOX_WEBHOOK_ID', 'PAYPAL_SANDBOX_CLIENT_ID']) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
 });
 
 describe('샌드박스 웹훅 ID 분리', () => {
-  it('sandbox 재검증은 PAYPAL_SANDBOX_WEBHOOK_ID 로 요청한다 (live ID 재사용 금지)', async () => {
+  it('샌드박스 배포는 PAYPAL_SANDBOX_WEBHOOK_ID + sandbox API 로 검증한다', async () => {
     const r = await fire();
-    expect(verifyBodies).toHaveLength(2);
-    expect(verifyBodies[0].webhook_id).toBe('LIVE-WH-ID');   // 1차 live
-    expect(verifyBodies[1].webhook_id).toBe('SBX-WH-ID');    // ★ 2차 sandbox — 뮤테이션 실증 지점
-    // sandbox 검증이 SUCCESS 로 통과했으므로 verify_failed 가 아니라 정상 디스패치(unsupported)여야 한다.
-    expect(r.json.status).toBe('unsupported');
+    expect(verifyBodies).toHaveLength(1);
+    expect(verifyBodies[0].webhook_id).toBe('SBX-WH-ID');
+    expect(verifyBodies[0].url).toContain('sandbox.paypal.com');
+    expect(r.json.status).toBe('unsupported');   // 검증 통과 후 디스패치까지 갔다
   });
 
-  it('PAYPAL_SANDBOX_WEBHOOK_ID 미설정 → 기존처럼 live ID 로 폴백 (회귀 없음)', async () => {
+  it('live Webhook ID 는 요청 본문에 한 번도 들어가지 않는다', async () => {
+    await fire();
+    expect(verifyBodies.some((b) => b.webhook_id === 'LIVE-WH-ID')).toBe(false);
+  });
+
+  it('🔴 PAYPAL_SANDBOX_WEBHOOK_ID 미설정 → live ID 로 대체하지 않고 503 으로 거부', async () => {
     delete process.env.PAYPAL_SANDBOX_WEBHOOK_ID;
-    await fire();
-    expect(verifyBodies[1].webhook_id).toBe('LIVE-WH-ID');
-  });
-});
-
-/**
- * 🔴 2026-07-29 P0 — 운영은 샌드박스 웹훅을 절대 받지 않는다.
- *   이전엔 PAYPAL_SANDBOX_CLIENT_ID 만 있으면 **운영에서도** sandbox 로 재검증했다.
- *   운영 배포가 가짜 돈 웹훅을 받아 운영 예약을 환불처리할 수 있는 경로였다.
- */
-describe('환경 게이트 — 운영에서 sandbox 폴백 금지', () => {
-  it('VERCEL_ENV=production 이면 sandbox 재검증을 아예 시도하지 않는다', async () => {
-    process.env.VERCEL_ENV = 'production';
     const r = await fire();
-    expect(verifyBodies).toHaveLength(1);                 // ★ live 1회로 끝
+    expect(r.statusCode).toBe(503);
+    expect(verifyBodies).toHaveLength(0);        // 검증 시도조차 안 한다
+    expect(notifySpy).toHaveBeenCalled();        // 운영자에게 구성 누락 알림
+  });
+
+  it('운영 배포는 live ID + live API 로만 검증한다', async () => {
+    process.env.VERCEL_ENV = 'production';
+    await fire();
+    expect(verifyBodies).toHaveLength(1);
     expect(verifyBodies[0].webhook_id).toBe('LIVE-WH-ID');
-    expect(r.json.error).toBe('signature verification failed');
-  });
-
-  it('운영에 PAYPAL_ENV=sandbox 가 잘못 들어가도 sandbox 웹훅을 처리하지 않는다', async () => {
-    process.env.VERCEL_ENV = 'production';
-    process.env.PAYPAL_ENV = 'sandbox';                   // 운영자 설정 실수
-    const r = await fire();
-    expect(verifyBodies).toHaveLength(1);
-    expect(r.json.ok).toBe(false);
-    expect(r.json.acked).toBe(true);                      // 200 ack 로 재시도 storm 은 막는다
-  });
-
-  it('반대 방향 — 프리뷰 sandbox 배포에서 live 이벤트는 통과하지 못한다', async () => {
-    process.env.VERCEL_ENV = 'preview';
-    process.env.PAYPAL_ENV = 'sandbox';
-    // 두 검증 모두 FAILURE (live 서명이 sandbox webhook id 와 맞지 않는 상황)
-    global.fetch = vi.fn(async (_url: unknown, init: any) => {
-      verifyBodies.push(JSON.parse(init.body));
-      return { ok: true, status: 200, json: async () => ({ verification_status: 'FAILURE' }), text: async () => '' };
-    }) as never;
-    const r = await fire();
-    expect(r.json.error).toBe('signature verification failed');
-  });
-
-  it('PAYPAL_ENV 미설정 프리뷰도 sandbox 폴백을 열지 않는다', async () => {
-    process.env.VERCEL_ENV = 'preview';
-    delete process.env.PAYPAL_ENV;
-    await fire();
-    expect(verifyBodies).toHaveLength(1);
+    expect(verifyBodies[0].url).not.toContain('sandbox');
   });
 });

@@ -267,7 +267,8 @@ describe('시트 — 성공 후 완료 기록 실패 전체 흐름', () => {
 
 describe('SMTP 오류 분류 — 확실한 실패만 재발송', () => {
   it('보내기 전 실패는 재발송 가능, 전송 중 오류는 결과 미상', async () => {
-    const { isAmbiguousSendError } = await import('../../api/booking-processor.js');
+    // 순수 함수라 무거운 booking-processor 를 통째로 불러올 필요가 없다(테스트 시간 단축).
+    const { isAmbiguousSendError } = await import('../../api/_shared/processor-outcome.js');
     // 확실히 안 나감
     expect(isAmbiguousSendError({ preSend: true, message: 'env missing' })).toBe(false);
     expect(isAmbiguousSendError({ code: 'EAUTH' })).toBe(false);

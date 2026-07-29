@@ -33,6 +33,9 @@
  */
 
 import { vercelBypassHeaders } from './internal-base-url.js';
+import {
+  outcomeFromResponseBody, isSemanticallyDone, needsManualIntervention,
+} from './processor-outcome.js';
 
 const RETRY_COLLECTION = 'pending_processor_retries';
 const DEFAULT_TIMEOUT_MS = 25_000;
@@ -87,7 +90,24 @@ export async function triggerBookingProcessor({
     });
     clearTimeout(tid);
     if (r.ok) {
-      result = { ok: true, status: r.status };
+      // 🔴 2026-07-29 (의미상 성공 계약): HTTP 200 만 보고 성공으로 기록하면 안 된다.
+      //   booking-processor 는 내부 단계가 실패해도 200 을 준다(PayPal/Vercel 재시도 제어 목적).
+      //   본문의 outcome 이 진실이다. completed 가 아니면 retry 큐를 유지한다.
+      let body = null;
+      try { body = JSON.parse((await r.text()).slice(0, MAX_BODY_LOG * 4)); } catch { /* 본문 못 읽음 */ }
+      const outcome = outcomeFromResponseBody(body);
+      if (isSemanticallyDone(outcome)) {
+        result = { ok: true, status: r.status, outcome };
+      } else {
+        result = {
+          ok: false,
+          reason: `outcome-${outcome}`,
+          status: r.status,
+          outcome,
+          manual: needsManualIntervention(outcome),
+          bodyExcerpt: JSON.stringify((body && body.data && body.data.stepStatus) || {}).slice(0, MAX_BODY_LOG),
+        };
+      }
     } else {
       // Non-2xx — record the failure with a body excerpt for diagnosis.
       let bodyExcerpt = '';

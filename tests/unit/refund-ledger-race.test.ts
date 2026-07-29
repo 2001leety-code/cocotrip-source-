@@ -43,6 +43,8 @@ const ev = (over: Record<string, unknown> = {}) => ({
   db: null as never,
   FieldValue,
   eventType: 'PAYMENT.CAPTURE.REFUNDED',
+  // 2026-07-29: 검증된 웹훅 환경은 **필수**다. 생략하면(=unverified) 어떤 문서도 건드리지 않는다.
+  webhookEnvironment: 'live',
   captureId: CAPTURE,
   bookingsDocId: ORDER,
   bookingRef: 'CT-20260729-001',
@@ -277,6 +279,20 @@ describe('판정 근거 — PayPal 권위 상태 우선, 환율 배제', () => {
 
   it('원결제 금액을 전혀 모르면 전액으로 단정하지 않는다', () => {
     expect(decideRefundStatus({ cumulativeRefundedUSD: 5 })).toBe('PARTIALLY_REFUNDED');
+  });
+});
+
+describe('검증되지 않은 웹훅은 아무것도 건드리지 못한다', () => {
+  it('webhookEnvironment 생략(=unverified) → 격리', async () => {
+    const db = createFakeFirestore(seedBooking());
+    const r = await applyRefundEvent({
+      db, FieldValue, eventId: 'E-NOENV', eventType: 'PAYMENT.CAPTURE.REFUNDED',
+      refundId: 'R', captureId: CAPTURE, refundedUSD: 5, refundedKRW: 0,
+      bookingsDocId: ORDER, bookingRef: 'CT-20260729-001',
+    } as never);
+    expect(r.applied).toBe(false);
+    expect(r.reason).toBe('environment_mismatch');
+    expect(db.__get(`bookings/${ORDER}`)!.refundedUSDTotal).toBeUndefined();
   });
 });
 

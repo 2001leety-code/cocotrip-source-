@@ -91,11 +91,38 @@ export function higherStatus(a, b) {
  * @returns {{ok: true} | {ok: false, bookingEnvironment: string|null}}
  */
 export function checkEnvironmentMatch(docEnv, webhookEnv) {
-  const doc = docEnv ? String(docEnv).toLowerCase() : null;
-  const hook = String(webhookEnv || 'live').toLowerCase();
-  if (doc === hook) return { ok: true };
-  if (!doc && hook === 'live') return { ok: true };   // 환경 표시 이전에 만들어진 운영 예약
-  return { ok: false, bookingEnvironment: doc };
+  return checkEnvironmentsMatch([docEnv], webhookEnv);
+}
+
+/**
+ * 여러 저장소(bookings + pending_bookings)의 환경을 **함께** 본다.
+ *
+ * 🔴 한쪽만 골라서 비교하면 안 된다: bookings 는 sandbox 인데 pending 은 live 인 경우
+ *   어느 쪽을 고르냐에 따라 통과/격리가 갈린다. 값이 있는 것은 **전부** 일치해야 한다.
+ *
+ * 규칙:
+ *   · 환경값이 하나라도 있으면 → 그 값들이 전부 웹훅 환경과 같아야 한다.
+ *   · 환경값이 하나도 없으면(레거시) → live 웹훅만 허용한다.
+ *   · verifiedEnvironment 가 'unverified' 면 어떤 문서도 건드리지 않는다.
+ */
+export function checkEnvironmentsMatch(docEnvs, webhookEnv) {
+  const hook = String(webhookEnv || '').toLowerCase();
+  if (hook !== 'live' && hook !== 'sandbox') {
+    return { ok: false, bookingEnvironment: null, webhookEnvironment: hook || 'unverified' };
+  }
+  const known = (docEnvs || [])
+    .filter((e) => e !== null && e !== undefined && e !== '')
+    .map((e) => String(e).toLowerCase());
+
+  if (known.length === 0) {
+    // 환경 표시 이전에 만들어진 예약 — sandbox 웹훅이 건드리게 두지 않는다.
+    return hook === 'live'
+      ? { ok: true }
+      : { ok: false, bookingEnvironment: null, webhookEnvironment: hook };
+  }
+  const mismatch = known.find((e) => e !== hook);
+  if (mismatch) return { ok: false, bookingEnvironment: mismatch, webhookEnvironment: hook };
+  return { ok: true };
 }
 
 /** 이미 기록된 환불 이벤트인지 — refundId 기준(이벤트 재전송·eventId 변경에 견딘다). */
@@ -162,10 +189,11 @@ export async function applyRefundEvent({
 
     // 🔴 환경 교차 차단 — 샌드박스 웹훅이 운영 예약을(또는 그 반대) 건드리지 못한다.
     //   갱신은 전혀 하지 않고 이벤트만 격리 기록한다(운영자 확인 대상).
-    const docEnv = (bookingData && bookingData.paypalEnvironment)
-      || (pendingData && pendingData.paypalEnvironment)
-      || null;
-    const envMatch = checkEnvironmentMatch(docEnv, webhookEnvironment);
+    // 두 저장소의 환경을 **함께** 본다. 한쪽만 골라 비교하면 어느 쪽을 고르냐로 판정이 갈린다.
+    const envMatch = checkEnvironmentsMatch([
+      bookingData && bookingData.paypalEnvironment,
+      pendingData && pendingData.paypalEnvironment,
+    ], webhookEnvironment);
     if (!envMatch.ok) {
       tx.set(logRef, {
         eventId,

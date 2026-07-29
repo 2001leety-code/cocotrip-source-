@@ -39,7 +39,7 @@ import { captureError } from './_shared/sentry.js';
 import { notify } from './_shared/notify.js';
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
-import { applyRefundEvent, fetchAuthoritativeCaptureStatus } from './_shared/refund-ledger.js';
+import { applyRefundEvent, fetchAuthoritativeCaptureStatus, checkEnvironmentsMatch } from './_shared/refund-ledger.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
 // PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
@@ -204,6 +204,51 @@ async function alertAdmin(text) {
 }
 
 /**
+ * 🔴 2026-07-29 — 상태를 바꾸는 **모든** 웹훅 경로 앞에 세우는 환경 검사.
+ *
+ * 이전에는 환불 원장에만 있었다. 그래서 CAPTURE.COMPLETED(예약 확정)나
+ * REFUND.FAILED(상태 되돌리기)는 환경을 넘나들며 그대로 통과했다.
+ *
+ * bookings 와 pending_bookings 의 환경값을 **함께** 본다(한쪽만 골라 비교하면
+ * 어느 쪽을 고르냐로 판정이 갈린다). 하나라도 반대 환경이면 데이터를 건드리지 않는다.
+ *
+ * @returns {Promise<{ok: true} | {ok: false, bookingEnvironment: string|null}>}
+ */
+async function guardWebhookEnvironment({ db, eventId, eventType, environment, bookingRef, bookingsDocId, captureId }) {
+  const envs = [];
+  try {
+    if (bookingsDocId) {
+      const s = await db.collection('bookings').doc(bookingsDocId).get();
+      if (s.exists) envs.push((s.data() || {}).paypalEnvironment);
+    }
+    if (bookingRef) {
+      const p = await db.collection('pending_bookings').doc(bookingRef).get();
+      if (p.exists) envs.push((p.data() || {}).paypalEnvironment);
+    }
+  } catch (e) {
+    // 조회 실패를 "환경 표시 없음" 으로 취급하면 sandbox 웹훅이 뚫린다 → fail-closed.
+    console.error('[paypal-webhook] 환경 확인 실패 — fail-closed:', e.message);
+    return { ok: false, bookingEnvironment: null };
+  }
+  const verdict = checkEnvironmentsMatch(envs, environment);
+  if (verdict.ok) return { ok: true };
+
+  await logWebhookEvent({
+    db, environment, eventId, eventType,
+    status: 'environment_mismatch',
+    detail: {
+      reason: 'webhook_environment_differs_from_booking',
+      bookingEnvironment: verdict.bookingEnvironment,
+      bookingRef: bookingRef || null,
+      bookingsDocId: bookingsDocId || null,
+      captureId: captureId || null,
+    },
+  });
+  await alertAdmin(`🚨 <b>웹훅 환경 불일치 — 격리</b>\n\n이벤트: ${eventType}\n웹훅: ${environment}\n예약: ${verdict.bookingEnvironment || '표시없음'}\n예약번호: <code>${bookingRef || bookingsDocId || '-'}</code>\n→ 데이터를 갱신하지 않았습니다.`);
+  return { ok: false, bookingEnvironment: verdict.bookingEnvironment };
+}
+
+/**
  * PR #440 (Audit Y-H9 — 2026-05-16): operator alert for verify_failed,
  * deduplicated so a misconfigured webhook secret doesn't spam Telegram.
  *
@@ -266,11 +311,20 @@ export default async function handler(req, res) {
   const eventId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id'] || `noheader-${Date.now()}`;
 
   try {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-    if (!webhookId) {
-      // 운영자가 PAYPAL_WEBHOOK_ID 미등록 — 모든 webhook 거부 (signature 검증 불가)
-      console.error('[paypal-webhook] PAYPAL_WEBHOOK_ID not configured — rejecting');
-      await alertAdmin('🚨 <b>PayPal Webhook 미구성</b>\n\nPAYPAL_WEBHOOK_ID env 누락. PayPal Developer Dashboard 에서 webhook 등록 후 Vercel env 추가 필요.');
+    // 🔴 2026-07-29 (단일 환경 검증): 이 배포는 **한 환경만** 받는다.
+    //   Preview+PAYPAL_ENV=sandbox → sandbox Webhook ID + sandbox API 로만 1회 검증
+    //   그 외(운영 포함)          → live Webhook ID + live API 로만 1회 검증
+    //   양방향 폴백을 완전히 제거했다. 이전에는 프리뷰 샌드박스 배포도 live 서명을 먼저
+    //   검증해 **성공하면 live 이벤트를 그대로 처리**했다 — 한쪽만 막힌 반쪽 차단이었다.
+    const isSandboxDeploy = resolveIsSandbox();
+    const activeWebhookId = isSandboxDeploy
+      ? (process.env.PAYPAL_SANDBOX_WEBHOOK_ID || '').trim()
+      : (process.env.PAYPAL_WEBHOOK_ID || '').trim();
+    if (!activeWebhookId) {
+      // 이 환경에 맞는 Webhook ID 가 없다 → 검증 불가. 다른 환경 ID 로 대신하지 않는다.
+      const missingKey = isSandboxDeploy ? 'PAYPAL_SANDBOX_WEBHOOK_ID' : 'PAYPAL_WEBHOOK_ID';
+      console.error(`[paypal-webhook] ${missingKey} not configured — rejecting`);
+      await alertAdmin(`🚨 <b>PayPal Webhook 미구성</b>\n\n${missingKey} env 누락 (${isSandboxDeploy ? 'sandbox' : 'live'} 배포).\n→ 다른 환경의 Webhook ID 로 대체하지 않습니다.`);
       res.writeHead(503, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'webhook not configured' }));
     }
@@ -294,31 +348,15 @@ export default async function handler(req, res) {
     // raw body 읽기
     const bodyString = await readRawBody(req);
 
-    // ── signature 검증 ────────────────────────────────────────────────
-    // 🔴 2026-07-29 (환경 교차 차단): 이전엔 **운영에서도** live 검증이 실패하면
-    //   PAYPAL_SANDBOX_CLIENT_ID 만 있으면 sandbox 로 다시 검증했다.
-    //   그 결과 운영 배포가 **샌드박스(가짜 돈) 웹훅을 받아 운영 예약을 환불처리**할 수 있었다.
-    //   이제 sandbox 검증은 resolveIsSandbox() 가 true 인 배포(= Preview + PAYPAL_ENV=sandbox)
-    //   에서만 시도한다. resolveIsSandbox() 는 VERCEL_ENV==='production' 이면 무조건 false 라,
-    //   운영에 PAYPAL_ENV=sandbox 를 잘못 넣어도 sandbox 경로가 열리지 않는다.
-    const sandboxAllowed = resolveIsSandbox();
-    let verifiedEnvironment = 'live';
-    let verifyResult = await verifyWebhookSignature({
-      headers, bodyString, webhookId, isSandbox: false,
+    // ── signature 검증 — **정확히 1회, 이 배포의 환경으로만** ───────────
+    //   폴백이 없다. 다른 환경의 Webhook ID 는 요청 본문에 들어가지 않는다.
+    //   verifiedEnvironment 기본값은 'unverified' — 서명이 실제로 통과해야 환경이 확정된다.
+    let verifiedEnvironment = 'unverified';
+    const verifyResult = await verifyWebhookSignature({
+      headers, bodyString, webhookId: activeWebhookId, isSandbox: isSandboxDeploy,
     });
-    if (!verifyResult.verified && sandboxAllowed && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
-      // 🔴 (2026-07-16) sandbox 웹훅은 **자기만의 Webhook ID** 를 갖는다(대시보드 별도 등록).
-      //   live ID 로 sandbox verify 를 치면 무조건 FAILURE → 샌드박스 이벤트 전부 폐기
-      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가.
-      const sandboxResult = await verifyWebhookSignature({
-        headers, bodyString,
-        webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || webhookId,
-        isSandbox: true,
-      });
-      if (sandboxResult.verified) {
-        verifyResult = sandboxResult;
-        verifiedEnvironment = 'sandbox';
-      }
+    if (verifyResult.verified) {
+      verifiedEnvironment = isSandboxDeploy ? 'sandbox' : 'live';
     }
 
     if (!verifyResult.verified) {
@@ -380,6 +418,15 @@ export default async function handler(req, res) {
           const directBookingDoc = await adminDb.collection('bookings').doc(paypalOrderId).get();
           if (directBookingDoc.exists) {
             const directData = directBookingDoc.data() || {};
+            const envOk = await guardWebhookEnvironment({
+              db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+              bookingsDocId: paypalOrderId, bookingRef: directData.bookingRef || null,
+              captureId: paypalTxId,
+            });
+            if (!envOk.ok) {
+              res.writeHead(200, JSON_HEADERS);
+              return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
+            }
             await logWebhookEvent({
               db: adminDb, environment: verifiedEnvironment, eventId, eventType,
               status: 'processed',
@@ -465,6 +512,16 @@ export default async function handler(req, res) {
         );
         res.writeHead(200, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: true, status: 'amount_mismatch' }));
+      }
+
+      // 🔴 상태를 바꾸기 직전 환경 검사 — 환경이 어긋나면 확정하지 않는다.
+      const confirmEnvOk = await guardWebhookEnvironment({
+        db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+        bookingRef, bookingsDocId: null, captureId: paypalTxId,
+      });
+      if (!confirmEnvOk.ok) {
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
       }
 
       // 자동 confirm
@@ -732,6 +789,16 @@ export default async function handler(req, res) {
         if (isFailed) await alertAdmin(`🚨 <b>환불 실패 webhook — booking 미매칭</b>\n\nRefund: <code>${refundId}</code>\nCapture: <code>${captureId}</code>\n→ PayPal 거래내역에서 수동 대조 필요`);
         res.writeHead(200, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: true, status: 'unmatched' }));
+      }
+
+      // 🔴 상태를 바꾸기 직전 환경 검사 — PENDING 기록도 FAILED 되돌리기도 상태 변경이다.
+      const refundEnvOk = await guardWebhookEnvironment({
+        db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+        bookingsDocId: matched.id, bookingRef: matched.data().bookingRef || null, captureId,
+      });
+      if (!refundEnvOk.ok) {
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
       }
 
       if (!isFailed) {

@@ -24,6 +24,7 @@ import { productDisplayLabel } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
+import { outcomeFromResponseBody, isSemanticallyDone, OUTCOME } from './_shared/processor-outcome.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -115,12 +116,17 @@ export default async function handler(req, res) {
     });
     const procJson = await procRes.json().catch(() => null);
 
+    // 🔴 2026-07-29 (의미상 성공 계약): HTTP 200 ≠ 재처리 완료.
+    //   운영자가 "재처리됨" 을 보고 손을 떼면 시트도 메일도 적립도 없는 예약이 그대로 남는다.
+    const outcome = procRes.ok ? outcomeFromResponseBody(procJson) : OUTCOME.RETRYABLE;
     return json(req, res, 200, _ok({
       bookingId,
       bookingRef: booking.bookingRef,
       product: payload.product,
       amountUSD: payload.amount,
-      replayed: procRes.ok,
+      replayed: isSemanticallyDone(outcome),
+      outcome,
+      stepStatus: (procJson && procJson.data && procJson.data.stepStatus) || null,
       processorStatus: procRes.status,
       processorResult: procJson,
     }));

@@ -102,20 +102,21 @@ describe('2. Production 은 Sandbox 웹훅을 절대 받지 않는다', () => {
     expect(resolveIsSandbox()).toBe(false);
   });
 
-  it('sandbox 서명 폴백이 resolveIsSandbox 게이트 뒤에 있다', () => {
+  it('🔴 폴백 자체가 없다 — 이 배포의 환경으로 1회만 검증한다', () => {
     const src = read('api/paypal-webhook.js');
-    expect(src).toContain('const sandboxAllowed = resolveIsSandbox();');
-    expect(src).toMatch(/!verifyResult\.verified\s*&&\s*sandboxAllowed/);
-    // 옛 형태(자격증명만 있으면 폴백)가 되살아나면 실패한다.
-    expect(src).not.toMatch(
-      /!verifyResult\.verified\s*&&\s*process\.env\.PAYPAL_SANDBOX_CLIENT_ID/,
-    );
+    expect(src).toContain('const isSandboxDeploy = resolveIsSandbox();');
+    expect(src).toMatch(/const activeWebhookId = isSandboxDeploy/);
+    // 두 번째 검증 호출이 존재하면 안 된다.
+    expect(src.match(/await verifyWebhookSignature\(/g) || []).toHaveLength(1);
+    // 옛 폴백 형태들이 되살아나면 실패한다.
+    expect(src).not.toMatch(/!verifyResult\.verified\s*&&\s*process\.env\.PAYPAL_SANDBOX_CLIENT_ID/);
+    expect(src).not.toMatch(/!verifyResult\.verified\s*&&\s*sandboxAllowed/);
   });
 
-  it('검증된 환경을 처리 로그에 남긴다', () => {
+  it('검증 전에는 unverified, 통과해야 환경이 확정된다', () => {
     const src = read('api/paypal-webhook.js');
-    expect(src).toContain("let verifiedEnvironment = 'live'");
-    expect(src).toContain("verifiedEnvironment = 'sandbox'");
+    expect(src).toContain("let verifiedEnvironment = 'unverified'");
+    expect(src).toMatch(/verifiedEnvironment = isSandboxDeploy \? 'sandbox' : 'live'/);
     expect(src).toContain('paypalEnvironment: environment');
     expect(src).toContain('environment: verifiedEnvironment');
   });
@@ -163,7 +164,9 @@ describe('3. 웹훅 환경 ≠ 예약 환경이면 데이터를 갱신하지 않
   it('환경 표시가 없는 레거시 예약은 live 웹훅만 허용한다', () => {
     expect(checkEnvironmentMatch(null, 'live').ok).toBe(true);
     expect(checkEnvironmentMatch(null, 'sandbox').ok).toBe(false);
-    expect(checkEnvironmentMatch(undefined, undefined).ok).toBe(true);  // 기본 live
+    // 🔴 검증되지 않은 웹훅(unverified)은 레거시 예약도 건드리지 못한다.
+    expect(checkEnvironmentMatch(null, undefined).ok).toBe(false);
+    expect(checkEnvironmentMatch(null, 'unverified').ok).toBe(false);
   });
 
   it('결제 시점에 환경이 예약 문서에 박힌다', () => {

@@ -47,6 +47,10 @@ import {
   claimStepSafe, finalizeStep, markOutcomeUnknown, CLAIM,
 } from './_shared/booking-idempotency.js';
 import { internalMoneyApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
+import {
+  STEP, overallOutcome, stepFromClaimReason, stepFromFinalize,
+  stepFromLedgerReason, stepFromLoyaltyHttp, isAmbiguousSendError,
+} from './_shared/processor-outcome.js';
 
 
 // ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
@@ -145,24 +149,6 @@ function stepDb() {
   }
 }
 
-/**
- * SMTP 오류가 "확실히 안 나갔다" 인지 "나갔는지 모른다" 인지 가른다.
- *
- * 확실히 안 나감 — 연결 자체를 못 맺음(EAUTH/ECONNECTION/EENVELOPE/EDNS) → 재발송 안전.
- * 알 수 없음   — 타임아웃·소켓 끊김은 **DATA 를 이미 보낸 뒤**일 수 있다. 재발송하면 중복.
- *   SMTP 에는 멱등 키가 없어서 서버가 이미 받았는지 확인할 방법이 없다.
- */
-export function isAmbiguousSendError(err) {
-  // _send-email.js 가 "SMTP 에 넘기기 전 실패" 에 preSend 를 붙인다 (env 미설정·일일 한도).
-  if (err && err.preSend === true) return false;
-  const code = String((err && err.code) || '').toUpperCase();
-  // 연결·인증·수신자 거절 — SMTP 서버가 본문을 받기 전에 끝난 실패다.
-  const CERTAIN_FAILURES = new Set(['EAUTH', 'ECONNECTION', 'EENVELOPE', 'EDNS', 'EMESSAGE']);
-  if (CERTAIN_FAILURES.has(code)) return false;
-  // 그 외(타임아웃·소켓 끊김·정체불명)는 DATA 를 이미 보낸 뒤일 수 있다 → 재발송 금지.
-  return true;
-}
-
 /** @returns {Promise<{claimed:boolean, reason:string}>} — claimed=true 일 때만 외부 작업 실행. */
 async function claimBookingStep(orderID, field) {
   const db = stepDb();
@@ -183,10 +169,10 @@ async function claimBookingStep(orderID, field) {
  */
 async function completeBookingStep(orderID, field, detail) {
   const db = stepDb();
-  if (!db || !orderID) return false;
+  if (!db || !orderID) return 'retry';
   const { FieldValue } = await import('firebase-admin/firestore');
   const outcome = await finalizeStep({ db, FieldValue, orderID, field, detail });
-  return outcome.ok;
+  return outcome.state;   // 'completed' | 'retry' | 'outcome_unknown'
 }
 
 // 버그 #17: loyalty 는 선점 후 earn 실패 시 재적립을 위해 마커를 풀어야 한다
@@ -383,7 +369,7 @@ const originalHandler = async (event) => {
   // 이면 기존 휴리스틱(이메일 도메인·이름 문자) 폴백 — gmail 일본인이 영어 이메일 받던 갭 해소.
   const VALID_LANGS = new Set(['en', 'ko', 'ja', 'zh']);
   const language = VALID_LANGS.has(requestedLanguage) ? requestedLanguage : detectLanguage(payerEmail, payerName);
-  const results = { bookingRef, steps: {} };
+  const results = { bookingRef, steps: {}, stepStatus: {} };
 
   // ── Step 2: Google Sheets 예약 기록 추가 (멱등: 원자 선점으로 동시 호출 중복 방지) ──
   // 버그 #17: read-then-write 가드 대신 claimBookingStep 으로 마커를 트랜잭션 선점.
@@ -395,6 +381,7 @@ const originalHandler = async (event) => {
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
   if (!sheetsClaim.claimed) {
     results.steps.sheets = `skip: ${sheetsClaim.reason}`;
+    results.stepStatus.sheets = stepFromClaimReason(sheetsClaim.reason);
     console.log('[booking-processor] Sheets 스킵:', sheetsClaim.reason, orderID);
   } else {
     try {
@@ -404,7 +391,8 @@ const originalHandler = async (event) => {
       results.steps.sheets = sheetsResult.deduped ? 'ok (already present)' : 'ok';
       console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
       // 🔴 여기서 비로소 completed. 선점만으로는 완료로 치지 않는다.
-      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets, { row: sheetsRowHint });
+      const sheetsFinal = await completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets, { row: sheetsRowHint });
+      results.stepStatus.sheets = stepFromFinalize(sheetsFinal);
     } catch (err) {
       // 버그 #17: 선점만 하고 append 실패/env-skip → 마커를 풀어 retry 가 재append 하도록.
       //   (기존: 성공 후에만 마커 set = 실패/env-skip 시 마커 없음 → retry 재시도.)
@@ -412,8 +400,11 @@ const originalHandler = async (event) => {
       // B9-31: env 미설정(SheetsEnvSkipped) 시 silent — _google-sheets.js 가 이미 1회 info 로그 출력.
       if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
         results.steps.sheets = 'skipped (env not configured)';
+        results.stepStatus.sheets = STEP.SKIPPED;
       } else {
         results.steps.sheets = `error: ${err.message}`;
+        // 시트는 N열 주문 ID 로 중복을 막으므로 재시도가 안전하다.
+        results.stepStatus.sheets = STEP.RETRYABLE;
         console.error('[booking-processor] Sheets 기록 실패:', err.message);
       }
       // 비치명적 오류 — 계속 진행
@@ -513,6 +504,7 @@ const originalHandler = async (event) => {
     voucherEmailOk = voucherClaim.reason === CLAIM.ALREADY_COMPLETED
       || voucherClaim.reason === CLAIM.IN_FLIGHT;
     results.steps.email = `skip: ${voucherClaim.reason}`;
+    results.stepStatus.email = stepFromClaimReason(voucherClaim.reason);
     console.log('[booking-processor] 이메일 스킵:', voucherClaim.reason, orderID);
     if (voucherClaim.reason === CLAIM.OUTCOME_UNKNOWN) {
       notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
@@ -538,7 +530,8 @@ const originalHandler = async (event) => {
       voucherEmailOk = true;
       // 🔴 실제 발송이 끝난 뒤에만 completed. 이 기록이 실패하면 completeBookingStep 이
       //   outcome_unknown 으로 격리한다(자동 재발송 금지 — 손님에게 두 번 가는 것보다 낫다).
-      await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher, { to: 'redacted' });
+      const voucherFinal = await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher, { to: 'redacted' });
+      results.stepStatus.email = stepFromFinalize(voucherFinal);
       console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
     } catch (err) {
       results.steps.email = `error: ${err.message}`;
@@ -557,8 +550,11 @@ const originalHandler = async (event) => {
           });
         }
         results.steps.email = `outcome_unknown: ${err.code || err.message}`;
+        results.stepStatus.email = STEP.OUTCOME_UNKNOWN;
         notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n오류: ${err.code || err.message}\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
       } else {
+        // 확실히 안 나갔다 → 마커를 풀어 재발송(재시도 안전).
+        results.stepStatus.email = STEP.RETRYABLE;
         await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
       }
     }
@@ -649,6 +645,7 @@ const originalHandler = async (event) => {
     const ledgerUid = ledger.ok ? ledger.uid : null;
     if (!ledger.ok) {
       results.loyalty = { skipped: `not eligible: ${ledger.reason}` };
+      results.stepStatus.loyalty = stepFromLedgerReason(ledger.reason);
       console.log('[booking-processor] 적립 skip —', ledger.reason, orderID);
     }
     // 버그 #17: loyaltyEarnedAt 마커를 earn 호출 전에 트랜잭션 선점 → 동시 호출 시
@@ -662,6 +659,9 @@ const originalHandler = async (event) => {
     if (ledger.ok && (stepGuards.skipLoyalty || (amountNum > 0 && ledgerUid && !loyaltyClaimed))) {
       // 멱등: 이미 적립됨/선점됨 → 재적립 안 함 (retry 중복 포인트 방지).
       results.loyalty = { skipped: `not earned now: ${loyaltyClaim.reason}` };
+      results.stepStatus.loyalty = stepGuards.skipLoyalty
+        ? STEP.COMPLETED
+        : stepFromClaimReason(loyaltyClaim.reason);
     } else if (loyaltyClaimed) {
       let loyaltyOk = false;
       // 🔴 2026-07-29 (환경 교차 차단): 이전엔 주소가 `https://cocotripkr.com/api/loyalty` 로
@@ -673,6 +673,8 @@ const originalHandler = async (event) => {
       const moneyBase = internalMoneyApiBase();
       if (!moneyBase) {
         results.loyalty = { skipped: 'internal base URL unresolved (환경 교차 방지)' };
+        // 🔴 성공이 아니다. 주소가 잡히면 재시도해야 한다.
+        results.stepStatus.loyalty = STEP.RETRYABLE;
         console.warn('[booking-processor] 적립 주소 특정 불가 — 운영 도메인 폴백 금지, 재시도 대기:', orderID);
         await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
       } else {
@@ -700,12 +702,17 @@ const originalHandler = async (event) => {
             description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
           }),
         });
-        const loyaltyData = await loyaltyRes.json();
+        const loyaltyData = await loyaltyRes.json().catch(() => null);
         console.log('[booking-processor] 포인트 적립:', loyaltyData);
-        results.loyalty = loyaltyData;
+        results.loyalty = loyaltyData || { httpStatus: loyaltyRes.status };
         loyaltyOk = loyaltyRes.ok;
+        // 401/403(토큰 미설정·전파 지연)·5xx·429 는 재시도로 복구된다. 그 외 4xx 는 요청이 틀렸다.
+        results.stepStatus.loyalty = stepFromLoyaltyHttp(loyaltyRes.status);
         // 🔴 적립이 실제로 성공했을 때만 completed (선점 != 완료).
-        if (loyaltyOk) await completeBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+        if (loyaltyOk) {
+          const loyaltyFinal = await completeBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+          results.stepStatus.loyalty = stepFromFinalize(loyaltyFinal);
+        }
       } finally {
         // 적립 실패(non-2xx/예외) 시 선점 마커 해제 → retry 재적립 (포인트 누락 방지).
         // 성공 시엔 선점 트랜잭션에서 박은 마커 유지.
@@ -716,10 +723,30 @@ const originalHandler = async (event) => {
       }
     }
   } catch (loyaltyErr) {
-    console.warn('[booking-processor] 포인트 적립 실패 (비치명적):', loyaltyErr.message);
+    // 🔴 "비치명적" 이라고 성공으로 보고하지 않는다 — 재시도 대상이다.
+    console.warn('[booking-processor] 포인트 적립 실패:', loyaltyErr.message);
+    results.loyalty = { error: loyaltyErr.message };
+    if (!results.stepStatus.loyalty) results.stepStatus.loyalty = STEP.RETRYABLE;
   }
 
-  return respond(200, _ok({ bookingRef, steps: results.steps, loyalty: results.loyalty }));
+  // 🔴 실패 집계는 반드시 loyalty 처리 **이후**다. 이전엔 어떤 단계가 실패해도
+  //   무조건 ok:true 라 trigger·retry cron·관리자 재처리가 전부 실패를 성공으로 기록했다.
+  // 안전 기본 — 어떤 이유로든 상태가 안 찍혔으면 "성공" 으로 단정하지 않는다.
+  for (const k of ['sheets', 'email', 'loyalty']) {
+    if (!results.stepStatus[k]) results.stepStatus[k] = STEP.RETRYABLE;
+  }
+  const outcome = overallOutcome(results.stepStatus);
+  return respond(200, {
+    ok: outcome === 'completed',
+    outcome,
+    data: {
+      bookingRef,
+      outcome,
+      steps: results.steps,
+      stepStatus: results.stepStatus,
+      loyalty: results.loyalty,
+    },
+  });
 };
 
 

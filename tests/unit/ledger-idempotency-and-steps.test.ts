@@ -110,7 +110,7 @@ describe('2단계 완료 처리 — 선점 != 완료', () => {
     expect(code).toContain('async function completeBookingStep');
     expect(code).toContain('completeBookingStep(orderID, BOOKING_STEP_MARKERS.sheets');
     expect(code).toContain('completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher');
-    expect(code).toContain('if (loyaltyOk) await completeBookingStep');
+    expect(code).toMatch(/if \(loyaltyOk\) \{[\s\S]{0,160}completeBookingStep\(orderID, BOOKING_STEP_MARKERS\.loyalty\)/);
   });
 
   it('선점은 in_progress 로만 기록한다 (완료 타임스탬프를 미리 쓰지 않는다)', () => {

@@ -75,13 +75,35 @@ export default async function handler(req, res) {
         // notify fires below when attempts >= MAX.
       });
 
+      // 🔴 2026-07-29 (의미상 성공 계약): result.ok 는 이제 HTTP 200 이 아니라
+      //   booking-processor 응답 본문의 outcome==='completed' 를 뜻한다.
+      //   즉 시트·메일·적립이 **실제로** 끝났을 때만 done 으로 닫힌다.
       if (result.ok) {
         await doc.ref.update({
           status: 'done',
           attempts: attempts + 1,
+          outcome: result.outcome || 'completed',
           sweptAt: FieldValue.serverTimestamp(),
         });
         ok++;
+      } else if (result.manual) {
+        // outcome_unknown — 다시 실행하면 손님에게 메일이 두 번 갈 수 있다. 재시도 횟수를
+        // 태우지 말고 즉시 사람에게 넘긴다.
+        await doc.ref.update({
+          status: 'manual-intervention',
+          attempts: attempts + 1,
+          outcome: result.outcome || 'manual_intervention',
+          lastFailureAt: FieldValue.serverTimestamp(),
+          lastFailureReason: result.reason,
+        });
+        escalated++;
+        notify('booking', [
+          `⚠️ <b>booking-processor 결과 미상 — 수동 확인 필요</b>`,
+          `<b>예약번호:</b> <code>${orderID}</code>`,
+          `<b>단계 상태:</b> ${result.bodyExcerpt || '-'}`,
+          ``,
+          `→ 자동 재시도를 멈췄습니다(중복 발송 방지). 실제 발송 여부를 확인 후 처리하세요.`,
+        ].join('\n')).catch(() => {});
       } else {
         const nextAttempts = attempts + 1;
         if (nextAttempts >= MAX_ATTEMPTS) {
