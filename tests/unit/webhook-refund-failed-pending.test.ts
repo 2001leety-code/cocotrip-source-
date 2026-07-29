@@ -16,11 +16,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// 🔴 2026-07-29: 상태 변경이 transaction 으로 들어가면서, runTransaction 없는 손수 목으로는
+//   쓰기를 검증할 수 없게 됐다. 낙관적 동시성까지 흉내내는 가짜 Firestore 로 바꾸고
+//   스파이 호출 여부 대신 **문서 내용**을 직접 확인한다(더 강한 검증).
+import { createFakeFirestore, FieldValue as FakeFieldValue } from '../helpers/fake-firestore.js';
+
 const notifySpy = vi.fn(async () => ({ ok: true }));
-const logSet = vi.fn(async () => undefined);
-const bookingsSet = vi.fn(async () => undefined);
-const bookingsUpdate = vi.fn(async () => undefined);
-const pendingUpdate = vi.fn(async () => undefined);
+let db: ReturnType<typeof createFakeFirestore>;
 let byRefundId: Array<{ id: string; data: any }>;
 let byCaptureId: Array<{ id: string; data: any }>;
 
@@ -32,26 +34,16 @@ vi.mock('../../api/_shared/paypal.js', () => ({
 vi.mock('../../api/_shared/notify.js', () => ({ notify: (...a: any[]) => notifySpy(...a) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true })) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: FakeFieldValue }));
 
-function q(rows: Array<{ id: string; data: any }>) {
-  return { size: rows.length, empty: rows.length === 0, docs: rows.map((r) => ({ id: r.id, data: () => r.data })) };
+/** 시드 — where('refundID') / where('captureID') 는 가짜 Firestore 가 실제로 처리한다. */
+function seedDb() {
+  const seed: Record<string, unknown> = {};
+  for (const r of byRefundId) seed[`bookings/${r.id}`] = { ...r.data, paypalEnvironment: 'live' };
+  for (const r of byCaptureId) seed[`bookings/${r.id}`] = { ...r.data, paypalEnvironment: 'live' };
+  return createFakeFirestore(seed);
 }
-function makeDb() {
-  return {
-    collection: (name: string) => ({
-      doc: () => ({
-        get: async () => ({ exists: false, data: () => undefined }),
-        set: (...a: any[]) => (name === 'paypal_webhook_log' ? logSet(...a) : bookingsSet(...a)),
-        update: (...a: any[]) => (name === 'pending_bookings' ? pendingUpdate(...a) : bookingsUpdate(...a)),
-      }),
-      where: (field: string) => ({
-        get: async () => q(field === 'refundID' ? byRefundId : byCaptureId),
-      }),
-    }),
-  };
-}
-vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => makeDb() }));
+vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => db }));
 
 const { default: handler } = await import('../../api/paypal-webhook.js');
 
@@ -60,6 +52,8 @@ function mockRes() {
   return { out, writeHead(c: number) { out.statusCode = c; }, end(b?: string) { out.body = b || ''; } };
 }
 async function fire(eventType: string) {
+  // 테스트 본문에서 byRefundId/byCaptureId 를 바꾼 뒤 호출하므로 여기서 시드한다.
+  db = seedDb();
   const res = mockRes();
   const body = JSON.stringify({
     event_type: eventType,
@@ -85,7 +79,7 @@ async function fire(eventType: string) {
 }
 
 beforeEach(() => {
-  notifySpy.mockClear(); logSet.mockClear(); bookingsSet.mockClear(); bookingsUpdate.mockClear(); pendingUpdate.mockClear();
+  notifySpy.mockClear();
   process.env.PAYPAL_WEBHOOK_ID = 'wh-test';
   delete process.env.PAYPAL_SANDBOX_CLIENT_ID;
   global.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ verification_status: 'SUCCESS' }), text: async () => '' })) as never;
@@ -98,10 +92,10 @@ describe('F4 — PAYMENT.REFUND.FAILED: 환불 실패를 되돌려 은폐 차단
     const r = await fire('PAYMENT.REFUND.FAILED');
     expect(r.statusCode).toBe(200);
     expect(r.json.status).toBe('refund_failed');
-    // bookings 에 REFUND_FAILED 가 기록됐는지 (set merge 또는 update 어느 쪽이든)
-    const wrote = [...bookingsSet.mock.calls, ...bookingsUpdate.mock.calls]
-      .some((c) => c[0]?.status === 'REFUND_FAILED');
-    expect(wrote).toBe(true);                              // ★ 뮤테이션 실증
+    expect(db.__get('bookings/CT-1')!.status).toBe('REFUND_FAILED');   // ★ 뮤테이션 실증
+    expect(db.__get('bookings/CT-1')!.refundStatus).toBe('FAILED');
+    // 상태 변경과 processed 기록이 같은 커밋이다.
+    expect(db.__get('paypal_webhook_log/txn-PAYMENT.REFUND.FAILED')!.status).toBe('processed');
     expect(notifySpy).toHaveBeenCalled();                  // 운영자 critical 알럿
   });
 
@@ -121,9 +115,9 @@ describe('F4 — PAYMENT.REFUND.FAILED: 환불 실패를 되돌려 은폐 차단
     ];
     const r = await fire('PAYMENT.REFUND.FAILED');
     expect(r.json.status).toBe('ambiguous');
-    const wroteStatus = [...bookingsSet.mock.calls, ...bookingsUpdate.mock.calls]
-      .some((c) => c[0]?.status === 'REFUND_FAILED');
-    expect(wroteStatus).toBe(false);
+    for (const id of ['ORD__L0', 'ORD__L1']) {
+      expect(db.__get(`bookings/${id}`)!.status).not.toBe('REFUND_FAILED');
+    }
   });
 });
 
@@ -132,8 +126,8 @@ describe('F4 — PAYMENT.REFUND.PENDING: 관측 기록만 (status 불변)', () =
     const r = await fire('PAYMENT.REFUND.PENDING');
     expect(r.statusCode).toBe(200);
     expect(r.json.status).toBe('refund_pending_recorded');
-    const calls = [...bookingsSet.mock.calls, ...bookingsUpdate.mock.calls];
-    expect(calls.some((c) => c[0]?.refundStatus === 'PENDING')).toBe(true);
-    expect(calls.some((c) => c[0]?.status != null)).toBe(false);   // ★ 종단 status 는 건드리지 않음
+    const doc = db.__get('bookings/CT-1')!;
+    expect(doc.refundStatus).toBe('PENDING');
+    expect(doc.status).toBe('CANCELED');   // ★ 종단 status 는 건드리지 않음
   });
 });

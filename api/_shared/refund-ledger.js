@@ -323,6 +323,83 @@ export async function applyRefundEvent({
 }
 
 /**
+ * 환불 PENDING / FAILED 상태 변경을 **하나의 transaction** 으로 반영한다 (2026-07-29).
+ *
+ * 🔴 이전 구조: bookings 저장 실패를 catch 로 숨기고, pending_bookings 동기화 실패도 숨긴 뒤
+ *   paypal_webhook_log 만 processed 로 남겼다. 그 결과
+ *     · 돈이 고객에게 안 갔는데(REFUND.FAILED) 예약은 그대로 REFUNDED 로 남고
+ *     · processed 가 찍혀 PayPal 재전송도 차단돼 **영구히 은폐**됐다.
+ *     · 두 저장소 중 한쪽만 바뀐 상태도 그대로 남았다.
+ *
+ * 이제 예약 2벌 + processed 기록이 같은 커밋이다. 하나라도 실패하면 아무것도 안 남고
+ * 호출부가 5xx 로 응답해 PayPal 이 재전송한다.
+ *
+ * @returns {Promise<{applied: boolean, reason?: string, bookingRef?: string,
+ *                    wroteBooking?: boolean, wrotePending?: boolean}>}
+ */
+export async function applyRefundStatusEvent({
+  db, FieldValue, eventId, eventType, bookingsDocId, bookingRef,
+  refundId, captureId, updates, webhookEnvironment, nowMs,
+}) {
+  if (!db) throw new Error('refund-ledger: db required');
+  if (!eventId) throw new Error('refund-ledger: eventId required');
+  if (!bookingsDocId) throw new Error('refund-ledger: bookingsDocId required');
+
+  const now = Number(nowMs) || Date.now();
+  const logRef = db.collection('paypal_webhook_log').doc(eventId);
+  const bookingDocRef = db.collection('bookings').doc(bookingsDocId);
+  const pendingDocRef = bookingRef ? db.collection('pending_bookings').doc(bookingRef) : null;
+
+  return db.runTransaction(async (tx) => {
+    const logSnap = await tx.get(logRef);
+    const logData = logSnap.exists ? logSnap.data() : null;
+    if (logData && logData.status === 'processed') {
+      return { applied: false, reason: 'duplicate_event' };
+    }
+
+    const bookingSnap = await tx.get(bookingDocRef);
+    if (!bookingSnap.exists) {
+      return { applied: false, reason: 'unmatched' };
+    }
+    const pendingSnap = pendingDocRef ? await tx.get(pendingDocRef) : null;
+    const pendingData = pendingSnap && pendingSnap.exists ? pendingSnap.data() : null;
+
+    // 환경 검사는 호출부(guardWebhookEnvironment)에서 이미 했지만, transaction 안에서
+    // 한 번 더 본다 — 그 사이 문서가 바뀌었을 수 있고, 여기가 마지막 관문이다.
+    const envMatch = checkEnvironmentsMatch([
+      (bookingSnap.data() || {}).paypalEnvironment,
+      pendingData && pendingData.paypalEnvironment,
+    ], webhookEnvironment);
+    if (!envMatch.ok) {
+      return { applied: false, reason: 'environment_mismatch', bookingEnvironment: envMatch.bookingEnvironment };
+    }
+
+    tx.set(bookingDocRef, updates, { merge: true });
+    if (pendingData) tx.set(pendingDocRef, updates, { merge: true });
+
+    tx.set(logRef, {
+      eventId,
+      eventType: eventType || 'unknown',
+      status: 'processed',
+      paypalEnvironment: String(webhookEnvironment || 'live').toLowerCase(),
+      detail: {
+        bookingsDocId, bookingRef: bookingRef || null,
+        refundId: refundId || null, captureId: captureId || null,
+        refundStatus: updates && updates.refundStatus,
+      },
+      receivedAtMs: now,
+    }, { merge: true });
+
+    return {
+      applied: true,
+      bookingRef: bookingRef || bookingsDocId,
+      wroteBooking: true,
+      wrotePending: Boolean(pendingData),
+    };
+  });
+}
+
+/**
  * PayPal 에서 capture 의 **권위 있는** 환불 상태를 읽는다.
  * COMPLETED / PARTIALLY_REFUNDED / REFUNDED.
  *

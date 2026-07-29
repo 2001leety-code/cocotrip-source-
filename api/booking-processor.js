@@ -79,11 +79,23 @@ async function readVerifiedLedgerBasis(orderID) {
   }
   if (!snap.exists) return { ok: false, reason: 'booking-not-found' };
   const d = snap.data() || {};
+
+  // 🔴 2026-07-29: "0원이니까 무료겠지" 로 추정하지 않는다.
+  //   유료 예약의 금액이 NaN·0·음수·누락이어도 그렇게 추정하면 **금액 오류가 무료로 둔갑**해
+  //   전체 처리가 completed 로 닫힌다(적립 누락이 정상 처리로 기록된다).
+  //   무료 판정은 **서버가 남긴 근거**만 인정한다.
+  if (d.isFreeCoupon === true) return { ok: false, reason: 'free-verified: isFreeCoupon' };
+  if (d.paymentSource === 'ai-coupon') return { ok: false, reason: 'free-verified: ai-coupon' };
+  if (d.isFreeOrder === true) return { ok: false, reason: 'free-verified: isFreeOrder' };
+  if (d.freeReason) return { ok: false, reason: `free-verified: ${String(d.freeReason).slice(0, 40)}` };
+
   if (d.paymentVerified !== true) return { ok: false, reason: 'payment-not-verified' };
   if (!d.captureID) return { ok: false, reason: 'no-captureID' };
-  if (!d.uid) return { ok: false, reason: 'no-verified-uid (guest checkout)' };
+  // 🔴 금액 검사를 uid 검사보다 **먼저** 한다. 순서가 반대면 게스트 결제에서
+  //   금액 오류가 "게스트라 제외" 로 가려진다.
   const amountUSD = Number(d.amountUSD);
   if (!Number.isFinite(amountUSD) || amountUSD <= 0) return { ok: false, reason: 'invalid-amount' };
+  if (!d.uid) return { ok: false, reason: 'no-verified-uid (guest checkout)' };
   return { ok: true, uid: String(d.uid), amountUSD, captureID: String(d.captureID) };
 }
 

@@ -61,9 +61,37 @@ export function shouldRetry(outcome) {
   return outcome === OUTCOME.RETRYABLE;
 }
 
-/** 사람이 봐야 하는가? (자동 재실행 금지) */
+/** 사람이 봐야 하는가? (자동 재실행 금지) — 영구 실패도 자동 재시도 대상이 아니다. */
 export function needsManualIntervention(outcome) {
-  return outcome === OUTCOME.MANUAL;
+  return outcome === OUTCOME.MANUAL || outcome === OUTCOME.FAILED_PERMANENT;
+}
+
+/** retry 문서에 저장할 status. */
+export const RETRY_DOC_STATUS = {
+  PENDING: 'pending',
+  MANUAL: 'manual-intervention',
+  PERMANENT: 'permanent-failure',
+  DONE: 'done',
+};
+
+/**
+ * outcome → retry 문서 status.
+ *
+ * 🔴 이전에는 completed 가 아닌 **모든** 결과를 'pending' 으로 저장했다. 그래서
+ *   manual_intervention 도 다음 cron 이 한 번 더 실행했고(중복 발송 위험),
+ *   failed_permanent 도 최대 재시도 횟수까지 불필요하게 반복됐다.
+ *   보고서의 "outcome_unknown 은 즉시 manual" 과 실제 저장 상태가 달랐다.
+ */
+export function retryDocStatusFor(outcome) {
+  if (outcome === OUTCOME.COMPLETED) return RETRY_DOC_STATUS.DONE;
+  if (outcome === OUTCOME.MANUAL) return RETRY_DOC_STATUS.MANUAL;
+  if (outcome === OUTCOME.FAILED_PERMANENT) return RETRY_DOC_STATUS.PERMANENT;
+  return RETRY_DOC_STATUS.PENDING;
+}
+
+/** 이 status 의 문서를 cron 이 다시 실행해도 되는가? */
+export function isAutoRetryableStatus(status) {
+  return status === RETRY_DOC_STATUS.PENDING;
 }
 
 /** 선점 실패 사유 → 단계 상태. */
@@ -87,17 +115,22 @@ export function stepFromFinalize(state) {
 /** 적립 자격 판정(readVerifiedLedgerBasis) 사유 → 단계 상태. */
 export function stepFromLedgerReason(reason) {
   const r = String(reason || '');
-  // 정상 제외 — 애초에 적립 대상이 아니다.
-  if (r.startsWith('admin-or-test-order')) return STEP.SKIPPED;
-  if (r.startsWith('no-verified-uid')) return STEP.SKIPPED;      // 게스트 결제
-  if (r.startsWith('invalid-amount')) return STEP.SKIPPED;       // 무료
-  if (r.startsWith('no-orderID')) return STEP.SKIPPED;
-  // 일시적 — 다시 보면 달라질 수 있다.
+
+  // ── 정상 제외 — 애초에 적립 대상이 아니다. **서버 근거가 있는 것만.** ──
+  if (r.startsWith('admin-or-test-order')) return STEP.SKIPPED;   // 명시적 관리자·테스트 주문
+  if (r.startsWith('free-verified')) return STEP.SKIPPED;         // 서버가 확인한 무료(쿠폰·무료상품)
+  if (r.startsWith('no-verified-uid')) return STEP.SKIPPED;       // 게스트 결제 = 적립 대상 아님
+
+  // ── 일시적 — 다시 보면 달라질 수 있다. ──
   if (r.startsWith('firestore-unavailable')) return STEP.RETRYABLE;
   if (r.startsWith('lookup-failed')) return STEP.RETRYABLE;
-  if (r.startsWith('booking-not-found')) return STEP.RETRYABLE;  // 문서가 늦게 생길 수 있다
-  // 데이터를 고쳐야 하는 것 — 재시도로는 안 된다.
-  return STEP.FAILED_PERMANENT;   // payment-not-verified / no-captureID
+  if (r.startsWith('booking-not-found')) return STEP.RETRYABLE;   // 문서가 늦게 생길 수 있다
+
+  // ── 그 외는 전부 데이터·설정을 고쳐야 하는 오류다. ──
+  // 🔴 invalid-amount(NaN·0·음수·누락)와 no-orderID 를 예전엔 skipped 로 분류했다.
+  //   유료 예약의 금액이 깨져도 "무료라 적립 제외" 로 보여 전체가 completed 로 닫혔다.
+  //   무료라는 서버 근거가 없으면 0원도 오류다.
+  return STEP.FAILED_PERMANENT;   // invalid-amount / no-orderID / payment-not-verified / no-captureID
 }
 
 /** 내부 loyalty API 응답 코드 → 단계 상태. */

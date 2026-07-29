@@ -35,6 +35,7 @@
 import { vercelBypassHeaders } from './internal-base-url.js';
 import {
   outcomeFromResponseBody, isSemanticallyDone, needsManualIntervention,
+  shouldRetry, retryDocStatusFor, RETRY_DOC_STATUS, OUTCOME,
 } from './processor-outcome.js';
 
 const RETRY_COLLECTION = 'pending_processor_retries';
@@ -105,6 +106,9 @@ export async function triggerBookingProcessor({
           status: r.status,
           outcome,
           manual: needsManualIntervention(outcome),
+          retryable: shouldRetry(outcome),
+          docStatus: retryDocStatusFor(outcome),
+          stepStatus: (body && body.data && body.data.stepStatus) || null,
           bodyExcerpt: JSON.stringify((body && body.data && body.data.stepStatus) || {}).slice(0, MAX_BODY_LOG),
         };
       }
@@ -114,12 +118,21 @@ export async function triggerBookingProcessor({
       try {
         bodyExcerpt = (await r.text()).slice(0, MAX_BODY_LOG);
       } catch { /* body unreadable — leave empty */ }
-      result = { ok: false, reason: `http-${r.status}`, status: r.status, bodyExcerpt };
+      // 네트워크/HTTP 실패는 일시적으로 본다 → 자동 재시도 대상.
+      result = {
+        ok: false, reason: `http-${r.status}`, status: r.status, bodyExcerpt,
+        outcome: OUTCOME.RETRYABLE, retryable: true, manual: false,
+        docStatus: RETRY_DOC_STATUS.PENDING,
+      };
     }
   } catch (err) {
     clearTimeout(tid);
     const reason = err.name === 'AbortError' ? `timeout-${timeoutMs}ms` : `network: ${err.message}`;
-    result = { ok: false, reason };
+    result = {
+      ok: false, reason,
+      outcome: OUTCOME.RETRYABLE, retryable: true, manual: false,
+      docStatus: RETRY_DOC_STATUS.PENDING,
+    };
   }
 
   if (result.ok) {
@@ -131,8 +144,19 @@ export async function triggerBookingProcessor({
   console.error(`[booking-processor-trigger] FAIL orderID=${orderID} source=${source} reason=${result.reason}`);
   if (db) {
     try {
+      // 2026-07-29: outcome 에 맞는 status 로 저장한다.
+      //   이전에는 전부 'pending' 이라 manual/permanent 도 다음 cron 이 다시 실행했다.
+      const docStatus = result.docStatus || RETRY_DOC_STATUS.PENDING;
       if (persistRetry) {
-        await persistRetry(orderID, payload, result.reason);
+        // 커스텀 콜백에도 outcome/status 를 넘긴다 — reason 만 받으면
+        // 호출처가 무조건 pending 으로 기록해 같은 구멍이 다시 생긴다.
+        await persistRetry(orderID, payload, result.reason, {
+          outcome: result.outcome || OUTCOME.RETRYABLE,
+          status: docStatus,
+          stepStatus: result.stepStatus || null,
+          source,
+          retryDocId: retryQueueDocId,
+        });
       } else {
         const { FieldValue } = await import('firebase-admin/firestore');
         await db.collection(RETRY_COLLECTION).doc(retryQueueDocId).set({
@@ -143,7 +167,9 @@ export async function triggerBookingProcessor({
           firstFailureAt: FieldValue.serverTimestamp(),
           lastFailureAt: FieldValue.serverTimestamp(),
           lastFailureReason: result.reason,
-          status: 'pending',
+          outcome: result.outcome || OUTCOME.RETRYABLE,
+          stepStatus: result.stepStatus || null,
+          status: docStatus,
           attempts: 0,
         }, { merge: false });
       }
@@ -161,7 +187,9 @@ export async function triggerBookingProcessor({
       `<b>실패사유:</b> ${result.reason}`,
       result.bodyExcerpt ? `<b>응답 본문(앞 ${MAX_BODY_LOG}자):</b>\n<code>${result.bodyExcerpt.replace(/[<>&]/g, '_')}</code>` : '',
       ``,
-      `→ <code>${RETRY_COLLECTION}/${orderID}</code> 등록됨. 5분 cron 이 자동 재시도.`,
+      result.retryable === false
+        ? `→ <code>${RETRY_COLLECTION}/${orderID}</code> 상태=${result.docStatus}. <b>자동 재시도 없음</b> — 수동 확인 필요.`
+        : `→ <code>${RETRY_COLLECTION}/${orderID}</code> 등록됨. 5분 cron 이 자동 재시도.`,
       `→ 즉시 강제 재시도: <code>POST /api/admin-replay-booking-notifications {orderID:"${orderID}"}</code>`,
     ].filter(Boolean).join('\n');
     notify('booking', msg).catch((alertErr) => {
