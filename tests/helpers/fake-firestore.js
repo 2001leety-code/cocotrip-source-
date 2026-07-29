@@ -100,7 +100,9 @@ export function createFakeFirestore(seed = {}, options = {}) {
     const rec = store.get(path);
     return {
       id: path.split('/').pop(),
-      ref: { path },
+      // 실제 Firestore 처럼 snapshot.ref 가 doc API 다 (get/set/update/collection 사용 가능).
+      // docApi 는 아래에서 const 로 정의되므로 getter 로 늦게 평가한다.
+      get ref() { return docApi(path); },
       exists: Boolean(rec),
       data: () => (rec ? clone(rec.data) : undefined),
     };
