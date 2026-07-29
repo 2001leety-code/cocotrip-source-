@@ -118,7 +118,13 @@ function _formatCacheHit(entry) {
     firstStation: null,
     lastStation: null,
     steps: [],
-    summary: `DB cached: ${method} ${durationMin}min (zone_courses)`,
+    // 🔴 2026-07-28: 여기 있던 `DB cached: … (zone_courses)` 는 개발용 로그 문구였는데,
+    //   RouteAgent 가 이 summary 를 그대로 instruction/instruction_en 에 넣고
+    //   TransitArrow 가 화면에 raw 로 찍어 **손님이 "DB cached: subway 12min
+    //   (zone_courses)" 를 그대로 봤다**. 캐시 출처는 아래 _fromCache/_cacheSource
+    //   내부 필드로만 남기고 손님 문구에는 넣지 않는다. summary 를 비우면 호출부의
+    //   사람말 폴백(`pt.summary || '…'`)이 대신 쓰인다.
+    summary: '',
     distance_m: distM,
     _fromCache: true,
     _cacheSource: entry.source || 'zone_courses',

@@ -81,20 +81,34 @@ export function naverMapSearchUrl(query: string): string {
   return `https://map.naver.com/p/search/${encodeURIComponent(String(query || '').trim())}`;
 }
 
+/** 네이버 길찾기 이동수단. 경유지(3점 이상)는 **car 에서만** 지원된다. */
+export type NaverDirectionsMode = 'car' | 'transit' | 'walk';
+
 /**
- * 네이버 지도 길찾기(자동차) 딥링크 — 출발·경유·도착 동선을 지도에서 연다 (2026-07-05).
+ * 네이버 웹 길찾기가 한 URL 에 받아주는 지점 수 상한 (출발 + 경유 + 도착).
+ * 넘는 만큼은 호출부가 잘라내고 **그 사실을 사용자에게 알려야** 한다(무언의 누락 금지).
+ */
+export const NAVER_DIRECTIONS_MAX_STOPS = 6;
+
+/**
+ * 네이버 지도 길찾기 딥링크 — 출발·경유·도착 동선을 지도에서 연다 (2026-07-05).
  * 경로 확정된 예약에서 "네이버 지도" 링크가 위치가 아닌 실제 동선을 띄우도록.
  * (주소검색 미니지도는 단일 위치라 naverMapSearchUrl 그대로.)
  *
- * 형식: map.naver.com/p/directions/{경도,위도,이름,,}/…경유…/{도착}/-/car
+ * 형식: map.naver.com/p/directions/{경도,위도,이름,,}/…경유…/{도착}/-/{mode}
  * @param stops 출발→(경유…)→도착 순 좌표+이름. 2개 미만이면 빈 문자열.
+ * @param mode  기본 car. (2026-07-28) 도보/대중교통 단일 구간 링크용으로 인자화.
+ *              지점 3개 이상이면 네이버가 경유지를 자동차에서만 받으므로 car 로 강제한다.
  */
 export function naverMapDirectionsUrl(
   stops: Array<{ lat: number; lng: number; name: string }>,
+  mode: NaverDirectionsMode = 'car',
 ): string {
   const valid = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
   if (valid.length < 2) return '';
   const seg = (s: { lat: number; lng: number; name: string }) =>
     `${s.lng},${s.lat},${encodeURIComponent((s.name || '').trim())},,`;
-  return `https://map.naver.com/p/directions/${valid.map(seg).join('/')}/-/car`;
+  // 경유지가 있는데 transit/walk 를 주면 네이버가 경유지를 버린다 → 조용한 동선 손실 방지.
+  const effectiveMode = valid.length > 2 ? 'car' : mode;
+  return `https://map.naver.com/p/directions/${valid.map(seg).join('/')}/-/${effectiveMode}`;
 }

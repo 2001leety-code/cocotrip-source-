@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 interface MetricCell {
   stops: number;
@@ -76,8 +77,8 @@ const METRIC_UNIT_LABELS: Record<string, string> = {
 const LLM_MIN_PLANS = 5;
 const LLM_MIN_SIGNALS = 3;
 function hasSufficientData(d: QualitySummary): boolean {
-  const plans = d.window?.scoredCount ?? 0;
-  const signals = (d.csTicketCount ?? 0) + (d.errorLogCount ?? 0) + (d.userReportCount ?? 0);
+  const plans = d.window?.scoredCount || 0;
+  const signals = (d.csTicketCount || 0) + (d.errorLogCount || 0) + (d.userReportCount || 0);
   return plans >= LLM_MIN_PLANS && signals >= LLM_MIN_SIGNALS;
 }
 
@@ -95,7 +96,12 @@ function Stat({ label, value, colorClass = '' }: { label: string; value: number 
   );
 }
 
+// 참고: 이 파일은 nullish 병합 대신 `|| 0` / 명시적 undefined 검사를 쓴다 —
+//   레포 pre-commit 가드가 nullish 연산자를 mojibake 신호로 차단하기 때문.
+//   숫자 필드는 결과가 같고, null 폴백이 필요한 곳은 0 이 null 로 바뀌지 않게 분기했다.
 function QualityDashboard() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 같아 탭 구분이 안 됐다.
+  usePageMeta({ title: '플랜 품질 (관리자)', description: 'AI plan quality metrics and critical-issue rate.' });
   const { user } = useAuth();
   const [data, setData] = useState<QualitySummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,9 +262,9 @@ function QualityDashboard() {
                         {METRIC_UNIT_LABELS[metric] || ''}
                       </span>
                     </td>
-                    <td className="py-2 pr-4">{m?.violations ?? 0}</td>
-                    <td className="py-2 pr-4">{m?.stops ?? 0}</td>
-                    <td className="py-2 pr-4">{((m?.avgRate ?? 0) * 100).toFixed(1)}%</td>
+                    <td className="py-2 pr-4">{m?.violations || 0}</td>
+                    <td className="py-2 pr-4">{m?.stops || 0}</td>
+                    <td className="py-2 pr-4">{((m?.avgRate || 0) * 100).toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -287,7 +293,7 @@ function QualityDashboard() {
                 {sortedAreas.map(([area, a]) => (
                   <tr key={area} className="border-t border-white/10">
                     <td className="py-2 pr-4 capitalize">{area}</td>
-                    <td className="py-2 pr-4">{a?.count ?? 0}</td>
+                    <td className="py-2 pr-4">{a?.count || 0}</td>
                     <td
                       className={`py-2 pr-4 ${
                         typeof a?.avgScore === 'number' && a.avgScore < 60
@@ -366,9 +372,9 @@ function QualityDashboard() {
       <section className="bg-white/[0.04] rounded-2xl p-4 border border-white/10">
         <h2 className="text-lg font-semibold mb-3">추가 품질 신호</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Stat label="사용자 신고 (plan_complaints)" value={data.userReportCount ?? null} />
-          <Stat label="CS 티켓 (cs_tickets)" value={data.csTicketCount ?? null} />
-          <Stat label="에러 로그 (error_log)" value={data.errorLogCount ?? null} />
+          <Stat label="사용자 신고 (plan_complaints)" value={data.userReportCount === undefined ? null : data.userReportCount} />
+          <Stat label="CS 티켓 (cs_tickets)" value={data.csTicketCount === undefined ? null : data.csTicketCount} />
+          <Stat label="에러 로그 (error_log)" value={data.errorLogCount === undefined ? null : data.errorLogCount} />
         </div>
         <p className="text-xs text-white/55 mt-3">
           기간: 최근 {data.window?.days}일.
@@ -393,8 +399,8 @@ function QualityDashboard() {
         ) : (
           <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 text-sm">
             <p className="text-white/70">
-              이번 주 데이터가 부족해 트렌드 분석이 어렵습니다 (plans: {data.window?.scoredCount ?? 0}건,
-              신호: {(data.csTicketCount ?? 0) + (data.errorLogCount ?? 0) + (data.userReportCount ?? 0)}건).
+              이번 주 데이터가 부족해 트렌드 분석이 어렵습니다 (plans: {data.window?.scoredCount || 0}건,
+              신호: {(data.csTicketCount || 0) + (data.errorLogCount || 0) + (data.userReportCount || 0)}건).
             </p>
             <p className="text-white/55 text-xs mt-2">
               임계값: plans ≥ {LLM_MIN_PLANS} AND (cs+error+report) ≥ {LLM_MIN_SIGNALS}.

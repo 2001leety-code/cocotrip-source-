@@ -25,6 +25,8 @@ import { Step6Quote } from './Step6Quote';
 import { InquiryForm } from './InquiryForm';
 import { getWizardI18n } from './wizard-i18n';
 import { isValidInternationalPhone } from '@/lib/phone-validation';
+import { resolveProductType } from './resolveProductType';
+import { isPastCutoff } from '@/lib/bookingCutoff';
 import {
   loadWizardSnapshot,
   useWizardPersistence,
@@ -284,6 +286,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         if (!state.startDate) return false;
         // PR-W4 (이슈 35): 픽업 시각은 Step 3 select 입력. INITIAL_WIZARD_STATE 가 09:00 기본값.
         if (!state.pickupTime && !state.startTime) return false;
+        // 2026-07-28: 마감(전세차량 1h / 투어 8h) 초과면 진행 차단.
+        //   이전에는 amber 배너만 띄우고 결제까지 통과시켜, 서버가 400 으로 되받는 흐름이었다.
+        if (isPastCutoff(
+          resolveProductType(state).productType,
+          state.startDate,
+          state.pickupTime ?? state.startTime ?? '',
+        )) return false;
         if (!state.customerName || state.customerName.trim().length < 2) return false;
         // 2026-06-07: 약한 ≥7자리 → 투어와 동일 형식검증(isValidInternationalPhone, 8~15자리).
         // 기사 배차 연락이 닿는 번호 보장 (오타·가짜번호 차단). 통합 예약정보 정책.

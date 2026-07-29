@@ -35,6 +35,11 @@ const procSrc = readFileSync(
   resolve(process.cwd(), 'api/booking-processor.js'),
   'utf8',
 );
+// 2026-07-29: 선점 transaction 은 공용 모듈로 이동했다 (fail-open 제거 + 좀비 정책 일원화).
+const idemSrc = readFileSync(
+  resolve(process.cwd(), 'api/_shared/booking-idempotency.js'),
+  'utf8',
+);
 
 // ── (1) CAS 선점/해제 의미를 모사하는 최소 인메모리 Firestore 트랜잭션 ──
 // booking-processor 의 claimBookingStep 와 동일한 read→absent?→set→true / present→false
@@ -123,22 +128,30 @@ describe('버그 #17 — CAS 선점 의미 (단위 시뮬레이션)', () => {
 });
 
 describe('버그 #17 — booking-processor 가 원자 선점 패턴으로 배선됨 (소스 구조)', () => {
-  it('claimBookingStep 헬퍼를 db.runTransaction 으로 구현', () => {
+  // 🔴 2026-07-29: 선점 transaction 이 api/_shared/booking-idempotency.js 로 옮겨졌다.
+  //   (fail-open 제거 + 단계별 좀비 정책을 한 곳에 모으기 위해.)
+  //   불변식은 그대로라 검사 대상 파일만 따라간다.
+  it('선점은 runTransaction 으로 구현된다', () => {
     expect(procSrc).toMatch(/async function claimBookingStep\s*\(/);
-    expect(procSrc).toMatch(/db\.runTransaction\s*\(/);
+    expect(idemSrc).toMatch(/db\.runTransaction\s*\(/);
   });
 
   it('트랜잭션 콜백은 read+set 만 — 외부 I/O(fetch/append/sendBookingConfirmation) 금지', () => {
-    // 주석이 아닌 실제 호출 `db.runTransaction(` 위치를 잡는다.
-    const start = procSrc.indexOf('db.runTransaction(');
+    const start = idemSrc.indexOf('db.runTransaction(');
     expect(start).toBeGreaterThan(-1);
-    // 트랜잭션 콜백 본문(대략 범위)에 외부 I/O 호출이 없어야 한다.
-    const txBlock = procSrc.slice(start, start + 600);
+    const txBlock = idemSrc.slice(start);
     expect(txBlock).toMatch(/tx\.get\(/);
     expect(txBlock).toMatch(/tx\.set\(/);
     expect(txBlock).not.toMatch(/appendBooking\(/);
     expect(txBlock).not.toMatch(/sendBookingConfirmation\(/);
     expect(txBlock).not.toMatch(/fetch\(/);
+  });
+
+  it('🔴 선점 실패를 "진행" 으로 해석하지 않는다 (fail-open 제거)', () => {
+    // 옛 구현: Firestore 불능/트랜잭션 실패 시 return true → 중복 방지 없이 외부 작업 진행.
+    expect(procSrc).not.toMatch(/if\s*\(!db\)\s*return true/);
+    expect(idemSrc).toContain('STORE_UNAVAILABLE');
+    expect(idemSrc).toMatch(/claimStepSafe/);
   });
 
   it('releaseBookingStep 으로 실패 단계 마커를 FieldValue.delete() 로 해제', () => {
@@ -159,8 +172,13 @@ describe('버그 #17 — booking-processor 가 원자 선점 패턴으로 배선
     expect(procSrc).toMatch(/claimBookingStep\(\s*orderID\s*,\s*BOOKING_STEP_MARKERS\.voucher\s*\)/);
     const sendIdx = procSrc.indexOf('sendBookingConfirmation(');
     expect(sendIdx).toBeGreaterThan(-1);
-    const block = procSrc.slice(sendIdx, sendIdx + 600);
+    // 2026-07-29: catch 가 "확실한 실패"(release) 와 "결과 미상"(격리) 로 갈라져 길어졌다.
+    //   창만 넓힌다 — 검사하는 불변식(발송 실패 시 마커를 풀어 재발송 보장)은 그대로.
+    const block = procSrc.slice(sendIdx, sendIdx + 2400);
     expect(block).toMatch(/releaseBookingStep\(\s*orderID\s*,\s*BOOKING_STEP_MARKERS\.voucher\s*\)/);
+    // 🔴 단, 보냈는지 알 수 없는 오류는 재발송하지 않고 격리해야 한다.
+    expect(block).toMatch(/isAmbiguousSendError\(/);
+    expect(block).toMatch(/markOutcomeUnknown\(/);
   });
 
   it('로열티 적립은 earn 호출 전 선점, 실패(non-2xx/예외) 시 release', () => {

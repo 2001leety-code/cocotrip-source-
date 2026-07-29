@@ -28,7 +28,8 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { internalApiBase } from './_shared/internal-base-url.js';
+import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
+import { outcomeFromResponseBody, isSemanticallyDone, OUTCOME } from './_shared/processor-outcome.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
@@ -144,7 +145,16 @@ export default async function handler(req, res) {
       if (b.replayedAt) { results.push({ bookingId: c.bookingId, ok: false, error: 'ALREADY_REPLAYED' }); continue; }
 
       const payload = {
-        orderID: b.captureID || c.bookingId,
+      // 🔴 2026-07-29 (영구 주문 ID): 이전엔 `booking.captureID || <doc id>` 였다.
+      //   최초 결제 때 booking-processor 가 받은 orderID 는 **문서 ID** 다
+      //   (PayPal-direct = orderID, cart 자식 = orderID__lineId, 레거시 = captureId).
+      //   재처리에서 captureID 를 orderID 자리에 넣으면 키가 통째로 바뀌어
+      //     · 멱등 마커를 엉뚱한 문서(bookings/{captureID})에서 찾고
+      //     · 적립 원장 문서 ID 가 달라져 **이중 적립**
+      //     · 시트 중복 확인 키(N열)가 어긋나 **행이 하나 더**
+      //   생긴다. 그래서 문서 ID 를 그대로 쓰고, captureID 는 captureId 로만 넘긴다.
+        orderID: c.bookingId,
+        captureId: b.captureID || null,
         payerEmail: b.userEmail || '',
         payerName: b.payerName || (b.userEmail || '').split('@')[0],
         amount: String(b.amountUSD || '0'),
@@ -167,18 +177,34 @@ export default async function handler(req, res) {
       try {
         const procRes = await fetch(`${siteUrl}/api/booking-processor`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+          'Content-Type': 'application/json',
+          // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
+          'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
+          ...vercelBypassHeaders(),
+        },
           body: JSON.stringify(payload),
         });
         const procJson = await procRes.json().catch(() => null);
-        if (procRes.ok) {
-          await docRef.update({ replayedAt: FieldValue.serverTimestamp(), replayedBy: tokenAuth.email || 'admin' });
+        // 🔴 2026-07-29 (의미상 성공 계약): HTTP 200 을 완료로 보면 안 된다.
+        //   booking-processor 는 내부 단계가 실패해도 200 을 준다. replayedAt 을 찍으면
+        //   이 예약은 다시는 재처리 대상이 되지 않는다 — 시트도 메일도 적립도 없는 채로.
+        const outcome = procRes.ok ? outcomeFromResponseBody(procJson) : OUTCOME.RETRYABLE;
+        const done = isSemanticallyDone(outcome);
+        if (done) {
+          await docRef.update({
+            replayedAt: FieldValue.serverTimestamp(),
+            replayedBy: tokenAuth.email || 'admin',
+            replayOutcome: outcome,
+          });
         }
         results.push({
           bookingId: c.bookingId,
-          ok: procRes.ok,
+          ok: done,
+          outcome,
           status: procRes.status,
           steps: procJson?.data?.steps || null,
+          stepStatus: procJson?.data?.stepStatus || null,
         });
       } catch (err) {
         results.push({ bookingId: c.bookingId, ok: false, error: err.message });

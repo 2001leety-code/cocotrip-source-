@@ -272,27 +272,63 @@ function WalkStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<st
 interface GeoPoint { lat?: number; lng?: number; name?: string | null }
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
+/** 이 구간의 양 끝 stop 좌표 — 승하차 지점이 없는 구간(도보 등)의 폴백. */
+export interface SegmentEndpoints {
+  fromLat?: number | null;
+  fromLng?: number | null;
+  fromName?: string;
+  toLat?: number | null;
+  toLng?: number | null;
+  toName?: string;
+}
+
 export function buildTransitDirectionsLinks(
   transit: Record<string, unknown>,
   destinationName?: string,
+  endpoints?: SegmentEndpoints,
 ): { google: string; naver: string } | null {
   const steps = (transit.steps_detail as Array<Record<string, unknown>> | undefined) || [];
   const from = steps.map(s => s.fromPoint as GeoPoint | undefined).find(p => p && isNum(p.lat) && isNum(p.lng));
   const to = [...steps].reverse().map(s => s.toPoint as GeoPoint | undefined).find(p => p && isNum(p.lat) && isNum(p.lng));
-  const oLat = from?.lat, oLng = from?.lng;
-  const dLat = isNum(to?.lat) ? to?.lat : (transit.anchor_lat as number | undefined);
-  const dLng = isNum(to?.lng) ? to?.lng : (transit.anchor_lng as number | undefined);
+  // (2026-07-28) 도보 구간은 백엔드가 steps_detail 자체를 안 만들거나 좌표를 안 넣는다
+  // (_tmap_helper 300m 미만 · RouteAgent 도보 override). 그때는 앞뒤 stop 좌표로 잇는다
+  // — 이전에는 여기서 null 이 나와 도보 구간만 지도 버튼이 통째로 사라졌다.
+  const oLat = isNum(from?.lat) ? from?.lat : (isNum(endpoints?.fromLat) ? endpoints?.fromLat : undefined);
+  const oLng = isNum(from?.lng) ? from?.lng : (isNum(endpoints?.fromLng) ? endpoints?.fromLng : undefined);
+  const dLat = isNum(to?.lat) ? to?.lat
+    : isNum(transit.anchor_lat) ? (transit.anchor_lat as number)
+    : (isNum(endpoints?.toLat) ? endpoints?.toLat : undefined);
+  const dLng = isNum(to?.lng) ? to?.lng
+    : isNum(transit.anchor_lng) ? (transit.anchor_lng as number)
+    : (isNum(endpoints?.toLng) ? endpoints?.toLng : undefined);
   if (!isNum(oLat) || !isNum(oLng) || !isNum(dLat) || !isNum(dLng)) return null;
   const enc = encodeURIComponent;
-  const oName = from?.name || (transit.from_label as string | undefined) || '';
-  const dName = to?.name || destinationName || (transit.anchor_label as string | undefined) || '';
+  const oName = from?.name || (transit.from_label as string | undefined) || endpoints?.fromName || '';
+  const dName = to?.name || destinationName || (transit.anchor_label as string | undefined) || endpoints?.toName || '';
+  // 도보 구간을 대중교통 길찾기로 열면 "경로 없음"이 뜬다 → 수단을 구간에 맞춘다.
+  const isWalkLeg = String(transit.method || '').toLowerCase() === 'walk';
   return {
-    google: `https://www.google.com/maps/dir/?api=1&origin=${oLat},${oLng}&destination=${dLat},${dLng}&travelmode=transit`,
-    naver: `https://map.naver.com/v5/directions/${oLng},${oLat},${enc(oName)}/${dLng},${dLat},${enc(dName)}/-/transit?c=15`,
+    google: `https://www.google.com/maps/dir/?api=1&origin=${oLat},${oLng}&destination=${dLat},${dLng}&travelmode=${isWalkLeg ? 'walking' : 'transit'}`,
+    naver: `https://map.naver.com/v5/directions/${oLng},${oLat},${enc(oName)}/${dLng},${dLat},${enc(dName)}/-/${isWalkLeg ? 'walk' : 'transit'}?c=15`,
   };
 }
 
-export function TransitArrow({ transit, destinationName }: { transit: TransitFromPrev & Record<string, unknown>; destinationName?: string }) {
+/**
+ * 개발용 문구가 남아 있는 옛 플랜 방어 (2026-07-28).
+ *
+ * 생성 단계(transitCache.js)에서 `DB cached: … (zone_courses)` 를 손님 문구 필드에
+ * 넣던 버그를 고쳤지만, **이미 저장된 플랜에는 그 문자열이 그대로 남아 있다.**
+ * Firestore 를 일괄 수정하는 대신 표시 단에서 거른다 — 되돌리기 쉽고 데이터는 안 건드린다.
+ */
+const DEV_INSTRUCTION_RE = /(DB cached|zone_courses)/i;
+
+function customerInstruction(transit: Record<string, unknown>): string {
+  const raw = String(transit.instruction_en || transit.instruction || '');
+  if (!raw) return '';
+  return DEV_INSTRUCTION_RE.test(raw) ? '' : raw;
+}
+
+export function TransitArrow({ transit, destinationName, endpoints }: { transit: TransitFromPrev & Record<string, unknown>; destinationName?: string; endpoints?: SegmentEndpoints }) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const trKeys = (pd.transit || {}) as Record<string, string>;
@@ -318,7 +354,7 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
   const walkMin = (lastWalkStep?.duration as number | undefined) || (walkM > 0 ? Math.max(1, Math.round(walkM / 70)) : 0);
   const showFinalArrival = !!destinationName && hasRichSteps && (exitNum || walkM > 0);
   // 승하차 좌표가 저장된 구간에서만 노출(구형 플랜은 좌표가 없어 null → 버튼 미표시).
-  const directionsLinks = buildTransitDirectionsLinks(transit, destinationName);
+  const directionsLinks = buildTransitDirectionsLinks(transit, destinationName, endpoints);
 
   return (
     <div className="ml-4 my-1">
@@ -354,9 +390,9 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         </p>
       )}
       {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}
-      {!hasRichSteps && !hasLegacySteps && (transit.instruction_en || transit.instruction) && (
+      {!hasRichSteps && !hasLegacySteps && customerInstruction(transit) && (
         <p className="text-[12px] text-white/60 ml-6 mt-0.5 whitespace-pre-line">
-          {transit.instruction_en || transit.instruction}
+          {customerInstruction(transit)}
         </p>
       )}
 
@@ -381,8 +417,8 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         </div>
       )}
 
-      {(transit.instruction_en || transit.instruction) && !hasRichSteps && !hasLegacySteps && (
-        <p className="text-[12px] text-white/65 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>
+      {customerInstruction(transit) && !hasRichSteps && !hasLegacySteps && (
+        <p className="text-[12px] text-white/65 ml-6 mt-0.5 whitespace-pre-line">{customerInstruction(transit)}</p>
       )}
 
       {showSteps && hasRichSteps && (
@@ -432,35 +468,40 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
             </p>
           )}
 
-          {/* 현장용 길찾기 — 실제로 쓰는 앱으로 넘긴다. 둘 다 딥링크(URL)라 과금 없음.
-              구글맵을 먼저 두는 이유: 외국인에게 이미 깔려 있고 언어가 자동. 네이버는
-              한국 대중교통 정확도가 높지만 앱 언어 설정을 따라간다. */}
-          {directionsLinks && (
-            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-              <a
-                href={directionsLinks.google}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
-                           bg-white/10 border border-white/20 text-white/85 hover:bg-white/15 transition-colors"
-              >
-                <Navigation className="w-3 h-3" />
-                {trKeys.openInGoogleMaps || 'Google Maps'}
-              </a>
-              <a
-                href={directionsLinks.naver}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
-                           bg-[#03C75A]/15 border border-[#03C75A]/35 text-[#5DDB91] hover:bg-[#03C75A]/25 transition-colors"
-              >
-                <Navigation className="w-3 h-3" />
-                {trKeys.openInNaverMap || 'Naver Map'}
-              </a>
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* 현장용 길찾기 — 실제로 쓰는 앱으로 넘긴다. 둘 다 딥링크(URL)라 과금 없음.
+          구글맵을 먼저 두는 이유: 외국인에게 이미 깔려 있고 언어가 자동. 네이버는
+          한국 대중교통 정확도가 높지만 앱 언어 설정을 따라간다.
+          🔴 2026-07-28: 이 버튼이 `showSteps && hasRichSteps` 안에 들어 있었다. 도보 구간은
+          백엔드가 steps_detail 을 안 만들어 hasRichSteps=false → **도보 구간에서만 버튼이
+          통째로 사라졌다**(사용자 신고 "도보에서 도보로 갈 때 지도가 안 뜬다"). 접힘 상태와
+          무관하게 항상 노출한다. */}
+      {directionsLinks && (
+        <div className="ml-6 mt-1.5 flex items-center gap-1.5 flex-wrap">
+          <a
+            href={directionsLinks.google}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                       bg-white/10 border border-white/20 text-white/85 hover:bg-white/15 transition-colors"
+          >
+            <Navigation className="w-3 h-3" />
+            {trKeys.openInGoogleMaps || 'Google Maps'}
+          </a>
+          <a
+            href={directionsLinks.naver}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold min-h-[36px]
+                       bg-[#03C75A]/15 border border-[#03C75A]/35 text-[#5DDB91] hover:bg-[#03C75A]/25 transition-colors"
+          >
+            <Navigation className="w-3 h-3" />
+            {trKeys.openInNaverMap || 'Naver Map'}
+          </a>
         </div>
       )}
 

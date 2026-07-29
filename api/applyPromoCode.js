@@ -148,6 +148,7 @@ async function verifyFirestoreCoupon(userId, code, productType) {
 
     const couponDoc = snap.docs[0];
     const coupon = couponDoc.data();
+    if (coupon.isRevoked === true) return null;
 
     // 만료 확인
     if (coupon.expiresAt && coupon.expiresAt < Date.now()) return null;

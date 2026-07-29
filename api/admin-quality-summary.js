@@ -54,6 +54,8 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { collectQualityCounts } from './_shared/quality-summary-helper.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+// 치명 오류 판정 SSOT — 점수 가중치와 같은 파일에서 온다(따로 정의하면 갈라진다).
+import { hasCriticalIssue, CRITICAL_METRICS } from './_ai_core/qualityMetrics.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -169,13 +171,24 @@ async function handler(req, res) {
       if (s < min) min = s;
       if (s > max) max = s;
     }
+    // 🔴 2026-07-28: 평균 점수만 보면 오류율이 묻힌다. 실측에서 평균 88.7 인데
+    //   촉박한 일정이 73.5%, 중복 장소가 25.4% 였다. 그래서 "치명 오류가 하나도 없는
+    //   플랜의 비율"을 핵심 지표로 함께 낸다 — 이 값은 평균처럼 가려지지 않는다.
+    const cleanCount = scored.filter((p) => !hasCriticalIssue(p.qualityScore.metrics)).length;
     const overall = scored.length
       ? {
         avgScore: Math.round((sum / scored.length) * 10) / 10,
         minScore: min,
         maxScore: max,
+        // 치명 오류(식이제한·촉박한 일정·경로 실패·중복 장소) 0 인 플랜 비율.
+        cleanPlanCount: cleanCount,
+        cleanPlanRate: Math.round((cleanCount / scored.length) * 1000) / 10,
+        criticalMetrics: CRITICAL_METRICS,
       }
-      : { avgScore: null, minScore: null, maxScore: null };
+      : {
+        avgScore: null, minScore: null, maxScore: null,
+        cleanPlanCount: 0, cleanPlanRate: null, criticalMetrics: CRITICAL_METRICS,
+      };
 
     // ── metricFrequency ─────────────────────────────────────────────────
     const metricFrequency = {};

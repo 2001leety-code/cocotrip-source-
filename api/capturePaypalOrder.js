@@ -8,14 +8,16 @@ import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { confirmSlotLock } from './_shared/slot-capacity.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
-import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
+import {
+  triggerBookingProcessor,
+  PENDING_PROCESSOR_RETRIES_COLLECTION,
+} from './_shared/booking-processor-trigger.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { sanitizeAttribution } from './_shared/attribution.js';
-import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { internalApiBase } from './_shared/internal-base-url.js';
@@ -62,7 +64,7 @@ async function verifyTokenUid(authHeader) {
   }
 }
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 // ── 표준 응답 래퍼 ──
@@ -280,6 +282,7 @@ export default async function handler(req, res) {
           const snap = await tx.get(couponLockRef);
           if (!snap.exists) throw new Error('COUPON_NOT_FOUND');
           const data = snap.data() || {};
+          if (data.isRevoked === true) throw new Error('COUPON_REVOKED');
           if (data.isUsed === true && data.usedOrderID !== orderID) {
             // 다른 orderID 가 이미 점유. 같은 orderID 면 idempotent 재시도로 간주.
             throw new Error('COUPON_ALREADY_USED');
@@ -534,11 +537,37 @@ export default async function handler(req, res) {
     //   - payment is NOT rolled back — money was captured, the right move is
     //     to recover the booking record, not refund
     const bookingAttribution = sanitizeAttribution(attribution);
+    // 🔴 2026-07-29 (#3 신뢰 가능한 uid 연결): 구매자 uid 를 **검증된 Firebase ID 토큰에서만**
+    //   뽑아 예약 문서에 남긴다. 이전에는 이 값이 어디에도 저장되지 않아, 뒤따르는
+    //   booking-processor 가 요청 body 의 userId 를 그대로 믿고 포인트를 적립했다
+    //   (= 외부에서 남의 uid 로 코인 발급 가능). 이제 원장은 이 필드만 본다.
+    //   비로그인 게스트 결제는 null → 적립 대상 아님(정상).
+    const verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
+    const processorPayload = {
+      orderID,
+      payerEmail,
+      payerName,
+      amount,
+      product,
+      tourDate,
+      pickupLocation,
+      dropoffLocation,
+      paxCount,
+      vehicleType,
+      customerPhone,
+      couponApplied,
+      memo,
+      itineraryData,
+      airport,
+      language,
+    };
     const bookingDocPayload = {
       bookingRef: orderID,
       orderID,
       captureID,
       userEmail: (userEmail || '').toLowerCase(),
+      // 검증된 Firebase 토큰 uid (게스트 결제는 null). 포인트 원장의 유일한 uid 출처.
+      uid: verifiedBuyerUid || null,
       payerEmail,
       payerName,
       status: 'CONFIRMED',
@@ -565,11 +594,16 @@ export default async function handler(req, res) {
       capturedExchangeRate: usdToKrw,
       // 검증 통과 시 = PayPal capture 응답에서 실제 확인된 통화. 검증 스킵(스냅샷 없는 레거시)이면 'USD' 가정.
       currency: (_verdict && _verdict.currency) || 'USD',
+      // 🔴 2026-07-29: 이 예약이 **어느 PayPal 환경**에서 만들어졌는지. 웹훅이 환경을 넘나들며
+      //   문서를 건드리지 못하게 하는 근거값이다(샌드박스 웹훅이 운영 예약을 환불처리하는 사고 차단).
+      paypalEnvironment: _isSandboxCapture ? 'sandbox' : 'live',
       // 감사/대사용 — false = 주문 스냅샷이 없어 amount/currency 검증을 못 한 레거시 경로.
       // (pending 은 금액·통화 검증을 통과한 상태이므로 verified 로 본다.)
       paymentVerified: !!(_verdict && (_verdict.ok || _verdict.pending)),
       // 🕒 PayPal 리스크 홀드/eCheck = 자금 정산 대기. 예약은 확정하되 정산 확인이 필요함을 남긴다.
       paymentPending: !!(_verdict && _verdict.pending),
+      processorStatus: 'pending',
+      purchaseCouponsEnabled: discountV2 === true,
       rawCapturePayload,
       // P1 (2026-07-11): 장기 유입 귀속 — first/last UTM 스냅샷 (화이트리스트 통과분만, PII 없음).
       // 유효 데이터 없으면 필드 생략. 어떤 실패도 결제/기록을 막지 않음(sanitize 는 throw 안 함).
@@ -584,7 +618,20 @@ export default async function handler(req, res) {
       try {
         const db = initAdminDb('capturePaypalOrder');
         if (!db) throw new Error('Firestore unavailable');
-        await db.collection('bookings').doc(orderID).set(bookingDocPayload, { merge: true });
+        const batch = db.batch();
+        batch.set(db.collection('bookings').doc(orderID), bookingDocPayload, { merge: true });
+        batch.set(db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(orderID), {
+          orderID,
+          retryDocId: orderID,
+          payload: processorPayload,
+          source: 'capturePaypalOrder',
+          status: 'pending',
+          outcome: 'retryable',
+          attempts: 0,
+          intentCreatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: false });
+        await batch.commit();
         bookingWriteOk = true;
         break;
       } catch (bookingErr) {
@@ -620,27 +667,8 @@ export default async function handler(req, res) {
       }).catch(() => {});
     }
 
-    // 🎟️ $9.90 AI 플래너 구매 완료 후속 (운영자 2026-07-07 요금제): ① AI 추천/최적화 영구 해금
-    //   (aiFeaturesUnlocked — course-ai 게이트가 이 플래그를 봄. 구매 자체가 자격이라 v2 무관)
-    //   ② 차터5%+투어5% 쿠폰 발급(가입 쿠폰과 별개, 구매 1건당 1쌍, orderID 멱등, v2 활성 시만).
-    //   둘 다 로그인 구매자만(uid 필요). non-fatal — 결제/부킹은 이미 완료, 실패 시 경고만.
-    if (/^ai_planner/.test(String(product || ''))) {
-      try {
-        const buyerUid = await verifyTokenUid(req.headers?.authorization);
-        if (buyerUid) {
-          await dbForLock.collection('users').doc(buyerUid)
-            .set({ aiFeaturesUnlocked: true, aiFeaturesUnlockedAt: Date.now() }, { merge: true });
-          if (discountV2) {
-            const r = await issuePurchaseCouponsForOrder(dbForLock, buyerUid, orderID);
-            if (r.issued) console.log('[capturePaypalOrder] purchase coupons issued:', r.issued, '| uid', buyerUid.slice(0, 8), '| order', orderID);
-          }
-        } else {
-          console.log('[capturePaypalOrder] ai_planner purchase but no auth uid — AI unlock/coupons skipped (guest)');
-        }
-      } catch (postPurchaseErr) {
-        console.warn('[capturePaypalOrder] ai_planner post-purchase (unlock/coupons) failed (non-fatal):', postPurchaseErr.message);
-      }
-    }
+    // AI 해금과 구매 쿠폰은 검증된 예약 문서를 읽는 booking-processor에서
+    // 멱등 처리한다. Capture 함수 종료와 함께 후속 작업이 사라지는 경로를 없앤다.
 
     // P108 (2026-05-20): 슬롯 capacity confirm — bookings doc 저장 성공 후 pending
     // → confirmed 전환. body 에 4 필드 모두 있어야 함 (createPaypalOrder 와 동일).
@@ -790,27 +818,64 @@ export default async function handler(req, res) {
     // 수동으로 /admin-replay-booking-notifications 돌리기 전에는 사라짐.
     //
     // 이제 triggerBookingProcessor helper 가:
-    //   - AbortController 로 25s timeout
+    //   - AbortController 로 45s timeout (Sandbox 실측 processor 약 33s)
     //   - response.ok 검증 (비-2xx 도 실패로 처리)
     //   - 실패 시 pending_processor_retries/{orderID} 등록 + 운영자 텔레그램 alert
     //   - 5분 마다 processor-retry-sweep cron 이 재시도
     // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
-    // resolve 하므로 정상 흐름에 영향 없음. 25s + Vercel maxDuration 60s 안에 안전.
+    // resolve 하므로 정상 흐름에 영향 없음. 45s + Vercel maxDuration 60s 안에 안전.
     const siteUrl = internalApiBase();
-    const processorPayload = { orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport, language };
-    // Fire-and-don't-await: respond to the user immediately, helper records its
-    // own outcome and operator alert in background.
-    void triggerBookingProcessor({
-      db: initAdminDb('capturePaypalOrder'),
+    const processorResult = await triggerBookingProcessor({
+      db: dbForLock,
       siteUrl,
       payload: processorPayload,
       source: 'capturePaypalOrder',
       notify,
+      timeoutMs: 45_000,
     });
+    try {
+      const processorBatch = dbForLock.batch();
+      const retryRef = dbForLock.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(orderID);
+      const bookingRef = dbForLock.collection('bookings').doc(orderID);
+      if (processorResult.ok) {
+        processorBatch.set(retryRef, {
+          status: 'done',
+          outcome: processorResult.outcome || 'completed',
+          completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        processorBatch.set(bookingRef, {
+          processorStatus: 'completed',
+          processorOutcome: processorResult.outcome || 'completed',
+          processorCompletedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        processorBatch.set(bookingRef, {
+          processorStatus: processorResult.docStatus || 'pending',
+          processorOutcome: processorResult.outcome || 'retryable',
+          processorLastError: processorResult.reason || 'unknown',
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      await processorBatch.commit();
+    } catch (processorStateErr) {
+      // 성공 표시 저장이 실패해도 Capture 전에 만든 pending intent가 남아
+      // cron이 같은 orderID로 안전하게 수렴한다.
+      console.error('[capturePaypalOrder] processor state persist failed:', processorStateErr.message);
+    }
 
-    // 4. Respond immediately
+    // 4. 결제·예약 확정 응답. 후속 실패는 durable queue가 별도로 재처리한다.
     res.writeHead(200, JSON_CORS);
-    res.end(JSON.stringify(_ok({ orderID, payerEmail, payerName, amount, currency: 'USD', message: '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.' })));
+    res.end(JSON.stringify(_ok({
+      orderID,
+      payerEmail,
+      payerName,
+      amount,
+      currency: 'USD',
+      processorOutcome: processorResult.outcome || 'retryable',
+      message: '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.',
+    })));
   } catch (err) {
     console.error('[capturePaypalOrder] Error:', err);
     res.writeHead(500, JSON_CORS);

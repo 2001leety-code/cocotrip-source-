@@ -1582,54 +1582,29 @@ export async function persistPlan(adminDb, {
       ).catch(e => console.warn('[full] daily counter error:', e.message));
   }
 
-  // ── Loyalty 포인트 적립 (non-blocking — uid가 있는 로그인 사용자만) ────
-  if (uid) {
-    (async () => {
-      try {
-        const userRef = adminDb.collection('users').doc(uid);
-        // 🔴 동시성 fix (버그헌트 2026-06-19): read-modify-write 비트랜잭션 → 동일 uid 동시구매 시
-        //   last-writer-wins 로 tripCoins/totalSpentUSD/bookingCount/등급 유실. loyalty.js 처럼
-        //   트랜잭션으로 재읽기→계산→쓰기 원자화. (등급이 새 합계 의존이라 increment 단독 불가)
-        let earnRate = 0.01, tierName = 'Bronze', earnedCoins = 0, newBalance = 0, applied = false;
-        await adminDb.runTransaction(async (tx) => {
-          const userSnap = await tx.get(userRef);
-          if (!userSnap.exists) return;
-          const userData = userSnap.data() || {};
-          const currentCoins = userData.tripCoins || 0;
-          const newSpent = (userData.totalSpentUSD || 0) + priceUSD;
-          const newCount = (userData.bookingCount || 0) + 1;
-          earnRate = 0.01; tierName = 'Bronze';
-          if (newSpent >= 1000 || newCount >= 15) { earnRate = 0.03; tierName = 'Platinum'; }
-          else if (newSpent >= 500 || newCount >= 7) { earnRate = 0.02; tierName = 'Gold'; }
-          else if (newSpent >= 200 || newCount >= 3) { earnRate = 0.015; tierName = 'Silver'; }
-          earnedCoins = Math.round(priceUSD * 100 * earnRate);
-          newBalance = currentCoins + earnedCoins;
-          tx.update(userRef, {
-            tripCoins: newBalance,
-            totalSpentUSD: newSpent,
-            bookingCount: newCount,
-            tier: tierName,
-            tierUpdatedAt: new Date().toISOString(),
-          });
-          applied = true;
-        });
-        if (applied) {
-
-          // 포인트 이력 기록
-          await adminDb.collection('users').doc(uid).collection('pointHistory').doc().set({
-            type: 'earn',
-            amount: earnedCoins,
-            balance: newBalance,
-            description: `AI Plan: ${itinerary.tour_title || 'Korea Itinerary'} ($${priceUSD})`,
-            bookingRef: planId,
-            createdAt: Date.now(),
-          });
-
-          console.log(`[planner] Loyalty: +${earnedCoins} coins (${tierName} ${(earnRate * 100).toFixed(1)}%) → total ${newBalance}`);
-        }
-      } catch (e) { console.warn('[planner] Loyalty earn error:', e.message); }
-    })();
-  }
+  // ── 🔴 제거됨 (2026-07-28): 플랜 생성 시 Loyalty 원장 직접 기록 ──────────────
+  //
+  // 여기 있던 블록은 **플랜을 만들기만 해도** users/{uid} 의
+  //   totalSpentUSD / bookingCount / tripCoins / tier
+  // 를 직접 올리고 pointHistory 에 `AI Plan: … ($707.14)` 를 기록했다. 3중 결함:
+  //
+  //  1) 금액이 틀렸다. 더한 값 priceUSD 는 computePricing(vehicle, durationDays) =
+  //     **차량 대절 추정 여행가**이지 손님이 실제로 낸 AI 플래너 가격($9.90)이 아니다.
+  //     운영 계정에서 총지출 $253,205 / 코인 756,986 / 예약 260건이 관측된 원인.
+  //  2) 결제와 무관했다. 생성만으로 등급이 오르고(3건=Silver, 15건=Platinum)
+  //     코인이 쌓였다. 코인은 loyalty.js REDEEM 표(500=5% / 1000=10% / 2000=15%)로
+  //     할인쿠폰이 되므로 곧바로 실 금전 손실이다.
+  //  3) 안전장치를 우회했다. 정본 적립 경로 api/loyalty.js(action='earn')에는
+  //     "인증 없이 amountUSD 를 신뢰하면 무제한 코인 발급" 경고와 함께 내부 서비스
+  //     토큰 게이트가 있는데, 이 블록은 그 endpoint 를 안 거치고 Firestore 를 직접 썼다.
+  //     결제 검증도, 멱등 마커도, 관리자·테스트 제외도 없었다
+  //     (바로 위 api_stats 블록에는 그 제외 가드가 있는데 여기만 빠져 있었다).
+  //
+  // 원장은 **결제가 확인된 경로 한 곳**에서만 움직인다:
+  //   booking-processor.js → POST /api/loyalty { action:'earn' }  (내부 토큰 + 멱등 마커)
+  // 플랜 생성은 원장을 건드리지 않는다. priceUSD 는 화면 표시용 견적으로만 남는다.
+  //
+  // 회귀 잠금: tests/unit/planner-no-ledger-write.test.ts
 
   const planUrl = accessToken
     ? `/my-plans/${planId}?token=${accessToken}`

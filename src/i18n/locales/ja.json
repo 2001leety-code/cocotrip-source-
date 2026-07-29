@@ -70,7 +70,7 @@
     "tourCta": "ツアーを見る",
     "plannerTitle": "AI旅行プランナー",
     "plannerLine1": "AIがカスタム旅程を自動生成",
-    "plannerLine2": "$9.90 · 即時 · 4言語対応",
+    "plannerLine2": "{price} · 即時 · 4言語対応",
     "plannerCta": "旅程を作成"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ 全区間リアルタイム交通 + T-money",
     "optionAfeature5": "✓ 実在する韓国DBで検証済み — 架空スポットなし",
     "optionAfeatureRevision": "無料再生成2回付き — 不満なら再作成！",
-    "valueBannerMain": "$9.90で3つの行程！",
+    "valueBannerMain": "{price}で3つの行程！",
     "valueBannerSub": "1回購入 + 無料修正2回 = 3バージョン — AIルート強化 + チャーター・ツアー5%クーポン付き。",
     "optionBtitle": "航空券 + ホテル予約で無料",
     "optionBdesc": "当サイトで航空券とホテルを予約すると、フルプランが無料",
@@ -1811,7 +1811,21 @@
       "adultsLabel": "大人",
       "paxLabel": "名",
       "minUnit": "分",
-      "transfer": "乗換"
+      "transfer": "乗換",
+      "publicTransitRoute": "公共交通の経路",
+      "transitTransfers": "乗り換え",
+      "mealCostLabel": "食事代は別",
+      "planHeaderBadge": "AI 旅程",
+      "planRouteTimeline": "ルートタイムライン",
+      "planOptimizeChip": "ルート最適化",
+      "planStayChip": "宿泊のおすすめ",
+      "planStatDays": "日",
+      "planStatStops": "訪問地",
+      "planStatTravelers": "人数",
+      "planStatOptimize": "最適化",
+      "planStatDistance": "移動距離",
+      "planTravelersSuffix": "名",
+      "planStopsSuffix": "か所"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",
@@ -1849,7 +1863,7 @@
     "wlEmptyTitle": "ウィッシュリストは空です",
     "wlEmptySub": "ツアー写真の ❤ ボタンで保存できます",
     "couponAdTitle": "AIプラン1回 = チャーター5% + ツアー5%クーポン",
-    "couponAdBody": "チャーターもツアーも5%割引。$9.90プランは十分に元が取れます。",
+    "couponAdBody": "チャーターもツアーも5%割引。{price}プランは十分に元が取れます。",
     "couponAdCta": "AIプラン作成",
     "useAiCoupon": "使う",
     "walletAvailable": "利用可能",
@@ -1900,7 +1914,42 @@
       "charter_busan": "釜山デイチャーター",
       "kpop_shuttle_oneway": "K-popシャトル(片道)",
       "kpop_shuttle_roundtrip": "K-popシャトル(往復)",
-      "ai_planner_full": "AIプランナー($9.90)"
+      "ai_planner_full": "AIプランナー({price})"
+    },
+    "myPlansSearch": "タイトル・地域で検索",
+    "myPlansLoadMore": "もっと見る",
+    "myPlansStatusReady": "完了",
+    "myPlansStatusGenerating": "作成中",
+    "myPlansEmptyTitle": "まだプランがありません",
+    "myPlansEmptyBody": "最初のAI韓国旅行プランを作成しましょう",
+    "myPlansStartCta": "プランを作る",
+    "myPlansPaxUnit": "名",
+    "myPlansNoMatch": "該当するプランがありません",
+    "myPlansShowing": "{n}件表示中",
+    "pointHistoryTitle": "ポイント履歴",
+    "noReviewsYet": "まだレビューがありません",
+    "noReviewsSub": "旅行のレビューで +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 還元",
+        "入会5%クーポン"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 還元",
+        "シーズン$5クーポン",
+        "優先サポート"
+      ],
+      "Gold": [
+        "Trip Coins 2% 還元",
+        "シーズン$10クーポン",
+        "車両の優先手配"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 還元",
+        "シーズン$20クーポン",
+        "VIP カカオトーク対応",
+        "空港ラウンジ利用"
+      ]
     }
   },
   "admin": {
@@ -2303,11 +2352,13 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "ネットワークエラー",
     "bookingPickupTimeLabel": "ピックアップ時刻",
-    "bookingCutoffNote": "予約締切: 出発12時間前",
+    "bookingCutoffNote": "予約締切: 出発{N}時間前",
     "bookingCutoffImminent": "予約締切間近（残り{N}時間）",
     "bookingClosedTitle": "予約締切",
-    "bookingClosedMessage": "予約締切時間を過ぎました。お急ぎの方はチャットでご相談ください。",
-    "bookingChatCta": "チャット相談"
+    "bookingClosedMessage": "出発{N}時間前で締め切るため、この時刻は予約できません。別の時刻をお選びいただくか、チャットでご相談ください。",
+    "bookingChatCta": "チャット相談",
+    "dispatchFailAutoCancelNote": "車両を確保できない場合、ご予約は自動的にキャンセルされ、全額返金されます。",
+    "mbPastTour": "過去の予定"
   },
   "tourDetail": {
     "includedTitle": "含まれる",

@@ -108,6 +108,12 @@ export default defineConfig({
           '**/Type1_*.jpg',
           '**/hero-*.webp',
           '**/[가-힣]*.webp',
+          // 2026-07-28: PDF 라이브러리(751KB)는 이미 동적 import 라 자체 async chunk 다.
+          //   그런데 precache 목록에는 들어가 있어 **PDF 를 한 번도 안 쓰는 손님까지**
+          //   설치 시 751KB 를 받았다(전체 precache 5.56MB 중 13%).
+          //   PDF 다운로드는 어차피 네트워크가 필요하므로(서버 PDF 우선) 오프라인 대상이 아니다.
+          //   → precache 제외. 필요할 때 네트워크에서 받아 runtime 캐시에 남는다.
+          '**/html2pdf-*.js',
         ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // P235 참고: cleanupOutdatedCaches 는 injectManifest 모드에서

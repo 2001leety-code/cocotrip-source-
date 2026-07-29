@@ -157,7 +157,7 @@ export function WizardStep0Destination(props: Step0Props) {
                     : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
-                {/* UIUX P3: 도시 실사진 썸네일 (KTO 검증). 매핑 없는 도시(yeosu)=아이콘 폴백. */}
+                {/* UIUX P3: 도시 실사진 썸네일 (KTO 검증). 매핑 없는 도시 = 아이콘 폴백. */}
                 {photo ? (
                   <img src={photo} alt="" loading="lazy" width={44} height={44}
                     className={`w-11 h-11 rounded-lg object-cover shrink-0 ${sel ? '' : 'opacity-90'}`} />

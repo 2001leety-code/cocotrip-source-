@@ -152,16 +152,31 @@ export async function issuePurchaseCouponsForOrder(db, uid, orderID) {
   if (!db || !uid || !orderID) return { issued: 0 };
   const userRef = db.collection('users').doc(uid);
   const markerRef = userRef.collection('purchaseCouponOrders').doc(String(orderID));
+  const bookingRef = db.collection('bookings').doc(String(orderID));
 
   return db.runTransaction(async (tx) => {
+    const bookingSnap = await tx.get(bookingRef);
+    if (!bookingSnap.exists) return { issued: 0, skipped: 'booking-not-found' };
+    const booking = bookingSnap.data() || {};
+    if (
+      booking.paymentVerified !== true
+      || String(booking.uid || '') !== String(uid)
+      || booking.status === 'REFUNDED'
+      || booking.status === 'CANCELED'
+    ) {
+      return { issued: 0, skipped: 'booking-ineligible' };
+    }
+
     const markerSnap = await tx.get(markerRef);
     if (markerSnap.exists) return { issued: 0, alreadyIssued: true };
 
     const now = Date.now();
     const expiresAt = now + COUPON_VALIDITY_MS;
     const couponsRef = userRef.collection('coupons');
+    const charterCouponRef = couponsRef.doc();
+    const tourCouponRef = couponsRef.doc();
 
-    tx.set(couponsRef.doc(), {
+    tx.set(charterCouponRef, {
       code: `BUY-CHARTER-${randomSuffix(6)}`,
       type: 'percent',
       value: 5,
@@ -171,8 +186,9 @@ export async function issuePurchaseCouponsForOrder(db, uid, orderID) {
       expiresAt,
       createdAt: now,
       source: 'ai-plan-purchase',
+      sourceOrderID: String(orderID),
     });
-    tx.set(couponsRef.doc(), {
+    tx.set(tourCouponRef, {
       code: `BUY-TOUR-${randomSuffix(6)}`,
       type: 'percent',
       value: 5,
@@ -182,8 +198,14 @@ export async function issuePurchaseCouponsForOrder(db, uid, orderID) {
       expiresAt,
       createdAt: now,
       source: 'ai-plan-purchase',
+      sourceOrderID: String(orderID),
     });
-    tx.set(markerRef, { issuedAt: now, orderID: String(orderID) });
+    tx.set(markerRef, {
+      issuedAt: now,
+      orderID: String(orderID),
+      status: 'active',
+      couponIds: [charterCouponRef.id, tourCouponRef.id],
+    });
 
     return { issued: 2, alreadyIssued: false };
   });

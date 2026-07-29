@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- 핸들러/Firestore 모킹 스캐폴딩. */
 /**
  * PR #436 — Audit Y-H8 regression slot.
  *
@@ -72,7 +73,11 @@ describe('PR #436 Y-H8 — triggerBookingProcessor helper behavior', () => {
   }
 
   it('returns ok on 2xx response and does NOT persist a retry', async () => {
-    global.fetch = vi.fn(async () => new Response('ok', { status: 200 })) as any;
+    // 🔴 2026-07-29 (의미상 성공 계약): 2xx 만으로는 부족하다. 본문의 outcome 이 completed 여야
+    //   성공으로 기록한다. booking-processor 는 내부 단계가 실패해도 200 을 주기 때문이다.
+    global.fetch = vi.fn(async () => new Response(
+      JSON.stringify({ ok: true, outcome: 'completed', data: {} }), { status: 200 },
+    )) as any;
     const db = makeDbMock();
     const r = await triggerBookingProcessor({
       db: db as any,
@@ -82,6 +87,23 @@ describe('PR #436 Y-H8 — triggerBookingProcessor helper behavior', () => {
     });
     expect(r.ok).toBe(true);
     expect(db._persisted.length).toBe(0);
+  });
+
+  it('🔴 200 이지만 outcome 이 completed 가 아니면 retry 문서를 남긴다', async () => {
+    global.fetch = vi.fn(async () => new Response(
+      JSON.stringify({ ok: false, outcome: 'retryable', data: { stepStatus: { loyalty: 'retryable' } } }),
+      { status: 200 },
+    )) as any;
+    const db = makeDbMock();
+    const r = await triggerBookingProcessor({
+      db: db as any,
+      siteUrl: 'https://example',
+      payload: { orderID: 'CT-X-00R' },
+      source: 'unit-test',
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('outcome-retryable');
+    expect(db._persisted.length).toBe(1);
   });
 
   it('persists retry doc + invokes notify on 500 response (silent-fail bug regression)', async () => {
@@ -158,6 +180,20 @@ describe('PR #436 Y-H8 — wire-up across endpoints + cron + infra', () => {
     // Regression guard: no inline silent-failure fetch on /api/booking-processor
     const silentFetch = /fetch\(\s*`?\$\{[^}]*\}\/api\/booking-processor`?[\s\S]*?\}\s*\)\s*\.\s*catch\(/;
     expect(captureSrc).not.toMatch(silentFetch);
+  });
+
+  it('capture는 예약과 재처리 intent를 한 batch에 저장한 뒤 processor를 await한다', () => {
+    const bookingWrite = captureSrc.indexOf("batch.set(db.collection('bookings').doc(orderID)");
+    const retryWrite = captureSrc.indexOf('PENDING_PROCESSOR_RETRIES_COLLECTION');
+    const triggerCall = captureSrc.indexOf('await triggerBookingProcessor({');
+    expect(bookingWrite).toBeGreaterThan(-1);
+    expect(retryWrite).toBeGreaterThan(-1);
+    expect(triggerCall).toBeGreaterThan(bookingWrite);
+    expect(captureSrc).not.toMatch(/void\s+triggerBookingProcessor\s*\(/);
+    expect(captureSrc).toMatch(/processorStatus:\s*['"]pending['"]/);
+    expect(captureSrc).toMatch(
+      /await\s+triggerBookingProcessor\s*\(\s*\{[\s\S]*?timeoutMs:\s*45_000[\s\S]*?\}\s*\)/,
+    );
   });
 
   it('booking-confirm imports the helper and no longer uses raw fetch().catch', () => {

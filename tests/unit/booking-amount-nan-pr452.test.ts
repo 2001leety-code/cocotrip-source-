@@ -106,10 +106,19 @@ describe('PR #452 Z-H9 — booking-processor wires the guard', () => {
     expect(procSrc).toMatch(/amountUSD:\s*amountUSDSafe\.toFixed\(2\)/);
   });
 
-  it('loyalty amountNum reuses the safe value (no separate parseFloat)', () => {
-    expect(procSrc).toMatch(/const\s+amountNum\s*=\s*amountUSDSafe/);
-    // The pre-fix line `const amountNum = parseFloat(amount) || 0;` should be gone.
+  // 🔴 2026-07-29 갱신: 적립 금액의 출처가 요청값에서 **검증된 결제 기록**으로 바뀌었다.
+  //   이전 규칙(amountNum = amountUSDSafe)은 "요청 금액을 안전 파싱해서 쓴다" 였는데,
+  //   그 요청 자체를 외부에서 위조할 수 있었다(booking-processor 무인증 P0).
+  //   이제 booking-processor 는 bookings/{orderID} 의 검증된 amountUSD 만 쓴다 — 더 강한 규칙.
+  it('적립 금액은 요청이 아니라 검증된 결제 기록에서 온다', () => {
+    expect(procSrc).toMatch(/const\s+amountNum\s*=\s*ledger\.ok\s*\?\s*ledger\.amountUSD/);
+    // 요청 금액을 직접 파싱해 적립하던 형태는 되살아나면 안 된다.
     expect(procSrc).not.toMatch(/const\s+amountNum\s*=\s*parseFloat\(\s*amount\s*\)\s*\|\|\s*0/);
+    expect(procSrc).not.toMatch(/const\s+amountNum\s*=\s*amountUSDSafe/);
+  });
+
+  it('amountUSDSafe 는 여전히 시트·이메일·바우처 표시에 쓰인다 (NaN 가드 유지)', () => {
+    expect(procSrc).toMatch(/amountUSDSafe/);
   });
 
   it('fires throttledTelegramAlert on invalid amount (operator visibility)', () => {

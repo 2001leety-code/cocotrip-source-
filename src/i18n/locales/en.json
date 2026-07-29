@@ -70,7 +70,7 @@
     "tourCta": "Browse Tours",
     "plannerTitle": "AI Travel Planner",
     "plannerLine1": "AI generates your custom itinerary",
-    "plannerLine2": "$9.90 · Instant · 4 languages",
+    "plannerLine2": "{price} · Instant · 4 languages",
     "plannerCta": "Plan my trip"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ Real transit every leg + T-money",
     "optionAfeature5": "✓ Checked vs real Korean data — no fake places",
     "optionAfeatureRevision": "2 Free Revisions — not perfect? Tweak & regenerate!",
-    "valueBannerMain": "$9.90 — 3 itineraries total!",
+    "valueBannerMain": "{price} — 3 itineraries total!",
     "valueBannerSub": "1 purchase + 2 free revisions = 3 versions — plus AI route upgrades & 5% charter + 5% tour coupons.",
     "optionBtitle": "Book Flight + Hotel — Get Plan FREE",
     "optionBdesc": "Book your flight and hotel through us, get the full plan free",
@@ -1811,7 +1811,21 @@
       "minUnit": "min",
       "adultsLabel": "adults",
       "paxLabel": "pax",
-      "transfer": "transfer"
+      "transfer": "transfer",
+      "publicTransitRoute": "Public transit route",
+      "transitTransfers": "Transfers",
+      "mealCostLabel": "Meal cost separate",
+      "planHeaderBadge": "AI itinerary",
+      "planRouteTimeline": "Route timeline",
+      "planOptimizeChip": "Optimize your trip",
+      "planStayChip": "Stay suggestion",
+      "planStatDays": "Days",
+      "planStatStops": "Stops",
+      "planStatTravelers": "Travelers",
+      "planStatOptimize": "Optimize",
+      "planStatDistance": "Distance",
+      "planTravelersSuffix": "travelers",
+      "planStopsSuffix": "stops"
     },
     "notices": {
       "title": "Plan Auto-Corrections Applied",
@@ -1849,7 +1863,7 @@
     "wlEmptyTitle": "No wishlisted items",
     "wlEmptySub": "Tap ❤ on any tour photo to save it here",
     "couponAdTitle": "1 AI plan = 5% charter + 5% tour coupons",
-    "couponAdBody": "Book a charter and a tour — save 5% on both. The $9.90 planner pays for itself.",
+    "couponAdBody": "Book a charter and a tour — save 5% on both. The {price} planner pays for itself.",
     "couponAdCta": "Make AI plan",
     "useAiCoupon": "Use now",
     "walletAvailable": "Available",
@@ -1900,7 +1914,42 @@
       "charter_busan": "Busan Day Charter",
       "kpop_shuttle_oneway": "K-pop Shuttle (One-way)",
       "kpop_shuttle_roundtrip": "K-pop Shuttle (Round-trip)",
-      "ai_planner_full": "AI Planner ($9.90)"
+      "ai_planner_full": "AI Planner ({price})"
+    },
+    "myPlansSearch": "Search by title or area",
+    "myPlansLoadMore": "Load more",
+    "myPlansStatusReady": "Ready",
+    "myPlansStatusGenerating": "Generating",
+    "myPlansEmptyTitle": "No plans yet",
+    "myPlansEmptyBody": "Create your first AI-powered Korea itinerary",
+    "myPlansStartCta": "Start planning",
+    "myPlansPaxUnit": "pax",
+    "myPlansNoMatch": "No matching plans",
+    "myPlansShowing": "Showing {n}",
+    "pointHistoryTitle": "Point history",
+    "noReviewsYet": "No reviews yet",
+    "noReviewsSub": "Review a trip to earn +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "1% Trip Coins earn",
+        "Welcome 5% coupon"
+      ],
+      "Silver": [
+        "1.5% Trip Coins earn",
+        "$5 season coupon",
+        "Priority support"
+      ],
+      "Gold": [
+        "2% Trip Coins earn",
+        "$10 season coupon",
+        "Priority vehicle assignment"
+      ],
+      "Platinum": [
+        "3% Trip Coins earn",
+        "$20 season coupon",
+        "VIP KakaoTalk support",
+        "Airport lounge access"
+      ]
     }
   },
   "admin": {
@@ -2303,11 +2352,13 @@
     "modifySaving": "Saving...",
     "modifyNetworkError": "Network error",
     "bookingPickupTimeLabel": "Pickup time",
-    "bookingCutoffNote": "Booking closes 12h before departure",
+    "bookingCutoffNote": "Booking closes {N}h before departure",
     "bookingCutoffImminent": "Booking closing soon ({N}h left)",
     "bookingClosedTitle": "Booking Closed",
-    "bookingClosedMessage": "Booking is closed. For urgent bookings, please contact us via chat.",
-    "bookingChatCta": "Open Chat"
+    "bookingClosedMessage": "Bookings close {N}h before departure, so this time is no longer available. Please pick another time or contact us via chat.",
+    "bookingChatCta": "Open Chat",
+    "dispatchFailAutoCancelNote": "If we cannot secure a vehicle, your booking is cancelled automatically and refunded in full.",
+    "mbPastTour": "Past trip"
   },
   "tourDetail": {
     "includedTitle": "Included",

@@ -20,6 +20,10 @@ import { EXTRA_CHARGES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 import { BookingInfoForm, type BookingFormData } from '@/components/booking/BookingInfoForm';
+import { resolveProductType } from './resolveProductType';
+import {
+  getCutoffHours, isPastCutoff, earliestPickupTimeToday, todayKstISO,
+} from '@/lib/bookingCutoff';
 
 /**
  * batch 9 (B9-19) + B-5/B-8 (2026-05-10 prod 검증):
@@ -54,14 +58,16 @@ function vehicleLuggageNote(
   return 'Enter total luggage (carry-on + medium + large). 8+ bags: 2 vehicles recommended (Staria).';
 }
 
-/** 날짜+픽업시각이 12h cutoff 이내인지 클라이언트에서 검사 (KST +09:00 기준). */
-function isWithin12hCutoff(date: string, time: string): boolean {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const t = time && /^\d{2}:\d{2}$/.test(time) ? time : '09:00';
-  const departure = new Date(`${date}T${t}:00+09:00`);
-  if (isNaN(departure.getTime())) return false;
-  const hoursLeft = (departure.getTime() - Date.now()) / 3_600_000;
-  return hoursLeft <= 12 && hoursLeft > -1; // -1 은 이미 지난 경우 (서버에서 차단)
+/**
+ * "YYYY-MM-DD" 다음 날. 오늘이 통째로 마감됐을 때 date input 의 min 을 미는 데 쓴다.
+ * ⚠️ 여기서 다루는 날짜는 전부 **inclusive** 다 — startDate/endDate 모두 여행에 포함되는
+ * 날이고(1박2일 = start~end 2일), 이 함수도 "선택 가능한 첫 날"을 그대로 돌려준다.
+ * 숙박수 계산(exclusive)과 섞지 말 것 — multidayQuote 가 별도로 처리한다.
+ */
+function nextDayISO(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 const formatKRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
@@ -84,11 +90,11 @@ interface Props {
   onMarketingChange?: (agreed: boolean) => void;
 }
 
-const toISO = (d: Date) => d.toISOString().slice(0, 10);
-
 export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange, onMarketingChange }: Props) {
   const i18n = getWizardI18n(language);
-  const today = toISO(new Date());
+  // KST 기준 오늘 — toISOString()(UTC)을 쓰면 00~09시 KST 구간에 "어제"가 min 으로 깔려
+  // 지난 날짜가 선택 가능해진다.
+  const today = todayKstISO();
   const isAirport = state.service === 'airport_transfer';
   const isMulti   = state.service === 'multi_day';
   const isTransfer = state.service === 'transfer';
@@ -99,6 +105,21 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   const pickup = state.pickupTime ?? state.startTime ?? '';
   const hour = pickup ? Number(pickup.slice(0, 2)) : -1;
   const isNight = hour >= 18 || (hour >= 0 && hour < 6);
+
+  // ── 예약 마감 (2026-07-28) ────────────────────────────────────────────────
+  // 상품군에 따라 마감이 다르다(전세차량 1h / 투어 8h). 같은 위저드 안에서도
+  // 공항 픽업 = 차량, 패키지 당일투어 = 투어라 **productType 으로** 판정해야 맞다.
+  // 값은 서버(api/_shared/booking-cutoff.js)와 미러인 lib/bookingCutoff 에서만 온다.
+  const productType = resolveProductType(state).productType;
+  const cutoffHours = getCutoffHours(productType);
+  const startDate = state.startDate ?? '';
+  // 오늘 날짜를 골랐다면 이미 마감선을 넘긴 시각은 아예 못 고르게 한다
+  // (7/28 오전 7시가 지났는데도 선택되던 문제 — min 을 날짜에만 걸어서 생겼다).
+  const minPickupToday = earliestPickupTimeToday(productType);
+  const isToday = !!startDate && startDate === today;
+  // 오늘 안에 남은 시각이 없으면 오늘 자체가 선택 불가 → 최소 날짜를 내일로 민다.
+  const minDate = minPickupToday ? today : nextDayISO(today);
+  const pastCutoff = !!startDate && isPastCutoff(productType, startDate, pickup);
 
   const airport = state.airport ?? {};
   const patchAirport = (p: Partial<NonNullable<WizardState['airport']>>) =>
@@ -228,7 +249,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
         {/* 날짜 */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
           <Label>{i18n.date}</Label>
-          <input type="date" min={today}
+          <input type="date" min={minDate}
             value={state.startDate ?? ''}
             onChange={e => patch({ startDate: e.target.value })}
             className={inputCls}
@@ -241,6 +262,8 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           <Label>{i18n.bookingPickupTimeLabel}</Label>
           <input
             type="time"
+            // 오늘을 골랐으면 마감선 이전 시각은 브라우저 단에서도 못 고르게 한다.
+            min={isToday && minPickupToday ? minPickupToday : undefined}
             value={pickup}
             onChange={e => {
               const t = e.target.value;
@@ -251,17 +274,26 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             placeholder="HH:mm"
             className={inputCls}
             style={{ colorScheme: 'dark' }} />
-          <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">{i18n.bookingCutoffNote}</p>
+          <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">
+            {i18n.bookingCutoffNote(cutoffHours)}
+          </p>
         </div>
       </div>
 
-      {/* 12h cutoff 임박 경고 — 날짜+픽업시각 선택 후 12h 이내이면 amber 배너 */}
-      {isWithin12hCutoff(state.startDate ?? '', pickup) && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
-          <span className="text-base leading-none">⚠️</span>
-          <span>{i18n.bookingClosedMessage}</span>
+      {/* 마감 초과 — 배너만 띄우고 통과시키던 것을 실제 차단으로 (canAdvance 게이트와 연동).
+          input min 은 브라우저가 무시할 수 있어(수기 입력·자동완성) 여기서 한 번 더 잡는다. */}
+      {pastCutoff && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200 flex items-start gap-2">
+          <span className="text-base leading-none">⛔</span>
+          <span>{i18n.bookingClosedMessage(cutoffHours)}</span>
         </div>
       )}
+
+      {/* 배차 실패 시 자동취소 고지 — 결제 전에 반드시 보이게 (운영자 2026-07-28). */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] text-white/60 flex items-start gap-2">
+        <span className="text-base leading-none">🚐</span>
+        <span>{i18n.dispatchFailAutoCancelNote}</span>
+      </div>
 
       {isTransfer && (
         <div>

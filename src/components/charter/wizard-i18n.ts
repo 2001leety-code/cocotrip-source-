@@ -126,6 +126,8 @@ export interface WizardI18n {
   mbEmpty: string; mbEmptySub: string;
   statusConfirmed: string; statusModified: string; statusCanceled: string; statusCompleted: string;
   mbHoursAway: (h: number) => string;
+  /** 이미 지난 일정 라벨 — 카운트다운 대신 표시 (2026-07-28). */
+  mbPastTour: string;
   mbDaysAway: (d: number) => string;
   mbRefundBadge: (pct: number) => string;
   mbRefundedAmount: string;  // "환불액"
@@ -174,13 +176,16 @@ export interface WizardI18n {
   modifySaveBtn: string; modifyCancelBtn: string; modifySaving: string;
   modifyNetworkError: string;
 
-  // PR-R (2026-05-08): 예약 마감 정책 (24h/48h) + 픽업 시각 입력
+  // PR-R (2026-05-08): 예약 마감 정책 + 픽업 시각 입력
+  // 2026-07-28: 마감이 상품군별로 갈려(전세차량 1h / 투어 8h) 문구가 시간을 인자로 받는다.
   bookingPickupTimeLabel: string;
-  bookingCutoffNote: string;                       // 영수증/Step3 안내문 (always-on)
-  bookingCutoffImminent: (hours: number) => string;// 마감 24h 미만 — amber 배너
+  bookingCutoffNote: (hours: number) => string;    // Step5 안내문 (always-on)
+  bookingCutoffImminent: (hours: number) => string;// 마감 임박 — amber 배너
   bookingClosedTitle: string;
-  bookingClosedMessage: string;
+  bookingClosedMessage: (hours: number) => string;
   bookingChatCta: string;
+  /** 배차 실패 시 자동취소 고지 (운영자 2026-07-28) — 결제 전 항상 노출. */
+  dispatchFailAutoCancelNote: string;
 }
 
 /** {key} 형태 placeholder 를 vars 로 치환. 누락된 키는 그대로 둔다. */
@@ -347,6 +352,7 @@ export function getWizardI18n(language: string): WizardI18n {
     statusCompleted: get('statusCompleted'),
     // mbHoursAway: 모든 lang 동일하게 .toFixed(1)
     mbHoursAway: (h) => fmt(get('mbHoursAway'), { h: h.toFixed(1) }),
+    mbPastTour: get('mbPastTour'),
     // mbDaysAway: en 만 plural ({d} day{plural}) — 다른 lang 은 {plural} 키 자체가 없어 무영향.
     mbDaysAway: (d) => fmt(get('mbDaysAway'), { d, plural: lang === 'en' ? (d === 1 ? '' : 's') : '' }),
     mbRefundBadge: (pct) => fmt(get('mbRefundBadge'), { pct }),
@@ -398,10 +404,11 @@ export function getWizardI18n(language: string): WizardI18n {
 
     // PR-R (2026-05-08): 예약 마감 정책 (24h/48h)
     bookingPickupTimeLabel: get('bookingPickupTimeLabel'),
-    bookingCutoffNote: get('bookingCutoffNote'),
+    bookingCutoffNote: (hours) => fmt(get('bookingCutoffNote'), { N: hours }),
     bookingCutoffImminent: (hours) => fmt(get('bookingCutoffImminent'), { N: hours }),
     bookingClosedTitle: get('bookingClosedTitle'),
-    bookingClosedMessage: get('bookingClosedMessage'),
+    bookingClosedMessage: (hours) => fmt(get('bookingClosedMessage'), { N: hours }),
     bookingChatCta: get('bookingChatCta'),
+    dispatchFailAutoCancelNote: get('dispatchFailAutoCancelNote'),
   };
 }

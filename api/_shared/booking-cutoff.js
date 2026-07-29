@@ -1,26 +1,78 @@
 /**
- * Booking cutoff policy (2026-05-07 통일).
+ * Booking cutoff policy — 예약 마감 시각 SSOT.
  *
- * 정책 (사용자 확정):
- *  - 모든 일반 차터 케이스: 출발 12시간 전 마감 (24h/48h → 12h 통일)
+ * 정책 (2026-07-28 운영자 확정 — 상품군별 분리. 이전 "전 상품 12h 통일"은 폐기):
+ *  - 전세차량(차량 배차만 하면 되는 상품): 출발 **1시간** 전 마감
+ *      공항 픽업/샌딩 · 편도/왕복 이동 · 다일 · 시간제 · K-pop 셔틀 · 위저드 맞춤견적
+ *  - 투어(코스·기사·가이드가 붙는 상품): 출발 **8시간** 전 마감
+ *      서울 시내/근교 · DMZ · 강원 · 스키 · 경주/전주 · 부산 데이투어 등
  *  - bus / vip (협의 폼): 검증 X — InquiryForm 별도 endpoint
- *  - AI 플래너: 검증 X — 디지털 상품, 출발 일정 무관
+ *  - AI 플래너: 검증 X — 디지털 상품, 출발 일정 무관 (호출부가 isAiPlannerProduct 로 skip)
  *
- * 기준: KST timezone, 픽업 시각 정확히 -12h.
- *  예: 2026-05-15 09:00 KST 출발 → 2026-05-14 21:00 KST 마감.
+ * ⚠️ 상품군은 **productType 으로만** 판별한다. 투어 카탈로그도 결제 시에는
+ *    `charter_seoul_city` 같은 charter_* 코드로 들어오기 때문에(getTourProductType),
+ *    "어느 화면에서 눌렀나"로는 서버가 구분할 수 없다 — 화면 정보는 위조도 가능하다.
+ *
+ * ⚠️ 하이픈/언더바 혼용 주의 (결제 100% 거부 사고 이력): 비교 전에 반드시 정규화한다.
+ *    단 `tour_hourly`(시간제 차터)와 `tour-seoul-city`(투어 카탈로그 id)는 정규화하면
+ *    둘 다 `tour_...` 가 되므로, 시간제 차터를 **명시 집합으로 먼저** 걸러낸다.
+ *
+ * 기준: KST timezone, 픽업 시각 기준.
+ *  예: 2026-05-15 09:00 KST 출발 투어 → 2026-05-15 01:00 KST 마감.
  *
  * 의도적으로 luxon/dayjs 도입 X — Date + +09:00 offset 직접 처리.
+ *
+ * 프론트 미러 = src/lib/bookingCutoff.ts (위저드·투어 다이얼로그가 소비).
+ * 변경 시 두 곳 동기 필수 — tests/unit/booking-cutoff-parity.test.ts 가 가드.
  */
+
+/** 전세차량 마감 (시간). 배차만 하면 되는 상품. */
+export const CHARTER_VEHICLE_CUTOFF_HOURS = 1;
+/** 투어 마감 (시간). 코스·기사·가이드 준비가 필요한 상품. */
+export const TOUR_CUTOFF_HOURS = 8;
+
+/**
+ * 전세차량(=차량 배차형) 상품 집합.
+ * 여기에 없으면 투어로 본다 — 모르는 코드는 **더 엄격한 8h** 로 떨어져
+ * "못 채울 예약을 받아버리는" 쪽 사고를 막는다(과소제약 금지).
+ */
+const CHARTER_VEHICLE_EXACT = new Set([
+  'charter_transfer',       // 편도/왕복 이동
+  'charter_multiday',       // 다일 대절
+  'tour_hourly',            // 시간제 대절 (이름만 tour_ 이고 실체는 차량 대절)
+  'charter_custom_estimate',// 위저드 맞춤견적 (차량 기준 견적)
+  'kpop_shuttle_oneway',
+  'kpop_shuttle_roundtrip',
+]);
+
+/** productType 정규화 — 하이픈/대문자 혼용 흡수. */
+function normalizeProductType(productType) {
+  return String(productType || '').toLowerCase().replace(/-/g, '_');
+}
+
+/**
+ * 전세차량 상품인가? (아니면 투어)
+ * @param {string} productType
+ * @returns {boolean}
+ */
+export function isCharterVehicleProduct(productType) {
+  const pt = normalizeProductType(productType);
+  if (!pt) return false;                       // 미상 → 투어(엄격) 쪽으로
+  if (CHARTER_VEHICLE_EXACT.has(pt)) return true;
+  if (pt.startsWith('airport_')) return true;  // 공항 픽업/샌딩 전 노선
+  return false;
+}
 
 /**
  * 마감 시간 (시간 단위) 결정.
- * @param {string} _productType  (reserved — 현재 정책은 모든 타입 12h 통일)
- * @param {number} [_durationDays]  (reserved — multi_day 구분 폐기, 12h 통일)
- * @returns {number} 12
+ * @param {string} productType
+ * @param {number} [_durationDays]  (reserved — multi_day 별도 마감 폐기)
+ * @returns {number} 1 (전세차량) 또는 8 (투어)
  */
-export function getCutoffHours(_productType, _durationDays) {
-  // 2026-05-07: 모든 차터 케이스 12h 통일 (이전: 일반 24h / multi_day 48h).
-  return 12;
+export function getCutoffHours(productType, _durationDays) {
+  return isCharterVehicleProduct(productType)
+    ? CHARTER_VEHICLE_CUTOFF_HOURS
+    : TOUR_CUTOFF_HOURS;
 }
 
 /**

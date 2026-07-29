@@ -63,6 +63,28 @@ interface DayTimelineProps {
  *  4. plan.input.recommended_zone_address — zone 사용자.
  *  5. plan.input.recommended_zone — zone 키 (camelCase legacy 폴백 포함).
  *  6. undefined → LodgingBookend 가 빈 라벨 graceful skip. */
+/**
+ * (2026-07-28) 구간 딥링크 폴백용 양 끝 좌표.
+ * 도보 구간은 백엔드가 승하차 지점을 안 만들어 TransitArrow 가 지도 버튼을 통째로
+ * 숨겼다 — 앞뒤 stop 좌표를 넘겨 도보 구간에도 네이버/구글 링크가 뜨게 한다.
+ */
+function segmentEndpoints(
+  prevStop: PlanStop | null,
+  prevName: string,
+  stop: PlanStop,
+  destName: string,
+) {
+  const coord = (s: PlanStop | null) => s as { lat?: number | null; lng?: number | null } | null;
+  return {
+    fromLat: coord(prevStop)?.lat,
+    fromLng: coord(prevStop)?.lng,
+    fromName: prevName,
+    toLat: coord(stop)?.lat,
+    toLng: coord(stop)?.lng,
+    toName: destName,
+  };
+}
+
 function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): string | undefined {
   if (!plan) return undefined;
   // 1. backend backfilled day.lodging (P119/P123)
@@ -350,7 +372,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 const prevName = prevStop ? ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '') : '';
                 return (
                   <div key={stopIds[si]}>
-                    {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                    {!skipFirstTransit && stop.transit_from_prev && (
+                      <TransitArrow
+                        transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>}
+                        destinationName={destName}
+                        endpoints={segmentEndpoints(prevStop, prevName, stop, destName)}
+                      />
+                    )}
                     {!skipFirstTransit && tiringSegment && tiringSegment.index === si && (
                       <RouteInsightCard segment={tiringSegment} day={day} plan={plan} />
                     )}
@@ -406,7 +434,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 initial="hidden"
                 animate="visible"
               >
-                {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                {!skipFirstTransit && stop.transit_from_prev && (
+                  <TransitArrow
+                    transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>}
+                    destinationName={destName}
+                    endpoints={segmentEndpoints(prevStop, prevName, stop, destName)}
+                  />
+                )}
                 {!skipFirstTransit && tiringSegment && tiringSegment.index === si && (
                   <RouteInsightCard segment={tiringSegment} day={day} plan={plan} />
                 )}

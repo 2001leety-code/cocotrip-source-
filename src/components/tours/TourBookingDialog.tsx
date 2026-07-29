@@ -19,6 +19,7 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Calendar, Users, Languages, Plus, Minus, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
+import { isPastCutoff } from '@/lib/bookingCutoff';
 import { trackDateSelect } from '@/lib/analytics';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
@@ -66,16 +67,17 @@ function isoFromDate(d: Date | undefined): string {
   return `${y}-${m}-${day}`;
 }
 
+/** 투어는 별도 시각 입력이 없다 — 마감 계산의 기준 출발 시각 (서버 fallback 과 동일). */
+const TOUR_DEFAULT_PICKUP_TIME = '09:00';
+
 /**
- * 투어 날짜가 12h cutoff 이내인지 검사 (픽업 시각 09:00 KST 기본).
- * 오늘 날짜를 포함해 12h 이내 출발은 서버에서 차단되므로 UI에서도 비활성.
+ * 투어 날짜가 마감(출발 8시간 전, 09:00 KST 기준) 이내인지 검사.
+ * 마감 이내 출발은 서버(createPaypalOrder)가 차단하므로 달력에서도 비활성한다.
+ * 값은 서버 미러(lib/bookingCutoff)에서만 온다 — 12h 하드코딩 제거 (2026-07-28).
  */
-function isTourDateClosed(iso: string): boolean {
+function isTourDateClosed(iso: string, productType: string | null): boolean {
   if (!iso) return false;
-  const departure = new Date(`${iso}T09:00:00+09:00`);
-  if (isNaN(departure.getTime())) return false;
-  const hoursLeft = (departure.getTime() - Date.now()) / 3_600_000;
-  return hoursLeft <= 12;
+  return isPastCutoff(productType, iso, TOUR_DEFAULT_PICKUP_TIME, TOUR_DEFAULT_PICKUP_TIME);
 }
 
 function dateFromIso(iso: string): Date | undefined {
@@ -119,6 +121,8 @@ const I18N: Record<Language, {
   addonOnsite: string;
   /** 한복 인원 카운터 라벨 (가격 미반영 — 운영자 준비 수량용) */
   hanbokCount: string;
+  /** 배차 실패 시 자동취소 고지 (운영자 2026-07-28) — 결제 전 항상 노출. */
+  autoCancelNote: string;
 }> = {
   ko: { title: '투어 예약', pax: '인원수', date: '투어 날짜', lang: '기사 언어', addons: '추가 옵션',
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
@@ -133,7 +137,8 @@ const I18N: Record<Language, {
         required: '필수', missingFields: '필수 항목을 모두 입력해주세요',
         optional: '선택',
         addonOnsite: '선택 옵션 · 현장 결제 (총액 미포함)',
-        hanbokCount: '한복 대여 (인원)' },
+        hanbokCount: '한복 대여 (인원)',
+        autoCancelNote: '차량 또는 기사를 배정하지 못할 경우 예약은 자동 취소되며 전액 환불됩니다. 취소 사유는 예약 내역과 이메일로 안내드립니다.' },
   en: { title: 'Book This Tour', pax: 'Passengers', date: 'Tour date', lang: 'Driver language', addons: 'Add-ons',
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
         cancel: 'Cancel', submit: 'Get a quote', pickDate: 'Select date',
@@ -147,7 +152,8 @@ const I18N: Record<Language, {
         required: 'required', missingFields: 'Please fill in all required fields',
         optional: 'optional',
         addonOnsite: 'Optional · pay on-site (not included in total)',
-        hanbokCount: 'Hanbok rental (count)' },
+        hanbokCount: 'Hanbok rental (count)',
+        autoCancelNote: 'If we cannot assign a vehicle or driver, your booking is cancelled automatically and refunded in full. The reason is sent to you by email and shown in your bookings.' },
   ja: { title: 'ツアー予約', pax: '人数', date: 'ツアー日', lang: 'ドライバー言語', addons: '追加オプション',
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
         cancel: 'キャンセル', submit: '見積もりを取得', pickDate: '日付を選択',
@@ -161,7 +167,8 @@ const I18N: Record<Language, {
         required: '必須', missingFields: '必須項目をすべて入力してください',
         optional: '任意',
         addonOnsite: '任意オプション · 現地払い（合計に含まれません）',
-        hanbokCount: '韓服レンタル（人数）' },
+        hanbokCount: '韓服レンタル（人数）',
+        autoCancelNote: '車両またはドライバーを手配できない場合、ご予約は自動的にキャンセルされ全額返金されます。理由はメールと予約履歴でお知らせします。' },
   zh: { title: '预订旅游', pax: '人数', date: '旅游日期', lang: '司机语言', addons: '附加选项',
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
         cancel: '取消', submit: '获取报价', pickDate: '选择日期',
@@ -175,7 +182,8 @@ const I18N: Record<Language, {
         required: '必填', missingFields: '请填写所有必填项',
         optional: '选填',
         addonOnsite: '可选项 · 现场支付（不含在总额内）',
-        hanbokCount: '韩服租赁（人数）' },
+        hanbokCount: '韩服租赁（人数）',
+        autoCancelNote: '如无法安排车辆或司机，订单将自动取消并全额退款。取消原因将通过邮件和订单记录告知您。' },
 };
 
 const DRIVER_LANG_LABELS: Record<DriverLanguage, Record<Language, string>> = {
@@ -538,7 +546,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   disabled={(d) => {
                     const iso = isoFromDate(d);
                     // 12h cutoff 이내 날짜는 선택 불가 (서버와 정책 일치)
-                    if (isTourDateClosed(iso)) return true;
+                    if (isTourDateClosed(iso, productType)) return true;
                     return isDateBlocked(iso);
                   }}
                   fromDate={new Date()}
@@ -827,6 +835,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {step === 2 && productType && (
             <div className="w-full space-y-2">
+              {/* 배차 실패 시 자동취소 고지 — 결제 직전에 반드시 읽히게 (운영자 2026-07-28). */}
+              <p className="text-[11px] leading-snug text-white/50 rounded-lg px-3 py-2"
+                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                🚐 {labels.autoCancelNote}
+              </p>
               {/* PayPal direct — bundled memo carries phone/pickup/WA/LINE/notes */}
               {step2Complete ? (
                 <>

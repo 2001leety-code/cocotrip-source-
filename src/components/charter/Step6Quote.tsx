@@ -10,6 +10,7 @@ import { MultiDayReceipt } from './MultiDayReceipt';
 import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
 import { charterAddonLabel, withDerivedNight } from '@/lib/charterExtras';
+import { getCutoffHours, hoursUntilDeparture } from '@/lib/bookingCutoff';
 import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 interface Props {
@@ -231,33 +232,31 @@ function Row({ label, value, muted, warn, good }: { label: string; value: string
 }
 
 // PR-R (2026-05-08): 예약 마감 안내 컴포넌트.
-// - always-on note 줄: "예약 마감: 출발 24h 전 (멀티데이 48h)"
-// - 임박 시 (출발까지 cutoffHours 미만 + 0보다 큰 경우) amber 배너로 강조
+// 2026-07-28: 12h 하드코딩 제거 — 상품군별 마감(전세차량 1h / 투어 8h)을 서버 미러
+//   lib/bookingCutoff 에서 파생한다. 이전 `closed` 식(remainingUntilCutoff <= -cutoffHours)은
+//   마감 후 한 사이클을 더 지나야 참이 돼, 마감 직후 구간을 "임박"으로만 표시했다.
 function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<typeof getWizardI18n> }) {
+  const productType = state ? resolveProductType(state).productType : null;
+  const cutoffHours = getCutoffHours(productType);
   if (!state?.startDate) {
     return (
-      <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>
+      <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>
     );
   }
-  // 2026-05-07: 모든 케이스 12h 통일 (이전: 일반 24h / multi_day 48h).
-  const cutoffHours = 12;
   const pickupTime = state.pickupTime ?? state.startTime ?? '09:00';
-  const departureMs = new Date(`${state.startDate}T${pickupTime}:00+09:00`).getTime();
-  if (isNaN(departureMs)) {
-    return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>;
+  const hoursLeft = hoursUntilDeparture(state.startDate, pickupTime);
+  if (!Number.isFinite(hoursLeft)) {
+    return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
   }
-  const hoursLeft = (departureMs - Date.now()) / 3600000;
-  const remainingUntilCutoff = hoursLeft - cutoffHours;
-  // 출발까지 cutoff 보다 적게 남음 + 출발 자체는 미래 → 임박 배너.
-  const imminent = hoursLeft > 0 && remainingUntilCutoff < 0;
-  // 마감 지남 — 별도 처리 (PayPal 시도 시 차단됨)
-  const closed = hoursLeft <= 0 || remainingUntilCutoff <= -cutoffHours;
+  const closed = hoursLeft <= cutoffHours;
+  // 마감까지 6시간 이내로 남았으면 임박 경고 (마감 자체는 아직 안 지남).
+  const imminent = !closed && hoursLeft - cutoffHours <= 6;
 
   if (closed) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 flex items-start gap-2">
         <span className="text-base leading-none">⛔</span>
-        <span>{i18n.bookingClosedMessage}</span>
+        <span>{i18n.bookingClosedMessage(cutoffHours)}</span>
       </div>
     );
   }
@@ -270,5 +269,5 @@ function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<t
       </div>
     );
   }
-  return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>;
+  return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
 }

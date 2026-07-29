@@ -26,17 +26,46 @@
 // Weights are applied to per-stop violation rates (or absolute counts for
 // schedule). Sum of weights = 100 so a "perfect" plan scores 100, and a plan
 // with ALL stops violating a single indicator drops by exactly that weight.
+// 🔴 2026-07-28 재배분. 최근 30일 실측(플랜 100건)에서 평균 88.7 이 나왔는데
+//   실제 오류율은 촉박 73.5% / 중복 25.4% / 필드누락 22.8% / 경로실패 13.0% 였다.
+//   옛 가중치로 역산하면 4×0.735 + 5×0.254 + 14×0.228 + 12×0.130 + 18×0.094 ≈ 10.6
+//   → 89.3 으로, 관측 평균과 일치한다. 즉 **점수가 오류율을 가리고 있었다.**
+//   원인은 감점 상한이 아니라 배분이다: 손님이 실제로 겪는 "촉박한 일정"이
+//   73.5% 나 나는데 최대 4점밖에 안 깎였다.
+//   → 손님 경험을 직접 망가뜨리는 항목(촉박·경로실패·중복)을 크게 올리고,
+//     내부 품질 항목(주소 접두사·표기 언어)을 낮춘다. 식이제한은 안전 항목이라 유지.
 export const METRIC_WEIGHTS = {
-  dietary_violation:     30,  // SAFETY-CRITICAL (J)
-  unverified_restaurant: 18,
-  field_completeness:    14,
-  route_failure:         12,
-  bad_address_prefix:     8,
-  language_mismatch:      6,
-  duplicate_stops:        5,
-  tight_schedule:         4,
+  dietary_violation:     28,  // SAFETY-CRITICAL (J) — 건강 위험, 최상위 유지
+  tight_schedule:        16,  // 4 → 16. 일정이 빡빡하면 그날 전체가 무너진다
+  route_failure:         14,  // 12 → 14. 이동을 못 하면 일정 자체가 성립 안 함
+  unverified_restaurant: 12,  // 18 → 12
+  field_completeness:    10,  // 14 → 10
+  duplicate_stops:       10,  //  5 → 10. 같은 곳 두 번 = 손님이 바로 알아챈다
+  bad_address_prefix:     4,  //  8 → 4 (내부 데이터 품질)
+  language_mismatch:      3,  //  6 → 3 (내부 데이터 품질)
   loose_schedule:         3,
 };
+
+/**
+ * 치명 오류 지표 — 하나라도 있으면 "무사고 플랜"이 아니다.
+ * 평균 점수만 보면 오류율이 묻히므로, 운영 대시보드는 이 기준의 **무사고 비율**을
+ * 핵심 지표로 함께 본다.
+ */
+export const CRITICAL_METRICS = [
+  'dietary_violation',
+  'tight_schedule',
+  'route_failure',
+  'duplicate_stops',
+];
+
+/**
+ * 이 플랜에 치명 오류가 있는가? (하나라도 count > 0 이면 true)
+ * @param {object} metrics computeQualityScore().metrics
+ */
+export function hasCriticalIssue(metrics) {
+  if (!metrics) return false;
+  return CRITICAL_METRICS.some((k) => ((metrics[k] && metrics[k].count) || 0) > 0);
+}
 
 // Sanity-check at load time. Throws on accidental edit drift.
 const _weightSum = Object.values(METRIC_WEIGHTS).reduce((a, b) => a + b, 0);

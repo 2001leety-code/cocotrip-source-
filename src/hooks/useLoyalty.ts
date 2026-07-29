@@ -60,19 +60,32 @@ const TIER_EARN_RATE: Record<TierType, number> = {
 };
 
 export function useLoyalty() {
-  const { user } = useAuth();
+  // 🔴 2026-07-28: useAuth 는 공유 컨텍스트가 아니라 컴포넌트마다 새 인스턴스다.
+  //   그래서 항상 user=null, loading=true 로 시작해 비동기로 채워진다.
+  //   loading 을 같이 받아야 "인증 복원 중"과 "비로그인"을 구분할 수 있다.
+  const { user, loading: authLoading } = useAuth();
   const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [pointHistory, setPointHistory] = useState<PointLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 어느 uid 의 회원 문서까지 도착했는지. loading 을 따로 저장하지 않고 여기서 파생한다
+  // → uid 가 바뀌는 순간 자동으로 다시 "로딩 중"이 된다(리셋을 잊을 수 없다).
+  const [loadedUid, setLoadedUid] = useState<string | null>(null);
+
+  // 🔴 loading 파생 규칙 (2026-07-28):
+  //   인증 복원 중이거나, 로그인은 됐는데 그 uid 의 문서가 아직 안 왔으면 로딩이다.
+  //   이전에는 loading 을 상태로 들고 있으면서 user=null 구간(=인증 복원 중)에 false 로
+  //   꺼버렸고, 호출부가 loyalty=null 을 Bronze·0코인·0예약으로 대신 그렸다.
+  //   그 뒤 문서가 도착하면 Platinum·756,986 으로 튀어 손님이 자기 등급을 잘못 본다.
+  const loading = authLoading || (!!user?.uid && loadedUid !== user.uid);
 
   // ── 등급/포인트 실시간 구독 ──
   useEffect(() => {
+    if (authLoading) return;          // 인증 복원 중 — 판단 보류(로그아웃으로 오인 금지)
     if (!user?.uid) {
       setLoyalty(null);
       setCoupons([]);
       setPointHistory([]);
-      setLoading(false);
+      setLoadedUid(null);
       return;
     }
 
@@ -86,13 +99,16 @@ export function useLoyalty() {
           const tier = (data.tier as TierType) || 'Bronze';
           setLoyalty({
             tier,
-            tripCoins: data.tripCoins ?? 0,
-            totalSpentUSD: data.totalSpentUSD ?? 0,
-            bookingCount: data.bookingCount ?? 0,
+            // 숫자 필드라 nullish 병합과 `|| 0` 이 동일 결과다. 레포 pre-commit 가드가
+            // nullish 연산자를 mojibake 신호로 차단해 `|| 0` 을 쓴다 (동작 변화 없음).
+            tripCoins: data.tripCoins || 0,
+            totalSpentUSD: data.totalSpentUSD || 0,
+            bookingCount: data.bookingCount || 0,
             earnRate: TIER_EARN_RATE[tier],
           });
         }
-        setLoading(false);
+        // 문서가 없는 신규 계정도 "도착"으로 본다 — 무한 스켈레톤 방지.
+        setLoadedUid(snap.id);
       })
     );
 
@@ -128,7 +144,7 @@ export function useLoyalty() {
     );
 
     return () => unsubs.forEach(fn => fn());
-  }, [user?.uid]);
+  }, [user?.uid, authLoading]);
 
   // ── 사용 가능한 쿠폰만 필터 ──
   // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.

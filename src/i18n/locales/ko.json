@@ -70,7 +70,7 @@
     "tourCta": "투어 보기",
     "plannerTitle": "AI 여행 플래너",
     "plannerLine1": "AI가 맞춤 일정을 자동으로 생성",
-    "plannerLine2": "$9.90 · 즉시 · 4개 언어 지원",
+    "plannerLine2": "{price} · 즉시 · 4개 언어 지원",
     "plannerCta": "일정 만들기"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ 구간별 실제 대중교통 + T-money",
     "optionAfeature5": "✓ 실재 한국 DB로 검증 — 가짜 장소 없음",
     "optionAfeatureRevision": "무료 재생성 2회 포함 — 맘에 안 들면 다시!",
-    "valueBannerMain": "$9.90로 일정 3개!",
+    "valueBannerMain": "{price}로 일정 3개!",
     "valueBannerSub": "1회 결제 + 무료 수정 2회 = 3가지 버전 — AI 동선 업그레이드 + 차터·투어 5% 쿠폰까지.",
     "optionBtitle": "항공권 + 호텔 예약하고 무료로 받기",
     "optionBdesc": "저희 사이트에서 항공권과 호텔을 예약하면 전체 플랜 무료",
@@ -1811,7 +1811,21 @@
       "minUnit": "분",
       "adultsLabel": "성인",
       "paxLabel": "명",
-      "transfer": "환승"
+      "transfer": "환승",
+      "publicTransitRoute": "대중교통 경로",
+      "transitTransfers": "환승",
+      "mealCostLabel": "식사비 별도",
+      "planHeaderBadge": "AI 일정",
+      "planRouteTimeline": "동선 타임라인",
+      "planOptimizeChip": "동선 최적화",
+      "planStayChip": "숙소 추천",
+      "planStatDays": "일",
+      "planStatStops": "방문지",
+      "planStatTravelers": "인원",
+      "planStatOptimize": "최적화",
+      "planStatDistance": "이동거리",
+      "planTravelersSuffix": "명",
+      "planStopsSuffix": "곳"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",
@@ -1849,7 +1863,7 @@
     "wlEmptyTitle": "위시리스트가 비어 있어요",
     "wlEmptySub": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
     "couponAdTitle": "AI 플랜 1회 = 차터 5% + 투어 5% 쿠폰",
-    "couponAdBody": "차터도 투어도 5% 할인. $9.90 플래너 본전 뽑고 남아요.",
+    "couponAdBody": "차터도 투어도 5% 할인. {price} 플래너 본전 뽑고 남아요.",
     "couponAdCta": "AI 플래너 만들기",
     "useAiCoupon": "사용하기",
     "walletAvailable": "사용 가능",
@@ -1900,7 +1914,42 @@
       "charter_busan": "부산 데이 차터",
       "kpop_shuttle_oneway": "K-pop 셔틀 (편도)",
       "kpop_shuttle_roundtrip": "K-pop 셔틀 (왕복)",
-      "ai_planner_full": "AI 플래너 ($9.90)"
+      "ai_planner_full": "AI 플래너 ({price})"
+    },
+    "myPlansSearch": "제목·지역으로 검색",
+    "myPlansLoadMore": "더 보기",
+    "myPlansStatusReady": "완료",
+    "myPlansStatusGenerating": "생성 중",
+    "myPlansEmptyTitle": "아직 플랜이 없어요",
+    "myPlansEmptyBody": "첫 AI 한국 여행 일정을 만들어 보세요",
+    "myPlansStartCta": "플랜 만들기",
+    "myPlansPaxUnit": "명",
+    "myPlansNoMatch": "검색 결과가 없어요",
+    "myPlansShowing": "{n}개 표시 중",
+    "pointHistoryTitle": "포인트 내역",
+    "noReviewsYet": "아직 작성한 후기가 없어요",
+    "noReviewsSub": "여행 후기를 남기면 +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 적립",
+        "가입 축하 5% 쿠폰"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 적립",
+        "시즌 $5 쿠폰",
+        "우선 응대"
+      ],
+      "Gold": [
+        "Trip Coins 2% 적립",
+        "시즌 $10 쿠폰",
+        "차량 우선 배정"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 적립",
+        "시즌 $20 쿠폰",
+        "VIP 카카오톡 응대",
+        "공항 라운지 이용"
+      ]
     }
   },
   "admin": {
@@ -2303,11 +2352,13 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류",
     "bookingPickupTimeLabel": "픽업 시각",
-    "bookingCutoffNote": "예약 마감: 출발 12시간 전",
+    "bookingCutoffNote": "예약 마감: 출발 {N}시간 전",
     "bookingCutoffImminent": "예약 마감 임박 ({N}시간 남음)",
     "bookingClosedTitle": "예약 마감",
-    "bookingClosedMessage": "예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.",
-    "bookingChatCta": "챗 상담하기"
+    "bookingClosedMessage": "출발 {N}시간 전에 마감돼 이 시각은 예약할 수 없습니다. 다른 시각을 골라주시거나 챗 상담을 이용해주세요.",
+    "bookingChatCta": "챗 상담하기",
+    "dispatchFailAutoCancelNote": "차량 배차를 못 구할 경우 예약은 자동 취소되며 전액 환불됩니다.",
+    "mbPastTour": "지난 일정"
   },
   "tourDetail": {
     "includedTitle": "포함",

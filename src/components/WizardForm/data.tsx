@@ -29,7 +29,11 @@ export const CITY_CHIPS: { key: string; icon: ReactNode }[] = [
 //   photographyLocation 이 실제 그 도시(시 단위)를 포함 + 올바른 광역 폴더에 저장된
 //   것만 채택(광역도≠시 오라벨 방지). all-season/nature·landmark 우선, 최소 파일.
 //   public/city-thumbs/<key>.jpg 로 committable 사본만 배치(원본 3GB 갤러리는 미커밋).
-//   yeosu = 검증된 전남-저장 여수 사진 0장 → 매핑 없음(아이콘 폴백 유지, 가짜 X).
+//   (2026-07-28) yeosu 채움 — "여수 사진 0장"은 사실이 아니라 **분류 버그**였다.
+//   KTO 가 촬영지를 `전남광주통합특별시 여수시` 로 표기하면서 수집 스크립트의 광역
+//   키워드 '광주'가 먼저 걸려, 여수 48장이 전부 gwangju/ 폴더로 들어가 있었다.
+//   → scripts/collect-kto-photo-gallery.mjs 의 CITY_FIRST_KEYWORDS 로 근본 수정.
+//   현재 파일 = 돌산대교(배근한, 여수 10경, 940×704).
 export const CITY_PHOTO: Record<string, string> = {
   seoul: '/city-thumbs/seoul.jpg',
   busan: '/city-thumbs/busan.jpg',
@@ -40,6 +44,7 @@ export const CITY_PHOTO: Record<string, string> = {
   incheon: '/city-thumbs/incheon.jpg',
   suwon: '/city-thumbs/suwon.jpg',
   daegu: '/city-thumbs/daegu.jpg',
+  yeosu: '/city-thumbs/yeosu.jpg',
 };
 
 export const AIRPORT_OPTIONS: Record<string, AirportOption[]> = {

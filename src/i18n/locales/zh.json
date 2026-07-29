@@ -70,7 +70,7 @@
     "tourCta": "查看旅游",
     "plannerTitle": "AI旅行规划师",
     "plannerLine1": "AI自动生成专属行程",
-    "plannerLine2": "$9.90 · 即时 · 支持4种语言",
+    "plannerLine2": "{price} · 即时 · 支持4种语言",
     "plannerCta": "制定行程"
   },
   "hero": {
@@ -1229,7 +1229,7 @@
     "optionAfeature4": "✓ 全程实时交通 + T-money",
     "optionAfeature5": "✓ 经实际韩国数据库验证 — 无虚假地点",
     "optionAfeatureRevision": "免费重新生成2次 — 不满意可重新生成！",
-    "valueBannerMain": "$9.90 — 共3份行程！",
+    "valueBannerMain": "{price} — 共3份行程！",
     "valueBannerSub": "1次购买 + 2次免费修改 = 3个版本 — 附AI路线升级 + 包车·行程5%优惠券。",
     "optionBtitle": "预订机票 + 酒店 — 免费获取计划",
     "optionBdesc": "通过我们预订机票和酒店,免费获得完整计划",
@@ -1811,7 +1811,21 @@
       "adultsLabel": "成人",
       "paxLabel": "人",
       "minUnit": "分钟",
-      "transfer": "换乘"
+      "transfer": "换乘",
+      "publicTransitRoute": "公共交通路线",
+      "transitTransfers": "换乘",
+      "mealCostLabel": "餐费另计",
+      "planHeaderBadge": "AI 行程",
+      "planRouteTimeline": "路线时间轴",
+      "planOptimizeChip": "优化行程",
+      "planStayChip": "住宿推荐",
+      "planStatDays": "天",
+      "planStatStops": "景点",
+      "planStatTravelers": "人数",
+      "planStatOptimize": "优化",
+      "planStatDistance": "距离",
+      "planTravelersSuffix": "人",
+      "planStopsSuffix": "个"
     },
     "notices": {
       "title": "行程自动校正提示",
@@ -1849,7 +1863,7 @@
     "wlEmptyTitle": "心愿单是空的",
     "wlEmptySub": "点击旅游照片上的 ❤ 即可收藏",
     "couponAdTitle": "AI 行程 1 次 = 包车5% + 行程5% 优惠券",
-    "couponAdBody": "包车和行程各省5%。$9.90 行程规划物超所值。",
+    "couponAdBody": "包车和行程各省5%。{price} 行程规划物超所值。",
     "couponAdCta": "制作 AI 行程",
     "useAiCoupon": "立即使用",
     "walletAvailable": "可使用",
@@ -1900,7 +1914,42 @@
       "charter_busan": "釜山一日包车",
       "kpop_shuttle_oneway": "K-pop班车 (单程)",
       "kpop_shuttle_roundtrip": "K-pop班车 (往返)",
-      "ai_planner_full": "AI 行程 ($9.90)"
+      "ai_planner_full": "AI 行程 ({price})"
+    },
+    "myPlansSearch": "按标题或地区搜索",
+    "myPlansLoadMore": "加载更多",
+    "myPlansStatusReady": "已完成",
+    "myPlansStatusGenerating": "生成中",
+    "myPlansEmptyTitle": "还没有行程",
+    "myPlansEmptyBody": "创建您的第一个 AI 韩国行程",
+    "myPlansStartCta": "开始规划",
+    "myPlansPaxUnit": "人",
+    "myPlansNoMatch": "没有匹配的行程",
+    "myPlansShowing": "显示 {n} 个",
+    "pointHistoryTitle": "积分记录",
+    "noReviewsYet": "还没有评价",
+    "noReviewsSub": "撰写旅行评价可获得 +50 Trip Coins",
+    "tierBenefitList": {
+      "Bronze": [
+        "Trip Coins 1% 返还",
+        "入会 5% 优惠券"
+      ],
+      "Silver": [
+        "Trip Coins 1.5% 返还",
+        "季度 $5 优惠券",
+        "优先客服"
+      ],
+      "Gold": [
+        "Trip Coins 2% 返还",
+        "季度 $10 优惠券",
+        "优先安排车辆"
+      ],
+      "Platinum": [
+        "Trip Coins 3% 返还",
+        "季度 $20 优惠券",
+        "VIP KakaoTalk 客服",
+        "机场贵宾室"
+      ]
     }
   },
   "admin": {
@@ -2303,11 +2352,13 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "网络错误",
     "bookingPickupTimeLabel": "接送时间",
-    "bookingCutoffNote": "预订截止：出发前12小时",
+    "bookingCutoffNote": "预订截止：出发前{N}小时",
     "bookingCutoffImminent": "预订即将截止（剩余{N}小时）",
     "bookingClosedTitle": "预订已截止",
-    "bookingClosedMessage": "预订已截止。如需紧急预订，请使用聊天咨询。",
-    "bookingChatCta": "开始聊天"
+    "bookingClosedMessage": "预订于出发前{N}小时截止，该时间已无法预订。请选择其他时间或使用聊天咨询。",
+    "bookingChatCta": "开始聊天",
+    "dispatchFailAutoCancelNote": "如无法安排车辆，订单将自动取消并全额退款。",
+    "mbPastTour": "已过行程"
   },
   "tourDetail": {
     "includedTitle": "包含",

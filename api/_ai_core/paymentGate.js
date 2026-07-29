@@ -73,6 +73,9 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
   if (coupon.productScope !== 'ai-plan' || coupon.type !== 'free') {
     return reject(400, 'COUPON_WRONG_TYPE', 'Not a free AI-plan coupon', '이 쿠폰은 AI 플랜 무료 쿠폰이 아닙니다.');
   }
+  if (coupon.isRevoked === true) {
+    return reject(403, 'COUPON_REVOKED', 'Coupon revoked', '환불로 회수된 쿠폰입니다.');
+  }
   if (coupon.isUsed) return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
   if (coupon.expiresAt && coupon.expiresAt < Date.now()) {
     return reject(403, 'COUPON_EXPIRED', 'Coupon expired', '만료된 쿠폰입니다.');
@@ -85,10 +88,15 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
   try {
     await adminDb.runTransaction(async (tx) => {
       const fresh = await tx.get(couponRef);
-      if (fresh.data()?.isUsed) throw new Error('COUPON_USED');
+      const freshCoupon = fresh.data() || {};
+      if (freshCoupon.isRevoked === true) throw new Error('COUPON_REVOKED');
+      if (freshCoupon.isUsed) throw new Error('COUPON_USED');
       tx.update(couponRef, { isUsed: true, usedAt: new Date().toISOString() });
     });
   } catch (e) {
+    if (e && e.message === 'COUPON_REVOKED') {
+      return reject(403, 'COUPON_REVOKED', 'Coupon revoked', '환불로 회수된 쿠폰입니다.');
+    }
     if (e && e.message === 'COUPON_USED') {
       return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
     }

@@ -52,12 +52,22 @@ export async function sendEmail({ to, subject, html, text, attachments = [] }) {
     err.code = GMAIL_QUOTA_EXCEEDED;
     err.count = quotaCheck.count;
     err.quota = quotaCheck.quota;
+    // 🔴 발송 시도 **전** 실패 = 메일이 나가지 않은 것이 확실 → 호출부가 안전하게 재시도 가능.
+    err.preSend = true;
     throw err;
   }
 
-  const transporter = createTransporter();
+  let transporter;
+  try {
+    transporter = createTransporter();
+  } catch (e) {
+    e.preSend = true;   // env 미설정 등 — 아직 아무것도 보내지 않았다.
+    throw e;
+  }
   const from = `CocoTripKR <${process.env.GMAIL_USER}>`;
 
+  // ⚠️ 여기서부터는 실패해도 **보냈는지 알 수 없다**. SMTP 에는 멱등 키가 없어서
+  //   서버가 이미 받았는지 확인할 방법이 없다 → 호출부는 함부로 재발송하면 안 된다.
   const info = await transporter.sendMail({
     from,
     to,

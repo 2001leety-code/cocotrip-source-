@@ -61,6 +61,7 @@ export async function verifyCouponForCharge(db, couponUserId, couponDocId, produ
       .collection('coupons').doc(couponDocId).get();
     if (!snap.exists) return { valid: false };
     const c = snap.data() || {};
+    if (c.isRevoked === true) return { valid: false };
     if (c.isUsed === true) return { valid: false };
     if (typeof c.expiresAt === 'number' && c.expiresAt < Date.now()) return { valid: false };
     if (!couponMatchesProduct(c.productScope, productType)) return { valid: false };

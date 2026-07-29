@@ -11,6 +11,7 @@ import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
+import { fillPrice } from '@/lib/aiPlannerPrice';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -45,6 +46,10 @@ interface Props {
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
+  /** 🔴 2026-07-29: 화면이 손님에게 보여준 USD 금액. 서버 산정치와 다르면
+   *  createPaypalOrder 가 409(AMOUNT_MISMATCH)로 결제를 만들지 않는다.
+   *  고정 USD 판매 상품(AI 플래너)에서 표시가 != 청구가를 구조적으로 차단한다. */
+  expectedUSD?: number;
   /** i18n dict — 옵션 (호출처 일부 InlineBookingCard 가 미전달, 기본값 {}로 처리) */
   p?: BookingDict;
   lang: string;
@@ -118,7 +123,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -188,7 +193,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       pickerOpen: '\ucfe0\ud3f0 \uc0ac\uc6a9\ud558\uae30',
       pickerEmpty: '\uc0ac\uc6a9 \uac00\ub2a5\ud55c \ucfe0\ud3f0\uc774 \uc5c6\uc5b4\uc694',
       adTitle: 'AI \ud50c\ub798\ub108 1\ud68c = 5% \ucfe0\ud3f0 1\uc7a5',
-      adBody: '124,000\uc6d0 \ucc28\ub7c9 \uc608\uc57d = \uc57d 6,200\uc6d0 \uc808\uc57d. \ud50c\ub798\ub108($9.90) \uac70\uc758 \ubb34\ub8cc!',
+      adBody: '124,000\uc6d0 \ucc28\ub7c9 \uc608\uc57d = \uc57d 6,200\uc6d0 \uc808\uc57d. \ud50c\ub798\ub108({price}) \uac70\uc758 \ubb34\ub8cc!',
       adCta: 'AI \ud50c\ub798\ub108 \ub9cc\ub4e4\uae30',
       saved: '\uc808\uc57d', expires: '\ub9cc\ub8cc',
     },
@@ -198,7 +203,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       pickerOpen: 'Use a coupon',
       pickerEmpty: 'No coupons yet',
       adTitle: '1 AI plan = 1\u00d7 5% coupon',
-      adBody: 'Book a \u20a9124,000 charter \u2248 \u20a96,200 saved. The planner ($9.90) pays for itself.',
+      adBody: 'Book a \u20a9124,000 charter \u2248 \u20a96,200 saved. The planner ({price}) pays for itself.',
       adCta: 'Make AI plan',
       saved: 'Saved', expires: 'Expires',
     },
@@ -208,7 +213,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       pickerOpen: '\u30af\u30fc\u30dd\u30f3\u3092\u4f7f\u3046',
       pickerEmpty: '\u4f7f\u3048\u308b\u30af\u30fc\u30dd\u30f3\u304c\u3042\u308a\u307e\u305b\u3093',
       adTitle: 'AI\u30d7\u30e9\u30f31\u56de = 5%\u30af\u30fc\u30dd\u30f3',
-      adBody: '\u20a9124,000\u306e\u30c1\u30e3\u30fc\u30bf\u30fc\u4e88\u7d04 \u2245 \u20a96,200\u306e\u7bc0\u7d04\u3002\u30d7\u30e9\u30f3($9.90)\u306f\u307b\u307c\u7121\u6599\uff01',
+      adBody: '\u20a9124,000\u306e\u30c1\u30e3\u30fc\u30bf\u30fc\u4e88\u7d04 \u2245 \u20a96,200\u306e\u7bc0\u7d04\u3002\u30d7\u30e9\u30f3({price})\u306f\u307b\u307c\u7121\u6599\uff01',
       adCta: 'AI\u30d7\u30e9\u30f3\u4f5c\u6210',
       saved: '\u7bc0\u7d04', expires: '\u6709\u52b9\u671f\u9650',
     },
@@ -218,7 +223,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       pickerOpen: '\u4f7f\u7528\u4f18\u60e0\u5238',
       pickerEmpty: '\u6682\u65e0\u53ef\u7528\u4f18\u60e0\u5238',
       adTitle: 'AI \u884c\u7a0b 1 \u6b21 = 5% \u4f18\u60e0\u5238',
-      adBody: '\u9884\u8ba2 \u20a9124,000 \u5305\u8f66 \u2248 \u8282\u7701 \u20a96,200\uff0c\u884c\u7a0b($9.90)\u51e0\u4e4e\u514d\u8d39\uff01',
+      adBody: '\u9884\u8ba2 \u20a9124,000 \u5305\u8f66 \u2248 \u8282\u7701 \u20a96,200\uff0c\u884c\u7a0b({price})\u51e0\u4e4e\u514d\u8d39\uff01',
       adCta: '\u5236\u4f5c AI \u884c\u7a0b',
       saved: '\u8282\u7701', expires: '\u5230\u671f',
     },
@@ -545,6 +550,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         body: JSON.stringify({
           productType, passengers, dateStart, dateEnd, language: lang,
           userEmail,
+          // 표시가==청구가 대조용 (서버가 불일치 시 409).
+          ...(typeof expectedUSD === 'number' ? { expectedUSD } : {}),
           // PR-R (2026-05-08): 마감 검증용 — pickupTime + durationDays
           ...(pickupTime ? { pickupTime } : {}),
           ...(typeof durationDays === 'number' ? { durationDays } : {}),
@@ -848,7 +855,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[12.5px] font-bold text-white leading-tight">{pl.adTitle}</p>
-                      <p className="text-[11px] text-white/65 leading-snug mt-1">{pl.adBody}</p>
+                      <p className="text-[11px] text-white/65 leading-snug mt-1">{fillPrice(pl.adBody, lang)}</p>
                       <Link
                         to="/planner"
                         onClick={() => haptic('tap')}

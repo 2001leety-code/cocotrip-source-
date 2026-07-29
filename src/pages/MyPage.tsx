@@ -27,7 +27,8 @@ const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Co
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
-import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
+import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
+import { fillPrice } from '@/lib/aiPlannerPrice';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -42,12 +43,21 @@ const TIER_EMOJI: Record<TierType, string> = {
 
 // 🔧 2026-07-18: 'Free cancellation 48h/72h' 티어혜택 문구 제거 — PR#1116 에서 취소정책이
 //   24h 바이너리(등급 무관)로 통일돼 서버가 적용하지 않는 혜택을 고객에게 표기하던 회귀 잔재.
-const TIER_BENEFITS: Record<TierType, string[]> = {
-  Bronze:   ['Basic 1% Trip Coins earn', 'Welcome 5% coupon'],
+// 🔴 2026-07-29: 영어 하드코딩을 번역 파일로 옮겼다(mypage.tierBenefits, 4개 국어).
+//   한국어 화면에서 등급 혜택만 영어로 남아 있던 문제. 아래는 번역 누락 시 폴백.
+const TIER_BENEFITS_FALLBACK: Record<TierType, string[]> = {
+  Bronze:   ['1% Trip Coins earn', 'Welcome 5% coupon'],
   Silver:   ['1.5% Trip Coins earn', '$5 season coupon', 'Priority support'],
   Gold:     ['2% Trip Coins earn', '$10 season coupon', 'Priority vehicle assignment'],
-  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Airport lounge access'],
+  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaoTalk support', 'Airport lounge access'],
 };
+
+/** 번역 파일의 등급 혜택 목록. 없거나 형식이 다르면 영어 폴백. */
+function tierBenefits(dict: Record<string, unknown>, t: TierType): string[] {
+  const table = dict.tierBenefitList as Record<string, unknown> | undefined;
+  const list = table?.[t];
+  return Array.isArray(list) && list.length ? (list as string[]) : TIER_BENEFITS_FALLBACK[t];
+}
 
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
 // 어디에도 없어 사용자가 일정을 만들 수 없는 상태였음. 백엔드 hook은 유지하되
@@ -137,7 +147,8 @@ export default function MyPage() {
         if (cur) setWeather({
           temp: cur.temp_C + '°C',
           desc: pickWeatherDesc(cur, language),
-          icon: Number(cur.temp_C) > 20 ? '☀️' : Number(cur.temp_C) > 10 ? '⛅' : '❄️',
+          // 아이콘과 설명을 같은 데이터에서 결정한다(기온으로 고르면 이슬비에 해가 뜬다).
+          icon: pickWeatherIcon(cur),
           city,
         });
       } catch { /* silent */ }
@@ -243,7 +254,7 @@ export default function MyPage() {
               {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
             </p>
             <div className="flex flex-wrap gap-2">
-              {TIER_BENEFITS[tier].map((b, i) => (
+              {tierBenefits(mp as unknown as Record<string, unknown>, tier).map((b, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-white/50 border border-white/5">
                   {b}
                 </span>
@@ -614,7 +625,7 @@ export default function MyPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
-                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{mp.couponAdBody || 'Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.'}</p>
+                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{fillPrice(mp.couponAdBody || 'Book a ₩124,000 charter saves more than the planner ({price}).', language)}</p>
                       <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
                         {mp.couponAdCta || 'Make AI plan'}
                         <ChevronRight className="w-3 h-3" />
@@ -681,7 +692,7 @@ export default function MyPage() {
         {tab === 'history' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold text-lg">Point History</h3>
+              <h3 className="text-white font-bold text-lg">{mp.pointHistoryTitle || 'Point history'}</h3>
               <span className="text-white/55 text-sm">
                 Balance: <span className="text-[#FFD700] font-bold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span>
               </span>
@@ -758,6 +769,8 @@ interface MyReview {
 }
 
 function MyReviewsTab({ userId }: { userId: string }) {
+  const { t } = useLanguage();
+  const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
   const [reviews, setReviews] = useState<MyReview[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -800,7 +813,7 @@ function MyReviewsTab({ userId }: { userId: string }) {
   }
 
   if (reviews.length === 0) {
-    return <EmptyState icon={Star} text="No reviews yet" sub="Review a trip to earn +50 Trip Coins!" />;
+    return <EmptyState icon={Star} text={mp.noReviewsYet || 'No reviews yet'} sub={mp.noReviewsSub || 'Review a trip to earn +50 Trip Coins'} />;
   }
 
   return (

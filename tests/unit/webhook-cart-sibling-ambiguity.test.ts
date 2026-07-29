@@ -13,42 +13,33 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { createFakeFirestore, FieldValue as FakeFieldValue } from '../helpers/fake-firestore.js';
+
 const notifySpy = vi.fn(async () => ({ ok: true }));
-const logSet = vi.fn(async () => undefined);
-const bookingsSet = vi.fn(async () => undefined);
 let siblings: string[]; // bookings sharing the captureID
+// 🔴 2026-07-29: 손으로 만든 doc 목 대신 **낙관적 동시성까지 흉내내는 가짜 Firestore** 를 쓴다.
+//   환불 처리가 transaction 안으로 들어가면서 runTransaction 없는 목으로는 쓰기를 검증할 수
+//   없게 됐다. 이제 스파이 호출 여부가 아니라 **문서 내용**을 직접 확인한다(더 강한 검증).
+let db: ReturnType<typeof createFakeFirestore>;
 
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.paypal.com' }),
+  resolveIsSandbox: () => false,
 }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: (...a: any[]) => notifySpy(...a) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true })) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: FakeFieldValue }));
 
-function makeDb() {
-  return {
-    collection: (name: string) => ({
-      doc: (id: string) => ({
-        get: async () => {
-          if (name === 'paypal_webhook_log') return { exists: false, data: () => undefined };
-          if (name === 'bookings') return { exists: false, data: () => undefined }; // bookings/{captureId} 없음 → captureID 필드 매칭으로
-          return { exists: false, data: () => undefined };
-        },
-        set: (...a: any[]) => (name === 'paypal_webhook_log' ? logSet(...a) : bookingsSet(...a)),
-        update: async () => undefined,
-      }),
-      where: () => ({
-        get: async () => ({
-          size: siblings.length,
-          empty: siblings.length === 0,
-          docs: siblings.map((id) => ({ id, data: () => ({ bookingRef: id, amountKRW: 100000, captureID: 'CAP-1' }) })),
-        }),
-      }),
-    }),
-  };
+vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => db }));
+
+function seedSiblings(ids: string[]) {
+  const seed: Record<string, unknown> = {};
+  for (const id of ids) {
+    seed[`bookings/${id}`] = { bookingRef: id, amountKRW: 100000, captureID: 'CAP-1', status: 'CONFIRMED' };
+  }
+  return createFakeFirestore(seed);
 }
-vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => makeDb() }));
 
 const { default: handler } = await import('../../api/paypal-webhook.js');
 
@@ -84,7 +75,7 @@ async function fireRefund() {
 }
 
 beforeEach(() => {
-  notifySpy.mockClear(); logSet.mockClear(); bookingsSet.mockClear();
+  notifySpy.mockClear();
   process.env.PAYPAL_WEBHOOK_ID = 'wh-test';
   delete process.env.PAYPAL_SANDBOX_CLIENT_ID;
   // 서명 검증 fetch → SUCCESS
@@ -94,21 +85,37 @@ beforeEach(() => {
 describe('F6 — cart 형제 공유 captureID 는 자동 마킹 금지', () => {
   it('형제 2건 공유 → bookings 미터치 + ambiguous 로그 + 운영자 알럿 + 200', async () => {
     siblings = ['ORD__L0', 'ORD__L1'];
+    db = seedSiblings(siblings);
     const r = await fireRefund();
     expect(r.statusCode).toBe(200);
     expect(r.json.status).toBe('ambiguous');
-    expect(bookingsSet).not.toHaveBeenCalled();          // ★ 뮤테이션 실증: 임의 형제 마킹 금지
-    // ambiguous 로그가 남았는지 (paypal_webhook_log.set 에 status:'ambiguous')
-    const loggedAmbiguous = logSet.mock.calls.some((c) => c[0]?.status === 'ambiguous');
-    expect(loggedAmbiguous).toBe(true);
+    // ★ 뮤테이션 실증: 임의 형제를 환불처리하지 않는다.
+    for (const id of siblings) {
+      expect(db.__get(`bookings/${id}`)!.status).toBe('CONFIRMED');
+      expect(db.__get(`bookings/${id}`)!.refundedUSDTotal).toBeUndefined();
+    }
+    expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('ambiguous');
     expect(notifySpy).toHaveBeenCalled();                // 운영자 알럿
   });
 
-  it('단건(형제 1) → 기존대로 REFUNDED 기록 (회귀 없음)', async () => {
+  it('단건(형제 1) → 기존대로 환불 기록 (회귀 없음)', async () => {
     siblings = ['ORD-SINGLE'];
+    db = seedSiblings(siblings);
     const r = await fireRefund();
     expect(r.statusCode).toBe(200);
     expect(r.json.status).not.toBe('ambiguous');
-    expect(bookingsSet).toHaveBeenCalled();              // 정상 마킹
+    const doc = db.__get('bookings/ORD-SINGLE')!;
+    expect(doc.refundedUSDTotal).toBe(50);
+    // 원결제 ₩100,000 중 $50(≈₩71,500) → 부분환불.
+    expect(doc.status).toBe('PARTIALLY_REFUNDED');
+    expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+  });
+
+  it('같은 환불 이벤트를 다시 받아도 누계가 늘지 않는다', async () => {
+    siblings = ['ORD-SINGLE'];
+    db = seedSiblings(siblings);
+    await fireRefund();
+    await fireRefund();
+    expect(db.__get('bookings/ORD-SINGLE')!.refundedUSDTotal).toBe(50);
   });
 });

@@ -5,6 +5,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { Header } from '@/sections/Header';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 interface Bucket { usd: number; count: number }
 interface DailyEntry { date: string; usd: number; count: number }
@@ -207,6 +208,8 @@ function RecentBookingsTable({ recent }: { recent: RecentEntry[] }) {
 }
 
 export default function AdminSales() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 같아 탭 구분이 안 됐다.
+  usePageMeta({ title: '매출 (관리자)', description: 'Sales KPIs and daily revenue.' });
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [data, setData] = useState<SalesResponse | null>(null);

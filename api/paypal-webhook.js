@@ -37,8 +37,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { notify } from './_shared/notify.js';
-import { getPaypalAccessToken } from './_shared/paypal.js';
+import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
+import {
+  applyRefundEvent, applyRefundStatusEvent, fetchAuthoritativeCaptureStatus, checkEnvironmentsMatch,
+} from './_shared/refund-ledger.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
 // PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
@@ -79,8 +82,28 @@ async function readRawBody(req) {
   });
 }
 
+/**
+ * 서명 검증 결과 3분류 (2026-07-29).
+ *
+ * 🔴 이전에는 셋을 전부 "검증 실패" 로 뭉쳐 200 ack 했다. 그래서 **PayPal 검증 API 가
+ *   429/5xx 로 잠깐 죽으면** 그 사이 들어온 결제·환불 이벤트가 전부 조용히 버려졌다.
+ *   PayPal 은 200 을 받으면 재전송하지 않는다 = 영구 유실.
+ *
+ *   bad_request  본문/헤더 자체가 잘못됨 → 재전송해도 같다. 200 ack.
+ *   rejected     PayPal 이 FAILURE 라고 답함 → 결정적. 200 ack (재시도 storm 차단).
+ *   transient    검증 API 429/5xx·네트워크 장애 → **판단 불가**. 5xx 로 재전송 유도.
+ */
+const VERIFY = { OK: 'ok', BAD_REQUEST: 'bad_request', REJECTED: 'rejected', TRANSIENT: 'transient' };
+
 async function verifyWebhookSignature({ headers, bodyString, webhookId, isSandbox }) {
-  const { accessToken, baseUrl } = await getPaypalAccessToken(isSandbox);
+  let accessToken;
+  let baseUrl;
+  try {
+    ({ accessToken, baseUrl } = await getPaypalAccessToken(isSandbox));
+  } catch (e) {
+    // 토큰 발급 실패 = PayPal 쪽 일시 장애. 서명이 틀렸다는 뜻이 아니다.
+    return { verified: false, kind: VERIFY.TRANSIENT, reason: `token_fetch_failed: ${e.message}` };
+  }
 
   // PayPal 은 webhook_event 필드를 객체로 받음 — 본문을 그대로 파싱해서 전달.
   // (raw string 이 아니라 JSON 인 점이 가장 자주 헷갈리는 부분)
@@ -88,7 +111,7 @@ async function verifyWebhookSignature({ headers, bodyString, webhookId, isSandbo
   try {
     webhookEvent = JSON.parse(bodyString);
   } catch {
-    return { verified: false, reason: 'invalid_json' };
+    return { verified: false, kind: VERIFY.BAD_REQUEST, reason: 'invalid_json' };
   }
 
   const verifyPayload = {
@@ -104,25 +127,48 @@ async function verifyWebhookSignature({ headers, bodyString, webhookId, isSandbo
   // 누락 헤더 = signature 위변조 가능성. 즉시 거부.
   for (const [k, v] of Object.entries(verifyPayload)) {
     if (k === 'webhook_event') continue;
-    if (!v) return { verified: false, reason: `missing_header:${k}`, webhookEvent };
+    if (!v) return { verified: false, kind: VERIFY.BAD_REQUEST, reason: `missing_header:${k}`, webhookEvent };
   }
 
-  const res = await fetch(`${baseUrl}/v1/notifications/verify-webhook-signature`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(verifyPayload),
-  });
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/v1/notifications/verify-webhook-signature`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(verifyPayload),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    // 네트워크 장애·타임아웃 — 서명이 틀렸는지 알 수 없다.
+    return { verified: false, kind: VERIFY.TRANSIENT, reason: `verify_api_network: ${e.message}`, webhookEvent };
+  }
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
-    return { verified: false, reason: `verify_api_${res.status}`, debug: txt, webhookEvent };
+    // 429/5xx = PayPal 쪽 일시 장애. 4xx 는 우리 요청이 잘못된 것(재전송해도 같다).
+    const transient = res.status === 429 || res.status >= 500;
+    return {
+      verified: false,
+      kind: transient ? VERIFY.TRANSIENT : VERIFY.BAD_REQUEST,
+      reason: `verify_api_${res.status}`, debug: txt, webhookEvent,
+    };
   }
-  const data = await res.json().catch(() => ({}));
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    return { verified: false, kind: VERIFY.TRANSIENT, reason: `verify_api_bad_json: ${e.message}`, webhookEvent };
+  }
+  if (data && data.verification_status === 'SUCCESS') {
+    return { verified: true, kind: VERIFY.OK, reason: 'SUCCESS', webhookEvent };
+  }
   return {
-    verified: data.verification_status === 'SUCCESS',
-    reason: data.verification_status || 'unknown',
+    verified: false,
+    // 응답은 왔는데 SUCCESS 가 아니다 = PayPal 이 명시적으로 거절. 결정적이다.
+    kind: data && data.verification_status ? VERIFY.REJECTED : VERIFY.TRANSIENT,
+    reason: (data && data.verification_status) || 'unknown_verify_response',
     webhookEvent,
   };
 }
@@ -181,12 +227,32 @@ function extractPaypalOrderId(event) {
       || null;
 }
 
-async function logWebhookEvent({ db, eventId, eventType, status, detail }) {
+function webhookLogPayload({ eventId, eventType, status, detail, environment }) {
+  return {
+    eventId,
+    eventType: eventType || 'unknown',
+    status,
+    paypalEnvironment: environment || 'unverified',
+    detail: detail || null,
+    receivedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * 진단용 로그 — 실패를 삼킨다.
+ * ⚠️ **처리 완료(processed)를 남기는 경로에는 쓰지 말 것.** 로그가 조용히 실패하면
+ *   "상태는 바뀌었는데 processed 는 없음" 또는 그 반대가 되어 재전송 때 이중 반영된다.
+ *   그런 경로는 transaction 안에서 함께 쓰거나 logWebhookEventStrict 를 쓴다.
+ */
+async function logWebhookEvent({ db, eventId, eventType, status, detail, environment }) {
   try {
     await db.collection('paypal_webhook_log').doc(eventId).set({
       eventId,
       eventType: eventType || 'unknown',
-      status, // 'processed' | 'duplicate' | 'unmatched' | 'unsupported' | 'verify_failed' | 'error'
+      status, // 'processed' | 'duplicate' | 'unmatched' | 'unsupported' | 'verify_failed' | 'error' | 'environment_mismatch'
+      // 🔴 2026-07-29: 어느 PayPal 환경에서 **검증에 통과한** 이벤트인지. 사후 대사·격리 판정 근거.
+      //   서명 검증 전 단계에서 남기는 로그는 'unverified'.
+      paypalEnvironment: environment || 'unverified',
       detail: detail || null,
       receivedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -195,8 +261,78 @@ async function logWebhookEvent({ db, eventId, eventType, status, detail }) {
   }
 }
 
+/** 실패를 던지는 버전 — 호출부가 5xx 로 응답해 PayPal 재전송을 받아야 하는 경로용. */
+async function logWebhookEventStrict({ db, eventId, eventType, status, detail, environment }) {
+  await db.collection('paypal_webhook_log').doc(eventId).set(
+    webhookLogPayload({ eventId, eventType, status, detail, environment }),
+    { merge: true },
+  );
+}
+
 async function alertAdmin(text) {
   try { await notify('admin', text); } catch {}
+}
+
+/**
+ * 🔴 2026-07-29 — 상태를 바꾸는 **모든** 웹훅 경로 앞에 세우는 환경 검사.
+ *
+ * 이전에는 환불 원장에만 있었다. 그래서 CAPTURE.COMPLETED(예약 확정)나
+ * REFUND.FAILED(상태 되돌리기)는 환경을 넘나들며 그대로 통과했다.
+ *
+ * bookings 와 pending_bookings 의 환경값을 **함께** 본다(한쪽만 골라 비교하면
+ * 어느 쪽을 고르냐로 판정이 갈린다). 하나라도 반대 환경이면 데이터를 건드리지 않는다.
+ *
+ * 🔴 결과를 셋으로 나눈다. store_unavailable 을 environment_mismatch 로 바꿔 200 을 주면
+ *   일시적 Firestore 장애가 "격리 완료" 로 둔갑해 PayPal 이 재전송하지 않는다 = 이벤트 유실.
+ *
+ * @returns {Promise<{ok: boolean, status: string, bookingEnvironment?: string|null, error?: string}>}
+ */
+const ENV_GUARD = {
+  MATCHED: 'matched',
+  MISMATCH: 'environment_mismatch',
+  STORE_UNAVAILABLE: 'store_unavailable',
+};
+
+async function guardWebhookEnvironment({ db, eventId, eventType, environment, bookingRef, bookingsDocId, captureId }) {
+  const envs = [];
+  try {
+    if (bookingsDocId) {
+      const s = await db.collection('bookings').doc(bookingsDocId).get();
+      if (s.exists) envs.push((s.data() || {}).paypalEnvironment);
+    }
+    if (bookingRef) {
+      const p = await db.collection('pending_bookings').doc(bookingRef).get();
+      if (p.exists) envs.push((p.data() || {}).paypalEnvironment);
+    }
+  } catch (e) {
+    // 🔴 조회 실패는 **환경 불일치가 아니다**. 둘을 합치면 일시적 Firestore 장애가
+    //   "격리 완료 + 200" 으로 둔갑해 PayPal 이 재전송하지 않는다 = 이벤트 영구 유실.
+    console.error('[paypal-webhook] 환경 확인 조회 실패 — 재전송 유도:', e.message);
+    return { ok: false, status: ENV_GUARD.STORE_UNAVAILABLE, error: e.message };
+  }
+  const verdict = checkEnvironmentsMatch(envs, environment);
+  if (verdict.ok) return { ok: true, status: ENV_GUARD.MATCHED };
+
+  await logWebhookEvent({
+    db, environment, eventId, eventType,
+    status: 'environment_mismatch',
+    detail: {
+      reason: 'webhook_environment_differs_from_booking',
+      bookingEnvironment: verdict.bookingEnvironment,
+      bookingRef: bookingRef || null,
+      bookingsDocId: bookingsDocId || null,
+      captureId: captureId || null,
+    },
+  });
+  await alertAdmin(`🚨 <b>웹훅 환경 불일치 — 격리</b>\n\n이벤트: ${eventType}\n웹훅: ${environment}\n예약: ${verdict.bookingEnvironment || '표시없음'}\n예약번호: <code>${bookingRef || bookingsDocId || '-'}</code>\n→ 데이터를 갱신하지 않았습니다.`);
+  return { ok: false, status: ENV_GUARD.MISMATCH, bookingEnvironment: verdict.bookingEnvironment };
+}
+
+/** 일시 장애 공통 5xx 응답 — PayPal 이 재전송하게 한다(200 으로 삼키면 영구 유실). */
+function respondRetryable(res, reason, detail) {
+  console.error(`[paypal-webhook] 일시 장애로 재전송 유도: ${reason}`, detail || '');
+  res.writeHead(503, JSON_HEADERS);
+  return res.end(JSON.stringify({ ok: false, status: 'retryable', reason }));
 }
 
 /**
@@ -262,26 +398,41 @@ export default async function handler(req, res) {
   const eventId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id'] || `noheader-${Date.now()}`;
 
   try {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-    if (!webhookId) {
-      // 운영자가 PAYPAL_WEBHOOK_ID 미등록 — 모든 webhook 거부 (signature 검증 불가)
-      console.error('[paypal-webhook] PAYPAL_WEBHOOK_ID not configured — rejecting');
-      await alertAdmin('🚨 <b>PayPal Webhook 미구성</b>\n\nPAYPAL_WEBHOOK_ID env 누락. PayPal Developer Dashboard 에서 webhook 등록 후 Vercel env 추가 필요.');
+    // 🔴 2026-07-29 (단일 환경 검증): 이 배포는 **한 환경만** 받는다.
+    //   Preview+PAYPAL_ENV=sandbox → sandbox Webhook ID + sandbox API 로만 1회 검증
+    //   그 외(운영 포함)          → live Webhook ID + live API 로만 1회 검증
+    //   양방향 폴백을 완전히 제거했다. 이전에는 프리뷰 샌드박스 배포도 live 서명을 먼저
+    //   검증해 **성공하면 live 이벤트를 그대로 처리**했다 — 한쪽만 막힌 반쪽 차단이었다.
+    const isSandboxDeploy = resolveIsSandbox();
+    const activeWebhookId = isSandboxDeploy
+      ? (process.env.PAYPAL_SANDBOX_WEBHOOK_ID || '').trim()
+      : (process.env.PAYPAL_WEBHOOK_ID || '').trim();
+    if (!activeWebhookId) {
+      // 이 환경에 맞는 Webhook ID 가 없다 → 검증 불가. 다른 환경 ID 로 대신하지 않는다.
+      const missingKey = isSandboxDeploy ? 'PAYPAL_SANDBOX_WEBHOOK_ID' : 'PAYPAL_WEBHOOK_ID';
+      console.error(`[paypal-webhook] ${missingKey} not configured — rejecting`);
+      await alertAdmin(`🚨 <b>PayPal Webhook 미구성</b>\n\n${missingKey} env 누락 (${isSandboxDeploy ? 'sandbox' : 'live'} 배포).\n→ 다른 환경의 Webhook ID 로 대체하지 않습니다.`);
       res.writeHead(503, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'webhook not configured' }));
     }
 
     const adminDb = initAdminDb('paypal-webhook');
     if (!adminDb) {
-      console.error('[paypal-webhook] Firestore unavailable');
-      // 200 으로 응답해서 PayPal 재시도 부담 줄이고, sentry 로 운영자 알림
-      res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: 'firestore unavailable' }));
+      // 🔴 2026-07-29: 이전엔 200 이었다. Firestore 가 잠깐 죽은 사이 들어온 결제·환불
+      //   이벤트가 전부 조용히 버려졌다(PayPal 은 200 을 받으면 재전송하지 않는다).
+      //   저장소 불능은 "처리했다" 가 아니라 "아직 못 했다" 다 → 503 으로 재전송을 받는다.
+      return respondRetryable(res, 'firestore_unavailable');
     }
 
     // 멱등 — 같은 transmission-id 재시도면 처리 스킵
     const logRef = adminDb.collection('paypal_webhook_log').doc(eventId);
-    const existing = await logRef.get();
+    let existing;
+    try {
+      existing = await logRef.get();
+    } catch (e) {
+      // 멱등 확인을 못 하면 이중 반영 위험이 있다 → 처리하지 않고 재전송을 받는다.
+      return respondRetryable(res, 'webhook_log_read_failed', e.message);
+    }
     if (existing.exists && existing.data()?.status === 'processed') {
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: true, idempotent: true }));
@@ -290,27 +441,32 @@ export default async function handler(req, res) {
     // raw body 읽기
     const bodyString = await readRawBody(req);
 
-    // signature 검증 — sandbox / live 양쪽 시도 (PayPal 은 sandbox/live 가 다른 API 베이스)
-    let verifyResult = await verifyWebhookSignature({
-      headers, bodyString, webhookId, isSandbox: false,
+    // ── signature 검증 — **정확히 1회, 이 배포의 환경으로만** ───────────
+    //   폴백이 없다. 다른 환경의 Webhook ID 는 요청 본문에 들어가지 않는다.
+    //   verifiedEnvironment 기본값은 'unverified' — 서명이 실제로 통과해야 환경이 확정된다.
+    let verifiedEnvironment = 'unverified';
+    const verifyResult = await verifyWebhookSignature({
+      headers, bodyString, webhookId: activeWebhookId, isSandbox: isSandboxDeploy,
     });
-    if (!verifyResult.verified && process.env.PAYPAL_SANDBOX_CLIENT_ID) {
-      // live 검증 실패 + sandbox 자격 있음 → sandbox 로 한 번 더 (테스트 webhook).
-      // 🔴 (2026-07-16) sandbox 웹훅은 **자기만의 Webhook ID** 를 갖는다(대시보드 별도 등록).
-      //   live ID 로 sandbox verify 를 치면 무조건 FAILURE → 샌드박스 이벤트 전부 폐기
-      //   = 샌드박스 e2e(eCheck PENDING→FAILED 관찰) 원천 불가. 미설정 시 기존 폴백 유지.
-      const sandboxResult = await verifyWebhookSignature({
-        headers, bodyString,
-        webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || webhookId,
-        isSandbox: true,
-      });
-      if (sandboxResult.verified) verifyResult = sandboxResult;
+    if (verifyResult.verified) {
+      verifiedEnvironment = isSandboxDeploy ? 'sandbox' : 'live';
     }
 
     if (!verifyResult.verified) {
+      // 🔴 검증 API 자체가 죽은 경우(429/5xx/네트워크)를 "서명 실패" 로 분류해 버리면 안 된다.
+      //   결정적 실패가 아니므로 5xx 로 재전송을 받는다.
+      if (verifyResult.kind === VERIFY.TRANSIENT) {
+        await logWebhookEvent({
+          db: adminDb, environment: 'unverified', eventId,
+          eventType: verifyResult.webhookEvent?.event_type,
+          status: 'verify_unavailable',
+          detail: { reason: verifyResult.reason },
+        });
+        return respondRetryable(res, 'paypal_verify_api_unavailable', verifyResult.reason);
+      }
       console.error('[paypal-webhook] signature verification failed:', verifyResult.reason);
       await logWebhookEvent({
-        db: adminDb, eventId,
+        db: adminDb, environment: verifiedEnvironment, eventId,
         eventType: verifyResult.webhookEvent?.event_type,
         status: 'verify_failed',
         detail: { reason: verifyResult.reason },
@@ -366,15 +522,35 @@ export default async function handler(req, res) {
           const directBookingDoc = await adminDb.collection('bookings').doc(paypalOrderId).get();
           if (directBookingDoc.exists) {
             const directData = directBookingDoc.data() || {};
-            await logWebhookEvent({
-              db: adminDb, eventId, eventType,
-              status: 'processed',
-              detail: {
-                reason: 'already_confirmed_via_capture_endpoint',
-                bookingRef: directData.bookingRef || paypalOrderId,
-                paypalOrderId, paypalTxId, amountUSD, currency,
-              },
+            const envOk = await guardWebhookEnvironment({
+              db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+              bookingsDocId: paypalOrderId, bookingRef: directData.bookingRef || null,
+              captureId: paypalTxId,
             });
+            if (!envOk.ok) {
+              if (envOk.status === ENV_GUARD.STORE_UNAVAILABLE) {
+                return respondRetryable(res, 'environment_check_unavailable', envOk.error);
+              }
+              res.writeHead(200, JSON_HEADERS);
+              return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
+            }
+            // 🔴 2026-07-29: 이 경로도 processed 기록을 삼키지 않는다.
+            //   로그가 조용히 실패하면 PayPal 재전송 때 멱등 확인이 헛돌아 매번 다시 처리된다.
+            //   재전송은 안전하다 — 예약은 capture endpoint 가 이미 CONFIRMED 로 저장했고
+            //   이 분기는 **읽기만** 한다(확정·적립·메일 없음). 그래서 processed 로그만 수렴한다.
+            try {
+              await logWebhookEventStrict({
+                db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+                status: 'processed',
+                detail: {
+                  reason: 'already_confirmed_via_capture_endpoint',
+                  bookingRef: directData.bookingRef || paypalOrderId,
+                  paypalOrderId, paypalTxId, amountUSD, currency,
+                },
+              });
+            } catch (e) {
+              return respondRetryable(res, 'processed_log_write_failed', e.message);
+            }
             console.log('[paypal-webhook] PayPal-direct capture ack (no alert):', paypalOrderId);
             res.writeHead(200, JSON_HEADERS);
             return res.end(JSON.stringify({ ok: true, status: 'already_confirmed' }));
@@ -382,7 +558,7 @@ export default async function handler(req, res) {
         }
         console.warn('[paypal-webhook] no bookingRef in memo — manual review:', eventId);
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'no_booking_ref', amountUSD, currency, paypalTxId, paypalOrderId },
         });
@@ -401,7 +577,7 @@ export default async function handler(req, res) {
       const pendingSnap = await adminDb.collection('pending_bookings').doc(bookingRef).get();
       if (!pendingSnap.exists) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'pending_not_found', bookingRef, amountUSD, paypalTxId },
         });
@@ -432,7 +608,7 @@ export default async function handler(req, res) {
       const expectedUSD = parseFloat(pending.priceUSD || (Number(pending.priceKRW || 0) / fallbackUsdToKrw));
       if (expectedUSD > 0 && Math.abs(amountUSD - expectedUSD) / expectedUSD > tolerance) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: {
             reason: 'amount_mismatch',
@@ -453,6 +629,19 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ok: true, status: 'amount_mismatch' }));
       }
 
+      // 🔴 상태를 바꾸기 직전 환경 검사 — 환경이 어긋나면 확정하지 않는다.
+      const confirmEnvOk = await guardWebhookEnvironment({
+        db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+        bookingRef, bookingsDocId: null, captureId: paypalTxId,
+      });
+      if (!confirmEnvOk.ok) {
+        if (confirmEnvOk.status === ENV_GUARD.STORE_UNAVAILABLE) {
+          return respondRetryable(res, 'environment_check_unavailable', confirmEnvOk.error);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
+      }
+
       // 자동 confirm
       const result = await confirmBookingAsPaid({
         db: adminDb,
@@ -462,25 +651,33 @@ export default async function handler(req, res) {
       });
       if (!result.ok) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
-          status: 'error',
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+          status: 'confirm_failed',
           detail: { reason: result.code, error: result.error, bookingRef, paypalTxId },
         });
-        await alertAdmin(`🚨 <b>PayPal Webhook confirm 실패</b>\n\n예약: ${bookingRef}\n사유: ${result.error}`);
-        res.writeHead(200, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, error: result.error }));
+        await alertAdmin(`🚨 <b>PayPal Webhook confirm 실패 (재전송 대기)</b>\n\n예약: ${bookingRef}\n사유: ${result.error}`);
+        // 🔴 2026-07-29: 이전엔 200 이었다. 예약 확정 저장이 실패했는데 PayPal 이 재전송하지
+        //   않으면 **결제는 됐고 예약은 확정 안 된 상태**가 영구히 남는다.
+        return respondRetryable(res, 'confirm_booking_failed', result.error);
       }
 
-      await logWebhookEvent({
-        db: adminDb, eventId, eventType,
-        status: 'processed',
-        detail: {
-          bookingRef, paypalTxId,
-          bookingId: result.bookingId,
-          amountUSD,
-          alreadyConfirmed: !!result.alreadyConfirmed,
-        },
-      });
+      // 🔴 확정은 됐는데 processed 기록이 실패하면 재전송 때 다시 확정을 시도한다.
+      //   confirmBookingAsPaid 는 이미 CONFIRMED 면 부수효과를 스킵하므로 재실행이 안전하다.
+      //   → 로그 실패를 조용히 삼키지 않고 5xx 로 재전송을 받는다.
+      try {
+        await logWebhookEventStrict({
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+          status: 'processed',
+          detail: {
+            bookingRef, paypalTxId,
+            bookingId: result.bookingId,
+            amountUSD,
+            alreadyConfirmed: !!result.alreadyConfirmed,
+          },
+        });
+      } catch (e) {
+        return respondRetryable(res, 'processed_log_write_failed', e.message);
+      }
 
       console.log('[paypal-webhook] auto-confirmed:', bookingRef, '→', result.bookingId);
       res.writeHead(200, JSON_HEADERS);
@@ -494,7 +691,7 @@ export default async function handler(req, res) {
 
       if (!captureId) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'no_capture_id_in_links' },
         });
@@ -510,15 +707,19 @@ export default async function handler(req, res) {
       // Capture the actual bookings doc ID (could be captureId OR orderID) so
       // the subsequent update writes to the RIGHT doc rather than creating an
       // orphan at bookings/{captureId} (the Y-H7 silent bug).
+      // 🔴 2026-07-29 (원자화): 여기서는 **어느 문서인지** 만 찾는다.
+      //   금액(원결제·이미 환불된 누계)은 transaction 안에서 다시 읽는다 —
+      //   여기서 읽어 두면 읽기와 쓰기 사이에 다른 환불이 끼어들어 누계가 유실된다.
+      //   capturedExchangeRate 만 예외: 표시용 KRW 환산에만 쓰고 판정에는 안 쓴다.
       let bookingsDocId = null;
       let bookingRef = null;
-      let priceKRW = 0;
+      let capturedRate = 0;
 
       let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
       if (bookingDoc.exists) {
         bookingsDocId = captureId;
         bookingRef = bookingDoc.data().bookingRef || captureId;
-        priceKRW = bookingDoc.data().amountKRW || 0;
+        capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
       } else {
         // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
         // 🔴 F6 (2026-07-16): .limit(1) 제거. cart 형제 예약 N개가 하나의 captureID 를 공유하므로
@@ -531,7 +732,7 @@ export default async function handler(req, res) {
           .get();
         if (captureFieldMatch.size > 1) {
           await logWebhookEvent({
-            db: adminDb, eventId, eventType,
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
             detail: {
               reason: 'captureID_shared_by_cart_siblings',
@@ -548,7 +749,7 @@ export default async function handler(req, res) {
           bookingDoc = captureFieldMatch.docs[0];
           bookingsDocId = bookingDoc.id;
           bookingRef = bookingDoc.data().bookingRef || bookingDoc.id;
-          priceKRW = bookingDoc.data().amountKRW || 0;
+          capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
         } else {
           // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
           const pendingMatch = await adminDb.collection('pending_bookings')
@@ -556,7 +757,6 @@ export default async function handler(req, res) {
             .limit(1).get();
           if (!pendingMatch.empty) {
             bookingRef = pendingMatch.docs[0].id;
-            priceKRW = pendingMatch.docs[0].data().priceKRW || 0;
             // bookingsDocId stays null — pending_bookings update only.
           }
         }
@@ -564,7 +764,7 @@ export default async function handler(req, res) {
 
       if (!bookingRef) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'capture_not_in_bookings', captureId },
         });
@@ -573,65 +773,102 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ok: true, status: 'unmatched' }));
       }
 
-      // 환불 처리 — KRW 환산 (priceUSD 가 있다면 비례, 없으면 USD*환율)
-      // PR #431 (Audit Y-H6): 1380 → 1430 default + env precedence aligned
-      // with capturePaypalOrder.js so refund KRW figures match what was
-      // originally charged.
-      const usdToKrw = Number(process.env.KRW_USD_RATE)
+      // 🔴 2026-07-29 (#4): 표시용 KRW 환산은 **원결제 당시 환율**로 한다.
+      //   이전에는 지금 시점의 env 환율(없으면 1430)로 환산했다. 결제 환율과 다르면
+      //   같은 금액이 다른 KRW 로 찍히고, 아래 부분/전액 판정까지 뒤집혔다.
+      //   capturedExchangeRate 가 없는 레거시 문서만 env/기본값으로 폴백한다.
+      const usdToKrw = capturedRate
+        || Number(process.env.KRW_USD_RATE)
         || Number(process.env.VITE_USD_KRW_RATE)
         || 1430;
       const refundedKRW = Math.round(refundedUSD * usdToKrw);
-      // 🟡 부분/전체 판별: 이번 환불액이 원결제 KRW 보다 (1% 이상) 작으면 부분환불 →
-      //   status='REFUNDED'(전액) 로 오기록하지 않고 'PARTIALLY_REFUNDED' 로 기록.
-      //   (이전엔 부분환불도 무조건 REFUNDED → 운영자/고객 화면에 전액환불로 오표시.)
-      //   ⚠️ refundedKRW 누적(increment) 은 도입 안 함: admin mark-refunded 가
-      //   refundPaypalCapture 로 PayPal 환불을 트리거하면 이 webhook 도 같은 환불로 발사되어
-      //   admin set + webhook increment 이중합산 위험. 이번 이벤트 금액(set) 유지가 안전.
-      const isPartialRefund = priceKRW > 0 && refundedKRW < Math.round(priceKRW * 0.99);
+      // 🔴 2026-07-29 (원자화): 판정·누적·두 저장소 갱신·이벤트 완료 기록을
+      //   **하나의 transaction** 으로 묶는다. 자세한 이유는 _shared/refund-ledger.js 머리말.
+      //   여기서는 transaction 밖에서만 해도 되는 것(권위 상태 조회)만 미리 한다.
+      //
+      //   부분/전액 판정에서 환율을 쓰지 않는 이유: PayPal 은 USD 로 결제·환불한다.
+      //     ₩13,300 을 환율 1,468 로 $9.06 청구 → 전액 환불 $9.06 을 env 1,430 으로
+      //     환산하면 ₩12,956 < ₩13,167(99%) → 전액인데 부분으로 오기록.
+      //   누적으로 판정하는 이유: $5 + $4.90 처럼 나눠 전액을 돌려주면, 이번 이벤트
+      //     금액만 보고는 영원히 PARTIALLY_REFUNDED 로 남는다.
+      const refundId = event?.resource?.id || null;
 
-      const updates = {
-        status: isPartialRefund ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
-        refundedKRW,
-        refundReason: 'PayPal webhook auto-refund',
-        refundedAt: FieldValue.serverTimestamp(),
-        refundedBySource: 'webhook',
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      // pending_bookings 업데이트 (없을 수도 있음 — bookings only 케이스)
-      try {
-        await adminDb.collection('pending_bookings').doc(bookingRef).update(updates);
-      } catch (e) {
-        console.warn('[paypal-webhook] pending_bookings update skipped:', e.message);
-      }
-      // bookings doc 업데이트 — PR #438: use the actual doc ID we matched on
-      // (captureId for legacy shape, orderID for PayPal-direct). Skip when we
-      // matched via pending_bookings only (no bookings mirror exists yet).
-      if (bookingsDocId) {
-        try {
-          await adminDb.collection('bookings').doc(bookingsDocId).set(updates, { merge: true });
-        } catch (e) {
-          console.warn('[paypal-webhook] bookings update failed:', e.message);
-        }
-      }
-
-      await logWebhookEvent({
-        db: adminDb, eventId, eventType,
-        status: 'processed',
-        detail: { bookingRef, captureId, refundedUSD, refundedKRW },
+      // PayPal 이 아는 capture 상태가 최종 진실이다(우리 누계는 이벤트 유실에 취약).
+      // 실패하면 null → 누적 계산으로 판정한다. 조회 실패로 환불 기록이 멈추면 안 된다.
+      const authoritativeCaptureStatus = await fetchAuthoritativeCaptureStatus(captureId, {
+        getPaypalAccessToken,
+        isSandbox: resolveIsSandbox(),
       });
+
+      let refundOutcome;
+      try {
+        refundOutcome = await applyRefundEvent({
+          db: adminDb,
+          FieldValue,
+          eventId,
+          eventType,
+          refundId,
+          captureId,
+          refundedUSD,
+          refundedKRW,
+          usdToKrw,
+          bookingsDocId,
+          bookingRef,
+          authoritativeCaptureStatus,
+          // 🔴 검증에 실제로 통과한 PayPal 환경. 예약 문서의 환경과 다르면 원장이 격리한다.
+          webhookEnvironment: verifiedEnvironment,
+        });
+      } catch (e) {
+        // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
+        console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
+        captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
+        await logWebhookEvent({
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+          status: 'retryable_error',
+          detail: { reason: e.message, captureId, refundId },
+        });
+        await alertAdmin(`🚨 <b>환불 웹훅 처리 실패 (재시도 대기)</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n사유: ${e.message}`);
+        res.writeHead(503, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, status: 'retryable', error: 'refund ledger unavailable' }));
+      }
+
+      if (!refundOutcome.applied) {
+        if (refundOutcome.reason === 'environment_mismatch') {
+          // 샌드박스 웹훅이 운영 예약을(또는 그 반대) 건드리려 한 것. 데이터는 손대지 않았다.
+          console.error('[paypal-webhook] 환경 불일치로 격리:', verifiedEnvironment, '→', refundOutcome.bookingEnvironment);
+          await alertAdmin(`🚨 <b>환불 웹훅 환경 불일치 — 격리</b>\n\n웹훅: ${verifiedEnvironment}\n예약: ${refundOutcome.bookingEnvironment || '표시없음'}\nCapture: <code>${captureId}</code>\n→ 데이터를 갱신하지 않았습니다.`);
+        }
+        if (refundOutcome.reason === 'unmatched') {
+          await logWebhookEvent({
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+            status: 'unmatched',
+            detail: { reason: 'booking_docs_missing', captureId, refundId },
+          });
+          await alertAdmin(`⚠️ <b>PayPal 환불 webhook — booking 미매칭</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}`);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: refundOutcome.reason, bookingRef }));
+      }
 
       const telText = [
         '💸 <b>환불 자동 처리 (PayPal Webhook)</b>',
         '',
         `<b>예약번호:</b> <code>${bookingRef}</code>`,
-        `<b>환불액:</b> $${refundedUSD} (≈ ₩${refundedKRW.toLocaleString('ko-KR')})`,
+        `<b>이번 환불:</b> $${refundedUSD} (≈ ₩${refundedKRW.toLocaleString('ko-KR')})`,
+        `<b>누적 환불:</b> $${refundOutcome.cumulativeRefundedUSD}`,
+        `<b>상태:</b> ${refundOutcome.status}`,
         `<b>Capture:</b> <code>${captureId}</code>`,
       ].join('\n');
       notify('booking', telText).catch(() => {});
 
       res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, status: 'refunded', bookingRef }));
+      return res.end(JSON.stringify({
+        ok: true,
+        status: 'refunded',
+        bookingRef,
+        bookingStatus: refundOutcome.status,
+        cumulativeRefundedUSD: refundOutcome.cumulativeRefundedUSD,
+      }));
     }
 
     // ─── PAYMENT.REFUND.FAILED / PAYMENT.REFUND.PENDING ─────────────
@@ -657,7 +894,7 @@ export default async function handler(req, res) {
         const byCapture = await adminDb.collection('bookings').where('captureID', '==', captureId).get();
         if (byCapture.size > 1) {
           await logWebhookEvent({
-            db: adminDb, eventId, eventType,
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
             detail: { reason: 'captureID_shared_by_cart_siblings', refundId, captureId, candidates: byCapture.docs.map((d) => d.id) },
           });
@@ -670,7 +907,7 @@ export default async function handler(req, res) {
 
       if (!matched) {
         await logWebhookEvent({
-          db: adminDb, eventId, eventType,
+          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
           detail: { reason: 'refund_not_in_bookings', refundId, captureId },
         });
@@ -680,46 +917,61 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ok: true, status: 'unmatched' }));
       }
 
-      if (!isFailed) {
+      // 🔴 상태를 바꾸기 직전 환경 검사 — PENDING 기록도 FAILED 되돌리기도 상태 변경이다.
+      const refundEnvOk = await guardWebhookEnvironment({
+        db: adminDb, eventId, eventType, environment: verifiedEnvironment,
+        bookingsDocId: matched.id, bookingRef: matched.data().bookingRef || null, captureId,
+      });
+      if (!refundEnvOk.ok) {
+        if (refundEnvOk.status === ENV_GUARD.STORE_UNAVAILABLE) {
+          return respondRetryable(res, 'environment_check_unavailable', refundEnvOk.error);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: 'environment_mismatch' }));
+      }
+
+      // 🔴 2026-07-29: 예약 2벌 + processed 기록을 **하나의 transaction** 으로 묶는다.
+      //   이전에는 저장 실패를 catch 로 숨기고 processed 만 남겼다 → 돈이 안 갔는데
+      //   예약은 그대로고 PayPal 재전송까지 차단돼 영구히 은폐됐다.
+      const failBookingRef = matched.data().bookingRef || matched.id;
+      const statusUpdates = isFailed
+        // FAILED — 돈이 고객에게 안 갔다. 종단 상태를 되돌려 은폐를 끊고 운영자를 부른다.
+        //   자동 재환불은 하지 않는다(운영자가 원인 확인 후 수동 — 재시도 폭주 방지).
+        ? {
+          status: 'REFUND_FAILED',
+          refundStatus: 'FAILED',
+          refundFailedAt: FieldValue.serverTimestamp(),
+          refundFailedSource: 'webhook',
+          updatedAt: FieldValue.serverTimestamp(),
+        }
         // PENDING = 관측 기록만. 종단 status 는 건드리지 않는다 (정상 eCheck 흐름일 수 있음 —
         //   완료되면 PAYMENT.CAPTURE.REFUNDED 가 온다).
-        try {
-          await adminDb.collection('bookings').doc(matched.id).set({
-            refundStatus: 'PENDING', updatedAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
-        } catch (e) { console.warn('[paypal-webhook] refund-pending mark failed:', e.message); }
-        await logWebhookEvent({
-          db: adminDb, eventId, eventType,
-          status: 'processed',
-          detail: { bookingsDocId: matched.id, refundId, captureId, refundStatus: 'PENDING' },
+        : { refundStatus: 'PENDING', updatedAt: FieldValue.serverTimestamp() };
+
+      let statusOutcome;
+      try {
+        statusOutcome = await applyRefundStatusEvent({
+          db: adminDb, FieldValue, eventId, eventType,
+          bookingsDocId: matched.id, bookingRef: failBookingRef,
+          refundId, captureId, updates: statusUpdates,
+          webhookEnvironment: verifiedEnvironment,
         });
+      } catch (e) {
+        captureError(e, { tag: 'paypal-webhook-refund-status-tx', eventId, captureId });
+        return respondRetryable(res, 'refund_status_tx_failed', e.message);
+      }
+
+      if (!statusOutcome.applied) {
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, status: statusOutcome.reason }));
+      }
+
+      if (!isFailed) {
         res.writeHead(200, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: true, status: 'refund_pending_recorded' }));
       }
 
-      // FAILED — 돈이 고객에게 안 갔다. 종단 상태를 되돌려 은폐를 끊고 운영자를 부른다.
-      //   자동 재환불은 하지 않는다(운영자가 원인 확인 후 수동 — 재시도 폭주 방지).
-      const failUpdates = {
-        status: 'REFUND_FAILED',
-        refundStatus: 'FAILED',
-        refundFailedAt: FieldValue.serverTimestamp(),
-        refundFailedSource: 'webhook',
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-      try {
-        await adminDb.collection('bookings').doc(matched.id).set(failUpdates, { merge: true });
-      } catch (e) { console.warn('[paypal-webhook] refund-failed mark failed:', e.message); }
-      // admin mark-refunded 경로는 pending_bookings 에도 REFUNDED 를 썼다 — best-effort 동기화.
-      const failBookingRef = matched.data().bookingRef || matched.id;
-      try {
-        await adminDb.collection('pending_bookings').doc(failBookingRef).update(failUpdates);
-      } catch (e) { console.warn('[paypal-webhook] pending_bookings refund-failed sync skipped:', e.message); }
-
-      await logWebhookEvent({
-        db: adminDb, eventId, eventType,
-        status: 'processed',
-        detail: { bookingsDocId: matched.id, bookingRef: failBookingRef, refundId, captureId },
-      });
+      // processed 기록은 위 transaction 이 이미 원자적으로 남겼다.
       await alertAdmin([
         '🚨 <b>환불 실패 (PayPal Webhook) — 고객에게 돈이 안 갔음</b>',
         '',
@@ -735,7 +987,7 @@ export default async function handler(req, res) {
 
     // ─── 그 외 이벤트 ────────────────────────────────────────────────
     await logWebhookEvent({
-      db: adminDb, eventId, eventType,
+      db: adminDb, environment: verifiedEnvironment, eventId, eventType,
       status: 'unsupported',
       detail: { resource_type: event?.resource_type },
     });

@@ -6,12 +6,17 @@
  *
  * 데이터: GET /api/admin-all-bookings (admin SDK 가 pending_bookings + mood_bookings
  * 둘 다 읽어 출처 라벨 붙여 합침). mood_bookings 는 firestore.rules client read:false
- * 라 반드시 백엔드 엔드포인트 경유. 읽기 전용 화면.
+ * 라 반드시 백엔드 엔드포인트 경유.
+ *
+ * 2026-07-28: "배차실패 취소" 버튼 추가 — 차량·기사를 못 구했을 때 운영자가 사유를 남기고
+ * 전액 환불로 취소한다(POST /api/admin-booking-action, action=dispatch-cancel).
+ * 그 외에는 여전히 읽기 전용.
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Calendar, Loader2 } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 type Source = 'cocotrip' | 'mood';
 type SourceFilter = Source | 'all';
@@ -65,7 +70,18 @@ function formatKRW(n: number): string {
   return `₩${(Number(n) || 0).toLocaleString('ko-KR')}`;
 }
 
+/** 배차 실패 취소 사유 분류 — 값은 백엔드 DISPATCH_CANCEL_CATEGORIES 와 1:1. */
+type CancelCategory = 'no_vehicle' | 'no_driver' | 'other';
+const CANCEL_CATEGORY_OPTIONS: { key: CancelCategory; label: string }[] = [
+  { key: 'no_vehicle', label: '차량 미확보' },
+  { key: 'no_driver', label: '기사 미확보' },
+  { key: 'other', label: '기타' },
+];
+
 export default function AdminAllBookings() {
+  // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 일반 CocoTrip 제목으로 같아
+  //   탭을 여러 개 띄우면 구분이 안 됐다.
+  usePageMeta({ title: '통합 예약 (관리자)', description: 'All CocoTrip and MOOD bookings in one list.' });
   const { user } = useAuth();
   const [items, setItems] = useState<BookingItem[] | null>(null);
   const [counts, setCounts] = useState<{ cocotrip: number; mood: number }>({ cocotrip: 0, mood: 0 });
@@ -74,6 +90,8 @@ export default function AdminAllBookings() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<SourceFilter>('all');
   const [hideTest, setHideTest] = useState(true);
+  // 배차 실패 취소 대상 (모달) — 읽기 전용이던 화면에 유일하게 추가된 쓰기 동작.
+  const [cancelTarget, setCancelTarget] = useState<BookingItem | null>(null);
 
   const reload = useCallback(async () => {
     if (!user) return;
@@ -241,12 +259,142 @@ export default function AdminAllBookings() {
                       {b.priceUSD && <span className="text-[10px] text-white/40 ml-1">${b.priceUSD}</span>}
                     </span>
                     {statusBadge(b.status)}
+                    {/* 배차 실패 취소 — 코코트립 결제완료 건에만. 무드는 별도 정산 체계라 제외. */}
+                    {b.source === 'cocotrip' && b.status === 'CONFIRMED' && (
+                      <button
+                        onClick={() => setCancelTarget(b)}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors min-h-[36px]"
+                      >
+                        배차실패 취소
+                      </button>
+                    )}
                   </div>
                 </article>
               );
             })}
           </div>
         )}
+      </div>
+
+      {cancelTarget && (
+        <DispatchCancelModal
+          booking={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onDone={() => { setCancelTarget(null); void reload(); }}
+          getIdToken={() => user!.getIdToken()}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 배차 실패 취소 모달 (2026-07-28).
+ * 우리 귀책 취소라 **항상 전액 환불**이고 사유가 필수다 — 입력한 문장이 그대로
+ * 고객 이메일에 실린다. 그래서 확인 단계에서 환불액과 문구를 다시 보여준다.
+ */
+function DispatchCancelModal({
+  booking, onClose, onDone, getIdToken,
+}: {
+  booking: BookingItem;
+  onClose: () => void;
+  onDone: () => void;
+  getIdToken: () => Promise<string>;
+}) {
+  const [category, setCategory] = useState<CancelCategory>('no_vehicle');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!reason.trim()) { setErr('사유를 입력해주세요 (고객에게 그대로 전달됩니다)'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      const idToken = await getIdToken();
+      const res = await fetch('/api/admin-booking-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          bookingRef: booking.bookingRef,
+          action: 'dispatch-cancel',
+          cancelCategory: category,
+          reason: reason.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `취소 실패 (HTTP ${res.status})`);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '오류');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-md rounded-2xl border border-white/[0.10] p-4 sm:p-5 space-y-3.5" style={{ background: '#0c1220' }}>
+        <div>
+          <h2 className="text-white font-bold text-[15px]">배차 실패 취소</h2>
+          <p className="text-[11px] text-white/45 mt-1">
+            {booking.label} · {booking.bookingRef} · {formatKRW(booking.amountKRW)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12px] text-amber-200">
+          우리 쪽 사정으로 인한 취소이므로 <b>취소정책과 무관하게 전액 환불</b>됩니다.
+          입력한 사유는 <b>고객 이메일에 그대로</b> 실립니다.
+        </div>
+
+        <div>
+          <label className="block text-[11px] text-white/50 mb-1.5">사유 분류</label>
+          <div className="grid grid-cols-3 gap-2">
+            {CANCEL_CATEGORY_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setCategory(opt.key)}
+                className={`px-2 py-2 rounded-xl text-[12px] font-semibold border transition-all min-h-[40px] ${
+                  category === opt.key
+                    ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white'
+                    : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] text-white/50 mb-1.5">고객에게 전달할 사유 (필수)</label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder="예: 당일 폭설로 배정 예정이던 차량이 운행 불가해졌습니다. 불편을 드려 죄송합니다."
+            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.10] px-3 py-2.5 text-[13px] text-white placeholder:text-white/25 outline-none focus:border-[#7C5CFC]/50"
+          />
+        </div>
+
+        {err && <p className="text-[12px] text-rose-300">{err}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-white/[0.10] text-white/60 hover:text-white min-h-[44px] disabled:opacity-50"
+          >
+            닫기
+          </button>
+          <button
+            onClick={() => { void submit(); }}
+            disabled={busy || !reason.trim()}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-rose-500/50 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 min-h-[44px] disabled:opacity-40"
+          >
+            {busy ? '처리 중…' : '취소 + 전액 환불'}
+          </button>
+        </div>
       </div>
     </div>
   );
