@@ -5,6 +5,8 @@ import { buildAccommodationLinks, buildFlightLink } from '@/config/affiliateLink
 import { MotionSection } from '@/components/MotionSection';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { useLanguage } from '@/hooks/useLanguage';
+import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 
 interface HeroCardsProps {
   t: Translations;
@@ -25,6 +27,8 @@ export function HeroCards({ t }: HeroCardsProps) {
   const { language } = useLanguage();
   const hc = t.heroCards || {};
   const hotelLink = buildAccommodationLinks('Seoul Hotel', 'Seoul')[0]?.url || 'https://www.trip.com/hotels/list';
+  // 🔴 출발지를 넘기지 않는다. 예전에는 buildFlightLink 가 언어로 출발지를 추정해
+  //   ko 기본값 'Seoul' + 목적지 ICN='Seoul' → 운영 링크가 서울→서울이었다.
   const flightLink = buildFlightLink('ICN').url;
 
   return (
@@ -41,7 +45,9 @@ export function HeroCards({ t }: HeroCardsProps) {
 
         {/* Row 1: Hotel / Flight / Charter */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6 mb-4 lg:mb-6">
-          <a href={hotelLink} target="_blank" rel="noopener noreferrer sponsored" className={CARD_BASE}>
+          <AffiliateCard payload={{ product: 'hotel' as const, placement: 'home_hero_cards', language, city: 'seoul' }}>
+            <a href={hotelLink} target="_blank" rel="noopener noreferrer sponsored"
+              onClick={() => trackAffiliateClick({ product: 'hotel' as const, placement: 'home_hero_cards', language, city: 'seoul' })} className={CARD_BASE}>
             <div className={OVERLAY} />
             <div className={BLUR_BLOB} />
             <div className={ICON_WRAP}><Hotel className={ICON_CLS} /></div>
@@ -52,9 +58,12 @@ export function HeroCards({ t }: HeroCardsProps) {
               <span>{hc.hotelCta || '호텔 검색하기'}</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
-          </a>
+            </a>
+          </AffiliateCard>
 
-          <a href={flightLink} target="_blank" rel="noopener noreferrer sponsored" className={CARD_BASE}>
+          <AffiliateCard payload={{ product: 'flight' as const, placement: 'home_hero_cards', language, city: 'seoul' }}>
+            <a href={flightLink} target="_blank" rel="noopener noreferrer sponsored"
+              onClick={() => trackAffiliateClick({ product: 'flight' as const, placement: 'home_hero_cards', language, city: 'seoul' })} className={CARD_BASE}>
             <div className={OVERLAY} />
             <div className={BLUR_BLOB} />
             <div className={ICON_WRAP}><Plane className={ICON_CLS} /></div>
@@ -65,7 +74,8 @@ export function HeroCards({ t }: HeroCardsProps) {
               <span>{hc.flightCta || '항공권 검색'}</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
-          </a>
+            </a>
+          </AffiliateCard>
 
           <Link to="/charter" className={CARD_BASE}>
             <div className={OVERLAY} />

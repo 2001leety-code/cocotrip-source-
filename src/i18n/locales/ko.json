@@ -1950,7 +1950,10 @@
         "VIP 카카오톡 응대",
         "공항 라운지 이용"
       ]
-    }
+    },
+    "pointEmpty": "아직 포인트 내역이 없습니다.",
+    "pointEmptySub": "플랜을 공유하면 첫 Trip Coins 를 받아요!",
+    "statBookingsNote": "누적 합계"
   },
   "admin": {
     "backToHome": "어드민 홈으로",
@@ -2358,7 +2361,8 @@
     "bookingClosedMessage": "출발 {N}시간 전에 마감돼 이 시각은 예약할 수 없습니다. 다른 시각을 골라주시거나 챗 상담을 이용해주세요.",
     "bookingChatCta": "챗 상담하기",
     "dispatchFailAutoCancelNote": "차량 배차를 못 구할 경우 예약은 자동 취소되며 전액 환불됩니다.",
-    "mbPastTour": "지난 일정"
+    "mbPastTour": "지난 일정",
+    "mbCountNote": "건 표시"
   },
   "tourDetail": {
     "includedTitle": "포함",

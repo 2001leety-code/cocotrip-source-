@@ -140,6 +140,8 @@ export interface WizardI18n {
   mbRefundWindowClosed?: string;
   // 2026-05-04 P0 fix: 예약 카드 클릭 → 상세 모달. 사용자 신고 ("들어가볼 수도 없음")
   mbDetailTitle?: string;
+  /** 예약 목록 개수 옆 설명 — 원장 누적 예약 수와 다르다는 것을 알린다. */
+  mbCountNote?: string;
   mbDetailBookingRef?: string;
   mbDetailService?: string;
   mbDetailDate?: string;
@@ -365,6 +367,7 @@ export function getWizardI18n(language: string): WizardI18n {
     mbViewPlanBtn: get('mbViewPlanBtn'),
     mbRefundWindowClosed: get('mbRefundWindowClosed'),
     mbDetailTitle: get('mbDetailTitle'),
+    mbCountNote: get('mbCountNote'),
     mbDetailBookingRef: get('mbDetailBookingRef'),
     mbDetailService: get('mbDetailService'),
     mbDetailDate: get('mbDetailDate'),

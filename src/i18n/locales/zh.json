@@ -1950,7 +1950,10 @@
         "VIP KakaoTalk 客服",
         "机场贵宾室"
       ]
-    }
+    },
+    "pointEmpty": "还没有积分记录。",
+    "pointEmptySub": "分享行程即可获得首批 Trip Coins！",
+    "statBookingsNote": "累计"
   },
   "admin": {
     "backToHome": "返回管理后台",
@@ -2358,7 +2361,8 @@
     "bookingClosedMessage": "预订于出发前{N}小时截止，该时间已无法预订。请选择其他时间或使用聊天咨询。",
     "bookingChatCta": "开始聊天",
     "dispatchFailAutoCancelNote": "如无法安排车辆，订单将自动取消并全额退款。",
-    "mbPastTour": "已过行程"
+    "mbPastTour": "已过行程",
+    "mbCountNote": "条显示"
   },
   "tourDetail": {
     "includedTitle": "包含",

@@ -24,6 +24,7 @@ import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PurchaseSection } from './components/PurchaseSection';
 import { CourseBuilderShell } from './components/CourseBuilderShell';
+import { AiPlannerPricingNote } from './components/AiPlannerPricingNote';
 
 type PlannerMode = 'ai' | 'course';
 
@@ -248,6 +249,14 @@ export default function PlannerPage() {
               );
             })}
           </section>
+        )}
+
+        {/* 🔴 2026-07-30: 가격을 여기서 **처음** 밝힌다.
+            그동안 이 화면에는 금액이 한 글자도 없었고, 상단 배너만 "무료" 를 크게 말했다.
+            손님은 전부 공짜인 줄 알고 들어왔다가 결제 단계에서 처음 $9.90 을 만난다.
+            무료로 주는 것(미리보기·가입 쿠폰)과 파는 것(전체 일정)을 갈라서 먼저 적는다. */}
+        {plannerMode === 'ai' && (status === 'idle' || status === 'error') && (
+          <AiPlannerPricingNote language={language} />
         )}
 
         {/* Wizard form */}

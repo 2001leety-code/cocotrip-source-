@@ -1950,7 +1950,10 @@
         "VIP KakaoTalk support",
         "Airport lounge access"
       ]
-    }
+    },
+    "pointEmpty": "No point activity yet.",
+    "pointEmptySub": "Share a plan to earn your first Trip Coins!",
+    "statBookingsNote": "Lifetime total"
   },
   "admin": {
     "backToHome": "Back to Admin Home",
@@ -2358,7 +2361,8 @@
     "bookingClosedMessage": "Bookings close {N}h before departure, so this time is no longer available. Please pick another time or contact us via chat.",
     "bookingChatCta": "Open Chat",
     "dispatchFailAutoCancelNote": "If we cannot secure a vehicle, your booking is cancelled automatically and refunded in full.",
-    "mbPastTour": "Past trip"
+    "mbPastTour": "Past trip",
+    "mbCountNote": "shown"
   },
   "tourDetail": {
     "includedTitle": "Included",

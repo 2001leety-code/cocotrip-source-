@@ -7,6 +7,8 @@
 // AI 가 itinerary 동선·예산·취향 분석 후 고른 "이 플랜에 딱 맞는 한 채" 의 추천.
 import { Hotel, MapPin, CreditCard, Sparkles } from 'lucide-react';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface AccommodationRecommendationProps {
   /** Firestore plan.accommodation — Gemini 응답 그대로 (필드 names 비결정적). */
@@ -42,12 +44,16 @@ export function AccommodationRecommendation({
 }: AccommodationRecommendationProps) {
   // Gemini 비결정성 대응: name / hotel_name / title 모두 fallback.
   // CLAUDE.md C 의 신/구 폴백 패턴과 동일 정신.
+  // 🔴 훅은 조건부 return 위에서 부른다 — 아래 `if (!name) return null` 뒤로 내리면
+  //   렌더마다 훅 개수가 달라져 React 가 상태를 뒤섞는다.
+  const { language } = useLanguage();
   const name = pickStr(acc, ['name', 'hotel_name', 'title', 'display_name']);
   const area = pickStr(acc, ['area', 'neighborhood', 'district', 'location']);
   const priceRange = pickStr(acc, ['price_range', 'priceRange', 'nightly_rate', 'price']);
   const why = pickStr(acc, ['why', 'reason', 'recommendation_reason']);
   const bookingTip = pickStr(acc, ['booking_tip', 'bookingTip', 'tip', 'note']);
   const address = pickStr(acc, ['address']);
+
 
   // 호텔 이름 자체가 없으면 렌더 skip (legacy plan / Gemini 빈 응답 호환).
   if (!name) return null;
@@ -102,7 +108,11 @@ export function AccommodationRecommendation({
         <div className="px-5 pb-4 space-y-2">
           <div className="flex flex-wrap gap-2">
             {links.map((lk: { provider: string; url: string; label: string; color?: string }) => (
-              <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
+              <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer sponsored"
+                onClick={() => trackAffiliateClick({
+                  product: 'hotel', placement: 'plan_lodging_recommendation',
+                  language, city: String(area || region).toLowerCase(),
+                })}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[14px] font-bold text-white transition-all hover:opacity-90 active:scale-95"
                 style={{ background: lk.color || '#0073E6' }}>
                 {lk.label} {'→'}

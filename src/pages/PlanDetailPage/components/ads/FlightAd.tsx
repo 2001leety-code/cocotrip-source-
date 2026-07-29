@@ -2,6 +2,8 @@
 // Extracted from PlanDetailPage/index.tsx L542-568 (zero behavior change).
 import { Plane } from 'lucide-react';
 import { buildFlightLink } from '@/config/affiliateLinks';
+import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface FlightAdProps {
@@ -9,13 +11,16 @@ interface FlightAdProps {
 }
 
 export function FlightAd({ arrivalAirport }: FlightAdProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const p = (t.planner as unknown as Record<string, string | undefined>) || {};
+  // 출발지는 넘기지 않는다 — 우리는 손님이 어디서 오는지 모른다.
+  //   언어로 추정하면 ko 사용자에게 dcity=Seoul&acity=Seoul(서울→서울)이 나간다.
   const link = buildFlightLink(arrivalAirport || 'ICN');
   if (!link) return null;
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-indigo-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05))' }}>
+    <AffiliateCard payload={{ product: 'flight', placement: 'plan_pretrip', language }}
+      className="rounded-2xl overflow-hidden border border-indigo-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05))' }}>
       <div className="px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-indigo-500/20 border border-indigo-500/30">
           <Plane className="w-5 h-5 text-indigo-400" />
@@ -26,13 +31,13 @@ export function FlightAd({ arrivalAirport }: FlightAdProps) {
         </div>
       </div>
       <div className="px-5 pb-4">
-        <a href={link.url} target="_blank" rel="noopener noreferrer"
+        <a href={link.url} target="_blank" rel="noopener noreferrer sponsored" onClick={() => trackAffiliateClick({ product: 'flight', placement: 'plan_pretrip', language })}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
           style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
           {link.label} {'\u2192'}
         </a>
       </div>
       <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
-    </div>
+    </AffiliateCard>
   );
 }

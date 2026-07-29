@@ -2,6 +2,8 @@
 // Extracted from PlanDetailPage/index.tsx L515-540 (zero behavior change).
 import { Car } from 'lucide-react';
 import { buildCarLink } from '@/config/affiliateLinks';
+import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface CarRentalAdProps {
@@ -9,12 +11,13 @@ interface CarRentalAdProps {
 }
 
 export function CarRentalAd({ region }: CarRentalAdProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const carLink = buildCarLink(region);
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-emerald-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05))' }}>
+    <AffiliateCard payload={{ product: 'car', placement: 'plan_outro_extras', language, city: region.toLowerCase() }}
+      className="rounded-2xl overflow-hidden border border-emerald-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05))' }}>
       <div className="px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/20 border border-emerald-500/30">
           <Car className="w-5 h-5 text-emerald-400" />
@@ -25,13 +28,13 @@ export function CarRentalAd({ region }: CarRentalAdProps) {
         </div>
       </div>
       <div className="px-5 pb-4">
-        <a href={carLink.url} target="_blank" rel="noopener noreferrer"
+        <a href={carLink.url} target="_blank" rel="noopener noreferrer sponsored" onClick={() => trackAffiliateClick({ product: 'car', placement: 'plan_outro_extras', language, city: region.toLowerCase() })}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
           style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
           {carLink.label} {'\u2192'}
         </a>
       </div>
       <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
-    </div>
+    </AffiliateCard>
   );
 }

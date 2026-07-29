@@ -19,7 +19,8 @@ import { TOUR_REGIONS, getToursByRegion } from '@/data/tours';
 import type { TourRegion, DriverLanguage, TourTag } from '@/data/tours';
 import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
-import { trackEvent, trackAdClick } from '@/lib/analytics';
+import { trackEvent } from '@/lib/analytics';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { matchesTourQuery } from '@/lib/tourSearch';
 import { TOUR_PACE, PACE_ORDER, paceEmoji, paceLabel, type TripPace } from '@/data/tourPace';
 
@@ -145,9 +146,8 @@ export default function ToursPage() {
     Chuncheon: 'chuncheon', Danyang: 'danyang', Incheon: 'incheon',
     Ganghwa: 'seoul', DMZ: 'seoul', 'Multi-City': 'seoul',
   };
-  const hotelSearchUrl = buildHotelListLink(
-    activeRegion === 'All' ? undefined : HOTEL_CITY_KEY[activeRegion],
-  );
+  const hotelCityKey = activeRegion === 'All' ? undefined : HOTEL_CITY_KEY[activeRegion];
+  const hotelSearchUrl = buildHotelListLink(hotelCityKey);
 
   // 맞춤투어 모달 지역 프리필 — 투어 필터가 서울/부산/제주면 그대로, 그 외 지역이면 '기타'.
   const inquireDefaultRegion: '' | 'seoul' | 'busan' | 'jeju' | 'other' =
@@ -662,7 +662,9 @@ export default function ToursPage() {
             rel="noopener noreferrer sponsored"
             title={tl.hotelCtaNew}
             aria-label={`${tl.hotelCtaBtn} — ${tl.hotelCtaNew}`}
-            onClick={() => trackAdClick('hotel', 'tours_page_bottom', hotelSearchUrl)}
+            onClick={() => trackAffiliateClick({
+              product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey,
+            })}
             className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full"
             style={{ background: 'rgba(0,115,230,0.10)', border: '1px solid rgba(0,115,230,0.30)', color: '#4D9FFF' }}
           >

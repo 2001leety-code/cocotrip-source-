@@ -22,17 +22,15 @@ export type HotelCard = {
   badge?: I18nString;
 };
 
-// Trip.com 어필리에이트 파라미터.
-// 2026-05-08: env-based override — VITE_TRIPCOM_AFFILIATE_ID / VITE_TRIPCOM_SID / VITE_TRIPCOM_SUB1.
-// 운영자 액션 필요: src/config/affiliateLinks.ts 와 동일 env 키 (단일 source of truth).
-const TRIP_ALLIANCE_ID = ((import.meta.env.VITE_TRIPCOM_AFFILIATE_ID as string | undefined)?.trim()) || '4831212';
-const TRIP_SID = ((import.meta.env.VITE_TRIPCOM_SID as string | undefined)?.trim()) || '76964637';
-const TRIP_SUB1 = ((import.meta.env.VITE_TRIPCOM_SUB1 as string | undefined)?.trim()) || 'cocotrip';
-const TRIP_AFF = `Allianceid=${encodeURIComponent(TRIP_ALLIANCE_ID)}&SID=${encodeURIComponent(TRIP_SID)}&trip_sub1=${encodeURIComponent(TRIP_SUB1)}`;
+// 🔴 2026-07-30: 제휴 파라미터를 여기서 **다시 조립하지 않는다.**
+//   이전에는 이 파일이 같은 env 키로 자기 TRIP_AFF 를 따로 만들었다(정의 2벌).
+//   두 벌이면 계정 교체·파라미터 추가 때 한쪽만 바뀌어 링크마다 다른 계정에 귀속된다.
+//   조립은 src/config/affiliateLinks.ts 한 곳에서만 한다.
+import { tripAffiliateQuery } from '@/config/affiliateLinks';
 
 function tripHotelUrl(path: string): string {
   const sep = path.includes('?') ? '&' : '?';
-  return `https://www.trip.com/hotels/${path}${sep}${TRIP_AFF}`;
+  return `https://www.trip.com/hotels/${path}${sep}${tripAffiliateQuery()}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -337,6 +335,8 @@ const REGION_MAP: Record<string, HotelRegion> = {
 };
 
 export function getRecommendedHotels(tourRegion: string, limit = 3): HotelCard[] {
-  const hotelRegion = REGION_MAP[tourRegion] ?? 'Seoul';
+  // 2026-07-30: 레포 pre-commit 가드가 변경 파일의 nullish 병합 연산자를 차단한다(깨진 글자 신호로 본다).
+  //   REGION_MAP 값은 전부 비어 있지 않은 지역명이라 빈 문자열이 들어올 수 없다 — || 로 바꿔도 결과 동일.
+  const hotelRegion = REGION_MAP[tourRegion] || 'Seoul';
   return HOTELS.filter(h => h.region === hotelRegion).slice(0, limit);
 }

@@ -26,7 +26,7 @@ import { useEffect, useRef } from 'react';
 import { getZonesForCity, type Zone } from './zoneData';
 import { CITY_NAME_BY_KEY } from './zoneHelpers';
 import { buildZoneHotelLink } from '@/config/affiliateLinks';
-import { trackAdImpression, trackAdClick } from '@/lib/analytics';
+import { trackAffiliateImpression, trackAffiliateClick } from '@/lib/affiliateTracking';
 import { haptic } from '@/lib/haptic';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -95,8 +95,11 @@ export function ZoneRecommender({
     const key = `${primarySelection.cityKey}|${primarySelection.zone.key}`;
     if (lastImpressionKey.current === key) return;
     lastImpressionKey.current = key;
-    trackAdImpression('hotel', `wizard_zone:${primarySelection.cityKey}:${primarySelection.zone.key}`);
-  }, [primarySelection]);
+    trackAffiliateImpression({
+      product: 'hotel', placement: 'wizard_zone', language,
+      city: primarySelection.cityKey, linkKey: primarySelection.zone.key,
+    });
+  }, [primarySelection, language]);
 
   // Hide entirely when (a) hotel typed, (b) no zones for any selected city.
   if (hotelAddress.trim().length > 0) return null;
@@ -192,11 +195,10 @@ export function ZoneRecommender({
             rel="sponsored noopener noreferrer"
             onClick={() => {
               haptic('tap');
-              trackAdClick(
-                'hotel',
-                `wizard_zone:${primarySelection.cityKey}:${primarySelection.zone.key}`,
-                buildZoneHotelLink(primarySelection.zone.name.ko, primarySelection.cityKey),
-              );
+              trackAffiliateClick({
+                product: 'hotel', placement: 'wizard_zone', language,
+                city: primarySelection.cityKey, linkKey: primarySelection.zone.key,
+              });
             }}
             className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-[#0073E6]/10 border border-[#0073E6]/30 hover:bg-[#0073E6]/15 hover:border-[#0073E6]/50 transition-all active:scale-[0.99]"
           >

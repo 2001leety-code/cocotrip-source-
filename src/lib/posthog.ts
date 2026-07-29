@@ -96,7 +96,12 @@ export type PostHogEventName =
   | 'planner_complete'
   | 'free_plan_redeemed'
   | 'charter_quote_start'
-  | 'charter_quote_complete';
+  | 'charter_quote_complete'
+  // 제휴 링크 퍼널 (2026-07-30). 그동안 ad_impression/ad_click 은 GA4 로만 갔고
+  // PostHog 에는 없어서 관리자 퍼널에서 제휴 구간이 통째로 비어 있었다.
+  // 속성은 product·placement·language·city·link_key 다섯 개뿐 — URL·uid·planId 금지.
+  | 'affiliate_impression'
+  | 'affiliate_click';
 
 export async function track(event: PostHogEventName, props?: Record<string, unknown>): Promise<void> {
   const ph = await ensureInit();

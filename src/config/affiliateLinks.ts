@@ -16,15 +16,49 @@
 //   4. 재배포
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── 제휴 식별자 (SSOT) ───────────────────────────────────────────────────────
+// 🔴 2026-07-30: 이 파일이 **유일한** Trip.com 제휴 파라미터 조립처다.
+//   이전에는 src/data/hotels.ts 가 같은 env 로 자기 TRIP_AFF 를 따로 만들었다.
+//   두 벌이면 계정 교체·파라미터 추가 때 한쪽만 바뀌어 링크마다 다른 계정에 귀속된다.
+//
+// 🔴 하드코딩 폴백(4831212/76964637)은 **기존 노출을 깨지 않기 위해서만** 남긴다.
+//   운영자가 Trip.com 파트너 계정을 확인하기 전까지 **새 노출에는 쓰지 않는다.**
+//   신규 자리는 `isAffiliateConfigured()` 가 true 일 때만 렌더한다(fail-closed).
+
+const LEGACY_ALLIANCE_ID = '4831212';
+const LEGACY_SID = '76964637';
+
+function envTrim(key: string): string {
+  const v = (import.meta.env as Record<string, unknown>)[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/**
+ * 운영자가 실제로 설정한 제휴 식별자가 있는가.
+ *
+ * 두 값(Alliance ID·SID)이 **모두** env 로 들어와 있고, 숫자 형태여야 인정한다.
+ * 값이 없거나 형식이 이상하면 false — 호출부는 새 제휴 노출을 숨긴다.
+ * (값 자체는 이 함수도, 로그도 출력하지 않는다.)
+ */
+export function isAffiliateConfigured(): boolean {
+  const id = envTrim('VITE_TRIPCOM_AFFILIATE_ID');
+  const sid = envTrim('VITE_TRIPCOM_SID');
+  return /^\d{4,}$/.test(id) && /^\d{4,}$/.test(sid);
+}
+
 function buildTripAff(): string {
-  const env = import.meta.env;
-  const allianceId = ((env.VITE_TRIPCOM_AFFILIATE_ID as string | undefined)?.trim()) || '4831212';
-  const sid = ((env.VITE_TRIPCOM_SID as string | undefined)?.trim()) || '76964637';
-  const sub1 = ((env.VITE_TRIPCOM_SUB1 as string | undefined)?.trim()) || 'cocotrip';
+  const allianceId = envTrim('VITE_TRIPCOM_AFFILIATE_ID') || LEGACY_ALLIANCE_ID;
+  const sid = envTrim('VITE_TRIPCOM_SID') || LEGACY_SID;
+  const sub1 = envTrim('VITE_TRIPCOM_SUB1') || 'cocotrip';
   return `Allianceid=${encodeURIComponent(allianceId)}&SID=${encodeURIComponent(sid)}&trip_sub1=${encodeURIComponent(sub1)}`;
 }
 
 const TRIP_AFF = buildTripAff();
+
+/** 다른 모듈이 같은 파라미터를 쓰도록 노출한다(자체 조립 금지). */
+export function tripAffiliateQuery(): string {
+  return TRIP_AFF;
+}
 
 export const AFFILIATE_CONFIG = {
   tripcom: {
@@ -141,21 +175,38 @@ export function buildHotelListLink(cityKey?: string): string {
 }
 
 /* ── Flights ─────────────────────────────────────────── */
-// Default departure city by user language
-const DEFAULT_DCITY: Record<string, string> = {
-  ko: 'Seoul', ja: 'Tokyo', zh: 'Shanghai', en: 'Los Angeles',
+// 🔴 2026-07-30: **출발지를 언어로 추정하지 않는다.**
+//   이전 코드는 언어별 기본 출발도시 표로 출발지를 정했고, 호출부가 언어를
+//   넘기지 않으면 기본값 ko → 'Seoul' 이 됐다. 목적지 ICN 도 'Seoul' 이라
+//   운영 홈의 실제 링크가 `dcity=Seoul&acity=Seoul` — **서울에서 서울로 가는 검색**이었다.
+//   결과가 나올 수 없는 죽은 링크다.
+//
+//   언어는 국적도 현재 위치도 아니다(한국어를 쓰는 재외국민, 영어를 쓰는 한국 거주자).
+//   그래서 **모르면 비워 둔다.** 목적지만 있는 검색은 Trip.com 에서 정상 동작한다.
+
+const AIRPORT_TO_CITY: Record<string, string> = {
+  ICN: 'Seoul', GMP: 'Seoul', PUS: 'Busan', CJU: 'Jeju',
+  ICN_T1: 'Seoul', ICN_T2: 'Seoul', ALREADY: 'Seoul',
 };
 
-export function buildFlightLink(destinationCode: string, language?: string) {
-  const cityCodeMap: Record<string, string> = {
-    ICN: 'Seoul', GMP: 'Seoul', PUS: 'Busan', CJU: 'Jeju',
-    ICN_T1: 'Seoul', ICN_T2: 'Seoul', ALREADY: 'Seoul',
-  };
-  const dest = cityCodeMap[destinationCode] || 'Seoul';
-  const dcity = DEFAULT_DCITY[language || 'ko'] || 'Seoul';
+/**
+ * Trip.com 항공권 검색 링크.
+ *
+ * @param destinationCode 도착 공항 코드 (ICN/GMP/PUS/CJU …)
+ * @param originCity      출발 **도시명**. 확실히 아는 경우에만 넘긴다.
+ *                        모르면 생략 — 언어·국가로 추측하지 않는다.
+ */
+export function buildFlightLink(destinationCode: string, originCity?: string) {
+  const dest = AIRPORT_TO_CITY[destinationCode] || 'Seoul';
+  const origin = (originCity || '').trim();
+  // 출발지를 알더라도 도착지와 같으면 검색이 성립하지 않는다 → 목적지만 남긴다.
+  const useOrigin = origin && origin.toLowerCase() !== dest.toLowerCase();
+  const params = useOrigin
+    ? `dcity=${encodeURIComponent(origin)}&acity=${encodeURIComponent(dest)}`
+    : `acity=${encodeURIComponent(dest)}`;
   return {
     label: 'Trip.com Flights',
-    url: `${AFFILIATE_CONFIG.tripcom.flight}?dcity=${encodeURIComponent(dcity)}&acity=${encodeURIComponent(dest)}&${TRIP_AFF}`,
+    url: `${AFFILIATE_CONFIG.tripcom.flight}?${params}&${TRIP_AFF}`,
   };
 }
 

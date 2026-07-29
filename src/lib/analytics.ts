@@ -237,10 +237,9 @@ export function trackAdClick(adType: string, placement: string, targetUrl?: stri
   trackEvent('ad_click', { ad_type: adType, placement, target_url: targetUrl });
 }
 
-/** eSIM deeplink click */
-export function trackEsimClick(provider: string) {
-  trackEvent('esim_click', { provider });
-}
+// eSIM 클릭 측정은 lib/affiliateTracking.ts 로 통합했다 (2026-07-30).
+//   기존 trackEsimClick 은 정의만 있고 **호출처가 0건**이었다 — 만든 측정이 배선되지
+//   않아 eSIM 퍼널이 통째로 비어 있었다. 죽은 함수를 남기면 다음 사람이 '측정된다'고 믿는다.
 
 /** Social share */
 export function trackShare(method: string, planId: string) {

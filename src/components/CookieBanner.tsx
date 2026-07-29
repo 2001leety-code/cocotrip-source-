@@ -6,8 +6,8 @@
 import { useState, useEffect } from 'react';
 import { Cookie, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { readConsent, setConsent } from '@/lib/consent';
 
-const STORAGE_KEY = 'cocotrip_cookie_consent';
 const SUPPORT_EMAIL = 'cocotripkr@gmail.com';
 
 export default function CookieBanner() {
@@ -17,21 +17,23 @@ export default function CookieBanner() {
   const footer = (t as Record<string, unknown>).footer as Record<string, string> | undefined;
 
   useEffect(() => {
-    const consent = localStorage.getItem(STORAGE_KEY);
-    if (!consent) {
+    if (readConsent() === 'unset') {
       // slight delay so it doesn't flash on page load
       const timer = setTimeout(() => setVisible(true), 1500);
       return () => clearTimeout(timer);
     }
   }, []);
 
+  // 🔴 2026-07-30: 저장은 lib/consent.ts 를 거친다. 여기서 localStorage 를 직접 쓰면
+  //   "배너는 저장했는데 분석 도구는 그 값을 안 본다" 는 지금 문제가 그대로 남는다.
+  //   setConsent 가 같은 탭에도 알려서, 수락하는 순간 GA4·PostHog 가 켜진다.
   const accept = () => {
-    localStorage.setItem(STORAGE_KEY, 'accepted');
+    setConsent('accepted');
     setVisible(false);
   };
 
   const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, 'dismissed');
+    setConsent('dismissed');   // 닫기 = 거부로 본다(더 안전한 쪽)
     setVisible(false);
   };
 
