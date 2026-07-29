@@ -70,9 +70,10 @@ jobs:
         if: github.event_name == 'deployment_status'
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
-          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
-          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
-          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
-          PDF_GOLDEN_PLAN_ID: ${{ secrets.PDF_GOLDEN_PLAN_ID }}
+          # Preview Firebase 전용 fixture. 운영 자격증명을 Preview에 보내지 않는다.
+          FIREBASE_WEB_API_KEY: ${{ secrets.PREVIEW_FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.PREVIEW_HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.PREVIEW_HEALTH_CHECK_PASSWORD }}
+          PDF_GOLDEN_PLAN_ID: ${{ secrets.PREVIEW_PDF_GOLDEN_PLAN_ID }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node scripts/pdf-golden-check.mjs

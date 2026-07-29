@@ -14,6 +14,7 @@ import { captureError } from './_shared/sentry.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 // 운영자 테스트 결제 식별 SSOT — 매출 카운터와 동일 기준으로 포인트도 제외한다.
 import { isAdminBypassOrderId } from './_shared/admin-bypass-detector.js';
+import { calculateLoyaltyTier } from './_shared/loyalty-policy.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -30,22 +31,6 @@ const CORS = {
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // 등급 기준 & 적립률
-const TIERS = [
-  { name: 'Platinum', minSpent: 1000, minBookings: 15, earnRate: 0.03 },
-  { name: 'Gold',     minSpent: 500,  minBookings: 7,  earnRate: 0.02 },
-  { name: 'Silver',   minSpent: 200,  minBookings: 3,  earnRate: 0.015 },
-  { name: 'Bronze',   minSpent: 0,    minBookings: 0,  earnRate: 0.01 },
-];
-
-function calculateTier(totalSpentUSD, bookingCount) {
-  for (const t of TIERS) {
-    if (totalSpentUSD >= t.minSpent || bookingCount >= t.minBookings) {
-      return t;
-    }
-  }
-  return TIERS[TIERS.length - 1];
-}
-
 // batch 9 fix (B9-3, 2026-05-09): 어드민 본인 매칭 — 쿠폰 무제한 사용 분기.
 // ADMIN_BYPASS_EMAILS env 우선 (paymentGate.js 와 동일 source), 미설정 시 hardcoded fallback.
 const HARDCODED_ADMIN_EMAILS = ['2001leety@gmail.com'];
@@ -160,6 +145,7 @@ export default async function handler(req, res) {
       const earnLogId = idemSource ? `earn_${String(idemSource).replace(/\//g, '_')}` : null;
 
       const result = await db.runTransaction(async (tx) => {
+        let verifiedEarnUSD = amountUSD;
         if (earnLogId) {
           const dupRef = db.collection('users').doc(userId).collection('pointHistory').doc(earnLogId);
           const dupSnap = await tx.get(dupRef);
@@ -168,6 +154,28 @@ export default async function handler(req, res) {
             return { duplicate: true, earnedCoins: 0, alreadyEarnedCoins: prev.amount || 0 };
           }
         }
+
+        // PayPal 적립은 같은 트랜잭션에서 예약 원본을 다시 읽는다. 환불 트랜잭션도
+        // 이 문서를 갱신하므로 적립과 환불이 동시에 와도 Firestore가 한쪽을 재실행한다.
+        // 그 결과 "환불이 먼저 끝난 뒤 원금 전체를 뒤늦게 적립"하는 틈이 사라진다.
+        if (ledgerKey && captureId) {
+          const bookingSnap = await tx.get(db.collection('bookings').doc(String(ledgerKey)));
+          if (!bookingSnap.exists) throw new Error('Verified booking not found');
+          const booking = bookingSnap.data() || {};
+          if (booking.paymentVerified !== true) throw new Error('Payment not verified');
+          if (String(booking.uid || '') !== String(userId)) throw new Error('Booking user mismatch');
+          if (String(booking.captureID || '') !== String(captureId)) throw new Error('Capture mismatch');
+          if (String(booking.currency || 'USD') !== 'USD') throw new Error('Currency mismatch');
+
+          const capturedUSD = Number(booking.amountUSD);
+          const refundedUSD = Math.max(0, Number(booking.refundedUSDTotal) || 0);
+          if (!Number.isFinite(capturedUSD) || capturedUSD <= 0) throw new Error('Invalid captured amount');
+          verifiedEarnUSD = Math.max(0, capturedUSD - Math.min(capturedUSD, refundedUSD));
+          if (verifiedEarnUSD <= 0.004 || String(booking.status || '') === 'REFUNDED') {
+            return { skipped: 'fully-refunded', earnedCoins: 0 };
+          }
+        }
+
         const userSnap = await tx.get(userRef);
         if (!userSnap.exists) throw new Error('User not found');
 
@@ -177,12 +185,12 @@ export default async function handler(req, res) {
         const currentCount = userData.bookingCount || 0;
 
         // 적립률 계산 (현재 등급 기준)
-        const newSpent = currentSpent + amountUSD;
+        const newSpent = currentSpent + verifiedEarnUSD;
         const newCount = currentCount + 1;
-        const newTier = calculateTier(newSpent, newCount);
+        const newTier = calculateLoyaltyTier(newSpent, newCount);
 
         // 포인트 적립 (USD → coins, 1 USD = 100 coins 기준, earnRate 적용)
-        const earnedCoins = Math.round(amountUSD * 100 * newTier.earnRate);
+        const earnedCoins = Math.round(verifiedEarnUSD * 100 * newTier.earnRate);
         const newBalance = currentCoins + earnedCoins;
 
         // 유저 업데이트
@@ -203,10 +211,11 @@ export default async function handler(req, res) {
           type: 'earn',
           amount: earnedCoins,
           balance: newBalance,
-          description: description || `Tour completed: $${amountUSD} (${newTier.name} ${(newTier.earnRate * 100).toFixed(1)}%)`,
+          description: description || `Tour completed: $${verifiedEarnUSD} (${newTier.name} ${(newTier.earnRate * 100).toFixed(1)}%)`,
           bookingRef: bookingRef || null,
           // 멱등 키(=PayPal orderID). 대사 시 결제 1건 ↔ 적립 1건을 이걸로 맞춘다.
           ledgerKey: idemSource || null,
+          amountUSD: verifiedEarnUSD,
           // 2026-07-29: 이 적립이 어느 PayPal capture 에서 나왔는지 남긴다.
           //   대사(reconciliation) 때 "결제 없는 적립"을 즉시 가려낼 수 있다.
           captureId: captureId || null,

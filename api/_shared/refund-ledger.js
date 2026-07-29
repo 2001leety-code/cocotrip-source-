@@ -20,6 +20,7 @@
  * ⚠️ 네트워크 호출(PayPal 조회·텔레그램)은 transaction 밖에서 한다.
  *    transaction 함수는 재실행될 수 있어 부작용을 넣으면 안 된다.
  */
+import { calculateLoyaltyTier } from './loyalty-policy.js';
 
 /** 다른 실행이 처리 중인 이벤트로 보는 시간. 서버리스 최대 실행시간보다 넉넉히. */
 export const REFUND_EVENT_IN_FLIGHT_MS = 2 * 60 * 1000;
@@ -28,6 +29,7 @@ export const REFUND_EVENT_IN_FLIGHT_MS = 2 * 60 * 1000;
 export const FULL_REFUND_RATIO = 0.99;
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const safeLedgerId = (value) => String(value || '').replace(/\//g, '_');
 
 /** 상태 서열 — 뒤늦게 온 작은 이벤트가 전액환불을 되돌리지 못하게 한다. */
 const STATUS_RANK = { REFUNDED: 3, PARTIALLY_REFUNDED: 2 };
@@ -263,6 +265,66 @@ export async function applyRefundEvent({
       authoritativeCaptureStatus,
     });
 
+    // ── 결제 혜택 되돌리기 준비 ───────────────────────────────────────
+    // 예약·적립·환불이 동시에 들어와도 같은 bookings 문서를 읽으므로
+    // Firestore 충돌 재실행을 통해 최종 금액 하나로 수렴한다.
+    const sourceData = bookingData || pendingData || {};
+    const orderID = String(
+      bookingsDocId
+      || sourceData.orderID
+      || sourceData.bookingRef
+      || '',
+    );
+    const uid = String(sourceData.uid || '');
+    let benefitContext = null;
+
+    if (uid && orderID) {
+      const userRef = db.collection('users').doc(uid);
+      const historyRef = db.collection(`users/${uid}/pointHistory`);
+      const earnRef = historyRef.doc(`earn_${safeLedgerId(orderID)}`);
+      const reversalRef = historyRef.doc(`refund_${safeLedgerId(orderID)}`);
+      const userSnap = await tx.get(userRef);
+      const earnSnap = await tx.get(earnRef);
+      const reversalSnap = await tx.get(reversalRef);
+
+      const isAiPlanner = /^ai_planner/.test(String(sourceData.productType || ''));
+      const purchaseRef = isAiPlanner
+        ? db.collection(`users/${uid}/aiPlannerPurchases`).doc(orderID)
+        : null;
+      const couponMarkerRef = isAiPlanner
+        ? db.collection(`users/${uid}/purchaseCouponOrders`).doc(orderID)
+        : null;
+      const purchaseSnap = purchaseRef ? await tx.get(purchaseRef) : null;
+      const couponMarkerSnap = couponMarkerRef ? await tx.get(couponMarkerRef) : null;
+      const couponMarker = couponMarkerSnap && couponMarkerSnap.exists
+        ? couponMarkerSnap.data() || {}
+        : null;
+      const couponIds = couponMarker && Array.isArray(couponMarker.couponIds)
+        ? couponMarker.couponIds.map(String).filter(Boolean)
+        : [];
+      const couponSnaps = [];
+      for (const couponId of couponIds) {
+        couponSnaps.push(await tx.get(db.collection(`users/${uid}/coupons`).doc(couponId)));
+      }
+
+      benefitContext = {
+        userRef,
+        earnRef,
+        reversalRef,
+        userSnap,
+        earnSnap,
+        reversalSnap,
+        isAiPlanner,
+        purchaseRef,
+        purchaseSnap,
+        couponMarkerRef,
+        couponMarkerSnap,
+        couponMarker,
+        couponSnaps,
+        orderID,
+      };
+    }
+
     const updates = {
       status,
       refundedUSDTotal: cumulativeRefundedUSD,
@@ -287,6 +349,150 @@ export async function applyRefundEvent({
       };
     }
 
+    const benefitResult = {
+      loyaltyReversed: false,
+      aiEntitlementReversed: false,
+      couponsRevoked: 0,
+      manualReviewReasons: [],
+    };
+
+    if (benefitContext && benefitContext.userSnap.exists) {
+      const user = benefitContext.userSnap.data() || {};
+      const earn = benefitContext.earnSnap.exists ? benefitContext.earnSnap.data() || {} : null;
+      const previous = benefitContext.reversalSnap.exists
+        ? benefitContext.reversalSnap.data() || {}
+        : {};
+
+      if (earn) {
+        const earnedCoins = Math.max(0, Number(earn.amount) || 0);
+        const earnedSpentUSD = Math.max(
+          0,
+          Number(earn.amountUSD) || Number(originalUSD) || 0,
+        );
+        const targetSpentUSD = round2(Math.min(earnedSpentUSD, cumulativeRefundedUSD));
+        const targetCoins = earnedSpentUSD > 0
+          ? Math.min(earnedCoins, Math.round(earnedCoins * (targetSpentUSD / earnedSpentUSD)))
+          : (status === 'REFUNDED' ? earnedCoins : 0);
+        const targetBookingCount = status === 'REFUNDED' ? 1 : 0;
+
+        const previousSpentTarget = Math.max(0, Number(previous.targetSpentUSD) || 0);
+        const previousCoinsTarget = Math.max(0, Number(previous.targetCoins) || 0);
+        const previousCountTarget = Math.max(0, Number(previous.targetBookingCount) || 0);
+        const spentDelta = Math.max(0, round2(targetSpentUSD - previousSpentTarget));
+        const coinsDelta = Math.max(0, targetCoins - previousCoinsTarget);
+        const countDelta = Math.max(0, targetBookingCount - previousCountTarget);
+
+        const currentSpent = Math.max(0, Number(user.totalSpentUSD) || 0);
+        const currentCoins = Math.max(0, Number(user.tripCoins) || 0);
+        const currentCount = Math.max(0, Number(user.bookingCount) || 0);
+        const actualSpentDelta = Math.min(currentSpent, spentDelta);
+        const actualCoinsDelta = Math.min(currentCoins, coinsDelta);
+        const actualCountDelta = Math.min(currentCount, countDelta);
+        const nextSpent = round2(currentSpent - actualSpentDelta);
+        const nextCoins = currentCoins - actualCoinsDelta;
+        const nextCount = currentCount - actualCountDelta;
+        const nextTier = calculateLoyaltyTier(nextSpent, nextCount);
+
+        tx.set(benefitContext.userRef, {
+          totalSpentUSD: nextSpent,
+          tripCoins: nextCoins,
+          bookingCount: nextCount,
+          tier: nextTier.name,
+          tierUpdatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        tx.set(benefitContext.reversalRef, {
+          type: 'refund_reversal',
+          orderID: benefitContext.orderID,
+          captureId: captureId || null,
+          targetSpentUSD,
+          targetCoins,
+          targetBookingCount,
+          spentUSDReversed: round2((Number(previous.spentUSDReversed) || 0) + actualSpentDelta),
+          coinsReversed: (Number(previous.coinsReversed) || 0) + actualCoinsDelta,
+          bookingCountReversed: (Number(previous.bookingCountReversed) || 0) + actualCountDelta,
+          spentUSDShortfall: round2(Math.max(0, targetSpentUSD - ((Number(previous.spentUSDReversed) || 0) + actualSpentDelta))),
+          coinsShortfall: Math.max(0, targetCoins - ((Number(previous.coinsReversed) || 0) + actualCoinsDelta)),
+          bookingCountShortfall: Math.max(0, targetBookingCount - ((Number(previous.bookingCountReversed) || 0) + actualCountDelta)),
+          balance: nextCoins,
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: previous.createdAt || FieldValue.serverTimestamp(),
+        }, { merge: true });
+        benefitResult.loyaltyReversed = spentDelta > 0 || coinsDelta > 0 || countDelta > 0;
+        if (coinsDelta > actualCoinsDelta) benefitResult.manualReviewReasons.push('loyalty_coins_already_spent');
+        if (spentDelta > actualSpentDelta) benefitResult.manualReviewReasons.push('loyalty_spend_shortfall');
+        if (countDelta > actualCountDelta) benefitResult.manualReviewReasons.push('loyalty_booking_count_shortfall');
+      }
+
+      if (status === 'REFUNDED' && benefitContext.isAiPlanner) {
+        const purchase = benefitContext.purchaseSnap && benefitContext.purchaseSnap.exists
+          ? benefitContext.purchaseSnap.data() || {}
+          : null;
+        if (purchase && purchase.status === 'active') {
+          const activeCount = Math.max(0, Number(user.activeAiPlannerPurchaseCount) || 0);
+          const nextActiveCount = Math.max(0, activeCount - 1);
+          tx.set(benefitContext.purchaseRef, {
+            status: 'refunded',
+            refundedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          tx.set(benefitContext.userRef, {
+            activeAiPlannerPurchaseCount: nextActiveCount,
+            aiFeaturesUnlocked: nextActiveCount > 0,
+            aiFeaturesUpdatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          benefitResult.aiEntitlementReversed = true;
+        } else if (!purchase && user.aiFeaturesUnlocked === true) {
+          benefitResult.manualReviewReasons.push('untracked_ai_entitlement');
+        }
+
+        if (benefitContext.couponMarker) {
+          if (benefitContext.couponMarker.couponIds && benefitContext.couponMarker.couponIds.length > 0) {
+            for (const couponSnap of benefitContext.couponSnaps) {
+              if (!couponSnap.exists) continue;
+              const coupon = couponSnap.data() || {};
+              if (coupon.isUsed === true) {
+                benefitResult.manualReviewReasons.push(`purchase_coupon_already_used:${couponSnap.id}`);
+              } else if (coupon.isRevoked !== true) {
+                tx.set(couponSnap.ref, {
+                  isRevoked: true,
+                  revokedReason: 'source_order_refunded',
+                  revokedOrderID: benefitContext.orderID,
+                  revokedAt: FieldValue.serverTimestamp(),
+                }, { merge: true });
+                benefitResult.couponsRevoked += 1;
+              }
+            }
+            tx.set(benefitContext.couponMarkerRef, {
+              status: benefitResult.manualReviewReasons.some((r) => r.startsWith('purchase_coupon_already_used'))
+                ? 'refunded_manual_review'
+                : 'refunded',
+              refundedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
+          } else {
+            benefitResult.manualReviewReasons.push('legacy_purchase_coupon_marker_without_ids');
+          }
+        }
+      }
+    } else if (benefitContext && !benefitContext.userSnap.exists) {
+      benefitResult.manualReviewReasons.push('refund_user_missing');
+    }
+
+    updates.benefitReversalStatus = benefitResult.manualReviewReasons.length > 0
+      ? 'manual_review'
+      : 'completed';
+    updates.benefitReversalReasons = benefitResult.manualReviewReasons;
+
+    if (benefitResult.manualReviewReasons.length > 0 && benefitContext) {
+      tx.set(db.collection('refund_benefit_reviews').doc(safeLedgerId(benefitContext.orderID)), {
+        orderID: benefitContext.orderID,
+        uid,
+        status: 'open',
+        reasons: benefitResult.manualReviewReasons,
+        lastEventId: eventId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
     // ── 쓰기 — 예약 2벌과 로그를 **같은 transaction** 에 넣는다.
     //    한쪽만 갱신된 채 processed 가 되는 상태가 구조적으로 불가능해진다.
     if (bookingData) tx.set(bookingDocRef, updates, { merge: true });
@@ -308,6 +514,8 @@ export async function applyRefundEvent({
         cumulativeRefundedUSD,
         resultStatus: status,
         authoritativeCaptureStatus: authoritativeCaptureStatus || null,
+        benefitReversalStatus: updates.benefitReversalStatus,
+        benefitReversalReasons: benefitResult.manualReviewReasons,
       },
       receivedAtMs: now,
     }, { merge: true });
@@ -316,6 +524,7 @@ export async function applyRefundEvent({
       applied: true,
       status,
       cumulativeRefundedUSD,
+      benefitReversal: benefitResult,
       wroteBooking: Boolean(bookingData),
       wrotePending: Boolean(pendingData),
     };

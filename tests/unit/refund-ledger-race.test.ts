@@ -163,6 +163,119 @@ describe('이벤트 멱등 — 같은 이벤트/같은 환불은 한 번만', ()
   });
 });
 
+describe('환불과 유료 혜택 원장 — 돈·코인·해금·쿠폰이 함께 수렴한다', () => {
+  function seedPaidAiBenefits(couponUsed = false) {
+    return {
+      ...seedBooking({
+        uid: 'USER-1',
+        paymentVerified: true,
+        productType: 'ai_planner_full',
+        purchaseCouponsEnabled: true,
+      }),
+      'users/USER-1': {
+        totalSpentUSD: 9.9,
+        bookingCount: 1,
+        tripCoins: 10,
+        tier: 'Bronze',
+        aiFeaturesUnlocked: true,
+        activeAiPlannerPurchaseCount: 1,
+      },
+      [`users/USER-1/pointHistory/earn_${ORDER}`]: {
+        type: 'earn',
+        amount: 10,
+        amountUSD: 9.9,
+        ledgerKey: ORDER,
+        captureId: CAPTURE,
+      },
+      [`users/USER-1/aiPlannerPurchases/${ORDER}`]: {
+        orderID: ORDER,
+        status: 'active',
+      },
+      [`users/USER-1/purchaseCouponOrders/${ORDER}`]: {
+        orderID: ORDER,
+        status: 'active',
+        couponIds: ['C1', 'C2'],
+      },
+      'users/USER-1/coupons/C1': {
+        sourceOrderID: ORDER,
+        isUsed: couponUsed,
+      },
+      'users/USER-1/coupons/C2': {
+        sourceOrderID: ORDER,
+        isUsed: false,
+      },
+    };
+  }
+
+  it('부분환불은 지출·코인만 비례 회수하고 예약·해금·쿠폰은 유지한다', async () => {
+    const db = createFakeFirestore(seedPaidAiBenefits());
+    const result = await applyRefundEvent(ev({
+      db,
+      eventId: 'BENEFIT-PART',
+      refundId: 'BENEFIT-R1',
+      refundedUSD: 5,
+    }));
+
+    const user = db.__get('users/USER-1')!;
+    expect(result.status).toBe('PARTIALLY_REFUNDED');
+    expect(user.totalSpentUSD).toBe(4.9);
+    expect(user.tripCoins).toBe(5);
+    expect(user.bookingCount).toBe(1);
+    expect(user.aiFeaturesUnlocked).toBe(true);
+    expect(db.__get('users/USER-1/coupons/C1')!.isRevoked).toBeUndefined();
+  });
+
+  it('나머지 전액환불은 예약·해금·미사용 쿠폰까지 한 번만 회수한다', async () => {
+    const db = createFakeFirestore(seedPaidAiBenefits());
+    await applyRefundEvent(ev({
+      db,
+      eventId: 'BENEFIT-PART',
+      refundId: 'BENEFIT-R1',
+      refundedUSD: 5,
+    }));
+    const full = await applyRefundEvent(ev({
+      db,
+      eventId: 'BENEFIT-FULL',
+      refundId: 'BENEFIT-R2',
+      refundedUSD: 4.9,
+    }));
+
+    const user = db.__get('users/USER-1')!;
+    expect(full.status).toBe('REFUNDED');
+    expect(user.totalSpentUSD).toBe(0);
+    expect(user.tripCoins).toBe(0);
+    expect(user.bookingCount).toBe(0);
+    expect(user.activeAiPlannerPurchaseCount).toBe(0);
+    expect(user.aiFeaturesUnlocked).toBe(false);
+    expect(db.__get(`users/USER-1/aiPlannerPurchases/${ORDER}`)!.status).toBe('refunded');
+    expect(db.__get('users/USER-1/coupons/C1')!.isRevoked).toBe(true);
+    expect(db.__get('users/USER-1/coupons/C2')!.isRevoked).toBe(true);
+    expect(db.__get(`users/USER-1/purchaseCouponOrders/${ORDER}`)!.status).toBe('refunded');
+
+    const reversal = db.__get(`users/USER-1/pointHistory/refund_${ORDER}`)!;
+    expect(reversal.spentUSDReversed).toBe(9.9);
+    expect(reversal.coinsReversed).toBe(10);
+    expect(reversal.bookingCountReversed).toBe(1);
+  });
+
+  it('이미 쓴 구매 쿠폰은 자동 회수하지 않고 수동 확인으로 격리한다', async () => {
+    const db = createFakeFirestore(seedPaidAiBenefits(true));
+    const result = await applyRefundEvent(ev({
+      db,
+      eventId: 'BENEFIT-USED',
+      refundId: 'BENEFIT-R3',
+      refundedUSD: 9.9,
+    }));
+
+    expect(result.benefitReversal.manualReviewReasons)
+      .toContain('purchase_coupon_already_used:C1');
+    expect(db.__get('users/USER-1/coupons/C1')!.isRevoked).toBeUndefined();
+    expect(db.__get('users/USER-1/coupons/C2')!.isRevoked).toBe(true);
+    expect(db.__get(`refund_benefit_reviews/${ORDER}`)!.status).toBe('open');
+    expect(db.__get(`bookings/${ORDER}`)!.benefitReversalStatus).toBe('manual_review');
+  });
+});
+
 describe('실패 주입 — 부분 갱신이 남지 않는다', () => {
   it('커밋 직전 실패하면 예약도 로그도 안 바뀐다 (재시도 가능)', async () => {
     const db = createFakeFirestore({

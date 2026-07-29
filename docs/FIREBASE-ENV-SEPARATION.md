@@ -6,8 +6,9 @@
 
 ## 왜 하는가
 
-지금은 **Vercel Preview 배포가 운영 Firebase 프로젝트를 그대로 쓴다.**
-그래서 프리뷰에서 돌린 테스트 결제가 **운영 예약·포인트·플랜을 실제로 기록한다.**
+2026-07-29 이전에는 **Vercel Preview 배포가 운영 Firebase 프로젝트를 그대로 썼다.**
+현재는 Preview 전용 `cocotrip-preview-2026` 프로젝트로 분리했고 강제 가드까지 적용했다.
+아래 절차는 새 배포·키 교체 때 분리가 다시 무너지지 않게 하는 운영 기준이다.
 
 이번 감사에서 그 결과가 숫자로 확인됐다:
 
@@ -19,7 +20,7 @@
 | 잘못 더해진 지출 | $210,219.21 |
 | 15% 쿠폰 환산 상한 | 314장 |
 
-분리 전에는 **샌드박스 결제 시험(#11)을 하면 안 된다.** 운영 데이터가 또 오염된다.
+분리가 확인되지 않은 새 환경에서는 **샌드박스 결제 시험을 하면 안 된다.**
 
 ---
 
@@ -114,7 +115,7 @@ Preview 에 운영 ID 를 넣는 것은 **비교 대상**으로 쓰기 위함이
 
 ---
 
-## 배포 환경 선행조건 (2026-07-29 확인 — 셋 다 아직 없음)
+## 배포 환경 선행조건 (2026-07-29 적용 완료)
 
 | 키 | 스코프 | 없으면 무슨 일이 생기나 |
 |---|---|---|
@@ -127,6 +128,22 @@ Preview 에 운영 ID 를 넣는 것은 **비교 대상**으로 쓰기 위함이
 
 `VERCEL_AUTOMATION_BYPASS_SECRET` 은 Vercel → Settings → Deployment Protection →
 "Protection Bypass for Automation" 에서 생성하면 자동 주입된다. 직접 값을 적지 않는다.
+
+## GitHub Actions의 Preview 전용 테스트 계정
+
+Vercel Preview를 검사하는 두 작업은 운영 Firebase 계정을 재사용하지 않는다.
+
+| 넣을 위치 | 키 |
+|---|---|
+| GitHub → Repository → Settings → Secrets and variables → Actions | `PREVIEW_FIREBASE_WEB_API_KEY` |
+| 같은 위치 | `PREVIEW_HEALTH_CHECK_EMAIL` |
+| 같은 위치 | `PREVIEW_HEALTH_CHECK_PASSWORD` |
+| 같은 위치 | `PREVIEW_PDF_GOLDEN_PLAN_ID` |
+
+이 값은 `.github/workflows/pr-pdf-golden.yml`과
+`.github/workflows/pr-visual-regression.yml`에만 연결한다. 운영 감시 작업은 기존 운영
+Secrets를 계속 사용한다. Preview 테스트 사용자는 고객 계정이 아닌 전용 fixture 계정이며,
+fixture 플랜도 Preview Firestore에만 둔다.
 
 ### 왜 이게 Firebase 분리와 세트인가
 

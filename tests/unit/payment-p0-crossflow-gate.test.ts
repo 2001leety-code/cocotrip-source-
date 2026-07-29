@@ -30,7 +30,10 @@ vi.mock('../../api/_shared/paypal.js', () => ({
 }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async () => {} }));
-vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({ triggerBookingProcessor: async () => {} }));
+vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({
+  triggerBookingProcessor: async () => ({ ok: true, outcome: 'completed', status: 200 }),
+  PENDING_PROCESSOR_RETRIES_COLLECTION: 'pending_processor_retries',
+}));
 vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperator: async () => {} }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: async () => {} }));
 vi.mock('../../api/onboarding-coupons.js', () => ({ issuePurchaseCouponsForOrder: async () => {} }));
@@ -517,7 +520,9 @@ describe('paymentGate — 주문 provenance (P0-B)', () => {
   });
 
   it('legacy 스냅샷(expectedCurrency 없음) → USD 로 간주해 통과 (create 가 항상 USD 주문 생성)', async () => {
-    const { expectedCurrency: _drop, ...legacy } = AI_SNAPSHOT;
+    const legacy = Object.fromEntries(
+      Object.entries(AI_SNAPSHOT).filter(([key]) => key !== 'expectedCurrency'),
+    );
     const r = await enforcePaymentAndRevision({ paypalOrderId: PAYPAL_ORDER }, gateDb({ snapshot: legacy }), 'u@e.com');
     expect(r.rejection).toBeUndefined();
   });

@@ -101,6 +101,7 @@ describe('booking-processor — 적립 근거는 검증된 capture 뿐', () => {
     for (const guard of [
       'admin-or-test-order', 'booking-not-found', 'payment-not-verified',
       'no-captureID', 'no-verified-uid', 'invalid-amount',
+      'fully-refunded-or-canceled',
     ]) {
       expect(fn, `가드 누락: ${guard}`).toContain(guard);
     }

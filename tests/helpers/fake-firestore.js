@@ -125,6 +125,7 @@ export function createFakeFirestore(seed = {}, options = {}) {
   const docApi = (path) => ({
     path,
     id: path.split('/').pop(),
+    collection: (name) => collectionApi(`${path}/${name}`),
     async get() { stats.reads += 1; return snapshotOf(path); },
     async set(data, opts) { commitWrite(path, { kind: 'set', data, merge: Boolean(opts?.merge) }); },
     async update(data) { commitWrite(path, { kind: 'update', data }); },

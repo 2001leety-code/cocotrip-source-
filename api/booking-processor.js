@@ -51,6 +51,8 @@ import {
   STEP, overallOutcome, stepFromClaimReason, stepFromFinalize,
   stepFromLedgerReason, stepFromLoyaltyHttp, isAmbiguousSendError,
 } from './_shared/processor-outcome.js';
+import { activateAiPlannerPurchase } from './_shared/ai-purchase-benefits.js';
+import { issuePurchaseCouponsForOrder } from './onboarding-coupons.js';
 
 
 // ── 🔴 2026-07-29: 포인트 원장 근거 조회 (P0) ────────────────────────────────
@@ -79,6 +81,7 @@ async function readVerifiedLedgerBasis(orderID) {
   }
   if (!snap.exists) return { ok: false, reason: 'booking-not-found' };
   const d = snap.data() || {};
+  const bookingStatus = String(d.status || '');
 
   // 🔴 2026-07-29: "0원이니까 무료겠지" 로 추정하지 않는다.
   //   유료 예약의 금액이 NaN·0·음수·누락이어도 그렇게 추정하면 **금액 오류가 무료로 둔갑**해
@@ -88,6 +91,9 @@ async function readVerifiedLedgerBasis(orderID) {
   if (d.paymentSource === 'ai-coupon') return { ok: false, reason: 'free-verified: ai-coupon' };
   if (d.isFreeOrder === true) return { ok: false, reason: 'free-verified: isFreeOrder' };
   if (d.freeReason) return { ok: false, reason: `free-verified: ${String(d.freeReason).slice(0, 40)}` };
+  if (bookingStatus === 'REFUNDED' || bookingStatus === 'CANCELED') {
+    return { ok: false, reason: 'fully-refunded-or-canceled' };
+  }
 
   if (d.paymentVerified !== true) return { ok: false, reason: 'payment-not-verified' };
   if (!d.captureID) return { ok: false, reason: 'no-captureID' };
@@ -96,7 +102,38 @@ async function readVerifiedLedgerBasis(orderID) {
   const amountUSD = Number(d.amountUSD);
   if (!Number.isFinite(amountUSD) || amountUSD <= 0) return { ok: false, reason: 'invalid-amount' };
   if (!d.uid) return { ok: false, reason: 'no-verified-uid (guest checkout)' };
-  return { ok: true, uid: String(d.uid), amountUSD, captureID: String(d.captureID) };
+  return {
+    ok: true,
+    uid: String(d.uid),
+    amountUSD,
+    captureID: String(d.captureID),
+    productType: String(d.productType || ''),
+    purchaseCouponsEnabled: d.purchaseCouponsEnabled === true,
+  };
+}
+
+async function ensurePaidAiBenefits({ ledger, orderID }) {
+  if (!ledger || !ledger.ok || !/^ai_planner/.test(ledger.productType)) {
+    return { ok: true, skipped: true };
+  }
+  const db = initAdminDb('booking-processor:ai-benefits');
+  if (!db) return { ok: false, reason: 'firestore-unavailable' };
+  try {
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const activation = await activateAiPlannerPurchase({
+      db,
+      FieldValue,
+      uid: ledger.uid,
+      orderID,
+    });
+    let coupons = { issued: 0, skipped: true };
+    if (ledger.purchaseCouponsEnabled) {
+      coupons = await issuePurchaseCouponsForOrder(db, ledger.uid, orderID);
+    }
+    return { ok: true, activation, coupons };
+  } catch (e) {
+    return { ok: false, reason: e.message || 'ai-benefit-failed' };
+  }
 }
 
 const CORS_HEADERS = {
@@ -638,6 +675,7 @@ const originalHandler = async (event) => {
   console.log('[booking-processor] 예약 처리 완료:', results);
 
   // ── 로열티 포인트 자동 적립 ──────────────────────────────────────────
+  let verifiedLedger = null;
   try {
     // PR #452 (Z-H9): use the shared guard so 'abc' doesn't silently set
     // amountNum=0 + skip loyalty earn (the operator-alerted path above
@@ -653,6 +691,7 @@ const originalHandler = async (event) => {
     //     · uid 존재                 (검증된 Firebase 토큰에서 저장된 값)
     //   금액도 문서의 amountUSD 를 쓴다(요청 body 무시).
     const ledger = await readVerifiedLedgerBasis(orderID);
+    verifiedLedger = ledger;
     const amountNum = ledger.ok ? ledger.amountUSD : 0;
     const ledgerUid = ledger.ok ? ledger.uid : null;
     if (!ledger.ok) {
@@ -741,6 +780,17 @@ const originalHandler = async (event) => {
     if (!results.stepStatus.loyalty) results.stepStatus.loyalty = STEP.RETRYABLE;
   }
 
+  // AI 유료 혜택도 같은 durable processor에서 처리한다. 구매 원장과 쿠폰 발급
+  // 모두 orderID 멱등이라 이 단계가 재시도돼도 중복 해금·중복 쿠폰이 생기지 않는다.
+  if (verifiedLedger && verifiedLedger.ok) {
+    const aiBenefits = await ensurePaidAiBenefits({ ledger: verifiedLedger, orderID });
+    results.aiBenefits = aiBenefits;
+    if (!aiBenefits.ok) {
+      results.stepStatus.loyalty = STEP.RETRYABLE;
+      console.warn('[booking-processor] AI 구매 혜택 처리 실패:', aiBenefits.reason);
+    }
+  }
+
   // 🔴 실패 집계는 반드시 loyalty 처리 **이후**다. 이전엔 어떤 단계가 실패해도
   //   무조건 ok:true 라 trigger·retry cron·관리자 재처리가 전부 실패를 성공으로 기록했다.
   // 안전 기본 — 어떤 이유로든 상태가 안 찍혔으면 "성공" 으로 단정하지 않는다.
@@ -757,6 +807,7 @@ const originalHandler = async (event) => {
       steps: results.steps,
       stepStatus: results.stepStatus,
       loyalty: results.loyalty,
+      aiBenefits: results.aiBenefits || null,
     },
   });
 };

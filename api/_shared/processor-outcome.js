@@ -120,6 +120,7 @@ export function stepFromLedgerReason(reason) {
   if (r.startsWith('admin-or-test-order')) return STEP.SKIPPED;   // 명시적 관리자·테스트 주문
   if (r.startsWith('free-verified')) return STEP.SKIPPED;         // 서버가 확인한 무료(쿠폰·무료상품)
   if (r.startsWith('no-verified-uid')) return STEP.SKIPPED;       // 게스트 결제 = 적립 대상 아님
+  if (r.startsWith('fully-refunded-or-canceled')) return STEP.SKIPPED;
 
   // ── 일시적 — 다시 보면 달라질 수 있다. ──
   if (r.startsWith('firestore-unavailable')) return STEP.RETRYABLE;

@@ -40,6 +40,7 @@ describe('planPersister — 원장 미기록', () => {
 
 // ── 2~4. 결제 경로(loyalty.js earn) 동작 ──────────────────────────────────────
 const userHolder: { d: any } = { d: {} };
+const bookingHolder: { d: any; exists: boolean } = { d: {}, exists: true };
 const historyHolder: { existing: Set<string> } = { existing: new Set() };
 const userUpdate = vi.fn();
 const historySet = vi.fn();
@@ -59,6 +60,9 @@ function docHandle(path: string) {
       if (path.startsWith('users/u1/pointHistory/')) {
         const id = path.split('/').pop() as string;
         return { exists: historyHolder.existing.has(id), data: () => ({ amount: 123 }) };
+      }
+      if (path.startsWith('bookings/')) {
+        return { exists: bookingHolder.exists, data: () => ({ ...bookingHolder.d }) };
       }
       return { exists: true, data: () => ({ ...userHolder.d }) };
     },
@@ -106,6 +110,16 @@ async function earn(body: object) {
 beforeEach(() => {
   process.env.INTERNAL_API_TOKEN = 'tok';
   userHolder.d = { tripCoins: 0, totalSpentUSD: 0, bookingCount: 0 };
+  bookingHolder.exists = true;
+  bookingHolder.d = {
+    paymentVerified: true,
+    uid: 'u1',
+    captureID: 'CAP-1',
+    currency: 'USD',
+    amountUSD: 9.9,
+    refundedUSDTotal: 0,
+    status: 'CONFIRMED',
+  };
   historyHolder.existing = new Set();
   userUpdate.mockClear(); historySet.mockClear();
 });
@@ -158,5 +172,35 @@ describe('loyalty earn — 실결제만 원장에 반영', () => {
     } as any, res as any);
     expect(res.out.statusCode).toBe(403);
     expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('원결제 뒤 부분환불이 먼저 반영됐으면 남은 실결제액만 적립한다', async () => {
+    bookingHolder.d.refundedUSDTotal = 5;
+    bookingHolder.d.status = 'PARTIALLY_REFUNDED';
+    const r = await earn({
+      amountUSD: 999,
+      bookingRef: 'CT-1',
+      ledgerKey: 'ORDER-1',
+      captureId: 'CAP-1',
+    });
+    expect(r.statusCode).toBe(200);
+    const written = (userUpdate.mock.calls[0] as any[])[1];
+    expect(written.totalSpentUSD).toBe(4.9);
+    expect(r.json.data.earnedCoins).toBe(5);
+  });
+
+  it('전액환불이 먼저 끝났으면 뒤늦은 적립을 만들지 않는다', async () => {
+    bookingHolder.d.refundedUSDTotal = 9.9;
+    bookingHolder.d.status = 'REFUNDED';
+    const r = await earn({
+      amountUSD: 9.9,
+      bookingRef: 'CT-1',
+      ledgerKey: 'ORDER-1',
+      captureId: 'CAP-1',
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.data.skipped).toBe('fully-refunded');
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(historySet).not.toHaveBeenCalled();
   });
 });

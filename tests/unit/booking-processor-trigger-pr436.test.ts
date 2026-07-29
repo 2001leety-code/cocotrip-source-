@@ -182,6 +182,17 @@ describe('PR #436 Y-H8 — wire-up across endpoints + cron + infra', () => {
     expect(captureSrc).not.toMatch(silentFetch);
   });
 
+  it('capture는 예약과 재처리 intent를 한 batch에 저장한 뒤 processor를 await한다', () => {
+    const bookingWrite = captureSrc.indexOf("batch.set(db.collection('bookings').doc(orderID)");
+    const retryWrite = captureSrc.indexOf('PENDING_PROCESSOR_RETRIES_COLLECTION');
+    const triggerCall = captureSrc.indexOf('await triggerBookingProcessor({');
+    expect(bookingWrite).toBeGreaterThan(-1);
+    expect(retryWrite).toBeGreaterThan(-1);
+    expect(triggerCall).toBeGreaterThan(bookingWrite);
+    expect(captureSrc).not.toMatch(/void\s+triggerBookingProcessor\s*\(/);
+    expect(captureSrc).toMatch(/processorStatus:\s*['"]pending['"]/);
+  });
+
   it('booking-confirm imports the helper and no longer uses raw fetch().catch', () => {
     expect(confirmSrc).toMatch(
       /import\s*\{[^}]*triggerBookingProcessor[^}]*\}\s*from\s*['"]\.\/booking-processor-trigger\.js['"]/,
