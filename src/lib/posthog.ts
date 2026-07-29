@@ -10,6 +10,7 @@
 //      schema in `docs/ROADMAP.md` Sprint 2 #7 stays in sync with code.
 
 import type { PostHog } from 'posthog-js';
+import { hasAnalyticsConsent } from './consent';
 
 let client: PostHog | null = null;
 let initPromise: Promise<PostHog | null> | null = null;
@@ -36,6 +37,11 @@ async function ensureInit(): Promise<PostHog | null> {
   if (client) return client;
   if (!KEY) return null;
   if (typeof window === 'undefined') return null;
+  // 🔴 2026-07-30: 동의 검사를 **여기**에 둔다. main.tsx 에서 bootPostHog 만 막았더니
+  //   운영에서 여전히 posthog.com 요청이 나갔다. 원인은 이 함수가 lazy-init 이라
+  //   `track()` 이 한 번이라도 불리면(App 의 trackPageView 등) 그 경로로 SDK 가 켜졌기 때문이다.
+  //   부팅 경로만 막는 것으로는 부족하다 — SDK 가 켜지는 문은 이 함수 하나뿐이므로 여기서 막는다.
+  if (!hasAnalyticsConsent()) return null;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {

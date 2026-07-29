@@ -238,6 +238,24 @@ describe('⑦ 쿠키 동의 전에는 분석 도구를 켜지 않는다', () => 
     expect(s).not.toMatch(/^bootPostHog\(\);/m);
   });
 
+  it('🔴 PostHog 는 lazy-init 경로까지 막힌다', () => {
+    // 부팅 경로(bootPostHog)만 막았더니 운영에서 여전히 posthog.com 요청이 나갔다.
+    // track() 이 한 번이라도 불리면 ensureInit 이 SDK 를 켜버렸기 때문이다.
+    // SDK 가 켜지는 문은 ensureInit 하나뿐이므로 거기서 막는다.
+    const ph = read('src/lib/posthog.ts');
+    expect(ph).toContain("import { hasAnalyticsConsent } from './consent';");
+    const init = ph.slice(ph.indexOf('async function ensureInit'), ph.indexOf('initPromise = ('));
+    expect(init).toContain('if (!hasAnalyticsConsent()) return null;');
+  });
+
+  it('GA4 는 initGA 없이 요청이 나가지 않는다', () => {
+    const ga = read('src/lib/analytics.ts');
+    // gtag.js 삽입은 initGA 한 곳에서만.
+    expect((ga.match(/googletagmanager/g) || []).length).toBe(1);
+    // 전송 함수는 window.gtag 가 없으면 즉시 반환.
+    expect(ga).toContain('if (!GA_ID || !window.gtag) return;');
+  });
+
   it('🔴 "닫기" 는 거부로 본다', () => {
     const consent = read('src/lib/consent.ts');
     expect(consent).toContain("v === 'accepted'");
