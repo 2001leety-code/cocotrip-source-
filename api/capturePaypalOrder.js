@@ -818,12 +818,12 @@ export default async function handler(req, res) {
     // 수동으로 /admin-replay-booking-notifications 돌리기 전에는 사라짐.
     //
     // 이제 triggerBookingProcessor helper 가:
-    //   - AbortController 로 25s timeout
+    //   - AbortController 로 45s timeout (Sandbox 실측 processor 약 33s)
     //   - response.ok 검증 (비-2xx 도 실패로 처리)
     //   - 실패 시 pending_processor_retries/{orderID} 등록 + 운영자 텔레그램 alert
     //   - 5분 마다 processor-retry-sweep cron 이 재시도
     // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
-    // resolve 하므로 정상 흐름에 영향 없음. 25s + Vercel maxDuration 60s 안에 안전.
+    // resolve 하므로 정상 흐름에 영향 없음. 45s + Vercel maxDuration 60s 안에 안전.
     const siteUrl = internalApiBase();
     const processorResult = await triggerBookingProcessor({
       db: dbForLock,
@@ -831,6 +831,7 @@ export default async function handler(req, res) {
       payload: processorPayload,
       source: 'capturePaypalOrder',
       notify,
+      timeoutMs: 45_000,
     });
     try {
       const processorBatch = dbForLock.batch();

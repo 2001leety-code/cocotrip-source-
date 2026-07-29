@@ -191,6 +191,9 @@ describe('PR #436 Y-H8 — wire-up across endpoints + cron + infra', () => {
     expect(triggerCall).toBeGreaterThan(bookingWrite);
     expect(captureSrc).not.toMatch(/void\s+triggerBookingProcessor\s*\(/);
     expect(captureSrc).toMatch(/processorStatus:\s*['"]pending['"]/);
+    expect(captureSrc).toMatch(
+      /await\s+triggerBookingProcessor\s*\(\s*\{[\s\S]*?timeoutMs:\s*45_000[\s\S]*?\}\s*\)/,
+    );
   });
 
   it('booking-confirm imports the helper and no longer uses raw fetch().catch', () => {

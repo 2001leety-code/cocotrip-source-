@@ -46,7 +46,7 @@
  *     5. Better Stack (2025): SPA route transitions must wait for content element,
  *        not URL change — window.__pageReady custom flag pattern preferred.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { suppressCookieBanner } from './helpers';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ import { suppressCookieBanner } from './helpers';
  *       auth 주입 실패/미주입 시 → Firestore unauthorized → error UI → window.__pageReady emit.
  *       양쪽 모두 waitForFunction(__pageReady) 가 통과 — chronic timeout 해소.
  */
-async function injectFirebaseAuth(page: { addInitScript: Function }) {
+async function injectFirebaseAuth(page: Page) {
   const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || '';
   const email = process.env.HEALTH_CHECK_EMAIL || '';
   const password = process.env.HEALTH_CHECK_PASSWORD || '';
@@ -98,7 +98,9 @@ async function injectFirebaseAuth(page: { addInitScript: Function }) {
     try {
       const lsKey = `firebase:authUser:${k}:[DEFAULT]`;
       localStorage.setItem(lsKey, JSON.stringify(s));
-    } catch {}
+    } catch {
+      // 보안 설정으로 localStorage를 쓸 수 없으면 비로그인 화면 검증으로 이어간다.
+    }
   }, { s: session, k: apiKey });
 }
 
@@ -131,6 +133,10 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
       { timeout: 20000 },
     );
 
+    // 실제 fixture가 로드된 뒤 웹폰트가 바뀌면서 글자가 반쯤 그려진 상태를
+    // 기준 이미지로 저장하지 않도록 폰트 렌더링 완료까지 기다린다.
+    await page.evaluate(() => document.fonts.ready);
+
     // React 리렌더 안정화 — streaming_in_progress 갱신 등 2차 Firestore 패치 여유.
     // framer-motion transition 은 playwright.visual.config.ts animations:'disabled' 가 처리.
     await page.waitForTimeout(400);
@@ -148,13 +154,15 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
   });
 
   /**
-   * T2: Day timeline 중간 영역 (300px~700px).
-   * DayTimeline / StopCard 가 올바르게 렌더링되는지 확인.
-   * 동적 콘텐츠 (광고 슬라이드) 를 피하고 itinerary card 위주 clip.
+   * T2: 여행 요약 중간 영역 (300px~560px).
+   * 핵심 안내 카드와 날짜·장소·거리 통계가 올바르게 렌더링되는지 확인.
+   * 외부 장소 사진처럼 네트워크 상태에 따라 달라지는 영역은 제외한다.
    */
-  test('Day timeline renders correctly in middle region', async ({ page }) => {
+  test('Trip summary metrics render correctly in middle region', async ({ page }) => {
     await expect(page).toHaveScreenshot('timeline-mid.png', {
-      clip: { x: 0, y: 300, width: 375, height: 400 },
+      // 외부 장소 사진은 네트워크 상태에 따라 로딩/실패 그림이 달라진다.
+      // 사진 직전까지만 비교해 레이아웃·글자·통계 카드는 엄격히 잠근다.
+      clip: { x: 0, y: 300, width: 375, height: 260 },
     });
   });
 

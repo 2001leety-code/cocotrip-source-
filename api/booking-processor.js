@@ -173,7 +173,7 @@ function detectLanguage(email = '', name = '') {
 
 // ── 버그 #17 fix: 부수효과 단계 원자 선점 (atomically-claim) ──
 // 기존 'check stepGuards → do → setBookingMarker' 는 순차 retry 만 막고 동시 호출
-// (cart fan-out + retry-sweep, capture 25s timeout 후 원본 계속 도는 중 retry 재발화)은
+// (cart fan-out + retry-sweep, capture의 제한 시간 뒤 원본 계속 도는 중 retry 재발화)은
 // 못 막음 → 두 인스턴스가 둘 다 마커 없음 읽어 sheets/email/loyalty 각각 실행 → 중복.
 //
 // 해결: 부수효과 진입 전에 해당 마커를 db.runTransaction 으로 원자 선점(CAS).
