@@ -194,8 +194,12 @@ describe('FAIL-4 rollback 이 이전 상태를 정확히 복원한다', () => {
   });
 
   it('rollback 은 이 plan 이 바꾼 쿠폰만 건드린다', () => {
+    // 2026-07-29 FAIL-9: 쿠폰 확인이 detectCouponDrift 로 올라갔다.
+    //   불변식은 더 강해졌다 — 하나라도 어긋나면 그 사용자 rollback 전체를 중단한다.
     const src = read('scripts/loyalty-remediation-rollback.mjs');
-    expect(src).toContain('cd.revokedPlan !== planHash');
+    expect(src).toContain("c.revokedPlan !== planHash");
+    expect(src).toContain('detectCouponDrift(couponEntries, planHash)');
+    expect(src).toContain("'coupon_drift'");
     expect(src).toContain('buildCouponRestorePatch');
     expect(src).not.toMatch(/status:\s*FieldValue\.delete\(\)/);   // 무조건 삭제 금지
   });

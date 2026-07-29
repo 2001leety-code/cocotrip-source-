@@ -220,11 +220,12 @@ async function main() {
   console.log('');
 
   if (writeReport) {
-    const outDir = join(ROOT, 'docs');
+    // 감사 문서(01~05)를 덮어쓰지 않도록 "최신 실행" 전용 경로에 쓴다.
+    const outDir = join(ROOT, 'docs', 'loyalty-remediation');
     mkdirSync(outDir, { recursive: true });
-    writeFileSync(join(outDir, 'loyalty-remediation-dryrun.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-    writeFileSync(join(outDir, 'loyalty-remediation-dryrun.md'), `${toMarkdown(report)}\n`, 'utf8');
-    console.log('보고서: docs/loyalty-remediation-dryrun.json / .md');
+    writeFileSync(join(outDir, 'latest-dryrun.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    writeFileSync(join(outDir, 'latest-dryrun.md'), `${toMarkdown(report)}\n`, 'utf8');
+    console.log('보고서: docs/loyalty-remediation/latest-dryrun.json / .md');
   }
 }
 

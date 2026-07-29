@@ -178,5 +178,7 @@
     "paymentVerified": 0,
     "unattributable": 29,
     "note": "uid·paymentVerified 는 2026-07-29 PR 에서 추가된 필드다. 그 이전 결제 문서에는 없어 계정에 귀속되지 않는다."
-  }
+  },
+  "_status": "transient-bug-reproduction",
+  "_warning": "현재 상태 아님. 이중 차감 결함이 남아 있던 시점(2026-07-29 보정 직후)의 dry-run. 여기 제안된 추가 차감은 실행하지 않았다. 현재 상태는 04-post-execution-dryrun.md 참조."
 }

@@ -15,6 +15,8 @@
  *   · 계정 하나가 실패해도 다른 계정 결과를 가리지 않는다.
  */
 
+import { POLLUTION_CORRECTION_SCHEMA } from './lib/loyalty-remediation-core.mjs';
+
 const SNAPSHOT_COLLECTION = 'admin_loyalty_remediation_snapshots';
 
 /**
@@ -175,6 +177,9 @@ async function applyOneAccount({ db, FieldValue, acct, planHash }) {
       balance: acct.after.tripCoins,
       description: `Ledger correction: removed AI-plan estimates not backed by a verified PayPal capture (plan ${planHash})`,
       correction: {
+        // 🔴 FAIL-8: 이 보정이 만든 correction 임을 명시한다. 판별이 type 만 보지 않게 한다.
+        //   (2026-07-29 운영에 이미 생성된 4건은 이 필드가 없어 설명 접두사로 호환 인식한다.)
+        schema: POLLUTION_CORRECTION_SCHEMA,
         planHash,
         mode: acct.mode,
         spentUSDBefore: acct.before.totalSpentUSD,

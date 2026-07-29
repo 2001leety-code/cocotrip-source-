@@ -60,6 +60,42 @@ export function buildCouponRestorePatch(prior, FieldValue) {
   return patch;
 }
 
+
+/**
+ * 🔴 FAIL-9: rollback 이 정상 후속 변경을 덮어쓰지 않게 한다.
+ *
+ * 현재 사용자 값이 **그 correction 의 보정 후 값과 정확히 같을 때만** 되돌린다.
+ * 보정 뒤에 정상 결제·코인 사용·등급 변경이 있었다면 그것까지 지워버리기 때문이다.
+ *
+ * 기대값은 snapshot 이 아니라 **correction 원장** 에서 읽는다.
+ * 운영에 이미 생성된 스냅샷에는 after 가 없기 때문이다.
+ *
+ * @returns {string[]} 어긋난 필드 목록. 빈 배열이면 되돌려도 안전하다.
+ */
+export function detectStaleRollback(correctionData, currentUser) {
+  const meta = (correctionData || {}).correction || {};
+  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const diffs = [];
+  if (round2(meta.spentUSDAfter) !== round2(currentUser.totalSpentUSD)) diffs.push('totalSpentUSD');
+  if (Number(meta.bookingCountAfter || 0) !== Number(currentUser.bookingCount || 0)) diffs.push('bookingCount');
+  if (Number((correctionData || {}).balance || 0) !== Number(currentUser.tripCoins || 0)) diffs.push('tripCoins');
+  if (String(meta.tierAfter || '') !== String(currentUser.tier || '')) diffs.push('tier');
+  return diffs;
+}
+
+/** 이 plan 이 회수한 쿠폰이 그 뒤 다른 작업으로 바뀌었는지. 하나라도 바뀌면 전체 중단. */
+export function detectCouponDrift(entries, planHash) {
+  const drifted = [];
+  for (const { ref, snap } of entries) {
+    if (!snap.exists) { drifted.push({ id: ref.id, reason: 'missing' }); continue; }
+    const c = snap.data() || {};
+    if (c.revokedPlan !== planHash) { drifted.push({ id: ref.id, reason: 'revoked_plan_changed' }); continue; }
+    if (c.isRevoked !== true) { drifted.push({ id: ref.id, reason: 'already_unrevoked' }); continue; }
+    if (c.isUsed === true) { drifted.push({ id: ref.id, reason: 'used_after_revoke' }); }
+  }
+  return drifted;
+}
+
 async function main() {
   if (!planHash) {
     console.error('사용법: node scripts/loyalty-remediation-rollback.mjs --confirm=<planHash> [--execute]');
@@ -135,14 +171,33 @@ async function main() {
     }
     try {
       const userRef = db.collection('users').doc(snap.id);
-      await db.runTransaction(async (tx) => {
+      const outcome = await db.runTransaction(async (tx) => {
+        // ── 읽기 (쓰기 전에 전부) ──
         const correctionRef = userRef.collection('pointHistory').doc(correctionDocId(planHash));
         const correctionSnap = await tx.get(correctionRef);
+        const userSnap = await tx.get(userRef);
         const couponEntries = [];
         for (const c of changed) {
           const ref = userRef.collection('coupons').doc(c.id);
           couponEntries.push({ ref, snap: await tx.get(ref), prior: c.prior });
         }
+
+        // ── 사전 검증 — 하나라도 어긋나면 이 사용자는 아무것도 쓰지 않는다 ──
+        if (!correctionSnap.exists) return { skipped: 'correction_missing' };
+        const cd = correctionSnap.data() || {};
+        if (cd.rolledBack === true) return { skipped: 'already_rolled_back' };
+        if (!userSnap.exists) return { skipped: 'user_missing' };
+        const u = userSnap.data() || {};
+        if (String(u.loyaltyCorrectionPlan || '') !== planHash) return { skipped: 'plan_mismatch' };
+
+        const diffs = detectStaleRollback(cd, u);
+        if (diffs.length > 0) return { skipped: 'stale_rollback', diffs };
+
+        const drifted = detectCouponDrift(couponEntries, planHash);
+        if (drifted.length > 0) {
+          return { skipped: 'coupon_drift', drifted: drifted.map((x) => x.reason) };
+        }
+
         tx.set(userRef, {
           totalSpentUSD: s.before.totalSpentUSD,
           bookingCount: s.before.bookingCount,
@@ -158,15 +213,14 @@ async function main() {
             rolledBackAt: FieldValue.serverTimestamp(),
           }, { merge: true });
         }
-        // 🔴 이번 plan 이 실제로 바꾼 쿠폰만, 그리고 그 쿠폰이 아직 이 plan 상태일 때만 복원.
-        for (const { ref, snap: cs, prior } of couponEntries) {
-          if (!cs.exists) continue;
-          const cd = cs.data() || {};
-          if (cd.revokedPlan !== planHash) continue;   // 다른 이유로 바뀐 쿠폰은 건드리지 않는다
+        // 위 detectCouponDrift 가 통과했으므로 전부 이 plan 이 만든 상태 그대로다.
+        for (const { ref, prior } of couponEntries) {
           tx.set(ref, buildCouponRestorePatch(prior, FieldValue), { merge: true });
         }
+        return { restored: true, coupons: couponEntries.length };
       });
-      results.restored.push(label);
+      if (outcome.skipped) results.skipped.push({ label, reason: outcome.skipped, detail: outcome.diffs || outcome.drifted || null });
+      else results.restored.push({ label, coupons: outcome.coupons });
     } catch (e) {
       results.failed.push({ label, error: String(e && e.message).slice(0, 200) });
     }
@@ -179,10 +233,16 @@ async function main() {
     return;
   }
   console.log(JSON.stringify(results, null, 2));
+  console.log(`복구 ${results.restored.length} / 건너뜀 ${results.skipped.length} / 실패 ${results.failed.length}`);
   // 🔴 FAIL-6: 부분 실패를 명령 성공으로 보이게 하지 않는다.
   if (results.failed.length > 0) {
     console.error(`[중단] 되돌리기 실패 ${results.failed.length}건 — 전체 성공이 아니다.`);
     process.exit(6);
+  }
+  // 🔴 FAIL-9: 보정 이후 정상 변경이 있어 건너뛴 사용자가 있으면 성공으로 끝내지 않는다.
+  if (results.skipped.length > 0) {
+    console.error(`[중단] 되돌리지 못한 계정 ${results.skipped.length}건 — 보정 이후 값이 바뀌었거나 correction 이 없다.`);
+    process.exit(8);
   }
 }
 

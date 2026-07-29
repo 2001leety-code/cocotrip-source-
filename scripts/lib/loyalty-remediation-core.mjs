@@ -136,6 +136,79 @@ export function classifyBooking(docId, d) {
   };
 }
 
+
+/** 이 보정이 만드는 correction 원장의 스키마 식별자 (신규 문서에만 들어간다). */
+export const POLLUTION_CORRECTION_SCHEMA = 'ai-plan-pollution-correction/v1';
+
+/** 운영에 이미 생성된 4건(2026-07-29)은 schema 필드가 없다. 설명 접두사로 식별한다. */
+export const LEGACY_CORRECTION_DESC_PREFIX =
+  'Ledger correction: removed AI-plan estimates not backed by a verified PayPal capture';
+
+/** 허용 보정 방식 — 이 둘이 아니면 우리 도구가 만든 것이 아니다. */
+const ALLOWED_CORRECTION_MODES = new Set(['recompute_from_ledger', 'subtract_pollution_only']);
+
+/**
+ * 🔴 FAIL-8: `type === 'correction'` 이라는 이유만으로 "이미 제거된 오염분" 으로 세면 안 된다.
+ *
+ * pointHistory 의 correction 은 다른 목적(운영자 수동 조정, 다른 보정 도구, 향후 기능)으로도
+ * 생길 수 있다. 그걸 오염 제거분으로 합산하면 **아직 안 뺀 오염분이 숨겨져** 보정이 덜 된다.
+ *
+ * 그래서 이 보정이 만든 것만 인정한다. 아래를 **전부** 통과해야 한다.
+ *   · 문서 ID 가 `correction_<planHash>` 와 정확히 일치
+ *   · correction.planHash 존재 + 문서 ID 의 해시와 일치
+ *   · mode 가 허용 목록에 있음
+ *   · schema 식별자(신규) 또는 정확한 설명 접두사 + `(plan <hash>)`(레거시 4건)
+ *   · 금액·예약·코인 차감값이 숫자이고 방향이 맞음(줄어드는 쪽)
+ *   · rolledBack !== true
+ *
+ * 하나라도 어긋나면 인정하지 않고 `ambiguous correction` 으로 세어 보고한다(자동 반영 금지).
+ *
+ * @returns {{accepted: true, planHash: string, removedUSD: number, removedBookings: number,
+ *            removedCoins: number, removedEntries: number, legacy: boolean}
+ *          | {accepted: false, reason: string}}
+ */
+export function identifyPollutionCorrection(docId, data) {
+  const d = data || {};
+  if (d.type !== 'correction') return { accepted: false, reason: 'not_correction' };
+  if (d.rolledBack === true) return { accepted: false, reason: 'rolled_back' };
+
+  const meta = d.correction;
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+    return { accepted: false, reason: 'no_correction_metadata' };
+  }
+  const planHash = String(meta.planHash || '');
+  if (!planHash) return { accepted: false, reason: 'no_plan_hash' };
+  if (String(docId) !== `correction_${planHash}`) {
+    return { accepted: false, reason: 'doc_id_plan_hash_mismatch' };
+  }
+  if (!ALLOWED_CORRECTION_MODES.has(String(meta.mode || ''))) {
+    return { accepted: false, reason: 'mode_not_allowed' };
+  }
+
+  const desc = String(d.description || '');
+  const schemaOk = meta.schema === POLLUTION_CORRECTION_SCHEMA;
+  const legacyOk = desc.startsWith(LEGACY_CORRECTION_DESC_PREFIX)
+    && desc.includes(`(plan ${planHash})`);
+  if (!schemaOk && !legacyOk) return { accepted: false, reason: 'schema_or_description_unrecognized' };
+
+  const nums = [meta.spentUSDBefore, meta.spentUSDAfter, meta.bookingCountBefore,
+    meta.bookingCountAfter, meta.pollutedEntries, d.amount];
+  if (nums.some((v) => !Number.isFinite(Number(v)))) {
+    return { accepted: false, reason: 'incomplete_numeric_metadata' };
+  }
+  const removedUSD = round2(Number(meta.spentUSDBefore) - Number(meta.spentUSDAfter));
+  const removedBookings = Number(meta.bookingCountBefore) - Number(meta.bookingCountAfter);
+  const removedCoins = -Number(d.amount);
+  const removedEntries = Number(meta.pollutedEntries);
+  if (removedUSD < 0 || removedBookings < 0 || removedCoins < 0 || removedEntries < 0) {
+    return { accepted: false, reason: 'negative_removal' };
+  }
+  return {
+    accepted: true, planHash, removedUSD, removedBookings, removedCoins, removedEntries,
+    legacy: !schemaOk,
+  };
+}
+
 /** pointHistory 항목 분류. 결제 원장과 대조 가능한 것만 정상 적립으로 본다. */
 export function classifyHistoryEntry(entry, moneyOrders) {
   const d = entry || {};
@@ -215,6 +288,9 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
   let alreadyRemovedCoins = 0;
   let alreadyRemovedBookings = 0;
   let alreadyRemovedEntries = 0;
+  let acceptedCorrections = 0;
+  let ambiguousCorrections = 0;
+  const ambiguousCorrectionReasons = [];
   for (const h of histSnap.docs) {
     const c = classifyHistoryEntry(h.data(), moneyOrders);
     if (c.kind === 'legit') { legitEarnCoins += c.coins; legitEntries += 1; }
@@ -225,13 +301,21 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
     else if (c.kind === 'correction') {
       correctionCoins += c.coins; correctionEntries += 1;
       // 🔴 이미 보정으로 **빼낸 오염분**을 기록해 둔다.
-      //   오염 이력(pointHistory)은 감사 목적상 삭제하지 않으므로, 다음 실행에서 다시 계산된다.
+      //   오염 이력(pointHistory)은 감사 목적상 삭제하지 않으므로 다음 실행에서 다시 계산된다.
       //   그걸 그대로 또 빼면 같은 금액을 두 번 차감해 정상 잔액까지 0 으로 만든다.
-      const meta = (h.data() || {}).correction || {};
-      alreadyRemovedUSD += Math.max(0, num(meta.spentUSDBefore) - num(meta.spentUSDAfter));
-      alreadyRemovedBookings += Math.max(0, num(meta.bookingCountBefore) - num(meta.bookingCountAfter));
-      alreadyRemovedCoins += Math.max(0, -c.coins);
-      alreadyRemovedEntries += num(meta.pollutedEntries);
+      //   단, **이 보정이 만든 correction 만** 인정한다(FAIL-8). 다른 correction 을 인정하면
+      //   아직 안 뺀 오염분이 숨겨져 보정이 덜 된다.
+      const verdict = identifyPollutionCorrection(h.id, h.data());
+      if (verdict.accepted) {
+        acceptedCorrections += 1;
+        alreadyRemovedUSD += verdict.removedUSD;
+        alreadyRemovedBookings += verdict.removedBookings;
+        alreadyRemovedCoins += verdict.removedCoins;
+        alreadyRemovedEntries += verdict.removedEntries;
+      } else {
+        ambiguousCorrections += 1;
+        ambiguousCorrectionReasons.push(verdict.reason);
+      }
     }
   }
 
@@ -341,6 +425,9 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
       legitEntries, legitEarnCoins,
       ambiguousEntries, ambiguousCoins,
       spendCoins, correctionEntries, correctionCoins,
+      acceptedCorrections,
+      ambiguousCorrections,
+      ambiguousCorrectionReasons: [...new Set(ambiguousCorrectionReasons)].sort(),
       alreadyRemovedUSD: round2(alreadyRemovedUSD),
       alreadyRemovedCoins,
       alreadyRemovedEntries,
@@ -413,6 +500,8 @@ export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
     //   전자만 0 이라고 보고하면 후자 29건이 정상 검증된 것처럼 보인다.
     ambiguousOrdersInAccounts: sum((a) => a.orders.ambiguousOrders),
     ambiguousCoupons: sum((a) => a.coupons.ambiguous),
+    ambiguousCorrections: sum((a) => a.ledger.ambiguousCorrections),
+    acceptedCorrections: sum((a) => a.ledger.acceptedCorrections),
     couponsHeldTotal: sum((a) => a.coupons.couponsTotal),
     couponsUsedTotal: sum((a) => a.coupons.couponsUsedTotal),
     couponsToRevoke: sum((a) => a.coupons.pollutedUnused),
@@ -519,7 +608,8 @@ export function toMarkdown(r) {
   if (r.bookingLedger) {
     L.push(`- **전역 귀속 불가 레거시 주문: ${r.bookingLedger.unattributable}건** — 계정에 붙지 않아 검증 자체가 불가능하다. "애매 주문 0건" 과 별개 항목이다.`);
   }
-  L.push(`- 출처 불명 쿠폰: ${r.totals.ambiguousCoupons}장`, '');
+  L.push(`- 출처 불명 쿠폰: ${r.totals.ambiguousCoupons}장`);
+  L.push(`- 인정되지 않은 correction: ${r.totals.ambiguousCorrections}건 (이 보정이 만든 것이 아니므로 '이미 제거된 오염분' 으로 세지 않는다)`, '');
 
   L.push('## 쿠폰 처리 계획', '');
   L.push(`- 회수(사용 불가 전환) 대상 **미사용** 오염 쿠폰: ${r.totals.couponsToRevoke}장 — 삭제하지 않고 \`revoked\` 상태로 변경`);
