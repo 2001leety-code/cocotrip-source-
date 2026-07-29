@@ -209,6 +209,113 @@ export function identifyPollutionCorrection(docId, data) {
   };
 }
 
+// ── rollback 사전 검증 (FAIL-14 · FAIL-15) ────────────────────────────────
+/**
+ * 보정이 쿠폰에 남기는 필드. rollback 은 이 필드들만 **이전 상태 그대로** 되돌린다.
+ * (실행부·rollback 이 같은 정의를 봐야 "썼는데 못 되돌리는" 필드가 안 생긴다.)
+ */
+export const COUPON_REVOKE_FIELDS = ['isRevoked', 'status', 'revokedReason', 'revokedPlan', 'revokedAt'];
+
+/** 이 보정이 쓴 회수 사유. 다른 이유로 회수된 쿠폰을 되돌리면 안 된다. */
+export const POLLUTION_REVOKE_REASON = 'issued_from_unverified_ai_plan_coins';
+
+/** 보정 원장 문서 ID — 사용자별로 결정적(같은 plan 은 한 번만). */
+export function correctionDocId(planHash) {
+  return `correction_${planHash}`;
+}
+
+/**
+ * 🔴 FAIL-15: rollback 이 되돌려도 되는 쿠폰인지 **전체 상태**를 확인한다.
+ *
+ * 이전에는 revokedPlan·isRevoked·isUsed 만 봤다. 그 사이 다른 작업이
+ * status 나 revokedReason 을 바꿨어도 통과해, rollback 이 남의 상태를 지웠다.
+ *
+ * @returns {string|null} 어긋난 이유. null 이면 되돌려도 안전하다.
+ */
+export function validateCouponForRollback(planHash, exists, data) {
+  if (!exists) return 'missing';
+  const c = data || {};
+  if (c.isRevoked !== true) return 'already_unrevoked';
+  if (String(c.status || '') !== 'revoked') return 'status_changed';
+  if (String(c.revokedReason || '') !== POLLUTION_REVOKE_REASON) return 'reason_changed';
+  if (String(c.revokedPlan || '') !== String(planHash)) return 'revoked_plan_changed';
+  if (c.revokedAt === undefined || c.revokedAt === null) return 'revoked_at_missing';
+  if (c.isUsed === true) return 'used_after_revoke';
+  return null;
+}
+
+/**
+ * 🔴 FAIL-14 + FAIL-15: dry-run 과 execute 가 **같은 판정 함수**를 쓴다.
+ *
+ * 예전 dry-run 은 스냅샷 목록만 출력했다. 실제로 되돌릴 수 있는지 아무것도 확인하지
+ * 않고 "복구 예정" 이라고 찍었으니 허수 검사였다. 이제 같은 입력·같은 규칙으로
+ * 판정하므로 dry-run 이 `ready` 라고 한 계정만 execute 에서도 통과한다.
+ *
+ * @param {{planHash: string, correctionExists: boolean, correctionData: object,
+ *          userExists: boolean, userData: object,
+ *          coupons: Array<{id: string, exists: boolean, data: object}>}} input
+ * @returns {{ready: true} | {ready: false, reason: string, detail: string[]|null}}
+ */
+export function evaluateRollbackTarget({
+  planHash, correctionExists, correctionData, userExists, userData, coupons,
+}) {
+  if (!correctionExists) return { ready: false, reason: 'correction_missing', detail: null };
+  const cd = correctionData || {};
+  if (cd.rolledBack === true) return { ready: false, reason: 'already_rolled_back', detail: null };
+  if (!userExists) return { ready: false, reason: 'user_missing', detail: null };
+  const u = userData || {};
+  if (String(u.loyaltyCorrectionPlan || '') !== String(planHash)) {
+    return { ready: false, reason: 'plan_mismatch', detail: null };
+  }
+
+  // 🔴 이 보정이 만든 correction 인지 같은 엄격 판별기로 확인한다(FAIL-8 과 동일 기준).
+  const verdict = identifyPollutionCorrection(correctionDocId(planHash), cd);
+  if (!verdict.accepted) {
+    return { ready: false, reason: 'correction_invalid', detail: [verdict.reason] };
+  }
+  // 되돌릴 목표값(코인·등급)이 원장에 없으면 되돌릴 수 없다 — 추측으로 채우지 않는다.
+  const missing = [];
+  if (!Number.isFinite(Number(cd.balance))) missing.push('balance');
+  if (!String((cd.correction || {}).tierAfter || '')) missing.push('tierAfter');
+  if (missing.length > 0) {
+    return { ready: false, reason: 'correction_invalid', detail: missing.map((m) => `missing_${m}`) };
+  }
+
+  const diffs = detectStaleRollback(cd, u);
+  if (diffs.length > 0) return { ready: false, reason: 'stale_rollback', detail: diffs };
+
+  const drifted = [];
+  for (const c of coupons || []) {
+    const why = validateCouponForRollback(planHash, c.exists, c.data);
+    if (why) drifted.push(why);
+  }
+  if (drifted.length > 0) {
+    return { ready: false, reason: 'coupon_drift', detail: [...new Set(drifted)].sort() };
+  }
+  return { ready: true };
+}
+
+/**
+ * 🔴 FAIL-9: rollback 이 정상 후속 변경을 덮어쓰지 않게 한다.
+ *
+ * 현재 사용자 값이 **그 correction 의 보정 후 값과 정확히 같을 때만** 되돌린다.
+ * 보정 뒤에 정상 결제·코인 사용·등급 변경이 있었다면 그것까지 지워버리기 때문이다.
+ *
+ * 기대값은 snapshot 이 아니라 **correction 원장** 에서 읽는다.
+ * 운영에 이미 생성된 스냅샷에는 after 가 없기 때문이다.
+ *
+ * @returns {string[]} 어긋난 필드 목록. 빈 배열이면 되돌려도 안전하다.
+ */
+export function detectStaleRollback(correctionData, currentUser) {
+  const meta = (correctionData || {}).correction || {};
+  const diffs = [];
+  if (round2(meta.spentUSDAfter) !== round2(currentUser.totalSpentUSD)) diffs.push('totalSpentUSD');
+  if (num(meta.bookingCountAfter) !== num(currentUser.bookingCount)) diffs.push('bookingCount');
+  if (num((correctionData || {}).balance) !== num(currentUser.tripCoins)) diffs.push('tripCoins');
+  if (String(meta.tierAfter || '') !== String(currentUser.tier || '')) diffs.push('tier');
+  return diffs;
+}
+
 /** pointHistory 항목 분류. 결제 원장과 대조 가능한 것만 정상 적립으로 본다. */
 export function classifyHistoryEntry(entry, moneyOrders) {
   const d = entry || {};
@@ -399,15 +506,26 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
   const afterCoins = ledgerComplete ? expectedCoins : subtractCoins;
   const expectedTier = calculateLoyaltyTier(afterSpent, afterBookings).name;
 
-  const changed = currentSpentUSD !== afterSpent
+  const wouldChange = currentSpentUSD !== afterSpent
     || currentBookingCount !== afterBookings
     || currentCoins !== afterCoins
     || currentTier !== expectedTier
     || pollutedCouponsUnused.length > 0;
 
+  // 🔴 FAIL-16: 인정되지 않은 correction 이 하나라도 있으면 **자동 보정하지 않는다.**
+  //   그 correction 이 무엇을 이미 뺐는지 모르기 때문에, 현재값에서 오염분을 다시 빼면
+  //   같은 금액을 두 번 차감할 수 있다. 계산 결과는 "예상 영향"으로만 보고하고
+  //   실행 대상(changed)과 planHash 에서 제외해 운영자 판단으로 넘긴다.
+  const manualReview = ambiguousCorrections > 0;
+  const changed = wouldChange && !manualReview;
+
   return {
     uid: userDoc.id,                                  // ⚠️ 보고서에는 절대 넣지 않는다
     changed,
+    manualReview,
+    manualReviewReason: manualReview ? 'unrecognized_correction_present' : null,
+    // 보정을 막지 않았다면 바뀌었을 것인가 — 보고서의 "예상 영향" 표시용.
+    wouldChange,
     mode,
     before: { totalSpentUSD: currentSpentUSD, bookingCount: currentBookingCount, tripCoins: currentCoins, tier: currentTier },
     after: { totalSpentUSD: afterSpent, bookingCount: afterBookings, tripCoins: afterCoins, tier: expectedTier },
@@ -466,9 +584,35 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
   };
 }
 
+/**
+ * 🔴 FAIL-17: 같은 계정은 사전·실행·사후 문서에서 **같은 user-N** 이어야 한다.
+ *
+ * 예전에는 "보정 대상(changed)만" 순번을 매겼다. 그래서 보정이 끝나 대상이 줄면
+ * 남은 계정 번호가 통째로 밀려, 같은 사람이 문서마다 다른 번호로 나왔다.
+ *
+ * 정렬 기준은 보정으로 **바뀌지 않는 값**이어야 한다. 오염 이력은 감사 목적상
+ * 삭제하지 않으므로 오염 코인·금액·건수가 그 조건을 만족한다.
+ * (uid 는 마지막 동점 처리에만 쓰고 출력하지 않는다.)
+ */
+export function assignAccountLabels(accounts) {
+  const ofInterest = accounts.filter(
+    (a) => a.ledger.pollutedEntries > 0 || a.changed || a.manualReview,
+  );
+  ofInterest.sort((a, b) => (
+    b.ledger.pollutedCoins - a.ledger.pollutedCoins
+    || b.ledger.pollutedUSD - a.ledger.pollutedUSD
+    || b.ledger.pollutedEntries - a.ledger.pollutedEntries
+    || String(a.uid).localeCompare(String(b.uid))
+  ));
+  ofInterest.forEach((a, i) => { a.no = i + 1; });
+  for (const a of accounts) if (!a.no) a.no = null;
+  return ofInterest;
+}
+
 /** 보고서·확인 토큰의 기준이 되는 계획 해시 — 대상과 합계가 바뀌면 값이 달라진다. */
 export function planHashOf(accounts) {
   const normalized = accounts
+    // 🔴 FAIL-16: manual_review 계정은 changed=false 라 여기서도 자동 제외된다.
     .filter((a) => a.changed)
     .map((a) => [a.uid, a.after.totalSpentUSD, a.after.bookingCount, a.after.tripCoins, a.after.tier,
       a._pollutedUnusedCouponIds.slice().sort().join(',')].join('|'))
@@ -476,11 +620,106 @@ export function planHashOf(accounts) {
   return createHash('sha256').update(normalized.join('\n')).digest('hex').slice(0, 16);
 }
 
+/** 보고서용 계정 요약 — uid 없이 순번만. */
+function accountView(a) {
+  return {
+    no: a.no,
+    mode: a.mode,
+    manualReview: a.manualReview === true,
+    manualReviewReason: a.manualReviewReason || null,
+    before: a.before,
+    after: a.after,
+    delta: a.delta,
+    ledger: a.ledger,
+    orders: a.orders,
+    coupons: {
+      couponsTotal: a.coupons.couponsTotal,
+      couponsUsedTotal: a.coupons.couponsUsedTotal,
+      redemptionTotal: a.coupons.redemptionTotal,
+      legitRedemption: a.coupons.legitRedemption,
+      toRevoke: a.coupons.pollutedUnused,
+      grandfathered: a.coupons.pollutedUsed,
+      ambiguous: a.coupons.ambiguous,
+    },
+    grandfatheredCoinDebt: a.grandfatheredCoinDebt,
+    ledgerBasedIfComplete: a.ledgerBasedIfComplete,
+    docsToWrite: a.docsToWrite,
+    docsBreakdown: a.docsBreakdown,
+  };
+}
+
+/**
+ * 🔴 FAIL-17: 합계를 **두 범위로 나눈다.**
+ *
+ * 예전에는 모든 합계가 `changed` 계정만 더했다. 보정이 끝나 대상이 0 이 되면
+ * "오염 이력 0건 / 인정 correction 0건 / 지출 $0" 처럼 찍혔다.
+ * 실제로는 과거 오염 이력 209건이 그대로 남아 있고(감사 목적상 삭제하지 않는다),
+ * 인정된 correction 도 4건 있다. 대상이 없다는 것과 오염이 없었다는 것은 다르다.
+ *
+ *   · `allScanned`     — 스캔한 전 계정의 현재 사실. 대상 0 이어도 값이 나온다.
+ *   · `plannedTargets` — 이번 실행이 실제로 바꿀 것.
+ */
 export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
+  const labeled = assignAccountLabels(accounts);
   const targets = accounts.filter((a) => a.changed);
+  const manualReview = accounts.filter((a) => a.manualReview);
+  const sumAll = (fn) => accounts.reduce((s, a) => s + fn(a), 0);
   const sum = (fn) => targets.reduce((s, a) => s + fn(a), 0);
-  const totals = {
+
+  const allScanned = {
     scannedUsers: scanned,
+    accountsWithPollutionHistory: accounts.filter((a) => a.ledger.pollutedEntries > 0).length,
+    // 현재(보정 반영 후) 전체 합계 — 대상 0 건이어도 반드시 값이 나온다.
+    current: {
+      totalSpentUSD: round2(sumAll((a) => a.before.totalSpentUSD)),
+      bookingCount: sumAll((a) => a.before.bookingCount),
+      tripCoins: sumAll((a) => a.before.tripCoins),
+    },
+    // 역사적 오염 — pointHistory 를 삭제하지 않으므로 보정 뒤에도 그대로 남는다.
+    historicalPollution: {
+      entries: sumAll((a) => a.ledger.pollutedEntries),
+      coins: sumAll((a) => a.ledger.pollutedCoins),
+      usd: round2(sumAll((a) => a.ledger.pollutedUSD)),
+    },
+    // 지난 보정이 이미 제거한 몫.
+    acceptedCorrections: sumAll((a) => a.ledger.acceptedCorrections),
+    alreadyRemoved: {
+      usd: round2(sumAll((a) => a.ledger.alreadyRemovedUSD)),
+      coins: sumAll((a) => a.ledger.alreadyRemovedCoins),
+      entries: sumAll((a) => a.ledger.alreadyRemovedEntries),
+    },
+    // 아직 안 뺀 오염 — 이 값이 0 이어야 수렴한 것이다.
+    remainingPollution: {
+      entries: sumAll((a) => a.ledger.remainingPollutedEntries),
+      coins: sumAll((a) => a.ledger.remainingPollutedCoins),
+      usd: round2(sumAll((a) => a.ledger.remainingPollutedUSD)),
+    },
+    ambiguous: {
+      entries: sumAll((a) => a.ledger.ambiguousEntries),
+      // 🔴 FAIL-7: "계정 안에서 애매한 주문" 과 "아예 계정에 붙지 않는 레거시 주문" 은 다르다.
+      //   전자만 0 이라고 보고하면 후자 29건이 정상 검증된 것처럼 보인다.
+      ordersInAccounts: sumAll((a) => a.orders.ambiguousOrders),
+      coupons: sumAll((a) => a.coupons.ambiguous),
+      corrections: sumAll((a) => a.ledger.ambiguousCorrections),
+    },
+    coupons: {
+      heldTotal: sumAll((a) => a.coupons.couponsTotal),
+      usedTotal: sumAll((a) => a.coupons.couponsUsedTotal),
+    },
+    preserved: {
+      legitCoins: sumAll((a) => a.ledger.legitEarnCoins),
+      verifiedOrders: sumAll((a) => a.orders.verifiedPaidOrders),
+    },
+    // 🔴 현재 잔액 중 **검증된 결제로 뒷받침되지 않는** 몫. 이 값이 크면 결제 원장이
+    //   계정에 붙지 않는다는 뜻이다(레거시 bookings 에 uid 필드가 없던 시기).
+    backedUSD: round2(sumAll((a) => a.ledgerBasedIfComplete.totalSpentUSD)),
+    unbackedUSD: round2(sumAll(
+      (a) => Math.max(0, a.before.totalSpentUSD - a.ledgerBasedIfComplete.totalSpentUSD),
+    )),
+    manualReviewAccounts: manualReview.length,
+  };
+
+  const plannedTargets = {
     accountsToFix: targets.length,
     before: {
       totalSpentUSD: round2(sum((a) => a.before.totalSpentUSD)),
@@ -492,28 +731,19 @@ export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
       bookingCount: sum((a) => a.after.bookingCount),
       tripCoins: sum((a) => a.after.tripCoins),
     },
-    pollutedEntries: sum((a) => a.ledger.pollutedEntries),
-    pollutedCoins: sum((a) => a.ledger.pollutedCoins),
-    pollutedUSD: round2(sum((a) => a.ledger.pollutedUSD)),
-    ambiguousEntries: sum((a) => a.ledger.ambiguousEntries),
-    // 🔴 FAIL-7: "계정 안에서 애매한 주문" 과 "아예 계정에 붙지 않는 레거시 주문" 은 다르다.
-    //   전자만 0 이라고 보고하면 후자 29건이 정상 검증된 것처럼 보인다.
-    ambiguousOrdersInAccounts: sum((a) => a.orders.ambiguousOrders),
-    ambiguousCoupons: sum((a) => a.coupons.ambiguous),
-    ambiguousCorrections: sum((a) => a.ledger.ambiguousCorrections),
-    acceptedCorrections: sum((a) => a.ledger.acceptedCorrections),
-    couponsHeldTotal: sum((a) => a.coupons.couponsTotal),
-    couponsUsedTotal: sum((a) => a.coupons.couponsUsedTotal),
+    delta: {
+      totalSpentUSD: round2(sum((a) => a.delta.totalSpentUSD)),
+      bookingCount: sum((a) => a.delta.bookingCount),
+      tripCoins: sum((a) => a.delta.tripCoins),
+    },
     couponsToRevoke: sum((a) => a.coupons.pollutedUnused),
     couponsGrandfathered: sum((a) => a.coupons.pollutedUsed),
     grandfatheredDiscountPercentSum: sum((a) => a.coupons.grandfatheredDiscountPercentSum),
     grandfatheredCoinDebt: sum((a) => a.grandfatheredCoinDebt),
-    // 🔴 보정 후에도 **검증된 결제로 뒷받침되지 않는** 잔액. 이 값이 크면 결제 원장이
-    //   계정에 붙지 않는다는 뜻이다(레거시 bookings 에 uid 필드가 없던 시기).
-    afterUnbackedUSD: round2(sum((a) => Math.max(0, a.after.totalSpentUSD - a.ledgerBasedIfComplete.totalSpentUSD))),
     afterBackedUSD: round2(sum((a) => a.ledgerBasedIfComplete.totalSpentUSD)),
-    preservedLegitCoins: sum((a) => a.ledger.legitEarnCoins),
-    preservedVerifiedOrders: sum((a) => a.orders.verifiedPaidOrders),
+    afterUnbackedUSD: round2(sum(
+      (a) => Math.max(0, a.after.totalSpentUSD - a.ledgerBasedIfComplete.totalSpentUSD),
+    )),
     docsToWrite: sum((a) => a.docsToWrite),
     modes: targets.reduce((m, a) => { m[a.mode] = (m[a.mode] || 0) + 1; return m; }, {}),
   };
@@ -528,33 +758,23 @@ export function buildReport({ accounts, scanned, stats, projectId, planHash }) {
       writesAllowed: stats.writesAllowed,
       guard: 'dry-run 에서는 set/update/delete/add/batch/runTransaction 호출이 예외를 던진다',
     },
-    totals,
-    accounts: targets.map((a, i) => ({
-      no: i + 1,
-      mode: a.mode,
-      before: a.before,
-      after: a.after,
-      delta: a.delta,
-      ledger: a.ledger,
-      orders: a.orders,
-      coupons: {
-        couponsTotal: a.coupons.couponsTotal,
-        couponsUsedTotal: a.coupons.couponsUsedTotal,
-        redemptionTotal: a.coupons.redemptionTotal,
-        legitRedemption: a.coupons.legitRedemption,
-        toRevoke: a.coupons.pollutedUnused,
-        grandfathered: a.coupons.pollutedUsed,
-        ambiguous: a.coupons.ambiguous,
-      },
-      grandfatheredCoinDebt: a.grandfatheredCoinDebt,
-      ledgerBasedIfComplete: a.ledgerBasedIfComplete,
-      docsToWrite: a.docsToWrite,
-      docsBreakdown: a.docsBreakdown,
+    totals: { allScanned, plannedTargets },
+    // 순번은 보정으로 바뀌지 않는 기준으로 매겨 사전·실행·사후 문서에서 같은 사람이 같은 번호다.
+    accounts: labeled.map(accountView),
+    // 🔴 FAIL-16: 자동 보정에서 제외한 계정 — 예상 영향만 표시하고 운영자가 판단한다.
+    manualReviewAccounts: manualReview.map((a) => ({
+      ...accountView(a),
+      wouldChange: a.wouldChange === true,
+      expectedImpactIfApproved: a.wouldChange ? a.delta : null,
+      unrecognizedCorrections: a.ledger.ambiguousCorrections,
+      unrecognizedReasons: a.ledger.ambiguousCorrectionReasons,
     })),
   };
 }
 
 export function toMarkdown(r) {
+  const A = r.totals.allScanned;
+  const P = r.totals.plannedTargets;
   const L = [];
   L.push('# 충성도 원장 오염 보정 — dry-run 보고서', '');
   L.push('> 읽기 전용 실행 결과. 운영 데이터는 **수정하지 않았다.**');
@@ -563,29 +783,51 @@ export function toMarkdown(r) {
   L.push(`- Firestore 읽기: ${r.firestore.reads}회 / **쓰기 시도: ${r.firestore.writeAttempts}회 / 실제 쓰기: ${r.firestore.writesAllowed}회**`);
   L.push(`- 쓰기 차단 방식: ${r.firestore.guard}`, '');
 
-  L.push('## 전체 합계', '');
+  // 🔴 FAIL-17: "지금 전체가 어떤가" 와 "이번에 무엇을 바꾸는가" 를 절대 섞지 않는다.
+  L.push('## 1. 전체 스캔 결과 (현재 사실)', '');
+  L.push(`스캔 계정 ${A.scannedUsers} · 오염 이력이 있는 계정 ${A.accountsWithPollutionHistory}`, '');
+  L.push('| 항목 | 현재 값 |');
+  L.push('|---|---:|');
+  L.push(`| 누적 지출(USD) | $${A.current.totalSpentUSD.toLocaleString()} |`);
+  L.push(`| 예약 수 | ${A.current.bookingCount} |`);
+  L.push(`| 코인 | ${A.current.tripCoins.toLocaleString()} |`);
+  L.push('');
+  L.push('| 오염 구분 | 건수 | 코인 | 지출 |');
+  L.push('|---|---:|---:|---:|');
+  L.push(`| 역사적 오염 이력(삭제하지 않음) | ${A.historicalPollution.entries} | ${A.historicalPollution.coins.toLocaleString()} | $${A.historicalPollution.usd.toLocaleString()} |`);
+  L.push(`| 지난 보정이 이미 제거 | ${A.alreadyRemoved.entries} | ${A.alreadyRemoved.coins.toLocaleString()} | $${A.alreadyRemoved.usd.toLocaleString()} |`);
+  L.push(`| **남은 미보정 오염** | **${A.remainingPollution.entries}** | **${A.remainingPollution.coins.toLocaleString()}** | **$${A.remainingPollution.usd.toLocaleString()}** |`);
+  L.push('');
+  L.push(`- 인정된 correction: ${A.acceptedCorrections}건 / 인정되지 않은 correction: ${A.ambiguous.corrections}건`);
+  L.push(`- 현재 잔액 중 검증 결제로 뒷받침: $${A.backedUSD.toLocaleString()} / 근거 없음: $${A.unbackedUSD.toLocaleString()}`);
+  L.push(`- 자동 보정에서 제외한(manual_review) 계정: ${A.manualReviewAccounts}`, '');
+
+  L.push('## 2. 이번 실행 대상 (plannedTargets)', '');
   L.push('| 항목 | 수정 전 | 수정 후 | 차이 |');
   L.push('|---|---:|---:|---:|');
-  L.push(`| 누적 지출(USD) | $${r.totals.before.totalSpentUSD.toLocaleString()} | $${r.totals.after.totalSpentUSD.toLocaleString()} | ${round2(r.totals.after.totalSpentUSD - r.totals.before.totalSpentUSD).toLocaleString()} |`);
-  L.push(`| 예약 수 | ${r.totals.before.bookingCount} | ${r.totals.after.bookingCount} | ${r.totals.after.bookingCount - r.totals.before.bookingCount} |`);
-  L.push(`| 코인 | ${r.totals.before.tripCoins.toLocaleString()} | ${r.totals.after.tripCoins.toLocaleString()} | ${(r.totals.after.tripCoins - r.totals.before.tripCoins).toLocaleString()} |`);
+  L.push(`| 누적 지출(USD) | $${P.before.totalSpentUSD.toLocaleString()} | $${P.after.totalSpentUSD.toLocaleString()} | ${P.delta.totalSpentUSD.toLocaleString()} |`);
+  L.push(`| 예약 수 | ${P.before.bookingCount} | ${P.after.bookingCount} | ${P.delta.bookingCount} |`);
+  L.push(`| 코인 | ${P.before.tripCoins.toLocaleString()} | ${P.after.tripCoins.toLocaleString()} | ${P.delta.tripCoins.toLocaleString()} |`);
   L.push('');
-  L.push(`- 보정 대상 계정: **${r.totals.accountsToFix}** (스캔 ${r.totals.scannedUsers})`);
-  L.push(`- 오염 적립 이력: ${r.totals.pollutedEntries}건 / 코인 ${r.totals.pollutedCoins.toLocaleString()} / 지출 $${r.totals.pollutedUSD.toLocaleString()}`);
+  L.push(`- 보정 대상 계정: **${P.accountsToFix}**`);
   const br = r.accounts.reduce((t, a) => ({
     snapshot: t.snapshot + a.docsBreakdown.snapshot,
     user: t.user + a.docsBreakdown.user,
     correction: t.correction + a.docsBreakdown.correction,
     coupons: t.coupons + a.docsBreakdown.coupons,
   }), { snapshot: 0, user: 0, correction: 0, coupons: 0 });
-  L.push(`- 실행 시 바뀔 문서 수: **${r.totals.docsToWrite}**`);
+  L.push(`- 실행 시 바뀔 문서 수: **${P.docsToWrite}**`);
   L.push(`  (복구 스냅샷 ${br.snapshot} + 사용자 ${br.user} + correction 원장 ${br.correction} + 회수 쿠폰 ${br.coupons})`, '');
+  if (P.accountsToFix === 0) {
+    L.push('> 대상 0 건은 **오염이 없었다는 뜻이 아니다.** 위 1절의 역사적 오염 이력과');
+    L.push('> 남은 미보정 오염을 함께 읽어야 한다.', '');
+  }
 
   L.push('## 🔴 보정 방식 (계정별)', '');
   L.push('| 방식 | 계정 수 | 뜻 |');
   L.push('|---|---:|---|');
-  L.push(`| \`subtract_pollution_only\` | ${r.totals.modes.subtract_pollution_only || 0} | 명백한 오염분만 차감. 나머지는 손대지 않음 |`);
-  L.push(`| \`recompute_from_ledger\` | ${r.totals.modes.recompute_from_ledger || 0} | 결제 원장으로 전부 재계산(원장이 완전할 때만) |`);
+  L.push(`| \`subtract_pollution_only\` | ${P.modes.subtract_pollution_only || 0} | 명백한 오염분만 차감. 나머지는 손대지 않음 |`);
+  L.push(`| \`recompute_from_ledger\` | ${P.modes.recompute_from_ledger || 0} | 결제 원장으로 전부 재계산(원장이 완전할 때만) |`);
   L.push('');
   if (r.bookingLedger) {
     L.push('### 결제 원장 귀속 현황', '');
@@ -594,41 +836,60 @@ export function toMarkdown(r) {
     L.push(`- ${r.bookingLedger.note}`);
     L.push('- 그래서 이번 보정은 **전체 재계산을 쓰지 않는다.** 근거가 확실한 오염분만 뺀다.', '');
   }
-  L.push(`- 보정 후 잔액 중 **검증된 결제로 뒷받침되는 금액: $${r.totals.afterBackedUSD.toLocaleString()}**`);
-  L.push(`- 보정 후 잔액 중 **근거를 붙이지 못한 금액: $${r.totals.afterUnbackedUSD.toLocaleString()}** (건드리지 않음)`, '');
+  L.push(`- 실행 대상의 보정 후 잔액 중 **검증된 결제로 뒷받침되는 금액: $${P.afterBackedUSD.toLocaleString()}**`);
+  L.push(`- 실행 대상의 보정 후 잔액 중 **근거를 붙이지 못한 금액: $${P.afterUnbackedUSD.toLocaleString()}** (건드리지 않음)`, '');
 
-  L.push('## 정상으로 보존할 데이터', '');
-  L.push(`- 검증된 유료 주문: ${r.totals.preservedVerifiedOrders}건`);
-  L.push(`- 정상 적립 코인: ${r.totals.preservedLegitCoins.toLocaleString()}`);
+  L.push('## 정상으로 보존할 데이터 (전체 스캔 기준)', '');
+  L.push(`- 검증된 유료 주문: ${A.preserved.verifiedOrders}건`);
+  L.push(`- 정상 적립 코인: ${A.preserved.legitCoins.toLocaleString()}`);
   L.push('- 기존 pointHistory 는 **삭제하지 않는다.** 역분개(correction) 항목만 추가한다.', '');
 
-  L.push('## 애매하여 보류한 데이터 (자동 수정 안 함)', '');
-  L.push(`- 결제 근거가 불완전한 적립 이력: ${r.totals.ambiguousEntries}건`);
-  L.push(`- **계정 내부** 애매 주문(통화·금액 불완전): ${r.totals.ambiguousOrdersInAccounts}건`);
+  L.push('## 애매하여 보류한 데이터 (자동 수정 안 함 · 전체 스캔 기준)', '');
+  L.push(`- 결제 근거가 불완전한 적립 이력: ${A.ambiguous.entries}건`);
+  L.push(`- **계정 내부** 애매 주문(통화·금액 불완전): ${A.ambiguous.ordersInAccounts}건`);
   if (r.bookingLedger) {
     L.push(`- **전역 귀속 불가 레거시 주문: ${r.bookingLedger.unattributable}건** — 계정에 붙지 않아 검증 자체가 불가능하다. "애매 주문 0건" 과 별개 항목이다.`);
   }
-  L.push(`- 출처 불명 쿠폰: ${r.totals.ambiguousCoupons}장`);
-  L.push(`- 인정되지 않은 correction: ${r.totals.ambiguousCorrections}건 (이 보정이 만든 것이 아니므로 '이미 제거된 오염분' 으로 세지 않는다)`, '');
+  L.push(`- 출처 불명 쿠폰: ${A.ambiguous.coupons}장`);
+  L.push(`- 인정되지 않은 correction: ${A.ambiguous.corrections}건 (이 보정이 만든 것이 아니므로 '이미 제거된 오염분' 으로 세지 않는다)`, '');
 
-  L.push('## 쿠폰 처리 계획', '');
-  L.push(`- 회수(사용 불가 전환) 대상 **미사용** 오염 쿠폰: ${r.totals.couponsToRevoke}장 — 삭제하지 않고 \`revoked\` 상태로 변경`);
-  L.push(`- **이미 사용된** 오염 쿠폰: ${r.totals.couponsGrandfathered}장 — 회수·재청구 없음, \`grandfathered\` 감사 표시만`);
-  L.push(`- 이미 제공된 할인 규모(사용된 오염 쿠폰 할인율 합): ${r.totals.grandfatheredDiscountPercentSum}%p`);
-  L.push(`- 이미 소진된 오염 코인(재청구하지 않음): ${r.totals.grandfatheredCoinDebt.toLocaleString()}`, '');
+  L.push('## 쿠폰 처리 계획 (실행 대상)', '');
+  L.push(`- 보유 전체 ${A.coupons.heldTotal}장 / 이미 사용 ${A.coupons.usedTotal}장 (전체 스캔 기준)`);
+  L.push(`- 회수(사용 불가 전환) 대상 **미사용** 오염 쿠폰: ${P.couponsToRevoke}장 — 삭제하지 않고 \`isRevoked\` 로 차단`);
+  L.push(`- **이미 사용된** 오염 쿠폰: ${P.couponsGrandfathered}장 — 회수·재청구 없음, \`grandfathered\` 감사 표시만`);
+  L.push(`- 이미 제공된 할인 규모(사용된 오염 쿠폰 할인율 합): ${P.grandfatheredDiscountPercentSum}%p`);
+  L.push(`- 이미 소진된 오염 코인(재청구하지 않음): ${P.grandfatheredCoinDebt.toLocaleString()}`, '');
 
-  L.push('## 계정별 (익명 순번)', '');
-  L.push('| # | 지출 전→후 | 예약 전→후 | 코인 전→후 | 등급 전→후 | 오염 이력 | 보류 | 쿠폰 회수/유지 | 문서 |');
-  L.push('|---|---|---|---|---|---:|---:|---|---:|');
+  L.push('## 계정별 (익명 순번 — 사전·실행·사후 문서에서 같은 번호)', '');
+  L.push('| # | 상태 | 지출 전→후 | 예약 전→후 | 코인 전→후 | 등급 전→후 | 오염 이력 | 남은 오염 | 인정/보류 correction | 쿠폰 회수/유지 | 문서 |');
+  L.push('|---|---|---|---|---|---|---:|---:|---|---|---:|');
   for (const a of r.accounts) {
-    L.push(`| user-${a.no} | $${a.before.totalSpentUSD.toLocaleString()} → $${a.after.totalSpentUSD.toLocaleString()} `
+    let state = '변경 없음';
+    if (a.manualReview) state = '🟡 manual_review';
+    else if (a.docsToWrite > 0) state = '보정 대상';
+    L.push(`| user-${a.no} | ${state} `
+      + `| $${a.before.totalSpentUSD.toLocaleString()} → $${a.after.totalSpentUSD.toLocaleString()} `
       + `| ${a.before.bookingCount} → ${a.after.bookingCount} `
       + `| ${a.before.tripCoins.toLocaleString()} → ${a.after.tripCoins.toLocaleString()} `
       + `| ${a.before.tier} → ${a.after.tier} `
-      + `| ${a.ledger.pollutedEntries} | ${a.ledger.ambiguousEntries} `
+      + `| ${a.ledger.pollutedEntries} | $${a.ledger.remainingPollutedUSD.toLocaleString()} `
+      + `| ${a.ledger.acceptedCorrections}/${a.ledger.ambiguousCorrections} `
       + `| ${a.coupons.toRevoke}/${a.coupons.grandfathered} | ${a.docsToWrite} |`);
   }
   L.push('');
+  if (r.manualReviewAccounts && r.manualReviewAccounts.length > 0) {
+    L.push('## 🟡 자동 보정에서 제외한 계정 (운영자 판단 필요)', '');
+    L.push('인정되지 않은 correction 이 있어 **자동으로 쓰지 않는다.** 아래는 예상 영향일 뿐이다.', '');
+    L.push('| # | 인정 안 된 correction | 사유 | 예상 지출 변화 | 예상 코인 변화 |');
+    L.push('|---|---:|---|---:|---:|');
+    for (const a of r.manualReviewAccounts) {
+      const d = a.expectedImpactIfApproved;
+      L.push(`| user-${a.no} | ${a.unrecognizedCorrections} | ${a.unrecognizedReasons.join(', ') || '-'} `
+        + `| ${d ? `$${d.totalSpentUSD.toLocaleString()}` : '없음'} `
+        + `| ${d ? d.tripCoins.toLocaleString() : '없음'} |`);
+    }
+    L.push('');
+  }
   L.push('## 실행 방법 (별도 승인 후)', '');
   L.push('```');
   L.push('LOYALTY_REMEDIATION_APPROVAL=I-APPROVE-LOYALTY-WRITES \\');

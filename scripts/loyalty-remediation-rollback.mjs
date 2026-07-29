@@ -19,8 +19,13 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { correctionDocId, SNAPSHOT_COLLECTION, COUPON_REVOKE_FIELDS } from './loyalty-remediation-execute.mjs';
-import { checkProductionTarget } from './lib/loyalty-remediation-core.mjs';
+import { SNAPSHOT_COLLECTION } from './loyalty-remediation-execute.mjs';
+import {
+  checkProductionTarget, correctionDocId, COUPON_REVOKE_FIELDS, guardFirestore,
+  evaluateRollbackTarget, detectStaleRollback, validateCouponForRollback,
+} from './lib/loyalty-remediation-core.mjs';
+
+export { evaluateRollbackTarget, detectStaleRollback, validateCouponForRollback };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -61,39 +66,100 @@ export function buildCouponRestorePatch(prior, FieldValue) {
 }
 
 
-/**
- * 🔴 FAIL-9: rollback 이 정상 후속 변경을 덮어쓰지 않게 한다.
- *
- * 현재 사용자 값이 **그 correction 의 보정 후 값과 정확히 같을 때만** 되돌린다.
- * 보정 뒤에 정상 결제·코인 사용·등급 변경이 있었다면 그것까지 지워버리기 때문이다.
- *
- * 기대값은 snapshot 이 아니라 **correction 원장** 에서 읽는다.
- * 운영에 이미 생성된 스냅샷에는 after 가 없기 때문이다.
- *
- * @returns {string[]} 어긋난 필드 목록. 빈 배열이면 되돌려도 안전하다.
- */
-export function detectStaleRollback(correctionData, currentUser) {
-  const meta = (correctionData || {}).correction || {};
-  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-  const diffs = [];
-  if (round2(meta.spentUSDAfter) !== round2(currentUser.totalSpentUSD)) diffs.push('totalSpentUSD');
-  if (Number(meta.bookingCountAfter || 0) !== Number(currentUser.bookingCount || 0)) diffs.push('bookingCount');
-  if (Number((correctionData || {}).balance || 0) !== Number(currentUser.tripCoins || 0)) diffs.push('tripCoins');
-  if (String(meta.tierAfter || '') !== String(currentUser.tier || '')) diffs.push('tier');
-  return diffs;
-}
-
 /** 이 plan 이 회수한 쿠폰이 그 뒤 다른 작업으로 바뀌었는지. 하나라도 바뀌면 전체 중단. */
 export function detectCouponDrift(entries, planHash) {
   const drifted = [];
   for (const { ref, snap } of entries) {
-    if (!snap.exists) { drifted.push({ id: ref.id, reason: 'missing' }); continue; }
-    const c = snap.data() || {};
-    if (c.revokedPlan !== planHash) { drifted.push({ id: ref.id, reason: 'revoked_plan_changed' }); continue; }
-    if (c.isRevoked !== true) { drifted.push({ id: ref.id, reason: 'already_unrevoked' }); continue; }
-    if (c.isUsed === true) { drifted.push({ id: ref.id, reason: 'used_after_revoke' }); }
+    const why = validateCouponForRollback(planHash, snap.exists, snap.data ? snap.data() : null);
+    if (why) drifted.push({ id: ref.id, reason: why });
   }
   return drifted;
+}
+
+/**
+ * 🔴 FAIL-14: dry-run 과 execute 가 **같은 읽기·판정**을 쓴다.
+ *
+ * 읽기만 하는 reader 를 받아 대상 하나를 판정한다. dry-run 은 일반 `.get()` 을 넘기고,
+ * execute 는 transaction 의 `tx.get` 을 넘긴다. 그래서 dry-run 이 `ready` 라고 한 계정만
+ * execute 에서도 통과한다(판정이 두 벌이면 dry-run 은 허수가 된다).
+ *
+ * @param {{read: (ref: object) => Promise<object>, userRef: object,
+ *          snapshotData: object, planHash: string}} args
+ */
+export async function readAndEvaluate({ read, userRef, snapshotData, planHash }) {
+  const changed = (snapshotData || {}).couponsChanged || [];
+  const correctionRef = userRef.collection('pointHistory').doc(correctionDocId(planHash));
+  const correctionSnap = await read(correctionRef);
+  const userSnap = await read(userRef);
+  const couponEntries = [];
+  for (const c of changed) {
+    const ref = userRef.collection('coupons').doc(c.id);
+    couponEntries.push({ ref, snap: await read(ref), prior: c.prior });
+  }
+  const verdict = evaluateRollbackTarget({
+    planHash,
+    correctionExists: correctionSnap.exists,
+    correctionData: correctionSnap.exists ? correctionSnap.data() : null,
+    userExists: userSnap.exists,
+    userData: userSnap.exists ? userSnap.data() : null,
+    coupons: couponEntries.map((e) => ({
+      id: e.ref.id, exists: e.snap.exists, data: e.snap.exists ? e.snap.data() : null,
+    })),
+  });
+  return { verdict, correctionRef, correctionSnap, userSnap, couponEntries };
+}
+
+/** 스냅샷 문서 하나를 익명 순번으로. 옛 스냅샷에는 accountNo 가 없어 순서로 대체한다. */
+export function rollbackLabel(snapshotData, index) {
+  return `user-${(snapshotData || {}).accountNo || index + 1}`;
+}
+
+/**
+ * 🔴 FAIL-14: **읽기 전용** 판정. dry-run 이 이 함수를 쓴다.
+ *   execute 와 같은 readAndEvaluate 를 부르므로 판정이 두 벌이 될 수 없다.
+ */
+export async function evaluateRollbackAccount({ db, snapshotData, uid, planHash }) {
+  const userRef = db.collection('users').doc(uid);
+  const { verdict } = await readAndEvaluate({
+    read: (ref) => ref.get(), userRef, snapshotData, planHash,
+  });
+  return verdict;
+}
+
+/**
+ * 되돌리기 한 계정 — 사용자·correction 원장·쿠폰을 **하나의 transaction** 으로 복원한다.
+ * 판정이 어긋나면 아무것도 쓰지 않는다(부분 복원 상태가 남지 않는다).
+ */
+export async function rollbackOneAccount({ db, FieldValue, snapshotData, uid, planHash }) {
+  const s = snapshotData || {};
+  const userRef = db.collection('users').doc(uid);
+  return db.runTransaction(async (tx) => {
+    // ── 읽기 + 판정 (dry-run 과 같은 함수) ──
+    const { verdict, correctionRef, couponEntries } = await readAndEvaluate({
+      read: (ref) => tx.get(ref), userRef, snapshotData: s, planHash,
+    });
+    if (!verdict.ready) return { skipped: verdict.reason, detail: verdict.detail };
+
+    tx.set(userRef, {
+      totalSpentUSD: s.before.totalSpentUSD,
+      bookingCount: s.before.bookingCount,
+      tripCoins: s.before.tripCoins,
+      tier: s.before.tier,
+      loyaltyCorrectedAt: FieldValue.delete(),
+      loyaltyCorrectionPlan: FieldValue.delete(),
+    }, { merge: true });
+    // 감사 흔적은 남기되 되돌렸음을 표시한다(원장 항목을 물리 삭제하지 않는다).
+    // verdict.ready 는 correction 이 존재하고 이 보정이 만든 것임을 이미 확인했다.
+    tx.set(correctionRef, {
+      rolledBack: true,
+      rolledBackAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    // 위 판정이 통과했으므로 전부 이 plan 이 만든 상태 그대로다.
+    for (const { ref, prior } of couponEntries) {
+      tx.set(ref, buildCouponRestorePatch(prior, FieldValue), { merge: true });
+    }
+    return { restored: true, coupons: couponEntries.length };
+  });
 }
 
 async function main() {
@@ -144,7 +210,8 @@ async function main() {
     console.log('Production 대상 : 세 값 일치 확인됨 (ID 는 출력하지 않음)');
   }
 
-  const db = getFirestore();
+  // 🔴 FAIL-14: dry-run 의 쓰기 0건을 **코드로 강제**한다. 읽기 수도 함께 센다.
+  const db = guardFirestore(getFirestore(), { allowWrites: wantExecute });
   const snapSnap = await db.collection(SNAPSHOT_COLLECTION).doc(planHash).collection('users').get();
   if (snapSnap.empty) {
     console.error(`[rollback] planHash=${planHash} 스냅샷이 없다 — 되돌릴 대상 없음`);
@@ -154,72 +221,38 @@ async function main() {
   console.log('');
   console.log(`════════ 보정 되돌리기 (${wantExecute ? 'EXECUTE' : 'DRY-RUN'}) ════════`);
   console.log(`planHash        : ${planHash}`);
-  console.log(`복구 대상 계정  : ${snapSnap.size}`);
+  console.log(`스냅샷 계정     : ${snapSnap.size}`);
 
   const results = { restored: [], skipped: [], failed: [] };
-  let i = 0;
-  for (const snap of snapSnap.docs) {
-    i += 1;
-    const label = `user-${i}`;
+  for (let i = 0; i < snapSnap.docs.length; i += 1) {
+    const snap = snapSnap.docs[i];
     const s = snap.data() || {};
+    const label = rollbackLabel(s, i);
     const changed = s.couponsChanged || [];
+
     if (!wantExecute) {
-      console.log(`  ${label}: 지출 $${s.before.totalSpentUSD} · 예약 ${s.before.bookingCount} `
-        + `· 코인 ${s.before.tripCoins} · 등급 ${s.before.tier} 로 복구 예정 `
-        + `(이번 plan 이 바꾼 쿠폰 ${changed.length}장만 원래 상태로 복원)`);
+      // 🔴 FAIL-14: 예전에는 스냅샷만 찍고 "복구 예정" 이라 했다(허수 검사).
+      //   이제 execute 와 **같은 판정 함수**로 읽기 전용 검증한다.
+      try {
+        const verdict = await evaluateRollbackAccount({ db, snapshotData: s, uid: snap.id, planHash });
+        if (verdict.ready) {
+          results.restored.push({ label, coupons: changed.length });
+          console.log(`  ${label}: ✅ 복구 가능 — 지출 $${s.before.totalSpentUSD} · 예약 ${s.before.bookingCount} `
+            + `· 코인 ${s.before.tripCoins} · 등급 ${s.before.tier} 로 복구, 쿠폰 ${changed.length}장 원상복원`);
+        } else {
+          results.skipped.push({ label, reason: verdict.reason, detail: verdict.detail });
+          console.log(`  ${label}: ⛔ 복구 불가 — ${verdict.reason}`
+            + `${verdict.detail ? ` (${verdict.detail.join(', ')})` : ''}`);
+        }
+      } catch (e) {
+        results.failed.push({ label, error: String(e && e.message).slice(0, 200) });
+        console.log(`  ${label}: ⛔ 검증 실패 — ${String(e && e.message).slice(0, 120)}`);
+      }
       continue;
     }
     try {
-      const userRef = db.collection('users').doc(snap.id);
-      const outcome = await db.runTransaction(async (tx) => {
-        // ── 읽기 (쓰기 전에 전부) ──
-        const correctionRef = userRef.collection('pointHistory').doc(correctionDocId(planHash));
-        const correctionSnap = await tx.get(correctionRef);
-        const userSnap = await tx.get(userRef);
-        const couponEntries = [];
-        for (const c of changed) {
-          const ref = userRef.collection('coupons').doc(c.id);
-          couponEntries.push({ ref, snap: await tx.get(ref), prior: c.prior });
-        }
-
-        // ── 사전 검증 — 하나라도 어긋나면 이 사용자는 아무것도 쓰지 않는다 ──
-        if (!correctionSnap.exists) return { skipped: 'correction_missing' };
-        const cd = correctionSnap.data() || {};
-        if (cd.rolledBack === true) return { skipped: 'already_rolled_back' };
-        if (!userSnap.exists) return { skipped: 'user_missing' };
-        const u = userSnap.data() || {};
-        if (String(u.loyaltyCorrectionPlan || '') !== planHash) return { skipped: 'plan_mismatch' };
-
-        const diffs = detectStaleRollback(cd, u);
-        if (diffs.length > 0) return { skipped: 'stale_rollback', diffs };
-
-        const drifted = detectCouponDrift(couponEntries, planHash);
-        if (drifted.length > 0) {
-          return { skipped: 'coupon_drift', drifted: drifted.map((x) => x.reason) };
-        }
-
-        tx.set(userRef, {
-          totalSpentUSD: s.before.totalSpentUSD,
-          bookingCount: s.before.bookingCount,
-          tripCoins: s.before.tripCoins,
-          tier: s.before.tier,
-          loyaltyCorrectedAt: FieldValue.delete(),
-          loyaltyCorrectionPlan: FieldValue.delete(),
-        }, { merge: true });
-        // 감사 흔적은 남기되 되돌렸음을 표시한다(원장 항목을 물리 삭제하지 않는다).
-        if (correctionSnap.exists) {
-          tx.set(correctionRef, {
-            rolledBack: true,
-            rolledBackAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
-        }
-        // 위 detectCouponDrift 가 통과했으므로 전부 이 plan 이 만든 상태 그대로다.
-        for (const { ref, prior } of couponEntries) {
-          tx.set(ref, buildCouponRestorePatch(prior, FieldValue), { merge: true });
-        }
-        return { restored: true, coupons: couponEntries.length };
-      });
-      if (outcome.skipped) results.skipped.push({ label, reason: outcome.skipped, detail: outcome.diffs || outcome.drifted || null });
+      const outcome = await rollbackOneAccount({ db, FieldValue, snapshotData: s, uid: snap.id, planHash });
+      if (outcome.skipped) results.skipped.push({ label, reason: outcome.skipped, detail: outcome.detail || null });
       else results.restored.push({ label, coupons: outcome.coupons });
     } catch (e) {
       results.failed.push({ label, error: String(e && e.message).slice(0, 200) });
@@ -228,7 +261,13 @@ async function main() {
 
   if (!wantExecute) {
     console.log('');
+    console.log(`복구 가능 ${results.restored.length} / 복구 불가 ${results.skipped.length} / 검증 실패 ${results.failed.length}`);
+    const reasons = results.skipped.reduce((m, s) => { m[s.reason] = (m[s.reason] || 0) + 1; return m; }, {});
+    if (results.skipped.length > 0) console.log(`복구 불가 사유  : ${JSON.stringify(reasons)}`);
+    console.log(`Firestore       : 읽기 ${db.stats.reads} / 쓰기 시도 ${db.stats.writeAttempts} / 실제 쓰기 ${db.stats.writesAllowed}`);
+    console.log('');
     console.log('⚠️ 되돌리지 않았다. 실제 복구는 --execute + env 승인 + Production 대상 확인이 있어야 한다.');
+    console.log('   위 "복구 가능" 은 execute 와 **같은 판정 함수**로 읽기 전용 검증한 결과다.');
     console.log('');
     return;
   }

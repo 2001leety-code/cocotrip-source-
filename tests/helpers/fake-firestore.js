@@ -171,6 +171,17 @@ export function createFakeFirestore(seed = {}, options = {}) {
     __dump: () => Object.fromEntries([...store.entries()].map(([p, r]) => [p, clone(r.data)])),
     __get: (path) => (store.has(path) ? clone(store.get(path).data) : undefined),
     __set: (path, data) => store.set(path, { data: clone(data), version: (store.get(path)?.version || 0) + 1 }),
+    /** "그 사이 다른 작업이 값을 바꿨다" 를 만들 때 쓴다. 값이 undefined 면 필드 삭제. */
+    __patch: (path, patch) => {
+      const cur = store.get(path);
+      const next = cur ? clone(cur.data) : {};
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) delete next[k];
+        else next[k] = clone(v);
+      }
+      store.set(path, { data: next, version: (cur?.version || 0) + 1 });
+    },
+    __delete: (path) => store.delete(path),
     __version: (path) => store.get(path)?.version || 0,
 
     async runTransaction(fn, opts = {}) {

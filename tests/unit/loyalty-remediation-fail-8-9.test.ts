@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import {
-  guardFirestore, loadAccount, planHashOf,
+  guardFirestore, loadAccount, planHashOf, POLLUTION_REVOKE_REASON,
   identifyPollutionCorrection, POLLUTION_CORRECTION_SCHEMA, LEGACY_CORRECTION_DESC_PREFIX,
 } from '../../scripts/lib/loyalty-remediation-core.mjs';
 import { executeRemediation } from '../../scripts/loyalty-remediation-execute.mjs';
@@ -147,9 +147,15 @@ describe('FAIL-8 집계 — 인정된 것만 이미 제거분으로 센다', () 
     expect(a.ledger.ambiguousCorrections).toBe(1);
     expect(a.ledger.acceptedCorrections).toBe(0);
     expect(a.ledger.alreadyRemovedUSD).toBe(0);
-    // 오염분이 그대로 남아 여전히 보정 대상이다.
+    // 오염분이 그대로 남는다 — 관련 없는 correction 이 오염분을 가리지 못한다.
     expect(a.ledger.remainingPollutedUSD).toBe(300);
-    expect(a.changed).toBe(true);
+    // 🔴 2026-07-29 FAIL-16: 그렇다고 **자동으로 빼지도 않는다.**
+    //   그 correction 이 이미 무엇을 뺐는지 모르므로 두 번 차감할 수 있다.
+    //   보정을 막지 않았다면 바뀌었을 것(wouldChange)임만 남기고 운영자에게 넘긴다.
+    expect(a.wouldChange).toBe(true);
+    expect(a.manualReview).toBe(true);
+    expect(a.changed).toBe(false);
+    expect(a.docsToWrite).toBe(0);
   });
 
   it('이 보정의 활성 correction 은 이미 제거분으로 인정된다', async () => {
@@ -231,29 +237,56 @@ describe('FAIL-9 rollback 사전 검증', () => {
   });
 
   it('🔴 쿠폰이 다른 작업으로 바뀌었으면 잡아낸다', () => {
+    // 2026-07-29 FAIL-15: 회수 필드 **전부**가 이 보정이 남긴 그대로여야 한다.
+    //   예전에는 revokedPlan·isRevoked·isUsed 만 봐서, 그 사이 status·사유가 바뀌어도 통과했다.
+    const OK = {
+      isRevoked: true, status: 'revoked',
+      revokedReason: POLLUTION_REVOKE_REASON, revokedPlan: PLAN, revokedAt: 1,
+    };
     const mk = (id: string, data: any) => ({ ref: { id }, snap: { exists: true, data: () => data } });
     const entries = [
-      mk('ok', { isRevoked: true, revokedPlan: PLAN }),
-      mk('unrevoked', { isRevoked: false, revokedPlan: PLAN }),
-      mk('otherplan', { isRevoked: true, revokedPlan: 'OTHER' }),
-      mk('used', { isRevoked: true, revokedPlan: PLAN, isUsed: true }),
+      mk('ok', { ...OK }),
+      mk('unrevoked', { ...OK, isRevoked: false }),
+      mk('otherplan', { ...OK, revokedPlan: 'OTHER' }),
+      mk('used', { ...OK, isUsed: true }),
+      mk('statuschanged', { ...OK, status: 'active' }),
+      mk('reasonchanged', { ...OK, revokedReason: 'fraud_review' }),
+      mk('noat', { ...OK, revokedAt: null }),
       { ref: { id: 'gone' }, snap: { exists: false, data: () => undefined } },
     ] as any[];
     const drift = detectCouponDrift(entries, PLAN);
-    expect(drift.map((d: any) => d.id).sort()).toEqual(['gone', 'otherplan', 'unrevoked', 'used']);
-    expect(detectCouponDrift([mk('ok', { isRevoked: true, revokedPlan: PLAN })] as any[], PLAN)).toEqual([]);
+    expect(drift.map((d: any) => d.id).sort()).toEqual(
+      ['gone', 'noat', 'otherplan', 'reasonchanged', 'statuschanged', 'unrevoked', 'used'],
+    );
+    expect(drift.map((d: any) => d.reason).sort()).toEqual([
+      'already_unrevoked', 'missing', 'reason_changed', 'revoked_at_missing',
+      'revoked_plan_changed', 'status_changed', 'used_after_revoke',
+    ]);
+    expect(detectCouponDrift([mk('ok', { ...OK })] as any[], PLAN)).toEqual([]);
   });
 
   it('rollback 소스가 사전 검증·중단 코드를 실제로 쓴다', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const src = readFileSync(resolve(process.cwd(), 'scripts/loyalty-remediation-rollback.mjs'), 'utf8');
+    // 2026-07-29 FAIL-14: 판정이 core 의 evaluateRollbackTarget 으로 올라갔고,
+    //   dry-run 과 execute 가 **같은 readAndEvaluate** 를 쓴다(판정 두 벌 금지).
     for (const token of [
-      'detectStaleRollback(cd, u)', 'detectCouponDrift(couponEntries, planHash)',
-      "'correction_missing'", "'already_rolled_back'", "'plan_mismatch'",
-      "'stale_rollback'", "'coupon_drift'",
+      'readAndEvaluate', 'evaluateRollbackTarget', 'guardFirestore',
     ]) expect(src, token).toContain(token);
+    // dry-run 도 execute 도 같은 함수를 부른다 — 최소 2회 등장해야 한다.
+    expect(src.match(/await readAndEvaluate\(/g) || []).toHaveLength(2);
     expect(src).toMatch(/results\.skipped\.length > 0[\s\S]{0,240}process\.exit\(8\)/);
+  });
+
+  it('🔴 판정 사유가 코드 한 곳(core)에만 있다', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const core = readFileSync(resolve(process.cwd(), 'scripts/lib/loyalty-remediation-core.mjs'), 'utf8');
+    for (const token of [
+      "'correction_missing'", "'already_rolled_back'", "'plan_mismatch'",
+      "'stale_rollback'", "'coupon_drift'", "'correction_invalid'",
+    ]) expect(core, token).toContain(token);
   });
 
   it('복원 패치는 여전히 이전 상태 그대로다', () => {

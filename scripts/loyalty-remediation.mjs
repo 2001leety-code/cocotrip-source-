@@ -64,7 +64,7 @@ const limitIdx = args.indexOf('--limit');
 const accountLimit = limitIdx >= 0 ? Number(args[limitIdx + 1]) || 0 : 0;
 
 import {
-  classifyBooking, classifyHistoryEntry, guardFirestore, loadAccount,
+  classifyBooking, classifyHistoryEntry, guardFirestore, loadAccount, assignAccountLabels,
   planHashOf, buildReport, toMarkdown, loadTierPolicy, checkProductionTarget,
 } from './lib/loyalty-remediation-core.mjs';
 
@@ -153,7 +153,8 @@ async function main() {
     scanned += 1;
     accounts.push(await loadAccount(db, userDoc, calculateLoyaltyTier));
   }
-  accounts.sort((a, b) => b.ledger.pollutedCoins - a.ledger.pollutedCoins);
+  // 🔴 FAIL-17: 익명 순번을 여기서 확정한다. 실행부·스냅샷·보고서가 같은 번호를 쓴다.
+  assignAccountLabels(accounts);
 
   // 전역: 계정에 귀속되지 않는 예약(레거시 uid 누락) 현황 — 재계산 가능 여부의 근거.
   const allBookings = await db.collection('bookings').get();
@@ -199,20 +200,40 @@ async function main() {
   }
 
   // ── dry-run 출력 ──
-  const t = report.totals;
-  console.log(`스캔 계정       : ${t.scannedUsers}`);
-  console.log(`보정 대상 계정  : ${t.accountsToFix}`);
-  console.log(`지출  ${('$' + t.before.totalSpentUSD.toLocaleString()).padStart(14)} → ${('$' + t.after.totalSpentUSD.toLocaleString()).padStart(10)}`);
-  console.log(`예약  ${String(t.before.bookingCount).padStart(14)} → ${String(t.after.bookingCount).padStart(10)}`);
-  console.log(`코인  ${t.before.tripCoins.toLocaleString().padStart(14)} → ${t.after.tripCoins.toLocaleString().padStart(10)}`);
-  console.log(`오염 이력       : ${t.pollutedEntries}건 (코인 ${t.pollutedCoins.toLocaleString()} / 지출 $${t.pollutedUSD.toLocaleString()})`);
-  console.log(`보류(애매)      : 이력 ${t.ambiguousEntries} · 계정내 주문 ${t.ambiguousOrdersInAccounts} · 쿠폰 ${t.ambiguousCoupons}`);
+  // 🔴 FAIL-17: "전체 현재 사실" 과 "이번 실행 대상" 을 절대 한 숫자로 섞지 않는다.
+  //   대상 0 건일 때 "오염 이력 0건" 으로 찍히면 오염이 없었던 것처럼 읽힌다.
+  const A = report.totals.allScanned;
+  const P = report.totals.plannedTargets;
+  console.log('');
+  console.log('── 전체 스캔 결과 (현재 사실) ──');
+  console.log(`스캔 계정       : ${A.scannedUsers} (오염 이력 보유 ${A.accountsWithPollutionHistory})`);
+  console.log(`현재 지출       : $${A.current.totalSpentUSD.toLocaleString()}`);
+  console.log(`현재 예약       : ${A.current.bookingCount}`);
+  console.log(`현재 코인       : ${A.current.tripCoins.toLocaleString()}`);
+  console.log(`역사적 오염 이력: ${A.historicalPollution.entries}건 (코인 ${A.historicalPollution.coins.toLocaleString()} / 지출 $${A.historicalPollution.usd.toLocaleString()})`);
+  console.log(`이미 제거된 몫  : ${A.alreadyRemoved.entries}건 (코인 ${A.alreadyRemoved.coins.toLocaleString()} / 지출 $${A.alreadyRemoved.usd.toLocaleString()}) · 인정 correction ${A.acceptedCorrections}건`);
+  console.log(`남은 미보정 오염: ${A.remainingPollution.entries}건 (코인 ${A.remainingPollution.coins.toLocaleString()} / 지출 $${A.remainingPollution.usd.toLocaleString()})`);
+  console.log(`보류(애매)      : 이력 ${A.ambiguous.entries} · 계정내 주문 ${A.ambiguous.ordersInAccounts} · 쿠폰 ${A.ambiguous.coupons} · correction ${A.ambiguous.corrections}`);
   console.log(`전역 귀속불가   : 레거시 주문 ${report.bookingLedger.unattributable}건 (계정에 안 붙어 검증 불가 — 위 '계정내 주문' 과 별개)`);
-  console.log(`쿠폰            : 회수 대상 ${t.couponsToRevoke}장 / 이미 사용 ${t.couponsGrandfathered}장(유지)`);
-  console.log(`보정 방식       : ${JSON.stringify(t.modes)}`);
-  console.log(`보정 후 잔액    : 근거 있음 $${t.afterBackedUSD.toLocaleString()} / 근거 없음 $${t.afterUnbackedUSD.toLocaleString()}`);
+  console.log(`현재 잔액 근거  : 있음 $${A.backedUSD.toLocaleString()} / 없음 $${A.unbackedUSD.toLocaleString()}`);
   console.log(`예약 귀속       : ${report.bookingLedger.withUid}/${report.bookingLedger.total} (귀속 불가 ${report.bookingLedger.unattributable})`);
-  console.log(`실행 시 문서 수 : ${t.docsToWrite}`);
+  console.log(`manual_review   : ${A.manualReviewAccounts}계정 (인정되지 않은 correction 존재 — 자동 보정 제외)`);
+  console.log('');
+  console.log('── 이번 실행 대상 ──');
+  console.log(`보정 대상 계정  : ${P.accountsToFix}`);
+  console.log(`지출  ${('$' + P.before.totalSpentUSD.toLocaleString()).padStart(14)} → ${('$' + P.after.totalSpentUSD.toLocaleString()).padStart(10)}`);
+  console.log(`예약  ${String(P.before.bookingCount).padStart(14)} → ${String(P.after.bookingCount).padStart(10)}`);
+  console.log(`코인  ${P.before.tripCoins.toLocaleString().padStart(14)} → ${P.after.tripCoins.toLocaleString().padStart(10)}`);
+  console.log(`쿠폰            : 회수 대상 ${P.couponsToRevoke}장 / 이미 사용 ${P.couponsGrandfathered}장(유지)`);
+  console.log(`보정 방식       : ${JSON.stringify(P.modes)}`);
+  console.log(`실행 시 문서 수 : ${P.docsToWrite}`);
+  if (P.accountsToFix === 0) {
+    console.log('ℹ️ 대상 0 건은 오염이 없었다는 뜻이 아니다 — 위 역사적 오염 이력을 함께 읽어라.');
+  }
+  for (const a of report.manualReviewAccounts) {
+    console.log(`   🟡 user-${a.no}: 인정 안 된 correction ${a.unrecognizedCorrections}건 (${a.unrecognizedReasons.join(', ')}) — 자동 보정 제외`);
+  }
+  console.log('');
   console.log(`Firestore       : 읽기 ${db.stats.reads} / 쓰기 시도 ${db.stats.writeAttempts} / 실제 쓰기 ${db.stats.writesAllowed}`);
   console.log(`계획 해시       : ${planHash}`);
   console.log('');

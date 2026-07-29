@@ -19,6 +19,8 @@ const authHolder: { user: { uid: string; email?: string } | null; loading: boole
 };
 /** onSnapshot 구독 콜백을 테스트가 직접 발화시키기 위한 보관소. */
 const snapCallbacks: Array<(snap: unknown) => void> = [];
+/** FAIL-13 이후 세 갈래(회원문서·쿠폰·이력)가 모두 도착해야 노출된다 — 나머지도 발화시킨다. */
+const subCallbacks: Array<(snap: unknown) => void> = [];
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => ({ ...authHolder }) }));
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
@@ -31,16 +33,18 @@ vi.mock('firebase/firestore', () => ({
   limit: () => ({}),
   onSnapshot: (ref: { _kind?: string; uid?: string }, cb: (s: unknown) => void) => {
     if (ref?._kind === 'userDoc') snapCallbacks.push(cb);
+    else subCallbacks.push(cb);
     return () => {};
   },
 }));
 
 const { useLoyalty } = await import('../../src/hooks/useLoyalty');
 
-/** 회원 문서 도착을 흉내 낸다. */
+/** 회원 문서 + 빈 하위 컬렉션 도착을 흉내 낸다(이 파일의 관심사는 등급 표시다). */
 function emitUserDoc(uid: string, data: Record<string, unknown> | undefined) {
   act(() => {
     for (const cb of snapCallbacks) cb({ id: uid, data: () => data });
+    for (const cb of subCallbacks) cb({ docs: [] });
   });
 }
 
@@ -48,6 +52,7 @@ beforeEach(() => {
   authHolder.user = null;
   authHolder.loading = true;
   snapCallbacks.length = 0;
+  subCallbacks.length = 0;
 });
 
 describe('useLoyalty — 인증 복원 중 잘못된 값 노출 금지', () => {
@@ -96,6 +101,7 @@ describe('useLoyalty — 인증 복원 중 잘못된 값 노출 금지', () => {
 
     // 계정 전환 — 새 uid 문서가 오기 전에는 다시 로딩이어야 한다.
     snapCallbacks.length = 0;
+    subCallbacks.length = 0;
     authHolder.user = { uid: 'u2' };
     rerender();
     expect(result.current.loading).toBe(true);

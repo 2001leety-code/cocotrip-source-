@@ -15,10 +15,6 @@
  *   · 계정 하나가 실패해도 다른 계정 결과를 가리지 않는다.
  */
 
-import { POLLUTION_CORRECTION_SCHEMA } from './lib/loyalty-remediation-core.mjs';
-
-const SNAPSHOT_COLLECTION = 'admin_loyalty_remediation_snapshots';
-
 /**
  * 🔴 FAIL-1: 쿠폰을 실제로 막는 필드는 `isRevoked` 다.
  *   결제 경로 5곳(api/applyPromoCode.js · api/capturePaypalOrder.js ·
@@ -26,13 +22,17 @@ const SNAPSHOT_COLLECTION = 'admin_loyalty_remediation_snapshots';
  *   api/_shared/refund-ledger.js)이 전부 `isRevoked === true` 를 본다.
  *   `status:'revoked'` 만 쓰면 "회수했다"고 보고되지만 쿠폰은 계속 쓰인다.
  *   감사 가독성을 위해 status 도 함께 쓰되, **isRevoked 가 진짜 차단 스위치**다.
+ *
+ * 🔴 FAIL-15: 필드 목록·회수 사유·문서 ID 규칙은 **core 한 곳**에만 둔다.
+ *   실행부와 rollback 이 서로 다른 정의를 보면 "썼는데 못 되돌리는" 필드가 생긴다.
  */
-export const COUPON_REVOKE_FIELDS = ['isRevoked', 'status', 'revokedReason', 'revokedPlan', 'revokedAt'];
+import {
+  POLLUTION_CORRECTION_SCHEMA, COUPON_REVOKE_FIELDS, POLLUTION_REVOKE_REASON, correctionDocId,
+} from './lib/loyalty-remediation-core.mjs';
 
-/** 보정 원장 문서 ID — 사용자 + 감사 실행 ID 기반, 결정적. */
-export function correctionDocId(planHash) {
-  return `correction_${planHash}`;
-}
+const SNAPSHOT_COLLECTION = 'admin_loyalty_remediation_snapshots';
+
+export { COUPON_REVOKE_FIELDS, POLLUTION_REVOKE_REASON, correctionDocId };
 
 /**
  * 🔴 FAIL-3: dry-run 이후 실행 직전 사이에 정상 결제·코인 사용·관리자 수정이 생기면
@@ -94,7 +94,9 @@ export async function executeRemediation({ db, accounts, planHash }) {
 
   for (let i = 0; i < targets.length; i += 1) {
     const acct = targets[i];
-    const label = `user-${i + 1}`;   // 로그·결과에 uid 를 쓰지 않는다
+    // 🔴 FAIL-17: 보고서와 **같은 순번**을 쓴다. 실행 순서로 다시 번호를 매기면
+    //   같은 사람이 사전 문서와 실행 문서에서 다른 user-N 으로 나온다.
+    const label = `user-${acct.no || i + 1}`;   // 로그·결과에 uid 를 쓰지 않는다
     try {
       const outcome = await applyOneAccount({ db, FieldValue, acct, planHash });
       if (outcome.skipped) skipped.push({ label, reason: outcome.reason, diffs: outcome.diffs || null });
@@ -146,6 +148,8 @@ async function applyOneAccount({ db, FieldValue, acct, planHash }) {
     // 1) 복구용 스냅샷 (제한 컬렉션 — 규칙에서 관리자만 읽게 둔다)
     tx.set(snapshotRef, {
       planHash,
+      // 보고서와 같은 익명 순번. rollback 도 이 번호를 그대로 쓴다(개인정보 아님).
+      accountNo: acct.no || null,
       capturedAt: FieldValue.serverTimestamp(),
       before: {
         totalSpentUSD: Number(u.totalSpentUSD) || 0,
@@ -201,7 +205,7 @@ async function applyOneAccount({ db, FieldValue, acct, planHash }) {
       tx.set(c.ref, {
         isRevoked: true,                 // 🔴 실제 차단 스위치 (결제 5경로 공통)
         status: 'revoked',               // 감사 가독성용
-        revokedReason: 'issued_from_unverified_ai_plan_coins',
+        revokedReason: POLLUTION_REVOKE_REASON,
         revokedPlan: planHash,
         revokedAt: FieldValue.serverTimestamp(),
       }, { merge: true });

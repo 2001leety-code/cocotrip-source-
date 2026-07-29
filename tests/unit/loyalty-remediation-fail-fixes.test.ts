@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import {
   guardFirestore, loadAccount, planHashOf, buildReport, toMarkdown, checkProductionTarget,
+  validateCouponForRollback, POLLUTION_REVOKE_REASON,
 } from '../../scripts/lib/loyalty-remediation-core.mjs';
 import {
   executeRemediation, detectStaleUser, selectCouponsToRevoke,
@@ -116,7 +117,8 @@ describe('FAIL-2 실행 문서 수가 정확하다', () => {
     const report = buildReport({ accounts, scanned: 1, stats, projectId: 'x', planHash: 'h' });
     const { result } = await runExecute(db);
     const actual = result.applied.reduce((s: number, r: any) => s + r.docsWritten, 0);
-    expect(actual).toBe(report.totals.docsToWrite);
+    // 2026-07-29 FAIL-17: 문서 수는 "이번 실행 대상" 범위로 옮겼다(전체 스캔과 섞지 않기 위해).
+    expect(actual).toBe(report.totals.plannedTargets.docsToWrite);
   });
 });
 
@@ -194,12 +196,21 @@ describe('FAIL-4 rollback 이 이전 상태를 정확히 복원한다', () => {
   });
 
   it('rollback 은 이 plan 이 바꾼 쿠폰만 건드린다', () => {
-    // 2026-07-29 FAIL-9: 쿠폰 확인이 detectCouponDrift 로 올라갔다.
-    //   불변식은 더 강해졌다 — 하나라도 어긋나면 그 사용자 rollback 전체를 중단한다.
+    // 2026-07-29 FAIL-15: 쿠폰 판정이 core 의 validateCouponForRollback 로 올라갔다.
+    //   불변식은 더 강해졌다 — 회수 필드 전부가 이 보정이 남긴 그대로여야 하고,
+    //   하나라도 어긋나면 그 사용자 rollback 전체를 중단한다. 여기서는 **동작**으로 잠근다.
+    const ok = {
+      isRevoked: true, status: 'revoked',
+      revokedReason: POLLUTION_REVOKE_REASON, revokedPlan: 'h', revokedAt: 1,
+    };
+    expect(validateCouponForRollback('h', true, ok)).toBeNull();
+    expect(validateCouponForRollback('h', true, { ...ok, revokedPlan: 'other' }))
+      .toBe('revoked_plan_changed');
+    expect(validateCouponForRollback('h', true, { ...ok, isUsed: true })).toBe('used_after_revoke');
+    expect(validateCouponForRollback('h', false, null)).toBe('missing');
+
     const src = read('scripts/loyalty-remediation-rollback.mjs');
-    expect(src).toContain("c.revokedPlan !== planHash");
-    expect(src).toContain('detectCouponDrift(couponEntries, planHash)');
-    expect(src).toContain("'coupon_drift'");
+    expect(src).toContain('readAndEvaluate');
     expect(src).toContain('buildCouponRestorePatch');
     expect(src).not.toMatch(/status:\s*FieldValue\.delete\(\)/);   // 무조건 삭제 금지
   });
@@ -279,8 +290,10 @@ describe('FAIL-7 애매 주문과 귀속 불가 주문을 구분 보고한다', 
   it('🔴 보고서 총계에 두 항목이 따로 있다', async () => {
     const { accounts, stats } = await analyze(seed());
     const report = buildReport({ accounts, scanned: 1, stats, projectId: 'x', planHash: 'h' });
-    expect(report.totals).toHaveProperty('ambiguousOrdersInAccounts');
-    expect(report.totals).not.toHaveProperty('ambiguousOrders');   // 뭉뚱그린 이름 금지
+    // 2026-07-29 FAIL-17: 합계가 allScanned / plannedTargets 로 갈렸다. 이름 구분은 그대로다.
+    expect(report.totals.allScanned.ambiguous).toHaveProperty('ordersInAccounts');
+    expect(report.totals.allScanned.ambiguous).not.toHaveProperty('orders');   // 뭉뚱그린 이름 금지
+    expect(report.totals).not.toHaveProperty('ambiguousOrders');
   });
 
   it('마크다운이 귀속 불가 레거시 주문을 별도 줄로 보여준다', async () => {
