@@ -17,6 +17,7 @@ import { sanitizeStopName } from '@/lib/sanitizeName';
 import { track as posthogTrack } from '@/lib/posthog';
 import { haptic } from '@/lib/haptic';
 import { buildAttractionLink } from '@/config/affiliateLinks';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { Lightbox } from './Lightbox';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
@@ -518,7 +519,10 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               <a
                 href={url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer sponsored"
+                onClick={() => trackAffiliateClick({
+                  product: 'attraction', placement: 'plan_day_stop', language: lng, city: cityKey,
+                })}
                 className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
               >
                 <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}

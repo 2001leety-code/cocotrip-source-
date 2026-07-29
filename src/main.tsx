@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { initGA } from './lib/analytics'
 import { bootPostHog } from './lib/posthog'
+import { hasAnalyticsConsent, onConsentChange } from './lib/consent'
 import { initSentry } from './lib/sentry'
 
 // D1: activate shadcn .dark tokens before React mount (avoids FOUC).
@@ -54,12 +55,24 @@ window.addEventListener('unhandledrejection', (e) => {
   }
 });
 
-// ── GA4 Analytics 초기화 (VITE_GA_MEASUREMENT_ID 없으면 no-op) ──
-initGA();
-
-// ── PostHog product analytics 초기화 (VITE_POSTHOG_KEY 없으면 no-op) ──
-// SDK는 dynamic import — 키 없으면 번들에 들어가지 않음.
-bootPostHog();
+// ── 분석 도구 초기화 — **쿠키 동의 후에만** (2026-07-30) ──
+// 🔴 이전에는 여기서 무조건 켰다. 쿠키 배너는 localStorage 에 값만 쓰고 아무것도
+//   막지 않아서, 사용자가 "닫기" 를 눌러도 GA4·PostHog 가 계속 돌았다.
+//   배너에 "동의하면" 이라 써 놓고 실제로는 선택 전부터 추적하고 있었던 것이다.
+// 수락하면 그 시점에 켠다(배너가 setConsent 로 알린다).
+function startAnalytics() {
+  initGA();          // VITE_GA_MEASUREMENT_ID 없으면 no-op
+  bootPostHog();     // VITE_POSTHOG_KEY 없으면 no-op (SDK dynamic import)
+}
+if (hasAnalyticsConsent()) {
+  startAnalytics();
+} else {
+  const stopWatching = onConsentChange((state) => {
+    if (state !== 'accepted') return;
+    stopWatching();
+    startAnalytics();
+  });
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

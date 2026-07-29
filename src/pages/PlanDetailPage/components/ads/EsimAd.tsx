@@ -9,13 +9,16 @@
 import { Phone } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { buildEsimLink } from '@/config/affiliateLinks';
+import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 
 export function EsimAd() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const url = buildEsimLink();
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-[#B668FC]/25 mt-6"
+    <AffiliateCard payload={{ product: 'esim', placement: 'plan_pretrip', language }}
+      className="rounded-2xl overflow-hidden border border-[#B668FC]/25 mt-6"
       style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.05))' }}>
       <div className="px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-[#B668FC]/20 border border-[#B668FC]/30">
@@ -27,13 +30,13 @@ export function EsimAd() {
         </div>
       </div>
       <div className="px-5 pb-4">
-        <a href={url} target="_blank" rel="noopener noreferrer"
+        <a href={url} target="_blank" rel="noopener noreferrer sponsored" onClick={() => trackAffiliateClick({ product: 'esim', placement: 'plan_pretrip', language })}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] active:scale-95 min-h-[44px]"
           style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
           {t.planner?.esimCta || 'Get eSIM on Trip.com'} {'→'}
         </a>
       </div>
       <p className="text-[12px] text-white/55 text-center pb-3 px-5">{t.planner?.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
-    </div>
+    </AffiliateCard>
   );
 }

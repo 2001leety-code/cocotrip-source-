@@ -75,6 +75,14 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const impressionTracked = useRef(false);
 
+  // 🔴 2026-07-30: 제휴 카드(eSIM·호텔·항공·기차)의 노출은 **각 카드가 스스로** 기록한다.
+  //   이전에는 이 컨테이너가 화면에 들어오는 순간 아래쪽 카드까지 전부 "봤다" 로 찍었다.
+  //   슬라이드 윗부분만 보고 넘긴 사용자도 6종을 모두 본 것으로 집계돼,
+  //   노출 대비 클릭률이 실제보다 훨씬 낮게 보였다(= 보이지 않은 카드의 허위 노출).
+  //
+  //   여기 남은 것은 **제휴가 아닌 자체 상품**(공항픽업·차터)뿐이다. 이 둘은 별도 카드
+  //   컴포넌트가 아니라 슬라이드 상단 본문에 직접 그려져 있어 슬라이드 진입 = 노출로
+  //   봐도 과대 집계가 아니다.
   useEffect(() => {
     const el = containerRef.current;
     if (!el || impressionTracked.current) return;
@@ -82,12 +90,8 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
       ([entry]) => {
         if (entry.isIntersecting && !impressionTracked.current) {
           impressionTracked.current = true;
-          trackAdImpression('esim', 'preTrip');
           trackAdImpression('airportPickup', 'preTrip');
           if (showCharter) trackAdImpression('charter', 'preTrip');
-          if (showHotel) trackAdImpression('hotel', 'preTrip');
-          if (showFlight) trackAdImpression('flight', 'preTrip');
-          if (showTrain) trackAdImpression('train', 'preTrip');
           observer.disconnect();
         }
       },
@@ -95,7 +99,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [showHotel, showFlight, showCharter, showTrain]);
+  }, [showCharter]);
 
   // 4-lang 헤더 텍스트 (i18n dict의 swipe 섹션 또는 fallback)
   const headerTitle = (sw as Record<string, string | undefined>).preTripTitle ||

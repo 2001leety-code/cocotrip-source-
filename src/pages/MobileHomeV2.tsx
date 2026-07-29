@@ -4,6 +4,7 @@ import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, B
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { TripEssentialsCards, shouldShowHomeAffiliate } from '@/components/home/TripEssentialsCards';
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
@@ -333,6 +334,13 @@ export default function MobileHomeV2() {
           ))}
         </div>
       </section>
+
+      {/* ── 여행 준비 (제휴) ──
+          🔴 자체 상품(Smart Picks) **아래**에 둔다 — 우리 상품이 먼저다.
+          기본 OFF. VITE_FEATURE_HOME_AFFILIATE=true 이고 Trip.com 제휴 ID 가
+          env 에 실제로 설정돼 있을 때만 렌더한다(fail-closed). 컴포넌트 안에서도
+          한 번 더 막지만, 여기서도 걸러 불필요한 렌더를 만들지 않는다. */}
+      {shouldShowHomeAffiliate() && <TripEssentialsCards language={language} />}
 
       {/* ── 지역 그리드 — 기존 t.regions 번역 재사용 ── */}
       <section className="px-5 pt-4">

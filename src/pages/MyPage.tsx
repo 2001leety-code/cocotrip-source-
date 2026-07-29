@@ -28,6 +28,7 @@ import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
 import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
+import { describePointLog } from '@/lib/pointLogText';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
@@ -330,7 +331,11 @@ export default function MyPage() {
             {/* Compact 2×2 stats */}
             <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
               <StatCard label={mp.statTotalSpent || 'Total Spent'} value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
-              <StatCard label={mp.statBookings || 'Bookings'} value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
+              {/* 🔴 이 값은 **원장 누적 예약 수**다. 아래 "내 예약" 탭 목록 개수와 다를 수 있다.
+                  목록은 현재 계정 이메일로 조회한 것이고, 누적은 과거 보정·다른 이메일 결제까지
+                  포함한 원장값이라 숫자가 어긋나면 손님이 "예약이 사라졌다" 고 읽는다. */}
+              <StatCard label={mp.statBookings || 'Bookings'} value={String(loyalty?.bookingCount || 0)}
+                sub={mp.statBookingsNote || 'Lifetime total'} icon={Calendar} />
               <StatCard label={mp.statTripCoins || 'Trip Coins'} value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
               <StatCard label={mp.statEarnRate || 'Earn Rate'} value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
             </div>
@@ -701,15 +706,15 @@ export default function MyPage() {
             {pointHistory.length === 0 ? (
               <div className="text-center py-12 text-white/55">
                 <Clock className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No point activity yet.</p>
-                <p className="text-xs mt-1 text-white/55">Share a plan to earn your first Trip Coins!</p>
+                <p className="text-sm">{mp.pointEmpty || 'No point activity yet.'}</p>
+                <p className="text-xs mt-1 text-white/55">{mp.pointEmptySub || 'Share a plan to earn your first Trip Coins!'}</p>
               </div>
             ) : (
               pointHistory.map(log => (
                 <div key={log.id}
                   className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15] transition-all">
                   <div className="flex-1">
-                    <p className="text-white/90 text-sm font-medium">{log.description}</p>
+                    <p className="text-white/90 text-sm font-medium">{describePointLog(log.description, language)}</p>
                     <p className="text-white/55 text-xs mt-0.5">
                       {new Date(log.createdAt).toLocaleString()}
                     </p>

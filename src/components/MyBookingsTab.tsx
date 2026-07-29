@@ -6,6 +6,7 @@ import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { BookingStatusTimeline } from '@/components/BookingStatusTimeline';
 import { useAuth } from '@/hooks/useAuth';
+import { fillPrice } from '@/lib/aiPlannerPrice';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
 import { toast } from 'sonner';
@@ -48,7 +49,10 @@ function prettyProductLabel(productType: string | undefined, lang: Language): st
   const t = translations[lang].mypage;
   const enLabels = translations.en.mypage.productLabels as Record<string, string>;
   const labels = t.productLabels as Record<string, string>;
-  if (labels[norm]) return labels[norm] || enLabels[norm] || productType;
+  // 🔴 2026-07-30: 라벨에 {price} 자리표시자가 들어 있다(`AI 플래너 ({price})`).
+  //   그대로 쓰면 예약 목록에 문자 그대로 "AI 플래너 ({price})" 가 뜬다.
+  //   가격 주입은 fillPrice 한 곳에서만 한다 — 여기서 문자열을 직접 만들지 않는다.
+  if (labels[norm]) return fillPrice(labels[norm] || enLabels[norm] || productType, lang);
   // airport_<key> 같은 동적 키는 일반화
   if (norm.startsWith('airport_')) {
     const dest = norm.slice(8).replace(/_/g, ' ');
@@ -169,7 +173,13 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-white font-bold text-lg">{i18n.mbHeader}</h3>
-        <span className="text-white/55 text-sm">{bookings.length}</span>
+        {/* 🔴 2026-07-30: 이 숫자는 **현재 계정 이메일로 조회된 예약** 개수다.
+            위 통계의 "누적 예약"(원장값)과 다를 수 있어, 설명 없이 두면
+            손님이 "예약이 사라졌다" 고 읽는다. 무엇을 세는지 붙여 준다. */}
+        <span className="text-white/55 text-sm">
+          {bookings.length}
+          <span className="text-white/35 text-[11px] ml-1">{i18n.mbCountNote || 'shown'}</span>
+        </span>
       </div>
       {bookings.map(b => (
         <div

@@ -48,12 +48,14 @@ export const DEFAULT_PROMO_CONFIG = {
     zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
   },
   ctaText: {
-    en: 'See deals →',
-    ko: '딜 보기 →',
-    ja: 'お得を見る →',
-    zh: '查看优惠 →',
+    en: 'Start free plan →',
+    ko: '무료 일정 만들기 →',
+    ja: '無料プランを作る →',
+    zh: '免费生成行程 →',
   },
-  ctaHref: '/tours',
+  // 🔴 2026-07-30: 프론트 PromoBanner.tsx 와 같이 바꿨다(둘 중 하나만 고치면 prod 가 옛 값을 반환).
+  //   문구가 앞세우는 무료 AI 일정과 목적지를 일치시킨다.
+  ctaHref: '/planner',
   endDate: '', // 지난 6/28 제거 — 빈값이면 프론트가 '선착순'류 표시 (가짜 마감일 금지)
 };
 

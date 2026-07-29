@@ -1950,7 +1950,10 @@
         "VIP カカオトーク対応",
         "空港ラウンジ利用"
       ]
-    }
+    },
+    "pointEmpty": "まだポイント履歴がありません。",
+    "pointEmptySub": "プランを共有すると最初の Trip Coins がもらえます！",
+    "statBookingsNote": "累計"
   },
   "admin": {
     "backToHome": "管理者ホームへ戻る",
@@ -2358,7 +2361,8 @@
     "bookingClosedMessage": "出発{N}時間前で締め切るため、この時刻は予約できません。別の時刻をお選びいただくか、チャットでご相談ください。",
     "bookingChatCta": "チャット相談",
     "dispatchFailAutoCancelNote": "車両を確保できない場合、ご予約は自動的にキャンセルされ、全額返金されます。",
-    "mbPastTour": "過去の予定"
+    "mbPastTour": "過去の予定",
+    "mbCountNote": "件表示"
   },
   "tourDetail": {
     "includedTitle": "含まれる",

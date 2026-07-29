@@ -7,6 +7,8 @@
 // 출발/도착 cityKey 는 buildTrainLink 가 매핑 — Trip.com 인식 도시명으로 변환.
 import { Train } from 'lucide-react';
 import { buildTrainLink } from '@/config/affiliateLinks';
+import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface TrainsAdProps {
@@ -17,12 +19,13 @@ interface TrainsAdProps {
 }
 
 export function TrainsAd({ fromCityKey, toCityKey }: TrainsAdProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const url = buildTrainLink(fromCityKey, toCityKey);
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-cyan-500/25" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05))' }}>
+    <AffiliateCard payload={{ product: 'train', placement: 'plan_pretrip', language, city: fromCityKey }}
+      className="rounded-2xl overflow-hidden border border-cyan-500/25" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05))' }}>
       <div className="px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-cyan-500/20 border border-cyan-500/30">
           <Train className="w-5 h-5 text-cyan-400" />
@@ -33,13 +36,13 @@ export function TrainsAd({ fromCityKey, toCityKey }: TrainsAdProps) {
         </div>
       </div>
       <div className="px-5 pb-4">
-        <a href={url} target="_blank" rel="noopener noreferrer"
+        <a href={url} target="_blank" rel="noopener noreferrer sponsored" onClick={() => trackAffiliateClick({ product: 'train', placement: 'plan_pretrip', language, city: fromCityKey })}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] active:scale-95 min-h-[44px]"
           style={{ background: '#0891B2', boxShadow: '0 4px 16px rgba(8,145,178,0.25)' }}>
           {p.adTrainCta || 'Search Trains on Trip.com'} {'→'}
         </a>
       </div>
       <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link — helps support CocoTrip.'}</p>
-    </div>
+    </AffiliateCard>
   );
 }

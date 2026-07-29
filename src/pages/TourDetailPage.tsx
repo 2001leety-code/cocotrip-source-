@@ -6,6 +6,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { trackViewItem, trackBookNow } from '@/lib/analytics';
+import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { buildTourJsonLd } from './buildTourJsonLd';
 import { buildGallerySlides } from './buildGallerySlides';
 import {
@@ -413,7 +414,7 @@ export default function TourDetailPage() {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            추천 숙소 — Trip.com 어필리에이트 (Allianceid=4831212)
+            추천 숙소 — Trip.com 어필리에이트 (ID 는 src/config/affiliateLinks.ts SSOT)
         ══════════════════════════════════════════════════════════════════ */}
         {hotels.length > 0 && (
           <section className="mb-8">
@@ -440,6 +441,10 @@ export default function TourDetailPage() {
                     href={hotel.affiliateUrl}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
+                    onClick={() => trackAffiliateClick({
+                      product: 'hotel', placement: 'tour_detail_hotels', language,
+                      city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id,
+                    })}
                     className="hotel-hover rounded-2xl overflow-hidden flex flex-col"
                     style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
                   >
