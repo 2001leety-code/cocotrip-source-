@@ -210,6 +210,11 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
   let spendCoins = 0;
   let correctionCoins = 0;
   let correctionEntries = 0;
+  // 지난 보정이 이미 제거한 오염분 — 이번 계산에서 중복 차감하지 않기 위한 값.
+  let alreadyRemovedUSD = 0;
+  let alreadyRemovedCoins = 0;
+  let alreadyRemovedBookings = 0;
+  let alreadyRemovedEntries = 0;
   for (const h of histSnap.docs) {
     const c = classifyHistoryEntry(h.data(), moneyOrders);
     if (c.kind === 'legit') { legitEarnCoins += c.coins; legitEntries += 1; }
@@ -217,7 +222,17 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
       pollutedCoins += c.coins; pollutedUSD += num(c.usd); pollutedEntries += 1;
     } else if (c.kind === 'ambiguous') { ambiguousEntries += 1; ambiguousCoins += c.coins; }
     else if (c.kind === 'spend') spendCoins += c.coins;
-    else if (c.kind === 'correction') { correctionCoins += c.coins; correctionEntries += 1; }
+    else if (c.kind === 'correction') {
+      correctionCoins += c.coins; correctionEntries += 1;
+      // 🔴 이미 보정으로 **빼낸 오염분**을 기록해 둔다.
+      //   오염 이력(pointHistory)은 감사 목적상 삭제하지 않으므로, 다음 실행에서 다시 계산된다.
+      //   그걸 그대로 또 빼면 같은 금액을 두 번 차감해 정상 잔액까지 0 으로 만든다.
+      const meta = (h.data() || {}).correction || {};
+      alreadyRemovedUSD += Math.max(0, num(meta.spentUSDBefore) - num(meta.spentUSDAfter));
+      alreadyRemovedBookings += Math.max(0, num(meta.bookingCountBefore) - num(meta.bookingCountAfter));
+      alreadyRemovedCoins += Math.max(0, -c.coins);
+      alreadyRemovedEntries += num(meta.pollutedEntries);
+    }
   }
 
   // ── 3. 기대 코인 = 정상 적립 − 사용 ──
@@ -284,9 +299,16 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
   const ledgerComplete = ambiguousBookings.length === 0 && ambiguousEntries === 0 && attributable;
   const mode = ledgerComplete ? 'recompute_from_ledger' : 'subtract_pollution_only';
 
-  const subtractSpent = round2(Math.max(0, currentSpentUSD - pollutedUSD));
-  const subtractBookings = Math.max(0, currentBookingCount - pollutedEntries);
-  const subtractCoins = Math.max(0, currentCoins - pollutedCoins);
+  // 🔴 아직 빼지 않은 오염분만 뺀다. 지난 보정이 제거한 몫은 제외한다(재실행 수렴).
+  const remainingPollutedUSD = round2(Math.max(0, pollutedUSD - alreadyRemovedUSD));
+  const remainingPollutedCoins = Math.max(0, pollutedCoins - alreadyRemovedCoins);
+  const remainingPollutedEntries = Math.max(0, pollutedEntries - alreadyRemovedEntries);
+  const subtractSpent = round2(Math.max(0, currentSpentUSD - remainingPollutedUSD));
+  const subtractBookings = Math.max(0, currentBookingCount - remainingPollutedBookings());
+  const subtractCoins = Math.max(0, currentCoins - remainingPollutedCoins);
+  function remainingPollutedBookings() {
+    return Math.max(0, pollutedEntries - alreadyRemovedBookings);
+  }
 
   const afterSpent = ledgerComplete ? expectedSpentUSD : subtractSpent;
   const afterBookings = ledgerComplete ? expectedBookingCount : subtractBookings;
@@ -319,6 +341,10 @@ export async function loadAccount(db, userDoc, calculateLoyaltyTier) {
       legitEntries, legitEarnCoins,
       ambiguousEntries, ambiguousCoins,
       spendCoins, correctionEntries, correctionCoins,
+      alreadyRemovedUSD: round2(alreadyRemovedUSD),
+      alreadyRemovedCoins,
+      alreadyRemovedEntries,
+      remainingPollutedUSD, remainingPollutedCoins, remainingPollutedEntries,
     },
     orders: {
       verifiedPaidOrders: moneyOrders.size,

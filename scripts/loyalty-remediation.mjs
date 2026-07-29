@@ -81,12 +81,12 @@ async function main() {
     const email = process.env.FIREBASE_CLIENT_EMAIL;
     const key = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
     if (projectId && email && key) {
-      initializeApp({ credential: cert({ projectId, clientEmail: email, privateKey: key }) });
+      initializeApp({ projectId, credential: cert({ projectId, clientEmail: email, privateKey: key }) });
     } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
       const raw = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8');
       const parsed = JSON.parse(raw);
       credentialProject = parsed.project_id || '';
-      initializeApp({ credential: cert(parsed) });
+      initializeApp({ projectId: credentialProject, credential: cert(parsed) });
     } else {
       console.error('[remediation] Firebase 자격증명 없음 — FIREBASE_* 또는 GOOGLE_SERVICE_ACCOUNT_KEY 필요');
       process.exit(1);

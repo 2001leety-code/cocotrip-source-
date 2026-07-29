@@ -288,3 +288,28 @@ describe('FAIL-7 애매 주문과 귀속 불가 주문을 구분 보고한다', 
     expect(md).toContain('전역 귀속 불가 레거시 주문: 29건');
   });
 });
+
+describe('실행 후 재계산이 같은 오염분을 두 번 빼지 않는다 (실행 대사에서 발견)', () => {
+  it('🔴 보정 후 새 dry-run 은 더 뺄 것이 없다고 판정한다', async () => {
+    // 오염 이력(pointHistory)은 감사 목적상 삭제하지 않는다. 그래서 다음 실행에서 다시 계산된다.
+    // 그걸 그대로 또 빼면 정상 잔액까지 0 으로 밀린다 — 운영 실행 직후 대사에서 잡았다.
+    // correction 원장이 "이미 제거한 오염분" 을 들고 있으므로 그만큼 제외한다.
+    const db = seed({
+      // 애매 이력을 하나 넣어 subtract 모드로 만든다(재계산 모드는 이 경로를 안 탄다).
+      [`users/${UID}/pointHistory/legacy-x`]: { type: 'earn', amount: 7, description: 'Manual', createdAt: 9 },
+    });
+    const first = await analyze(db);
+    expect(first.accounts[0].mode).toBe('subtract_pollution_only');
+    const planHash = planHashOf(first.accounts);
+    const writable = guardFirestore(db, { allowWrites: true });
+    await executeRemediation({ db: writable, accounts: first.accounts, planHash });
+
+    const afterValues = db.__get(`users/${UID}`)!;
+    const second = await analyze(db);
+    expect(second.accounts[0].ledger.remainingPollutedUSD).toBe(0);
+    expect(second.accounts[0].ledger.remainingPollutedCoins).toBe(0);
+    expect(second.accounts[0].changed).toBe(false);
+    expect(second.accounts[0].after.totalSpentUSD).toBe(afterValues.totalSpentUSD);
+    expect(second.accounts[0].after.tripCoins).toBe(afterValues.tripCoins);
+  });
+});
