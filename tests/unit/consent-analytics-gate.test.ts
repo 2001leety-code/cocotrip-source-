@@ -21,6 +21,7 @@ type PhMock = {
   reset: ReturnType<typeof vi.fn>;
   opt_in_capturing: ReturnType<typeof vi.fn>;
   opt_out_capturing: ReturnType<typeof vi.fn>;
+  set_config: ReturnType<typeof vi.fn>;
 };
 
 let ph: PhMock;
@@ -34,6 +35,7 @@ vi.mock('posthog-js', () => {
     reset: (...a: unknown[]) => ph.reset(...a),
     opt_in_capturing: (...a: unknown[]) => ph.opt_in_capturing(...a),
     opt_out_capturing: (...a: unknown[]) => ph.opt_out_capturing(...a),
+    set_config: (...a: unknown[]) => ph.set_config(...a),
   };
   return { default: proxy };
 });
@@ -46,6 +48,7 @@ function freshPh(): PhMock {
     reset: vi.fn(),
     opt_in_capturing: vi.fn(),
     opt_out_capturing: vi.fn(),
+    set_config: vi.fn(),
   };
 }
 
@@ -145,6 +148,34 @@ describe('PostHog 동의 게이트 — SDK 실동작', () => {
     await posthog.track('plan_downloaded');
     expect(ph.capture).not.toHaveBeenCalled();
     expect(ph.opt_out_capturing).toHaveBeenCalled();
+  });
+
+  it('🔴 철회 시 /flags 호출까지 끈다 — reset() 이 새 distinct_id 로 플래그를 재요청한다(운영 실측)', async () => {
+    const { consent, posthog } = await loadModules();
+    consent.setConsent('accepted');
+    await posthog.track('plan_generated');
+    ph.set_config.mockClear();
+
+    consent.setConsent('revoked');
+
+    // 순서가 중요하다: 플래그를 끈 **뒤** reset 해야 재요청이 안 나간다.
+    expect(ph.set_config).toHaveBeenCalledWith({ advanced_disable_flags: true });
+    const disableOrder = ph.set_config.mock.invocationCallOrder[0];
+    const resetOrder = ph.reset.mock.invocationCallOrder[0];
+    expect(disableOrder, 'set_config(플래그 차단)이 reset 보다 먼저여야 한다').toBeLessThan(resetOrder);
+  });
+
+  it('재수락하면 플래그 차단을 되돌린다', async () => {
+    const { consent, posthog } = await loadModules();
+    consent.setConsent('accepted');
+    await posthog.track('plan_generated');
+    consent.setConsent('revoked');
+    ph.set_config.mockClear();
+
+    consent.setConsent('accepted');
+    await posthog.track('plan_downloaded');
+
+    expect(ph.set_config).toHaveBeenCalledWith({ advanced_disable_flags: false });
   });
 
   it('revoke 후 재수락: init 을 두 번 부르지 않고 opt_in 으로 되돌린다', async () => {

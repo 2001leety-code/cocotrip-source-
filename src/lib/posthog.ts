@@ -64,7 +64,8 @@ async function ensureInit(): Promise<PostHog | null> {
       // import 를 기다리는 사이 철회됐을 수 있다 — 켜기 직전에 다시 확인한다.
       if (!hasAnalyticsConsent()) return null;
       if (didInit) {
-        // 재수락: init 을 두 번 부르지 않는다. 철회 때 걸어 둔 opt-out 만 되돌린다.
+        // 재수락: init 을 두 번 부르지 않는다. 철회 때 걸어 둔 것(opt-out·플래그 차단)만 되돌린다.
+        try { ph.set_config({ advanced_disable_flags: false }); } catch { /* 구버전 SDK 대비 */ }
         ph.opt_in_capturing({ captureEventName: false });
       } else {
         ph.init(KEY, {
@@ -119,6 +120,11 @@ function applyConsent(state: ConsentState): void {
   initPromise = null;
   if (!sdk) return;
   try { sdk.opt_out_capturing(); } catch { /* SDK 내부 상태 문제는 무시 */ }
+  // 🔴 운영 실측(2026-07-30): opt-out + reset 만 하면 철회 직후 `us.i.posthog.com/flags/` 요청이
+  //   **1건 나갔다.** 원인은 우리 `reset()` 이다 — 새 distinct_id 가 만들어지면 SDK 가 그 id 로
+  //   플래그를 다시 평가하려 한다. capture 는 아니지만 철회한 사람의 식별자를 실어 보내는 요청이다.
+  //   → reset 전에 플래그 엔드포인트 자체를 끈다. (재수락 시 아래에서 되돌린다.)
+  try { sdk.set_config({ advanced_disable_flags: true }); } catch { /* 구버전 SDK 대비 */ }
   try { sdk.reset(); } catch { /* 위와 동일 */ }
 }
 
