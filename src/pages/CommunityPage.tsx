@@ -541,7 +541,10 @@ function FeedState({ icon: Icon, title, body, action }: { icon: typeof Sparkles;
 // ── 피드 ──
 export default function CommunityPage() {
   const { language } = useLanguage();
-  const { user } = useAuth();   // 토큰을 실어 보내 서버가 isOwn 을 계산하게 한다(삭제 버튼 노출)
+  // 토큰을 실어 보내 서버가 isOwn 을 계산하게 한다(삭제 버튼 노출).
+  // authLoading 을 기다리는 이유: 안 기다리면 비로그인으로 한 번 받고, 인증이 붙은 뒤 또 받는다
+  // (요청 2배 + 목록이 로딩으로 되돌아가는 깜빡임).
+  const { user, loading: authLoading } = useAuth();
   const copy = COPY[language];
   const location = useLocation();
   const [tab, setTab] = useState<'latest' | 'popular'>('latest');
@@ -576,7 +579,7 @@ export default function CommunityPage() {
     }
   }, [user]);
 
-  useEffect(() => { void load(tab); }, [tab, load]);
+  useEffect(() => { if (!authLoading) void load(tab); }, [tab, load, authLoading]);
 
   const visible = useMemo(() => {
     if (!posts) return null;
@@ -714,7 +717,8 @@ function CommunityAlertsView({ copy }: { copy: Copy }) {
 // ── 글 상세 + 댓글 ──
 export function CommunityPostPage() {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  // authLoading 을 기다린다 — 안 기다리면 비로그인으로 받고 다시 받는다(요청 2배 + 깜빡임).
+  const { user, loading: authLoading } = useAuth();
   const copy = COPY[language];
   const { postId } = useParams();
   const navigate = useNavigate();
@@ -742,7 +746,7 @@ export function CommunityPostPage() {
     }
   }, [postId, user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!authLoading) void load(); }, [load, authLoading]);
 
   const submitReply = async () => {
     if (!post || !reply.trim()) return;
