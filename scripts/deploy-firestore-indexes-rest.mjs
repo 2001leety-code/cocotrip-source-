@@ -1,5 +1,7 @@
-#!/usr/bin/env node
-
+// ⚠️ 셰뱅(#!)을 넣지 않는다 — 이 파일을 import 하는 vitest 테스트가
+//   "SyntaxError: Invalid or unexpected token" 으로 **수집 단계에서** 죽는다.
+//   (2026-07-30 확인: tests/unit/firestore-indexes-deployable.test.ts 가 그 상태로
+//    통째로 실행되지 않고 있었다. 워크플로 호출은 `node scripts/...` 라 셰뱅은 불필요.)
 /**
  * Firestore 색인을 Firebase CLI의 Service Usage 사전 검사 없이 직접 배포한다.
  *

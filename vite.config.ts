@@ -4,17 +4,13 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 import prerender from "@prerenderer/rollup-plugin"
+// 프리렌더 대상 = 색인 대상. 목록을 여기에 복사해 두지 않는다 — sitemap·robots 메타와
+// 어긋나 `/charter` 가 3년치 낡은 "로그인벽" 전제로 빠져 있던 것이 그 사고였다.
+// 단일 원천: src/lib/seoRoutes.ts (잠금 테스트가 sitemap 과 일치를 강제).
+import { INDEXABLE_ROUTES } from "./src/lib/seoRoutes"
 
-// 프리렌더(빌드후 SSG) 대상 라우트 — public.sitemap.xml 과 동기(/charter=로그인벽 제외).
-// 투어/지역 추가 시 갱신. PRERENDER=1 빌드에서만 사용.
-const PRERENDER_ROUTES = [
-  '/', '/tours', '/planner', '/about', '/terms', '/privacy', '/travel-terms',
-  '/tours/seoul-city-full-day', '/tours/seoul-night-tour', '/tours/danyang-day-tour',
-  '/tours/incheon-ganghwa-tour', '/tours/dmz-paju-tour', '/tours/nami-island-chuncheon',
-  '/tours/gyeongju-day-tour', '/tours/busan-day-tour', '/tours/korea-multicity-3d2n',
-  '/region/seoul', '/region/chuncheon', '/region/paju', '/region/ganghwa', '/region/busan',
-  '/region/danyang', '/region/incheon', '/region/gyeongju', '/region/jeonju',
-];
+// PRERENDER=1 빌드에서만 사용.
+const PRERENDER_ROUTES = [...INDEXABLE_ROUTES];
 
 // Vercel 빌드 시 @sparticuz/chromium 경로 resolve (PRERENDER=1 한정). 로컬은 PUPPETEER_EXECUTABLE_PATH env.
 // 이걸로 운영자는 Vercel env PRERENDER=1 만 켜면 활성화(executablePath 수동 불필요).

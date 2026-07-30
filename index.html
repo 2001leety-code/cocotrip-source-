@@ -33,7 +33,10 @@
     <!-- 추가 SEO -->
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://cocotripkr.com" />
-    <link rel="alternate" hreflang="x-default" href="https://cocotripkr.com/" />
+    <!-- 2026-07-30: hreflang x-default 제거. 언어별 고유 URL 이 없다(같은 URL 에서 클라이언트가
+         언어를 바꾼다). 게다가 SPA 는 전 경로에 이 HTML 을 주므로 /charter 에서도 x-default 가
+         홈을 가리켜 라우트별 canonical(usePageMeta)과 어긋난 신호를 냈다.
+         언어별 URL(/en/... 등)을 설계한 뒤에 hreflang 클러스터를 다시 넣는다. -->
     <meta name="theme-color" content="#B668FC" />
     <!-- 브랜드 자산 v2 (2026-06-14): 운영자 공식 로고/앱아이콘 적용
          (public/images/logo-cocotrip.png, public/icons/icon-{192,512}.png, favicon.png).

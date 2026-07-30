@@ -245,6 +245,34 @@ function GlobalWidgets() {
   );
 }
 
+// ── robots 메타 (라우트별 색인 여부) ──
+// index.html 은 `index, follow` 로 고정돼 있고 SPA 는 전 경로에 그 HTML 을 준다. 즉 마이페이지·
+// 공유링크·404 까지 "색인해도 된다" 고 말하고 있었다. 색인 목록(src/lib/seoRoutes.ts)에 없는
+// 경로는 여기서 noindex 로 바꾼다. 목록에 있는 경로로 이동하면 다시 index 로 되돌린다
+// (SPA 는 head 가 살아 있으므로 되돌리지 않으면 한 번 noindex 가 붙고 끝난다).
+// 경로 목록은 **동적 import** — 색인 목록(26개 라우트 문자열)이 eager 메인 번들에 들어가면
+// first-paint 예산(size-limit)을 먹는다. head 메타는 몇 ms 늦어도 무해하다
+// (프리렌더는 2.5s 뒤 캡처, 구글은 렌더 후 읽는다).
+function RobotsMeta() {
+  const location = useLocation();
+  useEffect(() => {
+    let cancelled = false;
+    void import('@/lib/seoRoutes').then(({ isNoindexPath }) => {
+      if (cancelled) return;   // 이동이 겹치면 늦게 온 판정이 현재 경로를 덮지 않게
+      let tag = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.name = 'robots';
+        document.head.appendChild(tag);
+      }
+      // follow 는 유지 — 색인만 막고 링크는 따라가게 한다.
+      tag.content = isNoindexPath(location.pathname) ? 'noindex, follow' : 'index, follow';
+    });
+    return () => { cancelled = true; };
+  }, [location.pathname]);
+  return null;
+}
+
 // ── GA4 SPA page view tracking ──
 function PageViewTracker() {
   const location = useLocation();
@@ -703,6 +731,7 @@ function App() {
         <Suspense fallback={null}>
           <PWAUpdatePrompt />
         </Suspense>
+        <RobotsMeta />
         <GlobalWidgets />
         <NonMoodChrome />
         <AnimatedRoutes />

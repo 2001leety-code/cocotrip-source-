@@ -4,6 +4,9 @@
  *   GET  /api/community-posts?id=<postId>                    — 단건 + 댓글
  *   POST /api/community-posts                                — 글 작성 (로그인 필수)
  *
+ * GET 은 **선택적 인증**이다. 토큰이 있으면 검증해 `isOwn`(내 글인가) 만 계산하고, 없거나
+ * 틀리면 비로그인 응답을 준다(거부하지 않는다). 응답 필드는 두 경우 모두 동일하게 공개 필드뿐.
+ *
  * 2026-07-12 UIUX 가이드 P9 실전화 — 디자인 셸(CommunityPage.tsx)의 가짜 POSTS 를
  * 실 Firestore(community_posts)로 교체하는 백엔드 1/3.
  *
@@ -93,7 +96,21 @@ export function sanitizeImages(rawImages, uid) {
   return out;
 }
 
-export function serializePost(id, d) {
+/**
+ * 공개 응답 직렬화.
+ *
+ * 🔴 2026-07-30: 이전에는 `authorUid`(Firebase uid)를 그대로 내려보냈다. 주석은 "공개 프로필
+ *   정보 아님" 이라고 적혀 있었지만, 이 응답은 **비로그인 누구나** 받는 공개 피드다. 즉
+ *   글 목록만 긁으면 작성자 Firebase uid 전체를 수집할 수 있었다. uid 는 Storage 경로
+ *   (`community/{uid}/`)·규칙·다른 컬렉션 문서 키에 쓰이는 내부 식별자다.
+ *   화면에 필요한 것은 uid 가 아니라 "이 글이 내 글인가" 한 가지뿐 →
+ *   **서버가 인증된 요청자를 기준으로** `isOwn` 만 계산해 준다. uid 는 응답에서 사라진다.
+ *
+ * @param {string} id 문서 ID
+ * @param {object} d Firestore 문서 데이터
+ * @param {string|null} viewerUid 검증된 요청자 uid (비로그인 = null). 절대 클라이언트 입력 금지.
+ */
+export function serializePost(id, d, viewerUid = null) {
   return {
     id,
     title: d.title,
@@ -102,7 +119,7 @@ export function serializePost(id, d) {
     type: d.type,
     category: d.category,
     authorName: d.authorName,
-    authorUid: d.authorUid, // 클라이언트 소유권 판단(삭제 버튼 노출)용 — 공개 프로필 정보 아님
+    isOwn: !!viewerUid && d.authorUid === viewerUid,
     likeCount: d.likeCount || 0,
     replyCount: d.replyCount || 0,
     createdAt: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : null,
@@ -111,32 +128,51 @@ export function serializePost(id, d) {
   };
 }
 
+/** 댓글 공개 직렬화 — 위와 같은 이유로 `authorUid` 대신 `isOwn`. */
+export function serializeReply(id, rd, viewerUid = null) {
+  return {
+    id,
+    body: rd.body,
+    lang: rd.lang,
+    authorName: rd.authorName,
+    isOwn: !!viewerUid && rd.authorUid === viewerUid,
+    createdAt: rd.createdAt && rd.createdAt.toMillis ? rd.createdAt.toMillis() : null,
+    translations: rd.translations || {},
+  };
+}
+
+/**
+ * 읽기 요청의 **선택적** 인증. 토큰이 없거나 틀렸으면 비로그인으로 본다(공개 피드이므로 거부 아님).
+ * 여기서 나온 uid 만 `isOwn` 계산에 쓴다 — 클라이언트가 보낸 uid 는 신뢰하지 않는다.
+ */
+async function resolveViewerUid(req) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
+  if (!/^Bearer\s+.+$/.test(String(authHeader))) return null;
+  try {
+    const auth = await verifyUserToken(req);
+    return auth.ok ? auth.uid : null;
+  } catch {
+    return null;   // 검증 인프라 문제로 공개 피드가 죽지 않게 한다
+  }
+}
+
 async function handleGet(req, res, db) {
   const url = new URL(req.url, 'http://localhost');
   const id = url.searchParams.get('id');
+  const viewerUid = await resolveViewerUid(req);
 
   if (id) {
     const doc = await db.collection('community_posts').doc(id).get();
     if (!doc.exists || doc.data().status !== 'active') {
+      // 없는 글·검토 대기·숨긴 글 모두 같은 404 — 존재 여부가 새어 나가지 않는다.
       return json(res, 404, _err('Post not found', 'NOT_FOUND'));
     }
     const repliesSnap = await db.collection('community_posts').doc(id)
       .collection('replies').orderBy('createdAt', 'asc').limit(100).get();
     const replies = repliesSnap.docs
       .filter((r) => r.data().status === 'active')
-      .map((r) => {
-        const rd = r.data();
-        return {
-          id: r.id,
-          body: rd.body,
-          lang: rd.lang,
-          authorName: rd.authorName,
-          authorUid: rd.authorUid,
-          createdAt: rd.createdAt && rd.createdAt.toMillis ? rd.createdAt.toMillis() : null,
-          translations: rd.translations || {},
-        };
-      });
-    return json(res, 200, _ok({ post: serializePost(doc.id, doc.data()), replies }));
+      .map((r) => serializeReply(r.id, r.data(), viewerUid));
+    return json(res, 200, _ok({ post: serializePost(doc.id, doc.data(), viewerUid), replies }));
   }
 
   const sort = url.searchParams.get('sort') === 'popular' ? 'popular' : 'latest';
@@ -145,7 +181,7 @@ async function handleGet(req, res, db) {
   const snap = await db.collection('community_posts').orderBy('createdAt', 'desc').limit(60).get();
   let posts = snap.docs
     .filter((doc) => doc.data().status === 'active')
-    .map((doc) => serializePost(doc.id, doc.data()));
+    .map((doc) => serializePost(doc.id, doc.data(), viewerUid));
   if (sort === 'popular') posts = posts.sort((a, b) => b.likeCount - a.likeCount);
   return json(res, 200, _ok({ posts: posts.slice(0, limit) }));
 }

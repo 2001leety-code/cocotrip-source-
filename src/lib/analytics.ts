@@ -12,6 +12,7 @@
 // P1 이중 전송(운영자 2026-07-11): 퍼널 이벤트는 GA4(광고 귀속) + PostHog(퍼널 조회) 둘 다.
 // posthog.ts 는 lazy-init(키 없으면 no-op)이라 이 import 가 번들/부팅에 SDK 를 당기지 않음.
 import { track as posthogTrack, type PostHogEventName } from './posthog';
+import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
 
 // ── Types ───────────────────────────────────────────────────────────────
 interface GtagEvent {
@@ -31,8 +32,22 @@ const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || '';
 // ── Init: inject gtag.js script ─────────────────────────────────────────
 let _initialized = false;
 
+/**
+ * GA4 로 보내도 되는가. **모든 전송 지점의 유일한 관문.**
+ *
+ * 🔴 이전에는 `!GA_ID || !window.gtag` 만 봤다. 부팅 시 동의가 없으면 `initGA` 가 안 돌아
+ * `window.gtag` 가 없으니 우연히 안전했지만, **수락 뒤 철회하면** gtag 는 이미 있으므로
+ * 전송이 계속됐다. PostHog 와 같은 종류의 결함이다 — 게이트는 켜지는 지점과 보내는 지점
+ * 양쪽에 있어야 한다.
+ */
+function canSendToGA(): boolean {
+  return !!GA_ID && typeof window !== 'undefined' && !!window.gtag && hasAnalyticsConsent();
+}
+
 export function initGA() {
   if (_initialized || !GA_ID || typeof window === 'undefined') return;
+  // main.tsx 가 이미 동의 후에만 부르지만, 진입점이 늘어나도 안전하도록 여기서도 막는다.
+  if (!hasAnalyticsConsent()) return;
 
   // gtag.js script
   const script = document.createElement('script');
@@ -57,10 +72,22 @@ export function initGA() {
   _initialized = true;
 }
 
+// ── 동의 철회 반영 ───────────────────────────────────────────────────────
+// gtag.js 는 우리 호출 없이도 자체적으로 요청을 만든다(config·자동 수집). 그래서 전송 함수만
+// 막는 것으로는 부족하고, GA4 공식 킬 스위치인 `window['ga-disable-<ID>']` 를 세운다.
+function applyConsentToGA(state: ConsentState): void {
+  if (!GA_ID || typeof window === 'undefined') return;
+  (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`] = state !== 'accepted';
+}
+
+if (typeof window !== 'undefined') {
+  onConsentChange(applyConsentToGA);
+}
+
 // ── Track Page View (SPA navigation) ────────────────────────────────────
 export function trackPageView(path?: string) {
-  if (!GA_ID || !window.gtag) return;
-  window.gtag('event', 'page_view', {
+  if (!canSendToGA()) return;
+  window.gtag!('event', 'page_view', {
     page_path: path || window.location.pathname + window.location.search,
     page_title: document.title,
   });
@@ -68,8 +95,8 @@ export function trackPageView(path?: string) {
 
 // ── Track Custom Event ──────────────────────────────────────────────────
 export function trackEvent(eventName: string, params?: GtagEvent) {
-  if (!GA_ID || !window.gtag) return;
-  window.gtag('event', eventName, { ...getStoredUtm(), ...params });
+  if (!canSendToGA()) return;
+  window.gtag!('event', eventName, { ...getStoredUtm(), ...params });
 }
 
 // ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
@@ -314,10 +341,10 @@ export function trackPaidConversion(params: {
   value: number;
   currency: string;
 }) {
-  if (!GA_ID || typeof window === 'undefined' || !window.gtag) return;
+  if (!canSendToGA()) return;
   // 결제 성공 경로에서 호출됨 — analytics 가 절대 결제 흐름을 깨면 안 됨(방어적 try/catch).
   try {
-    window.gtag('event', 'purchase', {
+    window.gtag!('event', 'purchase', {
       transaction_id: params.transactionId,
       value: params.value,
       currency: params.currency,

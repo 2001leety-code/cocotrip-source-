@@ -33,6 +33,9 @@ async function freshAnalytics() {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  // 2026-07-30: GA4 전송은 쿠키 동의(accepted) 가 전제 조건이다. UTM 저장 자체는 동의와
+  // 무관(추적 전송이 아니라 로컬 값)이지만, gtag 발화를 관측하는 케이스가 있어 여기서 켠다.
+  localStorage.setItem('cocotrip_cookie_consent', 'accepted');
   setUrl('');
   posthogTrackSpy.mockClear();
 });

@@ -1,4 +1,7 @@
-#!/usr/bin/env node
+// ⚠️ 셰뱅(#!)을 넣지 않는다 — 이 파일을 import 하는 vitest 테스트가
+//   "SyntaxError: Invalid or unexpected token" 으로 **수집 단계에서** 죽는다.
+//   (2026-07-30 확인: tests/unit/loyalty-remediation-docs-encoding.test.ts 가 그 상태로
+//    통째로 실행되지 않고 있었다. 실행은 항상 `node scripts/check-mojibake-docs.mjs` 라 셰뱅은 불필요.)
 /**
  * 문서 인코딩 검사 — UTF-8 인가, 깨진 글자(mojibake)가 있는가. (2026-07-29)
  *

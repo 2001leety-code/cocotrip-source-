@@ -9,6 +9,8 @@ describe('blog outbound click tracking', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST');
+    // 2026-07-30: GA4 전송은 쿠키 동의(accepted) 가 전제 조건 — 없으면 no-op 이 정상이다.
+    localStorage.setItem('cocotrip_cookie_consent', 'accepted');
     document.body.innerHTML = '';
   });
 
