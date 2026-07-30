@@ -12,14 +12,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+/**
+ * 2026-07-30: GA4 전송은 **쿠키 동의(accepted)** 가 있을 때만 나간다. 그래서 이 테스트의
+ * 가짜 window 도 동의 상태를 들고 있어야 한다(예전에는 gtag 만 있으면 발화했다).
+ * 동의 없는 경우는 아래 별도 케이스로 잠근다.
+ */
+function stubWindow(gtag: ReturnType<typeof vi.fn>, consent: string | null) {
+  vi.stubGlobal('window', {
+    gtag,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    localStorage: { getItem: () => consent, setItem: () => {} },
+  });
+}
+
 describe('trackPaidConversion — GA4 purchase 전환 발화', () => {
   beforeEach(() => { vi.resetModules(); });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-  it('GA_ID 설정 + gtag 존재 → purchase 를 value/currency/transaction_id/items 로 발화', async () => {
+  it('GA_ID 설정 + gtag 존재 + 동의 → purchase 를 value/currency/transaction_id/items 로 발화', async () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST123');
     const gtag = vi.fn();
-    vi.stubGlobal('window', { gtag });
+    stubWindow(gtag, 'accepted');
     const { trackPaidConversion } = await import('../../src/lib/analytics');
     trackPaidConversion({ transactionId: 'ORDER-1', productType: 'planner', value: 12800, currency: 'KRW' });
     expect(gtag).toHaveBeenCalledTimes(1);
@@ -37,9 +51,27 @@ describe('trackPaidConversion — GA4 purchase 전환 발화', () => {
   it('GA_ID 미설정 → no-op (빌드/preview/공개포크 무해)', async () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', '');
     const gtag = vi.fn();
-    vi.stubGlobal('window', { gtag });
+    stubWindow(gtag, 'accepted');
     const { trackPaidConversion } = await import('../../src/lib/analytics');
     trackPaidConversion({ transactionId: 'X', productType: 'planner', value: 1, currency: 'KRW' });
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('🔴 동의 없음(선택 전) → 결제 전환도 보내지 않는다', async () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST123');
+    const gtag = vi.fn();
+    stubWindow(gtag, null);
+    const { trackPaidConversion } = await import('../../src/lib/analytics');
+    trackPaidConversion({ transactionId: 'ORDER-2', productType: 'planner', value: 100, currency: 'KRW' });
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('🔴 동의 철회(revoked) → 보내지 않는다', async () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST123');
+    const gtag = vi.fn();
+    stubWindow(gtag, 'revoked');
+    const { trackPaidConversion } = await import('../../src/lib/analytics');
+    trackPaidConversion({ transactionId: 'ORDER-3', productType: 'planner', value: 100, currency: 'KRW' });
     expect(gtag).not.toHaveBeenCalled();
   });
 });

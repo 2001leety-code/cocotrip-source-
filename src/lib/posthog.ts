@@ -10,10 +10,18 @@
 //      schema in `docs/ROADMAP.md` Sprint 2 #7 stays in sync with code.
 
 import type { PostHog } from 'posthog-js';
-import { hasAnalyticsConsent } from './consent';
+import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
 
+/** 전송이 허용된 SDK. 동의가 없으면 항상 null — 이 변수 자체가 "보내도 된다" 는 신호다. */
 let client: PostHog | null = null;
+/**
+ * 한 번 로드된 SDK. 동의 철회 뒤에도 남긴다 — 이미 켜진 SDK 를 **끄기 위해**(opt-out/reset)
+ * 참조가 필요하다. 여기 값이 있는 것은 전송 허가가 아니다(허가는 `client`).
+ */
+let sdk: PostHog | null = null;
 let initPromise: Promise<PostHog | null> | null = null;
+/** `ph.init` 을 이미 호출했는가. 재수락 시 중복 init 대신 opt-in 으로 되돌린다. */
+let didInit = false;
 
 const KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
 const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com';
@@ -34,37 +42,54 @@ function sanitize(props: Record<string, unknown> | undefined): Record<string, un
 }
 
 async function ensureInit(): Promise<PostHog | null> {
-  if (client) return client;
   if (!KEY) return null;
   if (typeof window === 'undefined') return null;
-  // 🔴 2026-07-30: 동의 검사를 **여기**에 둔다. main.tsx 에서 bootPostHog 만 막았더니
+  // 🔴 2026-07-30 (#1192): 동의 검사를 **여기**에 둔다. main.tsx 에서 bootPostHog 만 막았더니
   //   운영에서 여전히 posthog.com 요청이 나갔다. 원인은 이 함수가 lazy-init 이라
   //   `track()` 이 한 번이라도 불리면(App 의 trackPageView 등) 그 경로로 SDK 가 켜졌기 때문이다.
   //   부팅 경로만 막는 것으로는 부족하다 — SDK 가 켜지는 문은 이 함수 하나뿐이므로 여기서 막는다.
+  //
+  // 🔴 이번 라운드: 그 검사가 `if (client) return client` **아래**에 있었다. 수락 후 철회하면
+  //   저장된 client 가 그대로 반환돼 track·identify 가 계속 전송됐다. 동의 검사는 어떤
+  //   조기 반환보다도 앞에 있어야 한다 — 그래서 이 줄이 함수의 첫 관문이다.
   if (!hasAnalyticsConsent()) return null;
-  if (initPromise) return initPromise;
+  if (client) return client;
+  if (initPromise) return initPromise;   // 동시 track() 다발 → init 1회
 
-  initPromise = (async () => {
+  const pending = (async (): Promise<PostHog | null> => {
     try {
       const mod = await import('posthog-js');
       const ph = mod.default;
-      ph.init(KEY, {
-        api_host: HOST,
-        capture_pageview: true,
-        capture_pageleave: true,
-        // Defer autocapture — manual `track()` calls are the source of truth.
-        // Autocapture would log every click/input, which inflates event volume
-        // and risks logging form values (PII).
-        autocapture: false,
-        disable_session_recording: true,
-        respect_dnt: true,
-        loaded: (instance) => {
-          if (import.meta.env.DEV) {
-            console.info('[posthog] ready');
-            instance.debug();
-          }
-        },
-      });
+      sdk = ph;
+      // import 를 기다리는 사이 철회됐을 수 있다 — 켜기 직전에 다시 확인한다.
+      if (!hasAnalyticsConsent()) return null;
+      if (didInit) {
+        // 재수락: init 을 두 번 부르지 않는다. 철회 때 걸어 둔 opt-out 만 되돌린다.
+        ph.opt_in_capturing({ captureEventName: false });
+      } else {
+        ph.init(KEY, {
+          api_host: HOST,
+          capture_pageview: true,
+          capture_pageleave: true,
+          // Defer autocapture — manual `track()` calls are the source of truth.
+          // Autocapture would log every click/input, which inflates event volume
+          // and risks logging form values (PII).
+          autocapture: false,
+          disable_session_recording: true,
+          respect_dnt: true,
+          loaded: (instance) => {
+            if (import.meta.env.DEV) {
+              console.info('[posthog] ready');
+              instance.debug();
+            }
+          },
+        });
+        didInit = true;
+        // 이전 방문에서 철회했다면 opt-out 이 저장소에 남아 있다. init 만으로는 다시 켜지지
+        // 않으므로(조용히 전송 0건) 수락 상태에서는 명시적으로 되돌린다. `$opt_in` 이벤트는
+        // 만들지 않는다(captureEventName: false) — 동의 직후 정체불명 이벤트 방지.
+        ph.opt_in_capturing({ captureEventName: false });
+      }
       client = ph;
       return ph;
     } catch (e) {
@@ -73,7 +98,33 @@ async function ensureInit(): Promise<PostHog | null> {
     }
   })();
 
-  return initPromise;
+  initPromise = pending;
+  try {
+    return await pending;
+  } finally {
+    // 실패·철회로 끝난 경우 다음 호출이 다시 시도할 수 있게 비운다.
+    if (initPromise === pending) initPromise = null;
+  }
+}
+
+/**
+ * 동의가 사라지면(거부·철회) 이미 켜진 SDK 를 끈다.
+ *   - `client = null` → 이후 track·identify 는 ensureInit 첫 관문에서 막힌다.
+ *   - `opt_out_capturing()` → SDK 내부 큐·pageleave 등 우리 코드를 거치지 않는 전송까지 중단.
+ *   - `reset()` → distinct_id·저장된 사람 속성 폐기.
+ */
+function applyConsent(state: ConsentState): void {
+  if (state === 'accepted') return;
+  client = null;
+  initPromise = null;
+  if (!sdk) return;
+  try { sdk.opt_out_capturing(); } catch { /* SDK 내부 상태 문제는 무시 */ }
+  try { sdk.reset(); } catch { /* 위와 동일 */ }
+}
+
+if (typeof window !== 'undefined') {
+  // 앱 수명 전체 구독 — 배너 수락/철회, 다른 탭 변경 모두 여기로 들어온다.
+  onConsentChange(applyConsent);
 }
 
 // Eager-trigger init on app boot so first event isn't delayed by SDK load.
@@ -130,10 +181,11 @@ export async function identify(distinctId: string, props?: Record<string, unknow
   }
 }
 
+// 로그아웃 등에서 신원만 지운다. 🔴 이전 구현은 `ensureInit()` 를 불러서, 아직 켜지지도 않은
+// SDK 를 **초기화하려고** 했다("끄는 동작" 이 켜는 동작이 되는 모순). 로드된 SDK 가 있을 때만 지운다.
 export async function reset(): Promise<void> {
-  const ph = await ensureInit();
-  if (!ph) return;
+  if (!sdk) return;
   try {
-    ph.reset();
+    sdk.reset();
   } catch { /* ignore */ }
 }

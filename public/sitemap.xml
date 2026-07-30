@@ -1,39 +1,46 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 2026-06-09: 정적 7 URL -> 25 URL (투어 상세 9 + 지역 9 추가, /charter 제외). 투어/지역 추가 시 갱신.
-     소스: src/data/tours.ts(slug) + src/sections/Regions.tsx(regionId).
-     외부 blogspot URL은 여기 넣지 않음(타 도메인) — 블로그 연결은 HTML 링크(footer·홈)로. -->
+<!-- 색인 대상 목록의 진실은 src/lib/seoRoutes.ts (INDEXABLE_ROUTES) 다.
+     이 파일은 그 목록의 XML 표현이며, tests/unit/sitemap-canonical-consistency.test.ts 가
+     양쪽이 정확히 같은지(누락·잉여 0) 매번 확인한다. 경로를 추가할 때는 seoRoutes.ts 를 먼저 고친다.
+
+     2026-07-30:
+       · /charter 추가 — 공개 라우트다(로그인벽은 /charter-legacy). 자체 마진 상품이 검색에서 빠져 있었다.
+       · lastmod 없음 — 실제 수정일을 모르면 넣지 않는다. 빌드 시각을 전 URL 에 박으면 거짓 신호가 된다.
+       · changefreq/priority 제거 — 구글이 무시하는 값이다. 남겨 두면 "SEO 조치를 했다" 는 착시를 준다.
+       · /community 제외 — 공개·검수된 글이 쌓일 때까지 색인 보류(현재 공개 글 0건).
+     외부 blogspot URL은 여기 넣지 않음(타 도메인). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- 핵심 -->
-  <url><loc>https://cocotripkr.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://cocotripkr.com/tours</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://cocotripkr.com/planner</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <!-- /charter 제외: AuthRequired 로그인벽이라 색인 부적합 (sitemap-canonical-consistency.test 가 강제) -->
+  <url><loc>https://cocotripkr.com/</loc></url>
+  <url><loc>https://cocotripkr.com/tours</loc></url>
+  <url><loc>https://cocotripkr.com/planner</loc></url>
+  <url><loc>https://cocotripkr.com/charter</loc></url>
 
   <!-- 투어 상세 (src/data/tours.ts) -->
-  <url><loc>https://cocotripkr.com/tours/seoul-city-full-day</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/seoul-night-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/danyang-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/incheon-ganghwa-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/dmz-paju-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/nami-island-chuncheon</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/gyeongju-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/busan-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://cocotripkr.com/tours/korea-multicity-3d2n</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/seoul-city-full-day</loc></url>
+  <url><loc>https://cocotripkr.com/tours/seoul-night-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/danyang-day-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/incheon-ganghwa-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/dmz-paju-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/nami-island-chuncheon</loc></url>
+  <url><loc>https://cocotripkr.com/tours/gyeongju-day-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/busan-day-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/korea-multicity-3d2n</loc></url>
 
   <!-- 지역 (src/sections/Regions.tsx) -->
-  <url><loc>https://cocotripkr.com/region/seoul</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/chuncheon</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/paju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/ganghwa</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/busan</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/danyang</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/incheon</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/gyeongju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://cocotripkr.com/region/jeonju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/seoul</loc></url>
+  <url><loc>https://cocotripkr.com/region/chuncheon</loc></url>
+  <url><loc>https://cocotripkr.com/region/paju</loc></url>
+  <url><loc>https://cocotripkr.com/region/ganghwa</loc></url>
+  <url><loc>https://cocotripkr.com/region/busan</loc></url>
+  <url><loc>https://cocotripkr.com/region/danyang</loc></url>
+  <url><loc>https://cocotripkr.com/region/incheon</loc></url>
+  <url><loc>https://cocotripkr.com/region/gyeongju</loc></url>
+  <url><loc>https://cocotripkr.com/region/jeonju</loc></url>
 
   <!-- 정책 -->
-  <url><loc>https://cocotripkr.com/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://cocotripkr.com/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://cocotripkr.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://cocotripkr.com/travel-terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://cocotripkr.com/about</loc></url>
+  <url><loc>https://cocotripkr.com/privacy</loc></url>
+  <url><loc>https://cocotripkr.com/terms</loc></url>
+  <url><loc>https://cocotripkr.com/travel-terms</loc></url>
 </urlset>

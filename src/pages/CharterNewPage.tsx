@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
+import { CharterSeoInfo } from '@/components/charter/CharterSeoInfo';
 import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
@@ -108,6 +109,12 @@ export default function CharterNewPage() {
             <KpopShuttleBanner p={(t as unknown as { planner?: Record<string, string | undefined> }).planner ?? {}} />
           </section>
         )}
+
+        {/* 공개 정보(서비스·가격 기준·차량·예약 절차·FAQ·사업자 정보) — 2026-07-30.
+            위저드는 상호작용이라 무JS 크롤러에게 보이지 않는다. `/charter` 를 sitemap·프리렌더에
+            넣으면서 이 페이지가 검색에 내놓을 고유 본문이 필요해졌다. 손님에게도 결제 전에
+            알아야 하는 내용(포함/불포함·취소 규정·마감)이라 화면에도 그대로 보인다. */}
+        {!completedState && <CharterSeoInfo language={language} t={t} />}
 
         {/* legacy 링크는 admin/dev에서만 노출. 일반 사용자에게 혼란 주는 운영용 링크. */}
         {!completedState && import.meta.env.DEV && (
