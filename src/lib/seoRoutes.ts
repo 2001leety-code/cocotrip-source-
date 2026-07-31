@@ -20,8 +20,18 @@
  *   - 언어별 고유 URL 이 없으므로(같은 URL 에서 클라이언트가 언어 전환) hreflang 도 두지 않는다.
  */
 
+// 여행 가이드 (2026-08-01, blogspot 이식) — 글 목록 JSON 에서 파생해 콘텐츠↔색인 드리프트 차단.
+// 상대 경로 import 인 이유: 이 파일은 vite.config.ts(esbuild 번들, '@' alias 미적용)에서도 읽힌다.
+import guidesIndex from '../content/guides/_index.json';
+
+const GUIDE_ROUTES: readonly string[] = [
+  '/guide',
+  ...(guidesIndex as { slug: string }[]).map((g) => `/guide/${g.slug}`),
+];
+
 /** 검색엔진에 색인시킬 공개 경로. prerender 대상 = sitemap 목록 = 이 배열. */
 export const INDEXABLE_ROUTES: readonly string[] = [
+  ...GUIDE_ROUTES,
   '/',
   '/tours',
   '/planner',

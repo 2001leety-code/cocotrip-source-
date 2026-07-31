@@ -10,6 +10,25 @@
        · /community 제외 — 공개·검수된 글이 쌓일 때까지 색인 보류(현재 공개 글 0건).
      외부 blogspot URL은 여기 넣지 않음(타 도메인). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 여행 가이드 (2026-08-01 blogspot 이식) — 목록은 src/content/guides/_index.json 파생 -->
+  <url><loc>https://cocotripkr.com/guide</loc></url>
+  <url><loc>https://cocotripkr.com/guide/2026-best-k-drama-filming-locations-in</loc></url>
+  <url><loc>https://cocotripkr.com/guide/how-to-rent-hanbok-explore-seoul</loc></url>
+  <url><loc>https://cocotripkr.com/guide/best-seoul-street-food-markets-2026</loc></url>
+  <url><loc>https://cocotripkr.com/guide/jjimjilbang-2026-your-ultimate-first</loc></url>
+  <url><loc>https://cocotripkr.com/guide/ultimate-korean-convenience-store-food</loc></url>
+  <url><loc>https://cocotripkr.com/guide/2026-korea-health-guide-pharmacies</loc></url>
+  <url><loc>https://cocotripkr.com/guide/2026-korea-winter-guide-skiing-ice</loc></url>
+  <url><loc>https://cocotripkr.com/guide/best-autumn-foliage-spots-in-korea-2026</loc></url>
+  <url><loc>https://cocotripkr.com/guide/2026-jeju-island-without-car-whats</loc></url>
+  <url><loc>https://cocotripkr.com/guide/best-cherry-blossom-spots-in-korea-2026</loc></url>
+  <url><loc>https://cocotripkr.com/guide/gyeongju-koreas-open-air-museum-guide</loc></url>
+  <url><loc>https://cocotripkr.com/guide/seoul-cafe-guide-2026-best</loc></url>
+  <url><loc>https://cocotripkr.com/guide/4-seoul-cafe-neighborhoods-worth-your</loc></url>
+  <url><loc>https://cocotripkr.com/guide/how-to-ace-your-first-k-pop-concert-in</loc></url>
+  <url><loc>https://cocotripkr.com/guide/how-weak-won-makes-korea-cheaper-for</loc></url>
+  <url><loc>https://cocotripkr.com/guide/how-to-find-halal-food-in-seoul-2026</loc></url>
+  <url><loc>https://cocotripkr.com/guide/kpop-big-4-hq-tour-seoul-hybe-sm-jyp-yg</loc></url>
   <!-- 핵심 -->
   <url><loc>https://cocotripkr.com/</loc></url>
   <url><loc>https://cocotripkr.com/tours</loc></url>

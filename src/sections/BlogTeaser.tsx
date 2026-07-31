@@ -1,14 +1,13 @@
 import { ArrowUpRight, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { Translations } from '@/i18n';
 
-const BLOG_URL = 'https://cocotripkr.blogspot.com';
-
-// 추천 글 하드코딩 — 블로그가 영어 채널이라 제목은 영어 고정.
-// 피드 연동은 과설계(외부 요청·CLS 리스크) — 에버그린 3개만 수동 큐레이션, 갱신은 이 목록만.
+// 2026-08-01: blogspot → 우리 도메인 /guide 이식(유입 확보 묶음 C). 링크 전부 내부 전환 —
+// 검색 자산·체류가 우리 도메인에 쌓인다. 에버그린 3개 수동 큐레이션 정책은 유지, 갱신은 이 목록만.
 const POSTS = [
-  { title: 'Seoul Cafe Guide 2026: Best Neighborhoods & What to Know', url: `${BLOG_URL}/2026/07/seoul-cafe-guide-2026-best.html` },
-  { title: 'How to Ace Your First K-Pop Concert in Korea', url: `${BLOG_URL}/2026/07/how-to-ace-your-first-k-pop-concert-in.html` },
-  { title: 'How to Find Halal Food in Seoul', url: `${BLOG_URL}/2026/07/how-to-find-halal-food-in-seoul-2026.html` },
+  { title: 'Seoul Cafe Guide 2026: Best Neighborhoods & What to Know', to: '/guide/seoul-cafe-guide-2026-best' },
+  { title: 'How to Ace Your First K-Pop Concert in Korea', to: '/guide/how-to-ace-your-first-k-pop-concert-in' },
+  { title: 'How to Find Halal Food in Seoul', to: '/guide/how-to-find-halal-food-in-seoul-2026' },
 ];
 
 interface BlogTeaserProps {
@@ -26,40 +25,33 @@ export function BlogTeaser({ t }: BlogTeaserProps) {
           </h2>
           <p className="text-white/55 text-sm mt-1">{t.blogTeaser?.subtitle || 'Real routes, prices and local picks from our Korea travel blog'}</p>
         </div>
-        {/* 외부 블로그 — 권위 전달 목적이라 nofollow 금지 */}
-        <a
-          href={BLOG_URL}
-          target="_blank"
-          rel="noopener"
+        <Link
+          to="/guide"
           className="hidden sm:inline-flex items-center gap-1 text-sm text-[#B668FC] hover:text-[#FF6B9D] transition-colors shrink-0"
         >
           {t.blogTeaser?.viewAll || 'View all posts'}
           <ArrowUpRight className="w-4 h-4" />
-        </a>
+        </Link>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {POSTS.map((p) => (
-          <a
-            key={p.url}
-            href={p.url}
-            target="_blank"
-            rel="noopener"
+          <Link
+            key={p.to}
+            to={p.to}
             className="group flex items-start justify-between gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-4 hover:border-[#B668FC]/40 hover:bg-white/[0.05] transition-colors"
           >
             <span className="text-sm text-white/80 group-hover:text-white leading-snug">{p.title}</span>
             <ArrowUpRight className="w-4 h-4 text-white/25 group-hover:text-[#B668FC] shrink-0 mt-0.5" />
-          </a>
+          </Link>
         ))}
       </div>
-      <a
-        href={BLOG_URL}
-        target="_blank"
-        rel="noopener"
+      <Link
+        to="/guide"
         className="sm:hidden mt-4 inline-flex items-center gap-1 text-sm text-[#B668FC]"
       >
         {t.blogTeaser?.viewAll || 'View all posts'}
         <ArrowUpRight className="w-4 h-4" />
-      </a>
+      </Link>
     </section>
   );
 }

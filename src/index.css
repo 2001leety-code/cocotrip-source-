@@ -4258,3 +4258,19 @@ textarea.community-field {
     }
   }
 }
+
+/* ── 여행 가이드 본문 (/guide/:slug, 2026-08-01) — 블로그 이식 HTML 스타일 ── */
+.guide-article { color: rgba(255,255,255,0.78); line-height: 1.75; font-size: 1.02rem; }
+.guide-article p { margin: 0 0 1.1em; }
+.guide-article h2 { color: #fff; font-size: 1.45rem; font-weight: 700; margin: 2em 0 0.7em; }
+.guide-article h3 { color: #fff; font-size: 1.15rem; font-weight: 700; margin: 1.6em 0 0.6em; }
+.guide-article img { max-width: 100%; height: auto; border-radius: 1rem; margin: 0.4em 0; }
+.guide-article a { color: #B668FC; text-decoration: underline; text-underline-offset: 3px; }
+.guide-article a:hover { color: #FF6B9D; }
+.guide-article ul, .guide-article ol { margin: 0 0 1.1em; padding-left: 1.4em; }
+.guide-article li { margin-bottom: 0.4em; }
+.guide-article small { color: rgba(255,255,255,0.4); }
+.guide-article table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.92rem; }
+.guide-article th, .guide-article td { border: 1px solid rgba(255,255,255,0.12); padding: 8px 10px; text-align: left; }
+.guide-article blockquote { border-left: 3px solid #B668FC; padding-left: 1em; color: rgba(255,255,255,0.6); margin: 1.2em 0; }
+.guide-article .post-summary { color: rgba(255,255,255,0.55); font-size: 1.05rem; }
