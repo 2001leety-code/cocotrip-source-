@@ -75,13 +75,44 @@ export function stripUrlToPath(value: string): string | null {
   return cut.slice(0, MAX_STRING);
 }
 
-/** 현재 페이지의 안전한 경로 — 쿼리·해시 없음. 알 수 없으면 '/'. */
+/**
+ * 현재 페이지의 안전한 경로 — 쿼리·해시 없음. 알 수 없으면 '/'.
+ *
+ * ⚠️ `window.location` 이 없는 환경(축소된 window 스텁·일부 임베드·SSR)에서도 **절대 throw 하지
+ *   않는다.** 이 함수는 결제 성공 경로(`trackPaidConversion`)에서도 불린다 — 여기서 예외가 나면
+ *   분석 실패가 결제 흐름을 삼킨다.
+ */
 export function safePagePath(pathname?: string | null): string {
-  const p = typeof pathname === 'string' && pathname
-    ? pathname
-    : (typeof window !== 'undefined' ? window.location.pathname : '/');
-  const cleaned = stripUrlToPath(p);
-  return cleaned || '/';
+  if (typeof pathname === 'string' && pathname) {
+    return stripUrlToPath(pathname) || '/';
+  }
+  const loc = typeof window !== 'undefined' ? window.location : undefined;
+  const p = loc && typeof loc.pathname === 'string' ? loc.pathname : '/';
+  return stripUrlToPath(p) || '/';
+}
+
+/**
+ * GA4 에 넘길 **전체 URL**(origin + 경로). 쿼리·해시 없음.
+ *
+ * 🔴 2026-08-01 Preview 실측에서 잡은 구멍: `page_path` 만 깨끗하게 보내도 gtag.js 는 `dl`
+ *   (document location)을 **자신이 `window.location.href` 에서 채운다.** 그래서 이미 동의한
+ *   재방문자가 `/s/xxx?token=…` 로 바로 들어오면 그 토큰이 `dl` 에 실려 나갔다.
+ *   `page_location` 을 명시하면 gtag 가 그 값을 `dl` 로 쓴다 — 그래서 여기서 만들어 넘긴다.
+ *   (`page_referrer` → `dr` 도 같은 이유로 함께 지정한다.)
+ */
+export function safePageLocation(pathname?: string | null): string {
+  const loc = typeof window !== 'undefined' ? window.location : undefined;
+  const origin = loc && typeof loc.origin === 'string' ? loc.origin : '';
+  return `${origin}${safePagePath(pathname)}`;
+}
+
+/** GA4 `page_referrer` 로 넘길 값 — 레퍼러에서도 쿼리·해시를 뗀다. 없으면 undefined. */
+export function safeReferrer(): string | undefined {
+  if (typeof document === 'undefined' || !document) return undefined;
+  const ref = typeof document.referrer === 'string' ? document.referrer : '';
+  if (!ref) return undefined;
+  const cleaned = stripUrlToPath(ref);
+  return cleaned || undefined;
 }
 
 /**

@@ -13,7 +13,7 @@
 // posthog.ts 는 lazy-init(키 없으면 no-op)이라 이 import 가 번들/부팅에 SDK 를 당기지 않음.
 import { track as posthogTrack, type PostHogEventName } from './posthog';
 import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
-import { stripUnsafeProps, safePagePath } from './analyticsProps';
+import { stripUnsafeProps, safePagePath, safePageLocation, safeReferrer } from './analyticsProps';
 
 // ── Types ───────────────────────────────────────────────────────────────
 interface GtagEvent {
@@ -68,6 +68,11 @@ export function initGA() {
   window.gtag('js', new Date());
   window.gtag('config', GA_ID, {
     send_page_view: false, // we send manually for SPA
+    // 🔴 2026-08-01 (Preview 실측): page_path 만 깨끗하게 보내도 gtag 는 `dl`/`dr` 을 스스로
+    //   window.location.href / document.referrer 에서 채운다. 이미 동의한 재방문자가
+    //   `/s/xxx?token=…` 로 바로 들어오면 그 토큰이 그대로 나갔다. 여기서 덮어쓴다.
+    page_location: safePageLocation(),
+    page_referrer: safeReferrer(),
   });
 
   _initialized = true;
@@ -96,14 +101,29 @@ export function trackPageView(path?: string) {
   if (!canSendToGA()) return;
   window.gtag!('event', 'page_view', {
     page_path: safePagePath(path),
+    // gtag 가 스스로 채우는 `dl`/`dr` 을 매 이벤트마다 덮어쓴다 — config 값은 SPA 이동 후 낡는다.
+    page_location: safePageLocation(path),
+    ...(safeReferrer() ? { page_referrer: safeReferrer() } : {}),
   });
 }
 
 // ── Track Custom Event ──────────────────────────────────────────────────
+/**
+ * gtag 가 **모든 이벤트에** 스스로 붙이는 URL 계열(`dl`·`dr`)을 덮어쓰는 값.
+ * page_view 뿐 아니라 일반 이벤트에도 붙으므로 전송 지점마다 함께 넘긴다.
+ */
+function gaUrlParams(): { page_location: string; page_referrer?: string } {
+  const ref = safeReferrer();
+  return { page_location: safePageLocation(), ...(ref ? { page_referrer: ref } : {}) };
+}
+
 /** 모든 GA4 속성은 허용 목록 관문(analyticsProps)을 지난다 — 이벤트마다 따로 챙기지 않는다. */
 export function trackEvent(eventName: string, params?: GtagEvent) {
   if (!canSendToGA()) return;
-  window.gtag!('event', eventName, stripUnsafeProps({ ...getStoredUtm(), ...params }));
+  window.gtag!('event', eventName, {
+    ...stripUnsafeProps({ ...getStoredUtm(), ...params }),
+    ...gaUrlParams(),
+  });
 }
 
 // ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
@@ -408,6 +428,8 @@ export function trackPaidConversion(params: {
         price: params.value,
         quantity: 1,
       }],
+      // 결제 완료 화면 URL 에도 공유 토큰·사전입력이 붙을 수 있다 — 여기도 덮어쓴다.
+      ...gaUrlParams(),
     });
   } catch { /* analytics 실패는 결제에 영향 없음 */ }
 }

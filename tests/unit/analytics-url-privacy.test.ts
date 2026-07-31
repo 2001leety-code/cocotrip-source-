@@ -152,7 +152,7 @@ describe('GA4 전송 실동작 — 쿼리스트링 0건', () => {
 
     analytics.trackPageView('/planner?token=share-secret&allergies=peanut#top');
 
-    expect(spy).toHaveBeenCalledWith('event', 'page_view', { page_path: '/planner' });
+    expect(spy).toHaveBeenCalledWith('event', 'page_view', expect.objectContaining({ page_path: '/planner' }));
     const payload = JSON.stringify(spy.mock.calls);
     expect(payload).not.toContain('share-secret');
     expect(payload).not.toContain('peanut');
@@ -175,6 +175,50 @@ describe('GA4 전송 실동작 — 쿼리스트링 0건', () => {
     expect(payload).toContain('top_banner');
     expect(payload).not.toContain('revisionNote');
     expect(payload).not.toContain('change+hotel');
+  });
+
+  // 🔴 2026-08-01 Preview 실측에서 잡은 구멍. `page_path` 만 깨끗해도 gtag.js 는 `dl`(document
+  //   location)·`dr`(referrer)을 **자기가** window.location.href / document.referrer 에서 채운다.
+  //   이미 동의한 재방문자가 `/s/xxx?token=…` 로 바로 들어오면 그 토큰이 GA4 로 나갔다.
+  //   → page_location·page_referrer 를 명시해 덮어쓴다.
+  it('🔴 page_location(=dl) 에도 쿼리·해시가 없다 — gtag 자동 채움 덮어쓰기', async () => {
+    const { consent, analytics } = await loadGA();
+    consent.setConsent('accepted');
+    window.history.replaceState({}, '', '/planner?token=share-secret&allergies=peanut#frag');
+    analytics.initGA();
+    const spy = vi.fn();
+    window.gtag = spy;
+
+    analytics.trackPageView();
+    analytics.trackEvent('promo_click', { placement: 'top' } as Record<string, string>);
+
+    const payload = JSON.stringify(spy.mock.calls);
+    expect(payload).not.toContain('share-secret');
+    expect(payload).not.toContain('peanut');
+    expect(payload).not.toContain('#frag');
+    for (const call of spy.mock.calls) {
+      const params = call[2] as Record<string, unknown>;
+      expect(params.page_location, 'page_location 미지정이면 gtag 가 원본 URL 을 쓴다').toBeTypeOf('string');
+      expect(String(params.page_location)).not.toContain('?');
+      expect(String(params.page_location)).not.toContain('#');
+    }
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('page_referrer(=dr) 도 경로만 남는다', async () => {
+    const { consent, analytics } = await loadGA();
+    consent.setConsent('accepted');
+    Object.defineProperty(document, 'referrer', {
+      configurable: true,
+      get: () => 'https://cocotripkr.com/s/abc?token=leaked-token',
+    });
+    analytics.initGA();
+    const spy = vi.fn();
+    window.gtag = spy;
+    analytics.trackPageView('/tours');
+    const payload = JSON.stringify(spy.mock.calls);
+    expect(payload).not.toContain('leaked-token');
+    expect(payload).toContain('https://cocotripkr.com/s/abc');
   });
 
   it('동의 전에는 gtag 스크립트도 안 붙고 전송 0건', async () => {
@@ -202,5 +246,30 @@ describe('App.tsx / posthog.ts 배선 잠금', () => {
     expect(ph).toMatch(/before_send:/);
     expect(ph).toMatch(/if \(!hasAnalyticsConsent\(\)\) return null;/);
     expect(ph).toMatch(/property_denylist/);
+  });
+});
+
+// 🔴 2026-08-01: 축소된 window 스텁(location 없음)에서 safePagePath 가 throw 해
+//   trackPaidConversion 의 try/catch 에 삼켜지며 **결제 전환 이벤트가 통째로 사라졌다.**
+//   분석 헬퍼는 어떤 환경에서도 throw 하지 않아야 한다 — 결제 경로에서 불리기 때문이다.
+describe('URL 헬퍼는 축소된 환경에서도 throw 하지 않는다', () => {
+  it('window.location 이 없어도 안전한 기본값', async () => {
+    const props = await import('../../src/lib/analyticsProps');
+    const realWindow = globalThis.window;
+    try {
+      // @ts-expect-error 의도적으로 location 없는 window 를 흉내낸다
+      globalThis.window = { addEventListener() {}, removeEventListener() {} };
+      expect(() => props.safePagePath()).not.toThrow();
+      expect(props.safePagePath()).toBe('/');
+      expect(() => props.safePageLocation()).not.toThrow();
+      expect(props.safePageLocation()).toBe('/');
+    } finally {
+      globalThis.window = realWindow;
+    }
+  });
+
+  it('명시 경로를 주면 window 없이도 동작', async () => {
+    const props = await import('../../src/lib/analyticsProps');
+    expect(props.safePagePath('/tours?x=1#y')).toBe('/tours');
   });
 });
