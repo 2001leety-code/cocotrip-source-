@@ -7,16 +7,26 @@
  *
  * 안내 항목:
  *   - 차터 예약 6단계 흐름 요약
- *   - 12시간 이내 출발은 채팅창 사용 (오른쪽 하단 ChatWidget)
- *   - 예약 마감 정책 (12h, 2026-05-08 통일)
+ *   - 마감 시간 이내 출발은 채팅창 사용 (오른쪽 하단 ChatWidget)
+ *   - 예약 마감 정책
+ *
+ * 🔴 2026-07-30: 이 모달은 "12시간 전 마감" 이라고 안내하고 있었다. 실제 정책은 전세차량
+ *   1시간(투어 8시간)이라, 실은 예약할 수 있는 손님에게 "이미 마감" 이라고 말하는 과소약속이었다.
+ *   → 번역 문구를 `{h}` 자리표시자로 바꾸고 숫자는 `lib/bookingCutoff` 상수에서 넣는다.
  *
  * 디자인은 OnboardingCouponModal / AIIntroModal 과 일관 유지.
  */
 import { useState, useEffect } from 'react';
 import { Car, MapPin, Clock, MessageCircle, AlertTriangle, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { CHARTER_VEHICLE_CUTOFF_HOURS } from '@/lib/bookingCutoff';
 
 const STORAGE_KEY = 'COCO_CHARTER_INTRO_SEEN_v1';
+
+/** 번역 문구의 `{h}` 를 실제 마감 시간으로 채운다. 키가 없으면 영어 기본문에도 같은 규칙 적용. */
+function withCutoffHours(text: string): string {
+  return text.replace(/\{h\}/g, String(CHARTER_VEHICLE_CUTOFF_HOURS));
+}
 
 export function CharterIntroModal() {
   const [open, setOpen] = useState(false);
@@ -155,7 +165,7 @@ export function CharterIntroModal() {
                 {c.charterIntroChatTitle ?? 'Need it urgently? Chat with us instead'}
               </p>
               <p className="text-white/70 text-xs mt-1 leading-relaxed">
-                {c.charterIntroChatBody ?? "If you're departing within 12 hours, please skip the wizard and message us via the chat window in the bottom-right corner."}
+                {withCutoffHours(c.charterIntroChatBody || "If you're departing within {h} hours, please skip the wizard and message us via the chat window in the bottom-right corner.")}
               </p>
             </div>
           </div>
@@ -165,7 +175,7 @@ export function CharterIntroModal() {
         <div className="mx-6 mt-3 flex items-center gap-2 text-[11px] text-amber-300/85">
           <AlertTriangle className="shrink-0" size={14} />
           <span className="leading-snug">
-            {c.charterIntroDeadline ?? 'Booking cutoff: 12 hours before departure.'}
+            {withCutoffHours(c.charterIntroDeadline || 'Booking cutoff: {h} hours before departure.')}
           </span>
         </div>
 

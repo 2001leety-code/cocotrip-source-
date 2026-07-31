@@ -153,6 +153,7 @@ export default async function handler(req, res) {
     //   났는가 / currency 가 예상과 같은가" 라는 merchant invariant 는 보장하지 않는다.
     //   → snapshot 의 expectedUSD 를 아래 capture 검증에 사용한다 (createPaypalOrder 가 이미 저장 중).
     let _snapExpectedUSD = null;
+    let _snapEstimateConsent = null;
     try {
       const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
       if (_snapDb) {
@@ -163,6 +164,9 @@ export default async function handler(req, res) {
           if (_s.passengers != null) paxCount = _s.passengers;
           if (!tourDate && _s.dateStart) tourDate = _s.dateStart;
           if (_s.expectedUSD != null) _snapExpectedUSD = _s.expectedUSD;
+          // 🔴 P0-2: 추정가 정산조건 동의는 **주문 생성 시점에 서버가 만든 기록**만 신뢰한다.
+          //   capture body 로 받지 않는다 — 받으면 결제 직전에 위조로 채워 넣을 수 있다.
+          if (_s.estimateConsent) _snapEstimateConsent = _s.estimateConsent;
           console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType, hasExpectedUSD: _snapExpectedUSD != null });
         }
       }
@@ -588,6 +592,9 @@ export default async function handler(req, res) {
       // 2026-06-29 마케팅(선택) 동의 — bookings 문서 독립 필드. termsAgreed 와 무관, 결제 게이트 미포함.
       marketingConsent: marketingConsent === true,
       marketingConsentAt: marketingConsentAt || '',
+      // 🔴 2026-07-30 (P0-2): 추정가 정산조건 동의 근거 — 주문 스냅샷(서버 생성)에서만 온다.
+      //   { agreed, policyVersion, tolerancePct, agreedAtServer }. 확정가 상품은 null.
+      estimateConsent: _snapEstimateConsent || null,
       airport: airport || null,
       amountUSD: amount,
       amountKRW,

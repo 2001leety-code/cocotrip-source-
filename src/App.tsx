@@ -124,6 +124,7 @@ import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture } from '@/lib/analytics';
+import { capturePageView as posthogPageView } from '@/lib/posthog';
 import { signalAppReady } from '@/lib/appReady';
 
 function HomePage() {
@@ -265,8 +266,9 @@ function RobotsMeta() {
         tag.name = 'robots';
         document.head.appendChild(tag);
       }
-      // follow 는 유지 — 색인만 막고 링크는 따라가게 한다.
-      tag.content = isNoindexPath(location.pathname) ? 'noindex, follow' : 'index, follow';
+      // 🔴 2026-07-30 (P1-4): 서버 원문이 같은 경로에 `X-Robots-Tag: noindex, nofollow` 를 붙인다
+      //   (vercel.json). 런타임 메타가 `follow` 를 말하면 두 신호가 어긋나므로 문구를 맞춘다.
+      tag.content = isNoindexPath(location.pathname) ? 'noindex, nofollow' : 'index, follow';
     });
     return () => { cancelled = true; };
   }, [location.pathname]);
@@ -282,9 +284,13 @@ function PageViewTracker() {
     initBlogTracking();
     initUtmCapture();
   }, []);
+  // 🔴 2026-07-30 (P1-2): `location.search` 를 붙이지 않는다. 우리 쿼리에는 공유 토큰·플래너
+  //   사전입력(호텔·식이·알레르기)·자유 입력이 들어간다. 경로만 보낸다.
+  //   PostHog 도 자동 pageview 를 껐으므로(lib/posthog.ts) 같은 경로를 여기서 수동 전송한다.
   useEffect(() => {
-    trackPageView(location.pathname + location.search);
-  }, [location.pathname, location.search]);
+    trackPageView(location.pathname);
+    void posthogPageView(location.pathname);
+  }, [location.pathname]);
   return null;
 }
 

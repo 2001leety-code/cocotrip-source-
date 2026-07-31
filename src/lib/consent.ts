@@ -41,6 +41,21 @@ function isConsentState(v: unknown): v is ConsentState {
  */
 let memoryState: ConsentState | null = null;
 
+/**
+ * 동의 상태가 바뀔 때마다 1 증가하는 **세대값**.
+ *
+ * 왜 필요한가: `track()`/`identify()` 는 SDK 를 기다리는 `await` 가 있다. 그 사이에 사용자가
+ * 철회하면, 깨어난 코드는 "허가받은 시점의 세계" 를 그대로 믿고 전송한다(TOCTOU).
+ * 호출부는 await **전후로** 이 값을 비교해, 달라졌으면 전송을 포기한다.
+ * (`hasAnalyticsConsent()` 재확인만으로는 accepted→revoked→accepted 같은 왕복을 못 잡는다.)
+ */
+let generation = 0;
+
+/** 현재 동의 세대. 값 자체에 의미는 없고 **변했는지**만 본다. */
+export function consentGeneration(): number {
+  return generation;
+}
+
 /** 저장소만 읽는다. 접근 자체가 막히면(예외) 'unset'. */
 function readStored(): ConsentState {
   try {
@@ -67,6 +82,7 @@ export function hasAnalyticsConsent(): boolean {
 export function setConsent(state: ConsentChoice): void {
   if (typeof window === 'undefined') return;
   memoryState = state;
+  generation += 1;
   try {
     window.localStorage.setItem(STORAGE_KEY, state);
   } catch {
@@ -93,6 +109,8 @@ export function onConsentChange(fn: (state: ConsentState) => void): () => void {
   const otherTab = () => {
     // 다른 탭의 변경이 진실 — 메모리를 저장소 값으로 다시 맞춘다.
     memoryState = readStored();
+    // 다른 탭의 철회도 이 탭의 대기 중인 전송을 무효화해야 한다.
+    generation += 1;
     fn(memoryState);
   };
   window.addEventListener(CHANGE_EVENT, sameTab);

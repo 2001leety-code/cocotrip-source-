@@ -545,7 +545,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   onMonthChange={setCalendarMonth}
                   disabled={(d) => {
                     const iso = isoFromDate(d);
-                    // 12h cutoff 이내 날짜는 선택 불가 (서버와 정책 일치)
+                    // 마감(lib/bookingCutoff: 투어 8h · 전세차량 1h) 이내 날짜는 선택 불가 — 서버와 동일 판정.
                     if (isTourDateClosed(iso, productType)) return true;
                     return isDateBlocked(iso);
                   }}

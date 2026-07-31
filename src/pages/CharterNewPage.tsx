@@ -23,11 +23,15 @@ import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewE
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useCharterRouteKm } from '@/lib/charterRouteKm';
-import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState } from '@/components/charter/types';
 import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
 import { deriveNightFromPickup } from '@/lib/charterExtras';
-import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
+import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterPricing';
+// 🔴 2026-07-30: 결제 패널 금액에서 `formatPrice`(표시환율 1430)를 걷어냈다. 같은 화면에
+//   표시환율과 청구환율이 섞여 있으면 이번 사고($87 vs $89)가 그대로 재발한다.
+import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
+import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
+import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -198,9 +202,11 @@ function PaymentPanel({
   // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
   // resolved.priceKRW 또는 quote.subtotalKRW 0 → estimateOnlyNote 분기로 빠져 WhatsApp 요청.
   const { quote } = useQuoteCalculator(state, null, routeKm);
-  // 결제 패널 가격 — 사용자 언어 기반 자동 환산. ko 만 ₩, 그 외는 USD/JPY/CNY 표시.
-  // 결제 직전 명시 (withCurrencyCode) 로 잘못된 통화 인지 방지 — 실 결제는 PayPal USD 그대로.
-  const KRW = (n: number | null | undefined) => formatPrice(n, language, { withCurrencyCode: true });
+  // 결제 패널 가격 — 언어와 무관하게 "₩정책가 ($실청구 USD)".
+  // 🔴 2026-07-30: 이전에는 언어별 표시통화(ja=¥, zh=¥)로 환산했다. 실제 결제는 항상 PayPal
+  //   USD 라서, 손님이 결제 직전에 본 숫자와 승인되는 숫자가 통화부터 달랐다. 두 숫자를
+  //   같이 적으면 어느 언어에서도 참이고, 표시환율 함수가 끼어들 자리가 없다.
+  const [estimateAgreed, setEstimateAgreed] = useState(false);
 
   // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback.
   // 🔴 2026-07-18: 비-payable(estimate) 경로는 quote.subtotalKRW(옵션·필수가이드 포함 = 실제
@@ -299,13 +305,9 @@ function PaymentPanel({
         )}
         <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
           <span className="text-white/60">{i18n.payPrepayAmount}</span>
-          {/* 🔴 2026-07-18 환율 이중장부 fix: en(USD) 표시를 실제 청구 공식(고정환율 1400 + 정수 반올림
-              = createPaypalOrder usesFixedUsdRate)과 동일하게. 이전 formatPrice 는 표시환율(1430)이라
-              표시 $ < 청구 $ (en/ja/zh 사용자 과소표시). ja/zh 는 참고 환산 유지(실 결제는 USD). */}
+          {/* 🔴 2026-07-30 환율 이중장부 종결: 전 언어 동일 문자열 = 청구 공식 SSOT(charterUsd). */}
           <span className="text-lg font-bold text-white">
-            {language === 'en' && displayKRW != null && displayKRW > 0
-              ? `$${Math.round(displayKRW / CHARTER_USD_FIX_RATE)} USD`
-              : KRW(displayKRW)}
+            {formatCharterKrwUsd(displayKRW) || '—'}
           </span>
         </div>
         {isEstimateOnly && (
@@ -324,6 +326,11 @@ function PaymentPanel({
           dateStart={state.startDate ?? ''}
           dateEnd={state.endDate ?? ''}
           priceKRW={resolved.priceKRW}
+          // 🔴 P0-1: 화면이 약속한 USD 를 서버가 대조한다(불일치 시 409 AMOUNT_MISMATCH).
+          //   경유지(routeCoords) 견적은 **서버가 TMAP km 를 다시 조회해** 값을 정하므로 클라가
+          //   그 숫자를 미리 알 수 없다 → 그 경로에서는 보내지 않는다(거짓 차단 방지).
+          //   정액·매트릭스 경로(인천공항→서울 등)는 클라 = 서버 이므로 항상 대조한다.
+          expectedUSD={routeCoords ? undefined : charterUsdFromKrw(resolved.priceKRW)}
           p={{}}
           lang={language}
           pickupLocation={state.origin ?? state.originCustom ?? ''}
@@ -362,12 +369,17 @@ function PaymentPanel({
         )}
         </>
       ) : isEstimateOnly && estimateKRW != null ? (
-        // 2026-05-04 URGENT-1: quote 가 산출됐으면 바로 결제 가능. 약관 체크박스 단계 제거 —
-        // 사용자 요청: "요금 자동 책정해서 바로 결제하면 되잖아". 부산/대구/광주 등 zone
-        // fallback, sprinter/bus, ICN 외 공항 모두 동일. 추정가 안내는 짧게 한 줄만.
-        // backend(braintreeCheckout)는 customAmountKRW sanity range + Firestore wizard state 저장.
+        // 2026-05-04 URGENT-1: quote 가 산출됐으면 바로 결제 가능. 부산/대구/광주 등 zone
+        // fallback, sprinter/bus, ICN 외 공항 모두 동일.
+        // backend(createPaypalOrder)는 customAmountKRW sanity range + Firestore wizard state 저장.
+        //
+        // 🔴 2026-07-30 (P0-2): 여기에 **정산조건 동의**를 되살렸다. 이 상품은 실제 거리·시간이
+        //   추정과 ±10% 넘게 다르면 추가 청구 또는 부분 환불을 한다. 그 사실을 결제 **후** 메일과
+        //   바우처에서만 알리고 있었다 — 결제 후 고지는 결제 전 동의를 대신하지 못한다.
+        //   (2026-05-04 에 뺀 체크박스는 "약관" 이었고, 이건 금액이 바뀔 수 있다는 고지다.)
         <div className="space-y-3">
           <p className="text-xs text-amber-300/80 px-1">⚠ {i18n.estimateOnlyNote}</p>
+          <EstimateConsentBox language={language} agreed={estimateAgreed} onChange={setEstimateAgreed} />
           <PayPalBookingButton
             productType="charter_custom_estimate"
             passengers={resolved.passengers}
@@ -375,6 +387,11 @@ function PaymentPanel({
             dateEnd={state.endDate ?? ''}
             priceKRW={estimateKRW}
             customAmountKRW={estimateKRW}
+            // 추정가는 서버가 customAmountKRW 를 그대로 쓴다 → 클라 표시액 = 서버 산정액.
+            expectedUSD={charterUsdFromKrw(estimateKRW)}
+            // 미동의면 CTA 비활성 + 주문 생성 요청 자체를 만들지 않는다. 서버도 fail-closed.
+            disabled={!estimateAgreed}
+            estimateConsent={{ agreed: estimateAgreed, policyVersion: ESTIMATE_POLICY_VERSION }}
             p={{}}
             lang={language}
             pickupLocation={state.origin ?? state.originCustom ?? ''}

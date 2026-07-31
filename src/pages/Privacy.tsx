@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
+import { CookieSettings } from '@/components/CookieSettings';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -227,7 +228,15 @@ export default function Privacy() {
       <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
         <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
           <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-4xl sm:text-5xl sm:mb-12 font-display font-normal tracking-tight'}`}>{content.pageTitle}</h1>
-          
+
+          {/* 🔴 2026-07-30 (P1-1): 쿠키·분석 설정 진입점.
+              Footer 에도 넣었지만 **모바일 화면 일부는 Footer 를 렌더하지 않는다**(이 페이지 포함,
+              모바일 홈·About 도 마찬가지). 개인정보 처리방침은 쿠키 배너와 모든 푸터가 링크하는
+              곳이라, 여기 두면 어느 화면에서든 도달할 수 있다. */}
+          <div className="mb-8 flex justify-center">
+            <CookieSettings className="inline-flex min-h-[44px] items-center rounded-xl border border-[#B668FC]/40 bg-[#B668FC]/10 px-4 text-[13px] font-semibold text-white hover:bg-[#B668FC]/20 transition-colors" />
+          </div>
+
           {content.articles.map((article: ArticleData, idx: number) => {
             const a = article as PrivacyArticleExt;
             return (

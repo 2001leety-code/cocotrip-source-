@@ -16,7 +16,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { WizardState, LodgingLocation, VehicleType, QuoteBreakdown } from './types';
-import { EXTRA_CHARGES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
+import { EXTRA_CHARGES } from '@/data/charterPricing';
+import { charterUsdFromKrw } from '@/lib/charterUsd';
 import { getWizardI18n } from './wizard-i18n';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 import { BookingInfoForm, type BookingFormData } from '@/components/booking/BookingInfoForm';
@@ -71,8 +72,8 @@ function nextDayISO(iso: string): string {
 }
 
 const formatKRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
-// 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
-const formatCharterUSD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')} USD`;
+// 차터 USD = 청구 공식 SSOT(lib/charterUsd) → 표시가==청구가.
+const formatCharterUSD = (krw: number) => `≈ $${charterUsdFromKrw(krw).toLocaleString('en-US')} USD`;
 
 interface Props {
   state: WizardState;

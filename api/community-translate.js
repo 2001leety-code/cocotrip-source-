@@ -53,9 +53,19 @@ export default async function handler(req, res) {
     });
     if (!ipCheck.ok) return json(res, ipCheck.status, _err(ipCheck.error, 'RATE_LIMITED'));
 
-    const docRef = replyId
-      ? db.collection('community_posts').doc(postId).collection('replies').doc(replyId)
-      : db.collection('community_posts').doc(postId);
+    // 🔴 2026-07-30 (P1-3): 댓글 번역은 **부모 글이 살아 있을 때만** 준다.
+    //   이전에는 댓글 문서의 status 만 봤다. 글이 숨겨지거나(신고 검토) 삭제돼도 그 아래 댓글은
+    //   status='active' 로 남으므로, replyId 만 알면 숨겨진 글의 대화 내용을 계속 꺼낼 수 있었다.
+    //   (원문 언어 요청 `d.lang === targetLang` 도 이 검사 뒤에 있으므로 같이 막힌다.)
+    const postRef = db.collection('community_posts').doc(postId);
+    if (replyId) {
+      const parent = await postRef.get();
+      if (!parent.exists || parent.data().status !== 'active') {
+        return json(res, 404, _err('Not found', 'NOT_FOUND'));
+      }
+    }
+
+    const docRef = replyId ? postRef.collection('replies').doc(replyId) : postRef;
     const doc = await docRef.get();
     if (!doc.exists || doc.data().status !== 'active') return json(res, 404, _err('Not found', 'NOT_FOUND'));
 

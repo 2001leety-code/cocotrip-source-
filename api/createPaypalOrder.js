@@ -27,6 +27,7 @@ import { usesFixedUsdRate, isFixedUsdPriceProduct, fixedUsdPriceFor } from './_s
 // 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
 // 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
 import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
+import { buildEstimateConsentRecord } from './_shared/estimate-consent.js';
 // 🔴 2026-07-18 차터 옵션 미청구 fix: 옵션(면허가이드 30만 등)·야간할증이 표시 총액에만 있고
 //   청구에서 통째로 빠지던 돈버그. 프론트 미러 = src/lib/charterExtras.ts (P311).
 import { isCharterExtrasProduct, charterExtrasKrw, sanitizeCharterOptions, deriveNightFromPickup } from './_shared/charter-extras.js';
@@ -253,6 +254,8 @@ export default async function handler(req, res) {
     }
 
     let krwAmount;
+    // 추정가 상품의 정산조건 동의 기록(서버가 만든 것만 저장한다). 다른 상품은 null.
+    let estimateConsentRecord = null;
     if (productType === 'charter_multiday') {
       krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2, routeKm });
     } else if (productType === 'tour_hourly') {
@@ -265,6 +268,18 @@ export default async function handler(req, res) {
       krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2, routeKm });
     } else if (isCustomEstimateProduct(productType)) {
       // charter_custom_estimate = zone-fallback 추정가 즉시결제(운영자 사후 WhatsApp 확정+정산).
+      //
+      // 🔴 2026-07-30 (P0-2) fail-closed: 이 상품은 실제 거리·시간이 추정과 ±10% 넘게 다르면
+      //   추가 청구 또는 부분 환불을 한다. 그러므로 **동의 없이는 주문 자체를 만들지 않는다.**
+      //   화면의 체크박스만으로는 부족하다 — 프로그램적 호출이 그대로 통과하기 때문이다.
+      //   시각은 서버 시계로 찍는다(클라이언트 시각 불신).
+      const _consent = buildEstimateConsentRecord(body.estimateConsent);
+      if (!_consent.ok) {
+        console.warn('[createPaypalOrder] charter_custom_estimate consent rejected:', _consent.code);
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(_consent.error, _consent.code)));
+      }
+      estimateConsentRecord = _consent.record;
       // 가격은 client wizard quote(customAmountKRW). 🔴 sanity range 가드 — pricing.js SSOT 상수
       // (CUSTOM_ESTIMATE_MIN_KRW=30,000 / MAX=10,000,000). 1원·0·NaN·음수·이상 고액 차단.
       // 범위 통과분만 PayPal order 금액으로 사용 → capture 는 PayPal 이 order 금액을 강제하므로 위조 불가.
@@ -481,6 +496,9 @@ export default async function handler(req, res) {
         durationDays: durationDays || null,
         dateStart: dateStart || null,
         dateEnd: dateEnd || null,
+        // 🔴 P0-2: 추정가 정산조건 동의 근거(동의 여부·정책 버전·**서버 시각**). 이 스냅샷이
+        //   결제 provenance 의 단일 근거이므로, 동의도 같은 문서에 남긴다.
+        estimateConsent: estimateConsentRecord,
         createdAt: new Date().toISOString(),
       });
     } catch (_snapErr) {

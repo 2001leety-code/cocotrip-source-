@@ -33,8 +33,11 @@ async function freshAnalytics() {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  // 2026-07-30: GA4 전송은 쿠키 동의(accepted) 가 전제 조건이다. UTM 저장 자체는 동의와
-  // 무관(추적 전송이 아니라 로컬 값)이지만, gtag 발화를 관측하는 케이스가 있어 여기서 켠다.
+  // 🔴 2026-07-30 정책 교체 (P1-2): 옛 주석은 "UTM 저장 자체는 동의와 무관" 이었다. 그건 틀렸다 —
+  //   utm_* 는 마케팅 귀속용 식별 정보이고, 저장값은 가입·예약·결제 문서에까지 스냅샷으로 붙는다.
+  //   지금 계약: **accepted 일 때만 저장**하고, dismissed/revoked 면 저장하지 않으며 기존 값도 지운다.
+  //   아래 기본 케이스는 그래서 accepted 전제로 돈다. 동의 전·철회 동작은 파일 하단
+  //   'UTM 저장은 동의를 전제로 한다' describe 가 명세한다.
   localStorage.setItem('cocotrip_cookie_consent', 'accepted');
   setUrl('');
   posthogTrackSpy.mockClear();
@@ -256,5 +259,82 @@ describe('planner_complete — Firestore 상태 확정 시점 정확히 1회 (�
     a.markPlannerPendingComplete(PLAN_ID, { durationDays: 3 });
     expect(a.trackPlannerOutcomeFromStatus('other-plan-999', 'ready')).toBeNull();
     expect(sessionStorage.getItem(PENDING)).toContain(PLAN_ID);
+  });
+});
+
+// ── 🔴 2026-07-30 (P1-2) 새 정책: UTM 저장은 동의를 전제로 한다 ─────────────────
+//   옛 정책("저장은 동의와 무관")을 대체한다. 근거: utm_* 는 마케팅 귀속용 식별 정보이고,
+//   저장값은 `getAttributionSnapshot()` 을 거쳐 가입·예약·결제 문서(서버)에 영구 보존된다.
+//   배너에 "동의하면" 이라 써 놓고 선택 전에 기기·서버에 남기고 있었던 것이 문제였다.
+describe('UTM 저장은 동의를 전제로 한다 (P1-2)', () => {
+  it('동의 전(unset): localStorage·sessionStorage 어디에도 저장 0건', async () => {
+    localStorage.removeItem('cocotrip_cookie_consent');
+    setUrl('?utm_source=google&utm_medium=cpc&utm_campaign=summer');
+    const { initUtmCapture } = await freshAnalytics();
+    initUtmCapture();
+    expect(localStorage.getItem(FIRST)).toBeNull();
+    expect(localStorage.getItem(LAST)).toBeNull();
+    expect(sessionStorage.getItem(SESSION)).toBeNull();
+  });
+
+  it('동의 전에는 서버로 갈 스냅샷도 null (예약·결제 문서에 안 붙는다)', async () => {
+    localStorage.removeItem('cocotrip_cookie_consent');
+    setUrl('?utm_source=google');
+    const { initUtmCapture, getAttributionSnapshot } = await freshAnalytics();
+    initUtmCapture();
+    expect(getAttributionSnapshot()).toBeNull();
+  });
+
+  it('나중에 수락하면 그때 저장된다 — 이번 방문의 유입을 잃지 않는다', async () => {
+    localStorage.removeItem('cocotrip_cookie_consent');
+    setUrl('?utm_source=google&utm_campaign=summer');
+    const { initUtmCapture } = await freshAnalytics();
+    const { setConsent } = await import('../../src/lib/consent');
+    initUtmCapture();
+    expect(localStorage.getItem(LAST)).toBeNull();
+
+    setConsent('accepted');
+
+    const last = JSON.parse(localStorage.getItem(LAST)!);
+    expect(last.utm_source).toBe('google');
+    expect(last.utm_campaign).toBe('summer');
+  });
+
+  it('철회(revoked): 저장돼 있던 비필수 UTM 값이 전부 삭제된다', async () => {
+    setUrl('?utm_source=google&utm_campaign=summer');
+    const { initUtmCapture, getAttributionSnapshot } = await freshAnalytics();
+    const { setConsent } = await import('../../src/lib/consent');
+    initUtmCapture();
+    expect(localStorage.getItem(FIRST)).not.toBeNull();
+
+    setConsent('revoked');
+
+    expect(localStorage.getItem(FIRST)).toBeNull();
+    expect(localStorage.getItem(LAST)).toBeNull();
+    expect(sessionStorage.getItem(SESSION)).toBeNull();
+    expect(getAttributionSnapshot()).toBeNull();
+  });
+
+  it('거부(dismissed) 도 철회와 같다 — 저장값 삭제', async () => {
+    setUrl('?utm_source=google');
+    const { initUtmCapture } = await freshAnalytics();
+    const { setConsent } = await import('../../src/lib/consent');
+    initUtmCapture();
+    setConsent('dismissed');
+    expect(localStorage.getItem(FIRST)).toBeNull();
+    expect(localStorage.getItem(LAST)).toBeNull();
+  });
+
+  it('동의 전 방문에서 이미 남아 있던 값도 정리한다(옛 정책 잔존값 청소)', async () => {
+    localStorage.setItem(FIRST, JSON.stringify({ utm_source: 'legacy' }));
+    localStorage.setItem(LAST, JSON.stringify({ utm_source: 'legacy' }));
+    sessionStorage.setItem(SESSION, JSON.stringify({ utm_source: 'legacy' }));
+    localStorage.removeItem('cocotrip_cookie_consent');
+    setUrl('');
+    const { initUtmCapture } = await freshAnalytics();
+    initUtmCapture();
+    expect(localStorage.getItem(FIRST)).toBeNull();
+    expect(localStorage.getItem(LAST)).toBeNull();
+    expect(sessionStorage.getItem(SESSION)).toBeNull();
   });
 });

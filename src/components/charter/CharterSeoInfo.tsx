@@ -20,7 +20,10 @@ import {
   CHARTER_USD_FIX_RATE,
 } from '@/data/charterPricing';
 import { CHARTER_VEHICLE_CUTOFF_HOURS, TOUR_CUTOFF_HOURS } from '@/lib/bookingCutoff';
-import { formatPrice } from '@/lib/exchange-rate';
+// 🔴 2026-07-30: 여기서 `formatPrice`(표시환율 1430)를 쓰면 본문 $87 · 결제 $89 로 갈라진다.
+//   차터 금액은 청구 공식과 같은 `charterUsd` 로만 만든다 (charter-usd-single-source.test.ts 가드).
+import { formatCharterKrwUsd } from '@/lib/charterUsd';
+import { ESTIMATE_RECONCILE_TOLERANCE_PCT } from '@/lib/estimateConsent';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -30,7 +33,7 @@ const COPY: Record<Lang, {
   vehiclesTitle: string; vehiclesNote: string; paxLabel: (n: number) => string; paxCustom: string;
   processTitle: string; process: string[];
   faqTitle: string; faq: (v: { charterCutoff: number; tourCutoff: number; nightPct: number }) => Array<[string, string]>;
-  trustTitle: string; trust: string[];
+  trustTitle: string; trust: (v: { tolerancePct: number }) => string[];
 }> = {
   ko: {
     servicesTitle: '차량 대절 서비스 종류',
@@ -72,9 +75,10 @@ const COPY: Record<Lang, {
       ['카시트를 요청할 수 있나요?', '예약 옵션에서 카시트를 추가할 수 있습니다. 금액은 견적에 함께 표시됩니다.'],
     ],
     trustTitle: '사업자 정보',
-    trust: [
+    trust: ({ tolerancePct }) => [
       '결제는 PayPal 이 처리하며 카드 정보는 코코트립 서버에 저장되지 않습니다.',
-      '가격은 결제 전 화면에 전액 표시됩니다. 결제 후 추가 청구는 하지 않습니다.',
+      '정액 구간(공항 이동 등) 확정 가격 상품은 결제 전 화면에 전액이 표시되고, 결제 후 추가 청구가 없습니다.',
+      `정액 구간에 없어 추정가로 결제하는 맞춤 견적은 예상 금액입니다. 실제 거리·소요 시간이 추정과 ±${tolerancePct}% 넘게 다르면 운행 후 추가 청구 또는 부분 환불로 정산합니다. 결제 화면에서 이 조건에 동의해야 결제가 진행됩니다.`,
     ],
   },
   en: {
@@ -117,9 +121,10 @@ const COPY: Record<Lang, {
       ['Can I request a child seat?', 'Yes, add it in the booking options. The fee is shown in the quote.'],
     ],
     trustTitle: 'Company details',
-    trust: [
+    trust: ({ tolerancePct }) => [
       'Payments are processed by PayPal. Card details are never stored on CocoTrip servers.',
-      'The full price is shown before payment. We do not add charges afterwards.',
+      'For fixed-price products (airport transfers and other flat-rate zones) the full price is shown before payment and nothing is added afterwards.',
+      `Routes outside the flat-rate zones are paid as a custom estimate. That amount is an estimate: if the real distance or duration differs from it by more than ±${tolerancePct}%, we reconcile after the trip with an additional charge or a partial refund. You must agree to that on the payment screen before checkout.`,
     ],
   },
   ja: {
@@ -162,9 +167,10 @@ const COPY: Record<Lang, {
       ['チャイルドシートは頼めますか？', '予約オプションで追加できます。料金は見積に表示されます。'],
     ],
     trustTitle: '事業者情報',
-    trust: [
+    trust: ({ tolerancePct }) => [
       '決済は PayPal が処理し、カード情報は CocoTrip のサーバーに保存されません。',
-      '決済前に総額を表示します。決済後の追加請求はありません。',
+      '定額区間（空港送迎など）の確定料金商品は、決済前に総額を表示し、決済後の追加請求はありません。',
+      `定額区間外のため概算料金でお支払いいただくオーダーメイド見積は、金額が概算です。実際の距離・所要時間が概算と±${tolerancePct}%以上異なる場合、運行後に追加請求または一部返金で精算します。決済画面でこの条件に同意いただく必要があります。`,
     ],
   },
   zh: {
@@ -207,9 +213,10 @@ const COPY: Record<Lang, {
       ['可以要求儿童座椅吗？', '可以，在预订附加项中添加，费用会显示在报价中。'],
     ],
     trustTitle: '企业信息',
-    trust: [
+    trust: ({ tolerancePct }) => [
       '付款由 PayPal 处理，卡片信息不会存放在 CocoTrip 的服务器。',
-      '付款前显示全额价格，付款后不会追加收费。',
+      '定额区间（如机场接送）的确定价格商品，付款前显示全额价格，付款后不会追加收费。',
+      `不在定额区间、按预估价付款的定制报价属于预估金额。若实际距离或用时与预估相差超过±${tolerancePct}%，将在行程结束后以追加收费或部分退款结算。付款页面需先同意该条件才能结账。`,
     ],
   },
 };
@@ -226,8 +233,10 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
   // ⚠️ "전 구간 최저가" 를 쓰면 안 된다. 최저가는 김포 출발 구간(seoul-central 보다 저렴)이라
   //   "인천 ↔ 서울" 문장에 붙이면 실제로 청구되는 값과 다른 금액을 광고하게 된다(실물 렌더에서 발견).
   //   그래서 문장이 말하는 그 구간(ICN → 서울 도심)의 값만 쓰고, 키가 없으면 문장을 뺀다.
+  //   ⚠️ 표기는 **언어와 무관하게** "₩정책가 ($청구 USD)" 다. 언어별 표시통화로 환산하면
+  //   "표시 금액이 결제 금액" 이라는 바로 아래 문장이 거짓이 된다(결제는 늘 PayPal USD).
   const icnSeoulKRW = AIRPORT_TRANSFER_PRICES['seoul-central']?.priceKRW;
-  const icnSeoulPrice = icnSeoulKRW && icnSeoulKRW > 0 ? formatPrice(icnSeoulKRW, lang) : null;
+  const icnSeoulPrice = formatCharterKrwUsd(icnSeoulKRW);
   const nightPct = EXTRA_CHARGES.nightSurchargePercent || 20;
 
   const vehicles = Object.values(VEHICLE_TYPES).map((v) => ({
@@ -295,7 +304,7 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
         <div>
           <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.trustTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.trust.map((s) => <li key={s}>{s}</li>)}
+            {c.trust({ tolerancePct: ESTIMATE_RECONCILE_TOLERANCE_PCT }).map((s) => <li key={s}>{s}</li>)}
             {/* 등록번호는 footer i18n 값 재사용 — 두 벌로 관리하면 갱신 때 한쪽만 바뀐다. */}
             {footer?.businessNo ? <li>{footer.businessNo}</li> : null}
             {footer?.tourNo ? <li>{footer.tourNo}</li> : null}
