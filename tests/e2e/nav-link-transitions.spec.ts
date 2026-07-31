@@ -30,6 +30,15 @@ test.describe('SPA Link navigation', () => {
     await expect(page.locator('h1, h2').filter({ hasText: 'Tours' })).toHaveCount(0, { timeout: 8000 });
   });
 
+  test('/guide → guide detail via card Link', async ({ page }) => {
+    await page.goto('/guide');
+    const card = page.locator('a[href^="/guide/"]').first();
+    await card.waitFor({ timeout: 10000 });
+    await card.click();
+    await expect(page).toHaveURL(/\/guide\/.+/);
+    await expect(page.locator('.guide-article')).toBeVisible({ timeout: 8000 });
+  });
+
   test('/community → /community/new via Link', async ({ page }) => {
     await page.goto('/community');
     const link = page.locator('a[href="/community/new"]').first();

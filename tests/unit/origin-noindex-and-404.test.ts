@@ -16,6 +16,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { INDEXABLE_ROUTES, NOINDEX_ROUTES } from '../../src/lib/seoRoutes';
+import guidesIndex from '../../src/content/guides/_index.json';
 
 const vercel = JSON.parse(readFileSync(join(process.cwd(), 'vercel.json'), 'utf8'));
 const appSrc = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
@@ -127,8 +128,10 @@ describe('SPA 깊은 링크 — 앱에 있는 라우트는 전부 index.html', (
     });
   }
 
-  it('26개 색인 허용 경로도 전부 index.html (프리렌더·sitemap 유지)', () => {
-    expect(INDEXABLE_ROUTES.length).toBe(26);
+  it('색인 허용 경로 전부 index.html (프리렌더·sitemap 유지)', () => {
+    // 기본 26 + 가이드(/guide + 글 수, 2026-08-01 blogspot 이식). 글 목록에서 파생 —
+    // 새 글 동기화 때 이 숫자를 손으로 고치는 함정 방지.
+    expect(INDEXABLE_ROUTES.length).toBe(26 + 1 + guidesIndex.length);
     for (const route of INDEXABLE_ROUTES) {
       expect(firstMatchingRewrite(route).destination, `${route}`).toBe('/index.html');
     }

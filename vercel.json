@@ -185,7 +185,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/(tours|region|s|my-plans|community|mood|admin|preview|dev)(/.*)?",
+      "source": "/(tours|region|guide|s|my-plans|community|mood|admin|preview|dev)(/.*)?",
       "destination": "/index.html"
     },
     { "source": "/((?!api/).*)", "destination": "/api/not-found" }

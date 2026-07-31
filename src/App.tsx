@@ -68,6 +68,9 @@ const MobileTourDetailV2 = import.meta.env.DEV ? lazy(() => import('@/pages/Mobi
 const MobilePlannerResultV2 = import.meta.env.DEV ? lazy(() => import('@/pages/MobilePlannerResultV2')) : null;
 const MobileCharterV2 = import.meta.env.DEV ? lazy(() => import('@/pages/MobileCharterV2')) : null;
 const MobileIconsPreview = import.meta.env.DEV ? lazy(() => import('@/pages/MobileIconsPreview')) : null;
+// 여행 가이드 — blogspot 이식 (2026-08-01 유입 확보). 본문 JSON 은 글별 lazy 청크.
+const GuideIndexPage = lazy(() => import('@/pages/GuidePage'));
+const GuideDetailPage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuideDetailPage })));
 const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
 const CommunityPostPage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityPostPage })));
 const CommunityComposePage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityComposePage })));
@@ -636,6 +639,9 @@ function AnimatedRoutes() {
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
           <Route path="/community/post/:postId" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPostPage /></Suspense>} />
           <Route path="/community/new" element={<Suspense fallback={<PlannerSkeleton />}><CommunityComposePage /></Suspense>} />
+          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제) */}
+          <Route path="/guide" element={<Suspense fallback={<PlannerSkeleton />}><GuideIndexPage /></Suspense>} />
+          <Route path="/guide/:slug" element={<Suspense fallback={<PlannerSkeleton />}><GuideDetailPage /></Suspense>} />
           <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />
           <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
