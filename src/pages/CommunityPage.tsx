@@ -547,24 +547,29 @@ export default function CommunityPage() {
   const { user, loading: authLoading } = useAuth();
   const copy = COPY[language];
   const location = useLocation();
-  const [tab, setTab] = useState<'latest' | 'popular'>('latest');
-  const [topic, setTopic] = useState<string | null>(null);
-  const [posts, setPosts] = useState<ApiPost[] | null>(null);
-  const [error, setError] = useState(false);
   const params = new URLSearchParams(location.search);
   const requestedView = params.get('tab');
   const searchQ = (params.get('q') || '').trim().toLowerCase();
   const activeRail = requestedView === 'alerts' ? 'alerts' : requestedView === 'popular' ? 'explore' : 'feed';
+  const [tab, setTab] = useState<'latest' | 'popular'>(() => (requestedView === 'popular' ? 'popular' : 'latest'));
+  const [topic, setTopic] = useState<string | null>(() => params.get('topic'));
+  const [posts, setPosts] = useState<ApiPost[] | null>(null);
+  const [error, setError] = useState(false);
+
+  // URL 쿼리(?tab=·?topic=) → 탭·토픽 반영. effect 대신 렌더 중 조정(React 공식
+  // "adjusting state when props change" 패턴) — 커밋 전에 재렌더되므로 옛 탭으로
+  // 한 프레임 그려지는 것과 effect 발 캐스케이드 렌더가 둘 다 없다.
+  const [prevSearch, setPrevSearch] = useState(location.search);
+  if (location.search !== prevSearch) {
+    setPrevSearch(location.search);
+    if (requestedView === 'popular') setTab('popular');
+    const topicParam = params.get('topic');
+    if (topicParam) setTopic(topicParam);
+  }
 
   // usePageMeta 가 '| CocoTrip' 접미사를 붙임 — 중복 방지 위해 여기선 안 붙인다.
   usePageMeta({ title: copy.community, description: copy.exploreKorea });
   useEffect(() => { signalAppReady(); }, []);
-  useEffect(() => {
-    if (requestedView === 'popular') setTab('popular');
-    const topicParam = params.get('topic');
-    if (topicParam) setTopic(topicParam);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
 
   const load = useCallback(async (sort: 'latest' | 'popular') => {
     setError(false);
@@ -579,6 +584,9 @@ export default function CommunityPage() {
     }
   }, [user]);
 
+  // 탭 변경·인증 확정 시 조회. load 가 첫 줄에서 setPosts(null) 로 로딩 상태를 만들므로
+  // 린트가 "effect 안 setState" 로 잡지만, 의도된 fetch-on-mount 패턴 (AdminReviews 전례).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!authLoading) void load(tab); }, [tab, load, authLoading]);
 
   const visible = useMemo(() => {
@@ -657,6 +665,9 @@ function CommunityAlertsView({ copy }: { copy: Copy }) {
   const [items, setItems] = useState<ApiNotification[] | null>(null);
 
   useEffect(() => {
+    // 로그아웃 시 목록 즉시 비움 + 로그인 시 재조회 — 의도된 fetch-on-mount 패턴
+    // (AdminReviews 전례. 비우지 않으면 재로그인 직후 이전 계정 알림이 잠깐 보인다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setItems([]); return; }
     let cancelled = false;
     (async () => {
@@ -746,6 +757,9 @@ export function CommunityPostPage() {
     }
   }, [postId, user]);
 
+  // 인증 확정 시 글 조회. load 가 첫 줄에서 setLoading(true) 를 하므로 린트가 잡지만,
+  // 의도된 fetch-on-mount 패턴 (AdminReviews 전례).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!authLoading) void load(); }, [load, authLoading]);
 
   const submitReply = async () => {
@@ -1086,6 +1100,9 @@ export function CommunityModerationPage() {
     }
   }, []);
 
+  // 로그인 시 1회 큐 조회. load 가 첫 줄에서 setLoading(true) 를 하므로 린트가 잡지만,
+  // 의도된 fetch-on-mount 패턴 (MoodPortal 전례).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (user) load(); }, [user, load]);
 
   const act = async (body: Record<string, unknown>, key: string) => {
