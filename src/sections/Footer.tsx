@@ -1,6 +1,7 @@
 import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { CookieSettings } from '@/components/CookieSettings';
 import type { Translations } from '@/i18n';
 
 interface FooterProps {
@@ -39,6 +40,9 @@ export function Footer({ t }: FooterProps) {
             <span className="text-white/15 self-center">·</span>
             {/* 외부 블로그 — 권위 전달 목적이라 nofollow 금지 */}
             <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.blog || 'Korea Travel Blog'}</a>
+            <span className="text-white/15 self-center">·</span>
+            {/* 🔴 P1-1: 동의를 **바꿀 수 있는** 상시 진입점. 배너는 한 번 닫으면 다시 안 뜬다. */}
+            <CookieSettings className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors" />
           </div>
 
           {/* Info - compact */}
@@ -88,6 +92,9 @@ export function Footer({ t }: FooterProps) {
             <Link to="/travel-terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.travelTerms}</Link>
             <span className="text-white/55">|</span>
             <a href="https://cocotripkr.blogspot.com" target="_blank" rel="noopener" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.blog || 'Korea Travel Blog'}</a>
+            <span className="text-white/55">|</span>
+            {/* 🔴 P1-1: 동의를 **바꿀 수 있는** 상시 진입점 (데스크탑). */}
+            <CookieSettings className="text-white/60 hover:text-white text-sm transition-colors" />
           </div>
         </div>
 

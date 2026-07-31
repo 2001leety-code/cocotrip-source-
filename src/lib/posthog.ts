@@ -10,7 +10,8 @@
 //      schema in `docs/ROADMAP.md` Sprint 2 #7 stays in sync with code.
 
 import type { PostHog } from 'posthog-js';
-import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
+import { hasAnalyticsConsent, onConsentChange, consentGeneration, type ConsentState } from './consent';
+import { stripUnsafeProps, sanitizeCaptureProperties, safePagePath } from './analyticsProps';
 
 /** 전송이 허용된 SDK. 동의가 없으면 항상 null — 이 변수 자체가 "보내도 된다" 는 신호다. */
 let client: PostHog | null = null;
@@ -26,19 +27,13 @@ let didInit = false;
 const KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
 const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com';
 
-const PII_FIELDS = new Set([
-  'email', 'phone', 'address', 'hotel_address', 'name',
-  'first_name', 'last_name', 'guest_email', 'paypal_email', 'full_name',
-]);
-
+/**
+ * 🔴 2026-07-30 (P1-2): PII 필드 **차단 목록**을 `analyticsProps` 의 **허용 목록**으로 바꿨다.
+ *   차단 목록은 "우리가 미리 떠올린 이름" 만 막는다 — `revisionNote`·`allergies`·`token` 처럼
+ *   나중에 생긴 필드는 그대로 통과했다. 기본 거부여야 새 필드가 샐 자리가 없다.
+ */
 function sanitize(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!props) return undefined;
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(props)) {
-    if (PII_FIELDS.has(k.toLowerCase())) continue;
-    out[k] = v;
-  }
-  return out;
+  return stripUnsafeProps(props);
 }
 
 async function ensureInit(): Promise<PostHog | null> {
@@ -70,14 +65,35 @@ async function ensureInit(): Promise<PostHog | null> {
       } else {
         ph.init(KEY, {
           api_host: HOST,
-          capture_pageview: true,
-          capture_pageleave: true,
+          // 🔴 2026-07-30 (P0-3·P1-2): 자동 pageview/pageleave 를 끈다.
+          //   ① 자동 이벤트는 `$current_url` 에 **쿼리·해시를 통째로** 싣는다. 우리 URL 의
+          //      쿼리에는 공유 토큰·알레르기·자유 입력이 들어간다.
+          //   ② pageleave 는 `pagehide` 에서 발화한다 — 철회 직후 탭을 닫으면 우리 코드가
+          //      개입할 틈 없이 나간다. 끄는 것이 유일하게 확실한 차단이다.
+          //   대신 동의 상태에서 `capturePageView(pathname)` 로 **경로만** 수동 전송한다.
+          capture_pageview: false,
+          capture_pageleave: false,
           // Defer autocapture — manual `track()` calls are the source of truth.
           // Autocapture would log every click/input, which inflates event volume
           // and risks logging form values (PII).
           autocapture: false,
           disable_session_recording: true,
           respect_dnt: true,
+          // SDK 가 스스로 붙이는 속성 중 URL·레퍼러 계열을 원천 차단한다.
+          property_denylist: ['$current_url', '$referrer', '$referring_domain', '$initial_current_url', '$initial_referrer', '$initial_referring_domain'],
+          /**
+           * 🔴 마지막 관문. `capture()` 를 우리 코드가 부르지 않는 경우(SDK 내부 큐 flush,
+           *   재시도, 서베이·플래그 부수 이벤트)까지 여기를 지난다.
+           *   - 동의가 없으면 **null 을 돌려 이벤트를 버린다** → 철회 후 pagehide·새로고침·
+           *     탭 종료 시점의 잔여 전송이 0 이 된다.
+           *   - 속성은 허용 목록으로 다시 한 번 거른다(누가 어디서 넣었든).
+           */
+          before_send: (event) => {
+            if (!event) return null;
+            if (!hasAnalyticsConsent()) return null;
+            event.properties = sanitizeCaptureProperties(event.properties as Record<string, unknown> | undefined);
+            return event;
+          },
           loaded: (instance) => {
             if (import.meta.env.DEV) {
               console.info('[posthog] ready');
@@ -110,22 +126,32 @@ async function ensureInit(): Promise<PostHog | null> {
 
 /**
  * 동의가 사라지면(거부·철회) 이미 켜진 SDK 를 끈다.
- *   - `client = null` → 이후 track·identify 는 ensureInit 첫 관문에서 막힌다.
- *   - `opt_out_capturing()` → SDK 내부 큐·pageleave 등 우리 코드를 거치지 않는 전송까지 중단.
- *   - `reset()` → distinct_id·저장된 사람 속성 폐기.
+ *
+ * 🔴🔴 순서가 전부다 (2026-07-30, posthog-js **1.404.0** 소스 확인):
+ *   `posthog.reset()` 은 첫 줄에서 `this.consent.reset()` 을 부르고, 그 구현은 opt-in/out 을
+ *   저장한 항목(`__ph_opt_in_out_<token>`)을 **지운다**. 지워지면 `consent` 는 -1(미선택)이 되고
+ *   `has_opted_out_capturing()` 은 다시 false 가 된다.
+ *   → 즉 예전 순서(opt_out → reset)는 **방금 건 opt-out 을 스스로 취소**하고 있었다.
+ *     화면상 "철회함" 인데 SDK 는 "미선택" 이라 다음 세션부터 다시 수집되는 상태였다.
+ *
+ * 그래서 지금 순서는:
+ *   1) `set_config({ advanced_disable_flags: true })` — reset 이 새 distinct_id 로 `/flags/` 를
+ *      다시 부르는 것을 먼저 막는다(2026-07-30 운영 실측으로 확인한 1건).
+ *   2) `reset()` — distinct_id·사람 속성 폐기. (여기서 opt-out 기록이 지워진다.)
+ *   3) `opt_out_capturing()` — **마지막**에 걸어 최종 상태를 opted-out 으로 확정한다.
+ *
+ * 검증은 문자열이 아니라 실제 SDK 상태로 한다:
+ *   `tests/unit/posthog-optout-real-sdk.test.ts` 가 진짜 posthog-js 를 띄워
+ *   `has_opted_out_capturing() === true` 와 네트워크 0건을 확인한다.
  */
 function applyConsent(state: ConsentState): void {
   if (state === 'accepted') return;
   client = null;
   initPromise = null;
   if (!sdk) return;
-  try { sdk.opt_out_capturing(); } catch { /* SDK 내부 상태 문제는 무시 */ }
-  // 🔴 운영 실측(2026-07-30): opt-out + reset 만 하면 철회 직후 `us.i.posthog.com/flags/` 요청이
-  //   **1건 나갔다.** 원인은 우리 `reset()` 이다 — 새 distinct_id 가 만들어지면 SDK 가 그 id 로
-  //   플래그를 다시 평가하려 한다. capture 는 아니지만 철회한 사람의 식별자를 실어 보내는 요청이다.
-  //   → reset 전에 플래그 엔드포인트 자체를 끈다. (재수락 시 아래에서 되돌린다.)
   try { sdk.set_config({ advanced_disable_flags: true }); } catch { /* 구버전 SDK 대비 */ }
   try { sdk.reset(); } catch { /* 위와 동일 */ }
+  try { sdk.opt_out_capturing(); } catch { /* SDK 내부 상태 문제는 무시 */ }
 }
 
 if (typeof window !== 'undefined') {
@@ -166,9 +192,22 @@ export type PostHogEventName =
   | 'affiliate_impression'
   | 'affiliate_click';
 
+/**
+ * `ensureInit()` 의 `await` 를 사이에 두고 동의가 바뀌지 않았는지 확인한다.
+ *
+ * 🔴 왜 필요한가 (P0-3): SDK 로드는 네트워크 작업이라 수백 ms 걸린다. 그 사이에 사용자가
+ *   철회하면, 깨어난 코드는 "허가받던 시절의 세계" 를 믿고 그대로 전송한다. `hasAnalyticsConsent()`
+ *   재확인만으로는 accepted→revoked→accepted 왕복을 못 잡으므로 **세대값**을 쓴다.
+ */
+function consentUnchanged(gen: number): boolean {
+  return consentGeneration() === gen && hasAnalyticsConsent();
+}
+
 export async function track(event: PostHogEventName, props?: Record<string, unknown>): Promise<void> {
+  const gen = consentGeneration();
   const ph = await ensureInit();
   if (!ph) return;
+  if (!consentUnchanged(gen)) return;   // 로드를 기다리는 사이 철회됨 → 보내지 않는다
   try {
     ph.capture(event, sanitize(props));
   } catch (e) {
@@ -176,10 +215,29 @@ export async function track(event: PostHogEventName, props?: Record<string, unkn
   }
 }
 
+/**
+ * SPA 화면 전환 1건 — **경로만** 보낸다(쿼리·해시 없음).
+ * 자동 pageview 를 끈 대신 우리가 직접 부른다(init 설정의 주석 참조).
+ */
+export async function capturePageView(pathname?: string): Promise<void> {
+  const gen = consentGeneration();
+  const ph = await ensureInit();
+  if (!ph) return;
+  if (!consentUnchanged(gen)) return;
+  const path = safePagePath(pathname);
+  try {
+    ph.capture('$pageview', { $pathname: path, page_path: path });
+  } catch (e) {
+    console.warn('[posthog] pageview failed:', (e as Error).message);
+  }
+}
+
 // Identify caller — typically Firebase uid (NOT email).
 export async function identify(distinctId: string, props?: Record<string, unknown>): Promise<void> {
+  const gen = consentGeneration();
   const ph = await ensureInit();
   if (!ph || !distinctId) return;
+  if (!consentUnchanged(gen)) return;
   try {
     ph.identify(distinctId, sanitize(props));
   } catch (e) {

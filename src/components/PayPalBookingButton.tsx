@@ -50,6 +50,16 @@ interface Props {
    *  createPaypalOrder 가 409(AMOUNT_MISMATCH)로 결제를 만들지 않는다.
    *  고정 USD 판매 상품(AI 플래너)에서 표시가 != 청구가를 구조적으로 차단한다. */
   expectedUSD?: number;
+  /**
+   * 🔴 2026-07-30 (P0-2): 결제를 막아야 하는 상태. 추정가 상품의 정산조건 미동의 등.
+   * CTA 비활성 + 클릭해도 주문 생성 요청 자체를 만들지 않는다(화면만 잠그면 우회 가능).
+   */
+  disabled?: boolean;
+  /**
+   * 🔴 2026-07-30 (P0-2): 추정가(charter_custom_estimate) 정산조건 동의.
+   * 서버가 정책 버전을 검증하고(fail-closed) **서버 시각**으로 기록한다 — 클라 시각은 안 보낸다.
+   */
+  estimateConsent?: { agreed: boolean; policyVersion: string };
   /** i18n dict — 옵션 (호출처 일부 InlineBookingCard 가 미전달, 기본값 {}로 처리) */
   p?: BookingDict;
   lang: string;
@@ -123,7 +133,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -524,6 +534,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // ── 버튼 클릭 핸들러 — SDK 대기 + 주문 생성 + PayPal 버튼 표시 ──
   async function handleBookClick() {
+    // 🔴 P0-2: 게이트는 **여기**에도 있어야 한다. CTA 의 disabled 속성만 믿으면 프로그램적 호출
+    //   (개발자도구·자동화)로 그대로 주문이 만들어진다. 서버도 fail-closed 지만, 여기서 막아야
+    //   "동의 안 했는데 PayPal 창이 뜬" 상태 자체가 생기지 않는다.
+    if (disabled) return;
     setError(null);
     setLoading(true);
     buttonsRendered.current = false;
@@ -577,6 +591,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           //   additive 전달만 — createPaypalOrder 는 금액을 productType/날짜/쿠폰으로만 산정,
           //   이 값은 무시(알 수 없는 필드). 멱등성/금액/환율/락 로직 무관.
           ...(termsAgreed === true ? { termsAgreed: true } : {}),
+          // 🔴 P0-2 추정가 정산조건 동의 — 서버가 정책 버전을 검증하고 서버 시각으로 기록한다.
+          //   동의 시각을 클라가 보내지 않는 이유: 위조·시계 오차가 근거를 무의미하게 만든다.
+          ...(estimateConsent ? { estimateConsent: { agreed: estimateConsent.agreed === true, policyVersion: estimateConsent.policyVersion } } : {}),
         }),
       });
       const json = await res.json();
@@ -618,9 +635,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
 
   // 예상 USD (rate 없을 때 간이 계산)
+  // 🔴 2026-07-30: 고정 USD 상품(차터·AI 플래너)은 호출부가 **화면이 약속한 금액**(expectedUSD)을
+  //   그대로 준다. 여기서 다시 나눗셈하면 "$89.14 표시 / $89 청구" 같은 소수점 어긋남이 생긴다.
   const estimatedUSD = rateInfo
     ? rateInfo.displayUSD
-    : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`;
+    : (typeof expectedUSD === 'number' && expectedUSD > 0
+        ? `$${expectedUSD.toLocaleString('en-US')} USD`
+        : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`);
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   // 🔴 결제 접수 · 예약 확인 중 (PAYMENT_REVIEW) — 성공 화면보다 먼저 분기.
@@ -935,7 +956,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         /* 초기 예약 버튼 */
         <button
           type="button"
-          disabled={loading}
+          disabled={loading || disabled}
           onClick={handleBookClick}
           className="w-full rounded-xl text-white font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: '#0070BA', padding: '13px 20px' }}>
@@ -960,7 +981,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   </>
                 ) : (
                   <span className="text-[15px] font-bold">
-                    {lang === 'ja' || lang === 'zh'
+                    {/* 고정 USD 상품(차터·AI 플래너)은 언어별 표시통화 환산을 쓰지 않는다 —
+                        바로 옆 $ 가 실제 청구액이라, ¥ 로 바꿔 적으면 두 숫자가 서로 다른 환율이 된다. */}
+                    {typeof expectedUSD === 'number' && expectedUSD > 0
+                      ? `\u20A9${priceKRW.toLocaleString('ko-KR')}`
+                      : lang === 'ja' || lang === 'zh'
                       ? formatPrice(priceKRW, lang)
                       : (rateInfo?.displayKRW ?? `\u20A9${priceKRW.toLocaleString('ko-KR')}`)}
                   </span>
@@ -1008,7 +1033,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               setLoading(false);
             }
           }}
-          disabled={loading}
+          disabled={loading || disabled}
           className="w-full rounded-xl text-white font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.99] disabled:opacity-50 mt-2"
           style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', padding: '13px 20px' }}
         >

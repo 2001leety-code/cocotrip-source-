@@ -25,6 +25,7 @@ import { notify } from './_shared/notify.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { detectLanguage } from './_shared/translator.js';
+import { publicImagePaths } from './_shared/community-media.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -124,7 +125,10 @@ export function serializePost(id, d, viewerUid = null) {
     replyCount: d.replyCount || 0,
     createdAt: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : null,
     translations: d.translations || {},
-    images: Array.isArray(d.images) ? d.images : [],
+    // 🔴 2026-07-30: 이전에는 Firebase Storage 다운로드 URL 을 그대로 내보냈다. 그 URL 의 경로가
+    //   `community/{uid}/...` 라서, `authorUid` 를 지워 놓고도 **사진 한 장이면 uid 가 샜다**.
+    //   이제 되돌릴 수 없는 토큰 경로만 준다(api/_shared/community-media.js). 파일은 그대로 둔다.
+    images: publicImagePaths(id, d.images),
   };
 }
 

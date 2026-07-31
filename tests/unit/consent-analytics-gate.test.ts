@@ -122,6 +122,23 @@ describe('PostHog 동의 게이트 — SDK 실동작', () => {
     expect(ph.reset).toHaveBeenCalledTimes(1);
   });
 
+  it('🔴 reset 이 opt_out 보다 **먼저** 와야 한다 — posthog-js 1.404.0 의 reset 은 opt-out 을 지운다', async () => {
+    // 근거: node_modules/posthog-js 소스에서 `reset()` 첫 줄이 `this.consent.reset()` 이고,
+    //   그 구현이 opt-in/out 저장 항목을 삭제한다. 옛 순서(opt_out → reset)는 방금 건 opt-out 을
+    //   스스로 취소했다. 실제 SDK 로 하는 검증은 posthog-optout-real-sdk.test.ts 가 한다 —
+    //   이 모킹 테스트는 **순서 계약**만 지킨다.
+    const { consent, posthog } = await loadModules();
+    consent.setConsent('accepted');
+    await posthog.track('plan_generated');
+
+    consent.setConsent('revoked');
+
+    const resetOrder = ph.reset.mock.invocationCallOrder[0];
+    const optOutOrder = ph.opt_out_capturing.mock.invocationCallOrder[0];
+    expect(resetOrder, 'reset() 이 opt_out_capturing() 보다 먼저여야 최종 상태가 opted-out 이다')
+      .toBeLessThan(optOutOrder);
+  });
+
   it('revoke 후 track·identify: 전송 0건 (저장된 client 를 재사용하지 않는다)', async () => {
     const { consent, posthog } = await loadModules();
     consent.setConsent('accepted');

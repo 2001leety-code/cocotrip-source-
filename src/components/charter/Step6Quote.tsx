@@ -11,7 +11,7 @@ import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
 import { charterAddonLabel, withDerivedNight } from '@/lib/charterExtras';
 import { getCutoffHours, hoursUntilDeparture } from '@/lib/bookingCutoff';
-import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
+import { charterUsdFromKrw } from '@/lib/charterUsd';
 
 interface Props {
   quote: QuoteBreakdown | null;
@@ -22,8 +22,8 @@ interface Props {
 }
 
 const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
-// 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
-const USD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`;
+// 차터 USD = 청구 공식 SSOT(lib/charterUsd) → 표시가==청구가. 반올림도 그쪽 한 곳에만 있다.
+const USD = (krw: number) => `≈ $${charterUsdFromKrw(krw).toLocaleString('en-US')}`;
 
 export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);

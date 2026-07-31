@@ -13,6 +13,7 @@
 // posthog.ts 는 lazy-init(키 없으면 no-op)이라 이 import 가 번들/부팅에 SDK 를 당기지 않음.
 import { track as posthogTrack, type PostHogEventName } from './posthog';
 import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
+import { stripUnsafeProps, safePagePath } from './analyticsProps';
 
 // ── Types ───────────────────────────────────────────────────────────────
 interface GtagEvent {
@@ -85,18 +86,24 @@ if (typeof window !== 'undefined') {
 }
 
 // ── Track Page View (SPA navigation) ────────────────────────────────────
+/**
+ * 🔴 2026-07-30 (P1-2): 이전에는 `pathname + search` 를 그대로 보냈다. 우리 쿼리에는 공유
+ *   토큰(`?token=`)·플래너 사전입력(`prefillHotel`·`prefillDiet`·`allergies`)·자유 입력
+ *   (`revisionNote`·`freeText`)이 들어간다. 이제 **경로만** 보낸다.
+ *   `page_title`(document.title)도 뺐다 — 공유 플랜 제목에 손님이 쓴 문장이 섞일 수 있다.
+ */
 export function trackPageView(path?: string) {
   if (!canSendToGA()) return;
   window.gtag!('event', 'page_view', {
-    page_path: path || window.location.pathname + window.location.search,
-    page_title: document.title,
+    page_path: safePagePath(path),
   });
 }
 
 // ── Track Custom Event ──────────────────────────────────────────────────
+/** 모든 GA4 속성은 허용 목록 관문(analyticsProps)을 지난다 — 이벤트마다 따로 챙기지 않는다. */
 export function trackEvent(eventName: string, params?: GtagEvent) {
   if (!canSendToGA()) return;
-  window.gtag!('event', eventName, { ...getStoredUtm(), ...params });
+  window.gtag!('event', eventName, stripUnsafeProps({ ...getStoredUtm(), ...params }));
 }
 
 // ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
@@ -179,21 +186,35 @@ function readUrlUtm(): Record<string, string> {
   return utm;
 }
 
-/** 매 랜딩 시 호출 — 세션(기존 GA 첨부용) + first/last(장기 귀속) 보존. */
-export function initUtmCapture() {
+/**
+ * 🔴 2026-07-30 (P1-2): UTM 은 **동의 전에는 저장하지 않는다.**
+ *
+ * 이전 구현은 랜딩 즉시 sessionStorage·localStorage 에 썼다. 쿠키 배너에 "동의하면" 이라고
+ * 적어 놓고, 선택하기도 전에 마케팅용 식별 정보를 기기에 남기고 있었던 것이다(그 값은 이후
+ * 가입·예약·결제 문서에도 스냅샷으로 붙는다).
+ *
+ * 지금 계약:
+ *   - 미선택(unset)  → **메모리에만** 들고 있는다. 이번 방문의 유입을 잃지 않으면서 기기에는
+ *                      아무것도 안 남긴다.
+ *   - accepted       → 메모리 값을 그때 저장한다(다음 방문 귀속용).
+ *   - dismissed/revoked → 메모리도 비우고 **이미 저장돼 있던 값도 지운다**.
+ */
+let memoryUtm: Record<string, string> = {};
+
+/** 저장돼 있던 비필수 UTM 값을 전부 제거. 철회·거부 시 호출. */
+function purgeStoredUtm(): void {
   if (typeof window === 'undefined') return;
-  let utm: Record<string, string> = {};
-  try { utm = readUrlUtm(); } catch { return; }
+  try { sessionStorage.removeItem(UTM_STORE); } catch { /* 접근 차단 환경 */ }
+  try { localStorage.removeItem(UTM_FIRST_STORE); } catch { /* 접근 차단 환경 */ }
+  try { localStorage.removeItem(UTM_LAST_STORE); } catch { /* 접근 차단 환경 */ }
+}
 
-  // 기존 동작 유지: 세션 내 첫 UTM 을 sessionStorage 에 (모든 trackEvent 자동 첨부용)
-  try {
-    if (!sessionStorage.getItem(UTM_STORE) && Object.keys(utm).length > 0) {
-      sessionStorage.setItem(UTM_STORE, JSON.stringify(utm));
-    }
-  } catch { /* sessionStorage 차단 환경 무시 */ }
-
-  // P1: first = 최초 1회만 기록(이후 절대 덮지 않음), last = UTM 있는 유입마다 갱신
+/** 메모리에 들고 있던 UTM 을 저장소로 넘긴다. 동의(accepted) 상태에서만 호출된다. */
+function persistUtm(utm: Record<string, string>): void {
   if (Object.keys(utm).length === 0) return;
+  try {
+    if (!sessionStorage.getItem(UTM_STORE)) sessionStorage.setItem(UTM_STORE, JSON.stringify(utm));
+  } catch { /* sessionStorage 차단 환경 무시 */ }
   try {
     const stamped = { ...utm, ts: new Date().toISOString() };
     if (!localStorage.getItem(UTM_FIRST_STORE)) {
@@ -203,8 +224,38 @@ export function initUtmCapture() {
   } catch { /* localStorage 차단(시크릿 등) — 추적 실패가 앱을 막으면 안 됨 */ }
 }
 
+/** 매 랜딩 시 호출 — 동의 상태에 따라 메모리 보관 또는 저장. */
+export function initUtmCapture() {
+  if (typeof window === 'undefined') return;
+  let utm: Record<string, string> = {};
+  try { utm = readUrlUtm(); } catch { return; }
+  if (Object.keys(utm).length > 0) memoryUtm = utm;
+  if (!hasAnalyticsConsent()) {
+    // 아직 동의가 없다 — 기기에는 아무것도 남기지 않는다. 이미 남아 있던 값도 지운다.
+    purgeStoredUtm();
+    return;
+  }
+  persistUtm(memoryUtm);
+}
+
+/** 동의 상태 변화 반영 — 수락하면 그때 저장하고, 거부·철회면 저장값을 지운다. */
+function applyConsentToUtm(state: ConsentState): void {
+  if (state === 'accepted') {
+    persistUtm(memoryUtm);
+    return;
+  }
+  memoryUtm = {};
+  purgeStoredUtm();
+}
+
+if (typeof window !== 'undefined') {
+  onConsentChange(applyConsentToUtm);
+}
+
 function getStoredUtm(): Record<string, string> {
   if (typeof window === 'undefined') return {};
+  // 전송 자체가 동의 상태에서만 일어나므로(canSendToGA), 여기서는 메모리 → 저장소 순으로 읽는다.
+  if (Object.keys(memoryUtm).length > 0) return memoryUtm;
   try { const raw = sessionStorage.getItem(UTM_STORE); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
 
@@ -231,6 +282,9 @@ function readStore(key: string): Record<string, string> | null {
  */
 export function getAttributionSnapshot(): { first?: Record<string, string>; last?: Record<string, string> } | null {
   if (typeof window === 'undefined') return null;
+  // 🔴 2026-07-30 (P1-2): 동의 없이는 **서버에도** 남기지 않는다. 이 값은 가입·예약·결제 문서에
+  //   영구 저장되므로, 저장소에 안 쓰는 것만으로는 부족하다.
+  if (!hasAnalyticsConsent()) return null;
   try {
     const first = readStore(UTM_FIRST_STORE);
     const last = readStore(UTM_LAST_STORE);

@@ -33,7 +33,12 @@ import {
   clearWizardSnapshot,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
-import { VEHICLE_TYPES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
+import { VEHICLE_TYPES } from '@/data/charterPricing';
+import { charterUsdFromKrw } from '@/lib/charterUsd';
+// 🔴 2026-07-30: 헤더 칩이 "12시간 전 마감" 이라고 적혀 있었다. 실제 정책은 전세차량 1시간·
+//   투어 8시간(api/_shared/booking-cutoff.js = lib/bookingCutoff)이라 화면만 거짓이었다.
+//   숫자는 정책 상수에서 파생한다 — 하드코딩 재발은 booking-cutoff-parity 테스트가 막는다.
+import { CHARTER_VEHICLE_CUTOFF_HOURS, getCutoffHours } from '@/lib/bookingCutoff';
 
 // localStorage 에 저장하는 charter wizard snapshot — state + manualKm + step.
 // state object 만 저장하면 manualKm (Geocoding fail 후 사용자 직접 km 입력) 가
@@ -370,7 +375,15 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   // 🔧 2026-07-18 재점검: USD 표시는 실제 청구 공식(고정환율 1400 + 정수 반올림 = createPaypalOrder
   //   usesFixedUsdRate)과 동일하게. 이전 formatPrice 는 표시환율(1430)이라 같은 화면의 Step6
   //   영수증·실청구 $ 와 ~2.1% 어긋났다. ja/zh 참고 환산은 유지(실 결제는 USD).
-  const stickyUsdFixed = stickyAmountKRW != null ? `$${Math.round(stickyAmountKRW / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}` : null;
+  const stickyUsdFixed = stickyAmountKRW != null ? `$${charterUsdFromKrw(stickyAmountKRW).toLocaleString('en-US')}` : null;
+  // 마감 칩 — 고른 상품의 실제 마감시간. 아직 상품이 안 정해졌으면 이 위저드의 기본군(전세차량)
+  //   값을 쓴다. 당일투어 **패키지**를 고르면 투어(8h)로 바뀐다.
+  const cutoffProductType = resolveProductType(state).productType;
+  const cutoffHours = cutoffProductType ? getCutoffHours(cutoffProductType) : CHARTER_VEHICLE_CUTOFF_HOURS;
+  const cutoffChipLabel = language === 'ko' ? `${cutoffHours}시간 전 마감`
+    : language === 'ja' ? `${cutoffHours}時間前締切`
+    : language === 'zh' ? `提前${cutoffHours}小时截止`
+    : `${cutoffHours}h cutoff`;
   const desktopAmount = stickyAmountKRW != null
     ? (language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language))
     : null;
@@ -388,7 +401,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               </div>
               <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/45 sm:flex">
                 <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#00D28C]" /> PayPal</span>
-                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> {language === 'ko' ? '12시간 전 마감' : language === 'ja' ? '12時間前締切' : language === 'zh' ? '提前12小时截止' : '12h cutoff'}</span>
+                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> {cutoffChipLabel}</span>
               </div>
             </div>
 

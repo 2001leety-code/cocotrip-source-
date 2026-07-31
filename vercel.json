@@ -162,6 +162,15 @@
           "value": "public, max-age=31536000, immutable"
         }
       ]
+    },
+    {
+      "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community)(/.*)?",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -170,6 +179,15 @@
       "source": "/blog-images/:year/:name",
       "destination": "/api/blog-image?year=:year&name=:name"
     },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/index.html" },
+    {
+      "source": "/(about|terms|privacy|travel-terms|tours|planner|charter|charter-new|charter-legacy|booking|map|assistant|cart|mypage)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(tours|region|s|my-plans|community|mood|admin|preview|dev)(/.*)?",
+      "destination": "/index.html"
+    },
+    { "source": "/((?!api/).*)", "destination": "/api/not-found" }
   ]
 }
