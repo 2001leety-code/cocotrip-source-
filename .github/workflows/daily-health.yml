@@ -79,6 +79,17 @@ jobs:
         run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
         continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
 
+      # ─── SPA 내부 이동(실 Link 클릭) 스모크 — 2026-08-01 ─────────────────────
+      # framer-motion/react-router 회귀로 라우트 전환이 죽어도 트래픽이 적어 아무도
+      # 신고하지 않는다 — 실 브라우저(rAF 살아있음)로 매일 실측. 검증 함정("숨은 탭은
+      # rAF 정지 → 전 라우트가 거짓 고장으로 보임")은 스펙 파일 상단 주석 참조.
+      - name: E2E PROD nav smoke (real Link clicks)
+        if: always()
+        env:
+          BASE_URL: https://cocotripkr.com
+        run: npx playwright test nav-link-transitions --project='Desktop Chrome' --reporter=list
+        continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
+
       # ─── MOOD 로그인-뒤(인증) 스모크 — allowlist 게이트 뒤 MOOD 흐름 검증 ─────────
       # #1046(AI 받아적기 예약)이 "검증 없이 머지"된 갭 차단. 실 Bearer 토큰으로
       # mood-data(잔액)·mood-places(주소록)·mood-parse-schedule(AI 파싱) 인증 호출.
