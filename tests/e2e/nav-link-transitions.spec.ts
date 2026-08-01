@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
 
 // SPA 내부 이동(실제 <Link> 클릭) 상시 감시 — daily-health 에서 운영 대상으로 돈다.
 //

@@ -1,7 +1,8 @@
 /**
  * /charter 첫 진입 마찰 회귀 (2026-08-01).
  *
- * 배경(실측): GA4 30일 `charter_quote_start` 14명 → `charter_quote_complete` 0명.
+ * 배경: ⚠️ 이 스펙을 만든 계기였던 "견적 시작 14명" 은 2026-08-02 확인 결과 주간 자동
+ * 테스트 오염분이었다(월요일마다 9세션 = 3언어×3기기). 팝업 겹침은 실제 결함이었다.
  * 첫 진입 화면을 열어보니 쿠키 배너(z-10001)가 인트로 모달(z-9999)의 기본 버튼을 덮고 있었고,
  * 견적을 보러 온 사람 앞에 설명창이 먼저 서 있었다. 그래서 **자동 노출을 없애고** 원하는
  * 사람만 여는 버튼으로 바꿨다.
@@ -21,33 +22,13 @@
  * 억지로 통과시키면 "전송된 척" 하는 가짜 증거가 된다. 동의 상태별 계측은 유닛 테스트
  * `tests/unit/charter-funnel-consent.test.ts` 가 검증한다.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
+import { type Page } from '@playwright/test';
 
 const INTRO_DIALOG = '[role="dialog"][aria-labelledby="charter-intro-title"]';
 const HOW_IT_WORKS = '[data-testid="charter-how-it-works"]';
 
 /** 분석 수집으로 나가는 호스트. */
-const ANALYTICS_HOSTS = [
-  'googletagmanager.com',
-  'google-analytics.com',
-  'analytics.google.com',
-  'posthog.com',
-];
-
-const isAnalytics = (url: string) => ANALYTICS_HOSTS.some((h) => url.includes(h));
-
-/** 수집 요청을 navigation 전에 끊고, 빠져나간 것을 담을 배열을 돌려준다. */
-async function blockAnalytics(page: Page): Promise<string[]> {
-  const escaped: string[] = [];
-  // 🔴 `**/*` 로 전부 가로채면 dev 의 모듈 요청 수백 건까지 프록시를 타서 페이지가
-  // 뜨지 않는다(실측 — 쿠키 배너조차 20초 안에 안 나왔다). 수집 호스트만 겨냥한다.
-  for (const host of ANALYTICS_HOSTS) {
-    await page.route(`**${host}/**`, (route) => route.abort());
-  }
-  page.on('requestfinished', (r) => { if (isAnalytics(r.url())) escaped.push(r.url()); });
-  return escaped;
-}
-
 /** 쿠키 배너 버튼을 누르고 배너가 사라질 때까지 기다린다(상태 기반). */
 async function resolveConsent(page: Page, choice: 'Accept' | 'Dismiss') {
   const btn = page.locator('button').filter({ hasText: new RegExp(`^${choice}$`) }).first();
@@ -59,7 +40,6 @@ async function resolveConsent(page: Page, choice: 'Accept' | 'Dismiss') {
 test.describe('/charter 첫 진입', () => {
   for (const choice of ['Accept', 'Dismiss'] as const) {
     test(`신규 방문 + 쿠키 ${choice} → 인트로 모달이 자동으로 뜨지 않는다`, async ({ page }) => {
-      const escaped = await blockAnalytics(page);
       await page.goto('/charter');
 
       // 동의를 정하기 전 — 예전 구현이 자동으로 띄우던 첫 지점.
@@ -73,23 +53,19 @@ test.describe('/charter 첫 진입', () => {
       await expect(page.locator(HOW_IT_WORKS)).toBeVisible({ timeout: 20000 });
       await expect(page.locator(INTRO_DIALOG)).toHaveCount(0);
 
-      expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
     });
   }
 
   test('이미 수락해 둔 재방문에서도 자동으로 뜨지 않는다', async ({ page }) => {
-    const escaped = await blockAnalytics(page);
     await page.goto('/charter');
     await resolveConsent(page, 'Accept');
     await page.reload();
 
     await expect(page.locator(HOW_IT_WORKS)).toBeVisible({ timeout: 20000 });
     await expect(page.locator(INTRO_DIALOG)).toHaveCount(0);
-    expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
   });
 
   test('이용 방법 버튼으로 열고 닫을 수 있다 (닫아도 버튼은 남는다)', async ({ page }) => {
-    const escaped = await blockAnalytics(page);
     await page.goto('/charter');
     await resolveConsent(page, 'Dismiss');
 
@@ -103,7 +79,6 @@ test.describe('/charter 첫 진입', () => {
     // 닫은 뒤에도 다시 열 수 있어야 한다 — 트리거가 사라지면 영영 못 연다.
     await expect(trigger).toBeVisible();
 
-    expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
   });
 });
 
@@ -116,7 +91,6 @@ test.describe('/charter 첫 진입', () => {
 test.describe('모바일 안내창 가독성', () => {
   test('열린 다이얼로그의 제목이 셸 색상 덮어쓰기를 타지 않는다', async ({ page }) => {
     // 다른 검사와 같은 규칙 — 기본 baseURL 이 운영이라 차단기 없이 돌면 진단이 실제 지표에 섞인다.
-    const escaped = await blockAnalytics(page);
     await page.goto('/charter');
     await resolveConsent(page, 'Dismiss');
 
@@ -132,6 +106,5 @@ test.describe('모바일 안내창 가독성', () => {
     const color = await title.evaluate((el) => getComputedStyle(el).color);
     expect(color).not.toBe('rgb(21, 20, 61)');
 
-    expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
   });
 });

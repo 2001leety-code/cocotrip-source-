@@ -14,7 +14,7 @@
 // 실행: BASE_URL=https://cocotripkr.com npx playwright test full-plan-translation-pdf
 // 또는 daily-health workflow에 통합 (Mon/Wed/Fri).
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
 
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
 const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com'; // TEST_ACCOUNTS whitelist

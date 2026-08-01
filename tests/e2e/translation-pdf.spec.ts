@@ -8,7 +8,7 @@
  *   4. PDF 다운로드 버튼 클릭 시 파일 생성 확인
  *   5. 언어 선택이 네비게이션 간 유지되는지 확인
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
 import * as fs from 'fs';
 import * as path from 'path';
 

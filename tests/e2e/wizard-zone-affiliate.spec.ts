@@ -8,13 +8,21 @@
  * non-Korean visitors). Cookie banner is dismissed up front. We stop at
  * Step 3 (details) — no Gemini, no PayPal, no plan generation.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
+import { type Page } from '@playwright/test';
 
+/**
+ * 🔴 2026-08-02: 예전에는 `/^(Accept|Dismiss)$/` 의 **첫 매치**를 눌렀다. 배너는 Accept 를
+ *   먼저 그리므로 사실상 항상 "수락" 이었고, 기본 baseURL 이 운영이라 이 스펙을 그냥 돌리면
+ *   앱이 GA4·PostHog 를 켜서 테스트 방문이 운영 지표에 섞였다.
+ *   → 배너를 **닫기(Dismiss)** 로 명시한다. 전송 자체는 analytics-guard 가 이중으로 막지만,
+ *     무엇을 누르는지를 우연(DOM 순서)에 맡기지 않는다.
+ */
 async function dismissCookieBanner(page: Page) {
-  const accept = page.getByRole('button', { name: /^(Accept|Dismiss)$/ }).first();
-  if (await accept.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await accept.click();
-    await page.waitForTimeout(300);
+  const dismiss = page.getByRole('button', { name: /^Dismiss$/ }).first();
+  if (await dismiss.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await dismiss.click();
+    await expect(dismiss).toBeHidden({ timeout: 5000 });
   }
 }
 

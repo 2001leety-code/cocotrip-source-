@@ -46,7 +46,8 @@
  *     5. Better Stack (2025): SPA route transitions must wait for content element,
  *        not URL change — window.__pageReady custom flag pattern preferred.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '../e2e/fixtures/analytics-guard';
+import { type Page } from '@playwright/test';
 import { suppressCookieBanner } from './helpers';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────

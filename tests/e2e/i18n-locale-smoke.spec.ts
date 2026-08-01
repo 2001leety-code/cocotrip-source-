@@ -16,7 +16,7 @@
 // own 10s expect timeout, so it'll naturally wait for the body to be ready).
 // Side benefits: less flaky on cold-start previews, ~3-5s faster per test.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
 
 type Locale = 'ko' | 'ja' | 'zh';
 

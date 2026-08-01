@@ -15,7 +15,7 @@
  *
  * screenshot 위치: reports/p238-verification/
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
 import fs from 'fs';
 import path from 'path';
 
