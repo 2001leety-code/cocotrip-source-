@@ -76,7 +76,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "12.13.0",
     "firebase-admin": "^13.10.0",
-    "framer-motion": "^12.42.2",
+    "framer-motion": "^12.43.0",
     "googleapis": "^171.4.0",
     "html2pdf.js": "^0.14.0",
     "inngest": "4.13.0",
