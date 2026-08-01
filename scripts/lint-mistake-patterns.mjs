@@ -31,7 +31,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import ts from 'typescript';
 
 // ----------------------------------------------------------------------------
 // 인자 + 헬퍼
@@ -11174,51 +11173,51 @@ function P272_e2eAnalyticsGuardImport() {
 
   for (const rel of specFiles) {
     const src = readFileExists(rel) || '';
-    const sourceFile = ts.createSourceFile(rel, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const moduleLiteral = String.raw`['"]@playwright\/test['"]`;
 
-    for (const statement of sourceFile.statements) {
-      if (!ts.isImportDeclaration(statement)) continue;
-      if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-      if (statement.moduleSpecifier.text !== '@playwright/test') continue;
-
-      const importClause = statement.importClause;
-      if (!importClause) {
-        offenders.push(`${rel} — @playwright/test 부수효과 import`);
-        continue;
-      }
-      if (importClause.isTypeOnly) continue;
-
-      const runtimeBindings = [];
-      if (importClause.name) runtimeBindings.push(importClause.name.text);
-      if (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)) {
-        runtimeBindings.push(`* as ${importClause.namedBindings.name.text}`);
-      }
-      if (importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
-        runtimeBindings.push(
-          ...importClause.namedBindings.elements
-            .filter((element) => !element.isTypeOnly)
-            .map((element) => element.name.text),
-        );
-      }
+    const namedImport = new RegExp(
+      String.raw`^\s*import\s+\{([^}]*)\}\s+from\s+${moduleLiteral}`,
+      'gm',
+    );
+    let namedMatch;
+    while ((namedMatch = namedImport.exec(src)) !== null) {
+      const runtimeBindings = namedMatch[1]
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value && !value.startsWith('type '));
       if (runtimeBindings.length > 0) {
         offenders.push(`${rel} — @playwright/test 런타임 직접 import: ${runtimeBindings.join(', ')}`);
       }
     }
 
-    /** 동적 import 또는 require 로 안전장치를 우회하는 호출을 찾는다. */
-    function visitRuntimeImport(node) {
-      if (ts.isCallExpression(node) && node.arguments.length > 0) {
-        const first = node.arguments[0];
-        const isPlaywrightModule = ts.isStringLiteral(first) && first.text === '@playwright/test';
-        const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
-        const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
-        if (isPlaywrightModule && (isDynamicImport || isRequire)) {
-          offenders.push(`${rel} — @playwright/test 동적 import 또는 require`);
-        }
+    const defaultOrNamespaceImports = [
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)([\w$]+)\s*,\s*\{[^}]*\}\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)(?:[\w$]+\s*,\s*)?\*\s+as\s+([\w$]+)\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)([\w$]+)\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+    ];
+    for (const importPattern of defaultOrNamespaceImports) {
+      let importMatch;
+      while ((importMatch = importPattern.exec(src)) !== null) {
+        offenders.push(`${rel} — @playwright/test 런타임 직접 import: ${importMatch[1]}`);
       }
-      ts.forEachChild(node, visitRuntimeImport);
     }
-    visitRuntimeImport(sourceFile);
+
+    const sideEffectImport = new RegExp(String.raw`^\s*import\s*${moduleLiteral}`, 'gm');
+    if (sideEffectImport.test(src)) {
+      offenders.push(`${rel} — @playwright/test 부수효과 import`);
+    }
+    if (/import\s*\(\s*['"]@playwright\/test['"]\s*\)|require\s*\(\s*['"]@playwright\/test['"]\s*\)/.test(src)) {
+      offenders.push(`${rel} — @playwright/test 동적 import 또는 require`);
+    }
 
     if (!/from\s+['"][^'"]*fixtures\/analytics-guard(?:\.[cm]?[jt]sx?)?['"]/.test(src)) {
       offenders.push(`${rel} — analytics-guard 미사용`);
