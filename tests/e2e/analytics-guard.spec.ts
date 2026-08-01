@@ -19,28 +19,34 @@ const PH_CAPTURE = 'https://us.i.posthog.com/e/?ip=0';
 
 test.describe('분석 차단 안전장치', () => {
   test('수집 주소로 쏜 요청이 잡히고, 하나도 밖으로 못 나간다', async ({ page, analytics }) => {
-    await page.goto('/charter');
-
-    // 일부러 "수락" 을 누른다 — 스펙 작성자가 실수하는 상황을 그대로 재현한다.
-    const accept = page.getByRole('button', { name: /^Accept$/ }).first();
-    if (await accept.isVisible({ timeout: 20000 }).catch(() => false)) {
-      await accept.click();
-      await expect(accept).toBeHidden({ timeout: 10000 });
-    }
-
-    // 페이지 안에서 수집 주소로 직접 쏜다. 차단되면 fetch 가 거부된다.
-    const results = await page.evaluate(async (urls) => {
-      const out: string[] = [];
-      for (const u of urls) {
-        try {
-          await fetch(u, { mode: 'no-cors', cache: 'no-store' });
-          out.push('sent');            // 나갔다 = 차단 실패
-        } catch {
-          out.push('blocked');
-        }
-      }
-      return out;
-    }, [GA4_COLLECT, PH_CAPTURE]);
+    // 운영 페이지나 실제 측정 ID는 열지 않는다. 가짜 수락 버튼이 합성 요청만 만들게 해
+    // 차단기가 고장 나더라도 CocoTrip 지표 자체는 오염되지 않도록 한다.
+    await page.setContent(`
+      <button type="button">Accept</button>
+      <script>
+        window.__analyticsProbeResults = [];
+        document.querySelector('button').addEventListener('click', async () => {
+          for (const url of ${JSON.stringify([GA4_COLLECT, PH_CAPTURE])}) {
+            try {
+              await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+              window.__analyticsProbeResults.push('sent');
+            } catch {
+              window.__analyticsProbeResults.push('blocked');
+            }
+          }
+        });
+      </script>
+    `);
+    await page.getByRole('button', { name: 'Accept' }).click();
+    await expect.poll(
+      () => page.evaluate(
+        () => (window as typeof window & { __analyticsProbeResults: string[] }).__analyticsProbeResults,
+      ),
+      { timeout: 10000 },
+    ).toHaveLength(2);
+    const results = await page.evaluate(
+      () => (window as typeof window & { __analyticsProbeResults: string[] }).__analyticsProbeResults,
+    );
 
     expect(results, '수집 요청이 브라우저에서 차단되지 않았다').toEqual(['blocked', 'blocked']);
 
@@ -72,5 +78,7 @@ test.describe('분석 차단 안전장치', () => {
     expect(isAnalyticsUrl(GA4_COLLECT)).toBe(true);
     expect(isAnalyticsUrl(PH_CAPTURE)).toBe(true);
     expect(isAnalyticsUrl('https://cocotripkr.com/charter')).toBe(false);
+    expect(isAnalyticsUrl('https://cocotripkr.com/?next=https://google-analytics.com')).toBe(false);
+    expect(isAnalyticsUrl('https://notgoogle-analytics.com/collect')).toBe(false);
   });
 });

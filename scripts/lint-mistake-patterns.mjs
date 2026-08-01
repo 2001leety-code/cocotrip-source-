@@ -31,6 +31,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import ts from 'typescript';
 
 // ----------------------------------------------------------------------------
 // 인자 + 헬퍼
@@ -8168,6 +8169,62 @@ function runSelfTest() {
       },
       expectRule: 'P132_prDescriptionImpactSections',
     },
+    {
+      label: 'P272: 중첩 TSX 스펙의 Playwright 직접 import 차단',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/bypass.spec.tsx':
+          "import * as playwright from '@playwright/test';\nplaywright.test('bypass', async () => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
+    {
+      label: 'P272: 공용 가드 + Playwright 타입 전용 import 는 허용',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/safe.spec.tsx':
+          "import { type Page } from '@playwright/test';\nimport { test } from '../fixtures/analytics-guard';\ntest('safe', async ({ page }: { page: Page }) => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+      expectClean: true,
+    },
+    {
+      label: 'P272: 중첩 MTS 스펙의 동적 Playwright import 차단',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/dynamic-bypass.test.mts':
+          "const playwright = await import('@playwright/test');\nplaywright.test('bypass', async () => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
+    {
+      label: 'P272: global setup 의 첫 이동 전 분석 차단기 제거 감지',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/global-setup.ts': 'export default async function globalSetup() {}\n',
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
   ];
 
   let pass = 0;
@@ -11070,48 +11127,116 @@ function P243_zoneBlockStyleCoverage({ changed }) {
 
 function P272_e2eAnalyticsGuardImport() {
   const GUARD = 'tests/e2e/fixtures/analytics-guard.ts';
+  const NETWORK_GUARD = 'tests/e2e/fixtures/analytics-network-guard.ts';
+  const GLOBAL_SETUP = 'tests/global-setup.ts';
   if (!existsSync(GUARD)) {
-    return {
-      rule: 'P272_e2eAnalyticsGuardImport',
-      severity: 'error',
-      file: GUARD,
-      message:
-        'R-P272: 분석 차단 공용 픽스처가 사라졌다. 이게 없으면 자동 테스트 방문이 GA4·PostHog 로 ' +
-        '나가 운영 지표가 오염된다 (2026-08-02 실측: 8주 연속 월요일마다 9세션).',
-    };
+    fail(
+      'P272_e2eAnalyticsGuardImport',
+      `${GUARD}: 분석 차단 공용 픽스처가 사라졌다. 자동 테스트 방문이 GA4·PostHog 로 나가 운영 지표가 오염된다.`,
+      '2026-08-02 실측: 8주 연속 월요일마다 9세션. 공용 픽스처를 복원하세요.',
+    );
+    return null;
   }
 
   const offenders = [];
+
+  if (!existsSync(NETWORK_GUARD)) {
+    offenders.push(`${NETWORK_GUARD} — 브라우저 문맥 공용 차단기 없음`);
+  }
+
+  const globalSetup = readFileExists(GLOBAL_SETUP) || '';
+  const setupGuardAt = globalSetup.indexOf('await installAnalyticsGuard(');
+  const firstPageMoveAt = globalSetup.search(/\.goto\s*\(/);
+  if (
+    !/from\s+['"][^'"]*fixtures\/analytics-network-guard(?:\.[cm]?[jt]sx?)?['"]/.test(globalSetup) ||
+    setupGuardAt < 0 ||
+    (firstPageMoveAt >= 0 && setupGuardAt > firstPageMoveAt)
+  ) {
+    offenders.push(`${GLOBAL_SETUP} — 첫 페이지 이동 전 공용 분석 차단기 미설치`);
+  }
+
+  const specFiles = [];
   for (const dir of ['tests/e2e', 'tests/visual']) {
     if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
-      if (!name.endsWith('.spec.ts')) continue;
-      const rel = `${dir}/${name}`;
-      const src = readFileExists(rel) || '';
-      const re = /import\s*\{([^}]*)\}\s*from\s*['"]@playwright\/test['"]/g;
-      let m;
-      while ((m = re.exec(src)) !== null) {
-        const values = m[1].split(',').map((x) => x.trim())
-          .filter((n) => n && !n.startsWith('type '));
-        if (values.length > 0) offenders.push(`${rel} — @playwright/test 에서 직접: ${values.join(', ')}`);
-      }
-      if (!/from\s+['"][^'"]*fixtures\/analytics-guard['"]/.test(src)) {
-        offenders.push(`${rel} — analytics-guard 미사용`);
+    const pending = [dir];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        const rel = path.posix.join(current, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(rel);
+        } else if (/\.(?:spec|test)\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/.test(entry.name)) {
+          specFiles.push(rel);
+        }
       }
     }
   }
 
+  for (const rel of specFiles) {
+    const src = readFileExists(rel) || '';
+    const sourceFile = ts.createSourceFile(rel, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+    for (const statement of sourceFile.statements) {
+      if (!ts.isImportDeclaration(statement)) continue;
+      if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (statement.moduleSpecifier.text !== '@playwright/test') continue;
+
+      const importClause = statement.importClause;
+      if (!importClause) {
+        offenders.push(`${rel} — @playwright/test 부수효과 import`);
+        continue;
+      }
+      if (importClause.isTypeOnly) continue;
+
+      const runtimeBindings = [];
+      if (importClause.name) runtimeBindings.push(importClause.name.text);
+      if (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)) {
+        runtimeBindings.push(`* as ${importClause.namedBindings.name.text}`);
+      }
+      if (importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+        runtimeBindings.push(
+          ...importClause.namedBindings.elements
+            .filter((element) => !element.isTypeOnly)
+            .map((element) => element.name.text),
+        );
+      }
+      if (runtimeBindings.length > 0) {
+        offenders.push(`${rel} — @playwright/test 런타임 직접 import: ${runtimeBindings.join(', ')}`);
+      }
+    }
+
+    /** 동적 import 또는 require 로 안전장치를 우회하는 호출을 찾는다. */
+    function visitRuntimeImport(node) {
+      if (ts.isCallExpression(node) && node.arguments.length > 0) {
+        const first = node.arguments[0];
+        const isPlaywrightModule = ts.isStringLiteral(first) && first.text === '@playwright/test';
+        const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+        const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+        if (isPlaywrightModule && (isDynamicImport || isRequire)) {
+          offenders.push(`${rel} — @playwright/test 동적 import 또는 require`);
+        }
+      }
+      ts.forEachChild(node, visitRuntimeImport);
+    }
+    visitRuntimeImport(sourceFile);
+
+    if (!/from\s+['"][^'"]*fixtures\/analytics-guard(?:\.[cm]?[jt]sx?)?['"]/.test(src)) {
+      offenders.push(`${rel} — analytics-guard 미사용`);
+    }
+  }
+
   if (offenders.length === 0) return null;
-  return {
-    rule: 'P272_e2eAnalyticsGuardImport',
-    severity: 'error',
-    file: 'tests/e2e, tests/visual',
-    message:
+  fail(
+    'P272_e2eAnalyticsGuardImport',
+    (
       'R-P272: e2e/visual 스펙은 `tests/e2e/fixtures/analytics-guard` 의 test/expect 를 써야 한다. ' +
       '`@playwright/test` 에서 직접 가져오면 분석 차단 픽스처를 우회해, 테스트 방문이 실제 GA4·PostHog 로 ' +
       '나가고 운영 지표가 오염된다 (2026-08-02 실측). 타입만 가져오는 것은 허용. ' +
-      '발견:\n  - ' + offenders.join('\n  - '),
-  };
+      '발견:\n  - ' + offenders.join('\n  - ')
+    ),
+    '직접 import 를 공용 analytics-guard import 로 바꾸고 global setup 에도 네트워크 차단기를 설치하세요.',
+  );
+  return null;
 }
 
 // ----------------------------------------------------------------------------

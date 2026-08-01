@@ -21,66 +21,15 @@
  *   import { test, expect } from './fixtures/analytics-guard';
  * 이 규칙은 `scripts/lint-mistake-patterns.mjs` 가 강제한다(CI 의 mistake-lint).
  */
-import { test as base, expect, type BrowserContext, type Request } from '@playwright/test';
+import { test as base, expect, type BrowserContext } from '@playwright/test';
+import {
+  assertNoAnalyticsEscaped,
+  installAnalyticsGuard,
+  type AnalyticsTraffic,
+} from './analytics-network-guard';
 
-/**
- * 고객 행동을 수집하는 외부 호스트. 부분 문자열로 비교한다
- * (`region1.google-analytics.com`·`us.i.posthog.com` 같은 변종까지 함께 걸리도록).
- */
-export const ANALYTICS_HOSTS: readonly string[] = [
-  'googletagmanager.com',
-  'google-analytics.com',
-  'analytics.google.com',
-  'googleadservices.com',
-  'doubleclick.net',
-  'posthog.com',
-];
-
-export function isAnalyticsUrl(url: string): boolean {
-  return ANALYTICS_HOSTS.some((h) => url.includes(h));
-}
-
-/** 이번 테스트에서 가로챈/빠져나간 분석 요청. 분석 동작을 검증하는 테스트가 읽는다. */
-export type AnalyticsTraffic = {
-  /** 우리가 막은 요청들(= 앱이 보내려 했던 것). 계측 동작 검증은 이걸로 한다. */
-  blocked: Request[];
-  /** 밖으로 실제로 나간 요청. 항상 비어 있어야 한다. */
-  escaped: Request[];
-  /** 특정 이벤트 이름이 전송 시도됐는지 — GA4 는 쿼리스트링 `en=<event>` 에 담긴다. */
-  attempted(eventName: string): boolean;
-};
-
-async function installGuard(context: BrowserContext): Promise<AnalyticsTraffic> {
-  const blocked: Request[] = [];
-  const escaped: Request[] = [];
-
-  // 호스트별로 좁게 건다. `**/*` 로 전부 가로채면 dev 서버의 모듈 요청 수백 건까지
-  // 프록시를 타서 페이지가 아예 뜨지 않는다(실측).
-  for (const host of ANALYTICS_HOSTS) {
-    await context.route(`**${host}/**`, (route) => {
-      blocked.push(route.request());
-      return route.abort();
-    });
-  }
-
-  // 라우트에 안 걸린 분석 요청이 완료됐다면 그것이 곧 유출이다.
-  context.on('requestfinished', (req) => {
-    if (isAnalyticsUrl(req.url())) escaped.push(req);
-  });
-
-  return {
-    blocked,
-    escaped,
-    attempted(eventName: string) {
-      return blocked.some((r) => {
-        const url = r.url();
-        if (url.includes(`en=${eventName}`)) return true;      // GA4 수집 쿼리
-        const body = r.postData() || '';
-        return body.includes(`"${eventName}"`) || body.includes(`en=${eventName}`);
-      });
-    },
-  };
-}
+export { ANALYTICS_HOSTS, isAnalyticsUrl } from './analytics-network-guard';
+export type { AnalyticsTraffic } from './analytics-network-guard';
 
 /** context ↔ 이번 테스트의 분석 트래픽. `analytics` 픽스처가 같은 것을 집어오게 한다. */
 const trafficByContext = new WeakMap<BrowserContext, AnalyticsTraffic>();
@@ -90,16 +39,11 @@ export const test = base.extend<{ analytics: AnalyticsTraffic }>({
   // 같은 컨텍스트의 새 탭·팝업까지 함께 덮인다.
   // 인자 이름을 use 로 두면 eslint 의 react-hooks 규칙이 React 훅 호출로 오인한다.
   context: async ({ context }, provide) => {
-    const traffic = await installGuard(context);
+    const traffic = await installAnalyticsGuard(context);
     trafficByContext.set(context, traffic);
     await provide(context);
     trafficByContext.delete(context);
-    if (traffic.escaped.length > 0) {
-      const urls = traffic.escaped.map((r) => r.url()).slice(0, 5).join('\n  ');
-      throw new Error(
-        `분석 요청이 외부로 나갔다 (${traffic.escaped.length}건). 운영 지표가 오염된다:\n  ${urls}`,
-      );
-    }
+    assertNoAnalyticsEscaped(traffic);
   },
 
   analytics: async ({ context }, provide) => {
