@@ -48,4 +48,21 @@ test.describe('SPA Link navigation', () => {
     // 작성 페이지는 로그인 여부와 무관하게 h1(composeTitle)을 항상 그린다
     await expect(page.locator('h1').filter({ hasText: 'Share with the community' })).toBeVisible({ timeout: 8000 });
   });
+
+  // 구조화 데이터는 라우트를 떠나면 사라져야 한다 (2026-08-01, 유입 묶음 D).
+  // 남으면 다음 페이지의 스키마로 읽혀 "가이드 글이 아닌 페이지에 Article" 같은
+  // 거짓 마크업이 구글에 간다. SPA 이동이라 실 브라우저에서만 검증된다.
+  test('가이드 상세를 떠나면 Article JSON-LD 가 사라진다', async ({ page }) => {
+    await page.goto('/guide');
+    const card = page.locator('a[href^="/guide/"]').first();
+    await card.waitFor({ timeout: 10000 });
+    await card.click();
+    await expect(page.locator('script#guide-article')).toHaveCount(1, { timeout: 8000 });
+
+    await page.locator('a[href="/guide"]').first().click();
+    await expect(page).toHaveURL(/\/guide$/);
+    await expect(page.locator('script#guide-article')).toHaveCount(0, { timeout: 8000 });
+    // 목록에도 빵부스러기는 남아 있어야 한다(그 페이지 자신의 것).
+    await expect(page.locator('script#guide-breadcrumb')).toHaveCount(1);
+  });
 });
