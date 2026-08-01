@@ -44,7 +44,9 @@ export function CharterIntroModal() {
   // i18n — charterPage 네임스페이스 (4개 언어 모두 키 존재)
   const c = ((t as unknown) as { charterPage?: Record<string, string> }).charterPage ?? {};
   // 버튼 라벨은 모달 제목을 그대로 쓴다 — 4개 언어가 이미 있어 새 번역 키를 만들지 않는다.
-  const openLabel = c.charterIntroTitle ?? 'How charter booking works';
+  // `??` 가 아니라 `||` — 레포 규칙(AGENTS.md). 빈 문자열 번역이면 `??` 는 빈 라벨을 그대로 써서
+  // 이름 없는 아이콘 버튼이 된다.
+  const openLabel = c.charterIntroTitle || 'How charter booking works';
 
   function handleClose() {
     setOpen(false);
