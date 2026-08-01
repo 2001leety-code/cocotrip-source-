@@ -7,7 +7,12 @@
 
 Prices, cancellation terms and vehicle capacity change over time. Read them from the
 linked pages rather than caching them — every quote on the site is generated from the
-current pricing source, and the price shown before payment is the price charged.
+current pricing source. For fixed-price products (airport transfers and other flat-rate
+zones), the price shown before payment is the price charged, with nothing added
+afterwards. Custom charter estimates outside the flat-rate zones are estimates: if the
+actual distance or duration differs from the estimate by more than ±10%, the difference
+is settled after the trip as an additional charge or a partial refund — customers agree
+to this on the payment screen before checkout.
 
 ## Plan a trip
 
