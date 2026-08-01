@@ -106,3 +106,31 @@ test.describe('/charter 첫 진입', () => {
     expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
   });
 });
+
+/**
+ * 모바일 밝은 셸(`.cocotrip-mobile-charter`)은 index.css 가 그 안의 `text-white*` 를
+ * 짙은 남색으로 `!important` 덮어쓴다. 다이얼로그는 배경이 짙은 남색이라 셸 안에 있으면
+ * 글자가 배경과 같은 색이 되어 사실상 안 보인다 — 그래서 body 로 포털한다.
+ * 문자열이 아니라 **계산된 색**으로 확인한다.
+ */
+test.describe('모바일 안내창 가독성', () => {
+  test('열린 다이얼로그의 제목이 셸 색상 덮어쓰기를 타지 않는다', async ({ page }) => {
+    await page.goto('/charter');
+    const accept = page.locator('button').filter({ hasText: /^Accept$/ }).first();
+    await accept.waitFor({ state: 'visible', timeout: 20000 });
+    await accept.click();
+    await expect(accept).toBeHidden({ timeout: 10000 });
+
+    await page.locator('[data-testid="charter-how-it-works"]').click();
+    const title = page.locator('#charter-intro-title');
+    await expect(title).toBeVisible({ timeout: 10000 });
+
+    // 셸 밖(body 직속)에 있어야 한다.
+    const inShell = await title.evaluate((el) => !!el.closest('.cocotrip-mobile-charter'));
+    expect(inShell, '다이얼로그가 모바일 셸 안에 있으면 글자색이 덮어써진다').toBe(false);
+
+    // 덮어쓰기 색(#15143d = rgb(21,20,61))이 아니어야 한다.
+    const color = await title.evaluate((el) => getComputedStyle(el).color);
+    expect(color).not.toBe('rgb(21, 20, 61)');
+  });
+});

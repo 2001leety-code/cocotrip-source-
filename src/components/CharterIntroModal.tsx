@@ -27,6 +27,7 @@
  * 디자인은 OnboardingCouponModal / AIIntroModal 과 일관 유지.
  */
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Car, MapPin, Clock, MessageCircle, AlertTriangle, X, HelpCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { CHARTER_VEHICLE_CUTOFF_HOURS } from '@/lib/bookingCutoff';
@@ -65,9 +66,19 @@ export function CharterIntroModal() {
   if (!open) return trigger;
 
   // 열려 있는 동안에도 트리거는 DOM 에 남긴다 — 닫은 뒤 버튼이 사라지면 다시 열 수 없다.
+  //
+  // 🔴 다이얼로그는 **document.body 로 포털**한다 (2026-08-02 리뷰 지적).
+  //   모바일 차터 화면은 밝은 셸(`.cocotrip-mobile-charter`)이고, index.css 가 그 안의
+  //   `[class*="text-white"]` 을 전부 짙은 남색으로 `!important` 덮어쓴다. 이 다이얼로그는
+  //   배경이 짙은 남색이라 셸 안에 있으면 제목·본문·닫기 버튼이 배경과 같은 색이 되어
+  //   사실상 보이지 않는다. 예전엔 자동 노출이 데스크탑 전용이라 드러나지 않던 문제인데,
+  //   버튼으로 모바일에서도 열 수 있게 되면서 실제로 닿는 경로가 생겼다.
+  //   포털로 셸 밖에 두면 색상 덮어쓰기 대상에서 벗어난다(레포의 MoodGuideModal 과 같은 방식).
+  //   트리거 버튼은 셸 안에 그대로 둔다 — 밝은 배경에서 어두운 글자가 맞다.
   return (
     <>
       {trigger}
+      {createPortal(
       <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
@@ -198,7 +209,9 @@ export function CharterIntroModal() {
           </button>
         </div>
         </div>
-      </div>
+      </div>,
+      document.body,
+      )}
     </>
   );
 }
