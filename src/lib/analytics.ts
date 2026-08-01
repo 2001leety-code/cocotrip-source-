@@ -477,6 +477,19 @@ export function trackCharterQuoteStart() {
 export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }) {
   trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
 }
+/**
+ * 차터 위저드 단계 도달 (2026-08-01).
+ *
+ * 왜: GA4 30일 실측 = `charter_quote_start` 14명 → `charter_quote_complete` **0명**.
+ * 시작·완료 두 지점만 있어서 **1~5단계 중 어디서 전원이 떠나는지 볼 수 없었다**.
+ * 단계별 이벤트가 있어야 다음 방문자들이 데이터가 된다(추측으로 고치면 엉뚱한 데를 고친다).
+ * 단계당 1회만 — 뒤로 갔다 다시 와도 중복 발화하지 않는다(호출부 ref 로 관리).
+ * 속성은 `step` 하나. 허용목록(`analyticsProps`)이 기본 거부라 없는 키는 어차피 버려지고,
+ * "어디서 떠나나" 에 답하는 데는 단계 번호면 충분하다.
+ */
+export function trackCharterStep(step: number) {
+  trackFunnel('charter_step', { step });
+}
 
 // ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──
 // 이전 구현은 API 가 streaming 을 수락한 시점(usePlannerHandlers navigate 직전)에 발화

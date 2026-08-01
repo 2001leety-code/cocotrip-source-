@@ -13,7 +13,7 @@ import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
-import { trackCharterQuoteStart, trackCharterQuoteComplete } from '@/lib/analytics';
+import { trackCharterQuoteStart, trackCharterQuoteComplete, trackCharterStep } from '@/lib/analytics';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
@@ -208,6 +208,16 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     quoteCompleteTracked.current = true;
     trackCharterQuoteComplete({ vehicleType: state.vehicle || '' });
   }, [currentStep, quote, state.vehicle]);
+
+  // 2026-08-01: 단계별 도달 이벤트. GA4 30일 실측이 시작 14명·완료 0명이었는데,
+  //   두 지점만 있어서 1~5단계 중 어디서 전원이 떠나는지 볼 수 없었다.
+  //   단계당 최초 1회만(뒤로 갔다 와도 재발화 X) — 이탈 지점을 단조 퍼널로 읽기 위함.
+  const stepsSeen = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (stepsSeen.current.has(currentStep)) return;
+    stepsSeen.current.add(currentStep);
+    trackCharterStep(currentStep);
+  }, [currentStep]);
 
   // 2026-06-11 가입 프로필 prefill — customerName/customerPhone 빈 필드만 (메신저는 프로필 미수집 → 무변경).
   // resume 결정 전(resumeOpen)엔 주입 안 함(snapshot 복원 충돌 방지) + 마운트당 1회 + fill-only-empty(사용자/snapshot 안 덮음).

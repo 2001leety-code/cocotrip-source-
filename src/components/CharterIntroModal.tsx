@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react';
 import { Car, MapPin, Clock, MessageCircle, AlertTriangle, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { CHARTER_VEHICLE_CUTOFF_HOURS } from '@/lib/bookingCutoff';
+import { readConsent, onConsentChange, type ConsentState } from '@/lib/consent';
 
 const STORAGE_KEY = 'COCO_CHARTER_INTRO_SEEN_v1';
 
@@ -36,15 +37,24 @@ export function CharterIntroModal() {
   const c = ((t as unknown) as { charterPage?: Record<string, string> }).charterPage ?? {};
 
   // 마운트 시 1회 flag 체크 — 없으면 노출
+  //
+  // 🔴 2026-08-01 실측: 첫 방문자는 쿠키 동의 배너(z-10001)와 이 모달(z-9999)을 **동시에** 받았고,
+  //   배너가 화면 하단에 깔리면서 이 모달의 기본 버튼("확인했어요")을 덮었다. 자동화가 180초 동안
+  //   견적 입력칸을 못 눌렀을 만큼 겹침이 심했다. 그래서 **동의를 정한 뒤에만** 자동 노출한다.
+  //   (같은 이유로 이미 모바일은 자동 노출을 껐다 — 강제 모달은 전환을 깎는다.)
   useEffect(() => {
     try {
-      const seen = localStorage.getItem(STORAGE_KEY);
-      if (!seen) {
-        // 모바일(광고 유입 다수)은 첫 진입 강제 모달이 전환 방해 → 데스크탑만 자동 노출.
-        const timer = window.setTimeout(() => { if (window.innerWidth >= 768) setOpen(true); }, 350);
-        return () => window.clearTimeout(timer);
-      }
-    } catch { /* SSR / private mode */ }
+      if (localStorage.getItem(STORAGE_KEY)) return;
+    } catch { return; /* SSR / private mode */ }
+
+    let timer = 0;
+    const armIfConsentResolved = (state: ConsentState) => {
+      if (state === 'unset' || timer) return;
+      timer = window.setTimeout(() => { if (window.innerWidth >= 768) setOpen(true); }, 350);
+    };
+    armIfConsentResolved(readConsent());
+    const off = onConsentChange(armIfConsentResolved);
+    return () => { off(); if (timer) window.clearTimeout(timer); };
   }, []);
 
   function persistSeen() {

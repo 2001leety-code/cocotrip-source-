@@ -185,6 +185,9 @@ export type PostHogEventName =
   | 'planner_complete'
   | 'free_plan_redeemed'
   | 'charter_quote_start'
+  // 2026-08-01: 위저드 단계 도달(step 1~6). 시작·완료만 있던 탓에 "시작 14명·완료 0명"
+  // 에서 어느 단계가 사람을 떨구는지 볼 수 없었다. 속성은 step 하나.
+  | 'charter_step'
   | 'charter_quote_complete'
   // 제휴 링크 퍼널 (2026-07-30). 그동안 ad_impression/ad_click 은 GA4 로만 갔고
   // PostHog 에는 없어서 관리자 퍼널에서 제휴 구간이 통째로 비어 있었다.
