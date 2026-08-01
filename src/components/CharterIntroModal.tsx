@@ -1,9 +1,9 @@
 /**
- * CharterIntroModal — 차터 페이지 첫 진입 시 1회 노출되는 사용 흐름 + 마감 안내 모달.
+ * CharterIntroModal — 전세차량 이용 방법 안내. **사용자가 눌러야만 열린다.**
  *
- * 트리거: localStorage `COCO_CHARTER_INTRO_SEEN_v1` 미존재 시 페이지 마운트 직후 자동 노출
- * 위치:   CharterNewPage / CharterPage 에 마운트
- * 닫기:   "확인했어요" 버튼, 배경 클릭, X 버튼 → 항상 flag 저장 (1회 노출 정책)
+ * 트리거: 히어로 영역의 "이용 방법" 버튼(이 파일이 함께 렌더). 자동 노출 없음.
+ * 위치:   CharterNewPage / CharterPage 히어로
+ * 닫기:   "확인했어요" 버튼, 배경 클릭, X 버튼
  *
  * 안내 항목:
  *   - 차터 예약 6단계 흐름 요약
@@ -14,15 +14,22 @@
  *   1시간(투어 8시간)이라, 실은 예약할 수 있는 손님에게 "이미 마감" 이라고 말하는 과소약속이었다.
  *   → 번역 문구를 `{h}` 자리표시자로 바꾸고 숫자는 `lib/bookingCutoff` 상수에서 넣는다.
  *
+ * 🔴 2026-08-01: **첫 진입 자동 노출을 없앴다.**
+ *   실측 — 신규 방문자는 쿠키 동의 배너(z-10001)와 이 모달(z-9999)을 동시에 받았고, 배너가
+ *   모달의 기본 버튼을 덮어 자동화가 180초 동안 견적 입력칸을 누르지 못했다. 겹침을 피하려고
+ *   "동의 후 노출" 로 미루면 마찰이 쿠키 → 모달 → 위저드로 그대로 남는다.
+ *   GA4 30일 실측이 견적 시작 14명 · 완료 0명이었던 페이지다. 견적을 보러 온 사람 앞에
+ *   설명창을 세우지 않는다 — 필요한 사람만 버튼으로 연다.
+ *   (모바일 자동 노출은 "강제 모달이 전환 방해" 라는 이유로 이미 꺼져 있었다. 같은 판단을
+ *    데스크탑에도 적용한 것.)
+ *   자동 노출이 없으므로 "1회만 보여주기" 저장키(`COCO_CHARTER_INTRO_SEEN_v1`)도 제거했다.
+ *
  * 디자인은 OnboardingCouponModal / AIIntroModal 과 일관 유지.
  */
-import { useState, useEffect } from 'react';
-import { Car, MapPin, Clock, MessageCircle, AlertTriangle, X } from 'lucide-react';
+import { useState } from 'react';
+import { Car, MapPin, Clock, MessageCircle, AlertTriangle, X, HelpCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { CHARTER_VEHICLE_CUTOFF_HOURS } from '@/lib/bookingCutoff';
-import { readConsent, onConsentChange, type ConsentState } from '@/lib/consent';
-
-const STORAGE_KEY = 'COCO_CHARTER_INTRO_SEEN_v1';
 
 /** 번역 문구의 `{h}` 를 실제 마감 시간으로 채운다. 키가 없으면 영어 기본문에도 같은 규칙 적용. */
 function withCutoffHours(text: string): string {
@@ -35,43 +42,33 @@ export function CharterIntroModal() {
 
   // i18n — charterPage 네임스페이스 (4개 언어 모두 키 존재)
   const c = ((t as unknown) as { charterPage?: Record<string, string> }).charterPage ?? {};
-
-  // 마운트 시 1회 flag 체크 — 없으면 노출
-  //
-  // 🔴 2026-08-01 실측: 첫 방문자는 쿠키 동의 배너(z-10001)와 이 모달(z-9999)을 **동시에** 받았고,
-  //   배너가 화면 하단에 깔리면서 이 모달의 기본 버튼("확인했어요")을 덮었다. 자동화가 180초 동안
-  //   견적 입력칸을 못 눌렀을 만큼 겹침이 심했다. 그래서 **동의를 정한 뒤에만** 자동 노출한다.
-  //   (같은 이유로 이미 모바일은 자동 노출을 껐다 — 강제 모달은 전환을 깎는다.)
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY)) return;
-    } catch { return; /* SSR / private mode */ }
-
-    let timer = 0;
-    const armIfConsentResolved = (state: ConsentState) => {
-      if (state === 'unset' || timer) return;
-      timer = window.setTimeout(() => { if (window.innerWidth >= 768) setOpen(true); }, 350);
-    };
-    armIfConsentResolved(readConsent());
-    const off = onConsentChange(armIfConsentResolved);
-    return () => { off(); if (timer) window.clearTimeout(timer); };
-  }, []);
-
-  function persistSeen() {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(Date.now()));
-    } catch { /* silent */ }
-  }
+  // 버튼 라벨은 모달 제목을 그대로 쓴다 — 4개 언어가 이미 있어 새 번역 키를 만들지 않는다.
+  const openLabel = c.charterIntroTitle ?? 'How charter booking works';
 
   function handleClose() {
-    persistSeen();
     setOpen(false);
   }
 
-  if (!open) return null;
+  // 트리거 — 화면을 막지 않는 인라인 버튼. 위저드는 뒤에서 그대로 조작 가능하다.
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      data-testid="charter-how-it-works"
+      className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs text-white/70 transition-colors hover:border-[#B668FC]/40 hover:text-white"
+    >
+      <HelpCircle size={14} className="shrink-0" />
+      {openLabel}
+    </button>
+  );
 
+  if (!open) return trigger;
+
+  // 열려 있는 동안에도 트리거는 DOM 에 남긴다 — 닫은 뒤 버튼이 사라지면 다시 열 수 없다.
   return (
-    <div
+    <>
+      {trigger}
+      <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
       onClick={handleClose}
@@ -200,7 +197,8 @@ export function CharterIntroModal() {
             {c.charterIntroClose ?? 'Got it'}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

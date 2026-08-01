@@ -78,6 +78,9 @@ export default function CharterNewPage() {
           <p className="text-xs text-white/50 sm:text-sm">
             {completedState ? i18n.heroSubtitlePayment : i18n.heroSubtitleWizard}
           </p>
+          {/* 이용 방법은 자동으로 띄우지 않고 원하는 사람만 연다 (2026-08-01, CharterIntroModal 주석 참조).
+              결제 단계(completedState)에서는 견적 안내가 의미 없으므로 숨긴다. */}
+          {!completedState && <div className="mt-3"><CharterIntroModal /></div>}
         </div>
       </section>
 
@@ -131,8 +134,6 @@ export default function CharterNewPage() {
       </main>
 
       <Footer t={t} />
-      {/* 첫 진입 시 1회 노출되는 차터 사용 흐름 + 12h 마감 안내 모달 */}
-      <CharterIntroModal />
     </div>
   );
 }

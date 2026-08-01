@@ -183,6 +183,8 @@ export default function CharterPage() {
             {c.heroTitle ?? '코코트립 전세차량 견적'}
           </h1>
           <p className="text-white/50 text-sm">{c.heroSubtitle ?? '공항 픽업 · 일일 투어 · K-pop 셔틀 · 단체 투어'}</p>
+          {/* 이용 방법은 자동으로 띄우지 않고 원하는 사람만 연다 (2026-08-01, CharterIntroModal 주석 참조). */}
+          <div className="mt-3"><CharterIntroModal /></div>
         </div>
       </section>
 
@@ -562,8 +564,6 @@ export default function CharterPage() {
       </main>
 
       {!isMobile && <Footer t={t} />}
-      {/* 첫 진입 시 1회 노출되는 차터 사용 흐름 + 12h 마감 안내 모달 */}
-      <CharterIntroModal />
     </div>
   );
 }

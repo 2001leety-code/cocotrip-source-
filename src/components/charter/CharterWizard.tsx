@@ -13,7 +13,7 @@ import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
-import { trackCharterQuoteStart, trackCharterQuoteComplete, trackCharterStep } from '@/lib/analytics';
+import { useCharterFunnelTracking } from './useCharterFunnelTracking';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
@@ -193,31 +193,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const { routeKm } = useCharterRouteKm(state);
   const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm, routeKm);
 
-  // P1 (2026-07-11): 차터 견적 퍼널 이벤트 — 시작(마운트 1회) / 완료(유효 견적으로 step6 도달 1회).
-  // GA4 광고 귀속용. analytics 실패는 위저드 흐름 무영향(trackEvent no-op 방어).
-  const quoteStartTracked = useRef(false);
-  const quoteCompleteTracked = useRef(false);
-  useEffect(() => {
-    if (quoteStartTracked.current) return;
-    quoteStartTracked.current = true;
-    trackCharterQuoteStart();
-  }, []);
-  useEffect(() => {
-    if (quoteCompleteTracked.current || currentStep < 6 || !quote) return;
-    if (!quote.needsCustomQuote && !(quote.subtotalKRW > 0)) return;
-    quoteCompleteTracked.current = true;
-    trackCharterQuoteComplete({ vehicleType: state.vehicle || '' });
-  }, [currentStep, quote, state.vehicle]);
-
-  // 2026-08-01: 단계별 도달 이벤트. GA4 30일 실측이 시작 14명·완료 0명이었는데,
-  //   두 지점만 있어서 1~5단계 중 어디서 전원이 떠나는지 볼 수 없었다.
-  //   단계당 최초 1회만(뒤로 갔다 와도 재발화 X) — 이탈 지점을 단조 퍼널로 읽기 위함.
-  const stepsSeen = useRef<Set<number>>(new Set());
-  useEffect(() => {
-    if (stepsSeen.current.has(currentStep)) return;
-    stepsSeen.current.add(currentStep);
-    trackCharterStep(currentStep);
-  }, [currentStep]);
+  // 차터 견적 퍼널 계측 — 동의 상태까지 다루므로 훅으로 분리했다(주석·규칙은 그 파일에).
+  useCharterFunnelTracking({
+    currentStep,
+    quoteReady:
+      currentStep >= 6 && !!quote && (quote.needsCustomQuote || quote.subtotalKRW > 0),
+    vehicleType: state.vehicle || '',
+  });
 
   // 2026-06-11 가입 프로필 prefill — customerName/customerPhone 빈 필드만 (메신저는 프로필 미수집 → 무변경).
   // resume 결정 전(resumeOpen)엔 주입 안 함(snapshot 복원 충돌 방지) + 마운트당 1회 + fill-only-empty(사용자/snapshot 안 덮음).
