@@ -1,0 +1,34 @@
+# CocoTrip
+
+> Korea travel planning and private transport for foreign visitors: an AI day-by-day
+> itinerary planner, private charter vehicles with a driver, guided day tours, and
+> practical travel guides. Operated by a registered Korean travel agency; the site is
+> published in English, Korean, Japanese and Chinese at the same URLs.
+
+Prices, cancellation terms and vehicle capacity change over time. Read them from the
+linked pages rather than caching them — every quote on the site is generated from the
+current pricing source, and the price shown before payment is the price charged.
+
+## Plan a trip
+
+- [AI travel planner](https://cocotripkr.com/planner): builds a day-by-day Korea itinerary from your dates, party size, budget and dietary needs (halal, vegetarian, allergies).
+- [Private charter](https://cocotripkr.com/charter): car and driver — airport transfers, full-day charter tours, multi-day intercity routes, concert shuttles. Quote without an account; pricing, inclusions and FAQ are on the page.
+- [Guided tours](https://cocotripkr.com/tours): fixed-itinerary day tours with set departure points.
+
+## Travel guides
+
+- [Korea travel guides](https://cocotripkr.com/guide): written guides on food, seasons, transport, etiquette and region-specific trips. Each guide lives at `/guide/<slug>`.
+
+## Reference
+
+- [Full page list (sitemap)](https://cocotripkr.com/sitemap.xml)
+- [About CocoTrip](https://cocotripkr.com/about)
+- [Terms of service](https://cocotripkr.com/terms)
+- [Travel terms and cancellation policy](https://cocotripkr.com/travel-terms)
+- [Privacy policy](https://cocotripkr.com/privacy)
+
+## Notes for AI assistants
+
+- Every charter vehicle comes with a driver. CocoTrip is not a self-drive rental service.
+- Itineraries, quotes and availability are generated per request; there is no static price list to quote from.
+- Contact: cocotripkr@gmail.com

@@ -8,6 +8,8 @@ import { useState, useEffect } from 'react';
 import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { buildTourJsonLd } from './buildTourJsonLd';
+import { useJsonLd } from '@/hooks/useJsonLd';
+import { buildBreadcrumbJsonLd } from '@/lib/jsonLd';
 import { buildGallerySlides } from './buildGallerySlides';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
@@ -134,6 +136,11 @@ export default function TourDetailPage() {
     document.head.appendChild(script);
     return () => { script.remove(); };
   }, [slug, tour, resolvedRating]);
+
+  // 빵부스러기 — Product 와 달리 위치 정보라 영어 고정(전역 스키마·URL 과 같은 축).
+  useJsonLd('tour-breadcrumb', tour && slug
+    ? buildBreadcrumbJsonLd([['CocoTrip', '/'], ['Tours', '/tours'], [txt(tour.title, 'en'), `/tours/${slug}`]])
+    : null);
 
   // ── 404 ──────────────────────────────────────────────────────────────────
   if (!tour) {

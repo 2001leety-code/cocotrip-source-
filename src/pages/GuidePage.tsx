@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CalendarDays } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { useJsonLd } from '@/hooks/useJsonLd';
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from '@/lib/jsonLd';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import type { Language } from '@/i18n';
@@ -46,6 +48,8 @@ export default function GuideIndexPage() {
   const { language } = useLanguage();
   const copy = COPY[language];
   usePageMeta({ title: copy.title, description: copy.subtitle, ogImage: '/hero-hanok-real.webp' });
+  // 빵부스러기 이름은 화면 h1 과 같은 문구(=현재 언어)를 쓴다 — 마크업과 보이는 것이 달라지면 안 된다.
+  useJsonLd('guide-breadcrumb', buildBreadcrumbJsonLd([['CocoTrip', '/'], [copy.title, '/guide']]));
   const guides = guidesIndex as GuideMeta[];
   return (
     <Shell>
@@ -93,6 +97,21 @@ export function GuideDetailPage() {
     description: doc ? doc.description : copy.subtitle,
     ogImage: firstImg || '/hero-hanok-real.webp',
   });
+  // 글이 로드된 뒤에만 Article 을 내보낸다 — 로딩 중 껍데기에 스키마를 붙이면
+  // 제목·날짜가 빈 Article 이 크롤러에 잡힌다.
+  useJsonLd('guide-article', doc && slug
+    ? buildArticleJsonLd({
+        path: `/guide/${slug}`,
+        title: doc.title,
+        description: doc.description,
+        published: doc.published,
+        updated: doc.updated,
+        image: firstImg,
+      })
+    : null);
+  useJsonLd('guide-breadcrumb', doc && slug
+    ? buildBreadcrumbJsonLd([['CocoTrip', '/'], [copy.title, '/guide'], [doc.title, `/guide/${slug}`]])
+    : null);
 
   return (
     <Shell>

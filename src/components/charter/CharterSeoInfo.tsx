@@ -24,6 +24,8 @@ import { CHARTER_VEHICLE_CUTOFF_HOURS, TOUR_CUTOFF_HOURS } from '@/lib/bookingCu
 //   차터 금액은 청구 공식과 같은 `charterUsd` 로만 만든다 (charter-usd-single-source.test.ts 가드).
 import { formatCharterKrwUsd } from '@/lib/charterUsd';
 import { ESTIMATE_RECONCILE_TOLERANCE_PCT } from '@/lib/estimateConsent';
+import { useJsonLd } from '@/hooks/useJsonLd';
+import { buildFaqJsonLd } from '@/lib/jsonLd';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -248,6 +250,15 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
 
   const footer = (t as unknown as { footer?: Record<string, string> }).footer;
 
+  // FAQ 마크업은 **아래 렌더가 쓰는 바로 그 배열**에서 만든다. 문구를 따로 적어두면
+  // 정책(취소시한·야간할증) 개정 때 화면과 구글이 다른 말을 하게 된다.
+  const faqEntries = c.faq({
+    charterCutoff: CHARTER_VEHICLE_CUTOFF_HOURS,
+    tourCutoff: TOUR_CUTOFF_HOURS,
+    nightPct,
+  });
+  useJsonLd('charter-faq', buildFaqJsonLd(faqEntries));
+
   return (
     <section className="charter-seo-info mt-12 border-t border-white/10 pt-8 text-white/75">
       <div className="space-y-8 text-[13px] leading-relaxed sm:text-sm">
@@ -288,11 +299,7 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
         <div>
           <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.faqTitle}</h2>
           <dl className="space-y-3">
-            {c.faq({
-              charterCutoff: CHARTER_VEHICLE_CUTOFF_HOURS,
-              tourCutoff: TOUR_CUTOFF_HOURS,
-              nightPct,
-            }).map(([q, a]) => (
+            {faqEntries.map(([q, a]) => (
               <div key={q}>
                 <dt className="font-semibold text-white/90">{q}</dt>
                 <dd className="mt-0.5">{a}</dd>
