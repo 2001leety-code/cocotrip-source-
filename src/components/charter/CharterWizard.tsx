@@ -199,6 +199,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     quoteReady:
       currentStep >= 6 && !!quote && (quote.needsCustomQuote || quote.subtotalKRW > 0),
     vehicleType: state.vehicle || '',
+    // 이어하기 모달이 떠 있는 동안은 currentStep 이 아직 1 이다(복원 전). 그대로 찍으면
+    // 5단계를 이어받은 세션에 1단계까지 함께 기록돼 이탈률이 부풀려진다.
+    paused: resumeOpen,
   });
 
   // 2026-06-11 가입 프로필 prefill — customerName/customerPhone 빈 필드만 (메신저는 프로필 미수집 → 무변경).

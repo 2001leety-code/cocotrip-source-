@@ -115,13 +115,12 @@ test.describe('/charter 첫 진입', () => {
  */
 test.describe('모바일 안내창 가독성', () => {
   test('열린 다이얼로그의 제목이 셸 색상 덮어쓰기를 타지 않는다', async ({ page }) => {
+    // 다른 검사와 같은 규칙 — 기본 baseURL 이 운영이라 차단기 없이 돌면 진단이 실제 지표에 섞인다.
+    const escaped = await blockAnalytics(page);
     await page.goto('/charter');
-    const accept = page.locator('button').filter({ hasText: /^Accept$/ }).first();
-    await accept.waitFor({ state: 'visible', timeout: 20000 });
-    await accept.click();
-    await expect(accept).toBeHidden({ timeout: 10000 });
+    await resolveConsent(page, 'Dismiss');
 
-    await page.locator('[data-testid="charter-how-it-works"]').click();
+    await page.locator(HOW_IT_WORKS).click();
     const title = page.locator('#charter-intro-title');
     await expect(title).toBeVisible({ timeout: 10000 });
 
@@ -132,5 +131,7 @@ test.describe('모바일 안내창 가독성', () => {
     // 덮어쓰기 색(#15143d = rgb(21,20,61))이 아니어야 한다.
     const color = await title.evaluate((el) => getComputedStyle(el).color);
     expect(color).not.toBe('rgb(21, 20, 61)');
+
+    expect(escaped, `분석 수집 요청이 빠져나감: ${escaped.join(', ')}`).toHaveLength(0);
   });
 });

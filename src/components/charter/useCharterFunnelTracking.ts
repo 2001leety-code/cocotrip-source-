@@ -25,13 +25,23 @@ export function useCharterFunnelTracking(params: {
   /** step 6 에서 유효한 견적이 나왔는가. 아직이면 완료 이벤트를 보내지 않는다. */
   quoteReady: boolean;
   vehicleType: string;
+  /**
+   * 이어하기(ResumeWizardModal) 결정을 기다리는 중인가.
+   *
+   * 🔴 2026-08-02 (리뷰 지적): 24시간 내 스냅샷이 있으면 위저드는 `currentStep` 을 1 로 둔 채
+   *   이어하기 모달을 먼저 띄운다. 그 1 을 그대로 기록하면, 5단계를 이어받은 세션에 1단계와
+   *   5단계가 **둘 다** 찍혀 단계별 이탈률이 부풀려진다(화면에는 1단계를 보여준 적도 없다).
+   *   그래서 결정이 끝날 때까지 보류하고, 복원된 단계부터 보낸다.
+   */
+  paused?: boolean;
 }): void {
-  const { currentStep, quoteReady, vehicleType } = params;
+  const { currentStep, quoteReady, vehicleType, paused = false } = params;
   const startSent = useRef(false);
   const stepsSent = useRef<Set<number>>(new Set());
   const completeSent = useRef(false);
 
   useEffect(() => {
+    if (paused) return;
     const flush = () => {
       if (!startSent.current && trackCharterQuoteStart()) startSent.current = true;
       if (!stepsSent.current.has(currentStep) && trackCharterStep(currentStep)) {
@@ -41,15 +51,15 @@ export function useCharterFunnelTracking(params: {
     flush();
     // 수락 전이라 버려졌다면 수락 시점에 한 번 더. (dismissed/revoked 는 그대로 둔다.)
     return onConsentChange((s) => { if (s === 'accepted') flush(); });
-  }, [currentStep]);
+  }, [currentStep, paused]);
 
   useEffect(() => {
-    if (!quoteReady) return;
+    if (paused || !quoteReady) return;
     const send = () => {
       if (completeSent.current) return;
       if (trackCharterQuoteComplete({ vehicleType })) completeSent.current = true;
     };
     send();
     return onConsentChange((s) => { if (s === 'accepted') send(); });
-  }, [quoteReady, vehicleType]);
+  }, [paused, quoteReady, vehicleType]);
 }

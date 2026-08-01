@@ -140,6 +140,52 @@ describe('이미 수락된 상태', () => {
   });
 });
 
+describe('이어하기(resume) 보류', () => {
+  it('이어하기 모달이 떠 있는 동안에는 아무것도 보내지 않는다', async () => {
+    const { setConsent, useCharterFunnelTracking } = await load();
+    setConsent('accepted');
+
+    renderHook(() => useCharterFunnelTracking({
+      currentStep: 1, quoteReady: false, vehicleType: '', paused: true,
+    }));
+
+    expect(eventsNamed('charter_quote_start')).toHaveLength(0);
+    expect(eventsNamed('charter_step')).toHaveLength(0);
+  });
+
+  it('이어받은 단계만 기록한다 — 가려져 있던 1단계는 찍히지 않는다', async () => {
+    const { setConsent, useCharterFunnelTracking } = await load();
+    setConsent('accepted');
+
+    // 스냅샷이 있으면 위저드는 currentStep=1 인 채 이어하기 모달을 먼저 띄운다.
+    const { rerender } = renderHook(
+      ({ step, paused }) => useCharterFunnelTracking({
+        currentStep: step, quoteReady: false, vehicleType: '', paused,
+      }),
+      { initialProps: { step: 1, paused: true } },
+    );
+    // "이어하기" 선택 → 5단계로 복원되며 보류 해제.
+    rerender({ step: 5, paused: false });
+
+    const steps = eventsNamed('charter_step').map((c) => c[2]?.step);
+    expect(steps, '1단계는 화면에 보여준 적이 없다').toEqual([5]);
+    expect(eventsNamed('charter_quote_start')).toHaveLength(1);
+  });
+
+  it('"새로 시작" 을 고르면 1단계부터 기록한다', async () => {
+    const { setConsent, useCharterFunnelTracking } = await load();
+    setConsent('accepted');
+    const { rerender } = renderHook(
+      ({ paused }) => useCharterFunnelTracking({
+        currentStep: 1, quoteReady: false, vehicleType: '', paused,
+      }),
+      { initialProps: { paused: true } },
+    );
+    rerender({ paused: false });
+    expect(eventsNamed('charter_step').map((c) => c[2]?.step)).toEqual([1]);
+  });
+});
+
 describe('견적 완료', () => {
   it('quoteReady 전에는 안 보내고, 준비되면 1회만 보낸다', async () => {
     const { setConsent, useCharterFunnelTracking } = await load();
