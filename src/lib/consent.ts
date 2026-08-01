@@ -108,9 +108,8 @@ export function onConsentChange(fn: (state: ConsentState) => void): () => void {
   };
   const otherTab = () => {
     // 다른 탭의 변경이 진실 — 메모리를 저장소 값으로 다시 맞춘다.
+    // 세대 증가는 여기서 하지 않는다. 아래 모듈 리스너가 storage 이벤트당 정확히 1회 올린다.
     memoryState = readStored();
-    // 다른 탭의 철회도 이 탭의 대기 중인 전송을 무효화해야 한다.
-    generation += 1;
     fn(memoryState);
   };
   window.addEventListener(CHANGE_EVENT, sameTab);
@@ -119,4 +118,23 @@ export function onConsentChange(fn: (state: ConsentState) => void): () => void {
     window.removeEventListener(CHANGE_EVENT, sameTab);
     window.removeEventListener('storage', otherTab);
   };
+}
+
+/**
+ * 🔴 다른 탭의 변경에 대한 **세대 증가는 모듈에서 딱 한 번** 한다 (2026-08-02 리뷰 지적).
+ *
+ * 예전에는 `onConsentChange` 가 등록하는 리스너마다 `generation += 1` 을 했다. 구독이 2개면
+ * storage 이벤트 하나에 세대가 2 올라간다. 그러면 **첫 구독이 시작시킨 전송이 두 번째 구독의
+ * 증가 때문에 폐기된다** — `track()` 은 await 전후의 세대를 비교하는데, 그 사이에 값이
+ * 또 바뀌어 버리기 때문이다(같은 컴포넌트가 구독 2개를 걸자 실제로 재현됐다: 다른 탭에서
+ * 수락 시 `charter_quote_complete` 만 남고 시작·단계 이벤트가 사라짐).
+ *
+ * 이 리스너는 consent 모듈 로드 시점에 등록되므로 어떤 구독자보다 먼저 실행된다 →
+ * 대기 중이던 전송을 무효화한다는 원래 목적은 그대로 지키면서, 증가는 이벤트당 1회가 된다.
+ */
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e instanceof StorageEvent && e.key && e.key !== STORAGE_KEY) return;
+    generation += 1;
+  });
 }

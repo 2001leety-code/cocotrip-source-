@@ -117,13 +117,20 @@ function gaUrlParams(): { page_location: string; page_referrer?: string } {
   return { page_location: safePageLocation(), ...(ref ? { page_referrer: ref } : {}) };
 }
 
-/** 모든 GA4 속성은 허용 목록 관문(analyticsProps)을 지난다 — 이벤트마다 따로 챙기지 않는다. */
-export function trackEvent(eventName: string, params?: GtagEvent) {
-  if (!canSendToGA()) return;
+/**
+ * 모든 GA4 속성은 허용 목록 관문(analyticsProps)을 지난다 — 이벤트마다 따로 챙기지 않는다.
+ *
+ * 반환값 = **실제로 gtag 에 넘겼는지**. 동의 미결정·거부, GA 키 없음, gtag 미로드면 false.
+ * "한 번만 보낸다" 를 관리하는 호출부는 이 값을 봐야 한다 — 버려진 호출을 보냈다고
+ * 표시해 두면 사용자가 나중에 동의해도 영영 재시도하지 않는다 (2026-08-01 리뷰 지적).
+ */
+export function trackEvent(eventName: string, params?: GtagEvent): boolean {
+  if (!canSendToGA()) return false;
   window.gtag!('event', eventName, {
     ...stripUnsafeProps({ ...getStoredUtm(), ...params }),
     ...gaUrlParams(),
   });
+  return true;
 }
 
 // ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
@@ -445,9 +452,18 @@ export function trackSignUp(method: string) {
 // 데이터 소스 결정(운영자 2026-07-11): GA4 = 광고 귀속(Google Ads import),
 // PostHog = 제품 퍼널 조회(admin-posthog-funnel 이 PostHog 를 읽음, autocapture:false
 // 라 수동 track 만 잡힘) → PII 없는 퍼널 이벤트는 두 곳에 이중 전송한다.
-function trackFunnel(eventName: PostHogEventName, params?: GtagEvent) {
-  trackEvent(eventName, params);                    // GA4 (광고 귀속)
-  try { void posthogTrack(eventName, params); } catch { /* 분석 실패 무해 */ } // PostHog (퍼널 조회)
+//
+// 반환값 = **이 호출로 어느 한 곳이라도 실제 전송을 시도했는지**. 동의가 없으면 두 경로 모두
+// 조용히 버리므로 false 다. "정확히 1회" 를 지켜야 하는 호출부는 이 값으로 완료 표시를 한다.
+function trackFunnel(eventName: PostHogEventName, params?: GtagEvent): boolean {
+  const gaSent = trackEvent(eventName, params);     // GA4 (광고 귀속)
+  // PostHog 는 내부에서도 동의를 다시 검사한다. 여기서 미리 보는 이유는 "보냈다" 를
+  // 호출부에 정확히 알려주기 위해서다(비동기라 결과를 기다릴 수 없다).
+  let phSent = false;
+  if (hasAnalyticsConsent()) {
+    try { void posthogTrack(eventName, params); phSent = true; } catch { /* 분석 실패 무해 */ }
+  }
+  return gaSent || phSent;
 }
 
 /** 프로모 배너 노출 (마운트 후 표시 시 1회). */
@@ -470,12 +486,28 @@ export function trackWelcomeCouponIssued(issuedCount: number) {
 export function trackWelcomeCouponModalView() {
   trackFunnel('welcome_coupon_modal_view', {});
 }
-/** 차터 견적 시작/완료. */
-export function trackCharterQuoteStart() {
-  trackFunnel('charter_quote_start', {});
+/** 차터 견적 시작/완료. 반환값 = 실제 전송 시도 여부(동의 없으면 false → 호출부가 재시도). */
+export function trackCharterQuoteStart(): boolean {
+  return trackFunnel('charter_quote_start', {});
 }
-export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }) {
-  trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
+export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }): boolean {
+  return trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
+}
+/**
+ * 차터 위저드 단계 도달 (2026-08-01).
+ *
+ * 왜: GA4 30일 실측 = `charter_quote_start` 14명 → `charter_quote_complete` **0명**.
+ * 시작·완료 두 지점만 있어서 **1~5단계 중 어디서 전원이 떠나는지 볼 수 없었다**.
+ * 단계별 이벤트가 있어야 다음 방문자들이 데이터가 된다(추측으로 고치면 엉뚱한 데를 고친다).
+ * 단계당 1회만 — 뒤로 갔다 다시 와도 중복 발화하지 않는다(호출부 ref 로 관리).
+ * 속성은 `step` 하나. 허용목록(`analyticsProps`)이 기본 거부라 없는 키는 어차피 버려지고,
+ * "어디서 떠나나" 에 답하는 데는 단계 번호면 충분하다.
+ *
+ * 반환값 = 실제 전송 시도 여부. 동의 미결정 상태의 호출은 버려지므로 false 를 돌려주고,
+ * 호출부는 수락 이후 다시 시도해야 한다.
+ */
+export function trackCharterStep(step: number): boolean {
+  return trackFunnel('charter_step', { step });
 }
 
 // ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──
