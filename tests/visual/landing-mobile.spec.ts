@@ -11,7 +11,7 @@
  *
  * 첫 baseline 생성: README.md "Baseline 생성" 섹션 참조 (Docker 명령).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../e2e/fixtures/analytics-guard';
 import { suppressCookieBanner, stubWeatherUnavailable } from './helpers';
 
 test.describe('Landing page — mobile visual regression', () => {

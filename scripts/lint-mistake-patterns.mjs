@@ -2955,6 +2955,7 @@ const RULES = [
   ['P248_haenyeoCityMismatchGuard', P248_haenyeoCityMismatchGuard],
   ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
   ['P243_zoneBlockStyleCoverage', P243_zoneBlockStyleCoverage],
+  ['P272_e2eAnalyticsGuardImport', P272_e2eAnalyticsGuardImport],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8167,6 +8168,62 @@ function runSelfTest() {
       },
       expectRule: 'P132_prDescriptionImpactSections',
     },
+    {
+      label: 'P272: 중첩 TSX 스펙의 Playwright 직접 import 차단',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/bypass.spec.tsx':
+          "import * as playwright from '@playwright/test';\nplaywright.test('bypass', async () => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
+    {
+      label: 'P272: 공용 가드 + Playwright 타입 전용 import 는 허용',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/safe.spec.tsx':
+          "import { type Page } from '@playwright/test';\nimport { test } from '../fixtures/analytics-guard';\ntest('safe', async ({ page }: { page: Page }) => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+      expectClean: true,
+    },
+    {
+      label: 'P272: 중첩 MTS 스펙의 동적 Playwright import 차단',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/e2e/nested/dynamic-bypass.test.mts':
+          "const playwright = await import('@playwright/test');\nplaywright.test('bypass', async () => {});\n",
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
+    {
+      label: 'P272: global setup 의 첫 이동 전 분석 차단기 제거 감지',
+      base: {
+        'tests/e2e/fixtures/analytics-guard.ts': 'export const test = {};\n',
+        'tests/e2e/fixtures/analytics-network-guard.ts': 'export function installAnalyticsGuard() {}\n',
+        'tests/global-setup.ts':
+          "import { installAnalyticsGuard } from './e2e/fixtures/analytics-network-guard';\nawait installAnalyticsGuard(context);\n",
+      },
+      head: {
+        'tests/global-setup.ts': 'export default async function globalSetup() {}\n',
+      },
+      expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
   ];
 
   let pass = 0;
@@ -11051,6 +11108,134 @@ function P243_zoneBlockStyleCoverage({ changed }) {
       'src/data/zone_courses/ 에 Kbeauty/DMZ/Jjimjilbang/HangangBike best_for 블록 시드 의무. ' +
       '발견: ' + issues.join(' | '),
   };
+}
+
+// ----------------------------------------------------------------------------
+// P272_e2eAnalyticsGuardImport — 테스트가 운영 분석 지표를 오염시키는 것 차단 (2026-08-02)
+//
+// 무슨 일이 있었나: GA4 에서 `/charter` 세션을 날짜·시각으로 쪼개 보니 **8주 연속 월요일마다
+//   정확히 9세션**(= 3개 언어 × 3개 기기)이 찍혀 있었다. `weekly-i18n-audit` 이 운영 사이트를
+//   도는 값이다. 그 숫자를 실제 고객으로 읽고 "견적 시작 14명" 이라는 결론을 냈다가 뒤집혔다.
+//   측정이 오염되면 그 위에 세운 판단이 통째로 틀어진다.
+//
+// 막는 방법: 모든 e2e/visual 스펙은 `tests/e2e/fixtures/analytics-guard` 의 test/expect 를 쓴다.
+//   그 픽스처가 context 단위로 수집 요청을 끊고, 빠져나간 요청이 있으면 테스트를 실패시킨다.
+//   `@playwright/test` 에서 test 를 직접 가져오면 안전장치를 통째로 우회하므로 금지한다.
+//   (타입만 가져오는 `import { type Page }` 는 허용 — 런타임 동작과 무관하다.)
+// ----------------------------------------------------------------------------
+
+function P272_e2eAnalyticsGuardImport() {
+  const GUARD = 'tests/e2e/fixtures/analytics-guard.ts';
+  const NETWORK_GUARD = 'tests/e2e/fixtures/analytics-network-guard.ts';
+  const GLOBAL_SETUP = 'tests/global-setup.ts';
+  if (!existsSync(GUARD)) {
+    fail(
+      'P272_e2eAnalyticsGuardImport',
+      `${GUARD}: 분석 차단 공용 픽스처가 사라졌다. 자동 테스트 방문이 GA4·PostHog 로 나가 운영 지표가 오염된다.`,
+      '2026-08-02 실측: 8주 연속 월요일마다 9세션. 공용 픽스처를 복원하세요.',
+    );
+    return null;
+  }
+
+  const offenders = [];
+
+  if (!existsSync(NETWORK_GUARD)) {
+    offenders.push(`${NETWORK_GUARD} — 브라우저 문맥 공용 차단기 없음`);
+  }
+
+  const globalSetup = readFileExists(GLOBAL_SETUP) || '';
+  const setupGuardAt = globalSetup.indexOf('await installAnalyticsGuard(');
+  const firstPageMoveAt = globalSetup.search(/\.goto\s*\(/);
+  if (
+    !/from\s+['"][^'"]*fixtures\/analytics-network-guard(?:\.[cm]?[jt]sx?)?['"]/.test(globalSetup) ||
+    setupGuardAt < 0 ||
+    (firstPageMoveAt >= 0 && setupGuardAt > firstPageMoveAt)
+  ) {
+    offenders.push(`${GLOBAL_SETUP} — 첫 페이지 이동 전 공용 분석 차단기 미설치`);
+  }
+
+  const specFiles = [];
+  for (const dir of ['tests/e2e', 'tests/visual']) {
+    if (!existsSync(dir)) continue;
+    const pending = [dir];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        const rel = path.posix.join(current, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(rel);
+        } else if (/\.(?:spec|test)\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/.test(entry.name)) {
+          specFiles.push(rel);
+        }
+      }
+    }
+  }
+
+  for (const rel of specFiles) {
+    const src = readFileExists(rel) || '';
+    const moduleLiteral = String.raw`['"]@playwright\/test['"]`;
+
+    const namedImport = new RegExp(
+      String.raw`^\s*import\s+\{([^}]*)\}\s+from\s+${moduleLiteral}`,
+      'gm',
+    );
+    let namedMatch;
+    while ((namedMatch = namedImport.exec(src)) !== null) {
+      const runtimeBindings = namedMatch[1]
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value && !value.startsWith('type '));
+      if (runtimeBindings.length > 0) {
+        offenders.push(`${rel} — @playwright/test 런타임 직접 import: ${runtimeBindings.join(', ')}`);
+      }
+    }
+
+    const defaultOrNamespaceImports = [
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)([\w$]+)\s*,\s*\{[^}]*\}\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)(?:[\w$]+\s*,\s*)?\*\s+as\s+([\w$]+)\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+      new RegExp(
+        String.raw`^\s*import\s+(?!type\b)([\w$]+)\s+from\s+${moduleLiteral}`,
+        'gm',
+      ),
+    ];
+    for (const importPattern of defaultOrNamespaceImports) {
+      let importMatch;
+      while ((importMatch = importPattern.exec(src)) !== null) {
+        offenders.push(`${rel} — @playwright/test 런타임 직접 import: ${importMatch[1]}`);
+      }
+    }
+
+    const sideEffectImport = new RegExp(String.raw`^\s*import\s*${moduleLiteral}`, 'gm');
+    if (sideEffectImport.test(src)) {
+      offenders.push(`${rel} — @playwright/test 부수효과 import`);
+    }
+    if (/import\s*\(\s*['"]@playwright\/test['"]\s*\)|require\s*\(\s*['"]@playwright\/test['"]\s*\)/.test(src)) {
+      offenders.push(`${rel} — @playwright/test 동적 import 또는 require`);
+    }
+
+    if (!/from\s+['"][^'"]*fixtures\/analytics-guard(?:\.[cm]?[jt]sx?)?['"]/.test(src)) {
+      offenders.push(`${rel} — analytics-guard 미사용`);
+    }
+  }
+
+  if (offenders.length === 0) return null;
+  fail(
+    'P272_e2eAnalyticsGuardImport',
+    (
+      'R-P272: e2e/visual 스펙은 `tests/e2e/fixtures/analytics-guard` 의 test/expect 를 써야 한다. ' +
+      '`@playwright/test` 에서 직접 가져오면 분석 차단 픽스처를 우회해, 테스트 방문이 실제 GA4·PostHog 로 ' +
+      '나가고 운영 지표가 오염된다 (2026-08-02 실측). 타입만 가져오는 것은 허용. ' +
+      '발견:\n  - ' + offenders.join('\n  - ')
+    ),
+    '직접 import 를 공용 analytics-guard import 로 바꾸고 global setup 에도 네트워크 차단기를 설치하세요.',
+  );
+  return null;
 }
 
 // ----------------------------------------------------------------------------

@@ -142,17 +142,19 @@ jobs:
             --project='iPhone 14 Pro'
 
       # /charter 첫 진입 마찰 (2026-08-01). 돈이 들어오는 페이지의 첫 화면이 팝업으로
-      # 덮여 있던 사고(견적 시작 14명 → 완료 0명)의 회귀 방지. 자동 모달 재도입,
+      # 덮여 있던 사고의 회귀 방지(당시 인용한 "14명" 수치는 자동 테스트 오염분으로 정정됨).
       # 오버레이가 견적 입력을 가리는 상황을 3개 뷰포트에서 잡는다.
-      # 스펙 자체가 GA4·PostHog 요청을 navigation 전에 차단하므로 preview 방문이
-      # 분석 지표를 오염시키지 않는다(스펙이 "빠져나간 요청 0" 까지 단언).
-      - name: Run charter entry friction against preview URL (3 viewports)
+      # 공용 픽스처(tests/e2e/fixtures/analytics-guard.ts)가 GA4·PostHog 요청을 context
+      # 단위로 끊고, 빠져나간 요청이 있으면 테스트를 실패시킨다 → 테스트 방문이 지표를 오염시키지 않는다.
+      # analytics-guard.spec.ts 는 그 차단기 자체가 살아 있는지 검사한다.
+      - name: Run analytics guard + charter entry friction against preview URL (3 viewports)
         if: github.event_name == 'deployment_status'
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           npx playwright test \
+            tests/e2e/analytics-guard.spec.ts \
             tests/e2e/charter-entry-friction.spec.ts \
             tests/e2e/charter-funnel-probe.spec.ts \
             --project='Desktop Chrome' \

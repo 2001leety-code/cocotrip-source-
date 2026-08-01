@@ -1,6 +1,10 @@
-import { chromium, type FullConfig } from '@playwright/test';
+import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import {
+  assertNoAnalyticsEscaped,
+  installAnalyticsGuard,
+} from './e2e/fixtures/analytics-network-guard';
 
 /**
  * Vercel Deployment Protection bypass — 쿠키 방식 (2026-06-28).
@@ -19,7 +23,7 @@ import { dirname } from 'node:path';
  */
 export const BYPASS_STATE_PATH = 'tests/.auth/vercel-bypass.json';
 
-export default async function globalSetup(_config: FullConfig) {
+export default async function globalSetup() {
   const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const baseURL = process.env.BASE_URL || 'https://cocotripkr.com';
   // secret 없으면 = prod(cocotripkr.com) 직접 대상, deployment protection 없음 →
@@ -31,10 +35,12 @@ export default async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext();
+    const analytics = await installAnalyticsGuard(ctx);
     const page = await ctx.newPage();
     const url = `${baseURL}/?x-vercel-protection-bypass=${encodeURIComponent(secret)}&x-vercel-set-bypass-cookie=true`;
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await ctx.storageState({ path: BYPASS_STATE_PATH });
+    assertNoAnalyticsEscaped(analytics);
   } finally {
     await browser.close();
   }

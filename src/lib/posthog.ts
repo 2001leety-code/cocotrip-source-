@@ -185,7 +185,8 @@ export type PostHogEventName =
   | 'planner_complete'
   | 'free_plan_redeemed'
   | 'charter_quote_start'
-  // 2026-08-01: 위저드 단계 도달(step 1~6). 시작·완료만 있던 탓에 "시작 14명·완료 0명"
+  // 2026-08-01: 위저드 단계 도달(step 1~6). 시작·완료 두 지점만 있던 탓에
+  // ⚠️ 2026-08-02 정정: 계기였던 "시작 14명" 은 주간 자동 테스트 오염분이다(analytics.ts 주석).
   // 에서 어느 단계가 사람을 떨구는지 볼 수 없었다. 속성은 step 하나.
   | 'charter_step'
   | 'charter_quote_complete'

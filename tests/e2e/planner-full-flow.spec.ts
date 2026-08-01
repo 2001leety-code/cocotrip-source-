@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
+import { type Page } from '@playwright/test';
 
 // ─── 공통 에러 캡처 ───────────────────────────────────────────
 const pageErrors: string[] = [];
