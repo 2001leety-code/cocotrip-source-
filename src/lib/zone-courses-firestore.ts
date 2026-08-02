@@ -18,7 +18,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   setDoc,
   deleteDoc,
   serverTimestamp,
@@ -105,9 +104,43 @@ export async function fetchPublishedZoneCourses(city: string): Promise<ZoneCours
   return snap.docs.map((d) => normalizeBlock(d.id, d.data()));
 }
 
-/** 목록 — city / source 필터 + updatedAt desc.
- *  Firestore 인덱스 없는 환경에서도 동작하도록 fallback 처리.
- *  ⚠️ 어드민 전용. 손님 화면은 위 `fetchPublishedZoneCourses` 를 쓸 것. */
+/**
+ * 문서를 "최근 순"으로 줄 세울 때 쓸 시각(ms). 없으면 0(맨 뒤).
+ *
+ * 필드가 하나로 통일돼 있지 않다: 운영자가 어드민에서 만든 문서는 `updatedAt`(Timestamp),
+ * 시드 스크립트가 넣은 문서는 `seeded_at`(ISO 문자열)만 가진다. 그래서 있는 것부터 차례로 쓴다.
+ */
+export function recencyMs(data: DocumentData): number {
+  // Timestamp/숫자 계열 먼저. `||` 로 이어 붙이지 않는 이유 = 0(1970년)도 형식상 유효한
+  // 값이라 건너뛰면 안 된다. nullish 연산자는 이 레포 규칙상 금지라 반복문으로 푼다.
+  for (const value of [data.updatedAt, data.publishedAt, data.createdAt]) {
+    const ms = tsToMs(value);
+    if (ms !== undefined) return ms;
+  }
+  // 시드 스크립트가 넣은 ISO 문자열 계열.
+  for (const key of ['seeded_at', 'verified_at', 'last_review_date']) {
+    const raw = data[key];
+    if (typeof raw !== 'string') continue;
+    const ms = Date.parse(raw);
+    if (!Number.isNaN(ms)) return ms;
+  }
+  return 0;
+}
+
+/**
+ * 어드민 목록 — city / source 필터 + 최근 순.
+ *
+ * 🔴 `orderBy('updatedAt','desc')` 를 다시 넣지 말 것 (2026-08-02).
+ *   운영 `zone_courses` 의 시드 문서는 `updatedAt` 필드가 **아예 없다**(`seeded_at` 만 있다).
+ *   Firestore 는 정렬 기준 필드가 없는 문서를 결과에서 제외하므로, 그 orderBy 하나 때문에
+ *   어드민 화면이 **"전체 0 · 발행됨 0 · 등록된 존 코스가 없습니다"** 로 보였다(실측 2026-08-02,
+ *   실제로는 published 40건 이상 존재). 에러가 안 나서 "데이터가 없다" 로 오해하기 쉽다.
+ *
+ *   그래서 정렬은 Firestore 에 맡기지 않고 메모리에서 한다. 어드민 목록은 수십 건 규모라
+ *   비용 문제가 없고, 동등 조건만 남아 복합 색인도 필요 없어진다.
+ *
+ * ⚠️ 어드민 전용(status 무관 전체). 손님 화면은 위 `fetchPublishedZoneCourses` 를 쓸 것.
+ */
 export async function fetchZoneCoursesList(opts: {
   city?: ZoneCourseCity | 'all';
   source?: ZoneCourseSource | 'all';
@@ -115,24 +148,12 @@ export async function fetchZoneCoursesList(opts: {
   const cons: QueryConstraint[] = [];
   if (opts.city && opts.city !== 'all') cons.push(where('city', '==', opts.city));
   if (opts.source && opts.source !== 'all') cons.push(where('source', '==', opts.source));
-  try {
-    cons.push(orderBy('updatedAt', 'desc'));
-    const q = query(collection(db, COL_BLOCKS), ...cons);
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => normalizeBlock(d.id, d.data()));
-  } catch {
-    // 인덱스 누락 시 ordering 없이 재시도 (수동 정렬은 호출자 책임)
-    try {
-      const fallbackCons: QueryConstraint[] = [];
-      if (opts.city && opts.city !== 'all') fallbackCons.push(where('city', '==', opts.city));
-      if (opts.source && opts.source !== 'all') fallbackCons.push(where('source', '==', opts.source));
-      const q = query(collection(db, COL_BLOCKS), ...fallbackCons);
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => normalizeBlock(d.id, d.data()));
-    } catch {
-      return [];
-    }
-  }
+  const snap = await getDocs(query(collection(db, COL_BLOCKS), ...cons));
+  return snap.docs
+    .map((d) => ({ doc: normalizeBlock(d.id, d.data()), at: recencyMs(d.data()) }))
+    // 최근 순. 시각이 같거나 둘 다 없으면 id 로 안정 정렬(목록 순서가 새로고침마다 흔들리지 않게).
+    .sort((a, b) => b.at - a.at || a.doc.id!.localeCompare(b.doc.id!))
+    .map((entry) => entry.doc);
 }
 
 /** Draft read */
