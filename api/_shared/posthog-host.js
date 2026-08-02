@@ -87,3 +87,25 @@ export function buildTopPagesSQL(days, excludeEmail) {
     + emailExcludeClause(excludeEmail)
     + ` GROUP BY path ORDER BY views DESC LIMIT 5`;
 }
+
+/**
+ * 제휴 노출·클릭을 상품/노출위치/언어별로 묶는 운영 대시보드 SQL. (2026-08-02)
+ *
+ * `properties.$host` 로 운영 도메인만 남긴다 — Vercel 프리뷰·로컬에서 우리가 직접 만든
+ * 노출·클릭이 섞이면 CTR 판단이 통째로 틀어진다. days 는 1~90 일로 자른다.
+ * 이벤트는 이미 쌓이고 있는 두 종류만 읽는다 — 새로 수집하는 값은 없다.
+ */
+export function buildAffiliatePerformanceSQL(days, excludeEmail) {
+  const numericDays = Number(days);
+  const d = Math.max(1, Math.min(90, Number.isFinite(numericDays) ? numericDays : 30));
+  return `SELECT event, `
+    + `coalesce(properties.product, 'unknown') AS product, `
+    + `coalesce(properties.placement, 'unknown') AS placement, `
+    + `coalesce(properties.language, 'unknown') AS language, `
+    + `count() AS total FROM events `
+    + `WHERE event IN ('affiliate_impression', 'affiliate_click') `
+    + `AND timestamp >= now() - INTERVAL ${d} DAY `
+    + `AND coalesce(properties.$host, '') IN ('cocotripkr.com', 'www.cocotripkr.com')`
+    + emailExcludeClause(excludeEmail)
+    + ` GROUP BY event, product, placement, language ORDER BY total DESC LIMIT 500`;
+}

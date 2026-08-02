@@ -3,8 +3,10 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Bell,
+  CarFront,
   Check,
   ChevronDown,
+  ChevronRight,
   Compass,
   Flag,
   Globe2,
@@ -17,6 +19,7 @@ import {
   MoreHorizontal,
   PenLine,
   Plus,
+  Route,
   Search,
   Send,
   ShieldCheck,
@@ -34,6 +37,8 @@ import { signalAppReady } from '@/lib/appReady';
 import { uploadCommunityPhoto } from '@/lib/storage-upload';
 import { authFetch } from '@/lib/authFetch';
 import type { Language } from '@/i18n';
+import { trackEvent } from '@/lib/analytics';
+import { track as posthogTrack } from '@/lib/posthog';
 
 /**
  * 커뮤니티 — UIUX 가이드 P9 실전화 (2026-07-12).
@@ -66,6 +71,8 @@ type Copy = {
   alertsEmptyTitle: string; alertsEmptyBody: string;
   alertReply: string; alertLike: string;
   justNow: string; minutesAgo: string; hoursAgo: string; daysAgo: string;
+  productBridgeTitle: string; productBridgeBody: string;
+  plannerCta: string; charterCta: string;
 };
 
 const COPY: Record<Language, Copy> = {
@@ -94,6 +101,8 @@ const COPY: Record<Language, Copy> = {
     alertsEmptyTitle: 'No alerts yet', alertsEmptyBody: 'Replies and likes on your posts will show up here.',
     alertReply: '{name} replied to "{title}"', alertLike: '{name} liked "{title}"',
     justNow: 'just now', minutesAgo: 'm', hoursAgo: 'h', daysAgo: 'd',
+    productBridgeTitle: 'Turn ideas into a real Korea trip', productBridgeBody: 'Build an itinerary or get a private car quote without leaving CocoTrip.',
+    plannerCta: 'Build my itinerary', charterCta: 'Get a car quote',
   },
   ko: {
     community: '커뮤니티', exploreKorea: '한국에 있는 사람들이 함께 만드는 정보', search: '한국 팁, 장소, 사람 검색',
@@ -120,6 +129,8 @@ const COPY: Record<Language, Copy> = {
     alertsEmptyTitle: '아직 알림이 없어요', alertsEmptyBody: '내 글에 달린 댓글과 좋아요가 여기에 표시됩니다.',
     alertReply: '{name}님이 "{title}"에 댓글을 남겼어요', alertLike: '{name}님이 "{title}"을 좋아합니다',
     justNow: '방금', minutesAgo: '분 전', hoursAgo: '시간 전', daysAgo: '일 전',
+    productBridgeTitle: '여행 아이디어를 실제 일정으로', productBridgeBody: '코코트립에서 일정 제작이나 전세 차량 견적을 바로 시작하세요.',
+    plannerCta: '일정 만들기', charterCta: '차량 견적 받기',
   },
   ja: {
     community: 'コミュニティ', exploreKorea: '韓国にいる人たちと共有するリアルな情報', search: '韓国の情報・場所・仲間を検索',
@@ -146,6 +157,8 @@ const COPY: Record<Language, Copy> = {
     alertsEmptyTitle: 'まだ通知はありません', alertsEmptyBody: '投稿への返信やいいねがここに表示されます。',
     alertReply: '{name}さんが「{title}」に返信しました', alertLike: '{name}さんが「{title}」にいいねしました',
     justNow: 'たった今', minutesAgo: '分前', hoursAgo: '時間前', daysAgo: '日前',
+    productBridgeTitle: '旅のアイデアを実際の日程へ', productBridgeBody: 'CocoTripで旅程作成や専用車の見積もりを始められます。',
+    plannerCta: '旅程を作る', charterCta: '専用車を見積もる',
   },
   zh: {
     community: '社区', exploreKorea: '由在韩国的人们共同分享的真实信息', search: '搜索韩国攻略、地点和伙伴',
@@ -172,6 +185,8 @@ const COPY: Record<Language, Copy> = {
     alertsEmptyTitle: '暂无通知', alertsEmptyBody: '你帖子收到的回复和点赞会显示在这里。',
     alertReply: '{name}回复了"{title}"', alertLike: '{name}赞了"{title}"',
     justNow: '刚刚', minutesAgo: '分钟前', hoursAgo: '小时前', daysAgo: '天前',
+    productBridgeTitle: '把旅行灵感变成真实行程', productBridgeBody: '在CocoTrip直接制作行程或获取包车报价。',
+    plannerCta: '制作行程', charterCta: '获取包车报价',
   },
 };
 
@@ -338,6 +353,42 @@ function CommunityRail({ active = 'feed' }: { active?: 'feed' | 'explore' | 'cre
   );
 }
 
+/**
+ * 커뮤니티에 들어온 사람을 우리 상품(플래너·차터)으로 연결한다.
+ *
+ * 커뮤니티는 방문은 있는데 상품으로 가는 길이 없었다 — 글만 읽고 나갔다.
+ * 데스크톱은 오른쪽 레일, 모바일은 상단 토픽 아래에 같은 카드를 한 번씩만 둔다
+ * (`.community-right-rail` 은 모바일에서 display:none 이라 중복 노출되지 않는다).
+ */
+export function CommunityProductBridge({ mobile = false }: { mobile?: boolean }) {
+  const { language } = useLanguage();
+  const copy = COPY[language];
+
+  /** 어떤 상품을 어디서 눌렀는지만 남긴다 — 글 id·uid·URL 은 보내지 않는다. */
+  const trackProduct = (product: 'planner' | 'charter') => {
+    const properties = { product, placement: mobile ? 'community_mobile' : 'community_right_rail', language };
+    trackEvent('community_product_click', properties);
+    void posthogTrack('community_product_click', properties);
+  };
+
+  return (
+    <section className={`community-product-bridge${mobile ? ' is-mobile' : ''}`}>
+      <div className="community-product-bridge-copy">
+        <strong>{copy.productBridgeTitle}</strong>
+        <p>{copy.productBridgeBody}</p>
+      </div>
+      <div className="community-product-links">
+        <Link to="/planner" onClick={() => trackProduct('planner')}>
+          <Route size={16} /><span>{copy.plannerCta}</span><ChevronRight size={15} />
+        </Link>
+        <Link to="/charter" onClick={() => trackProduct('charter')}>
+          <CarFront size={16} /><span>{copy.charterCta}</span><ChevronRight size={15} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function RightRail() {
   const { language } = useLanguage();
   const copy = COPY[language];
@@ -355,6 +406,7 @@ function RightRail() {
         <ShieldCheck size={21} />
         <div><strong>{copy.communityGuide}</strong><p>{copy.guideBody}</p></div>
       </section>
+      <CommunityProductBridge />
     </aside>
   );
 }
@@ -624,6 +676,9 @@ export default function CommunityPage() {
               ))}
             </div>
           </section>
+          <div className="md:hidden">
+            <CommunityProductBridge mobile />
+          </div>
           <div className="community-tabs" role="tablist">
             {(['latest', 'popular'] as const).map((key) => (
               <button type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key)}>

@@ -194,7 +194,11 @@ export type PostHogEventName =
   // PostHog 에는 없어서 관리자 퍼널에서 제휴 구간이 통째로 비어 있었다.
   // 속성은 product·placement·language·city·link_key 다섯 개뿐 — URL·uid·planId 금지.
   | 'affiliate_impression'
-  | 'affiliate_click';
+  | 'affiliate_click'
+  // 커뮤니티 → 자체 상품(플래너·차터) 이동 (2026-08-02). 커뮤니티에 들어온 사람이
+  // 우리 상품을 못 보고 나가던 구간을 메운다. 속성은 product·placement·language 셋뿐
+  // — 글 id·uid·URL 은 넣지 않는다(누가 어느 글에서 눌렀는지까지 알 필요가 없다).
+  | 'community_product_click';
 
 /**
  * `ensureInit()` 의 `await` 를 사이에 두고 동의가 바뀌지 않았는지 확인한다.

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   COURSE_STORAGE_KEY, type CourseDraft, type CourseStop,
-  addDay, addStop, decodeSharedCourse, emptyDraft, encodeCourseForShare,
+  addDay, addStop, addStops, decodeSharedCourse, emptyDraft, encodeCourseForShare,
   moveStopToDay, removeDay, removeStop, reorderStops, updateStop,
 } from './courseOps';
 
@@ -56,6 +56,10 @@ export function useCourseBuilder() {
   const actions = {
     addStop: useCallback((dayIdx: number, partial: Omit<CourseStop, 'id'>) => {
       setDraft((d) => addStop(d, dayIdx, partial));
+    }, []),
+    /** 검증 코스 한 건을 현재 Day 에 통째로 넣는다(하루 최대 개수 안에서). */
+    addStops: useCallback((dayIdx: number, partials: Omit<CourseStop, 'id'>[]) => {
+      setDraft((d) => addStops(d, dayIdx, partials));
     }, []),
     updateStop: useCallback((dayIdx: number, stopId: string, patch: Partial<Omit<CourseStop, 'id'>>) => {
       setDraft((d) => updateStop(d, dayIdx, stopId, patch));
