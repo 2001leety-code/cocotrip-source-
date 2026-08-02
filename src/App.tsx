@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { ManifestSwitcher } from '@/components/ManifestSwitcher';
-import { AnimatePresence, motion } from 'framer-motion';
+import { RouteTransition } from '@/components/RouteTransition';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
@@ -298,20 +298,14 @@ function PageViewTracker() {
 }
 
 // 페이지 전환 애니메이션 — 라우팅 시 부드러운 fade (모바일 앱 느낌의 마지막 퍼즐).
-// opacity만 사용 (transform/x 추가 시 모바일 가로 스크롤 위험). 0.18s 짧게.
-// initial={false}: 첫 페이지 로드 시 애니메이션 생략 (이미 있는 콘텐츠 깜빡임 방지).
-// mode="wait": 이전 페이지 exit 완료 후 새 페이지 mount → Suspense fallback과 잘 어울림.
+// 🔴 mode="wait" 로 되돌리지 말 것: 새 페이지 mount 가 exit 애니메이션(rAF) 완료에
+//   묶여서, rAF 가 멈춘 백그라운드/비가시 탭에서는 URL 만 바뀌고 화면이 안 바뀐다.
+//   지금은 CSS fade 라 애니메이션이 안 돌아도 화면은 즉시 교체된다.
+//   상세 = src/components/RouteTransition.tsx 주석.
 function AnimatedRoutes() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-      >
+    <RouteTransition>
         <Routes location={location}>
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
@@ -714,8 +708,7 @@ function AnimatedRoutes() {
             }
           />
         </Routes>
-      </motion.div>
-    </AnimatePresence>
+    </RouteTransition>
   );
 }
 
