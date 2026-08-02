@@ -552,6 +552,25 @@ html[data-menu-open="true"] .early-bird-banner {
   animation: routeFade 0.18s ease-out;
 }
 
+/* 위자드 step 진입 슬라이드 (2026-08-02) — framer-motion `AnimatePresence mode="wait"` 대체.
+   routeFade 와 같은 규칙: 🔴 to / animation-fill-mode 금지. to 가 없어야 애니메이션이 안 돌거나
+   멈춘 환경(백그라운드 탭)에서도 요소가 기본 상태(opacity 1, transform 없음)로 보인다.
+   새 step 의 mount 는 이 애니메이션 완료를 기다리지 않는다.
+   translateX 를 쓰지만 아래 .wizard-step-viewport 가 가로로 잘라내므로 모바일 가로 스크롤이 생기지 않는다.
+   잠금 테스트: tests/unit/wizard-step-transition.component.test.tsx */
+@keyframes wizardStepEnter {
+  from { opacity: 0; transform: translateX(16px); }
+}
+.wizard-step-enter {
+  animation: wizardStepEnter 0.25s ease-out;
+}
+/* 진입 애니메이션의 16px 이동이 화면 밖으로 삐져나가 가로 스크롤을 만들지 않게 잘라낸다.
+   `clip` 은 `hidden` 과 달리 스크롤 컨테이너를 만들지 않아 sticky/포커스 스크롤에 영향이 없고,
+   세로는 visible 이라 아래로 열리는 자동완성 목록도 그대로 보인다. */
+.wizard-step-viewport {
+  overflow-x: clip;
+}
+
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
