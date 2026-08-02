@@ -57,6 +57,18 @@ describe('adApplies — 이미 해결한 문제를 다시 팔지 않는다', () 
     expect(adApplies('flight', planWithDays(1, { startDate: 'not-a-date' }))).toBe(true);
   });
 
+  it('7일 경계는 exclusive — 딱 7일 남은 출발은 숨기고 8일은 보인다', () => {
+    vi.useFakeTimers();
+    // 기준 시각을 자정에 고정해야 경계가 소수점으로 흔들리지 않는다.
+    vi.setSystemTime(new Date('2026-08-02T00:00:00Z'));
+    // startDate 는 여행 첫날(inclusive) — 그 날까지 남은 일수를 잰다.
+    expect(adApplies('flight', planWithDays(1, { startDate: '2026-08-09' }))).toBe(false); // 정확히 7.0일
+    expect(adApplies('flight', planWithDays(1, { startDate: '2026-08-10' }))).toBe(true);  // 8.0일
+    // 1박2일·2박3일처럼 짧은 일정도 규칙은 출발일 하나로만 판단한다(일수와 무관).
+    expect(adApplies('flight', planWithDays(2, { startDate: '2026-08-09' }))).toBe(false);
+    expect(adApplies('flight', planWithDays(3, { startDate: '2026-08-10' }))).toBe(true);
+  });
+
   it('차터를 이미 예약·문의했으면 다시 권하지 않는다', () => {
     expect(adApplies('charter', planWithDays(1, { charter_booked: true }))).toBe(false);
     expect(adApplies('charter', planWithDays(1, { charter_inquiry_id: 'inq-1' }))).toBe(false);

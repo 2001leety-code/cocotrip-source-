@@ -43,6 +43,9 @@ export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
   }
   if (category === 'flight') {
     // 출발이 7일 이내면 항공권 예약은 이미 늦었다.
+    // 경계 규칙: `daysUntil > 7` — **7일 경계는 exclusive**(딱 7.0일 남은 시점은 숨김).
+    //   startDate 는 여행 첫날이며 그 날 자체를 포함한다(inclusive) — 즉 "출발일까지
+    //   남은 일수" 를 재는 것이지 "출발 전날까지" 가 아니다.
     const startDate = input.startDate as string | undefined;
     if (!startDate) return true;
     const start = Date.parse(startDate);
