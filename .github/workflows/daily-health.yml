@@ -83,11 +83,15 @@ jobs:
       # framer-motion/react-router 회귀로 라우트 전환이 죽어도 트래픽이 적어 아무도
       # 신고하지 않는다 — 실 브라우저(rAF 살아있음)로 매일 실측. 검증 함정("숨은 탭은
       # rAF 정지 → 전 라우트가 거짓 고장으로 보임")은 스펙 파일 상단 주석 참조.
+      # 2026-08-02: 모바일 두 프로젝트 추가. 이전에는 스펙이 헤더 링크를 딱 집어서
+      # 모바일에선 거짓 실패가 났고(실측 Pixel 5 2건 fail), 그래서 Desktop Chrome
+      # 하나로만 돌리고 있었다. 스펙이 "그 뷰포트에서 보이는 내비"를 고르도록 고쳐졌으니
+      # 이제 하단 탭바(MobileBottomNav) 경로도 매일 실측한다 — 손님 대부분이 모바일이다.
       - name: E2E PROD nav smoke (real Link clicks)
         if: always()
         env:
           BASE_URL: https://cocotripkr.com
-        run: npx playwright test nav-link-transitions --project='Desktop Chrome' --reporter=list
+        run: npx playwright test nav-link-transitions --project='Desktop Chrome' --project='Pixel 5' --project='iPhone 14 Pro' --reporter=list
         continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
 
       # ─── MOOD 로그인-뒤(인증) 스모크 — allowlist 게이트 뒤 MOOD 흐름 검증 ─────────

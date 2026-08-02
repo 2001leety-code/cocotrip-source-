@@ -1,3 +1,7 @@
+// ⚠️ test/expect 는 반드시 공용 analytics-guard 에서 — @playwright/test 에서 직접 가져오면
+//    테스트 방문이 실제 GA4·PostHog 로 나가 운영 지표가 오염된다(mistake-lint R-P272).
+//    타입만 가져오는 것은 허용된다.
+import { type Page } from '@playwright/test';
 import { test, expect } from './fixtures/analytics-guard';
 
 // SPA 내부 이동(실제 <Link> 클릭) 상시 감시 — daily-health 에서 운영 대상으로 돈다.
@@ -9,12 +13,26 @@ import { test, expect } from './fixtures/analytics-guard';
 // 그러면 모든 라우트 전환이 "고장"처럼 보인다. SPA 내비 검사는 반드시 rAF 가 살아있는
 // 환경(Playwright·보이는 탭)에서 할 것. 콘솔 .click() 스니펫은 탭이 숨겨져 있으면 거짓 양성.
 //
-// 헤더 링크는 데스크탑 전용 (모바일은 하단 네비) — Desktop Chrome 프로젝트로만 실행.
+// 뷰포트별 내비게이션 위치가 다르다 (2026-08-02):
+//   데스크톱 = 상단 헤더 링크 / 모바일 = 하단 탭바(MobileBottomNav).
+// 예전에는 `header a[...]` 를 딱 집어서, Pixel 5·iPhone 프로젝트로 돌리면 그 링크가 없어
+// **거짓 실패**가 났다(실측: nav-link-transitions 2건 fail). daily-health 는 `--project='Desktop
+// Chrome'` 로만 돌려 초록이었지만, 프로젝트 지정 없이 `npx playwright test` 를 돌리면 빨갛다.
+// 🔴 해결은 mobile skip 이 아니다 — 그러면 진짜 모바일 내비 결함을 못 잡는다.
+//   대신 **그 뷰포트에서 실제로 보이는 링크**를 고른다. 데스크톱에선 헤더를, 모바일에선
+//   하단 탭바를 누르게 되어 세 프로젝트 모두 자기 화면의 진짜 내비를 검사한다.
+
+/** 이 뷰포트에서 실제로 보이는 첫 링크 — 데스크톱 헤더/모바일 하단탭 양쪽을 자연히 커버. */
+function visibleLink(page: Page, href: string) {
+  return page.locator(`a[href="${href}"]:visible`).first();
+}
 
 test.describe('SPA Link navigation', () => {
-  test('home → /tours via header Link', async ({ page }) => {
+  test('home → /tours via nav Link', async ({ page }) => {
     await page.goto('/');
-    await page.locator('header a[href="/tours"]').first().click();
+    const link = visibleLink(page, '/tours');
+    await link.waitFor({ timeout: 10000 });
+    await link.click();
     await expect(page).toHaveURL(/\/tours$/);
     await expect(page.locator('h1, h2').filter({ hasText: 'Tours' }).first()).toBeVisible({ timeout: 8000 });
   });
@@ -41,7 +59,9 @@ test.describe('SPA Link navigation', () => {
 
   test('/community → /community/new via Link', async ({ page }) => {
     await page.goto('/community');
-    const link = page.locator('a[href="/community/new"]').first();
+    // 헤더의 글쓰기 버튼은 `hidden sm:inline-flex` 라 모바일에선 안 보인다.
+    // 모바일은 인트로 섹션의 글쓰기 버튼을 쓴다 — 보이는 것을 고르면 양쪽 다 검사된다.
+    const link = visibleLink(page, '/community/new');
     await link.waitFor({ timeout: 10000 });
     await link.click();
     await expect(page).toHaveURL(/\/community\/new$/);
