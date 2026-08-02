@@ -2,7 +2,6 @@
 // Previously src/components/WizardForm.tsx (798L) — split into step components
 // under src/components/WizardForm/* for P3 Lock release.
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Plane,
   Zap, ShieldCheck, Languages, Pencil,
@@ -41,6 +40,21 @@ import { hasMeaningfulWizardContent, hasMeaningfulWizardContentStrict } from './
 //   (3) discard 가 planner + planner_paused 양쪽 키 정리
 // string === 'true' 비교 — Vite env 는 항상 문자열.
 const RESUME_DIRTY_EXIT_ON = import.meta.env.VITE_FEATURE_RESUME_DIRTY_EXIT === 'true';
+
+/** step 진입 애니 클래스를 안전하게 걷어내는 시간 — CSS 애니메이션(0.25s)보다 넉넉히 길게. */
+const STEP_ANIM_SAFETY_MS = 500;
+
+/**
+ * 도시별 맵(hotelByCity·recommendedZones)에서 도시 키 하나를 뺀 새 객체를 돌려준다.
+ * 키가 없으면 원본을 그대로 돌려줘 불필요한 리렌더를 만들지 않는다.
+ * (구조분해로 키를 버리면 쓰지 않는 변수가 생겨 lint 가 걸린다 — 그래서 헬퍼로 뺐다.)
+ */
+function omitCityKey<T>(map: Record<string, T>, cityKey: string): Record<string, T> {
+  if (!(cityKey in map)) return map;
+  const next = { ...map };
+  delete next[cityKey];
+  return next;
+}
 // 2026-05-13 PR #393 후속: getZoneByKey 는 handleGenerate 안에서 dynamic import.
 // cityNameToZoneKey + CITY_NAME_BY_KEY 는 zoneHelpers (light) 에서 직접 import →
 // main planner chunk 에서 heavy zone arrays 분리.
@@ -259,9 +273,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [pendingSnap, setPendingSnap] = useState<PlannerSnapshotValues | null>(null);
   const [pendingStep, setPendingStep] = useState<number>(0);
   // #resume-instant (2026-06-05): "이어서" 점프 시 step 전환 애니 1회 억제 → 제자리 즉시 복원.
-  // mode="wait" exit→enter 빈틈이 "강제 새로고침 느낌"의 주범(운영자 #4). 일반 next/prev 는 슬라이드 유지.
+  // 애니메이션 빈틈이 "강제 새로고침 느낌"의 주범(운영자 #4). 일반 next/prev 는 슬라이드 유지.
   const [noStepAnim, setNoStepAnim] = useState(false);
-  const [jumpToStep, setJumpToStep] = useState<number | null>(null);
 
   // 2026-05-09 (B9-37): revision 으로 진입 시 plan.input 핵심 필드 prefill.
   // 첫 마운트 1회만 — 사용자가 이후 수정한 값을 덮어쓰지 않게 deps=[].
@@ -388,26 +401,29 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // 등록/해제 1회 — onPageHide 는 클로저 변수에 의존하지 않음(고정 키 마킹).
   }, []);
 
-  // #resume-instant: noStepAnim 켜진 "다음" 커밋에서 step 점프 수행 — 현재 step 이 먼저 instant(0ms)
-  // 로 재렌더된 뒤 exit 되므로 exit/enter 둘 다 빈틈 없이 즉시. jumpToStep 은 1회용 트리거.
+  // 점프 후 애니 복원 — 일반 네비게이션은 다시 0.25s 슬라이드.
+  // 🔴 requestAnimationFrame 을 쓰지 말 것 (2026-08-02): 백그라운드/비가시 탭에서는 브라우저가
+  //   rAF 를 아예 안 돌린다 → 이 플래그가 영원히 켜진 채 남아 이후 모든 step 전환이 애니 없이
+  //   튀어버린다. setTimeout 은 비가시 탭에서 스로틀될 뿐 반드시 돌아간다.
   useEffect(() => {
-    if (jumpToStep === null) return;
-    setStep(jumpToStep);
-    setJumpToStep(null);
-  }, [jumpToStep]);
+    if (!noStepAnim) return;
+    const id = setTimeout(() => setNoStepAnim(false), 0);
+    return () => clearTimeout(id);
+  }, [step, noStepAnim]);
 
-  // 점프 완료(jumpToStep 소진 + step 갱신) 후 애니 복원 — 일반 네비게이션은 다시 0.25s 슬라이드.
+  // 지금 그리고 있는 step + 진입 애니 여부. 렌더 중 상태 조정(React 공식 패턴)이라
+  // effect 를 기다리지 않고 "step 이 바뀐 그 커밋"에서 확정된다.
+  // 초기값 animate:false = 첫 렌더에는 애니메이션 없음(기존 `initial={false}` 동작 유지).
+  const [shownStep, setShownStep] = useState({ step, animate: false });
+  if (shownStep.step !== step) setShownStep({ step, animate: !noStepAnim });
+
+  // 애니메이션이 멈춘 환경(비가시 탭)에서 요소가 첫 프레임(opacity 0, x 16)에 갇히지 않게
+  // 안전 시간이 지나면 클래스를 걷어내 기본 상태로 되돌린다. 보이는 탭에선 이미 끝나 있어 무변화.
   useEffect(() => {
-    if (!noStepAnim || jumpToStep !== null) return;
-    let inner = 0;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => setNoStepAnim(false));
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      if (inner) cancelAnimationFrame(inner);
-    };
-  }, [step, noStepAnim, jumpToStep]);
+    if (!shownStep.animate) return;
+    const id = setTimeout(() => setShownStep((s) => ({ step: s.step, animate: false })), STEP_ANIM_SAFETY_MS);
+    return () => clearTimeout(id);
+  }, [shownStep]);
 
   function applyResumeSnapshot() {
     if (!pendingSnap) return;
@@ -466,10 +482,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     }
     setTourPace((v.tourPace as TourPace) ?? 'full');
     setCompanions((v.companions as '' | 'solo' | 'couple' | 'family' | 'friends') ?? '');
-    // #resume-instant: 애니 억제 플래그를 먼저 켜(현재 step 이 instant 로 재렌더된 뒤),
-    // 다음 커밋에서 step 점프(jumpToStep) → exit/enter 둘 다 0ms = 제자리 즉시 (mode="wait" 빈틈 제거).
+    // #resume-instant: 애니 억제와 step 점프를 같은 이벤트에서 함께 건다 → 한 커밋에 반영되어
+    // 그 커밋의 렌더가 곧바로 "애니 없는 점프"로 확정된다(제자리 즉시 복원).
+    // 예전에는 framer 가 나가는 요소를 먼저 0ms 로 다시 그려야 해서 커밋을 둘로 쪼갰지만
+    // (jumpToStep), 이제 애니메이션이 mount 를 막지 않으므로 그 우회가 필요 없다.
     setNoStepAnim(true);
-    setJumpToStep(pendingStep);
+    setStep(pendingStep);
     setResumeOpen(false);
     setPendingSnap(null);
   }
@@ -623,32 +641,16 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       setMainCityKey(newMainKey);
       setExtraCities(prev => prev.slice(1));
       if (oldMainKey) {
-        setHotelByCity(prev => {
-          if (!(oldMainKey in prev)) return prev;
-          const { [oldMainKey]: _drop, ...rest } = prev;
-          return rest;
-        });
-        setRecommendedZones(prev => {
-          if (!(oldMainKey in prev)) return prev;
-          const { [oldMainKey]: _drop, ...rest } = prev;
-          return rest;
-        });
+        setHotelByCity(prev => omitCityKey(prev, oldMainKey));
+        setRecommendedZones(prev => omitCityKey(prev, oldMainKey));
       }
     } else if (extraCities.includes(cityName)) {
       // 2026-05-21 (P134 분기 #10 fix): 다도시 deselect 시 그 도시 hotelByCity / zones 키 cleanup.
       const removedKey = cityNameToZoneKey(cityName);
       setExtraCities(prev => prev.filter(c => c !== cityName));
       if (removedKey) {
-        setHotelByCity(prev => {
-          if (!(removedKey in prev)) return prev;
-          const { [removedKey]: _drop, ...rest } = prev;
-          return rest;
-        });
-        setRecommendedZones(prev => {
-          if (!(removedKey in prev)) return prev;
-          const { [removedKey]: _drop, ...rest } = prev;
-          return rest;
-        });
+        setHotelByCity(prev => omitCityKey(prev, removedKey));
+        setRecommendedZones(prev => omitCityKey(prev, removedKey));
       }
     } else if (!mainCity) {
       setMainCity(cityName);
@@ -936,23 +938,24 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         <div className="max-w-2xl mx-auto">
           {/* #wizard-step-hints (운영자 #3): 스텝별 친절 설명 — 첫 도달 시 1회 + "?" 재보기 (비차단). */}
           <WizardStepHint step={step} />
-          {/* AnimatePresence + motion.div로 step 전환 시 슬라이드/페이드.
-              key={step}로 React가 unmount/mount 인식 → exit 애니 발동.
+          {/* step 전환 = key 가 바뀌면 그 커밋에서 즉시 교체. 진입 슬라이드는 CSS 애니메이션.
               2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
               step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense
               fallback 은 step 컨테이너 최소 높이 유지하는 spinner — layout shift
               방지. fetch 가 통상 < 100ms (preload + prefetch 가능) 이므로 UX 영향
               미미하나, 첫 진입 시 main planner chunk 가 가장 작아짐. */}
-          {/* mode="wait" (2026-06-02, A3 진단): App.tsx 라우트 전환부와 일관 — 나가는 step exit
-              완료 후 새 step mount. 빠져 있어서 sync 모드로 두 step 이 동시 렌더돼 "이어서 하기"
-              점프 시 깜빡임/밀림 발생했음. */}
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
+          {/* 🔴 여기에 framer-motion `AnimatePresence mode="wait"` 를 다시 넣지 말 것 (2026-08-02).
+              mode="wait" 는 "이전 step 의 exit 애니메이션이 끝나야" 다음 step 을 mount 한다.
+              그 완료 신호는 requestAnimationFrame 으로만 온다. 탭이 백그라운드/비가시 상태면
+              브라우저가 rAF 를 아예 안 돌린다 → exit 이 영원히 안 끝남 → step 값은 바뀌었는데
+              화면은 이전 step 그대로 멈춘다. 에러도 안 난다.
+              (같은 원인의 라우트 전환 사고: PR #1198, src/components/RouteTransition.tsx)
+              원칙: **어느 step 이 보이는지가 애니메이션 완료에 의존하면 안 된다.**
+              회귀 잠금: tests/unit/wizard-step-transition.component.test.tsx */}
+          <div className="wizard-step-viewport">
+            <div
               key={`step-${step}`}
-              initial={noStepAnim ? false : { opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: noStepAnim ? 0 : 0.25 }}
+              className={shownStep.animate ? 'wizard-step-enter' : undefined}
             >
               <Suspense fallback={
                 <div className="min-h-[320px] flex items-center justify-center">
@@ -1059,8 +1062,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                 />
               )}
               </Suspense>
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          </div>
 
           {/* 하단 신뢰 4배지 (가이드 P3) — 정적, 제품 실약속(빠른설정·안전취향·4언어·편집가능). 없는 지표/리뷰수 금지. */}
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
