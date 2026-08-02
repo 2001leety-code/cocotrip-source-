@@ -49,26 +49,31 @@ jobs:
         if: always()
         run: npm ci
 
-      # Cache Playwright browsers — 2026-05-12 추가. chromium only (daily-health 는 webkit 미사용).
-      # 별도 cache key (chromium-only) — pr-i18n-smoke 의 chromium+webkit 캐시와 분리.
-      # 같은 key 쓰면 cache hit 시 webkit 도 받지만 install-deps chromium 만 호출이라 의존성 누락 가능.
-      - name: Cache Playwright Chromium
+      # Cache Playwright browsers — 2026-05-12 추가.
+      # 2026-08-02: webkit 추가. nav 스모크에 iPhone 14 Pro 프로젝트가 들어왔는데
+      #   `devices['iPhone 14 Pro']` 의 기본 엔진이 **webkit** 이다(Pixel 5 는 chromium).
+      #   chromium 만 설치한 상태로 돌리면 "Please run: npx playwright install" 로
+      #   iPhone 5건이 통째로 실패한다 — 그런데 이 스텝은 continue-on-error 라
+      #   **잡 결과는 초록인데 스모크만 빨간** 상태가 되어 눈치채기 어렵다(실측).
+      #   cache key 도 함께 바꿔야 한다. 안 바꾸면 chromium-only 캐시가 hit 되어
+      #   설치 스텝이 건너뛰어지고 webkit 이 영원히 없다.
+      - name: Cache Playwright browsers
         if: always()
         uses: actions/cache@v4
         id: playwright-cache-chromium
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-chromium-webkit-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-chromium-
+            ${{ runner.os }}-playwright-chromium-webkit-
 
-      - name: Install Playwright Chromium (cache miss)
+      - name: Install Playwright browsers (cache miss)
         if: always() && steps.playwright-cache-chromium.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Install Playwright system deps (cache hit)
         if: always() && steps.playwright-cache-chromium.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: npx playwright install-deps chromium webkit
       - name: E2E PROD smoke (Plan + Translation + PDF)
         if: always()
         env:
