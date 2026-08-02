@@ -7,7 +7,7 @@
 import { useEffect, useRef, lazy, Suspense } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackAdImpression } from '@/lib/analytics';
-import { adApplies } from '../lib/buildSlides';
+import { adApplies } from '@/config/promotionRules';
 import { EsimAd } from './ads/EsimAd';
 import { HotelAd } from './ads/HotelAd';
 import { FlightAd } from './ads/FlightAd';

@@ -6,6 +6,7 @@ import { Header } from '@/sections/Header';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { AffiliatePerformance } from '@/components/admin/AffiliatePerformance';
 
 interface Bucket { usd: number; count: number }
 interface DailyEntry { date: string; usd: number; count: number }
@@ -213,33 +214,47 @@ export default function AdminSales() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [data, setData] = useState<SalesResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  // 첫 화면은 곧바로 조회에 들어가므로 로딩 상태로 시작한다.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
 
-  const reload = useMemo(() => async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/admin-sales?days=${days}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      const json = (await res.json()) as SalesResponse;
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'unknown error');
-    } finally {
-      setLoading(false);
+  /** 매출 응답만 가져온다 — 화면 상태는 건드리지 않는다(자동 조회·갱신 버튼이 함께 쓴다). */
+  const fetchSales = useMemo(() => async (): Promise<SalesResponse> => {
+    if (!user) throw new Error('로그인이 필요합니다.');
+    const idToken = await user.getIdToken();
+    const res = await fetch(`/api/admin-sales?days=${days}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${res.status}`);
     }
+    return (await res.json()) as SalesResponse;
   }, [user, days]);
 
-  useEffect(() => { reload(); }, [reload]);
+  /** ↻ 갱신 버튼 — 이벤트 핸들러라 상태를 바로 바꿔도 연쇄 렌더가 아니다. */
+  const reload = useMemo(() => () => {
+    setLoading(true);
+    setError(null);
+    return fetchSales()
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : 'unknown error'))
+      .finally(() => setLoading(false));
+  }, [fetchSales]);
+
+  // user·days 가 바뀌면 자동 조회.
+  // 🔴 setState 는 전부 promise 콜백 안에서만 한다 — effect 본문에서 동기로 setState 하면
+  //   연쇄 렌더가 난다(react-hooks/set-state-in-effect). 그래서 `reload()` 를 그대로
+  //   부르지 않고, 상태를 건드리지 않는 `fetchSales()` 의 결과 콜백에서만 반영한다.
+  useEffect(() => {
+    let cancelled = false;
+    fetchSales()
+      .then((json) => { if (!cancelled) { setData(json); setError(null); } })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'unknown error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [fetchSales]);
 
   return (
     <div
@@ -337,6 +352,11 @@ export default function AdminSales() {
             {/* 상품별 분포 */}
             <div className="mb-5">
               <ProductDistribution byProduct={data.byProduct} rate={data.exchangeRate} />
+            </div>
+
+            {/* 제휴 노출→클릭 성과 (PostHog 실데이터) */}
+            <div className="mb-5">
+              <AffiliatePerformance days={days} />
             </div>
 
             {/* 최근 예약 */}

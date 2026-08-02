@@ -76,8 +76,38 @@ export async function fetchZoneCourseById(blockId: string): Promise<ZoneCourseDo
   return normalizeBlock(snap.id, snap.data());
 }
 
+/**
+ * 손님 화면용 — 특정 도시의 **published 문서만** 읽는다. (2026-08-02)
+ *
+ * 🔴 `fetchZoneCoursesList` 를 쓰면 안 되는 이유 두 가지 (둘 다 실측으로 확인):
+ *   1) 그 함수는 `orderBy('updatedAt','desc')` 를 건다. 그런데 운영 `zone_courses` 의
+ *      시드 문서 40건은 `updatedAt` 필드가 **아예 없다**(`seeded_at` 만 있다).
+ *      Firestore 는 정렬 필드가 없는 문서를 결과에서 제외하므로 **항상 빈 배열**이
+ *      돌아온다 — 에러도 안 나서 조용히 "코스 없음" 으로 보인다.
+ *   2) 보안 규칙이 `resource.data.status != 'draft'` 를 요구한다. 목록 쿼리는 규칙을
+ *      쿼리 자체로 증명해야 하므로, status 조건이 없으면 로그인 안 한 손님에게
+ *      PERMISSION_DENIED 가 난다.
+ *
+ * 그래서 여기서는 동등 조건 두 개(city·status)만 걸고 정렬은 호출자가 메모리에서 한다.
+ * 동등 조건 두 개는 단일 필드 색인 병합으로 처리되어 복합 색인이 필요 없다.
+ *
+ * @param city Firestore `city` 값. 운영 데이터에는 `ZoneCourseCity` 유니온에 없는
+ *             도시(anseong·changwon 등)도 실제로 들어 있어 `string` 으로 받는다.
+ */
+export async function fetchPublishedZoneCourses(city: string): Promise<ZoneCourseDoc[]> {
+  if (!city) return [];
+  const q = query(
+    collection(db, COL_BLOCKS),
+    where('city', '==', city),
+    where('status', '==', 'published'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => normalizeBlock(d.id, d.data()));
+}
+
 /** 목록 — city / source 필터 + updatedAt desc.
- *  Firestore 인덱스 없는 환경에서도 동작하도록 fallback 처리. */
+ *  Firestore 인덱스 없는 환경에서도 동작하도록 fallback 처리.
+ *  ⚠️ 어드민 전용. 손님 화면은 위 `fetchPublishedZoneCourses` 를 쓸 것. */
 export async function fetchZoneCoursesList(opts: {
   city?: ZoneCourseCity | 'all';
   source?: ZoneCourseSource | 'all';

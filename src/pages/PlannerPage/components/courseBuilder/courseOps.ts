@@ -66,6 +66,31 @@ export function addStop(
   return touch({ ...d, days }, now);
 }
 
+/**
+ * 검증 코스 같은 여러 장소를 한 Day 에 한 번에 넣는다. (2026-08-02)
+ *
+ * `addStop` 을 반복 호출하지 않는 이유: 하루 최대 개수에 걸리면 `addStop` 은 원본을
+ * 그대로 돌려주므로, 몇 개가 실제로 들어갔는지 호출부가 알 수 없다. 여기서 남은 자리만큼
+ * 잘라 넣고 결과를 한 번에 반환해야 "N곳 추가했어요" 를 정직하게 말할 수 있다.
+ * 제목이 빈 장소는 `addStop` 과 똑같이 버린다.
+ */
+export function addStops(
+  d: CourseDraft, dayIdx: number, partials: Omit<CourseStop, 'id'>[], now: number = Date.now(),
+): CourseDraft {
+  if (dayIdx < 0 || dayIdx >= d.days.length) return d;
+  if (!Array.isArray(partials)) return d;
+  const remaining = COURSE_MAX_STOPS_PER_DAY - d.days[dayIdx].stops.length;
+  if (remaining <= 0) return d;
+  const additions = partials
+    .map((partial) => ({ ...partial, title: String(partial?.title || '').trim() }))
+    .filter((partial) => !!partial.title)
+    .slice(0, remaining)
+    .map((partial) => ({ ...partial, id: genStopId(now) }));
+  if (!additions.length) return d;
+  const days = d.days.map((day, i) => (i === dayIdx ? { stops: [...day.stops, ...additions] } : day));
+  return touch({ ...d, days }, now);
+}
+
 export function updateStop(
   d: CourseDraft, dayIdx: number, stopId: string, patch: Partial<Omit<CourseStop, 'id'>>, now: number = Date.now(),
 ): CourseDraft {

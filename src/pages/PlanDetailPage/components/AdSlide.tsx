@@ -10,7 +10,7 @@ import { AirportPickupAd } from './ads/AirportPickupAd';
 import { EsimAd } from './ads/EsimAd';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
-import type { AdCategory } from '../lib/buildSlides';
+import type { AdCategory } from '@/config/promotionRules';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 
@@ -74,7 +74,8 @@ export function AdSlide({ adType, plan }: AdSlideProps) {
   };
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    // 2026-08-02: jsx-a11y 플러그인이 이 레포 eslint 설정에 없어서, 남아 있던
+    // `eslint-disable-next-line jsx-a11y/...` 주석 자체가 "규칙 없음" 오류를 냈다. 주석 제거.
     <div ref={containerRef} className="relative" onClick={handleAdClick}>
       {/* Sponsored badge (regulatory transparency) */}
       <div className="flex justify-end mb-2">

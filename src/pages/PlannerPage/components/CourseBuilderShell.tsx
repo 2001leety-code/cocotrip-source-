@@ -11,11 +11,11 @@
  *   가짜 지도/가짜 환승/가짜 AI 패널은 제거(허위 데이터 + 큰 박스 남발 금지).
  * - i18n = 컴포넌트 로컬 4-lang 딕셔너리 (AddressAutocomplete 패턴).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays, Check, Clock, ExternalLink, MapPin,
   PencilLine, Plus, Share2, Sparkles, Trash2, X, Wand2, LogIn,
-  Map as MapIcon,
+  Layers3, Loader2, Map as MapIcon,
 } from 'lucide-react';
 
 import { useLanguage } from '@/hooks/useLanguage';
@@ -25,8 +25,13 @@ import { authFetch } from '@/lib/authFetch';
 import { useItinerary } from '@/hooks/useItinerary';
 import { naverMapSearchUrl } from '@/lib/naverMap';
 import { useCourseBuilder } from './courseBuilder/useCourseBuilder';
-import { googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, type CourseStop } from './courseBuilder/courseOps';
+import {
+  googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, COURSE_MAX_STOPS_PER_DAY, type CourseStop,
+} from './courseBuilder/courseOps';
 import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recommendations';
+import {
+  loadZoneCourseTemplates, zoneCourseTemplateToStops, type ZoneCourseTemplate,
+} from './courseBuilder/zoneCourseTemplates';
 import { CoursePlaceSearch, type CoursePlacePick } from './courseBuilder/CoursePlaceSearch';
 import { CourseMiniMap } from './courseBuilder/CourseMiniMap';
 import type { TransitStepLike } from '@/lib/routeSegments';
@@ -60,6 +65,12 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveTitleField: 'Course title', saveDateField: 'Trip date', saveTitlePh: 'e.g. My Seoul food trip',
     saveCta: 'Save', cancel: 'Cancel',
     loginToSave: 'Sign in to save, share, and open on any device.', loginBtn: 'Sign in',
+    routeTemplates: 'CocoTrip verified day routes', routeTemplateAdd: 'Add route',
+    routeTemplateAddAria: 'Add the verified route {title} to this day',
+    routeTemplateLoading: 'Loading verified routes…',
+    routeTemplateEmpty: 'No verified route for this city yet.',
+    routeTemplateAdded: '{count} stops added from a verified route.',
+    routeTemplateFull: 'This day already has the maximum number of stops.',
   },
   ko: {
     day: 'Day', addDay: '+ 일차', delDay: '이 일차를 삭제할까요?', newCourse: '새 코스',
@@ -84,6 +95,12 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveTitleField: '코스 제목', saveDateField: '여행 날짜', saveTitlePh: '예: 나의 서울 맛집 투어',
     saveCta: '저장', cancel: '취소',
     loginToSave: '로그인하면 저장·공유·다른 기기에서 볼 수 있어요.', loginBtn: '로그인',
+    routeTemplates: '코코트립 검증 하루 코스', routeTemplateAdd: '코스 추가',
+    routeTemplateAddAria: '검증 코스 {title} 을(를) 이 Day에 추가',
+    routeTemplateLoading: '검증 코스 불러오는 중…',
+    routeTemplateEmpty: '이 도시에는 아직 검증 코스가 없어요.',
+    routeTemplateAdded: '검증 코스에서 {count}곳을 추가했어요.',
+    routeTemplateFull: '이 Day에는 더 이상 장소를 추가할 수 없어요.',
   },
   ja: {
     day: 'Day', addDay: '+ 日目', delDay: 'この日を削除しますか？', newCourse: '新規コース',
@@ -108,6 +125,12 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveTitleField: 'コース名', saveDateField: '旅行日', saveTitlePh: '例: ソウルグルメ旅',
     saveCta: '保存', cancel: 'キャンセル',
     loginToSave: 'ログインすると保存・共有・他の端末で表示できます。', loginBtn: 'ログイン',
+    routeTemplates: 'CocoTrip検証済み1日コース', routeTemplateAdd: 'コース追加',
+    routeTemplateAddAria: '検証済みコース{title}をこのDayに追加',
+    routeTemplateLoading: '検証済みコースを読込中…',
+    routeTemplateEmpty: 'この都市には検証済みコースがまだありません。',
+    routeTemplateAdded: '検証済みコースから{count}か所追加しました。',
+    routeTemplateFull: 'このDayにはこれ以上場所を追加できません。',
   },
   zh: {
     day: 'Day', addDay: '+ 天', delDay: '删除这一天？', newCourse: '新行程',
@@ -132,6 +155,12 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveTitleField: '行程名称', saveDateField: '出行日期', saveTitlePh: '例: 我的首尔美食之旅',
     saveCta: '保存', cancel: '取消',
     loginToSave: '登录后可保存·分享·在其他设备查看。', loginBtn: '登录',
+    routeTemplates: 'CocoTrip已验证一日路线', routeTemplateAdd: '添加路线',
+    routeTemplateAddAria: '将已验证路线{title}添加到当天',
+    routeTemplateLoading: '正在加载验证路线…',
+    routeTemplateEmpty: '该城市暂无验证路线。',
+    routeTemplateAdded: '已从验证路线添加{count}个地点。',
+    routeTemplateFull: '当天地点数量已达上限。',
   },
 };
 
@@ -163,6 +192,11 @@ export function CourseBuilderShell() {
   const [editingId, setEditingId] = useState<string | null>(null);
   // 추천 도시 필터
   const [recoCity, setRecoCity] = useState<string | null>(null);
+  // 선택 도시의 검증 하루 코스 (Firestore zone_courses, published 만).
+  // 결과에 어느 도시 것인지를 같이 담는다 — 로딩 여부를 따로 상태로 두지 않고 파생시키기 위해서다.
+  const [zoneTemplates, setZoneTemplates] = useState<{ city: string; items: ZoneCourseTemplate[] }>(
+    { city: '', items: [] },
+  );
   // 상태 피드백 (공유/저장)
   const [flash, setFlash] = useState<string | null>(null);
   const showFlash = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 2500); };
@@ -181,6 +215,23 @@ export function CourseBuilderShell() {
 
   const cities = useMemo(() => recoCities(), []);
   const recos = useMemo(() => recoForCity(recoCity), [recoCity]);
+
+  // 검증 하루 코스(zone_courses) — 도시 칩을 고른 뒤에만 읽는다.
+  // "전체" 상태에서 미리 읽으면 도시 수만큼 Firestore 문서를 통째로 당겨오게 된다.
+  // setState 는 promise 콜백 안에서만 한다(effect 본문 동기 setState = 연쇄 렌더).
+  useEffect(() => {
+    if (!recoCity) return;
+    let cancelled = false;
+    // loadZoneCourseTemplates 는 내부에서 실패를 삼키고 빈 배열을 준다 — 코스빌더는 계속 동작.
+    void loadZoneCourseTemplates(recoCity).then((items) => {
+      if (!cancelled) setZoneTemplates({ city: recoCity, items });
+    });
+    return () => { cancelled = true; };
+  }, [recoCity]);
+
+  // 로딩 여부는 별도 상태가 아니라 파생값 — "지금 고른 도시의 결과가 아직 안 왔다".
+  // 도시를 바꾸면 즉시 로딩으로 바뀌어 이전 도시 코스가 잠깐 남아 보이는 일이 없다.
+  const zoneTemplatesLoading = !!recoCity && zoneTemplates.city !== recoCity;
 
   const day = cb.draft.days[cb.activeDay] ?? { stops: [] };
 
@@ -289,6 +340,18 @@ export function CourseBuilderShell() {
       title: p.name[nameLang] || p.name.en, time: '', category: p.theme === 'food' ? 'food' : 'sight',
       memo: '', lat: p.lat, lng: p.lng,
     });
+  };
+
+  /** 검증된 하루 코스를 현재 Day 의 남은 자리만큼 한 번에 추가한다. */
+  const handleAddZoneTemplate = (template: ZoneCourseTemplate) => {
+    const remaining = COURSE_MAX_STOPS_PER_DAY - day.stops.length;
+    if (remaining <= 0) {
+      showFlash(t.routeTemplateFull);
+      return;
+    }
+    const stops = zoneCourseTemplateToStops(template, nameLang).slice(0, remaining);
+    cb.addStops(cb.activeDay, stops);
+    showFlash(t.routeTemplateAdded.replace('{count}', String(stops.length)));
   };
 
   const handleShare = async () => {
@@ -556,6 +619,46 @@ export function CourseBuilderShell() {
             </button>
           ))}
         </div>
+        {/* 검증 하루 코스 — 빈 화면에서 장소를 하나씩 찾다 이탈하는 구간을 없앤다. */}
+        {recoCity && (
+          <div className="mb-3 rounded-xl border border-[#B668FC]/20 bg-[#B668FC]/[0.055] p-2">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-black text-[#E4CCFF]">
+              <Layers3 className="h-3.5 w-3.5" aria-hidden="true" /> {t.routeTemplates}
+            </p>
+            {zoneTemplatesLoading ? (
+              <p className="flex items-center gap-1.5 py-2 text-[10px] text-white/60" role="status">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> {t.routeTemplateLoading}
+              </p>
+            ) : zoneTemplates.items.length === 0 ? (
+              <p className="py-1 text-[10px] text-white/60">{t.routeTemplateEmpty}</p>
+            ) : (
+              <div className="space-y-1.5">
+                {zoneTemplates.items.map((template) => {
+                  const title = template.theme_i18n?.[nameLang] || template.theme_i18n?.en || template.theme;
+                  const hours = Math.max(1, Math.round(template.duration_min / 60));
+                  return (
+                    <div key={template.id} className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-black/10 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[10.5px] font-bold text-white/85">{title}</p>
+                        <p className="mt-0.5 text-[9px] text-white/60">
+                          {template.zone ? `${template.zone} · ` : ''}{template.stops.length}{t.stops} · {hours}h
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddZoneTemplate(template)}
+                        aria-label={t.routeTemplateAddAria.replace('{title}', title)}
+                        className="shrink-0 rounded-full bg-[#B668FC]/20 px-2 py-1 text-[9.5px] font-black text-[#E4CCFF]"
+                      >
+                        {t.routeTemplateAdd}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <div className="space-y-1 max-h-[420px] overflow-y-auto pr-0.5">
           {recos.map((p) => (
             <div key={p.key} className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 py-1.5">

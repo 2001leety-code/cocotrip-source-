@@ -7,7 +7,12 @@
  * 가드: SQL injection 방지(작은따옴표 escape), 익명 방문자 유지(coalesce), days clamp, 핵심 절 포함.
  */
 import { describe, it, expect } from 'vitest';
-import { escapeHogQLString, buildVisitorSQL, buildTopPagesSQL } from '../../api/_shared/posthog-host.js';
+import {
+  escapeHogQLString,
+  buildVisitorSQL,
+  buildTopPagesSQL,
+  buildAffiliatePerformanceSQL,
+} from '../../api/_shared/posthog-host.js';
 
 describe('escapeHogQLString — SQL injection 방지', () => {
   it("작은따옴표를 '' 로 escape", () => {
@@ -55,5 +60,22 @@ describe('buildTopPagesSQL', () => {
   });
   it('excludeEmail 반영 + escape', () => {
     expect(buildTopPagesSQL(7, "a'b@x.com")).toContain("!= 'a''b@x.com'");
+  });
+});
+
+describe('buildAffiliatePerformanceSQL', () => {
+  it('제휴 이벤트 두 종류만 운영 도메인에서 집계한다', () => {
+    const sql = buildAffiliatePerformanceSQL(30, null);
+    expect(sql).toContain("event IN ('affiliate_impression', 'affiliate_click')");
+    expect(sql).toContain("properties.$host");
+    expect(sql).toContain("'cocotripkr.com'");
+    expect(sql).toContain('GROUP BY event, product, placement, language');
+    expect(sql).toContain('INTERVAL 30 DAY');
+  });
+
+  it('기간을 1~90일로 제한하고 운영자 이메일을 안전하게 제외한다', () => {
+    expect(buildAffiliatePerformanceSQL(999, null)).toContain('INTERVAL 90 DAY');
+    expect(buildAffiliatePerformanceSQL(0, null)).toContain('INTERVAL 1 DAY');
+    expect(buildAffiliatePerformanceSQL(7, "a'b@x.com")).toContain("!= 'a''b@x.com'");
   });
 });

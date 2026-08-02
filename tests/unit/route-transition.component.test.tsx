@@ -32,6 +32,13 @@ vi.mock('@/hooks/usePageMeta', () => ({ usePageMeta: () => {} }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null, loading: false }) }));
 vi.mock('@/lib/authFetch', () => ({ authFetch: vi.fn(async () => ({ ok: true, json: async () => ({ posts: [] }) })) }));
 vi.mock('@/lib/storage-upload', () => ({ uploadCommunityPhoto: vi.fn() }));
+// 2026-08-02: 커뮤니티 화면이 분석 모듈(analytics → posthog → consent → analyticsProps)을
+// 직접 쓰게 되면서 이 테스트의 lazy import 경로에 실제 분석 스택이 딸려 들어왔다.
+// 라우트 전환 테스트가 진짜 분석 초기화를 돌릴 이유가 없고(위 firebase mock 과 같은 이유),
+// 전체 스위트를 함께 돌릴 때 이 모듈들 변환 시간이 아래 **setup 대기**를 1초 넘겨 실패시켰다.
+// ⚠️ 잠금 대상(클릭 직후 동기 검사)은 그대로다 — 여기서 줄인 건 준비 단계 비용뿐.
+vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('@/lib/posthog', () => ({ track: vi.fn() }));
 
 import { RouteTransition } from '../../src/components/RouteTransition';
 
