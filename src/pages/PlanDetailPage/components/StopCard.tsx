@@ -18,6 +18,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { haptic } from '@/lib/haptic';
 import { buildAttractionLink } from '@/config/affiliateLinks';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
+import { AffiliateCard } from '@/components/AffiliateCard';
 import { Lightbox } from './Lightbox';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
@@ -515,18 +516,32 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             if (!placeName) return null;
             const cityKey = inferCityKey(stop.address);
             const url = buildAttractionLink(placeName, cityKey);
+            // 🔴 linkKey 가 없으면 같은 도시의 장소 N개가 `aff_seen:attraction:plan_day_stop:-:seoul`
+            //   하나로 합쳐져 노출이 세션당 1회로 접힌다(클릭은 장소마다 쌓임) → CTR 이 100% 를
+            //   넘는 값이 나온다. 그래서 **클릭·노출 양쪽에 같은 linkKey** 를 넣는다.
+            //   값은 order 우선이라 보통 짧은 숫자다. 폴백이 장소명까지 내려갈 수 있어 16자로
+            //   자른다 — linkKey 는 "짧은 식별자" 규격이다(affiliateTracking.ts 주석).
+            const affPayload = {
+              product: 'attraction' as const, placement: 'plan_day_stop',
+              language: lng, city: cityKey, linkKey: makeStopKey(stop).slice(0, 16),
+            };
             return (
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                onClick={() => trackAffiliateClick({
-                  product: 'attraction', placement: 'plan_day_stop', language: lng, city: cityKey,
-                })}
-                className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
-              >
-                <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}
-              </a>
+              // 부모가 `space-y-3` 블록이라 래퍼가 1개 늘어도 간격 규칙은 그대로 걸린다.
+              // `flex` 를 주는 이유: 원래 `<a>` 가 inline-flex 라 line-box 스트럿 여백이 얹혀
+              // 있었는데 블록 래퍼로 감싸면 그 여백이 사라져 간격이 미세하게 달라진다.
+              // ⚠️ `display:contents` 금지 — 박스가 사라져 IntersectionObserver 교차 영역이 0 이
+              //    되고 노출이 영구 0 이 된다(조용히 실패한다).
+              <AffiliateCard className="flex" payload={affPayload}>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  onClick={() => trackAffiliateClick(affPayload)}
+                  className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
+                >
+                  <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}
+                </a>
+              </AffiliateCard>
             );
           })()}
 

@@ -14,6 +14,18 @@
 import { track as posthogTrack, type PostHogEventName } from './posthog';
 import { hasAnalyticsConsent, onConsentChange, type ConsentState } from './consent';
 import { stripUnsafeProps, safePagePath, safePageLocation, safeReferrer } from './analyticsProps';
+import { queuePending, drainPending, clearPending } from './analyticsQueue';
+
+/** 대기열 도착지 이름 — GA4. */
+const GA_SINK = 'ga4';
+
+/**
+ * 전송 옵션.
+ * `noQueue` — 동의 전이면 **담지 말고 그냥 버린다.** 호출부가 이미 자기만의 재시도를 가진
+ *   경우에만 쓴다(charter 퍼널: "수락 시점의 **현재 단계**만 보낸다" 는 의도가 있어서,
+ *   지나온 단계를 전부 되보내는 전역 대기열과 의미가 다르다). 기본은 담는다.
+ */
+export interface TrackOptions { noQueue?: boolean }
 
 // ── Types ───────────────────────────────────────────────────────────────
 interface GtagEvent {
@@ -88,6 +100,12 @@ function applyConsentToGA(state: ConsentState): void {
 
 if (typeof window !== 'undefined') {
   onConsentChange(applyConsentToGA);
+  // 동의 전에 밀어 둔 이벤트를 수락하는 순간 흘려보낸다. 거절·철회면 버린다.
+  // (배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 유실되던 문제 — analyticsQueue.ts 주석)
+  onConsentChange(() => {
+    if (!hasAnalyticsConsent()) { clearPending(GA_SINK); return; }
+    for (const e of drainPending(GA_SINK)) sendToGA(e.name, e.props as GtagEvent | undefined);
+  });
 }
 
 // ── Track Page View (SPA navigation) ────────────────────────────────────
@@ -124,13 +142,34 @@ function gaUrlParams(): { page_location: string; page_referrer?: string } {
  * "한 번만 보낸다" 를 관리하는 호출부는 이 값을 봐야 한다 — 버려진 호출을 보냈다고
  * 표시해 두면 사용자가 나중에 동의해도 영영 재시도하지 않는다 (2026-08-01 리뷰 지적).
  */
-export function trackEvent(eventName: string, params?: GtagEvent): boolean {
-  if (!canSendToGA()) return false;
+export function trackEvent(
+  eventName: string,
+  params?: GtagEvent,
+  opts?: TrackOptions,
+): boolean {
+  if (typeof window === 'undefined' || !GA_ID) return false;
+  if (!hasAnalyticsConsent()) {
+    // 🔴 버리지 않는다. 동의 배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 사라지던
+    //   문제(analyticsQueue.ts 주석). 수락하면 위 구독이 흘려보낸다.
+    //   ⚠️ 예외: 호출부가 **자기만의 재시도**를 이미 가진 경우(charter 퍼널)는 담지 않는다.
+    //      담으면 수락 순간 대기열과 호출부가 각각 보내 **이중 전송**이 된다.
+    if (!opts?.noQueue) {
+      queuePending(GA_SINK, eventName, params as Record<string, unknown> | undefined);
+    }
+    return false;
+  }
+  if (!canSendToGA()) return false;   // 동의는 있는데 gtag 가 아직 없는 순간
+  sendToGA(eventName, params);
+  return true;
+}
+
+/** 실제 gtag 호출 — 대기열 flush 와 즉시 전송이 같은 경로를 쓰게 한다. */
+function sendToGA(eventName: string, params?: GtagEvent): void {
+  if (!canSendToGA()) return;
   window.gtag!('event', eventName, {
     ...stripUnsafeProps({ ...getStoredUtm(), ...params }),
     ...gaUrlParams(),
   });
-  return true;
 }
 
 // ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
@@ -455,8 +494,8 @@ export function trackSignUp(method: string) {
 //
 // 반환값 = **이 호출로 어느 한 곳이라도 실제 전송을 시도했는지**. 동의가 없으면 두 경로 모두
 // 조용히 버리므로 false 다. "정확히 1회" 를 지켜야 하는 호출부는 이 값으로 완료 표시를 한다.
-function trackFunnel(eventName: PostHogEventName, params?: GtagEvent): boolean {
-  const gaSent = trackEvent(eventName, params);     // GA4 (광고 귀속)
+function trackFunnel(eventName: PostHogEventName, params?: GtagEvent, opts?: TrackOptions): boolean {
+  const gaSent = trackEvent(eventName, params, opts);     // GA4 (광고 귀속)
   // PostHog 는 내부에서도 동의를 다시 검사한다. 여기서 미리 보는 이유는 "보냈다" 를
   // 호출부에 정확히 알려주기 위해서다(비동기라 결과를 기다릴 수 없다).
   let phSent = false;
@@ -488,10 +527,12 @@ export function trackWelcomeCouponModalView() {
 }
 /** 차터 견적 시작/완료. 반환값 = 실제 전송 시도 여부(동의 없으면 false → 호출부가 재시도). */
 export function trackCharterQuoteStart(): boolean {
-  return trackFunnel('charter_quote_start', {});
+  // charter 퍼널은 useCharterFunnelTracking 이 자체 재시도를 가진다 → 전역 대기열 제외(이중 전송 방지).
+  return trackFunnel('charter_quote_start', {}, { noQueue: true });
 }
 export function trackCharterQuoteComplete(params?: { vehicleType?: string; priceUSD?: number }): boolean {
-  return trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD });
+  // charter 퍼널은 useCharterFunnelTracking 이 자체 재시도를 가진다 → 전역 대기열 제외(이중 전송 방지).
+  return trackFunnel('charter_quote_complete', { vehicle_type: params?.vehicleType, value: params?.priceUSD }, { noQueue: true });
 }
 /**
  * 차터 위저드 단계 도달 (2026-08-01).
@@ -513,7 +554,8 @@ export function trackCharterQuoteComplete(params?: { vehicleType?: string; price
  * 호출부는 수락 이후 다시 시도해야 한다.
  */
 export function trackCharterStep(step: number): boolean {
-  return trackFunnel('charter_step', { step });
+  // charter 퍼널은 useCharterFunnelTracking 이 자체 재시도를 가진다 → 전역 대기열 제외(이중 전송 방지).
+  return trackFunnel('charter_step', { step }, { noQueue: true });
 }
 
 // ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──

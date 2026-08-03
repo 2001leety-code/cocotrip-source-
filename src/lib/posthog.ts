@@ -12,6 +12,10 @@
 import type { PostHog } from 'posthog-js';
 import { hasAnalyticsConsent, onConsentChange, consentGeneration, type ConsentState } from './consent';
 import { stripUnsafeProps, sanitizeCaptureProperties, safePagePath } from './analyticsProps';
+import { queuePending, drainPending, clearPending } from './analyticsQueue';
+
+/** 대기열 도착지 이름 — PostHog. */
+const PH_SINK = 'posthog';
 
 /** 전송이 허용된 SDK. 동의가 없으면 항상 null — 이 변수 자체가 "보내도 된다" 는 신호다. */
 let client: PostHog | null = null;
@@ -212,6 +216,18 @@ function consentUnchanged(gen: number): boolean {
 }
 
 export async function track(event: PostHogEventName, props?: Record<string, unknown>): Promise<void> {
+  if (typeof window === 'undefined' || !KEY) return;
+  if (!hasAnalyticsConsent()) {
+    // 🔴 버리지 않는다 — 배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 사라지던 문제.
+    //   수락하는 순간 아래 구독이 흘려보낸다. (src/lib/analyticsQueue.ts 주석 참조)
+    queuePending(PH_SINK, event, props);
+    return;
+  }
+  await sendNow(event, props);
+}
+
+/** 실제 capture — 즉시 전송과 대기열 flush 가 같은 경로를 쓰게 한다. */
+async function sendNow(event: string, props?: Record<string, unknown>): Promise<void> {
   const gen = consentGeneration();
   const ph = await ensureInit();
   if (!ph) return;
@@ -223,21 +239,27 @@ export async function track(event: PostHogEventName, props?: Record<string, unkn
   }
 }
 
+// 동의 전에 밀어 둔 이벤트를 수락하는 순간 흘려보낸다. 거절·철회면 버린다.
+onConsentChange(() => {
+  if (!hasAnalyticsConsent()) { clearPending(PH_SINK); return; }
+  for (const e of drainPending(PH_SINK)) void sendNow(e.name, e.props);
+});
+
 /**
  * SPA 화면 전환 1건 — **경로만** 보낸다(쿼리·해시 없음).
  * 자동 pageview 를 끈 대신 우리가 직접 부른다(init 설정의 주석 참조).
  */
 export async function capturePageView(pathname?: string): Promise<void> {
-  const gen = consentGeneration();
-  const ph = await ensureInit();
-  if (!ph) return;
-  if (!consentUnchanged(gen)) return;
+  if (typeof window === 'undefined' || !KEY) return;
+  // 경로는 **지금** 확정한다 — 나중에 대기열을 비울 때는 이미 다른 화면일 수 있다.
   const path = safePagePath(pathname);
-  try {
-    ph.capture('$pageview', { $pathname: path, page_path: path });
-  } catch (e) {
-    console.warn('[posthog] pageview failed:', (e as Error).message);
+  if (!hasAnalyticsConsent()) {
+    // 🔴 랜딩 페이지 pageview 가 신규 방문자에게서 통째로 사라지던 자리.
+    //   관리자 방문자 집계와 전환 퍼널 1단계의 **분모**라 유실 영향이 가장 크다.
+    queuePending(PH_SINK, '$pageview', { $pathname: path, page_path: path });
+    return;
   }
+  await sendNow('$pageview', { $pathname: path, page_path: path });
 }
 
 // Identify caller — typically Firebase uid (NOT email).
