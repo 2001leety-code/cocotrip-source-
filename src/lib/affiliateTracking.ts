@@ -22,6 +22,7 @@
  */
 import { trackEvent } from './analytics';
 import { track as posthogTrack } from './posthog';
+import { hasAnalyticsConsent, onConsentChange } from './consent';
 
 export type AffiliateProduct =
   | 'hotel' | 'flight' | 'esim' | 'train' | 'car' | 'attraction';
@@ -54,7 +55,16 @@ function seenKey(p: AffiliatePayload): string {
   return `aff_seen:${p.product}:${p.placement}:${p.linkKey || '-'}:${p.city || '-'}`;
 }
 
-function markSeen(p: AffiliatePayload): boolean {
+/**
+ * "이미 보냈다" 도장. **실제로 보낸 뒤에만** 찍는다.
+ *
+ * 🔴 2026-08-02 이전에는 이 도장을 전송보다 **먼저** 찍었다. 동의 배너를 누르기 전에
+ *   카드가 보이면 도장만 남고 전송은 `trackEvent`/`posthogTrack` 안에서 조용히 버려졌다.
+ *   게다가 `observeAffiliateImpression` 은 첫 노출에서 `io.disconnect()` 하므로 다시
+ *   불릴 일도 없다 → 나중에 동의해도 그 카드는 그 세션 내내 영영 안 나갔다.
+ *   그래서 관리자 제휴 성과판의 노출이 구조적으로 0이었다(PostHog 에 이벤트 정의조차 없음).
+ */
+function markSent(p: AffiliatePayload): boolean {
   if (typeof window === 'undefined') return false;
   try {
     const k = seenKey(p);
@@ -69,15 +79,54 @@ function markSeen(p: AffiliatePayload): boolean {
 }
 
 /**
- * 카드가 **실제로 화면에 보였을 때** 1회 기록한다.
- * 컨테이너가 아니라 카드 하나마다 호출해야 허위 노출이 안 생긴다.
+ * 동의 전에 화면에 보인 카드. 동의하는 순간 한 번에 내보낸다.
+ * 메모리에만 두며 담기는 값은 `toProps` 가 내보내는 것과 같다 — 개인정보 없음.
+ * 거절/철회하면 통째로 버린다.
  */
-export function trackAffiliateImpression(p: AffiliatePayload): void {
-  if (!markSeen(p)) return;
+const pendingImpressions = new Map<string, AffiliatePayload>();
+
+/** 실제 전송 — 도착지는 GA4·PostHog 양쪽. */
+function sendImpression(p: AffiliatePayload): void {
   const props = toProps(p);
   trackEvent('affiliate_impression', props);
-  posthogTrack('affiliate_impression', props);
+  void posthogTrack('affiliate_impression', props);
 }
+
+/**
+ * 카드가 **실제로 화면에 보였을 때** 1회 기록한다.
+ * 컨테이너가 아니라 카드 하나마다 호출해야 허위 노출이 안 생긴다.
+ *
+ * 동의 전이면 보내지 않고 대기열에만 넣는다 — 도장을 찍지 않으므로 동의 후 다시 나간다.
+ */
+export function trackAffiliateImpression(p: AffiliatePayload): void {
+  if (typeof window === 'undefined') return;
+  if (!hasAnalyticsConsent()) {
+    // 같은 카드를 여러 번 지나가도 키가 같아 하나로 합쳐진다.
+    pendingImpressions.set(seenKey(p), p);
+    return;
+  }
+  if (!markSent(p)) return;
+  sendImpression(p);
+}
+
+// 동의하는 순간 대기분을 흘려보낸다. 거절·철회면 버린다.
+// (analytics.ts·posthog.ts 도 같은 방식으로 모듈 로드 시 1회 구독한다.)
+onConsentChange(() => {
+  if (!hasAnalyticsConsent()) {
+    pendingImpressions.clear();
+    return;
+  }
+  for (const p of pendingImpressions.values()) {
+    if (markSent(p)) sendImpression(p);
+  }
+  pendingImpressions.clear();
+});
+
+/** 테스트 전용 — 모듈 상태(대기열)를 비운다. 제품 코드에서 부르지 않는다. */
+export const __testing = {
+  clearPendingImpressions: () => pendingImpressions.clear(),
+  pendingCount: () => pendingImpressions.size,
+};
 
 /** 제휴 링크 클릭. URL 은 보내지 않는다. */
 export function trackAffiliateClick(p: AffiliatePayload): void {
