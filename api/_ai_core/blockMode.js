@@ -35,6 +35,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
   AIRPORT_ARRIVE_BEFORE_MIN, CITY_CENTER_COORDS,
+  // 도착일 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
+  estimateAirportTransitMin, hhmmToMin, arrivalReadyMinutes,
 } from './constants.js';
 import { haversineKm } from './routeQuality.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
@@ -543,25 +545,6 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 const DEFAULT_DAY_START_HHMM = '09:00';
 const DEFAULT_TOUR_END_HHMM = '21:00';
 
-// #arrival-realtime (2026-06-05, 운영자): 도착일 시작 시각을 현실적으로 계산.
-// 옛 '도착+60분' 은 비현실 — 국제선 입국심사+짐+세관(~90분) + 공항→권역 이동(공항별)이 빠짐.
-// block_mode 는 RouteAgent(정밀 이동시간) 전 단계라 공항별 보수적 추정치 사용. RouteAgent 가 이후 정밀 보정.
-const IMMIGRATION_BUFFER_MIN = 90; // 국제선 입국심사 + 짐 + 세관 (보수적)
-
-/** 공항 → 권역(시내/호텔) 이동 현실 추정(분). 공항 코드/한글명 부분일치. */
-function estimateAirportTransitMin(airport) {
-  const a = String(airport || '').toUpperCase();
-  if (a.includes('ICN') || a.includes('인천')) return 90;   // 인천 → 서울권
-  if (a.includes('GMP') || a.includes('김포')) return 45;   // 김포 → 서울권
-  if (a.includes('PUS') || a.includes('김해') || a.includes('GIMHAE')) return 55; // 김해 → 부산
-  if (a.includes('CJU') || a.includes('제주')) return 25;   // 제주공항 → 제주시
-  if (a.includes('TAE') || a.includes('대구')) return 40;   // 대구
-  if (a.includes('CJJ') || a.includes('청주')) return 70;   // 청주 → 서울/대전
-  if (a.includes('RSU') || a.includes('여수')) return 30;
-  if (a.includes('USN') || a.includes('울산')) return 35;
-  return 70; // 기본 (모르는 공항 — 보수적)
-}
-
 // 🔴 2026-08-03: 위 표는 **공항이 속한 권역 안에서의** 이동 시간이다.
 //   손님이 다른 권역에 있으면 완전히 틀린다 — 운영 실측에서 **부산에 있는 손님이
 //   인천공항(직선 346km, 실제 4시간 이상)에서 출국**하는 플랜의 이동을 90분으로 봤다.
@@ -591,19 +574,6 @@ function estimateAirportTransitMinFrom(cityKey, airport) {
   if (km == null || km <= SAME_METRO_KM) return baseline;
   const intercity = Math.round(INTERCITY_OVERHEAD_MIN + (km * 60) / INTERCITY_EFFECTIVE_KMH);
   return Math.max(baseline, intercity);
-}
-
-/** "HH:mm" → 분(0~1439). 실패 시 -1. */
-function hhmmToMin(hhmm) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
-  return m ? (+m[1]) * 60 + (+m[2]) : -1;
-}
-
-/** 도착 후 "투어 시작 가능" 절대 분(자정 넘김 시 1440 초과 — wrap 안 함). 도착 + 입국수속 + 공항이동. */
-function arrivalReadyMinutes(arrivalHHMM, airport) {
-  const base = hhmmToMin(arrivalHHMM);
-  if (base < 0) return null;
-  return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMin(airport);
 }
 
 /**
@@ -1230,7 +1200,13 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         return !(pastMidnight || m > capMin);       // 종료 초과 / 자정 넘김 = 제거
       });
       stops.length = 0;
-      stops.push(...(kept.length ? kept : orig.slice(0, 1))); // 최소 1개(anchor) 보장
+      // 🔴 2026-08-03: "최소 1개(anchor) 보장" 폴백은 stops[0] 이 숙소라는 가정으로 쓰였다.
+      //   실제 zone_courses 128개는 **하나도** stops[0] 이 lodging 이 아니다(전부 명소, offset 0).
+      //   그래서 도착 휴식일에도 관광 stop 이 1개 살아남았다 — 손님이 24:00 에 권역에
+      //   도착하는데 21:00 관광 일정이 남는다. 휴식일은 관광 0 이 맞다
+      //   (숙소 bookend 는 planPersister 가 뒤에 합성한다).
+      if (kept.length) stops.push(...kept);
+      else if (!arrivalRestDay) stops.push(...orig.slice(0, 1)); // 휴식일 아닐 때만 anchor 보존
     }
 
     // Day N (departure day): 항공기 출발 시각을 넘는 활동을 자르고 공항 stop 을 넣는다.

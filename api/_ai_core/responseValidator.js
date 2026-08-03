@@ -9,6 +9,8 @@
  * 사용자에게 명시적 에러 + 환불 권장.
  */
 import { sanitizeStopName } from './sanitizeName.js';
+// 도착일 "활동 가능 시각" — blockMode·buildPrompt·RouteAgent 와 같은 계산을 쓴다(단일 원천).
+import { arrivalReadyMinutes } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { isDietaryTrusted } from '../_shared/dietary-trust.js';
 
@@ -887,7 +889,15 @@ export function validatePatternStructure(itinerary, request = {}) {
   if (arrivalMin !== null) {
     const day1 = days[0];
     const day1Stops = Array.isArray(day1?.stops) ? day1.stops : [];
-    const arrivalPlus60 = arrivalMin + 60;
+    // 🔴 2026-08-03: 옛 코드는 `arrival + 60` 을 "가장 이른 활동 가능 시각" 으로 봤다.
+    //   입국수속·짐·세관(~90분)과 공항→권역 이동이 빠진 값이라, 손님이 아직 공항에 있는
+    //   시각의 Day 1 활동을 통과시켰다(ICN 14:00 도착 → 옛 15:00 / 실제 17:00).
+    //   block_mode 는 2026-06-05 부터 현실값을 썼는데 이 검사만 남아 있었다.
+    //   도착 공항을 모르면 옛 값으로 폴백 — 검사가 조용히 사라지지는 않게.
+    const arrivalReady = arrivalReadyMinutes(
+      request.arrival_time || request.arrivalTime,
+      request.arrival_airport || request.arrivalAirport,
+    ) || (arrivalMin + 60);
     // P239: 18:00+ 도착 → Day 1 = lodging only 권장 (다음날 tour_start_time 부터 stops).
     // 옛 룰 (arrival + 9h wrap) 은 새벽 wrap → cascade fallback 트리거. 신 룰 = 단순 시각 컷.
     const isLateNightArrival = arrivalMin >= 18 * 60;
@@ -901,7 +911,7 @@ export function validatePatternStructure(itinerary, request = {}) {
       if (stopMin === null) continue;
       // P239: stops[1+] 시각이 tour_start_time 이전이면 ERROR.
       // 단 arrival_time+60 > tour_start_time 인 경우 (낮 도착) arrival+60 우선 폴백.
-      const effectiveTourStart = Math.max(tourStartMin || 0, arrivalPlus60);
+      const effectiveTourStart = Math.max(tourStartMin || 0, arrivalReady);
       // stop 가 arrival_time 이후 + effective 시각 이전이면 ERROR. arrival 이전 stop 는 다른 룰.
       if (stopMin >= arrivalMin && stopMin < effectiveTourStart) {
         errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < tour_start_time=${request.tour_start_time || request.tourStartTime || '09:00'} (B-LATE-ARRIVAL P239)`);
