@@ -1062,7 +1062,7 @@ export async function generatePDF(
 
         // Walk 정당화: 짧은 거리는 도보가 지하철보다 빠르다 (사용자 신고 대응)
         const walkNote = (t.method === 'walk' && (t.est_min || 0) <= 15)
-          ? `<p style="font-size:9px;color:#10b981;margin:2px 0 0;font-style:italic;">${transitDict?.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 시간 포함)'}</p>`
+          ? `<p style="font-size:9px;color:#10b981;margin:2px 0 0;font-style:italic;">${transitDict?.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 포함)'}</p>`
           : '';
         html += `<div class="pdf-transit-block" style="margin:4px 0 6px 16px;padding:6px 12px;background:${C.transitBg};border-left:3px solid ${C.accent};border-radius:4px;page-break-inside:avoid;break-inside:avoid;">
           <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${summary}</p>

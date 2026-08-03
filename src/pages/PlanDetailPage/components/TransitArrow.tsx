@@ -386,7 +386,7 @@ export function TransitArrow({ transit, destinationName, endpoints }: { transit:
           빠르다는 사실을 명시. 신뢰 회복 + AI 게으른 plan 인상 차단. */}
       {transit.method === 'walk' && (transit.est_min || 0) <= 15 && (
         <p className="text-[13px] text-emerald-400/75 ml-6 mt-0.5 italic">
-          {trKeys.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 시간 포함)'}
+          {trKeys.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 포함)'}
         </p>
       )}
       {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}

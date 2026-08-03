@@ -188,7 +188,7 @@ export function PurchaseSection({
               <Mail className="w-4 h-4 text-[#B8A0FF] shrink-0 mt-0.5" />
               <div className="text-[12px] text-white/75 leading-relaxed">
                 <p className="font-semibold text-white">{p.planReadyEmailTitle || "준비되면 이메일로도 보내드려요"}</p>
-                <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "잠시 페이지를 닫지 말아주세요. 보통 1~2분 정도 걸려요."}</p>
+                <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "1~2분 정도 소요됩니다. 메일로도 발송되니 기다리기 힘드시면 닫아놓으시고 나중에 메일함이나 바로가기 앱에서 확인하셔도 됩니다."}</p>
               </div>
             </div>
           </div>

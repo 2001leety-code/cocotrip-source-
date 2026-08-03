@@ -29,7 +29,7 @@ export function MobileBottomNav() {
         { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'Plan' },
         { to: '/map', icon: <MapIcon className="w-[17px] h-[17px]" />, label: nav.mapShort || 'Map' },
         { to: '/assistant', icon: <Bot className="w-[17px] h-[17px]" />, label: nav.assistantShort || 'Assistant' },
-        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
+        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약 내역' },
         { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
       ]
     : six
@@ -46,7 +46,7 @@ export function MobileBottomNav() {
         { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
         { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours || '투어' },
         { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'AI 플래너' },
-        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약' },
+        { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약 내역' },
         // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도).
         { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
       ];
