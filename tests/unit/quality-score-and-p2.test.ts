@@ -1,9 +1,15 @@
 /**
  * 회귀 잠금 (2026-07-28) — 품질 점수가 오류율을 가리던 문제 + P2 표시 결함.
  *
- * 실측(최근 30일, 플랜 100건): 평균 88.7 인데 촉박 73.5% · 중복 25.4% ·
- * 필드누락 22.8% · 경로실패 13.0% · 미검증식당 9.4%.
- * 옛 가중치로 역산하면 정확히 89 대가 나온다 = 점수가 문제를 감추고 있었다.
+ * 잠그는 성질: **오류율이 높으면 점수가 가중치만큼 실제로 깎인다.**
+ *
+ * ⚠️ 2026-08-03 정정 — 이 파일이 원래 근거로 쓰던 "실측 오류율"
+ *   (촉박 73.5% · 중복 25.4% · 필드누락 22.8%)은 **오측정이었다.**
+ *   촉박은 이동시간<30분(=잘 묶인 동선)을, 중복·필드누락은 숙소 앵커를 세고
+ *   있었다. 상세 = api/_ai_core/qualityMetrics.js 헤더 +
+ *   tests/unit/quality-metrics-structural-false-positives.test.ts.
+ *   그래서 그 숫자를 테스트 기준으로 다시 쓰지 않는다. 대신 가중치가 실제로
+ *   무는지를 합성 위반율로 직접 확인한다.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -22,24 +28,24 @@ function metricsFromRates(rates: Record<string, number>) {
   return m;
 }
 
-const OBSERVED = {
-  tight_schedule: 0.735,
-  duplicate_stops: 0.254,
-  field_completeness: 0.228,
-  route_failure: 0.130,
-  unverified_restaurant: 0.094,
-};
-
 describe('품질 점수 — 실제 오류율이 점수에 드러난다', () => {
   it('가중치 합은 100 이다', () => {
     const sum = Object.values(METRIC_WEIGHTS).reduce((a: number, b: number) => a + b, 0);
     expect(sum).toBe(100);
   });
 
-  it('실측 오류율에서 90점 근처가 나오지 않는다 (감춤 방지)', () => {
-    const score = computeWeightedScore(metricsFromRates(OBSERVED) as never);
-    // 옛 가중치에서는 89 였다. 손님 체감 항목을 올렸으므로 확실히 더 낮아야 한다.
-    expect(score).toBeLessThan(85);
+  it('한 지표가 전건 위반이면 딱 그 가중치만큼 깎인다 (감춤 방지)', () => {
+    for (const [metric, weight] of Object.entries(METRIC_WEIGHTS)) {
+      const score = computeWeightedScore(metricsFromRates({ [metric]: 1 }) as never);
+      expect(score, `${metric}: 전건 위반인데 감점 ${100 - score}`).toBe(100 - (weight as number));
+    }
+  });
+
+  it('손님 체감 항목이 여러 개 겹치면 80점 아래로 내려간다', () => {
+    const score = computeWeightedScore(
+      metricsFromRates({ tight_schedule: 1, route_failure: 1 }) as never,
+    );
+    expect(score).toBeLessThan(80);
   });
 
   it('촉박한 일정이 경미 항목보다 무겁다', () => {

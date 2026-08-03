@@ -186,6 +186,13 @@ export function lookupZoneCoord(zone) {
   return null;
 }
 
+// ── 일정 여유 버퍼 ─────────────────────────────────────────────────────────
+// RouteAgent 가 stop 시각을 cascade 계산할 때 이동시간 위에 얹는 여유(초행길 감안).
+// 즉 정상 plan 의 "다음 시작 − 이전 종료 − 이동시간" 은 이 값 이상이어야 한다.
+// qualityMetrics.tight_schedule 이 같은 값을 기준으로 촉박 여부를 판정하므로
+// 두 곳에 따로 적지 않는다 (한쪽만 바뀌면 지표가 조용히 어긋난다).
+export const SCHEDULE_BUFFER_MIN = 5;
+
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {
   en: `Write ALL narrative text fields in English.

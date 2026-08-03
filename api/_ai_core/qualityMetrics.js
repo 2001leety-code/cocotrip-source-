@@ -10,8 +10,9 @@
  *   3. bad_address_prefix    — "대한민국 " / "KR " prefix still present, OR
  *                              address does not start with a Korean city/region
  *   4. duplicate_stops       — same stop name repeated across the itinerary
- *   5. tight_schedule        — transit gaps < 30 min
- *   6. loose_schedule        — transit gaps > 90 min
+ *   5. tight_schedule        — schedule slack below SCHEDULE_BUFFER_MIN, i.e.
+ *                              the guest cannot actually reach the next stop
+ *   6. loose_schedule        — single transit leg > 90 min (day burned on travel)
  *   7. route_failure         — RouteAgent failures (route_to_hotel missing,
  *                              transit_from_prev absent for non-first stop, etc.)
  *   8. field_completeness    — required fields (name/display_name/lat/lng) missing
@@ -20,7 +21,44 @@
  *
  * Logic mirrors scripts/validate-planner.cjs analyzeIssues() so offline
  * validation runs and live runtime computation produce identical counts.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * 🔴 2026-08-03 — 지표가 "정상 일정 구조"를 결함으로 세던 것 수정
+ *
+ * L3 Quality Monitor 가 24h 평균 79.8 < hard floor 80 으로 실패했다. 원인을
+ * 운영 Firestore 플랜 25건 원본으로 추적한 결과, 감점 20.34 중 **16.7(82%)이
+ * 오측정**이었다. 일정 자체는 7/27 이후 바뀐 게 없다(같은 count/total 인데
+ * 7/28 가중치 재배분 뒤 점수만 90.7 → 79.8 로 내려갔다).
+ *
+ * 1) tight_schedule — "이동시간 < 30분" 을 촉박으로 셌다. 그런데 짧은 이동은
+ *    잘 묶인 동선의 **목표**다(익선동 → 서순라길 도보 4분). 실측 362 구간 중
+ *    78.5% 가 30분 미만 → 12.65점 감점. 반면 진짜 여유
+ *    (다음 시작 − 이전 종료 − 이동)는 313/313 구간 전부 5분 이상, 음수 0건
+ *    이었다. **촉박한 구간은 한 건도 없었다.**
+ *    → 이동시간이 아니라 여유를 잰다. 기준은 RouteAgent 가 실제로 얹는
+ *      SCHEDULE_BUFFER_MIN (constants.js 단일 원천).
+ *
+ * 2) duplicate_stops — 중복 117건 중 105건(90%)이 "숙소에서 출발 → 숙소로
+ *    복귀". buildPrompt.js 가 **모든 day 를 lodging 으로 시작·종료하라고 강제**
+ *    한다(:375, :390). 설계가 시킨 구조를 결함으로 센 것.
+ *    → lodging 은 중복 집계에서 제외(분모에서도).
+ *
+ * 3) field_completeness — 좌표 누락 98건 **전부 lodging**, 비-lodging 은 0건.
+ *    손님이 호텔을 특정하지 않으면 "명동 지역 숙소"(address="서울 명동") 같은
+ *    지역 placeholder 가 들어간다. 좌표가 없는 게 정상이다.
+ *    → lodging 은 좌표를 요구하지 않는다. 이름·표기명은 그대로 요구.
+ *
+ * 4) route_failure — 누락 49건 **전부 lodging 도착 구간**. 좌표 없는 숙소로는
+ *    경로를 낼 수 없다. 단, 손님이 호텔을 특정한 경우(좌표 있음)는 경로가
+ *    나와야 하므로 그건 계속 실패로 센다.
+ *    → 좌표 없는 lodging 도착 구간만 분모·분자에서 제외.
+ *
+ * ⚠️ 가중치는 이번에 건드리지 않았다. 7/28 배분은 위 오측정률을 실제 오류율로
+ *    믿고 정한 값이라 재조정 여지가 있으나, 근거가 될 "진짜 오류율"은 이 수정
+ *    후 며칠 쌓여야 나온다. 데이터 없이 다시 감으로 배분하지 않는다.
+ * ══════════════════════════════════════════════════════════════════════════
  */
+import { SCHEDULE_BUFFER_MIN } from './constants.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────
 // Weights are applied to per-stop violation rates (or absolute counts for
@@ -75,6 +113,16 @@ if (_weightSum !== 100) {
 
 // City/region prefixes accepted for Korean addresses.
 const CITY_PREFIX_RE = /^(서울|부산|제주|인천|경기|강원|충청|전라|경상|울산|대구|대전|광주|세종)/;
+
+// 숙소 앵커 — buildPrompt.js 가 모든 day 의 첫/마지막 stop 으로 강제하는 stop.
+// 손님이 호텔을 특정하지 않으면 "명동 지역 숙소" 같은 지역 placeholder 라
+// 좌표가 없는 것이 정상이다.
+function isLodging(stop) {
+  return stop?.category === 'lodging';
+}
+function hasCoords(stop) {
+  return !!(stop?.lat && stop?.lng);
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function flattenStops(itinerary) {
@@ -186,35 +234,80 @@ function countBadAddressPrefix(stopsList) {
   return { total, count: bad };
 }
 
+// 숙소 앵커는 제외한다 — 모든 day 가 lodging 으로 시작·종료하도록 프롬프트가
+// 강제하므로(buildPrompt.js:375, :390) 같은 숙소가 반복되는 건 설계된 구조다.
+// 손님이 알아채는 진짜 중복은 관광지·식당이 다시 나오는 것.
 function countDuplicateStops(stopsList) {
-  const total = stopsList.length;
+  const counted = stopsList.filter(({ stop }) => !isLodging(stop));
   const seen = new Map();
-  for (const { stop } of stopsList) {
+  for (const { stop } of counted) {
     const key = stopLabel(stop);
     if (!key) continue;
     seen.set(key, (seen.get(key) || 0) + 1);
   }
   let dups = 0;
   for (const n of seen.values()) if (n > 1) dups += (n - 1);
-  return { total, count: dups };
+  return { total: counted.length, count: dups };
 }
 
+// 이 stop 으로 오는 이동에 걸린 시간(분). ODsay/TMAP 실측 우선, 없으면 Gemini 추정.
+function transitMinutesTo(stop) {
+  const odsayMin = stop?.travelFromPrev?.transitOptions?.publicTransit?.duration;
+  if (odsayMin != null) return odsayMin;
+  const geminiMin = stop?.transit_from_prev?.est_min;
+  if (geminiMin != null) return geminiMin;
+  return null;
+}
+
+// "HH:MM" → 자정 기준 분. 파싱 실패 시 null.
+function parseHhmm(value) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+function stopEndMinutes(stop) {
+  const explicit = parseHhmm(stop.end_time);
+  if (explicit != null) return explicit;
+  const start = parseHhmm(stop.start_time || stop.time);
+  if (start == null) return null;
+  return start + (Number(stop.stay_min) || 0);
+}
+
+/**
+ * tight = 여유(다음 시작 − 이전 종료 − 이동시간)가 SCHEDULE_BUFFER_MIN 미만.
+ *         즉 손님이 그 시각에 실제로 도착할 수 없는 구간.
+ * loose = 한 구간 이동이 90분 초과. 하루가 이동으로 날아간다.
+ * 두 지표는 계산 가능한 구간이 달라 분모를 따로 센다.
+ */
 function countScheduleIssues(itinerary) {
-  let total = 0; let tight = 0; let loose = 0;
+  let slackTotal = 0; let tight = 0;
+  let travelTotal = 0; let loose = 0;
   for (const day of (itinerary?.days || [])) {
     const stops = day.stops || [];
     for (let i = 1; i < stops.length; i++) {
-      const t = stops[i];
-      const odsayMin = t.travelFromPrev?.transitOptions?.publicTransit?.duration;
-      const geminiMin = t.transit_from_prev?.est_min;
-      const min = odsayMin ?? geminiMin;
-      if (min == null) continue;
-      total++;
-      if (min < 30) tight++;
-      else if (min > 90) loose++;
+      const prev = stops[i - 1];
+      const cur = stops[i];
+      const transitMin = transitMinutesTo(cur);
+      if (transitMin == null) continue;
+
+      travelTotal++;
+      if (transitMin > 90) loose++;
+
+      const prevEnd = stopEndMinutes(prev);
+      const curStart = parseHhmm(cur.start_time || cur.time);
+      if (prevEnd == null || curStart == null) continue;
+      const slack = curStart - prevEnd - transitMin;
+      // 자정을 넘긴 day 는 curStart 가 되감겨 음수 폭이 커진다 — 오탐 방지.
+      if (slack < -12 * 60) continue;
+      slackTotal++;
+      if (slack < SCHEDULE_BUFFER_MIN) tight++;
     }
   }
-  return { total, tight, loose };
+  return {
+    tight: { total: slackTotal, count: tight },
+    loose: { total: travelTotal, count: loose },
+  };
 }
 
 function countRouteFailures(itinerary) {
@@ -227,8 +320,11 @@ function countRouteFailures(itinerary) {
   for (const day of (itinerary?.days || [])) {
     const stops = day.stops || [];
     for (let i = 1; i < stops.length; i++) {
-      total++;
       const t = stops[i];
+      // 좌표 없는 숙소(지역 placeholder)로는 경로를 낼 수 없다 — 분모에서도 뺀다.
+      // 손님이 호텔을 특정해 좌표가 있으면 경로가 나와야 하므로 계속 센다.
+      if (isLodging(t) && !hasCoords(t)) continue;
+      total++;
       const has = t.transit_from_prev || t.travelFromPrev;
       if (!has) failures++;
     }
@@ -242,8 +338,9 @@ function countFieldIncomplete(stopsList) {
     total++;
     const hasName    = !!(stop.name || stop.name_ko);
     const hasDisplay = !!(stop.display_name || stop.name_en);
-    const hasCoords  = !!(stop.lat && stop.lng);
-    if (!hasName || !hasDisplay || !hasCoords) bad++;
+    // 숙소는 좌표를 요구하지 않는다 — 손님이 호텔 미지정이면 지역 placeholder 다.
+    const coordsOk   = isLodging(stop) ? true : hasCoords(stop);
+    if (!hasName || !hasDisplay || !coordsOk) bad++;
   }
   return { total, count: bad };
 }
@@ -301,8 +398,8 @@ export function computeQualityScore(itinerary, dietary, _area, foodIndex, opts =
     language_mismatch:     countLanguageMismatch(stopsList, lang),
     bad_address_prefix:    countBadAddressPrefix(stopsList),
     duplicate_stops:       countDuplicateStops(stopsList),
-    tight_schedule:        { total: sched.total, count: sched.tight },
-    loose_schedule:        { total: sched.total, count: sched.loose },
+    tight_schedule:        sched.tight,
+    loose_schedule:        sched.loose,
     route_failure:         countRouteFailures(itinerary),
     field_completeness:    countFieldIncomplete(stopsList),
     dietary_violation:     countDietaryViolations(stopsList, dietary),

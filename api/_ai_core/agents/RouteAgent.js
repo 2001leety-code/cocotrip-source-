@@ -5,7 +5,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
@@ -1454,7 +1454,7 @@ export class RouteAgent extends BaseAgent {
                     }
                 }
             }
-            const BUFFER_MIN = 5; // 초행길 여유 시간
+            const BUFFER_MIN = SCHEDULE_BUFFER_MIN; // 초행길 여유 시간 (constants.js 단일 원천)
 
             // ════════════════════════════════════════════════════════
             // Phase 2.5: 호텔 → 첫 번째 장소 경로
