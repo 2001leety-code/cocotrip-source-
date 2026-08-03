@@ -445,7 +445,7 @@ export default function CharterPage() {
                   <p className={`text-[10px] uppercase tracking-widest font-semibold mb-3 ${isMobile ? 'text-[#B668FC]/70' : 'text-[#C4956A]/70'}`}>{c.quoteTitle ?? '예상 견적'}</p>
                   <p className="font-bold text-white text-base mb-0.5">{quote.label}</p>
                   <p className="text-xs text-white/55 mb-4">
-                    {VEHICLE_TYPES[vehicle].name.ko} · {startDate || (c.dateNotSelected ?? '날짜 미선택')} · {c.adults ?? '성인'} {adults}{c.vehicleMaxUnit ?? '명'}{children > 0 ? ` ${c.children ?? '어린이'} ${children}${c.vehicleMaxUnit ?? '명'}` : ''}
+                    {VEHICLE_TYPES[vehicle].name.ko} · {startDate || (c.dateNotSelected ?? '날짜 미선택')} · {c.adults ?? '성인'} {adults}{c.vehicleMaxUnit ?? '인'}{children > 0 ? ` ${c.children ?? '어린이'} ${children}${c.vehicleMaxUnit ?? '인'}` : ''}
                   </p>
 
                   {quote.priceKRW != null ? (
@@ -476,7 +476,7 @@ export default function CharterPage() {
                       <p className="text-lg font-bold text-amber-300">{c.customQuote ?? '별도 견적'}</p>
                       {quote.guideRequired && (
                         <p className="text-xs text-amber-200/70 mt-1 flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />{c.vehicleGuideCost ?? '가이드 비용 ₩300,000/일 별도 포함'}
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />{c.vehicleGuideCost ?? '가이드 비용 ₩300,000/일이 추가됩니다.'}
                         </p>
                       )}
                     </div>
@@ -555,7 +555,7 @@ export default function CharterPage() {
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included2 ?? '영어 소통 가능 기사 · 24시간 지원'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included3 ?? '대형 캐리어 수납 가능'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included4 ?? '픽업 안내 서비스 (공항 픽업 ₩20,000 추가)'}</span></li>
-                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>
+                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간 (그룹당)').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>
                 <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.nightSurcharge ?? '심야 할증 (00:00–06:00) {n}% 추가').replace('{n}', String(EXTRA_CHARGES.nightSurchargePercent))}</span></li>
               </ul>
             </div>

@@ -68,7 +68,7 @@ export function HeroCards({ t }: HeroCardsProps) {
             <div className={BLUR_BLOB} />
             <div className={ICON_WRAP}><Plane className={ICON_CLS} /></div>
             <h3 className={TITLE_CLS}>{hc.flightTitle || '항공권 예약'}</h3>
-            <p className={LINE1_CLS}>{hc.flightLine1 || '스카이스캐너 제휴'}</p>
+            <p className={LINE1_CLS}>{hc.flightLine1 || 'Trip.com 제휴'}</p>
             <p className={LINE2_CLS}>{hc.flightLine2 || '최저가 항공권 비교'}</p>
             <div className={CTA_CLS}>
               <span>{hc.flightCta || '항공권 검색'}</span>
