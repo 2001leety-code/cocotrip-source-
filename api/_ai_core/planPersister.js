@@ -6,6 +6,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore } from './qualityMetrics.js';
+import { SCHEDULE_BUFFER_MIN } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
@@ -419,6 +420,35 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
 }
 
 /**
+ * 숙소 → 그날 첫 활동 이동 시간(분). 실측(ODsay/TMAP) 우선, 없으면 Gemini 추정,
+ * 그것도 없으면 day 레벨 `lodging_to_first`. 셋 다 없으면 null.
+ *
+ * 값이 `null` 이면 `Number(null) === 0` 이라 0 분으로 통과해 버리므로
+ * 반드시 `Number.isFinite` + `> 0` 로 거른다.
+ */
+function firstStopTransitMinutes(stop, day) {
+  const candidates = [
+    stop
+      && stop.travelFromPrev
+      && stop.travelFromPrev.transitOptions
+      && stop.travelFromPrev.transitOptions.publicTransit
+      && stop.travelFromPrev.transitOptions.publicTransit.duration,
+    stop && stop.transit_from_prev && stop.transit_from_prev.est_min,
+    day && day.lodging_to_first && day.lodging_to_first.est_min,
+  ];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+// 합성 숙소 출발 시각이 내려갈 수 있는 하한. wizard 는 tour_start_time 을 04:00 까지
+// 허용하는데(WizardStep2Details.tsx) block_mode 에는 buildPrompt/RouteAgent 가 가진
+// hour>=5 가드가 없다. 단 이 하한을 적용해서 다시 "출발 = 도착" 이 되면 적용하지 않는다.
+const LODGING_DEPART_FLOOR_MIN = 5 * 60;
+
+/**
  * P160 (2026-05-22): B-10 lodging bookend self-heal.
  *
  * 상용화 D-day prod alert: "Day 3: stops[0].category='food' expected 'lodging' (B-10)".
@@ -486,14 +516,40 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     if (stops[0]?.category !== 'lodging') {
       const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
       const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
-      // 첫 stop start_time 보다 1시간 이르게 설정 (logical 출발 시각)
+      // 숙소 출발 시각(logical) — 첫 활동 시각에서 **실제 이동 시간**을 빼서 만든다.
+      //
+      // 🔴 2026-08-03: 옛 규칙은 "첫 stop − 60분, 09:00 바닥" 이라 이동 시간을 아예
+      //   안 봤다. block_mode 는 day 시작이 기본 09:00 이라 −60 이 바닥에 걸려
+      //   출발 시각이 첫 활동과 **같아졌다**. 운영 실측: block_mode day-start 49건 중
+      //   38건이 정확히 09:00, day2+ 32건 중 28건이 여유 음수(중앙값 −30분, 최악 −96분).
+      //   손님은 "숙소 09:00 출발 → 서울숲 09:00 도착(이동 30분)" 을 받았다.
+      //   legacy 는 Gemini 가 lodging stop 을 직접 내서 이 합성 경로를 안 타 무사했다.
+      //   → 이동 시간을 알면 그것으로 역산한다. 여유는 RouteAgent 가 다른 모든 구간에
+      //     쓰는 값과 같은 SCHEDULE_BUFFER_MIN 을 쓴다(구간 불변식 일치).
+      //   ⚠️ tour_start_time 은 "첫 활동 시작" 이지 "숙소 출발" 이 아니다
+      //     (buildPrompt.js:401-402 · responseValidator 는 lodging 을 검사에서 제외).
+      //     그래서 활동 시각은 건드리지 않고 표시용 출발 시각만 바로잡는다.
       let synStart = '09:00';
       const firstTimeMatch = /^(\d{1,2}):(\d{2})$/.exec(String(stops[0]?.start_time || ''));
       if (firstTimeMatch) {
         const fh = parseInt(firstTimeMatch[1], 10);
         const fm = parseInt(firstTimeMatch[2], 10);
-        let earlierMin = fh * 60 + fm - 60;
-        if (earlierMin < 9 * 60) earlierMin = 9 * 60; // 09:00 floor
+        const firstMin = fh * 60 + fm;
+        const transitMin = firstStopTransitMinutes(stops[0], day);
+        let earlierMin;
+        if (transitMin != null) {
+          earlierMin = firstMin - transitMin - SCHEDULE_BUFFER_MIN;
+          // 새벽 출발 방지. 단 이 보정이 다시 "출발 = 도착" 충돌을 만들면 적용 안 한다
+          // — 충돌을 없애려고 고치는 중인데 되살리면 안 된다.
+          if (earlierMin < LODGING_DEPART_FLOOR_MIN && LODGING_DEPART_FLOOR_MIN < firstMin) {
+            earlierMin = LODGING_DEPART_FLOOR_MIN;
+          }
+          if (earlierMin < 0) earlierMin = 0;
+        } else {
+          // 이동 시간을 모르는 경우에만 옛 규칙 유지(첫 stop − 60분, 09:00 바닥).
+          earlierMin = firstMin - 60;
+          if (earlierMin < 9 * 60) earlierMin = 9 * 60;
+        }
         synStart = `${String(Math.floor(earlierMin / 60)).padStart(2, '0')}:${String(earlierMin % 60).padStart(2, '0')}`;
       }
       stops.unshift({
