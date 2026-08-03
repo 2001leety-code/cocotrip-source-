@@ -65,6 +65,55 @@ export const AIRPORT_NAMES_KO = {
 // (한쪽만 바뀌면 "검사는 통과하는데 일정은 비행기를 놓치는" 상태가 된다).
 export const AIRPORT_ARRIVE_BEFORE_MIN = 180;
 
+// ── 도착일 "투어 시작 가능" 시각 ────────────────────────────────────────────
+// #arrival-realtime (2026-06-05, 운영자): 옛 '도착 + 60분' 은 비현실이다 —
+//   국제선 입국심사 + 짐 + 세관(~90분) + 공항→권역 이동(공항별)이 빠져 있다.
+//
+// 🔴 2026-08-03: 이 계산은 blockMode 안에만 있었고 **buildPrompt 는 여전히
+//   Gemini 에게 '+60분' 을 가르치고 있었다.** 같은 여행에 두 개의 현실이 있었다.
+//   실측(ICN 14:00 도착): 실제 권역 도착 17:00 인데 legacy 플랜의 첫 활동이
+//   16:15~16:26 — 손님이 아직 공항에 있는 시각이다.
+//   → 두 경로가 같은 값을 쓰도록 여기(의존성 없는 leaf)로 옮겼다.
+export const IMMIGRATION_BUFFER_MIN = 90; // 국제선 입국심사 + 짐 + 세관 (보수적)
+
+/** 공항 → 권역(시내/호텔) 이동 현실 추정(분). 공항 코드/한글명 부분일치. */
+export function estimateAirportTransitMin(airport) {
+  const a = String(airport || '').toUpperCase();
+  if (a.includes('ICN') || a.includes('인천')) return 90;   // 인천 → 서울권
+  if (a.includes('GMP') || a.includes('김포')) return 45;   // 김포 → 서울권
+  if (a.includes('PUS') || a.includes('김해') || a.includes('GIMHAE')) return 55; // 김해 → 부산
+  if (a.includes('CJU') || a.includes('제주')) return 25;   // 제주공항 → 제주시
+  if (a.includes('TAE') || a.includes('대구')) return 40;   // 대구
+  if (a.includes('CJJ') || a.includes('청주')) return 70;   // 청주 → 서울/대전
+  if (a.includes('RSU') || a.includes('여수')) return 30;
+  if (a.includes('USN') || a.includes('울산')) return 35;
+  return 70; // 기본 (모르는 공항 — 보수적)
+}
+
+/** "HH:mm" → 분(0~1439). 실패 시 -1. */
+export function hhmmToMin(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  return m ? (+m[1]) * 60 + (+m[2]) : -1;
+}
+
+/**
+ * 도착 후 "투어 시작 가능" 절대 분. 자정 넘김 시 1440 초과 — wrap 하지 않는다.
+ * 도착 + 입국수속 + 공항→권역 이동.
+ */
+export function arrivalReadyMinutes(arrivalHHMM, airport) {
+  const base = hhmmToMin(arrivalHHMM);
+  if (base < 0) return null;
+  return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMin(airport);
+}
+
+/** 위 값을 "HH:mm" 으로. 자정을 넘기면 24h wrap(다음 날 시각). 실패 시 null. */
+export function arrivalReadyHHMM(arrivalHHMM, airport) {
+  const min = arrivalReadyMinutes(arrivalHHMM, airport);
+  if (min == null) return null;
+  const w = ((min % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(w / 60)).padStart(2, '0')}:${String(w % 60).padStart(2, '0')}`;
+}
+
 // ── 공항 좌표 (lat/lng) — RouteAgent의 ODsay 호출용 ────────────────────────
 // 출처: 각 공항 운영사 공식 좌표. Terminal별 좌표가 다르면 도보 5분+ 차이.
 export const AIRPORT_COORDS = {

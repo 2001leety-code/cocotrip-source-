@@ -32,6 +32,9 @@ import { buildFoodPrefSnippet } from '../_food_helper.js';
 import { getActivityContextForPrompt } from '../_activity_helper.js'; // P241
 import { getHotelContextForPrompt } from '../_hotel_helper.js';       // P241
 
+// 도착일 "투어 시작 가능" 시각 — block_mode 와 **같은 계산**을 쓴다(constants 단일 원천).
+import { arrivalReadyHHMM } from './constants.js';
+
 // P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
 const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
 
@@ -123,6 +126,13 @@ export function buildUserMessage({
     // 2026-05-10 (P1): 도착/출발 시각 — Gemini 가 첫/마지막 day 일정 시각 분기.
     arrival_time: arrivalTime || undefined,
     departure_time: departureTime || undefined,
+    // 🔴 2026-08-03: 손님이 실제로 공항을 벗어나 권역에 도착하는 시각.
+    //   = 도착 + 입국수속(90분) + 공항→권역 이동(공항별). block_mode 는 2026-06-05 부터
+    //   이 값을 썼는데 **buildPrompt 는 Gemini 에게 '도착 + 60분' 을 가르치고 있었다** —
+    //   같은 여행에 두 개의 현실이 있었다. 실측(ICN 14:00 도착): 실제 17:00 인데
+    //   legacy 플랜 첫 활동이 16:15~16:26, 즉 손님이 아직 공항에 있는 시각이었다.
+    //   여기서 계산해 넘겨 Gemini 가 산수를 하지 않게 한다(모델 계산은 틀린다).
+    arrival_ready_time: arrivalReadyHHMM(arrivalTime, arrival_airport) || undefined,
     // P239 (2026-05-27): tour_start_time — 운영자 architectural fix.
     // arrival_time 무관하게 Day1 stops 시작 시각 고정 (default '09:00').
     // 새벽 도착 시 호텔만 transit + tour_start_time 부터 stops 작성.

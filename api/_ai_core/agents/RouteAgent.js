@@ -5,7 +5,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, arrivalReadyMinutes } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
@@ -1443,14 +1443,17 @@ export class RouteAgent extends BaseAgent {
                         // stops[1] 의 Gemini 시각 vs tour_start_time — 둘 중 늦은 것 사용.
                         // (Gemini 가 14:00 도착 → 15:00 stops[1] 추천 시 그 값 우선.)
                         const stop1GeminiMin = this._parseTime(places[1]?.start_time || tourStartRaw);
-                        const arrivalPlus60 = data.arrival_time
-                            ? this._parseTime(data.arrival_time) + 60
-                            : 0;
-                        const effectiveTourStart = Math.max(safeTourStartMin, stop1GeminiMin, arrivalPlus60);
+                        // 🔴 2026-08-03: 옛 코드는 `arrival_time + 60` 을 바닥으로 썼다. 입국수속·짐·세관
+                        //   (~90분)과 공항→권역 이동이 빠진 값이라, Gemini 가 14:00 ICN 도착에 16:15 을
+                        //   추천하면 그대로 통과했다 — 손님이 아직 공항에 있는 시각이다(실제 17:00).
+                        //   block_mode 는 2026-06-05 부터 현실값을 썼는데 여기만 남아 있었다.
+                        //   constants.arrivalReadyMinutes = 도착 + 입국수속 + 공항→권역 이동(공항별).
+                        const arrivalReady = arrivalReadyMinutes(data.arrival_time, data.arrival_airport) || 0;
+                        const effectiveTourStart = Math.max(safeTourStartMin, stop1GeminiMin, arrivalReady);
                         // currentTime 은 stops[0] (lodging) 시각 — 변경 X. stitch loop 가 places[1] 부터
                         // 처리할 때 이 tour_start_time 을 사용하도록 dayPlan 에 cache.
                         dayPlan._p239TourStartMin = effectiveTourStart;
-                        console.log(`  [Route] Day 1: P239 tour_start_time set = ${this._formatTime(effectiveTourStart)} (raw=${tourStartRaw}, safe=${this._formatTime(safeTourStartMin)}, gemini stop1=${this._formatTime(stop1GeminiMin)}, arrival+60=${this._formatTime(arrivalPlus60)})`);
+                        console.log(`  [Route] Day 1: P239 tour_start_time set = ${this._formatTime(effectiveTourStart)} (raw=${tourStartRaw}, safe=${this._formatTime(safeTourStartMin)}, gemini stop1=${this._formatTime(stop1GeminiMin)}, arrival_ready=${this._formatTime(arrivalReady)})`);
                     }
                 }
             }

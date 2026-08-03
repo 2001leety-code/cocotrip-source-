@@ -25,7 +25,17 @@ const toMin = (hhmm: string) => {
   return m ? +m[1] * 60 + +m[2] : -1;
 };
 
-/** 합성 블록 — 첫 stop=호텔(lodging), 나머지=culture. offset(분)으로 시각 제어. */
+/**
+ * 합성 블록 — offset(분)으로 시각 제어.
+ *
+ * 🔴 2026-08-03: 예전 이 픽스처는 stops[0] 을 **lodging** 으로 만들었다. 그런데
+ *   실제 `src/data/zone_courses/*.json` 128개는 **하나도** stops[0] 이 lodging 이 아니다
+ *   (culture 60 · nature 37 · sports 15 · shopping 9 · food 3 · cafe 1 · activity 3,
+ *    전부 start_time_offset_min = 0). 숙소 bookend 는 나중에 planPersister 가 합성한다.
+ *   그래서 "dayStart 가 첫 **활동**에 그대로 붙는다" 는 사실이 이 테스트에서 안 보였고,
+ *   day-start 결함(숙소 출발 = 첫 활동 도착)이 전 스위트를 통과했다.
+ *   → 픽스처를 운영 데이터 모양으로 맞춘다.
+ */
 function makeBlocks(offsets: number[]) {
   return [
     {
@@ -36,8 +46,8 @@ function makeBlocks(offsets: number[]) {
       intensity: 'standard',
       stops: offsets.map((off, i) => ({
         order: i + 1,
-        name: i === 0 ? 'Test Hotel' : `Spot ${i}`,
-        category: i === 0 ? 'lodging' : 'culture',
+        name: `Spot ${i + 1}`,
+        category: 'culture',
         start_time_offset_min: off,
         stay_min: 60,
       })),
@@ -54,12 +64,23 @@ const baseInput = { language: 'en', area: 'seoul', dietPrefs: [], foodIndex: [],
 // 1. SOURCE markers — 전 데이터 흐름에 tour_end_time / 현실 도착 계산 박제 (회귀 차단)
 // ────────────────────────────────────────────────────────────────────────────
 describe('#tour-end source markers — 흐름 전체 박제', () => {
-  it('blockMode.js — DEFAULT_TOUR_END_HHMM + IMMIGRATION_BUFFER_MIN + 공항 이동 추정 helper', () => {
+  it('blockMode.js — DEFAULT_TOUR_END_HHMM + 도착 현실 계산을 constants 에서 가져온다', () => {
     const src = read('api/_ai_core/blockMode.js');
     expect(/DEFAULT_TOUR_END_HHMM\s*=\s*['"]21:00['"]/.test(src), 'DEFAULT_TOUR_END_HHMM 누락').toBe(true);
+    // 🔴 2026-08-03: 도착 계산 helper 를 constants.js 로 옮겼다.
+    //   buildPrompt(Gemini 경로)·RouteAgent·responseValidator 가 같은 값을 써야 하는데
+    //   blockMode 안에만 있어서 나머지가 옛 '+60분' 을 쓰고 있었다(한쪽만 고친 상태).
+    //   여기서 잠그는 것은 "blockMode 가 자체 사본을 되만들지 않는다" 이다.
+    expect(/arrivalReadyMinutes/.test(src), 'arrivalReadyMinutes 미사용').toBe(true);
+    expect(/^function arrivalReadyMinutes\(/m.test(src), 'blockMode 가 사본을 되만들었다').toBe(false);
+    expect(/^function estimateAirportTransitMin\(/m.test(src), 'blockMode 가 사본을 되만들었다').toBe(false);
+  });
+
+  it('constants.js — 도착 현실 계산이 단일 원천으로 존재한다', () => {
+    const src = read('api/_ai_core/constants.js');
     expect(/IMMIGRATION_BUFFER_MIN\s*=\s*90/.test(src), '입국수속 버퍼(90분) 누락').toBe(true);
-    expect(/function estimateAirportTransitMin\(/.test(src), '공항→권역 이동 추정 helper 누락').toBe(true);
-    expect(/function arrivalReadyMinutes\(/.test(src), 'arrivalReadyMinutes 누락').toBe(true);
+    expect(/export function estimateAirportTransitMin\(/.test(src), '공항→권역 이동 추정 helper 누락').toBe(true);
+    expect(/export function arrivalReadyMinutes\(/.test(src), 'arrivalReadyMinutes 누락').toBe(true);
   });
 
   it('blockMode.js — 옛 +60분 룰(arrivalPlus60) 단도시·다도시 모두 제거됨', () => {
@@ -195,8 +216,12 @@ describe('#arrival-realtime runtime — 야간 도착 시 Day1 호텔 휴식', (
       ...baseInput, arrival_time: '21:00', arrival_airport: 'ICN', tour_start_time: '09:00', tour_end_time: '21:00',
     });
     const stops = itin.days[0].stops;
-    expect(stops.length, 'Day1 은 호텔만 남아야 함 (휴식)').toBe(1);
-    expect(stops[0].category).toBe('lodging');
+    // 🔴 2026-08-03: 휴식일에는 관광 stop 이 0 이어야 한다.
+    //   옛 픽스처는 stops[0] 을 lodging 으로 만들어(실데이터와 반대) "최소 1개 anchor"
+    //   폴백이 숙소를 남기는 것처럼 보였다. 실제로는 관광지가 남았다 —
+    //   손님이 24:00 에 권역 도착하는데 21:00 관광 일정.
+    //   숙소 bookend 는 이 단계 뒤에 planPersister 가 합성한다.
+    expect(stops.filter((s: { category?: string }) => s.category !== 'lodging'), 'Day1 관광 stop 은 0 이어야 함 (휴식)').toHaveLength(0);
   });
 });
 
