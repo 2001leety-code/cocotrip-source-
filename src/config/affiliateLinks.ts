@@ -28,9 +28,21 @@
 const LEGACY_ALLIANCE_ID = '4831212';
 const LEGACY_SID = '76964637';
 
-function envTrim(key: string): string {
-  const v = (import.meta.env as Record<string, unknown>)[key];
-  return typeof v === 'string' ? v.trim() : '';
+/**
+ * 🔴🔴 여기는 반드시 **정적 키**로 읽어야 한다 (2026-08-03).
+ *
+ *   이전 코드는 `(import.meta.env as Record<string, unknown>)[key]` 로 **동적 키**를 읽었다.
+ *   Vite 는 `import.meta.env.어떤키` 형태만 빌드 시점에 그 값으로 치환할 수 있다. 키가
+ *   변수면 치환 대상을 특정할 수 없어 **env 객체 전체를 번들에 통째로 심는다.**
+ *   그 결과 클라이언트가 쓰지도 않는 `VITE_` 변수(운영 Vercel 기준 113개)가 전부 공개
+ *   번들에 실렸다 — 서버용 시크릿과 배포 커밋 메시지 전문까지.
+ *
+ *   그래서 값을 하나씩 **직접** 적는다. 새 제휴 파라미터를 추가할 때도 마찬가지다:
+ *   `envTrim('VITE_...')` 같은 헬퍼를 다시 만들지 말 것. 잠금 테스트
+ *   `tests/unit/no-dynamic-import-meta-env.test.ts` 가 이 규칙을 지킨다.
+ */
+function trimEnv(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 /**
@@ -41,15 +53,15 @@ function envTrim(key: string): string {
  * (값 자체는 이 함수도, 로그도 출력하지 않는다.)
  */
 export function isAffiliateConfigured(): boolean {
-  const id = envTrim('VITE_TRIPCOM_AFFILIATE_ID');
-  const sid = envTrim('VITE_TRIPCOM_SID');
+  const id = trimEnv(import.meta.env.VITE_TRIPCOM_AFFILIATE_ID);
+  const sid = trimEnv(import.meta.env.VITE_TRIPCOM_SID);
   return /^\d{4,}$/.test(id) && /^\d{4,}$/.test(sid);
 }
 
 function buildTripAff(): string {
-  const allianceId = envTrim('VITE_TRIPCOM_AFFILIATE_ID') || LEGACY_ALLIANCE_ID;
-  const sid = envTrim('VITE_TRIPCOM_SID') || LEGACY_SID;
-  const sub1 = envTrim('VITE_TRIPCOM_SUB1') || 'cocotrip';
+  const allianceId = trimEnv(import.meta.env.VITE_TRIPCOM_AFFILIATE_ID) || LEGACY_ALLIANCE_ID;
+  const sid = trimEnv(import.meta.env.VITE_TRIPCOM_SID) || LEGACY_SID;
+  const sub1 = trimEnv(import.meta.env.VITE_TRIPCOM_SUB1) || 'cocotrip';
   return `Allianceid=${encodeURIComponent(allianceId)}&SID=${encodeURIComponent(sid)}&trip_sub1=${encodeURIComponent(sub1)}`;
 }
 
