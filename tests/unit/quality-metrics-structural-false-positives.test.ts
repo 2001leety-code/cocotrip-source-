@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { execFileSync } from 'child_process';
 import { computeQualityScore } from '../../api/_ai_core/qualityMetrics.js';
 import { SCHEDULE_BUFFER_MIN } from '../../api/_ai_core/constants.js';
 
@@ -140,5 +141,19 @@ describe('여유 버퍼는 단일 원천이다', () => {
     // 지표와 스케줄러가 서로 다른 값을 쓰면 tight 가 조용히 전건 오탐이 된다.
     expect(code).toContain('SCHEDULE_BUFFER_MIN');
     expect(code).not.toMatch(/const BUFFER_MIN = \d/);
+  });
+});
+
+describe('손수 돌리는 자가검사 스크립트가 같이 썩지 않는다', () => {
+  // 🔴 2026-08-03: `scripts/test-quality-metrics.mjs` 는 CI 에 안 걸려 있어서
+  //   지표 정의를 바꿨을 때 조용히 깨진 채로 남았다(문서에 적힌 대로 돌리면 exit 1).
+  //   여기서 실제로 실행해 두면 다음에 정의를 바꿀 때 vitest 가 먼저 잡는다.
+  it('scripts/test-quality-metrics.mjs 가 통과한다', () => {
+    expect(() =>
+      execFileSync(process.execPath, ['scripts/test-quality-metrics.mjs'], {
+        cwd: process.cwd(),
+        stdio: 'pipe',
+      }),
+    ).not.toThrow();
   });
 });
