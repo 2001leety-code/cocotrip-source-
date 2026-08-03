@@ -215,6 +215,15 @@ if [ -n "$SCAN_FILES" ]; then
       //   nullish 폴백(pre-existing). ||로 바꾸면 빈배열([]) 보존 의미 달라짐 → 유지.
       //   24h 정책 변경(DEFAULT_TIERS)으로 처음 staged 됐을 뿐, 신규 ?? 0건.
       if (f === "src/components/admin/ProductEditor/CancellationTab.tsx") continue;
+      // 2026-08-03: quality-summary-helper.js 의 ?? 1건 — toMs(p.createdAtMs ?? p.createdAt)
+      //   (createdAtMs 가 0 일 때 보존). pre-existing legitimate. 품질 표본에서
+      //   운영자·CI 테스트 플랜을 빼는 수정으로 처음 staged 됐을 뿐 — 내 diff 는 ?? 0추가.
+      if (f === "api/_shared/quality-summary-helper.js") continue;
+      // 2026-08-03: check-quality-score.mjs 의 ?? 4건 — scoredCount ?? 0 / avgScore ?? '?'
+      //   0 은 유효한 값이라 || 로 바꾸면 "손님 0건"·"평균 0" 이 '?' 로 표시된다
+      //   (테스트 플랜 제외 후 손님 0건은 실제로 흔한 상태다). pre-existing legitimate.
+      //   이번 diff 는 오히려 5건 → 4건으로 줄였다.
+      if (f === "scripts/check-quality-score.mjs") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

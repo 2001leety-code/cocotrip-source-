@@ -52,7 +52,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
-import { collectQualityCounts } from './_shared/quality-summary-helper.js';
+import { collectQualityCounts, keepCustomerPlans } from './_shared/quality-summary-helper.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 // 치명 오류 판정 SSOT — 점수 가중치와 같은 파일에서 온다(따로 정의하면 갈라진다).
 import { hasCriticalIssue, CRITICAL_METRICS } from './_ai_core/qualityMetrics.js';
@@ -157,11 +157,16 @@ async function handler(req, res) {
     });
 
     // qualityScore 보유 + window 안의 plan 만 집계.
-    const scored = all.filter((p) => {
+    const scoredAll = all.filter((p) => {
       const ms = planCreatedMs(p);
       if (ms == null || ms < sinceMs) return false;
       return p.qualityScore && p.qualityScore.metrics && typeof p.qualityScore.score === 'number';
     });
+    // 🔴 2026-08-03: 운영자·CI 테스트 플랜을 빼야 "손님 품질" 이 된다.
+    //   실측(24h 25건 · 7일 43건)이 **전부** admin-bypass 였다 — L3 모니터가 손님
+    //   품질이라며 자기 스모크 테스트를 재고 있었다. 제외 건수는 응답에 그대로
+    //   노출한다(조용히 0건이 되면 원인을 알 수 없다).
+    const { customer: scored, excludedTestPlans } = keepCustomerPlans(scoredAll);
 
     // ── overall ─────────────────────────────────────────────────────────
     let sum = 0, min = Infinity, max = -Infinity;
@@ -276,6 +281,9 @@ async function handler(req, res) {
         sinceISO,
         scannedTotal: all.length,
         scoredCount: scored.length,
+        // 운영자·CI 테스트 플랜 제외 건수. scoredCount 가 0 인데 이 값이 크면
+        // "품질 회귀" 가 아니라 "손님 트래픽 0" 이다.
+        excludedTestPlans,
       },
       overall,
       metricFrequency,
