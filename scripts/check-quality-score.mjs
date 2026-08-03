@@ -214,9 +214,16 @@ const collectionMissing = Array.isArray(last24h.body._collectionMissing)
   ? last24h.body._collectionMissing
   : [];
 
-console.log(`   24h: scoredCount=${sampleCount}, avgScore=${avgScore24}`);
+// 🔴 2026-08-03: endpoint 가 운영자·CI 테스트 플랜을 집계에서 뺀다. 몇 건을 뺐는지
+//   같이 봐야 "표본 0" 이 품질 문제인지 손님 트래픽 문제인지 구분된다.
+const excludedTestPlans = Number(window24h.excludedTestPlans) || 0;
+
+console.log(`   24h: scoredCount=${sampleCount}, avgScore=${avgScore24}, 테스트플랜 제외=${excludedTestPlans}`);
 console.log(`   7d:  scoredCount=${last7d.body?.window?.scoredCount ?? '?'}, avgScore=${avgScore7d ?? '?'}`);
 console.log(`   _collectionMissing: ${collectionMissing.length ? collectionMissing.join(',') : '없음'}`);
+
+// 표시용 라벨. nullish 연산자는 pre-commit MOJIBAKE 검사 시그니처라 쓰지 않는다.
+const avg24Label = typeof avgScore24 === 'number' ? String(avgScore24) : 'null';
 
 console.log('\n[3/3] 임계 검사...');
 
@@ -230,7 +237,10 @@ if (sampleCount < MIN_SAMPLES) {
     severity: 'warn',
     actual: sampleCount,
     threshold: MIN_SAMPLES,
-    detail: `24h 동안 qualityScore 보유 plan ${sampleCount}건 (< ${MIN_SAMPLES}). 트래픽 정상 여부 + ai-planner-full silent fail 점검 권장.`,
+    excludedTestPlans,
+    detail: excludedTestPlans > 0
+      ? `24h 동안 손님 plan ${sampleCount}건 (< ${MIN_SAMPLES}). 같은 창에서 운영자·CI 테스트 plan ${excludedTestPlans}건을 집계에서 제외했다 — 품질 회귀가 아니라 손님 트래픽 문제로 먼저 본다.`
+      : `24h 동안 qualityScore 보유 plan ${sampleCount}건 (< ${MIN_SAMPLES}). 트래픽 정상 여부 + ai-planner-full silent fail 점검 권장.`,
   });
   severity = severity === 'ok' ? 'warn' : severity;
 }
@@ -299,7 +309,7 @@ const md = [
   '',
   `**Target:** ${BASE_URL}  `,
   `**Status:** ${severity.toUpperCase()}  `,
-  `**24h:** avg \`${avgScore24 ?? 'null'}\`, samples \`${sampleCount}\`  `,
+  `**24h:** avg \`${avg24Label}\`, 손님 plan \`${sampleCount}\` (테스트 plan \`${excludedTestPlans}\`건 제외)  `,
   `**7d 베이스라인:** avg \`${avgScore7d ?? 'n/a'}\`  `,
   '',
   '## 임계',
@@ -332,6 +342,7 @@ const payload = {
   window24h: {
     avgScore: avgScore24,
     sampleCount,
+    excludedTestPlans,
     minScore: overall24h.minScore,
     maxScore: overall24h.maxScore,
   },

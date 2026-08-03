@@ -19,6 +19,10 @@
  *   - 한 번 더 catch 후 미존재로 분기.
  */
 
+// 운영자 테스트 계정 판정 — 매출 집계가 쓰는 것과 같은 허용목록을 재사용한다
+// (두 곳에 이메일을 따로 적으면 한쪽만 늘어난다).
+import { isOperatorTestEmail } from './admin-bypass-detector.js';
+
 // ── 컬렉션 이름 (운영 코드와 일치) ──────────────────────────────────────
 // ⚠️ 변경 시 firestore.rules + 문서(docs/quality-metrics.md) 동시 업데이트 필요.
 export const QUALITY_COLLECTIONS = Object.freeze({
@@ -93,6 +97,42 @@ function toMs(ts) {
 
 function planArea(p) {
   return (p.input?.area || p.area || 'unknown').toString().toLowerCase().trim() || 'unknown';
+}
+
+/**
+ * 운영자·CI 가 만든 테스트 플랜인가?
+ *
+ * 🔴 2026-08-03: L3 Quality Monitor 는 "손님 플랜 품질" 을 본다고 하면서 실제로는
+ *   **자기 테스트를 재고 있었다.** 실측: 24h 25건 · 7일 43건이 전부
+ *   `isAdminBypass:true` · `paymentSource:'admin-bypass'` · guestEmail = 운영자 계정.
+ *   손님 플랜은 0건이었다. daily-health 의 플랜 스모크가 매주 운영 Firestore 에
+ *   실제 플랜을 만들기 때문이다. 이 표본에서 나온 평균은 손님 품질과 무관하다.
+ *
+ * 판정 — 하나라도 걸리면 테스트 플랜:
+ *   1. `isAdminBypass` 플래그 (planPersister 가 직접 찍는다)
+ *   2. `paymentSource === 'admin-bypass'`
+ *   3. guestEmail 이 운영자 계정 (admin-bypass-detector 허용목록 재사용)
+ */
+export function isOperatorTestPlan(p) {
+  if (!p) return false;
+  if (p.isAdminBypass === true) return true;
+  if (String(p.paymentSource || '') === 'admin-bypass') return true;
+  return isOperatorTestEmail(p.guestEmail || p.email || '');
+}
+
+/**
+ * 손님이 실제로 만든 플랜만 남긴다.
+ * 제외한 건수를 같이 돌려준다 — 조용히 줄어들면 "표본이 왜 0인지" 를 알 수 없다.
+ */
+export function keepCustomerPlans(plans) {
+  const list = Array.isArray(plans) ? plans : [];
+  const customer = [];
+  let excludedTestPlans = 0;
+  for (const p of list) {
+    if (isOperatorTestPlan(p)) excludedTestPlans++;
+    else customer.push(p);
+  }
+  return { customer, excludedTestPlans };
 }
 
 // ── 컬렉션 fetch + 존재 여부 검증 ───────────────────────────────────────
@@ -181,16 +221,18 @@ export async function collectQualityCounts(db, sinceMs) {
     }
   }
 
-  // qualityScore 보유 plan 만 집계
-  const plans = plansAll.filter(
+  // qualityScore 보유 plan 만 집계 + 운영자·CI 테스트 플랜 제외
+  const scored = plansAll.filter(
     (p) => p.qualityScore && p.qualityScore.metrics && typeof p.qualityScore.score === 'number',
   );
+  const { customer: plans, excludedTestPlans } = keepCustomerPlans(scored);
 
   return {
     complaints: complaintsR.docs,
     tickets:    ticketsR.docs,
     errors:     errorsR.docs,
     plans,
+    excludedTestPlans,
     _collectionMissing,
     _collectionErrors,
   };
