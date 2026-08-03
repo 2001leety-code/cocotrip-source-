@@ -13,13 +13,20 @@ PR-D (2026-05-07) 도입.
 |---|---|---|
 | `dietary_violation` | per stop | 식이제한(halal/vegan/allergy) 위반 stop 수 |
 | `unverified_restaurant` | per stop | DB 매칭 실패 식당 stop 수 |
-| `field_completeness` | per stop | 필수 필드(name/address/lat/lng) 누락 stop 수 |
-| `route_failure` | per stop | RouteAgent 가 경로/시간 산출 실패한 stop 수 |
+| `field_completeness` | per stop | 필수 필드(name/address/lat/lng) 누락 stop 수. **좌표 없는 숙소는 제외** |
+| `route_failure` | per stop | RouteAgent 가 경로/시간 산출 실패한 stop 수. **좌표 없는 숙소 도착 구간은 제외** |
 | `bad_address_prefix` | per stop | "대한민국 "/"KR " prefix 가 남아있는 stop 수 |
 | `language_mismatch` | per stop | 사용자 언어와 다른 텍스트가 노출된 stop 수 |
-| `duplicate_stops` | per duplicate | 같은 plan 안에 중복된 stop 그룹 수 (3건 중복 = 2 카운트) |
-| `tight_schedule` | per segment | 두 stop 사이 이동 시간이 임계 미만인 segment 수 |
-| `loose_schedule` | per segment | 두 stop 사이 이동 시간이 임계 초과인 segment 수 |
+| `duplicate_stops` | per duplicate | 같은 plan 안에 중복된 stop 그룹 수 (3건 중복 = 2 카운트). **숙소 앵커 제외** |
+| `tight_schedule` | per segment | 여유(다음 시작 − 이전 종료 − 이동시간)가 `SCHEDULE_BUFFER_MIN` 미만인 segment 수 = 손님이 제시간에 못 가는 구간 |
+| `loose_schedule` | per segment | 한 구간 이동이 90분 초과인 segment 수 |
+
+> 🔴 **2026-08-03 정정** — `tight_schedule` 은 원래 "이동 시간 < 30분" 을 셌다.
+> 짧은 이동은 잘 묶인 동선의 **목표**라서 정상 plan 의 78.5% 가 걸렸고, 7/28 가중치
+> 재배분(4→16) 뒤 전체 감점의 62% 를 차지해 평균을 hard floor(80)까지 끌어내렸다.
+> `duplicate_stops`·`field_completeness`·`route_failure` 도 같은 성격으로 **숙소 앵커**
+> (모든 day 를 lodging 으로 시작·종료하라는 프롬프트 강제)를 결함으로 세고 있었다.
+> 운영 플랜 25건 재채점: 79.8 → 95.8. 상세 = `api/_ai_core/qualityMetrics.js` 헤더.
 
 **중요 — per-segment 와 per-plan 혼동 주의**: 1 plan 안에 10 segment 가 있으면
 `tight_schedule` 한 plan 에서 최대 10 카운트 가능. admin 대시보드의 "빡빡한 일정 10건"
