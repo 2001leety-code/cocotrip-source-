@@ -34,8 +34,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
-  AIRPORT_ARRIVE_BEFORE_MIN,
+  AIRPORT_ARRIVE_BEFORE_MIN, CITY_CENTER_COORDS,
 } from './constants.js';
+import { haversineKm } from './routeQuality.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 
@@ -561,6 +562,37 @@ function estimateAirportTransitMin(airport) {
   return 70; // 기본 (모르는 공항 — 보수적)
 }
 
+// 🔴 2026-08-03: 위 표는 **공항이 속한 권역 안에서의** 이동 시간이다.
+//   손님이 다른 권역에 있으면 완전히 틀린다 — 운영 실측에서 **부산에 있는 손님이
+//   인천공항(직선 346km, 실제 4시간 이상)에서 출국**하는 플랜의 이동을 90분으로 봤다.
+//   출국일 컷(applyDepartureDayFlightCap)이 이 값을 쓰므로 그대로 두면 손님이
+//   비행기를 놓친다. → 도시-공항 직선거리로 권역 밖 여부를 판정해 보정한다.
+const SAME_METRO_KM = 60;          // 이 안이면 공항 자체 권역 — 위 표를 그대로 쓴다
+const INTERCITY_OVERHEAD_MIN = 60; // 역까지 이동 + 대기 + 환승 + 공항 진입
+const INTERCITY_EFFECTIVE_KMH = 96; // KTX·고속버스 문전간 실효 속도(보수적)
+
+/**
+ * 손님이 있는 도시 → 출국 공항 이동 추정(분).
+ *
+ * 같은 권역이면 `estimateAirportTransitMin` 을 그대로 쓴다(값 변화 0).
+ * 권역 밖이면 직선거리 기반 도시간 이동으로 올린다. 보수적으로만 움직인다 —
+ * 둘 중 **큰 값**을 쓴다.
+ *
+ * 좌표를 모르면(신규 도시 키 등) 기존 값 그대로. 조용히 낙관적으로 바뀌지 않는다.
+ *
+ * @param {string} cityKey  그날의 도시 키(day.city 와 같은 값)
+ * @param {string} airport  공항 코드
+ */
+function estimateAirportTransitMinFrom(cityKey, airport) {
+  const baseline = estimateAirportTransitMin(airport);
+  const cityCoord = CITY_CENTER_COORDS[String(cityKey || '').toLowerCase().trim()];
+  const airportCoord = AIRPORT_COORDS[String(airport || '').toUpperCase().trim()];
+  const km = haversineKm(cityCoord, airportCoord);
+  if (km == null || km <= SAME_METRO_KM) return baseline;
+  const intercity = Math.round(INTERCITY_OVERHEAD_MIN + (km * 60) / INTERCITY_EFFECTIVE_KMH);
+  return Math.max(baseline, intercity);
+}
+
 /** "HH:mm" → 분(0~1439). 실패 시 -1. */
 function hhmmToMin(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
@@ -617,9 +649,11 @@ function addMinutesToHHMM(hhmm, minutes) {
  * @param {string} departureTime "HH:mm"
  * @param {string} departureAirport 공항 코드 (ICN_T1 등)
  * @param {string} language ko|en|ja|zh
+ * @param {string} [cityKey] 그날 손님이 있는 도시(day.city). 공항과 다른 권역이면
+ *   이동 추정을 도시간 이동으로 올린다 — 없으면 공항 권역 기준(기존 동작).
  * @returns {{ trimmed: number, airportStopAdded: boolean }}
  */
-export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language) {
+export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language, cityKey) {
   const result = { trimmed: 0, airportStopAdded: false };
   if (!Array.isArray(stops)) return result;
   if (!/^\d{1,2}:\d{2}$/.test(String(departureTime || ''))) return result;
@@ -627,7 +661,7 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
   const depMin = hhmmToMin(departureTime);
   if (depMin < 0) return result;
   const airportArriveMin = depMin - AIRPORT_ARRIVE_BEFORE_MIN;
-  const transitMin = estimateAirportTransitMin(departureAirport);
+  const transitMin = estimateAirportTransitMinFrom(cityKey, departureAirport);
   const activityDeadlineMin = airportArriveMin - transitMin;
 
   const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
@@ -1202,7 +1236,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     // Day N (departure day): 항공기 출발 시각을 넘는 활동을 자르고 공항 stop 을 넣는다.
     // 사용자가 departure_time 미입력이면 graceful skip. 상세 = applyDepartureDayFlightCap.
     if (isLastDay) {
-      applyDepartureDayFlightCap(stops, departureTime, departureAirportInput, language);
+      // 도시는 day.city 와 같은 식으로 구한다(아래 city: block.city || area) —
+      // 다도시 여행에서 마지막 날 도시가 plan area 와 다를 수 있다(부산에서 인천 출국 등).
+      applyDepartureDayFlightCap(stops, departureTime, departureAirportInput, language, block.city || area);
     }
 
     // PR-E SAFETY: 트레킹/러닝 블록이면 난이도/체력/hazards/부적합 대상을 day 에 보존 (표기 누락 금지).
@@ -1835,7 +1871,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
 
     // departure day: 항공기 출발 시각 컷 + 공항 stop (단일 도시 경로와 같은 헬퍼)
     if (isLastDay) {
-      applyDepartureDayFlightCap(stops, departureTime, mcDepartureAirportHoisted, language);
+      // day.city 와 같은 식(아래 city: dayCityKey || block.city)
+      applyDepartureDayFlightCap(
+        stops, departureTime, mcDepartureAirportHoisted, language, dayCityKey || block.city,
+      );
     }
 
     // P123 학습: hotelByCity[dayCityKey] 우선 사용 → day.lodging 정합성.
