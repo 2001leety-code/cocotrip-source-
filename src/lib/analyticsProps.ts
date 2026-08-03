@@ -147,13 +147,39 @@ export function stripUnsafeProps(
   return out;
 }
 
-/** SDK 가 스스로 붙이는 URL·레퍼러 계열 — 쿼리·해시가 그대로 들어오므로 통째로 버린다. */
+/**
+ * SDK 가 스스로 붙이는 URL·레퍼러 계열 — 쿼리·해시가 그대로 들어오므로 통째로 버린다.
+ *
+ * 🔴 `$pathname` 은 여기 넣지 말 것 (2026-08-03). 우리가 `capturePageView` 에서
+ *   `safePagePath()` 로 **이미 쿼리·해시를 뗀** 값을 직접 넣고, 관리자 화면 두 곳이
+ *   정확히 이 속성을 조회한다:
+ *     - api/admin-posthog-funnel.js — 전환 퍼널 1단계(`pathContains: '/planner'`)의 **분모**
+ *     - api/_shared/posthog-host.js `buildTopPagesSQL` — 관리자 TOP 페이지
+ *   버리면 두 화면이 영구히 빈다. (`ALLOWED_PROP_KEYS` 에도 `$pathname` 이 있어 두 목록이
+ *   서로 모순이었다 — 이쪽에서 빼서 맞춘다.)
+ */
 const RESERVED_URL_PROPS = new Set([
-  '$current_url', '$referrer', '$referring_domain', '$pathname',
+  '$current_url', '$referrer', '$referring_domain',
   '$initial_current_url', '$initial_referrer', '$initial_referring_domain',
   '$initial_utm_source', '$initial_utm_medium', '$initial_utm_campaign',
   '$initial_utm_term', '$initial_utm_content',
 ]);
+
+/**
+ * 🔴 posthog-js 가 모든 이벤트에 직접 붙이는 **SDK 내부 속성**. `$` 로 시작하지 않아
+ *   허용목록 필터에 걸려 지워지는데, 지우면 안 된다 (2026-08-03 실측).
+ *
+ *   - `token` — 프로젝트 API 키. posthog-js 1.409.5 의 `_runBeforeSend` 가 "훅이 이 속성을
+ *     지웠는가" 를 검사해서, 지워졌으면 **이벤트를 통째로 버리고 null 을 반환한다**
+ *     (`knownUnsafeEditableEventProperty = ['token']`). `capture()` 는 요청 큐에 넣기 전에
+ *     빠져나가므로 **네트워크 POST 자체가 생성되지 않는다** — 실패 요청조차 안 남는다.
+ *     그래서 2026-08-02~03 운영에서 PostHog 이벤트가 **전면 0건**이었다(자산은 200, POST 0).
+ *   - `distinct_id` — 사람 식별자. 지워도 이벤트가 버려지진 않지만 익명 오귀속·중복 사용자가 된다.
+ *
+ *   둘 다 우리가 넣는 값이 아니라 SDK 가 넣는 값이라 개인정보 심사 대상이 아니다
+ *   (`distinct_id` 는 Firebase uid 또는 SDK 가 만든 익명 id — 이메일이 아니다).
+ */
+const SDK_INTERNAL_PROPS = new Set(['token', 'distinct_id']);
 
 /**
  * PostHog `before_send` 전용 정리.
@@ -170,6 +196,11 @@ export function sanitizeCaptureProperties(
   const reserved: Record<string, unknown> = {};
   const ours: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(props)) {
+    // SDK 내부 속성은 손대지 않고 그대로 통과 — 지우면 이벤트가 통째로 버려진다(위 주석).
+    if (SDK_INTERNAL_PROPS.has(k)) {
+      reserved[k] = v;
+      continue;
+    }
     if (k.startsWith('$')) {
       if (RESERVED_URL_PROPS.has(k)) continue;
       // 예약 속성이라도 URL 문자열이면 경로만 남긴다(새 SDK 버전이 URL 속성을 추가해도 안전).

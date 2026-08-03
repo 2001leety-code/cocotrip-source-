@@ -8,6 +8,7 @@
 import { Hotel, MapPin, CreditCard, Sparkles } from 'lucide-react';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
+import { AffiliateCard } from '@/components/AffiliateCard';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface AccommodationRecommendationProps {
@@ -106,7 +107,17 @@ export function AccommodationRecommendation({
       {/* 어필리에이트 link — 호텔 이름·지역으로 검색해서 외부 booking 사이트로 funnel. */}
       {links.length > 0 && (
         <div className="px-5 pb-4 space-y-2">
-          <div className="flex flex-wrap gap-2">
+          {/* 노출 계측 (2026-08-03) — 기존 flex 컨테이너를 AffiliateCard 로 **교체**한다.
+              새 div 를 끼우거나 `<a>` 를 개별로 감싸면 `flex-1` 이 래퍼로 넘어가 버튼 폭이
+              무너진다. payload 는 아래 클릭과 **글자 그대로 같아야** 노출·클릭 짝이 맞는다
+              (`String(area || region).toLowerCase()` 를 표현식째로 맞춘다). */}
+          <AffiliateCard
+            className="flex flex-wrap gap-2"
+            payload={{
+              product: 'hotel', placement: 'plan_lodging_recommendation',
+              language, city: String(area || region).toLowerCase(),
+            }}
+          >
             {links.map((lk: { provider: string; url: string; label: string; color?: string }) => (
               <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer sponsored"
                 onClick={() => trackAffiliateClick({
@@ -118,7 +129,7 @@ export function AccommodationRecommendation({
                 {lk.label} {'→'}
               </a>
             ))}
-          </div>
+          </AffiliateCard>
           <p className="text-[12px] text-white/65 text-center">
             {labelAffiliateNote || 'Affiliate link — helps support CocoTrip.'}
           </p>

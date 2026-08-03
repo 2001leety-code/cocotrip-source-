@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
+import { AffiliateCard } from '@/components/AffiliateCard';
 import { buildTourJsonLd } from './buildTourJsonLd';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildBreadcrumbJsonLd } from '@/lib/jsonLd';
@@ -445,8 +446,19 @@ export default function TourDetailPage() {
                 const loc = hotel.location[language] ?? hotel.location.en;
                 const stars = Array.from({ length: hotel.stars });
                 return (
-                  <a
+                  /* 노출 계측 (2026-08-03) — 4개 표면 중 **레이아웃이 깨질 수 있는 유일한 곳**.
+                     부모가 grid(align-items: stretch)라 래퍼가 그리드 자식 자리를 가져가면
+                     `<a>` 가 콘텐츠 높이로 줄어 내부 `flex-1`·`mt-auto`(가격줄 바닥 고정)가
+                     무너진다 → `<a>` 에 `h-full` 을 준다. key 도 리스트 자식인 래퍼로 옮긴다.
+                     `hotel-hover` 는 실제 :hover CSS 라 래퍼로 옮기지 않는다. */
+                  <AffiliateCard
                     key={hotel.id}
+                    payload={{
+                      product: 'hotel', placement: 'tour_detail_hotels', language,
+                      city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id,
+                    }}
+                  >
+                  <a
                     href={hotel.affiliateUrl}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
@@ -454,7 +466,7 @@ export default function TourDetailPage() {
                       product: 'hotel', placement: 'tour_detail_hotels', language,
                       city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id,
                     })}
-                    className="hotel-hover rounded-2xl overflow-hidden flex flex-col"
+                    className="hotel-hover rounded-2xl overflow-hidden flex flex-col h-full"
                     style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
                   >
                     {/* 이미지 */}
@@ -522,6 +534,7 @@ export default function TourDetailPage() {
                       </div>
                     </div>
                   </a>
+                  </AffiliateCard>
                 );
               })}
             </div>

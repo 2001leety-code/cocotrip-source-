@@ -21,6 +21,7 @@ import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
 import { trackEvent } from '@/lib/analytics';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
+import { AffiliateCard } from '@/components/AffiliateCard';
 import { matchesTourQuery } from '@/lib/tourSearch';
 import { TOUR_PACE, PACE_ORDER, paceEmoji, paceLabel, type TripPace } from '@/data/tourPace';
 
@@ -651,9 +652,13 @@ export default function ToursPage() {
 
       {/* ── Trip.com 숙소 비교 소형 CTA — 맞춤투어 배너보다 약한 톤, 외부 새 창 ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
-        <div
+        {/* 노출 계측 (2026-08-03) — 기존 행 div 를 AffiliateCard 로 **교체**(DOM 증가 0).
+            `<a>` 만 감싸면 `shrink-0` 이 래퍼로 넘어가지 않아 좁은 폭에서 버튼이 찌그러진다.
+            한 줄 배너라 "행이 반 이상 보임" = "버튼이 반 이상 보임" 이므로 노출 정의도 정확하다. */}
+        <AffiliateCard
           className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5 rounded-xl"
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
+          payload={{ product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey }}
         >
           <p className="text-[11px] text-white/50 min-w-0">{tl.hotelCtaText}</p>
           <a
@@ -671,7 +676,7 @@ export default function ToursPage() {
             {tl.hotelCtaBtn}
             <ExternalLink className="w-3 h-3" />
           </a>
-        </div>
+        </AffiliateCard>
       </div>
 
       {/* ── 맞춤형 투어 문의 모달 ── */}
