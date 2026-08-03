@@ -72,6 +72,7 @@ const dirtyItin = {
           name: '돼지국밥집', /* no display_name, no lat/lng */
           category: 'food', address: '대한민국 부산광역시 부산진구',
           tip: 'Best pork soup', // English, conflict with halal+ko
+          start_time: '09:00', stay_min: 60, end_time: '10:00',
         },
         // Stop B: duplicate of A
         {
@@ -79,23 +80,31 @@ const dirtyItin = {
           lat: 35.15, lng: 129.05,
           category: 'food', address: '부산광역시 부산진구 중앙대로 700',
           tip: '맛있어요',
+          start_time: '10:30', stay_min: 60, end_time: '11:30',
           // No transit_from_prev → route_failure
         },
         // Stop C: tight schedule + KR-prefixed address
+        // 🔴 2026-08-03: tight 는 "이동시간 < 30분" 이 아니라 **여유 부족**이다.
+        //   여유 = 다음 시작 − 이전 종료 − 이동 = 11:35 − 11:30 − 12분 = −7분
+        //   → 손님이 11:35 에 도착할 수 없다. (옛 정의로 고치면 이 fixture 가 다시
+        //     0/0 이 되어 조용히 통과한다 — 시각을 지우지 말 것.)
         {
           name: '해운대', display_name: '해운대',
           lat: 35.16, lng: 129.16,
           category: 'sight', address: 'KR 부산광역시 해운대구',
           tip: '바다',
-          transit_from_prev: { est_min: 12 }, // tight (<30)
+          start_time: '11:35', stay_min: 60, end_time: '12:35',
+          transit_from_prev: { est_min: 12 },
         },
-        // Stop D: loose schedule
+        // Stop D: loose schedule (이동 120분 > 90). 여유는 충분해야 tight 와 섞이지 않는다:
+        //   14:45 − 12:35 − 120분 = +10분
         {
           name: '광안리', display_name: '광안리',
           lat: 35.15, lng: 129.12,
           category: 'sight', address: '부산광역시 수영구 광안해변로',
           tip: '야경',
-          transit_from_prev: { est_min: 120 }, // loose (>90)
+          start_time: '14:45', stay_min: 60, end_time: '15:45',
+          transit_from_prev: { est_min: 120 },
         },
       ],
     },
