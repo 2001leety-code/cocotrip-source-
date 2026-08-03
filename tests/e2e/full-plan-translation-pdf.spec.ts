@@ -18,7 +18,16 @@ import { test, expect } from './fixtures/analytics-guard';
 
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
 const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com'; // TEST_ACCOUNTS whitelist
-const TEST_ORDER_ID = `TEST-E2E-${Date.now()}`;
+// 🔴 `TEST-` 접두사를 다시 쓰지 말 것 (2026-08-02).
+//   `api/_ai_core/paymentGate.js` 가 2026-07-20 에 `TEST-` 경로를 폐지했다(항상 403).
+//   폐지 사유: admin 검사 없는 무인증 우회였다. 그런데 이 스펙은 계속 `TEST-E2E-` 를 보내서
+//   그 뒤 매 실행 403 으로 죽었고, 워크플로의 continue-on-error 가 그걸 초록으로 덮어
+//   **감시가 고장난 줄 아무도 몰랐다**(실측: 8/2 실행 로그 "expected 200, got 403").
+//   대체 경로 = `ADMIN-BYPASS-` — ADMIN_EMAIL 허용목록 + Firebase ID 토큰 서버 검증의
+//   이중 인증을 통과해야 열린다. HEALTH_CHECK 계정이 그 운영자 계정이라 통과한다.
+//   ⚠️ 이 경로는 **실제 플랜 문서를 운영 Firestore 에 만든다**. 그래서 워크플로에서
+//      주 1회(월)만 돌도록 게이트했다(daily-health.yml 참조).
+const TEST_ORDER_ID = `ADMIN-BYPASS-E2E-${Date.now()}`;
 
 // 2026-05-04 PR #247 (audit P0-#2) 머지로 /api/ai-planner-full 가
 // verifyUserToken 호출 → Authorization: Bearer <idToken> 필수.
@@ -76,7 +85,7 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
   let planId: string | null = null;
   let plan: Plan | null = null;
 
-  test('1. 플랜 생성 — POST /api/ai-planner-full (TEST bypass)', async ({ request }) => {
+  test('1. 플랜 생성 — POST /api/ai-planner-full (ADMIN-BYPASS)', async ({ request }) => {
     test.setTimeout(180_000); // Gemini Pro 60-90s 응답
 
     // 2026-05-04 PR #247 (audit P0-#2): Authorization: Bearer <idToken> 필수.
