@@ -20,6 +20,8 @@ import { join } from 'path';
 import {
   arrivalReadyMinutes, arrivalReadyHHMM, IMMIGRATION_BUFFER_MIN, estimateAirportTransitMin,
 } from '../../api/_ai_core/constants.js';
+// @ts-expect-error — JS module
+import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
@@ -115,5 +117,66 @@ describe('프롬프트가 옛 룰을 다시 가르치지 않는다', () => {
     // 옛 문장: `**stops[0]** = category="lodging", stay_min=0, start_time="09:00".`
     expect(code).not.toMatch(/\*\*stops\[0\]\*\* = category="lodging", stay_min=0, start_time="09:00"/);
     expect(code).toContain('Day 1 에 "09:00" 을 박지 말 것');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 동작 테스트 — 위 describe 들은 소스 문자열만 본다. 문자열 검사는 의미가 바뀌어도
+// 통과할 수 있다(예: 헬퍼는 부르되 인자를 잘못 넘기는 회귀). 여기서는 검증기를 실제로
+// 돌려서 (a) 게이트가 무는 시각 (b) 거부 문장이 재시도에 쓸 수 있는지를 잠근다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('도착일 게이트 동작 + 거부 메시지 (재시도 프롬프트 입력)', () => {
+  // ICN 14:00 도착 → 권역 도착 17:00. 운영에서 legacy 가 16:15~16:26 을 냈던 케이스.
+  const REQUEST = {
+    regions: ['seoul'],
+    arrival_time: '14:00',
+    arrival_airport: 'ICN_T1',
+    departure_time: '21:00',
+    departure_airport: 'ICN_T1',
+    tour_start_time: '09:00',
+  };
+  const planWithDay1ActivityAt = (startTime: string) => ({
+    days: [
+      {
+        day: 1, city: 'seoul', stops: [
+          { name: '명동 지역 숙소', category: 'lodging', start_time: '15:00', stay_min: 0 },
+          { name: '경복궁', category: 'culture', start_time: startTime, stay_min: 90 },
+        ],
+      },
+      {
+        day: 2, city: 'seoul', stops: [
+          { name: '명동 지역 숙소', category: 'lodging', start_time: '09:00', stay_min: 0 },
+          { name: '북촌한옥마을', category: 'culture', start_time: '10:00', stay_min: 60 },
+          { name: '인천공항', category: 'airport', start_time: '16:00', stay_min: 0, next_destination: 'airport' },
+        ],
+      },
+    ],
+  });
+  const lateArrivalErrors = (startTime: string): string[] =>
+    validatePatternStructure(planWithDay1ActivityAt(startTime), REQUEST)
+      .filter((e: string) => e.includes('B-LATE-ARRIVAL'));
+
+  it('손님이 아직 공항에 있는 시각은 거부된다 (운영 실측 16:26 포함)', () => {
+    expect(lateArrivalErrors('15:00')).toHaveLength(1);  // 옛 룰이 통과시키던 값
+    expect(lateArrivalErrors('16:26')).toHaveLength(1);  // 운영 실측값
+  });
+
+  it('권역 도착 시각부터는 통과한다', () => {
+    expect(lateArrivalErrors('17:00')).toHaveLength(0);
+    expect(lateArrivalErrors('18:00')).toHaveLength(0);
+  });
+
+  // 🔴 이 문자열은 buildPatternReinforcedPrompt 가 그대로 Gemini 에게 돌려준다.
+  //   기준 시각이 문장에 없으면 모델은 무엇으로 고쳐야 할지 모른 채 같은 위반을
+  //   재생산한다 → 재시도 2차 실패 = 손님 PLAN_VALIDATION_FAILED 500.
+  it('거부 문장이 고쳐야 할 시각을 값으로 알려준다', () => {
+    const [msg] = lateArrivalErrors('15:00');
+    expect(msg).toContain('17:00');            // 실제 기준 = arrival_ready_time
+    expect(msg).toContain('arrival_ready_time');
+  });
+
+  it('거부 문장이 거짓 비교를 담지 않는다 (15:00 < 09:00 이라고 말하던 것)', () => {
+    const [msg] = lateArrivalErrors('15:00');
+    expect(msg).not.toMatch(/< tour_start_time=09:00/);
   });
 });

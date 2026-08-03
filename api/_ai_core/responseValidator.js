@@ -877,6 +877,11 @@ export function validatePatternStructure(itinerary, request = {}) {
     if (!Number.isFinite(h) || !Number.isFinite(mi) || h < 0 || h > 23 || mi < 0 || mi > 59) return null;
     return h * 60 + mi;
   };
+  // 분 → "HH:MM". arrival_ready 는 자정을 넘길 수 있어(23:05 도착 + 3시간) 하루로 wrap 한다.
+  const fmtMinOfDay = (m) => {
+    const v = ((Math.round(m) % 1440) + 1440) % 1440;
+    return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+  };
   const arrivalMin = parseHHMM(request.arrival_time || request.arrivalTime);
   const departureMin = parseHHMM(request.departure_time || request.departureTime);
   // P239 (2026-05-27): tour_start_time 도입 — 운영자 architectural fix.
@@ -904,17 +909,27 @@ export function validatePatternStructure(itinerary, request = {}) {
     if (isLateNightArrival && day1Stops.length > 2) {
       errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} (18:00 이후) → Day 1 = lodging only 권장. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL P239)`);
     }
+    // P239: stops[1+] 는 tour_start_time 과 arrival_ready_time 중 **늦은 쪽** 이후여야 한다.
+    const effectiveTourStart = Math.max(tourStartMin || 0, arrivalReady);
     // Day 1 의 lodging 외 카테고리 stops 검증
     for (const stop of day1Stops) {
       if (stop?.category === 'lodging' || stop?.category === 'airport' || stop?.category === 'travel') continue;
       const stopMin = parseHHMM(stop?.start_time);
       if (stopMin === null) continue;
-      // P239: stops[1+] 시각이 tour_start_time 이전이면 ERROR.
-      // 단 arrival_time+60 > tour_start_time 인 경우 (낮 도착) arrival+60 우선 폴백.
-      const effectiveTourStart = Math.max(tourStartMin || 0, arrivalReady);
       // stop 가 arrival_time 이후 + effective 시각 이전이면 ERROR. arrival 이전 stop 는 다른 룰.
       if (stopMin >= arrivalMin && stopMin < effectiveTourStart) {
-        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < tour_start_time=${request.tour_start_time || request.tourStartTime || '09:00'} (B-LATE-ARRIVAL P239)`);
+        // 🔴 2026-08-04: 이 문자열은 그대로 재시도 프롬프트에 실린다(geminiPipeline
+        //   buildPatternReinforcedPrompt). 옛 문구는 기준을 tour_start_time 이라고 말했지만
+        //   실제 기준은 max(tour_start_time, arrival_ready_time) 이라, 낮 도착에서
+        //   "start_time=15:00 < tour_start_time=09:00" 처럼 **거짓인 문장**이 나갔다.
+        //   Gemini 는 고칠 목표 시각을 받지 못해 같은 위반을 재생산 → 재시도 2차 실패
+        //   (손님이면 PLAN_VALIDATION_FAILED 500). 기준 시각을 값으로 준다.
+        errors.push(
+          `Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} — `
+          + `Day 1 활동은 ${fmtMinOfDay(effectiveTourStart)} 이후여야 한다 `
+          + `(= max(tour_start_time ${fmtMinOfDay(tourStartMin || 0)}, arrival_ready_time ${fmtMinOfDay(arrivalReady)})) `
+          + `(B-LATE-ARRIVAL P239)`
+        );
       }
       // P286 (2026-05-29): arrival-wrap edge — stop time < arrival 이면서 hour < 5 면 new-day wrap 의심.
       // 이전 코드 = 새벽 체크가 outer if (stopMin >= arrivalMin) 안 → stopMin < arrivalMin 인 wrap stop 누락.
