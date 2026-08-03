@@ -32,6 +32,10 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
+  AIRPORT_ARRIVE_BEFORE_MIN,
+} from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 
@@ -587,6 +591,100 @@ function addMinutesToHHMM(hhmm, minutes) {
 }
 
 /**
+ * 출국일 처리 — 손님이 비행기를 놓치지 않게 한다.
+ *
+ * 🔴 2026-08-03 운영 실측: departure_time 이 있는 출국일 **7/7 이 항공기 출발 시각
+ *   이후에 끝났고, 7/7 에 공항 stop 이 없었다.** 실제 예시(비행기 10:00 ICN, 손님은 부산):
+ *     [lodging 09:00] [자갈치시장 09:00~10:30] [술고당 10:41~11:41] [lodging 12:41]
+ *   비행기가 뜬 뒤에도 밥을 먹고 호텔로 "복귀" 한다.
+ *
+ * 왜 기존 컷이 안 먹었나 — 두 가지가 겹쳤다:
+ *   1. tail-pop + `stops.length > 2` 하한. block_mode 는 이 단계에서 숙소 bookend 가
+ *      아직 없어 활동이 2개뿐인 날이 흔하다 → 루프가 **한 번도 안 돈다**.
+ *      (바로 위 tour_end cap 은 같은 이유로 이미 tail-pop → filter 로 고쳐졌다.
+ *       prod 9f9f37a1: trailing lodging 에 보호돼 20:15 stop 이 안 잘린 건.)
+ *   2. `start_time > cap` 비교. 시작이 cap 이전이어도 **끝나는 시각**이 넘으면 못 간다.
+ *
+ * 그리고 공항까지 가는 시간이 빠져 있었다. 그래서:
+ *   공항 도착 마감 = 출발 − AIRPORT_ARRIVE_BEFORE_MIN
+ *   활동 종료 마감 = 공항 도착 마감 − 공항 이동 추정
+ *
+ * 활동 개수 하한을 두지 않는다 — 이른 비행기면 관광할 시간이 **실제로 없다**.
+ * 그 대신 공항 stop 을 넣어 그날이 비지 않게 한다(legacy/Gemini 경로가 내는 것과 같은 모양:
+ * category 'travel' + 한글 공항명 + 실주소·좌표).
+ *
+ * @param {Array<object>} stops  해당 day 의 stops (제자리 수정)
+ * @param {string} departureTime "HH:mm"
+ * @param {string} departureAirport 공항 코드 (ICN_T1 등)
+ * @param {string} language ko|en|ja|zh
+ * @returns {{ trimmed: number, airportStopAdded: boolean }}
+ */
+export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language) {
+  const result = { trimmed: 0, airportStopAdded: false };
+  if (!Array.isArray(stops)) return result;
+  if (!/^\d{1,2}:\d{2}$/.test(String(departureTime || ''))) return result;
+
+  const depMin = hhmmToMin(departureTime);
+  if (depMin < 0) return result;
+  const airportArriveMin = depMin - AIRPORT_ARRIVE_BEFORE_MIN;
+  const transitMin = estimateAirportTransitMin(departureAirport);
+  const activityDeadlineMin = airportArriveMin - transitMin;
+
+  const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
+  const endMinOf = (s) => {
+    const start = hhmmToMin(s.start_time);
+    if (start < 0) return -1;
+    return start + (Number(s.stay_min) || 0);
+  };
+
+  // tail-pop 이 아니라 filter — 뒤에 보호 stop 이 있어도 그 앞의 초과 활동을 잘라야 한다.
+  const before = stops.length;
+  const kept = stops.filter((s) => {
+    if (isProtected(s)) return true;
+    const end = endMinOf(s);
+    if (end < 0) return true;           // 시각을 모르면 건드리지 않는다
+    return end <= activityDeadlineMin;
+  });
+  result.trimmed = before - kept.length;
+  stops.length = 0;
+  stops.push(...kept);
+
+  // 공항 stop — 이미 있으면 그대로 둔다(legacy/Gemini 가 낸 것 존중).
+  const code = String(departureAirport || '').trim().toUpperCase();
+  const hasAirportStop = stops.some((s) => s.category === 'airport' || s.category === 'travel');
+  const nameKo = AIRPORT_NAMES_KO[code];
+  const address = AIRPORT_ADDRESSES[code];
+  const coord = AIRPORT_COORDS[code];
+  if (!hasAirportStop && nameKo && address && coord && airportArriveMin >= 0) {
+    stops.push({
+      order: stops.length + 1,
+      category: 'travel',
+      name: nameKo,                                  // 지도 API 조회 키 — 항상 한글
+      display_name: AIRPORT_NAMES[code] || nameKo,
+      address,
+      lat: coord.lat,
+      lng: coord.lng,
+      start_time: addMinutesToHHMM(departureTime, -AIRPORT_ARRIVE_BEFORE_MIN),
+      stay_min: 0,
+      tip: departureAirportTip(language, departureTime),
+      _departure_airport_stop: true,
+    });
+    result.airportStopAdded = true;
+  }
+  return result;
+}
+
+/** 출국 공항 stop 안내 문구. 손님 언어로 낸다. */
+function departureAirportTip(language, departureTime) {
+  const hours = Math.round(AIRPORT_ARRIVE_BEFORE_MIN / 60);
+  const lang = ['ko', 'en', 'ja', 'zh'].includes(String(language)) ? String(language) : 'en';
+  if (lang === 'ko') return `${departureTime} 출발 항공편 — 출국 ${hours}시간 전까지 공항에 도착해 수속하세요.`;
+  if (lang === 'ja') return `${departureTime} 出発の便 — 出発の${hours}時間前までに空港に到着してください。`;
+  if (lang === 'zh') return `${departureTime} 起飞航班 — 请在起飞前 ${hours} 小时抵达机场办理手续。`;
+  return `Flight departs at ${departureTime} — arrive at the airport ${hours} hours before departure.`;
+}
+
+/**
  * food placeholder 매칭 — dbMatcher 패턴과 유사.
  * preferred_dietary 가 있으면 매칭 식당의 dietary_tags 와 교집합 검사.
  *
@@ -930,6 +1028,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
   const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
   const arrivalAirportInput = String(userInput?.arrival_airport || '').trim();
+  // 출국 공항 — 출국일 컷과 공항 stop 생성에 쓴다. 미입력이면 입국 공항으로 왕복 가정
+  // (departure_guide 를 만드는 아래 :1147 과 같은 폴백).
+  const departureAirportInput = String(userInput?.departure_airport || arrivalAirportInput).trim();
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -1098,22 +1199,10 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       stops.push(...(kept.length ? kept : orig.slice(0, 1))); // 최소 1개(anchor) 보장
     }
 
-    // Day N (departure day) 의 마지막 활동 stop start_time > departure_time - 180min 이면 trim.
-    // departure_time 강제는 buildPrompt 기존 로직과 일관성 유지 — block 시간이 너무 늦으면
-    // tail stops 제거. SAFETY-CRITICAL 아니므로 graceful (사용자 미입력 시 skip).
-    if (isLastDay && departureTime && /^\d{1,2}:\d{2}$/.test(departureTime)) {
-      const cap = addMinutesToHHMM(departureTime, -180);
-      if (cap && /^\d{1,2}:\d{2}$/.test(cap)) {
-        while (
-          stops.length > 2 &&
-          stops[stops.length - 1].start_time > cap &&
-          stops[stops.length - 1].category !== 'lodging' &&
-          stops[stops.length - 1].category !== 'airport' &&
-          stops[stops.length - 1].category !== 'travel'
-        ) {
-          stops.pop();
-        }
-      }
+    // Day N (departure day): 항공기 출발 시각을 넘는 활동을 자르고 공항 stop 을 넣는다.
+    // 사용자가 departure_time 미입력이면 graceful skip. 상세 = applyDepartureDayFlightCap.
+    if (isLastDay) {
+      applyDepartureDayFlightCap(stops, departureTime, departureAirportInput, language);
     }
 
     // PR-E SAFETY: 트레킹/러닝 블록이면 난이도/체력/hazards/부적합 대상을 day 에 보존 (표기 누락 금지).
@@ -1581,6 +1670,9 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
   const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
   const mcArrivalAirport = String(userInput?.arrival_airport || '').trim();
+  // 출국 공항도 loop 전 hoist — 출국일 컷·공항 stop 이 day loop 안에서 쓴다.
+  // 미입력이면 입국 공항으로 왕복 가정(아래 departure_guide 폴백과 동일).
+  const mcDepartureAirportHoisted = String(userInput?.departure_airport || mcArrivalAirport).trim();
   // P123 학습: hotelByCity Record 로 도시별 lodging 정합성 보장.
   const hotelByCity = (userInput?.hotelByCity && typeof userInput.hotelByCity === 'object' && !Array.isArray(userInput.hotelByCity))
     ? userInput.hotelByCity
@@ -1741,20 +1833,9 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       stops.push(...(kept.length ? kept : orig.slice(0, 1)));
     }
 
-    // departure day tail trim
-    if (isLastDay && departureTime && /^\d{1,2}:\d{2}$/.test(departureTime)) {
-      const cap = addMinutesToHHMM(departureTime, -180);
-      if (cap && /^\d{1,2}:\d{2}$/.test(cap)) {
-        while (
-          stops.length > 2 &&
-          stops[stops.length - 1].start_time > cap &&
-          stops[stops.length - 1].category !== 'lodging' &&
-          stops[stops.length - 1].category !== 'airport' &&
-          stops[stops.length - 1].category !== 'travel'
-        ) {
-          stops.pop();
-        }
-      }
+    // departure day: 항공기 출발 시각 컷 + 공항 stop (단일 도시 경로와 같은 헬퍼)
+    if (isLastDay) {
+      applyDepartureDayFlightCap(stops, departureTime, mcDepartureAirportHoisted, language);
     }
 
     // P123 학습: hotelByCity[dayCityKey] 우선 사용 → day.lodging 정합성.
@@ -1785,7 +1866,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const cityList = [...new Set(blockSelections.day_selections.map((s) => s.city))].join('/');
   // P271 (2026-05-28): 다도시 expand 도 arrival_guide / departure_guide / daily_budget_summary minimal default.
   // mcArrivalAirport 는 위(loop 전)에서 hoist 됨 (#arrival-realtime).
-  const mcDepartureAirport = String(userInput?.departure_airport || mcArrivalAirport).trim();
+  const mcDepartureAirport = mcDepartureAirportHoisted;
   const mcItinerary = {
     tour_title: `Pre-curated ${cityList} ${days.length}-day plan`,
     days,

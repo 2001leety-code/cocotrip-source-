@@ -43,6 +43,28 @@ export const AIRPORT_NAMES = {
   ALREADY: null,
 };
 
+// stop.name 은 항상 한글이어야 한다 — 한국 지도 API 조회 키로 쓰인다(buildPrompt "name → ALWAYS Korean").
+// 터미널 표기 규칙도 buildPrompt.js 의 공항 명명 규칙과 같다:
+//   'ICN_T1' → '인천국제공항 T1' · 'ICN_T2' → '인천국제공항 T2' · 'ICN' → '인천국제공항'(터미널 표기 X)
+export const AIRPORT_NAMES_KO = {
+  ICN_T1: '인천국제공항 T1',
+  ICN_T2: '인천국제공항 T2',
+  ICN: '인천국제공항',
+  GMP: '김포국제공항',
+  PUS: '김해국제공항',
+  CJU: '제주국제공항',
+  TAE: '대구국제공항',
+  KWJ: '광주공항',
+  MWX: '무안국제공항',
+  YNY: '양양국제공항',
+  ALREADY: null,
+};
+
+// 출국일에 공항에 도착해 있어야 하는 시각 = 항공기 출발 − 이 값.
+// blockMode 의 출국일 컷과 responseValidator 의 출국일 검사가 같은 값을 써야 한다
+// (한쪽만 바뀌면 "검사는 통과하는데 일정은 비행기를 놓치는" 상태가 된다).
+export const AIRPORT_ARRIVE_BEFORE_MIN = 180;
+
 // ── 공항 좌표 (lat/lng) — RouteAgent의 ODsay 호출용 ────────────────────────
 // 출처: 각 공항 운영사 공식 좌표. Terminal별 좌표가 다르면 도보 5분+ 차이.
 export const AIRPORT_COORDS = {
