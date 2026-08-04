@@ -435,6 +435,11 @@ function firstStopTransitMinutes(stop, day) {
       && stop.travelFromPrev.transitOptions.publicTransit.duration,
     stop && stop.transit_from_prev && stop.transit_from_prev.est_min,
     day && day.lodging_to_first && day.lodging_to_first.est_min,
+    // 출국일 공항 stop — blockMode.applyDepartureDayFlightCap 이 이미 계산한 공항 이동
+    // 추정(도시-공항 거리 보정 포함)을 그대로 쓴다. 이 stop 은 그날의 첫 stop 이라
+    // RouteAgent 가 실측 transit 을 붙일 앞 구간이 없다(숙소는 아래에서 이제 붙는다)
+    // → 이 값이 없으면 "이동 시간 미상" 으로 떨어져 옛 규칙이 발동한다.
+    stop && stop._airport_transit_est_min,
   ];
   for (const c of candidates) {
     const n = Number(c);
@@ -445,8 +450,11 @@ function firstStopTransitMinutes(stop, day) {
 
 // 합성 숙소 출발 시각이 내려갈 수 있는 하한. wizard 는 tour_start_time 을 04:00 까지
 // 허용하는데(WizardStep2Details.tsx) block_mode 에는 buildPrompt/RouteAgent 가 가진
-// hour>=5 가드가 없다. 단 이 하한을 적용해서 다시 "출발 = 도착" 이 되면 적용하지 않는다.
+// hour>=5 가드가 없다. 단 이 하한을 적용해서 이동 시간이 안 들어가면 적용하지 않는다.
 const LODGING_DEPART_FLOOR_MIN = 5 * 60;
+
+// 이동 시간을 모를 때만 쓰는 옛 하한. 이동을 모르니 "너무 이른 출발" 만 막는다.
+const UNKNOWN_TRANSIT_DEPART_FLOOR_MIN = 9 * 60;
 
 /**
  * P160 (2026-05-22): B-10 lodging bookend self-heal.
@@ -538,18 +546,32 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
         const transitMin = firstStopTransitMinutes(stops[0], day);
         let earlierMin;
         if (transitMin != null) {
-          earlierMin = firstMin - transitMin - SCHEDULE_BUFFER_MIN;
-          // 새벽 출발 방지. 단 이 보정이 다시 "출발 = 도착" 충돌을 만들면 적용 안 한다
-          // — 충돌을 없애려고 고치는 중인데 되살리면 안 된다.
-          if (earlierMin < LODGING_DEPART_FLOOR_MIN && LODGING_DEPART_FLOOR_MIN < firstMin) {
+          const travelMin = transitMin + SCHEDULE_BUFFER_MIN;
+          earlierMin = firstMin - travelMin;
+          // 새벽 출발 방지 하한.
+          // 🔴 2026-08-04: 옛 조건은 "하한이 첫 stop 보다 이르기만 하면 적용" 이었다.
+          //   그것만으로는 부족하다 — 06:00 기차에 이동 120분이면 하한 05:00 은 첫 stop
+          //   보다 이르지만 도착이 07:00 이라 손님은 기차를 놓친다. 하한을 쓰고도
+          //   **이동이 들어갈 자리가 남을 때만** 적용한다.
+          if (earlierMin < LODGING_DEPART_FLOOR_MIN
+              && LODGING_DEPART_FLOOR_MIN + travelMin <= firstMin) {
             earlierMin = LODGING_DEPART_FLOOR_MIN;
           }
-          if (earlierMin < 0) earlierMin = 0;
         } else {
           // 이동 시간을 모르는 경우에만 옛 규칙 유지(첫 stop − 60분, 09:00 바닥).
+          // 🔴 2026-08-04: 바닥을 무조건 적용하면 시각이 거꾸로 간다. 운영 plan
+          //   a159c200 출국일이 그랬다 — 공항 stop 07:00 앞에 바닥 09:00 이 박혀
+          //   [숙소 09:00 해운대] → [공항 07:00 인천] 이 손님에게 나갔다.
+          //   (근본 원인은 공항 stop 의 이동 추정이 여기까지 안 온 것이라 blockMode
+          //    쪽에서 `_airport_transit_est_min` 을 넘기게 했다. 이 가드는 그게
+          //    없는 경로에서도 역행이 안 나오게 하는 2차 방어다.)
           earlierMin = firstMin - 60;
-          if (earlierMin < 9 * 60) earlierMin = 9 * 60;
+          if (earlierMin < UNKNOWN_TRANSIT_DEPART_FLOOR_MIN
+              && UNKNOWN_TRANSIT_DEPART_FLOOR_MIN < firstMin) {
+            earlierMin = UNKNOWN_TRANSIT_DEPART_FLOOR_MIN;
+          }
         }
+        if (earlierMin < 0) earlierMin = 0;
         synStart = `${String(Math.floor(earlierMin / 60)).padStart(2, '0')}:${String(earlierMin % 60).padStart(2, '0')}`;
       }
       stops.unshift({

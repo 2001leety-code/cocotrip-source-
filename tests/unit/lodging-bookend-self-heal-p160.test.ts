@@ -7,6 +7,8 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module
 import { selfHealLodgingBookend } from '../../api/_ai_core/planPersister.js';
+// @ts-expect-error — JS module
+import { applyDepartureDayFlightCap } from '../../api/_ai_core/blockMode.js';
 
 describe('P160 selfHealLodgingBookend', () => {
   it('첫 stop = food → synthetic lodging prepend', () => {
@@ -256,14 +258,25 @@ describe('합성 숙소 출발 시각은 실제 이동 시간을 반영한다', 
     expect(departure(itinerary)).toBe('13:00'); // 옛 규칙 폴백
   });
 
-  it('새벽 출발은 05:00 에서 멈춘다', () => {
-    const itinerary = dayWithFirstStop({
+  it('새벽 출발 하한(05:00)은 이동이 들어갈 자리가 남을 때만 쓴다', () => {
+    // 하한을 쓸 수 있는 경우: 07:30 첫 활동 + 이동 25분 → 07:00 이지만 하한 위라 그대로.
+    const ok = dayWithFirstStop({
+      category: 'culture', name: '이른 관람', start_time: '05:20', stay_min: 30,
+      transit_from_prev: { est_min: 10 },
+    });
+    selfHealLodgingBookend(ok);
+    expect(departure(ok)).toBe('05:05'); // 05:20 − 10 − 5, 하한 위
+
+    // 🔴 하한을 쓰면 못 가는 경우: 06:00 기차 + 이동 120분.
+    //   옛 코드는 05:00 을 적었다 — 05:00 에 나서면 07:00 도착이라 기차를 놓친다.
+    //   "하한이 첫 stop 보다 이르기만 하면 OK" 라는 옛 조건이 이걸 못 걸렀다.
+    const miss = dayWithFirstStop({
       category: 'travel', name: '첫 기차', start_time: '06:00', stay_min: 30,
       transit_from_prev: { est_min: 120 },
     });
-    selfHealLodgingBookend(itinerary);
-    // 06:00 − 120 − 5 = 03:55 → 05:00 하한
-    expect(departure(itinerary)).toBe('05:00');
+    selfHealLodgingBookend(miss);
+    expect(departure(miss)).toBe('03:55'); // 06:00 − 120 − 5. 이르지만 이게 사실이다
+    expect(toMin(departure(miss)) + 120).toBeLessThanOrEqual(toMin('06:00'));
   });
 
   it('05:00 하한이 다시 "출발 = 도착" 충돌을 만들면 적용하지 않는다', () => {
@@ -274,6 +287,52 @@ describe('합성 숙소 출발 시각은 실제 이동 시간을 반영한다', 
     selfHealLodgingBookend(itinerary);
     // 하한(05:00)이 첫 활동(04:30)보다 늦으므로 적용 X → 04:00 유지
     expect(departure(itinerary)).toBe('04:00');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 출국일 — 운영 plan a159c200 (2026-08-04 스모크) 재현.
+  //   손님에게 나간 마지막 날: [lodging 09:00 해운대 지역 숙소] → [travel 07:00 인천공항]
+  //   숙소를 09:00 에 나서는데 공항 도착이 07:00. 시각이 2시간 거꾸로 간다.
+  //   원인 두 겹: ① blockMode 가 이미 계산한 공항 이동 추정을 stop 에 안 남겨
+  //   "이동 미상" 으로 떨어지고 ② 그 분기의 09:00 바닥이 무조건 적용됐다.
+  // ───────────────────────────────────────────────────────────────────────────
+  describe('출국일 체크아웃 시각', () => {
+    const departureDay = (airportStop: Stop) => ({
+      days: [{ day: 5, city: 'busan', stops: [airportStop] as Stop[] }],
+    });
+
+    it('blockMode 가 공항 이동 추정을 stop 에 남긴다', () => {
+      const stops: Stop[] = [];
+      const r = applyDepartureDayFlightCap(stops, '10:00', 'ICN_T1', 'ko', 'busan');
+      expect(r.airportStopAdded).toBe(true);
+      expect(stops[0].start_time).toBe('07:00'); // 10:00 − 180분
+      // 부산에서 인천공항은 공항 표값(90분)이 아니라 거리 보정값이어야 한다(#1228).
+      expect(Number(stops[0]._airport_transit_est_min)).toBeGreaterThan(180);
+    });
+
+    it('운영 재현: 숙소 출발이 공항 도착보다 늦지 않다', () => {
+      const stops: Stop[] = [];
+      applyDepartureDayFlightCap(stops, '10:00', 'ICN_T1', 'ko', 'busan');
+      const transit = Number(stops[0]._airport_transit_est_min);
+      const itinerary = departureDay(stops[0]);
+      selfHealLodgingBookend(itinerary);
+
+      const lodging = String(itinerary.days[0].stops[0].start_time);
+      expect(lodging).not.toBe('09:00');                       // 옛 결과
+      expect(toMin(lodging)).toBeLessThan(toMin('07:00'));     // 역행 없음
+      // 이동 시간이 실제로 들어간다 — 그래야 비행기를 탄다.
+      expect(toMin(lodging) + transit + 5).toBeLessThanOrEqual(toMin('07:00'));
+    });
+
+    it('추정값이 없어도 역행하지 않는다 (2차 방어)', () => {
+      const itinerary = departureDay({
+        category: 'travel', name: '인천국제공항 T1', start_time: '07:00', stay_min: 0,
+      });
+      selfHealLodgingBookend(itinerary);
+      const lodging = String(itinerary.days[0].stops[0].start_time);
+      expect(lodging).toBe('06:00');                            // 07:00 − 60, 09:00 바닥 미적용
+      expect(toMin(lodging)).toBeLessThan(toMin('07:00'));
+    });
   });
 
   it('출발이 첫 활동보다 늦거나 같아지는 일은 없다', () => {
