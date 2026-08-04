@@ -278,6 +278,13 @@ export const processPlanAfterAI = inngest.createFunction(
         // P-launch (2026-05-31): worker path 도 tip 언어 + block_mode bookend suppress 전달.
         language: ctx.language,
         blockMode: ctx.blockModeUsed,
+        // #1227 후속 (2026-08-04): 출국일 항공 컷. **이 worker 가 legacy 경로다**
+        //   (handlerCore 는 block_mode 일 때만 applyBackfillsAndTmoney 를 부른다).
+        //   departure_airport 는 shaped 값 — requestShaper 가 미입력 시 arrival_airport
+        //   로 폴백해 둔 것이라 raw body 를 쓰면 컷이 조용히 skip 된다.
+        //   departureTime 은 ctx 에 없어 postResponsePipeline 이 body 에서 같은 방식
+        //   (camel → snake, slice(0,5)) 으로 읽는다.
+        departure_airport: ctx.departure_airport,
       });
       return itinAfterRoute;
     });

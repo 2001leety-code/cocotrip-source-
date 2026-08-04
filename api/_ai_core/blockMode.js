@@ -595,7 +595,12 @@ function addMinutesToHHMM(hhmm, minutes) {
  * @param {string} language ko|en|ja|zh
  * @param {string} [cityKey] 그날 손님이 있는 도시(day.city). 공항과 다른 권역이면
  *   이동 추정을 도시간 이동으로 올린다 — 없으면 공항 권역 기준(기존 동작).
- * @returns {{ trimmed: number, airportStopAdded: boolean }}
+ * @returns {{ trimmed: number, airportStopAdded: boolean, airportStopRetimed?: boolean }}
+ *
+ * 🔴 2026-08-04: 이 함수는 blockMode expand 안에서만 호출돼 **legacy(Gemini) 경로는
+ *   무방비**였다. 두 경로가 합류하는 postResponsePipeline.applyBackfillsAndTmoney 에서
+ *   마지막 day 에 한 번 더 부른다. 두 번 불러도 안전하다 — 초과 활동이 없으면 filter 가
+ *   no-op 이고, 공항 stop 이 이미 마감 안이면 시각도 안 건드린다.
  */
 export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language, cityKey) {
   const result = { trimmed: 0, airportStopAdded: false };
@@ -627,13 +632,37 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
   stops.length = 0;
   stops.push(...kept);
 
-  // 공항 stop — 이미 있으면 그대로 둔다(legacy/Gemini 가 낸 것 존중).
+  // 공항 stop — 이미 있으면 존중하되, **시각이 늦으면 당긴다**.
+  //
+  // 🔴 2026-08-04: "있으면 그대로 둔다" 만 있어서 legacy(Gemini)가 낸 늦은 공항 stop 을
+  //   그대로 통과시켰다. 운영 실측 — departure_time 이 들어간 legacy plan 2건 **전부**:
+  //     358e84c9: 출국 10:00 ICN → [lodging 06:30] [airport 09:31]  (이륙 29분 전)
+  //     6ee989d2: 출국 10:00 ICN → [lodging 06:30] [travel  09:35]  (이륙 25분 전)
+  //   프롬프트(P124 "NEVER: stop start_time > departure_time - 180min")는 지켜지지 않았고
+  //   validator 의 departure_time 규칙은 식사 누락(B-MEAL)뿐이라 아무도 못 잡았다.
+  //   품질점수도 이 plan 에 79점을 줬다. → 존중은 "있다/없다" 까지, 시각은 여기서 강제한다.
   const code = String(departureAirport || '').trim().toUpperCase();
-  const hasAirportStop = stops.some((s) => s.category === 'airport' || s.category === 'travel');
+  const airportStops = stops.filter((s) => s.category === 'airport' || s.category === 'travel');
   const nameKo = AIRPORT_NAMES_KO[code];
   const address = AIRPORT_ADDRESSES[code];
   const coord = AIRPORT_COORDS[code];
-  if (!hasAirportStop && nameKo && address && coord && airportArriveMin >= 0) {
+  if (airportStops.length && airportArriveMin >= 0) {
+    const fixedHHMM = addMinutesToHHMM(departureTime, -AIRPORT_ARRIVE_BEFORE_MIN);
+    for (const s of airportStops) {
+      const cur = hhmmToMin(s.start_time);
+      if (cur >= 0 && cur > airportArriveMin) {
+        s.start_time = fixedHHMM;
+        if (s.end_time) s.end_time = fixedHHMM;   // stay_min 0 — 도착 즉시가 끝
+        result.airportStopRetimed = true;
+      }
+      // #1231 과 같은 구멍 방지 — 숙소 bookend 가 나중에 합성될 때 이동 시간을 모르면
+      // 체크아웃이 공항 도착보다 늦게 잡힌다. 이미 있으면 덮지 않는다.
+      if (!Number.isFinite(Number(s._airport_transit_est_min))) {
+        s._airport_transit_est_min = transitMin;
+      }
+    }
+  }
+  if (!airportStops.length && nameKo && address && coord && airportArriveMin >= 0) {
     stops.push({
       order: stops.length + 1,
       category: 'travel',

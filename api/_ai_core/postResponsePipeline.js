@@ -32,6 +32,7 @@ import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
+import { applyDepartureDayFlightCap } from './blockMode.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -277,6 +278,30 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // 결제 가치 체감 저하. stop count 기반 추정값 생성.
   // P289 (2026-05-29): pax 기반 personalize — ctx 전달 (Gemini prompt 변경 X).
   selfHealDailyBudget(itinerary, { pax: ctx.body?.pax });
+
+  // ── #1227 후속 (2026-08-04): 출국일 항공 컷 — legacy 경로 배선 ────────
+  // applyDepartureDayFlightCap 은 blockMode expand 안에서만 호출돼서 legacy(Gemini)
+  // plan 은 프롬프트 한 겹(P124 "NEVER: stop start_time > departure_time - 180min")
+  // 뿐이었다. validator 의 departure_time 규칙은 식사 누락(B-MEAL)만 본다.
+  // 운영 실측 — departure_time 이 들어간 legacy plan **2/2 가 이륙 30분 전 공항 도착**:
+  //   358e84c9 [lodging 06:30] [airport 09:31] / 6ee989d2 [lodging 06:30] [travel 09:35]
+  //   (둘 다 10:00 ICN 출발. 품질점수 79점 — 지표도 못 본다.)
+  // selfHealLodgingBookend "앞" 에 둔다 — 공항 stop 의 _airport_transit_est_min 이
+  //   먼저 붙어야 합성 숙소 체크아웃이 공항 도착보다 늦게 잡히지 않는다(#1231 과 같은 구멍).
+  //   trim 은 lodging 을 보호하므로 bookend 앞/뒤 어느 쪽이어도 결과가 같다.
+  // block_mode 는 expand 에서 이미 적용됐다 → 여기서는 no-op(멱등).
+  const _days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  const _lastDay = _days[_days.length - 1];
+  if (_lastDay) {
+    applyDepartureDayFlightCap(
+      _lastDay.stops,
+      String(ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time || '').slice(0, 5),
+      ctx.departure_airport || ctx.body?.departure_airport || '',
+      ctx.language,
+      // 🔴 plan area 가 아니라 **그날의 도시** — 다도시에서 area 를 쓰면 거리 보정이 무효.
+      normalizeRegionKey(_lastDay.city || '') || normalizeRegionKey(ctx.body?.area || ''),
+    );
+  }
 
   // ── P270 (2026-05-28): lodging bookend self-heal (dead code 복구) ───
   // 운영자 의도 "호텔=동선 anchor, Day 시작/마지막 호텔" SSOT 박제. block_mode plan
