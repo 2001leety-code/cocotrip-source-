@@ -32,14 +32,15 @@ jobs:
       - name: npm audit (high + critical only)
         # Production deps must be clean. Dev deps allowed to have findings
         # if upstream hasn't released a fix yet — surfaced via Dependabot PRs.
+        #
+        # 판정은 scripts/audit-gate.mjs 가 한다 — 허용 목록과 그 근거가 거기 있고,
+        # tests/unit/audit-gate.test.ts 가 그 판정을 실제로 돌려서 검증한다.
+        # (npm audit 자체의 exit code 를 쓰면 해소 경로가 없는 advisory 때문에
+        #  게이트가 영원히 빨간불이 된다 — 상시 빨간불은 게이트가 아니라 소음이다.)
         run: |
-          set +e
-          npm audit --audit-level=high --omit=dev
-          PROD_EXIT=$?
-          echo "---"
+          set -eo pipefail
+          npm audit --json --omit=dev > audit-prod.json || true
           echo "Dev deps (informational, not blocking):"
           npm audit --audit-level=high --include=dev || true
-          if [ $PROD_EXIT -ne 0 ]; then
-            echo "::error::High/critical vulnerabilities in production dependencies"
-            exit 1
-          fi
+          echo "---"
+          node scripts/audit-gate.mjs audit-prod.json
