@@ -672,6 +672,12 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
       stay_min: 0,
       tip: departureAirportTip(language, departureTime),
       _departure_airport_stop: true,
+      // 숙소 → 공항 이동 추정(도시-공항 거리 보정 포함). 바로 위에서 이미 계산한 값이다.
+      // 이 stop 은 그날의 첫 stop 이라 RouteAgent 가 실측 transit 을 붙일 앞 구간이 없고,
+      // 숙소 stop 은 planPersister.selfHealLodgingBookend 가 **나중에** 앞에 붙인다.
+      // 그때 이 값이 없으면 "이동 시간 미상" 으로 떨어져 체크아웃 시각이 공항 도착보다
+      // 늦게 잡힌다(운영 plan a159c200 출국일: 숙소 09:00 → 공항 07:00).
+      _airport_transit_est_min: transitMin,
     });
     result.airportStopAdded = true;
   }
