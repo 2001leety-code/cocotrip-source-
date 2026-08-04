@@ -74,10 +74,23 @@ async function getIdToken() {
 // validate-prod-regression.mjs 는 PR #986(b194181c)이 동적 미래날짜로 고쳤는데 이 파일만 남아있었음.
 const FUTURE_START = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
+// 🔴 2026-08-05: 시나리오 3개에 **도착·출국 시각**을 넣는다.
+//   그 전까지 5개 전부 시각이 없어서 applyDepartureDayFlightCap 이 조기 반환했다
+//   → 도착일·출국일 계열 결함(#1225·#1227·#1228·#1229·#1231·#1236·#1237·#1239)을
+//   **자동 검증이 단 한 번도 건드리지 못했다.** 전부 손으로 운영 API 를 쳐서 찾았다.
+//   시나리오 수는 그대로 5개 = Gemini 호출 수 그대로 = 비용 증가 0.
+//
+//   커버리지 배분:
+//     jeju-vegan   → legacy + 같은 권역(CJU). **legacy 를 부르는 키는 식이 제약이다**
+//                    (Vegan/Halal 은 블록 매칭 실패로 legacy 폴백. Meat 는 block_mode).
+//     busan-halal  → legacy + **권역 밖**(부산 손님 ↔ 인천공항 = 직선 346km, 이동 277분).
+//                    #1228/#1236 거리 보정과 #1231 체크아웃 순서가 여기서만 드러난다.
+//     seoul-meat   → block_mode + 같은 권역. 보정이 **걸리지 않아야** 하는 대조군.
+//   rep1/rep2 는 다양성 비교쌍이라 건드리지 않는다(비교 조건을 바꾸면 중복률이 무의미해진다).
 const scenarios = [
-  { id: 'seoul-meat',      area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
-  { id: 'busan-halal',     area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],  priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
-  { id: 'jeju-vegan',      area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],  priceRange: 'Budget',   language: 'en', startDate: FUTURE_START, guestName: 'Validate-Test' },
+  { id: 'seoul-meat',      area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test', arrivalTime: '14:00', departureTime: '10:00' },
+  { id: 'busan-halal',     area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],  priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
+  { id: 'jeju-vegan',      area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],  priceRange: 'Budget',   language: 'en', startDate: FUTURE_START, guestName: 'Validate-Test', arrivalTime: '14:00', departureTime: '10:00' },
   { id: 'seoul-meat-rep1', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
   { id: 'seoul-meat-rep2', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: FUTURE_START, guestName: 'Validate-Test' },
 ];
@@ -186,8 +199,10 @@ async function runAll() {
         ...s,
         email: TEST_EMAIL,
         adults: s.pax,
-        arrival_airport: s.area === 'jeju' ? 'CJU' : (s.area === 'busan' ? 'PUS' : 'ICN_T1'),
-        departure_airport: s.area === 'jeju' ? 'CJU' : (s.area === 'busan' ? 'PUS' : 'ICN_T1'),
+        // 시나리오가 공항을 명시하면 그것을 쓴다 — 권역 밖 조합(부산 손님 ↔ 인천공항)을
+        // 만들려면 area 로 유추한 값(PUS)으로는 안 된다. 미명시면 기존 유추 그대로.
+        arrival_airport: s.arrival_airport || (s.area === 'jeju' ? 'CJU' : (s.area === 'busan' ? 'PUS' : 'ICN_T1')),
+        departure_airport: s.departure_airport || (s.area === 'jeju' ? 'CJU' : (s.area === 'busan' ? 'PUS' : 'ICN_T1')),
         styles: ['culture', 'food'],
         allergies: [],
         // P174 (2026-05-24): ADMIN-BYPASS- prefix — admin email (HEALTH_CHECK_EMAIL,
@@ -238,6 +253,23 @@ async function runAll() {
         console.warn(`   ⚠ qualityMetrics failed for ${s.id}:`, qErr.message);
       }
 
+      // 🔴 출국일이 항공기 출발 마감을 넘는가 (2026-08-05).
+      //   손님이 비행기를 놓치는 조건이다. 시각을 준 시나리오에서만 판정한다
+      //   (`departureTime` 없으면 탐지기가 빈 배열을 낸다 = 기존 시나리오 무영향).
+      let departureOverrun = [];
+      try {
+        const { detectDepartureFlightOverrun } = await loadQualityMetrics();
+        departureOverrun = detectDepartureFlightOverrun(itin, s.departureTime);
+      } catch (dErr) {
+        console.warn(`   ⚠ departure overrun check failed for ${s.id}:`, dErr.message);
+      }
+      if (departureOverrun.length > 0) {
+        console.log(`   🛫 ${s.id}: 출국일이 항공 마감(${s.departureTime} −3시간)을 넘었다 — ${departureOverrun.length}건`);
+        for (const o of departureOverrun.slice(0, 5)) {
+          console.log(`      Day${o.day} ${o.start_time} "${o.name}" (${o.category})`);
+        }
+      }
+
       // 서버 측 검증 이슈 + 클라이언트 측 추가 분석
       const serverIssues = data?.data?._validation_issues || data._validation_issues || [];
       const clientIssues = analyzeIssues(stops, s.language);
@@ -264,6 +296,7 @@ async function runAll() {
         issues: dedupedIssues,
         issue_count: dedupedIssues.length,
         qualityScore,
+        departure_overrun: departureOverrun,
         stops,
       });
 
@@ -283,6 +316,7 @@ async function runAll() {
 
   // ── 다양성 점수 ──
   const diversity = calcDiversity(results);
+  const overrunTotal = results.reduce((n, r) => n + (r.departure_overrun?.length || 0), 0);
 
   // ── 리포트 저장 ──
   const report = {
@@ -292,6 +326,7 @@ async function runAll() {
     success_count: results.filter(r => r.ok).length,
     fail_count: results.filter(r => !r.ok).length,
     total_issues: results.reduce((s, r) => s + (r.issue_count ?? 0), 0),
+    departure_overrun_total: overrunTotal,
     avg_elapsed_ms: Math.round(results.filter(r => r.ok).reduce((s, r) => s + r.elapsed_ms, 0) / Math.max(1, results.filter(r => r.ok).length)),
     diversity_overlap: diversity,
     results,
@@ -306,6 +341,7 @@ async function runAll() {
   console.log(`${'═'.repeat(55)}`);
   console.log(`  성공: ${report.success_count}/${report.total_scenarios}`);
   console.log(`  총 이슈: ${report.total_issues}건`);
+  console.log(`  출국일 항공 마감 초과: ${overrunTotal}건${overrunTotal > 0 ? '  ← 🛫 손님이 비행기를 놓친다' : ''}`);
   console.log(`  평균 응답: ${(report.avg_elapsed_ms / 1000).toFixed(1)}초`);
 
   // 이슈 유형별 카운트
@@ -341,6 +377,16 @@ async function runAll() {
 
   console.log(`\n💾 저장: ${outPath}`);
   console.log(`${'═'.repeat(55)}\n`);
+
+  // 🔴 출국일 마감 초과는 손님이 비행기를 놓치는 조건이다. 다만 **여기서 exit 1 을 하지 않는다** —
+  //   daily-health-check 는 이 스크립트를 execSync 로 부르므로 non-zero 면 throw 로 잡혀
+  //   "validate-planner 실행 실패(silent fail 차단)" 라는 **엉뚱한 원인**이 보고된다.
+  //   #1230 과 같은 함정(위반 문자열이 틀린 기준을 말해 다음 단계를 오도)이다.
+  //   → 보고는 여기서(report + 콘솔), 게이트는 daily-health-check 이 report 를 읽어서 건다.
+  if (overrunTotal > 0) {
+    console.error(`\n❌ 출국일 항공 마감 초과 ${overrunTotal}건 — 손님이 비행기를 놓치는 일정이다.`);
+    console.error(`   applyDepartureDayFlightCap 배선 확인 (postResponsePipeline.applyBackfillsAndTmoney).`);
+  }
 }
 
 runAll().catch(err => {
