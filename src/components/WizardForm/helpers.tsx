@@ -1,5 +1,9 @@
-// Pure helpers + small presentational components shared across wizard steps.
-import type { ReactNode } from 'react';
+// Pure helpers shared across wizard steps.
+//
+// 🔴 여기에 컴포넌트를 export 하지 말 것 (2026-08-04). 한 모듈이 컴포넌트와 일반 함수를
+//   같이 export 하면 Vite fast-refresh 가 이 파일을 갱신할 때 위저드를 통째로 리마운트한다
+//   — 입력 중이던 값이 날아간다. react-refresh/only-export-components 가 이걸 잡는다.
+//   유일한 컴포넌트였던 SummaryCard 는 소비처가 WizardStep3Review 하나뿐이라 그리로 옮겼다.
 import { AIRPORT_OPTIONS, type AirportOption } from './data';
 
 export function getAirportOptions(chipKey: string): AirportOption[] {
@@ -30,13 +34,4 @@ export function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${months[d.getMonth()]} ${d.getDate()}`;
-}
-
-export function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
-      <span className="flex items-center gap-1 text-[10px] text-white/55 mb-1">{icon} {label}</span>
-      <p className="text-sm font-bold text-white truncate">{value}</p>
-    </div>
-  );
 }
