@@ -29,9 +29,10 @@ export function WizardNav({
   nextLabel,
   prevLabel = 'Back',
   disabled = false,
-  // 2026-07-19 토큰 통일: 모바일/데스크톱 그라데이션 분기 제거(--coco-cta-gradient 단일).
-  // prop 은 호출부 호환 위해 유지.
-  isMobile: _isMobile,
+  // 2026-07-19 토큰 통일로 모바일/데스크톱 그라데이션 분기가 사라져 isMobile 은 쓰지 않는다.
+  // prop 타입은 호출부 호환 위해 그대로 두고(WizardStep0/1/2 3곳), 여기서 꺼내 오지만 않는다.
+  // (꺼내 두면 no-unused-vars 가 계속 잡는다. 타입에서 지우려면 호출부 3곳을 같이 고쳐야 하고
+  //  그건 7/19 의 "호출부 호환 유지" 결정을 뒤집는 것이라 별도 건이다.)
   emphasis = 'next',
 }: WizardNavProps) {
   const nextBg = disabled ? 'rgba(255,255,255,.1)' : 'var(--coco-cta-gradient)';

@@ -49,6 +49,19 @@ describe('#wizard-step-hints — 스텝별 친절 설명', () => {
   it('WizardForm 이 WizardStepHint 를 현재 step 으로 렌더 (통합 회귀)', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/WizardForm/index.tsx'), 'utf-8');
     expect(src).toMatch(/import \{ WizardStepHint \}/);
-    expect(src).toMatch(/<WizardStepHint step=\{step\}/);
+    // 속성 순서를 고정하지 않는다 — 예전 정규식은 `step={step}` 이 첫 속성이어야 통과해서
+    // key 를 앞에 붙인 것만으로 깨졌다(내용은 그대로인데).
+    expect(src).toMatch(/<WizardStepHint[^>]*\sstep=\{step\}/);
   });
+
+  // 🔴 2026-08-04: key 는 장식이 아니라 **동작상 필수**다.
+  //   WizardStepHint 는 "이 스텝을 본 적 있는가" 를 useState 초기값으로 한 번만 정한다.
+  //   key 가 없으면 스텝이 바뀌어도 리마운트가 안 되고, 초기값이 다시 계산되지 않아
+  //   배너가 첫 스텝 상태 그대로 굳는다(안 본 스텝인데 안 뜨거나, 본 스텝인데 계속 뜬다).
+  it('WizardStepHint 는 step 마다 새로 마운트된다 (key)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/WizardForm/index.tsx'), 'utf-8');
+    expect(src, 'key={step} 이 빠지면 스텝별 자동 노출이 죽는다').toMatch(/<WizardStepHint[^>]*\skey=\{step\}/);
+  });
+
+  // 초기값 계산이 실제로 맞는지는 렌더해서 본다 — tests/unit/wizard-step-hint-open-state.test.tsx.
 });

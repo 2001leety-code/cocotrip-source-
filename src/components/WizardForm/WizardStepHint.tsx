@@ -3,7 +3,7 @@
 // - 닫으면 작은 "?" 칩으로 접힘 → 언제든 다시 보기.
 // - 차단 모달이 아님 (입력 흐름 방해 X) = NN/g "도움말은 단계 옆에, 작업 기억 부담 최소화".
 // - 4언어 (stepHints.ts).
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Lightbulb, X, HelpCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { WIZARD_STEP_HINTS, normalizeHintLang } from './stepHints';
@@ -14,17 +14,21 @@ export function WizardStepHint({ step }: { step: number }) {
   const { language } = useLanguage();
   const lang = normalizeHintLang(language);
   const hint = WIZARD_STEP_HINTS[step];
-  const [open, setOpen] = useState(false);
 
-  // 스텝 변경 시 — 안 본 스텝이면 자동 노출, 본 스텝이면 접힘("?"만).
-  useEffect(() => {
-    if (!hint) { setOpen(false); return; }
+  // 안 본 스텝이면 자동 노출, 본 스텝이면 접힘("?"만).
+  //
+  // 2026-08-04: 예전엔 이걸 useEffect 로 했다 — 첫 렌더에서 무조건 접힌 채 그렸다가
+  //   effect 가 다시 열어서 매 스텝마다 렌더가 한 번 더 돌았고, 배너가 깜빡였다.
+  //   호출부가 `key={step}` 으로 스텝마다 새로 마운트하므로 초기값으로 한 번에 정하면 된다.
+  //   (effect 안에서 setState 하는 패턴 자체를 react-hooks/set-state-in-effect 가 잡는다.)
+  const [open, setOpen] = useState<boolean>(() => {
+    if (!hint) return false;
     try {
-      setOpen(!localStorage.getItem(`${SEEN_PREFIX}${step}`));
+      return !localStorage.getItem(`${SEEN_PREFIX}${step}`);
     } catch {
-      setOpen(false); // SSR / private mode → 안 띄움이 안전
+      return false; // SSR / private mode → 안 띄움이 안전
     }
-  }, [step, hint]);
+  });
 
   if (!hint) return null;
 

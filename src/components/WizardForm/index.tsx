@@ -251,6 +251,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // 2026-05-05: 호텔 chip 분기 제거 (free-claim funnel 폐기) — airport touch만 추적.
   const [airportTouchedInStep3, setAirportTouchedInStep3] = useState(false);
   useEffect(() => {
+    // 예약 상태가 바뀌면 "Step 3 에서 공항을 직접 만졌다" 표시를 초기화한다.
+    // 수렴한다 — false 로 되돌린 뒤 같은 effect 가 다시 돌아도 값이 안 바뀌어 재렌더가 없다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAirportTouchedInStep3(false);
   }, [reservationStatus]);
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
@@ -288,6 +291,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       const chip = CITY_CHIPS.find(c => c.key === r0Lower) ||
                    CITY_CHIPS.find(c => getCityName(c.key) === r0);
       if (chip) {
+        // 마운트 1회 prefill(initialValues 복원). 이 effect 는 한 번만 돌고 자기 deps 를
+        // 바꾸지 않는다 — 루프가 생기지 않는다.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMainCity(getCityName(chip.key));
         setMainCityKey(chip.key);
       } else {
@@ -374,6 +380,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     if (fresh.staleSource) {
       clearWizardSnapshot(fresh.staleSource);
     }
+    // 마운트 1회(resume modal 판정). deps 가 [] 라 재실행이 없다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPendingSnap(v);
     setPendingStep(fresh.snapshot.step || 0);
     setResumeOpen(true);
@@ -538,6 +546,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   useEffect(() => {
     const validValues = airportOptions.map(o => o.value);
     if (arrivalTerminal && !validValues.includes(arrivalTerminal)) {
+      // 도시가 바뀌어 무효가 된 값만 비운다. 비우고 나면 조건이 false 가 되어 수렴한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setArrivalTerminal('');
     }
     // P142: 다도시에서 mainCity 변경 시 departureTerminal 도 검증.
@@ -554,6 +564,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // 또한 arrival === departure 무효 상태 차단 (단도시 plan 의 경우만 같을 수 있음).
   useEffect(() => {
     const liveKeys = mainCityKey ? [mainCityKey, ...extraCityKeys] : [];
+    // 선택 해제된 도시의 role 만 비운다. 비우면 조건이 false 가 되어 수렴한다
+    // (deps 에 이 값들이 들어 있어도 한 번 더 돌고 끝난다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (arrivalCityKey && !liveKeys.includes(arrivalCityKey)) setArrivalCityKey('');
     if (departureCityKey && !liveKeys.includes(departureCityKey)) setDepartureCityKey('');
     // 다도시 plan 인데 arrival === departure 같으면 departure 해제 (사용자 cycle 중 혼동).
@@ -936,8 +949,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         </div>
 
         <div className="max-w-2xl mx-auto">
-          {/* #wizard-step-hints (운영자 #3): 스텝별 친절 설명 — 첫 도달 시 1회 + "?" 재보기 (비차단). */}
-          <WizardStepHint step={step} />
+          {/* #wizard-step-hints (운영자 #3): 스텝별 친절 설명 — 첫 도달 시 1회 + "?" 재보기 (비차단).
+              key={step} — 스텝마다 새로 마운트해서 "이 스텝을 봤는가" 를 초기값으로 한 번에 정한다.
+              (2026-08-04: 예전엔 effect 로 다시 열어 매 스텝 렌더가 한 번 더 돌고 배너가 깜빡였다.) */}
+          <WizardStepHint key={step} step={step} />
           {/* step 전환 = key 가 바뀌면 그 커밋에서 즉시 교체. 진입 슬라이드는 CSS 애니메이션.
               2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
               step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense

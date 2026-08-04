@@ -1,9 +1,22 @@
 // Step 3: summary review + generate button.
+import type { ReactNode } from 'react';
 import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield, Hotel, Navigation } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
-import { SummaryCard, formatDateShort } from './helpers';
+import { formatDateShort } from './helpers';
 import type { WizardDict } from './types';
 import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPrice';
+
+// 2026-08-04: helpers.tsx 에서 옮겨 왔다 (마크업 그대로). 소비처가 이 파일 하나뿐인데
+// 순수 함수 모듈에 섞여 있어 fast-refresh 가 위저드를 통째로 리마운트하게 만들고 있었다.
+// export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
+function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
+      <span className="flex items-center gap-1 text-[10px] text-white/55 mb-1">{icon} {label}</span>
+      <p className="text-sm font-bold text-white truncate">{value}</p>
+    </div>
+  );
+}
 
 interface Step3Props {
   p: WizardDict;
