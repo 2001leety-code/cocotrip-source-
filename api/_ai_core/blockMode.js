@@ -34,11 +34,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
-  AIRPORT_ARRIVE_BEFORE_MIN, CITY_CENTER_COORDS,
-  // 도착일 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
-  estimateAirportTransitMin, hhmmToMin, arrivalReadyMinutes,
+  AIRPORT_ARRIVE_BEFORE_MIN,
+  // 도착·출국 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
+  // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
+  // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
+  estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes,
 } from './constants.js';
-import { haversineKm } from './routeQuality.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 
@@ -545,36 +546,9 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 const DEFAULT_DAY_START_HHMM = '09:00';
 const DEFAULT_TOUR_END_HHMM = '21:00';
 
-// 🔴 2026-08-03: 위 표는 **공항이 속한 권역 안에서의** 이동 시간이다.
-//   손님이 다른 권역에 있으면 완전히 틀린다 — 운영 실측에서 **부산에 있는 손님이
-//   인천공항(직선 346km, 실제 4시간 이상)에서 출국**하는 플랜의 이동을 90분으로 봤다.
-//   출국일 컷(applyDepartureDayFlightCap)이 이 값을 쓰므로 그대로 두면 손님이
-//   비행기를 놓친다. → 도시-공항 직선거리로 권역 밖 여부를 판정해 보정한다.
-const SAME_METRO_KM = 60;          // 이 안이면 공항 자체 권역 — 위 표를 그대로 쓴다
-const INTERCITY_OVERHEAD_MIN = 60; // 역까지 이동 + 대기 + 환승 + 공항 진입
-const INTERCITY_EFFECTIVE_KMH = 96; // KTX·고속버스 문전간 실효 속도(보수적)
-
-/**
- * 손님이 있는 도시 → 출국 공항 이동 추정(분).
- *
- * 같은 권역이면 `estimateAirportTransitMin` 을 그대로 쓴다(값 변화 0).
- * 권역 밖이면 직선거리 기반 도시간 이동으로 올린다. 보수적으로만 움직인다 —
- * 둘 중 **큰 값**을 쓴다.
- *
- * 좌표를 모르면(신규 도시 키 등) 기존 값 그대로. 조용히 낙관적으로 바뀌지 않는다.
- *
- * @param {string} cityKey  그날의 도시 키(day.city 와 같은 값)
- * @param {string} airport  공항 코드
- */
-function estimateAirportTransitMinFrom(cityKey, airport) {
-  const baseline = estimateAirportTransitMin(airport);
-  const cityCoord = CITY_CENTER_COORDS[String(cityKey || '').toLowerCase().trim()];
-  const airportCoord = AIRPORT_COORDS[String(airport || '').toUpperCase().trim()];
-  const km = haversineKm(cityCoord, airportCoord);
-  if (km == null || km <= SAME_METRO_KM) return baseline;
-  const intercity = Math.round(INTERCITY_OVERHEAD_MIN + (km * 60) / INTERCITY_EFFECTIVE_KMH);
-  return Math.max(baseline, intercity);
-}
+// 공항 이동 거리 보정(SAME_METRO_KM / INTERCITY_* / estimateAirportTransitMinFrom)은
+// constants.js 로 옮겼다(2026-08-04). 출국일 컷만 쓰던 것을 도착일 5개 표면도 쓰게 되어
+// 두 벌이 되면 또 갈린다 — 단일 원천은 leaf 에 둔다.
 
 /**
  * "HH:mm" + minutes → "HH:mm" (24h wrap-around).
@@ -1064,7 +1038,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
       // #arrival-realtime (2026-06-05, 운영자): 도착 + 입국수속(~90분) + 공항→권역 이동(공항별 추정).
       // 옛 '+60분' 은 비현실(입국심사+짐+세관+이동 = 2~3시간). 예: ICN 14:00 도착 → 17:00 시작.
-      const readyMin = arrivalReadyMinutes(arrivalTime, arrivalAirportInput);
+      // 도시를 넘긴다 — 공항과 다른 권역이면 이동 시간이 거리로 보정된다(출국일 :1223 과 같은 식).
+      const readyMin = arrivalReadyMinutes(arrivalTime, arrivalAirportInput, block.city || area);
       const tourStartMin = hhmmToMin(tourStartTime);
       const capMin = hhmmToMin(tourEndTime);
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
@@ -1731,7 +1706,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
       // #arrival-realtime (2026-06-05, 운영자): 도착 + 입국수속(~90분) + 공항→권역 이동(공항별 추정).
       // 옛 '+60분' 비현실(입국심사+짐+세관+이동 2~3시간). 단도시 expandBlocksToItinerary 와 동일 룰.
-      const readyMin = arrivalReadyMinutes(arrivalTime, mcArrivalAirport);
+      // 도시를 넘긴다 — 다도시는 Day 1 도시가 plan area 와 다를 수 있다(출국일과 같은 식).
+      const readyMin = arrivalReadyMinutes(arrivalTime, mcArrivalAirport, dayCityKey || block.city);
       const tourStartMin = hhmmToMin(tourStartTime);
       const capMin = hhmmToMin(tourEndTime);
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);

@@ -1448,7 +1448,13 @@ export class RouteAgent extends BaseAgent {
                         //   추천하면 그대로 통과했다 — 손님이 아직 공항에 있는 시각이다(실제 17:00).
                         //   block_mode 는 2026-06-05 부터 현실값을 썼는데 여기만 남아 있었다.
                         //   constants.arrivalReadyMinutes = 도착 + 입국수속 + 공항→권역 이동(공항별).
-                        const arrivalReady = arrivalReadyMinutes(data.arrival_time, data.arrival_airport) || 0;
+                        // 🔴 2026-08-04: 도시를 같이 넘긴다. 공항 이동 표는 **공항 권역 안** 값이라
+                        //   인천 도착 + 첫날 부산이면 90분으로 계산됐다(실제 4시간+). day.city 가
+                        //   1차 소스 — plan area 를 쓰면 다도시에서 첫 도시와 달라 보정이 무효가 된다.
+                        //   city 는 한글('부산')일 수 있어 normalizeRegionKey 로 영문 키로 맞춘다.
+                        const day1CityKey = normalizeRegionKey(dayPlan.city || '')
+                            || normalizeRegionKey((Array.isArray(data.regions) && data.regions[0]) || data.area || data.region || '');
+                        const arrivalReady = arrivalReadyMinutes(data.arrival_time, data.arrival_airport, day1CityKey) || 0;
                         const effectiveTourStart = Math.max(safeTourStartMin, stop1GeminiMin, arrivalReady);
                         // currentTime 은 stops[0] (lodging) 시각 — 변경 X. stitch loop 가 places[1] 부터
                         // 처리할 때 이 tour_start_time 을 사용하도록 dayPlan 에 cache.
