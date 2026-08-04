@@ -5,7 +5,7 @@
  */
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
-import { computeQualityScore } from './qualityMetrics.js';
+import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
 import { SCHEDULE_BUFFER_MIN } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
@@ -1289,6 +1289,77 @@ export async function markPlanIssued(adminDb, ppOrderId, { planId, uid } = {}) {
  * Persist plan to Firestore + update user subcollection + API stats + loyalty.
  * Returns { planId, planUrl }.
  */
+/**
+ * #1237 후속 (2026-08-04): 출국일이 항공 마감을 넘었는지 감시 → quality_warning + 알림.
+ *
+ * 🔴 왜 — #1237 은 **생성 쪽**을 막았지만 **보는 눈이 없었다.** 운영 legacy plan
+ *   `358e84c9` 는 10:00 ICN 출발에 공항 도착 09:31(= 손님이 비행기를 놓친다)인데
+ *   품질점수는 **79점**이었다. 지표 9개 중 출발 시각을 보는 게 하나도 없어서
+ *   운영 Firestore 를 손으로 떠서야 발견됐다. 컷이 또 배선에서 빠지거나(#1237 이
+ *   딱 그 경우다) 조용히 skip 되면 다시 안 보인다.
+ *
+ * 왜 저장 직전인가 — 컷·lodging bookend·tour-end cap 이 **전부 끝난 최종 시각**을 봐야
+ *   "고치는 쪽"의 실패를 잡을 수 있다. 고치는 코드 옆에 두면 같이 눈이 먼다.
+ *
+ * 점수에는 반영하지 않는다 — `METRIC_WEIGHTS` 합 100 을 건드리면 L3 하한(80)이
+ *   흔들린다. 진짜 오류율이 며칠 쌓인 뒤 편입 여부를 판단한다(7/28 가중치 사고 반복 방지).
+ *
+ * 예외를 던지지 않는다 — 감시가 plan 저장을 막으면 안 된다.
+ *
+ * @param {object} itinerary in-place (quality_warnings push)
+ * @param {object} ctx { body, departure_airport }
+ * @returns {number} 초과 stop 수 (0 = 정상)
+ */
+export function runDepartureOverrunCheck(itinerary, { body, departure_airport } = {}) {
+  try {
+    // requestShaper 와 같은 방식으로 읽는다 — 'HH:mm:ss' / snake_case 도 수용.
+    const depTime = String(body?.departureTime || body?.departure_time || '').slice(0, 5);
+    const overrun = detectDepartureFlightOverrun(itinerary, depTime);
+    if (overrun.length === 0) return 0;
+
+    // TEST-/MANUAL- 접두사도 같이 걸러야 한다 — 손수 판정하면 운영자 테스트가
+    // customer 로 새서 high 알림이 뜬다(기존 admin-bypass-detector 재사용).
+    const isAdminBypassPlan = isAdminBypassOrderId(body?.orderId) || body?.adminBypass === true;
+    const sample = overrun.slice(0, 5)
+      .map((o) => `Day${o.day} ${o.start_time} "${o.name}"${o.category ? ` (${o.category})` : ''}`)
+      .join(' / ');
+
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({
+      kind: 'departure_flight_overrun',
+      type: 'departure_flight_overrun',
+      severity: 'high',
+      message: `출국일 stop ${overrun.length}건이 항공 마감(출발 ${depTime} − 3시간)을 넘었다: ${sample}`,
+    });
+
+    throttledTelegramAlert({
+      key: `departure-flight-overrun:${isAdminBypassPlan ? 'admin' : 'customer'}`,
+      channel: 'admin',
+      severity: isAdminBypassPlan ? 'low' : 'high',
+      message: [
+        `🛫 <b>출국일이 항공 마감을 넘었다 — 손님이 비행기를 놓칠 수 있다</b>`,
+        ``,
+        `<b>모드:</b> ${isAdminBypassPlan ? 'admin bypass' : '🔴 customer 결제'}`,
+        `<b>출발:</b> ${depTime} (${departure_airport || '공항 미상'}) → 마감 = 출발 −3시간`,
+        `<b>초과:</b> ${overrun.length}건 — ${sample}`,
+        ``,
+        `→ applyDepartureDayFlightCap 이 안 걸렸거나 조용히 skip 됐다(#1237 배선 확인).`,
+      ].join('\n'),
+      context: {
+        count: overrun.length,
+        stops: overrun.slice(0, 10),
+        departureTime: depTime,
+        departure_airport: departure_airport || null,
+      },
+    });
+    console.warn(`[planner] departure flight overrun: ${overrun.length} stops past ${depTime} −3h — ${sample}`);
+    return overrun.length;
+  } catch (e) {
+    console.warn('[planner] departure overrun check failed:', e.message);
+    return 0;
+  }
+}
+
 export async function persistPlan(adminDb, {
   body, itinerary, uid, vehicle, priceKRW, priceUSD,
   guestName, pax, styles, area, duration, startDate, email,
@@ -1385,6 +1456,9 @@ export async function persistPlan(adminDb, {
     // Non-blocking — never fail plan persist on metric computation error.
     console.warn('[planner] qualityScore compute failed:', e.message);
   }
+
+  // #1237 후속 (2026-08-04): 출국일 항공 마감 초과 감시. 상세 = 함수 doc.
+  runDepartureOverrunCheck(itinerary, { body, departure_airport });
 
   // 2026-05-10 (P1): WizardForm 의 추가 필드들도 Firestore input 에 보존.
   // PlanDetailPage 의 region 인식 (PR #323 PreTripSlide regions[0] 우선) +

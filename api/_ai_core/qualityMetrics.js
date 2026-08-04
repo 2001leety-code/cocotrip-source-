@@ -58,7 +58,7 @@
  *    후 며칠 쌓여야 나온다. 데이터 없이 다시 감으로 배분하지 않는다.
  * ══════════════════════════════════════════════════════════════════════════
  */
-import { SCHEDULE_BUFFER_MIN } from './constants.js';
+import { SCHEDULE_BUFFER_MIN, AIRPORT_ARRIVE_BEFORE_MIN } from './constants.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────
 // Weights are applied to per-stop violation rates (or absolute counts for
@@ -308,6 +308,52 @@ function countScheduleIssues(itinerary) {
     tight: { total: slackTotal, count: tight },
     loose: { total: travelTotal, count: loose },
   };
+}
+
+/**
+ * 출국일이 항공기 출발 마감을 넘는지 탐지 (2026-08-04, #1237 후속).
+ *
+ * 🔴 왜 필요한가 — #1237 은 **생성 쪽**을 막았지만 **보는 눈이 없었다.**
+ *   운영 legacy plan `358e84c9` 는 10:00 ICN 출발인데 공항 도착이 09:31 이었고
+ *   (손님이 비행기를 놓친다) 품질점수는 **79점**을 줬다. 지표 9개 중 어느 것도
+ *   "출발 시각"을 안 본다 — 이 결함은 운영 Firestore 를 손으로 떠서야 발견됐다.
+ *   컷이 다시 배선에서 빠지거나(이번처럼) 조용히 skip 되면 또 안 보인다.
+ *
+ * 점수에는 반영하지 않는다 — METRIC_WEIGHTS 합 100 을 건드리면 L3 하한(80)이
+ * 흔들린다. 운영자 경고(quality_warnings)로만 낸다. 진짜 오류율이 쌓인 뒤
+ * 가중치 편입 여부를 판단한다(7/28 가중치 사고와 같은 실수 방지).
+ *
+ * 기준: 마지막 day 의 모든 stop 은 `출발 − AIRPORT_ARRIVE_BEFORE_MIN` 이전에
+ *   시작해야 한다. 공항 stop 자체가 정확히 그 시각이므로 "초과"만 잡는다.
+ *   심야 출발(마감이 자정 이전으로 되감김)은 판정하지 않는다 — 오탐 방지.
+ *
+ * @param {object} itinerary
+ * @param {string} departureTime "HH:mm" (미입력이면 판정 불가 = 빈 배열)
+ * @returns {Array<{day: number, name: string, start_time: string, category: string}>}
+ */
+export function detectDepartureFlightOverrun(itinerary, departureTime) {
+  const depMin = parseHhmm(departureTime);
+  if (depMin == null) return [];
+  const deadline = depMin - AIRPORT_ARRIVE_BEFORE_MIN;
+  if (deadline < 0) return [];                     // 심야 출발 = 전날로 넘어간다. 판정 안 함.
+
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  const last = days[days.length - 1];
+  const stops = Array.isArray(last?.stops) ? last.stops : [];
+  const out = [];
+  for (const s of stops) {
+    const start = parseHhmm(s?.start_time || s?.time);
+    if (start == null) continue;                   // 시각 미상 = 판정 불가
+    if (start > deadline) {
+      out.push({
+        day: Number(last?.day) || days.length,
+        name: String(s?.display_name || s?.name || '?'),
+        start_time: String(s?.start_time || s?.time || ''),
+        category: String(s?.category || ''),
+      });
+    }
+  }
+  return out;
 }
 
 function countRouteFailures(itinerary) {
