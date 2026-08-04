@@ -595,7 +595,8 @@ function addMinutesToHHMM(hhmm, minutes) {
  * @param {string} language ko|en|ja|zh
  * @param {string} [cityKey] 그날 손님이 있는 도시(day.city). 공항과 다른 권역이면
  *   이동 추정을 도시간 이동으로 올린다 — 없으면 공항 권역 기준(기존 동작).
- * @returns {{ trimmed: number, airportStopAdded: boolean, airportStopRetimed?: boolean }}
+ * @returns {{ trimmed: number, airportStopAdded: boolean, airportStopRetimed?: boolean,
+ *             lodgingPulledBack?: boolean }}
  *
  * 🔴 2026-08-04: 이 함수는 blockMode expand 안에서만 호출돼 **legacy(Gemini) 경로는
  *   무방비**였다. 두 경로가 합류하는 postResponsePipeline.applyBackfillsAndTmoney 에서
@@ -684,6 +685,43 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
     });
     result.airportStopAdded = true;
   }
+
+  // 체크아웃 → 공항 이동 시간 확보.
+  //
+  // 🔴 2026-08-04 운영 실측(plan 55b2a04e, legacy, CJU 10:00 출국):
+  //     [lodging 07:00] Jeju Sun Hotel
+  //     [airport 07:00] Jeju International Airport
+  //   숙소를 나서는 시각과 공항 도착 시각이 **같다** — 손님이 지킬 수 없다(#1225 와 같은 모양).
+  //   같은 조건 block_mode(f6ad61b8)는 06:38 → 07:00 로 정상이었다.
+  //   차이는 숙소 stop 의 출처다: block_mode 는 planPersister.selfHealLodgingBookend 가
+  //   나중에 합성하며 위 `_airport_transit_est_min` 을 쓰지만, legacy 는 Gemini 가 숙소·공항을
+  //   **둘 다 이미** 내놔서 bookend 가 손대지 않는다 → 공항 시각만 당겨지고 숙소는 그대로.
+  //   비행기를 놓치지는 않지만(3시간 버퍼가 흡수) 못 지키는 시각이라 여기서 같이 당긴다.
+  //
+  // 앞으로만 움직인다 — 이미 이르면 그대로 둔다(손님이 일찍 나서는 건 문제가 아니다).
+  // 체크아웃이 자정 이전으로 되감기면(초장거리 + 새벽 비행기) 손대지 않는다 — 24h wrap 된
+  // 시각을 적으면 그 자체가 새 결함이 된다.
+  // 기준은 컷 마감이 아니라 **실제 공항 stop 시각**이다. Gemini 가 마감보다 이른 공항
+  // stop 을 내면(마감 기준으로만 보면 통과) 숙소가 그 뒤에 남아 순서가 뒤집힌다 — #1231 과
+  // 같은 모양. 공항 stop 이 아예 없으면(공항 코드 미상) 컷 마감을 쓴다.
+  const airportStartMins = stops
+    .filter((s) => s.category === 'airport' || s.category === 'travel')
+    .map((s) => hhmmToMin(s.start_time))
+    .filter((m) => m >= 0);
+  const anchorMin = airportStartMins.length ? Math.min(...airportStartMins) : airportArriveMin;
+  const checkoutDeadline = anchorMin - transitMin;
+  if (checkoutDeadline >= 0) {
+    const checkoutHHMM = addMinutesToHHMM('00:00', checkoutDeadline);
+    for (const s of stops) {
+      if (s.category !== 'lodging') continue;
+      const cur = hhmmToMin(s.start_time);
+      if (cur < 0 || cur <= checkoutDeadline) continue;
+      s.start_time = checkoutHHMM;
+      if (s.end_time) s.end_time = checkoutHHMM;   // 체크아웃 = 머무는 시간 0
+      result.lodgingPulledBack = true;
+    }
+  }
+
   return result;
 }
 
