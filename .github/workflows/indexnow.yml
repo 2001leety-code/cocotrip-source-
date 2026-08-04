@@ -1,0 +1,48 @@
+name: IndexNow Submit (Bing/Naver)
+
+# 배포된 sitemap URL 을 IndexNow 연합(Bing·Naver·Yandex 등)에 알린다.
+#
+# 🔴 2026-08-05: `scripts/submit-indexnow.mjs` 는 2026-08-01 에 만들어졌지만
+#   **CI 에도 package.json 에도 연결돼 있지 않았다.** 손으로 한 번 돌린 뒤 잊혔다.
+#   그 사이 GSC 실측(8/5): sitemap 44개 중 구글 색인 2개, 40개는 "Discovered –
+#   currently not indexed" + **크롤 기록 자체가 없음**. 구글은 크롤 예산이 홈 1개
+#   수준이라 손을 쓸 수 없지만, IndexNow 를 지원하는 Bing·Naver 는 **우리가 직접
+#   알릴 수 있는 유일한 경로**다. 자동화해서 다시 잊히지 않게 한다.
+#   (구글은 IndexNow 미지원 — Search Console 경로뿐. 스크립트 주석 참조.)
+#
+# 왜 deployment_status 인가: 스크립트가 **운영 sitemap 과 키 파일을 fetch** 해서
+#   검증한다. push 시점에 돌리면 배포 전이라 옛 sitemap 을 제출하거나 키 검증에
+#   실패한다. 배포 성공 후에 돈다.
+
+on:
+  deployment_status:
+  workflow_dispatch: # 수동 실행 (sitemap 은 그대로인데 재고지하고 싶을 때)
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    # 운영 배포 성공에만 반응한다. 프리뷰 배포까지 제출하면 프리뷰 URL 이 아니라
+    # 운영 URL 을 중복 제출하게 되고(스크립트가 운영 도메인 고정), 의미 없는 호출이 된다.
+    # deployment_status 페이로드의 environment 는 위치가 두 곳이라 둘 다 본다.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment_status.environment == 'Production' ||
+        github.event.deployment.environment == 'Production'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # npm ci 안 한다 — 스크립트는 전역 fetch 만 쓴다(의존성 0). 설치는 낭비다.
+      - name: Submit sitemap URLs to IndexNow
+        run: node scripts/submit-indexnow.mjs
