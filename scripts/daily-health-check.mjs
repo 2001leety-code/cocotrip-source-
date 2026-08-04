@@ -85,6 +85,10 @@ function runValidatePlanner() {
       return {
         ok: true,
         total_issues: report.total_issues,
+        // 🔴 2026-08-05: 출국일이 항공기 출발 마감을 넘은 stop 수 — 손님이 비행기를 놓친다.
+        //   applyDepartureDayFlightCap 이 코드로 막고 있으므로 > 0 이면 컷이 배선에서
+        //   빠졌거나 조용히 skip 된 것이다(#1237 이 정확히 그 경우였고 아무도 못 봤다).
+        departure_overrun_total: report.departure_overrun_total || 0,
         success_count: report.success_count,
         fail_count: report.fail_count,
         avg_elapsed_ms: report.avg_elapsed_ms,
@@ -136,6 +140,8 @@ async function main() {
     all_pings_ok: pings.every(p => p.ok),
     issues_within_threshold: (validation.total_issues != null ? validation.total_issues : 99) <= 9,
     validation_actually_ok: validationActuallyOk,
+    // 임계값 없음 — 1건이라도 있으면 실패다. 다른 품질 이슈와 달리 "손님이 비행기를 놓친다".
+    no_departure_overrun: (validation.departure_overrun_total || 0) === 0,
   };
 
   // Append to JSONL log
@@ -148,7 +154,13 @@ async function main() {
   console.log(`  Endpoints: ${pings.filter(p => p.ok).length}/${pings.length} OK`);
   console.log(`  Planner issues: ${validation.total_issues != null ? validation.total_issues : 'N/A'} (threshold: ≤ 9)`);
   console.log(`  Diversity overlap: ${validation.diversity_overlap != null ? validation.diversity_overlap : 'N/A'}%`);
-  console.log(`  Status: ${record.all_pings_ok && record.issues_within_threshold && record.validation_actually_ok ? '🟢 HEALTHY' : '🔴 DEGRADED'}`);
+  // 0 을 'N/A' 로 뭉개면 안 된다 — `|| 'N/A'` 가 아니라 명시 비교.
+  console.log(`  출국일 항공 마감 초과: ${validation.departure_overrun_total == null ? 'N/A' : validation.departure_overrun_total}건 (임계값 0)`);
+  console.log(`  Status: ${record.all_pings_ok && record.issues_within_threshold && record.validation_actually_ok && record.no_departure_overrun ? '🟢 HEALTHY' : '🔴 DEGRADED'}`);
+  if (!record.no_departure_overrun) {
+    console.log(`  🛫 출국일이 항공기 출발 마감을 넘었다 — 손님이 비행기를 놓치는 일정이다.`);
+    console.log(`     applyDepartureDayFlightCap 배선 확인 (postResponsePipeline.applyBackfillsAndTmoney).`);
+  }
   if (!validationActuallyOk) {
     console.log(`  🔴 validate-planner.cjs 실행 실패 — success_count=${validation.success_count ?? 'n/a'}, ok=${validation.ok}. silent fail 차단.`);
   }
@@ -156,7 +168,8 @@ async function main() {
   console.log(`${'═'.repeat(50)}\n`);
 
   // Exit code — P174 (2026-05-24): validation_actually_ok 도 검사 (silent fail 차단).
-  if (!record.all_pings_ok || !record.issues_within_threshold || !record.validation_actually_ok) {
+  if (!record.all_pings_ok || !record.issues_within_threshold || !record.validation_actually_ok
+      || !record.no_departure_overrun) {
     process.exit(1);
   }
 }
