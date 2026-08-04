@@ -51,6 +51,22 @@ const CommunityPostPage = lazy(() =>
   import('../../src/pages/CommunityPage').then((m) => ({ default: m.CommunityPostPage })),
 );
 
+/**
+ * lazy 청크가 resolve 되기를 기다리는 시간.
+ *
+ * 🔴 2026-08-04: 이 파일의 아래쪽 안전 타이머 검사 두 곳은 `{ timeout: 2000 }` 을 명시하는데
+ *   위쪽 lazy 대기들은 testing-library 기본값 **1초**를 그대로 쓰고 있었다. 같은 파일에서
+ *   한쪽만 시간을 준 것이다. 이 대기는 동적 import 가 실제로 끝나기를 기다리는 것이라
+ *   전체 스위트가 병렬로 돌 때의 순간 부하에 좌우된다 — 실제로 파일 하나가 늘어난 것만으로
+ *   `expected null to be truthy`(화면이 아직 "loading")로 넘어갔다.
+ *   부하 때문에 흔들리는 검사는 회귀를 못 잡을 뿐 아니라, 진짜 회귀가 나도 "또 그거겠지" 로
+ *   읽히게 만든다.
+ *
+ * ⚠️ 늘리면 안 되는 곳이 있다 — 클릭 직후의 `toBeNull()` 단언들은 **일부러 안 기다린다**.
+ *   거기서 기다리면 mode="wait" 회귀를 놓친다(아래 주석 참조). 시간은 lazy 대기에만 준다.
+ */
+const LAZY_CHUNK_TIMEOUT_MS = 5000;
+
 // App.tsx 의 AnimatedRoutes 와 같은 모양 — `<Routes location={...}>` 로 현재 location 을
 // 명시 전달하는 것까지 동일해야 한다. 이걸 빼면 mode="wait" 회귀를 놓친다:
 // AnimatePresence 가 붙잡아 둔 옛 엘리먼트 안의 <Routes> 가 context 의 새 location 을
@@ -100,7 +116,7 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
 
   it('/community → /community/new — 링크 클릭 시 작성 화면으로 교체된다', async () => {
     const { container } = renderFeed();
-    await waitFor(() => expect(container.querySelector('.community-intro')).toBeTruthy());
+    await waitFor(() => expect(container.querySelector('.community-intro')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
 
     const write = container.querySelector('a[href="/community/new"]') as HTMLAnchorElement;
     expect(write).toBeTruthy();
@@ -112,7 +128,7 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
     expect(container.querySelector('.community-intro')).toBeNull();
 
     // 그 다음 작성 화면이 뜬다 (lazy chunk resolve 한 틱).
-    await waitFor(() => expect(screen.getByText('Share with the community')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Share with the community')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
   });
 
   it('/community → /community/post/:postId — 글 상세로 교체된다', async () => {
@@ -133,11 +149,11 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
       const a = container.querySelector('a[href="/community/post/p1"]');
       if (!a) throw new Error('post link not rendered');
       return a as HTMLAnchorElement;
-    });
+    }, { timeout: LAZY_CHUNK_TIMEOUT_MS });
 
     fireEvent.click(link);
     expect(container.querySelector('.community-intro')).toBeNull();   // 기다리지 않는다 (위 주석)
-    await waitFor(() => expect(container.querySelector('.community-detail-title')).toBeTruthy());
+    await waitFor(() => expect(container.querySelector('.community-detail-title')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
     vi.unstubAllGlobals();
   });
 
