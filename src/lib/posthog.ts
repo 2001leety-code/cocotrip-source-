@@ -82,7 +82,16 @@ async function ensureInit(): Promise<PostHog | null> {
           // and risks logging form values (PII).
           autocapture: false,
           disable_session_recording: true,
-          respect_dnt: true,
+          // 🔴 2026-08-04 (운영자 승인): 이전엔 true 였다. SDK 의 respect_dnt 는 브라우저 DNT
+          //   신호가 있으면 **우리 배너에서 수락을 누른 방문자까지** opt-out 으로 되돌린다
+          //   (posthog-js ConsentManager 는 DNT 면 저장된 opt-in 을 무시하고 '거부' 를 돌려준다).
+          //   그러면 capture() 가 is_capturing() 관문에서 끊겨 before_send 조차 돌지 않고
+          //   네트워크 요청 자체가 생기지 않는다.
+          //   동의의 단일 권위는 우리 쿠키 배너다 — consent.ts 에는 DNT 를 읽는 코드가 0줄이라
+          //   "배너 수락 + DNT 켠" 방문자만 PostHog 에서 통째로 사라지고 GA4 와 수치가 갈렸다.
+          //   비동의 방문자는 이 값과 무관하게 다른 관문들이 그대로 막는다
+          //   (ensureInit 의 hasAnalyticsConsent 검사 2곳 · 세대값 · before_send).
+          respect_dnt: false,
           // SDK 가 스스로 붙이는 속성 중 URL·레퍼러 계열을 원천 차단한다.
           property_denylist: ['$current_url', '$referrer', '$referring_domain', '$initial_current_url', '$initial_referrer', '$initial_referring_domain'],
           /**
