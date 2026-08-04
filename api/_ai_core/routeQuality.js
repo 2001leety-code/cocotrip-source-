@@ -12,17 +12,14 @@
  * 로그로 추적 + 회귀 테스트 + qa 검증 스크립트에서 재사용.
  */
 
-/** Haversine 거리(km). 좌표 누락 시 null. */
-export function haversineKm(a, b) {
-  if (!a || !b || a.lat == null || a.lng == null || b.lat == null || b.lng == null) return null;
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
+// Haversine 거리(km). 구현은 constants.js(의존성 없는 leaf)로 옮겼다 —
+// 공항 이동 거리 보정이 그 파일에서 필요해졌고, 같은 식이 두 벌 있으면 갈린다.
+// 기존 소비처 14곳의 import 경로를 바꾸지 않기 위해 여기서 다시 내보낸다.
+// (이 파일 안에서도 쓰므로 re-export 가 아니라 import 후 내보낸다 — `export ... from` 은
+//  지역 바인딩을 만들지 않아 아래 38·50 줄이 ReferenceError 가 된다.)
+import { haversineKm } from './constants.js';
+
+export { haversineKm };
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const stopName = (s) => s?.display_name || s?.name || s?.name_en || s?.name_ko || '(stop)';

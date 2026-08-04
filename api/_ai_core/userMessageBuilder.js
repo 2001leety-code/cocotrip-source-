@@ -34,6 +34,8 @@ import { getHotelContextForPrompt } from '../_hotel_helper.js';       // P241
 
 // 도착일 "투어 시작 가능" 시각 — block_mode 와 **같은 계산**을 쓴다(constants 단일 원천).
 import { arrivalReadyHHMM } from './constants.js';
+// 도시 키 정규화(한글 '부산' → 'busan'). responseValidator 는 constants·헬퍼만 import 하므로 순환 없음.
+import { normalizeRegionKey } from './responseValidator.js';
 
 // P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
 const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
@@ -132,7 +134,16 @@ export function buildUserMessage({
     //   같은 여행에 두 개의 현실이 있었다. 실측(ICN 14:00 도착): 실제 17:00 인데
     //   legacy 플랜 첫 활동이 16:15~16:26, 즉 손님이 아직 공항에 있는 시각이었다.
     //   여기서 계산해 넘겨 Gemini 가 산수를 하지 않게 한다(모델 계산은 틀린다).
-    arrival_ready_time: arrivalReadyHHMM(arrivalTime, arrival_airport) || undefined,
+    //   🔴 2026-08-04: Day 1 도시도 넘긴다. 공항 이동 표는 **공항 권역 안** 값이라
+    //   인천 도착 + 첫날 부산을 90분으로 봤다(실제 4시간+). 여기서 맞는 값을 줘야
+    //   buildPrompt 의 "저녁 도착이면 Day 1 = 숙소만" 규칙이 제대로 발동하고,
+    //   validator 와 기준이 같아져 재시도 자체가 안 생긴다.
+    arrival_ready_time: arrivalReadyHHMM(
+      arrivalTime,
+      arrival_airport,
+      normalizeRegionKey(arrivalCity || '')
+        || normalizeRegionKey((Array.isArray(regions) && regions[0]) || area || ''),
+    ) || undefined,
     // P239 (2026-05-27): tour_start_time — 운영자 architectural fix.
     // arrival_time 무관하게 Day1 stops 시작 시각 고정 (default '09:00').
     // 새벽 도착 시 호텔만 transit + tour_start_time 부터 stops 작성.

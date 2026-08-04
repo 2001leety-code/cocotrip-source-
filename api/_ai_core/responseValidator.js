@@ -899,9 +899,15 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   시각의 Day 1 활동을 통과시켰다(ICN 14:00 도착 → 옛 15:00 / 실제 17:00).
     //   block_mode 는 2026-06-05 부터 현실값을 썼는데 이 검사만 남아 있었다.
     //   도착 공항을 모르면 옛 값으로 폴백 — 검사가 조용히 사라지지는 않게.
+    //   🔴 2026-08-04: 도시도 넘긴다. 검증 기준이 프롬프트 기준(userMessageBuilder)과 **같은 값**
+    //   이어야 재시도 프롬프트가 맞는 목표 시각을 준다. 한쪽만 보정하면 Gemini 가 맞춘 값을
+    //   validator 가 거부해 재시도 2연속 실패 → 손님 PLAN_VALIDATION_FAILED 500 이 된다.
+    const day1CityKey = normalizeRegionKey(days[0]?.city || '')
+      || normalizeRegionKey((Array.isArray(request.regions) && request.regions[0]) || request.area || '');
     const arrivalReady = arrivalReadyMinutes(
       request.arrival_time || request.arrivalTime,
       request.arrival_airport || request.arrivalAirport,
+      day1CityKey,
     ) || (arrivalMin + 60);
     // P239: 18:00+ 도착 → Day 1 = lodging only 권장 (다음날 tour_start_time 부터 stops).
     // 옛 룰 (arrival + 9h wrap) 은 새벽 wrap → cascade fallback 트리거. 신 룰 = 단순 시각 컷.

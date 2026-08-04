@@ -96,19 +96,68 @@ export function hhmmToMin(hhmm) {
   return m ? (+m[1]) * 60 + (+m[2]) : -1;
 }
 
+/** 두 좌표 사이 직선거리(km). 좌표가 없으면 null. */
+export function haversineKm(a, b) {
+  if (!a || !b || a.lat == null || a.lng == null || b.lat == null || b.lng == null) return null;
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+// 🔴 위 `estimateAirportTransitMin` 표는 **공항이 속한 권역 안에서의** 이동 시간이다.
+//   손님이 다른 권역에 있으면 완전히 틀린다 — 부산 ↔ 인천공항은 직선 346km, 실제 4시간 이상인데
+//   표는 90분이라고 한다. → 도시-공항 직선거리로 권역 밖 여부를 판정해 보정한다.
+const SAME_METRO_KM = 60;           // 이 안이면 공항 자체 권역 — 표를 그대로 쓴다
+const INTERCITY_OVERHEAD_MIN = 60;  // 역까지 이동 + 대기 + 환승 + 공항 진입
+const INTERCITY_EFFECTIVE_KMH = 96; // KTX·고속버스 문전간 실효 속도(보수적)
+
+/**
+ * 손님이 있는 도시 → 공항 이동 추정(분).
+ *
+ * 같은 권역이면 `estimateAirportTransitMin` 을 그대로 쓴다(값 변화 0).
+ * 권역 밖이면 직선거리 기반 도시간 이동으로 올린다. **보수적으로만** 움직인다 —
+ * 둘 중 큰 값을 쓴다. 좌표를 모르면(신규 도시 키 등) 기존 값 그대로 — 조용히
+ * 낙관적으로 바뀌지 않는다.
+ *
+ * 🔴 2026-08-04: 원래 blockMode 안의 비공개 함수였고 **출국일 컷 한 곳에만** 배선돼 있었다
+ *   (#1228). 도착일 5개 표면은 전부 도시를 모르는 표를 써서, 인천 도착 + 첫날 부산을
+ *   90분으로 봤다. 도착·출국 양쪽이 같은 값을 쓰도록 leaf 로 옮긴다.
+ *
+ * @param {string} cityKey 그날의 도시 키(day.city 와 같은 값 — plan area 아님)
+ * @param {string} airport 공항 코드
+ */
+export function estimateAirportTransitMinFrom(cityKey, airport) {
+  const baseline = estimateAirportTransitMin(airport);
+  const cityCoord = CITY_CENTER_COORDS[String(cityKey || '').toLowerCase().trim()];
+  const airportCoord = AIRPORT_COORDS[String(airport || '').toUpperCase().trim()];
+  const km = haversineKm(cityCoord, airportCoord);
+  if (km == null || km <= SAME_METRO_KM) return baseline;
+  const intercity = Math.round(INTERCITY_OVERHEAD_MIN + (km * 60) / INTERCITY_EFFECTIVE_KMH);
+  return Math.max(baseline, intercity);
+}
+
 /**
  * 도착 후 "투어 시작 가능" 절대 분. 자정 넘김 시 1440 초과 — wrap 하지 않는다.
  * 도착 + 입국수속 + 공항→권역 이동.
+ *
+ * @param {string} arrivalHHMM 도착 시각
+ * @param {string} airport     도착 공항 코드
+ * @param {string} [cityKey]   Day 1 의 도시 키. 주면 공항과 다른 권역일 때 이동 시간을
+ *                             거리로 보정한다(출국일 #1228 과 같은 공식). 안 주면 종전 동작.
  */
-export function arrivalReadyMinutes(arrivalHHMM, airport) {
+export function arrivalReadyMinutes(arrivalHHMM, airport, cityKey) {
   const base = hhmmToMin(arrivalHHMM);
   if (base < 0) return null;
-  return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMin(airport);
+  return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMinFrom(cityKey, airport);
 }
 
 /** 위 값을 "HH:mm" 으로. 자정을 넘기면 24h wrap(다음 날 시각). 실패 시 null. */
-export function arrivalReadyHHMM(arrivalHHMM, airport) {
-  const min = arrivalReadyMinutes(arrivalHHMM, airport);
+export function arrivalReadyHHMM(arrivalHHMM, airport, cityKey) {
+  const min = arrivalReadyMinutes(arrivalHHMM, airport, cityKey);
   if (min == null) return null;
   const w = ((min % (24 * 60)) + 24 * 60) % (24 * 60);
   return `${String(Math.floor(w / 60)).padStart(2, '0')}:${String(w % 60).padStart(2, '0')}`;
