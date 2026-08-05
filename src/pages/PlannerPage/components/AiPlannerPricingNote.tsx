@@ -62,7 +62,10 @@ export function AiPlannerPricingNote({ language }: Props) {
 
   return (
     <section
-      className="mb-4 rounded-[18px] px-4 py-3"
+      // `ai-planner-pricing-note` 는 모바일 라이트 셸에서 글자색을 되돌리기 위한 훅이다
+      // (index.css `.planner-mobile-ai .ai-planner-pricing-note`). 지우면 모바일에서
+      // 흰 배경에 흰 글씨가 되어 $9.90 이 안 보인다.
+      className="ai-planner-pricing-note mb-4 rounded-[18px] px-4 py-3"
       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
       <ul className="space-y-1.5">
