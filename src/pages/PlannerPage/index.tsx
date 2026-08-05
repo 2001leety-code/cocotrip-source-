@@ -25,6 +25,7 @@ import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PurchaseSection } from './components/PurchaseSection';
 import { CourseBuilderShell } from './components/CourseBuilderShell';
 import { AiPlannerPricingNote } from './components/AiPlannerPricingNote';
+import { PlannerSeoInfo } from './components/PlannerSeoInfo';
 
 type PlannerMode = 'ai' | 'course';
 
@@ -270,6 +271,16 @@ export default function PlannerPage() {
           <div className={isMobile ? 'planner-mobile-course-shell' : undefined}>
             <CourseBuilderShell />
           </div>
+        )}
+
+        {/* 2026-08-06: 크롤러가 보는 정적 본문. 위저드는 상호작용이라 프리렌더에 1단계 껍데기만
+            남았고, `<main>` 본문이 939자여서 구글이 크롤하고도 색인을 거부했다
+            (`Crawled – currently not indexed`). /charter 가 7/30 에 같은 문제를 같은 방식으로
+            해결했다 — 그때 형제인 여기에는 적용하지 않은 것을 채운다.
+            결과 화면(quickSuccess)·로딩 중에는 숨긴다. 손님이 일정을 보는 중에 안내문이
+            끼어들 이유가 없고, 크롤러는 어차피 idle 상태의 HTML 만 받는다. */}
+        {(status === 'idle' || status === 'error') && (
+          <PlannerSeoInfo language={language} t={t} />
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}

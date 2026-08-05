@@ -3283,6 +3283,42 @@ textarea.community-field {
     color: #7653f6 !important;
   }
 
+  /* 2026-08-06: 라이트 셸 위의 흰 글씨 두 건.
+     `/planner` 데스크톱은 어두운 배경이라 두 컴포넌트 모두 흰 글씨로 짜여 있는데,
+     모바일 위저드만 라이트 셸(위 `.planner-mobile-ai { color:#15143d }`)이라
+     **흰 배경에 흰 글씨**가 됐다.
+       - `.ai-planner-pricing-note` — 2026-07-30 에 "화면에 금액이 한 글자도 없다"를
+         고치려고 만든 컴포넌트인데, 정작 모바일에서 `$9.90` 줄이 안 보였다. 고치려던
+         문제가 모바일에만 그대로 남아 있었던 셈이다.
+       - `.planner-seo-info` — 같은 날 새로 붙인 색인용 본문.
+     🔑 대비 계산으로는 안 잡힌다. 스크립트가 투명 부모를 타고 올라가 **먼 조상의**
+     어두운 배경(#0a0b14)을 집어 19:1 로 통과시켰다. 실제 배경은 이 규칙의 그라데이션이다.
+     판정은 스크린샷으로 할 것. */
+  .planner-mobile-ai .ai-planner-pricing-note,
+  .planner-mobile-ai .planner-seo-info {
+    color: #4a4570 !important;
+    border-color: rgba(124, 92, 255, 0.18) !important;
+  }
+  .planner-mobile-ai .ai-planner-pricing-note {
+    background: rgba(124, 92, 255, 0.05) !important;
+  }
+  .planner-mobile-ai .ai-planner-pricing-note span,
+  .planner-mobile-ai .planner-seo-info :is(li, p, dd) {
+    color: #4a4570 !important;
+  }
+  .planner-mobile-ai .ai-planner-pricing-note p {
+    color: #6b6790 !important;
+  }
+  /* 강조(가격·제목·질문)는 셸 본문색과 같은 진한 잉크로 */
+  .planner-mobile-ai .ai-planner-pricing-note li:last-of-type span,
+  .planner-mobile-ai .planner-seo-info :is(h2, dt, strong) {
+    color: #15143d !important;
+  }
+  /* 쿠폰 줄 핑크(#FF6B9D)는 라이트 배경에서 대비 2.4:1 로 읽히지 않는다 → 진한 자홍 */
+  .planner-mobile-ai .ai-planner-pricing-note li:nth-of-type(2) span {
+    color: #c2185b !important;
+  }
+
   .planner-mobile-ai .mobile-bottom-nav,
   .planner-mobile-active .mobile-bottom-nav {
     background: rgba(255, 255, 255, 0.92) !important;
