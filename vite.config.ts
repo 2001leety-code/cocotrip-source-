@@ -110,6 +110,11 @@ export default defineConfig({
           //   PDF 다운로드는 어차피 네트워크가 필요하므로(서버 PDF 우선) 오프라인 대상이 아니다.
           //   → precache 제외. 필요할 때 네트워크에서 받아 runtime 캐시에 남는다.
           '**/html2pdf-*.js',
+          // 2026-08-05: public/brand/* 는 외부 디렉토리 제출용 프레스킷이다.
+          //   앱은 이 파일들을 한 번도 참조하지 않는데 globPatterns 의 '**/*.svg' 가
+          //   4개(32KB)를 precache 로 끌고 들어갔다 — 전 손님이 설치 때 받는 죽은 무게.
+          //   외부에서 URL 로 가져가는 자산이라 오프라인 대상이 아니다.
+          'brand/**',
         ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // P235 참고: cleanupOutdatedCaches 는 injectManifest 모드에서
