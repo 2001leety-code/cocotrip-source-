@@ -235,7 +235,8 @@ function GlobalWidgets() {
 
   return (
     <>
-      <PageViewTracker />
+      {/* PageViewTracker 는 App 레벨로 옮겼다 — 여기 두면 위 `/mood` early-return 에 막혀
+          계측이 통째로 죽는다(2026-08-05). 상세는 App.tsx 의 마운트 지점 주석. */}
 
       {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
       {!isSharedPlan && !isCommunity && <MobileBottomNav />}
@@ -737,6 +738,18 @@ function App() {
           <PWAUpdatePrompt />
         </Suspense>
         <RobotsMeta />
+        {/* 🔴 2026-08-05: pageview 계측은 **전역**이다(코코트립 + 무드 모두).
+            원래 GlobalWidgets 안에 있었는데, 그 컴포넌트는 `/mood` 에서 마케팅 chrome 을
+            숨기려고 통째로 early-return 한다(2026-06-13). 당시엔 posthog-js 가 pageview 를
+            자동 수집해서 문제가 없었다. 그런데 2026-07-31 (커밋 55d3f94a, 동의 철회 누수 차단)
+            에 `capture_pageview: false` 로 바꿔 **수동 전송**으로 돌리면서, 그 early-return 이
+            그대로 계측 차단선이 됐다 — `/mood` 는 PostHog **와 GA4 양쪽 모두** pageview 0건.
+            (PageViewTracker 의 useEffect 하나가 둘을 같이 쏜다.)
+            실측(`$pathname='/mood'`): 7/31 로드 4회→pageview 4건 / 8/4 로드 6회→**0건**.
+            $web_vitals 는 SDK 내부 자동수집이라 계속 나가서 "vitals 만 남는" 모양이 됐다.
+            → chrome 숨김과 계측을 분리한다. PageViewTracker 는 null 만 반환하므로
+              "무드는 별도 사이트처럼" 이라는 원래 의도는 하나도 안 깨진다. */}
+        <PageViewTracker />
         <GlobalWidgets />
         <NonMoodChrome />
         <AnimatedRoutes />
