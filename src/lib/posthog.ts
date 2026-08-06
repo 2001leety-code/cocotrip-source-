@@ -181,6 +181,19 @@ export type PostHogEventName =
   // 깔때기 상단(funnel top): 플래너 위저드 진입. 이게 없으면 시작→생성→결제 전환율의
   // 분모(시작)가 안 보임. WizardForm 첫 마운트 1회 발화 (2026-06-12).
   | 'wizard_started'
+  // 2026-08-06: `wizard_started` 는 **마운트 시** 발화한다 — 즉 "/planner 에 도착"이지
+  //   "위저드를 시작"이 아니다(실측: 6월 광고 코호트에서 pageview 107 ≈ wizard_started 109,
+  //   사실상 1:1). 그 109명 중 `plan_generated` 는 **0** 이었는데 **5단계 중 어디서 나갔는지
+  //   볼 수단이 전혀 없었다.** 그래서 아래 둘을 추가한다.
+  //   ⚠️ `wizard_started` 의 의미는 바꾸지 않는다 — `api/admin-posthog-funnel.js` 와 과거
+  //      데이터의 분모가 그 정의에 묶여 있다. 새 신호는 **추가**로만 만든다.
+  //
+  // 손님이 실제로 다음 단계로 나아갔을 때. 되돌아가기·이어서하기 점프는 세지 않는다
+  // (도달 최대 단계가 올라갈 때만) — 왕복이 진행으로 잡히면 이탈 지점이 흐려진다.
+  | 'wizard_step_advanced'
+  // 위저드가 화면에 실제로 보인 순간 1회. 도착 수 대비 이 값이 낮으면
+  // **"보고도 안 썼다"가 아니라 "못 봤다"** 는 뜻이다 — 둘은 처방이 완전히 다르다.
+  | 'wizard_seen'
   | 'plan_generated'
   | 'plan_downloaded'
   | 'transit_clicked'
