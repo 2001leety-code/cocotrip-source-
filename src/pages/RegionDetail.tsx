@@ -5,6 +5,7 @@ import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { RegionSeoInfo } from '@/components/region/RegionSeoInfo';
 
 const regionImages: Record<string, string[]> = {
   ganghwa: [
@@ -178,6 +179,10 @@ export function RegionDetail() {
             </div>
           )}
 
+          {/* 공개 정보 — 크롤러가 받는 본문. 데스크톱 분기에도 같이 있어야 한다(둘 중 한쪽만
+              고치는 사고가 이 레포에서 7번 났다). */}
+          <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
+
           {/* CTA */}
           <div className="m-card m-appear p-5 text-center" style={{ animationDelay: '0.3s', background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.04))' }}>
             <h2 className="text-lg font-bold text-white mb-2">
@@ -299,6 +304,11 @@ export function RegionDetail() {
             </div>
           </div>
         )}
+
+        {/* 공개 정보 — 모바일 분기와 같은 컴포넌트. 한쪽만 넣으면 그 화면에서만 본문이 얇다. */}
+        <div className="mb-16">
+          <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
+        </div>
 
         {/* CTA Section */}
         <div className="bg-gradient-to-br from-[#B668FC]/20 to-[#FF6B9D]/20 border border-[#B668FC]/30 backdrop-blur-md rounded-3xl p-8 lg:p-12 text-center">
