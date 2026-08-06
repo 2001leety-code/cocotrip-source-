@@ -26,6 +26,7 @@ import { PurchaseSection } from './components/PurchaseSection';
 import { CourseBuilderShell } from './components/CourseBuilderShell';
 import { AiPlannerPricingNote } from './components/AiPlannerPricingNote';
 import { PlannerSeoInfo } from './components/PlannerSeoInfo';
+import { WizardSeenProbe } from './components/WizardSeenProbe';
 
 type PlannerMode = 'ai' | 'course';
 
@@ -128,9 +129,14 @@ export default function PlannerPage() {
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      {isMobile ? (
-        <MobilePlannerHero language={language} onLanguageChange={changeLanguage} />
-      ) : (
+      {/* 2026-08-06: 모바일에서는 히어로를 위저드 **아래**로 내린다 (</main> 뒤 참조).
+          6월 광고 유입 109명이 `/planner` 에 도착해 플랜 생성 0, 체류 중앙값 10초로 이탈했다.
+          오류는 0건 — 못 쓴 게 아니라 안 썼다. 실측하니 첫 질문이 y=1369px, 화면 844px →
+          **1.6 화면 아래**였다. 광고를 눌러 "여행 플래너"를 기대하고 온 사람이 프로모배너·
+          히어로·추천카드·쿠키배너를 지나 스크롤해야 첫 질문을 만난다. 10초로는 안 된다.
+          컴포넌트는 그대로 두고 **순서만** 바꾼다(Codex 디자인 SSOT, 재설계 아님).
+          데스크톱은 화면이 넓어 히어로와 위저드가 같이 보이므로 손대지 않는다. */}
+      {isMobile ? null : (
         <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-5">
           <div
             className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
@@ -163,8 +169,8 @@ export default function PlannerPage() {
         </section>
       )}
 
-      {/* VP strip — compact trust chips */}
-      {isMobile ? <MobilePlannerPrinciples /> : <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-5">
+      {/* VP strip — compact trust chips (모바일은 위 주석대로 </main> 뒤로 이동) */}
+      {isMobile ? null : <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-5">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {([
             { Icon: MapPin,      titleKey: 'vpCourseTitle',      descKey: 'vpCourseDesc' },
@@ -262,9 +268,9 @@ export default function PlannerPage() {
 
         {/* Wizard form */}
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div className={isMobile ? 'planner-mobile-form m-card m-appear p-3.5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-[22px] p-5 sm:p-6 shadow-2xl'}>
+          <WizardSeenProbe className={isMobile ? 'planner-mobile-form m-card m-appear p-3.5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-[22px] p-5 sm:p-6 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
-          </div>
+          </WizardSeenProbe>
         )}
 
         {plannerMode === 'course' && status === 'idle' && (
@@ -329,6 +335,17 @@ export default function PlannerPage() {
           </div>
         )}
       </main>
+
+      {/* 모바일 한정: 위저드를 첫 화면에 두려고 히어로·원칙 스트립을 여기로 내렸다(위 주석).
+          내용·디자인은 그대로이고 위치만 바뀐다. 위저드를 이미 지나온 손님에게는
+          둘러볼 거리로 남는다. */}
+      {isMobile && (
+        <>
+          <MobilePlannerHero language={language} onLanguageChange={changeLanguage} />
+          <MobilePlannerPrinciples />
+        </>
+      )}
+
       {!isMobile && <Footer t={t} />}
       {/* 첫 진입 시 1회 노출되는 사용 흐름 안내 모달 (localStorage flag) */}
       <AIIntroModal />

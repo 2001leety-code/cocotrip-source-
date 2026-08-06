@@ -68,6 +68,25 @@ test.describe('/planner 색인용 본문', () => {
     await expect(page.locator('.planner-seo-info')).toHaveCount(0);
   });
 
+  test('모바일: 첫 질문이 첫 화면 안에 있다', async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === 'Desktop Chrome',
+      '데스크톱은 화면이 넓어 히어로와 위저드가 같이 보인다 — 모바일 한정 제약',
+    );
+    // 왜 잠그나 (2026-08-06): 6월 광고 유입 109명이 `/planner` 에 도착해 플랜 생성 0,
+    // 체류 중앙값 10초로 이탈했다. 오류는 0건 — 못 쓴 게 아니라 안 썼다. 실측하니 첫 질문이
+    // y=1369px, 화면 844px → 1.6 화면 아래였다. 마케팅 블록이 다시 위로 올라오면
+    // 같은 상태로 되돌아가므로 위치 자체를 제약으로 박는다.
+    await page.goto('/planner');
+    const q = page.getByText(/Where are you in your trip planning|여행 계획.*어디|旅行の計画|旅行计划/i).first();
+    await expect(q).toBeVisible();
+    const box = await q.boundingBox();
+    const vh = page.viewportSize()!.height;
+    expect(box, '첫 질문의 위치를 잴 수 없다').not.toBeNull();
+    // boundingBox 는 뷰포트 기준이고 로드 직후 스크롤은 0 이므로 그대로 첫 화면 오프셋이다.
+    expect(box!.y, `첫 질문이 y=${Math.round(box!.y)} — 화면(${vh}) 밖이다`).toBeLessThan(vh);
+  });
+
   test('모바일 라이트 셸에서 글자가 흰색이 아니다', async ({ page }, testInfo) => {
     test.skip(
       testInfo.project.name === 'Desktop Chrome',

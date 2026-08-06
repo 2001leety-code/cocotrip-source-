@@ -168,6 +168,22 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // wizard_step_advanced (2026-08-06) — 5단계 중 **어디서 나가는지** 보기 위한 신호.
+  //
+  // 왜 필요한가: 위 `wizard_started` 는 마운트 시 발화라 사실상 "/planner 도착"과 같다
+  // (6월 광고 코호트 실측 pageview 107 ≈ wizard_started 109). 그 109명 중 플랜 생성은
+  // 0 이었는데, 1단계도 못 넘긴 건지 4단계에서 포기한 건지 구분할 수가 없었다.
+  //
+  // 도달한 **최대** 단계가 올라갈 때만 보낸다. 뒤로가기·`goToStep` 점프·이어서하기 복원으로
+  // 같은 단계를 오가는 것은 진행이 아니다 — 그걸 세면 왕복이 진행으로 잡혀 이탈 지점이 흐려진다.
+  const maxStepRef = useRef(0);
+  useEffect(() => {
+    if (step <= maxStepRef.current) return;
+    maxStepRef.current = step;
+    void posthogTrack('wizard_step_advanced', { step, language });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // step 청크 preload — 마운트 후 idle 시 모든 step import 선로드 → 전환/이어서하기 점프 시
   // Suspense fallback flash(깜빡임) 제거 (2026-06-02 A3 후보2, #768 mode="wait" 후속).
   useEffect(() => {
