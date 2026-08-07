@@ -62,11 +62,6 @@ const NOT_I18N = new Set([
   'pages/AdminQualityDashboard.tsx::json.error',            // API 오류 응답
   'pages/AdminTranslations.tsx::j.error',                   // API 오류 응답
   'pages/AdminZoneCourseEditor.tsx::draft.id',              // 존 코스 문서 id
-  // ⚠️ 아래 2건만 손님 노출(플랜 마크다운 내보내기) — 역명 데이터 결손 시 '역' 이
-  //    4개 언어 공통으로 보인다. 번역 키가 아니라 데이터 폴백이라 여기 두되, 손님 영향은
-  //    "역명이 없는 도시간 이동" 뿐이라 작다. 고치려면 i18n 키 신설이 필요(별건).
-  'pages/PlanDetailPage/lib/planToMarkdown.ts::ict.from_station',
-  'pages/PlanDetailPage/lib/planToMarkdown.ts::ict.to_station',
 ]);
 
 /** leaf 키 이름 -> ko.json 에서의 (경로, 값) 목록. */

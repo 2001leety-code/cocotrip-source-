@@ -144,6 +144,29 @@ describe('planToMarkdown — core structure', () => {
     expect(md).toContain('🚆→🛏️ 부산역→호텔');
   });
 
+  it('falls back to i18n "Station" (not hardcoded Korean 역) when from_station/to_station missing, EN', () => {
+    const dayWithoutStationNames = {
+      ...SAMPLE_PLAN.itinerary.days[1],
+      intercity_transit: {
+        ...SAMPLE_PLAN.itinerary.days[1].intercity_transit,
+        from_station: undefined,
+        to_station: undefined,
+      },
+    };
+    const plan = {
+      ...SAMPLE_PLAN,
+      itinerary: {
+        ...SAMPLE_PLAN.itinerary,
+        days: [SAMPLE_PLAN.itinerary.days[0], dayWithoutStationNames],
+      },
+    };
+    const md = planToMarkdown(plan, { language: 'en' });
+    expect(md).toContain('🛏️→🚆 호텔→Station');
+    expect(md).toContain('🚆→🛏️ Station→호텔');
+    expect(md).not.toContain('호텔→역');
+    expect(md).not.toContain('역→호텔');
+  });
+
   it('renders departure_guide + budget table + recommended restaurants', () => {
     const md = planToMarkdown(SAMPLE_PLAN);
     expect(md).toContain('## 🛫 출발 안내 (ICN T1)');
