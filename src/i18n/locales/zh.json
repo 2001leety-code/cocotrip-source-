@@ -592,6 +592,7 @@
     "aiCouponProceed": "用免费优惠券领取行程",
     "guestSignupNudge": "免费注册 — 保存行程，2次免费修改 + 包车·行程5%优惠券",
     "guestSignupCta": "免费注册",
+    "loading": "加载中...",
     "loginToPayDesc": "请先登录，以便我们安全地向您发送行程。",
     "resetBtn": "重新开始",
     "dayLabel": "Day",

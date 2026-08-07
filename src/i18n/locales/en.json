@@ -592,6 +592,7 @@
     "aiCouponProceed": "Get itinerary with free coupon",
     "guestSignupNudge": "Sign up free — save your plan, 2 free revisions + 5% off charters & tours",
     "guestSignupCta": "Sign up free",
+    "loading": "Loading...",
     "loginToPayDesc": "Please sign in first so we can securely deliver your itinerary.",
     "resetBtn": "Start Over",
     "dayLabel": "Day",

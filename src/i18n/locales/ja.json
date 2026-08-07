@@ -592,6 +592,7 @@
     "aiCouponProceed": "無料クーポンで旅程を受け取る",
     "guestSignupNudge": "無料登録 — プラン保存、無料修正2回 + チャーター・ツアー5%クーポン",
     "guestSignupCta": "無料登録",
+    "loading": "読み込み中...",
     "loginToPayDesc": "旅程表を安全にお届けするため、先にログインしてください。",
     "resetBtn": "やり直す",
     "dayLabel": "Day",
