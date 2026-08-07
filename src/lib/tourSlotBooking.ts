@@ -8,7 +8,35 @@
 //   상태를 만들면서 아무 신호도 안 남긴다.
 //
 // 이 모듈은 금액을 만지지 않는다 — 필드 4개를 실어 보낼지 말지만 정한다.
-// 필드명을 바꾸면 백엔드도 같이 바꿔야 한다(tests/unit/tour-slot-capacity-wiring.test.tsx 가 가드).
+// 필드명을 바꾸면 백엔드도 같이 바꿔야 한다(tests/unit/tour-slot-capacity-wiring.test.ts 가 가드).
+//
+// firebase-free 유지 필수 — 단위 테스트가 이 모듈만 import 하고 컴포넌트는 안 건드린다
+// (lint 규칙 R_Phase1_testNoFirebaseClientImport: 테스트가 PayPalBookingButton 등을 import 하면
+//  CI 에서 firebase 키가 없어 getAuth() throw → 스위트 통째 "0 test" crash).
+
+/**
+ * 정원 거절 안내 — 서버 메시지는 진단용 영어("Slot full: requested=3, confirmed=6, …")라
+ * 손님에게 그대로 보이면 안 된다. PayPalBookingButton 이 BOOKING_CLOSED 와 같은 방식으로
+ * (응답 code 분기 → 언어별 문구) 소비한다. 화면 문구를 여기 두는 이유는 위 firebase-free 주석과 같다.
+ */
+export const SLOT_REJECT_LABELS: Record<string, { SLOT_FULL: string; DATE_UNAVAILABLE: string }> = {
+  ko: {
+    SLOT_FULL: '선택하신 시간대가 방금 마감되었습니다. 다른 시간대나 날짜를 선택해 주세요.',
+    DATE_UNAVAILABLE: '선택하신 날짜는 예약이 마감되었습니다. 다른 날짜를 선택해 주세요.',
+  },
+  en: {
+    SLOT_FULL: 'That time slot just sold out. Please choose another time or date.',
+    DATE_UNAVAILABLE: 'That date is fully booked. Please choose another date.',
+  },
+  ja: {
+    SLOT_FULL: 'ご希望の時間帯はただ今満席になりました。別の時間または日付をお選びください。',
+    DATE_UNAVAILABLE: 'ご希望の日付は満席です。別の日付をお選びください。',
+  },
+  zh: {
+    SLOT_FULL: '该时段刚刚已满。请选择其他时段或日期。',
+    DATE_UNAVAILABLE: '该日期已订满。请选择其他日期。',
+  },
+};
 
 export interface TourSlotBookingFields {
   tourId: string;

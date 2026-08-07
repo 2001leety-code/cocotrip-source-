@@ -11,7 +11,7 @@ import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
-import { tourSlotBody } from '@/lib/tourSlotBooking';
+import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -113,27 +113,6 @@ interface Props {
   bookingDate?: string;
   slotCapacity?: number;
 }
-
-/** 정원 거절 안내 — 서버 메시지는 진단용 영어("Slot full: requested=3, …")라 손님에게 그대로 보이면 안 된다.
- *  BOOKING_CLOSED 처리와 같은 방식(코드로 분기 → 언어별 문구). */
-const SLOT_REJECT_LABELS: Record<string, { SLOT_FULL: string; DATE_UNAVAILABLE: string }> = {
-  ko: {
-    SLOT_FULL: '선택하신 시간대가 방금 마감되었습니다. 다른 시간대나 날짜를 선택해 주세요.',
-    DATE_UNAVAILABLE: '선택하신 날짜는 예약이 마감되었습니다. 다른 날짜를 선택해 주세요.',
-  },
-  en: {
-    SLOT_FULL: 'That time slot just sold out. Please choose another time or date.',
-    DATE_UNAVAILABLE: 'That date is fully booked. Please choose another date.',
-  },
-  ja: {
-    SLOT_FULL: 'ご希望の時間帯はただ今満席になりました。別の時間または日付をお選びください。',
-    DATE_UNAVAILABLE: 'ご希望の日付は満席です。別の日付をお選びください。',
-  },
-  zh: {
-    SLOT_FULL: '该时段刚刚已满。请选择其他时段或日期。',
-    DATE_UNAVAILABLE: '该日期已订满。请选择其他日期。',
-  },
-};
 
 interface RateInfo {
   usdAmount: string;
