@@ -1891,7 +1891,12 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         return !(pastMidnight || m > capMin);
       });
       stops.length = 0;
-      stops.push(...(kept.length ? kept : orig.slice(0, 1)));
+      // 🔴 2026-08-07 (#1229 후속): 단도시(1256)만 고치고 여기는 옛 무조건 폴백이 남아
+      //   도착 휴식일에 관광 stop 이 부활했다 — zone_courses 128개 전부 stops[0]=명소라
+      //   21:00 도착 손님에게 21:00 관광이 남는다. 휴식일은 관광 0
+      //   (숙소 bookend 는 planPersister 가 뒤에 합성한다).
+      if (kept.length) stops.push(...kept);
+      else if (!arrivalRestDay) stops.push(...orig.slice(0, 1)); // 휴식일 아닐 때만 anchor 보존
     }
 
     // departure day: 항공기 출발 시각 컷 + 공항 stop (단일 도시 경로와 같은 헬퍼)

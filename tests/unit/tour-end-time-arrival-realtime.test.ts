@@ -256,6 +256,52 @@ describe('#tour-end runtime — 엣지: trailing lodging 보호 + 휴식일 정�
     expect(stops[stops.length - 1].category, '마지막은 호텔복귀(lodging)').toBe('lodging');
   });
 
+  it('다도시: 도착 휴식일에 관광 stop 부활 금지 — 단도시(#1229)와 동일 룰 (2026-08-07)', async () => {
+    const { expandBlocksToItineraryMultiCity } = await import('../../api/_ai_core/blockMode.js');
+    // 실데이터 모양: stops[0]=명소 (zone_courses 128개 전부 그렇다 — lodging 아님).
+    const mkBlock = (city: string, id: string) => ({
+      id, city, zone: 'Test', theme: 'T', intensity: 'standard',
+      stops: [
+        { order: 1, name: `${city} Spot 1`, category: 'culture', start_time_offset_min: 0, stay_min: 60 },
+        { order: 2, name: `${city} Spot 2`, category: 'culture', start_time_offset_min: 120, stay_min: 60 },
+      ],
+    });
+    const itin = expandBlocksToItineraryMultiCity(
+      {
+        day_selections: [
+          { day: 1, city: 'seoul', block_id: 'S1', tweak_notes: '' },
+          { day: 2, city: 'busan', block_id: 'B1', tweak_notes: '' },
+        ],
+        language: 'en',
+      },
+      [
+        { city: 'seoul', blocks: [mkBlock('seoul', 'S1')] },
+        { city: 'busan', blocks: [mkBlock('busan', 'B1')] },
+      ],
+      {
+        language: 'en', dietPrefs: [], foodIndex: [], startDate: '2026-06-15',
+        // ready = 21:00 + 90 입국 + 90 인천이동 = 24:00 ≥ cap 21:00 → 휴식일.
+        arrival_time: '21:00', arrival_airport: 'ICN', tour_start_time: '09:00', tour_end_time: '21:00',
+      },
+    );
+    const day1Sights = itin.days[0].stops.filter(
+      (s: { category?: string }) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel',
+    );
+    // 🔴 옛 폴백 `kept.length ? kept : orig.slice(0,1)` 은 휴식일에도 관광 1개를 부활시켰다
+    //   (21시 도착 손님에게 21시 관광). 휴식일은 관광 0 — 숙소 bookend 는 planPersister 몫.
+    expect(day1Sights, '다도시 도착 휴식일에 관광 stop 부활').toHaveLength(0);
+    // Day2 는 정상 관광 유지 — 휴식일 로직이 다른 날로 새지 않는다.
+    expect(itin.days[1].stops.some((s: { category?: string }) => s.category === 'culture'), 'Day2 관광이 사라짐').toBe(true);
+  });
+
+  it('blockMode.js — 휴식일 anchor-부활-금지 폴백이 단도시·다도시 둘 다 존재 (형제 경로 잠금)', () => {
+    const src = read('api/_ai_core/blockMode.js');
+    const guards = src.match(/else if \(!arrivalRestDay\) stops\.push\(\.\.\.orig\.slice\(0, 1\)\)/g) || [];
+    expect(guards.length, '단도시(#1229)+다도시 둘 다 있어야 함').toBeGreaterThanOrEqual(2);
+    // 옛 무조건 폴백이 되살아나면 안 된다.
+    expect(/kept\.length \? kept : orig\.slice\(0, 1\)/.test(src), '옛 무조건 anchor 폴백 잔존').toBe(false);
+  });
+
   it('휴식일: dayStart=종료시각과 정확히 같은 관광 stop 도 제거 (prod f80d7219 20:00 잔존 버그)', async () => {
     const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
     const restBlocks = [{
