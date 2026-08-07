@@ -29,6 +29,7 @@ import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
 import { formatPrice } from '@/lib/exchange-rate';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete, computeTourBookingTotalKRW, clampHanbokCount } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
+import { resolveSlotCapacity } from '@/lib/tourSlotBooking';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
@@ -359,6 +360,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   );
   const slotModifierKRW = selectedSlot?.price_modifier_krw ?? 0;
 
+  // 🔴 2026-08-08 슬롯 정원(오버부킹 방지) — 지금까지 고른 슬롯이 결제 메모 문자열에만 들어가고
+  //   백엔드로는 안 갔다(`acquireSlotLock`/`confirmSlotLock` 이 한 번도 안 걸림).
+  //   슬롯별 capacity 가 비어 있으면 tour.maxPax 로 폴백한다 — 규칙 정본은
+  //   api/_shared/slot-capacity.js 헤더 + admin-product-publish-validation.validateSlotNumeric.
+  const slotCapacityForOrder = resolveSlotCapacity(selectedSlot?.capacity, tour.maxPax);
+
   // P311 (2026-06-30 운영자 확정): 투어 애드온(한복/카시트/가이드)=무료/현장결제 →
   //   PayPal 청구에 미포함(백엔드 resolveKrwAmount = dailyPrice×days = baseKRW 만 청구).
   //   따라서 표시 총액에서도 addonKRW 를 제외해야 표시가 == 청구가(priceKRW={totalKRW}).
@@ -573,8 +580,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             )}
           </div>
 
-          {/* Phase 1 (2026-05-19): 시간 슬롯 picker — tour.slots 가 정의된 어드민 투어만 */}
-          {/* TODO: slot id forward to backend (Phase 2 follow-up — 결제 메모에 포함됨) */}
+          {/* Phase 1 (2026-05-19): 시간 슬롯 picker — tour.slots 가 정의된 어드민 투어만.
+              2026-08-08: 고른 슬롯은 메모뿐 아니라 결제 body 로도 전달된다(아래 PayPalBookingButton). */}
           {activeSlots.length > 0 && (
             <SlotPicker
               slots={activeSlots}
@@ -863,6 +870,16 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
                     pickupTime="09:00"
                     durationDays={days}
+                    // 🔴 슬롯 정원 강제 — 슬롯을 실제로 고른 예약만 4필드를 넘긴다.
+                    //   슬롯 없는 투어는 미전달 = 백엔드가 잠금을 건너뛰어 기존 동작 그대로.
+                    {...(selectedSlot && slotCapacityForOrder !== undefined
+                      ? {
+                          tourId: tour.id,
+                          tourSlotId: selectedSlot.id,
+                          bookingDate: date,
+                          slotCapacity: slotCapacityForOrder,
+                        }
+                      : {})}
                   />
                   {/* 2026-06-06 PR2b: 장바구니 담기 (VITE_FEATURE_CART OFF=null 미렌더).
                       예약 상세(productType/날짜/인원/픽업/메모) 채운 뒤 = 완전한 결제 항목

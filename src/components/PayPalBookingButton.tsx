@@ -11,6 +11,7 @@ import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
+import { tourSlotBody } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -102,7 +103,37 @@ interface Props {
   /** 🔴 2026-07-18 차터 옵션 청구 fix: 위저드 옵션(면허가이드·픽켓·카시트·야간) — createPaypalOrder 가
    *  서버 spec 으로 금액 재계산해 가산(api/_shared/charter-extras.js). 미전달 = 옵션 없음(기존 동작). */
   options?: { licensedGuide?: boolean; airportPicket?: boolean; childSeat?: boolean; night?: boolean };
+  /** 🔴 2026-08-08 투어 슬롯 정원(오버부킹 방지) — createPaypalOrder 가 pre-lock, capturePaypalOrder 가
+   *  confirm 을 거는 데 필요한 4필드. **4개가 전부 있을 때만** 서버가 잠금을 건다(하나라도 없으면 조용히
+   *  스킵) → tourSlotBody 로 all-or-nothing 전송. 슬롯 없는 상품(AI 플래너·차터)은 미전달 = 기존 동작.
+   *  금액과 무관 — 정원 검증에만 쓰인다. */
+  tourId?: string;
+  tourSlotId?: string;
+  /** 슬롯 정원을 세는 기준 일자 (YYYY-MM-DD). 보통 dateStart 와 같다. */
+  bookingDate?: string;
+  slotCapacity?: number;
 }
+
+/** 정원 거절 안내 — 서버 메시지는 진단용 영어("Slot full: requested=3, …")라 손님에게 그대로 보이면 안 된다.
+ *  BOOKING_CLOSED 처리와 같은 방식(코드로 분기 → 언어별 문구). */
+const SLOT_REJECT_LABELS: Record<string, { SLOT_FULL: string; DATE_UNAVAILABLE: string }> = {
+  ko: {
+    SLOT_FULL: '선택하신 시간대가 방금 마감되었습니다. 다른 시간대나 날짜를 선택해 주세요.',
+    DATE_UNAVAILABLE: '선택하신 날짜는 예약이 마감되었습니다. 다른 날짜를 선택해 주세요.',
+  },
+  en: {
+    SLOT_FULL: 'That time slot just sold out. Please choose another time or date.',
+    DATE_UNAVAILABLE: 'That date is fully booked. Please choose another date.',
+  },
+  ja: {
+    SLOT_FULL: 'ご希望の時間帯はただ今満席になりました。別の時間または日付をお選びください。',
+    DATE_UNAVAILABLE: 'ご希望の日付は満席です。別の日付をお選びください。',
+  },
+  zh: {
+    SLOT_FULL: '该时段刚刚已满。请选择其他时段或日期。',
+    DATE_UNAVAILABLE: '该日期已订满。请选择其他日期。',
+  },
+};
 
 interface RateInfo {
   usdAmount: string;
@@ -133,7 +164,10 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
+  // 슬롯 정원 4필드 — create/capture 두 요청에 **같은 값**이 실려야 pending → confirmed 가 이어진다.
+  // 한 번만 계산해 두 곳에서 공유(한쪽만 고치는 사고 방지).
+  const slotFields = tourSlotBody({ tourId, tourSlotId, bookingDate, slotCapacity });
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -413,6 +447,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               userEmail,
               ...(airport ? { airport } : {}),
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
+              // 🔴 2026-08-08 슬롯 정원 confirm — create 의 pre-lock 을 confirmed 로 넘긴다.
+              //   create 에만 보내고 여기서 빠뜨리면 pending 이 TTL 만료로 풀려 정원이 안 세어진다.
+              ...slotFields,
               ...(promoApplied && promoCode ? { promoCode } : {}),
               // 2026-06-30 트립닷컴식 예약정보 — 약관동의 컴플라이언스 메타 (SMS 본인인증 제거 운영자).
               //   🔴 fix: 이 값을 capture body 에 전달하지 않으면 capturePaypalOrder.js 가
@@ -578,6 +615,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(routeCoords ? { routeCoords } : {}),
           // 🔴 2026-07-18 차터 옵션 청구 fix — 옵션 flag 만 전달, 금액은 서버가 spec 으로 재계산(가산).
           ...(options ? { options: charterOptionsBody(options) } : {}),
+          // 🔴 2026-08-08 슬롯 정원 pre-lock — 서버가 acquireSlotLock 으로 pending +pax,
+          //   초과면 409 SLOT_FULL 로 주문을 만들지 않는다. 금액 로직과 무관.
+          ...slotFields,
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.
@@ -616,6 +656,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         } catch (dispatchErr) {
           console.warn('[PayPal] open-chat dispatch failed:', dispatchErr);
         }
+        return;
+      }
+      // 🔴 2026-08-08 슬롯 정원 거절 — 서버 문구는 진단용 영어("Slot full: requested=3, confirmed=6, …")
+      //   라 그대로 보이면 손님이 무슨 일인지 모른다. BOOKING_CLOSED 와 같은 방식으로 언어별 안내.
+      //   돈은 아직 안 움직였다(주문 미생성) — 다른 시간/날짜로 다시 고르면 된다.
+      if (!res.ok && (json.code === 'SLOT_FULL' || json.code === 'DATE_UNAVAILABLE')) {
+        const sl = SLOT_REJECT_LABELS[lang] || SLOT_REJECT_LABELS.en;
+        setError(json.code === 'SLOT_FULL' ? sl.SLOT_FULL : sl.DATE_UNAVAILABLE);
         return;
       }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
