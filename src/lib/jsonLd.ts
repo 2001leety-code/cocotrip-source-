@@ -16,12 +16,30 @@
 
 const SITE = 'https://cocotripkr.com';
 
-/** 전역 TravelAgency(index.html)와 같은 값 — publisher 를 두 벌로 적지 않기 위해 여기 한 곳. */
+/**
+ * 회사 로고 (2026-08-06).
+ *
+ * 파비콘(64x64)을 쓰고 있었다. 파비콘은 브라우저 탭용이고, 구글이 회사 정보를 표시할 때
+ * 쓰는 로고와는 용도가 다르다 — 구글 권장은 최소 112px 이고 64 는 그 아래다.
+ * 8/5 에 만든 정식 마크(1024x1024, `public/brand/`)가 쓰이지 않고 있어서 그걸로 바꾼다.
+ *
+ * ⚠️ `icon-1024.png`(앱 아이콘)가 아니라 `logo-mark-1024.png`(투명 배경)를 쓴다.
+ *    앱 아이콘은 어두운 둥근 사각 배경이 붙어 있어서, 흰 검색 화면에 얹으면 검은 네모가 뜬다.
+ * ⚠️ 파비콘 자체는 그대로 둔다 — 탭의 작은 자리엔 64px 가 맞다.
+ */
+const LOGO_URL = `${SITE}/brand/logo-mark-1024.png`;
+
+/**
+ * 전역 TravelAgency(index.html)와 같은 값.
+ * 🔴 index.html 은 정적 HTML 이라 이 상수를 import 할 수 없다 — **값이 두 벌로 존재한다.**
+ *    한쪽만 고치면 홈과 글 페이지가 구글에 서로 다른 로고를 보낸다(이 레포의 "한쪽만 고침"
+ *    사고 패턴). 두 벌이 같은지는 `tests/unit/org-logo-parity.test.ts` 가 잠근다.
+ */
 const PUBLISHER = {
   '@type': 'Organization',
   name: 'CocoTrip',
   url: SITE,
-  logo: { '@type': 'ImageObject', url: `${SITE}/favicon.png` },
+  logo: { '@type': 'ImageObject', url: LOGO_URL },
 } as const;
 
 const abs = (url: string): string =>

@@ -105,14 +105,17 @@
          우리 투어 사러 온 손님을 경쟁사로 보내 전환 손해. 제휴 수수료(푼돈) < 이탈 손실 → 제거.
          복원하려면 emrldtp.cc/NTE2OTY3.js 스크립트 재삽입. -->
 
-    <!-- Schema.org JSON-LD: TravelAgency -->
+    <!-- Schema.org JSON-LD: TravelAgency
+         ⚠️ logo 는 src/lib/jsonLd.ts 의 LOGO_URL 과 **같은 값이어야 한다**. 정적 HTML 이라
+            상수를 import 할 수 없어 두 벌로 존재한다 — 한쪽만 고치면 홈과 글 페이지가
+            구글에 서로 다른 로고를 보낸다. 잠금 = tests/unit/org-logo-parity.test.ts -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "TravelAgency",
       "name": "CocoTrip",
       "url": "https://cocotripkr.com",
-      "logo": "https://cocotripkr.com/favicon.png",
+      "logo": "https://cocotripkr.com/brand/logo-mark-1024.png",
       "image": "https://cocotripkr.com/og-image.png",
       "description": "Premium Korea private tours, charter vehicles, AI travel planner. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more.",
       "telephone": "+82-10-8714-0611",
