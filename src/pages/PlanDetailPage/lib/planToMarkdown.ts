@@ -21,6 +21,8 @@
 //
 // 사진 없음 (텍스트 only). URL 만 옵션으로 포함 (사용자 mobile share 가능).
 // ─────────────────────────────────────────────────────────────────────────────
+import { getLocaleSync, type Language } from '@/i18n';
+import { getPlanDetailDict } from '../types';
 import type { PlanDocument } from '../types';
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -143,13 +145,16 @@ export function planToMarkdown(
       ]);
       out.push(...intercityLines);
       // lodging_to_station / station_to_lodging bookend (P111 enrichment 결과)
+      // 역명 데이터 결손 시 폴백 — planDetail.intercity.station i18n 키 (DayTimeline.tsx
+      // pd.intercity 패턴과 동일). 예전엔 '역' 하드코딩이라 전 언어 손님에게 한글 노출됐다.
+      const stationFallback = getPlanDetailDict(getLocaleSync(lang as Language)).intercity?.station || '역';
       if (ict.lodging_to_station) {
         const lts = ict.lodging_to_station;
-        out.push(`- 🛏️→🚆 호텔→${escapeMd(ict.from_station || '역')}: ${escapeMd(lts.instruction || '')} (${lts.est_min ?? '?'}분)`);
+        out.push(`- 🛏️→🚆 호텔→${escapeMd(ict.from_station || stationFallback)}: ${escapeMd(lts.instruction || '')} (${lts.est_min ?? '?'}분)`);
       }
       if (ict.station_to_lodging) {
         const stl = ict.station_to_lodging;
-        out.push(`- 🚆→🛏️ ${escapeMd(ict.to_station || '역')}→호텔: ${escapeMd(stl.instruction || '')} (${stl.est_min ?? '?'}분)`);
+        out.push(`- 🚆→🛏️ ${escapeMd(ict.to_station || stationFallback)}→호텔: ${escapeMd(stl.instruction || '')} (${stl.est_min ?? '?'}분)`);
       }
       out.push('');
     }

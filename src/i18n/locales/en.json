@@ -1590,7 +1590,8 @@
       "arrive": "Arrive {{time}}",
       "duration": "~{{min}} min",
       "fare": "KRW {{krw}} / pax",
-      "book": "Book"
+      "book": "Book",
+      "station": "Station"
     },
     "step5": {
       "transportTitle": "Airport → Lodging Guide",

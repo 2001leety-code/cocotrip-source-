@@ -1590,7 +1590,8 @@
       "arrive": "도착 {{time}}",
       "duration": "약 {{min}}분",
       "fare": "₩{{krw}} / 1인",
-      "book": "예약하기"
+      "book": "예약하기",
+      "station": "역"
     },
     "step5": {
       "transportTitle": "공항 → 숙소 이동 안내",

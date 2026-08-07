@@ -1590,7 +1590,8 @@
       "arrive": "到达 {{time}}",
       "duration": "约{{min}}分钟",
       "fare": "₩{{krw}} / 人",
-      "book": "预订"
+      "book": "预订",
+      "station": "车站"
     },
     "step5": {
       "transportTitle": "机场 → 住宿 指引",
