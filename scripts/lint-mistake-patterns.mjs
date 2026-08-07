@@ -2606,24 +2606,13 @@ function R_hallasanReservationUrl(ctx) {
   return null;
 }
 
-/**
- * R_wizardAnimatePresenceWait (2026-06-02, A3): WizardForm step 전환 AnimatePresence 는 mode="wait".
- * 누락 시 sync 기본 모드로 나가는 step + 들어오는 step 동시 렌더 → "이어서 하기" 점프 깜빡임/밀림.
- * App.tsx 라우트 전환부(이미 mode="wait")와 일관. 회귀: tests/unit/wizard-animatepresence-mode.test.ts.
- */
-function R_wizardAnimatePresenceWait(ctx) {
-  const violations = [];
-  if (isModified('src/components/WizardForm/index.tsx', ctx.changed)) {
-    let src = ''; try { src = readFileSync('src/components/WizardForm/index.tsx', 'utf8'); } catch {}
-    if (/<AnimatePresence/.test(src) && !/<AnimatePresence\s+mode="wait"/.test(src)) {
-      violations.push('WizardForm AnimatePresence 에 mode="wait" 누락 — sync 모드 두 step 동시렌더 깜빡임(App.tsx 라우트 전환부와 일관 필요)');
-    }
-  }
-  if (violations.length > 0) {
-    fail('R_wizardAnimatePresenceWait', violations.join(' | '), 'WizardForm step 전환 AnimatePresence 는 mode="wait". tests/unit/wizard-animatepresence-mode.test.ts.');
-  }
-  return null;
-}
+// (2026-08-07) R_wizardAnimatePresenceWait 삭제 — #1211 이 WizardForm 에서 AnimatePresence
+//   자체를 제거했는데(숨은 탭은 rAF 정지 → mode="wait" 의 exit 대기가 영원히 안 끝나
+//   전 라우트 거짓 고장, #1198), 이 규칙은 AnimatePresence 가 돌아오면 mode="wait" 를
+//   **요구**해 그 버그를 되살리라고 강제했다. 규칙 주석이 가리키던
+//   tests/unit/wizard-animatepresence-mode.test.ts 도 #1211 이 이미 삭제했다.
+//   복원 차단은 tests/unit/wizard-step-transition.component.test.tsx 의
+//   `<AnimatePresence` 금지 소스 잠금이 담당한다.
 
 /**
  * R_transferCheckoutSSOT (2026-06-02, P311 SAFETY; 2026-06-05 4-tier 통일): 도시간/공항 차터 transfer
@@ -2768,7 +2757,6 @@ const RULES = [
   ['R_multidayCheckoutSSOT', R_multidayCheckoutSSOT],
   ['R_tourHourlySSOT', R_tourHourlySSOT],
   ['R_hallasanReservationUrl', R_hallasanReservationUrl],
-  ['R_wizardAnimatePresenceWait', R_wizardAnimatePresenceWait],
   ['R_transferCheckoutSSOT', R_transferCheckoutSSOT],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
@@ -7575,19 +7563,6 @@ function runSelfTest() {
       base: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{}\n' },
       head: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{"tips":"사전예약 visithalla.jeju.go.kr"}\n' },
       expectRule: 'R_hallasanReservationUrl',
-      expectClean: true,
-    },
-    {
-      label: 'R_wizardAnimatePresenceWait (true positive): mode="wait" 누락',
-      base: { 'src/components/WizardForm/index.tsx': '// stub\n' },
-      head: { 'src/components/WizardForm/index.tsx': 'return (<AnimatePresence initial={false}><motion.div /></AnimatePresence>);\n' },
-      expectRule: 'R_wizardAnimatePresenceWait',
-    },
-    {
-      label: 'R_wizardAnimatePresenceWait (false positive 차단): mode="wait" 있음 — silent',
-      base: { 'src/components/WizardForm/index.tsx': '// stub\n' },
-      head: { 'src/components/WizardForm/index.tsx': 'return (<AnimatePresence mode="wait" initial={false}><motion.div /></AnimatePresence>);\n' },
-      expectRule: 'R_wizardAnimatePresenceWait',
       expectClean: true,
     },
     {
