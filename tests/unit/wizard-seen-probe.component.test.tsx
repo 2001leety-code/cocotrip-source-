@@ -66,6 +66,26 @@ describe('WizardSeenProbe — wizard_seen 발화 조건', () => {
     expect(props.viewport_h).toBeGreaterThan(0);
   });
 
+  it('보내는 속성 전부가 허용목록을 실제로 통과한다 (#1244, 2026-08-07)', async () => {
+    // 🔴 잠근 사고: 위 테스트는 track() mock 에 **넘겼는지**만 봤다. 실제 전송 계층
+    //   (sanitizeCaptureProperties → stripUnsafeProps)은 기본-거부 허용목록이라
+    //   ALLOWED_PROP_KEYS 에 없는 scroll_y·viewport_h 를 조용히 버렸고, wizard_seen 은
+    //   도착하는데 속성이 빈 객체였다 — "못 봤다 vs 보고도 안 썼다" 판독 계획이 무력해졌다.
+    //   여기서는 mock 이 받은 속성을 **실제 허용목록 코드**에 통과시켜 살아남는지 본다.
+    //   프로브에 새 속성을 추가하면 이 테스트가 허용목록 등록을 강제한다.
+    const { sanitizeCaptureProperties } = await import('../../src/lib/analyticsProps');
+    Object.defineProperty(window, 'scrollY', { value: 1310, configurable: true });
+    render(<WizardSeenProbe><div>wizard</div></WizardSeenProbe>);
+    triggers[0]([{ isIntersecting: true }]);
+    const sentProps = trackMock.mock.calls[0][1] as Record<string, unknown>;
+    const survived = sanitizeCaptureProperties(sentProps);
+    for (const key of Object.keys(sentProps)) {
+      expect(survived, `프로브 속성 "${key}" 가 허용목록(ALLOWED_PROP_KEYS)에서 버려진다`).toHaveProperty(key);
+    }
+    expect(survived.scroll_y).toBe(1310);
+    expect(typeof survived.viewport_h).toBe('number');
+  });
+
   it('보인 뒤 observer 를 끊는다 (재발화·누수 방지)', () => {
     render(<WizardSeenProbe><div>wizard</div></WizardSeenProbe>);
     triggers[0]([{ isIntersecting: true }]);

@@ -22,6 +22,10 @@
 export const ALLOWED_PROP_KEYS: readonly string[] = [
   // 화면·위치
   'page_path', 'placement', 'step', 'format', 'source', 'area', 'pace', 'city',
+  // wizard_seen 판독용 (#1244 후속, 2026-08-07): 처음 보인 시점의 스크롤/뷰포트 픽셀.
+  //   목록에 없어 조용히 버려졌고 wizard_seen 이 빈 객체로 도착했다 — "못 봤다 vs
+  //   보고도 안 썼다" 를 가를 수 없었다. 숫자 픽셀값이라 개인정보 아님.
+  'scroll_y', 'viewport_h',
   // 상품·거래 (금액은 숫자, 식별자는 우리 내부 상품 코드)
   'product', 'product_type', 'planType', 'item_id', 'item_name', 'items_id', 'items_name',
   'currency', 'value', 'amount', 'price', 'quantity', 'transaction_id', 'vehicle_type',
