@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { SMOKE_STEP_NAME, MAX_AGE_DAYS, newestSmokeAttempt } from '../../scripts/check-plan-smoke-freshness.mjs';
 
 const ROOT = process.cwd();
 const WORKFLOW = resolve(ROOT, '.github/workflows/daily-health.yml');
@@ -44,6 +45,85 @@ describe('daily-health — 실패가 초록으로 덮이지 않는다', () => {
     const commitStep = steps().find((s) => /health.?log|Upload health/i.test(s.name));
     expect(commitStep, 'health-log 관련 스텝을 못 찾음').toBeTruthy();
     expect(commitStep!.body).toMatch(/if:\s*always\(\)/);
+  });
+});
+
+/**
+ * 월요일 플랜 스모크가 조용히 0회가 되지 못하게 잠근다 (2026-08-07, #1216 후속).
+ *
+ * 잠근 사고: 월(1)/수·금(3,5) cron 분리 머지(8/3 01:24Z)가 월요일 00:00Z 틱의 지연
+ *   처리와 겹치며 8/3 월요일 실행이 통째로 유실됐다. 수·금 실행은 스모크 스텝을
+ *   skip(초록)으로 지나가 "가장 비싼 무인 감시가 0회" 를 아무도 몰랐다. 게다가 게이트가
+ *   `github.event.schedule == '0 0 * * 1'` 문자열 비교라 schedule 목록과 묶이지 않은
+ *   사본이었다 — cron 만 바뀌면 게이트가 조용히 영원-false 가 되는 잠복 병.
+ */
+describe('daily-health — 월요일 플랜 스모크가 조용히 유실되지 않는다', () => {
+  it('cron 은 검증된 단일 리터럴 하나뿐이다', () => {
+    const crons = [...yml.matchAll(/- cron:\s*'([^']+)'/g)].map((m) => m[1]);
+    expect(crons, '분리 cron 이 되살아났다 — 8/3 유실 사고 회귀').toEqual(['0 0 * * 1,3,5']);
+  });
+
+  it('어떤 스텝도 github.event.schedule 문자열 비교로 게이트하지 않는다', () => {
+    // schedule 리터럴의 두 번째 사본은 원본과 묶이지 않는다 — cron 이 바뀌면 조용히 죽는다.
+    expect(yml.includes('github.event.schedule'), 'cron 문자열 사본 게이트 부활').toBe(false);
+  });
+
+  it('월요일 판정은 실행 시각(weekday 스텝)으로 하고 스모크 게이트가 그 출력을 쓴다', () => {
+    const weekday = steps().find((s) => /Resolve weekday/i.test(s.name));
+    expect(weekday, 'weekday 판정 스텝을 못 찾음').toBeTruthy();
+    expect(weekday!.body).toMatch(/date -u \+%u/);
+    const smoke = steps().find((s) => s.name.startsWith('E2E PROD smoke'));
+    expect(smoke, '플랜 스모크 스텝을 못 찾음').toBeTruthy();
+    expect(smoke!.body).toMatch(/steps\.weekday\.outputs\.dow == '1'/);
+    // 수동 실행은 계속 항상 돈다 — 사람이 일부러 누른 것이므로.
+    expect(smoke!.body).toMatch(/github\.event_name == 'workflow_dispatch'/);
+  });
+
+  it('신선도 감시견 스텝이 스케줄 실행마다 돈다', () => {
+    const watchdog = steps().find((s) => /freshness watchdog/i.test(s.name));
+    expect(watchdog, '감시견 스텝을 못 찾음').toBeTruthy();
+    expect(watchdog!.body).toMatch(/check-plan-smoke-freshness\.mjs/);
+    expect(watchdog!.body).toMatch(/github\.event_name == 'schedule'/);
+    // 이름에 smoke 가 들어가므로 위 continue-on-error 금지 검사에도 자동 포함된다.
+    expect(/smoke/i.test(watchdog!.name)).toBe(true);
+  });
+});
+
+describe('플랜 스모크 신선도 감시견 — 판정 로직', () => {
+  const DAY = 86_400_000;
+  const NOW = Date.parse('2026-08-07T02:30:00Z');
+  const run = (agoDays: number, conclusion: string | null) => ({
+    created_at: new Date(NOW - agoDays * DAY).toISOString(),
+    steps: [{ name: SMOKE_STEP_NAME, conclusion }],
+  });
+
+  it('스텝 이름이 워크플로와 글자까지 같다 (파리티) — 이름이 갈리면 감시견이 장님이 된다', () => {
+    const smoke = steps().find((s) => s.name.startsWith('E2E PROD smoke'));
+    expect(smoke!.name).toBe(SMOKE_STEP_NAME);
+  });
+
+  it('오늘 시도(자기 자신 포함)가 있으면 신선하다', () => {
+    const hit = newestSmokeAttempt([run(0.1, 'success'), run(2, 'skipped')], NOW);
+    expect(hit).not.toBeNull();
+    expect(hit!.ageDays).toBeLessThan(MAX_AGE_DAYS);
+  });
+
+  it('skip 만 이어지면 시도로 치지 않는다 — 8/3 사고의 모양', () => {
+    // 수·금 실행은 스텝이 skipped 로 초록이었다. 마지막 실제 시도는 11일 전(7/27).
+    const hit = newestSmokeAttempt([run(0.1, 'skipped'), run(2, 'skipped'), run(11, 'success')], NOW);
+    expect(hit).not.toBeNull();
+    expect(hit!.ageDays, '8/3 유실 사고 모양을 빨갛게 판정해야 한다').toBeGreaterThan(MAX_AGE_DAYS);
+  });
+
+  it('시도가 아예 없으면 null — 호출부가 fail 로 처리한다', () => {
+    expect(newestSmokeAttempt([run(1, 'skipped'), { created_at: new Date(NOW).toISOString(), steps: [] }], NOW)).toBeNull();
+  });
+
+  it('실패한 시도도 시도다 — 성공만 세면 "실패 중" 과 "안 돎" 을 구분 못 한다', () => {
+    const hit = newestSmokeAttempt([run(1, 'failure')], NOW);
+    expect(hit).not.toBeNull();
+    expect(hit!.conclusion).toBe('failure');
+    expect(hit!.ageDays).toBeLessThan(MAX_AGE_DAYS);
   });
 });
 

@@ -6,12 +6,15 @@ on:
     # 매일 → 월수금 변경: GitHub Actions minutes 절감 (validate-planner.cjs는
     # Gemini 5회 호출이라 cold path에서 5-10분 소요).
     #
-    # 2026-08-02: 월(1)과 수·금(3,5)을 **두 cron 으로 분리**했다. 도는 검사는 같지만,
-    #   플랜 생성 스모크만 월요일에 태우기 위해서다(아래 `github.event.schedule` 게이트).
-    #   그 스모크는 운영 Firestore 에 실제 플랜 문서를 만들고 AI 비용이 든다 —
-    #   주 3회(월 약 13건) → 주 1회(월 4~5건, 약 $0.45)로 낮춘 운영자 결정(2026-08-02).
-    - cron: '0 0 * * 1'
-    - cron: '0 0 * * 3,5'
+    # 🔴 2026-08-07 (#1216 후속): 월(1) / 수·금(3,5) 두 cron 분리를 되돌렸다.
+    #   분리 머지(8/3 01:24Z)가 월요일 00:00Z 틱의 지연 처리(평소 2~2.5시간)와 겹치며
+    #   8/3 월요일 스케줄 실행이 통째로 유실됐고, 수·금 실행은 플랜 스모크 스텝을
+    #   skip(초록)으로 지나가 "가장 비싼 무인 감시가 0회" 인 걸 아무도 몰랐다.
+    #   cron 은 몇 주간 검증된 단일 '0 0 * * 1,3,5' 로 복원하고, "월요일에만" 은
+    #   cron 문자열 비교가 아니라 실행 시각(아래 weekday 스텝)으로 판정한다.
+    #   플랜 스모크는 운영 Firestore 에 실제 플랜 문서를 만들고 AI 비용이 들므로
+    #   주 1회(월요일, 약 $0.45)만 — 운영자 결정(2026-08-02)은 그대로다.
+    - cron: '0 0 * * 1,3,5'
   workflow_dispatch: # 수동 실행 가능
 
 # Daily Sentinel (L3) — regression FAIL 시 GH issue 자동 생성용 권한.
@@ -87,16 +90,39 @@ jobs:
       #   그 덕에 2026-07-20 이후 이 검사가 매번 403 으로 죽는데도 7회 넘게 아무도 몰랐다.
       #   실패는 빨갛게 보여야 한다.
       #
+      # 월요일 판정 스텝 — cron 문자열 비교 금지 (2026-08-07 #1216 후속).
+      #   옛 게이트("이벤트의 schedule 문자열 == '0 0 * * 1'")는 schedule 목록의 리터럴과
+      #   묶이지 않은 두 번째 사본이라, cron 이 바뀌면 게이트가 조용히 영원-false 가 된다
+      #   (잠금 테스트가 그 표현 자체를 금지해 여기 주석에도 원문을 못 쓴다).
+      #   실행 시각으로 판정하면 cron 을 어떻게 바꿔도 게이트가 따라온다.
+      - name: Resolve weekday (Monday-only plan smoke gate)
+        id: weekday
+        if: always()
+        run: echo "dow=$(date -u +%u)" >> "$GITHUB_OUTPUT" # 1=월요일 (UTC)
+
       # 월요일에만 돈다: 이 스모크는 운영 Firestore 에 실제 플랜 문서를 만들고 AI 비용이 든다.
       #   수동 실행(workflow_dispatch)에서는 항상 돈다 — 사람이 일부러 누른 것이므로.
       - name: E2E PROD smoke (Plan + Translation + PDF)
-        if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '0 0 * * 1')
+        if: always() && (github.event_name == 'workflow_dispatch' || steps.weekday.outputs.dow == '1')
         env:
           BASE_URL: https://cocotripkr.com
           # PR #247 audit P0-#2 이후 plan 생성 step 도 Bearer 헤더 필수.
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
           HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
         run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
+
+      # ─── 플랜 스모크 신선도 감시견 (2026-08-07 #1216 후속) ─────────────────────
+      # "스킵이 초록으로 보이는" 병 차단. 월요일 실행이 유실되면(8/3 실측) 수·금 실행은
+      # 위 스텝을 skip 으로 지나가 아무도 모른다. 스킵 자체는 정상이라 스텝 색으로는 못
+      # 잡는다 — 그래서 매 스케줄 실행마다 "플랜 스모크가 마지막으로 **시도**된 지 8일
+      # 이내인가" 를 실행 이력(API)으로 검사하고, 넘겼으면 이 잡을 빨갛게 죽인다.
+      # (성공/실패 구분은 안 한다 — 시도됐다가 실패했으면 그 실행 자체가 이미 빨갛다.)
+      # 🔴 continue-on-error 금지 — 위 스모크들과 같은 이유.
+      - name: Plan smoke freshness watchdog (fail if not attempted in 8 days)
+        if: always() && github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-plan-smoke-freshness.mjs
 
       # ─── SPA 내부 이동(실 Link 클릭) 스모크 — 2026-08-01 ─────────────────────
       # framer-motion/react-router 회귀로 라우트 전환이 죽어도 트래픽이 적어 아무도
