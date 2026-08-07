@@ -19,6 +19,9 @@ import { queuePending, drainPending, clearPending } from './analyticsQueue';
 /** 대기열 도착지 이름 — GA4. */
 const GA_SINK = 'ga4';
 
+/** GA4 page_view 이벤트 이름 — 대기열 flush 가 특별 취급해야 해서 상수로 묶는다. */
+const PAGE_VIEW_EVENT = 'page_view';
+
 /**
  * 전송 옵션.
  * `noQueue` — 동의 전이면 **담지 말고 그냥 버린다.** 호출부가 이미 자기만의 재시도를 가진
@@ -104,7 +107,17 @@ if (typeof window !== 'undefined') {
   // (배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 유실되던 문제 — analyticsQueue.ts 주석)
   onConsentChange(() => {
     if (!hasAnalyticsConsent()) { clearPending(GA_SINK); return; }
-    for (const e of drainPending(GA_SINK)) sendToGA(e.name, e.props as GtagEvent | undefined);
+    for (const e of drainPending(GA_SINK)) {
+      if (e.name === PAGE_VIEW_EVENT) {
+        // 🔴 page_view 는 담을 때 캡처한 값(page_path·page_location·page_referrer)을
+        //   그대로 보낸다 — sendToGA 를 태우면 허용목록이 location 계열을 거르고
+        //   gaUrlParams() 가 **지금** URL 로 덮어써, 수락 시점 화면의 주소가 랜딩
+        //   page_view 에 실린다 (#1241 후속).
+        if (canSendToGA()) window.gtag!('event', PAGE_VIEW_EVENT, e.props);
+      } else {
+        sendToGA(e.name, e.props as GtagEvent | undefined);
+      }
+    }
   });
 }
 
@@ -116,13 +129,26 @@ if (typeof window !== 'undefined') {
  *   `page_title`(document.title)도 뺐다 — 공유 플랜 제목에 손님이 쓴 문장이 섞일 수 있다.
  */
 export function trackPageView(path?: string) {
-  if (!canSendToGA()) return;
-  window.gtag!('event', 'page_view', {
+  if (typeof window === 'undefined' || !GA_ID) return;
+  // 값은 담는 **지금** 확정한다 — 대기열을 비울 때는 이미 다른 화면일 수 있다
+  // (posthog.ts capturePageView 와 같은 규칙).
+  const payload: GtagEvent = {
     page_path: safePagePath(path),
     // gtag 가 스스로 채우는 `dl`/`dr` 을 매 이벤트마다 덮어쓴다 — config 값은 SPA 이동 후 낡는다.
     page_location: safePageLocation(path),
     ...(safeReferrer() ? { page_referrer: safeReferrer() } : {}),
-  });
+  };
+  if (!hasAnalyticsConsent()) {
+    // 🔴 #1241 후속 (2026-08-07): PostHog capturePageView 는 담는데 GA4 만 버려서
+    //   신규 방문자 랜딩 page_view 가 GA4 에서만 영구 유실됐다 — 발화부(App.tsx)는
+    //   deps [location.pathname] 이라 수락으로 재발화하지 않고, initGA 는
+    //   send_page_view:false 라 수락 시점에도 만들지 않는다. 수락하면 위 구독이
+    //   담은 값 그대로 흘려보낸다.
+    queuePending(GA_SINK, PAGE_VIEW_EVENT, payload as Record<string, unknown>);
+    return;
+  }
+  if (!canSendToGA()) return;
+  window.gtag!('event', PAGE_VIEW_EVENT, payload);
 }
 
 // ── Track Custom Event ──────────────────────────────────────────────────

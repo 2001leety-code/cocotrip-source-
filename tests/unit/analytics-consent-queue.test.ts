@@ -170,3 +170,61 @@ describe('동의 전 퍼널 이벤트는 PostHog 대기열에도 담긴다 (#121
     expect(m.pendingCount('posthog')).toBe(0);
   });
 });
+
+/**
+ * #1241 후속 (2026-08-07): trackPageView 만 대기열이 없었다 — PostHog capturePageView 는
+ * 담는데 GA4 는 `if (!canSendToGA()) return` 으로 버렸다. 발화부(App.tsx useEffect)는
+ * deps [location.pathname] 이라 동의 수락으로 재발화하지 않고 initGA 는 send_page_view:false
+ * 라 수락 시점에도 안 만든다 → 신규 방문자 랜딩 page_view 가 GA4 에서만 영구 유실
+ * (10초 이탈 코호트는 GA4 에 0건).
+ */
+describe('동의 전 GA4 page_view 도 버려지지 않고 대기한다 (#1241 후속)', () => {
+  it('동의 전 trackPageView → 담기고, 수락 시 담을 때 캡처한 경로로 나간다', async () => {
+    const m = await freshModules();
+    m.setConsent('revoked');
+    sent.length = 0;
+
+    m.trackPageView('/planner');
+    expect(sent, '동의 전 전송 금지').toEqual([]);
+    expect(m.pendingCount('ga4'), '버리지 말고 담아야 한다').toBe(1);
+
+    // 수락 시점엔 이미 다른 화면 — 담을 때 캡처한 값이 유지돼야 한다.
+    window.history.pushState({}, '', '/tours');
+    m.setConsent('accepted');
+
+    expect(sent).toHaveLength(1);
+    const [name, params] = sent[0] as [string, Record<string, unknown>];
+    expect(name).toBe('page_view');
+    expect(params.page_path, '담을 때의 경로').toBe('/planner');
+    // 🔴 flush 를 sendToGA 로 태우면 gaUrlParams() 가 **지금** URL(/tours)로 덮어쓴다 —
+    //   담을 때 캡처한 page_location 이 그대로 나가야 한다.
+    expect(String(params.page_location), '캡처 시점 location 유지').toContain('/planner');
+    expect(String(params.page_location)).not.toContain('/tours');
+    expect(m.pendingCount('ga4')).toBe(0);
+  });
+
+  it('거절하면 대기 중이던 page_view 도 버려진다', async () => {
+    const m = await freshModules();
+    m.setConsent('revoked');
+    m.trackPageView('/planner');
+    expect(m.pendingCount('ga4')).toBe(1);
+
+    m.setConsent('dismissed');
+
+    expect(sent.filter((e) => e[0] === 'page_view')).toEqual([]);
+    expect(m.pendingCount('ga4')).toBe(0);
+  });
+
+  it('동의 상태면 평소대로 즉시 나간다 (대기열 미사용)', async () => {
+    const m = await freshModules();
+    m.setConsent('accepted');
+    sent.length = 0;
+
+    m.trackPageView('/guide');
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0]).toBe('page_view');
+    expect((sent[0][1] as Record<string, unknown>).page_path).toBe('/guide');
+    expect(m.pendingCount('ga4')).toBe(0);
+  });
+});
