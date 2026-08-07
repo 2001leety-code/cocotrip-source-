@@ -19,6 +19,8 @@ beforeEach(() => {
   // GA 측정 ID 가 없으면 전송 함수가 애초에 아무것도 안 한다(대기열도 안 쓴다) — 실제 운영과
   // 같은 조건을 만들기 위해 스텁한다.
   vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TESTONLY');
+  // PostHog 키도 마찬가지 — 키가 없으면 track() 이 대기열조차 안 쓰고 빠져나간다.
+  vi.stubEnv('VITE_POSTHOG_KEY', 'phc_testonly');
   vi.resetModules();
   sent.length = 0;
   window.localStorage.clear();
@@ -121,5 +123,50 @@ describe('동의 전 GA4 이벤트는 버려지지 않고 대기한다', () => {
     expect(ok).toBe(true);
     expect(sent.map((e) => e[0])).toEqual(['plan_generated']);
     expect(m.pendingCount('ga4')).toBe(0);
+  });
+});
+
+/**
+ * #1219 (2026-08-07): trackFunnel 이 PostHog 호출을 동의로 미리 막아서, posthog.track()
+ * 내부의 대기열(queuePending)에 아예 도달하지 못했다. 같은 이벤트가 GA4 대기열에는 담기고
+ * PostHog 에는 영영 안 남는 반쪽 유실 — 배너가 1.5초 뒤에 뜨고 promo_view 는 마운트 즉시
+ * 발화하므로 상시 발생. 영향 7종: promo_view·promo_click·promo_dismiss·
+ * welcome_coupon_issued·welcome_coupon_modal_view·planner_complete·free_plan_redeemed.
+ */
+describe('동의 전 퍼널 이벤트는 PostHog 대기열에도 담긴다 (#1219)', () => {
+  it('promo_view: 동의 전 발화 → GA4·PostHog 양쪽 대기열에 담긴다', async () => {
+    const m = await freshModules();
+    m.setConsent('revoked');
+    sent.length = 0;
+
+    m.trackPromoView('top_banner');
+
+    expect(m.pendingCount('ga4'), 'GA4 쪽은 원래 담겼다').toBe(1);
+    // 🔴 수정 전: trackFunnel 의 if (hasAnalyticsConsent()) 가 posthog.track() 호출
+    //   자체를 막아 여기가 0 이었다 — GA4 에만 남는 반쪽 유실.
+    expect(m.pendingCount('posthog'), 'PostHog 대기열에 도달해야 한다').toBe(1);
+  });
+
+  it('charter(noQueue) 퍼널은 양쪽 다 담지 않는다 — 호출부 자체 재시도와 이중 전송 방지', async () => {
+    const m = await freshModules();
+    m.setConsent('revoked');
+    sent.length = 0;
+
+    const ok = m.trackCharterQuoteStart();
+
+    expect(ok, '전송 시도 없음 → false (호출부가 재시도)').toBe(false);
+    expect(m.pendingCount('ga4'), 'noQueue: GA4 대기열 제외').toBe(0);
+    expect(m.pendingCount('posthog'), 'noQueue: PostHog 대기열도 제외 — 담으면 수락 순간 대기열과 호출부가 각각 보낸다').toBe(0);
+  });
+
+  it('거절하면 PostHog 대기분도 함께 버려진다', async () => {
+    const m = await freshModules();
+    m.setConsent('revoked');
+    m.trackPromoView('top_banner');
+    expect(m.pendingCount('posthog')).toBe(1);
+
+    m.setConsent('dismissed');
+
+    expect(m.pendingCount('posthog')).toBe(0);
   });
 });

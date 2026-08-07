@@ -493,14 +493,20 @@ export function trackSignUp(method: string) {
 // 라 수동 track 만 잡힘) → PII 없는 퍼널 이벤트는 두 곳에 이중 전송한다.
 //
 // 반환값 = **이 호출로 어느 한 곳이라도 실제 전송을 시도했는지**. 동의가 없으면 두 경로 모두
-// 조용히 버리므로 false 다. "정확히 1회" 를 지켜야 하는 호출부는 이 값으로 완료 표시를 한다.
+// 대기열로 가거나(기본) 버려지므로(noQueue) false 다. "정확히 1회" 를 지켜야 하는 호출부는
+// 이 값으로 완료 표시를 한다.
 function trackFunnel(eventName: PostHogEventName, params?: GtagEvent, opts?: TrackOptions): boolean {
   const gaSent = trackEvent(eventName, params, opts);     // GA4 (광고 귀속)
-  // PostHog 는 내부에서도 동의를 다시 검사한다. 여기서 미리 보는 이유는 "보냈다" 를
-  // 호출부에 정확히 알려주기 위해서다(비동기라 결과를 기다릴 수 없다).
+  // 🔴 #1219 (2026-08-07): 예전엔 여기서 동의를 미리 보고 posthogTrack 호출 자체를 막았다.
+  //   그러면 posthog.track() 내부의 동의-전 대기열(queuePending)에 도달하지 못해, 같은
+  //   이벤트가 GA4 대기열엔 담기고 PostHog 엔 영영 안 남는 반쪽 유실이 됐다(배너 1.5초
+  //   지연 + promo_view 마운트 즉시 발화라 상시 발생). 이제 항상 호출하고 — 대기열 처리는
+  //   posthog.track() 이 알아서 한다 — phSent(=지금 실제 전송을 시도했는지)만 동의로 판정한다.
+  // ⚠️ noQueue(차터 퍼널)는 호출부가 자체 재시도를 가진다 — posthog track() 엔 opts 가
+  //   없으므로 여기서 걸러야 담김/이중전송을 막는다(GA4 쪽 trackEvent 의 noQueue 와 대칭).
   let phSent = false;
-  if (hasAnalyticsConsent()) {
-    try { void posthogTrack(eventName, params); phSent = true; } catch { /* 분석 실패 무해 */ }
+  if (!opts?.noQueue || hasAnalyticsConsent()) {
+    try { void posthogTrack(eventName, params); phSent = hasAnalyticsConsent(); } catch { /* 분석 실패 무해 */ }
   }
   return gaSent || phSent;
 }
