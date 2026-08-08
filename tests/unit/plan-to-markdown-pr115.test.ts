@@ -13,8 +13,13 @@
  *   4. Markdown 특수문자 escape — | (테이블) 만 처리
  *   5. UTF-8 한글/이모지/일본어/중국어 모두 보존
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { planToMarkdown } from '../../src/pages/PlanDetailPage/lib/planToMarkdown';
+import { loadLocale } from '../../src/i18n';
+
+// 라벨은 planDetail 사전에서 온다 (2026-08-08). ko 는 dynamic import 라 예열이 필요하다
+// — 앱에서는 플랜 화면이 이미 그 언어로 떠 있어 로드돼 있다.
+beforeAll(async () => { await loadLocale('ko'); });
 
 const SAMPLE_PLAN: any = {
   planId: '4792076e-93f2-418d-90e3-1feb1657f5b8',
@@ -115,10 +120,10 @@ describe('planToMarkdown — core structure', () => {
 
   it('includes arrival_guide section with airport label', () => {
     const md = planToMarkdown(SAMPLE_PLAN);
-    expect(md).toContain('## ✈️ 도착 안내 (ICN T1)');
-    expect(md).toContain('1. **입국심사** (30분)');
+    expect(md).toContain('## ✈️ 공항 도착 가이드 (ICN T1)');
+    expect(md).toContain('1. **입국심사** (약 30분)');
     expect(md).toContain('AREX Express');
-    expect(md).toContain('9,500원');
+    expect(md).toContain('₩9,500');
   });
 
   it('renders each day with theme + stops time range', () => {
@@ -132,16 +137,16 @@ describe('planToMarkdown — core structure', () => {
 
   it('renders intercity transit (KTX) with bookend (P111 enrichment)', () => {
     const md = planToMarkdown(SAMPLE_PLAN);
-    expect(md).toContain('### 🚆 도시 간 이동 (서울 → 부산)');
+    expect(md).toContain('### 🚆 도시 간 이동 — KTX (서울 → 부산)');
     expect(md).toContain('**서울역 → 부산역**');
-    expect(md).toContain('출발 시간: 09:00');
-    expect(md).toContain('도착 시간: 11:45');
+    expect(md).toContain('출발 09:00');
+    expect(md).toContain('도착 11:45');
     expect(md).toContain('165분');
-    expect(md).toContain('59,800원');
+    expect(md).toContain('₩59,800');
     expect(md).toContain('https://www.letskorail.com');
     // P111 bookend rendering
-    expect(md).toContain('🛏️→🚆 호텔→서울역');
-    expect(md).toContain('🚆→🛏️ 부산역→호텔');
+    expect(md).toContain('🛏️→🚆 숙소→서울역');
+    expect(md).toContain('🚆→🛏️ 부산역→숙소');
   });
 
   it('falls back to i18n "Station" (not hardcoded Korean 역) when from_station/to_station missing, EN', () => {
@@ -161,20 +166,20 @@ describe('planToMarkdown — core structure', () => {
       },
     };
     const md = planToMarkdown(plan, { language: 'en' });
-    expect(md).toContain('🛏️→🚆 호텔→Station');
-    expect(md).toContain('🚆→🛏️ Station→호텔');
-    expect(md).not.toContain('호텔→역');
-    expect(md).not.toContain('역→호텔');
+    expect(md).toContain('🛏️→🚆 Stay→Station');
+    expect(md).toContain('🚆→🛏️ Station→Stay');
+    expect(md).not.toContain('Stay→역');
+    expect(md).not.toContain('역→Stay');
   });
 
   it('renders departure_guide + budget table + recommended restaurants', () => {
     const md = planToMarkdown(SAMPLE_PLAN);
-    expect(md).toContain('## 🛫 출발 안내 (ICN T1)');
-    expect(md).toContain('## 💰 일별 예산');
-    expect(md).toContain('| Day | Food | Transit | Entry | Total |');
-    expect(md).toContain('| Day 1 | 50,000원 |');
-    expect(md).toContain('T-money 추천 충전액**: 30,000원');
-    expect(md).toContain('## 🍴 추천 식당 (Must-visit)');
+    expect(md).toContain('## 🛫 출발 가이드 (ICN T1)');
+    expect(md).toContain('## 💰 일별 예산 요약');
+    expect(md).toContain('| # | 식사 | 교통 | 입장료 | 합계 |');
+    expect(md).toContain('| 일차 1 | ₩50,000 |');
+    expect(md).toContain('T-money 추천 충전액**: ₩30,000');
+    expect(md).toContain('## 🍴 꼭 가보면 좋은 곳');
     expect(md).toContain('봉피양 평양냉면');
   });
 
@@ -227,8 +232,8 @@ describe('planToMarkdown — graceful degradation', () => {
     expect(md).toContain('## Day 1');
     expect(md).toContain('도시락');
     // No arrival_guide / departure_guide / intercity_transit sections.
-    expect(md).not.toContain('도착 안내');
-    expect(md).not.toContain('출발 안내');
+    expect(md).not.toContain('공항 도착 가이드');
+    expect(md).not.toContain('출발 가이드');
     expect(md).not.toContain('도시 간 이동');
   });
 
