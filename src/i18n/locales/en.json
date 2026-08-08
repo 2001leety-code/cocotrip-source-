@@ -1780,6 +1780,7 @@
       "lastMinuteShopping": "Last-Minute Shopping",
       "budgetSummary": "Daily Budget Summary",
       "budgetDay": "Day",
+      "budgetDayN": "Day {n}",
       "budgetTransport": "Transport",
       "budgetEntry": "Entry",
       "budgetMeals": "Meals",
