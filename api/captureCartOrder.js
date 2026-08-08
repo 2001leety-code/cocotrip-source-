@@ -21,6 +21,7 @@ import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js'
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { notify } from './_shared/notify.js';
 import { buildCartChildBookings } from './_shared/cart-capture.js';
+import { confirmSlotLock, readSlotFields } from './_shared/slot-capacity.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { internalApiBase } from './_shared/internal-base-url.js';
@@ -262,6 +263,50 @@ export default async function handler(req, res) {
       })));
     } else {
       console.error('[captureCartOrder] batch.commit 실패 → booking-processor fan-out 스킵(유령예약 방지), 운영자 admin-replay 필요:', orderID);
+    }
+
+    // 5-1. 🔴 2026-08-08 투어 슬롯 정원 확정 (단건 capturePaypalOrder 형제 경로).
+    //   createCartOrder 가 올려둔 pending 을 confirmed 로 넘긴다. 예약 doc 저장 성공(batchOk)
+    //   뒤에만 — 예약이 없는데 좌석만 차지하면 정원이 영구 오염된다(단건 bookingWriteOk 게이트 동형).
+    //   slot 필드가 없는 라인(차터 등)은 readSlotFields 가 null → 스킵 = 기존 동작.
+    //   실패해도 응답은 성공이다 — 돈은 이미 캡처됐고 예약도 확정됐다. 운영자 알림으로 남긴다.
+    if (batchOk) {
+      for (const line of snapshot.lines) {
+        const slot = readSlotFields(line && line.booking);
+        if (!slot) continue;
+        try {
+          await confirmSlotLock({
+            adminDb: db,
+            tourId: slot.tourId,
+            date: slot.date,
+            slotId: slot.slotId,
+            pax: slot.pax,
+            capacity: slot.capacity,
+            orderId: orderID,
+          });
+          console.log('[captureCartOrder] slot confirmed:', { orderID, tourId: slot.tourId, date: slot.date, slot: slot.slotId, pax: slot.pax });
+        } catch (slotErr) {
+          const code = slotErr.code || 'SLOT_CONFIRM_FAILED';
+          console.error('[captureCartOrder] slot confirm failed:', code, slotErr.message);
+          await throttledTelegramAlert({
+            key: `cart-slot-confirm-${code}`,
+            channel: 'admin',
+            severity: 'critical',
+            message: [
+              '🚨 <b>CART 슬롯 정원 확정 실패 (결제·예약은 완료됨)</b>',
+              `<b>OrderID:</b> <code>${orderID}</code> <b>line:</b> ${line.lineId || '?'}`,
+              `<b>tour:</b> ${slot.tourId}`,
+              `<b>date/slot:</b> ${slot.date} / ${slot.slotId}`,
+              `<b>pax:</b> ${slot.pax} <b>capacity:</b> ${slot.capacity}`,
+              `<b>오류:</b> ${(slotErr.message || '').slice(0, 200)}`,
+              code === 'SLOT_FULL_AT_CAPTURE'
+                ? '🚨 overbooking 가능성 — 운영자 수동 검토 + 환불/조정 결정 필요.'
+                : '슬롯 카운터 불일치. lockfix scripts/admin-slot-rebuild 검토.',
+            ].join('\n'),
+            context: { orderID, lineId: line.lineId || null, tourId: slot.tourId, date: slot.date, slotId: slot.slotId, pax: slot.pax, capacity: slot.capacity, code },
+          }).catch(() => {});
+        }
+      }
     }
 
     // 6. 응답

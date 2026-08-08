@@ -14,6 +14,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { CartItemBooking } from '@/lib/cart-types';
+import { SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
 function getPaypal(): PaypalButtonsApi | undefined {
@@ -93,6 +94,15 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         setTotal({ usd: json.data.usdAmount, krw: json.data.totalKRW });
         setStatus('ready');
         loadSdk();
+      } else if (json.code === 'SLOT_FULL' || json.code === 'DATE_UNAVAILABLE') {
+        // 🔴 슬롯 정원 거절 — 서버 문구는 진단용 영어("Slot full: requested=3, …")라 그대로 보이면 안 된다.
+        //   돈은 아직 안 움직였다(주문 미생성). 장바구니는 여러 항목이라 **어느 항목이** 막혔는지가 핵심 —
+        //   서버가 준 itemIndex 로 그 항목 이름을 앞에 붙인다(PayPalBookingButton 과 같은 라벨 재사용).
+        const sl = SLOT_REJECT_LABELS[lng] || SLOT_REJECT_LABELS.en;
+        const msg = json.code === 'SLOT_FULL' ? sl.SLOT_FULL : sl.DATE_UNAVAILABLE;
+        const blocked = typeof json.itemIndex === 'number' ? items[json.itemIndex] : undefined;
+        setError(blocked ? `${blocked.displayName} — ${msg}` : msg);
+        setStatus('error');
       } else {
         setError(json.error || 'Cart order failed');
         setStatus('error');
