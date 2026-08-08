@@ -48,6 +48,18 @@ const CATEGORY_ICON: Record<string, string> = {
  * ⚠️ 새 i18n 키는 만들지 않았다 — 필요한 값이 4개 로케일에 **이미 전부** 있었다.
  *   폴백은 **영어**로 둔다. 한국어로 두면 사전이 비었을 때 같은 사고가 조용히 재발한다.
  */
+/**
+ * `ui.budgetDayN` — 언어별 어순이 맞는 "N일차" 템플릿(#1264 가 사전에 키를 추가 중).
+ * 아직 그 키가 없는 로케일 스냅샷에서도 어순이 맞도록 언어별 폴백을 둔다.
+ * (`budgetDay` 낱말 + 번호 이어붙이기는 ko/ja 에서 `일차 1`/`日目 1` 처럼 어순이 깨진다.)
+ */
+const BUDGET_DAY_N_FALLBACK: Record<string, string> = {
+  en: 'Day {n}',
+  ko: '{n}일차',
+  ja: '{n}日目',
+  zh: '第{n}天',
+};
+
 function mdLabels(lang: string) {
   const t = getPlanDetailDict(getLocaleSync(lang as Language));
   const ui = (t.ui as Record<string, string> | undefined) || {};
@@ -60,7 +72,7 @@ function mdLabels(lang: string) {
     toAirport: ui.toAirport || 'To Airport',
     schedule: ui.planRouteTimeline || 'Route timeline',
     budget: ui.pdfBudgetSummary || 'Daily Budget Summary',
-    budgetDay: ui.budgetDay || 'Day',
+    budgetDayN: ui.budgetDayN || BUDGET_DAY_N_FALLBACK[lang] || BUDGET_DAY_N_FALLBACK.en,
     budgetMeals: ui.budgetMeals || 'Meals',
     budgetTransport: ui.budgetTransport || 'Transport',
     budgetEntry: ui.budgetEntry || 'Entry',
@@ -97,16 +109,13 @@ function krw(n: unknown): string {
 }
 
 /**
- * 예산 표의 '일차' 칸.
- *
- * ⚠️ `ui.budgetDay` 는 로케일마다 모양이 다르다 — en/ko/ja 는 낱말(`Day`·`일차`·`日目`)인데
- *   **zh 만 자리표시자 템플릿(`第{n}天`)** 이다. 그래서 이 값은 **열 이름으로 쓸 수 없다**
- *   (중국어 손님에게 `第{n}天` 이 그대로 보인다). 값을 칸에 넣고 번호를 채워 쓴다.
- *   → 열 이름은 언어 무관 기호 `#`.
+ * 예산 표의 '일차' 칸. `L.budgetDayN` 은 항상 `{n}` 자리표시자 템플릿이라(사전에 있든
+ * 언어별 폴백이든) 어순 걱정 없이 치환만 하면 된다 — en `Day 1`, ko `1일차`,
+ * ja `1日目`, zh `第1天`. 열 이름은 언어 무관 기호 `#`.
  */
 function dayCell(L: MdLabels, n: unknown): string {
   const v = n == null ? '?' : String(n);
-  return L.budgetDay.includes('{n}') ? L.budgetDay.replace('{n}', v) : `${L.budgetDay} ${v}`;
+  return L.budgetDayN.replace('{n}', v);
 }
 
 /** 추천 식당 버킷 이름 — 사전 값이 있으면 쓰고 없으면 원본 키. */

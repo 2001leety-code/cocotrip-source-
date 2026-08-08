@@ -177,7 +177,7 @@ describe('planToMarkdown — core structure', () => {
     expect(md).toContain('## 🛫 출발 가이드 (ICN T1)');
     expect(md).toContain('## 💰 일별 예산 요약');
     expect(md).toContain('| # | 식사 | 교통 | 입장료 | 합계 |');
-    expect(md).toContain('| 일차 1 | ₩50,000 |');
+    expect(md).toContain('| 1일차 | ₩50,000 |');
     expect(md).toContain('T-money 추천 충전액**: ₩30,000');
     expect(md).toContain('## 🍴 꼭 가보면 좋은 곳');
     expect(md).toContain('봉피양 평양냉면');

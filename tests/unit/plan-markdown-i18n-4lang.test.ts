@@ -181,6 +181,15 @@ describe('planToMarkdown — 라벨이 손님 언어를 따른다', () => {
     expect(planToMarkdown(PLAN_NO_HANGUL, { language: 'en' })).toContain('| Day 1 |');
   });
 
+  it('🔴 예산표 일차 칸 어순이 언어마다 자연스럽다 (ko/ja 는 번호가 앞에 온다)', () => {
+    // `일차 1`/`日目 1` 은 낱말 뒤에 번호를 붙인 어순 오류 — 자연스러운 표현은
+    // `1일차`/`1日目` 처럼 번호가 앞에 온다. en/zh 는 원래도 맞는 어순이었다.
+    expect(planToMarkdown(PLAN_NO_HANGUL, { language: 'en' })).toContain('| Day 1 |');
+    expect(planToMarkdown(PLAN_NO_HANGUL, { language: 'ko' })).toContain('| 1일차 |');
+    expect(planToMarkdown(PLAN_NO_HANGUL, { language: 'ja' })).toContain('| 1日目 |');
+    expect(planToMarkdown(PLAN_NO_HANGUL, { language: 'zh' })).toContain('| 第1天 |');
+  });
+
   it('🔴 사전이 아직 안 실린 순간의 폴백은 **영어**다 (한국어 아님)', async () => {
     // 예전 구현의 폴백은 라벨 자체가 한국어 하드코딩이었다 — 사전이 비면 전 언어 손님이
     // 한글을 받았다. 지금은 사전이 비어도 영어로 떨어져야 한다.
