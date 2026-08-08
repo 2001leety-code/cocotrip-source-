@@ -5,7 +5,7 @@
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
-import { confirmSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
+import { confirmSlotLock, fetchServerSlotCapacity, readSlotFields } from './_shared/slot-capacity.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import {
@@ -97,6 +97,11 @@ export default async function handler(req, res) {
     //
     // P108 (2026-05-20): tourId/tourSlotId/bookingDate/slotCapacity 도 추출 —
     // 슬롯 capacity confirm 용. createPaypalOrder 의 pre-lock 과 짝.
+    //
+    // 🔴 2026-08-09 (F2): 이 body 슬롯 필드는 **더 이상 confirm 의 근거가 아니다.** 슬롯 확정은
+    //   create 가 저장한 스냅샷 바인딩(_snapSlot)만 쓴다. 여기서 계속 읽는 이유는 두 가지뿐이다:
+    //   (1) 클라가 "슬롯 예약" 이라 주장했는데 바인딩이 없는 상태를 운영자에게 알리기 위한 신호,
+    //   (2) 그 알림에 클라가 무엇을 주장했는지 담아 진단 가능하게 하기 위해서.
     let { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode,
       tourId, tourSlotId, bookingDate, slotCapacity,
       // 2026-06-30 트립닷컴식 예약정보 — 결제 직전 약관 동의 메타데이터(컴플라이언스 추적용). SMS 본인인증 제거 운영자.
@@ -152,8 +157,14 @@ export default async function handler(req, res) {
     //   위조 불가" 였다. 그것은 PayPal **내부** 일관성에만 참이고, "이 order 가 우리 서버 견적에서
     //   났는가 / currency 가 예상과 같은가" 라는 merchant invariant 는 보장하지 않는다.
     //   → snapshot 의 expectedUSD 를 아래 capture 검증에 사용한다 (createPaypalOrder 가 이미 저장 중).
+    //
+    // 🔴 F2 (2026-08-09) 슬롯 바인딩: 어떤 투어/슬롯/날짜/인원을 **결제했는지** 는 create 가
+    //   pre-lock 성공 시 스냅샷에 남긴 slotBooking 이 유일한 근거다. capture body 의 같은 필드는
+    //   create 가 잠근 슬롯과 아무 것에도 묶여 있지 않아, 바꿔 보내면 (a) 결제하지 않은 슬롯이
+    //   confirmed 되고 (b) 결제한 슬롯의 pending 은 sweep 으로 풀려 무제한 오버부킹이 됐다.
     let _snapExpectedUSD = null;
     let _snapEstimateConsent = null;
+    let _snapSlotBooking = null;
     try {
       const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
       if (_snapDb) {
@@ -167,12 +178,19 @@ export default async function handler(req, res) {
           // 🔴 P0-2: 추정가 정산조건 동의는 **주문 생성 시점에 서버가 만든 기록**만 신뢰한다.
           //   capture body 로 받지 않는다 — 받으면 결제 직전에 위조로 채워 넣을 수 있다.
           if (_s.estimateConsent) _snapEstimateConsent = _s.estimateConsent;
+          // 🔴 F2: 슬롯 확정의 유일한 근거. 없으면 아래에서 confirm 을 포기한다(body 로 대체 금지).
+          if (_s.slotBooking) _snapSlotBooking = _s.slotBooking;
           console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType, hasExpectedUSD: _snapExpectedUSD != null });
         }
       }
     } catch (_snapErr) {
       console.warn('[capturePaypalOrder] order snapshot read failed (graceful, body 유지):', _snapErr.message);
     }
+    // 5필드 전부 갖춘 바인딩만 통과(cart 형제 경로와 같은 헬퍼 — 반쪽 잠금 금지). 없으면 null.
+    const _snapSlot = readSlotFields(_snapSlotBooking);
+    // 클라가 슬롯 예약이라 주장했는가 — 바인딩이 없을 때 "비슬롯 상품(정상)" 과 "바인딩 유실/위조"
+    // 를 구분하는 신호로만 쓴다. 이 값이 confirm 인자로 흘러가면 안 된다.
+    const _bodyClaimsSlot = !!(tourId && tourSlotId && bookingDate);
 
     // PR #433 (Audit Y-H10 — 2026-05-16): AI Planner = 디지털 상품 → 쿠폰/프로모
     // reject. 이전엔 createPaypalOrder.js 만 검증해서 product='ai_planner_full'
@@ -459,7 +477,10 @@ export default async function handler(req, res) {
             productType: product || '', tourDate: tourDate || '', tourTime: tourTime || '',
             paxCount: paxCount || 0, pickupLocation: pickupLocation || '', dropoffLocation: dropoffLocation || '',
             vehicleType: vehicleType || '', airport: airport || null,
-            tourId: tourId || null, tourSlotId: tourSlotId || null, bookingDate: bookingDate || null,
+            // 🔴 F2: 운영자 해결 화면은 **결제된** 슬롯을 봐야 한다 — body 주장이 아니라 스냅샷 바인딩.
+            tourId: (_snapSlot && _snapSlot.tourId) || null,
+            tourSlotId: (_snapSlot && _snapSlot.slotId) || null,
+            bookingDate: (_snapSlot && _snapSlot.date) || null,
           },
         });
         _reviewRecorded = true;
@@ -678,53 +699,58 @@ export default async function handler(req, res) {
     // 멱등 처리한다. Capture 함수 종료와 함께 후속 작업이 사라지는 경로를 없앤다.
 
     // P108 (2026-05-20): 슬롯 capacity confirm — bookings doc 저장 성공 후 pending
-    // → confirmed 전환. body 에 4 필드 모두 있어야 함 (createPaypalOrder 와 동일).
-    // 실패해도 booking 자체는 이미 confirmed (결제 완료) — alert 만 발사, throw X.
+    // → confirmed 전환. 실패해도 booking 자체는 이미 confirmed (결제 완료) — alert 만 발사, throw X.
     // 슬롯 lock 만료 + 다른 confirmed 가 채워졌으면 SLOT_FULL_AT_CAPTURE — 운영자가
     // overbooking 발생 사실 인지하고 수동 환불/조정 결정. payment refund 자동 X
     // (운영자 정책: 결제 일단 받고 운영자가 사후 처리).
-    if (bookingWriteOk && tourId && tourSlotId && bookingDate && Number.isFinite(Number(slotCapacity)) && Number(slotCapacity) > 0 && Number(paxCount) > 0) {
+    //
+    // 🔴 2026-08-09 (F2): 게이트가 **스냅샷 바인딩(_snapSlot)** 이다. 이전엔 body 4필드였고,
+    //   create 가 잠근 슬롯과 묶여 있지 않아 capture 때 값을 갈아끼우면 결제하지 않은 슬롯이
+    //   확정되고 결제한 슬롯은 sweep 으로 풀렸다. cart 형제 경로(captureCartOrder)는 이미
+    //   cart_orders 스냅샷 라인에서 readSlotFields 로 읽는다 — 같은 계약을 단건에도 맞춘다.
+    if (bookingWriteOk && _snapSlot) {
       try {
         const db = initAdminDb('capturePaypalOrder.slotConfirm');
         if (db) {
-          // 🔴 2026-08-08 서버 정원 재확인 — body.slotCapacity 는 capture-time 클라이언트 출처.
-          //   pending 이 만료된 주문은 confirmSlotLock 이 이 값으로 SLOT_FULL_AT_CAPTURE 재검증을
-          //   하므로 부풀린 정원이면 재검증이 무력화된다. create 경로(#1258)와 같은 원본
-          //   tours/{tourId}.slots[] 로 재확인. 단 여기는 돈이 이미 빠진 뒤 — 응답을 깨는
-          //   fail-closed 금지: 결정적 거부(위조 투어/슬롯·꺼짐·정원 미설정)는 confirm 을 포기하고
-          //   아래 catch 의 텔레그램 알림 경로로만 보낸다. Firestore 조회 장애(throw)는 body 값으로
-          //   후퇴 — create 와 동일 정책(오늘까지의 신뢰모델보다 나빠지지 않는다).
-          let effectiveCapacity = Number(slotCapacity);
+          // 🔴 2026-08-08 서버 정원 재확인 — 스냅샷 정원조차 그대로 믿지 않는다(create 이후
+          //   운영자가 정원을 줄였을 수 있다). pending 이 만료된 주문은 confirmSlotLock 이 이 값으로
+          //   SLOT_FULL_AT_CAPTURE 재검증을 하므로 과대 정원이면 재검증이 무력화된다. create
+          //   경로(#1258)와 같은 원본 tours/{tourId}.slots[] 로 재확인 — 단 **어느 슬롯을**
+          //   재확인할지는 스냅샷 바인딩이 정한다(F2: body 가 정하면 공격자가 고른 슬롯을 검증한다).
+          //   여기는 돈이 이미 빠진 뒤 — 응답을 깨는 fail-closed 금지: 결정적 거부(삭제된 투어/슬롯·
+          //   꺼짐·정원 미설정)는 confirm 을 포기하고 아래 catch 의 텔레그램 알림 경로로만 보낸다.
+          //   Firestore 조회 장애(throw)만 **스냅샷 정원**(= create 시 서버가 검증한 값)으로 후퇴한다.
+          let effectiveCapacity = _snapSlot.capacity;
           let verified = null;
           try {
-            verified = await fetchServerSlotCapacity({ adminDb: db, tourId, slotId: tourSlotId });
+            verified = await fetchServerSlotCapacity({ adminDb: db, tourId: _snapSlot.tourId, slotId: _snapSlot.slotId });
           } catch (verifyErr) {
-            console.warn('[capturePaypalOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message);
+            console.warn('[capturePaypalOrder] slot capacity verify failed — 스냅샷 정원으로 후퇴:', verifyErr.message);
           }
           if (verified) {
             if (!verified.ok) {
               console.warn('[capturePaypalOrder] slot capacity verify rejected:', verified.code,
-                { tourId, slot: tourSlotId, bodyCapacity: effectiveCapacity });
+                { tourId: _snapSlot.tourId, slot: _snapSlot.slotId, snapshotCapacity: effectiveCapacity });
               const e = new Error(`slot capacity verify rejected at capture: ${verified.code}`);
               e.code = verified.code;
               throw e;
             }
             if (verified.capacity !== effectiveCapacity) {
               console.warn('[capturePaypalOrder] slot capacity mismatch — 서버 값 사용:',
-                { tourId, slot: tourSlotId, bodyCapacity: effectiveCapacity, serverCapacity: verified.capacity });
+                { tourId: _snapSlot.tourId, slot: _snapSlot.slotId, snapshotCapacity: effectiveCapacity, serverCapacity: verified.capacity });
             }
             effectiveCapacity = verified.capacity;
           }
           await confirmSlotLock({
             adminDb: db,
-            tourId,
-            date: bookingDate,
-            slotId: tourSlotId,
-            pax: Number(paxCount),
+            tourId: _snapSlot.tourId,
+            date: _snapSlot.date,
+            slotId: _snapSlot.slotId,
+            pax: _snapSlot.pax,
             capacity: effectiveCapacity,
             orderId: orderID,
           });
-          console.log('[capturePaypalOrder] slot confirmed:', { tourId, date: bookingDate, slot: tourSlotId, pax: paxCount });
+          console.log('[capturePaypalOrder] slot confirmed:', { tourId: _snapSlot.tourId, date: _snapSlot.date, slot: _snapSlot.slotId, pax: _snapSlot.pax });
         }
       } catch (slotErr) {
         const code = slotErr.code || 'SLOT_CONFIRM_FAILED';
@@ -739,16 +765,40 @@ export default async function handler(req, res) {
             `⚠️ <b>슬롯 confirm 실패 (결제 완료 후) — ${code}</b>`,
             ``,
             `<b>OrderID:</b> <code>${orderID}</code>`,
-            `<b>tourId:</b> ${tourId}`,
-            `<b>date/slot:</b> ${bookingDate} / ${tourSlotId}`,
-            `<b>pax:</b> ${paxCount} <b>capacity:</b> ${slotCapacity}`,
+            `<b>tourId:</b> ${_snapSlot.tourId}`,
+            `<b>date/slot:</b> ${_snapSlot.date} / ${_snapSlot.slotId}`,
+            `<b>pax:</b> ${_snapSlot.pax} <b>capacity:</b> ${_snapSlot.capacity}`,
             `<b>오류:</b> ${slotErr.message?.slice(0, 200)}`,
             ``,
             `${code === 'SLOT_FULL_AT_CAPTURE' ? '🚨 overbooking 가능성 — 운영자 수동 검토 + 환불/조정 결정 필요.' : '슬롯 카운터 불일치. lockfix scripts/admin-slot-rebuild 검토.'}`,
           ].join('\n'),
-          context: { orderID, tourId, bookingDate, tourSlotId, paxCount, slotCapacity, code },
+          context: { orderID, tourId: _snapSlot.tourId, bookingDate: _snapSlot.date, tourSlotId: _snapSlot.slotId, paxCount: _snapSlot.pax, slotCapacity: _snapSlot.capacity, code },
         }).catch(() => {});
       }
+    } else if (bookingWriteOk && _bodyClaimsSlot) {
+      // 🔴 F2 fail-closed(슬롯 한정): 클라는 슬롯 예약이라 하는데 create 스냅샷에 바인딩이 없다.
+      //   원인은 둘 중 하나다 — (a) capture body 위조/스냅샷 없는 레거시·클라 직접 주문,
+      //   (b) 이 배포 **직전** 에 만들어져 바인딩 없이 저장된 in-flight 주문.
+      //   어느 쪽이든 body 값으로 좌석을 확정하지 않는다(그게 이 버그의 본체였다). 대신 결제·예약은
+      //   그대로 두고(돈은 이미 빠졌다) 운영자에게 알린다 — pending 은 sweep 으로 풀리므로
+      //   (b) 인 경우 운영자가 좌석을 수동 확정해야 한다.
+      console.warn('[capturePaypalOrder] slot confirm 스킵 — 스냅샷 슬롯 바인딩 없음 (body 신뢰 금지):',
+        { orderID, bodyTourId: tourId, bodySlot: tourSlotId, bodyDate: bookingDate });
+      throttledTelegramAlert({
+        key: 'slot-confirm-SLOT_SNAPSHOT_MISSING',
+        channel: 'admin',
+        severity: 'high',
+        message: [
+          '⚠️ <b>슬롯 confirm 스킵 — 주문 스냅샷에 슬롯 바인딩 없음 (SLOT_SNAPSHOT_MISSING)</b>',
+          ``,
+          `<b>OrderID:</b> <code>${orderID}</code>`,
+          `<b>클라 주장:</b> ${tourId} / ${bookingDate} / ${tourSlotId} (pax ${paxCount}, capacity ${slotCapacity})`,
+          ``,
+          '→ 결제·예약은 확정됨. 좌석만 미확정 — capture body 는 신뢰하지 않는다(위조 가능).',
+          '→ 배포 직전 생성된 in-flight 주문이면 좌석 수동 확정 필요. 아니면 위조 시도.',
+        ].join('\n'),
+        context: { orderID, code: 'SLOT_SNAPSHOT_MISSING', bodyTourId: tourId || null, bodyTourSlotId: tourSlotId || null, bodyBookingDate: bookingDate || null },
+      }).catch(() => {});
     }
 
     // 2.5 쿠폰 처리 — PR #427 이후 capture 전 pre-lock 으로 이동됨 (section 1.6).

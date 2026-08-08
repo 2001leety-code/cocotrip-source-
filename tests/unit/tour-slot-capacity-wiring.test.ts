@@ -244,9 +244,14 @@ describe('서버 정원 재확인 배선 — capturePaypalOrder confirm (소스 
     expect(capture.slice(verify, confirm)).not.toContain('res.writeHead');
   });
 
-  it('Firestore 조회 장애만 body 값으로 후퇴한다 (create 경로와 동일 정책)', () => {
+  // 🔄 F2 (2026-08-09): 후퇴 대상이 body → **스냅샷 정원**(create 시 서버가 재확인한 값)으로 바뀌었다.
+  //   confirm 자체가 create 스냅샷 바인딩에 묶였으므로, 조회 장애 때 body 로 후퇴하면 클라 값이
+  //   좌석 회계로 다시 들어온다. 계약의 뜻은 그대로 — 조회 장애만 후퇴, 결정적 거부는 confirm 포기.
+  //   (slot-capture-snapshot-binding.test.ts 가 이 후퇴 동작을 행위로 증명한다.)
+  it('Firestore 조회 장애만 스냅샷 정원으로 후퇴한다 (body 값 재유입 금지)', () => {
     const verify = capture.indexOf('await fetchServerSlotCapacity(');
-    expect(capture.indexOf('body 값으로 후퇴', verify), '후퇴 분기 없음').toBeGreaterThan(-1);
+    expect(capture.indexOf('스냅샷 정원으로 후퇴', verify), '후퇴 분기 없음').toBeGreaterThan(-1);
+    expect(capture).not.toMatch(/effectiveCapacity = Number\(slotCapacity\)/);
   });
 });
 
