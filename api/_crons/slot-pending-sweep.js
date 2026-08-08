@@ -5,8 +5,10 @@
  * email-retry-sweep (PR #439 / P63).
  *
  * Vercel cron 5분 간격 호출. tour_availability/{tourId}/dates/{date} 의
- * slot_pending 맵에서 expiresAt 지난 항목을 제거. confirmed 는 영향 X — pending
- * 카운터만 정리.
+ * slot_pending 맵에서 expiresAt 지난 항목을 무력화(count 0 tombstone). confirmed 는
+ * 영향 X — pending 카운터만 정리. 키를 실제로 지우지는 않는다(Firestore merge 가 중첩
+ * 키를 못 지운다 — slot-capacity.js sweepExpiredPending 헤더 참조). 이미 무력화된
+ * 엔트리는 다시 세지 않으므로 정리가 끝난 doc 은 swept 0 = 쓰기 0 으로 수렴한다.
  *
  * 호출 패턴:
  *   1. collectionGroup('dates') 로 모든 tour_availability 의 dates 하위 doc 조회

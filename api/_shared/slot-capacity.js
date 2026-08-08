@@ -54,6 +54,18 @@ export function isPendingExpired(entry, now = Date.now()) {
 }
 
 /**
+ * slot_pending[slotId] 가 **옛 단일 엔트리**(슬롯 루트에 count/expiresAt 직접 보유)
+ * 인지 판별. 정규화가 이 경우 루트를 우선 읽으므로, 루트를 고쳐야 하는 쪽
+ * (sweepExpiredPending)도 같은 기준을 써야 한다 — 판별 규칙 SSOT.
+ * @param {*} slotPendingForSlot
+ * @returns {boolean}
+ */
+function looksLegacySingleEntry(slotPendingForSlot) {
+  return typeof slotPendingForSlot?.count === 'number'
+    || typeof slotPendingForSlot?.expiresAt === 'string';
+}
+
+/**
  * slot_pending[slotId] 값을 orderId→{count,expiresAt} 맵으로 정규화.
  * 하위호환: 옛 단일 엔트리({count,expiresAt,orderId}) 는 단일 orderId 키 맵으로
  * 변환. orderId 미보유 옛 엔트리는 LEGACY_ENTRY_KEY 로 보존. 신규 맵 구조는
@@ -64,11 +76,7 @@ export function isPendingExpired(entry, now = Date.now()) {
  */
 export function normalizeSlotPendingEntry(slotPendingForSlot) {
   if (!slotPendingForSlot || typeof slotPendingForSlot !== 'object') return {};
-  // 옛 단일 엔트리 판별: count/expiresAt 를 직접 보유(=값이 숫자/문자열).
-  const looksLegacySingle =
-    typeof slotPendingForSlot.count === 'number'
-    || typeof slotPendingForSlot.expiresAt === 'string';
-  if (looksLegacySingle) {
+  if (looksLegacySingleEntry(slotPendingForSlot)) {
     const key = typeof slotPendingForSlot.orderId === 'string' && slotPendingForSlot.orderId
       ? slotPendingForSlot.orderId
       : LEGACY_ENTRY_KEY;
@@ -364,7 +372,9 @@ export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
  * 구현 메모 — 엔트리를 지우는 대신 **만료 처리(count 0 + 과거 expiresAt)** 한다.
  *   Firestore `set(..., {merge:true})` 는 중첩 맵을 깊게 병합하므로 JS 객체에서 키를
  *   빼도 문서에서는 안 지워진다. 반면 만료 표시는 병합으로 확실히 덮이고,
- *   summarizeSlot 이 곧바로 0 으로 세며, 실제 삭제는 sweepExpiredPending(cron)이 맡는다.
+ *   summarizeSlot 이 곧바로 0 으로 센다. cron(sweepExpiredPending)도 같은 이유로 같은
+ *   tombstone 을 쓴다 — **키를 실제로 지우는 경로는 없다**(지운 척하면 cron 이 영원히
+ *   재기록한다). 남은 tombstone 은 집계 0 이라 정원에 영향이 없다.
  *   읽기가 필요 없는 상수 쓰기라 트랜잭션도 필요 없다(다른 주문 엔트리는 건드리지 않음).
  * 🔴 slot_bookings(확정석)은 절대 만지지 않는다 — 해제는 pending 전용.
  *
@@ -386,41 +396,63 @@ export async function releaseSlotLock({ adminDb, tourId, date, slotId, orderId, 
 }
 
 /**
- * 만료된 pending 정리 (cron 호출). 한 doc 의 모든 slot_pending 을 검사,
- * expiresAt 지난 항목 제거. confirmed 는 영향 X.
+ * 만료된 pending 무력화 (cron 호출). 한 doc 의 모든 slot_pending 을 검사해
+ * expiresAt 지난 엔트리를 releaseSlotLock 과 같은 **tombstone**(count 0 + 과거
+ * expiresAt)으로 덮는다. confirmed(slot_bookings)는 영향 X.
+ *
+ * 🔴 지우지 않고 덮는 이유 — Firestore `set(..., {merge:true})` 는 중첩 맵을 깊게
+ * 병합한다. 예전 구현처럼 "만료 엔트리를 뺀 맵"을 써도 문서에서는 그 키가 그대로
+ * 남아, 5분 cron 이 같은 doc 을 영원히 다시 sweep 했다(쓰기 무한 반복 + doc 성장,
+ * swept 가 0 으로 수렴 못 함). 슬롯 값을 merge:false 로 통째 치환하면 트랜잭션이
+ * 읽은 뒤 들어온 다른 주문의 pending 을 날릴 수 있어 더 위험하다.
+ * 실제 키 삭제는 하지 않는다 — 무력화된 tombstone 은 문서에 남되 집계는 0 이다
+ * (summarizeSlot 이 만료 엔트리를 이미 제외 — 이 함수는 정원 계산을 바꾸지 않는다).
+ *
+ * swept = **이번 호출에서 새로 무력화한 양수 엔트리 수**. 이미 count 0 인
+ * tombstone 은 세지 않으므로 두 번째 호출은 swept 0 = 쓰기도 없음(수렴).
  *
  * @param {object} args
  * @param {object} args.adminDb
  * @param {string} args.tourId
  * @param {string} args.date
  * @param {Date}   [args.now]
- * @returns {Promise<{ ok: true, swept: number }>}  swept = 제거된 slot 수
+ * @returns {Promise<{ ok: true, swept: number }>}
  */
 export async function sweepExpiredPending({ adminDb, tourId, date, now }) {
   const nowMs = (now instanceof Date ? now.getTime() : Date.now());
   const ref = adminDb.doc(`tour_availability/${tourId}/dates/${date}`);
+  const tombstone = { count: 0, expiresAt: new Date(nowMs - 1000).toISOString() };
 
   return adminDb.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return { ok: true, swept: 0 };
     const data = snap.data();
     const rawPending = data.slot_pending || {};
-    // 버그#18: slot_pending[slotId] 가 orderId 별 엔트리 맵이 됐으므로 슬롯
-    // 단위가 아니라 orderId 엔트리 단위로 만료 검사. 옛 단일 엔트리도
-    // normalizeSlotPendingEntry 로 동일 처리. swept = 만료된 엔트리(주문) 수.
+    // 버그#18: slot_pending[slotId] 가 orderId 별 엔트리 맵이므로 슬롯 단위가 아니라
+    // orderId 엔트리 단위로 검사. 옛 단일 엔트리도 normalizeSlotPendingEntry 로 동일 처리.
     let swept = 0;
     const next = {};
     for (const [slotId, slotVal] of Object.entries(rawPending)) {
       const entries = normalizeSlotPendingEntry(slotVal);
-      const kept = {};
+      const nextEntries = {};
+      let slotSwept = 0;
       for (const [eid, entry] of Object.entries(entries)) {
-        if (isPendingExpired(entry, nowMs)) {
-          swept += 1;
+        // 활성 엔트리 · 이미 무력화된 tombstone(count<=0) 은 원본 그대로 둔다.
+        if (!isPendingExpired(entry, nowMs) || Number(entry?.count || 0) <= 0) {
+          nextEntries[eid] = entry;
           continue;
         }
-        kept[eid] = entry;
+        slotSwept += 1;
+        nextEntries[eid] = { ...tombstone };
       }
-      if (Object.keys(kept).length > 0) next[slotId] = kept;
+      if (Object.keys(nextEntries).length === 0) continue;
+      swept += slotSwept;
+      // 옛 단일 엔트리는 슬롯 **루트**에 count/expiresAt 이 있고 정규화가 루트를
+      // 우선 읽는다 → 중첩 tombstone 만 써서는 다음 tick 에 또 만료 양수로 읽혀
+      // 수렴하지 않는다. 루트도 같이 무력화한다.
+      next[slotId] = slotSwept > 0 && looksLegacySingleEntry(slotVal)
+        ? { ...nextEntries, ...tombstone }
+        : nextEntries;
     }
     if (swept === 0) return { ok: true, swept: 0 };
 
