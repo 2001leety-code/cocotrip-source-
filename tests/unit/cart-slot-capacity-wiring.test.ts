@@ -213,6 +213,42 @@ describe('createCartOrder 배선 (소스 잠금)', () => {
   });
 });
 
+describe('서버 정원 재확인 배선 — createCartOrder (소스 잠금, 2026-08-08, 단건 경로와 동시 수리)', () => {
+  // booking.slotCapacity 는 클라이언트 출처 — 원본 tours/{tourId}.slots[] 재조회로 교체.
+  // 단건 형제 경로는 tour-slot-capacity-wiring.test.ts 가 같은 계약을 잠근다.
+  const cart = src('api/createCartOrder.js');
+
+  it('공유 헬퍼 fetchServerSlotCapacity 를 라인 잠금 **전**에 호출한다 (사본 금지)', () => {
+    expect(cart).toMatch(/import \{[^}]*fetchServerSlotCapacity[^}]*\} from '\.\/_shared\/slot-capacity\.js'/);
+    const verify = cart.indexOf('await fetchServerSlotCapacity(');
+    const acquire = cart.indexOf('await acquireSlotLock(');
+    expect(verify, '서버 재확인 호출 없음').toBeGreaterThan(-1);
+    expect(acquire).toBeGreaterThan(-1);
+    expect(verify, '검증이 잠금보다 뒤면 부풀린 정원으로 잠근다').toBeLessThan(acquire);
+  });
+
+  it('🔴 잠금 정원 = 서버 검증값 + 스냅샷 booking 에 되쓴다 (captureCartOrder confirm 도 같은 값)', () => {
+    expect(cart).toMatch(/capacity: effectiveCapacity/);
+    expect(cart).not.toMatch(/capacity: slot\.capacity/);
+    const writeback = cart.indexOf('.booking.slotCapacity = verified.capacity');
+    const snapshot = cart.indexOf("collection('cart_orders')");
+    expect(writeback, '검증값을 스냅샷 booking 에 안 되쓴다').toBeGreaterThan(-1);
+    expect(snapshot).toBeGreaterThan(-1);
+    expect(writeback, '되쓰기가 스냅샷 저장 뒤면 capture 가 클라 값을 본다').toBeLessThan(snapshot);
+  });
+
+  it('검증 실패는 잡아둔 앞 라인 잠금을 되돌리고 주문 불성립 (itemIndex 포함)', () => {
+    const verify = cart.indexOf('await fetchServerSlotCapacity(');
+    const reject = cart.indexOf('slot capacity verify rejected', verify);
+    expect(reject, 'fail-closed 거부 경로 없음').toBeGreaterThan(-1);
+    expect(cart).toContain('releaseAcquiredSlotLocks(verified.code)');
+  });
+
+  it('알려진 한계 주석이 사라졌다 (클라 정원 신뢰모델 해소 — 문서가 현실과 어긋나면 안 된다)', () => {
+    expect(cart).not.toContain('정원을 부풀린 요청은 막지 못한다');
+  });
+});
+
 describe('captureCartOrder 배선 (소스 잠금)', () => {
   const cap = src('api/captureCartOrder.js');
 
