@@ -15,7 +15,7 @@ import { featureEnabled } from './_shared/feature-flag.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { computeCartTotalKrw } from './_shared/resolve-line-item.js';
-import { acquireSlotLock, releaseSlotLock, readSlotFields } from './_shared/slot-capacity.js';
+import { acquireSlotLock, releaseSlotLock, readSlotFields, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -102,9 +102,8 @@ export default async function handler(req, res) {
     //   슬롯 없는 상품(차터 등)은 readSlotFields 가 null → 자동 스킵 = 기존 동작 그대로.
     //   금액은 위 computeCartTotalKrw 가 이미 확정했다 — 이 블록은 금액을 만지지 않는다.
     //   confirm(pending → confirmed)은 captureCartOrder 가 결제 확정 후 수행.
-    // ⚠️ 알려진 한계: slotCapacity 출처가 클라이언트다(단건 createPaypalOrder 도 body.slotCapacity 를
-    //   그대로 쓴다 — 동일 신뢰모델). 정원을 부풀린 요청은 막지 못한다. 서버 측 tours/{id} 조회로
-    //   capacity 를 재확인하려면 두 경로를 **같이** 고쳐야 한다(한쪽만 고치면 형제 경로가 남는다).
+    //   booking.slotCapacity 는 "슬롯 상품이다" 신호로만 쓰고, 잠금 기준 정원은 아래에서
+    //   서버가 tours/{tourId} 원본으로 재확인한다(2026-08-08 — 단건 createPaypalOrder 와 동시 수리).
     const slotDb = initAdminDb('createCartOrder-slots');
     for (let i = 0; i < computed.lines.length; i++) {
       const slot = readSlotFields(computed.lines[i].booking);
@@ -112,6 +111,34 @@ export default async function handler(req, res) {
       if (!slotDb) {
         console.warn('[createCartOrder] slot pre-lock SKIPPED — adminDb unavailable. line:', i, 'tour:', slot.tourId);
         continue;
+      }
+      // 🔴 2026-08-08 서버 정원 재확인 — booking.slotCapacity 는 클라이언트 출처라 부풀릴 수 있다.
+      //   원본 tours/{tourId}.slots[] 재조회 값으로만 잠근다(미설정 슬롯 = maxPax 폴백).
+      //   결정적 검증 실패 = 주문 불성립(앞 라인 잠금 롤백 후 거부). Firestore 조회 장애(throw)만
+      //   body 값으로 후퇴 — 오늘까지의 신뢰모델보다 나빠지지 않는다. 검증값은 라인 booking 에
+      //   되써서 cart_orders 스냅샷·captureCartOrder(confirmSlotLock)도 같은 값을 쓰게 한다.
+      //   형제 경로 createPaypalOrder.js 도 같은 검증(한쪽만 고침 금지 — 각 wiring 테스트가 잠근다).
+      let effectiveCapacity = slot.capacity;
+      try {
+        const verified = await fetchServerSlotCapacity({ adminDb: slotDb, tourId: slot.tourId, slotId: slot.slotId });
+        if (!verified.ok) {
+          await releaseAcquiredSlotLocks(verified.code);
+          console.warn('[createCartOrder] slot capacity verify rejected:', verified.code,
+            '| itemIndex:', i, '| tour:', slot.tourId, '| slot:', slot.slotId, '| bodyCapacity:', slot.capacity);
+          res.writeHead(409, JSON_CORS);
+          return res.end(JSON.stringify({
+            ..._err('선택하신 시간대를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.', verified.code),
+            itemIndex: i,
+          }));
+        }
+        if (verified.capacity !== slot.capacity) {
+          console.warn('[createCartOrder] slot capacity mismatch — 서버 값 사용:',
+            { itemIndex: i, tourId: slot.tourId, slot: slot.slotId, bodyCapacity: slot.capacity, serverCapacity: verified.capacity });
+        }
+        effectiveCapacity = verified.capacity;
+        computed.lines[i].booking.slotCapacity = verified.capacity;
+      } catch (verifyErr) {
+        console.warn('[createCartOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message, '| itemIndex:', i);
       }
       // 실제 PayPal orderId 는 아직 없다 — 단건 경로와 같은 PRELOCK 식별자 방식.
       // captureCartOrder 의 confirmSlotLock 이 같은 slot+date 의 active pending 을 소비한다.
@@ -123,7 +150,7 @@ export default async function handler(req, res) {
           date: slot.date,
           slotId: slot.slotId,
           pax: slot.pax,
-          capacity: slot.capacity,
+          capacity: effectiveCapacity,
           orderId: lockOrderId,
         });
         slotLocks.push({

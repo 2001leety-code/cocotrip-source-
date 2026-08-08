@@ -320,6 +320,43 @@ export function readSlotFields(booking) {
 }
 
 /**
+ * 서버 슬롯 정원 재확인 (2026-08-08) — body/카트 스냅샷의 `slotCapacity` 는 클라이언트
+ * 출처라 신뢰하지 않는다(부풀린 정원 = SLOT_FULL 무력화 = 오버부킹). 원본 =
+ * `tours/{tourId}` 문서의 `slots[]` 배열(어드민 상품 등록이 쓰는 곳 — tours.ts 의
+ * "서브컬렉션 저장 가능" 주석은 구현된 곳이 없다). capacity 미설정/0/음수 슬롯은
+ * tour.maxPax 폴백 — 이 파일 헤더와 validateSlotNumeric 이 문서화한 기존 규칙 그대로.
+ *
+ * 반환 계약:
+ *   - { ok:true, capacity }  — 검증된 정원. 호출자는 이 값으로만 잠근다.
+ *   - { ok:false, code }     — 결정적 검증 실패(위조 tourId/slotId·꺼진 슬롯·정원 미설정).
+ *     정직한 클라이언트는 같은 tours 문서에서 4필드를 만들었으므로 이 상태를 만들지
+ *     않는다 → 호출자는 fail-closed(주문 불성립).
+ *   - throw                  — Firestore 읽기 장애. 후퇴(기존 body 신뢰모델) 여부는
+ *     호출자가 결정한다 — 여기서 삼키면 장애가 전량 거부로 둔갑한다.
+ *
+ * 문자열 숫자 허용은 readSlotFields 와 같은 이유(Firestore 왕복 형 변화).
+ *
+ * @param {{ adminDb: object, tourId: string, slotId: string }} args
+ * @returns {Promise<{ok:true, capacity:number}|{ok:false, code:string}>}
+ */
+export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
+  const snap = await adminDb.doc(`tours/${tourId}`).get();
+  if (!snap.exists) return { ok: false, code: 'SLOT_TOUR_NOT_FOUND' };
+  const tour = snap.data() || {};
+  const slots = Array.isArray(tour.slots) ? tour.slots : [];
+  const slot = slots.find((s) => s && typeof s === 'object' && s.id === slotId);
+  if (!slot) return { ok: false, code: 'SLOT_NOT_IN_TOUR' };
+  if (slot.is_active === false) return { ok: false, code: 'SLOT_INACTIVE' };
+  const pos = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const capacity = pos(slot.capacity) || pos(tour.maxPax);
+  if (!capacity) return { ok: false, code: 'SLOT_CAPACITY_UNSET' };
+  return { ok: true, capacity };
+}
+
+/**
  * 잠금 해제 — 아직 결제로 이어지지 않는 게 확정된 pre-lock 을 되돌린다.
  * 장바구니처럼 **여러 라인을 순차로 잡는 흐름**에서 뒷 라인이 SLOT_FULL 이면 앞 라인의
  * pending 이 남아 다른 손님을 10분간 오차단한다(버그#18 과 같은 계열의 매출손실).

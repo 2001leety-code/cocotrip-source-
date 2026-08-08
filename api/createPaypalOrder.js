@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
-import { acquireSlotLock } from './_shared/slot-capacity.js';
+import { acquireSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw, multiDayListBaseKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
 import { verifyCouponForCharge } from './_shared/coupon-charge.js';
@@ -375,6 +375,8 @@ export default async function handler(req, res) {
     // bookingDate/slotCapacity 모두 있으면 PayPal order 생성 전에 capacity
     // 검증 + pending 카운터 증가 (10분 TTL). 결제 진행 중 다른 사용자 동시
     // 같은 슬롯 진입 차단. AI 플래너/charter 등 슬롯 없는 상품은 자동 skip.
+    // body.slotCapacity 는 "슬롯 상품이다" 신호로만 쓰고, 잠금 기준 정원은 아래에서
+    // 서버가 tours/{tourId} 원본으로 재확인한다(2026-08-08).
     // capturePaypalOrder.js 의 confirmSlotLock 가 결제 확정 시 pending → confirmed
     // 전환. slot-pending-sweep cron 이 10분 후 만료 lock 자동 해제.
     const tourSlotId = typeof body.tourSlotId === 'string' ? body.tourSlotId.trim() : '';
@@ -386,6 +388,29 @@ export default async function handler(req, res) {
       if (!adminDb) {
         console.warn('[createPaypalOrder] slot pre-lock SKIPPED — adminDb unavailable. tourId:', tourId, 'slot:', tourSlotId);
       } else {
+        // 🔴 2026-08-08 서버 정원 재확인 — body.slotCapacity 는 클라이언트 출처라 부풀릴 수 있다
+        //   (capacity=999 로 보내면 SLOT_FULL 이 영영 안 걸린다). 원본 tours/{tourId}.slots[] 에서
+        //   재조회한 값으로만 잠근다(미설정 슬롯 = maxPax 폴백, fetchServerSlotCapacity 헤더 참조).
+        //   결정적 검증 실패(위조 투어/슬롯·꺼짐·정원 미설정) = 주문 자체를 안 만든다(fail-closed).
+        //   Firestore 조회 장애(throw)만 body 값으로 후퇴 — 오늘까지의 신뢰모델보다 나빠지지 않는다.
+        //   형제 경로 createCartOrder.js 도 같은 검증(한쪽만 고침 금지 — 각 wiring 테스트가 잠근다).
+        let effectiveCapacity = slotCapacity;
+        try {
+          const verified = await fetchServerSlotCapacity({ adminDb, tourId, slotId: tourSlotId });
+          if (!verified.ok) {
+            console.warn('[createPaypalOrder] slot capacity verify rejected:', verified.code,
+              { tourId, slot: tourSlotId, bodyCapacity: slotCapacity });
+            res.writeHead(409, JSON_CORS);
+            return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.', verified.code)));
+          }
+          if (verified.capacity !== slotCapacity) {
+            console.warn('[createPaypalOrder] slot capacity mismatch — 서버 값 사용:',
+              { tourId, slot: tourSlotId, bodyCapacity: slotCapacity, serverCapacity: verified.capacity });
+          }
+          effectiveCapacity = verified.capacity;
+        } catch (verifyErr) {
+          console.warn('[createPaypalOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message);
+        }
         try {
           await acquireSlotLock({
             adminDb,
@@ -393,7 +418,7 @@ export default async function handler(req, res) {
             date: bookingDate,
             slotId: tourSlotId,
             pax: passengers,
-            capacity: slotCapacity,
+            capacity: effectiveCapacity,
             // 실제 PayPal orderId 는 아직 없음. capturePaypalOrder 가 confirmSlotLock
             // 호출 시 같은 slot+date 의 active pending 을 자동 소비 (orderId 매칭
             // 없이도 capacity 검증 + counter 갱신). pre-PayPal 식별자로 임시 사용.

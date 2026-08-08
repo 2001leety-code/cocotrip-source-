@@ -181,6 +181,38 @@ describe('PayPalBookingButton 배선 (소스 잠금 — 컴포넌트 import 금�
   });
 });
 
+describe('서버 정원 재확인 배선 — createPaypalOrder (소스 잠금, 2026-08-08)', () => {
+  // body.slotCapacity 는 클라이언트 출처 — 부풀린 정원(999)이 그대로 잠금 기준이 되던
+  // 신뢰모델을 제거한다. 원본 = tours/{tourId}.slots[] (+maxPax 폴백). cart 형제 경로는
+  // cart-slot-capacity-wiring.test.ts 가 같은 계약을 잠근다(한쪽만 고침 금지).
+  const create = src('api/createPaypalOrder.js');
+
+  it('공유 헬퍼 fetchServerSlotCapacity 를 잠금 **전**에 호출한다 (사본 금지)', () => {
+    expect(create).toMatch(/import \{[^}]*fetchServerSlotCapacity[^}]*\} from '\.\/_shared\/slot-capacity\.js'/);
+    const verify = create.indexOf('await fetchServerSlotCapacity(');
+    const acquire = create.indexOf('await acquireSlotLock(');
+    expect(verify, '서버 재확인 호출 없음').toBeGreaterThan(-1);
+    expect(acquire).toBeGreaterThan(-1);
+    expect(verify, '검증이 잠금보다 뒤면 부풀린 정원으로 잠근다').toBeLessThan(acquire);
+  });
+
+  it('🔴 잠금에 쓰는 정원 = 서버 검증값 (body 값 그대로 전달 금지)', () => {
+    expect(create).toMatch(/capacity: effectiveCapacity/);
+    expect(create).not.toMatch(/capacity: slotCapacity,/);
+  });
+
+  it('결정적 검증 실패(투어/슬롯 없음·꺼짐·정원 미설정)는 PayPal 주문 생성 전에 거부한다', () => {
+    const verify = create.indexOf('await fetchServerSlotCapacity(');
+    const reject = create.indexOf('slot capacity verify rejected', verify);
+    expect(reject, 'fail-closed 거부 경로 없음').toBeGreaterThan(-1);
+    expect(reject).toBeLessThan(create.indexOf('/v2/checkout/orders'));
+  });
+
+  it('Firestore 조회 장애만 body 값으로 후퇴한다 (결정적 거부와 구분 — 오늘보다 나빠지지 않음)', () => {
+    expect(create).toContain('body 값으로 후퇴');
+  });
+});
+
 describe('TourBookingDialog 배선 (소스 잠금)', () => {
   const dialog = src('src/components/tours/TourBookingDialog.tsx');
 
