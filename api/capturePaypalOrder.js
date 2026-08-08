@@ -5,7 +5,7 @@
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
-import { confirmSlotLock } from './_shared/slot-capacity.js';
+import { confirmSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import {
@@ -687,13 +687,41 @@ export default async function handler(req, res) {
       try {
         const db = initAdminDb('capturePaypalOrder.slotConfirm');
         if (db) {
+          // 🔴 2026-08-08 서버 정원 재확인 — body.slotCapacity 는 capture-time 클라이언트 출처.
+          //   pending 이 만료된 주문은 confirmSlotLock 이 이 값으로 SLOT_FULL_AT_CAPTURE 재검증을
+          //   하므로 부풀린 정원이면 재검증이 무력화된다. create 경로(#1258)와 같은 원본
+          //   tours/{tourId}.slots[] 로 재확인. 단 여기는 돈이 이미 빠진 뒤 — 응답을 깨는
+          //   fail-closed 금지: 결정적 거부(위조 투어/슬롯·꺼짐·정원 미설정)는 confirm 을 포기하고
+          //   아래 catch 의 텔레그램 알림 경로로만 보낸다. Firestore 조회 장애(throw)는 body 값으로
+          //   후퇴 — create 와 동일 정책(오늘까지의 신뢰모델보다 나빠지지 않는다).
+          let effectiveCapacity = Number(slotCapacity);
+          let verified = null;
+          try {
+            verified = await fetchServerSlotCapacity({ adminDb: db, tourId, slotId: tourSlotId });
+          } catch (verifyErr) {
+            console.warn('[capturePaypalOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message);
+          }
+          if (verified) {
+            if (!verified.ok) {
+              console.warn('[capturePaypalOrder] slot capacity verify rejected:', verified.code,
+                { tourId, slot: tourSlotId, bodyCapacity: effectiveCapacity });
+              const e = new Error(`slot capacity verify rejected at capture: ${verified.code}`);
+              e.code = verified.code;
+              throw e;
+            }
+            if (verified.capacity !== effectiveCapacity) {
+              console.warn('[capturePaypalOrder] slot capacity mismatch — 서버 값 사용:',
+                { tourId, slot: tourSlotId, bodyCapacity: effectiveCapacity, serverCapacity: verified.capacity });
+            }
+            effectiveCapacity = verified.capacity;
+          }
           await confirmSlotLock({
             adminDb: db,
             tourId,
             date: bookingDate,
             slotId: tourSlotId,
             pax: Number(paxCount),
-            capacity: Number(slotCapacity),
+            capacity: effectiveCapacity,
             orderId: orderID,
           });
           console.log('[capturePaypalOrder] slot confirmed:', { tourId, date: bookingDate, slot: tourSlotId, pax: paxCount });

@@ -213,6 +213,43 @@ describe('서버 정원 재확인 배선 — createPaypalOrder (소스 잠금, 2
   });
 });
 
+describe('서버 정원 재확인 배선 — capturePaypalOrder confirm (소스 잠금, 2026-08-08)', () => {
+  // create 두 경로(#1258) 후 남은 형제 경로. pending 이 만료된 주문은 confirmSlotLock 이
+  // capacity 로 SLOT_FULL_AT_CAPTURE 재검증을 하는데, 그 capacity 가 capture-time 클라이언트
+  // body 출처면 부풀린 값으로 재검증을 우회한다. 단 여기는 돈이 이미 빠진 뒤 —
+  // 응답을 깨는 fail-closed 는 금지, 결정적 거부는 기존 텔레그램 알림 경로로만 보낸다.
+  const capture = src('api/capturePaypalOrder.js');
+
+  it('공유 헬퍼 fetchServerSlotCapacity 를 confirm **전**에 호출한다 (사본 금지)', () => {
+    expect(capture).toMatch(/import \{[^}]*fetchServerSlotCapacity[^}]*\} from '\.\/_shared\/slot-capacity\.js'/);
+    const verify = capture.indexOf('await fetchServerSlotCapacity(');
+    const confirm = capture.indexOf('await confirmSlotLock(');
+    expect(verify, '서버 재확인 호출 없음').toBeGreaterThan(-1);
+    expect(confirm).toBeGreaterThan(-1);
+    expect(verify, '검증이 confirm 뒤면 부풀린 정원으로 재검증한다').toBeLessThan(confirm);
+  });
+
+  it('🔴 confirm 에 쓰는 정원 = 서버 검증값 (body 값 그대로 전달 금지)', () => {
+    expect(capture).toMatch(/capacity: effectiveCapacity/);
+    expect(capture).not.toMatch(/capacity: Number\(slotCapacity\)/);
+  });
+
+  it('결정적 거부는 HTTP 응답을 깨지 않는다 — confirm 포기 + 알림 경로 (돈은 이미 빠졌다)', () => {
+    const verify = capture.indexOf('await fetchServerSlotCapacity(');
+    const confirm = capture.indexOf('await confirmSlotLock(', verify);
+    const reject = capture.indexOf('slot capacity verify rejected', verify);
+    expect(reject, '결정적 거부 분기 없음').toBeGreaterThan(-1);
+    expect(reject).toBeLessThan(confirm);
+    // 검증~confirm 사이(fail-closed 금지 구간)에서 HTTP 응답을 만들면 안 된다.
+    expect(capture.slice(verify, confirm)).not.toContain('res.writeHead');
+  });
+
+  it('Firestore 조회 장애만 body 값으로 후퇴한다 (create 경로와 동일 정책)', () => {
+    const verify = capture.indexOf('await fetchServerSlotCapacity(');
+    expect(capture.indexOf('body 값으로 후퇴', verify), '후퇴 분기 없음').toBeGreaterThan(-1);
+  });
+});
+
 describe('TourBookingDialog 배선 (소스 잠금)', () => {
   const dialog = src('src/components/tours/TourBookingDialog.tsx');
 
