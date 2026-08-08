@@ -106,14 +106,16 @@
          복원하려면 emrldtp.cc/NTE2OTY3.js 스크립트 재삽입. -->
 
     <!-- Schema.org JSON-LD: TravelAgency
-         ⚠️ logo 는 src/lib/jsonLd.ts 의 LOGO_URL 과 **같은 값이어야 한다**. 정적 HTML 이라
-            상수를 import 할 수 없어 두 벌로 존재한다 — 한쪽만 고치면 홈과 글 페이지가
-            구글에 서로 다른 로고를 보낸다. 잠금 = tests/unit/org-logo-parity.test.ts -->
+         ⚠️ logo·alternateName 은 src/lib/jsonLd.ts 의 LOGO_URL·PUBLISHER.alternateName 과
+            **같은 값이어야 한다**. 정적 HTML 이라 상수를 import 할 수 없어 두 벌로 존재한다 —
+            한쪽만 고치면 홈과 글 페이지가 구글에 서로 다른 값을 보낸다.
+            잠금 = tests/unit/org-logo-parity.test.ts -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "TravelAgency",
       "name": "CocoTrip",
+      "alternateName": ["Coco Trip", "코코트립"],
       "url": "https://cocotripkr.com",
       "logo": "https://cocotripkr.com/brand/logo-mark-1024.png",
       "image": "https://cocotripkr.com/og-image.png",
@@ -139,7 +141,8 @@
         "name": "South Korea"
       },
       "sameAs": [
-        "https://www.instagram.com/cocotrip_kr"
+        "https://www.instagram.com/cocotrip_kr",
+        "https://cocotripkr.blogspot.com"
       ]
     }
     </script>
@@ -150,6 +153,7 @@
       "@context": "https://schema.org",
       "@type": "WebSite",
       "name": "CocoTrip",
+      "alternateName": ["Coco Trip", "코코트립"],
       "url": "https://cocotripkr.com",
       "potentialAction": {
         "@type": "SearchAction",

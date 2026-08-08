@@ -1,9 +1,9 @@
-// 회사 로고가 두 곳에 따로 적혀 있다 — 두 벌이 어긋나지 않게 잠근다 (2026-08-06).
+// 회사 로고·별칭이 두 곳에 따로 적혀 있다 — 두 벌이 어긋나지 않게 잠근다 (2026-08-06, alternateName 은 2026-08-08 추가).
 //
-// 왜: 구글에 보내는 회사 로고가
+// 왜: 구글에 보내는 회사 로고·alternateName 이
 //     ① index.html 의 전역 TravelAgency (정적 HTML — 상수 import 불가)
 //     ② src/lib/jsonLd.ts 의 PUBLISHER (Article/글 페이지의 발행처)
-//     두 곳에 있다. 한쪽만 바꾸면 홈과 글 페이지가 서로 다른 로고를 광고한다.
+//     두 곳에 있다. 한쪽만 바꾸면 홈과 글 페이지가 서로 다른 값을 광고한다.
 //     이 레포에서 "한쪽만 고침" 이 8/3~6 에만 7번 났다 — 값이 2곳이면 잠근다.
 //
 // 그리고 로고 파일이 실제로 존재하는지도 본다. 경로만 바꾸고 파일을 안 올리면
@@ -65,5 +65,32 @@ describe('회사 로고 — 두 곳의 값이 같아야 한다', () => {
     // icon-*.png 는 둥근 사각 + 어두운 배경이라 흰 검색 화면에서 검은 네모가 뜬다.
     expect(logoFromArticle()).not.toMatch(/\/icon[-.]/);
     expect(logoFromArticle()).toMatch(/logo-mark/);
+  });
+});
+
+function alternateNameFromIndexHtml(): unknown {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const block = html.match(/"@type":\s*"TravelAgency"[\s\S]*?\n\s*\}/);
+  expect(block, 'index.html 에 TravelAgency 스키마가 없다').not.toBeNull();
+  const m = block![0].match(/"alternateName":\s*(\[[^\]]*\])/);
+  expect(m, 'TravelAgency 에 alternateName 이 없다').not.toBeNull();
+  return JSON.parse(m![1]);
+}
+
+function alternateNameFromArticle(): unknown {
+  const ld = buildArticleJsonLd({
+    path: '/guide/x',
+    title: 't',
+    description: 'd',
+    published: '2026-01-01',
+    updated: '2026-01-01',
+  }) as { publisher?: { alternateName?: unknown } };
+  expect(ld?.publisher?.alternateName, 'Article publisher 에 alternateName 이 없다').toBeTruthy();
+  return ld!.publisher!.alternateName;
+}
+
+describe('회사 alternateName("Coco Trip"/"코코트립") — 두 곳의 값이 같아야 한다', () => {
+  it('index.html TravelAgency 와 Article publisher 의 alternateName 이 같다', () => {
+    expect(alternateNameFromArticle()).toEqual(alternateNameFromIndexHtml());
   });
 });
