@@ -192,7 +192,9 @@ describe('confirmSlotLock — 주문별 정확한 pending 차감 (버그 #18)', 
     expect(summary.total).toBe(5);
 
     const entry = slotPending(db);
-    expect(entry['ORD-A']).toBeUndefined(); // A 완전 차감
+    // A 완전 차감 — 키 제거가 아니라 만료 표시(count 0)다. Firestore set(merge) 는 중첩
+    // 맵 키를 못 지우므로 삭제로 표현하면 문서에는 원래 pending 이 그대로 남는다.
+    expect(entry['ORD-A'].count).toBe(0);
     expect(entry['ORD-B'].count).toBe(3); // B 무손상
   });
 
@@ -205,7 +207,8 @@ describe('confirmSlotLock — 주문별 정확한 pending 차감 (버그 #18)', 
     const summary = summarizeSlot(db._peek(PATH)!, 'slot-a');
     expect(summary.confirmed).toBe(5);
     expect(summary.pending).toBe(0);
-    expect(db._peek(PATH)!.slot_pending).toEqual({}); // 슬롯 엔트리 완전 제거
+    // 두 엔트리 모두 만료 표시로 남는다(키 제거 X — merge 로는 못 지운다). 회계는 0.
+    expect(Object.values(slotPending(db)).every((e) => e.count === 0)).toBe(true);
   });
 
   it('정상 PRELOCK 흐름: acquire=PRELOCK 키, capture=실제 PayPal orderId → 키 불일치여도 활성 pending 소비(누수 0)', async () => {
@@ -218,7 +221,7 @@ describe('confirmSlotLock — 주문별 정확한 pending 차감 (버그 #18)', 
     const summary = summarizeSlot(db._peek(PATH)!, 'slot-a');
     expect(summary.confirmed).toBe(2);
     expect(summary.pending).toBe(0); // PRELOCK pending 소비됨 — 누수 없음
-    expect(db._peek(PATH)!.slot_pending).toEqual({});
+    expect(slotPending(db)['PRELOCK-123-slot-a'].count).toBe(0); // 만료 표시로 무력화
   });
 
   it('PRELOCK 흐름 + 다른 활성 주문: capture pax 만큼만 활성 pending 소비, 나머지 잔류', async () => {
@@ -243,8 +246,8 @@ describe('confirmSlotLock — 주문별 정확한 pending 차감 (버그 #18)', 
     });
     const r = await confirmSlotLock({ ...base, adminDb: db, pax: 2, capacity: 7, orderId: 'ORD-1' });
     expect(r.confirmed).toBe(5);
-    // 만료 pending 정리됨.
-    expect(db._peek(PATH)!.slot_pending).toEqual({});
+    // 만료 pending 정리됨(회계 0). 키 자체는 만료 표시로 남는다 — merge 로는 못 지운다.
+    expect(summarizeSlot(db._peek(PATH)!, 'slot-a').pending).toBe(0);
   });
 
   it('lost-lock + capacity 소진 → SLOT_FULL_AT_CAPTURE', async () => {

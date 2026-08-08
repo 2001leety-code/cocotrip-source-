@@ -269,12 +269,19 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
       }
     }
 
-    const slotPending = { ...(data.slot_pending || {}) };
-    if (Object.keys(nextEntries).length > 0) {
-      slotPending[slotId] = nextEntries;
-    } else {
-      delete slotPending[slotId];
+    // 🔴 소비한 엔트리는 **지우는 게 아니라 만료 표시로 덮어야** 실제로 사라진다.
+    //   Firestore `set(..., {merge:true})` 는 중첩 맵을 깊게 병합하므로 JS 객체에서 키를 빼도
+    //   문서에서는 그대로 남는다(releaseSlotLock 헤더가 문서화한 같은 성질). 그냥 지우면
+    //   confirm 한 pax 가 pending 에 남아 TTL 10분 동안 같은 좌석을 두 번 세고, 남은 정원이
+    //   있는데도 다음 손님이 SLOT_FULL 로 오차단된다(버그#18 과 같은 계열의 매출손실).
+    //   count 0 + 과거 expiresAt = summarizeSlot 이 즉시 0 으로 센다. 실제 키 제거는 불필요.
+    const tombstoneExpiresAt = new Date(nowMs - 1000).toISOString();
+    for (const eid of Object.keys(entries)) {
+      if (!nextEntries[eid]) nextEntries[eid] = { count: 0, expiresAt: tombstoneExpiresAt };
     }
+
+    const slotPending = { ...(data.slot_pending || {}) };
+    slotPending[slotId] = nextEntries;
 
     tx.set(ref, {
       tourId,
