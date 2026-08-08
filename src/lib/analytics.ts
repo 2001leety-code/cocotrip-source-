@@ -91,6 +91,9 @@ export function initGA() {
   });
 
   _initialized = true;
+  // GA 가 **이제** 준비됐다 — 동의 전에 담아 둔 것을 여기서 흘려보낸다. 동의 구독 쪽은
+  // 이 함수보다 먼저 돌기 때문에(main.tsx 부팅 순서) 그때는 아직 보낼 수 없었다.
+  flushGaQueue();
 }
 
 // ── 동의 철회 반영 ───────────────────────────────────────────────────────
@@ -107,18 +110,39 @@ if (typeof window !== 'undefined') {
   // (배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 유실되던 문제 — analyticsQueue.ts 주석)
   onConsentChange(() => {
     if (!hasAnalyticsConsent()) { clearPending(GA_SINK); return; }
-    for (const e of drainPending(GA_SINK)) {
-      if (e.name === PAGE_VIEW_EVENT) {
-        // 🔴 page_view 는 담을 때 캡처한 값(page_path·page_location·page_referrer)을
-        //   그대로 보낸다 — sendToGA 를 태우면 허용목록이 location 계열을 거르고
-        //   gaUrlParams() 가 **지금** URL 로 덮어써, 수락 시점 화면의 주소가 랜딩
-        //   page_view 에 실린다 (#1241 후속).
-        if (canSendToGA()) window.gtag!('event', PAGE_VIEW_EVENT, e.props);
-      } else {
-        sendToGA(e.name, e.props as GtagEvent | undefined);
-      }
-    }
+    // GA 가 이미 켜져 있으면 여기서 흘려보낸다. 아직이면 `flushGaQueue` 가 아무것도 안 하고,
+    // 곧 도는 `initGA()` 끝에서 같은 flush 가 다시 시도한다(아래 함수 주석 참조).
+    flushGaQueue();
   });
+}
+
+/**
+ * 대기열 → GA. **동의와 gtag 가 둘 다 갖춰졌을 때만** 비운다.
+ *
+ * 🔴 2026-08-08: 예전에는 동의 구독이 조건 없이 `drainPending` 을 불렀다. 그런데 `main.tsx` 는
+ *   ① `import … from './lib/analytics'`(= 이 파일의 동의 구독 등록)를 먼저 하고 ② 그 **뒤에**
+ *   `initGA()` 를 부를 구독을 건다. 첫 방문자가 배너에서 수락하면 ①이 먼저 도는데 그 시점엔
+ *   아직 `window.gtag` 가 없다 → `drainPending` 이 **큐를 비운 뒤** `canSendToGA()` 가 false 라
+ *   한 건도 못 보내고, 되돌릴 큐도 이미 없었다. 첫 방문자의 랜딩 `page_view` 와 그 전에 쌓인
+ *   일반 이벤트가 통째로 사라졌다.
+ *
+ *   그래서 **꺼내기 전에** 보낼 수 있는지 본다. 못 보내면 담긴 채로 두고, 준비되는 쪽
+ *   (`initGA` 끝 / 다음 동의 변화)에서 다시 시도한다. 두 신호 중 **나중에 오는 쪽**이
+ *   비우게 되므로 등록 순서에 의존하지 않는다.
+ */
+function flushGaQueue(): void {
+  if (!canSendToGA()) return;
+  for (const e of drainPending(GA_SINK)) {
+    if (e.name === PAGE_VIEW_EVENT) {
+      // 🔴 page_view 는 담을 때 캡처한 값(page_path·page_location·page_referrer)을
+      //   그대로 보낸다 — sendToGA 를 태우면 허용목록이 location 계열을 거르고
+      //   gaUrlParams() 가 **지금** URL 로 덮어써, 수락 시점 화면의 주소가 랜딩
+      //   page_view 에 실린다 (#1241 후속).
+      window.gtag!('event', PAGE_VIEW_EVENT, e.props);
+    } else {
+      sendToGA(e.name, e.props as GtagEvent | undefined);
+    }
+  }
 }
 
 // ── Track Page View (SPA navigation) ────────────────────────────────────
@@ -138,16 +162,18 @@ export function trackPageView(path?: string) {
     page_location: safePageLocation(path),
     ...(safeReferrer() ? { page_referrer: safeReferrer() } : {}),
   };
-  if (!hasAnalyticsConsent()) {
+  if (!canSendToGA()) {
     // 🔴 #1241 후속 (2026-08-07): PostHog capturePageView 는 담는데 GA4 만 버려서
     //   신규 방문자 랜딩 page_view 가 GA4 에서만 영구 유실됐다 — 발화부(App.tsx)는
     //   deps [location.pathname] 이라 수락으로 재발화하지 않고, initGA 는
     //   send_page_view:false 라 수락 시점에도 만들지 않는다. 수락하면 위 구독이
     //   담은 값 그대로 흘려보낸다.
+    // 🔴 2026-08-08: 판정 기준을 `hasAnalyticsConsent()` 에서 `canSendToGA()` 로 넓혔다.
+    //   **동의는 있는데 gtag 가 아직 없는 순간**(부팅 중·수락 직후)에는 담지 않고 버렸는데,
+    //   그것도 "지금은 못 보낸다, 나중엔 보낼 수 있다" 인 건 똑같다. flushGaQueue 가 챙긴다.
     queuePending(GA_SINK, PAGE_VIEW_EVENT, payload as Record<string, unknown>);
     return;
   }
-  if (!canSendToGA()) return;
   window.gtag!('event', PAGE_VIEW_EVENT, payload);
 }
 
@@ -174,17 +200,19 @@ export function trackEvent(
   opts?: TrackOptions,
 ): boolean {
   if (typeof window === 'undefined' || !GA_ID) return false;
-  if (!hasAnalyticsConsent()) {
+  if (!canSendToGA()) {
     // 🔴 버리지 않는다. 동의 배너가 1.5초 뒤에 뜨는 탓에 첫 화면 계측이 통째로 사라지던
     //   문제(analyticsQueue.ts 주석). 수락하면 위 구독이 흘려보낸다.
     //   ⚠️ 예외: 호출부가 **자기만의 재시도**를 이미 가진 경우(charter 퍼널)는 담지 않는다.
     //      담으면 수락 순간 대기열과 호출부가 각각 보내 **이중 전송**이 된다.
+    // 🔴 2026-08-08: 판정을 `hasAnalyticsConsent()` → `canSendToGA()` 로 넓혔다. **동의는
+    //   있는데 gtag 가 아직 없는 순간**(부팅 중·수락 직후 다른 구독이 발화)에는 담지도 않고
+    //   버렸다 — trackPageView 와 같은 이유로 담는다. flushGaQueue 가 챙긴다.
     if (!opts?.noQueue) {
       queuePending(GA_SINK, eventName, params as Record<string, unknown> | undefined);
     }
     return false;
   }
-  if (!canSendToGA()) return false;   // 동의는 있는데 gtag 가 아직 없는 순간
   sendToGA(eventName, params);
   return true;
 }

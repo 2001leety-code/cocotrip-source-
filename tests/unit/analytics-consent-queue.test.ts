@@ -26,6 +26,9 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   // gtag 가 있어야 canSendToGA 가 통과한다.
+  // ⚠️ 이 미리 꽂기가 **실제 앱 부팅 순서를 가린다** — 운영에서는 수락 시점에 아직 gtag 가
+  //   없다(main.tsx 의 initGA 구독이 이 모듈의 flush 구독보다 나중에 돈다). 그 순서까지
+  //   보는 잠금은 tests/unit/analytics-ga-boot-order-queue.test.ts 가 따로 담당한다.
   (window as unknown as Record<string, unknown>).gtag = (
     _cmd: string, name: string, params: unknown,
   ) => { sent.push([name, params]); };
