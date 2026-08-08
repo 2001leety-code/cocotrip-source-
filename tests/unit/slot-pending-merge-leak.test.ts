@@ -249,6 +249,91 @@ describe('구형 단일 pending 구조 — confirm 뒤 회계 0 (hybrid 문서)'
       .toEqual({ confirmed: 0, pending: 2, total: 2 });
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // 같은 orderId 가 루트와 nested 양쪽에 있는 hybrid = **같은 논리 잠금 하나**.
+  //   구버전 acquire 가 legacy 루트를 정규화해 nested 로 다시 쓰면서 merge 가 루트를
+  //   남긴 결과다. 둘을 합산하면 한 주문 좌석을 두 번 세어 정원이 조기 소진된다.
+  //   nested 가 최신·권위 값이다 — acquire 재시도로 nested count 가 루트보다 커질 수
+  //   있으므로 max/sum 이 아니라 **nested 가 루트를 대체**한다.
+  // ───────────────────────────────────────────────────────────────────────────
+  it('같은 orderId 가 루트+nested 양쪽에 있으면 한 번만 센다', async () => {
+    const exp = future();
+    const db = makeFirestoreLikeDb({
+      tourId: 't1', date: '2026-09-01', status: 'available',
+      slot_pending: {
+        'slot-a': {
+          count: 2, expiresAt: exp, orderId: 'PRELOCK-OLD',
+          'PRELOCK-OLD': { count: 2, expiresAt: exp },
+        },
+      },
+    });
+    expect(summarizeSlot(db._peek(), 'slot-a', Date.now()))
+      .toEqual({ confirmed: 0, pending: 2, total: 2 });
+  });
+
+  it('nested 가 루트보다 갱신됐으면 nested 값이 권위 (acquire 재시도 누적)', async () => {
+    const exp = future();
+    const db = makeFirestoreLikeDb({
+      tourId: 't1', date: '2026-09-01', status: 'available',
+      slot_pending: {
+        'slot-a': {
+          count: 2, expiresAt: exp, orderId: 'PRELOCK-OLD',   // 낡은 사본
+          'PRELOCK-OLD': { count: 5, expiresAt: exp },        // acquire 가 2 -> 5 로 갱신
+        },
+      },
+    });
+    expect(summarizeSlot(db._peek(), 'slot-a', Date.now()))
+      .toEqual({ confirmed: 0, pending: 5, total: 5 });
+  });
+
+  it('orderId 없는 구형 루트도 nested LEGACY 키와 겹치면 한 번만 센다', async () => {
+    const exp = future();
+    const db = makeFirestoreLikeDb({
+      tourId: 't1', date: '2026-09-01', status: 'available',
+      slot_pending: {
+        'slot-a': { count: 3, expiresAt: exp, __legacy__: { count: 3, expiresAt: exp } },
+      },
+    });
+    expect(summarizeSlot(db._peek(), 'slot-a', Date.now()))
+      .toEqual({ confirmed: 0, pending: 3, total: 3 });
+  });
+
+  it('acquire capacity 판정이 중복 집계로 조기 만석 처리하지 않는다', async () => {
+    const exp = future();
+    const db = makeFirestoreLikeDb({
+      tourId: 't1', date: '2026-09-01', status: 'available',
+      slot_pending: {
+        'slot-a': {
+          count: 2, expiresAt: exp, orderId: 'PRELOCK-OLD',
+          'PRELOCK-OLD': { count: 2, expiresAt: exp },
+        },
+      },
+    });
+    // 정원 7 - 실제 pending 2 = 5 자리. 5명은 반드시 통과해야 한다.
+    const r = await acquireSlotLock({ ...base, adminDb: db, pax: 5, capacity: 7, orderId: 'PRELOCK-NEW' });
+    expect(r.ok).toBe(true);
+    expect(r.remaining).toBe(0);
+    expect(summarizeSlot(db._peek(), 'slot-a', Date.now()))
+      .toEqual({ confirmed: 0, pending: 7, total: 7 });
+  });
+
+  it('confirm 이 루트+nested 중복분을 남기지 않는다', async () => {
+    const exp = future();
+    const db = makeFirestoreLikeDb({
+      tourId: 't1', date: '2026-09-01', status: 'available',
+      slot_pending: {
+        'slot-a': {
+          count: 2, expiresAt: exp, orderId: 'PRELOCK-OLD',
+          'PRELOCK-OLD': { count: 2, expiresAt: exp },
+        },
+      },
+    });
+    await confirmSlotLock({ ...base, adminDb: db, pax: 2, capacity: 7, orderId: 'PAYPAL-ORDER-1' });
+
+    expect(summarizeSlot(db._peek(), 'slot-a', Date.now()))
+      .toEqual({ confirmed: 2, pending: 0, total: 2 });
+  });
+
   it('hybrid doc: 구형 루트가 만료돼도 신규 엔트리 pending 이 보인다 (과소집계=오버부킹 차단)', async () => {
     const db = makeFirestoreLikeDb({
       tourId: 't1', date: '2026-09-01', status: 'available',

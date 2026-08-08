@@ -66,7 +66,11 @@ export function isPendingExpired(entry, now = Date.now()) {
  *   → 값이 객체인 키는 orderId 엔트리로, 루트 스칼라는 엔트리 하나로 **둘 다** 읽는다.
  *
  * 옛 엔트리 키: 루트 orderId 가 있으면 그 이름, 없으면 LEGACY_ENTRY_KEY.
- * 같은 이름의 신규 엔트리가 이미 있으면 둘 다 보존되도록 다른 키로 피한다(누락 금지).
+ * 🔴 **같은 키의 nested 엔트리가 이미 있으면 그쪽이 권위** — 둘은 같은 논리 잠금 하나다.
+ *   (구버전 acquire 가 옛 루트를 정규화해 nested 로 다시 쓰면서 merge 가 루트를 남긴 결과.
+ *   acquire 재시도로 nested count 가 루트보다 커졌을 수 있어 max/sum 이 아니라 **대체**다.
+ *   합산하면 한 주문 좌석을 두 번 세어 정원이 조기 소진된다.)
+ *   키가 다르면(= 다른 주문) 둘 다 보존한다.
  * 입력 미존재/형태 불명은 빈 맵.
  *
  * @param {*} slotPendingForSlot   slot_pending[slotId] 원본
@@ -81,14 +85,16 @@ export function normalizeSlotPendingEntry(slotPendingForSlot) {
   }
   // 옛 구조: 루트가 count/expiresAt 를 직접 보유(=값이 숫자/문자열).
   if (typeof slotPendingForSlot.count === 'number' || typeof slotPendingForSlot.expiresAt === 'string') {
-    let key = typeof slotPendingForSlot.orderId === 'string' && slotPendingForSlot.orderId
+    const key = typeof slotPendingForSlot.orderId === 'string' && slotPendingForSlot.orderId
       ? slotPendingForSlot.orderId
       : LEGACY_ENTRY_KEY;
-    while (out[key]) key = `${key}~`; // 이름 충돌 — 덮어써 잃지 않는다.
-    out[key] = {
-      count: Number(slotPendingForSlot.count || 0),
-      expiresAt: slotPendingForSlot.expiresAt,
-    };
+    // 같은 키의 nested = 같은 잠금의 최신 사본 → 루트는 버린다(합산 금지).
+    if (!out[key]) {
+      out[key] = {
+        count: Number(slotPendingForSlot.count || 0),
+        expiresAt: slotPendingForSlot.expiresAt,
+      };
+    }
   }
   return out;
 }
