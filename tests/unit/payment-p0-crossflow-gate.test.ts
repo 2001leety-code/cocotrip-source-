@@ -37,7 +37,14 @@ vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({
 vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperator: async () => {} }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: async () => {} }));
 vi.mock('../../api/onboarding-coupons.js', () => ({ issuePurchaseCouponsForOrder: async () => {} }));
-vi.mock('../../api/_shared/slot-capacity.js', () => ({ confirmSlotLock: async () => {} }));
+// 🔴 partial mock 필수 (2026-08-09): 전체 mock 으로 두면 핸들러가 **새 export 를 import 하는 순간**
+//   그 접근이 throw 하고, 그 throw 는 핸들러 outer catch 의 500 INTERNAL_ERROR 로 삼켜진다
+//   → 부정형 단언만 있는 테스트는 초록으로 남는다(#1266 의 readSlotFields 가 실제로 그랬다).
+//   actual 을 펼쳐 계약을 자동 상속하고, **부작용(Firestore 쓰기) 함수만** 명시적으로 덮는다.
+vi.mock('../../api/_shared/slot-capacity.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/_shared/slot-capacity.js')>()),
+  confirmSlotLock: async () => {},
+}));
 vi.mock('../../api/_shared/paypal-refund.js', () => ({ refundPaypalCapture: async () => ({ ok: true }) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }));
 
@@ -92,12 +99,25 @@ function captureDb(opts: { cartExists?: boolean; cartThrows?: boolean } = {}) {
 }
 
 // ═════════════ P0-2: cross-flow 가드 (행위 테스트) ═════════════
+/**
+ * PayPal capture 성공 응답 (최소 실물형).
+ * `status: 'COMPLETED'` 만 돌려주면 payer/captureID/amount 가 전부 비어 핸들러가 "field missing"
+ * 저하 경로로 빠진다 — 그건 **정상 결제**가 아니다. 아래 회귀 테스트가 "정상 단건 흐름" 을
+ * 주장하려면 응답이 실제 capture 모양이어야 한다. (실 PayPal 호출 아님 — 전부 mock.)
+ */
+const CAPTURE_OK = {
+  id: PAYPAL_ORDER,
+  status: 'COMPLETED',
+  payer: { email_address: 'buyer@example.com', name: { given_name: 'Test', surname: 'Buyer' } },
+  purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '9.90', currency_code: 'USD' } }] } }],
+};
+
 describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
   beforeEach(() => {
     fetchCalls.length = 0;
     global.fetch = vi.fn(async (url: unknown) => {
       fetchCalls.push(String(url));
-      return { ok: true, status: 200, json: async () => ({ status: 'COMPLETED' }) };
+      return { ok: true, status: 200, json: async () => CAPTURE_OK };
     }) as never;
   });
 
@@ -151,6 +171,18 @@ describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
     // cross-flow 로 거부되지 않았음 = 이 가드가 정상 주문을 오탐하지 않음.
     expect(res._out.body?.code).not.toBe('CROSS_FLOW_ORDER');
     expect(res._out.body?.code).not.toBe('ORDER_CHECK_UNAVAILABLE');
+    // 🔴 거짓 초록 방지 (2026-08-09): 위 두 단언은 **부정형**이라 핸들러가 어떤 이유로든
+    //   죽어 500 INTERNAL_ERROR 가 나도 통과한다. 실제로 #1266 이 readSlotFields import 를
+    //   추가했을 때 이 mock 이 그 export 를 누락해 핸들러가 throw 했는데도 초록이었다
+    //   (GitHub unit 로그에 `No "readSlotFields" export` 가 찍힌 채 통과).
+    //   → "막히지 않았다" 가 아니라 **결제 단계까지 실제로 갔다** 를 증명한다.
+    expect(res._out.body?.code).not.toBe('INTERNAL_ERROR');
+    expect(fetchCalls).toContain('TOKEN');                              // 토큰 발급 도달
+    expect(fetchCalls.some((u) => u.includes('/capture'))).toBe(true);  // PayPal capture 호출 도달
+    // 끝까지 정상 종료했는가 — capture 응답을 실제로 파싱했음까지 증명(중간에 죽으면 여기서 잡힌다).
+    expect(res._out.status).toBe(200);
+    expect(res._out.body?.ok).toBe(true);
+    expect((res._out.body?.data as Record<string, unknown> | undefined)?.payerEmail).toBe('buyer@example.com');
   });
 
   // 🔴 DB init 실패도 cart lookup 실패와 동일 정책 — 이전엔 throw 해서 outer catch 의

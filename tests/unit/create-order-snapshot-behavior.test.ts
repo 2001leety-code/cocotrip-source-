@@ -25,7 +25,11 @@ vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.sandbox.paypal.com' }),
   resolveIsSandbox: () => true,
 }));
-vi.mock('../../api/_shared/slot-capacity.js', () => ({
+// partial mock — 전체 mock 이면 핸들러가 새 export 를 import 하는 순간 그 접근이 throw 하고,
+// outer catch 의 500 으로 삼켜져 부정형 단언만 있는 테스트가 초록으로 남는다
+// (payment-p0-crossflow-gate 에서 실제로 발생한 허수). 부작용 함수만 명시적으로 덮는다.
+vi.mock('../../api/_shared/slot-capacity.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/_shared/slot-capacity.js')>()),
   acquireSlotLock: async () => { slotLockCalls += 1; return { ok: true }; },
 }));
 // 환율 모듈은 실 API 3곳(exchangerate-api / frankfurter / naver)을 순차 시도한다.
