@@ -37,6 +37,15 @@ const verifyCalls: Dict[] = [];
 const alerts: Dict[] = [];
 /** fetchServerSlotCapacity 응답 제어 — 정상 / 결정적 거부 / Firestore 장애(throw). */
 const verifyHolder: { result: Dict; throws: boolean } = { result: { ok: true, capacity: 8 }, throws: false };
+/**
+ * 알림 mock 게이트 — 알림 Promise 의 **완료 시점**을 테스트가 잡는다.
+ *   defer=true  → releaseAlerts() 전까지 resolve 하지 않음 (호출자가 await 하는지 관측).
+ *   rejectWith  → 알림 실패 재현 (결제 성공 응답이 500 으로 바뀌면 안 된다).
+ */
+const alertGate: { defer: boolean; rejectWith: Error | null; pending: Array<() => void> } = {
+  defer: false, rejectWith: null, pending: [],
+};
+function releaseAlerts() { for (const resolve of alertGate.pending.splice(0)) resolve(); }
 
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
 vi.mock('../../api/_shared/paypal.js', () => ({
@@ -45,7 +54,12 @@ vi.mock('../../api/_shared/paypal.js', () => ({
 }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: async (a: Dict) => { alerts.push(a); },
+  throttledTelegramAlert: (a: Dict) => {
+    alerts.push(a);
+    if (alertGate.rejectWith) return Promise.reject(alertGate.rejectWith);
+    if (!alertGate.defer) return Promise.resolve();
+    return new Promise<void>((resolve) => { alertGate.pending.push(resolve); });
+  },
 }));
 vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({
   triggerBookingProcessor: async () => ({ ok: true, outcome: 'completed' }),
@@ -164,11 +178,16 @@ function mockPaypal(value = '236.00') {
   })) as never;
 }
 
-async function runCapture(body: Dict, snapshot: Dict | null) {
+/** await 하지 않고 시작 — handler Promise 의 완료 시점을 테스트가 관측한다. */
+function startCapture(body: Dict, snapshot: Dict | null, orderId = ORDER_ID) {
   dbHolder.db = captureDb(snapshot);
   const res = mockRes();
-  await captureHandler({ method: 'POST', headers: {}, body: { orderID: ORDER_ID, ...body } }, res);
-  return res._out;
+  return captureHandler({ method: 'POST', headers: {}, body: { orderID: orderId, ...body } }, res)
+    .then(() => res._out);
+}
+
+async function runCapture(body: Dict, snapshot: Dict | null, orderId = ORDER_ID) {
+  return startCapture(body, snapshot, orderId);
 }
 
 beforeEach(() => {
@@ -176,6 +195,9 @@ beforeEach(() => {
   acquireCalls.length = 0;
   verifyCalls.length = 0;
   alerts.length = 0;
+  alertGate.defer = false;
+  alertGate.rejectWith = null;
+  alertGate.pending.length = 0;
   verifyHolder.result = { ok: true, capacity: 8 };
   verifyHolder.throws = false;
   mockPaypal();
@@ -310,6 +332,111 @@ describe('🔴 capturePaypalOrder — 스냅샷 슬롯 바인딩 없음 = 슬롯
     expect(confirmCalls).toHaveLength(0);
     expect(alerts.some((a) => JSON.stringify(a).includes('SLOT_SNAPSHOT_MISSING'))).toBe(false);
     expect(out.status).toBe(200);
+  });
+});
+
+// ═══════════ 알림 전달 보증 — 응답 전 await + 주문별 throttle key ═══════════
+/**
+ * 이 두 경로(스냅샷 바인딩 없음 / 슬롯 confirm 실패)는 **돈은 빠졌고 좌석만 미확정**이다.
+ * 주문마다 운영자 수동 복구가 필요하므로 한 건이라도 숨으면 안 된다.
+ *   1) fire-and-forget 이면 서버리스가 res.end() 뒤 실행을 중단해 알림이 통째로 사라진다.
+ *   2) 상수/오류코드 단위 throttle key 면 5분 창 안의 서로 다른 유료 주문이 한 건으로 합쳐져
+ *      뒤 주문의 orderID 를 운영자가 영영 못 본다.
+ * 반대로 **같은 주문의 재시도**는 계속 억제돼야 한다(같은 key).
+ */
+describe('🔴 capturePaypalOrder — 슬롯 복구 알림 전달 보증 (await + 주문별 key)', () => {
+  const forgedBody = { ...FORGED_SLOT, paxCount: 7, product: 'charter_seoul_city' };
+  const OTHER_ORDER = '9AB12345CD678901E';
+
+  /** 매크로태스크를 넉넉히 흘려 handler 가 끝날 기회를 충분히 준다. */
+  async function flush(ticks = 15) {
+    for (let i = 0; i < ticks; i++) await new Promise((r) => setTimeout(r, 0));
+  }
+  async function waitForAlert(ticks = 200) {
+    for (let i = 0; i < ticks; i++) {
+      if (alerts.length > 0) return true;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    return false;
+  }
+  const keyOf = (needle: string) =>
+    alerts.map((a) => String(a.key)).find((k) => k.includes(needle));
+
+  it('바인딩 없음 알림이 pending 인 동안 handler 가 끝나지 않는다 (미await = 서버리스 유실)', async () => {
+    alertGate.defer = true;
+    let settled = false;
+    const done = startCapture({ ...FORGED_SLOT, paxCount: 7 }, snapshotDoc())
+      .then((o) => { settled = true; return o; });
+
+    expect(await waitForAlert(), 'SLOT_SNAPSHOT_MISSING 알림이 아예 안 불렸다').toBe(true);
+    await flush();
+    expect(settled, '알림이 미완인데 handler 가 끝났다 — res.end() 뒤 알림이 잘린다').toBe(false);
+
+    releaseAlerts();
+    expect((await done).status).toBe(200);
+  });
+
+  it('confirm 실패 알림이 pending 인 동안 handler 가 끝나지 않는다', async () => {
+    verifyHolder.result = { ok: false, code: 'SLOT_NOT_IN_TOUR' };
+    alertGate.defer = true;
+    let settled = false;
+    const done = startCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }))
+      .then((o) => { settled = true; return o; });
+
+    expect(await waitForAlert(), 'slot-confirm 실패 알림이 아예 안 불렸다').toBe(true);
+    await flush();
+    expect(settled, '알림이 미완인데 handler 가 끝났다 — res.end() 뒤 알림이 잘린다').toBe(false);
+
+    releaseAlerts();
+    expect((await done).status).toBe(200);
+  });
+
+  it('바인딩 없음 — 서로 다른 두 주문의 throttle key 가 다르다 (뒤 주문이 억제되면 안 됨)', async () => {
+    await runCapture({ ...FORGED_SLOT, paxCount: 7 }, snapshotDoc());
+    const first = keyOf('SLOT_SNAPSHOT_MISSING');
+    alerts.length = 0;
+    await runCapture({ ...FORGED_SLOT, paxCount: 7 }, snapshotDoc(), OTHER_ORDER);
+    const second = keyOf('SLOT_SNAPSHOT_MISSING');
+
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    expect(first).toContain(ORDER_ID);
+    expect(second).toContain(OTHER_ORDER);
+    expect(second, '두 주문이 같은 key → 뒤 주문이 5분 창에서 통째로 사라진다').not.toBe(first);
+  });
+
+  it('confirm 실패 — 서로 다른 두 주문의 throttle key 가 다르다 (오류코드 단위 묶음 금지)', async () => {
+    verifyHolder.result = { ok: false, code: 'SLOT_NOT_IN_TOUR' };
+    await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
+    const first = keyOf('SLOT_NOT_IN_TOUR');
+    alerts.length = 0;
+    await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }), OTHER_ORDER);
+    const second = keyOf('SLOT_NOT_IN_TOUR');
+
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    expect(first).toContain(ORDER_ID);
+    expect(second).toContain(OTHER_ORDER);
+    expect(second, '같은 오류코드의 다른 주문이 한 건으로 합쳐진다').not.toBe(first);
+  });
+
+  it('같은 주문의 재시도는 같은 key 로 계속 억제된다 (dedup 유지)', async () => {
+    verifyHolder.result = { ok: false, code: 'SLOT_NOT_IN_TOUR' };
+    await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
+    const first = keyOf('SLOT_NOT_IN_TOUR');
+    alerts.length = 0;
+    await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
+    expect(keyOf('SLOT_NOT_IN_TOUR')).toBe(first);
+  });
+
+  it('알림 자체가 실패해도 결제 성공 응답은 200 그대로 (알림 실패가 500 을 만들면 안 된다)', async () => {
+    alertGate.rejectWith = new Error('telegram down');
+    const missing = await runCapture({ ...FORGED_SLOT, paxCount: 7 }, snapshotDoc());
+    expect(missing.status).toBe(200);
+
+    verifyHolder.result = { ok: false, code: 'SLOT_NOT_IN_TOUR' };
+    const confirmFail = await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
+    expect(confirmFail.status).toBe(200);
   });
 });
 

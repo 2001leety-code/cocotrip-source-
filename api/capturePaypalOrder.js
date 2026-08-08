@@ -757,8 +757,13 @@ export default async function handler(req, res) {
         console.error('[capturePaypalOrder] slot confirm failed:', code, slotErr.message);
         // SLOT_FULL_AT_CAPTURE = overbooking risk — operator 즉시 인지 필요.
         const severity = code === 'SLOT_FULL_AT_CAPTURE' ? 'critical' : 'high';
-        throttledTelegramAlert({
-          key: `slot-confirm-${code}`,
+        // ⚠️ await 필수 — 서버리스는 res.end() 뒤 실행을 중단할 수 있다(fire-and-forget = 알림 유실).
+        //   throttle key 도 **주문별** — `slot-confirm-${code}` 같은 오류코드 단위 key 는 5분 창 안의
+        //   서로 다른 유료 주문을 한 건으로 합쳐 뒤 주문의 orderID 를 운영자가 못 본다. 여기는
+        //   결제·예약은 확정됐고 좌석만 미확정 = 주문마다 수동 복구가 필요하므로 한 건도 숨으면 안 된다.
+        //   (같은 주문 재시도는 key 가 같으므로 계속 dedup 된다.)
+        await throttledTelegramAlert({
+          key: `slot-confirm-${code}-${orderID}`,
           channel: 'admin',
           severity,
           message: [
@@ -773,7 +778,7 @@ export default async function handler(req, res) {
             `${code === 'SLOT_FULL_AT_CAPTURE' ? '🚨 overbooking 가능성 — 운영자 수동 검토 + 환불/조정 결정 필요.' : '슬롯 카운터 불일치. lockfix scripts/admin-slot-rebuild 검토.'}`,
           ].join('\n'),
           context: { orderID, tourId: _snapSlot.tourId, bookingDate: _snapSlot.date, tourSlotId: _snapSlot.slotId, paxCount: _snapSlot.pax, slotCapacity: _snapSlot.capacity, code },
-        }).catch(() => {});
+        }).catch((e) => { console.error('[capturePaypalOrder] slot-confirm 알림 실패:', e?.message); });
       }
     } else if (bookingWriteOk && _bodyClaimsSlot) {
       // 🔴 F2 fail-closed(슬롯 한정): 클라는 슬롯 예약이라 하는데 create 스냅샷에 바인딩이 없다.
@@ -784,8 +789,9 @@ export default async function handler(req, res) {
       //   (b) 인 경우 운영자가 좌석을 수동 확정해야 한다.
       console.warn('[capturePaypalOrder] slot confirm 스킵 — 스냅샷 슬롯 바인딩 없음 (body 신뢰 금지):',
         { orderID, bodyTourId: tourId, bodySlot: tourSlotId, bodyDate: bookingDate });
-      throttledTelegramAlert({
-        key: 'slot-confirm-SLOT_SNAPSHOT_MISSING',
+      // ⚠️ await + 주문별 key — 위 confirm-실패 경로와 같은 이유(서버리스 중단 유실 / 5분 창 병합).
+      await throttledTelegramAlert({
+        key: `slot-confirm-SLOT_SNAPSHOT_MISSING-${orderID}`,
         channel: 'admin',
         severity: 'high',
         message: [
@@ -798,7 +804,7 @@ export default async function handler(req, res) {
           '→ 배포 직전 생성된 in-flight 주문이면 좌석 수동 확정 필요. 아니면 위조 시도.',
         ].join('\n'),
         context: { orderID, code: 'SLOT_SNAPSHOT_MISSING', bodyTourId: tourId || null, bodyTourSlotId: tourSlotId || null, bodyBookingDate: bookingDate || null },
-      }).catch(() => {});
+      }).catch((e) => { console.error('[capturePaypalOrder] SLOT_SNAPSHOT_MISSING 알림 실패:', e?.message); });
     }
 
     // 2.5 쿠폰 처리 — PR #427 이후 capture 전 pre-lock 으로 이동됨 (section 1.6).
