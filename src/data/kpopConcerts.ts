@@ -35,13 +35,24 @@ export interface KpopConcert {
 
 export const KPOP_CONCERTS: KpopConcert[] = rawConcerts as KpopConcert[];
 
-/** Filter out concerts whose last date has passed */
+/**
+ * Filter out concerts whose last date has passed — **KST 기준** (2026-08-09).
+ *
+ * ⚠️ 손님 브라우저 시간대로 판정하면 안 된다. 공연은 전부 한국에서 열린다.
+ *   예전 구현(`new Date()` + `setHours()`)은 손님 로컬 시간대를 따랐다:
+ *   · 뉴욕(UTC-4) — `new Date('2026-08-08')` 이 UTC 자정이라 현지로는 08-07 이 되고
+ *     `setHours(23,59,...)` 가 하루 앞에 찍혀, 한국에서 아직 열리는 공연이 하루 일찍 사라졌다.
+ *   · UTC/런던 — KST 로는 어제 끝난 공연이 하루 더 남아 보였다.
+ *
+ * 계산은 감시 크론 `api/_crons/kpop-calendar-check.js` 의 `splitByDate` 와 **같은 식**이다
+ * (그쪽은 node:fs 를 물고 있어 프론트 번들로 가져올 수 없다).
+ * 두 벌이 갈라지면 `tests/unit/kpop-calendar-watchdog.test.ts` 가 잡는다.
+ */
 export function getUpcomingConcerts(): KpopConcert[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayMs = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
   return KPOP_CONCERTS.filter(c => {
-    const lastDate = new Date(c.dates[c.dates.length - 1]);
-    lastDate.setHours(23, 59, 59, 999);
-    return lastDate >= today;
+    const lastMs = Date.parse(`${c.dates[c.dates.length - 1]}T23:59:59+09:00`);
+    return Number.isFinite(lastMs) && lastMs >= todayMs;
   });
 }
