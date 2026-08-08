@@ -290,6 +290,65 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
 }
 
 /**
+ * 잠금 인자 추출 — 라인/주문 booking 객체에서 tourId·tourSlotId·bookingDate·slotCapacity·
+ * passengers 를 **전부 갖췄을 때만** 돌려준다. 하나라도 없으면 null = 잠금 스킵
+ * (슬롯 없는 상품 = AI 플래너·차터 보호. 위 SAFETY-CRITICAL "호출자가 분기 책임" 규칙).
+ *
+ * 반쪽 잠금을 만들지 않는 이유는 프론트 `src/lib/tourSlotBooking.ts` 헤더와 같다 —
+ * 정원 강제가 안 걸린 상태를 만들면서 아무 신호도 안 남긴다.
+ *
+ * Firestore 스냅샷을 왕복한 값이 문자열로 돌아올 수 있어 Number() 로 받되,
+ * 0·음수·NaN 은 값이 아니다(capacity 0 = 전원 차단, pax 0 = 잠금 무의미).
+ *
+ * @param {object|null|undefined} booking
+ * @returns {{tourId:string, date:string, slotId:string, capacity:number, pax:number}|null}
+ */
+export function readSlotFields(booking) {
+  if (!booking || typeof booking !== 'object') return null;
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const pos = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const tourId = str(booking.tourId);
+  const slotId = str(booking.tourSlotId);
+  const date = str(booking.bookingDate);
+  const capacity = pos(booking.slotCapacity);
+  const pax = pos(booking.passengers);
+  if (!tourId || !slotId || !date || !capacity || !pax) return null;
+  return { tourId, date, slotId, capacity, pax };
+}
+
+/**
+ * 잠금 해제 — 아직 결제로 이어지지 않는 게 확정된 pre-lock 을 되돌린다.
+ * 장바구니처럼 **여러 라인을 순차로 잡는 흐름**에서 뒷 라인이 SLOT_FULL 이면 앞 라인의
+ * pending 이 남아 다른 손님을 10분간 오차단한다(버그#18 과 같은 계열의 매출손실).
+ *
+ * 구현 메모 — 엔트리를 지우는 대신 **만료 처리(count 0 + 과거 expiresAt)** 한다.
+ *   Firestore `set(..., {merge:true})` 는 중첩 맵을 깊게 병합하므로 JS 객체에서 키를
+ *   빼도 문서에서는 안 지워진다. 반면 만료 표시는 병합으로 확실히 덮이고,
+ *   summarizeSlot 이 곧바로 0 으로 세며, 실제 삭제는 sweepExpiredPending(cron)이 맡는다.
+ *   읽기가 필요 없는 상수 쓰기라 트랜잭션도 필요 없다(다른 주문 엔트리는 건드리지 않음).
+ * 🔴 slot_bookings(확정석)은 절대 만지지 않는다 — 해제는 pending 전용.
+ *
+ * @param {object} args {adminDb, tourId, date, slotId, orderId, now?}
+ * @returns {Promise<{ok:true}>}
+ */
+export async function releaseSlotLock({ adminDb, tourId, date, slotId, orderId, now }) {
+  const nowMs = (now instanceof Date ? now.getTime() : Date.now());
+  const key = orderId || LEGACY_ENTRY_KEY;
+  await adminDb.doc(`tour_availability/${tourId}/dates/${date}`).set({
+    slot_pending: {
+      [slotId]: {
+        [key]: { count: 0, expiresAt: new Date(nowMs - 1000).toISOString() },
+      },
+    },
+    updatedAt: new Date(nowMs).toISOString(),
+  }, { merge: true });
+  return { ok: true };
+}
+
+/**
  * 만료된 pending 정리 (cron 호출). 한 doc 의 모든 slot_pending 을 검사,
  * expiresAt 지난 항목 제거. confirmed 는 영향 X.
  *

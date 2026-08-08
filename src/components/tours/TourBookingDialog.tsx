@@ -29,7 +29,7 @@ import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
 import { formatPrice } from '@/lib/exchange-rate';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete, computeTourBookingTotalKRW, clampHanbokCount } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
-import { resolveSlotCapacity } from '@/lib/tourSlotBooking';
+import { resolveSlotCapacity, tourSlotBody } from '@/lib/tourSlotBooking';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
@@ -365,6 +365,20 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   //   슬롯별 capacity 가 비어 있으면 tour.maxPax 로 폴백한다 — 규칙 정본은
   //   api/_shared/slot-capacity.js 헤더 + admin-product-publish-validation.validateSlotNumeric.
   const slotCapacityForOrder = resolveSlotCapacity(selectedSlot?.capacity, tour.maxPax);
+
+  // 장바구니 담기도 같은 4필드를 실어야 한다 — 담아서 결제하면 createCartOrder 가
+  //   acquireSlotLock 을, captureCartOrder 가 confirmSlotLock 을 부른다. 안 실으면
+  //   "장바구니로 사면 정원 강제가 없다" 는 반쪽 수정이 된다(결제 경로와 동일 규칙 재사용).
+  const cartSlotFields = tourSlotBody({
+    tourId: tour.id,
+    tourSlotId: selectedSlot ? selectedSlot.id : '',
+    bookingDate: date,
+    slotCapacity: slotCapacityForOrder,
+  });
+  // 슬롯이 다르면 장바구니 라인도 달라야 한다 — id 가 같으면 10시 담고 14시 담을 때
+  //   isInCart 가 이미 담김으로 보고 add 가 앞 항목을 덮는다(정원 계산도 한 슬롯만 남는다).
+  //   슬롯 없는 투어는 접미사가 빈 문자열 = 기존 id 그대로.
+  const cartSlotSuffix = cartSlotFields.tourSlotId ? `-${cartSlotFields.tourSlotId}` : '';
 
   // P311 (2026-06-30 운영자 확정): 투어 애드온(한복/카시트/가이드)=무료/현장결제 →
   //   PayPal 청구에 미포함(백엔드 resolveKrwAmount = dailyPrice×days = baseKRW 만 청구).
@@ -886,7 +900,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                       (PR1 카드 담기는 productType만이라 결제 불가였음 → 올바른 진입점).
                       운영자 "위시리스트=장바구니, 투어 담아 한번에 결제" 비전. */}
                   <CartAddButton
-                    id={`${tour.id}-${date}-${pax}`}
+                    id={`${tour.id}-${date}-${pax}${cartSlotSuffix}`}
                     booking={{
                       productType,
                       passengers: pax,
@@ -896,6 +910,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                       pickupLocation: pickupAddress,
                       vehicleType: tour.vehicleType.toLowerCase(),
                       memo: fullMemo,
+                      // 🔴 슬롯 정원 — 4필드 전부이거나 전무(tourSlotBody). 백엔드가 이 값들로 잠근다.
+                      ...cartSlotFields,
                     }}
                     displayName={`${tour.title[language] || tour.title.en} (${date})`}
                     thumbnailUrl={tour.thumbnail}

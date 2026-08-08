@@ -15,6 +15,7 @@ import { featureEnabled } from './_shared/feature-flag.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { computeCartTotalKrw } from './_shared/resolve-line-item.js';
+import { acquireSlotLock, releaseSlotLock, readSlotFields } from './_shared/slot-capacity.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -52,6 +53,18 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(_err(`Pricing spec load failed: ${SPEC_LOAD_ERROR}`, 'SPEC_MISSING')));
   }
 
+  // 🔴 슬롯 정원 pre-lock 롤백 대장 — 아래 라인 루프가 잡은 잠금을 기록해 두고,
+  //   주문이 성립하지 못한 모든 경로(다음 라인 SLOT_FULL · PayPal 실패 · 스냅샷 실패)에서 되돌린다.
+  //   되돌리지 않으면 결제로 이어지지도 않을 pending 이 10분간 남아 다른 손님을 오차단한다.
+  //   해제 실패는 치명적이지 않다 — slot-pending-sweep cron 의 TTL 회수가 백스톱.
+  const slotLocks = [];
+  async function releaseAcquiredSlotLocks(reason) {
+    if (slotLocks.length === 0) return;
+    console.warn(`[createCartOrder] slot lock rollback (${reason}) — ${slotLocks.length} lock(s)`);
+    const pending = slotLocks.splice(0, slotLocks.length);
+    await Promise.allSettled(pending.map((l) => releaseSlotLock(l)));
+  }
+
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -81,6 +94,54 @@ export default async function handler(req, res) {
           : `결제 불가 상품: ${computed.productType || '(unknown)'}`;
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err(msg, computed.code)));
+    }
+
+    // 🔴 2026-08-08 투어 슬롯 정원 pre-lock (단건 createPaypalOrder 의 형제 경로).
+    //   라인 booking 에 tourId·tourSlotId·bookingDate·slotCapacity·passengers 가 전부 있으면
+    //   PayPal 주문을 만들기 **전에** capacity 를 검증하고 pending 을 올린다(10분 TTL).
+    //   슬롯 없는 상품(차터 등)은 readSlotFields 가 null → 자동 스킵 = 기존 동작 그대로.
+    //   금액은 위 computeCartTotalKrw 가 이미 확정했다 — 이 블록은 금액을 만지지 않는다.
+    //   confirm(pending → confirmed)은 captureCartOrder 가 결제 확정 후 수행.
+    // ⚠️ 알려진 한계: slotCapacity 출처가 클라이언트다(단건 createPaypalOrder 도 body.slotCapacity 를
+    //   그대로 쓴다 — 동일 신뢰모델). 정원을 부풀린 요청은 막지 못한다. 서버 측 tours/{id} 조회로
+    //   capacity 를 재확인하려면 두 경로를 **같이** 고쳐야 한다(한쪽만 고치면 형제 경로가 남는다).
+    const slotDb = initAdminDb('createCartOrder-slots');
+    for (let i = 0; i < computed.lines.length; i++) {
+      const slot = readSlotFields(computed.lines[i].booking);
+      if (!slot) continue;
+      if (!slotDb) {
+        console.warn('[createCartOrder] slot pre-lock SKIPPED — adminDb unavailable. line:', i, 'tour:', slot.tourId);
+        continue;
+      }
+      // 실제 PayPal orderId 는 아직 없다 — 단건 경로와 같은 PRELOCK 식별자 방식.
+      // captureCartOrder 의 confirmSlotLock 이 같은 slot+date 의 active pending 을 소비한다.
+      const lockOrderId = `CART-PRELOCK-${Date.now()}-${i}-${slot.slotId}`;
+      try {
+        await acquireSlotLock({
+          adminDb: slotDb,
+          tourId: slot.tourId,
+          date: slot.date,
+          slotId: slot.slotId,
+          pax: slot.pax,
+          capacity: slot.capacity,
+          orderId: lockOrderId,
+        });
+        slotLocks.push({
+          adminDb: slotDb, tourId: slot.tourId, date: slot.date, slotId: slot.slotId, orderId: lockOrderId,
+        });
+      } catch (slotErr) {
+        const code = slotErr.code || 'SLOT_LOCK_FAILED';
+        // 앞 라인이 잡아둔 좌석부터 돌려놓는다 (이 주문은 성립하지 않는다).
+        await releaseAcquiredSlotLocks(code);
+        const status = code === 'SLOT_FULL' ? 409
+                     : code === 'DATE_UNAVAILABLE' ? 410
+                     : 400;
+        console.warn('[createCartOrder] slot lock rejected:', code, slotErr.message, '| itemIndex:', i);
+        res.writeHead(status, JSON_CORS);
+        // itemIndex = 프론트가 보낸 items 배열의 위치(computeCartTotalKrw 는 1아이템=1라인 순서 보존).
+        //   어떤 상품이 막혔는지 손님에게 이름으로 알려주기 위한 유일한 단서.
+        return res.end(JSON.stringify({ ..._err(slotErr.message, code), itemIndex: i }));
+      }
     }
 
     // 차터/투어 = 고정 USD 1400 (createPaypalOrder usesFixedUsdRate 정책 동일). 정수 USD.
@@ -129,6 +190,8 @@ export default async function handler(req, res) {
       }
     } catch (snapErr) {
       console.error('[createCartOrder] snapshot write failed:', snapErr.message);
+      // 이 주문은 캡처 불가(capture 가 스냅샷을 못 읽는다) → 잡아둔 좌석을 붙들고 있을 이유가 없다.
+      await releaseAcquiredSlotLocks('SNAPSHOT_FAILED');
       res.writeHead(500, JSON_CORS);
       return res.end(JSON.stringify(_err('Cart order snapshot failed — please retry', 'SNAPSHOT_FAILED')));
     }
@@ -145,6 +208,8 @@ export default async function handler(req, res) {
     })));
   } catch (err) {
     console.error('[createCartOrder] Error:', err);
+    // PayPal 주문 생성 실패 등 — 주문이 없으니 잡아둔 좌석도 풀어준다.
+    await releaseAcquiredSlotLocks('INTERNAL_ERROR');
     res.writeHead(500, JSON_CORS);
     res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
