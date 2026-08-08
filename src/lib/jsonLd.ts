@@ -32,12 +32,13 @@ const LOGO_URL = `${SITE}/brand/logo-mark-1024.png`;
 /**
  * 전역 TravelAgency(index.html)와 같은 값.
  * 🔴 index.html 은 정적 HTML 이라 이 상수를 import 할 수 없다 — **값이 두 벌로 존재한다.**
- *    한쪽만 고치면 홈과 글 페이지가 구글에 서로 다른 로고를 보낸다(이 레포의 "한쪽만 고침"
- *    사고 패턴). 두 벌이 같은지는 `tests/unit/org-logo-parity.test.ts` 가 잠근다.
+ *    한쪽만 고치면 홈과 글 페이지가 구글에 서로 다른 로고·별칭을 보낸다(이 레포의 "한쪽만
+ *    고침" 사고 패턴). 두 벌이 같은지는 `tests/unit/org-logo-parity.test.ts` 가 잠근다.
  */
 const PUBLISHER = {
   '@type': 'Organization',
   name: 'CocoTrip',
+  alternateName: ['Coco Trip', '코코트립'],
   url: SITE,
   logo: { '@type': 'ImageObject', url: LOGO_URL },
 } as const;
