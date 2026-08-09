@@ -124,22 +124,53 @@ describe('식당 DB 수치 — 화면 숫자 ↔ 실제 JSON', () => {
   // 2026-08-10 P2 (#1272): 원장 1번 항목이 "각 식당마다 cuisine 이 있다"고 말했지만
   // 실측은 3,153/3,166 — 13건 누락이라 거짓이었다. coordinates·allergens 는 실제로 전 항목,
   // cuisine 은 대부분(전부 아님)이라고 정확히 말해야 한다.
-  it('coordinates·allergens 는 전 항목, cuisine 은 일부 누락 — 실측과 일치', () => {
+  //
+  // 빈틈(수정 전): 이전 버전은 `withCuisine > 0 && < total` 만 단언했다. 이 범위는
+  // [1, 3165] 전체를 통과시킨다 — 데이터가 극단적으로 저하돼 단 1건만 cuisine 을 가져도
+  // (예: 재생성 스크립트 회귀로 나머지 3,165건이 전부 빠져도) 테스트는 초록이었다.
+  // 그 상태에서 화면은 여전히 "nearly all/대부분/ほぼ全件/绝大多数" 라고 주장하는데,
+  // 실제로는 0.03%만 있으니 문구가 거짓이 된다. 정확한 개수(3,153)와 99%+ 하한을 박아
+  // 이런 저하를 실패로 만든다.
+  it('coordinates·allergens 는 전 항목, cuisine 은 정확히 3,153건(≥99%) — 실측과 일치', () => {
     const withCoords = index.filter((r) => (r as { lat?: number }).lat != null && (r as { lng?: number }).lng != null).length;
-    const withAllergens = index.filter((r) => (r as { allergens?: unknown }).allergens != null).length;
+    const allergensOf = (r: unknown) => (r as { allergens?: Record<string, unknown> }).allergens;
+    const withAllergens = index.filter((r) => allergensOf(r) != null).length;
     const withCuisine = index.filter((r) => (r as { cuisine?: string }).cuisine).length;
 
     expect(withCoords).toBe(FOOD_DB.restaurants);
     expect(withAllergens).toBe(FOOD_DB.restaurants);
-    // 실측 사실 자체를 박제: cuisine 이 전부가 아니라는 전제가 깨지면(예: 재생성으로 100% 채워지면)
-    // 이 테스트가 실패해 문구를 다시 검토하게 만든다.
-    expect(withCuisine).toBeGreaterThan(0);
-    expect(withCuisine).toBeLessThan(FOOD_DB.restaurants);
 
+    // ALLERGEN_KEYS: 화면 문구가 "견과·갑각류·글루텐·유제품/nuts, shellfish, gluten and dairy"
+    // 네 가지를 구체적으로 지목한다 — allergens 객체가 존재하는 것만으론 부족하고,
+    // 이 네 키가 실제로 있어야 문구가 참이다.
+    const ALLERGEN_KEYS = ['nuts', 'shellfish', 'gluten', 'dairy'] as const;
+    for (const r of index) {
+      const allergens = allergensOf(r);
+      if (allergens == null) continue;
+      for (const key of ALLERGEN_KEYS) {
+        expect(Object.prototype.hasOwnProperty.call(allergens, key), `missing ${key} on ${JSON.stringify(r)}`).toBe(true);
+      }
+    }
+
+    // 실측 정확한 개수를 박제: 늘거나 줄면(재생성·데이터 저하 포함) 실패해
+    // 문구("nearly all"/"대부분"/"ほぼ全件"/"绝大多数")를 다시 검토하게 만든다.
+    expect(withCuisine).toBe(3153);
+    const ratio = withCuisine / FOOD_DB.restaurants;
+    expect(ratio).toBeGreaterThanOrEqual(0.99);
+    expect(ratio).toBeLessThan(1);
+
+    const MOSTLY_PATTERN: Record<(typeof LANGS)[number], RegExp> = {
+      en: /nearly all/i,
+      ko: /대부분/,
+      ja: /ほぼ全(件|数)/,
+      zh: /绝大多数|大多数/,
+    };
     for (const lang of LANGS) {
       const note = HOME_COPY[lang].ledger.items[0].note;
       // "각 항목 모두 cuisine 보유" 라는 단정이 없어야 한다 (13건 누락과 모순).
       expect(note, `${lang} claims cuisine on every entry`).not.toMatch(/each with coordinates, cuisine|각각 보유|それぞれ保持|每条都带坐标、菜系/);
+      // 그렇다고 "대부분" 의미 자체가 사라져서도 안 된다 (누락 사실을 숨기는 반대 방향 오류).
+      expect(note, `${lang} lost the "mostly" qualifier`).toMatch(MOSTLY_PATTERN[lang]);
     }
   });
 });
