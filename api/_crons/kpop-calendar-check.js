@@ -57,10 +57,28 @@ function loadConcerts() {
   throw err;
 }
 
-/** KST 기준 오늘 00:00 의 ms epoch */
-function todayKstMs() {
-  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+/**
+ * KST 기준 오늘 00:00 의 **실제** epoch(ms).
+ *
+ * ⚠️ `Date.UTC(kstY, kstM, kstD)` 로 쓰면 안 된다 — KST 달력일을 UTC 자정에 찍은 가짜 epoch 라
+ *   실제 KST 자정보다 9시간 뒤다. 비교 상대인 `endOfConcertMs()` 는 실제 epoch 라서,
+ *   한 비교식 안에 시계 두 개가 섞인다. 지금 답이 맞는 건 "그 날 23:59:59" 가 만드는
+ *   여유가 그 9시간을 우연히 상쇄해서일 뿐 — 종료 시각 표현을 바꾸는 순간 당일 공연이 사라진다.
+ *
+ * 프론트 `src/data/kpopConcerts.ts` 의 동명 함수와 **같은 식**이다
+ * (이 모듈은 node:fs 를 물고 있어 프론트 번들로 가져올 수 없다 — api↔src 는 서로 import 하지 않는다).
+ * 두 벌이 갈라지면 `tests/unit/kpop-kst-epoch.test.ts` 가 잡는다.
+ */
+export function todayKstMs() {
+  const kstWall = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return Date.parse(`${kstWall.toISOString().slice(0, 10)}T00:00:00+09:00`);
+}
+
+/** 공연 종료 시각 = 마지막 날짜 23:59:59 KST 의 실제 epoch. 날짜가 없거나 깨졌으면 NaN. */
+function endOfConcertMs(c) {
+  const dates = Array.isArray(c?.dates) ? c.dates : [];
+  const last = dates[dates.length - 1];
+  return last ? Date.parse(`${last}T23:59:59+09:00`) : NaN;
 }
 
 /** 아직 안 끝난 공연만 (마지막 날짜가 오늘 이후). 테스트에서 임계값 검증용으로 export. */
@@ -68,9 +86,7 @@ export function splitByDate(concerts, todayMs) {
   const upcoming = [];
   const past = [];
   for (const c of concerts) {
-    const dates = Array.isArray(c?.dates) ? c.dates : [];
-    const last = dates[dates.length - 1];
-    const lastMs = last ? Date.parse(`${last}T23:59:59+09:00`) : NaN;
+    const lastMs = endOfConcertMs(c);
     if (!Number.isFinite(lastMs)) { past.push({ ...c, _badDate: true }); continue; }
     (lastMs >= todayMs ? upcoming : past).push(c);
   }
@@ -84,9 +100,11 @@ export const kpopCalendarTask = async (dryRun = false) => {
     const { upcoming, past } = splitByDate(concerts, todayMs);
 
     const lastMs = upcoming.reduce((max, c) => {
-      const d = Date.parse(`${c.dates[c.dates.length - 1]}T23:59:59+09:00`);
+      const d = endOfConcertMs(c);
       return Number.isFinite(d) && d > max ? d : max;
     }, 0);
+    // todayMs 도 lastMs 도 실제 epoch — 차이는 순수 경과시간이고, 마지막 날 23:59:59 는
+    // 그 날의 끝이라 floor 하면 KST 달력일 차이가 그대로 나온다 (오늘 끝나면 0일).
     const runwayDays = lastMs ? Math.floor((lastMs - todayMs) / 86400000) : 0;
 
     const badDates = past.filter(c => c._badDate).map(c => c.id);
