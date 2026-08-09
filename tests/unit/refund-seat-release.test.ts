@@ -114,6 +114,20 @@ describe('confirmSlotLock — 확정한 좌석을 주문별 원장에 남긴다'
     expect(doc.slot_confirmed[SLOT]['ORDER-1'].count).toBe(2);
   });
 
+  it('🔴 단건 실서비스 흐름 — acquire 는 PRELOCK 키, confirm 은 실제 orderID → 원장 키 = orderID', async () => {
+    // createPaypalOrder 는 PayPal orderId 를 알기 전이라 `PRELOCK-*` 로 잠근다.
+    // 원장은 confirm 이 쓰므로 취소 때 조회하는 키(= 실제 orderID)와 일치해야 한다.
+    const db = makeStore();
+    await acquireSlotLock({ adminDb: db as any, tourId: TOUR, date: DATE, slotId: SLOT, pax: 2, capacity: CAPACITY, orderId: `PRELOCK-1-${SLOT}` });
+    await confirmSlotLock({ adminDb: db as any, tourId: TOUR, date: DATE, slotId: SLOT, pax: 2, capacity: CAPACITY, orderId: 'PAYPAL-ORDER-1' });
+
+    expect(db._peek(AVAIL)!.slot_confirmed[SLOT]['PAYPAL-ORDER-1'].count).toBe(2);
+
+    const r = await releaseConfirmedSlot({ adminDb: db as any, tourId: TOUR, date: DATE, slotId: SLOT, orderId: 'PAYPAL-ORDER-1' });
+    expect(r).toMatchObject({ released: true, pax: 2 });
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(0);
+  });
+
   it('cart — 같은 주문의 두 라인이 같은 슬롯이면 원장이 **누적**된다 (한쪽만 지워지면 좌석 유실)', async () => {
     const db = makeStore();
     for (const pax of [2, 3]) {
