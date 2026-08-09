@@ -54,9 +54,10 @@ export function isPendingExpired(entry, now = Date.now()) {
 }
 
 /**
- * slot_pending[slotId] 가 **옛 단일 엔트리**(슬롯 루트에 count/expiresAt 직접 보유)
- * 인지 판별. 정규화가 이 경우 루트를 우선 읽으므로, 루트를 고쳐야 하는 쪽
- * (sweepExpiredPending)도 같은 기준을 써야 한다 — 판별 규칙 SSOT.
+ * slot_pending[slotId] 가 **옛 단일 엔트리의 루트 스칼라**(슬롯 루트에 count/expiresAt
+ * 직접 보유)를 가졌는지 판별. 정규화가 이 루트를 엔트리 하나로 읽어들이므로, 루트를
+ * 고쳐야 하는 쪽(neutralizeLegacyRoot → acquire/confirm/sweep)도 같은 기준을 써야
+ * 한다 — 판별 규칙 SSOT.
  * @param {*} slotPendingForSlot
  * @returns {boolean}
  */
@@ -67,28 +68,70 @@ function looksLegacySingleEntry(slotPendingForSlot) {
 
 /**
  * slot_pending[slotId] 값을 orderId→{count,expiresAt} 맵으로 정규화.
- * 하위호환: 옛 단일 엔트리({count,expiresAt,orderId}) 는 단일 orderId 키 맵으로
- * 변환. orderId 미보유 옛 엔트리는 LEGACY_ENTRY_KEY 로 보존. 신규 맵 구조는
- * 그대로 반환(얕은 복제). 입력 미존재/형태 불명은 빈 맵.
+ *
+ * 🔴 옛 구조와 신 구조는 **배타적이지 않다** — 한 맵에 섞인 hybrid 가 정상 상태다.
+ *   Firestore set(...,{merge:true}) 는 중첩 맵 키를 지울 수 없어(같은 파일
+ *   releaseSlotLock 헤더), 옛 단일 엔트리가 있던 슬롯에 신규 orderId 엔트리를 쓰면
+ *   루트 스칼라(count/expiresAt/orderId)와 orderId 키가 공존한다.
+ *   어느 한쪽만 읽으면 두 방향으로 다 틀린다:
+ *     - 옛 루트만 읽으면 신규 pending 이 안 보여 **과소집계 = 오버부킹**
+ *     - 신규만 읽으면 옛 루트가 안 지워져 **오차단(매출손실)**
+ *   → 값이 객체인 키는 orderId 엔트리로, 루트 스칼라는 엔트리 하나로 **둘 다** 읽는다.
+ *
+ * 옛 엔트리 키: 루트 orderId 가 있으면 그 이름, 없으면 LEGACY_ENTRY_KEY.
+ * 🔴 **같은 키의 nested 엔트리가 이미 있으면 그쪽이 권위** — 둘은 같은 논리 잠금 하나다.
+ *   (구버전 acquire 가 옛 루트를 정규화해 nested 로 다시 쓰면서 merge 가 루트를 남긴 결과.
+ *   acquire 재시도로 nested count 가 루트보다 커졌을 수 있어 max/sum 이 아니라 **대체**다.
+ *   합산하면 한 주문 좌석을 두 번 세어 정원이 조기 소진된다.)
+ *   키가 다르면(= 다른 주문) 둘 다 보존한다.
+ * 입력 미존재/형태 불명은 빈 맵.
  *
  * @param {*} slotPendingForSlot   slot_pending[slotId] 원본
  * @returns {Record<string, { count: number, expiresAt?: string }>}
  */
 export function normalizeSlotPendingEntry(slotPendingForSlot) {
   if (!slotPendingForSlot || typeof slotPendingForSlot !== 'object') return {};
+  const out = {};
+  // 신 구조: 값이 객체인 키 = orderId 별 엔트리.
+  for (const [k, v] of Object.entries(slotPendingForSlot)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = v;
+  }
+  // 옛 구조: 루트가 count/expiresAt 를 직접 보유(판별은 looksLegacySingleEntry SSOT).
   if (looksLegacySingleEntry(slotPendingForSlot)) {
     const key = typeof slotPendingForSlot.orderId === 'string' && slotPendingForSlot.orderId
       ? slotPendingForSlot.orderId
       : LEGACY_ENTRY_KEY;
-    return {
-      [key]: {
+    // 같은 키의 nested = 같은 잠금의 최신 사본 → 루트는 버린다(합산 금지).
+    if (!out[key]) {
+      out[key] = {
         count: Number(slotPendingForSlot.count || 0),
         expiresAt: slotPendingForSlot.expiresAt,
-      },
-    };
+      };
+    }
   }
-  // 이미 orderId→entry 맵. 얕은 복제(엔트리 객체는 공유 — 호출부에서 교체).
-  return { ...slotPendingForSlot };
+  return out;
+}
+
+/**
+ * 쓰기 직전 옛 단일 엔트리의 **루트 스칼라(count/expiresAt)를 만료 처리**해 무력화한다.
+ *
+ * 왜 필요한가 — acquire/confirm/sweep 은 모두 슬롯의 pending 을 orderId 별 엔트리로
+ * 다시 써낸다. Firestore merge 는 루트 스칼라를 지울 수 없으므로(releaseSlotLock 헤더)
+ * 그대로 두면 **같은 좌석이 루트와 orderId 엔트리 양쪽에서 두 번** 세어진다.
+ * 잔여 pending 은 항상 orderId 엔트리 쪽에 실려 나가므로 여기서 잃는 좌석은 없다.
+ *
+ * 루트가 없던(신 구조) 슬롯은 그대로 둔다 — 불필요한 스칼라를 새로 만들지 않는다.
+ *
+ * @param {*} rawSlotValue   읽어온 slot_pending[slotId] 원본
+ * @param {Record<string, object>} nextEntries  써낼 orderId 엔트리 맵 (제자리 변경)
+ * @param {number} nowMs
+ * @returns {Record<string, object>} nextEntries
+ */
+function neutralizeLegacyRoot(rawSlotValue, nextEntries, nowMs) {
+  if (!looksLegacySingleEntry(rawSlotValue)) return nextEntries;
+  nextEntries.count = 0;
+  nextEntries.expiresAt = new Date(nowMs - 1000).toISOString();
+  return nextEntries;
 }
 
 /**
@@ -184,7 +227,7 @@ export async function acquireSlotLock({ adminDb, tourId, date, slotId, pax, capa
       count: baseCount + pax,
       expiresAt: new Date(nowMs + PENDING_TTL_MS).toISOString(),
     };
-    slotPending[slotId] = nextEntries;
+    slotPending[slotId] = neutralizeLegacyRoot(slotPending[slotId], nextEntries, nowMs);
 
     tx.set(ref, {
       tourId,
@@ -223,7 +266,8 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
     const confirmed = Number(data.slot_bookings?.[slotId] || 0);
 
     // 버그#18: slot_pending 을 orderId 별 엔트리로 정규화(옛 단일 엔트리도 처리).
-    const entries = normalizeSlotPendingEntry(data.slot_pending?.[slotId]);
+    const rawSlotPending = data.slot_pending?.[slotId];
+    const entries = normalizeSlotPendingEntry(rawSlotPending);
     const myKey = orderId || LEGACY_ENTRY_KEY;
     const myEntry = entries[myKey];
     // 우리 lock = 같은 orderId 키의 유효 pending. 이 경로면 우리 pax 가 이미
@@ -277,12 +321,20 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
       }
     }
 
-    const slotPending = { ...(data.slot_pending || {}) };
-    if (Object.keys(nextEntries).length > 0) {
-      slotPending[slotId] = nextEntries;
-    } else {
-      delete slotPending[slotId];
+    // 🔴 소비한 엔트리는 **지우는 게 아니라 만료 표시로 덮어야** 실제로 사라진다.
+    //   Firestore `set(..., {merge:true})` 는 중첩 맵을 깊게 병합하므로 JS 객체에서 키를 빼도
+    //   문서에서는 그대로 남는다(releaseSlotLock 헤더가 문서화한 같은 성질). 그냥 지우면
+    //   confirm 한 pax 가 pending 에 남아 TTL 10분 동안 같은 좌석을 두 번 세고, 남은 정원이
+    //   있는데도 다음 손님이 SLOT_FULL 로 오차단된다(버그#18 과 같은 계열의 매출손실).
+    //   count 0 + 과거 expiresAt = summarizeSlot 이 즉시 0 으로 센다. 실제 키 제거는 불필요.
+    const tombstoneExpiresAt = new Date(nowMs - 1000).toISOString();
+    for (const eid of Object.keys(entries)) {
+      if (!nextEntries[eid]) nextEntries[eid] = { count: 0, expiresAt: tombstoneExpiresAt };
     }
+    // 옛 단일 엔트리는 orderId 키가 아니라 **루트 스칼라**로 앉아 있다 — 위 tombstone 은
+    //   중첩 키만 덮으므로 루트는 살아남아 오차단이 계속된다. 루트도 같이 만료 처리.
+    const slotPending = { ...(data.slot_pending || {}) };
+    slotPending[slotId] = neutralizeLegacyRoot(rawSlotPending, nextEntries, nowMs);
 
     tx.set(ref, {
       tourId,
@@ -438,6 +490,7 @@ export async function sweepExpiredPending({ adminDb, tourId, date, now }) {
       let slotSwept = 0;
       for (const [eid, entry] of Object.entries(entries)) {
         // 활성 엔트리 · 이미 무력화된 tombstone(count<=0) 은 원본 그대로 둔다.
+        // count 0 을 swept 로 세면 cron 이 매 tick 같은 doc 을 영구 재기록한다.
         if (!isPendingExpired(entry, nowMs) || Number(entry?.count || 0) <= 0) {
           nextEntries[eid] = entry;
           continue;
@@ -447,12 +500,11 @@ export async function sweepExpiredPending({ adminDb, tourId, date, now }) {
       }
       if (Object.keys(nextEntries).length === 0) continue;
       swept += slotSwept;
-      // 옛 단일 엔트리는 슬롯 **루트**에 count/expiresAt 이 있고 정규화가 루트를
-      // 우선 읽는다 → 중첩 tombstone 만 써서는 다음 tick 에 또 만료 양수로 읽혀
-      // 수렴하지 않는다. 루트도 같이 무력화한다.
-      next[slotId] = slotSwept > 0 && looksLegacySingleEntry(slotVal)
-        ? { ...nextEntries, ...tombstone }
-        : nextEntries;
+      // 옛 단일 엔트리는 슬롯 **루트**에 count/expiresAt 이 있다 → 중첩 tombstone 만
+      // 써서는 다음 tick 에 또 만료 양수로 읽혀 수렴하지 않는다. 루트도 같이 무력화한다.
+      // 활성 좌석은 위에서 이미 orderId 키로 재방출됐으므로 루트를 죽여도 잃는 좌석이 없다
+      // (acquire/confirm 과 같은 규칙 = neutralizeLegacyRoot, 판별은 looksLegacySingleEntry SSOT).
+      next[slotId] = slotSwept > 0 ? neutralizeLegacyRoot(slotVal, nextEntries, nowMs) : nextEntries;
     }
     if (swept === 0) return { ok: true, swept: 0 };
 

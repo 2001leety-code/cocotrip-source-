@@ -37,6 +37,95 @@ const CATEGORY_ICON: Record<string, string> = {
   transit: '🚆',
 };
 
+/**
+ * 마크다운 라벨 — **전부 `planDetail` 사전에서 온다** (2026-08-08).
+ *
+ * 🔴 왜: 같은 문서의 PDF 판(`pdfGenerator.ts`)은 진작 `planDetail.ui.pdf*` 를 쓰는데,
+ *   마크다운 판만 `도착 안내`·`일정`·`수단`·`소요 N분`·`요금 N원`·`일별 예산`·`추천 식당`·
+ *   `호텔→역` 을 한국어로 박아 두고 있었다. 영어·일본어·중국어 손님이 받는 .md 파일에
+ *   한글 라벨이 그대로 나갔다 (#1254 는 `'역'` **한 개**만 고쳤다).
+ *
+ * ⚠️ 새 i18n 키는 만들지 않았다 — 필요한 값이 4개 로케일에 **이미 전부** 있었다.
+ *   폴백은 **영어**로 둔다. 한국어로 두면 사전이 비었을 때 같은 사고가 조용히 재발한다.
+ */
+/**
+ * `ui.budgetDayN` — 언어별 어순이 맞는 "N일차" 템플릿(#1264 가 사전에 키를 추가 중).
+ * 아직 그 키가 없는 로케일 스냅샷에서도 어순이 맞도록 언어별 폴백을 둔다.
+ * (`budgetDay` 낱말 + 번호 이어붙이기는 ko/ja 에서 `일차 1`/`日目 1` 처럼 어순이 깨진다.)
+ */
+const BUDGET_DAY_N_FALLBACK: Record<string, string> = {
+  en: 'Day {n}',
+  ko: '{n}일차',
+  ja: '{n}日目',
+  zh: '第{n}天',
+};
+
+function mdLabels(lang: string) {
+  const t = getPlanDetailDict(getLocaleSync(lang as Language));
+  const ui = (t.ui as Record<string, string> | undefined) || {};
+  const ic = (t.intercity as Record<string, string> | undefined) || {};
+  const lg = (t.lodging as Record<string, string> | undefined) || {};
+  return {
+    arrival: ui.pdfArrivalGuide || 'Airport Arrival Guide',
+    departure: ui.pdfDepartureGuide || 'Departure Guide',
+    toHotel: ui.toHotel || 'To Hotel',
+    toAirport: ui.toAirport || 'To Airport',
+    schedule: ui.planRouteTimeline || 'Route timeline',
+    budget: ui.pdfBudgetSummary || 'Daily Budget Summary',
+    budgetDayN: ui.budgetDayN || BUDGET_DAY_N_FALLBACK[lang] || BUDGET_DAY_N_FALLBACK.en,
+    budgetMeals: ui.budgetMeals || 'Meals',
+    budgetTransport: ui.budgetTransport || 'Transport',
+    budgetEntry: ui.budgetEntry || 'Entry',
+    budgetTotal: ui.budgetTotal || 'Total',
+    tmoney: ui.tmoneyRecommended || 'Recommended T-money load',
+    restaurants: ui.recommendedRestaurantsTitle || 'Must-visit restaurants nearby',
+    stay: lg.label || 'Stay',
+    station: ic.station || 'Station',
+    intercityTitle: ic.title || 'Intercity Transit — {{mode}}',
+    depart: ic.depart || 'Depart {{time}}',
+    arrive: ic.arrive || 'Arrive {{time}}',
+    duration: ic.duration || '~{{min}} min',
+    fare: ic.fare || '₩{{krw}} / pax',
+    book: ic.book || 'Book',
+    bucketGeneral: ui.recRestaurantsGeneral || 'General',
+    bucketVegan: ui.recRestaurantsVegan || 'Vegan',
+    bucketHalal: ui.recRestaurantsHalal || 'Halal',
+  };
+}
+type MdLabels = ReturnType<typeof mdLabels>;
+
+/** 소요 시간 — 4개 언어 템플릿(`~{{min}} min` / `약 {{min}}분` …)을 그대로 쓴다. */
+function dur(L: MdLabels, min: unknown): string {
+  return L.duration.replace('{{min}}', min == null ? '?' : String(min));
+}
+
+/**
+ * 금액 — `₩` 기호를 쓴다. 사전의 `intercity.fare` 가 이미 4개 로케일 전부 `₩` 라
+ * 표기가 어긋나지 않고, 언어별 통화 단어를 새로 만들 필요도 없다.
+ * (예전 `12,000원` 은 한국어 손님에게만 맞는 표기였다.)
+ */
+function krw(n: unknown): string {
+  return `₩${(typeof n === 'number' ? n : 0).toLocaleString()}`;
+}
+
+/**
+ * 예산 표의 '일차' 칸. `L.budgetDayN` 은 항상 `{n}` 자리표시자 템플릿이라(사전에 있든
+ * 언어별 폴백이든) 어순 걱정 없이 치환만 하면 된다 — en `Day 1`, ko `1일차`,
+ * ja `1日目`, zh `第1天`. 열 이름은 언어 무관 기호 `#`.
+ */
+function dayCell(L: MdLabels, n: unknown): string {
+  const v = n == null ? '?' : String(n);
+  return L.budgetDayN.replace('{n}', v);
+}
+
+/** 추천 식당 버킷 이름 — 사전 값이 있으면 쓰고 없으면 원본 키. */
+function bucketLabel(L: MdLabels, bucket: string): string {
+  if (bucket === 'general') return L.bucketGeneral;
+  if (bucket === 'vegan') return L.bucketVegan;
+  if (bucket === 'halal') return L.bucketHalal;
+  return bucket;
+}
+
 function escapeMd(s: string | undefined | null): string {
   if (!s) return '';
   // Markdown 특수문자 minimal escape — | (테이블), \ (escape) 만 처리.
@@ -69,6 +158,7 @@ export function planToMarkdown(
   const it = (plan as any).itinerary || {};
   const input = (plan as any).input || {};
   const lang = opts.language || input.language || 'ko';
+  const L = mdLabels(lang);
 
   const out: string[] = [];
 
@@ -96,11 +186,11 @@ export function planToMarkdown(
   // ── Arrival Guide ─────────────────────────────────────────────────────
   const ag = it.arrival_guide;
   if (ag && ag.airport) {
-    out.push(`## ✈️ 도착 안내 (${escapeMd(ag.airport)})`);
+    out.push(`## ✈️ ${L.arrival} (${escapeMd(ag.airport)})`);
     out.push('');
     if (Array.isArray(ag.steps)) {
       for (const step of ag.steps) {
-        const stepLine = `${step.step ?? '?'}. **${escapeMd(step.title || '')}** (${step.est_min ?? '?'}분)`;
+        const stepLine = `${step.step ?? '?'}. **${escapeMd(step.title || '')}** (${dur(L, step.est_min)})`;
         out.push(`- ${stepLine}`);
         if (step.description) out.push(`  - ${escapeMd(step.description)}`);
       }
@@ -108,7 +198,7 @@ export function planToMarkdown(
     if (ag.route_to_hotel) {
       const r = ag.route_to_hotel;
       out.push('');
-      out.push(`**호텔 가는 길**: ${escapeMd(r.instruction || r.summary || '')} (${r.est_min ?? '?'}분, ${(r.est_fare_krw ?? 0).toLocaleString()}원)`);
+      out.push(`**${L.toHotel}**: ${escapeMd(r.instruction || r.summary || '')} (${dur(L, r.est_min)}, ${krw(r.est_fare_krw)})`);
     }
     out.push('');
   }
@@ -132,35 +222,35 @@ export function planToMarkdown(
       const ictMode = ict.mode || ict.method;
       const ictEstMin = ict.est_min ?? ict.duration_min;
       const ictEstFare = ict.est_fare_krw ?? ict.cost_krw;
-      out.push(`### 🚆 도시 간 이동 (${escapeMd(ict.from_city_display || ict.from_city || '?')} → ${escapeMd(ict.to_city_display || ict.to_city || '?')})`);
+      // 제목이 수단을 이미 담는다(`Intercity Transit — KTX` / `도시 간 이동 — KTX`) —
+      // 예전의 별도 `- **수단**:` 줄은 같은 값을 두 번 쓰던 것이라 없앴다.
+      out.push(`### 🚆 ${L.intercityTitle.replace('{{mode}}', escapeMd(ictMode))} (${escapeMd(ict.from_city_display || ict.from_city || '?')} → ${escapeMd(ict.to_city_display || ict.to_city || '?')})`);
       const intercityLines = nonEmpty([
-        `- **수단**: ${escapeMd(ictMode)}`,
         ict.from_station && ict.to_station ? `- **${escapeMd(ict.from_station)} → ${escapeMd(ict.to_station)}**` : null,
-        ict.recommended_depart ? `- 출발 시간: ${escapeMd(ict.recommended_depart)}` : null,
-        ict.arrival_at ? `- 도착 시간: ${escapeMd(ict.arrival_at)}` : null,
-        ictEstMin ? `- 소요: ${ictEstMin}분` : null,
-        ictEstFare ? `- 요금: ${ictEstFare.toLocaleString()}원` : null,
-        ict.booking_url ? `- 예매: ${ict.booking_url}` : null,
+        ict.recommended_depart ? `- ${L.depart.replace('{{time}}', escapeMd(ict.recommended_depart))}` : null,
+        ict.arrival_at ? `- ${L.arrive.replace('{{time}}', escapeMd(ict.arrival_at))}` : null,
+        ictEstMin ? `- ${dur(L, ictEstMin)}` : null,
+        ictEstFare ? `- ${L.fare.replace('{{krw}}', ictEstFare.toLocaleString())}` : null,
+        ict.booking_url ? `- ${L.book}: ${ict.booking_url}` : null,
         ict.instruction ? `- ${escapeMd(ict.instruction)}` : null,
       ]);
       out.push(...intercityLines);
       // lodging_to_station / station_to_lodging bookend (P111 enrichment 결과)
-      // 역명 데이터 결손 시 폴백 — planDetail.intercity.station i18n 키 (DayTimeline.tsx
-      // pd.intercity 패턴과 동일). 예전엔 '역' 하드코딩이라 전 언어 손님에게 한글 노출됐다.
-      const stationFallback = getPlanDetailDict(getLocaleSync(lang as Language)).intercity?.station || '역';
+      // 역명·숙소 라벨 모두 사전에서 온다 — 예전엔 '역'·'호텔' 이 하드코딩이라
+      // 전 언어 손님에게 한글이 노출됐다.
       if (ict.lodging_to_station) {
         const lts = ict.lodging_to_station;
-        out.push(`- 🛏️→🚆 호텔→${escapeMd(ict.from_station || stationFallback)}: ${escapeMd(lts.instruction || '')} (${lts.est_min ?? '?'}분)`);
+        out.push(`- 🛏️→🚆 ${L.stay}→${escapeMd(ict.from_station || L.station)}: ${escapeMd(lts.instruction || '')} (${dur(L, lts.est_min)})`);
       }
       if (ict.station_to_lodging) {
         const stl = ict.station_to_lodging;
-        out.push(`- 🚆→🛏️ ${escapeMd(ict.to_station || stationFallback)}→호텔: ${escapeMd(stl.instruction || '')} (${stl.est_min ?? '?'}분)`);
+        out.push(`- 🚆→🛏️ ${escapeMd(ict.to_station || L.station)}→${L.stay}: ${escapeMd(stl.instruction || '')} (${dur(L, stl.est_min)})`);
       }
       out.push('');
     }
 
     // Stops
-    out.push('### 일정');
+    out.push(`### ${L.schedule}`);
     out.push('');
     for (const stop of (day.stops || [])) {
       const icon = CATEGORY_ICON[stop.category] || '📍';
@@ -171,7 +261,7 @@ export function planToMarkdown(
 
       const subLines = nonEmpty([
         stop.address ? `  - 📍 ${escapeMd(stop.address)}` : null,
-        stop.entry_fee_krw && stop.entry_fee_krw > 0 ? `  - 💰 입장료: ${stop.entry_fee_krw.toLocaleString()}원` : null,
+        stop.entry_fee_krw && stop.entry_fee_krw > 0 ? `  - 💰 ${L.budgetEntry}: ${krw(stop.entry_fee_krw)}` : null,
         stop.tip ? `  - 💡 ${escapeMd(stop.tip)}` : null,
         stop.personalization_reasoning ? `  - 🎯 ${escapeMd(stop.personalization_reasoning)}` : null,
         stop.naverMapUrl ? `  - 🗺️ ${stop.naverMapUrl}` : null,
@@ -183,7 +273,7 @@ export function planToMarkdown(
         const tp = stop.transit_from_prev;
         const transit = nonEmpty([
           tp.instruction ? `  - ↳ ${escapeMd(tp.instruction)}` : null,
-          tp.est_min ? `    (${tp.est_min}분, ${(tp.est_fare_krw ?? 0).toLocaleString()}원)` : null,
+          tp.est_min ? `    (${dur(L, tp.est_min)}, ${krw(tp.est_fare_krw ?? 0)})` : null,
         ]);
         out.push(...transit);
       }
@@ -194,31 +284,31 @@ export function planToMarkdown(
   // ── Departure Guide ───────────────────────────────────────────────────
   const dg = it.departure_guide;
   if (dg && dg.airport) {
-    out.push(`## 🛫 출발 안내 (${escapeMd(dg.airport)})`);
+    out.push(`## 🛫 ${L.departure} (${escapeMd(dg.airport)})`);
     if (dg.route_to_airport) {
       const r = dg.route_to_airport;
       out.push('');
-      out.push(`**공항 가는 길**: ${escapeMd(r.instruction || r.summary || '')} (${r.est_min ?? '?'}분, ${(r.est_fare_krw ?? 0).toLocaleString()}원)`);
+      out.push(`**${L.toAirport}**: ${escapeMd(r.instruction || r.summary || '')} (${dur(L, r.est_min)}, ${krw(r.est_fare_krw)})`);
     }
     out.push('');
   }
 
   // ── Budget Summary ────────────────────────────────────────────────────
   if (Array.isArray(it.daily_budget_summary) && it.daily_budget_summary.length > 0) {
-    out.push('## 💰 일별 예산');
+    out.push(`## 💰 ${L.budget}`);
     out.push('');
-    out.push('| Day | Food | Transit | Entry | Total |');
+    out.push(`| # | ${L.budgetMeals} | ${L.budgetTransport} | ${L.budgetEntry} | ${L.budgetTotal} |`);
     out.push('|-----|------|---------|-------|-------|');
     for (const b of it.daily_budget_summary) {
       // P300/B2 (2026-05-29): SSOT field names (meals_krw/transport_krw/entry_fees_krw) first + legacy fallback.
       const meals = (b as Record<string, number>).meals_krw ?? b.food_krw ?? 0;
       const transit = (b as Record<string, number>).transport_krw ?? b.transit_krw ?? 0;
       const entry = (b as Record<string, number>).entry_fees_krw ?? b.entry_krw ?? 0;
-      out.push(`| Day ${b.day ?? '?'} | ${meals.toLocaleString()}원 | ${transit.toLocaleString()}원 | ${entry.toLocaleString()}원 | **${(b.total_krw ?? 0).toLocaleString()}원** |`);
+      out.push(`| ${dayCell(L, b.day)} | ${krw(meals)} | ${krw(transit)} | ${krw(entry)} | **${krw(b.total_krw ?? 0)}** |`);
     }
     if (it.t_money_recommended_load) {
       out.push('');
-      out.push(`🚇 **T-money 추천 충전액**: ${it.t_money_recommended_load.toLocaleString()}원`);
+      out.push(`🚇 **${L.tmoney}**: ${krw(it.t_money_recommended_load)}`);
     }
     out.push('');
   }
@@ -226,11 +316,11 @@ export function planToMarkdown(
   // ── Recommended Restaurants (must-visit) ─────────────────────────────
   const rr = it.recommended_restaurants;
   if (rr && typeof rr === 'object') {
-    out.push('## 🍴 추천 식당 (Must-visit)');
+    out.push(`## 🍴 ${L.restaurants}`);
     out.push('');
     for (const [bucket, list] of Object.entries(rr as Record<string, unknown[]>)) {
       if (!Array.isArray(list) || list.length === 0) continue;
-      out.push(`**${bucket}**`);
+      out.push(`**${escapeMd(bucketLabel(L, bucket))}**`);
       for (const r of list.slice(0, 10)) {
         const rr = r as any;
         out.push(`- ${escapeMd(rr.name || rr.display_name)} · ${escapeMd(rr.cuisine || '')} · ⭐ ${rr.rating || '?'} · ${escapeMd(rr.address || '')}`);

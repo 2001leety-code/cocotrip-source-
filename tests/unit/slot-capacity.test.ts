@@ -257,7 +257,10 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
     expect(r.confirmed).toBe(2);
     const doc = db._peek(PATH)!;
     expect((doc.slot_bookings as any)['slot-a']).toBe(2);
-    expect((doc.slot_pending as any)['slot-a']).toBeUndefined();
+    // 소비된 pending 은 만료 표시(count 0)로 남는다 — Firestore set(merge) 는 중첩 맵
+    // 키를 못 지우므로 삭제로 표현하면 실제 문서에 pending 이 그대로 남는다.
+    // (slot-pending-merge-leak.test.ts 가 깊은 병합으로 이 계약을 잠근다.)
+    expect(summarizeSlot(doc, 'slot-a')).toEqual({ confirmed: 2, pending: 0, total: 2 });
   });
 
   it('lost-lock path: pending expired, but capacity allows confirm', async () => {
