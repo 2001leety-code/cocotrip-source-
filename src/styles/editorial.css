@@ -1,0 +1,406 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CocoTrip — Korea Editorial Concierge design foundation
+   Swiss Modernism 50% · Editorial Grid 30% · Trust & Authority 20%
+
+   IMPORT ORDER MATTERS. main.tsx imports this file BEFORE index.css so that
+   these are *definitions*, not overrides — nothing here uses `!important`, and
+   legacy page-scoped rules in index.css still win on the pages they own.
+
+   Three layers, in order. Never reference a primitive from a component.
+     1. primitive  --ecp-*   raw values. No meaning.
+     2. semantic   --ec-*    role in the interface. What components read.
+     3. component  --ec-<component>-*  one component's own knobs.
+
+   Full rationale, do/don't list and copy rules: docs/DESIGN-EDITORIAL-CONCIERGE.md
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Layer 1 — primitives ─────────────────────────────────────────────────
+   Contrast ratios measured, not guessed (see the doc's table). Warm paper is
+   the ground; ink is a blue-black so it sits with the brand purple. */
+:root {
+  /* paper + surface */
+  --ecp-paper-50:    #fbfaf7;
+  --ecp-paper-100:   #f3f1ec;
+  --ecp-paper-200:   #e9e5dc;
+  --ecp-white:       #ffffff;
+
+  /* ink */
+  --ecp-ink-900:     #14141a;
+  --ecp-ink-700:     #3b3b45;
+  --ecp-ink-600:     #4e4e59;
+  --ecp-ink-500:     #63636e;
+  --ecp-ink-400:     #7b7b86;   /* decorative / >=24px only — 3.71:1 on paper */
+
+  /* hairlines */
+  --ecp-line-200:    #dfdacf;
+  --ecp-line-300:    #d6d0c3;
+  --ecp-line-400:    #c9c3b6;
+
+  /* brand — one solid purple, no page gradients.
+     The #6633FC→#E03BAE gradient is LOGO IDENTITY ONLY (see --ec-logo-gradient). */
+  --ecp-violet-600:  #5326d6;
+  --ecp-violet-700:  #4b21c9;
+  --ecp-violet-050:  #efeafc;
+
+  /* status */
+  --ecp-green-700:   #1f6b4a;
+  --ecp-red-700:     #b3261e;
+  --ecp-amber-700:   #8a5a00;
+
+  /* type — no new webfont. The existing Inter + Noto CJK chain is the
+     grotesque; Swiss comes from scale, weight and tracking, not a new file. */
+  --ecp-font-sans: Inter, 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', system-ui, sans-serif;
+
+  /* 4px base */
+  --ecp-space-1:  4px;
+  --ecp-space-2:  8px;
+  --ecp-space-3:  12px;
+  --ecp-space-4:  16px;
+  --ecp-space-5:  24px;
+  --ecp-space-6:  32px;
+  --ecp-space-7:  48px;
+  --ecp-space-8:  64px;
+  --ecp-space-9:  96px;
+  --ecp-space-10: 128px;
+}
+
+/* ── Layer 2 — semantic ───────────────────────────────────────────────────
+   These are what components read. Renaming a primitive must not touch a
+   component; changing a role's value here changes it everywhere at once. */
+:root {
+  /* surfaces */
+  --ec-surface-page:      var(--ecp-paper-100);
+  --ec-surface-raised:    var(--ecp-white);
+  --ec-surface-sunken:    var(--ecp-paper-200);
+  --ec-surface-shell:     rgba(251, 250, 247, 0.88);   /* header/nav over content */
+  --ec-surface-shell-solid: var(--ecp-paper-50);
+  --ec-surface-inverse:   var(--ecp-ink-900);
+
+  /* text */
+  --ec-text-primary:      var(--ecp-ink-900);
+  --ec-text-secondary:    var(--ecp-ink-600);
+  --ec-text-muted:        var(--ecp-ink-500);
+  --ec-text-faint:        var(--ecp-ink-400);   /* >=24px or non-essential only */
+  --ec-text-on-brand:     var(--ecp-white);
+  --ec-text-on-inverse:   var(--ecp-paper-50);
+
+  /* lines — depth comes from hairlines, never from drop shadows */
+  --ec-line:              var(--ecp-line-200);
+  --ec-line-strong:       var(--ecp-line-300);
+  --ec-line-contrast:     var(--ecp-line-400);
+
+  /* brand */
+  --ec-brand:             var(--ecp-violet-600);
+  --ec-brand-hover:       var(--ecp-violet-700);
+  --ec-brand-wash:        var(--ecp-violet-050);
+  /* No logo-gradient token here on purpose. The brand gradient
+     (#6633FC → #E03BAE) belongs to the logo artwork in public/icons/, which the
+     header and footer render as an <img>. Publishing it as a CSS custom
+     property is how it ends up on a button six months from now — the token
+     layer stays gradient-free so `editorial-home-foundation.test.ts` can assert
+     that as a fact rather than an intention. */
+
+  /* status */
+  --ec-success:           var(--ecp-green-700);
+  --ec-critical:          var(--ecp-red-700);
+  --ec-notice:            var(--ecp-amber-700);
+
+  /* radius — Swiss: small and consistent. Pills are for chips, never for CTAs. */
+  --ec-radius-xs:   2px;
+  --ec-radius-sm:   4px;
+  --ec-radius-md:   8px;
+  --ec-radius-lg:   12px;
+  --ec-radius-pill: 999px;
+
+  /* elevation — exactly two steps, both for things that float over content.
+     Cards get a hairline, not a shadow. There is no glow token on purpose. */
+  --ec-shadow-none:   none;
+  --ec-shadow-raise:  0 1px 2px rgba(20, 20, 26, 0.05), 0 10px 28px rgba(20, 20, 26, 0.07);
+  --ec-shadow-overlay: 0 2px 6px rgba(20, 20, 26, 0.08), 0 24px 60px rgba(20, 20, 26, 0.14);
+
+  /* focus — one visible ring everywhere, keyboard users included */
+  --ec-focus-ring: 0 0 0 2px var(--ec-surface-page), 0 0 0 4px var(--ec-brand);
+
+  /* motion — CSS transitions only. No animation library is installed and none
+     may be added; see the doc. Every consumer must respect reduced motion. */
+  --ec-duration-fast: 120ms;
+  --ec-duration-base: 180ms;
+  --ec-duration-slow: 240ms;
+  --ec-ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --ec-ease-enter:    cubic-bezier(0, 0, 0.2, 1);
+  --ec-ease-exit:     cubic-bezier(0.4, 0, 1, 1);
+
+  /* layout — editorial measure */
+  --ec-measure:       68ch;   /* max body line length */
+  --ec-container:     1200px;
+  --ec-container-wide: 1360px;
+  --ec-gutter:        20px;
+
+  /* touch */
+  --ec-touch-min: 44px;
+}
+
+@media (min-width: 768px) {
+  :root { --ec-gutter: 32px; }
+}
+@media (min-width: 1280px) {
+  :root { --ec-gutter: 48px; }
+}
+
+/* ── Layer 3 — component tokens ───────────────────────────────────────────
+   One block per component. A component reads only its own tokens. */
+:root {
+  /* button */
+  --ec-button-height:        44px;
+  --ec-button-height-sm:     36px;
+  --ec-button-radius:        var(--ec-radius-sm);
+  --ec-button-primary-bg:    var(--ec-brand);
+  --ec-button-primary-bg-hover: var(--ec-brand-hover);
+  --ec-button-primary-fg:    var(--ec-text-on-brand);
+  --ec-button-secondary-fg:  var(--ec-text-primary);
+  --ec-button-secondary-line: var(--ec-line-contrast);
+
+  /* card / editorial module */
+  --ec-card-bg:      var(--ec-surface-raised);
+  --ec-card-line:    var(--ec-line);
+  --ec-card-radius:  var(--ec-radius-md);
+  --ec-card-pad:     20px;
+
+  /* shell */
+  --ec-shell-height:        56px;
+  --ec-shell-height-md:     64px;
+  --ec-shell-bg:            var(--ec-surface-shell);
+  --ec-shell-line:          var(--ec-line);
+  --ec-shell-blur:          14px;
+
+  /* field */
+  --ec-field-bg:      var(--ec-surface-raised);
+  --ec-field-line:    var(--ec-line-strong);
+  --ec-field-radius:  var(--ec-radius-sm);
+  --ec-field-height:  48px;
+  --ec-field-size:    16px;   /* never below 16px — iOS zooms on focus otherwise */
+
+  /* eyebrow / label */
+  --ec-eyebrow-size:    11px;
+  --ec-eyebrow-track:   0.14em;
+}
+
+/* ═══ Base ═══════════════════════════════════════════════════════════════ */
+
+/* Keyboard focus is visible on every interactive element in the new system.
+   :focus-visible only — pointer users do not get a ring. */
+.ec-root :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ec-focus-ring);
+  border-radius: var(--ec-radius-xs);
+}
+
+.ec-root {
+  background: var(--ec-surface-page);
+  color: var(--ec-text-primary);
+  font-family: var(--ecp-font-sans);
+}
+
+/* Korean wraps at word boundaries, not between syllable blocks.
+   Chrome's default breaks Hangul anywhere, so the headline came out as
+   "…알려주세 / 요." and body copy split 한 / 국 — measured at 390px, not a
+   theory. `keep-all` is scoped to :lang(ko) on purpose: Japanese and Chinese
+   have no spaces, so the same rule there would make a whole sentence one
+   unbreakable token and push it past the viewport. `overflow-wrap` is the
+   safety valve for a single long token (URL, email) that still cannot fit. */
+.ec-root:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Body copy is left-aligned and measured. Centered paragraphs are banned. */
+.ec-measure { max-width: var(--ec-measure); }
+
+.ec-container {
+  width: 100%;
+  max-width: var(--ec-container);
+  margin-inline: auto;
+  padding-inline: var(--ec-gutter);
+}
+.ec-container-wide {
+  width: 100%;
+  max-width: var(--ec-container-wide);
+  margin-inline: auto;
+  padding-inline: var(--ec-gutter);
+}
+
+/* ═══ Type scale ═════════════════════════════════════════════════════════
+   Swiss: few sizes, decisive jumps, negative tracking only where it earns it.
+   Sizes are clamped so 390px and 1440px share one scale. */
+.ec-display {
+  font-size: clamp(34px, 6.2vw, 68px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: var(--ec-text-primary);
+}
+.ec-h2 {
+  font-size: clamp(24px, 3.2vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+.ec-h3 {
+  font-size: clamp(18px, 1.6vw, 22px);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+.ec-body {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ec-text-secondary);
+}
+.ec-body-sm {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ec-text-secondary);
+}
+.ec-eyebrow {
+  font-size: var(--ec-eyebrow-size);
+  line-height: 1;
+  letter-spacing: var(--ec-eyebrow-track);
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ec-text-muted);
+}
+/* Figures line up in a column — trust reads as precision. */
+.ec-figure {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--ec-text-primary);
+}
+
+/* Korean/Japanese blocks need more leading than Latin at the same size. */
+html[lang='ko'] .ec-body,
+html[lang='ja'] .ec-body,
+html[lang='zh'] .ec-body { line-height: 1.78; }
+
+/* ═══ Rules (the editorial grid's actual structure) ══════════════════════ */
+.ec-rule { border: 0; border-top: 1px solid var(--ec-line); margin: 0; }
+.ec-rule-strong { border: 0; border-top: 1px solid var(--ec-line-strong); margin: 0; }
+
+/* ═══ Buttons ════════════════════════════════════════════════════════════ */
+.ec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--ec-button-height);
+  padding: 0 20px;
+  border-radius: var(--ec-button-radius);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--ec-duration-base) var(--ec-ease-standard),
+    border-color var(--ec-duration-base) var(--ec-ease-standard),
+    color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-btn-primary {
+  background: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+}
+.ec-btn-primary:hover { background: var(--ec-button-primary-bg-hover); }
+.ec-btn-secondary {
+  background: var(--ec-surface-raised);
+  color: var(--ec-button-secondary-fg);
+  border-color: var(--ec-button-secondary-line);
+}
+.ec-btn-secondary:hover { border-color: var(--ec-text-primary); }
+.ec-btn-quiet {
+  background: transparent;
+  color: var(--ec-text-secondary);
+  padding: 0 12px;
+}
+.ec-btn-quiet:hover { color: var(--ec-text-primary); }
+.ec-btn-sm { min-height: var(--ec-button-height-sm); padding: 0 14px; font-size: 14px; }
+.ec-btn[disabled], .ec-btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ═══ Surfaces ═══════════════════════════════════════════════════════════ */
+.ec-card {
+  background: var(--ec-card-bg);
+  border: 1px solid var(--ec-card-line);
+  border-radius: var(--ec-card-radius);
+  padding: var(--ec-card-pad);
+}
+/* Hover moves the line, never the box. No lift, no glow. */
+.ec-card-link {
+  display: block;
+  text-decoration: none;
+  transition: border-color var(--ec-duration-base) var(--ec-ease-standard),
+              background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-card-link:hover { border-color: var(--ec-line-contrast); }
+
+.ec-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--ec-radius-pill);
+  border: 1px solid var(--ec-line-strong);
+  background: var(--ec-surface-raised);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ec-text-secondary);
+  white-space: nowrap;
+}
+.ec-chip-brand {
+  border-color: transparent;
+  background: var(--ec-brand-wash);
+  color: var(--ec-brand-hover);
+}
+
+/* ═══ Fields ═════════════════════════════════════════════════════════════ */
+.ec-field {
+  width: 100%;
+  min-height: var(--ec-field-height);
+  padding: 0 14px;
+  font-size: var(--ec-field-size);
+  color: var(--ec-text-primary);
+  background: var(--ec-field-bg);
+  border: 1px solid var(--ec-field-line);
+  border-radius: var(--ec-field-radius);
+  transition: border-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-field::placeholder { color: var(--ec-text-muted); }
+.ec-field:hover { border-color: var(--ec-line-contrast); }
+
+/* ═══ Motion policy ══════════════════════════════════════════════════════
+   Anything that moves must be switchable off. Duration tokens collapse to a
+   near-zero value rather than being removed, so layout never jumps. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ec-duration-fast: 1ms;
+    --ec-duration-base: 1ms;
+    --ec-duration-slow: 1ms;
+  }
+  .ec-root *,
+  .ec-root *::before,
+  .ec-root *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print: paper is already paper. Drop the shell chrome and keep the ink. */
+@media print {
+  .ec-no-print { display: none !important; }
+  .ec-root { background: #fff; }
+}

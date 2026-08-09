@@ -130,22 +130,29 @@ export function PromoBanner() {
 
   return (
     // 닫기(X)는 Link 밖 형제 — 중첩 인터랙티브 회피 + X 클릭 시 네비게이션 안 됨.
-    // 2026-07-19 라이트 스킨(체크리스트 P1 잔여): 배경을 통일 CTA 토큰(--coco-cta-gradient)으로 —
-    // 라이트 셸 CTA 와 동일 그라데이션. 문구·로직은 무변경 (서버 promo-config 동일성 테스트 보호).
-    <div className="relative w-full" style={{ background: 'var(--coco-cta-gradient)' }} role="region" aria-label="Promotion">
+    // 2026-08-10 Editorial Concierge: 배경을 브랜드 그라데이션에서 잉크 서피스로 교체.
+    //   페이지 맨 위 그라데이션 띠가 새 시각 체계와 정면으로 충돌했다(그라데이션 배경 금지).
+    //   문구·CTA·추적·로직은 무변경 — COPY 는 서버(api/_shared/promo-config.js)와
+    //   동일성 테스트로 묶여 있어 여기서 손대면 그 테스트가 깨진다.
+    <div
+      className="ec-root ec-no-print relative w-full"
+      style={{ background: 'var(--ec-surface-inverse)', color: 'var(--ec-text-on-inverse)' }}
+      role="region"
+      aria-label="Promotion"
+    >
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="block w-full text-center text-white text-[12px] sm:text-sm font-semibold py-2 px-9 leading-snug hover:brightness-110 transition"
+        className="block w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
       >
         <span>{text} </span>
-        <span className="underline underline-offset-2 whitespace-nowrap">{cta}</span>
+        <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
       </Link>
       <button
         type="button"
         onClick={close}
         aria-label="Close promotion"
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-white hover:bg-white/15 transition-colors"
+        className="absolute right-1 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-ec-sm transition-colors duration-ec-base ease-ec-standard hover:bg-white/10"
       >
         <X size={15} />
       </button>

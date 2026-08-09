@@ -857,11 +857,11 @@ html[data-menu-open="true"] .early-bird-banner {
   }
 }
 
-/* 정제 퍼플·핑크 — 데스크탑 홈 cascade (.refined-home; App.tsx HomePage 가 REFINED 시 부여). OFF=완전 무효.
-   index.css 에 둠(App.tsx <style> 가 메인 JS 번들 size-limit 초과 → CSS 파일로 이동). */
-.refined-home h1, .refined-home h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
-.refined-home .shadow-glow-cta, .refined-home [class*="shadow-glow"] { box-shadow: none !important; }
-.refined-home .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+/* ⛔ `.refined-home` 은 2026-08-10 삭제됐다 — 되살리지 말 것.
+   홈은 Editorial Concierge 토큰(src/styles/editorial.css)으로 다시 만들어졌고,
+   바탕이 이미 맞으므로 보정 cascade 자체가 필요 없다. 아래 남은 `.refined-*` 는
+   이번 PR 이 건드리지 않는 페이지들 것이고, 그 페이지가 전환될 때 같이 지운다.
+   설계 SSOT: docs/DESIGN-EDITORIAL-CONCIERGE.md */
 
 /* 정제 퍼플·핑크 — 위저드(플래너) 페이지 (.refined-planner; PlannerPage 가 REFINED 시 부여). OFF=완전 무효. */
 .refined-planner h1, .refined-planner h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
@@ -892,8 +892,9 @@ html[data-menu-open="true"] .early-bird-banner {
 .refined-page .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-page .shadow-glow-cta, .refined-page [class*="shadow-glow"] { box-shadow: none !important; }
 
-/* 정제 퍼플·핑크 — 공용 헤더 (전역 .refined; main.tsx 가 REFINED 시 <html> 에 부여). 인라인 글로우(로고/BETA 배지) 제거. OFF=완전 무효. */
-.refined header [style*="box-shadow"] { box-shadow: none !important; }
+/* ⛔ `.refined header [style*="box-shadow"]` 은 2026-08-10 삭제됐다.
+   공용 헤더가 인라인 글로우를 더 이상 만들지 않아서(Editorial Concierge 셸) 지울
+   대상이 없다. 헤더에 글로우를 다시 넣고 이 규칙으로 지우는 짓을 반복하지 말 것. */
 
 /* 정제 — 버튼 마이크로 인터랙션 (2026 best practice: 절제·120~220ms·transform/opacity GPU·포커스 가시성·터치타겟).
    전역 .refined. 크기는 기존 반응형 유지 + 모바일 CTA 최소 44px 만 보강. OFF=완전 무효. */
@@ -3794,7 +3795,12 @@ textarea.community-field {
     box-shadow: 0 8px 18px rgba(124, 92, 255, 0.22) !important;
   }
 
-  .mobile-app-light-header :where(button, a),
+  /* ⛔ `.mobile-app-light-header` · `.mobile-menu-light` 는 2026-08-10 삭제됐다.
+     이 블록들은 "다크 헤더를 모바일에서만 라이트로 다시 칠하기" 위해 헤더의 모든
+     버튼·링크·svg 색을 !important 로 덮어쓰던 보정 cascade 였다. 공용 셸이 처음부터
+     종이색이라(Header.tsx + src/styles/editorial.css) 덮어쓸 대상이 사라졌다.
+     헤더 색을 바꿔야 하면 `--ec-shell-*` 토큰을 고칠 것 — 여기에 규칙을 다시 쌓지 말 것. */
+
   .mobile-bottom-nav a,
   .cocotrip-mobile-auth button {
     transition-property: transform, box-shadow, filter, background-color, border-color, color, opacity;
@@ -3802,50 +3808,10 @@ textarea.community-field {
     transition-timing-function: cubic-bezier(0.2, 0, 0.2, 1);
   }
 
-  .mobile-app-light-header :where(button, a):active,
   .mobile-bottom-nav a:active,
   .cocotrip-mobile-auth button:active {
     transform: translateY(1px) scale(0.97) !important;
     filter: brightness(0.98);
-  }
-
-  .mobile-app-light-header {
-    background: rgba(255, 255, 255, 0.84) !important;
-    border-bottom: 1px solid rgba(124, 92, 255, 0.10) !important;
-    box-shadow: 0 10px 30px rgba(48, 39, 118, 0.08) !important;
-  }
-
-  .mobile-app-light-header a,
-  .mobile-app-light-header button {
-    color: #15143d !important;
-  }
-
-  .mobile-app-light-header svg {
-    color: #7653f6 !important;
-  }
-
-  .mobile-menu-light {
-    color: #15143d !important;
-    background:
-      radial-gradient(circle at 80% 10%, rgba(255, 107, 215, 0.16), transparent 28%),
-      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,242,255,0.96)) !important;
-  }
-
-  .mobile-menu-light [class*="text-white"] {
-    color: #15143d !important;
-  }
-
-  .mobile-menu-light [class*="text-white/"] {
-    color: #756d96 !important;
-  }
-
-  .mobile-menu-light [style*="rgba(8,11,20"],
-  .mobile-menu-light [style*="rgba(8, 11, 20"],
-  .mobile-menu-light [style*="rgba(255,255,255,0.02"],
-  .mobile-menu-light [style*="rgba(255,255,255,0.03"],
-  .mobile-menu-light [style*="rgba(255,255,255,0.04"] {
-    background: rgba(255, 255, 255, 0.78) !important;
-    border-color: rgba(124, 92, 255, 0.12) !important;
   }
 
   :is(
@@ -4397,7 +4363,6 @@ textarea.community-field {
       .planner-detail-mobile-ai,
       .cocotrip-mobile-auth
     ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button, a):active,
-    .mobile-app-light-header :where(button, a):active,
     .mobile-bottom-nav a:active,
     .cocotrip-mobile-auth button:active {
       transform: none !important;

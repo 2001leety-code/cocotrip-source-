@@ -2,6 +2,9 @@
  * CocoTripKR — GDPR Cookie Consent Banner
  * Minimal EU-compliant cookie notice
  * Shows once, stores consent in localStorage
+ *
+ * Korea Editorial Concierge (2026-08-10): paper card, hairline, solid CTA.
+ * Consent logic below is untouched — it is the legal boundary, not styling.
  */
 import { useState, useEffect } from 'react';
 import { Cookie, X } from 'lucide-react';
@@ -39,52 +42,48 @@ export default function CookieBanner() {
 
   if (!visible) return null;
 
+  const linkCls = 'text-ec-brand underline underline-offset-2 hover:text-ec-brand-hover';
+
   return (
     <div
-      className="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-[10001] p-2 sm:p-4 animate-in slide-in-from-bottom duration-500"
-      style={{ animation: 'slideUp 0.4s ease-out' }}
+      className="ec-root ec-no-print fixed bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-[10001] p-3 sm:p-4"
+      role="region"
+      aria-label={cb?.title || 'Cookie notice'}
     >
-      <div className="max-w-lg mx-auto bg-[#1a1b2e]/95 backdrop-blur-xl border border-white/10 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-2xl">
-        <div className="flex items-start gap-2 sm:gap-3">
-          <Cookie className="w-5 h-5 text-purple-400 mt-0.5 shrink-0 hidden sm:block" />
+      <div className="max-w-2xl mx-auto bg-ec-raised border border-ec-line rounded-ec-md shadow-ec-overlay p-4">
+        <div className="flex items-start gap-3">
+          <Cookie className="w-5 h-5 text-ec-ink-3 mt-0.5 shrink-0 hidden sm:block" aria-hidden />
           <div className="flex-1 min-w-0">
-            <p className="text-xs sm:text-sm text-white/80 leading-snug sm:leading-relaxed">
+            <p className="text-[13px] sm:text-[14px] leading-relaxed text-ec-ink-2">
               <span className="sm:hidden">
                 {cb?.bodyShort || 'We use cookies. See our '}
-                <a href="/privacy" className="text-purple-400 underline hover:text-purple-300">{footer?.privacy || 'Privacy Policy'}</a>
+                <a href="/privacy" className={linkCls}>{footer?.privacy || 'Privacy Policy'}</a>
                 {cb?.bodyShortAfter || ''}
               </span>
               <span className="hidden sm:inline">
                 {cb?.bodyBefore || 'We use cookies to improve your experience. By continuing to use this site, you agree to our '}
-                <a href="/privacy" className="text-purple-400 underline hover:text-purple-300">{footer?.privacy || 'Privacy Policy'}</a>
+                <a href="/privacy" className={linkCls}>{footer?.privacy || 'Privacy Policy'}</a>
                 {cb?.bodyMiddle || '. To request data deletion, contact us at '}
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">{SUPPORT_EMAIL}</a>
+                <a href={`mailto:${SUPPORT_EMAIL}`} className={linkCls}>{SUPPORT_EMAIL}</a>
                 {cb?.bodyAfter || '.'}
               </span>
             </p>
-            {/* Mobile-friendly tap targets — buttons hit ~44px height (WCAG 2.5.5) */}
-            <div className="flex items-center gap-2 mt-2 sm:mt-3">
-              <button
-                onClick={accept}
-                className="min-h-[44px] px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
-              >
-                {cb?.accept ?? 'Accept'}
+            {/* Mobile-friendly tap targets — buttons hit 44px height (WCAG 2.5.5) */}
+            <div className="flex items-center gap-2 mt-3">
+              <button onClick={accept} className="ec-btn ec-btn-primary ec-btn-sm">
+                {cb?.accept || 'Accept'}
               </button>
-              <button
-                onClick={dismiss}
-                className="min-h-[44px] px-4 py-2.5 text-xs text-white/70 hover:text-white/90 transition-colors"
-              >
-                {cb?.dismiss ?? 'Dismiss'}
+              <button onClick={dismiss} className="ec-btn ec-btn-quiet ec-btn-sm">
+                {cb?.dismiss || 'Dismiss'}
               </button>
             </div>
           </div>
           <button
             onClick={dismiss}
-            aria-label={t.a11y?.close ?? cb?.dismiss ?? 'Close'}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/70 hover:text-white/90 transition-colors"
+            aria-label={t.a11y?.close || cb?.dismiss || 'Close'}
+            className="min-w-[44px] min-h-[44px] -mt-2 -mr-2 flex items-center justify-center rounded-ec-sm text-ec-ink-3 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink hover:bg-ec-page"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden />
           </button>
         </div>
       </div>

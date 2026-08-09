@@ -544,25 +544,22 @@ export function ChatWidget({ language, hideTrigger }: ChatWidgetProps) {
           right: togglePos.right,
           width: togglePos.size,
           height: togglePos.size,
+          // 2026-08-10 Editorial Concierge: 그라데이션 + 글로우 → 단색 보라 + 잔잔한 그림자.
+          // 이 버튼은 홈에만 뜨는데(App.tsx isHome), 새 홈에서 유일한 발광 요소였다.
+          // 패널 내부 스타일은 이번 PR 범위 밖 — 다음 PR 에서 함께 전환한다.
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #7C5CFC, #EA537E)',
+          background: 'var(--ec-brand)',
           border: 'none',
           cursor: 'pointer',
-          boxShadow: '0 4px 24px rgba(124,92,252,0.5), 0 0 40px rgba(124,92,252,0.25)',
+          boxShadow: 'var(--ec-shadow-raise)',
           display: hideTrigger ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 10000,
-          transition: 'transform 0.3s cubic-bezier(.2,0,.2,1), box-shadow 0.3s ease',
+          transition: 'background-color var(--ec-duration-base) var(--ec-ease-standard)',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.boxShadow = '0 6px 32px rgba(124,92,252,0.7), 0 0 50px rgba(234,83,126,0.3)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 24px rgba(124,92,252,0.5), 0 0 40px rgba(124,92,252,0.25)';
-        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ec-brand-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--ec-brand)'; }}
       >
         {open ? <X size={24} color="#fff" /> : <MessageCircle size={26} color="#fff" />}
       </button>
