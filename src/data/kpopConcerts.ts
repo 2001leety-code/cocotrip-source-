@@ -35,13 +35,41 @@ export interface KpopConcert {
 
 export const KPOP_CONCERTS: KpopConcert[] = rawConcerts as KpopConcert[];
 
-/** Filter out concerts whose last date has passed */
+/**
+ * KST 기준 오늘 00:00 의 **실제** epoch(ms) — "지난 공연" 판정의 기준선.
+ *
+ * ⚠️ `Date.UTC(kstY, kstM, kstD)` 로 쓰면 안 된다 — KST 달력일을 UTC 자정에 찍은 **가짜** epoch 라
+ *   실제 KST 자정보다 9시간 뒤다. 비교 상대인 `...T23:59:59+09:00` 은 실제 epoch 이므로,
+ *   한 비교식 안에 시계 두 개가 섞인다. 지금 답이 맞는 건 "그 날 23:59:59" 가 만드는 여유가
+ *   그 9시간을 우연히 상쇄해서일 뿐 — 종료 시각 표현을 "그 날 00:00" 으로 바꾸는 흔한 리팩터
+ *   한 번에 **당일 공연이 목록에서 사라진다**. 양쪽 다 실제 epoch 로 두면 그 우연에 기대지 않는다.
+ *
+ * 감시 크론 `api/_crons/kpop-calendar-check.js` 의 동명 함수와 **같은 식**이다
+ * (그쪽은 node:fs 를 물고 있어 프론트 번들로 가져올 수 없다 — api↔src 는 서로 import 하지 않는다).
+ * 두 벌이 갈라지면 `tests/unit/kpop-kst-epoch.test.ts` 가 잡는다.
+ */
+export function todayKstMs(): number {
+  const kstWall = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return Date.parse(`${kstWall.toISOString().slice(0, 10)}T00:00:00+09:00`);
+}
+
+/**
+ * Filter out concerts whose last date has passed — **KST 기준** (2026-08-09).
+ * 마지막 날 23:59:59 KST 까지는 남는다.
+ *
+ * ⚠️ 손님 브라우저 시간대로 판정하면 안 된다. 공연은 전부 한국에서 열린다.
+ *   예전 구현(`new Date()` + `setHours()`)은 손님 로컬 시간대를 따랐다:
+ *   · 뉴욕(UTC-4) — `new Date('2026-08-08')` 이 UTC 자정이라 현지로는 08-07 이 되고
+ *     `setHours(23,59,...)` 가 하루 앞에 찍혀, 한국에서 아직 열리는 공연이 하루 일찍 사라졌다.
+ *   · UTC/런던 — KST 로는 어제 끝난 공연이 하루 더 남아 보였다.
+ *
+ * 판정식은 감시 크론의 `splitByDate` 와 같다.
+ * 두 벌이 갈라지면 `tests/unit/kpop-calendar-watchdog.test.ts` 가 잡는다.
+ */
 export function getUpcomingConcerts(): KpopConcert[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayMs = todayKstMs();
   return KPOP_CONCERTS.filter(c => {
-    const lastDate = new Date(c.dates[c.dates.length - 1]);
-    lastDate.setHours(23, 59, 59, 999);
-    return lastDate >= today;
+    const lastMs = Date.parse(`${c.dates[c.dates.length - 1]}T23:59:59+09:00`);
+    return Number.isFinite(lastMs) && lastMs >= todayMs;
   });
 }
