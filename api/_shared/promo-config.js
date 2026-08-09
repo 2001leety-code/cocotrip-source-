@@ -35,17 +35,21 @@ const LANG_KEYS = ['ko', 'en', 'ja', 'zh'];
  *
  * 🚨 2026-07-10 P0 프로모션 진실성: 거짓 '50% OFF'·'첫 예약 10%'·지난 '6/28' 제거.
  *    프론트(PromoBanner.tsx)는 7/7에 고쳤으나 이 서버 DEFAULT 가 남아 prod API 가
- *    낡은 문구를 반환하고 있었음. 실발급(onboarding-coupons.js) = AI플랜 무료(1~3일)
+ *    낡은 문구를 반환하고 있었음. 실발급(onboarding-coupons.js) = 한국 여행 일정 무료(1~3일)
  *    + 차터 5% + 투어 5%, 총 할인 상한 10% — 문구는 실발급과 일치해야 한다.
  *    가짜 긴급성·가짜 재고·근거 없는 할인율 금지 (Booking €413M 벌금 사례).
+ * 🚨 2026-08-10 P2 (#1272): "AI 일정/AI plan" 전면 노출 제거 — 제품은 능력("실행 가능한
+ *    한국 일정")으로 부르고, AI 는 구현 디테일로 둔다. 할인율·기간·CTA 는 무변경.
+ *    운영 Firestore 에 남아있을 구형 문구(LEGACY_DEFAULT_PROMO_COPY)는 getPromoConfig 가
+ *    "정확히 구형 기본값과 일치할 때만" 새 기본값으로 정규화 — 운영자 커스텀 문구는 보존한다.
  */
 export const DEFAULT_PROMO_CONFIG = {
   enabled: true,
   copy: {
-    en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
-    ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
-    ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
-    zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
+    en: '🎉 Grand Opening — free 1–3 day Korea itinerary + 5% charter and tour coupons when you sign up',
+    ko: '🎉 오픈 기념 — 가입하면 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
+    ja: '🎉 オープン記念 — 登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
+    zh: '🎉 开业纪念 — 注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
   },
   ctaText: {
     en: 'Start free plan →',
@@ -56,7 +60,20 @@ export const DEFAULT_PROMO_CONFIG = {
   // 🔴 2026-07-30: 프론트 PromoBanner.tsx 와 같이 바꿨다(둘 중 하나만 고치면 prod 가 옛 값을 반환).
   //   문구가 앞세우는 무료 AI 일정과 목적지를 일치시킨다.
   ctaHref: '/planner',
-  endDate: '', // 지난 6/28 제거 — 빈값이면 프론트가 '선착순'류 표시 (가짜 마감일 금지)
+  endDate: '', // 지난 6/28 제거 — 빈값이면 프론트가 아무 긴급성 문구도 붙이지 않는다 (가짜 마감일 금지)
+};
+
+/**
+ * 2026-08-10 이전 배너 기본 문구 ("AI 일정/AI plan" 전면 노출). 운영 Firestore
+ * admin_config/promo_banner 에는 이 값이 그대로 저장돼 있을 수 있다 — getPromoConfig 가
+ * 언어별로 정확히 이 값과 일치할 때만 DEFAULT_PROMO_CONFIG.copy 로 정규화한다.
+ * 운영자가 이 문자열과 다르게 고쳐놓은 커스텀 문구는 절대 덮어쓰지 않는다.
+ */
+export const LEGACY_DEFAULT_PROMO_COPY = {
+  en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
+  ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
+  zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
 };
 
 /**
@@ -74,7 +91,7 @@ export async function getPromoConfig(db) {
     // Firestore 값이 있는 필드만 병합 (없으면 DEFAULT 유지)
     const merged = {
       enabled: typeof data.enabled === 'boolean' ? data.enabled : DEFAULT_PROMO_CONFIG.enabled,
-      copy: _mergeLangMap(data.copy, DEFAULT_PROMO_CONFIG.copy),
+      copy: _mergeBannerCopy(data.copy, DEFAULT_PROMO_CONFIG.copy, LEGACY_DEFAULT_PROMO_COPY),
       ctaText: _mergeLangMap(data.ctaText, DEFAULT_PROMO_CONFIG.ctaText),
       ctaHref: (typeof data.ctaHref === 'string' && data.ctaHref) ? data.ctaHref : DEFAULT_PROMO_CONFIG.ctaHref,
       endDate: (typeof data.endDate === 'string') ? data.endDate : DEFAULT_PROMO_CONFIG.endDate,
@@ -294,6 +311,18 @@ function _mergeLangMap(firestoreMap, defaultMap) {
   for (const lang of LANG_KEYS) {
     const fsVal = firestoreMap && typeof firestoreMap[lang] === 'string' ? firestoreMap[lang] : null;
     result[lang] = fsVal !== null ? fsVal : defaultMap[lang];
+  }
+  return result;
+}
+
+// 내부: 배너 copy 병합 — Firestore 값이 "정확히" 구형 기본값과 같을 때만 신규 기본값으로
+// 정규화한다. 그 외 Firestore 값(운영자 커스텀 문구)은 손대지 않고 그대로 쓴다.
+function _mergeBannerCopy(firestoreMap, defaultMap, legacyMap) {
+  const result = {};
+  for (const lang of LANG_KEYS) {
+    const fsVal = firestoreMap && typeof firestoreMap[lang] === 'string' ? firestoreMap[lang] : null;
+    if (fsVal === null) { result[lang] = defaultMap[lang]; continue; }
+    result[lang] = fsVal === legacyMap[lang] ? defaultMap[lang] : fsVal;
   }
   return result;
 }

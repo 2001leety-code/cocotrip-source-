@@ -33,20 +33,26 @@ const STORAGE_KEY = 'cocotrip_lang';
 //   기존 정규식(전세차량/チャーター車両)은 하단 내비의 '전세차량' 라벨이 우연히 매칭시켜 통과하던 것
 //   (PR#1097 내비 개편에서 차터 탭 제거 → 모바일 뷰포트에서 표면화). homeNav 기대값도 새 내비
 //   (홈·투어·AI플래너·예약·프로필)에 맞춤 — '전세차량' 제거.
+// 2026-08-10 (Editorial Concierge 포지셔닝): nav.planner 가 'AI 플래너' → '여행 플래너'
+//   (ja 'AIプランナー' → '旅行プランナー', zh 'AI规划师' → '行程规划') 로 바뀌었다.
+//   기대값은 src/i18n/locales/<locale>.json 의 nav.planner 를 그대로 따른다 — 여기서
+//   문구를 지어내지 말고 로케일 SSOT 를 복사할 것. 검증 강도(홈/투어/플래너 중 2개 이상)는
+//   그대로다: 데스크톱 헤더는 홈 탭이 없어 '투어'+'여행 플래너' 2개로, 모바일 하단탭은
+//   '홈'+'투어'(+플래너) 로 각각 2개 이상을 실제로 만족해야 통과한다.
 const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; charterTitle: RegExp }> = {
   ko: {
-    homeNav: ['홈', '투어', 'AI 플래너'],
+    homeNav: ['홈', '투어', '여행 플래너'],
     aboutHeading: 'COCOTRIP 소개',
     charterTitle: /차량·밴 전세|전세\s*차량/,
   },
   ja: {
-    homeNav: ['ホーム', 'ツアー', 'AIプランナー'],
+    homeNav: ['ホーム', 'ツアー', '旅行プランナー'],
     aboutHeading: 'COCOTRIPについて',
     charterTitle: /チャーター/,
   },
   zh: {
-    // nav.planner zh 실값 = 'AI规划师'(공백 없음) — 데스크톱 헤더 매칭용으로 정확히.
-    homeNav: ['首页', '旅游', 'AI规划师'],
+    // nav.planner zh 실값 = '行程规划'(공백 없음) — 데스크톱 헤더 매칭용으로 정확히.
+    homeNav: ['首页', '旅游', '行程规划'],
     aboutHeading: '关于 COCOTRIP',
     charterTitle: /包车/,
   },

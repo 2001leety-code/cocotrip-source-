@@ -14,9 +14,6 @@ export function MobileBottomNav() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
-  const isMobileAppLight = !location.pathname.startsWith('/admin') && !location.pathname.startsWith('/mood');
-  const activeColor = isMobileAppLight ? '#7653F6' : '#7C5CFC';
-  const inactiveColor = isMobileAppLight ? 'rgba(21,20,61,0.42)' : 'rgba(255,255,255,0.35)';
 
   const nav = t.nav as Record<string, string | undefined>;
   const six = NAV_PRESET === 'six';
@@ -45,50 +42,39 @@ export function MobileBottomNav() {
     : [
         { to: '/',        icon: <Home className="w-[17px] h-[17px]" />,     label: nav.home || '홈' },
         { to: '/tours',   icon: <Package className="w-[17px] h-[17px]" />,  label: nav.tours || '투어' },
-        { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || 'AI 플래너' },
+        { to: '/planner', icon: <Sparkles className="w-[17px] h-[17px]" />, label: nav.planner || '여행 플래너' },
         { to: '/my-plans', icon: <CalendarCheck className="w-[17px] h-[17px]" />, label: nav.myBookings || '예약 내역' },
         // '로그인' 탭은 /mypage 로 (AuthRequired 가 비로그인 시 로그인 유도).
         { to: '/mypage', icon: <User className="w-[17px] h-[17px]" />, label: user ? (nav.myPage || '마이페이지') : (nav.login || '로그인') },
       ];
 
+  // Korea Editorial Concierge (2026-08-10): one paper surface, no dark/light
+  // fork. Active state = a 2px rule at the top of the tab plus ink weight —
+  // the same "rule, not pill" language the desktop nav uses.
   return (
     <nav
-      className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden"
+      className="ec-root ec-no-print mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden border-t border-ec-line"
       style={{
-        background: isMobileAppLight ? 'rgba(255,255,255,0.92)' : 'rgba(8,11,20,0.97)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderTop: isMobileAppLight ? '1px solid rgba(124,92,255,0.12)' : '1px solid rgba(255,255,255,0.07)',
-        boxShadow: isMobileAppLight ? '0 -14px 34px rgba(48,39,118,0.10)' : undefined,
+        background: 'var(--ec-surface-shell-solid)',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
+      aria-label={nav.navigation || 'Navigation'}
     >
-      <div className="flex items-center justify-around h-[52px]">
+      <div className="flex items-stretch justify-around h-[56px]">
         {items.map((item) => {
           const active = item.to === '/' ? location.pathname === '/' : isActive(item.to);
           return (
             <Link
               key={item.to + item.label}
               to={item.to}
-              className="flex flex-col items-center justify-center gap-px flex-1 h-full transition-all"
-              style={{ color: active ? activeColor : inactiveColor }}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex flex-col items-center justify-center gap-1 flex-1 min-w-0 transition-colors duration-ec-base ease-ec-standard ${
+                active ? 'text-ec-brand' : 'text-ec-ink-3'
+              }`}
             >
-              {/* 활성 = 라벤더 필 + 퍼플 아이콘 (가이드 p.10 하단 네비 활성 상태) */}
-              <span
-                className="flex h-[24px] w-[40px] items-center justify-center rounded-full transition-colors"
-                style={{
-                  color: active ? activeColor : inactiveColor,
-                  background: active
-                    ? (isMobileAppLight ? 'rgba(124,92,255,0.13)' : 'rgba(124,92,255,0.22)')
-                    : 'transparent',
-                }}
-              >
-                {item.icon}
-              </span>
-              <span
-                className="text-[10px] tracking-wide leading-tight"
-                style={{ fontWeight: active ? 800 : 600 }}
-              >
+              {active && <span aria-hidden className="absolute top-0 left-3 right-3 h-[2px] bg-ec-brand" />}
+              {item.icon}
+              <span className={`text-[10px] leading-tight truncate max-w-full px-0.5 ${active ? 'font-bold' : 'font-medium'}`}>
                 {item.label}
               </span>
             </Link>
@@ -103,5 +89,5 @@ export function MobileBottomNav() {
 export function MobileBottomSpacer() {
   const location = useLocation();
   if (location.pathname === '/community' || location.pathname.startsWith('/community/')) return null;
-  return <div className="md:hidden h-[68px]" />;
+  return <div className="md:hidden h-[72px]" />;
 }

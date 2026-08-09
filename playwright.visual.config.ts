@@ -50,21 +50,35 @@ export default defineConfig({
   projects: [
     // P93 회귀 viewport (모바일 탭 horizontal overflow). 375 = 가장 좁은 모바일
     // breakpoint — iPhone SE / 일반 Android 소형 기기 커버.
+    //
+    // #1272 P2 (2026-08-10): `mobile-375-dark`(colorScheme:'dark') 프로젝트를 삭제했다.
+    //   이 앱의 테마 스위치는 `<html>` 의 `dark` 클래스 하나뿐이고(tailwind darkMode:["class"]),
+    //   src/main.tsx 가 그것을 **무조건** 붙인다. `prefers-color-scheme` 를 읽는 코드는
+    //   src/ 전체에 0건이다. `colorScheme` 는 그 미디어 특성만 바꾸므로 두 프로젝트가
+    //   같은 DOM·같은 CSS 를 렌더했다 — baseline 4쌍 전부 light/dark SHA1 동일이었고,
+    //   CI run 31332692514 의 actual 도 테스트별로 1장씩만 생성됐다(콘텐츠 dedup).
+    //   즉 커버리지 0 에 CI 시간·스냅샷만 2배였고, 더 나쁘게는 "다크 시각 회귀 검사 중"
+    //   이라는 거짓 안전감을 줬다.
+    //   잠금: tests/unit/single-theme-no-fake-dark-1272.test.ts — 위 세 사실이 깨지는 날
+    //   (라이트 모드 도입) 그 테스트가 실패해 진짜 테마 커버리지를 강제한다.
+    //   다시 넣을 때 지켜야 할 것: `colorScheme` 이 아니라 `dark` 클래스를 토글할 것
+    //   (addInitScript). 라이트 모드 활성화 절차는 src/index.css 상단 주석 +
+    //   docs/DESIGN-LIGHT-MODE-PATH.md, 다크가 실제로 남아 있는 표면(데스크톱 본문·레거시
+    //   페이지)은 docs/DESIGN-EDITORIAL-CONCIERGE.md 의 마이그레이션 표를 볼 것.
     {
       name: 'mobile-375',
       use: {
         ...devices['Pixel 5'],
         viewport: { width: 375, height: 812 },
+        // #1272 P2 (2026-08-10) 실측 메모 — 이 조합은 "레이아웃 393x851 을 375x812 로
+        //   0.954배 축소해 캡처" 한다. devices['Pixel 5'] 의 isMobile 에뮬레이션이 기기
+        //   메트릭으로 레이아웃하고, 위 viewport 는 창 크기(=캡처 표면)만 정하기 때문이다.
+        //   실측: window.innerHeight === 851, 캡처 이미지 높이 === 812 (375/393 = 812/851).
+        //   그래서 clip 좌표는 항상 "찍은 이미지" 기준이어야 한다(뷰포트 상수·innerHeight 금지).
+        //   `screen` 을 812 로 덮어도 바뀌지 않는다(실측: dispatch run 31336975045) — 시도했다가
+        //   되돌렸으니 다시 넣지 말 것. 비율을 없애려면 isMobile 을 버리거나 viewport 를
+        //   393x851 로 맞춰야 하고, 둘 다 baseline 4장 전부 재생성이라 이 PR 범위가 아니다.
         colorScheme: 'light',
-      },
-    },
-    // 다크 모드 — color contrast / 가독성 회귀 (P-pattern 후보).
-    {
-      name: 'mobile-375-dark',
-      use: {
-        ...devices['Pixel 5'],
-        viewport: { width: 375, height: 812 },
-        colorScheme: 'dark',
       },
     },
   ],

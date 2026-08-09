@@ -22,27 +22,31 @@ const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 // ─── 코드 상수 폴백 (Firestore 미설정/오류 시 사용) ───────────────────────────
 
 // 🚨 운영자: 오픈 프로모 마감일 표시 문자열 (예: '6/30', 'Jun 30').
-//    비우면('') → "선착순"만 표시(현행). 넣으면 자동으로 "~6/30 마감" 등 4언어 표시(긴급성).
+//    비우면('') → 긴급성 문구를 아예 붙이지 않음(현행). 넣으면 자동으로 "~6/30 마감" 등 4언어 표시.
 //    🚨 마감일이 지나면 반드시 비우거나 새 날짜로 교체 — 가짜 긴급성 금지(신뢰·규제, Booking €413M 벌금 사례).
-// 2026-07-07: 지난 날짜('6/28') 비움 — 가짜 긴급성 제거(코드에 강제 마감일 없음). '선착순'만 표시.
+// 2026-08-10 P2 (#1272): 비웠을 때 '선착순'/'limited' 를 자동으로 붙이던 것 자체가
+//    근거 없는 긴급성이었다 — urgency() 를 비워 아무것도 안 붙게 고쳤다.
 const PROMO_END_DATE = '';
 
 // 🔴 2026-07-30: CTA 목적지를 문구와 맞춘다.
-//   문구가 앞세우는 것은 **가입하면 받는 AI 일정 무료 쿠폰**인데 CTA 는 /tours(투어 목록)로
+//   문구가 앞세우는 것은 **가입하면 받는 무료 한국 여행 일정**인데 CTA 는 /tours(투어 목록)로
 //   보내고 있었다. 무료 일정을 기대하고 누른 사람이 투어 목록에 떨어지면 약속이 깨진다.
-//   AI 플래너로 보내고, 5% 쿠폰은 결제 단계에서 자동 적용된다(문구에 그대로 남긴다).
+//   플래너로 보내고, 5% 쿠폰은 결제 단계에서 자동 적용된다(문구에 그대로 남긴다).
 const CTA_HREF = '/planner';
 
 // 문구 — 운영자가 여기만 바꾸면 됨. (긴급성 꼬리말은 urgency() 가 자동 부착)
 // 🚨 2026-07-07: 거짓 '50% OFF'·'첫 예약 10%' 제거 — 실제 최대 할인은 총 10%(가입 5%+5% 쿠폰).
 // 🚨 2026-07-10 P0: 서버 DEFAULT(api/_shared/promo-config.js)와 반드시 동일하게 유지 —
 //    7/7에 여기만 고치고 서버를 빼먹어 prod API 가 낡은 50% 문구를 계속 반환했음.
-//    실발급(onboarding-coupons.js) = AI플랜 무료(1~3일) + 차터5% + 투어5% → 문구 일치.
+//    실발급(onboarding-coupons.js) = 한국 여행 일정 무료(1~3일) + 차터5% + 투어5% → 문구 일치.
+// 🚨 2026-08-10 P2 (#1272): 제품을 "AI 플랜"으로 전면에 내세우지 않는다 — 구현(AI)이 아니라
+//    능력("실행 가능한 한국 일정")으로 부른다는 docs/DESIGN-EDITORIAL-CONCIERGE.md §5 규칙을
+//    이 배너만 예외로 어기고 있었다. 할인율·기간·CTA 목적지는 그대로.
 const COPY: Record<string, string> = {
-  en: '🎉 Grand Opening — free 1–3 day AI plan + 5% charter and tour coupons when you sign up',
-  ko: '🎉 오픈 기념 — 가입하면 1~3일 AI 일정 무료 + 차터·투어 5% 쿠폰',
-  ja: '🎉 オープン記念 — 登録で1〜3日AIプラン無料 + チャーター・ツアー5%クーポン',
-  zh: '🎉 开业纪念 — 注册即享1–3天AI行程免费 + 包车·行程5%优惠券',
+  en: '🎉 Grand Opening — free 1–3 day Korea itinerary + 5% charter and tour coupons when you sign up',
+  ko: '🎉 오픈 기념 — 가입하면 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '🎉 オープン記念 — 登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
+  zh: '🎉 开业纪念 — 注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
 };
 
 // 클릭 가능 CTA — 끝에 밑줄로 노출 (리서치: 'your'→'my'/명확한 CTA 가 클릭률↑)
@@ -62,18 +66,16 @@ interface PromoConfig {
   endDate: string;
 }
 
-// 긴급성 꼬리말 — endDate 있으면 "마감일", 없으면 "선착순".
+// 긴급성 꼬리말 — 실제 endDate 가 있을 때만 표시. 없으면 아무것도 붙이지 않는다
+// (2026-08-10 P2: endDate 값이 빈 문자열인데 '선착순'/'limited' 를 붙이던 가짜 긴급성 제거
+//  — Booking €413M 벌금 사례). endDate 는 화면에 그대로 찍는 표시용 단일 날짜 문자열이며
+//  addDays/diffDays 로 계산하지 않으므로 inclusive/exclusive 범위 컨벤션과는 무관하다.
 function urgency(lang: string, endDate: string): string {
-  if (endDate) {
-    if (lang === 'ko') return ` · ~${endDate} 마감`;
-    if (lang === 'ja') return ` · ${endDate}まで`;
-    if (lang === 'zh') return ` · ${endDate}截止`;
-    return ` · ends ${endDate}`;
-  }
-  if (lang === 'ko') return ' · 선착순';
-  if (lang === 'ja') return ' · 先着順';
-  if (lang === 'zh') return ' · 限量';
-  return ' · limited';
+  if (!endDate) return '';
+  if (lang === 'ko') return ` · ~${endDate} 마감`;
+  if (lang === 'ja') return ` · ${endDate}まで`;
+  if (lang === 'zh') return ` · ${endDate}截止`;
+  return ` · ends ${endDate}`;
 }
 
 export function PromoBanner() {
@@ -130,22 +132,30 @@ export function PromoBanner() {
 
   return (
     // 닫기(X)는 Link 밖 형제 — 중첩 인터랙티브 회피 + X 클릭 시 네비게이션 안 됨.
-    // 2026-07-19 라이트 스킨(체크리스트 P1 잔여): 배경을 통일 CTA 토큰(--coco-cta-gradient)으로 —
-    // 라이트 셸 CTA 와 동일 그라데이션. 문구·로직은 무변경 (서버 promo-config 동일성 테스트 보호).
-    <div className="relative w-full" style={{ background: 'var(--coco-cta-gradient)' }} role="region" aria-label="Promotion">
+    // 2026-08-10 Editorial Concierge: 배경을 브랜드 그라데이션에서 잉크 서피스로 교체.
+    //   페이지 맨 위 그라데이션 띠가 새 시각 체계와 정면으로 충돌했다(그라데이션 배경 금지).
+    //   문구·CTA·추적·로직은 무변경 — COPY 는 서버(api/_shared/promo-config.js)와
+    //   동일성 테스트로 묶여 있어 여기서 손대면 그 테스트가 깨진다.
+    <div
+      className="ec-root ec-no-print relative w-full"
+      style={{ background: 'var(--ec-surface-inverse)', color: 'var(--ec-text-on-inverse)' }}
+      role="region"
+      aria-label="Promotion"
+      aria-live="polite"
+    >
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="block w-full text-center text-white text-[12px] sm:text-sm font-semibold py-2 px-9 leading-snug hover:brightness-110 transition"
+        className="block w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
       >
         <span>{text} </span>
-        <span className="underline underline-offset-2 whitespace-nowrap">{cta}</span>
+        <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
       </Link>
       <button
         type="button"
         onClick={close}
         aria-label="Close promotion"
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-white hover:bg-white/15 transition-colors"
+        className="absolute right-1 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-ec-sm transition-colors duration-ec-base ease-ec-standard hover:bg-white/10"
       >
         <X size={15} />
       </button>

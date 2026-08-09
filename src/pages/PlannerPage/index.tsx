@@ -11,6 +11,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
+import { filterSupportedRegions } from '@/components/WizardForm/cityKeys';
 import { AIIntroModal } from '@/components/AIIntroModal';
 import {
   Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck, ListPlus, Wand2,
@@ -50,10 +51,27 @@ export default function PlannerPage() {
   // 2026-05-09 (B9-37): RevisionCard 가 직렬화한 plan.input 핵심 필드 → WizardForm
   // initialValues 로 전달. 사용자 신고 "다시 만들기 시 form 데이터 prefill 안 됨
   // (비행기/시간/날짜 매번 재입력)" 대응.
+  // 2026-08-10: the home destination rail links to `/planner?prefillRegions=<key>`
+  // with no `revision=true`. Before this, that whole object was gated behind
+  // revisionMode, so the deep link parsed to nothing and the chip dropped the
+  // traveller on an empty city step — the one thing they had already answered.
+  // Outside revision we honour only `prefillRegions`; every other prefill param
+  // still belongs exclusively to the revision flow.
+  //
+  // Two readings of the same parameter, because the two callers are not the same
+  // kind of link. RevisionCard serialises the traveller's own saved
+  // `plan.input.regions`, which legitimately holds a localized city name or a
+  // free-text city the chip set never had — WizardForm matches key, then
+  // localized name, then falls back to showing the string as typed. Filtering
+  // there would delete the city from "다시 만들기". The home rail's link, by
+  // contrast, is a public URL anyone can author, and an unknown value used to
+  // reach `initialValues` untouched and be rendered as the destination.
+  const revisionRegions = (searchParams.get('prefillRegions') || '').split(',').filter(Boolean);
+  const deepLinkRegions = filterSupportedRegions(searchParams.get('prefillRegions'));
   const prefillValues = revisionMode ? {
     startDate: searchParams.get('prefillStartDate') || '',
     endDate: searchParams.get('prefillEndDate') || '',
-    regions: (searchParams.get('prefillRegions') || '').split(',').filter(Boolean),
+    regions: revisionRegions,
     categories: (searchParams.get('prefillCategories') || '').split(',').filter(Boolean),
     pax: parseInt(searchParams.get('prefillPax') || '0', 10) || undefined,
     arrivalAirport: searchParams.get('prefillArrival') || '',
@@ -61,7 +79,7 @@ export default function PlannerPage() {
     dietary: (searchParams.get('prefillDiet') || '').split(',').filter(Boolean),
     allergies: (searchParams.get('prefillAllergies') || '').split(',').filter(Boolean),
     freeText: searchParams.get('prefillFreeText') || '',
-  } : undefined;
+  } : (deepLinkRegions.length ? { regions: deepLinkRegions } : undefined);
 
   usePageMeta({
     title: t.pageMeta?.planner?.title ?? 'AI Travel Planner \u2014 Custom Korea Itinerary',

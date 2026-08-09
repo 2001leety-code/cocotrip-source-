@@ -14,6 +14,17 @@ name: PR Visual Regression (Vercel Preview)
 
 on:
   deployment_status:
+  # 2026-08-10 (#1272 P2): tests-only 푸시는 Vercel 이 프리뷰 빌드를 스킵하므로
+  # deployment_status 가 영원히 오지 않고, 아래 pull_request auto-pass 만 남아
+  # "실행 없는 초록" 이 된다. 그럴 때 **같은 앱 번들의 기존 프리뷰 URL** 을 주고
+  # 실제 Linux 실행으로 검증할 수 있게 수동 트리거를 추가한다.
+  # PR 게이트 동작은 무변경(추가 경로일 뿐) — 자동 트리거 두 개의 조건은 그대로다.
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: '검증 대상 preview URL (같은 앱 번들의 기존 배포)'
+        required: true
+        type: string
   # docs/test/script/workflow only PR 도 통과시키기 위해 pull_request fallback.
   # pr-i18n-smoke 와 동일 paths 패턴.
   pull_request:
@@ -37,6 +48,7 @@ jobs:
   visual:
     if: |
       github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'deployment_status' &&
        github.event.deployment_status.state == 'success' &&
        github.event.deployment.environment == 'Preview' &&
@@ -52,24 +64,24 @@ jobs:
           echo "::notice::Auto-pass to satisfy branch protection 'visual' required check."
 
       - name: Checkout PR head (use deployment ref)
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.ref }}
+          ref: ${{ github.event.deployment.ref || github.ref }}
 
       - name: Setup Node.js
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         run: npm ci
 
       - name: Cache Playwright browsers
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         uses: actions/cache@v4
         id: playwright-cache
         with:
@@ -79,15 +91,15 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright chromium (cache miss)
-        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Install Playwright system deps (cache hit)
-        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit == 'true'
+        if: github.event_name != 'pull_request' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
       - name: Check baseline exists
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         id: baseline-check
         run: |
           # snapshot 디렉토리들 검색. landing-mobile.spec.ts-snapshots 같은 패턴.
@@ -98,12 +110,12 @@ jobs:
           fi
 
       - name: Run visual regression against preview URL
-        if: github.event_name == 'deployment_status'
+        if: github.event_name != 'pull_request'
         # baseline 없으면 fail 하되 workflow 는 soft-pass — 인프라 도입 단계 대응.
         # baseline commit 후에는 이 continue-on-error 제거 (strict 모드).
         continue-on-error: ${{ steps.baseline-check.outputs.snapshot_dirs == '0' }}
         env:
-          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          BASE_URL: ${{ inputs.base_url || github.event.deployment_status.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           # P244: Firebase auth inject 용 — 미설정 시 unauthenticated 상태로 진행
           # (window.__pageReady 가 error state 에서도 emit → 테스트는 항상 settle).
@@ -115,7 +127,7 @@ jobs:
         run: npx playwright test --config=playwright.visual.config.ts
 
       - name: Upload visual diff report
-        if: always() && github.event_name == 'deployment_status'
+        if: always() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: visual-regression-report-pr-${{ github.run_id }}

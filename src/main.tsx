@@ -1,5 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Korea Editorial Concierge foundation. Imported BEFORE index.css on purpose:
+// these are token *definitions*, so legacy page-scoped rules in index.css keep
+// winning on the pages they still own. Never move it after index.css.
+// Docs: docs/DESIGN-EDITORIAL-CONCIERGE.md
+import './styles/editorial.css'
 import './index.css'
 import App from './App.tsx'
 import { initGA } from './lib/analytics'
@@ -21,17 +26,19 @@ try {
   }
 } catch { /* sessionStorage 차단 환경 — 버튼이 현재 경로로 폴백 */ }
 
-// 2026-06-01: Fraunces 세리프 (정제 퍼플·핑크 디자인 — hero/제목/가격). main.tsx 주입
-// (index.html 미수정 — 위와 동일한 PDF_KOREAN_FONT lint false-positive 회피). display=swap.
-const frauncesLink = document.createElement('link');
-frauncesLink.rel = 'stylesheet';
-frauncesLink.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&display=swap';
-document.head.appendChild(frauncesLink);
-
-// 2026-06-01: 정제 퍼플·핑크 전역 스코프 (공용 헤더 등 — 페이지 스코프 밖 요소). OFF=현재 그대로.
-if (import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'))) {
+// 2026-06-01: 정제 퍼플·핑크 전역 스코프 (아직 전환 안 된 페이지 — planner/tours/charter/plandetail).
+// OFF=현재 그대로. 홈·공용 셸은 2026-08-10 Editorial Concierge 로 넘어가 이 플래그와 무관하다.
+const REFINED_LEGACY = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+  || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+if (REFINED_LEGACY) {
   document.documentElement.classList.add('refined');
+  // Fraunces 세리프는 .refined-* 스코프에서만 쓰인다. 플래그 OFF 인데도 매 로드마다
+  // 받아오던 외부 폰트 요청을 여기서 없앤다(main.tsx 주입 유지 — index.html 을 건드리면
+  // PDF_KOREAN_FONT lint false-positive). display=swap.
+  const frauncesLink = document.createElement('link');
+  frauncesLink.rel = 'stylesheet';
+  frauncesLink.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&display=swap';
+  document.head.appendChild(frauncesLink);
 }
 
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──

@@ -7,26 +7,17 @@ import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { PromoBanner } from '@/components/PromoBanner';
 import { PromoPopup } from '@/components/PromoPopup';
-import { HeroSlider } from '@/sections/HeroSlider';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Services } from '@/sections/Services';
-import { Regions } from '@/sections/Regions';
-// below-the-fold sections — first paint은 Header+Hero만 보이므로 lazy로 분리.
-const CustomerGallery = lazy(() => import('@/sections/CustomerGallery').then(m => ({ default: m.CustomerGallery })));
-const GoogleReviews = lazy(() => import('@/sections/GoogleReviews').then(m => ({ default: m.GoogleReviews })));
-const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })));
-const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
-const ExampleItinerariesSection = lazy(() => import('@/sections/ExampleItinerariesSection').then(m => ({ default: m.ExampleItinerariesSection })));
-const BlogTeaser = lazy(() => import('@/sections/BlogTeaser').then(m => ({ default: m.BlogTeaser })));
-// UIUX 가이드 P2 6기능 총람 (2026-07-13) — eager 캡 보호 위해 lazy, i18n 도 chunk 내 로컬.
-const FeatureOverview = lazy(() => import('@/sections/FeatureOverview').then(m => ({ default: m.FeatureOverview })));
+// Home — one responsive Editorial Concierge tree (2026-08-10). Lazy: it pulls
+// tours.ts (~92 KB raw) + the example-plan data, which must not enter the eager
+// first-paint bundle guarded by .size-limit.json.
+// The previous home sections (HeroSlider / HeroCards / Services / Regions /
+// Membership / CTA / CustomerGallery / GoogleReviews / BlogTeaser /
+// FeatureOverview / TrustBadges / SeasonalBanner / MobileHome) still exist on
+// disk — other pages and unit tests reference them — and retire with the pages
+// converted in the next PR. Nothing routes to them from here any more.
+const HomeEditorial = lazy(() => import('@/sections/home').then(m => ({ default: m.HomeEditorial })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-// MobileHome (mobile only)  → tours.ts (~92 KB raw) leak 방지
-// SeasonalBanner (desktop only)  → seasonalSpots.ts (~20 KB raw) leak 방지
-// 둘 다 device branch 별 1개만 마운트되므로 lazy 로 분리해 메인 번들에서 제외.
-const MobileHome = lazy(() => import('@/sections/MobileHome').then(m => ({ default: m.MobileHome })));
-const SeasonalBanner = lazy(() => import('@/components/SeasonalBanner').then(m => ({ default: m.SeasonalBanner })));
 const RegionDetail = lazy(() => import('@/pages/RegionDetail').then(m => ({ default: m.RegionDetail })));
 // Booking 레거시 페이지 — /booking 라우트는 /tours로 redirect (북마크 호환).
 // BookingPageWrapper + Booking lazy import는 PR #197에서 제거됨.
@@ -76,8 +67,6 @@ const CommunityPostPage = lazy(() => import('@/pages/CommunityPage').then(m => (
 const CommunityComposePage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityComposePage })));
 const CommunityModerationPage = lazy(() => import('@/pages/CommunityPage').then(m => ({ default: m.CommunityModerationPage })));
 import { AdminRoute } from '@/components/AdminRoute';
-import { HeroCards } from '@/sections/HeroCards';
-import { TrustBadges } from '@/components/TrustBadges';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
 const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
@@ -132,10 +121,6 @@ import { signalAppReady } from '@/lib/appReady';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
-  const isMobile = useIsMobile();
-  // 정제 퍼플·핑크 (운영자 2026-06-01 채택). OFF=현재 그대로. env VITE_FEATURE_REFINED_UI / ?refined.
-  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
 
   usePageMeta({
     title: t.pageMeta?.home?.title ||'CocoTrip — Premium Korea Travel',
@@ -143,65 +128,20 @@ function HomePage() {
     ogImage: '/hero-seoul-real.webp',
   });
 
-  // 모바일 v2 홈 (2026-06-10): 플래그 OFF 기본 = 기존 MobileHome 그대로 (prod 무변).
-  // 활성: Vercel env VITE_FEATURE_MOBILE_V2=true, 또는 ?v2 쿼리(검증용).
-  // v2 는 자체 헤더(로고+언어 전환)를 가지므로 전역 Header 없이 렌더.
-  const MOBILE_V2 = import.meta.env.VITE_FEATURE_MOBILE_V2 === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('v2'));
-
-  // 모바일: 앱 스타일 홈
-  if (isMobile) {
-    if (MOBILE_V2) {
-      return (
-        // V2 홈은 라이트 서피스 — 로드 중 placeholder 도 라이트로 (다크 플래시 방지)
-        <Suspense fallback={<div className="min-h-screen" style={{ background: '#fbfaff' }} aria-hidden />}>
-          <MobileHomeV2 />
-        </Suspense>
-      );
-    }
-    return (
-      <div className="min-h-screen bg-[#0a0b14] cocotrip-mobile-home">
-        <Header language={language} t={t} onLanguageChange={changeLanguage} />
-        <main className="pt-14">
-          {/* MobileHome lazy chunk — tours.ts (~92 KB raw) 가 메인 번들에 진입하지 않도록 분리.
-              fallback 은 hero 영역 dark 배경 placeholder 로 layout shift 최소화. */}
-          <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0412' }} aria-hidden />}>
-            <MobileHome t={t} />
-          </Suspense>
-        </main>
-      </div>
-    );
-  }
-
-  // 데스크톱: 모바일과 통일된 다크 gradient (D1: 통일성)
+  // Korea Editorial Concierge (2026-08-10): one responsive home for every
+  // breakpoint. The mobile/desktop/`?v2` fork and the `.refined-home` corrective
+  // cascade are both gone — `HomeEditorial` is the single tree, and its surface
+  // comes from the semantic tokens in src/styles/editorial.css.
+  // Design SSOT: docs/DESIGN-EDITORIAL-CONCIERGE.md
   return (
-    <div className={`min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210] ${REFINED ? 'refined-home' : ''}`}>
-      <Header
-        language={language}
-        t={t}
-        onLanguageChange={changeLanguage}
-      />
-      <main>
-        <HeroSlider t={t} />
-        <TrustBadges />
-        <HeroCards t={t} />
-        <Suspense fallback={null}>
-          <FeatureOverview />
-          <ExampleItinerariesSection />
-          <CustomerGallery />
-          <GoogleReviews />
-        </Suspense>
-        <Services t={t} />
-        <Suspense fallback={null}>
-          <SeasonalBanner />
-        </Suspense>
-        <Regions t={t} />
-        <Suspense fallback={null}>
-          <BlogTeaser t={t} />
-          <Membership t={t} />
-          <CTA t={t} />
-        </Suspense>
-      </main>
+    <div className="ec-root min-h-screen">
+      <Header language={language} t={t} onLanguageChange={changeLanguage} />
+      {/* Lazy chunk — tours.ts (~92 KB raw) and the example-plan data must stay
+          out of the eager first-paint bundle (.size-limit.json entry gate).
+          Fallback is paper so there is no flash before the chunk lands. */}
+      <Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}>
+        <HomeEditorial />
+      </Suspense>
       <Footer t={t} />
     </div>
   );

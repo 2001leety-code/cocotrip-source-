@@ -20,6 +20,9 @@ describe('PromoBanner — 다국어 + 닫기', () => {
     expect(bannerSrc).toMatch(/localStorage\.setItem/);
     expect(bannerSrc).toMatch(/dismissed/);
   });
+  it('원격 문구 교체를 스크린리더에 알림 (aria-live=polite)', () => {
+    expect(bannerSrc).toMatch(/aria-live="polite"/);
+  });
 });
 
 describe('useLanguage — 기본 언어 영어 (운영자 정책)', () => {

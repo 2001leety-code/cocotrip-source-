@@ -6,7 +6,8 @@
  * 추가 페이지 (wizard / plan-detail / payment) 는 후속 PR 로 점진 확장.
  *
  * Baseline location: tests/visual/landing-mobile.spec.ts-snapshots/
- *   - {projectName} = mobile-375 / mobile-375-dark
+ *   - {projectName} = mobile-375  (#1272 P2: colorScheme 만 다른 mobile-375-dark 는
+ *     같은 DOM 을 렌더해 baseline 이 바이트 동일이라 삭제됐다 — playwright.visual.config.ts 주석)
  *   - {testTitle} = "header above the fold remains within viewport"
  *
  * 첫 baseline 생성: README.md "Baseline 생성" 섹션 참조 (Docker 명령).

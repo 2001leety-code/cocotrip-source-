@@ -11,6 +11,30 @@ module.exports = {
         display: ['Georgia', '"Times New Roman"', '"Noto Serif KR"', 'serif'],
       },
       colors: {
+        // ── Korea Editorial Concierge semantic tokens ──
+        // SSOT = src/styles/editorial.css (three layers). Components use these
+        // utilities or the .ec-* classes; they must never inline a hex.
+        // Docs: docs/DESIGN-EDITORIAL-CONCIERGE.md
+        ec: {
+          page:      "var(--ec-surface-page)",
+          raised:    "var(--ec-surface-raised)",
+          sunken:    "var(--ec-surface-sunken)",
+          inverse:   "var(--ec-surface-inverse)",
+          ink:       "var(--ec-text-primary)",
+          "ink-2":   "var(--ec-text-secondary)",
+          "ink-3":   "var(--ec-text-muted)",
+          "ink-4":   "var(--ec-text-faint)",
+          "on-brand": "var(--ec-text-on-brand)",
+          line:      "var(--ec-line)",
+          "line-2":  "var(--ec-line-strong)",
+          "line-3":  "var(--ec-line-contrast)",
+          brand:     "var(--ec-brand)",
+          "brand-hover": "var(--ec-brand-hover)",
+          "brand-wash":  "var(--ec-brand-wash)",
+          success:   "var(--ec-success)",
+          critical:  "var(--ec-critical)",
+          notice:    "var(--ec-notice)",
+        },
         // CocoTrip brand tokens (DESIGN.md SSOT)
         // CSS vars: src/index.css :root brand vars block
         // Usage: bg-bg-base / bg-bg-card / text-cc-primary / shadow-glow-cta / rounded-cc-md
@@ -104,11 +128,29 @@ module.exports = {
         "cc-md":  "var(--radius-md)",
         "cc-lg":  "var(--radius-lg)",
         "cc-xl":  "var(--radius-xl)",
+        "ec-xs":  "var(--ec-radius-xs)",
+        "ec-sm":  "var(--ec-radius-sm)",
+        "ec-md":  "var(--ec-radius-md)",
+        "ec-lg":  "var(--ec-radius-lg)",
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
         "glow-cta":   "var(--shadow-glow-cta)",
         "ring-focus": "var(--ring-focus)",
+        // Editorial elevation — only for things floating over content.
+        // No glow token exists on purpose.
+        "ec-raise":   "var(--ec-shadow-raise)",
+        "ec-overlay": "var(--ec-shadow-overlay)",
+      },
+      transitionDuration: {
+        "ec-fast": "var(--ec-duration-fast)",
+        "ec-base": "var(--ec-duration-base)",
+        "ec-slow": "var(--ec-duration-slow)",
+      },
+      transitionTimingFunction: {
+        "ec-standard": "var(--ec-ease-standard)",
+        "ec-enter":    "var(--ec-ease-enter)",
+        "ec-exit":     "var(--ec-ease-exit)",
       },
       keyframes: {
         "accordion-down": {
