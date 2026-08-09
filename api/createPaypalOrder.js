@@ -379,10 +379,17 @@ export default async function handler(req, res) {
     // 서버가 tours/{tourId} 원본으로 재확인한다(2026-08-08).
     // capturePaypalOrder.js 의 confirmSlotLock 가 결제 확정 시 pending → confirmed
     // 전환. slot-pending-sweep cron 이 10분 후 만료 lock 자동 해제.
+    //
+    // 🔴 2026-08-09 (F2) 슬롯 바인딩 영속화: 아래에서 실제로 잠근 슬롯을 주문 스냅샷에 남긴다.
+    //   capturePaypalOrder 는 **이 값만** 보고 confirm 한다 — capture-time body 는 create 가 잠근
+    //   슬롯과 아무 것에도 묶여 있지 않았고(=위조 가능), 결제한 슬롯이 아닌 다른 슬롯이 확정되거나
+    //   결제한 슬롯의 pending 이 sweep 으로 풀려 오버부킹이 됐다. cart 형제 경로는 이미
+    //   cart_orders 스냅샷의 라인 booking 을 신뢰원으로 쓴다 — 같은 계약을 단건에도 적용.
     const tourSlotId = typeof body.tourSlotId === 'string' ? body.tourSlotId.trim() : '';
     const tourId = typeof body.tourId === 'string' ? body.tourId.trim() : '';
     const bookingDate = typeof body.bookingDate === 'string' ? body.bookingDate.trim() : dateStart;
     const slotCapacity = Number(body.slotCapacity);
+    let slotBooking = null;
     if (tourSlotId && tourId && bookingDate && Number.isFinite(slotCapacity) && slotCapacity > 0) {
       const adminDb = initAdminDb('createPaypalOrder');
       if (!adminDb) {
@@ -424,6 +431,9 @@ export default async function handler(req, res) {
             // 없이도 capacity 검증 + counter 갱신). pre-PayPal 식별자로 임시 사용.
             orderId: `PRELOCK-${Date.now()}-${tourSlotId}`,
           });
+          // 잠금이 성립한 뒤에만 바인딩을 만든다 — 잠기지 않은 좌석을 capture 가 확정하면 안 된다.
+          // 정원은 위 서버 재확인값(effectiveCapacity). readSlotFields 가 읽는 필드명과 동일 shape.
+          slotBooking = { tourId, tourSlotId, bookingDate, slotCapacity: effectiveCapacity, passengers };
           console.log('[createPaypalOrder] slot lock acquired:', { tourId, date: bookingDate, slot: tourSlotId, pax: passengers });
         } catch (slotErr) {
           const code = slotErr.code || 'SLOT_LOCK_FAILED';
@@ -524,6 +534,9 @@ export default async function handler(req, res) {
         // 🔴 P0-2: 추정가 정산조건 동의 근거(동의 여부·정책 버전·**서버 시각**). 이 스냅샷이
         //   결제 provenance 의 단일 근거이므로, 동의도 같은 문서에 남긴다.
         estimateConsent: estimateConsentRecord,
+        // 🔴 F2: 서버가 실제로 잠근 슬롯(정원 = 서버 재확인값). 슬롯 없는 상품은 null.
+        //   capturePaypalOrder 의 confirmSlotLock 은 이 값만 쓴다(capture body 불신).
+        slotBooking,
         createdAt: new Date().toISOString(),
       });
     } catch (_snapErr) {
