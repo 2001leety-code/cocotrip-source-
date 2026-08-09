@@ -141,6 +141,7 @@ export function PromoBanner() {
       style={{ background: 'var(--ec-surface-inverse)', color: 'var(--ec-text-on-inverse)' }}
       role="region"
       aria-label="Promotion"
+      aria-live="polite"
     >
       <Link
         to={activeCtaHref}
