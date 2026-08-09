@@ -252,7 +252,7 @@ describe('releaseSlotForCanceledOrder — 슬롯 근거는 서버 스냅샷 바�
 // ═════════════════ 2. cancelBooking 배선 ═════════════════
 
 const authHolder: { r: any } = { r: { ok: true, email: 'cust@x.com', uid: 'u1' } };
-const refundHolder: { r: any } = { r: { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } } };
+const refundHolder: { r: any } = { r: { ok: true, final: true, refund: { id: 'RF-1', status: 'COMPLETED' } } };
 const alertSpy = vi.fn(async () => ({ ok: true }));
 const adminNotify = vi.fn(async () => undefined);
 const adminAuthHolder: { r: any } = { r: { ok: true, email: 'admin@cocotrip.kr', uid: 'admin1' } };
@@ -315,7 +315,7 @@ async function cancel(bookingID = ORDER_ID) {
 beforeEach(() => {
   authHolder.r = { ok: true, email: 'cust@x.com', uid: 'u1' };
   adminAuthHolder.r = { ok: true, email: 'admin@cocotrip.kr', uid: 'admin1' };
-  refundHolder.r = { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } };
+  refundHolder.r = { ok: true, final: true, refund: { id: 'RF-1', status: 'COMPLETED' } };
   alertSpy.mockClear();
   adminNotify.mockClear();
 });
@@ -507,6 +507,83 @@ describe('admin-booking-action — 환불/배차취소 성공 후 좌석 해제'
     const r = await adminCall({ bookingRef: PENDING_REF, action: 'mark-canceled', reason: '노쇼' });
 
     expect(r.statusCode).toBe(200);
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);
+  });
+});
+
+// ═════════════════ 4. 환불 미확정 = 좌석 미해제 (Codex 리뷰 P1/P2) ═════════════════
+//
+// `ok:true` 는 "환불 요청이 접수됐다" 일 뿐이다. 돈이 **확정으로** 고객에게 갔다는 뜻이 아니다.
+//   - PENDING(eCheck·리스크홀드): 나중에 FAILED 로 뒤집힐 수 있다 → F4 webhook 이 REFUND_FAILED 로 치유.
+//   - captureID 없음: PayPal 을 아예 호출하지 않았다 → 운영자 수동 환불 대기 상태.
+// 이 두 경우에 좌석을 풀면 **환불받지 못한 손님의 자리를 남에게 판** 상태가 된다(좌석 회계 ↔ 환불 상태 불일치).
+// 종단 성공의 SSOT 는 helper 의 `final` 플래그다(api/_shared/paypal-refund.js — COMPLETED 만 final:true).
+//
+// 회귀 시 이 블록을 깨는 프로덕션 변경:
+//   - cancelBooking.js 의 `refundResult.final ? releaseSlotForCanceledOrder(...) : ...` 삼항을 무조건 호출로 되돌림
+//   - admin-booking-action.js 의 releaseSeatsAfterRefund 진입 가드(`if (!refundFinal) return;`) 제거
+//   - 두 호출자가 `refundFinal` 인자를 넘기지 않게 되어도(= undefined) fail-closed 라 깨지지 않는다 —
+//     그건 의도다. 깨지는 쪽은 "게이트 자체를 없애는" 변경뿐이다.
+describe('환불 미확정(PENDING·captureID 없음) → 좌석을 풀지 않는다', () => {
+  const PENDING_REFUND = { ok: true, final: false, pending: true, refund: { id: 'RF-PEND', status: 'PENDING' } };
+
+  it('🔴 cancelBooking — 환불 PENDING(eCheck) → CANCELED 는 유지, 좌석은 미해제', async () => {
+    const db = await seedSlotBooking({ [`bookings/${ORDER_ID}`]: { ...CONFIRMED_BOOKING } });
+    dbHolder.db = db;
+    refundHolder.r = PENDING_REFUND;
+
+    const r = await cancel();
+
+    expect(r.statusCode).toBe(200);
+    expect(db._peek(`bookings/${ORDER_ID}`)!.status).toBe('CANCELED'); // F3c-lite: 종단 상태는 유지
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);             // 좌석만 보류
+  });
+
+  it('🔴 admin mark-refunded — 환불 PENDING → REFUNDED 는 유지, 좌석은 미해제', async () => {
+    const db = await seedAdmin();
+    refundHolder.r = PENDING_REFUND;
+
+    const r = await adminCall({ bookingRef: PENDING_REF, action: 'mark-refunded', reason: '고객 요청' });
+
+    expect(r.statusCode).toBe(200);
+    expect(db._peek(`pending_bookings/${PENDING_REF}`)!.status).toBe('REFUNDED');
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);
+  });
+
+  it('🔴 admin dispatch-cancel — 환불 PENDING → CANCELED 는 유지, 좌석은 미해제', async () => {
+    const db = await seedAdmin();
+    refundHolder.r = PENDING_REFUND;
+
+    const r = await adminCall({
+      bookingRef: PENDING_REF, action: 'dispatch-cancel',
+      cancelCategory: 'no_vehicle', reason: '폭설로 차량 운행 불가',
+    });
+
+    expect(r.statusCode).toBe(200);
+    expect(db._peek(`pending_bookings/${PENDING_REF}`)!.status).toBe('CANCELED');
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);
+  });
+
+  it('🔴 admin dispatch-cancel — captureID 없음(PayPal 미호출·수동 환불 대기) → 좌석 미해제', async () => {
+    const db = await seedAdmin({ captureID: null });
+
+    const r = await adminCall({
+      bookingRef: PENDING_REF, action: 'dispatch-cancel',
+      cancelCategory: 'no_driver', reason: '기사 확보 실패',
+    });
+
+    expect(r.statusCode).toBe(200);
+    expect(r.json.data.refundSource).toBe('manual-pending'); // 아직 환불 안 나갔다
+    expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);
+  });
+
+  it('🔴 admin mark-refunded — captureID 없음(수동 입금 건) → 좌석 미해제', async () => {
+    const db = await seedAdmin({ captureID: null });
+
+    const r = await adminCall({ bookingRef: PENDING_REF, action: 'mark-refunded', reason: '고객 요청' });
+
+    expect(r.statusCode).toBe(200);
+    expect(r.json.data.refundSource).toBe('manual');
     expect(db._peek(AVAIL)!.slot_bookings[SLOT]).toBe(2);
   });
 });

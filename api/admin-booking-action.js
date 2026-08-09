@@ -48,13 +48,26 @@ import { buildAdminJsonCors } from './_shared/cors.js';
  * 이전엔 두 경로 모두 좌석을 그대로 뒀다 → 환불된 좌석이 영구히 팔리지 않았다(매출손실).
  *
  * 안전 규칙 (helper 계약과 동일):
+ *   - 🔴 **환불이 종단 성공(COMPLETED)했을 때만.** `refundFinal` 이 그 게이트다 — 아래 참조.
  *   - 되돌리는 양은 확정 원장(slot_confirmed)이 증명하는 만큼뿐. 증거 없으면 좌석 미변경 + 보고.
  *     (기록 없이 pax 를 빼면 다른 손님의 확정석을 지운다 = 오버부킹.)
  *   - 어떤 슬롯인지는 서버 스냅샷 바인딩(paypal_order_snapshots)만이 근거 — body 신뢰 금지.
  *   - cart 자식(parentOrderID)은 형제와 capture 를 공유해 라인별 좌석 귀속이 불가능 → 보류.
  *   - best-effort: 돈은 이미 움직였다. 실패해도 admin action 자체는 성공 응답을 유지하고 알린다.
+ *
+ * @param {boolean} args.refundFinal — 돈이 **확정으로** 고객에게 갔는가(refundPaypalCapture 의 `final`).
+ *   fail-closed(기본 미지정 = 해제 안 함). `ok:true` 로는 부족하다:
+ *     - PENDING(eCheck·리스크홀드)은 나중에 FAILED 로 뒤집힌다(F4 webhook 이 REFUND_FAILED 로 치유).
+ *     - captureID 가 없으면 PayPal 을 아예 호출하지 않았다 = 운영자 수동 환불 대기.
+ *   두 경우에 좌석을 풀면 환불받지 못한 손님의 자리를 남에게 파는 상태가 된다(좌석회계 ↔ 환불상태 불일치).
+ *   게이트를 호출자마다 두면 새 호출자가 빠뜨린다 → 여기 한 곳에서 막는다.
+ *   (capturePaypalOrder.js 의 `refundOk = !!(refundRes?.ok && refundRes?.final)` 와 같은 판정.)
  */
-async function releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action }) {
+async function releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action, refundFinal }) {
+  if (!refundFinal) {
+    console.warn('[admin-booking-action] 환불 미확정(PENDING·captureID 없음) — 좌석 해제 보류:', { bookingRef, action });
+    return;
+  }
   try {
     if (bookingData && bookingData.parentOrderID) {
       console.warn('[admin-booking-action] slot release skipped — cart child (형제와 capture 공유):', bookingRef);
@@ -302,6 +315,7 @@ export default async function handler(req, res) {
       // PayPal API 호출 — captureID 가 있을 때만. 없으면 manual booking
       // (paypal.me QR 수동 입금 등) 으로 간주하고 운영자가 별도 환불 진행.
       let paypalRefund = null;
+      let refundFinal = false;   // 좌석 해제 게이트 — COMPLETED(final)만 종단 성공
       if (captureID) {
         const usdToKrw = Number(process.env.KRW_USD_RATE)
           || Number(process.env.VITE_USD_KRW_RATE)
@@ -342,6 +356,7 @@ export default async function handler(req, res) {
           return res.end(JSON.stringify(_err(result.error, result.code)));
         }
         paypalRefund = result.refund;
+        refundFinal = result.final === true;
         // 🟠 F3c-lite (옵션 B, 2026-07-16): PENDING 은 비종단 — REFUNDED 종단은 유지하되 운영자에게
         //   관측 알럿. FAILED 뒤집힘은 F4 webhook(REFUND_FAILED)이 치유. strict 전환은 샌드박스 실측 후.
         if (result.pending) {
@@ -375,7 +390,8 @@ export default async function handler(req, res) {
       const isFullRefund = refundedKRW == null
         || (Number.isFinite(originalKRW) && originalKRW > 0 && refundKrw >= originalKRW);
       if (isFullRefund) {
-        await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action });
+        // refundFinal 이 false 면 helper 가 보류한다 (PENDING·captureID 없음 = 아직 환불 안 됨).
+        await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action, refundFinal });
       } else {
         console.warn('[admin-booking-action] 부분환불 — 좌석 해제 보류 (예약 유효 가능):', { bookingRef, refundKrw, originalKRW });
       }
@@ -434,6 +450,7 @@ export default async function handler(req, res) {
       // PayPal 자동 환불 — refundUSD 를 주지 않으면 capture 전액이 환불된다(= 의도).
       // captureID 가 없으면 수동 입금 건이므로 운영자가 별도 환불(기존 mark-refunded 와 동일 정책).
       let paypalRefund = null;
+      let refundFinal = false;   // 좌석 해제 게이트 — COMPLETED(final)만 종단 성공
       if (captureID) {
         const result = await refundPaypalCapture({
           captureID,
@@ -450,6 +467,7 @@ export default async function handler(req, res) {
           return res.end(JSON.stringify(_err(result.error, result.code)));
         }
         paypalRefund = result.refund;
+        refundFinal = result.final === true;
         if (result.pending) {
           notify('admin', `🟠 <b>배차실패 취소 환불 PENDING (eCheck?)</b>\n<code>${bookingRef}</code>\nrefund: <code>${paypalRefund.id}</code>`).catch(() => {});
         }
@@ -478,7 +496,9 @@ export default async function handler(req, res) {
 
       // 🔴 좌석 해제 — dispatch-cancel 은 정의상 항상 전액환불 + 예약 취소다(우리 귀책).
       //   위 status 가드(CONFIRMED 만 통과)가 재클릭 방어선이고, 원장 tombstone 이 2차 방어선.
-      await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action });
+      //   단 **환불이 확정 성공했을 때만** — captureID 없음(수동 환불 대기)·PENDING 은 helper 가 보류한다.
+      //   (예약은 CANCELED 로 확정되지만 좌석은 잠긴 채 남는다. 위 booking 알림의 "수동 환불 필요" 가 탐지선.)
+      await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action, refundFinal });
 
       notify('booking', [
         '🚐 <b>배차 실패 — 예약 취소 + 전액 환불</b>',

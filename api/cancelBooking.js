@@ -413,8 +413,15 @@ export default async function handler(req, res) {
     //      응답은 200 을 유지하고 운영자에게 알린다(좌석은 임의로 조작하지 않는다).
     //   ⚠️ cart 자식(parentOrderID)은 위 409 가드에서 이미 걸러진다 — 형제와 capture 를 공유해
     //      라인별 귀속이 불가능하다.
+    //   ⚠️ 🔴 **종단 성공(COMPLETED = helper 의 `final`)일 때만 푼다.** `ok:true` 로는 부족하다 —
+    //      PENDING(eCheck·리스크홀드)은 나중에 FAILED 로 뒤집히고(F4 webhook → REFUND_FAILED) 그러면
+    //      환불받지 못한 손님의 자리를 남에게 판 상태가 된다. 예약은 CANCELED 로 두되(F3c-lite) 좌석만
+    //      보류하고, 위 'refund-pending-observed' 알럿이 탐지선이다.
+    //      (capturePaypalOrder.js 의 `refundOk = !!(refundRes?.ok && refundRes?.final)` 와 같은 판정.)
     try {
-      const release = await releaseSlotForCanceledOrder({ adminDb: db, orderId: booking.orderID || bookingID });
+      const release = refundResult.final
+        ? await releaseSlotForCanceledOrder({ adminDb: db, orderId: booking.orderID || bookingID })
+        : { ok: true, released: false, reason: 'REFUND_NOT_FINAL' };
       if (release.released) {
         console.log('[cancelBooking] slot released:', { bookingID, slot: release.slot, pax: release.pax });
       } else if (release.reason !== 'NO_SNAPSHOT_BINDING') {
