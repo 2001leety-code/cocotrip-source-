@@ -165,14 +165,16 @@ Claims must be backed by code that exists. Verified at the time of writing:
 | Korea restaurant database, 3,166 places across 25 cities | `api/_food_index.json` (array length + distinct `city`) |
 | Allergen flags per restaurant (nuts / shellfish / gluten / dairy) | `allergens` object on every record |
 | Halal and vegetarian/vegan filtering | `api/_ai_core/dietaryCoverageGate.js`, `dietaryStopReplacer.js` |
-| Real public-transit leg between stops | `api/_transit_provider.js` → ODsay / TMAP, `_ai_core/agents/RouteAgent.js` |
+| A transit leg between stops, measured where the lookup succeeds and marked as an estimate where it does not | `api/_transit_provider.js` → ODsay / TMAP first; `_ai_core/agents/RouteAgent.js` falls back to `naver_fallback` / `blind_25_no_coords` / haversine when a lookup fails or a coordinate is missing, and `shouldShowFallbackWarning` in `PlanDetailPage/components/TransitArrow.tsx` labels those legs on screen |
 | Real coordinates and a map link per stop | stop `lat`/`lng` through `routeEnrichment.js` |
 | Intercity legs (KTX / SRT / ITX / bus / air) with booking links | `api/_ai_core/buildPrompt.js` intercity block |
 
 **Not backed — do not claim:** live opening hours, real-time train seat availability,
 live pricing, guaranteed dietary safety (`verified: true` in a plan means "this
-restaurant exists in our database", nothing more — see `CLAUDE.md`), or any count of
-customers, bookings or ratings that is not read from a real source.
+restaurant exists in our database", nothing more — see `CLAUDE.md`), a live routing
+result on *every* leg (the fallback chain above is real and the plan says so — pinned by
+`tests/unit/editorial-home-foundation.test.ts`), or any count of customers, bookings or
+ratings that is not read from a real source.
 
 Also banned: fake urgency ("3 seats left" without a live seat count), invented review
 scores, countdowns that reset, and "trusted by N travellers" without N.

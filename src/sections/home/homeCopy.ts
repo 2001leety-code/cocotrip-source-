@@ -81,7 +81,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: 'Korea — itineraries, private tours, charter',
       headline: 'Tell us the trip. We write the Korea itinerary you can actually run.',
-      lede: 'Your dates, cities, pace and dietary rules go in. What comes back is a timed day-by-day plan built on our own Korea database — real places, the real transit leg between them, and a map pin on every stop.',
+      lede: 'Your dates, cities, pace and dietary rules go in. What comes back is a timed day-by-day plan built on our own Korea database — real places, the transit leg between them, and a map pin on every stop.',
       ctaPrimary: 'Start your itinerary',
       ctaSecondary: 'See a finished plan',
       pickCity: 'Start with a city',
@@ -95,7 +95,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       items: [
         { figure: '3,166', label: 'restaurants in our Korea database', note: 'Each with coordinates, cuisine and allergen flags for nuts, shellfish, gluten and dairy.' },
         { figure: '25', label: 'Korean cities covered', note: 'Seoul and Busan through Gyeongju, Jeonju, Sokcho, Yeosu and Tongyeong.' },
-        { figure: 'Every leg', label: 'real public transit between stops', note: 'Line, direction and duration come from a live routing API, not an estimate written by the model.' },
+        { figure: 'Leg by leg', label: 'transit between stops, with its source', note: 'Where a route lookup returns a result we use its line, direction and duration. Where it does not, the leg is an estimate and the plan labels it as one.' },
       ],
       trustLine: 'Licensed Korean tour operator · payment through PayPal · English support, every day',
       limits: 'What we do not claim: live opening hours, live seat availability, or that a restaurant is certified safe for your allergy. Confirm anything medical with the venue.',
@@ -152,7 +152,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '한국 — 일정·프라이빗 투어·전세차량',
       headline: '여행 조건을 알려주세요. 그대로 실행할 수 있는 한국 일정을 씁니다.',
-      lede: '날짜, 도시, 이동 속도, 못 먹는 음식을 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 실제 대중교통 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
+      lede: '날짜, 도시, 이동 속도, 못 먹는 음식을 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
       ctaPrimary: '일정 만들기',
       ctaSecondary: '완성된 플랜 보기',
       pickCity: '도시부터 고르기',
@@ -166,7 +166,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       items: [
         { figure: '3,166', label: '자체 한국 식당 데이터', note: '좌표, 음식 종류, 견과·갑각류·글루텐·유제품 알레르기 표시를 각각 보유합니다.' },
         { figure: '25', label: '수록 도시', note: '서울·부산부터 경주, 전주, 속초, 여수, 통영까지.' },
-        { figure: '전 구간', label: '정거장 사이 실제 대중교통', note: '노선·방향·소요 시간을 실시간 경로 API 에서 가져옵니다. 모델이 지어낸 추정치가 아닙니다.' },
+        { figure: '구간별', label: '정거장 사이 이동, 출처를 함께', note: '실시간 경로 조회가 되는 구간은 노선·방향·소요 시간을 그대로 씁니다. 안 되는 구간은 추정으로 계산하고, 플랜에 추정이라고 적습니다.' },
       ],
       trustLine: '관광사업 등록 업체 · PayPal 결제 · 영어 응대 상시',
       limits: '주장하지 않는 것: 실시간 영업시간, 실시간 좌석 현황, 알레르기 안전 보증. 건강과 관련된 사항은 반드시 현장에 직접 확인하세요.',
@@ -223,7 +223,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '韓国 — 旅程・プライベートツアー・貸切車',
       headline: '旅の条件を教えてください。そのまま実行できる韓国の旅程をお作りします。',
-      lede: '日付、都市、移動のペース、食べられないものを入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ実際の交通区間、そして全スポットの地図座標つきです。',
+      lede: '日付、都市、移動のペース、食べられないものを入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
       ctaPrimary: '旅程をつくる',
       ctaSecondary: '完成した旅程を見る',
       pickCity: '都市から選ぶ',
@@ -237,7 +237,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       items: [
         { figure: '3,166', label: '自社の韓国レストランデータ', note: '座標、料理ジャンル、ナッツ・甲殻類・グルテン・乳製品のアレルギー表示をそれぞれ保持しています。' },
         { figure: '25', label: '収録都市', note: 'ソウル・釜山から慶州、全州、束草、麗水、統営まで。' },
-        { figure: '全区間', label: 'スポット間の実際の公共交通', note: '路線・方向・所要時間はリアルタイムの経路APIから取得します。モデルが書いた推定値ではありません。' },
+        { figure: '区間ごと', label: 'スポット間の移動を、出典つきで', note: 'リアルタイム経路が取得できた区間は路線・方向・所要時間をそのまま使います。取得できない区間は推定で算出し、旅程にも推定と明記します。' },
       ],
       trustLine: '観光事業登録済み · PayPal決済 · 英語対応は毎日',
       limits: '主張しないこと：リアルタイムの営業時間、リアルタイムの空席状況、アレルギー安全の保証。健康に関わることは必ず現地でご確認ください。',
@@ -294,7 +294,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '韩国 — 行程·私人包团·包车',
       headline: '告诉我们出行条件，我们写出可以直接执行的韩国行程。',
-      lede: '输入日期、城市、行程节奏和饮食忌口，我们用自有的韩国数据生成分时段行程：真实存在的地点、地点之间真实的交通区间，以及每个站点的地图坐标。',
+      lede: '输入日期、城市、行程节奏和饮食忌口，我们用自有的韩国数据生成分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
       ctaPrimary: '开始制定行程',
       ctaSecondary: '查看完整行程',
       pickCity: '先选城市',
@@ -308,7 +308,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       items: [
         { figure: '3,166', label: '自有韩国餐厅数据', note: '每条都带坐标、菜系，以及坚果、甲壳类、麸质、乳制品的过敏标记。' },
         { figure: '25', label: '收录城市', note: '从首尔、釜山到庆州、全州、束草、丽水、统营。' },
-        { figure: '每一段', label: '站点之间的真实公共交通', note: '线路、方向和耗时来自实时路径 API，不是模型写出来的估计值。' },
+        { figure: '逐段', label: '站点之间的交通，并标注来源', note: '能查到实时路径的路段，直接采用其线路、方向和耗时。查不到的路段按估算处理，并在行程里标明是估算。' },
       ],
       trustLine: '已注册旅行社 · PayPal 支付 · 英语支持全天候',
       limits: '我们不主张的：实时营业时间、实时余位、过敏安全保证。涉及健康的事项请务必向商家当面确认。',
@@ -366,9 +366,10 @@ export function pickHomeCopy(language: string): HomeCopy {
   return HOME_COPY[language as HomeLang] || HOME_COPY.en;
 }
 
-/** Destination chips. Keys match `CITY_CHIPS` in WizardForm/data.tsx so the
- *  `?prefillRegions=` deep link lands on a city the wizard actually knows, and
- *  photos are the committed KTO stills in public/city-thumbs/. */
+/** Destination chips. Keys must be in `CITY_KEYS` (WizardForm/cityKeys.ts, the
+ *  allowlist PlannerPage validates `?prefillRegions=` against) or the deep link
+ *  is dropped as unknown; photos are the committed KTO stills in
+ *  public/city-thumbs/. */
 export const HOME_CITIES: { key: string; photo: string; label: Record<HomeLang, string> }[] = [
   { key: 'seoul',    photo: '/city-thumbs/seoul.jpg',    label: { en: 'Seoul',    ko: '서울',   ja: 'ソウル',   zh: '首尔' } },
   { key: 'busan',    photo: '/city-thumbs/busan.jpg',    label: { en: 'Busan',    ko: '부산',   ja: '釜山',     zh: '釜山' } },

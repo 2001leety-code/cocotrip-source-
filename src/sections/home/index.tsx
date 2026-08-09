@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { pickHomeCopy, type HomeLang } from './homeCopy';
+import { useNextTrip } from './useNextTrip';
 import { EditorialHero } from './EditorialHero';
 import { CapabilityLedger } from './CapabilityLedger';
 import { ServiceModules } from './ServiceModules';
@@ -26,41 +23,6 @@ import { ClosingSections } from './ClosingSections';
  */
 
 const SPECIMEN_ID = 'sample-day';
-
-/** Next upcoming saved plan, if signed in. Same query MobileHome used, kept so
- *  a returning traveller still lands on their trip instead of the pitch. */
-function useNextTrip() {
-  const { user } = useAuth();
-  const [nextTrip, setNextTrip] = useState<{ title: string; dday: number; date: string } | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const snap = await getDocs(query(collection(db, 'plans'), where('uid', '==', user.uid)));
-        const now = Date.now();
-        let nearest: { title: string; dday: number; date: string } | null = null;
-        snap.forEach((d) => {
-          const data = d.data();
-          const sd = data.input?.startDate;
-          if (!sd) return;
-          const dday = Math.ceil((new Date(sd).getTime() - now) / 86400000);
-          if (dday >= 0 && (!nearest || dday < nearest.dday)) {
-            nearest = { title: data.itinerary?.tour_title || 'Korea Trip', dday, date: sd };
-          }
-        });
-        if (!cancelled) setNextTrip(nearest);
-      } catch { /* silent — the home page must render without Firestore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
-
-  // Derived, not reset inside the effect: signing out has to hide the strip
-  // immediately, and a synchronous setState in an effect body just to clear
-  // state is a cascading render (react-hooks/set-state-in-effect).
-  return user ? nextTrip : null;
-}
 
 export function HomeEditorial() {
   const { language } = useLanguage();

@@ -11,6 +11,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
+import { filterSupportedRegions } from '@/components/WizardForm/cityKeys';
 import { AIIntroModal } from '@/components/AIIntroModal';
 import {
   Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck, ListPlus, Wand2,
@@ -56,11 +57,21 @@ export default function PlannerPage() {
   // traveller on an empty city step — the one thing they had already answered.
   // Outside revision we honour only `prefillRegions`; every other prefill param
   // still belongs exclusively to the revision flow.
-  const deepLinkRegions = (searchParams.get('prefillRegions') || '').split(',').filter(Boolean);
+  //
+  // Two readings of the same parameter, because the two callers are not the same
+  // kind of link. RevisionCard serialises the traveller's own saved
+  // `plan.input.regions`, which legitimately holds a localized city name or a
+  // free-text city the chip set never had — WizardForm matches key, then
+  // localized name, then falls back to showing the string as typed. Filtering
+  // there would delete the city from "다시 만들기". The home rail's link, by
+  // contrast, is a public URL anyone can author, and an unknown value used to
+  // reach `initialValues` untouched and be rendered as the destination.
+  const revisionRegions = (searchParams.get('prefillRegions') || '').split(',').filter(Boolean);
+  const deepLinkRegions = filterSupportedRegions(searchParams.get('prefillRegions'));
   const prefillValues = revisionMode ? {
     startDate: searchParams.get('prefillStartDate') || '',
     endDate: searchParams.get('prefillEndDate') || '',
-    regions: deepLinkRegions,
+    regions: revisionRegions,
     categories: (searchParams.get('prefillCategories') || '').split(',').filter(Boolean),
     pax: parseInt(searchParams.get('prefillPax') || '0', 10) || undefined,
     arrivalAirport: searchParams.get('prefillArrival') || '',

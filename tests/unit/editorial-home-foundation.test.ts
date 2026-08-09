@@ -274,6 +274,62 @@ describe('근거 없는 주장 금지', () => {
     expect(read('src/sections/home/ItinerarySpecimen.tsx')).toMatch(/c\.sampleBadge/);
   });
 
+  // PR #1272 Codex 독립검수 P2-2. 첫 판에서 원장 3번 항목은 "전 구간 / 실제 대중교통 /
+  // 실시간 경로 API 에서 가져옵니다 / 모델이 지어낸 추정치가 아닙니다" 였다.
+  // RouteAgent 의 실제 동작은 그렇지 않다 — ODsay/TMAP(api/_transit_provider.js) 을
+  // 먼저 쓰되, 실패하거나 좌표가 없으면 naver_fallback · blind_25_no_coords ·
+  // haversine 추정으로 내려간다. 그 구간을 플랜 상세는 숨기지 않고
+  // shouldShowFallbackWarning(PlanDetailPage/components/TransitArrow.tsx) 으로
+  // "예상 이동 시간" 이라고 적는다. 홈이 화면에서 그것보다 강한 말을 하면 안 된다.
+  describe('교통 데이터 — 전 구간 실시간이라고 말하지 않는다', () => {
+    /** 모든 구간을 한 덩어리로 단정하는 표현. 폴백이 있는 한 어느 언어에도 없어야 한다. */
+    const UNIVERSAL = [
+      /every leg/i, /all legs/i, /each and every/i,
+      /전\s*구간/, /모든\s*구간/,
+      /全区間/, /すべての区間/, /全ての区間/,
+      /每一段/, /所有路段/, /每段都/,
+    ];
+    /** "추정이 아니다" 류의 부인 — 폴백이 존재하므로 사실이 아니다. */
+    const DENIES_ESTIMATE = [
+      /not an estimate/i, /never an estimate/i,
+      /추정치가\s*아닙/, /추정이\s*아닙/,
+      /推定値ではありません/, /推定ではありません/,
+      /不是模型写出来的估计值/, /不是估算/, /并非估算/,
+    ];
+    /** 폴백을 인정하는 말. 언어별로 최소 하나는 원장 3번 항목에 있어야 한다. */
+    const ADMITS_FALLBACK: Record<string, RegExp> = {
+      en: /estimate/i, ko: /추정/, ja: /推定/, zh: /估算/,
+    };
+
+    it('4언어 홈 카피 어디에도 "전 구간 실시간" 단정이 없다', () => {
+      for (const lang of LANGS) {
+        const all = JSON.stringify(HOME_COPY[lang]);
+        for (const re of UNIVERSAL) {
+          expect(all, `${lang} claims every leg (${re})`).not.toMatch(re);
+        }
+        for (const re of DENIES_ESTIMATE) {
+          expect(all, `${lang} denies estimates (${re})`).not.toMatch(re);
+        }
+      }
+    });
+
+    it('원장 3번 항목이 4언어 전부에서 대체 추정의 존재를 밝힌다', () => {
+      for (const lang of LANGS) {
+        const item = HOME_COPY[lang].ledger.items[2];
+        const text = `${item.figure} ${item.label} ${item.note}`;
+        expect(text, `${lang} hides the estimate fallback`).toMatch(ADMITS_FALLBACK[lang]);
+      }
+    });
+
+    it('주장표도 폴백을 적는다 (docs 와 화면이 서로 다른 말을 하지 않게)', () => {
+      const doc = read('docs/DESIGN-EDITORIAL-CONCIERGE.md');
+      expect(doc, 'claim table still promises a real leg everywhere')
+        .not.toMatch(/\|\s*Real public-transit leg between stops\s*\|/);
+      expect(doc, 'claim table does not name the fallback path')
+        .toMatch(/naver_fallback|blind_25_no_coords|shouldShowFallbackWarning/);
+    });
+  });
+
   it('홈 트리에 카운트다운/재고 같은 인위적 긴급성 문구가 없다', () => {
     const urgency = /(only \d+ left|hurry|last chance|마감 임박|선착순|残りわずめ|残りわずか|仅剩|限时)/i;
     for (const lang of LANGS) {
