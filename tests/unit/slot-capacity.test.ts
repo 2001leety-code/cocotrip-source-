@@ -257,7 +257,10 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
     expect(r.confirmed).toBe(2);
     const doc = db._peek(PATH)!;
     expect((doc.slot_bookings as any)['slot-a']).toBe(2);
-    expect((doc.slot_pending as any)['slot-a']).toBeUndefined();
+    // 소비된 pending 은 만료 표시(count 0)로 남는다 — Firestore set(merge) 는 중첩 맵
+    // 키를 못 지우므로 삭제로 표현하면 실제 문서에 pending 이 그대로 남는다.
+    // (slot-pending-merge-leak.test.ts 가 깊은 병합으로 이 계약을 잠근다.)
+    expect(summarizeSlot(doc, 'slot-a')).toEqual({ confirmed: 2, pending: 0, total: 2 });
   });
 
   it('lost-lock path: pending expired, but capacity allows confirm', async () => {
@@ -325,7 +328,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
 });
 
 describe('sweepExpiredPending — cron logic', () => {
-  it('removes only expired entries (idempotent)', async () => {
+  it('neutralizes only expired entries (idempotent)', async () => {
     const now = Date.now();
     const db = makeMockDb({
       [PATH]: {
@@ -343,10 +346,12 @@ describe('sweepExpiredPending — cron logic', () => {
     });
     expect(r.swept).toBe(2);
     const doc = db._peek(PATH)!;
-    const pending = doc.slot_pending as any;
-    expect(pending['slot-a']).toBeUndefined(); // 만료 제거
-    expect(pending['slot-c']).toBeUndefined(); // malformed(만료 취급) 제거
-    expect(pending['slot-b']).toBeDefined();    // active → 보존 (내부 구조는 bughunt-slot-pending 가 검증)
+    // 만료 엔트리는 "삭제"가 아니라 tombstone 으로 무력화된다 — Firestore merge 는 중첩
+    // 키를 지울 수 없다(slot-pending-sweep-convergence.test.ts 가 그 의미론을 잠근다).
+    // 계약은 키 부재가 아니라 "정원 집계 0".
+    expect(summarizeSlot(doc, 'slot-a')).toEqual({ confirmed: 0, pending: 0, total: 0 }); // 만료 무력화
+    expect(summarizeSlot(doc, 'slot-c')).toEqual({ confirmed: 0, pending: 0, total: 0 }); // malformed(만료 취급)
+    expect(summarizeSlot(doc, 'slot-b').pending).toBe(1); // active → 보존 (내부 구조는 bughunt-slot-pending 가 검증)
 
     // 2nd sweep: idempotent (no expired left).
     const r2 = await sweepExpiredPending({

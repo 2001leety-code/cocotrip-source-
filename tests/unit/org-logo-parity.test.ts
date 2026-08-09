@@ -29,8 +29,8 @@ function logoFromArticle(): string {
     path: '/guide/x',
     title: 't',
     description: 'd',
-    datePublished: '2026-01-01',
-    dateModified: '2026-01-01',
+    published: '2026-01-01',
+    updated: '2026-01-01',
   }) as { publisher?: { logo?: { url?: string } } };
   const url = ld?.publisher?.logo?.url;
   expect(url, 'Article publisher 에 로고 URL 이 없다').toBeTruthy();
