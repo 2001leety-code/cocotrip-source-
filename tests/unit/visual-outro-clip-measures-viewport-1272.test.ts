@@ -35,9 +35,15 @@ describe('#1272 P2 — outro clip 은 뷰포트를 재서 만든다', () => {
     expect(clipBlocks.length).toBeGreaterThan(0);
   });
 
-  it('뷰포트 높이를 런타임에 측정해 clip y 로 쓴다', () => {
+  it('clip y 는 찍은 이미지에서 읽은 캡처 표면 높이로 만든다', () => {
     expect(code).toMatch(/window\.innerHeight/);
-    expect(code).toMatch(/clip:\s*\{[^}]*y:\s*[A-Za-z_$][\w$.]*\s*-\s*320/);
+    // PNG IHDR 에서 높이를 읽는다 = 가정 없이 "이미지가 실제로 몇 px 인가".
+    expect(code).toMatch(/readUInt32BE\(20\)/);
+    expect(code).toMatch(/clip:\s*\{[^}]*y:\s*surfaceHeight\s*-\s*320/);
+  });
+
+  it('레이아웃 뷰포트와 캡처 표면이 같은지 단정한다 (851 vs 812 재발 차단)', () => {
+    expect(code).toMatch(/expect\(geometry\.viewportHeight\)\.toBe\(surfaceHeight\)/);
   });
 
   it('문서 높이가 안정될 때까지 다시 맨 아래로 내려간다 (단일 scroll 가정 제거)', () => {

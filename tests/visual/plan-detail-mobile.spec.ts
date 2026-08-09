@@ -247,15 +247,27 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
         ),
       };
     });
+    // 캡처 표면 높이는 "찍은 이미지" 에서 직접 읽는다(PNG IHDR). 페이지가 보는
+    // 레이아웃 뷰포트(innerHeight)와 다를 수 있고, 실제로 달랐다 — 851 vs 812.
+    const viewportShot = await page.screenshot({ scale: 'css' });
+    const surfaceHeight = viewportShot.readUInt32BE(20);
+
     // 실패했을 때 원인이 숫자로 남도록 리포트에 기록한다.
-    test.info().annotations.push({ type: 'outro-geometry', description: JSON.stringify(geometry) });
+    test.info().annotations.push({
+      type: 'outro-geometry',
+      description: JSON.stringify({ ...geometry, surfaceHeight }),
+    });
 
     expect(Math.abs(geometry.shortBy)).toBeLessThanOrEqual(1);
-    expect(geometry.viewportHeight).toBeGreaterThan(320);
+    expect(surfaceHeight).toBeGreaterThan(320);
+    // 페이지가 보는 화면과 우리가 찍는 화면이 같아야 한다. 어긋나면 `fixed bottom-0`
+    // 요소가 이미지 밖에 배치돼 "잘린 화면" 을 정상으로 굳히게 된다(#1272 P2).
+    // 일치는 playwright.visual.config.ts 의 screen === viewport 설정이 보장한다.
+    expect(geometry.viewportHeight).toBe(surfaceHeight);
 
     await expect(page).toHaveScreenshot('outro-fold.png', {
-      // 측정한 뷰포트 기준 하단 320px — Wrap-up + CTA 버튼 영역.
-      clip: { x: 0, y: geometry.viewportHeight - 320, width: 375, height: 320 },
+      // 측정한 캡처 표면 기준 하단 320px — Wrap-up + CTA 버튼 영역.
+      clip: { x: 0, y: surfaceHeight - 320, width: 375, height: 320 },
     });
   });
 });
