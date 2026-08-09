@@ -70,16 +70,14 @@ export default defineConfig({
       use: {
         ...devices['Pixel 5'],
         viewport: { width: 375, height: 812 },
-        // #1272 P2 (2026-08-10): screen 을 viewport 와 같게 맞춘다.
-        //   devices['Pixel 5'] 은 screen 851 을 함께 넘긴다. isMobile 에뮬레이션에서
-        //   페이지의 레이아웃 뷰포트는 그 851 을 쓰는데(측정: window.innerHeight === 851)
-        //   Playwright 가 캡처하는 표면은 위 viewport 인 812 다. 그래서 `fixed bottom-0`
-        //   (MobileBottomNav)은 이미지 밖 787~851 에 배치되어 항상 잘려 찍혔고,
-        //   T3(outro-fold) diff 가 서로 다른 두 run 에서 12283px 로 동일했다
-        //   (run 31332692514 · 31335395462 · dispatch 31336342835).
-        //   두 수를 일치시키면 페이지가 보는 화면과 우리가 찍는 화면이 같아진다.
-        //   T3 이 innerHeight === 캡처 표면 높이를 단정하므로 이 값이 다시 어긋나면 실패한다.
-        screen: { width: 375, height: 812 },
+        // #1272 P2 (2026-08-10) 실측 메모 — 이 조합은 "레이아웃 393x851 을 375x812 로
+        //   0.954배 축소해 캡처" 한다. devices['Pixel 5'] 의 isMobile 에뮬레이션이 기기
+        //   메트릭으로 레이아웃하고, 위 viewport 는 창 크기(=캡처 표면)만 정하기 때문이다.
+        //   실측: window.innerHeight === 851, 캡처 이미지 높이 === 812 (375/393 = 812/851).
+        //   그래서 clip 좌표는 항상 "찍은 이미지" 기준이어야 한다(뷰포트 상수·innerHeight 금지).
+        //   `screen` 을 812 로 덮어도 바뀌지 않는다(실측: dispatch run 31336975045) — 시도했다가
+        //   되돌렸으니 다시 넣지 말 것. 비율을 없애려면 isMobile 을 버리거나 viewport 를
+        //   393x851 로 맞춰야 하고, 둘 다 baseline 4장 전부 재생성이라 이 PR 범위가 아니다.
         colorScheme: 'light',
       },
     },

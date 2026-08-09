@@ -260,10 +260,11 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
 
     expect(Math.abs(geometry.shortBy)).toBeLessThanOrEqual(1);
     expect(surfaceHeight).toBeGreaterThan(320);
-    // 페이지가 보는 화면과 우리가 찍는 화면이 같아야 한다. 어긋나면 `fixed bottom-0`
-    // 요소가 이미지 밖에 배치돼 "잘린 화면" 을 정상으로 굳히게 된다(#1272 P2).
-    // 일치는 playwright.visual.config.ts 의 screen === viewport 설정이 보장한다.
-    expect(geometry.viewportHeight).toBe(surfaceHeight);
+    // innerHeight(851)와 캡처 표면(812)은 이 에뮬레이션에서 원래 다르다 —
+    // 레이아웃은 기기 메트릭(393x851), 캡처는 창 크기(375x812)로 0.954배 축소.
+    // 그래서 좌표 기준은 "찍은 이미지" 여야 한다. innerHeight 로 clip 을 만들면
+    // 이미지 밖을 가리켜 잘린 캡처(375x281)가 나온다 — 실측: dispatch run 31336342835.
+    expect(geometry.viewportHeight).toBeGreaterThanOrEqual(surfaceHeight);
 
     await expect(page).toHaveScreenshot('outro-fold.png', {
       // 측정한 캡처 표면 기준 하단 320px — Wrap-up + CTA 버튼 영역.

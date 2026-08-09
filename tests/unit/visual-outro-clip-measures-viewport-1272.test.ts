@@ -42,8 +42,11 @@ describe('#1272 P2 — outro clip 은 뷰포트를 재서 만든다', () => {
     expect(code).toMatch(/clip:\s*\{[^}]*y:\s*surfaceHeight\s*-\s*320/);
   });
 
-  it('레이아웃 뷰포트와 캡처 표면이 같은지 단정한다 (851 vs 812 재발 차단)', () => {
-    expect(code).toMatch(/expect\(geometry\.viewportHeight\)\.toBe\(surfaceHeight\)/);
+  it('clip 을 innerHeight 로 만들지 않는다 (레이아웃 851 ≠ 캡처 812)', () => {
+    // innerHeight 기준으로 clip 을 만들면 이미지 밖을 가리켜 캡처가 잘린다(375x281 실측).
+    expect(code).not.toMatch(/clip:\s*\{[^}]*viewportHeight\s*-/);
+    // 두 값의 관계는 단정으로 남겨 둔다 — 역전되면(캡처가 더 큼) 좌표계가 바뀐 것이다.
+    expect(code).toMatch(/expect\(geometry\.viewportHeight\)\.toBeGreaterThanOrEqual\(surfaceHeight\)/);
   });
 
   it('문서 높이가 안정될 때까지 다시 맨 아래로 내려간다 (단일 scroll 가정 제거)', () => {
