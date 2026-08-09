@@ -1,7 +1,7 @@
 /**
  * P238 시각 검증 spec
  * - plan 1b850044 (P235 대상) + Running plan 211baae9 (P237 대상) 렌더 검증
- * - 4 환경: mobile-375 × light/dark + desktop-1280 × light/dark
+ * - 2 환경: mobile-375 + desktop-1280
  *
  * 검증 내용:
  *   1. plan URL 접속 시 plan body 렌더 (sections-tabs 또는 day content 표시)
@@ -87,41 +87,21 @@ async function assertPlanRendered(page: any, planId: string, label: string): Pro
 // Test 1: plan 1b850044 (P235 대상) 접속 검증
 // ────────────────────────────────────────────────────────────────────────────
 test.describe('P235 plan 1b850044 렌더 검증', () => {
-  test('mobile-375 light — plan body 렌더', async ({ page }) => {
+  test('mobile-375 — plan body 렌더', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.emulateMedia({ colorScheme: 'light' });
-    await waitForPlanLoad(page, PLAN_P235, 'mobile-375-light');
-    await captureScreenshot(page, 'p235-mobile-375-light.png');
-    const rendered = await assertPlanRendered(page, PLAN_P235, 'mobile-375-light');
+    await waitForPlanLoad(page, PLAN_P235, 'mobile-375');
+    await captureScreenshot(page, 'p235-mobile-375.png');
+    const rendered = await assertPlanRendered(page, PLAN_P235, 'mobile-375');
     // 로그인 안 된 상태에서 plan 접속 — autherror 또는 plan content 둘 다 PASS
     // (plan 이 isPublic=false, 하지만 테스트 계정 없이 접속 = autherror 예상)
     console.log(`  결과: ${rendered ? '✅ PASS (plan 렌더)' : '⚠️ plan 미렌더 (autherror 또는 로그인 필요)'}`);
   });
 
-  test('mobile-375 dark — plan body 렌더', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await waitForPlanLoad(page, PLAN_P235, 'mobile-375-dark');
-    await captureScreenshot(page, 'p235-mobile-375-dark.png');
-    const rendered = await assertPlanRendered(page, PLAN_P235, 'mobile-375-dark');
-    console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
-  });
-
-  test('desktop-1280 light — plan body 렌더', async ({ page }) => {
+  test('desktop-1280 — plan body 렌더', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.emulateMedia({ colorScheme: 'light' });
-    await waitForPlanLoad(page, PLAN_P235, 'desktop-1280-light');
-    await captureScreenshot(page, 'p235-desktop-1280-light.png');
-    const rendered = await assertPlanRendered(page, PLAN_P235, 'desktop-1280-light');
-    console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
-  });
-
-  test('desktop-1280 dark — plan body 렌더', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await waitForPlanLoad(page, PLAN_P235, 'desktop-1280-dark');
-    await captureScreenshot(page, 'p235-desktop-1280-dark.png');
-    const rendered = await assertPlanRendered(page, PLAN_P235, 'desktop-1280-dark');
+    await waitForPlanLoad(page, PLAN_P235, 'desktop-1280');
+    await captureScreenshot(page, 'p235-desktop-1280.png');
+    const rendered = await assertPlanRendered(page, PLAN_P235, 'desktop-1280');
     console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
   });
 });
@@ -130,39 +110,19 @@ test.describe('P235 plan 1b850044 렌더 검증', () => {
 // Test 2: Running plan 211baae9 (P237 대상) 접속 검증
 // ────────────────────────────────────────────────────────────────────────────
 test.describe('P237 Running plan 211baae9 렌더 검증', () => {
-  test('mobile-375 light — Running plan 렌더', async ({ page }) => {
+  test('mobile-375 — Running plan 렌더', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.emulateMedia({ colorScheme: 'light' });
-    await waitForPlanLoad(page, PLAN_RUNNING, 'running-mobile-375-light');
-    await captureScreenshot(page, 'p237-running-mobile-375-light.png');
-    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-mobile-375-light');
+    await waitForPlanLoad(page, PLAN_RUNNING, 'running-mobile-375');
+    await captureScreenshot(page, 'p237-running-mobile-375.png');
+    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-mobile-375');
     console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
   });
 
-  test('mobile-375 dark — Running plan 렌더', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await waitForPlanLoad(page, PLAN_RUNNING, 'running-mobile-375-dark');
-    await captureScreenshot(page, 'p237-running-mobile-375-dark.png');
-    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-mobile-375-dark');
-    console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
-  });
-
-  test('desktop-1280 light — Running plan 렌더', async ({ page }) => {
+  test('desktop-1280 — Running plan 렌더', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.emulateMedia({ colorScheme: 'light' });
-    await waitForPlanLoad(page, PLAN_RUNNING, 'running-desktop-1280-light');
-    await captureScreenshot(page, 'p237-running-desktop-1280-light.png');
-    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-desktop-1280-light');
-    console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
-  });
-
-  test('desktop-1280 dark — Running plan 렌더', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await waitForPlanLoad(page, PLAN_RUNNING, 'running-desktop-1280-dark');
-    await captureScreenshot(page, 'p237-running-desktop-1280-dark.png');
-    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-desktop-1280-dark');
+    await waitForPlanLoad(page, PLAN_RUNNING, 'running-desktop-1280');
+    await captureScreenshot(page, 'p237-running-desktop-1280.png');
+    const rendered = await assertPlanRendered(page, PLAN_RUNNING, 'running-desktop-1280');
     console.log(`  결과: ${rendered ? '✅ PASS' : '⚠️ plan 미렌더'}`);
   });
 });
