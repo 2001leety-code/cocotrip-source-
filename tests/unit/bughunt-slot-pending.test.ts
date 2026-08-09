@@ -284,7 +284,7 @@ describe('confirmSlotLock — 주문별 정확한 pending 차감 (버그 #18)', 
 // sweepExpiredPending — orderId 엔트리 단위 만료 정리
 // ─────────────────────────────────────────────────────────────────────────────
 describe('sweepExpiredPending — 주문 엔트리 단위 sweep', () => {
-  it('한 슬롯 안에서 만료 주문만 제거, 활성 주문 보존', async () => {
+  it('한 슬롯 안에서 만료 주문만 무력화, 활성 주문 보존', async () => {
     const now = Date.now();
     const db = makeMockDb({
       [PATH]: {
@@ -302,9 +302,10 @@ describe('sweepExpiredPending — 주문 엔트리 단위 sweep', () => {
     const r = await sweepExpiredPending({ ...base, adminDb: db });
     expect(r.swept).toBe(2); // ORD-EXP + ORD-X
     const pending = db._peek(PATH)!.slot_pending as any;
-    expect(pending['slot-a']['ORD-EXP']).toBeUndefined();
+    // 만료 엔트리는 tombstone(count 0)으로 무력화 — Firestore merge 는 중첩 키를 못 지운다.
+    expect(pending['slot-a']['ORD-EXP'].count).toBe(0);
     expect(pending['slot-a']['ORD-OK'].count).toBe(3);
-    expect(pending['slot-b']).toBeUndefined(); // 슬롯 전부 비면 슬롯 키 제거
+    expect(summarizeSlot(db._peek(PATH)!, 'slot-b').pending).toBe(0); // 슬롯 전부 만료 → 집계 0
 
     // idempotent: 2차 sweep = 0.
     const r2 = await sweepExpiredPending({ ...base, adminDb: db });
@@ -323,9 +324,9 @@ describe('sweepExpiredPending — 주문 엔트리 단위 sweep', () => {
     });
     const r = await sweepExpiredPending({ ...base, adminDb: db });
     expect(r.swept).toBe(1);
-    const pending = db._peek(PATH)!.slot_pending as any;
-    expect(pending['slot-a']).toBeUndefined();
-    // 활성 옛 엔트리는 정규화된 신규 맵 형태로 보존됨.
+    // 옛 단일 엔트리는 슬롯 루트째 무력화된다(정규화가 루트를 우선 읽으므로).
+    expect(summarizeSlot(db._peek(PATH)!, 'slot-a').pending).toBe(0);
+    // 활성 옛 엔트리는 그대로 보존됨.
     expect(summarizeSlot(db._peek(PATH)!, 'slot-b').pending).toBe(1);
   });
 });
