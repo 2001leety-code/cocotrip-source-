@@ -200,8 +200,10 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
     const top = Math.round(firstCard!.y);
     const bottom = Math.round(lastStat!.y + lastStat!.height);
     // 폴드 안이어야 한다 — 벗어나면 clip 이 잘려 비교 자체가 무의미해진다.
+    // 폴드 높이도 상수로 믿지 않고 측정한다(T3 와 같은 이유 — #1272 P2).
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
     expect(top).toBeGreaterThanOrEqual(0);
-    expect(bottom).toBeLessThanOrEqual(812);
+    expect(bottom).toBeLessThanOrEqual(viewportHeight);
 
     await expect(page).toHaveScreenshot('summary-metrics.png', {
       clip: { x: 0, y: top, width: 375, height: bottom - top },
@@ -209,18 +211,51 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
   });
 
   /**
-   * T3: Outro / Wrap-up 영역.
-   * OutroSlide + footer 가 잘리지 않고 렌더링되는지 확인.
-   * scrollIntoView 로 끌어내린 후 capture.
+   * T3: Outro / Wrap-up 영역 — 문서 맨 아래 320px.
+   *
+   * #1272 P2 후속: 이 테스트는 두 가지를 재지 않고 상수로 믿고 있었다(같은 근본원인).
+   *   1. 뷰포트 높이 = 812 (`clip: { y: 812 - 320 }`). 주석은 "현재 viewport 기준" 인데
+   *      코드는 하드코드였다.
+   *   2. `scrollTo(body.scrollHeight)` 한 번 = 문서 맨 아래. 늦게 도착하는 콘텐츠로
+   *      문서가 자라면 그 좌표는 더 이상 맨 아래가 아니다.
+   * CI 실측 증상: 하단 고정 네비가 약 39px 잘린 프레임을 찍었고, 서로 다른 두 run 에서
+   *   diff 가 12283px(ratio 0.11)로 **동일** — 플래키가 아니라 "맨 아래가 아닌 곳" 을
+   *   결정적으로 찍고 있었다는 뜻이다(run 31332692514 / 31335395462).
+   * 이제 둘 다 측정하고, 캡처 전에 단정한다. 잠금: tests/unit/visual-outro-clip-measures-viewport-1272.test.ts
    */
   test('Wrap-up footer section renders without cutoff', async ({ page }) => {
-    // 페이지 끝까지 스크롤해 Outro/Footer 를 viewport 안으로.
-    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-    await page.waitForTimeout(400); // scroll 완료 대기
+    const geometry = await page.evaluate(async () => {
+      // 문서 높이가 두 번 연속 같아질 때까지 "다시 맨 아래로" 를 반복한다.
+      // (지연 이미지·늦은 fetch 로 높이가 자라면 목표 좌표도 함께 움직인다.)
+      let previousHeight = -1;
+      let rounds = 0;
+      for (let i = 0; i < 20; i++) {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 150)));
+        rounds = i + 1;
+        const height = document.documentElement.scrollHeight;
+        if (height === previousHeight) break;
+        previousHeight = height;
+      }
+      return {
+        rounds,
+        viewportHeight: window.innerHeight,
+        docHeight: document.documentElement.scrollHeight,
+        // 0 이면 진짜 맨 아래. 양수면 그만큼 위를 찍고 있다는 뜻(= 예전 실패 모드).
+        shortBy: Math.round(
+          document.documentElement.scrollHeight - window.innerHeight - window.scrollY,
+        ),
+      };
+    });
+    // 실패했을 때 원인이 숫자로 남도록 리포트에 기록한다.
+    test.info().annotations.push({ type: 'outro-geometry', description: JSON.stringify(geometry) });
+
+    expect(Math.abs(geometry.shortBy)).toBeLessThanOrEqual(1);
+    expect(geometry.viewportHeight).toBeGreaterThan(320);
 
     await expect(page).toHaveScreenshot('outro-fold.png', {
-      // 현재 viewport 기준 하단 320px — Wrap-up + CTA 버튼 영역.
-      clip: { x: 0, y: 812 - 320, width: 375, height: 320 },
+      // 측정한 뷰포트 기준 하단 320px — Wrap-up + CTA 버튼 영역.
+      clip: { x: 0, y: geometry.viewportHeight - 320, width: 375, height: 320 },
     });
   });
 });
