@@ -120,6 +120,28 @@ describe('식당 DB 수치 — 화면 숫자 ↔ 실제 JSON', () => {
       expect(digits(items[1].figure), `${lang} cities`).toBe(String(FOOD_DB.cities));
     }
   });
+
+  // 2026-08-10 P2 (#1272): 원장 1번 항목이 "각 식당마다 cuisine 이 있다"고 말했지만
+  // 실측은 3,153/3,166 — 13건 누락이라 거짓이었다. coordinates·allergens 는 실제로 전 항목,
+  // cuisine 은 대부분(전부 아님)이라고 정확히 말해야 한다.
+  it('coordinates·allergens 는 전 항목, cuisine 은 일부 누락 — 실측과 일치', () => {
+    const withCoords = index.filter((r) => (r as { lat?: number }).lat != null && (r as { lng?: number }).lng != null).length;
+    const withAllergens = index.filter((r) => (r as { allergens?: unknown }).allergens != null).length;
+    const withCuisine = index.filter((r) => (r as { cuisine?: string }).cuisine).length;
+
+    expect(withCoords).toBe(FOOD_DB.restaurants);
+    expect(withAllergens).toBe(FOOD_DB.restaurants);
+    // 실측 사실 자체를 박제: cuisine 이 전부가 아니라는 전제가 깨지면(예: 재생성으로 100% 채워지면)
+    // 이 테스트가 실패해 문구를 다시 검토하게 만든다.
+    expect(withCuisine).toBeGreaterThan(0);
+    expect(withCuisine).toBeLessThan(FOOD_DB.restaurants);
+
+    for (const lang of LANGS) {
+      const note = HOME_COPY[lang].ledger.items[0].note;
+      // "각 항목 모두 cuisine 보유" 라는 단정이 없어야 한다 (13건 누락과 모순).
+      expect(note, `${lang} claims cuisine on every entry`).not.toMatch(/each with coordinates, cuisine|각각 보유|それぞれ保持|每条都带坐标、菜系/);
+    }
+  });
 });
 
 describe('도시 칩 — 위저드가 아는 도시만', () => {

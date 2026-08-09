@@ -41,17 +41,20 @@ describe('P0-A 서버 DEFAULT_PROMO_CONFIG — 거짓 문구 없음 + 실발급�
     }
   });
 
-  it('4언어 copy 가 실발급 혜택(AI플랜 무료 + 5% 쿠폰)을 말한다', async () => {
+  it('4언어 copy 가 실발급 혜택(한국 여행 일정 무료 + 5% 쿠폰)을 말하고, "AI" 를 전면에 내세우지 않는다', async () => {
+    // 2026-08-10 P2 (#1272): 제품 포지셔닝은 "AI 플랜"이 아니라 "한국 전용 데이터로 짠
+    // 실행 가능한 여행 일정" — docs/DESIGN-EDITORIAL-CONCIERGE.md §5, homeCopy.ts 와 동일 규칙.
     vi.resetModules();
     const { DEFAULT_PROMO_CONFIG } = await import('../../api/_shared/promo-config.js');
-    const AI_PLAN_MENTION: Record<string, RegExp> = {
-      en: /AI plan/i,
-      ko: /AI 일정/,
-      ja: /AIプラン/,
-      zh: /AI行程/,
+    const ITINERARY_MENTION: Record<string, RegExp> = {
+      en: /itinerary/i,
+      ko: /여행 일정/,
+      ja: /旅程/,
+      zh: /行程/,
     };
     for (const lang of LANGS) {
-      expect(DEFAULT_PROMO_CONFIG.copy[lang]).toMatch(AI_PLAN_MENTION[lang]);
+      expect(DEFAULT_PROMO_CONFIG.copy[lang]).not.toMatch(/\bAI\b/);
+      expect(DEFAULT_PROMO_CONFIG.copy[lang]).toMatch(ITINERARY_MENTION[lang]);
       expect(DEFAULT_PROMO_CONFIG.copy[lang]).toMatch(/5%/);
     }
   });
@@ -80,6 +83,91 @@ describe('P0-A 서버 DEFAULT_PROMO_CONFIG — 거짓 문구 없음 + 실발급�
       }
     }
     expect(cfg.endDate).not.toMatch(/6\/28/);
+  });
+});
+
+describe('P0-C 운영 Firestore 구형 문구 정규화 — 커스텀은 보존 (2026-08-10 P2 #1272)', () => {
+  it('언어별 값이 정확히 구형 기본값(LEGACY_DEFAULT_PROMO_COPY)과 같으면 새 기본값으로 정규화된다', async () => {
+    vi.resetModules();
+    const { getPromoConfig, DEFAULT_PROMO_CONFIG, LEGACY_DEFAULT_PROMO_COPY, __resetPromoConfigCache } =
+      await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const dbWithLegacyCopy = {
+      collection: () => ({
+        doc: () => ({
+          get: () => Promise.resolve({ exists: true, data: () => ({ copy: LEGACY_DEFAULT_PROMO_COPY }) }),
+        }),
+      }),
+    };
+    const cfg = await getPromoConfig(dbWithLegacyCopy);
+    for (const lang of LANGS) {
+      expect(cfg.copy[lang]).toBe(DEFAULT_PROMO_CONFIG.copy[lang]);
+      expect(cfg.copy[lang]).not.toMatch(/\bAI\b/);
+    }
+  });
+
+  it('구형 기본값과 다른(운영자 커스텀) 문구는 절대 덮어쓰지 않는다', async () => {
+    vi.resetModules();
+    const { getPromoConfig, __resetPromoConfigCache } = await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const customCopy = {
+      ko: '운영자가 직접 쓴 문구', en: 'Operator-written copy', ja: '運営者が書いた文言', zh: '运营者自定义文案',
+    };
+    const dbWithCustomCopy = {
+      collection: () => ({
+        doc: () => ({
+          get: () => Promise.resolve({ exists: true, data: () => ({ copy: customCopy }) }),
+        }),
+      }),
+    };
+    const cfg = await getPromoConfig(dbWithCustomCopy);
+    for (const lang of LANGS) {
+      expect(cfg.copy[lang]).toBe(customCopy[lang]);
+    }
+  });
+
+  it('언어 하나만 구형값이고 나머지는 커스텀이면, 그 언어만 정규화된다', async () => {
+    vi.resetModules();
+    const { getPromoConfig, DEFAULT_PROMO_CONFIG, LEGACY_DEFAULT_PROMO_COPY, __resetPromoConfigCache } =
+      await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const mixedCopy = {
+      ko: LEGACY_DEFAULT_PROMO_COPY.ko, // 구형 → 정규화 대상
+      en: 'A custom English promo the operator wrote', // 커스텀 → 보존
+      ja: LEGACY_DEFAULT_PROMO_COPY.ja,
+      zh: '运营者自定义文案',
+    };
+    const db = {
+      collection: () => ({
+        doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => ({ copy: mixedCopy }) }) }),
+      }),
+    };
+    const cfg = await getPromoConfig(db);
+    expect(cfg.copy.ko).toBe(DEFAULT_PROMO_CONFIG.copy.ko);
+    expect(cfg.copy.ja).toBe(DEFAULT_PROMO_CONFIG.copy.ja);
+    expect(cfg.copy.en).toBe(mixedCopy.en);
+    expect(cfg.copy.zh).toBe(mixedCopy.zh);
+  });
+});
+
+describe('P0-D 배너 긴급성 — endDate 없으면 붙지 않는다 (가짜 긴급성 금지)', () => {
+  it('urgency() 는 endDate 가 없으면 즉시 빈 문자열을 반환하고, 4언어 폴백 긴급성 문구가 코드에 없다', () => {
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    // endDate 가 falsy 면 조건 분기 없이 바로 반환 — '선착순'류로 새는 경로가 없다.
+    expect(bannerSrc).toMatch(/if \(!endDate\) return '';/);
+    // 주석은 이 변경의 이력을 설명하려 해당 단어를 인용할 수 있으므로 제외하고, 실제 코드만 본다.
+    const code = bannerSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const stale of ['선착순', '先着順', '限量', "' · limited'"]) {
+      expect(code, `stale urgency word "${stale}" still present in code`).not.toContain(stale);
+    }
+  });
+
+  it('endDate 가 있을 때의 4언어 마감 문구는 그대로 유지된다 (진짜 마감일은 표시)', () => {
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    expect(bannerSrc).toContain('마감`');
+    expect(bannerSrc).toContain('まで`');
+    expect(bannerSrc).toContain('截止`');
+    expect(bannerSrc).toContain('ends ${endDate}');
   });
 });
 

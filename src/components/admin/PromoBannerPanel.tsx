@@ -208,7 +208,7 @@ export function PromoBannerPanel() {
               className={inputFullCls} placeholder="/tours" />
           </div>
           <div className="space-y-1">
-            <p className="text-[11px] text-white/60 font-semibold">마감일 표시 <span className="text-white/35 font-normal">(예: 6/30, 비우면 선착순)</span></p>
+            <p className="text-[11px] text-white/60 font-semibold">마감일 표시 <span className="text-white/35 font-normal">(예: 6/30, 비우면 긴급성 문구 없음)</span></p>
             <input type="text" value={bannerDraft.endDate} onChange={(e) => setBannerEndDate(e.target.value)}
               className={inputFullCls} placeholder="6/28" />
           </div>

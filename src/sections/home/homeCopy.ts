@@ -93,7 +93,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: 'Korea-only data, not a general travel search',
       lede: 'We do not hand your trip to a generic search index. Restaurants, routes and intercity legs come from data we maintain for Korea specifically, which is why a plan can be followed rather than only read.',
       items: [
-        { figure: '3,166', label: 'restaurants in our Korea database', note: 'Each with coordinates, cuisine and allergen flags for nuts, shellfish, gluten and dairy.' },
+        { figure: '3,166', label: 'restaurants in our Korea database', note: 'Coordinates and allergen flags for nuts, shellfish, gluten and dairy on every entry; a cuisine type on nearly all of them.' },
         { figure: '25', label: 'Korean cities covered', note: 'Seoul and Busan through Gyeongju, Jeonju, Sokcho, Yeosu and Tongyeong.' },
         { figure: 'Leg by leg', label: 'transit between stops, with its source', note: 'Where a route lookup returns a result we use its line, direction and duration. Where it does not, the leg is an estimate and the plan labels it as one.' },
       ],
@@ -164,7 +164,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '일반 여행 검색이 아니라 한국 전용 데이터',
       lede: '범용 검색 결과를 그대로 옮기지 않습니다. 식당, 이동 경로, 도시 간 구간 모두 한국을 위해 직접 관리하는 데이터에서 나옵니다. 그래서 읽고 마는 일정이 아니라 따라갈 수 있는 일정이 됩니다.',
       items: [
-        { figure: '3,166', label: '자체 한국 식당 데이터', note: '좌표, 음식 종류, 견과·갑각류·글루텐·유제품 알레르기 표시를 각각 보유합니다.' },
+        { figure: '3,166', label: '자체 한국 식당 데이터', note: '좌표와 견과·갑각류·글루텐·유제품 알레르기 표시는 전 항목 보유, 음식 종류는 대부분 보유합니다.' },
         { figure: '25', label: '수록 도시', note: '서울·부산부터 경주, 전주, 속초, 여수, 통영까지.' },
         { figure: '구간별', label: '정거장 사이 이동, 출처를 함께', note: '실시간 경로 조회가 되는 구간은 노선·방향·소요 시간을 그대로 씁니다. 안 되는 구간은 추정으로 계산하고, 플랜에 추정이라고 적습니다.' },
       ],
@@ -235,7 +235,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '一般的な旅行検索ではなく、韓国専用のデータ',
       lede: '汎用の検索結果をそのまま並べることはしません。レストラン、移動ルート、都市間の移動はすべて、韓国のために自社で管理しているデータから引いています。だから読むだけでなく、実際に辿れる旅程になります。',
       items: [
-        { figure: '3,166', label: '自社の韓国レストランデータ', note: '座標、料理ジャンル、ナッツ・甲殻類・グルテン・乳製品のアレルギー表示をそれぞれ保持しています。' },
+        { figure: '3,166', label: '自社の韓国レストランデータ', note: '座標とナッツ・甲殻類・グルテン・乳製品のアレルギー表示は全件、料理ジャンルはほぼ全件で保持しています。' },
         { figure: '25', label: '収録都市', note: 'ソウル・釜山から慶州、全州、束草、麗水、統営まで。' },
         { figure: '区間ごと', label: 'スポット間の移動を、出典つきで', note: 'リアルタイム経路が取得できた区間は路線・方向・所要時間をそのまま使います。取得できない区間は推定で算出し、旅程にも推定と明記します。' },
       ],
@@ -306,7 +306,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '不是通用旅行搜索，而是韩国专用数据',
       lede: '我们不会把通用搜索结果直接搬过来。餐厅、路线和城际交通都来自我们专为韩国维护的数据，所以行程不只是能读，而是能照着走。',
       items: [
-        { figure: '3,166', label: '自有韩国餐厅数据', note: '每条都带坐标、菜系，以及坚果、甲壳类、麸质、乳制品的过敏标记。' },
+        { figure: '3,166', label: '自有韩国餐厅数据', note: '每条都带坐标与坚果、甲壳类、麸质、乳制品过敏标记；菜系信息覆盖绝大多数条目。' },
         { figure: '25', label: '收录城市', note: '从首尔、釜山到庆州、全州、束草、丽水、统营。' },
         { figure: '逐段', label: '站点之间的交通，并标注来源', note: '能查到实时路径的路段，直接采用其线路、方向和耗时。查不到的路段按估算处理，并在行程里标明是估算。' },
       ],

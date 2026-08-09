@@ -149,14 +149,19 @@ itinerary"**. "AI planner" is the mechanism, not the headline.
 **Name the capability, not the implementation.** The nav entry is `nav.planner` in
 `src/i18n/locales/*.json`: `Trip Planner` / `여행 플래너` / `旅行プランナー` / `行程规划`.
 The route (`/planner`), the paid gate and the product itself are unchanged — this is
-naming only. Two places still say "AI" and are **out of scope on purpose**:
+naming only. One place still says "AI" and is **out of scope on purpose**:
 
-- `PromoBanner` (`free 1–3 day AI plan … · limited`) is held byte-identical to
-  `api/_shared/promo-config.js` by a parity test, and its wording is tied to a discount
-  policy. Changing it means changing both files together — an operator/marketing call,
-  not a design one. The `· limited` half is also unsupported urgency by the rule below.
 - `pageMeta.planner` (`AI Travel Planner …`) is SEO metadata where the term is the search
   query people actually type.
+
+2026-08-10 P2 (#1272): `PromoBanner` (`free 1–3 day AI plan … · limited`) used to be the
+other exception — it said "AI plan" and appended `· limited`/`· 선착순` even when
+`endDate` was empty. Both were fixed: the banner now says "Korea itinerary" in all four
+languages, and the urgency tail (`urgency()` in `PromoBanner.tsx`) renders nothing unless
+a real `endDate` is set. `api/_shared/promo-config.js` stays byte-identical to the front
+constant; its `getPromoConfig` normalizes a Firestore `admin_config/promo_banner` doc to
+the new copy only when a language's stored value exactly matches the pre-2026-08-10
+default (`LEGACY_DEFAULT_PROMO_COPY`) — an operator's own custom wording is left alone.
 
 Claims must be backed by code that exists. Verified at the time of writing:
 
@@ -164,6 +169,7 @@ Claims must be backed by code that exists. Verified at the time of writing:
 |---|---|
 | Korea restaurant database, 3,166 places across 25 cities | `api/_food_index.json` (array length + distinct `city`) |
 | Allergen flags per restaurant (nuts / shellfish / gluten / dairy) | `allergens` object on every record |
+| A cuisine type on nearly all restaurants — not claimed on all 3,166 | `cuisine` field is present on 3,153 of 3,166 records |
 | Halal and vegetarian/vegan filtering | `api/_ai_core/dietaryCoverageGate.js`, `dietaryStopReplacer.js` |
 | A transit leg between stops, measured where the lookup succeeds and marked as an estimate where it does not | `api/_transit_provider.js` → ODsay / TMAP first; `_ai_core/agents/RouteAgent.js` falls back to `naver_fallback` / `blind_25_no_coords` / haversine when a lookup fails or a coordinate is missing, and `shouldShowFallbackWarning` in `PlanDetailPage/components/TransitArrow.tsx` labels those legs on screen |
 | Real coordinates and a map link per stop | stop `lat`/`lng` through `routeEnrichment.js` |
