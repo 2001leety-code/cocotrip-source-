@@ -1129,7 +1129,7 @@ export async function generatePDF(
         </tr>`;
     budget.forEach((row: BudgetRow, i: number) => {
       html += `<tr style="background:${i % 2 === 0 ? '#fff' : C.cardBg};border-bottom:1px solid ${C.border};">
-        <td style="padding:6px 8px;font-weight:600;">${formatBudgetDay(row.day || i + 1, L.dayN)}</td>
+        <td style="padding:6px 8px;font-weight:600;">${formatBudgetDay(row.day, L.dayN, i + 1)}</td>
         <td style="text-align:right;padding:6px 8px;">${formatKRW(row.transport_krw || 0)}</td>
         <td style="text-align:right;padding:6px 8px;">${formatKRW(row.entry_fees_krw || 0)}</td>
         <td style="text-align:right;padding:6px 8px;">${formatKRW(row.meals_krw || 0)}</td>

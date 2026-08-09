@@ -53,7 +53,7 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
               {budget.map((row: BudgetRow, i: number) => (
                 <tr key={i} className="border-b border-white/[0.04]">
                   {/* 라벨+숫자 이어붙이기 금지 — ja 어순 역전, zh "{n}" 노출. 조립은 formatBudgetDay 한 곳. */}
-                  <td className="py-1.5 px-1.5 sm:py-2 sm:px-2 font-semibold">{formatBudgetDay(row.day, ui.budgetDayN)}</td>
+                  <td className="py-1.5 px-1.5 sm:py-2 sm:px-2 font-semibold">{formatBudgetDay(row.day, ui.budgetDayN, i + 1)}</td>
                   <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.transport_krw ?? row.transit_krw ?? row.transport ?? 0)}</td>
                   <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.entry_fees_krw ?? row.entry_krw ?? row.activity_krw ?? row.attraction ?? 0)}</td>
                   <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.meals_krw ?? row.food_krw ?? row.food ?? 0)}</td>

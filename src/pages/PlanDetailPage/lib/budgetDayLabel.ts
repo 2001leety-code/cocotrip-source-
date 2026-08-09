@@ -12,7 +12,23 @@
 /** 사전이 없거나 "{n}" 이 빠진 경우의 폴백 — 절대 라벨+숫자 이어붙이기로 되돌리지 말 것. */
 export const BUDGET_DAY_FALLBACK = 'Day {n}';
 
-export function formatBudgetDay(day: number, template?: string): string {
+/**
+ * `day` 를 양의 정수로 정규화. Firestore 구 플랜엔 `day` 필드가 없거나(undefined),
+ * 숫자 아닌 문자열이 들어간 스냅샷이 있다 — 실패 시 null (호출부가 fallbackIndex 로 대체).
+ */
+function normalizeBudgetDay(day: unknown): number | null {
+  const n = typeof day === 'number' ? day : Number(day);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
+/**
+ * `day` 가 누락/malformed 일 때 세 표면(BudgetTable/pdfGenerator/planToMarkdown)이
+ * 각자 다른 값("Day undefined"/원본 문자열 그대로/"Day ?")을 보여주던 문제 — 여기
+ * 한 곳에서 `fallbackIndex`(배열 index + 1)로 통일한다.
+ */
+export function formatBudgetDay(day: unknown, template?: string, fallbackIndex?: number): string {
+  const normalized = normalizeBudgetDay(day);
+  const n = normalized !== null ? normalized : (fallbackIndex || null);
   const tpl = template && template.includes('{n}') ? template : BUDGET_DAY_FALLBACK;
-  return tpl.replace(/\{n\}/g, String(day));
+  return tpl.replace(/\{n\}/g, n == null ? '?' : String(n));
 }

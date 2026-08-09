@@ -24,6 +24,7 @@
 import { getLocaleSync, type Language } from '@/i18n';
 import { getPlanDetailDict } from '../types';
 import type { PlanDocument } from '../types';
+import { formatBudgetDay } from './budgetDayLabel';
 
 const CATEGORY_ICON: Record<string, string> = {
   food: '🍽️',
@@ -108,15 +109,6 @@ function krw(n: unknown): string {
   return `₩${(typeof n === 'number' ? n : 0).toLocaleString()}`;
 }
 
-/**
- * 예산 표의 '일차' 칸. `L.budgetDayN` 은 항상 `{n}` 자리표시자 템플릿이라(사전에 있든
- * 언어별 폴백이든) 어순 걱정 없이 치환만 하면 된다 — en `Day 1`, ko `1일차`,
- * ja `1日目`, zh `第1天`. 열 이름은 언어 무관 기호 `#`.
- */
-function dayCell(L: MdLabels, n: unknown): string {
-  const v = n == null ? '?' : String(n);
-  return L.budgetDayN.replace('{n}', v);
-}
 
 /** 추천 식당 버킷 이름 — 사전 값이 있으면 쓰고 없으면 원본 키. */
 function bucketLabel(L: MdLabels, bucket: string): string {
@@ -299,13 +291,13 @@ export function planToMarkdown(
     out.push('');
     out.push(`| # | ${L.budgetMeals} | ${L.budgetTransport} | ${L.budgetEntry} | ${L.budgetTotal} |`);
     out.push('|-----|------|---------|-------|-------|');
-    for (const b of it.daily_budget_summary) {
+    it.daily_budget_summary.forEach((b: Record<string, number>, i: number) => {
       // P300/B2 (2026-05-29): SSOT field names (meals_krw/transport_krw/entry_fees_krw) first + legacy fallback.
-      const meals = (b as Record<string, number>).meals_krw ?? b.food_krw ?? 0;
-      const transit = (b as Record<string, number>).transport_krw ?? b.transit_krw ?? 0;
-      const entry = (b as Record<string, number>).entry_fees_krw ?? b.entry_krw ?? 0;
-      out.push(`| ${dayCell(L, b.day)} | ${krw(meals)} | ${krw(transit)} | ${krw(entry)} | **${krw(b.total_krw ?? 0)}** |`);
-    }
+      const meals = b.meals_krw ?? b.food_krw ?? 0;
+      const transit = b.transport_krw ?? b.transit_krw ?? 0;
+      const entry = b.entry_fees_krw ?? b.entry_krw ?? 0;
+      out.push(`| ${formatBudgetDay(b.day, L.budgetDayN, i + 1)} | ${krw(meals)} | ${krw(transit)} | ${krw(entry)} | **${krw(b.total_krw ?? 0)}** |`);
+    });
     if (it.t_money_recommended_load) {
       out.push('');
       out.push(`🚇 **${L.tmoney}**: ${krw(it.t_money_recommended_load)}`);
