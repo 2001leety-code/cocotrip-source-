@@ -268,6 +268,9 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
 
     await expect(page).toHaveScreenshot('outro-fold.png', {
       // 측정한 캡처 표면 기준 하단 320px — Wrap-up + CTA 버튼 영역.
+      // baseline 의 맨 아래 검은 띠(약 33px)는 `fixed bottom-0` 하단 네비의 윗부분이다.
+      // 위 축소 비율 때문에 네비 전체는 이미지 안에 들어올 수 없다 — 이는 사양이며
+      // "잘렸다" 는 신호가 아니다. 본문(신고 버튼까지)은 온전히 프레임 안에 있다.
       clip: { x: 0, y: surfaceHeight - 320, width: 375, height: 320 },
     });
   });
