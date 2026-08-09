@@ -38,7 +38,54 @@ import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
+
+/**
+ * 취소·환불이 **확정 성공**한 뒤 확정 좌석(slot_bookings)을 해제한다 (2026-08-09).
+ * mark-refunded(전액) · dispatch-cancel 공용.
+ *
+ * 이전엔 두 경로 모두 좌석을 그대로 뒀다 → 환불된 좌석이 영구히 팔리지 않았다(매출손실).
+ *
+ * 안전 규칙 (helper 계약과 동일):
+ *   - 되돌리는 양은 확정 원장(slot_confirmed)이 증명하는 만큼뿐. 증거 없으면 좌석 미변경 + 보고.
+ *     (기록 없이 pax 를 빼면 다른 손님의 확정석을 지운다 = 오버부킹.)
+ *   - 어떤 슬롯인지는 서버 스냅샷 바인딩(paypal_order_snapshots)만이 근거 — body 신뢰 금지.
+ *   - cart 자식(parentOrderID)은 형제와 capture 를 공유해 라인별 좌석 귀속이 불가능 → 보류.
+ *   - best-effort: 돈은 이미 움직였다. 실패해도 admin action 자체는 성공 응답을 유지하고 알린다.
+ */
+async function releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action }) {
+  try {
+    if (bookingData && bookingData.parentOrderID) {
+      console.warn('[admin-booking-action] slot release skipped — cart child (형제와 capture 공유):', bookingRef);
+      return;
+    }
+    const orderId = (bookingData && bookingData.orderID) || bookingId;
+    const release = await releaseSlotForCanceledOrder({ adminDb, orderId });
+    if (release.released) {
+      console.log('[admin-booking-action] slot released:', { bookingRef, action, slot: release.slot, pax: release.pax });
+      return;
+    }
+    // NO_SNAPSHOT_BINDING = 비슬롯 상품(수동입금·차터 등)의 정상 상태 → 조용히 통과(알림 홍수 방지).
+    console.warn('[admin-booking-action] slot release skipped:', release.reason, { bookingRef, action });
+    if (release.reason === 'NO_CONFIRMED_RECORD') {
+      notify('admin', [
+        '⚠️ <b>환불 완료 — 좌석 해제 보류 (확정 원장 없음)</b>',
+        `<code>${bookingRef}</code> · ${action}`,
+        `슬롯: ${release.slot?.tourId} / ${release.slot?.date} / ${release.slot?.slotId}`,
+        '→ 이 주문이 좌석을 확정한 기록이 없어 좌석을 건드리지 않았습니다. 수동 확인 필요.',
+      ].join('\n')).catch(() => {});
+    }
+  } catch (e) {
+    console.error('[admin-booking-action] slot release failed (non-fatal):', e.message);
+    notify('admin', [
+      '🚨 <b>환불 완료 — 좌석 해제 실패 (좌석이 잠긴 채 남음)</b>',
+      `<code>${bookingRef}</code> · ${action}`,
+      `오류: ${(e.message || '').slice(0, 200)}`,
+      '→ 환불은 정상. 해당 슬롯의 확정석만 수동 해제 필요.',
+    ].join('\n')).catch(() => {});
+  }
+}
 
 // 이메일 발송 헬퍼 — 실패해도 admin action 자체는 성공해야 (booking 상태 갱신은
 // 이미 끝났고, 이메일 누락은 admin 이 수동 재발송 가능).
@@ -322,6 +369,17 @@ export default async function handler(req, res) {
         refundedByAdminUid: adminUid,
       }, { merge: true });
 
+      // 🔴 좌석 해제 — **전액환불일 때만**. 부분환불은 예약이 살아있을 수 있어(굿윌 일부 환급 등)
+      //   좌석을 푸는 것이 오버부킹으로 이어진다 → 보류하고 로그만 남긴다(운영자 판단 영역).
+      //   전액 판정: 금액 미지정(= 전액환불 의도) 또는 원금 대비 100%.
+      const isFullRefund = refundedKRW == null
+        || (Number.isFinite(originalKRW) && originalKRW > 0 && refundKrw >= originalKRW);
+      if (isFullRefund) {
+        await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action });
+      } else {
+        console.warn('[admin-booking-action] 부분환불 — 좌석 해제 보류 (예약 유효 가능):', { bookingRef, refundKrw, originalKRW });
+      }
+
       const telText = [
         paypalRefund
           ? '💸 <b>환불 완료 (PayPal API 자동)</b>'
@@ -417,6 +475,10 @@ export default async function handler(req, res) {
       };
       await pendingRef.update(update);
       await adminDb.collection('bookings').doc(bookingId).set(update, { merge: true });
+
+      // 🔴 좌석 해제 — dispatch-cancel 은 정의상 항상 전액환불 + 예약 취소다(우리 귀책).
+      //   위 status 가드(CONFIRMED 만 통과)가 재클릭 방어선이고, 원장 tombstone 이 2차 방어선.
+      await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId, bookingData, action });
 
       notify('booking', [
         '🚐 <b>배차 실패 — 예약 취소 + 전액 환불</b>',

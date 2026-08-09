@@ -13,9 +13,14 @@
 // 데이터 위치: tour_availability/{tourId}/dates/{date}
 //   {
 //     tourId, date, status,
-//     slot_bookings: { [slotId]: confirmedCount },  // optional, P106
-//     slot_pending:  { [slotId]: { [orderId]: { count, expiresAt: ISO } } },  // 버그#18 후 orderId 별 엔트리
+//     slot_bookings:  { [slotId]: confirmedCount },  // optional, P106
+//     slot_pending:   { [slotId]: { [orderId]: { count, expiresAt: ISO } } },  // 버그#18 후 orderId 별 엔트리
+//     slot_confirmed: { [slotId]: { [orderId]: { count, at: ISO, releasedAt: ISO|null } } },  // 2026-08-09 해제 원장
 //   }
+//
+//   4. cancelBooking / admin-booking-action(mark-refunded·dispatch-cancel) 이 환불 성공 후
+//      releaseConfirmedSlot 으로 확정석을 되돌린다. 되돌릴 수 있는 양은 slot_confirmed 원장이
+//      증명하는 만큼뿐 — 증거 없이 빼면 다른 손님의 확정석을 지운다(오버부킹).
 //
 // 버그 #18 (2026-06-14) 회계 누수 수정:
 //   기존 구조 slot_pending[slotId] = { count, expiresAt, orderId } 는 한 슬롯에
@@ -292,6 +297,24 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
     const slotBookings = { ...(data.slot_bookings || {}) };
     slotBookings[slotId] = newConfirmed;
 
+    // 🔴 확정 좌석 해제 원장 (2026-08-09) — "이 주문이 이 슬롯에서 확정한 좌석이 몇 개인가".
+    //   releaseConfirmedSlot 이 되돌릴 수 있는 **유일한 증거**다. 이게 없으면 취소·환불 때
+    //   "pax 만큼 빼기" 밖에 할 수 없는데, confirm 이 건너뛰어진 주문(F2 SLOT_SNAPSHOT_MISSING /
+    //   SLOT_FULL_AT_CAPTURE)에서 그렇게 빼면 **다른 손님의 확정석**을 깎아 오버부킹이 된다.
+    //   누적(+=)인 이유: cart 는 한 orderID 의 여러 라인이 같은 슬롯을 확정할 수 있다
+    //   (captureCartOrder 가 라인마다 같은 orderId 로 confirm) → 대체하면 좌석 회계가 유실된다.
+    const slotConfirmed = { ...(data.slot_confirmed || {}) };
+    const confirmLedger = { ...(slotConfirmed[slotId] || {}) };
+    const priorLedger = Number(confirmLedger[myKey]?.count || 0);
+    confirmLedger[myKey] = {
+      count: priorLedger + pax,
+      at: new Date(nowMs).toISOString(),
+      // 재확정(해제 후 같은 orderId 로 다시 확정)에서 옛 해제표시가 남지 않게 명시 초기화.
+      // Firestore merge 는 중첩 키를 지우지 못하므로 null 로 덮는다.
+      releasedAt: null,
+    };
+    slotConfirmed[slotId] = confirmLedger;
+
     // pending 차감(버그#18 회계 누수 핵심):
     //   - ourPending: 우리 orderId 엔트리에서만 -pax.
     //   - 키 불일치(PRELOCK 정상 흐름 등): 만료 엔트리는 정리하고, 활성 pending
@@ -342,6 +365,7 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
       status: data.status || 'available',
       slot_bookings: slotBookings,
       slot_pending: slotPending,
+      slot_confirmed: slotConfirmed,
       updatedAt: new Date(nowMs).toISOString(),
     }, { merge: true });
 
@@ -428,7 +452,9 @@ export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
  *   tombstone 을 쓴다 — **키를 실제로 지우는 경로는 없다**(지운 척하면 cron 이 영원히
  *   재기록한다). 남은 tombstone 은 집계 0 이라 정원에 영향이 없다.
  *   읽기가 필요 없는 상수 쓰기라 트랜잭션도 필요 없다(다른 주문 엔트리는 건드리지 않음).
- * 🔴 slot_bookings(확정석)은 절대 만지지 않는다 — 해제는 pending 전용.
+ * 🔴 slot_bookings(확정석)은 절대 만지지 않는다 — 이 함수는 pending 전용이다.
+ *   확정석 되돌리기는 취소·환불이 **실제로 성공**한 뒤에만 허용되며 별도 함수다
+ *   → releaseConfirmedSlot (확정 원장 slot_confirmed 가 증명하는 만큼만).
  *
  * @param {object} args {adminDb, tourId, date, slotId, orderId, now?}
  * @returns {Promise<{ok:true}>}
@@ -445,6 +471,96 @@ export async function releaseSlotLock({ adminDb, tourId, date, slotId, orderId, 
     updatedAt: new Date(nowMs).toISOString(),
   }, { merge: true });
   return { ok: true };
+}
+
+/**
+ * 확정 좌석(slot_bookings) 해제 — 취소·환불이 **실제로 성공한 뒤에만** 호출한다 (2026-08-09).
+ *
+ * 왜 필요했나: 이 파일에는 pending 을 푸는 releaseSlotLock 만 있었고 confirmed 를 되돌리는
+ *   경로가 아예 없었다. 그래서 cancelBooking·admin mark-refunded·dispatch-cancel 이 환불에
+ *   성공해도 slot_bookings[slotId] 가 그대로 남아 그 좌석이 영구히 팔리지 않았다(매출손실).
+ *
+ * 🔴 왜 "pax 만큼 빼기" 가 아닌가 — **확정 원장(slot_confirmed)이 증명하는 만큼만** 뺀다.
+ *   capture 는 좌석 confirm 을 건너뛸 수 있다(F2 SLOT_SNAPSHOT_MISSING / SLOT_FULL_AT_CAPTURE →
+ *   운영자 알림만 남기고 confirm 포기). 그런 주문에서 pax 를 빼면 confirmed 에 들어 있는 것은
+ *   **다른 손님의 좌석**이라 그 좌석을 지워 오버부킹이 된다. 증거가 없으면 아무것도 하지 않고
+ *   호출자에게 이유를 돌려준다 — 호출자는 좌석·돈을 임의로 바꾸지 말고 운영자에게 알린다.
+ *
+ * 멱등성: 원장 엔트리를 지우지 않고 **count 0 + releasedAt 으로 덮는다**(같은 파일 tombstone
+ *   규칙 — Firestore merge 는 중첩 키를 지우지 못한다). 두 번째 호출은 count 0 을 보고
+ *   ALREADY_RELEASED 로 **아무것도 쓰지 않는다** → 재시도·중복 웹훅·중복 취소에도 1회 차감.
+ *
+ * pending 은 건드리지 않는다 — 확정된 주문의 pending 은 confirmSlotLock 이 이미 소비했고,
+ *   같은 슬롯의 살아있는 다른 주문 pending 을 여기서 죽이면 결제 중인 손님 자리를 뺏는다.
+ *
+ * @param {object} args {adminDb, tourId, date, slotId, orderId, now?}
+ * @returns {Promise<{ok:true, released:boolean, reason?:string, pax?:number, confirmed?:number}>}
+ */
+export async function releaseConfirmedSlot({ adminDb, tourId, date, slotId, orderId, now }) {
+  const nowMs = (now instanceof Date ? now.getTime() : Date.now());
+  const ref = adminDb.doc(`tour_availability/${tourId}/dates/${date}`);
+  const key = orderId || LEGACY_ENTRY_KEY;
+
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: true, released: false, reason: 'NO_CONFIRMED_RECORD' };
+    const data = snap.data() || {};
+
+    const entry = data.slot_confirmed?.[slotId]?.[key];
+    if (!entry) return { ok: true, released: false, reason: 'NO_CONFIRMED_RECORD' };
+    const count = Number(entry.count || 0);
+    if (!(count > 0)) return { ok: true, released: false, reason: 'ALREADY_RELEASED' };
+
+    const confirmed = Number(data.slot_bookings?.[slotId] || 0);
+    // clamp — 원장과 카운터가 어긋나도(수동 보정·레거시 재구축) 음수 좌석은 만들지 않는다.
+    const nextConfirmed = Math.max(0, confirmed - count);
+
+    tx.set(ref, {
+      // 슬롯 값은 스칼라라 merge 가 그대로 덮는다. 다른 슬롯은 병합으로 보존.
+      slot_bookings: { [slotId]: nextConfirmed },
+      slot_confirmed: { [slotId]: { [key]: { count: 0, releasedAt: new Date(nowMs).toISOString() } } },
+      updatedAt: new Date(nowMs).toISOString(),
+    }, { merge: true });
+
+    return { ok: true, released: true, pax: count, confirmed: nextConfirmed };
+  });
+}
+
+/**
+ * 주문의 서버 슬롯 바인딩 조회 — `paypal_order_snapshots/{orderID}.slotBooking`.
+ *
+ * 🔴 F2(#1266)와 **같은 SSOT** 다. 어떤 투어/슬롯/날짜/인원을 결제했는지는 create 가 pre-lock
+ *   성공 시 남긴 이 스냅샷만이 근거다. 취소 요청 body 나 bookings 문서의 필드를 쓰면 안 된다
+ *   (bookings 문서에는 슬롯 4필드가 저장되지도 않는다 — capturePaypalOrder 의 bookingDocPayload).
+ * 5필드를 전부 갖춘 바인딩만 통과(readSlotFields) — 반쪽이면 null = 호출자가 보류.
+ *
+ * @param {{adminDb: object, orderId: string}} args
+ * @returns {Promise<{tourId:string, date:string, slotId:string, capacity:number, pax:number}|null>}
+ */
+export async function fetchOrderSlotBinding({ adminDb, orderId }) {
+  if (!orderId) return null;
+  const snap = await adminDb.collection('paypal_order_snapshots').doc(orderId).get();
+  if (!snap.exists) return null;
+  return readSlotFields((snap.data() || {}).slotBooking);
+}
+
+/**
+ * 취소·환불이 성공한 주문의 좌석을 해제하는 **단일 진입점** (cancelBooking / admin-booking-action 공용).
+ * 슬롯 근거 조회 → 원장 기반 해제. 어느 단계든 근거가 없으면 좌석을 바꾸지 않고 이유를 돌려준다.
+ *
+ * ⚠️ 호출자 계약: 환불이 **확정 성공**한 뒤에만 부른다. 실패·결과미상(REFUND_UNKNOWN)·이미 취소된
+ *   주문에서 부르면 돈은 안 돌려주고 좌석만 열리는 상태가 된다.
+ *
+ * @param {{adminDb: object, orderId: string, now?: Date}} args
+ * @returns {Promise<{ok:true, released:boolean, reason?:string, pax?:number, slot?:object}>}
+ */
+export async function releaseSlotForCanceledOrder({ adminDb, orderId, now }) {
+  const slot = await fetchOrderSlotBinding({ adminDb, orderId });
+  if (!slot) return { ok: true, released: false, reason: 'NO_SNAPSHOT_BINDING' };
+  const result = await releaseConfirmedSlot({
+    adminDb, tourId: slot.tourId, date: slot.date, slotId: slot.slotId, orderId, now,
+  });
+  return { ...result, slot };
 }
 
 /**

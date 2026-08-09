@@ -28,6 +28,7 @@ import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 export const maxDuration = 30;
@@ -403,6 +404,59 @@ export default async function handler(req, res) {
       refundStatus: refundData.status,
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // 4-1. 🔴 좌석 해제 (2026-08-09) — 환불이 **확정 성공**하고 예약이 CANCELED 로 확정된 뒤에만.
+    //   이전엔 여기서 아무것도 하지 않아 취소된 좌석이 slot_bookings 에 영구히 남았다 → 그 좌석은
+    //   다시 팔리지 않는다(매출손실). 실패·결과미상 경로는 위에서 이미 return 했으므로 도달하지 않는다.
+    //   근거 슬롯 = create 스냅샷 바인딩(F2 와 같은 SSOT). 되돌리는 양 = 확정 원장이 증명하는 만큼.
+    //   ⚠️ best-effort — 돈은 이미 고객에게 갔다. 여기서 throw 해도 취소를 되돌릴 수 없으므로
+    //      응답은 200 을 유지하고 운영자에게 알린다(좌석은 임의로 조작하지 않는다).
+    //   ⚠️ cart 자식(parentOrderID)은 위 409 가드에서 이미 걸러진다 — 형제와 capture 를 공유해
+    //      라인별 귀속이 불가능하다.
+    try {
+      const release = await releaseSlotForCanceledOrder({ adminDb: db, orderId: booking.orderID || bookingID });
+      if (release.released) {
+        console.log('[cancelBooking] slot released:', { bookingID, slot: release.slot, pax: release.pax });
+      } else if (release.reason !== 'NO_SNAPSHOT_BINDING') {
+        // 바인딩은 있는데 확정 원장이 없다/이미 해제됐다 = 슬롯 상품인데 좌석 회계가 어긋난 상태.
+        // (NO_SNAPSHOT_BINDING 은 비슬롯 상품의 정상 상태라 알리지 않는다 — 알림 홍수 방지.)
+        console.warn('[cancelBooking] slot release skipped:', release.reason, { bookingID });
+        if (release.reason === 'NO_CONFIRMED_RECORD') {
+          await throttledTelegramAlert({
+            key: `slot-release-unproven-${bookingID}`,
+            channel: 'admin',
+            severity: 'high',
+            message: [
+              '⚠️ <b>취소 완료 — 좌석 해제 보류 (확정 원장 없음)</b>',
+              ``,
+              `<b>BookingID:</b> <code>${escHtml(bookingID)}</code>`,
+              `<b>슬롯:</b> ${escHtml(release.slot?.tourId)} / ${escHtml(release.slot?.date)} / ${escHtml(release.slot?.slotId)}`,
+              ``,
+              '→ 환불·취소는 정상 완료. 이 주문이 좌석을 확정한 기록이 없어 좌석을 건드리지 않았다',
+              '   (기록 없이 빼면 다른 손님의 확정석을 지운다).',
+              '→ 원장 도입 이전 예약이거나 capture 때 confirm 이 실패한 건 — 좌석 수동 확인 필요.',
+            ].join('\n'),
+            context: { bookingID, reason: release.reason, slot: release.slot || null },
+          }).catch(() => {});
+        }
+      }
+    } catch (slotErr) {
+      console.error('[cancelBooking] slot release failed (non-fatal):', slotErr.message);
+      await throttledTelegramAlert({
+        key: `slot-release-failed-${bookingID}`,
+        channel: 'admin',
+        severity: 'critical',
+        message: [
+          '🚨 <b>취소 완료 — 좌석 해제 실패 (좌석이 잠긴 채 남음)</b>',
+          ``,
+          `<b>BookingID:</b> <code>${escHtml(bookingID)}</code>`,
+          `<b>오류:</b> ${escHtml((slotErr.message || '').slice(0, 200))}`,
+          ``,
+          '→ 환불은 정상 완료. 해당 슬롯의 확정석만 수동 해제 필요.',
+        ].join('\n'),
+        context: { bookingID, error: slotErr.message },
+      }).catch(() => {});
+    }
 
     // 5. Telegram 알림 (best-effort)
     // 2026-05-04: 어드민 텔레그램에는 친화적 라벨로 표시 (charter_custom_estimate →
