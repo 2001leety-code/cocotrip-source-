@@ -1780,6 +1780,7 @@
       "lastMinuteShopping": "마지막 쇼핑",
       "budgetSummary": "일별 예산 요약",
       "budgetDay": "일차",
+      "budgetDayN": "{n}일차",
       "budgetTransport": "교통",
       "budgetEntry": "입장료",
       "budgetMeals": "식사",

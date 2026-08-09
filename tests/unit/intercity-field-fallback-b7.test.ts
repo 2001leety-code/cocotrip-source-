@@ -12,8 +12,13 @@
 //
 // 본 테스트: planToMarkdown (순수 함수) 이 두 필드명 모두 렌더하는지 검증.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { planToMarkdown } from '../../src/pages/PlanDetailPage/lib/planToMarkdown';
+import { loadLocale } from '../../src/i18n';
+
+// ko 사전은 dynamic import 로 캐시에 들어온다(`src/i18n/index.ts` — EN 만 eager).
+// 앱에서는 플랜 화면이 이미 그 언어로 떠 있어 로드돼 있다. 테스트도 같은 상태를 만든다.
+beforeAll(async () => { await loadLocale('ko'); });
 
 function makePlan(intercity: Record<string, unknown>) {
   return {
@@ -47,7 +52,7 @@ describe('B7 (P308) — intercity_transit 필드명 폴백', () => {
     expect(md).toContain('도시 간 이동');
     expect(md).toContain('KTX');
     expect(md).toContain('165분');
-    expect(md).toContain('59,800원');
+    expect(md).toContain('₩59,800');
   });
 
   it('legacy 오명명 (method/duration_min/cost_krw) 도 폴백으로 렌더', () => {
@@ -65,7 +70,7 @@ describe('B7 (P308) — intercity_transit 필드명 폴백', () => {
     expect(md).toContain('도시 간 이동');
     expect(md).toContain('KTX');     // method → mode 폴백
     expect(md).toContain('165분');   // duration_min → est_min 폴백
-    expect(md).toContain('59,800원'); // cost_krw → est_fare_krw 폴백
+    expect(md).toContain('₩59,800'); // cost_krw → est_fare_krw 폴백
   });
 
   it('신 스키마가 legacy 보다 우선 (둘 다 있으면 mode/est_min/est_fare_krw)', () => {
@@ -85,9 +90,9 @@ describe('B7 (P308) — intercity_transit 필드명 폴백', () => {
     );
     expect(md).toContain('SRT');
     expect(md).toContain('150분');
-    expect(md).toContain('52,000원');
+    expect(md).toContain('₩52,000');
     expect(md).not.toContain('999분');
-    expect(md).not.toContain('99,999원');
+    expect(md).not.toContain('₩99,999');
   });
 
   it('intercity_transit 자체가 없으면 도시 간 이동 섹션 미출력', () => {
