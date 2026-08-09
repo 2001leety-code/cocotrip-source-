@@ -65,14 +65,18 @@ describe('PR #438 Y-H7 — capture handler PayPal-direct fallback', () => {
 
 describe('PR #438 Y-H7 — refund handler captureID field lookup + safe update', () => {
   it('REFUNDED handler queries where("captureID", "==", captureId) — the missing PR #425 shape', () => {
-    const refundPos = src.indexOf("PAYMENT.CAPTURE.REFUNDED'");
+    // 2026-08-09: 앵커를 분기 조건 통째로 좁혔다. 이벤트명 리터럴만 찾으면 파일 앞쪽의
+    //   헬퍼(좌석 해제 게이트)가 먼저 걸려 엉뚱한 구간을 검사한다.
+    const refundPos = src.indexOf("eventType === 'PAYMENT.CAPTURE.REFUNDED'");
     expect(refundPos).toBeGreaterThan(-1);
     const handlerBlock = src.slice(refundPos, refundPos + 8000);
     expect(handlerBlock).toMatch(/where\(['"]captureID['"]\s*,\s*['"]==['"]\s*,\s*captureId\)/);
   });
 
   it('refund update writes to the matched doc id (bookingsDocId), not bookings/{captureId} blindly', () => {
-    const refundPos = src.indexOf("PAYMENT.CAPTURE.REFUNDED'");
+    // 2026-08-09: 앵커를 분기 조건 통째로 좁혔다. 이벤트명 리터럴만 찾으면 파일 앞쪽의
+    //   헬퍼(좌석 해제 게이트)가 먼저 걸려 엉뚱한 구간을 검사한다.
+    const refundPos = src.indexOf("eventType === 'PAYMENT.CAPTURE.REFUNDED'");
     const handlerBlock = src.slice(refundPos, refundPos + 8000);
     // 2026-07-29: 실제 쓰기가 api/_shared/refund-ledger.js 의 transaction 으로 옮겨졌다.
     //   핸들러는 "어느 문서인지"(bookingsDocId)를 찾아 넘기고, 원장이 그 문서에만 쓴다.
@@ -88,7 +92,9 @@ describe('PR #438 Y-H7 — refund handler captureID field lookup + safe update',
     // The exact buggy line was:
     //   await adminDb.collection('bookings').doc(captureId).set(updates, { merge: true });
     // Replaced with bookingsDocId-aware variant.
-    const refundPos = src.indexOf("PAYMENT.CAPTURE.REFUNDED'");
+    // 2026-08-09: 앵커를 분기 조건 통째로 좁혔다. 이벤트명 리터럴만 찾으면 파일 앞쪽의
+    //   헬퍼(좌석 해제 게이트)가 먼저 걸려 엉뚱한 구간을 검사한다.
+    const refundPos = src.indexOf("eventType === 'PAYMENT.CAPTURE.REFUNDED'");
     const handlerBlock = src.slice(refundPos, refundPos + 8000);
     // The lookup at the top still uses bookings.doc(captureId).get() — that's fine.
     // The forbidden pattern is the BLIND .set on captureId (without prior existence check).
@@ -96,7 +102,9 @@ describe('PR #438 Y-H7 — refund handler captureID field lookup + safe update',
   });
 
   it('still alerts operator when truly no booking matches (defense in depth)', () => {
-    const refundPos = src.indexOf("PAYMENT.CAPTURE.REFUNDED'");
+    // 2026-08-09: 앵커를 분기 조건 통째로 좁혔다. 이벤트명 리터럴만 찾으면 파일 앞쪽의
+    //   헬퍼(좌석 해제 게이트)가 먼저 걸려 엉뚱한 구간을 검사한다.
+    const refundPos = src.indexOf("eventType === 'PAYMENT.CAPTURE.REFUNDED'");
     const handlerBlock = src.slice(refundPos, refundPos + 8000);
     expect(handlerBlock).toMatch(/capture_not_in_bookings/);
     expect(handlerBlock).toMatch(/alertAdmin\(/);
