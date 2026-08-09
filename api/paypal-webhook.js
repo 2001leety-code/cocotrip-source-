@@ -42,6 +42,7 @@ import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import {
   applyRefundEvent, applyRefundStatusEvent, fetchAuthoritativeCaptureStatus, checkEnvironmentsMatch,
 } from './_shared/refund-ledger.js';
+import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
 // PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
@@ -271,6 +272,100 @@ async function logWebhookEventStrict({ db, eventId, eventType, status, detail, e
 
 async function alertAdmin(text) {
   try { await notify('admin', text); } catch {}
+}
+
+/**
+ * 환불 웹훅이 확정 좌석(slot_bookings)을 되돌린다 (2026-08-09).
+ *
+ * 왜 필요했나: PR #1270 이 좌석 해제를 붙인 곳은 우리 코드를 타는 경로뿐이었다
+ *   (cancelBooking / admin mark-refunded / dispatch-cancel). 운영자가 PayPal 대시보드에서
+ *   직접 환불하면 우리가 아는 유일한 통로가 이 웹훅이라, 예약만 REFUNDED 로 바뀌고
+ *   slot_bookings[slotId] 는 그대로 남았다 → 그 좌석은 다시 팔리지 않는다(매출손실).
+ *
+ * 🔴 fail-closed. 아래 게이트 중 하나라도 어긋나면 **좌석을 건드리지 않는다** —
+ *   좌석을 잘못 여는 것은 오버부킹(현장 사고)이고, 안 여는 것은 매출손실에 그친다.
+ *   1. `PAYMENT.CAPTURE.REFUNDED` 만. `PAYMENT.SALE.REFUNDED` 는 레거시 NVP/SOAP 거래로
+ *      createPaypalOrder 스냅샷 규약 밖이다(orderID 자체가 없다).
+ *   2. 환불 resource 가 `COMPLETED`. PENDING(eCheck·리스크홀드)은 나중에 FAILED 로 뒤집히고
+ *      (F4 webhook 이 REFUND_FAILED 로 치유) 그러면 환불받지 못한 손님의 자리를 남에게 판 상태가 된다.
+ *      status 가 아예 없는 이벤트도 단정하지 않는다.
+ *      (cancelBooking·admin 의 `refundRes.final` 게이트와 같은 판정 — 여기선 웹훅 payload 가 근거다.)
+ *   3. 원장 판정이 전액(`REFUNDED`). 부분환불은 예약이 살아있을 수 있어(굿윌 일부 환급 등)
+ *      좌석을 풀면 오버부킹이 된다 → 운영자 판단 영역.
+ *   4. bookings 문서 매칭이 있어야 orderID 를 안다. pending_bookings 만 매칭된 수동 QR 건은
+ *      PayPal order 자체가 없다.
+ *   5. cart 자식(parentOrderID)은 형제와 capture 를 공유해 라인별 좌석 귀속이 불가능 → 보류.
+ *      (형제 N건이 captureID 를 공유하는 경우는 호출부의 F6 ambiguous 가드가 이미 조기 반환한다.)
+ *
+ * 되돌리는 양·근거 슬롯은 helper 계약 그대로 — 확정 원장(slot_confirmed)이 증명하는 만큼만,
+ * 슬롯은 서버 스냅샷(paypal_order_snapshots)만이 근거다. bookings 문서의 tourId/tourSlotId 등
+ * 클라이언트 출처 필드는 쓰지 않는다(엉뚱한 슬롯을 깎는다).
+ *
+ * best-effort: 이 시점엔 환불 원장 transaction 이 이미 커밋됐다(= 이벤트가 processed).
+ *   여기서 503 을 던져도 PayPal 재전송은 duplicate_event 로 걸러져 좌석은 어차피 안 열린다
+ *   → 응답은 200 을 유지하고 운영자에게 알린다(좌석을 임의로 조작하지 않는다).
+ *
+ * @returns {Promise<boolean>} 좌석을 실제로 차감했는가 (관측용 — 응답 slotReleased)
+ */
+async function releaseSeatsAfterRefundWebhook({
+  adminDb, eventType, refundStatus, resultStatus, bookingsDocId, bookingData, bookingRef, captureId,
+}) {
+  if (eventType !== 'PAYMENT.CAPTURE.REFUNDED') return false;
+
+  const refundFinal = String(refundStatus || '').toUpperCase() === 'COMPLETED';
+  if (!refundFinal) {
+    console.warn('[paypal-webhook] 환불 미확정 — 좌석 해제 보류:', { bookingRef, refundStatus: refundStatus || null });
+    return false;
+  }
+  if (resultStatus !== 'REFUNDED') {
+    console.warn('[paypal-webhook] 부분환불 — 좌석 해제 보류 (예약 유효 가능):', { bookingRef, resultStatus });
+    return false;
+  }
+  if (!bookingsDocId) {
+    console.warn('[paypal-webhook] bookings 미매칭(수동 QR 등) — 좌석 해제 보류:', { bookingRef });
+    return false;
+  }
+  if (bookingData && bookingData.parentOrderID) {
+    console.warn('[paypal-webhook] slot release skipped — cart child (형제와 capture 공유):', bookingRef);
+    return false;
+  }
+
+  try {
+    const orderId = (bookingData && bookingData.orderID) || bookingsDocId;
+    const release = await releaseSlotForCanceledOrder({ adminDb, orderId });
+    if (release.released) {
+      console.log('[paypal-webhook] slot released:', { bookingRef, slot: release.slot, pax: release.pax });
+      return true;
+    }
+    // NO_SNAPSHOT_BINDING = 비슬롯 상품(AI 플래너·수동입금 등)의 정상 상태 → 조용히 통과(알림 홍수 방지).
+    // ALREADY_RELEASED = cancelBooking·admin 이 먼저 풀고 웹훅이 뒤따라온 정상 경로.
+    console.warn('[paypal-webhook] slot release skipped:', release.reason, { bookingRef });
+    if (release.reason === 'NO_CONFIRMED_RECORD') {
+      await alertAdmin([
+        '⚠️ <b>환불 완료 — 좌석 해제 보류 (확정 원장 없음)</b>',
+        '',
+        `<b>예약번호:</b> <code>${bookingRef}</code>`,
+        `<b>슬롯:</b> ${release.slot?.tourId} / ${release.slot?.date} / ${release.slot?.slotId}`,
+        '',
+        '→ 이 주문이 좌석을 확정한 기록이 없어 좌석을 건드리지 않았습니다',
+        '   (기록 없이 빼면 다른 손님의 확정석을 지웁니다). 좌석 수동 확인 필요.',
+      ].join('\n'));
+    }
+    return false;
+  } catch (e) {
+    console.error('[paypal-webhook] slot release failed (non-fatal):', e.message);
+    captureError(e, { tag: 'paypal-webhook-slot-release', captureId, bookingRef });
+    await alertAdmin([
+      '🚨 <b>환불 완료 — 좌석 해제 실패 (좌석이 잠긴 채 남음)</b>',
+      '',
+      `<b>예약번호:</b> <code>${bookingRef}</code>`,
+      `<b>Capture:</b> <code>${captureId}</code>`,
+      `<b>오류:</b> ${(e.message || '').slice(0, 200)}`,
+      '',
+      '→ 환불 기록은 정상. 해당 슬롯의 확정석만 수동 해제 필요.',
+    ].join('\n'));
+    return false;
+  }
 }
 
 /**
@@ -714,10 +809,14 @@ export default async function handler(req, res) {
       let bookingsDocId = null;
       let bookingRef = null;
       let capturedRate = 0;
+      // 좌석 해제 게이트가 쓰는 필드만 본다: orderID(스냅샷 키) / parentOrderID(cart 자식 판별).
+      // 슬롯 자체는 여기서 읽지 않는다 — 근거는 서버 스냅샷뿐이다.
+      let bookingData = null;
 
       let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
       if (bookingDoc.exists) {
         bookingsDocId = captureId;
+        bookingData = bookingDoc.data();
         bookingRef = bookingDoc.data().bookingRef || captureId;
         capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
       } else {
@@ -748,6 +847,7 @@ export default async function handler(req, res) {
         if (!captureFieldMatch.empty) {
           bookingDoc = captureFieldMatch.docs[0];
           bookingsDocId = bookingDoc.id;
+          bookingData = bookingDoc.data();
           bookingRef = bookingDoc.data().bookingRef || bookingDoc.id;
           capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
         } else {
@@ -850,6 +950,19 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ok: true, status: refundOutcome.reason, bookingRef }));
       }
 
+      // 🔴 좌석 해제는 환불 원장이 **커밋된 뒤에만**. duplicate_event / partial / 환경불일치는
+      //   위 !applied 게이트에서 이미 return 했으므로 여기 도달하지 않는다(재전송 2회 차감 차단).
+      const slotReleased = await releaseSeatsAfterRefundWebhook({
+        adminDb,
+        eventType,
+        refundStatus: event?.resource?.status,
+        resultStatus: refundOutcome.status,
+        bookingsDocId,
+        bookingData,
+        bookingRef,
+        captureId,
+      });
+
       const telText = [
         '💸 <b>환불 자동 처리 (PayPal Webhook)</b>',
         '',
@@ -868,6 +981,7 @@ export default async function handler(req, res) {
         bookingRef,
         bookingStatus: refundOutcome.status,
         cumulativeRefundedUSD: refundOutcome.cumulativeRefundedUSD,
+        slotReleased,
       }));
     }
 

@@ -164,6 +164,8 @@ export function createFakeFirestore(seed = {}, options = {}) {
 
   const db = {
     collection: (name) => collectionApi(name),
+    // 실제 Firestore 처럼 전체 경로로도 문서를 잡는다 (slot-capacity 는 db.doc(path) 를 쓴다).
+    doc: (path) => docApi(path),
 
     /** 테스트가 커밋 직전에 끼어들 수 있는 훅. (attempt, label) 을 받는다. */
     __beforeCommit: null,
