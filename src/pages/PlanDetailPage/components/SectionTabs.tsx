@@ -78,9 +78,34 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
   // 안되는데 scrollbar-hide 로 스크롤 가능성 시각 신호도 없어 사용자가 Day7/Wrap-up
   // 존재를 모름. current 가 바뀔 때마다 active 탭을 가로 중앙으로 자동 스크롤.
   const listRef = useRef<HTMLDivElement>(null);
+  // #1272 P2 (2026-08-10): 첫 렌더에서는 "가로 정렬만" 한다.
+  //   scrollIntoView 는 block:'nearest' 여도 대상이 viewport 밖이면 문서를 세로로 스크롤한다.
+  //   이 탭 스트립의 문서 위치는 모바일 히어로+요약 카드 아래(측정값 y≈760~985) — 즉 마운트
+  //   시점엔 언제나 폴드 아래다. 그래서 플랜을 열면 페이지가 스스로 170~220px 내려가
+  //   공용 헤더와 플랜 제목이 화면에서 밀려났다. tests/visual 의 T1(header above the fold)
+  //   baseline 이 바로 그 스크롤된 프레임으로 굳어 있었고(헤더가 잘려 보임), 사용자에게도
+  //   "내 플랜을 열었는데 제목부터 안 보인다"로 나타났다.
+  //   마운트 이후(사용자가 탭이나 히어로 Day 칩을 눌러 섹션을 고른 뒤)에는 기존 동작 유지 —
+  //   P93 의 가로 센터링과 "누르면 해당 Day 본문이 시야에 들어온다"를 둘 다 보존한다.
+  const lastKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const active = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !active) return;
+    const prevKey = lastKeyRef.current;
+    lastKeyRef.current = activeKey;
+    // 활성 섹션이 "실제로 바뀐" 경우에만 세로 포함 스크롤. 첫 관측(마운트)과
+    // 같은 키로 effect 가 다시 도는 경우(StrictMode 이중 호출)는 아래 가로 정렬만.
+    if (prevKey !== null && prevKey !== activeKey) {
+      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      return;
+    }
+    // 컨테이너의 scrollLeft 만 옮긴다 — 문서 세로 스크롤은 발생할 수 없다.
+    // #slide-N 딥링크로 첫 활성 탭이 0번이 아닐 때도 센터링은 유지된다.
+    list.scrollLeft = Math.max(
+      0,
+      active.offsetLeft - list.offsetLeft - (list.clientWidth - active.offsetWidth) / 2,
+    );
   }, [activeKey]);
 
   if (sections.length <= 1) return null;
