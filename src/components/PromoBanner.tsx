@@ -67,7 +67,9 @@ interface PromoConfig {
 }
 
 // 긴급성 꼬리말 — 실제 endDate 가 있을 때만 표시. 없으면 아무것도 붙이지 않는다
-// (2026-08-10 P2: endDate='' 인데 '선착순'/'limited' 를 붙이던 가짜 긴급성 제거 — Booking €413M 벌금 사례).
+// (2026-08-10 P2: endDate 값이 빈 문자열인데 '선착순'/'limited' 를 붙이던 가짜 긴급성 제거
+//  — Booking €413M 벌금 사례). endDate 는 화면에 그대로 찍는 표시용 단일 날짜 문자열이며
+//  addDays/diffDays 로 계산하지 않으므로 inclusive/exclusive 범위 컨벤션과는 무관하다.
 function urgency(lang: string, endDate: string): string {
   if (!endDate) return '';
   if (lang === 'ko') return ` · ~${endDate} 마감`;
