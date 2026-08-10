@@ -3,10 +3,9 @@
 // under src/components/WizardForm/* for P3 Lock release.
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
-  MapPin, Calendar, Wand2, UtensilsCrossed, Plane,
-  Zap, ShieldCheck, Languages, Pencil,
+  MapPin, Calendar, Wand2, UtensilsCrossed, Plane, Check,
 } from 'lucide-react';
-import { CocoStepper } from '@/components/coco/CocoUI';
+import { pickPlannerCopy, formatStepOf } from '@/pages/PlannerPage/plannerCopy';
 
 import type { DateRange } from 'react-day-picker';
 import { differenceInCalendarDays, format } from 'date-fns';
@@ -913,6 +912,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
+  const c = pickPlannerCopy(language);
+  const progressPercent = Math.round(((step + 1) / STEPS.length) * 100);
+
   // Build the list of currently-selected city chip keys for P9 dynamic chips.
   const selectedCityKeys: string[] = [];
   if (mainCityKey) selectedCityKeys.push(mainCityKey);
@@ -936,32 +938,51 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         onRestart={discardResumeSnapshot}
       />
       <div className="w-full">
-        {/* Step Indicator — 가이드 p.3 점+체크 스테퍼 (CocoStepper 공용, 차터와 동일 시각 언어) */}
-        <div
-          className="rounded-[18px] px-3 py-3 sm:px-4 sm:py-3.5 mb-3.5 sm:mb-5"
-          style={{
-            background: 'linear-gradient(135deg, rgba(124,92,255,0.08), rgba(255,95,200,0.05))',
-            border: '1px solid rgba(124,92,255,0.18)',
-          }}
-        >
-          <div className="flex items-center justify-between gap-3 mb-2.5">
-            <div className="min-w-0">
-              <div className="coco-step-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-[0.08em] uppercase">
-                <Wand2 className="w-3 h-3" />
-                Step {step + 1} / {STEPS.length}
-              </div>
-              <p className="text-[13px] sm:text-[14px] font-bold text-white mt-1.5 leading-tight">
-                {STEPS[step]?.label}
-              </p>
-            </div>
-            <p className="text-[11px] font-bold text-white/45 shrink-0">{Math.round(((step + 1) / STEPS.length) * 100)}%</p>
+        {/* Step indicator — Swiss: the progress *is* a rule that fills, and one
+            tick per step underneath it. The previous version was a gradient
+            capsule with a pill badge; on paper that reads as ornament, and the
+            traveller's real question ("how much is left") was the smallest,
+            faintest thing in the block. Now the count and the label lead, the
+            percentage is a tabular figure, and the rule carries the rest.
+            Every tick stays a button — jumping back to a step you already
+            answered was possible before and still is. */}
+        <div className="mb-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="ec-eyebrow">{formatStepOf(c.wizard.stepOf, step + 1, STEPS.length)}</p>
+            <p className="ec-figure text-[13px] text-ec-ink-3">{progressPercent}%</p>
           </div>
-          <CocoStepper
-            current={step}
-            total={STEPS.length}
-            labels={STEPS.map((s) => s.label)}
-            onStepClick={goToStep}
-          />
+          <p className="ec-question mt-1.5">{STEPS[step]?.label}</p>
+
+          <div
+            className="ec-steprail mt-3"
+            role="progressbar"
+            aria-label={c.wizard.progressLabel}
+            aria-valuemin={1}
+            aria-valuemax={STEPS.length}
+            aria-valuenow={step + 1}
+          >
+            <span className="ec-steprail-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+
+          <ol className="mt-1 flex items-center gap-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {STEPS.map((s, i) => {
+              const done = i < step;
+              const current = i === step;
+              return (
+                <li key={s.label}>
+                  <button
+                    type="button"
+                    onClick={() => goToStep(i)}
+                    aria-current={current ? 'step' : undefined}
+                    className={`ec-steptick ${done ? 'ec-steptick-done' : ''}`}
+                  >
+                    {done ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="ec-figure text-[11px]">{i + 1}</span>}
+                    <span className={current ? '' : 'hidden sm:inline'}>{s.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         <div className="max-w-2xl mx-auto">
@@ -990,7 +1011,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
             >
               <Suspense fallback={
                 <div className="min-h-[320px] flex items-center justify-center">
-                  <div className="w-7 h-7 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
+                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-ec-line border-t-ec-brand" />
                 </div>
               }>
               {/* Step 0: reservation status (P6) */}
@@ -1096,24 +1117,14 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
             </div>
           </div>
 
-          {/* 하단 신뢰 4배지 (가이드 P3) — 정적, 제품 실약속(빠른설정·안전취향·4언어·편집가능). 없는 지표/리뷰수 금지. */}
-          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              { icon: Zap, label: p.trustFastSetup },
-              { icon: ShieldCheck, label: p.trustSafePrefs },
-              { icon: Languages, label: p.trustMultilingual },
-              { icon: Pencil, label: p.trustEditable },
-            ].map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="flex items-center gap-2 rounded-xl px-3 py-2.5"
-                style={{ background: 'rgba(124,92,252,0.10)', border: '1px solid rgba(182,104,252,0.22)' }}
-              >
-                <Icon className="h-4 w-4 shrink-0" style={{ color: '#D9A8FF' }} />
-                <span className="text-[11px] font-bold text-white/80">{label}</span>
-              </div>
+          {/* 하단 신뢰 4항목 (가이드 P3) — 정적, 제품 실약속(빠른설정·안전취향·4언어·편집가능). 없는 지표/리뷰수 금지.
+              2026-08-10: 보라 테두리 배지 4개 → 한 줄 하이라인 목록. 같은 문구, 같은 순서.
+              네 개의 동일한 카드는 정보를 더 주지 않으면서 위저드의 마지막 시선을 가져간다. */}
+          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-ec-line pt-3">
+            {[p.trustFastSetup, p.trustSafePrefs, p.trustMultilingual, p.trustEditable].map((label) => (
+              <li key={label} className="ec-body-sm text-ec-ink-3">{label}</li>
             ))}
-          </div>
+          </ul>
         </div>
       </div>
     </>

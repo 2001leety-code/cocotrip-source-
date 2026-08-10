@@ -27,6 +27,14 @@ interface MobileSelectDrawerProps {
 /**
  * On mobile → opens a bottom Drawer with styled options
  * On desktop → renders a styled custom dropdown
+ *
+ * 2026-08-10 (Korea Editorial Concierge phase 2): converted to the paper system.
+ * This is shared chrome — the planner (converted) and `/charter` (not yet) both
+ * mount it — so it follows the same rule the header and the bottom nav already
+ * follow: shared chrome moves once, and a page still on the dark system shows
+ * paper chrome over a dark body until its own conversion lands. That
+ * transitional state is documented in docs/DESIGN-EDITORIAL-CONCIERGE.md §6.
+ * Behaviour, props and option data are untouched.
  */
 export function MobileSelectDrawer({
   value,
@@ -52,16 +60,19 @@ export function MobileSelectDrawer({
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-white/15 bg-white/[0.04] text-sm font-medium outline-none transition-all hover:border-[#B668FC]/40 focus:border-[#B668FC]/60"
-      style={{ color: selected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}
+      aria-expanded={open}
+      aria-haspopup="listbox"
+      // `ec-field` carries the 16px floor — below that iOS zooms the viewport on focus.
+      className={`ec-field flex items-center justify-between gap-2 text-left ${selected ? 'text-ec-ink' : 'text-ec-ink-3'}`}
     >
       <span className="flex items-center gap-2 truncate">
         {icon}
         {displayText}
       </span>
       <ChevronDown
-        className="w-4 h-4 text-white/55 shrink-0 transition-transform"
+        className="h-4 w-4 shrink-0 text-ec-ink-3 transition-transform"
         style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        aria-hidden
       />
     </button>
   );
@@ -72,32 +83,30 @@ export function MobileSelectDrawer({
       <div className="relative">
         {triggerButton}
         <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent className="bg-[#0f1220] border-white/10 max-h-[70vh]">
-            <DrawerHeader className="border-b border-white/[0.06] pb-3">
-              <DrawerTitle className="text-white text-base font-bold text-center">
+          <DrawerContent className="ec-root max-h-[70vh] border-ec-line bg-ec-raised">
+            <DrawerHeader className="border-b border-ec-line pb-3">
+              <DrawerTitle className="ec-h3 text-center">
                 {title}
               </DrawerTitle>
             </DrawerHeader>
-            <div className="overflow-y-auto px-2 py-2 space-y-0.5" style={{ maxHeight: '55vh' }}>
+            <div role="listbox" className="overflow-y-auto px-2 py-2" style={{ maxHeight: '55vh' }}>
               {options.map(opt => (
                 <DrawerClose key={opt.value} asChild>
                   <button
                     type="button"
+                    role="option"
+                    aria-selected={value === opt.value}
                     onClick={() => handleSelect(opt.value)}
-                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm transition-all"
-                    style={{
-                      background: value === opt.value ? 'rgba(182,104,252,0.12)' : 'transparent',
-                      color: value === opt.value ? '#B668FC' : 'rgba(255,255,255,0.7)',
-                    }}
+                    className={`w-full min-h-[44px] rounded-ec-sm border px-3.5 py-2.5 text-left transition-colors duration-ec-base mt-0.5 flex items-center justify-between ${value === opt.value ? 'border-ec-brand bg-ec-brand-wash text-ec-ink' : 'border-transparent text-ec-ink-2 hover:border-ec-line'}`}
                   >
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="font-medium">{opt.label}</span>
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span className="text-[15px] font-semibold">{opt.label}</span>
                       {opt.sub && (
-                        <span className="text-xs text-white/55">{opt.sub}</span>
+                        <span className="ec-body-sm text-ec-ink-3">{opt.sub}</span>
                       )}
-                    </div>
+                    </span>
                     {value === opt.value && (
-                      <Check className="w-4 h-4 text-[#B668FC] shrink-0" />
+                      <Check className="h-4 w-4 shrink-0 text-ec-brand" aria-hidden />
                     )}
                   </button>
                 </DrawerClose>
@@ -117,36 +126,30 @@ export function MobileSelectDrawer({
         <>
           {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          {/* Dropdown */}
+          {/* Dropdown — floats over content, so it takes the one overlay shadow
+              the system defines rather than a blur and a black drop. */}
           <div
-            className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl py-1 overflow-y-auto"
-            style={{
-              maxHeight: '300px',
-              background: 'rgba(15,18,32,0.97)',
-              backdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
-            }}
+            role="listbox"
+            className="ec-root absolute left-0 right-0 top-full z-50 mt-1 overflow-y-auto rounded-ec-md border border-ec-line bg-ec-raised p-1 shadow-ec-overlay"
+            style={{ maxHeight: '300px' }}
           >
             {options.map(opt => (
               <button
                 key={opt.value}
                 type="button"
+                role="option"
+                aria-selected={value === opt.value}
                 onClick={() => handleSelect(opt.value)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm transition-all hover:bg-white/[0.04]"
-                style={{
-                  color: value === opt.value ? '#B668FC' : 'rgba(255,255,255,0.6)',
-                  background: value === opt.value ? 'rgba(182,104,252,0.06)' : 'transparent',
-                }}
+                className={`w-full min-h-[44px] rounded-ec-sm border px-3.5 py-2.5 text-left transition-colors duration-ec-base mt-0.5 flex items-center justify-between ${value === opt.value ? 'border-ec-brand bg-ec-brand-wash text-ec-ink' : 'border-transparent text-ec-ink-2 hover:border-ec-line'}`}
               >
-                <div className="flex flex-col items-start gap-0.5">
-                  <span className="font-medium">{opt.label}</span>
+                <span className="flex flex-col items-start gap-0.5">
+                  <span className="text-[15px] font-semibold">{opt.label}</span>
                   {opt.sub && (
-                    <span className="text-xs text-white/55">{opt.sub}</span>
+                    <span className="ec-body-sm text-ec-ink-3">{opt.sub}</span>
                   )}
-                </div>
+                </span>
                 {value === opt.value && (
-                  <Check className="w-4 h-4 text-[#B668FC] shrink-0" />
+                  <Check className="h-4 w-4 shrink-0 text-ec-brand" aria-hidden />
                 )}
               </button>
             ))}

@@ -1,0 +1,204 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CocoTrip — Korea Editorial Concierge, planner journey (phase 2)
+
+   Loaded from `src/pages/PlannerPage/index.tsx`, so it ships inside the lazy
+   planner chunk and costs the first paint nothing.
+
+   Layer 3 of the token architecture: these are *component* tokens and the
+   classes that read them. Nothing here reads a primitive (`--ecp-*`) and
+   nothing here inlines a hex. Foundation + rationale:
+   src/styles/editorial.css · docs/DESIGN-EDITORIAL-CONCIERGE.md
+
+   No gradients, no glow, no glass, no `!important`. The previous planner was
+   a dark body corrected back to light by a `.planner-mobile-*` cascade of
+   `!important` overrides; converting the body means that cascade is deleted
+   rather than extended.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* option — a selectable answer (mode card, chip, radio-ish tile).
+     Selection is carried by the line and a wash, never by a shadow: on paper,
+     a lift reads as a bug, and a glow is banned outright. */
+  --ec-option-bg:            var(--ec-surface-raised);
+  --ec-option-line:          var(--ec-line);
+  --ec-option-line-hover:    var(--ec-line-contrast);
+  --ec-option-bg-selected:   var(--ec-brand-wash);
+  --ec-option-line-selected: var(--ec-brand);
+  --ec-option-radius:        var(--ec-radius-sm);
+  --ec-option-pad:           12px;
+
+  /* step rail — the wizard's progress */
+  --ec-steprail-track:  var(--ec-line);
+  --ec-steprail-fill:   var(--ec-brand);
+  --ec-steprail-height: 2px;
+}
+
+/* ═══ Shell ══════════════════════════════════════════════════════════════ */
+
+/* The planner page ground. `.ec-root` already paints paper and ink; this adds
+   the page's own vertical rhythm and the mobile bottom-nav clearance. */
+.ec-planner {
+  min-height: 100vh;
+  background: var(--ec-surface-page);
+}
+
+/* The mobile bottom nav is fixed over the page, so the planner reserves its
+   height plus the home-indicator inset. The old dark shell reserved a flat
+   86px; measuring the converted nav (52px + hairline) and adding the inset is
+   the same idea without the magic number. */
+@media (max-width: 768px) {
+  .ec-planner { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+/* ═══ Panel — the wizard / result surface ════════════════════════════════ */
+
+.ec-panel {
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  padding: 20px;
+}
+.ec-panel-quiet {
+  background: var(--ec-surface-sunken);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  padding: 16px;
+}
+@media (min-width: 768px) {
+  .ec-panel { padding: 28px; }
+}
+
+/* ═══ Option ═════════════════════════════════════════════════════════════
+   One class for every "pick this" control in the journey. Both the selected
+   state and the pressed state are announced to assistive tech by the caller
+   (`aria-pressed` / `aria-current`); `.is-selected` only paints. */
+
+.ec-option {
+  display: block;
+  width: 100%;
+  min-height: var(--ec-touch-min);
+  padding: var(--ec-option-pad) 14px;
+  text-align: left;
+  background: var(--ec-option-bg);
+  border: 1px solid var(--ec-option-line);
+  border-radius: var(--ec-option-radius);
+  color: var(--ec-text-primary);
+  cursor: pointer;
+  transition:
+    border-color var(--ec-duration-base) var(--ec-ease-standard),
+    background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-option:hover { border-color: var(--ec-option-line-hover); }
+.ec-option.is-selected,
+.ec-option[aria-pressed='true'] {
+  background: var(--ec-option-bg-selected);
+  border-color: var(--ec-option-line-selected);
+}
+.ec-option[disabled],
+.ec-option[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Compact variant for dense chip rows — still 44px tall for the thumb. */
+.ec-option-sm {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ═══ Question ═══════════════════════════════════════════════════════════ */
+
+.ec-question {
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ec-text-primary);
+}
+.ec-help {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ec-text-muted);
+}
+
+/* Validation. Errors are announced (`role="alert"` on the caller) and read as
+   ink on paper with a critical rule — not a red box glowing on a dark card. */
+.ec-error-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-left: 2px solid var(--ec-critical);
+  padding: 2px 0 2px 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ec-critical);
+}
+
+/* ═══ Step rail ══════════════════════════════════════════════════════════
+   Swiss: the progress *is* a rule that fills. No pills, no dots that pulse. */
+
+.ec-steprail {
+  position: relative;
+  height: var(--ec-steprail-height);
+  background: var(--ec-steprail-track);
+  overflow: hidden;
+}
+.ec-steprail-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: var(--ec-steprail-fill);
+  transition: width var(--ec-duration-slow) var(--ec-ease-standard);
+}
+
+/* One tick per step. The current tick is the only one in brand ink, so the
+   eye finds "where am I" before it reads any label. */
+.ec-steptick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--ec-touch-min);
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ec-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-steptick:hover { color: var(--ec-text-primary); }
+.ec-steptick[aria-current='step'] { color: var(--ec-brand); }
+.ec-steptick-done { color: var(--ec-text-secondary); }
+
+/* ═══ Timeline (quick preview + sample day) ══════════════════════════════
+   A day is a list of rules, not a stack of cards. Times are tabular so the
+   left edge of the column lines up the way a printed schedule does. */
+
+.ec-timeline { border-top: 1px solid var(--ec-line); }
+.ec-timeline-row {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ec-line);
+}
+.ec-timeline-time {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ec-text-secondary);
+  padding-top: 1px;
+}
+
+/* The wizard's step-enter animation is deliberately NOT redefined here. It
+   lives in index.css as `.wizard-step-enter` / `.wizard-step-viewport`, where
+   `tests/unit/wizard-step-transition.component.test.tsx` pins two properties of
+   it: no `animation-fill-mode` (a filled animation strands the step at its
+   first frame in a background tab, where the browser stops running rAF) and a
+   viewport that clips horizontally. Two definitions of one behaviour is how
+   that regression comes back. */

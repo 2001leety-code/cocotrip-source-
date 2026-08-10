@@ -11,9 +11,9 @@ import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPri
 // export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
 function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
-      <span className="flex items-center gap-1 text-[10px] text-white/55 mb-1">{icon} {label}</span>
-      <p className="text-sm font-bold text-white truncate">{value}</p>
+    <div className="flex items-center justify-between gap-3">
+      <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-ec-ink-3">{icon} {label}</span>
+      <span className="ec-figure min-w-0 flex-1 truncate text-right text-[14px]">{value}</span>
     </div>
   );
 }
@@ -94,68 +94,68 @@ export function WizardStep3Review(props: Step3Props) {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-[17px] sm:text-lg font-bold text-white">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
+      <h2 className="ec-question">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
       {/* Summary cards */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <button onClick={() => onEditStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+      <div className="ec-panel space-y-3 sm:space-y-4">
+        <div className="divide-y divide-ec-line">
+          <button onClick={() => onEditStep(0)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={destinationValue} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Plane className="w-4 h-4" />} label={p.wizardAirport || 'Airport'} value={airportLabel} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Users className="w-4 h-4" />} label={p.wizardTravelers || 'Travelers'} value={`${pax} ${p.wizardPaxUnit || 'pax'}`} />
           </button>
         </div>
 
-        <div className="text-xs text-white/55 space-y-1 border-t border-white/[0.06] pt-3">
-          <p><span className="text-white/55">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
+        <div className="text-xs text-ec-ink-3 space-y-1 border-t border-ec-line pt-3">
+          <p><span className="text-ec-ink-3">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-ec-ink-2">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
 
           {/* 2026-05-21 (P134 분기 #34 fix): 호텔 입력 도시 anchor */}
           {hotelEntries.map((e, i) => (
             <p key={`hotel-${i}`} className="flex items-start gap-1.5">
-              <Hotel className="w-3 h-3 mt-0.5 text-[#7C5CFC]" />
-              <span className="text-white/55">
+              <Hotel className="w-3 h-3 mt-0.5 text-ec-brand" />
+              <span className="text-ec-ink-3">
                 {hotelEntries.length > 1 || zoneEntries.length > 0 ? `${e.city}: ` : `${p.wizardHotelLabel || 'Hotel'}: `}
               </span>
-              <span className="text-white/60">{e.address}</span>
+              <span className="text-ec-ink-2">{e.address}</span>
             </p>
           ))}
 
           {/* 2026-05-21 (P134 분기 #34 fix): zone 중심 fallback — 호텔 없는 도시 */}
           {zoneEntries.map((e, i) => (
             <p key={`zone-${i}`} className="flex items-start gap-1.5">
-              <Navigation className="w-3 h-3 mt-0.5 text-[#7C5CFC]/60" />
-              <span className="text-white/55">
+              <Navigation className="w-3 h-3 mt-0.5 text-ec-ink-3" />
+              <span className="text-ec-ink-3">
                 {hotelEntries.length > 0 || zoneEntries.length > 1 ? `${e.city}: ` : `${p.wizardZoneCenterLabel || 'Zone center'}: `}
               </span>
-              <span className="text-white/60">{e.zone}</span>
+              <span className="text-ec-ink-2">{e.zone}</span>
             </p>
           ))}
 
           {/* 호텔도 zone 도 없는 경우 — backend 가 default fallback */}
           {hotelEntries.length === 0 && zoneEntries.length === 0 && (
-            <p className="text-white/45 italic">
+            <p className="text-ec-ink-3 italic">
               {p.wizardNoAnchorHint || 'AI will pick optimal start points per day'}
             </p>
           )}
         </div>
 
-        <p className="text-[10px] text-white/55 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
+        <p className="text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
       {/* What You'll Get */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5">
-        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#7C5CFC]" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
+      <div className="ec-panel">
+        <h3 className="ec-h3 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-ec-brand" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {([p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean) as string[]).map((item: string, i: number) => (
-            <div key={i} className="flex items-start gap-2 text-xs text-white/50">
-              <Check className="w-3.5 h-3.5 text-green-400/70 shrink-0 mt-0.5" />
+            <div key={i} className="flex items-start gap-2 text-xs text-ec-ink-3">
+              <Check className="w-3.5 h-3.5 text-ec-success shrink-0 mt-0.5" />
               <span>{item}</span>
             </div>
           ))}
@@ -163,33 +163,32 @@ export function WizardStep3Review(props: Step3Props) {
       </div>
 
       {/* Price + Generate */}
-      <div className="bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 border border-[#7C5CFC]/20 rounded-xl p-3.5 space-y-3 sm:rounded-2xl sm:p-5 sm:space-y-4 text-center">
+      <div className="rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 space-y-3 sm:p-5 sm:space-y-4 text-center">
         <div>
-          <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
+          <p className="text-sm text-ec-ink-3 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
-            <span className="text-3xl font-bold text-white">{formatAiPlannerUsd()}</span>
+            <span className="ec-figure text-3xl">{formatAiPlannerUsd()}</span>
             {/* 참고 원화 — 실제 결제는 고정 USD 이고 카드사 환율에 따라 인출액이 다르다.
                 그래서 "약" 을 붙이고 값은 SSOT 에서만 만든다(하드코딩 금지). */}
-            <span className="text-sm text-white/55">
+            <span className="text-sm text-ec-ink-3">
               / {formatAiPlannerApproxKrw(language)}
             </span>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="bg-red-500/15 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-300">
+          <p className="ec-error-note" role="alert">
             {errorMsg}
-          </div>
+          </p>
         )}
 
         <button onClick={onGenerate} disabled={isLoading}
-          className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.03] disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
+          className="ec-btn ec-btn-primary w-full">
           <Shield className="w-5 h-5" />
           {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}
         </button>
 
-        <p className="text-[10px] text-white/55 flex items-center justify-center gap-1">
+        <p className="text-[10px] text-ec-ink-3 flex items-center justify-center gap-1">
           <Wallet className="w-3 h-3" /> {p.wizardPaymentNote || 'Takes about 15 seconds after payment'}
         </p>
       </div>
@@ -197,7 +196,7 @@ export function WizardStep3Review(props: Step3Props) {
       {/* Back */}
       <button onClick={() => onEditStep(2)}
         aria-label={p.planner_prev || 'Back'}
-        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/55 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+        className="ec-btn ec-btn-secondary w-full">
         <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}
       </button>
     </div>

@@ -1,9 +1,23 @@
 import type { PlannerDict } from '../types';
-// Trivia loading animation with 4-step progress indicator + Korea travel tips slideshow.
+// Loading state — 4-step progress + Korea travel tips slideshow.
 // 2026-05-08: honest time display (1–2 min), step labels with tech hints,
 //             10-tip slideshow for en/ja/zh; ko users see existing Korean tips.
+// 2026-08-10 (Korea Editorial Concierge): converted from the dark card with
+//   pulse rings and a gradient bar to a working document — a rule that fills,
+//   phases as a checklist, the tip set below a hairline. Three real gaps closed
+//   at the same time:
+//     · it was not announced at all, so a screen-reader user heard nothing
+//       between pressing generate and the plan arriving (role=status + live region);
+//     · past the honest ETA it kept saying the same ETA, with no acknowledgement
+//       that it was running long (`slowNote`);
+//     · the tip crossfade used a hardcoded 0.35s, so `prefers-reduced-motion`
+//       did not reach it. It rides the duration token now.
+//   The phase labels still name the real engine — that is transparency about
+//   mechanism, which the design system keeps; it is the marketing surfaces that
+//   lead with the itinerary instead.
 import { useState, useEffect } from 'react';
-import { Globe, Check, Lightbulb } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { pickPlannerCopy } from '../plannerCopy';
 
 interface TriviaLoadingAnimationProps {
   p: PlannerDict;
@@ -14,12 +28,17 @@ interface TriviaLoadingAnimationProps {
   durationDays?: number;
 }
 
+/** When the wait passes this, say so rather than repeating the same estimate. */
+const SLOW_AFTER_MS = 75_000;
+
 export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDays }: TriviaLoadingAnimationProps) {
-  const tips: string[]   = p.loading_tips ?? [];
+  const c = pickPlannerCopy(lang);
+  const tips: string[]   = p.loading_tips || [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
   const [tipIdx,   setTipIdx]   = useState(0);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [visible,  setVisible]  = useState(true);
+  const [isSlow,   setIsSlow]   = useState(false);
 
   useEffect(() => {
     if (!tips.length) return;
@@ -34,6 +53,13 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
     }, 4000);
     return () => { clearInterval(tipTimer); clearInterval(phaseTimer); };
   }, [tips.length, phases.length]);
+
+  // Runs regardless of whether tips exist — the acknowledgement is about the
+  // wait, not about the slideshow.
+  useEffect(() => {
+    const id = setTimeout(() => setIsSlow(true), SLOW_AFTER_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   const progressPercent = streamStep
     ? Math.round((streamStep / 6) * 100)
@@ -54,13 +80,13 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
       : lang === 'zh' ? `${durationDays}天行程 — 约 ${_etaMin}分钟`
       : `${durationDays}-day plan — ~${_etaMin} min`)
     : ((p.takesAbout15Sec as string | undefined)
-      ?? (lang === 'ko' ? '보통 1~2분 정도 걸려요'
+      || (lang === 'ko' ? '보통 1~2분 정도 걸려요'
         : lang === 'ja' ? '通常1〜2分かかります'
         : lang === 'zh' ? '通常需要 1~2 分钟'
         : 'Usually takes 1–2 minutes'));
 
   const analyzingLabel: string = (p.planReadyEmailAnalyzing as string | undefined)
-    ?? (lang === 'ko' ? '더 좋은 일정을 위해 데이터를 분석 중입니다'
+    || (lang === 'ko' ? '더 좋은 일정을 위해 데이터를 분석 중입니다'
       : lang === 'ja' ? 'より良い日程のためにデータを分析しています'
       : lang === 'zh' ? '正在分析数据，为您打造最优行程'
       : 'Analyzing data for the best possible itinerary');
@@ -69,104 +95,79 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
   const showTips = tips.length > 0;
 
   return (
-    <div className="rounded-2xl border border-white/10 overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 100%)' }}>
+    <section
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="ec-panel"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="ec-eyebrow">{c.loading.eyebrow}</p>
+        <p className="ec-figure text-[13px] text-ec-ink-3">{progressPercent}%</p>
+      </div>
+      <h2 className="ec-h3 mt-2">{c.loading.heading}</h2>
 
-      {/* Progress bar */}
-      <div className="relative h-1.5 bg-white/8 overflow-hidden">
-        <div className="absolute h-full rounded-full transition-all duration-1000 ease-out"
-          style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #7C5CFC, #EA537E)' }} />
+      <div className="ec-steprail mt-3" aria-hidden>
+        <span className="ec-steprail-fill" style={{ width: `${progressPercent}%` }} />
       </div>
 
-      <div className="flex flex-col items-center py-8 px-6 gap-5">
+      <p className="ec-body-sm mt-3 text-ec-ink">{timeLabel}</p>
+      <p className="ec-body-sm text-ec-ink-3">{analyzingLabel}</p>
 
-        {/* Globe icon with pulse rings */}
-        <div className="relative w-14 h-14 flex items-center justify-center">
-          {[0, 1].map((i) => (
-            <div key={i} className="absolute inset-0 rounded-full border border-[#7C5CFC]/30"
-              style={{ animation: 'pulse-ring 2s ease-out infinite', animationDelay: `${i * 0.8}s` }} />
-          ))}
-          <Globe className="w-7 h-7 text-[#7C5CFC]" />
-        </div>
+      {/* Running long. Said once, plainly, with the way out — the plan is also
+          emailed, so closing the tab is not losing it. */}
+      {isSlow && (
+        <p className="ec-error-note mt-3 border-ec-notice text-ec-notice">{c.loading.slowNote}</p>
+      )}
 
-        {/* Honest time label */}
-        <div className="text-center space-y-1">
-          <p className="text-white/80 text-sm font-semibold">{timeLabel}</p>
-          <p className="text-white/45 text-[11px] leading-relaxed">{analyzingLabel}</p>
-        </div>
-
-        {/* 4-Step Progress Indicator */}
-        <div className="w-full max-w-xs space-y-2">
-          {phases.map((phase, idx) => {
-            const done   = idx < phaseIdx;
-            const active = idx === phaseIdx;
-            return (
-              <div key={idx} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-500 ${
-                active ? 'bg-[#7C5CFC]/10 border border-[#7C5CFC]/25'
-                       : done ? 'bg-emerald-500/5 border border-emerald-500/15'
-                               : 'border border-transparent'
-              }`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
-                  done   ? 'bg-emerald-500/20 text-emerald-400'
-                         : active ? 'bg-[#7C5CFC]/20 text-[#7C5CFC]'
-                                  : 'bg-white/5 text-white/55'
-                }`}>
-                  {done ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : active ? (
-                    <div className="w-2 h-2 rounded-full bg-[#7C5CFC] animate-pulse" />
-                  ) : (
-                    <span className="text-[10px] font-bold">{idx + 1}</span>
-                  )}
-                </div>
-                <span className={`text-xs font-medium transition-all duration-500 ${
-                  done ? 'text-emerald-400/70' : active ? 'text-white/80' : 'text-white/55'
-                }`}>{phase}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Tips slideshow */}
-        {showTips && (
-          <div className="w-full max-w-xs">
-            <div className="flex items-center gap-1.5 mb-2 justify-center">
-              <Lightbulb className="w-3 h-3 text-amber-400/70" />
-              <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
-                {lang === 'ko' ? '알고 계셨나요?' : lang === 'ja' ? 'ご存知ですか？' : lang === 'zh' ? '小知识' : 'Travel Tip'}
+      {/* Phases — a checklist, not four glowing rows. Done items keep their
+          label so the traveller can see what has already happened. */}
+      <ol className="mt-5 border-t border-ec-line">
+        {phases.map((phase, idx) => {
+          const done   = idx < phaseIdx;
+          const active = idx === phaseIdx;
+          return (
+            <li
+              key={idx}
+              className="flex items-center gap-2.5 border-b border-ec-line py-2.5"
+              aria-current={active ? 'step' : undefined}
+            >
+              <span className="grid h-5 w-5 shrink-0 place-items-center" aria-hidden>
+                {done
+                  ? <Check className="h-4 w-4 text-ec-success" />
+                  : <span className={`ec-figure text-[11px] ${active ? 'text-ec-brand' : 'text-ec-ink-4'}`}>{idx + 1}</span>}
               </span>
-            </div>
-            <div className="text-center min-h-[44px] flex items-center justify-center
-              px-3 py-2.5 rounded-xl border border-white/[0.07]"
-              style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <p className="text-[11px] text-white/60 leading-relaxed max-w-xs"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(6px)',
-                  transition: 'opacity 0.35s ease, transform 0.35s ease',
-                }}>
-                {tips[tipIdx]}
-              </p>
-            </div>
-            {/* Dot indicator */}
-            <div className="flex justify-center gap-1 mt-2">
-              {tips.slice(0, 10).map((_, i) => (
-                <div key={i} className={`h-1 rounded-full transition-all duration-500 ${
-                  i === tipIdx % tips.length
-                    ? 'w-4 bg-[#7C5CFC]/70'
-                    : 'w-1 bg-white/15'
-                }`} />
-              ))}
-            </div>
-          </div>
-        )}
+              <span className={`text-[13px] ${active ? 'font-semibold text-ec-ink' : done ? 'text-ec-ink-3' : 'text-ec-ink-3'}`}>
+                {phase}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-        {streamStep != null && (
-          <p className="text-[10px] text-white/55">
-            {(p.streamStepStatus as string | undefined || '').replace('{step}', String(streamStep))}
-          </p>
-        )}
-      </div>
-    </div>
+      {/* Tips slideshow */}
+      {showTips && (
+        <div className="mt-5">
+          <p className="ec-eyebrow">{c.loading.tipLabel}</p>
+          <div className="ec-panel-quiet mt-2 min-h-[68px]">
+            <p
+              className="ec-body-sm text-ec-ink-2"
+              style={{
+                opacity: visible ? 1 : 0,
+                transition: 'opacity var(--ec-duration-slow) var(--ec-ease-standard)',
+              }}
+            >
+              {tips[tipIdx]}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {streamStep != null && (
+        <p className="ec-body-sm mt-3 text-ec-ink-4">
+          {(p.streamStepStatus as string | undefined || '').replace('{step}', String(streamStep))}
+        </p>
+      )}
+    </section>
   );
 }

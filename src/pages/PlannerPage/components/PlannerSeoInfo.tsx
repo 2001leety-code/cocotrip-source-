@@ -239,45 +239,52 @@ export function PlannerSeoInfo({ language, t }: { language: string; t: Translati
   useJsonLd('planner-faq', buildFaqJsonLd(faqEntries));
 
   return (
-    <section className="planner-seo-info mt-12 border-t border-white/10 pt-8 text-white/75">
-      <div className="space-y-8 text-[13px] leading-relaxed sm:text-sm">
+    <section className="planner-seo-info mt-12 border-t border-ec-line pt-8">
+      <div className="ec-measure">
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.getTitle}</h2>
+          <h2 className="ec-h3 mb-3">{c.getTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.get.map((s) => <li key={s}>{s}</li>)}
+            {c.get.map((s) => <li key={s} className="ec-body">{s}</li>)}
           </ul>
         </div>
 
+        <hr className="ec-rule my-8" />
+
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.keepTitle}</h2>
-          <p className="mb-2">{c.keepIntro}</p>
+          <h2 className="ec-h3 mb-3">{c.keepTitle}</h2>
+          <p className="ec-body mb-2">{c.keepIntro}</p>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.keep.map((s) => <li key={s}>{s}</li>)}
+            {c.keep.map((s) => <li key={s} className="ec-body">{s}</li>)}
           </ul>
         </div>
 
+        <hr className="ec-rule my-8" />
+
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.coverageTitle}</h2>
+          <h2 className="ec-h3 mb-3">{c.coverageTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.coverage(vars).map((s) => <li key={s}>{s}</li>)}
+            {c.coverage(vars).map((s) => <li key={s} className="ec-body">{s}</li>)}
           </ul>
         </div>
 
+        <hr className="ec-rule my-8" />
+
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.processTitle}</h2>
+          <h2 className="ec-h3 mb-3">{c.processTitle}</h2>
           <ol className="space-y-1.5 pl-5" style={{ listStyleType: 'decimal' }}>
-            {c.process.map((s) => <li key={s}>{s}</li>)}
+            {c.process.map((s) => <li key={s} className="ec-body">{s}</li>)}
           </ol>
         </div>
 
+        <hr className="ec-rule my-8" />
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.faqTitle}</h2>
+          <h2 className="ec-h3 mb-3">{c.faqTitle}</h2>
           <dl className="space-y-3">
             {faqEntries.map(([q, a]) => (
               <div key={q}>
-                <dt className="font-semibold text-white/90">{q}</dt>
-                <dd className="mt-0.5">{a}</dd>
+                <dt className="font-semibold text-ec-ink">{q}</dt>
+                <dd className="ec-body mt-0.5">{a}</dd>
               </div>
             ))}
           </dl>

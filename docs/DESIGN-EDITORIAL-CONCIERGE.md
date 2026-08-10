@@ -1,11 +1,13 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 1 (foundation + common shell + home)**. The planner, tours, charter,
-> guide and community bodies still run on the previous dark system and are converted in
-> a later PR. Read "Migration state" before assuming a page follows this document.
+> Status: **phase 2 (foundation + common shell + home + the planner journey)**. Tours,
+> charter, guide and community bodies still run on the previous dark system and are
+> converted in a later PR. Read "Migration state" before assuming a page follows this
+> document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
-(`ec-*` utilities). Hex values live in the CSS file — do not restate them in components,
+(`ec-*` utilities), plus `src/styles/editorial-planner.css` for the planner's own layer-3
+component tokens. Hex values live in the CSS files — do not restate them in components,
 and do not restate them here beyond the reference table below.
 
 ---
@@ -149,10 +151,22 @@ itinerary"**. "AI planner" is the mechanism, not the headline.
 **Name the capability, not the implementation.** The nav entry is `nav.planner` in
 `src/i18n/locales/*.json`: `Trip Planner` / `여행 플래너` / `旅行プランナー` / `行程规划`.
 The route (`/planner`), the paid gate and the product itself are unchanged — this is
-naming only. One place still says "AI" and is **out of scope on purpose**:
+naming only. Two places still say "AI" and are **kept on purpose**:
 
 - `pageMeta.planner` (`AI Travel Planner …`) is SEO metadata where the term is the search
   query people actually type.
+- `planner.loading_step1..4` names the real engine while it runs. That is transparency
+  about mechanism, and it appears only once the traveller has already committed.
+
+2026-08-10 phase 2: the planner's own surfaces were re-framed. The mode card said
+`Let AI plan everything` / `AI가 전부 짜드려요`, the intro modal was titled
+`Welcome to the AI Travel Planner`, and the ready notification told a Japanese reader
+`AI가 만든 코스를 확인하세요` — Korean, to every locale, because the fallback was a
+literal. All of it now leads with what the traveller gets: **four answers — dates,
+cities, pace, diet — become a Korea itinerary they can execute.**
+`tests/unit/editorial-planner-journey.test.ts` fails if any of it returns, and the same
+file pins the two exceptions above so "keep it out of marketing" never turns into
+"delete the transparency".
 
 2026-08-10 P2 (#1272): `PromoBanner` (`free 1–3 day AI plan … · limited`) used to be the
 other exception — it said "AI plan" and appended `· limited`/`· 선착순` even when
@@ -197,8 +211,9 @@ keeps the same word from button to confirmation.
 | Tokens, `.ec-*` primitives, `ec-root` | this system |
 | Header, mobile menu, bottom nav, footer, cookie banner | this system |
 | Home (`/`), all breakpoints | this system |
-| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system, not yet adopted by callers |
-| Planner, tours, charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
+| Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
+| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; `EcError` adopted by the planner, other callers pending |
+| Tours, charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -207,8 +222,11 @@ converted.
 
 `.refined-home` and the header's global `.refined` glow override were **deleted**, not
 disabled: home no longer needs a corrective cascade because its base is correct. The
-remaining `.refined-planner|tours|charter|plandetail|page` blocks in `src/index.css`
-belong to pages this PR does not touch and are removed with those pages.
+remaining `.refined-tours|charter|plandetail|page` blocks in `src/index.css` belong to
+pages that are still on the old system and are removed with those pages — which is what
+happened to `.refined-planner` in phase 2, together with the ~90-line
+`.planner-mobile-*` block that repainted the dark planner light on phones. A
+`.refined-*` block lives exactly as long as the page it corrects.
 
 **One functional fix rode along with the visual work.** The home destination rail links to
 `/planner?prefillRegions=<cityKey>`, but `PlannerPage` parsed every `prefill*` parameter
