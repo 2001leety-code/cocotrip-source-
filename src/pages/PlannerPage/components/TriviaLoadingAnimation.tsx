@@ -26,12 +26,26 @@ interface TriviaLoadingAnimationProps {
   lang?: string;
   /** P163 (2026-05-23): 일수 → 동적 ETA. 없으면 기본 1~2분 라벨 유지. */
   durationDays?: number;
+  /**
+   * 2026-08-10 follow-up — this screen serves two different runs.
+   *
+   * Paid (`PurchaseSection`): the six-agent full pipeline. The ETA, the four
+   * phases and the "n / 6 agents" counter all describe it accurately, and the
+   * slow note can offer the emailed plan because the plan is emailed.
+   *
+   * Free (`/api/ai-planner-quick`, wizard submit): one call that returns day one.
+   * Quoting a several-minute ETA, a route-calculation phase list and an email
+   * that is never sent describes work that is not happening. In preview mode
+   * this component states what it is writing and drops every claim it cannot
+   * stand behind.
+   */
+  preview?: boolean;
 }
 
 /** When the wait passes this, say so rather than repeating the same estimate. */
 const SLOW_AFTER_MS = 75_000;
 
-export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDays }: TriviaLoadingAnimationProps) {
+export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDays, preview = false }: TriviaLoadingAnimationProps) {
   const c = pickPlannerCopy(lang);
   const tips: string[]   = p.loading_tips || [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
@@ -102,26 +116,38 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
       className="ec-panel"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <p className="ec-eyebrow">{c.loading.eyebrow}</p>
-        <p className="ec-figure text-[13px] text-ec-ink-3">{progressPercent}%</p>
+        <p className="ec-eyebrow">{preview ? c.loading.previewEyebrow : c.loading.eyebrow}</p>
+        {/* The percentage is derived from the paid pipeline's phase clock. On a
+            free preview it would be a number measuring nothing, and it reaches
+            100% while the request is still open. */}
+        {!preview && <p className="ec-figure text-[13px] text-ec-ink-3">{progressPercent}%</p>}
       </div>
-      <h2 className="ec-h3 mt-2">{c.loading.heading}</h2>
+      <h2 className="ec-h3 mt-2">{preview ? c.loading.previewHeading : c.loading.heading}</h2>
 
-      <div className="ec-steprail mt-3" aria-hidden>
-        <span className="ec-steprail-fill" style={{ width: `${progressPercent}%` }} />
-      </div>
+      {!preview && (
+        <div className="ec-steprail mt-3" aria-hidden>
+          <span className="ec-steprail-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+      )}
 
-      <p className="ec-body-sm mt-3 text-ec-ink">{timeLabel}</p>
-      <p className="ec-body-sm text-ec-ink-3">{analyzingLabel}</p>
+      {!preview && <p className="ec-body-sm mt-3 text-ec-ink">{timeLabel}</p>}
+      <p className={`ec-body-sm text-ec-ink-3 ${preview ? 'mt-3' : ''}`}>{analyzingLabel}</p>
 
-      {/* Running long. Said once, plainly, with the way out — the plan is also
-          emailed, so closing the tab is not losing it. */}
+      {/* Running long. Said once, plainly, with the way out — for the paid run
+          the plan is also emailed, so closing the tab is not losing it. The free
+          preview is not emailed anywhere, so it says the one thing that is true
+          of it instead: nothing has been charged. */}
       {isSlow && (
-        <p className="ec-error-note mt-3 border-ec-notice text-ec-notice">{c.loading.slowNote}</p>
+        <p className="ec-error-note mt-3 border-ec-notice text-ec-notice">
+          {preview ? c.loading.previewSlowNote : c.loading.slowNote}
+        </p>
       )}
 
       {/* Phases — a checklist, not four glowing rows. Done items keep their
-          label so the traveller can see what has already happened. */}
+          label so the traveller can see what has already happened. They name the
+          paid pipeline's stages (DB matching, Naver/ODsay routing, saving), so
+          the free preview does not borrow them. */}
+      {!preview && (
       <ol className="mt-5 border-t border-ec-line">
         {phases.map((phase, idx) => {
           const done   = idx < phaseIdx;
@@ -144,6 +170,7 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
           );
         })}
       </ol>
+      )}
 
       {/* Tips slideshow */}
       {showTips && (
@@ -163,7 +190,9 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
         </div>
       )}
 
-      {streamStep != null && (
+      {/* "n / 6 agents running" counts the paid pipeline's agents. The free
+          preview is a single call, so it does not claim six. */}
+      {!preview && streamStep != null && (
         <p className="ec-body-sm mt-3 text-ec-ink-4">
           {(p.streamStepStatus as string | undefined || '').replace('{step}', String(streamStep))}
         </p>

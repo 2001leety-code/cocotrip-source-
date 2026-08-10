@@ -904,15 +904,19 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   // P6: 5-step layout starts with reservation check.
   // 2026-05-05: free-claim funnel(`all_done`) 제거에 따라 isClaimFlow 분기 삭제.
+  const c = pickPlannerCopy(language);
   const STEPS = [
     { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
     { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
     { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
     { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
+    // 2026-08-10 follow-up: was `p.planner_generate_cta` ("Generate AI
+    // Itinerary"). This step produces the free day-one preview, not the paid
+    // itinerary — the rail names the step, and the step's own card names the
+    // action.
+    { label: c.wizard.previewStep, icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
-  const c = pickPlannerCopy(language);
   const progressPercent = Math.round(((step + 1) / STEPS.length) * 100);
 
   // Build the list of currently-selected city chip keys for P9 dynamic chips.

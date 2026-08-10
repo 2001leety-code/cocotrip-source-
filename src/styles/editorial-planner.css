@@ -192,8 +192,14 @@
 .ec-steptick {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  /* Both axes. Height was already on the floor; width was not — on a phone
+     every tick but the current one collapses to its number and measured 18px
+     wide against a 44px floor. Centring keeps the labelled ticks looking the
+     same as before, since they are wider than the minimum anyway. */
   min-height: var(--ec-touch-min);
+  min-width: var(--ec-touch-min);
   padding: 0 2px;
   background-color: transparent;
   border-width: 0;
@@ -228,6 +234,26 @@
   padding-top: 1px;
 }
 :where(.ec-timeline-time) { color: var(--ec-text-secondary); }
+
+/* The map link on a timeline row. It is a 13px inline link by design — it sits
+   on the baseline beside the stop name and must not turn the row into a card.
+   Measured, that made it 45×19.5, under the 44px floor. Padding would open the
+   row up, so the tap target is a centred pseudo-element instead: the link's own
+   box, floored at 44×44, painted by nothing and costing no layout. The rows are
+   at least 44px tall (12px padding, ~20px name line, 12px padding), so two
+   neighbouring targets meet rather than overlap. */
+.ec-maplink { position: relative; }
+.ec-maplink::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  min-width: var(--ec-touch-min);
+  min-height: var(--ec-touch-min);
+}
 
 /* The wizard's step-enter animation is deliberately NOT redefined here. It
    lives in index.css as `.wizard-step-enter` / `.wizard-step-viewport`, where

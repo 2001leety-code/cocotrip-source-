@@ -295,7 +295,13 @@ describe('planner journey states', () => {
   });
 
   it('errors are recoverable and announced, not a red box that dead-ends', () => {
-    expect(PLANNER_PAGE).toMatch(/EcError/);
+    // 2026-08-10 follow-up: the page renders `PlannerErrorPanel`, which wraps
+    // the same `EcError` and adds the focus + scroll the placement fix needed.
+    // The property under test is unchanged — the shared announced error state,
+    // with a way forward — so the assertion follows the component.
+    const PANEL = read('src/pages/PlannerPage/components/PlannerErrorPanel.tsx');
+    expect(PLANNER_PAGE).toMatch(/PlannerErrorPanel/);
+    expect(PANEL).toMatch(/EcError/);
     expect(PLANNER_PAGE).toMatch(/onRetry/);
     // The retry hint tells the traveller nothing was charged.
     expect(PLANNER_PAGE).toMatch(/retryHint/);

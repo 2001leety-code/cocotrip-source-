@@ -22,15 +22,16 @@ import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
 import { filterSupportedRegions } from '@/components/WizardForm/cityKeys';
 import { AIIntroModal } from '@/components/AIIntroModal';
-import { EcError } from '@/components/ui/states';
 import '@/styles/editorial-planner.css';
 import { PAGE_STYLE } from './constants';
 import { pickPlannerCopy } from './plannerCopy';
+import { focusAndReveal } from './lib/motion';
 import { PlannerMasthead, PlannerEvidence } from './components/PlannerMasthead';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 import { QuickPreviewCard } from './components/QuickPreviewCard';
+import { PlannerErrorPanel } from './components/PlannerErrorPanel';
 import { PurchaseSection } from './components/PurchaseSection';
 import { CourseBuilderShell } from './components/CourseBuilderShell';
 import { AiPlannerPricingNote } from './components/AiPlannerPricingNote';
@@ -156,6 +157,31 @@ export default function PlannerPage() {
     prevStatus.current = status;
   }, [status, p, c]);
 
+  // Retry puts the traveller back on the brief they already filled in.
+  //
+  // The wizard is mounted for `idle`, `error` and `loadingQuick` alike, so it
+  // never unmounts across a failure: every answer survives, and so does the
+  // step, which stays on the final review. What broke the return trip was
+  // `handleReset` ending in `window.scrollTo({ top: 0 })` — the answers were
+  // still there, a screen and a half above where the traveller was looking.
+  // The scroll now belongs to the page, which knows where the brief is.
+  const wizardRef = useRef<HTMLDivElement | null>(null);
+  const returningToBrief = useRef(false);
+
+  function handleRetry() {
+    returningToBrief.current = true;
+    handleReset();
+  }
+
+  useEffect(() => {
+    if (status !== 'idle' || !returningToBrief.current) return;
+    returningToBrief.current = false;
+    // After the effect, not inside the click: leaving `error` brings the mode
+    // cards back above the wizard, so its position is only settled once the
+    // idle render has committed.
+    focusAndReveal(wizardRef.current);
+  }, [status]);
+
   const MODES: { key: PlannerMode; kicker: string; title: string; body: string }[] = [
     { key: 'ai', ...c.modes.guided },
     { key: 'course', ...c.modes.builder },
@@ -221,11 +247,32 @@ export default function PlannerPage() {
         )}
         </div>
 
-        {/* Wizard form */}
+        {/* Wizard form. The wrapper is the retry target — `WizardSeenProbe`
+            already owns its own ref for the visibility probe. */}
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <WizardSeenProbe className="ec-panel">
-            <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
-          </WizardSeenProbe>
+          <div ref={wizardRef} tabIndex={-1} className="scroll-mt-4">
+            <WizardSeenProbe className="ec-panel">
+              <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
+            </WizardSeenProbe>
+          </div>
+        )}
+
+        {/* Error — the shared editorial state. It announces itself (assertive
+            live region), says what to do next, and says that nothing was
+            charged, which is the question people actually have here.
+
+            2026-08-10 follow-up: it used to render after `PlannerSeoInfo`, which
+            put it below ~700px of SEO copy — measured at y=2752 on a 1280×720
+            screen whose reader was at scrollY 1180, and y=2682 at 390×844 with
+            scrollY 1884. It belongs where the traveller already is, next to the
+            brief that failed, and it takes focus on arrival. */}
+        {status === 'error' && (
+          <PlannerErrorPanel
+            title={p.errorTitle}
+            body={[localizedError, c.error.retryHint].filter(Boolean).join(' ')}
+            retryLabel={p.retry}
+            onRetry={handleRetry}
+          />
         )}
 
         {plannerMode === 'course' && status === 'idle' && <CourseBuilderShell />}
@@ -240,24 +287,14 @@ export default function PlannerPage() {
           <PlannerSeoInfo language={language} t={t} />
         )}
 
-        {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}
+        {/* Phase 1 loading — the free quick preview. `preview` drops the paid
+            pipeline's ETA, phase checklist and agent counter: this call is one
+            request that returns day one, and it is not emailed anywhere. */}
         {status === 'loadingQuick' && (
           <TriviaLoadingAnimation
             p={p as unknown as Parameters<typeof TriviaLoadingAnimation>[0]['p']}
-            streamStep={1}
+            preview
             lang={language}
-          />
-        )}
-
-        {/* Error — the shared editorial state. It announces itself (assertive
-            live region), says what to do next, and says that nothing was
-            charged, which is the question people actually have here. */}
-        {status === 'error' && (
-          <EcError
-            title={p.errorTitle}
-            body={[localizedError, c.error.retryHint].filter(Boolean).join(' ')}
-            retryLabel={p.retry}
-            onRetry={handleReset}
           />
         )}
 

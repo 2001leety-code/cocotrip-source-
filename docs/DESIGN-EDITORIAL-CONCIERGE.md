@@ -237,6 +237,28 @@ question they had already answered. Outside revision the page now honours
 revision flow. Verified in a browser: the chip opens the wizard on step 2/5 with Seoul
 selected as the main base.
 
+### Open item — shared header touch targets (P3)
+
+The planner's own controls now clear the 44px floor (`--ec-touch-min`): step ticks are
+44×44 on a phone, the timeline's Map link keeps its 13px type behind a 44×44 pseudo hit
+area, the step-hint close is 44 wide, and the error panel's retry is a full-height
+`.ec-btn`. The **shared header** is not there yet, measured on `/planner` with the
+production bundle:
+
+| Control | Desktop 1280×720 | Mobile 390×844 |
+|---|---|---|
+| Wishlist (icon only) | 36 × 36 | 36 × 36 |
+| Sign In | 101 × 36 | — |
+| 1:1 Inquiry | 128 × 36 | — |
+| Nav links (Charter … About) | ~70–123 × 38.5 | — |
+| Logo link | 178 × 32 | 173 × 32 |
+
+Only the icon-only Wishlist misses on both axes; the rest are short on height alone.
+Deliberately **not** fixed in the planner pass — the header is shared chrome, so raising
+its control heights changes every route at once and belongs with the shared-navigation
+phase, together with the mobile menu, bottom nav and footer. Re-measure there rather
+than trusting this table.
+
 ---
 
 ## 7. Checklist before merging a visual change

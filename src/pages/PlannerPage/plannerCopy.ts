@@ -56,6 +56,24 @@ export interface PlannerCopy {
     progressLabel: string;
     hintReopen: string;
     hintClose: string;
+    /**
+     * The last step's action. It calls `/api/ai-planner-quick`, which is free
+     * and returns day one only — so the card says exactly that. It used to show
+     * the full-plan price with `planner.wizardGenerateBtn` and
+     * `planner.wizardPaymentNote`, which dressed a no-charge request as a
+     * purchase. The real price stays where money is actually being asked for:
+     * the pricing note above the brief, and `PurchaseSection` after the preview.
+     */
+    previewEyebrow: string;
+    previewLede: string;
+    previewCta: string;
+    /** Button label while the preview is being written. No ETA, no payment. */
+    previewBusy: string;
+    /** Says the full itinerary is the paid step, without naming an amount. */
+    previewNote: string;
+    /** The last step's name on the rail. It used to be `planner_generate_cta`,
+     *  which named the paid deliverable for a step that produces the free one. */
+    previewStep: string;
   };
   loading: {
     eyebrow: string;
@@ -63,6 +81,11 @@ export interface PlannerCopy {
     tipLabel: string;
     /** Shown once generation passes the slow threshold. Honest, not apologetic. */
     slowNote: string;
+    /** Same screen, free-preview run: it is not writing the paid full plan. */
+    previewEyebrow: string;
+    previewHeading: string;
+    /** `slowNote` offers the emailed plan, which the free preview is not. */
+    previewSlowNote: string;
   };
   ready: {
     notifyTitle: string;
@@ -123,12 +146,21 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       progressLabel: 'Brief progress',
       hintReopen: 'What this step is for',
       hintClose: 'Hide this note',
+      previewEyebrow: 'Free preview',
+      previewLede: 'Day one, written from the brief you just filled in. No payment, no card.',
+      previewCta: 'See day one free',
+      previewBusy: 'Writing your free day-one preview',
+      previewNote: 'The full day-by-day itinerary is a separate paid step. You decide once you have read day one.',
+      previewStep: 'Review + free preview',
     },
     loading: {
       eyebrow: 'Writing your itinerary',
       heading: 'Building the day-by-day plan',
       tipLabel: 'While you wait',
       slowNote: 'Still working. Longer trips take longer to route — you can close this tab and read it in the email instead.',
+      previewEyebrow: 'Free preview',
+      previewHeading: 'Writing day one from your brief',
+      previewSlowNote: 'Still working on day one. Nothing has been charged.',
     },
     ready: {
       notifyTitle: 'Your Korea itinerary is ready',
@@ -185,12 +217,21 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       progressLabel: '입력 진행도',
       hintReopen: '이 단계 설명 보기',
       hintClose: '설명 접기',
+      previewEyebrow: '무료 미리보기',
+      previewLede: '방금 적으신 조건 그대로 1일차를 먼저 써 드립니다. 결제도, 카드 등록도 없습니다.',
+      previewCta: '1일차 무료로 보기',
+      previewBusy: '1일차 무료 미리보기를 쓰는 중',
+      previewNote: '전체 일정은 결제가 필요한 별도 단계입니다. 1일차를 읽어 보고 결정하시면 됩니다.',
+      previewStep: '검토 + 무료 미리보기',
     },
     loading: {
       eyebrow: '일정을 쓰는 중',
       heading: '하루하루 동선을 만들고 있습니다',
       tipLabel: '기다리는 동안',
       slowNote: '아직 작업 중입니다. 일정이 길수록 경로 계산이 오래 걸립니다. 창을 닫고 메일로 받아보셔도 됩니다.',
+      previewEyebrow: '무료 미리보기',
+      previewHeading: '적어 주신 조건으로 1일차를 쓰고 있습니다',
+      previewSlowNote: '아직 1일차를 쓰는 중입니다. 결제된 금액은 없습니다.',
     },
     ready: {
       notifyTitle: '한국 일정이 완성됐어요',
@@ -247,12 +288,21 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       progressLabel: '入力の進捗',
       hintReopen: 'このステップの説明',
       hintClose: '説明を閉じる',
+      previewEyebrow: '無料プレビュー',
+      previewLede: '今ご入力いただいた条件のまま、1日目を先に書きます。お支払いもカード登録も不要です。',
+      previewCta: '1日目を無料で見る',
+      previewBusy: '1日目の無料プレビューを作成中',
+      previewNote: '全日程は有料の別ステップです。1日目を読んでから決めていただけます。',
+      previewStep: '確認 + 無料プレビュー',
     },
     loading: {
       eyebrow: '旅程を作成中',
       heading: '日ごとの動線を組み立てています',
       tipLabel: 'お待ちの間に',
       slowNote: 'まだ作業中です。日程が長いほど経路の計算に時間がかかります。このタブを閉じて、メールで受け取っていただいても大丈夫です。',
+      previewEyebrow: '無料プレビュー',
+      previewHeading: 'ご入力の条件で1日目を書いています',
+      previewSlowNote: 'まだ1日目を作成中です。請求は発生していません。',
     },
     ready: {
       notifyTitle: '韓国の旅程ができました',
@@ -309,12 +359,21 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       progressLabel: '填写进度',
       hintReopen: '这一步是做什么的',
       hintClose: '收起说明',
+      previewEyebrow: '免费预览',
+      previewLede: '我们先按你刚填写的条件写出第一天。无需付款，也不用绑卡。',
+      previewCta: '免费查看第一天',
+      previewBusy: '正在撰写第一天的免费预览',
+      previewNote: '完整逐日行程是需要付费的另一步。看完第一天再决定即可。',
+      previewStep: '确认 + 免费预览',
     },
     loading: {
       eyebrow: '正在撰写行程',
       heading: '正在排出逐日的动线',
       tipLabel: '等待时可以看看',
       slowNote: '仍在处理中。行程越长，路线计算越久。你也可以关掉这个页面，改从邮件里查看。',
+      previewEyebrow: '免费预览',
+      previewHeading: '正在按你填写的条件撰写第一天',
+      previewSlowNote: '仍在撰写第一天。没有产生任何扣款。',
     },
     ready: {
       notifyTitle: '你的韩国行程已完成',

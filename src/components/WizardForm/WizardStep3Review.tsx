@@ -1,10 +1,20 @@
-// Step 3: summary review + generate button.
+// Step 3: summary review + the free day-one preview.
+//
+// 2026-08-10 follow-up: the action block used to be a price card. It printed
+// the full-plan amount, said "Generate AI Itinerary" and closed with "Takes
+// about 15 seconds after payment" — above a button that calls
+// `/api/ai-planner-quick`, which is free and returns day one only. Pressing it
+// charges nothing, so this card now quotes nothing: it names the free preview,
+// says the full itinerary is a separate paid step, and leaves the amount where
+// money is actually asked for (`AiPlannerPricingNote` before the brief,
+// `PurchaseSection` after the preview). Locked by
+// `tests/unit/planner-free-preview-truthfulness.test.ts`.
 import type { ReactNode } from 'react';
-import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield, Hotel, Navigation } from 'lucide-react';
+import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Hotel, Navigation } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { formatDateShort } from './helpers';
 import type { WizardDict } from './types';
-import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPrice';
+import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 
 // 2026-08-04: helpers.tsx 에서 옮겨 왔다 (마크업 그대로). 소비처가 이 파일 하나뿐인데
 // 순수 함수 모듈에 섞여 있어 fast-refresh 가 위저드를 통째로 리마운트하게 만들고 있었다.
@@ -52,6 +62,7 @@ export function WizardStep3Review(props: Step3Props) {
     isLoading, errorMsg, language, onEditStep, onGenerate,
   } = props;
 
+  const c = pickPlannerCopy(language || 'en');
   const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
 
   // 2026-05-21 (P134 분기 #34/#35 fix): destination 다도시 시 "Seoul → Busan" 형식.
@@ -162,35 +173,28 @@ export function WizardStep3Review(props: Step3Props) {
         </div>
       </div>
 
-      {/* Price + Generate */}
-      <div className="rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 space-y-3 sm:p-5 sm:space-y-4 text-center">
-        <div>
-          <p className="text-sm text-ec-ink-3 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
-          <div className="flex items-center justify-center gap-2">
-            <span className="ec-figure text-3xl">{formatAiPlannerUsd()}</span>
-            {/* 참고 원화 — 실제 결제는 고정 USD 이고 카드사 환율에 따라 인출액이 다르다.
-                그래서 "약" 을 붙이고 값은 SSOT 에서만 만든다(하드코딩 금지). */}
-            <span className="text-sm text-ec-ink-3">
-              / {formatAiPlannerApproxKrw(language)}
-            </span>
-          </div>
-        </div>
+      {/* The free day-one preview — the action, described as what it is.
+          Left-aligned rather than centred: a centred amount was the anchor of
+          the old card, and with the amount gone a centred column of three short
+          lines reads as an advert. Set as a paragraph, the eyebrow leads and the
+          button is the only heavy element. */}
+      <div className="rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 sm:p-5">
+        <p className="ec-eyebrow">{c.wizard.previewEyebrow}</p>
+        <p className="ec-body-sm ec-measure mt-1.5 text-ec-ink-2">{c.wizard.previewLede}</p>
 
         {errorMsg && (
-          <p className="ec-error-note" role="alert">
+          <p className="ec-error-note mt-3" role="alert">
             {errorMsg}
           </p>
         )}
 
-        <button onClick={onGenerate} disabled={isLoading}
-          className="ec-btn ec-btn-primary w-full">
-          <Shield className="w-5 h-5" />
-          {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}
+        <button onClick={onGenerate} disabled={isLoading} type="button"
+          aria-busy={isLoading}
+          className="ec-btn ec-btn-primary mt-4 w-full">
+          {isLoading ? c.wizard.previewBusy : c.wizard.previewCta}
         </button>
 
-        <p className="text-[10px] text-ec-ink-3 flex items-center justify-center gap-1">
-          <Wallet className="w-3 h-3" /> {p.wizardPaymentNote || 'Takes about 15 seconds after payment'}
-        </p>
+        <p className="ec-body-sm ec-measure mt-2 text-ec-ink-3">{c.wizard.previewNote}</p>
       </div>
 
       {/* Back */}

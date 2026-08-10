@@ -102,12 +102,16 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Qu
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span className="text-[15px] font-semibold leading-tight text-ec-ink">{place}</span>
+                        {/* 2026-08-10 follow-up: 실측 45×19.5 로 44px 터치 하한 미달.
+                            상하 여백을 주면 타임라인 행이 벌어져 인쇄된 시간표처럼
+                            읽히지 않으므로, 글자 크기는 그대로 두고 `ec-maplink` 의
+                            가상요소가 44×44 히트 영역만 넓힌다(레이아웃 영향 0). */}
                         {mapUrl && (
                           <a
                             href={mapUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold text-ec-brand underline underline-offset-2"
+                            className="ec-maplink inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold text-ec-brand underline underline-offset-2"
                             aria-label={`${place} ${mapLabel}`}
                           >
                             <MapPin className="h-3.5 w-3.5" aria-hidden />{mapLabel}

@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Lightbulb, X, HelpCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 import { WIZARD_STEP_HINTS, normalizeHintLang } from './stepHints';
 
 const SEEN_PREFIX = 'COCO_WIZARD_HINT_';
@@ -13,6 +14,7 @@ const SEEN_PREFIX = 'COCO_WIZARD_HINT_';
 export function WizardStepHint({ step }: { step: number }) {
   const { language } = useLanguage();
   const lang = normalizeHintLang(language);
+  const c = pickPlannerCopy(language);
   const hint = WIZARD_STEP_HINTS[step];
 
   // 안 본 스텝이면 자동 노출, 본 스텝이면 접힘("?"만).
@@ -62,11 +64,15 @@ export function WizardStepHint({ step }: { step: number }) {
         <p className="text-[14px] font-semibold leading-snug text-ec-ink">{hint.title[lang]}</p>
         <p className="ec-body-sm mt-1 text-ec-ink-3">{hint.body[lang]}</p>
       </div>
+      {/* 2026-08-10 follow-up: 아이콘만 있는 버튼이라 `ec-btn-quiet` 의 좁은 좌우
+          여백(0 12px)만 남아 실측 42×44 였다 — 높이는 통과, 폭이 44 미달.
+          여백을 더 벌리면 배너가 두꺼워지므로 최소 폭만 44 로 잡는다.
+          라벨도 영어 하드코딩이었다 — 4언어 사전에 이미 있던 문구로 바꾼다. */}
       <button
         type="button"
         onClick={() => { persistSeen(); setOpen(false); }}
-        className="ec-btn ec-btn-quiet shrink-0"
-        aria-label="Close hint"
+        className="ec-btn ec-btn-quiet min-w-[44px] shrink-0"
+        aria-label={c.wizard.hintClose}
       >
         <X className="h-4 w-4" aria-hidden />
       </button>
