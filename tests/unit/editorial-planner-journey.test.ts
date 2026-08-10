@@ -208,6 +208,52 @@ describe('planner is converted to the editorial system', () => {
     }
   });
 
+  it('an overridable colour is declared at zero specificity, so a caller wins', () => {
+    // editorial-planner.css ships in the planner's async chunk, so it lands
+    // after the eager Tailwind layer. At equal specificity the component class
+    // wins every tie and `className="ec-error-note text-ec-notice"` silently
+    // does nothing — which is exactly what happened: five informational notices
+    // in WizardStep2Details rendered in critical red and the calendar's invalid
+    // border never appeared. `:where()` contributes zero specificity and
+    // inverts the tie.
+    for (const cls of ['.ec-error-note', '.ec-option', '.ec-panel', '.ec-panel-quiet', '.ec-question', '.ec-help', '.ec-steptick', '.ec-timeline-time']) {
+      expect(PLANNER_CSS, cls).toContain(`:where(${cls})`);
+      // …and the normal-specificity block must not re-declare what it hands over.
+      const block = PLANNER_CSS.match(new RegExp(`\\n\\${cls} \\{[^}]*\\}`))?.[0] || '';
+      expect(`${cls} colour: ${/(^|[^-])color:/.test(block)}`).toBe(`${cls} colour: false`);
+    }
+  });
+
+  it('no dark-system text colour survives on a paper surface', () => {
+    // `text-white` on a converted page is invisible, and it is the single most
+    // likely leftover from a class-by-class conversion.
+    for (const rel of [
+      'src/pages/PlannerPage/index.tsx',
+      'src/pages/PlannerPage/components/PlannerMasthead.tsx',
+      'src/pages/PlannerPage/components/QuickPreviewCard.tsx',
+      'src/pages/PlannerPage/components/TriviaLoadingAnimation.tsx',
+      'src/pages/PlannerPage/components/PurchaseSection.tsx',
+      'src/pages/PlannerPage/components/AiPlannerPricingNote.tsx',
+      'src/pages/PlannerPage/components/CourseBuilderShell.tsx',
+      'src/pages/PlannerPage/components/PlannerSeoInfo.tsx',
+      'src/components/WizardForm/index.tsx',
+      'src/components/WizardForm/WizardNav.tsx',
+      'src/components/WizardForm/WizardStepHint.tsx',
+      'src/components/WizardForm/WizardStep0Reservation.tsx',
+      'src/components/WizardForm/WizardStep0Destination.tsx',
+      'src/components/WizardForm/WizardStep1Food.tsx',
+      'src/components/WizardForm/WizardStep2Details.tsx',
+      'src/components/WizardForm/WizardStep3Review.tsx',
+      'src/components/WizardForm/ZoneRecommender.tsx',
+      'src/components/WizardForm/HotelSuggestInput.tsx',
+      'src/components/AIIntroModal.tsx',
+      'src/components/OnboardingCouponModal.tsx',
+      'src/components/MobileSelectDrawer.tsx',
+    ]) {
+      expect(`${rel}: ${/text-white/.test(codeOf(read(rel)))}`).toBe(`${rel}: false`);
+    }
+  });
+
   it('the planner stylesheet stays inside the token layers', () => {
     // No raw hex, and no raw durations — reduced-motion is honoured for free
     // only while every transition rides a duration token.

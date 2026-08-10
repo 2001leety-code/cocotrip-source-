@@ -11,7 +11,7 @@ import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPri
 // export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
 function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex w-full items-center justify-between gap-3">
       <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-ec-ink-3">{icon} {label}</span>
       <span className="ec-figure min-w-0 flex-1 truncate text-right text-[14px]">{value}</span>
     </div>
@@ -99,16 +99,16 @@ export function WizardStep3Review(props: Step3Props) {
       {/* Summary cards */}
       <div className="ec-panel space-y-3 sm:space-y-4">
         <div className="divide-y divide-ec-line">
-          <button onClick={() => onEditStep(0)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
+          <button onClick={() => onEditStep(0)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={destinationValue} />
           </button>
-          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
           </button>
-          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Plane className="w-4 h-4" />} label={p.wizardAirport || 'Airport'} value={airportLabel} />
           </button>
-          <button onClick={() => onEditStep(2)} className="w-full rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Users className="w-4 h-4" />} label={p.wizardTravelers || 'Travelers'} value={`${pax} ${p.wizardPaxUnit || 'pax'}`} />
           </button>
         </div>

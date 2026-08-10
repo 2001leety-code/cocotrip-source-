@@ -13,6 +13,19 @@
    a dark body corrected back to light by a `.planner-mobile-*` cascade of
    `!important` overrides; converting the body means that cascade is deleted
    rather than extended.
+
+   ── One cascade rule, and the reason for it ──────────────────────────────
+   Colour and border-colour on the components below are declared inside
+   `:where()`, which contributes **zero** specificity. This file ships in the
+   planner's async chunk, so its stylesheet lands *after* the eager Tailwind
+   layer; at equal specificity (0,1,0) the component class would win every tie
+   and a caller's `text-ec-notice` or `border-ec-critical` would silently do
+   nothing. That is not a theory — it shipped: five informational notices in
+   `WizardStep2Details` rendered in critical red, and the calendar's invalid
+   border never appeared. `:where()` inverts the tie so the caller wins, which
+   is what anyone writing `className="ec-error-note text-ec-notice"` expects.
+   Layout, spacing and typography stay at normal specificity — nothing
+   overrides those, and keeping them there keeps the component honest.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -53,16 +66,22 @@
 /* ═══ Panel — the wizard / result surface ════════════════════════════════ */
 
 .ec-panel {
-  background: var(--ec-surface-raised);
-  border: 1px solid var(--ec-line);
+  border: 1px solid transparent;
   border-radius: var(--ec-radius-md);
   padding: 20px;
 }
 .ec-panel-quiet {
-  background: var(--ec-surface-sunken);
-  border: 1px solid var(--ec-line);
+  border: 1px solid transparent;
   border-radius: var(--ec-radius-md);
   padding: 16px;
+}
+:where(.ec-panel) {
+  background: var(--ec-surface-raised);
+  border-color: var(--ec-line);
+}
+:where(.ec-panel-quiet) {
+  background: var(--ec-surface-sunken);
+  border-color: var(--ec-line);
 }
 @media (min-width: 768px) {
   .ec-panel { padding: 28px; }
@@ -79,14 +98,17 @@
   min-height: var(--ec-touch-min);
   padding: var(--ec-option-pad) 14px;
   text-align: left;
-  background: var(--ec-option-bg);
-  border: 1px solid var(--ec-option-line);
+  border: 1px solid transparent;
   border-radius: var(--ec-option-radius);
-  color: var(--ec-text-primary);
   cursor: pointer;
   transition:
     border-color var(--ec-duration-base) var(--ec-ease-standard),
     background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+:where(.ec-option) {
+  background: var(--ec-option-bg);
+  border-color: var(--ec-option-line);
+  color: var(--ec-text-primary);
 }
 .ec-option:hover { border-color: var(--ec-option-line-hover); }
 .ec-option.is-selected,
@@ -115,13 +137,13 @@
   line-height: 1.3;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--ec-text-primary);
 }
 .ec-help {
   font-size: 13px;
   line-height: 1.55;
-  color: var(--ec-text-muted);
 }
+:where(.ec-question) { color: var(--ec-text-primary); }
+:where(.ec-help)     { color: var(--ec-text-muted); }
 
 /* Validation. Errors are announced (`role="alert"` on the caller) and read as
    ink on paper with a critical rule — not a red box glowing on a dark card. */
@@ -129,10 +151,15 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  border-left: 2px solid var(--ec-critical);
+  border-left: 2px solid transparent;
   padding: 2px 0 2px 10px;
   font-size: 13px;
   line-height: 1.55;
+}
+/* Critical is the default; a caller states `text-ec-notice border-ec-notice`
+   when the message is informational rather than blocking, and wins. */
+:where(.ec-error-note) {
+  border-left-color: var(--ec-critical);
   color: var(--ec-critical);
 }
 
@@ -165,11 +192,11 @@
   border: 0;
   font-size: 12px;
   font-weight: 600;
-  color: var(--ec-text-muted);
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--ec-duration-base) var(--ec-ease-standard);
 }
+:where(.ec-steptick) { color: var(--ec-text-muted); }
 .ec-steptick:hover { color: var(--ec-text-primary); }
 .ec-steptick[aria-current='step'] { color: var(--ec-brand); }
 .ec-steptick-done { color: var(--ec-text-secondary); }
@@ -191,9 +218,9 @@
   font-feature-settings: 'tnum' 1;
   font-size: 13px;
   font-weight: 700;
-  color: var(--ec-text-secondary);
   padding-top: 1px;
 }
+:where(.ec-timeline-time) { color: var(--ec-text-secondary); }
 
 /* The wizard's step-enter animation is deliberately NOT redefined here. It
    lives in index.css as `.wizard-step-enter` / `.wizard-step-viewport`, where

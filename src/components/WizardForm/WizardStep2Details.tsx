@@ -294,7 +294,9 @@ export function WizardStep2Details(props: Step2Props) {
                   <span className="ec-eyebrow flex items-center gap-1.5 mb-1">
                     <Icon className="w-3.5 h-3.5" />{label}
                   </span>
-                  <p className={`ec-figure text-[15px] ${val ? '' : 'text-ec-ink-4'}`}>{val || ph}</p>
+                  {/* 미입력 자리표시는 ec-ink-3 — ec-ink-4 는 24px 이상/장식용 전용이고
+                      이 sunken 배경 위에서 3.3:1 로 본문 기준을 못 넘긴다. */}
+                  <p className={`ec-figure text-[15px] ${val ? '' : 'text-ec-ink-3'}`}>{val || ph}</p>
                 </div>
               ))}
             </div>
@@ -525,7 +527,7 @@ export function WizardStep2Details(props: Step2Props) {
                 value: opt.value,
                 label: opt.label,
               }))}
-              icon={<Plane className="w-4 h-4 text-white/55" />}
+              icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
             />
           </div>
         </div>
@@ -551,7 +553,7 @@ export function WizardStep2Details(props: Step2Props) {
                 value: opt.value,
                 label: opt.label,
               }))}
-              icon={<Plane className="w-4 h-4 text-white/55" />}
+              icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
             />
           </div>
           {departureTerminal && departureTerminal !== arrivalTerminal && (
