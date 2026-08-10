@@ -218,9 +218,16 @@ describe('planner is converted to the editorial system', () => {
     // inverts the tie.
     for (const cls of ['.ec-error-note', '.ec-option', '.ec-panel', '.ec-panel-quiet', '.ec-question', '.ec-help', '.ec-steptick', '.ec-timeline-time']) {
       expect(PLANNER_CSS, cls).toContain(`:where(${cls})`);
-      // …and the normal-specificity block must not re-declare what it hands over.
+      // …and the normal-specificity block must not re-declare what it hands
+      // over. That includes the `border` / `background` shorthands: `border:
+      // 1px solid transparent` also sets border-color, and at (0,1,0) it beats
+      // the `:where()` colour — measured, `.ec-panel`'s hairline came out
+      // `rgba(0,0,0,0)` and the card lost its edge entirely.
       const block = PLANNER_CSS.match(new RegExp(`\\n\\${cls} \\{[^}]*\\}`))?.[0] || '';
       expect(`${cls} colour: ${/(^|[^-])color:/.test(block)}`).toBe(`${cls} colour: false`);
+      expect(`${cls} border shorthand: ${/\n\s*border:/.test(block)}`).toBe(`${cls} border shorthand: false`);
+      expect(`${cls} border-side shorthand: ${/\n\s*border-(top|right|bottom|left):/.test(block)}`).toBe(`${cls} border-side shorthand: false`);
+      expect(`${cls} background shorthand: ${/\n\s*background:/.test(block)}`).toBe(`${cls} background shorthand: false`);
     }
   });
 
