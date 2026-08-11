@@ -152,6 +152,14 @@ describe('/guide/:slug 본문', () => {
     expect(screen.getByText(copy.article.bodyLanguage)).toBeInTheDocument();
   });
 
+  // 이 글이 어디서 왔는지는 화면에 있어야 한다. 원천은 우리 영문 가이드
+  // 아카이브 하나뿐이고, 바이라인이 그걸 말하는 자리다.
+  it('바이라인이 실제 출처를 밝힌다 (본문 언어 안내와 나란히)', () => {
+    renderArticle();
+    expect(screen.getByText(copy.article.source)).toBeInTheDocument();
+    expect(screen.getByText(copy.article.bodyLanguage)).toBeInTheDocument();
+  });
+
   it('갱신일·읽는 시간은 실제 값에서 — {date}/{n} 자리표시자가 화면에 새지 않는다', () => {
     const { container } = renderArticle({ words: 1140 });
     expect(screen.getByText(copy.article.updated.replace('{date}', '2026-07-26'))).toBeInTheDocument();

@@ -13,11 +13,12 @@ import { fill, readingMinutes, type GuideCopy, type GuideDoc } from './guideCopy
  * did not exist and offered no way to retry. They are different problems with
  * different actions, so they are different states here.
  *
- * The article body is English (our own English channel), and every UI language
- * says so above the text rather than letting the reader find out after
- * scrolling. Fares and opening hours move, and we have no live source to cite,
- * so the notice states the day the guide was last checked and asks the reader
- * to confirm with the operator — never a fabricated citation.
+ * The byline carries the two things we can actually back: where the text came
+ * from (our own English guide archive — the only origin in the code) and what
+ * language it is written in. Fares and opening hours move and we have no live
+ * source to cite, so the notice states the day the article was last updated —
+ * the one date the archive gives us — and sends the reader to the official
+ * operator. It never says we checked anything, because nothing here proves it.
  */
 
 export type GuideArticleStatus = 'loading' | 'ready' | 'error' | 'missing';
@@ -85,8 +86,8 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
               {doc.labels.length > 0 && <p className="ec-eyebrow text-ec-brand">{doc.labels[0]}</p>}
               <h1 className="ec-h2 mt-3 text-[clamp(26px,3.4vw,40px)]">{doc.title}</h1>
 
-              {/* Byline: what we measured, and in what language the text below is
-                  written. Anything we do not have is left out of the row. */}
+              {/* Byline: what we measured, where the text came from, and in what
+                  language it is written. Anything we do not have is left out. */}
               <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-ec-line py-3">
                 {doc.updated && (
                   <span className="ec-figure text-[12px] font-semibold text-ec-ink-3">
@@ -98,6 +99,7 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
                     {fill(copy.readTime, { n: String(minutes) })}
                   </span>
                 )}
+                <span className="ec-chip">{c.source}</span>
                 <span className="ec-chip">{c.bodyLanguage}</span>
               </div>
 

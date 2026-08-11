@@ -7,13 +7,22 @@
  * first paint never shows. Keys still exist in all four languages —
  * `tests/unit/editorial-guide-content.test.ts` fails if one drifts.
  *
- * Article bodies are English-only (they come from our own English blog channel),
- * so every language states that in its own script rather than letting a Korean
- * reader discover it after the click.
+ * Article bodies are English-only (they come from our own English guide
+ * archive), so every language states that in its own script rather than letting
+ * a Korean reader discover it after the click.
  *
  * Nothing here invents a number. `{n}` and `{date}` are filled from real values
  * in `src/content/guides/_index.json`; when a value is absent the line that
  * would have carried it is not rendered at all.
+ *
+ * Nothing here invents a *source* either. The only origin the code has is the
+ * CocoTrip English guide archive collected by `scripts/sync-blog-guides.mjs`
+ * from the cocotripkr.blogspot.com public feed, and the published/updated dates
+ * that feed carries. There is no visit log, no live fare lookup and no record of
+ * anyone confirming a price on location — so the copy names the archive and the
+ * update date, and claims nothing beyond them.
+ * `tests/unit/editorial-guide-content.test.ts` fails on the claim, in any of the
+ * four languages.
  */
 
 export type GuideLang = 'ko' | 'en' | 'ja' | 'zh';
@@ -72,8 +81,12 @@ export interface GuideCopy {
     back: string;
     updated: string;
     bodyLanguage: string;
-    /** Carries `{date}`: prices and timetables move, so the sentence must say
-     *  what day the guide was checked. We have no live source to cite. */
+    /** Where the text came from, on screen. Our own English guide archive is the
+     *  whole of it — naming it is the only sourcing claim the code can back. */
+    source: string;
+    /** Carries `{date}`: prices and timetables move, so the sentence says the day
+     *  the article was last updated — the one date we hold — and sends the reader
+     *  to the official operator. Never "what we checked". */
     freshness: string;
     loading: string;
     topics: string;
@@ -88,15 +101,15 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
   en: {
     index: {
       title: 'Korea Travel Guides',
-      heading: 'Korea, checked on the ground and written down.',
-      lede: 'The routes, fares and access notes we use when we write itineraries — published as they are, one subject at a time.',
+      heading: 'Routes, fares and access notes for Korea, by subject.',
+      lede: 'Organised from the CocoTrip English guide archive — one subject per article, each carrying the date it was last updated.',
       count: '{n} guides · last updated {date}',
       leadKicker: 'Latest',
       moreKicker: 'More guides',
       read: 'Read',
       empty: {
         title: 'No guides published yet',
-        body: 'We publish a guide once we have checked it. In the meantime the planner writes an itinerary from your own dates.',
+        body: 'Nothing has been published to the archive yet. In the meantime the planner writes an itinerary from your own dates.',
         cta: 'Open the Trip Planner',
       },
     },
@@ -104,12 +117,13 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       back: 'All guides',
       updated: 'Updated {date}',
       bodyLanguage: 'Article language: English',
-      freshness: 'Fares, opening hours and prices change. This guide reflects what we checked on {date} — confirm with the operator before you go.',
+      source: 'Source: CocoTrip English guide archive',
+      freshness: 'This article was last updated on {date}. Fares, opening hours and prices change — confirm with the official operator before you travel.',
       loading: 'Loading this guide',
       topics: 'Topics',
       error: {
         title: 'This guide did not load',
-        body: 'The connection dropped before the article arrived. Nothing is wrong with the guide itself.',
+        body: 'Check your connection and try again.',
         retry: 'Try again',
       },
       notFound: {
@@ -124,15 +138,15 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
   ko: {
     index: {
       title: '한국 여행 가이드',
-      heading: '현지에서 확인한 한국, 그대로 적었습니다.',
-      lede: '일정을 짤 때 쓰는 동선·요금·이용 정보를 주제별로 하나씩 그대로 공개합니다.',
+      heading: '주제별로 정리한 한국 동선·요금·이용 정보.',
+      lede: '코코트립 영문 가이드 아카이브에서 정리했습니다. 한 편에 한 주제, 각 글에 마지막 갱신일을 함께 적습니다.',
       count: '{n}편 · 최근 갱신 {date}',
       leadKicker: '최신',
       moreKicker: '다른 가이드',
       read: '읽기',
       empty: {
         title: '아직 공개된 가이드가 없어요',
-        body: '확인이 끝난 글부터 올립니다. 그동안은 여행 플래너가 날짜에 맞춰 일정을 써드려요.',
+        body: '아카이브에 올라온 글이 아직 없습니다. 그동안은 여행 플래너가 날짜에 맞춰 일정을 써드려요.',
         cta: '여행 플래너 열기',
       },
     },
@@ -140,12 +154,13 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       back: '전체 가이드',
       updated: '{date} 갱신',
       bodyLanguage: '본문 언어: 영어',
-      freshness: '요금·운영시간·가격은 바뀝니다. 이 글은 {date} 기준으로 확인한 내용이니 출발 전에 운영처에서 다시 확인하세요.',
+      source: '출처: 코코트립 영문 가이드 아카이브',
+      freshness: '이 글은 {date}에 마지막으로 갱신됐습니다. 요금·운영시간·가격은 바뀔 수 있으니 출발 전에 공식 운영처에서 확인하세요.',
       loading: '가이드를 불러오는 중',
       topics: '주제',
       error: {
         title: '가이드를 불러오지 못했어요',
-        body: '글이 도착하기 전에 연결이 끊겼어요. 글 자체에는 문제가 없습니다.',
+        body: '연결 상태를 확인한 뒤 다시 시도해 주세요.',
         retry: '다시 시도',
       },
       notFound: {
@@ -160,15 +175,15 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
   ja: {
     index: {
       title: '韓国旅行ガイド',
-      heading: '現地で確かめた韓国を、そのまま書いています。',
-      lede: '旅程を組むときに使う移動・料金・利用情報を、テーマごとにそのまま公開します。',
+      heading: 'テーマ別に整理した、韓国の移動・料金・利用情報。',
+      lede: 'ココトリップ英語ガイドアーカイブから整理しています。1記事につき1テーマ、各記事に最終更新日を表示します。',
       count: '{n}本 · 最終更新 {date}',
       leadKicker: '最新',
       moreKicker: 'ほかのガイド',
       read: '読む',
       empty: {
         title: 'まだ公開中のガイドがありません',
-        body: '確認できた記事から順に公開します。その間は旅行プランナーがご希望の日程で旅程を作成します。',
+        body: 'アーカイブに公開済みの記事がまだありません。その間は旅行プランナーがご希望の日程で旅程を作成します。',
         cta: '旅行プランナーを開く',
       },
     },
@@ -176,12 +191,13 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       back: 'ガイド一覧',
       updated: '{date} 更新',
       bodyLanguage: '記事の言語: 英語',
-      freshness: '料金・営業時間・価格は変わります。本記事は{date}時点で確認した内容です。出発前に運営元でご確認ください。',
+      source: '出典: ココトリップ英語ガイドアーカイブ',
+      freshness: 'この記事の最終更新は{date}です。料金・営業時間・価格は変わることがあります。ご出発前に公式の運営元でご確認ください。',
       loading: 'ガイドを読み込んでいます',
       topics: 'トピック',
       error: {
         title: 'ガイドを読み込めませんでした',
-        body: '記事が届く前に接続が切れました。記事そのものに問題はありません。',
+        body: '接続を確認して、もう一度お試しください。',
         retry: '再試行',
       },
       notFound: {
@@ -196,15 +212,15 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
   zh: {
     index: {
       title: '韩国旅行指南',
-      heading: '在当地核实过的韩国，如实写下来。',
-      lede: '我们编排行程时使用的路线、票价与实用信息，按主题逐篇原样公开。',
+      heading: '按主题整理的韩国路线、票价与实用信息。',
+      lede: '整理自 CocoTrip 英文指南存档。一篇一个主题，并标注最后更新日期。',
       count: '{n}篇 · 最近更新 {date}',
       leadKicker: '最新',
       moreKicker: '更多指南',
       read: '阅读',
       empty: {
         title: '目前还没有已发布的指南',
-        body: '核实完成的文章会陆续发布。在此期间，行程规划可按你的日期生成行程。',
+        body: '存档中还没有已发布的文章。在此期间，行程规划可按你的日期生成行程。',
         cta: '打开行程规划',
       },
     },
@@ -212,12 +228,13 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       back: '全部指南',
       updated: '{date} 更新',
       bodyLanguage: '正文语言：英语',
-      freshness: '票价、营业时间与价格会变动。本文为{date}核实的内容，出行前请向运营方确认。',
+      source: '来源：CocoTrip 英文指南存档',
+      freshness: '本文最后更新于{date}。票价、营业时间与价格可能变动，出行前请向官方运营方确认。',
       loading: '正在载入指南',
       topics: '主题',
       error: {
         title: '未能载入该指南',
-        body: '文章送达前连接中断，指南本身没有问题。',
+        body: '请检查网络连接后重试。',
         retry: '重试',
       },
       notFound: {
