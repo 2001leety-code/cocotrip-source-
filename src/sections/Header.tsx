@@ -358,7 +358,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <button
                   onClick={handleSignIn}
                   disabled={signingIn}
-                  className="ec-btn ec-btn-primary"
+                  className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px]"
                   title={t.nav.signIn || 'Sign In'}
                 >
                   {signingIn ? (
@@ -388,7 +388,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 href="https://wa.me/821087140611"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ec-btn ec-btn-secondary hidden md:inline-flex"
+                className="ec-btn ec-btn-secondary ec-btn-sm min-h-[44px] hidden md:inline-flex"
               >
                 <MessageCircle className="w-4 h-4" aria-hidden />
                 <span>{t.nav.inquiry || '1:1 Inquiry'}</span>

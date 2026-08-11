@@ -133,8 +133,18 @@ describe('공용 셸 조작 target 44×44', () => {
     expect(nav.slice(0, 900)).toMatch(/min-h-\[44px\]/);
   });
 
-  it('헤더 CTA(로그인·1:1 문의)가 36px sm 버튼이 아니다', () => {
-    expect(HEADER_CODE).not.toMatch(/ec-btn-sm/);
+  it('공용 셸의 sm 버튼은 전부 min-h-[44px] 을 함께 단다', () => {
+    // `ec-btn-sm` 을 그냥 떼면 padding 이 14px→20px, font 14→15 로 커져 헤더 행이
+    // 넓어진다 — 1024/1100 ko·en 에서 기존 가로 넘침이 +41px 악화됐다(2026-08-11 실측).
+    // 44px 은 높이 요구사항이지 너비 요구사항이 아니다. 토큰
+    // `--ec-button-height-sm`(36px) 은 플래너·구매 패널이 써서 못 바꾼다.
+    for (const [name, src] of [
+      ['Header', HEADER_CODE], ['CookieBanner', stripComments(COOKIE)], ['Footer', stripComments(FOOTER)],
+    ] as const) {
+      for (const m of src.matchAll(/className="([^"]*\bec-btn-sm\b[^"]*)"/g)) {
+        expect(m[1], `${name}: sm button without a 44px floor`).toMatch(/min-h-\[44px\]/);
+      }
+    }
   });
 
   it('로고 링크도 44px 히트 영역을 갖는다', () => {
@@ -161,14 +171,15 @@ describe('공용 셸 조작 target 44×44', () => {
     expect(BOTTOM_NAV).toMatch(/h-\[56px\]/);
   });
 
-  it('전역 chrome(쿠키 배너·푸터)에도 36px sm 버튼이 남아 있지 않다', () => {
-    // `--ec-button-height-sm` 은 44px 미만이라 공용 셸에선 쓸 수 없다. 토큰 자체는
-    // 그대로 둔다 — 플래너 코스빌더·구매 패널이 쓰고 있고, 그건 이 PR 밖이다.
-    for (const [name, src] of [['CookieBanner', COOKIE], ['Footer', FOOTER]] as const) {
-      expect(stripComments(src), `${name} still uses ec-btn-sm`).not.toMatch(/ec-btn-sm/);
+  it('쿠키 배너 버튼이 실제로 44px 이다 (주석만 44px 이라고 하던 자리)', () => {
+    // 원래 주석에 "buttons hit 44px height (WCAG 2.5.5)" 라고 적혀 있었는데
+    // 실측은 56x36 이었다.
+    const cookie = stripComments(COOKIE);
+    for (const label of ['accept', 'dismiss']) {
+      const i = cookie.indexOf(`onClick={${label}} className=`);
+      expect(i, `CookieBanner ${label} button not found`).toBeGreaterThan(-1);
+      expect(cookie.slice(i, i + 160)).toMatch(/min-h-\[44px\]/);
     }
-    // 쿠키 배너는 44px 이라고 주석만 달아 두고 실제로는 56x36 이었다.
-    expect(stripComments(COOKIE)).toMatch(/ec-btn ec-btn-primary"/);
   });
 
   it('푸터 전화 링크와 프로모 띠도 44px 이다 (둘 다 통째로 링크)', () => {
