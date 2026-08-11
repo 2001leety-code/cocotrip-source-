@@ -62,7 +62,12 @@ export function GradientCTA({ to, onClick, children, className = '', style, type
 
 /** 점+체크 스텝 진행 표시 — 가이드 p.3(위자드)·p.6(차터) 공통 스테퍼.
  *  current 는 0-based. 완료 스텝만 클릭 이동 허용(기존 위자드/차터 관례 유지).
- *  색은 index.css .coco-stepper-* — 다크 기본값 + 모바일 라이트 셸 오버라이드 양쪽 정의. */
+ *  색은 index.css .coco-stepper-* — 다크 기본값 + 모바일 라이트 셸 오버라이드 양쪽 정의.
+ *
+ *  2026-08-11 접근성: 시각 점(26px)을 키우지 않고 탭/클릭 타깃만 44×44 로 넓힌다.
+ *  버튼(.coco-stepper-hit)이 타깃, 자식 span(.coco-stepper-dot)이 시각 점.
+ *  포커스 순서는 그대로 두고(모든 단계 tabbable), 이동 불가한 미완료 단계만
+ *  aria-disabled 로 표시한다 — disabled 를 쓰면 키보드에서 사라진다. */
 export function CocoStepper({ current, total, labels, onStepClick, className = '' }: {
   current: number; total: number; labels?: string[];
   onStepClick?: (index: number) => void; className?: string;
@@ -82,10 +87,13 @@ export function CocoStepper({ current, total, labels, onStepClick, className = '
                 role="listitem"
                 aria-label={label}
                 aria-current={active ? 'step' : undefined}
+                aria-disabled={!done && !active ? true : undefined}
                 onClick={() => { if (done && onStepClick) onStepClick(i); }}
-                className={`coco-stepper-dot${done ? ' is-done' : active ? ' is-active' : ''}`}
+                className="coco-stepper-hit"
               >
-                {done ? <Check size={12} strokeWidth={3.2} /> : i + 1}
+                <span aria-hidden className={`coco-stepper-dot${done ? ' is-done' : active ? ' is-active' : ''}`}>
+                  {done ? <Check size={12} strokeWidth={3.2} /> : i + 1}
+                </span>
               </button>
             </Fragment>
           );

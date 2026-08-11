@@ -213,11 +213,35 @@ img {
 .coco-stepper-line.is-done {
   background: var(--coco-cta-gradient);
 }
+/* 탭/클릭 타깃 — 시각 점은 26px 그대로 두고 hit area 만 44×44 (WCAG 2.5.5).
+   투명 래퍼라 레일 배치·색은 그대로. 미완료 단계도 tabbable 유지(aria-disabled 로만 표시). */
+.coco-stepper-hit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.coco-stepper-hit[aria-disabled='true'] {
+  cursor: default;
+}
+.coco-stepper-hit:focus-visible {
+  outline: none;
+}
+.coco-stepper-hit:focus-visible .coco-stepper-dot {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--coco-purple);
+}
 .coco-stepper-dot {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
   width: 26px;
   height: 26px;
   border-radius: 999px;
@@ -2662,13 +2686,23 @@ textarea.community-field {
     margin-bottom: 5px !important;
   }
 
-  .cocotrip-mobile-booking-form :is(input, textarea, select),
   .cocotrip-mobile-inquiry-modal :is(input, textarea, select),
   .cocotrip-mobile-phone-modal :is(input, textarea, select) {
     min-height: 44px !important;
     padding: 9px 12px !important;
     border-radius: 14px !important;
     font-size: 14px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* 2026-08-11: 예약 정보 폼(차터 Step5 · 투어 예약)은 16px.
+     14px 는 위 §5 의 iOS 자동확대 가드(font-size: max(16px,1rem))를 모바일에서만
+     되돌려, 정작 확대가 일어나는 기기에서 포커스 시 화면이 튀게 만들고 있었다. */
+  .cocotrip-mobile-booking-form :is(input, textarea, select) {
+    min-height: 44px !important;
+    padding: 9px 12px !important;
+    border-radius: 14px !important;
+    font-size: 16px !important;
     line-height: 1.35 !important;
   }
 
@@ -2709,10 +2743,9 @@ textarea.community-field {
     border-radius: 9px !important;
   }
 
-  .cocotrip-mobile-booking-form [style*="width: 44px"] {
-    width: 38px !important;
-    height: 38px !important;
-  }
+  /* 2026-08-11: `[style*="width: 44px"]` → 38px 축소 규칙 제거.
+     이 셀렉터에 걸리는 인라인 44px 요소는 BookingInfoForm 의 수하물 ± 버튼뿐이었고,
+     모바일 밀도를 이유로 유일하게 규격을 지키던 탭 타깃만 골라 38px 로 줄이고 있었다. */
 
   .cocotrip-mobile-booking-form [style*="padding: 14px"] {
     padding: 11px 12px !important;

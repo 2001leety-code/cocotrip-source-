@@ -435,7 +435,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             <div>
               <button type="button" onClick={lookupFlight}
                 disabled={flightLoading || !(airport.flightNumber ?? '').trim()}
-                className="w-full px-4 py-2.5 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
+                className="min-h-[44px] w-full px-4 py-2.5 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
                 {flightLoading ? '…' : i18n.flightLookup}
               </button>
               <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>

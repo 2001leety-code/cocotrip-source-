@@ -111,6 +111,7 @@ const STR = {
     messengerHint: '여행 일정·픽업 관련 안내가 연락처로 발송됩니다. 정확한 정보를 입력해 주세요.',
     addInfoSection: '추가 정보', addInfoSub: 'Additional details',
     meetingPh: '예: L7 명동 바이 롯데호텔 (퇴계로 137)',
+    flightNoPh: '예: KE5760, OZ521',
     flightNo: '항공편 편명', optional: '(선택)', arrivalTime: '도착 시간', localTime: '(현지)',
     luggage: '캐리어 (사이즈별 수량)', lugSmall: '소형 (기내반입)', lugMedium: '중형 (24인치)', lugLarge: '대형 (28인치+)',
     notes: '추가 요청사항', notesPh: '예: 유아 카시트 필요, 한국어 기사 선호, 특정 시간 픽업…',
@@ -149,6 +150,7 @@ const STR = {
     messengerHint: 'Trip and pickup updates are sent to this contact. Please enter accurate details.',
     addInfoSection: 'Additional details', addInfoSub: '',
     meetingPh: 'e.g. L7 Myeongdong by Lotte (137 Toegye-ro)',
+    flightNoPh: 'e.g. KE5760, OZ521',
     flightNo: 'Flight number', optional: '(optional)', arrivalTime: 'Arrival time', localTime: '(local)',
     luggage: 'Luggage (count by size)', lugSmall: 'Small (carry-on)', lugMedium: 'Medium (24")', lugLarge: 'Large (28"+)',
     notes: 'Special requests', notesPh: 'e.g. child seat needed, Korean-speaking driver, specific pickup time…',
@@ -187,6 +189,7 @@ const STR = {
     messengerHint: '旅行日程・ピックアップのご案内がこの連絡先に送信されます。正確にご入力ください。',
     addInfoSection: '追加情報', addInfoSub: 'Additional details',
     meetingPh: '例: L7明洞 バイ ロッテ（退渓路137）',
+    flightNoPh: '例: KE5760、OZ521',
     flightNo: 'フライト便名', optional: '（任意）', arrivalTime: '到着時間', localTime: '（現地）',
     luggage: 'スーツケース（サイズ別数量）', lugSmall: '小型（機内持込）', lugMedium: '中型（24インチ）', lugLarge: '大型（28インチ以上）',
     notes: '追加リクエスト', notesPh: '例: チャイルドシート必要、韓国語ドライバー希望、特定時間ピックアップ…',
@@ -225,6 +228,7 @@ const STR = {
     messengerHint: '行程与接送通知将发送至此联系方式，请填写准确信息。',
     addInfoSection: '补充信息', addInfoSub: 'Additional details',
     meetingPh: '例: L7明洞乐天酒店（退溪路137）',
+    flightNoPh: '例: KE5760、OZ521',
     flightNo: '航班号', optional: '（可选）', arrivalTime: '到达时间', localTime: '（当地）',
     luggage: '行李箱（按尺寸数量）', lugSmall: '小型（登机箱）', lugMedium: '中型（24寸）', lugLarge: '大型（28寸以上）',
     notes: '其他要求', notesPh: '例: 需要儿童座椅、希望韩语司机、指定接送时间…',
@@ -548,7 +552,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={C.label}>{s.flightNo} <span style={C.opt}>{s.optional}</span></label>
-                  <input value={f.flightNo} onChange={(e) => set({ flightNo: e.target.value.toUpperCase() })} placeholder="예: KE5760, OZ521" style={{ ...C.input, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }} onFocus={focusable} onBlur={blurable} />
+                  <input value={f.flightNo} onChange={(e) => set({ flightNo: e.target.value.toUpperCase() })} placeholder={s.flightNoPh} style={{ ...C.input, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }} onFocus={focusable} onBlur={blurable} />
                 </div>
                 <div>
                   <label style={C.label}>{s.arrivalTime} <span style={C.opt}>{s.localTime}</span></label>
