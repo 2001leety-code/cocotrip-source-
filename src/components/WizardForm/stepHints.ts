@@ -53,7 +53,7 @@ export const WIZARD_STEP_HINTS: Record<number, WizardStepHintCopy> = {
     title: { ko: '거의 다 됐어요', en: 'Almost there', ja: 'あと少し', zh: '就快好了' },
     body: {
       ko: '입력한 내용을 확인한 뒤 무료 1일차 미리보기를 받아보세요. 결제도 카드도 필요 없어요. 전체 일정 구매는 그다음에 따로 정하시면 돼요.',
-      en: 'Check your brief, then request the free day-one preview — no payment, no card. Whether to buy the full itinerary is a separate call, later.',
+      en: 'Check your brief, then request the free day-one preview — no payment, no card. After reading day one, you can decide whether to buy the full itinerary.',
       ja: '入力内容を確認して、無料の初日プレビューをリクエストしてください。お支払いもカード登録も不要です。全旅程を購入するかどうかは、その後で別途お決めください。',
       zh: '确认填写的内容后，申请免费的第一天预览 — 无需付款，也不用绑卡。之后再单独决定要不要购买完整行程。',
     },

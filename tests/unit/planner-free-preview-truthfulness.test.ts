@@ -361,6 +361,12 @@ describe('the final wizard hint matches the button underneath it', () => {
       expect(`${l} price: ${PRICE_LITERAL.test(body[l])}`).toBe(`${l} price: false`);
     }
   });
+
+  it('en ties the purchase decision to having read day one, not an AI-translated aside', async () => {
+    const body = await hint4();
+    expect(body.en).toMatch(/after reading day[\s-]?one, you can decide whether to buy/i);
+    expect(body.en).not.toMatch(/is a separate call, later/i);
+  });
 });
 
 /* ── 4b. Two wizard labels that pointed at the wrong deliverable ───────── */
