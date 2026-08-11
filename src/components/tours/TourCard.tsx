@@ -5,7 +5,7 @@
 import { Link } from 'react-router-dom';
 import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucide-react';
 import { publicBadgeTag } from '@/data/tours';
-import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
+import type { Tour, I18nString, DriverLanguage, TourTag } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
@@ -49,6 +49,41 @@ const TAG_STYLE: Record<string, { bg: string; color: string }> = {
   History:     { bg: 'rgba(200,160,80,0.18)',   color: '#E8C468' },
 };
 
+// ── 카드 전용(route-local) 4언어 사전 ─────────────────────────────────────────
+// 공용 `src/i18n/locales/*.json` 은 건드리지 않는다. 여기 값들은 이 카드에서만 찍히는
+// 표시 문구라 공용 번들에 키를 늘릴 이유가 없고, 한 파일 안에서 4언어가 동시에 보여야
+// 한 언어만 빠지는 사고를 막는다.
+//
+// 타입이 `Record<Language, string>` 이라 **부분 번역이 컴파일되지 않는다** — 영어
+// 폴백이라는 개념 자체가 없다. 사전에 없는 태그는 배지를 렌더하지 않는다(원문 영어 노출 금지).
+
+/** 공개 카드가 배지로 낼 수 있는 태그 = 근거 없는 3개를 뺀 나머지(`publicBadgeTag` 와 같은 집합).
+ *  `TourTag` 에 태그가 추가되면 이 Record 가 컴파일 에러로 번역 누락을 알린다. */
+type PublicTourTag = Exclude<TourTag, 'Popular' | 'AI-Curated' | 'Best Value'>;
+
+const TAG_LABEL: Record<PublicTourTag, Record<Language, string>> = {
+  New:          { ko: '신규',      en: 'NEW',        ja: '新着',       zh: '新品' },
+  'Multi-City': { ko: '다도시',    en: 'MULTI-CITY', ja: '複数都市',   zh: '多城市' },
+  'Night Tour': { ko: '야경 투어', en: 'NIGHT TOUR', ja: '夜景ツアー', zh: '夜景游' },
+  Nature:       { ko: '자연',      en: 'NATURE',     ja: '自然',       zh: '自然' },
+  History:      { ko: '역사·문화', en: 'HISTORY',    ja: '歴史・文化', zh: '历史文化' },
+};
+
+/** 사전에 있는 태그만 문구를 돌려준다. 없으면 null = 배지 미렌더(영어 원문이 새지 않게). */
+function tagLabel(tag: string, lang: Language): string | null {
+  const entry = (TAG_LABEL as Record<string, Record<Language, string> | undefined>)[tag];
+  return entry ? entry[lang] : null;
+}
+
+const NIGHT_LABEL: Record<Language, string> = { ko: '야경', en: 'NIGHT', ja: '夜景', zh: '夜景' };
+
+/** 포함 항목 배지. 값은 `GLOBAL_INCLUDED`(연료비·톨비·주차비) 와 팁 정책 그대로 — 의미 불변, 표기만 현지화. */
+const INCLUDED_LABELS: ReadonlyArray<Record<Language, string>> = [
+  { ko: '톨비',    en: 'Tolls',   ja: '通行料',  zh: '过路费' },
+  { ko: '주차비',  en: 'Parking', ja: '駐車場',  zh: '停车费' },
+  { ko: '기사 팁', en: 'Tips',    ja: 'チップ',  zh: '小费' },
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 export function TourCard({ tour, language }: TourCardProps) {
   const title   = txt(tour.title, language);
@@ -88,6 +123,12 @@ export function TourCard({ tour, language }: TourCardProps) {
 
   // 나이트 투어 오버레이
   const isNight = tour.isNightTour === true;
+
+  // 배지 문구는 사전에서만 온다. isNight 배지가 이미 야경을 말하므로 'Night Tour' 태그
+  // 배지는 겹쳐 내지 않는다 — 현지화하면 ko 에서 '야경' + '야경 투어' 로 같은 말이 두 번 찍힌다.
+  const badgeLabel = primaryTag && !(isNight && primaryTag === 'Night Tour')
+    ? tagLabel(primaryTag, language)
+    : null;
 
   // 계절 적합도 칩 (운영자 아이디어) — 현재 월 기준. 데이터 없으면 null(미표시).
   const seasonalTip = getSeasonalTip(tour.id, new Date().getMonth() + 1, language);
@@ -153,15 +194,15 @@ export function TourCard({ tour, language }: TourCardProps) {
               style={{ background: 'rgba(10,5,40,0.80)', border: '1px solid rgba(184,160,255,0.30)', color: '#B8A0FF' }}
             >
               <Moon className="w-2.5 h-2.5" />
-              NIGHT
+              {NIGHT_LABEL[language]}
             </span>
           )}
-          {primaryTag && tagStyle && (
+          {badgeLabel && tagStyle && (
             <span
               className="text-[8.5px] sm:text-[9px] font-black tracking-[0.12em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm"
               style={{ background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.color}22` }}
             >
-              {primaryTag.toUpperCase()}
+              {badgeLabel}
             </span>
           )}
         </div>
@@ -178,8 +219,11 @@ export function TourCard({ tour, language }: TourCardProps) {
               {tour.images.length}
             </div>
           )}
+          {/* 44×44 — WishlistToggle 은 공용 컴포넌트(p-2 + size16 = 32×32)라 손대면 상세·홈까지
+              같이 바뀐다. 래퍼만 키우면 커지는 건 배경뿐이고 실제 누를 수 있는 <button> 은
+              그대로 32px 다(실측). 그래서 자식 선택자로 이 카드 안의 버튼만 터치 최소치로 키운다. */}
           <div
-            className="rounded-full backdrop-blur-sm"
+            className="inline-flex rounded-full backdrop-blur-sm [&>button]:inline-flex [&>button]:items-center [&>button]:justify-center [&>button]:w-11 [&>button]:h-11"
             style={{ background: 'rgba(8,4,18,0.65)', border: '1px solid rgba(255,255,255,0.12)' }}
           >
             <WishlistToggle
@@ -236,8 +280,14 @@ export function TourCard({ tour, language }: TourCardProps) {
       {/* ── 정보 영역 ── */}
       <div className="px-3.5 py-3 sm:px-4 sm:py-3.5">
 
-        {/* 제목 */}
-        <h3 className="text-[14px] sm:text-[15px] font-bold text-white leading-snug mb-1 group-hover:text-purple-200 transition-colors duration-200 line-clamp-1">
+        {/* 제목 — 최대 2줄.
+            line-clamp-1 은 '한국 멀티시티 3일 2박 (서울·경주·부산)' / 'Korea Multi-City 3D2N
+            (Seoul · Gyeongju · Busan)' 처럼 카드 폭보다 긴 제목을 390/768/1440 어디서나 잘라
+            상품을 식별할 수 없게 만들었다. 2줄로 열되, `min-h` 로 1줄 제목도 2줄 자리를 차지하게
+            해서 그리드 한 줄 안의 카드들이 같은 높이로 정렬된다(제목 길이에 따라 아래 메타·CTA
+            줄이 어긋나지 않게). 2.75em = leading-snug(1.375) × 2줄 — 폰트 크기가 14/15px 로
+            달라져도 em 이라 같이 따라간다. */}
+        <h3 className="text-[14px] sm:text-[15px] font-bold text-white leading-snug mb-1 group-hover:text-purple-200 transition-colors duration-200 line-clamp-2 min-h-[2.75em] break-words">
           {title}
         </h3>
 
@@ -259,15 +309,15 @@ export function TourCard({ tour, language }: TourCardProps) {
           </span>
         </div>
 
-        {/* 포함 뱃지 — CocoTrip "No Hidden Fees" 표시 */}
+        {/* 포함 뱃지 — 실제로 포함되는 3가지만. "숨은 비용 없음" 은 사실이 아니다(식사·입장료 별도, #1276). */}
         <div className="flex flex-wrap gap-1 mb-2.5 sm:mb-3">
-          {['Tolls', 'Parking', 'Tips'].map(item => (
+          {INCLUDED_LABELS.map(item => (
             <span
-              key={item}
+              key={item.en}
               className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
               style={{ background: 'rgba(16,185,129,0.10)', color: 'rgba(110,231,183,0.85)', border: '1px solid rgba(16,185,129,0.20)' }}
             >
-              ✓ {item}
+              ✓ {item[language]}
             </span>
           ))}
         </div>
