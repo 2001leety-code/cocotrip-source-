@@ -8,6 +8,8 @@
  *    gradient/glass/inline hex 부재.
  * 4. dialog aria 관계(role/aria-modal/aria-labelledby/aria-describedby)가 실제 h2/p id 와 일치.
  * 5. open 시 primary 버튼(Continue)으로 초점 이동, 닫힐 때 열기 전 초점으로 복원.
+ * 6. open 동안 Tab/Shift+Tab 이 Continue ↔ Start over 사이에서만 순환(포커스 트랩), 배경
+ *    요소로 탈출하지 않음. body 배경 스크롤 잠금 + 닫힐 때 이전 값 그대로 복원.
  */
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
@@ -121,5 +123,74 @@ describe('ResumeWizardModal', () => {
 
     rerender(<Harness open={false} />);
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('Tab 이 Continue → Start over → Continue 로 순환(포커스 트랩)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ResumeWizardModal open summary="Seoul" onContinue={() => {}} onRestart={() => {}} />,
+    );
+    const continueBtn = screen.getByRole('button', { name: /Continue/ });
+    const restartBtn = screen.getByRole('button', { name: /Start over/ });
+
+    expect(document.activeElement).toBe(continueBtn);
+    await user.tab();
+    expect(document.activeElement).toBe(restartBtn);
+    await user.tab();
+    expect(document.activeElement).toBe(continueBtn);
+  });
+
+  it('Continue 에서 Shift+Tab 이면 Start over 로 순환', async () => {
+    const user = userEvent.setup();
+    render(
+      <ResumeWizardModal open summary="Seoul" onContinue={() => {}} onRestart={() => {}} />,
+    );
+    const continueBtn = screen.getByRole('button', { name: /Continue/ });
+    const restartBtn = screen.getByRole('button', { name: /Start over/ });
+
+    expect(document.activeElement).toBe(continueBtn);
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(restartBtn);
+  });
+
+  it('modal 마지막 요소에서 Tab 해도 DOM 상 뒤에 있는 배경 요소로 탈출하지 않고 Continue 로 순환', async () => {
+    // 이 컴포넌트는 portal 없이 트리 안에 그대로 렌더되므로, 배경 트리거가 modal 뒤에
+    // 오면(실제 페이지에서 흔한 배치) 트랩 없이는 네이티브 Tab 순서가 그대로 새어나간다.
+    const user = userEvent.setup();
+    function Harness() {
+      return (
+        <div>
+          <ResumeWizardModal open summary="Seoul" onContinue={() => {}} onRestart={() => {}} />
+          <button type="button">outside trigger</button>
+        </div>
+      );
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'outside trigger' });
+    const continueBtn = screen.getByRole('button', { name: /Continue/ });
+    const restartBtn = screen.getByRole('button', { name: /Start over/ });
+
+    restartBtn.focus();
+    expect(document.activeElement).toBe(restartBtn);
+
+    await user.tab();
+    expect(document.activeElement).not.toBe(trigger);
+    expect(document.activeElement).toBe(continueBtn);
+  });
+
+  it('open 동안 body 스크롤 잠금, 닫히면 이전 overflow 값 그대로 복원', () => {
+    document.body.style.overflow = 'scroll'; // 다른 코드가 이미 설정해 둔 값이 있는 상황을 재현
+    const { rerender } = render(
+      <ResumeWizardModal open={false} onContinue={() => {}} onRestart={() => {}} />,
+    );
+    expect(document.body.style.overflow).toBe('scroll');
+
+    rerender(<ResumeWizardModal open onContinue={() => {}} onRestart={() => {}} />);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    rerender(<ResumeWizardModal open={false} onContinue={() => {}} onRestart={() => {}} />);
+    expect(document.body.style.overflow).toBe('scroll');
+
+    document.body.style.overflow = '';
   });
 });
