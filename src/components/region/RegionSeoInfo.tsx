@@ -34,6 +34,7 @@ import { TOUR_CUTOFF_HOURS } from '@/lib/bookingCutoff';
 import { formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildFaqJsonLd } from '@/lib/jsonLd';
+import { withEunNeun, withEulReul } from '@/components/region/koreanParticle';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -116,15 +117,15 @@ const COPY: Record<Lang, {
     ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
       tourCount > 0
         ? `정해진 투어 예약 — ${region} 코스가 이미 짜여 있습니다. 차량과 기사가 포함되고 픽업 장소에서 만납니다.`
-        : `전세 차량 — ${region} 은 정해진 투어 상품이 아직 없어서, 차량과 기사를 시간 단위로 빌려 손님이 원하는 곳으로 갑니다.`,
+        : `전세 차량 — ${withEunNeun(region)} 정해진 투어 상품이 아직 없어서, 차량과 기사를 시간 단위로 빌려 손님이 원하는 곳으로 갑니다.`,
       '전세 차량 — 일정을 손님이 정하고 차량과 기사만 빌립니다. 공항 픽업, 하루 대절, 여러 날 장거리 모두 됩니다.',
       plannerCovered
-        ? `여행 플래너 — 도시·날짜·여행 조건을 넣으면 ${region} 을 포함한 일정이 한국 현지 데이터로 자동 작성됩니다. 지하철·버스 실제 경로와 도보 지도가 붙고 PDF 로 받습니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
-        : `여행 플래너 — 현재 ${region} 은 자동 일정 대상 도시가 아닙니다. ${region} 은 전세 차량으로 가고, 자동 일정은 대상 도시에서 쓰시면 됩니다.`,
+        ? `여행 플래너 — 도시·날짜·여행 조건을 넣으면 ${withEulReul(region)} 포함한 일정이 한국 현지 데이터로 자동 작성됩니다. 지하철·버스 실제 경로와 도보 지도가 붙고 PDF 로 받습니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
+        : `여행 플래너 — 현재 ${withEunNeun(region)} 자동 일정 대상 도시가 아닙니다. ${withEunNeun(region)} 전세 차량으로 가고, 자동 일정은 대상 도시에서 쓰시면 됩니다.`,
     ],
     toursTitle: ({ region }) => `${region} 투어 상품`,
-    toursIntro: ({ region, tourCount }) => `${region} 에서 예약할 수 있는 투어 ${tourCount}건입니다. 아래 값은 상품 정보 그대로이고, 실제 결제 금액은 인원과 날짜에 따라 예약 화면에서 확정됩니다.`,
-    toursNone: ({ region }) => `${region} 은 정해진 투어 상품이 아직 없습니다. 전세 차량으로 방문하실 수 있고, 원하시는 코스를 알려 주시면 견적을 드립니다.`,
+    toursIntro: ({ region, tourCount }) => `${region}에서 예약할 수 있는 투어 ${tourCount}건입니다. 아래 값은 상품 정보 그대로이고, 실제 결제 금액은 인원과 날짜에 따라 예약 화면에서 확정됩니다.`,
+    toursNone: ({ region }) => `${withEunNeun(region)} 정해진 투어 상품이 아직 없습니다. 전세 차량으로 방문하실 수 있고, 원하시는 코스를 알려 주시면 견적을 드립니다.`,
     includedTitle: '요금에 포함되는 것',
     includedLabel: '포함',
     excludedLabel: '불포함',
@@ -154,10 +155,10 @@ const COPY: Record<Lang, {
         `${GLOBAL_INCLUDED.map((h) => h.text.ko).join(' · ')} 가 포함됩니다. ${GLOBAL_EXCLUDED.map((h) => h.text.ko).join(' · ')} 는 포함되지 않습니다.`,
       ]);
       rows.push([
-        plannerCovered ? `${region} 일정을 직접 짜고 싶으면?` : `${region} 을 자동 일정으로 짤 수 있나요?`,
+        plannerCovered ? `${region} 일정을 직접 짜고 싶으면?` : `${withEulReul(region)} 자동 일정으로 짤 수 있나요?`,
         plannerCovered
           ? `여행 플래너를 쓰시면 됩니다. 날짜·항공편과 여행 조건을 넣으면 한국 현지 데이터로 ${region} 일정을 시각까지 붙여 만들고, 장소 사이 지하철·버스 경로와 도보 지도가 함께 나옵니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
-          : `현재 ${region} 은 자동 일정 대상 도시가 아닙니다. ${region} 방문은 전세 차량이나 투어로 예약해 주세요.`,
+          : `현재 ${withEunNeun(region)} 자동 일정 대상 도시가 아닙니다. ${region} 방문은 전세 차량이나 투어로 예약해 주세요.`,
       ]);
       return rows;
     },

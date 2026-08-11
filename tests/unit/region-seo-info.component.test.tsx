@@ -19,12 +19,20 @@ void React;
 
 const REGION_IDS = INDEXABLE_ROUTES.filter((r) => r.startsWith('/region/')).map((r) => r.replace('/region/', ''));
 
-function textOf(regionId: string, language = 'en'): string {
+function textOf(regionId: string, language = 'en', regionTitle = regionId.toUpperCase()): string {
   const { container } = render(
-    <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language={language} />,
+    <RegionSeoInfo regionId={regionId} regionTitle={regionTitle} language={language} />,
   );
   return container.textContent || '';
 }
+
+// regionDetail.<id>.title (ko) — src/i18n/locales/ko.json 실측. 받침 있는/없는 지역명이
+// 섞여 있어서 은/을 을 하드코딩하면 절반은 문법이 깨진다.
+const REGION_KO_TITLE: Record<string, string> = {
+  seoul: '서울', busan: '부산', gyeongju: '경주', danyang: '단양',
+  chuncheon: '춘천', ganghwa: '강화도', incheon: '인천', paju: '파주', jeonju: '전주',
+};
+const REGION_HAS_BATCHIM = new Set(['seoul', 'busan', 'danyang', 'chuncheon', 'incheon']);
 
 describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
   it('sitemap 의 지역 페이지가 전부 투어 매핑 표에 있다', () => {
@@ -94,6 +102,27 @@ describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
     }
     for (const id of notCovered) {
       expect(textOf(id), `${id} 는 플래너 대상이 아닌데 대상처럼 썼다`).toContain('not one of the cities');
+    }
+  });
+
+  it('한국어 지역명과 조사 사이에 공백이 없고, 받침 유무에 맞는 조사가 붙는다', () => {
+    // 실측(PR #1280 P3): "서울 을"처럼 실제 지역명 뒤에 조사 앞 공백이 남았다. 지역 9개는
+    // 받침 있는 이름(서울=ㄹ, 부산=ㄴ, 단양=ㅇ, 춘천=ㄴ, 인천=ㄴ)과 받침 없는 이름(경주, 강화도,
+    // 파주, 전주)이 섞여 있어서 조사를 하드코딩하면 절반은 문법이 깨진다.
+    for (const id of REGION_IDS) {
+      const title = REGION_KO_TITLE[id];
+      expect(title, `${id}: 테스트에 ko 제목 매핑이 없다`).toBeTruthy();
+      const text = textOf(id, 'ko', title);
+
+      expect(text, `${id}: "${title}" 뒤 조사 앞에 공백이 남았다`).not.toMatch(
+        new RegExp(`${title} (은|는|을|를)`),
+      );
+
+      const [eun, eul] = REGION_HAS_BATCHIM.has(id) ? ['은', '을'] : ['는', '를'];
+      expect(
+        text.includes(`${title}${eun}`) || text.includes(`${title}${eul}`),
+        `${id}: "${title}${eun}"/"${title}${eul}" 가 안 보인다 — helper 미적용 의심`,
+      ).toBe(true);
     }
   });
 
