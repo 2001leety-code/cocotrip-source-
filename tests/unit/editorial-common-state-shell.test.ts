@@ -173,7 +173,13 @@ describe('공용 셸 조작 target 44×44', () => {
 
   it('푸터 전화 링크와 프로모 띠도 44px 이다 (둘 다 통째로 링크)', () => {
     expect(stripComments(FOOTER)).toMatch(/tel:\+821087140611[\s\S]{0,200}min-h-\[44px\]/);
-    expect(stripComments(PROMO)).toMatch(/min-h-\[44px\][^"]*w-full/);
+    const promo = stripComments(PROMO);
+    const link = promo.slice(promo.indexOf('to={activeCtaHref}'), promo.indexOf('</Link>'));
+    expect(link).toMatch(/min-h-\[44px\]/);
+    // 🔴 flex/grid 로 세로 정렬하면 안의 두 span 이 플렉스 아이템이 되어 사이 공백이
+    // 죽는다 — "…when you sign upStart free plan →" (2026-08-11 실측). 높이는
+    // padding 으로 만들고 인라인 흐름을 유지한다.
+    expect(link, 'promo strip must stay in inline flow').not.toMatch(/\b(flex|grid|inline-flex)\b/);
   });
 });
 

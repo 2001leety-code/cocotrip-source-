@@ -143,12 +143,15 @@ export function PromoBanner() {
       aria-label="Promotion"
       aria-live="polite"
     >
-      {/* 44px: 이 띠 전체가 링크라 실제 조작 target 이다 — py-2.5 만으로는 38px
-          이었다(2026-08-11 실측, 768/1440 × 4언어). 문구·CTA·추적은 무변경. */}
+      {/* 44px: 이 띠 전체가 링크라 실제 조작 target 이다 — py-2.5 만으로는 38px 이었다
+          (2026-08-11 실측, 768/1440 × 4언어). 🔴 flex/grid 로 세로 정렬하지 말 것 —
+          아래 두 span 이 플렉스 아이템이 되면서 사이 공백이 죽어 "…sign upStart free
+          plan" 으로 붙는다(같은 날 실측). block + padding 으로 높이를 만든다.
+          문구·CTA·추적은 무변경. */}
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="flex min-h-[44px] w-full items-center justify-center text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
+        className="block min-h-[44px] w-full text-center text-[12px] sm:text-[13px] font-medium py-[13px] px-9 leading-snug"
       >
         <span>{text} </span>
         <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
