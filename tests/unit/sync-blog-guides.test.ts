@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — .mjs 스크립트 lib (스크립트 전용, 타입 선언 없음)
-import { transformHtml, entryToGuide, classifyExisting, buildIndexFromLocalMeta } from '../../scripts/sync-blog-guides.lib.mjs';
+import {
+  transformHtml, entryToGuide, classifyExisting, buildIndexFromLocalMeta,
+  extractLeadImage, countWords,
+} from '../../scripts/sync-blog-guides.lib.mjs';
 
 /**
  * sync-blog-guides 결함 3종 회귀 잠금 (2026-08-01 감사).
@@ -74,5 +77,44 @@ describe('buildIndexFromLocalMeta — 로컬이 원천', () => {
     expect(idx[0].slug).toBe('newer');
     expect(idx[0]).not.toHaveProperty('html');
     expect(idx[0]).not.toHaveProperty('sourceUrl');
+  });
+});
+
+/**
+ * 목록 화면(/guide)이 대표 사진과 읽는 시간을 보여주려면 그 두 값이 목록에 있어야 한다.
+ * 글 본문 JSON 은 글별 lazy 청크라 목록에서 21개를 다 열 수 없다 — 열면 청크 분리가 무의미해진다.
+ * 그래서 **본문에서 계산해** _index.json 에 굳힌다. 사람이 적는 값이 아니다:
+ * 다음 동기화 때도 같은 계산이 다시 돌고, editorial-guide-content.test.ts 가 실제 본문과 대조한다.
+ */
+describe('_index 파생 필드 — 본문에서만 나온다', () => {
+  it('extractLeadImage: 첫 <img src> 를 그대로', () => {
+    expect(extractLeadImage('<p>a</p><img src="https://x/1.webp" alt="a"><img src="/2.webp">'))
+      .toBe('https://x/1.webp');
+  });
+
+  it('이미지가 없으면 undefined — 빈 문자열도 플레이스홀더도 아니다', () => {
+    expect(extractLeadImage('<p>no pictures here</p>')).toBeUndefined();
+  });
+
+  it('countWords: 태그와 엔티티를 걷어낸 낱말 수', () => {
+    expect(countWords('<p>one two three</p>')).toBe(3);
+    expect(countWords('<h2>a&nbsp;b</h2><p>c   d</p>')).toBe(4);
+    expect(countWords('   ')).toBe(0);
+  });
+
+  it('buildIndexFromLocalMeta 가 image·words 를 본문에서 파생해 붙인다', () => {
+    const idx = buildIndexFromLocalMeta([
+      { slug: 's', title: 'T', description: 'd', published: '2026-08-01', updated: '2026-08-02', labels: [], sourceUrl: 'u', html: '<img src="/lead.webp"><p>one two three four</p>' },
+    ]);
+    expect(idx[0].image).toBe('/lead.webp');
+    expect(idx[0].words).toBe(4);
+  });
+
+  it('이미지 없는 글에는 image 키를 만들지 않는다 (JSON 에 null 이 새지 않게)', () => {
+    const idx = buildIndexFromLocalMeta([
+      { slug: 's', title: 'T', description: 'd', published: '2026-08-01', updated: '2026-08-02', labels: [], sourceUrl: 'u', html: '<p>text only</p>' },
+    ]);
+    expect(Object.prototype.hasOwnProperty.call(idx[0], 'image')).toBe(false);
+    expect(JSON.stringify(idx[0])).not.toContain('null');
   });
 });

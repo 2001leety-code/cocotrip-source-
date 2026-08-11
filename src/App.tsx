@@ -574,9 +574,12 @@ function AnimatedRoutes() {
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
           <Route path="/community/post/:postId" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPostPage /></Suspense>} />
           <Route path="/community/new" element={<Suspense fallback={<PlannerSkeleton />}><CommunityComposePage /></Suspense>} />
-          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제) */}
-          <Route path="/guide" element={<Suspense fallback={<PlannerSkeleton />}><GuideIndexPage /></Suspense>} />
-          <Route path="/guide/:slug" element={<Suspense fallback={<PlannerSkeleton />}><GuideDetailPage /></Suspense>} />
+          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제).
+              폴백이 종이색인 이유: 가이드 본문은 Editorial Concierge(밝은 종이)로 전환됐는데
+              공용 PlannerSkeleton 은 다크(#080b14) 위저드 모양이라, 청크가 오는 동안 검은 판이
+              번쩍이고 모양도 이 화면과 무관했다. 홈과 같은 방식(빈 종이 한 장)으로 맞춘다. */}
+          <Route path="/guide" element={<Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}><GuideIndexPage /></Suspense>} />
+          <Route path="/guide/:slug" element={<Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}><GuideDetailPage /></Suspense>} />
           <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />
           <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />

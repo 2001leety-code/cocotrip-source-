@@ -69,14 +69,39 @@ export function classifyExisting(storedSourceUrl, feedSourceUrl) {
   return storedSourceUrl === feedSourceUrl ? 'same' : 'collision';
 }
 
+/** 대표 사진 = 본문의 첫 <img src>. 없으면 undefined — 빈 문자열도 대체 이미지도 만들지 않는다. */
+export function extractLeadImage(html) {
+  return /<img[^>]+src="([^"]+)"/.exec(html)?.[1];
+}
+
+/** 낱말 수(본문은 영어 채널). 태그·엔티티를 걷어낸 뒤 공백으로 자른다. */
+export function countWords(html) {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
 /**
  * _index.json 은 **로컬 글 JSON 이 원천**이다 (추가 전용 원칙의 두 번째 절반).
  *   - 피드에서 빠진 로컬 글도 목록·색인에 남는다 (피드 기준 재구성 금지).
  *   - blogspot 원문이 요약 스텁으로 교체돼도 목록 설명은 로컬 전문 기준을 유지한다.
  * 정렬 = published 내림차순(같으면 slug) — 색인·sitemap 파생이 결정론적이어야 한다.
+ *
+ * image·words 는 여기서 **본문에서 계산해** 굳힌다 (2026-08-11). 목록 화면이 대표 사진과
+ * 읽는 시간을 보이려면 그 두 값이 목록에 있어야 하는데, 글 본문 JSON 은 글별 lazy 청크라
+ * 목록에서 21편을 다 여는 것은 청크 분리를 무의미하게 만든다. 사람이 적는 값이 아니다 —
+ * 동기화 때마다 다시 계산되고, tests/unit/editorial-guide-content.test.ts 가 실제 본문과 대조한다.
  */
 export function buildIndexFromLocalMeta(metas) {
   return [...metas]
-    .map(({ html, sourceUrl, ...meta }) => meta)
+    .map(({ html, sourceUrl, ...meta }) => {
+      const image = extractLeadImage(html);
+      const words = countWords(html);
+      // 사진이 없으면 키 자체를 만들지 않는다 — JSON 에 null 이 새면 화면이
+      // "사진이 있다"고 믿고 빈 프레임을 그린다.
+      return image ? { ...meta, image, words } : { ...meta, words };
+    })
     .sort((a, b) => (a.published === b.published ? a.slug.localeCompare(b.slug) : b.published.localeCompare(a.published)));
 }
