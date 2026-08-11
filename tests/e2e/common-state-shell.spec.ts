@@ -19,7 +19,10 @@
  *     BASE_URL=http://localhost:4831 npx playwright test \
  *       tests/e2e/common-state-shell.spec.ts --project='Desktop Chrome'
  */
-import { test, expect, type Page } from '@playwright/test';
+// ⚠️ test/expect 는 반드시 공용 analytics-guard 에서 — @playwright/test 에서 직접 가져오면
+//    테스트 방문이 실제 GA4·PostHog 로 나가 운영 지표가 오염된다(mistake-lint R-P272).
+import { test, expect } from './fixtures/analytics-guard';
+import type { Page } from '@playwright/test';
 
 const LANGS = ['ko', 'en', 'ja', 'zh'] as const;
 const VIEWPORTS = [
