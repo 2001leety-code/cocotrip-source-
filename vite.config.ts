@@ -78,7 +78,7 @@ export default defineConfig({
         id: '/',
         name: 'CocoTrip',
         short_name: 'CocoTrip',
-        description: 'Premium Korea Travel — AI Planner & Private Charter',
+        description: 'Korea itineraries built from real local routes and private charter vehicles.',
         start_url: '/',
         display: 'standalone',
         background_color: '#0a0b14',
