@@ -317,10 +317,11 @@ export default function ToursPage() {
 
       {/* ── 신뢰 배지 ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-3 sm:mb-5">
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {TRUST_BADGES.map(({ icon: Icon, color, label, sub }) => (
+        <div data-testid="tours-trust-badges" className="flex flex-wrap sm:flex-nowrap gap-2 sm:overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {TRUST_BADGES.map(({ icon: Icon, color, label, sub }, idx) => (
             <div
               key={label}
+              data-testid={`tours-trust-badge-${idx}`}
               className="shrink-0 flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl"
               style={{
                 background: `${color}0d`,
