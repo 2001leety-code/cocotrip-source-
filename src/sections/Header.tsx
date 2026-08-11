@@ -565,7 +565,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               >
                 <Headphones className="w-[18px] h-[18px]" aria-hidden />
                 <span className="text-[15px] font-medium">{t.nav.liveSupport || '1:1 Support'}</span>
-                <span className="ml-auto text-[12px] font-semibold text-ec-success">24/7</span>
+                <span className="ml-auto text-[12px] font-semibold text-ec-success">
+                  {({ en: 'Weekdays 10am–6pm', ko: '평일 10~18시', ja: '平日10~18時', zh: '工作日10-18点' } as Record<Language, string>)[language]}
+                </span>
               </a>
               <a
                 href="mailto:help@cocotripkr.com"

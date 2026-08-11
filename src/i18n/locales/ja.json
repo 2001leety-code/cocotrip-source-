@@ -68,7 +68,7 @@
     "tourLine1": "プライベート · 団体 · パッケージ",
     "tourLine2": "専門ガイドとともに",
     "tourCta": "ツアーを見る",
-    "plannerTitle": "AI旅行プランナー",
+    "plannerTitle": "旅行プランナー",
     "plannerLine1": "AIがカスタム旅程を自動生成",
     "plannerLine2": "{price} · 即時 · 4言語対応",
     "plannerCta": "旅程を作成"
@@ -152,7 +152,7 @@
     "photoGallery": "フォトギャラリー",
     "planTrip": "への旅行を計画:",
     "planTripDesc": "COCOTRIPが個人にカスタマイズされたツアー体験を作ります。",
-    "aiPlannerCta": "AIプランナー",
+    "aiPlannerCta": "旅行プランナー",
     "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "ソウル",
@@ -1349,7 +1349,7 @@
     "noQuoteDefault": "サービス種類と目的地を選択すると料金が表示されます。",
     "includedTitle": "含まれるもの",
     "included1": "車両1台基準（追加人数は車両追加）",
-    "included2": "英語対応ドライバー · 24時間サポート",
+    "included2": "英語対応ドライバー · 平日サポート",
     "included3": "大型スーツケース収納可能",
     "included4": "ピックアップ案内サービス（空港ピックアップ ₩20,000追加）",
     "overtime": "超過時間 ₩{n}/時間（1グループあたり）",
@@ -1378,10 +1378,10 @@
     "heroBadge": "PREMIUM KOREA TRAVEL",
     "heroHeadline1": "あなただけの韓国旅行を",
     "heroHeadline2": "60秒で完成",
-    "heroSubtitle": "AIが日程を組み、プライベートカーと24時間英語サポートも",
+    "heroSubtitle": "AIが日程を組み、プライベートカーと平日英語サポートも",
     "heroCta": "今すぐ始める",
     "heroProofReviews": "実際のゲストレビュー",
-    "heroProofSupport": "24時間サポート",
+    "heroProofSupport": "平日サポート",
     "heroProofLicensed": "観光登録業者",
     "tourMarqueeTitle": "おすすめツアー",
     "tourMarqueeMore": "すべて見る",
@@ -1396,14 +1396,14 @@
     "promoKpopCta": "シャトル予約",
     "svcCharter": "チャーター",
     "svcCharterSub": "専用車両",
-    "svcPlanner": "AIプランナー",
+    "svcPlanner": "旅行プランナー",
     "svcPlannerSub": "旅程作成",
     "svcKpop": "K-pop",
     "svcKpopSub": "シャトル",
     "promoToursTitle": "プライベート韓国ツアー",
     "promoToursSubtitle": "ソウル · 釜山 · 慶州 · 丹陽 — オールインクルーシブ",
     "promoToursCta": "ツアーを見る",
-    "aiBannerTitle": "AI旅程自動作成",
+    "aiBannerTitle": "旅程自動作成",
     "aiBannerSubtitle": "都市と日程を入力 → 分刻みの旅程表完成",
     "memberGrade": "ランク · クーポン · Trip Coins",
     "myPlans": "マイ旅行プラン",
@@ -1413,7 +1413,7 @@
     "googleReview": "Googleレビュー",
     "googleReviewSub": "Googleで体験を共有",
     "trustPaypal": "PayPal\n安全決済",
-    "trustSupport": "24時間\nサポート",
+    "trustSupport": "平日\nサポート",
     "trustLicense": "観光登録\n事業者",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
@@ -1422,7 +1422,7 @@
     "headline1": "あなたにぴったりの",
     "headline2": "韓国旅行プランを",
     "cta": "プラン作成",
-    "catPlanner": "AIプランナー",
+    "catPlanner": "旅行プランナー",
     "catTours": "ツアー",
     "catCharter": "チャーター",
     "catMap": "マップ",
@@ -1433,7 +1433,7 @@
     "from": "最低",
     "greeting": "こんにちは、旅人さん",
     "greetingSub": "今日は韓国のどこへ行きましょう？",
-    "aiCardTitle": "AIプラン提案",
+    "aiCardTitle": "プラン提案",
     "aiCardSub": "好みに合わせたスマートプラン",
     "aiCardSample": "ソウルハイライト",
     "aiCardTags": "5日間 · 文化 · 自然 · 夜景",
@@ -1496,7 +1496,7 @@
     "subtitle": "ご利用いただいた方は、Googleに率直なご感想をお寄せください。今後のお客様の参考になります。",
     "reviewsLabel": "レビュー",
     "trustLicensed": "登録旅行業者",
-    "trustSupport": "24時間英語サポート",
+    "trustSupport": "平日英語サポート",
     "trustPrivate": "専用ガイド＆車両",
     "leaveReview": "Googleにレビューを書く"
   },
@@ -1951,20 +1951,13 @@
         "入会5%クーポン"
       ],
       "Silver": [
-        "Trip Coins 1.5% 還元",
-        "シーズン$5クーポン",
-        "優先サポート"
+        "Trip Coins 1.5% 還元"
       ],
       "Gold": [
-        "Trip Coins 2% 還元",
-        "シーズン$10クーポン",
-        "車両の優先手配"
+        "Trip Coins 2% 還元"
       ],
       "Platinum": [
-        "Trip Coins 3% 還元",
-        "シーズン$20クーポン",
-        "VIP カカオトーク対応",
-        "空港ラウンジ利用"
+        "Trip Coins 3% 還元"
       ]
     },
     "pointEmpty": "まだポイント履歴がありません。",
@@ -2142,7 +2135,7 @@
   "pageMeta": {
     "home": {
       "title": "CocoTrip — プレミアム韓国旅行",
-      "description": "韓国のプライベートツアー、チャーター車、AI旅行プランナー。空港送迎、K-popシャトル、ソウル・釜山・慶州デイツアー。"
+      "description": "韓国のプライベートツアー、チャーター車、実際の現地ルートをもとに旅行都市・日程・旅のスタイルに合わせて仕上げる韓国旅程。空港送迎、K-popシャトル、ソウル・釜山・慶州のデイツアーも。"
     },
     "about": {
       "title": "CocoTrip について",

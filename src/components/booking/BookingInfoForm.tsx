@@ -134,9 +134,9 @@ const STR = {
     payInfo: '결제 정보', payBase: '차량 기본요금', payMeeting: '공항 미팅 & 피켓', payPromo: '할인코드 적용', payTotal: '예약 총금액',
     cancelPolicy: '취소 규정', cancelFreeTitle: '무료 취소', cancelFreeDesc: '사용일 24시간 전까지 — 전액 환불',
     cancelFeeTitle: '⚠ 취소 수수료 100%', cancelFeeDesc: '사용일 24시간 전 이후 — 환불 불가',
-    trust1: '단일요금, 모든 서비스 투명하게', trust1Sub: '팁·통행료 포함, 별도 추가요금 없음',
+    trust1: '단일요금, 모든 서비스 투명하게', trust1Sub: '팁·통행료 포함',
     trust2: '항공편 지연 시 무료 대기', trust2Sub: '도착 후 약 90분간 무료 대기',
-    trust3: '영어·한국어 가능 기사 · 24시간 지원', trust3Sub: '노쇼·지각 시 보상 보장',
+    trust3: '영어·한국어 가능 기사 · 평일 지원', trust3Sub: '노쇼·지각 시 보상 보장',
   },
   en: {
     freeCancel24h: '✓ Free cancellation until 24h before use',
@@ -172,9 +172,9 @@ const STR = {
     payInfo: 'Payment summary', payBase: 'Vehicle base fare', payMeeting: 'Airport meet & greet', payPromo: 'Promo applied', payTotal: 'Total',
     cancelPolicy: 'Cancellation policy', cancelFreeTitle: 'Free cancellation', cancelFreeDesc: 'Until 24h before use — full refund',
     cancelFeeTitle: '⚠ 100% cancellation fee', cancelFeeDesc: 'Within 24h of use — non-refundable',
-    trust1: 'One transparent price', trust1Sub: 'Tips & tolls included, no extra charges',
+    trust1: 'One transparent price', trust1Sub: 'Tips & tolls included',
     trust2: 'Free waiting for flight delays', trust2Sub: 'Up to ~90 minutes free waiting after arrival',
-    trust3: 'English/Korean-speaking drivers · 24/7 support', trust3Sub: 'Compensation guaranteed for no-show or lateness',
+    trust3: 'English/Korean-speaking drivers · Weekday support', trust3Sub: 'Compensation guaranteed for no-show or lateness',
   },
   ja: {
     freeCancel24h: '✓ ご利用日の24時間前まで無料キャンセル',
@@ -210,9 +210,9 @@ const STR = {
     payInfo: 'お支払い情報', payBase: '車両基本料金', payMeeting: '空港ミーティング＆ネームボード', payPromo: '割引コード適用', payTotal: '予約総額',
     cancelPolicy: 'キャンセル規定', cancelFreeTitle: '無料キャンセル', cancelFreeDesc: 'ご利用24時間前まで — 全額返金',
     cancelFeeTitle: '⚠ キャンセル料100%', cancelFeeDesc: 'ご利用24時間前以降 — 返金不可',
-    trust1: '単一料金・すべて透明', trust1Sub: 'チップ・通行料込み、追加料金なし',
+    trust1: '単一料金・すべて透明', trust1Sub: 'チップ・通行料込み',
     trust2: 'フライト遅延時は無料待機', trust2Sub: '到着後約90分間無料待機',
-    trust3: '英語・韓国語対応ドライバー・24時間サポート', trust3Sub: 'ノーショー・遅刻時は補償保証',
+    trust3: '英語・韓国語対応ドライバー・平日サポート', trust3Sub: 'ノーショー・遅刻時は補償保証',
   },
   zh: {
     freeCancel24h: '✓ 使用日前24小时可免费取消',
@@ -248,9 +248,9 @@ const STR = {
     payInfo: '支付信息', payBase: '车辆基本费用', payMeeting: '机场接机举牌', payPromo: '已用优惠码', payTotal: '预订总额',
     cancelPolicy: '取消政策', cancelFreeTitle: '免费取消', cancelFreeDesc: '使用前24小时 — 全额退款',
     cancelFeeTitle: '⚠ 取消手续费100%', cancelFeeDesc: '使用前24小时内 — 不可退款',
-    trust1: '一口价，全程透明', trust1Sub: '含小费·过路费，无额外费用',
+    trust1: '一口价，全程透明', trust1Sub: '含小费·过路费',
     trust2: '航班延误免费等候', trust2Sub: '抵达后约90分钟免费等候',
-    trust3: '英语·韩语司机·24小时支持', trust3Sub: '爽约·迟到有补偿保障',
+    trust3: '英语·韩语司机·工作日支持', trust3Sub: '爽约·迟到有补偿保障',
   },
 } satisfies Record<DialLang, unknown>;
 type FormStrings = (typeof STR)['ko'];

@@ -206,9 +206,16 @@ describe('등급 혜택 번역', () => {
     }
   });
 
-  it('화면이 번역을 읽고 영어는 폴백으로만 남는다', () => {
+  // 🔴 2026-08-11 (fix/public-promise-truthfulness): 번역 파일의 tierBenefitList 는
+  //   시즌 쿠폰·차량 우선배정·VIP 카카오톡·라운지 등 서버가 지급하지 않는 혜택을 담고
+  //   있었다. 화면이 그 값을 그대로 신뢰하던 예전 동작(이 테스트가 지키던 것)을
+  //   근본원인으로 보고 뒤집었다 — 이제 mp.tierBenefitList 는 아예 읽지 않고,
+  //   api/_shared/loyalty-policy.js 의 실제 적립률만 보여준다.
+  it('등급 혜택은 번역 파일(tierBenefitList)을 신뢰하지 않고 실제 적립률만 보여준다', () => {
     const code = codeOf('src/pages/MyPage.tsx');
-    expect(code).toContain('tierBenefits(mp as unknown as Record<string, unknown>, tier)');
-    expect(code).toContain('TIER_BENEFITS_FALLBACK');
+    expect(code).not.toContain('dict.tierBenefitList');
+    expect(code).not.toContain('tierBenefits(mp');
+    expect(code).toContain('tierBenefits(language, tier)');
+    expect(code).toContain('TIER_EARN_PCT');
   });
 });

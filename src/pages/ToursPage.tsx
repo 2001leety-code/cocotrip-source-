@@ -217,14 +217,14 @@ export default function ToursPage() {
     {
       icon: ShieldCheck,
       color: '#B668FC',
-      label: language === 'ko' ? '추가 비용 없음' :
-             language === 'ja' ? '追加料金なし' :
-             language === 'zh' ? '无隐藏费用' :
-             'No Hidden Fees',
-      sub: language === 'ko' ? '톨비·주차 포함' :
-           language === 'ja' ? '通行料·駐車込み' :
-           language === 'zh' ? '含过路费·停车费' :
-           'Tolls · Parking incl.',
+      label: language === 'ko' ? '톨비·주차비 포함' :
+             language === 'ja' ? '通行料・駐車場込み' :
+             language === 'zh' ? '含过路费·停车费' :
+             'Tolls & Parking Incl.',
+      sub: language === 'ko' ? '식사·입장료 별도' :
+           language === 'ja' ? '食事・入場料は別' :
+           language === 'zh' ? '餐费·门票另计' :
+           'Meals & Admission Extra',
     },
     {
       icon: CreditCard,
@@ -238,7 +238,10 @@ export default function ToursPage() {
     {
       icon: Phone,
       color: '#C850C0',
-      label: '24/7', // numeric, language-neutral
+      label: language === 'ko' ? '평일 10~18시' :
+             language === 'ja' ? '平日10~18時' :
+             language === 'zh' ? '工作日10-18点' :
+             'Weekdays 10am–6pm',
       sub: language === 'ko' ? '영어 지원' :
            language === 'ja' ? '英語サポート' :
            language === 'zh' ? '英语客服' :

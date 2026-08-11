@@ -92,13 +92,13 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
 
   const svcButtons = [
     { icon: Car, label: m.svcCharter || 'Charter', sub: m.svcCharterSub || 'Vehicle', link: '/charter', color: '#B668FC' },
-    { icon: Sparkles, label: m.svcPlanner || 'AI Planner', sub: m.svcPlannerSub || 'Itinerary', link: '/planner', color: '#FF6B9D' },
+    { icon: Sparkles, label: m.svcPlanner || 'Trip Planner', sub: m.svcPlannerSub || 'Itinerary', link: '/planner', color: '#FF6B9D' },
     { icon: Music2, label: m.svcKpop || 'K-pop', sub: m.svcKpopSub || 'Shuttle', link: '/charter', color: '#C850C0' },
   ];
 
   const trustBadges = [
     { icon: Shield, label: m.trustPaypal || 'PayPal\nSecure Pay', color: '#B668FC' },
-    { icon: Clock, label: m.trustSupport || '24/7\nSupport', color: '#FF6B9D' },
+    { icon: Clock, label: m.trustSupport || 'Weekday\nSupport', color: '#FF6B9D' },
     { icon: Users, label: m.trustLicense || 'Licensed\nOperator', color: '#C850C0' },
   ];
 
@@ -146,7 +146,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
             <span className={REFINED ? 'm-accent-soft' : 'm-shimmer'}>{m.heroHeadline2 || 'planned in 60 seconds'}</span>
           </h1>
           <p className="m-hero-fade mt-2.5 text-[13px] text-white/55 leading-relaxed" style={{ animationDelay: '0.1s' }}>
-            {m.heroSubtitle || 'AI plans the days. Private chauffeur + 24/7 English support included.'}
+            {m.heroSubtitle || 'AI plans the days. Private chauffeur + weekday English support included.'}
           </p>
           <Link
             to="/planner"
@@ -167,7 +167,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <div className="m-hero-fade mt-3.5 flex items-center justify-center gap-3 text-[10.5px] text-white/45" style={{ animationDelay: '0.25s' }}>
             <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />{m.heroProofReviews || 'Real Guest Reviews'}</span>
             <span className="text-white/15">·</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.heroProofSupport || '24/7 English'}</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.heroProofSupport || 'Weekday English'}</span>
             <span className="text-white/15">·</span>
             <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" />{m.heroProofLicensed || 'Licensed Operator'}</span>
           </div>
@@ -276,7 +276,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         )}
         <Link to="/planner" className="flex items-center gap-3 px-4 py-4 rounded-2xl m-btn relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.12), rgba(255,107,157,0.08))', border: '1px solid rgba(182,104,252,0.15)' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}><Wand2 className="w-5 h-5 text-white" /></div>
-          <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'AI Itinerary Generator'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
+          <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'Itinerary Generator'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
           <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">{formatAiPlannerUsd()}</span>
           <ChevronRight className="w-4 h-4 text-purple-400/30 shrink-0" />
         </Link>

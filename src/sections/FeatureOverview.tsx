@@ -18,7 +18,7 @@ const FL: Record<Lang, { heading: string; sub: string; items: [string, string][]
     heading: 'Six ways CocoTrip covers your trip',
     sub: 'One account for planning, booking, and getting around Korea',
     items: [
-      ['AI Planner', 'Personalized day-by-day itinerary in minutes'],
+      ['Trip Planner', 'Personalized day-by-day itinerary in minutes'],
       ['Private Tours', 'Handpicked tours with driver included'],
       ['Charter', 'Airport pickup, day trips & multi-day van charter'],
       ['Route Map', 'Real transit routes on every AI plan'],
@@ -30,7 +30,7 @@ const FL: Record<Lang, { heading: string; sub: string; items: [string, string][]
     heading: '코코트립이 챙기는 6가지',
     sub: '계획부터 예약·이동까지 계정 하나로',
     items: [
-      ['AI 플래너', '몇 분 만에 나만의 일자별 일정'],
+      ['여행 플래너', '몇 분 만에 나만의 일자별 일정'],
       ['프라이빗 투어', '기사 포함 엄선 투어'],
       ['전세차량', '공항 픽업·당일·다일 차터'],
       ['경로 지도', '모든 AI 플랜에 실측 대중교통 경로'],
@@ -42,7 +42,7 @@ const FL: Record<Lang, { heading: string; sub: string; items: [string, string][]
     heading: 'CocoTripがカバーする6つの機能',
     sub: 'プランから予約・移動までアカウント一つで',
     items: [
-      ['AIプランナー', '数分でパーソナライズされた日別旅程'],
+      ['旅行プランナー', '数分でパーソナライズされた日別旅程'],
       ['プライベートツアー', 'ドライバー付き厳選ツアー'],
       ['チャーター', '空港送迎・日帰り・複数日の貸切車'],
       ['ルートマップ', '全AIプランに実測の交通ルート'],
@@ -54,7 +54,7 @@ const FL: Record<Lang, { heading: string; sub: string; items: [string, string][]
     heading: 'CocoTrip 为您覆盖的6大功能',
     sub: '从规划到预订、出行，一个账号搞定',
     items: [
-      ['AI行程规划', '几分钟生成专属每日行程'],
+      ['行程规划', '几分钟生成专属每日行程'],
       ['私人旅游', '含司机的精选旅游产品'],
       ['包车服务', '机场接送·一日游·多日包车'],
       ['路线地图', '每份AI行程附实测交通路线'],
