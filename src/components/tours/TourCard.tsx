@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Link } from 'react-router-dom';
 import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucide-react';
+import { publicBadgeTag } from '@/data/tours';
 import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
@@ -37,14 +38,10 @@ const PER_PERSON_LABEL: Record<Language, string> = {
   zh: '/人',
 };
 
-// 'Popular'/'Best Value'는 집계 근거 없는 수동 라벨이라 배지로 노출하지 않는다
-// (실제 집계는 useTourRatingAggregates 별점으로 이미 표시됨).
-const UNGROUNDED_BADGE_TAGS = new Set(['Popular', 'Best Value']);
-
+// 근거 없는 태그(Popular/Best Value/AI-Curated)는 `publicBadgeTag` 가 걸러낸다 — SSOT 는
+// src/data/tours.ts. 걸러지는 태그의 스타일은 여기 둘 필요가 없다(렌더될 수 없음).
+// 실제 집계 별점은 useTourRatingAggregates 로 이미 따로 표시된다.
 const TAG_STYLE: Record<string, { bg: string; color: string }> = {
-  Popular:     { bg: 'rgba(182,104,252,0.20)', color: '#D9A8FF' },
-  'AI-Curated':{ bg: 'rgba(255,107,157,0.18)', color: '#FF9EC2' },
-  'Best Value':{ bg: 'rgba(0,210,140,0.14)',   color: '#00D28C' },
   New:         { bg: 'rgba(255,200,80,0.15)',   color: '#FFD250' },
   'Multi-City':{ bg: 'rgba(124,92,252,0.18)',   color: '#A78BFF' },
   'Night Tour':{ bg: 'rgba(30,20,60,0.70)',     color: '#B8A0FF' },
@@ -85,8 +82,8 @@ export function TourCard({ tour, language }: TourCardProps) {
     language === 'ja' ? '詳しく見る' :
     language === 'zh' ? '查看详情' : 'View Details';
 
-  // 첫 번째 태그만 카드에 노출 (공간 절약).
-  const primaryTag = tour.tags.find((tag) => !UNGROUNDED_BADGE_TAGS.has(tag));
+  // 첫 번째 태그만 카드에 노출 (공간 절약). 근거 없는 태그는 publicBadgeTag 가 건너뛴다.
+  const primaryTag = publicBadgeTag(tour.tags);
   const tagStyle = primaryTag ? (TAG_STYLE[primaryTag] || { bg: 'rgba(255,255,255,0.10)', color: '#fff' }) : null;
 
   // 나이트 투어 오버레이
