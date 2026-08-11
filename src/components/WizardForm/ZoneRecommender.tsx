@@ -57,7 +57,6 @@ interface Props {
 
 export function ZoneRecommender({
   language,
-  isMobile,
   cityKeys,
   hotelAddress,
   recommendedZones,
@@ -105,20 +104,19 @@ export function ZoneRecommender({
   if (hotelAddress.trim().length > 0) return null;
   if (cityGroups.length === 0) return null;
 
-  const accent = isMobile ? '#B668FC' : '#7C5CFC';
   const isMultiCity = cityGroups.length > 1;
   const hasAnySelection = selectedEntries.length > 0;
 
   return (
-    <div className="mt-3 rounded-xl border border-[#7C5CFC]/20 bg-[#7C5CFC]/[0.04] p-3">
+    <div className="mt-3 rounded-ec-md border border-ec-line bg-ec-brand-wash p-3">
       <div className="flex items-start gap-2 mb-2.5">
-        <Sparkles className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} />
+        <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-ec-brand" />
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-white leading-snug">
+          <p className="text-[13px] font-semibold text-ec-ink leading-snug">
             {labelTitle || 'Need a zone recommendation?'}
           </p>
-          <p className="text-[11px] text-white/55 leading-snug mt-0.5">
-            {labelSubtitle || 'Pick a district and the AI will hub stops near it.'}
+          <p className="text-[11px] text-ec-ink-3 leading-snug mt-0.5">
+            {labelSubtitle || 'Pick a district and each day is hubbed around it.'}
           </p>
         </div>
       </div>
@@ -134,7 +132,7 @@ export function ZoneRecommender({
         return (
           <div key={ck} className={isMultiCity ? 'mt-2' : ''}>
             {isMultiCity && (
-              <p className="text-[11px] font-semibold text-white/75 mb-2 flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-ec-ink-2 mb-2 flex items-center gap-1.5">
                 <span>{cityIcon}</span>
                 <span>
                   {(labelGroupHeader || '{city} zones').replace('{city}', cityName)}
@@ -153,21 +151,17 @@ export function ZoneRecommender({
                     type="button"
                     onClick={() => { haptic('select'); onPickZone(ck, sel ? '' : z.key); }}
                     aria-pressed={sel}
-                    className={`text-left rounded-lg border p-2.5 transition-all active:scale-[0.98] ${
-                      sel
-                        ? 'bg-[#7C5CFC]/15 border-[#7C5CFC]/60'
-                        : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.07]'
-                    }`}
+                    className={`ec-option ${sel ? 'is-selected' : ''}`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[15px]">{z.icon}</span>
-                      {sel && <Check className="w-3.5 h-3.5" style={{ color: accent }} />}
+                      {sel && <Check className="w-3.5 h-3.5 text-ec-brand" />}
                     </div>
-                    <p className="text-[12px] font-bold text-white leading-tight">{name}</p>
-                    <p className="text-[10px] text-white/55 leading-tight mt-0.5 line-clamp-2">{desc}</p>
+                    <p className="text-[12px] font-bold text-ec-ink leading-tight">{name}</p>
+                    <p className="text-[10px] text-ec-ink-3 leading-tight mt-0.5 line-clamp-2">{desc}</p>
                     <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[9px] text-white/45">{z.nightlyKRW}</span>
-                      <span className="text-[9px] font-semibold" style={{ color: accent }}>
+                      <span className="text-[9px] text-ec-ink-3">{z.nightlyKRW}</span>
+                      <span className="text-[9px] font-semibold text-ec-brand">
                         {bestFor}
                       </span>
                     </div>
@@ -180,15 +174,15 @@ export function ZoneRecommender({
       })}
 
       {hasAnySelection && (
-        <p className="text-[11px] text-white/65 mt-2.5 italic">
-          {labelPick || 'AI will plan around this zone. You can still type a specific hotel above to override.'}
+        <p className="text-[11px] text-ec-ink-3 mt-2.5 italic">
+          {labelPick || 'Days are planned around this zone. You can still type a specific hotel above to override.'}
         </p>
       )}
 
       {/* Trip.com sponsored hotel CTA — shown only after zone is picked.
           2026-05-11 (B-2): 다도시 시 사용자가 첫 선택한 도시 zone 기준 CTA 노출. */}
       {primarySelection && (
-        <div className="mt-3 pt-3 border-t border-white/[0.08]">
+        <div className="mt-3 pt-3 border-t border-ec-line">
           <a
             href={buildZoneHotelLink(primarySelection.zone.name.ko, primarySelection.cityKey)}
             target="_blank"
@@ -200,20 +194,20 @@ export function ZoneRecommender({
                 city: primarySelection.cityKey, linkKey: primarySelection.zone.key,
               });
             }}
-            className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-[#0073E6]/10 border border-[#0073E6]/30 hover:bg-[#0073E6]/15 hover:border-[#0073E6]/50 transition-all active:scale-[0.99]"
+            className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-ec-md border border-ec-line bg-ec-brand-wash hover:border-ec-brand transition-colors"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-[14px]">🏨</span>
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-white leading-tight truncate">
+                <p className="text-[12px] font-semibold text-ec-ink leading-tight truncate">
                   {(labelHotelCta || 'Browse {zone} hotels on Trip.com').replace('{zone}', primarySelection.zone.name[language] || primarySelection.zone.name.en)}
                 </p>
-                <p className="text-[10px] text-white/45 leading-tight mt-0.5">
+                <p className="text-[10px] text-ec-ink-3 leading-tight mt-0.5">
                   {labelHotelSponsored || 'Sponsored · Trip.com'}
                 </p>
               </div>
             </div>
-            <ExternalLink className="w-3.5 h-3.5 text-[#4DA8FF] shrink-0" />
+            <ExternalLink className="w-3.5 h-3.5 text-ec-brand shrink-0" />
           </a>
         </div>
       )}

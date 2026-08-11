@@ -409,128 +409,16 @@ html[data-menu-open="true"] .early-bird-banner {
 }
 
 /* ═══════════════════════════════════════════════════════
-   react-day-picker v9 — CocoTrip Dark Theme
+   react-day-picker v9
+   The wizard's date range picker is the only consumer, and since 2026-08-10
+   it themes itself from `WizardStep2Details.tsx` through the library's own
+   CSS custom properties (--rdp-accent-color and friends) pointed at the
+   editorial tokens. The ~120-line dark `.cocotrip-rdp` override that used to
+   live here — hardcoded #7C5CFC, `!important` on every day cell — had no
+   element left to match once the planner moved to paper, so it went with the
+   page. `.cocotrip-calendar-wrap` is likewise unused and kept only because
+   removing a bare overflow rule is not worth a second look.
    ═══════════════════════════════════════════════════════ */
-.cocotrip-calendar-wrap {
-  overflow-x: auto;
-}
-
-.cocotrip-rdp {
-  --rdp-accent-color: #7C5CFC;
-  --rdp-accent-background-color: rgba(124, 92, 252, 0.15);
-  --rdp-day-height: 40px;
-  --rdp-day-width: 40px;
-  --rdp-day_button-height: 36px;
-  --rdp-day_button-width: 36px;
-  --rdp-day_button-border-radius: 50%;
-  --rdp-selected-border: 0;
-  --rdp-disabled-opacity: 0.3;
-  --rdp-outside-opacity: 0.2;
-  --rdp-range_start-color: #fff;
-  --rdp-range_start-background: #7C5CFC;
-  --rdp-range_start-date-background-color: #7C5CFC;
-  --rdp-range_end-color: #fff;
-  --rdp-range_end-background: rgba(124, 92, 252, 0.15);
-  --rdp-range_end-date-background-color: #7C5CFC;
-  --rdp-range_middle-background-color: rgba(124, 92, 252, 0.12);
-  --rdp-range_middle-color: #d8b4fe;
-  --rdp-range_middle-foreground: #d8b4fe;
-  color: #e5e7eb;
-  font-family: inherit;
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Month caption */
-.cocotrip-rdp .rdp-month_caption,
-.cocotrip-rdp .rdp-caption_label {
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-/* Navigation arrows */
-.cocotrip-rdp .rdp-button_previous,
-.cocotrip-rdp .rdp-button_next,
-.cocotrip-rdp .rdp-nav button {
-  color: #7C5CFC;
-  border: none;
-  background: transparent;
-}
-.cocotrip-rdp .rdp-button_previous:hover,
-.cocotrip-rdp .rdp-button_next:hover,
-.cocotrip-rdp .rdp-nav button:hover {
-  color: #fff;
-  background: rgba(124, 92, 252, 0.2);
-  border-radius: 50%;
-}
-
-/* Weekday header */
-.cocotrip-rdp .rdp-weekday {
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-/* Day cells */
-.cocotrip-rdp .rdp-day {
-  color: #e5e7eb;
-}
-
-.cocotrip-rdp .rdp-day_button {
-  border-radius: 50%;
-  transition: background 0.15s, color 0.15s;
-}
-
-.cocotrip-rdp .rdp-day_button:hover:not([disabled]) {
-  background: rgba(124, 92, 252, 0.2);
-}
-
-/* Today */
-.cocotrip-rdp .rdp-today:not(.rdp-selected) .rdp-day_button {
-  border: 1.5px solid #7C5CFC;
-  font-weight: 700;
-}
-
-/* Selected range start/end */
-.cocotrip-rdp .rdp-range_start .rdp-day_button,
-.cocotrip-rdp .rdp-range_end .rdp-day_button {
-  background: #7C5CFC !important;
-  color: #fff !important;
-  font-weight: 700;
-}
-
-/* Range middle */
-.cocotrip-rdp .rdp-range_middle .rdp-day_button {
-  background: rgba(124, 92, 252, 0.12);
-  color: #d8b4fe;
-  border-radius: 0;
-}
-
-/* Disabled days */
-.cocotrip-rdp .rdp-disabled .rdp-day_button {
-  color: #374151 !important;
-  cursor: not-allowed;
-}
-
-/* Table layout */
-.cocotrip-rdp table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 2px;
-}
-
-/* Months grid for 2-month layout */
-.cocotrip-rdp .rdp-months {
-  gap: 16px;
-  justify-content: center;
-}
-
-
-/* Selected font */
-.cocotrip-rdp .rdp-selected {
-  font-weight: 600;
-}
 
 /* ── PlanDetail utilities ── */
 @keyframes fadeIn {
@@ -862,12 +750,6 @@ html[data-menu-open="true"] .early-bird-banner {
    바탕이 이미 맞으므로 보정 cascade 자체가 필요 없다. 아래 남은 `.refined-*` 는
    이번 PR 이 건드리지 않는 페이지들 것이고, 그 페이지가 전환될 때 같이 지운다.
    설계 SSOT: docs/DESIGN-EDITORIAL-CONCIERGE.md */
-
-/* 정제 퍼플·핑크 — 위저드(플래너) 페이지 (.refined-planner; PlannerPage 가 REFINED 시 부여). OFF=완전 무효. */
-.refined-planner h1, .refined-planner h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
-.refined-planner .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
-.refined-planner .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
-.refined-planner .shadow-glow-cta, .refined-planner [class*="shadow-glow"] { box-shadow: none !important; }
 
 /* 정제 퍼플·핑크 — 플랜 결과 페이지 (.refined-plandetail). PDF 무관(pdfGenerator 별도 DOM, 자체 Noto 폰트).
    한글 본문 多 + 실플랜 없이 시각검증 어려워 안전한 글로우 제거 + 소프트 액센트만(세리프 생략). OFF=완전 무효. */
@@ -3259,105 +3141,24 @@ textarea.community-field {
   }
 }
 
-/* CocoTrip AI Planner mobile light system */
 @media (max-width: 768px) {
-  .planner-mobile-ai {
-    min-height: 100vh;
-    color: #15143d;
-    background:
-      radial-gradient(circle at 85% 8%, rgba(255, 107, 215, 0.18), transparent 28%),
-      radial-gradient(circle at 12% 26%, rgba(124, 92, 255, 0.16), transparent 30%),
-      linear-gradient(180deg, #fbfaff 0%, #f5f2ff 45%, #ffffff 100%);
-    padding-bottom: 86px;
-  }
-
-  .planner-mobile-ai > header {
-    background: rgba(255, 255, 255, 0.78) !important;
-    border-bottom: 1px solid rgba(124, 92, 255, 0.10) !important;
-    box-shadow: 0 10px 30px rgba(48, 39, 118, 0.08);
-  }
-  .planner-mobile-ai > header a,
-  .planner-mobile-ai > header button {
-    color: #15143d !important;
-  }
-  .planner-mobile-ai > header svg {
-    color: #7653f6 !important;
-  }
-
-  /* 2026-08-06: 라이트 셸 위의 흰 글씨 두 건.
-     `/planner` 데스크톱은 어두운 배경이라 두 컴포넌트 모두 흰 글씨로 짜여 있는데,
-     모바일 위저드만 라이트 셸(위 `.planner-mobile-ai { color:#15143d }`)이라
-     **흰 배경에 흰 글씨**가 됐다.
-       - `.ai-planner-pricing-note` — 2026-07-30 에 "화면에 금액이 한 글자도 없다"를
-         고치려고 만든 컴포넌트인데, 정작 모바일에서 `$9.90` 줄이 안 보였다. 고치려던
-         문제가 모바일에만 그대로 남아 있었던 셈이다.
-       - `.planner-seo-info` — 같은 날 새로 붙인 색인용 본문.
-     🔑 대비 계산으로는 안 잡힌다. 스크립트가 투명 부모를 타고 올라가 **먼 조상의**
-     어두운 배경(#0a0b14)을 집어 19:1 로 통과시켰다. 실제 배경은 이 규칙의 그라데이션이다.
-     판정은 스크린샷으로 할 것. */
-  .planner-mobile-ai .ai-planner-pricing-note,
-  .planner-mobile-ai .planner-seo-info {
-    color: #4a4570 !important;
-    border-color: rgba(124, 92, 255, 0.18) !important;
-  }
-  .planner-mobile-ai .ai-planner-pricing-note {
-    background: rgba(124, 92, 255, 0.05) !important;
-  }
-  .planner-mobile-ai .ai-planner-pricing-note span,
-  .planner-mobile-ai .planner-seo-info :is(li, p, dd) {
-    color: #4a4570 !important;
-  }
-  .planner-mobile-ai .ai-planner-pricing-note p {
-    color: #6b6790 !important;
-  }
-  /* 강조(가격·제목·질문)는 셸 본문색과 같은 진한 잉크로 */
-  .planner-mobile-ai .ai-planner-pricing-note li:last-of-type span,
-  .planner-mobile-ai .planner-seo-info :is(h2, dt, strong) {
-    color: #15143d !important;
-  }
-  /* 쿠폰 줄 핑크(#FF6B9D)는 라이트 배경에서 대비 2.4:1 로 읽히지 않는다 → 진한 자홍 */
-  .planner-mobile-ai .ai-planner-pricing-note li:nth-of-type(2) span {
-    color: #c2185b !important;
-  }
-
-  .planner-mobile-ai .mobile-bottom-nav,
-  .planner-mobile-active .mobile-bottom-nav {
-    background: rgba(255, 255, 255, 0.92) !important;
-    border-top: 1px solid rgba(124, 92, 255, 0.12) !important;
-    box-shadow: 0 -14px 34px rgba(48, 39, 118, 0.10);
-  }
-
-  .coco-ai-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    color: #7653f6;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,255,0.88)),
-      radial-gradient(circle at 70% 10%, rgba(255, 107, 215, 0.22), transparent 48%);
-    border: 1px solid rgba(124, 92, 255, 0.12);
-    box-shadow: 0 10px 22px rgba(124, 92, 255, 0.14);
-  }
-  .coco-ai-icon.is-active {
-    color: #fff;
-    background: linear-gradient(135deg, #7c5cff 0%, #ff5fc8 100%);
-    box-shadow: 0 12px 24px rgba(124, 92, 255, 0.24);
-  }
-
-  /* CocoStepper 라이트 셸 값 — 위자드(planner-mobile-ai)·차터(cocotrip-mobile-charter) 공통 */
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  /* 2026-08-10 (Editorial Concierge phase 2): `/planner` 는 이제 종이 위에서
+     그린다. 여기 있던 `planner-mobile-ai …` 라이트 셸 보정(약 90줄, 대부분
+     `!important`)은 다크 본문을 모바일에서만 되돌리려고 존재했고, 본문이
+     전환되면서 함께 사라졌다. 아래 CocoStepper 값은 차터·플랜상세·투어가
+     계속 쓰므로 남기되, 셀렉터에서 플래너만 뺐다. */
+  /* CocoStepper 라이트 셸 값 — 차터(cocotrip-mobile-charter) 공통 */
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-line {
     background: rgba(124, 92, 255, 0.16);
   }
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-line.is-done {
     background: var(--coco-cta-gradient);
   }
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot {
     color: #9b93b7 !important;
@@ -3366,14 +3167,14 @@ textarea.community-field {
   }
   /* is-done/is-active 는 배경까지 재명시 — 위 라이트 기본 dot 규칙(background:#fff)이
      같은 명시도·뒤 순서라 base 의 .is-active 그라데이션을 덮어버림 (2026-07-19 실검증에서 발견). */
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-done {
     color: #ffffff !important;
     background: var(--coco-purple);
     border-color: transparent;
   }
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-stepper-dot.is-active {
     color: #ffffff !important;
@@ -3381,141 +3182,12 @@ textarea.community-field {
     border-color: transparent;
     box-shadow: 0 6px 14px rgba(124, 92, 255, 0.35);
   }
-  :is(.planner-mobile-ai, .planner-detail-mobile-ai, .cocotrip-mobile-charter,
+  :is(.planner-detail-mobile-ai, .cocotrip-mobile-charter,
       .cocotrip-mobile-tours, .cocotrip-mobile-tour-detail, .cocotrip-mobile-account,
       .cocotrip-mobile-plans, .cocotrip-mobile-home) .coco-step-badge {
     background: rgba(124, 92, 255, 0.10) !important;
     border-color: rgba(124, 92, 255, 0.25) !important;
     color: var(--coco-purple) !important;
-  }
-
-  .planner-mobile-panel,
-  .planner-mobile-mini-card,
-  .planner-mobile-mode-card,
-  .planner-mobile-ai .m-card {
-    background: rgba(255, 255, 255, 0.86) !important;
-    border: 1px solid rgba(124, 92, 255, 0.12) !important;
-    box-shadow: 0 16px 32px rgba(48, 39, 118, 0.10) !important;
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
-
-  .planner-mobile-panel {
-    border-radius: 20px;
-  }
-
-  .planner-mobile-principles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .planner-mobile-mini-card {
-    display: flex;
-    min-height: 58px;
-    align-items: center;
-    gap: 8px;
-    border-radius: 18px;
-    padding: 9px;
-  }
-  .planner-mobile-mini-card span:last-child {
-    color: #191840;
-    font-size: 10.5px;
-    font-weight: 900;
-    line-height: 1.15;
-  }
-
-  .planner-mobile-mode-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .planner-mobile-mode-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-radius: 20px;
-    padding: 12px;
-    text-align: left;
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-  }
-  .planner-mobile-mode-card.is-active {
-    border-color: rgba(124, 92, 255, 0.38);
-    box-shadow: 0 18px 34px rgba(124, 92, 255, 0.16);
-  }
-  .planner-mobile-mode-card:active {
-    transform: scale(.985);
-  }
-
-  .planner-mobile-form,
-  .planner-mobile-course-shell,
-  .planner-mobile-result {
-    color: #15143d;
-  }
-
-  .planner-mobile-form [class*="text-white"],
-  .planner-mobile-course-shell [class*="text-white"],
-  .planner-mobile-result [class*="text-white"] {
-    color: #15143d !important;
-  }
-  .planner-mobile-form [class*="text-white/"],
-  .planner-mobile-course-shell [class*="text-white/"],
-  .planner-mobile-result [class*="text-white/"] {
-    color: #746b94 !important;
-  }
-  .planner-mobile-form button[style*="linear-gradient"],
-  .planner-mobile-course-shell button[style*="linear-gradient"],
-  .planner-mobile-result button[style*="linear-gradient"],
-  .planner-mobile-form button[style*="linear-gradient"] *,
-  .planner-mobile-course-shell button[style*="linear-gradient"] *,
-  .planner-mobile-result button[style*="linear-gradient"] *,
-  .planner-mobile-form .m-cta,
-  .planner-mobile-course-shell .m-cta,
-  .planner-mobile-result .m-cta,
-  .planner-mobile-form .m-cta *,
-  .planner-mobile-course-shell .m-cta *,
-  .planner-mobile-result .m-cta * {
-    color: #fff !important;
-  }
-
-  .planner-mobile-form input,
-  .planner-mobile-form textarea,
-  .planner-mobile-form select,
-  .planner-mobile-course-shell input,
-  .planner-mobile-course-shell textarea,
-  .planner-mobile-course-shell select,
-  .planner-mobile-result input,
-  .planner-mobile-result textarea,
-  .planner-mobile-result select {
-    background: rgba(255, 255, 255, 0.92) !important;
-    border-color: rgba(124, 92, 255, 0.16) !important;
-    color: #15143d !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
-  }
-  .planner-mobile-form input::placeholder,
-  .planner-mobile-form textarea::placeholder,
-  .planner-mobile-course-shell input::placeholder,
-  .planner-mobile-course-shell textarea::placeholder,
-  .planner-mobile-result input::placeholder,
-  .planner-mobile-result textarea::placeholder {
-    color: #9b93b7 !important;
-  }
-
-  .planner-mobile-course-shell section,
-  .planner-mobile-course-shell aside,
-  .planner-mobile-course-shell [style*="rgba(12,8,24"],
-  .planner-mobile-course-shell [style*="rgba(10,4,18"] {
-    background: rgba(255, 255, 255, 0.86) !important;
-    border-color: rgba(124, 92, 255, 0.12) !important;
-  }
-
-  .planner-mobile-course-shell a {
-    color: #6f4df5 !important;
-  }
-
-  .planner-mobile-ai .leaflet-container {
-    filter: saturate(1.04) brightness(1.04);
   }
 
   /* CocoTrip AI Planner result mobile light system */
@@ -3754,9 +3426,7 @@ textarea.community-field {
     .cocotrip-mobile-tours,
     .cocotrip-mobile-tour-detail,
     .cocotrip-mobile-account,
-    .cocotrip-mobile-plans,
-    .planner-mobile-ai,
-    .planner-detail-mobile-ai,
+    .cocotrip-mobile-plans,    .planner-detail-mobile-ai,
     .cocotrip-mobile-auth
   ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button[style*="linear-gradient"], a[style*="linear-gradient"], button[style*="#B668FC"], a[style*="#B668FC"], button[style*="#7C5CFC"], a[style*="#7C5CFC"], button[style*="#EA537E"], a[style*="#EA537E"]) {
     transition-property: transform, box-shadow, filter, background-color, border-color, color, opacity;
@@ -3772,9 +3442,7 @@ textarea.community-field {
     .cocotrip-mobile-tours,
     .cocotrip-mobile-tour-detail,
     .cocotrip-mobile-account,
-    .cocotrip-mobile-plans,
-    .planner-mobile-ai,
-    .planner-detail-mobile-ai,
+    .cocotrip-mobile-plans,    .planner-detail-mobile-ai,
     .cocotrip-mobile-auth
   ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button[style*="linear-gradient"], a[style*="linear-gradient"], button[style*="#B668FC"], a[style*="#B668FC"], button[style*="#7C5CFC"], a[style*="#7C5CFC"], button[style*="#EA537E"], a[style*="#EA537E"]):active {
     transform: translateY(1px) scale(0.98) !important;
@@ -3788,9 +3456,7 @@ textarea.community-field {
     .cocotrip-mobile-tours,
     .cocotrip-mobile-tour-detail,
     .cocotrip-mobile-account,
-    .cocotrip-mobile-plans,
-    .planner-mobile-ai,
-    .planner-detail-mobile-ai
+    .cocotrip-mobile-plans,    .planner-detail-mobile-ai
   ) :where(.m-cta, .m-cta-refined, button[style*="linear-gradient"], a[style*="linear-gradient"]):active {
     box-shadow: 0 8px 18px rgba(124, 92, 255, 0.22) !important;
   }
@@ -4358,9 +4024,7 @@ textarea.community-field {
       .cocotrip-mobile-tours,
       .cocotrip-mobile-tour-detail,
       .cocotrip-mobile-account,
-      .cocotrip-mobile-plans,
-      .planner-mobile-ai,
-      .planner-detail-mobile-ai,
+      .cocotrip-mobile-plans,      .planner-detail-mobile-ai,
       .cocotrip-mobile-auth
     ) :where(.m-btn, .m-cta, .m-cta-refined, .tour-chip, .mobile-home-tour-card, button, a):active,
     .mobile-bottom-nav a:active,

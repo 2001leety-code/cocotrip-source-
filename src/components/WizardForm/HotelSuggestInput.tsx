@@ -72,20 +72,20 @@ export function HotelSuggestInput({ value, onChange, placeholder, className, lan
         autoComplete="off"
       />
       {loading && (
-        <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+        <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-ec-ink-3 pointer-events-none" />
       )}
       {open && items.length > 0 && (
-        <div className="absolute z-30 left-0 right-0 mt-1 rounded-xl border border-white/12 bg-[#1a1a24] shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+        <div className="absolute z-30 left-0 right-0 mt-1 rounded-ec-md border border-ec-line bg-ec-raised shadow-ec-overlay overflow-hidden max-h-64 overflow-y-auto">
           {items.map((it, i) => (
             <button
               key={i}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); pick(it); }}
-              className="w-full text-left px-4 py-2.5 hover:bg-white/[0.06] border-b border-white/[0.05] last:border-0"
+              className="w-full min-h-[44px] text-left px-4 py-2.5 hover:bg-ec-sunken border-b border-ec-line last:border-0"
             >
-              <div className="text-sm text-white/90">{it.name || it.title}</div>
+              <div className="text-sm text-ec-ink-2">{it.name || it.title}</div>
               {(it.roadAddress || it.address) && (
-                <div className="text-[11px] text-white/45 mt-0.5">{it.roadAddress || it.address}</div>
+                <div className="text-[11px] text-ec-ink-3 mt-0.5">{it.roadAddress || it.address}</div>
               )}
             </button>
           ))}
