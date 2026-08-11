@@ -177,6 +177,21 @@ constant; its `getPromoConfig` normalizes a Firestore `admin_config/promo_banner
 the new copy only when a language's stored value exactly matches the pre-2026-08-10
 default (`LEGACY_DEFAULT_PROMO_COPY`) — an operator's own custom wording is left alone.
 
+2026-08-11: the phase-2 pass above re-framed the planner's *own* components but not
+the strings the wizard prints, and those were still casting the model as the party
+doing the work — `AI will suggest accommodations`, `AI가 그 근처를 거점으로 일정을
+짭니다`, `AIがプランを完成できませんでした`, `只需要AI行程`. Ten keys across
+`planner.errors.GEMINI_*`, the reservation quadrants, the accommodation opt-in, the
+zone recommender and the value banner now name the itinerary instead, in all four
+languages **and** in the English literals the components fall back to. Three related
+fixes rode along: `planner.wizardNoAnchorHint` existed in no locale at all, so ko / ja
+/ zh readers got the component's English literal; `pageMeta.planner.description` and
+`PlannerSeoInfo`'s `keepIntro` sold themselves by comparison to AI itineraries and now
+lead with Korean transit and restaurant data against the traveller's own dates, cities,
+pace and diet; and `pageMeta.planner.title` keeps the search term, which is still the
+sanctioned exception. `tests/unit/editorial-planner-journey.test.ts` §5 pins all of it,
+including fallback-to-`en.json` parity so a literal cannot drift back on its own.
+
 Claims must be backed by code that exists. Verified at the time of writing:
 
 | Claim you may make | Backed by |

@@ -11,14 +11,21 @@
 //       one-accent system no longer has. It takes `language` instead, which is
 //       what it actually needed.
 //   The markdown-table parsing below is untouched.
+// 2026-08-11: the two shape-normalising IIFEs below moved to
+//   `../lib/quickPreviewText` — they were typed with `as any` and closed by
+//   empty `catch {}` blocks (six ESLint errors), and nothing could test them
+//   because reaching them meant rendering this card. Behaviour is unchanged;
+//   `tests/unit/planner-quick-preview-text.test.ts` now calls them directly.
 import { MapPin } from 'lucide-react';
 import type { PlannerDict } from '../types';
 import { pickPlannerCopy } from '../plannerCopy';
+import { resolveNarrative, resolveMarkdownTable } from '../lib/quickPreviewText';
+import type { QuickPreviewField } from '../lib/quickPreviewText';
 
 interface QuickPreviewData {
   themes?: string[];
-  marketingNarrative?: string | Record<string, unknown>;
-  day1MarkdownTable?: string | Record<string, unknown>;
+  marketingNarrative?: QuickPreviewField;
+  day1MarkdownTable?: QuickPreviewField;
 }
 
 export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: QuickPreviewData; p: PlannerDict; language: string }) {
@@ -40,36 +47,13 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Qu
       <div className="ec-panel-quiet mt-4">
         <p className="ec-eyebrow">{p.quickPreviewNarrative}</p>
         <p className="ec-body-sm ec-measure mt-2 text-ec-ink-2">
-          {(() => {
-            let narrative = resultQuick.marketingNarrative;
-            if (!narrative) return c.preview.narrativeFallback;
-            if (typeof narrative === 'object') {
-              narrative = (narrative as any).full_narrative || (narrative as any).text || (narrative as any).content || (narrative as any).summary || Object.values(narrative as Record<string, unknown>).find(v => typeof v === 'string' && (v as string).length > 20) || JSON.stringify(narrative);
-            }
-            if (typeof narrative === 'string' && narrative.trim().startsWith('{')) {
-              try { const parsed = JSON.parse(narrative); narrative = parsed.full_narrative || parsed.text || parsed.content || narrative; } catch {}
-            }
-            if (typeof narrative === 'string') {
-              narrative = narrative.replace(/^\{[^}]*"(themes|marketingNarrative)"[^}]*$/g, '');
-              narrative = narrative.replace(/[{}"[\]]/g, '').replace(/\s*,\s*/g, ', ').trim();
-            }
-            return String(narrative || c.preview.narrativeFallback).slice(0, 500);
-          })()}
+          {resolveNarrative(resultQuick.marketingNarrative, c.preview.narrativeFallback)}
         </p>
       </div>
 
       {(() => {
-        let table = resultQuick.day1MarkdownTable;
-        if (!table) return null;
-        if (typeof table === 'object') { table = (table as Record<string, unknown>).content as string || (table as Record<string, unknown>).table as string || JSON.stringify(table, null, 2); }
-        if (typeof table === 'string') {
-          table = table.replace(/\\n/g, '\n');
-          if (table.trim().startsWith('{') || table.trim().startsWith('[')) {
-            try { const parsed = JSON.parse(table); table = parsed.content || parsed.table || JSON.stringify(parsed, null, 2); } catch {}
-          }
-        }
-        if (!table || (typeof table === 'string' && table.trim().length < 10)) return null;
-        const tableStr = String(table);
+        const tableStr = resolveMarkdownTable(resultQuick.day1MarkdownTable);
+        if (!tableStr) return null;
         const tableLines = tableStr.split('\n').filter((l: string) => l.trim().startsWith('|'));
         // separator 행 제거 — multi-column "| --- | --- |" 은 셀 사이 | 때문에 [\s:\-] 만으론 안 걸러짐 → | 포함(미리보기 "--- ---" 가짜행 fix).
         const dataLines = tableLines.filter((l: string) => !l.match(/^\|[\s:\-|]+\|$/));

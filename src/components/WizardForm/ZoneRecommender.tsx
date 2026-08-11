@@ -116,7 +116,7 @@ export function ZoneRecommender({
             {labelTitle || 'Need a zone recommendation?'}
           </p>
           <p className="text-[11px] text-ec-ink-3 leading-snug mt-0.5">
-            {labelSubtitle || 'Pick a district and the AI will hub stops near it.'}
+            {labelSubtitle || 'Pick a district and each day is hubbed around it.'}
           </p>
         </div>
       </div>
@@ -175,7 +175,7 @@ export function ZoneRecommender({
 
       {hasAnySelection && (
         <p className="text-[11px] text-ec-ink-3 mt-2.5 italic">
-          {labelPick || 'AI will plan around this zone. You can still type a specific hotel above to override.'}
+          {labelPick || 'Days are planned around this zone. You can still type a specific hotel above to override.'}
         </p>
       )}
 

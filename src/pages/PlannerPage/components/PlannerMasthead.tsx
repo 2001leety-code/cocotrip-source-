@@ -85,17 +85,23 @@ export function PlannerEvidence({ copy, isMobile }: { copy: PlannerCopy; isMobil
         <p className="ec-eyebrow">{e.eyebrow}</p>
         <h2 className="ec-h3 mt-3 ec-measure">{e.heading}</h2>
 
+        {/* A `dl` grouping `div` may hold one or more `dt` followed by one or
+            more `dd`, and nothing else — the figure-first version put a `dd`
+            before its `dt` and closed with a bare `p`, so the list carried no
+            term/description pairing at all. Reading order is now term → figure
+            → note; `order-first` on the figure keeps the measurement on top
+            visually, which is the whole point of a ledger. */}
         <dl className="mt-8 grid sm:grid-cols-3">
           {e.items.map((item, i) => (
             <div
               key={item.label}
-              className={`border-t border-ec-line py-5 sm:py-6 ${
+              className={`flex flex-col border-t border-ec-line py-5 sm:py-6 ${
                 i > 0 ? 'sm:border-l sm:pl-6' : ''
               } ${i < e.items.length - 1 ? 'sm:pr-6' : ''}`}
             >
-              <dd className="ec-figure text-[clamp(26px,3.4vw,40px)] leading-none">{item.figure}</dd>
-              <dt className="mt-2.5 text-[14px] font-semibold text-ec-ink">{item.label}</dt>
-              <p className="ec-body-sm mt-1.5 text-ec-ink-3">{item.note}</p>
+              <dt className="order-2 mt-2.5 text-[14px] font-semibold text-ec-ink">{item.label}</dt>
+              <dd className="order-first ec-figure text-[clamp(26px,3.4vw,40px)] leading-none">{item.figure}</dd>
+              <dd className="order-3 ec-body-sm mt-1.5 text-ec-ink-3">{item.note}</dd>
             </div>
           ))}
         </dl>

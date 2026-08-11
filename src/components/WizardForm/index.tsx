@@ -864,7 +864,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         // 여기만 영어 하드코딩이었음. code 매칭 우선, 없으면 서버 error, 최후 영어 폴백.
         const genErrors = (t.planner as unknown as { errors?: Record<string, string> }).errors || {};
         if (data.code === 'GEMINI_TIMEOUT') {
-          setErrorMsg(genErrors.GEMINI_TIMEOUT || 'AI is taking too long. Please try again in a moment.');
+          setErrorMsg(genErrors.GEMINI_TIMEOUT || 'Writing your itinerary is taking longer than usual. Please wait a moment and try again.');
         } else {
           setErrorMsg((data.code && genErrors[data.code]) || data.error || genErrors.UNKNOWN_ERROR || 'Something went wrong. Please try again.');
         }

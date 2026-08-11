@@ -825,8 +825,8 @@ export function WizardStep2Details(props: Step2Props) {
           }}
             className="w-5 h-5 rounded-ec-sm border-ec-line-2 bg-ec-raised accent-ec-brand" />
           <div>
-            <p className="text-sm font-semibold text-ec-ink">{p.accomOptIn || 'Get AI hotel recommendations'}</p>
-            <p className="text-[11px] text-ec-ink-3">{p.accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
+            <p className="text-sm font-semibold text-ec-ink">{p.accomOptIn || 'Suggest hotels for me'}</p>
+            <p className="text-[11px] text-ec-ink-3">{p.accomOptInSub || 'Picked near the main activity zone of your trip, at the budget level you set'}</p>
           </div>
         </label>
         {wantAccom && (

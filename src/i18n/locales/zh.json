@@ -557,8 +557,8 @@
     "step4": "正在计算行程时间…",
     "errorTitle": "行程生成失败",
     "errors": {
-      "GEMINI_TIMEOUT": "AI响应时间较长，请稍等片刻后再试。",
-      "GEMINI_ERROR": "AI未能完成您的行程，请重试。",
+      "GEMINI_TIMEOUT": "行程生成时间比平时长，请稍等片刻后再试。",
+      "GEMINI_ERROR": "未能完成您的行程，请重试。",
       "PAYMENT_REQUIRED": "缺少支付信息，请重新完成支付。",
       "PAYMENT_INCOMPLETE": "支付尚未确认，请稍后重试。",
       "DUPLICATE_ORDER": "此支付已被使用，请查看您之前收到的邮件。",
@@ -988,10 +988,10 @@
     "resFlightTitle": "已订机票",
     "resFlightSub": "需要酒店 + 行程",
     "resFlightHotelTitle": "机票 + 酒店已订",
-    "resFlightHotelSub": "只需要AI行程",
+    "resFlightHotelSub": "只需要行程",
     "resAllDoneTitle": "通过CocoTrip全部预订",
-    "resAllDoneSub": "只需要AI行程",
-    "resAllDoneNote": "准备就绪！在后续步骤中填写行程详情后，我们将为您生成专属AI行程。",
+    "resAllDoneSub": "只需要逐日行程",
+    "resAllDoneNote": "准备就绪！在后续步骤中填写日期、城市、行程节奏和饮食限制，我们就按这些条件为您编排韩国行程。",
     "resFlightDetails": "航班信息（用于推荐合适的机场交通）",
     "resAirport": "到达机场",
     "resPickAirport": "选择…",
@@ -1065,8 +1065,8 @@
     "adCharterCtaWa": "或通过WhatsApp发送",
     "whyChose": "为什么推荐这里",
     "outroExtrasTitle": "旅行准备推荐",
-    "accomOptIn": "获取AI住宿推荐",
-    "accomOptInSub": "AI将根据您的行程推荐住宿",
+    "accomOptIn": "为我推荐住宿",
+    "accomOptInSub": "在行程主要活动区域附近，按您选择的预算挑选",
     "accomBudgetLabel": "住宿预算",
     "accomBudget1": "经济型",
     "accomBudget2": "中档",
@@ -1207,7 +1207,7 @@
     "stairs_limited": "尽量避免楼梯",
     "hotel_placeholder": "例如: 乐天酒店明洞、新罗Stay江南...",
     "zoneRecommendTitle": "需要住宿区域推荐吗?",
-    "zoneRecommendSubtitle": "选择一个区域，AI 会以该区域为中心安排行程。",
+    "zoneRecommendSubtitle": "选择一个区域，每天的动线就以该区域为中心安排。",
     "zoneRecommendPicked": "行程将围绕此区域规划。在上方直接输入酒店名称可覆盖此设置。",
     "zoneHotelCta": "在 Trip.com 上查看{zone}酒店",
     "zoneHotelSponsored": "广告 · Trip.com",
@@ -1231,7 +1231,7 @@
     "optionAfeature5": "✓ 经实际韩国数据库验证 — 无虚假地点",
     "optionAfeatureRevision": "免费重新生成2次 — 不满意可重新生成！",
     "valueBannerMain": "{price} — 共3份行程！",
-    "valueBannerSub": "1次购买 + 2次免费修改 = 3个版本 — 附AI路线升级 + 包车·行程5%优惠券。",
+    "valueBannerSub": "1次购买 + 2次免费修改 = 3个版本 — 附路线升级 + 包车·行程5%优惠券。",
     "optionBtitle": "预订机票 + 酒店 — 免费获取计划",
     "optionBdesc": "通过我们预订机票和酒店,免费获得完整计划",
     "optionBcondition": "⚠️ 需要预订1张机票 + 1晚酒店",
@@ -1261,6 +1261,7 @@
     "wizardPaxUnit": "人",
     "wizardActivitiesLabel": "活动",
     "wizardHotelLabel": "酒店",
+    "wizardNoAnchorHint": "根据上方的城市和日期，为每天定一个实用的出发点。",
     "wizardTapToEdit": "点击卡片修改",
     "wizardWhatYouGet": "完整行程包含",
     "wizardGetItem1": "逐分钟每日行程表",
@@ -2164,8 +2165,8 @@
       "description": "查看和管理您的 AI 生成的韩国旅行行程。"
     },
     "planner": {
-      "title": "AI 旅行规划 — 定制韩国行程",
-      "description": "使用 AI 创建您的个性化韩国旅行行程。AI 驱动、即时、多语言支持。首尔、釜山、济州等。"
+      "title": "AI 旅行规划 — 含真实地点与交通的韩国行程",
+      "description": "填写日期、城市、行程节奏和饮食限制，用韩国本地数据生成行程：真实地点，以及地点之间的地铁与公交路线。首尔、釜山、济州等。"
     },
     "privacy": {
       "description": "CocoTrip 隐私政策 — 我们如何收集、使用和保护您的个人信息。"

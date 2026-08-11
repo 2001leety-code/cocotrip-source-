@@ -152,7 +152,7 @@ export function WizardStep3Review(props: Step3Props) {
           {/* 호텔도 zone 도 없는 경우 — backend 가 default fallback */}
           {hotelEntries.length === 0 && zoneEntries.length === 0 && (
             <p className="text-ec-ink-3 italic">
-              {p.wizardNoAnchorHint || 'AI will pick optimal start points per day'}
+              {p.wizardNoAnchorHint || 'Each day gets a practical starting point, set from the cities and dates above.'}
             </p>
           )}
         </div>

@@ -40,8 +40,8 @@ interface Step0ResProps {
 const QUADS: { key: ReservationStatus; icon: React.ReactNode; titleKey: string; titleFb: string; subKey: string; subFb: string }[] = [
   { key: 'nothing',      icon: <X className="w-5 h-5" />,          titleKey: 'resNothingTitle',     titleFb: 'Nothing booked yet',           subKey: 'resNothingSub',     subFb: 'Just exploring options' },
   { key: 'flight',       icon: <Plane className="w-5 h-5" />,      titleKey: 'resFlightTitle',      titleFb: 'Flight booked',                subKey: 'resFlightSub',      subFb: 'Need hotel + plan' },
-  { key: 'flight_hotel', icon: <Hotel className="w-5 h-5" />,      titleKey: 'resFlightHotelTitle', titleFb: 'Flight + hotel booked',        subKey: 'resFlightHotelSub', subFb: 'Just need AI itinerary' },
-  { key: 'all_done',     icon: <CheckCheck className="w-5 h-5" />, titleKey: 'resAllDoneTitle',     titleFb: 'All booked through CocoTrip',  subKey: 'resAllDoneSub',     subFb: 'Just need the AI itinerary' },
+  { key: 'flight_hotel', icon: <Hotel className="w-5 h-5" />,      titleKey: 'resFlightHotelTitle', titleFb: 'Flight + hotel booked',        subKey: 'resFlightHotelSub', subFb: 'Just need the itinerary' },
+  { key: 'all_done',     icon: <CheckCheck className="w-5 h-5" />, titleKey: 'resAllDoneTitle',     titleFb: 'All booked through CocoTrip',  subKey: 'resAllDoneSub',     subFb: 'Just need the day-by-day plan' },
 ];
 
 export function WizardStep0Reservation({
@@ -150,10 +150,11 @@ export function WizardStep0Reservation({
 
       {/* P133 (2026-05-21): all_done 안내 박스 — free-claim funnel 제거(2026-05-05) 이후
           CTA 가 step 1 로 그대로 진행하므로 구 funnel 언급 제거.
-          사용자에게는 "AI 일정을 받을 수 있다"는 정확한 안내만 노출. */}
+          2026-08-11: 안내 문구도 "다음 단계에서 무엇을 묻고, 그 답으로 무엇이 나오는지"만
+          말한다 — 누가 쓰는지가 아니라. */}
       {status === 'all_done' && (
         <div className="ec-panel-quiet text-sm text-ec-success leading-relaxed">
-          {p.resAllDoneNote || "You're all set! We'll build your personalized AI itinerary based on your trip details in the next steps."}
+          {p.resAllDoneNote || "You're all set. The next steps ask for your dates, cities, pace and dietary needs, and your Korea itinerary is written from those."}
         </div>
       )}
 

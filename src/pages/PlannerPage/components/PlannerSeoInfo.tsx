@@ -53,7 +53,7 @@ const COPY: Record<Lang, {
       'PDF 저장 — 일정 전체를 PDF 로 내려받습니다. 지하에서 데이터가 안 터져도 열립니다.',
     ],
     keepTitle: '왜 이 일정은 실제로 지킬 수 있나',
-    keepIntro: 'AI 가 일정을 만들면 보기엔 좋은데 못 지키는 경우가 많습니다. 코코트립은 만든 다음 아래를 검사하고, 안 맞으면 그 날을 다시 만듭니다.',
+    keepIntro: '날짜·도시·여행 속도·식사 제약을 한국 교통·식당 데이터에 맞춰 하루씩 짭니다. 그다음 아래를 검사하고, 안 맞으면 그 날을 다시 만듭니다.',
     keep: [
       '항공편 시각 — 도착일은 공항에서 나온 뒤부터 시작하고, 출국일은 탑승 시각 전에 끝납니다. 출발 공항까지 가는 실제 소요 시간으로 계산합니다.',
       '숙소 체크아웃 — 짐을 들고 움직이는 시간이 일정 안에 실제 일정으로 들어갑니다.',
@@ -93,7 +93,7 @@ const COPY: Record<Lang, {
       'A PDF — download the whole plan. It opens underground where your data does not work.',
     ],
     keepTitle: 'Why this schedule actually holds',
-    keepIntro: 'AI itineraries usually look good and cannot be followed. CocoTrip checks each generated day against the constraints below and rebuilds the day if it does not fit.',
+    keepIntro: 'Each day is written from your dates, cities, pace and dietary needs against Korean transit and restaurant data, then checked against the constraints below. A day that does not fit is rebuilt.',
     keep: [
       'Flight times — the arrival day starts after you clear the airport, and the departure day ends before boarding, sized to the real travel time to your departure airport.',
       'Hotel checkout — the time you spend moving with luggage is a scheduled event, not an afterthought.',
@@ -133,7 +133,7 @@ const COPY: Record<Lang, {
       'PDF 保存 — 旅程全体をダウンロードできます。地下で通信が切れても開けます。',
     ],
     keepTitle: 'この旅程が実際に守れる理由',
-    keepIntro: 'AI の旅程は見栄えは良くても実行できないことが多いものです。ココトリップは作成後に以下を検査し、合わない日は作り直します。',
+    keepIntro: '日程・都市・旅のペース・食事制限をもとに、韓国の交通・レストランのデータで一日ずつ組み立てます。その後で以下を検査し、合わない日は作り直します。',
     keep: [
       'フライト時刻 — 到着日は空港を出てから始まり、出発日は搭乗時刻の前に終わります。出発空港までの実際の所要時間で計算します。',
       'ホテルのチェックアウト — 荷物を持って移動する時間が、実際の予定として旅程に入ります。',
@@ -173,7 +173,7 @@ const COPY: Record<Lang, {
       'PDF 保存 — 整份行程可下载。在地下没有信号时也能打开。',
     ],
     keepTitle: '这份行程为什么真的能执行',
-    keepIntro: 'AI 生成的行程往往好看却做不到。CocoTrip 在生成后会按下列条件检查，不符合就把那一天重做。',
+    keepIntro: '按你的日期、城市、行程节奏和饮食限制，用韩国的交通与餐厅数据逐日编排，再按下列条件检查，不符合就把那一天重做。',
     keep: [
       '航班时间 — 抵达日从出机场之后开始，离境日在登机前结束，按前往出发机场的实际用时计算。',
       '酒店退房 — 拖着行李移动的时间会作为真实日程排进行程。',

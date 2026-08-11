@@ -362,3 +362,132 @@ describe('purchase area — visual only, money semantics preserved', () => {
     expect(PRICING_NOTE).toMatch(/\{price\}/);
   });
 });
+
+/* ── 5. The live wizard copy ───────────────────────────────────────────── */
+
+/**
+ * §1 pinned the surfaces this pass rewrote. It did not reach the strings the
+ * wizard itself prints, and those were still casting the model as the party
+ * doing the work: "AI will suggest accommodations", "AI가 그 근처를 거점으로
+ * 일정을 짭니다", "AIがプランを完成できませんでした". Same product, different
+ * page. What the traveller is buying is an itinerary written from Korean
+ * transit and restaurant data against the dates, cities, pace and dietary
+ * rules they gave us — so that is what these strings say now.
+ */
+
+/**
+ * `AI` as a standalone token. Case-sensitive, so `again` / `detail` /
+ * `available` do not match, and `\b` still lands correctly before Hangul, kana
+ * and hanzi — none of them are `\w`, so `AI가` and `AI响应` are both caught.
+ */
+const AI_ACTOR = /\bAI\b/;
+
+/** Wizard strings a traveller reads before they have paid anything. */
+const FRONT_DOOR_KEYS = [
+  'resFlightHotelSub', 'resAllDoneSub', 'resAllDoneNote',
+  'accomOptIn', 'accomOptInSub',
+  'zoneRecommendSubtitle', 'zoneRecommendPicked',
+  'valueBannerSub', 'wizardNoAnchorHint',
+] as const;
+
+/** Generation failures. The traveller is waiting on an itinerary, not on a model. */
+const FRONT_DOOR_ERRORS = ['GEMINI_TIMEOUT', 'GEMINI_ERROR'] as const;
+
+/**
+ * Where each key's English fallback is typed into a component. A fallback is
+ * what a reader actually sees when a locale is missing the key, so it drifting
+ * away from `en.json` is the same defect twice — see
+ * `tests/unit/i18n-hardcoded-fallback.test.ts` for the Korean-side version of
+ * this rule.
+ */
+const FALLBACK_SITES: [string, string][] = [
+  ['resFlightHotelSub', 'src/components/WizardForm/WizardStep0Reservation.tsx'],
+  ['resAllDoneSub', 'src/components/WizardForm/WizardStep0Reservation.tsx'],
+  ['resAllDoneNote', 'src/components/WizardForm/WizardStep0Reservation.tsx'],
+  ['accomOptIn', 'src/components/WizardForm/WizardStep2Details.tsx'],
+  ['accomOptInSub', 'src/components/WizardForm/WizardStep2Details.tsx'],
+  ['zoneRecommendSubtitle', 'src/components/WizardForm/ZoneRecommender.tsx'],
+  ['zoneRecommendPicked', 'src/components/WizardForm/ZoneRecommender.tsx'],
+  ['wizardNoAnchorHint', 'src/components/WizardForm/WizardStep3Review.tsx'],
+];
+
+describe('live wizard copy — the itinerary is the product, not the writer', () => {
+  it('no front-door string casts the model as the actor, in any language', () => {
+    for (const l of LOCALES) {
+      const p = locale(l).planner as Record<string, string>;
+      for (const key of FRONT_DOOR_KEYS) {
+        expect(typeof p[key], `${l}.planner.${key} missing`).toBe('string');
+        expect(`${l}.${key}: ${p[key].match(AI_ACTOR)?.[0] || 'clean'}`).toBe(`${l}.${key}: clean`);
+      }
+      const errors = p.errors as unknown as Record<string, string>;
+      for (const key of FRONT_DOOR_ERRORS) {
+        expect(typeof errors[key], `${l}.planner.errors.${key} missing`).toBe('string');
+        expect(`${l}.${key}: ${errors[key].match(AI_ACTOR)?.[0] || 'clean'}`).toBe(`${l}.${key}: clean`);
+      }
+    }
+  });
+
+  it('every inline English fallback is the exact en.json string', () => {
+    const en = locale('en').planner as Record<string, string>;
+    for (const [key, rel] of FALLBACK_SITES) {
+      expect(`${rel} ← ${key}: ${read(rel).includes(en[key])}`).toBe(`${rel} ← ${key}: true`);
+    }
+    // The generation-timeout fallback lives on the submit path, not on a step.
+    const enErrors = en.errors as unknown as Record<string, string>;
+    expect(WIZARD.includes(enErrors.GEMINI_TIMEOUT)).toBe(true);
+  });
+
+  it('wizardNoAnchorHint is translated, not the English string four times', () => {
+    // The key existed in no locale at all, so ko / ja / zh readers were served
+    // the component's English literal — the review step's only sentence about
+    // what happens when they name neither a hotel nor a district.
+    const values = Object.fromEntries(
+      LOCALES.map((l) => [l, (locale(l).planner as Record<string, string>).wizardNoAnchorHint]),
+    );
+    for (const l of LOCALES) expect(typeof values[l], `${l}`).toBe('string');
+    expect(values.ko).toMatch(/[가-힣]/);
+    expect(values.ja).toMatch(/[ぁ-んァ-ヶ一-龯]/);
+    expect(values.zh).toMatch(/[一-鿿]/);
+    expect(values.zh).not.toMatch(/[가-힣ぁ-んァ-ヶ]/);
+    for (const l of ['ko', 'ja', 'zh']) expect(values[l], l).not.toBe(values.en);
+  });
+});
+
+describe('planner metadata and SEO body — Korea data, not an AI comparison', () => {
+  /** [locale, Korea, real transit, the traveller's own inputs] */
+  const MARKERS: [string, RegExp, RegExp, RegExp][] = [
+    ['en', /Korea/, /subway|bus/, /dates/],
+    ['ko', /한국/, /지하철|버스/, /날짜/],
+    ['ja', /韓国/, /地下鉄|バス/, /日程/],
+    ['zh', /韩国/, /地铁|公交/, /日期/],
+  ];
+
+  it('the planner meta description names Korea, real transit and the inputs', () => {
+    for (const [l, korea, transit, inputs] of MARKERS) {
+      const meta = (locale(l).pageMeta as Record<string, { title: string; description: string }>).planner;
+      expect(meta.description, `${l} Korea`).toMatch(korea);
+      expect(meta.description, `${l} transit`).toMatch(transit);
+      expect(meta.description, `${l} inputs`).toMatch(inputs);
+      // "AI-powered, instant, multi-language" was three adjectives and no fact.
+      expect(meta.description, `${l} adjectives`).not.toMatch(/AI-powered|AI 기반|AI搭載|AI 驱动/);
+    }
+    // The title keeps the term people type into a search box — the one
+    // exception §5 of docs/DESIGN-EDITORIAL-CONCIERGE.md grants, pinned above.
+    expect((locale('en').pageMeta as Record<string, { title: string }>).planner.title).toMatch(/AI/);
+  });
+
+  it('the SEO body sells the data, not a comparison against AI itineraries', () => {
+    const SEO_INFO = read('src/pages/PlannerPage/components/PlannerSeoInfo.tsx');
+    const intros = [...SEO_INFO.matchAll(/keepIntro: '([^']*)'/g)].map((m) => m[1]);
+    expect(intros).toHaveLength(4);
+    for (const intro of intros) {
+      expect(`keepIntro: ${intro.match(AI_ACTOR)?.[0] || 'clean'}`).toBe('keepIntro: clean');
+    }
+    // Every language says what it is built from and which of the traveller's
+    // constraints it answers, rather than what a competitor gets wrong.
+    const blob = intros.join('\n');
+    for (const marker of [/Korea/, /한국/, /韓国/, /韩国/, /dietary/, /식사/, /食事/, /饮食/]) {
+      expect(`${marker.source}: ${marker.test(blob)}`).toBe(`${marker.source}: true`);
+    }
+  });
+});
