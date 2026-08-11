@@ -68,8 +68,7 @@ export default function CookieBanner() {
                 {cb?.bodyAfter || '.'}
               </span>
             </p>
-            {/* 44px 은 실제 렌더 높이여야 한다 — 이 자리엔 `ec-btn-sm`(36px) 이 붙어
-                있었고 주석만 44px 을 주장했다(2026-08-11 실측 56x36). WCAG 2.5.5. */}
+            {/* Mobile-friendly tap targets — buttons hit 44px height (WCAG 2.5.5) */}
             <div className="flex items-center gap-2 mt-3">
               <button onClick={accept} className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px]">
                 {cb?.accept || 'Accept'}

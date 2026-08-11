@@ -1,18 +1,6 @@
 /**
- * Common state + global app shell — real geometry, real bundle (2026-08-11).
- *
- * Source assertions live in `tests/unit/editorial-common-state-shell.test.ts`;
- * this file measures the things a source grep cannot prove: the height a
- * control actually renders at, the font-size an input actually computes to,
- * whether the page overflows sideways, and whether the loading / empty / error
- * states reach the screen at all.
- *
- * Nothing here logs in, pays, or writes. The states are forced with network
- * interception on the app's own lazy chunks — the same failure the code
- * already handles (`GuideDetailPage`'s retry-is-a-reload note).
- *
- * Not in any CI workflow on purpose — the shell is measured against a local
- * production preview so the numbers are reproducible:
+ * Common state + global app shell. Not in any CI workflow on purpose — run it
+ * against a local production preview:
  *
  *     npm run build
  *     npx vite preview --port 4831 --strictPort
@@ -30,7 +18,6 @@ const VIEWPORTS = [
   { name: '768', width: 768, height: 1024 },
   { name: '1440', width: 1440, height: 900 },
 ];
-/** Public, non-paid, non-authenticated routes that render the shared shell. */
 const ROUTES = ['/', '/planner', '/tours', '/charter', '/community', '/guide'];
 
 const TOUCH_MIN = 44;
@@ -39,21 +26,13 @@ const FIELD_MIN = 16;
 async function setLang(page: Page, lang: string) {
   await page.addInitScript((l) => {
     window.localStorage.setItem('cocotrip_lang', l as string);
-    // The planner intro modal covers the page on first visit and is not what
-    // this spec measures. See the AIIntroModal note in the planner e2e specs.
     window.localStorage.setItem('COCO_AI_INTRO_SEEN_v1', '1');
   }, lang);
 }
 
-/**
- * Everything this PR owns: the chrome the app renders around every route.
- * A page body is measured too, but only reported — those belong to the pages
- * still on the previous dark system and are a separate queue.
- */
 const SHELL =
   'header.ec-root, nav.mobile-bottom-nav, footer.ec-root, [role="dialog"], [role="region"].ec-no-print';
 
-/** Every visible shell control whose real box is under 44×44. */
 function undersizedControls(page: Page, scope: string) {
   return page.evaluate(
     ([sel, min]) => {
@@ -65,8 +44,7 @@ function undersizedControls(page: Page, scope: string) {
       )) {
         if (!roots.some((r) => r.contains(el))) continue;
         if (el.closest('[aria-hidden="true"]')) continue;
-        // WCAG 2.5.8 inline exception — a link inside a sentence is sized by
-        // the line-height of the text around it, not by its own box.
+        // WCAG 2.5.8 inline exception.
         if (el.tagName === 'A' && el.closest('p')) continue;
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) continue;
@@ -85,7 +63,6 @@ function undersizedControls(page: Page, scope: string) {
   );
 }
 
-/** Shell text fields under 16px — iOS zooms the viewport on focus below that. */
 function undersizedFields(page: Page, scope: string) {
   return page.evaluate(
     ([sel, min]) => {
@@ -109,6 +86,47 @@ function undersizedFields(page: Page, scope: string) {
   );
 }
 
+const TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function dialogFocus(page: Page) {
+  return page.evaluate((sel) => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const active = document.activeElement as HTMLElement | null;
+    const label = active
+      ? active.getAttribute('aria-label') ||
+        (active.textContent || '').trim().slice(0, 40) ||
+        active.tagName.toLowerCase()
+      : 'none';
+    if (!dialog) return { count: 0, index: -1, inside: false, label };
+    const items = Array.from(dialog.querySelectorAll<HTMLElement>(sel)).filter(
+      (el) => el.getClientRects().length > 0,
+    );
+    return {
+      count: items.length,
+      index: active ? items.indexOf(active) : -1,
+      inside: !!(active && dialog.contains(active) && active !== dialog),
+      label,
+    };
+  }, TABBABLE);
+}
+
+function focusDialogEdge(page: Page, edge: 'first' | 'last') {
+  return page.evaluate(
+    ([sel, pos]) => {
+      const dialog = document.querySelector('[role="dialog"]');
+      if (!dialog) return false;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(sel as string)).filter(
+        (el) => el.getClientRects().length > 0,
+      );
+      if (!items.length) return false;
+      (pos === 'first' ? items[0] : items[items.length - 1]).focus();
+      return true;
+    },
+    [TABBABLE, edge] as const,
+  );
+}
+
 function horizontalOverflow(page: Page) {
   return page.evaluate(() => {
     const d = document.documentElement;
@@ -129,9 +147,6 @@ for (const vp of VIEWPORTS) {
         const consoleErrors: string[] = [];
         const pageErrors: string[] = [];
         const badResponses: string[] = [];
-        // `m.text()` for a failed resource is just "Failed to load resource:
-        // …404" with no URL, so counting those alone invents a P1 out of
-        // third-party font noise. The URL lives in `location()`.
         page.on('console', (m) => {
           if (m.type() !== 'error') return;
           consoleErrors.push(`${m.text()} @ ${m.location()?.url || '(no url)'}`);
@@ -160,7 +175,6 @@ for (const vp of VIEWPORTS) {
         expect(problems, problems.join('\n')).toEqual([]);
         expect(pageErrors, pageErrors.join('\n')).toEqual([]);
         expect(badResponses, badResponses.join('\n')).toEqual([]);
-        // Own origin only — gstatic/Google font 404s are ambient noise here.
         const origin = new URL(page.url()).origin;
         const own = consoleErrors.filter((e) => e.includes(`@ ${origin}`));
         expect(own, own.join('\n')).toEqual([]);
@@ -178,8 +192,6 @@ test.describe('route fallback', () => {
     await setLang(page, 'en');
     await page.goto('/', { waitUntil: 'networkidle' });
 
-    // Delay only the chunks requested *after* this point, so the shell itself
-    // is already up and we are looking at the route fallback, not a blank page.
     let hold = false;
     await page.route('**/assets/*.js', async (route) => {
       if (hold) await new Promise((r) => setTimeout(r, 2500));
@@ -191,7 +203,6 @@ test.describe('route fallback', () => {
 
     const busy = page.locator('[role="status"][aria-busy="true"]').first();
     await expect(busy).toBeVisible();
-    // Specific, not "Loading" — states.tsx asks callers to name what is loading.
     await expect(busy).toContainText(/loading the page/i);
     hold = false;
     await expect(page).toHaveURL(/\/tours/);
@@ -211,14 +222,11 @@ test.describe('empty · error', () => {
     await expect(cta).toBeVisible();
     const box = await cta.boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(TOUCH_MIN - 0.5);
-    // An empty screen is not an error — it must not shout at a screen reader.
     await expect(page.locator('[aria-live="assertive"]')).toHaveCount(0);
   });
 
   test('청크가 거절되면 오류 상태 + 실제 재시도 버튼이 나온다', async ({ page }) => {
     await setLang(page, 'en');
-    // The article body is a lazy JSON module; refusing it is exactly the
-    // dropped-connection case the page distinguishes from a real 404.
     await page.route('**/assets/*.js', async (route) => {
       const url = route.request().url();
       if (/guide|content/i.test(url)) return route.abort();
@@ -261,11 +269,60 @@ test.describe('global modal shell (mobile menu)', () => {
     await expect(dialog).toBeHidden();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
     expect(await page.evaluate(() => document.documentElement.dataset.menuOpen)).toBeUndefined();
-    // Focus returns to what opened it — otherwise the keyboard lands at the
-    // top of the document and the reader has to walk the whole header again.
     expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-expanded'))).toBe('false');
 
     const controls = await undersizedControls(page, SHELL);
     expect(controls, controls.join(' | ')).toEqual([]);
+  });
+
+  test('Tab·Shift+Tab 이 dialog 를 못 벗어난다 — 마지막→첫, 첫→마지막', async ({ page }) => {
+    await setLang(page, 'en');
+    await page.goto('/', { waitUntil: 'networkidle' });
+
+    const trigger = page.locator('header button[aria-expanded]').last();
+    await trigger.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    const opened = await dialogFocus(page);
+    expect(opened.count, 'dialog has no tabbable controls').toBeGreaterThan(1);
+
+    expect(await focusDialogEdge(page, 'last')).toBe(true);
+    expect((await dialogFocus(page)).index).toBe(opened.count - 1);
+    await page.keyboard.press('Tab');
+    const forward = await dialogFocus(page);
+    expect(forward.inside, `Tab left the dialog → "${forward.label}"`).toBe(true);
+    expect(forward.index, 'Tab past the last control must land on the first').toBe(0);
+
+    expect(await focusDialogEdge(page, 'first')).toBe(true);
+    expect((await dialogFocus(page)).index).toBe(0);
+    await page.keyboard.press('Shift+Tab');
+    const backward = await dialogFocus(page);
+    expect(backward.inside, `Shift+Tab left the dialog → "${backward.label}"`).toBe(true);
+    expect(backward.index, 'Shift+Tab before the first control must land on the last').toBe(
+      opened.count - 1,
+    );
+
+    const escapes: string[] = [];
+    for (let i = 0; i < opened.count + 3; i++) {
+      await page.keyboard.press('Tab');
+      const s = await dialogFocus(page);
+      if (!s.inside) escapes.push(`Tab #${i + 1} → "${s.label}"`);
+    }
+    for (let i = 0; i < opened.count + 3; i++) {
+      await page.keyboard.press('Shift+Tab');
+      const s = await dialogFocus(page);
+      if (!s.inside) escapes.push(`Shift+Tab #${i + 1} → "${s.label}"`);
+    }
+    expect(escapes, escapes.join('\n')).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+    expect(await page.evaluate(() => document.documentElement.dataset.menuOpen)).toBeUndefined();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-expanded'))).toBe(
+      'false',
+    );
   });
 });

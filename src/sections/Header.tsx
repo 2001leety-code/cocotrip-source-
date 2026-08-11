@@ -61,6 +61,8 @@ const POPOVER_ITEM_CLS =
 /** Quiet icon button in the utility rail — 44px touch target, ink on hover. */
 const ICON_BTN_CLS =
   'inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-ec-sm text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink hover:bg-ec-page';
+const MENU_TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -82,9 +84,6 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   // mobile chrome. Changing that is a product decision, not a design one.
   const isInternalPath = location.pathname.startsWith('/admin') || location.pathname.startsWith('/mood');
   const { toggle: toggleCommandPalette } = useCommandPalette();
-  // The mobile menu is the shell's global overlay. It already trapped nothing
-  // and named nothing: no dialog role, no accessible name, and closing it
-  // dropped the keyboard back at the top of the document.
   const menuPanelRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuWasOpen = useRef(false);
@@ -148,9 +147,6 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     };
   }, [isMobileMenuOpen]);
 
-  // Focus follows the overlay: into the panel on open, back to the hamburger on
-  // close. `menuWasOpen` keeps the close branch from firing on first mount and
-  // stealing focus from the page.
   useEffect(() => {
     if (isMobileMenuOpen) {
       menuWasOpen.current = true;
@@ -166,7 +162,30 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   // Esc closes the mobile menu — a full-screen overlay with no keyboard exit is a trap.
   useEffect(() => {
     if (!isMobileMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsMobileMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const panel = menuPanelRef.current;
+      if (!panel) return;
+      const items = Array.from(panel.querySelectorAll<HTMLElement>(MENU_TABBABLE)).filter(
+        (el) => el.getClientRects().length > 0,
+      );
+      if (!items.length) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      const inside = active instanceof HTMLElement && active !== panel && panel.contains(active);
+      if (inside && active !== (e.shiftKey ? first : last)) return;
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isMobileMenuOpen]);

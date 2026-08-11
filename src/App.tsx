@@ -119,18 +119,6 @@ import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture }
 import { capturePageView as posthogPageView } from '@/lib/posthog';
 import { signalAppReady } from '@/lib/appReady';
 
-/**
- * Route-level chunk loading — one announced surface for every lazy route.
- *
- * Before this, 51 routes fell back to `PlannerSkeleton` (dark #080b14, wizard
- * shaped) and three more had each grown their own hand-rolled patch: home and
- * /guide painted a blank sheet of paper, /mood painted its own #0a0412. None of
- * them announced anything, so every route change was silent to a screen reader,
- * and the shape matched no page it stood in for.
- *
- * `ground` is the migration seam: paper for bodies on this system, legacy for
- * the ones still on the dark one. It retires with the last of them.
- */
 function RouteFallback({ ground }: { ground?: 'paper' | 'legacy' }) {
   const { t } = useLanguage();
   return <EcRouteFallback label={t.a11y?.loadingPage || 'Loading page'} ground={ground} />;
@@ -593,8 +581,7 @@ function AnimatedRoutes() {
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
           <Route path="/community/post/:postId" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityPostPage /></Suspense>} />
           <Route path="/community/new" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityComposePage /></Suspense>} />
-          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제).
-              가이드 본문은 Editorial Concierge(밝은 종이)라 폴백도 종이 지면이다. */}
+          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제). */}
           <Route path="/guide" element={<Suspense fallback={ROUTE_FALLBACK}><GuideIndexPage /></Suspense>} />
           <Route path="/guide/:slug" element={<Suspense fallback={ROUTE_FALLBACK}><GuideDetailPage /></Suspense>} />
           <Route path="/about" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><About /></Suspense>} />
@@ -642,8 +629,6 @@ function AnimatedRoutes() {
           <Route
             path="/mood"
             element={
-              // MOOD 는 아직 다크 지면 — 공용 폴백의 legacy ground 가 MoodPortal 자체
-              // 로딩 배경과 같은 색이라 청크가 오는 동안 번쩍이지 않는다.
               <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <MoodPortal />
               </Suspense>

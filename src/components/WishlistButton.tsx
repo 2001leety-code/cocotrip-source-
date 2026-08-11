@@ -95,9 +95,7 @@ export function WishlistPanel() {
 
   return (
     <>
-      {/* 트리거 버튼 — 공용 헤더의 조작 target. 2026-08-11: 36×36 이었고 아이콘이
-          text-white/70 이라 종이 헤더(#F3F1EC) 위에서 대비 ~1.06:1, 사실상 안 보였다.
-          헤더의 다른 아이콘 버튼(ICON_BTN_CLS)과 같은 44×44 + 잉크로 맞춘다. */}
+      {/* 트리거 버튼 */}
       <button
         onClick={() => setIsOpen(true)}
         className="relative inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-ec-sm text-ec-ink-2 transition-colors hover:text-ec-ink hover:bg-ec-page"

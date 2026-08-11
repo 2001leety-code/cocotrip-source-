@@ -24,7 +24,7 @@ function detectLang(): Language {
 }
 
 /**
- * 전역 React Error Boundary — 셸의 마지막 표면.
+ * 전역 React Error Boundary.
  *
  * - componentDidCatch에서 Sentry로 자동 보고 (DSN 미설정 시 no-op)
  * - 4-lang fallback UI (title / description / contact / retry)
@@ -32,13 +32,6 @@ function detectLang(): Language {
  * - WhatsApp 문의 링크 (다른 섹션과 동일한 https://wa.me/821087140611)
  *
  * SSR 무관 — class component는 클라이언트 hydration 후 동작.
- *
- * 2026-08-11 (Korea Editorial Concierge): 이 화면은 자체 다크 패널 + retry 버튼에
- * 로고 그라디언트(#7C5CFC→#EA537E)를 칠하고 있었다 — 로고 밖 그라디언트는 이
- * 시스템에서 금지다. 그리고 원문 `Error.message`("TypeError: Cannot read
- * properties of undefined")를 여행자에게 그대로 보여줬다. states.tsx 의 계약대로
- * 공용 `EcError` 를 쓴다: assertive 로 알리고, 무엇을 하면 되는지만 말하고,
- * 원문은 개발 환경에서만 남긴다.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -62,8 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // 개발 환경에서만 stack trace UI 노출용으로 저장
     if (import.meta.env.DEV) {
-      // `||`, not the nullish operator — the repo's mojibake guard flags it
-      // (docs/DESIGN-EDITORIAL-CONCIERGE.md §3). An empty stack is nothing to show either.
+      // `||` — the repo's mojibake guard rejects the nullish operator here.
       this.setState({ componentStack: info.componentStack || null });
     }
   }
@@ -99,8 +91,6 @@ export class ErrorBoundary extends Component<Props, State> {
                 </a>
               }
             />
-            {/* 원문 메시지·스택은 개발 환경 전용. 여행자에게 "TypeError: …" 는
-                무엇을 하라는 안내가 아니다 — 운영 보고는 Sentry 가 한다. */}
             {isDev && this.state.error && (
               <div className="mx-6 mb-10 rounded-ec-sm border border-ec-line bg-ec-sunken p-4 text-left">
                 <p className="ec-body-sm font-mono break-all text-ec-critical">

@@ -110,8 +110,7 @@ function CartPanelInner() {
 
   return (
     <>
-      {/* 트리거 (헤더 아이콘) — WishlistPanel 과 같은 이유로 44×44 + 잉크.
-          장바구니 담긴 상품·가격·결제 로직은 이 diff 밖이다(패널 본문 무변경). */}
+      {/* 트리거 (헤더 아이콘) */}
       <button
         onClick={() => setIsOpen(true)}
         className="relative inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-ec-sm text-ec-ink-2 transition-colors hover:text-ec-ink hover:bg-ec-page"

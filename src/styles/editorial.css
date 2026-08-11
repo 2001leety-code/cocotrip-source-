@@ -173,12 +173,7 @@
   --ec-shell-line:          var(--ec-line);
   --ec-shell-blur:          14px;
 
-  /* Migration only. Bodies still on the previous dark system open on this
-     ground (`/tours`, `/about`, `/charter` … all start at #0A0412), so the
-     shared route fallback paints it while their chunk loads — otherwise a
-     sheet of paper flashes in front of a near-black page. `PageSkeleton` used
-     to inline #080b14 for this, a colour no page actually uses.
-     Dies with the last `.refined-*` page; nothing else may read it. */
+  /* route fallback only — dies with the last `.refined-*` page */
   --ec-legacy-page-bg:      #0A0412;
 
   /* field */

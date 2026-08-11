@@ -1,26 +1,7 @@
 /**
- * Korea Editorial Concierge — common state + global app shell (2026-08-11).
- *
- * One root cause, three symptoms:
- *
- * 1. **Route loading.** `src/components/ui/states.tsx` defines the loading
- *    contract (`role=status` + `aria-busy` + a specific label), but the app
- *    shell never adopted it. Every lazy route fell back to `PlannerSkeleton`
- *    — a dark `#080b14` wizard-shaped panel, announced to nobody, painted on
- *    ~50 routes including `/planner` itself, which is paper since phase 2.
- *    `/guide` had already been special-cased out of it by hand; this makes the
- *    exception the rule.
- * 2. **Global failure.** `ErrorBoundary` is the shell's last surface and it
- *    rendered a dark panel with the logo gradient on its retry button and the
- *    raw `Error.message` shown to travellers in production.
- * 3. **Shell touch targets.** The 44px floor reached the header's own icon
- *    rail but not the Wishlist / Cart triggers (36×36, and drawn in
- *    `text-white/70` on a paper header), the desktop nav links (38.5px) or the
- *    two `ec-btn-sm` CTAs (36px).
- *
- * Source assertions — Header/App import firebase and react-router, so the
- * cheap guard is the file text. Real geometry is measured in
- * `tests/e2e/common-state-shell.spec.ts` against the production bundle.
+ * Common state + global app shell — source contract. Header/App import firebase
+ * and react-router, so the cheap guard is the file text. Real geometry is
+ * measured in `tests/e2e/common-state-shell.spec.ts`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
@@ -29,8 +10,6 @@ import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
-/** Tombstone comments name the classes that were removed, so "no longer
- *  contains X" has to look at code only. */
 const stripComments = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
@@ -62,12 +41,7 @@ describe('라우트 로딩 — 공용 상태 계약 1개', () => {
 
   it('App 의 lazy 라우트 폴백이 전부 공용 폴백을 지난다', () => {
     expect(APP_CODE).toMatch(/EcRouteFallback/);
-    // 51 hand-written `fallback={<PlannerSkeleton />}` — one dark wizard panel
-    // standing in for tours, community, about, terms, the planner and admin.
     expect(APP_CODE).not.toMatch(/PlannerSkeleton|CharterSkeleton|PageSkeleton/);
-    // The inline `<div className="min-h-screen bg-ec-page" aria-hidden />`
-    // patches (home, /guide) announced nothing either — they route through the
-    // same component now.
     expect(APP_CODE).not.toMatch(/min-h-screen bg-ec-page" aria-hidden/);
     const remaining = APP_CODE.match(/fallback=\{(?!null|ROUTE_FALLBACK|LEGACY_ROUTE_FALLBACK)/g);
     expect(remaining, `App still has bespoke fallbacks: ${remaining}`).toBeNull();
@@ -84,8 +58,6 @@ describe('라우트 로딩 — 공용 상태 계약 1개', () => {
   });
 
   it('아직 다크인 페이지의 폴백 색은 토큰에서 온다 (컴포넌트 하드코딩 hex 아님)', () => {
-    // PageSkeleton inlined #080b14 — a colour no page actually uses; the legacy
-    // bodies open on #0a0412. One token, and it dies with the last dark page.
     expect(CSS).toMatch(/--ec-legacy-page-bg:/);
     expect(stripComments(STATES)).not.toMatch(/#[0-9a-fA-F]{6}/);
   });
@@ -105,8 +77,6 @@ describe('전역 오류 셸 — 편집형 종이, 그라디언트 없음', () =>
   });
 
   it('원문 Error.message 는 개발 환경에서만 노출된다', () => {
-    // A traveller reading "TypeError: Cannot read properties of undefined" is
-    // not being told what to do — states.tsx: never a stack, never a bare code.
     expect(BOUNDARY_CODE).toMatch(/isDev && this\.state\.error &&/);
     expect(BOUNDARY_CODE).toMatch(/const isDev = import\.meta\.env\.DEV/);
   });
@@ -127,17 +97,11 @@ describe('전역 오류 셸 — 편집형 종이, 그라디언트 없음', () =>
 
 describe('공용 셸 조작 target 44×44', () => {
   it('데스크톱 nav 링크가 44px 이상이다', () => {
-    // was `px-4 py-2 text-[15px]` = 38.5px tall (docs/DESIGN-EDITORIAL-CONCIERGE.md
-    // "Open item — shared header touch targets").
     const nav = HEADER_CODE.slice(HEADER_CODE.indexOf('{navItems.map'));
     expect(nav.slice(0, 900)).toMatch(/min-h-\[44px\]/);
   });
 
   it('공용 셸의 sm 버튼은 전부 min-h-[44px] 을 함께 단다', () => {
-    // `ec-btn-sm` 을 그냥 떼면 padding 이 14px→20px, font 14→15 로 커져 헤더 행이
-    // 넓어진다 — 1024/1100 ko·en 에서 기존 가로 넘침이 +41px 악화됐다(2026-08-11 실측).
-    // 44px 은 높이 요구사항이지 너비 요구사항이 아니다. 토큰
-    // `--ec-button-height-sm`(36px) 은 플래너·구매 패널이 써서 못 바꾼다.
     for (const [name, src] of [
       ['Header', HEADER_CODE], ['CookieBanner', stripComments(COOKIE)], ['Footer', stripComments(FOOTER)],
     ] as const) {
@@ -161,8 +125,6 @@ describe('공용 셸 조작 target 44×44', () => {
       const trigger = panel.slice(0, panel.indexOf('</button>'));
       expect(trigger, `${name} trigger under 44px`).toMatch(/min-w-\[44px\]/);
       expect(trigger, `${name} trigger under 44px`).toMatch(/min-h-\[44px\]/);
-      // White at 70% on #F3F1EC paper is ~1.06:1 — the control was invisible on
-      // every route once the shell went paper.
       expect(trigger, `${name} trigger still white-on-paper`).not.toMatch(/text-white/);
     }
   });
@@ -172,8 +134,6 @@ describe('공용 셸 조작 target 44×44', () => {
   });
 
   it('쿠키 배너 버튼이 실제로 44px 이다 (주석만 44px 이라고 하던 자리)', () => {
-    // 원래 주석에 "buttons hit 44px height (WCAG 2.5.5)" 라고 적혀 있었는데
-    // 실측은 56x36 이었다.
     const cookie = stripComments(COOKIE);
     for (const label of ['accept', 'dismiss']) {
       const i = cookie.indexOf(`onClick={${label}} className=`);
@@ -187,9 +147,6 @@ describe('공용 셸 조작 target 44×44', () => {
     const promo = stripComments(PROMO);
     const link = promo.slice(promo.indexOf('to={activeCtaHref}'), promo.indexOf('</Link>'));
     expect(link).toMatch(/min-h-\[44px\]/);
-    // 🔴 flex/grid 로 세로 정렬하면 안의 두 span 이 플렉스 아이템이 되어 사이 공백이
-    // 죽는다 — "…when you sign upStart free plan →" (2026-08-11 실측). 높이는
-    // padding 으로 만들고 인라인 흐름을 유지한다.
     expect(link, 'promo strip must stay in inline flow').not.toMatch(/\b(flex|grid|inline-flex)\b/);
   });
 });
@@ -209,6 +166,14 @@ describe('전역 모달 셸 — 관계·포커스·정리', () => {
     expect(HEADER).toMatch(/\.focus\(\)/);
   });
 
+  it('Tab·Shift+Tab 이 dialog 안에 갇힌다 (실동작은 e2e 가 잰다)', () => {
+    expect(HEADER_CODE).toMatch(/e\.key !== 'Tab'/);
+    expect(HEADER_CODE).toMatch(/e\.shiftKey/);
+    expect(HEADER_CODE).toMatch(/e\.preventDefault\(\)/);
+    const keydowns = HEADER_CODE.match(/addEventListener\('keydown'/g) || [];
+    expect(keydowns.length, 'Esc·Tab must share one keydown listener').toBe(1);
+  });
+
   it('Esc·body 스크롤 잠금·cleanup 이 그대로다 (회귀 방지)', () => {
     expect(HEADER).toMatch(/e\.key === 'Escape'/);
     expect(HEADER).toMatch(/document\.body\.style\.overflow = 'hidden'/);
@@ -226,8 +191,6 @@ describe('문구·4언어·금지 규칙', () => {
       expect(v, `${l}.a11y.loadingPage missing`).toBeTruthy();
       seen[l] = v;
     }
-    // "Loading" is what states.tsx tells callers never to announce; and ko/ja/zh
-    // must not fall back to the English literal.
     expect(seen.en).not.toBe('Loading');
     for (const l of ['ko', 'ja', 'zh']) {
       expect(seen[l], `${l} leaks English`).not.toMatch(/[A-Za-z]/);
