@@ -2,10 +2,18 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
+//
+// 2026-08-10 (Korea Editorial Concierge phase 2) — **시각만** 바꿨다.
+//   금액, 통화, 할인 표기, 결제 게이트(비로그인 차단/게스트 결제 플래그), 쿠폰 0원 경로,
+//   PayPal payload(expectedUSD·priceKRW·productType·memo), 환불 불가 고지, 중복클릭 가드는
+//   전부 그대로다. 바뀐 것: 다크 그라데이션 카드 → 종이 위 가격 원장, 장식용 글로우 제거,
+//   금액을 tabular figure 로 정렬, 특징 목록을 하이라인 목록으로.
+//   근거: `tests/unit/editorial-planner-journey.test.ts` 의 "purchase area" 블록과
+//   기존 `tests/unit/ai-planner-price-parity.test.ts` 가 값·SSOT 를 계속 잠근다.
 import { type MutableRefObject, useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, Mail, LogIn, Phone, Ticket,
+  Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, LogIn, Phone, Ticket,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
@@ -28,7 +36,7 @@ interface QuickPreviewData {
 }
 
 interface PurchaseSectionProps {
-  p: PlannerDict; isMobile: boolean; language: string;
+  p: PlannerDict; language: string;
   userEmail: string; setUserEmail: (v: string) => void;
   isGeneratingPlan: boolean; planError: string | null;
   resultQuick: QuickPreviewData;
@@ -43,7 +51,7 @@ interface PurchaseSectionProps {
 }
 
 export function PurchaseSection({
-  p, isMobile, language, userEmail, setUserEmail,
+  p, language, userEmail, setUserEmail,
   isGeneratingPlan, planError, resultQuick, lastValues,
   revisionMode, revisionPlanId, revisionToken,
   revisionReason, revisionNote, avoidList,
@@ -93,147 +101,139 @@ export function PurchaseSection({
       setSigningIn(false);
     }
   };
-  return (
-    <div className={isMobile
-      ? 'm-card m-appear p-4 text-center relative overflow-hidden'
-      : 'bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden'
-    }
-      style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.06), rgba(255,107,157,0.03), rgba(10,4,18,0.95))' } : undefined}
-    >
-      {/* Decorative glow */}
-      <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl ${isMobile ? 'bg-[#B668FC]/10' : 'bg-[#7C5CFC]/10'}`} />
 
+  const features = [
+    { icon: Briefcase, text: p.featureItinerary },
+    { icon: UtensilsCrossed, text: p.featureRestaurant },
+    { icon: Camera, text: p.featurePhoto },
+    { icon: Train, text: p.featureTransit },
+    { icon: ShieldCheck, text: p.featureNoHallucination },
+  ];
+
+  return (
+    <section className="ec-panel">
       {/* 가격 표시 — 값은 전부 lib/aiPlannerPrice SSOT 에서 온다(하드코딩 금지).
           AI 플래너는 쿠폰 미적용 정책(디지털 상품) — 모든 사용자 동일 가격. */}
-      <div className="relative text-center py-4 mb-4">
-        <div className="text-white/55 text-sm mb-1">
+      <div className="border-b border-ec-line pb-5">
+        <p className="ec-body-sm text-ec-ink-3">
           <span className="line-through">{formatAiPlannerUsd(AI_PLANNER_ORIGINAL_USD)}</span>
-          <span className="ml-2 text-[10px] uppercase tracking-wider">{p.originalPrice}</span>
-        </div>
-        <div className="flex items-baseline justify-center gap-2 mb-2">
-          <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>{formatAiPlannerUsd()}</span>
+          <span className="ml-2">{p.originalPrice}</span>
+        </p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="ec-figure text-[clamp(38px,5vw,56px)] leading-none">{formatAiPlannerUsd()}</span>
           {/* 보조 통화 — 참고 표시용. 🔴 2026-07-29: 실제 청구는 고정 USD 이고 KRW 는 참고값이다
               (환율에 따라 이 KRW 와 실제 결제 원화 인출액이 다를 수 있다). */}
-          <span className="text-white/55 text-sm">
-            / {formatAiPlannerApproxKrw(language)}
-          </span>
+          <span className="ec-body-sm text-ec-ink-3">/ {formatAiPlannerApproxKrw(language)}</span>
         </div>
-        <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
-          <span className={`text-xs font-bold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>50% OFF</span>
-          <span className="text-white/55">{'·'}</span>
-          <span className="text-white/60 text-xs">{p.launchPrice}</span>
-        </div>
+        <p className="mt-2 text-[13px] font-semibold text-ec-brand">
+          50% OFF · <span className="font-normal text-ec-ink-3">{p.launchPrice}</span>
+        </p>
         {/* "First 100 customers" 가짜 한정 문구 제거 (2026-06-14) — 실제 카운터가 없어 구글 광고
             "허위 긴급성/가짜 재고" 정책 위반 소지. 50% OFF(실 할인)·launchPrice 배지는 유지. */}
 
-        {/* W4: 가치 강조 배너 — "1회 결제 = 총 3개 버전 일정" */}
-        <div className="mt-3 mx-auto max-w-xs px-3.5 py-2.5 rounded-xl border border-amber-400/30"
-          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(182,104,252,0.08))' }}>
-          <p className="text-amber-300 text-xs font-bold leading-snug">
-            {fillPrice((p as { valueBannerMain?: string }).valueBannerMain || '{price} — 3 itineraries total!', language)}
-          </p>
-          <p className="text-white/55 text-[11px] mt-0.5 leading-snug">
-            {(p as { valueBannerSub?: string }).valueBannerSub || '1 purchase + 2 Free Revisions = 3 completely different versions'}
-          </p>
-        </div>
+        {/* W4: 가치 강조 — "1회 결제 = 총 3개 버전 일정" */}
+        <p className="mt-3 text-[14px] font-semibold text-ec-ink">
+          {fillPrice((p as { valueBannerMain?: string }).valueBannerMain || '{price} — 3 itineraries total!', language)}
+        </p>
+        <p className="ec-body-sm text-ec-ink-3">
+          {(p as { valueBannerSub?: string }).valueBannerSub || '1 purchase + 2 Free Revisions = 3 completely different versions'}
+        </p>
       </div>
 
-      <h3 className="text-xl font-bold text-white mb-2 relative">{p.fullPlanTitle}</h3>
-      <p className="text-white/50 text-sm mb-5 max-w-lg mx-auto leading-relaxed">{p.fullPlanDesc}</p>
+      <h3 className="ec-h3 mt-5">{p.fullPlanTitle}</h3>
+      <p className="ec-body-sm ec-measure mt-2 text-ec-ink-3">{p.fullPlanDesc}</p>
 
       {/* Feature checklist */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto mb-6 text-left">
-        {([
-          { icon: <Briefcase className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureItinerary },
-          { icon: <UtensilsCrossed className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureRestaurant },
-          { icon: <Camera className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featurePhoto },
-          { icon: <Train className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureTransit },
-          { icon: <ShieldCheck className={`w-4 h-4 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />, text: p.featureNoHallucination },
-        ] as { icon: React.ReactNode; text: string }[]).map((item, i) => (
-          <div key={i} className="flex items-center gap-2 text-sm text-white/70 py-1.5">
-            {item.icon}
-            <span>{item.text}</span>
-          </div>
+      <ul className="mt-4 grid gap-x-6 sm:grid-cols-2">
+        {features.map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-start gap-2 border-b border-ec-line py-2 text-[14px] text-ec-ink-2">
+            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ec-brand" aria-hidden />
+            <span>{text}</span>
+          </li>
         ))}
-      </div>
+      </ul>
 
       {/* PRIMARY CTA — paid plan (Klook pattern: single primary action) */}
-      <div className="max-w-md mx-auto flex flex-col gap-3">
+      <div className="mt-6 flex flex-col gap-4">
         {/* Email input — required for the paid flow */}
-        <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)}
-          placeholder={p.emailPlaceholder}
-          className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 transition-all outline-none ${isMobile ? 'focus:border-[#B668FC] focus:ring-1 focus:ring-[#B668FC]' : 'focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC]'}`}
-          required />
+        <label className="block">
+          <span className="ec-eyebrow">{p.emailPlaceholder}</span>
+          <input
+            type="email"
+            value={userEmail}
+            onChange={e => setUserEmail(e.target.value)}
+            placeholder={p.emailPlaceholder}
+            className="ec-field mt-1.5"
+            required
+          />
+        </label>
 
         {/* Feature recap (compact, was the OptionAButton list) */}
-        <ul className="text-white/55 text-[11px] space-y-0.5 text-left bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-2.5">
-          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature1}</span></li>
-          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature2}</span></li>
-          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature3}</span></li>
-          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature4}</span></li>
-          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature5}</span></li>
-          <li className={`flex gap-1.5 font-semibold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}><Check className="w-3 h-3 mt-0.5 shrink-0" /><span>{p.optionAfeatureRevision || '2 Free Revisions included'}</span></li>
+        <ul className="ec-panel-quiet space-y-1">
+          {[p.optionAfeature1, p.optionAfeature2, p.optionAfeature3, p.optionAfeature4, p.optionAfeature5].map((f) => (
+            <li key={f} className="flex gap-2 text-[13px] text-ec-ink-2">
+              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-brand" aria-hidden /><span>{f}</span>
+            </li>
+          ))}
+          <li className="flex gap-2 text-[13px] font-semibold text-ec-ink">
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-brand" aria-hidden />
+            <span>{p.optionAfeatureRevision || '2 Free Revisions included'}</span>
+          </li>
         </ul>
 
         {/* Primary action — paid PayPal flow.
             2026-05-05: bundle toggle "Already booked? Get free" CTA 분기 제거. */}
         {isGeneratingPlan ? (
-          <div className="space-y-3 py-2">
+          <div className="space-y-3">
             {/* 4-step 진행 + 꿀팁 슬라이드 (en/ja/zh: 한국 여행 꿀팁 10개, ko: 기존 한국어 팁) */}
             {/* P163: 일수별 동적 ETA — lastValues.current.durationDays 전달 */}
             <TriviaLoadingAnimation p={p} lang={language} durationDays={lastValues?.current?.durationDays as number | undefined} />
             {/* 안심 메시지 — 이메일로도 발송됨을 명시 (booking confirmation 이미 발송) */}
-            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
-              style={{ background: 'rgba(124,92,252,0.06)', borderColor: 'rgba(124,92,252,0.20)' }}>
-              <Mail className="w-4 h-4 text-[#B8A0FF] shrink-0 mt-0.5" />
-              <div className="text-[12px] text-white/75 leading-relaxed">
-                <p className="font-semibold text-white">{p.planReadyEmailTitle || "준비되면 이메일로도 보내드려요"}</p>
-                <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "1~2분 정도 소요됩니다. 메일로도 발송되니 기다리기 힘드시면 닫아놓으시고 나중에 메일함이나 바로가기 앱에서 확인하셔도 됩니다."}</p>
-              </div>
+            <div className="border-l-2 border-ec-brand pl-3">
+              <p className="text-[14px] font-semibold text-ec-ink">{p.planReadyEmailTitle}</p>
+              <p className="ec-body-sm text-ec-ink-3">{p.planReadyEmailSub}</p>
             </div>
           </div>
         ) : revisionMode && revisionPlanId ? (
           <button
             onClick={() => { const v = lastValues.current; if (v) onRevisionRegenerate(v, revisionPlanId, revisionToken, revisionReason, revisionNote, avoidList); }}
             disabled={!lastValues.current}
-            className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
+            type="button"
+            className="ec-btn ec-btn-primary w-full">
             {p.freeRegeneration || 'Free Regeneration'} {'—'} {p.createNewPlan || 'Create New Plan'}
           </button>
         ) : authLoading ? (
           /* P315: auth 확정 전 깜빡임 방지 — guest 에게 PayPal 버튼이 잠깐 보였다가
              사라지는 것 차단. 보통 수십 ms. */
-          <div className="flex items-center justify-center py-4 text-sm text-white/55">
-            <span className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin mr-2" />
-            {p.loading || '로딩 중...'}
+          <div className="flex items-center justify-center gap-2 py-4 text-[14px] text-ec-ink-3" role="status" aria-live="polite">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-ec-line border-t-ec-brand" aria-hidden />
+            {p.loading}
           </div>
         ) : (!user && !guestCheckoutEnabled) ? (
           /* P315: flag OFF 시 비로그인 결제 차단(현행 — backend verifyUserToken 401 → "돈 내고
              실패" 방지). flag ON 이면 아래 else 로 빠져 게스트 결제 + 가입 당근(backend handlerCore
              가 같은 플래그로 게스트 PayPal 결제를 받아줌 → "돈 내고 실패" 없음). */
-          <div className="space-y-3 rounded-2xl border border-[#7C5CFC]/30 p-4 text-center"
-            style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(234,83,126,0.06))' }}>
-            <p className="text-sm text-white/75 leading-relaxed">
-              {p.loginToPayDesc || '일정표를 안전하게 받아보려면 먼저 로그인해 주세요.'}
-            </p>
+          <div className="space-y-3 border-t border-ec-line pt-4">
+            <p className="ec-body-sm text-ec-ink-2">{p.loginToPayDesc}</p>
             <button
               onClick={handleSignIn}
               disabled={signingIn}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 20px rgba(124,92,252,0.3)' }}
+              type="button"
+              className="ec-btn ec-btn-primary w-full"
             >
               {signingIn ? (
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-ec-line border-t-ec-on-brand" aria-hidden />
               ) : (
-                <LogIn className="w-4 h-4" />
+                <LogIn className="h-4 w-4" aria-hidden />
               )}
-              <span>{p.loginToPay || '로그인 후 결제하기'}</span>
+              <span>{p.loginToPay}</span>
             </button>
             <button
               onClick={() => setPhoneModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-white/80 border border-white/20 hover:border-[#7C5CFC]/50 hover:text-white transition-all"
+              type="button"
+              className="ec-btn ec-btn-secondary w-full"
             >
-              <Phone className="w-4 h-4" />
+              <Phone className="h-4 w-4" aria-hidden />
               <span>
                 {language === 'ja' ? '電話番号でログイン'
                   : language === 'zh' ? '使用电话号码登录'
@@ -246,14 +246,13 @@ export function PurchaseSection({
           <>
             {!user && (
               /* 게스트 결제 (flag ON): 가입은 당근(선택) — 벽 아님, 결제는 누구나. */
-              <div className="rounded-xl border border-[#7C5CFC]/25 px-3.5 py-2.5 text-center"
-                style={{ background: 'rgba(124,92,252,0.06)' }}>
-                <p className="text-white/70 text-[12px] leading-snug">
-                  {'💡 '}{(p as { guestSignupNudge?: string }).guestSignupNudge
+              <div className="border-l-2 border-ec-line pl-3">
+                <p className="ec-body-sm text-ec-ink-2">
+                  {(p as { guestSignupNudge?: string }).guestSignupNudge
                     || 'Sign up free — save your plan + 2 revisions + 5% off charters'}
                 </p>
-                <button onClick={handleSignIn} disabled={signingIn}
-                  className="mt-1 text-[#B8A0FF] text-[12px] font-semibold underline underline-offset-2 hover:text-white transition-colors disabled:opacity-60">
+                <button onClick={handleSignIn} disabled={signingIn} type="button"
+                  className="ec-btn ec-btn-quiet ec-btn-sm mt-1 px-0">
                   {(p as { guestSignupCta?: string }).guestSignupCta || 'Sign up free'}
                 </button>
               </div>
@@ -263,20 +262,17 @@ export function PurchaseSection({
                 결제(0원) 로직은 기존 onPaymentSuccess('', code) 그대로 (트리거만 이동). */}
             {user && couponApplied && aiCoupon ? (
               <div className="space-y-2">
-                <div className="flex items-center justify-center gap-2 rounded-xl border border-green-400/30 px-3.5 py-2.5"
-                  style={{ background: 'rgba(52,199,89,0.08)' }}>
-                  <Ticket className="w-4 h-4 text-green-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-green-300">
-                    {(p as { aiCouponApplied?: string }).aiCouponApplied || '무료 쿠폰 적용됨 · 0원'}
-                  </span>
-                </div>
+                <p className="flex items-center gap-2 text-[14px] font-semibold text-ec-success">
+                  <Ticket className="h-4 w-4 shrink-0" aria-hidden />
+                  {(p as { aiCouponApplied?: string }).aiCouponApplied || '무료 쿠폰 적용됨 · 0원'}
+                </p>
                 <button
                   onClick={() => { if (isSending) return; setIsSending(true); onPaymentSuccess('', aiCoupon.code); setTimeout(() => setIsSending(false), 3000); }}
                   disabled={isGeneratingPlan || isSending}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
-                  style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)', boxShadow: '0 4px 20px rgba(52,199,89,0.3)' }}
+                  type="button"
+                  className="ec-btn ec-btn-primary w-full"
                 >
-                  🎟️ {(p as { aiCouponProceed?: string }).aiCouponProceed || '무료 쿠폰으로 일정표 받기'}
+                  {(p as { aiCouponProceed?: string }).aiCouponProceed || '무료 쿠폰으로 일정표 받기'}
                 </button>
               </div>
             ) : (
@@ -295,27 +291,29 @@ export function PurchaseSection({
             )}
 
             {/* AI 플랜은 디지털 상품(즉시 다운로드)이라 환불 불가 — 소비자 사전 고지. */}
-            <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">
+            <p className="ec-body-sm text-ec-notice">
               {(p as { aiPlanNoRefundNotice?: string }).aiPlanNoRefundNotice
-                || '⚠️ AI Plans are digital products delivered immediately and are non-refundable. Charter and tour bookings follow our standard refund policy.'}
+                || 'AI Plans are digital products delivered immediately and are non-refundable. Charter and tour bookings follow our standard refund policy.'}
             </p>
           </>
         )}
 
         {planError && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-            <p className="text-red-400 text-sm mb-1">{planError}</p>
-            <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs underline">
-              {p.contactWhatsApp || 'Contact us on WhatsApp'}
-            </a>
+          <div className="ec-error-note" role="alert">
+            <span>
+              {planError}{' '}
+              <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                {p.contactWhatsApp || 'Contact us on WhatsApp'}
+              </a>
+            </span>
           </div>
         )}
 
         {/* Satisfaction guarantee */}
-        <div className="flex items-center justify-center gap-2 text-[11px] text-white/55 mt-1">
-          <Check className="w-3 h-3" />
+        <p className="flex items-center gap-2 border-t border-ec-line pt-3 text-[13px] text-ec-ink-3">
+          <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>{p.upgradeNotice}</span>
-        </div>
+        </p>
       </div>
 
       {/* P315: 전화번호 로그인 모달 (비로그인 결제 게이트 fallback). signInWithGoogle
@@ -329,6 +327,6 @@ export function PurchaseSection({
           />
         </Suspense>
       )}
-    </div>
+    </section>
   );
 }

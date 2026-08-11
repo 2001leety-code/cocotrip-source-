@@ -1,19 +1,29 @@
-// Step 3: summary review + generate button.
+// Step 3: summary review + the free day-one preview.
+//
+// 2026-08-10 follow-up: the action block used to be a price card. It printed
+// the full-plan amount, said "Generate AI Itinerary" and closed with "Takes
+// about 15 seconds after payment" — above a button that calls
+// `/api/ai-planner-quick`, which is free and returns day one only. Pressing it
+// charges nothing, so this card now quotes nothing: it names the free preview,
+// says the full itinerary is a separate paid step, and leaves the amount where
+// money is actually asked for (`AiPlannerPricingNote` before the brief,
+// `PurchaseSection` after the preview). Locked by
+// `tests/unit/planner-free-preview-truthfulness.test.ts`.
 import type { ReactNode } from 'react';
-import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield, Hotel, Navigation } from 'lucide-react';
+import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Hotel, Navigation } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { formatDateShort } from './helpers';
 import type { WizardDict } from './types';
-import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPrice';
+import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 
 // 2026-08-04: helpers.tsx 에서 옮겨 왔다 (마크업 그대로). 소비처가 이 파일 하나뿐인데
 // 순수 함수 모듈에 섞여 있어 fast-refresh 가 위저드를 통째로 리마운트하게 만들고 있었다.
 // export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
 function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
-      <span className="flex items-center gap-1 text-[10px] text-white/55 mb-1">{icon} {label}</span>
-      <p className="text-sm font-bold text-white truncate">{value}</p>
+    <div className="flex w-full items-center justify-between gap-3">
+      <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-ec-ink-3">{icon} {label}</span>
+      <span className="ec-figure min-w-0 flex-1 truncate text-right text-[14px]">{value}</span>
     </div>
   );
 }
@@ -52,6 +62,7 @@ export function WizardStep3Review(props: Step3Props) {
     isLoading, errorMsg, language, onEditStep, onGenerate,
   } = props;
 
+  const c = pickPlannerCopy(language || 'en');
   const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
 
   // 2026-05-21 (P134 분기 #34/#35 fix): destination 다도시 시 "Seoul → Busan" 형식.
@@ -94,110 +105,102 @@ export function WizardStep3Review(props: Step3Props) {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-[17px] sm:text-lg font-bold text-white">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
+      <h2 className="ec-question">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
       {/* Summary cards */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <button onClick={() => onEditStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+      <div className="ec-panel space-y-3 sm:space-y-4">
+        <div className="divide-y divide-ec-line">
+          <button onClick={() => onEditStep(0)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={destinationValue} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Plane className="w-4 h-4" />} label={p.wizardAirport || 'Airport'} value={airportLabel} />
           </button>
-          <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
             <SummaryCard icon={<Users className="w-4 h-4" />} label={p.wizardTravelers || 'Travelers'} value={`${pax} ${p.wizardPaxUnit || 'pax'}`} />
           </button>
         </div>
 
-        <div className="text-xs text-white/55 space-y-1 border-t border-white/[0.06] pt-3">
-          <p><span className="text-white/55">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
+        <div className="text-xs text-ec-ink-3 space-y-1 border-t border-ec-line pt-3">
+          <p><span className="text-ec-ink-3">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-ec-ink-2">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
 
           {/* 2026-05-21 (P134 분기 #34 fix): 호텔 입력 도시 anchor */}
           {hotelEntries.map((e, i) => (
             <p key={`hotel-${i}`} className="flex items-start gap-1.5">
-              <Hotel className="w-3 h-3 mt-0.5 text-[#7C5CFC]" />
-              <span className="text-white/55">
+              <Hotel className="w-3 h-3 mt-0.5 text-ec-brand" />
+              <span className="text-ec-ink-3">
                 {hotelEntries.length > 1 || zoneEntries.length > 0 ? `${e.city}: ` : `${p.wizardHotelLabel || 'Hotel'}: `}
               </span>
-              <span className="text-white/60">{e.address}</span>
+              <span className="text-ec-ink-2">{e.address}</span>
             </p>
           ))}
 
           {/* 2026-05-21 (P134 분기 #34 fix): zone 중심 fallback — 호텔 없는 도시 */}
           {zoneEntries.map((e, i) => (
             <p key={`zone-${i}`} className="flex items-start gap-1.5">
-              <Navigation className="w-3 h-3 mt-0.5 text-[#7C5CFC]/60" />
-              <span className="text-white/55">
+              <Navigation className="w-3 h-3 mt-0.5 text-ec-ink-3" />
+              <span className="text-ec-ink-3">
                 {hotelEntries.length > 0 || zoneEntries.length > 1 ? `${e.city}: ` : `${p.wizardZoneCenterLabel || 'Zone center'}: `}
               </span>
-              <span className="text-white/60">{e.zone}</span>
+              <span className="text-ec-ink-2">{e.zone}</span>
             </p>
           ))}
 
           {/* 호텔도 zone 도 없는 경우 — backend 가 default fallback */}
           {hotelEntries.length === 0 && zoneEntries.length === 0 && (
-            <p className="text-white/45 italic">
-              {p.wizardNoAnchorHint || 'AI will pick optimal start points per day'}
+            <p className="text-ec-ink-3 italic">
+              {p.wizardNoAnchorHint || 'Each day gets a practical starting point, set from the cities and dates above.'}
             </p>
           )}
         </div>
 
-        <p className="text-[10px] text-white/55 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
+        <p className="text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
-      {/* What You'll Get */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5">
-        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#7C5CFC]" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
+      {/* What the purchase contains — not what the button below hands over. */}
+      <div className="ec-panel">
+        <h3 className="ec-h3 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-ec-brand" /> {p.wizardWhatYouGet || 'The full itinerary includes'}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {([p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean) as string[]).map((item: string, i: number) => (
-            <div key={i} className="flex items-start gap-2 text-xs text-white/50">
-              <Check className="w-3.5 h-3.5 text-green-400/70 shrink-0 mt-0.5" />
+            <div key={i} className="flex items-start gap-2 text-xs text-ec-ink-3">
+              <Check className="w-3.5 h-3.5 text-ec-success shrink-0 mt-0.5" />
               <span>{item}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Price + Generate */}
-      <div className="bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 border border-[#7C5CFC]/20 rounded-xl p-3.5 space-y-3 sm:rounded-2xl sm:p-5 sm:space-y-4 text-center">
-        <div>
-          <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-3xl font-bold text-white">{formatAiPlannerUsd()}</span>
-            {/* 참고 원화 — 실제 결제는 고정 USD 이고 카드사 환율에 따라 인출액이 다르다.
-                그래서 "약" 을 붙이고 값은 SSOT 에서만 만든다(하드코딩 금지). */}
-            <span className="text-sm text-white/55">
-              / {formatAiPlannerApproxKrw(language)}
-            </span>
-          </div>
-        </div>
+      {/* The free day-one preview — the action, described as what it is.
+          Left-aligned rather than centred: a centred amount was the anchor of
+          the old card, and with the amount gone a centred column of three short
+          lines reads as an advert. Set as a paragraph, the eyebrow leads and the
+          button is the only heavy element. */}
+      <div className="rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 sm:p-5">
+        <p className="ec-eyebrow">{c.wizard.previewEyebrow}</p>
+        <p className="ec-body-sm ec-measure mt-1.5 text-ec-ink-2">{c.wizard.previewLede}</p>
 
         {errorMsg && (
-          <div className="bg-red-500/15 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-300">
+          <p className="ec-error-note mt-3" role="alert">
             {errorMsg}
-          </div>
+          </p>
         )}
 
-        <button onClick={onGenerate} disabled={isLoading}
-          className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.03] disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
-          <Shield className="w-5 h-5" />
-          {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}
+        <button onClick={onGenerate} disabled={isLoading} type="button"
+          aria-busy={isLoading}
+          className="ec-btn ec-btn-primary mt-4 w-full">
+          {isLoading ? c.wizard.previewBusy : c.wizard.previewCta}
         </button>
 
-        <p className="text-[10px] text-white/55 flex items-center justify-center gap-1">
-          <Wallet className="w-3 h-3" /> {p.wizardPaymentNote || 'Takes about 15 seconds after payment'}
-        </p>
+        <p className="ec-body-sm ec-measure mt-2 text-ec-ink-3">{c.wizard.previewNote}</p>
       </div>
 
       {/* Back */}
       <button onClick={() => onEditStep(2)}
         aria-label={p.planner_prev || 'Back'}
-        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/55 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+        className="ec-btn ec-btn-secondary w-full">
         <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}
       </button>
     </div>

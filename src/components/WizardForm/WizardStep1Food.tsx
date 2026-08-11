@@ -71,22 +71,19 @@ export function WizardStep1Food(props: Step1Props) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className={`text-[17px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
+        <h2 className="ec-question mb-1">{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
+        <p className="ec-help">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
       </div>
 
       {/* 5/7 추가 — 할랄/비건 명시 안내 (사용자 요구사항). 식이제한 사용자가 누락하면
           unverified_restaurant 위험 + 건강 안전 이슈 → 명시적 강조. */}
-      <div
-        className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
-        style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)' }}
-      >
-        <TriangleAlert className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
-        <div className="text-[12px] text-white/80 leading-relaxed">
-          <p className="font-semibold text-amber-200 mb-0.5">
+      <div className="flex items-start gap-2.5 px-4 py-3 rounded-ec-md border border-ec-line bg-ec-sunken">
+        <TriangleAlert className="w-4 h-4 text-ec-notice shrink-0 mt-0.5" />
+        <div className="text-[12px] text-ec-ink-2 leading-relaxed">
+          <p className="font-semibold text-ec-notice mb-0.5">
             {p.wizardFoodDietaryHighlight || '⚠️ Halal / Vegan / Allergies — please select if applicable'}
           </p>
-          <p className="text-white/65">
+          <p className="text-ec-ink-3">
             {p.wizardFoodDietaryHint || 'Selecting these helps us recommend restaurants matching your dietary needs along your route. Missing this can lead to unverified suggestions.'}
           </p>
         </div>
@@ -94,14 +91,13 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* Diet style chips */}
       <div>
-        <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>
-        <p className="text-xs text-white/55 mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
+        <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>
+        <p className="ec-help mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {FOOD_STYLE_KEYS.map((key) => {
             const nameKey = `food${key}` as keyof typeof p;
             const subKey = `food${key}Sub` as keyof typeof p;
             const sel = dietPrefs.includes(key);
-            const accentColor = isMobile ? '#B668FC' : '#7C5CFC';
             // Branch #17: Vegan → Seafood/Meat chips disabled
             const veganDisabled = isVegan && VEGAN_INCOMPATIBLE_FOOD_STYLES.has(key);
             const disabledTooltip = veganDisabled
@@ -112,27 +108,18 @@ export function WizardStep1Food(props: Step1Props) {
                 onClick={() => { if (!veganDisabled) toggleDiet(key); }}
                 title={disabledTooltip}
                 disabled={veganDisabled}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
-                  veganDisabled
-                    ? 'border-white/[0.06] bg-white/[0.02] text-white/25 opacity-50 cursor-not-allowed'
-                    : sel
-                      ? 'border-transparent text-white shadow-lg'
-                      : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
-                }`}
-                style={(!veganDisabled && sel) ? {
-                  background: isMobile
-                    ? 'linear-gradient(135deg,rgba(182,104,252,.35),rgba(255,107,157,.35))'
-                    : 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))',
-                  borderColor: `${accentColor}80`,
-                } : {}}>
-                <span className="shrink-0">{FOOD_STYLE_ICONS[key]}</span>
-                <div className="overflow-hidden">
-                  <p className="text-[13px] font-bold truncate">{p[nameKey] || key}</p>
-                  <p className="text-[10px] text-white/55 truncate">
-                    {veganDisabled ? disabledTooltip : p[subKey]}
-                  </p>
-                </div>
-                {(!veganDisabled && sel) && <Check className={`w-4 h-4 ml-auto shrink-0 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />}
+                aria-pressed={sel}
+                className={`ec-option ${sel ? 'is-selected' : ''}`}>
+                <span className="flex items-center gap-2">
+                  <span className="shrink-0">{FOOD_STYLE_ICONS[key]}</span>
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="block text-[13px] font-bold truncate">{p[nameKey] || key}</span>
+                    <span className="block text-[10px] text-ec-ink-3 truncate">
+                      {veganDisabled ? disabledTooltip : p[subKey]}
+                    </span>
+                  </span>
+                  {(!veganDisabled && sel) && <Check className="w-4 h-4 ml-auto shrink-0 text-ec-brand" />}
+                </span>
               </button>
             );
           })}
@@ -141,8 +128,8 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* Allergy chips */}
       <div>
-        <p className="text-sm text-white/50 mb-1 font-medium flex items-center gap-1.5">
-          <TriangleAlert className="w-3.5 h-3.5 text-amber-400/70" />
+        <p className="text-sm text-ec-ink-3 mb-1 font-medium flex items-center gap-1.5">
+          <TriangleAlert className="w-3.5 h-3.5 text-ec-notice" />
           {p.wizardFoodAllergyLabel || 'Allergies / Dietary Restrictions'}
         </p>
         <div className="flex flex-wrap gap-2 mt-2">
@@ -151,14 +138,9 @@ export function WizardStep1Food(props: Step1Props) {
             const sel = key === 'None' ? allergies.length === 0 : allergies.includes(key);
             return (
               <button key={key} onClick={() => toggleAllergy(key)}
-                className={`px-3 py-1.5 rounded-full text-[13px] font-semibold border transition-all ${
-                  sel
-                    ? (isMobile
-                        ? 'bg-[#B668FC]/20 border-[#B668FC]/50 text-white shadow-[0_0_8px_rgba(182,104,252,0.15)]'
-                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white shadow-[0_0_8px_rgba(124,92,252,0.15)]')
-                    : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                }`}>
-                {sel && <Check className="w-3 h-3 inline mr-1" />}
+                aria-pressed={sel}
+                className={`ec-option ec-option-sm ${sel ? 'is-selected' : ''}`}>
+                {sel && <Check className="w-3 h-3 inline mr-1 text-ec-brand" />}
                 {label}
               </button>
             );
@@ -168,11 +150,11 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* Spice slider (P10) — Branch #18: disabled when no food pref selected */}
       <div>
-        <p className={`text-sm mb-2.5 font-medium flex items-center gap-1.5 ${hasAnyFoodPref ? 'text-white/50' : 'text-white/25'}`}>
-          <Flame className={`w-3.5 h-3.5 ${hasAnyFoodPref ? 'text-rose-400/70' : 'text-white/20'}`} />
+        <p className={`text-sm mb-2.5 font-medium flex items-center gap-1.5 text-ec-ink-3 ${hasAnyFoodPref ? '' : 'opacity-60'}`}>
+          <Flame className="w-3.5 h-3.5 text-ec-notice" />
           {p.wizardFoodSpiceLabel || 'Spice tolerance'}
           {!hasAnyFoodPref && (
-            <span className="text-[11px] font-normal text-white/35 ml-1">
+            <span className="text-[11px] font-normal ml-1">
               — {p.wizardSpiceDisabledNoFood || 'Select a food preference first'}
             </span>
           )}
@@ -187,15 +169,12 @@ export function WizardStep1Food(props: Step1Props) {
               <button key={key} type="button"
                 onClick={() => { if (hasAnyFoodPref) setSpiceLevel(key); }}
                 disabled={!hasAnyFoodPref}
-                className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl text-[12px] font-semibold border transition-all ${
-                  !hasAnyFoodPref
-                    ? 'bg-white/[0.02] border-white/[0.05] text-white/30 cursor-not-allowed'
-                    : sel
-                      ? 'bg-rose-500/15 border-rose-400/50 text-white shadow-[0_0_8px_rgba(244,63,94,0.15)]'
-                      : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                }`}>
-                <span>{label}</span>
-                <span className="text-[9px] text-white/55 font-normal text-center leading-tight">{sub}</span>
+                aria-pressed={sel}
+                className={`ec-option ${sel ? 'is-selected' : ''}`}>
+                <span className="flex flex-col items-center gap-0.5 text-center">
+                  <span className="text-[12px] font-semibold">{label}</span>
+                  <span className="text-[9px] text-ec-ink-3 font-normal leading-tight">{sub}</span>
+                </span>
               </button>
             );
           })}
@@ -204,8 +183,8 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* Korean dish bucket list (P10) — Branch #16/#17: Halal/Vegan incompatible dishes grayed */}
       <div>
-        <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardFoodBucketLabel || 'Korean bucket list'}</p>
-        <p className="text-xs text-white/55 mb-3">{p.wizardFoodBucketHint || 'Iconic dishes you must try (we\'ll fit them in)'}</p>
+        <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardFoodBucketLabel || 'Korean bucket list'}</p>
+        <p className="ec-help mb-3">{p.wizardFoodBucketHint || 'Iconic dishes you must try (we\'ll fit them in)'}</p>
         <div className="flex flex-wrap gap-2">
           {KOREAN_BUCKET_LIST.map((key) => {
             const label = (p[`bucket${key.charAt(0).toUpperCase()}${key.slice(1)}`] as string) || BUCKET_LABELS_FALLBACK[key] || key;
@@ -225,16 +204,9 @@ export function WizardStep1Food(props: Step1Props) {
                 onClick={() => { if (!isDisabled) toggleBucketDish(key); }}
                 title={disabledTooltip}
                 disabled={isDisabled}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
-                  isDisabled
-                    ? 'bg-white/[0.02] border-white/[0.05] text-white/25 opacity-50 cursor-not-allowed line-through'
-                    : sel
-                      ? (isMobile
-                          ? 'bg-[#B668FC]/20 border-[#B668FC]/50 text-white'
-                          : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white')
-                      : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                }`}>
-                {(!isDisabled && sel) && <Check className="w-3 h-3 inline mr-1" />}
+                aria-pressed={sel}
+                className={`ec-option ec-option-sm ${sel ? 'is-selected' : ''} ${isDisabled ? 'line-through' : ''}`}>
+                {(!isDisabled && sel) && <Check className="w-3 h-3 inline mr-1 text-ec-brand" />}
                 {label}
               </button>
             );
@@ -244,7 +216,7 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* Price range */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardFoodPriceLabel || 'Meal Budget'}</p>
+        <p className="text-sm text-ec-ink-3 mb-2.5 font-medium">{p.wizardFoodPriceLabel || 'Meal Budget'}</p>
         <div className="grid grid-cols-2 gap-2">
           {PRICE_KEYS.map((key) => {
             const label = p[`price${key}`] || key;
@@ -252,15 +224,12 @@ export function WizardStep1Food(props: Step1Props) {
             const sel = priceRange === key;
             return (
               <button key={key} onClick={() => setPriceRange(key)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-[13px] font-semibold border transition-all ${
-                  sel
-                    ? (isMobile
-                        ? 'bg-[#B668FC]/20 border-[#B668FC]/50 text-white shadow-[0_0_8px_rgba(182,104,252,0.15)]'
-                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white shadow-[0_0_8px_rgba(124,92,252,0.15)]')
-                    : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                }`}>
-                <span>{label}</span>
-                {range && <span className="text-[10px] text-white/55 font-normal">{range}</span>}
+                aria-pressed={sel}
+                className={`ec-option ${sel ? 'is-selected' : ''}`}>
+                <span className="flex flex-col items-center gap-0.5 text-center">
+                  <span className="text-[13px] font-semibold">{label}</span>
+                  {range && <span className="text-[10px] text-ec-ink-3 font-normal">{range}</span>}
+                </span>
               </button>
             );
           })}

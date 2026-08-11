@@ -1,7 +1,7 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
 // 2026-05-10 ZoneRecommender React.lazy: hotel 미입력 시점에만 노출 → 진입 즉시
 // fetch (작은 skeleton fallback). Main bundle 에서 ZoneRecommender 코드 분리.
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, type CSSProperties } from 'react';
 import { Plane, Briefcase, Minus, Plus, Pencil, PlaneLanding, PlaneTakeoff } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
@@ -124,24 +124,43 @@ const TOUR_PACE_FALLBACK: Record<TourPace, { label: string; sub: string }> = {
   action: { label: 'Action-pack', sub: '10h+ · 7+ stops · 자유 이동' },
 };
 
+// Korea Editorial Concierge 재도색: react-day-picker 의 CSS 커스텀 프로퍼티를 ec- 토큰에
+// 연결한다. 과거 dark 테마(index.css `.cocotrip-rdp`, !important 로 색을 고정)는 더 이상
+// 참조하지 않음 — 선택/구간/비활성 로직은 라이브러리 것 그대로, 값만 재배선한 것이 이 상수다.
+// today 는 이 화면에서 항상 disabled(내일부터만 선택 가능)이므로 today 전용 강조색도
+// 함께 지운다 — 안 지우면 "선택 불가한 오늘"이 브랜드색으로 튀어 보인다.
+const RDP_STYLE_VARS = {
+  '--rdp-accent-color': 'var(--ec-brand)',
+  '--rdp-accent-background-color': 'var(--ec-brand-wash)',
+  '--rdp-range_start-background': 'var(--ec-brand-wash)',
+  '--rdp-range_end-background': 'var(--ec-brand-wash)',
+  '--rdp-today-color': 'var(--ec-text-faint)',
+  '--rdp-selected-border': '0',
+  '--rdp-disabled-opacity': '1',
+  '--rdp-day-height': '44px',
+  '--rdp-day-width': '44px',
+  '--rdp-day_button-height': '44px',
+  '--rdp-day_button-width': '44px',
+} as CSSProperties;
+
 function LuggageCounter({ label, sub, value, setValue, maxReached }: { label: string; sub: string; value: number; setValue: (v: number) => void; maxReached?: boolean }) {
   const { t } = useLanguage();
   const plusDisabled = maxReached && value > 0 ? true : maxReached;
   return (
-    <div className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
+    <div className="ec-panel-quiet flex items-center justify-between">
       <div>
-        <p className="text-[13px] font-semibold text-white">{label}</p>
-        <p className="text-[10px] text-white/55">{sub}</p>
+        <p className="text-[13px] font-semibold text-ec-ink">{label}</p>
+        <p className="text-[11px] text-ec-ink-3">{sub}</p>
       </div>
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setValue(Math.max(0, value - 1))}
-          className="w-11 h-11 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/60 disabled:opacity-30"
+          className="w-11 h-11 rounded-full border border-ec-line hover:border-ec-line-3 flex items-center justify-center text-ec-ink-2 disabled:opacity-30 transition-colors"
           disabled={value === 0} aria-label={t.a11y?.decrease || 'Decrease'}>
           <Minus className="w-3.5 h-3.5" />
         </button>
-        <span className="w-6 text-center text-sm font-bold text-white">{value}</span>
+        <span className="w-6 text-center ec-figure text-sm">{value}</span>
         <button type="button" onClick={() => setValue(value + 1)}
-          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-11 h-11 rounded-full bg-ec-brand-wash hover:bg-ec-brand text-ec-brand hover:text-ec-on-brand flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           disabled={plusDisabled} aria-label={t.a11y?.increase || 'Increase'}>
           <Plus className="w-3.5 h-3.5" />
         </button>
@@ -213,19 +232,21 @@ export function WizardStep2Details(props: Step2Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.planner_step2_date || 'Travel Details'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
+        <h2 className="ec-h3">{p.planner_step2_date || 'Travel Details'}</h2>
+        <p className="ec-help mt-1">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
       </div>
+
+      <hr className="ec-rule" />
 
       {/* Range Calendar */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardWhenVisit || 'When are you visiting?'}</p>
+        <p className="ec-question">{p.wizardWhenVisit || 'When are you visiting?'}</p>
         {showErrors && !dateOk && (
-          <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select travel dates'}</p>
+          <p className="ec-error-note mt-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select travel dates'}</p>
         )}
-        <div className={`cocotrip-calendar-wrap bg-white/[0.04] border rounded-2xl p-3 sm:p-4 ${showErrors && !dateOk ? 'border-red-400/60' : 'border-white/[0.1]'}`}>
+        <div className={`ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && !dateOk ? 'border-ec-critical' : ''}`}>
           <DayPicker
             mode="range"
             selected={dateRange}
@@ -242,8 +263,15 @@ export function WizardStep2Details(props: Step2Props) {
               return d < tomorrow;
             }}
             showOutsideDays={false}
+            style={RDP_STYLE_VARS}
             classNames={{
-              root: 'cocotrip-rdp',
+              months: 'justify-center',
+              month_caption: 'text-ec-ink font-bold text-[15px]',
+              weekday: 'text-ec-ink-3 text-xs font-medium opacity-100',
+              button_previous: 'text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
+              button_next: 'text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
+              day_button: 'transition-colors enabled:hover:bg-ec-brand-wash',
+              disabled: 'text-ec-ink-4',
             }}
           />
         </div>
@@ -262,11 +290,13 @@ export function WizardStep2Details(props: Step2Props) {
           return (
             <div className="grid grid-cols-2 gap-2.5 mt-3">
               {cells.map(({ label, val, Icon }, i) => (
-                <div key={i} className="rounded-2xl border border-white/[0.1] bg-white/[0.04] px-3.5 py-3">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/45 mb-1">
+                <div key={i} className="ec-panel-quiet px-3.5 py-3">
+                  <span className="ec-eyebrow flex items-center gap-1.5 mb-1">
                     <Icon className="w-3.5 h-3.5" />{label}
                   </span>
-                  <p className={`text-[15px] font-bold leading-tight ${val ? 'text-white' : 'text-white/35'}`}>{val || ph}</p>
+                  {/* 미입력 자리표시는 ec-ink-3 — ec-ink-4 는 24px 이상/장식용 전용이고
+                      이 sunken 배경 위에서 3.3:1 로 본문 기준을 못 넘긴다. */}
+                  <p className={`ec-figure text-[15px] ${val ? '' : 'text-ec-ink-3'}`}>{val || ph}</p>
                 </div>
               ))}
             </div>
@@ -274,7 +304,7 @@ export function WizardStep2Details(props: Step2Props) {
         })()}
         {nights > 0 && (
           <>
-            <p className="text-sm text-[#7C5CFC] font-semibold mt-2">
+            <p className="text-sm text-ec-brand font-semibold mt-2">
               {(p.wizardNightsTrip || '{n} nights, {m} days trip').replace('{n}', String(nights)).replace('{m}', String(nights + 1))}
             </p>
             {/* P163 (2026-05-23): 일수별 생성 시간 동적 표시 + 7일 초과 권장 */}
@@ -292,9 +322,9 @@ export function WizardStep2Details(props: Step2Props) {
                             : `💡 For trips longer than 7 days, we recommend splitting into multiple plans for reliable generation`;
               return (
                 <>
-                  <p className="text-[12px] text-white/70 mt-1">{etaTxt}</p>
+                  <p className="ec-help mt-1">{etaTxt}</p>
                   {days > 7 && (
-                    <p className="text-[12px] text-amber-300 mt-1 leading-snug">{overTxt}</p>
+                    <p className="ec-error-note mt-1 border-ec-notice text-ec-notice" role="alert">{overTxt}</p>
                   )}
                 </>
               );
@@ -302,7 +332,7 @@ export function WizardStep2Details(props: Step2Props) {
           </>
         )}
         {/* AI 플래너: 내일 이후만 가능 안내 (달력 아래 항상 노출) */}
-        <p className="text-[11px] text-white/45 mt-1.5 px-1">
+        <p className="ec-help mt-1.5">
           {lang === 'ko' ? '📅 AI 플래너는 내일 이후 출발만 예약 가능합니다.' :
            lang === 'ja' ? '📅 AIプランナーは明日以降の出発のみ予約可能です。' :
            lang === 'zh' ? '📅 AI规划师仅支持明天以后出发的行程。' :
@@ -310,17 +340,19 @@ export function WizardStep2Details(props: Step2Props) {
         </p>
       </div>
 
+      <hr className="ec-rule" />
+
       {/* Travelers */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.planner_step2_adults || 'How many travelers?'}</p>
+        <p className="ec-question">{p.planner_step2_adults || 'How many travelers?'}</p>
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
-          className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+          className="ec-field ec-figure mt-2.5" />
       </div>
 
       {/* UIUX P3 (2026-07-13): 동행 유형 — 선택형(강제 X), 재탭 해제. AI 플랜 소프트 힌트(travel_party). */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.companionsLabel || 'Who are you traveling with? (optional)'}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <p className="ec-question">{p.companionsLabel || 'Who are you traveling with? (optional)'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
           {([
             { key: 'solo' as const,    fb: 'Solo' },
             { key: 'couple' as const,  fb: 'Couple' },
@@ -332,13 +364,8 @@ export function WizardStep2Details(props: Step2Props) {
             const sel = companions === key;
             return (
               <button key={key} type="button" onClick={() => setCompanions(sel ? '' : key)}
-                className={`px-3 py-2.5 rounded-xl border text-left transition-all ${
-                  sel
-                    ? (isMobile
-                        ? 'bg-[#B668FC]/20 border-[#B668FC]/55 text-white'
-                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white')
-                    : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
-                }`}>
+                aria-pressed={sel}
+                className={`ec-option ec-option-sm ${sel ? 'is-selected' : ''}`}>
                 <span className="text-[13px] font-bold leading-tight">{label}</span>
               </button>
             );
@@ -348,8 +375,8 @@ export function WizardStep2Details(props: Step2Props) {
 
       {/* P7: Daily tour pace — feeds Gemini hours-per-day budget */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.tourPaceLabel || 'Daily tour pace'}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <p className="ec-question">{p.tourPaceLabel || 'Daily tour pace'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
           {TOUR_PACE_KEYS.map((key) => {
             const fb = TOUR_PACE_FALLBACK[key];
             const cap = key.charAt(0).toUpperCase() + key.slice(1);
@@ -358,20 +385,17 @@ export function WizardStep2Details(props: Step2Props) {
             const sel = tourPace === key;
             return (
               <button key={key} type="button" onClick={() => setTourPace(key)}
-                className={`flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                  sel
-                    ? (isMobile
-                        ? 'bg-[#B668FC]/20 border-[#B668FC]/55 text-white'
-                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white')
-                    : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
-                }`}>
+                aria-pressed={sel}
+                className={`ec-option ec-option-sm flex flex-col items-start gap-0.5 ${sel ? 'is-selected' : ''}`}>
                 <span className="text-[13px] font-bold leading-tight">{label}</span>
-                <span className="text-[10px] text-white/55 leading-tight">{sub}</span>
+                <span className="text-[10px] text-ec-ink-3 leading-tight">{sub}</span>
               </button>
             );
           })}
         </div>
       </div>
+
+      <hr className="ec-rule" />
 
       {/* P161 (2026-05-23): 다도시 plan 의 입국/출국 cycle UI (2페이지에서 이전).
           기존 single-select radio toggle → cycle chip 으로 교체. 사용자 신고 Screenshot 2:
@@ -379,12 +403,12 @@ export function WizardStep2Details(props: Step2Props) {
           arrival 도시 = mainCity (entry hub) — onEntryCityChange 로 mainCity ↔ extraCities swap.
           단도시 시 미노출 (mainCity = entry 자동). */}
       {isMultiCity && (
-        <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.05] p-3.5">
-          <p className="text-[13px] font-semibold text-white mb-1">
+        <div className="ec-panel-quiet">
+          <p className="text-[13px] font-semibold text-ec-ink mb-1">
             {p.entryCityTitle || 'Which city are you arriving in?'}
           </p>
-          <p className="text-[11px] text-white/55 mb-2.5 leading-snug flex items-center gap-1.5">
-            <PlaneLanding className="w-3 h-3 text-sky-400 shrink-0" />
+          <p className="ec-help mb-2.5 flex items-center gap-1.5">
+            <PlaneLanding className="w-3 h-3 text-ec-ink-3 shrink-0" />
             <span>{p.wizardArrivalDepartureHint || '도시를 한 번 더 누르면 입국 → 출국 순으로 지정됩니다 (출국 지정 시 다른 도시 자동 입국)'}</span>
           </p>
           <div className="flex flex-wrap gap-2">
@@ -428,23 +452,17 @@ export function WizardStep2Details(props: Step2Props) {
                     }
                   }}
                   aria-pressed={isArr || isDep}
-                  className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-1.5 ${
-                    isArr
-                      ? 'bg-sky-500/20 border-sky-500/55 text-white font-semibold'
-                      : isDep
-                        ? 'bg-fuchsia-500/20 border-fuchsia-500/55 text-white font-semibold'
-                        : 'bg-white/[0.04] border-white/[0.10] text-white/65 hover:border-white/20'
-                  }`}
+                  className={`ec-option ec-option-sm inline-flex items-center gap-1.5 ${(isArr || isDep) ? 'is-selected' : ''}`}
                 >
                   <span>{cityIcon}</span>
                   <span>{cityName}</span>
                   {isArr && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] text-sky-300 ml-0.5">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-ec-brand-hover font-semibold ml-0.5">
                       <PlaneLanding className="w-3 h-3" /> {p.wizardArrivalBadge || '입국'}
                     </span>
                   )}
                   {isDep && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] text-fuchsia-300 ml-0.5">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-ec-brand-hover font-semibold ml-0.5">
                       <PlaneTakeoff className="w-3 h-3" /> {p.wizardDepartureBadge || '출국'}
                     </span>
                   )}
@@ -455,10 +473,10 @@ export function WizardStep2Details(props: Step2Props) {
           {/* P161: 경로 표시 — 2페이지에서 이전 */}
           {allCities.length > 1 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
-              <span className="text-xs text-white/55">{p.wizardRoute || 'Route'}:</span>
+              <span className="ec-eyebrow">{p.wizardRoute || 'Route'}:</span>
               {allCities.map((c, i) => (
-                <span key={c} className="text-xs text-white/50">
-                  {i > 0 && <span className="text-white/55 mx-1">-&gt;</span>}{c}
+                <span key={c} className="text-xs text-ec-ink-3">
+                  {i > 0 && <span className="text-ec-ink-3 mx-1">-&gt;</span>}{c}
                 </span>
               ))}
             </div>
@@ -471,45 +489,47 @@ export function WizardStep2Details(props: Step2Props) {
         <button
           type="button"
           onClick={onEditStep0}
-          className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.10] hover:border-[#7C5CFC]/50 rounded-2xl px-4 py-3 transition-colors text-left"
+          className="ec-panel-quiet w-full flex items-center justify-between hover:border-ec-line-3 transition-colors text-left"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <Plane className="w-4 h-4 text-[#7C5CFC] shrink-0" />
+            <Plane className="w-4 h-4 text-ec-brand shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] text-white/50 font-medium">
+              <p className="text-[11px] text-ec-ink-3 font-medium">
                 {p.flightInfoFromStep0Label || 'Flight info (from Step 1)'}
               </p>
-              <p className="text-sm font-semibold text-white truncate">
+              <p className="text-sm font-semibold text-ec-ink truncate">
                 {airportOptions.find(o => o.value === arrivalTerminal)?.label || arrivalTerminal}
-                {arrivalTime && <span className="text-white/55 font-normal ml-2">· {arrivalTime}</span>}
+                {arrivalTime && <span className="text-ec-ink-3 font-normal ml-2">· {arrivalTime}</span>}
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-[11px] text-[#C99FFF] font-semibold shrink-0">
+          <span className="flex items-center gap-1 text-[11px] text-ec-brand font-semibold shrink-0">
             <Pencil className="w-3 h-3" />
             {p.editLabel || 'Edit'}
           </span>
         </button>
       ) : (
         <div>
-          <p className="text-sm text-white/50 mb-2.5 font-medium">
+          <p className="ec-question">
             {p.wizardWhichAirport || 'Which airport are you arriving at?'}
-            {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
+            {mainCity && <span className="text-ec-ink-3 text-[15px] font-normal ml-1">({mainCity})</span>}
           </p>
           {showErrors && !airportOk && (
-            <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select an airport'}</p>
+            <p className="ec-error-note mt-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select an airport'}</p>
           )}
-          <MobileSelectDrawer
-            value={arrivalTerminal}
-            onChange={(v) => { setArrivalTerminal(v); setAirportTouchedInStep3(true); }}
-            title={p.wizardWhichAirport || 'Which airport?'}
-            placeholder={p.wizardSelectAirport || '-- Select airport --'}
-            options={airportOptions.map(opt => ({
-              value: opt.value,
-              label: opt.label,
-            }))}
-            icon={<Plane className="w-4 h-4 text-white/55" />}
-          />
+          <div className="mt-2.5">
+            <MobileSelectDrawer
+              value={arrivalTerminal}
+              onChange={(v) => { setArrivalTerminal(v); setAirportTouchedInStep3(true); }}
+              title={p.wizardWhichAirport || 'Which airport?'}
+              placeholder={p.wizardSelectAirport || '-- Select airport --'}
+              options={airportOptions.map(opt => ({
+                value: opt.value,
+                label: opt.label,
+              }))}
+              icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
+            />
+          </div>
         </div>
       )}
 
@@ -520,27 +540,31 @@ export function WizardStep2Details(props: Step2Props) {
           이전 회귀: const departureAirport = arrivalTerminal; 하드코딩으로 입국=출국 강제. */}
       {arrivalTerminal && (
         <div>
-          <p className="text-sm text-white/50 mb-2.5 font-medium">
+          <p className="ec-question">
             {(p as Record<string, string>).wizardWhichDepartureAirport || 'Which airport are you departing from?'}
           </p>
-          <MobileSelectDrawer
-            value={departureTerminal}
-            onChange={(v) => setDepartureTerminal(v)}
-            title={(p as Record<string, string>).wizardWhichDepartureAirport || 'Departure airport'}
-            placeholder={(p as Record<string, string>).wizardDepartureSameAsArrival || 'Same as arrival airport'}
-            options={getDepartureAirportOptions(isMultiCity ? cityKeys : [mainCityKey || 'seoul']).map(opt => ({
-              value: opt.value,
-              label: opt.label,
-            }))}
-            icon={<Plane className="w-4 h-4 text-white/55" />}
-          />
+          <div className="mt-2.5">
+            <MobileSelectDrawer
+              value={departureTerminal}
+              onChange={(v) => setDepartureTerminal(v)}
+              title={(p as Record<string, string>).wizardWhichDepartureAirport || 'Departure airport'}
+              placeholder={(p as Record<string, string>).wizardDepartureSameAsArrival || 'Same as arrival airport'}
+              options={getDepartureAirportOptions(isMultiCity ? cityKeys : [mainCityKey || 'seoul']).map(opt => ({
+                value: opt.value,
+                label: opt.label,
+              }))}
+              icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
+            />
+          </div>
           {departureTerminal && departureTerminal !== arrivalTerminal && (
-            <p className="text-[11px] text-[#C99FFF] mt-1.5 font-medium">
+            <p className="text-[11px] text-ec-brand-hover mt-1.5 font-medium">
               {(p as Record<string, string>).wizardDepartureDifferentNote || 'Different from arrival — backend will plan accordingly'}
             </p>
           )}
         </div>
       )}
+
+      <hr className="ec-rule" />
 
       {/* Hotel — P1: AI 추천 토글 시 주소 입력칸 자동 숨김 (mutual exclusion).
           2026-05-05: free-claim funnel 제거 — Step 0의 호텔 chip 분기 삭제, 호텔 입력은 항상 이 step에서.
@@ -550,14 +574,14 @@ export function WizardStep2Details(props: Step2Props) {
         isMultiCity ? (
           /* 다도시 — 도시별 호텔 카드 list */
           <div>
-            <p className="text-sm text-white/50 mb-1 font-medium">
+            <p className="ec-question">
               {p.multicityHotelTitle || 'Hotels by city'}
-              <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+              <span className="text-ec-brand ml-1.5 text-[11px] font-normal">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
             </p>
-            <p className="text-[11px] text-white/45 mb-3">
+            <p className="ec-help mt-1">
               {p.multicityHotelHint || 'Enter the hotel for each city (optional)'}
             </p>
-            <div className="space-y-3">
+            <div className="space-y-3 mt-2.5">
               {cityKeys.map(ck => {
                 const meta = CITY_NAME_BY_KEY[ck];
                 const cityName = meta ? (meta[lang] || meta.en) : ck;
@@ -566,11 +590,11 @@ export function WizardStep2Details(props: Step2Props) {
                 const labelTpl = p.multicityHotelLabel || '{city} hotel';
                 return (
                   <div key={ck}>
-                    <label className="text-[12px] text-white/65 mb-1.5 flex items-center gap-1.5 font-medium">
+                    <label className="text-[12px] text-ec-ink-2 mb-1.5 flex items-center gap-1.5 font-medium">
                       <span>{cityIcon}</span>
                       <span>{labelTpl.replace('{city}', cityName)}</span>
                       {ck === mainCityKey && (
-                        <span className="text-[10px] text-[#B668FC] bg-[#7C5CFC]/15 px-1.5 py-0.5 rounded ml-1">
+                        <span className="text-[10px] text-ec-brand-hover bg-ec-brand-wash px-1.5 py-0.5 rounded-ec-sm ml-1">
                           {p.entryCityTitle ? '🛬' : '🛬'}
                         </span>
                       )}
@@ -580,7 +604,7 @@ export function WizardStep2Details(props: Step2Props) {
                       onChange={(v) => setHotelByCity({ ...hotelByCity, [ck]: v })}
                       placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
                       lang={lang}
-                      className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+                      className="ec-field" />
                   </div>
                 );
               })}
@@ -589,11 +613,11 @@ export function WizardStep2Details(props: Step2Props) {
                 한 도시라도 입력하면 자동 collapse. */}
             {Object.values(hotelByCity).every(v => !(v && v.trim())) && (
               <Suspense fallback={
-                <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
-                  <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
+                <div className="ec-panel-quiet mt-3">
+                  <div className="h-3 w-32 rounded-ec-sm bg-ec-line-2 animate-pulse mb-2" />
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[0,1,2,3,4,5].map(i => (
-                      <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
+                      <div key={i} className="h-20 rounded-ec-sm bg-ec-line-2 animate-pulse" />
                     ))}
                   </div>
                 </div>
@@ -618,22 +642,24 @@ export function WizardStep2Details(props: Step2Props) {
         ) : (
           /* 단도시 — 기존 단일 input + ZoneRecommender (regression 0) */
           <div>
-            <p className="text-sm text-white/50 mb-2.5 font-medium">
+            <p className="ec-question">
               {p.hotel_address_title || 'Where are you staying?'}
-              <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+              <span className="text-ec-brand ml-1.5 text-[11px] font-normal">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
             </p>
-            <HotelSuggestInput value={hotelAddress}
-              onChange={(v) => setHotelAddress(v)}
-              placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
-              lang={lang}
-              className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+            <div className="mt-2.5">
+              <HotelSuggestInput value={hotelAddress}
+                onChange={(v) => setHotelAddress(v)}
+                placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+                lang={lang}
+                className="ec-field" />
+            </div>
             {hotelAddress.trim().length === 0 && (
               <Suspense fallback={
-                <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
-                  <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
+                <div className="ec-panel-quiet mt-3">
+                  <div className="h-3 w-32 rounded-ec-sm bg-ec-line-2 animate-pulse mb-2" />
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[0,1,2,3,4,5].map(i => (
-                      <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
+                      <div key={i} className="h-20 rounded-ec-sm bg-ec-line-2 animate-pulse" />
                     ))}
                   </div>
                 </div>
@@ -658,21 +684,23 @@ export function WizardStep2Details(props: Step2Props) {
         )
       ) : null}
 
+      <hr className="ec-rule" />
+
       {/* Arrival / Departure flight time — used by RouteAgent to recommend the right transport
           (late-night arrival → limousine bus, otherwise AREX). Both optional.
           P0 dedup: 도착 시각이 Step0에서 이미 입력됐으면 입력칸 숨김 (위 칩에 같이 표시됨). */}
       <div className={flightInfoFromStep0 ? 'grid grid-cols-1 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
         {!flightInfoFromStep0 && (
           <div>
-            <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+            <p className="ec-question">{p.arrivalTime || 'Arrival time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></p>
             <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
-              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+              className="ec-field ec-figure mt-2" />
           </div>
         )}
         <div>
-          <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+          <p className="ec-question">{p.departureTime || 'Departure time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></p>
           <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+            className="ec-field ec-figure mt-2" />
         </div>
       </div>
 
@@ -681,10 +709,10 @@ export function WizardStep2Details(props: Step2Props) {
           arrival_time 무관하게 Day1 stops 시작 시각을 고정. default 09:00.
           root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
           UI 비유: "🌅 투어 시작 시간 09:00" — 호텔 체크인은 따로, 투어는 09:00 부터. */}
-      <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.04] p-3.5">
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <p className="text-sm font-semibold text-white">
-            <span className="mr-1.5">🌅</span>
+      <div className="ec-panel-quiet">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-ec-ink">
+            <span className="mr-1.5" aria-hidden>🌅</span>
             {(p as Record<string, string>).tourStartTimeLabel || 'Tour start time'}
           </p>
           <input
@@ -693,14 +721,14 @@ export function WizardStep2Details(props: Step2Props) {
             onChange={e => setTourStartTime(e.target.value)}
             min="04:00"
             max="14:00"
-            className="bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]"
+            className="ec-field ec-figure w-auto"
             aria-label={(p as Record<string, string>).tourStartTimeLabel || 'Tour start time'}
           />
         </div>
         {/* #tour-end (2026-06-05): 투어 종료 시각 — 매일 관광 일정을 이 시각 이후 종료 (호텔 복귀·휴식). */}
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <p className="text-sm font-semibold text-white">
-            <span className="mr-1.5">🌆</span>
+        <div className="flex items-center justify-between gap-3 mt-2.5">
+          <p className="text-sm font-semibold text-ec-ink">
+            <span className="mr-1.5" aria-hidden>🌆</span>
             {(p as Record<string, string>).tourEndTimeLabel || 'Tour end time'}
           </p>
           <input
@@ -709,43 +737,45 @@ export function WizardStep2Details(props: Step2Props) {
             onChange={e => setTourEndTime(e.target.value)}
             min="15:00"
             max="23:59"
-            className="bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]"
+            className="ec-field ec-figure w-auto"
             aria-label={(p as Record<string, string>).tourEndTimeLabel || 'Tour end time'}
           />
         </div>
-        <p className="text-[11px] text-white/55 leading-snug">
+        <p className="ec-help mt-2.5">
           {(p as Record<string, string>).tourStartTimeHint
             || 'Late-night arrival? Just rest at the hotel — your tour starts at this time.'}
         </p>
         {/* validation hint: tourStartTime 가 arrival_time 이전 또는 departure_time 이후일 때 amber */}
         {tourStartTime && arrivalTime && tourStartTime <= arrivalTime && (
-          <p className="text-[11px] text-amber-300/80 mt-1.5">
+          <p className="ec-error-note mt-1.5 border-ec-notice text-ec-notice" role="alert">
             {(p as Record<string, string>).tourStartTimeAfterArrival
               || 'Tour start time should be after your arrival time.'}
           </p>
         )}
         {tourStartTime && departureTime && tourStartTime >= departureTime && (
-          <p className="text-[11px] text-amber-300/80 mt-1.5">
+          <p className="ec-error-note mt-1.5 border-ec-notice text-ec-notice" role="alert">
             {(p as Record<string, string>).tourStartTimeBeforeDeparture
               || 'Tour start time should be before your departure time.'}
           </p>
         )}
         {/* #tour-end validation: 종료 시각이 시작 시각보다 빠르거나 같으면 amber */}
         {tourStartTime && tourEndTime && tourEndTime <= tourStartTime && (
-          <p className="text-[11px] text-amber-300/80 mt-1.5">
+          <p className="ec-error-note mt-1.5 border-ec-notice text-ec-notice" role="alert">
             {(p as Record<string, string>).tourEndTimeAfterStart
               || 'Tour end time should be after the start time.'}
           </p>
         )}
       </div>
 
+      <hr className="ec-rule" />
+
       {/* Luggage counters — heavy bags trigger taxi recommendation in arrival_guide.
           합계 7개 제한: Carry-on + Medium + Large ≤ 7 */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5">
+      <div className="ec-panel-quiet">
         <div className="flex items-center gap-2 mb-2.5">
-          <Briefcase className="w-4 h-4 text-[#7C5CFC]" />
-          <p className="text-sm font-semibold text-white">{p.luggageTitle || 'Luggage'}</p>
-          <span className="text-[11px] text-white/55 ml-auto">({p.wizardOptional || 'optional'})</span>
+          <Briefcase className="w-4 h-4 text-ec-brand" />
+          <p className="text-sm font-semibold text-ec-ink">{p.luggageTitle || 'Luggage'}</p>
+          <span className="text-[11px] text-ec-ink-3 ml-auto">({p.wizardOptional || 'optional'})</span>
         </div>
         <div className="space-y-2">
           <LuggageCounter
@@ -768,7 +798,7 @@ export function WizardStep2Details(props: Step2Props) {
             8+ 시 amber 안내. 입력 차단 아닌 정보성 — 차량 N대 (스타리아) 권장.
             "봉고차" 라벨 금지 (외국인 픽업 부적절). 룰: 1-7=1대, 8+=2대, 14+=3대, +6/대. */}
         {luggageOver7 && (
-          <p className="text-[11px] text-amber-300/80 mt-2 text-center">
+          <p className="ec-error-note mt-2 border-ec-notice text-ec-notice" role="alert">
             {(() => {
               const tmpl = (p as Record<string, string>).luggageVehicleNote
                 || '{{count}} suitcases — {{vehicles}} vehicles recommended (Staria)';
@@ -782,7 +812,7 @@ export function WizardStep2Details(props: Step2Props) {
 
       {/* Accommodation Recommendation Opt-in.
           2026-05-05: Step 0에서 호텔을 안 묻는 단순화로 전환 — chip 분기 제거되어 항상 노출. */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4">
+      <div className="ec-panel-quiet">
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={wantAccom} onChange={e => {
             const next = e.target.checked;
@@ -793,15 +823,15 @@ export function WizardStep2Details(props: Step2Props) {
             // 클리어. 누락 시 stale Record 가 backend forward → AI 가 사용자 입력 호텔로 오해.
             if (next && Object.keys(hotelByCity).length > 0) setHotelByCity({});
           }}
-            className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
+            className="w-5 h-5 rounded-ec-sm border-ec-line-2 bg-ec-raised accent-ec-brand" />
           <div>
-            <p className="text-sm font-semibold text-white">{p.accomOptIn || 'Get AI hotel recommendations'}</p>
-            <p className="text-[11px] text-white/55">{p.accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
+            <p className="text-sm font-semibold text-ec-ink">{p.accomOptIn || 'Suggest hotels for me'}</p>
+            <p className="text-[11px] text-ec-ink-3">{p.accomOptInSub || 'Picked near the main activity zone of your trip, at the budget level you set'}</p>
           </div>
         </label>
         {wantAccom && (
           <div className="mt-3 pl-8">
-            <p className="text-xs text-white/55 mb-2">{p.accomBudgetLabel || 'Accommodation budget'}</p>
+            <p className="text-xs text-ec-ink-3 mb-2">{p.accomBudgetLabel || 'Accommodation budget'}</p>
             <div className="flex gap-2">
               {(['budget', 'moderate', 'luxury'] as const).map((lvl) => {
                 const labels: Record<string, string> = {
@@ -812,9 +842,8 @@ export function WizardStep2Details(props: Step2Props) {
                 const sel = accomBudget === lvl;
                 return (
                   <button key={lvl} onClick={() => setAccomBudget(lvl)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      sel ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white' : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                    }`}>
+                    aria-pressed={sel}
+                    className={`ec-option ec-option-sm flex-1 text-center ${sel ? 'is-selected' : ''}`}>
                     {labels[lvl]}
                   </button>
                 );
@@ -829,7 +858,7 @@ export function WizardStep2Details(props: Step2Props) {
         onPrev={onPrev}
         onNext={handleNext}
         prevLabel={p.planner_prev || 'Back'}
-        nextLabel={p.wizardNextGenerate || 'Next: Generate'}
+        nextLabel={p.wizardNextGenerate || 'Next: Review'}
         isMobile={isMobile}
       />
     </div>

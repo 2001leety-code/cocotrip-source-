@@ -169,10 +169,11 @@ interface AiNearby { name: string; lat: number; lng: number; category: string; r
 const CATEGORIES = ['food', 'sight', 'show', 'stay', 'etc'] as const;
 const CAT_KEY: Record<string, string> = { food: 'catFood', sight: 'catSight', show: 'catShow', stay: 'catStay', etc: 'catEtc' };
 
-// compact 카드 문법 (차터 PR #1037 컨벤션 — 모바일 초소형 기본, sm: 확대)
-const CARD = 'rounded-xl border border-white/10 bg-white/[0.035] sm:rounded-2xl';
-const INPUT = 'rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/30 outline-none focus:border-[#B668FC]/60 sm:rounded-xl sm:px-3 sm:py-2 sm:text-[13px]';
-const CHIP_BTN = 'rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px]';
+// compact 카드 문법 (차터 PR #1037 컨벤션 — 모바일 초소형 기본, sm: 확대) — Korea Editorial
+// Concierge 토큰 기반(2026-08-10). 카드 표면은 ec-raised/ec-line, 입력은 ec-field 그대로
+// 사용(이 컴포넌트가 적는 padding/width 유틸이 그 뒤에 얹혀 오버라이드된다).
+const CARD = 'rounded-ec-md border border-ec-line bg-ec-raised';
+const INPUT = 'ec-field';
 
 export function CourseBuilderShell() {
   const { language } = useLanguage();
@@ -233,7 +234,7 @@ export function CourseBuilderShell() {
   // 도시를 바꾸면 즉시 로딩으로 바뀌어 이전 도시 코스가 잠깐 남아 보이는 일이 없다.
   const zoneTemplatesLoading = !!recoCity && zoneTemplates.city !== recoCity;
 
-  const day = cb.draft.days[cb.activeDay] ?? { stops: [] };
+  const day = cb.draft.days[cb.activeDay] || { stops: [] };
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -371,21 +372,19 @@ export function CourseBuilderShell() {
             <button
               key={i}
               type="button"
+              aria-pressed={i === cb.activeDay}
               onClick={() => cb.setActiveDay(i)}
-              className={`h-8 shrink-0 rounded-full px-3.5 text-[11px] font-black sm:h-9 sm:px-4 sm:text-[12px] ${i === cb.activeDay ? 'text-white' : 'text-white/50'}`}
-              style={i === cb.activeDay
-                ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.52)' }
-                : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)' }}
+              className={`ec-option ec-option-sm shrink-0 ${i === cb.activeDay ? 'is-selected' : ''}`}
             >
               {t.day} {i + 1}
-              <span className="ml-1 text-[9px] font-bold text-white/40">{d.stops.length}</span>
+              <span className="ml-1 text-ec-ink-3">{d.stops.length}</span>
             </button>
           ))}
           {cb.draft.days.length < COURSE_MAX_DAYS && (
             <button
               type="button"
               onClick={cb.addDay}
-              className="h-8 shrink-0 rounded-full border border-dashed border-white/20 px-3 text-[11px] font-bold text-white/55 sm:h-9"
+              className="ec-option ec-option-sm shrink-0 border-dashed text-ec-ink-3"
             >
               {t.addDay}
             </button>
@@ -395,7 +394,7 @@ export function CourseBuilderShell() {
               type="button"
               aria-label={t.delDay}
               onClick={() => { if (window.confirm(t.delDay)) cb.removeDay(cb.activeDay); }}
-              className="ml-auto h-8 shrink-0 rounded-full border border-white/10 px-2.5 text-white/40 sm:h-9"
+              className="ec-option ec-option-sm ml-auto shrink-0 text-ec-ink-3"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -403,9 +402,9 @@ export function CourseBuilderShell() {
         </div>
 
         {/* 장소 추가 폼 — compact */}
-        <div className={`${CARD} mb-2.5 p-2.5 sm:p-3`} style={{ borderColor: 'rgba(182,104,252,0.18)' }}>
-          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-black text-white sm:text-[12px]">
-            <PencilLine className="h-3.5 w-3.5 text-[#B668FC]" /> {t.addTitle}
+        <div className={`${CARD} mb-2.5 p-2.5 sm:p-3`}>
+          <p className="ec-eyebrow mb-1.5 flex items-center gap-1.5">
+            <PencilLine className="h-3.5 w-3.5 text-ec-brand" /> {t.addTitle}
           </p>
           <div className="grid gap-1.5">
             {/* 장소 자동완성 — 검색해서 고르면 좌표까지 저장(지도 동선). 자유입력도 유지. */}
@@ -420,20 +419,18 @@ export function CourseBuilderShell() {
               inputClassName={INPUT}
             />
             <div className="flex flex-wrap items-center gap-1.5">
-              <label className="flex items-center gap-1 text-[10px] text-white/45">
+              <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
                 <Clock className="h-3 w-3" />
-                <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className={`${INPUT} w-[92px] px-1.5`} />
+                <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className={`${INPUT} w-[104px] px-1.5`} />
               </label>
               <div className="flex gap-1">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
                     type="button"
+                    aria-pressed={newCat === c}
                     onClick={() => setNewCat(c)}
-                    className={CHIP_BTN}
-                    style={newCat === c
-                      ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
-                      : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+                    className={`ec-option ec-option-sm ${newCat === c ? 'is-selected' : ''}`}
                   >
                     {t[CAT_KEY[c]]}
                   </button>
@@ -446,8 +443,7 @@ export function CourseBuilderShell() {
                 type="button"
                 onClick={handleAdd}
                 disabled={!newTitle.trim()}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-40 sm:rounded-xl sm:px-4 sm:text-[12px]"
-                style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+                className="ec-btn ec-btn-primary ec-btn-sm shrink-0"
               >
                 <Plus className="h-3.5 w-3.5" /> {t.addBtn} {cb.activeDay + 1}
               </button>
@@ -466,10 +462,9 @@ export function CourseBuilderShell() {
               type="button"
               onClick={() => { void handleAiOptimize(); }}
               disabled={aiBusy}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50 sm:rounded-xl sm:text-[12px]"
-              style={{ background: 'rgba(182,104,252,0.16)', border: '1px solid rgba(182,104,252,0.45)' }}
+              className="ec-btn ec-btn-secondary ec-btn-sm"
             >
-              <Wand2 className="h-3.5 w-3.5 text-[#E4CCFF]" /> {aiBusy ? t.aiBusy : t.aiOptimize}
+              <Wand2 className="h-3.5 w-3.5" /> {aiBusy ? t.aiBusy : t.aiOptimize}
             </button>
             {/* 실경로 보기 — 온디맨드로만 TMAP 을 부른다(코스는 편집 중 자주 바뀌므로
                 자동 호출하면 비용이 샌다). 실패해도 지도는 직선으로 유지(fail-soft). */}
@@ -477,29 +472,27 @@ export function CourseBuilderShell() {
               type="button"
               onClick={() => { void handleShowRoute(); }}
               disabled={routeBusy}
-              className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50 sm:rounded-xl sm:text-[12px]"
-              style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
+              className="ec-btn ec-btn-secondary ec-btn-sm mt-1.5"
             >
-              <MapIcon className="h-3.5 w-3.5 text-[#9CC4FF]" />
+              <MapIcon className="h-3.5 w-3.5" />
               {routeBusy ? t.routeBusy : (routeSegs.length > 0 ? t.routeAgain : t.routeShow)}
             </button>
             {aiRecos.length > 0 && (
-              <div className="mt-2 rounded-xl border border-white/10 p-2" style={{ background: 'rgba(182,104,252,0.05)' }}>
-                <p className="mb-1.5 flex items-center gap-1 text-[10.5px] font-bold text-[#B9A4FF]">
+              <div className="mt-2 rounded-ec-md border border-ec-line bg-ec-brand-wash p-2">
+                <p className="ec-eyebrow mb-1.5 flex items-center gap-1 text-ec-brand">
                   <Sparkles className="h-3 w-3" /> {t.aiRecosTitle}
                 </p>
                 <div className="flex flex-col gap-1">
                   {aiRecos.map((n, i) => (
-                    <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <div key={i} className="flex items-center gap-2 rounded-ec-sm bg-ec-raised px-2 py-1.5">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11.5px] font-bold text-white">{n.name}</p>
-                        {n.reason && <p className="truncate text-[10px] text-white/45">{n.reason}</p>}
+                        <p className="truncate text-[11.5px] font-bold text-ec-ink">{n.name}</p>
+                        {n.reason && <p className="truncate text-[10px] text-ec-ink-3">{n.reason}</p>}
                       </div>
                       <button
                         type="button"
                         onClick={() => handleAddAiReco(n)}
-                        className="shrink-0 rounded-md px-2 py-1 text-[10px] font-bold text-white"
-                        style={{ background: 'rgba(182,104,252,0.25)' }}
+                        className="ec-chip ec-chip-brand shrink-0"
                       >
                         {t.aiAdd}
                       </button>
@@ -511,13 +504,13 @@ export function CourseBuilderShell() {
           </div>
         )}
 
-        {/* 스탑 리스트 */}
+        {/* 스탑 리스트 — 시간 컬럼 + 하드라인 행의 "인쇄된 일정표" 문법(ec-timeline). */}
         {day.stops.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-white/[0.14] px-3 py-6 text-center text-[11px] leading-relaxed text-white/40 sm:text-[12px]">
+          <p className="rounded-ec-md border border-dashed border-ec-line px-3 py-6 text-center text-[12px] leading-relaxed text-ec-ink-3">
             {t.empty}
           </p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="ec-timeline">
             {day.stops.map((stop, idx) => (
               <StopRow
                 key={stop.id}
@@ -542,8 +535,7 @@ export function CourseBuilderShell() {
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-black text-white sm:rounded-xl sm:text-[12px]"
-            style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+            className="ec-btn ec-btn-primary ec-btn-sm"
           >
             <Share2 className="h-3.5 w-3.5" /> {t.share}
           </button>
@@ -552,7 +544,7 @@ export function CourseBuilderShell() {
               type="button"
               onClick={() => { setSaveTitle(''); setShowSave(true); }}
               disabled={cb.totalStops === 0}
-              className="flex items-center gap-1.5 rounded-lg border border-white/[0.14] px-3 py-2 text-[11px] font-bold text-white/70 disabled:opacity-40 sm:rounded-xl sm:text-[12px]"
+              className="ec-btn ec-btn-secondary ec-btn-sm"
             >
               <Check className="h-3.5 w-3.5" /> {t.saveAccount}
             </button>
@@ -561,8 +553,7 @@ export function CourseBuilderShell() {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="flex items-center gap-1.5 rounded-lg border border-[#B668FC]/35 px-3 py-2 text-[11px] font-bold text-[#E4CCFF] sm:rounded-xl sm:text-[12px]"
-                style={{ background: 'rgba(182,104,252,0.10)' }}
+                className="ec-btn ec-btn-secondary ec-btn-sm"
                 title={t.loginToSave}
               >
                 <LogIn className="h-3.5 w-3.5" /> {t.loginBtn}
@@ -572,13 +563,13 @@ export function CourseBuilderShell() {
           <button
             type="button"
             onClick={() => { if (window.confirm(t.resetConfirm)) cb.reset(); }}
-            className="rounded-lg border border-white/[0.10] px-3 py-2 text-[11px] font-bold text-white/45 sm:rounded-xl sm:text-[12px]"
+            className="ec-btn ec-btn-quiet ec-btn-sm"
           >
             {t.newCourse}
           </button>
-          <span className="ml-auto flex items-center gap-1 text-[9.5px] text-white/35 sm:text-[10.5px]">
+          <span className="ml-auto flex items-center gap-1 text-[9.5px] text-ec-ink-3 sm:text-[10.5px]">
             {flash ? (
-              <span className="font-bold text-[#B9F36E]">{flash}</span>
+              <span className="font-bold text-ec-success">{flash}</span>
             ) : (
               <>
                 <CalendarDays className="h-3 w-3" />
@@ -591,17 +582,15 @@ export function CourseBuilderShell() {
 
       {/* ── 추천 패널 (정적 attractions DB — 진짜 데이터) ── */}
       <aside className={`${CARD} h-fit p-2.5 sm:p-3.5`}>
-        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-white sm:text-[13px]">
-          <Sparkles className="h-3.5 w-3.5 text-[#B668FC]" /> {t.recoTitle}
+        <p className="ec-eyebrow mb-2 flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-ec-brand" /> {t.recoTitle}
         </p>
         <div className="mb-2 flex gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           <button
             type="button"
+            aria-pressed={recoCity === null}
             onClick={() => setRecoCity(null)}
-            className={`${CHIP_BTN} shrink-0`}
-            style={recoCity === null
-              ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
-              : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+            className={`ec-option ec-option-sm shrink-0 ${recoCity === null ? 'is-selected' : ''}`}
           >
             {t.allCities}
           </button>
@@ -609,11 +598,9 @@ export function CourseBuilderShell() {
             <button
               key={c}
               type="button"
+              aria-pressed={recoCity === c}
               onClick={() => setRecoCity(c)}
-              className={`${CHIP_BTN} shrink-0 capitalize`}
-              style={recoCity === c
-                ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
-                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+              className={`ec-option ec-option-sm shrink-0 capitalize ${recoCity === c ? 'is-selected' : ''}`}
             >
               {c}
             </button>
@@ -621,26 +608,26 @@ export function CourseBuilderShell() {
         </div>
         {/* 검증 하루 코스 — 빈 화면에서 장소를 하나씩 찾다 이탈하는 구간을 없앤다. */}
         {recoCity && (
-          <div className="mb-3 rounded-xl border border-[#B668FC]/20 bg-[#B668FC]/[0.055] p-2">
-            <p className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-black text-[#E4CCFF]">
+          <div className="mb-3 rounded-ec-md border border-ec-line bg-ec-brand-wash p-2">
+            <p className="ec-eyebrow mb-1.5 flex items-center gap-1.5 text-ec-brand">
               <Layers3 className="h-3.5 w-3.5" aria-hidden="true" /> {t.routeTemplates}
             </p>
             {zoneTemplatesLoading ? (
-              <p className="flex items-center gap-1.5 py-2 text-[10px] text-white/60" role="status">
+              <p className="flex items-center gap-1.5 py-2 text-[10px] text-ec-ink-3" role="status">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> {t.routeTemplateLoading}
               </p>
             ) : zoneTemplates.items.length === 0 ? (
-              <p className="py-1 text-[10px] text-white/60">{t.routeTemplateEmpty}</p>
+              <p className="py-1 text-[10px] text-ec-ink-3">{t.routeTemplateEmpty}</p>
             ) : (
               <div className="space-y-1.5">
                 {zoneTemplates.items.map((template) => {
                   const title = template.theme_i18n?.[nameLang] || template.theme_i18n?.en || template.theme;
                   const hours = Math.max(1, Math.round(template.duration_min / 60));
                   return (
-                    <div key={template.id} className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-black/10 px-2 py-1.5">
+                    <div key={template.id} className="flex items-center gap-2 rounded-ec-sm bg-ec-raised px-2 py-1.5">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[10.5px] font-bold text-white/85">{title}</p>
-                        <p className="mt-0.5 text-[9px] text-white/60">
+                        <p className="truncate text-[10.5px] font-bold text-ec-ink">{title}</p>
+                        <p className="mt-0.5 text-[9px] text-ec-ink-3">
                           {template.zone ? `${template.zone} · ` : ''}{template.stops.length}{t.stops} · {hours}h
                         </p>
                       </div>
@@ -648,7 +635,7 @@ export function CourseBuilderShell() {
                         type="button"
                         onClick={() => handleAddZoneTemplate(template)}
                         aria-label={t.routeTemplateAddAria.replace('{title}', title)}
-                        className="shrink-0 rounded-full bg-[#B668FC]/20 px-2 py-1 text-[9.5px] font-black text-[#E4CCFF]"
+                        className="ec-chip ec-chip-brand shrink-0"
                       >
                         {t.routeTemplateAdd}
                       </button>
@@ -661,16 +648,16 @@ export function CourseBuilderShell() {
         )}
         <div className="space-y-1 max-h-[420px] overflow-y-auto pr-0.5">
           {recos.map((p) => (
-            <div key={p.key} className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 py-1.5">
-              <MapPin className="h-3 w-3 shrink-0 text-white/30" />
+            <div key={p.key} className="flex items-center gap-2 rounded-ec-sm border border-ec-line px-2 py-1.5">
+              <MapPin className="h-3 w-3 shrink-0 text-ec-ink-3" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-bold text-white/85">{p.name[nameLang] || p.name.en}</p>
-                <p className="text-[9px] text-white/35 capitalize">{p.city}{typeof p.rating === 'number' ? ` · ★${p.rating}` : ''}</p>
+                <p className="truncate text-[11px] font-bold text-ec-ink">{p.name[nameLang] || p.name.en}</p>
+                <p className="text-[9px] text-ec-ink-3 capitalize">{p.city}{typeof p.rating === 'number' ? ` · ★${p.rating}` : ''}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleAddReco(p)}
-                className="shrink-0 rounded-full bg-lime-300/15 px-2 py-0.5 text-[10px] font-black text-lime-200"
+                className="ec-chip ec-chip-brand shrink-0"
               >
                 {t.recoAdd}
               </button>
@@ -685,18 +672,18 @@ export function CourseBuilderShell() {
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowSave(false); }}
         >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSave(false)} />
-          <div className="relative w-full max-w-xs rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(15,10,26,0.98)', border: '1px solid rgba(182,104,252,0.25)' }}>
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowSave(false)} />
+          <div className="relative w-full max-w-xs rounded-ec-md border border-ec-line bg-ec-raised p-4 flex flex-col gap-3 shadow-ec-overlay">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-black text-white">{t.saveAccount}</p>
-              <button type="button" onClick={() => setShowSave(false)} className="rounded-lg p-1 text-white/50 hover:bg-white/[0.06]"><X className="h-4 w-4" /></button>
+              <p className="text-sm font-black text-ec-ink">{t.saveAccount}</p>
+              <button type="button" onClick={() => setShowSave(false)} className="rounded-ec-sm p-1 text-ec-ink-3 hover:bg-ec-sunken"><X className="h-4 w-4" /></button>
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-white/55">{t.saveTitleField}</span>
+              <span className="text-[11px] text-ec-ink-3">{t.saveTitleField}</span>
               <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} placeholder={t.saveTitlePh} className={INPUT} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-white/55">{t.saveDateField}</span>
+              <span className="text-[11px] text-ec-ink-3">{t.saveDateField}</span>
               <input type="date" value={saveDate} onChange={(e) => setSaveDate(e.target.value)} className={INPUT} />
             </label>
             <div className="flex gap-2">
@@ -704,15 +691,14 @@ export function CourseBuilderShell() {
                 type="button"
                 onClick={() => { void handleSaveWithMeta(); }}
                 disabled={saving}
-                className="flex-1 rounded-lg py-2 text-[12px] font-black text-white disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+                className="ec-btn ec-btn-primary flex-1"
               >
                 {saving ? t.aiBusy : t.saveCta}
               </button>
               <button
                 type="button"
                 onClick={() => setShowSave(false)}
-                className="rounded-lg border border-white/[0.12] px-3 py-2 text-[12px] font-bold text-white/55"
+                className="ec-btn ec-btn-secondary"
               >
                 {t.cancel}
               </button>
@@ -745,7 +731,7 @@ function StopRow({
 
   if (editing) {
     return (
-      <div className="rounded-xl border border-[#B668FC]/40 bg-[#B668FC]/[0.06] p-2.5">
+      <div className="rounded-ec-md border border-ec-brand bg-ec-brand-wash p-2.5">
         <div className="grid gap-1.5">
           <input
             value={stop.title}
@@ -753,17 +739,15 @@ function StopRow({
             className={INPUT}
           />
           <div className="flex flex-wrap items-center gap-1.5">
-            <input type="time" value={stop.time} onChange={(e) => onPatch({ time: e.target.value })} className={`${INPUT} w-[92px] px-1.5`} />
+            <input type="time" value={stop.time} onChange={(e) => onPatch({ time: e.target.value })} className={`${INPUT} w-[104px] px-1.5`} />
             <div className="flex gap-1">
               {CATEGORIES.map((c) => (
                 <button
                   key={c}
                   type="button"
+                  aria-pressed={stop.category === c}
                   onClick={() => onPatch({ category: c })}
-                  className={CHIP_BTN}
-                  style={stop.category === c
-                    ? { background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)', color: '#E4CCFF' }
-                    : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.5)' }}
+                  className={`ec-option ec-option-sm ${stop.category === c ? 'is-selected' : ''}`}
                 >
                   {t[CAT_KEY[c]]}
                 </button>
@@ -773,12 +757,12 @@ function StopRow({
           <input value={stop.memo} onChange={(e) => onPatch({ memo: e.target.value })} placeholder={t.memoPh} className={INPUT} />
           <div className="flex flex-wrap items-center gap-1.5">
             {dayCount > 1 && (
-              <label className="flex items-center gap-1 text-[10px] text-white/45">
+              <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
                 {t.moveTo}
                 <select
                   value={activeDay}
                   onChange={(e) => onMove(Number(e.target.value))}
-                  className="rounded-lg border border-white/10 bg-[#141824] px-1.5 py-1 text-[11px] text-white"
+                  className="ec-field w-auto"
                 >
                   {Array.from({ length: dayCount }, (_, i) => (
                     <option key={i} value={i}>{t.day} {i + 1}</option>
@@ -786,14 +770,13 @@ function StopRow({
                 </select>
               </label>
             )}
-            <button type="button" onClick={onDelete} className="flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[10px] font-bold text-rose-300">
+            <button type="button" onClick={onDelete} className="flex items-center gap-1 rounded-ec-sm border border-ec-critical px-2.5 py-1 text-[10px] font-bold text-ec-critical">
               <Trash2 className="h-3 w-3" /> {t.delete}
             </button>
             <button
               type="button"
               onClick={onDone}
-              className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-black text-white"
-              style={{ background: 'linear-gradient(135deg,#B668FC,#FF6B9D)' }}
+              className="ec-btn ec-btn-primary ec-btn-sm ml-auto"
             >
               <Check className="h-3 w-3" /> {t.done}
             </button>
@@ -803,38 +786,32 @@ function StopRow({
     );
   }
 
+  // 순서 번호 — 시간이 없는 stop 은 시간 컬럼에 순번을 대신 보여준다("인쇄된 일정표"에도
+  // 시간 미정 항목은 순서로 남는다). 드래그 아이콘은 실제 드래그 미지원이라 없음(오해 방지).
+  // 순서변경은 Move(다른 Day 이동)·AI 최적화로. 2026-07-05.
   return (
-    <div className="flex gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 sm:gap-2.5 sm:p-2.5">
-      {/* 순서 번호 — 드래그 아이콘은 실제 드래그 미지원이라 제거(오해 방지). 순서변경은
-          Move(다른 Day 이동)·AI 최적화로. 2026-07-05. */}
-      <div className="flex flex-col items-center pt-0.5">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-lime-300 text-[11px] font-black text-[#101522] sm:h-7 sm:w-7 sm:text-[12px]">{index + 1}</span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {stop.time && <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9.5px] font-bold text-white/60">{stop.time}</span>}
-          <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-purple-200">
-            {t[CAT_KEY[stop.category] ?? 'catEtc']}
-          </span>
-        </div>
-        <p className="mt-0.5 text-[12.5px] font-black leading-snug text-white sm:text-[13.5px]">{stop.title}</p>
-        {stop.memo && <p className="mt-0.5 text-[10px] leading-relaxed text-white/40 sm:text-[10.5px]">{stop.memo}</p>}
-        <div className="mt-1 flex items-center gap-2">
-          <a href={naverUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] font-bold text-[#7CE372]">
+    <div className="ec-timeline-row">
+      <div className="ec-timeline-time">{stop.time || `#${index + 1}`}</div>
+      <div className="min-w-0">
+        <span className="ec-chip ec-chip-brand">
+          {t[CAT_KEY[stop.category] || 'catEtc']}
+        </span>
+        <p className="mt-1 text-[13.5px] font-bold leading-snug text-ec-ink">{stop.title}</p>
+        {stop.memo && <p className="mt-0.5 text-[11px] leading-relaxed text-ec-ink-3">{stop.memo}</p>}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <a href={naverUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
             <ExternalLink className="h-2.5 w-2.5" /> {t.naver}
           </a>
-          <a href={gUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] font-bold text-[#8AB4F8]">
+          <a href={gUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
             <ExternalLink className="h-2.5 w-2.5" /> {t.google}
           </a>
+          <button type="button" onClick={onEdit} className="ml-auto rounded-ec-sm px-2 py-1 text-[11px] font-bold text-ec-ink-3 hover:text-ec-ink">
+            {t.edit}
+          </button>
+          <button type="button" aria-label={t.delete} onClick={onDelete} className="rounded-ec-sm p-1 text-ec-ink-3 hover:text-ec-critical">
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <button type="button" onClick={onEdit} className="rounded-full border border-white/[0.10] px-2.5 py-1 text-[10px] font-bold text-white/60">
-          {t.edit}
-        </button>
-        <button type="button" aria-label={t.delete} onClick={onDelete} className="rounded-full border border-white/[0.08] p-1 text-white/30 hover:text-rose-300">
-          <X className="h-3 w-3" />
-        </button>
       </div>
     </div>
   );

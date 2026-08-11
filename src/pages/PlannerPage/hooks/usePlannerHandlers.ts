@@ -508,13 +508,19 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     }
   }
 
+  // Retry after a failed quick preview: clear the request, keep the brief.
+  //
+  // 2026-08-10: this used to end with `window.scrollTo({ top: 0 })`. The wizard
+  // stays mounted across the error, so every answer was still there — a screen
+  // and a half above where the traveller had been reading. Where to put them
+  // back is the page's call (PlannerPage focuses and reveals the wizard), not
+  // this hook's, which knows nothing about the layout.
   function handleReset() {
     setStatus('idle');
     setResultQuick(null);
     setErrorMsg(null);
     setErrorCode(null);
     setUserEmail('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return {

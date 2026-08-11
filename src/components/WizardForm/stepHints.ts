@@ -11,7 +11,7 @@ export interface WizardStepHintCopy {
   body: Record<WizardHintLang, string>;
 }
 
-// step 인덱스(0~4) = STEPS: 0 예약 / 1 도시 / 2 음식 / 3 상세 / 4 생성
+// step 인덱스(0~4) = STEPS: 0 예약 / 1 도시 / 2 음식 / 3 상세 / 4 확인·무료 미리보기
 export const WIZARD_STEP_HINTS: Record<number, WizardStepHintCopy> = {
   0: {
     title: { ko: '예약 정보', en: 'Your bookings', ja: '予約情報', zh: '预订信息' },
@@ -52,10 +52,10 @@ export const WIZARD_STEP_HINTS: Record<number, WizardStepHintCopy> = {
   4: {
     title: { ko: '거의 다 됐어요', en: 'Almost there', ja: 'あと少し', zh: '就快好了' },
     body: {
-      ko: '입력한 내용을 확인하고 ‘생성’을 누르면 30초 만에 맞춤 일정이 나와요!',
-      en: 'Review your details and hit Generate — your custom itinerary is ready in 30 seconds!',
-      ja: '入力内容を確認して「生成」を押すと、30秒であなた専用の旅程が完成します！',
-      zh: '确认填写的内容后点击“生成”，30秒内就能拿到专属行程！',
+      ko: '입력한 내용을 확인한 뒤 무료 1일차 미리보기를 받아보세요. 결제도 카드도 필요 없어요. 전체 일정 구매는 그다음에 따로 정하시면 돼요.',
+      en: 'Check your brief, then request the free day-one preview — no payment, no card. After reading day one, you can decide whether to buy the full itinerary.',
+      ja: '入力内容を確認して、無料の初日プレビューをリクエストしてください。お支払いもカード登録も不要です。全旅程を購入するかどうかは、その後で別途お決めください。',
+      zh: '确认填写的内容后，申请免费的第一天预览 — 无需付款，也不用绑卡。之后再单独决定要不要购买完整行程。',
     },
   },
 };

@@ -275,11 +275,17 @@ describe('삭제한 legacy CSS 는 삭제된 채로 남는다', () => {
   });
 
   it('아직 전환 안 된 페이지의 .refined-* 는 그대로 살아 있다', () => {
-    // Deleting these together with the home cascade would have un-styled
-    // planner/tours/charter/plandetail, which this PR does not touch.
-    for (const sel of ['.refined-planner', '.refined-plandetail', '.refined-charter', '.refined-tours', '.refined-page']) {
+    // Deleting these together with the home cascade would un-style
+    // tours/charter/plandetail, which phase 1 did not touch.
+    // `.refined-planner` left this list in phase 2 (2026-08-10): `/planner` now
+    // renders on the editorial tokens, so its correction cascade was deleted
+    // with the page, exactly as phase 1 said it would be. The rule is "a
+    // `.refined-*` block lives as long as the page it corrects" — not "this
+    // list never shrinks".
+    for (const sel of ['.refined-plandetail', '.refined-charter', '.refined-tours', '.refined-page']) {
       expect(cssRules).toContain(sel);
     }
+    expect(cssRules).not.toContain('.refined-planner');
   });
 
   it('main.tsx 는 editorial.css 를 index.css 앞에서 import 한다', () => {
