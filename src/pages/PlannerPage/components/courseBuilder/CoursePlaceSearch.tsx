@@ -89,8 +89,7 @@ export function CoursePlaceSearch({
           type="button"
           onClick={() => void runSearch()}
           disabled={busy || value.trim().length < 2}
-          className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-40 sm:rounded-xl"
-          style={{ background: 'rgba(182,104,252,0.22)', border: '1px solid rgba(182,104,252,0.5)' }}
+          className="ec-btn ec-btn-secondary ec-btn-sm shrink-0"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           {searchLabel}
@@ -98,15 +97,12 @@ export function CoursePlaceSearch({
       </div>
 
       {hits !== null && (
-        <div
-          className="mt-1 flex flex-col gap-0.5 rounded-lg border border-white/10 p-1"
-          style={{ background: 'rgba(12,8,24,0.98)' }}
-        >
+        <div className="mt-1 flex flex-col gap-0.5 rounded-ec-md border border-ec-line bg-ec-raised p-1 shadow-ec-raise">
           {hits.length === 0 ? (
             <button
               type="button"
               onClick={() => { onEnterFreeText(); setHits(null); }}
-              className="rounded-md px-2 py-1.5 text-left text-[11px] text-white/60 hover:bg-white/[0.06]"
+              className="rounded-ec-sm px-2 py-1.5 text-left text-[11px] text-ec-ink-3 hover:bg-ec-sunken"
             >
               {`"${value.trim()}"`} — {ADD_AS_IS[lang] || ADD_AS_IS.en}
             </button>
@@ -116,10 +112,10 @@ export function CoursePlaceSearch({
                 key={i}
                 type="button"
                 onClick={() => { onPick({ title: h.name, lat: h.lat, lng: h.lng, address: h.address }); setHits(null); }}
-                className="rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-white/[0.06]"
+                className="rounded-ec-sm px-2 py-1.5 text-left text-[11px] hover:bg-ec-sunken"
               >
-                <span className="font-bold text-white">{h.name}</span>
-                {h.address && <span className="ml-1.5 text-white/45">{h.address}</span>}
+                <span className="font-bold text-ec-ink">{h.name}</span>
+                {h.address && <span className="ml-1.5 text-ec-ink-3">{h.address}</span>}
               </button>
             ))
           )}

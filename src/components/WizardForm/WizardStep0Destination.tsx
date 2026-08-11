@@ -90,15 +90,15 @@ export function WizardStep0Destination(props: Step0Props) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
+        <h2 className="text-[17px] sm:text-lg font-bold text-ec-ink mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
+        <p className="text-[13px] sm:text-sm text-ec-ink-3">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
       </div>
 
       {/* Quick Start Presets */}
       {!mainCity && (
         <div>
-          <p className="text-sm text-white/50 mb-2 font-medium flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#7C5CFC]" />
+          <p className="text-sm text-ec-ink-3 mb-2 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-ec-brand" />
             {p.presetLabel || 'Quick Start'}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -117,12 +117,12 @@ export function WizardStep0Destination(props: Step0Props) {
                 // B-1 (2026-05-11): preset 에 days 명시 (3 Days / 5 Days) 시 캘린더 sync.
                 // 기존 출발일 보존, 없으면 한 달 후 default. 사용자가 캘린더에서 자유롭게 변경 가능.
                 if (preset.days) {
-                  const start = dateRange?.from ?? new Date(Date.now() + 30 * 86400000);
+                  const start = dateRange?.from || new Date(Date.now() + 30 * 86400000);
                   const end = new Date(start.getTime() + (preset.days - 1) * 86400000);
                   setDateRange({ from: start, to: end });
                 }
               }}
-                className="px-3 py-1.5 rounded-full text-[12px] font-semibold border border-[#7C5CFC]/25 text-white/60 hover:border-[#7C5CFC]/50 hover:text-white hover:bg-[#7C5CFC]/10 transition-all">
+                className="ec-option ec-option-sm">
                 {preset.label}
               </button>
             ))}
@@ -132,14 +132,14 @@ export function WizardStep0Destination(props: Step0Props) {
 
       {/* City chips with lucide icons */}
       <div>
-        <p className="text-sm text-white/50 mb-3 font-medium">
+        <p className="text-sm text-ec-ink-3 mb-3 font-medium">
           {p.tripAreaLabel || 'Select Cities'}
           {allCities.length > 0 && (
-            <span className="ml-2 text-[#7C5CFC] font-bold">{allCities.length} {p.wizardCitySelected || 'selected'}</span>
+            <span className="ml-2 text-ec-brand font-bold">{allCities.length} {p.wizardCitySelected || 'selected'}</span>
           )}
         </p>
         {showErrors && !mainCity && (
-          <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select a city'}</p>
+          <p className="ec-error-note mb-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select a city'}</p>
         )}
         {/* P161 (2026-05-23): 다도시 plan 시 입국/출국 cycle 안내 + arrival/departure 배지 +
             route 표시 모두 4페이지 (WizardStep2Details) 로 이전. 본 페이지는 도시 선택만. */}
@@ -150,25 +150,22 @@ export function WizardStep0Destination(props: Step0Props) {
             const isMain = mainCity === cityName;
             const photo = CITY_PHOTO[key];
             return (
-              <button key={key} onClick={() => handleCityClick(cityName, key)}
-                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-xl border text-left transition-all ${
-                  sel
-                    ? 'border-[#7C5CFC]/60 text-white'
-                    : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
-                }`}
-                style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
+              <button key={key} onClick={() => handleCityClick(cityName, key)} aria-pressed={sel}
+                className={`ec-option ${sel ? 'is-selected' : ''}`}>
                 {/* UIUX P3: 도시 실사진 썸네일 (KTO 검증). 매핑 없는 도시 = 아이콘 폴백. */}
-                {photo ? (
-                  <img src={photo} alt="" loading="lazy" width={44} height={44}
-                    className={`w-11 h-11 rounded-lg object-cover shrink-0 ${sel ? '' : 'opacity-90'}`} />
-                ) : (
-                  <span className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 bg-white/[0.05] ${sel ? 'text-[#7C5CFC]' : 'text-white/55'}`}>{icon}</span>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold truncate">{cityName}</p>
-                  {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">{p.wizardMainBase || 'Main base'}</p>}
-                </div>
-                {sel && <Check className="w-4 h-4 text-[#7C5CFC] shrink-0" />}
+                <span className="flex items-center gap-2.5">
+                  {photo ? (
+                    <img src={photo} alt="" loading="lazy" width={44} height={44}
+                      className={`w-11 h-11 rounded-ec-md object-cover shrink-0 ${sel ? '' : 'opacity-90'}`} />
+                  ) : (
+                    <span className={`w-11 h-11 rounded-ec-md flex items-center justify-center shrink-0 border border-ec-line ${sel ? 'bg-ec-brand-wash text-ec-brand' : 'bg-ec-sunken text-ec-ink-3'}`}>{icon}</span>
+                  )}
+                  <span className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold truncate">{cityName}</p>
+                    {isMain && <p className="text-[10px] text-ec-brand font-medium">{p.wizardMainBase || 'Main base'}</p>}
+                  </span>
+                  {sel && <Check className="w-4 h-4 text-ec-brand shrink-0" />}
+                </span>
               </button>
             );
           })}
@@ -177,11 +174,11 @@ export function WizardStep0Destination(props: Step0Props) {
 
       {/* Activities — P9: city-aware, universal chips first then city-specific */}
       <div>
-        <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
+        <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
         {showErrors && selectedActivities.length === 0 && (
-          <p className="text-[11px] text-red-400 mb-1">{(p as Record<string, string>).wizardCheckRequired || 'Please select at least one activity'}</p>
+          <p className="ec-error-note mb-1" role="alert">{(p as Record<string, string>).wizardCheckRequired || 'Please select at least one activity'}</p>
         )}
-        <p className="text-xs text-white/55 mb-3">
+        <p className="text-xs text-ec-ink-3 mb-3">
           {selectedCityKeys.length > 0
             ? (p.wizardActivitiesHintCity || `Tailored for ${allCities.join(', ')}`)
             : (p.wizardActivitiesHint || 'Select all that apply')}
@@ -196,19 +193,16 @@ export function WizardStep0Destination(props: Step0Props) {
             // full translation pass completes — readable English derived from key).
             const labelFallback = key.replace(/([a-z])([A-Z])/g, '$1 $2');
             return (
-              <button key={key} onClick={() => toggleActivity(key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
-                  sel
-                    ? 'border-transparent text-white shadow-lg'
-                    : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
-                }`}
-                style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
-                <span className="shrink-0">{icon}</span>
-                <div className="overflow-hidden flex-1 min-w-0">
-                  <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
-                  <p className="text-[10px] text-white/55 leading-tight line-clamp-2 mt-0.5">{p[subKey] || ''}</p>
-                </div>
-                {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
+              <button key={key} onClick={() => toggleActivity(key)} aria-pressed={sel}
+                className={`ec-option ${sel ? 'is-selected' : ''}`}>
+                <span className="flex items-center gap-2">
+                  <span className="shrink-0">{icon}</span>
+                  <span className="overflow-hidden flex-1 min-w-0">
+                    <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
+                    <p className="text-[10px] text-ec-ink-3 leading-tight line-clamp-2 mt-0.5">{p[subKey] || ''}</p>
+                  </span>
+                  {sel && <Check className="w-4 h-4 ml-auto text-ec-brand shrink-0" />}
+                </span>
               </button>
             );
           })}
@@ -220,7 +214,7 @@ export function WizardStep0Destination(props: Step0Props) {
         <button
           type="button"
           onClick={() => setShowMoreActivities(v => !v)}
-          className="mt-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#7C5CFC] hover:text-[#9b80ff] transition-colors"
+          className="ec-btn ec-btn-quiet text-ec-brand hover:text-ec-brand-hover mt-3"
           aria-expanded={showMoreActivities}
         >
           {showMoreActivities ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -230,7 +224,7 @@ export function WizardStep0Destination(props: Step0Props) {
         </button>
         {showMoreActivities && (
           <div className="mt-3 space-y-3">
-            <p className="text-[11px] text-white/45 leading-relaxed">
+            <p className="text-[11px] text-ec-ink-3 leading-relaxed">
               {p.moreActivitiesHint || 'Active outdoor + free local culture. Most cost ₩0.'}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -240,23 +234,20 @@ export function WizardStep0Destination(props: Step0Props) {
                 const icon = EXPANDED_ACTIVITY_ICONS[key] || <Sparkles className="w-5 h-5" />;
                 const labelFallback = key.replace(/([a-z])([A-Z])/g, '$1 $2');
                 return (
-                  <button key={key} onClick={() => toggleActivity(key)}
-                    className={`relative flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
-                      sel
-                        ? 'border-transparent text-white shadow-lg'
-                        : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
-                    }`}
-                    style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
-                    <span className="shrink-0">{icon}</span>
-                    <div className="overflow-hidden flex-1 min-w-0">
-                      <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
-                      {free && (
-                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          {p.activityFreeBadge || 'FREE ₩0'}
-                        </span>
-                      )}
-                    </div>
-                    {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
+                  <button key={key} onClick={() => toggleActivity(key)} aria-pressed={sel}
+                    className={`ec-option relative ${sel ? 'is-selected' : ''}`}>
+                    <span className="flex items-center gap-2">
+                      <span className="shrink-0">{icon}</span>
+                      <span className="overflow-hidden flex-1 min-w-0">
+                        <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
+                        {free && (
+                          <span className="ec-chip text-ec-success mt-0.5">
+                            {p.activityFreeBadge || 'FREE ₩0'}
+                          </span>
+                        )}
+                      </span>
+                      {sel && <Check className="w-4 h-4 ml-auto text-ec-brand shrink-0" />}
+                    </span>
                   </button>
                 );
               })}
@@ -267,11 +258,11 @@ export function WizardStep0Destination(props: Step0Props) {
 
       {/* Free text */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardFreeInput || 'Specific places?'} <span className="text-white/55">({p.wizardOptional || 'optional'})</span></p>
+        <p className="text-sm text-ec-ink-3 mb-2.5 font-medium">{p.wizardFreeInput || 'Specific places?'} <span className="text-ec-ink-3">({p.wizardOptional || 'optional'})</span></p>
         <textarea value={freeText} onChange={e => setFreeText(e.target.value)}
           placeholder={p.wizardFreeInputPh || 'e.g. Gyeongbokgung Palace, Myeongdong...'}
           rows={2}
-          className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-3.5 py-2.5 sm:rounded-2xl sm:px-5 sm:py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
+          className="ec-field resize-none" />
       </div>
 
       {/* Nav — back to reservation status if available */}

@@ -35,32 +35,31 @@ export function WizardNav({
   //  그건 7/19 의 "호출부 호환 유지" 결정을 뒤집는 것이라 별도 건이다.)
   emphasis = 'next',
 }: WizardNavProps) {
-  const nextBg = disabled ? 'rgba(255,255,255,.1)' : 'var(--coco-cta-gradient)';
-
   return (
-    <div className="flex gap-3 pt-2">
+    // 2026-08-10: 알약 그라데이션 버튼 + hover 확대 → editorial 버튼(4px 라운드, 단색
+    // 브랜드, 하이라인 보조). `m-cta` 는 다크 위저드를 모바일에서 흰색으로 되돌리던
+    // `!important` cascade 의 훅이었고, 그 cascade 와 함께 사라졌다.
+    <div className="flex gap-3 pt-5">
       {onPrev && (
         <button
           type="button"
           onClick={onPrev}
           aria-label={prevLabel}
-          className="shrink-0 px-3 sm:px-4 py-3 rounded-full border border-white/[0.12] text-white/55 hover:text-white hover:border-white/25 text-sm font-semibold flex items-center gap-1 whitespace-nowrap transition-all"
+          className="ec-btn ec-btn-secondary shrink-0"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="h-4 w-4" aria-hidden />
           <span className="hidden sm:inline">{prevLabel}</span>
         </button>
       )}
-      {/* m-cta: 라이트 셸이 이 클래스로 흰 글자·active 보정 매칭 (var() 배경은 속성 선택자에 안 잡힘) */}
       <button
         type="button"
         onClick={onNext}
         disabled={disabled}
         aria-label={nextLabel}
-        className="m-cta flex-1 min-w-0 py-3 rounded-full text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] disabled:hover:scale-100 whitespace-nowrap transition-all"
-        style={{ background: nextBg, boxShadow: disabled ? undefined : 'var(--coco-cta-shadow)' }}
+        className="ec-btn ec-btn-primary min-w-0 flex-1"
       >
         <span className="truncate">{nextLabel}</span>
-        <ChevronRight className="w-5 h-5 shrink-0" />
+        <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
       </button>
       {/* emphasis는 향후 PayPal 결제 버튼 등 별도 색 분기에 사용 가능 (현재는 동일). */}
       {emphasis === 'submit' && null}

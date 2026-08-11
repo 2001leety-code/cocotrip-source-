@@ -1,0 +1,264 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CocoTrip — Korea Editorial Concierge, planner journey (phase 2)
+
+   Loaded from `src/pages/PlannerPage/index.tsx`, so it ships inside the lazy
+   planner chunk and costs the first paint nothing.
+
+   Layer 3 of the token architecture: these are *component* tokens and the
+   classes that read them. Nothing here reads a primitive (`--ecp-*`) and
+   nothing here inlines a hex. Foundation + rationale:
+   src/styles/editorial.css · docs/DESIGN-EDITORIAL-CONCIERGE.md
+
+   No gradients, no glow, no glass, no `!important`. The previous planner was
+   a dark body corrected back to light by a `.planner-mobile-*` cascade of
+   `!important` overrides; converting the body means that cascade is deleted
+   rather than extended.
+
+   ── One cascade rule, and the reason for it ──────────────────────────────
+   Colour and border-colour on the components below are declared inside
+   `:where()`, which contributes **zero** specificity. This file ships in the
+   planner's async chunk, so its stylesheet lands *after* the eager Tailwind
+   layer; at equal specificity (0,1,0) the component class would win every tie
+   and a caller's `text-ec-notice` or `border-ec-critical` would silently do
+   nothing. That is not a theory — it shipped: five informational notices in
+   `WizardStep2Details` rendered in critical red, and the calendar's invalid
+   border never appeared. `:where()` inverts the tie so the caller wins, which
+   is what anyone writing `className="ec-error-note text-ec-notice"` expects.
+   Layout, spacing and typography stay at normal specificity — nothing
+   overrides those, and keeping them there keeps the component honest.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* option — a selectable answer (mode card, chip, radio-ish tile).
+     Selection is carried by the line and a wash, never by a shadow: on paper,
+     a lift reads as a bug, and a glow is banned outright. */
+  --ec-option-bg:            var(--ec-surface-raised);
+  --ec-option-line:          var(--ec-line);
+  --ec-option-line-hover:    var(--ec-line-contrast);
+  --ec-option-bg-selected:   var(--ec-brand-wash);
+  --ec-option-line-selected: var(--ec-brand);
+  --ec-option-radius:        var(--ec-radius-sm);
+  --ec-option-pad:           12px;
+
+  /* step rail — the wizard's progress */
+  --ec-steprail-track:  var(--ec-line);
+  --ec-steprail-fill:   var(--ec-brand);
+  --ec-steprail-height: 2px;
+}
+
+/* ═══ Shell ══════════════════════════════════════════════════════════════ */
+
+/* The planner page ground. `.ec-root` already paints paper and ink; this adds
+   the page's own vertical rhythm and the mobile bottom-nav clearance. */
+.ec-planner {
+  min-height: 100vh;
+  background: var(--ec-surface-page);
+}
+
+/* The mobile bottom nav is fixed over the page, so the planner reserves its
+   height plus the home-indicator inset. The old dark shell reserved a flat
+   86px; measuring the converted nav (52px + hairline) and adding the inset is
+   the same idea without the magic number. */
+@media (max-width: 768px) {
+  .ec-planner { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+/* ═══ Panel — the wizard / result surface ════════════════════════════════ */
+
+/* `border-width` + `border-style`, never the `border` shorthand: the shorthand
+   also sets `border-color`, and at (0,1,0) it would beat the `:where()` colour
+   below — measured, the panel hairline came out fully transparent. */
+.ec-panel {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--ec-radius-md);
+  padding: 20px;
+}
+.ec-panel-quiet {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--ec-radius-md);
+  padding: 16px;
+}
+:where(.ec-panel) {
+  background: var(--ec-surface-raised);
+  border-color: var(--ec-line);
+}
+:where(.ec-panel-quiet) {
+  background: var(--ec-surface-sunken);
+  border-color: var(--ec-line);
+}
+@media (min-width: 768px) {
+  .ec-panel { padding: 28px; }
+}
+
+/* ═══ Option ═════════════════════════════════════════════════════════════
+   One class for every "pick this" control in the journey. Both the selected
+   state and the pressed state are announced to assistive tech by the caller
+   (`aria-pressed` / `aria-current`); `.is-selected` only paints. */
+
+.ec-option {
+  display: block;
+  width: 100%;
+  min-height: var(--ec-touch-min);
+  padding: var(--ec-option-pad) 14px;
+  text-align: left;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--ec-option-radius);
+  cursor: pointer;
+  transition:
+    border-color var(--ec-duration-base) var(--ec-ease-standard),
+    background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+:where(.ec-option) {
+  background: var(--ec-option-bg);
+  border-color: var(--ec-option-line);
+  color: var(--ec-text-primary);
+}
+.ec-option:hover { border-color: var(--ec-option-line-hover); }
+.ec-option.is-selected,
+.ec-option[aria-pressed='true'] {
+  background: var(--ec-option-bg-selected);
+  border-color: var(--ec-option-line-selected);
+}
+.ec-option[disabled],
+.ec-option[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Compact variant for dense chip rows — still 44px tall for the thumb. */
+.ec-option-sm {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ═══ Question ═══════════════════════════════════════════════════════════ */
+
+.ec-question {
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ec-help {
+  font-size: 13px;
+  line-height: 1.55;
+}
+:where(.ec-question) { color: var(--ec-text-primary); }
+:where(.ec-help)     { color: var(--ec-text-muted); }
+
+/* Validation. Errors are announced (`role="alert"` on the caller) and read as
+   ink on paper with a critical rule — not a red box glowing on a dark card. */
+.ec-error-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-left-width: 2px;
+  border-left-style: solid;
+  padding: 2px 0 2px 10px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+/* Critical is the default; a caller states `text-ec-notice border-ec-notice`
+   when the message is informational rather than blocking, and wins. */
+:where(.ec-error-note) {
+  border-left-color: var(--ec-critical);
+  color: var(--ec-critical);
+}
+
+/* ═══ Step rail ══════════════════════════════════════════════════════════
+   Swiss: the progress *is* a rule that fills. No pills, no dots that pulse. */
+
+.ec-steprail {
+  position: relative;
+  height: var(--ec-steprail-height);
+  background: var(--ec-steprail-track);
+  overflow: hidden;
+}
+.ec-steprail-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: var(--ec-steprail-fill);
+  transition: width var(--ec-duration-slow) var(--ec-ease-standard);
+}
+
+/* One tick per step. The current tick is the only one in brand ink, so the
+   eye finds "where am I" before it reads any label. */
+.ec-steptick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* Both axes. Height was already on the floor; width was not — on a phone
+     every tick but the current one collapses to its number and measured 18px
+     wide against a 44px floor. Centring keeps the labelled ticks looking the
+     same as before, since they are wider than the minimum anyway. */
+  min-height: var(--ec-touch-min);
+  min-width: var(--ec-touch-min);
+  padding: 0 2px;
+  background-color: transparent;
+  border-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--ec-duration-base) var(--ec-ease-standard);
+}
+:where(.ec-steptick) { color: var(--ec-text-muted); }
+.ec-steptick:hover { color: var(--ec-text-primary); }
+.ec-steptick[aria-current='step'] { color: var(--ec-brand); }
+.ec-steptick-done { color: var(--ec-text-secondary); }
+
+/* ═══ Timeline (quick preview + sample day) ══════════════════════════════
+   A day is a list of rules, not a stack of cards. Times are tabular so the
+   left edge of the column lines up the way a printed schedule does. */
+
+.ec-timeline { border-top: 1px solid var(--ec-line); }
+.ec-timeline-row {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ec-line);
+}
+.ec-timeline-time {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: 13px;
+  font-weight: 700;
+  padding-top: 1px;
+}
+:where(.ec-timeline-time) { color: var(--ec-text-secondary); }
+
+/* The map link on a timeline row. It is a 13px inline link by design — it sits
+   on the baseline beside the stop name and must not turn the row into a card.
+   Measured, that made it 45×19.5, under the 44px floor. Padding would open the
+   row up, so the tap target is a centred pseudo-element instead: the link's own
+   box, floored at 44×44, painted by nothing and costing no layout. The rows are
+   at least 44px tall (12px padding, ~20px name line, 12px padding), so two
+   neighbouring targets meet rather than overlap. */
+.ec-maplink { position: relative; }
+.ec-maplink::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  min-width: var(--ec-touch-min);
+  min-height: var(--ec-touch-min);
+}
+
+/* The wizard's step-enter animation is deliberately NOT redefined here. It
+   lives in index.css as `.wizard-step-enter` / `.wizard-step-viewport`, where
+   `tests/unit/wizard-step-transition.component.test.tsx` pins two properties of
+   it: no `animation-fill-mode` (a filled animation strands the step at its
+   first frame in a background tab, where the browser stops running rAF) and a
+   viewport that clips horizontally. Two definitions of one behaviour is how
+   that regression comes back. */

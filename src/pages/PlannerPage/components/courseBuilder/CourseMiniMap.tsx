@@ -59,9 +59,12 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** 팝업/hover title HTML — 마커 생성과 라벨/시간 갱신이 같은 문구를 쓰도록 단일 소스. */
+/** 팝업/hover title HTML — 마커 생성과 라벨/시간 갱신이 같은 문구를 쓰도록 단일 소스.
+ *  Leaflet 팝업 말풍선은 leaflet.css 가 항상 흰 배경으로 그린다(페이지 테마와 무관) — 그래서
+ *  이 안의 글자색은 리터럴 hex/var()로 남는다(지도 컴포넌트 예외). 브랜드색은 --ec-brand-hover
+ *  변수를 그대로 참조해 토큰이 바뀌면 여기도 같이 바뀐다. */
 function popupHtml(p: MapPoint): string {
-  const timeHtml = p.time ? `<div style="color:#B9A4FF;font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>` : '';
+  const timeHtml = p.time ? `<div style="color:var(--ec-brand-hover);font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>` : '';
   return `<div style="font-weight:700;font-size:13px;color:#1a1024;">${p.order}. ${escapeHtml(p.label || `#${p.order}`)}</div>${timeHtml}`;
 }
 
@@ -154,9 +157,13 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
 
         markersRef.current.clear();
         points.forEach((p) => {
+          // 코스 번호핀 — 예전엔 보라→핑크 그라디언트였다. Korea Editorial Concierge 는 액센트가
+          // 하나(브랜드 보라)뿐이라 평면 채움으로 바꾼다. var() 는 이 div 가 실제 document 에
+          // 붙으므로 :root 값을 정상 상속받는다(지도 컴포넌트 예외 — 그라디언트만 제거, 마커
+          // 색 자체는 여기서만 리터럴/변수 사용 허용).
           const icon = L.divIcon({
             className: 'cocotrip-course-pin',
-            html: `<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7C5CFC,#EA537E);color:#fff;font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,0.9);box-shadow:0 2px 6px rgba(0,0,0,0.5);">${p.order}</div>`,
+            html: `<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ec-brand);color:#fff;font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,0.9);box-shadow:0 2px 6px rgba(0,0,0,0.5);">${p.order}</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
           });
           const marker = L.marker([p.lat, p.lng], { icon, title: p.label })
@@ -165,16 +172,17 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
           markersRef.current.set(p.order, marker);
         });
 
-        // 주변추천 마커 — 코스 번호핀(보라/핑크 원)과 구분되는 앰버 물방울핀 + 카테고리 이모지.
+        // 주변추천 마커 — 코스 번호핀(브랜드 보라 원)과 구분되는 앰버 물방울핀 + 카테고리 이모지.
         // "가볼만한 곳"을 지도에서 바로 보이게. 좌표는 course-ai 응답(nearby)에서.
+        // 앰버는 --ec-notice 토큰 그대로(지도 예외 — var() 는 실제 document 에 붙어 정상 상속).
         nearbyPoints.forEach((p) => {
           const emoji = CAT_EMOJI[p.category || 'etc'] || CAT_EMOJI.etc;
           const icon = L.divIcon({
             className: 'cocotrip-nearby-pin',
-            html: `<div style="width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:#F5B942;border:2px solid rgba(255,255,255,0.92);box-shadow:0 2px 5px rgba(0,0,0,0.4);"><span style="transform:rotate(45deg);font-size:11px;line-height:1;">${emoji}</span></div>`,
+            html: `<div style="width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:var(--ec-notice);border:2px solid rgba(255,255,255,0.92);box-shadow:0 2px 5px rgba(0,0,0,0.4);"><span style="transform:rotate(45deg);font-size:11px;line-height:1;">${emoji}</span></div>`,
             iconSize: [24, 24], iconAnchor: [12, 22], popupAnchor: [0, -18],
           });
-          const reasonHtml = p.reason ? `<div style="color:#8a6a00;font-size:11px;margin-top:2px;">${escapeHtml(p.reason)}</div>` : '';
+          const reasonHtml = p.reason ? `<div style="color:var(--ec-notice);font-size:11px;margin-top:2px;">${escapeHtml(p.reason)}</div>` : '';
           const html = `<div style="font-weight:700;font-size:12px;color:#1a1024;">${escapeHtml(p.name || '')}</div>${reasonHtml}`;
           L.marker([p.lat, p.lng], { icon, title: p.name }).addTo(map).bindPopup(html, { closeButton: true });
         });
@@ -217,10 +225,10 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
   return (
     <div className="mb-3">
       <div className="mb-2 flex items-center gap-1.5 px-0.5">
-        <MapIcon className="h-3.5 w-3.5 text-[#B9A4FF]" />
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[#B9A4FF]">{title}</span>
+        <MapIcon className="h-3.5 w-3.5 text-ec-brand" />
+        <span className="text-[11px] font-bold uppercase tracking-wider text-ec-brand">{title}</span>
       </div>
-      <div className="relative overflow-hidden rounded-xl border border-white/[0.08]" style={{ background: 'rgba(10,4,18,0.6)' }}>
+      <div className="relative overflow-hidden rounded-ec-md border border-ec-line bg-ec-sunken">
         <div id={`course-mini-map-${domId}`} ref={containerRef} className="w-full" style={{ height: 220, zIndex: 0 }} />
       </div>
     </div>

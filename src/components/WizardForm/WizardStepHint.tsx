@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Lightbulb, X, HelpCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 import { WIZARD_STEP_HINTS, normalizeHintLang } from './stepHints';
 
 const SEEN_PREFIX = 'COCO_WIZARD_HINT_';
@@ -13,6 +14,7 @@ const SEEN_PREFIX = 'COCO_WIZARD_HINT_';
 export function WizardStepHint({ step }: { step: number }) {
   const { language } = useLanguage();
   const lang = normalizeHintLang(language);
+  const c = pickPlannerCopy(language);
   const hint = WIZARD_STEP_HINTS[step];
 
   // 안 본 스텝이면 자동 노출, 본 스텝이면 접힘("?"만).
@@ -39,38 +41,40 @@ export function WizardStepHint({ step }: { step: number }) {
   // 접힌 상태 — 작은 "?" 칩 (다시 보기)
   if (!open) {
     return (
-      <div className="flex justify-end mb-2">
+      <div className="mb-2 flex justify-end">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#a78bfa] bg-[#7c5cfc]/10 border border-[#7c5cfc]/25 hover:bg-[#7c5cfc]/20 transition-colors"
+          className="ec-btn ec-btn-quiet"
         >
-          <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
           {hint.title[lang]}
         </button>
       </div>
     );
   }
 
-  // 펼친 상태 — 친절 설명 배너
+  // 펼친 상태 — 친절 설명 배너.
+  // 2026-08-10: 보라 카드 → 왼쪽 브랜드 규칙(rule) 한 줄. 차단 모달이 아니라 여백에
+  // 붙은 편집자 주석처럼 읽히게 — 문구·동작·localStorage 키는 그대로다.
   return (
-    <div
-      className="mb-3 flex items-start gap-3 rounded-xl px-4 py-3"
-      style={{ background: 'rgba(124,92,252,0.08)', border: '1px solid rgba(124,92,252,0.3)' }}
-      role="note"
-    >
-      <Lightbulb className="w-5 h-5 text-[#a78bfa] shrink-0 mt-0.5" aria-hidden="true" />
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-semibold text-sm leading-snug">{hint.title[lang]}</p>
-        <p className="text-white/60 text-xs mt-1 leading-relaxed">{hint.body[lang]}</p>
+    <div className="mb-4 flex items-start gap-3 border-l-2 border-ec-brand pl-3" role="note">
+      <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-ec-brand" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-semibold leading-snug text-ec-ink">{hint.title[lang]}</p>
+        <p className="ec-body-sm mt-1 text-ec-ink-3">{hint.body[lang]}</p>
       </div>
+      {/* 2026-08-10 follow-up: 아이콘만 있는 버튼이라 `ec-btn-quiet` 의 좁은 좌우
+          여백(0 12px)만 남아 실측 42×44 였다 — 높이는 통과, 폭이 44 미달.
+          여백을 더 벌리면 배너가 두꺼워지므로 최소 폭만 44 로 잡는다.
+          라벨도 영어 하드코딩이었다 — 4언어 사전에 이미 있던 문구로 바꾼다. */}
       <button
         type="button"
         onClick={() => { persistSeen(); setOpen(false); }}
-        className="shrink-0 p-1 rounded-md text-white/45 hover:text-white hover:bg-white/10 transition-colors"
-        aria-label="Close hint"
+        className="ec-btn ec-btn-quiet min-w-[44px] shrink-0"
+        aria-label={c.wizard.hintClose}
       >
-        <X className="w-4 h-4" />
+        <X className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );

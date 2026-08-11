@@ -110,12 +110,21 @@ describe('CourseBuilder UI 배선 불변식', () => {
     expect(src).toMatch(/onEnterFreeText/); // 자유입력 폴백
   });
 
+  // 2026-08-10 (Editorial Concierge phase 2): 모드 문구가 `PlannerPage/index.tsx` 안
+  // 인라인 `MODE_TEXT` 에서 `PlannerPage/plannerCopy.ts` 로 옮겨갔고, 동시에 기계를
+  // 앞세우던 표현("AI가 전부 짜드려요")을 손님이 받는 결과 중심으로 고쳐 썼다.
+  // 이 테스트가 지키려던 것은 특정 문장이 아니라 **4언어 동등성**이므로 그대로 지킨다.
   it('PlannerPage 모드선택 4언어 (영어 고정 해소)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const src = readFileSync(resolve(__dirname, '../../src/pages/PlannerPage/index.tsx'), 'utf8');
-    expect(src).toMatch(/AI가 전부 짜드려요/);
-    expect(src).toMatch(/自分の場所で作る/);
-    expect(src).toMatch(/AI帮你全部规划/);
+    const { PLANNER_COPY } = await import('../../src/pages/PlannerPage/plannerCopy');
+    for (const lang of ['en', 'ko', 'ja', 'zh'] as const) {
+      const m = PLANNER_COPY[lang].modes;
+      for (const value of [m.heading, m.guided.title, m.guided.body, m.builder.title, m.builder.body]) {
+        expect(typeof value, `${lang}`).toBe('string');
+        expect(value.length, `${lang}`).toBeGreaterThan(0);
+      }
+    }
+    // 언어마다 실제로 다른 문장이어야 한다 (영어 복붙 방지 — 이 테스트의 원래 목적).
+    const titles = (['en', 'ko', 'ja', 'zh'] as const).map((l) => PLANNER_COPY[l].modes.guided.title);
+    expect(new Set(titles).size).toBe(4);
   });
 });
