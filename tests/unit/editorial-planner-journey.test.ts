@@ -113,10 +113,8 @@ describe('planner positioning — the capability is the headline, not the mechan
   });
 
   it('keeps the mechanism where it is a technical or legal fact', () => {
-    // SEO metadata is where people type "AI travel planner" — out of scope on
-    // purpose (docs/DESIGN-EDITORIAL-CONCIERGE.md §5), and the loading phases
-    // name the real engine as transparency, not as a sales line.
-    expect((locale('en').pageMeta as Record<string, { title: string }>).planner.title).toMatch(/AI/i);
+    // The loading phases name the real engine as transparency, not a sales
+    // line — the one place mechanism-naming survives (docs/DESIGN-EDITORIAL-CONCIERGE.md §5).
     expect((locale('en').planner as Record<string, string>).loading_step1).toMatch(/Gemini/i);
   });
 
@@ -471,9 +469,24 @@ describe('planner metadata and SEO body — Korea data, not an AI comparison', (
       // "AI-powered, instant, multi-language" was three adjectives and no fact.
       expect(meta.description, `${l} adjectives`).not.toMatch(/AI-powered|AI 기반|AI搭載|AI 驱动/);
     }
-    // The title keeps the term people type into a search box — the one
-    // exception §5 of docs/DESIGN-EDITORIAL-CONCIERGE.md grants, pinned above.
-    expect((locale('en').pageMeta as Record<string, { title: string }>).planner.title).toMatch(/AI/);
+  });
+
+  /** [locale, Korea, local-data, custom-itinerary] */
+  const TITLE_MARKERS: [string, RegExp, RegExp, RegExp][] = [
+    ['en', /Korea/, /local data/i, /custom itinerary/i],
+    ['ko', /한국/, /(로컬|현지) 데이터/, /맞춤/],
+    ['ja', /韓国/, /(ローカル|現地)データ/, /カスタム/],
+    ['zh', /韩国/, /本地数据/, /定制|专属/],
+  ];
+
+  it('the planner title names Korea, local data and a custom itinerary — not AI as the product', () => {
+    for (const [l, korea, localData, custom] of TITLE_MARKERS) {
+      const title = (locale(l).pageMeta as Record<string, { title: string }>).planner.title;
+      expect(title, `${l} AI-free`).not.toMatch(/AI/i);
+      expect(title, `${l} Korea`).toMatch(korea);
+      expect(title, `${l} local data`).toMatch(localData);
+      expect(title, `${l} custom itinerary`).toMatch(custom);
+    }
   });
 
   it('the SEO body sells the data, not a comparison against AI itineraries', () => {

@@ -151,10 +151,8 @@ itinerary"**. "AI planner" is the mechanism, not the headline.
 **Name the capability, not the implementation.** The nav entry is `nav.planner` in
 `src/i18n/locales/*.json`: `Trip Planner` / `여행 플래너` / `旅行プランナー` / `行程规划`.
 The route (`/planner`), the paid gate and the product itself are unchanged — this is
-naming only. Two places still say "AI" and are **kept on purpose**:
+naming only. One place still says "AI" and is **kept on purpose**:
 
-- `pageMeta.planner` (`AI Travel Planner …`) is SEO metadata where the term is the search
-  query people actually type.
 - `planner.loading_step1..4` names the real engine while it runs. That is transparency
   about mechanism, and it appears only once the traveller has already committed.
 
@@ -165,7 +163,7 @@ naming only. Two places still say "AI" and are **kept on purpose**:
 literal. All of it now leads with what the traveller gets: **four answers — dates,
 cities, pace, diet — become a Korea itinerary they can execute.**
 `tests/unit/editorial-planner-journey.test.ts` fails if any of it returns, and the same
-file pins the two exceptions above so "keep it out of marketing" never turns into
+file pins the exception above so "keep it out of marketing" never turns into
 "delete the transparency".
 
 2026-08-10 P2 (#1272): `PromoBanner` (`free 1–3 day AI plan … · limited`) used to be the
@@ -188,9 +186,10 @@ fixes rode along: `planner.wizardNoAnchorHint` existed in no locale at all, so k
 / zh readers got the component's English literal; `pageMeta.planner.description` and
 `PlannerSeoInfo`'s `keepIntro` sold themselves by comparison to AI itineraries and now
 lead with Korean transit and restaurant data against the traveller's own dates, cities,
-pace and diet; and `pageMeta.planner.title` keeps the search term, which is still the
-sanctioned exception. `tests/unit/editorial-planner-journey.test.ts` §5 pins all of it,
-including fallback-to-`en.json` parity so a literal cannot drift back on its own.
+pace and diet; and `pageMeta.planner.title` dropped "AI" too — it now names Korea, local
+data and a custom itinerary, same as the rest of the copy. `tests/unit/editorial-planner-journey.test.ts`
+§5 pins all of it, including fallback-to-`en.json` parity so a literal cannot drift back
+on its own.
 
 Claims must be backed by code that exists. Verified at the time of writing:
 
