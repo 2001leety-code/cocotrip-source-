@@ -552,7 +552,12 @@ export default function CharterPage() {
               <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
               <ul className="space-y-1.5 text-xs text-white/55 leading-relaxed">
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included1 ?? '차량 1대 기준 (인원 추가 시 차량 추가)'}</span></li>
-                <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included2 ?? '영어 소통 가능 기사 · 24시간 지원'}</span></li>
+                <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included2 || (
+                  language === 'ko' ? '영어 소통 가능 기사 · 평일 지원' :
+                  language === 'ja' ? '英語対応ドライバー · 平日サポート' :
+                  language === 'zh' ? '英语沟通司机 · 工作日支持' :
+                  'English-speaking driver · Weekday support'
+                )}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included3 ?? '대형 캐리어 수납 가능'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included4 ?? '픽업 안내 서비스 (공항 픽업 ₩20,000 추가)'}</span></li>
                 <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간 (그룹당)').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>

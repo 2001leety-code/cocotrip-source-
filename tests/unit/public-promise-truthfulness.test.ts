@@ -152,3 +152,169 @@ describe('MyPage — AI Planner 폴백 표기', () => {
     expect(src).toMatch(/t\.nav\.planner \|\| 'Trip Planner'/);
   });
 });
+
+/**
+ * Follow-up pass (PR #1276, 2026-08-11 — after PR #1275 merge): the truthfulness sweep
+ * above deliberately skipped locale JSON (footer.support24h, mypage.tierBenefitList) and
+ * anything PR #1275 was about to rewrite (MobileHome, GoogleReviews, CharterPage, Header,
+ * BookingInfoForm, HeroCards, RegionDetail, MapPage, FeatureOverview, MobileHomeV2).
+ * With #1275 merged, this section closes those out.
+ */
+const LOCALE_LANGS = ['ko', 'en', 'ja', 'zh'] as const;
+const locale = (lang: string) => JSON.parse(read(`src/i18n/locales/${lang}.json`));
+
+const NO_24H_PATTERNS = [/24\/7/, /24시간/, /24時間/, /24小时/, /round-the-clock/i];
+
+describe('Header — 지원 배지', () => {
+  const src = read('src/sections/Header.tsx');
+
+  it('"24/7" 을 하드코딩하지 않는다', () => {
+    expect(src).not.toMatch(/>24\/7</);
+  });
+
+  it('실제 평일 지원 시간을 4개 언어로 안내한다', () => {
+    expect(src).toMatch(/평일 10~18시/);
+    expect(src).toMatch(/Weekdays 10am–6pm/);
+    expect(src).toMatch(/平日10~18時/);
+    expect(src).toMatch(/工作日10-18点/);
+  });
+});
+
+describe('MobileHome — 홈 서비스 버튼 · 신뢰 배지 · 배너', () => {
+  const src = read('src/sections/MobileHome.tsx');
+
+  it('svcPlanner/trustSupport/heroProofSupport/aiBannerTitle 폴백에 24/7·AI 브랜딩이 없다', () => {
+    expect(src).not.toMatch(/'AI Planner'/);
+    expect(src).not.toMatch(/'24\/7\\nSupport'/);
+    expect(src).not.toMatch(/'24\/7 English'/);
+    expect(src).not.toMatch(/'AI Itinerary Generator'/);
+  });
+
+  it('heroSubtitle 폴백이 24\\/7 지원을 주장하지 않는다', () => {
+    expect(src).not.toMatch(/24\/7 English support included/);
+  });
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json mobileHome 키에 24시간류 지원 claim 이 없다`, () => {
+      const mh = locale(lang).mobileHome;
+      for (const pattern of NO_24H_PATTERNS) {
+        expect(mh.trustSupport).not.toMatch(pattern);
+        expect(mh.heroSubtitle).not.toMatch(pattern);
+        expect(mh.heroProofSupport).not.toMatch(pattern);
+      }
+    });
+
+    it(`${lang}.json mobileHome.svcPlanner/aiBannerTitle 에 AI 접두가 없다`, () => {
+      const mh = locale(lang).mobileHome;
+      expect(mh.svcPlanner).not.toMatch(/^AI/);
+      expect(mh.aiBannerTitle).not.toMatch(/^AI/);
+    });
+  }
+});
+
+describe('GoogleReviews — 신뢰 신호', () => {
+  const src = read('src/sections/GoogleReviews.tsx');
+
+  it('trustSupport 폴백이 24/7 을 주장하지 않는다', () => {
+    expect(src).not.toMatch(/'24\/7 English support'/);
+  });
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json googleReviews.trustSupport 에 24시간류 claim 이 없다`, () => {
+      const value = locale(lang).googleReviews.trustSupport;
+      for (const pattern of NO_24H_PATTERNS) expect(value).not.toMatch(pattern);
+    });
+  }
+});
+
+describe('CharterPage — 포함사항 배지', () => {
+  const src = read('src/pages/CharterPage.tsx');
+
+  it('included2 폴백이 언어와 무관하게 고정 한국어가 아니고, 24시간 claim 도 없다', () => {
+    expect(src).not.toMatch(/included2 \?\? '영어 소통 가능 기사 · 24시간 지원'/);
+  });
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json charterPage.included2 에 24시간류 claim 이 없다`, () => {
+      const value = locale(lang).charterPage.included2;
+      for (const pattern of NO_24H_PATTERNS) expect(value).not.toMatch(pattern);
+    });
+  }
+});
+
+describe('BookingInfoForm — 신뢰 배지 (차터/투어 공용 예약폼)', () => {
+  const src = read('src/components/booking/BookingInfoForm.tsx');
+
+  it('trust3 가 24시간/24-7 지원을 주장하지 않는다 (4개 언어) — freeCancel24h 등 취소 기한 표기는 별개라 제외', () => {
+    const trust3Lines = src.match(/trust3:\s*'[^']*'/g) || [];
+    expect(trust3Lines.length).toBeGreaterThanOrEqual(4);
+    for (const line of trust3Lines) {
+      for (const pattern of NO_24H_PATTERNS) expect(line).not.toMatch(pattern);
+    }
+  });
+
+  it('trust1Sub 가 "추가요금 없음" 류 blanket claim 을 하지 않는다 (같은 폼이 초과시간·심야할증을 명시)', () => {
+    expect(src).not.toMatch(/별도 추가요금 없음/);
+    expect(src).not.toMatch(/no extra charges/i);
+    expect(src).not.toMatch(/追加料金なし/);
+    expect(src).not.toMatch(/无额外费用/);
+  });
+});
+
+describe('MyPage — 등급 혜택 locale JSON (dead key 이지만 재발 방지용 정합)', () => {
+  const forbidden = [
+    /season coupon/i, /Priority support/i, /Priority vehicle/i, /VIP KakaoTalk/i, /Airport lounge/i,
+    '시즌 $', '우선 응대', '차량 우선 배정', 'VIP 카카오톡', '공항 라운지',
+    'シーズン$', '優先サポート', '車両の優先手配', 'VIP カカオトーク', '空港ラウンジ',
+    '季度 $', '优先客服', '优先安排车辆', 'VIP KakaoTalk 客服', '机场贵宾室',
+  ];
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json mypage.tierBenefitList 에 서버가 지급하지 않는 혜택 문구가 없다`, () => {
+      const list = JSON.stringify(locale(lang).mypage.tierBenefitList);
+      for (const pattern of forbidden) expect(list).not.toMatch(pattern);
+    });
+  }
+});
+
+describe('AI 중심 제품명 정리 — 홈/지역/지도/기능 총람 (플래너 자체 화면 제외)', () => {
+  it('HeroCards.tsx plannerTitle 폴백에 "AI" 접두가 없다', () => {
+    const src = read('src/sections/HeroCards.tsx');
+    expect(src).not.toMatch(/plannerTitle \|\| 'AI /);
+  });
+
+  it('RegionDetail.tsx aiPlannerCta 폴백에 "AI Planner" 가 없다', () => {
+    const src = read('src/pages/RegionDetail.tsx');
+    expect(src).not.toMatch(/aiPlannerCta \|\| 'AI Planner'/);
+  });
+
+  it('MapPage.tsx 의 startPlanner 로컬 사전에 AI 접두가 없다 (4개 언어)', () => {
+    const src = read('src/pages/MapPage.tsx');
+    expect(src).not.toMatch(/startPlanner: 'Start AI Planner'/);
+    expect(src).not.toMatch(/startPlanner: 'AI 플래너 시작'/);
+    expect(src).not.toMatch(/startPlanner: 'AIプランナーを開始'/);
+    expect(src).not.toMatch(/startPlanner: '开始AI规划'/);
+  });
+
+  it('FeatureOverview.tsx 6기능 총람의 플래너 항목에 "AI" 접두가 없다 (4개 언어)', () => {
+    const src = read('src/sections/FeatureOverview.tsx');
+    expect(src).not.toMatch(/\['AI Planner',/);
+    expect(src).not.toMatch(/\['AI 플래너',/);
+    expect(src).not.toMatch(/\['AIプランナー',/);
+    expect(src).not.toMatch(/\['AI行程规划',/);
+  });
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json heroCards.plannerTitle/regionDetail.aiPlannerCta 에 "AI" 접두가 없다`, () => {
+      const j = locale(lang);
+      expect(j.heroCards.plannerTitle).not.toMatch(/^AI/);
+      expect(j.regionDetail.aiPlannerCta).not.toMatch(/^AI/);
+    });
+
+    it(`${lang}.json mobileHomeV2.catPlanner/aiCardTitle 에 "AI" 접두가 없다`, () => {
+      const j = locale(lang);
+      expect(j.mobileHomeV2.catPlanner).not.toMatch(/^AI/);
+      expect(j.mobileHomeV2.aiCardTitle).not.toMatch(/^AI/);
+    });
+  }
+});

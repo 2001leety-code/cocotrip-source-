@@ -68,7 +68,7 @@
     "tourLine1": "프라이빗 · 단체 · 패키지",
     "tourLine2": "전문 가이드와 함께",
     "tourCta": "투어 보기",
-    "plannerTitle": "AI 여행 플래너",
+    "plannerTitle": "여행 플래너",
     "plannerLine1": "AI가 맞춤 일정을 자동으로 생성",
     "plannerLine2": "{price} · 즉시 · 4개 언어 지원",
     "plannerCta": "일정 만들기"
@@ -152,7 +152,7 @@
     "photoGallery": "사진 갤러리",
     "planTrip": "여행 계획:",
     "planTripDesc": "COCOTRIP이 맞춤형 투어 경험을 만들어 드립니다.",
-    "aiPlannerCta": "AI 플래너",
+    "aiPlannerCta": "여행 플래너",
     "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "서울",
@@ -1301,10 +1301,10 @@
     "heroBadge": "PREMIUM KOREA TRAVEL",
     "heroHeadline1": "당신만의 한국 여행,",
     "heroHeadline2": "60초 안에 완성",
-    "heroSubtitle": "AI가 일정을 짜고, 프라이빗 차량과 24/7 영어 지원까지",
+    "heroSubtitle": "AI가 일정을 짜고, 프라이빗 차량과 평일 영어 지원까지",
     "heroCta": "지금 시작하기",
     "heroProofReviews": "실제 게스트 후기",
-    "heroProofSupport": "24/7 영어 지원",
+    "heroProofSupport": "평일 영어 지원",
     "heroProofLicensed": "관광 등록 사업자",
     "tourMarqueeTitle": "추천 투어",
     "tourMarqueeMore": "전체 보기",
@@ -1319,14 +1319,14 @@
     "promoKpopCta": "셔틀 예약",
     "svcCharter": "전세 차량",
     "svcCharterSub": "차량",
-    "svcPlanner": "AI 플래너",
+    "svcPlanner": "여행 플래너",
     "svcPlannerSub": "일정",
     "svcKpop": "K-pop",
     "svcKpopSub": "셔틀",
     "promoToursTitle": "프라이빗 한국 투어",
     "promoToursSubtitle": "서울 · 부산 · 경주 · 단양 — 올인클루시브",
     "promoToursCta": "투어 보기",
-    "aiBannerTitle": "AI 일정 자동 생성",
+    "aiBannerTitle": "일정 자동 생성",
     "aiBannerSubtitle": "도시·날짜만 입력 → 분 단위 일정표 완성",
     "memberGrade": "등급 · 쿠폰 · Trip Coins",
     "myPlans": "내 여행 플랜",
@@ -1336,7 +1336,7 @@
     "googleReview": "Google 리뷰",
     "googleReviewSub": "Google에 경험을 남겨주세요",
     "trustPaypal": "PayPal\n안전결제",
-    "trustSupport": "24시간\n고객지원",
+    "trustSupport": "평일\n고객지원",
     "trustLicense": "관광 등록\n사업자",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
@@ -1345,7 +1345,7 @@
     "headline1": "딱 맞는 한국 여행,",
     "headline2": "제가 짜드릴게요",
     "cta": "플랜 만들기",
-    "catPlanner": "AI 플래너",
+    "catPlanner": "여행 플래너",
     "catTours": "투어",
     "catCharter": "차터",
     "catMap": "지도",
@@ -1356,7 +1356,7 @@
     "from": "최저",
     "greeting": "안녕하세요, 여행자님",
     "greetingSub": "오늘은 한국 어디로 떠나볼까요?",
-    "aiCardTitle": "AI 일정 제안",
+    "aiCardTitle": "일정 제안",
     "aiCardSub": "취향에 맞춘 스마트 플랜",
     "aiCardSample": "서울 하이라이트",
     "aiCardTags": "5일 · 문화 · 자연 · 야경",
@@ -1419,7 +1419,7 @@
     "subtitle": "함께 여행하셨나요? Google에 솔직한 후기를 남겨 다음 게스트에게 도움을 주세요.",
     "reviewsLabel": "리뷰",
     "trustLicensed": "관광 등록 사업자",
-    "trustSupport": "24/7 영어 지원",
+    "trustSupport": "평일 영어 지원",
     "trustPrivate": "전용 가이드 & 차량",
     "leaveReview": "Google에 후기 남기기"
   },
@@ -1475,7 +1475,7 @@
     "noQuoteDefault": "위에서 서비스 유형과 목적지를 선택하면 예상 금액이 표시됩니다.",
     "includedTitle": "포함 사항",
     "included1": "차량 1대 기준 (인원 추가 시 차량 추가)",
-    "included2": "영어 소통 가능 기사 · 24시간 지원",
+    "included2": "영어 소통 가능 기사 · 평일 지원",
     "included3": "대형 캐리어 수납 가능",
     "included4": "픽업 안내 서비스 (공항 픽업 ₩20,000 추가)",
     "overtime": "초과 시간 ₩{n}/시간 (그룹당)",
@@ -1951,20 +1951,13 @@
         "가입 축하 5% 쿠폰"
       ],
       "Silver": [
-        "Trip Coins 1.5% 적립",
-        "시즌 $5 쿠폰",
-        "우선 응대"
+        "Trip Coins 1.5% 적립"
       ],
       "Gold": [
-        "Trip Coins 2% 적립",
-        "시즌 $10 쿠폰",
-        "차량 우선 배정"
+        "Trip Coins 2% 적립"
       ],
       "Platinum": [
-        "Trip Coins 3% 적립",
-        "시즌 $20 쿠폰",
-        "VIP 카카오톡 응대",
-        "공항 라운지 이용"
+        "Trip Coins 3% 적립"
       ]
     },
     "pointEmpty": "아직 포인트 내역이 없습니다.",

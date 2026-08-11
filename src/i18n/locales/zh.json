@@ -68,7 +68,7 @@
     "tourLine1": "私人 · 团体 · 套餐",
     "tourLine2": "专业导游同行",
     "tourCta": "查看旅游",
-    "plannerTitle": "AI旅行规划师",
+    "plannerTitle": "旅行规划师",
     "plannerLine1": "AI自动生成专属行程",
     "plannerLine2": "{price} · 即时 · 支持4种语言",
     "plannerCta": "制定行程"
@@ -152,7 +152,7 @@
     "photoGallery": "照片图库",
     "planTrip": "规划您的旅程:",
     "planTripDesc": "让 COCOTRIP 为您创建个性化旅游体验。",
-    "aiPlannerCta": "AI 规划师",
+    "aiPlannerCta": "行程规划",
     "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "首尔",
@@ -1349,7 +1349,7 @@
     "noQuoteDefault": "请在上方选择服务类型和目的地以查看预估价格。",
     "includedTitle": "包含内容",
     "included1": "基于1辆车（人数增加需加车）",
-    "included2": "英语沟通司机 · 24小时支持",
+    "included2": "英语沟通司机 · 工作日支持",
     "included3": "可容纳大型行李箱",
     "included4": "接机引导服务（机场接机另加₩20,000）",
     "overtime": "超时费用 ₩{n}/小时（每团）",
@@ -1378,10 +1378,10 @@
     "heroBadge": "PREMIUM KOREA TRAVEL",
     "heroHeadline1": "您的韩国之旅,",
     "heroHeadline2": "60秒内完成",
-    "heroSubtitle": "AI 规划行程，私人包车和24小时英文支持全包",
+    "heroSubtitle": "AI 规划行程，私人包车和工作日英文支持全包",
     "heroCta": "立即开始",
     "heroProofReviews": "真实客人评价",
-    "heroProofSupport": "24小时支持",
+    "heroProofSupport": "工作日支持",
     "heroProofLicensed": "观光登记业者",
     "tourMarqueeTitle": "精选之旅",
     "tourMarqueeMore": "查看全部",
@@ -1396,14 +1396,14 @@
     "promoKpopCta": "预约接驳",
     "svcCharter": "包车",
     "svcCharterSub": "专属车辆",
-    "svcPlanner": "AI规划师",
+    "svcPlanner": "行程规划",
     "svcPlannerSub": "行程制定",
     "svcKpop": "K-pop",
     "svcKpopSub": "接驳巴士",
     "promoToursTitle": "韩国私人包车游",
     "promoToursSubtitle": "首尔 · 釜山 · 庆州 · 丹阳 — 全包服务",
     "promoToursCta": "查看行程",
-    "aiBannerTitle": "AI行程自动生成",
+    "aiBannerTitle": "行程自动生成",
     "aiBannerSubtitle": "输入城市和日期 → 分钟级行程表完成",
     "memberGrade": "等级 · 优惠券 · Trip Coins",
     "myPlans": "我的旅行计划",
@@ -1413,7 +1413,7 @@
     "googleReview": "Google评价",
     "googleReviewSub": "在Google分享您的体验",
     "trustPaypal": "PayPal\n安全支付",
-    "trustSupport": "24小时\n客服支持",
+    "trustSupport": "工作日\n客服支持",
     "trustLicense": "旅游注册\n运营商",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
@@ -1422,7 +1422,7 @@
     "headline1": "为您定制",
     "headline2": "完美韩国之旅",
     "cta": "开始规划",
-    "catPlanner": "AI行程规划",
+    "catPlanner": "行程规划",
     "catTours": "一日游",
     "catCharter": "包车",
     "catMap": "地图",
@@ -1433,7 +1433,7 @@
     "from": "低至",
     "greeting": "你好，旅行者",
     "greetingSub": "今天想探索韩国的哪里？",
-    "aiCardTitle": "AI行程建议",
+    "aiCardTitle": "行程建议",
     "aiCardSub": "根据你的喜好定制的智能计划",
     "aiCardSample": "首尔精华",
     "aiCardTags": "5天 · 文化 · 自然 · 夜景",
@@ -1496,7 +1496,7 @@
     "subtitle": "与我们同行过吗？欢迎在Google分享您的真实体验，帮助未来的客人。",
     "reviewsLabel": "评价",
     "trustLicensed": "持牌旅游运营商",
-    "trustSupport": "24小时英语支持",
+    "trustSupport": "工作日英语支持",
     "trustPrivate": "专属向导与车辆",
     "leaveReview": "在Google上评价我们"
   },
@@ -1951,20 +1951,13 @@
         "入会 5% 优惠券"
       ],
       "Silver": [
-        "Trip Coins 1.5% 返还",
-        "季度 $5 优惠券",
-        "优先客服"
+        "Trip Coins 1.5% 返还"
       ],
       "Gold": [
-        "Trip Coins 2% 返还",
-        "季度 $10 优惠券",
-        "优先安排车辆"
+        "Trip Coins 2% 返还"
       ],
       "Platinum": [
-        "Trip Coins 3% 返还",
-        "季度 $20 优惠券",
-        "VIP KakaoTalk 客服",
-        "机场贵宾室"
+        "Trip Coins 3% 返还"
       ]
     },
     "pointEmpty": "还没有积分记录。",

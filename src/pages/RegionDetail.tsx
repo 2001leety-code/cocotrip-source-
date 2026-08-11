@@ -197,7 +197,7 @@ export function RegionDetail() {
                 className="m-cta m-btn w-full py-3.5 text-[14px] flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                {t.regionDetail?.aiPlannerCta || 'AI Planner'}
+                {t.regionDetail?.aiPlannerCta || 'Trip Planner'}
               </button>
               <a
                 href="https://wa.me/821087140611"
