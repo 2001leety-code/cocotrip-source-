@@ -37,6 +37,10 @@ const PER_PERSON_LABEL: Record<Language, string> = {
   zh: '/人',
 };
 
+// 'Popular'/'Best Value'는 집계 근거 없는 수동 라벨이라 배지로 노출하지 않는다
+// (실제 집계는 useTourRatingAggregates 별점으로 이미 표시됨).
+const UNGROUNDED_BADGE_TAGS = new Set(['Popular', 'Best Value']);
+
 const TAG_STYLE: Record<string, { bg: string; color: string }> = {
   Popular:     { bg: 'rgba(182,104,252,0.20)', color: '#D9A8FF' },
   'AI-Curated':{ bg: 'rgba(255,107,157,0.18)', color: '#FF9EC2' },
@@ -82,11 +86,8 @@ export function TourCard({ tour, language }: TourCardProps) {
     language === 'zh' ? '查看详情' : 'View Details';
 
   // 첫 번째 태그만 카드에 노출 (공간 절약).
-  // 'Popular'/'Best Value'는 집계 근거 없는 수동 라벨이라 배지로 노출하지 않는다
-  // (실제 집계는 useTourRatingAggregates 별점으로 이미 표시됨).
-  const UNGROUNDED_BADGE_TAGS = new Set(['Popular', 'Best Value']);
   const primaryTag = tour.tags.find((tag) => !UNGROUNDED_BADGE_TAGS.has(tag));
-  const tagStyle = primaryTag ? (TAG_STYLE[primaryTag] ?? { bg: 'rgba(255,255,255,0.10)', color: '#fff' }) : null;
+  const tagStyle = primaryTag ? (TAG_STYLE[primaryTag] || { bg: 'rgba(255,255,255,0.10)', color: '#fff' }) : null;
 
   // 나이트 투어 오버레이
   const isNight = tour.isNightTour === true;

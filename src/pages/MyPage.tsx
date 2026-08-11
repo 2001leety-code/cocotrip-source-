@@ -384,7 +384,7 @@ export default function MyPage() {
                 {[
                   { to: '/charter', icon: MapIcon, label: t.nav.charter ?? 'Charter' },
                   { to: '/tours', icon: Package, label: t.nav.tours ?? 'Tours' },
-                  { to: '/planner', icon: Sparkles, label: t.nav.planner ?? 'Trip Planner' },
+                  { to: '/planner', icon: Sparkles, label: t.nav.planner || 'Trip Planner' },
                   { to: '/about', icon: Globe, label: t.nav.about ?? 'About' },
                 ].map(({ to, icon: Icon, label }, i) => (
                   <Link

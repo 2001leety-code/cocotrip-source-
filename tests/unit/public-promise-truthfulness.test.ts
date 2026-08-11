@@ -149,6 +149,6 @@ describe('MyPage — AI Planner 폴백 표기', () => {
   it('nav 폴백이 실제 locale 값과 같은 "Trip Planner" 를 쓴다 ("AI Planner" 아님)', () => {
     const src = read('src/pages/MyPage.tsx');
     expect(src).not.toMatch(/\?\?\s*'AI Planner'/);
-    expect(src).toMatch(/t\.nav\.planner \?\? 'Trip Planner'/);
+    expect(src).toMatch(/t\.nav\.planner \|\| 'Trip Planner'/);
   });
 });
