@@ -1,9 +1,10 @@
 # CocoTrip
 
-> Korea travel planning and private transport for foreign visitors: an AI day-by-day
-> itinerary planner, private charter vehicles with a driver, guided day tours, and
-> practical travel guides. Operated by a registered Korean travel agency; the site is
-> published in English, Korean, Japanese and Chinese at the same URLs.
+> Korea travel planning and private transport for foreign visitors: day-by-day
+> itineraries auto-written from real Korean routes, private charter vehicles with a
+> driver, guided day tours, and practical travel guides. Operated by a registered
+> Korean travel agency; the site is published in English, Korean, Japanese and Chinese
+> at the same URLs.
 
 Prices, cancellation terms and vehicle capacity change over time. Read them from the
 linked pages rather than caching them — every quote on the site is generated from the
@@ -16,7 +17,7 @@ to this on the payment screen before checkout.
 
 ## Plan a trip
 
-- [AI travel planner](https://cocotripkr.com/planner): builds a day-by-day Korea itinerary from your dates, party size, budget and dietary needs (halal, vegetarian, allergies).
+- [Trip planner](https://cocotripkr.com/planner): a day-by-day Korea itinerary auto-written from your dates, party size, budget and dietary needs (halal, vegetarian, allergies), using real Korean places, subway/bus routes and walking directions.
 - [Private charter](https://cocotripkr.com/charter): car and driver — airport transfers, full-day charter tours, multi-day intercity routes, concert shuttles. Quote without an account; pricing, inclusions and FAQ are on the page.
 - [Guided tours](https://cocotripkr.com/tours): fixed-itinerary day tours with set departure points.
 
