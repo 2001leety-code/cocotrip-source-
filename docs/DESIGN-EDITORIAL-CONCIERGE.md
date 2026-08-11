@@ -251,6 +251,26 @@ question they had already answered. Outside revision the page now honours
 revision flow. Verified in a browser: the chip opens the wizard on step 2/5 with Seoul
 selected as the main base.
 
+### 2026-08-11 — `/tours` 카탈로그 P3 정리 (표시·접근성·진실성)
+
+`/tours` 의 **몸통은 아직 이전 다크 시스템**이다. 이 패스는 그 전환이 아니라, #1279/#1280 이후
+프로덕션에 남아 있던 P3 4건을 이 문서의 floor 기준으로 맞춘 것이다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 카드 제목 `line-clamp-1` — en 3뷰포트·ja 768/1440 에서 멀티시티 상품명이 잘렸다 | 2줄 + `min-h: 2.75em`(= leading-snug × 2줄). 1줄 제목도 2줄 자리를 잡아 카드 정렬이 제목 길이에 흔들리지 않는다 |
+| 필터 칩 30~40px | 지역·기간·관심사·페이스·언어·정렬·검색·지우기·카드 위시리스트·CTA 전부 44×44 |
+| 근거 없는 `Popular` 필터칩 | 칩 목록을 `isUngroundedBadgeTag`(카드 배지와 같은 SSOT)로 걸러 Popular/Best Value/AI-Curated 는 공개 필터에 못 나온다. `tour.tags`·검색·어드민 편집은 그대로 |
+| ko/ja/zh 에 `NIGHT` `NATURE` `HISTORY` `MULTI-CITY` `Tolls` `Parking` `Tips` 영어 누출 | 4언어. 공용 `src/i18n/locales/*.json` 이 아니라 `TourCard`/`ToursPage` 안의 route-local 사전 — 타입이 `Record<Language, string>` 이라 부분 번역이 컴파일되지 않고, 사전에 없는 태그는 영어 원문을 흘리는 대신 배지를 안 낸다 |
+
+측정(로컬 production preview, 390/768/1440 × ko/en/ja/zh 12조합): 잘린 제목 0 · 44px 미만 컨트롤 0 ·
+Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshots/tours-catalog-editorial-20260811/`,
+잠금은 `tests/e2e/tours-catalog-editorial.spec.ts`(픽셀)와
+`tests/unit/tours-catalog-editorial.component.test.tsx`(렌더).
+
+새 gradient·glow·glass 는 넣지 않았다. 기존 다크 시스템의 그라디언트는 `.refined-tours` 와 함께
+그 페이지가 전환될 때 사라진다 — 여기서 부분적으로 걷어내면 보정 cascade 가 한 겹 더 생긴다.
+
 ### Open item — shared header touch targets (P3)
 
 The planner's own controls now clear the 44px floor (`--ec-touch-min`): step ticks are

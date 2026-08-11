@@ -15,7 +15,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { TourCard } from '@/components/tours/TourCard';
 import { TourInquireModal } from '@/components/tours/TourInquireModal';
-import { TOUR_REGIONS, getToursByRegion } from '@/data/tours';
+import { TOUR_REGIONS, getToursByRegion, isUngroundedBadgeTag } from '@/data/tours';
 import type { TourRegion, DriverLanguage, TourTag } from '@/data/tours';
 import type { Language } from '@/i18n';
 import { buildHotelListLink } from '@/config/affiliateLinks';
@@ -112,6 +112,23 @@ const TL = {
     toursUnit: '条',
   },
 } satisfies Record<Language, Record<string, string>>;
+
+// ── Interests 필터 칩 (route-local) ──────────────────────────────────────────
+// TOURS 에 실제로 있는 태그만 칩으로 만든다(죽은 필터 금지).
+//
+// 목록은 손으로 적지만 `isUngroundedBadgeTag` 로 한 번 더 거른다 — 집계 근거가 없는
+// 라벨(Popular / Best Value / AI-Curated)은 공개 필터에도 못 나온다. 카드 배지를 거르는
+// `publicBadgeTag` 와 같은 SSOT(src/data/tours.ts)를 쓰므로, 나중에 누가 여기 'Popular'
+// 를 다시 적어도 화면에는 안 나온다.
+//
+// 태그 **값**은 그대로다: `tour.tags` 원본, 검색(`matchesTourQuery` 는 태그도 훑는다),
+// 어드민 편집(`ProductEditor/BasicInfoTab` 의 TAG_OPTIONS) 전부 영향 없음.
+const INTEREST_CHIPS: ReadonlyArray<{ key: TourTag; label: Record<Language, string> }> = ([
+  { key: 'Nature' as TourTag,     label: { ko: '자연',      en: 'Nature',     ja: '自然',       zh: '自然' } },
+  { key: 'History' as TourTag,    label: { ko: '역사·문화', en: 'History',    ja: '歴史・文化', zh: '历史文化' } },
+  { key: 'Night Tour' as TourTag, label: { ko: '야경',      en: 'Night view', ja: '夜景',       zh: '夜景' } },
+  { key: 'Multi-City' as TourTag, label: { ko: '다도시',    en: 'Multi-city', ja: '複数都市',   zh: '多城市' } },
+]).filter(({ key }) => !isUngroundedBadgeTag(key));
 
 // 지역 대표 이미지 — 실존 public 자산만 매핑. 없는 지역은 그라디언트 폴백(잘못된 사진 라벨링 금지).
 const REGION_IMAGE: Record<string, string> = {
@@ -369,7 +386,7 @@ export default function ToursPage() {
         <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
           {tl.popularDestinations}
         </p>
-        <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div data-testid="tours-region-rail" className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TOUR_REGIONS.filter((r) => r.key !== 'All').map(({ key, label }) => {
             const count = getToursByRegion(key).length;
             if (count === 0) return null;
@@ -408,6 +425,7 @@ export default function ToursPage() {
       {/* ── 지역 필터 칩 ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
         <div
+          data-testid="tours-filter-panel"
           className="rounded-[22px] p-3 sm:p-4"
           style={{
             background: 'rgba(255,255,255,0.025)',
@@ -415,8 +433,10 @@ export default function ToursPage() {
           }}
         >
         {/* 텍스트 검색 (가이드 P7 Discover) — 홈 검색바 ?q= 시딩과 연동 */}
+        {/* 입력 행 자체가 44px 터치 타깃 — py 로 높이를 만들면 지우기(X) 버튼만 16px 로 남는다.
+            입력 글자 16px: 그 아래로는 iOS 사파리가 포커스 때 뷰포트를 확대해 버린다. */}
         <div
-          className="mb-3 flex items-center gap-2.5 rounded-full px-4 py-2.5"
+          className="mb-3 flex items-center gap-2.5 rounded-full px-4 min-h-[44px]"
           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
         >
           <Search className="w-4 h-4 shrink-0 text-white/45" aria-hidden />
@@ -427,14 +447,14 @@ export default function ToursPage() {
             placeholder={tl.searchPlaceholder}
             aria-label={tl.searchPlaceholder}
             enterKeyHint="search"
-            className="w-full bg-transparent text-[13px] font-medium text-white outline-none placeholder:text-white/35"
+            className="w-full self-stretch min-h-[44px] bg-transparent text-[16px] sm:text-[13px] font-medium text-white outline-none placeholder:text-white/35"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
               aria-label={tl.clearSearch}
-              className="shrink-0 text-white/45 hover:text-white/80"
+              className="-mr-2.5 shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full text-white/45 hover:text-white/80"
             >
               <X className="w-4 h-4" />
             </button>
@@ -455,7 +475,8 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => setActiveRegion(key)}
-                className="tour-chip shrink-0 text-[11px] sm:text-[12px] font-bold px-3.5 sm:px-4 py-2 min-h-[36px] sm:min-h-[40px] rounded-full"
+                aria-pressed={isActive}
+                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] sm:text-[12px] font-bold px-3.5 sm:px-4 min-w-[44px] min-h-[44px] rounded-full"
                 style={
                   isActive
                     ? {
@@ -490,7 +511,8 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => setActiveDuration(key)}
-                className="tour-chip shrink-0 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                aria-pressed={isActive}
+                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
                 style={
                   isActive
                     ? { background: 'rgba(182,104,252,0.15)', border: '1px solid rgba(182,104,252,0.40)', color: '#D0A8FF' }
@@ -503,21 +525,17 @@ export default function ToursPage() {
           })}
         </div>
 
-        {/* Interests 필터 (가이드 P7) — TOURS 실태그만. 데이터 없는 관심사 칩 금지. */}
+        {/* Interests 필터 (가이드 P7) — TOURS 실태그만. 데이터 없는 관심사 칩 금지.
+            목록·근거 없는 태그 차단은 파일 상단 INTEREST_CHIPS 참조. */}
         <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {([
-            { key: 'Popular' as TourTag,    label: { ko: '인기',     en: 'Popular',    ja: '人気',       zh: '热门' } },
-            { key: 'Nature' as TourTag,     label: { ko: '자연',     en: 'Nature',     ja: '自然',       zh: '自然' } },
-            { key: 'History' as TourTag,    label: { ko: '역사·문화', en: 'History',    ja: '歴史・文化', zh: '历史文化' } },
-            { key: 'Night Tour' as TourTag, label: { ko: '야경',     en: 'Night view', ja: '夜景',       zh: '夜景' } },
-            { key: 'Multi-City' as TourTag, label: { ko: '다도시',   en: 'Multi-city', ja: '複数都市',   zh: '多城市' } },
-          ]).map(({ key, label }) => {
+          {INTEREST_CHIPS.map(({ key, label }) => {
             const isActive = activeTags.has(key);
             return (
               <button
                 key={key}
                 onClick={() => toggleTag(key)}
-                className="tour-chip shrink-0 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                aria-pressed={isActive}
+                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
                 style={
                   isActive
                     ? { background: 'rgba(255,107,157,0.14)', border: '1px solid rgba(255,107,157,0.45)', color: '#FF9DC0' }
@@ -539,7 +557,7 @@ export default function ToursPage() {
                 key={pace}
                 onClick={() => togglePace(pace)}
                 aria-pressed={isActive}
-                className="tour-chip shrink-0 flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                className="tour-chip shrink-0 inline-flex items-center justify-center gap-1 text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
                 style={isActive
                   ? { background: 'rgba(0,200,140,0.14)', border: '1px solid rgba(0,200,140,0.45)', color: '#5FE3B0' }
                   : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}
@@ -563,7 +581,8 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => toggleLang(key)}
-                className="tour-chip text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 min-h-[30px] rounded-full"
+                aria-pressed={isActive}
+                className="tour-chip inline-flex items-center justify-center text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 min-w-[44px] min-h-[44px] rounded-full"
                 style={
                   isActive
                     ? { background: 'rgba(140,200,255,0.15)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
@@ -581,7 +600,8 @@ export default function ToursPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 rounded-full cursor-pointer focus:outline-none"
+              aria-label={language === 'ko' ? '정렬' : language === 'ja' ? '並び替え' : language === 'zh' ? '排序' : 'Sort'}
+              className="text-[11px] font-semibold px-2.5 sm:px-3 min-h-[44px] rounded-full cursor-pointer focus:outline-none"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
             >
               <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
@@ -606,7 +626,7 @@ export default function ToursPage() {
             <p className="text-[14px] text-white/55">{searchQuery.trim() ? tl.noSearchResults : tl.noResults}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
+          <div data-testid="tours-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
             {visibleTours.map(tour => (
               <TourCard key={tour.id} tour={tour} language={language} />
             ))}
@@ -641,11 +661,12 @@ export default function ToursPage() {
           </div>
           <button
             type="button"
+            data-testid="tours-inquire-cta"
             onClick={() => {
               trackEvent('tour_custom_inquiry_open', { region: activeRegion });
               setInquireOpen(true);
             }}
-            className="flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full shrink-0"
+            className="inline-flex items-center gap-1 text-[12px] font-bold px-3.5 min-h-[44px] rounded-full shrink-0"
             style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)', color: '#fff' }}
           >
             {tl.inquireBtn}
@@ -666,6 +687,7 @@ export default function ToursPage() {
         >
           <p className="text-[11px] text-white/50 min-w-0">{tl.hotelCtaText}</p>
           <a
+            data-testid="tours-hotel-cta"
             href={hotelSearchUrl}
             target="_blank"
             rel="noopener noreferrer sponsored"
@@ -674,7 +696,7 @@ export default function ToursPage() {
             onClick={() => trackAffiliateClick({
               product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey,
             })}
-            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full"
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 min-h-[44px] rounded-full"
             style={{ background: 'rgba(0,115,230,0.10)', border: '1px solid rgba(0,115,230,0.30)', color: '#4D9FFF' }}
           >
             {tl.hotelCtaBtn}
