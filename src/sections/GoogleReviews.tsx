@@ -16,7 +16,7 @@ export function GoogleReviews() {
 
   const trustSignals = [
     { icon: ShieldCheck, label: gr.trustLicensed || 'Licensed tour operator' },
-    { icon: Headset, label: gr.trustSupport || '24/7 English support' },
+    { icon: Headset, label: gr.trustSupport || 'Weekday English support' },
     { icon: MapPin, label: gr.trustPrivate || 'Private guide & van' },
   ];
 

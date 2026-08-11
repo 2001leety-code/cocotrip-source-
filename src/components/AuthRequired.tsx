@@ -12,7 +12,7 @@ const TEXT = {
   ko: {
     title: '로그인이 필요합니다',
     desc: '소셜 로그인으로 간편하게 시작하세요.',
-    benefits: ['🗺️ 나만의 맞춤 여행 일정 저장', '📋 예약 내역 및 이용 기록 관리', '💬 24/7 고객 지원 이용'],
+    benefits: ['🗺️ 나만의 맞춤 여행 일정 저장', '📋 예약 내역 및 이용 기록 관리', '💬 평일 10~18시 고객 지원 이용'],
     google: '구글로 시작하기',
     line: 'LINE으로 계속',
     phone: '전화번호로 계속',
@@ -22,7 +22,7 @@ const TEXT = {
   en: {
     title: 'Sign in to continue',
     desc: 'Get started quickly with your social account.',
-    benefits: ['🗺️ Save your personalized itineraries', '📋 Manage bookings & travel history', '💬 Access 24/7 customer support'],
+    benefits: ['🗺️ Save your personalized itineraries', '📋 Manage bookings & travel history', '💬 Weekday support, 10am–6pm KST'],
     google: 'Continue with Google',
     line: 'Continue with LINE',
     phone: 'Continue with phone',
@@ -32,7 +32,7 @@ const TEXT = {
   ja: {
     title: 'ログインしてください',
     desc: 'ソーシャルアカウントで簡単に始められます。',
-    benefits: ['🗺️ カスタム旅程の保存', '📋 予約履歴の管理', '💬 24時間カスタマーサポート'],
+    benefits: ['🗺️ カスタム旅程の保存', '📋 予約履歴の管理', '💬 平日10時~18時のカスタマーサポート'],
     google: 'Googleで続ける',
     line: 'LINEで続ける',
     phone: '電話番号で続ける',
@@ -42,7 +42,7 @@ const TEXT = {
   zh: {
     title: '请登录以继续',
     desc: '使用社交账号快速开始。',
-    benefits: ['🗺️ 保存您的定制行程', '📋 管理预订和旅行记录', '💬 享受24/7客服支持'],
+    benefits: ['🗺️ 保存您的定制行程', '📋 管理预订和旅行记录', '💬 工作日10-18点客服支持'],
     google: '使用Google登录',
     line: '使用LINE登录',
     phone: '使用电话号码登录',

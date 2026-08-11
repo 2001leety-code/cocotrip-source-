@@ -68,7 +68,7 @@
     "tourLine1": "Private · Group · Packages",
     "tourLine2": "With expert local guides",
     "tourCta": "Browse Tours",
-    "plannerTitle": "AI Travel Planner",
+    "plannerTitle": "Travel Planner",
     "plannerLine1": "AI generates your custom itinerary",
     "plannerLine2": "{price} · Instant · 4 languages",
     "plannerCta": "Plan my trip"
@@ -152,7 +152,7 @@
     "photoGallery": "Photo Gallery",
     "planTrip": "Plan Your Trip to",
     "planTripDesc": "Let COCOTRIP create a personalized tour experience just for you.",
-    "aiPlannerCta": "AI Planner",
+    "aiPlannerCta": "Trip Planner",
     "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "Seoul",
@@ -1349,7 +1349,7 @@
     "noQuoteDefault": "Select a service type and destination above to see an estimated price.",
     "includedTitle": "Included",
     "included1": "Based on 1 vehicle (additional vehicles for extra passengers)",
-    "included2": "English-speaking driver · 24/7 support",
+    "included2": "English-speaking driver · Weekday support",
     "included3": "Large luggage storage available",
     "included4": "Pickup guide service (Airport pickup ₩20,000 extra)",
     "overtime": "Overtime ₩{n}/hour (per group)",
@@ -1378,10 +1378,10 @@
     "heroBadge": "PREMIUM KOREA TRAVEL",
     "heroHeadline1": "Your Korea trip,",
     "heroHeadline2": "planned in 60 seconds",
-    "heroSubtitle": "AI plans the days. Private chauffeur + 24/7 English support included.",
+    "heroSubtitle": "AI plans the days. Private chauffeur + weekday English support included.",
     "heroCta": "Get Started",
     "heroProofReviews": "Real Guest Reviews",
-    "heroProofSupport": "24/7 English",
+    "heroProofSupport": "Weekday English",
     "heroProofLicensed": "Licensed Operator",
     "tourMarqueeTitle": "Featured Tours",
     "tourMarqueeMore": "View all",
@@ -1396,14 +1396,14 @@
     "promoKpopCta": "Book Shuttle",
     "svcCharter": "Charter",
     "svcCharterSub": "Vehicle",
-    "svcPlanner": "AI Planner",
+    "svcPlanner": "Trip Planner",
     "svcPlannerSub": "Itinerary",
     "svcKpop": "K-pop",
     "svcKpopSub": "Shuttle",
     "promoToursTitle": "Private Korea Tours",
     "promoToursSubtitle": "Seoul · Busan · Gyeongju · Danyang — All-inclusive",
     "promoToursCta": "View Tours",
-    "aiBannerTitle": "AI Itinerary Generator",
+    "aiBannerTitle": "Itinerary Generator",
     "aiBannerSubtitle": "Enter city & dates → Get minute-by-minute plan",
     "memberGrade": "Tier · Coupons · Trip Coins",
     "myPlans": "My Travel Plans",
@@ -1413,7 +1413,7 @@
     "googleReview": "Google Reviews",
     "googleReviewSub": "Share your experience on Google",
     "trustPaypal": "PayPal\nSecure Pay",
-    "trustSupport": "24/7\nSupport",
+    "trustSupport": "Weekday\nSupport",
     "trustLicense": "Licensed\nOperator",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
@@ -1422,7 +1422,7 @@
     "headline1": "Let me plan your",
     "headline2": "perfect Korea trip",
     "cta": "Start planning",
-    "catPlanner": "AI Planner",
+    "catPlanner": "Trip Planner",
     "catTours": "Tours",
     "catCharter": "Charter",
     "catMap": "Map",
@@ -1433,7 +1433,7 @@
     "from": "from",
     "greeting": "Hello, Traveler",
     "greetingSub": "Where in Korea shall we explore today?",
-    "aiCardTitle": "AI Itinerary Suggestion",
+    "aiCardTitle": "Itinerary Suggestion",
     "aiCardSub": "Smart plan based on your preferences",
     "aiCardSample": "Seoul Highlights",
     "aiCardTags": "5 Days · Culture · Nature · Night View",
@@ -1496,7 +1496,7 @@
     "subtitle": "Travelled with us? Share your honest experience on Google to help future guests.",
     "reviewsLabel": "Reviews",
     "trustLicensed": "Licensed tour operator",
-    "trustSupport": "24/7 English support",
+    "trustSupport": "Weekday English support",
     "trustPrivate": "Private guide & van",
     "leaveReview": "Review us on Google"
   },
@@ -1951,20 +1951,13 @@
         "Welcome 5% coupon"
       ],
       "Silver": [
-        "1.5% Trip Coins earn",
-        "$5 season coupon",
-        "Priority support"
+        "1.5% Trip Coins earn"
       ],
       "Gold": [
-        "2% Trip Coins earn",
-        "$10 season coupon",
-        "Priority vehicle assignment"
+        "2% Trip Coins earn"
       ],
       "Platinum": [
-        "3% Trip Coins earn",
-        "$20 season coupon",
-        "VIP KakaoTalk support",
-        "Airport lounge access"
+        "3% Trip Coins earn"
       ]
     },
     "pointEmpty": "No point activity yet.",
@@ -2142,7 +2135,7 @@
   "pageMeta": {
     "home": {
       "title": "CocoTrip — Premium Korea Travel",
-      "description": "Private tours, charter vehicles, AI travel planner for Korea. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more."
+      "description": "Private tours, charter vehicles, custom Korea itineraries built from real local routes, your city, dates & trip style. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more."
     },
     "about": {
       "title": "About CocoTrip",
