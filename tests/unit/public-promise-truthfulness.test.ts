@@ -341,3 +341,59 @@ describe('AI 중심 제품명 정리 — 홈/지역/지도/기능 총람 (플래
     });
   }
 });
+
+/**
+ * PR #1276 follow-up (2026-08-11): App.tsx 의 pageMeta?.home?.description 폴백은
+ * 이미 AI 브랜딩이 정리됐지만, 실사용 값(t.pageMeta.home.description)은
+ * src/i18n/locales/{en,ko,ja,zh}.json 에서 오며 여기 4개 값이 실제 head 태그에 노출된다.
+ * i18next 는 미싱 키에서만 폴백을 쓰므로, 이 4개 실제 값이 여전히
+ * "AI travel planner"/"AI 여행 플래너" 류였다면 폴백 정리는 무의미했다.
+ */
+describe('locale JSON — 홈 meta description 실사용 값 (App.tsx 폴백이 아니라 이게 실제 노출됨)', () => {
+  const AI_ACTOR_PATTERNS: Record<(typeof LOCALE_LANGS)[number], RegExp[]> = {
+    en: [/\bAI\b/, /AI travel planner/i, /AI itinerary/i, /AI-powered/i],
+    ko: [/\bAI\b/, /AI\s*여행\s*플래너/, /AI\s*플래너/, /AI가/, /AI는/],
+    ja: [/\bAI\b/, /AI旅行プランナー/, /AIプランナー/, /AIが/],
+    zh: [/\bAI\b/, /AI\s*旅行规划/, /AI\s*行程/, /AI\s*规划/],
+  };
+
+  // 언어별로 "한국 현지 경로 기반 + 도시/날짜/스타일 조건 + (일정) 자동작성" 의미가
+  // 남아있는지 최소 신호로 확인한다 (정확한 워딩이 아니라 의미 보존 여부).
+  const MEANING_PATTERNS: Record<(typeof LOCALE_LANGS)[number], RegExp[]> = {
+    en: [/Korea/, /local rout/i, /(city|dates|trip style)/i, /itinerar/i],
+    ko: [/한국/, /현지\s*경로/, /(도시|날짜|여행\s*스타일)/, /일정/],
+    ja: [/韓国/, /現地ルート/, /(旅行都市|日程|旅のスタイル)/, /旅程/],
+    zh: [/韩国/, /本地路线/, /(出行城市|日期|旅行风格)/, /行程/],
+  };
+
+  for (const lang of LOCALE_LANGS) {
+    it(`${lang}.json pageMeta.home.description 에 "AI" 를 행위자로 내세우지 않는다`, () => {
+      const desc = locale(lang).pageMeta.home.description;
+      for (const pattern of AI_ACTOR_PATTERNS[lang]) {
+        expect(desc).not.toMatch(pattern);
+      }
+    });
+
+    it(`${lang}.json pageMeta.home.description 이 한국 현지 경로/조건 기반 일정 의미를 담는다`, () => {
+      const desc = locale(lang).pageMeta.home.description;
+      for (const pattern of MEANING_PATTERNS[lang]) {
+        expect(desc).toMatch(pattern);
+      }
+    });
+  }
+
+  it('App.tsx 폴백과 en.json 실제 값이 같은 포지셔닝을 공유한다 (AI 비언급 + 핵심 조건 키워드 일치)', () => {
+    const appSrc = read('src/App.tsx');
+    const match = appSrc.match(/description:\s*t\.pageMeta\?\.home\?\.description\s*\|\|\s*'([^']*)'/);
+    expect(match, 'home meta description fallback literal not found in App.tsx').toBeTruthy();
+    const fallback = match![1];
+    const actual = locale('en').pageMeta.home.description;
+
+    for (const pattern of [/Korea/, /local rout/i, /itinerar/i]) {
+      expect(fallback).toMatch(pattern);
+      expect(actual).toMatch(pattern);
+    }
+    expect(fallback).not.toMatch(/\bAI\b/);
+    expect(actual).not.toMatch(/\bAI\b/);
+  });
+});
