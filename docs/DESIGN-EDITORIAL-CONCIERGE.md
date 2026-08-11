@@ -305,6 +305,7 @@ own-origin 4xx/5xx 0 · own-origin console error 0.** 잠금은
 | `/charter` | 안내 링크 30px·15px |
 | 전역 쿠폰 모달(`OnboardingCouponModal`) | `ec-btn-sm` 36px — 쿠폰 화면이라 별도 PR |
 | 페이지별 skeleton | 라우트 폴백은 공용 masthead 모양이다. 화면별 skeleton 은 그 페이지가 전환될 때 |
+| 헤더 행 1024~1279 대역 | **이 시스템 이전부터 가로로 넘친다** — origin/main(ef3ce7c5) 실측 1024/ko +34px, 1024/en +103px, 1100/en +27px. nav 5개 + 유틸 6개 + CTA 2개가 그 폭에 안 들어간다. 이번 PR 은 Wishlist 를 36→44 로 올린 만큼(+8px) 늘렸고 그 외는 baseline 폭을 유지했다. 해소하려면 그 폭에서 무엇을 접을지 정해야 하므로 제품 결정이다 |
 
 ---
 
