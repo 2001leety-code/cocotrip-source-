@@ -44,20 +44,22 @@ const TIER_EMOJI: Record<TierType, string> = {
 
 // 🔧 2026-07-18: 'Free cancellation 48h/72h' 티어혜택 문구 제거 — PR#1116 에서 취소정책이
 //   24h 바이너리(등급 무관)로 통일돼 서버가 적용하지 않는 혜택을 고객에게 표기하던 회귀 잔재.
-// 🔴 2026-07-29: 영어 하드코딩을 번역 파일로 옮겼다(mypage.tierBenefits, 4개 국어).
-//   한국어 화면에서 등급 혜택만 영어로 남아 있던 문제. 아래는 번역 누락 시 폴백.
-const TIER_BENEFITS_FALLBACK: Record<TierType, string[]> = {
-  Bronze:   ['1% Trip Coins earn', 'Welcome 5% coupon'],
-  Silver:   ['1.5% Trip Coins earn', '$5 season coupon', 'Priority support'],
-  Gold:     ['2% Trip Coins earn', '$10 season coupon', 'Priority vehicle assignment'],
-  Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaoTalk support', 'Airport lounge access'],
+// 🔴 2026-08-11: 시즌 할인쿠폰·차량 우선배정·메신저 우대응대·라운지 이용 등 서버가 실제로
+//   지급하지 않는 등급 혜택을 표기하던 회귀 재발 (번역 파일 mypage.tierBenefitList 경유). 이번엔
+//   번역 파일 내용과 무관하게 api/_shared/loyalty-policy.js 의 적립률만 보여주도록 고정한다
+//   (api/·src/ 교차 import 금지 관례라 값은 미러링 — tests/unit 가드로 drift 방지).
+const TIER_EARN_PCT: Record<TierType, string> = {
+  Bronze: '1%', Silver: '1.5%', Gold: '2%', Platinum: '3%',
 };
 
-/** 번역 파일의 등급 혜택 목록. 없거나 형식이 다르면 영어 폴백. */
-function tierBenefits(dict: Record<string, unknown>, t: TierType): string[] {
-  const table = dict.tierBenefitList as Record<string, unknown> | undefined;
-  const list = table?.[t];
-  return Array.isArray(list) && list.length ? (list as string[]) : TIER_BENEFITS_FALLBACK[t];
+function tierBenefits(language: string, t: TierType): string[] {
+  const pct = TIER_EARN_PCT[t];
+  const label =
+    language === 'ko' ? `Trip Coins ${pct} 적립` :
+    language === 'ja' ? `Trip Coins ${pct} 還元` :
+    language === 'zh' ? `Trip Coins 返 ${pct}` :
+    `${pct} Trip Coins earn`;
+  return [label];
 }
 
 // Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
@@ -255,7 +257,7 @@ export default function MyPage() {
               {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
             </p>
             <div className="flex flex-wrap gap-2">
-              {tierBenefits(mp as unknown as Record<string, unknown>, tier).map((b, i) => (
+              {tierBenefits(language, tier).map((b, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-white/50 border border-white/5">
                   {b}
                 </span>
@@ -382,7 +384,7 @@ export default function MyPage() {
                 {[
                   { to: '/charter', icon: MapIcon, label: t.nav.charter ?? 'Charter' },
                   { to: '/tours', icon: Package, label: t.nav.tours ?? 'Tours' },
-                  { to: '/planner', icon: Sparkles, label: t.nav.planner ?? 'AI Planner' },
+                  { to: '/planner', icon: Sparkles, label: t.nav.planner ?? 'Trip Planner' },
                   { to: '/about', icon: Globe, label: t.nav.about ?? 'About' },
                 ].map(({ to, icon: Icon, label }, i) => (
                   <Link

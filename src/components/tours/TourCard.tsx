@@ -81,9 +81,12 @@ export function TourCard({ tour, language }: TourCardProps) {
     language === 'ja' ? '詳しく見る' :
     language === 'zh' ? '查看详情' : 'View Details';
 
-  // 첫 번째 태그만 카드에 노출 (공간 절약)
-  const primaryTag = tour.tags[0];
-  const tagStyle = TAG_STYLE[primaryTag] ?? { bg: 'rgba(255,255,255,0.10)', color: '#fff' };
+  // 첫 번째 태그만 카드에 노출 (공간 절약).
+  // 'Popular'/'Best Value'는 집계 근거 없는 수동 라벨이라 배지로 노출하지 않는다
+  // (실제 집계는 useTourRatingAggregates 별점으로 이미 표시됨).
+  const UNGROUNDED_BADGE_TAGS = new Set(['Popular', 'Best Value']);
+  const primaryTag = tour.tags.find((tag) => !UNGROUNDED_BADGE_TAGS.has(tag));
+  const tagStyle = primaryTag ? (TAG_STYLE[primaryTag] ?? { bg: 'rgba(255,255,255,0.10)', color: '#fff' }) : null;
 
   // 나이트 투어 오버레이
   const isNight = tour.isNightTour === true;
@@ -155,12 +158,14 @@ export function TourCard({ tour, language }: TourCardProps) {
               NIGHT
             </span>
           )}
-          <span
-            className="text-[8.5px] sm:text-[9px] font-black tracking-[0.12em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm"
-            style={{ background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.color}22` }}
-          >
-            {primaryTag.toUpperCase()}
-          </span>
+          {primaryTag && tagStyle && (
+            <span
+              className="text-[8.5px] sm:text-[9px] font-black tracking-[0.12em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm"
+              style={{ background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.color}22` }}
+            >
+              {primaryTag.toUpperCase()}
+            </span>
+          )}
         </div>
 
         {/* 이미지 갯수 표시 + 위시리스트 하트 (우상단) — 두 칩 가로 배치.

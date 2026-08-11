@@ -1,7 +1,7 @@
 // D5: trust signal row — appears between HeroSlider and HeroCards.
 // 5 trust badges (외국인 visitor 첫 화면 신뢰 신호 시각화):
 //   - Real Google reviews (links out, no fabricated rating/count)
-//   - 24/7 English support
+//   - Weekday support (real CS hours only, no round-the-clock claim — see footer.hours)
 //   - KTO registered (관광 등록 사업자)
 //   - PayPal secure payment
 //   - Private licensed guide
@@ -19,30 +19,30 @@ interface Badge {
 const BADGE_STR = {
   en: [
     { label: 'Private Tours', sublabel: 'Your own guide & van' },
-    { label: '24/7 English', sublabel: 'WhatsApp support' },
+    { label: 'Weekday Support', sublabel: '10am–6pm KST · WhatsApp' },
     { label: 'KTO Registered', sublabel: 'Registered tour operator' },
-    { label: 'PayPal Secure', sublabel: 'No hidden fees' },
+    { label: 'PayPal Secure', sublabel: 'Tolls & parking incl.' },
     { label: 'Licensed Guide', sublabel: 'Vetted professionals' },
   ],
   ko: [
     { label: '프라이빗 투어', sublabel: '전용 가이드 & 차량' },
-    { label: '24시간 지원', sublabel: 'WhatsApp 상담' },
+    { label: '평일 상담', sublabel: '10~18시 · WhatsApp' },
     { label: 'KTO 등록', sublabel: '관광 등록 사업자' },
-    { label: 'PayPal 보안결제', sublabel: '숨은 비용 없음' },
+    { label: 'PayPal 보안결제', sublabel: '톨비·주차비 포함' },
     { label: '자격 가이드', sublabel: '검증된 전문가' },
   ],
   ja: [
     { label: 'プライベートツアー', sublabel: '専用ガイド＆車両' },
-    { label: '24時間対応', sublabel: 'WhatsAppサポート' },
+    { label: '平日サポート', sublabel: '10~18時 · WhatsApp' },
     { label: 'KTO登録', sublabel: '観光登録事業者' },
-    { label: 'PayPal安全決済', sublabel: '隠れた費用なし' },
+    { label: 'PayPal安全決済', sublabel: '通行料・駐車場込み' },
     { label: '資格ガイド', sublabel: '審査済みプロ' },
   ],
   zh: [
     { label: '私人定制游', sublabel: '专属导游&车辆' },
-    { label: '24小时支持', sublabel: 'WhatsApp客服' },
+    { label: '工作日客服', sublabel: '10-18点 · WhatsApp' },
     { label: 'KTO注册', sublabel: '注册旅游企业' },
-    { label: 'PayPal安全支付', sublabel: '无隐藏费用' },
+    { label: 'PayPal安全支付', sublabel: '含过路费·停车费' },
     { label: '持证导游', sublabel: '经审核的专业人员' },
   ],
 };
