@@ -122,14 +122,18 @@ describe('MyPage — 등급 혜택은 적립률만 표시', () => {
 });
 
 describe('TourCard — 정적 Popular/Best Value 배지 제거', () => {
-  const src = read('src/components/tours/TourCard.tsx');
-
-  it('Popular/Best Value 는 카드 배지 후보에서 제외된다', () => {
-    expect(src).toMatch(/UNGROUNDED_BADGE_TAGS\s*=\s*new Set\(\['Popular', 'Best Value'\]\)/);
-    expect(src).toMatch(/tour\.tags\.find\(\(tag\) => !UNGROUNDED_BADGE_TAGS\.has\(tag\)\)/);
+  // 2026-08-11: 필터가 TourCard 안의 문자열 Set 에서 src/data/tours.ts 의 publicBadgeTag 로
+  // 옮겨졌다(카드가 여러 곳이라 호출자마다 다시 걸러야 했던 게 F3 의 원인). 그래서 여기서는
+  // 구현 문자열 대신 실제 반환값을 본다. 렌더 수준 확인은
+  // tests/unit/public-ai-actor-copy.component.test.tsx.
+  it('Popular/Best Value 는 카드 배지 후보에서 제외된다', async () => {
+    const { publicBadgeTag } = await import('../../src/data/tours');
+    expect(publicBadgeTag(['Popular', 'Best Value'])).toBeUndefined();
+    expect(publicBadgeTag(['Popular', 'History'])).toBe('History');
   });
 
-  it('primaryTag 가 없을 때 배지를 렌더하지 않는다(조건부 렌더)', () => {
+  it('남는 태그가 없으면 배지를 렌더하지 않는다(조건부 렌더)', () => {
+    const src = read('src/components/tours/TourCard.tsx');
     expect(src).toMatch(/\{primaryTag && tagStyle && \(/);
   });
 });

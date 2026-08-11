@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { TripEssentialsCards, shouldShowHomeAffiliate } from '@/components/home/TripEssentialsCards';
 import { signalAppReady } from '@/lib/appReady';
-import { TOURS, getTourPriceKRW } from '@/data/tours';
+import { TOURS, getTourPriceKRW, publicBadgeTag } from '@/data/tours';
 import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
 import { COCO, GradientCTA, StatusChip } from '@/components/coco/CocoUI';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -89,7 +89,7 @@ export default function MobileHomeV2() {
 
   usePageMeta({
     title: `${m.headline1} ${m.headline2}`,
-    description: 'AI travel planner, private tours & charter across Korea - CocoTrip.',
+    description: 'Private tours, charter vehicles and Korea itineraries built from real local routes - CocoTrip.',
   });
 
   // PWA 실행 스플래시 페이드아웃 — 홈 첫 화면 준비됨 신호 (코코트립 standalone 진입점).
@@ -307,7 +307,10 @@ export default function MobileHomeV2() {
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {featuredTours.map((tour) => (
+          {featuredTours.map((tour) => {
+            // TourCard 와 같은 진실성 필터 — 근거 없는 태그(Popular/Best Value/AI-Curated)는 배지로 내보내지 않는다.
+            const badgeTag = publicBadgeTag(tour.tags);
+            return (
             <Link
               key={tour.slug}
               to={`/tours/${tour.slug}`}
@@ -316,8 +319,8 @@ export default function MobileHomeV2() {
               <div className="relative h-28 overflow-hidden rounded-[18px]" style={{ boxShadow: '0 10px 24px rgba(48,39,118,0.10)' }}>
                 <img src={tour.images[0]} alt={tour.title[language]} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0F1230]/55 via-transparent to-transparent" />
-                {tour.tags[0] && (
-                  <span className="absolute left-2 top-2"><StatusChip tone="purple">{tour.tags[0]}</StatusChip></span>
+                {badgeTag && (
+                  <span className="absolute left-2 top-2"><StatusChip tone="purple">{badgeTag}</StatusChip></span>
                 )}
                 <span className="absolute right-2 top-2 rounded-full bg-white/25 px-2 py-0.5 text-[9.5px] font-bold text-white backdrop-blur-sm">
                   {priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
@@ -331,7 +334,8 @@ export default function MobileHomeV2() {
                 <span style={{ color: MUTED }}>{m.from} </span>{priceLabel(tour.id, tour.priceFrom, tour.priceUnit || 'group')}
               </p>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </section>
 

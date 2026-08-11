@@ -48,6 +48,33 @@ export function getTourProductType(tourId: string): string | null {
 
 export type VehicleType = 'Staria' | 'Sprinter' | 'SprinterMid' | 'Bus';
 export type TourTag = 'Popular' | 'AI-Curated' | 'Best Value' | 'New' | 'Multi-City' | 'Night Tour' | 'Nature' | 'History';
+
+/**
+ * 공개 카드 배지로 내보내면 안 되는 태그 (2026-08-11).
+ *
+ *   Popular / Best Value — 집계 근거가 없는 수동 라벨 (PR #1276).
+ *   AI-Curated           — AI 를 서비스 행위자로 내세운다 (PR #1276 목표 미달분).
+ *
+ * 태그 값 자체는 지우지 않는다. 필터 칩·검색은 그대로 이 태그로 거르고,
+ * 어드민(`ProductEditor/BasicInfoTab`)도 계속 편집할 수 있다 — **공개 카드
+ * 배지에서만** 뺀다.
+ *
+ * 비교는 정규화 후에 한다. 값이 어드민 입력·상품 데이터에서 오므로
+ * `AI Curated` / `ai-curated` / `Best  Value` 같은 변형이 들어올 수 있고,
+ * 정확 문자열 Set 은 그 변형을 전부 통과시킨다.
+ */
+const UNGROUNDED_BADGE_KEYS = new Set(['popular', 'bestvalue', 'aicurated']);
+
+const badgeKey = (tag: string): string => tag.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export function isUngroundedBadgeTag(tag: string): boolean {
+  return UNGROUNDED_BADGE_KEYS.has(badgeKey(tag));
+}
+
+/** 공개 카드가 노출할 첫 배지 태그. 근거 없는 태그는 건너뛴다. 남는 게 없으면 undefined(배지 미렌더). */
+export function publicBadgeTag<T extends string>(tags: readonly T[] | null | undefined): T | undefined {
+  return (tags || []).find((tag) => !isUngroundedBadgeTag(tag));
+}
 export type TourRegion = 'Seoul' | 'Busan' | 'Jeju' | 'Danyang' | 'Ganghwa' | 'DMZ' | 'Chuncheon' | 'Gyeongju' | 'Incheon' | 'Multi-City';
 
 export type I18nString = {

@@ -88,7 +88,9 @@ describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
     expect(notCovered.length).toBeGreaterThan(0);
 
     for (const id of covered) {
-      expect(textOf(id), `${id} 는 플래너 대상인데 안내가 없다`).toContain('AI itinerary');
+      // 2026-08-11: 대상 도시 분기를 가르는 문구가 'AI itinerary' 에서 실제 능력 설명으로 바뀌었다.
+      //   (`tests/unit/public-ai-actor-copy.component.test.tsx` 가 AI 행위자 표기 재발을 잠근다)
+      expect(textOf(id), `${id} 는 플래너 대상인데 안내가 없다`).toContain('written automatically from Korean local data');
     }
     for (const id of notCovered) {
       expect(textOf(id), `${id} 는 플래너 대상이 아닌데 대상처럼 썼다`).toContain('not one of the cities');

@@ -119,8 +119,8 @@ const COPY: Record<Lang, {
         : `전세 차량 — ${region} 은 정해진 투어 상품이 아직 없어서, 차량과 기사를 시간 단위로 빌려 손님이 원하는 곳으로 갑니다.`,
       '전세 차량 — 일정을 손님이 정하고 차량과 기사만 빌립니다. 공항 픽업, 하루 대절, 여러 날 장거리 모두 됩니다.',
       plannerCovered
-        ? `AI 일정 만들기 — ${region} 을 포함한 일정을 자동으로 짜 줍니다. 지하철·버스 실제 경로와 도보 지도가 붙고 PDF 로 받습니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
-        : `AI 일정 만들기 — 현재 ${region} 은 자동 일정 대상 도시가 아닙니다. ${region} 은 전세 차량으로 가고, 자동 일정은 대상 도시에서 쓰시면 됩니다.`,
+        ? `여행 플래너 — 도시·날짜·여행 조건을 넣으면 ${region} 을 포함한 일정이 한국 현지 데이터로 자동 작성됩니다. 지하철·버스 실제 경로와 도보 지도가 붙고 PDF 로 받습니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
+        : `여행 플래너 — 현재 ${region} 은 자동 일정 대상 도시가 아닙니다. ${region} 은 전세 차량으로 가고, 자동 일정은 대상 도시에서 쓰시면 됩니다.`,
     ],
     toursTitle: ({ region }) => `${region} 투어 상품`,
     toursIntro: ({ region, tourCount }) => `${region} 에서 예약할 수 있는 투어 ${tourCount}건입니다. 아래 값은 상품 정보 그대로이고, 실제 결제 금액은 인원과 날짜에 따라 예약 화면에서 확정됩니다.`,
@@ -156,7 +156,7 @@ const COPY: Record<Lang, {
       rows.push([
         plannerCovered ? `${region} 일정을 직접 짜고 싶으면?` : `${region} 을 자동 일정으로 짤 수 있나요?`,
         plannerCovered
-          ? `AI 일정 만들기를 쓰시면 됩니다. 날짜와 항공편을 넣으면 ${region} 일정을 시각까지 붙여 만들고, 장소 사이 지하철·버스 경로와 도보 지도가 함께 나옵니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
+          ? `여행 플래너를 쓰시면 됩니다. 날짜·항공편과 여행 조건을 넣으면 한국 현지 데이터로 ${region} 일정을 시각까지 붙여 만들고, 장소 사이 지하철·버스 경로와 도보 지도가 함께 나옵니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
           : `현재 ${region} 은 자동 일정 대상 도시가 아닙니다. ${region} 방문은 전세 차량이나 투어로 예약해 주세요.`,
       ]);
       return rows;
@@ -170,8 +170,8 @@ const COPY: Record<Lang, {
         : `Private charter — ${region} has no set tour product yet, so you hire the vehicle and driver by the hour and go where you want.`,
       'Private charter — you decide the route and hire only the vehicle and driver. Airport pickups, full-day charters and multi-day trips are all available.',
       plannerCovered
-        ? `AI itinerary — get a plan that includes ${region}, built automatically. It carries real subway and bus routes between stops, walking maps, and a PDF. The full itinerary is ${plannerPrice}; the outline preview is free.`
-        : `AI itinerary — ${region} is not one of the cities the automatic planner covers right now. Visit ${region} by charter or tour, and use the planner for the cities it does cover.`,
+        ? `Trip planner — give it your city, dates and trip conditions and an itinerary that includes ${region} is written automatically from Korean local data. It carries real subway and bus routes between stops, walking maps, and a PDF. The full itinerary is ${plannerPrice}; the outline preview is free.`
+        : `Trip planner — ${region} is not one of the cities the automatic planner covers right now. Visit ${region} by charter or tour, and use the planner for the cities it does cover.`,
     ],
     toursTitle: ({ region }) => `${region} tours`,
     toursIntro: ({ region, tourCount }) => `${tourCount} tour${tourCount === 1 ? '' : 's'} you can book in ${region}. The figures below come straight from the product data; the amount you actually pay is confirmed at booking based on party size and date.`,
@@ -205,9 +205,9 @@ const COPY: Record<Lang, {
         `${GLOBAL_INCLUDED.map((h) => h.text.en).join(' · ')} are included. ${GLOBAL_EXCLUDED.map((h) => h.text.en).join(' · ')} are not.`,
       ]);
       rows.push([
-        plannerCovered ? `What if I want to plan ${region} myself?` : `Can the AI planner cover ${region}?`,
+        plannerCovered ? `What if I want to plan ${region} myself?` : `Can the trip planner cover ${region}?`,
         plannerCovered
-          ? `Use the AI itinerary planner. Give it your dates and flights and it builds a timed ${region} plan, with real subway and bus routes between stops and walking maps for the last stretch. The full itinerary is ${plannerPrice}; the outline preview is free.`
+          ? `Use the trip planner. Give it your dates, flights and trip conditions and a timed ${region} plan is built from Korean local data, with real subway and bus routes between stops and walking maps for the last stretch. The full itinerary is ${plannerPrice}; the outline preview is free.`
           : `Not right now — ${region} is not one of the cities the automatic planner covers. Book ${region} as a charter or a tour instead.`,
       ]);
       return rows;
@@ -221,8 +221,8 @@ const COPY: Record<Lang, {
         : `貸切チャーター — ${region} はまだ既定のツアー商品がないため、車両とドライバーを時間単位で借りてご希望の場所へ向かいます。`,
       '貸切チャーター — 行程はお客様が決め、車両とドライバーだけを借ります。空港送迎、1日貸切、複数日の長距離すべて対応します。',
       plannerCovered
-        ? `AI 旅程作成 — ${region} を含む旅程を自動で作成します。地点間の地下鉄・バスの実際のルートと徒歩の地図が付き、PDF で受け取れます。全旅程 ${plannerPrice}、骨組みのプレビューは無料です。`
-        : `AI 旅程作成 — 現在 ${region} は自動作成の対象都市ではありません。${region} はチャーターでの訪問となり、自動作成は対象都市でご利用ください。`,
+        ? `旅行プランナー — 都市・日程・旅行条件を入力すると、${region} を含む旅程が韓国の現地データで自動作成されます。地点間の地下鉄・バスの実際のルートと徒歩の地図が付き、PDF で受け取れます。全旅程 ${plannerPrice}、骨組みのプレビューは無料です。`
+        : `旅行プランナー — 現在 ${region} は自動作成の対象都市ではありません。${region} はチャーターでの訪問となり、自動作成は対象都市でご利用ください。`,
     ],
     toursTitle: ({ region }) => `${region} のツアー商品`,
     toursIntro: ({ region, tourCount }) => `${region} で予約できるツアー ${tourCount} 件です。以下は商品情報のままの数値で、実際のお支払い額は人数と日程に応じて予約画面で確定します。`,
@@ -258,7 +258,7 @@ const COPY: Record<Lang, {
       rows.push([
         plannerCovered ? `${region} の旅程を自分で組みたい場合は？` : `${region} を自動旅程で作れますか？`,
         plannerCovered
-          ? `AI 旅程作成をご利用ください。日程とフライトを入力すると ${region} の旅程を時刻付きで作成し、地点間の地下鉄・バスのルートと最後の徒歩区間の地図も付きます。全旅程 ${plannerPrice}、骨組みのプレビューは無料です。`
+          ? `旅行プランナーをご利用ください。日程・フライトと旅行条件を入力すると、韓国の現地データで ${region} の旅程を時刻付きで作成し、地点間の地下鉄・バスのルートと最後の徒歩区間の地図も付きます。全旅程 ${plannerPrice}、骨組みのプレビューは無料です。`
           : `現在 ${region} は自動旅程の対象都市ではありません。${region} へのご訪問はチャーターまたはツアーでご予約ください。`,
       ]);
       return rows;
@@ -272,8 +272,8 @@ const COPY: Record<Lang, {
         : `包车 — ${region} 目前还没有固定行程产品，可按小时租用车辆和司机，去你想去的地方。`,
       '包车 — 行程由你决定，只租车辆和司机。机场接送、整日包车、多日长途都可以。',
       plannerCovered
-        ? `AI 行程规划 — 自动生成包含 ${region} 的行程，附地点之间的地铁和公交实际路线、步行地图，并可下载 PDF。完整行程 ${plannerPrice}，框架预览免费。`
-        : `AI 行程规划 — 目前 ${region} 不在自动规划的城市范围内。前往 ${region} 请用包车或跟团，自动规划可用于已覆盖的城市。`,
+        ? `行程规划 — 填写城市、日期和出行条件后，用韩国本地数据自动生成包含 ${region} 的行程，附地点之间的地铁和公交实际路线、步行地图，并可下载 PDF。完整行程 ${plannerPrice}，框架预览免费。`
+        : `行程规划 — 目前 ${region} 不在自动规划的城市范围内。前往 ${region} 请用包车或跟团，自动规划可用于已覆盖的城市。`,
     ],
     toursTitle: ({ region }) => `${region} 的行程产品`,
     toursIntro: ({ region, tourCount }) => `${region} 可预订的行程共 ${tourCount} 个。以下数值直接来自产品资料，实际支付金额会在预订页面按人数和日期确定。`,
@@ -307,9 +307,9 @@ const COPY: Record<Lang, {
         `包含 ${GLOBAL_INCLUDED.map((h) => h.text.zh).join(' · ')}。不包含 ${GLOBAL_EXCLUDED.map((h) => h.text.zh).join(' · ')}。`,
       ]);
       rows.push([
-        plannerCovered ? `想自己安排 ${region} 的行程怎么办？` : `AI 行程规划能覆盖 ${region} 吗？`,
+        plannerCovered ? `想自己安排 ${region} 的行程怎么办？` : `行程规划能覆盖 ${region} 吗？`,
         plannerCovered
-          ? `可以使用 AI 行程规划。填入日期和航班后，会生成带时间的 ${region} 行程，并附上地点之间的地铁和公交路线以及最后一段的步行地图。完整行程 ${plannerPrice}，框架预览免费。`
+          ? `可以使用行程规划。填入日期、航班和出行条件后，会用韩国本地数据生成带时间的 ${region} 行程，并附上地点之间的地铁和公交路线以及最后一段的步行地图。完整行程 ${plannerPrice}，框架预览免费。`
           : `目前不覆盖 — ${region} 不在自动规划的城市范围内。前往 ${region} 请改用包车或跟团预订。`,
       ]);
       return rows;
