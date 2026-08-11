@@ -32,17 +32,43 @@ const NO_MATCH: Record<Lang, string> = {
   zh: '无匹配结果 — 请使用下方地址搜索',
 };
 
+// 카탈로그(pricing_spec.json)는 가격 SSOT 라 name_ko/name_en 2종뿐 — ja/zh 표기가 없다.
+// 가격 데이터를 건드리지 않고 이 화면 표시용으로만 덮는 정적 매핑 (Step1 노출 코드 12개 전부).
+// zh 는 사이트 표준인 간체(首尔·济州·丽水·机场). 공항 코드 표기 "(ICN)" 은 언어와 무관하게 유지.
+const ORIGIN_NAME_JA_ZH: Record<string, { ja: string; zh: string }> = {
+  ICN: { ja: '仁川国際空港', zh: '仁川国际机场' },
+  GMP: { ja: '金浦国際空港', zh: '金浦国际机场' },
+  PUS: { ja: '金海国際空港', zh: '金海国际机场' },
+  CJU: { ja: '済州国際空港', zh: '济州国际机场' },
+  TAE: { ja: '大邱国際空港', zh: '大邱国际机场' },
+  CJJ: { ja: '清州国際空港', zh: '清州国际机场' },
+  MWX: { ja: '務安国際空港', zh: '务安国际机场' },
+  KWJ: { ja: '光州空港', zh: '光州机场' },
+  RSU: { ja: '麗水空港', zh: '丽水机场' },
+  USN: { ja: '蔚山空港', zh: '蔚山机场' },
+  SEL_METRO: { ja: 'ソウル市内', zh: '首尔市区' },
+  BUS_METRO: { ja: '釜山市内', zh: '釜山市区' },
+};
+
+// 매핑에 없는 코드(향후 카탈로그 추가분)는 기존 안전 동작 그대로 name_en 폴백.
+function localName(code: string, lang: Lang, nameKo: string, nameEn: string): string {
+  if (lang === 'ko') return nameKo;
+  if (lang === 'en') return nameEn;
+  const l10n = ORIGIN_NAME_JA_ZH[code];
+  return l10n ? l10n[lang] : nameEn;
+}
+
 function labelFor(code: OriginCode, lang: Lang): { title: string; sub: string; Icon: typeof Plane } {
   const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string }>;
   const cities = CITIES_CATALOG as Record<string, { name_ko: string; name_en: string }>;
   if (code in airports) {
     const a = airports[code];
-    return { title: lang === 'ko' ? a.name_ko : a.name_en, sub: `(${code})`, Icon: Plane };
+    return { title: localName(code, lang, a.name_ko, a.name_en), sub: `(${code})`, Icon: Plane };
   }
   if (code in cities) {
     const c = cities[code];
     const Icon = code === 'SEL_METRO' ? Hotel : Car;
-    return { title: lang === 'ko' ? c.name_ko : c.name_en, sub: CITY_SUB[lang], Icon };
+    return { title: localName(code, lang, c.name_ko, c.name_en), sub: CITY_SUB[lang], Icon };
   }
   return { title: code, sub: '', Icon: MapPin };
 }

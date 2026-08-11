@@ -22,6 +22,7 @@ import { CocoStepper } from '../../src/components/coco/CocoUI';
 import { Step1Origin } from '../../src/components/charter/Step1Origin';
 import { Step4PaxVehicle } from '../../src/components/charter/Step4PaxVehicle';
 import type { WizardState } from '../../src/components/charter/types';
+import { AIRPORTS_CATALOG, CITIES_CATALOG } from '../../src/data/charterPricing';
 
 vi.mock('react-router-dom', () => ({
   Link: ({ children, ...rest }: { children?: React.ReactNode }) =>
@@ -117,6 +118,104 @@ describe('/charter Step1 출발지 — 4언어 (앱 소유 문구 영어 누출 
     const buttons = Array.from(container.querySelectorAll('button'));
     const toggle = buttons[buttons.length - 1];
     expect(toggle.className).toContain('min-h-[44px]');
+    unmount();
+  });
+});
+
+// 2026-08-11 후속(Codex diff 리뷰 P2): 카드 제목은 카탈로그(pricing_spec)의 name_ko/name_en 만
+// 있어서 ja/zh 에서도 name_en 이 그대로 떨어졌다 — "Incheon International", "Seoul Metro" 등
+// 앱 소유 영어가 ja/zh pickup 카드에 노출. 가격 SSOT(pricing_spec)는 건드리지 않고 Step1 표시
+// 전용 정적 매핑으로 덮는다. 이 describe 가 깨지면 그 매핑이 빠졌거나 노출 코드가 늘어난 것.
+describe('/charter Step1 출발지 카드 — 노출 12개 공항·도시명 4언어', () => {
+  const base = { origin: undefined } as unknown as WizardState;
+  const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string }>;
+  const cities = CITIES_CATALOG as Record<string, { name_ko: string; name_en: string }>;
+
+  // Step1 이 실제로 노출하는 코드 = PRIMARY 4 + SECONDARY 8.
+  const EXPOSED = [
+    'ICN', 'GMP', 'SEL_METRO', 'BUS_METRO',
+    'PUS', 'CJU', 'TAE', 'CJJ', 'MWX', 'KWJ', 'RSU', 'USN',
+  ] as const;
+
+  const CITY_SUB = {
+    ko: '호텔·숙소', en: 'Hotels', ja: 'ホテル・宿泊先', zh: '酒店·住宿',
+  } as const;
+
+  // ja/zh 기대 표기 (zh 는 사이트 표준인 간체 — 首尔/济州/丽水/机场).
+  const LOCALIZED: Record<'ja' | 'zh', Record<string, string>> = {
+    ja: {
+      ICN: '仁川国際空港', GMP: '金浦国際空港', PUS: '金海国際空港', CJU: '済州国際空港',
+      TAE: '大邱国際空港', CJJ: '清州国際空港', MWX: '務安国際空港', KWJ: '光州空港',
+      RSU: '麗水空港', USN: '蔚山空港',
+      SEL_METRO: 'ソウル市内', BUS_METRO: '釜山市内',
+    },
+    zh: {
+      ICN: '仁川国际机场', GMP: '金浦国际机场', PUS: '金海国际机场', CJU: '济州国际机场',
+      TAE: '大邱国际机场', CJJ: '清州国际机场', MWX: '务安国际机场', KWJ: '光州机场',
+      RSU: '丽水机场', USN: '蔚山机场',
+      SEL_METRO: '首尔市区', BUS_METRO: '釜山市区',
+    },
+  };
+
+  // ko/en 은 회귀 방지용 — 기대값을 새로 박지 않고 카탈로그(기존 표시)에서 그대로 가져온다.
+  const expectTitle = (code: string, lang: (typeof LANGS)[number]) => {
+    const row = airports[code] || cities[code];
+    if (lang === 'ko') return row.name_ko;
+    if (lang === 'en') return row.name_en;
+    return LOCALIZED[lang][code];
+  };
+  const expectSub = (code: string, lang: (typeof LANGS)[number]) =>
+    code in airports ? `(${code})` : CITY_SUB[lang];
+
+  it.each(LANGS)('%s: 12개 카드 제목·부제가 그 언어 표기다 (코드 검색 경로)', (lang) => {
+    const { container, unmount } = render(
+      <Step1Origin state={base} patch={() => {}} language={lang} />,
+    );
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    for (const code of EXPOSED) {
+      // 코드로 검색하면 그 카드 1장 + "다른 출발지" 토글만 남는다 → 카드 = buttons[0].
+      fireEvent.change(input, { target: { value: code } });
+      const buttons = Array.from(container.querySelectorAll('button'));
+      expect(buttons).toHaveLength(2);
+      expect(buttons[0].textContent).toBe(expectTitle(code, lang) + expectSub(code, lang));
+    }
+    unmount();
+  });
+
+  it.each(['ja', 'zh'] as const)('%s: 펼친 기본 화면에 12개 현지화 제목만 있고 카탈로그 영어명은 없다', (lang) => {
+    const { container, unmount } = render(
+      <Step1Origin state={base} patch={() => {}} language={lang} />,
+    );
+    const buttons = Array.from(container.querySelectorAll('button'));
+    fireEvent.click(buttons[buttons.length - 1]); // "다른 출발지" 토글
+    const text = container.textContent || '';
+    for (const code of EXPOSED) {
+      expect(text).toContain(LOCALIZED[lang][code]);
+      expect(text).not.toContain((airports[code] || cities[code]).name_en);
+    }
+    unmount();
+  });
+
+  const SEARCH_CASES = [
+    { lang: 'ja', q: '仁川', code: 'ICN' },
+    { lang: 'ja', q: 'ソウル', code: 'SEL_METRO' },
+    { lang: 'ja', q: '麗水', code: 'RSU' },
+    { lang: 'zh', q: '济州', code: 'CJU' },
+    { lang: 'zh', q: '首尔', code: 'SEL_METRO' },
+    { lang: 'zh', q: '丽水', code: 'RSU' },
+    { lang: 'ko', q: '인천', code: 'ICN' },
+    { lang: 'en', q: 'incheon', code: 'ICN' },
+  ] as const;
+
+  it.each(SEARCH_CASES)('$lang: "$q" 검색이 $code 카드를 찾는다', ({ lang, q, code }) => {
+    const { container, unmount } = render(
+      <Step1Origin state={base} patch={() => {}} language={lang} />,
+    );
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: q } });
+    const buttons = Array.from(container.querySelectorAll('button'));
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].textContent).toBe(expectTitle(code, lang) + expectSub(code, lang));
     unmount();
   });
 });
