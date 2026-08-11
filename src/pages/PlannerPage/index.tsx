@@ -250,7 +250,7 @@ export default function PlannerPage() {
         {/* Wizard form. The wrapper is the retry target — `WizardSeenProbe`
             already owns its own ref for the visibility probe. */}
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div ref={wizardRef} tabIndex={-1} className="scroll-mt-4">
+          <div ref={wizardRef} tabIndex={-1} className="scroll-mt-20">
             <WizardSeenProbe className="ec-panel">
               <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
             </WizardSeenProbe>

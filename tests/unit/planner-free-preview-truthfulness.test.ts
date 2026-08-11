@@ -314,10 +314,117 @@ describe('planner-only controls clear the 44px touch floor', () => {
   });
 });
 
-/* ── 4. House rules this commit must not break ─────────────────────────── */
+/* ── 4. The last wizard step describes the free action it triggers ─────── */
+
+describe('the final wizard hint matches the button underneath it', () => {
+  const hint4 = async () => {
+    const { WIZARD_STEP_HINTS } = await import('../../src/components/WizardForm/stepHints');
+    return WIZARD_STEP_HINTS[4].body;
+  };
+
+  it('quotes no turnaround time, because nothing measures one', async () => {
+    const body = await hint4();
+    const CLOCK = /\d+\s*(seconds?|secs?|minutes?|초|秒)/i;
+    for (const l of LOCALES) expect(`${l}: ${CLOCK.test(body[l])}`).toBe(`${l}: false`);
+  });
+
+  it('stops telling the reader to press a Generate button', async () => {
+    // The step's only action is `/api/ai-planner-quick`. Naming the paid verb
+    // here is what made the free preview look like the purchase.
+    const body = await hint4();
+    const GENERATE: Record<Loc, RegExp> = { en: /\bgenerate\b/i, ko: /생성/, ja: /生成/, zh: /生成/ };
+    for (const l of LOCALES) expect(`${l}: ${GENERATE[l].test(body[l])}`).toBe(`${l}: false`);
+  });
+
+  it('names the free day-one preview and says no card is involved', async () => {
+    const body = await hint4();
+    const FREE: Record<Loc, RegExp> = { en: /\bfree\b/i, ko: /무료/, ja: /無料/, zh: /免费/ };
+    const DAY_ONE: Record<Loc, RegExp> = { en: /day[\s-]?one|day 1/i, ko: /1일차|첫날/, ja: /初日|1日目/, zh: /第一天|首日/ };
+    const NO_CHARGE: Record<Loc, RegExp> = {
+      en: /no (payment|card|charge)/i,
+      ko: /(결제|카드)[^.]{0,14}(없|불필요|필요 없)/,
+      ja: /(支払|カード)[^。]{0,14}(不要|いりません|必要ありません)/,
+      zh: /(无需|不用|不需要)[^。]{0,12}(付款|付费|绑卡|银行卡)/,
+    };
+    for (const l of LOCALES) {
+      expect(`${l} free: ${FREE[l].test(body[l])}`).toBe(`${l} free: true`);
+      expect(`${l} day one: ${DAY_ONE[l].test(body[l])}`).toBe(`${l} day one: true`);
+      expect(`${l} no charge: ${NO_CHARGE[l].test(body[l])}`).toBe(`${l} no charge: true`);
+    }
+  });
+
+  it('leaves buying the full itinerary as a separate later decision', async () => {
+    const body = await hint4();
+    const FULL: Record<Loc, RegExp> = { en: /full itinerary/i, ko: /전체 일정/, ja: /全旅程/, zh: /完整行程/ };
+    for (const l of LOCALES) {
+      expect(`${l}: ${FULL[l].test(body[l])}`).toBe(`${l}: true`);
+      expect(`${l} price: ${PRICE_LITERAL.test(body[l])}`).toBe(`${l} price: false`);
+    }
+  });
+});
+
+/* ── 4b. Two wizard labels that pointed at the wrong deliverable ───────── */
+
+describe('the step-3 next label and the brief heading name the right thing', () => {
+  it('planner.wizardNextGenerate points at the brief, not at generation', () => {
+    const GENERATE: Record<Loc, RegExp> = { en: /generate/i, ko: /생성/, ja: /生成/, zh: /生成/ };
+    const REVIEW: Record<Loc, RegExp> = { en: /review/i, ko: /확인|검토/, ja: /確認/, zh: /确认|核对/ };
+    for (const l of LOCALES) {
+      const s = plannerDict(l).wizardNextGenerate as string;
+      expect(`${l} generate: ${GENERATE[l].test(s)}`).toBe(`${l} generate: false`);
+      expect(`${l} review: ${REVIEW[l].test(s)}`).toBe(`${l} review: true`);
+    }
+  });
+
+  it('planner.wizardWhatYouGet says the list is the paid full itinerary', () => {
+    // Sitting directly above the free-preview button, "What You'll Get" read as
+    // a promise about the button. The list is the purchase, so it says so.
+    const FULL: Record<Loc, RegExp> = { en: /full itinerary/i, ko: /전체 일정/, ja: /全旅程/, zh: /完整行程/ };
+    for (const l of LOCALES) {
+      const s = plannerDict(l).wizardWhatYouGet as string;
+      expect(`${l}: ${FULL[l].test(s)}`).toBe(`${l}: true`);
+    }
+  });
+
+  it('both keys are still the live ones, fallbacks included', () => {
+    const DETAILS = read('src/components/WizardForm/WizardStep2Details.tsx');
+    expect(DETAILS).toMatch(/p\.wizardNextGenerate \|\| 'Next: Review'/);
+    expect(REVIEW).toMatch(/p\.wizardWhatYouGet \|\| 'The full itinerary includes'/);
+  });
+});
+
+/* ── 4c. The focused retry target lands below the sticky header ─────────── */
+
+describe('focus targets clear the sticky header', () => {
+  const HEADER = read('src/sections/Header.tsx');
+  const PANEL = read('src/pages/PlannerPage/components/PlannerErrorPanel.tsx');
+
+  it('the header this has to clear is 56px mobile, 64px desktop, plus a rule', () => {
+    expect(HEADER).toMatch(/sticky top-0/);
+    expect(HEADER).toMatch(/h-14 md:h-16/);
+    expect(HEADER).toMatch(/border-b border-ec-line/);
+  });
+
+  it('neither scroll target still reserves 16px', () => {
+    // `focusAndReveal` scrolls the element to the viewport top, so scroll-margin
+    // is the only thing keeping it out from under a position:sticky header.
+    // 16px cleared neither 57px nor 65px.
+    for (const [name, src] of [['error panel', PANEL], ['wizard wrapper', PAGE]] as const) {
+      expect(`${name}: ${/scroll-mt-4\b/.test(src)}`).toBe(`${name}: false`);
+    }
+  });
+
+  it('both reserve 80px — the header plus a readable gap', () => {
+    expect(PANEL).toMatch(/tabIndex=\{-1\} className="scroll-mt-20"/);
+    expect(PAGE).toMatch(/ref=\{wizardRef\} tabIndex=\{-1\} className="scroll-mt-20"/);
+  });
+});
+
+/* ── 5. House rules this commit must not break ─────────────────────────── */
 
 describe('the follow-up stays inside the house rules', () => {
   const TOUCHED = [
+    'src/components/WizardForm/stepHints.ts',
     'src/pages/PlannerPage/index.tsx',
     'src/pages/PlannerPage/plannerCopy.ts',
     'src/pages/PlannerPage/components/PlannerErrorPanel.tsx',

@@ -160,9 +160,9 @@ export function WizardStep3Review(props: Step3Props) {
         <p className="text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
-      {/* What You'll Get */}
+      {/* What the purchase contains — not what the button below hands over. */}
       <div className="ec-panel">
-        <h3 className="ec-h3 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-ec-brand" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
+        <h3 className="ec-h3 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-ec-brand" /> {p.wizardWhatYouGet || 'The full itinerary includes'}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {([p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean) as string[]).map((item: string, i: number) => (
             <div key={i} className="flex items-start gap-2 text-xs text-ec-ink-3">

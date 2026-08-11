@@ -11,7 +11,8 @@
  * So after three failed attempts the page simply went quiet. Moving the panel
  * up to the wizard is half the fix and not enough on its own: even directly
  * under the brief it sits below a five-step form. It therefore takes focus and
- * scrolls itself in — instantly for a reader who asked for reduced motion.
+ * scrolls itself in — instantly for a reader who asked for reduced motion, and
+ * with 80px of scroll-margin so it lands below the sticky 56/64px header.
  *
  * It stays presentational: `EcError` supplies the announced live region and the
  * shared error frame, and retry is the caller's, which is what keeps the
@@ -37,7 +38,7 @@ export function PlannerErrorPanel({ title, body, retryLabel, onRetry }: PlannerE
   useEffect(() => { focusAndReveal(ref.current); }, []);
 
   return (
-    <div ref={ref} tabIndex={-1} className="scroll-mt-4">
+    <div ref={ref} tabIndex={-1} className="scroll-mt-20">
       <EcError title={title} body={body} retryLabel={retryLabel} onRetry={onRetry} />
     </div>
   );

@@ -858,7 +858,7 @@ export function WizardStep2Details(props: Step2Props) {
         onPrev={onPrev}
         onNext={handleNext}
         prevLabel={p.planner_prev || 'Back'}
-        nextLabel={p.wizardNextGenerate || 'Next: Generate'}
+        nextLabel={p.wizardNextGenerate || 'Next: Review'}
         isMobile={isMobile}
       />
     </div>
