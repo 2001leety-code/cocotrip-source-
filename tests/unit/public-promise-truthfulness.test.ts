@@ -277,6 +277,29 @@ describe('MyPage — 등급 혜택 locale JSON (dead key 이지만 재발 방지
   }
 });
 
+describe('App.tsx — 홈 meta description 폴백 (live route, 2026-08-11 후속)', () => {
+  const src = read('src/App.tsx');
+  const match = src.match(/description:\s*t\.pageMeta\?\.home\?\.description\s*\|\|\s*'([^']*)'/);
+
+  it('t.pageMeta?.home?.description 폴백 리터럴을 찾는다', () => {
+    expect(match, 'home meta description fallback literal not found in App.tsx').toBeTruthy();
+  });
+
+  it('"AI" 를 행위자로 내세우지 않는다 ("AI travel planner"/"AI itinerary" 등)', () => {
+    const fallback = match![1];
+    expect(fallback).not.toMatch(/AI travel planner/i);
+    expect(fallback).not.toMatch(/AI itinerary/i);
+    expect(fallback).not.toMatch(/\bAI\b/);
+  });
+
+  it('한국 현지 경로/실제 장소 기반 일정 자동작성이라는 의미를 담는다', () => {
+    const fallback = match![1];
+    expect(fallback).toMatch(/Korea/);
+    expect(fallback).toMatch(/itinerar/i);
+    expect(fallback).toMatch(/local rout/i);
+  });
+});
+
 describe('AI 중심 제품명 정리 — 홈/지역/지도/기능 총람 (플래너 자체 화면 제외)', () => {
   it('HeroCards.tsx plannerTitle 폴백에 "AI" 접두가 없다', () => {
     const src = read('src/sections/HeroCards.tsx');

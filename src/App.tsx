@@ -124,7 +124,7 @@ function HomePage() {
 
   usePageMeta({
     title: t.pageMeta?.home?.title ||'CocoTrip — Premium Korea Travel',
-    description: t.pageMeta?.home?.description ||'Private tours, charter vehicles, AI travel planner for Korea. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more.',
+    description: t.pageMeta?.home?.description ||'Private tours, charter vehicles, custom Korea itineraries built from real local routes, your city, dates & trip style. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more.',
     ogImage: '/hero-seoul-real.webp',
   });
 
