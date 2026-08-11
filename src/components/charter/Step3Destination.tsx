@@ -246,7 +246,7 @@ function WaypointsSection({ state, patch, language = 'en' }: Props) {
             type="button"
             onClick={() => updateAt(idx, null)}
             aria-label={t.remove}
-            className="mt-1 shrink-0 rounded-lg border border-white/10 px-2 py-1 text-xs text-white/55 hover:border-red-400/40 hover:text-red-300"
+            className="mt-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg border border-white/10 px-2 py-1 text-xs text-white/55 hover:border-red-400/40 hover:text-red-300"
           >
             ×
           </button>

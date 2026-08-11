@@ -390,7 +390,7 @@ export function AddressAutocomplete({
           <button
             type="button"
             onClick={handleChangeRequest}
-            className="text-xs text-[#B668FC] hover:text-[#B668FC]/80 font-medium flex items-center gap-1 shrink-0"
+            className="min-h-[44px] px-1 text-xs text-[#B668FC] hover:text-[#B668FC]/80 font-medium flex items-center gap-1 shrink-0"
           >
             <Edit2 className="w-3 h-3" /> {t.changeButton}
           </button>
@@ -418,7 +418,7 @@ export function AddressAutocomplete({
             disabled={disabled}
             autoComplete="off"
             onFocus={() => { if (results.length > 0) setShowDropdown(true); }}
-            className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/85 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-[44px] w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/85 text-base placeholder:text-white/55 outline-none focus:border-[#B668FC]/40 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           {loading && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/55">
@@ -451,7 +451,7 @@ export function AddressAutocomplete({
                       <button
                         type="button"
                         onClick={() => handleSelect(it)}
-                        className="w-full text-left px-4 py-3 hover:bg-white/[0.06] transition-colors flex items-start gap-2"
+                        className="min-h-[44px] w-full text-left px-4 py-3 hover:bg-white/[0.06] transition-colors flex items-start gap-2"
                       >
                         <MapPin className="w-4 h-4 text-[#B668FC] shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
@@ -510,7 +510,7 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="flex-1 py-2 rounded-lg text-sm font-bold text-white flex items-center justify-center gap-1.5"
+                className="min-h-[44px] flex-1 py-2 rounded-lg text-sm font-bold text-white flex items-center justify-center gap-1.5"
                 style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
               >
                 <Check className="w-3.5 h-3.5" /> {t.confirmYes}
@@ -518,7 +518,7 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 onClick={handleReject}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white/85 border border-white/20 hover:bg-white/[0.06] flex items-center justify-center gap-1.5"
+                className="min-h-[44px] flex-1 py-2 rounded-lg text-sm font-medium text-white/85 border border-white/20 hover:bg-white/[0.06] flex items-center justify-center gap-1.5"
               >
                 <X className="w-3.5 h-3.5" /> {t.confirmNo}
               </button>

@@ -12,7 +12,27 @@ import { translations } from '@/i18n';
 const PRIMARY: OriginCode[] = ['ICN', 'GMP', 'SEL_METRO', 'BUS_METRO'];
 const SECONDARY: OriginCode[] = ['PUS', 'CJU', 'TAE', 'CJJ', 'MWX', 'KWJ', 'RSU', 'USN'];
 
-function labelFor(code: OriginCode, lang: 'ko' | 'en'): { title: string; sub: string; Icon: typeof Plane } {
+type Lang = 'ko' | 'en' | 'ja' | 'zh';
+
+// 앱 소유 문구는 4언어 — 카탈로그(name_ko/name_en)만 ko/en 2종이라 데이터 언어는 따로 접는다.
+const CITY_SUB: Record<Lang, string> = {
+  ko: '호텔·숙소', en: 'Hotels', ja: 'ホテル・宿泊先', zh: '酒店·住宿',
+};
+const SEARCH_PLACEHOLDER: Record<Lang, string> = {
+  ko: '공항·도시 검색 (예: ICN, 인천, 부산)',
+  en: 'Search airport / city (e.g. ICN, Incheon, Busan)',
+  // ja/zh 는 전각이라 같은 글자수에서 더 넓다 — 390px 입력폭에서 잘리지 않게 예시를 2개로.
+  ja: '空港・都市検索（例: ICN、仁川）',
+  zh: '搜索机场·城市（例: ICN、仁川）',
+};
+const NO_MATCH: Record<Lang, string> = {
+  ko: '검색 결과 없음 — 아래 자유 주소 검색을 써보세요',
+  en: 'No match — try the free address search below',
+  ja: '該当なし — 下の住所検索をお試しください',
+  zh: '无匹配结果 — 请使用下方地址搜索',
+};
+
+function labelFor(code: OriginCode, lang: Lang): { title: string; sub: string; Icon: typeof Plane } {
   const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string }>;
   const cities = CITIES_CATALOG as Record<string, { name_ko: string; name_en: string }>;
   if (code in airports) {
@@ -22,7 +42,7 @@ function labelFor(code: OriginCode, lang: 'ko' | 'en'): { title: string; sub: st
   if (code in cities) {
     const c = cities[code];
     const Icon = code === 'SEL_METRO' ? Hotel : Car;
-    return { title: lang === 'ko' ? c.name_ko : c.name_en, sub: lang === 'ko' ? '호텔·숙소' : 'Hotels', Icon };
+    return { title: lang === 'ko' ? c.name_ko : c.name_en, sub: CITY_SUB[lang], Icon };
   }
   return { title: code, sub: '', Icon: MapPin };
 }
@@ -36,7 +56,7 @@ interface Props {
 export function Step1Origin({ state, patch, language = 'en' }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
-  const lang = language === 'ko' ? 'ko' : 'en';
+  const lang: Lang = language;
   const i18n = getWizardI18n(language);
   // 공항·도시 검색 — 타이핑하면 PRIMARY+SECONDARY 전체에서 이름/코드 매칭 필터.
   const q = query.trim().toLowerCase();
@@ -106,8 +126,8 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={lang === 'ko' ? '공항·도시 검색 (예: ICN, 인천, 부산)' : 'Search airport / city (e.g. ICN, Incheon, Busan)'}
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#B668FC]/40 sm:py-2.5"
+          placeholder={SEARCH_PLACEHOLDER[lang]}
+          className="min-h-[44px] w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-base text-white outline-none placeholder:text-white/40 focus:border-[#B668FC]/40 sm:py-2.5"
         />
       </div>
 
@@ -116,7 +136,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{filtered.map(card)}</div>
         ) : (
           <p className="text-center text-white/40 text-sm py-6">
-            {lang === 'ko' ? '검색 결과 없음 — 아래 자유 주소 검색을 써보세요' : 'No match — try the free address search below'}
+            {NO_MATCH[lang]}
           </p>
         )
       ) : (
@@ -128,7 +148,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
-        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] py-2 text-xs text-white/50 transition-colors hover:bg-white/[0.05] sm:py-2.5"
+        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] py-2 text-xs text-white/50 transition-colors hover:bg-white/[0.05] sm:py-2.5"
       >
         {i18n.otherOrigins} ({SECONDARY.length + 1})
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />

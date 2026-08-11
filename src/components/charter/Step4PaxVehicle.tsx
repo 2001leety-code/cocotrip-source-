@@ -44,16 +44,29 @@ function vehiclePassengerCap(v: VehicleType): number {
   return 45;
 }
 
+type Lang = 'ko' | 'en' | 'ja' | 'zh';
+
+// 인원 단위 — "2 명 / 2 pax / 2名 / 2人".
+const PAX_UNIT: Record<Lang, string> = { ko: '명', en: 'pax', ja: '名', zh: '人' };
+
 // 차종별 고객 탑승 가능 인원 표기. 운전자 포함 좌석 수와 고객 인원을 분리한다.
-function vehiclePaxRangeLabel(v: VehicleType, lang: 'ko' | 'en'): string {
-  if (v === 'staria_9') return lang === 'ko' ? '1~7인' : '1-7 pax';
-  if (v === 'staria')   return lang === 'ko' ? '1~6인' : '1-6 pax';
-  if (v === 'sprinter') return lang === 'ko' ? '10~15인' : '10-15 pax';
-  return lang === 'ko' ? '16인 이상' : '16+ pax';
+function vehiclePaxRangeLabel(v: VehicleType, lang: Lang): string {
+  const range = v === 'staria_9' ? '1~7' : v === 'staria' ? '1~6' : v === 'sprinter' ? '10~15' : '16+';
+  if (lang === 'en') {
+    return v === 'bus' ? '16+ pax' : `${range.replace('~', '-')} pax`;
+  }
+  const unit = PAX_UNIT[lang];
+  if (v === 'bus') return lang === 'ko' ? '16인 이상' : lang === 'ja' ? '16名以上' : '16人以上';
+  return lang === 'ko' ? `${range}인` : `${range}${unit}`;
 }
 
-function vehicleDisplayName(v: VehicleType, lang: 'ko' | 'en'): string {
-  if (v === 'staria') return lang === 'ko' ? '프리미엄 비즈니스' : 'Premium Business';
+const STARIA_TIER: Record<Lang, string> = {
+  ko: '프리미엄 비즈니스', en: 'Premium Business', ja: 'プレミアムビジネス', zh: '尊享商务',
+};
+
+function vehicleDisplayName(v: VehicleType, lang: Lang): string {
+  if (v === 'staria') return STARIA_TIER[lang];
+  // VEHICLE_TYPES[v].name 은 이미 ko/en/ja/zh 4언어 — ko|en 으로 접지 않는다.
   return VEHICLE_TYPES[v].name[lang];
 }
 
@@ -64,7 +77,7 @@ interface Props {
 }
 
 export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
-  const lang = language === 'ko' ? 'ko' : 'en';
+  const lang: Lang = language;
   const i18n = getWizardI18n(language);
 
   // 어른/아이 분리 — paxCount는 derived (어른+아이)
@@ -119,7 +132,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
             <Users className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold leading-tight text-white sm:text-sm">{pax} {language === 'ko' ? '명' : 'pax'}</p>
+            <p className="text-xs font-bold leading-tight text-white sm:text-sm">{pax} {PAX_UNIT[lang]}</p>
             <p className="truncate text-[9px] leading-relaxed text-white/50 sm:text-xs">{i18n.totalPaxNote(pax, paxCap)}</p>
           </div>
         </div>
@@ -199,16 +212,17 @@ function CounterPanel({
   onIncrease: () => void;
 }) {
   return (
-    <div className="flex min-h-[42px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-1.5 sm:block sm:min-h-0 sm:rounded-2xl sm:p-4">
-      <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:text-xs">{label}</label>
-      <div className="grid w-[124px] grid-cols-[30px_minmax(0,1fr)_30px] items-center gap-1 sm:w-auto sm:grid-cols-[48px_minmax(0,1fr)_48px] sm:gap-3">
+    <div className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-1.5 sm:block sm:min-h-0 sm:rounded-2xl sm:p-4">
+      <label className="block min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:whitespace-normal sm:text-xs">{label}</label>
+      {/* 2026-08-11: ± 는 모바일에서 28px 였다 → 44px(WCAG 2.5.5). 열 폭도 44px 로 맞춘다. */}
+      <div className="grid w-[142px] shrink-0 grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-1 sm:w-auto sm:grid-cols-[48px_minmax(0,1fr)_48px] sm:gap-3">
         <button type="button" onClick={onDecrease}
-          className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
           <Minus className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
         </button>
         <div className="text-center text-xl font-black leading-none text-white sm:text-4xl">{value}</div>
         <button type="button" onClick={onIncrease}
-          className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
           <Plus className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
         </button>
       </div>
