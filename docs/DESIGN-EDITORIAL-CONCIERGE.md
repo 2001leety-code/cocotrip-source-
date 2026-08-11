@@ -226,7 +226,7 @@ keeps the same word from button to confirmation.
 | Header, mobile menu, bottom nav, footer, cookie banner | this system |
 | Home (`/`), all breakpoints | this system |
 | Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
-| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; `EcError` adopted by the planner, other callers pending |
+| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner and the guide. Page bodies still on the dark system carry their own states |
 | Tours, charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
@@ -271,27 +271,40 @@ Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshot
 새 gradient·glow·glass 는 넣지 않았다. 기존 다크 시스템의 그라디언트는 `.refined-tours` 와 함께
 그 페이지가 전환될 때 사라진다 — 여기서 부분적으로 걷어내면 보정 cascade 가 한 겹 더 생긴다.
 
-### Open item — shared header touch targets (P3)
+### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
-The planner's own controls now clear the 44px floor (`--ec-touch-min`): step ticks are
-44×44 on a phone, the timeline's Map link keeps its 13px type behind a 44×44 pseudo hit
-area, the step-hint close is 44 wide, and the error panel's retry is a full-height
-`.ec-btn`. The **shared header** is not there yet, measured on `/planner` with the
-production bundle:
+앞 문단의 "Open item — shared header touch targets (P3)" 는 **해소**됐다. 같은 뿌리에서
+나온 세 증상을 한 PR 로 묶는다: `src/components/ui/states.tsx` 가 로딩·빈·오류·완료의
+계약을 정의해 놓았는데 **앱 셸이 그걸 한 번도 채택하지 않았다.**
 
-| Control | Desktop 1280×720 | Mobile 390×844 |
-|---|---|---|
-| Wishlist (icon only) | 36 × 36 | 36 × 36 |
-| Sign In | 101 × 36 | — |
-| 1:1 Inquiry | 128 × 36 | — |
-| Nav links (Charter … About) | ~70–123 × 38.5 | — |
-| Logo link | 178 × 32 | 173 × 32 |
+| 남아 있던 것 | 지금 |
+|---|---|
+| lazy 라우트 51곳이 `PlannerSkeleton`(다크 `#080b14`, 위저드 모양) 로 폴백. `role=status`·`aria-busy`·라벨 없음 → 라우트 전환이 스크린리더에 무음. 종이로 전환된 `/planner` 앞에서도 검은 판이 번쩍였다 | 공용 `EcRouteFallback` 하나. announce 하고, 그 라우트가 실제로 여는 지면(종이/legacy) 위에 그린다. `PageSkeleton.tsx` 삭제, 손으로 덧댄 폴백 3개(홈·`/guide`·`/mood`)도 같은 컴포넌트로 |
+| 전역 `ErrorBoundary` 가 다크 패널 + retry 버튼에 로고 그라디언트(`#7C5CFC→#EA537E`)를 칠하고, 원문 `Error.message` 를 여행자에게 노출 | 공용 `EcError`(종이·assertive·재시도+WhatsApp). 원문·스택은 `import.meta.env.DEV` 에서만. Sentry 보고 경로 무변경 |
+| 공용 셸 조작 target 이 44px 미만: Wishlist·Cart 36×36 이고 아이콘이 `text-white/70` — 종이 헤더 위 대비 ~1.06:1 로 사실상 안 보였다. 데스크톱 nav 38.5px, 로고 32px, 로그인·1:1 문의·쿠키 배너 버튼 36px(`ec-btn-sm`), 푸터 전화 36px, 프로모 띠 38px | 전부 44×44 이상, 잉크 토큰. `--ec-button-height-sm`(36px) 토큰은 그대로 둔다 — 플래너 코스빌더·구매 패널이 쓰고 있고 그건 이 PR 밖이다. 공용 셸에서만 `ec-btn-sm` 을 뺐다 |
+| 모바일 메뉴가 전체 화면을 덮으면서 `role`·이름·포커스 반환이 없었다 | `role="dialog"` + `aria-modal` + `aria-label`, 열 때 패널로 포커스, 닫을 때 햄버거로 복귀. 기존 Esc·body 스크롤 잠금·cleanup 은 잠금 테스트로 보존 |
 
-Only the icon-only Wishlist misses on both axes; the rest are short on height alone.
-Deliberately **not** fixed in the planner pass — the header is shared chrome, so raising
-its control heights changes every route at once and belongs with the shared-navigation
-phase, together with the mobile menu, bottom nav and footer. Re-measure there rather
-than trusting this table.
+측정(로컬 production preview, 390/768/1440 × ko/en/ja/zh × `/`·`/planner`·`/tours`·`/charter`·
+`/community`·`/guide` = 72 로드): **셸 44px 미만 0 · 셸 16px 미만 입력 0 · 가로 넘침 0 ·
+own-origin 4xx/5xx 0 · own-origin console error 0.** 잠금은
+`tests/unit/editorial-common-state-shell.test.ts`(소스 계약)와
+`tests/e2e/common-state-shell.spec.ts`(실측 지오메트리 + 강제 상태).
+
+`--ec-legacy-page-bg`(`#0A0412`) 를 하나 추가했다. 아직 다크인 몸통이 여는 지면이고,
+**마지막 `.refined-*` 페이지와 함께 사라진다.** 폴백 말고 아무도 읽으면 안 된다.
+
+#### 후속 큐 — page-specific (이 PR 범위 밖, 실측 목록)
+
+몸통은 아직 이전 다크 시스템이라 여기서 손대면 보정 cascade 가 한 겹 더 생긴다.
+
+| 화면 | 실측 |
+|---|---|
+| `/` 목적지 레일 | "지도에서 열기" 링크 14×14 (15개) |
+| `/tours` | 필터 `select` font-size 11px (16px 미만 → iOS 확대) |
+| `/community` | 자체 헤더·필터칩·정렬 탭 32~43px, 검색 `input` 13px |
+| `/charter` | 안내 링크 30px·15px |
+| 전역 쿠폰 모달(`OnboardingCouponModal`) | `ec-btn-sm` 36px — 쿠폰 화면이라 별도 PR |
+| 페이지별 skeleton | 라우트 폴백은 공용 masthead 모양이다. 화면별 skeleton 은 그 페이지가 전환될 때 |
 
 ---
 

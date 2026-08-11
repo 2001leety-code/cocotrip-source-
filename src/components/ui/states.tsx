@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { AlertCircle, Check, Inbox } from 'lucide-react';
 
 /**
@@ -51,6 +51,65 @@ export function EcLoading({
           <EcSkeleton key={i} className={`h-4 ${i === lines - 1 ? 'w-2/3' : 'w-full'}`} />
         ))}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Route-level loading — what a lazy chunk shows before its page arrives.
+ *
+ * Every lazy route used to fall back to `PageSkeleton`'s `PlannerSkeleton`: a
+ * dark `#080b14` wizard-shaped panel with a fake header, painted on ~50 routes
+ * (tours, community, about, terms, admin — and `/planner` itself, which is
+ * paper since phase 2). It announced nothing, so a screen-reader user got
+ * silence on every route change, and its shape matched no page, which is the
+ * layout jump `EcSkeleton`'s own note warns about.
+ *
+ * `ground` exists only for the migration: bodies still on the previous dark
+ * system open on a near-black page, and opening a sheet of paper in front of
+ * them is the same flash in the other direction. It goes away with the last
+ * `.refined-*` page.
+ */
+export function EcRouteFallback({
+  label,
+  ground = 'paper',
+}: {
+  label: string;
+  ground?: 'paper' | 'legacy';
+}) {
+  // One local override instead of a second skeleton: the bars keep reading
+  // `--ec-surface-sunken`, they just get a value that shows on a dark ground.
+  const legacy = {
+    background: 'var(--ec-legacy-page-bg)',
+    '--ec-surface-sunken': 'rgba(255, 255, 255, 0.08)',
+    '--ec-line': 'rgba(255, 255, 255, 0.10)',
+  } as CSSProperties;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="ec-root min-h-screen"
+      style={ground === 'legacy' ? legacy : undefined}
+    >
+      <span className="sr-only">{label}</span>
+      {/* Shell first, then a masthead — the shape every route shares. Anything
+          more specific belongs to the page, not to this fallback. */}
+      <div aria-hidden>
+        <div className="h-14 border-b border-ec-line md:h-16">
+          <div className="ec-container-wide flex h-full items-center gap-3">
+            <EcSkeleton className="h-8 w-32" />
+            <EcSkeleton className="ml-auto hidden h-8 w-56 md:block" />
+          </div>
+        </div>
+        <div className="ec-container-wide space-y-4 py-12">
+          <EcSkeleton className="h-4 w-24" />
+          <EcSkeleton className="h-10 w-3/4 max-w-2xl" />
+          <EcSkeleton className="h-4 w-full max-w-xl" />
+          <EcSkeleton className="h-4 w-2/3 max-w-xl" />
+        </div>
+      </div>
     </div>
   );
 }

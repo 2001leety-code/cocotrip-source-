@@ -95,15 +95,17 @@ export function WishlistPanel() {
 
   return (
     <>
-      {/* 트리거 버튼 */}
+      {/* 트리거 버튼 — 공용 헤더의 조작 target. 2026-08-11: 36×36 이었고 아이콘이
+          text-white/70 이라 종이 헤더(#F3F1EC) 위에서 대비 ~1.06:1, 사실상 안 보였다.
+          헤더의 다른 아이콘 버튼(ICON_BTN_CLS)과 같은 44×44 + 잉크로 맞춘다. */}
       <button
         onClick={() => setIsOpen(true)}
-        className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
+        className="relative inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-ec-sm text-ec-ink-2 transition-colors hover:text-ec-ink hover:bg-ec-page"
         aria-label={t.a11y?.wishlist ||'Wishlist'}
       >
-        <Heart size={20} className="text-white/70 hover:text-white" />
+        <Heart size={20} />
         {items.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#EA537E] rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+          <span className="absolute top-1 right-1 w-4 h-4 bg-ec-brand rounded-full text-[9px] font-bold text-ec-on-brand flex items-center justify-center">
             {items.length}
           </span>
         )}

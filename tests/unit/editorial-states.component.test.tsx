@@ -14,7 +14,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EcSkeleton, EcLoading, EcEmpty, EcError, EcDone } from '../../src/components/ui/states';
+import { EcSkeleton, EcLoading, EcEmpty, EcError, EcDone, EcRouteFallback } from '../../src/components/ui/states';
 
 void React;
 
@@ -85,6 +85,36 @@ describe('EcDone', () => {
     const region = screen.getByRole('status');
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(screen.getByRole('link', { name: 'Open' })).toBeInTheDocument();
+  });
+});
+
+describe('EcRouteFallback', () => {
+  it('청크 로딩을 announce 한다 — 라우트 전환 중 무음이 아니다', () => {
+    render(<EcRouteFallback label="페이지를 불러오는 중" />);
+    const region = screen.getByRole('status');
+    expect(region).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('페이지를 불러오는 중')).toBeInTheDocument();
+  });
+
+  it('기본은 종이 지면 — 전환된 페이지 앞에서 검은 판이 번쩍이지 않는다', () => {
+    const { container } = render(<EcRouteFallback label="Loading page" />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain('ec-root');
+    expect(root.className).toContain('min-h-screen');
+    expect(root.getAttribute('style') || '').not.toContain('--ec-legacy-page-bg');
+  });
+
+  it('아직 다크인 페이지에는 legacy 지면을 토큰으로 깐다', () => {
+    const { container } = render(<EcRouteFallback label="Loading page" ground="legacy" />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute('style') || '').toContain('var(--ec-legacy-page-bg)');
+  });
+
+  it('스켈레톤 자체는 접근성 트리에서 빠진다 (라벨만 읽힌다)', () => {
+    const { container } = render(<EcRouteFallback label="Loading page" />);
+    for (const bar of container.querySelectorAll('span.animate-pulse')) {
+      expect(bar.closest('[aria-hidden]')).toBeTruthy();
+    }
   });
 });
 

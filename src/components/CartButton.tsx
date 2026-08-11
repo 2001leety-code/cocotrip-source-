@@ -110,15 +110,16 @@ function CartPanelInner() {
 
   return (
     <>
-      {/* 트리거 (헤더 아이콘) */}
+      {/* 트리거 (헤더 아이콘) — WishlistPanel 과 같은 이유로 44×44 + 잉크.
+          장바구니 담긴 상품·가격·결제 로직은 이 diff 밖이다(패널 본문 무변경). */}
       <button
         onClick={() => setIsOpen(true)}
-        className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
+        className="relative inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-ec-sm text-ec-ink-2 transition-colors hover:text-ec-ink hover:bg-ec-page"
         aria-label={c.title || 'Cart'}
       >
-        <ShoppingCart size={20} className="text-white/70 hover:text-white" />
+        <ShoppingCart size={20} />
         {items.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#7C5CFC] rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+          <span className="absolute top-1 right-1 w-4 h-4 bg-ec-brand rounded-full text-[9px] font-bold text-ec-on-brand flex items-center justify-center">
             {items.length}
           </span>
         )}

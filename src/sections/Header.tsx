@@ -82,6 +82,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   // mobile chrome. Changing that is a product decision, not a design one.
   const isInternalPath = location.pathname.startsWith('/admin') || location.pathname.startsWith('/mood');
   const { toggle: toggleCommandPalette } = useCommandPalette();
+  // The mobile menu is the shell's global overlay. It already trapped nothing
+  // and named nothing: no dialog role, no accessible name, and closing it
+  // dropped the keyboard back at the top of the document.
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuWasOpen = useRef(false);
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // P315: desktop login entry. signInWithGoogle (firebase.js) handles the popup +
@@ -142,6 +148,21 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     };
   }, [isMobileMenuOpen]);
 
+  // Focus follows the overlay: into the panel on open, back to the hamburger on
+  // close. `menuWasOpen` keeps the close branch from firing on first mount and
+  // stealing focus from the page.
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      menuWasOpen.current = true;
+      menuPanelRef.current?.focus();
+      return;
+    }
+    if (menuWasOpen.current) {
+      menuWasOpen.current = false;
+      menuTriggerRef.current?.focus();
+    }
+  }, [isMobileMenuOpen]);
+
   // Esc closes the mobile menu — a full-screen overlay with no keyboard exit is a trap.
   useEffect(() => {
     if (!isMobileMenuOpen) return;
@@ -185,7 +206,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           {/* ═══ Left: Logo ═══ */}
           {/* The mark carries the brand gradient (logo identity). The wordmark is
               set in ink — gradient text is out of the system everywhere else. */}
-          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="CocoTrip">
+          <Link to="/" className="flex min-h-[44px] items-center gap-2 shrink-0" aria-label="CocoTrip">
             <img src="/icons/icon-192.png" alt="" aria-hidden width={32} height={32} className="h-8 w-8 rounded-ec-md" />
             <span className="text-[19px] md:text-[20px] font-bold tracking-[-0.025em] text-ec-ink">
               CocoTrip
@@ -212,7 +233,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   key={item.to}
                   to={item.to}
                   aria-current={isActive(item.to) ? 'page' : undefined}
-                  className={`relative px-4 py-2 rounded-ec-sm text-[15px] transition-colors duration-ec-base ease-ec-standard ${
+                  className={`relative inline-flex min-h-[44px] items-center px-4 rounded-ec-sm text-[15px] transition-colors duration-ec-base ease-ec-standard ${
                     isActive(item.to)
                       ? 'text-ec-ink font-semibold'
                       : 'text-ec-ink-2 font-medium hover:text-ec-ink'
@@ -337,7 +358,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <button
                   onClick={handleSignIn}
                   disabled={signingIn}
-                  className="ec-btn ec-btn-primary ec-btn-sm"
+                  className="ec-btn ec-btn-primary"
                   title={t.nav.signIn || 'Sign In'}
                 >
                   {signingIn ? (
@@ -367,7 +388,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 href="https://wa.me/821087140611"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ec-btn ec-btn-secondary ec-btn-sm hidden md:inline-flex"
+                className="ec-btn ec-btn-secondary hidden md:inline-flex"
               >
                 <MessageCircle className="w-4 h-4" aria-hidden />
                 <span>{t.nav.inquiry || '1:1 Inquiry'}</span>
@@ -377,6 +398,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* Mobile hamburger */}
             {isMobile && (
               <button
+                ref={menuTriggerRef}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className={ICON_BTN_CLS}
                 aria-expanded={isMobileMenuOpen}
@@ -396,7 +418,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
       {/* ═══ Mobile Full-screen Menu ═══ */}
       {isMobile && isMobileMenuOpen && (
         <div
-          className="ec-root fixed inset-0 z-[9998] pt-14 overflow-y-auto bg-ec-page"
+          ref={menuPanelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.nav.navigation || 'Navigation'}
+          tabIndex={-1}
+          className="ec-root fixed inset-0 z-[9998] pt-14 overflow-y-auto bg-ec-page outline-none"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsMobileMenuOpen(false);
           }}

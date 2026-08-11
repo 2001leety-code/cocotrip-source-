@@ -143,10 +143,12 @@ export function PromoBanner() {
       aria-label="Promotion"
       aria-live="polite"
     >
+      {/* 44px: 이 띠 전체가 링크라 실제 조작 target 이다 — py-2.5 만으로는 38px
+          이었다(2026-08-11 실측, 768/1440 × 4언어). 문구·CTA·추적은 무변경. */}
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="block w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
+        className="flex min-h-[44px] w-full items-center justify-center text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
       >
         <span>{text} </span>
         <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
