@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { AlertCircle, Check, Inbox } from 'lucide-react';
 
 /**
@@ -51,6 +51,50 @@ export function EcLoading({
           <EcSkeleton key={i} className={`h-4 ${i === lines - 1 ? 'w-2/3' : 'w-full'}`} />
         ))}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Route-level loading — what a lazy chunk shows before its page arrives.
+ * `ground="legacy"` is the migration seam for bodies still on the dark system.
+ */
+export function EcRouteFallback({
+  label,
+  ground = 'paper',
+}: {
+  label: string;
+  ground?: 'paper' | 'legacy';
+}) {
+  const legacy = {
+    background: 'var(--ec-legacy-page-bg)',
+    '--ec-surface-sunken': 'rgba(255, 255, 255, 0.08)',
+    '--ec-line': 'rgba(255, 255, 255, 0.10)',
+  } as CSSProperties;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="ec-root min-h-screen"
+      style={ground === 'legacy' ? legacy : undefined}
+    >
+      <span className="sr-only">{label}</span>
+      <div aria-hidden>
+        <div className="h-14 border-b border-ec-line md:h-16">
+          <div className="ec-container-wide flex h-full items-center gap-3">
+            <EcSkeleton className="h-8 w-32" />
+            <EcSkeleton className="ml-auto hidden h-8 w-56 md:block" />
+          </div>
+        </div>
+        <div className="ec-container-wide space-y-4 py-12">
+          <EcSkeleton className="h-4 w-24" />
+          <EcSkeleton className="h-10 w-3/4 max-w-2xl" />
+          <EcSkeleton className="h-4 w-full max-w-xl" />
+          <EcSkeleton className="h-4 w-2/3 max-w-xl" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -146,7 +146,7 @@ export function PromoBanner() {
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="block w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
+        className="block min-h-[44px] w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
       >
         <span>{text} </span>
         <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>

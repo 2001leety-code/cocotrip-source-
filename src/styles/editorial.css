@@ -173,6 +173,9 @@
   --ec-shell-line:          var(--ec-line);
   --ec-shell-blur:          14px;
 
+  /* route fallback only — dies with the last `.refined-*` page */
+  --ec-legacy-page-bg:      #0A0412;
+
   /* field */
   --ec-field-bg:      var(--ec-surface-raised);
   --ec-field-line:    var(--ec-line-strong);

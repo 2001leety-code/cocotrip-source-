@@ -70,7 +70,7 @@ import { AdminRoute } from '@/components/AdminRoute';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
 const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
-import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
+import { EcRouteFallback } from '@/components/ui/states';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 // /map 독립 경로 지도 (2026-07-19 UI 리디자인) — DayRouteMap 재사용, Leaflet 은 그 컴포넌트의 lazy chunk.
 const MapPage = lazy(() => import('@/pages/MapPage'));
@@ -119,6 +119,13 @@ import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture }
 import { capturePageView as posthogPageView } from '@/lib/posthog';
 import { signalAppReady } from '@/lib/appReady';
 
+function RouteFallback({ ground }: { ground?: 'paper' | 'legacy' }) {
+  const { t } = useLanguage();
+  return <EcRouteFallback label={t.a11y?.loadingPage || 'Loading page'} ground={ground} />;
+}
+const ROUTE_FALLBACK = <RouteFallback />;
+const LEGACY_ROUTE_FALLBACK = <RouteFallback ground="legacy" />;
+
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
 
@@ -139,7 +146,7 @@ function HomePage() {
       {/* Lazy chunk — tours.ts (~92 KB raw) and the example-plan data must stay
           out of the eager first-paint bundle (.size-limit.json entry gate).
           Fallback is paper so there is no flash before the chunk lands. */}
-      <Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}>
+      <Suspense fallback={ROUTE_FALLBACK}>
         <HomeEditorial />
       </Suspense>
       <Footer t={t} />
@@ -249,27 +256,27 @@ function AnimatedRoutes() {
     <RouteTransition>
         <Routes location={location}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
+          <Route path="/region/:regionId" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
           {/* 경로 지도 — 내 플랜 day 별 동선 (비로그인/플랜없음 빈 상태 포함, 게스트 접근 허용) */}
-          <Route path="/map" element={<Suspense fallback={<PlannerSkeleton />}><MapPage /></Suspense>} />
+          <Route path="/map" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MapPage /></Suspense>} />
           {/* AI 어시스턴트 전면 화면 — 비로그인은 페이지 내 로그인 게이트 (위젯과 동일 정책) */}
-          <Route path="/assistant" element={<Suspense fallback={<PlannerSkeleton />}><AssistantPage /></Suspense>} />
+          <Route path="/assistant" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><AssistantPage /></Suspense>} />
           {/* 모바일 v2 미리보기 — 로컬(DEV) 검수 전용. prod 는 라우트 자체 미등록(2026-07-19, 혼동 방지). */}
           {import.meta.env.DEV && (
             <>
-              <Route path="/preview/mobile-home" element={<Suspense fallback={<PlannerSkeleton />}><MobileHomeV2 /></Suspense>} />
-              {MobileTourDetailV2 && <Route path="/preview/mobile-tour" element={<Suspense fallback={<PlannerSkeleton />}><MobileTourDetailV2 /></Suspense>} />}
-              {MobilePlannerResultV2 && <Route path="/preview/mobile-planner" element={<Suspense fallback={<PlannerSkeleton />}><MobilePlannerResultV2 /></Suspense>} />}
-              {MobileCharterV2 && <Route path="/preview/mobile-charter" element={<Suspense fallback={<PlannerSkeleton />}><MobileCharterV2 /></Suspense>} />}
-              {MobileIconsPreview && <Route path="/preview/icons" element={<Suspense fallback={<PlannerSkeleton />}><MobileIconsPreview /></Suspense>} />}
+              <Route path="/preview/mobile-home" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileHomeV2 /></Suspense>} />
+              {MobileTourDetailV2 && <Route path="/preview/mobile-tour" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileTourDetailV2 /></Suspense>} />}
+              {MobilePlannerResultV2 && <Route path="/preview/mobile-planner" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobilePlannerResultV2 /></Suspense>} />}
+              {MobileCharterV2 && <Route path="/preview/mobile-charter" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileCharterV2 /></Suspense>} />}
+              {MobileIconsPreview && <Route path="/preview/icons" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileIconsPreview /></Suspense>} />}
             </>
           )}
           <Route
             path="/admin"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <Admin />
                 </Suspense>
               </AdminRoute>
@@ -279,7 +286,7 @@ function AnimatedRoutes() {
             path="/admin/reviews"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminReviews />
                 </Suspense>
               </AdminRoute>
@@ -289,7 +296,7 @@ function AnimatedRoutes() {
             path="/admin/community"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <CommunityModerationPage />
                 </Suspense>
               </AdminRoute>
@@ -299,7 +306,7 @@ function AnimatedRoutes() {
             path="/admin/claims"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminClaims />
                 </Suspense>
               </AdminRoute>
@@ -309,7 +316,7 @@ function AnimatedRoutes() {
             path="/admin/payments"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminPayments />
                 </Suspense>
               </AdminRoute>
@@ -319,7 +326,7 @@ function AnimatedRoutes() {
             path="/admin/all-bookings"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminAllBookings />
                 </Suspense>
               </AdminRoute>
@@ -329,7 +336,7 @@ function AnimatedRoutes() {
             path="/admin/reconciliation"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminReconciliation />
                 </Suspense>
               </AdminRoute>
@@ -339,7 +346,7 @@ function AnimatedRoutes() {
             path="/admin/plans"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminPlans />
                 </Suspense>
               </AdminRoute>
@@ -349,7 +356,7 @@ function AnimatedRoutes() {
             path="/admin/availability"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminTourAvailability />
                 </Suspense>
               </AdminRoute>
@@ -359,7 +366,7 @@ function AnimatedRoutes() {
             path="/admin/sales"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminSales />
                 </Suspense>
               </AdminRoute>
@@ -369,7 +376,7 @@ function AnimatedRoutes() {
             path="/admin/briefing"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminBriefing />
                 </Suspense>
               </AdminRoute>
@@ -379,7 +386,7 @@ function AnimatedRoutes() {
             path="/admin/decisions"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminDecisions />
                 </Suspense>
               </AdminRoute>
@@ -389,7 +396,7 @@ function AnimatedRoutes() {
             path="/admin/payment-reviews"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminPaymentReviews />
                 </Suspense>
               </AdminRoute>
@@ -399,7 +406,7 @@ function AnimatedRoutes() {
             path="/admin/calendar"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminCalendar />
                 </Suspense>
               </AdminRoute>
@@ -409,7 +416,7 @@ function AnimatedRoutes() {
             path="/admin/analytics"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminAnalytics />
                 </Suspense>
               </AdminRoute>
@@ -419,7 +426,7 @@ function AnimatedRoutes() {
             path="/admin/ops"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminOpsHub />
                 </Suspense>
               </AdminRoute>
@@ -429,7 +436,7 @@ function AnimatedRoutes() {
             path="/admin/quality"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminQualityDashboard />
                 </Suspense>
               </AdminRoute>
@@ -439,7 +446,7 @@ function AnimatedRoutes() {
             path="/admin/translations"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminTranslations />
                 </Suspense>
               </AdminRoute>
@@ -449,7 +456,7 @@ function AnimatedRoutes() {
             path="/admin/coupons"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminCoupons />
                 </Suspense>
               </AdminRoute>
@@ -459,7 +466,7 @@ function AnimatedRoutes() {
             path="/admin/products"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminProducts />
                 </Suspense>
               </AdminRoute>
@@ -469,7 +476,7 @@ function AnimatedRoutes() {
             path="/admin/products/new"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminProductEditor />
                 </Suspense>
               </AdminRoute>
@@ -479,7 +486,7 @@ function AnimatedRoutes() {
             path="/admin/products/edit/:tourId"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminProductEditor />
                 </Suspense>
               </AdminRoute>
@@ -489,7 +496,7 @@ function AnimatedRoutes() {
             path="/admin/zone-courses"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminZoneCourses />
                 </Suspense>
               </AdminRoute>
@@ -499,7 +506,7 @@ function AnimatedRoutes() {
             path="/admin/zone-courses/new"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminZoneCourseEditor />
                 </Suspense>
               </AdminRoute>
@@ -509,7 +516,7 @@ function AnimatedRoutes() {
             path="/admin/zone-courses/edit/:blockId"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminZoneCourseEditor />
                 </Suspense>
               </AdminRoute>
@@ -519,7 +526,7 @@ function AnimatedRoutes() {
             path="/admin/intent-classifier"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminIntentClassifier />
                 </Suspense>
               </AdminRoute>
@@ -529,7 +536,7 @@ function AnimatedRoutes() {
             path="/admin/promo-stats"
             element={
               <AdminRoute>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminPromoStats />
                 </Suspense>
               </AdminRoute>
@@ -540,7 +547,7 @@ function AnimatedRoutes() {
             element={
               // 비로그인도 견적(1~5단계)까지 구경 가능 — 광고 트래픽 안 튕김. 로그인은 6단계(견적)
               // 진입 시 CharterWizard 가 요구(리드 캡처), 결제도 백엔드 미로그인 401 로 일관 차단.
-              <Suspense fallback={<CharterSkeleton />}>
+              <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <CharterNewPage />
               </Suspense>
             }
@@ -553,7 +560,7 @@ function AnimatedRoutes() {
             path="/charter-legacy"
             element={
               <AuthRequired>
-                <Suspense fallback={<CharterSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <CharterPage />
                 </Suspense>
               </AuthRequired>
@@ -562,33 +569,30 @@ function AnimatedRoutes() {
           <Route
             path="/planner"
             element={
-              <Suspense fallback={<PlannerSkeleton />}>
+              <Suspense fallback={ROUTE_FALLBACK}>
                 <PlannerPage />
               </Suspense>
             }
           />
-          <Route path="/tours" element={<Suspense fallback={<PlannerSkeleton />}><ToursPage /></Suspense>} />
-          <Route path="/tours/:slug" element={<Suspense fallback={<PlannerSkeleton />}><TourDetailPage /></Suspense>} />
+          <Route path="/tours" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><ToursPage /></Suspense>} />
+          <Route path="/tours/:slug" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><TourDetailPage /></Suspense>} />
           {/* 커뮤니티 UI 껍데기 — 실제 DB·번역·신고·moderation 연결은 Claude handoff 범위. */}
-          <Route path="/community" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPage /></Suspense>} />
+          <Route path="/community" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityPage /></Suspense>} />
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
-          <Route path="/community/post/:postId" element={<Suspense fallback={<PlannerSkeleton />}><CommunityPostPage /></Suspense>} />
-          <Route path="/community/new" element={<Suspense fallback={<PlannerSkeleton />}><CommunityComposePage /></Suspense>} />
-          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제).
-              폴백이 종이색인 이유: 가이드 본문은 Editorial Concierge(밝은 종이)로 전환됐는데
-              공용 PlannerSkeleton 은 다크(#080b14) 위저드 모양이라, 청크가 오는 동안 검은 판이
-              번쩍이고 모양도 이 화면과 무관했다. 홈과 같은 방식(빈 종이 한 장)으로 맞춘다. */}
-          <Route path="/guide" element={<Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}><GuideIndexPage /></Suspense>} />
-          <Route path="/guide/:slug" element={<Suspense fallback={<div className="min-h-screen bg-ec-page" aria-hidden />}><GuideDetailPage /></Suspense>} />
-          <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />
-          <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
-          <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
-          <Route path="/travel-terms" element={<Suspense fallback={<PlannerSkeleton />}><TravelTerms /></Suspense>} />
+          <Route path="/community/post/:postId" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityPostPage /></Suspense>} />
+          <Route path="/community/new" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityComposePage /></Suspense>} />
+          {/* 여행 가이드 — 색인 대상 (seoRoutes·sitemap·vercel.json 동기, 잠금 테스트가 강제). */}
+          <Route path="/guide" element={<Suspense fallback={ROUTE_FALLBACK}><GuideIndexPage /></Suspense>} />
+          <Route path="/guide/:slug" element={<Suspense fallback={ROUTE_FALLBACK}><GuideDetailPage /></Suspense>} />
+          <Route path="/about" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><About /></Suspense>} />
+          <Route path="/terms" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><Terms /></Suspense>} />
+          <Route path="/privacy" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><Privacy /></Suspense>} />
+          <Route path="/travel-terms" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><TravelTerms /></Suspense>} />
           <Route
             path="/mypage"
             element={
               <AuthRequired>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <MyPage />
                 </Suspense>
               </AuthRequired>
@@ -598,7 +602,7 @@ function AnimatedRoutes() {
             path="/my-plans"
             element={
               <AuthRequired>
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <MyPlansPage />
                 </Suspense>
               </AuthRequired>
@@ -608,7 +612,7 @@ function AnimatedRoutes() {
           <Route
             path="/s/:id"
             element={
-              <Suspense fallback={<PlannerSkeleton />}>
+              <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <SharedCoursePage />
               </Suspense>
             }
@@ -616,7 +620,7 @@ function AnimatedRoutes() {
           <Route
             path="/my-plans/:planId"
             element={
-              <Suspense fallback={<PlannerSkeleton />}>
+              <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <PlanDetailPage />
               </Suspense>
             }
@@ -625,9 +629,7 @@ function AnimatedRoutes() {
           <Route
             path="/mood"
             element={
-              // MOOD 청크 로딩 중 코코트립(planner) 스켈레톤이 깜빡이던 문제 → MOOD 다크 배경
-              // placeholder(MoodPortal 자체 로딩 bg=#0a0412 와 동일)로 교체해 매끄럽게.
-              <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0412' }} aria-hidden />}>
+              <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <MoodPortal />
               </Suspense>
             }
@@ -636,7 +638,7 @@ function AnimatedRoutes() {
             <Route
               path="/dev/transit-test"
               element={
-                <Suspense fallback={<PlannerSkeleton />}>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <DevTransitTest />
                 </Suspense>
               }
@@ -646,7 +648,7 @@ function AnimatedRoutes() {
           <Route
             path="*"
             element={
-              <Suspense fallback={<PlannerSkeleton />}>
+              <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                 <NotFoundPage />
               </Suspense>
             }

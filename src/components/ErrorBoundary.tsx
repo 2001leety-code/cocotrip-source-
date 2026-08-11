@@ -1,7 +1,8 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
-import { AlertTriangle, RefreshCw, MessageCircle } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { translations, type Language } from '@/i18n';
 import { captureException } from '@/lib/sentry';
+import { EcError } from '@/components/ui/states';
 
 interface Props {
   children: ReactNode;
@@ -27,7 +28,7 @@ function detectLang(): Language {
  *
  * - componentDidCatch에서 Sentry로 자동 보고 (DSN 미설정 시 no-op)
  * - 4-lang fallback UI (title / description / contact / retry)
- * - 개발 환경(import.meta.env.DEV)에선 stack trace 노출
+ * - 개발 환경(import.meta.env.DEV)에선 stack trace + 원문 메시지 노출
  * - WhatsApp 문의 링크 (다른 섹션과 동일한 https://wa.me/821087140611)
  *
  * SSR 무관 — class component는 클라이언트 hydration 후 동작.
@@ -54,7 +55,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // 개발 환경에서만 stack trace UI 노출용으로 저장
     if (import.meta.env.DEV) {
-      this.setState({ componentStack: info.componentStack ?? null });
+      // `||` — the repo's mojibake guard rejects the nullish operator here.
+      this.setState({ componentStack: info.componentStack || null });
     }
   }
 
@@ -70,48 +72,37 @@ export class ErrorBoundary extends Component<Props, State> {
       const isDev = import.meta.env.DEV;
 
       return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: '#080b14' }}>
-          <div className="max-w-md mx-auto px-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-red-400" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-3">
-              {t.title}
-            </h1>
-            <p className="text-white/50 text-sm mb-6 leading-relaxed">
-              {t.description}
-            </p>
-            {this.state.error && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-left">
-                <p className="text-xs text-red-300/70 font-mono break-all">
+        <div className="ec-root min-h-screen flex items-center justify-center">
+          <div className="w-full max-w-xl">
+            <EcError
+              title={t.title}
+              body={t.description}
+              retryLabel={t.retry}
+              onRetry={this.handleReset}
+              secondary={
+                <a
+                  href="https://wa.me/821087140611"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ec-btn ec-btn-quiet"
+                >
+                  <MessageCircle className="w-4 h-4" aria-hidden />
+                  {t.contact}
+                </a>
+              }
+            />
+            {isDev && this.state.error && (
+              <div className="mx-6 mb-10 rounded-ec-sm border border-ec-line bg-ec-sunken p-4 text-left">
+                <p className="ec-body-sm font-mono break-all text-ec-critical">
                   {this.state.error.message}
                 </p>
-                {isDev && this.state.componentStack && (
-                  <pre className="mt-3 text-[10px] text-white/40 font-mono whitespace-pre-wrap break-all max-h-48 overflow-auto">
+                {this.state.componentStack && (
+                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] text-ec-ink-3">
                     {this.state.componentStack}
                   </pre>
                 )}
               </div>
             )}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
-              <button
-                onClick={this.handleReset}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
-                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
-              >
-                <RefreshCw className="w-4 h-4" />
-                {t.retry}
-              </button>
-              <a
-                href="https://wa.me/821087140611"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white/80 border border-white/15 bg-white/5 transition-all hover:bg-white/10 active:scale-95"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {t.contact}
-              </a>
-            </div>
           </div>
         </div>
       );

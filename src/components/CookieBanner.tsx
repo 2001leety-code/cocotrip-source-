@@ -70,10 +70,10 @@ export default function CookieBanner() {
             </p>
             {/* Mobile-friendly tap targets — buttons hit 44px height (WCAG 2.5.5) */}
             <div className="flex items-center gap-2 mt-3">
-              <button onClick={accept} className="ec-btn ec-btn-primary ec-btn-sm">
+              <button onClick={accept} className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px]">
                 {cb?.accept || 'Accept'}
               </button>
-              <button onClick={dismiss} className="ec-btn ec-btn-quiet ec-btn-sm">
+              <button onClick={dismiss} className="ec-btn ec-btn-quiet ec-btn-sm min-h-[44px]">
                 {cb?.dismiss || 'Dismiss'}
               </button>
             </div>
