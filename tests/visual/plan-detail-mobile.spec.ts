@@ -69,8 +69,6 @@ async function installDeterministicRoutes(page: Page, planStatus = 200) {
     window.sessionStorage.setItem('vercel-live-feedback-optout', '1');
   });
   await suppressCookieBanner(page);
-  // The preview-only Vercel feedback toolbar creates an off-canvas iframe.
-  // Keep product overflow checks isolated from that external overlay.
   await page.route('https://vercel.live/**', (route) => route.abort());
   await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({
     status: 200,
