@@ -30,6 +30,12 @@ import type { Tour, TourPhoto, TourStatus, I18nString } from '@/data/tours';
 const COL_TOURS = 'tours';
 const COL_DRAFTS = 'tours_drafts';
 
+function isPermissionDenied(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === 'permission-denied' || code === 'firestore/permission-denied';
+}
+
 /** Firestore 도큐먼트 → Tour 객체 정규화.
  *  - serverTimestamp() 가 Timestamp 으로 와서 ms epoch 으로 변환
  *  - source='firestore' 마킹 (정적 폴백과 구분)
@@ -55,10 +61,14 @@ function normalizeTour(docId: string, data: DocumentData): Tour {
 export async function fetchTourBySlug(slug: string): Promise<Tour | null> {
   // 1) docId === slug 인 케이스가 가장 흔함 (어드민이 slug 를 docId 로 입력)
   const directRef = doc(db, COL_TOURS, slug);
-  const directSnap = await getDoc(directRef);
-  if (directSnap.exists()) {
-    const data = directSnap.data();
-    if (data.status === 'published') return normalizeTour(directSnap.id, data);
+  try {
+    const directSnap = await getDoc(directRef);
+    if (directSnap.exists()) {
+      const data = directSnap.data();
+      if (data.status === 'published') return normalizeTour(directSnap.id, data);
+    }
+  } catch (error) {
+    if (!isPermissionDenied(error)) throw error;
   }
   // 2) slug 필드가 docId 와 다를 수 있음 → where 쿼리
   const q = query(
