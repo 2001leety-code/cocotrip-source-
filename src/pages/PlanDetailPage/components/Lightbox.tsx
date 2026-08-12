@@ -16,6 +16,11 @@ interface Props {
 
 export function Lightbox({ src, alt, closeLabel = 'Close', onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -23,7 +28,7 @@ export function Lightbox({ src, alt, closeLabel = 'Close', onClose }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       } else if (e.key === 'Tab') {
         e.preventDefault();
         closeRef.current?.focus();
@@ -39,7 +44,7 @@ export function Lightbox({ src, alt, closeLabel = 'Close', onClose }: Props) {
       document.body.style.overflow = prevOverflow;
       previousFocus?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div

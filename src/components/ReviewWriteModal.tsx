@@ -33,7 +33,12 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated, sur
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   const paper = surface === 'paper';
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const tRec = t as Record<string, unknown>;
   const legacyReviews = (tRec.reviews as Record<string, string> | undefined) || {
@@ -55,7 +60,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated, sur
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -88,7 +93,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated, sur
       document.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };
-  }, [onClose, paper]);
+  }, [paper]);
 
   const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

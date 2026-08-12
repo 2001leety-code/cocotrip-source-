@@ -3,7 +3,9 @@ import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlanDocumentMasthead } from '../../src/pages/PlanDetailPage/components/PlanDocumentMasthead';
+import { getPlanDocumentStatus } from '../../src/pages/PlanDetailPage/lib/planStats';
 import { PlanDocumentState } from '../../src/pages/PlanDetailPage/components/PlanDocumentState';
+import { ConfirmDialog } from '../../src/pages/PlanDetailPage/components/ConfirmDialog';
 import { ReviewWriteModal } from '../../src/components/ReviewWriteModal';
 import type { PlanDocument } from '../../src/pages/PlanDetailPage/types';
 
@@ -116,6 +118,52 @@ describe('plan detail editorial components', () => {
       <PlanDocumentMasthead plan={planWithInput({ adults: 2, children: 1 })} status="ready" ui={mastheadUi} />,
     );
     expect(within(screen.getByText('Travelers').parentElement as HTMLElement).getByText('3')).toBeTruthy();
+  });
+
+  it('recognizes both current and legacy truncated plan shapes', () => {
+    expect(getPlanDocumentStatus({ __truncated: true }, false)).toBe('partial');
+    expect(getPlanDocumentStatus({ itinerary: { _truncated_days: 2 } }, false)).toBe('partial');
+    expect(getPlanDocumentStatus({ __truncated: true }, true)).toBe('building');
+  });
+
+  it('keeps modal focus stable across parent callback rerenders', () => {
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const restoreFocus = vi.spyOn(trigger, 'focus');
+    const firstCancel = vi.fn();
+    const latestCancel = vi.fn();
+    const { rerender, unmount } = render(
+      <ConfirmDialog open title="Remove stop?" onConfirm={vi.fn()} onCancel={firstCancel} />,
+    );
+
+    rerender(<ConfirmDialog open title="Remove stop?" onConfirm={vi.fn()} onCancel={latestCancel} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(restoreFocus).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(firstCancel).not.toHaveBeenCalled();
+    expect(latestCancel).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(restoreFocus).toHaveBeenCalledTimes(1);
+    trigger.remove();
+  });
+
+  it('excludes lodging bookends from the visible stop total', () => {
+    render(
+      <PlanDocumentMasthead
+        plan={{
+          itinerary: {
+            tour_title: 'Seoul plan',
+            days: [{ stops: [{ category: 'lodging' }, { category: 'culture' }] }],
+          },
+        }}
+        status="ready"
+        ui={mastheadUi}
+      />,
+    );
+    expect(within(screen.getByText('Stops').parentElement as HTMLElement).getByText('1')).toBeTruthy();
   });
 
   it('keeps an invalid photo error visible in the paper review modal', () => {

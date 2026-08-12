@@ -112,7 +112,7 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
   if (sections.length <= 1) return null;
 
   return (
-    <nav className="relative sticky top-16 z-30 -mx-4 border-y border-ec-line bg-ec-page px-4 md:mx-0 md:px-0" aria-label={sw.tabsNavLabel || 'Itinerary sections'}>
+    <nav className="relative sticky top-14 z-30 -mx-4 border-y border-ec-line bg-ec-page px-4 md:top-16 md:mx-0 md:px-0" aria-label={sw.tabsNavLabel || 'Itinerary sections'}>
       <div
         ref={listRef}
         data-testid="section-tabs-scroll"

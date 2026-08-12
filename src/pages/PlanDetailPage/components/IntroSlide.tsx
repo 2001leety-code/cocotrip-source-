@@ -5,8 +5,9 @@ import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
-import type { PlanDocument, PlanDay } from '../types';
+import type { PlanDocument } from '../types';
 import { getPlanDetailDict, getPlanDetailUI } from '../types';
+import { countVisibleStops } from '../lib/planStats';
 
 // 차량 내부키 → 고객용 라벨 (vehicleLabel[백엔드 humanize] 없을 때만 폴백 — staria_8 같은 raw 키 노출 방지).
 const VEHICLE_LABELS: Record<string, string> = {
@@ -68,12 +69,12 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
 
   return (
     <div>
-      {/* Title */}
+      {/* Intro status and quick actions */}
       <div className="mb-8 border-b border-ec-line pb-6">
         {isTranslating && (
           <div className="ec-chip ec-chip-brand mb-3" role="status" aria-live="polite">
             <div className="h-3 w-3 animate-pulse rounded-full bg-ec-brand" aria-hidden />
-            {sw.translationInProgress || ui.loadingPlan}
+            {sw.translationInProgress || 'Translating...'}
           </div>
         )}
         {!isTranslating && translationError && (
@@ -82,13 +83,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
-        {/* 🔴 2026-07-28: h1 → h2. 이 슬라이드와 페이지 헤더(index.tsx)가 동시에 h1 을
-            내보내 한 화면에 h1 이 둘이었다. 문서 제목은 헤더 하나로 통일하고 여기는
-            섹션 제목으로 낮춘다(보이는 크기·스타일은 그대로). */}
-        <h2 className="ec-h3 text-[clamp(24px,3vw,36px)]">
-          {it.tour_title || sw.introTitle || 'Your Korea Trip'}
-        </h2>
-        <div className="mt-2 flex items-center">
+        <div className="flex items-center">
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
         <p className="ec-body-sm mt-3">
@@ -107,7 +102,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
       <div className="grid grid-cols-4 gap-2 mb-6">
         {[
           { icon: <Calendar className="w-4 h-4" />, label: ui.planStatDays || sw.introDaysLabel || 'Days', value: String(days.length || '-') },
-          { icon: <MapPin className="w-4 h-4" />, label: ui.planStatStops || 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
+          { icon: <MapPin className="w-4 h-4" />, label: ui.planStatStops || 'Stops', value: String(countVisibleStops(days)) },
           // 2026-06-23 (운영자 #3): paxTotal null 시 '-' 폴백 (Days 카드와 동일 패턴) — "undefined" 방지.
           { icon: <Users className="w-4 h-4" />, label: ui.planStatTravelers || 'Travelers', value: paxTotal != null ? String(paxTotal) : '-' },
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },

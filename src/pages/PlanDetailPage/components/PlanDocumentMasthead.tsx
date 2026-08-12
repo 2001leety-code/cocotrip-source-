@@ -1,7 +1,7 @@
 import { CalendarDays, CalendarRange, MapPin, Route, Users } from 'lucide-react';
 import type { PlanDocument, PlanDay } from '../types';
-
-export type PlanDocumentStatus = 'ready' | 'partial' | 'building';
+import { countVisibleStops } from '../lib/planStats';
+import type { PlanDocumentStatus } from '../lib/planStats';
 
 interface PlanDocumentMastheadProps {
   plan: PlanDocument;
@@ -27,15 +27,6 @@ function primaryRegion(plan: PlanDocument, regionNames: Record<string, string>):
   return mappedArea || area || cleanRegion(raw);
 }
 
-function visibleStops(days: PlanDay[]): number {
-  return days.reduce(
-    (total, day) => total + (day.stops || []).filter(
-      (stop) => String(stop.category || '').toLowerCase() !== 'lodging',
-    ).length,
-    0,
-  );
-}
-
 export function PlanDocumentMasthead({ plan, status, ui, regionNames = {} }: PlanDocumentMastheadProps) {
   const input = plan.input || {};
   const days = (plan.itinerary?.days || []).filter((day): day is PlanDay => Boolean(day));
@@ -56,7 +47,7 @@ export function PlanDocumentMasthead({ plan, status, ui, regionNames = {} }: Pla
       : ui.documentReady;
   const stats = [
     { icon: CalendarDays, label: ui.planStatDays, value: days.length || '—' },
-    { icon: MapPin, label: ui.planStatStops, value: visibleStops(days) },
+    { icon: MapPin, label: ui.planStatStops, value: countVisibleStops(days) },
     { icon: Users, label: ui.planStatTravelers, value: travelers || '—' },
     { icon: CalendarRange, label: ui.documentStartDate, value: input.startDate || '—' },
   ];

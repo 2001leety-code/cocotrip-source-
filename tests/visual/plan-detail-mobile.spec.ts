@@ -111,6 +111,11 @@ test.describe('Plan detail editorial document visual smoke', () => {
     await expect(page.getByTestId('plan-document-status-ready')).toBeVisible();
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 
+    const shareButton = page.getByTestId('plan-share-mini');
+    await expect(shareButton).toBeVisible();
+    const shareBox = await shareButton.boundingBox();
+    expect(shareBox?.height).toBeGreaterThanOrEqual(44);
+
     const tabHeights = await page.getByTestId('section-tabs-scroll').getByRole('tab').evaluateAll(
       (tabs) => tabs.map((tab) => tab.getBoundingClientRect().height),
     );
@@ -130,6 +135,10 @@ test.describe('Plan detail editorial document visual smoke', () => {
     const routeMap = page.getByTestId('day-route-map');
     await expect(routeMap).toContainText('Bukchon Hanok Village');
     await routeMap.scrollIntoViewIfNeeded();
+
+    const headerBox = await page.locator('header.ec-no-print').boundingBox();
+    const stickyTabsBox = await page.getByTestId('section-tabs-scroll').locator('..').boundingBox();
+    expect(Math.abs((stickyTabsBox?.y || 0) - ((headerBox?.y || 0) + (headerBox?.height || 0)))).toBeLessThanOrEqual(1);
 
     const mapControlHeights = await routeMap.locator('[data-route-map-control], .leaflet-control-zoom a').evaluateAll(
       (controls) => controls.map((control) => control.getBoundingClientRect().height),

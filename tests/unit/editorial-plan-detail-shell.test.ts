@@ -82,6 +82,8 @@ describe('PlanDetailPage editorial execution document', () => {
 
   it('keeps navigation and editing controls at least 44px and fields at 16px', () => {
     expect(TABS).toMatch(/min-h-\[44px\]/);
+    expect(TABS).toContain('top-14');
+    expect(TABS).toContain('md:top-16');
     expect(EDIT).toMatch(/className=\{`ec-btn /);
     expect(EDIT).toContain('data-testid="plan-edit-toggle"');
     expect(EDIT).not.toContain('ec-btn-sm');
@@ -139,7 +141,11 @@ describe('PlanDetailPage editorial execution document', () => {
       const parsed = JSON.parse(read(`src/i18n/locales/${locale}.json`));
       const ui = parsed.planDetail.ui;
       for (const key of localeKeys) expect(ui[key]).toEqual(expect.any(String));
+      for (const deadKey of ['planHeaderBadge', 'planOptimizeChip', 'planStayChip', 'planStatOptimize', 'planStatDistance', 'planTravelersSuffix', 'planStopsSuffix']) {
+        expect(ui).not.toHaveProperty(deadKey);
+      }
       expect(parsed.planDetail.swipe.tabsNavLabel).toEqual(expect.any(String));
+      expect(parsed.planDetail.swipe.translationInProgress).toEqual(expect.any(String));
       expect(parsed.planDetail.day1ArrivalOnlyTitle).toEqual(expect.any(String));
       expect(parsed.planDetail.day1ArrivalOnlyHint).toContain('{{time}}');
     }
@@ -163,6 +169,14 @@ describe('PlanDetailPage editorial execution document', () => {
     expect(REVIEW_WRITE).toContain('focusIsOutside');
     expect(LIGHTBOX).toContain("e.key === 'Tab'");
     expect(LIGHTBOX).toContain('previousFocus?.focus()');
+    expect(INTRO).not.toContain('<h2');
+    expect(INTRO).toContain('countVisibleStops');
+    expect(read('src/pages/PlanDetailPage/components/ShareButton.tsx')).toContain('data-testid="plan-share-mini"');
+    expect(read('src/pages/PlanDetailPage/components/ShareButton.tsx')).toContain('min-h-[44px]');
+    expect(CONFIRM).toContain('}, [open]);');
+    expect(ADD_STOP).toContain('}, [open]);');
+    expect(REVIEW_WRITE).toContain('}, [paper]);');
+    expect(LIGHTBOX).toContain('}, []);');
   });
 
   it('keeps traveler totals factual and streaming progress localized', () => {
@@ -171,5 +185,6 @@ describe('PlanDetailPage editorial execution document', () => {
     expect(MASTHEAD).toContain('{ icon: CalendarRange, label: ui.documentStartDate');
     expect(INDEX).toContain('formatDayLabel(language, streamingProgress)');
     expect(INDEX).toContain('body={streamingTimedOut ? ui.streamingTimeoutBody : ui.partialPlanBody}');
+    expect(INDEX).toContain('getPlanDocumentStatus(plan, Boolean(isStreamingInProgress))');
   });
 });

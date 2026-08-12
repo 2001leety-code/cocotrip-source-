@@ -1692,6 +1692,7 @@
       "streamingWait": "旅程を作成中...",
       "translatingWait": "翻訳中... しばらくお待ちください",
       "translationFailedShowingOriginal": "翻訳できません — 原文を表示しています",
+      "translationInProgress": "翻訳中...",
       "preTripTitle": "旅行準備ガイド",
       "preTripSubtitle": "到着前にご確認いただくと韓国旅行がよりスムーズになります"
     },
@@ -1861,17 +1862,10 @@
       "publicTransitRoute": "公共交通の経路",
       "transitTransfers": "乗り換え",
       "mealCostLabel": "食事代は別",
-      "planHeaderBadge": "AI 旅程",
       "planRouteTimeline": "ルートタイムライン",
-      "planOptimizeChip": "ルート最適化",
-      "planStayChip": "宿泊のおすすめ",
       "planStatDays": "日",
       "planStatStops": "訪問地",
-      "planStatTravelers": "人数",
-      "planStatOptimize": "最適化",
-      "planStatDistance": "移動距離",
-      "planTravelersSuffix": "名",
-      "planStopsSuffix": "か所"
+      "planStatTravelers": "人数"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",

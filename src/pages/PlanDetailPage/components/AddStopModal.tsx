@@ -53,6 +53,11 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +67,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -93,7 +98,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
       document.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open) return null;
 

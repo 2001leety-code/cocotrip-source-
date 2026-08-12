@@ -1692,6 +1692,7 @@
       "streamingWait": "일정을 만드는 중...",
       "translatingWait": "번역 중... 잠시만 기다려 주세요",
       "translationFailedShowingOriginal": "번역을 사용할 수 없음 — 원문을 표시합니다",
+      "translationInProgress": "번역 중...",
       "preTripTitle": "여행 준비 안내",
       "preTripSubtitle": "도착 전 확인하시면 한국 여행이 더 매끄러워져요"
     },
@@ -1861,17 +1862,10 @@
       "publicTransitRoute": "대중교통 경로",
       "transitTransfers": "환승",
       "mealCostLabel": "식사비 별도",
-      "planHeaderBadge": "AI 일정",
       "planRouteTimeline": "동선 타임라인",
-      "planOptimizeChip": "동선 최적화",
-      "planStayChip": "숙소 추천",
       "planStatDays": "일",
       "planStatStops": "방문지",
-      "planStatTravelers": "인원",
-      "planStatOptimize": "최적화",
-      "planStatDistance": "이동거리",
-      "planTravelersSuffix": "명",
-      "planStopsSuffix": "곳"
+      "planStatTravelers": "인원"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",

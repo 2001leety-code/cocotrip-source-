@@ -53,6 +53,7 @@ import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { usePlanCompletionTracking } from './hooks/usePlanCompletionTracking';
 import { buildSlides } from './lib/buildSlides';
 import { formatDayLabel } from './lib/dayLabel';
+import { getPlanDocumentStatus } from './lib/planStats';
 import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -529,7 +530,7 @@ export default function PlanDetailPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <PlanDocumentMasthead
         plan={plan}
-        status={isStreamingInProgress ? 'building' : (plan._truncated_days === true ? 'partial' : 'ready')}
+        status={getPlanDocumentStatus(plan, Boolean(isStreamingInProgress))}
         ui={ui}
         regionNames={((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {}}
       />

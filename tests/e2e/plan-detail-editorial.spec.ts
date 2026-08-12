@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { test, expect } from './fixtures/analytics-guard';
 
-type FixtureState = 'normal' | 'empty' | 'error' | 'not-found' | 'permission' | 'partial' | 'loading';
+type FixtureState = 'normal' | 'empty' | 'error' | 'not-found' | 'permission' | 'partial' | 'truncated' | 'loading';
 type FixtureLanguage = 'ko' | 'en' | 'ja' | 'zh';
 
 const VIEWPORTS = [
@@ -10,7 +10,7 @@ const VIEWPORTS = [
   { label: '1440', width: 1440, height: 1000 },
 ] as const;
 const LANGUAGES: FixtureLanguage[] = ['ko', 'en', 'ja', 'zh'];
-const STATES: FixtureState[] = ['normal', 'empty', 'error', 'not-found', 'permission', 'partial', 'loading'];
+const STATES: FixtureState[] = ['normal', 'empty', 'error', 'not-found', 'permission', 'partial', 'truncated', 'loading'];
 const NEUTRAL_TILE = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#f2efe8"/></svg>';
 
 const copy = {
@@ -73,7 +73,7 @@ function planFixture(language: FixtureLanguage, state: FixtureState) {
     status: state === 'error' ? 'error' : 'ready',
     _streaming_in_progress: state === 'partial',
     _streaming_progress: state === 'partial' ? 2 : undefined,
-    _truncated_days: state === 'partial',
+    __truncated: state === 'truncated',
     input: {
       language,
       area: language === 'ko' ? '서울' : language === 'ja' ? 'ソウル' : language === 'zh' ? '首尔' : 'Seoul',
@@ -163,7 +163,10 @@ for (const viewport of VIEWPORTS) {
         const consoleStart = consoleErrors.length;
         await page.goto(`/my-plans/fixture-${state}-${viewport.label}-${language}`, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('html')).toHaveAttribute('lang', language);
-        await expect(page.getByTestId(state === 'normal' ? 'plan-document-ready' : `plan-detail-${state}`)).toBeVisible();
+        const expectedStateTestId = state === 'normal' || state === 'truncated'
+          ? 'plan-document-ready'
+          : `plan-detail-${state}`;
+        await expect(page.getByTestId(expectedStateTestId)).toBeVisible();
 
         if (['empty', 'error', 'not-found', 'permission'].includes(state)) {
           await expect(page.getByTestId(`plan-detail-${state}`).locator('.ec-card .ec-root')).toHaveCount(0);
@@ -171,6 +174,10 @@ for (const viewport of VIEWPORTS) {
 
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow).toBeLessThanOrEqual(1);
+
+        if (state === 'truncated') {
+          await expect(page.getByTestId('plan-document-status-partial')).toBeVisible();
+        }
 
         if (state === 'normal') {
           await expect(page.getByTestId('plan-document-masthead')).toContainText(copy[language].title);

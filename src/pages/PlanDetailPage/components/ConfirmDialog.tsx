@@ -20,6 +20,11 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
   const ed = pd.editor || {};
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +34,7 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onCancel();
+        onCancelRef.current();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -54,7 +59,7 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
       document.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };
-  }, [onCancel, open]);
+  }, [open]);
 
   if (!open) return null;
   if (typeof document === 'undefined') return null;

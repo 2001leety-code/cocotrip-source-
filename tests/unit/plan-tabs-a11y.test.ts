@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { countVisibleStops } from '../../src/pages/PlanDetailPage/lib/planStats';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const codeOf = (p: string) =>
@@ -37,11 +38,12 @@ describe('SwipeContainer — 선택 탭 높이만 반영', () => {
   });
 });
 
-describe('플랜 상세 — h1 은 하나', () => {
-  it('인트로 슬라이드 제목은 h1 이 아니다', () => {
+describe('플랜 상세 — 문서 제목은 하나', () => {
+  it('인트로 슬라이드는 문서 제목을 반복하지 않는다', () => {
     const intro = read('src/pages/PlanDetailPage/components/IntroSlide.tsx');
     expect(intro).not.toContain('<h1');
-    expect(intro).toContain('<h2');
+    expect(intro).not.toContain('<h2');
+    expect(intro).toContain('<ShareMiniIcon');
   });
 
   it('페이지 헤더가 유일한 h1 을 가진다 (오류 화면은 조기 반환이라 동시 렌더 없음)', () => {
@@ -56,7 +58,8 @@ describe('통계 정의', () => {
   const code = codeOf('src/pages/PlanDetailPage/components/PlanDocumentMasthead.tsx');
 
   it('방문지 수에서 숙소를 제외한다', () => {
-    expect(code).toContain("!== 'lodging'");
+    expect(countVisibleStops([{ stops: [{ category: 'lodging' }, { category: 'culture' }] }])).toBe(1);
+    expect(code).toContain('countVisibleStops(days)');
   });
 
   it('헤더 라벨이 번역을 탄다 (영어 하드코딩 제거)', () => {

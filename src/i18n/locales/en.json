@@ -1692,6 +1692,7 @@
       "streamingWait": "Building itinerary...",
       "translatingWait": "Translating... please wait",
       "translationFailedShowingOriginal": "Translation unavailable — showing original",
+      "translationInProgress": "Translating...",
       "preTripTitle": "Pre-Trip Essentials",
       "preTripSubtitle": "Check before arrival for a smoother Korea trip"
     },
@@ -1861,17 +1862,10 @@
       "publicTransitRoute": "Public transit route",
       "transitTransfers": "Transfers",
       "mealCostLabel": "Meal cost separate",
-      "planHeaderBadge": "AI itinerary",
       "planRouteTimeline": "Route timeline",
-      "planOptimizeChip": "Optimize your trip",
-      "planStayChip": "Stay suggestion",
       "planStatDays": "Days",
       "planStatStops": "Stops",
-      "planStatTravelers": "Travelers",
-      "planStatOptimize": "Optimize",
-      "planStatDistance": "Distance",
-      "planTravelersSuffix": "travelers",
-      "planStopsSuffix": "stops"
+      "planStatTravelers": "Travelers"
     },
     "notices": {
       "title": "Plan Auto-Corrections Applied",

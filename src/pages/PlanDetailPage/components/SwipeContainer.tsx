@@ -1,6 +1,6 @@
 // Each tab owns one full-width document section.
 // Keyboard: Left/Right arrow keys for desktop a11y.
-import { useRef, useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 interface SwipeContainerProps {
   children: ReactNode[];
@@ -10,7 +10,6 @@ interface SwipeContainerProps {
 }
 
 export function SwipeContainer({ children, current, onSlideChange, editMode }: SwipeContainerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const totalSlides = children.length;
 
   // Keyboard navigation (desktop a11y)
@@ -26,7 +25,6 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
 
   return (
     <div
-      ref={containerRef}
       className="relative w-full overflow-hidden"
       style={{ touchAction: editMode ? 'auto' : 'pan-y' }}
     >
