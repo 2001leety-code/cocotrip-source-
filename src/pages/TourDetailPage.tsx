@@ -1,10 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CocoTrip – Tour 상세 페이지 (스켈레톤 + 추천 숙소 어필리에이트)
-// 세부 일정 본문 채우기는 다음 세션에서 처리
-// 통합 시: App.tsx 라우터에 <Route path="/tours/:slug" element={<TourDetailPage />} /> 추가
+// CocoTrip – 공개 투어 상세 편집형 안내서
 // ─────────────────────────────────────────────────────────────────────────────
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { AffiliateCard } from '@/components/AffiliateCard';
@@ -16,10 +14,9 @@ import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
   CalendarCheck, Package, ChevronRight, Languages,
   ShieldCheck, CreditCard, ExternalLink, ChevronLeft, Moon,
-  ChevronDown,
+  ChevronDown, AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { TOUR_CUTOFF_HOURS } from '@/lib/bookingCutoff';
 import { Header } from '@/sections/Header';
@@ -28,7 +25,6 @@ import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
 import { TourStopMap } from '@/components/tours/TourStopMap';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
-import { TrustBadges } from '@/components/TrustBadges';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
 import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
@@ -37,8 +33,31 @@ import { SuitabilityChips } from '@/components/tours/SuitabilityChips';
 import { useTourRating } from '@/hooks/useTourRating';
 import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 import { useTour } from '@/hooks/useTour';
+import { EcEmpty, EcError, EcLoading } from '@/components/ui/states';
+import { pickTourDetailEditorialCopy } from './tourDetailEditorialCopy';
+import { TOUR_REGIONS } from '@/data/tours';
 import type { I18nString, DriverLanguage, TourPhoto } from '@/data/tours';
-import type { Language } from '@/i18n';
+import type { Language, Translations } from '@/i18n';
+import '@/styles/editorial-tour-detail.css';
+
+function TourDetailShell({
+  language,
+  t,
+  onLanguageChange,
+  children,
+}: {
+  language: Language;
+  t: Translations;
+  onLanguageChange: (language: Language) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="tour-detail-editorial" data-testid="tour-detail-shell">
+      <div className="ec-root"><Header language={language} t={t} onLanguageChange={onLanguageChange} /></div>
+      {children}
+    </div>
+  );
+}
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = {
   en: 'EN',
@@ -47,7 +66,7 @@ const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = {
 };
 
 function txt(field: I18nString, lang: Language): string {
-  return field[lang] ?? field.en;
+  return field[lang] || field.en;
 }
 
 const VEHICLE_KEY: Record<string, 'staria' | 'sprinter' | 'sprinterMid' | 'bus'> = {
@@ -72,10 +91,10 @@ const VEHICLE_FALLBACK: Record<string, string> = {
 export default function TourDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { language, t, changeLanguage } = useLanguage();
-  const isMobile = useIsMobile();
+  const copy = pickTourDetailEditorialCopy(language);
 
   // Phase 1 (2026-05-19): Firestore 우선 + 정적 폴백. tour 가 있으면 즉시 paint.
-  const { tour } = useTour(slug);
+  const { tour, loading, error, source, retry } = useTour(slug);
   const hotels = tour ? getRecommendedHotels(tour.region, 3) : [];
 
   // 별점 소스 우선순위: Google(키 있으면) > 내부 실후기 집계(published) > static.
@@ -93,15 +112,34 @@ export default function TourDetailPage() {
     language === 'ja' ? 'ツアー一覧' :
     language === 'zh' ? '旅游列表' : 'Tours';
 
+  const permissionDenied = Boolean(error && (
+    (error as Error & { code?: string }).code === 'permission-denied'
+    || (error as Error & { code?: string }).code === 'firestore/permission-denied'
+  ));
+  const fallbackMetaTitle = loading
+    ? copy.loadingTitle
+    : permissionDenied
+      ? copy.permissionTitle
+      : error
+        ? copy.errorTitle
+        : copy.notFoundTitle;
+  const fallbackMetaDescription = loading
+    ? copy.loadingTitle
+    : permissionDenied
+      ? copy.permissionBody
+      : error
+        ? copy.errorBody
+        : copy.notFoundBody;
+
   // SEO (404일 때도 usePageMeta 호출 — hook 순서 고정)
   // usePageMeta 가 '| CocoTrip' 을 붙이므로 여기선 안 붙임 ('X | CocoTrip Tours | CocoTrip' 중복 방지).
   usePageMeta({
     title: tour
       ? `${txt(tour.title, language)} — CocoTrip Tours`
-      : 'Tour Not Found',
+      : fallbackMetaTitle,
     description: tour
       ? txt(tour.summary, language)
-      : 'This tour could not be found.',
+      : fallbackMetaDescription,
     // 투어 공유(카톡·페북·X) 미리보기에 투어 사진 노출 — 미전달 시 홈 og-image 로 고정됨.
     ogImage: tour?.images?.[0],
     ogUrl: slug ? `https://cocotripkr.com/tours/${slug}` : undefined,
@@ -143,37 +181,57 @@ export default function TourDetailPage() {
     ? buildBreadcrumbJsonLd([['CocoTrip', '/'], ['Tours', '/tours'], [txt(tour.title, 'en'), `/tours/${slug}`]])
     : null);
 
+  if (!tour && loading) {
+    return (
+      <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
+        <main className="ec-root ec-container tour-detail-state" data-testid="tour-detail-nonpayment">
+          <div className="tour-detail-state-panel tour-detail-loading-grid" data-testid="tour-detail-loading">
+            <div className="tour-detail-loading-media animate-pulse bg-ec-sunken" aria-hidden />
+            <div className="self-center p-2">
+              <h1 className="ec-h3 mb-4">{copy.loadingTitle}</h1>
+              <EcLoading label={copy.loadingTitle} lines={5} />
+            </div>
+          </div>
+        </main>
+      </TourDetailShell>
+    );
+  }
+
+  if (!tour && error) {
+    const title = permissionDenied ? copy.permissionTitle : copy.errorTitle;
+    const body = permissionDenied ? copy.permissionBody : copy.errorBody;
+    const testId = permissionDenied ? 'tour-detail-permission' : 'tour-detail-error';
+    return (
+      <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
+        <main className="ec-root ec-container tour-detail-state" data-testid="tour-detail-nonpayment">
+          <div className="tour-detail-state-panel" data-testid={testId}>
+            <EcError
+              title={title}
+              body={body}
+              retryLabel={permissionDenied ? undefined : copy.retry}
+              onRetry={permissionDenied ? undefined : retry}
+              secondary={<Link to="/tours" className="ec-btn ec-btn-secondary">{copy.browseTours}</Link>}
+            />
+          </div>
+        </main>
+      </TourDetailShell>
+    );
+  }
+
   // ── 404 ──────────────────────────────────────────────────────────────────
   if (!tour) {
     return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
-      >
-        <Header language={language} t={t} onLanguageChange={changeLanguage} />
-        <div className={`flex flex-col items-center justify-center gap-6 px-4 ${isMobile ? 'pt-24' : 'pt-32'}`}>
-          <div
-            className="w-16 h-16 rounded-3xl flex items-center justify-center"
-            style={{ background: 'rgba(182,104,252,0.08)', border: '1px solid rgba(182,104,252,0.15)' }}
-          >
-            <Package className="w-7 h-7" style={{ color: 'rgba(182,104,252,0.45)' }} />
+      <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
+        <main className="ec-root ec-container tour-detail-state" data-testid="tour-detail-nonpayment">
+          <div className="tour-detail-state-panel" data-testid="tour-detail-not-found">
+            <EcError
+              title={copy.notFoundTitle}
+              body={copy.notFoundBody}
+              secondary={<Link to="/tours" className="ec-btn ec-btn-secondary">{copy.browseTours}</Link>}
+            />
           </div>
-          <p className="text-[16px] font-bold text-white/60 text-center">
-            {language === 'ko' ? '상품을 찾을 수 없습니다' :
-             language === 'ja' ? 'ツアーが見つかりません' :
-             language === 'zh' ? '找不到该旅游产品' :
-             'Tour not found'}
-          </p>
-          <Link
-            to="/tours"
-            className="flex items-center gap-2 text-[13px] font-bold px-5 py-2.5 rounded-full text-white"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {backLabel}
-          </Link>
-        </div>
-      </div>
+        </main>
+      </TourDetailShell>
     );
   }
 
@@ -181,6 +239,8 @@ export default function TourDetailPage() {
   const title       = txt(tour.title, language);
   const summary     = txt(tour.summary, language);
   const description = txt(tour.description, language);
+  const regionLabel = TOUR_REGIONS.find((region) => region.key === tour.region);
+  const region = regionLabel ? txt(regionLabel.label, language) : tour.region;
 
   const durationLabel = (() => {
     const d = tour.durationDays;
@@ -196,10 +256,9 @@ export default function TourDetailPage() {
 
   const fromLabel = language === 'ko' ? '최저가' : language === 'ja' ? '最低価格' : language === 'zh' ? '起价' : 'From';
   const bookLabel = language === 'ko' ? '지금 예약하기' : language === 'ja' ? '今すぐ予約' : language === 'zh' ? '立即预订' : 'Book Now';
-  const highlightTitle = language === 'ko' ? '포함 사항' : language === 'ja' ? '含まれるもの' : language === 'zh' ? '包含内容' : 'Highlights';
-  const overviewTitle  = language === 'ko' ? '상품 설명' : language === 'ja' ? '商品説明' : language === 'zh' ? '产品说明' : 'Overview';
-  const itineraryTitle = language === 'ko' ? '세부 일정' : language === 'ja' ? '詳細スケジュール' : language === 'zh' ? '详细行程' : 'Itinerary';
-  const comingSoon     = language === 'ko' ? '다음 단계에서 추가됩니다' : language === 'ja' ? '次のセッションで追加予定' : language === 'zh' ? '将在下一阶段添加' : 'Full itinerary coming soon';
+  const highlightTitle = copy.highlightsLabel;
+  const overviewTitle  = copy.overviewLabel;
+  const itineraryTitle = copy.itineraryLabel;
   const hotelTitle     = language === 'ko' ? '추천 숙소' : language === 'ja' ? 'おすすめ宿泊施設' : language === 'zh' ? '推荐住宿' : 'Recommended Stays';
   const hotelSub       = language === 'ko' ? '투어와 함께 예약하면 더 편리해요' : language === 'ja' ? 'ツアーと一緒に予約してスムーズに' : language === 'zh' ? '与旅游同时预订，出行更便捷' : 'Book together for a seamless trip';
   const hotelFrom      = language === 'ko' ? '최저' : language === 'ja' ? 'から' : language === 'zh' ? '起' : 'from';
@@ -217,396 +276,137 @@ export default function TourDetailPage() {
                        : language === 'zh' ? `预订截止：出发前${TOUR_CUTOFF_HOURS}小时`
                        : `Booking closes ${TOUR_CUTOFF_HOURS}h before departure`;
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 정제 퍼플·핑크 (시각만). OFF=현재 그대로.
-  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
   return (
-    <div
-      className={`min-h-screen pb-36 ${isMobile ? 'cocotrip-mobile-tour-detail' : ''} ${REFINED ? 'refined-page' : ''}`}
-      style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
-    >
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: -200% 0; }
-          100% { background-position:  200% 0; }
-        }
-        .detail-shimmer {
-          background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: shimmer 3s linear infinite;
-        }
-        .hotel-hover { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-        .hotel-hover:hover {
-          border-color: rgba(182,104,252,0.30) !important;
-          box-shadow: 0 0 18px rgba(182,104,252,0.10);
-        }
-      `}</style>
+    <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
+      <main className="ec-root tour-detail-nonpayment" data-testid="tour-detail-nonpayment">
+        <div className="ec-container-wide">
+          <nav className="tour-detail-breadcrumb" aria-label={copy.documentLabel}>
+            <Link to="/tours"><ArrowLeft className="h-4 w-4" />{backLabel}</Link>
+            <ChevronRight className="h-4 w-4" aria-hidden />
+            <span className="tour-detail-breadcrumb-current">{title}</span>
+          </nav>
 
-      {/* ── 헤더 ── */}
-      <Header language={language} t={t} onLanguageChange={changeLanguage} />
+          <header className="tour-detail-masthead" data-testid="tour-detail-ready">
+            <div className="tour-detail-masthead-copy">
+              <p className="ec-eyebrow">{copy.documentLabel} · {region}</p>
+              <h1 className="ec-display mt-4" data-testid="tour-detail-heading">{title}</h1>
+              <p className="ec-body tour-detail-masthead-summary">{summary}</p>
+            </div>
+            {tour.suitability && <SuitabilityChips suitability={tour.suitability} language={language} />}
+          </header>
 
-      {/* ── 뒤로가기 브레드크럼 ── */}
-      <div className={`max-w-4xl mx-auto flex items-center gap-2 px-4 sm:px-6 pb-3 ${isMobile ? 'pt-20' : 'pt-24'}`}>
-        <Link
-          to="/tours"
-          className="flex items-center gap-1.5 text-[12px] text-white/55 hover:text-white/70 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {backLabel}
-        </Link>
-        <ChevronRight className="w-3 h-3 text-white/55" />
-        <span className="text-[12px] text-white/55 truncate max-w-[160px]">{title}</span>
-      </div>
-
-      {/* ── 이미지 갤러리 슬라이더 ── */}
-      <ImageGallery images={tour.images} photos={tour.photos} title={title} region={tour.region} isNight={tour.isNightTour} />
-
-      {/* ── 본문 ── */}
-      <div className="tour-detail-content max-w-4xl mx-auto px-4 sm:px-6 -mt-4 relative z-10">
-
-        {/* 제목 */}
-        <h1 className="text-[22px] font-black text-white leading-tight mb-1.5">{title}</h1>
-        <p className="text-[13px] text-white/55 mb-4 leading-relaxed">{summary}</p>
-
-        {/* 메타 칩 */}
-        <div className="flex flex-wrap gap-2 mb-5">
-          <span
-            className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.20)', color: '#C99FFF' }}
-          >
-            <Clock className="w-3 h-3" />{durationLabel}
-          </span>
-          <span
-            className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,107,157,0.08)', border: '1px solid rgba(255,107,157,0.20)', color: '#FF9EC2' }}
-          >
-            <Users className="w-3 h-3" />{t.vehicle?.[VEHICLE_KEY[tour.vehicleType]] || VEHICLE_FALLBACK[tour.vehicleType]}
-          </span>
-          {/* 별점 = 내부 실후기(published 집계) OR static+플래그. 실데이터만(가짜 차단). JSON-LD 와 동일 조건. */}
-          {(resolvedRating.reviewSource === 'internal' || import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true') && resolvedRating.rating && resolvedRating.rating > 0 && (
-            <span
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-              style={{ background: 'rgba(255,200,80,0.08)', border: '1px solid rgba(255,200,80,0.20)', color: '#FFD250' }}
-            >
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              {resolvedRating.rating.toFixed(1)}
-              {resolvedRating.reviewCount && resolvedRating.reviewCount > 0 && (
-                <span className="text-[10px] opacity-60">({resolvedRating.reviewCount})</span>
-              )}
-            </span>
-          )}
-          {(() => {
-            const langs = (tour.driverLanguages && tour.driverLanguages.length > 0)
-              ? tour.driverLanguages
-              : (['en'] as DriverLanguage[]);
-            return (
-              <span
-                className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-                style={{ background: 'rgba(140,200,255,0.08)', border: '1px solid rgba(140,200,255,0.20)', color: '#A0CBFF' }}
-                title={language === 'ko' ? '기사 가능 언어' : language === 'ja' ? 'ドライバー対応言語' : language === 'zh' ? '司机语言' : 'Driver languages'}
-              >
-                <Languages className="w-3 h-3" />
-                {langs.map(l => DRIVER_LANG_LABEL[l]).join(' · ')}
-              </span>
-            );
-          })()}
-        </div>
-
-        {/* 적합성 / 제약 칩 (휠체어·연령·체력 등) — tour.suitability 있을 때만 */}
-        {tour.suitability && (
-          <SuitabilityChips suitability={tour.suitability} language={language} />
-        )}
-
-        <div className="h-px bg-white/[0.06] mb-5" />
-
-        {/* 포함 사항 */}
-        <section className="mb-5">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{highlightTitle}</h2>
-          <ul className="space-y-2.5">
-            {tour.highlights.map((h, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#B668FC' }} />
-                <span className="text-[13px] text-white/65 leading-snug">{txt(h.text, language)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <div className="h-px bg-white/[0.06] mb-5" />
-
-        {/* 상품 설명 */}
-        <section className="mb-5">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{overviewTitle}</h2>
-          <p className="text-[13px] text-white/55 leading-relaxed">{description}</p>
-        </section>
-
-        {/* 영상 — video_embed_url 있을 때만 (자동재생 OFF — H7) */}
-        {tour.video_embed_url && (
-          <>
-            <div className="h-px bg-white/[0.06] mb-5" />
-            <section className="mb-5">
-              <iframe
-                src={tour.video_embed_url}
-                className="w-full aspect-video rounded-2xl border border-white/10"
-                title={title}
-                allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-              />
-            </section>
-          </>
-        )}
-
-        <div className="h-px bg-white/[0.06] mb-5" />
-
-        {/* 포함 / 별도 (Included / Not included) */}
-        <section className="mb-5">
-          <IncludedExcluded
-            language={language}
-            includedExtra={tour.included}
-            excludedExtra={tour.excluded}
-            // PR-L: 인라인 4-lang I18nString 제거 — 단일 source (locale JSON `tourDetail.airportPickup`).
-            // day_tour 카테고리만 공항 픽업 별도 명시 (사용자 가격 의문 해소).
-            excludedExtraKeys={tour.durationDays === 1 ? ['tourDetail.airportPickup'] : []}
-          />
-        </section>
-
-        <div className="h-px bg-white/[0.06] mb-5" />
-
-        {/* 세부 일정 — stops 데이터 있으면 timeline, 없으면 폴백 placeholder */}
-        <section className="mb-8">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{itineraryTitle}</h2>
-          {tour.stops && tour.stops.length > 0 ? (
-            <>
-              {/* 좌표가 있으면 타임라인 위에 지도 — 없으면 스스로 렌더 안 함 */}
-              <TourStopMap stops={tour.stops} language={language} title={itineraryTitle} />
-              <TourStopList stops={tour.stops} language={language} />
-            </>
-          ) : (
-            <div
-              className="flex items-center gap-3 px-4 py-4 rounded-2xl"
-              style={{
-                background: 'rgba(182,104,252,0.04)',
-                border: '1px dashed rgba(182,104,252,0.18)',
-              }}
-            >
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.20)' }}
-              >
-                <Package className="w-4 h-4" style={{ color: 'rgba(182,104,252,0.6)' }} />
-              </div>
-              <p className="text-[12px] text-white/55 italic">{comingSoon}</p>
+          {source === 'static' && error && (
+            <div className="tour-detail-partial" data-testid="tour-detail-partial" role="status">
+              <AlertTriangle className="h-5 w-5" aria-hidden />
+              <div><strong className="text-ec-ink">{copy.partialTitle}</strong><p className="ec-body-sm mt-1">{copy.partialBody}</p></div>
             </div>
           )}
-        </section>
 
-        {/* 미팅 포인트 — meeting_point 있을 때만 */}
-        {tour.meeting_point && (
-          <MeetingPointCard meeting_point={tour.meeting_point} language={language} />
-        )}
-
-        {/* 준비물 / 중요 정보 / 적합성 추가 안내 — 데이터 있는 항목만 노출 */}
-        <TourExtraInfo
-          whatToBring={tour.what_to_bring}
-          importantInfo={tour.important_info}
-          suitabilityNotes={tour.suitability?.notes}
-          language={language}
-        />
-
-        {/* FAQ — faqs 있을 때만 */}
-        {tour.faqs && tour.faqs.length > 0 && (
-          <TourFAQ faqs={tour.faqs} language={language} />
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════════
-            추천 숙소 — Trip.com 어필리에이트 (ID 는 src/config/affiliateLinks.ts SSOT)
-        ══════════════════════════════════════════════════════════════════ */}
-        {hotels.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-[15px] font-black text-white">{hotelTitle}</h2>
-                <p className="text-[11px] text-white/55 mt-0.5">{hotelSub}</p>
+          <section className="tour-detail-stage" aria-label={copy.factsLabel}>
+            <ImageGallery
+              key={tour.slug}
+              images={tour.images}
+              photos={tour.photos}
+              title={title}
+              isNight={tour.isNightTour}
+              language={language}
+              emptyLabel={copy.imageUnavailable}
+              nightLabel={copy.nightTourLabel}
+            />
+            <aside className="tour-detail-facts">
+              <p className="ec-eyebrow">{copy.factsLabel}</p>
+              <div className="tour-detail-facts-list">
+                <div className="tour-detail-fact"><Clock className="h-5 w-5" /><strong>{durationLabel}</strong></div>
+                <div className="tour-detail-fact"><Users className="h-5 w-5" /><strong>{t.vehicle?.[VEHICLE_KEY[tour.vehicleType]] || VEHICLE_FALLBACK[tour.vehicleType]}</strong></div>
+                <div className="tour-detail-fact"><Languages className="h-5 w-5" /><span><strong>{copy.driverLanguagesLabel}</strong><br />{((tour.driverLanguages && tour.driverLanguages.length > 0) ? tour.driverLanguages : (['en'] as DriverLanguage[])).map((driverLanguage) => DRIVER_LANG_LABEL[driverLanguage]).join(' · ')}</span></div>
+                {(resolvedRating.reviewSource === 'internal' || import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true') && resolvedRating.rating && resolvedRating.rating > 0 && (
+                  <div className="tour-detail-fact"><Star className="h-5 w-5" /><strong>{resolvedRating.rating.toFixed(1)}{resolvedRating.reviewCount ? ` (${resolvedRating.reviewCount})` : ''}</strong></div>
+                )}
               </div>
-              <span
-                className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'rgba(0,115,230,0.12)', border: '1px solid rgba(0,115,230,0.25)', color: '#2979FF' }}
-              >
-                Trip.com
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {hotels.map(hotel => {
-                const loc = hotel.location[language] ?? hotel.location.en;
-                const stars = Array.from({ length: hotel.stars });
-                return (
-                  /* 노출 계측 (2026-08-03) — 4개 표면 중 **레이아웃이 깨질 수 있는 유일한 곳**.
-                     부모가 grid(align-items: stretch)라 래퍼가 그리드 자식 자리를 가져가면
-                     `<a>` 가 콘텐츠 높이로 줄어 내부 `flex-1`·`mt-auto`(가격줄 바닥 고정)가
-                     무너진다 → `<a>` 에 `h-full` 을 준다. key 도 리스트 자식인 래퍼로 옮긴다.
-                     `hotel-hover` 는 실제 :hover CSS 라 래퍼로 옮기지 않는다. */
-                  <AffiliateCard
-                    key={hotel.id}
-                    payload={{
-                      product: 'hotel', placement: 'tour_detail_hotels', language,
-                      city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id,
-                    }}
-                  >
-                  <a
-                    href={hotel.affiliateUrl}
-                    target="_blank"
-                    rel="noopener noreferrer sponsored"
-                    onClick={() => trackAffiliateClick({
-                      product: 'hotel', placement: 'tour_detail_hotels', language,
-                      city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id,
-                    })}
-                    className="hotel-hover rounded-2xl overflow-hidden flex flex-col h-full"
-                    style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
-                  >
-                    {/* 이미지 */}
-                    <div className="relative w-full h-[105px] overflow-hidden bg-white/[0.04]">
-                      <img
-                        src={hotel.thumbnail}
-                        alt={hotel.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                      />
-                      <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ background: 'linear-gradient(135deg, #111827, #0d0618)' }}
-                        aria-hidden="true"
-                      >
-                        <p className="text-[10px] font-black" style={{ color: 'rgba(182,104,252,0.35)' }}>
-                          {hotel.region}
-                        </p>
-                      </div>
-                      {hotel.badge && (
-                        <div
-                          className="absolute bottom-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                          style={{ background: 'rgba(8,11,20,0.85)', border: '1px solid rgba(182,104,252,0.25)', color: '#C99FFF' }}
-                        >
-                          {hotel.badge[language] ?? hotel.badge.en}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 정보 */}
-                    <div className="p-3 flex flex-col gap-1.5 flex-1">
-                      <p className="text-[11px] font-bold text-white leading-tight line-clamp-2">{hotel.name}</p>
-                      <p className="text-[10px] text-white/55">{loc}</p>
-                      <div className="flex gap-0.5">
-                        {stars.map((_, i) => (
-                          <Star key={i} className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="text-[11px] font-black px-1.5 py-0.5 rounded-md"
-                          style={{ background: '#0073E6', color: '#fff' }}
-                        >
-                          {hotel.rating.toFixed(1)}
-                        </span>
-                        <span className="text-[10px] text-white/55">
-                          /10 · {hotel.reviewCount.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="mt-auto pt-1.5 border-t border-white/[0.05]">
-                        <p className="text-[10px] text-white/55">{hotelFrom}</p>
-                        <p className="text-[13px] font-black text-white">
-                          ${hotel.priceFrom}
-                          <span className="text-[10px] text-white/55 font-normal ml-0.5">{hotelNight}</span>
-                        </p>
-                      </div>
-                      <div
-                        className="flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-bold"
-                        style={{ background: '#0073E6', color: '#fff' }}
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        {hotelBtn}
-                      </div>
-                    </div>
-                  </a>
-                  </AffiliateCard>
-                );
-              })}
-            </div>
-            <p className="text-[9px] text-white/55 mt-2 text-center">{hotelDiscl}</p>
+            </aside>
           </section>
-        )}
-      </div>
 
-        {/* ── Reviews ── */}
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-8">
-          {resolvedRating.rating && resolvedRating.reviewCount && (
-            <div
-              className="rounded-2xl p-4 mb-4 flex items-center gap-3"
-              style={{ background: 'rgba(255,200,80,0.04)', border: '1px solid rgba(255,200,80,0.15)' }}
-            >
-              <Star className="w-5 h-5 fill-yellow-400 text-yellow-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-[18px] font-black text-white">{resolvedRating.rating.toFixed(1)}</span>
-                  <span className="text-[12px] text-white/55">
-                    {language === 'ko' ? `${resolvedRating.reviewCount}개 리뷰` :
-                     language === 'ja' ? `${resolvedRating.reviewCount}件のレビュー` :
-                     language === 'zh' ? `${resolvedRating.reviewCount}条评论` :
-                     `${resolvedRating.reviewCount} reviews`}
-                  </span>
-                  {resolvedRating.externalUrl ? (
-                    <a
-                      href={resolvedRating.externalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full underline-offset-2 hover:underline"
-                      style={{
-                        background: resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' : 'rgba(255,255,255,0.06)',
-                        color: resolvedRating.reviewSource === 'google' ? '#8AB4F8' : 'rgba(255,255,255,0.55)',
-                        border: resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' : '1px solid rgba(255,255,255,0.12)',
-                      }}
-                    >
-                      Google ↗
-                    </a>
-                  ) : (
-                    <span
-                      className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                      style={{
-                        background: resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' : 'rgba(255,255,255,0.06)',
-                        color: resolvedRating.reviewSource === 'google' ? '#8AB4F8' : 'rgba(255,255,255,0.55)',
-                        border: resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' : '1px solid rgba(255,255,255,0.12)',
-                      }}
-                    >
-                      {resolvedRating.reviewSource === 'google' ? 'Google'
-                        : (language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal')}
-                    </span>
-                  )}
+          <div className="tour-detail-content-grid">
+            <article className="tour-detail-article">
+              <section className="tour-detail-section">
+                <h2 className="ec-h2 tour-detail-section-heading">{highlightTitle}</h2>
+                <ul className="tour-detail-highlights">
+                  {tour.highlights.map((highlight, index) => (
+                    <li key={index} className="tour-detail-highlight"><CheckCircle2 className="h-5 w-5 shrink-0" /><span>{txt(highlight.text, language)}</span></li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="tour-detail-section">
+                <h2 className="ec-h2 tour-detail-section-heading">{overviewTitle}</h2>
+                <p className="ec-body ec-measure">{description}</p>
+              </section>
+
+              {tour.video_embed_url && (
+                <section className="tour-detail-section">
+                  <iframe src={tour.video_embed_url} className="tour-detail-video" title={title} allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture" allowFullScreen loading="lazy" />
+                </section>
+              )}
+
+              <section className="tour-detail-section">
+                <IncludedExcluded language={language} includedExtra={tour.included} excludedExtra={tour.excluded} excludedExtraKeys={tour.durationDays === 1 ? ['tourDetail.airportPickup'] : []} />
+              </section>
+
+              <section className="tour-detail-section">
+                <h2 className="ec-h2 tour-detail-section-heading">{itineraryTitle}</h2>
+                {tour.stops && tour.stops.length > 0 ? (
+                  <><TourStopMap stops={tour.stops} language={language} title={itineraryTitle} /><TourStopList stops={tour.stops} language={language} /></>
+                ) : (
+                  <div className="tour-detail-empty-itinerary" data-testid="tour-itinerary-empty">
+                    <EcEmpty title={copy.itineraryEmptyTitle} body={copy.itineraryEmptyBody} />
+                  </div>
+                )}
+              </section>
+
+              {tour.meeting_point && <MeetingPointCard meeting_point={tour.meeting_point} language={language} />}
+              <TourExtraInfo whatToBring={tour.what_to_bring} importantInfo={tour.important_info} suitabilityNotes={tour.suitability?.notes} language={language} />
+              {tour.faqs && tour.faqs.length > 0 && <TourFAQ faqs={tour.faqs} language={language} />}
+            </article>
+
+            {hotels.length > 0 && (
+              <section className="tour-detail-section tour-detail-hotel-section">
+                <div className="tour-detail-hotel-heading">
+                  <div><h2 className="ec-h2">{hotelTitle}</h2><p className="ec-body-sm mt-2">{hotelSub}</p></div>
+                  <span className="ec-chip">Trip.com</span>
                 </div>
-                <p className="text-[10px] text-white/55 mt-1">
-                  {resolvedRating.reviewSource === 'internal' || !resolvedRating.reviewSource
-                    ? (language === 'ko' ? '결제 완료 고객의 후기 기반 · Google 검증 연동 예정' :
-                       language === 'ja' ? '決済完了顧客のレビューに基づく · Google検証は今後対応' :
-                       language === 'zh' ? '基于已付款客户的评价 · Google 验证后续接入' :
-                       'Based on completed-booking reviews · Google verification coming soon')
-                    : (language === 'ko' ? '외부 검증된 평점' :
-                       language === 'ja' ? '外部認証評価' :
-                       language === 'zh' ? '外部验证评分' :
-                       'Externally verified rating')}
-                </p>
+                <div className="tour-detail-hotel-grid">
+                  {hotels.map((hotel) => {
+                    const location = hotel.location[language] || hotel.location.en;
+                    return (
+                      <AffiliateCard key={hotel.id} payload={{ product: 'hotel', placement: 'tour_detail_hotels', language, city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id }}>
+                        <a href={hotel.affiliateUrl} target="_blank" rel="noopener noreferrer sponsored" onClick={() => trackAffiliateClick({ product: 'hotel', placement: 'tour_detail_hotels', language, city: String(hotel.region || '').toLowerCase(), linkKey: hotel.id })} className="tour-detail-hotel-card">
+                          <div className="tour-detail-hotel-media"><div className="tour-detail-hotel-fallback" aria-hidden>{hotel.region}</div><img src={hotel.thumbnail} alt={hotel.name} loading="lazy" decoding="async" onError={(event) => { event.currentTarget.style.display = 'none'; }} />{hotel.badge && <span className="ec-chip tour-detail-hotel-badge">{hotel.badge[language] || hotel.badge.en}</span>}</div>
+                          <div className="tour-detail-hotel-body">
+                            <h3 className="text-base font-bold leading-snug text-ec-ink">{hotel.name}</h3><p className="text-sm text-ec-ink-3">{location}</p>
+                            <div className="tour-detail-hotel-rating"><Star className="h-4 w-4 text-ec-notice" /><strong>{hotel.rating.toFixed(1)}</strong><span>/10 · {hotel.reviewCount.toLocaleString()}</span></div>
+                            <div className="tour-detail-hotel-price"><p className="text-xs text-ec-ink-3">{hotelFrom}</p><p className="ec-figure text-lg">${hotel.priceFrom}<span className="ml-1 text-xs font-normal text-ec-ink-3">{hotelNight}</span></p></div>
+                            <span className="tour-detail-hotel-action"><ExternalLink className="h-4 w-4" />{hotelBtn}</span>
+                          </div>
+                        </a>
+                      </AffiliateCard>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-center text-xs text-ec-ink-3">{hotelDiscl}</p>
+              </section>
+            )}
+          </div>
+
+          <section className="tour-detail-reviews">
+            {resolvedRating.rating && resolvedRating.reviewCount && (
+              <div className="tour-detail-rating-summary">
+                <Star className="h-6 w-6" /><div><div className="flex flex-wrap items-center gap-2"><strong className="ec-figure text-xl">{resolvedRating.rating.toFixed(1)}</strong><span className="ec-body-sm">{language === 'ko' ? `${resolvedRating.reviewCount}개 리뷰` : language === 'ja' ? `${resolvedRating.reviewCount}件のレビュー` : language === 'zh' ? `${resolvedRating.reviewCount}条评论` : `${resolvedRating.reviewCount} reviews`}</span>{resolvedRating.externalUrl ? <a href={resolvedRating.externalUrl} target="_blank" rel="noopener noreferrer" className="tour-detail-rating-source">Google ↗</a> : <span className="tour-detail-rating-source">{resolvedRating.reviewSource === 'google' ? 'Google' : language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal'}</span>}</div></div>
               </div>
-            </div>
-          )}
-          <ReviewList targetType="tour" targetId={slug || ''} />
-        {/* 결제 직전 신뢰 신호 — 홈 TrustBadges 재사용(투어상세 전환 보강). 마진은 페이지용으로 조정,
-            mb 는 하단 고정 CTA 바에 안 가리게 여유. */}
-        <TrustBadges className="relative z-10 mt-8 mb-32 px-4" />
+            )}
+            <ReviewList targetType="tour" targetId={slug || ''} surface="paper" />
+          </section>
         </div>
+      </main>
 
       {/* ── 하단 고정 CTA 바 ── */}
       <div
@@ -616,25 +416,27 @@ export default function TourDetailPage() {
           backdropFilter: 'blur(12px)',
         }}
       >
-        {/* No Hidden Fees + PayPal 배지 */}
-        <div className="flex items-center gap-3 mb-2.5">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" style={{ color: '#B668FC' }} />
-            <span className="text-[10px] font-bold" style={{ color: 'rgba(182,104,252,0.80)' }}>
-              {noHiddenFees}
-            </span>
+        <div className="tour-detail-booking-meta mb-2.5" data-testid="tour-detail-booking-meta">
+          {/* No Hidden Fees + PayPal 배지 */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" style={{ color: '#B668FC' }} />
+              <span data-testid="tour-detail-trust-fees" className="text-[10px] font-bold" style={{ color: '#B668FC' }}>
+                {noHiddenFees}
+              </span>
+            </div>
+            <span className="w-px h-3 bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5" style={{ color: '#FF6B9D' }} />
+              <span data-testid="tour-detail-trust-paypal" className="text-[10px] font-bold" style={{ color: 'rgba(255,107,157,0.80)' }}>
+                {paypalLabel}
+              </span>
+            </div>
           </div>
-          <span className="w-px h-3 bg-white/10" />
-          <div className="flex items-center gap-1.5">
-            <CreditCard className="w-3.5 h-3.5" style={{ color: '#FF6B9D' }} />
-            <span className="text-[10px] font-bold" style={{ color: 'rgba(255,107,157,0.80)' }}>
-              {paypalLabel}
-            </span>
-          </div>
-        </div>
 
-        {/* PR-R (2026-05-08): 예약 마감 정책 안내 — 가격 카드 위에 한 줄 */}
-        <p className="text-[10px] text-white/55 mb-1.5 px-1">📅 {cutoffNote}</p>
+          {/* PR-R (2026-05-08): 예약 마감 정책 안내 — 가격 카드 위에 한 줄 */}
+          <p data-testid="tour-detail-cutoff-note" className="mt-1.5 text-[10px] text-white/55">📅 {cutoffNote}</p>
+        </div>
 
         {/* 가격 + 예약 버튼 */}
         <div className="flex items-center gap-3">
@@ -678,7 +480,7 @@ export default function TourDetailPage() {
           />
         </div>
       </div>
-    </div>
+    </TourDetailShell>
   );
 }
 
@@ -690,72 +492,69 @@ interface ImageGalleryProps {
   /** 어드민 투어 photos[] (webp variants 보유) — 있으면 images 대신 srcset 렌더 */
   photos?: TourPhoto[];
   title: string;
-  region: string;
   isNight?: boolean;
+  language: Language;
+  emptyLabel: string;
+  nightLabel: string;
 }
 
-function ImageGallery({ images, photos, title, isNight }: ImageGalleryProps) {
+function ImageGallery({ images, photos, title, isNight, language, emptyLabel, nightLabel }: ImageGalleryProps) {
   const { t } = useLanguage();
   const [current, setCurrent] = useState(0);
   const [touchStartX, setTouchStartX] = useState(0);
   const slides = buildGallerySlides(images, photos);
   const total = slides.length;
 
-  const prev = () => setCurrent(c => (c - 1 + total) % total);
-  const next = () => setCurrent(c => (c + 1) % total);
+  const prev = () => {
+    if (total < 2) return;
+    setCurrent((currentIndex) => (currentIndex - 1 + total) % total);
+  };
+  const next = () => {
+    if (total < 2) return;
+    setCurrent((currentIndex) => (currentIndex + 1) % total);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => setTouchStartX(e.touches[0].clientX);
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    if (Math.abs(diff) <= 40) return;
+    if (diff > 0) next();
+    else prev();
   };
 
   return (
     <div
-      className="tour-detail-gallery relative w-full h-[300px] md:h-[380px] lg:h-[440px] overflow-hidden"
+      className="tour-detail-gallery"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      role="region"
+      aria-label={title}
+      aria-roledescription={language === 'ko' ? '이미지 슬라이드' : language === 'ja' ? '画像スライド' : language === 'zh' ? '图片轮播' : 'image carousel'}
     >
       {/* 슬라이드 이미지들 — srcSet 은 variants 있는 photos[] 일 때만 (없으면 omit) */}
+      {slides.length === 0 && <div className="tour-detail-gallery-empty"><Package className="h-5 w-5" />{emptyLabel}</div>}
       {slides.map((slide, i) => (
         <div
           key={i}
-          className="absolute inset-0 transition-opacity duration-400"
+          className="tour-detail-gallery-slide"
           style={{ opacity: i === current ? 1 : 0, pointerEvents: i === current ? 'auto' : 'none' }}
+          aria-hidden={i !== current}
         >
           <img
             src={slide.src}
             srcSet={slide.srcSet}
             sizes={slide.srcSet ? '100vw' : undefined}
             alt={`${title} ${i + 1}`}
-            className="w-full h-full object-cover"
             loading={i === 0 ? 'eager' : 'lazy'}
           />
         </div>
       ))}
 
-      {/* 나이트 오버레이 */}
-      {isNight && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: 'rgba(5,3,20,0.30)' }}
-        />
-      )}
-
-      {/* 하단 그라데이션 */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-28 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, #0a0412 0%, transparent 100%)' }}
-      />
-
       {/* 나이트투어 뱃지 */}
       {isNight && (
-        <div
-          className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(10,5,40,0.82)', border: '1px solid rgba(184,160,255,0.30)' }}
-        >
-          <Moon className="w-3 h-3" style={{ color: '#B8A0FF' }} />
-          <span className="text-[10px] font-black tracking-[0.12em]" style={{ color: '#B8A0FF' }}>NIGHT TOUR</span>
+        <div className="tour-detail-gallery-badge">
+          <Moon className="h-4 w-4 text-ec-brand" />
+          <span>{nightLabel}</span>
         </div>
       )}
 
@@ -763,46 +562,38 @@ function ImageGallery({ images, photos, title, isNight }: ImageGalleryProps) {
       {total > 1 && (
         <>
           <button
+            type="button"
             onClick={prev}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(8,4,18,0.70)', border: '1px solid rgba(255,255,255,0.15)' }}
-            aria-label={t.a11y?.previousImage ?? 'Previous image'}
+            className="tour-detail-gallery-control tour-detail-gallery-control-prev"
+            aria-label={t.a11y?.previousImage || 'Previous image'}
           >
-            <ChevronLeft className="w-4 h-4 text-white/80" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           <button
+            type="button"
             onClick={next}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(8,4,18,0.70)', border: '1px solid rgba(255,255,255,0.15)' }}
-            aria-label={t.a11y?.nextImage ?? 'Next image'}
+            className="tour-detail-gallery-control tour-detail-gallery-control-next"
+            aria-label={t.a11y?.nextImage || 'Next image'}
           >
-            <ChevronRight className="w-4 h-4 text-white/80" />
+            <ChevronRight className="h-5 w-5" />
           </button>
 
           {/* 하단 인디케이터 점 — slides 기준(2026-07-17: photos[] 만 있는 admin 투어에서 images 기준이면 점 0개/개수 불일치) */}
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+          <div className="tour-detail-gallery-dots">
             {slides.map((_, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => setCurrent(i)}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === current ? '20px' : '6px',
-                  height: '5px',
-                  background: i === current
-                    ? 'linear-gradient(90deg, #B668FC, #FF6B9D)'
-                    : 'rgba(255,255,255,0.25)',
-                }}
-                aria-label={`${t.a11y?.goToImage ?? 'Go to image'} ${i + 1}`}
-              />
+                className="tour-detail-gallery-dot"
+                aria-current={i === current}
+                aria-label={`${t.a11y?.goToImage || 'Go to image'} ${i + 1}`}
+              ><span className="tour-detail-gallery-dot-mark" aria-hidden /></button>
             ))}
           </div>
 
           {/* 카운터 (우상단) */}
-          <div
-            className="absolute top-4 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(8,4,18,0.72)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.65)' }}
-          >
+          <div className="tour-detail-gallery-count">
             {current + 1} / {total}
           </div>
         </>
@@ -860,7 +651,7 @@ function TourExtraInfo({
   if (items.length === 0) return null;
 
   return (
-    <section className="mb-8">
+    <section className="tour-detail-section">
       <div className="space-y-2">
         {items.map((item) => (
           <ExtraInfoItem key={item.key} item={item} language={language} />
@@ -880,30 +671,24 @@ function ExtraInfoItem({
   const title = item.titleByLang[language] || item.titleByLang.en;
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
+    <div className="tour-detail-extra-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="tour-detail-accordion-button"
         aria-expanded={open}
       >
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-white/85">
+        <span className="flex items-center gap-2 text-sm font-semibold text-ec-ink">
           <span aria-hidden>{item.icon}</span>
           {title}
         </span>
         <ChevronDown
-          className={`w-4 h-4 shrink-0 text-white/55 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-ec-ink-3 transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className="px-4 pb-3.5 pt-1 border-t border-white/[0.04]">
-          <p className="text-[12px] text-white/65 leading-relaxed whitespace-pre-line">
+        <div className="border-t border-ec-line px-4 pb-4 pt-3">
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ec-ink-2">
             {item.content}
           </p>
         </div>

@@ -1,9 +1,10 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + the planner journey)**. Tours,
-> charter, guide and community bodies still run on the previous dark system and are
-> converted in a later PR. Read "Migration state" before assuming a page follows this
-> document.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail)**. The
+> tours catalogue, charter, guide and community bodies still run on the previous dark
+> system and are converted in later PRs. Public `/tours/:slug` detail pages are the
+> exception and now follow this document. Read "Migration state" before assuming a page
+> follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
 (`ec-*` utilities), plus `src/styles/editorial-planner.css` for the planner's own layer-3
@@ -226,8 +227,9 @@ keeps the same word from button to confirmation.
 | Header, mobile menu, bottom nav, footer, cookie banner | this system |
 | Home (`/`), all breakpoints | this system |
 | Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
+| Tour detail (`/tours/:slug`) — public non-payment body, all breakpoints | this system; booking, price and refund controls remain the previous protected money boundary |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner and the guide. Page bodies still on the dark system carry their own states |
-| Tours, charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
+| Tours catalogue (`/tours`), charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -270,6 +272,28 @@ Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshot
 
 새 gradient·glow·glass 는 넣지 않았다. 기존 다크 시스템의 그라디언트는 `.refined-tours` 와 함께
 그 페이지가 전환될 때 사라진다 — 여기서 부분적으로 걷어내면 보정 cascade 가 한 겹 더 생긴다.
+
+### 2026-08-12 — `/tours/:slug` 공개 비결제 상세
+
+같은 상세 화면이 모바일에서는 밝은 별도 덧칠, 데스크톱에서는 이전 다크 몸통을 써서 구조와 상태
+계약이 갈라져 있었다. 이를 **한 반응형 종이 셸**로 합쳤다. 결제 바깥 본문만 바꾸고 예약·가격·환불
+경계는 그대로 둔다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| `useTour` 의 loading/error/source 가 화면에서 사라져 실패도 404처럼 보임 | loading · error/retry · permission · not-found · partial-data · empty-itinerary 를 공용 `EcLoading`/`EcError`/`EcEmpty` 로 분리 |
+| 모바일 밝은 override와 데스크톱 다크 본문이 서로 다른 정보 구조 | breadcrumb → masthead → gallery → facts → overview → itinerary → meeting/FAQ/reviews 순서의 한 지면. 390/768/1440 모두 같은 DOM과 토큰 사용 |
+| 지역명이 원문 `tour.region` 으로 새어 ko/ja/zh 에 영어 표시 | 기존 `TOUR_REGIONS` 4언어 사전으로 표시하고 상품 데이터는 변경하지 않음 |
+| 갤러리·FAQ·지도 조작이 44px 미만이고 빈 일정이 오류처럼 보임 | 공개 비결제 조작과 Leaflet 확대/축소 44px 이상, 빈 일정은 중립 empty 상태 |
+| 정상 화면만 눈으로 확인해 실패·부분 데이터 회귀가 잠기지 않음 | localhost 전용 결정적 fixture. 운영 주소에서는 query가 무시되어 실제 데이터 경로를 우회하지 않음 |
+| 모든 투어에 가이드 동행을 암시하던 공용 신뢰 배지와 출처보다 강한 후기 문구 | 상품마다 가이드 포함 여부가 다르고 내부 후기 작성에 예약 번호가 필수가 아니므로 제거. 실제 집계 출처 칩만 표시 |
+| 이전 다크 본문을 전제로 투명하게 끝나던 고정 예약 바 상단 | 밝은 지면에서도 배지·예약 마감 문구가 읽히도록 두 줄 뒤에 불투명 단색 받침만 추가. 가격·예약·환불 동작과 문구는 그대로 |
+
+측정(로컬 production preview): 9개 정적 공개 투어 × 390/768/1440 × ko/en/ja/zh = 108회,
+대표 투어 7상태 × 같은 12조합 = 84회, 합계 **192회**. 문서 200 · 가로 넘침 0 · 본문
+44px 미만 조작 0 · 앱 페이지 오류 0 · 자체 도메인 4xx/5xx 0 · 운영 변경 요청 0.
+잠금은 `tests/e2e/tour-detail-editorial.spec.ts` 와
+`tests/unit/tour-detail-editorial-shell.test.ts` 다. 가격·상품·PayPal·예약·환불의 의미와 동작은 변경하지 않았다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 

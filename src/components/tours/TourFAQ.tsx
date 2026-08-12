@@ -26,15 +26,15 @@ interface Props {
 
 export function TourFAQ({ faqs, language }: Props) {
   const sorted = useMemo(() => {
-    return [...faqs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return [...faqs].sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [faqs]);
 
   if (sorted.length === 0) return null;
 
   return (
-    <section className="mb-8">
-      <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3 flex items-center gap-2">
-        <HelpCircle className="w-3.5 h-3.5" />
+    <section className="tour-detail-section">
+      <h2 className="ec-h3 tour-detail-section-heading flex items-center gap-2">
+        <HelpCircle className="h-5 w-5 text-ec-brand" />
         {HEADING[language] || HEADING.en}
       </h2>
 
@@ -53,27 +53,21 @@ function FaqItem({ faq, language }: { faq: FAQ; language: Language }) {
   const answer = txt(faq.answer, language);
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
+    <div className="tour-detail-faq-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="tour-detail-accordion-button"
         aria-expanded={open}
       >
-        <span className="text-[13px] font-semibold text-white/85 leading-snug">{question}</span>
+        <span className="text-sm font-semibold leading-snug text-ec-ink">{question}</span>
         <ChevronDown
-          className={`w-4 h-4 shrink-0 text-white/55 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-ec-ink-3 transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className="px-4 pb-3.5 pt-1 border-t border-white/[0.04]">
-          <p className="text-[12px] text-white/65 leading-relaxed whitespace-pre-line">
+        <div className="border-t border-ec-line px-4 pb-4 pt-3">
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ec-ink-2">
             {answer}
           </p>
         </div>

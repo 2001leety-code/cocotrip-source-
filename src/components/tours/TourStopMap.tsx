@@ -51,8 +51,8 @@ export function TourStopMap({ stops, language, title }: TourStopMapProps) {
   if (countStopsWithCoords(stops) < MIN_STOPS_FOR_MAP) return null;
 
   return (
-    <div className="mb-4">
-      <Suspense fallback={<div className="h-[220px] rounded-2xl bg-white/[0.03] animate-pulse" />}>
+    <div className="tour-detail-stop-map mb-5">
+      <Suspense fallback={<div className="h-[220px] animate-pulse rounded-ec-md bg-ec-sunken" />}>
         <CourseMiniMap stops={toCourseStops(stops, language)} title={title} />
       </Suspense>
     </div>

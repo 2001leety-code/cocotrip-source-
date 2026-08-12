@@ -1,0 +1,563 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tour detail — Korea Editorial Concierge
+
+   The old route had two unrelated skins: a dark desktop page and a mobile-only
+   repaint in index.css. This file owns one new class family instead. Every
+   value comes from the editorial token layer; the booking footer deliberately
+   stays outside these selectors because its payment semantics are not part of
+   this conversion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tour-detail-editorial {
+  min-height: 100vh;
+  background: var(--ec-surface-page);
+  color: var(--ec-text-primary);
+  font-family: var(--ecp-font-sans);
+}
+
+.tour-detail-nonpayment {
+  padding-bottom: 176px;
+}
+
+.tour-detail-state {
+  padding-block: clamp(96px, 14vw, 168px) 80px;
+}
+
+.tour-detail-state-panel {
+  width: min(100%, 720px);
+  margin-inline: auto;
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  overflow: hidden;
+}
+
+.tour-detail-loading-grid {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+}
+
+.tour-detail-loading-media {
+  min-height: 260px;
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-top: 20px;
+  color: var(--ec-text-muted);
+  font-size: 13px;
+}
+
+.tour-detail-breadcrumb a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  color: var(--ec-text-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tour-detail-breadcrumb a:hover {
+  color: var(--ec-text-primary);
+}
+
+.tour-detail-breadcrumb-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tour-detail-masthead {
+  display: grid;
+  gap: 16px;
+  padding-block: 28px 36px;
+  border-bottom: 1px solid var(--ec-line);
+}
+
+.tour-detail-masthead-copy {
+  max-width: 840px;
+}
+
+.tour-detail-masthead-summary {
+  max-width: var(--ec-measure);
+  margin-top: 16px;
+}
+
+.tour-detail-stage {
+  display: grid;
+  gap: 24px;
+  padding-block: 32px 48px;
+}
+
+.tour-detail-gallery {
+  position: relative;
+  min-width: 0;
+  height: clamp(300px, 48vw, 560px);
+  overflow: hidden;
+  background: var(--ec-surface-sunken);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-gallery-slide {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--ec-duration-slow) var(--ec-ease-standard);
+}
+
+.tour-detail-gallery-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tour-detail-gallery-empty {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ec-text-muted);
+  font-size: 14px;
+}
+
+.tour-detail-gallery-control {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-primary);
+  border: 1px solid var(--ec-line-contrast);
+  border-radius: var(--ec-radius-sm);
+  transition: border-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+
+.tour-detail-gallery-control:hover {
+  border-color: var(--ec-text-primary);
+}
+
+.tour-detail-gallery-control-prev { left: 12px; }
+.tour-detail-gallery-control-next { right: 12px; }
+
+.tour-detail-gallery-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  display: flex;
+  transform: translateX(-50%);
+}
+
+.tour-detail-gallery-dot {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+
+.tour-detail-gallery-dot-mark {
+  width: 8px;
+  height: 8px;
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line-contrast);
+  border-radius: var(--ec-radius-pill);
+}
+
+.tour-detail-gallery-dot[aria-current='true'] .tour-detail-gallery-dot-mark {
+  width: 24px;
+  background: var(--ec-brand);
+  border-color: var(--ec-brand);
+}
+
+.tour-detail-gallery-badge,
+.tour-detail-gallery-count {
+  position: absolute;
+  top: 12px;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-primary);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tour-detail-gallery-badge { left: 12px; }
+.tour-detail-gallery-count { right: 12px; }
+
+.tour-detail-facts {
+  align-self: start;
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  padding: 20px;
+}
+
+.tour-detail-facts-list {
+  margin-top: 16px;
+  border-top: 1px solid var(--ec-line);
+}
+
+.tour-detail-fact {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid var(--ec-line);
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+}
+
+.tour-detail-fact svg {
+  color: var(--ec-brand);
+}
+
+.tour-detail-fact strong {
+  color: var(--ec-text-primary);
+  font-weight: 650;
+}
+
+.tour-detail-partial {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-secondary);
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-partial svg {
+  color: var(--ec-notice);
+}
+
+.tour-detail-content-grid {
+  display: grid;
+  gap: 48px;
+  padding-bottom: 56px;
+}
+
+.tour-detail-article {
+  min-width: 0;
+}
+
+.tour-detail-section {
+  padding-block: 32px;
+  border-top: 1px solid var(--ec-line);
+}
+
+.tour-detail-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.tour-detail-section-heading {
+  margin-bottom: 16px;
+}
+
+.tour-detail-highlights {
+  display: grid;
+  gap: 12px;
+}
+
+.tour-detail-highlight {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  color: var(--ec-text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.tour-detail-highlight svg {
+  margin-top: 4px;
+  color: var(--ec-success);
+}
+
+.tour-detail-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-empty-itinerary {
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  overflow: hidden;
+}
+
+.tour-detail-hotel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tour-detail-hotel-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.tour-detail-hotel-card {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-primary);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  text-decoration: none;
+  transition: border-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+
+.tour-detail-hotel-card:hover {
+  border-color: var(--ec-line-contrast);
+}
+
+.tour-detail-hotel-media {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+  background: var(--ec-surface-sunken);
+}
+
+.tour-detail-hotel-media img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tour-detail-hotel-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ec-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tour-detail-hotel-badge {
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  left: 8px;
+}
+
+.tour-detail-hotel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.tour-detail-hotel-rating {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  color: var(--ec-text-secondary);
+  font-size: 12px;
+}
+
+.tour-detail-hotel-rating strong {
+  color: var(--ec-brand);
+}
+
+.tour-detail-hotel-price {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--ec-line);
+}
+
+.tour-detail-hotel-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  background: var(--ec-brand);
+  color: var(--ec-text-on-brand);
+  border-radius: var(--ec-radius-sm);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tour-detail-reviews {
+  padding-bottom: 48px;
+}
+
+.tour-detail-rating-summary {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 20px;
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-rating-summary > svg {
+  color: var(--ec-notice);
+}
+
+.tour-detail-rating-source {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding-inline: 12px;
+  color: var(--ec-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tour-detail-extra-card,
+.tour-detail-faq-card,
+.tour-detail-meeting-card,
+.tour-detail-stop-card,
+.tour-detail-include-card {
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-accordion-button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--ec-text-primary);
+  text-align: left;
+  transition: background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+
+.tour-detail-accordion-button:hover {
+  background: var(--ec-surface-sunken);
+}
+
+.tour-detail-map-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 12px;
+  color: var(--ec-brand-hover);
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-sm);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.tour-detail-booking-meta {
+  width: fit-content;
+  padding: 7px 10px;
+  background: rgb(8 11 20);
+  border-radius: var(--ec-radius-sm);
+}
+
+.tour-detail-stop-map .leaflet-control-zoom.leaflet-bar > a {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  line-height: 44px;
+}
+
+@media (min-width: 640px) {
+  .tour-detail-loading-grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.8fr);
+    padding: 32px;
+  }
+
+  .tour-detail-hotel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .tour-detail-masthead {
+    grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
+    align-items: end;
+  }
+
+  .tour-detail-stage {
+    grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
+    align-items: start;
+  }
+
+  .tour-detail-gallery {
+    height: 520px;
+  }
+
+  .tour-detail-facts {
+    position: sticky;
+    top: calc(var(--ec-shell-height-md) + 24px);
+  }
+
+  .tour-detail-content-grid {
+    grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
+  }
+
+  .tour-detail-article {
+    grid-column: 1 / 2;
+  }
+
+  .tour-detail-hotel-section {
+    grid-column: 1 / -1;
+  }
+
+  .tour-detail-hotel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .tour-detail-nonpayment {
+    padding-bottom: 208px;
+  }
+
+  .tour-detail-gallery-dots {
+    display: none;
+  }
+
+  .tour-detail-gallery-control-prev { left: 8px; }
+  .tour-detail-gallery-control-next { right: 8px; }
+}

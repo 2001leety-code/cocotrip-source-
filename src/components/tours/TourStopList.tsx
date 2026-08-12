@@ -10,10 +10,10 @@ function txt(field: I18nString | undefined, lang: Language): string {
   return field[lang] || field.en || field.ko || '';
 }
 
-function transitMethodIcon(method: TourTransit['method']) {
-  if (method === 'walk') return Footprints;
-  if (method === 'transit') return Train;
-  return Car;
+function TransitIcon({ method }: { method: TourTransit['method'] }) {
+  if (method === 'walk') return <Footprints className="h-3.5 w-3.5" />;
+  if (method === 'transit') return <Train className="h-3.5 w-3.5" />;
+  return <Car className="h-3.5 w-3.5" />;
 }
 
 function transitLabel(t: TourTransit, lang: Language): string {
@@ -62,13 +62,12 @@ export function TourStopList({ stops, language }: TourStopListProps) {
 }
 
 function TransitArrow({ transit, language }: { transit: TourTransit; language: Language }) {
-  const Icon = transitMethodIcon(transit.method);
   return (
-    <div className="flex items-center gap-2 pl-5 py-2 text-[11px] text-white/55">
-      <div className="w-px h-3 bg-white/15" />
-      <Icon className="w-3.5 h-3.5" />
+    <div className="flex items-center gap-2 py-3 pl-5 text-xs text-ec-ink-3">
+      <div className="h-4 w-px bg-ec-line-2" />
+      <TransitIcon method={transit.method} />
       <span>{transitLabel(transit, language)}</span>
-      {transit.note && <span className="text-white/55">· {txt(transit.note, language)}</span>}
+      {transit.note && <span>· {txt(transit.note, language)}</span>}
     </div>
   );
 }
@@ -79,20 +78,14 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
   const tip = txt(stop.tip, language);
 
   return (
-    <div
-      className="rounded-2xl p-4 flex gap-3"
-      style={{
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
+    <div className="tour-detail-stop-card flex flex-col gap-4 p-4 sm:flex-row">
       {stop.photo && (() => {
         // P117 (2026-05-20): TourStop.photo 가 string | TourPhoto 둘 다 허용 →
         // resolvePhotoUrl 통합. legacy_public_path 폴백 자동.
         const photoUrl = resolvePhotoUrl(stop.photo);
         if (!photoUrl) return null;
         return (
-          <div className="w-28 h-28 md:w-36 md:h-36 shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
+          <div className="h-44 w-full shrink-0 overflow-hidden rounded-ec-md bg-ec-sunken sm:h-32 sm:w-32 md:h-36 md:w-36">
             <img src={photoUrl} alt={name} className="w-full h-full object-cover" loading="lazy" />
           </div>
         );
@@ -100,13 +93,13 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-[11px] font-bold tabular-nums" style={{ color: '#B668FC' }}>
+          <span className="text-xs font-bold tabular-nums text-ec-brand">
             {stop.time}
           </span>
-          <h3 className="text-[14px] font-black text-white truncate">{name}</h3>
+          <h3 className="min-w-0 text-base font-bold text-ec-ink">{name}</h3>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px] text-white/55 mb-1.5">
+        <div className="mb-2 flex items-center gap-3 text-xs text-ec-ink-3">
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {stayLabel(stop.stay_min, language)}
@@ -117,10 +110,10 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
           </span>
         </div>
 
-        <p className="text-[12px] text-white/55 leading-snug mb-1.5">{description}</p>
+        <p className="mb-2 text-sm leading-relaxed text-ec-ink-2">{description}</p>
 
         {tip && (
-          <p className="text-[11px] text-white/55 italic leading-snug">
+          <p className="text-xs italic leading-relaxed text-ec-ink-3">
             {language === 'ko' ? '팁: ' : language === 'ja' ? 'ヒント: ' : language === 'zh' ? '小贴士：' : 'Tip: '}
             {tip}
           </p>
@@ -131,7 +124,7 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
             href={stop.naver_map_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-2 text-[10px] text-white/55 hover:text-white/70"
+            className="tour-detail-map-link mt-2"
           >
             <ExternalLink className="w-3 h-3" />
             {language === 'ko' ? '네이버 지도' : language === 'ja' ? 'Naverマップ' : language === 'zh' ? 'Naver地图' : 'Naver Map'}

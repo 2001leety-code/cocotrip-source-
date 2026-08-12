@@ -62,19 +62,13 @@ export function MeetingPointCard({ meeting_point: mp, language }: Props) {
   const heading = HEADING[language] || HEADING.en;
 
   return (
-    <section className="mb-8">
-      <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3 flex items-center gap-2">
-        <MapPin className="w-3.5 h-3.5" />
+    <section className="tour-detail-section">
+      <h2 className="ec-h3 tour-detail-section-heading flex items-center gap-2">
+        <MapPin className="h-5 w-5 text-ec-brand" />
         {heading}
       </h2>
 
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: 'rgba(182,104,252,0.04)',
-          border: '1px solid rgba(182,104,252,0.20)',
-        }}
-      >
+      <div className="tour-detail-meeting-card p-5">
         {mp.kind === 'multi_zone' ? (
           <MultiZoneView mp={mp} language={language} />
         ) : (
@@ -101,7 +95,7 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {photoUrl && (
-        <div className="rounded-xl overflow-hidden bg-white/[0.04]">
+        <div className="overflow-hidden rounded-ec-md bg-ec-sunken">
           <img
             src={photoUrl}
             alt={photoAlt}
@@ -114,10 +108,10 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
 
       <div className={photoUrl ? '' : 'sm:col-span-2'}>
         {addrText && (
-          <p className="text-[13px] font-bold text-white mb-1.5 leading-snug">{addrText}</p>
+          <p className="mb-2 text-sm font-bold leading-snug text-ec-ink">{addrText}</p>
         )}
         {mp.lat !== undefined && mp.lng !== undefined && (
-          <p className="text-[10px] text-white/40 tabular-nums mb-2">
+          <p className="mb-2 text-xs tabular-nums text-ec-ink-3">
             {mp.lat.toFixed(5)}, {mp.lng.toFixed(5)}
           </p>
         )}
@@ -128,12 +122,7 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
               href={naverUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-              style={{
-                background: 'rgba(0,200,81,0.08)',
-                border: '1px solid rgba(0,200,81,0.25)',
-                color: '#5DE1A1',
-              }}
+              className="tour-detail-map-link"
             >
               {NAVER[language] || NAVER.en}
               <ExternalLink className="w-3 h-3" />
@@ -144,12 +133,7 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
               href={gmapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-              style={{
-                background: 'rgba(66,133,244,0.08)',
-                border: '1px solid rgba(66,133,244,0.25)',
-                color: '#8AB4F8',
-              }}
+              className="tour-detail-map-link"
             >
               {GMAPS[language] || GMAPS.en}
               <ExternalLink className="w-3 h-3" />
@@ -158,8 +142,8 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
         </div>
 
         {instructionsText && (
-          <div className="mt-3 flex gap-2 text-[12px] text-white/65 leading-relaxed">
-            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#B668FC]" />
+          <div className="mt-4 flex gap-2 text-sm leading-relaxed text-ec-ink-2">
+            <Info className="mt-1 h-4 w-4 shrink-0 text-ec-brand" />
             <p className="whitespace-pre-line">{instructionsText}</p>
           </div>
         )}
@@ -169,13 +153,13 @@ function SinglePointView({ mp, language }: { mp: MeetingPoint; language: Languag
 }
 
 function MultiZoneView({ mp, language }: { mp: MeetingPoint; language: Language }) {
-  const zones = mp.zones ?? [];
+  const zones = mp.zones || [];
   const heading = ZONES_HEADING[language] || ZONES_HEADING.en;
   const instructionsText = txt(mp.instructions, language);
 
   return (
     <div>
-      <p className="text-[11px] font-black uppercase tracking-wider text-white/55 mb-2">
+      <p className="ec-eyebrow mb-3">
         {heading}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -184,8 +168,8 @@ function MultiZoneView({ mp, language }: { mp: MeetingPoint; language: Language 
         ))}
       </div>
       {instructionsText && (
-        <div className="mt-3 flex gap-2 text-[12px] text-white/65 leading-relaxed">
-          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#B668FC]" />
+        <div className="mt-4 flex gap-2 text-sm leading-relaxed text-ec-ink-2">
+          <Info className="mt-1 h-4 w-4 shrink-0 text-ec-brand" />
           <p className="whitespace-pre-line">{instructionsText}</p>
         </div>
       )}
@@ -195,23 +179,17 @@ function MultiZoneView({ mp, language }: { mp: MeetingPoint; language: Language 
 
 function ZoneCard({ zone, language }: { zone: PickupZone; language: Language }) {
   return (
-    <div
-      className="rounded-xl p-3"
-      style={{
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
-      <p className="text-[12px] font-bold text-white">{txt(zone.name, language)}</p>
-      <p className="text-[10px] text-white/55 mt-0.5">{txt(zone.area_label, language)}</p>
-      <div className="flex items-center gap-2 mt-1.5 text-[10px]">
+    <div className="rounded-ec-md border border-ec-line bg-ec-sunken p-4">
+      <p className="text-sm font-bold text-ec-ink">{txt(zone.name, language)}</p>
+      <p className="mt-1 text-xs text-ec-ink-3">{txt(zone.area_label, language)}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         {zone.pickup_time && (
-          <span className="text-white/65">
+          <span className="text-ec-ink-2">
             🕐 {PICKUP_TIME[language] || PICKUP_TIME.en}: <span className="font-semibold">{zone.pickup_time}</span>
           </span>
         )}
         {zone.surcharge_krw !== undefined && zone.surcharge_krw > 0 && (
-          <span style={{ color: '#FFD250' }}>
+          <span className="text-ec-notice">
             +{SURCHARGE[language] || SURCHARGE.en} ₩{zone.surcharge_krw.toLocaleString()}
           </span>
         )}
