@@ -20,11 +20,11 @@ const shareData: MoodBookingShareData = {
   serviceLabel: '차량',
   durationHours: 4,
   stops: [
-    { address: '서울역', payer: 'mood', lat: points[0].lat, lng: points[0].lng },
-    { address: '성수동', payer: 'influencer', lat: points[1].lat, lng: points[1].lng },
-    { address: '잠실', payer: 'influencer', lat: points[2].lat, lng: points[2].lng },
-    { address: '강남역', payer: 'influencer', lat: points[3].lat, lng: points[3].lng },
-    { address: '서울시청', payer: 'influencer', lat: points[4].lat, lng: points[4].lng },
+    { address: '서울역', moodPercentage: 100, lat: points[0].lat, lng: points[0].lng },
+    { address: '성수동', moodPercentage: 50, lat: points[1].lat, lng: points[1].lng },
+    { address: '잠실', moodPercentage: 50, lat: points[2].lat, lng: points[2].lng },
+    { address: '강남역', moodPercentage: 0, lat: points[3].lat, lng: points[3].lng },
+    { address: '서울시청', moodPercentage: 33, lat: points[4].lat, lng: points[4].lng },
   ],
   route: {
     km: 64,
@@ -53,7 +53,7 @@ const changeBooking: ChangeableMoodBooking = {
   revision: 2,
   influencerName: '예시 인플루언서',
   note: '촬영 장비가 있어 트렁크 공간을 확보해 주세요.',
-  coursePayers: ['mood', 'influencer', 'influencer', 'influencer', 'influencer'],
+  courseMoodPercentages: [100, 50, 50, 0, 33],
   breakdown: {
     origin: '서울역',
     waypoints: ['성수동', '잠실', '강남역'],

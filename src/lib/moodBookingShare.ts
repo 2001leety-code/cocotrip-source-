@@ -9,11 +9,14 @@ export type MoodBookingSharePhase = 'expected' | 'final';
 export type MoodBookingShareTollStatus = 'paid' | 'not-paid' | 'adjusted' | 'none';
 export type MoodBookingShareTollMode = 'estimated' | 'none' | 'actual';
 export type MoodBookingSharePayer = 'mood' | 'influencer';
+export type MoodCourseSharePreset = 'staff' | 'shared-airport' | 'event' | 'custom';
 
 export interface MoodBookingShareStop {
   address: string;
-  /** 이 번호 코스의 비용 부담자. 모든 코스에 반드시 지정한다. */
-  payer: MoodBookingSharePayer;
+  /** 이 번호 코스에서 MOOD가 부담하는 비율(0~100). */
+  moodPercentage?: number | null;
+  /** 구형 예약 호환: mood=100, influencer=0으로 변환한다. */
+  payer?: MoodBookingSharePayer | null;
   /** 비워 두면 출발/경유/도착이 순서에 맞게 자동 표시된다. */
   label?: string | null;
   time?: string | null;
@@ -68,14 +71,16 @@ export interface MoodBookingShareData {
 }
 
 export interface MoodBookingSharePayerTotal {
-  courseCount: number;
   totalKRW: number;
 }
 
 export interface MoodBookingShareCourseAllocation {
   courseNumber: number;
-  payer: MoodBookingSharePayer;
   amountKRW: number;
+  moodPercentage: number;
+  influencerPercentage: number;
+  moodKRW: number;
+  influencerKRW: number;
   stop: MoodBookingShareStop;
 }
 
@@ -115,6 +120,40 @@ export function formatMoodShareSignedKRW(value: number): string {
   return formatMoodShareKRW(amount);
 }
 
+export function normalizeMoodCoursePercentages(
+  raw: number[] | null | undefined,
+  stopCount: number,
+  legacyPayers?: MoodBookingSharePayer[] | null,
+  fallbackPercentage = 100,
+): number[] {
+  const count = Math.max(0, Math.floor(Number(stopCount) || 0));
+  const validRaw = Array.isArray(raw)
+    && raw.length === count
+    && raw.every((percentage) => Number.isInteger(percentage) && percentage >= 0 && percentage <= 100);
+  if (validRaw) return raw.slice();
+  const validLegacy = Array.isArray(legacyPayers)
+    && legacyPayers.length === count
+    && legacyPayers.every((payer) => payer === 'mood' || payer === 'influencer');
+  if (validLegacy) return legacyPayers.map((payer) => payer === 'mood' ? 100 : 0);
+  const fallback = Number.isInteger(fallbackPercentage) && fallbackPercentage >= 0 && fallbackPercentage <= 100
+    ? fallbackPercentage
+    : 100;
+  return Array.from({ length: count }, () => fallback);
+}
+
+export function moodCourseSharePreset(percentages: number[]): MoodCourseSharePreset {
+  if (percentages.length && percentages.every((value) => value === 100)) return 'staff';
+  if (percentages.length && percentages.every((value) => value === 50)) return 'shared-airport';
+  if (percentages.length && percentages.every((value) => value === 0)) return 'event';
+  return 'custom';
+}
+
+export function courseSharePresetPercentage(preset: Exclude<MoodCourseSharePreset, 'custom'>): number {
+  if (preset === 'shared-airport') return 50;
+  if (preset === 'event') return 0;
+  return 100;
+}
+
 /**
  * 전체 금액을 번호 코스 수로 동일 분배한다.
  * 원 단위로 나누고 남는 금액은 마지막 코스에 붙여 각 코스 합과 전체 금액을 맞춘다.
@@ -128,14 +167,26 @@ export function allocateMoodShareCostByCourse(
   const courseCount = validStops.length;
   const basePerCourseKRW = courseCount > 0 ? Math.floor(total / courseCount) : 0;
   const remainderKRW = courseCount > 0 ? total - basePerCourseKRW * courseCount : 0;
-  const courses = validStops.map((stop, index) => ({
-    courseNumber: index + 1,
-    payer: stop.payer === 'mood' ? 'mood' as const : 'influencer' as const,
-    amountKRW: basePerCourseKRW + (index === courseCount - 1 ? remainderKRW : 0),
-    stop,
-  }));
-  const moodCourses = courses.filter((course) => course.payer === 'mood');
-  const influencerCourses = courses.filter((course) => course.payer === 'influencer');
+  const courses = validStops.map((stop, index) => {
+    const amountKRW = basePerCourseKRW + (index === courseCount - 1 ? remainderKRW : 0);
+    const fallbackPercentage = stop.payer === 'influencer' ? 0 : 100;
+    const moodPercentage = normalizeMoodCoursePercentages(
+      typeof stop.moodPercentage === 'number' ? [stop.moodPercentage] : null,
+      1,
+      stop.payer ? [stop.payer] : null,
+      fallbackPercentage,
+    )[0];
+    const moodKRW = Math.round(amountKRW * moodPercentage / 100);
+    return {
+      courseNumber: index + 1,
+      amountKRW,
+      moodPercentage,
+      influencerPercentage: 100 - moodPercentage,
+      moodKRW,
+      influencerKRW: amountKRW - moodKRW,
+      stop,
+    };
+  });
   return {
     courseCount,
     totalKRW: courseCount > 0 ? total : 0,
@@ -143,12 +194,10 @@ export function allocateMoodShareCostByCourse(
     remainderKRW,
     courses,
     mood: {
-      courseCount: moodCourses.length,
-      totalKRW: moodCourses.reduce((sum, course) => sum + course.amountKRW, 0),
+      totalKRW: courses.reduce((sum, course) => sum + course.moodKRW, 0),
     },
     influencer: {
-      courseCount: influencerCourses.length,
-      totalKRW: influencerCourses.reduce((sum, course) => sum + course.amountKRW, 0),
+      totalKRW: courses.reduce((sum, course) => sum + course.influencerKRW, 0),
     },
   };
 }
@@ -272,8 +321,8 @@ export function formatMoodBookingShareText(data: MoodBookingShareData): string {
       const stop = course.stop;
       const label = String(stop.label || '').trim() || moodShareStopLabel(index, stops.length);
       const time = String(stop.time || '').trim();
-      const payer = moodSharePayerLabel(course.payer, data.influencerName);
-      return `${index + 1}. [${label}] ${String(stop.address || '').trim()}${time ? ` · ${time}` : ''} · ${payer} 부담 ${formatMoodShareKRW(course.amountKRW)}`;
+      const influencer = moodSharePayerLabel('influencer', data.influencerName);
+      return `${index + 1}. [${label}] ${String(stop.address || '').trim()}${time ? ` · ${time}` : ''} · MOOD ${course.moodPercentage}% ${formatMoodShareKRW(course.moodKRW)} · ${influencer} ${course.influencerPercentage}% ${formatMoodShareKRW(course.influencerKRW)}`;
     }),
   ];
 
@@ -287,8 +336,8 @@ export function formatMoodBookingShareText(data: MoodBookingShareData): string {
       `${finalCost ? '최종' : '예상'} 코스별 비용 분담`,
       `- 계산: ${formatMoodShareKRW(distribution.totalKRW)} ÷ ${distribution.courseCount}코스`,
       `- 코스당 기본 금액: ${formatMoodShareKRW(distribution.basePerCourseKRW)}${distribution.remainderKRW > 0 ? ` (나머지 ${formatMoodShareKRW(distribution.remainderKRW)}은 마지막 코스 반영)` : ''}`,
-      `- MOOD 부담: ${distribution.mood.courseCount}코스 · ${formatMoodShareKRW(distribution.mood.totalKRW)}`,
-      `- ${influencerLabel} 부담: ${distribution.influencer.courseCount}코스 · ${formatMoodShareKRW(distribution.influencer.totalKRW)}`,
+      `- MOOD 부담 합계: ${formatMoodShareKRW(distribution.mood.totalKRW)}`,
+      `- ${influencerLabel} 부담 합계: ${formatMoodShareKRW(distribution.influencer.totalKRW)}`,
     );
   }
   if (data.mapUrl) lines.push('', `동선 지도: ${data.mapUrl}`);

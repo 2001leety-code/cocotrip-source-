@@ -3,6 +3,8 @@ import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
 import { computeMoodTotalKRW, formatKRW, type MoodAirportCode, type MoodServiceType } from '@/lib/moodPricing';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
+import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
+import { normalizeMoodCoursePercentages } from '@/lib/moodBookingShare';
 
 interface RouteData {
   km: number;
@@ -23,6 +25,7 @@ export interface ChangeableMoodBooking {
   amountKRW: number;
   revision?: number;
   influencerName?: string | null;
+  courseMoodPercentages?: number[] | null;
   coursePayers?: Array<'mood' | 'influencer'> | null;
   note?: string | null;
   breakdown?: {
@@ -68,10 +71,8 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const [influencerName, setInfluencerName] = useState(booking.influencerName || '');
   const [note, setNote] = useState(booking.note || '');
   const [reason, setReason] = useState('');
-  const [coursePayers, setCoursePayers] = useState<Array<'mood' | 'influencer'>>(
-    Array.isArray(booking.coursePayers) && booking.coursePayers.length === initialPayerCount
-      ? booking.coursePayers.slice()
-      : Array.from({ length: initialPayerCount }, (_, index) => index === 0 ? 'mood' : 'influencer'),
+  const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>(
+    normalizeMoodCoursePercentages(booking.courseMoodPercentages, initialPayerCount, booking.coursePayers, booking.serviceType === 'airport' ? 50 : 100),
   );
   const [route, setRoute] = useState<RouteData | null>(null);
   const [directRoute, setDirectRoute] = useState<RouteData | null>(null);
@@ -134,19 +135,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const nextBalance = balanceKRW - adjustment;
   const routeBlocked = !!(origin.trim() || destination.trim()) && routeState !== 'ready';
   const courseItems = [
-    { address: origin.trim(), payerIndex: 0 },
-    ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), payerIndex: index + 1 })),
-    { address: destination.trim(), payerIndex: coursePayers.length - 1 },
+    { address: origin.trim(), percentageIndex: 0 },
+    ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
+    { address: destination.trim(), percentageIndex: courseMoodPercentages.length - 1 },
   ].filter((item) => item.address);
-  const coursePayerValues = courseItems.map((item, index) => coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer'));
-  const perCourseKRW = coursePayerValues.length ? Math.floor(estimate.amountKRW / coursePayerValues.length) : 0;
-  const payerSplit = coursePayerValues.reduce((result, payer, index) => {
-    const remainder = index === coursePayerValues.length - 1 ? estimate.amountKRW - perCourseKRW * coursePayerValues.length : 0;
-    const amount = perCourseKRW + remainder;
-    if (payer === 'mood') result.moodKRW += amount;
-    else result.influencerKRW += amount;
-    return result;
-  }, { moodKRW: 0, influencerKRW: 0 });
+  const courseMoodPercentageValues = courseItems.map((item) => courseMoodPercentages[item.percentageIndex] || 0);
 
   const selectAddress = async (setter: (value: string) => void) => {
     try {
@@ -180,7 +173,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
         waypoints: waypoints.map((waypoint) => waypoint.trim()).filter(Boolean),
         influencerName: influencerName.trim(),
         note: note.trim(),
-        coursePayers: coursePayerValues,
+        courseMoodPercentages: courseMoodPercentageValues,
       },
     };
     const signature = JSON.stringify(payload);
@@ -244,26 +237,14 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
           ))}
           {waypoints.map((waypoint, index) => (
             <label key={`waypoint-${index}`} className="block text-sm font-bold">경유지 {index + 1}
-              <div className="mt-1 flex gap-2"><input value={waypoint} maxLength={300} onChange={(event) => setWaypoints((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-3" /><button type="button" onClick={() => { setWaypoints((items) => items.filter((_, itemIndex) => itemIndex !== index)); setCoursePayers((items) => items.filter((_, itemIndex) => itemIndex !== index + 1)); }} className="rounded-xl bg-rose-500/15 px-3 text-rose-200">삭제</button></div>
+              <div className="mt-1 flex gap-2"><input value={waypoint} maxLength={300} onChange={(event) => setWaypoints((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-3" /><button type="button" onClick={() => { setWaypoints((items) => items.filter((_, itemIndex) => itemIndex !== index)); setCourseMoodPercentages((items) => items.filter((_, itemIndex) => itemIndex !== index + 1)); }} className="rounded-xl bg-rose-500/15 px-3 text-rose-200">삭제</button></div>
             </label>
           ))}
-          {waypoints.length < 5 && <button type="button" onClick={() => { setWaypoints((items) => [...items, '']); setCoursePayers((items) => [...items.slice(0, -1), 'influencer', items[items.length - 1] || 'influencer']); }} className="text-sm font-bold text-violet-300">+ 경유지 추가</button>}
+          {waypoints.length < 5 && <button type="button" onClick={() => { setWaypoints((items) => [...items, '']); setCourseMoodPercentages((items) => { const last = items[items.length - 1] === undefined ? 100 : items[items.length - 1]; return [...items.slice(0, -1), last, last]; }); }} className="text-sm font-bold text-violet-300">+ 경유지 추가</button>}
           {routeState === 'loading' && <p className="text-xs text-slate-400">동선을 다시 계산하는 중…</p>}
           {routeState === 'error' && <p className="text-xs font-bold text-rose-300">{routeError}</p>}
           <MoodRouteMap origin={origin} destination={destination} waypoints={waypoints.map((waypoint) => waypoint.trim()).filter(Boolean)} route={route} accent="#a78bfa" inputBg="#171923" inputBorder="1px solid rgba(255,255,255,.12)" textDim="#94a3b8" />
-          {courseItems.length >= 2 && (
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black">코스별 비용 부담자</p>
-              <p className="mb-2 text-[10px] text-slate-400">총액을 {courseItems.length}개 번호 코스로 똑같이 나눕니다.</p>
-              <div className="space-y-1.5">
-                {courseItems.map((item, index) => {
-                  const payer = coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer');
-                  return <div key={`${item.payerIndex}-${item.address}`} className="flex items-center gap-2 rounded-lg bg-white/5 p-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500 text-[10px] font-black">{index + 1}</span><span className="min-w-0 flex-1 truncate text-[11px]">{item.address}</span><button type="button" onClick={() => setCoursePayers((items) => items.map((value, payerIndex) => payerIndex === item.payerIndex ? (payer === 'mood' ? 'influencer' : 'mood') : value))} className={`rounded-full px-2 py-1 text-[10px] font-black ${payer === 'mood' ? 'bg-violet-400/20 text-violet-200' : 'bg-pink-400/20 text-pink-200'}`}>{payer === 'mood' ? 'MOOD 직원' : '인플루언서'}</button></div>;
-                })}
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs"><div className="rounded-lg bg-violet-400/10 p-2"><p className="text-[9px] text-slate-400">MOOD 직원</p><p className="font-black text-violet-200">{formatKRW(payerSplit.moodKRW)}</p></div><div className="rounded-lg bg-pink-400/10 p-2"><p className="text-[9px] text-slate-400">인플루언서</p><p className="font-black text-pink-200">{formatKRW(payerSplit.influencerKRW)}</p></div></div>
-            </div>
-          )}
+          {courseItems.length >= 2 && <MoodCourseShareEditor items={courseItems} percentages={courseMoodPercentages} totalKRW={estimate.amountKRW} influencerName={influencerName} onChange={setCourseMoodPercentages} />}
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4 text-center">
