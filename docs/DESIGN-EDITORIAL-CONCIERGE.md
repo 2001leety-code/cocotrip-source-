@@ -295,6 +295,18 @@ Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshot
 잠금은 `tests/e2e/tour-detail-editorial.spec.ts` 와
 `tests/unit/tour-detail-editorial-shell.test.ts` 다. 가격·상품·PayPal·예약·환불의 의미와 동작은 변경하지 않았다.
 
+### 2026-08-12 — `/charter` Step 3 표시 언어
+
+차터 몸통은 아직 이전 다크 시스템이다. 이 패스는 가격·상품·결제 구조를 바꾸지 않고, 목적지를
+고르는 Step 3의 표시 계층만 바로잡는다. 가격 자료가 `ko/en` 이름만 갖고 있어서 일본어·중국어가
+영어로 접히고, 장거리 경로는 네 언어 모두 `GANGNEUNG` 같은 내부 키가 그대로 보였다.
+
+- `destinationDisplayLabels.ts`가 공항 권역, 당일 투어, 장거리 도시, 공연장 이름을 네 언어로 표시한다.
+- 기존 `destinationKey`, 가격, 거리, 시간, 결제 상품 코드는 그대로 유지한다.
+- 긴 현지어 이름은 모바일에서 두 줄까지 보이고, 제목 영역은 늘 두 줄 높이를 유지한다. 카드 높이는 72px라 44px 터치 기준을 넘는다.
+- `tests/unit/charter-destination-i18n.component.test.tsx`가 현재 가격 자료의 카드 수, 원래 선택 키,
+  ko/en 회귀, ja/zh 영어 fallback 제거를 함께 잠근다.
+
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
 앞 문단의 "Open item — shared header touch targets (P3)" 는 **해소**됐다. 같은 뿌리에서
