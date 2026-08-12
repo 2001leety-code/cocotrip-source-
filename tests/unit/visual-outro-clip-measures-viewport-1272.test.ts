@@ -14,8 +14,6 @@ describe('plan detail visual smoke uses the current editorial document', () => {
   it('stubs a deterministic plan and never depends on production credentials', () => {
     expect(code).toMatch(/PLAN_FIXTURE/);
     expect(code).toMatch(/page\.route\('\*\*\/api\/get-plan\?\*\*'/);
-    expect(code).toMatch(/sessionStorage\.setItem\('vercel-live-feedback-optout', '1'\)/);
-    expect(code).toMatch(/page\.route\('https:\/\/vercel\.live\/\*\*'/);
     expect(code).not.toMatch(/PDF_GOLDEN_PLAN_ID|HEALTH_CHECK_EMAIL|signInWithPassword/);
   });
 

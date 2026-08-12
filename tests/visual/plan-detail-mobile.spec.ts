@@ -66,10 +66,8 @@ async function installDeterministicRoutes(page: Page, planStatus = 200) {
   await page.addInitScript(() => {
     window.localStorage.setItem('cocotrip_lang', 'en');
     window.localStorage.setItem('coco_promo_banner_dismissed_v1', 'true');
-    window.sessionStorage.setItem('vercel-live-feedback-optout', '1');
   });
   await suppressCookieBanner(page);
-  await page.route('https://vercel.live/**', (route) => route.abort());
   await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({
     status: 200,
     contentType: 'text/css',

@@ -116,6 +116,12 @@ describe('공용 셸 조작 target 44×44', () => {
     expect(logo.slice(0, 500)).toMatch(/min-h-\[44px\]/);
   });
 
+  it('작은 모바일 헤더는 보조 BETA 배지를 숨겨 조작 버튼이 화면 밖으로 밀리지 않는다', () => {
+    const title = HEADER_CODE.indexOf('title="Beta');
+    const badge = HEADER_CODE.slice(title - 240, title + 160);
+    expect(badge).toMatch(/hidden sm:inline-flex/);
+  });
+
   it('Wishlist·Cart 헤더 트리거가 44×44 이고 종이 위에서 보이는 잉크다', () => {
     for (const [name, src] of [
       ['WishlistPanel', stripComments(WISHLIST)],

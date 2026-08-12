@@ -233,7 +233,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* Beta badge — 상용화 전 기대치 조절. 공유 제안서(isPublicView)에선 숨김. */}
             {!isPublicView && (
               <span
-                className="ec-eyebrow border border-ec-line-2 rounded-ec-xs px-1.5 py-1 text-ec-ink-3"
+                className="ec-eyebrow hidden sm:inline-flex border border-ec-line-2 rounded-ec-xs px-1.5 py-1 text-ec-ink-3"
                 title="Beta — feedback welcome"
               >
                 BETA
