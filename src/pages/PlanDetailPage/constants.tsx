@@ -13,23 +13,22 @@ export const CAT_ICON: Record<string, LucideIcon> = {
 
 /**
  * 카테고리별 색 토큰 — Sprint 1 Step 1 (사용자 신고 "UI 개선 심각").
- * 모든 stop 카드가 동일 purple gradient → 시각 구분 약함.
+ * 모든 stop 카드가 동일한 보라색 강조선 → 시각 구분 약함.
  * 카테고리별 차별화로 한눈에 식당/문화/쇼핑 구분 + 시각 다양성.
  *
  * 각 토큰:
- *   - bar: 좌측 accent bar gradient (기존 BRAND.gradient.primaryVertical 대체)
- *   - icon: 아이콘 색 (기존 text-white/55 대체)
+ *   - bar: 좌측 accent bar 단색
+ *   - icon: 흰 종이 바탕에서도 읽히는 아이콘 색
  *   - bg: 카드 hover/expanded 시 미세한 tint (선택적)
  */
 export const CAT_COLORS: Record<string, { bar: string; icon: string; bg: string; ring: string }> = {
-  food:     { bar: 'linear-gradient(180deg, #F59E0B, #EA580C)', icon: 'text-amber-300',   bg: 'bg-amber-500/[0.04]',   ring: 'border-amber-500/30' },
-  culture:  { bar: 'linear-gradient(180deg, #818CF8, #6366F1)', icon: 'text-indigo-300',  bg: 'bg-indigo-500/[0.04]',  ring: 'border-indigo-500/30' },
-  shopping: { bar: 'linear-gradient(180deg, #F472B6, #EC4899)', icon: 'text-pink-300',    bg: 'bg-pink-500/[0.04]',    ring: 'border-pink-500/30' },
-  nature:   { bar: 'linear-gradient(180deg, #34D399, #059669)', icon: 'text-emerald-300', bg: 'bg-emerald-500/[0.04]', ring: 'border-emerald-500/30' },
-  landmark: { bar: 'linear-gradient(180deg, #60A5FA, #3B82F6)', icon: 'text-sky-300',     bg: 'bg-sky-500/[0.04]',     ring: 'border-sky-500/30' },
-  kpop:     { bar: 'linear-gradient(180deg, #E879F9, #C026D3)', icon: 'text-fuchsia-300', bg: 'bg-fuchsia-500/[0.04]', ring: 'border-fuchsia-500/30' },
-  // Default: 기존 brand purple
-  default:  { bar: 'linear-gradient(180deg, #B668FC, #7C5CFC)', icon: 'text-white/55',    bg: 'bg-white/[0.04]',       ring: 'border-white/[0.08]' },
+  food:     { bar: '#B45309', icon: 'text-amber-700',   bg: 'bg-amber-50',   ring: 'border-amber-200' },
+  culture:  { bar: '#4338CA', icon: 'text-indigo-700',  bg: 'bg-indigo-50',  ring: 'border-indigo-200' },
+  shopping: { bar: '#BE185D', icon: 'text-pink-700',    bg: 'bg-pink-50',    ring: 'border-pink-200' },
+  nature:   { bar: '#047857', icon: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'border-emerald-200' },
+  landmark: { bar: '#0369A1', icon: 'text-sky-700',     bg: 'bg-sky-50',     ring: 'border-sky-200' },
+  kpop:     { bar: '#A21CAF', icon: 'text-fuchsia-700', bg: 'bg-fuchsia-50', ring: 'border-fuchsia-200' },
+  default:  { bar: 'var(--ec-brand)', icon: 'text-ec-brand', bg: 'bg-ec-brand-wash', ring: 'border-ec-line-2' },
 };
 
 export function getCatColors(category: string | undefined) {

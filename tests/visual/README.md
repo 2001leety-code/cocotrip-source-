@@ -1,15 +1,15 @@
 # Visual Regression — `tests/visual/`
 
-CocoTrip 자율 검증 사각지대 L4 (시각 회귀 / 모바일 viewport) 게이트.
+CocoTrip 자율 검증 사각지대 L4 (시각 회귀 / 모바일 viewport) 게이트. 정적인 화면은 픽셀 기준선으로 비교하고, 인증·실시간 데이터 화면은 결정적 fixture로 구조와 실제 치수를 검사한 뒤 현재 화면을 artifact로 남긴다.
 
 P93 (모바일 section 탭 horizontal overflow) 같은 layout 회귀가 사용자에게 도달하기 전, PR 머지 단계에서 pixel-diff 로 자동 차단.
 
 ## 무엇
 
 - `playwright.visual.config.ts` — visual 전용 Playwright 설정 (e2e 와 분리)
-- `tests/visual/*.spec.ts` — 페이지별 snapshot 검증
+- `tests/visual/*.spec.ts` — 페이지별 snapshot 또는 결정적 시각 smoke 검증
   - `landing-mobile.spec.ts` — landing (/) 모바일 회귀 (P93)
-  - `plan-detail-mobile.spec.ts` — PlanDetailPage 모바일 회귀 (5/26 P206-P210 후속)
+  - `plan-detail-mobile.spec.ts` — PlanDetailPage 문서 셸의 overflow·44px·상태 검증 + 현재 화면 artifact
 - `tests/visual/*-snapshots/` — baseline PNG (Linux/chromium 기반)
 - `.github/workflows/pr-visual-regression.yml` — Vercel preview deploy 후 자동 비교
 
@@ -21,7 +21,7 @@ P92 (PDF cut-off) / P93 (모바일 탭 overflow) 같은 시각 영역 회귀는 
 
 ### CI (자동)
 
-`pr-visual-regression.yml` 가 Vercel preview deploy success 시 자동 실행. baseline 없으면 PR 코멘트로 "Run baseline generation locally" 안내 (PR block 안 함).
+`pr-visual-regression.yml` 가 Vercel preview deploy success 시 자동 실행. 픽셀 비교 spec은 baseline과 대조하고, PlanDetailPage처럼 데이터 의존성이 큰 spec은 route fixture로 같은 화면을 만든 뒤 구조·치수 assertion을 실행한다.
 
 ### 로컬 (baseline 생성 / 의도적 UI 변경 시)
 
@@ -57,35 +57,29 @@ PR 코멘트에 `[visual-baseline-regenerate]` 포함 시 CI 가 자동 `--updat
 
 ## 새 페이지 추가 — 절차
 
-1. `tests/visual/<page>-mobile.spec.ts` 작성 (landing-mobile.spec.ts 참조)
-2. **above-the-fold viewport clip 만 capture** — full-page 는 동적 콘텐츠 (광고/가격/추천) 로 매번 baseline drift
-3. **인증 필요 페이지** (PlanDetailPage 등): `injectFirebaseAuth(page)` 헬퍼 패턴 사용 (plan-detail-mobile.spec.ts 참조).
-   - `VITE_FIREBASE_API_KEY`, `HEALTH_CHECK_EMAIL`, `HEALTH_CHECK_PASSWORD` env 필수.
-   - Firebase REST → idToken → localStorage `firebase:authUser:<apiKey>:[DEFAULT]` inject.
-4. Docker 로 baseline 생성 (위 명령). env 는 Docker `-e` 플래그로 주입:
+1. `tests/visual/<page>-mobile.spec.ts` 작성
+2. 정적인 화면은 `landing-mobile.spec.ts`처럼 viewport clip과 Linux baseline을 사용한다.
+3. 인증·실시간 데이터 화면은 `plan-detail-mobile.spec.ts`처럼 요청을 결정적 fixture로 가로채고, overflow·touch target·상태 종료를 직접 단정한다. 운영 계정이나 가변 운영 문서에 의존하지 않는다.
+4. 픽셀 비교 spec을 추가했다면 Docker로 baseline을 생성한다:
    ```bash
    docker run --rm -it \
-     -e VITE_FIREBASE_API_KEY=xxx \
-     -e HEALTH_CHECK_EMAIL=xxx \
-     -e HEALTH_CHECK_PASSWORD=xxx \
-     -e PDF_GOLDEN_PLAN_ID=d064bbc6-dbe9-4bed-9e06-8db77f27ab4b \
      -e BASE_URL=https://cocotripkr.com \
      -v "${PWD}:/work" -w /work \
      mcr.microsoft.com/playwright:v1.60.0-noble \
      bash -c "npm ci && npx playwright test --config=playwright.visual.config.ts --update-snapshots"
    ```
-5. baseline PNG 들 + spec 같이 commit
+5. baseline PNG 들 + spec 같이 commit. assertion 기반 spec은 `testInfo.attach`로 현재 화면을 CI artifact에 남긴다.
 6. PR 에서 CI 자동 비교 시작
 
-### PlanDetailPage baseline 생성 주의사항
+### PlanDetailPage 주의사항
 
-- `PDF_GOLDEN_PLAN_ID` fixture plan (`d064bbc6-...`) 이 `arrival_guide` / `departure_guide` 포함하는지 확인 (A5/A6 PDF assertion 연동).
-- 동적 콘텐츠 (광고 슬라이드 / 환율 가격) 는 clip 으로 제외. T1/T2/T3 clip 좌표 유지.
-- PlanDetailPage 핵심 파일 변경 시 `R_PlanDetailVisual` lint rule 이 spec 존재를 자동 검사.
+- `/api/get-plan`, 리뷰 목록, 지도 타일, 외부 폰트를 spec 안에서 고정해 운영 데이터와 계정에 의존하지 않는다.
+- 문서 상단·일차 지도·권한 오류 상태의 screenshot을 artifact로 남겨 사람이 최종 화면을 확인할 수 있게 한다.
+- PlanDetailPage 핵심 파일 변경 시 `R_PlanDetailVisual` lint rule 이 spec 존재를 자동 검사한다.
 
 ## 위반 시
 
-`maxDiffPixelRatio: 0.01` (1%) 초과 픽셀 차이 발생 시 CI fail. tests/visual-report/ artifact 다운로드 → diff PNG 확인:
+픽셀 비교 spec은 `maxDiffPixelRatio: 0.01` (1%) 초과 시 실패한다. assertion 기반 spec은 overflow·44px·상태·DOM 계약이 깨지면 실패한다. `tests/visual-report/` artifact에서 diff 또는 현재 화면 PNG를 확인한다:
 - 의도된 UI 변경 → 로컬 `--update-snapshots` + 새 baseline commit
 - 회귀 → 코드 fix
 

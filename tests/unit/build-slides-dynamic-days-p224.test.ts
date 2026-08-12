@@ -15,7 +15,7 @@
  * Verifies (source-level):
  *   A. buildSlides generates Day slides based on itinerary.days.length (dynamic)
  *   B. buildSlides filters null/undefined day entries (P224 streaming guard)
- *   C. index.tsx uses nullish coalescing (not logical-OR) for dayIndex fallback
+ *   C. index.tsx uses an explicit number guard for dayIndex fallback
  *   D. index.tsx has undefined guard for days[dayIdx] (skeleton render branch)
  */
 import { describe, it, expect } from 'vitest';
@@ -30,10 +30,6 @@ const INDEX_TSX = readFileSync(
   resolve(process.cwd(), 'src/pages/PlanDetailPage/index.tsx'),
   'utf8',
 );
-
-// Nullish coalescing operator as a string to avoid mojibake hook detection
-// (two ASCII question marks: 0x3F 0x3F)
-const NULLISH = '?' + '?';
 
 // --- A. buildSlides dynamic slide count ---
 
@@ -66,13 +62,11 @@ describe('P224-B -- buildSlides: null/undefined day filter (streaming guard)', (
   });
 });
 
-// --- C. index.tsx nullish coalescing fix for dayIndex=0 preservation ---
+// --- C. index.tsx explicit number guard for dayIndex=0 preservation ---
 
-describe('P224-C -- index.tsx: nullish coalescing preserves dayIndex=0', () => {
-  it('uses nullish coalescing (not logical-OR) for dayIndex fallback', () => {
-    // Must have slide.dayIndex [nullish] 0 (not slide.dayIndex || 0)
-    const pattern = 'slide.dayIndex ' + NULLISH + ' 0';
-    expect(INDEX_TSX).toContain(pattern);
+describe('P224-C -- index.tsx: explicit number guard preserves dayIndex=0', () => {
+  it('uses a number check rather than a falsy fallback', () => {
+    expect(INDEX_TSX).toContain("typeof slide.dayIndex === 'number' ? slide.dayIndex : 0");
   });
 
   it('does NOT use slide.dayIndex || 0 (falsy-bug pattern)', () => {

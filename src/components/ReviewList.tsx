@@ -12,6 +12,7 @@ import { authFetch } from '@/lib/authFetch';
 interface Props {
   targetType: 'plan' | 'tour';
   targetId: string;
+  surface?: 'legacy' | 'paper';
 }
 
 interface ReviewItem {
@@ -26,7 +27,7 @@ interface ReviewItem {
   language?: string;
 }
 
-export function ReviewList({ targetType, targetId }: Props) {
+export function ReviewList({ targetType, targetId, surface = 'legacy' }: Props) {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -63,7 +64,7 @@ export function ReviewList({ targetType, targetId }: Props) {
   };
 
   const tRec = t as Record<string, unknown>;
-  const rl = (tRec.reviews as Record<string, string> | undefined) || {
+  const legacyReviews = (tRec.reviews as Record<string, string> | undefined) || {
     writeButton: 'Write a review',
     empty: 'Be the first to review',
     count: '{count} reviews',
@@ -73,48 +74,57 @@ export function ReviewList({ targetType, targetId }: Props) {
   const avgRating = reviews.length > 0
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : '0.0';
+  const paper = surface === 'paper';
+  const rl = paper ? t.planDetail.reviews : legacyReviews;
+
+  if (paper && !loading && reviews.length === 0 && !user) return null;
 
   return (
-    <div className="mt-10">
+    <section className={paper ? 'mt-10 border-t border-ec-line pt-8' : 'mt-10'} data-review-surface={surface}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-5 h-5 text-[#7C5CFC]" />
-          {reviews.length > 0 && (
-            <h3 className="text-white text-lg font-bold">
-              {rl.count?.replace('{count}', String(reviews.length)) || `${reviews.length} reviews`}
+          <MessageSquare className={paper ? 'h-5 w-5 text-ec-brand' : 'h-5 w-5 text-[#7C5CFC]'} aria-hidden />
+          {(paper || reviews.length > 0) && (
+            <h3 className={paper ? 'text-[18px] font-bold text-ec-ink' : 'text-lg font-bold text-white'}>
+              {reviews.length > 0
+                ? (rl.count?.replace('{count}', String(reviews.length)) || `${reviews.length} reviews`)
+                : rl.empty}
             </h3>
           )}
           {reviews.length > 0 && (
-            <span className="text-[#FFD700] text-sm font-semibold">★ {avgRating}</span>
+            <span className={paper ? 'text-sm font-semibold text-ec-notice' : 'text-sm font-semibold text-[#FFD700]'}>★ {avgRating}</span>
           )}
         </div>
         {user && !hasReviewed && (
           <button
+            type="button"
             onClick={() => setShowModal(true)}
-            className="px-4 py-2 rounded-xl bg-[#7C5CFC] bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className={paper ? 'ec-btn ec-btn-primary min-h-[44px]' : 'min-h-[44px] rounded-xl bg-[#7C5CFC] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90'}
           >
             {rl.writeButton}
           </button>
         )}
         {user && hasReviewed && (
-          <span className="text-white/55 text-xs">{rl.alreadyReviewed}</span>
+          <span className={paper ? 'text-xs text-ec-ink-3' : 'text-xs text-white/55'}>{rl.alreadyReviewed}</span>
         )}
       </div>
 
       {/* List */}
       {loading ? (
-        <div className="flex justify-center py-10">
-          <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
+        <div className="flex justify-center py-10" role="status" aria-label={paper ? t.planDetail.reviews.loading : 'Loading reviews'}>
+          <div className={paper ? 'h-6 w-6 animate-spin rounded-full border-2 border-ec-brand border-t-transparent' : 'h-6 w-6 animate-spin rounded-full border-2 border-[#7C5CFC] border-t-transparent'} />
         </div>
       ) : reviews.length === 0 ? (
-        <div className="text-center py-10 text-white/55 text-sm">
-          {rl.empty}
-        </div>
+        paper ? null : (
+          <div className="py-10 text-center text-sm text-white/55">
+            {rl.empty}
+          </div>
+        )
       ) : (
         <div className="space-y-3">
           {reviews.map(r => (
-            <ReviewCard key={r.id} review={r} onDelete={handleDelete} />
+            <ReviewCard key={r.id} review={r} onDelete={handleDelete} surface={surface} />
           ))}
         </div>
       )}
@@ -126,8 +136,9 @@ export function ReviewList({ targetType, targetId }: Props) {
           targetId={targetId}
           onClose={() => setShowModal(false)}
           onCreated={handleCreated}
+          surface={surface}
         />
       )}
-    </div>
+    </section>
   );
 }

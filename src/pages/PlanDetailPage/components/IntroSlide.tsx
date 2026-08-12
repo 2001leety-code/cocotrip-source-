@@ -6,7 +6,7 @@ import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDocument, PlanDay } from '../types';
-import { getPlanDetailDict } from '../types';
+import { getPlanDetailDict, getPlanDetailUI } from '../types';
 
 // 차량 내부키 → 고객용 라벨 (vehicleLabel[백엔드 humanize] 없을 때만 폴백 — staria_8 같은 raw 키 노출 방지).
 const VEHICLE_LABELS: Record<string, string> = {
@@ -26,6 +26,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
+  const ui = getPlanDetailUI(t);
 
   const it = plan.itinerary || {};
   const days = it.days || [];
@@ -42,6 +43,14 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   );
   const arrival = hasArrivalContent ? arrivalRaw : null;
   const input = plan.input || {};
+  const regionNames = ((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {};
+  const regions = Array.isArray((input as Record<string, unknown>).regions)
+    ? ((input as Record<string, unknown>).regions as string[])
+    : [];
+  const localizedRegions = regions.map((region) => {
+    const key = String(region || '').trim();
+    return regionNames[key.toLowerCase()] || regionNames[key] || key;
+  }).filter(Boolean);
 
   // 2026-06-23 (운영자 #3): pax 누락 시 "undefined pax" / 통계카드 "Pax: undefined" 노출 버그.
   // adults(없으면 pax)를 안전하게 숫자화 — 둘 다 없으면 null → 해당 세그먼트/카드 값 숨김.
@@ -60,39 +69,36 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   return (
     <div>
       {/* Title */}
-      <div className="text-center mb-8">
+      <div className="mb-8 border-b border-ec-line pb-6">
         {isTranslating && (
-          <div className="inline-flex items-center gap-2 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 rounded-full px-4 py-1.5 mb-3 text-[14px] text-[#7C5CFC]">
-            <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
-            Translating...
+          <div className="ec-chip ec-chip-brand mb-3" role="status" aria-live="polite">
+            <div className="h-3 w-3 animate-pulse rounded-full bg-ec-brand" aria-hidden />
+            {sw.translationInProgress || ui.loadingPlan}
           </div>
         )}
         {!isTranslating && translationError && (
-          <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-3 text-[14px] text-amber-200">
-            <span aria-hidden>⚠</span>
+          <div className="ec-chip mb-3 border-ec-notice text-ec-notice" role="status">
+            <span aria-hidden>!</span>
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
         {/* 🔴 2026-07-28: h1 → h2. 이 슬라이드와 페이지 헤더(index.tsx)가 동시에 h1 을
             내보내 한 화면에 h1 이 둘이었다. 문서 제목은 헤더 하나로 통일하고 여기는
             섹션 제목으로 낮춘다(보이는 크기·스타일은 그대로). */}
-        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
+        <h2 className="ec-h3 text-[clamp(24px,3vw,36px)]">
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h2>
-        <div className="flex items-center justify-center mt-1">
+        <div className="mt-2 flex items-center">
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
-        <p className="text-white/55 text-sm mt-2">
-
+        <p className="ec-body-sm mt-3">
           {input.startDate}
-          {/* 2026-06-23 (운영자 #3): pax 값 있을 때만 노출 — 없으면 "undefined pax" 방지. */}
-          {hasAdults ? ` | ${adultsNum} adults` : hasPax ? ` | ${paxRaw} pax` : ''}
-          {childrenNum > 0 && ` + ${childrenNum} children`}
+          {paxTotal != null ? ` | ${paxTotal} ${ui.planStatTravelers}` : ''}
           {(() => { const pr = plan.pricing as Record<string, any> | undefined; const v = pr?.vehicleLabel || (pr?.vehicle ? (VEHICLE_LABELS[pr.vehicle] || pr.vehicle) : ''); return v ? ` | ${v}` : ''; })()}
         </p>
-        {Array.isArray((input as Record<string, any>).regions) && (input as Record<string, any>).regions.length > 0 && (
-          <p className="text-white/75 text-sm mt-1.5 font-semibold tracking-wide">
-            {((input as Record<string, any>).regions as string[]).map((r) => r.charAt(0).toUpperCase() + r.slice(1)).join('  →  ')}
+        {localizedRegions.length > 0 && (
+          <p className="mt-1.5 text-[14px] font-semibold tracking-wide text-ec-ink-2">
+            {localizedRegions.join('  →  ')}
           </p>
         )}
       </div>
@@ -100,24 +106,24 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-2 mb-6">
         {[
-          { icon: <Calendar className="w-4 h-4" />, label: sw.introDaysLabel || 'Days', value: String(days.length || '-') },
-          { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
+          { icon: <Calendar className="w-4 h-4" />, label: ui.planStatDays || sw.introDaysLabel || 'Days', value: String(days.length || '-') },
+          { icon: <MapPin className="w-4 h-4" />, label: ui.planStatStops || 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
           // 2026-06-23 (운영자 #3): paxTotal null 시 '-' 폴백 (Days 카드와 동일 패턴) — "undefined" 방지.
-          { icon: <Users className="w-4 h-4" />, label: 'Pax', value: paxTotal != null ? String(paxTotal) : '-' },
+          { icon: <Users className="w-4 h-4" />, label: ui.planStatTravelers || 'Travelers', value: paxTotal != null ? String(paxTotal) : '-' },
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
         ].map((item, i) => (
-          <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
-            <span className="text-white/55 flex justify-center mb-1">{item.icon}</span>
-            <p className="text-[14px] text-white/55">{item.label}</p>
-            <p className="text-sm font-bold">{item.value}</p>
+          <div key={i} className="min-w-0 border-y border-ec-line px-2 py-3">
+            <span className="mb-1 flex text-ec-brand">{item.icon}</span>
+            <p className="truncate text-[12px] text-ec-ink-3">{item.label}</p>
+            <p className="ec-figure mt-1 truncate text-[14px]">{item.value}</p>
           </div>
         ))}
       </div>
 
       {/* 상단 고객 CTA — 공유 제안서에서 바로 맞춤/문의 (전환 동선 앞당김). */}
       <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
-        className="w-full mb-6 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
-        <MessageCircle className="w-5 h-5 text-green-400" /> {sw.customizeWhatsApp || 'Customize this trip on WhatsApp'}
+        className="ec-btn ec-btn-secondary mb-6 w-full">
+        <MessageCircle className="h-5 w-5 text-ec-success" aria-hidden /> {sw.customizeWhatsApp || 'Customize this trip on WhatsApp'}
       </a>
 
       {/* Arrival Guide */}

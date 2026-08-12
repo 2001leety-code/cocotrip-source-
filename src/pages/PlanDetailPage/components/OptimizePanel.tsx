@@ -49,28 +49,24 @@ export function OptimizePanel({ day, dayIndex, plan, onApplyOrder }: OptimizePan
   };
 
   return (
-    <div
-      className="mb-3 rounded-xl border p-3.5"
-      style={{ borderColor: 'rgba(124,92,252,0.25)', background: 'rgba(124,92,252,0.06)' }}
-    >
-      <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-white">
-        <Wand2 className="h-4 w-4 text-[#7C5CFC]" />
+    <section className="mb-3 rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5">
+      <p className="flex items-center gap-1.5 text-[13px] font-bold text-ec-ink">
+        <Wand2 className="h-4 w-4 text-ec-brand" aria-hidden />
         {op.panelTitle || 'Optimize suggestions'}
       </p>
       <div className="mt-2 space-y-2">
         {suggestions.map((s) => {
           if (s.type === 'time') {
             return (
-              <div key="time" className="rounded-lg bg-white/[0.04] border border-white/[0.07] p-2.5">
-                <p className="text-[12px] font-semibold text-white">{op.timeTitle || 'Shorter route order available'}</p>
-                <p className="mt-0.5 text-[11px] text-white/55">
+              <div key="time" className="rounded-ec-sm border border-ec-line bg-ec-raised p-3">
+                <p className="text-[13px] font-semibold text-ec-ink">{op.timeTitle || 'Shorter route order available'}</p>
+                <p className="mt-1 text-[12px] text-ec-ink-2">
                   {fmt(op.timeDetail || '{cur} km → {new} km (−{pct}%)', { cur: s.currentKm, new: s.proposedKm, pct: s.savingPct })}
                 </p>
                 <button
                   onClick={() => handleApply(s)}
                   disabled={applied}
-                  className="mt-2 flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] font-bold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg,#7C5CFC,#FF6B9D)' }}
+                  className="ec-btn ec-btn-primary mt-2 min-h-[44px] px-3 text-[12px] disabled:opacity-50"
                 >
                   {applied ? <Check className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
                   {op.timeApply || 'Apply new order'}
@@ -84,31 +80,31 @@ export function OptimizePanel({ day, dayIndex, plan, onApplyOrder }: OptimizePan
                 key="transport"
                 href={charterHref}
                 onClick={() => trackEvent('plan_optimize_charter_click', { day: day.day, transfers: s.totalTransfers })}
-                className="block rounded-lg bg-white/[0.04] border border-white/[0.07] p-2.5 hover:border-[#FF6B9D]/30 transition-colors"
+                className="block min-h-[44px] rounded-ec-sm border border-ec-line bg-ec-raised p-3 transition-colors hover:border-ec-line-3"
               >
-                <p className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
-                  <TrainFront className="h-3.5 w-3.5 text-[#FF6B9D]" />
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ec-ink">
+                  <TrainFront className="h-3.5 w-3.5 text-ec-brand" aria-hidden />
                   {fmt(op.transportTitle || '{n} transfers today', { n: s.totalTransfers })}
                 </p>
-                <p className="mt-0.5 text-[11px] text-white/55">
+                <p className="mt-1 text-[12px] text-ec-ink-2">
                   {op.transportDetail || 'A private charter covers this day door-to-door'} {'→'}
                 </p>
               </a>
             );
           }
           return (
-            <div key="walking" className="rounded-lg bg-white/[0.04] border border-white/[0.07] p-2.5">
-              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
-                <Footprints className="h-3.5 w-3.5 text-[#7C5CFC]" />
+            <div key="walking" className="rounded-ec-sm border border-ec-line bg-ec-raised p-3">
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ec-ink">
+                <Footprints className="h-3.5 w-3.5 text-ec-brand" aria-hidden />
                 {fmt(op.walkingTitle || '~{min} min of walking today', { min: s.totalWalkMin })}
               </p>
-              <p className="mt-0.5 text-[11px] text-white/55">
+              <p className="mt-1 text-[12px] text-ec-ink-2">
                 {op.walkingDetail || 'Consider reordering stops or a charter for heavy-walk days'}
               </p>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

@@ -6,16 +6,22 @@
 import { AlertTriangle, Mountain, Footprints, Clock, TrendingUp, Ruler } from 'lucide-react';
 import type { Language } from '@/i18n';
 import type { ActivityMeta } from '@/types/plan';
-import { DIFF_STYLE, T, DIFF_LABEL, HAZARD_LABEL, UNSUITABLE_LABEL, GEAR_LABEL, humanize, labelToken, isCutoff, parseCutoff } from '@/lib/activityMetaLabels';
+import { T, DIFF_LABEL, HAZARD_LABEL, UNSUITABLE_LABEL, GEAR_LABEL, humanize, labelToken, isCutoff, parseCutoff } from '@/lib/activityMetaLabels';
 
-const metric = 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[12px] text-white/70 bg-white/[0.05] border border-white/[0.08]';
+const metric = 'ec-chip inline-flex items-center gap-1 text-[12px]';
 
 export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; language: Language }) {
   if (!meta || (meta.activity_type !== 'trekking' && meta.activity_type !== 'running_route')) return null;
   const t = T[language] || T.en;
   const dl = DIFF_LABEL[language] || DIFF_LABEL.en;
   const diff = meta.difficulty ? String(meta.difficulty).toLowerCase() : '';
-  const ds = DIFF_STYLE[diff] || { color: '#9ca3af', bg: 'rgba(156,163,175,0.12)' };
+  const difficultyTone = diff === 'easy' || diff === 'beginner'
+    ? 'text-ec-success'
+    : diff === 'moderate' || diff === 'intermediate'
+      ? 'text-ec-notice'
+      : diff
+        ? 'text-ec-critical'
+        : 'text-ec-ink-2';
   const Icon = meta.activity_type === 'trekking' ? Mountain : Footprints;
   const hours = typeof meta.estimated_duration_min === 'number' ? Math.round((meta.estimated_duration_min / 60) * 10) / 10 : null;
 
@@ -28,8 +34,7 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
     <div className="mt-2 space-y-2" data-testid="activity-meta">
       {/* 활동 + 난이도 + 메트릭 */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-semibold"
-          style={{ color: ds.color, background: ds.bg, border: `1px solid ${ds.color}33` }}>
+        <span className={`ec-chip inline-flex items-center gap-1 text-[13px] font-semibold ${difficultyTone}`}>
           <Icon className="w-3 h-3" />
           {t[meta.activity_type]}{meta.difficulty ? ` · ${t.difficulty} ${dl[diff] || humanize(meta.difficulty)}` : ''}
         </span>
@@ -46,19 +51,17 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
 
       {/* 부적합 경고 배너 (SAFETY — 가장 눈에 띄게, 4개국어) */}
       {Array.isArray(meta.unsuitable_for) && meta.unsuitable_for.length > 0 && (
-        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px]"
-          style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: '#f87171' }} />
-          <span className="text-red-300"><b>{t.notFor}:</b> {meta.unsuitable_for.map((u) => labelToken(UNSUITABLE_LABEL, u, language)).join(', ')}</span>
+        <div className="flex items-start gap-1.5 border-l-2 border-ec-critical bg-ec-sunken px-2.5 py-1.5 text-[13px]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-critical" aria-hidden />
+          <span className="text-ec-critical"><b>{t.notFor}:</b> {meta.unsuitable_for.map((u) => labelToken(UNSUITABLE_LABEL, u, language)).join(', ')}</span>
         </div>
       )}
 
       {/* 시간 통과 제한 전용 배너 (SAFETY — 예: 한라산 진달래밭 12:30. 깨진 영어 대신 시간 명시) */}
       {cutoffs.length > 0 && (
-        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px]"
-          style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)' }}>
-          <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: '#fbbf24' }} />
-          <span className="text-amber-200">
+        <div className="flex items-start gap-1.5 border-l-2 border-ec-notice bg-ec-sunken px-2.5 py-1.5 text-[13px]">
+          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-notice" aria-hidden />
+          <span className="text-ec-notice">
             <b>{t.cutoff}:</b>{' '}
             {cutoffs.map((c, i) => {
               const { time, place } = parseCutoff(c);
@@ -71,9 +74,9 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
       {/* 위험 요소 칩 (컷오프 제외, 4개국어) */}
       {regularHazards.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[12px] text-red-400/80 font-medium">{t.hazards}:</span>
+          <span className="text-[12px] font-medium text-ec-critical">{t.hazards}:</span>
           {regularHazards.map((h) => (
-            <span key={h} className="rounded px-1.5 py-0.5 text-[12px] text-red-300 bg-red-500/10 border border-red-500/20">{labelToken(HAZARD_LABEL, h, language)}</span>
+            <span key={h} className="rounded-ec-sm border border-ec-line bg-ec-sunken px-2 py-1 text-[12px] text-ec-critical">{labelToken(HAZARD_LABEL, h, language)}</span>
           ))}
         </div>
       )}
@@ -81,15 +84,15 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
       {/* 준비물 칩 (advisory — 4개국어, 미등록 토큰은 humanize 폴백) */}
       {Array.isArray(meta.recommended_gear) && meta.recommended_gear.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[12px] text-white/65 font-medium">{t.gear}:</span>
+          <span className="text-[12px] font-medium text-ec-ink-2">{t.gear}:</span>
           {meta.recommended_gear.map((g) => (
-            <span key={g} className="rounded px-1.5 py-0.5 text-[12px] text-white/70 bg-white/[0.05] border border-white/[0.08]">{labelToken(GEAR_LABEL, g, language)}</span>
+            <span key={g} className="rounded-ec-sm border border-ec-line bg-ec-raised px-2 py-1 text-[12px] text-ec-ink-2">{labelToken(GEAR_LABEL, g, language)}</span>
           ))}
         </div>
       )}
 
       {meta.requires_advance_booking && (
-        <div className="text-[12px] text-amber-300/90">📅 {t.booking}</div>
+        <div className="text-[12px] text-ec-notice">📅 {t.booking}</div>
       )}
     </div>
   );

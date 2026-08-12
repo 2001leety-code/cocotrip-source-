@@ -37,28 +37,24 @@ export function RouteInsightCard({ segment, day, plan }: RouteInsightCardProps) 
   });
 
   return (
-    <div
-      className="my-2 ml-10 rounded-xl border p-3"
-      style={{ borderColor: 'rgba(255,107,157,0.25)', background: 'rgba(255,107,157,0.06)' }}
-    >
+    <aside className="my-2 ml-0 border-l-2 border-ec-notice bg-ec-sunken p-3 sm:ml-10">
       <div className="flex items-start gap-2.5">
-        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B9D]" />
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-ec-notice" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-bold leading-tight text-white">
+          <p className="text-[13px] font-bold leading-tight text-ec-ink">
             {ch.insightTitle || 'This segment is tiring by public transit'}
           </p>
-          <p className="mt-0.5 text-[11px] text-white/55">{reasonParts.join(' · ')}</p>
+          <p className="mt-1 text-[12px] text-ec-ink-2">{reasonParts.join(' · ')}</p>
         </div>
       </div>
       <a
         href={charterHref}
         onClick={() => trackEvent('charter_upsell_insight_click', { day: day.day, transfers: segment.transfers, walk_min: segment.walkMin, est_min: segment.estMin })}
-        className="m-cta mt-2.5 flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-full py-2 text-[12.5px] font-bold text-white transition-all hover:opacity-90"
-        style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}
+        className="ec-btn ec-btn-secondary mt-2.5 min-h-[44px] w-full text-[13px] text-ec-brand"
       >
         <Car className="h-3.5 w-3.5" />
         {ch.insightCta || 'Skip it with a private charter'} {'→'}
       </a>
-    </div>
+    </aside>
   );
 }

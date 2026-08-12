@@ -1,9 +1,8 @@
 // Add Stop modal -- bottom sheet on mobile, centered on desktop.
 // Collects: name, address (optional), start_time, stay_min, category.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND } from '@/lib/design-tokens';
 import { getPlanDetailDict } from '../types';
 
 interface AddStopModalProps {
@@ -28,6 +27,15 @@ const CATEGORIES = [
   { value: 'activity', labelKey: 'activity' },
 ];
 
+const CATEGORY_LABELS: Record<string, Record<string, string>> = {
+  landmark: { ko: '명소', en: 'Landmark', ja: '名所', zh: '景点' },
+  food: { ko: '음식', en: 'Food', ja: 'グルメ', zh: '美食' },
+  cafe: { ko: '카페', en: 'Cafe', ja: 'カフェ', zh: '咖啡馆' },
+  shopping: { ko: '쇼핑', en: 'Shopping', ja: 'ショッピング', zh: '购物' },
+  culture: { ko: '문화', en: 'Culture', ja: '文化', zh: '文化' },
+  activity: { ko: '체험', en: 'Activity', ja: '体験', zh: '体验' },
+};
+
 export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
@@ -43,6 +51,49 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   // Mobile keyboard detection: when an input has focus the on-screen keyboard
   // pushes ~350px up. Shrink modal max-h so the form + sticky submit stay visible.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const focusFrame = window.requestAnimationFrame(() => nameInputRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [onClose, open]);
 
   if (!open) return null;
 
@@ -71,17 +122,24 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       onClick={onClose}
+      role="presentation"
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-ec-inverse/45" />
       <div
-        className={`relative bg-[#1a1a2e] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-y-auto shadow-2xl transition-[max-height] duration-200 ${keyboardOpen ? 'max-h-[55vh]' : 'max-h-[85vh]'} sm:max-h-[85vh]`}
+        ref={dialogRef}
+        data-testid="plan-add-stop-modal"
+        tabIndex={-1}
+        className={`relative w-full overflow-y-auto rounded-t-ec-lg border border-ec-line bg-ec-raised shadow-ec-overlay transition-[max-height] duration-200 sm:max-w-md sm:rounded-ec-lg ${keyboardOpen ? 'max-h-[55vh]' : 'max-h-[85vh]'} sm:max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-stop-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
-          <h3 className="text-white font-semibold text-base">{ed.addStop || 'Add Stop'}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-            <X className="w-4 h-4 text-white/60" />
+        <div className="flex items-center justify-between border-b border-ec-line p-4">
+          <h3 id="add-stop-title" className="ec-h3 text-[20px]">{ed.addStop || 'Add Stop'}</h3>
+          <button type="button" onClick={onClose} className="ec-btn ec-btn-quiet min-h-[44px] min-w-[44px] px-0" aria-label={t.a11y?.close || 'Close'}>
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
 
@@ -89,15 +147,17 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-white/50 text-[14px] mb-1.5">{ed.nameLabel || 'Place name'}</label>
+            <label htmlFor="plan-stop-name" className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.nameLabel || 'Place name'}</label>
             <input
+              ref={nameInputRef}
+              id="plan-stop-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={namePh}
               onFocus={() => setKeyboardOpen(true)}
               onBlur={() => setKeyboardOpen(false)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/55 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+              className="ec-field text-base"
               autoFocus
               required
             />
@@ -105,33 +165,36 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
 
           {/* Address */}
           <div>
-            <label className="block text-white/50 text-[14px] mb-1.5">{ed.addressLabel || 'Address (optional)'}</label>
+            <label htmlFor="plan-stop-address" className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.addressLabel || 'Address (optional)'}</label>
             <input
+              id="plan-stop-address"
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               onFocus={() => setKeyboardOpen(true)}
               onBlur={() => setKeyboardOpen(false)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/55 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+              className="ec-field text-base"
             />
           </div>
 
           {/* Start Time + Duration */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-white/50 text-[14px] mb-1.5">{ed.startTimeLabel || 'Start time'}</label>
+              <label htmlFor="plan-stop-time" className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.startTimeLabel || 'Start time'}</label>
               <input
+                id="plan-stop-time"
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 onFocus={() => setKeyboardOpen(true)}
                 onBlur={() => setKeyboardOpen(false)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+                className="ec-field text-base"
               />
             </div>
             <div>
-              <label className="block text-white/50 text-[14px] mb-1.5">{ed.stayMinLabel || 'Duration (min)'}</label>
+              <label htmlFor="plan-stop-duration" className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.stayMinLabel || 'Duration (min)'}</label>
               <input
+                id="plan-stop-duration"
                 type="number"
                 value={stayMin}
                 onChange={(e) => setStayMin(Number(e.target.value) || 30)}
@@ -140,14 +203,14 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
                 step={15}
                 onFocus={() => setKeyboardOpen(true)}
                 onBlur={() => setKeyboardOpen(false)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+                className="ec-field text-base"
               />
             </div>
           </div>
 
           {/* Category */}
-          <div>
-            <label className="block text-white/50 text-[14px] mb-1.5">{ed.categoryLabel || 'Category'}</label>
+          <fieldset>
+            <legend className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.categoryLabel || 'Category'}</legend>
             <div className="flex flex-wrap gap-2">
               {CATEGORIES.map((cat) => (
                 <button
@@ -156,23 +219,23 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
                   onClick={() => setCategory(cat.value)}
                   className={`px-3 py-1.5 rounded-lg text-[14px] font-medium transition-colors min-h-[44px] ${
                     category === cat.value
-                      ? 'bg-[#7C5CFC] text-white'
-                      : 'bg-white/5 text-white/55 hover:bg-white/10'
+                      ? 'bg-ec-brand text-ec-on-brand'
+                      : 'border border-ec-line bg-ec-raised text-ec-ink-2 hover:border-ec-line-2'
                   }`}
+                  aria-pressed={category === cat.value}
                 >
-                  {cat.labelKey}
+                  {CATEGORY_LABELS[cat.labelKey][language] || CATEGORY_LABELS[cat.labelKey].en}
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           {/* Submit — sticky bottom so keyboard doesn't hide it */}
-          <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-2 bg-[#1a1a2e] border-t border-white/[0.06]">
+          <div className="sticky bottom-0 -mx-4 border-t border-ec-line bg-ec-raised px-4 pb-2 pt-3">
             <button
               type="submit"
               disabled={!name.trim()}
-              style={{ background: BRAND.gradient.primary }}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm hover:opacity-90 disabled:opacity-30 transition-opacity"
+              className="ec-btn ec-btn-primary w-full min-h-[44px]"
             >
               {ed.addBtn || 'Add'}
             </button>

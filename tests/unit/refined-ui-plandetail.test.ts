@@ -1,6 +1,5 @@
-// 정제 퍼플·핑크 — 플랜 결과 페이지(PlanDetailPage) 회귀 방지.
-// 시각만(글로우 제거 + 소프트 액센트). PDF/로직 무관 — pdfGenerator 는 document.body 에 별도 DOM(자체 Noto 폰트).
-// PDF 한글 폰트 안전 위해 세리프는 의도적으로 생략. firebase-free 소스 assertion.
+// 구형 정제 플래그를 제거하고 Editorial Concierge 종이 셸로 전환한 회귀 잠금.
+// PDF/데이터/편집 동작은 기존 배선을 유지한다.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -10,19 +9,21 @@ const read = (rel: string) => readFileSync(path.resolve(path.dirname(fileURLToPa
 const PD = read('../../src/pages/PlanDetailPage/index.tsx');
 const CSS = read('../../src/index.css');
 
-describe('플랜 결과 정제 플래그 (PlanDetailPage)', () => {
-  it('REFINED 플래그 + refined-plandetail 스코프 클래스', () => {
-    expect(PD).toMatch(/const REFINED\s*=/);
-    expect(PD).toMatch(/VITE_FEATURE_REFINED_UI\s*===\s*'true'/);
-    expect(PD).toMatch(/REFINED\s*\?\s*'refined-plandetail'\s*:\s*''/);
+describe('플랜 결과 Editorial Concierge 셸 (PlanDetailPage)', () => {
+  it('구형 REFINED 플래그 없이 공통 종이 셸을 쓴다', () => {
+    expect(PD).not.toMatch(/const REFINED\s*=/);
+    expect(PD).not.toContain('VITE_FEATURE_REFINED_UI');
+    expect(PD).toContain('className="ec-root min-h-screen"');
   });
 
-  it('cascade(index.css): 글로우 제거 + 소프트 액센트', () => {
-    expect(CSS).toMatch(/\.refined-plandetail[^{]*shadow-glow[^{]*\{[^}]*box-shadow:\s*none/);
-    expect(CSS).toMatch(/\.refined-plandetail \.m-shimmer[^{]*\{[^}]*caa9ff/);
+  it('공용 전역 cascade는 다른 화면 보호를 위해 유지한다', () => {
+    expect(CSS).toContain('.refined-plandetail');
+    expect(CSS).toContain('.planner-detail-mobile-ai');
+    expect(PD).not.toContain('refined-plandetail');
+    expect(PD).not.toContain('planner-detail-mobile-ai');
   });
 
-  it('PDF 안전: 플랜 결과엔 세리프 cascade 없음 (한글 PDF 폰트 위험 회피)', () => {
-    expect(CSS).not.toMatch(/\.refined-plandetail h1[^}]*Fraunces/);
+  it('PDF·편집·리뷰 배선은 그대로 남긴다', () => {
+    for (const contract of ['generatePDF', 'usePlanEditor', 'ReviewList']) expect(PD).toContain(contract);
   });
 });

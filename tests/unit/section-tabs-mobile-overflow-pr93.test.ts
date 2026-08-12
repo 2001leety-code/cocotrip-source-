@@ -3,7 +3,7 @@
  *
  * Pre-fix: SectionTabs.tsx had `overflow-x-auto scrollbar-hide` on the tab
  * row but no two things that make horizontal-scroll discoverable on mobile:
- *   1) No right-edge fade gradient → users can't see that more tabs exist
+ *   1) No right-edge affordance → users can't see that more tabs exist
  *      past the screen edge (scrollbar-hide actively hides the only signal).
  *   2) No scrollIntoView on activeKey change → as the user advances past
  *      Day 5 the active tab stays anchored, so Day 7 + Wrap-up live forever
@@ -16,9 +16,9 @@
  * Post-fix:
  *   1) `useEffect([activeKey])` → query `[aria-selected="true"]` and call
  *      `scrollIntoView({ inline: 'center' })`. Active tab is always visible.
- *   2) Right-edge fade gradient — a 16px `bg-gradient-to-l` overlay on the
- *      sticky parent (with `aria-hidden` + `pointer-events-none` so it
- *      never intercepts touches or screen-reader focus).
+ *   2) Right-edge solid arrow — a non-gradient overlay on the sticky parent
+ *      (with `aria-hidden` + `pointer-events-none` so it never intercepts
+ *      touches or screen-reader focus).
  *
  * If a future refactor strips either guard, the corresponding assertion
  * here fails and CI catches it before users do.
@@ -32,6 +32,10 @@ const tabsSrc = readFileSync(
     process.cwd(),
     'src/pages/PlanDetailPage/components/SectionTabs.tsx',
   ),
+  'utf8',
+);
+const mistakeLintSrc = readFileSync(
+  resolve(process.cwd(), 'scripts/lint-mistake-patterns.mjs'),
   'utf8',
 );
 
@@ -57,19 +61,27 @@ describe('P93 —SectionTabs mobile overflow visibility', () => {
     expect(tabsSrc).toMatch(/\}\s*,\s*\[activeKey\]\s*\)/);
   });
 
-  it('renders a right-edge fade gradient (scroll-affordance signal)', () => {
-    // Gradient is on the sticky parent (relative positioning context) so it
+  it('renders a right-edge solid scroll-affordance signal', () => {
+    // The signal is on the sticky parent (relative positioning context) so it
     // doesn't move with the scrolled tab row.
-    expect(tabsSrc).toMatch(/bg-gradient-to-l/);
-    // Must be non-interactive — gradient must not steal clicks or screen-reader
+    expect(tabsSrc).toMatch(/data-scroll-affordance/);
+    expect(tabsSrc).not.toMatch(/bg-gradient-to-l/);
+    // Must be non-interactive — the signal must not steal clicks or screen-reader
     // focus from the underlying tab buttons.
     expect(tabsSrc).toMatch(/pointer-events-none/);
     expect(tabsSrc).toMatch(/aria-hidden=["']true["']/);
+    expect(tabsSrc).toMatch(/ChevronRight/);
+  });
+
+  it('keeps mistake-lint aligned with the no-gradient design policy', () => {
+    expect(mistakeLintSrc).toMatch(/const hasSolidAffordance/);
+    expect(mistakeLintSrc).toMatch(/data-scroll-affordance/);
+    expect(mistakeLintSrc).toMatch(/!hasFade && !hasSolidAffordance/);
   });
 
   it('keeps scrollbar-hide + whitespace-nowrap layout (regression baseline)', () => {
     // The fix complements scrollbar-hide rather than replacing it — the
-    // scrollbar itself remains hidden (UX choice) but gradient+autoscroll
+    // scrollbar itself remains hidden (UX choice) but affordance+autoscroll
     // restore discoverability.
     expect(tabsSrc).toMatch(/scrollbar-hide/);
     expect(tabsSrc).toMatch(/whitespace-nowrap/);

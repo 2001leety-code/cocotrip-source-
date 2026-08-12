@@ -3117,7 +3117,7 @@ function P92_pdfCaptureCutoff({ changed }) {
  * src/pages/PlanDetailPage/components/SectionTabs.tsx 의 모바일 가로스크롤
  * 탭바 가시성 회귀 차단.
  *   - active tab `scrollIntoView({inline:'center'})` 누락 → Day 6+ 탭이 영영 viewport 밖.
- *   - 우측 fade gradient 누락 → 사용자가 가로 스크롤 가능성 인지 못 함 (scrollbar-hide 와 결합 시 치명적).
+ *   - 우측 스크롤 affordance 누락 → 사용자가 가로 스크롤 가능성 인지 못 함 (scrollbar-hide 와 결합 시 치명적).
  *
  * 회귀 슬롯: tests/unit/section-tabs-mobile-overflow-pr93.test.ts
  */
@@ -3139,14 +3139,21 @@ function P93_sectionTabsMobileOverflow({ changed }) {
     );
   }
 
-  // 2) 우측 fade gradient — 가로 스크롤 가능 시각 신호. scrollbar-hide 만 있으면 가시성 0.
+  // 2) 우측 시각 신호 — gradient 또는 명시적인 solid affordance 를 허용한다.
+  // 편집형 디자인 정책은 로고 밖 gradient 를 금지하므로, data marker 를 가진
+  // 비상호작용 solid affordance 도 동일한 회귀 방지 계약으로 인정한다.
   const hasFade =
     /bg-gradient-to-l/.test(content) &&
     /pointer-events-none/.test(content) &&
     /aria-hidden=["']true["']/.test(content);
-  if (!hasFade) {
+  const hasSolidAffordance =
+    /data-scroll-affordance/.test(content) &&
+    /pointer-events-none/.test(content) &&
+    /aria-hidden=["']true["']/.test(content) &&
+    /md:hidden/.test(content);
+  if (!hasFade && !hasSolidAffordance) {
     violations.push(
-      `${FILE}: 우측 fade gradient (bg-gradient-to-l + pointer-events-none + aria-hidden) 누락 — scrollbar-hide 와 결합 시 가로 스크롤 가능성 시각 신호 0`,
+      `${FILE}: 우측 스크롤 affordance (gradient 또는 data-scroll-affordance + pointer-events-none + aria-hidden + md:hidden) 누락 — scrollbar-hide 와 결합 시 가로 스크롤 가능성 시각 신호 0`,
     );
   }
 
@@ -3154,7 +3161,7 @@ function P93_sectionTabsMobileOverflow({ changed }) {
     fail(
       'P93_sectionTabsMobileOverflow',
       `${violations.length}건 — ${violations.join(' | ')}`,
-      '메모리 P93 — useEffect([activeKey]) scrollIntoView + 우측 fade gradient 둘 다 유지.',
+      '메모리 P93 — useEffect([activeKey]) scrollIntoView + 우측 비상호작용 스크롤 affordance 둘 다 유지.',
     );
   }
   return null;

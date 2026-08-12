@@ -48,7 +48,7 @@ export function TransitFallback({
 }: Props) {
   const { t } = useLanguage();
   // i18n keys live under t.planner namespace (same as wizard / hotel labels).
-  const tr = ((t as unknown) as { planner?: Record<string, string | undefined> }).planner ?? {};
+  const tr = ((t as unknown) as { planner?: Record<string, string | undefined> }).planner || {};
 
   // 좌표 둘 다 있어야 거리 계산 + Naver link 빌드 가능. 하나라도 null 이면 silent.
   if (prevLat == null || prevLng == null || currLat == null || currLng == null) return null;
@@ -62,9 +62,9 @@ export function TransitFallback({
     const walkMin = Math.max(3, Math.round(distM / 70));
     const taxiKRW = 4800 + Math.max(0, Math.ceil((distM - 1600) / 132)) * 100;
     return (
-      <div className="my-2 ml-4 px-3 py-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 flex items-center gap-2">
-        <Footprints className="w-3.5 h-3.5 text-amber-300/70 shrink-0" />
-        <p className="text-[11px] text-white/70 leading-tight">
+      <div className="my-2 ml-4 flex items-center gap-2 border-l-2 border-ec-notice bg-ec-sunken px-3 py-2.5">
+        <Footprints className="h-3.5 w-3.5 shrink-0 text-ec-notice" aria-hidden />
+        <p className="text-[12px] leading-relaxed text-ec-ink-2">
           {(tr.transitFallbackWalkOrTaxi || '~{walk}min walk · or taxi ~₩{taxi} ({dist}m)')
             .replace('{walk}', String(walkMin))
             .replace('{taxi}', taxiKRW.toLocaleString('ko-KR'))
@@ -85,7 +85,7 @@ export function TransitFallback({
         href={naverUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#03C75A]/[0.10] border border-[#03C75A]/30 text-[11px] text-[#5DDB91] hover:bg-[#03C75A]/[0.15] transition-colors"
+        className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[12px] text-ec-success"
       >
         <MapPin className="w-3 h-3" />
         <span>{(tr.transitFallbackNaverLink || 'View transit on Naver Map · {dist}km').replace('{dist}', distKm.toFixed(1))}</span>
