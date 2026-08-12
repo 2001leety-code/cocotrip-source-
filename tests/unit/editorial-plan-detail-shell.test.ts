@@ -15,11 +15,15 @@ const CONSTANTS = read('src/pages/PlanDetailPage/constants.tsx');
 const TRANSIT = read('src/pages/PlanDetailPage/components/TransitArrow.tsx');
 const EDIT = read('src/pages/PlanDetailPage/components/EditModeToggle.tsx');
 const ADD_STOP = read('src/pages/PlanDetailPage/components/AddStopModal.tsx');
-  const INTRO = read('src/pages/PlanDetailPage/components/IntroSlide.tsx');
-  const REVIEW_WRITE = read('src/components/ReviewWriteModal.tsx');
+const INTRO = read('src/pages/PlanDetailPage/components/IntroSlide.tsx');
+const PRE_TRIP = read('src/pages/PlanDetailPage/components/PreTripSlide.tsx');
+const ACTIVITY_GUIDE = read('src/pages/PlanDetailPage/components/ActivityGuideSlide.tsx');
+const OUTRO = read('src/pages/PlanDetailPage/components/OutroSlide.tsx');
+const AD = read('src/pages/PlanDetailPage/components/AdSlide.tsx');
+const REVIEW_WRITE = read('src/components/ReviewWriteModal.tsx');
 const ERROR = read('src/pages/PlanDetailPage/components/ErrorState.tsx');
-  const ROUTE_MAP = read('src/pages/PlanDetailPage/components/DayRouteMap.tsx');
-  const LIGHTBOX = read('src/pages/PlanDetailPage/components/Lightbox.tsx');
+const ROUTE_MAP = read('src/pages/PlanDetailPage/components/DayRouteMap.tsx');
+const LIGHTBOX = read('src/pages/PlanDetailPage/components/Lightbox.tsx');
 const TRANSIT_FALLBACK = read('src/pages/PlanDetailPage/components/TransitFallback.tsx');
 const LODGING = read('src/pages/PlanDetailPage/components/LodgingBookend.tsx');
 const ACTIVITY = read('src/pages/PlanDetailPage/components/ActivityMetaChips.tsx');
@@ -74,10 +78,26 @@ describe('PlanDetailPage editorial execution document', () => {
     for (const source of [
       INDEX, MASTHEAD, STATE, TABS, SWIPE, DAY, STOP, CONSTANTS, TRANSIT, EDIT, INTRO, ERROR,
       ADD_STOP, ROUTE_MAP, TRANSIT_FALLBACK, LODGING, ACTIVITY, SORTABLE, CONFIRM,
-      CHARTER, INSIGHT, OPTIMIZE, COMPARISON, LIGHTBOX,
+      CHARTER, INSIGHT, OPTIMIZE, COMPARISON, LIGHTBOX, PRE_TRIP, ACTIVITY_GUIDE, OUTRO, AD,
     ]) {
       expect(source).not.toMatch(/gradient|#0a0b14|text-white|bg-white\/\[|framer-motion/i);
     }
+  });
+
+  it('renders opaque modal scrims instead of unsupported token opacity utilities', () => {
+    expect(ADD_STOP).toContain('bg-black/45');
+    expect(ADD_STOP).toContain('data-testid="plan-add-stop-scrim"');
+    expect(LIGHTBOX).toContain('bg-black/90');
+    expect(LIGHTBOX).toContain('data-testid="plan-lightbox"');
+    expect(ADD_STOP).not.toContain('bg-ec-inverse/');
+    expect(LIGHTBOX).not.toContain('bg-ec-inverse/');
+  });
+
+  it('keeps every auxiliary slide on the paper palette', () => {
+    expect(PRE_TRIP).toContain('data-testid="plan-pre-trip-slide"');
+    expect(ACTIVITY_GUIDE).toContain('data-testid="plan-activity-guide-slide"');
+    expect(OUTRO).toContain('data-testid="plan-outro-slide"');
+    expect(AD).toContain('data-testid="plan-ad-slide"');
   });
 
   it('keeps navigation and editing controls at least 44px and fields at 16px', () => {

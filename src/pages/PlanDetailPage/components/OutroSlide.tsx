@@ -93,8 +93,8 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
   const pax = (input.pax as number) || (input.adults as number) || 2;
 
   return (
-    <div>
-      <h2 className="text-3xl font-extrabold tracking-tight leading-tight text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: 'var(--coco-cta-gradient)' }}>
+    <div data-testid="plan-outro-slide">
+      <h2 className="mb-6 text-center text-3xl font-extrabold leading-tight tracking-tight text-ec-ink">
         {sw.outroTitle || 'Ready to go!'}
       </h2>
 
@@ -108,14 +108,13 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       <div className="mt-8 space-y-3">
         {/* P207: isStreamingInProgress 추가 — 빈 plan PDF 다운로드 차단 */}
         <button onClick={onDownloadPDF} disabled={isPdfGenerating || isTranslating || !!isStreamingInProgress}
-          className="m-cta w-full py-4 rounded-full text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}>
+          className="ec-btn ec-btn-primary min-h-[48px] w-full gap-2 text-base font-bold">
           {isPdfGenerating ? (
-            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.outroPdfCta || 'Generating PDF...'}</>
+            <><div className="h-5 w-5 animate-spin rounded-full border-2 border-ec-on-brand border-t-transparent" /> {sw.outroPdfCta || 'Generating PDF...'}</>
           ) : isTranslating ? (
-            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.translatingWait || 'Translating... please wait'}</>
+            <><div className="h-5 w-5 animate-spin rounded-full border-2 border-ec-on-brand border-t-transparent" /> {sw.translatingWait || 'Translating... please wait'}</>
           ) : isStreamingInProgress ? (
-            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.streamingWait || 'Building itinerary...'}</>
+            <><div className="h-5 w-5 animate-spin rounded-full border-2 border-ec-on-brand border-t-transparent" /> {sw.streamingWait || 'Building itinerary...'}</>
           ) : (
             <><Download className="w-5 h-5" /> {sw.outroPdfCta || 'Download PDF itinerary'}</>
           )}
@@ -124,17 +123,17 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
             이거 누르면 .md 파일 받음 (메모장/Notion/Apple Notes 호환). 사진 X,
             텍스트만. 모바일/iOS popup blocker 영향 적음. */}
         <button onClick={handleDownloadMarkdown} disabled={isMdDownloading}
-          className="w-full py-3 rounded-2xl text-sm font-semibold text-white/85 flex items-center justify-center gap-2 border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] transition-colors disabled:opacity-60">
+          className="ec-btn ec-btn-secondary min-h-[44px] w-full gap-2 text-sm font-semibold">
           {isMdDownloading ? (
-            <><div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> {sw.downloading || 'Downloading...'}</>
+            <><div className="h-4 w-4 animate-spin rounded-full border-2 border-ec-ink-3 border-t-transparent" /> {sw.downloading || 'Downloading...'}</>
           ) : (
-            <><FileText className="w-4 h-4 text-white/70" /> {sw.outroMarkdownCta || 'Download text itinerary'}</>
+            <><FileText className="h-4 w-4 text-ec-ink-2" /> {sw.outroMarkdownCta || 'Download text itinerary'}</>
           )}
         </button>
 
         <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
-          className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
-          <MessageCircle className="w-5 h-5 text-green-400" /> {sw.whatsappBooking || 'WhatsApp Booking'}
+          className="ec-btn ec-btn-secondary min-h-[48px] w-full gap-2 border-ec-success text-base font-bold text-ec-success hover:border-ec-success">
+          <MessageCircle className="h-5 w-5 text-ec-success" /> {sw.whatsappBooking || 'WhatsApp Booking'}
         </a>
 
         {/* Share */}
@@ -177,7 +176,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       {/* Trip Extras (D-option ad cards moved out of slides) */}
       {extras.length > 0 && (
         <div className="mt-8">
-          <p className="text-[13px] uppercase tracking-wider text-white/55 font-semibold mb-3">
+          <p className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ec-ink-3">
             {sw.outroExtrasTitle || 'Trip extras'}
           </p>
           <div className="space-y-3">

@@ -155,6 +155,24 @@ test.describe('Plan detail editorial document visual smoke', () => {
       body: await page.screenshot({ animations: 'disabled' }),
       contentType: 'image/png',
     });
+
+    const tabs = page.getByTestId('section-tabs-scroll').getByRole('tab');
+    const tabCount = await tabs.count();
+    await tabs.nth(tabCount - 2).click();
+    await expect(page.getByTestId('plan-pre-trip-slide')).toBeVisible();
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+    await testInfo.attach('plan-detail-pre-trip', {
+      body: await page.screenshot({ animations: 'disabled', fullPage: true }),
+      contentType: 'image/png',
+    });
+
+    await tabs.nth(tabCount - 1).click();
+    await expect(page.getByTestId('plan-outro-slide')).toBeVisible();
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+    await testInfo.attach('plan-detail-wrap-up', {
+      body: await page.screenshot({ animations: 'disabled', fullPage: true }),
+      contentType: 'image/png',
+    });
   });
 
   test('permission state is a complete terminal surface', async ({ page }, testInfo) => {

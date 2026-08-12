@@ -205,6 +205,30 @@ for (const viewport of VIEWPORTS) {
           const dayOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
           expect(dayOverflow).toBeLessThanOrEqual(1);
 
+          const tabCount = await tabs.count();
+          await tabs.nth(tabCount - 2).click();
+          const preTripSlide = page.getByTestId('plan-pre-trip-slide');
+          await expect(preTripSlide).toBeVisible();
+          const preTripHeadingStyle = await preTripSlide.locator('h2').evaluate((heading) => {
+            const style = window.getComputedStyle(heading);
+            return { color: style.color, backgroundImage: style.backgroundImage };
+          });
+          expect(preTripHeadingStyle).toEqual({ color: 'rgb(20, 20, 26)', backgroundImage: 'none' });
+
+          await tabs.nth(tabCount - 1).click();
+          const outroSlide = page.getByTestId('plan-outro-slide');
+          await expect(outroSlide).toBeVisible();
+          const outroHeadingStyle = await outroSlide.locator('h2').evaluate((heading) => {
+            const style = window.getComputedStyle(heading);
+            return { color: style.color, backgroundImage: style.backgroundImage };
+          });
+          expect(outroHeadingStyle).toEqual({ color: 'rgb(20, 20, 26)', backgroundImage: 'none' });
+          const outroActionHeights = await outroSlide.locator(':scope > div.mt-8 button, :scope > div.mt-8 a').evaluateAll(
+            (actions) => actions.map((action) => action.getBoundingClientRect().height),
+          );
+          expect(outroActionHeights.length).toBeGreaterThanOrEqual(3);
+          expect(outroActionHeights.every((height) => height >= 44)).toBe(true);
+
           const hostname = new URL(page.url()).hostname;
           if (hostname === '127.0.0.1' || hostname === 'localhost') {
             await page.goto('/my-plans/editorial-owner?localPlan=editorial-owner', { waitUntil: 'domcontentloaded' });
@@ -251,6 +275,7 @@ for (const viewport of VIEWPORTS) {
             );
             expect(modalButtonHeights.length).toBeGreaterThan(1);
             expect(modalButtonHeights.every((height) => height >= 44)).toBe(true);
+            await expect(page.getByTestId('plan-add-stop-scrim')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0.45)');
             await page.keyboard.press('Escape');
             await expect(modal).toBeHidden();
           }

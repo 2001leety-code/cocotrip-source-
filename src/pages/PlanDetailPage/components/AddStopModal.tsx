@@ -129,7 +129,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
       onClick={onClose}
       role="presentation"
     >
-      <div className="absolute inset-0 bg-ec-inverse/45" />
+      <div data-testid="plan-add-stop-scrim" className="absolute inset-0 bg-black/45" />
       <div
         ref={dialogRef}
         data-testid="plan-add-stop-modal"

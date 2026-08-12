@@ -48,7 +48,8 @@ export function Lightbox({ src, alt, closeLabel = 'Close', onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-ec-inverse/90 p-4 sm:p-8"
+      data-testid="plan-lightbox"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4 sm:p-8"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
