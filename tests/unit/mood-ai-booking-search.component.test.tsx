@@ -105,7 +105,7 @@ describe('MoodAiBooking 주소 검색 UI (PR1 실렌더 잠금)', () => {
     // 실패 UI 사라짐 + 선택 주소 반영
     await waitFor(() => {
       expect(screen.queryByText(/주소를 찾지 못했습니다/)).toBeNull();
-      expect(screen.getByText(/제2터미널대로 446/)).toBeTruthy();
+      expect(screen.getAllByText(/제2터미널대로 446/).length).toBeGreaterThanOrEqual(1);
     });
 
     // 4) 전 stop 좌표 확보 → 500ms 디바운스 후 mood-route 호출 → km·톨 반영
@@ -183,6 +183,7 @@ describe('MoodAiBooking 날짜별 예약 분리 (PR3 실렌더 잠금)', () => {
   it('예약 요청에 활성 그룹 날짜 + 항공편 메모(note) 자동 첨부', async () => {
     await renderAndParse();
 
+    fireEvent.click(screen.getByRole('button', { name: /공동 탑승/ }));
     fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
     await waitFor(() => {
       const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
@@ -190,6 +191,8 @@ describe('MoodAiBooking 날짜별 예약 분리 (PR3 실렌더 잠금)', () => {
       const body = JSON.parse((bookCall![1] as { body: string }).body);
       expect(body.date).toBe('2026-07-15'); // 첫 그룹 날짜 prefill
       expect(body.note).toBe('✈️ KE765 15:10'); // 그룹 항공편만 첨부
+      expect(body.courseMoodPercentages).toEqual([50, 50]);
+      expect(body.coursePayers).toBeUndefined();
     });
   });
 });
@@ -242,6 +245,8 @@ describe('MoodAiBooking 공항 정액 분리 (김포 80,000 / 인천 110,000)', 
       const body = JSON.parse((bookCall![1] as { body: string }).body);
       expect(body.serviceType).toBe('airport');
       expect(body.airportCode).toBe('GMP');
+      expect(body.courseMoodPercentages).toEqual([50, 50]);
+      expect(body.coursePayers).toBeUndefined();
     });
   });
 

@@ -4,6 +4,8 @@
  * 확정된 MOOD 예약의 전체 스냅샷을 교체하고, 서버에서 현재 요율과 실제 경로를
  * 다시 계산한다. 예약과 고객 잔액, 감사 이벤트, 알림 outbox, 멱등성 응답은 한
  * Firestore 트랜잭션에서 함께 기록한다.
+ * booking.courseMoodPercentages 는 출발·경유·도착 수와 같은 0~100 정수 배열이며,
+ * 구 쓰기 필드 booking.coursePayers 는 400으로 거부한다.
  */
 import { createHash } from 'node:crypto';
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -24,6 +26,7 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'POST, OPTIONS';
+const COURSE_SHARE_SCHEMA_VERSION = 2;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const REQUIRED_SNAPSHOT_FIELDS = [
@@ -41,6 +44,57 @@ const REQUIRED_SNAPSHOT_FIELDS = [
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function legacyPayersForPercentages(percentages) {
+  if (!percentages.every((percentage) => percentage === 0 || percentage === 100)) return null;
+  return percentages.map((percentage) => percentage === 100 ? 'mood' : 'influencer');
+}
+
+function routeStopCount(breakdown) {
+  const value = breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) ? breakdown : {};
+  const origin = typeof value.origin === 'string' ? value.origin.trim() : '';
+  const destination = typeof value.destination === 'string' ? value.destination.trim() : '';
+  const waypoints = value.waypoints === undefined || value.waypoints === null ? [] : value.waypoints;
+  if (!Array.isArray(waypoints) || waypoints.some((waypoint) => typeof waypoint !== 'string' || !waypoint.trim())) return null;
+  if (!origin && !destination && waypoints.length === 0) return 0;
+  if (!origin || !destination) return null;
+  return waypoints.length + 2;
+}
+
+function normalizeStoredCourseShare(booking) {
+  const stopCount = routeStopCount(booking.breakdown);
+  if (stopCount === null) return { ok: false };
+  const hasCanonicalField = hasOwn(booking, 'courseMoodPercentages') || hasOwn(booking, 'courseShareSchemaVersion');
+  if (hasCanonicalField) {
+    const percentages = booking.courseMoodPercentages;
+    if (
+      booking.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+      || !Array.isArray(percentages)
+      || percentages.length !== stopCount
+      || percentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
+    ) {
+      return { ok: false };
+    }
+    return { ok: true, percentages: percentages.slice(), payers: legacyPayersForPercentages(percentages) };
+  }
+  if (hasOwn(booking, 'coursePayers') && booking.coursePayers !== null) {
+    const payers = booking.coursePayers;
+    if (
+      !Array.isArray(payers)
+      || payers.length !== stopCount
+      || payers.some((payer) => payer !== 'mood' && payer !== 'influencer')
+    ) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      percentages: payers.map((payer) => payer === 'mood' ? 100 : 0),
+      payers: payers.slice(),
+    };
+  }
+  const percentages = Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
+  return { ok: true, percentages, payers: legacyPayersForPercentages(percentages) };
 }
 
 function sendJson(res, status, headers, payload) {
@@ -153,19 +207,29 @@ function normalizeSnapshot(raw) {
     if (influencerName.length > 120) return { ok: false, error: 'INFLUENCER_NAME_TOO_LONG' };
   }
   const stopCount = origin && destination ? waypoints.length + 2 : 0;
-  let coursePayers;
   if (hasOwn(raw, 'coursePayers')) {
-    if (
-      !Array.isArray(raw.coursePayers)
-      || raw.coursePayers.length !== stopCount
-      || raw.coursePayers.some((payer) => payer !== 'mood' && payer !== 'influencer')
-    ) {
-      return { ok: false, error: 'INVALID_COURSE_PAYERS' };
-    }
-    coursePayers = raw.coursePayers.slice();
-  } else {
-    coursePayers = Array.from({ length: stopCount }, (_, index) => index === 0 ? 'mood' : 'influencer');
+    return { ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' };
   }
+  if (
+    hasOwn(raw, 'courseShareSchemaVersion')
+    && raw.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+  ) {
+    return { ok: false, error: 'INVALID_COURSE_SHARE_SCHEMA_VERSION' };
+  }
+  let courseMoodPercentages;
+  if (hasOwn(raw, 'courseMoodPercentages')) {
+    if (
+      !Array.isArray(raw.courseMoodPercentages)
+      || raw.courseMoodPercentages.length !== stopCount
+      || raw.courseMoodPercentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
+    ) {
+      return { ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' };
+    }
+    courseMoodPercentages = raw.courseMoodPercentages.slice();
+  } else {
+    courseMoodPercentages = Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
+  }
+  const coursePayers = legacyPayersForPercentages(courseMoodPercentages);
 
   return {
     ok: true,
@@ -182,6 +246,8 @@ function normalizeSnapshot(raw) {
       airportCode,
       hasInfluencerName: hasOwn(raw, 'influencerName'),
       influencerName,
+      courseMoodPercentages,
+      courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
       coursePayers,
     },
   };
@@ -210,7 +276,8 @@ function stablePayload({ bookingId, expectedRevision, reason, snapshot }) {
       airportCode: snapshot.airportCode,
       hasInfluencerName: snapshot.hasInfluencerName,
       influencerName: snapshot.hasInfluencerName ? snapshot.influencerName : null,
-      coursePayers: snapshot.coursePayers,
+      courseMoodPercentages: snapshot.courseMoodPercentages,
+      courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
     },
   });
 }
@@ -523,6 +590,11 @@ export default async function handler(req, res) {
         };
       }
 
+      const storedCourseShare = normalizeStoredCourseShare(booking);
+      if (!storedCourseShare.ok) {
+        return { ok: false, status: 409, error: 'INVALID_STORED_COURSE_SHARE' };
+      }
+
       const oldAmountKRW = booking.amountKRW;
       const client = clientSnap.data() || {};
       const balanceKRW = client.balanceKRW;
@@ -573,12 +645,20 @@ export default async function handler(req, res) {
         updatedByEmail: email,
         lastChangeReason: reason,
         lastAdjustmentKRW: adjustmentKRW,
+        courseMoodPercentages: snapshot.courseMoodPercentages,
+        courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
         coursePayers: snapshot.coursePayers,
       };
       if (snapshot.hasInfluencerName) {
         bookingPatch.influencerName = snapshot.influencerName || null;
       }
-      const afterSnapshot = { ...booking, ...bookingPatch };
+      const beforeSnapshot = {
+        ...booking,
+        courseMoodPercentages: storedCourseShare.percentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+        coursePayers: storedCourseShare.payers,
+      };
+      const afterSnapshot = { ...beforeSnapshot, ...bookingPatch };
       const response = {
         ok: true,
         data: {
@@ -608,7 +688,7 @@ export default async function handler(req, res) {
         adjustmentKRW,
         balanceBeforeKRW: balanceKRW,
         balanceAfterKRW: newBalanceKRW,
-        before: booking,
+        before: beforeSnapshot,
         after: afterSnapshot,
         createdAt: now,
       });

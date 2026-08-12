@@ -20,9 +20,9 @@ function expectedData(): MoodBookingShareData {
     serviceLabel: '차량',
     durationHours: 4,
     stops: [
-      { address: '서울역', label: '출발', time: '09:30', payer: 'mood' },
-      { address: '성수동', label: '촬영', time: '11:00', payer: 'influencer' },
-      { address: '인천공항 T2', label: '도착', time: '15:00', payer: 'influencer' },
+      { address: '서울역', label: '출발', time: '09:30', moodPercentage: 100 },
+      { address: '성수동', label: '촬영', time: '11:00', moodPercentage: 50 },
+      { address: '인천공항 T2', label: '도착', time: '15:00', moodPercentage: 0 },
     ],
     route: { km: 68, durationMin: 85, path: null, points: null },
     costs: {
@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe('MOOD 예약 공유 문구', () => {
-  it('정산 전에는 상세 예상 비용과 번호 코스별 부담자·금액을 복사한다', () => {
+  it('정산 전에는 상세 예상 비용과 번호 코스별 비율·각자 금액을 복사한다', () => {
     const data = expectedData() as MoodBookingShareData & { createdByEmail: string; runningBalanceKRW: number };
     data.createdByEmail = 'staff@example.com';
     data.runningBalanceKRW = 9_999_999;
@@ -53,15 +53,14 @@ describe('MOOD 예약 공유 문구', () => {
     expect(text).toContain('[MOOD 이동 예상 안내]');
     expect(text).toContain('탑승 인플루언서: 홍길동');
     expect(text).toContain('일시: 2026. 8. 15. (토) 09:30');
-    expect(text).toContain('1. [출발] 서울역 · 09:30 · MOOD 부담 56,000원');
-    expect(text).toContain('2. [촬영] 성수동 · 11:00 · 인플루언서(홍길동) 부담 56,000원');
+    expect(text).toContain('1. [출발] 서울역 · 09:30 · MOOD 100% 56,000원 · 인플루언서(홍길동) 0% 0원');
+    expect(text).toContain('2. [촬영] 성수동 · 11:00 · MOOD 50% 28,000원 · 인플루언서(홍길동) 50% 28,000원');
     expect(text).toContain('이동: 68km · 약 85분');
     expect(text).toContain('- 예상 톨비: 7,200원');
     expect(text).toContain('예상 코스별 비용 분담');
     expect(text).toContain('- 계산: 168,000원 ÷ 3코스');
-    expect(text).toContain('- MOOD 부담: 1코스 · 56,000원');
-    expect(text).toContain('- 인플루언서(홍길동) 부담: 2코스 · 112,000원');
-    expect(text).not.toContain('50:50');
+    expect(text).toContain('- MOOD 부담 합계: 84,000원');
+    expect(text).toContain('- 인플루언서(홍길동) 부담 합계: 84,000원');
     expect(text).toContain('동선 지도: https://map.naver.com/example');
     expect(text).toContain('전달 메모: T2 출국장 하차');
     expect(text).not.toContain('staff@example.com');
@@ -90,9 +89,9 @@ describe('MOOD 예약 공유 문구', () => {
     expect(text).not.toContain('기타 조정');
     expect(text).toContain('- 최종 합계: 160,800원');
     expect(text).toContain('최종 코스별 비용 분담');
-    expect(text).toContain('- MOOD 부담: 1코스 · 53,600원');
-    expect(text).toContain('- 인플루언서(홍길동) 부담: 2코스 · 107,200원');
-    expect(text).not.toContain('50:50');
+    expect(text).toContain('2. [촬영] 성수동 · 11:00 · MOOD 50% 26,800원 · 인플루언서(홍길동) 50% 26,800원');
+    expect(text).toContain('- MOOD 부담 합계: 80,400원');
+    expect(text).toContain('- 인플루언서(홍길동) 부담 합계: 80,400원');
   });
 
   it('수동 금액 조정은 톨비 사유와 분리해 복사한다', () => {
@@ -112,20 +111,16 @@ describe('MOOD 예약 공유 문구', () => {
     expect(text).toContain('- 기타 조정: +10,000원 (추가 주차비)');
   });
 
-  it('5코스·10만원에서 MOOD 1개, 인플루언서 4개면 20,000원과 80,000원이다', () => {
-    const stops: MoodBookingShareStop[] = [
-      { address: '코스 1', payer: 'mood' },
-      { address: '코스 2', payer: 'influencer' },
-      { address: '코스 3', payer: 'influencer' },
-      { address: '코스 4', payer: 'influencer' },
-      { address: '코스 5', payer: 'influencer' },
-    ];
+  it('5코스·10만원에서 100·50·33·0·67 비율을 코스별로 반영한다', () => {
+    const stops: MoodBookingShareStop[] = [100, 50, 33, 0, 67]
+      .map((moodPercentage, index) => ({ address: `코스 ${index + 1}`, moodPercentage }));
     const result = allocateMoodShareCostByCourse(100_000, stops);
 
     expect(result.basePerCourseKRW).toBe(20_000);
     expect(result.courses.map((course) => course.amountKRW)).toEqual([20_000, 20_000, 20_000, 20_000, 20_000]);
-    expect(result.mood).toEqual({ courseCount: 1, totalKRW: 20_000 });
-    expect(result.influencer).toEqual({ courseCount: 4, totalKRW: 80_000 });
+    expect(result.courses.map((course) => course.moodKRW)).toEqual([20_000, 10_000, 6_600, 0, 13_400]);
+    expect(result.mood).toEqual({ totalKRW: 50_000 });
+    expect(result.influencer).toEqual({ totalKRW: 50_000 });
   });
 
   it('원 단위 나머지는 마지막 코스에 배정하고 코스 합은 전체 금액과 정확히 같다', () => {

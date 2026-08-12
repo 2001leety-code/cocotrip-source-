@@ -7,6 +7,7 @@ import {
   MoodBookingCopyButton,
   MoodBookingShareCard,
 } from '../../src/components/mood/MoodBookingShareCard';
+import { MoodCourseShareEditor } from '../../src/components/mood/MoodCourseShareEditor';
 import type { MoodBookingShareData } from '../../src/lib/moodBookingShare';
 
 function shareData(phase: 'expected' | 'final' = 'expected'): MoodBookingShareData {
@@ -19,9 +20,9 @@ function shareData(phase: 'expected' | 'final' = 'expected'): MoodBookingShareDa
     serviceLabel: '차량',
     durationHours: 4,
     stops: [
-      { address: '서울역 1번 출구', payer: 'mood' },
-      { address: '성수동 촬영장', label: '촬영', payer: 'influencer' },
-      { address: '인천공항 제2터미널', payer: 'influencer' },
+      { address: '서울역 1번 출구', moodPercentage: 100 },
+      { address: '성수동 촬영장', label: '촬영', moodPercentage: 50 },
+      { address: '인천공항 제2터미널', moodPercentage: 0 },
     ],
     // path/좌표가 없어도 주소 목록과 비용이 남아야 한다.
     route: { km: 68, durationMin: 85, path: null, points: null },
@@ -52,7 +53,7 @@ afterEach(() => {
 });
 
 describe('MoodBookingShareCard', () => {
-  it('지도 좌표가 없어도 번호 주소·거리·예상 비용·코스별 부담자·메모를 모두 유지한다', () => {
+  it('지도 좌표가 없어도 번호 주소·거리·예상 비용·코스별 비율·메모를 모두 유지한다', () => {
     render(<MoodBookingShareCard data={shareData()} />);
 
     expect(screen.getByText('이동 예약 안내')).toBeInTheDocument();
@@ -65,14 +66,13 @@ describe('MoodBookingShareCard', () => {
     expect(screen.getByRole('region', { name: '예약 예상 비용' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '최종 정산 비용' })).not.toBeInTheDocument();
     expect(screen.getByText('예상 톨비')).toBeInTheDocument();
-    expect(screen.getByText('MOOD 부담')).toBeInTheDocument();
-    expect(screen.getAllByText('인플루언서(코코) 부담')).toHaveLength(2);
-    expect(screen.getAllByText('56,000원')).toHaveLength(4);
-    expect(screen.getByText('MOOD 부담 · 1코스')).toBeInTheDocument();
-    expect(screen.getByText('인플루언서(코코) 부담 · 2코스')).toBeInTheDocument();
-    expect(screen.getByText('112,000원')).toBeInTheDocument();
+    expect(screen.getByText('MOOD 100% · 56,000원')).toBeInTheDocument();
+    expect(screen.getByText('MOOD 50% · 28,000원')).toBeInTheDocument();
+    expect(screen.getByText('인플루언서(코코) 50% · 28,000원')).toBeInTheDocument();
+    expect(screen.getByText('MOOD 부담 합계')).toBeInTheDocument();
+    expect(screen.getByText('인플루언서(코코) 부담 합계')).toBeInTheDocument();
+    expect(screen.getAllByText('84,000원')).toHaveLength(2);
     expect(screen.getByRole('region', { name: '예상 코스별 비용 분담' })).toBeInTheDocument();
-    expect(screen.queryByText(/50:50/)).not.toBeInTheDocument();
     expect(screen.getByText('출국장 앞에서 연락해 주세요.')).toBeInTheDocument();
   });
 
@@ -86,10 +86,11 @@ describe('MoodBookingShareCard', () => {
     expect(screen.getByText('(하이패스 비용 미발생)')).toBeInTheDocument();
     expect(screen.queryByText('기타 조정')).not.toBeInTheDocument();
     expect(screen.getByText('최종 합계')).toBeInTheDocument();
-    expect(screen.getAllByText('53,600원')).toHaveLength(4);
-    expect(screen.getByText('107,200원')).toBeInTheDocument();
+    expect(screen.getByText('MOOD 100% · 53,600원')).toBeInTheDocument();
+    expect(screen.getByText('MOOD 50% · 26,800원')).toBeInTheDocument();
+    expect(screen.getByText('인플루언서(코코) 50% · 26,800원')).toBeInTheDocument();
+    expect(screen.getAllByText('80,400원')).toHaveLength(2);
     expect(screen.getByRole('region', { name: '최종 코스별 비용 분담' })).toBeInTheDocument();
-    expect(screen.queryByText(/50:50/)).not.toBeInTheDocument();
   });
 
   it('수동 금액 조정이 있을 때만 기타 조정 행을 보여 준다', () => {
@@ -127,7 +128,44 @@ describe('MoodBookingCopyButton', () => {
     expect(writeText).toHaveBeenCalledOnce();
     expect(String(writeText.mock.calls[0][0])).toContain('[MOOD 이동 예상 안내]');
     expect(String(writeText.mock.calls[0][0])).toContain('예상 코스별 비용 분담');
-    expect(String(writeText.mock.calls[0][0])).toContain('MOOD 부담 56,000원');
-    expect(String(writeText.mock.calls[0][0])).not.toContain('50:50');
+    expect(String(writeText.mock.calls[0][0])).toContain('MOOD 50% 28,000원');
+    expect(String(writeText.mock.calls[0][0])).toContain('인플루언서(코코) 50% 28,000원');
+  });
+});
+
+describe('MoodCourseShareEditor', () => {
+  function EditorHarness() {
+    const [percentages, setPercentages] = React.useState([100, 100, 100]);
+    return (
+      <MoodCourseShareEditor
+        items={[
+          { address: '서울역', percentageIndex: 0 },
+          { address: '성수동', percentageIndex: 1 },
+          { address: '인천공항', percentageIndex: 2 },
+        ]}
+        percentages={percentages}
+        totalKRW={101}
+        influencerName="코코"
+        onChange={setPercentages}
+      />
+    );
+  }
+
+  it('프리셋·직접 비율·현재 비율 전체 적용을 모바일 입력으로 제공한다', () => {
+    render(<EditorHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: /공동 탑승/ }));
+    expect(screen.getAllByRole('spinbutton').map((input) => (input as HTMLInputElement).value)).toEqual(['50', '50', '50']);
+    expect(screen.getByText('MOOD 부담 합계').nextSibling).toHaveTextContent('52원');
+    expect(screen.getByText('코코 부담 합계').nextSibling).toHaveTextContent('49원');
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: '2번 코스 MOOD 부담 비율' }), { target: { value: '33' } });
+    expect(screen.getByText('직접 수정됨')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '2번 코스 MOOD 33%를 전체 코스에 적용' }));
+    expect(screen.getAllByRole('spinbutton').map((input) => (input as HTMLInputElement).value)).toEqual(['33', '33', '33']);
+
+    fireEvent.click(screen.getByRole('button', { name: /행사/ }));
+    expect(screen.getAllByRole('spinbutton').map((input) => (input as HTMLInputElement).value)).toEqual(['0', '0', '0']);
+    expect(screen.getByText('프리셋 적용')).toBeInTheDocument();
   });
 });

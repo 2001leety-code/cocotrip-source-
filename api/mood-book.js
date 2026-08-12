@@ -23,9 +23,12 @@
  *
  * Body: { clientId, date(YYYY-MM-DD), startTime(HH:mm), durationHours, serviceType,
  *         origin?, destination?, waypoints?(string[] | "A|B"),
- *         airportDirection?('pickup'|'sending'), airportCode?('ICN'|'GMP') }
+ *         airportDirection?('pickup'|'sending'), airportCode?('ICN'|'GMP'),
+ *         courseMoodPercentages?(integer[]), courseShareSchemaVersion?(2) }
  *   - origin/destination 이 있으면 경로 기반 거리/톨비 추가요금 반영.
  *   - 없으면 거리/톨비 0 (시간 단가 base 만).
+ *   - courseMoodPercentages 는 출발·경유·도착 지점 수와 같고 각 값은 0~100 정수.
+ *     구 쓰기 필드 coursePayers 는 400으로 거부한다.
  *
  * 성공 시 notifyOperator 텔레그램 알림 (best-effort). 영수증은 화면 뷰로 대체(이메일 발송 없음, 2026-07-03).
  */
@@ -43,6 +46,7 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'POST, OPTIONS';
+const COURSE_SHARE_SCHEMA_VERSION = 2;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;       // YYYY-MM-DD
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // HH:mm (00:00 ~ 23:59)
@@ -92,12 +96,27 @@ function isValidPricedResult(priced) {
   );
 }
 
-function normalizeCoursePayers(raw, stopCount) {
-  if (raw === undefined || raw === null) {
-    return { ok: true, value: Array.from({ length: stopCount }, (_, index) => index === 0 ? 'mood' : 'influencer') };
+function legacyPayersForPercentages(percentages) {
+  if (!percentages.every((percentage) => percentage === 0 || percentage === 100)) return null;
+  return percentages.map((percentage) => percentage === 100 ? 'mood' : 'influencer');
+}
+
+function normalizeCourseMoodPercentages(raw, stopCount, requestedSchemaVersion) {
+  if (
+    requestedSchemaVersion !== undefined
+    && requestedSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+  ) {
+    return { ok: false, error: 'INVALID_COURSE_SHARE_SCHEMA_VERSION' };
   }
-  if (!Array.isArray(raw) || raw.length !== stopCount || raw.some((payer) => payer !== 'mood' && payer !== 'influencer')) {
-    return { ok: false, error: 'INVALID_COURSE_PAYERS' };
+  if (raw === undefined) {
+    return { ok: true, value: Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0) };
+  }
+  if (
+    !Array.isArray(raw)
+    || raw.length !== stopCount
+    || raw.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
+  ) {
+    return { ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' };
   }
   return { ok: true, value: raw.slice() };
 }
@@ -189,12 +208,21 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'INVALID_IDEMPOTENCY_KEY' }));
   }
-  const coursePayersResult = normalizeCoursePayers(body.coursePayers, origin && destination ? waypoints.length + 2 : 0);
-  if (!coursePayersResult.ok) {
+  if (Object.prototype.hasOwnProperty.call(body, 'coursePayers')) {
     res.writeHead(400, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: coursePayersResult.error }));
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
   }
-  const coursePayers = coursePayersResult.value;
+  const courseMoodPercentagesResult = normalizeCourseMoodPercentages(
+    body.courseMoodPercentages,
+    origin && destination ? waypoints.length + 2 : 0,
+    body.courseShareSchemaVersion,
+  );
+  if (!courseMoodPercentagesResult.ok) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: courseMoodPercentagesResult.error }));
+  }
+  const courseMoodPercentages = courseMoodPercentagesResult.value;
+  const coursePayers = legacyPayersForPercentages(courseMoodPercentages);
 
   try {
     const db = initAdminDb('mood-book');
@@ -214,7 +242,9 @@ export default async function handler(req, res) {
     //  잔액을 차감하는 예약을 만들 수 있음 — 외상 정책상 무제한 음수까지.)
     const requestPayload = {
       clientId, date, startTime, durationHours: hours, serviceType,
-      origin, destination, waypoints, airportDirection, airportCode, note, influencerName, coursePayers,
+      origin, destination, waypoints, airportDirection, airportCode, note, influencerName,
+      courseMoodPercentages,
+      courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
     };
     const payloadHash = createHash('sha256').update(JSON.stringify(requestPayload)).digest('hex');
     const isAdmin = isAdminEmail(allowlist, email);
@@ -391,6 +421,8 @@ export default async function handler(req, res) {
         status: 'confirmed',
         revision: 0,
         influencerName: influencerName || null,
+        courseMoodPercentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
         coursePayers,
         note: note || null, // 예약 메모 (항공편 등 — 표시용)
         createdByEmail: email,
@@ -407,6 +439,9 @@ export default async function handler(req, res) {
         balanceKRW: newBalance,
         breakdown,
         revision: 0,
+        courseMoodPercentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+        coursePayers,
       };
       if (idempotencyRef) {
         tx.set(idempotencyRef, {

@@ -29,7 +29,8 @@ import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
 import { MoodBookingChangeModal } from '@/components/mood/MoodBookingChangeModal';
 import { MoodBookingShareCard, MoodBookingCopyButton } from '@/components/mood/MoodBookingShareCard';
-import type { MoodBookingShareData } from '@/lib/moodBookingShare';
+import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
+import { normalizeMoodCoursePercentages, type MoodBookingShareData } from '@/lib/moodBookingShare';
 import { NAVER_DIRECTIONS_MAX_STOPS, naverMapDirectionsUrl } from '@/lib/naverMap';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
@@ -102,6 +103,7 @@ interface MoodBooking {
   finalRouteSnapshot?: MoodRouteSnapshot | null;
   revision?: number;
   influencerName?: string | null;
+  courseMoodPercentages?: number[] | null;
   coursePayers?: Array<'mood' | 'influencer'> | null;
   /** 운행 종료 정산(status='completed') 시 채워짐. */
   actualHours?: number | null;
@@ -249,19 +251,6 @@ function makeMoodRequestKey(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function splitAmountByCourses(totalKRW: number, payers: Array<'mood' | 'influencer'>) {
-  if (!payers.length) return { moodKRW: 0, influencerKRW: 0, perCourseKRW: 0 };
-  const total = Math.max(0, Math.round(Number(totalKRW) || 0));
-  const perCourseKRW = Math.floor(total / payers.length);
-  const remainder = total - perCourseKRW * payers.length;
-  return payers.reduce((result, payer, index) => {
-    const amount = perCourseKRW + (index === payers.length - 1 ? remainder : 0);
-    if (payer === 'mood') result.moodKRW += amount;
-    else result.influencerKRW += amount;
-    return result;
-  }, { moodKRW: 0, influencerKRW: 0, perCourseKRW });
-}
-
 function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRouteSnapshot | null): MoodBookingShareData {
   const expected = booking.breakdown || {};
   const finalCost = booking.finalBreakdown || {};
@@ -272,9 +261,12 @@ function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRout
     : booking.routeSnapshot);
   const addresses = cleanStops(activeBreakdown);
   const points = Array.isArray(snapshot?.points) ? snapshot.points : [];
-  const coursePayers = Array.isArray(booking.coursePayers) && booking.coursePayers.length === addresses.length
-    ? booking.coursePayers
-    : addresses.map((_, index) => index === 0 ? 'mood' as const : 'influencer' as const);
+  const courseMoodPercentages = normalizeMoodCoursePercentages(
+    booking.courseMoodPercentages,
+    addresses.length,
+    booking.coursePayers,
+    booking.serviceType === 'airport' ? 50 : 100,
+  );
   const manualAdjustmentKRW = booking.manualAdjustmentKRW || 0;
   const settlementReason = String(booking.settlementReason || '').trim() || null;
   return {
@@ -291,7 +283,7 @@ function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRout
       address,
       lat: points[index]?.lat,
       lng: points[index]?.lng,
-      payer: coursePayers[index],
+      moodPercentage: courseMoodPercentages[index],
     })),
     route: snapshot ? {
       km: snapshot.km || activeBreakdown.routeKm || activeBreakdown.km || null,
@@ -355,7 +347,7 @@ export default function MoodPortal() {
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [influencerName, setInfluencerName] = useState('');
   const [bookingNote, setBookingNote] = useState('');
-  const [coursePayers, setCoursePayers] = useState<Array<'mood' | 'influencer'>>(['mood', 'influencer']);
+  const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([100, 100]);
   const bookingRequestRef = useRef({ signature: '', key: '' });
 
   // 경로(주소) 입력 상태 — 경유지는 네이버 지도처럼 개별 추가/삭제(최대 5, 백엔드 한도).
@@ -408,19 +400,19 @@ export default function MoodPortal() {
   const [settleOrigin, setSettleOrigin] = useState('');
   const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
   const [settleDestination, setSettleDestination] = useState('');
-  const [settleCoursePayers, setSettleCoursePayers] = useState<Array<'mood' | 'influencer'>>(['mood', 'influencer']);
+  const [settleCourseMoodPercentages, setSettleCourseMoodPercentages] = useState<number[]>([100, 100]);
   const [settleTollMode, setSettleTollMode] = useState<'estimated' | 'none' | 'actual'>('estimated');
   const [settleActualTollKRW, setSettleActualTollKRW] = useState('');
   const [settleManualAdjustmentKRW, setSettleManualAdjustmentKRW] = useState('0');
   const [settleReason, setSettleReason] = useState('');
   const settleCourseItems = useMemo(() => [
-    { address: settleOrigin.trim(), payerIndex: 0 },
-    ...settleWaypoints.map((waypoint, index) => ({ address: waypoint.trim(), payerIndex: index + 1 })),
-    { address: settleDestination.trim(), payerIndex: settleCoursePayers.length - 1 },
-  ].filter((item) => item.address), [settleOrigin, settleWaypoints, settleDestination, settleCoursePayers.length]);
-  const settleCoursePayerValues = useMemo(
-    () => settleCourseItems.map((item, index) => settleCoursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer')),
-    [settleCourseItems, settleCoursePayers],
+    { address: settleOrigin.trim(), percentageIndex: 0 },
+    ...settleWaypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
+    { address: settleDestination.trim(), percentageIndex: settleCourseMoodPercentages.length - 1 },
+  ].filter((item) => item.address), [settleOrigin, settleWaypoints, settleDestination, settleCourseMoodPercentages.length]);
+  const settleCourseMoodPercentageValues = useMemo(
+    () => settleCourseItems.map((item) => settleCourseMoodPercentages[item.percentageIndex] || 0),
+    [settleCourseItems, settleCourseMoodPercentages],
   );
 
   // 예상 금액 분해 — base + 거리추가 + 톨비. 공항은 정액 + 경유 우회거리 요금.
@@ -676,14 +668,14 @@ export default function MoodPortal() {
         airportCode: serviceType === 'airport' ? airportCode : undefined,
         influencerName: influencerName.trim() || undefined,
         note: bookingNote.trim() || undefined,
-        coursePayers: origin.trim() && destination.trim()
+        courseMoodPercentages: origin.trim() && destination.trim()
           ? [
-              coursePayers[0] || 'mood',
+              courseMoodPercentages[0] || 0,
               ...waypoints
-                .map((waypoint, index) => ({ waypoint: waypoint.trim(), payer: coursePayers[index + 1] || 'influencer' }))
+                .map((waypoint, index) => ({ waypoint: waypoint.trim(), percentage: courseMoodPercentages[index + 1] || 0 }))
                 .filter((item) => item.waypoint)
-                .map((item) => item.payer),
-              coursePayers[coursePayers.length - 1] || 'influencer',
+                .map((item) => item.percentage),
+              courseMoodPercentages[courseMoodPercentages.length - 1] || 0,
             ]
           : undefined,
       };
@@ -712,7 +704,7 @@ export default function MoodPortal() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, influencerName, bookingNote, coursePayers, loadData]);
+  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, influencerName, bookingNote, courseMoodPercentages, loadData]);
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
@@ -745,7 +737,7 @@ export default function MoodPortal() {
       origin: o,
       destination: d,
       waypoints: wp,
-      coursePayers: settleCoursePayerValues,
+      courseMoodPercentages: settleCourseMoodPercentageValues,
     } : {};
     setSettling(true);
     setSettleMsg(null);
@@ -774,7 +766,7 @@ export default function MoodPortal() {
         setSettleOrigin('');
         setSettleDestination('');
         setSettleWaypoints([]);
-        setSettleCoursePayers(['mood', 'influencer']);
+        setSettleCourseMoodPercentages([100, 100]);
         setSettleTollMode('estimated');
         setSettleActualTollKRW('');
         setSettleManualAdjustmentKRW('0');
@@ -788,18 +780,18 @@ export default function MoodPortal() {
     } finally {
       setSettling(false);
     }
-  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, settleCoursePayerValues, settleTollMode, settleActualTollKRW, settleManualAdjustmentKRW, settleReason, data, loadData]);
+  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, settleCourseMoodPercentageValues, settleTollMode, settleActualTollKRW, settleManualAdjustmentKRW, settleReason, data, loadData]);
 
   // ── 정산 경유지 배열 조작 (예약 폼과 동일 규칙, 최대 5 = 백엔드 한도) ──
   const addSettleWaypoint = useCallback(() => {
     setSettleWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
-    setSettleCoursePayers((items) => items.length >= 7
+    setSettleCourseMoodPercentages((items) => items.length >= 7
       ? items
-      : [...items.slice(0, -1), 'influencer', items[items.length - 1] || 'influencer']);
+      : [...items.slice(0, -1), items[items.length - 1] === undefined ? 100 : items[items.length - 1], items[items.length - 1] === undefined ? 100 : items[items.length - 1]]);
   }, []);
   const removeSettleWaypoint = useCallback((i: number) => {
     setSettleWaypoints((w) => w.filter((_, idx) => idx !== i));
-    setSettleCoursePayers((items) => items.filter((_, idx) => idx !== i + 1));
+    setSettleCourseMoodPercentages((items) => items.filter((_, idx) => idx !== i + 1));
   }, []);
   const setSettleWaypointAt = useCallback((i: number, val: string) => {
     setSettleWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
@@ -812,14 +804,14 @@ export default function MoodPortal() {
   const addWaypoint = useCallback(() => {
     setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
     setWaypointsAC((w) => (w.length >= 5 ? w : [...w, null]));
-    setCoursePayers((payers) => (payers.length >= 7
-      ? payers
-      : [...payers.slice(0, -1), 'influencer', payers[payers.length - 1] || 'influencer']));
+    setCourseMoodPercentages((percentages) => (percentages.length >= 7
+      ? percentages
+      : [...percentages.slice(0, -1), percentages[percentages.length - 1] === undefined ? 100 : percentages[percentages.length - 1], percentages[percentages.length - 1] === undefined ? 100 : percentages[percentages.length - 1]]));
   }, []);
   const removeWaypoint = useCallback((i: number) => {
     setWaypoints((w) => w.filter((_, idx) => idx !== i));
     setWaypointsAC((w) => w.filter((_, idx) => idx !== i));
-    setCoursePayers((payers) => payers.filter((_, idx) => idx !== i + 1));
+    setCourseMoodPercentages((percentages) => percentages.filter((_, idx) => idx !== i + 1));
   }, []);
   const setWaypointAt = useCallback((i: number, val: string) => {
     setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
@@ -867,10 +859,13 @@ export default function MoodPortal() {
     setOrigin(bd.origin || '');
     setDestination(bd.destination || '');
     setWaypoints(wps);
-    const expectedPayerCount = wps.length + 2;
-    setCoursePayers(Array.isArray(b.coursePayers) && b.coursePayers.length === expectedPayerCount
-      ? b.coursePayers.slice()
-      : Array.from({ length: expectedPayerCount }, (_, index) => index === 0 ? 'mood' : 'influencer'));
+    const expectedCourseCount = wps.length + 2;
+    setCourseMoodPercentages(normalizeMoodCoursePercentages(
+      b.courseMoodPercentages,
+      expectedCourseCount,
+      b.coursePayers,
+      b.serviceType === 'airport' ? 50 : 100,
+    ));
     // breakdown 엔 좌표 미저장(주소 문자열만) → AC 는 비움. 복사된 주소는 각 칸 밑
     // "현재: {주소}" 힌트로 노출되고, 경로/금액은 문자열 기준으로 그대로 계산된다.
     // 바꾸려면 검색해서 핀 재확정. (배열 길이는 waypoints 와 동기)
@@ -987,12 +982,10 @@ export default function MoodPortal() {
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
   const manualCourseItems = [
-    { address: origin.trim(), payerIndex: 0 },
-    ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), payerIndex: index + 1 })),
-    { address: destination.trim(), payerIndex: coursePayers.length - 1 },
+    { address: origin.trim(), percentageIndex: 0 },
+    ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
+    { address: destination.trim(), percentageIndex: courseMoodPercentages.length - 1 },
   ].filter((item) => item.address);
-  const manualCoursePayerValues = manualCourseItems.map((item, index) => coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer'));
-  const manualCourseSplit = splitAmountByCourses(estimate, manualCoursePayerValues);
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -1505,38 +1498,7 @@ export default function MoodPortal() {
               textDim={C.textDim}
             />
             {origin.trim() && destination.trim() && (
-              <div className="rounded-xl p-3" style={{ background: 'rgba(2,6,23,.38)', border: C.inputBorder }}>
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-bold" style={{ color: C.text }}>코스별 비용 부담자</p>
-                    <p className="text-[10px]" style={{ color: C.textDim }}>총액을 번호 코스 수로 똑같이 나눕니다.</p>
-                  </div>
-                  <span className="shrink-0 text-[10px] font-bold" style={{ color: C.accentSolid }}>{manualCourseItems.length}코스</span>
-                </div>
-                <div className="space-y-2">
-                  {manualCourseItems.map((item, index) => {
-                    const payer = coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer');
-                    return (
-                      <div key={`${item.payerIndex}-${item.address}`} className="flex items-center gap-2 rounded-lg bg-white/[0.04] p-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: C.accentSolid }}>{index + 1}</span>
-                        <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: C.text }}>{item.address}</span>
-                        <button
-                          type="button"
-                          onClick={() => setCoursePayers((values) => values.map((value, payerIndex) => payerIndex === item.payerIndex ? (payer === 'mood' ? 'influencer' : 'mood') : value))}
-                          className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold"
-                          style={{ background: payer === 'mood' ? 'rgba(124,92,252,.22)' : 'rgba(234,83,126,.18)', color: payer === 'mood' ? '#c4b5fd' : '#f9a8d4' }}
-                        >
-                          {payer === 'mood' ? 'MOOD 직원' : '인플루언서'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-center">
-                  <div className="rounded-lg bg-violet-400/10 p-2"><p className="text-[9px]" style={{ color: C.textDim }}>MOOD 직원 부담</p><p className="text-xs font-black" style={{ color: '#c4b5fd' }}>{formatKRW(manualCourseSplit.moodKRW)}</p></div>
-                  <div className="rounded-lg bg-pink-400/10 p-2"><p className="text-[9px]" style={{ color: C.textDim }}>인플루언서 부담</p><p className="text-xs font-black" style={{ color: '#f9a8d4' }}>{formatKRW(manualCourseSplit.influencerKRW)}</p></div>
-                </div>
-              </div>
+              <MoodCourseShareEditor items={manualCourseItems} percentages={courseMoodPercentages} totalKRW={estimate} influencerName={influencerName} onChange={setCourseMoodPercentages} />
             )}
           </div>
 
@@ -1800,9 +1762,12 @@ export default function MoodPortal() {
                               const nextWaypoints = Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : [];
                               const nextPayerCount = nextWaypoints.length + 2;
                               setSettleWaypoints(nextWaypoints);
-                              setSettleCoursePayers(Array.isArray(b.coursePayers) && b.coursePayers.length === nextPayerCount
-                                ? b.coursePayers.slice()
-                                : Array.from({ length: nextPayerCount }, (_, index) => index === 0 ? 'mood' : 'influencer'));
+                              setSettleCourseMoodPercentages(normalizeMoodCoursePercentages(
+                                b.courseMoodPercentages,
+                                nextPayerCount,
+                                b.coursePayers,
+                                b.serviceType === 'airport' ? 50 : 100,
+                              ));
                               setSettleMsg(null);
                             }}
                             className="rounded-xl px-3 py-2 text-[11px] font-semibold"
@@ -1926,30 +1891,7 @@ export default function MoodPortal() {
                                 <button type="button" onClick={() => { void searchAddress(setSettleDestination); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="도착지 주소 검색">검색</button>
                               </div>
                               {settleCourseItems.length >= 2 && (
-                                <div className="mt-1 rounded-lg border border-white/10 bg-black/15 p-2">
-                                  <p className="text-[10px] font-semibold" style={{ color: C.textDim }}>
-                                    코스별 비용 부담자 — 최종 금액을 {settleCourseItems.length}개 번호 코스로 똑같이 나눕니다.
-                                  </p>
-                                  <div className="mt-1.5 flex flex-col gap-1.5">
-                                    {settleCourseItems.map((item, index) => {
-                                      const payer = settleCoursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer');
-                                      return (
-                                        <div key={`${item.payerIndex}-${item.address}`} className="flex items-center gap-2 rounded-lg bg-white/[0.04] p-1.5">
-                                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black text-white" style={{ background: C.accentSolid }}>{index + 1}</span>
-                                          <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: C.text }}>{item.address}</span>
-                                          <button
-                                            type="button"
-                                            onClick={() => setSettleCoursePayers((items) => items.map((value, payerIndex) => payerIndex === item.payerIndex ? (payer === 'mood' ? 'influencer' : 'mood') : value))}
-                                            className="shrink-0 rounded-full px-2 py-1 text-[9px] font-black"
-                                            style={{ background: payer === 'mood' ? 'rgba(124,92,252,.2)' : 'rgba(234,83,126,.2)', color: payer === 'mood' ? '#c4b5fd' : '#f9a8d4' }}
-                                          >
-                                            {payer === 'mood' ? 'MOOD 직원' : '인플루언서'}
-                                          </button>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+                                <MoodCourseShareEditor items={settleCourseItems} percentages={settleCourseMoodPercentages} totalKRW={b.amountKRW} influencerName={b.influencerName} onChange={setSettleCourseMoodPercentages} compact />
                               )}
                               <p className="text-[10px]" style={{ color: C.textDim }}>* 비워두면 예약 시 측정한 거리로 정산됩니다.</p>
                             </div>

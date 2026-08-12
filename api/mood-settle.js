@@ -14,7 +14,9 @@
  * 🔴 멱등성: status!=='confirmed' 면 거부(이미 정산/취소). 공항(정액)은 정산 무관.
  * 🔴 금액 SSOT: 최종 금액은 백엔드 computeMoodTotalKRW 로만 계산 (P311).
  * 인증: Bearer Firebase ID token, allowlist.admins (mood-topup 동일 게이트).
- * Body: { bookingId, actualHours, origin?, destination?, waypoints?(string[] | "A|B"), coursePayers? }
+ * Body: { bookingId, actualHours, origin?, destination?, waypoints?(string[] | "A|B"),
+ *         courseMoodPercentages?, courseShareSchemaVersion? }
+ * 실제 경로를 바꾸면 courseMoodPercentages 가 필수다. 구 쓰기 필드 coursePayers 는 400으로 거부한다.
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
@@ -44,6 +46,62 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'POST, OPTIONS';
+const COURSE_SHARE_SCHEMA_VERSION = 2;
+
+function legacyPayersForPercentages(percentages) {
+  if (!percentages.every((percentage) => percentage === 0 || percentage === 100)) return null;
+  return percentages.map((percentage) => percentage === 100 ? 'mood' : 'influencer');
+}
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function routeStopCount(breakdown) {
+  const value = breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) ? breakdown : {};
+  const origin = typeof value.origin === 'string' ? value.origin.trim() : '';
+  const destination = typeof value.destination === 'string' ? value.destination.trim() : '';
+  const waypoints = value.waypoints === undefined || value.waypoints === null ? [] : value.waypoints;
+  if (!Array.isArray(waypoints) || waypoints.some((waypoint) => typeof waypoint !== 'string' || !waypoint.trim())) return null;
+  if (!origin && !destination && waypoints.length === 0) return 0;
+  if (!origin || !destination) return null;
+  return waypoints.length + 2;
+}
+
+function normalizeStoredCourseShare(booking) {
+  const stopCount = routeStopCount(booking.breakdown);
+  if (stopCount === null) return { ok: false };
+  const hasCanonicalField = hasOwn(booking, 'courseMoodPercentages') || hasOwn(booking, 'courseShareSchemaVersion');
+  if (hasCanonicalField) {
+    const percentages = booking.courseMoodPercentages;
+    if (
+      booking.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+      || !Array.isArray(percentages)
+      || percentages.length !== stopCount
+      || percentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
+    ) {
+      return { ok: false };
+    }
+    return { ok: true, percentages: percentages.slice(), payers: legacyPayersForPercentages(percentages) };
+  }
+  if (hasOwn(booking, 'coursePayers') && booking.coursePayers !== null) {
+    const payers = booking.coursePayers;
+    if (
+      !Array.isArray(payers)
+      || payers.length !== stopCount
+      || payers.some((payer) => payer !== 'mood' && payer !== 'influencer')
+    ) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      percentages: payers.map((payer) => payer === 'mood' ? 100 : 0),
+      payers: payers.slice(),
+    };
+  }
+  const percentages = Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
+  return { ok: true, percentages, payers: legacyPayersForPercentages(percentages) };
+}
 
 export default async function handler(req, res) {
   const JSON_HEADERS = { 'Cache-Control': 'no-store', ...buildAdminJsonCors(req, { methods: CORS_METHODS, headers: 'Authorization, Content-Type' }) };
@@ -166,21 +224,36 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'INVALID_ROUTE_INPUT' }));
     }
     const hasRouteOverride = !!(newOrigin && newDest);
-    let settledCoursePayers = null;
+    let settledCourseMoodPercentages = null;
     if (hasRouteOverride) {
       const expectedCourseCount = newWaypoints.length + 2;
       if (
-        !Array.isArray(body.coursePayers)
-        || body.coursePayers.length !== expectedCourseCount
-        || body.coursePayers.some((payer) => payer !== 'mood' && payer !== 'influencer')
+        !Array.isArray(body.courseMoodPercentages)
+        || body.courseMoodPercentages.length !== expectedCourseCount
+        || body.courseMoodPercentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
       ) {
         res.writeHead(400, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_PAYERS' }));
+        return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
       }
-      settledCoursePayers = body.coursePayers.slice();
-    } else if (body.coursePayers !== undefined) {
+      if (
+        body.courseShareSchemaVersion !== undefined
+        && body.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+      ) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_SHARE_SCHEMA_VERSION' }));
+      }
+      settledCourseMoodPercentages = body.courseMoodPercentages.slice();
+    } else if (
+      body.courseMoodPercentages !== undefined
+      || body.courseShareSchemaVersion !== undefined
+      || body.coursePayers !== undefined
+    ) {
       res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_PAYERS' }));
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
+    }
+    if (body.coursePayers !== undefined) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
     }
 
     if (
@@ -196,6 +269,10 @@ export default async function handler(req, res) {
     ) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'INVALID_BOOKING_BREAKDOWN' }));
+    }
+    if (!normalizeStoredCourseShare(pre).ok) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_STORED_COURSE_SHARE' }));
     }
     let km = preBd.km;
     let tollKRW = preBd.tollKRW;
@@ -277,6 +354,10 @@ export default async function handler(req, res) {
       const currentRevision = Number.isInteger(b.revision) ? b.revision : 0;
       if (currentRevision !== preRevision) return { ok: false, status: 409, error: 'BOOKING_CHANGED' };
       if (fixedPriceFor(b.serviceType) !== null) return { ok: false, status: 400, error: 'AIRPORT_NO_SETTLE' };
+      const currentCourseShare = normalizeStoredCourseShare(b);
+      if (!currentCourseShare.ok) return { ok: false, status: 409, error: 'INVALID_STORED_COURSE_SHARE' };
+      const finalCourseMoodPercentages = settledCourseMoodPercentages || currentCourseShare.percentages;
+      const finalCoursePayers = legacyPayersForPercentages(finalCourseMoodPercentages);
 
       const finalAmount = finalPriced.amountKRW + manualAdjustmentKRW;
       const originalAmount = b.amountKRW;
@@ -323,13 +404,24 @@ export default async function handler(req, res) {
         tollMode,
         settlementReason: settlementReason || null,
         revision: currentRevision + 1,
-        ...(settledCoursePayers ? { coursePayers: settledCoursePayers } : {}),
+        courseMoodPercentages: finalCourseMoodPercentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+        coursePayers: finalCoursePayers,
         ...(finalRouteSnapshot ? { finalRouteSnapshot } : {}),
         settledAt: Date.now(),
         settledByEmail: email,
       });
 
-      return { ok: true, finalAmount, originalAmount, diff, newBalance, booking: b };
+      return {
+        ok: true,
+        finalAmount,
+        originalAmount,
+        diff,
+        newBalance,
+        booking: b,
+        courseMoodPercentages: finalCourseMoodPercentages,
+        coursePayers: finalCoursePayers,
+      };
     });
 
     if (!result.ok) {
@@ -401,7 +493,9 @@ export default async function handler(req, res) {
         tollKRW: finalPriced.tollKRW,
         manualAdjustmentKRW,
         settlementReason: settlementReason || null,
-        coursePayers: settledCoursePayers || (Array.isArray(result.booking.coursePayers) ? result.booking.coursePayers : null),
+        courseMoodPercentages: result.courseMoodPercentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+        coursePayers: result.coursePayers,
       },
     }));
   } catch (err) {

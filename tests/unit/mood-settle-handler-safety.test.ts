@@ -278,51 +278,100 @@ describe('mood-settle 실제 톨비 선택', () => {
   });
 });
 
-describe('mood-settle 실제 코스별 부담자', () => {
-  it('실제 경로를 바꾸면 최종 지점 수와 같은 부담자 배열을 함께 저장한다', async () => {
-    const coursePayers = ['mood', 'mood', 'influencer'];
+describe('mood-settle 실제 코스별 MOOD 부담률', () => {
+  it('실제 경로를 바꾸면 최종 지점 수와 같은 부담률 배열을 함께 저장한다', async () => {
+    const courseMoodPercentages = [100, 50, 0];
     const { response, json } = await call(validBody({
       origin: '실제 출발지',
       waypoints: ['추가 방문지'],
       destination: '실제 도착지',
-      coursePayers,
+      courseMoodPercentages,
     }));
 
     expect(response.statusCode).toBe(200);
     expect(bookingUpdate).toMatchObject({
-      coursePayers,
+      courseMoodPercentages,
+      courseShareSchemaVersion: 2,
+      coursePayers: null,
       finalBreakdown: {
         origin: '실제 출발지',
         waypoints: ['추가 방문지'],
         destination: '실제 도착지',
       },
     });
-    expect(json.data.coursePayers).toEqual(coursePayers);
+    expect(json.data.courseMoodPercentages).toEqual(courseMoodPercentages);
+    expect(json.data.courseShareSchemaVersion).toBe(2);
+    expect(json.data.coursePayers).toBeNull();
   });
 
-  it('실제 경로의 지점 수와 부담자 길이가 다르거나 값이 잘못되면 계산 전에 거부한다', async () => {
+  it('실제 경로의 지점 수와 부담률 길이가 다르거나 값이 잘못되면 계산 전에 거부한다', async () => {
     const cases = [
       { origin: '출발', destination: '도착' },
-      { origin: '출발', destination: '도착', coursePayers: ['mood'] },
-      { origin: '출발', destination: '도착', coursePayers: ['mood', 'company'] },
+      { origin: '출발', destination: '도착', courseMoodPercentages: [100] },
+      { origin: '출발', destination: '도착', courseMoodPercentages: [100, 101] },
     ];
     for (const override of cases) {
       computeRouteMock.mockClear();
       const { response, json } = await call(validBody(override));
       expect.soft(response.statusCode).toBe(400);
-      expect.soft(json.error).toBe('INVALID_COURSE_PAYERS');
+      expect.soft(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
       expect.soft(computeRouteMock).not.toHaveBeenCalled();
     }
     expect(bookingUpdate).toBeNull();
     expect(clientUpdate).toBeNull();
   });
 
-  it('경로 변경 없이 부담자만 보내는 모호한 요청은 거부한다', async () => {
-    const { response, json } = await call(validBody({ coursePayers: ['mood', 'influencer', 'influencer'] }));
+  it('경로 변경 없이 부담률만 보내는 모호한 요청은 거부한다', async () => {
+    const { response, json } = await call(validBody({ courseMoodPercentages: [100, 50, 0] }));
 
     expect(response.statusCode).toBe(400);
-    expect(json.error).toBe('INVALID_COURSE_PAYERS');
+    expect(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
     expect(transactionRuns).toBe(0);
+  });
+
+  it('실제 경로 변경 요청의 구 coursePayers 필드는 canonical 값으로 조용히 바꾸지 않고 거부한다', async () => {
+    const { response, json } = await call(validBody({
+      origin: '실제 출발지',
+      destination: '실제 도착지',
+      courseMoodPercentages: [100, 0],
+      coursePayers: ['mood', 'influencer'],
+    }));
+
+    expect(response.statusCode).toBe(400);
+    expect(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
+    expect(computeRouteMock).not.toHaveBeenCalled();
+    expect(transactionRuns).toBe(0);
+  });
+
+  it('비율 필드가 전혀 없는 레거시 예약은 기본 100·0 배열로 올려 정산한다', async () => {
+    bookingData = validBooking();
+    delete bookingData.coursePayers;
+
+    const { response, json } = await call(validBody());
+
+    expect(response.statusCode).toBe(200);
+    expect(bookingUpdate).toMatchObject({
+      courseMoodPercentages: [100, 0, 0],
+      courseShareSchemaVersion: 2,
+      coursePayers: ['mood', 'influencer', 'influencer'],
+    });
+    expect(json.data.courseMoodPercentages).toEqual([100, 0, 0]);
+  });
+
+  it('손상된 v2 예약은 유효한 구 coursePayers가 있어도 되돌리지 않고 정산을 막는다', async () => {
+    bookingData = validBooking({
+      courseMoodPercentages: [100, '50', 0],
+      courseShareSchemaVersion: 2,
+      coursePayers: ['mood', 'influencer', 'influencer'],
+    });
+
+    const { response, json } = await call(validBody());
+
+    expect(response.statusCode).toBe(409);
+    expect(json.error).toBe('INVALID_STORED_COURSE_SHARE');
+    expect(transactionRuns).toBe(0);
+    expect(bookingUpdate).toBeNull();
+    expect(clientUpdate).toBeNull();
   });
 });
 
@@ -470,7 +519,7 @@ describe('mood-settle 손상 금액 fail-closed', () => {
     const { response, json } = await call(validBody({
       origin: '실제 출발지',
       destination: '실제 도착지',
-      coursePayers: ['mood', 'influencer'],
+      courseMoodPercentages: [100, 0],
     }));
 
     expect.soft(response.statusCode).toBe(422);
