@@ -13,6 +13,12 @@ import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import { AddressAutocomplete, type AddressResult } from './AddressAutocomplete';
 import { charterWaypointsEnabled } from '@/lib/charterRouteKm';
 import { translations } from '@/i18n';
+import {
+  airportDestinationLabel,
+  dayTourDestinationLabel,
+  kpopVenueLabel,
+  matrixDestinationLabel,
+} from './destinationDisplayLabels';
 
 const MAX_WAYPOINTS = 5; // TMAP passList 제한
 
@@ -36,7 +42,6 @@ interface Props {
 }
 
 export function Step3Destination({ state, patch, language = 'en' }: Props) {
-  const lang: 'ko' | 'en' = language === 'ko' ? 'ko' : 'en';
   const i18n = getWizardI18n(language);
   // PR-H: AddressAutocomplete i18n
   const aacText = (translations[language] as unknown as {
@@ -63,7 +68,7 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
           const d = dest as { ko: string; en: string; priceKRW: number; durationMin: number };
           list.push({
             key,
-            title: lang === 'ko' ? d.ko : d.en,
+            title: airportDestinationLabel(key, language === 'ko' ? d.ko : d.en, language),
             sub: `₩${d.priceKRW.toLocaleString('ko-KR')} · ~${d.durationMin}${i18n.minutesUnit}`,
           });
         }
@@ -76,7 +81,7 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
           const destKey = k.split('→')[1];
           list.push({
             key: destKey,
-            title: destKey,
+            title: matrixDestinationLabel(destKey, language),
             sub: v.priceKRW ? `₩${v.priceKRW.toLocaleString('ko-KR')} · ${v.km}km` : `${v.km}km · ~${v.hours}h`,
           });
         }
@@ -84,7 +89,11 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
     } else if (state.service === 'day_tour') {
       for (const [key, tour] of Object.entries(DAILY_TOUR_PRICES)) {
         const t = tour as { ko: string; en: string; priceKRW: number; hours: number };
-        list.push({ key, title: lang === 'ko' ? t.ko : t.en, sub: `₩${t.priceKRW.toLocaleString('ko-KR')} · ${t.hours}h` });
+        list.push({
+          key,
+          title: dayTourDestinationLabel(key, language === 'ko' ? t.ko : t.en, language),
+          sub: `₩${t.priceKRW.toLocaleString('ko-KR')} · ${t.hours}h`,
+        });
       }
     } else if (state.service === 'multi_day') {
       const matrix = DISTANCE_MATRIX as Record<string, { km?: number; hours?: number; priceKRW?: number }>;
@@ -94,7 +103,7 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         const v = matrix[k];
         if ((v.km ?? 0) < 100) continue;
         const destKey = k.split('→')[1];
-        list.push({ key: destKey, title: destKey, sub: `${v.km}km · ~${v.hours}h` });
+        list.push({ key: destKey, title: matrixDestinationLabel(destKey, language), sub: `${v.km}km · ~${v.hours}h` });
       }
     } else if (state.service === 'transfer') {
       // 도시간 transfer — 매트릭스 도착 도시 (multi_day 와 동일하되 거리 하한 없음: 짧은 도시간 이동도 허용).
@@ -104,28 +113,38 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         if (!k.startsWith(`${state.origin ?? 'SEL_METRO'}→`)) continue;
         const v = matrix[k];
         const destKey = k.split('→')[1];
-        list.push({ key: destKey, title: destKey, sub: `${v.km}km · ~${v.hours}h` });
+        list.push({ key: destKey, title: matrixDestinationLabel(destKey, language), sub: `${v.km}km · ~${v.hours}h` });
       }
     } else if (state.service === 'kpop_shuttle') {
       for (const venue of KPOP_SHUTTLE.venues) {
-        list.push({ key: venue.name, title: lang === 'ko' ? venue.name : venue.nameEn, sub: lang === 'ko' ? venue.location : venue.locationEn });
+        const display = kpopVenueLabel(
+          venue.nameEn,
+          venue.name,
+          venue.locationEn,
+          venue.location,
+          language,
+        );
+        list.push({ key: venue.name, title: display.title, sub: display.sub });
       }
     }
     return list;
-  }, [state.service, state.origin, lang, i18n.minutesUnit]);
+  }, [state.service, state.origin, language, i18n.minutesUnit]);
 
   return (
     <div className="space-y-2.5 sm:space-y-5">
       {options.length === 0 && (
         <p className="text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
       )}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+      <div data-testid="charter-destination-grid" className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {options.map(opt => {
           const selected = state.destinationKey === opt.key;
           return (
             <button
               key={opt.key}
               type="button"
+              aria-pressed={selected}
+              data-testid="charter-destination-card"
+              data-destination-key={opt.key}
               onClick={() => patch({
                 destinationKey: opt.key,
                 destinationCustom: undefined,
@@ -133,13 +152,13 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
                 destLat: undefined, destLng: undefined,
                 destAddress: undefined, destName: undefined, destCategory: undefined,
               })}
-              className={`min-h-[48px] rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[92px] sm:rounded-2xl sm:p-4 ${
+              className={`min-h-[72px] rounded-xl border px-2.5 py-2.5 text-left transition-all sm:min-h-[92px] sm:rounded-2xl sm:p-4 ${
                 selected
-                  ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 shadow-[0_16px_40px_rgba(124,92,252,0.14)]'
+                  ? 'border-[#B668FC] bg-[#251B33] shadow-sm'
                   : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
               }`}
             >
-              <p className="truncate text-xs font-bold text-white/90 sm:text-[15px]">{opt.title}</p>
+              <p className="line-clamp-2 min-h-[2lh] break-words text-xs font-bold leading-snug text-white/90 sm:text-[15px]">{opt.title}</p>
               {opt.sub && <p className="mt-0.5 text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.sub}</p>}
             </button>
           );

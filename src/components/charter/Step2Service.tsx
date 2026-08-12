@@ -28,6 +28,8 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
           <button
             key={opt.id}
             type="button"
+            data-testid="charter-service-card"
+            data-service={opt.id}
             onClick={() => patch({ service: opt.id })}
             className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[118px] sm:items-start sm:gap-4 sm:rounded-2xl sm:p-4 ${
               selected
