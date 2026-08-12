@@ -27,6 +27,10 @@ import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
+import { MoodBookingChangeModal } from '@/components/mood/MoodBookingChangeModal';
+import { MoodBookingShareCard, MoodBookingCopyButton } from '@/components/mood/MoodBookingShareCard';
+import type { MoodBookingShareData } from '@/lib/moodBookingShare';
+import { NAVER_DIRECTIONS_MAX_STOPS, naverMapDirectionsUrl } from '@/lib/naverMap';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { getLocaleSync } from '@/i18n';
@@ -67,9 +71,19 @@ interface MoodBreakdown {
   distanceSurchargeKRW?: number;
   tollKRW?: number;
   km?: number;
+  routeKm?: number;
+  durationMin?: number;
   origin?: string;
   destination?: string;
   waypoints?: string[] | null;
+}
+
+interface MoodRouteSnapshot {
+  km?: number;
+  tollKRW?: number;
+  durationMin?: number;
+  path?: [number, number][];
+  points?: MoodRoutePoint[];
 }
 
 interface MoodBooking {
@@ -83,10 +97,19 @@ interface MoodBooking {
   createdByEmail: string;
   createdAt: number;
   breakdown?: MoodBreakdown;
+  finalBreakdown?: MoodBreakdown | null;
+  routeSnapshot?: MoodRouteSnapshot | null;
+  finalRouteSnapshot?: MoodRouteSnapshot | null;
+  revision?: number;
+  influencerName?: string | null;
+  coursePayers?: Array<'mood' | 'influencer'> | null;
   /** 운행 종료 정산(status='completed') 시 채워짐. */
   actualHours?: number | null;
   finalAmountKRW?: number | null;
   adjustmentKRW?: number | null;
+  manualAdjustmentKRW?: number | null;
+  settlementReason?: string | null;
+  tollMode?: 'estimated' | 'none' | 'actual' | null;
   /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
   runningBalanceKRW?: number | null;
   /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
@@ -203,6 +226,105 @@ function naverDirectionsUrl(bd?: MoodBreakdown | null): string {
   return `https://map.naver.com/p/search/${encodeURIComponent(target)}`;
 }
 
+function shareDirectionsUrl(bd?: MoodBreakdown | null, snapshot?: MoodRouteSnapshot | null): string {
+  const addresses = cleanStops(bd);
+  const points = Array.isArray(snapshot?.points) ? snapshot.points : [];
+  const hasEveryCoordinate = addresses.length >= 2
+    && addresses.length <= NAVER_DIRECTIONS_MAX_STOPS
+    && points.length === addresses.length
+    && points.every((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng));
+  if (hasEveryCoordinate) {
+    const directionsUrl = naverMapDirectionsUrl(addresses.map((name, index) => ({
+      name,
+      lat: points[index].lat,
+      lng: points[index].lng,
+    })));
+    if (directionsUrl) return directionsUrl;
+  }
+  return googleDirectionsUrl(bd);
+}
+
+function makeMoodRequestKey(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function splitAmountByCourses(totalKRW: number, payers: Array<'mood' | 'influencer'>) {
+  if (!payers.length) return { moodKRW: 0, influencerKRW: 0, perCourseKRW: 0 };
+  const total = Math.max(0, Math.round(Number(totalKRW) || 0));
+  const perCourseKRW = Math.floor(total / payers.length);
+  const remainder = total - perCourseKRW * payers.length;
+  return payers.reduce((result, payer, index) => {
+    const amount = perCourseKRW + (index === payers.length - 1 ? remainder : 0);
+    if (payer === 'mood') result.moodKRW += amount;
+    else result.influencerKRW += amount;
+    return result;
+  }, { moodKRW: 0, influencerKRW: 0, perCourseKRW });
+}
+
+function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRouteSnapshot | null): MoodBookingShareData {
+  const expected = booking.breakdown || {};
+  const finalCost = booking.finalBreakdown || {};
+  const isFinal = booking.status === 'completed' && typeof booking.finalAmountKRW === 'number';
+  const activeBreakdown = isFinal && booking.finalBreakdown ? booking.finalBreakdown : expected;
+  const snapshot = routeOverride || (isFinal
+    ? (booking.finalRouteSnapshot || booking.routeSnapshot)
+    : booking.routeSnapshot);
+  const addresses = cleanStops(activeBreakdown);
+  const points = Array.isArray(snapshot?.points) ? snapshot.points : [];
+  const coursePayers = Array.isArray(booking.coursePayers) && booking.coursePayers.length === addresses.length
+    ? booking.coursePayers
+    : addresses.map((_, index) => index === 0 ? 'mood' as const : 'influencer' as const);
+  const manualAdjustmentKRW = booking.manualAdjustmentKRW || 0;
+  const settlementReason = String(booking.settlementReason || '').trim() || null;
+  return {
+    bookingRef: booking.id,
+    phase: isFinal ? 'final' : 'expected',
+    date: booking.date,
+    startTime: booking.startTime,
+    influencerName: booking.influencerName,
+    serviceLabel: booking.serviceType === 'airport'
+      ? `${MOOD_AIRPORT_LABEL[normalizeAirportCode(booking.airportCode)]} ${booking.airportDirection === 'sending' ? '샌딩' : '픽업'}`
+      : SERVICE_LABEL[booking.serviceType],
+    durationHours: booking.serviceType === 'airport' ? null : (isFinal ? booking.actualHours || booking.durationHours : booking.durationHours),
+    stops: addresses.map((address, index) => ({
+      address,
+      lat: points[index]?.lat,
+      lng: points[index]?.lng,
+      payer: coursePayers[index],
+    })),
+    route: snapshot ? {
+      km: snapshot.km || activeBreakdown.routeKm || activeBreakdown.km || null,
+      durationMin: snapshot.durationMin || activeBreakdown.durationMin || null,
+      path: Array.isArray(snapshot.path) ? snapshot.path : [],
+      points,
+    } : {
+      km: activeBreakdown.routeKm || activeBreakdown.km || null,
+      durationMin: activeBreakdown.durationMin || null,
+    },
+    costs: {
+      expected: {
+        baseKRW: expected.baseKRW || 0,
+        distanceSurchargeKRW: expected.distanceSurchargeKRW || 0,
+        tollKRW: expected.tollKRW || 0,
+        totalKRW: booking.amountKRW,
+      },
+      final: isFinal ? {
+        baseKRW: finalCost.baseKRW || 0,
+        distanceSurchargeKRW: finalCost.distanceSurchargeKRW || 0,
+        tollKRW: finalCost.tollKRW || 0,
+        totalKRW: typeof booking.finalAmountKRW === 'number' ? booking.finalAmountKRW : booking.amountKRW,
+        adjustmentKRW: manualAdjustmentKRW,
+        adjustmentReason: manualAdjustmentKRW !== 0 ? settlementReason : null,
+        tollMode: booking.tollMode,
+        tollNote: booking.tollMode && booking.tollMode !== 'estimated' ? settlementReason : null,
+      } : null,
+    },
+    mapUrl: shareDirectionsUrl(activeBreakdown, snapshot),
+    note: booking.note,
+  };
+}
+
 export default function MoodPortal() {
   const { user, loading } = useAuth();
 
@@ -215,6 +337,11 @@ export default function MoodPortal() {
   const [portalTab, setPortalTab] = useState<PortalTab>('status');
   // 예약 항목 클릭 시 영수증 모달 대상 (완료/일반 공용)
   const [selectedBooking, setSelectedBooking] = useState<MoodBooking | null>(null);
+  const [changeBooking, setChangeBooking] = useState<MoodBooking | null>(null);
+  const [shareBooking, setShareBooking] = useState<MoodBooking | null>(null);
+  const [shareRoute, setShareRoute] = useState<MoodRouteSnapshot | null>(null);
+  const [shareRouteLoading, setShareRouteLoading] = useState(false);
+  const [shareRouteError, setShareRouteError] = useState('');
 
   // 예약 폼 상태
   const [date, setDate] = useState(todayISO());
@@ -226,6 +353,10 @@ export default function MoodPortal() {
   const [airportCode, setAirportCode] = useState<MoodAirportCode>(MOOD_DEFAULT_AIRPORT_CODE);
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [influencerName, setInfluencerName] = useState('');
+  const [bookingNote, setBookingNote] = useState('');
+  const [coursePayers, setCoursePayers] = useState<Array<'mood' | 'influencer'>>(['mood', 'influencer']);
+  const bookingRequestRef = useRef({ signature: '', key: '' });
 
   // 경로(주소) 입력 상태 — 경유지는 네이버 지도처럼 개별 추가/삭제(최대 5, 백엔드 한도).
   const [origin, setOrigin] = useState('');
@@ -277,6 +408,20 @@ export default function MoodPortal() {
   const [settleOrigin, setSettleOrigin] = useState('');
   const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
   const [settleDestination, setSettleDestination] = useState('');
+  const [settleCoursePayers, setSettleCoursePayers] = useState<Array<'mood' | 'influencer'>>(['mood', 'influencer']);
+  const [settleTollMode, setSettleTollMode] = useState<'estimated' | 'none' | 'actual'>('estimated');
+  const [settleActualTollKRW, setSettleActualTollKRW] = useState('');
+  const [settleManualAdjustmentKRW, setSettleManualAdjustmentKRW] = useState('0');
+  const [settleReason, setSettleReason] = useState('');
+  const settleCourseItems = useMemo(() => [
+    { address: settleOrigin.trim(), payerIndex: 0 },
+    ...settleWaypoints.map((waypoint, index) => ({ address: waypoint.trim(), payerIndex: index + 1 })),
+    { address: settleDestination.trim(), payerIndex: settleCoursePayers.length - 1 },
+  ].filter((item) => item.address), [settleOrigin, settleWaypoints, settleDestination, settleCoursePayers.length]);
+  const settleCoursePayerValues = useMemo(
+    () => settleCourseItems.map((item, index) => settleCoursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer')),
+    [settleCourseItems, settleCoursePayers],
+  );
 
   // 예상 금액 분해 — base + 거리추가 + 톨비. 공항은 정액 + 경유 우회거리 요금.
   const breakdown = useMemo(
@@ -324,10 +469,62 @@ export default function MoodPortal() {
     if (user) loadData();
   }, [user, loadData]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- selected booking data is copied into the capture preview state */
+  useEffect(() => {
+    if (!shareBooking) {
+      setShareRoute(null);
+      setShareRouteLoading(false);
+      setShareRouteError('');
+      return;
+    }
+    const isFinal = shareBooking.status === 'completed';
+    const stored = isFinal
+      ? (shareBooking.finalRouteSnapshot || shareBooking.routeSnapshot)
+      : shareBooking.routeSnapshot;
+    if (stored && Array.isArray(stored.path) && stored.path.length > 1) {
+      setShareRoute(stored);
+      setShareRouteLoading(false);
+      setShareRouteError('');
+      return;
+    }
+    const activeBreakdown = isFinal && shareBooking.finalBreakdown ? shareBooking.finalBreakdown : shareBooking.breakdown;
+    const o = String(activeBreakdown?.origin || '').trim();
+    const d = String(activeBreakdown?.destination || '').trim();
+    const wp = Array.isArray(activeBreakdown?.waypoints) ? activeBreakdown.waypoints.filter(Boolean) : [];
+    if (!o || !d) {
+      setShareRoute(null);
+      setShareRouteLoading(false);
+      setShareRouteError('저장된 출발지와 도착지가 없습니다.');
+      return;
+    }
+    let alive = true;
+    setShareRoute(null);
+    setShareRouteLoading(true);
+    setShareRouteError('');
+    const params = new URLSearchParams({ origin: o, destination: d });
+    if (wp.length) params.set('waypoints', wp.join('|'));
+    void authFetch(`/api/mood-route?${params.toString()}`)
+      .then(async (response) => ({ response, json: await response.json().catch(() => ({})) }))
+      .then(({ response, json }) => {
+        if (!alive) return;
+        if (!response.ok || !json?.ok) throw new Error(json?.error || '동선 지도 조회 실패');
+        setShareRoute(json.data as MoodRouteSnapshot);
+      })
+      .catch((error) => {
+        if (alive) setShareRouteError(error instanceof Error ? error.message : '동선 지도 조회 실패');
+      })
+      .finally(() => {
+        if (alive) setShareRouteLoading(false);
+      });
+    return () => { alive = false; };
+  }, [shareBooking]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   // 스케줄 메모 로드 — 포털 사용자 전원(무드 포함), 캘린더 달 바뀔 때마다.
   // data 로드 전(=allowlist 통과 확인 전)엔 호출하지 않음.
   const isAdmin = !!data?.isAdmin;
   const canReadNotes = !!data;
+  /* eslint-disable react-hooks/set-state-in-effect -- the note editor intentionally follows the selected calendar date */
   useEffect(() => {
     if (!canReadNotes) return;
     let alive = true;
@@ -347,6 +544,7 @@ export default function MoodPortal() {
     setNoteDraft(scheduleNotes[selectedCalendarDate] || '');
     setNoteMsg(null);
   }, [selectedCalendarDate, scheduleNotes]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveNote = useCallback(async () => {
     setNoteSaving(true);
@@ -465,25 +663,42 @@ export default function MoodPortal() {
       const wp = waypoints
         .map((s) => s.trim())
         .filter(Boolean);
+      const bookingPayload = {
+        clientId: data.clientId,
+        date,
+        startTime,
+        durationHours,
+        serviceType,
+        origin: origin.trim() || undefined,
+        destination: destination.trim() || undefined,
+        waypoints: wp.length ? wp : undefined,
+        airportDirection: serviceType === 'airport' ? airportDirection : undefined,
+        airportCode: serviceType === 'airport' ? airportCode : undefined,
+        influencerName: influencerName.trim() || undefined,
+        note: bookingNote.trim() || undefined,
+        coursePayers: origin.trim() && destination.trim()
+          ? [
+              coursePayers[0] || 'mood',
+              ...waypoints
+                .map((waypoint, index) => ({ waypoint: waypoint.trim(), payer: coursePayers[index + 1] || 'influencer' }))
+                .filter((item) => item.waypoint)
+                .map((item) => item.payer),
+              coursePayers[coursePayers.length - 1] || 'influencer',
+            ]
+          : undefined,
+      };
+      const signature = JSON.stringify(bookingPayload);
+      if (bookingRequestRef.current.signature !== signature) {
+        bookingRequestRef.current = { signature, key: makeMoodRequestKey('mood-book') };
+      }
       const res = await authFetch('/api/mood-book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: data.clientId,
-          date,
-          startTime,
-          durationHours,
-          serviceType,
-          // 주소 — 백엔드가 km/톨비 재계산해 잔액 차감 (클라 금액 무시, P311).
-          origin: origin.trim() || undefined,
-          destination: destination.trim() || undefined,
-          waypoints: wp.length ? wp : undefined,
-          airportDirection: serviceType === 'airport' ? airportDirection : undefined,
-          airportCode: serviceType === 'airport' ? airportCode : undefined,
-        }),
+        body: JSON.stringify({ ...bookingPayload, idempotencyKey: bookingRequestRef.current.key }),
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
+        bookingRequestRef.current = { signature: '', key: '' };
         setFormMsg({
           kind: 'ok',
           text: `예약 완료 — ${formatKRW(json.data.amountKRW)} 차감, 잔액 ${formatBalance(json.data.balanceKRW)}`,
@@ -497,7 +712,7 @@ export default function MoodPortal() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, loadData]);
+  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, influencerName, bookingNote, coursePayers, loadData]);
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
@@ -512,14 +727,41 @@ export default function MoodPortal() {
     const o = settleOrigin.trim();
     const d = settleDestination.trim();
     const wp = settleWaypoints.map((s) => s.trim()).filter(Boolean);
-    const routePayload = o && d ? { origin: o, destination: d, waypoints: wp } : {};
+    if (!!o !== !!d) {
+      setSettleMsg({ kind: 'err', text: '실제 경로의 출발지와 도착지를 모두 입력하세요' });
+      return;
+    }
+    let actualTollKRW: number | undefined;
+    if (settleTollMode === 'actual') {
+      const rawActualToll = settleActualTollKRW.trim();
+      const parsedActualToll = Number(rawActualToll);
+      if (!rawActualToll || !Number.isSafeInteger(parsedActualToll) || parsedActualToll < 0 || parsedActualToll > 1000000) {
+        setSettleMsg({ kind: 'err', text: '실제 톨비를 0원 이상 1,000,000원 이하 정수로 입력하세요' });
+        return;
+      }
+      actualTollKRW = parsedActualToll;
+    }
+    const routePayload = o && d ? {
+      origin: o,
+      destination: d,
+      waypoints: wp,
+      coursePayers: settleCoursePayerValues,
+    } : {};
     setSettling(true);
     setSettleMsg(null);
     try {
       const res = await authFetch('/api/mood-settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, actualHours: hours, ...routePayload }),
+        body: JSON.stringify({
+          bookingId,
+          actualHours: hours,
+          ...routePayload,
+          tollMode: settleTollMode,
+          actualTollKRW,
+          manualAdjustmentKRW: Number(settleManualAdjustmentKRW || 0),
+          settlementReason: settleReason.trim() || undefined,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
@@ -532,6 +774,11 @@ export default function MoodPortal() {
         setSettleOrigin('');
         setSettleDestination('');
         setSettleWaypoints([]);
+        setSettleCoursePayers(['mood', 'influencer']);
+        setSettleTollMode('estimated');
+        setSettleActualTollKRW('');
+        setSettleManualAdjustmentKRW('0');
+        setSettleReason('');
         await loadData(data?.clientId);
       } else {
         setSettleMsg({ kind: 'err', text: json?.error || `정산 실패 (${res.status})` });
@@ -541,14 +788,18 @@ export default function MoodPortal() {
     } finally {
       setSettling(false);
     }
-  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, data, loadData]);
+  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, settleCoursePayerValues, settleTollMode, settleActualTollKRW, settleManualAdjustmentKRW, settleReason, data, loadData]);
 
   // ── 정산 경유지 배열 조작 (예약 폼과 동일 규칙, 최대 5 = 백엔드 한도) ──
   const addSettleWaypoint = useCallback(() => {
     setSettleWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+    setSettleCoursePayers((items) => items.length >= 7
+      ? items
+      : [...items.slice(0, -1), 'influencer', items[items.length - 1] || 'influencer']);
   }, []);
   const removeSettleWaypoint = useCallback((i: number) => {
     setSettleWaypoints((w) => w.filter((_, idx) => idx !== i));
+    setSettleCoursePayers((items) => items.filter((_, idx) => idx !== i + 1));
   }, []);
   const setSettleWaypointAt = useCallback((i: number, val: string) => {
     setSettleWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
@@ -561,10 +812,14 @@ export default function MoodPortal() {
   const addWaypoint = useCallback(() => {
     setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
     setWaypointsAC((w) => (w.length >= 5 ? w : [...w, null]));
+    setCoursePayers((payers) => (payers.length >= 7
+      ? payers
+      : [...payers.slice(0, -1), 'influencer', payers[payers.length - 1] || 'influencer']));
   }, []);
   const removeWaypoint = useCallback((i: number) => {
     setWaypoints((w) => w.filter((_, idx) => idx !== i));
     setWaypointsAC((w) => w.filter((_, idx) => idx !== i));
+    setCoursePayers((payers) => payers.filter((_, idx) => idx !== i + 1));
   }, []);
   const setWaypointAt = useCallback((i: number, val: string) => {
     setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
@@ -606,17 +861,23 @@ export default function MoodPortal() {
     setDate(b.date || todayISO());
     setStartTime(b.startTime || '10:00');
     setDurationHours(Math.max(MOOD_MIN_DURATION_HOURS, Number(b.durationHours) || MOOD_MIN_DURATION_HOURS));
+    setInfluencerName(b.influencerName || '');
+    setBookingNote(b.note || '');
     const wps = Array.isArray(bd.waypoints) ? bd.waypoints.filter(Boolean) : [];
     setOrigin(bd.origin || '');
     setDestination(bd.destination || '');
     setWaypoints(wps);
+    const expectedPayerCount = wps.length + 2;
+    setCoursePayers(Array.isArray(b.coursePayers) && b.coursePayers.length === expectedPayerCount
+      ? b.coursePayers.slice()
+      : Array.from({ length: expectedPayerCount }, (_, index) => index === 0 ? 'mood' : 'influencer'));
     // breakdown 엔 좌표 미저장(주소 문자열만) → AC 는 비움. 복사된 주소는 각 칸 밑
     // "현재: {주소}" 힌트로 노출되고, 경로/금액은 문자열 기준으로 그대로 계산된다.
     // 바꾸려면 검색해서 핀 재확정. (배열 길이는 waypoints 와 동기)
     setOriginAC(null);
     setDestinationAC(null);
     setWaypointsAC(wps.map(() => null));
-    setFormMsg({ kind: 'ok', text: '예약 폼에 복사했습니다. 날짜·시간을 확인하고, 경로를 바꾸려면 지도에서 다시 검색하세요.' });
+    setFormMsg({ kind: 'ok', text: '같은 내용으로 새 예약할 수 있게 폼을 채웠습니다. 저장 전 날짜와 동선을 확인해 주세요.' });
     setPortalTab('manual'); // 예약 폼이 수기 예약 탭으로 이동 — 복사 시 해당 탭으로 전환
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -689,13 +950,14 @@ export default function MoodPortal() {
   const balanceNegative = balance < 0;
   const bookings = data?.bookings || [];
   const today = todayISO();
-  const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled');
-  const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled');
+  const chronological = (left: MoodBooking, right: MoodBooking) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`);
+  const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled').sort(chronological);
+  const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled').sort(chronological);
   // 취소 건은 예약 운영 보드에서 제외 (운영자 2026-07-28: "확정된 것만 올려놔").
   //   환불이 끝나 배차도 청구도 남지 않은 기록이라 보드에서는 노이즈다. 문서는 지우지 않으므로
   //   (mood-cancel 이 status='cancelled' + refundKRW 로 남김) 감사 추적은 Firestore 에 보존된다.
-  const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
-  const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
+  const activeBookings = bookings.filter((b) => b.status !== 'cancelled').sort(chronological);
+  const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= today).sort(chronological);
   const completedBookings = bookings.filter((b) => b.status === 'completed');
   const calendarDays = daysInMonthGrid(calendarMonth);
   const bookingsByDate = bookings.reduce<Record<string, MoodBooking[]>>((acc, b) => {
@@ -724,6 +986,13 @@ export default function MoodPortal() {
           : activeBookings;
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
+  const manualCourseItems = [
+    { address: origin.trim(), payerIndex: 0 },
+    ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), payerIndex: index + 1 })),
+    { address: destination.trim(), payerIndex: coursePayers.length - 1 },
+  ].filter((item) => item.address);
+  const manualCoursePayerValues = manualCourseItems.map((item, index) => coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer'));
+  const manualCourseSplit = splitAmountByCourses(estimate, manualCoursePayerValues);
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -1023,6 +1292,18 @@ export default function MoodPortal() {
             </div>
           )}
 
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs" style={{ color: C.textDim }}>탑승 인플루언서 <span className="opacity-70">· 공유 안내에 표시</span></span>
+            <input
+              value={influencerName}
+              onChange={(e) => setInfluencerName(e.target.value)}
+              maxLength={100}
+              placeholder="이름 또는 활동명"
+              className="rounded-xl px-3 py-2.5 text-sm"
+              style={inputStyle}
+            />
+          </label>
+
           {/* 공항 픽업/샌딩 방향 — 공항 선택 시만 표시 */}
           {serviceType === 'airport' && (
             <div className="flex flex-col gap-1.5">
@@ -1112,6 +1393,19 @@ export default function MoodPortal() {
           </div>
           )}
 
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs" style={{ color: C.textDim }}>예약·전달 메모 <span className="opacity-70">· 복사 문구와 캡처 카드에 표시</span></span>
+            <textarea
+              value={bookingNote}
+              onChange={(e) => setBookingNote(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="항공편, 짐, 만날 장소 등 전달할 내용을 적어 주세요."
+              className="rounded-xl px-3 py-2.5 text-sm resize-y"
+              style={inputStyle}
+            />
+          </label>
+
           {/* 경로 (출발 / 경유지 N / 도착) — 네이버 지도 검색+미니지도 핀 확정 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
             <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(직행 정액 · 경유 시 우회거리 요금)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
@@ -1190,7 +1484,7 @@ export default function MoodPortal() {
               <p className="text-[11px]" style={{ color: C.textDim }}>경로 계산 중…</p>
             )}
             {routeError && (
-              <p className="text-[11px]" style={{ color: C.danger }}>경로 계산 실패 — {routeError} (거리 추가요금 제외하고 예약 가능)</p>
+              <p className="text-[11px]" style={{ color: C.danger }}>경로 계산 실패 — 주소를 확인한 뒤 다시 시도해 주세요. ({routeError})</p>
             )}
             {route && !routeLoading && (
               <p className="text-[11px]" style={{ color: C.textDim }}>
@@ -1210,6 +1504,40 @@ export default function MoodPortal() {
               inputBorder={C.inputBorder}
               textDim={C.textDim}
             />
+            {origin.trim() && destination.trim() && (
+              <div className="rounded-xl p-3" style={{ background: 'rgba(2,6,23,.38)', border: C.inputBorder }}>
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold" style={{ color: C.text }}>코스별 비용 부담자</p>
+                    <p className="text-[10px]" style={{ color: C.textDim }}>총액을 번호 코스 수로 똑같이 나눕니다.</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold" style={{ color: C.accentSolid }}>{manualCourseItems.length}코스</span>
+                </div>
+                <div className="space-y-2">
+                  {manualCourseItems.map((item, index) => {
+                    const payer = coursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer');
+                    return (
+                      <div key={`${item.payerIndex}-${item.address}`} className="flex items-center gap-2 rounded-lg bg-white/[0.04] p-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: C.accentSolid }}>{index + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: C.text }}>{item.address}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCoursePayers((values) => values.map((value, payerIndex) => payerIndex === item.payerIndex ? (payer === 'mood' ? 'influencer' : 'mood') : value))}
+                          className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold"
+                          style={{ background: payer === 'mood' ? 'rgba(124,92,252,.22)' : 'rgba(234,83,126,.18)', color: payer === 'mood' ? '#c4b5fd' : '#f9a8d4' }}
+                        >
+                          {payer === 'mood' ? 'MOOD 직원' : '인플루언서'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-center">
+                  <div className="rounded-lg bg-violet-400/10 p-2"><p className="text-[9px]" style={{ color: C.textDim }}>MOOD 직원 부담</p><p className="text-xs font-black" style={{ color: '#c4b5fd' }}>{formatKRW(manualCourseSplit.moodKRW)}</p></div>
+                  <div className="rounded-lg bg-pink-400/10 p-2"><p className="text-[9px]" style={{ color: C.textDim }}>인플루언서 부담</p><p className="text-xs font-black" style={{ color: '#f9a8d4' }}>{formatKRW(manualCourseSplit.influencerKRW)}</p></div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 예상 금액 분해 */}
@@ -1248,7 +1576,7 @@ export default function MoodPortal() {
 
           <button
             onClick={() => { void handleBook(); }}
-            disabled={submitting || !data || routeLoading}
+            disabled={submitting || !data || routeLoading || (!!(origin.trim() || destination.trim()) && (!route || !!routeError))}
             className="w-full py-3.5 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
             style={{ background: C.accent, color: '#fff' }}
           >
@@ -1363,7 +1691,7 @@ export default function MoodPortal() {
                       </button>
                       <div className="text-right shrink-0">
                         <span className="text-sm font-bold" style={{ color: b.status === 'completed' ? C.ok : C.danger }}>
-                          −{formatKRW(b.finalAmountKRW || b.amountKRW)}
+                          −{formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
                         </span>
                         {typeof b.runningBalanceKRW === 'number' && (
                           <p className="text-[11px]" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
@@ -1402,12 +1730,30 @@ export default function MoodPortal() {
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => setSelectedBooking(b)}
+                            onClick={() => setShareBooking(b)}
                             className="col-span-2 rounded-xl px-3 py-2 text-[11px] font-semibold"
                             style={{ background: C.accent, color: '#fff' }}
                           >
-                            영수증 보기
+                            공유·캡처용 동선표 보기
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooking(b)}
+                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+                          >
+                            영수증
+                          </button>
+                          {b.status === 'confirmed' && (
+                            <button
+                              type="button"
+                              onClick={() => setChangeBooking(b)}
+                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              style={{ background: 'rgba(124,92,252,.18)', border: '1px solid rgba(167,139,250,.35)', color: '#c4b5fd' }}
+                            >
+                              예약 내용 변경
+                            </button>
+                          )}
                           <a
                             href={naverDirectionsUrl(bd)}
                             target="_blank"
@@ -1432,7 +1778,7 @@ export default function MoodPortal() {
                             className="rounded-xl px-3 py-2 text-[11px] font-semibold"
                             style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
                           >
-                            이 예약 복사
+                            같은 내용으로 새 예약
                           </button>
                           {b.status === 'confirmed' && (
                             <button
@@ -1444,22 +1790,26 @@ export default function MoodPortal() {
                               예약 취소
                             </button>
                           )}
-                          <button
+                          {canSettle && <button
                             type="button"
                             onClick={() => {
                               setSettleId(b.id);
                               setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS));
                               setSettleOrigin(b.breakdown?.origin || '');
                               setSettleDestination(b.breakdown?.destination || '');
-                              setSettleWaypoints(Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : []);
+                              const nextWaypoints = Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : [];
+                              const nextPayerCount = nextWaypoints.length + 2;
+                              setSettleWaypoints(nextWaypoints);
+                              setSettleCoursePayers(Array.isArray(b.coursePayers) && b.coursePayers.length === nextPayerCount
+                                ? b.coursePayers.slice()
+                                : Array.from({ length: nextPayerCount }, (_, index) => index === 0 ? 'mood' : 'influencer'));
                               setSettleMsg(null);
                             }}
-                            disabled={!canSettle}
-                            className="rounded-xl px-3 py-2 text-[11px] font-semibold disabled:opacity-40"
-                            style={{ background: canSettle ? C.accent : C.inputBg, border: canSettle ? '1px solid transparent' : C.inputBorder, color: canSettle ? '#fff' : C.textDim }}
+                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            style={{ background: C.accent, border: '1px solid transparent', color: '#fff' }}
                           >
                             운행 종료 정산
-                          </button>
+                          </button>}
                         </div>
 
                         {/* 취소 2단계 확인 — 환불액 명시 후 확정 */}
@@ -1575,7 +1925,55 @@ export default function MoodPortal() {
                                 />
                                 <button type="button" onClick={() => { void searchAddress(setSettleDestination); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="도착지 주소 검색">검색</button>
                               </div>
+                              {settleCourseItems.length >= 2 && (
+                                <div className="mt-1 rounded-lg border border-white/10 bg-black/15 p-2">
+                                  <p className="text-[10px] font-semibold" style={{ color: C.textDim }}>
+                                    코스별 비용 부담자 — 최종 금액을 {settleCourseItems.length}개 번호 코스로 똑같이 나눕니다.
+                                  </p>
+                                  <div className="mt-1.5 flex flex-col gap-1.5">
+                                    {settleCourseItems.map((item, index) => {
+                                      const payer = settleCoursePayers[item.payerIndex] || (index === 0 ? 'mood' : 'influencer');
+                                      return (
+                                        <div key={`${item.payerIndex}-${item.address}`} className="flex items-center gap-2 rounded-lg bg-white/[0.04] p-1.5">
+                                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black text-white" style={{ background: C.accentSolid }}>{index + 1}</span>
+                                          <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: C.text }}>{item.address}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setSettleCoursePayers((items) => items.map((value, payerIndex) => payerIndex === item.payerIndex ? (payer === 'mood' ? 'influencer' : 'mood') : value))}
+                                            className="shrink-0 rounded-full px-2 py-1 text-[9px] font-black"
+                                            style={{ background: payer === 'mood' ? 'rgba(124,92,252,.2)' : 'rgba(234,83,126,.2)', color: payer === 'mood' ? '#c4b5fd' : '#f9a8d4' }}
+                                          >
+                                            {payer === 'mood' ? 'MOOD 직원' : '인플루언서'}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                               <p className="text-[10px]" style={{ color: C.textDim }}>* 비워두면 예약 시 측정한 거리로 정산됩니다.</p>
+                            </div>
+
+                            <div className="rounded-lg p-2.5 flex flex-col gap-2" style={{ background: C.inputBg, border: C.inputBorder }}>
+                              <label className="text-[11px] font-semibold" style={{ color: C.textDim }}>
+                                실제 톨비
+                                <select value={settleTollMode} onChange={(e) => setSettleTollMode(e.target.value as 'estimated' | 'none' | 'actual')} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle}>
+                                  <option value="estimated">예상대로 지불</option>
+                                  <option value="none">톨비 미지불 (0원)</option>
+                                  <option value="actual">실제 금액 입력</option>
+                                </select>
+                              </label>
+                              {settleTollMode === 'actual' && (
+                                <label className="text-[11px]" style={{ color: C.textDim }}>실제 톨비(원)
+                                  <input type="number" min={0} max={1000000} value={settleActualTollKRW} onChange={(e) => setSettleActualTollKRW(e.target.value)} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle} />
+                                </label>
+                              )}
+                              <label className="text-[11px]" style={{ color: C.textDim }}>기타 금액 조정(원) <span className="opacity-70">· 할인은 음수</span>
+                                <input type="number" value={settleManualAdjustmentKRW} onChange={(e) => setSettleManualAdjustmentKRW(e.target.value)} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle} />
+                              </label>
+                              <label className="text-[11px]" style={{ color: C.textDim }}>조정 이유 {(settleTollMode !== 'estimated' || Number(settleManualAdjustmentKRW || 0) !== 0) && <span style={{ color: C.danger }}>필수</span>}
+                                <textarea value={settleReason} onChange={(e) => setSettleReason(e.target.value)} maxLength={500} rows={2} placeholder="예: 하이패스 미사용으로 톨비 미지불" className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs resize-y" style={inputStyle} />
+                              </label>
                             </div>
 
                             {/* 확정 / 취소 */}
@@ -1608,7 +2006,7 @@ export default function MoodPortal() {
                     {/* 정산 완료 배지 */}
                     {b.status === 'completed' && (
                       <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px solid rgba(110,231,183,0.15)', color: C.ok }}>
-                        ✓ 정산 완료 · 실제 {b.actualHours || '?'}시간 · 최종 {formatKRW(b.finalAmountKRW || b.amountKRW)}
+                        ✓ 정산 완료 · 실제 {b.actualHours || '?'}시간 · 최종 {formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
                         {typeof b.adjustmentKRW === 'number' && b.adjustmentKRW !== 0 && (
                           <span style={{ color: C.textDim }}> ({b.adjustmentKRW > 0 ? '+' : ''}{formatKRW(b.adjustmentKRW)})</span>
                         )}
@@ -1625,6 +2023,32 @@ export default function MoodPortal() {
 
         {/* 예약 항목 클릭 시 영수증 모달 (완료/일반 공용) — 파트2 컴포넌트 */}
         <MoodReceiptModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+        {changeBooking && (
+          <MoodBookingChangeModal
+            key={`${changeBooking.id}-${changeBooking.revision || 0}`}
+            booking={changeBooking}
+            balanceKRW={data?.client.balanceKRW || 0}
+            onClose={() => setChangeBooking(null)}
+            onChanged={() => loadData(data?.clientId)}
+          />
+        )}
+        {shareBooking && (
+          <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/80 px-3 py-5" role="dialog" aria-modal="true" aria-label="공유 캡처용 동선표">
+            <div className="mx-auto max-w-[470px]">
+              <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                <div><p className="text-sm font-black">공유·캡처용 동선표</p><p className="text-[11px] text-white/60">아래 흰색 카드만 캡처하면 됩니다.</p></div>
+                <button type="button" onClick={() => setShareBooking(null)} className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold">닫기</button>
+              </div>
+              {shareRouteLoading && <p className="mb-2 rounded-xl bg-white/10 px-3 py-2 text-center text-xs text-white/75">실제 도로 동선을 불러오는 중…</p>}
+              {shareRouteError && <p className="mb-2 rounded-xl bg-amber-400/15 px-3 py-2 text-center text-xs text-amber-100">지도는 표시하지 못했지만 주소·비용은 그대로 공유할 수 있습니다. ({shareRouteError})</p>}
+              <MoodBookingShareCard data={moodShareDataFromBooking(shareBooking, shareRoute)} />
+              <div className="mt-3 rounded-2xl bg-white p-3">
+                <MoodBookingCopyButton data={moodShareDataFromBooking(shareBooking, shareRoute)} />
+                <p className="mt-2 text-center text-[10px] text-slate-500">직원 이메일과 선불 잔액은 복사·캡처 내용에서 제외됩니다.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

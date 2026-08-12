@@ -31,6 +31,8 @@ const SRC = fileURLToPath(new URL('../../src', import.meta.url));
  * 아닌가" 를 한 번 확인하라 — 이 목록에 넣는 순간 문구 검사에서 영원히 빠진다.
  */
 const NOT_I18N = new Set([
+  'components/mood/MoodBookingChangeModal.tsx::json.error', // MOOD API error response
+  'pages/MoodPortal.tsx::json.error',                       // MOOD API error response
   'pages/AdminCalendar.tsx::booking.pickup',       // 예약 문서의 픽업 장소(자유 입력)
   'pages/AdminCalendar.tsx::d.name',               // 디스코드 구독자 표시 이름
   'pages/AdminProductEditor.tsx::validation.message', // 검증 결과 메시지 객체

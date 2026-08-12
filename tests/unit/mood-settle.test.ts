@@ -32,8 +32,8 @@ describe('mood-settle 엔드포인트 — 보안·정산 가드', () => {
   it('최종금액 = computeMoodTotalKRW(실제시간, 재측정/재사용 거리·톨비) — 백엔드 SSOT', () => {
     expect(src).toMatch(/computeMoodTotalKRW\(\{[\s\S]{0,160}durationHours:\s*actualHours/);
     // km/tollKRW 는 route 재측정 또는 예약값 재사용 변수 (기본값 = 예약 시 측정치)
-    expect(src).toMatch(/km\s*=\s*Number\(preBd\.km\)/);
-    expect(src).toMatch(/tollKRW\s*=\s*Number\(preBd\.tollKRW\)/);
+    expect(src).toMatch(/let\s+km\s*=\s*preBd\.km/);
+    expect(src).toMatch(/let\s+tollKRW\s*=\s*preBd\.tollKRW/);
   });
 
   it('추가 방문지 → computeRoute 로 실제 거리 재측정 (override 있을 때만)', () => {

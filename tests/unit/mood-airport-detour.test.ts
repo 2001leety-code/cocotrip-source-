@@ -20,11 +20,13 @@ describe('공항 우회거리 — 백엔드 배선 불변식', () => {
     expect(src).toMatch(/computeMoodTotalKRW\(\{[^}]*airportDetourKm/s);
   });
 
-  it('실패 폴백 — via/direct 둘 중 하나라도 실패면 우회요금 제외(정액만, 과소청구 안전측)', () => {
+  it('via/direct 둘 중 하나라도 실패면 과소청구 예약을 막고 422를 반환한다', () => {
     const src = readFileSync(resolve(__dirname, '../../api/mood-book.js'), 'utf8');
-    // detour 는 0 으로 초기화되고, 성공 시에만 대입 (실패 시 정액 유지)
+    // 돈 경로가 불확실하면 정액만 예약하지 않고 쓰기 전에 중단한다.
     expect(src).toMatch(/let airportDetourKm = 0/);
-    expect(src).toMatch(/if \(viaRoute\.ok && directRoute\.ok\)/);
+    expect(src).toMatch(/isValidComputedRoute\(viaRoute\).*isValidComputedRoute\(directRoute\)/s);
+    expect(src).toMatch(/writeHead\(422, JSON_HEADERS\)/);
+    expect(src).toMatch(/ROUTE_CALCULATION_FAILED/);
   });
 });
 

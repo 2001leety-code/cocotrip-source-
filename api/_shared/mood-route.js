@@ -197,9 +197,15 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
       };
     }
 
-    const km = Math.round((Number(summary.distance) / 1000) * 10) / 10; // m → km, 소수 1자리
-    const durationMin = Math.max(1, Math.round(Number(summary.duration) / 60000)); // ms → 분
-    const tollKRW = Math.max(0, Math.round(Number(summary.tollFare) || 0)); // tollFare 없으면 0
+    const distanceMeters = Number(summary.distance);
+    const durationMs = Number(summary.duration);
+    const rawTollFare = summary.tollFare === undefined || summary.tollFare === null ? 0 : Number(summary.tollFare);
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 0 || !Number.isFinite(durationMs) || durationMs < 0 || !Number.isFinite(rawTollFare) || rawTollFare < 0) {
+      return { ok: false, status: 502, error: 'DIRECTIONS_FAILED', detail: 'invalid summary' };
+    }
+    const km = Math.round((distanceMeters / 1000) * 10) / 10; // m → km, 소수 1자리
+    const durationMin = Math.max(1, Math.round(durationMs / 60000)); // ms → 분
+    const tollKRW = Math.round(rawTollFare);
 
     // 경로 선(폴리라인) 좌표 [[lng,lat],...] + 출발/경유/도착 마커 좌표 — 지도에 실제 경로 그리기용.
     // (추가 필드: 기존 km/tollKRW/durationMin 은 그대로 = 가격 계산 무영향.)

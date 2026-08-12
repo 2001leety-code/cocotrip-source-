@@ -47,6 +47,10 @@ export default async function handler(req, res) {
     res.writeHead(auth.status, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: auth.error }));
   }
+  if (!auth.emailVerified) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'EMAIL_NOT_VERIFIED' }));
+  }
   const email = auth.email;
 
   // ── 2) query 파싱 ────────────────────────────────────────
@@ -59,6 +63,10 @@ export default async function handler(req, res) {
   if (!origin || !destination) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'origin·destination 필수' }));
+  }
+  if (origin.length > 300 || destination.length > 300 || waypoints.length > 5 || waypoints.some((waypoint) => waypoint.length > 300)) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_ROUTE_INPUT' }));
   }
 
   try {
