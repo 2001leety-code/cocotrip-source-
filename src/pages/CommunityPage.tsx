@@ -39,6 +39,8 @@ import { authFetch } from '@/lib/authFetch';
 import type { Language } from '@/i18n';
 import { trackEvent } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
+import { EcEmpty, EcError, EcLoading } from '@/components/ui/states';
+import '@/styles/editorial-community.css';
 
 /**
  * 커뮤니티 — UIUX 가이드 P9 실전화 (2026-07-12).
@@ -73,6 +75,11 @@ type Copy = {
   justNow: string; minutesAgo: string; hoursAgo: string; daysAgo: string;
   productBridgeTitle: string; productBridgeBody: string;
   plannerCta: string; charterCta: string;
+  togetherEyebrow: string; delete: string; like: string;
+  loadingFeed: string; loadingPost: string; loadingAlerts: string; loadingAccount: string;
+  alertsLoadFailed: string;
+  publishFailed: string; replyFailed: string;
+  postLoadFailed: string; postUnavailableTitle: string; postUnavailableBody: string;
 };
 
 const COPY: Record<Language, Copy> = {
@@ -103,6 +110,11 @@ const COPY: Record<Language, Copy> = {
     justNow: 'just now', minutesAgo: 'm', hoursAgo: 'h', daysAgo: 'd',
     productBridgeTitle: 'Turn ideas into a real Korea trip', productBridgeBody: 'Build an itinerary or get a private car quote without leaving CocoTrip.',
     plannerCta: 'Build my itinerary', charterCta: 'Get a car quote',
+    togetherEyebrow: 'Traveler notes', delete: 'Delete', like: 'Like',
+    loadingFeed: 'Loading community posts', loadingPost: 'Loading this post', loadingAlerts: 'Loading alerts', loadingAccount: 'Checking your account',
+    alertsLoadFailed: 'Could not load alerts.',
+    publishFailed: 'Could not publish your post. Try again.', replyFailed: 'Could not send your reply. Try again.',
+    postLoadFailed: 'Could not load this post.', postUnavailableTitle: 'This post is unavailable', postUnavailableBody: 'It may have been removed or the link may be incorrect.',
   },
   ko: {
     community: '커뮤니티', exploreKorea: '한국에 있는 사람들이 함께 만드는 정보', search: '한국 팁, 장소, 사람 검색',
@@ -131,6 +143,11 @@ const COPY: Record<Language, Copy> = {
     justNow: '방금', minutesAgo: '분 전', hoursAgo: '시간 전', daysAgo: '일 전',
     productBridgeTitle: '여행 아이디어를 실제 일정으로', productBridgeBody: '코코트립에서 일정 제작이나 전세 차량 견적을 바로 시작하세요.',
     plannerCta: '일정 만들기', charterCta: '차량 견적 받기',
+    togetherEyebrow: '여행자 이야기', delete: '삭제', like: '좋아요',
+    loadingFeed: '커뮤니티 글을 불러오는 중', loadingPost: '게시글을 불러오는 중', loadingAlerts: '알림을 불러오는 중', loadingAccount: '로그인 상태를 확인하는 중',
+    alertsLoadFailed: '알림을 불러오지 못했어요.',
+    publishFailed: '게시글을 올리지 못했어요. 다시 시도해 주세요.', replyFailed: '댓글을 보내지 못했어요. 다시 시도해 주세요.',
+    postLoadFailed: '게시글을 불러오지 못했어요.', postUnavailableTitle: '게시글을 볼 수 없어요', postUnavailableBody: '삭제된 글이거나 주소가 올바르지 않을 수 있어요.',
   },
   ja: {
     community: 'コミュニティ', exploreKorea: '韓国にいる人たちと共有するリアルな情報', search: '韓国の情報・場所・仲間を検索',
@@ -159,6 +176,11 @@ const COPY: Record<Language, Copy> = {
     justNow: 'たった今', minutesAgo: '分前', hoursAgo: '時間前', daysAgo: '日前',
     productBridgeTitle: '旅のアイデアを実際の日程へ', productBridgeBody: 'CocoTripで旅程作成や専用車の見積もりを始められます。',
     plannerCta: '旅程を作る', charterCta: '専用車を見積もる',
+    togetherEyebrow: '旅人のノート', delete: '削除', like: 'いいね',
+    loadingFeed: 'コミュニティの投稿を読み込んでいます', loadingPost: '投稿を読み込んでいます', loadingAlerts: '通知を読み込んでいます', loadingAccount: 'アカウントを確認しています',
+    alertsLoadFailed: '通知を読み込めませんでした。',
+    publishFailed: '投稿できませんでした。もう一度お試しください。', replyFailed: '返信を送信できませんでした。もう一度お試しください。',
+    postLoadFailed: 'この投稿を読み込めませんでした。', postUnavailableTitle: 'この投稿は表示できません', postUnavailableBody: '削除されたか、リンクが正しくない可能性があります。',
   },
   zh: {
     community: '社区', exploreKorea: '由在韩国的人们共同分享的真实信息', search: '搜索韩国攻略、地点和伙伴',
@@ -187,6 +209,11 @@ const COPY: Record<Language, Copy> = {
     justNow: '刚刚', minutesAgo: '分钟前', hoursAgo: '小时前', daysAgo: '天前',
     productBridgeTitle: '把旅行灵感变成真实行程', productBridgeBody: '在CocoTrip直接制作行程或获取包车报价。',
     plannerCta: '制作行程', charterCta: '获取包车报价',
+    togetherEyebrow: '旅行者笔记', delete: '删除', like: '点赞',
+    loadingFeed: '正在加载社区帖子', loadingPost: '正在加载帖子', loadingAlerts: '正在加载通知', loadingAccount: '正在确认登录状态',
+    alertsLoadFailed: '无法加载通知。',
+    publishFailed: '帖子发布失败，请重试。', replyFailed: '回复发送失败，请重试。',
+    postLoadFailed: '无法加载这条帖子。', postUnavailableTitle: '无法查看这条帖子', postUnavailableBody: '帖子可能已被删除，或链接不正确。',
   },
 };
 
@@ -216,12 +243,22 @@ type ApiReply = {
 
 // 로그인 상태면 토큰을 실어 보낸다 — 서버가 `isOwn` 을 계산하기 위해서다(응답 내용은
 // 비로그인과 동일하게 공개 필드뿐). 토큰이 없으면 비로그인 응답을 받는다.
+class CommunityApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'CommunityApiError';
+    this.status = status;
+  }
+}
+
 async function apiGet(path: string, token?: string | null) {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(path, { headers });
   const data = await res.json().catch(() => null);
-  if (!res.ok || !data || !data.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  if (!res.ok || !data || !data.ok) throw new CommunityApiError((data && data.error) || `HTTP ${res.status}`, res.status);
   return data.data;
 }
 async function apiPost(path: string, body: unknown, token?: string | null) {
@@ -258,10 +295,30 @@ function categoryLabel(key: string, language: Language): string {
   return t ? t.labels[language] : key;
 }
 
+function moveRadioSelection(
+  event: React.KeyboardEvent<HTMLButtonElement>,
+  index: number,
+  total: number,
+  onSelect: (nextIndex: number) => void,
+) {
+  let nextIndex: number | null = null;
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % total;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + total) % total;
+  if (event.key === 'Home') nextIndex = 0;
+  if (event.key === 'End') nextIndex = total - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  onSelect(nextIndex);
+  const radios = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+  radios?.[nextIndex]?.focus();
+}
+
 // ── 공통 셸 ──
 function CommunityBrand({ compact = false }: { compact?: boolean }) {
+  const { language } = useLanguage();
   return (
-    <Link to="/community" className="community-brand" aria-label="CocoTrip Community">
+    <Link to="/community" className="community-brand" aria-label={`CocoTrip ${COPY[language].community}`}>
       <img src="/icons/icon-192.png" alt="" className={compact ? 'h-8 w-8' : 'h-9 w-9'} />
       <span>CocoTrip</span>
     </Link>
@@ -272,7 +329,7 @@ function LanguageButton() {
   const { language, changeLanguage } = useLanguage();
   const nextLanguage = () => changeLanguage(LANGUAGES[(LANGUAGES.indexOf(language) + 1) % LANGUAGES.length]);
   return (
-    <button type="button" className="community-icon-button community-language-button" onClick={nextLanguage} title={LANGUAGE_NAME[language]}>
+    <button type="button" className="community-icon-button community-language-button" onClick={nextLanguage} title={LANGUAGE_NAME[language]} aria-label={`${LANGUAGE_SHORT[language]} (${LANGUAGE_NAME[language]})`}>
       <Globe2 size={18} />
       <span>{LANGUAGE_SHORT[language]}</span>
     </button>
@@ -411,12 +468,59 @@ function RightRail() {
   );
 }
 
-function ReportSheet({ postId, replyId, onClose }: { postId: string; replyId?: string; onClose: () => void }) {
+function ReportSheet({
+  postId,
+  replyId,
+  onClose,
+  returnFocusRef,
+}: {
+  postId: string;
+  replyId?: string;
+  onClose: () => void;
+  returnFocusRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   const { language } = useLanguage();
   const copy = COPY[language];
   const [reason, setReason] = useState(0);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const returnFocusElement = returnFocusRef.current;
+    closeButtonRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = sheetRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      returnFocusElement?.focus();
+    };
+  }, [onClose, returnFocusRef]);
 
   const submit = async () => {
     setSending(true);
@@ -431,17 +535,26 @@ function ReportSheet({ postId, replyId, onClose }: { postId: string; replyId?: s
 
   return (
     <div className="community-sheet-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="community-sheet" role="dialog" aria-modal="true" aria-labelledby="report-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={sheetRef} className="community-sheet" role="dialog" aria-modal="true" aria-labelledby="report-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="community-sheet-handle" />
         <div className="community-sheet-heading">
-          <div><h2 id="report-title">{copy.reportTitle}</h2><p>{done ? copy.reportDone : copy.reportHelp}</p></div>
-          <button type="button" className="community-icon-button" onClick={onClose} aria-label={copy.cancel}><X size={19} /></button>
+          <div><h2 id="report-title">{copy.reportTitle}</h2><p role="status" aria-live="polite">{done ? copy.reportDone : copy.reportHelp}</p></div>
+          <button ref={closeButtonRef} type="button" className="community-icon-button" onClick={onClose} aria-label={copy.cancel}><X size={19} /></button>
         </div>
         {!done && (
           <>
-            <div className="community-report-options">
+            <div className="community-report-options" role="radiogroup" aria-label={copy.reportTitle}>
               {copy.reportReasons.map((item, index) => (
-                <button type="button" key={item} onClick={() => setReason(index)} className={reason === index ? 'is-selected' : ''}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={reason === index}
+                  tabIndex={reason === index ? 0 : -1}
+                  key={item}
+                  onClick={() => setReason(index)}
+                  onKeyDown={(event) => moveRadioSelection(event, index, copy.reportReasons.length, setReason)}
+                  className={reason === index ? 'is-selected' : ''}
+                >
                   <span>{item}</span>{reason === index && <Check size={17} />}
                 </button>
               ))}
@@ -472,6 +585,7 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [reportOpen, setReportOpen] = useState(false);
+  const reportTriggerRef = useRef<HTMLButtonElement | null>(null);
   const isTranslationAvailable = language !== post.lang;
   // 서버 판정만 신뢰한다(클라이언트에 uid 가 없다). 삭제·수정은 어차피 서버가 재검증한다.
   const isMine = post.isOwn === true;
@@ -517,6 +631,13 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
     } catch { /* silent */ }
   };
 
+  const openReport = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    reportTriggerRef.current = event.currentTarget;
+    setReportOpen(true);
+  }, []);
+
+  const closeReport = useCallback(() => setReportOpen(false), []);
+
   const shownTitle = translated && translation ? (translation.title || post.title) : post.title;
   const shownBody = translated && translation ? translation.body : post.body;
 
@@ -529,9 +650,9 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
           <span>{timeAgo(post.createdAt, copy)}</span>
         </div>
         {isMine ? (
-          <button type="button" className="community-icon-button" onClick={deletePost} aria-label="Delete"><Trash2 size={17} /></button>
+          <button type="button" className="community-icon-button" onClick={deletePost} aria-label={copy.delete}><Trash2 size={17} /></button>
         ) : (
-          <button type="button" className="community-icon-button" onClick={() => setReportOpen(true)} aria-label={copy.report}><MoreHorizontal size={19} /></button>
+          <button type="button" className="community-icon-button" onClick={openReport} aria-label={copy.report}><MoreHorizontal size={19} /></button>
         )}
       </div>
       <Link to={`/community/post/${post.id}`} className="community-post-content">
@@ -555,20 +676,20 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
         </button>
       )}
       <div className="community-post-actions">
-        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={toggleLike} aria-label="Like">
+        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={toggleLike} aria-label={copy.like}>
           <Heart size={18} fill={liked ? 'currentColor' : 'none'} /><span>{likeCount}</span>
         </button>
         <Link to={`/community/post/${post.id}`}><MessageCircle size={18} /><span>{post.replyCount} {copy.replies}</span></Link>
-        <button type="button" onClick={() => setReportOpen(true)} aria-label={copy.report}><Flag size={17} /></button>
+        <button type="button" onClick={openReport} aria-label={copy.report}><Flag size={17} /></button>
       </div>
-      {reportOpen && <ReportSheet postId={post.id} onClose={() => setReportOpen(false)} />}
+      {reportOpen && <ReportSheet postId={post.id} onClose={closeReport} returnFocusRef={reportTriggerRef} />}
     </article>
   );
 }
 
 function CommunityLayout({ children, active = 'feed', backTo }: { children: React.ReactNode; active?: 'feed' | 'explore' | 'create' | 'alerts' | 'profile'; backTo?: string }) {
   return (
-    <div className="community-app">
+    <div className="community-app ec-root">
       <CommunityHeader backTo={backTo} />
       <div className="community-layout">
         <CommunityRail active={active} />
@@ -579,13 +700,26 @@ function CommunityLayout({ children, active = 'feed', backTo }: { children: Reac
   );
 }
 
-function FeedState({ icon: Icon, title, body, action }: { icon: typeof Sparkles; title: string; body: string; action?: React.ReactNode }) {
+function CommunityLoadingState({ testId, label }: { testId: string; label: string }) {
   return (
-    <div className="community-post-card" style={{ textAlign: 'center', padding: '36px 20px' }}>
-      <Icon size={28} style={{ margin: '0 auto 10px', color: '#7C5CFF' }} />
-      <h2 style={{ fontSize: 17, fontWeight: 800 }}>{title}</h2>
-      <p style={{ marginTop: 6, fontSize: 13, color: '#6E6A8F' }}>{body}</p>
-      {action && <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>{action}</div>}
+    <div data-testid={testId} aria-busy="true" className="community-state-card">
+      <EcLoading label={label} lines={3} className="community-state-loading" />
+    </div>
+  );
+}
+
+function CommunityEmptyState({ testId, title, body, action }: { testId?: string; title: string; body?: string; action?: React.ReactNode }) {
+  return (
+    <div data-testid={testId} role="region" aria-label={title} className="community-state-card">
+      <EcEmpty title={title} body={body} action={action} />
+    </div>
+  );
+}
+
+function CommunityErrorState({ testId, title, body, retryLabel, onRetry, secondary }: { testId?: string; title: string; body?: string; retryLabel?: string; onRetry?: () => void; secondary?: React.ReactNode }) {
+  return (
+    <div data-testid={testId} className="community-state-card">
+      <EcError title={title} body={body} retryLabel={retryLabel} onRetry={onRetry} secondary={secondary} />
     </div>
   );
 }
@@ -662,15 +796,15 @@ export default function CommunityPage() {
       ) : (
         <>
           <section className="community-intro">
-            <div><span className="community-eyebrow"><Sparkles size={14} />CocoTrip Together</span><h1>{copy.community}</h1><p>{copy.exploreKorea}</p></div>
-            <Link to="/community/new" className="community-primary-button"><PenLine size={17} />{copy.write}</Link>
+            <div><span className="community-eyebrow"><Sparkles size={14} />{copy.togetherEyebrow}</span><h1>{copy.community}</h1><p>{copy.exploreKorea}</p></div>
+            <Link to="/community/new" className="community-primary-button" aria-label={copy.write}><PenLine size={17} />{copy.write}</Link>
           </section>
           <section className="community-mobile-topics md:hidden">
             <div className="community-section-title"><span>{copy.categories}</span><SlidersHorizontal size={17} /></div>
             <div className="community-topic-scroll">
-              <button type="button" className={!topic ? 'is-active' : ''} onClick={() => setTopic(null)}><span>{copy.all}</span></button>
+              <button type="button" aria-pressed={!topic} className={!topic ? 'is-active' : ''} onClick={() => setTopic(null)}><span>{copy.all}</span></button>
               {TOPICS.map(({ key, icon: Icon, labels }) => (
-                <button type="button" key={key} className={topic === key ? 'is-active' : ''} onClick={() => setTopic(topic === key ? null : key)}>
+                <button type="button" aria-pressed={topic === key} key={key} className={topic === key ? 'is-active' : ''} onClick={() => setTopic(topic === key ? null : key)}>
                   <Icon size={16} /><span>{labels[language]}</span>
                 </button>
               ))}
@@ -688,17 +822,13 @@ export default function CommunityPage() {
           </div>
           <div className="community-feed">
             {visible === null && (
-              <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-                <Loader2 size={22} className="animate-spin" style={{ color: '#7C5CFF' }} />
-              </div>
+              <CommunityLoadingState testId="community-feed-loading" label={copy.loadingFeed} />
             )}
             {visible !== null && error && (
-              <FeedState icon={Flag} title={copy.loadFailed} body="" action={
-                <button type="button" className="community-primary-button" onClick={() => load(tab)}>{copy.retry}</button>
-              } />
+              <CommunityErrorState testId="community-feed-error" title={copy.loadFailed} retryLabel={copy.retry} onRetry={() => load(tab)} />
             )}
             {visible !== null && !error && visible.length === 0 && (
-              <FeedState icon={Sparkles} title={copy.emptyTitle} body={copy.emptyBody} action={
+              <CommunityEmptyState testId="community-feed-empty" title={copy.emptyTitle} body={copy.emptyBody} action={
                 <Link to="/community/new" className="community-primary-button"><PenLine size={16} />{copy.write}</Link>
               } />
             )}
@@ -718,46 +848,62 @@ type ApiNotification = { id: string; type: 'reply' | 'like'; postId: string; pos
 function CommunityAlertsView({ copy }: { copy: Copy }) {
   const { user } = useAuth();
   const [items, setItems] = useState<ApiNotification[] | null>(null);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     // 로그아웃 시 목록 즉시 비움 + 로그인 시 재조회 — 의도된 fetch-on-mount 패턴
     // (AdminReviews 전례. 비우지 않으면 재로그인 직후 이전 계정 알림이 잠깐 보인다).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!user) { setItems([]); return; }
+    if (!user) { setItems([]); setError(false); return; }
     let cancelled = false;
+    setItems(null);
+    setError(false);
     (async () => {
       try {
         const token = await user.getIdToken();
         const res = await fetch('/api/community-notifications', { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        if (cancelled || !data.ok) { if (!cancelled) setItems([]); return; }
+        if (cancelled) return;
+        if (!res.ok || !data.ok) throw new Error('alerts-load-failed');
         setItems(data.data.items);
         // 표시 직후 읽음 처리 (뱃지 소거) — 실패해도 무해
         if (data.data.unread > 0) {
           void apiPost('/api/community-notifications', { action: 'markAllRead' }, token).catch(() => {});
         }
-      } catch { if (!cancelled) setItems([]); }
+      } catch {
+        if (!cancelled) {
+          setItems([]);
+          setError(true);
+        }
+      }
     })();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, reloadKey]);
 
   return (
     <section className="community-alerts-page">
-      <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />CocoTrip Together</span><h1>{copy.navAlerts}</h1></div></div>
+      <div className="community-intro"><div><span className="community-eyebrow"><Bell size={14} />{copy.togetherEyebrow}</span><h1>{copy.navAlerts}</h1></div></div>
       {!user && (
-        <FeedState icon={Users} title={copy.loginRequired} body="" action={
+        <CommunityEmptyState title={copy.loginRequired} action={
           <Link to="/mypage" className="community-primary-button">{copy.goLogin}</Link>
         } />
       )}
       {user && items === null && (
-        <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-          <Loader2 size={20} className="animate-spin" style={{ color: '#7C5CFF' }} />
-        </div>
+        <CommunityLoadingState testId="community-alerts-loading" label={copy.loadingAlerts} />
       )}
-      {user && items !== null && items.length === 0 && (
-        <FeedState icon={Bell} title={copy.alertsEmptyTitle} body={copy.alertsEmptyBody} />
+      {user && items !== null && error && (
+        <CommunityErrorState
+          testId="community-alerts-error"
+          title={copy.alertsLoadFailed}
+          retryLabel={copy.retry}
+          onRetry={() => setReloadKey((value) => value + 1)}
+        />
       )}
-      {user && items !== null && items.length > 0 && (
+      {user && items !== null && !error && items.length === 0 && (
+        <CommunityEmptyState title={copy.alertsEmptyTitle} body={copy.alertsEmptyBody} />
+      )}
+      {user && items !== null && !error && items.length > 0 && (
         <div className="community-alert-list">
           {items.map((n) => (
             <Link to={`/community/post/${n.postId}`} key={n.id} className="community-alert-row" style={!n.read ? { background: 'rgba(124,92,255,0.06)' } : undefined}>
@@ -791,6 +937,7 @@ export function CommunityPostPage() {
   const [post, setPost] = useState<ApiPost | null>(null);
   const [replies, setReplies] = useState<ApiReply[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<'not-found' | 'request' | null>(null);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [replyNotice, setReplyNotice] = useState<string | null>(null);
@@ -798,15 +945,29 @@ export function CommunityPostPage() {
   usePageMeta({ title: post ? post.title : copy.community, description: post ? post.body.slice(0, 140) : copy.exploreKorea });
 
   const load = useCallback(async () => {
-    if (!postId) return;
+    if (!postId) {
+      setPost(null);
+      setLoadError('not-found');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setLoadError(null);
     try {
       const token = user ? await user.getIdToken() : null;
       const data = await apiGet(`/api/community-posts?id=${encodeURIComponent(postId)}`, token);
+      if (!data.post) {
+        setPost(null);
+        setReplies([]);
+        setLoadError('not-found');
+        return;
+      }
       setPost(data.post);
       setReplies(data.replies);
-    } catch {
+    } catch (error) {
       setPost(null);
+      setReplies([]);
+      setLoadError(error instanceof CommunityApiError && error.status === 404 ? 'not-found' : 'request');
     } finally {
       setLoading(false);
     }
@@ -830,8 +991,8 @@ export function CommunityPostPage() {
       setReply('');
       if (result.status === 'review') setReplyNotice(copy.postInReview);
       else await load();
-    } catch (err) {
-      setReplyNotice((err as Error).message);
+    } catch {
+      setReplyNotice(copy.replyFailed);
     } finally {
       setSending(false);
     }
@@ -840,16 +1001,21 @@ export function CommunityPostPage() {
   return (
     <CommunityLayout backTo="/community">
       <div className="community-detail-title">
-        <button type="button" onClick={() => navigate('/community')} className="community-icon-button"><ArrowLeft size={20} /></button>
+        <button type="button" onClick={() => navigate('/community')} className="community-icon-button" aria-label={copy.back}><ArrowLeft size={20} /></button>
         <strong>{copy.back}</strong>
       </div>
-      {loading && (
-        <div className="community-post-card" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-          <Loader2 size={22} className="animate-spin" style={{ color: '#7C5CFF' }} />
-        </div>
+      {loading && <CommunityLoadingState testId="community-post-loading" label={copy.loadingPost} />}
+      {!loading && loadError === 'request' && (
+        <CommunityErrorState testId="community-post-error" title={copy.postLoadFailed} retryLabel={copy.retry} onRetry={load} secondary={
+          <Link to="/community" className="community-secondary-button">{copy.back}</Link>
+        } />
       )}
-      {!loading && !post && <FeedState icon={Flag} title={copy.loadFailed} body="" />}
-      {!loading && post && (
+      {!loading && loadError === 'not-found' && (
+        <CommunityEmptyState title={copy.postUnavailableTitle} body={copy.postUnavailableBody} action={
+          <Link to="/community" className="community-secondary-button">{copy.back}</Link>
+        } />
+      )}
+      {!loading && !loadError && post && (
         <>
           <PostCard post={post} expanded onDeleted={() => navigate('/community')} />
           <section className="community-comments">
@@ -925,7 +1091,7 @@ function CommentCard({ postId, comment, onDeleted }: { postId: string; comment: 
         )}
         {isMine && (
           <div className="community-comment-actions">
-            <button type="button" onClick={remove}><Trash2 size={15} />{copy.cancel === '취소' ? '삭제' : 'Delete'}</button>
+            <button type="button" onClick={remove}><Trash2 size={15} />{copy.delete}</button>
           </div>
         )}
       </div>
@@ -936,9 +1102,12 @@ function CommentCard({ postId, comment, onDeleted }: { postId: string; comment: 
 // ── 작성 ──
 export function CommunityComposePage() {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const copy = COPY[language];
   const navigate = useNavigate();
+  const location = useLocation();
+  const composeFixture = import.meta.env.DEV && new URLSearchParams(location.search).get('__fixture') === 'compose';
+  const canCompose = Boolean(user) || composeFixture;
   const [type, setType] = useState(0);
   const [category, setCategory] = useState<string>(TOPICS[1].key);
   const [title, setTitle] = useState('');
@@ -980,6 +1149,7 @@ export function CommunityComposePage() {
   };
 
   const publish = async () => {
+    if (composeFixture) return;
     if (!user) { navigate('/mypage'); return; }
     setPublishing(true);
     setNotice(null);
@@ -1007,8 +1177,8 @@ export function CommunityComposePage() {
       } else {
         navigate(`/community/post/${result.postId}`);
       }
-    } catch (err) {
-      setNotice((err as Error).message);
+    } catch {
+      setNotice(copy.publishFailed);
     } finally {
       setUploadPct(null);
       setPublishing(false);
@@ -1021,16 +1191,32 @@ export function CommunityComposePage() {
         <div><h1>{copy.composeTitle}</h1><p>{copy.composeSubtitle}</p></div>
         <span><Languages size={15} />{LANGUAGE_NAME[language]}</span>
       </section>
-      {!user && (
-        <FeedState icon={Users} title={copy.loginRequired} body="" action={
+      {authLoading && !composeFixture && (
+        <CommunityLoadingState testId="community-compose-loading" label={copy.loadingAccount} />
+      )}
+      {!authLoading && !canCompose && (
+        <CommunityEmptyState testId="community-compose-signed-out" title={copy.loginRequired} action={
           <Link to="/mypage" className="community-primary-button">{copy.goLogin}</Link>
         } />
       )}
-      {user && (
+      {canCompose && (
         <section className="community-compose-form">
           <label>{copy.postType}</label>
-          <div className="community-segmented-control">
-            {copy.postTypes.map((item, index) => <button type="button" key={item} className={type === index ? 'is-active' : ''} onClick={() => setType(index)}>{item}</button>)}
+          <div className="community-segmented-control" role="radiogroup" aria-label={copy.postType}>
+            {copy.postTypes.map((item, index) => (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={type === index}
+                tabIndex={type === index ? 0 : -1}
+                key={item}
+                className={type === index ? 'is-active' : ''}
+                onClick={() => setType(index)}
+                onKeyDown={(event) => moveRadioSelection(event, index, copy.postTypes.length, setType)}
+              >
+                {item}
+              </button>
+            ))}
           </div>
           <label htmlFor="community-category">{copy.chooseCategory}</label>
           <div className="community-select-wrap">
