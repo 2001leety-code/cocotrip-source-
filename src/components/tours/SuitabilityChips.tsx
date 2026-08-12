@@ -58,9 +58,6 @@ interface Props {
 interface Chip {
   icon: string;
   text: string;
-  color: string;
-  bg: string;
-  border: string;
 }
 
 export function SuitabilityChips({ suitability: s, language }: Props) {
@@ -71,9 +68,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '👶',
       text: age,
-      color: '#A0CBFF',
-      bg: 'rgba(140,200,255,0.08)',
-      border: 'rgba(140,200,255,0.20)',
     });
   }
 
@@ -81,9 +75,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '💪',
       text: FITNESS_LABEL[s.fitness_level][language] || FITNESS_LABEL[s.fitness_level].en,
-      color: '#C99FFF',
-      bg: 'rgba(182,104,252,0.08)',
-      border: 'rgba(182,104,252,0.20)',
     });
   }
 
@@ -91,9 +82,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '♿',
       text: WHEELCHAIR[language] || WHEELCHAIR.en,
-      color: '#7EE29C',
-      bg: 'rgba(16,185,129,0.08)',
-      border: 'rgba(16,185,129,0.20)',
     });
   }
 
@@ -101,9 +89,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '🚼',
       text: STROLLER[language] || STROLLER.en,
-      color: '#7EE29C',
-      bg: 'rgba(16,185,129,0.08)',
-      border: 'rgba(16,185,129,0.20)',
     });
   }
 
@@ -111,9 +96,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '🤰',
       text: PREGNANCY[language] || PREGNANCY.en,
-      color: '#FFD250',
-      bg: 'rgba(255,200,80,0.08)',
-      border: 'rgba(255,200,80,0.20)',
     });
   }
 
@@ -121,9 +103,6 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
     chips.push({
       icon: '🚸',
       text: CARSEAT[language] || CARSEAT.en,
-      color: '#FFD250',
-      bg: 'rgba(255,200,80,0.08)',
-      border: 'rgba(255,200,80,0.20)',
     });
   }
 
@@ -132,14 +111,13 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
   if (chips.length === 0 && !notes) return null;
 
   return (
-    <div className="mb-4">
+    <div className="mb-5">
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {chips.map((c, i) => (
             <span
               key={i}
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-              style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}
+              className="ec-chip"
             >
               <span aria-hidden>{c.icon}</span>
               <span>{c.text}</span>
@@ -148,7 +126,7 @@ export function SuitabilityChips({ suitability: s, language }: Props) {
         </div>
       )}
       {notes && (
-        <p className="text-[11px] text-white/55 leading-relaxed mt-2 whitespace-pre-line">
+        <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ec-ink-2">
           {notes}
         </p>
       )}

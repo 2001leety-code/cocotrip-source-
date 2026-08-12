@@ -79,20 +79,17 @@ export function IncludedExcluded({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* Included */}
-      <div
-        className="rounded-2xl p-4"
-        style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.18)' }}
-      >
+      <div className="tour-detail-include-card p-5">
         <div className="flex items-center gap-1.5 mb-2.5">
-          <CheckCircle2 className="w-4 h-4" style={{ color: '#10B981' }} />
-          <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6EE7B7' }}>
+          <CheckCircle2 className="h-4 w-4 text-ec-success" />
+          <p className="ec-eyebrow text-ec-success">
             {includedTitle}
           </p>
         </div>
         <ul className="space-y-1.5">
           {includedItems.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 text-[12px] text-white/65 leading-snug">
-              <span className="mt-1 w-1 h-1 rounded-full shrink-0" style={{ background: '#10B981' }} />
+            <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-ec-ink-2">
+              <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-ec-success" />
               <span>{item.kind === 'i18n' ? item.text : txt(item.text, language)}</span>
             </li>
           ))}
@@ -100,20 +97,17 @@ export function IncludedExcluded({
       </div>
 
       {/* Excluded */}
-      <div
-        className="rounded-2xl p-4"
-        style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
-      >
+      <div className="tour-detail-include-card p-5">
         <div className="flex items-center gap-1.5 mb-2.5">
-          <XCircle className="w-4 h-4 text-white/55" />
-          <p className="text-[11px] font-black uppercase tracking-wider text-white/55">
+          <XCircle className="h-4 w-4 text-ec-ink-3" />
+          <p className="ec-eyebrow">
             {excludedTitle}
           </p>
         </div>
         <ul className="space-y-1.5">
           {excludedItems.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 text-[12px] text-white/55 leading-snug">
-              <span className="mt-1 w-1 h-1 rounded-full shrink-0 bg-white/30" />
+            <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-ec-ink-2">
+              <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-ec-ink-3" />
               <span>{item.kind === 'i18n' ? item.text : txt(item.text, language)}</span>
             </li>
           ))}
