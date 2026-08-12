@@ -107,10 +107,10 @@ describe('정산 단가 보존 — ratePerHourOverride (2026-07-04 요율 개정
     expect(r2.tollKRW).toBe(0);
   });
 
-  it('mood-settle 배선 소스 불변식 — pre.ratePerHour 전달', async () => {
+  it('mood-settle 배선 소스 불변식 — 검증된 pre.ratePerHour만 전달', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const src = readFileSync(resolve(__dirname, '../../api/mood-settle.js'), 'utf8');
-    expect(src).toMatch(/ratePerHourOverride: Number\(pre\.ratePerHour\)/);
+    expect(src).toMatch(/ratePerHourOverride: hasStoredRate \? pre\.ratePerHour : undefined/);
   });
 });

@@ -4,7 +4,7 @@
  *
  * 1. 요금 표기가 moodPricing 상수에서 파생 — 요율 개정 시 안내 자동 갱신 (하드코딩 회귀 방지).
  * 2. 핵심 섹션(요금·예약법·정산·Q&A) 렌더.
- * 3. 취소 안내 = "운영자 연락" (포털 취소 API 없음 — 잘못된 셀프서비스 안내 방지).
+ * 3. 취소·직접 변경·공유 카드 셀프서비스 안내.
  */
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -38,9 +38,10 @@ describe('MoodGuideModal', () => {
     expect(screen.getByText(/이용 안내/)).toBeTruthy();
     expect(screen.getByText(/예약하는 법/)).toBeTruthy();
     expect(screen.getByText(/자주 묻는 질문/)).toBeTruthy();
-    // 취소 = 포털에서 직접 (버튼 안내), 변경 = 복사→재예약→기존 취소
+    // 취소·변경 = 포털에서 직접, 전달은 지도형 공유 카드.
     expect(screen.getByText(/전액이 잔액으로 즉시 환불/)).toBeTruthy();
-    expect(screen.getByText(/기존 예약을 취소하세요/)).toBeTruthy();
+    expect(screen.getByText(/예약 내용 변경/)).toBeTruthy();
+    expect(screen.getByText(/공유·캡처용 동선표 보기/)).toBeTruthy();
     expect(screen.getByText(/날짜별로 각각/)).toBeTruthy();
   });
 

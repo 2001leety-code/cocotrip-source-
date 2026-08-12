@@ -28,6 +28,52 @@ export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'GET, OPTIONS';
 
+function invalidBookingMoney(errorCode) {
+  const error = new Error(errorCode);
+  error.code = errorCode;
+  throw error;
+}
+
+function validateOptionalMoney(value, { minimum = null, errorCode = 'INVALID_BOOKING_MONEY' } = {}) {
+  if (value === undefined || value === null) return;
+  if (!Number.isSafeInteger(value) || (minimum !== null && value < minimum)) {
+    invalidBookingMoney(errorCode);
+  }
+}
+
+function validateBreakdownMoney(value) {
+  if (value === undefined || value === null) return;
+  if (typeof value !== 'object' || Array.isArray(value)) invalidBookingMoney('INVALID_BOOKING_MONEY');
+
+  ['baseKRW', 'distanceSurchargeKRW', 'tollKRW', 'estimatedTollKRW'].forEach((field) => {
+    validateOptionalMoney(value[field], { minimum: 0 });
+  });
+  ['otherAdjustmentKRW', 'manualAdjustmentKRW'].forEach((field) => {
+    validateOptionalMoney(value[field]);
+  });
+  ['km', 'routeKm', 'airportDetourKm', 'durationMin'].forEach((field) => {
+    const numericValue = value[field];
+    if (
+      numericValue !== undefined
+      && numericValue !== null
+      && (typeof numericValue !== 'number' || !Number.isFinite(numericValue) || numericValue < 0)
+    ) {
+      invalidBookingMoney('INVALID_BOOKING_MONEY');
+    }
+  });
+}
+
+function validateBookingMoney(booking) {
+  validateOptionalMoney(booking.ratePerHour, { minimum: 0 });
+  validateOptionalMoney(booking.balanceAfterKRW);
+  validateOptionalMoney(booking.finalAmountKRW, { minimum: 0 });
+  validateOptionalMoney(booking.adjustmentKRW);
+  validateOptionalMoney(booking.manualAdjustmentKRW);
+  validateOptionalMoney(booking.estimatedTollKRW, { minimum: 0 });
+  validateBreakdownMoney(booking.breakdown);
+  validateBreakdownMoney(booking.finalBreakdown);
+}
+
 export default async function handler(req, res) {
   const JSON_HEADERS = { 'Cache-Control': 'no-store', ...buildAdminJsonCors(req, { methods: CORS_METHODS, headers: 'Authorization, Content-Type' }) };
 
@@ -44,6 +90,10 @@ export default async function handler(req, res) {
   if (!auth.ok) {
     res.writeHead(auth.status, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: auth.error }));
+  }
+  if (!auth.emailVerified) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'EMAIL_NOT_VERIFIED' }));
   }
   const email = auth.email;
 
@@ -85,7 +135,11 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: `CLIENT_NOT_FOUND: ${clientId}` }));
     }
     const clientData = clientSnap.data() || {};
-    const currentBalanceKRW = Number(clientData.balanceKRW) || 0;
+    const currentBalanceKRW = clientData.balanceKRW;
+    if (!Number.isSafeInteger(currentBalanceKRW)) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_CLIENT_BALANCE' }));
+    }
 
     // 캘린더 + 차감 리스트용 예약 목록 — 해당 client, 최근순.
     // ⚠️ where(clientId ==) + orderBy(createdAt) 는 복합 인덱스 필요(자동 인덱스 X).
@@ -103,7 +157,11 @@ export default async function handler(req, res) {
     //     (프론트가 '잔액' 줄을 숨김 = 빈칸). 정확값 필요하면 백필로 balanceAfterKRW 채울 것.
     const bookings = bookingsSnap.docs.map((d) => {
       const b = d.data() || {};
-      const amount = Number(b.amountKRW) || 0;
+      const amount = b.amountKRW;
+      if (!Number.isSafeInteger(amount) || amount < 0) {
+        invalidBookingMoney('INVALID_BOOKING_AMOUNT');
+      }
+      validateBookingMoney(b);
       const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
       return {
         id: d.id,
@@ -118,12 +176,24 @@ export default async function handler(req, res) {
         amountKRW: amount,
         ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
+        finalBreakdown: b.finalBreakdown || null,
+        routeSnapshot: b.routeSnapshot || null,
+        finalRouteSnapshot: b.finalRouteSnapshot || null,
+        revision: Number.isInteger(b.revision) && b.revision >= 0 ? b.revision : 0,
+        influencerName: typeof b.influencerName === 'string' && b.influencerName ? b.influencerName : null,
+        coursePayers: Array.isArray(b.coursePayers)
+          && b.coursePayers.every((payer) => payer === 'mood' || payer === 'influencer')
+          ? b.coursePayers.slice()
+          : null,
         runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,
         // 운행 종료 정산(completed) — 실제시간·최종금액·조정액 (mood-settle.js)
         actualHours: typeof b.actualHours === 'number' ? b.actualHours : null,
         finalAmountKRW: typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : null,
         adjustmentKRW: typeof b.adjustmentKRW === 'number' ? b.adjustmentKRW : null,
+        manualAdjustmentKRW: typeof b.manualAdjustmentKRW === 'number' ? b.manualAdjustmentKRW : null,
+        settlementReason: typeof b.settlementReason === 'string' && b.settlementReason ? b.settlementReason : null,
+        tollMode: typeof b.tollMode === 'string' ? b.tollMode : null,
         note: typeof b.note === 'string' && b.note ? b.note : null, // 예약 메모 (항공편 등, 2026-07-05)
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
@@ -141,6 +211,10 @@ export default async function handler(req, res) {
       },
     }));
   } catch (err) {
+    if (err && (err.code === 'INVALID_BOOKING_AMOUNT' || err.code === 'INVALID_BOOKING_MONEY')) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: err.code }));
+    }
     console.error('[mood-data] failed:', err.message);
     await captureError(err, { route: '/api/mood-data', email });
     res.writeHead(500, JSON_HEADERS);

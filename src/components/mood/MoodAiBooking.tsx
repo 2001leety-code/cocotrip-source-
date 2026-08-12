@@ -216,6 +216,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // ── 실도로 경로(A-3, 2026-07-04) — 좌표 전부 확보되면 네이버 길찾기(자동차)로
   //    실제 도로 경로선+km·톨 조회. 직선(핀 연결)은 로딩/실패 폴백으로만.
   const routeSeq = useRef(0);
+  const bookingRequestRef = useRef({ signature: '', key: '' });
+  /* eslint-disable react-hooks/set-state-in-effect -- route state follows whether the parsed stop list is usable */
   useEffect(() => {
     const usable = visibleStops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
     if (usable.length < 2 || visibleStops.some((st) => !st.geocodeOk)) {
@@ -271,6 +273,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleStops, serviceType]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ── 장소검색(A-2, 2026-07-04) — 실패 stop 을 수기예약 '🔍 주소'처럼 검색→후보→선택 ──
   const handlePlaceSearch = useCallback(async (order: number, query: string) => {
@@ -512,7 +515,17 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         body.origin = originAddr;
         body.destination = destAddr;
         if (waypointAddrs.length) body.waypoints = waypointAddrs;
+        body.coursePayers = usable.map((_, index) => index === 0 ? 'mood' : 'influencer');
       }
+
+      const signature = JSON.stringify(body);
+      if (bookingRequestRef.current.signature !== signature) {
+        const key = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `mood-ai-book-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        bookingRequestRef.current = { signature, key };
+      }
+      body.idempotencyKey = bookingRequestRef.current.key;
 
       const res = await authFetch('/api/mood-book', {
         method: 'POST',
@@ -521,6 +534,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
+        bookingRequestRef.current = { signature: '', key: '' };
         setBookMsg({
           kind: 'ok',
           text: `예약 완료 — ${formatKRW(json.data.amountKRW)} 차감, 잔액 ${formatKRW(json.data.balanceKRW)}`,

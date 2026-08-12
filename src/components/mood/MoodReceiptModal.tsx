@@ -14,7 +14,7 @@
  * booking 이 null 이면 아무것도 렌더하지 않음(모달 닫힘 상태).
  * 다크 톤(#0a0412 / #181b22, 포인트 #EA537E · #7C5CFC). 운영자 한국어 단일.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
@@ -60,6 +60,8 @@ export interface MoodBookingLike {
   amountKRW?: number;
   ratePerHour?: number | null;
   breakdown?: MoodBreakdownLike | null;
+  finalBreakdown?: MoodBreakdownLike | null;
+  revision?: number | null;
   runningBalanceKRW?: number | null;
   finalAmountKRW?: number | null;
   actualHours?: number | null;
@@ -94,7 +96,8 @@ interface ReceiptRouteData {
 }
 
 export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
-  const bd = booking?.breakdown || {};
+  const settledBooking = booking?.finalAmountKRW != null;
+  const bd = settledBooking && booking?.finalBreakdown ? booking.finalBreakdown : booking?.breakdown || {};
   const bdOrigin = String(bd.origin || '').trim();
   const bdDest = String(bd.destination || '').trim();
   const bdWaypoints = (Array.isArray(bd.waypoints) ? bd.waypoints : []).map((s) => String(s || '').trim()).filter(Boolean);
@@ -102,13 +105,11 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   // ── 동선 지도 (2026-07-04) — 저장된 주소로 경로 재조회(시각화 전용, 요금은 breakdown SSOT) ──
   const [route, setRoute] = useState<ReceiptRouteData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
-  const fetchedFor = useRef<string | null>(null);
 
   const bookingId = booking?.id || null;
+  /* eslint-disable react-hooks/set-state-in-effect -- a different receipt revision must clear the previous route */
   useEffect(() => {
     if (!bookingId || !bdOrigin || !bdDest) { setRoute(null); return; }
-    if (fetchedFor.current === bookingId) return; // 같은 예약 재열람 시 재호출 방지
-    fetchedFor.current = bookingId;
     setRoute(null);
     setRouteLoading(true);
     let alive = true;
@@ -128,9 +129,10 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
       }
     })();
     return () => { alive = false; };
-    // bdWaypoints 는 booking 파생이라 bookingId 로 충분
+    // 수정 revision과 최종 동선이 바뀌면 같은 예약 ID도 다시 불러온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId, bdOrigin, bdDest]);
+  }, [bookingId, booking?.revision, bdOrigin, bdDest, bdWaypoints.join('|')]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!booking) return null;
 

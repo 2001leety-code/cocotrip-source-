@@ -29,6 +29,7 @@
  *
  * 성공 시 notifyOperator 텔레그램 알림 (best-effort). 영수증은 화면 뷰로 대체(이메일 발송 없음, 2026-07-03).
  */
+import { createHash } from 'node:crypto';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
@@ -51,6 +52,54 @@ function normalizeWaypoints(wp) {
   if (Array.isArray(wp)) return wp.map((w) => String(w || '').trim()).filter(Boolean);
   if (typeof wp === 'string') return wp.split('|').map((w) => w.trim()).filter(Boolean);
   return [];
+}
+
+function compactPath(path, limit = 600) {
+  if (!Array.isArray(path) || path.length <= limit) return Array.isArray(path) ? path : [];
+  const step = (path.length - 1) / (limit - 1);
+  return Array.from({ length: limit }, (_, index) => path[Math.round(index * step)]);
+}
+
+function isValidComputedRoute(route) {
+  return Boolean(
+    route
+    && route.ok
+    && typeof route.km === 'number'
+    && Number.isFinite(route.km)
+    && route.km >= 0
+    && Number.isSafeInteger(route.tollKRW)
+    && route.tollKRW >= 0
+    && typeof route.durationMin === 'number'
+    && Number.isFinite(route.durationMin)
+    && route.durationMin >= 0,
+  );
+}
+
+function isValidPricedResult(priced) {
+  return Boolean(
+    priced
+    && priced.ok
+    && [
+      priced.amountKRW,
+      priced.baseKRW,
+      priced.ratePerHour,
+      priced.distanceSurchargeKRW,
+      priced.tollKRW,
+    ].every((value) => Number.isSafeInteger(value) && value >= 0)
+    && typeof priced.km === 'number'
+    && Number.isFinite(priced.km)
+    && priced.km >= 0,
+  );
+}
+
+function normalizeCoursePayers(raw, stopCount) {
+  if (raw === undefined || raw === null) {
+    return { ok: true, value: Array.from({ length: stopCount }, (_, index) => index === 0 ? 'mood' : 'influencer') };
+  }
+  if (!Array.isArray(raw) || raw.length !== stopCount || raw.some((payer) => payer !== 'mood' && payer !== 'influencer')) {
+    return { ok: false, error: 'INVALID_COURSE_PAYERS' };
+  }
+  return { ok: true, value: raw.slice() };
 }
 
 export default async function handler(req, res) {
@@ -97,6 +146,8 @@ export default async function handler(req, res) {
   // 예약 메모 (2026-07-05 PR3) — AI 예약이 항공편 정보(✈️ KE765 15:10) 자동 첨부. 표시용 메타,
   // 금액 계산과 무관. 상한 500자 (폭주 방지).
   const note = String(body.note || '').slice(0, 500).trim();
+  const influencerName = String(body.influencerName || '').slice(0, 100).trim();
+  const idempotencyKey = String(body.idempotencyKey || '').trim();
 
   if (!clientId || typeof clientId !== 'string') {
     res.writeHead(400, JSON_HEADERS);
@@ -126,6 +177,24 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'origin·destination 은 함께 입력' }));
   }
+  if (waypoints.length > 5) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'WAYPOINT_LIMIT_EXCEEDED' }));
+  }
+  if (origin.length > 300 || destination.length > 300 || waypoints.some((waypoint) => waypoint.length > 300)) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_ROUTE_INPUT' }));
+  }
+  if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_IDEMPOTENCY_KEY' }));
+  }
+  const coursePayersResult = normalizeCoursePayers(body.coursePayers, origin && destination ? waypoints.length + 2 : 0);
+  if (!coursePayersResult.ok) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: coursePayersResult.error }));
+  }
+  const coursePayers = coursePayersResult.value;
 
   try {
     const db = initAdminDb('mood-book');
@@ -143,17 +212,38 @@ export default async function handler(req, res) {
     // 🔴 IDOR 방지 — 비-admin 은 자기 회사(allowlist.clientId) 만 예약 가능.
     // (mood-data.js 조회 가드와 동일 정책. 이게 없으면 직원이 body.clientId 로 타 회사
     //  잔액을 차감하는 예약을 만들 수 있음 — 외상 정책상 무제한 음수까지.)
+    const requestPayload = {
+      clientId, date, startTime, durationHours: hours, serviceType,
+      origin, destination, waypoints, airportDirection, airportCode, note, influencerName, coursePayers,
+    };
+    const payloadHash = createHash('sha256').update(JSON.stringify(requestPayload)).digest('hex');
     const isAdmin = isAdminEmail(allowlist, email);
     if (!isAdmin && clientId !== allowlist.clientId) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '본인 회사만 예약 가능' }));
     }
+    const idempotencyRef = db.collection('mood_idempotency')
+      .doc(createHash('sha256').update(`book:${email}:${idempotencyKey}`).digest('hex'));
 
     // ── 4) 경로 계산 (origin/destination 있을 때만) ─────────
     // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
+    if (idempotencyRef) {
+      const existingRequest = await idempotencyRef.get();
+      if (existingRequest.exists) {
+        const saved = existingRequest.data() || {};
+        if (saved.payloadHash !== payloadHash || saved.operation !== 'book') {
+          res.writeHead(409, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: false, error: 'IDEMPOTENCY_CONFLICT' }));
+        }
+        res.writeHead(200, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: true, data: saved.responseData }));
+      }
+    }
+
     let km = 0;
     let tollKRW = 0;
     let airportDetourKm = 0;
+    let routeSnapshot = null;
     if (origin && destination) {
       if (isFixedPrice) {
         // 공항(정액) — 직행은 11만 그대로. 경유지가 있으면 "직행 대비 늘어난 거리"에만
@@ -164,24 +254,51 @@ export default async function handler(req, res) {
             computeRoute({ origin, destination, waypoints }),
             computeRoute({ origin, destination }), // 경유 제외 직행
           ]);
-          if (viaRoute.ok && directRoute.ok) {
+          if (isValidComputedRoute(viaRoute) && isValidComputedRoute(directRoute)) {
             airportDetourKm = Math.max(0, viaRoute.km - directRoute.km);
+            routeSnapshot = {
+              km: viaRoute.km,
+              tollKRW: viaRoute.tollKRW,
+              durationMin: viaRoute.durationMin,
+              path: compactPath(viaRoute.path),
+              points: viaRoute.points || [],
+              calculatedAt: Date.now(),
+            };
           } else {
-            // 둘 중 하나라도 실패 = 비치명적 → 우회요금 제외(정액만). 과소청구 안전측.
-            console.warn('[mood-book] 공항 우회거리 계산 실패 → 정액만:',
-              viaRoute.ok ? directRoute.error : viaRoute.error);
+            res.writeHead(422, JSON_HEADERS);
+            return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
           }
+        } else {
+          const directRoute = await computeRoute({ origin, destination });
+          if (!isValidComputedRoute(directRoute)) {
+            res.writeHead(422, JSON_HEADERS);
+            return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
+          }
+          routeSnapshot = {
+            km: directRoute.km,
+            tollKRW: directRoute.tollKRW,
+            durationMin: directRoute.durationMin,
+            path: compactPath(directRoute.path),
+            points: directRoute.points || [],
+            calculatedAt: Date.now(),
+          };
         }
       } else {
         const route = await computeRoute({ origin, destination, waypoints });
-        if (route.ok) {
+        if (isValidComputedRoute(route)) {
           km = route.km;
           tollKRW = route.tollKRW;
+          routeSnapshot = {
+            km: route.km,
+            tollKRW: route.tollKRW,
+            durationMin: route.durationMin,
+            path: compactPath(route.path),
+            points: route.points || [],
+            calculatedAt: Date.now(),
+          };
         } else {
-          // 경로 계산 실패 = 비치명적 → base-only(km=0, tollKRW=0) 로 진행.
-          // UI 가 "경로 실패 시 거리 추가요금 제외하고 예약 가능" 이라 약속하므로 일치시킨다
-          // (외상 "막지 않는다" 철학과도 일관). breakdown 에 origin/destination 은 남아 추적 가능.
-          console.warn('[mood-book] computeRoute failed → base-only:', route.error, route.detail || '');
+          res.writeHead(422, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
         }
       }
     }
@@ -192,6 +309,10 @@ export default async function handler(req, res) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: priced.error }));
     }
+    if (!isValidPricedResult(priced)) {
+      res.writeHead(500, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_PRICING_RESULT' }));
+    }
     const { amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW } = priced;
     // 예약 doc 에 저장할 breakdown (mood-data 차감 리스트에서 노출).
     const breakdown = {
@@ -199,6 +320,8 @@ export default async function handler(req, res) {
       distanceSurchargeKRW,
       tollKRW: priced.tollKRW,
       km: priced.km,
+      routeKm: routeSnapshot ? routeSnapshot.km : priced.km,
+      durationMin: routeSnapshot ? routeSnapshot.durationMin : null,
       origin: origin || null,
       destination: destination || null,
       waypoints: waypoints.length ? waypoints : null,
@@ -212,21 +335,42 @@ export default async function handler(req, res) {
     // 가 트랜잭션 전체를 재실행 → 동시 예약 더블카운트 불가.
     // 🟡 외상 정책: 잔액 부족해도 abort 하지 않고 항상 차감 (newBalance 음수 가능).
     const txResult = await db.runTransaction(async (tx) => {
+      if (idempotencyRef) {
+        const requestSnap = await tx.get(idempotencyRef);
+        if (requestSnap.exists) {
+          const saved = requestSnap.data() || {};
+          if (saved.payloadHash !== payloadHash || saved.operation !== 'book') {
+            return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+          }
+          return { ok: true, replayed: true, responseData: saved.responseData };
+        }
+      }
       const clientSnap = await tx.get(clientRef);
       if (!clientSnap.exists) {
         return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
       }
       const clientData = clientSnap.data() || {};
-      const balanceKRW = Number(clientData.balanceKRW) || 0;
+      const balanceKRW = clientData.balanceKRW;
+      if (!Number.isSafeInteger(balanceKRW)) {
+        return { ok: false, status: 409, error: 'INVALID_CLIENT_BALANCE' };
+      }
 
       // 외상 허용 — 잔액 부족해도 차단하지 않고 항상 차감 (newBalance 음수 가능, 운영자 정책).
       const newBalance = balanceKRW - amountKRW;
+      if (!Number.isSafeInteger(newBalance)) {
+        return { ok: false, status: 409, error: 'INVALID_CALCULATED_BALANCE' };
+      }
       // 🟡 신용한도 가드 (opt-in): client doc 에 creditLimitKRW(양수) 가 설정돼 있으면
       // 그만큼까지만 외상 허용. 미설정 = 무한 외상(기본 정책 유지). 폭주(토큰탈취/재시도
       // 루프/버그)로 잔액이 -수억까지 내려가는 걸 운영자가 회사별로 막는 안전장치.
-      const creditLimitKRW = Number(clientData.creditLimitKRW);
-      if (Number.isFinite(creditLimitKRW) && creditLimitKRW > 0 && newBalance < -creditLimitKRW) {
-        return { ok: false, status: 409, error: 'CREDIT_LIMIT_EXCEEDED', creditLimitKRW, balanceKRW };
+      const creditLimitKRW = clientData.creditLimitKRW;
+      if (creditLimitKRW !== undefined && creditLimitKRW !== null) {
+        if (!Number.isSafeInteger(creditLimitKRW) || creditLimitKRW <= 0) {
+          return { ok: false, status: 409, error: 'INVALID_CREDIT_LIMIT' };
+        }
+        if (newBalance < -creditLimitKRW) {
+          return { ok: false, status: 409, error: 'CREDIT_LIMIT_EXCEEDED', creditLimitKRW, balanceKRW };
+        }
       }
       const createdAt = Date.now();
 
@@ -242,8 +386,12 @@ export default async function handler(req, res) {
         ratePerHour,
         amountKRW,
         breakdown,
+        routeSnapshot,
         balanceAfterKRW: newBalance, // 이 예약 후 잔액 (외상 추적용)
         status: 'confirmed',
+        revision: 0,
+        influencerName: influencerName || null,
+        coursePayers,
         note: note || null, // 예약 메모 (항공편 등 — 표시용)
         createdByEmail: email,
         createdAt,
@@ -252,8 +400,28 @@ export default async function handler(req, res) {
       // 잔액 차감 (같은 트랜잭션)
       tx.update(clientRef, { balanceKRW: newBalance });
 
+      const responseData = {
+        bookingId: bookingRef.id,
+        amountKRW,
+        ratePerHour,
+        balanceKRW: newBalance,
+        breakdown,
+        revision: 0,
+      };
+      if (idempotencyRef) {
+        tx.set(idempotencyRef, {
+          operation: 'book',
+          payloadHash,
+          responseData,
+          clientId,
+          createdByEmail: email,
+          createdAt,
+        });
+      }
+
       return {
         ok: true,
+        responseData,
         bookingId: bookingRef.id,
         amountKRW,
         ratePerHour,
@@ -265,6 +433,10 @@ export default async function handler(req, res) {
     if (!txResult.ok) {
       res.writeHead(txResult.status, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: txResult.error }));
+    }
+    if (txResult.replayed) {
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: true, data: txResult.responseData }));
     }
 
     // ── 7) 텔레그램 알림 (best-effort — 실패해도 예약은 확정됨) ──
@@ -296,13 +468,7 @@ export default async function handler(req, res) {
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({
       ok: true,
-      data: {
-        bookingId: txResult.bookingId,
-        amountKRW: txResult.amountKRW,
-        ratePerHour: txResult.ratePerHour,
-        balanceKRW: txResult.newBalance,
-        breakdown,
-      },
+      data: txResult.responseData,
     }));
   } catch (err) {
     // 내부 예외 메시지(Firestore 인덱스 URL·경로·자격증명 힌트)를 클라이언트에 노출하지 않음.

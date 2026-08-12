@@ -102,7 +102,13 @@ function fakeDbForData() {
   };
 }
 
-const VALID_BOOK = { date: '2026-06-12', startTime: '10:00', durationHours: 2, serviceType: 'vehicle' };
+const VALID_BOOK = {
+  date: '2026-06-12',
+  startTime: '10:00',
+  durationHours: 2,
+  serviceType: 'vehicle',
+  idempotencyKey: 'mood-money-guards-book',
+};
 
 // --- tests ------------------------------------------------------------------
 describe('MOOD 돈 코어 가드 (적대 리뷰 fix 회귀)', () => {

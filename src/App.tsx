@@ -79,6 +79,7 @@ const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
 // MOOD B2B 선불 예약 포털 — 숨은 내부 모듈. 공개 네비/프리렌더에 절대 추가 금지.
 // 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
 const MoodPortal = lazy(() => import('@/pages/MoodPortal'));
+const MoodUiHarness = import.meta.env.DEV ? lazy(() => import('@/pages/MoodUiHarness')) : null;
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
 function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -640,6 +641,16 @@ function AnimatedRoutes() {
               element={
                 <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <DevTransitTest />
+                </Suspense>
+              }
+            />
+          )}
+          {import.meta.env.DEV && MoodUiHarness && (
+            <Route
+              path="/mood/dev-ui"
+              element={
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
+                  <MoodUiHarness />
                 </Suspense>
               }
             />
