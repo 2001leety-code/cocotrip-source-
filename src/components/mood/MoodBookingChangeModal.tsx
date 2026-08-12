@@ -5,6 +5,12 @@ import { computeMoodTotalKRW, formatKRW, type MoodAirportCode, type MoodServiceT
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import { normalizeMoodCoursePercentages } from '@/lib/moodBookingShare';
+import {
+  MOOD_EVENING_BLACKOUT_NOTICE,
+  isMoodEveningBookingBlocked,
+  moodKstDateISO,
+  shouldShowMoodEveningBlackoutNotice,
+} from '@/lib/moodBookingAvailability';
 
 interface RouteData {
   km: number;
@@ -57,6 +63,7 @@ async function fetchRoute(origin: string, destination: string, waypoints: string
 }
 
 export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged }: Props) {
+  const showEveningBlackoutNotice = shouldShowMoodEveningBlackoutNotice(moodKstDateISO());
   const initialWaypoints = Array.isArray(booking.breakdown?.waypoints) ? booking.breakdown.waypoints.slice(0, 5) : [];
   const initialPayerCount = initialWaypoints.length + 2;
   const [date, setDate] = useState(booking.date || '');
@@ -134,6 +141,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const adjustment = estimate.amountKRW - booking.amountKRW;
   const nextBalance = balanceKRW - adjustment;
   const routeBlocked = !!(origin.trim() || destination.trim()) && routeState !== 'ready';
+  const originalTimeIsGrandfathered = isMoodEveningBookingBlocked(booking.date, booking.startTime);
+  const keepsGrandfatheredTime = originalTimeIsGrandfathered
+    && date === booking.date
+    && startTime === booking.startTime;
+  const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime) && !keepsGrandfatheredTime;
   const courseItems = [
     { address: origin.trim(), percentageIndex: 0 },
     ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
@@ -153,6 +165,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const submit = async () => {
     setMessage('');
     if (!date || !startTime) return setMessage('날짜와 시작 시각을 확인해 주세요.');
+    if (eveningBookingBlocked) return setMessage('선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.');
     if (!reason.trim()) return setMessage('변경 이유를 입력해 주세요.');
     if (!!origin.trim() !== !!destination.trim()) return setMessage('출발지와 도착지를 함께 입력해 주세요.');
     if (routeBlocked) return setMessage('동선 계산이 끝난 뒤 저장할 수 있습니다.');
@@ -229,6 +242,22 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
           <label className="text-sm font-bold sm:col-span-2">탑승 인플루언서<input value={influencerName} maxLength={100} onChange={(event) => setInfluencerName(event.target.value)} placeholder="공유 화면에 표시할 이름" className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
         </div>
 
+        {showEveningBlackoutNotice && <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" role="note">
+          <p className="text-xs font-bold text-amber-200">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
+          <p className="mt-1 text-[11px] text-slate-300">오후 6시 전 시작은 가능하며, 이미 확정된 예약은 그대로 유효합니다.</p>
+        </div>}
+
+        {eveningBookingBlocked && (
+          <p className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200" role="alert">
+            선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+          </p>
+        )}
+        {keepsGrandfatheredTime && (
+          <p className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-xs font-bold text-emerald-200" role="status">
+            기존 확정 예약의 날짜·시각을 유지해 주소·메모 등 다른 내용은 변경할 수 있습니다. 날짜나 시각을 바꾸면 새 제한 규칙이 적용됩니다.
+          </p>
+        )}
+
         <div className="mt-5 space-y-3 rounded-2xl bg-white/[0.04] p-4">
           {([['출발지', origin, setOrigin], ['도착지', destination, setDestination]] as const).map(([label, value, setter]) => (
             <label key={label} className="block text-sm font-bold">{label}
@@ -259,7 +288,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
           <label className="text-sm font-bold">변경 이유 <span className="text-rose-300">필수</span><textarea value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="예: 촬영지 변경으로 도착지 수정" className="mt-1 w-full resize-none rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
         </div>
         {message && <p className="mt-4 rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{message}</p>}
-        <button type="button" onClick={submit} disabled={submitting || routeBlocked} className="mt-5 w-full rounded-2xl bg-violet-500 py-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{submitting ? '변경 저장 중…' : '변경 내용과 차액 확인 후 저장'}</button>
+        <button type="button" onClick={submit} disabled={submitting || routeBlocked || eveningBookingBlocked} className="mt-5 w-full rounded-2xl bg-violet-500 py-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{submitting ? '변경 저장 중…' : eveningBookingBlocked ? '오후 6시 이후 변경 불가' : '변경 내용과 차액 확인 후 저장'}</button>
       </div>
     </div>
   );
