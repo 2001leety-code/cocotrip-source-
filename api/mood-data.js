@@ -15,6 +15,8 @@
  *   직후 running 잔액(runningBalanceKRW) 을 최신순으로 반환. 직원/운영자가
  *   "얼마 빠졌고 잔액 얼마" 를 한눈에 본다 (외상 = 음수 잔액 포함).
  *
+ * 반환 예약에는 v2 courseMoodPercentages 와 courseShareSchemaVersion=2를 포함한다.
+ * 구 coursePayers 만 있는 예약은 위치 그대로 mood=100, influencer=0으로 변환한다.
  * 반환: { client: { name, balanceKRW }, bookings: [...ledger], isAdmin, clientId }
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -27,6 +29,83 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'GET, OPTIONS';
+const COURSE_SHARE_SCHEMA_VERSION = 2;
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function routeStopCount(breakdown) {
+  const value = breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) ? breakdown : {};
+  const origin = typeof value.origin === 'string' ? value.origin.trim() : '';
+  const destination = typeof value.destination === 'string' ? value.destination.trim() : '';
+  const waypoints = value.waypoints === undefined || value.waypoints === null ? [] : value.waypoints;
+  if (!Array.isArray(waypoints) || waypoints.some((waypoint) => typeof waypoint !== 'string' || !waypoint.trim())) return null;
+  if (!origin && !destination && waypoints.length === 0) return 0;
+  if (!origin || !destination) return null;
+  return waypoints.length + 2;
+}
+
+function defaultCourseMoodPercentages(stopCount) {
+  return Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
+}
+
+function legacyPayersForPercentages(percentages) {
+  if (!percentages.every((percentage) => percentage === 0 || percentage === 100)) return null;
+  return percentages.map((percentage) => percentage === 100 ? 'mood' : 'influencer');
+}
+
+function normalizedCourseShare(booking) {
+  const activeBreakdown = booking.status === 'completed' && booking.finalBreakdown
+    ? booking.finalBreakdown
+    : booking.breakdown;
+  const stopCount = routeStopCount(activeBreakdown);
+  if (stopCount === null) return { ok: false };
+
+  const hasCanonicalField = hasOwn(booking, 'courseMoodPercentages') || hasOwn(booking, 'courseShareSchemaVersion');
+  if (hasCanonicalField) {
+    const percentages = booking.courseMoodPercentages;
+    if (
+      booking.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
+      || !Array.isArray(percentages)
+      || percentages.length !== stopCount
+      || percentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
+    ) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      percentages: percentages.slice(),
+      payers: legacyPayersForPercentages(percentages),
+      schemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+    };
+  }
+
+  if (hasOwn(booking, 'coursePayers') && booking.coursePayers !== null) {
+    const payers = booking.coursePayers;
+    if (
+      !Array.isArray(payers)
+      || payers.length !== stopCount
+      || payers.some((payer) => payer !== 'mood' && payer !== 'influencer')
+    ) {
+      return { ok: true, percentages: null, payers: null, schemaVersion: null };
+    }
+    return {
+      ok: true,
+      percentages: payers.map((payer) => payer === 'mood' ? 100 : 0),
+      payers: payers.slice(),
+      schemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+    };
+  }
+
+  const percentages = defaultCourseMoodPercentages(stopCount);
+  return {
+    ok: true,
+    percentages,
+    payers: legacyPayersForPercentages(percentages),
+    schemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+  };
+}
 
 function invalidBookingMoney(errorCode) {
   const error = new Error(errorCode);
@@ -162,6 +241,8 @@ export default async function handler(req, res) {
         invalidBookingMoney('INVALID_BOOKING_AMOUNT');
       }
       validateBookingMoney(b);
+      const courseShare = normalizedCourseShare(b);
+      if (!courseShare.ok) invalidBookingMoney('INVALID_COURSE_SHARE');
       const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
       return {
         id: d.id,
@@ -181,10 +262,9 @@ export default async function handler(req, res) {
         finalRouteSnapshot: b.finalRouteSnapshot || null,
         revision: Number.isInteger(b.revision) && b.revision >= 0 ? b.revision : 0,
         influencerName: typeof b.influencerName === 'string' && b.influencerName ? b.influencerName : null,
-        coursePayers: Array.isArray(b.coursePayers)
-          && b.coursePayers.every((payer) => payer === 'mood' || payer === 'influencer')
-          ? b.coursePayers.slice()
-          : null,
+        courseMoodPercentages: courseShare.percentages,
+        courseShareSchemaVersion: courseShare.schemaVersion,
+        coursePayers: courseShare.payers,
         runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,
         // 운행 종료 정산(completed) — 실제시간·최종금액·조정액 (mood-settle.js)
@@ -211,7 +291,11 @@ export default async function handler(req, res) {
       },
     }));
   } catch (err) {
-    if (err && (err.code === 'INVALID_BOOKING_AMOUNT' || err.code === 'INVALID_BOOKING_MONEY')) {
+    if (err && (
+      err.code === 'INVALID_BOOKING_AMOUNT'
+      || err.code === 'INVALID_BOOKING_MONEY'
+      || err.code === 'INVALID_COURSE_SHARE'
+    )) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: err.code }));
     }

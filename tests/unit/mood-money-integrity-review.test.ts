@@ -238,7 +238,7 @@ describe('mood-settle 실제 경로로 손상 breakdown 복구', () => {
     const { response, json } = await callSettle(settleBody({
       origin: '실제 출발지',
       destination: '실제 도착지',
-      coursePayers: ['mood', 'influencer'],
+      courseMoodPercentages: [100, 0],
     }));
     expect(response.statusCode).toBe(200);
     expect(json.data).toMatchObject({ km: 60, tollKRW: 2000, routeRecomputed: true });

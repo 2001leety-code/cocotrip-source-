@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
+import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import {
   MOOD_RATES,
   MOOD_MIN_DURATION_HOURS,
@@ -164,6 +165,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const [route, setRoute] = useState<RouteData | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookMsg, setBookMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([]);
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -199,6 +201,16 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 0원(base-only)으로 청구되므로 예약 차단(과소청구 방지). = geoStops 8개 초과.
   const tooManyWaypoints = exceedsWaypointCap(geoStops.length);
   const canBook = result != null && visibleStops.length > 0 && !hasBlockingStop && geoStops.length >= 1 && !tooManyWaypoints;
+  const shareItems = geoStops.map((stop, index) => ({
+    address: (stop.address || stop.label || '').trim(),
+    percentageIndex: index,
+  })).filter((item) => item.address);
+
+  const visibleCourseMoodPercentages = Array.from({ length: geoStops.length }, (_, index) => (
+    courseMoodPercentages[index] === undefined
+      ? (serviceType === 'airport' ? 50 : 100)
+      : courseMoodPercentages[index]
+  ));
 
   // ── 지도용 경로 데이터 구성 (좌표 있는 stops → origin/waypoint/destination) ──
   const buildMapRoute = useCallback((list: ParsedStop[]) => {
@@ -515,7 +527,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         body.origin = originAddr;
         body.destination = destAddr;
         if (waypointAddrs.length) body.waypoints = waypointAddrs;
-        body.coursePayers = usable.map((_, index) => index === 0 ? 'mood' : 'influencer');
+        body.courseMoodPercentages = usable.map((_, index) => courseMoodPercentages[index] === undefined ? (serviceType === 'airport' ? 50 : 100) : courseMoodPercentages[index]);
       }
 
       const signature = JSON.stringify(body);
@@ -548,7 +560,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } finally {
       setBooking(false);
     }
-  }, [canBook, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, onBooked]);
+  }, [canBook, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
@@ -1026,6 +1038,15 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                 </button>
               </div>
             </div>
+          )}
+
+          {shareItems.length >= 2 && (
+            <MoodCourseShareEditor
+              items={shareItems}
+              percentages={visibleCourseMoodPercentages}
+              totalKRW={estimate.amountKRW}
+              onChange={setCourseMoodPercentages}
+            />
           )}
 
           {/* ⑥ 예상 금액 */}

@@ -213,7 +213,7 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
             {distribution.courseCount ? distribution.courses.map((course, index) => {
               const stop = course.stop;
               const label = String(stop.label || '').trim() || moodShareStopLabel(index, stops.length);
-              const payerLabel = moodSharePayerLabel(course.payer, data.influencerName);
+              const influencerLabel = moodSharePayerLabel('influencer', data.influencerName);
               return (
                 <li key={`${stop.address}-${index}`} className="relative flex gap-3 py-2.5">
                   {index < stops.length - 1 && <span className="absolute left-[13px] top-8 h-[calc(100%-18px)] w-px bg-violet-200" aria-hidden="true" />}
@@ -226,15 +226,13 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
                       {stop.time && <span className="text-[9px] font-bold text-slate-400">{stop.time}</span>}
                     </div>
                     <p className="mt-0.5 break-words text-[11px] font-bold leading-relaxed text-slate-700">{stop.address}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${
-                        course.payer === 'mood'
-                          ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-100'
-                          : 'bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-100'
-                      }`}>
-                        {payerLabel} 부담
+                    <div className="mt-1.5 grid gap-1 text-[9px] font-black">
+                      <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-violet-100">
+                        MOOD {course.moodPercentage}% · {formatMoodShareKRW(course.moodKRW)}
                       </span>
-                      <span className="text-[10px] font-black tabular-nums text-slate-700">{formatMoodShareKRW(course.amountKRW)}</span>
+                      <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-fuchsia-700 ring-1 ring-fuchsia-100">
+                        {influencerLabel} {course.influencerPercentage}% · {formatMoodShareKRW(course.influencerKRW)}
+                      </span>
                     </div>
                   </div>
                 </li>
@@ -273,12 +271,12 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
           )}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-white/[0.07] p-2.5">
-              <p className="text-[9px] font-bold text-white/50">MOOD 부담 · {distribution.mood.courseCount}코스</p>
+              <p className="text-[9px] font-bold text-white/50">MOOD 부담 합계</p>
               <p className="mt-1 text-[15px] font-black tabular-nums">{formatMoodShareKRW(distribution.mood.totalKRW)}</p>
             </div>
             <div className="rounded-xl bg-white/[0.07] p-2.5">
               <p className="truncate text-[9px] font-bold text-white/50">
-                {moodSharePayerLabel('influencer', data.influencerName)} 부담 · {distribution.influencer.courseCount}코스
+                {moodSharePayerLabel('influencer', data.influencerName)} 부담 합계
               </p>
               <p className="mt-1 text-[15px] font-black tabular-nums">{formatMoodShareKRW(distribution.influencer.totalKRW)}</p>
             </div>

@@ -243,17 +243,11 @@ const BOOK_BODY = {
   idempotencyKey: 'course-payers-book-request',
 };
 
-const EXPECTED_DEFAULT_PAYERS = [
-  'mood',
-  'influencer',
-  'influencer',
-  'influencer',
-  'influencer',
-];
+const EXPECTED_DEFAULT_PERCENTAGES = [100, 0, 0, 0, 0];
+const EXPECTED_DEFAULT_PAYERS = ['mood', 'influencer', 'influencer', 'influencer', 'influencer'];
+const CHANGE_PERCENTAGES = [100, 50, 25, 0];
 
-const CHANGE_PAYERS = ['mood', 'mood', 'influencer', 'influencer'];
-
-function changeBody(coursePayers = CHANGE_PAYERS) {
+function changeBody(courseMoodPercentages = CHANGE_PERCENTAGES) {
   return {
     bookingId: 'booking-change',
     expectedRevision: 0,
@@ -271,7 +265,7 @@ function changeBody(coursePayers = CHANGE_PAYERS) {
       airportDirection: null,
       airportCode: null,
       influencerName: '인플루언서 A',
-      coursePayers,
+      courseMoodPercentages,
     },
   };
 }
@@ -304,47 +298,58 @@ beforeEach(() => {
   notifyMock.mockResolvedValue(undefined);
 });
 
-describe('mood-book 코스별 부담 주체 검증과 기본값', () => {
-  it('지점 수와 coursePayers 길이가 다르면 계산·예약·차감 전에 400으로 거부한다', async () => {
+describe('mood-book 코스별 MOOD 부담률 검증과 기본값', () => {
+  it('지점 수와 부담률 길이가 다르면 계산·예약·차감 전에 400으로 거부한다', async () => {
     const { response, json } = await callBook({
       ...BOOK_BODY,
-      coursePayers: ['mood', 'influencer', 'influencer', 'influencer'],
+      courseMoodPercentages: [100, 0, 0, 0],
     });
 
     expect(response.statusCode).toBe(400);
-    expect(json.error).toBe('INVALID_COURSE_PAYERS');
+    expect(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
     expect(computeRouteMock).not.toHaveBeenCalled();
     expect(docsIn('mood_bookings')).toHaveLength(0);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(1_000_000);
   });
 
-  it('mood/influencer 이외 값은 계산·예약·차감 전에 400으로 거부한다', async () => {
+  it('0~100 정수 이외 값은 계산·예약·차감 전에 400으로 거부한다', async () => {
     const { response, json } = await callBook({
       ...BOOK_BODY,
-      coursePayers: ['mood', 'influencer', 'company', 'influencer', 'influencer'],
+      courseMoodPercentages: [100, 0, 101, 50, 0],
     });
 
     expect(response.statusCode).toBe(400);
-    expect(json.error).toBe('INVALID_COURSE_PAYERS');
+    expect(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
     expect(computeRouteMock).not.toHaveBeenCalled();
     expect(docsIn('mood_bookings')).toHaveLength(0);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(1_000_000);
   });
 
-  it('동선이 없는데 비어 있지 않은 coursePayers를 보내면 400으로 거부한다', async () => {
+  it('동선이 없는데 비어 있지 않은 부담률을 보내면 400으로 거부한다', async () => {
     const withoutRoute: Record<string, any> = { ...BOOK_BODY };
     delete withoutRoute.origin;
     delete withoutRoute.destination;
     delete withoutRoute.waypoints;
     const { response, json } = await callBook({
       ...withoutRoute,
-      coursePayers: ['mood'],
+      courseMoodPercentages: [100],
     });
 
     expect(response.statusCode).toBe(400);
-    expect(json.error).toBe('INVALID_COURSE_PAYERS');
+    expect(json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
     expect(docsIn('mood_bookings')).toHaveLength(0);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(1_000_000);
+  });
+
+  it('명시 null 부담률과 스키마 버전은 미전달로 보지 않고 거부한다', async () => {
+    let result = await callBook({ ...BOOK_BODY, courseMoodPercentages: null });
+    expect(result.response.statusCode).toBe(400);
+    expect(result.json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
+
+    result = await callBook({ ...BOOK_BODY, courseShareSchemaVersion: null });
+    expect(result.response.statusCode).toBe(400);
+    expect(result.json.error).toBe('INVALID_COURSE_SHARE_SCHEMA_VERSION');
+    expect(computeRouteMock).not.toHaveBeenCalled();
   });
 
   it('미전달이면 N개 지점을 첫 코스 MOOD, 나머지 인플루언서로 저장한다', async () => {
@@ -353,15 +358,21 @@ describe('mood-book 코스별 부담 주체 검증과 기본값', () => {
     expect(response.statusCode).toBe(200);
     const bookings = docsIn('mood_bookings');
     expect(bookings).toHaveLength(1);
+    expect(bookings[0].courseMoodPercentages).toEqual(EXPECTED_DEFAULT_PERCENTAGES);
+    expect(bookings[0].courseShareSchemaVersion).toBe(2);
     expect(bookings[0].coursePayers).toEqual(EXPECTED_DEFAULT_PAYERS);
   });
 
-  it('유효한 명시 배열은 코스 순서를 바꾸지 않고 예약에 저장한다', async () => {
-    const requestedPayers = ['mood', 'mood', 'influencer', 'mood', 'influencer'];
-    const { response } = await callBook({ ...BOOK_BODY, coursePayers: requestedPayers });
+  it('유효한 혼합 부담률은 순서를 바꾸지 않고 canonical 필드에 저장한다', async () => {
+    const requestedPercentages = [100, 50, 0, 25, 75];
+    const { response } = await callBook({ ...BOOK_BODY, courseMoodPercentages: requestedPercentages });
 
     expect(response.statusCode).toBe(200);
-    expect(docsIn('mood_bookings')[0].coursePayers).toEqual(requestedPayers);
+    expect(docsIn('mood_bookings')[0]).toMatchObject({
+      courseMoodPercentages: requestedPercentages,
+      courseShareSchemaVersion: 2,
+      coursePayers: null,
+    });
   });
 });
 
@@ -390,6 +401,8 @@ describe('mood-data coursePayers 조회 계약', () => {
 
     expect(response.statusCode).toBe(200);
     expect(json.data.bookings).toHaveLength(1);
+    expect(json.data.bookings[0].courseMoodPercentages).toEqual(EXPECTED_DEFAULT_PERCENTAGES);
+    expect(json.data.bookings[0].courseShareSchemaVersion).toBe(2);
     expect(json.data.bookings[0].coursePayers).toEqual(EXPECTED_DEFAULT_PAYERS);
   });
 
@@ -416,11 +429,13 @@ describe('mood-data coursePayers 조회 계약', () => {
     const { response, json } = await callData();
 
     expect(response.statusCode).toBe(200);
+    expect(json.data.bookings[0].courseMoodPercentages).toBeNull();
+    expect(json.data.bookings[0].courseShareSchemaVersion).toBeNull();
     expect(json.data.bookings[0].coursePayers).toBeNull();
   });
 });
 
-describe('mood-change coursePayers 저장·감사·멱등 충돌', () => {
+describe('mood-change 코스별 MOOD 부담률 저장·감사·멱등 충돌', () => {
   it('변경값을 예약과 감사·멱등 응답에 저장하고, 같은 키의 다른 분담값은 409로 막는다', async () => {
     const previousPayers = ['mood', 'influencer', 'influencer'];
     store.set('mood_bookings/booking-change', {
@@ -449,27 +464,79 @@ describe('mood-change coursePayers 저장·감사·멱등 충돌', () => {
     const first = await callChange(changeBody());
 
     expect(first.response.statusCode).toBe(200);
-    expect(store.get('mood_bookings/booking-change')?.coursePayers).toEqual(CHANGE_PAYERS);
-    expect(first.json.data.booking.coursePayers).toEqual(CHANGE_PAYERS);
+    expect(store.get('mood_bookings/booking-change')).toMatchObject({
+      courseMoodPercentages: CHANGE_PERCENTAGES,
+      courseShareSchemaVersion: 2,
+      coursePayers: null,
+    });
+    expect(first.json.data.booking.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
+    expect(first.json.data.booking.coursePayers).toBeNull();
 
     const audits = docsIn('mood_booking_change_events');
     expect(audits).toHaveLength(1);
-    expect(audits[0].before.coursePayers).toEqual(previousPayers);
-    expect(audits[0].after.coursePayers).toEqual(CHANGE_PAYERS);
+    expect(audits[0].before.courseMoodPercentages).toEqual([100, 0, 0]);
+    expect(audits[0].after.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
 
     const idempotencyDocs = docsIn('mood_booking_change_idempotency');
     expect(idempotencyDocs).toHaveLength(1);
-    expect(idempotencyDocs[0].response.data.booking.coursePayers).toEqual(CHANGE_PAYERS);
+    expect(idempotencyDocs[0].response.data.booking.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
 
     const balanceAfterFirst = store.get('mood_clients/COMPANY_A')?.balanceKRW;
-    const conflictPayers = ['influencer', 'mood', 'influencer', 'influencer'];
-    const conflict = await callChange(changeBody(conflictPayers));
+    const conflictPercentages = [0, 100, 50, 0];
+    const conflict = await callChange(changeBody(conflictPercentages));
 
     expect(conflict.response.statusCode).toBe(409);
     expect(conflict.json.error).toBe('IDEMPOTENCY_CONFLICT');
-    expect(store.get('mood_bookings/booking-change')?.coursePayers).toEqual(CHANGE_PAYERS);
+    expect(store.get('mood_bookings/booking-change')?.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(balanceAfterFirst);
     expect(docsIn('mood_booking_change_events')).toHaveLength(1);
     expect(computeRouteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('손상된 저장 v2는 유효한 구 payer로 되돌리지 않고 변경을 막는다', async () => {
+    store.set('mood_bookings/booking-change', {
+      clientId: 'COMPANY_A',
+      status: 'confirmed',
+      revision: 0,
+      amountKRW: 100_000,
+      serviceType: 'vehicle',
+      breakdown: { origin: '기존 출발', waypoints: ['기존 경유'], destination: '기존 도착' },
+      courseMoodPercentages: [100, '50', 0],
+      courseShareSchemaVersion: 2,
+      coursePayers: ['mood', 'influencer', 'mood'],
+    });
+
+    const result = await callChange(changeBody());
+
+    expect(result.response.statusCode).toBe(409);
+    expect(result.json.error).toBe('INVALID_STORED_COURSE_SHARE');
+    expect(docsIn('mood_booking_change_events')).toHaveLength(0);
+    expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(1_000_000);
+  });
+});
+
+describe('구 쓰기 필드 거부', () => {
+  it('book과 change 요청의 coursePayers는 canonical 비율 필드로 조용히 바꾸지 않고 400으로 거부한다', async () => {
+    const book = await callBook({
+      ...BOOK_BODY,
+      coursePayers: EXPECTED_DEFAULT_PAYERS,
+    });
+    expect(book.response.statusCode).toBe(400);
+    expect(book.json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
+
+    store.set('mood_bookings/booking-change', {
+      clientId: 'COMPANY_A',
+      status: 'confirmed',
+      revision: 0,
+      amountKRW: 100_000,
+      serviceType: 'vehicle',
+      breakdown: { origin: '기존 출발', waypoints: ['기존 경유'], destination: '기존 도착' },
+    });
+    const changeRequest = changeBody();
+    changeRequest.booking.coursePayers = ['mood', 'influencer', 'mood', 'influencer'];
+    const change = await callChange(changeRequest);
+    expect(change.response.statusCode).toBe(400);
+    expect(change.json.error).toBe('INVALID_COURSE_MOOD_PERCENTAGES');
+    expect(docsIn('mood_booking_change_events')).toHaveLength(0);
   });
 });
