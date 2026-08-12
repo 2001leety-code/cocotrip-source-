@@ -127,6 +127,9 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
   const UNNAMED: Record<string, string> = { ko: '이름 없는 장소', en: 'Unnamed stop', ja: '名称不明', zh: '未命名地点' };
   const cleanDisplayName = _rawDisplayName || UNNAMED[lng] || 'Unnamed stop';
   const cleanKoName = sanitizeStopName(stop.name || stop.name_ko || '', 'ko');
+  const lodgingLabel = lodgingRole
+    ? (LODGING_ROLE_LABEL[lodgingRole][language] || LODGING_ROLE_LABEL[lodgingRole].en)
+    : '';
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
   const [expanded, setExpanded] = useState(false);
@@ -228,7 +231,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       tabIndex={0}
       aria-expanded={expanded}
       aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}, ${stop.start_time}`}
-      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.28)] hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
+      className="ec-card relative cursor-pointer overflow-hidden p-0 transition-colors hover:border-ec-line-3"
       onClick={toggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -245,7 +248,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       <div className="flex items-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 pl-4 sm:pl-5">
         {/* Time + category — clearer hierarchy, time is the anchor */}
         <div className="text-center shrink-0">
-          <p className="text-[14px] sm:text-[15px] font-extrabold text-[#B9A4FF] leading-none">{stop.start_time}</p>
+          <p className="text-[14px] font-extrabold leading-none text-ec-brand sm:text-[15px]">{stop.start_time}</p>
           <div className={`mt-1.5 w-7 h-7 rounded-full ${catColors.bg} border ${catColors.ring} flex items-center justify-center mx-auto transition-colors`}>
             <CatIcon className={`w-3.5 h-3.5 ${catColors.icon}`} />
           </div>
@@ -254,23 +257,23 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[15px] sm:text-base font-bold text-white leading-snug">{cleanDisplayName}</p>
+            <p className="text-[15px] font-bold leading-snug text-ec-ink sm:text-base">{cleanDisplayName}</p>
             {/* P116: lodging role badge — 호텔 카드가 매일 2번 노출되는 bookend
                 패턴을 사용자가 "중복 버그" 로 오인하지 않게 명시 구분. */}
             {lodgingRole && (
               <span
-                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold border bg-[#7C5CFC]/15 border-[#7C5CFC]/30 text-[#B9A4FF]"
-                title={`Lodging ${lodgingRole}`}
+                className="ec-chip ec-chip-brand shrink-0 px-2 py-0.5 text-[11px] font-bold"
+                title={lodgingLabel}
               >
-                {LODGING_ROLE_LABEL[lodgingRole][language] || LODGING_ROLE_LABEL[lodgingRole].en}
+                {lodgingLabel}
               </span>
             )}
             {stop.local_tag && (() => {
               const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
-                'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '\u{1F4CD}' },
-                'Hidden Gem': { bg: 'bg-emerald-500/20 border-emerald-500/30', text: 'text-emerald-300', emoji: '\u{1F48E}' },
-                'Bakery Pilgrimage': { bg: 'bg-amber-500/20 border-amber-500/30', text: 'text-amber-300', emoji: '\u{1F950}' },
-                'Blue Ribbon': { bg: 'bg-blue-500/20 border-blue-500/30', text: 'text-blue-300', emoji: '\u{1F3C5}' },
+                'Local Pick': { bg: 'bg-ec-brand-wash border-ec-line', text: 'text-ec-brand', emoji: '\u{1F4CD}' },
+                'Hidden Gem': { bg: 'bg-ec-sunken border-ec-line', text: 'text-ec-success', emoji: '\u{1F48E}' },
+                'Bakery Pilgrimage': { bg: 'bg-ec-sunken border-ec-line', text: 'text-ec-notice', emoji: '\u{1F950}' },
+                'Blue Ribbon': { bg: 'bg-ec-sunken border-ec-line', text: 'text-ec-brand', emoji: '\u{1F3C5}' },
               };
               const cfg = tagConfig[stop.local_tag];
               // [live MED] fix: tagConfig\uC5D0 \uC5C6\uB294 raw \uB0B4\uBD80\uD0A4(snake_case, \uD30C\uC774\uD504 \uAD6C\uBD84)\uB294 \uC228\uAE40.
@@ -281,7 +284,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             {isUnverifiedFood && (
               <span
                 title={ui.unverifiedHint || 'Not in our verified DB — double-check before visiting.'}
-                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold border bg-amber-500/15 border-amber-500/35 text-amber-300"
+                className="shrink-0 inline-flex items-center gap-0.5 rounded-full border border-ec-line bg-ec-sunken px-1.5 py-0.5 text-[11px] font-bold text-ec-notice"
               >
                 <AlertTriangle className="w-2.5 h-2.5" /> {ui.unverifiedBadge || 'Unverified'}
               </span>
@@ -289,11 +292,11 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           </div>
           {/* Korean name as subtle subtitle (when display_name is in another language) */}
           {cleanKoName && cleanKoName !== cleanDisplayName && (
-            <p className="text-[13px] text-white/65 mt-0.5">{cleanKoName}</p>
+            <p className="mt-0.5 text-[13px] text-ec-ink-3">{cleanKoName}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[12px] text-white/70">
+            <span className="ec-chip px-1.5 py-0.5 text-[12px]">
               <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
             </span>
             {/* 🔴 2026-07-28: 식당·카페에 초록 "무료" 칩이 붙던 것 수정.
@@ -301,27 +304,27 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                 손님이 공짜 식사로 오해했다. 먹는 곳은 입장료 개념이 없으므로 "식사비 별도"로
                 표시하고, 무료 칩은 실제로 입장료가 없는 관광지에만 쓴다. */}
             {(stop.entry_fee_krw || 0) > 0 ? (
-              <span className="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-yellow-200 font-semibold">
+              <span className="ec-chip bg-ec-sunken px-1.5 py-0.5 text-[12px] font-semibold text-ec-notice">
                 {formatKRW(stop.entry_fee_krw || 0)}
               </span>
             ) : isFoodStop ? (
-              <span className="inline-flex items-center gap-1 bg-orange-400/10 border border-orange-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-orange-200 font-semibold">
+              <span className="ec-chip bg-ec-sunken px-1.5 py-0.5 text-[12px] font-semibold text-ec-notice">
                 {ui.mealCostLabel || 'Meal cost separate'}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/25 rounded-md px-1.5 py-0.5 text-[12px] text-emerald-200 font-semibold">
+              <span className="ec-chip bg-ec-sunken px-1.5 py-0.5 text-[12px] font-semibold text-ec-success">
                 {ui.free || 'Free'}
               </span>
             )}
           </div>
         </div>
         {isFav && (
-          <Heart aria-hidden className="w-3.5 h-3.5 text-pink-400 fill-current shrink-0 mt-1" />
+          <Heart aria-hidden className="mt-1 h-3.5 w-3.5 shrink-0 fill-current text-ec-brand" />
         )}
         {/* 운영자: 화살표만으론 펼침 가능 여부를 모를 수 있어 밑에 "자세히" 텍스트(접힘 상태). */}
         <div className="flex flex-col items-center shrink-0 mt-1 gap-0.5">
-          <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
-          {!expanded && <span className="text-[9px] leading-none text-white/45 whitespace-nowrap">{({ ko: '자세히', en: 'Details', ja: '詳細', zh: '详情' } as Record<string, string>)[lng] || '자세히'}</span>}
+          <ChevronDown className={`h-4 w-4 text-ec-ink-3 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+          {!expanded && <span className="whitespace-nowrap text-[9px] leading-none text-ec-ink-4">{({ ko: '자세히', en: 'Details', ja: '詳細', zh: '详情' } as Record<string, string>)[lng] || '자세히'}</span>}
         </div>
       </div>
 
@@ -330,7 +333,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           calc(100dvh - 320px): header(56) + tabs(40) + slide progress(40) + collapsed card header(~140) + 여유(44).
           내부 div가 overflow-y-auto이므로 max-h를 넘으면 스크롤. */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[calc(100dvh-320px)] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="space-y-3 border-t border-ec-line px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5" onClick={(e) => e.stopPropagation()}>
           {/* Sprint 1 Step 3: Photo preview (Google Places). photo_ref 있으면 thumbnail 렌더.
               expanded 상태에서만 fetch — collapsed 카드 다수 시 비용 절감.
               loading="lazy" + decoding="async" — 모바일 첫 렌더 우선순위 보호. */}
@@ -338,24 +341,20 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             <button
               type="button"
               onClick={() => { haptic('tap'); setLightboxOpen(true); }}
-              className="w-full block group focus:outline-none focus:ring-2 focus:ring-[#7C5CFC]/60 rounded-lg"
-              aria-label={`Open ${cleanDisplayName} photo`}
+              className="group block w-full rounded-ec-sm focus:outline-none"
+              aria-label={(ui.openPhoto || 'Open photo of {{name}}').replace('{{name}}', cleanDisplayName)}
             >
-              <div className="relative w-full h-44 sm:h-52 rounded-lg overflow-hidden border border-white/[0.06] bg-white/[0.04]">
+              <div className="relative h-44 w-full overflow-hidden rounded-ec-sm border border-ec-line bg-ec-sunken sm:h-52">
                 {/* Subtle shimmer placeholder while loading — fades out under the img. */}
                 {!imageLoaded && (
-                  <div
-                    className="absolute inset-0 animate-pulse"
-                    style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%)' }}
-                  />
+                  <div className="absolute inset-0 animate-pulse bg-ec-sunken" />
                 )}
                 <img
                   src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=600`}
                   alt={cleanDisplayName}
                   loading="lazy"
                   decoding="async"
-                  className={`w-full h-full rounded-lg object-cover transition-opacity duration-300 group-hover:scale-[1.02] group-active:scale-[0.99] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-                  style={{ transitionProperty: 'opacity, transform' }}
+                  className={`h-full w-full rounded-ec-sm object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={() => setImageLoaded(true)}
                   onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
                 />
@@ -366,48 +365,49 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             <Lightbox
               src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=1600`}
               alt={cleanDisplayName}
+              closeLabel={t.planDetail.reviews.closeImage}
               onClose={() => setLightboxOpen(false)}
             />
           )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
-            <p className="text-[14px] text-white/65 flex items-start gap-1.5 leading-relaxed">
-              <MapPin className="w-3.5 h-3.5 shrink-0 text-[#7C5CFC]/70 mt-0.5" />
+            <p className="flex items-start gap-1.5 text-[14px] leading-relaxed text-ec-ink-2">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-brand" />
               <span>{stop.address}</span>
             </p>
           )}
           {stop.personalization_reasoning && (
-            <div className="bg-[#7C5CFC]/[0.08] border border-[#7C5CFC]/25 rounded-lg px-3 py-2.5">
-              <p className="text-[13px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
-              <p className="text-[14px] text-white/85 leading-relaxed">{stop.personalization_reasoning}</p>
+            <div className="border-l-2 border-ec-line-2 bg-ec-brand-wash px-3 py-2.5">
+              <p className="mb-1 text-[13px] font-bold uppercase tracking-wider text-ec-brand">{ui.whyChose || 'Why this for you'}</p>
+              <p className="text-[14px] leading-relaxed text-ec-ink">{stop.personalization_reasoning}</p>
             </div>
           )}
           {(stop.tip || stop.tip_en) && (
-            <div className="bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2.5">
-              <p className="text-[13px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
-              <p className="text-[14px] text-white/85 leading-relaxed">{stop.tip || stop.tip_en}</p>
+            <div className="border-l-2 border-ec-notice bg-ec-sunken px-3 py-2.5">
+              <p className="mb-1 text-[13px] font-bold uppercase tracking-wider text-ec-notice">{ui.tip || 'Tip'}</p>
+              <p className="text-[14px] leading-relaxed text-ec-ink">{stop.tip || stop.tip_en}</p>
             </div>
           )}
           {isUnverifiedFood && (
-            <p className="text-[12px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
-              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+            <p className="flex items-start gap-1.5 border-l-2 border-ec-notice bg-ec-sunken px-2.5 py-2 text-[12px] text-ec-notice">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
               <span>{ui.unverifiedHint || 'Not in our verified DB — double-check the address before visiting.'}</span>
             </p>
           )}
-          {stop.entry_fee_note && <p className="text-[13px] text-yellow-400/70">{stop.entry_fee_note}</p>}
+          {stop.entry_fee_note && <p className="text-[13px] text-ec-ink-2">{stop.entry_fee_note}</p>}
 
           {/* Reservation info */}
           {stop.reservation_required && (
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
-              <p className="text-[13px] text-orange-400/80 font-semibold">Reservation required</p>
-              {stop.reservation_note && <p className="text-[12px] text-orange-400/70 mt-0.5">{stop.reservation_note}</p>}
+            <div className="border-l-2 border-ec-notice bg-ec-sunken px-3 py-2.5">
+              <p className="text-[13px] font-semibold text-ec-notice">{ui.pdfReservationRequired || 'Reservation required'}</p>
+              {stop.reservation_note && <p className="mt-0.5 text-[12px] text-ec-ink-2">{stop.reservation_note}</p>}
               <div className="flex flex-wrap gap-3 mt-1">
                 {stop.reservation_phone && (
-                  <a href={`tel:${stop.reservation_phone}`} className="text-[12px] text-orange-400/70 underline min-h-[44px] inline-flex items-center">{stop.reservation_phone}</a>
+                  <a href={`tel:${stop.reservation_phone}`} className="inline-flex min-h-[44px] items-center text-[12px] text-ec-brand underline">{stop.reservation_phone}</a>
                 )}
                 {stop.reservation_url && (
-                  <a href={stop.reservation_url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-orange-400/70 underline min-h-[44px] flex items-center gap-0.5">
-                    <ExternalLink className="w-2.5 h-2.5" /> Book online
+                  <a href={stop.reservation_url} target="_blank" rel="noopener noreferrer" className="flex min-h-[44px] items-center gap-0.5 text-[12px] text-ec-brand underline">
+                    <ExternalLink className="w-2.5 h-2.5" /> {ui.bookOnline || 'Book online'}
                   </a>
                 )}
               </div>
@@ -415,7 +415,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           )}
 
           {stop.accessibility_note && (
-            <p className="text-[13px] text-blue-400/80 flex items-center gap-1">
+            <p className="flex items-center gap-1 text-[13px] text-ec-brand">
               <Accessibility className="w-3 h-3" /> {stop.accessibility_note}
             </p>
           )}
@@ -423,18 +423,18 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           {/* Recommended items */}
           {(stop.recommended_items?.length || 0) > 0 && (
             <div>
-              <p className="text-[13px] text-white/65 mb-1.5 uppercase tracking-wider">Recommended</p>
+              <p className="mb-1.5 text-[13px] uppercase tracking-wider text-ec-ink-3">{ui.pdfRecommended || 'Recommended'}</p>
               <div className="space-y-1">
                 {stop.recommended_items!.map((rawItem, i: number) => {
                   const item = normalizeRecommendedItem(rawItem);
                   if (!item.name) return null;
                   return (
-                    <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
+                    <div key={i} className="flex items-center justify-between rounded-ec-sm bg-ec-sunken px-3 py-2">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[13px] text-white/75">{item.name}</span>
-                        {item.note && <span className="text-[13px] text-white/60 ml-1.5">{'\u00B7'} {item.note}</span>}
+                        <span className="text-[13px] text-ec-ink-2">{item.name}</span>
+                        {item.note && <span className="ml-1.5 text-[13px] text-ec-ink-3">{'\u00B7'} {item.note}</span>}
                       </div>
-                      {(item.price_krw || 0) > 0 && <span className="text-[13px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
+                      {(item.price_krw || 0) > 0 && <span className="ml-2 shrink-0 text-[13px] font-bold text-ec-brand">{formatKRW(item.price_krw || 0)}</span>}
                     </div>
                   );
                 })}
@@ -444,26 +444,26 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
 
           {/* ODsay public-transit route (real transit data) */}
           {publicTransit && publicTransit.method !== 'walk' && (
-            <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3">
+            <div className="rounded-ec-sm border border-ec-line bg-ec-sunken p-3">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <Train className="w-3.5 h-3.5 text-blue-400" />
-                <p className="text-[13px] font-bold text-blue-400">{ui.publicTransitRoute || 'Public transit route'}</p>
-                <span className="ml-auto text-[12px] text-white/65">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
+                <Train className="h-3.5 w-3.5 text-ec-brand" aria-hidden />
+                <p className="text-[13px] font-bold text-ec-brand">{ui.publicTransitRoute || 'Public transit route'}</p>
+                <span className="ml-auto text-[12px] text-ec-ink-3">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
               </div>
               {publicTransit.steps?.length > 0 && (
                 <div className="space-y-1">
                   {publicTransit.steps.map((step: { mode?: string; description?: string }, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-[12px]">
-                      {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
-                      {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
-                      {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/55 shrink-0" />}
-                      <span className={step.mode === 'walk' ? 'text-white/65' : 'text-white/70'}>{step.description}</span>
+                      {step.mode === 'subway' && <Train className="h-3 w-3 shrink-0 text-ec-brand" aria-hidden />}
+                      {step.mode === 'bus' && <Bus className="h-3 w-3 shrink-0 text-ec-success" aria-hidden />}
+                      {step.mode === 'walk' && <Footprints className="h-3 w-3 shrink-0 text-ec-ink-3" />}
+                      <span className={step.mode === 'walk' ? 'text-ec-ink-3' : 'text-ec-ink-2'}>{step.description}</span>
                     </div>
                   ))}
                 </div>
               )}
               {publicTransit.transfers > 0 && (
-                <p className="text-[13px] text-white/65 mt-1.5">{ui.transitTransfers || 'Transfers'}: {publicTransit.transfers}</p>
+                <p className="mt-1.5 text-[13px] text-ec-ink-3">{ui.transitTransfers || 'Transfers'}: {publicTransit.transfers}</p>
               )}
             </div>
           )}
@@ -479,8 +479,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                 aria-label={isFav ? (ui.favoriteRemove || 'Remove from favorites') : (ui.favoriteAdd || 'Add to favorites')}
                 className={`flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border transition-colors active:scale-[0.98]
                   ${isFav
-                    ? 'bg-pink-500/15 border-pink-500/40 text-pink-300 hover:bg-pink-500/20'
-                    : 'bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85'}`}
+                    ? 'border-ec-brand bg-ec-brand-wash text-ec-brand hover:border-ec-brand-hover'
+                    : 'border-ec-line bg-ec-raised text-ec-ink-2 hover:border-ec-line-2 hover:text-ec-ink'}`}
               >
                 <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                 {isFav ? (ui.favoriteSaved || 'Saved') : (ui.favoriteLabel || 'Favorite')}
@@ -491,7 +491,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                 type="button"
                 onClick={handleShare}
                 aria-label={ui.shareLabel || 'Share'}
-                className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85 transition-colors active:scale-[0.98]"
+                className="ec-btn ec-btn-secondary min-h-[44px] flex-1 px-3 text-[13px]"
               >
                 <Share2 className="w-3.5 h-3.5" />
                 {ui.shareLabel || 'Share'}
@@ -501,7 +501,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               type="button"
               onClick={handleDirections}
               aria-label={ui.directionsLabel || 'Directions'}
-              className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/15 transition-colors active:scale-[0.98]"
+              className="ec-btn ec-btn-secondary min-h-[44px] flex-1 px-3 text-[13px] text-ec-success"
             >
               <Navigation className="w-3.5 h-3.5" />
               {ui.directionsLabel || 'Directions'}
@@ -537,7 +537,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                   target="_blank"
                   rel="noopener noreferrer sponsored"
                   onClick={() => trackAffiliateClick(affPayload)}
-                  className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
+                  className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-brand"
                 >
                   <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}
                 </a>
@@ -550,7 +550,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             // 1. RouteAgent-provided URL (most accurate)
             if (stop.naverMapUrl) {
               return (
-                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
                   <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
@@ -559,7 +559,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             if (stop.lat && stop.lng) {
               const coordUrl = `https://map.naver.com/v5/search/${encodeURIComponent(stop.name || stop.name_ko || stop.display_name || stop.name_en || '')}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
               return (
-                <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+                <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
                   <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
@@ -572,7 +572,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             const searchQuery = district ? `${district} ${nameKo}` : (nameKo || stop.display_name || stop.name_en || '');
             const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`;
             return (
-              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
                 <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
               </a>
             );
@@ -586,7 +586,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             if (!q) return null;
             const gUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
             return (
-              <a href={gUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-sky-400/70 hover:text-sky-400 bg-sky-500/10 rounded-lg px-3 py-2">
+              <a href={gUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-brand">
                 <ExternalLink className="w-3 h-3" /> {ui.openGoogleMap || 'Open in Google Maps'}
               </a>
             );

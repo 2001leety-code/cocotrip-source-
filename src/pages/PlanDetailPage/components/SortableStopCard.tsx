@@ -3,7 +3,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { StopCard, type LodgingRole } from './StopCard';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanStop } from '../types';
@@ -44,67 +43,70 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete, lodgingRole
     zIndex: isDragging ? 50 : 'auto' as string | number,
   };
 
-  // Outer wrapper: dnd-kit OWNS transform/opacity/zIndex (drag positioning).
-  // Inner motion.div: framer-motion OWNS layout/enter/exit (list animations).
-  // Splitting prevents the two libraries from fighting over the same element's
-  // transform — previously caused 30fps drag jank on mobile (PR #76 analysis).
   return (
     <div ref={setNodeRef} style={style} className="relative group">
-      <motion.div
-        layout
-        initial={stop._userAdded ? { opacity: 0, y: -10 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        // height/marginBottom 애니메이션 제거 — repaint 유발 (60fps 깨짐).
-        // layout prop이 부모 reflow를 자동 처리하므로 transform 기반 exit만으로 충분.
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div>
         {editMode && (
-          <div className="absolute -left-8 top-1/2 -translate-y-1/2 hidden sm:flex flex-col items-center gap-1 z-10">
+          <div className="absolute -left-12 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-center gap-1 sm:flex">
             <button
               {...attributes}
               {...listeners}
-              className="p-1 rounded-md bg-white/5 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-colors touch-none"
+              className="flex h-11 w-11 touch-none cursor-grab items-center justify-center rounded-ec-sm border border-ec-line bg-ec-raised text-ec-ink-2 transition-colors hover:border-ec-line-2 hover:text-ec-ink active:cursor-grabbing"
               title={t.a11y?.dragToReorder ||'Drag to reorder'}
+              aria-label={t.a11y?.dragToReorder || 'Drag to reorder'}
             >
-              <GripVertical className="w-4 h-4 text-white/55" />
+              <GripVertical className="h-4 w-4" aria-hidden />
             </button>
           </div>
         )}
 
-        {/* Mobile drag handle — top-left, on-card (off-screen -left-8 didn't work on narrow viewports) */}
+        {/* Mobile edit controls stay in normal flow so they never cover stop details. */}
         {editMode && (
-          <button
-            {...attributes}
-            {...listeners}
-            className="sm:hidden absolute left-2 top-2 z-10 p-1.5 rounded-md bg-white/8 hover:bg-white/15 cursor-grab active:cursor-grabbing transition-colors touch-none"
-            title={t.a11y?.dragToReorder ||'Drag to reorder'}
-          >
-            <GripVertical className="w-4 h-4 text-white/50" />
-          </button>
+          <div data-testid="plan-stop-mobile-edit-controls" className="mb-2 flex items-center justify-between sm:hidden">
+            <button
+              {...attributes}
+              {...listeners}
+              className="flex h-11 w-11 touch-none cursor-grab items-center justify-center rounded-ec-sm border border-ec-line bg-ec-raised text-ec-ink-2 transition-colors hover:border-ec-line-2 hover:text-ec-ink active:cursor-grabbing"
+              title={t.a11y?.dragToReorder || 'Drag to reorder'}
+              aria-label={t.a11y?.dragToReorder || 'Drag to reorder'}
+            >
+              <GripVertical className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex h-11 w-11 items-center justify-center rounded-ec-sm border border-ec-critical bg-ec-raised text-ec-critical transition-colors hover:bg-ec-sunken"
+              title={ed.deleteButton || 'Remove'}
+              aria-label={ed.deleteButton || 'Remove'}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         )}
 
         {editMode && (
           <button
+            type="button"
             onClick={onDelete}
-            className="absolute -right-2 -top-2 z-10 p-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-white shadow-lg transition-all hover:scale-110"
+            className="absolute right-1 top-1 z-10 hidden h-11 w-11 items-center justify-center rounded-ec-sm border border-ec-critical bg-ec-raised text-ec-critical transition-colors hover:bg-ec-sunken sm:flex"
             title={ed.deleteButton || 'Remove'}
+            aria-label={ed.deleteButton || 'Remove'}
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         )}
 
         {stop._userAdded && (
-          <div className="absolute -right-1 top-8 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7C5CFC]/20 border border-[#7C5CFC]/30">
-            <Sparkles className="w-2.5 h-2.5 text-[#7C5CFC]" />
-            <span className="text-[9px] text-[#7C5CFC] font-medium">{ed.userAdded || 'Added by you'}</span>
+          <div data-testid="plan-stop-user-added" className={`z-10 flex items-center gap-1 rounded-full border border-ec-line-2 bg-ec-brand-wash px-2 py-1 ${editMode ? 'relative mb-2 ml-auto w-fit sm:absolute sm:right-2 sm:top-12 sm:mb-0' : 'absolute right-2 top-12'}`}>
+            <Sparkles className="h-2.5 w-2.5 text-ec-brand" aria-hidden />
+            <span className="text-[10px] font-medium text-ec-brand">{ed.userAdded || 'Added by you'}</span>
           </div>
         )}
 
-        <div className={editMode ? 'border border-dashed border-white/10 rounded-xl transition-colors' : ''}>
+        <div className={editMode ? 'rounded-ec-md border border-dashed border-ec-line-2 transition-colors' : ''}>
           <StopCard stop={stop} lodgingRole={lodgingRole} isOwner={isOwner} />
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

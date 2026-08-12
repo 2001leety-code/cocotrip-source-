@@ -65,22 +65,20 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
     <>
     {/* PR-C3: 비교 카드 (flag ON 시만 노출, OFF = 현재 동작 byte-identical) */}
     <TransitVsCharterCard day={day} pax={pax} />
-    <div className="mb-4 rounded-2xl p-4 border border-white/[0.08] backdrop-blur-sm"
-      style={{ background: 'rgba(255,255,255,0.04)' }}
-    >
+    <aside className="mb-4 rounded-ec-md border border-ec-line bg-ec-raised p-4">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30">
-          <Car className="w-5 h-5 text-[#7C5CFC]" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ec-brand-wash">
+          <Car className="h-5 w-5 text-ec-brand" aria-hidden />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-semibold leading-tight">
+          <p className="text-sm font-semibold leading-tight text-ec-ink">
             {ch.suggestHeader || 'This day has many transit transfers'}
           </p>
-          <p className="text-white/55 text-[14px] mt-1">
+          <p className="mt-1 text-[14px] text-ec-ink-2">
             {ch.suggestBody || 'Skip the hassle -- ride in comfort with a private driver'}
           </p>
           {pricing && (
-            <p className="text-[#7C5CFC] text-[14px] mt-2 font-medium flex flex-wrap gap-1">
+            <p className="mt-2 flex flex-wrap gap-1 text-[14px] font-medium text-ec-brand">
               {pricing.en} {'·'} {pricing.hours}{ch.hoursLabel || 'hours'} {'·'} {formatKRW(pricing.priceKRW)}
             </p>
           )}
@@ -94,20 +92,19 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
           { icon: DoorOpen, label: ch.badgeDoorToDoor || 'Door to door' },
           { icon: Sparkles, label: ch.badgeAddWhenNeeded || 'Add only when needed' },
         ].map(({ icon: Icon, label }) => (
-          <div key={label} className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5">
-            <Icon className="h-3.5 w-3.5 shrink-0 text-[#7C5CFC]" />
-            <span className="text-[11px] font-semibold text-white/65 leading-tight">{label}</span>
+          <div key={label} className="flex items-center gap-1.5 rounded-ec-sm border border-ec-line bg-ec-sunken px-2.5 py-2">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-ec-brand" aria-hidden />
+            <span className="text-[12px] font-semibold leading-tight text-ec-ink-2">{label}</span>
           </div>
         ))}
       </div>
       <a
         href={charterHref}
-        className="m-cta mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
-        style={{ background: 'var(--coco-cta-gradient)', boxShadow: 'var(--coco-cta-shadow)' }}
+        className="ec-btn ec-btn-primary mt-3 min-h-[44px] w-full"
       >
         {ch.viewCharterCTA || 'View Charter Options'} {'→'}
       </a>
-    </div>
+    </aside>
     </>
   );
 }

@@ -3,18 +3,6 @@
 // B8: Added SortableContext for drag-reorder, conditional edit UI, and + Add Stop button.
 import { useState } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { AnimatePresence, motion } from 'framer-motion';
-
-// Day stops 등장 stagger — 각 stop이 0.05s씩 늦춰서 폭포처럼 등장.
-// prefers-reduced-motion 가드는 CSS @media에서 자동으로 duration 0.01ms로 줄임.
-const stopVariants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.05, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
-  }),
-};
 import { Plus, Calendar, Clock, MapPin, TrainFront, Plane } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
 import { TransitFallback } from './TransitFallback';
@@ -35,6 +23,7 @@ import type { Language } from '@/i18n';
 import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
 import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
+import { dayLabelParts, formatDayLabel } from '../lib/dayLabel';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -128,7 +117,10 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   // UIUX P4 (2026-07-13): 하루 하단 총계 3칩 (도보/교통/비용) — 실측 데이터 있을 때만.
   const dayTotals = computeDayTotals(stops);
   const trDict = (pd.transit || {}) as Record<string, string>;
+  const regionNames = ((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {};
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
+  const dayNumber = Number(day.day || dayIndex + 1);
+  const dayLabel = dayLabelParts(language, dayNumber);
 
   // Sprint 1 Step 2: 풍부한 day 헤더 메타 (사용자 신고 "UI 개선 심각")
   // 첫/마지막 stop 시간 → 일정 범위 표시
@@ -137,12 +129,20 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const timeRange = firstTime && lastTime ? `${firstTime} – ${lastTime}` : firstTime || lastTime || '';
   // 'placesUnit' (곳/places) 사용 — pd.transit.stops 는 지하철 정거장 의미라 부적절
   const stopCountLabel = (pd as { placesUnit?: string }).placesUnit || 'places';
+  const tourStartTime = (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time
+    || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tourStartTime
+    || '09:00';
+  const arrivalOnlyHint = String(pd.day1ArrivalOnlyHint || 'Your tour starts tomorrow at {{time}}.')
+    .replace('{{time}}', tourStartTime);
 
   // B9-39 (2026-05-09): 다도시 plan 의 도시 라벨 + 도시 간 이동 카드 데이터.
   // city 가 있으면 Day 헤더에 chip 으로 표시; legacy plan = undefined → 미노출.
-  const cityLabel = day.city
+  const cityKey = String(day.city
     || ((plan?.input?.regions as string[] | undefined)?.[0])
-    || undefined;
+    || '').trim();
+  const cityLabel = cityKey
+    ? (regionNames[cityKey.toLowerCase()] || regionNames[cityKey] || cityKey)
+    : undefined;
   const intercity: IntercityTransitSegment | null | undefined = day.intercity_transit;
 
   /**
@@ -198,56 +198,44 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   }
 
   return (
-    <section className="mb-6 sm:mb-8">
-      {/* Sprint 1 Step 2: Day 헤더 — 풍부한 gradient 카드. 일자/테마/시간/stops 한눈에. */}
-      <div
-        className="relative overflow-hidden rounded-2xl mb-4 sm:mb-5 px-4 py-3.5 sm:px-5 sm:py-4 border border-white/[0.08]"
-        style={{
-          background: 'linear-gradient(135deg, rgba(124,92,252,0.18) 0%, rgba(234,83,126,0.12) 60%, rgba(10,4,18,0.85) 100%)',
-        }}
-      >
-        {/* 우상단 데코 — 큰 일자 번호 (배경에 묽게) */}
-        <span aria-hidden className="absolute -top-1 -right-2 text-[80px] sm:text-[100px] font-black text-white/[0.04] leading-none select-none">
-          {day.day || dayIndex + 1}
-        </span>
-
-        <div className="relative">
+    <section className="mb-8 md:mb-12">
+      <div className="mb-5 border-b border-ec-line-2 pb-5">
+        <div>
           {/* DAY 라벨 + 일자 번호 */}
-          <div className="flex items-baseline gap-2 mb-1.5">
-            <span className="text-[12px] font-extrabold tracking-[0.18em] uppercase bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] bg-clip-text text-transparent">
-              {pd.dayLabel || 'Day'}
+          <div className="mb-1.5 flex items-baseline gap-1.5">
+            {dayLabel.prefix && <span className="ec-eyebrow text-ec-brand">{dayLabel.prefix}</span>}
+            <span className="ec-figure text-[24px] leading-none sm:text-[28px]">
+              {dayLabel.number}
             </span>
-            <span className="text-[24px] sm:text-[28px] font-black tracking-tight text-white leading-none">
-              {day.day || dayIndex + 1}
-            </span>
+            {dayLabel.suffix && <span className="ec-eyebrow text-ec-brand">{dayLabel.suffix}</span>}
           </div>
 
           {/* Theme — 큰 글씨 강조 */}
-          <h3 className="text-[20px] sm:text-[24px] font-extrabold tracking-tight text-white leading-tight mb-2">
-            {day.theme || `Day ${day.day || dayIndex + 1}`}
-          </h3>
+          <h2 className="ec-h3 mb-3 text-[clamp(21px,2.4vw,30px)]">
+            {day.theme || formatDayLabel(language, dayNumber)}
+          </h2>
 
           {/* Meta chips: 일자 / 시간 / stops 수 / city (다도시 plan) */}
           <div className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px]">
             {day.date && (
-              <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
+              <span className="ec-chip">
                 <Calendar className="w-2.5 h-2.5" /> {day.date}
               </span>
             )}
             {timeRange && (
-              <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
+              <span className="ec-chip">
                 <Clock className="w-2.5 h-2.5" /> {timeRange}
               </span>
             )}
             {stops.length > 0 && (
-              <span className="inline-flex items-center gap-1 bg-[#7C5CFC]/[0.12] border border-[#7C5CFC]/25 rounded-md px-2 py-0.5 text-[#B9A4FF] font-semibold">
+              <span className="ec-chip ec-chip-brand">
                 <MapPin className="w-2.5 h-2.5" /> {stops.length} {stopCountLabel}
               </span>
             )}
             {cityLabel && (
               /* B9-39: 다도시 plan 의 도시 라벨. 단일 도시 plan 도 보여 OK
                  (regions[0] fallback 으로 채워짐). 시각적 강조 위해 별도 색상. */
-              <span className="inline-flex items-center gap-1 bg-[#EA537E]/[0.14] border border-[#EA537E]/30 rounded-md px-2 py-0.5 text-[#FFB1C8] font-semibold">
+              <span className="ec-chip">
                 <MapPin className="w-2.5 h-2.5" /> {cityLabel}
               </span>
             )}
@@ -297,20 +285,17 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
 
       {/* P239 (2026-05-27): Day 1 = lodging only 안내 — 운영자 architectural fix.
           새벽 도착 시 호텔만 transit + 다음날 09:00 (tour_start_time) 부터 stops 시작.
-          stops.length <= 1 AND day.day === 1 일 때만 노출 (다른 day 영향 0). */}
-      {(day.day === 1 || dayIndex === 0) && stops.length <= 1 && (
-        <div className="mb-3 rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.06] p-3.5">
+          첫날의 유일한 stop 이 lodging 일 때만 노출 (일반 1-stop 일정에 허위 안내 금지). */}
+      {(day.day === 1 || dayIndex === 0) && stops.length === 1 && stops[0]?.category === 'lodging' && (
+        <div className="mb-4 border-l-2 border-ec-line-2 bg-ec-sunken px-4 py-3.5">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none">🌙</span>
             <div className="flex-1">
-              <p className="text-[13px] font-semibold text-white mb-1">
+              <p className="mb-1 text-[14px] font-semibold text-ec-ink">
                 {pd.day1ArrivalOnlyTitle || 'Late arrival? Rest at your hotel'}
               </p>
-              <p className="text-[11.5px] text-white/65 leading-relaxed">
-                {pd.day1ArrivalOnlyHint
-                  || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time
-                  ? `Your tour starts tomorrow at ${(plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tourStartTime || '09:00'}.`
-                  : 'Your tour starts tomorrow morning.'}
+              <p className="text-[13px] leading-relaxed text-ec-ink-2">
+                {arrivalOnlyHint}
               </p>
             </div>
           </div>
@@ -324,9 +309,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
 
       {/* Transit recalculating indicator */}
       {isRecalculating && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl">
-          <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[13px] text-[#7C5CFC]/80">{ed.routeRecalculating || 'Updating routes...'}</span>
+        <div className="mb-3 flex items-center gap-2 border border-ec-line bg-ec-brand-wash px-3 py-2">
+          <div className="h-3 w-3 animate-pulse rounded-full bg-ec-brand" aria-hidden />
+          <span className="text-[13px] font-semibold text-ec-brand">{ed.routeRecalculating || 'Updating routes...'}</span>
         </div>
       )}
 
@@ -354,8 +339,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
 
       {editMode ? (
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
-          <div className="space-y-1 pl-8">
-            <AnimatePresence mode="popLayout">
+          <div className="space-y-1 pl-0 sm:pl-12">
               {stops.map((stop: PlanStop, si: number) => {
                 const destName = (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).display_name
                   || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name
@@ -403,12 +387,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                   </div>
                 );
               })}
-            </AnimatePresence>
 
             {/* Add Stop button */}
             <button
+              type="button"
+              data-testid="plan-add-stop"
               onClick={() => onAddStop(dayIndex)}
-              className="w-full mt-3 min-h-[44px] py-2.5 rounded-xl border border-dashed border-white/10 text-white/55 text-[14px] font-medium flex items-center justify-center gap-1.5 hover:border-[#7C5CFC]/30 hover:text-[#7C5CFC]/60 transition-colors"
+              className="ec-btn ec-btn-secondary mt-3 w-full min-h-[44px] border-dashed"
             >
               <Plus className="w-3.5 h-3.5" />
               {ed.addStop || 'Add Stop'}
@@ -427,13 +412,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             const prevStop = si > 0 ? stops[si - 1] : null;
             const prevName = prevStop ? ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '') : '';
             return (
-              <motion.div
-                key={si}
-                custom={si}
-                variants={stopVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <div key={si}>
                 {!skipFirstTransit && stop.transit_from_prev && (
                   <TransitArrow
                     transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>}
@@ -455,7 +434,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                   />
                 )}
                 <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)} isOwner={isOwner} />
-              </motion.div>
+              </div>
             );
           })}
         </div>
@@ -482,24 +461,24 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       {!editMode && dayTotals.hasAny && (
         <div className="mt-3 flex items-center gap-2">
           {dayTotals.walkMin > 0 && (
-            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
-              <Footprints className="h-3.5 w-3.5 text-[#7C5CFC]" />
-              <span className="text-[11.5px] font-bold text-white/80">{dayTotals.walkMin}<span className="ml-0.5 font-medium text-white/45">{trDict.minUnit || 'min'}</span></span>
-              <span className="text-[10px] text-white/40">{trDict.dayWalk || 'Walking'}</span>
+            <div className="flex flex-1 items-center justify-center gap-1.5 border-y border-ec-line py-2">
+              <Footprints className="h-3.5 w-3.5 text-ec-brand" />
+              <span className="text-[12px] font-bold text-ec-ink">{dayTotals.walkMin}<span className="ml-0.5 font-medium text-ec-ink-3">{trDict.minUnit || 'min'}</span></span>
+              <span className="text-[10px] text-ec-ink-3">{trDict.dayWalk || 'Walking'}</span>
             </div>
           )}
           {dayTotals.transitMin > 0 && (
-            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
-              <TrainFront className="h-3.5 w-3.5 text-[#FF6B9D]" />
-              <span className="text-[11.5px] font-bold text-white/80">{dayTotals.transitMin}<span className="ml-0.5 font-medium text-white/45">{trDict.minUnit || 'min'}</span></span>
-              <span className="text-[10px] text-white/40">{trDict.dayTransit || 'Transit'}</span>
+            <div className="flex flex-1 items-center justify-center gap-1.5 border-y border-ec-line py-2">
+              <TrainFront className="h-3.5 w-3.5 text-ec-brand" />
+              <span className="text-[12px] font-bold text-ec-ink">{dayTotals.transitMin}<span className="ml-0.5 font-medium text-ec-ink-3">{trDict.minUnit || 'min'}</span></span>
+              <span className="text-[10px] text-ec-ink-3">{trDict.dayTransit || 'Transit'}</span>
             </div>
           )}
           {dayTotals.fareKrw > 0 && (
-            <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2">
-              <Wallet className="h-3.5 w-3.5 text-[#7C5CFC]" />
-              <span className="text-[11.5px] font-bold text-white/80">₩{dayTotals.fareKrw.toLocaleString()}</span>
-              <span className="text-[10px] text-white/40">{trDict.dayFare || 'Fare'}</span>
+            <div className="flex flex-1 items-center justify-center gap-1.5 border-y border-ec-line py-2">
+              <Wallet className="h-3.5 w-3.5 text-ec-brand" />
+              <span className="text-[12px] font-bold text-ec-ink">₩{dayTotals.fareKrw.toLocaleString()}</span>
+              <span className="text-[10px] text-ec-ink-3">{trDict.dayFare || 'Fare'}</span>
             </div>
           )}
         </div>
@@ -572,8 +551,12 @@ function IntercityTransitCard({
 
   // B7 (P308): mode/est_min/est_fare_krw 우선, P291~P308 오명명 plan 은 method/duration_min/cost_krw 폴백.
   const mode = intercity.mode || intercity.method || 'KTX';
-  const estMin = intercity.est_min ?? intercity.duration_min;
-  const estFareKrw = intercity.est_fare_krw ?? intercity.cost_krw;
+  const estMin = intercity.est_min !== null && intercity.est_min !== undefined
+    ? intercity.est_min
+    : intercity.duration_min;
+  const estFareKrw = intercity.est_fare_krw !== null && intercity.est_fare_krw !== undefined
+    ? intercity.est_fare_krw
+    : intercity.cost_krw;
   const fromCity = intercity.from_city_display || intercity.from_city || '';
   const toCity = intercity.to_city_display || intercity.to_city || '';
   const Icon = /air|flight|plane/i.test(mode) ? Plane : TrainFront;
@@ -594,39 +577,30 @@ function IntercityTransitCard({
 
   return (
     <div className="my-3">
-      <div
-        className="rounded-xl border px-3 py-3 sm:px-4 sm:py-3.5"
-        style={{
-          background: 'linear-gradient(135deg, rgba(124,92,252,0.16) 0%, rgba(96,150,255,0.10) 60%, rgba(10,4,18,0.55) 100%)',
-          borderColor: 'rgba(124,92,252,0.32)',
-        }}
-      >
+      <div className="ec-card px-3 py-3 sm:px-4 sm:py-3.5">
         <div className="flex items-start gap-2.5">
-          <div
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg,#7C5CFC,#6096FF)' }}
-          >
-            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ec-sm bg-ec-brand sm:h-9 sm:w-9">
+            <Icon className="h-4 w-4 text-ec-on-brand sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] sm:text-[13px] font-bold uppercase tracking-wider text-[#B9A4FF]">
+            <p className="text-[12px] font-bold uppercase tracking-wider text-ec-brand sm:text-[13px]">
               {title}
             </p>
-            <p className="text-[13px] sm:text-[14px] font-bold text-white leading-tight mt-0.5">
+            <p className="mt-0.5 text-[13px] font-bold leading-tight text-ec-ink sm:text-[14px]">
               {fromCity}
-              <span className="mx-1.5 text-white/55">→</span>
+              <span className="mx-1.5 text-ec-ink-3">→</span>
               {toCity}
             </p>
             {/* Meta row: 출발 · 도착 · 소요시간 · 요금 */}
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] sm:text-[13px] text-white/70">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-ec-ink-2 sm:text-[13px]">
               {departText && <span>{departText}</span>}
               {arriveText && <span>{arriveText}</span>}
-              {durationText && <span className="text-white/55">· {durationText}</span>}
-              {fareText && <span className="font-semibold text-white/85">· {fareText}</span>}
+              {durationText && <span className="text-ec-ink-3">· {durationText}</span>}
+              {fareText && <span className="font-semibold text-ec-ink">· {fareText}</span>}
             </div>
             {/* instruction (사용자 언어) — backend 가 채움 */}
             {intercity.instruction && (
-              <p className="mt-1.5 text-[13px] sm:text-[13px] text-white/70 leading-snug">
+              <p className="mt-1.5 text-[13px] leading-snug text-ec-ink-2">
                 {intercity.instruction}
               </p>
             )}
@@ -636,7 +610,7 @@ function IntercityTransitCard({
                 href={intercity.booking_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center min-h-[44px] gap-1 mt-2 text-[12px] sm:text-[13px] font-semibold text-[#B9A4FF] hover:text-white transition-colors"
+                className="ec-btn ec-btn-quiet -ml-3 mt-2 text-[13px] text-ec-brand hover:text-ec-brand-hover"
               >
                 {bookCta} →
               </a>

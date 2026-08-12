@@ -66,39 +66,36 @@ export function TransitVsCharterCard({ day, pax, featureEnabled }: TransitVsChar
     : '';
 
   return (
-    <div
-      className="mb-4 rounded-2xl border border-white/[0.08] overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.03)' }}
-    >
+    <section className="mb-4 overflow-hidden rounded-ec-md border border-ec-line bg-ec-raised">
       {/* 헤더 */}
-      <div className="px-4 pt-3 pb-2 border-b border-white/[0.06]">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-white/50">
+      <div className="border-b border-ec-line px-4 pb-2 pt-3">
+        <p className="ec-eyebrow">
           {cardTitle}
         </p>
       </div>
 
       {/* 2-컬럼 비교 */}
-      <div className="grid grid-cols-2 divide-x divide-white/[0.06]">
+      <div className="grid grid-cols-2 divide-x divide-ec-line">
         {/* 대중교통 컬럼 */}
         <div className="px-4 py-3 flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5 mb-1">
-            <div className="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center shrink-0">
-              <TrainFront className="w-3 h-3 text-sky-300" />
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ec-sunken">
+              <TrainFront className="h-3 w-3 text-ec-brand" aria-hidden />
             </div>
-            <span className="text-[11px] font-semibold text-sky-300">{transitColLabel}</span>
+            <span className="text-[12px] font-semibold text-ec-brand">{transitColLabel}</span>
           </div>
           {/* 총 이동 시간 */}
           <div>
-            <span className="text-white text-lg font-black leading-none">{transit.totalMin}</span>
-            <span className="text-white/55 text-[10px] ml-1">{minLabel}</span>
+            <span className="ec-figure text-lg font-bold leading-none text-ec-ink">{transit.totalMin}</span>
+            <span className="ml-1 text-[11px] text-ec-ink-3">{minLabel}</span>
           </div>
           {/* 환승 수 */}
-          <div className="text-white/60 text-[11px]">
+          <div className="text-[12px] text-ec-ink-2">
             {transit.totalTransfers}{transfersLabel}
           </div>
           {/* T-money 요금 */}
           {transit.totalFareKrw > 0 && (
-            <div className="text-white/75 text-[11px] font-medium">
+            <div className="text-[12px] font-medium text-ec-ink-2">
               {formatKRW(transit.totalFareKrw)}
             </div>
           )}
@@ -107,33 +104,33 @@ export function TransitVsCharterCard({ day, pax, featureEnabled }: TransitVsChar
         {/* 차터 컬럼 */}
         <div className="px-4 py-3 flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5 mb-1">
-            <div className="w-6 h-6 rounded-full bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 flex items-center justify-center shrink-0">
-              <Car className="w-3 h-3 text-[#B9A4FF]" />
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ec-brand-wash">
+              <Car className="h-3 w-3 text-ec-brand" aria-hidden />
             </div>
-            <span className="text-[11px] font-semibold text-[#B9A4FF]">{charterColLabel}</span>
+            <span className="text-[12px] font-semibold text-ec-brand">{charterColLabel}</span>
           </div>
           {/* 차터 일일가 */}
           <div>
-            <span className="text-white text-lg font-black leading-none">{formatKRW(charter.dailyPriceKrw)}</span>
+            <span className="ec-figure text-lg font-bold leading-none text-ec-ink">{formatKRW(charter.dailyPriceKrw)}</span>
           </div>
           {/* 인당가 (pax > 1 일 때만) */}
           {safePax > 1 && (
-            <div className="text-white/60 text-[11px]">
+            <div className="text-[12px] text-ec-ink-2">
               {perPersonLabel} {formatKRW(charter.perPersonKrw)}
             </div>
           )}
           {/* 도어투도어 + 짐 걱정 0 */}
-          <div className="text-white/75 text-[11px] font-medium">
+          <div className="text-[12px] font-medium text-ec-ink-2">
             {doorToDoorLabel} · {noLuggageLabel}
           </div>
           {/* 시간 단축 뱃지 (timeSavedMin >= 5 일 때만) */}
           {valueLine ? (
-            <div className="mt-0.5 inline-flex items-center self-start gap-1 px-2 py-0.5 rounded-full bg-[#7C5CFC]/20 border border-[#7C5CFC]/30">
-              <span className="text-[10px] font-bold text-[#B9A4FF]">{valueLine}</span>
+            <div className="ec-chip ec-chip-brand mt-0.5 inline-flex items-center self-start gap-1 text-[11px]">
+              <span className="font-bold">{valueLine}</span>
             </div>
           ) : null}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

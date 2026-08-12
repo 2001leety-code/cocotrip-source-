@@ -32,12 +32,12 @@ const TourPackageInlineAd = lazy(() =>
 // Lazy 카드 placeholder — 카드 1개 정도 높이의 골격, 깜빡임 최소화.
 function InlineCardSkeleton() {
   return (
-    <div className="mb-6 rounded-2xl p-5 bg-white/[0.03] border border-white/[0.06] animate-pulse">
-      <div className="h-5 w-1/2 bg-white/10 rounded mb-3" />
+    <div className="ec-card mb-6 animate-pulse">
+      <div className="mb-3 h-5 w-1/2 rounded-ec-sm bg-ec-sunken" />
       <div className="space-y-2">
-        <div className="h-12 bg-white/[0.05] rounded-xl" />
-        <div className="h-12 bg-white/[0.05] rounded-xl" />
-        <div className="h-12 bg-white/[0.05] rounded-xl" />
+        <div className="h-12 rounded-ec-sm border border-ec-line bg-ec-sunken" />
+        <div className="h-12 rounded-ec-sm border border-ec-line bg-ec-sunken" />
+        <div className="h-12 rounded-ec-sm border border-ec-line bg-ec-sunken" />
       </div>
     </div>
   );
@@ -115,16 +115,16 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
   const sponsoredLabel = sw.sponsoredLabel || 'Sponsored';
 
   return (
-    <div ref={containerRef} className="px-4 pt-4 pb-8">
+    <div ref={containerRef} data-testid="plan-pre-trip-slide" className="px-4 pt-4 pb-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-6">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight text-white mb-2">{headerTitle}</h2>
-          <p className="text-sm text-white/55">{headerSubtitle}</p>
+          <h2 className="mb-2 text-3xl font-extrabold leading-tight tracking-tight text-ec-ink sm:text-4xl">{headerTitle}</h2>
+          <p className="text-sm text-ec-ink-2">{headerSubtitle}</p>
         </div>
 
         {/* Sponsored 배지 — 광고임을 명확히 (규제 투명성) */}
         <div className="flex justify-end mb-3">
-          <span className="text-[12px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
+          <span className="ec-chip text-[12px] font-medium text-ec-ink-3">
             {sponsoredLabel}
           </span>
         </div>

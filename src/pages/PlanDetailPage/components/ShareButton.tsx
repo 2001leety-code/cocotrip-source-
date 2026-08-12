@@ -195,10 +195,12 @@ export function ShareMiniIcon({ planId, plan, isOwner }: { planId: string; plan:
     <button
       onClick={handleShare}
       disabled={disabled}
-      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors ml-2 disabled:opacity-40 disabled:cursor-not-allowed"
+      data-testid="plan-share-mini"
+      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-ec-line bg-ec-raised px-4 text-[14px] font-semibold text-ec-ink-2 transition-colors hover:border-ec-brand hover:text-ec-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       aria-label={t.a11y?.share || 'Share'}
     >
-      <Link2 className="w-4 h-4 text-white/50" />
+      <Link2 className="h-4 w-4" aria-hidden />
+      <span>{sh.shareButton || 'Share'}</span>
     </button>
   );
 }

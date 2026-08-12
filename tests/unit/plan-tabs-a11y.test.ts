@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { countVisibleStops } from '../../src/pages/PlanDetailPage/lib/planStats';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const codeOf = (p: string) =>
@@ -31,29 +32,34 @@ describe('SwipeContainer — 선택 탭 높이만 반영', () => {
     expect(code).toContain('inert={!isActive}');
   });
 
-  it('가로 캐러셀 이동은 유지된다 (탭 전환 애니메이션 회귀 금지)', () => {
-    expect(code).toContain("x: `-${current * 100}%`");
+  it('가로 캐러셀 이동은 유지하되 별도 모션 라이브러리는 쓰지 않는다', () => {
+    expect(code).toContain('translateX(-${current * 100}%)');
+    expect(code).not.toContain('framer-motion');
   });
 });
 
-describe('플랜 상세 — h1 은 하나', () => {
-  it('인트로 슬라이드 제목은 h1 이 아니다', () => {
+describe('플랜 상세 — 문서 제목은 하나', () => {
+  it('인트로 슬라이드는 문서 제목을 반복하지 않는다', () => {
     const intro = read('src/pages/PlanDetailPage/components/IntroSlide.tsx');
     expect(intro).not.toContain('<h1');
-    expect(intro).toContain('<h2');
+    expect(intro).not.toContain('<h2');
+    expect(intro).toContain('<ShareMiniIcon');
   });
 
   it('페이지 헤더가 유일한 h1 을 가진다 (오류 화면은 조기 반환이라 동시 렌더 없음)', () => {
     const idx = read('src/pages/PlanDetailPage/index.tsx');
-    expect(idx).toContain('<h1');
+    const masthead = read('src/pages/PlanDetailPage/components/PlanDocumentMasthead.tsx');
+    expect(idx).toContain('<PlanDocumentMasthead');
+    expect(masthead).toContain('<h1');
   });
 });
 
 describe('통계 정의', () => {
-  const code = codeOf('src/pages/PlanDetailPage/index.tsx');
+  const code = codeOf('src/pages/PlanDetailPage/components/PlanDocumentMasthead.tsx');
 
   it('방문지 수에서 숙소를 제외한다', () => {
-    expect(code).toContain("!== 'lodging'");
+    expect(countVisibleStops([{ stops: [{ category: 'lodging' }, { category: 'culture' }] }])).toBe(1);
+    expect(code).toContain('countVisibleStops(days)');
   });
 
   it('헤더 라벨이 번역을 탄다 (영어 하드코딩 제거)', () => {
@@ -61,14 +67,15 @@ describe('통계 정의', () => {
       expect(code, `${bad} 하드코딩 잔존`).not.toContain(bad);
     }
     expect(code).toContain('planStatDays');
-    expect(code).toContain('planRouteTimeline');
-    expect(code).toContain('planStayChip');
+    expect(code).toContain('planStatStops');
+    expect(code).toContain('planStatTravelers');
+    expect(code).toContain('documentRouteNote');
   });
 
   it('4개 국어에 헤더 키가 있다', () => {
     for (const lang of ['ko', 'en', 'ja', 'zh']) {
       const dict = read(`src/i18n/locales/${lang}.json`);
-      for (const key of ['planHeaderBadge', 'planRouteTimeline', 'planStatStops', 'planStatDistance']) {
+      for (const key of ['documentEyebrow', 'documentRouteNote', 'planStatDays', 'planStatStops', 'planStatTravelers']) {
         expect(dict, `${lang}.json 에 ${key} 없음`).toContain(`"${key}"`);
       }
     }

@@ -9,10 +9,11 @@
 //
 // 광고 ad slide는 별도로 안 만듬 (PreTrip slide에 통합됨, 2026-05-03 기준).
 import { useEffect, useMemo, useRef } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 import type { Slide } from '../lib/buildSlides';
-import { BRAND } from '@/lib/design-tokens';
+import { formatDayLabel } from '../lib/dayLabel';
 
 interface SectionTabsProps {
   slides: Slide[];
@@ -27,9 +28,9 @@ interface Section {
 }
 
 export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
-  const sw = pd.swipe || {};
+  const sw = useMemo(() => pd.swipe || {}, [pd.swipe]);
 
   const sections = useMemo<Section[]>(() => {
     return slides.map((s, idx) => {
@@ -46,7 +47,7 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
           break;
         case 'day':
           key = `day-${s.dayIndex}`;
-          label = `${sw.tabDay || 'Day'} ${(typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1}`;
+          label = formatDayLabel(language, (typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1);
           break;
         case 'activityGuide':
           key = 'activityGuide';
@@ -67,7 +68,7 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
       }
       return { key, label, slideIndex: idx };
     });
-  }, [slides, sw]);
+  }, [language, slides, sw]);
 
   const activeKey = useMemo(() => {
     return sections[current]?.key || sections[0]?.key;
@@ -111,11 +112,11 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
   if (sections.length <= 1) return null;
 
   return (
-    <div className="sticky top-16 z-30 bg-[#0a0b14]/95 backdrop-blur-md border-b border-white/[0.06] -mx-4 px-4 relative">
+    <nav className="relative sticky top-14 z-30 -mx-4 border-y border-ec-line bg-ec-page px-4 md:top-16 md:mx-0 md:px-0" aria-label={sw.tabsNavLabel || 'Itinerary sections'}>
       <div
         ref={listRef}
         data-testid="section-tabs-scroll"
-        className="flex gap-1 overflow-x-auto scrollbar-hide py-2"
+        className="flex gap-2 overflow-x-auto whitespace-nowrap py-3 pr-8 scrollbar-hide md:pr-0"
         role="tablist"
       >
         {sections.map(sec => {
@@ -126,25 +127,20 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
               role="tab"
               aria-selected={active}
               onClick={() => onJump(sec.slideIndex)}
-              className="shrink-0 px-3 py-1.5 rounded-full text-[14px] font-semibold transition-all whitespace-nowrap min-h-[44px] inline-flex items-center"
-              style={{
-                background: active
-                  ? BRAND.gradient.primary
-                  : 'rgba(255,255,255,0.06)',
-                color: active ? 'white' : 'rgba(255,255,255,0.55)',
-                border: active ? '1px solid transparent' : '1px solid rgba(255,255,255,0.08)',
-              }}
+              className={`ec-chip min-h-[44px] shrink-0 cursor-pointer px-4 text-[14px] ${active ? 'ec-chip-brand' : ''}`}
             >
               {sec.label}
             </button>
           );
         })}
       </div>
-      {/* P93: 우측 fade gradient — 잘리는 탭이 있다는 시각 신호 (scrollbar-hide 보완) */}
-      <div
+      <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-[#0a0b14] to-transparent"
-      />
-    </div>
+        data-scroll-affordance
+        className="pointer-events-none absolute inset-y-0 right-0 flex w-7 items-center justify-end border-r-4 border-ec-line-2 bg-ec-page pr-1 text-ec-ink-3 md:hidden"
+      >
+        <ChevronRight className="h-4 w-4" strokeWidth={2} />
+      </span>
+    </nav>
   );
 }

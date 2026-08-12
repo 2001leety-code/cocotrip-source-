@@ -14,11 +14,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
-import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  AlertCircle, CalendarDays, Flag, Hotel, MapPinned, RefreshCw, Route,
-  Sparkles, Users, Zap, type LucideIcon,
-} from 'lucide-react';
+import { Flag, RefreshCw } from 'lucide-react';
 
 // P225: streaming hang timeout (default 5분). Vercel maxDuration=300s 기준.
 // ENV로 오버라이드 가능하지만 빌드타임 상수이므로 기본값 안전 default 보장.
@@ -29,19 +25,19 @@ const STREAMING_PLACEHOLDER_TIMEOUT_MS =
 import { trackEvent } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { ReviewList } from '@/components/ReviewList';
+import { EcLoading } from '@/components/ui/states';
 
 import { useAutoTranslate } from './useAutoTranslate';
 import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
-import { computePlanKm } from './lib/transitVsCharter';
-import { suggestTimeOrder, type OptimizeStopLike } from './lib/optimizeSuggestions';
 import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
 import { ErrorState } from './components/ErrorState';
+import { PlanDocumentMasthead } from './components/PlanDocumentMasthead';
+import { PlanDocumentState } from './components/PlanDocumentState';
 import { ReportPlanModal } from './components/ReportPlanModal';
 import { RecommendedRestaurants } from './components/RecommendedRestaurants';
 import { SwipeContainer } from './components/SwipeContainer';
-import { TripHighlights } from './components/TripHighlights';
 // SlideProgress 제거됨 (2026-05-03) — 탭만으로 네비게이션 일원화.
 // import { SlideProgress } from './components/SlideProgress';
 import { PreTripSlide } from './components/PreTripSlide';
@@ -55,192 +51,13 @@ import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { usePlanCompletionTracking } from './hooks/usePlanCompletionTracking';
-import { buildSlides, getDaySlideIndex } from './lib/buildSlides';
+import { buildSlides } from './lib/buildSlides';
+import { formatDayLabel } from './lib/dayLabel';
+import { getPlanDocumentStatus } from './lib/planStats';
 import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
-
-function ResultIcon({ icon: Icon, active = false }: { icon: LucideIcon; active?: boolean }) {
-  return (
-    <span className={`plan-mobile-icon ${active ? 'is-active' : ''}`}>
-      <Icon className="h-4 w-4" strokeWidth={2.25} />
-    </span>
-  );
-}
-
-function getPrimaryRegion(plan: PlanDocument): string {
-  const input = plan.input || {};
-  const regions = Array.isArray(input.regions) ? input.regions.filter(Boolean) as string[] : [];
-  const raw = regions[0] || (input.destination as string) || input.area || 'Korea';
-  return String(raw).replace(/_city$|_suburb$/i, '').replace(/_/g, ' ').trim() || 'Korea';
-}
-
-function getHeroImage(plan: PlanDocument): string {
-  const region = getPrimaryRegion(plan).toLowerCase();
-  if (region.includes('busan')) return '/hero-busan-real.webp';
-  if (region.includes('gyeongju')) return '/hero-gyeongju.webp';
-  return '/hero-seoul-real.webp';
-}
-
-function getStayLabel(plan: PlanDocument): string {
-  const input = plan.input || {};
-  const it = plan.itinerary || {};
-  const acc = (it.accommodation as Record<string, unknown> | undefined)
-    || (plan.accommodation as Record<string, unknown> | undefined)
-    || {};
-  const hotel = input.hotel_address
-    || input.recommended_zone_address
-    || input.recommended_zone
-    || acc.hotel_name
-    || acc.name
-    || acc.area
-    || acc.neighborhood;
-  return hotel ? String(hotel) : 'Smart stay suggestions ready';
-}
-
-function MobilePlanResultHero({
-  plan,
-  slides,
-  current,
-  onJump,
-}: {
-  plan: PlanDocument;
-  slides: ReturnType<typeof buildSlides>;
-  current: number;
-  onJump: (slideIndex: number) => void;
-}) {
-  const { t } = useLanguage();
-  const ui = getPlanDetailUI(t);
-  const days = plan.itinerary?.days || [];
-  const title = plan.itinerary?.tour_title || 'Your Korea Itinerary';
-  // 🔴 2026-07-28: 방문지 수에서 숙소 출발·복귀를 뺀다. 이전에는 day.stops 를 통째로 세서
-  //   호텔 bookend 2개가 매일 방문지로 잡혔다(3일 일정이면 실제보다 6곳 많음).
-  const stopCount = days.reduce(
-    (sum, day) => sum + (day.stops || []).filter(
-      (st) => String((st as { category?: string }).category || '').toLowerCase() !== 'lodging',
-    ).length,
-    0,
-  );
-  // UIUX P4 (2026-07-13): Trip Overview 총 이동거리 km — 좌표 있는 구간만 haversine 합(없으면 null→'-').
-  const totalKm = computePlanKm(days as Array<{ stops?: { lat?: number; lng?: number }[] }>);
-  // UIUX P4: 최적화 가능분 — 날짜별 suggestTimeOrder(15%/0.8km 게이트 내장)의 km 절약 합을 % 로.
-  // 실 haversine 파생만. '분' 절약값은 실존 안 함 → % 로만 표기(가짜 분 금지). 제안 0 이면 미노출.
-  const optimizePct = (() => {
-    let curr = 0, prop = 0;
-    for (const d of days) {
-      const s = suggestTimeOrder((d.stops || []) as unknown as OptimizeStopLike[]);
-      if (s) { curr += s.currentKm; prop += s.proposedKm; }
-    }
-    if (curr <= 0) return null;
-    const pct = Math.round(((curr - prop) / curr) * 100);
-    return pct > 0 ? pct : null;
-  })();
-  const primaryRegion = getPrimaryRegion(plan);
-  const heroImage = getHeroImage(plan);
-  // startDate = 표시 전용 원문(첫날, inclusive) — 날짜 산술 없음, 기간 계산은 days.length 사용
-  const startDate = plan.input?.startDate ? String(plan.input.startDate) : '';
-  const pax = Number(plan.input?.adults || plan.input?.pax || 0);
-  const activeDayIndex = slides[current]?.type === 'day' ? (slides[current].dayIndex || 0) : -1;
-
-  return (
-    <section className="plan-mobile-summary mx-auto max-w-[430px] px-4 pt-4 pb-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black text-[#7653F6] shadow-[0_8px_18px_rgba(124,92,255,0.10)]">
-            <Sparkles className="h-3 w-3" /> {ui.planHeaderBadge || 'AI itinerary'}
-          </span>
-          <h1 className="mt-2 line-clamp-2 text-[22px] font-black leading-[1.08] tracking-[-0.01em] text-[#15143d]">
-            {title}
-          </h1>
-          <p className="mt-1 text-[11px] font-semibold text-[#7b719f]">
-            {primaryRegion}{startDate ? ` · ${startDate}` : ''}{pax > 0 ? ` · ${pax} ${ui.planTravelersSuffix || 'travelers'}` : ''}
-          </p>
-        </div>
-        <ResultIcon icon={Sparkles} active />
-      </div>
-
-      <div className="relative overflow-hidden rounded-[24px] shadow-[0_18px_38px_rgba(51,42,116,0.16)]">
-        <img src={heroImage} alt="" className="h-[154px] w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#15143d]/70 via-transparent to-[#15143d]/16" />
-        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
-          <div>
-            <p className="text-[26px] font-black leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]">
-              {primaryRegion}
-            </p>
-            <p className="mt-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/88">Korea route</p>
-          </div>
-          <span className="rounded-2xl bg-white/22 px-3 py-2 text-right backdrop-blur-md">
-            <span className="block text-[16px] font-black">{days.length || 1}D</span>
-            <span className="block text-[9px] font-semibold text-white/80">{stopCount || '-'} {ui.planStopsSuffix || 'stops'}</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="plan-mobile-panel -mt-7 relative z-10 mx-3 p-3">
-        <div className="mb-2 flex items-center gap-2">
-          <ResultIcon icon={Route} active />
-          <div className="min-w-0">
-            <p className="text-[14px] font-black text-[#17163d]">{ui.planRouteTimeline || 'Route timeline'}</p>
-            <p className="text-[10px] font-semibold text-[#7b719f]">Day-by-day plan with maps and transit guidance</p>
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {days.map((day, idx) => {
-            const slideIndex = getDaySlideIndex(slides, idx + 1);
-            const active = idx === activeDayIndex;
-            return (
-              <button
-                key={`${day.day || idx}-${idx}`}
-                type="button"
-                onClick={() => slideIndex >= 0 && onJump(slideIndex)}
-                className={`plan-mobile-day-chip ${active ? 'is-active' : ''}`}
-              >
-                <span>{idx + 1}</span>
-                <small>Day {idx + 1}</small>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div className="plan-mobile-mini-panel">
-          <div className="flex items-center gap-2">
-            <ResultIcon icon={Zap} />
-            <span className="text-[11px] font-black text-[#7653F6]">{ui.planOptimizeChip || 'Optimize your trip'}</span>
-          </div>
-          <p className="mt-2 text-[13px] font-black leading-tight text-[#17163d]">Transit, charter, and walking details are inside each day.</p>
-        </div>
-        <div className="plan-mobile-mini-panel">
-          <div className="flex items-center gap-2">
-            <ResultIcon icon={Hotel} />
-            <span className="text-[11px] font-black text-[#7653F6]">{ui.planStayChip || 'Stay suggestion'}</span>
-          </div>
-          <p className="mt-2 line-clamp-2 text-[13px] font-black leading-tight text-[#17163d]">{getStayLabel(plan)}</p>
-        </div>
-      </div>
-
-      <div className={`mt-3 grid gap-2 ${totalKm != null ? 'grid-cols-4' : 'grid-cols-3'}`}>
-        {[
-          { icon: CalendarDays, label: ui.planStatDays || 'Days', value: String(days.length || '-') },
-          { icon: MapPinned, label: ui.planStatStops || 'Stops', value: String(stopCount || '-') },
-          // 최적화 가능 시 Optimize 칩(가이드 Trip Overview 4번째 칩), 아니면 Travelers(부제에도 노출).
-          optimizePct != null
-            ? { icon: Sparkles, label: ui.planStatOptimize || 'Optimize', value: `${optimizePct}%` }
-            : { icon: Users, label: ui.planStatTravelers || 'Travelers', value: pax > 0 ? String(pax) : '-' },
-          ...(totalKm != null ? [{ icon: Route, label: ui.planStatDistance || 'Distance', value: `${totalKm}km` }] : []),
-        ].map((item) => (
-          <div key={item.label} className="plan-mobile-stat">
-            <ResultIcon icon={item.icon} />
-            <span>{item.value}</span>
-            <small>{item.label}</small>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 export default function PlanDetailPage() {
   const { planId } = useParams();
@@ -248,7 +65,6 @@ export default function PlanDetailPage() {
   const token = searchParams.get('token');
   const { user, loading: authLoading } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
-  const isMobile = useIsMobile();
   const [plan, setPlan] = useState<PlanDocument | null>(null);
   // P235: 'notfound' = 문서 없음 / 'unauthorized' = 접근 거부 / 'autherror' = 인증 만료·JS 캐시 불일치
   const [error, setError] = useState<'notfound' | 'unauthorized' | 'autherror' | null>(null);
@@ -260,14 +76,6 @@ export default function PlanDetailPage() {
   // P225: streaming hang timeout — 스트리밍 시작 시각 + timed-out 플래그
   const streamingStartRef = useRef<number | null>(null);
   const [streamingTimedOut, setStreamingTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (!isMobile) return;
-    document.documentElement.classList.add('planner-mobile-active');
-    return () => {
-      document.documentElement.classList.remove('planner-mobile-active');
-    };
-  }, [isMobile]);
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
@@ -548,46 +356,43 @@ export default function PlanDetailPage() {
   }, [isStreamingInProgress]);
 
   // Loading / Error states
+  const ui = getPlanDetailUI(t);
   if (loading) {
-    const ui = getPlanDetailUI(t);
-    // planner-detail-mobile-ai + <main>: 모바일(≤768px)은 라이트 셸 CSS 가 색 반전, 데스크톱은 다크 유지.
     return (
-    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
-      <main className="text-center">
-        <div className="w-10 h-10 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/55 text-sm">{ui.loadingPlan || 'Loading your plan...'}</p>
-      </main>
-    </div>
-  );
+      <div className="ec-root min-h-screen" data-testid="plan-document">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <PlanDocumentState kind="loading" ui={ui} />
+        <Footer t={t} />
+      </div>
+    );
   }
 
   if (error === 'notfound') {
-    const ui = getPlanDetailUI(t);
     return (
-    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
-      <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <AlertCircle className="w-16 h-16 text-red-400/40 mb-4" />
-        <h1 className="text-xl font-bold mb-2">{ui.planNotFound || 'Plan Not Found'}</h1>
-        <p className="text-white/55 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
-        <Link to="/planner" className="m-cta px-6 py-3 rounded-full text-sm font-bold text-white" style={{ background: 'var(--coco-cta-gradient)' }}>{ui.createNewPlan || 'Create New Plan'}</Link>
-      </main>
-    </div>
-  );
+      <div className="ec-root min-h-screen" data-testid="plan-document">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <PlanDocumentState
+          kind="not-found"
+          ui={ui}
+          action={<Link to="/planner" className="ec-btn ec-btn-primary">{ui.createNewPlan}</Link>}
+        />
+        <Footer t={t} />
+      </div>
+    );
   }
 
   if (error === 'unauthorized') {
-    const ui = getPlanDetailUI(t);
     return (
-    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
-      <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <AlertCircle className="w-16 h-16 text-yellow-400/40 mb-4" />
-        <h1 className="text-xl font-bold mb-2">{ui.accessDenied || 'Access Denied'}</h1>
-        <p className="text-white/55 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
-      </main>
-    </div>
-  );
+      <div className="ec-root min-h-screen" data-testid="plan-document">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <PlanDocumentState
+          kind="permission"
+          ui={ui}
+          action={<Link to="/my-plans" className="ec-btn ec-btn-secondary">{ui.backToPlans}</Link>}
+        />
+        <Footer t={t} />
+      </div>
+    );
   }
 
   // P235: PWA stale cache 로 인한 인증 만료 에러 — 새로고침 유도.
@@ -596,36 +401,12 @@ export default function PlanDetailPage() {
   // 새로고침 시 SW 가 새 JS 를 받아 Firebase 재인증 → 정상 표시.
   if (error === 'autherror') {
     return (
-    <div className="planner-detail-mobile-ai min-h-screen bg-[#0a0b14] text-white">
-      <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <RefreshCw className="w-16 h-16 text-[#7C5CFC]/40 mb-4" />
-        <h1 className="text-xl font-bold mb-2">
-          {language === 'ko' ? '세션이 만료되었습니다' :
-           language === 'ja' ? 'セッションの有効期限が切れました' :
-           language === 'zh' ? '会话已过期' :
-           'Session Expired'}
-        </h1>
-        <p className="text-white/55 text-sm mb-6 text-center max-w-xs">
-          {language === 'ko' ? '앱이 업데이트되었습니다. 새로고침하면 플랜을 다시 볼 수 있습니다.' :
-           language === 'ja' ? 'アプリが更新されました。再読み込みするとプランが表示されます。' :
-           language === 'zh' ? '应用已更新，刷新页面即可查看计划。' :
-           'The app has been updated. Refresh to see your plan again.'}
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="m-cta px-6 py-3 rounded-full text-sm font-bold text-white flex items-center gap-2"
-          style={{ background: 'var(--coco-cta-gradient)' }}
-        >
-          <RefreshCw className="w-4 h-4" />
-          {language === 'ko' ? '새로고침' :
-           language === 'ja' ? '再読み込み' :
-           language === 'zh' ? '刷新' :
-           'Refresh Page'}
-        </button>
-      </main>
-    </div>
-  );
+      <div className="ec-root min-h-screen" data-testid="plan-document">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <PlanDocumentState kind="session" ui={ui} onRetry={() => window.location.reload()} />
+        <Footer t={t} />
+      </div>
+    );
   }
 
   // P312 2차 (2026-06-12): plan.status === 'error' → 풀페이지 에러 상태.
@@ -644,6 +425,25 @@ export default function PlanDetailPage() {
 
   if (!plan) return null;
 
+  if (days.length === 0 && !isStreamingInProgress) {
+    return (
+      <div className="ec-root min-h-screen" data-testid="plan-document">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <PlanDocumentState
+          kind="empty"
+          ui={ui}
+          action={(
+            <>
+              <Link to="/planner" className="ec-btn ec-btn-primary">{ui.createNewPlan}</Link>
+              <Link to="/my-plans" className="ec-btn ec-btn-secondary">{ui.backToPlans}</Link>
+            </>
+          )}
+        />
+        <Footer t={t} />
+      </div>
+    );
+  }
+
   // days already defined above via useMemo
 
   // Render each slide based on type
@@ -654,17 +454,15 @@ export default function PlanDetailPage() {
       case 'intro':
         return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} isOwner={isOwner} />;
       case 'day': {
-        // P224: ?? instead of || so dayIndex=0 is preserved (|| treats 0 as falsy)
-        const dayIdx = slide.dayIndex ?? 0;
+        const dayIdx = typeof slide.dayIndex === 'number' ? slide.dayIndex : 0;
         // P224: defensive guard — days[dayIdx] may be undefined during streaming
         // race condition (Firestore snapshot arrives before itinerary.days is fully
         // populated). Render a skeleton instead of crashing DayTimeline.
         const dayData = days[dayIdx];
         if (!dayData) {
           return (
-            <div key={`day-${dayIdx}-skeleton`} className="py-8 flex flex-col items-center gap-3 text-white/40">
-              <div className="w-6 h-6 border-2 border-[#7C5CFC]/40 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">{language === 'ko' ? `Day ${dayIdx + 1} 로딩 중...` : language === 'ja' ? `Day ${dayIdx + 1} 読み込み中...` : language === 'zh' ? `Day ${dayIdx + 1} 加载中...` : `Loading Day ${dayIdx + 1}...`}</span>
+            <div key={`day-${dayIdx}-skeleton`} className="ec-card my-6">
+              <EcLoading label={`${ui.loadingPlan} ${formatDayLabel(language, dayIdx + 1)}`} lines={5} />
             </div>
           );
         }
@@ -727,62 +525,35 @@ export default function PlanDetailPage() {
     }
   });
 
-  // 정제 퍼플·핑크 (시각만 — PDF 무관: pdfGenerator 가 document.body 에 자체 Noto 폰트 DOM 빌드).
-  // 실플랜 없이 시각검증 어려워 안전한 글로우 제거 + 소프트 액센트만(세리프 생략). OFF=현재 그대로.
-  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
-
   return (
-    <div className={`min-h-screen ${isMobile ? 'planner-detail-mobile-ai text-[#15143d]' : 'bg-[#0a0b14] text-white'} ${REFINED ? 'refined-plandetail' : ''}`}>
+    <div className="ec-root min-h-screen" data-testid="plan-document">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      {isMobile && (
-        <MobilePlanResultHero
-          plan={plan}
-          slides={slides}
-          current={current}
-          onJump={goToSlide}
-        />
-      )}
-      {isMobile && <TripHighlights plan={plan} language={language} />}
-      <main className={isMobile ? 'max-w-[430px] mx-auto pt-2 pb-4 px-4' : 'max-w-3xl mx-auto pt-20 pb-4 px-4'}>
+      <PlanDocumentMasthead
+        plan={plan}
+        status={getPlanDocumentStatus(plan, Boolean(isStreamingInProgress))}
+        ui={ui}
+        regionNames={((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {}}
+      />
+      <main data-testid="plan-document-ready" className="ec-container-wide py-8 md:py-12">
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
         {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}
-        {isStreamingInProgress && !streamingTimedOut && (
-          <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#7C5CFC]/30 bg-[#7C5CFC]/10 text-sm text-white/80">
-            <div className="w-4 h-4 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin flex-shrink-0" />
-            <span>
-              {language === 'ko'
-                ? `AI가 일정을 만들고 있어요${streamingProgress ? ` (Day ${streamingProgress} 완성 중...)` : '...'}`
-                : language === 'ja'
-                ? `AIが旅程を作成中です${streamingProgress ? ` (Day ${streamingProgress} 作成中...)` : '...'}`
-                : language === 'zh'
-                ? `AI正在创建行程${streamingProgress ? `（正在完成 Day ${streamingProgress}...）` : '...'}`
-                : `AI is building your itinerary${streamingProgress ? ` (Day ${streamingProgress} in progress...)` : '...'}`}
-            </span>
-          </div>
-        )}
-        {isStreamingInProgress && streamingTimedOut && (
-          <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-white/80">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-              <span>
-                {language === 'ko'
-                  ? '일정 생성에 시간이 오래 걸리고 있습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해주세요.'
-                  : language === 'ja'
-                  ? '旅程の作成に時間がかかっています。ページを更新するか、しばらく経ってから再試行してください。'
-                  : language === 'zh'
-                  ? '行程创建花费的时间较长。请刷新页面或稍后重试。'
-                  : 'Plan generation is taking longer than expected. Please refresh the page or try again later.'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white/90 text-xs font-semibold transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              {language === 'ko' ? '새로고침' : language === 'ja' ? '更新' : language === 'zh' ? '刷新' : 'Refresh'}
-            </button>
+        {isStreamingInProgress && (
+          <div className="mb-6">
+            <PlanDocumentState
+              kind="partial"
+              ui={ui}
+              busy={!streamingTimedOut}
+              title={streamingTimedOut
+                ? ui.streamingTimeoutTitle
+                : `${ui.documentBuilding}${streamingProgress ? ` · ${formatDayLabel(language, streamingProgress)}` : ''}`}
+              body={streamingTimedOut ? ui.streamingTimeoutBody : ui.partialPlanBody}
+              action={streamingTimedOut ? (
+                <button type="button" onClick={() => window.location.reload()} className="ec-btn ec-btn-secondary">
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                  {ui.refreshPage}
+                </button>
+              ) : undefined}
+            />
           </div>
         )}
         {/* P312 안내: status==='error' 는 위에서 풀페이지 ErrorState 로 이른 return 됨
@@ -838,7 +609,7 @@ export default function PlanDetailPage() {
           const ui = getPlanDetailUI(t);
           const lng = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
           return (
-            <div className="max-w-4xl mx-auto px-4 mt-4">
+            <div className="mt-8">
               <RecommendedRestaurants
                 items={recs}
                 language={lng}
@@ -858,8 +629,8 @@ export default function PlanDetailPage() {
         })()}
 
         {/* Reviews Section */}
-        <div className="max-w-4xl mx-auto px-4">
-          <ReviewList targetType="plan" targetId={planId || ''} />
+        <div className="mt-8">
+          <ReviewList targetType="plan" targetId={planId || ''} surface="paper" />
         </div>
 
         {/* P294 (2026-05-29): 사용자 UI quality_warnings 노출 panel.
@@ -880,11 +651,11 @@ export default function PlanDetailPage() {
         />
 
         {/* 2026-05-04: 플랜 신고 버튼 (Tier 1-A 학습 루프). 인라인 — floating 보다 덜 방해적. */}
-        <div className="max-w-4xl mx-auto px-4 mt-8 mb-4 text-center">
+        <div className="mt-10 border-t border-ec-line pt-6">
           <button
             type="button"
             onClick={() => setReportOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/[0.04] border border-white/10 text-white/55 text-xs hover:bg-white/[0.08] hover:text-white/80 transition-all"
+            className="ec-btn ec-btn-quiet -ml-3 min-h-[44px]"
           >
             <Flag className="w-3.5 h-3.5" />
             {language === 'ko' ? '플랜에 문제가 있나요?' :

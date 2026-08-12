@@ -1,8 +1,9 @@
 // Generic confirm dialog overlay. Used for delete confirmations.
-// #3 fix: createPortal(document.body) — framer-motion transform 조상(SwipeContainer) 안에서
+// #3 fix: createPortal(document.body) — transformed ancestor 안에서
 // position:fixed 가 슬라이드 기준으로 배치되는 CSS 스펙 문제 회피.
 // RevisionReasonModal.tsx 와 동일한 패턴 적용.
 import { createPortal } from 'react-dom';
+import { useEffect, useRef } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 
@@ -17,28 +18,78 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const focusFrame = window.requestAnimationFrame(() => cancelRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancelRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const buttons = Array.from(dialogRef.current.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
   if (typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onCancel}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60" />
       <div
-        className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="ec-root relative w-full max-w-sm rounded-ec-md border border-ec-line bg-ec-raised p-6 shadow-ec-overlay"
         onClick={(e) => e.stopPropagation()}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="plan-delete-dialog-title"
       >
-        <p className="text-white text-sm mb-6 leading-relaxed">{title}</p>
+        <p id="plan-delete-dialog-title" className="mb-6 text-[15px] leading-relaxed text-ec-ink">{title}</p>
         <div className="flex gap-3">
           <button
+            ref={cancelRef}
+            type="button"
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 text-white/60 text-sm font-medium hover:bg-white/10 transition-colors"
+            className="ec-btn ec-btn-secondary min-h-[44px] flex-1"
           >
             {ed.cancelButton || 'Cancel'}
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-red-500/80 text-white text-sm font-medium hover:bg-red-500 transition-colors"
+            className="ec-btn min-h-[44px] flex-1 border border-ec-critical bg-ec-raised text-ec-critical hover:bg-ec-sunken"
           >
             {ed.deleteButton || 'Remove'}
           </button>

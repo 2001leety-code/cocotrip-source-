@@ -453,6 +453,16 @@ html[data-menu-open="true"] .early-bird-banner {
   animation: fadeIn 0.2s ease-out;
 }
 
+/* Leaflet injects its own zoom buttons after render. Keep those generated
+   controls on the same touch floor as the rest of the execution document. */
+[data-testid="day-route-map"] .leaflet-control-zoom a {
+  width: 44px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  color: var(--ec-text-primary) !important;
+  background: var(--ec-surface-raised) !important;
+}
+
 /* 라우트 전환 fade — 배경/금지사항은 src/components/RouteTransition.tsx 주석 참고.
    opacity 만 (transform 금지: 모바일 가로 스크롤). 🔴 to / animation-fill-mode 를
    추가하지 말 것 — to 가 없어야 애니메이션이 안 돌거나 멈춘 환경에서도 요소가

@@ -88,10 +88,10 @@ type MapLabels = {
 
 function mapLabels(language: string): MapLabels {
   switch (language) {
-    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 못 찾았어요', openNaver: '네이버 지도', naverCapped: `네이버 지도는 한 번에 ${NAVER_DIRECTIONS_MAX_STOPS}곳까지만 열려요 — 앞 ${NAVER_DIRECTIONS_MAX_STOPS}곳만 표시됩니다.` };
-    case 'ja': return { title: '本日のルート', easy: '楽な移動', hard: '大変な区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この区間の公共交通の経路が見つかりません', openNaver: 'NAVER 地図', naverCapped: `NAVER 地図は一度に${NAVER_DIRECTIONS_MAX_STOPS}か所までです — 最初の${NAVER_DIRECTIONS_MAX_STOPS}か所のみ表示されます。` };
-    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到该路线的公共交通路径', openNaver: 'NAVER 地图', naverCapped: `NAVER 地图一次最多支持 ${NAVER_DIRECTIONS_MAX_STOPS} 个地点 — 仅显示前 ${NAVER_DIRECTIONS_MAX_STOPS} 个。` };
-    default: return { title: "Today's Route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route found for this day', openNaver: 'Naver Map', naverCapped: `Naver Map supports up to ${NAVER_DIRECTIONS_MAX_STOPS} places per route — showing the first ${NAVER_DIRECTIONS_MAX_STOPS}.` };
+    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 찾지 못했어요.', openNaver: '네이버 지도', naverCapped: `네이버 지도는 한 번에 ${NAVER_DIRECTIONS_MAX_STOPS}곳까지 안내해요. 앞의 ${NAVER_DIRECTIONS_MAX_STOPS}곳만 표시합니다.` };
+    case 'ja': return { title: '今日のルート', easy: '移動しやすい区間', hard: '負担の大きい区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この日の公共交通ルートを見つけられませんでした。', openNaver: 'NAVERマップ', naverCapped: `NAVERマップは1ルートにつき${NAVER_DIRECTIONS_MAX_STOPS}か所まで案内できます。最初の${NAVER_DIRECTIONS_MAX_STOPS}か所を表示します。` };
+    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到当天的公共交通路线。', openNaver: 'NAVER地图', naverCapped: `NAVER地图每条路线最多支持${NAVER_DIRECTIONS_MAX_STOPS}个地点。现显示前${NAVER_DIRECTIONS_MAX_STOPS}个。` };
+    default: return { title: "Today's route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route was found for this day.', openNaver: 'Naver Map', naverCapped: `Naver Map supports up to ${NAVER_DIRECTIONS_MAX_STOPS} places per route. Showing the first ${NAVER_DIRECTIONS_MAX_STOPS}.` };
   }
 }
 
@@ -230,7 +230,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
               })
                 .addTo(map)
                 .bindPopup(
-                  `<div style="font-size:12px;color:#1a1024;"><b>${escapeHtml(seg.label || '')}</b><br/>` +
+                  `<div style="font-size:12px;color:var(--ec-text-primary);"><b>${escapeHtml(seg.label || '')}</b><br/>` +
                   `${escapeHtml(seg.board.name)}</div>`,
                   { closeButton: true },
                 );
@@ -268,9 +268,9 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
               `<div style="` +
               `width:26px;height:26px;border-radius:50%;` +
               `display:flex;align-items:center;justify-content:center;` +
-              `background:linear-gradient(135deg,#7C5CFC,#EA537E);` +
-              `color:#fff;font-size:12px;font-weight:800;` +
-              `border:2px solid rgba(255,255,255,0.9);` +
+              `background:var(--ec-brand);` +
+              `color:var(--ec-text-on-brand);font-size:12px;font-weight:800;` +
+              `border:2px solid var(--ec-surface-raised);` +
               `box-shadow:0 2px 6px rgba(0,0,0,0.5);` +
               `">${p.order}</div>`,
             iconSize: [26, 26],
@@ -279,12 +279,12 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           });
           const safeLabel = escapeHtml(p.label || `#${p.order}`);
           const timeHtml = p.time
-            ? `<div style="color:#B9A4FF;font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>`
+            ? `<div style="color:var(--ec-brand);font-size:11px;margin-top:2px;">${escapeHtml(p.time)}</div>`
             : '';
           L.marker([p.lat, p.lng], { icon, title: p.label })
             .addTo(map)
             .bindPopup(
-              `<div style="font-weight:700;font-size:13px;color:#1a1024;">` +
+              `<div style="font-weight:700;font-size:13px;color:var(--ec-text-primary);">` +
               `${p.order}. ${safeLabel}</div>${timeHtml}`,
               { closeButton: true },
             );
@@ -324,12 +324,12 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
   const hasHard = points.some((p) => p.hard);
 
   return (
-    <div className="mb-4">
+    <section className="mb-6" data-testid="day-route-map" aria-labelledby={`day-route-title-${domId}`}>
       <div className="flex items-center gap-1.5 mb-2 px-0.5">
-        <MapIcon className="w-3.5 h-3.5 text-[#B9A4FF]" />
-        <span className="text-[12px] font-bold uppercase tracking-wider text-[#B9A4FF]">
+        <MapIcon className="h-4 w-4 text-ec-brand" aria-hidden />
+        <h3 id={`day-route-title-${domId}`} className="ec-eyebrow text-ec-brand">
           {labels.title}
-        </span>
+        </h3>
         {/* (2026-07-19) 구형 플랜 구제 — 저장된 실경로가 없을 때만 노출.
             누르면 course-route 로 실제 대중교통 경로를 받아 지도를 갈아끼운다.
             Firestore 는 수정하지 않는다(이 화면 한정 개선). 자동 호출 안 함 = 비용 방어. */}
@@ -337,10 +337,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           {canFetchRoute && (
             <button
               type="button"
+              data-route-map-control
               onClick={() => { void fetchRoute(); }}
               disabled={routeBusy}
-              className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 disabled:opacity-50 min-h-[32px]"
-              style={{ background: 'rgba(37,99,235,0.16)', border: '1px solid rgba(37,99,235,0.45)' }}
+              className="ec-btn ec-btn-secondary min-h-[44px] px-3 text-[12px] disabled:opacity-50"
             >
               {routeBusy ? labels.loading : labels.showRoute}
             </button>
@@ -350,10 +350,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           {naverUrl && (
             <a
               href={naverUrl}
+              data-route-map-control
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/85 min-h-[32px] flex items-center"
-              style={{ background: 'rgba(3,199,90,0.16)', border: '1px solid rgba(3,199,90,0.45)' }}
+              className="ec-btn ec-btn-secondary min-h-[44px] px-3 text-[12px] text-ec-success"
             >
               {labels.openNaver}
             </a>
@@ -361,8 +361,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         </div>
       </div>
       <div
-        className="relative overflow-hidden rounded-2xl border border-white/[0.08]"
-        style={{ background: 'rgba(10,4,18,0.6)' }}
+        className="relative overflow-hidden rounded-ec-md border border-ec-line bg-ec-raised"
       >
         <div
           id={`day-route-map-${domId}`}
@@ -371,20 +370,20 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           style={{ height: 240, zIndex: 0 }}
         />
       </div>
-      {routeMsg && <p className="mt-1.5 px-0.5 text-[11px] text-white/50">{routeMsg}</p>}
+      {routeMsg && <p className="mt-2 px-0.5 text-[12px] text-ec-ink-2">{routeMsg}</p>}
       {/* 잘라낸 사실을 숨기지 않는다 — 네이버 경유지 상한을 넘긴 날은 명시. */}
       {naverCapped && naverUrl && (
-        <p className="mt-1.5 px-0.5 text-[11px] text-white/40">{labels.naverCapped}</p>
+        <p className="mt-2 px-0.5 text-[12px] text-ec-ink-3">{labels.naverCapped}</p>
       )}
       {/* 지도 범례 (가이드 P5) — 실선=쉬운 이동 / 점선=힘든 대중교통 구간(routeInsight 실판정). 힘든 구간 있을 때만. */}
       {hasHard && (
-        <div className="mt-2 flex items-center gap-4 px-0.5 text-[11px] text-white/55">
+        <div className="mt-2 flex items-center gap-4 px-0.5 text-[12px] text-ec-ink-2">
           <span className="flex items-center gap-1.5">
-            <span style={{ width: 18, height: 0, borderTop: '3px solid #B668FC', borderRadius: 2 }} aria-hidden />
+            <span style={{ width: 18, height: 0, borderTop: '3px solid var(--ec-brand)', borderRadius: 2 }} aria-hidden />
             {labels.easy}
           </span>
           <span className="flex items-center gap-1.5">
-            <span style={{ width: 18, height: 0, borderTop: '3px dashed #FFB020' }} aria-hidden />
+            <span style={{ width: 18, height: 0, borderTop: '3px dashed var(--ec-notice)' }} aria-hidden />
             {labels.hard}
           </span>
         </div>
@@ -394,21 +393,19 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         {points.map((p) => (
           <li
             key={p.order}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5"
-            style={{ background: 'rgba(255,255,255,0.03)' }}
+            className="flex min-h-[40px] items-center gap-2.5 border-b border-ec-line px-2 py-2 last:border-b-0"
           >
             <span
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white"
-              style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ec-brand text-[11px] font-bold text-ec-on-brand"
             >
               {p.order}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/85">{p.label}</span>
-            {p.time && <span className="shrink-0 text-[11px] font-medium text-white/45">{p.time}</span>}
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ec-ink">{p.label}</span>
+            {p.time && <span className="ec-figure shrink-0 text-[12px] text-ec-ink-3">{p.time}</span>}
           </li>
         ))}
       </ol>
-    </div>
+    </section>
   );
 }
 

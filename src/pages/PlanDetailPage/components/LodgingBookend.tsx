@@ -75,36 +75,27 @@ export function LodgingBookend({ transit, variant, lodgingLabel, otherLabel }: P
   // 카드 헤더: "🏨 숙소" + 화살표 → otherLabel
   return (
     <div className="my-3">
-      <div
-        className="rounded-xl border px-3 py-2.5 mb-1"
-        style={{
-          background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(234,83,126,0.06))',
-          borderColor: 'rgba(124,92,252,0.25)',
-        }}
-      >
+      <div className="mb-1 border border-ec-line bg-ec-brand-wash px-3 py-3">
         <div className="flex items-center gap-2 mb-1">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}
-          >
-            <Icon className="w-4 h-4 text-white" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ec-sm bg-ec-brand">
+            <Icon className="h-4 w-4 text-ec-on-brand" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold uppercase tracking-wider text-[#7C5CFC]/80">
+            <p className="ec-eyebrow text-ec-brand">
               {heading}
             </p>
-            <p className="text-[14px] text-white/75 truncate">
+            <p className="truncate text-[14px] text-ec-ink-2">
               {isDepart ? (
                 <>
-                  <span className="font-semibold text-white">{stayLabel}</span>
-                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/60" />
+                  <span className="font-semibold text-ec-ink">{stayLabel}</span>
+                  <ArrowDown className="mx-1 inline h-3 w-3 text-ec-ink-3" aria-hidden />
                   <span>{otherLabel || ''}</span>
                 </>
               ) : (
                 <>
                   <span>{otherLabel || ''}</span>
-                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/60" />
-                  <span className="font-semibold text-white">{stayLabel}</span>
+                  <ArrowDown className="mx-1 inline h-3 w-3 text-ec-ink-3" aria-hidden />
+                  <span className="font-semibold text-ec-ink">{stayLabel}</span>
                 </>
               )}
             </p>

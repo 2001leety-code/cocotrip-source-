@@ -76,10 +76,10 @@ export function AdSlide({ adType, plan }: AdSlideProps) {
   return (
     // 2026-08-02: jsx-a11y 플러그인이 이 레포 eslint 설정에 없어서, 남아 있던
     // `eslint-disable-next-line jsx-a11y/...` 주석 자체가 "규칙 없음" 오류를 냈다. 주석 제거.
-    <div ref={containerRef} className="relative" onClick={handleAdClick}>
+    <div ref={containerRef} data-testid="plan-ad-slide" className="relative" onClick={handleAdClick}>
       {/* Sponsored badge (regulatory transparency) */}
       <div className="flex justify-end mb-2">
-        <span className="text-[12px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
+        <span className="ec-chip text-[12px] font-medium text-ec-ink-3">
           {sw.sponsoredLabel || 'Sponsored'}
         </span>
       </div>
