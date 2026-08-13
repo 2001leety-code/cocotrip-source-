@@ -1,11 +1,12 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Phone, MessageCircle, Sparkles } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { RegionSeoInfo } from '@/components/region/RegionSeoInfo';
+import { CITY_CHIPS } from '@/components/WizardForm/data';
+import '@/styles/editorial-region.css';
 
 const regionImages: Record<string, string[]> = {
   ganghwa: [
@@ -71,272 +72,217 @@ const regionImages: Record<string, string[]> = {
   ],
 };
 
+type RegionLanguage = 'ko' | 'en' | 'ja' | 'zh';
+
+type RegionData = {
+  title: string;
+  subtitle: string;
+  description: string;
+  attractions: { name: string; desc: string }[];
+};
+
+const SHELL_COPY: Record<RegionLanguage, {
+  eyebrow: string;
+  notFoundBody: string;
+  nextStep: string;
+  ctaTitle: (region: string) => string;
+  plannerBody: string;
+  contactBody: string;
+  browseTours: string;
+  phone: string;
+  facts: (places: number, photos: number) => string;
+}> = {
+  ko: {
+    eyebrow: '한국 지역 안내',
+    notFoundBody: '주소를 다시 확인하거나 다른 지역 안내를 살펴보세요.',
+    nextStep: '다음 단계',
+    ctaTitle: (region) => `${region} 방문을 준비하세요`,
+    plannerBody: '지역 정보를 확인한 뒤, 여행 날짜와 조건에 맞는 일정을 플래너에서 구성할 수 있어요.',
+    contactBody: '지역 정보를 확인한 뒤, 투어 목록을 살펴보거나 이동 방법을 문의하세요.',
+    browseTours: '투어 둘러보기',
+    phone: '전화 문의',
+    facts: (places, photos) => `명소 ${places}곳 · 사진 ${photos}장`,
+  },
+  en: {
+    eyebrow: 'Korea region guide',
+    notFoundBody: 'Check the address or choose another Korea region guide.',
+    nextStep: 'Next step',
+    ctaTitle: (region) => `Prepare your visit to ${region}`,
+    plannerBody: 'Review the region first, then arrange it around your dates and trip conditions in the planner.',
+    contactBody: 'Review the region information, then browse the tour list or ask CocoTrip about travel options.',
+    browseTours: 'Browse tours',
+    phone: 'Call CocoTrip',
+    facts: (places, photos) => `${places} places · ${photos} photos`,
+  },
+  ja: {
+    eyebrow: '韓国地域ガイド',
+    notFoundBody: 'URLを確認するか、別の地域ガイドをご覧ください。',
+    nextStep: '次のステップ',
+    ctaTitle: (region) => `${region}への旅を準備する`,
+    plannerBody: '地域情報を確認してから、旅行日程と条件に合わせてプランナーで旅程を組み立てられます。',
+    contactBody: '地域情報を確認してから、ツアー一覧を見るか、移動方法についてお問い合わせください。',
+    browseTours: 'ツアーを見る',
+    phone: '電話で問い合わせ',
+    facts: (places, photos) => `スポット${places}か所 · 写真${photos}枚`,
+  },
+  zh: {
+    eyebrow: '韩国地区指南',
+    notFoundBody: '请检查网址，或浏览其他韩国地区指南。',
+    nextStep: '下一步',
+    ctaTitle: (region) => `准备前往${region}`,
+    plannerBody: '先查看地区信息，再在规划工具中根据日期和出行条件安排行程。',
+    contactBody: '查看地区信息后，可浏览旅游产品列表或咨询前往方式。',
+    browseTours: '浏览旅游产品',
+    phone: '电话咨询',
+    facts: (places, photos) => `${places}个景点 · ${photos}张照片`,
+  },
+};
+
+function toLanguage(value: string): RegionLanguage {
+  return value === 'ko' || value === 'ja' || value === 'zh' ? value : 'en';
+}
+
+function isRegionData(value: unknown): value is RegionData {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as RegionData;
+  return typeof candidate.title === 'string'
+    && typeof candidate.subtitle === 'string'
+    && typeof candidate.description === 'string'
+    && Array.isArray(candidate.attractions)
+    && candidate.attractions.every((attraction) => (
+      typeof attraction?.name === 'string' && typeof attraction?.desc === 'string'
+    ));
+}
+
 export function RegionDetail() {
   const { regionId } = useParams<{ regionId: string }>();
-  const navigate = useNavigate();
   const { language, t, changeLanguage } = useLanguage();
-  const isMobile = useIsMobile();
-
-  const regionData = t.regionDetail[regionId as keyof typeof t.regionDetail] as {
-    title: string;
-    subtitle: string;
-    description: string;
-    attractions: { name: string; desc: string }[];
-  } | undefined;
-  const images = regionImages[regionId || ''] || [];
+  const lang = toLanguage(language);
+  const copy = SHELL_COPY[lang];
+  const isKnownRegionId = Boolean(
+    regionId && Object.prototype.hasOwnProperty.call(regionImages, regionId),
+  );
+  const regionValue = isKnownRegionId
+    ? t.regionDetail[regionId as keyof typeof t.regionDetail]
+    : undefined;
+  const regionData = isRegionData(regionValue) ? regionValue : undefined;
+  const images = isKnownRegionId && regionId ? regionImages[regionId] : [];
+  const galleryImages = images.slice(1);
+  const plannerCovered = Boolean(regionId && CITY_CHIPS.some((chip) => chip.key === regionId));
 
   usePageMeta({
-    title: regionData?.title ? `${regionData.title} Tour` : 'Region Detail',
-    description: regionData?.description || 'Explore Korea with CocoTrip premium tours',
+    title: regionData?.title || t.regionDetail?.notFound || 'Region not found',
+    description: regionData?.description || copy.notFoundBody,
     ogImage: images[0] || '/hero-seoul.webp',
   });
 
-  if (!regionData) {
-    return (
-      <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210] flex items-center justify-center'}>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4 text-white">{t.regionDetail?.notFound || 'Region not found'}</h1>
-          <button
-            onClick={() => navigate('/')}
-            className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full'}
-          >
-            {t.regionDetail?.goHome || 'Go Home'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ═══ MOBILE ═══ */
-  if (isMobile) {
-    return (
-      <div className="m-page">
-        <Header language={language} t={t} onLanguageChange={changeLanguage} />
-
-        {/* Hero */}
-        <div className="relative h-[45vh] overflow-hidden">
-          <img
-            src={images[0] || '/region-seoul.jpg'}
-            alt={regionData.title}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(10,4,18,0.2) 0%, rgba(10,4,18,0.85) 80%, #0a0412 100%)' }} />
-          <div className="absolute bottom-0 left-0 right-0 p-5">
-            <button
-              onClick={() => navigate('/#regions')}
-              className="flex items-center gap-1.5 text-white/50 text-xs mb-3 hover:text-white/80 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {t.regionDetail.backToRegions}
-            </button>
-            <h1 className="text-3xl font-black m-shimmer-text leading-tight">
-              {regionData.title}
-            </h1>
-            <p className="text-white/60 text-sm mt-1">{regionData.subtitle}</p>
-          </div>
-        </div>
-
-        <div className="px-4 pt-5 pb-4 space-y-5">
-          {/* Description */}
-          <div className="m-card m-appear p-4">
-            <p className="text-[13px] text-white/50 leading-relaxed">{regionData.description}</p>
-          </div>
-
-          {/* Attractions */}
-          <div className="m-appear" style={{ animationDelay: '0.1s' }}>
-            <p className="m-label">{t.regionDetail?.mustVisit || 'Must-Visit'}</p>
-            <div className="space-y-2.5">
-              {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
-                <div key={index} className="m-card m-btn p-4 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl m-icon m-float shrink-0" style={{ animationDelay: `${index * 0.3}s` }}>
-                    <MapPin className="w-4 h-4 text-[#B668FC]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[14px] font-bold text-white">{attraction.name}</h3>
-                    <p className="text-[12px] text-white/55 mt-0.5 leading-relaxed">{attraction.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Photo Gallery */}
-          {images.length > 1 && (
-            <div className="m-appear" style={{ animationDelay: '0.2s' }}>
-              <p className="m-label">{t.regionDetail?.gallery || 'Gallery'}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {images.slice(1, 9).map((image, index) => (
-                  <div key={index} className="aspect-square rounded-xl overflow-hidden m-card-glow" style={{ animationDelay: `${index * 0.5}s` }}>
-                    <img
-                      src={image}
-                      alt={`${regionData.title} ${index + 1}`}
-                      loading="lazy"
-                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 공개 정보 — 크롤러가 받는 본문. 데스크톱 분기에도 같이 있어야 한다(둘 중 한쪽만
-              고치는 사고가 이 레포에서 7번 났다). */}
-          <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
-
-          {/* CTA */}
-          <div className="m-card m-appear p-5 text-center" style={{ animationDelay: '0.3s', background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.04))' }}>
-            <h2 className="text-lg font-bold text-white mb-2">
-              {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
-            </h2>
-            <p className="text-white/55 text-xs mb-4">
-              {t.regionDetail?.planTripDesc || 'Let COCOTRIP create a personalized tour experience just for you.'}
-            </p>
-            <div className="space-y-2.5">
-              <button
-                onClick={() => navigate('/planner')}
-                className="m-cta m-btn w-full py-3.5 text-[14px] flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                {t.regionDetail?.aiPlannerCta || 'Trip Planner'}
-              </button>
-              <a
-                href="https://wa.me/821087140611"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="m-btn flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[13px] font-semibold text-white"
-                style={{ background: '#25D366' }}
-              >
-                <MessageCircle className="w-4 h-4" />
-                {t.regionDetail?.whatsappCta || 'WhatsApp'}
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ═══ DESKTOP (unchanged) ═══ */
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
+    <div className="region-editorial ec-root">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      
-      {/* Hero Section */}
-      <div className="relative h-[50vh] lg:h-[60vh] overflow-hidden">
-        <img
-          src={images[0] || '/region-seoul.jpg'}
-          alt={regionData.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-12">
-          <div className="max-w-7xl mx-auto">
-            <button
-              onClick={() => navigate('/#regions')}
-              className="flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              {t.regionDetail.backToRegions}
-            </button>
-            <h1 className="text-4xl lg:text-7xl font-display font-normal text-white mb-2 tracking-tight">
-              {regionData.title}
-            </h1>
-            <p className="text-xl text-white/90">{regionData.subtitle}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Content Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
-        {/* Description */}
-        <div className="mb-16">
-          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-6">
-            {t.regionDetail?.aboutHeading || 'About'} {regionData.title}
-          </h2>
-          <p className="text-lg text-white/60 leading-relaxed max-w-3xl">
-            {regionData.description}
-          </p>
-        </div>
-
-        {/* Attractions */}
-        <div className="mb-16">
-          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-8">
-            {t.regionDetail?.mustVisitAttractions || 'Must-Visit Attractions'}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
-              <div
-                key={index}
-                className="bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-[#B668FC]/30 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all"
-              >
-                <div className="w-12 h-12 bg-[#B668FC]/20 border border-[#B668FC]/30 rounded-xl flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-[#FF6B9D]" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">
-                  {attraction.name}
-                </h3>
-                <p className="text-white/60">{attraction.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Photo Gallery */}
-        {images.length > 1 && (
-          <div className="mb-16">
-            <h2 className="text-2xl lg:text-3xl font-bold text-white mb-8">
-              {t.regionDetail?.photoGallery || 'Photo Gallery'}
-            </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {images.slice(1).map((image, index) => (
-                <div
-                  key={index}
-                  className="aspect-square rounded-2xl overflow-hidden"
-                >
-                  <img
-                    src={image}
-                    alt={`${regionData.title} gallery ${index + 1}`}
-                    loading="lazy"
-                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
-                  />
-                </div>
-              ))}
+      <main className="region-editorial-main">
+        {!regionData ? (
+          <section data-testid="region-detail-not-found" className="region-editorial-not-found ec-container">
+            <p className="ec-eyebrow">{copy.eyebrow}</p>
+            <h1 className="ec-h2">{t.regionDetail?.notFound || 'Region not found'}</h1>
+            <p className="ec-body">{copy.notFoundBody}</p>
+            <div className="region-editorial-not-found-actions">
+              <Link to="/" className="ec-btn ec-btn-primary">{t.regionDetail?.goHome || 'Go Home'}</Link>
+              <Link to="/#regions" className="ec-btn ec-btn-secondary">{t.regionDetail?.backToRegions || 'Back to Regions'}</Link>
             </div>
-          </div>
+          </section>
+        ) : (
+          <article data-testid="region-detail-ready" data-region-id={regionId || ''}>
+            <section className="region-editorial-hero ec-container-wide" aria-labelledby="region-title">
+              <Link to="/#regions" className="region-editorial-back ec-btn ec-btn-quiet">
+                <ArrowLeft aria-hidden />
+                {t.regionDetail.backToRegions}
+              </Link>
+              <div className="region-editorial-hero-grid">
+                <div className="region-editorial-hero-copy">
+                  <p className="ec-eyebrow">{copy.eyebrow}</p>
+                  <h1 id="region-title" className="ec-display">{regionData.title}</h1>
+                  <p className="region-editorial-deck">{regionData.subtitle}</p>
+                  <p className="ec-body">{regionData.description}</p>
+                  <p className="region-editorial-facts ec-figure">
+                    {copy.facts(regionData.attractions.length, images.length)}
+                  </p>
+                </div>
+                <figure className="region-editorial-hero-media">
+                  <img src={images[0] || '/region-seoul.jpg'} alt={regionData.title} />
+                </figure>
+              </div>
+            </section>
+
+            <section className="region-editorial-attractions">
+              <div className="ec-container">
+                <header className="region-editorial-section-heading">
+                  <p className="ec-eyebrow">{t.regionDetail?.mustVisit || 'Must-Visit'}</p>
+                  <h2 className="ec-h2">{t.regionDetail?.mustVisitAttractions || 'Must-Visit Attractions'}</h2>
+                </header>
+                <ol className="region-editorial-attraction-list" role="list">
+                  {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
+                    <li key={attraction.name} className="region-editorial-attraction">
+                      <span className="region-editorial-attraction-number ec-figure">{String(index + 1).padStart(2, '0')}</span>
+                      <div>
+                        <h3 className="ec-h3">{attraction.name}</h3>
+                        <p className="ec-body-sm">{attraction.desc}</p>
+                      </div>
+                      <MapPin aria-hidden />
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </section>
+
+            {galleryImages.length > 0 && (
+              <section className="region-editorial-gallery-section ec-container-wide">
+                <header className="region-editorial-section-heading">
+                  <p className="ec-eyebrow">{t.regionDetail?.gallery || 'Gallery'}</p>
+                  <h2 className="ec-h2">{t.regionDetail?.photoGallery || 'Photo Gallery'}</h2>
+                </header>
+                <div className="region-editorial-gallery">
+                  {galleryImages.map((image, index) => (
+                    <figure key={image}>
+                      <img src={image} alt={`${regionData.title} ${t.regionDetail?.gallery || 'gallery'} ${index + 1}`} loading="lazy" />
+                    </figure>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="region-editorial-evidence ec-container">
+              <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
+            </section>
+
+            <section className="region-editorial-cta">
+              <div className="ec-container">
+                <p className="ec-eyebrow">{copy.nextStep}</p>
+                <h2 className="ec-h2">{copy.ctaTitle(regionData.title)}</h2>
+                <p className="ec-body">{plannerCovered ? copy.plannerBody : copy.contactBody}</p>
+                <div className="region-editorial-cta-actions">
+                  {plannerCovered && (
+                    <Link to="/planner" className="ec-btn ec-btn-primary">
+                      <Sparkles aria-hidden />
+                      {t.regionDetail?.aiPlannerCta || 'Trip Planner'}
+                    </Link>
+                  )}
+                  <Link to="/tours" className={`ec-btn ${plannerCovered ? 'ec-btn-secondary' : 'ec-btn-primary'}`}>
+                    {copy.browseTours}
+                  </Link>
+                  <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary">
+                    <MessageCircle aria-hidden />
+                    {t.regionDetail?.whatsappCta || 'WhatsApp'}
+                  </a>
+                  <a href="tel:+821087140611" className="region-editorial-phone ec-btn ec-btn-quiet">
+                    <Phone aria-hidden />
+                    {copy.phone}
+                  </a>
+                </div>
+              </div>
+            </section>
+          </article>
         )}
-
-        {/* 공개 정보 — 모바일 분기와 같은 컴포넌트. 한쪽만 넣으면 그 화면에서만 본문이 얇다. */}
-        <div className="mb-16">
-          <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
-        </div>
-
-        {/* CTA Section */}
-        <div className="bg-gradient-to-br from-[#B668FC]/20 to-[#FF6B9D]/20 border border-[#B668FC]/30 backdrop-blur-md rounded-3xl p-8 lg:p-12 text-center">
-          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
-            {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
-          </h2>
-          <p className="text-white/80 mb-8 max-w-2xl mx-auto">
-            {t.regionDetail?.planTripDesc || 'Let COCOTRIP create a personalized tour experience just for you.'}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-               onClick={() => navigate('/tours')}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white rounded-full font-bold hover:bg-[#128C7E] transition-colors"
-            >
-              <MessageCircle className="w-5 h-5" />
-              {t.regionDetail.bookNow}
-            </button>
-            <a
-              href="tel:+821087140611"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-colors"
-            >
-              <Phone className="w-5 h-5" />
-              +82 10-8714-0611
-            </a>
-          </div>
-        </div>
-      </div>
-
+      </main>
       <Footer t={t} />
     </div>
   );

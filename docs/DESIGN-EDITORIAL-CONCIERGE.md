@@ -1,6 +1,6 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course)**.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail)**.
 > The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
 > dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
 > `/community/post/:id`, `/community/new` and `/s/:id` now follow this document. Read "Migration state" before assuming a page
@@ -14,6 +14,9 @@ and do not restate them here beyond the reference table below.
 community body; it does not style the moderation app.
 `src/styles/editorial-shared-course.css` is the route-scoped read-only document layer for
 public shared courses; it does not change course creation or storage.
+`src/styles/editorial-region.css` is the route-scoped public region layer; it keeps the
+existing region facts, product-derived tour details and links while replacing the split
+mobile/desktop skins with one responsive document.
 
 ---
 
@@ -354,6 +357,29 @@ gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
 44px 미만 공개 조작 0(지도 인라인 출처 예외) · 앱/예상 밖 콘솔 오류 0 · 예상 밖 4xx/5xx 0 ·
 쓰기 요청 0. 잠금은 `tests/e2e/shared-course-editorial.spec.ts`,
 `tests/unit/shared-course-editorial-shell.component.test.tsx`, 기존 공유 회귀 테스트다.
+
+### 2026-08-13 — `/region/:regionId` 공개 지역 상세
+
+지역 상세만 모바일과 데스크톱이 서로 다른 다크 덧칠과 겹친 사진 본문을 사용해 공용 종이 셸과
+갈라져 있었다. 지역 사실·사진·상품에서 가져온 투어 설명·가격·환불 문구와 이동 링크는 그대로 두고,
+**표시 구조와 접근성 계약만 하나의 반응형 지면으로 합쳤다.**
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 모바일·데스크톱이 서로 다른 DOM과 보정 CSS를 사용하고 사진 위 글자·gradient·glass에 의존 | 390/768/1440이 같은 DOM과 종이·잉크·hairline 토큰 사용. 사진과 본문을 분리하고 로고 밖 gradient·blur·glow 없음 |
+| 대표 사진·명소·갤러리·긴 근거 문단의 읽기 순서가 화면 폭마다 달라짐 | 돌아가기 → 지역 소개 → 필수 명소 5곳 → 기존 사진 전체(지역별 갤러리 8~21장) → 기존 상품 근거 → 다음 단계의 한 문서 흐름 |
+| 잘못된 지역 주소가 기존 다크 화면과 고정 영어 보조문구로 끝남 | 네 언어 제목·설명과 홈/지역 목록 CTA를 가진 별도 not-found 상태 |
+| `constructor` 같은 객체 기본 키나 번역 UI 키를 지역 ID로 오인할 여지 | 소유한 9개 지역 ID와 실제 지역 자료 형태를 함께 검사해 모든 잘못된 주소를 not-found로 제한 |
+| 자동 일정 미지원 4개 지역도 플래너에서 일정을 만들 수 있다고 안내 | 플래너 도시 원본 `CITY_CHIPS`를 그대로 확인. 지원 지역만 플래너 CTA, 나머지는 투어 목록·문의 CTA |
+| 공개 조작의 초점 표시와 반응형 품질을 정상 화면 한 종류로만 확인 | 키보드 초점 고리, 44px 조작, 가로 넘침, 자체 도메인 오류, 쓰기 요청을 정상·not-found와 9개 지역에서 함께 잠금 |
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh × 정상·임의 오류·번역 키 충돌·객체 키 충돌): **48회**,
+9개 지역 전체 사진 순회 1회. 페이지 제목 브랜드 중복 0 · CTA 대비 4.5:1 이상 ·
+가로 넘침 0 · 44px 미만 공개 조작 0 · 16px 미만 입력 0 · 계산된 gradient/glass 0 ·
+앱/콘솔 오류 0 · 자체 도메인 4xx/5xx 0 · 쓰기 요청 0. 사진·지역 자료와
+`RegionSeoInfo`의 가격·상품·환불 의미는 변경하지 않았다. 잠금은
+`tests/e2e/region-editorial.spec.ts`, `tests/unit/region-editorial-shell.test.ts`,
+`tests/unit/region-editorial-shell.component.test.tsx`다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
