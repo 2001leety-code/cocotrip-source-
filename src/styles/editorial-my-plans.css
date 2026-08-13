@@ -1,0 +1,428 @@
+.my-plans-editorial {
+  min-width: 0;
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-page);
+}
+
+.my-plans-editorial-main :where(button, a, input):focus-visible,
+.refined .my-plans-editorial-main :where(button, a, input):focus-visible {
+  outline: 3px solid var(--ec-brand);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+.my-plans-editorial-main {
+  width: min(100%, 1040px);
+  min-height: 72vh;
+  margin-inline: auto;
+  padding: calc(var(--ec-shell-height-md) + 64px) var(--ec-gutter) 104px;
+}
+
+.my-plans-editorial-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 48px;
+  align-items: end;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--ec-line-strong);
+}
+
+.my-plans-editorial-heading {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.my-plans-editorial-mark {
+  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-sm);
+  color: var(--ec-brand);
+  background: var(--ec-surface-raised);
+}
+
+.my-plans-editorial-mark svg {
+  width: 23px;
+  height: 23px;
+}
+
+.my-plans-editorial-heading .ec-h1 {
+  margin-top: 8px;
+}
+
+.my-plans-editorial-subtitle {
+  max-width: 620px;
+  margin-top: 12px;
+}
+
+.my-plans-editorial-account {
+  min-width: 0;
+  margin: 0;
+  padding: 18px 0 4px 24px;
+  border-left: 1px solid var(--ec-line-strong);
+}
+
+.my-plans-editorial-account dt {
+  color: var(--ec-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.my-plans-editorial-account dd {
+  overflow-wrap: anywhere;
+  margin-top: 6px;
+  color: var(--ec-text-primary);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.my-plans-editorial-tabs {
+  display: flex;
+  gap: 28px;
+  margin-top: 28px;
+  border-bottom: 1px solid var(--ec-line);
+}
+
+.my-plans-editorial-tab {
+  position: relative;
+  display: inline-flex;
+  min-width: 112px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 4px;
+  border: 0;
+  color: var(--ec-text-muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  transition: color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+
+.my-plans-editorial-tab::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.my-plans-editorial-tab svg {
+  width: 17px;
+  height: 17px;
+}
+
+.my-plans-editorial-tab:hover,
+.my-plans-editorial-tab.is-active {
+  color: var(--ec-brand);
+}
+
+.my-plans-editorial-tab.is-active::after {
+  background: var(--ec-brand);
+}
+
+.my-plans-editorial-panel {
+  padding-top: 32px;
+}
+
+.my-plans-editorial-state {
+  overflow: hidden;
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  background: var(--ec-surface-raised);
+}
+
+.my-plans-editorial-state.is-compact {
+  margin-top: 20px;
+}
+
+.my-plans-editorial-state.is-compact .ec-root {
+  min-height: 220px;
+}
+
+.my-plans-editorial-loading-copy {
+  padding: 28px 24px 20px;
+}
+
+.my-plans-editorial-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 24px 28px;
+}
+
+.my-plans-editorial-skeleton-card {
+  min-height: 148px;
+  padding: 22px;
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-sm);
+  background: var(--ec-surface-page);
+}
+
+.my-plans-editorial-library {
+  min-width: 0;
+}
+
+.my-plans-editorial-search {
+  position: relative;
+  display: block;
+  min-height: 48px;
+}
+
+.my-plans-editorial-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  color: var(--ec-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.my-plans-editorial-search input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px 0 46px;
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-sm);
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-raised);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.my-plans-editorial-search input::placeholder {
+  color: var(--ec-text-muted);
+}
+
+.my-plans-editorial-partial {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--ec-line-strong);
+  border-left: 3px solid var(--ec-notice);
+  border-radius: var(--ec-radius-sm);
+  background: var(--ec-surface-raised);
+}
+
+.my-plans-editorial-partial h2 {
+  color: var(--ec-text-primary);
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.my-plans-editorial-partial p {
+  margin-top: 4px;
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.my-plans-editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.my-plans-editorial-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 172px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 22px 56px 22px 22px;
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-raised);
+  transition: border-color var(--ec-duration-fast) var(--ec-ease-standard), background-color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+
+.my-plans-editorial-card:hover {
+  border-color: var(--ec-line-contrast);
+  background: var(--ec-brand-wash);
+}
+
+.my-plans-editorial-card h2 {
+  overflow-wrap: anywhere;
+  margin-top: 18px;
+  color: var(--ec-text-primary);
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.32;
+  letter-spacing: -0.02em;
+}
+
+.my-plans-editorial-status {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding-inline: 9px;
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-pill);
+  color: var(--ec-text-secondary);
+  background: var(--ec-surface-page);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.my-plans-editorial-status.is-ready {
+  color: var(--ec-success);
+}
+
+.my-plans-editorial-status.is-generating {
+  color: var(--ec-notice);
+}
+
+.my-plans-editorial-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: auto;
+  padding-top: 20px;
+  color: var(--ec-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.my-plans-editorial-meta span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.my-plans-editorial-meta svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.my-plans-editorial-chevron {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--ec-text-faint);
+  transform: translateY(-50%);
+}
+
+.my-plans-editorial-load-more {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.my-plans-bookings-boundary {
+  margin-top: 32px;
+  padding: 24px;
+  border-radius: var(--ec-radius-md);
+  color: var(--ec-text-on-inverse);
+  background: var(--ec-surface-inverse);
+}
+
+.my-plans-bookings-boundary :where(button, a, input):focus-visible,
+.refined .my-plans-bookings-boundary :where(button, a, input):focus-visible {
+  outline-color: var(--ec-text-on-inverse);
+}
+
+@media (max-width: 767px) {
+  .my-plans-editorial-main {
+    padding-top: calc(var(--ec-shell-height) + 36px);
+    padding-bottom: 80px;
+  }
+
+  .my-plans-editorial-masthead {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding-bottom: 28px;
+  }
+
+  .my-plans-editorial-heading {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .my-plans-editorial-mark {
+    width: 44px;
+    height: 44px;
+  }
+
+  .my-plans-editorial-account {
+    padding: 16px 0 0;
+    border-top: 1px solid var(--ec-line);
+    border-left: 0;
+  }
+
+  .my-plans-editorial-tabs {
+    gap: 8px;
+  }
+
+  .my-plans-editorial-tab {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 8px;
+    font-size: 13px;
+  }
+
+  .my-plans-editorial-panel {
+    padding-top: 24px;
+  }
+
+  .my-plans-editorial-skeleton-grid,
+  .my-plans-editorial-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-plans-editorial-partial {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .my-plans-editorial-partial .ec-btn {
+    width: 100%;
+  }
+
+  .my-plans-editorial-card {
+    min-height: 160px;
+  }
+
+  .my-plans-bookings-boundary {
+    margin-inline: calc(var(--ec-gutter) * -1);
+    padding: 20px var(--ec-gutter) 28px;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .my-plans-editorial-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .my-plans-editorial-mark {
+    margin-bottom: 2px;
+  }
+
+  .my-plans-editorial-card {
+    padding-right: 48px;
+  }
+}
