@@ -24,6 +24,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
+import { decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -258,8 +259,10 @@ export default async function handler(req, res) {
         ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
         finalBreakdown: b.finalBreakdown || null,
-        routeSnapshot: b.routeSnapshot || null,
-        finalRouteSnapshot: b.finalRouteSnapshot || null,
+        // 저장형 path = [{lng,lat}] (Firestore 는 중첩 배열 불가) → 공개 계약 [[lng,lat],...]
+        // 으로 되돌린다. 프론트 지도/공유 카드 계약 불변. (api/_shared/mood-route-snapshot.js)
+        routeSnapshot: decodeRouteSnapshot(b.routeSnapshot),
+        finalRouteSnapshot: decodeRouteSnapshot(b.finalRouteSnapshot),
         revision: Number.isInteger(b.revision) && b.revision >= 0 ? b.revision : 0,
         influencerName: typeof b.influencerName === 'string' && b.influencerName ? b.influencerName : null,
         courseMoodPercentages: courseShare.percentages,
