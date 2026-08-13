@@ -70,19 +70,23 @@ describe('SharedCoursePage', () => {
 
   it('조회 성공 — 스탑 렌더 + 시작하기 → draft+이동', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
       json: async () => ({ ok: true, data: { v: 1, days: [{ stops: [{ id: 's1', title: '해운대', time: '10:00', category: 'sight', memo: '' }] }], title: '', createdAt: 1 } }),
     })) as unknown as typeof fetch);
     renderAt('abcd1234');
     await waitFor(() => expect(screen.getByText('해운대')).toBeTruthy());
-    fireEvent.click(screen.getByText('이 코스로 시작하기'));
+    fireEvent.click(
+      screen.getByRole('button', { name: '내 플래너에서 이 코스 사용하기' }),
+    );
     const draft = JSON.parse(localStorage.getItem('cocotrip:course:draft:v1') || 'null');
     expect(draft.days[0].stops[0].title).toBe('해운대');
     expect(navigateMock).toHaveBeenCalledWith('/planner?mode=course');
   });
 
   it('404 — 안내 문구', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ ok: false, code: 'NOT_FOUND' }) })) as unknown as typeof fetch);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ ok: false, code: 'NOT_FOUND' }) })) as unknown as typeof fetch);
     renderAt('zzzzzzzz');
-    await waitFor(() => expect(screen.getByText(/찾을 수 없거나 삭제/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/찾을 수 없어요/)).toBeTruthy());
   });
 });

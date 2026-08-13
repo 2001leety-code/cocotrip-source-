@@ -1,9 +1,9 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community)**.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course)**.
 > The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
 > dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
-> `/community/post/:id` and `/community/new` now follow this document. Read "Migration state" before assuming a page
+> `/community/post/:id`, `/community/new` and `/s/:id` now follow this document. Read "Migration state" before assuming a page
 > follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
@@ -12,6 +12,8 @@ component tokens. Hex values live in the CSS files — do not restate them in co
 and do not restate them here beyond the reference table below.
 `src/styles/editorial-community.css` is the route-scoped migration layer for the public
 community body; it does not style the moderation app.
+`src/styles/editorial-shared-course.css` is the route-scoped read-only document layer for
+public shared courses; it does not change course creation or storage.
 
 ---
 
@@ -231,6 +233,7 @@ keeps the same word from button to confirmation.
 | Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
 | Tour detail (`/tours/:slug`) — public non-payment body, all breakpoints | this system; booking, price and refund controls remain the previous protected money boundary |
 | Community (`/community`, `/community/post/:id`, `/community/new`) — public feed, detail, states and compose shell | this system; post, upload, auth and moderation operations are unchanged |
+| Shared course (`/s/:id`) — public read-only course document and states | this system; public GET contract and local planner handoff are unchanged |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
 | Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
 
@@ -331,6 +334,26 @@ Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshot
 gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
 `tests/e2e/community-editorial.spec.ts`와
 `tests/unit/community-editorial-shell.component.test.tsx`다.
+
+### 2026-08-13 — `/s/:id` 공개 공유 코스
+
+공개 공유 코스만 32~36px 조작과 다크 카드로 남아 공용 셸과 갈라져 있었고, 일시적 서버 실패도
+없는 링크와 같은 화면으로 끝났다. 공유를 만드는 POST, 저장 자료, 로그인, 플래너 쓰기는 건드리지
+않고 **공개 GET 결과를 읽어 보여 주는 지면과 상태 계약만** 옮겼다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 텍스트 한 줄 loading, 실패·404를 모두 not-found로 처리 | `EcLoading`·`EcEmpty`·`EcError`로 loading, empty, error/retry, not-found, partial-data를 분리 |
+| 모바일 전용 밝은 덧칠과 데스크톱 다크 본문, CTA gradient | 390/768/1440이 같은 종이 지면·단색 토큰·DOM 사용. 로고 밖 gradient·blur·glow 없음 |
+| 날짜 탭 32~36px, 지도 링크 10px, 홈 버튼 36px, Leaflet 확대/축소 30px | 실제 조작 44px 이상. 지도 출처의 문장 안 링크만 WCAG 인라인 링크 예외로 유지 |
+| 날짜 탭에 `role=tab`만 있고 화살표 키 이동 없음 | 좌우·상하 화살표, Home, End로 선택과 초점이 함께 이동 |
+| ko/ja/zh 상태 일부가 영어식 `Day` 표기 | 상태·메타·날짜·분류·지도·CTA를 네 언어 route-local 사전으로 제공. 영어는 `Day 1`, 한국어·일본어·중국어는 각 언어 어순 |
+| 일부 잘못된 장소가 있으면 전체 자료를 그대로 신뢰하거나 빈 화면 | 잘못된 항목만 제외하고 partial 안내. 유효 장소가 하나도 없으면 별도 empty 화면 |
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh × 6상태): **72회**. 가로 넘침 0 ·
+44px 미만 공개 조작 0(지도 인라인 출처 예외) · 앱/예상 밖 콘솔 오류 0 · 예상 밖 4xx/5xx 0 ·
+쓰기 요청 0. 잠금은 `tests/e2e/shared-course-editorial.spec.ts`,
+`tests/unit/shared-course-editorial-shell.component.test.tsx`, 기존 공유 회귀 테스트다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
