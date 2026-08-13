@@ -99,4 +99,13 @@ describe('server and app share one 404 design contract', () => {
     expect(sharedSource).toContain('min-height: 44px');
     expect(sharedSource).toContain(':focus-visible');
   });
+
+  it('keeps the high-contrast focus treatment above the refined app shell', () => {
+    expect(sharedSource).toMatch(
+      /\.refined \.not-found-editorial :where\(a, button\):focus-visible \{\s*outline: 3px solid #14141A;\s*outline-offset: 3px;\s*box-shadow: none;\s*\}/,
+    );
+    expect(sharedSource.match(/\.refined[^{]*\{/g)).toEqual([
+      '.refined .not-found-editorial :where(a, button):focus-visible {',
+    ]);
+  });
 });

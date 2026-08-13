@@ -239,9 +239,11 @@ body.not-found-standalone {
 
 .not-found-editorial__action:focus-visible,
 .not-found-editorial__language:focus-visible,
-.not-found-standalone__brand:focus-visible {
+.not-found-standalone__brand:focus-visible,
+.refined .not-found-editorial :where(a, button):focus-visible {
   outline: 3px solid #14141A;
   outline-offset: 3px;
+  box-shadow: none;
 }
 
 .not-found-editorial__languages {

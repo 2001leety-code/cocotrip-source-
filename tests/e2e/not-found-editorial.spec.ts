@@ -22,6 +22,9 @@ async function installLanguage(page: Page, language: Language) {
   await page.addInitScript((value) => {
     window.localStorage.setItem('cocotrip_lang', value);
     window.localStorage.setItem('coco_promo_banner_dismissed_v1', 'true');
+    const enableRefined = () => document.documentElement.classList.add('refined');
+    if (document.documentElement) enableRefined();
+    else document.addEventListener('DOMContentLoaded', enableRefined, { once: true });
   }, language);
 }
 
@@ -70,11 +73,43 @@ async function assertVisibleFocus(page: Page) {
     await control.focus();
     await expect.poll(() => control.evaluate((element) => {
       const style = getComputedStyle(element);
-      return style.outlineStyle === 'solid'
-        && Number.parseFloat(style.outlineWidth) >= 2
-        && style.outlineColor !== 'rgba(0, 0, 0, 0)';
-    })).toBe(true);
+      return {
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        outlineColor: style.outlineColor,
+        outlineOffset: style.outlineOffset,
+        boxShadow: style.boxShadow,
+      };
+    })).toEqual({
+      outlineStyle: 'solid',
+      outlineWidth: '3px',
+      outlineColor: 'rgb(20, 20, 26)',
+      outlineOffset: '3px',
+      boxShadow: 'none',
+    });
   }
+}
+
+async function assertRefinedFocusConflictIsLive(page: Page) {
+  await expect(page.locator('html')).toHaveClass(/(?:^|\s)refined(?:\s|$)/);
+  const probe = await page.evaluate(() => {
+    const control = document.createElement('a');
+    control.href = '#focus-probe';
+    control.textContent = 'Focus probe';
+    control.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(control);
+    control.focus();
+    const style = getComputedStyle(control);
+    const result = {
+      focusVisible: control.matches(':focus-visible'),
+      outlineStyle: style.outlineStyle,
+      hasShadow: style.boxShadow !== 'none',
+    };
+    control.remove();
+    return result;
+  });
+
+  expect(probe).toEqual({ focusVisible: true, outlineStyle: 'none', hasShadow: true });
 }
 
 function usesRemoteServer() {
@@ -171,6 +206,7 @@ for (const viewport of VIEWPORTS) {
       await expect(page.locator('html')).toHaveAttribute('lang', language);
       await expect(page.locator('[data-recovery-link]')).toHaveCount(3);
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+      await assertRefinedFocusConflictIsLive(page);
       await assertEditorialGeometry(page);
       await assertVisibleFocus(page);
 
