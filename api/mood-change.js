@@ -22,6 +22,7 @@ import {
 import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot, decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { notify } from './_shared/notify.js';
+import { checkMoodBookingChangeAvailability } from './_shared/mood-booking-availability.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -527,7 +528,6 @@ export default async function handler(req, res) {
     if (!idorAllowed(isAdmin, allowlist, preBooking)) {
       return sendJson(res, 403, jsonHeaders, { ok: false, error: 'BOOKING_ACCESS_DENIED' });
     }
-
     if (preIdempotencySnap.exists) {
       const replay = await replayStoredResponse({
         db,
@@ -539,6 +539,20 @@ export default async function handler(req, res) {
       });
       if (replay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(replay.response));
       return sendJson(res, replay.status || 409, jsonHeaders, { ok: false, error: replay.error || 'IDEMPOTENCY_CONFLICT' });
+    }
+
+    const availability = checkMoodBookingChangeAvailability(
+      preBooking.date,
+      preBooking.startTime,
+      snapshot.date,
+      snapshot.startTime,
+    );
+    if (!availability.ok) {
+      return sendJson(res, 409, jsonHeaders, {
+        ok: false,
+        error: availability.error,
+        reason: availability.reason,
+      });
     }
 
     if (preBooking.status !== 'confirmed') {
@@ -589,6 +603,20 @@ export default async function handler(req, res) {
           return { ok: false, status: 409, error: 'IDEMPOTENCY_RESPONSE_MISSING' };
         }
         return { ok: true, replayed: true, response: stored.response };
+      }
+      const transactionAvailability = checkMoodBookingChangeAvailability(
+        booking.date,
+        booking.startTime,
+        snapshot.date,
+        snapshot.startTime,
+      );
+      if (!transactionAvailability.ok) {
+        return {
+          ok: false,
+          status: 409,
+          error: transactionAvailability.error,
+          reason: transactionAvailability.reason,
+        };
       }
       if (booking.status !== 'confirmed') {
         return { ok: false, status: 409, error: 'BOOKING_NOT_CHANGEABLE' };
@@ -736,6 +764,7 @@ export default async function handler(req, res) {
       return sendJson(res, transactionResult.status || 409, jsonHeaders, {
         ok: false,
         error: transactionResult.error || 'CHANGE_FAILED',
+        ...(transactionResult.reason ? { reason: transactionResult.reason } : {}),
         ...(typeof transactionResult.currentRevision === 'number'
           ? { currentRevision: transactionResult.currentRevision }
           : {}),

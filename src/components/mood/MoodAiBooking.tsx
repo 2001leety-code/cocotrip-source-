@@ -33,6 +33,7 @@ import {
   type MoodAirportCode,
 } from '@/lib/moodPricing';
 import { exceedsWaypointCap, shouldSendRoute, deriveScheduleTiming } from './moodBookingLogic';
+import { isMoodEveningBookingBlocked } from '@/lib/moodBookingAvailability';
 
 // ── 디자인 토큰 (MoodPortal 과 동일 팔레트: dark navy + purple/pink) ──
 const C = {
@@ -166,6 +167,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const [booking, setBooking] = useState(false);
   const [bookMsg, setBookMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([]);
+  const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime);
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -490,6 +492,10 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // ── ⑥ 예약 ──────────────────────────────────────────────
   const handleBook = useCallback(async () => {
     if (!canBook) return;
+    if (eveningBookingBlocked) {
+      setBookMsg({ kind: 'err', text: '선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.' });
+      return;
+    }
     setBooking(true);
     setBookMsg(null);
     try {
@@ -560,7 +566,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } finally {
       setBooking(false);
     }
-  }, [canBook, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
+  }, [canBook, eveningBookingBlocked, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
@@ -989,6 +995,16 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
             </label>
           </div>
 
+          {eveningBookingBlocked && (
+            <p
+              className="rounded-xl px-3 py-2.5 text-xs font-bold"
+              role="alert"
+              style={{ color: '#fecaca', background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.32)' }}
+            >
+              선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+            </p>
+          )}
+
           {/* 이용 시간 — 공항은 정액이라 숨김 */}
           {!isFixedPrice && (
             <div className="flex flex-col gap-1.5">
@@ -1093,11 +1109,11 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
           <button
             type="button"
             onClick={() => { void handleBook(); }}
-            disabled={booking || !canBook}
+            disabled={booking || !canBook || eveningBookingBlocked}
             className="w-full py-3.5 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
             style={{ background: C.accent, color: '#fff' }}
           >
-            {booking ? '예약 중…' : hasBlockingStop ? '🔴 주소 확인 후 예약 가능' : '이대로 예약'}
+            {booking ? '예약 중…' : eveningBookingBlocked ? '오후 6시 이후 예약 불가' : hasBlockingStop ? '🔴 주소 확인 후 예약 가능' : '이대로 예약'}
           </button>
           {bookMsg && (
             <p className="text-xs text-center" style={{ color: bookMsg.kind === 'ok' ? C.ok : C.danger }}>

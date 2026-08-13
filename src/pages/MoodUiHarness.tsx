@@ -45,8 +45,8 @@ const shareData: MoodBookingShareData = {
 
 const changeBooking: ChangeableMoodBooking = {
   id: 'M-1234',
-  date: '2026-08-15',
-  startTime: '09:30',
+  date: '2026-09-10',
+  startTime: '18:30',
   durationHours: 4,
   serviceType: 'vehicle',
   amountKRW: 100000,

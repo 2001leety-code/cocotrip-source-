@@ -42,6 +42,10 @@ import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, normalizeAirpor
 import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { notify } from './_shared/notify.js';
+import {
+  checkMoodBookingAvailability,
+  isValidMoodBookingDate,
+} from './_shared/mood-booking-availability.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -171,6 +175,10 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'date 는 YYYY-MM-DD 형식' }));
   }
+  if (!isValidMoodBookingDate(String(date))) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_DATE' }));
+  }
   if (!TIME_RE.test(String(startTime))) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'startTime 은 HH:mm 형식' }));
@@ -263,6 +271,16 @@ export default async function handler(req, res) {
         res.writeHead(200, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: true, data: saved.responseData }));
       }
+    }
+
+    const availability = checkMoodBookingAvailability(String(date), String(startTime));
+    if (!availability.ok) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({
+        ok: false,
+        error: availability.error,
+        reason: availability.reason,
+      }));
     }
 
     let km = 0;
