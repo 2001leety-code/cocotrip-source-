@@ -242,8 +242,9 @@ keeps the same word from button to confirmation.
 | Community (`/community`, `/community/post/:id`, `/community/new`) — public feed, detail, states and compose shell | this system; post, upload, auth and moderation operations are unchanged |
 | Shared course (`/s/:id`) — public read-only course document and states | this system; public GET contract and local planner handoff are unchanged |
 | Not-found (`api/not-found.js`, app catch-all `*`) — direct server and in-app recovery document | this system; the server keeps HTTP 404 and both surfaces use `noindex, nofollow` |
+| My plans (`/my-plans`) — saved itinerary library and list states | this system; the bookings tab, prices, cancellation and refund controls remain the previous protected money boundary |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
-| Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
+| Tours catalogue (`/tours`), charter, guide, my-page, map, assistant, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -410,6 +411,31 @@ gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
 예상 밖 자체 도메인 4xx/5xx 0 · 쓰기 요청 0. Vercel 함수 묶음과 실제 네트워크 404는 Preview와 Production에서 별도로 확인한다.
 잠금은 `tests/e2e/not-found-editorial.spec.ts`, `tests/unit/not-found-editorial-shell.test.ts`,
 `tests/unit/not-found-editorial-shell.component.test.tsx`와 기존 404 회귀 테스트다.
+
+### 2026-08-13 — `/my-plans` 저장 일정 보관함
+
+저장 일정 목록은 첫 Firestore 구독이 실패해도 `loading=false` 만 설정해 **실패를 “아직 일정 없음”으로
+표시**했고, 다음 페이지를 읽지 못하면 `hasMore=false` 로 바꿔 나머지 일정이 없는 것처럼 끝냈다.
+같은 목록은 다크·그라디언트 셸, 44px 미만 탭, 14px 검색 입력도 함께 남아 있었다.
+
+한 근본원인인 “저장 일정 보관함의 표시 상태 계약 불일치”로 묶어 다음처럼 정리한다.
+
+- 첫 구독은 `EcLoading` → 정상/`EcEmpty`/`EcError` 로 분리한다. 오류에는 같은 구독을 다시 여는
+  명시적 재시도가 있고, 원문 Firebase 오류는 여행자에게 노출하지 않는다.
+- 다음 페이지 실패는 이미 받은 카드를 지우지 않는 부분 오류로 표시하고, 나머지 목록만 다시
+  요청한다. 검색 결과 없음도 검색 지우기 동작이 있는 되돌릴 수 있는 빈 상태이며, 아직 읽지
+  않은 페이지가 있으면 `더 보기`를 유지해 오래된 일정까지 검색 범위를 넓힐 수 있다.
+- 일정 카드는 종이 지면·헤어라인·평면 단색만 사용한다. 탭과 모든 동작은 44px 이상, 검색 입력은
+  16px이다. 탭은 방향키·Home·End와 이름 붙은 패널을 지원하고, 역상 예약 경계에서는 밝은
+  초점선을 사용해 배경과 3:1 이상 대비를 유지한다. 상태·카드 제목·재시도는 ko/en/ja/zh로 표시한다.
+- `/dev/my-plans-editorial`은 `import.meta.env.DEV` 안에서만 존재하는 읽기 전용 화면 하네스다.
+  정상·로딩·빈 목록·오류·부분 오류를 실제 Firestore나 로그인 없이 재현하며 운영 번들에는 없다.
+- `MyBookingsTab` 파일, 예약 조회, 가격, 결제, 변경, 취소, 환불 동작과 문구는 수정하지 않는다.
+  돈과 연결된 그 탭은 별도 승인 전까지 이전 경계 안에 그대로 둔다.
+
+검증은 `tests/unit/my-plans-editorial-shell*.test.*`와
+`tests/e2e/my-plans-editorial.spec.ts`가 상태 분기, 재시도, 부분 자료 유지, 390/768/1440,
+ko/en/ja/zh, 44px/16px, 넘침·그라디언트·운영 쓰기 0을 잠근다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
