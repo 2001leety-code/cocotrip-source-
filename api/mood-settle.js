@@ -25,6 +25,7 @@ import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeMoodTotalKRW, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
+import { buildRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { notify } from './_shared/notify.js';
 import { buildMoodSettlementReceiptEmail } from './_shared/mood-receipt.js';
 import { sendEmail } from './_send-email.js';
@@ -34,12 +35,6 @@ function normalizeWaypoints(raw) {
   if (Array.isArray(raw)) return raw.map((w) => String(w || '').trim()).filter(Boolean);
   if (typeof raw === 'string') return raw.split('|').map((w) => w.trim()).filter(Boolean);
   return [];
-}
-
-function compactPath(path, limit = 600) {
-  if (!Array.isArray(path) || path.length <= limit) return Array.isArray(path) ? path : [];
-  const step = (path.length - 1) / (limit - 1);
-  return Array.from({ length: limit }, (_, index) => path[Math.round(index * step)]);
 }
 
 export const maxDuration = 15;
@@ -292,12 +287,14 @@ export default async function handler(req, res) {
       const route = await computeRoute({ origin: newOrigin, destination: newDest, waypoints: newWaypoints });
       if (
         route.ok
-        && Number.isFinite(Number(route.km))
-        && Number(route.km) >= 0
-        && Number.isFinite(Number(route.tollKRW))
-        && Number(route.tollKRW) >= 0
-        && Number.isFinite(Number(route.durationMin))
-        && Number(route.durationMin) >= 0
+        && typeof route.km === 'number'
+        && Number.isFinite(route.km)
+        && route.km >= 0
+        && Number.isSafeInteger(route.tollKRW)
+        && route.tollKRW >= 0
+        && typeof route.durationMin === 'number'
+        && Number.isFinite(route.durationMin)
+        && route.durationMin >= 0
       ) {
         km = route.km;
         tollKRW = route.tollKRW;
@@ -307,14 +304,7 @@ export default async function handler(req, res) {
           waypoints: newWaypoints.length ? newWaypoints : null,
           recomputed: true,
         };
-        finalRouteSnapshot = {
-          km: route.km,
-          tollKRW: route.tollKRW,
-          durationMin: route.durationMin,
-          path: compactPath(route.path),
-          points: route.points || [],
-          calculatedAt: Date.now(),
-        };
+        finalRouteSnapshot = buildRouteSnapshot(route);
       } else {
         // 경로 재측정 실패 = 비치명적 → 예약 시 거리값 유지 (외상 "막지 않는다" 철학과 일관).
         routeError = route.error || 'INVALID_ROUTE_RESULT';

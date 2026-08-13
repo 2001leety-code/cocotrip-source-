@@ -20,6 +20,7 @@ import {
   MOOD_MAX_DURATION_HOURS,
 } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
+import { buildRouteSnapshot, decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { notify } from './_shared/notify.js';
 
 export const maxDuration = 15;
@@ -286,12 +287,6 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function compactPath(path, limit = 600) {
-  if (!Array.isArray(path) || path.length <= limit) return Array.isArray(path) ? path : [];
-  const step = (path.length - 1) / (limit - 1);
-  return Array.from({ length: limit }, (_, index) => path[Math.round(index * step)]);
-}
-
 function routeFailure(route) {
   return {
     ok: false,
@@ -304,13 +299,36 @@ function isValidComputedRoute(route) {
   return Boolean(
     route
     && route.ok
-    && Number.isFinite(Number(route.km))
-    && Number(route.km) >= 0
-    && Number.isFinite(Number(route.tollKRW))
-    && Number(route.tollKRW) >= 0
-    && Number.isFinite(Number(route.durationMin))
-    && Number(route.durationMin) >= 0,
+    && typeof route.km === 'number'
+    && Number.isFinite(route.km)
+    && route.km >= 0
+    && Number.isSafeInteger(route.tollKRW)
+    && route.tollKRW >= 0
+    && typeof route.durationMin === 'number'
+    && Number.isFinite(route.durationMin)
+    && route.durationMin >= 0,
   );
+}
+
+/** 멱등 문서에는 저장형을 유지하고, HTTP 경계에서만 기존 지도 계약으로 되돌린다. */
+function publicResponse(response) {
+  const booking = response && response.data && response.data.booking;
+  if (!booking || typeof booking !== 'object' || Array.isArray(booking)) return response;
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      booking: {
+        ...booking,
+        ...(Object.prototype.hasOwnProperty.call(booking, 'routeSnapshot')
+          ? { routeSnapshot: decodeRouteSnapshot(booking.routeSnapshot) }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(booking, 'finalRouteSnapshot')
+          ? { finalRouteSnapshot: decodeRouteSnapshot(booking.finalRouteSnapshot) }
+          : {}),
+      },
+    },
+  };
 }
 
 async function priceSnapshot(snapshot) {
@@ -377,16 +395,11 @@ async function priceSnapshot(snapshot) {
     return { ok: false, error: 'INVALID_PRICING_RESULT' };
   }
 
-  const routeKm = route && route.ok ? Math.max(0, Number(route.km) || 0) : 0;
-  const durationMin = route && route.ok ? Math.max(0, Number(route.durationMin) || 0) : 0;
-  const routeSnapshot = route && route.ok ? {
-    km: routeKm,
-    tollKRW: Math.max(0, Number(route.tollKRW) || 0),
-    durationMin,
-    path: compactPath(route.path),
-    points: Array.isArray(route.points) ? route.points : [],
-    calculatedAt: Date.now(),
-  } : null;
+  const routeKm = route && route.ok ? route.km : 0;
+  const durationMin = route && route.ok ? route.durationMin : 0;
+  // 🔴 멱등 doc 에 들어갈 내부 응답은 저장형(path = [{lng,lat}])을 유지한다.
+  //   HTTP로 보낼 복사본만 publicResponse에서 공개형으로 바꾼다. (2026-08-13 장애)
+  const routeSnapshot = route && route.ok ? buildRouteSnapshot(route) : null;
   return {
     ok: true,
     amountKRW: priced.amountKRW,
@@ -524,7 +537,7 @@ export default async function handler(req, res) {
         isAdmin,
         payloadHash,
       });
-      if (replay.ok) return sendJson(res, 200, jsonHeaders, replay.response);
+      if (replay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(replay.response));
       return sendJson(res, replay.status || 409, jsonHeaders, { ok: false, error: replay.error || 'IDEMPOTENCY_CONFLICT' });
     }
 
@@ -746,7 +759,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return sendJson(res, 200, jsonHeaders, transactionResult.response);
+    return sendJson(res, 200, jsonHeaders, publicResponse(transactionResult.response));
   } catch (error) {
     console.error('[mood-change] failed:', error && error.message ? error.message : error);
     await captureError(error, { route: '/api/mood-change', email, bookingId });
