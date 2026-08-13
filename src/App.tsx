@@ -260,7 +260,7 @@ function AnimatedRoutes() {
           <Route path="/region/:regionId" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
           {/* 경로 지도 — 내 플랜 day 별 동선 (비로그인/플랜없음 빈 상태 포함, 게스트 접근 허용) */}
-          <Route path="/map" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MapPage /></Suspense>} />
+          <Route path="/map" element={<Suspense fallback={ROUTE_FALLBACK}><MapPage /></Suspense>} />
           {/* AI 어시스턴트 전면 화면 — 비로그인은 페이지 내 로그인 게이트 (위젯과 동일 정책) */}
           <Route path="/assistant" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><AssistantPage /></Suspense>} />
           {/* 모바일 v2 미리보기 — 로컬(DEV) 검수 전용. prod 는 라우트 자체 미등록(2026-07-19, 혼동 방지). */}
