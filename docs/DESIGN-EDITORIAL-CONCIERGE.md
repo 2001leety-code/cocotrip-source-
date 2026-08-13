@@ -3,7 +3,7 @@
 > Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail + assistant + not-found)**.
 > The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
 > dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
-> `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId`, `/assistant` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
+> `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId`, `/assistant`, `/map` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
 > follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
@@ -246,8 +246,9 @@ keeps the same word from button to confirmation.
 | Not-found (`api/not-found.js`, app catch-all `*`) — direct server and in-app recovery document | this system; the server keeps HTTP 404 and both surfaces use `noindex, nofollow` |
 | My plans (`/my-plans`) — saved itinerary library and list states | this system; the bookings tab, prices, cancellation and refund controls remain the previous protected money boundary |
 | Assistant (`/assistant`) — signed-out access, conversation, reply-loading and sign-in-error presentation | this system; authentication, analytics and `/api/chat` behavior are unchanged |
+| Map (`/map`) — saved itinerary route document and read states | this system; authentication, Firestore paths and queries, itinerary data, map provider and explicit route lookup behavior are unchanged |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
-| Tours catalogue (`/tours`), charter, guide, my-page, map, admin | previous dark system + `.refined-*` |
+| Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -460,6 +461,30 @@ gradient·blur·shadow에 의존했다. 인증·채팅·분석 동작은 그대�
 `tests/e2e/assistant-editorial.spec.ts`와
 `tests/unit/assistant-editorial-shell.component.test.tsx`다. `useChatSession`, 로그인 제공자,
 `/api/chat`, `/api/chat-poll`, 분석 이벤트, FAQ 질문 내용은 변경하지 않았다.
+
+### 2026-08-14 — `/map` 저장 일정 경로 문서
+
+지도 화면은 모바일 전용 밝은 덧칠과 데스크톱 다크 본문이 서로 다른 셸을 사용했고, Firestore 읽기
+실패를 빈 목록이나 좌표 없음으로 숨겼다. 저장 자료·권한·지도 호출은 그대로 두고 **읽은 결과를
+보여 주는 지면과 상태 계약만** 하나로 합쳤다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 모바일과 데스크톱이 다른 DOM·색 체계를 쓰고 제목 아이콘·CTA·선택 칩에 장식 배경 사용 | 390/768/1440이 같은 종이·잉크·hairline DOM 사용. 공용 헤더도 이 경로에서는 불투명 단색이며 계산된 장식 배경·glass 0 |
+| 플랜 목록·선택 문서 읽기 실패를 빈 목록·좌표 없음으로 표시 | `EcLoading`·`EcEmpty`·`EcError`로 loading, empty, error/retry, permission, not-found를 분리하고 좌표 부족은 중립 partial 상태로 분리 |
+| 제목에 브랜드를 직접 붙여 `Route Map — CocoTrip | CocoTrip`으로 중복 | 메타 훅에는 페이지 제목만 전달해 네 언어 모두 브랜드 1회 |
+| 플랜·날짜 칩이 44px 미만이고 날짜가 모든 언어에서 영어 `Day` | 모든 조작 44px 이상. 영어 `Day 1`, 한국어 `1일차`, 일본어 `1日目`, 중국어 `第1天`이며 날짜 탭은 방향키·Home·End로 선택과 초점이 함께 이동 |
+| 정상 로그아웃 화면만 실측하고 실패·권한·부분 자료를 재현할 수 없음 | 개발 모드 전용 8상태 fixture. 운영 번들에서는 query가 무시되며 인증·Firestore를 우회하지 않음 |
+
+기존 `users/{uid}/plans` 최근 10건 읽기·ready 5건 표시와 `plans/{selectedPlanId}` 본문 읽기 경로는
+그대로다. `DayRouteMap`의 지도 제공자, 네이버 링크, 사용자가 명시적으로 누를 때만 실행되는
+`/api/course-route`도 변경하지 않았고 Firestore 쓰기는 추가하지 않았다.
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh × 8상태): **96상태 + 실제 로그아웃 경로 1회**.
+가로 넘침 0 · 44px 미만 조작 0(지도 출처의 문장 안 링크 예외) · 계산된 장식 배경/glass 0 ·
+앱/콘솔 오류 0 · 자체 도메인 4xx/5xx 0 · 쓰기 요청 0 · 페이지 제목 브랜드 중복 0.
+잠금은 `tests/e2e/map-editorial.spec.ts`,
+`tests/unit/map-editorial-shell.component.test.tsx`, 기존 공개 문구 회귀 테스트다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
