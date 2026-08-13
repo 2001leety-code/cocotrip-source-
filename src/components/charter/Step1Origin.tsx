@@ -117,6 +117,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       <button
         key={code}
         type="button"
+        data-origin-code={code}
         onClick={() => patch({
           origin: code,
           originCustom: undefined,

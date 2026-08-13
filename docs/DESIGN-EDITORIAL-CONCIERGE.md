@@ -1,14 +1,17 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + the planner journey)**. Tours,
-> charter, guide and community bodies still run on the previous dark system and are
-> converted in a later PR. Read "Migration state" before assuming a page follows this
-> document.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community)**.
+> The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
+> dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
+> `/community/post/:id` and `/community/new` now follow this document. Read "Migration state" before assuming a page
+> follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
 (`ec-*` utilities), plus `src/styles/editorial-planner.css` for the planner's own layer-3
 component tokens. Hex values live in the CSS files — do not restate them in components,
 and do not restate them here beyond the reference table below.
+`src/styles/editorial-community.css` is the route-scoped migration layer for the public
+community body; it does not style the moderation app.
 
 ---
 
@@ -226,8 +229,10 @@ keeps the same word from button to confirmation.
 | Header, mobile menu, bottom nav, footer, cookie banner | this system |
 | Home (`/`), all breakpoints | this system |
 | Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
-| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner and the guide. Page bodies still on the dark system carry their own states |
-| Tours, charter, guide, community, my-page, admin | previous dark system + `.refined-*` |
+| Tour detail (`/tours/:slug`) — public non-payment body, all breakpoints | this system; booking, price and refund controls remain the previous protected money boundary |
+| Community (`/community`, `/community/post/:id`, `/community/new`) — public feed, detail, states and compose shell | this system; post, upload, auth and moderation operations are unchanged |
+| Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
+| Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -271,6 +276,62 @@ Popular 칩 0 · 영어 누출 0 · 가로 넘침 0. 근거는 `tests/screenshot
 새 gradient·glow·glass 는 넣지 않았다. 기존 다크 시스템의 그라디언트는 `.refined-tours` 와 함께
 그 페이지가 전환될 때 사라진다 — 여기서 부분적으로 걷어내면 보정 cascade 가 한 겹 더 생긴다.
 
+### 2026-08-12 — `/tours/:slug` 공개 비결제 상세
+
+같은 상세 화면이 모바일에서는 밝은 별도 덧칠, 데스크톱에서는 이전 다크 몸통을 써서 구조와 상태
+계약이 갈라져 있었다. 이를 **한 반응형 종이 셸**로 합쳤다. 결제 바깥 본문만 바꾸고 예약·가격·환불
+경계는 그대로 둔다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| `useTour` 의 loading/error/source 가 화면에서 사라져 실패도 404처럼 보임 | loading · error/retry · permission · not-found · partial-data · empty-itinerary 를 공용 `EcLoading`/`EcError`/`EcEmpty` 로 분리 |
+| 모바일 밝은 override와 데스크톱 다크 본문이 서로 다른 정보 구조 | breadcrumb → masthead → gallery → facts → overview → itinerary → meeting/FAQ/reviews 순서의 한 지면. 390/768/1440 모두 같은 DOM과 토큰 사용 |
+| 지역명이 원문 `tour.region` 으로 새어 ko/ja/zh 에 영어 표시 | 기존 `TOUR_REGIONS` 4언어 사전으로 표시하고 상품 데이터는 변경하지 않음 |
+| 갤러리·FAQ·지도 조작이 44px 미만이고 빈 일정이 오류처럼 보임 | 공개 비결제 조작과 Leaflet 확대/축소 44px 이상, 빈 일정은 중립 empty 상태 |
+| 정상 화면만 눈으로 확인해 실패·부분 데이터 회귀가 잠기지 않음 | localhost 전용 결정적 fixture. 운영 주소에서는 query가 무시되어 실제 데이터 경로를 우회하지 않음 |
+| 모든 투어에 가이드 동행을 암시하던 공용 신뢰 배지와 출처보다 강한 후기 문구 | 상품마다 가이드 포함 여부가 다르고 내부 후기 작성에 예약 번호가 필수가 아니므로 제거. 실제 집계 출처 칩만 표시 |
+| 이전 다크 본문을 전제로 투명하게 끝나던 고정 예약 바 상단 | 밝은 지면에서도 배지·예약 마감 문구가 읽히도록 두 줄 뒤에 불투명 단색 받침만 추가. 가격·예약·환불 동작과 문구는 그대로 |
+
+측정(로컬 production preview): 9개 정적 공개 투어 × 390/768/1440 × ko/en/ja/zh = 108회,
+대표 투어 7상태 × 같은 12조합 = 84회, 합계 **192회**. 문서 200 · 가로 넘침 0 · 본문
+44px 미만 조작 0 · 앱 페이지 오류 0 · 자체 도메인 4xx/5xx 0 · 운영 변경 요청 0.
+잠금은 `tests/e2e/tour-detail-editorial.spec.ts` 와
+`tests/unit/tour-detail-editorial-shell.test.ts` 다. 가격·상품·PayPal·예약·환불의 의미와 동작은 변경하지 않았다.
+
+### 2026-08-12 — `/charter` Step 3 표시 언어
+
+차터 몸통은 아직 이전 다크 시스템이다. 이 패스는 가격·상품·결제 구조를 바꾸지 않고, 목적지를
+고르는 Step 3의 표시 계층만 바로잡는다. 가격 자료가 `ko/en` 이름만 갖고 있어서 일본어·중국어가
+영어로 접히고, 장거리 경로는 네 언어 모두 `GANGNEUNG` 같은 내부 키가 그대로 보였다.
+
+- `destinationDisplayLabels.ts`가 공항 권역, 당일 투어, 장거리 도시, 공연장 이름을 네 언어로 표시한다.
+- 기존 `destinationKey`, 가격, 거리, 시간, 결제 상품 코드는 그대로 유지한다.
+- 긴 현지어 이름은 모바일에서 두 줄까지 보이고, 제목 영역은 늘 두 줄 높이를 유지한다. 카드 높이는 72px라 44px 터치 기준을 넘는다.
+- `tests/unit/charter-destination-i18n.component.test.tsx`가 현재 가격 자료의 카드 수, 원래 선택 키,
+  ko/en 회귀, ja/zh 영어 fallback 제거를 함께 잠근다.
+
+### 2026-08-13 — `/community`·`/community/post/:id`·`/community/new` 공개 셸
+
+공개 커뮤니티만 자체 레거시 셸을 유지해 공용 상태·접근성 계약과 갈라져 있었다. 글 조회·작성·업로드·
+인증·신고의 동작은 그대로 두고, **표시 계층과 결정적 로컬 검증 경로만** 이 문서의 지면으로 옮겼다.
+운영 주소에서는 `__fixture=compose`가 무시되므로 로그인이나 쓰기 경로를 우회하지 않는다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 피드 loading은 이름 없는 spinner, empty/error는 페이지 안쪽 임시 카드 | `EcLoading`·`EcEmpty`·`EcError`로 통일하고 loading `aria-busy`, 빈 화면 CTA, 오류 재시도를 명시 |
+| 자체 헤더·토픽·탭·글 액션이 30~43px, 검색·댓글·작성 입력이 12~13px | 공개 조작 44px 이상, 실제 입력 16px 이상. 390/768/1440이 같은 DOM과 토큰 사용 |
+| CTA·상품 연결 카드·모바일 작성 아이콘의 gradient, 헤더와 하단탭의 glass | 로고 이미지만 기존 gradient. 나머지는 단색 종이·잉크·hairline이며 blur/glow 없음 |
+| `CocoTrip Together`, 소유자 삭제와 좋아요 이름, 댓글 삭제가 영어로 고정 | ko/en/ja/zh route-local 사전으로 화면 문구와 접근성 이름을 함께 제공 |
+| 작성 화면이 인증 확인 전에 로그인 요구를 번쩍 표시하고 서버 오류 원문을 노출 | 인증 확인 상태를 먼저 표시하고 여행자용 실패 문구만 노출. 개발 모드 전용 무쓰기 작성 fixture로 실제 폼을 검증 |
+| 신고 선택·작성 종류가 모양만 선택지이고 신고창이 키보드 닫기·첫 포커스 없음 | `radiogroup`/`radio`·`aria-checked`·화살표 이동, 첫 포커스·초점 가두기/복귀, Escape 닫기를 명시 |
+| 글 상세의 일시 오류와 실제 404가 같은 안내로 끝남 | 일시 오류는 재시도, 404는 없는 글 안내로 분리하고 같은 공용 상태 계약 사용 |
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh): 피드 normal/loading/empty/error + 로그아웃 작성
+**60회**, 개발 전용 실제 작성 폼 1회. 가로 넘침 0 · 44px 미만 공개 조작 0 · 16px 미만 입력 0 ·
+gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
+`tests/e2e/community-editorial.spec.ts`와
+`tests/unit/community-editorial-shell.component.test.tsx`다.
+
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
 앞 문단의 "Open item — shared header touch targets (P3)" 는 **해소**됐다. 같은 뿌리에서
@@ -301,7 +362,6 @@ own-origin 4xx/5xx 0 · own-origin console error 0.** 잠금은
 |---|---|
 | `/` 목적지 레일 | "지도에서 열기" 링크 14×14 (15개) |
 | `/tours` | 필터 `select` font-size 11px (16px 미만 → iOS 확대) |
-| `/community` | 자체 헤더·필터칩·정렬 탭 32~43px, 검색 `input` 13px |
 | `/charter` | 안내 링크 30px·15px |
 | 전역 쿠폰 모달(`OnboardingCouponModal`) | `ec-btn-sm` 36px — 쿠폰 화면이라 별도 PR |
 | 페이지별 skeleton | 라우트 폴백은 공용 masthead 모양이다. 화면별 skeleton 은 그 페이지가 전환될 때 |

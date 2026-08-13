@@ -77,6 +77,34 @@ function applyUpdate(target, patch, nowMs) {
   return target;
 }
 
+/** 배열 안에 배열이 있으면 Firestore 는 문서를 통째로 거부한다. */
+function containsNestedArray(value, inArray) {
+  if (Array.isArray(value)) {
+    if (inArray) return true;
+    return value.some((item) => containsNestedArray(item, true));
+  }
+  if (isPlainObject(value)) return Object.values(value).some((item) => containsNestedArray(item, false));
+  return false;
+}
+
+/**
+ * 실제 Firestore 서버가 거부하는 모양을 테스트 대역도 거부한다.
+ *
+ * 🔴 2026-08-13 MOOD 장애: routeSnapshot.path 가 `[[lng,lat], ...]` 였다.
+ *   서버는 `3 INVALID_ARGUMENT: Property routeSnapshot contains an invalid nested
+ *   entity.` 로 트랜잭션을 통째로 깼는데, 관대한 테스트 대역은 그냥 저장해줘서
+ *   전 테스트가 초록이었다. 대역이 서버보다 관대하면 prod 만 죽는다.
+ *   (클라이언트 SDK 의 validateUserInput 도 중첩 배열은 안 잡는다 — 서버만 잡는다.)
+ */
+export function assertFirestoreSafe(data) {
+  if (!isPlainObject(data)) return;
+  for (const [key, value] of Object.entries(data)) {
+    if (containsNestedArray(value, false)) {
+      throw new Error(`3 INVALID_ARGUMENT: Property ${key} contains an invalid nested entity.`);
+    }
+  }
+}
+
 class NotFound extends Error {
   constructor(path) {
     super(`NOT_FOUND: no document to update: ${path}`);
@@ -88,6 +116,7 @@ export function createFakeFirestore(seed = {}, options = {}) {
   /** path -> { data, version } */
   const store = new Map();
   let clock = options.startMs || 1_800_000_000_000;
+  let autoId = 0;
   const stats = { commits: 0, retries: 0, transactions: 0, reads: 0, writes: 0 };
 
   for (const [path, data] of Object.entries(seed)) {
@@ -111,6 +140,7 @@ export function createFakeFirestore(seed = {}, options = {}) {
   const commitWrite = (path, op) => {
     const rec = store.get(path);
     if (op.kind === 'delete') { store.delete(path); return; }
+    assertFirestoreSafe(op.data);
     if (op.kind === 'update' && !rec) throw new NotFound(path);
     if (op.kind === 'set' && !op.merge) {
       store.set(path, { data: mergeInto({}, op.data, now()), version: (rec?.version || 0) + 1 });
@@ -134,30 +164,31 @@ export function createFakeFirestore(seed = {}, options = {}) {
     async delete() { commitWrite(path, { kind: 'delete' }); },
   });
 
-  const collectionApi = (col, filters = []) => ({
-    doc: (id) => docApi(`${col}/${id}`),
+  const collectionApi = (col, filters = [], order = null, max = null) => ({
+    // 실제 Firestore 처럼 인자 없는 doc() 은 새 id 를 미리 발급한다 (mood-book 이 이렇게 쓴다).
+    doc: (id) => docApi(`${col}/${id === undefined ? `auto-${(autoId += 1)}` : id}`),
     where: (field, op, value) => {
       if (op !== '==') throw new Error(`fake-firestore: unsupported operator ${op}`);
-      return collectionApi(col, [...filters, { field, value }]);
+      return collectionApi(col, [...filters, { field, value }], order, max);
     },
-    limit(n) {
-      const self = collectionApi(col, filters);
-      const orig = self.get;
-      self.get = async () => {
-        const r = await orig();
-        const docs = r.docs.slice(0, n);
-        return { empty: docs.length === 0, size: docs.length, docs };
-      };
-      return self;
-    },
+    orderBy: (field, direction = 'asc') => collectionApi(col, filters, { field, direction }, max),
+    limit: (n) => collectionApi(col, filters, order, n),
     async get() {
       stats.reads += 1;
-      const docs = [...store.entries()]
+      let entries = [...store.entries()]
         .filter(([p]) => p.startsWith(`${col}/`))
         // Firestore equality 쿼리는 명시 정렬이 없으면 __name__ ASC 로 나온다.
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .filter(([, rec]) => filters.every((f) => rec.data?.[f.field] === f.value))
-        .map(([p]) => snapshotOf(p));
+        .filter(([, rec]) => filters.every((f) => rec.data?.[f.field] === f.value));
+      if (order) {
+        const sign = order.direction === 'desc' ? -1 : 1;
+        entries = entries.sort(([, a], [, b]) => {
+          const l = a.data?.[order.field];
+          const r = b.data?.[order.field];
+          return l < r ? -sign : l > r ? sign : 0;
+        });
+      }
+      const docs = (max === null ? entries : entries.slice(0, max)).map(([p]) => snapshotOf(p));
       return { empty: docs.length === 0, size: docs.length, docs };
     },
   });
@@ -222,6 +253,11 @@ export function createFakeFirestore(seed = {}, options = {}) {
           stats.retries += 1;
           if (attempt === maxAttempts) throw new Error('ABORTED: too much contention');
           continue;
+        }
+        // 실제 Firestore 는 한 write 라도 직렬화에 실패하면 트랜잭션 전체를 커밋하지 않는다.
+        // 먼저 전부 검증해, 뒤 write 실패 뒤 앞 write 만 남는 가짜 부분 커밋을 막는다.
+        for (const [, op] of pending) {
+          if (op.kind !== 'delete') assertFirestoreSafe(op.data);
         }
         for (const [p, op] of pending) commitWrite(p, op);
         stats.commits += 1;

@@ -40,6 +40,7 @@ import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, normalizeAirportCode, MOOD_AIRPORT_LABEL, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
+import { buildRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { notify } from './_shared/notify.js';
 import {
   checkMoodBookingAvailability,
@@ -60,12 +61,6 @@ function normalizeWaypoints(wp) {
   if (Array.isArray(wp)) return wp.map((w) => String(w || '').trim()).filter(Boolean);
   if (typeof wp === 'string') return wp.split('|').map((w) => w.trim()).filter(Boolean);
   return [];
-}
-
-function compactPath(path, limit = 600) {
-  if (!Array.isArray(path) || path.length <= limit) return Array.isArray(path) ? path : [];
-  const step = (path.length - 1) / (limit - 1);
-  return Array.from({ length: limit }, (_, index) => path[Math.round(index * step)]);
 }
 
 function isValidComputedRoute(route) {
@@ -304,14 +299,7 @@ export default async function handler(req, res) {
           ]);
           if (isValidComputedRoute(viaRoute) && isValidComputedRoute(directRoute)) {
             airportDetourKm = Math.max(0, viaRoute.km - directRoute.km);
-            routeSnapshot = {
-              km: viaRoute.km,
-              tollKRW: viaRoute.tollKRW,
-              durationMin: viaRoute.durationMin,
-              path: compactPath(viaRoute.path),
-              points: viaRoute.points || [],
-              calculatedAt: Date.now(),
-            };
+            routeSnapshot = buildRouteSnapshot(viaRoute);
           } else {
             res.writeHead(422, JSON_HEADERS);
             return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
@@ -322,28 +310,14 @@ export default async function handler(req, res) {
             res.writeHead(422, JSON_HEADERS);
             return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
           }
-          routeSnapshot = {
-            km: directRoute.km,
-            tollKRW: directRoute.tollKRW,
-            durationMin: directRoute.durationMin,
-            path: compactPath(directRoute.path),
-            points: directRoute.points || [],
-            calculatedAt: Date.now(),
-          };
+          routeSnapshot = buildRouteSnapshot(directRoute);
         }
       } else {
         const route = await computeRoute({ origin, destination, waypoints });
         if (isValidComputedRoute(route)) {
           km = route.km;
           tollKRW = route.tollKRW;
-          routeSnapshot = {
-            km: route.km,
-            tollKRW: route.tollKRW,
-            durationMin: route.durationMin,
-            path: compactPath(route.path),
-            points: route.points || [],
-            calculatedAt: Date.now(),
-          };
+          routeSnapshot = buildRouteSnapshot(route);
         } else {
           res.writeHead(422, JSON_HEADERS);
           return res.end(JSON.stringify({ ok: false, error: 'ROUTE_CALCULATION_FAILED' }));
