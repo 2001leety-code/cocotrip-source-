@@ -1,9 +1,9 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail + not-found)**.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail + assistant + not-found)**.
 > The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
 > dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
-> `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
+> `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId`, `/assistant` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
 > follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
@@ -17,6 +17,8 @@ public shared courses; it does not change course creation or storage.
 `src/styles/editorial-region.css` is the route-scoped public region layer; it keeps the
 existing region facts, product-derived tour details and links while replacing the split
 mobile/desktop skins with one responsive document.
+`src/styles/editorial-assistant.css` is the route-scoped assistant presentation layer; it
+does not change authentication, analytics or chat request behavior.
 `src/lib/notFoundEditorial.js` is the shared copy, language and self-contained visual contract
 for both the real server 404 and the in-app catch-all page. It is the one deliberate CSS-string
 exception: a real error response must render correctly without depending on the app bundle or
@@ -243,8 +245,9 @@ keeps the same word from button to confirmation.
 | Shared course (`/s/:id`) — public read-only course document and states | this system; public GET contract and local planner handoff are unchanged |
 | Not-found (`api/not-found.js`, app catch-all `*`) — direct server and in-app recovery document | this system; the server keeps HTTP 404 and both surfaces use `noindex, nofollow` |
 | My plans (`/my-plans`) — saved itinerary library and list states | this system; the bookings tab, prices, cancellation and refund controls remain the previous protected money boundary |
+| Assistant (`/assistant`) — signed-out access, conversation, reply-loading and sign-in-error presentation | this system; authentication, analytics and `/api/chat` behavior are unchanged |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
-| Tours catalogue (`/tours`), charter, guide, my-page, map, assistant, admin | previous dark system + `.refined-*` |
+| Tours catalogue (`/tours`), charter, guide, my-page, map, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -436,6 +439,27 @@ gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
 검증은 `tests/unit/my-plans-editorial-shell*.test.*`와
 `tests/e2e/my-plans-editorial.spec.ts`가 상태 분기, 재시도, 부분 자료 유지, 390/768/1440,
 ko/en/ja/zh, 44px/16px, 넘침·그라디언트·운영 쓰기 0을 잠근다.
+
+### 2026-08-14 — `/assistant` 여행 질문 지면
+
+전면 여행 도우미는 430px 모바일 열을 데스크톱에도 그대로 늘여 놓고, 24~40px 조작과 13px 입력,
+gradient·blur·shadow에 의존했다. 인증·채팅·분석 동작은 그대로 두고 **화면 구조와 상태·접근성
+계약만** 한 반응형 종이 지면으로 합쳤다.
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 390px용 한 열을 768/1440에서도 사용해 넓은 화면 대부분이 빈 공간 | 로그인 전은 안내와 로그인 카드, 로그인 후는 대화와 자주 묻는 질문의 편집형 격자. 959px 아래에서는 같은 DOM이 한 열로 접힘 |
+| 뒤로가기 36px, 언어 24.5px, 전송 40px, 메시지 입력 13px | 공개 조작 44px 이상, 메시지 입력 16px. 언어 묶음과 현재 언어를 이름·`aria-pressed`로 명시 |
+| 대화 목록과 답변 준비 상태가 이름 없이 보이고, 자동 이동이 문서 전체를 움직일 수 있음 | 이름 있는 `role=log`·`aria-busy`, 읽히는 `role=status`. 새 메시지는 대화칸 내부만 이동 |
+| 로그인 오류가 작은 빨간 글씨로만 표시되고 로딩·정상·오류 화면을 로그인/AI 없이 재현할 수 없음 | 오류 `role=alert`. 개발 모드 전용 `signed-out`·`ready`·`loading`·`auth-error` 하네스는 인증·분석·채팅 요청을 끄고 운영 번들에서는 query를 무시 |
+| 헤더·버튼·말풍선에 로고 밖 gradient, blur, glow 성격의 그림자 | 종이·잉크·hairline·단색 브랜드 토큰만 사용. 강제 색상과 모션 줄이기에도 초점·상태 유지 |
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh × 4상태): **48상태 + 실제 로그인 전 경로 1회 + 390px 긴 대화 자동 이동 1회**. 가로 넘침 0 ·
+44px 미만 조작 0 · 16px 미만 입력 0 · 계산된 gradient/glass 0 · 앱/콘솔 오류 0 ·
+쓰기 요청 0 · 페이지 제목 브랜드 중복 0. 대표 화면을 별도로 눈검수했다. 잠금은
+`tests/e2e/assistant-editorial.spec.ts`와
+`tests/unit/assistant-editorial-shell.component.test.tsx`다. `useChatSession`, 로그인 제공자,
+`/api/chat`, `/api/chat-poll`, 분석 이벤트, FAQ 질문 내용은 변경하지 않았다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
