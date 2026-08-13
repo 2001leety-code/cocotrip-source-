@@ -1,9 +1,9 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail)**.
+> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail + not-found)**.
 > The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
 > dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
-> `/community/post/:id`, `/community/new` and `/s/:id` now follow this document. Read "Migration state" before assuming a page
+> `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
 > follows this document.
 
 Code SSOT: `src/styles/editorial.css` (three token layers) and `tailwind.config.js`
@@ -17,6 +17,10 @@ public shared courses; it does not change course creation or storage.
 `src/styles/editorial-region.css` is the route-scoped public region layer; it keeps the
 existing region facts, product-derived tour details and links while replacing the split
 mobile/desktop skins with one responsive document.
+`src/lib/notFoundEditorial.js` is the shared copy, language and self-contained visual contract
+for both the real server 404 and the in-app catch-all page. It is the one deliberate CSS-string
+exception: a real error response must render correctly without depending on the app bundle or
+a second asset request.
 
 ---
 
@@ -237,6 +241,7 @@ keeps the same word from button to confirmation.
 | Tour detail (`/tours/:slug`) — public non-payment body, all breakpoints | this system; booking, price and refund controls remain the previous protected money boundary |
 | Community (`/community`, `/community/post/:id`, `/community/new`) — public feed, detail, states and compose shell | this system; post, upload, auth and moderation operations are unchanged |
 | Shared course (`/s/:id`) — public read-only course document and states | this system; public GET contract and local planner handoff are unchanged |
+| Not-found (`api/not-found.js`, app catch-all `*`) — direct server and in-app recovery document | this system; the server keeps HTTP 404 and both surfaces use `noindex, nofollow` |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
 | Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
 
@@ -380,6 +385,27 @@ gradient 0 · 앱/콘솔 오류 0 · 쓰기 요청 0. 잠금은
 `RegionSeoInfo`의 가격·상품·환불 의미는 변경하지 않았다. 잠금은
 `tests/e2e/region-editorial.spec.ts`, `tests/unit/region-editorial-shell.test.ts`,
 `tests/unit/region-editorial-shell.component.test.tsx`다.
+
+### 2026-08-13 — 서버·앱 404 공용 복구 문서
+
+존재하지 않는 주소를 직접 열면 서버의 어두운 영문 전용 화면이 나오고, 앱 안에서 잘못된 주소로
+이동하면 네 언어 종이 화면이 나와 같은 오류가 서로 다른 서비스처럼 보였다. 실제 HTTP 상태와
+검색 제외 정책은 그대로 두고, **문구·언어 판정·복구 동선·시각·접근성 계약을 한 원본으로 합쳤다.**
+
+| 남아 있던 것 | 지금 |
+|---|---|
+| 직접 주소는 영문 한 언어·다크 배경·gradient CTA·홈 링크 하나, 앱 404는 별도 문구와 세 링크 | 두 화면 모두 ko/en/ja/zh, 같은 404 지면과 홈·투어·차량 복구 링크 3개. 서버 화면에는 언어 선택 4개 추가 |
+| 서버와 앱의 제목·설명·복구 문구가 각각 관리되어 다시 어긋날 수 있음 | `src/lib/notFoundEditorial.js` 한 곳에서 문구·언어·CSS·서버 HTML을 제공하고 앱도 같은 원본 사용 |
+| 앱 404는 `noindex, follow`, 서버는 `noindex, nofollow` | 둘 다 `noindex, nofollow`; 직접 주소는 HTTP 404와 `X-Robots-Tag`를 그대로 유지 |
+| 키보드 초점·44px 조작·가로 넘침·계산된 gradient를 두 화면에서 함께 확인하지 않음 | 서버와 앱을 같은 검사로 묶어 44px 조작, 보이는 초점 고리, 넘침·gradient·glass·쓰기 요청 0을 잠금 |
+
+측정(로컬 Vite + 실제 404 핸들러 응답 하네스, 390/768/1440 × ko/en/ja/zh × 서버·앱): **24화면**.
+핸들러 생성 404 상태 12/12 ·
+네 언어 제목 24/24 · 복구 링크 3개 24/24 · 가로 넘침 0 · 44px 미만 조작 0 ·
+계산된 gradient/glass 0 · 의도된 주 문서 404 진단 외 예상 밖 콘솔 오류 0 ·
+예상 밖 자체 도메인 4xx/5xx 0 · 쓰기 요청 0. Vercel 함수 묶음과 실제 네트워크 404는 Preview와 Production에서 별도로 확인한다.
+잠금은 `tests/e2e/not-found-editorial.spec.ts`, `tests/unit/not-found-editorial-shell.test.ts`,
+`tests/unit/not-found-editorial-shell.component.test.tsx`와 기존 404 회귀 테스트다.
 
 ### 2026-08-11 — 공통 상태 + 전역 셸 (한 근본원인)
 
