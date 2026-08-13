@@ -26,6 +26,10 @@ const notFoundSrc = readFileSync(
   resolve(process.cwd(), 'src/pages/NotFoundPage.tsx'),
   'utf8',
 );
+const sharedSrc = readFileSync(
+  resolve(process.cwd(), 'src/lib/notFoundEditorial.js'),
+  'utf8',
+);
 
 describe('PR #446 W-H18 — App.tsx catch-all 404 route', () => {
   it('lazy-imports NotFoundPage', () => {
@@ -51,9 +55,9 @@ describe('PR #446 W-H18 — App.tsx catch-all 404 route', () => {
 });
 
 describe('PR #446 W-H18 — NotFoundPage SEO + UX', () => {
-  it('sets <meta name="robots" content="noindex, follow"> via useEffect', () => {
+  it('sets <meta name="robots" content="noindex, nofollow"> via useEffect', () => {
     expect(notFoundSrc).toMatch(/meta\[name="robots"\]/);
-    expect(notFoundSrc).toMatch(/tag\.content\s*=\s*['"]noindex,\s*follow['"]/);
+    expect(notFoundSrc).toMatch(/tag\.content\s*=\s*['"]noindex,\s*nofollow['"]/);
   });
 
   it('restores previous robots meta on unmount (no poisoning of indexable pages)', () => {
@@ -67,10 +71,11 @@ describe('PR #446 W-H18 — NotFoundPage SEO + UX', () => {
   });
 
   it('renders i18n copy for all 4 locales (en/ko/ja/zh)', () => {
-    expect(notFoundSrc).toMatch(/en:\s*\{/);
-    expect(notFoundSrc).toMatch(/ko:\s*\{/);
-    expect(notFoundSrc).toMatch(/ja:\s*\{/);
-    expect(notFoundSrc).toMatch(/zh:\s*\{/);
+    expect(notFoundSrc).toMatch(/NOT_FOUND_COPY/);
+    expect(sharedSrc).toMatch(/en:\s*Object\.freeze\(\{/);
+    expect(sharedSrc).toMatch(/ko:\s*Object\.freeze\(\{/);
+    expect(sharedSrc).toMatch(/ja:\s*Object\.freeze\(\{/);
+    expect(sharedSrc).toMatch(/zh:\s*Object\.freeze\(\{/);
   });
 
   it('provides recovery navigation (home + tours + charter)', () => {
@@ -87,7 +92,8 @@ describe('PR #446 W-H18 — NotFoundPage SEO + UX', () => {
   });
 
   it('falls back to en when language is unknown (defensive)', () => {
-    expect(notFoundSrc).toMatch(/COPY\[lang\]\s*\|\|\s*COPY\.en/);
+    expect(notFoundSrc).toMatch(/resolveNotFoundLanguage\(language\)/);
+    expect(notFoundSrc).toMatch(/NOT_FOUND_COPY\[lang\]\s*\|\|\s*NOT_FOUND_COPY\.en/);
   });
 
   it('sets aria-labelledby on <main> for screen readers', () => {

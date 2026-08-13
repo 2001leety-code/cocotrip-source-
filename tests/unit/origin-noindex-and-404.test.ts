@@ -163,10 +163,12 @@ describe('존재하지 않는 경로 — 진짜 404', () => {
   });
 
   it('404 핸들러가 실제로 404 + noindex 를 낸다', () => {
-    const code = readFileSync(join(process.cwd(), 'api/not-found.js'), 'utf8');
-    expect(code).toMatch(/res\.writeHead\(404,/);
-    expect(code).toMatch(/'X-Robots-Tag': 'noindex, nofollow'/);
-    expect(code).toMatch(/name="robots" content="noindex, nofollow"/);
+    const handlerCode = readFileSync(join(process.cwd(), 'api/not-found.js'), 'utf8');
+    const documentCode = readFileSync(join(process.cwd(), 'src/lib/notFoundEditorial.js'), 'utf8');
+    expect(handlerCode).toMatch(/renderNotFoundHtml/);
+    expect(handlerCode).toMatch(/res\.writeHead\(404,/);
+    expect(handlerCode).toMatch(/'X-Robots-Tag': 'noindex, nofollow'/);
+    expect(documentCode).toMatch(/name="robots" content="noindex, nofollow"/);
   });
 
   it('🔴 옛 전면 폴백(모든 경로 → index.html)이 남아 있지 않다', () => {
