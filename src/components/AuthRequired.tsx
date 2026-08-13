@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, lazy, Suspense, type ReactNode } from
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, signInWithLine, handleRedirectResult } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
+import '@/styles/editorial-auth-required.css';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of eager bundles; the chunk loads only when the user opens it.
 const PhoneSignInModal = lazy(() =>
@@ -134,7 +135,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
           <button
             onClick={handleGoogle}
             disabled={googleLoading}
-            className="w-full py-3.5 rounded-xl font-bold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 mb-3 hover:scale-[1.02]"
+            className="auth-required-action w-full py-3.5 rounded-xl font-bold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 mb-3 hover:scale-[1.02]"
             style={{ background: '#fff', color: '#1a1a2e', boxShadow: '0 2px 12px rgba(255,255,255,0.1)' }}
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -153,7 +154,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
             <button
               onClick={handleLine}
               disabled={lineLoading}
-              className="w-full py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
+              className="auth-required-action w-full py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
               style={{ background: '#06C755', color: '#fff', boxShadow: '0 2px 12px rgba(6,199,85,0.25)' }}
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -166,7 +167,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
           {/* Phone Number Button (PR #390): Google + LINE 아래 보조 옵션. */}
           <button
             onClick={() => { setError(null); setPhoneModalOpen(true); }}
-            className="w-full py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
+            className="auth-required-action w-full py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
             style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
           >
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

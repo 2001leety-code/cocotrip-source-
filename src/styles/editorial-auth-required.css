@@ -1,0 +1,17 @@
+.auth-required-action:focus-visible,
+.refined .auth-required-action:focus-visible {
+  outline: none !important;
+  transition-property: transform, background-color, color, opacity !important;
+  box-shadow:
+    0 0 0 2px #0f1220,
+    0 0 0 5px #ffffff !important;
+}
+
+@media (forced-colors: active) {
+  .auth-required-action:focus-visible,
+  .refined .auth-required-action:focus-visible {
+    outline: 3px solid Highlight !important;
+    outline-offset: 3px !important;
+    box-shadow: none !important;
+  }
+}
