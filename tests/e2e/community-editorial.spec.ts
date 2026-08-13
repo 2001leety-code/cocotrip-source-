@@ -39,6 +39,9 @@ function postFixture(language: Language) {
 
 async function installLanguage(page: Page, language: Language) {
   await page.addInitScript((value) => {
+    const applyRefinedTheme = () => document.documentElement.classList.add('refined');
+    if (document.documentElement) applyRefinedTheme();
+    else document.addEventListener('DOMContentLoaded', applyRefinedTheme, { once: true });
     window.localStorage.setItem('cocotrip_lang', value);
     window.localStorage.setItem('coco_promo_banner_dismissed_v1', 'true');
   }, language);
