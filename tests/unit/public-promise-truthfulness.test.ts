@@ -137,7 +137,7 @@ describe('TourCard — 정적 Popular/Best Value 배지 제거', () => {
     // `primaryTag` → `badgeLabel` 로 바뀌었다. 게이트는 오히려 좁아졌다 —
     // publicBadgeTag 가 태그를 걸러도(=undefined), 사전에 없어도(=null) 배지가 안 나온다.
     const src = read('src/components/tours/TourCard.tsx');
-    expect(src).toMatch(/\{badgeLabel && tagStyle && \(/);
+    expect(src).toMatch(/\{badgeLabel && <span/);
     expect(src).toMatch(/const badgeLabel = primaryTag &&/);
   });
 });

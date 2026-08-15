@@ -1,136 +1,203 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// CocoTrip – Tours 상품 리스트 페이지
-// 디자인: 다크 네이비 배경 + 퍼플/핑크 그라데이션 (기존 토큰 재사용)
-// 통합 시: App.tsx 라우터에 <Route path="/tours" element={<ToursPage />} /> 추가
-// ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Package, ShieldCheck, CreditCard, Phone,
-  ChevronRight, Languages, ArrowUpDown, ExternalLink, Search, X,
+  ArrowUpDown,
+  ChevronRight,
+  CreditCard,
+  ExternalLink,
+  Languages,
+  Package,
+  Phone,
+  Search,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { usePageMeta } from '@/hooks/usePageMeta';
-import { Header } from '@/sections/Header';
+import { AffiliateCard } from '@/components/AffiliateCard';
 import { TourCard } from '@/components/tours/TourCard';
 import { TourInquireModal } from '@/components/tours/TourInquireModal';
-import { TOUR_REGIONS, getToursByRegion, isUngroundedBadgeTag } from '@/data/tours';
-import type { TourRegion, DriverLanguage, TourTag } from '@/data/tours';
-import type { Language } from '@/i18n';
+import { EcEmpty } from '@/components/ui/states';
 import { buildHotelListLink } from '@/config/affiliateLinks';
-import { trackEvent } from '@/lib/analytics';
+import { PACE_ORDER, TOUR_PACE, paceEmoji, paceLabel, type TripPace } from '@/data/tourPace';
+import { TOUR_REGIONS, getToursByRegion, isUngroundedBadgeTag } from '@/data/tours';
+import type { DriverLanguage, TourRegion, TourTag } from '@/data/tours';
+import { useLanguage } from '@/hooks/useLanguage';
+import { usePageMeta } from '@/hooks/usePageMeta';
+import type { Language } from '@/i18n';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
-import { AffiliateCard } from '@/components/AffiliateCard';
+import { trackEvent } from '@/lib/analytics';
 import { matchesTourQuery } from '@/lib/tourSearch';
-import { TOUR_PACE, PACE_ORDER, paceEmoji, paceLabel, type TripPace } from '@/data/tourPace';
+import { Header } from '@/sections/Header';
+import '@/styles/editorial-tours-catalog.css';
 
 type SortKey = 'default' | 'price-asc' | 'price-desc';
+type DurationKey = 'All' | 'Day' | 'Short' | 'Long';
 
-// ── 로컬 i18n ─────────────────────────────────────────────────────────────────
-// 통합 시 이 객체를 src/i18n/index.ts 의 translations.*.tours 로 이전하고
-// useLanguage()의 t.tours 로 교체
 const TL = {
   ko: {
-    pageTitle: '투어 상품',
-    pageSubtitle: '코코트립이 엄선한 한국 프라이빗 투어 패키지',
-    filterLabel: '지역 필터',
-    inquireTitle: '원하는 투어가 없나요?',
-    inquireSub: '지역·테마·예산만 알려주시면 맞춤 견적을 보내드립니다',
+    catalogueLabel: '한국 투어 안내서',
+    pageTitle: '여행 방식부터 고르는 한국 투어',
+    pageSubtitle: '지역, 기간, 이동 속도를 비교하고 각 일정의 실제 포함 항목을 확인하세요.',
+    trustLabel: '예약 전 확인',
+    filterTitle: '조건에 맞는 일정 찾기',
+    filterBody: '필터는 실제 등록된 상품 정보만 사용합니다.',
+    filterLabel: '지역',
+    durationLabel: '기간',
+    interestLabel: '관심사',
+    paceFilterLabel: '여행 속도',
+    driverLabel: '기사 언어',
+    sortLabel: '정렬',
+    searchLabel: '여행지 또는 명소 검색',
+    resultsLabel: '현재 일정',
+    inquireTitle: '목록에 없는 일정이 필요하신가요?',
+    inquireSub: '지역·테마·예산을 알려주시면 맞춤 견적을 안내합니다',
     inquireBtn: '맞춤 문의',
     charterLink: '차터 견적폼',
-    hotelCtaText: '투어 전후 숙소가 필요하신가요?',
+    hotelCtaText: '투어 전후 숙소도 비교하시나요?',
     hotelCtaBtn: 'Trip.com에서 숙소 보기',
     hotelCtaNew: '새 창에서 Trip.com이 열립니다',
     seoTitle: 'CocoTrip 투어 — 한국 프라이빗 투어',
     seoDesc: '서울·부산·제주 전세차량 투어. 톨비·주차비 포함, PayPal 안심결제.',
-    noResults: '해당 지역 투어 상품이 없습니다',
-    noSearchResults: '검색어와 일치하는 투어가 없어요',
-    searchPlaceholder: '여행지·명소 검색...',
+    noResults: '선택한 조건의 투어가 없습니다',
+    noSearchResults: '검색어와 일치하는 투어가 없습니다',
+    emptyBody: '필터를 초기화하거나 다른 지역과 기간을 선택해 보세요.',
+    resetFilters: '필터 초기화',
+    searchPlaceholder: '여행지·명소 검색',
     clearSearch: '검색어 지우기',
-    popularDestinations: '인기 목적지',
+    indexLabel: 'CocoTrip 지역 안내',
+    selectorLabel: 'CocoTrip 일정 선택',
+    catalogueSectionLabel: 'CocoTrip 투어 목록',
+    conciergeLabel: 'CocoTrip 맞춤 안내',
+    destinationsLabel: '지역별 둘러보기',
+    destinationsBody: '등록된 일정이 있는 지역만 표시합니다.',
+    seasonLabel: '이번 계절 안내',
     toursUnit: '투어',
   },
   en: {
-    pageTitle: 'Tours',
-    pageSubtitle: 'Handpicked Korea private tour packages by CocoTrip',
-    filterLabel: 'Filter by region',
-    inquireTitle: 'Need a custom tour?',
-    inquireSub: 'Tell us your region, theme & budget — we will send a tailored quote',
+    catalogueLabel: 'Korea tour desk',
+    pageTitle: 'Choose the way you travel Korea',
+    pageSubtitle: 'Compare regions, duration and pace, then check what each itinerary actually includes.',
+    trustLabel: 'Before you book',
+    filterTitle: 'Find the right itinerary',
+    filterBody: 'Filters use information attached to the listed tours.',
+    filterLabel: 'Region',
+    durationLabel: 'Duration',
+    interestLabel: 'Interests',
+    paceFilterLabel: 'Travel pace',
+    driverLabel: 'Driver language',
+    sortLabel: 'Sort',
+    searchLabel: 'Search destinations or attractions',
+    resultsLabel: 'Available itineraries',
+    inquireTitle: 'Need an itinerary not listed here?',
+    inquireSub: 'Tell us your region, theme and budget for a tailored quote',
     inquireBtn: 'Inquire',
     charterLink: 'Charter quote form',
-    hotelCtaText: 'Need a place to stay before or after your tour?',
+    hotelCtaText: 'Comparing a stay before or after your tour?',
     hotelCtaBtn: 'Browse hotels on Trip.com',
     hotelCtaNew: 'Opens Trip.com in a new tab',
     seoTitle: 'CocoTrip Tours — Korea Private Tours',
     seoDesc: 'Seoul, Busan & Jeju private van tours. Tolls and parking included. PayPal secure.',
-    noResults: 'No tours available for this region',
+    noResults: 'No tours match the selected filters',
     noSearchResults: 'No tours match your search',
-    searchPlaceholder: 'Search destinations, attractions...',
+    emptyBody: 'Reset the filters or try another region and duration.',
+    resetFilters: 'Reset filters',
+    searchPlaceholder: 'Search destinations or attractions',
     clearSearch: 'Clear search',
-    popularDestinations: 'Popular Destinations',
+    indexLabel: 'CocoTrip index',
+    selectorLabel: 'CocoTrip selector',
+    catalogueSectionLabel: 'CocoTrip catalogue',
+    conciergeLabel: 'CocoTrip concierge',
+    destinationsLabel: 'Browse by destination',
+    destinationsBody: 'Only regions with listed itineraries are shown.',
+    seasonLabel: 'Season note',
     toursUnit: 'tours',
   },
   ja: {
-    pageTitle: 'ツアー',
-    pageSubtitle: 'CocoTripが厳選した韓国プライベートツアーパッケージ',
-    filterLabel: '地域フィルター',
-    inquireTitle: '希望のツアーがありませんか？',
-    inquireSub: '地域・テーマ・予算を教えていただければ、お見積もりをお送りします',
+    catalogueLabel: '韓国ツアー案内',
+    pageTitle: '旅のスタイルから選ぶ韓国ツアー',
+    pageSubtitle: '地域・日数・移動ペースを比較し、各日程に実際に含まれる内容をご確認ください。',
+    trustLabel: '予約前の確認',
+    filterTitle: '希望に合う日程を探す',
+    filterBody: 'フィルターは掲載ツアーの実データのみを使用します。',
+    filterLabel: '地域',
+    durationLabel: '期間',
+    interestLabel: 'テーマ',
+    paceFilterLabel: '旅のペース',
+    driverLabel: 'ドライバー言語',
+    sortLabel: '並び替え',
+    searchLabel: '目的地または観光スポットを検索',
+    resultsLabel: '掲載中の日程',
+    inquireTitle: '一覧にない日程をご希望ですか？',
+    inquireSub: '地域・テーマ・予算をお知らせいただければ、お見積もりをご案内します',
     inquireBtn: 'お問い合わせ',
     charterLink: 'チャーター見積フォーム',
-    hotelCtaText: 'ツアー前後の宿泊先をお探しですか？',
+    hotelCtaText: 'ツアー前後の宿泊先も比較しますか？',
     hotelCtaBtn: 'Trip.comでホテルを見る',
     hotelCtaNew: '新しいタブでTrip.comが開きます',
     seoTitle: 'CocoTrip ツアー — 韓国プライベートツアー',
     seoDesc: 'ソウル・釜山・済州の専用バンツアー。通行料・駐車場込み。PayPal安全決済。',
-    noResults: 'このエリアのツアーはありません',
+    noResults: '選択した条件に合うツアーがありません',
     noSearchResults: '検索に一致するツアーがありません',
-    searchPlaceholder: '目的地・観光スポットを検索...',
+    emptyBody: 'フィルターをリセットするか、別の地域・期間をお試しください。',
+    resetFilters: 'フィルターをリセット',
+    searchPlaceholder: '目的地・観光スポットを検索',
     clearSearch: '検索をクリア',
-    popularDestinations: '人気の目的地',
+    indexLabel: 'CocoTrip 地域案内',
+    selectorLabel: 'CocoTrip 日程検索',
+    catalogueSectionLabel: 'CocoTrip ツアー一覧',
+    conciergeLabel: 'CocoTrip コンシェルジュ',
+    destinationsLabel: '地域から探す',
+    destinationsBody: '掲載中の日程がある地域のみ表示します。',
+    seasonLabel: '季節の案内',
     toursUnit: '件',
   },
   zh: {
-    pageTitle: '旅游产品',
-    pageSubtitle: 'CocoTrip精选韩国私人旅游套餐',
-    filterLabel: '按地区筛选',
-    inquireTitle: '没有想要的路线？',
-    inquireSub: '告诉我们地区·主题·预算，我们将发送定制报价',
+    catalogueLabel: '韩国旅游指南',
+    pageTitle: '从旅行方式开始选择韩国行程',
+    pageSubtitle: '比较地区、天数和行程节奏，并查看每条路线实际包含的项目。',
+    trustLabel: '预订前确认',
+    filterTitle: '查找合适的行程',
+    filterBody: '筛选条件只使用已上架旅游产品的信息。',
+    filterLabel: '地区',
+    durationLabel: '天数',
+    interestLabel: '主题',
+    paceFilterLabel: '行程节奏',
+    driverLabel: '司机语言',
+    sortLabel: '排序',
+    searchLabel: '搜索目的地或景点',
+    resultsLabel: '现有行程',
+    inquireTitle: '需要列表中没有的行程？',
+    inquireSub: '告诉我们地区、主题和预算，我们将提供定制报价',
     inquireBtn: '立即咨询',
     charterLink: '包车报价表',
-    hotelCtaText: '旅游前后需要住宿吗？',
+    hotelCtaText: '还要比较行程前后的住宿吗？',
     hotelCtaBtn: '在Trip.com查看酒店',
     hotelCtaNew: '将在新窗口打开Trip.com',
     seoTitle: 'CocoTrip 旅游 — 韩国私人包车游',
     seoDesc: '首尔、釜山和济州私人包车游览，含过路费·停车费，PayPal安全支付。',
-    noResults: '该地区暂无旅游产品',
+    noResults: '没有符合所选条件的旅游产品',
     noSearchResults: '没有符合搜索的旅游产品',
-    searchPlaceholder: '搜索目的地、景点...',
+    emptyBody: '请重置筛选条件，或尝试其他地区和天数。',
+    resetFilters: '重置筛选',
+    searchPlaceholder: '搜索目的地或景点',
     clearSearch: '清除搜索',
-    popularDestinations: '热门目的地',
+    indexLabel: 'CocoTrip 地区指南',
+    selectorLabel: 'CocoTrip 行程筛选',
+    catalogueSectionLabel: 'CocoTrip 旅游列表',
+    conciergeLabel: 'CocoTrip 定制咨询',
+    destinationsLabel: '按地区浏览',
+    destinationsBody: '仅显示已有行程的地区。',
+    seasonLabel: '本季提示',
     toursUnit: '条',
   },
 } satisfies Record<Language, Record<string, string>>;
 
-// ── Interests 필터 칩 (route-local) ──────────────────────────────────────────
-// TOURS 에 실제로 있는 태그만 칩으로 만든다(죽은 필터 금지).
-//
-// 목록은 손으로 적지만 `isUngroundedBadgeTag` 로 한 번 더 거른다 — 집계 근거가 없는
-// 라벨(Popular / Best Value / AI-Curated)은 공개 필터에도 못 나온다. 카드 배지를 거르는
-// `publicBadgeTag` 와 같은 SSOT(src/data/tours.ts)를 쓰므로, 나중에 누가 여기 'Popular'
-// 를 다시 적어도 화면에는 안 나온다.
-//
-// 태그 **값**은 그대로다: `tour.tags` 원본, 검색(`matchesTourQuery` 는 태그도 훑는다),
-// 어드민 편집(`ProductEditor/BasicInfoTab` 의 TAG_OPTIONS) 전부 영향 없음.
 const INTEREST_CHIPS: ReadonlyArray<{ key: TourTag; label: Record<Language, string> }> = ([
-  { key: 'Nature' as TourTag,     label: { ko: '자연',      en: 'Nature',     ja: '自然',       zh: '自然' } },
-  { key: 'History' as TourTag,    label: { ko: '역사·문화', en: 'History',    ja: '歴史・文化', zh: '历史文化' } },
-  { key: 'Night Tour' as TourTag, label: { ko: '야경',      en: 'Night view', ja: '夜景',       zh: '夜景' } },
-  { key: 'Multi-City' as TourTag, label: { ko: '다도시',    en: 'Multi-city', ja: '複数都市',   zh: '多城市' } },
+  { key: 'Nature' as TourTag, label: { ko: '자연', en: 'Nature', ja: '自然', zh: '自然' } },
+  { key: 'History' as TourTag, label: { ko: '역사·문화', en: 'History', ja: '歴史・文化', zh: '历史文化' } },
+  { key: 'Night Tour' as TourTag, label: { ko: '야경', en: 'Night view', ja: '夜景', zh: '夜景' } },
+  { key: 'Multi-City' as TourTag, label: { ko: '다도시', en: 'Multi-city', ja: '複数都市', zh: '多城市' } },
 ]).filter(({ key }) => !isUngroundedBadgeTag(key));
 
-// 지역 대표 이미지 — 실존 public 자산만 매핑. 없는 지역은 그라디언트 폴백(잘못된 사진 라벨링 금지).
 const REGION_IMAGE: Record<string, string> = {
   Seoul: '/region-seoul.jpg',
   Busan: '/region-busan.webp',
@@ -138,574 +205,474 @@ const REGION_IMAGE: Record<string, string> = {
   Danyang: '/region-danyang.webp',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+const DURATION_OPTIONS: ReadonlyArray<{ key: DurationKey; label: Record<Language, string> }> = [
+  { key: 'All', label: { ko: '전체 기간', en: 'All', ja: '全期間', zh: '全部' } },
+  { key: 'Day', label: { ko: '당일', en: 'Day', ja: '日帰り', zh: '当天' } },
+  { key: 'Short', label: { ko: '2~3일', en: '2-3 Days', ja: '2~3日', zh: '2~3天' } },
+  { key: 'Long', label: { ko: '4일 이상', en: '4+ Days', ja: '4日以上', zh: '4天+' } },
+];
+
+const DRIVER_OPTIONS: ReadonlyArray<{ key: DriverLanguage; label: Record<Language, string> }> = [
+  { key: 'en', label: { ko: '영어 기사', en: 'English driver', ja: '英語ドライバー', zh: '英语司机' } },
+  { key: 'ja', label: { ko: '일본어 기사', en: 'Japanese driver', ja: '日本語ドライバー', zh: '日语司机' } },
+  { key: 'zh', label: { ko: '중국어 기사', en: 'Chinese driver', ja: '中国語ドライバー', zh: '中文司机' } },
+];
+
+const SEASON_TIPS = {
+  spring: {
+    emoji: '🌸',
+    ko: '봄 — 벚꽃 시즌은 보통 3월 말부터 4월입니다. 아침저녁 일교차에 대비해 겉옷을 챙기세요.',
+    en: 'Spring — cherry-blossom season is usually late March through April. Pack a layer for cooler mornings and evenings.',
+    ja: '春 — 桜の時期は通常3月末から4月です。朝晩の寒暖差に備えて上着をお持ちください。',
+    zh: '春季 — 樱花季通常为3月底至4月。早晚温差较大，请携带外套。',
+  },
+  summer: {
+    emoji: '☀️',
+    ko: '여름 — 덥고 습하며 6월 말부터 7월에는 비가 잦습니다. 야외 일정은 물과 우산을 준비하세요.',
+    en: 'Summer — expect heat, humidity and frequent rain from late June into July. Carry water and rain protection for outdoor days.',
+    ja: '夏 — 蒸し暑く、6月末から7月は雨が多い時期です。屋外の日程には水分と雨具をご用意ください。',
+    zh: '夏季 — 炎热潮湿，6月底至7月降雨较多。户外行程请准备饮水和雨具。',
+  },
+  autumn: {
+    emoji: '🍁',
+    ko: '가을 — 단풍은 보통 10월부터 11월에 이어집니다. 인기 지역은 도로가 혼잡할 수 있습니다.',
+    en: 'Autumn — foliage usually runs from October into November. Roads around well-known viewing areas can be busy.',
+    ja: '秋 — 紅葉は通常10月から11月に続きます。名所周辺の道路は混雑する場合があります。',
+    zh: '秋季 — 红叶季通常为10月至11月。热门观赏地区周边道路可能拥堵。',
+  },
+  winter: {
+    emoji: '❄️',
+    ko: '겨울 — 춥고 건조하며 눈이 오면 이동 시간이 늘어날 수 있습니다. 방한복과 여유 있는 일정을 준비하세요.',
+    en: 'Winter — cold, dry weather and snow can extend driving times. Bring warm layers and leave room in the schedule.',
+    ja: '冬 — 寒く乾燥し、雪の日は移動時間が延びる場合があります。防寒着と余裕のある日程をご用意ください。',
+    zh: '冬季 — 天气寒冷干燥，降雪时行车时间可能延长。请注意保暖并预留充足时间。',
+  },
+} as const;
+
+function currentSeason(month: number): keyof typeof SEASON_TIPS {
+  if (month >= 3 && month <= 5) return 'spring';
+  if (month >= 6 && month <= 8) return 'summer';
+  if (month >= 9 && month <= 11) return 'autumn';
+  return 'winter';
+}
+
 export default function ToursPage() {
   const { language, t, changeLanguage } = useLanguage();
-  const isMobile = useIsMobile();
   const tl = TL[language] || TL.en;
-
-  // 홈 검색바(?q=) 시딩 — 초기값만 URL에서 읽고, 타이핑마다 history 는 쌓지 않음.
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
   const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
-  const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
-  // Interests 필터 (UIUX 가이드 P7 'Filter Your Interests') — TourTag 실데이터만 칩으로 노출.
-  // 데이터 없는 관심사(Food·Wellness 등)는 칩 자체를 만들지 않음(죽은 필터 금지). OR 매칭.
+  const [activeDuration, setActiveDuration] = useState<DurationKey>('All');
   const [activeTags, setActiveTags] = useState<Set<TourTag>>(new Set());
   const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
-  // Trip Style(pace) 필터 (가이드 P7) — tourPace.ts 실데이터. OR 매칭.
   const [activePace, setActivePace] = useState<Set<TripPace>>(new Set());
   const [sortBy, setSortBy] = useState<SortKey>('default');
   const [inquireOpen, setInquireOpen] = useState(false);
 
-  // Trip.com 숙소 CTA — 활성 지역 필터에 맞춰 도시 좁힘 (hotels.ts REGION_MAP 과 동일 폴백).
-  const HOTEL_CITY_KEY: Partial<Record<TourRegion, string>> = {
-    Seoul: 'seoul', Busan: 'busan', Jeju: 'jeju', Gyeongju: 'gyeongju',
-    Chuncheon: 'chuncheon', Danyang: 'danyang', Incheon: 'incheon',
-    Ganghwa: 'seoul', DMZ: 'seoul', 'Multi-City': 'seoul',
+  const hotelCityMap: Partial<Record<TourRegion, string>> = {
+    Seoul: 'seoul',
+    Busan: 'busan',
+    Jeju: 'jeju',
+    Gyeongju: 'gyeongju',
+    Chuncheon: 'chuncheon',
+    Danyang: 'danyang',
+    Incheon: 'incheon',
+    Ganghwa: 'seoul',
+    DMZ: 'seoul',
+    'Multi-City': 'seoul',
   };
-  const hotelCityKey = activeRegion === 'All' ? undefined : HOTEL_CITY_KEY[activeRegion];
+  const hotelCityKey = activeRegion === 'All' ? undefined : hotelCityMap[activeRegion];
   const hotelSearchUrl = buildHotelListLink(hotelCityKey);
-
-  // 맞춤투어 모달 지역 프리필 — 투어 필터가 서울/부산/제주면 그대로, 그 외 지역이면 '기타'.
   const inquireDefaultRegion: '' | 'seoul' | 'busan' | 'jeju' | 'other' =
     activeRegion === 'All' ? '' :
-    activeRegion === 'Seoul' ? 'seoul' :
-    activeRegion === 'Busan' ? 'busan' :
-    activeRegion === 'Jeju' ? 'jeju' : 'other';
+      activeRegion === 'Seoul' ? 'seoul' :
+        activeRegion === 'Busan' ? 'busan' :
+          activeRegion === 'Jeju' ? 'jeju' : 'other';
 
-  const toggleLang = (lang: DriverLanguage) => {
-    setActiveLangs(prev => {
-      const next = new Set(prev);
-      if (next.has(lang)) next.delete(lang); else next.add(lang);
+  const toggleLang = (driverLanguage: DriverLanguage) => {
+    setActiveLangs((previous) => {
+      const next = new Set(previous);
+      if (next.has(driverLanguage)) next.delete(driverLanguage);
+      else next.add(driverLanguage);
       return next;
     });
   };
 
   const toggleTag = (tag: TourTag) => {
-    setActiveTags(prev => {
-      const next = new Set(prev);
-      if (next.has(tag)) next.delete(tag); else next.add(tag);
+    setActiveTags((previous) => {
+      const next = new Set(previous);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
       return next;
     });
   };
 
   const togglePace = (pace: TripPace) => {
-    setActivePace(prev => {
-      const next = new Set(prev);
-      if (next.has(pace)) next.delete(pace); else next.add(pace);
+    setActivePace((previous) => {
+      const next = new Set(previous);
+      if (next.has(pace)) next.delete(pace);
+      else next.add(pace);
       return next;
     });
   };
 
-  const regionTours = getToursByRegion(activeRegion);
+  const resetFilters = () => {
+    setSearchQuery('');
+    setActiveRegion('All');
+    setActiveDuration('All');
+    setActiveTags(new Set());
+    setActiveLangs(new Set());
+    setActivePace(new Set());
+    setSortBy('default');
+  };
 
-  const filteredTours = regionTours.filter(t => {
-    if (!matchesTourQuery(t, searchQuery)) return false;
-    if (activeDuration === 'Day'   && t.durationDays !== 1)  return false;
-    if (activeDuration === 'Short' && !(t.durationDays === 2 || t.durationDays === 3)) return false;
-    if (activeDuration === 'Long'  && t.durationDays < 4)    return false;
+  const filteredTours = getToursByRegion(activeRegion).filter((tour) => {
+    if (!matchesTourQuery(tour, searchQuery)) return false;
+    if (activeDuration === 'Day' && tour.durationDays !== 1) return false;
+    if (activeDuration === 'Short' && !(tour.durationDays === 2 || tour.durationDays === 3)) return false;
+    if (activeDuration === 'Long' && tour.durationDays < 4) return false;
     if (activeLangs.size > 0) {
-      const langs = (t.driverLanguages && t.driverLanguages.length > 0) ? t.driverLanguages : (['en'] as DriverLanguage[]);
-      const hasAll = Array.from(activeLangs).every(l => langs.includes(l));
-      if (!hasAll) return false;
+      const languages = tour.driverLanguages && tour.driverLanguages.length > 0
+        ? tour.driverLanguages
+        : (['en'] as DriverLanguage[]);
+      if (!Array.from(activeLangs).every((driverLanguage) => languages.includes(driverLanguage))) return false;
     }
-    if (activeTags.size > 0 && !t.tags.some(tag => activeTags.has(tag))) return false;
+    if (activeTags.size > 0 && !tour.tags.some((tag) => activeTags.has(tag))) return false;
     if (activePace.size > 0) {
-      const p = TOUR_PACE[t.id];
-      if (!p || !activePace.has(p)) return false;
+      const pace = TOUR_PACE[tour.id];
+      if (!pace || !activePace.has(pace)) return false;
     }
     return true;
   });
 
-  const visibleTours = (() => {
-    const arr = [...filteredTours];
-    if (sortBy === 'price-asc')  arr.sort((a, b) => a.priceFrom - b.priceFrom);
-    else if (sortBy === 'price-desc') arr.sort((a, b) => b.priceFrom - a.priceFrom);
-    return arr;
-  })();
+  const visibleTours = [...filteredTours];
+  if (sortBy === 'price-asc') visibleTours.sort((left, right) => left.priceFrom - right.priceFrom);
+  if (sortBy === 'price-desc') visibleTours.sort((left, right) => right.priceFrom - left.priceFrom);
 
-  usePageMeta({
-    title: tl.seoTitle,
-    description: tl.seoDesc,
-  });
+  usePageMeta({ title: tl.seoTitle, description: tl.seoDesc });
 
-  const TRUST_BADGES = [
+  const trustFacts = [
     {
       icon: ShieldCheck,
-      color: '#B668FC',
-      label: language === 'ko' ? '톨비·주차비 포함' :
-             language === 'ja' ? '通行料・駐車場込み' :
-             language === 'zh' ? '含过路费·停车费' :
-             'Tolls & Parking Incl.',
-      sub: language === 'ko' ? '식사·입장료 별도' :
-           language === 'ja' ? '食事・入場料は別' :
-           language === 'zh' ? '餐费·门票另计' :
-           'Meals & Admission Extra',
+      label: language === 'ko' ? '톨비·주차비 포함' : language === 'ja' ? '通行料・駐車場込み' : language === 'zh' ? '含过路费·停车费' : 'Tolls & Parking Incl.',
+      sub: language === 'ko' ? '식사·입장료 별도' : language === 'ja' ? '食事・入場料は別' : language === 'zh' ? '餐费·门票另计' : 'Meals & Admission Extra',
     },
     {
       icon: CreditCard,
-      color: '#FF6B9D',
-      label: 'PayPal', // brand, intentionally untranslated
-      sub: language === 'ko' ? 'PayPal 안심결제' :
-           language === 'ja' ? 'PayPal 安全決済' :
-           language === 'zh' ? 'PayPal 安全支付' :
-           'Secure Payment',
+      label: 'PayPal',
+      sub: language === 'ko' ? 'PayPal 안심결제' : language === 'ja' ? 'PayPal 安全決済' : language === 'zh' ? 'PayPal 安全支付' : 'Secure Payment',
     },
     {
       icon: Phone,
-      color: '#C850C0',
-      label: language === 'ko' ? '평일 10~18시' :
-             language === 'ja' ? '平日10~18時' :
-             language === 'zh' ? '工作日10-18点' :
-             'Weekdays 10am–6pm',
-      sub: language === 'ko' ? '영어 지원' :
-           language === 'ja' ? '英語サポート' :
-           language === 'zh' ? '英语客服' :
-           'English Support',
+      label: language === 'ko' ? '평일 10~18시' : language === 'ja' ? '平日10~18時' : language === 'zh' ? '工作日10-18点' : 'Weekdays 10am–6pm',
+      sub: language === 'ko' ? '영어 지원' : language === 'ja' ? '英語サポート' : language === 'zh' ? '英语客服' : 'English Support',
     },
   ];
 
-  // 정제 퍼플·핑크 (시각만). OFF=현재 그대로.
-  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
-    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+  const seasonTip = SEASON_TIPS[currentSeason(new Date().getMonth() + 1)];
 
   return (
     <div
-      className={`min-h-screen pb-28 ${isMobile ? 'cocotrip-mobile-tours' : ''} ${REFINED ? 'refined-tours' : ''}`}
-      style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
+      className="ec-root tours-catalog-editorial"
+      data-testid="tours-editorial-shell"
+      lang={language}
     >
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: -200% 0; }
-          100% { background-position:  200% 0; }
-        }
-        .tours-shimmer {
-          background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: shimmer 3s linear infinite;
-        }
-        .tour-chip { transition: all 0.22s cubic-bezier(0.2, 0, 0.2, 1); }
-        .tour-chip:active { transform: scale(0.93); }
-        .hotel-card-hover { transition: border-color 0.22s ease, box-shadow 0.22s ease; }
-        .hotel-card-hover:hover {
-          border-color: rgba(182,104,252,0.30) !important;
-          box-shadow: 0 0 20px rgba(182,104,252,0.10);
-        }
-      `}</style>
-
-      {/* ── 헤더 ── */}
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      {/* ── 페이지 헤더 ── */}
-      <header className={`max-w-6xl mx-auto px-4 sm:px-6 ${isMobile ? 'pt-3 pb-3' : 'pt-10 pb-5'}`}>
-        <div
-          className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-6"
-          style={{
-            background: 'linear-gradient(135deg, rgba(19,45,88,0.92), rgba(24,13,42,0.86))',
-            border: '1px solid rgba(118,83,194,0.22)',
-            boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
-          }}
-        >
-        <div className="flex items-center gap-3 mb-2">
-          <div
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            <Package className="w-5 h-5 text-white" />
+      <main>
+        <header className="ec-container tours-catalog-masthead">
+          <div className="tours-catalog-masthead-copy">
+            <p className="ec-eyebrow">{tl.catalogueLabel}</p>
+            <h1 className="ec-display">{tl.pageTitle}</h1>
+            <p className="ec-body ec-measure tours-catalog-deck">{tl.pageSubtitle}</p>
           </div>
-          <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-purple-200/75 leading-none mb-1">
-            CocoTrip tours
-          </p>
-          <h1 className="text-[24px] sm:text-[34px] font-black leading-[1.05] tours-shimmer">
-            {tl.pageTitle}
-          </h1>
+          <div className="tours-catalog-masthead-mark" aria-hidden>
+            <Package />
+            <span>CocoTrip</span>
           </div>
-        </div>
-        <p className="text-[12px] sm:text-[14px] text-white/58 sm:ml-[52px] leading-relaxed">
-          {tl.pageSubtitle}
-        </p>
-        </div>
-      </header>
+        </header>
 
-      {/* ── 신뢰 배지 ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-3 sm:mb-5">
-        <div data-testid="tours-trust-badges" className="flex flex-wrap sm:flex-nowrap gap-2 sm:overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {TRUST_BADGES.map(({ icon: Icon, color, label, sub }, idx) => (
-            <div
-              key={label}
-              data-testid={`tours-trust-badge-${idx}`}
-              className="shrink-0 flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl"
-              style={{
-                background: `${color}0d`,
-                border: `1px solid ${color}28`,
-              }}
-            >
-              <Icon className="w-4 h-4 shrink-0" style={{ color }} />
+        <section className="tours-catalog-trust" aria-labelledby="tours-trust-title">
+          <div className="ec-container">
+            <p id="tours-trust-title" className="ec-eyebrow">{tl.trustLabel}</p>
+            <div data-testid="tours-trust-badges" className="tours-catalog-trust-grid">
+              {trustFacts.map(({ icon: Icon, label, sub }, index) => (
+                <article key={label} data-testid={`tours-trust-badge-${index}`} className="tours-catalog-trust-item">
+                  <Icon aria-hidden />
+                  <div>
+                    <h2>{label}</h2>
+                    <p>{sub}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="ec-container tours-catalog-season" aria-labelledby="tours-season-title">
+          <p id="tours-season-title" className="ec-eyebrow">{tl.seasonLabel}</p>
+          <div className="tours-catalog-season-note">
+            <span aria-hidden>{seasonTip.emoji}</span>
+            <p>{seasonTip[language] || seasonTip.en}</p>
+          </div>
+        </section>
+
+        <section className="ec-container tours-catalog-destinations" aria-labelledby="tours-destinations-title">
+          <div className="tours-catalog-section-heading">
+            <div>
+              <p className="ec-eyebrow">{tl.indexLabel}</p>
+              <h2 id="tours-destinations-title" className="ec-h2">{tl.destinationsLabel}</h2>
+            </div>
+            <p className="ec-body-sm">{tl.destinationsBody}</p>
+          </div>
+          <div data-testid="tours-region-rail" className="tours-catalog-region-rail">
+            {TOUR_REGIONS.filter((region) => region.key !== 'All').map(({ key, label }) => {
+              const count = getToursByRegion(key).length;
+              if (count === 0) return null;
+              const isActive = activeRegion === key;
+              const regionLabel = label[language] || label.en;
+              const image = REGION_IMAGE[key];
+              return (
+                <button
+                  type="button"
+                  key={key}
+                  onClick={() => setActiveRegion(key)}
+                  aria-pressed={isActive}
+                  aria-label={`${regionLabel} — ${count} ${tl.toursUnit}`}
+                  className="tours-catalog-region-card"
+                >
+                  {image ? <img src={image} alt="" loading="lazy" /> : <span className="tours-catalog-region-placeholder" aria-hidden />}
+                  <span className="tours-catalog-region-copy">
+                    <strong>{regionLabel}</strong>
+                    <small>{count} {tl.toursUnit}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="tours-catalog-filter-section" aria-labelledby="tours-filter-title">
+          <div className="ec-container">
+            <div className="tours-catalog-section-heading tours-catalog-filter-heading">
               <div>
-                <p className="text-[11px] font-black text-white leading-none">{label}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: `${color}99` }}>{sub}</p>
+                <p className="ec-eyebrow">{tl.selectorLabel}</p>
+                <h2 id="tours-filter-title" className="ec-h2">{tl.filterTitle}</h2>
+              </div>
+              <p className="ec-body-sm">{tl.filterBody}</p>
+            </div>
+
+            <div data-testid="tours-filter-panel" className="tours-catalog-filter-panel">
+              <label className="tours-catalog-search">
+                <span>{tl.searchLabel}</span>
+                <span className="tours-catalog-search-field">
+                  <Search aria-hidden />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={tl.searchPlaceholder}
+                    enterKeyHint="search"
+                    className="min-h-[44px]"
+                  />
+                  {searchQuery && (
+                    <button type="button" onClick={() => setSearchQuery('')} aria-label={tl.clearSearch}>
+                      <X aria-hidden />
+                    </button>
+                  )}
+                </span>
+              </label>
+
+              <div className="tours-catalog-filter-groups">
+                <fieldset>
+                  <legend>{tl.filterLabel}</legend>
+                  <div className="tours-catalog-chip-row">
+                    {TOUR_REGIONS.map(({ key, label }) => {
+                      const isActive = activeRegion === key;
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          onClick={() => setActiveRegion(key)}
+                          aria-pressed={isActive}
+                          className="tour-chip tours-catalog-chip min-h-[44px]"
+                        >
+                          {label[language] || label.en}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend>{tl.durationLabel}</legend>
+                  <div className="tours-catalog-chip-row">
+                    {DURATION_OPTIONS.map(({ key, label }) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => setActiveDuration(key)}
+                        aria-pressed={activeDuration === key}
+                        className="tour-chip tours-catalog-chip min-h-[44px]"
+                      >
+                        {label[language] || label.en}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend>{tl.interestLabel}</legend>
+                  <div className="tours-catalog-chip-row">
+                    {INTEREST_CHIPS.map(({ key, label }) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => toggleTag(key)}
+                        aria-pressed={activeTags.has(key)}
+                        className="tour-chip tours-catalog-chip min-h-[44px]"
+                      >
+                        {label[language] || label.en}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend>{tl.paceFilterLabel}</legend>
+                  <div className="tours-catalog-chip-row">
+                    {PACE_ORDER.map((pace) => (
+                      <button
+                        type="button"
+                        key={pace}
+                        onClick={() => togglePace(pace)}
+                        aria-pressed={activePace.has(pace)}
+                        className="tour-chip tours-catalog-chip min-h-[44px]"
+                      >
+                        <span aria-hidden>{paceEmoji(pace)}</span>
+                        {paceLabel(pace, language)}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend>{tl.driverLabel}</legend>
+                  <div className="tours-catalog-chip-row">
+                    {DRIVER_OPTIONS.map(({ key, label }) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => toggleLang(key)}
+                        aria-pressed={activeLangs.has(key)}
+                        className="tour-chip tours-catalog-chip min-h-[44px]"
+                      >
+                        <Languages aria-hidden />
+                        {label[language] || label.en}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset className="tours-catalog-sort-fieldset">
+                  <legend>{tl.sortLabel}</legend>
+                  <label className="tours-catalog-sort">
+                    <ArrowUpDown aria-hidden />
+                    <select
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value as SortKey)}
+                      aria-label={tl.sortLabel}
+                      className="min-h-[44px]"
+                    >
+                      <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
+                      <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
+                      <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
+                    </select>
+                  </label>
+                </fieldset>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── 구분선 ── */}
-      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-4 sm:mb-5" />
-
-      {/* UIUX 계절 팁 (운영자 아이디어 2026-07-14): 현재 월 기준 한국 계절 실팩트 안내.
-          per-tour 가짜 별점 대신 정직한 계절 가이드(무슨 시즌·뭐가 좋고 힘든지). 4언어.
-          투어별 세분화(예: 여름 레일바이크 더위 주의)는 실계절 적합도 큐레이션 필요=후속. */}
-      {(() => {
-        const mo = new Date().getMonth() + 1; // 1-12
-        const season = mo >= 3 && mo <= 5 ? 'spring' : mo >= 6 && mo <= 8 ? 'summer' : mo >= 9 && mo <= 11 ? 'autumn' : 'winter';
-        const TIP = {
-          spring: { emoji: '🌸', ko: '봄 — 벚꽃 시즌(3월말~4월)이라 야외 투어 최적기예요. 일교차가 크니 겉옷을 챙기세요.', en: 'Spring — cherry-blossom season (late Mar–Apr) is prime time for outdoor tours. Pack a layer for chilly mornings.', ja: '春 — 桜シーズン(3月末〜4月)は屋外ツアーに最適。朝晩は冷えるので上着を。', zh: '春季 — 樱花季(3月底~4月)最适合户外行程。早晚温差大，请带外套。' },
-          summer: { emoji: '☀️', ko: '여름 — 덥고 습해요(장마 6월말~7월). 한낮 야외·등산은 힘들 수 있어 이른 아침·저녁이나 실내·계곡·해변 투어를 추천해요.', en: 'Summer — hot & humid (rainy season late Jun–Jul). Midday outdoor/hiking can be tough; prefer early/late hours or indoor·valley·beach tours.', ja: '夏 — 蒸し暑い(梅雨6月末〜7月)。日中の屋外・登山は大変。早朝・夕方や室内・渓谷・海のツアーがおすすめ。', zh: '夏季 — 炎热潮湿(梅雨6月底~7月)。正午户外·登山较吃力，建议清晨/傍晚或室内·溪谷·海滨行程。' },
-          autumn: { emoji: '🍁', ko: '가을 — 단풍 시즌(10~11월)이라 여행하기 가장 좋은 날씨예요. 야외 투어 강력 추천!', en: 'Autumn — foliage season (Oct–Nov) is the best weather of the year. Outdoor tours highly recommended!', ja: '秋 — 紅葉シーズン(10〜11月)は一年で最も快適。屋外ツアーが断然おすすめ。', zh: '秋季 — 红叶季(10~11月)是全年最佳天气，强烈推荐户外行程!' },
-          winter: { emoji: '❄️', ko: '겨울 — 춥고 건조해요. 방한 필수! 실내·온천·설경 투어를 추천해요.', en: 'Winter — cold & dry. Bundle up! Indoor·hot-spring·snow-scenery tours recommended.', ja: '冬 — 寒く乾燥。防寒必須! 室内・温泉・雪景色ツアーがおすすめ。', zh: '冬季 — 寒冷干燥。请注意保暖! 推荐室内·温泉·雪景行程。' },
-        } as const;
-        const tip = TIP[season];
-        return (
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4">
-            <div className="flex items-start gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
-              <span className="text-lg leading-none mt-0.5 shrink-0">{tip.emoji}</span>
-              <p className="text-[12.5px] leading-relaxed text-white/70">{tip[language] || tip.en}</p>
-            </div>
           </div>
-        );
-      })()}
+        </section>
 
-      {/* ── Discover: 인기 목적지 카드 (가이드 P7) — N Tours = getToursByRegion 실카운트(TOURS SSOT 파생) ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
-          {tl.popularDestinations}
-        </p>
-        <div data-testid="tours-region-rail" className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {TOUR_REGIONS.filter((r) => r.key !== 'All').map(({ key, label }) => {
-            const count = getToursByRegion(key).length;
-            if (count === 0) return null;
-            const isActive = activeRegion === key;
-            const img = REGION_IMAGE[key];
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveRegion(key)}
-                aria-pressed={isActive}
-                className="relative shrink-0 w-[124px] sm:w-[144px] h-[92px] rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform"
-                style={{
-                  border: isActive ? '1px solid rgba(182,104,252,0.55)' : '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: isActive ? '0 0 14px rgba(182,104,252,0.22)' : 'none',
-                }}
-              >
-                {img ? (
-                  <img src={img} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-                ) : (
-                  <span className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.22), rgba(255,107,157,0.14))' }} />
+        <section className="ec-container tours-catalog-results" aria-labelledby="tours-results-title">
+          <div className="tours-catalog-results-heading">
+            <div>
+              <p className="ec-eyebrow">{tl.catalogueSectionLabel}</p>
+              <h2 id="tours-results-title" className="ec-h2">{tl.resultsLabel}</h2>
+            </div>
+            <p aria-live="polite"><strong>{visibleTours.length}</strong> {tl.toursUnit}</p>
+          </div>
+
+          {visibleTours.length === 0 ? (
+            <div className="tours-catalog-empty">
+              <EcEmpty
+                title={searchQuery.trim() ? tl.noSearchResults : tl.noResults}
+                body={tl.emptyBody}
+                action={(
+                  <button type="button" className="ec-btn ec-btn-secondary" onClick={resetFilters}>
+                    {tl.resetFilters}
+                  </button>
                 )}
-                <span className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(10,4,18,0.04) 0%, rgba(10,4,18,0.80) 100%)' }} />
-                <div className="absolute bottom-2 left-2.5 right-2.5">
-                  <p className="text-[13px] font-black text-white leading-tight truncate drop-shadow">{label[language] || label.en}</p>
-                  <p className="mt-0.5 flex items-baseline gap-1">
-                    <span className="text-[15px] font-black text-white">{count}</span>
-                    <span className="text-[10px] font-semibold text-white/70">{tl.toursUnit}</span>
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+              />
+            </div>
+          ) : (
+            <div data-testid="tours-grid" className="tours-catalog-grid">
+              {visibleTours.map((tour) => <TourCard key={tour.id} tour={tour} language={language} />)}
+            </div>
+          )}
+        </section>
 
-      {/* ── 지역 필터 칩 ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4 sm:mb-6">
-        <div
-          data-testid="tours-filter-panel"
-          className="rounded-[22px] p-3 sm:p-4"
-          style={{
-            background: 'rgba(255,255,255,0.025)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-        {/* 텍스트 검색 (가이드 P7 Discover) — 홈 검색바 ?q= 시딩과 연동 */}
-        {/* 입력 행 자체가 44px 터치 타깃 — py 로 높이를 만들면 지우기(X) 버튼만 16px 로 남는다.
-            입력 글자 16px: 그 아래로는 iOS 사파리가 포커스 때 뷰포트를 확대해 버린다. */}
-        <div
-          className="mb-3 flex items-center gap-2.5 rounded-full px-4 min-h-[44px]"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
-        >
-          <Search className="w-4 h-4 shrink-0 text-white/45" aria-hidden />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={tl.searchPlaceholder}
-            aria-label={tl.searchPlaceholder}
-            enterKeyHint="search"
-            className="w-full self-stretch min-h-[44px] bg-transparent text-[16px] sm:text-[13px] font-medium text-white outline-none placeholder:text-white/35"
-          />
-          {searchQuery && (
+        <section className="tours-catalog-concierge" aria-labelledby="tours-concierge-title">
+          <div className="ec-container tours-catalog-concierge-inner">
+            <div>
+              <p className="ec-eyebrow">{tl.conciergeLabel}</p>
+              <h2 id="tours-concierge-title" className="ec-h2">{tl.inquireTitle}</h2>
+              <p className="ec-body">{tl.inquireSub}</p>
+              <Link to="/charter" className="tours-catalog-charter-link">{tl.charterLink}</Link>
+            </div>
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
-              aria-label={tl.clearSearch}
-              className="-mr-2.5 shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full text-white/45 hover:text-white/80"
+              data-testid="tours-inquire-cta"
+              onClick={() => {
+                trackEvent('tour_custom_inquiry_open', { region: activeRegion });
+                setInquireOpen(true);
+              }}
+              className="ec-btn ec-btn-primary"
             >
-              <X className="w-4 h-4" />
+              {tl.inquireBtn}
+              <ChevronRight aria-hidden />
             </button>
-          )}
-        </div>
+          </div>
+        </section>
 
-        <div className="flex items-center justify-between gap-3 mb-2.5">
-          <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold">
-            {tl.filterLabel}
-          </p>
-          <p className="text-[11px] font-bold text-white/45">{visibleTours.length} {tl.toursUnit}</p>
-        </div>
-        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {TOUR_REGIONS.map(({ key, label }) => {
-            const isActive = activeRegion === key;
-            const chipLabel = label[language] || label.en;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveRegion(key)}
-                aria-pressed={isActive}
-                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] sm:text-[12px] font-bold px-3.5 sm:px-4 min-w-[44px] min-h-[44px] rounded-full"
-                style={
-                  isActive
-                    ? {
-                        background: 'linear-gradient(135deg, rgba(182,104,252,0.18), rgba(255,107,157,0.12))',
-                        border: '1px solid rgba(182,104,252,0.45)',
-                        color: '#D0A8FF',
-                        boxShadow: '0 0 12px rgba(182,104,252,0.18)',
-                      }
-                    : {
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        color: 'rgba(255,255,255,0.45)',
-                      }
-                }
-              >
-                {chipLabel}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 기간 필터 (2번째 행) */}
-        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {([
-            { key: 'All',   label: { ko: '전체 기간',  en: 'All',        ja: '全期間',  zh: '全部' } },
-            { key: 'Day',   label: { ko: '당일',       en: 'Day',        ja: '日帰り',  zh: '当天' } },
-            { key: 'Short', label: { ko: '2~3일',      en: '2-3 Days',   ja: '2~3日',   zh: '2~3天' } },
-            { key: 'Long',  label: { ko: '4일 이상',   en: '4+ Days',    ja: '4日以上', zh: '4天+' } },
-          ] as const).map(({ key, label }) => {
-            const isActive = activeDuration === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveDuration(key)}
-                aria-pressed={isActive}
-                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
-                style={
-                  isActive
-                    ? { background: 'rgba(182,104,252,0.15)', border: '1px solid rgba(182,104,252,0.40)', color: '#D0A8FF' }
-                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
-                }
-              >
-                {label[language] || label.en}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Interests 필터 (가이드 P7) — TOURS 실태그만. 데이터 없는 관심사 칩 금지.
-            목록·근거 없는 태그 차단은 파일 상단 INTEREST_CHIPS 참조. */}
-        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {INTEREST_CHIPS.map(({ key, label }) => {
-            const isActive = activeTags.has(key);
-            return (
-              <button
-                key={key}
-                onClick={() => toggleTag(key)}
-                aria-pressed={isActive}
-                className="tour-chip shrink-0 inline-flex items-center justify-center text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
-                style={
-                  isActive
-                    ? { background: 'rgba(255,107,157,0.14)', border: '1px solid rgba(255,107,157,0.45)', color: '#FF9DC0' }
-                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
-                }
-              >
-                {label[language] || label.en}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Trip Style(pace) 필터 (가이드 P7) — tourPace.ts 실데이터. OR 매칭. */}
-        <div className="flex gap-1.5 sm:gap-2 mt-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {PACE_ORDER.map((pace) => {
-            const isActive = activePace.has(pace);
-            return (
-              <button
-                key={pace}
-                onClick={() => togglePace(pace)}
-                aria-pressed={isActive}
-                className="tour-chip shrink-0 inline-flex items-center justify-center gap-1 text-[11px] font-semibold px-3 min-w-[44px] min-h-[44px] rounded-full"
-                style={isActive
-                  ? { background: 'rgba(0,200,140,0.14)', border: '1px solid rgba(0,200,140,0.45)', color: '#5FE3B0' }
-                  : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}
-              >
-                <span aria-hidden>{paceEmoji(pace)}</span>{paceLabel(pace, language)}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 언어·정렬 필터 (3번째 행) */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2">
-          <Languages className="w-3.5 h-3.5 text-white/55" />
-          {([
-            { key: 'en' as DriverLanguage, label: { ko: '영어 기사', en: 'English driver',  ja: '英語ドライバー',  zh: '英语司机' } },
-            { key: 'ja' as DriverLanguage, label: { ko: '일본어 기사', en: 'Japanese driver', ja: '日本語ドライバー', zh: '日语司机' } },
-            { key: 'zh' as DriverLanguage, label: { ko: '중국어 기사', en: 'Chinese driver',  ja: '中国語ドライバー', zh: '中文司机' } },
-          ]).map(({ key, label }) => {
-            const isActive = activeLangs.has(key);
-            return (
-              <button
-                key={key}
-                onClick={() => toggleLang(key)}
-                aria-pressed={isActive}
-                className="tour-chip inline-flex items-center justify-center text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 min-w-[44px] min-h-[44px] rounded-full"
-                style={
-                  isActive
-                    ? { background: 'rgba(140,200,255,0.15)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
-                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
-                }
-                title={label[language] || label.en}
-              >
-                {label[language] || label.en}
-              </button>
-            );
-          })}
-
-          <div className="ml-auto flex items-center gap-1.5">
-            <ArrowUpDown className="w-3.5 h-3.5 text-white/55" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              aria-label={language === 'ko' ? '정렬' : language === 'ja' ? '並び替え' : language === 'zh' ? '排序' : 'Sort'}
-              className="text-[11px] font-semibold px-2.5 sm:px-3 min-h-[44px] rounded-full cursor-pointer focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
+        <section className="ec-container tours-catalog-hotel" aria-label={tl.hotelCtaText}>
+          <AffiliateCard
+            className="tours-catalog-hotel-card"
+            payload={{ product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey }}
+          >
+            <p>{tl.hotelCtaText}</p>
+            <a
+              data-testid="tours-hotel-cta"
+              href={hotelSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              title={tl.hotelCtaNew}
+              aria-label={`${tl.hotelCtaBtn} — ${tl.hotelCtaNew}`}
+              onClick={() => trackAffiliateClick({
+                product: 'hotel',
+                placement: 'tours_page_bottom',
+                language,
+                city: hotelCityKey,
+              })}
             >
-              <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
-              <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
-              <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
-            </select>
-          </div>
-        </div>
-        </div>
-      </div>
+              {tl.hotelCtaBtn}
+              <ExternalLink aria-hidden />
+            </a>
+          </AffiliateCard>
+        </section>
+      </main>
 
-      {/* ── 투어 카드 리스트 ── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-8 sm:mb-10">
-        {visibleTours.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div
-              className="w-16 h-16 rounded-3xl flex items-center justify-center mb-4"
-              style={{ background: 'rgba(182,104,252,0.08)', border: '1px solid rgba(182,104,252,0.15)' }}
-            >
-              <Package className="w-7 h-7" style={{ color: 'rgba(182,104,252,0.5)' }} />
-            </div>
-            <p className="text-[14px] text-white/55">{searchQuery.trim() ? tl.noSearchResults : tl.noResults}</p>
-          </div>
-        ) : (
-          <div data-testid="tours-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
-            {visibleTours.map(tour => (
-              <TourCard key={tour.id} tour={tour} language={language} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ── 맞춤 투어 문의 배너 — 클릭 시 견적 문의 모달 (결제 없음) ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-2 mb-3">
-        <div
-          className="flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4 rounded-2xl"
-          style={{
-            background: 'linear-gradient(135deg, rgba(182,104,252,0.10), rgba(255,107,157,0.07))',
-            border: '1px solid rgba(182,104,252,0.18)',
-          }}
-        >
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            <Package className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-bold text-white">{tl.inquireTitle}</p>
-            <p className="text-[11px] text-white/55 mt-0.5">
-              {tl.inquireSub}
-              {' · '}
-              <Link to="/charter" className="underline underline-offset-2 text-white/65 hover:text-white/85">
-                {tl.charterLink}
-              </Link>
-            </p>
-          </div>
-          <button
-            type="button"
-            data-testid="tours-inquire-cta"
-            onClick={() => {
-              trackEvent('tour_custom_inquiry_open', { region: activeRegion });
-              setInquireOpen(true);
-            }}
-            className="inline-flex items-center gap-1 text-[12px] font-bold px-3.5 min-h-[44px] rounded-full shrink-0"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)', color: '#fff' }}
-          >
-            {tl.inquireBtn}
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Trip.com 숙소 비교 소형 CTA — 맞춤투어 배너보다 약한 톤, 외부 새 창 ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
-        {/* 노출 계측 (2026-08-03) — 기존 행 div 를 AffiliateCard 로 **교체**(DOM 증가 0).
-            `<a>` 만 감싸면 `shrink-0` 이 래퍼로 넘어가지 않아 좁은 폭에서 버튼이 찌그러진다.
-            한 줄 배너라 "행이 반 이상 보임" = "버튼이 반 이상 보임" 이므로 노출 정의도 정확하다. */}
-        <AffiliateCard
-          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5 rounded-xl"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
-          payload={{ product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey }}
-        >
-          <p className="text-[11px] text-white/50 min-w-0">{tl.hotelCtaText}</p>
-          <a
-            data-testid="tours-hotel-cta"
-            href={hotelSearchUrl}
-            target="_blank"
-            rel="noopener noreferrer sponsored"
-            title={tl.hotelCtaNew}
-            aria-label={`${tl.hotelCtaBtn} — ${tl.hotelCtaNew}`}
-            onClick={() => trackAffiliateClick({
-              product: 'hotel', placement: 'tours_page_bottom', language, city: hotelCityKey,
-            })}
-            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 min-h-[44px] rounded-full"
-            style={{ background: 'rgba(0,115,230,0.10)', border: '1px solid rgba(0,115,230,0.30)', color: '#4D9FFF' }}
-          >
-            {tl.hotelCtaBtn}
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </AffiliateCard>
-      </div>
-
-      {/* ── 맞춤형 투어 문의 모달 ── */}
       <TourInquireModal
         open={inquireOpen}
         onClose={() => setInquireOpen(false)}
