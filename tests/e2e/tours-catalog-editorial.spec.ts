@@ -12,7 +12,7 @@ import { test, expect } from './fixtures/analytics-guard';
  *   P3-1 카드 제목이 잘리지 않고(최대 2줄) 카드끼리 제목 높이가 같다
  *   P3-2 조작 가능한 칩·버튼이 전부 44px 이상
  *   P3-3 공개 필터에 Popular/인기/人気/热门 칩이 0개
- *   P3-4 ko/ja/zh 카드에 NIGHT/NATURE/HISTORY/MULTI-CITY/Tolls/Parking/Tips 영어 누출 0
+ *   P3-4 ko/ja/zh 카드에 NIGHT/NATURE/HISTORY/MULTI-CITY/Fuel/Tolls/Parking 영어 누출 0
  *
  * 12조합 = 390 / 768 / 1440 × ko / en / ja / zh.
  * 결제·예약은 누르지 않는다 — 읽기와 측정만 한다.
@@ -39,6 +39,7 @@ const ENGLISH_LEAK: RegExp[] = [
   /\bNATURE\b/,
   /\bHISTORY\b/,
   /MULTI-?\s?CITY/i,
+  /\bFuel\b/,
   /\bTolls\b/,
   /\bParking\b/,
   /\bTips\b/,
@@ -75,6 +76,64 @@ test.describe('/tours 공개 목록 — 편집형 정리 (제목·터치·필터
         const grid = page.getByTestId('tours-grid');
         await expect(grid).toBeVisible();
         await expect(page.getByTestId('tours-filter-panel')).toBeVisible();
+
+        // ── 전체 문서형 셸: 이전 refined 다크 목록으로 되돌아가지 않는다 ───────────
+        const shell = page.getByTestId('tours-editorial-shell');
+        await expect(shell).toBeVisible();
+        await expect(shell).toHaveClass(/\bec-root\b/);
+        await expect(shell).toHaveClass(/\btours-catalog-editorial\b/);
+        await expect(page.locator('main').getByTestId('tours-grid')).toBeVisible();
+
+        const shellPaint = await shell.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage };
+        });
+        expect(shellPaint.backgroundImage, '페이지 장식용 gradient가 다시 들어왔다').toBe('none');
+        expect(shellPaint.backgroundColor, '이전 다크 배경이 다시 들어왔다').not.toBe('rgb(10, 4, 18)');
+
+        const semanticGroups = page.getByTestId('tours-filter-panel').locator('fieldset');
+        expect(await semanticGroups.count(), '제목 없는 필터 묶음이 남았다').toBeGreaterThanOrEqual(4);
+        expect(await page.getByTestId('tours-filter-panel').locator('legend').count()).toBe(
+          await semanticGroups.count(),
+        );
+
+        const destinationHeading = page.locator('#tours-destinations-title');
+        await expect(destinationHeading).toBeVisible();
+        expect((await destinationHeading.innerText()).trim()).not.toMatch(/Popular Destinations|인기 목적지|人気の目的地|热门目的地/);
+        expect(await page.locator('.tour-catalog-card-link button').count()).toBe(0);
+        const wishlistIconColor = await grid.locator('.tour-catalog-card-wishlist svg').first().evaluate(
+          (element) => getComputedStyle(element).color,
+        );
+        expect(wishlistIconColor, '흰 카드 위에서 위시리스트 하트가 사라진다').not.toMatch(/255,\s*255,\s*255/);
+
+        const firstCardLink = grid.locator('.tour-catalog-card-link').first();
+        await firstCardLink.focus();
+        const cardFocusPaint = await firstCardLink.evaluate((element) => {
+          const cardStyle = getComputedStyle(element.closest('.tour-catalog-card') as HTMLElement);
+          const linkStyle = getComputedStyle(element);
+          return { cardShadow: cardStyle.boxShadow, linkShadow: linkStyle.boxShadow };
+        });
+        expect(
+          cardFocusPaint.cardShadow !== 'none' || cardFocusPaint.linkShadow !== 'none',
+          '투어 카드 링크의 키보드 초점 표시가 카드 경계에서 잘린다',
+        ).toBe(true);
+
+        const imageCount = grid.locator('.tour-catalog-card-image-count').first();
+        if (await imageCount.count()) {
+          await expect(imageCount).toHaveAttribute('aria-label', /\D+\d+|\d+\D+/);
+        }
+        expect(await grid.locator('.tour-catalog-card-facts dt .sr-only').first().count()).toBe(1);
+
+        const firstDestination = page.getByTestId('tours-region-rail').locator('button').first();
+        await firstDestination.focus();
+        const focusPaint = await firstDestination.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { outlineStyle: style.outlineStyle, boxShadow: style.boxShadow };
+        });
+        expect(
+          focusPaint.outlineStyle !== 'none' || focusPaint.boxShadow !== 'none',
+          '키보드 초점 표시가 보이지 않는다',
+        ).toBe(true);
 
         // ── P3-1 제목: 2줄 안에 다 들어가고, 카드끼리 제목 높이가 같다 ────────────────
         const titles = await grid.locator('h3').evaluateAll((els) =>

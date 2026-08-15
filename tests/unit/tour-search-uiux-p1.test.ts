@@ -63,7 +63,7 @@ describe('배선 회귀 — 홈 검색바 / ToursPage ?q= 시딩', () => {
 
   it('ToursPage: ?q= 초기값 시딩 + matchesTourQuery 필터 적용', () => {
     expect(TP).toMatch(/searchParams\.get\('q'\)/);
-    expect(TP).toMatch(/matchesTourQuery\(t,\s*searchQuery\)/);
+    expect(TP).toMatch(/matchesTourQuery\(\w+,\s*searchQuery\)/);
   });
 
   it('i18n 4언어: mobileHomeV2.searchPlaceholder 전 로케일 존재', () => {

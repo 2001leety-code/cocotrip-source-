@@ -1,4 +1,4 @@
-// 정제 퍼플·핑크 — 투어 목록(ToursPage) 회귀 방지. 시각만, PDF 없음 → 세리프 OK. firebase-free.
+// 편집형 종이·잉크 — 투어 목록(ToursPage) 회귀 방지. firebase-free.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -6,18 +6,18 @@ import path from 'node:path';
 
 const read = (rel: string) => readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), rel), 'utf8');
 const TP = read('../../src/pages/ToursPage.tsx');
-const CSS = read('../../src/index.css');
+const CSS = read('../../src/styles/editorial-tours-catalog.css');
 
-describe('투어 목록 정제 플래그 (ToursPage)', () => {
-  it('REFINED 플래그 + refined-tours 스코프 클래스', () => {
-    expect(TP).toMatch(/const REFINED\s*=/);
-    expect(TP).toMatch(/VITE_FEATURE_REFINED_UI\s*===\s*'true'/);
-    expect(TP).toMatch(/REFINED\s*\?\s*'refined-tours'\s*:\s*''/);
+describe('투어 목록 편집형 셸 (ToursPage)', () => {
+  it('기능 플래그 없이 편집형 셸을 일관되게 사용한다', () => {
+    expect(TP).toContain('ec-root tours-catalog-editorial');
+    expect(TP).not.toMatch(/const REFINED\s*=/);
+    expect(TP).not.toContain('refined-tours');
   });
 
-  it('cascade(index.css): 세리프 제목 + tours-shimmer 소프트 + 글로우 제거', () => {
-    expect(CSS).toMatch(/\.refined-tours h1, \.refined-tours h2\s*\{[^}]*Fraunces/);
-    expect(CSS).toMatch(/\.refined-tours \.tours-shimmer\s*\{[^}]*caa9ff/);
-    expect(CSS).toMatch(/\.refined-tours[^{]*shadow-glow[^{]*\{[^}]*box-shadow:\s*none/);
+  it('종이·잉크 토큰을 쓰고 글로우·그라디언트를 되살리지 않는다', () => {
+    expect(CSS).toMatch(/\.tours-catalog-editorial\s*\{[^}]*var\(--ec-surface-page\)/);
+    expect(CSS).toContain('.tour-catalog-card');
+    expect(CSS).not.toMatch(/linear-gradient|radial-gradient|backdrop-filter/);
   });
 });

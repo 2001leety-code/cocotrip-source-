@@ -8,7 +8,7 @@
  *                                    390/768/1440 어디서나 한 줄에서 잘려 상품을 식별할 수 없었다.
  *   P3-2 모바일 필터 칩 30~40px    — 터치 최소치(44px) 미달.
  *   P3-3 근거 없는 `Popular` 필터칩 — 집계가 없는 라벨이 공개 필터에 남아 있었다.
- *   P3-4 ko/ja/zh 영어 누출        — NIGHT / NATURE / HISTORY / MULTI-CITY / Tolls / Parking / Tips.
+ *   P3-4 ko/ja/zh 영어 누출        — NIGHT / NATURE / HISTORY / MULTI-CITY / Fuel / Tolls / Parking.
  *
  * **왜 소스 문자열이 아니라 렌더인가**: #1276 의 F3(AI-CURATED)은 구현 상수가 맞는데도
  * 그 상수를 안 쓰는 두 번째 경로가 있어서 화면에는 그대로 찍혔다(tests/unit/public-ai-actor-copy
@@ -38,6 +38,7 @@ const ENGLISH_LEAK: RegExp[] = [
   /\bNATURE\b/i,
   /\bHISTORY\b/i,
   /MULTI-?\s?CITY/i,
+  /\bFuel\b/i,
   /\bTolls\b/i,
   /\bParking\b/i,
   /\bTips\b/i,
@@ -57,7 +58,9 @@ beforeAll(() => {
 beforeEach(() => cleanup());
 
 // ── 외부 의존(파이어베이스·리뷰 집계·계측)은 이 검증의 대상이 아니다 ──────────────────
-vi.mock('../../src/components/WishlistButton', () => ({ WishlistToggle: () => null }));
+vi.mock('../../src/components/WishlistButton', () => ({
+  WishlistToggle: () => <button type="button" aria-label="wishlist" />,
+}));
 vi.mock('../../src/hooks/useTourRatingAggregates', () => ({ useTourRatingAggregates: () => ({}) }));
 vi.mock('../../src/lib/firebase', () => ({ db: {}, auth: {} }));
 vi.mock('../../src/sections/Header', () => ({ Header: () => null }));
@@ -175,20 +178,51 @@ describe('P3-4 카드 태그·포함 배지 — ko/en/ja/zh 현지화, 영어 �
       }
     });
 
-    it(`${lang} — 포함 항목(톨비·주차비·기사팁)이 영어가 아닌 현지 표기로 3개 다 나온다`, () => {
+    it(`${lang} — 실제 공통 포함 항목(연료비·톨비·주차비)이 현지 표기로 3개 다 나온다`, () => {
       const included: Record<typeof lang, string[]> = {
-        ko: ['톨비', '주차비', '기사 팁'],
-        ja: ['通行料', '駐車場', 'チップ'],
-        zh: ['过路费', '停车费', '小费'],
+        ko: ['연료비', '톨비', '주차비'],
+        ja: ['燃料費', '通行料', '駐車場'],
+        zh: ['燃油费', '过路费', '停车费'],
       };
       const text = cardText(TOURS[0], lang);
       for (const label of included[lang]) expect(text).toContain(label);
     });
   }
 
-  it('en 은 기존 표기를 그대로 유지한다 (Tolls/Parking/Tips)', () => {
+  it('en 은 실제 공통 포함 항목만 표시한다 (Fuel/Tolls/Parking)', () => {
     const text = cardText(TOURS[0], 'en');
-    for (const label of ['Tolls', 'Parking', 'Tips']) expect(text).toContain(label);
+    for (const label of ['Fuel', 'Tolls', 'Parking']) expect(text).toContain(label);
+    expect(text).not.toContain('Tips');
+  });
+
+  it('카드 링크 안에 위시리스트 버튼을 중첩하지 않는다', () => {
+    const { container } = renderCard(TOURS[0], 'en');
+    expect(container.querySelector('.tour-catalog-card')).toBeTruthy();
+    expect(container.querySelector('.tour-catalog-card-link')).toBeTruthy();
+    expect(container.querySelector('.tour-catalog-card-link button')).toBeNull();
+    expect(container.querySelector('.tour-catalog-card > .tour-catalog-card-wishlist button')).toBeTruthy();
+  });
+
+  it('이미지 수와 카드 핵심 사실에 4언어 접근성 이름을 제공한다', () => {
+    const imageLabels: Record<Lang, string> = {
+      ko: '이미지 2장',
+      en: '2 images',
+      ja: '画像2枚',
+      zh: '2张图片',
+    };
+    const factLabels: Record<Lang, string[]> = {
+      ko: ['소요 시간', '차량 및 정원'],
+      en: ['Duration', 'Vehicle and capacity'],
+      ja: ['所要時間', '車両・定員'],
+      zh: ['行程时长', '车辆及人数'],
+    };
+
+    for (const lang of LANGS) {
+      const { container } = renderCard(tourWith({ images: ['one.jpg', 'two.jpg'] }), lang);
+      expect(container.querySelector('.tour-catalog-card-image-count')).toHaveAttribute('aria-label', imageLabels[lang]);
+      expect(Array.from(container.querySelectorAll('.tour-catalog-card-facts dt .sr-only')).map((node) => node.textContent)).toEqual(factLabels[lang]);
+      cleanup();
+    }
   });
 
   it('사전에 없는 태그는 배지를 안 만든다 — 영어 원문이 새는 대신 미렌더', () => {
@@ -323,5 +357,55 @@ describe('편집형 SSOT — 로고 외 gradient/glow/glass 추가 금지', () =
   it('framer-motion 을 새로 끌어오지 않았다', () => {
     expect(read('src/components/tours/TourCard.tsx')).not.toMatch(/framer-motion/);
     expect(read('src/pages/ToursPage.tsx')).not.toMatch(/framer-motion/);
+  });
+
+  it('지역·필터·목록·문의 섹션 표기를 네 언어로 제공한다', () => {
+    const pageSrc = read('src/pages/ToursPage.tsx');
+    expect(pageSrc).toContain("indexLabel: 'CocoTrip 地域案内'");
+    expect(pageSrc).toContain("selectorLabel: 'CocoTrip 日程検索'");
+    expect(pageSrc).toContain("catalogueSectionLabel: 'CocoTrip 旅游列表'");
+    expect(pageSrc).toContain("conciergeLabel: 'CocoTrip 定制咨询'");
+    expect(pageSrc).toContain('{tl.indexLabel}');
+    expect(pageSrc).toContain('{tl.selectorLabel}');
+    expect(pageSrc).toContain('{tl.catalogueSectionLabel}');
+    expect(pageSrc).toContain('{tl.conciergeLabel}');
+  });
+});
+
+describe('목록 전체 — Korea Editorial Concierge 문서형 셸', () => {
+  const pageSrc = read('src/pages/ToursPage.tsx');
+  const cardSrc = read('src/components/tours/TourCard.tsx');
+
+  it('공용 편집형 토큰을 쓰는 전용 셸과 스타일시트를 연결한다', () => {
+    const { container } = renderPage('ko');
+    const shell = container.querySelector('[data-testid="tours-editorial-shell"]');
+
+    expect(shell).not.toBeNull();
+    expect(shell?.className).toMatch(/\bec-root\b/);
+    expect(shell?.className).toMatch(/\btours-catalog-editorial\b/);
+    expect(pageSrc).toMatch(/editorial-tours-catalog\.css/);
+  });
+
+  it('이전 refined 다크 셸과 페이지·카드 장식용 gradient/glow/glass를 제거한다', () => {
+    expect(pageSrc).not.toMatch(/refined-tours|tours-shimmer|linear-gradient|boxShadow|backdrop-blur/);
+    expect(cardSrc).not.toMatch(/linear-gradient|boxShadow|backdrop-blur|onMouseEnter|onMouseLeave/);
+  });
+
+  it('필터는 제목이 있는 의미 단위이고 결과 목록은 main 안에 있다', () => {
+    const { container } = renderPage('en');
+    const main = container.querySelector('main');
+    const panel = container.querySelector('[data-testid="tours-filter-panel"]');
+
+    expect(main).not.toBeNull();
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelectorAll('fieldset').length).toBeGreaterThanOrEqual(4);
+    expect(panel?.querySelectorAll('legend').length).toBeGreaterThanOrEqual(4);
+    expect(main?.querySelector('[data-testid="tours-grid"]')).not.toBeNull();
+  });
+
+  it('근거 없는 인기 목적지 주장을 지역 탐색 안내로 바꾼다', () => {
+    const text = renderPage('en').container.textContent || '';
+    expect(text).toContain('Browse by destination');
+    expect(text).not.toContain('Popular Destinations');
   });
 });
