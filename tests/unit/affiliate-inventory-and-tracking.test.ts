@@ -305,14 +305,14 @@ describe('⑧ 한국어 화면의 대상 영어·{price} 0', () => {
 });
 
 describe('⑨ 프로모션 CTA 목적지가 문구와 맞는다', () => {
-  it('🔴 무료 AI 일정을 앞세운 문구가 /planner 로 간다', () => {
+  it('🔴 무료 한국 여행 일정을 앞세운 문구가 /planner 로 간다', () => {
     const front = read('src/components/PromoBanner.tsx');
     const server = read('api/_shared/promo-config.js');
     expect(front).toContain("const CTA_HREF = '/planner';");
     expect(server).toContain("ctaHref: '/planner',");
     // 프론트만 고치고 서버 DEFAULT 를 빼먹는 사고가 과거에 있었다 → 둘 다 확인.
-    expect(front).toContain('Start free plan');
-    expect(server).toContain('Start free plan');
+    expect(front).toContain('Start free');
+    expect(server).toContain('Start free');
   });
 
   it('플래너 입력 화면이 무료·쿠폰·유료를 나눠 적는다', () => {

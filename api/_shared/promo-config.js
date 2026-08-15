@@ -45,17 +45,19 @@ const LANG_KEYS = ['ko', 'en', 'ja', 'zh'];
  */
 export const DEFAULT_PROMO_CONFIG = {
   enabled: true,
+  // 2026-08-16 모바일 컴팩트: '🎉 Grand Opening/오픈 기념' 과장 톤 + 이모지 제거 — PromoBanner.tsx
+  // COPY/CTA 와 반드시 동일(문구를 여기서만 고치면 prod API 가 옛 값을 반환한다).
   copy: {
-    en: '🎉 Grand Opening — free 1–3 day Korea itinerary + 5% charter and tour coupons when you sign up',
-    ko: '🎉 오픈 기념 — 가입하면 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
-    ja: '🎉 オープン記念 — 登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
-    zh: '🎉 开业纪念 — 注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
+    en: 'Free 1–3 day Korea itinerary + 5% charter and tour coupons on sign-up',
+    ko: '가입 시 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
+    ja: '登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
+    zh: '注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
   },
   ctaText: {
-    en: 'Start free plan →',
-    ko: '무료 일정 만들기 →',
-    ja: '無料プランを作る →',
-    zh: '免费生成行程 →',
+    en: 'Start free →',
+    ko: '무료 시작 →',
+    ja: '無料で始める →',
+    zh: '免费开始 →',
   },
   // 🔴 2026-07-30: 프론트 PromoBanner.tsx 와 같이 바꿨다(둘 중 하나만 고치면 prod 가 옛 값을 반환).
   //   문구가 앞세우는 무료 AI 일정과 목적지를 일치시킨다.
@@ -77,6 +79,29 @@ export const LEGACY_DEFAULT_PROMO_COPY = {
 };
 
 /**
+ * 2026-08-16 이전 배너 기본 문구 ("Grand Opening/오픈 기념" 이모지 + "Korea itinerary").
+ * 운영 Firestore admin_config/promo_banner 에는 이 값이 그대로 저장돼 있을 수 있다 —
+ * getPromoConfig 가 언어별로 정확히 이 값과 일치할 때만 DEFAULT_PROMO_CONFIG.copy 로 정규화한다.
+ */
+export const PREVIOUS_DEFAULT_PROMO_COPY = {
+  en: '🎉 Grand Opening — free 1–3 day Korea itinerary + 5% charter and tour coupons when you sign up',
+  ko: '🎉 오픈 기념 — 가입하면 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '🎉 オープン記念 — 登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
+  zh: '🎉 开业纪念 — 注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
+};
+
+/**
+ * 2026-08-16 이전 CTA 기본값 ("Start free plan →"). 운영 Firestore 에 남아있을 수 있다 —
+ * getPromoConfig 가 언어별로 정확히 이 값과 일치할 때만 DEFAULT_PROMO_CONFIG.ctaText 로 정규화한다.
+ */
+export const PREVIOUS_DEFAULT_CTA_TEXT = {
+  en: 'Start free plan →',
+  ko: '무료 일정 만들기 →',
+  ja: '無料プランを作る →',
+  zh: '免费生成行程 →',
+};
+
+/**
  * 프로모 배너 설정 읽기 (60s 캐시, fail-safe).
  * @param {object|null} db - initAdminDb 결과 (null 허용)
  * @returns {Promise<typeof DEFAULT_PROMO_CONFIG>}
@@ -91,8 +116,8 @@ export async function getPromoConfig(db) {
     // Firestore 값이 있는 필드만 병합 (없으면 DEFAULT 유지)
     const merged = {
       enabled: typeof data.enabled === 'boolean' ? data.enabled : DEFAULT_PROMO_CONFIG.enabled,
-      copy: _mergeBannerCopy(data.copy, DEFAULT_PROMO_CONFIG.copy, LEGACY_DEFAULT_PROMO_COPY),
-      ctaText: _mergeLangMap(data.ctaText, DEFAULT_PROMO_CONFIG.ctaText),
+      copy: _mergeBannerCopy(data.copy, DEFAULT_PROMO_CONFIG.copy, [LEGACY_DEFAULT_PROMO_COPY, PREVIOUS_DEFAULT_PROMO_COPY]),
+      ctaText: _mergeCTAText(data.ctaText, DEFAULT_PROMO_CONFIG.ctaText, [PREVIOUS_DEFAULT_CTA_TEXT]),
       ctaHref: (typeof data.ctaHref === 'string' && data.ctaHref) ? data.ctaHref : DEFAULT_PROMO_CONFIG.ctaHref,
       endDate: (typeof data.endDate === 'string') ? data.endDate : DEFAULT_PROMO_CONFIG.endDate,
     };
@@ -315,14 +340,33 @@ function _mergeLangMap(firestoreMap, defaultMap) {
   return result;
 }
 
-// 내부: 배너 copy 병합 — Firestore 값이 "정확히" 구형 기본값과 같을 때만 신규 기본값으로
+// 내부: 배너 copy 병합 — Firestore 값이 "정확히" 알려진 구형 기본값과 같을 때만 신규 기본값으로
 // 정규화한다. 그 외 Firestore 값(운영자 커스텀 문구)은 손대지 않고 그대로 쓴다.
-function _mergeBannerCopy(firestoreMap, defaultMap, legacyMap) {
+// legacyMaps: 한 개 이상의 알려진 기본값 객체를 포함한 배열 (예: [LEGACY_DEFAULT_PROMO_COPY, PREVIOUS_DEFAULT_PROMO_COPY])
+function _mergeBannerCopy(firestoreMap, defaultMap, legacyMaps) {
   const result = {};
+  const legacyArray = Array.isArray(legacyMaps) ? legacyMaps : [legacyMaps];
   for (const lang of LANG_KEYS) {
     const fsVal = firestoreMap && typeof firestoreMap[lang] === 'string' ? firestoreMap[lang] : null;
     if (fsVal === null) { result[lang] = defaultMap[lang]; continue; }
-    result[lang] = fsVal === legacyMap[lang] ? defaultMap[lang] : fsVal;
+    // 언어별 값이 알려진 기본값 중 하나와 정확히 일치하면 신규 기본값으로 정규화
+    const isKnownDefault = legacyArray.some(legacy => fsVal === legacy[lang]);
+    result[lang] = isKnownDefault ? defaultMap[lang] : fsVal;
+  }
+  return result;
+}
+
+// 내부: CTA 텍스트 병합 — Firestore 값이 "정확히" 알려진 구형 기본값과 같을 때만 신규 기본값으로
+// 정규화한다. 그 외는 손대지 않고 그대로 쓴다.
+function _mergeCTAText(firestoreMap, defaultMap, legacyMaps) {
+  const result = {};
+  const legacyArray = Array.isArray(legacyMaps) ? legacyMaps : [legacyMaps];
+  for (const lang of LANG_KEYS) {
+    const fsVal = firestoreMap && typeof firestoreMap[lang] === 'string' ? firestoreMap[lang] : null;
+    if (fsVal === null) { result[lang] = defaultMap[lang]; continue; }
+    // 언어별 값이 알려진 기본값 중 하나와 정확히 일치하면 신규 기본값으로 정규화
+    const isKnownDefault = legacyArray.some(legacy => fsVal === legacy[lang]);
+    result[lang] = isKnownDefault ? defaultMap[lang] : fsVal;
   }
   return result;
 }

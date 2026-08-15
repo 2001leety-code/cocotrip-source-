@@ -106,6 +106,28 @@ describe('P0-C 운영 Firestore 구형 문구 정규화 — 커스텀은 보존 
     }
   });
 
+  it('언어별 값이 정확히 직전 기본값(PREVIOUS_DEFAULT_PROMO_COPY)과 같으면 새 기본값으로 정규화된다 (2026-08-16 모바일 컴팩트)', async () => {
+    vi.resetModules();
+    const { getPromoConfig, DEFAULT_PROMO_CONFIG, PREVIOUS_DEFAULT_PROMO_COPY, __resetPromoConfigCache } =
+      await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const dbWithPreviousCopy = {
+      collection: () => ({
+        doc: () => ({
+          get: () => Promise.resolve({ exists: true, data: () => ({ copy: PREVIOUS_DEFAULT_PROMO_COPY }) }),
+        }),
+      }),
+    };
+    const cfg = await getPromoConfig(dbWithPreviousCopy);
+    for (const lang of LANGS) {
+      expect(cfg.copy[lang]).toBe(DEFAULT_PROMO_CONFIG.copy[lang]);
+      expect(cfg.copy[lang]).not.toMatch(/Grand Opening/);
+      expect(cfg.copy[lang]).not.toMatch(/오픈 기념/);
+      expect(cfg.copy[lang]).not.toMatch(/オープン記念/);
+      expect(cfg.copy[lang]).not.toMatch(/开业纪念/);
+    }
+  });
+
   it('구형 기본값과 다른(운영자 커스텀) 문구는 절대 덮어쓰지 않는다', async () => {
     vi.resetModules();
     const { getPromoConfig, __resetPromoConfigCache } = await import('../../api/_shared/promo-config.js');
@@ -126,7 +148,7 @@ describe('P0-C 운영 Firestore 구형 문구 정규화 — 커스텀은 보존 
     }
   });
 
-  it('언어 하나만 구형값이고 나머지는 커스텀이면, 그 언어만 정규화된다', async () => {
+  it('언어 하나만 구형값이고 나머지는 커스텀이면, 그 언어만 정규화된다 (mixed-language)', async () => {
     vi.resetModules();
     const { getPromoConfig, DEFAULT_PROMO_CONFIG, LEGACY_DEFAULT_PROMO_COPY, __resetPromoConfigCache } =
       await import('../../api/_shared/promo-config.js');
@@ -147,6 +169,134 @@ describe('P0-C 운영 Firestore 구형 문구 정규화 — 커스텀은 보존 
     expect(cfg.copy.ja).toBe(DEFAULT_PROMO_CONFIG.copy.ja);
     expect(cfg.copy.en).toBe(mixedCopy.en);
     expect(cfg.copy.zh).toBe(mixedCopy.zh);
+  });
+
+  it('직전 기본 CTA(PREVIOUS_DEFAULT_CTA_TEXT)와 정확히 같으면 새 기본값으로 정규화된다', async () => {
+    vi.resetModules();
+    const { getPromoConfig, DEFAULT_PROMO_CONFIG, PREVIOUS_DEFAULT_CTA_TEXT, __resetPromoConfigCache } =
+      await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const dbWithPreviousCTA = {
+      collection: () => ({
+        doc: () => ({
+          get: () => Promise.resolve({ exists: true, data: () => ({ ctaText: PREVIOUS_DEFAULT_CTA_TEXT }) }),
+        }),
+      }),
+    };
+    const cfg = await getPromoConfig(dbWithPreviousCTA);
+    for (const lang of LANGS) {
+      expect(cfg.ctaText[lang]).toBe(DEFAULT_PROMO_CONFIG.ctaText[lang]);
+      expect(cfg.ctaText[lang]).not.toContain('plan');
+    }
+  });
+
+  it('커스텀 CTA는 어떤 기본값과도 다르면 보존된다', async () => {
+    vi.resetModules();
+    const { getPromoConfig, __resetPromoConfigCache } = await import('../../api/_shared/promo-config.js');
+    __resetPromoConfigCache();
+    const customCTA = {
+      ko: '지금 예약하기', en: 'Book now', ja: '今予約', zh: '立即预订',
+    };
+    const dbWithCustomCTA = {
+      collection: () => ({
+        doc: () => ({
+          get: () => Promise.resolve({ exists: true, data: () => ({ ctaText: customCTA }) }),
+        }),
+      }),
+    };
+    const cfg = await getPromoConfig(dbWithCustomCTA);
+    for (const lang of LANGS) {
+      expect(cfg.ctaText[lang]).toBe(customCTA[lang]);
+    }
+  });
+});
+
+describe('P0-E 모바일 컴팩트 배너 (2026-08-16) — client/server COPY·CTA 완전동일 + 절제 톤', () => {
+  const CTA_LANG_MENTION: Record<string, RegExp> = {
+    en: /Start free/,
+    ko: /무료 시작/,
+    ja: /無料で始める/,
+    zh: /免费开始/,
+  };
+
+  it('PromoBanner.tsx COPY/CTA 가 서버 DEFAULT_PROMO_CONFIG.copy/ctaText 4언어 값과 정확히 동일 문자열이다', async () => {
+    vi.resetModules();
+    const { DEFAULT_PROMO_CONFIG } = await import('../../api/_shared/promo-config.js');
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    for (const lang of LANGS) {
+      expect(bannerSrc).toContain(DEFAULT_PROMO_CONFIG.copy[lang]);
+      expect(bannerSrc).toContain(DEFAULT_PROMO_CONFIG.ctaText[lang]);
+    }
+  });
+
+  it('/planner CTA href 가 client CTA_HREF 와 서버 DEFAULT_PROMO_CONFIG.ctaHref 양쪽에서 동일하다', async () => {
+    vi.resetModules();
+    const { DEFAULT_PROMO_CONFIG } = await import('../../api/_shared/promo-config.js');
+    expect(DEFAULT_PROMO_CONFIG.ctaHref).toBe('/planner');
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    expect(bannerSrc).toMatch(/const CTA_HREF = '\/planner';/);
+  });
+
+  it('4언어 copy 는 "1~3일 무료 일정 + 5% 쿠폰" 사실만 담고, 과장 톤(Grand Opening/오픈 기념류)·이모지가 없다', async () => {
+    vi.resetModules();
+    const { DEFAULT_PROMO_CONFIG } = await import('../../api/_shared/promo-config.js');
+    const HYPE_PATTERNS = [
+      /Grand Opening/i, /오픈 기념/, /オープン記念/, /开业纪念/,
+      /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, // 이모지 범위
+    ];
+    for (const lang of LANGS) {
+      const copy = DEFAULT_PROMO_CONFIG.copy[lang];
+      const cta = DEFAULT_PROMO_CONFIG.ctaText[lang];
+      for (const pat of HYPE_PATTERNS) {
+        expect(copy, `${lang} copy 에 과장/이모지: ${pat}`).not.toMatch(pat);
+        expect(cta, `${lang} cta 에 과장/이모지: ${pat}`).not.toMatch(pat);
+      }
+      expect(cta).toMatch(CTA_LANG_MENTION[lang]);
+    }
+  });
+
+  const DURATION_PATTERN: Record<string, RegExp> = {
+    en: /1–3 day/,
+    ko: /1~3일/,
+    ja: /1〜3日/,
+    zh: /1–3天/,
+  };
+
+  it('4언어 copy 는 정확한 기간 표기(1~3일류)와 5% 를 모두 담는다', async () => {
+    vi.resetModules();
+    const { DEFAULT_PROMO_CONFIG } = await import('../../api/_shared/promo-config.js');
+    for (const lang of LANGS) {
+      const copy = DEFAULT_PROMO_CONFIG.copy[lang];
+      expect(copy, `${lang} copy 기간 표기 불일치`).toMatch(DURATION_PATTERN[lang]);
+      expect(copy, `${lang} copy 에 5% 없음`).toMatch(/5%/);
+    }
+  });
+
+  it('Link className 은 block 과 text-[12px] 와 데스크톱 중앙정렬(sm:text-center) 을 유지한다', () => {
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    const linkClassMatch = bannerSrc.match(/<Link[\s\S]*?className="([^"]+)"/);
+    expect(linkClassMatch, 'Link className 을 찾지 못함').not.toBeNull();
+    expect(linkClassMatch![1]).toMatch(/text-\[12px\]/);
+    expect(linkClassMatch![1]).toMatch(/block/);
+    expect(linkClassMatch![1]).toMatch(/sm:text-center/);
+  });
+
+  it('PromoBanner 텍스트 span 은 truncate/text-overflow/line-clamp 로 잘리지 않는다 (컴팩트해도 문구 전체 노출)', () => {
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    expect(bannerSrc).not.toMatch(/truncate/);
+    expect(bannerSrc).not.toMatch(/text-overflow/);
+    expect(bannerSrc).not.toMatch(/line-clamp/);
+  });
+
+  it('링크(CTA)·닫기 버튼 모두 min-h-[44px] 이상 터치 타겟을 유지한다', () => {
+    const bannerSrc = readFileSync(resolve(process.cwd(), 'src/components/PromoBanner.tsx'), 'utf8');
+    const linkClassMatch = bannerSrc.match(/<Link[\s\S]*?className="([^"]+)"/);
+    const closeClassMatch = bannerSrc.match(/aria-label="Close promotion"[\s\S]*?className="([^"]+)"/);
+    expect(linkClassMatch, 'Link className 을 찾지 못함').not.toBeNull();
+    expect(closeClassMatch, '닫기 버튼 className 을 찾지 못함').not.toBeNull();
+    expect(linkClassMatch![1]).toMatch(/min-h-\[44px\]/);
+    expect(closeClassMatch![1]).toMatch(/min-h-\[44px\]/);
+    expect(closeClassMatch![1]).toMatch(/min-w-\[44px\]/);
   });
 });
 
