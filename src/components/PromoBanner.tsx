@@ -42,19 +42,22 @@ const CTA_HREF = '/planner';
 // 🚨 2026-08-10 P2 (#1272): 제품을 "AI 플랜"으로 전면에 내세우지 않는다 — 구현(AI)이 아니라
 //    능력("실행 가능한 한국 일정")으로 부른다는 docs/DESIGN-EDITORIAL-CONCIERGE.md §5 규칙을
 //    이 배너만 예외로 어기고 있었다. 할인율·기간·CTA 목적지는 그대로.
+// 🚨 2026-08-16 모바일 컴팩트: '🎉 Grand Opening/오픈 기념' 과장 톤 + 이모지 제거 — 절제된 톤으로
+//    할인 사실(1~3일 무료 일정 + 차터·투어 5%)만 짧게. 서버 DEFAULT_PROMO_CONFIG.copy 와 반드시 동일.
 const COPY: Record<string, string> = {
-  en: '🎉 Grand Opening — free 1–3 day Korea itinerary + 5% charter and tour coupons when you sign up',
-  ko: '🎉 오픈 기념 — 가입하면 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
-  ja: '🎉 オープン記念 — 登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
-  zh: '🎉 开业纪念 — 注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
+  en: 'Free 1–3 day Korea itinerary + 5% charter and tour coupons on sign-up',
+  ko: '가입 시 1~3일 한국 여행 일정 무료 + 차터·투어 5% 쿠폰',
+  ja: '登録で1〜3日韓国旅程無料 + チャーター・ツアー5%クーポン',
+  zh: '注册即享1–3天韩国行程免费 + 包车·行程5%优惠券',
 };
 
-// 클릭 가능 CTA — 끝에 밑줄로 노출 (리서치: 'your'→'my'/명확한 CTA 가 클릭률↑)
+// 클릭 가능 CTA — 끝에 밑줄로 노출. 2026-08-16: 절제된 톤('Start free' 계열)으로 축약,
+// 서버 DEFAULT_PROMO_CONFIG.ctaText 와 반드시 동일.
 const CTA: Record<string, string> = {
-  en: 'Start free plan →',
-  ko: '무료 일정 만들기 →',
-  ja: '無料プランを作る →',
-  zh: '免费生成行程 →',
+  en: 'Start free →',
+  ko: '무료 시작 →',
+  ja: '無料で始める →',
+  zh: '免费开始 →',
 };
 
 // ─── 어드민 설정 타입 ──────────────────────────────────────────────────────────
@@ -146,10 +149,15 @@ export function PromoBanner() {
       <Link
         to={activeCtaHref}
         onClick={() => trackPromoClick('top_banner', activeCtaHref)}
-        className="block min-h-[44px] w-full text-center text-[12px] sm:text-[13px] font-medium py-2.5 px-9 leading-snug"
+        className="block min-h-[44px] w-full py-2 pl-4 pr-12 text-[12px] sm:text-[13px] font-medium leading-snug sm:text-center"
       >
-        <span>{text} </span>
-        <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
+        {/* 2026-08-16 fix: text+CTA 를 하나의 inline flow 로 묶는다 — flex-wrap 은 각 span 을
+            통짜 박스로 취급해 CTA 를 새 줄로 통째로 밀어냄(390/en 3줄=63px). 일반 텍스트
+            줄바꿈으로 바꾸면 CTA 가 마지막 줄 잔여 공간에 자연스럽게 합류한다(ko/ja/zh 와 동일). */}
+        <span>
+          {text}{' '}
+          <span className="font-semibold underline underline-offset-2 whitespace-nowrap">{cta}</span>
+        </span>
       </Link>
       <button
         type="button"
