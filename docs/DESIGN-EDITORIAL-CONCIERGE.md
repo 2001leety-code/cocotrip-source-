@@ -527,6 +527,24 @@ own-origin 4xx/5xx 0 · own-origin console error 0.** 잠금은
 | 페이지별 skeleton | 라우트 폴백은 공용 masthead 모양이다. 화면별 skeleton 은 그 페이지가 전환될 때 |
 | 헤더 행 1024~1279 대역 | **이 시스템 이전부터 가로로 넘친다** — origin/main(ef3ce7c5) 실측 1024/ko +34px, 1024/en +103px, 1100/en +27px. nav 5개 + 유틸 6개 + CTA 2개가 그 폭에 안 들어간다. 이번 PR 은 Wishlist 를 36→44 로 올린 만큼(+8px) 늘렸고 그 외는 baseline 폭을 유지했다. 해소하려면 그 폭에서 무엇을 접을지 정해야 하므로 제품 결정이다 |
 
+### 2026-08-15 — 공용 로그인 필요 지면
+
+`/mypage`, `/my-plans`, `/charter-legacy`가 함께 쓰는 `AuthRequired`는 화면 크기에 따라 서로 다른
+디자인처럼 보이던 문제를 하나의 편집형 문서로 통합한다. Firebase 인증, 리디렉션 결과 처리,
+LINE 기능 플래그와 휴대전화 로그인 모달의 동작은 바꾸지 않는다.
+
+| 이전 | 지금 |
+|---|---|
+| 데스크톱은 어두운 배경과 장식 효과, 모바일은 전역 CSS가 덮어쓴 흰색 카드 | 같은 DOM과 종이·잉크·hairline 토큰을 쓰며 959px 아래에서 한 열로 접힘 |
+| 로그인 제공자 버튼과 안내 목록의 화면·초점 계약이 경로마다 다름 | 모든 제공자 버튼 48px 이상, 문서 순서대로 Tab 이동, 일반·강제 색상 모드에서 초점 표시 유지 |
+| 인증 확인과 실패 상태를 실제 로그인 없이 안전하게 재현하기 어려움 | 개발 모드 전용 `signed-out`·`loading`·`error` fixture. 운영에서는 query를 무시하고 인증을 우회하지 않음 |
+
+측정(로컬 Vite, 390/768/1440 × ko/en/ja/zh): 로그인 전 **12화면**, loading·error **2화면**,
+공용 보호 경로 **3개**. 가로 넘침 0 · 44px 미만 조작 0 · 계산된 장식 배경 0 ·
+예상 밖 콘솔 오류 0 · 쓰기 요청 0. 검증은
+`tests/e2e/auth-required-focus.spec.ts`와
+`tests/unit/auth-required-editorial-shell.component.test.tsx`가 담당한다.
+
 ---
 
 ## 7. Checklist before merging a visual change
