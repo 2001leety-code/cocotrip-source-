@@ -601,6 +601,16 @@ function AnimatedRoutes() {
           />
           {import.meta.env.DEV && (
             <Route
+              path="/dev/mypage-editorial"
+              element={
+                <Suspense fallback={ROUTE_FALLBACK}>
+                  <MyPage />
+                </Suspense>
+              }
+            />
+          )}
+          {import.meta.env.DEV && (
+            <Route
               path="/dev/my-plans-editorial"
               element={
                 <Suspense fallback={ROUTE_FALLBACK}>

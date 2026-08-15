@@ -2,7 +2,7 @@
  * MyPage — 마이페이지 (등급/포인트/쿠폰/위시리스트/일정)
  * 로그인 필수, AuthRequired 래핑
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
@@ -12,15 +12,16 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
-import { useWishlist } from '@/hooks/useWishlist';
+import { useLoyalty, type Coupon, type LoyaltyInfo, type PointLog, type TierType } from '@/hooks/useLoyalty';
+import { useWishlist, type WishlistItem } from '@/hooks/useWishlist';
 import { slugForTourId } from '@/data/tours';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
 import { MyCoursesTab } from '@/components/MyCoursesTab';
+import { EcLoading, EcEmpty, EcError } from '@/components/ui/states';
+import '@/styles/editorial-mypage.css';
 
 // '내 코스' 탭 라벨 — 컴포넌트 로컬 4-lang (글로벌 locale JSON 무접촉)
 const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Courses', ja: 'マイコース', zh: '我的行程' };
@@ -30,13 +31,6 @@ import { authFetch } from '@/lib/authFetch';
 import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
 import { describePointLog } from '@/lib/pointLogText';
 import { fillPrice } from '@/lib/aiPlannerPrice';
-
-const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
-  Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
-  Silver:   { color: '#C0C0C0', bg: 'from-[#C0C0C0]/15 to-[#808080]/10', border: 'border-[#C0C0C0]/20' },
-  Gold:     { color: '#FFD700', bg: 'from-[#FFD700]/15 to-[#B8860B]/10', border: 'border-[#FFD700]/20' },
-  Platinum: { color: '#E5E4E2', bg: 'from-[#7C5CFC]/20 to-[#7C5CFC]/15', border: 'border-[#7C5CFC]/25' },
-};
 
 const TIER_EMOJI: Record<TierType, string> = {
   Bronze: '🥉', Silver: '🥈', Gold: '🥇', Platinum: '💎',
@@ -67,16 +61,130 @@ function tierBenefits(language: string, t: TierType): string[] {
 // 빈 탭은 노출하지 않음.
 type Tab = 'overview' | 'bookings' | 'courses' | 'coupons' | 'wishlist' | 'reviews' | 'history';
 
+type MyPageFixture = 'normal' | 'loading' | 'empty' | 'review-error';
+
+interface MyReview {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string | null;
+  rating: number;
+  text: string;
+  targetType: string;
+  targetId: string;
+  createdAt: number;
+}
+
+const VALID_TABS: Tab[] = ['overview', 'bookings', 'courses', 'coupons', 'wishlist', 'reviews', 'history'];
+const VALID_FIXTURES: MyPageFixture[] = ['normal', 'loading', 'empty', 'review-error'];
+
+const FIXTURE_COPY = {
+  ko: {
+    nextTrip: '골목과 궁궐 여행', recentPlan: '해안 여행 일정', review: '동선과 준비 안내가 한눈에 들어왔어요.', coupon: '투어 5% 할인 쿠폰', weatherCity: '한국', weatherDesc: '맑음',
+  },
+  en: {
+    nextTrip: 'Lanes and palaces', recentPlan: 'Coastal itinerary', review: 'The route and preparation notes were easy to follow.', coupon: '5% tour coupon', weatherCity: 'Korea', weatherDesc: 'Clear',
+  },
+  ja: {
+    nextTrip: '路地と宮殿の旅', recentPlan: '海辺の旅程', review: '移動ルートと準備案内が分かりやすかったです。', coupon: 'ツアー5%割引クーポン', weatherCity: '韓国', weatherDesc: '晴れ',
+  },
+  zh: {
+    nextTrip: '巷弄与宫殿之旅', recentPlan: '海岸旅行日程', review: '路线和准备说明一目了然。', coupon: '旅游商品 5% 优惠券', weatherCity: '韩国', weatherDesc: '晴朗',
+  },
+} as const;
+
+const REVIEW_COPY = {
+  ko: { title: '내 리뷰', count: '{n}개', delete: '삭제', confirm: '이 리뷰를 삭제할까요?', view: '일정 보기', error: '리뷰를 불러오지 못했어요.', retry: '다시 시도' },
+  en: { title: 'My reviews', count: '{n} reviews', delete: 'Delete', confirm: 'Delete this review?', view: 'View plan', error: 'We could not load your reviews.', retry: 'Try again' },
+  ja: { title: 'マイレビュー', count: '{n}件', delete: '削除', confirm: 'このレビューを削除しますか？', view: 'プランを見る', error: 'レビューを読み込めませんでした。', retry: '再試行' },
+  zh: { title: '我的评价', count: '{n}条', delete: '删除', confirm: '要删除这条评价吗？', view: '查看行程', error: '无法加载评价。', retry: '重试' },
+} as const;
+
+const MYPAGE_UI_COPY = {
+  ko: { tabsLabel: '마이페이지 메뉴', loading: '계정 정보를 불러오는 중', loadingReviews: '리뷰를 불러오는 중', balance: '보유', offCoupon: '할인 쿠폰', redeeming: '교환 중', expires: '만료일', copyCode: '쿠폰 코드 복사', fixtureBoundaryTitle: '읽기 전용 미리보기', fixtureBoundaryBody: '실제 예약·코스 정보는 불러오지 않습니다.' },
+  en: { tabsLabel: 'My page sections', loading: 'Loading your account', loadingReviews: 'Loading your reviews', balance: 'Balance', offCoupon: 'OFF coupon', redeeming: 'Redeeming', expires: 'Expires', copyCode: 'Copy coupon code', fixtureBoundaryTitle: 'Read-only preview', fixtureBoundaryBody: 'Live booking and course data is not loaded.' },
+  ja: { tabsLabel: 'マイページのメニュー', loading: 'アカウント情報を読み込み中', loadingReviews: 'レビューを読み込み中', balance: '残高', offCoupon: '割引クーポン', redeeming: '交換中', expires: '有効期限', copyCode: 'クーポンコードをコピー', fixtureBoundaryTitle: '読み取り専用プレビュー', fixtureBoundaryBody: '実際の予約・コース情報は読み込みません。' },
+  zh: { tabsLabel: '我的页面菜单', loading: '正在加载账户信息', loadingReviews: '正在加载评价', balance: '余额', offCoupon: '优惠券', redeeming: '兑换中', expires: '有效期至', copyCode: '复制优惠券代码', fixtureBoundaryTitle: '只读预览', fixtureBoundaryBody: '不会加载真实的预订和课程数据。' },
+} as const;
+
+const DATE_LOCALE = { ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' } as const;
+
+const FIXTURE_USER = {
+  uid: 'mypage-editorial-fixture',
+  displayName: 'Coco Traveler',
+  email: 'traveler@example.com',
+  photoURL: null,
+};
+
+const FIXTURE_LOYALTY: LoyaltyInfo = {
+  tier: 'Gold',
+  tripCoins: 2450,
+  totalSpentUSD: 840,
+  bookingCount: 3,
+  earnRate: 0.02,
+};
+
+const FIXTURE_COUPONS: Coupon[] = [{
+  id: 'fixture-coupon',
+  code: 'COCO-FIXTURE',
+  type: 'percent',
+  value: 5,
+  currency: 'USD',
+  label: '5% tour coupon',
+  minOrderUSD: 0,
+  isUsed: false,
+  expiresAt: Date.UTC(2030, 11, 31),
+  createdAt: Date.UTC(2026, 7, 15),
+  productScope: 'tour-package',
+}];
+
+const FIXTURE_HISTORY: PointLog[] = [{
+  id: 'fixture-point-log',
+  type: 'earn',
+  amount: 50,
+  balance: 2450,
+  description: 'review_reward',
+  createdAt: Date.UTC(2026, 7, 14),
+}];
+
+const FIXTURE_WISHLIST: WishlistItem[] = [{
+  id: 'tour-editorial-preview',
+  productType: 'tour',
+  name: 'Editorial tour preview',
+  priceUSD: 231,
+  href: '/tours',
+  addedAt: Date.UTC(2026, 7, 13),
+}];
+
+function parseFixture(value: string | null): MyPageFixture | null {
+  return value && VALID_FIXTURES.includes(value as MyPageFixture) ? value as MyPageFixture : null;
+}
+
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
   const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
-  const isMobile = useIsMobile();
-  const { user } = useAuth();
-  const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();
-  const { items: wishlistItems } = useWishlist();
+  const languageKey = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as keyof typeof MYPAGE_UI_COPY;
+  const uiCopy = MYPAGE_UI_COPY[languageKey];
+  const { user: realUser } = useAuth();
+  const loyaltyState = useLoyalty();
+  const wishlistState = useWishlist();
   // Deep-link 지원: ?tab=wishlist 등으로 특정 탭 직진입 (햄버거 메뉴와 sync).
   const [searchParams, setSearchParams] = useSearchParams();
-  const VALID_TABS: Tab[] = ['overview', 'bookings', 'courses', 'coupons', 'wishlist', 'reviews', 'history'];
+  const fixture = import.meta.env.DEV ? parseFixture(searchParams.get('__fixture')) : null;
+  const fixtureCopy = FIXTURE_COPY[languageKey];
+  const fixtureHasData = fixture === 'normal' || fixture === 'review-error';
+  const user = fixture ? FIXTURE_USER : realUser;
+  const loyalty = fixture
+    ? (fixtureHasData ? FIXTURE_LOYALTY : { ...FIXTURE_LOYALTY, tier: 'Bronze' as TierType, tripCoins: 0, totalSpentUSD: 0, bookingCount: 0, earnRate: 0.01 })
+    : loyaltyState.loyalty;
+  const coupons = fixture ? (fixtureHasData ? FIXTURE_COUPONS : []) : loyaltyState.coupons;
+  const activeCoupons = fixture ? (fixtureHasData ? FIXTURE_COUPONS : []) : loyaltyState.activeCoupons;
+  const pointHistory = fixture ? (fixtureHasData ? FIXTURE_HISTORY : []) : loyaltyState.pointHistory;
+  const wishlistItems = fixture
+    ? (fixtureHasData ? FIXTURE_WISHLIST.map(item => ({ ...item, name: fixtureCopy.recentPlan })) : [])
+    : wishlistState.items;
+  const loading = fixture === 'loading' || (!fixture && loyaltyState.loading);
+  const { coinsToUSD } = loyaltyState;
   const initialTab = (() => {
     const q = searchParams.get('tab') as Tab | null;
     return q && VALID_TABS.includes(q) ? q : 'overview';
@@ -91,6 +199,7 @@ export default function MyPage() {
   };
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
+  const [couponClock] = useState(Date.now);
   // UIUX 가이드 P8 쿠폰 지갑 — Available/Used/Expired 탭 필터 (2026-07-13)
   const [walletFilter, setWalletFilter] = useState<'available' | 'used' | 'expired'>('available');
 
@@ -102,7 +211,7 @@ export default function MyPage() {
   const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string; city: string } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (fixture || !user) return;
     (async () => {
       try {
         const q = query(collection(db, 'plans'), where('uid', '==', user.uid));
@@ -124,19 +233,20 @@ export default function MyPage() {
           }
         });
         plans.sort((a, b) => b.sortKey - a.sortKey);
-        setRecentPlans(plans.slice(0, 3).map(({ sortKey: _s, ...rest }) => rest));
+        setRecentPlans(plans.slice(0, 3).map(({ id, title, date, cover }) => ({ id, title, date, cover })));
         setNextTrip(nearest);
       } catch {
         /* silent */
       }
     })();
-  }, [user]);
+  }, [fixture, user]);
 
   // 회원가입 직후 웰컴 모달은 App.tsx GlobalWidgets 의 OnboardingCouponModal 이
   // sessionStorage 플래그를 감지해 전역 노출. MyPage 에서 중복 토스트 제거 (2026-05-07).
   // toast / mp.welcomeCoupons* i18n 키는 하위 호환 보존용으로 남겨둠.
 
   useEffect(() => {
+    if (fixture) return;
     let city = 'Seoul';
     try {
       const saved = localStorage.getItem('cocotrip_last_region');
@@ -156,11 +266,21 @@ export default function MyPage() {
         });
       } catch { /* silent */ }
     })();
-  }, [language]);
+  }, [fixture, language]);
+
+  const displayedNextTrip = fixtureHasData
+    ? { title: fixtureCopy.nextTrip, dday: 12, date: '2026-09-01' }
+    : nextTrip;
+  const displayedRecentPlans = fixtureHasData
+    ? [{ id: 'fixture-plan', title: fixtureCopy.recentPlan, date: '2026-08-08' }]
+    : recentPlans;
+  const displayedWeather = fixtureHasData
+    ? { temp: '24°C', desc: fixtureCopy.weatherDesc, icon: '☀️', city: fixtureCopy.weatherCity }
+    : weather;
 
   usePageMeta({
-    title: t.pageMeta?.myPage?.title ?? 'My Page — Membership & Rewards',
-    description: t.pageMeta?.myPage?.description ?? 'Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries.',
+    title: t.pageMeta?.myPage?.title || 'My Page — Membership & Rewards',
+    description: t.pageMeta?.myPage?.description || 'Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries.',
   });
 
   const handleCopy = (code: string) => {
@@ -170,8 +290,9 @@ export default function MyPage() {
   };
 
   const handleRedeem = async (coins: number) => {
+    if (fixture) return;
     if (!user?.uid) return;
-    if ((loyalty?.tripCoins ?? 0) < coins) return;
+    if ((loyalty?.tripCoins || 0) < coins) return;
     if (!confirm(`Redeem ${coins} coins for a coupon?`)) return;
 
     setRedeeming(coins);
@@ -195,143 +316,143 @@ export default function MyPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className={isMobile ? 'm-page cocotrip-mobile-account flex items-center justify-center' : 'min-h-screen bg-[#080b14] flex items-center justify-center'}>
-        <div className="w-8 h-8 border-2 border-[#B668FC] border-t-transparent animate-spin rounded-full" />
-      </div>
-    );
-  }
-
   const tier = loyalty?.tier || 'Bronze';
-  const tc = TIER_COLORS[tier];
+
+  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+    { id: 'overview', label: mp.tabOverview || 'Overview', icon: TrendingUp },
+    { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
+    { id: 'courses', label: COURSES_TAB_LABEL[language as 'ko'|'en'|'ja'|'zh'] || COURSES_TAB_LABEL.en, icon: MapIcon },
+    { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
+    { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
+    { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
+    { id: 'history', label: mp.tabPoints || 'Points', icon: Clock },
+  ];
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % TABS.length;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = TABS.length - 1;
+    if (nextIndex === currentIndex) return;
+    event.preventDefault();
+    const nextTab = TABS[nextIndex];
+    setTab(nextTab.id);
+    document.getElementById(`mypage-tab-${nextTab.id}`)?.focus();
+  };
 
   return (
-    <div className={isMobile ? 'm-page cocotrip-mobile-account' : 'min-h-screen bg-[#080b14]'}>
+    <div className={`mypage-editorial ec-root${fixture ? ' is-fixture' : ''}`} data-testid="mypage-editorial-shell">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <div className={`max-w-4xl mx-auto px-4 pt-6 ${isMobile ? 'pb-4' : 'pb-20'}`}>
+      <main className="mypage-editorial-main">
         {/* 뒤로 */}
-        <Link to="/" className="inline-flex items-center gap-2 text-white/55 text-sm mb-6 hover:text-white/70 transition-colors">
+        <Link to="/" className="mypage-editorial-back">
           <ArrowLeft size={16} /> {mp.home || 'Home'}
         </Link>
 
-        {/* 프로필 + 등급 카드 */}
-        <div className={isMobile
-          ? 'm-card m-appear m-glow-border p-5 mb-6'
-          : `rounded-2xl bg-gradient-to-br ${tc.bg} border ${tc.border} p-6 mb-8`
-        }
-          style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.04))' } : undefined}
-        >
-          <div className="flex items-start gap-4">
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt={user.displayName || 'Profile'} className="w-14 h-14 rounded-full border-2" style={{ borderColor: tc.color }} />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-2xl">
-                {TIER_EMOJI[tier]}
+        {loading ? (
+          <div data-testid="mypage-loading" aria-busy="true">
+            <EcLoading label={uiCopy.loading} lines={4} />
+          </div>
+        ) : (
+          <>
+            {/* 프로필 + 등급 카드 */}
+            <div className="mypage-editorial-profile" data-tier={tier.toLowerCase()}>
+              <div className="mypage-editorial-avatar">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || 'Profile'} />
+                ) : (
+                  <span aria-hidden>{TIER_EMOJI[tier]}</span>
+                )}
               </div>
-            )}
-            <div className="flex-1">
-              <h1 className="text-white text-xl font-bold">{user?.displayName || mp.traveler || 'Traveler'}</h1>
-              <p className="text-white/55 text-sm">{user?.email}</p>
-              <div className="flex items-center gap-3 mt-3">
-                <span className="text-sm font-semibold px-3 py-1 rounded-full" style={{
-                  color: tc.color,
-                  backgroundColor: `${tc.color}15`,
-                  border: `1px solid ${tc.color}30`,
-                }}>
-                  {TIER_EMOJI[tier]} {tier}
-                </span>
-                <span className="flex items-center gap-1.5 text-sm">
-                  <Coins size={14} className="text-[#C4956A]" />
-                  <span className="text-[#C4956A] font-bold">{(loyalty?.tripCoins || 0).toLocaleString()}</span>
-                  <span className="text-white/55 text-xs">{mp.coinsLabel || 'coins'}</span>
-                </span>
+              <div className="min-w-0">
+                <h1 className="ec-h3 mypage-editorial-name">{user?.displayName || mp.traveler || 'Traveler'}</h1>
+                <p className="mypage-editorial-email">{user?.email}</p>
+                <div className="mypage-editorial-badges">
+                  <span className="mypage-editorial-tier">
+                    {TIER_EMOJI[tier]} {tier}
+                  </span>
+                  <span className="mypage-editorial-coins">
+                    <Coins size={14} aria-hidden />
+                    <strong>{(loyalty?.tripCoins || 0).toLocaleString()}</strong>
+                    {mp.coinsLabel || 'coins'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 등급 혜택 */}
+              <div className="mypage-editorial-benefits">
+                <p className="mypage-editorial-benefits-label">
+                  {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
+                </p>
+                <div className="mypage-editorial-benefit-list">
+                  {tierBenefits(language, tier).map((b, i) => (
+                    <span key={i} className="mypage-editorial-benefit-chip">
+                      {b}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 등급 혜택 */}
-          <div className="mt-5 pt-4 border-t border-white/5">
-            <p className="text-[10px] uppercase tracking-widest text-white/55 mb-2">
-              {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {tierBenefits(language, tier).map((b, i) => (
-                <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-white/50 border border-white/5">
-                  {b}
-                </span>
+            {/* 탭 네비 */}
+            <div className="mypage-editorial-tabs" role="tablist" aria-label={uiCopy.tabsLabel}>
+              {TABS.map(({ id, label, icon: Icon }, index) => (
+                <button
+                  key={id}
+                  role="tab"
+                  id={`mypage-tab-${id}`}
+                  aria-selected={tab === id}
+                  aria-controls={`mypage-panel-${id}`}
+                  tabIndex={tab === id ? 0 : -1}
+                  onClick={() => setTab(id)}
+                  onKeyDown={(event) => handleTabKeyDown(event, index)}
+                  className={`mypage-editorial-tab${tab === id ? ' is-active' : ''}`}
+                >
+                  <Icon aria-hidden />
+                  {label}
+                </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* 탭 네비 */}
-        <div className={`flex gap-1 rounded-xl p-1 overflow-x-auto scrollbar-hide ${isMobile ? 'm-card mb-5' : 'bg-white/[0.03] mb-8'}`}>
-          {([
-            { id: 'overview', label: mp.tabOverview || 'Overview', icon: TrendingUp },
-            { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
-            { id: 'courses', label: COURSES_TAB_LABEL[language as 'ko'|'en'|'ja'|'zh'] || COURSES_TAB_LABEL.en, icon: MapIcon },
-            { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
-            { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
-            { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
-            { id: 'history', label: mp.tabPoints || 'Points', icon: Clock },
-          ] as { id: Tab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                tab === id
-                  ? (isMobile ? 'bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white' : 'bg-[#7C5CFC] text-white')
-                  : 'text-white/55 hover:text-white/70 hover:bg-white/5'
-              }`}
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
-        </div>
+          </>
+        )}
 
         {/* ── 탭: Overview — Travel dashboard + nav (Option D, 2026-04-29) ──
             Replaces the previous 4-stat grid with: D-day card → compact stats
             → recent plans → category nav. The nav mirrors the hamburger menu
             so users can stay on /mypage after deep-linking. */}
-        {tab === 'overview' && (
-          <div className="space-y-4">
+        {!loading && tab === 'overview' && (
+          <div className="space-y-6" id="mypage-panel-overview" role="tabpanel" aria-labelledby="mypage-tab-overview">
             {/* Next-trip D-day + weather */}
-            {nextTrip && (
-              <Link
-                to="/my-plans"
-                onClick={() => haptic('tap')}
-                className="block rounded-2xl px-4 py-4 border border-pink-500/15 transition-all hover:border-pink-400/30 active:scale-[0.99]"
-                style={{ background: 'linear-gradient(135deg, rgba(255,107,157,0.10), rgba(182,104,252,0.06))' }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #FF6B9D, #C850C0)' }}>
-                    <Timer className="w-3.5 h-3.5 text-white mb-0.5" />
-                    <span className="text-[15px] font-black text-white leading-none">{nextTrip.dday === 0 ? 'D-0' : `D-${nextTrip.dday}`}</span>
+            {displayedNextTrip && (
+              <Link to="/my-plans" onClick={() => haptic('tap')} className="mypage-editorial-nexttrip">
+                <div className="mypage-editorial-nexttrip-row">
+                  <div className="mypage-editorial-dday">
+                    <Timer aria-hidden />
+                    <span>{displayedNextTrip.dday === 0 ? 'D-0' : `D-${displayedNextTrip.dday}`}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold">{mp.dashNextTrip || 'Next Trip'}</p>
-                    <p className="text-[14px] font-bold text-white truncate mt-0.5">{nextTrip.title}</p>
-                    <p className="text-[11px] text-white/55 mt-0.5">{nextTrip.date}</p>
+                    <p className="mypage-editorial-nexttrip-eyebrow">{mp.dashNextTrip || 'Next Trip'}</p>
+                    <p className="mypage-editorial-nexttrip-title">{displayedNextTrip.title}</p>
+                    <p className="mypage-editorial-nexttrip-date">{displayedNextTrip.date}</p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-white/25 shrink-0" />
+                  <ChevronRight className="mypage-editorial-icon-faint w-4 h-4 shrink-0" />
                 </div>
-                {weather && (
-                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2">
-                    <CloudSun className="w-4 h-4 text-purple-300/60 shrink-0" />
-                    <span className="text-[12px] text-white/65">{weather.city}</span>
-                    <span className="text-[12px] font-black text-pink-400">{weather.temp}</span>
-                    <span className="text-[13px]">{weather.icon}</span>
-                    <span className="text-[11px] text-white/45 truncate">{weather.desc}</span>
+                {displayedWeather && (
+                  <div className="mypage-editorial-weather">
+                    <CloudSun className="w-4 h-4 shrink-0" aria-hidden />
+                    <span>{displayedWeather.city}</span>
+                    <strong>{displayedWeather.temp}</strong>
+                    <span>{displayedWeather.icon}</span>
+                    <span className="truncate">{displayedWeather.desc}</span>
                   </div>
                 )}
               </Link>
             )}
 
             {/* Compact 2×2 stats */}
-            <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
+            <div className="mypage-editorial-stats">
               <StatCard label={mp.statTotalSpent || 'Total Spent'} value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
               {/* 🔴 이 값은 **원장 누적 예약 수**다. 아래 "내 예약" 탭 목록 개수와 다를 수 있다.
                   목록은 현재 계정 이메일로 조회한 것이고, 누적은 과거 보정·다른 이메일 결제까지
@@ -343,33 +464,28 @@ export default function MyPage() {
             </div>
 
             {/* Recent plans — horizontal scroll, 3 most recent */}
-            {recentPlans.length > 0 && (
+            {displayedRecentPlans.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[12px] font-semibold text-white/65">{mp.dashRecentPlans || 'Recent Plans'}</p>
-                  <Link to="/my-plans" onClick={() => haptic('tap')} className="text-[11px] text-[#B668FC] font-semibold flex items-center gap-0.5">
+                  <p className="mypage-editorial-section-label is-flush">{mp.dashRecentPlans || 'Recent Plans'}</p>
+                  <Link to="/my-plans" onClick={() => haptic('tap')} className="mypage-editorial-inline-link">
                     {mp.dashViewAll || 'View all'}
                     <ChevronRight className="w-3 h-3" />
                   </Link>
                 </div>
-                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
-                  {recentPlans.map((p) => (
-                    <Link
-                      key={p.id}
-                      to={`/my-plans/${p.id}`}
-                      onClick={() => haptic('tap')}
-                      className="shrink-0 w-[160px] rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-all overflow-hidden block"
-                    >
-                      <div className="h-20 bg-gradient-to-br from-[#7C5CFC]/20 to-[#FF6B9D]/15 flex items-center justify-center">
+                <div className="mypage-editorial-plans">
+                  {displayedRecentPlans.map((p) => (
+                    <Link key={p.id} to={`/my-plans/${p.id}`} onClick={() => haptic('tap')} className="mypage-editorial-plan-card">
+                      <div className="mypage-editorial-plan-cover">
                         {p.cover && p.cover.startsWith('http') ? (
-                          <img src={p.cover} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                          <img src={p.cover} alt={p.title} loading="lazy" />
                         ) : (
-                          <Sparkles className="w-6 h-6 text-white/35" />
+                          <Sparkles className="mypage-editorial-icon-faint w-6 h-6" />
                         )}
                       </div>
-                      <div className="px-2.5 py-2">
-                        <p className="text-[12px] font-bold text-white truncate">{p.title}</p>
-                        <p className="text-[10px] text-white/45 mt-0.5">{p.date || '—'}</p>
+                      <div className="mypage-editorial-plan-body">
+                        <p className="mypage-editorial-plan-title">{p.title}</p>
+                        <p className="mypage-editorial-plan-date">{p.date || '—'}</p>
                       </div>
                     </Link>
                   ))}
@@ -378,63 +494,52 @@ export default function MyPage() {
             )}
 
             {/* Category nav — mirrors hamburger so users don't need to re-open it */}
-            <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/55 font-semibold pt-2">{mp.dashExplore || 'Explore'}</p>
-              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+            <div>
+              <p className="mypage-editorial-section-label is-flush">{mp.dashExplore || 'Explore'}</p>
+              <div className="mypage-editorial-nav">
                 {[
-                  { to: '/charter', icon: MapIcon, label: t.nav.charter ?? 'Charter' },
-                  { to: '/tours', icon: Package, label: t.nav.tours ?? 'Tours' },
+                  { to: '/charter', icon: MapIcon, label: t.nav.charter || 'Charter' },
+                  { to: '/tours', icon: Package, label: t.nav.tours || 'Tours' },
                   { to: '/planner', icon: Sparkles, label: t.nav.planner || 'Trip Planner' },
-                  { to: '/about', icon: Globe, label: t.nav.about ?? 'About' },
-                ].map(({ to, icon: Icon, label }, i) => (
-                  <Link
-                    key={to}
-                    to={to}
-                    onClick={() => haptic('tap')}
-                    className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03] ${i > 0 ? 'border-t border-white/[0.04]' : ''}`}
-                  >
-                    <Icon className="w-[18px] h-[18px] text-white/55" />
-                    <span className="text-[14px] font-semibold text-white flex-1">{label}</span>
-                    <ChevronRight className="w-4 h-4 text-white/15" />
+                  { to: '/about', icon: Globe, label: t.nav.about || 'About' },
+                ].map(({ to, icon: Icon, label }) => (
+                  <Link key={to} to={to} onClick={() => haptic('tap')} className="mypage-editorial-nav-item">
+                    <Icon aria-hidden />
+                    <span className="mypage-editorial-nav-item-label">{label}</span>
+                    <ChevronRight className="mypage-editorial-nav-item-chevron" />
                   </Link>
                 ))}
               </div>
 
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/55 font-semibold pt-2">{mp.dashAccount || 'My Account'}</p>
-              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+              <p className="mypage-editorial-section-label">{mp.dashAccount || 'My Account'}</p>
+              <div className="mypage-editorial-nav">
                 {(() => {
                   type AccountItem =
                     | { kind: 'link'; to: string; icon: React.ElementType; label: string }
                     | { kind: 'tab'; tab: Tab; icon: React.ElementType; label: string };
                   const items: AccountItem[] = [
-                    { kind: 'link', to: '/my-plans', icon: FileText, label: t.nav.myPlans ?? 'My Plans' },
-                    { kind: 'tab', tab: 'wishlist', icon: Heart, label: t.nav.wishlist ?? 'Wishlist' },
-                    { kind: 'tab', tab: 'bookings', icon: History, label: t.nav.bookingHistory ?? 'Booking History' },
-                    { kind: 'tab', tab: 'coupons', icon: Ticket, label: t.nav.coupons ?? 'Coupons' },
-                    { kind: 'tab', tab: 'reviews', icon: Star, label: t.nav.reviews ?? 'Reviews' },
+                    { kind: 'link', to: '/my-plans', icon: FileText, label: t.nav.myPlans || 'My Plans' },
+                    { kind: 'tab', tab: 'wishlist', icon: Heart, label: t.nav.wishlist || 'Wishlist' },
+                    { kind: 'tab', tab: 'bookings', icon: History, label: t.nav.bookingHistory || 'Booking History' },
+                    { kind: 'tab', tab: 'coupons', icon: Ticket, label: t.nav.coupons || 'Coupons' },
+                    { kind: 'tab', tab: 'reviews', icon: Star, label: t.nav.reviews || 'Reviews' },
                   ];
-                  const baseCls = 'flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03] cursor-pointer w-full text-left';
-                  return items.map((it, i) => {
+                  return items.map((it) => {
                     const Icon = it.icon;
-                    const cls = `${baseCls} ${i > 0 ? 'border-t border-white/[0.04]' : ''}`;
                     if (it.kind === 'tab') {
                       return (
-                        <button
-                          key={it.tab}
-                          onClick={() => { haptic('tap'); setTab(it.tab); }}
-                          className={cls}
-                        >
-                          <Icon className="w-[18px] h-[18px] text-white/55" />
-                          <span className="text-[14px] font-semibold text-white flex-1">{it.label}</span>
-                          <ChevronRight className="w-4 h-4 text-white/15" />
+                        <button key={it.tab} onClick={() => { haptic('tap'); setTab(it.tab); }} className="mypage-editorial-nav-item">
+                          <Icon aria-hidden />
+                          <span className="mypage-editorial-nav-item-label">{it.label}</span>
+                          <ChevronRight className="mypage-editorial-nav-item-chevron" />
                         </button>
                       );
                     }
                     return (
-                      <Link key={it.to} to={it.to} onClick={() => haptic('tap')} className={cls}>
-                        <Icon className="w-[18px] h-[18px] text-white/55" />
-                        <span className="text-[14px] font-semibold text-white flex-1">{it.label}</span>
-                        <ChevronRight className="w-4 h-4 text-white/15" />
+                      <Link key={it.to} to={it.to} onClick={() => haptic('tap')} className="mypage-editorial-nav-item">
+                        <Icon aria-hidden />
+                        <span className="mypage-editorial-nav-item-label">{it.label}</span>
+                        <ChevronRight className="mypage-editorial-nav-item-chevron" />
                       </Link>
                     );
                   });
@@ -445,75 +550,77 @@ export default function MyPage() {
         )}
 
         {/* ── 탭: My Bookings ── */}
-        {tab === 'bookings' && (
-          <MyBookingsTab userEmail={user?.email ?? ''} tier={tier}
-            language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko'|'en'|'ja'|'zh'} />
-        )}
-
-        {/* ── 탭: Coupons ── */}
-        {tab === 'courses' && (
-          <MyCoursesTab />
-        )}
-
-        {tab === 'coupons' && (
-          <div className="space-y-6">
-            {/* 교환 섹션 */}
-            <div className="rounded-2xl bg-gradient-to-br from-[#FFD700]/[0.08] to-[#7C5CFC]/[0.08] border border-[#FFD700]/20 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-white flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-[#FFD700]" />
-                    Redeem Trip Coins
-                  </h3>
-                  <p className="text-xs text-white/50 mt-0.5">
-                    Balance: <span className="text-[#FFD700] font-semibold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span> coins
-                  </p>
-                </div>
+        {!loading && tab === 'bookings' && (
+          <div id="mypage-panel-bookings" role="tabpanel" aria-labelledby="mypage-tab-bookings">
+            {fixture ? (
+              <EcEmpty title={uiCopy.fixtureBoundaryTitle} body={uiCopy.fixtureBoundaryBody} />
+            ) : (
+              <div className="mypage-editorial-legacy-panel">
+                <MyBookingsTab userEmail={user?.email || ''} tier={tier}
+                  language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko'|'en'|'ja'|'zh'} />
               </div>
-              <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
+            )}
+          </div>
+        )}
+
+        {/* ── 탭: My Courses ── */}
+        {!loading && tab === 'courses' && (
+          <div id="mypage-panel-courses" role="tabpanel" aria-labelledby="mypage-tab-courses">
+            {fixture ? (
+              <EcEmpty title={uiCopy.fixtureBoundaryTitle} body={uiCopy.fixtureBoundaryBody} />
+            ) : (
+              <div className="mypage-editorial-legacy-panel">
+                <MyCoursesTab />
+              </div>
+            )}
+          </div>
+        )}
+
+        {!loading && tab === 'coupons' && (
+          <div className="space-y-6" id="mypage-panel-coupons" role="tabpanel" aria-labelledby="mypage-tab-coupons">
+            {/* 교환 섹션 */}
+            <div className="mypage-editorial-redeem">
+              <h3 className="ec-h3 flex items-center gap-2">
+                <Gift className="mypage-editorial-icon-brand w-4 h-4" aria-hidden />
+                {mp.redeemTripCoins || 'Redeem Trip Coins'}
+              </h3>
+              <p className="mypage-editorial-redeem-balance">
+                {uiCopy.balance}: <strong className="mypage-editorial-strong">{(loyalty?.tripCoins || 0).toLocaleString()}</strong> {mp.coinsLabel || 'coins'}
+              </p>
+              <div className="mypage-editorial-redeem-grid">
                 {[
                   { coins: 500,  value: 5,  bonus: false },
                   { coins: 1000, value: 10, bonus: false },
                   { coins: 2000, value: 25, bonus: true  },
-                ].map(tier => {
-                  const enabled = (loyalty?.tripCoins ?? 0) >= tier.coins;
-                  const busy = redeeming === tier.coins;
+                ].map(redeemTier => {
+                  const enabled = (loyalty?.tripCoins || 0) >= redeemTier.coins;
+                  const busy = redeeming === redeemTier.coins;
                   return (
                     <button
-                      key={tier.coins}
-                      onClick={() => handleRedeem(tier.coins)}
-                      disabled={!enabled || busy}
-                      className={`relative p-4 rounded-xl border transition-all ${
-                        enabled
-                          ? 'border-[#FFD700]/30 bg-white/[0.04] hover:bg-white/[0.08] hover:border-[#FFD700]/50'
-                          : 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed'
-                      }`}
+                      key={redeemTier.coins}
+                      onClick={() => handleRedeem(redeemTier.coins)}
+                      disabled={!enabled || busy || Boolean(fixture)}
+                      className="mypage-editorial-redeem-option"
                     >
-                      {tier.bonus && (
-                        <span className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#EA537E] text-white">
-                          +25% BONUS
-                        </span>
+                      {redeemTier.bonus && (
+                        <span className="mypage-editorial-redeem-bonus">+25%</span>
                       )}
-                      <div className="text-white/60 text-xs">{tier.coins.toLocaleString()} coins</div>
-                      <div className="text-white text-xl font-bold mt-1">${tier.value}</div>
-                      <div className="text-white/55 text-[10px] mt-0.5">OFF coupon</div>
-                      {busy && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
-                          <div className="w-5 h-5 border-2 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
-                        </div>
-                      )}
+                      <div className="mypage-editorial-redeem-coins">{redeemTier.coins.toLocaleString()} {mp.coinsLabel || 'coins'}</div>
+                      <div className="mypage-editorial-redeem-value">${redeemTier.value}</div>
+                      <div className="mypage-editorial-redeem-coins">{uiCopy.offCoupon}</div>
+                      {busy && <span className="sr-only">{uiCopy.redeeming}</span>}
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[10px] text-white/55 mt-3 text-center">
-                Valid for 90 days. Enter code at checkout.
+              <p className="mypage-editorial-redeem-note">
+                {mp.couponValid || 'Valid for 1 year. Enter code at checkout.'}
               </p>
             </div>
 
             {/* 쿠폰 지갑 탭 (UIUX P8) — Available/Used/Expired. 실쿠폰(useLoyalty)만, 가짜 수치 없음. */}
             {coupons.length > 0 && (() => {
-              const now = Date.now();
+              const now = couponClock;
               const counts = {
                 available: coupons.filter((c) => !c.isUsed && c.expiresAt > now).length,
                 used: coupons.filter((c) => c.isUsed).length,
@@ -525,17 +632,12 @@ export default function MyPage() {
                 { key: 'expired', label: `${mp.walletExpired || 'Expired'} (${counts.expired})` },
               ];
               return (
-                <div className="flex gap-2">
+                <div className="mypage-editorial-wallet-tabs">
                   {tabs.map(({ key, label }) => (
                     <button
                       key={key}
                       onClick={() => setWalletFilter(key)}
-                      className="px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors"
-                      style={
-                        walletFilter === key
-                          ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff' }
-                          : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)' }
-                      }
+                      className={`mypage-editorial-wallet-tab${walletFilter === key ? ' is-active' : ''}`}
                     >
                       {label}
                     </button>
@@ -548,7 +650,7 @@ export default function MyPage() {
             <div className="space-y-3">
               {(() => {
                 if (coupons.length === 0) return null;
-                const now = Date.now();
+                const now = couponClock;
                 const filtered = coupons.filter((c) => {
                   if (walletFilter === 'available') return !c.isUsed && c.expiresAt > now;
                   if (walletFilter === 'used') return c.isUsed;
@@ -561,56 +663,39 @@ export default function MyPage() {
                       ? (mp.walletEmptyUsed || 'No used coupons yet.')
                       : (mp.walletEmptyExpired || 'No expired coupons.');
                   return (
-                    <p className="text-center text-white/45 text-[13px] py-8">{emptyMsg}</p>
+                    <p className="mypage-editorial-empty-note">{emptyMsg}</p>
                   );
                 }
                 return filtered.map((c) => (
-              <div
-                key={c.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  c.isUsed || c.expiresAt < Date.now()
-                    ? 'bg-white/[0.02] border-white/5 opacity-50'
-                    : 'bg-[#7C5CFC]/5 border-[#7C5CFC]/15 hover:border-[#7C5CFC]/30'
-                }`}
-              >
-                <div className="flex items-center justify-between">
+              <div key={c.id} className={`mypage-editorial-coupon${c.isUsed || c.expiresAt < couponClock ? ' is-inactive' : ''}`}>
+                <div className="mypage-editorial-coupon-row">
                   <div>
-                    <p className="text-white font-semibold text-sm">{c.label}</p>
-                    <p className="text-white/55 text-xs mt-1">
-                      Expires: {new Date(c.expiresAt).toLocaleDateString()}
+                    <p className="mypage-editorial-coupon-label">{fixture ? fixtureCopy.coupon : c.label}</p>
+                    <p className="mypage-editorial-coupon-expiry">
+                      {uiCopy.expires}: {new Date(c.expiresAt).toLocaleDateString(DATE_LOCALE[languageKey])}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#7C5CFC] font-bold">
+                    <span className="mypage-editorial-coupon-value">
                       {c.type === 'percent' ? `${c.value}%` : `$${c.value}`}
                     </span>
-                    {!c.isUsed && c.expiresAt > Date.now() && (
-                      <button
-                        onClick={() => handleCopy(c.code)}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-                      >
+                    {!c.isUsed && c.expiresAt > couponClock && (
+                      <button onClick={() => handleCopy(c.code)} className="mypage-editorial-coupon-copy" aria-label={uiCopy.copyCode}>
                         {copiedCode === c.code
-                          ? <Check size={14} className="text-green-400" />
-                          : <Copy size={14} className="text-white/55" />
+                          ? <Check size={14} className="mypage-editorial-icon-success" />
+                          : <Copy size={14} />
                         }
                       </button>
                     )}
                   </div>
                 </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <code className="text-xs bg-white/5 px-2 py-0.5 rounded text-[#C4956A]">{c.code}</code>
-                  {c.isUsed && <span className="text-[10px] text-red-400/60 uppercase">{mp.walletUsed || 'Used'}</span>}
-                </div>
+                <code className="mypage-editorial-coupon-code">{c.code}</code>
+                {c.isUsed && <span className="mypage-editorial-coupon-used">{mp.walletUsed || 'Used'}</span>}
                 {/* AI 무료쿠폰(ai-plan)은 쿠폰함 경유로 사용 (2026-06-28): "사용하기" →
                     /planner?coupon=CODE. PurchaseSection 이 URL 코드를 검증 후 0원 적용. */}
-                {c.productScope === 'ai-plan' && !c.isUsed && c.expiresAt > Date.now() && (
-                  <Link
-                    to={`/planner?coupon=${encodeURIComponent(c.code)}`}
-                    onClick={() => haptic('tap')}
-                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.99]"
-                    style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)' }}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
+                {c.productScope === 'ai-plan' && !c.isUsed && c.expiresAt > couponClock && (
+                  <Link to={`/planner?coupon=${encodeURIComponent(c.code)}`} onClick={() => haptic('tap')} className="mypage-editorial-coupon-cta">
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden />
                     {mp.useAiCoupon || '사용하기'}
                   </Link>
                 )}
@@ -619,21 +704,15 @@ export default function MyPage() {
               })()}
               {coupons.length === 0 && (
                 /* AI-planner ad — same copy as PayPal checkout picker. */
-                <Link
-                  to="/planner"
-                  onClick={() => haptic('tap')}
-                  className="block rounded-xl border border-[#7C5CFC]/25 p-4 hover:border-[#7C5CFC]/45 transition-all"
-                  style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
-                      <Sparkles className="w-4 h-4 text-white" />
+                <Link to="/planner" onClick={() => haptic('tap')} className="mypage-editorial-adcard">
+                  <div className="mypage-editorial-adcard-row">
+                    <div className="mypage-editorial-adcard-mark">
+                      <Sparkles className="w-4 h-4" aria-hidden />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
-                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{fillPrice(mp.couponAdBody || 'Book a ₩124,000 charter saves more than the planner ({price}).', language)}</p>
-                      <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
+                      <p className="mypage-editorial-adcard-title">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
+                      <p className="mypage-editorial-adcard-body">{fillPrice(mp.couponAdBody || 'Book a ₩124,000 charter saves more than the planner ({price}).', language)}</p>
+                      <span className="mypage-editorial-adcard-link">
                         {mp.couponAdCta || 'Make AI plan'}
                         <ChevronRight className="w-3 h-3" />
                       </span>
@@ -646,92 +725,84 @@ export default function MyPage() {
         )}
 
         {/* ── 탭: Wishlist ── */}
-        {tab === 'wishlist' && (
-          <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3'}`}>
+        {!loading && tab === 'wishlist' && (
+          <div id="mypage-panel-wishlist" role="tabpanel" aria-labelledby="mypage-tab-wishlist">
             {wishlistItems.length === 0 ? (
-              <div className="col-span-full">
-                <EmptyState icon={Heart} text={mp.wlEmptyTitle || 'No wishlisted items'} sub={mp.wlEmptySub || 'Tap ❤ on any tour to save it here'} />
-              </div>
-            ) : wishlistItems.map(item => {
-              // 상세 링크: 저장된 href 우선(2026-07-05) → 없으면 투어 id→slug 매핑 폴백
-              // (기존 id-only 데이터 호환). id.replace('tour-','') 억지변환은 slug 와 달라 깨졌음.
-              const href = item.href
-                || (item.productType === 'tour'
-                  ? (slugForTourId(item.id) ? `/tours/${slugForTourId(item.id)}` : '/tours')
-                  : item.productType === 'charter' ? '/charter' : '/planner');
-              return (
-                <Link
-                  key={item.id}
-                  to={href}
-                  onClick={() => haptic('tap')}
-                  className="group rounded-xl overflow-hidden bg-white/[0.03] border border-white/5 hover:border-[#EA537E]/35 transition-all"
-                >
-                  <div className="relative w-full h-24 sm:h-28 bg-gradient-to-br from-[#7C5CFC]/15 to-[#EA537E]/10 overflow-hidden">
-                    {item.thumbnailUrl ? (
-                      <img src={item.thumbnailUrl} alt={item.name} loading="lazy" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Heart className="w-6 h-6 text-white/25" />
+              <EcEmpty title={mp.wlEmptyTitle || 'No wishlisted items'} body={mp.wlEmptySub || 'Tap the heart on any tour to save it here'} />
+            ) : (
+              <div className="mypage-editorial-wishlist-grid">
+                {wishlistItems.map(item => {
+                  // 상세 링크: 저장된 href 우선(2026-07-05) → 없으면 투어 id→slug 매핑 폴백
+                  // (기존 id-only 데이터 호환). id.replace('tour-','') 억지변환은 slug 와 달라 깨졌음.
+                  const href = item.href
+                    || (item.productType === 'tour'
+                      ? (slugForTourId(item.id) ? `/tours/${slugForTourId(item.id)}` : '/tours')
+                      : item.productType === 'charter' ? '/charter' : '/planner');
+                  return (
+                    <Link key={item.id} to={href} onClick={() => haptic('tap')} className="mypage-editorial-wishlist-card">
+                      <div className="mypage-editorial-wishlist-cover">
+                        {item.thumbnailUrl ? (
+                          <img src={item.thumbnailUrl} alt={item.name} loading="lazy" />
+                        ) : (
+                          <Heart className="mypage-editorial-icon-faint w-6 h-6" aria-hidden />
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="px-3 py-2.5">
-                    <p className="text-[12.5px] font-bold text-white truncate">{item.name}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[10px] text-white/45 uppercase tracking-wider">{item.productType}</span>
-                      {item.priceUSD ? (
-                        <span className="text-[#C4956A] font-bold text-[12px]">${item.priceUSD}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+                      <div className="mypage-editorial-wishlist-body">
+                        <p className="mypage-editorial-wishlist-name">{item.name}</p>
+                        <div className="mypage-editorial-wishlist-meta">
+                          <span className="mypage-editorial-wishlist-type">{item.productType}</span>
+                          {item.priceUSD ? (
+                            <span className="mypage-editorial-wishlist-price">${item.priceUSD}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── 탭: My Reviews ── */}
-        {tab === 'reviews' && (
-          <MyReviewsTab userId={user?.uid || ''} />
+        {!loading && tab === 'reviews' && (
+          <div id="mypage-panel-reviews" role="tabpanel" aria-labelledby="mypage-tab-reviews">
+            <MyReviewsTab userId={user?.uid || ''} fixture={fixture} language={language} fixtureText={fixtureCopy.review} />
+          </div>
         )}
 
         {/* ── 탭: Points History ── */}
-        {tab === 'history' && (
-          <div className="space-y-3">
+        {!loading && tab === 'history' && (
+          <div className="space-y-3" id="mypage-panel-history" role="tabpanel" aria-labelledby="mypage-tab-history">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold text-lg">{mp.pointHistoryTitle || 'Point history'}</h3>
-              <span className="text-white/55 text-sm">
-                Balance: <span className="text-[#FFD700] font-bold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span>
+              <h3 className="ec-h3">{mp.pointHistoryTitle || 'Point history'}</h3>
+              <span className="mypage-editorial-balance">
+                {uiCopy.balance}: <strong>{(loyalty?.tripCoins || 0).toLocaleString()}</strong>
               </span>
             </div>
 
             {pointHistory.length === 0 ? (
-              <div className="text-center py-12 text-white/55">
-                <Clock className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">{mp.pointEmpty || 'No point activity yet.'}</p>
-                <p className="text-xs mt-1 text-white/55">{mp.pointEmptySub || 'Share a plan to earn your first Trip Coins!'}</p>
-              </div>
+              <EcEmpty title={mp.pointEmpty || 'No point activity yet.'} body={mp.pointEmptySub || 'Share a plan to earn your first Trip Coins!'} />
             ) : (
-              pointHistory.map(log => (
-                <div key={log.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15] transition-all">
-                  <div className="flex-1">
-                    <p className="text-white/90 text-sm font-medium">{describePointLog(log.description, language)}</p>
-                    <p className="text-white/55 text-xs mt-0.5">
-                      {new Date(log.createdAt).toLocaleString()}
-                    </p>
+              <div className="space-y-3">
+                {pointHistory.map(log => (
+                  <div key={log.id} className="mypage-editorial-log">
+                    <div className="flex-1 min-w-0">
+                      <p className="mypage-editorial-log-desc">{describePointLog(log.description, language)}</p>
+                      <p className="mypage-editorial-log-date">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className={`mypage-editorial-log-amount ${log.type === 'earn' ? 'is-earn' : 'is-spend'}`}>
+                      {log.type === 'earn' ? '+' : ''}{log.amount}
+                    </div>
                   </div>
-                  <div className={`font-bold text-lg ${
-                    log.type === 'earn' ? 'text-emerald-400' : 'text-red-400'
-                  }`}>
-                    {log.type === 'earn' ? '+' : ''}{log.amount}
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
@@ -740,66 +811,76 @@ function StatCard({ label, value, sub, icon: Icon }: {
   label: string; value: string; sub?: string; icon: React.ElementType;
 }) {
   return (
-    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={14} className="text-white/55" />
-        <p className="text-white/55 text-[10px] uppercase tracking-wider">{label}</p>
+    <div className="mypage-editorial-stat">
+      <div className="mypage-editorial-stat-label">
+        <Icon size={14} aria-hidden />
+        <p>{label}</p>
       </div>
-      <p className="text-white font-bold text-xl">{value}</p>
-      {sub && <p className="text-white/55 text-[10px] mt-0.5">{sub}</p>}
+      <p className="mypage-editorial-stat-value">{value}</p>
+      {sub && <p className="mypage-editorial-stat-sub">{sub}</p>}
     </div>
   );
 }
 
-function EmptyState({ icon: Icon, text, sub }: {
-  icon: React.ElementType; text: string; sub?: string;
+function MyReviewsTab({
+  userId,
+  fixture,
+  language,
+  fixtureText,
+}: {
+  userId: string;
+  fixture: MyPageFixture | null;
+  language: string;
+  fixtureText: string;
 }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-white/55">
-      <Icon size={36} className="mb-3 opacity-30" />
-      <p className="text-sm">{text}</p>
-      {sub && <p className="text-xs mt-1 text-white/15">{sub}</p>}
-    </div>
-  );
-}
-
-interface MyReview {
-  id: string;
-  authorUid: string;
-  authorName: string;
-  authorPhotoURL?: string | null;
-  rating: number;
-  text: string;
-  targetType: string;
-  targetId: string;
-  createdAt: number;
-}
-
-function MyReviewsTab({ userId }: { userId: string }) {
   const { t } = useLanguage();
   const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
-  const [reviews, setReviews] = useState<MyReview[]>([]);
-  const [loading, setLoading] = useState(true);
+  const copy = REVIEW_COPY[(['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as keyof typeof REVIEW_COPY];
+  const fixtureReviews: MyReview[] = fixture === 'normal' ? [{
+    id: 'fixture-review',
+    authorUid: 'mypage-editorial-fixture',
+    authorName: 'Coco Traveler',
+    rating: 5,
+    text: fixtureText,
+    targetType: 'plan',
+    targetId: 'fixture-plan',
+    createdAt: Date.UTC(2026, 7, 12),
+  }] : [];
+  const [reviews, setReviews] = useState<MyReview[]>(fixtureReviews);
+  const [loading, setLoading] = useState(!fixture && Boolean(userId));
+  const [error, setError] = useState(fixture === 'review-error');
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const fetchMyReviews = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
-    try {
-      // PR #418 IDOR fix: Authorization Bearer — server uses verified auth.uid.
-      const res = await authFetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'my-reviews' }),
+  useEffect(() => {
+    if (fixture || !userId) return;
+    let active = true;
+    authFetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'my-reviews' }),
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (active) setReviews(data.reviews || []);
+      })
+      .catch(() => {
+        if (active) setError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-      const data = await res.json();
-      setReviews(data.reviews || []);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [userId]);
+    return () => { active = false; };
+  }, [fixture, reloadKey, userId]);
 
-  useEffect(() => { fetchMyReviews(); }, [fetchMyReviews]);
+  const handleRetry = () => {
+    setError(false);
+    setLoading(true);
+    setReloadKey(value => value + 1);
+  };
 
   const handleDelete = async (reviewId: string) => {
-    if (!confirm('Delete this review?')) return;
+    if (fixture) return;
+    if (!confirm(copy.confirm)) return;
     try {
       // PR #418 IDOR fix: server uses verified auth.uid.
       await authFetch('/api/reviews', {
@@ -812,51 +893,53 @@ function MyReviewsTab({ userId }: { userId: string }) {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
-      </div>
-    );
+    return <EcLoading label={MYPAGE_UI_COPY[(['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as keyof typeof MYPAGE_UI_COPY].loadingReviews} lines={3} className="mypage-editorial-panel" />;
+  }
+
+  if (error) {
+    return <EcError title={copy.error} retryLabel={copy.retry} onRetry={fixture ? undefined : handleRetry} />;
   }
 
   if (reviews.length === 0) {
-    return <EmptyState icon={Star} text={mp.noReviewsYet || 'No reviews yet'} sub={mp.noReviewsSub || 'Review a trip to earn +50 Trip Coins'} />;
+    return <EcEmpty title={mp.noReviewsYet || 'No reviews yet'} body={mp.noReviewsSub || 'Review a trip to earn +50 Trip Coins'} />;
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-bold text-lg">My Reviews</h3>
-        <span className="text-white/55 text-sm">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+      <div className="mypage-editorial-review-heading">
+        <h3 className="ec-h3">{copy.title}</h3>
+        <span>{language === 'en' && reviews.length === 1 ? '1 review' : copy.count.replace('{n}', String(reviews.length))}</span>
       </div>
       {reviews.map(r => (
-        <div key={r.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="flex gap-0.5">
+        <article key={r.id} className="mypage-editorial-review">
+          <div className="mypage-editorial-review-topline">
+            <div className="mypage-editorial-review-meta">
+              <div className="mypage-editorial-review-stars" aria-label={`${r.rating}/5`}>
                 {[1, 2, 3, 4, 5].map(i => (
-                  <Star key={i} size={12} className={i <= r.rating ? 'fill-[#FFD700] text-[#FFD700]' : 'fill-transparent text-white/55'} />
+                  <Star key={i} size={14} className={i <= r.rating ? 'is-filled' : ''} aria-hidden />
                 ))}
               </div>
-              <span className="text-white/55 text-[10px]">
-                {new Date(r.createdAt).toLocaleDateString()}
+              <span className="mypage-editorial-review-date">
+                {new Date(r.createdAt).toLocaleDateString(DATE_LOCALE[(['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as keyof typeof DATE_LOCALE])}
               </span>
             </div>
             <button
+              type="button"
               onClick={() => handleDelete(r.id)}
-              className="text-white/55 text-xs hover:text-red-400 transition-colors"
+              disabled={Boolean(fixture)}
+              className="mypage-editorial-review-delete"
             >
-              Delete
+              {copy.delete}
             </button>
           </div>
-          <p className="text-white/70 text-sm">{r.text}</p>
+          <p className="mypage-editorial-review-text">{r.text}</p>
           <Link
             to={`/my-plans/${r.targetId}`}
-            className="inline-flex items-center gap-1 text-[#7C5CFC] text-xs mt-2 hover:underline"
+            className="mypage-editorial-review-link"
           >
-            View plan <ChevronRight size={10} />
+            {copy.view} <ChevronRight size={12} />
           </Link>
-        </div>
+        </article>
       ))}
     </div>
   );

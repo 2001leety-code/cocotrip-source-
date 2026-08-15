@@ -1,8 +1,8 @@
 # Korea Editorial Concierge — CocoTrip design foundation
 
-> Status: **phase 2 (foundation + common shell + home + planner + tour detail + community + shared course + region detail + assistant + not-found)**.
-> The tours catalogue, charter, guide, my-page and admin bodies still run on the previous
-> dark system and are converted in later PRs. Public `/tours/:slug`, `/community`,
+> Status: **phase 2 (foundation + common shell + home + planner + tours catalogue + tour detail + community + shared course + region detail + assistant + my-page + not-found)**.
+> The charter, guide and admin bodies still run on the previous dark system and are converted
+> in later PRs. Public `/tours`, `/tours/:slug`, `/community`, `/mypage`,
 > `/community/post/:id`, `/community/new`, `/s/:id`, `/region/:regionId`, `/assistant`, `/map` and both 404 surfaces now follow this document. Read "Migration state" before assuming a page
 > follows this document.
 
@@ -19,6 +19,10 @@ existing region facts, product-derived tour details and links while replacing th
 mobile/desktop skins with one responsive document.
 `src/styles/editorial-assistant.css` is the route-scoped assistant presentation layer; it
 does not change authentication, analytics or chat request behavior.
+`src/styles/editorial-tours-catalog.css` is the route-scoped public tours catalogue layer;
+it preserves product, price, filter, inquiry and affiliate behavior.
+`src/styles/editorial-mypage.css` is the route-scoped account presentation layer; it keeps
+authentication, booking, course, loyalty and review operations behind their existing boundaries.
 `src/lib/notFoundEditorial.js` is the shared copy, language and self-contained visual contract
 for both the real server 404 and the in-app catch-all page. It is the one deliberate CSS-string
 exception: a real error response must render correctly without depending on the app bundle or
@@ -240,15 +244,17 @@ keeps the same word from button to confirmation.
 | Header, mobile menu, bottom nav, footer, cookie banner | this system |
 | Home (`/`), all breakpoints | this system |
 | Planner (`/planner`) — masthead, mode choice, wizard, loading, preview, purchase | this system (phase 2) |
+| Tours catalogue (`/tours`) — public directory, filters, cards and empty state | this system; product, price, inquiry and affiliate behavior are unchanged |
 | Tour detail (`/tours/:slug`) — public non-payment body, all breakpoints | this system; booking, price and refund controls remain the previous protected money boundary |
 | Community (`/community`, `/community/post/:id`, `/community/new`) — public feed, detail, states and compose shell | this system; post, upload, auth and moderation operations are unchanged |
 | Shared course (`/s/:id`) — public read-only course document and states | this system; public GET contract and local planner handoff are unchanged |
 | Not-found (`api/not-found.js`, app catch-all `*`) — direct server and in-app recovery document | this system; the server keeps HTTP 404 and both surfaces use `noindex, nofollow` |
 | My plans (`/my-plans`) — saved itinerary library and list states | this system; the bookings tab, prices, cancellation and refund controls remain the previous protected money boundary |
+| My page (`/mypage`) — account overview, tabs and read states | this system; authentication and booking, course, loyalty and review operations are unchanged |
 | Assistant (`/assistant`) — signed-out access, conversation, reply-loading and sign-in-error presentation | this system; authentication, analytics and `/api/chat` behavior are unchanged |
 | Map (`/map`) — saved itinerary route document and read states | this system; authentication, Firestore paths and queries, itinerary data, map provider and explicit route lookup behavior are unchanged |
 | Loading / empty / error / done primitives (`src/components/ui/states.tsx`) | this system; adopted by the app shell (route loading, global error boundary), the planner, guide and public community |
-| Tours catalogue (`/tours`), charter, guide, my-page, admin | previous dark system + `.refined-*` |
+| Charter, guide, admin | previous dark system + `.refined-*` |
 
 Because the shell is shared, a page still on the old system now shows a paper header
 over a dark body. That is the intended transitional state, not a bug — mobile already
@@ -257,7 +263,7 @@ converted.
 
 `.refined-home` and the header's global `.refined` glow override were **deleted**, not
 disabled: home no longer needs a corrective cascade because its base is correct. The
-remaining `.refined-tours|charter|plandetail|page` blocks in `src/index.css` belong to
+remaining `.refined-charter|plandetail|page` blocks in `src/index.css` belong to
 pages that are still on the old system and are removed with those pages — which is what
 happened to `.refined-planner` in phase 2, together with the ~90-line
 `.planner-mobile-*` block that repainted the dark planner light on phones. A
