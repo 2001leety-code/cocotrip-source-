@@ -47,6 +47,23 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // social-media-{48 random hex}.{jpg|mp4} — Brain daily social media.
+    // Uploads never come through the client SDK: a server-authenticated endpoint
+    // issues a one-object signed staging PUT, validates the complete SHA-256 and
+    // magic bytes, then copies the object here with this validation marker.
+    // Public read is required because Meta/TikTok fetch media server-to-server.
+    match /{fileName} {
+      allow read: if fileName.matches('social-media-[a-f0-9]{48}[.](jpg|mp4)')
+                  && resource.metadata.cocotripSocialValidated == '1'
+                  && ((resource.contentType == 'image/jpeg'
+                       && resource.size > 0
+                       && resource.size <= 10 * 1024 * 1024)
+                      || (resource.contentType == 'video/mp4'
+                          && resource.size > 0
+                          && resource.size <= 100 * 1024 * 1024));
+      allow write: if false;
+    }
+
     // 기타 모든 경로 — 차단
     match /{allPaths=**} {
       allow read, write: if false;
