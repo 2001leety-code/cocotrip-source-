@@ -106,6 +106,10 @@
       "maxDuration": 60,
       "includeFiles": "src/data/kpopConcerts.json"
     },
+    "api/social-media-upload.js": {
+      "maxDuration": 60,
+      "memory": 512
+    },
     "api/pdf/generate.js": {
       "maxDuration": 60,
       "includeFiles": "fonts/**"
@@ -164,6 +168,23 @@
       ]
     },
     {
+      "source": "/social-media/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "1"
+        }
+      ]
+    },
+    {
       "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community)(/.*)?",
       "headers": [
         {
@@ -186,6 +207,14 @@
     {
       "source": "/blog-images/:year/:name",
       "destination": "/api/blog-image?year=:year&name=:name"
+    },
+    {
+      "source": "/social-media/:id([a-f0-9]{48}).jpg",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/planning-with-ai-a0801.firebasestorage.app/o/social-media-:id.jpg?alt=media"
+    },
+    {
+      "source": "/social-media/:id([a-f0-9]{48}).mp4",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/planning-with-ai-a0801.firebasestorage.app/o/social-media-:id.mp4?alt=media"
     },
     { "source": "/", "destination": "/index.html" },
     {
