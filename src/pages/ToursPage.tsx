@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpDown,
@@ -10,6 +10,7 @@ import {
   Phone,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { AffiliateCard } from '@/components/AffiliateCard';
@@ -71,6 +72,8 @@ const TL = {
     destinationsBody: '등록된 일정이 있는 지역만 표시합니다.',
     seasonLabel: '이번 계절 안내',
     toursUnit: '투어',
+    filterTriggerLabel: '필터',
+    closeFiltersLabel: '필터 닫기',
   },
   en: {
     catalogueLabel: 'Korea tour desk',
@@ -110,6 +113,8 @@ const TL = {
     destinationsBody: 'Only regions with listed itineraries are shown.',
     seasonLabel: 'Season note',
     toursUnit: 'tours',
+    filterTriggerLabel: 'Filters',
+    closeFiltersLabel: 'Close filters',
   },
   ja: {
     catalogueLabel: '韓国ツアー案内',
@@ -149,6 +154,8 @@ const TL = {
     destinationsBody: '掲載中の日程がある地域のみ表示します。',
     seasonLabel: '季節の案内',
     toursUnit: '件',
+    filterTriggerLabel: 'フィルター',
+    closeFiltersLabel: 'フィルターを閉じる',
   },
   zh: {
     catalogueLabel: '韩国旅游指南',
@@ -188,6 +195,8 @@ const TL = {
     destinationsBody: '仅显示已有行程的地区。',
     seasonLabel: '本季提示',
     toursUnit: '条',
+    filterTriggerLabel: '筛选',
+    closeFiltersLabel: '关闭筛选',
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -268,6 +277,8 @@ export default function ToursPage() {
   const [activePace, setActivePace] = useState<Set<TripPace>>(new Set());
   const [sortBy, setSortBy] = useState<SortKey>('default');
   const [inquireOpen, setInquireOpen] = useState(false);
+  const filterDialogRef = useRef<HTMLDialogElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const hotelCityMap: Partial<Record<TourRegion, string>> = {
     Seoul: 'seoul',
@@ -326,6 +337,28 @@ export default function ToursPage() {
     setSortBy('default');
   };
 
+  const activeFilterCount =
+    (activeRegion !== 'All' ? 1 : 0) +
+    (activeDuration !== 'All' ? 1 : 0) +
+    activeTags.size +
+    activeLangs.size +
+    activePace.size +
+    (searchQuery.trim() ? 1 : 0);
+
+  const openFilterDialog = () => filterDialogRef.current?.showModal();
+  const closeFilterDialog = () => filterDialogRef.current?.close();
+  const handleFilterDialogBackdropClick = (event: ReactMouseEvent<HTMLDialogElement>) => {
+    if (event.target === filterDialogRef.current) closeFilterDialog();
+  };
+
+  useEffect(() => {
+    const dialog = filterDialogRef.current;
+    if (!dialog) return;
+    const returnFocus = () => filterTriggerRef.current?.focus();
+    dialog.addEventListener('close', returnFocus);
+    return () => dialog.removeEventListener('close', returnFocus);
+  }, []);
+
   const filteredTours = getToursByRegion(activeRegion).filter((tour) => {
     if (!matchesTourQuery(tour, searchQuery)) return false;
     if (activeDuration === 'Day' && tour.durationDays !== 1) return false;
@@ -348,6 +381,139 @@ export default function ToursPage() {
   const visibleTours = [...filteredTours];
   if (sortBy === 'price-asc') visibleTours.sort((left, right) => left.priceFrom - right.priceFrom);
   if (sortBy === 'price-desc') visibleTours.sort((left, right) => right.priceFrom - left.priceFrom);
+
+  const renderFilterFields = () => (
+    <>
+      <label className="tours-catalog-search">
+        <span>{tl.searchLabel}</span>
+        <span className="tours-catalog-search-field">
+          <Search aria-hidden />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={tl.searchPlaceholder}
+            enterKeyHint="search"
+            className="min-h-[44px]"
+          />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} aria-label={tl.clearSearch}>
+              <X aria-hidden />
+            </button>
+          )}
+        </span>
+      </label>
+
+      <div className="tours-catalog-filter-groups">
+        <fieldset>
+          <legend>{tl.filterLabel}</legend>
+          <div className="tours-catalog-chip-row">
+            {TOUR_REGIONS.map(({ key, label }) => {
+              const isActive = activeRegion === key;
+              return (
+                <button
+                  type="button"
+                  key={key}
+                  onClick={() => setActiveRegion(key)}
+                  aria-pressed={isActive}
+                  className="tour-chip tours-catalog-chip min-h-[44px]"
+                >
+                  {label[language] || label.en}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>{tl.durationLabel}</legend>
+          <div className="tours-catalog-chip-row">
+            {DURATION_OPTIONS.map(({ key, label }) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => setActiveDuration(key)}
+                aria-pressed={activeDuration === key}
+                className="tour-chip tours-catalog-chip min-h-[44px]"
+              >
+                {label[language] || label.en}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>{tl.interestLabel}</legend>
+          <div className="tours-catalog-chip-row">
+            {INTEREST_CHIPS.map(({ key, label }) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => toggleTag(key)}
+                aria-pressed={activeTags.has(key)}
+                className="tour-chip tours-catalog-chip min-h-[44px]"
+              >
+                {label[language] || label.en}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>{tl.paceFilterLabel}</legend>
+          <div className="tours-catalog-chip-row">
+            {PACE_ORDER.map((pace) => (
+              <button
+                type="button"
+                key={pace}
+                onClick={() => togglePace(pace)}
+                aria-pressed={activePace.has(pace)}
+                className="tour-chip tours-catalog-chip min-h-[44px]"
+              >
+                <span aria-hidden>{paceEmoji(pace)}</span>
+                {paceLabel(pace, language)}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>{tl.driverLabel}</legend>
+          <div className="tours-catalog-chip-row">
+            {DRIVER_OPTIONS.map(({ key, label }) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => toggleLang(key)}
+                aria-pressed={activeLangs.has(key)}
+                className="tour-chip tours-catalog-chip min-h-[44px]"
+              >
+                <Languages aria-hidden />
+                {label[language] || label.en}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="tours-catalog-sort-fieldset">
+          <legend>{tl.sortLabel}</legend>
+          <label className="tours-catalog-sort">
+            <ArrowUpDown aria-hidden />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as SortKey)}
+              aria-label={tl.sortLabel}
+              className="min-h-[44px]"
+            >
+              <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
+              <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
+              <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
+            </select>
+          </label>
+        </fieldset>
+      </div>
+    </>
+  );
 
   usePageMeta({ title: tl.seoTitle, description: tl.seoDesc });
 
@@ -463,139 +629,77 @@ export default function ToursPage() {
             </div>
 
             <div data-testid="tours-filter-panel" className="tours-catalog-filter-panel">
-              <label className="tours-catalog-search">
-                <span>{tl.searchLabel}</span>
-                <span className="tours-catalog-search-field">
-                  <Search aria-hidden />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder={tl.searchPlaceholder}
-                    enterKeyHint="search"
-                    className="min-h-[44px]"
-                  />
-                  {searchQuery && (
-                    <button type="button" onClick={() => setSearchQuery('')} aria-label={tl.clearSearch}>
-                      <X aria-hidden />
-                    </button>
+              <div className="tours-catalog-filter-bar">
+                <button
+                  type="button"
+                  ref={filterTriggerRef}
+                  data-testid="tours-filter-trigger"
+                  onClick={openFilterDialog}
+                  aria-haspopup="dialog"
+                  aria-label={`${tl.filterTriggerLabel}${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
+                  className="tours-catalog-filter-trigger min-h-[44px]"
+                >
+                  <SlidersHorizontal aria-hidden />
+                  <span aria-hidden>{tl.filterTriggerLabel}</span>
+                  {activeFilterCount > 0 && (
+                    <span data-testid="tours-filter-count" className="tours-catalog-filter-count" aria-hidden>
+                      {activeFilterCount}
+                    </span>
                   )}
-                </span>
-              </label>
+                </button>
+                <label className="tours-catalog-bar-sort">
+                  <ArrowUpDown aria-hidden />
+                  <select
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value as SortKey)}
+                    aria-label={tl.sortLabel}
+                    className="min-h-[44px]"
+                  >
+                    <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
+                    <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
+                    <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
+                  </select>
+                </label>
+              </div>
 
-              <div className="tours-catalog-filter-groups">
-                <fieldset>
-                  <legend>{tl.filterLabel}</legend>
-                  <div className="tours-catalog-chip-row">
-                    {TOUR_REGIONS.map(({ key, label }) => {
-                      const isActive = activeRegion === key;
-                      return (
-                        <button
-                          type="button"
-                          key={key}
-                          onClick={() => setActiveRegion(key)}
-                          aria-pressed={isActive}
-                          className="tour-chip tours-catalog-chip min-h-[44px]"
-                        >
-                          {label[language] || label.en}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
-                <fieldset>
-                  <legend>{tl.durationLabel}</legend>
-                  <div className="tours-catalog-chip-row">
-                    {DURATION_OPTIONS.map(({ key, label }) => (
-                      <button
-                        type="button"
-                        key={key}
-                        onClick={() => setActiveDuration(key)}
-                        aria-pressed={activeDuration === key}
-                        className="tour-chip tours-catalog-chip min-h-[44px]"
-                      >
-                        {label[language] || label.en}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <fieldset>
-                  <legend>{tl.interestLabel}</legend>
-                  <div className="tours-catalog-chip-row">
-                    {INTEREST_CHIPS.map(({ key, label }) => (
-                      <button
-                        type="button"
-                        key={key}
-                        onClick={() => toggleTag(key)}
-                        aria-pressed={activeTags.has(key)}
-                        className="tour-chip tours-catalog-chip min-h-[44px]"
-                      >
-                        {label[language] || label.en}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <fieldset>
-                  <legend>{tl.paceFilterLabel}</legend>
-                  <div className="tours-catalog-chip-row">
-                    {PACE_ORDER.map((pace) => (
-                      <button
-                        type="button"
-                        key={pace}
-                        onClick={() => togglePace(pace)}
-                        aria-pressed={activePace.has(pace)}
-                        className="tour-chip tours-catalog-chip min-h-[44px]"
-                      >
-                        <span aria-hidden>{paceEmoji(pace)}</span>
-                        {paceLabel(pace, language)}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <fieldset>
-                  <legend>{tl.driverLabel}</legend>
-                  <div className="tours-catalog-chip-row">
-                    {DRIVER_OPTIONS.map(({ key, label }) => (
-                      <button
-                        type="button"
-                        key={key}
-                        onClick={() => toggleLang(key)}
-                        aria-pressed={activeLangs.has(key)}
-                        className="tour-chip tours-catalog-chip min-h-[44px]"
-                      >
-                        <Languages aria-hidden />
-                        {label[language] || label.en}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <fieldset className="tours-catalog-sort-fieldset">
-                  <legend>{tl.sortLabel}</legend>
-                  <label className="tours-catalog-sort">
-                    <ArrowUpDown aria-hidden />
-                    <select
-                      value={sortBy}
-                      onChange={(event) => setSortBy(event.target.value as SortKey)}
-                      aria-label={tl.sortLabel}
-                      className="min-h-[44px]"
-                    >
-                      <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
-                      <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
-                      <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
-                    </select>
-                  </label>
-                </fieldset>
+              <div className="tours-catalog-filter-fields">
+                {renderFilterFields()}
               </div>
             </div>
           </div>
         </section>
 
+        <dialog
+          ref={filterDialogRef}
+          data-testid="tours-filter-dialog"
+          className="tours-catalog-filter-dialog"
+          aria-labelledby="tours-filter-dialog-title"
+          onClick={handleFilterDialogBackdropClick}
+        >
+          <div className="tours-catalog-filter-dialog-head">
+            <h2 id="tours-filter-dialog-title" className="ec-h3">{tl.filterTitle}</h2>
+            <button
+              type="button"
+              data-testid="tours-filter-dialog-close"
+              onClick={closeFilterDialog}
+              aria-label={tl.closeFiltersLabel}
+              className="tours-catalog-filter-dialog-close min-h-[44px] min-w-[44px]"
+            >
+              <X aria-hidden />
+            </button>
+          </div>
+          <div data-testid="tours-filter-dialog-body" className="tours-catalog-filter-dialog-body">
+            {renderFilterFields()}
+          </div>
+        </dialog>
+
         <section className="ec-container tours-catalog-results" aria-labelledby="tours-results-title">
+          <p className="tours-catalog-season-mobile">
+            <span aria-hidden>{seasonTip.emoji}</span>{' '}
+            <span className="sr-only">{tl.seasonLabel}: </span>
+            {seasonTip[language] || seasonTip.en}
+          </p>
+
           <div className="tours-catalog-results-heading">
             <div>
               <p className="ec-eyebrow">{tl.catalogueSectionLabel}</p>
