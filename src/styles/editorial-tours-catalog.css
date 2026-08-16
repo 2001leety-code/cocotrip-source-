@@ -119,6 +119,146 @@
   padding-block: 44px 12px;
 }
 
+.tours-catalog-season-mobile {
+  display: none;
+}
+
+.tours-catalog-filter-bar {
+  display: none;
+}
+
+.tours-catalog-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-raised);
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tours-catalog-filter-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tours-catalog-filter-count {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  color: var(--ec-text-on-brand);
+  background: var(--ec-brand);
+  border-radius: var(--ec-radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tours-catalog-bar-sort {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--ec-text-secondary);
+  background: var(--ec-field-bg);
+  border: 1px solid var(--ec-field-line);
+  border-radius: var(--ec-field-radius);
+}
+
+.tours-catalog-bar-sort svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.tours-catalog-bar-sort select {
+  width: 100%;
+  min-width: 0;
+  color: var(--ec-text-primary);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 16px;
+}
+
+/* Native bottom-sheet dialog — flat paper, no blur/gradient/glow, no transition.
+   Reachable only from the mobile filter trigger (the bar is display:none >=768px).
+   Flex column so the body (min-height:0) shrinks under max-height and its
+   overflow-y:auto actually scrolls — block layout clipped the tail instead. */
+.tours-catalog-filter-dialog {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 24px);
+  padding: 0;
+  overflow: hidden;
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-raised);
+  border: 0;
+  border-top: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-md) var(--ec-radius-md) 0 0;
+  box-shadow: none;
+}
+
+.tours-catalog-filter-dialog:not([open]) {
+  display: none;
+}
+
+.tours-catalog-filter-dialog::backdrop {
+  background: rgba(20, 18, 24, 0.55);
+}
+
+.tours-catalog-filter-dialog-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ec-line);
+}
+
+.tours-catalog-filter-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ec-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ec-radius-sm);
+}
+
+.tours-catalog-filter-dialog-close:hover {
+  color: var(--ec-text-primary);
+}
+
+.tours-catalog-filter-dialog-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tours-catalog-filter-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+
 .tours-catalog-season-note {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -808,30 +948,57 @@
 
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .tours-catalog-editorial main {
     padding-bottom: 96px;
   }
 
   .tours-catalog-masthead {
     grid-template-columns: minmax(0, 1fr);
-    padding-block: 44px 52px;
+    padding-block: 14px 12px;
+    row-gap: 0;
   }
 
   .tours-catalog-masthead-mark {
-    width: 100%;
-    height: auto;
-    grid-template-columns: 24px auto;
-    justify-content: start;
-    padding: 14px 16px;
+    display: none;
   }
 
-  .tours-catalog-masthead-mark svg {
-    width: 22px;
-    height: 22px;
+  .tours-catalog-masthead .ec-display {
+    display: -webkit-box;
+    margin-top: 4px;
+    overflow: hidden;
+    font-size: 26px;
+    line-height: 1.15;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
   }
 
-  .tours-catalog-trust-grid,
+  .tours-catalog-deck {
+    display: -webkit-box;
+    margin-top: 4px;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1.4;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  /* 신뢰 스트립은 첫 상품까지의 스크롤 예산에서 <=90px 만 쓴다.
+     읽는 글자는 13px 유지 — 줄이는 건 여백과 행간뿐이다. */
+  .tours-catalog-trust {
+    padding-block: 8px 10px;
+  }
+
+  .tours-catalog-trust-grid {
+    display: flex;
+    grid-template-columns: unset;
+    margin-top: 6px;
+    overflow-x: auto;
+    border-top: 0;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
   .tours-catalog-filter-groups,
   .tours-catalog-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -839,34 +1006,128 @@
 
   .tours-catalog-trust-item,
   .tours-catalog-trust-item + .tours-catalog-trust-item {
-    min-height: 88px;
-    padding: 20px 0;
-    border-left: 0;
+    flex: 0 0 auto;
+    min-width: 148px;
+    min-height: 0;
+    padding: 8px 14px;
+    border-bottom: 0;
   }
 
-  .tours-catalog-destinations,
+  .tours-catalog-trust-item + .tours-catalog-trust-item {
+    border-left: 1px solid var(--ecp-ink-600);
+  }
+
+  .tours-catalog-trust-item svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .tours-catalog-trust-item h2 {
+    font-size: 13px;
+  }
+
+  .tours-catalog-trust-item p {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .tours-catalog-season {
+    display: none;
+  }
+
+  .tours-catalog-season-mobile {
+    display: -webkit-box;
+    margin: 0;
+    padding-block: 6px 8px;
+    overflow: hidden;
+    color: var(--ec-text-secondary);
+    font-size: 15px;
+    line-height: 1.4;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .tours-catalog-destinations {
+    padding-block: 20px 16px;
+  }
+
+  /* 필터 밴드와 결과 사이 이음매는 밴드 하단 패딩 + 계절 문구 자체 패딩이 이미 벌려준다.
+     섹션 상단 패딩이 그 공백을 중복 계산하고 있었다. */
   .tours-catalog-results {
-    padding-block: 56px;
+    padding-block: 8px 40px;
   }
 
   .tours-catalog-section-heading,
   .tours-catalog-results-heading {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
+    margin-bottom: 12px;
   }
 
-  .tours-catalog-section-heading .ec-body-sm,
+  .tours-catalog-section-heading .ec-h2 {
+    margin-top: 4px;
+    font-size: 18px;
+  }
+
+  .tours-catalog-section-heading .ec-body-sm {
+    display: none;
+  }
+
   .tours-catalog-results-heading > p {
     justify-self: start;
   }
 
   .tours-catalog-region-rail {
+    gap: 8px;
+    padding-bottom: 6px;
     margin-right: calc(var(--ec-gutter) * -1);
     padding-right: var(--ec-gutter);
+    grid-auto-columns: minmax(128px, 1fr);
+  }
+
+  .tours-catalog-region-card {
+    grid-template-rows: 90px auto;
+  }
+
+  .tours-catalog-region-card img,
+  .tours-catalog-region-placeholder {
+    height: 90px;
+  }
+
+  .tours-catalog-region-copy {
+    gap: 2px;
+    padding: 6px 10px;
+  }
+
+  .tours-catalog-region-copy strong,
+  .tours-catalog-region-copy small {
+    font-size: 13px;
   }
 
   .tours-catalog-filter-section {
-    padding-block: 56px;
+    padding-block: 12px;
+  }
+
+  .tours-catalog-filter-panel {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tours-catalog-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    max-height: 60px;
+    margin-top: 8px;
+    padding: 4px;
+  }
+
+  .tours-catalog-filter-fields {
+    display: none;
   }
 
   .tours-catalog-search {

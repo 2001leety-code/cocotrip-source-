@@ -20,8 +20,8 @@
  * 어드민 태그 옵션, 태그 검색. 표시 정리가 상품 데이터를 갉아먹으면 안 된다.
  */
 import React from 'react';
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -407,5 +407,227 @@ describe('목록 전체 — Korea Editorial Concierge 문서형 셸', () => {
     const text = renderPage('en').container.textContent || '';
     expect(text).toContain('Browse by destination');
     expect(text).not.toContain('Popular Destinations');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 모바일 발견 비용 — 필터 바텀시트 (design/tours-mobile-discovery, 2026-08-16).
+ *
+ * 첫 실제 상품까지의 스크롤을 줄이려고 모바일에서는 필터 본문을 접고
+ * 네이티브 `<dialog>` 바텀시트로 옮겼다. 여기서 잠그는 건 **계약**이다 —
+ * 실제 픽셀(첫 상품 <=950px, 44px, 16px, Escape, backdrop)은 jsdom 이 레이아웃을
+ * 계산하지 못하므로 tests/e2e/tours-catalog-editorial.spec.ts 가 360/390 × 4언어로 잰다.
+ *
+ * jsdom 의 `<dialog>` 지원 수준에 기대지 않으려고 showModal/close 를 스텁으로 갈아끼운다.
+ * 스텁은 실제 브라우저와 같은 순서로 `close` 이벤트를 쏜다 — Escape 든 닫기 버튼이든
+ * backdrop 이든, 초점 복귀는 전부 그 이벤트 하나를 타고 돌아온다.
+ */
+describe('모바일 필터 시트 — 네이티브 dialog 계약', () => {
+  const pageSrc = read('src/pages/ToursPage.tsx');
+  const cssSrc = read('src/styles/editorial-tours-catalog.css');
+
+  const TRIGGER_LABEL: Record<Lang, string> = {
+    ko: '필터',
+    en: 'Filters',
+    ja: 'フィルター',
+    zh: '筛选',
+  };
+  const CLOSE_LABEL: Record<Lang, string> = {
+    ko: '필터 닫기',
+    en: 'Close filters',
+    ja: 'フィルターを閉じる',
+    zh: '关闭筛选',
+  };
+
+  /** jsdom 버전과 무관하게 네이티브 dialog API 호출 자체를 관찰한다. */
+  function stubDialog() {
+    const proto = window.HTMLDialogElement.prototype;
+    if (typeof proto.showModal !== 'function') proto.showModal = function () {};
+    if (typeof proto.close !== 'function') proto.close = function () {};
+
+    const showModal = vi.spyOn(proto, 'showModal').mockImplementation(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
+    const close = vi.spyOn(proto, 'close').mockImplementation(function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
+    });
+    return { showModal, close };
+  }
+
+  const q = (container: HTMLElement, testId: string) =>
+    container.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
+
+  afterEach(() => vi.restoreAllMocks());
+
+  for (const lang of LANGS) {
+    it(`${lang} — 필터 열기/닫기 라벨이 현지 표기로 나온다`, () => {
+      stubDialog();
+      const { container } = renderPage(lang);
+
+      const trigger = q(container, 'tours-filter-trigger');
+      expect(trigger, `${lang}: 필터 트리거가 없다`).not.toBeNull();
+      expect(trigger?.getAttribute('aria-label')).toBe(TRIGGER_LABEL[lang]);
+      expect(trigger?.textContent).toContain(TRIGGER_LABEL[lang]);
+
+      const close = q(container, 'tours-filter-dialog-close');
+      expect(close?.getAttribute('aria-label')).toBe(CLOSE_LABEL[lang]);
+    });
+  }
+
+  it('필터 본문은 네이티브 <dialog> 안에 있고 제목과 연결된다 (커스텀 오버레이 아님)', () => {
+    stubDialog();
+    const { container } = renderPage('ko');
+    const dialog = q(container, 'tours-filter-dialog');
+
+    expect(dialog?.tagName).toBe('DIALOG');
+    expect(dialog?.getAttribute('aria-labelledby')).toBe('tours-filter-dialog-title');
+    expect(container.querySelector('#tours-filter-dialog-title')?.textContent).toBeTruthy();
+    // 직접 만든 모달 스택(portal/backdrop div/body lock)을 다시 들이지 않는다.
+    expect(pageSrc).not.toMatch(/createPortal|role="dialog"|aria-modal/);
+  });
+
+  it('트리거는 showModal() 로 열고, 닫기 버튼은 close() 로 닫는다', () => {
+    const spies = stubDialog();
+    const { container } = renderPage('en');
+    const dialog = q(container, 'tours-filter-dialog');
+
+    expect(dialog?.hasAttribute('open')).toBe(false);
+    fireEvent.click(q(container, 'tours-filter-trigger') as HTMLElement);
+    expect(spies.showModal).toHaveBeenCalledTimes(1);
+    expect(dialog?.hasAttribute('open')).toBe(true);
+
+    fireEvent.click(q(container, 'tours-filter-dialog-close') as HTMLElement);
+    expect(spies.close).toHaveBeenCalledTimes(1);
+    expect(dialog?.hasAttribute('open')).toBe(false);
+  });
+
+  it('backdrop(=dialog 자기 자신) 클릭은 닫고, 시트 내부 클릭은 안 닫는다', () => {
+    const spies = stubDialog();
+    const { container } = renderPage('en');
+    const dialog = q(container, 'tours-filter-dialog') as HTMLElement;
+
+    fireEvent.click(q(container, 'tours-filter-trigger') as HTMLElement);
+    spies.close.mockClear();
+
+    fireEvent.click(q(container, 'tours-filter-dialog-body') as HTMLElement);
+    expect(spies.close, '시트 안을 눌렀는데 닫혔다').not.toHaveBeenCalled();
+
+    fireEvent.click(dialog);
+    expect(spies.close, 'backdrop 을 눌렀는데 안 닫혔다').toHaveBeenCalledTimes(1);
+  });
+
+  it('닫힘 이벤트 하나로 초점이 트리거로 돌아온다 (Escape·버튼·backdrop 공통 경로)', () => {
+    stubDialog();
+    const { container } = renderPage('en');
+    const trigger = q(container, 'tours-filter-trigger') as HTMLElement;
+    const dialog = q(container, 'tours-filter-dialog') as HTMLElement;
+
+    fireEvent.click(trigger);
+    (q(container, 'tours-filter-dialog-close') as HTMLElement).focus();
+    expect(document.activeElement).not.toBe(trigger);
+
+    // 브라우저에서 Escape 가 쏘는 것과 같은 이벤트. 실제 Escape 키 자체는 e2e 가 잰다.
+    dialog.dispatchEvent(new Event('close'));
+    expect(document.activeElement, 'dialog 닫힘 후 초점이 필터 버튼으로 안 돌아왔다').toBe(trigger);
+
+    // ref 로 잡고 close 이벤트로 되돌린다 — 이 패턴이 사라지면 위 단언이 먼저 깨진다.
+    expect(pageSrc).toMatch(/useRef<HTMLDialogElement>\(null\)/);
+    expect(pageSrc).toMatch(/useRef<HTMLButtonElement>\(null\)/);
+    expect(pageSrc).toMatch(/addEventListener\('close'/);
+    expect(pageSrc).toMatch(/removeEventListener\('close'/);
+  });
+
+  it('활성 필터 개수는 저장하지 않고 기존 필터 상태에서 파생한다', () => {
+    stubDialog();
+    const { container } = renderPage('ko');
+
+    expect(q(container, 'tours-filter-count'), '초기 상태인데 활성 배지가 있다').toBeNull();
+
+    // 관심사 칩 = 순수 토글. 가격·상품 의미는 안 건드리고 활성 개수만 움직인다.
+    const body = q(container, 'tours-filter-dialog-body') as HTMLElement;
+    const interest = body.querySelectorAll('fieldset')[2];
+    const chip = interest.querySelector('button.tour-chip') as HTMLElement;
+
+    fireEvent.click(chip);
+    expect(q(container, 'tours-filter-count')?.textContent).toBe('1');
+
+    fireEvent.click(chip);
+    expect(q(container, 'tours-filter-count'), '해제했는데 배지가 남았다 — 파생 상태가 아니다').toBeNull();
+
+    // useState 로 개수를 따로 들고 있으면 두 소스가 어긋난다.
+    expect(pageSrc).toMatch(/const activeFilterCount =/);
+    expect(pageSrc).not.toMatch(/setActiveFilterCount/);
+  });
+
+  it('필터 필드는 렌더러 하나를 데스크톱 패널과 시트가 같이 쓴다 (복붙 2벌 금지)', () => {
+    stubDialog();
+    const { container } = renderPage('en');
+
+    expect((pageSrc.match(/const renderFilterFields =/g) || []).length).toBe(1);
+    expect((pageSrc.match(/\{renderFilterFields\(\)\}/g) || []).length).toBe(2);
+
+    const panelLegends = Array.from(
+      (q(container, 'tours-filter-panel') as HTMLElement).querySelectorAll('legend'),
+    ).map((node) => node.textContent);
+    const sheetLegends = Array.from(
+      (q(container, 'tours-filter-dialog-body') as HTMLElement).querySelectorAll('legend'),
+    ).map((node) => node.textContent);
+
+    expect(sheetLegends.length).toBeGreaterThanOrEqual(4);
+    expect(sheetLegends).toEqual(panelLegends);
+  });
+
+  it('시트 본문의 overflow-y 가 실제로 스크롤된다 (죽은 스크롤 금지)', () => {
+    // max-height + overflow:hidden 인 dialog 가 block 이면 본문 높이가 내용 전체라
+    // 스크롤 여백이 0 이고 꼬리(주행 언어·정렬)가 잘려 나간다. 실제 픽셀은 e2e 가 잰다 —
+    // 여기서는 그걸 가능하게 하는 선언 4개(flex 열 / 머리말 고정 / min-height:0 / overflow-y)를 잠근다.
+    /** 셀렉터로 선언 블록 하나를 꺼낸다 — 선언 순서·줄바꿈에 흔들리지 않게. */
+    const block = (selector: string): string => {
+      const start = cssSrc.indexOf(`${selector} {`);
+      expect(start, `${selector} 규칙이 없다`).toBeGreaterThanOrEqual(0);
+      return cssSrc.slice(start, cssSrc.indexOf('}', start));
+    };
+
+    const dialog = block('.tours-catalog-filter-dialog');
+    expect(dialog, '본문 높이를 제한할 max-height 가 없다').toMatch(/max-height:/);
+    expect(dialog).toMatch(/display:\s*flex/);
+    expect(dialog, 'flex 열이 아니면 본문이 줄어들 축이 없다').toMatch(/flex-direction:\s*column/);
+    // display:flex 를 넣어도 닫힌 시트는 계속 숨어 있어야 한다(:not([open]) 이 더 구체적).
+    expect(block('.tours-catalog-filter-dialog:not([open])')).toMatch(/display:\s*none/);
+
+    expect(
+      block('.tours-catalog-filter-dialog-head'),
+      '머리말이 줄어들면 닫기 버튼이 44px 아래로 눌린다',
+    ).toMatch(/flex-shrink:\s*0/);
+
+    const body = block('.tours-catalog-filter-dialog-body');
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    expect(body, 'min-height:0 없이는 flex 자식이 안 줄어들어 overflow-y 가 죽는다').toMatch(/min-height:\s*0/);
+
+    // 스크롤을 JS 로 흉내 내지 않는다 — 네이티브 dialog + CSS 만 쓴다.
+    expect(pageSrc, 'body scroll lock 을 JS 로 다시 들였다').not.toMatch(/body\.style\.overflow/);
+  });
+
+  it('시트를 들이면서 nullish 병합 연산자·로고 밖 gradient·glow·glass 를 늘리지 않았다', () => {
+    const nullishCoalescing = String.fromCharCode(63, 63);
+    expect(pageSrc, 'ToursPage 에 nullish 병합 연산자가 새로 들어왔다').not.toMatch(
+      new RegExp(`\\${nullishCoalescing[0]}\\${nullishCoalescing[1]}`),
+    );
+    expect(cssSrc, '로고 밖 gradient').not.toMatch(/(linear|radial|conic)-gradient\s*\(/);
+    expect(cssSrc, 'glow').not.toMatch(/box-shadow:\s*0\s+0\s+[1-9]/);
+    expect(cssSrc, 'glass').not.toMatch(/backdrop-filter|blur\(/);
+    expect(pageSrc).not.toMatch(/framer-motion/);
+  });
+
+  it('모바일 바가 데스크톱 필터 패널·필드를 대체하지 않는다 (>=768 은 그대로)', () => {
+    // 데스크톱은 바를 숨기고 필드를 그대로 보여준다 — 실제 가시성은 e2e 768/1440 이 잰다.
+    expect(cssSrc).toMatch(/\.tours-catalog-filter-bar \{\s*display: none;/);
+    expect(cssSrc).toMatch(/@media \(max-width: 767px\)/);
+    // 시트 트리거는 필터 패널 안에 남는다 — 기존 legend/fieldset 계약과 같은 자리.
+    const { container } = renderPage('en');
+    const panel = q(container, 'tours-filter-panel') as HTMLElement;
+    expect(panel.querySelector('[data-testid="tours-filter-trigger"]')).not.toBeNull();
   });
 });
