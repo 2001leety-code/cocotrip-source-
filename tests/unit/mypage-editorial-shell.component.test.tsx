@@ -207,6 +207,52 @@ describe('/mypage editorial shell', () => {
     expect(screen.queryByText('Clear')).toBeNull();
   });
 
+  it('keeps the phone shell compact without touching the desktop rules', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/styles/editorial-mypage.css'), 'utf8');
+    const phone = css.slice(css.indexOf('@media (max-width: 767px)'));
+    expect(phone).toBeTruthy();
+
+    expect(phone).toMatch(/\.mypage-editorial-back,\s*\n\s*\.mypage-editorial-benefits\s*\{[\s\S]*?display:\s*none/);
+    expect(css).not.toContain('@media (max-width: 420px)');
+    expect(phone).toMatch(/\.mypage-editorial-profile\s*\{[\s\S]*?grid-template-columns:\s*44px minmax\(0, 1fr\)/);
+    expect(phone).toMatch(/\.mypage-editorial-avatar\s*\{[\s\S]*?width:\s*44px;\s*\n\s*height:\s*44px/);
+    expect(phone).toMatch(/\.mypage-editorial-name\s*\{[\s\S]*?overflow:\s*hidden[\s\S]*?text-overflow:\s*ellipsis[\s\S]*?white-space:\s*nowrap/);
+    expect(phone).toMatch(/\.mypage-editorial-email\s*\{[\s\S]*?text-overflow:\s*ellipsis/);
+    expect(phone).toMatch(/\.mypage-editorial-tabs\s*\{[\s\S]*?flex-wrap:\s*nowrap/);
+    expect(phone).toMatch(/\.mypage-editorial-tabs\s*\{[\s\S]*?overflow-x:\s*auto/);
+    expect(phone).toMatch(/\.mypage-editorial-tabs\s*\{[\s\S]*?scrollbar-width:\s*none/);
+    expect(phone).toMatch(/\.mypage-editorial-tabs::-webkit-scrollbar\s*\{\s*\n\s*display:\s*none/);
+    expect(phone).toMatch(/\.mypage-editorial-stat-label\s*\{\s*\n\s*font-size:\s*11px/);
+    expect(phone).toMatch(/\.mypage-editorial-stat-value\s*\{[\s\S]*?font-variant-numeric:\s*tabular-nums/);
+    expect(css).not.toMatch(/linear-gradient|radial-gradient|backdrop-filter/);
+  });
+
+  it('keeps the tier benefit block in the document for desktop readers', () => {
+    const { container } = renderPage();
+    expect(container.querySelector('.mypage-editorial-benefits')).toBeTruthy();
+    expect(container.querySelector('.mypage-editorial-back')).toBeTruthy();
+  });
+
+  // 실제 정렬 픽셀은 e2e(`360px deep-linked tab stays horizontally in view`)가 잰다.
+  // 여기서는 "줄만 움직이고 문서·애니메이션은 건드리지 않는다"는 수단만 잠근다.
+  it('aligns a deep-linked tab by moving only the rail, without animating', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/pages/MyPage.tsx'), 'utf8');
+    expect(source).toContain('tablistRef');
+    expect(source).toMatch(/list\.scrollLeft/);
+    expect(source).not.toContain('scrollIntoView');
+    expect(source).not.toContain("behavior: 'smooth'");
+  });
+
+  it('re-aligns the tab rail when the language changes', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/pages/MyPage.tsx'), 'utf8');
+    const effectDeps = source.match(
+      /document\.fonts\?\.ready\.then\(align\)\.catch\(\(\) => \{\}\);\s*\n\s*\}, \[([^\]]*)\]\);/,
+    );
+    expect(effectDeps).not.toBeNull();
+    const deps = effectDeps![1].split(',').map((dep) => dep.trim());
+    expect(deps).toContain('language');
+  });
+
   it('keeps the real route authenticated and the fixture route development-only', () => {
     const app = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
     const myPageRoute = app.slice(app.indexOf('path="/mypage"'), app.indexOf('path="/dev/mypage-editorial"'));

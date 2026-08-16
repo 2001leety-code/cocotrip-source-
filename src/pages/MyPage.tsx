@@ -2,7 +2,7 @@
  * MyPage — 마이페이지 (등급/포인트/쿠폰/위시리스트/일정)
  * 로그인 필수, AuthRequired 래핑
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
@@ -328,6 +328,23 @@ export default function MyPage() {
     { id: 'history', label: mp.tabPoints || 'Points', icon: Clock },
   ];
 
+  // 컨테이너의 scrollLeft만 옮긴다 — 데스크톱은 scrollWidth == clientWidth라 아무 일도 하지 않는다.
+  const tablistRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const align = () => {
+      const list = tablistRef.current;
+      const active = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!list || !active) return;
+      const left = active.offsetLeft - list.offsetLeft;
+      const overflowRight = left + active.offsetWidth - (list.scrollLeft + list.clientWidth);
+      if (overflowRight > 0) list.scrollLeft += overflowRight;
+      else if (left < list.scrollLeft) list.scrollLeft = left;
+    };
+    align();
+    // 웹폰트가 붙으면 탭이 몇 px 넓어져 방금 맞춘 탭이 다시 줄 밖으로 밀린다.
+    document.fonts?.ready.then(align).catch(() => {});
+  }, [tab, loading, language]);
+
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
     let nextIndex = currentIndex;
     if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % TABS.length;
@@ -397,7 +414,7 @@ export default function MyPage() {
             </div>
 
             {/* 탭 네비 */}
-            <div className="mypage-editorial-tabs" role="tablist" aria-label={uiCopy.tabsLabel}>
+            <div className="mypage-editorial-tabs" role="tablist" aria-label={uiCopy.tabsLabel} ref={tablistRef}>
               {TABS.map(({ id, label, icon: Icon }, index) => (
                 <button
                   key={id}
