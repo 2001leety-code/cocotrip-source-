@@ -944,24 +944,74 @@
 
 @media (max-width: 767px) {
   .mypage-editorial-main {
-    padding-top: calc(var(--ec-shell-height) + 32px);
+    padding-top: calc(var(--ec-shell-height) + 12px);
     padding-bottom: 72px;
   }
 
+  /* 공용 헤더 로고와 하단 탭의 홈이 이미 같은 곳으로 돌려보낸다 — 세 번째 홈 링크는
+     첫 동작만 아래로 민다. 등급 혜택 적립률도 아래 집계 카드에 그대로 있다. */
+  .mypage-editorial-back,
+  .mypage-editorial-benefits {
+    display: none;
+  }
+
   .mypage-editorial-profile {
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 14px;
-    padding: 20px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 16px;
   }
 
   .mypage-editorial-avatar {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
   }
 
+  .mypage-editorial-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mypage-editorial-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mypage-editorial-badges {
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  /* 한 줄 가로 스크롤. 줄바꿈되면 언어마다 탭 높이가 달라져 첫 동작 위치가 흔들린다. */
   .mypage-editorial-tabs {
-    gap: 4px 16px;
+    flex-wrap: nowrap;
+    gap: 0 18px;
+    margin-top: 16px;
     overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mypage-editorial-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mypage-editorial-tab {
+    flex: 0 0 auto;
+  }
+
+  .mypage-editorial-dday span,
+  .mypage-editorial-nexttrip-title {
+    font-size: 16px;
+  }
+
+  .mypage-editorial-stat-label {
+    font-size: 11px;
+  }
+
+  .mypage-editorial-stat-value {
+    font-variant-numeric: tabular-nums;
   }
 
   .mypage-editorial-stats,
@@ -971,15 +1021,5 @@
 
   .mypage-editorial-redeem-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 420px) {
-  .mypage-editorial-profile {
-    grid-template-columns: 1fr;
-  }
-
-  .mypage-editorial-avatar {
-    margin-bottom: 4px;
   }
 }
