@@ -185,7 +185,7 @@
       ]
     },
     {
-      "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community)(/.*)?",
+      "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community|links)(/.*)?",
       "headers": [
         {
           "key": "X-Robots-Tag",
