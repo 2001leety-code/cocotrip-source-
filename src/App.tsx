@@ -98,6 +98,8 @@ const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
 const SharedCoursePage = lazy(() => import('@/pages/SharedCoursePage')); // 코스 빌더 공유 수신 /s/:id (2026-07-04)
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
+// SNS 프로필의 "link in bio" 목적지. 링크는 API 로 못 바꾸니 바이오엔 이 경로만 고정한다.
+const LinksPage = lazy(() => import('@/pages/LinksPage'));
 // DEV-only test harness — prod 빌드에서 chunk 자체가 emit되지 않도록 lazy 호출을 조건부로.
 // import.meta.env.DEV 가 false일 때 import('@/pages/DevTransitTest') 호출 자체가 코드에서 사라짐 → tree-shake 성공.
 const DevTransitTest = import.meta.env.DEV
@@ -577,6 +579,8 @@ function AnimatedRoutes() {
           />
           <Route path="/tours" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><ToursPage /></Suspense>} />
           <Route path="/tours/:slug" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><TourDetailPage /></Suspense>} />
+          {/* SNS 링크 허브. seoRoutes 목록에 없으므로 noindex — 검색 노출 대상이 아니다. */}
+          <Route path="/links" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><LinksPage /></Suspense>} />
           {/* 커뮤니티 UI 껍데기 — 실제 DB·번역·신고·moderation 연결은 Claude handoff 범위. */}
           <Route path="/community" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityPage /></Suspense>} />
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
