@@ -26,6 +26,20 @@ export const LINK_HUB_DEFAULTS = {
   utm_medium: 'bio',
 } as const;
 
+export const LINK_HUB_PATH = '/links';
+
+/**
+ * 허브에서는 전역 chrome(하단탭·프로모배너·쿠폰모달)을 렌더하지 않는다.
+ *
+ * 판정을 한 곳에 모아두는 이유: 숨길 자리가 App.tsx 안에서만 두 군데(GlobalWidgets,
+ * NonMoodChrome)로 갈라져 있어, 한쪽만 고치면 반쪽짜리가 된다. 실제로 처음 배포된
+ * 허브가 그랬다 — 페이지는 헤더·푸터를 안 그렸지만 하단탭과 프로모배너가 그대로 얹혔고,
+ * 그 배너의 CTA 는 UTM 없이 /planner 로 보내 허브의 목적(유입 출처 집계)을 깼다.
+ */
+export function isLinkHubPath(pathname: string): boolean {
+  return pathname === LINK_HUB_PATH;
+}
+
 /**
  * @param path      목적지 경로 (예: `/planner`)
  * @param incoming  현재 주소의 query string (예: `location.search`)

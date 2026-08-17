@@ -7,6 +7,7 @@ import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { PromoBanner } from '@/components/PromoBanner';
 import { PromoPopup } from '@/components/PromoPopup';
+import { isLinkHubPath } from '@/lib/linkInBio';
 // Home — one responsive Editorial Concierge tree (2026-08-10). Lazy: it pulls
 // tours.ts (~92 KB raw) + the example-plan data, which must not enter the eager
 // first-paint bundle guarded by .size-limit.json.
@@ -183,18 +184,24 @@ function GlobalWidgets() {
   const isHome = location.pathname === '/';
   const isCommunity = location.pathname === '/community' || location.pathname.startsWith('/community/');
 
+  // 2026-08-17: link-in-bio 허브(/links)도 chrome 을 숨긴다. SNS 바이오에서 넘어온 사람은
+  //   버튼 하나를 누르고 끝나야 하는데 하단탭 6개가 그 자리를 두고 경쟁한다.
+  //   (쿠키배너는 GDPR 이라 여기서도 유지 — 공유 플랜과 같은 규칙.)
+  const isLinkHub = isLinkHubPath(location.pathname);
+  const isBareLanding = isSharedPlan || isCommunity || isLinkHub;
+
   return (
     <>
       {/* PageViewTracker 는 App 레벨로 옮겼다 — 여기 두면 위 `/mood` early-return 에 막혀
           계측이 통째로 죽는다(2026-08-05). 상세는 App.tsx 의 마운트 지점 주석. */}
 
       {/* KpopConcertPopup 플로팅 배너 — 운영자 지시로 제거 (2026-07-03). 컴포넌트·차터 kpop 탭 섹션은 유지 */}
-      {!isSharedPlan && !isCommunity && <MobileBottomNav />}
+      {!isBareLanding && <MobileBottomNav />}
       <Suspense fallback={null}>
         <CookieBanner />
         {isHome && <ChatWidget language={language} hideTrigger={false} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
-        {!isSharedPlan && !isCommunity && <OnboardingCouponModal />}
+        {!isBareLanding && <OnboardingCouponModal />}
       </Suspense>
     </>
   );
@@ -742,9 +749,15 @@ function App() {
 }
 
 // 상단 프로모 배너/팝업 — MOOD 포털(/mood)에선 숨김(고객 비노출 내부 사이트).
+// /links(바이오 허브)에서도 숨긴다: 배너 CTA 가 UTM 없이 /planner 로 보내므로,
+// 그걸 누르면 허브가 심으려던 utm_source/utm_content 가 통째로 사라진다(2026-08-17).
 function NonMoodChrome() {
   const location = useLocation();
-  if (location.pathname.startsWith('/mood') || location.pathname.startsWith('/community')) return null;
+  if (
+    location.pathname.startsWith('/mood') ||
+    location.pathname.startsWith('/community') ||
+    isLinkHubPath(location.pathname)
+  ) return null;
   return (
     <>
       <PromoBanner />
