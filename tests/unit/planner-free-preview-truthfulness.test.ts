@@ -247,7 +247,7 @@ describe('the quick error panel sits with the wizard, not after the SEO body', (
 
   it('the panel takes focus and scrolls itself in, motion preference honoured', () => {
     const PANEL = read('src/pages/PlannerPage/components/PlannerErrorPanel.tsx');
-    const MOTION = read('src/pages/PlannerPage/lib/motion.ts');
+    const MOTION = read('src/lib/motion.ts');
     expect(PANEL).toMatch(/tabIndex=\{-1\}/);
     expect(PANEL).toMatch(/focusAndReveal/);
     // `scrollIntoView({ behavior: 'smooth' })` animates whatever the media
@@ -434,7 +434,7 @@ describe('the follow-up stays inside the house rules', () => {
     'src/pages/PlannerPage/index.tsx',
     'src/pages/PlannerPage/plannerCopy.ts',
     'src/pages/PlannerPage/components/PlannerErrorPanel.tsx',
-    'src/pages/PlannerPage/lib/motion.ts',
+    'src/lib/motion.ts',
     'src/pages/PlannerPage/components/TriviaLoadingAnimation.tsx',
     'src/pages/PlannerPage/components/QuickPreviewCard.tsx',
     'src/pages/PlannerPage/hooks/usePlannerHandlers.ts',

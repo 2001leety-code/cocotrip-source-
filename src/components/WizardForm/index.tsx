@@ -1062,7 +1062,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                 <WizardStep2Details
                   p={p} isMobile={isMobile} calendarLocale={calendarLocale}
                   dateRange={dateRange} setDateRange={setDateRange} nights={nights}
-                  paxInput={paxInput} setPaxInput={setPaxInput}
+                  paxInput={paxInput} setPaxInput={setPaxInput} pax={pax}
                   mainCity={mainCity} airportOptions={airportOptions}
                   arrivalTerminal={arrivalTerminal} setArrivalTerminal={setArrivalTerminal}
                   departureTerminal={departureTerminal} setDepartureTerminal={setDepartureTerminal}

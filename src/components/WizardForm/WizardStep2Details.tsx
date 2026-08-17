@@ -1,9 +1,11 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
 // 2026-05-10 ZoneRecommender React.lazy: hotel 미입력 시점에만 노출 → 진입 즉시
 // fetch (작은 skeleton fallback). Main bundle 에서 ZoneRecommender 코드 분리.
-import { useState, lazy, Suspense, type CSSProperties } from 'react';
+import { useRef, useState, lazy, Suspense, type CSSProperties } from 'react';
 import { Plane, Briefcase, Minus, Plus, Pencil, PlaneLanding, PlaneTakeoff } from 'lucide-react';
 import { WizardNav } from './WizardNav';
+import { WizardMissingSummary } from './WizardMissing';
+import { revealFirstMissing, type MissingField } from './missingFields';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import type { Locale } from 'date-fns';
@@ -32,6 +34,9 @@ interface Step2Props {
   nights: number;
   paxInput: string;
   setPaxInput: (v: string) => void;
+  /** 부모가 이미 파싱한 인원 수. 여기서 다시 파싱하면 규칙이 두 벌이 되어 어긋난다
+   *  (부모: `parseInt(paxInput) || 2`, 그 값이 곧 canGoStep3 의 판정 근거다). */
+  pax: number;
   mainCity: string;
   airportOptions: AirportOption[];
   arrivalTerminal: string;
@@ -172,7 +177,7 @@ function LuggageCounter({ label, sub, value, setValue, maxReached }: { label: st
 export function WizardStep2Details(props: Step2Props) {
   const {
     p, isMobile, calendarLocale, dateRange, setDateRange, nights,
-    paxInput, setPaxInput, mainCity, airportOptions,
+    paxInput, setPaxInput, pax, mainCity, airportOptions,
     arrivalTerminal, setArrivalTerminal,
     departureTerminal, setDepartureTerminal,
     hotelAddress, setHotelAddress,
@@ -222,10 +227,26 @@ export function WizardStep2Details(props: Step2Props) {
   const [showErrors, setShowErrors] = useState(false);
   const dateOk = !!(dateRange?.from && dateRange?.to);
   const airportOk = !!arrivalTerminal || flightInfoFromStep0;
+  // canGoStep3 의 세 조건 중 인원만 화면에 표시가 없었다 — 음수를 넣으면 아무 문구 없이
+  // Next 만 죽었다(2026-08-18).
+  const paxOk = pax >= 1;
+
+  // 이 화면은 날짜·인원·공항·호텔·짐·시각이 세로로 늘어서 길다. 아래쪽 Next 를 누른
+  // 사람에게 위쪽에 켜진 빨간 문구는 보이지 않으므로, 첫 빈 칸으로 데려간다.
+  const dateRef = useRef<HTMLDivElement | null>(null);
+  const paxRef = useRef<HTMLDivElement | null>(null);
+  const airportRef = useRef<HTMLDivElement | null>(null);
+  const d = p as Record<string, string>;
+  const missing: MissingField[] = [
+    ...(dateOk ? [] : [{ key: 'dates', label: d.wizardMissingDates || 'Select your travel dates', ref: dateRef }]),
+    ...(paxOk ? [] : [{ key: 'pax', label: d.wizardMissingPax || 'Enter how many travelers (1 or more)', ref: paxRef }]),
+    ...(airportOk ? [] : [{ key: 'airport', label: d.wizardMissingAirport || 'Select your arrival airport', ref: airportRef }]),
+  ];
 
   function handleNext() {
     if (!canGoStep3) {
       setShowErrors(true);
+      revealFirstMissing(missing);
       return;
     }
     onNext();
@@ -238,13 +259,18 @@ export function WizardStep2Details(props: Step2Props) {
         <p className="ec-help mt-1">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
       </div>
 
+      {showErrors && (
+        <WizardMissingSummary title={d.wizardMissingTitle || 'Still needed before you continue'} missing={missing} />
+      )}
+
       <hr className="ec-rule" />
 
       {/* Range Calendar */}
-      <div>
+      {/* tabIndex={-1}: 프로그램에서 포커스를 주려면 필요하다(탭 순서엔 안 들어간다). */}
+      <div ref={dateRef} tabIndex={-1} className="scroll-mt-4 outline-none">
         <p className="ec-question">{p.wizardWhenVisit || 'When are you visiting?'}</p>
         {showErrors && !dateOk && (
-          <p className="ec-error-note mt-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select travel dates'}</p>
+          <p className="ec-error-note mt-2" role="alert">{d.wizardMissingDates || 'Please select travel dates'}</p>
         )}
         <div className={`ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && !dateOk ? 'border-ec-critical' : ''}`}>
           <DayPicker
@@ -343,10 +369,13 @@ export function WizardStep2Details(props: Step2Props) {
       <hr className="ec-rule" />
 
       {/* Travelers */}
-      <div>
+      <div ref={paxRef} tabIndex={-1} className="scroll-mt-4 outline-none">
         <p className="ec-question">{p.planner_step2_adults || 'How many travelers?'}</p>
+        {showErrors && !paxOk && (
+          <p className="ec-error-note mt-2" role="alert">{d.wizardMissingPax || 'Enter how many travelers (1 or more)'}</p>
+        )}
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
-          className="ec-field ec-figure mt-2.5" />
+          className={`ec-field ec-figure mt-2.5 ${showErrors && !paxOk ? 'border-ec-critical' : ''}`} />
       </div>
 
       {/* UIUX P3 (2026-07-13): 동행 유형 — 선택형(강제 X), 재탭 해제. AI 플랜 소프트 힌트(travel_party). */}
@@ -509,13 +538,13 @@ export function WizardStep2Details(props: Step2Props) {
           </span>
         </button>
       ) : (
-        <div>
+        <div ref={airportRef} tabIndex={-1} className="scroll-mt-4 outline-none">
           <p className="ec-question">
             {p.wizardWhichAirport || 'Which airport are you arriving at?'}
             {mainCity && <span className="text-ec-ink-3 text-[15px] font-normal ml-1">({mainCity})</span>}
           </p>
           {showErrors && !airportOk && (
-            <p className="ec-error-note mt-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select an airport'}</p>
+            <p className="ec-error-note mt-2" role="alert">{d.wizardMissingAirport || 'Please select an airport'}</p>
           )}
           <div className="mt-2.5">
             <MobileSelectDrawer

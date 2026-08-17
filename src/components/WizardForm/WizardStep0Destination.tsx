@@ -11,10 +11,12 @@
 // 배지 + route 표시 모두 4페이지 (WizardStep2Details) 로 이전. 본 페이지는
 // 도시 chips 만 단순 토글 (선택/해제). 입국/출국 의도는 4페이지의 명시적
 // chips 에서만 설정.
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { WizardNav } from './WizardNav';
+import { WizardMissingSummary } from './WizardMissing';
+import { revealFirstMissing, type MissingField } from './missingFields';
 import {
   CITY_CHIPS, CITY_PHOTO, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS,
   getActivitiesForCities, ACTIVITY_CHIPS_EXPANDED, EXPANDED_ACTIVITY_ICONS,
@@ -72,9 +74,22 @@ export function WizardStep0Destination(props: Step0Props) {
   // 무료 활동 등) 는 expand 버튼 클릭 시에만 노출. 기본 false 로 선택지 폭증 회피.
   const [showMoreActivities, setShowMoreActivities] = useState(false);
 
+  // 2026-08-18: 못 넘어갈 때 "어디가 비었는지" + "그 자리로 이동". 문구를 켜 두기만 하면
+  // 화면 밖에 있는 사람에겐 버튼이 죽은 것처럼 보인다.
+  const cityRef = useRef<HTMLDivElement | null>(null);
+  const activityRef = useRef<HTMLDivElement | null>(null);
+  const d = p as Record<string, string>;
+  const missing: MissingField[] = [
+    ...(mainCity ? [] : [{ key: 'city', label: d.wizardMissingCity || 'Select at least one city', ref: cityRef }]),
+    ...(selectedActivities.length > 0
+      ? []
+      : [{ key: 'activity', label: d.wizardMissingActivity || "Pick at least one thing you'd like to do", ref: activityRef }]),
+  ];
+
   function handleNext() {
     if (!canGoStep1) {
       setShowErrors(true);
+      revealFirstMissing(missing);
       return;
     }
     onNext();
@@ -93,6 +108,10 @@ export function WizardStep0Destination(props: Step0Props) {
         <h2 className="text-[17px] sm:text-lg font-bold text-ec-ink mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
         <p className="text-[13px] sm:text-sm text-ec-ink-3">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
       </div>
+
+      {showErrors && (
+        <WizardMissingSummary title={d.wizardMissingTitle || 'Still needed before you continue'} missing={missing} />
+      )}
 
       {/* Quick Start Presets */}
       {!mainCity && (
@@ -131,7 +150,8 @@ export function WizardStep0Destination(props: Step0Props) {
       )}
 
       {/* City chips with lucide icons */}
-      <div>
+      {/* tabIndex={-1}: 프로그램에서 포커스를 주려면 필요하다(탭 순서엔 안 들어간다). */}
+      <div ref={cityRef} tabIndex={-1} className="scroll-mt-4 outline-none">
         <p className="text-sm text-ec-ink-3 mb-3 font-medium">
           {p.tripAreaLabel || 'Select Cities'}
           {allCities.length > 0 && (
@@ -139,7 +159,7 @@ export function WizardStep0Destination(props: Step0Props) {
           )}
         </p>
         {showErrors && !mainCity && (
-          <p className="ec-error-note mb-2" role="alert">{(p as Record<string, string>).wizardFillRequired || 'Please select a city'}</p>
+          <p className="ec-error-note mb-2" role="alert">{d.wizardMissingCity || 'Please select a city'}</p>
         )}
         {/* P161 (2026-05-23): 다도시 plan 시 입국/출국 cycle 안내 + arrival/departure 배지 +
             route 표시 모두 4페이지 (WizardStep2Details) 로 이전. 본 페이지는 도시 선택만. */}
@@ -173,10 +193,10 @@ export function WizardStep0Destination(props: Step0Props) {
       </div>
 
       {/* Activities — P9: city-aware, universal chips first then city-specific */}
-      <div>
+      <div ref={activityRef} tabIndex={-1} className="scroll-mt-4 outline-none">
         <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
         {showErrors && selectedActivities.length === 0 && (
-          <p className="ec-error-note mb-1" role="alert">{(p as Record<string, string>).wizardCheckRequired || 'Please select at least one activity'}</p>
+          <p className="ec-error-note mb-1" role="alert">{d.wizardMissingActivity || 'Please select at least one activity'}</p>
         )}
         <p className="text-xs text-ec-ink-3 mb-3">
           {selectedCityKeys.length > 0

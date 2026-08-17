@@ -25,7 +25,7 @@ import { AIIntroModal } from '@/components/AIIntroModal';
 import '@/styles/editorial-planner.css';
 import { PAGE_STYLE } from './constants';
 import { pickPlannerCopy } from './plannerCopy';
-import { focusAndReveal } from './lib/motion';
+import { focusAndReveal } from '@/lib/motion';
 import { PlannerMasthead, PlannerEvidence } from './components/PlannerMasthead';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
