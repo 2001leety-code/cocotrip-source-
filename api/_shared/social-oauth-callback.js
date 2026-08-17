@@ -3,12 +3,15 @@ const CALLBACK_PROVIDERS = Object.freeze({
     errorField: 'error',
     forbiddenFields: Object.freeze(['auth_code']),
     localCallbackUrl: 'http://127.0.0.1:8765/oauth/meta/callback',
-    successField: 'code',
+    successFields: Object.freeze(['code']),
   }),
+  // TikTok의 계정 소유자 인증(www.tiktok.com/v2/auth/authorize)은 실제로
+  // `auth_code`가 아니라 `code`로 돌려준다(2026-08-17 실측). 두 이름을 모두
+  // 받아 그대로 전달하고, 어느 쪽을 쓸지는 로컬 수신부가 판단한다.
   tiktok: Object.freeze({
-    forbiddenFields: Object.freeze(['code', 'error']),
+    forbiddenFields: Object.freeze(['error']),
     localCallbackUrl: 'http://127.0.0.1:8765/oauth/tiktok/callback',
-    successField: 'auth_code',
+    successFields: Object.freeze(['auth_code', 'code']),
   }),
 });
 
@@ -51,7 +54,7 @@ export function validateOAuthCallbackQuery(provider, query = {}) {
   }
 
   const forwarded = new URLSearchParams();
-  const allowedFields = [providerConfig.successField, 'state', providerConfig.errorField]
+  const allowedFields = [...providerConfig.successFields, 'state', providerConfig.errorField]
     .filter(Boolean);
 
   for (const field of allowedFields) {
@@ -62,7 +65,9 @@ export function validateOAuthCallbackQuery(provider, query = {}) {
     forwarded.set(field, value);
   }
 
-  const hasSuccess = forwarded.has(providerConfig.successField);
+  const presentSuccessFields = providerConfig.successFields
+    .filter((field) => forwarded.has(field));
+  const hasSuccess = presentSuccessFields.length > 0;
   const hasError = providerConfig.errorField
     ? forwarded.has(providerConfig.errorField)
     : false;
@@ -71,6 +76,8 @@ export function validateOAuthCallbackQuery(provider, query = {}) {
     return Object.keys(query).length === 0 ? { kind: 'ready' } : { kind: 'invalid' };
   }
 
+  // 성공 코드가 두 이름으로 동시에 오면 어느 쪽이 진짜인지 알 수 없다.
+  if (presentSuccessFields.length > 1) return { kind: 'invalid' };
   if (hasSuccess && hasError) return { kind: 'invalid' };
   if (!forwarded.has('state')) return { kind: 'invalid' };
 

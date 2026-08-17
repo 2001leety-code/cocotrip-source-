@@ -96,6 +96,27 @@ describe('social OAuth callback validation', () => {
     })).toEqual({ kind: 'invalid' });
   });
 
+  it('accepts the code field TikTok actually returns', () => {
+    // 2026-08-17 실사고: TikTok 계정 소유자 인증은 `auth_code`가 아니라 `code`로
+    // 돌려주는데 `code`가 금지 목록에 있어 콜백이 400으로 끊겼다. 연결 자체가 불가능했다.
+    const result = validateOAuthCallbackQuery('tiktok', {
+      code: 'tiktok-v2-code',
+      scopes: 'video.publish,video.upload',
+      state: 'csrf-state',
+    });
+
+    expect(result.kind).toBe('redirect');
+    if (result.kind !== 'redirect') throw new Error('expected redirect');
+    const location = new URL(result.location);
+    expect(location.origin + location.pathname).toBe(
+      'http://127.0.0.1:8765/oauth/tiktok/callback',
+    );
+    expect(location.searchParams.get('code')).toBe('tiktok-v2-code');
+    expect(location.searchParams.get('state')).toBe('csrf-state');
+    // 사업자가 덧붙이는 안내값은 그대로 흘려보내지 않는다.
+    expect(location.searchParams.has('scopes')).toBe(false);
+  });
+
   it('forwards a provider error and state without extra descriptions', () => {
     const result = validateOAuthCallbackQuery('meta', {
       error: 'access_denied',
