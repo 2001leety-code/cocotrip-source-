@@ -218,7 +218,7 @@
     },
     { "source": "/", "destination": "/index.html" },
     {
-      "source": "/(about|terms|privacy|travel-terms|tours|planner|charter|charter-new|charter-legacy|booking|map|assistant|cart|mypage)",
+      "source": "/(about|terms|privacy|travel-terms|tours|planner|charter|charter-new|charter-legacy|booking|map|assistant|cart|mypage|links)",
       "destination": "/index.html"
     },
     {
