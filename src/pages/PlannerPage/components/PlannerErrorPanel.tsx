@@ -22,7 +22,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { EcError } from '@/components/ui/states';
-import { focusAndReveal } from '../lib/motion';
+import { focusAndReveal } from '@/lib/motion';
 
 interface PlannerErrorPanelProps {
   title: string;

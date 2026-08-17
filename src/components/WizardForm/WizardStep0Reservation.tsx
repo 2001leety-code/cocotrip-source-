@@ -14,9 +14,12 @@
 //
 // "flight" / "flight_hotel" reveal a mini-form (airport + arrival HH:MM) so
 // real airport/time data is captured early. Hotel address still goes in step 3.
+import { useRef, useState } from 'react';
 import { Plane, Hotel, CheckCheck, X, ChevronRight } from 'lucide-react';
 import type { WizardDict } from './types';
 import { getAirportOptions } from './helpers';
+import { WizardMissingSummary } from './WizardMissing';
+import { revealFirstMissing, type MissingField } from './missingFields';
 
 export type ReservationStatus = 'nothing' | 'flight' | 'flight_hotel' | 'all_done';
 
@@ -61,6 +64,34 @@ export function WizardStep0Reservation({
   );
   const airportOptions = getAirportOptions(mainCityKey || 'seoul');
 
+  // 2026-08-18: 이 스텝만 CTA 를 `disabled` 로 잠가 두고 있었다. 회색 버튼은 왜 못 누르는지
+  // 말해주지 않는다 — 항공편을 골랐는데 도착 시각을 안 넣으면 그냥 안 눌렸다.
+  // 나머지 스텝과 같은 방식으로 바꾼다: 누를 수는 있고, 못 넘어가면 이유를 보여주고
+  // 그 칸으로 데려간다.
+  const [showErrors, setShowErrors] = useState(false);
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const airportRef = useRef<HTMLDivElement | null>(null);
+  const timeRef = useRef<HTMLDivElement | null>(null);
+  const d = p as Record<string, string>;
+  const missing: MissingField[] = [
+    ...(status !== null ? [] : [{ key: 'status', label: d.wizardMissingStatus || "Tell us what you've booked so far", ref: statusRef }]),
+    ...(showAirportForm && !arrivalAirport
+      ? [{ key: 'arrivalAirport', label: d.wizardMissingAirport || 'Select your arrival airport', ref: airportRef }]
+      : []),
+    ...(showAirportForm && !arrivalTime
+      ? [{ key: 'arrivalTime', label: d.wizardMissingArrivalTime || 'Enter your arrival time', ref: timeRef }]
+      : []),
+  ];
+
+  function handleNext() {
+    if (!canContinue) {
+      setShowErrors(true);
+      revealFirstMissing(missing);
+      return;
+    }
+    onNext();
+  }
+
   return (
     <div className="space-y-3.5 sm:space-y-5">
       <div>
@@ -72,7 +103,12 @@ export function WizardStep0Reservation({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      {showErrors && (
+        <WizardMissingSummary title={d.wizardMissingTitle || 'Still needed before you continue'} missing={missing} />
+      )}
+
+      {/* tabIndex={-1}: 프로그램에서 포커스를 주려면 필요하다(탭 순서엔 안 들어간다). */}
+      <div ref={statusRef} tabIndex={-1} className="grid grid-cols-2 gap-2 scroll-mt-4 outline-none">
         {QUADS.map(q => {
           const sel = status === q.key;
           const title = (p[q.titleKey as keyof typeof p] as string) || q.titleFb;
@@ -118,18 +154,24 @@ export function WizardStep0Reservation({
             {p.resFlightDetails || 'Flight details (helps us recommend the right airport transit)'}
           </p>
           <div className="grid grid-cols-2 gap-2">
-            <div>
+            <div ref={airportRef} tabIndex={-1} className="scroll-mt-4 outline-none">
               <label className="block text-[11px] text-ec-ink-3 mb-1">{p.resAirport || 'Arrival airport'}</label>
               <select value={arrivalAirport} onChange={e => setArrivalAirport(e.target.value)}
-                className="ec-field">
+                className={`ec-field ${showErrors && !arrivalAirport ? 'border-ec-critical' : ''}`}>
                 <option value="">{p.resPickAirport || 'Pick…'}</option>
                 {airportOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+              {showErrors && !arrivalAirport && (
+                <p className="ec-error-note mt-1.5" role="alert">{d.wizardMissingAirport || 'Select your arrival airport'}</p>
+              )}
             </div>
-            <div>
+            <div ref={timeRef} tabIndex={-1} className="scroll-mt-4 outline-none">
               <label className="block text-[11px] text-ec-ink-3 mb-1">{p.resArrivalTime || 'Arrival time'}</label>
               <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
-                className="ec-field" />
+                className={`ec-field ${showErrors && !arrivalTime ? 'border-ec-critical' : ''}`} />
+              {showErrors && !arrivalTime && (
+                <p className="ec-error-note mt-1.5" role="alert">{d.wizardMissingArrivalTime || 'Enter your arrival time'}</p>
+              )}
             </div>
           </div>
           {/* P2 dedup: 호텔도 예약된 경우 (flight_hotel) 호텔 주소도 함께 받음.
@@ -158,7 +200,9 @@ export function WizardStep0Reservation({
         </div>
       )}
 
-      <button onClick={onNext} disabled={!canContinue}
+      {/* 2026-08-18: `disabled` 를 걷었다. 못 넘어가는 이유를 말해 주는 쪽이 회색 버튼보다 낫다.
+          되돌리려면 위 handleNext 주석부터 읽을 것 — 잠금 테스트가 이 자리를 지킨다. */}
+      <button onClick={handleNext} type="button"
         className="ec-btn ec-btn-primary w-full">
         {/* P133: all_done 분기도 동일 CTA — 구 funnel 오해 소지 제거. resNext 재사용. */}
         {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />
