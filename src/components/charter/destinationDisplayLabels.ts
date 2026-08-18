@@ -1,3 +1,5 @@
+import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES } from '@/data/charterPricing';
+
 type CharterLanguage = 'ko' | 'en' | 'ja' | 'zh';
 type JaZhLabel = Record<'ja' | 'zh', string>;
 type LocalizedLabel = Record<CharterLanguage, string>;
@@ -125,6 +127,32 @@ export function dayTourDestinationLabel(
 
 export function matrixDestinationLabel(key: string, language: CharterLanguage): string {
   return MATRIX_DESTINATION_LABELS[key]?.[language] || key;
+}
+
+// ─────────────────────────────────────────────────────────
+// 결제 요약(Step6 quote / CharterNewPage 결제 패널) 전용 — Step3 는 서비스별로
+// airportDestinationLabel/dayTourDestinationLabel/matrixDestinationLabel 을 나눠 부르지만,
+// 요약 화면은 destinationKey 하나만 들고 있고 그게 어느 서비스에서 왔는지 다시 몰라도 된다.
+// 세 사전의 key 네임스페이스가 겹치지 않는다(공항="seoul-central"류 kebab-case,
+// 당일투어="dmz"류 kebab-case, 매트릭스="SEL_METRO"류 UPPER_SNAKE — pricing_spec.json 실측 확인)
+// 그래서 순서대로 조회만 해도 안전하다. 셋 다 못 찾으면 caller 가 준 기존 fallback,
+// 그것도 없으면 raw key(최후수단) — 가격/거리/결제 바디는 전혀 건드리지 않는다.
+export function resolveDestinationKeyLabel(
+  key: string | null | undefined,
+  language: CharterLanguage,
+  fallback?: string | null,
+): string {
+  if (!key) return fallback ?? '-';
+  if (key in MATRIX_DESTINATION_LABELS) return matrixDestinationLabel(key, language);
+  const airportBase = (AIRPORT_TRANSFER_PRICES as Record<string, { ko: string; en: string } | undefined>)[key];
+  if (airportBase) {
+    return airportDestinationLabel(key, language === 'ko' ? airportBase.ko : airportBase.en, language);
+  }
+  const dayTourBase = (DAILY_TOUR_PRICES as Record<string, { ko: string; en: string } | undefined>)[key];
+  if (dayTourBase) {
+    return dayTourDestinationLabel(key, language === 'ko' ? dayTourBase.ko : dayTourBase.en, language);
+  }
+  return fallback ?? key;
 }
 
 export function kpopVenueLabel(

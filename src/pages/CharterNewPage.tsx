@@ -32,6 +32,7 @@ import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterP
 import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
 import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
 import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
+import { resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -189,9 +190,13 @@ function PaymentPanel({
   }
   const serviceLabel = (state.service && SERVICE_LABEL[state.service]?.[language]) ?? state.service ?? '-';
   const originLabel      = state.originName ?? resolveLocationLabel(state.origin, state.originCustom);
+  // 🔴 2026-08-19: destinationKey 는 airports/cities 카탈로그(name_ko/name_en 뿐)에 없는
+  //   경우가 대부분(매트릭스 21개·공항픽업 12개·당일투어 7개 목적지 키는 카탈로그 밖) —
+  //   Step3 가 이미 쓰는 destinationDisplayLabels 사전을 먼저 조회하고, 그 사전도 모르는
+  //   키만 기존 resolveLocationLabel(카탈로그 → raw code) 로 폴백한다.
   const destinationLabel = state.destinationCustom
     ? state.destinationCustom
-    : resolveLocationLabel(state.destinationKey);
+    : resolveDestinationKeyLabel(state.destinationKey, language, resolveLocationLabel(state.destinationKey));
   const vehicleKey = state.vehicle as keyof typeof VEHICLE_TYPES | undefined;
   const vehicleLabel = vehicleKey && VEHICLE_TYPES[vehicleKey]
     ? vehicleKey === 'staria'

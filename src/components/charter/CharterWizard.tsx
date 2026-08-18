@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { useCharterFunnelTracking } from './useCharterFunnelTracking';
+import { resolveDestinationKeyLabel } from './destinationDisplayLabels';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
@@ -356,7 +357,14 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     },
     {
       label: language === 'ko' ? '도착' : language === 'ja' ? '目的地' : language === 'zh' ? '目的地' : 'Destination',
-      value: compactValue(state.destName || state.destAddress || state.destinationCustom || state.destinationKey, '-'),
+      // 🔴 2026-08-19: destinationKey 를 raw 로 보여주면(매트릭스 UPPER_SNAKE·공항픽업 kebab-case
+      //   키) ko/en 포함 전 언어에서 코드가 그대로 샌다 — Step3(destinationDisplayLabels)와 같은
+      //   사전으로 먼저 풀고, destName/destAddress/destinationCustom 이 있으면 그게 우선이다.
+      value: compactValue(
+        state.destName || state.destAddress || state.destinationCustom
+          || resolveDestinationKeyLabel(state.destinationKey, language),
+        '-',
+      ),
     },
       {
         label: language === 'ko' ? '인원/차량' : language === 'ja' ? '人数/車両' : language === 'zh' ? '人数/车型' : 'Party / car',
