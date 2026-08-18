@@ -221,6 +221,12 @@ export type PostHogEventName =
   // 속성은 product·placement·language·city·link_key 다섯 개뿐 — URL·uid·planId 금지.
   | 'affiliate_impression'
   | 'affiliate_click'
+  // 투어 예약창 단계 (2026-08-19 퍼널 감사 2번): CTA 클릭(book_now_click)과 결제 시작
+  // (payment_started) 사이가 통째로 비어 어느 단계가 사람을 떨구는지 볼 수 없었다.
+  // start=다이얼로그 열림 · step 2=연락처 단계 진입 · step 3=필수 입력 완료(결제 버튼 노출).
+  // 결제 시작/완료/실패는 기존 payment_* 를 그대로 쓴다 — 중복 정의하지 않는다.
+  | 'tour_booking_start'
+  | 'tour_step'
   // 커뮤니티 → 자체 상품(플래너·차터) 이동 (2026-08-02). 커뮤니티에 들어온 사람이
   // 우리 상품을 못 보고 나가던 구간을 메운다. 속성은 product·placement·language 셋뿐
   // — 글 id·uid·URL 은 넣지 않는다(누가 어느 글에서 눌렀는지까지 알 필요가 없다).
