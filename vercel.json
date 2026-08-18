@@ -203,6 +203,10 @@
       "source": "/api/tiktok-oauth-callback/",
       "destination": "/api/tiktok-oauth-callback"
     },
+    {
+      "source": "/api/threads-oauth-callback/",
+      "destination": "/api/threads-oauth-callback"
+    },
     { "source": "/planstest", "destination": "/api/planstest" },
     {
       "source": "/blog-images/:year/:name",

@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import metaOAuthCallback from '../../api/meta-oauth-callback.js';
+import threadsOAuthCallback from '../../api/threads-oauth-callback.js';
 import tiktokOAuthCallback from '../../api/tiktok-oauth-callback.js';
 import {
   SOCIAL_OAUTH_LOCAL_CALLBACKS,
@@ -27,6 +28,7 @@ function makeResponse() {
 
 const handlers = [
   ['Meta', metaOAuthCallback, 'code', 'http://127.0.0.1:8765/oauth/meta/callback'],
+  ['Threads', threadsOAuthCallback, 'code', 'http://127.0.0.1:8765/oauth/threads/callback'],
   ['TikTok', tiktokOAuthCallback, 'auth_code', 'http://127.0.0.1:8765/oauth/tiktok/callback'],
 ] as const;
 
@@ -34,6 +36,7 @@ describe('social OAuth callback validation', () => {
   it('uses fixed provider-specific loopback destinations', () => {
     expect(SOCIAL_OAUTH_LOCAL_CALLBACKS).toEqual({
       meta: 'http://127.0.0.1:8765/oauth/meta/callback',
+      threads: 'http://127.0.0.1:8765/oauth/threads/callback',
       tiktok: 'http://127.0.0.1:8765/oauth/tiktok/callback',
     });
 
@@ -80,6 +83,11 @@ describe('social OAuth callback validation', () => {
     })).toEqual({ kind: 'invalid' });
 
     expect(validateOAuthCallbackQuery('meta', {
+      auth_code: 'wrong-product-code',
+      state: 'csrf-state',
+    })).toEqual({ kind: 'invalid' });
+
+    expect(validateOAuthCallbackQuery('threads', {
       auth_code: 'wrong-product-code',
       state: 'csrf-state',
     })).toEqual({ kind: 'invalid' });
@@ -228,6 +236,7 @@ describe('Vercel OAuth callback routing', () => {
 
   it.each([
     ['/api/meta-oauth-callback/', '/api/meta-oauth-callback'],
+    ['/api/threads-oauth-callback/', '/api/threads-oauth-callback'],
     ['/api/tiktok-oauth-callback/', '/api/tiktok-oauth-callback'],
   ])('keeps the exact trailing-slash public route %s', (source, destination) => {
     const rewrite = vercel.rewrites.find((entry: { source: string }) => entry.source === source);
@@ -254,7 +263,7 @@ describe('Vercel OAuth callback routing', () => {
       ))
       .filter((index: number) => index >= 0);
 
-    expect(callbackIndexes).toHaveLength(2);
+    expect(callbackIndexes).toHaveLength(3);
     expect(callbackIndexes.every((index: number) => index < catchAllIndex)).toBe(true);
   });
 });
