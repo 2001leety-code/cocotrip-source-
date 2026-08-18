@@ -20,7 +20,7 @@ import { Calendar, Users, Languages, Plus, Minus, Check, ChevronLeft, ChevronRig
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { isPastCutoff } from '@/lib/bookingCutoff';
-import { trackDateSelect } from '@/lib/analytics';
+import { trackDateSelect, trackTourBookingStart, trackTourStep } from '@/lib/analytics';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
@@ -482,8 +482,31 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     });
   };
 
+  // 퍼널 계측 (2026-08-19 감사 2번) — 시작=열림 1회(마운트당), 단계는 도달 최대치
+  // 상승 시만 발화(뒤로가기·재진입 중복 방지, charter 위저드와 동일 규칙).
+  // dialogEverOpened 는 state 다 — snapshot 복원으로 step=2 인 채 마운트돼도 열리기
+  // 전엔 아무것도 안 쏘고, 열리는 순간 effect 가 다시 돌아 현재 단계까지 채워 쏜다.
+  const [dialogEverOpened, setDialogEverOpened] = useState(false);
+  const startTracked = useRef(false);
+  const maxTrackedStep = useRef(1);
+  useEffect(() => {
+    if (!dialogEverOpened) return;
+    if (!startTracked.current) {
+      startTracked.current = true;
+      trackTourBookingStart();
+    }
+    if (step === 2 && maxTrackedStep.current < 2) {
+      maxTrackedStep.current = 2;
+      trackTourStep(2);
+    }
+    if (step === 2 && step2Complete && maxTrackedStep.current < 3) {
+      maxTrackedStep.current = 3;
+      trackTourStep(3);
+    }
+  }, [dialogEverOpened, step, step2Complete]);
+
   return (
-    <Dialog>
+    <Dialog onOpenChange={(open) => { if (open) setDialogEverOpened(true); }}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent
         className="cocotrip-mobile-booking-dialog max-w-md mx-auto max-h-[85vh] overflow-y-auto"

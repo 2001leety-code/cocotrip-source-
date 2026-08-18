@@ -618,6 +618,19 @@ export function trackCharterStep(step: number): boolean {
   return trackFunnel('charter_step', { step }, { noQueue: true });
 }
 
+// ── 투어 예약창 단계 (2026-08-19 퍼널 감사 2번) ─────────────────────────
+// charter_step 과 동일 컨벤션 — 속성은 step 하나. 차터와 달리 호출부에 자체 재시도가
+// 없으므로 전역 대기열 기본값을 쓴다(동의 전 발화는 수락 시 flush — promo_view 와 동일).
+// 중복 방지는 호출부 ref(도달 최대 단계 상승 시만)가 담당한다.
+/** 투어 예약 다이얼로그 열림 (마운트당 1회 — 호출부 ref 가드). */
+export function trackTourBookingStart() {
+  trackFunnel('tour_booking_start', {});
+}
+/** 투어 예약 단계 도달: 2=연락처 단계 진입, 3=필수 입력 완료(결제 버튼 노출). */
+export function trackTourStep(step: number) {
+  trackFunnel('tour_step', { step });
+}
+
 // ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──
 // 이전 구현은 API 가 streaming 을 수락한 시점(usePlannerHandlers navigate 직전)에 발화
 // → 스트리밍이 최종 실패(status:'error')해도 planner_complete 가 잡히는 오류.
