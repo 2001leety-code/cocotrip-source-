@@ -14,12 +14,15 @@ import {
   PLACEHOLDER,
   WHATSAPP_TEXT,
   LOGIN_CHAT_TEXT,
+  GUEST_GATE_TEXT,
   FAQ_QUICK_REPLIES,
 } from '@/hooks/useChatSession';
 import type { ChatMessage } from '@/hooks/useChatSession';
 import '@/styles/editorial-assistant.css';
 
-type AssistantFixture = 'signed-out' | 'ready' | 'loading' | 'auth-error';
+// 2026-08-18 퍼널 감사 1번: 로그인 벽 제거 — 'signed-out' 전면 게이트 픽스처를
+// 'guest-gated'(무료 3문답 소진 → 컴포저 자리 로그인 카드)로 교체.
+type AssistantFixture = 'guest-gated' | 'ready' | 'loading' | 'auth-error';
 
 type AssistantUiCopy = {
   title: string;
@@ -37,7 +40,7 @@ type AssistantUiCopy = {
   team: string;
 };
 
-const ASSISTANT_FIXTURES: AssistantFixture[] = ['signed-out', 'ready', 'loading', 'auth-error'];
+const ASSISTANT_FIXTURES: AssistantFixture[] = ['guest-gated', 'ready', 'loading', 'auth-error'];
 
 const ASSISTANT_UI: Record<Language, AssistantUiCopy> = {
   ko: {
@@ -136,20 +139,22 @@ export default function AssistantPage() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const ui = ASSISTANT_UI[language];
   const login = LOGIN_CHAT_TEXT[language];
-  const fixtureSignedIn = fixture === 'ready' || fixture === 'loading';
-  const isSignedIn = fixture ? fixtureSignedIn : Boolean(session.user);
+  const gate = GUEST_GATE_TEXT[language];
+  // 게스트도 바로 대화 — 게이트는 무료 3문답 소진 시 컴포저에만 걸린다.
+  // auth-error 픽스처도 게이트 상태(로그인 실패 알림이 게이트 카드에 뜸).
+  const guestGated = fixture ? (fixture === 'guest-gated' || fixture === 'auth-error') : session.guestGated;
   const visibleLoading = fixture === 'loading' || (fixture === null && session.loading);
-  const visibleMessages: ChatMessage[] = fixtureSignedIn
+  const visibleMessages: ChatMessage[] = fixture
     ? [{ id: 'fixture-welcome', role: 'ai', text: WELCOME[language], time: '10:00' }]
     : session.messages;
-  const visibleQuickShown = fixtureSignedIn ? true : session.quickShown;
+  const visibleQuickShown = fixture ? fixture === 'ready' : session.quickShown;
   const visibleAuthError = fixture === 'auth-error' ? ui.authPreviewError : authError;
   const pageState: AssistantFixture = fixture || (visibleAuthError
     ? 'auth-error'
-    : isSignedIn
-      ? visibleLoading ? 'loading' : 'ready'
-      : 'signed-out');
-  const canSend = input.trim().length > 0 && !visibleLoading;
+    : guestGated
+      ? 'guest-gated'
+      : visibleLoading ? 'loading' : 'ready');
+  const canSend = input.trim().length > 0 && !visibleLoading && !guestGated;
 
   usePageMeta({
     title: ui.metaTitle,
@@ -229,47 +234,7 @@ export default function AssistantPage() {
         </div>
       </header>
 
-      {!isSignedIn ? (
-        <main className="assistant-editorial-main assistant-editorial-access-main">
-          <div className="assistant-editorial-access-layout">
-            <div className="assistant-editorial-introduction">
-              <span className="assistant-editorial-introduction-mark" aria-hidden="true">
-                <MessageCircle size={26} />
-              </span>
-              <p>{ui.subtitle}</p>
-            </div>
-            <section className="assistant-editorial-access-card" aria-labelledby="assistant-login-title">
-              <div className="assistant-editorial-access-icon" aria-hidden="true">
-                <Bot size={24} />
-              </div>
-              <h2 id="assistant-login-title">{login.title}</h2>
-              <p>{login.desc}</p>
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={authLoading}
-                className="assistant-editorial-google"
-              >
-                <GoogleMark />
-                <span>{authLoading ? login.loading : login.google}</span>
-              </button>
-              {visibleAuthError && (
-                <p className="assistant-editorial-auth-error" role="alert">{visibleAuthError}</p>
-              )}
-              <a
-                href="https://wa.me/821087140611"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="assistant-editorial-whatsapp"
-              >
-                <MessageCircle aria-hidden="true" size={18} />
-                <span>{WHATSAPP_TEXT[language]}</span>
-              </a>
-            </section>
-          </div>
-        </main>
-      ) : (
-        <main className="assistant-editorial-main assistant-editorial-chat-main">
+      <main className="assistant-editorial-main assistant-editorial-chat-main">
           <div className="assistant-editorial-chat-layout">
             <section className="assistant-editorial-thread" aria-labelledby="assistant-conversation-title">
               <div className="assistant-editorial-thread-heading">
@@ -307,7 +272,7 @@ export default function AssistantPage() {
                             key={question}
                             type="button"
                             onClick={() => handleInputSend(question)}
-                            disabled={visibleLoading}
+                            disabled={visibleLoading || guestGated}
                             className="assistant-editorial-quick-question"
                           >
                             {question}
@@ -328,26 +293,45 @@ export default function AssistantPage() {
                   </div>
                 )}
               </div>
-              <form className="assistant-editorial-composer" onSubmit={handleSubmit}>
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder={PLACEHOLDER[language]}
-                  aria-label={ui.message}
-                  readOnly={visibleLoading}
-                  aria-disabled={visibleLoading}
-                  className="assistant-editorial-input"
-                />
-                <button
-                  type="submit"
-                  disabled={!canSend}
-                  aria-label={ui.send}
-                  className="assistant-editorial-send"
-                >
-                  <Send aria-hidden="true" size={18} />
-                </button>
-              </form>
+              {guestGated ? (
+                <section className="assistant-editorial-access-card" aria-labelledby="assistant-login-title">
+                  <h2 id="assistant-login-title">{gate.title}</h2>
+                  <p>{gate.desc}</p>
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={authLoading}
+                    className="assistant-editorial-google"
+                  >
+                    <GoogleMark />
+                    <span>{authLoading ? login.loading : login.google}</span>
+                  </button>
+                  {visibleAuthError && (
+                    <p className="assistant-editorial-auth-error" role="alert">{visibleAuthError}</p>
+                  )}
+                </section>
+              ) : (
+                <form className="assistant-editorial-composer" onSubmit={handleSubmit}>
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    placeholder={PLACEHOLDER[language]}
+                    aria-label={ui.message}
+                    readOnly={visibleLoading}
+                    aria-disabled={visibleLoading}
+                    className="assistant-editorial-input"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!canSend}
+                    aria-label={ui.send}
+                    className="assistant-editorial-send"
+                  >
+                    <Send aria-hidden="true" size={18} />
+                  </button>
+                </form>
+              )}
             </section>
 
             <aside className="assistant-editorial-toolbox" aria-labelledby="assistant-common-questions">
@@ -358,7 +342,7 @@ export default function AssistantPage() {
                     key={faq.id}
                     type="button"
                     onClick={() => handleInputSend(faq.q)}
-                    disabled={visibleLoading}
+                    disabled={visibleLoading || guestGated}
                     className="assistant-editorial-faq"
                   >
                     {faq.label}
@@ -377,7 +361,6 @@ export default function AssistantPage() {
             </aside>
           </div>
         </main>
-      )}
     </div>
   );
 }

@@ -96,11 +96,15 @@ describe('bug #19 — checkRateLimit is atomic (transaction), not read-check-wri
     expect(body).toMatch(/rate-limit tx failed/i);
   });
 
-  it('preserves both cap semantics: 5/5min sliding window + 50/day, with the same 429 codes', () => {
+  it('preserves both cap semantics: 5/5min sliding window + daily cap, with the same 429 codes', () => {
     expect(body).toMatch(/fresh\.length\s*>=\s*RATE_USER_MAX/);
     expect(body).toMatch(/RATE_LIMIT_USER\b/);
-    expect(body).toMatch(/dailyCount\s*>=\s*RATE_USER_DAILY_MAX/);
+    // 2026-08-18 게스트 허용: 일 캡은 로그인 50/게스트 15 로 갈리지만
+    // 둘 다 같은 트랜잭션 안의 read 값(dailyCount) 기준이어야 한다.
+    expect(body).toMatch(/dailyCount\s*>=\s*dailyMax/);
+    expect(body).toMatch(/dailyMax\s*=\s*isGuest\s*\?\s*RATE_GUEST_DAILY_MAX\s*:\s*RATE_USER_DAILY_MAX/);
     expect(body).toMatch(/RATE_LIMIT_USER_DAILY/);
+    expect(body).toMatch(/RATE_LIMIT_GUEST_DAILY/);
   });
 
   it('graceful skip when Firestore is down (counterDb null) is preserved', () => {
@@ -108,7 +112,8 @@ describe('bug #19 — checkRateLimit is atomic (transaction), not read-check-wri
   });
 
   it('caller still awaits the result before allowing the Gemini call (L~335)', () => {
-    expect(src).toMatch(/const\s+rl\s*=\s*await\s+checkRateLimit\s*\(\s*userId\s*,\s*ip\s*\)/);
+    // uid = 정규화된 userId(형식 불량·게스트는 null) — 게스트도 이 관문을 지난다.
+    expect(src).toMatch(/const\s+rl\s*=\s*await\s+checkRateLimit\s*\(\s*uid\s*,\s*ip\s*\)/);
   });
 });
 

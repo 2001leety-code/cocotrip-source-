@@ -52,25 +52,56 @@ beforeEach(() => {
     sendMessage: vi.fn(),
     quickShown: false,
     sessionId: 'fixture-session',
+    guestQuestionCount: 0,
+    guestGated: false,
   });
 });
 
 describe('assistant editorial shell', () => {
-  it('renders a semantic signed-out desk without activating chat or analytics', () => {
-    renderAssistant('/assistant?__fixture=signed-out');
+  // 2026-08-18 퍼널 감사 1번: 로그인 벽 제거 — 'signed-out' 전면 게이트 픽스처는
+  // 'guest-gated'(3문답 소진 → 컴포저 자리 로그인 카드)로 교체됐다.
+  it('renders the guest-gated desk: chat log visible, composer replaced by login card', () => {
+    renderAssistant('/assistant?__fixture=guest-gated');
 
     const shell = screen.getByTestId('assistant-editorial-shell');
-    expect(shell).toHaveAttribute('data-state', 'signed-out');
+    expect(shell).toHaveAttribute('data-state', 'guest-gated');
     expect(screen.getByRole('heading', { level: 1, name: 'CocoTrip assistant' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Sign in to chat' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'You used your 3 free questions' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument();
+    // 대화 로그는 남고 입력창만 사라진다.
+    expect(screen.getByRole('log', { name: 'Conversation' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(chatSessionMock).toHaveBeenCalledWith('en', false);
     expect(trackChatOpenMock).not.toHaveBeenCalled();
   });
 
+  it('lets a real guest chat immediately (no login wall) and gates only when the hook says so', () => {
+    // 게스트(user null, 게이트 전) — 입력창이 바로 있다.
+    renderAssistant('/assistant');
+    expect(screen.getByTestId('assistant-editorial-shell')).toHaveAttribute('data-state', 'ready');
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument();
+    cleanup();
+
+    // 3문답 소진(guestGated) — 입력창 대신 로그인 카드.
+    chatSessionMock.mockReturnValue({
+      user: null,
+      messages: [],
+      loading: false,
+      sendMessage: vi.fn(),
+      quickShown: false,
+      sessionId: 'fixture-session',
+      guestQuestionCount: 3,
+      guestGated: true,
+    });
+    renderAssistant('/assistant');
+    expect(screen.getByTestId('assistant-editorial-shell')).toHaveAttribute('data-state', 'guest-gated');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument();
+  });
+
   it('exposes four real language controls with the current language selected', () => {
-    renderAssistant('/assistant?__fixture=signed-out');
+    renderAssistant('/assistant?__fixture=guest-gated');
 
     const group = screen.getByRole('group', { name: 'Choose language' });
     const buttons = within(group).getAllByRole('button');

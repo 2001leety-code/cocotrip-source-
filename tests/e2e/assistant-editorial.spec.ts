@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/analytics-guard';
 
 type Language = 'ko' | 'en' | 'ja' | 'zh';
-type AssistantState = 'signed-out' | 'ready' | 'loading' | 'auth-error';
+// 2026-08-18 퍼널 감사 1번: 로그인 벽 제거 — 'signed-out' 픽스처는 'guest-gated' 로 교체.
+type AssistantState = 'guest-gated' | 'ready' | 'loading' | 'auth-error';
 
 const VIEWPORTS = [
   { label: '390', width: 390, height: 844 },
@@ -10,12 +11,12 @@ const VIEWPORTS = [
   { label: '1440', width: 1440, height: 1000 },
 ] as const;
 const LANGUAGES: Language[] = ['ko', 'en', 'ja', 'zh'];
-const STATES: AssistantState[] = ['signed-out', 'ready', 'loading', 'auth-error'];
-const LOGIN_TEXT: Record<Language, { title: string; google: string }> = {
-  ko: { title: '로그인 후 이용 가능합니다', google: '구글로 시작하기' },
-  en: { title: 'Sign in to chat', google: 'Continue with Google' },
-  ja: { title: 'ログインして利用', google: 'Googleで続ける' },
-  zh: { title: '登录后使用', google: '使用Google登录' },
+const STATES: AssistantState[] = ['guest-gated', 'ready', 'loading', 'auth-error'];
+const GATE_TEXT: Record<Language, { title: string; google: string }> = {
+  ko: { title: '무료 질문 3개를 모두 사용했어요', google: '구글로 시작하기' },
+  en: { title: 'You used your 3 free questions', google: 'Continue with Google' },
+  ja: { title: '無料質問3回を使い切りました', google: 'Googleで続ける' },
+  zh: { title: '3次免费提问已用完', google: '使用Google登录' },
 };
 
 async function installLanguage(page: Page, language: Language) {
@@ -89,7 +90,7 @@ async function assertVisibleFocus(page: Page, selector: string) {
   })).toBe(true);
 }
 
-test('signed-out assistant keeps the real read-only entry path intact', async ({ page }) => {
+test('guest entry opens the chat immediately (no login wall) and stays read-only', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await installLanguage(page, 'en');
   const writes: string[] = [];
@@ -107,14 +108,15 @@ test('signed-out assistant keeps the real read-only entry path intact', async ({
   });
 
   await page.goto('/assistant', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('assistant-editorial-shell')).toHaveAttribute('data-state', 'signed-out');
+  await expect(page.getByTestId('assistant-editorial-shell')).toHaveAttribute('data-state', 'ready');
   await expect(page).toHaveTitle('Assistant | CocoTrip');
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content', 'Assistant');
-  await expect(page.getByRole('heading', { level: 2, name: LOGIN_TEXT.en.title })).toBeVisible();
-  await expect(page.getByRole('button', { name: LOGIN_TEXT.en.google })).toBeVisible();
-  await expect(page.getByRole('textbox')).toHaveCount(0);
+  // 로그인 벽 없음 — 게스트에게 바로 입력창이 열린다.
+  await expect(page.getByRole('textbox')).toBeEnabled();
+  await expect(page.getByRole('button', { name: GATE_TEXT.en.google })).toHaveCount(0);
   await assertGeometry(page);
 
+  // 입력 없이 로드만 한 게스트는 네트워크 쓰기 0 (Gemini 호출 없음).
   expect(writes).toEqual([]);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -177,9 +179,11 @@ for (const viewport of VIEWPORTS) {
         await expect(shell).toHaveAttribute('data-state', state);
         await expect(page.locator('html')).toHaveAttribute('lang', language);
 
-        if (state === 'signed-out') {
-          await expect(page.getByRole('heading', { level: 2, name: LOGIN_TEXT[language].title })).toBeVisible();
-          await expect(page.getByRole('button', { name: LOGIN_TEXT[language].google })).toBeVisible();
+        if (state === 'guest-gated') {
+          await expect(page.getByRole('heading', { level: 2, name: GATE_TEXT[language].title })).toBeVisible();
+          await expect(page.getByRole('button', { name: GATE_TEXT[language].google })).toBeVisible();
+          // 대화 로그는 남고 입력창만 로그인 카드로 교체된다.
+          await expect(page.getByRole('log')).toBeVisible();
           await expect(page.getByRole('textbox')).toHaveCount(0);
           await assertVisibleFocus(page, '.assistant-editorial-google');
         }
