@@ -5,6 +5,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
+import { signInWithGoogle } from '@/lib/firebase';
 import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
@@ -13,6 +14,8 @@ import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
 import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
+import { GuestSignupNudge } from '@/components/GuestSignupNudge';
+import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -180,6 +183,23 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // SDK 차단/로드 실패 시 사용자가 paypal.me QR fallback 으로 전환 가능. error 발생 시
   // [QR 로 결제] 버튼 노출 → 클릭 시 PayPalQrPanel 렌더.
   const [useFallback, setUseFallback] = useState(false);
+
+  // 게스트 → 회원 전환 넛지 (2026-08-19): 결제 성공 오버레이에서 same-email 가입 유도.
+  //   결제 흐름의 loading/error 와는 별개 상태 — 결제 로직에 영향 없음(추가 UI 전용).
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError,   setSignupError]   = useState<string | null>(null);
+  async function handleGuestSignup() {
+    setSignupError(null);
+    setSignupLoading(true);
+    try {
+      await signInWithGoogle();
+      // 성공 시 useAuth 의 onAuthStateChanged 가 authUser 를 채워 넛지가 자동으로 사라진다.
+    } catch (e) {
+      setSignupError(e instanceof Error ? e.message : 'Login failed');
+    } finally {
+      setSignupLoading(false);
+    }
+  }
 
   // ── Promo code state ──────────────────────────────────────────────
   const [promoCode,     setPromoCode]     = useState('');
@@ -788,6 +808,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             </div>
           </div>
           
+          {/* 게스트 → 회원 전환 넛지 (2026-08-19) — 로그인 사용자에겐 렌더 안 함(!authUser 가드).
+              아래 View Booking CTA 가 로그인 게이트(/my-plans)라 게스트가 이유 없이 벽을 만나던 지점. */}
+          {!authUser && (
+            <div className="px-6 pb-4">
+              <GuestSignupNudge
+                language={lang as Language}
+                email={successData.payerEmail || userEmail || null}
+                onGoogleLogin={handleGuestSignup}
+                authLoading={signupLoading}
+                authError={signupError}
+              />
+            </div>
+          )}
+
           {/* Actions — 가이드 p.8 Booking Confirmed: View Booking 주 CTA(실경로 /my-plans?tab=bookings) + 보조 2버튼.
               표시 계층만 — 상태 정리 핸들러는 close 와 동일 로직 재사용. */}
           <div className="px-6 pb-6 space-y-3">
