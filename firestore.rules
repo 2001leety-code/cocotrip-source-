@@ -545,6 +545,10 @@ service cloud.firestore {
     match /complaint_rate_limits/{key}  { allow read, write: if false; }
     // PR #432 (Audit W-H13): manual-payment-request IP rate limit bucket.
     match /manual_payment_rate_limits/{key} { allow read, write: if false; }
+    // 2026-08-19: free-preview 이탈 회복 리드 (api/preview-lead.js) + IP rate limit bucket —
+    // 이메일 PII, Admin SDK 전용 쓰기/읽기(api/_crons/preview-lead-recovery.js).
+    match /preview_leads/{docId}        { allow read, write: if false; }
+    match /preview_lead_rate_limits/{key} { allow read, write: if false; }
     // PR #436 (Audit Y-H8): booking-processor failure retry queue.
     match /pending_processor_retries/{orderID} { allow read, write: if false; }
     // PR #439 (Audit Z-H16): customer email failure retry queue.

@@ -10,7 +10,7 @@
 //   금액을 tabular figure 로 정렬, 특징 목록을 하이라인 목록으로.
 //   근거: `tests/unit/editorial-planner-journey.test.ts` 의 "purchase area" 블록과
 //   기존 `tests/unit/ai-planner-price-parity.test.ts` 가 값·SSOT 를 계속 잠근다.
-import { type MutableRefObject, useState, useEffect, lazy, Suspense } from 'react';
+import { type MutableRefObject, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, LogIn, Phone, Ticket,
@@ -110,6 +110,28 @@ export function PurchaseSection({
     { icon: ShieldCheck, text: p.featureNoHallucination },
   ];
 
+  // 2026-08-19 (funnel audit — abandonment recovery): 무료 미리보기 단계 이탈 회복용 리드
+  // 캡처. 완전히 선택(unchecked 기본) — 결제 게이트/PayPal/가격 표시엔 절대 미포함, 실패해도
+  // 결제와 무관(fire-and-forget, 에러는 삼킴). 체크 + 유효 이메일일 때만 마운트당 이메일별
+  // 1회 /api/preview-lead 호출. 백엔드는 api/preview-lead.js.
+  const [wantsPreviewTips, setWantsPreviewTips] = useState(false);
+  const previewLeadSentEmails = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const email = userEmail.trim();
+    // 결제 이메일과 동일한 단순 형식 검증(src/components/charter/InquiryForm.tsx 패턴) —
+    // 결제 자체는 별도 검증을 두지 않고 브라우저 type="email" + required 에 맡기므로,
+    // 여기선 그 형식과 동일한 가벼운 정규식만 쓴다(서버가 최종 검증한다).
+    if (!wantsPreviewTips || !/\S+@\S+\.\S+/.test(email)) return;
+    const key = email.toLowerCase();
+    if (previewLeadSentEmails.current.has(key)) return;
+    previewLeadSentEmails.current.add(key);
+    fetch('/api/preview-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, language, source: 'planner_paywall' }),
+    }).catch((e) => console.warn('[PurchaseSection] preview-lead capture failed (non-fatal):', e instanceof Error ? e.message : e));
+  }, [wantsPreviewTips, userEmail, language]);
+
   return (
     <section className="ec-panel">
       {/* 가격 표시 — 값은 전부 lib/aiPlannerPrice SSOT 에서 온다(하드코딩 금지).
@@ -166,6 +188,23 @@ export function PurchaseSection({
             className="ec-field mt-1.5"
             required
           />
+        </label>
+
+        {/* Preview-lead opt-in (2026-08-19) — optional, unchecked by default. Fires
+            /api/preview-lead fire-and-forget on check + valid email; never gates payment. */}
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={wantsPreviewTips}
+            onChange={e => setWantsPreviewTips(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded-ec-sm border-ec-line-2 bg-ec-raised accent-ec-brand"
+          />
+          <span className="ec-body-sm text-ec-ink-3">
+            {language === 'ja' ? '旅の準備のコツとこの日程のリマインダーをメールで受け取る（任意）'
+              : language === 'zh' ? '通过邮件接收旅行准备提示和此行程的提醒（可选）'
+              : language === 'en' ? 'Get travel tips and a reminder for this itinerary by email (optional)'
+              : '여행 준비 팁과 이 일정 리마인더를 이메일로 받아볼게요 (선택)'}
+          </span>
         </label>
 
         {/* Feature recap (compact, was the OptionAButton list) */}
