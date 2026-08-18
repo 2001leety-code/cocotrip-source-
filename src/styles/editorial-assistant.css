@@ -78,17 +78,12 @@
   border-color: var(--ec-brand);
 }
 
-.assistant-editorial-mark,
-.assistant-editorial-access-icon,
-.assistant-editorial-introduction-mark {
+.assistant-editorial-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--ec-brand);
   background-color: var(--ec-brand-wash);
-}
-
-.assistant-editorial-mark {
   width: 48px;
   height: 48px;
   flex: 0 0 48px;
@@ -153,61 +148,13 @@
   padding: 32px var(--ec-gutter) 40px;
 }
 
-.assistant-editorial-access-main {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-}
-
-.assistant-editorial-access-layout {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
-  gap: clamp(32px, 7vw, 96px);
-  align-items: center;
-}
-
-.assistant-editorial-introduction {
-  min-height: 300px;
-  padding: clamp(32px, 7vw, 72px);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  border-left: 4px solid var(--ec-brand);
-  background-color: var(--ec-surface-sunken);
-}
-
-.assistant-editorial-introduction-mark {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 28px;
-  border: 1px solid var(--ec-line-strong);
-  border-radius: var(--ec-radius-sm);
-}
-
-.assistant-editorial-introduction p {
-  max-width: 28ch;
-  margin: 0;
-  font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif;
-  font-size: clamp(1.6rem, 4vw, 3.4rem);
-  font-weight: 600;
-  line-height: 1.08;
-  letter-spacing: -0.025em;
-}
-
+/* access-card — 게스트 3문답 소진 시 컴포저 자리에 뜨는 로그인 카드
+   (전면 게이트 레이아웃은 2026-08-18 로그인 벽 제거로 삭제) */
 .assistant-editorial-access-card {
   padding: clamp(24px, 5vw, 40px);
   border: 1px solid var(--ec-line-strong);
   border-radius: var(--ec-radius-md);
   background-color: var(--ec-surface-raised);
-}
-
-.assistant-editorial-access-icon {
-  width: 52px;
-  height: 52px;
-  margin-bottom: 24px;
-  border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-sm);
 }
 
 .assistant-editorial-access-card h2,
@@ -566,7 +513,6 @@
     flex: 1 1 0;
   }
 
-  .assistant-editorial-access-layout,
   .assistant-editorial-chat-layout {
     grid-template-columns: 1fr;
   }
@@ -598,25 +544,6 @@
   .assistant-editorial-main {
     padding-top: 20px;
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
-  }
-
-  .assistant-editorial-access-layout {
-    gap: 16px;
-  }
-
-  .assistant-editorial-introduction {
-    min-height: auto;
-    padding: 20px;
-  }
-
-  .assistant-editorial-introduction-mark {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-  }
-
-  .assistant-editorial-introduction p {
-    font-size: clamp(1.35rem, 7vw, 2rem);
   }
 
   .assistant-editorial-access-card,

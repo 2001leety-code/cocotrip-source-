@@ -56,9 +56,18 @@ describe('PR #448 W-H14 — sliding-window per-user cap preserved', () => {
 });
 
 describe('PR #448 W-H14 — handler-level invariants', () => {
-  it('Login-required gate still rejects missing userId (user-keying needs userId)', () => {
-    expect(src).toMatch(/Login required/);
-    expect(src).toMatch(/AUTH_REQUIRED/);
+  // 2026-08-18 퍼널 감사 1번: 로그인 벽 제거 — 401 AUTH_REQUIRED 게이트는
+  // 의도적으로 삭제됐다(게스트 허용). userId 는 원래 클라이언트가 보내는
+  // 미검증 값이라 그 게이트는 방어가 아니었고, 실방어는 레이트리밋이다.
+  // 게스트는 IP 키 일 15건 — 가짜 uid 당 50건이던 종전 구멍보다 좁다.
+  it('the 401 Login-required gate is gone on purpose (guests are allowed)', () => {
+    expect(src).not.toMatch(/Login required/);
+  });
+
+  it('logged-in users still cap on uid (50/day), guests on hashed IP (15/day)', () => {
+    expect(src).toMatch(/RATE_GUEST_DAILY_MAX\s*=\s*15/);
+    expect(src).toMatch(/RATE_LIMIT_GUEST_DAILY/);
+    expect(src).toMatch(/hashIp\(ip\)/);
   });
 
   it('rate-limit check still wrapped in try/catch graceful-degrade', () => {
@@ -66,10 +75,8 @@ describe('PR #448 W-H14 — handler-level invariants', () => {
   });
 });
 
-describe('PR #448 W-H14 — checkRateLimit signature still threads ip (forward-compat for IP-as-signal)', () => {
-  it('checkRateLimit still accepts an ip param (so future signal-only IP logging can wire up)', () => {
-    // Even though we ignore the ip arg for capping, accept it so callers
-    // don't need a refactor when we add the multi-user-per-IP detection.
+describe('PR #448 W-H14 — checkRateLimit signature still threads ip', () => {
+  it('checkRateLimit accepts an ip param (now used as the guest rate key)', () => {
     expect(src).toMatch(/async\s+function\s+checkRateLimit\s*\(\s*userId\s*,\s*_?ip\s*\)/);
   });
 });

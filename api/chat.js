@@ -10,6 +10,7 @@ import { recordInquiryMessage, saveChatMessage } from './_shared/chat-relay.js';
 import { detectAndTranslate } from './_shared/translator.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { hashIp } from './_shared/ip-rate-limit.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
@@ -23,7 +24,7 @@ const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 // ── Rate limit (Gemini abuse 방어) ──────────────────────────────────
-// 정책: 로그인 필수 + userId 5분당 5건 + userId 일 50건 (defense-in-depth)
+// 정책: 로그인 userId 5분당 5건 + 일 50건 / 게스트 IP 5분당 5건 + 일 15건.
 //
 // PR #448 (Audit W-H14 — 2026-05-16): daily cap 키를 `ip:${ip}:${dayKey}` →
 // `usr:${userId}:${dayKey}` 로 교체.
@@ -33,25 +34,35 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 // 다른 사용자들 모두 차단. Vercel 자체 IP 가 outbound 에서 reuse 되는 케이스
 // 도 동일 — 모든 chat 호출이 한 IP 로 묶임.
 //
-// Post-fix: `userId` 가 이미 mandatory (handler line ~312 의 Login required 게이트)
-// 이므로 user-level cap 이 진짜 abuse 정의 단위. NAT 영향 없음. 사용자별 정확
-// 50건/day 적용.
+// Post-fix: 로그인 사용자는 uid 가 abuse 정의 단위(NAT 영향 없음, 50건/day).
+//
+// 게스트 허용 (2026-08-18 퍼널 감사 1번 — 로그인 벽 제거): userId 없으면
+// sha256(IP) 를 가짜 userId 로 써서 같은 트랜잭션 로직을 재사용한다. 게스트는
+// 안정 키가 IP 뿐이라 NAT 공유 리스크를 되받지만, 클라이언트 3문답 게이트가
+// 1차 방어이고 이 캡은 게이트 우회(새로고침 등) 백스톱이다. 일 15건이면
+// 같은 카페 NAT 의 게스트 5명 × 3문답까지 정상 통과.
 //
 // 미들웨어가 아니라 인라인으로 둔 이유: counterDb 없으면 silent skip해야 하는데
 // 미들웨어로 감쌌다가 카운터 다운되면 채팅 자체가 막힘. graceful degrade가 우선.
 const RATE_USER_WINDOW_MS = 5 * 60 * 1000;
 const RATE_USER_MAX = 5;
 const RATE_USER_DAILY_MAX = 50;
+const RATE_GUEST_DAILY_MAX = 15;
 
-async function checkRateLimit(userId, _ip) {
+async function checkRateLimit(userId, ip) {
   if (!counterDb) return { allowed: true }; // graceful skip if Firestore down
   const now = Date.now();
+
+  // 게스트는 IP 해시를 키로 재사용 — 아래 doc 키/트랜잭션은 로그인과 동일 경로.
+  const isGuest = !userId;
+  if (isGuest) userId = `ip:${hashIp(ip)}`;
+  const dailyMax = isGuest ? RATE_GUEST_DAILY_MAX : RATE_USER_DAILY_MAX;
 
   // 버그 #19 fix: 이전엔 get → cap검사 → fire-and-forget write(await 안 함) 였음.
   // 같은 userId 동시 요청 N건이 쓰기 전 동일 스냅샷을 읽어 전부 캡 통과(5/5min·50/day
   // 우회) → Gemini 호출비 증폭. _shared/ip-rate-limit.js 와 동일하게 read→cap검사→
   // increment 를 db.runTransaction() 안에서 atomic 하게 수행하고 await 한다.
-  // 슬라이딩 윈도우(user 5분 최근 N) + 일 캡(50) 둘 다 한 트랜잭션으로 직렬화.
+  // 슬라이딩 윈도우(user 5분 최근 N) + 일 캡 둘 다 한 트랜잭션으로 직렬화.
   const userRef = counterDb.collection('chat_rate_limits').doc(`u:${userId}`);
   const kst = new Date(now + 9 * 60 * 60 * 1000);
   const dayKey = kst.toISOString().slice(0, 10);
@@ -72,10 +83,10 @@ async function checkRateLimit(userId, _ip) {
         return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
       }
 
-      // 2. user daily cap (KST 기준). PR #448 — 이전엔 IP 기준이라 NAT 공유 시 무력.
+      // 2. daily cap (KST 기준). 로그인=uid 키 50건(PR #448), 게스트=IP 키 15건.
       const dailyCount = dailySnap.exists ? (dailySnap.data().c || 0) : 0;
-      if (dailyCount >= RATE_USER_DAILY_MAX) {
-        return { allowed: false, code: 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
+      if (dailyCount >= dailyMax) {
+        return { allowed: false, code: isGuest ? 'RATE_LIMIT_GUEST_DAILY' : 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
       }
 
       // 두 캡 모두 통과 — 이 트랜잭션 안에서 atomic 하게 증가시키고 커밋.
@@ -337,18 +348,20 @@ export default wrapHandler(async function handler(req, res) {
     return res.end(JSON.stringify(_err('message is required', 'MISSING_FIELDS')));
   }
 
-  // Auth gate — UI에 이미 로그인 게이트 있지만 (ChatWidget L267), API 직접 호출 차단
-  if (!userId || typeof userId !== 'string' || userId.length < 4) {
-    res.writeHead(401, JSON_CORS);
-    return res.end(JSON.stringify(_err('Login required', 'AUTH_REQUIRED')));
-  }
+  // 게스트 허용 (2026-08-18 퍼널 감사 1번 — 로그인 벽 제거). 이전엔 여기서
+  // 401 AUTH_REQUIRED 를 냈지만, userId 는 클라이언트가 보내는 값이라 검증 없는
+  // 게이트였다(아무 문자열이나 통과). 실방어는 아래 레이트리밋 — 게스트는
+  // IP 키 일 15건으로 오히려 기존(가짜 uid 당 50건)보다 좁다.
+  // 형식이 이상한 userId 는 게스트로 취급.
+  const uid = (typeof userId === 'string' && userId.length >= 4) ? userId : null;
 
-  // Rate limit — Gemini 메시지당 ~₩0.13. abuse 방어 (5/5min user + 50/day IP)
+  // Rate limit — Gemini 메시지당 ~₩0.13. abuse 방어
+  // (로그인: 5/5min + 50/day per uid · 게스트: 5/5min + 15/day per IP)
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
     || req.socket?.remoteAddress
     || 'unknown';
   try {
-    const rl = await checkRateLimit(userId, ip);
+    const rl = await checkRateLimit(uid, ip);
     if (!rl.allowed) {
       res.writeHead(429, { ...JSON_CORS, 'Retry-After': String(rl.retryAfter) });
       return res.end(JSON.stringify(_err('Too many requests. Please wait.', rl.code)));
