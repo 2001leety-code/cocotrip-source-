@@ -13,6 +13,13 @@ const CALLBACK_PROVIDERS = Object.freeze({
     localCallbackUrl: 'http://127.0.0.1:8765/oauth/tiktok/callback',
     successFields: Object.freeze(['auth_code', 'code']),
   }),
+  // Threads API는 Instagram Login과 같은 code/error 계약을 쓴다.
+  threads: Object.freeze({
+    errorField: 'error',
+    forbiddenFields: Object.freeze(['auth_code']),
+    localCallbackUrl: 'http://127.0.0.1:8765/oauth/threads/callback',
+    successFields: Object.freeze(['code']),
+  }),
 });
 
 const CALLBACK_FIELD_LIMITS = Object.freeze({
@@ -128,5 +135,6 @@ export function handleSocialOAuthCallback(provider, req, res) {
 
 export const SOCIAL_OAUTH_LOCAL_CALLBACKS = Object.freeze({
   meta: CALLBACK_PROVIDERS.meta.localCallbackUrl,
+  threads: CALLBACK_PROVIDERS.threads.localCallbackUrl,
   tiktok: CALLBACK_PROVIDERS.tiktok.localCallbackUrl,
 });
