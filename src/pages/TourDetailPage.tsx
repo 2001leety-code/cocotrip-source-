@@ -3,9 +3,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect, type ReactNode } from 'react';
-import { trackViewItem, trackBookNow } from '@/lib/analytics';
+import { trackViewItem, trackBookNow, trackTourRelatedClick } from '@/lib/analytics';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { AffiliateCard } from '@/components/AffiliateCard';
+import { WishlistToggle } from '@/components/WishlistButton';
+import { TourCard } from '@/components/tours/TourCard';
 import { buildTourJsonLd } from './buildTourJsonLd';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildBreadcrumbJsonLd } from '@/lib/jsonLd';
@@ -40,7 +42,7 @@ import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 import { useTour } from '@/hooks/useTour';
 import { EcEmpty, EcError, EcLoading } from '@/components/ui/states';
 import { pickTourDetailEditorialCopy } from './tourDetailEditorialCopy';
-import { TOUR_REGIONS } from '@/data/tours';
+import { TOUR_REGIONS, getRelatedTours } from '@/data/tours';
 import type { I18nString, DriverLanguage, TourPhoto } from '@/data/tours';
 import type { Language, Translations } from '@/i18n';
 import '@/styles/editorial-tour-detail.css';
@@ -101,6 +103,7 @@ export default function TourDetailPage() {
   // Phase 1 (2026-05-19): Firestore 우선 + 정적 폴백. tour 가 있으면 즉시 paint.
   const { tour, loading, error, source, retry } = useTour(slug);
   const hotels = tour ? getRecommendedHotels(tour.region, 3) : [];
+  const relatedTours = tour ? getRelatedTours(tour, 2) : [];
 
   // 별점 소스 우선순위: Google(키 있으면) > 내부 실후기 집계(published) > static.
   // 내부 published 리뷰 집계(count>0)면 그걸 fallback 으로 → 실 고객 별점이 배지에 반영.
@@ -313,7 +316,20 @@ export default function TourDetailPage() {
           <header className="tour-detail-masthead" data-testid="tour-detail-ready">
             <div className="tour-detail-masthead-copy">
               <p className="ec-eyebrow">{copy.documentLabel} · {region}</p>
-              <h1 className="ec-display mt-4" data-testid="tour-detail-heading">{title}</h1>
+              <div className="tour-detail-title-row">
+                <h1 className="ec-display mt-4" data-testid="tour-detail-heading">{title}</h1>
+                <span className="tour-detail-wishlist">
+                  <WishlistToggle
+                    productId={tour.id}
+                    productType="tour"
+                    name={title}
+                    priceUSD={tour.priceFrom}
+                    thumbnailUrl={tour.thumbnail}
+                    href={`/tours/${tour.slug}`}
+                    size={22}
+                  />
+                </span>
+              </div>
               <p className="ec-body tour-detail-masthead-summary">{summary}</p>
             </div>
             {tour.suitability && <SuitabilityChips suitability={tour.suitability} language={language} />}
@@ -404,6 +420,19 @@ export default function TourDetailPage() {
               <TourExtraInfo whatToBring={tour.what_to_bring} importantInfo={tour.important_info} suitabilityNotes={tour.suitability?.notes} language={language} />
               {tour.faqs && tour.faqs.length > 0 && <TourFAQ faqs={tour.faqs} language={language} />}
             </article>
+
+            {relatedTours.length > 0 && (
+              <section className="tour-detail-section tour-detail-related-section">
+                <h2 className="ec-h2 tour-detail-section-heading">{copy.relatedToursLabel}</h2>
+                <div className="tour-detail-related-grid">
+                  {relatedTours.map((relatedTour) => (
+                    <div key={relatedTour.id} onClickCapture={() => trackTourRelatedClick(relatedTour.id)}>
+                      <TourCard tour={relatedTour} language={language} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {hotels.length > 0 && (
               <section className="tour-detail-section tour-detail-hotel-section">

@@ -90,6 +90,33 @@
   margin-top: 16px;
 }
 
+/* MRT 벤치마킹 P4 — 위시리스트 하트를 제목 옆에. WishlistToggle 은 어두운 카드 배경 위
+   전제(fill-none 상태가 text-white)라 밝은 paper 배경에선 토큰 색으로 덮어써야 보인다
+   (editorial-tours-catalog.css 의 .tour-catalog-card-wishlist override 와 동일 패턴). */
+.tour-detail-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 터치 타깃 44px 표준(2026-08-11 차터 PR 규격) — 기본 패딩만으론 38px 라 미달. */
+.tour-detail-wishlist > button {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tour-detail-wishlist > button svg.fill-none {
+  color: var(--ec-text-secondary);
+}
+
+.tour-detail-wishlist > button:hover svg.fill-none {
+  color: var(--ec-text-primary);
+}
+
 .tour-detail-stage {
   display: grid;
   gap: 24px;
@@ -313,6 +340,22 @@
   overflow: hidden;
 }
 
+/* MRT 벤치마킹 P4 — 자사 투어 크로스셀. 패턴은 .tour-detail-hotel-grid 와 동일(모바일 1열,
+   데스크톱 다열), 카드는 TourCard 재사용이라 폭 계산은 grid-template-columns 만 맡는다. */
+.tour-detail-related-section {
+  scroll-margin-top: 132px;
+}
+
+.tour-detail-related-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.tour-detail-related-grid > * {
+  min-width: 0;
+}
+
 .tour-detail-hotel-heading {
   display: flex;
   flex-wrap: wrap;
@@ -516,6 +559,12 @@
   }
 }
 
+@media (min-width: 768px) {
+  .tour-detail-related-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 960px) {
   .tour-detail-masthead {
     grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
@@ -544,6 +593,7 @@
     grid-column: 1 / 2;
   }
 
+  .tour-detail-related-section,
   .tour-detail-hotel-section {
     grid-column: 1 / -1;
   }

@@ -27,6 +27,7 @@ export interface TourDetailEditorialCopy {
   partialBody: string;
   itineraryEmptyTitle: string;
   itineraryEmptyBody: string;
+  relatedToursLabel: string;
 }
 
 const COPY: Record<Language, TourDetailEditorialCopy> = {
@@ -57,6 +58,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     partialBody: '최신 정보를 불러오지 못해 코드에 저장된 공개 내용을 표시합니다.',
     itineraryEmptyTitle: '상세 동선은 준비 중입니다',
     itineraryEmptyBody: '현재 공개된 설명과 포함 사항을 먼저 확인해 주세요.',
+    relatedToursLabel: '함께 보면 좋은 투어',
   },
   en: {
     documentLabel: 'Tour brief',
@@ -85,6 +87,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     partialBody: 'The latest source did not load, so the published copy stored with the site is shown.',
     itineraryEmptyTitle: 'The detailed route is being prepared',
     itineraryEmptyBody: 'Review the published overview and included services in the meantime.',
+    relatedToursLabel: 'You may also like',
   },
   ja: {
     documentLabel: 'ツアー案内書',
@@ -113,6 +116,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     partialBody: '最新情報を取得できなかったため、サイトに保存された公開内容を表示します。',
     itineraryEmptyTitle: '詳細ルートは準備中です',
     itineraryEmptyBody: '公開中の商品説明と含まれるサービスを先にご確認ください。',
+    relatedToursLabel: 'あわせて見たいツアー',
   },
   zh: {
     documentLabel: '旅游说明',
@@ -141,6 +145,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     partialBody: '最新来源未能加载，因此先显示网站中保存的公开内容。',
     itineraryEmptyTitle: '详细路线正在准备中',
     itineraryEmptyBody: '您可以先查看已发布的产品说明和包含服务。',
+    relatedToursLabel: '还可以看看这些行程',
   },
 };
 

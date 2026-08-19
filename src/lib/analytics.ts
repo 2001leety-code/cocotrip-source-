@@ -630,6 +630,10 @@ export function trackTourBookingStart() {
 export function trackTourStep(step: number) {
   trackFunnel('tour_step', { step });
 }
+/** 투어 상세 크로스셀 카드 클릭 (MRT 벤치마킹 P4, 2026-08-19). */
+export function trackTourRelatedClick(targetTourId: string): boolean {
+  return trackFunnel('tour_related_click', { target_tour_id: targetTourId });
+}
 
 // ── 플랜 완료 이벤트 — Firestore 상태 확정 시점에 정확히 1회 (운영자 보완 지시) ──
 // 이전 구현은 API 가 streaming 을 수락한 시점(usePlannerHandlers navigate 직전)에 발화
