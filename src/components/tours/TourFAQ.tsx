@@ -32,7 +32,7 @@ export function TourFAQ({ faqs, language }: Props) {
   if (sorted.length === 0) return null;
 
   return (
-    <section className="tour-detail-section">
+    <section id="faq" className="tour-detail-section">
       <h2 className="ec-h3 tour-detail-section-heading flex items-center gap-2">
         <HelpCircle className="h-5 w-5 text-ec-brand" />
         {HEADING[language] || HEADING.en}

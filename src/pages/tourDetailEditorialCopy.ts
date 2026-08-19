@@ -5,7 +5,11 @@ export interface TourDetailEditorialCopy {
   factsLabel: string;
   highlightsLabel: string;
   overviewLabel: string;
+  includedLabel: string;
   itineraryLabel: string;
+  cancellationLabel: string;
+  faqLabel: string;
+  reviewsLabel: string;
   driverLanguagesLabel: string;
   nightTourLabel: string;
   imageUnavailable: string;
@@ -30,7 +34,11 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     factsLabel: '한눈에 보기',
     highlightsLabel: '주요 특징',
     overviewLabel: '상품 설명',
+    includedLabel: '포함사항',
     itineraryLabel: '세부 일정',
+    cancellationLabel: '취소 정책',
+    faqLabel: '자주 묻는 질문',
+    reviewsLabel: '후기',
     driverLanguagesLabel: '기사 가능 언어',
     nightTourLabel: '야간 투어',
     imageUnavailable: '등록된 투어 사진이 없습니다',
@@ -53,7 +61,11 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     factsLabel: 'At a glance',
     highlightsLabel: 'Highlights',
     overviewLabel: 'Overview',
+    includedLabel: 'Included',
     itineraryLabel: 'Itinerary',
+    cancellationLabel: 'Cancellation',
+    faqLabel: 'FAQ',
+    reviewsLabel: 'Reviews',
     driverLanguagesLabel: 'Driver languages',
     nightTourLabel: 'Night tour',
     imageUnavailable: 'No tour photo is available',
@@ -76,7 +88,11 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     factsLabel: '概要',
     highlightsLabel: '見どころ',
     overviewLabel: '商品説明',
+    includedLabel: '含まれるもの',
     itineraryLabel: '詳細スケジュール',
+    cancellationLabel: 'キャンセル',
+    faqLabel: 'よくある質問',
+    reviewsLabel: 'クチコミ',
     driverLanguagesLabel: 'ドライバー対応言語',
     nightTourLabel: 'ナイトツアー',
     imageUnavailable: 'ツアー写真は登録されていません',
@@ -99,7 +115,11 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     factsLabel: '一览',
     highlightsLabel: '亮点',
     overviewLabel: '产品说明',
+    includedLabel: '包含项目',
     itineraryLabel: '详细行程',
+    cancellationLabel: '取消政策',
+    faqLabel: '常见问题',
+    reviewsLabel: '评价',
     driverLanguagesLabel: '司机语言',
     nightTourLabel: '夜间旅游',
     imageUnavailable: '暂无旅游照片',
