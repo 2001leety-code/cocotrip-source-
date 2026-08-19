@@ -600,7 +600,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <Clock3 className="h-4 w-4 text-[#C4956A]" />
-                <p className="mt-2 text-xs font-bold text-white">12h</p>
+                <p className="mt-2 text-xs font-bold text-white">{cutoffHours}h</p>
                 <p className="text-[11px] text-white/45">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">

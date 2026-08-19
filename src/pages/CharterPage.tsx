@@ -561,7 +561,7 @@ export default function CharterPage() {
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included3 ?? '대형 캐리어 수납 가능'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included4 ?? '픽업 안내 서비스 (공항 픽업 ₩20,000 추가)'}</span></li>
                 <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간 (그룹당)').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>
-                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.nightSurcharge ?? '심야 할증 (00:00–06:00) {n}% 추가').replace('{n}', String(EXTRA_CHARGES.nightSurchargePercent))}</span></li>
+                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.nightSurcharge ?? '심야 할증 (18:00–06:00) {n}% 추가').replace('{n}', String(EXTRA_CHARGES.nightSurchargePercent))}</span></li>
               </ul>
             </div>
           </>

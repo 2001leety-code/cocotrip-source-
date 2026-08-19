@@ -40,7 +40,7 @@ export function modifyTelegramMsg({ bookingRef, userEmail, summary, airport }) {
 
 export function cancelEmailHtml({ bookingRef, productType, tourDate, paxCount, refundUSD, refundPercent, lang = 'en' }) {
   const title = lang === 'ko' ? '예약이 취소되었습니다' : 'Booking Canceled';
-  const subtitle = lang === 'ko' ? '환불이 진행 중입니다 (3~5영업일 소요).' : 'Refund is in progress (3-5 business days).';
+  const subtitle = lang === 'ko' ? '환불이 진행 중입니다 (7~10영업일 소요).' : 'Refund is in progress (7-10 business days).';
   const labels = lang === 'ko'
     ? { no: '예약번호', product: '상품', date: '투어일', pax: '인원', refundLabel: '환불 금액', note: '환불은 결제 시 사용하신 PayPal 계정으로 처리됩니다.' }
     : { no: 'Booking Ref', product: 'Product', date: 'Tour Date', pax: 'Pax', refundLabel: 'Refund', note: 'Refund issued to the PayPal account used at checkout.' };

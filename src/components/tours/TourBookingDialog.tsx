@@ -904,7 +904,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     termsAgreed={termsAgreed}
                     marketingConsent={marketingConsent}
                     // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
-                    // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
+                    // 2026-07-28 이후 durationDays 는 마감 계산에 쓰이지 않는다 — multi_day
+                    // 전용 cutoff(48h)는 폐기됐고, 마감은 상품군만으로 결정된다(투어=8h 고정).
+                    // 참고: api/_shared/booking-cutoff.js
                     pickupTime="09:00"
                     durationDays={days}
                     // 🔴 슬롯 정원 강제 — 슬롯을 실제로 고른 예약만 4필드를 넘긴다.
