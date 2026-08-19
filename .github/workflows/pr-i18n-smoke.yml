@@ -71,7 +71,16 @@ jobs:
     # timeout. Playwright 4-lang × 3-viewport (~12 browser run) + Vercel preview
     # 초기 cold start + 가격 환산 PR 등의 i18n locale 로드 증가로 한도 초과.
     # 15분이면 안전 마진 확보 — 기존 normal 3-4분 (캐시 hit) / cold start 7-9분.
-    timeout-minutes: 15
+    #
+    # 2026-08-19 PR #1323: 15 → 25 분 재상향. 배경: 같은 run 의 rerun 이 "Install
+    # Playwright browsers (cache miss)" 단계에서 4연속 cancelled (conclusion
+    # "cancelled", 실패 로그 없음 — job timeout 이 install 도중 강제 종료시켜서
+    # 원인 파악도 어려웠음). Playwright CDN/apt 다운로드가 느려지면 cache miss
+    # install(chromium+webkit) 만으로 15분을 넘길 수 있다는 뜻. 같은 run 재시도는
+    # 계속 실패했고, 새 커밋(빈 커밋)으로 새 run 을 돌리자 통과 — timeout 자체가
+    # 병목이었음을 확인. 25분이면 cold install 이 아무리 늦어져도 테스트 실행
+    # 시간까지 죽이지 않을 여유가 생김.
+    timeout-minutes: 25
 
     steps:
       # Workflow/docs-only PRs: Vercel ignores these paths → no preview deploy
@@ -117,6 +126,10 @@ jobs:
         if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'
         # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
         # 이전엔 chromium만 설치 → iPhone 14 Pro 케이스 3ms 즉시 실패 (Executable not found at webkit-XXX/pw_run.sh).
+        #
+        # 2026-08-19: 이 단계가 느려지면(Playwright CDN/apt 지연) job timeout(15분)을
+        # 넘겨 4연속 cancelled 발생 (PR #1323). job timeout 을 25분으로 올려 대응 —
+        # 위 job 레벨 주석 참고.
         run: npx playwright install --with-deps chromium webkit
 
       - name: Install Playwright browsers + deps (cache hit verify)
