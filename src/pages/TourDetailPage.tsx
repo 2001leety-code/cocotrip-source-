@@ -26,6 +26,9 @@ import { TourStopList } from '@/components/tours/TourStopList';
 import { TourStopMap } from '@/components/tours/TourStopMap';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
+import { TourCancellationSection } from '@/components/tours/TourCancellationSection';
+import { TourSectionTabs } from '@/components/tours/TourSectionTabs';
+import type { TourSectionTab } from '@/components/tours/TourSectionTabs';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
 import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
 import { TourFAQ } from '@/components/tours/TourFAQ';
@@ -276,6 +279,24 @@ export default function TourDetailPage() {
                        : language === 'zh' ? `预订截止：出发前${TOUR_CUTOFF_HOURS}小时`
                        : `Booking closes ${TOUR_CUTOFF_HOURS}h before departure`;
 
+  // MRT 벤치마킹 P1 (2026-08-19): 갤러리 바로 아래 grounded 신뢰 배지 3종.
+  // "특가/인기/베스트" 같은 근거 없는 배지는 UNGROUNDED_BADGE_KEYS 처럼 의도적으로 뺐다.
+  // freeCancelBadge/instantConfirmBadge 는 각각 api/_refund-policy.js(24h 바이너리)와
+  // api/capturePaypalOrder.js(캡처 성공 시 status=CONFIRMED 동기 기록)에 근거한다.
+  const freeCancelBadge    = language === 'ko' ? '24시간 전까지 무료 취소' : language === 'ja' ? '24時間前まで無料キャンセル' : language === 'zh' ? '24小时前免费取消' : 'Free cancellation until 24h before';
+  const instantConfirmBadge = language === 'ko' ? '결제 즉시 예약 확정' : language === 'ja' ? '決済完了と同時に予約確定' : language === 'zh' ? '支付后立即确认预订' : 'Instant confirmation on payment';
+
+  // Sticky anchor 탭 — 이 투어에 실제로 렌더되는 섹션만 (빈 섹션은 탭에도 안 올린다).
+  const sectionTabs: TourSectionTab[] = [
+    tour.highlights && tour.highlights.length > 0 ? { id: 'highlights', label: highlightTitle } : null,
+    description ? { id: 'overview', label: overviewTitle } : null,
+    { id: 'included', label: copy.includedLabel },
+    { id: 'itinerary', label: itineraryTitle },
+    { id: 'cancellation', label: copy.cancellationLabel },
+    tour.faqs && tour.faqs.length > 0 ? { id: 'faq', label: copy.faqLabel } : null,
+    { id: 'reviews', label: copy.reviewsLabel },
+  ].filter((section): section is TourSectionTab => section !== null);
+
   return (
     <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
       <main className="ec-root tour-detail-nonpayment" data-testid="tour-detail-nonpayment">
@@ -326,9 +347,18 @@ export default function TourDetailPage() {
             </aside>
           </section>
 
+          {/* MRT 벤치마킹 P1 — grounded 신뢰 배지 3종 (갤러리+한눈에 보기 바로 아래) */}
+          <div className="flex flex-wrap gap-2 pb-2 pt-4" data-testid="tour-detail-trust-badges">
+            <span className="ec-chip"><ShieldCheck className="h-3.5 w-3.5" />{freeCancelBadge}</span>
+            <span className="ec-chip"><CalendarCheck className="h-3.5 w-3.5" />{instantConfirmBadge}</span>
+            <span className="ec-chip"><CreditCard className="h-3.5 w-3.5" />{paypalLabel}</span>
+          </div>
+
+          <TourSectionTabs tabs={sectionTabs} ariaLabel={copy.documentLabel} />
+
           <div className="tour-detail-content-grid">
             <article className="tour-detail-article">
-              <section className="tour-detail-section">
+              <section id="highlights" className="tour-detail-section">
                 <h2 className="ec-h2 tour-detail-section-heading">{highlightTitle}</h2>
                 <ul className="tour-detail-highlights">
                   {tour.highlights.map((highlight, index) => (
@@ -337,7 +367,7 @@ export default function TourDetailPage() {
                 </ul>
               </section>
 
-              <section className="tour-detail-section">
+              <section id="overview" className="tour-detail-section">
                 <h2 className="ec-h2 tour-detail-section-heading">{overviewTitle}</h2>
                 <p className="ec-body ec-measure">{description}</p>
               </section>
@@ -348,11 +378,11 @@ export default function TourDetailPage() {
                 </section>
               )}
 
-              <section className="tour-detail-section">
+              <section id="included" className="tour-detail-section">
                 <IncludedExcluded language={language} includedExtra={tour.included} excludedExtra={tour.excluded} excludedExtraKeys={tour.durationDays === 1 ? ['tourDetail.airportPickup'] : []} />
               </section>
 
-              <section className="tour-detail-section">
+              <section id="itinerary" className="tour-detail-section">
                 <h2 className="ec-h2 tour-detail-section-heading">{itineraryTitle}</h2>
                 {tour.stops && tour.stops.length > 0 ? (
                   <><TourStopMap stops={tour.stops} language={language} title={itineraryTitle} /><TourStopList stops={tour.stops} language={language} /></>
@@ -362,6 +392,8 @@ export default function TourDetailPage() {
                   </div>
                 )}
               </section>
+
+              <TourCancellationSection language={language} />
 
               {tour.meeting_point && <MeetingPointCard meeting_point={tour.meeting_point} language={language} />}
               <TourExtraInfo whatToBring={tour.what_to_bring} importantInfo={tour.important_info} suitabilityNotes={tour.suitability?.notes} language={language} />
@@ -397,7 +429,7 @@ export default function TourDetailPage() {
             )}
           </div>
 
-          <section className="tour-detail-reviews">
+          <section id="reviews" className="tour-detail-reviews">
             {resolvedRating.rating && resolvedRating.reviewCount && (
               <div className="tour-detail-rating-summary">
                 <Star className="h-6 w-6" /><div><div className="flex flex-wrap items-center gap-2"><strong className="ec-figure text-xl">{resolvedRating.rating.toFixed(1)}</strong><span className="ec-body-sm">{language === 'ko' ? `${resolvedRating.reviewCount}개 리뷰` : language === 'ja' ? `${resolvedRating.reviewCount}件のレビュー` : language === 'zh' ? `${resolvedRating.reviewCount}条评论` : `${resolvedRating.reviewCount} reviews`}</span>{resolvedRating.externalUrl ? <a href={resolvedRating.externalUrl} target="_blank" rel="noopener noreferrer" className="tour-detail-rating-source">Google ↗</a> : <span className="tour-detail-rating-source">{resolvedRating.reviewSource === 'google' ? 'Google' : language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal'}</span>}</div></div>

@@ -265,6 +265,9 @@
 .tour-detail-section {
   padding-block: 32px;
   border-top: 1px solid var(--ec-line);
+  /* MRT 벤치마킹 P1 — sticky 헤더(56~64px) + sticky anchor 탭(~68px) 두 겹 아래로 앵커
+     스크롤이 도착하므로 72px 보다 넉넉하게 잡는다(TourSectionTabs.tsx 참고). */
+  scroll-margin-top: 132px;
 }
 
 .tour-detail-section:first-child {
@@ -418,6 +421,7 @@
 
 .tour-detail-reviews {
   padding-bottom: 48px;
+  scroll-margin-top: 132px;
 }
 
 .tour-detail-rating-summary {
