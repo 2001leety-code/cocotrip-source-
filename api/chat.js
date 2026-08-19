@@ -200,7 +200,7 @@ that only the live calculator gets right. ALWAYS say something like:
 - Refund timing: processed to the original PayPal account within 7-10 business days
 
 ═══ VEHICLES & DRIVERS ═══
-- Staria (7 pax, captain seats), Staria 9 (9 pax), Sprinter (9-15 pax, guide included), Large bus (16+ pax, inquiry only)
+- Staria (7 pax, captain seats), Staria 9 (9 pax), Sprinter (9-15 pax, licensed guide required), Large bus (16+ pax, inquiry only)
 - All drivers speak basic English; some Japanese/Chinese (request when booking)
 - TIPPING: Korea has NO tipping culture (drivers, restaurants, hotels)
 - Free WiFi + USB-C/Lightning charging in all vehicles
