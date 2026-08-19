@@ -54,7 +54,14 @@ jobs:
        github.event.deployment.environment == 'Preview' &&
        github.event.deployment.creator.login == 'vercel[bot]')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 2026-08-19: 10 → 18 분 상향. 배경: pr-i18n-smoke 의 자매 job(`smoke`)이
+    # 같은 원인(Playwright CDN/apt 지연으로 cache-miss install 이 job timeout 을
+    # 넘김)으로 4연속 cancelled 됐고(PR #1323), 이 `visual` job 도 "Install
+    # Playwright chromium (cache miss)" 단계에서 같은 패턴으로 1회 cancelled.
+    # smoke 는 15→25분(1.67배)으로 올렸다 — visual 은 설치 브라우저가 chromium
+    # 하나뿐이라 부담이 더 작지만 같은 CDN 지연에 취약하므로 비례해 10→18분
+    # (원인이 install 단계이지 테스트 실행 시간이 아니라서 과도한 상향은 피함).
+    timeout-minutes: 18
 
     steps:
       - name: Auto-pass — workflow/docs-only PR (no preview deploy)
@@ -90,6 +97,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
+      # 2026-08-19: 이 단계가 느려지면(Playwright CDN/apt 지연) job timeout 을
+      # 넘겨 cancelled 발생 (PR #1323, smoke job 과 동일 패턴). job timeout 을
+      # 10→18분으로 올려 대응 — 위 job 레벨 주석 참고.
       - name: Install Playwright chromium (cache miss)
         if: github.event_name != 'pull_request' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
