@@ -100,7 +100,7 @@
   gap: 8px;
 }
 
-/* 터치 타깃 44px 표준(#1285 규격) — 기본 패딩만으론 38px 라 미달. */
+/* 터치 타깃 44px 표준(2026-08-11 차터 PR 규격) — 기본 패딩만으론 38px 라 미달. */
 .tour-detail-wishlist > button {
   width: 44px;
   height: 44px;
