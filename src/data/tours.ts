@@ -1336,3 +1336,10 @@ export const TOUR_REGIONS: Array<{ key: TourRegion | 'All'; label: I18nString }>
   { key: 'Busan',      label: { ko: '부산',    en: 'Busan',      ja: '釜山',       zh: '釜山'   } },
   { key: 'Multi-City', label: { ko: '멀티시티', en: 'Multi-City', ja: 'マルチ',    zh: '多城市' } },
 ];
+
+// 상세 페이지 크로스셀 — 같은 지역 우선, 모자라면 카탈로그 순서로 채움. 집계·인기 산정 없음(결정적).
+export function getRelatedTours(tour: Tour, count = 2): Tour[] {
+  const sameRegion = TOURS.filter(t => t.id !== tour.id && t.region === tour.region);
+  const rest = TOURS.filter(t => t.id !== tour.id && t.region !== tour.region);
+  return [...sameRegion, ...rest].slice(0, count);
+}

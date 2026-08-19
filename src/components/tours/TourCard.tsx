@@ -8,6 +8,8 @@ import { useTourRatingAggregates } from '@/hooks/useTourRatingAggregates';
 import { translations, type Language } from '@/i18n';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
+// 카드 스타일은 카드가 들고 다닌다 — ToursPage 를 안 거친 직진입(투어 상세 크로스셀)에서도 스타일 보장.
+import '@/styles/editorial-tours-catalog.css';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 

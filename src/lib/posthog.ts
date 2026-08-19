@@ -227,6 +227,8 @@ export type PostHogEventName =
   // 결제 시작/완료/실패는 기존 payment_* 를 그대로 쓴다 — 중복 정의하지 않는다.
   | 'tour_booking_start'
   | 'tour_step'
+  // 상세 페이지 크로스셀 카드 클릭 (MRT 벤치마킹 P4, 2026-08-19). 속성은 target_tour_id 하나뿐.
+  | 'tour_related_click'
   // 커뮤니티 → 자체 상품(플래너·차터) 이동 (2026-08-02). 커뮤니티에 들어온 사람이
   // 우리 상품을 못 보고 나가던 구간을 메운다. 속성은 product·placement·language 셋뿐
   // — 글 id·uid·URL 은 넣지 않는다(누가 어느 글에서 눌렀는지까지 알 필요가 없다).
