@@ -7,6 +7,7 @@ export interface TourDetailEditorialCopy {
   overviewLabel: string;
   includedLabel: string;
   itineraryLabel: string;
+  scenesLabel: string;
   cancellationLabel: string;
   faqLabel: string;
   reviewsLabel: string;
@@ -36,6 +37,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     overviewLabel: '상품 설명',
     includedLabel: '포함사항',
     itineraryLabel: '세부 일정',
+    scenesLabel: '미리 보는 장면',
     cancellationLabel: '취소 정책',
     faqLabel: '자주 묻는 질문',
     reviewsLabel: '후기',
@@ -63,6 +65,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     overviewLabel: 'Overview',
     includedLabel: 'Included',
     itineraryLabel: 'Itinerary',
+    scenesLabel: 'Scenes',
     cancellationLabel: 'Cancellation',
     faqLabel: 'FAQ',
     reviewsLabel: 'Reviews',
@@ -90,6 +93,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     overviewLabel: '商品説明',
     includedLabel: '含まれるもの',
     itineraryLabel: '詳細スケジュール',
+    scenesLabel: '旅のシーン',
     cancellationLabel: 'キャンセル',
     faqLabel: 'よくある質問',
     reviewsLabel: 'クチコミ',
@@ -117,6 +121,7 @@ const COPY: Record<Language, TourDetailEditorialCopy> = {
     overviewLabel: '产品说明',
     includedLabel: '包含项目',
     itineraryLabel: '详细行程',
+    scenesLabel: '行程掠影',
     cancellationLabel: '取消政策',
     faqLabel: '常见问题',
     reviewsLabel: '评价',
