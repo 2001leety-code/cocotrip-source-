@@ -1,0 +1,61 @@
+# Playwright 브라우저 캐시 프라이밍 (2026-08-19).
+#
+# 왜: pr-i18n-smoke(smoke)·pr-visual-regression(visual)의 브라우저 캐시가
+# 사실상 항상 miss 였다 — GitHub Actions 캐시는 "만든 브랜치 + main" 에서만
+# 복원되는데, 두 워크플로는 PR/프리뷰 배포에서만 돌아서 main 스코프 캐시가
+# 영원히 생기지 않았다. 그래서 매 PR 이 콜드 다운로드였고, Playwright CDN 이
+# 매달리는 날(8/19 새벽 6회) job timeout 에 통째로 잘렸다.
+#
+# 해법: main 에서 같은 캐시 키로 chromium+webkit 을 받아 저장해 둔다.
+# 이후 모든 PR 의 smoke/visual 이 main 캐시를 restore 해 miss 자체가 사라진다.
+# 트리거 = lockfile 변경(키가 바뀌는 유일한 시점) + 주 1회(캐시 7일 미사용 축출
+# 대비) + 수동.
+name: playwright-cache-prime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package-lock.json'
+  schedule:
+    - cron: '0 19 * * 0' # 일요일 04:00 KST — 미사용 축출 전에 갱신
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # smoke/visual 과 동일한 키·경로 — chromium+webkit 수퍼셋을 저장해 둘 다 커버.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (prime)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        # 다운로드 매달림 대비 — 시도별 7분 timeout + 3회 재시도 (smoke/visual 과 동일 백신).
+        run: |
+          ok=""
+          for attempt in 1 2 3; do
+            if timeout 420 npx playwright install --with-deps chromium webkit; then ok=1; break; fi
+            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+          done
+          [ -n "$ok" ]
