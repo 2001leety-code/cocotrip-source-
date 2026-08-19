@@ -27,6 +27,8 @@ import { TourStopMap } from '@/components/tours/TourStopMap';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { TourCancellationSection } from '@/components/tours/TourCancellationSection';
+import { TourSceneSection } from '@/components/tours/TourSceneSection';
+import { getTourScenes } from '@/components/tours/tourSceneData';
 import { TourSectionTabs } from '@/components/tours/TourSectionTabs';
 import type { TourSectionTab } from '@/components/tours/TourSectionTabs';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
@@ -292,6 +294,7 @@ export default function TourDetailPage() {
     description ? { id: 'overview', label: overviewTitle } : null,
     { id: 'included', label: copy.includedLabel },
     { id: 'itinerary', label: itineraryTitle },
+    getTourScenes(tour.id).length > 0 ? { id: 'scenes', label: copy.scenesLabel } : null,
     { id: 'cancellation', label: copy.cancellationLabel },
     tour.faqs && tour.faqs.length > 0 ? { id: 'faq', label: copy.faqLabel } : null,
     { id: 'reviews', label: copy.reviewsLabel },
@@ -392,6 +395,8 @@ export default function TourDetailPage() {
                   </div>
                 )}
               </section>
+
+              <TourSceneSection tourId={tour.id} language={language} />
 
               <TourCancellationSection language={language} />
 

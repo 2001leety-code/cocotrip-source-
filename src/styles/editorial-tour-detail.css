@@ -565,3 +565,65 @@
   .tour-detail-gallery-control-prev { left: 8px; }
   .tour-detail-gallery-control-next { right: 8px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SCENE 에디토리얼 섹션 (MRT P3) — 사진 크기가 제각각인 매거진 컷을
+   aspect-ratio 로 고정해 스크롤 중 레이아웃이 튀지 않게 한다. 모바일은
+   세로 스택, 데스크톱은 홀/짝 컷마다 사진 좌우가 교차한다.
+   ───────────────────────────────────────────────────────────────────────── */
+.tour-detail-scene-section {
+  scroll-margin-top: 132px;
+}
+
+.tour-detail-scene-list {
+  display: grid;
+  gap: 40px;
+}
+
+.tour-detail-scene {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.tour-detail-scene-photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--ec-surface-sunken);
+  border: 1px solid var(--ec-line);
+  border-radius: var(--ec-radius-md);
+}
+
+.tour-detail-scene-kicker {
+  letter-spacing: 0.08em;
+}
+
+.tour-detail-scene-title {
+  margin-top: 8px;
+}
+
+.tour-detail-scene-body {
+  margin-top: 12px;
+}
+
+@media (min-width: 768px) {
+  .tour-detail-scene {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 32px;
+  }
+
+  .tour-detail-scene-copy {
+    align-self: center;
+  }
+
+  /* 짝수 컷은 사진을 오른쪽으로 — 매거진 리듬을 위한 교차 배치. */
+  .tour-detail-scene:nth-child(even) .tour-detail-scene-photo {
+    order: 2;
+  }
+
+  .tour-detail-scene:nth-child(even) .tour-detail-scene-copy {
+    order: 1;
+  }
+}
