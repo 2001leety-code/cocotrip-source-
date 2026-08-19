@@ -186,11 +186,13 @@ CALCULATION EXAMPLES:
 - Calendar X marks = sold out, pick another date
 
 ═══ CANCELLATION & REFUND ═══
-- 7+ days before: 100% refund
-- 3-7 days: 50% refund
-- Within 3 days: non-refundable
-- COVID/natural disasters: 100% refund or free reschedule
-- Refund timing: PayPal 5-10 business days, card 7-14 days
+(2026-08-19 정정 — SSOT = api/_refund-policy.js, 2026-07-14 운영자 확정 24시간 바이너리.
+ 이전 프롬프트의 7일/3-7일 50% 등급표는 실존한 적 없는 옛 초안이라 손님에게 오답이 나갔다.)
+- Cancel 24+ hours before the tour start (KST): 100% refund
+- Within 24 hours of the tour start, or no-show: no refund
+- Same policy for all customers (no loyalty-tier difference)
+- If we cannot assign a vehicle or driver, the booking is cancelled automatically with a 100% refund
+- Refund timing: processed to the original PayPal account within 7-10 business days
 
 ═══ VEHICLES & DRIVERS ═══
 - Carnival (7-9 pax), Staria (11 pax), Mini Bus (15-25 pax)
