@@ -58,8 +58,10 @@ describe('chat SYSTEM_PROMPT — 가격은 pricing_spec.json SSOT 와 항상 일
   });
 
   it('스타리아 캡틴시트 프리미엄이 SSOT vehicles.staria.captain_premium_krw 와 일치', () => {
+    // 단순 toContain(krw(33000))는 옛 프롬프트의 "Overtime: ₩33,000/hour"와 숫자가
+    // 우연히 같아 오탐 통과한다(overtime_hourly 도 33000) — "captain" 문맥과 함께 확인.
     const premium = krw(pricingSpec.vehicles.staria.captain_premium_krw);
-    expect(chatSrc).toContain(premium);
+    expect(chatSrc).toMatch(new RegExp(`captain[\\s\\S]{0,40}${premium.replace(/[₩,]/g, '\\$&')}`, 'i'));
   });
 });
 
@@ -69,7 +71,9 @@ describe('chat SYSTEM_PROMPT — 정정된 정책/차량 문구 존재', () => {
   });
 
   it('변경 마감 12시간 문구가 있다 (SSOT api/_refund-policy.js canModify)', () => {
-    expect(chatSrc).toContain('12 hours');
+    // 단순 toContain('12 hours')는 옛 산수 예시("12 hours, 6 people")와 우연히
+    // 일치해 오탐 통과한다 — 정책 문맥("12 hours before")까지 확인.
+    expect(chatSrc).toContain('12 hours before');
   });
 
   it('상담 운영시간(평일)이 안내된다', () => {
