@@ -65,7 +65,7 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/파주_dmz/파주 (1).jpg',
+      photo: '/파주_dmz/파주 (4).jpg',
       title: {
         ko: '평양행, 열리지 않은 도라산역',
         en: 'Dorasan Station: The Line to Pyongyang',
@@ -80,7 +80,7 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/파주_dmz/파주 (2).jpg',
+      photo: '/파주_dmz/파주 (1).jpg',
       title: {
         ko: '민통선 마을, 통일촌의 밥상',
         en: 'Lunch in Unification Village',
@@ -128,33 +128,33 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/서울/서울 (3).jpg',
+      photo: '/서울/서울 (1).jpg',
       title: {
-        ko: '명동, 서울 최대의 쇼핑 거리',
-        en: "Myeongdong: Seoul's Biggest Shopping Street",
-        ja: '明洞、ソウル最大のショッピング街',
-        zh: '明洞，首尔最大的购物街',
+        ko: '인사동·익선동, 골목의 점심',
+        en: 'Insadong & Ikseondong: Lunch in the Alleys',
+        ja: '仁寺洞・益善洞、路地のランチ',
+        zh: '仁寺洞·益善洞，巷弄里的午餐',
       },
       body: {
-        ko: '서울에서 가장 큰 쇼핑 거리인 명동에는 K-뷰티 매장과 면세점, 길거리 음식이 한데 모여 있다. 오후 4시를 넘기면 길거리 음식 매대가 본격적으로 문을 연다.',
-        en: "Myeongdong, Seoul's biggest shopping street, packs K-beauty stores, duty-free shops, and street food into one stretch. Past 4 PM, the street-food stalls open in earnest.",
-        ja: 'ソウル最大のショッピングストリート・明洞には、K-ビューティー店や免税店、屋台が一堂に集まる。16時を過ぎると屋台が本格的に開き始める。',
-        zh: '首尔最大的购物街明洞，聚集着K-美妆店、免税店与街头小吃。下午4点后，小吃摊位才正式热闹起来。',
+        ko: '전통 공예점과 갤러리, 찻집이 이어지는 인사동 골목을 걷다 익선동 한옥 카페골목까지 도보로 잇는다. 점심은 한정식이나 비빔밥이 잘 어울리는 동네다.',
+        en: "Alleys of traditional craft shops, galleries, and tea houses lead the walk from Insadong over to Ikseondong's hanok cafe lane. Lunch here leans toward a Korean set table or bibimbap.",
+        ja: '伝統工芸店やギャラリー、茶屋が連なる仁寺洞の路地を歩き、益善洞の韓屋カフェ通りまで足を延ばす。昼食は韓定食やビビンバが似合う街だ。',
+        zh: '穿过传统工艺店、画廊与茶屋相连的仁寺洞小巷，再步行至益善洞的韩屋咖啡街。在这里，午餐最适合韩定食或拌饭。',
       },
     },
     {
-      photo: '/서울/서울 (7).jpg',
+      photo: '/서울/서울 (10).jpg',
       title: {
-        ko: 'N서울타워, 360도로 열리는 도시',
-        en: 'N Seoul Tower: The City in 360°',
-        ja: 'Nソウルタワー、360度に開く街',
-        zh: 'N首尔塔，360度展开的城市',
+        ko: '광장시장, 백 년의 먹자골목',
+        en: 'Gwangjang Market: A Century of Street Food',
+        ja: '広蔵市場、百年の食べ物横丁',
+        zh: '广藏市场，百年小吃街',
       },
       body: {
-        ko: '케이블카나 차량으로 남산 정상에 오르면 서울이 360도로 펼쳐진다. 사랑의 자물쇠가 빼곡히 걸린 난간과 야경 촬영지로도 이름난 곳이다.',
-        en: '360° view of Seoul opens up once the cable car or shuttle reaches the top of Namsan. The railings are dense with love locks, and the tower is just as well known for night-skyline photos.',
-        ja: 'ケーブルカーか車両で南山の頂上に上がると、ソウルが360度に広がる。愛のロックがびっしり掛かる手すりと、夜景撮影の名所としても知られる。',
-        zh: '乘缆车或车辆登上南山顶，首尔在眼前360度展开。挂满情侣锁的栏杆，也是拍摄夜景闻名的地方。',
+        ko: '100년을 이어온 재래시장에서 빈대떡과 마약김밥, 육회, 칼국수를 맛본다. 오후 5시가 지나면 시장은 한층 더 활기를 띤다.',
+        en: 'A traditional market with a century of history, famed for bindae-tteok pancakes, mayak gimbap, beef tartare, and kalguksu noodles. Past five in the evening the aisles only get livelier.',
+        ja: '100年続く伝統市場で、ビンデトックに麻薬キンパ、ユッケ、カルグクスを味わう。17時を過ぎると市場はいっそう活気づく。',
+        zh: '在延续百年的传统市场里，品尝绿豆煎饼、麻药饭卷、生牛肉和刀削面。过了下午5点，市场愈发热闹。',
       },
     },
     {
@@ -191,36 +191,6 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/경주/경주 (1).jpg',
-      title: {
-        ko: '석굴암, 동해를 향한 시선',
-        en: 'Seokguram: Facing the East Sea',
-        ja: '石窟庵、東海を見つめる眼差し',
-        zh: '石窟庵，凝望东海的目光',
-      },
-      body: {
-        ko: '8세기에 지어진 석굴 사원 석굴암, 본존불상은 동해에서 떠오르는 해를 향해 앉아 있다. 자연광이 스며드는 내부는 사진 촬영이 금지되어 있어 한 줄로 천천히 걸으며 눈으로만 담아야 한다.',
-        en: 'Seokguram, an 8th-century stone-cave temple, seats its Buddha statue facing the sunrise over the East Sea. Photography is off-limits inside, so the natural light filtering through the chamber is something you carry only in memory, filing past in a single line.',
-        ja: '8世紀に築かれた石窟寺院・石窟庵。本尊仏は東海から昇る朝日の方向に座している。自然光が差し込む内部は撮影禁止のため、一列でゆっくり歩きながら目に焼き付けるほかない。',
-        zh: '始建于8世纪的石窟寺院石窟庵，本尊佛面朝东海日出的方向而坐。洞内禁止拍照，自然光洒落其间的景象只能单列缓行、用眼睛记下。',
-      },
-    },
-    {
-      photo: '/경주/경주 (3).jpg',
-      title: {
-        ko: '경주 한정식, 신라 궁중의 상차림',
-        en: 'A Silla-Court Lunch in Gyeongju',
-        ja: '慶州韓定食、新羅宮中の膳',
-        zh: '庆州韩定食，新罗宫廷的一桌',
-      },
-      body: {
-        ko: '신라 궁중요리를 본뜬 한정식으로 오후를 준비한다. 보리굴비와 황남빵이 상 위에 함께 오르며, 하루의 절반을 걸어온 다리를 잠시 쉬게 한다.',
-        en: "Lunch borrows from Silla court cuisine, a hanjeongsik spread that carries boriguibi (dried yellow corvina) and Hwangnam-bbang pastry to the table. It's the pause that lets legs recover before the afternoon's tumuli and pond await.",
-        ja: '新羅宮中料理になぞらえた韓定食で午後に備える。麦塩漬けの魚や黄南パンが膳に並び、半日歩いた脚を休ませる時間になる。',
-        zh: '以新罗宫廷料理为灵感的韩定食为下午蓄力。麦盐渍鱼与黄南面包摆上桌，也让走了半天的双腿得以稍作休息。',
-      },
-    },
-    {
       photo: '/Type1_대릉원(천마총)_한국관광공사, 엠엠피 김진규_651iea(1).jpg',
       title: {
         ko: '대릉원, 왕릉 사이를 걷다',
@@ -236,18 +206,33 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/경주/경주 (5).jpg',
+      photo: '/경주/경주 (1).jpg',
       title: {
-        ko: '동궁과 월지, 해 진 뒤의 빛',
-        en: 'Donggung & Wolji After Sunset',
-        ja: '東宮と月池、日没後の光',
-        zh: '东宫与月池，日落后的光',
+        ko: '첨성대, 별을 헤아리던 들판',
+        en: 'Cheomseongdae: Reading the Stars',
+        ja: '瞻星台、星を数えた野原',
+        zh: '瞻星台，数星星的原野',
       },
       body: {
-        ko: '신라의 별궁이 있던 동궁과 월지, 해가 지고 나면 조명이 연못 위 신라 기와를 그대로 비춘다. 일몰 30분 전에 도착하면 야경이 서서히 물드는 순간부터 지켜볼 수 있다.',
-        en: 'Donggung Palace and Wolji Pond once formed a Silla detached palace, and once the sun goes down, lights reflect the old rooflines across the water. Arriving thirty minutes before sunset means catching the whole slow shift into night.',
-        ja: '新羅の別宮があった東宮と月池は、日が沈むと照明が新羅瓦を池の水面に映し出す。日没30分前に着けば、夜景が徐々に色づく瞬間から見届けられる。',
-        zh: '曾是新罗离宫所在的东宫与月池，日落后灯光会将新罗瓦当的轮廓映在水面上。若在日落前30分钟到达，便能看着夜色一点点漫上来。',
+        ko: '동양에서 가장 오래된 천문대 첨성대가 왕릉 곁 들판에 서 있다. 대릉원에서 계림을 지나 걸어 닿는 자리라, 걷는 동안 신라의 옛 도시가 천천히 몸에 스며든다.',
+        en: 'Cheomseongdae, the oldest astronomical observatory in East Asia, stands in an open field beside the royal tombs. The walk over from Daereungwon passes Gyerim Forest, and the old Silla capital settles in slowly with every step.',
+        ja: '東洋最古の天文台・瞻星台が、王陵のかたわらの野原に立つ。大陵苑から鶏林を抜けて歩いて着く場所で、歩くうちに新羅の古都が静かに染み込んでくる。',
+        zh: '东方最古老的天文台瞻星台，静立在王陵旁的原野上。从大陵苑经鸡林步行即到，一路走来，新罗古都的气息缓缓渗入心间。',
+      },
+    },
+    {
+      photo: '/경주/경주 (5).jpg',
+      title: {
+        ko: '황리단길, 한옥 지붕 아래의 오늘',
+        en: 'Hwangnidan-gil: Under the Hanok Roofs',
+        ja: '皇理団キル、韓屋の屋根の下の今',
+        zh: '皇理团路，韩屋屋檐下的今天',
+      },
+      body: {
+        ko: '대릉원 곁으로 이어지는 황리단길은 한옥 지붕 아래 카페와 작은 상점이 모인 거리다. 사진 찍기 좋은 곳으로 이름난 골목을 천천히 걸으며 경주의 하루를 마무리한다.',
+        en: 'Hwangnidan-gil runs alongside Daereungwon, its hanok roofs sheltering cafes and small shops. Known as one of the most photographed streets in Gyeongju, it makes an easy, slow close to the day.',
+        ja: '大陵苑のそばに続く皇理団キルは、韓屋の屋根の下にカフェや小さな店が集まる通り。写真映えで知られる路地をゆっくり歩いて、慶州の一日を締めくくる。',
+        zh: '皇理团路沿着大陵苑延伸，韩屋屋檐下聚集着咖啡馆与小店。这条以适合拍照闻名的街道，正好用来慢慢收尾在庆州的一天。',
       },
     },
   ],

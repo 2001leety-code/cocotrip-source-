@@ -39,14 +39,22 @@ function tourRecordSlice(id: string): string {
   return toursSrc.slice(idIdx, end);
 }
 
-describe('TOUR_SCENES 데이터 형태 — 3개 투어 x 5개 씬, 4개 언어 채움', () => {
+// 씬 수는 "사진이 실제 그 장소인 것"만 채운 결과 — 경주는 석굴암·동궁 실사진이
+// 레포에 없어 4개다. 늘리려면 진짜 사진을 먼저 넣어라(다른 장소 사진 재사용 금지).
+const SCENE_COUNTS: Record<string, number> = {
+  'tour-dmz': 5,
+  'tour-seoul-city': 5,
+  'tour-gyeongju': 4,
+};
+
+describe('TOUR_SCENES 데이터 형태 — 3개 투어, 4개 언어 채움', () => {
   it('정확히 3개 투어 id 만 갖는다', () => {
     expect(Object.keys(TOUR_SCENES).sort()).toEqual([...TOUR_IDS].sort());
   });
 
   for (const id of TOUR_IDS) {
-    it(`${id}: 씬이 정확히 5개다`, () => {
-      expect(TOUR_SCENES[id]).toHaveLength(5);
+    it(`${id}: 씬 수가 잠금값과 같다`, () => {
+      expect(TOUR_SCENES[id]).toHaveLength(SCENE_COUNTS[id]);
     });
 
     it(`${id}: 모든 씬의 title/body 가 4개 언어 전부 비어있지 않다`, () => {
@@ -58,7 +66,7 @@ describe('TOUR_SCENES 데이터 형태 — 3개 투어 x 5개 씬, 4개 언어 �
       }
     });
 
-    it(`${id}: 5개 씬의 photo 경로가 서로 겹치지 않는다`, () => {
+    it(`${id}: 씬 photo 경로가 서로 겹치지 않는다`, () => {
       const photos = TOUR_SCENES[id].map((scene) => scene.photo);
       expect(new Set(photos).size).toBe(photos.length);
     });
