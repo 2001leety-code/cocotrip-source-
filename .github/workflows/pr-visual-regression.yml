@@ -100,9 +100,20 @@ jobs:
       # 2026-08-19: 이 단계가 느려지면(Playwright CDN/apt 지연) job timeout 을
       # 넘겨 cancelled 발생 (PR #1323, smoke job 과 동일 패턴). job timeout 을
       # 10→18분으로 올려 대응 — 위 job 레벨 주석 참고.
+      # 2026-08-19 2차: 18분으로도 잘림(#1328) — 지연이 아니라 다운로드가 '매달리는'
+      # 케이스. 시도별 7분 timeout + 3회 재시도로 매달린 다운로드를 죽이고 다시 받는다.
+      # (구조 원인: 이 캐시는 PR 브랜치들끼리 공유 안 됨 + main 에선 이 워크플로가
+      # 안 돌아 main 캐시가 없음 → 매 PR 콜드 미스. playwright-cache-prime.yml 이
+      # main 캐시를 채워 근본 해소 — 이 재시도는 그래도 미스날 때의 백신.)
       - name: Install Playwright chromium (cache miss)
         if: github.event_name != 'pull_request' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: |
+          ok=""
+          for attempt in 1 2 3; do
+            if timeout 420 npx playwright install --with-deps chromium; then ok=1; break; fi
+            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+          done
+          [ -n "$ok" ]
 
       - name: Install Playwright system deps (cache hit)
         if: github.event_name != 'pull_request' && steps.playwright-cache.outputs.cache-hit == 'true'
