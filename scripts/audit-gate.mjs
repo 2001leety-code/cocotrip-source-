@@ -29,6 +29,17 @@ const ALLOWLIST = [
     // 제거 시점: react-router v8 로 이행할 때.
     reason: 'RSC-mode only; this app is a declarative BrowserRouter SPA. Patch exists only in react-router v8.',
   },
+  {
+    url: 'https://github.com/advisories/GHSA-jmr9-qjv8-65gv',
+    // extract-zip "unvalidated symlink path traversal" (high). 2026-08-19 운영자 승인.
+    // 해당 없음: extract-zip 은 puppeteer-core→@puppeteer/browsers 가 빌드(프리렌더)
+    //   단계에서 구글 배포 브라우저 아카이브를 푸는 데만 실행된다 — 사용자 입력 zip 을
+    //   푸는 경로가 없고(src·api 직접 사용 0건 grep 실측), 공격은 악성 zip 을 전제한다.
+    //   런타임(서버 함수·손님 트래픽)에는 실리지 않는다.
+    // 올릴 수 없음: 패치판이 존재하지 않는다(advisory patched: none, <=2.0.1 전부 해당).
+    // 제거 시점: extract-zip 패치판이 나와 @puppeteer/browsers 가 그 판을 물 때.
+    reason: 'Build-time only (puppeteer browser archive extraction of Google-published zips); no user-supplied zip path; no patched version exists (<=2.0.1 all affected).',
+  },
 ];
 
 const BLOCKING_SEVERITY = new Set(['high', 'critical']);
