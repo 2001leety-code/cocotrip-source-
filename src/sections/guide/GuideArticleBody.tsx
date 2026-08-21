@@ -81,8 +81,11 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
             />
           )}
 
+          {/* `guide-article` = 이 글이 실제로 도착해 렌더됐다는 유일한 구조 신호.
+              nav 스모크가 로딩·404·에러 화면과 구분하는 근거다(스타일 클래스로
+              짚다가 `.guide-article` → `.ec-prose` 개편에서 조용히 끊겼다). */}
           {status === 'ready' && doc && (
-            <article className="mt-6">
+            <article className="mt-6" data-testid="guide-article">
               {doc.labels.length > 0 && <p className="ec-eyebrow text-ec-brand">{doc.labels[0]}</p>}
               <h1 className="ec-h2 mt-3 text-[clamp(26px,3.4vw,40px)]">{doc.title}</h1>
 

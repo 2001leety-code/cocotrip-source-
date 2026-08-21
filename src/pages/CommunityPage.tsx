@@ -1187,7 +1187,9 @@ export function CommunityComposePage() {
 
   return (
     <CommunityLayout active="create" backTo="/community">
-      <section className="community-compose-heading">
+      {/* 머리글은 로그인 여부와 무관하게 항상 그려진다 — nav 스모크가 "작성 화면에
+          도착했다"를 문구 대신 이 구조로 판정한다(#1283 계열 문구 개편 내성). */}
+      <section className="community-compose-heading" data-testid="community-compose-heading">
         <div><h1>{copy.composeTitle}</h1><p>{copy.composeSubtitle}</p></div>
         <span><Languages size={15} />{LANGUAGE_NAME[language]}</span>
       </section>
