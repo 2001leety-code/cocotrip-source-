@@ -143,7 +143,9 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
       },
     },
     {
-      photo: '/서울/서울 (10).jpg',
+      // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (10).jpg' 는 김장(김치 만들기) 사진
+      // (Type1_김치 만들기_한국관광공사 김지호_Kg5oKa(1).jpg 와 md5 동일) → 시장 사진으로 교체.
+      photo: '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
       title: {
         ko: '광장시장, 백 년의 먹자골목',
         en: 'Gwangjang Market: A Century of Street Food',

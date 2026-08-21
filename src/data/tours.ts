@@ -456,7 +456,9 @@ const TOURS_RAW: Tour[] = [
         name: { ko: '인사동·익선동 점심', en: 'Insadong / Ikseondong Lunch', ja: '仁寺洞・益善洞ランチ', zh: '仁寺洞·益善洞午餐' },
         lat: 37.5709, lng: 126.9844,
         stay_min: 75,
-        photo: '/서울/서울 (1).jpg',
+        // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (1).jpg' 는 실제로 북촌한옥마을 사진
+        // (Type1_북촌한옥마을_라이브스튜디오_dJ6Ara.jpg 와 md5 동일) → 인사동·익선동과 무관.
+        // public/ 에 인사동/익선동 사진이 없어 추측 대체 대신 사진 없이 렌더.
         description: {
           ko: '전통 공예·갤러리·찻집의 골목. 익선동 한옥 카페골목과 함께 도보 이동, 한정식 또는 비빔밥 추천.',
           en: 'Traditional crafts, galleries, and tea houses. Walk to Ikseondong hanok cafe alley — try Korean set menu or bibimbap.',
@@ -477,7 +479,9 @@ const TOURS_RAW: Tour[] = [
         name: { ko: '명동 쇼핑', en: 'Myeongdong Shopping', ja: '明洞ショッピング', zh: '明洞购物' },
         lat: 37.5636, lng: 126.9827,
         stay_min: 90,
-        photo: '/서울/서울 (3).jpg',
+        // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (3).jpg' 는 경복궁 근정문 사진
+        // (= 같은 투어 첫 stop 사진의 JPEG 원본) → 명동과 무관해 교체.
+        photo: '/tourists/people-seoul-myeongdong-night.webp',
         description: {
           ko: '서울 최대 쇼핑 거리. K-뷰티(올리브영·시코르), 길거리 음식, 면세점 밀집.',
           en: 'Seoul\'s biggest shopping street. K-beauty (Olive Young, Sikkor), street food, and duty-free shops.',
@@ -498,7 +502,10 @@ const TOURS_RAW: Tour[] = [
         name: { ko: 'N서울타워 (남산)', en: 'N Seoul Tower (Namsan)', ja: 'Nソウルタワー（南山）', zh: 'N首尔塔（南山）' },
         lat: 37.55143, lng: 126.988,
         stay_min: 90,
-        photo: '/서울/서울 (7).jpg',
+        // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (7).jpg' 는 경복궁 근정전 야경
+        // (Type1_경복궁 근정전_한국관광공사 김지호_4hPP1a(1).jpg 와 md5 동일) → 교체.
+        // 대체 사진은 안내판에 "N SEOUL TOWER" 가 찍힌 남산 사랑의 자물쇠 실물 확인본.
+        photo: '/서울/서울 (21).jpg',
         description: {
           ko: '서울 360도 전망대. 케이블카 또는 차량으로 정상까지. 사랑의 자물쇠와 야경 촬영지.',
           en: '360° Seoul panorama. Cable car or shuttle to the top. Famous for love locks and skyline photos.',
@@ -519,7 +526,9 @@ const TOURS_RAW: Tour[] = [
         name: { ko: '광장시장', en: 'Gwangjang Market', ja: '広蔵市場', zh: '广藏市场' },
         lat: 37.57, lng: 126.999,
         stay_min: 60,
-        photo: '/서울/서울 (10).jpg',
+        // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (10).jpg' 는 김장(김치 만들기) 사진
+        // (Type1_김치 만들기_한국관광공사 김지호_Kg5oKa(1).jpg 와 md5 동일) → 광장시장 아님.
+        photo: '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
         description: {
           ko: '100년 전통 재래시장. 빈대떡, 마약김밥, 육회, 칼국수가 명물.',
           en: '100-year-old traditional market. Famed for bindae-tteok (mung bean pancake), mayak gimbap, raw beef tartare, kalguksu.',
@@ -925,10 +934,11 @@ const TOURS_RAW: Tour[] = [
       '/Type1_해동용궁사_한국관광공사 김지호_Ha9TWa.jpg',
       '/Type1_자갈치시장_IR 스튜디오_LNrJOa.jpg',
       '/Type1_깡통야시장_한국관광공사 김지호_sS5JDa(1).jpg',
-      '/부산/부산 (1).jpg',
+      // 2026-08-21 사진 전수 감사 제거 2건:
+      //  - '/부산/부산 (1).jpg' = 서울 광장시장 사진(도시 불일치)
+      //  - '/부산/부산 (7).jpg' = 위 Type1_자갈치시장 과 md5 동일한 복제본(갤러리에 같은 사진 2번)
       '/부산/부산 (3).jpg',
       '/부산/부산 (5).jpg',
-      '/부산/부산 (7).jpg',
       '/tourists/people-busan-gamcheon.webp',
       '/tourists/people-busan-jagalchi.webp',
     ],
@@ -1039,7 +1049,9 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     {
       time: '18:25', name: { ko: '북악스카이웨이', en: 'Bukak Skyway', ja: '北岳スカイウェイ', zh: '北岳天路' },
       lat: 37.6089, lng: 126.9816,
-      stay_min: 40, photo: '/서울/서울 (14).jpg',
+      // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (14).jpg' 는 가을 단풍 앞 한복 인물사진(주간)
+      // → 야간 드라이브 코스인 이 stop 과 무관. public/ 에 북악스카이웨이 사진이 없어 사진 없이 렌더.
+      stay_min: 40,
       description: { ko: '북악산 능선을 따라 이어지는 야경 드라이브 코스. 팔각정 전망대에서 서울 도심 야경 한눈에.', en: 'Scenic ridgeline drive on Bukak Mountain. Stop at Palgakjeong Pavilion for a panoramic Seoul night skyline.', ja: '北岳山の稜線をたどる夜景ドライブ。八角亭展望台からソウル都心の夜景を一望。', zh: '沿北岳山山脊的夜景驾车路线，在八角亭观景台俯瞰首尔市区夜景。' },
       entry_fee_krw: 0,
       tip: { ko: '팔각정 무료 전망. 차량에서 짧게 내려 사진 촬영 가능.', en: 'Palgakjeong viewpoint is free. Quick photo stops by car.', ja: '八角亭は無料展望。車を停めて短時間撮影可能。', zh: '八角亭免费观景，可短暂停车拍照。' },
@@ -1199,7 +1211,9 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
   ],
 
   'tour-busan-day': [
-    { time: '09:30', name: { ko: '감천문화마을', en: 'Gamcheon Culture Village', ja: '甘川文化村', zh: '甘川文化村' }, stay_min: 90, photo: '/부산/부산 (1).jpg',
+    // 2026-08-21 사진 전수 감사: 기존 '/부산/부산 (1).jpg' 는 서울 광장시장 김밥 좌판 사진
+    // (Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg 와 md5 동일) → 도시까지 다른 오배선.
+    { time: '09:30', name: { ko: '감천문화마을', en: 'Gamcheon Culture Village', ja: '甘川文化村', zh: '甘川文化村' }, stay_min: 90, photo: '/tourists/people-busan-gamcheon.webp',
     lat: 35.09634, lng: 129.00879,
       description: { ko: '산비탈 알록달록 마을. 어린왕자 포토 스팟·골목 스탬프투어.', en: 'Colorful hillside village; Little Prince photo spot, alley stamp tour.', ja: '山肌のカラフルな村。星の王子さまフォトスポット·路地スタンプ。', zh: '山坡彩色村庄。小王子拍照点·小巷盖章游。' },
       entry_fee_krw: 0, tip: { ko: '관광안내소 ₩2,000 지도 구매 → 스탬프 8개 모으면 기념품.', en: 'Buy ₩2,000 map at info center; 8 stamps earn a souvenir.', ja: '案内所で₩2,000の地図購入→スタンプ8個で記念品。', zh: '游客中心购₩2,000地图，集8章可得纪念品。' } },
@@ -1213,12 +1227,16 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
       description: { ko: '부산 도심 정원과 120m 전망탑. 부산항 360° 조망.', en: 'Downtown garden and 120m observation tower with 360° harbor view.', ja: '釜山市内庭園と120m展望塔。港の360°ビュー。', zh: '釜山市区花园和120m观景塔。港口360°景观。' },
       entry_fee_krw: 12000, tip: { ko: '광복로 쇼핑거리 도보 5분.', en: '5-min walk to Gwangbok-ro shopping street.', ja: '光復路ショッピング街まで徒歩5分。', zh: '步行5分至光复路购物街。' },
       transit_from_prev: { method: 'car', minutes: 8, distance_km: 3 } },
-    { time: '15:15', name: { ko: '광안리 해변', en: 'Gwangalli Beach', ja: '広安里ビーチ', zh: '广安里海滩' }, stay_min: 60, photo: '/부산/부산 (3).jpg',
+    // 2026-08-21 사진 전수 감사: 기존 '/부산/부산 (3).jpg' 는 부평깡통야시장 간판 사진
+    // (Type1_깡통야시장_한국관광공사 김지호_sS5JIa(1).jpg 와 md5 동일) → 해변 아님.
+    { time: '15:15', name: { ko: '광안리 해변', en: 'Gwangalli Beach', ja: '広安里ビーチ', zh: '广安里海滩' }, stay_min: 60, photo: '/Type1_부산 광안대교_한국관광공사 이범수_BTr8Za(1).jpg',
     lat: 35.1543, lng: 129.1205,
       description: { ko: '광안대교 전망 해변. SUP·요트 액티비티, 해변 카페 인기.', en: 'Beach with Gwangan Bridge view; SUP/yacht activities, café row.', ja: '広安大橋ビュービーチ。SUP·ヨット·カフェ。', zh: '可观广安大桥的海滩。SUP·游艇·咖啡馆。' },
       entry_fee_krw: 0, tip: { ko: '저녁 야경 추천. 광안대교 라이트쇼 21시(주말).', en: 'Evening view recommended; bridge light show 21:00 (weekends).', ja: '夜景推奨。21時の橋ライトショー(週末)。', zh: '推荐傍晚夜景，21点桥梁灯光秀(周末)。' },
       transit_from_prev: { method: 'car', minutes: 18, distance_km: 9 } },
-    { time: '16:45', name: { ko: '해운대', en: 'Haeundae Beach', ja: '海雲台', zh: '海云台' }, stay_min: 75, photo: '/부산/부산 (7).jpg',
+    // 2026-08-21 사진 전수 감사: 기존 '/부산/부산 (7).jpg' 는 자갈치시장 조개 좌판 사진
+    // (Type1_자갈치시장_IR 스튜디오_LNrJOa.jpg 와 md5 동일) → 같은 투어 11:30 stop 의 소재였다.
+    { time: '16:45', name: { ko: '해운대', en: 'Haeundae Beach', ja: '海雲台', zh: '海云台' }, stay_min: 75, photo: '/tourists/people-busan-haeundae.webp',
     lat: 35.1608, lng: 129.1639,
       description: { ko: '한국 대표 해변. 겨울에도 백사장 산책, 동백섬 누리마루 APEC하우스.', en: "Korea's top beach. Winter beach walks, Dongbaekseom & Nurimaru APEC House.", ja: '韓国代表ビーチ。冬の散歩、東柏島·ヌリマルAPECハウス。', zh: '韩国代表海滩。冬日散步、东柏岛·韩流亚太APEC会馆。' },
       entry_fee_krw: 0, tip: { ko: '동백섬 산책로 (40분 round) 강추.', en: 'Dongbaekseom walking loop (40 min) highly recommended.', ja: '東柏島周遊コース(40分)推奨。', zh: '强烈推荐东柏岛环路(40分)。' },
@@ -1242,7 +1260,8 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     lat: 35.79028, lng: 129.33194,
       description: { ko: '신라 불교 미술의 정수. UNESCO 세계유산 2곳.', en: 'Pinnacle of Silla Buddhist art. Two UNESCO World Heritage sites.', ja: '新羅仏教美術の精華。ユネスコ2件。', zh: '新罗佛教艺术精华。两处联合国教科文遗产。' },
       entry_fee_krw: 12000, transit_from_prev: { method: 'car', minutes: 90, distance_km: 130 } },
-    { time: 'D3 09:00', name: { ko: '부산 — 감천문화마을', en: 'Day 3 — Gamcheon Village', ja: 'D3 — 甘川文化村', zh: 'D3 — 甘川文化村' }, stay_min: 90, photo: '/부산/부산 (1).jpg',
+    // 2026-08-21 사진 전수 감사: 위 tour-busan-day 와 같은 오배선(서울 광장시장 사진) → 동일 교정.
+    { time: 'D3 09:00', name: { ko: '부산 — 감천문화마을', en: 'Day 3 — Gamcheon Village', ja: 'D3 — 甘川文化村', zh: 'D3 — 甘川文化村' }, stay_min: 90, photo: '/tourists/people-busan-gamcheon.webp',
     lat: 35.09634, lng: 129.00879,
       description: { ko: '산비탈 알록달록 마을. 부산의 마추픽추.', en: 'Colorful hillside village — "Machu Picchu of Busan".', ja: '山肌のカラフル村。釜山のマチュピチュ。', zh: '山坡彩色村庄。釜山的马丘比丘。' },
       entry_fee_krw: 0, tip: { ko: '경주에서 부산 차량 1시간. 호텔 체크인 후 출발.', en: 'Gyeongju→Busan 1h drive; depart after hotel check-in.', ja: '慶州→釜山1時間。ホテルチェックイン後。', zh: '庆州→釜山1小时。酒店入住后出发。' } },
