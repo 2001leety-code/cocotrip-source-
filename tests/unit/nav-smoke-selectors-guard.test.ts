@@ -30,7 +30,15 @@ const specCode = rawSpec
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
 
-/** src 전체에서 리터럴 data-testid 를 수집한다(동적 보간 testid 는 제외). */
+/**
+ * src 에서 testid 를 인정하는 두 가지 표기 — DOM 속성 `data-testid` 와, 컴포넌트가
+ * 받아서 그대로 내려보내는 `testId` prop(레포 컨벤션: CommunityLoadingState 등).
+ * 홑따옴표·쌍따옴표·백틱을 모두 받고, 보간(`${...}`)이 든 백틱은 리터럴이 아니라 제외한다.
+ */
+const SRC_TESTID_RE =
+  /(?:data-testid|\btestId)=(?:"([^"]+)"|'([^']+)'|\{\s*(?:"([^"]+)"|'([^']+)'|`([^`$]+)`)\s*\})/g;
+
+/** src 전체에서 리터럴 data-testid/testId 를 수집한다(동적 보간 testid 는 제외). */
 function collectSrcTestIds(): Set<string> {
   const ids = new Set<string>();
   const walk = (dir: string) => {
@@ -42,10 +50,10 @@ function collectSrcTestIds(): Set<string> {
       }
       if (!/\.tsx?$/.test(entry.name)) continue;
       const source = readFileSync(full, 'utf8');
-      for (const match of source.matchAll(/data-testid=(?:"([^"]+)"|'([^']+)'|\{"([^"]+)"\}|\{'([^']+)'\})/g)) {
+      for (const match of source.matchAll(SRC_TESTID_RE)) {
         // `||` 사용은 의도적 — pre-commit mojibake 가드가 nullish 연산자 리터럴을
         // 오탐한다. 후보는 정규식 캡처(문자열 또는 undefined)라 결과가 같다.
-        const id = match[1] || match[2] || match[3] || match[4];
+        const id = match[1] || match[2] || match[3] || match[4] || match[5];
         if (id) ids.add(id);
       }
     }
@@ -54,7 +62,42 @@ function collectSrcTestIds(): Set<string> {
   return ids;
 }
 
-const testIdsInSpec = [...specCode.matchAll(/getByTestId\('([^']+)'\)/g)].map((m) => m[1]);
+const testIdsInSpec = [...specCode.matchAll(/getByTestId\(\s*(['"`])([^'"`]+)\1\s*\)/g)].map((m) => m[2]);
+
+const translatedTextSelectors = (code: string) => [
+  ...code.matchAll(/\bhasText\s*:/g),
+  ...code.matchAll(/:has-text\s*\(/g),
+  ...code.matchAll(/\bgetBy(?:Text|AltText|Label|Placeholder|Title)\s*\(/g),
+  ...code.matchAll(/\blocator\(\s*['"`]text=/g),
+  // 🔴 `[^}]*` 로 **그 호출의 옵션 객체 안**만 본다. 예전 `[\s\S]*?` 판은 닫는 괄호를
+  //    넘어 파일 뒤쪽까지 훑어서, 합법적인 `{ level: 1 }` 뒤 아무데나 `name:` 이
+  //    있기만 하면 거짓 적발이 났다(실측). role level 단언은 막으면 안 된다.
+  ...code.matchAll(/\bgetByRole\s*\(\s*['"`][^'"`]*['"`]\s*,\s*\{[^}]*\bname\s*:/g),
+].map((m) => m[0]);
+
+const unpairedDisappearances = (code: string): string[] => {
+  const unpaired: string[] = [];
+  const blocks = (`\n${code}`).split(/\n\s*test\s*\(/).slice(1);
+  for (const block of blocks) {
+    // `(?:\s*\.\w+\([^()]*\))*` = `.first()`·`.nth(0)` 같은 체이닝 허용.
+    // 없으면 `getByTestId('x').first()).toHaveCount(0)` 형태가 짝 검사에서 통째로
+    // 안 보여 공허한 소멸 단언이 다시 새어든다(실측).
+    const assertions = [...block.matchAll(
+      /getByTestId\(\s*(['"`])([^'"`]+)\1\s*\)(?:\s*\.\w+\([^()]*\))*\s*\)\.(toBeVisible|toHaveCount)\s*\(\s*(0)?/g,
+    )];
+    for (const assertion of assertions) {
+      if (assertion[3] !== 'toHaveCount' || assertion[4] !== '0') continue;
+      const id = assertion[2];
+      const disappearanceAt = assertion.index || 0;
+      const visibleBefore = assertions.some(
+        (candidate) => candidate[2] === id && candidate[3] === 'toBeVisible'
+          && (candidate.index || 0) < disappearanceAt,
+      );
+      if (!visibleBefore) unpaired.push(id);
+    }
+  }
+  return unpaired;
+};
 
 describe('nav 스모크 스펙 — 화면을 구조로 짚는다', () => {
   it('스펙이 쓰는 data-testid 는 전부 src 에 실제로 존재한다', () => {
@@ -66,7 +109,8 @@ describe('nav 스모크 스펙 — 화면을 구조로 짚는다', () => {
 
   it('번역 문구로 화면 전환을 판정하지 않는다', () => {
     // 화면 문구는 4개 언어 × 마케팅 수정마다 바뀐다. 도착 판정의 근거가 될 수 없다.
-    expect(specCode).not.toMatch(/hasText/);
+    const selectors = translatedTextSelectors(specCode);
+    expect(selectors, `문구 기반 선택자 사용: ${selectors.join(', ')}`).toEqual([]);
   });
 
   it('CSS 클래스 선택자로 화면 전환을 판정하지 않는다', () => {
@@ -76,12 +120,49 @@ describe('nav 스모크 스펙 — 화면을 구조로 짚는다', () => {
   });
 
   it('"사라졌다" 단언은 같은 testid 의 "보인다" 단언과 짝을 이룬다', () => {
-    // 짝이 없으면 그 요소는 애초에 한 번도 없었던 것일 수 있다 = 항상 참.
-    const disappear = [...specCode.matchAll(/getByTestId\('([^']+)'\)\)\.toHaveCount\(0/g)].map((m) => m[1]);
+    // 같은 test 안에서 클릭 전 존재를 확인해야 한다. 다른 test 의 확인이나 뒤늦은 확인은 무효다.
+    const disappear = [...specCode.matchAll(/\.toHaveCount\s*\(\s*0/g)];
     expect(disappear.length).toBeGreaterThan(0);
-    const unpaired = disappear.filter(
-      (id) => !new RegExp(`getByTestId\\('${id}'\\)\\)\\.toBeVisible`).test(specCode),
-    );
+    const unpaired = unpairedDisappearances(specCode);
     expect(unpaired, `사전 존재 확인 없는 소멸 단언(공허하게 통과함): ${unpaired.join(', ')}`).toEqual([]);
+  });
+
+  it('locale 독립 h1 신호가 살아 있다', () => {
+    // testid 는 <div> 에 붙여도 통과한다 — 제목이 <h1> 에서 <div> 로 강등되는 회귀는
+    // role+level 로만 잡힌다. 문구를 안 보므로 4개 언어에 무관하다.
+    expect(specCode).toMatch(/getByRole\(\s*['"`]heading['"`]\s*,\s*\{[^}]*\blevel\s*:\s*1/);
+  });
+
+  it('짝 검사는 다른 test 또는 소멸 뒤의 존재 확인을 빌려 통과하지 않는다', () => {
+    const otherTest = `test('a', async () => { expect(page.getByTestId("shell")).toBeVisible(); });\n`
+      + `test('b', async () => { expect(page.getByTestId('shell')).toHaveCount(0); });`;
+    const wrongOrder = `test('a', async () => { expect(page.getByTestId(\`shell\`)).toHaveCount(0); `
+      + `expect(page.getByTestId(\`shell\`)).toBeVisible(); });`;
+    // 체이닝(`.first()`)으로 짝 검사 눈을 피하는 형태도 잡혀야 한다.
+    const chained = `test('a', async () => { expect(page.getByTestId('shell').first()).toHaveCount(0); });`;
+    expect(unpairedDisappearances(otherTest)).toEqual(['shell']);
+    expect(unpairedDisappearances(wrongOrder)).toEqual(['shell']);
+    expect(unpairedDisappearances(chained)).toEqual(['shell']);
+    // 순서가 맞으면(존재 확인 → 소멸) 통과해야 한다 — 규칙이 과잉이면 안 된다.
+    const rightOrder = `test('a', async () => { expect(page.getByTestId('shell')).toBeVisible(); `
+      + `expect(page.getByTestId('shell')).toHaveCount(0); });`;
+    expect(unpairedDisappearances(rightOrder)).toEqual([]);
+  });
+
+  it('주요 문구 선택자 우회 형태를 전부 잡는다', () => {
+    const bad = [
+      `page.locator('h1:has-text("Tours")')`,
+      `page.getByText('Tours')`,
+      `page.getByRole('heading', { name: 'Tours' })`,
+      `page.locator('article').filter({ hasText: 'Tours' })`,
+    ].join('\n');
+    expect(translatedTextSelectors(bad)).toHaveLength(4);
+    expect(translatedTextSelectors(`page.getByAltText('Tours')`)).toHaveLength(1);
+    // 🔴 합법적인 role level 단언은 막지 않는다 — 뒤에 무관한 `name:` 이 있어도 마찬가지.
+    //    옛 판은 옵션 객체를 넘어 파일 뒤쪽까지 훑어 여기서 거짓 적발이 났다.
+    expect(translatedTextSelectors(`page.getByRole('heading', { level: 1 })`)).toEqual([]);
+    expect(translatedTextSelectors(
+      `page.getByRole('heading', { level: 1 });\nconst meta = { name: 'unrelated' };`,
+    )).toEqual([]);
   });
 });
