@@ -163,6 +163,19 @@ jobs:
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
 
+      # 운영 전용 daily-health 에만 있던 SPA 내비 검사를 PR 미리보기에도 연결한다.
+      # 선택자/testid 변경이 며칠 뒤 예약 검사에서 처음 드러나는 공백을 막는다.
+      - name: Run SPA nav smoke against preview URL (3 viewports)
+        if: github.event_name == 'deployment_status'
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          npx playwright test tests/e2e/nav-link-transitions.spec.ts \
+            --project='Desktop Chrome' \
+            --project='Pixel 5' \
+            --project='iPhone 14 Pro'
+
       # /charter 첫 진입 마찰 (2026-08-01). 돈이 들어오는 페이지의 첫 화면이 팝업으로
       # 덮여 있던 사고의 회귀 방지(당시 인용한 "14명" 수치는 자동 테스트 오염분으로 정정됨).
       # 오버레이가 견적 입력을 가리는 상황을 3개 뷰포트에서 잡는다.
