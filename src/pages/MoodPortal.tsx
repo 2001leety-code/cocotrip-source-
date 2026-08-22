@@ -20,7 +20,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
-import { openDaumPostcode } from '@/lib/daumPostcode';
 import { signalAppReady } from '@/lib/appReady';
 import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
@@ -28,6 +27,12 @@ import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
 import { MoodBookingChangeModal } from '@/components/mood/MoodBookingChangeModal';
+import {
+  MoodSettlementApprovalPanel,
+  MoodSettlementEditor,
+  type SettlementApprovalSummary,
+  type SettlementMode,
+} from '@/components/mood/MoodSettlementEditor';
 import { MoodBookingShareCard, MoodBookingCopyButton } from '@/components/mood/MoodBookingShareCard';
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import { normalizeMoodCoursePercentages, type MoodBookingShareData } from '@/lib/moodBookingShare';
@@ -78,7 +83,12 @@ interface MoodBreakdown {
   baseKRW?: number;
   distanceSurchargeKRW?: number;
   tollKRW?: number;
+  estimatedTollKRW?: number;
   km?: number;
+  distanceSource?: 'manual' | 'route' | 'booked';
+  actualTotalKm?: number;
+  excludedKm?: number;
+  recomputed?: boolean;
   routeKm?: number;
   durationMin?: number;
   origin?: string;
@@ -118,7 +128,18 @@ interface MoodBooking {
   adjustmentKRW?: number | null;
   manualAdjustmentKRW?: number | null;
   settlementReason?: string | null;
-  tollMode?: 'estimated' | 'none' | 'actual' | null;
+  tollMode?: 'estimated' | 'none' | 'actual' | 'itemized' | null;
+  tollEntries?: Array<{
+    label: string;
+    date?: string | null;
+    amountKRW: number;
+    status: 'pending' | 'confirmed';
+    includedInSettlement: boolean;
+    evidenceRef?: string | null;
+  }> | null;
+  correctionCount?: number;
+  lastCorrectionReason?: string | null;
+  settlementApproval?: SettlementApprovalSummary | null;
   /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
   runningBalanceKRW?: number | null;
   /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
@@ -133,6 +154,7 @@ interface MoodData {
   client: { name: string; balanceKRW: number };
   bookings: MoodBooking[];
   isAdmin: boolean;
+  canApproveSettlement: boolean;
 }
 
 type LedgerTab = 'today' | 'upcoming' | 'settle' | 'calendar' | 'all';
@@ -398,29 +420,9 @@ export default function MoodPortal() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelMsg, setCancelMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
-  const [settleId, setSettleId] = useState<string | null>(null);
-  const [settleHours, setSettleHours] = useState('');
-  const [settling, setSettling] = useState(false);
-  const [settleMsg, setSettleMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  // 정산 시 추가 방문지(실제 경로) — 정확한 거리 재측정용. 예약 경로로 prefill 후 매니저가 수정/추가.
-  const [settleOrigin, setSettleOrigin] = useState('');
-  const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
-  const [settleDestination, setSettleDestination] = useState('');
-  const [settleCourseMoodPercentages, setSettleCourseMoodPercentages] = useState<number[]>([100, 100]);
-  const [settleTollMode, setSettleTollMode] = useState<'estimated' | 'none' | 'actual'>('estimated');
-  const [settleActualTollKRW, setSettleActualTollKRW] = useState('');
-  const [settleManualAdjustmentKRW, setSettleManualAdjustmentKRW] = useState('0');
-  const [settleReason, setSettleReason] = useState('');
-  const settleCourseItems = useMemo(() => [
-    { address: settleOrigin.trim(), percentageIndex: 0 },
-    ...settleWaypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
-    { address: settleDestination.trim(), percentageIndex: settleCourseMoodPercentages.length - 1 },
-  ].filter((item) => item.address), [settleOrigin, settleWaypoints, settleDestination, settleCourseMoodPercentages.length]);
-  const settleCourseMoodPercentageValues = useMemo(
-    () => settleCourseItems.map((item) => settleCourseMoodPercentages[item.percentageIndex] || 0),
-    [settleCourseItems, settleCourseMoodPercentages],
-  );
+  // 실제 이용 정산/정정은 같은 편집기를 재사용한다. 금액은 편집기 안에서 서버 미리보기 후 확정한다.
+  const [settlementEditor, setSettlementEditor] = useState<{ booking: MoodBooking; mode: 'initial' | 'correction' } | null>(null);
+  const [settlementNotice, setSettlementNotice] = useState<{ bookingId: string; text: string } | null>(null);
 
   // 예상 금액 분해 — base + 거리추가 + 톨비. 공항은 정액 + 경유 우회거리 요금.
   const breakdown = useMemo(
@@ -719,95 +721,6 @@ export default function MoodPortal() {
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
-  // 운행 종료 정산 — 실제 시간 + (추가 방문지로) 실제 거리 재측정 → 최종 금액·잔액 조정 + 영수증.
-  const handleSettle = useCallback(async (bookingId: string) => {
-    const hours = Number(settleHours);
-    if (!Number.isFinite(hours) || hours <= 0) {
-      setSettleMsg({ kind: 'err', text: '실제 시간을 입력하세요' });
-      return;
-    }
-    // 실제 경로 — 출발·도착이 둘 다 있을 때만 백엔드가 Naver 로 거리 재측정. 경유지는 빈 칸 제외.
-    const o = settleOrigin.trim();
-    const d = settleDestination.trim();
-    const wp = settleWaypoints.map((s) => s.trim()).filter(Boolean);
-    if (!!o !== !!d) {
-      setSettleMsg({ kind: 'err', text: '실제 경로의 출발지와 도착지를 모두 입력하세요' });
-      return;
-    }
-    let actualTollKRW: number | undefined;
-    if (settleTollMode === 'actual') {
-      const rawActualToll = settleActualTollKRW.trim();
-      const parsedActualToll = Number(rawActualToll);
-      if (!rawActualToll || !Number.isSafeInteger(parsedActualToll) || parsedActualToll < 0 || parsedActualToll > 1000000) {
-        setSettleMsg({ kind: 'err', text: '실제 톨비를 0원 이상 1,000,000원 이하 정수로 입력하세요' });
-        return;
-      }
-      actualTollKRW = parsedActualToll;
-    }
-    const routePayload = o && d ? {
-      origin: o,
-      destination: d,
-      waypoints: wp,
-      courseMoodPercentages: settleCourseMoodPercentageValues,
-    } : {};
-    setSettling(true);
-    setSettleMsg(null);
-    try {
-      const res = await authFetch('/api/mood-settle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId,
-          actualHours: hours,
-          ...routePayload,
-          tollMode: settleTollMode,
-          actualTollKRW,
-          manualAdjustmentKRW: Number(settleManualAdjustmentKRW || 0),
-          settlementReason: settleReason.trim() || undefined,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        const adj = json.data.adjustmentKRW;
-        const adjTxt = adj > 0 ? `추가 ${formatKRW(adj)}` : adj < 0 ? `환원 ${formatKRW(-adj)}` : '조정 없음';
-        const kmTxt = json.data.routeRecomputed ? ` · 거리 ${json.data.km}km 재측정` : '';
-        setSettleMsg({ kind: 'ok', text: `정산 완료 — 최종 ${formatKRW(json.data.finalAmountKRW)} (${adjTxt})${kmTxt}` });
-        setSettleId(null);
-        setSettleHours('');
-        setSettleOrigin('');
-        setSettleDestination('');
-        setSettleWaypoints([]);
-        setSettleCourseMoodPercentages([100, 100]);
-        setSettleTollMode('estimated');
-        setSettleActualTollKRW('');
-        setSettleManualAdjustmentKRW('0');
-        setSettleReason('');
-        await loadData(data?.clientId);
-      } else {
-        setSettleMsg({ kind: 'err', text: json?.error || `정산 실패 (${res.status})` });
-      }
-    } catch (e) {
-      setSettleMsg({ kind: 'err', text: e instanceof Error ? e.message : '정산 실패' });
-    } finally {
-      setSettling(false);
-    }
-  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, settleCourseMoodPercentageValues, settleTollMode, settleActualTollKRW, settleManualAdjustmentKRW, settleReason, data, loadData]);
-
-  // ── 정산 경유지 배열 조작 (예약 폼과 동일 규칙, 최대 5 = 백엔드 한도) ──
-  const addSettleWaypoint = useCallback(() => {
-    setSettleWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
-    setSettleCourseMoodPercentages((items) => items.length >= 7
-      ? items
-      : [...items.slice(0, -1), items[items.length - 1] === undefined ? 100 : items[items.length - 1], items[items.length - 1] === undefined ? 100 : items[items.length - 1]]);
-  }, []);
-  const removeSettleWaypoint = useCallback((i: number) => {
-    setSettleWaypoints((w) => w.filter((_, idx) => idx !== i));
-    setSettleCourseMoodPercentages((items) => items.filter((_, idx) => idx !== i + 1));
-  }, []);
-  const setSettleWaypointAt = useCallback((i: number, val: string) => {
-    setSettleWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
-  }, []);
-
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
   //    게이트 아래 두면 loading/미로그인 렌더 땐 안 불려 "더 많은 훅" 크래시).
@@ -888,16 +801,6 @@ export default function MoodPortal() {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // 다음 우편번호 팝업 → 선택 주소를 콜백으로 적용. 로드 실패/취소는 무시(수동 입력 가능).
-  const searchAddress = useCallback(async (apply: (addr: string) => void) => {
-    try {
-      const addr = await openDaumPostcode();
-      if (addr) apply(addr);
-    } catch {
-      // 스크립트 로드 실패 — 수동 입력으로 진행
-    }
-  }, []);
-
   // PWA 실행 스플래시 페이드아웃 — 인증 끝나 포털/로그인 화면이 그려질 때 신호(무드 standalone 진입점).
   // (인증 대기 중엔 스플래시가 유지되어 "검정 갭" 을 가린다. 훅은 게이트보다 위 = rules-of-hooks.)
   // 더블 rAF: effect 시점엔 아직 페인트 전일 수 있음 — 다음 프레임이 실제로 그려진 뒤 신호해야
@@ -964,7 +867,12 @@ export default function MoodPortal() {
   //   환불이 끝나 배차도 청구도 남지 않은 기록이라 보드에서는 노이즈다. 문서는 지우지 않으므로
   //   (mood-cancel 이 status='cancelled' + refundKRW 로 남김) 감사 추적은 Firestore 에 보존된다.
   const activeBookings = bookings.filter((b) => b.status !== 'cancelled').sort(chronological);
-  const settleBookings = bookings.filter((b) => b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= today).sort(chronological);
+  const settleBookings = bookings.filter((b) => {
+    const approvalStatus = b.settlementApproval?.status;
+    const hasOpenProposal = approvalStatus === 'awaiting_mood' || approvalStatus === 'changes_requested';
+    const needsInitialSettlement = b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= today;
+    return needsInitialSettlement || hasOpenProposal;
+  }).sort(chronological);
   const completedBookings = bookings.filter((b) => b.status === 'completed');
   const calendarDays = daysInMonthGrid(calendarMonth);
   const bookingsByDate = bookings.reduce<Record<string, MoodBooking[]>>((acc, b) => {
@@ -1677,12 +1585,23 @@ export default function MoodPortal() {
           ) : (
             <ul className="flex flex-col gap-2">
               {visibleBookings.map((b) => {
-                const bd = b.breakdown;
+                const completed = b.status === 'completed';
+                const bookedBd = b.breakdown;
+                const bd = completed && b.finalBreakdown ? b.finalBreakdown : bookedBd;
                 const routeText = routeTextFromBreakdown(bd);
                 const stops = cleanStops(bd);
                 const expanded = expandedBookingId === b.id;
-                const canSettle = data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport';
-                const serviceTime = b.serviceType === 'airport' ? '정액' : `${b.durationHours}시간`;
+                const needsSettlement = b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= todayISO();
+                const settlementApprovalStatus = b.settlementApproval?.status;
+                const hasOpenSettlementProposal = settlementApprovalStatus === 'awaiting_mood' || settlementApprovalStatus === 'changes_requested';
+                const canSettle = !!data?.isAdmin && needsSettlement && !hasOpenSettlementProposal;
+                const awaitingOperator = !data?.isAdmin && needsSettlement && !hasOpenSettlementProposal;
+                const settlementStatusLabel = settlementApprovalStatus === 'awaiting_mood'
+                  ? data?.isAdmin ? 'MOOD 확인 대기' : data?.canApproveSettlement ? '내 금액 확인 필요' : '승인 담당자 확인 대기'
+                  : settlementApprovalStatus === 'changes_requested'
+                    ? data?.isAdmin ? 'MOOD 수정 요청' : '수정 요청 전달됨'
+                    : null;
+                const serviceTime = b.serviceType === 'airport' ? '정액' : `${completed ? (b.actualHours || b.durationHours) : b.durationHours}시간`;
                 // 공항은 어느 공항인지가 금액을 결정 → 목록에서 바로 보이게 (레거시 예약=인천).
                 const serviceName = b.serviceType === 'airport'
                   ? MOOD_AIRPORT_LABEL[normalizeAirportCode(b.airportCode)]
@@ -1703,7 +1622,7 @@ export default function MoodPortal() {
                           {b.date} · {b.startTime}
                         </span>
                         <span className="block text-[11px] truncate" style={{ color: b.status === 'cancelled' ? '#fca5a5' : C.textDim }}>
-                          {serviceName} {serviceTime} · {b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정'}
+                          {serviceName} {serviceTime} · {settlementStatusLabel || (b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정')}
                         </span>
                         {routeText && (
                           <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>
@@ -1713,9 +1632,16 @@ export default function MoodPortal() {
                         )}
                       </button>
                       <div className="text-right shrink-0">
-                        <span className="text-sm font-bold" style={{ color: b.status === 'completed' ? C.ok : C.danger }}>
-                          −{formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
-                        </span>
+                        {hasOpenSettlementProposal && b.settlementApproval ? (
+                          <>
+                            <span className="text-sm font-bold" style={{ color: C.accentSolid }}>제안 {formatKRW(b.settlementApproval.finalAmountKRW)}</span>
+                            <p className="text-[10px]" style={{ color: C.textDim }}>아직 잔액 미반영</p>
+                          </>
+                        ) : (
+                          <span className="text-sm font-bold" style={{ color: b.status === 'completed' ? C.ok : C.danger }}>
+                            −{formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
+                          </span>
+                        )}
                         {typeof b.runningBalanceKRW === 'number' && (
                           <p className="text-[11px]" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
                             잔액 {formatBalance(b.runningBalanceKRW)}
@@ -1767,7 +1693,7 @@ export default function MoodPortal() {
                           >
                             영수증
                           </button>
-                          {b.status === 'confirmed' && (
+                          {b.status === 'confirmed' && !hasOpenSettlementProposal && (
                             <button
                               type="button"
                               onClick={() => setChangeBooking(b)}
@@ -1803,7 +1729,7 @@ export default function MoodPortal() {
                           >
                             같은 내용으로 새 예약
                           </button>
-                          {b.status === 'confirmed' && (
+                          {b.status === 'confirmed' && !hasOpenSettlementProposal && (
                             <button
                               type="button"
                               onClick={() => { setCancelConfirmId((id) => (id === b.id ? null : b.id)); setCancelMsg(null); }}
@@ -1815,27 +1741,22 @@ export default function MoodPortal() {
                           )}
                           {canSettle && <button
                             type="button"
-                            onClick={() => {
-                              setSettleId(b.id);
-                              setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS));
-                              setSettleOrigin(b.breakdown?.origin || '');
-                              setSettleDestination(b.breakdown?.destination || '');
-                              const nextWaypoints = Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : [];
-                              const nextPayerCount = nextWaypoints.length + 2;
-                              setSettleWaypoints(nextWaypoints);
-                              setSettleCourseMoodPercentages(normalizeMoodCoursePercentages(
-                                b.courseMoodPercentages,
-                                nextPayerCount,
-                                b.coursePayers,
-                                b.serviceType === 'airport' ? 50 : 100,
-                              ));
-                              setSettleMsg(null);
-                            }}
+                            onClick={() => setSettlementEditor({ booking: b, mode: 'initial' })}
                             className="rounded-xl px-3 py-2 text-[11px] font-semibold"
                             style={{ background: C.accent, border: '1px solid transparent', color: '#fff' }}
                           >
-                            운행 종료 정산
+                            실제 이용 정산
                           </button>}
+                          {data?.isAdmin && completed && b.serviceType !== 'airport' && !hasOpenSettlementProposal && (
+                            <button
+                              type="button"
+                              onClick={() => setSettlementEditor({ booking: b, mode: 'correction' })}
+                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
+                            >
+                              정산 정정
+                            </button>
+                          )}
                         </div>
 
                         {/* 취소 2단계 확인 — 환불액 명시 후 확정 */}
@@ -1886,133 +1807,57 @@ export default function MoodPortal() {
                       </div>
                     )}
 
-                    {/* 운행 종료 정산 (admin · 시간제 · 미정산) */}
-                    {data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport' && settleId === b.id && (
-                      <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(124,92,252,0.12)' }}>
-                          <div className="flex flex-col gap-2">
-                            {/* 실제 시간 */}
-                            <label className="flex items-center gap-2">
-                              <span className="text-[11px] shrink-0" style={{ color: C.textDim }}>실제 시간</span>
-                              <input
-                                type="number"
-                                min={MOOD_MIN_DURATION_HOURS}
-                                max={MOOD_MAX_DURATION_HOURS}
-                                value={settleHours}
-                                onChange={(e) => setSettleHours(e.target.value)}
-                                placeholder="실제 시간"
-                                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
-                                style={inputStyle}
-                              />
-                            </label>
+                    {settlementEditor?.booking.id === b.id && (
+                      <MoodSettlementEditor
+                        key={`${b.id}-${settlementEditor.mode}-${b.revision || 0}`}
+                        booking={b}
+                        mode={settlementEditor.mode}
+                        onClose={() => setSettlementEditor(null)}
+                        onCompleted={async (text) => {
+                          setSettlementNotice({ bookingId: b.id, text });
+                          setSettlementEditor(null);
+                          await loadData(data?.clientId);
+                        }}
+                      />
+                    )}
 
-                            {/* 실제 방문 경로 — 추가 방문지 넣으면 정확한 거리 재측정 (Naver) */}
-                            <div className="rounded-lg p-2.5 flex flex-col gap-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
-                              <p className="text-[11px] font-semibold" style={{ color: C.textDim }}>
-                                실제 방문 경로 <span className="font-normal">— 추가 방문지 넣으면 정확한 거리로 재측정</span>
-                              </p>
-                              {/* 출발 */}
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  value={settleOrigin}
-                                  onChange={(e) => setSettleOrigin(e.target.value)}
-                                  placeholder="출발지"
-                                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
-                                  style={inputStyle}
-                                />
-                                <button type="button" onClick={() => { void searchAddress(setSettleOrigin); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="출발지 주소 검색">검색</button>
-                              </div>
-                              {/* 경유(방문)지 */}
-                              {settleWaypoints.map((wp, i) => (
-                                <div key={i} className="flex items-center gap-1.5">
-                                  <input
-                                    value={wp}
-                                    onChange={(e) => setSettleWaypointAt(i, e.target.value)}
-                                    placeholder={`방문지 ${i + 1}`}
-                                    className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
-                                    style={inputStyle}
-                                  />
-                                  <button type="button" onClick={() => { void searchAddress((v) => setSettleWaypointAt(i, v)); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label={`방문지 ${i + 1} 주소 검색`}>검색</button>
-                                  <button type="button" onClick={() => removeSettleWaypoint(i)} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.danger }} aria-label={`방문지 ${i + 1} 삭제`}>✕</button>
-                                </div>
-                              ))}
-                              {settleWaypoints.length < 5 && (
-                                <button type="button" onClick={addSettleWaypoint} className="self-start text-[11px] underline" style={{ color: C.accentSolid }}>
-                                  + 방문지 추가
-                                </button>
-                              )}
-                              {/* 도착 */}
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  value={settleDestination}
-                                  onChange={(e) => setSettleDestination(e.target.value)}
-                                  placeholder="도착지"
-                                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
-                                  style={inputStyle}
-                                />
-                                <button type="button" onClick={() => { void searchAddress(setSettleDestination); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="도착지 주소 검색">검색</button>
-                              </div>
-                              {settleCourseItems.length >= 2 && (
-                                <MoodCourseShareEditor items={settleCourseItems} percentages={settleCourseMoodPercentages} totalKRW={b.amountKRW} influencerName={b.influencerName} onChange={setSettleCourseMoodPercentages} compact />
-                              )}
-                              <p className="text-[10px]" style={{ color: C.textDim }}>* 비워두면 예약 시 측정한 거리로 정산됩니다.</p>
-                            </div>
+                    {b.settlementApproval && (
+                      <MoodSettlementApprovalPanel
+                        booking={b}
+                        isAdmin={Boolean(data?.isAdmin)}
+                        canApproveSettlement={Boolean(data?.canApproveSettlement)}
+                        onEdit={(mode: SettlementMode) => setSettlementEditor({ booking: b, mode })}
+                        onResponded={async (text) => {
+                          setSettlementNotice({ bookingId: b.id, text });
+                          setSettlementEditor(null);
+                          await loadData(data?.clientId);
+                        }}
+                      />
+                    )}
 
-                            <div className="rounded-lg p-2.5 flex flex-col gap-2" style={{ background: C.inputBg, border: C.inputBorder }}>
-                              <label className="text-[11px] font-semibold" style={{ color: C.textDim }}>
-                                실제 톨비
-                                <select value={settleTollMode} onChange={(e) => setSettleTollMode(e.target.value as 'estimated' | 'none' | 'actual')} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle}>
-                                  <option value="estimated">예상대로 지불</option>
-                                  <option value="none">톨비 미지불 (0원)</option>
-                                  <option value="actual">실제 금액 입력</option>
-                                </select>
-                              </label>
-                              {settleTollMode === 'actual' && (
-                                <label className="text-[11px]" style={{ color: C.textDim }}>실제 톨비(원)
-                                  <input type="number" min={0} max={1000000} value={settleActualTollKRW} onChange={(e) => setSettleActualTollKRW(e.target.value)} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle} />
-                                </label>
-                              )}
-                              <label className="text-[11px]" style={{ color: C.textDim }}>기타 금액 조정(원) <span className="opacity-70">· 할인은 음수</span>
-                                <input type="number" value={settleManualAdjustmentKRW} onChange={(e) => setSettleManualAdjustmentKRW(e.target.value)} className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs" style={inputStyle} />
-                              </label>
-                              <label className="text-[11px]" style={{ color: C.textDim }}>조정 이유 {(settleTollMode !== 'estimated' || Number(settleManualAdjustmentKRW || 0) !== 0) && <span style={{ color: C.danger }}>필수</span>}
-                                <textarea value={settleReason} onChange={(e) => setSettleReason(e.target.value)} maxLength={500} rows={2} placeholder="예: 하이패스 미사용으로 톨비 미지불" className="mt-1 w-full rounded-lg px-2.5 py-2 text-xs resize-y" style={inputStyle} />
-                              </label>
-                            </div>
-
-                            {/* 확정 / 취소 */}
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => { void handleSettle(b.id); }}
-                                disabled={settling}
-                                className="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-                                style={{ background: C.accent, color: '#fff' }}
-                              >
-                                {settling ? '정산 중…' : '정산 확정'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setSettleId(null); setSettleMsg(null); }}
-                                className="rounded-lg px-2.5 py-1.5 text-xs"
-                                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
-                              >
-                                취소
-                              </button>
-                            </div>
-                          </div>
-                        {settleId === b.id && settleMsg && (
-                          <p className="text-[11px] mt-1" style={{ color: settleMsg.kind === 'ok' ? C.ok : C.danger }}>{settleMsg.text}</p>
-                        )}
+                    {awaitingOperator && (
+                      <div className="mt-2 rounded-xl px-3 py-2 text-[11px]" style={{ color: '#fde68a', background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.24)' }}>
+                        <b>운행 완료 · 운영자 정산 대기</b>
+                        <span className="block mt-0.5 opacity-80">실제 이용 내역과 최종 금액을 운영자가 확인하고 있습니다.</span>
                       </div>
+                    )}
+
+                    {settlementNotice?.bookingId === b.id && (
+                      <p className="mt-2 text-[11px]" role="status" aria-live="polite" style={{ color: C.ok }}>{settlementNotice.text}</p>
                     )}
 
                     {/* 정산 완료 배지 */}
                     {b.status === 'completed' && (
                       <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px solid rgba(110,231,183,0.15)', color: C.ok }}>
-                        ✓ 정산 완료 · 실제 {b.actualHours || '?'}시간 · 최종 {formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
-                        {typeof b.adjustmentKRW === 'number' && b.adjustmentKRW !== 0 && (
-                          <span style={{ color: C.textDim }}> ({b.adjustmentKRW > 0 ? '+' : ''}{formatKRW(b.adjustmentKRW)})</span>
+                        <p>✓ 정산 완료 · 실제 {b.actualHours || '?'}시간 · {Number(bd?.km || 0).toLocaleString('ko-KR')}km · 톨비 {formatKRW(Number(bd?.tollKRW || 0))}</p>
+                        <p className="mt-0.5" style={{ color: C.textDim }}>
+                          예약 {formatKRW(b.amountKRW)} → 최종 {formatKRW(typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : b.amountKRW)}
+                          {typeof b.adjustmentKRW === 'number' && b.adjustmentKRW !== 0 && ` (${b.adjustmentKRW > 0 ? '+' : '−'}${formatKRW(Math.abs(b.adjustmentKRW))})`}
+                        </p>
+                        {bd?.distanceSource === 'manual' && typeof bd.actualTotalKm === 'number' && typeof bd.excludedKm === 'number' && (
+                          <p className="mt-0.5" style={{ color: C.textDim }}>거리 {bd.actualTotalKm}km − 제외 {bd.excludedKm}km = 정산 {bd.km}km</p>
                         )}
+                        {!!b.correctionCount && <p className="mt-0.5" style={{ color: '#fca5a5' }}>정정 {b.correctionCount}회{b.lastCorrectionReason ? ` · ${b.lastCorrectionReason}` : ''}</p>}
                       </div>
                     )}
                   </li>

@@ -24,11 +24,24 @@ import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeMoodTotalKRW, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import {
+  buildSettlementPreviewHash,
+  legacyMoodPayersForPercentages as legacyPayersForPercentages,
+  MOOD_COURSE_SHARE_SCHEMA_VERSION as COURSE_SHARE_SCHEMA_VERSION,
+  normalizeRequestedMoodCourseShare,
+  normalizeStoredMoodCourseShare as normalizeStoredCourseShare,
+  normalizeTollEntries,
+  validateActualDistance,
+} from './_shared/mood-settle-calc.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot } from './_shared/mood-route-snapshot.js';
+import {
+  buildSettlementApprovalSummary,
+  buildSettlementIdempotencyDocumentId,
+  buildSettlementProposalId,
+  settlementProposalVersionOf,
+} from './_shared/mood-settlement-proposal.js';
 import { notify } from './_shared/notify.js';
-import { buildMoodSettlementReceiptEmail } from './_shared/mood-receipt.js';
-import { sendEmail } from './_send-email.js';
 
 /** body.waypoints 정규화 — 배열 또는 "A|B" 문자열 둘 다 허용 (mood-book 과 동일 규칙). */
 function normalizeWaypoints(raw) {
@@ -41,63 +54,6 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'POST, OPTIONS';
-const COURSE_SHARE_SCHEMA_VERSION = 2;
-
-function legacyPayersForPercentages(percentages) {
-  if (!percentages.every((percentage) => percentage === 0 || percentage === 100)) return null;
-  return percentages.map((percentage) => percentage === 100 ? 'mood' : 'influencer');
-}
-
-function hasOwn(value, key) {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function routeStopCount(breakdown) {
-  const value = breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) ? breakdown : {};
-  const origin = typeof value.origin === 'string' ? value.origin.trim() : '';
-  const destination = typeof value.destination === 'string' ? value.destination.trim() : '';
-  const waypoints = value.waypoints === undefined || value.waypoints === null ? [] : value.waypoints;
-  if (!Array.isArray(waypoints) || waypoints.some((waypoint) => typeof waypoint !== 'string' || !waypoint.trim())) return null;
-  if (!origin && !destination && waypoints.length === 0) return 0;
-  if (!origin || !destination) return null;
-  return waypoints.length + 2;
-}
-
-function normalizeStoredCourseShare(booking) {
-  const stopCount = routeStopCount(booking.breakdown);
-  if (stopCount === null) return { ok: false };
-  const hasCanonicalField = hasOwn(booking, 'courseMoodPercentages') || hasOwn(booking, 'courseShareSchemaVersion');
-  if (hasCanonicalField) {
-    const percentages = booking.courseMoodPercentages;
-    if (
-      booking.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
-      || !Array.isArray(percentages)
-      || percentages.length !== stopCount
-      || percentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
-    ) {
-      return { ok: false };
-    }
-    return { ok: true, percentages: percentages.slice(), payers: legacyPayersForPercentages(percentages) };
-  }
-  if (hasOwn(booking, 'coursePayers') && booking.coursePayers !== null) {
-    const payers = booking.coursePayers;
-    if (
-      !Array.isArray(payers)
-      || payers.length !== stopCount
-      || payers.some((payer) => payer !== 'mood' && payer !== 'influencer')
-    ) {
-      return { ok: false };
-    }
-    return {
-      ok: true,
-      percentages: payers.map((payer) => payer === 'mood' ? 100 : 0),
-      payers: payers.slice(),
-    };
-  }
-  const percentages = Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
-  return { ok: true, percentages, payers: legacyPayersForPercentages(percentages) };
-}
-
 export default async function handler(req, res) {
   const JSON_HEADERS = { 'Cache-Control': 'no-store', ...buildAdminJsonCors(req, { methods: CORS_METHODS, headers: 'Authorization, Content-Type' }) };
 
@@ -135,7 +91,7 @@ export default async function handler(req, res) {
   const rawTollMode = body.tollMode === undefined || body.tollMode === null || body.tollMode === ''
     ? 'estimated'
     : String(body.tollMode);
-  if (!['estimated', 'none', 'actual'].includes(rawTollMode)) {
+  if (!['estimated', 'none', 'actual', 'itemized'].includes(rawTollMode)) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'INVALID_TOLL_MODE' }));
   }
@@ -150,11 +106,68 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'INVALID_ACTUAL_TOLL' }));
   }
+  // itemized — 톨비 항목(뒷돈/카드충전 등 비-톨비 항목 제외) 을 서버가 직접 합산한다.
+  // 클라가 보낸 합계는 절대 신뢰하지 않는다 (INVALID_TOLL_ENTRY_* / TOO_MANY_TOLL_ENTRIES).
+  let tollEntries = [];
+  let itemizedTollKRW = 0;
+  let pendingIncludedTollCount = 0;
+  if (tollMode === 'itemized') {
+    const normalizedEntries = normalizeTollEntries(body.tollEntries);
+    if (!normalizedEntries.ok) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: normalizedEntries.error }));
+    }
+    tollEntries = normalizedEntries.entries;
+    itemizedTollKRW = normalizedEntries.includedTollKRW;
+    pendingIncludedTollCount = normalizedEntries.pendingIncludedCount;
+  } else if (body.tollEntries !== undefined) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_TOLL_ENTRIES' }));
+  }
+  // 실사용 거리(총 주행 − 픽업 전/비과금 제외) — route override 와 동시 사용 불가(출처 충돌).
+  // 서버가 excludedKm 를 뺀 정산거리(billableKm) 를 재계산한다 (클라 정산거리는 무시).
+  const hasManualDistance = body.actualTotalKm !== undefined && body.actualTotalKm !== null;
+  let manualDistance = null;
+  if (hasManualDistance) {
+    const validated = validateActualDistance({ actualTotalKm: body.actualTotalKm, excludedKm: body.excludedKm });
+    if (!validated.ok) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: validated.error }));
+    }
+    manualDistance = validated;
+  } else if (body.excludedKm !== undefined) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_EXCLUDED_KM' }));
+  }
+  if (body.expectedRevision === undefined || body.expectedRevision === null) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'EXPECTED_REVISION_REQUIRED' }));
+  }
+  const expectedRevision = Number(body.expectedRevision);
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_EXPECTED_REVISION' }));
+  }
+  const acknowledgedPendingTolls = body.acknowledgePendingTolls === true;
+  if (pendingIncludedTollCount > 0 && !acknowledgedPendingTolls) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'PENDING_TOLL_ACK_REQUIRED' }));
+  }
+  const previewHash = typeof body.previewHash === 'string' ? body.previewHash.trim() : '';
+  if (!/^[a-f0-9]{64}$/.test(previewHash)) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: previewHash ? 'INVALID_PREVIEW_HASH' : 'PREVIEW_REQUIRED' }));
+  }
+  const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+  if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: 'INVALID_IDEMPOTENCY_KEY' }));
+  }
   if (!Number.isInteger(manualAdjustmentKRW) || Math.abs(manualAdjustmentKRW) > 10000000) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'INVALID_MANUAL_ADJUSTMENT' }));
   }
-  if ((tollMode !== 'estimated' || manualAdjustmentKRW !== 0) && !settlementReason) {
+  if ((tollMode !== 'estimated' || manualAdjustmentKRW !== 0 || hasManualDistance) && !settlementReason) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'SETTLEMENT_REASON_REQUIRED' }));
   }
@@ -176,6 +189,35 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: '권한 없음 (운영자 전용)' }));
     }
 
+    const requestPayloadHash = buildSettlementPreviewHash({
+      mode: 'initial-proposal-request',
+      bookingId,
+      expectedRevision,
+      previewHash,
+    });
+    const proposalId = buildSettlementProposalId({ bookingId, actorEmail: email, idempotencyKey });
+    const proposalRef = db.collection('mood_settlement_proposals').doc(proposalId);
+    const idempotencyRef = db.collection('mood_settlement_idempotency').doc(buildSettlementIdempotencyDocumentId({
+      scope: 'mood-settlement-proposal',
+      actorEmail: email,
+      idempotencyKey,
+    }));
+    // 성공 응답을 잃은 재시도는 예약 revision이 이미 바뀌었어도 같은 결과를 재생한다.
+    const priorIdempotencySnap = await idempotencyRef.get();
+    if (priorIdempotencySnap.exists) {
+      const stored = priorIdempotencySnap.data() || {};
+      if (stored.payloadHash !== requestPayloadHash) {
+        res.writeHead(409, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, error: 'IDEMPOTENCY_CONFLICT' }));
+      }
+      if (!stored.response || typeof stored.response !== 'object') {
+        res.writeHead(409, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, error: 'IDEMPOTENCY_RESPONSE_MISSING' }));
+      }
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ...stored.response, replayed: true }));
+    }
+
     const bookingRef = db.collection('mood_bookings').doc(bookingId);
 
     // ── 1) 사전 read — serviceType + 기존 경로/거리 (route 기본값·재사용·정액 게이트) ──
@@ -192,6 +234,12 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'ALREADY_SETTLED' }));
     }
     const preRevision = Number.isInteger(pre.revision) ? pre.revision : 0;
+    // 미리보기(mood-settle-preview) 에서 받은 revision 과 다르면 그새 예약이 바뀐 것 —
+    // 정산 확정을 막는다(그대로 진행하면 미리보기에서 못 본 변경을 덮어씀).
+    if (expectedRevision !== preRevision) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'STALE_REVISION' }));
+    }
     if (fixedPriceFor(pre.serviceType) !== null) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'AIRPORT_NO_SETTLE' }));
@@ -219,25 +267,23 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'INVALID_ROUTE_INPUT' }));
     }
     const hasRouteOverride = !!(newOrigin && newDest);
+    if (hasRouteOverride && hasManualDistance) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'CONFLICTING_DISTANCE_SOURCE' }));
+    }
     let settledCourseMoodPercentages = null;
     if (hasRouteOverride) {
       const expectedCourseCount = newWaypoints.length + 2;
-      if (
-        !Array.isArray(body.courseMoodPercentages)
-        || body.courseMoodPercentages.length !== expectedCourseCount
-        || body.courseMoodPercentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
-      ) {
+      const normalizedRequestedCourseShare = normalizeRequestedMoodCourseShare({
+        courseMoodPercentages: body.courseMoodPercentages,
+        courseShareSchemaVersion: body.courseShareSchemaVersion,
+        stopCount: expectedCourseCount,
+      });
+      if (!normalizedRequestedCourseShare.ok) {
         res.writeHead(400, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
+        return res.end(JSON.stringify({ ok: false, error: normalizedRequestedCourseShare.error }));
       }
-      if (
-        body.courseShareSchemaVersion !== undefined
-        && body.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
-      ) {
-        res.writeHead(400, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_SHARE_SCHEMA_VERSION' }));
-      }
-      settledCourseMoodPercentages = body.courseMoodPercentages.slice();
+      settledCourseMoodPercentages = normalizedRequestedCourseShare.percentages;
     } else if (
       body.courseMoodPercentages !== undefined
       || body.courseShareSchemaVersion !== undefined
@@ -251,17 +297,16 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' }));
     }
 
-    if (
-      !hasRouteOverride
-      && (
-      typeof preBd.km !== 'number'
-      || !Number.isFinite(preBd.km)
-      || preBd.km < 0
+    if (!hasRouteOverride && (
+      (!hasManualDistance && (
+        typeof preBd.km !== 'number'
+        || !Number.isFinite(preBd.km)
+        || preBd.km < 0
+      ))
       || typeof preBd.tollKRW !== 'number'
       || !Number.isFinite(preBd.tollKRW)
       || preBd.tollKRW < 0
-      )
-    ) {
+    )) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'INVALID_BOOKING_BREAKDOWN' }));
     }
@@ -306,7 +351,7 @@ export default async function handler(req, res) {
         };
         finalRouteSnapshot = buildRouteSnapshot(route);
       } else {
-        // 경로 재측정 실패 = 비치명적 → 예약 시 거리값 유지 (외상 "막지 않는다" 철학과 일관).
+        // 경로 재측정 실패 → 예약 거리로 조용히 대체하지 않고 아래에서 422로 fail-closed 처리한다.
         routeError = route.error || 'INVALID_ROUTE_RESULT';
         console.warn('[mood-settle] route 재측정 실패:', route.error, route.detail || '');
       }
@@ -315,10 +360,15 @@ export default async function handler(req, res) {
       res.writeHead(422, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'ROUTE_RECALCULATION_FAILED', detail: routeError }));
     }
+    // 실사용 거리(총 주행 − 제외 거리) — route 재측정과 배타적. 정산거리(billableKm)는
+    // 서버가 계산한 값만 쓴다(클라 정산거리 무시). 톨비는 그대로(거리와 별개 출처).
+    if (hasManualDistance) km = manualDistance.billableKm;
+    const distanceSource = hasManualDistance ? 'manual' : (hasRouteOverride ? 'route' : 'booked');
 
     const estimatedTollKRW = tollKRW;
     if (tollMode === 'none') tollKRW = 0;
     if (tollMode === 'actual') tollKRW = actualTollKRW;
+    if (tollMode === 'itemized') tollKRW = itemizedTollKRW;
 
     // ── 3) 최종 금액 (백엔드 SSOT — 클라 금액 무시) ──
     // 예약 당시 단가 보존(2026-07-04 요율 개정 33k→30k/44k→40k) — 옛 예약을 새 단가로
@@ -335,12 +385,65 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: finalPriced.error }));
     }
 
-    // ── 4) 트랜잭션 — 멱등 재확인 + 잔액 조정 (모든 read 를 write 전에) ──
+    const calculatedFinalAmount = finalPriced.amountKRW + manualAdjustmentKRW;
+    if (!Number.isSafeInteger(calculatedFinalAmount) || calculatedFinalAmount < 0) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_FINAL_AMOUNT' }));
+    }
+    if (!Number.isSafeInteger(pre.amountKRW) || pre.amountKRW < 0) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'INVALID_BOOKING_AMOUNT' }));
+    }
+    const previewPayload = {
+      mode: 'initial',
+      bookingId,
+      revision: preRevision,
+      actualHours,
+      km: finalPriced.km,
+      distanceSource,
+      actualTotalKm: hasManualDistance ? manualDistance.actualTotalKm : null,
+      excludedKm: hasManualDistance ? manualDistance.excludedKm : null,
+      tollMode,
+      tollKRW: finalPriced.tollKRW,
+      tollEntries: tollMode === 'itemized' ? tollEntries : null,
+      acknowledgedPendingTolls,
+      route: hasRouteOverride ? {
+        origin: newOrigin,
+        destination: newDest,
+        waypoints: newWaypoints,
+        courseMoodPercentages: settledCourseMoodPercentages,
+        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+      } : null,
+      manualAdjustmentKRW,
+      settlementReason: settlementReason || null,
+      bookedAmountKRW: pre.amountKRW,
+      finalAmountKRW: calculatedFinalAmount,
+    };
+    const calculatedPreviewHash = buildSettlementPreviewHash(previewPayload);
+    if (previewHash !== calculatedPreviewHash) {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'PREVIEW_MISMATCH' }));
+    }
+
+    const proposedAt = Date.now();
+
+    // ── 4) 트랜잭션 — 제안 저장만. 잔액/완료 상태는 MOOD 승인 전까지 불변 ──
     const result = await db.runTransaction(async (tx) => {
-      const bSnap = await tx.get(bookingRef);
+      const [idempotencySnap, bSnap] = await Promise.all([
+        tx.get(idempotencyRef),
+        tx.get(bookingRef),
+      ]);
+      if (idempotencySnap.exists) {
+        const stored = idempotencySnap.data() || {};
+        if (stored.payloadHash !== requestPayloadHash) return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+        if (!stored.response || typeof stored.response !== 'object') {
+          return { ok: false, status: 409, error: 'IDEMPOTENCY_RESPONSE_MISSING' };
+        }
+        return { ok: true, replayed: true, response: stored.response };
+      }
       if (!bSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const b = bSnap.data() || {};
-      if (b.status !== 'confirmed') return { ok: false, status: 409, error: 'ALREADY_SETTLED' }; // 멱등(동시정산 방지)
+      if (b.status !== 'confirmed') return { ok: false, status: 409, error: 'ALREADY_SETTLED' };
       const currentRevision = Number.isInteger(b.revision) ? b.revision : 0;
       if (currentRevision !== preRevision) return { ok: false, status: 409, error: 'BOOKING_CHANGED' };
       if (fixedPriceFor(b.serviceType) !== null) return { ok: false, status: 400, error: 'AIRPORT_NO_SETTLE' };
@@ -349,18 +452,19 @@ export default async function handler(req, res) {
       const finalCourseMoodPercentages = settledCourseMoodPercentages || currentCourseShare.percentages;
       const finalCoursePayers = legacyPayersForPercentages(finalCourseMoodPercentages);
 
-      const finalAmount = finalPriced.amountKRW + manualAdjustmentKRW;
+      const finalAmount = calculatedFinalAmount;
       const originalAmount = b.amountKRW;
-      if (!Number.isInteger(finalAmount) || finalAmount < 0) return { ok: false, status: 400, error: 'INVALID_FINAL_AMOUNT' };
-      if (!Number.isInteger(originalAmount) || originalAmount < 0) return { ok: false, status: 409, error: 'INVALID_BOOKING_AMOUNT' };
-      const diff = finalAmount - originalAmount; // >0 추가차감 / <0 환원
+      if (!Number.isSafeInteger(finalAmount) || finalAmount < 0) return { ok: false, status: 400, error: 'INVALID_FINAL_AMOUNT' };
+      if (!Number.isSafeInteger(originalAmount) || originalAmount < 0) return { ok: false, status: 409, error: 'INVALID_BOOKING_AMOUNT' };
+      if (originalAmount !== pre.amountKRW) return { ok: false, status: 409, error: 'BOOKING_CHANGED' };
+      const diff = finalAmount - originalAmount;
 
       const clientRef = db.collection('mood_clients').doc(String(b.clientId || ''));
       const cSnap = await tx.get(clientRef);
       if (!cSnap.exists) return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
       const clientData = cSnap.data() || {};
       const balance = clientData.balanceKRW;
-      if (!Number.isInteger(balance)) return { ok: false, status: 409, error: 'INVALID_CLIENT_BALANCE' };
+      if (!Number.isSafeInteger(balance)) return { ok: false, status: 409, error: 'INVALID_CLIENT_BALANCE' };
       const newBalance = balance - diff;
       if (!Number.isSafeInteger(diff) || !Number.isSafeInteger(newBalance)) {
         return { ok: false, status: 409, error: 'INVALID_CALCULATED_BALANCE' };
@@ -375,42 +479,122 @@ export default async function handler(req, res) {
         }
       }
 
-      tx.update(clientRef, { balanceKRW: newBalance });
-      tx.update(bookingRef, {
-        status: 'completed',
+      const existingApproval = b.settlementApproval && typeof b.settlementApproval === 'object'
+        ? b.settlementApproval
+        : null;
+      let previousProposalRef = null;
+      let previousProposalSnap = null;
+      if (
+        existingApproval
+        && existingApproval.proposalId
+        && existingApproval.proposalId !== proposalId
+        && (existingApproval.status === 'awaiting_mood' || existingApproval.status === 'changes_requested')
+      ) {
+        previousProposalRef = db.collection('mood_settlement_proposals').doc(String(existingApproval.proposalId));
+        previousProposalSnap = await tx.get(previousProposalRef);
+        if (!previousProposalSnap.exists) return { ok: false, status: 409, error: 'ACTIVE_PROPOSAL_NOT_FOUND' };
+      }
+
+      const version = settlementProposalVersionOf(b) + 1;
+      const nextRevision = currentRevision + 1;
+      const finalBreakdown = {
+        baseKRW: finalPriced.baseKRW,
+        distanceSurchargeKRW: finalPriced.distanceSurchargeKRW,
+        tollKRW: finalPriced.tollKRW,
+        estimatedTollKRW,
+        km: finalPriced.km,
+        distanceSource,
+        ...(hasManualDistance ? { actualTotalKm: manualDistance.actualTotalKm, excludedKm: manualDistance.excludedKm } : {}),
+        ...routeMeta,
+      };
+      const proposal = {
+        proposalId,
+        bookingId,
+        clientId: b.clientId,
+        mode: 'initial',
+        version,
+        status: 'awaiting_mood',
+        bookingRevisionBefore: currentRevision,
+        bookingRevisionAfterProposal: nextRevision,
+        previewHash: calculatedPreviewHash,
+        previewPayload,
         actualHours,
         finalAmountKRW: finalAmount,
-        finalBreakdown: {
-          baseKRW: finalPriced.baseKRW,
-          distanceSurchargeKRW: finalPriced.distanceSurchargeKRW,
-          tollKRW: finalPriced.tollKRW,
-          estimatedTollKRW,
-          km: finalPriced.km,
-          ...routeMeta,
-        },
-        adjustmentKRW: diff,
+        bookedAmountKRW: originalAmount,
+        previousFinalAmountKRW: null,
+        deltaKRW: diff,
+        finalBreakdown,
         manualAdjustmentKRW,
         estimatedTollKRW,
         tollMode,
+        tollEntries: tollMode === 'itemized' ? tollEntries : null,
+        pendingIncludedTollCount,
+        acknowledgedPendingTollsByOperator: acknowledgedPendingTolls,
         settlementReason: settlementReason || null,
-        revision: currentRevision + 1,
         courseMoodPercentages: finalCourseMoodPercentages,
         courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
         coursePayers: finalCoursePayers,
-        ...(finalRouteSnapshot ? { finalRouteSnapshot } : {}),
-        settledAt: Date.now(),
-        settledByEmail: email,
+        finalRouteSnapshot: finalRouteSnapshot || null,
+        proposedBalanceKRW: balance,
+        proposedResultingBalanceKRW: newBalance,
+        proposedByEmail: email,
+        proposedAt,
+        changeRequestReason: null,
+        approvedByEmail: null,
+        approvedAt: null,
+      };
+      const approvalSummary = buildSettlementApprovalSummary(proposal);
+      const response = {
+        ok: true,
+        data: {
+          bookingId,
+          proposalId,
+          mode: 'initial',
+          status: 'awaiting_mood',
+          version,
+          actualHours,
+          finalAmountKRW: finalAmount,
+          adjustmentKRW: diff,
+          deltaKRW: diff,
+          proposedBalanceKRW: balance,
+          proposedResultingBalanceKRW: newBalance,
+          pendingIncludedTollCount,
+          revision: nextRevision,
+          settlementApproval: approvalSummary,
+        },
+      };
+
+      if (previousProposalRef && previousProposalSnap) {
+        tx.update(previousProposalRef, {
+          status: 'superseded',
+          supersededByProposalId: proposalId,
+          supersededByEmail: email,
+          supersededAt: proposedAt,
+        });
+      }
+      tx.set(proposalRef, proposal);
+      tx.update(bookingRef, {
+        settlementApproval: approvalSummary,
+        settlementProposalVersion: version,
+        revision: nextRevision,
+      });
+      tx.set(idempotencyRef, {
+        scope: 'mood-settlement-proposal',
+        bookingId,
+        proposalId,
+        actorEmail: email,
+        payloadHash: requestPayloadHash,
+        status: 'completed',
+        response,
+        createdAt: proposedAt,
+        completedAt: proposedAt,
       });
 
       return {
         ok: true,
-        finalAmount,
-        originalAmount,
-        diff,
-        newBalance,
+        replayed: false,
+        response,
         booking: b,
-        courseMoodPercentages: finalCourseMoodPercentages,
-        coursePayers: finalCoursePayers,
       };
     });
 
@@ -419,75 +603,25 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: result.error }));
     }
 
-    const b = result.booking;
-    const clientName = b.clientName || b.clientId || '-';
+    const response = result.response;
+    if (!result.replayed) {
+      try {
+        const b = result.booking || {};
+        const clientName = b.clientName || b.clientId || '-';
+        const delta = response.data.deltaKRW;
+        const adjustment = delta > 0 ? `추가 ${delta.toLocaleString('ko-KR')}원`
+          : delta < 0 ? `환원 ${(-delta).toLocaleString('ko-KR')}원` : '변동 없음';
+        await notify('booking',
+          `<b>MOOD 정산 확인 요청</b>\n` +
+          `${clientName} · ${b.date} ${b.startTime}\n` +
+          `최종 제안 ${response.data.finalAmountKRW.toLocaleString('ko-KR')}원 (${adjustment})\n` +
+          `MOOD 승인 전 — 잔액은 아직 바뀌지 않았습니다.`);
+      } catch (e) { console.warn('[mood-settle] proposal notify 실패:', e?.message); }
+    }
 
-    // ── 텔레그램 알림 (best-effort) ──
-    try {
-      const adj = result.diff > 0 ? `추가 ${result.diff.toLocaleString('ko-KR')}원`
-        : result.diff < 0 ? `환원 ${(-result.diff).toLocaleString('ko-KR')}원` : '변동 없음';
-      await notify('booking',
-        `<b>MOOD 운행 종료 · 최종 정산</b>\n` +
-        `${clientName} · ${b.date} ${b.startTime}\n` +
-        `실제 ${actualHours}시간 — 최종 ${result.finalAmount.toLocaleString('ko-KR')}원 (${adj})\n` +
-        `잔액 ${result.newBalance.toLocaleString('ko-KR')}원`);
-    } catch (e) { console.warn('[mood-settle] notify 실패:', e?.message); }
-
-    // ── 고객 최종 정산 영수증 메일 (best-effort) — 예약↔실제 비교 + 항목별 분해 ──
-    try {
-      const toEmail = b.createdByEmail;
-      if (toEmail) {
-        const receipt = buildMoodSettlementReceiptEmail({
-          clientName,
-          bookingId,
-          date: b.date,
-          startTime: b.startTime,
-          serviceType: b.serviceType,
-          // 예약 vs 실제 비교
-          bookedHours: Number(b.durationHours) || 0,
-          actualHours,
-          bookedKm: Number(preBd.km) || 0,
-          actualKm: finalPriced.km,
-          // 최종 항목별 분해
-          ratePerHour: finalPriced.ratePerHour,
-          baseKRW: finalPriced.baseKRW,
-          distanceSurchargeKRW: finalPriced.distanceSurchargeKRW,
-          tollKRW: finalPriced.tollKRW,
-          bookedAmountKRW: result.originalAmount,
-          finalAmountKRW: result.finalAmount,
-          adjustmentKRW: result.diff,
-          newBalance: result.newBalance,
-          // 거리 재측정 여부 (추가 방문지)
-          routeRecomputed: routeMeta.recomputed,
-          waypointCount: Array.isArray(routeMeta.waypoints) ? routeMeta.waypoints.length : 0,
-        });
-        await sendEmail({ to: toEmail, subject: receipt.subject, html: receipt.html, text: receipt.text });
-      }
-    } catch (e) { console.warn('[mood-settle] receipt 메일 실패:', e?.message); }
-
-    console.log('[mood-settle]', email, '→', bookingId, '| 실제', actualHours, 'h |',
-      routeMeta.recomputed ? `거리재측정 ${finalPriced.km}km` : `거리재사용 ${finalPriced.km}km`,
-      '| 최종', result.finalAmount, '| 차액', result.diff, routeError ? `| routeErr=${routeError}` : '');
+    console.log('[mood-settle]', email, '→', bookingId, result.replayed ? '| 제안 멱등 재생' : `| 제안 ${proposalId} | 최종 ${response.data.finalAmountKRW}`);
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({
-      ok: true,
-      data: {
-        bookingId,
-        actualHours,
-        finalAmountKRW: result.finalAmount,
-        adjustmentKRW: result.diff,
-        balanceKRW: result.newBalance,
-        km: finalPriced.km,
-        routeRecomputed: routeMeta.recomputed,
-        estimatedTollKRW,
-        tollKRW: finalPriced.tollKRW,
-        manualAdjustmentKRW,
-        settlementReason: settlementReason || null,
-        courseMoodPercentages: result.courseMoodPercentages,
-        courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
-        coursePayers: result.coursePayers,
-      },
-    }));
+    return res.end(JSON.stringify({ ...response, replayed: result.replayed }));
   } catch (err) {
     console.error('[mood-settle] failed:', err.message);
     await captureError(err, { route: '/api/mood-settle', email });

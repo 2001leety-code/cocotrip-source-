@@ -260,6 +260,14 @@ function revisionOf(booking) {
   return Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
+function hasAwaitingSettlementApproval(booking) {
+  return Boolean(
+    booking
+    && booking.settlementApproval
+    && booking.settlementApproval.status === 'awaiting_mood',
+  );
+}
+
 function stablePayload({ bookingId, expectedRevision, reason, snapshot }) {
   return JSON.stringify({
     bookingId,
@@ -558,6 +566,9 @@ export default async function handler(req, res) {
     if (preBooking.status !== 'confirmed') {
       return sendJson(res, 409, jsonHeaders, { ok: false, error: 'BOOKING_NOT_CHANGEABLE' });
     }
+    if (hasAwaitingSettlementApproval(preBooking)) {
+      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'SETTLEMENT_APPROVAL_PENDING' });
+    }
     if (revisionOf(preBooking) !== expectedRevision) {
       return sendJson(res, 409, jsonHeaders, {
         ok: false,
@@ -620,6 +631,9 @@ export default async function handler(req, res) {
       }
       if (booking.status !== 'confirmed') {
         return { ok: false, status: 409, error: 'BOOKING_NOT_CHANGEABLE' };
+      }
+      if (hasAwaitingSettlementApproval(booking)) {
+        return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
       }
       const currentRevision = revisionOf(booking);
       if (currentRevision !== expectedRevision) {

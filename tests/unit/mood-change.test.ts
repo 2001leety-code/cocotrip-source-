@@ -16,6 +16,8 @@ vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   getMoodAllowlist: async () => dbState.allowlist,
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
   isAdminEmail: (allowlist: any, email: string) => allowlist.admins.includes(email),
+  isSettlementApproverEmail: (allowlist: any, email: string) =>
+    (allowlist.settlementApproverEmails || []).includes(email) && !allowlist.admins.includes(email),
 }));
 vi.mock('../../api/_shared/cors.js', () => ({
   buildAdminJsonCors: () => ({ 'Content-Type': 'application/json' }),

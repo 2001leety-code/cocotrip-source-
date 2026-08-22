@@ -92,7 +92,11 @@ function normalizeCocotrip(id, b) {
 function normalizeMood(id, b, clientNameById) {
   const serviceLabel = b.serviceType === 'vehicle' ? '차량' : b.serviceType === 'manager' ? '매니저' : String(b.serviceType || '서비스');
   const hours = Number(b.durationHours) || 0;
-  const amountKRW = Number(b.amountKRW) || 0;
+  // 완료(정산 확정)된 예약은 최종금액(finalAmountKRW) 이 진짜 청구액 — booked amountKRW 는
+  // 예약 시 선결제 예상액이라 정산 후 그대로 쓰면 실제 청구와 다른 금액을 보여준다.
+  const amountKRW = b.status === 'completed' && Number.isSafeInteger(b.finalAmountKRW) && b.finalAmountKRW >= 0
+    ? b.finalAmountKRW
+    : (Number.isSafeInteger(b.amountKRW) && b.amountKRW >= 0 ? b.amountKRW : 0);
   const createdAtMs = toMillis(b.createdAt);
   const clientName = clientNameById[b.clientId] || b.clientId || '';
   const detailParts = [];

@@ -78,6 +78,11 @@ export default async function handler(req, res) {
       if (!isAdmin && b.clientId !== allowlist.clientId) {
         return { ok: false, status: 403, error: '다른 회사 예약은 취소할 수 없습니다' };
       }
+      // MOOD가 같은 금액 제안을 검토 중일 때 예약을 취소하면 승인 화면과 환불 원장이
+      // 서로 다른 예약을 가리키게 된다. 운영자가 제안을 철회한 뒤에만 취소한다.
+      if (b.settlementApproval && b.settlementApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
+      }
       // 멱등/상태 게이트 — confirmed 만. completed=정산 끝(환불 대상 아님), cancelled=중복.
       if (b.status !== 'confirmed') {
         return {

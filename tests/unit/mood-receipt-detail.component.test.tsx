@@ -96,4 +96,42 @@ describe('MoodReceiptModal — 요금 상세 (2026-07-04)', () => {
     expect(screen.queryByTestId('route-map')).toBeNull();
     expect(screen.getByText(/요금 내역/)).toBeTruthy();
   });
+
+  it('완료 영수증은 운영자와 MOOD 확인자·제안 버전을 함께 남긴다', () => {
+    const approved = {
+      ...REAL_BOOKING,
+      status: 'completed',
+      finalAmountKRW: 551300,
+      actualHours: 10,
+      finalBreakdown: { ...REAL_BOOKING.breakdown, baseKRW: 300000, distanceSurchargeKRW: 235200, tollKRW: 16100, km: 392 },
+      settlementApproval: {
+        status: 'approved' as const,
+        mode: 'initial' as const,
+        proposalId: 'proposal-receipt-001',
+        version: 2,
+        bookedAmountKRW: REAL_BOOKING.amountKRW,
+        previousFinalAmountKRW: null,
+        finalAmountKRW: 551300,
+        deltaKRW: 163880,
+        actualHours: 10,
+        finalBreakdown: { baseKRW: 300000, distanceSurchargeKRW: 235200, tollKRW: 16100, km: 392 },
+        tollMode: 'actual' as const,
+        tollEntries: null,
+        settlementReason: '실제 이용 반영',
+        proposedByEmail: 'operator@cocotrip.test',
+        proposedAt: Date.UTC(2026, 7, 21, 1, 30),
+        changeRequestReason: null,
+        approvedByEmail: 'mood-approver@example.com',
+        approvedAt: Date.UTC(2026, 7, 21, 2, 15),
+        proposedBalanceKRW: 1000000,
+        proposedResultingBalanceKRW: 836120,
+        pendingIncludedTollCount: 0,
+      },
+    };
+    render(<MoodReceiptModal booking={approved} onClose={() => {}} />);
+
+    expect(screen.getByText(/양측 금액 확인 완료 · 제안 버전 2/)).toBeTruthy();
+    expect(screen.getByText(/operator@cocotrip.test/)).toBeTruthy();
+    expect(screen.getByText(/mood-approver@example.com/)).toBeTruthy();
+  });
 });

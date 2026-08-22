@@ -197,9 +197,11 @@ vi.mock('../../api/_shared/user-auth.js', () => ({
   default: (...args: any[]) => verifyUserTokenMock(...args),
 }));
 vi.mock('../../api/_shared/mood-allowlist.js', () => ({
-  getMoodAllowlist: async () => ({ emails: ['admin@x.com'], admins: ['admin@x.com'], clientId: 'COMPANY_A' }),
+  getMoodAllowlist: async () => ({ emails: ['admin@x.com', 'approver@x.com'], admins: ['admin@x.com'], settlementApproverEmails: ['approver@x.com'], clientId: 'COMPANY_A' }),
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
   isAdminEmail: (allowlist: any, email: string) => allowlist.admins.includes(email),
+  isSettlementApproverEmail: (allowlist: any, email: string) =>
+    (allowlist.settlementApproverEmails || []).includes(email) && !allowlist.admins.includes(email),
   normEmail: (email: string) => String(email || '').toLowerCase().trim(),
 }));
 vi.mock('../../api/_shared/mood-route.js', () => ({ computeRoute: (...args: any[]) => computeRouteMock(...args) }));
@@ -361,8 +363,8 @@ describe('세 쓰기 경로 — 실제 경로가 있어도 Firestore 가 받아�
     expect(replay.json.data.booking.routeSnapshot.path[0]).toEqual(REAL_PATH[0]);
   });
 
-  it('mood-settle: finalRouteSnapshot 도 저장형으로 커밋된다', async () => {
-    const { res, json } = await call('../../api/mood-settle.js', {
+  it('mood-settle: finalRouteSnapshot 은 제안에 담기고 MOOD 승인 시 저장형으로 커밋된다', async () => {
+    const input = {
       bookingId: 'booking-1',
       actualHours: 5,
       tollMode: 'estimated',
@@ -371,7 +373,30 @@ describe('세 쓰기 경로 — 실제 경로가 있어도 Firestore 가 받아�
       destination: '인천공항 제1터미널',
       waypoints: ['성수동'],
       courseMoodPercentages: [100, 0, 0],
+      expectedRevision: Number(db.__get('mood_bookings/booking-1')?.revision || 0),
+    };
+    const preview = await call('../../api/mood-settle-preview.js', input);
+    expect(preview.res.statusCode).toBe(200);
+
+    const propose = await call('../../api/mood-settle.js', {
+      ...input,
+      previewHash: preview.json.data.previewHash,
+      idempotencyKey: 'route-snapshot-propose',
     });
+    expect(propose.res.statusCode).toBe(200);
+    // 제안 단계 — 예약은 아직 확정되지 않았고 최종 스냅샷도 커밋되지 않았다.
+    expect(db.__get('mood_bookings/booking-1').status).toBe('confirmed');
+    expect(db.__get('mood_bookings/booking-1').finalRouteSnapshot).toBeUndefined();
+    // 제안 문서에는 이미 저장형(lng/lat 객체)으로 담겨 중첩 배열이 없다.
+    expect(nestedArrayFields(db.__dump())).toEqual([]);
+
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'uid-2', emailVerified: true });
+    const { res, json } = await call('../../api/mood-settle-respond.js', {
+      proposalId: propose.json.data.proposalId,
+      action: 'approve',
+      idempotencyKey: 'route-snapshot-approve',
+    });
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'admin@x.com', uid: 'uid-1', emailVerified: true });
 
     expect(res.statusCode).toBe(200);
     expect(json.ok).toBe(true);

@@ -8,8 +8,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildMoodSettlementReceiptEmail } from '../../api/_shared/mood-receipt.js';
+import { appendMoodCoursePercentage } from '../../src/lib/moodBookingShare';
 
 const src = readFileSync(resolve(process.cwd(), 'api/mood-settle.js'), 'utf8');
+const respondSrc = readFileSync(resolve(process.cwd(), 'api/mood-settle-respond.js'), 'utf8');
 
 describe('mood-settle 엔드포인트 — 보안·정산 가드', () => {
   it('운영자 전용 — verifyUserToken + emailVerified + isAdminEmail', () => {
@@ -45,15 +47,26 @@ describe('mood-settle 엔드포인트 — 보안·정산 가드', () => {
     expect(src).toMatch(/recomputed:\s*true/);
   });
 
-  it('차액만 잔액 조정 (트랜잭션) + completed + 상세 정산 영수증', () => {
-    expect(src).toMatch(/diff\s*=\s*finalAmount\s*-\s*originalAmount/);
-    expect(src).toMatch(/balanceKRW:\s*newBalance/);
-    expect(src).toMatch(/status:\s*'completed'/);
-    expect(src).toContain('buildMoodSettlementReceiptEmail');
+  it('제안 엔드포인트는 잔액·완료 상태·영수증을 절대 건드리지 않는다', () => {
+    // 🔴 이중 확인 계약: mood-settle.js 는 제안만 만든다. 잔액/완료/영수증은 승인 엔드포인트 몫.
+    expect(src).toMatch(/diff\s*=\s*finalAmount\s*-\s*originalAmount/); // 델타 계산은 여기서 하되
+    expect(src).not.toMatch(/tx\.update\(clientRef/);                    // 잔액은 쓰지 않는다
+    expect(src).not.toMatch(/balanceKRW:\s*newBalance/);
+    expect(src).not.toContain('balanceAfterKRW');   // 확정 잔액 스냅샷은 승인에서만 찍힌다
+    expect(src).not.toContain('settledAt');
+    expect(src).not.toContain('buildMoodSettlementReceiptEmail');
+    expect(src).toMatch(/status:\s*'awaiting_mood'/);
+  });
+
+  it('승인 엔드포인트만 잔액·completed·상세 영수증을 커밋한다', () => {
+    expect(respondSrc).toMatch(/tx\.update\(clientRef,\s*\{\s*balanceKRW:\s*newBalanceKRW\s*\}\)/);
+    expect(respondSrc).toMatch(/status:\s*'completed'/);
+    expect(respondSrc).toContain('buildMoodSettlementReceiptEmail');
     // 상세 영수증에 예약↔실제 비교 + 재측정 여부 전달
-    expect(src).toMatch(/bookedHours:/);
-    expect(src).toMatch(/actualKm:/);
-    expect(src).toMatch(/routeRecomputed:/);
+    expect(respondSrc).toMatch(/bookedHours:/);
+    expect(respondSrc).toMatch(/actualKm:/);
+    expect(respondSrc).toMatch(/routeRecomputed:/);
+    // 실제 잔액·멱등·권한 동작은 mood-settle-respond.test.ts 가 실제 핸들러로 검증한다.
   });
 
   it('nullish 연산자 미사용 (mojibake 가드)', () => {
@@ -106,19 +119,28 @@ describe('buildMoodSettlementReceiptEmail — 무엇이 추가됐는지 분해',
 
 describe('MoodPortal — 운행 종료 정산 + 추가 방문지 배선', () => {
   const portal = readFileSync(resolve(process.cwd(), 'src/pages/MoodPortal.tsx'), 'utf8');
-  it('handleSettle → /api/mood-settle (실제 경로 payload 포함)', () => {
-    expect(portal).toContain('handleSettle');
-    expect(portal).toContain('/api/mood-settle');
-    expect(portal).toMatch(/routePayload/);
+  const editor = readFileSync(resolve(process.cwd(), 'src/components/mood/MoodSettlementEditor.tsx'), 'utf8');
+  it('서버 미리보기 뒤 같은 revision·지문으로 /api/mood-settle 확정', () => {
+    expect(editor).toContain('/api/mood-settle-preview');
+    expect(editor).toContain('/api/mood-settle');
+    expect(editor).toMatch(/expectedRevision:\s*validPreview\.revision/);
+    expect(editor).toMatch(/previewHash:\s*validPreview\.previewHash/);
   });
-  it('정산 폼에 실제 방문 경로 입력(출발·방문지·도착) + 예약 경로 prefill', () => {
-    expect(portal).toMatch(/실제 방문 경로/);
-    expect(portal).toMatch(/setSettleOrigin/);
-    expect(portal).toMatch(/addSettleWaypoint/);
-    expect(portal).toMatch(/b\.breakdown\?\.origin/);
+  it('실주행 직접 입력과 실제 방문 경로 재측정을 분리하고 서버 계산거리만 쓴다', () => {
+    expect(editor).toMatch(/실주행 직접 입력/);
+    expect(editor).toMatch(/주소로 재측정/);
+    expect(editor).toMatch(/payload\.actualTotalKm/);
+    expect(editor).toMatch(/payload\.excludedKm/);
+    expect(editor).toMatch(/payload\.origin/);
+    expect(editor).not.toMatch(/payload\.billableKm/);
+  });
+  it('방문지 추가는 0% 부담률을 100%로 바꾸지 않고, 미리보기 최종액으로 분담을 표시한다', () => {
+    expect(appendMoodCoursePercentage([100, 0])).toEqual([100, 0, 0]);
+    expect(appendMoodCoursePercentage([100, 50])).toEqual([100, 50, 50]);
+    expect(editor).toMatch(/totalKRW=\{validPreview \? validPreview\.finalAmountKRW : booking\.amountKRW\}/);
   });
   it('ledger 운행 종료 버튼 (confirmed·시간제만)', () => {
-    expect(portal).toMatch(/운행 종료/);
-    expect(portal).toMatch(/b\.status === 'confirmed' && b\.serviceType !== 'airport'/);
+    expect(portal).toMatch(/실제 이용 정산/);
+    expect(portal).toMatch(/needsSettlement = b\.status === 'confirmed' && b\.serviceType !== 'airport'/);
   });
 });

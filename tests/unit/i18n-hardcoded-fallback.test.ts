@@ -37,6 +37,7 @@ const NOT_I18N = new Set([
   'pages/AdminCalendar.tsx::d.name',               // 디스코드 구독자 표시 이름
   'pages/AdminProductEditor.tsx::validation.message', // 검증 결과 메시지 객체
   'components/mood/MoodReceiptModal.tsx::booking.serviceType', // 예약 문서의 서비스 코드
+  'components/mood/MoodReceiptModal.tsx::entry.date', // 톨비 증빙 행의 선택 입력값
   // ── 2026-08-07 (#1220 후속): "키 부재"·"무후보" 검사를 켜면서 걸린 데이터 객체들.
   //    전부 API 응답·Firestore 문서·폼 상태의 필드라 번역 키가 아니다. 아래 폴백 문구가
   //    어드민(운영자 전용) 화면·플랜 데이터 결손 표시라 4개 언어 노출 문제도 아니다.
@@ -64,6 +65,10 @@ const NOT_I18N = new Set([
   'pages/AdminQualityDashboard.tsx::json.error',            // API 오류 응답
   'pages/AdminTranslations.tsx::j.error',                   // API 오류 응답
   'pages/AdminZoneCourseEditor.tsx::draft.id',              // 존 코스 문서 id
+  // ── MOOD 이중 확인 정산 (2026-08-22): Firestore settlementApproval 문서·톨비 증빙 행의
+  //    데이터 필드. it.userEmail/c.userEmail 과 같은 부류(이메일 주소는 번역 대상이 아님).
+  'components/mood/MoodReceiptModal.tsx::settlementApproval.approvedByEmail', // 정산 승인자 이메일
+  'components/mood/MoodSettlementEditor.tsx::entry.date',   // 톨비 증빙 행의 선택 입력값 (MoodReceiptModal.tsx::entry.date 와 동일 필드)
 ]);
 
 /** leaf 키 이름 -> ko.json 에서의 (경로, 값) 목록. */

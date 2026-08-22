@@ -49,7 +49,9 @@ describe('formatDaumAddress — 도로명/지번 선택 + 건물명', () => {
 });
 
 describe('MoodPortal — 경유지 배열 + 주소검색 배선 (소스가드)', () => {
-  const src = readFileSync(resolve(process.cwd(), 'src/pages/MoodPortal.tsx'), 'utf8');
+  const portalSrc = readFileSync(resolve(process.cwd(), 'src/pages/MoodPortal.tsx'), 'utf8');
+  const settlementSrc = readFileSync(resolve(process.cwd(), 'src/components/mood/MoodSettlementEditor.tsx'), 'utf8');
+  const src = `${portalSrc}\n${settlementSrc}`;
 
   it('waypoints 상태가 string[] 배열', () => {
     expect(src).toMatch(/useState<string\[\]>\(\[\]\)/);
@@ -66,8 +68,8 @@ describe('MoodPortal — 경유지 배열 + 주소검색 배선 (소스가드)',
   });
 
   it('다음 우편번호 주소검색(openDaumPostcode) 연결', () => {
-    expect(src).toMatch(/openDaumPostcode/);
-    expect(src).toMatch(/searchAddress/);
+    expect(settlementSrc).toMatch(/openDaumPostcode/);
+    expect(settlementSrc).toMatch(/searchAddress/);
   });
 
   it('경유지를 | 로 join 해 백엔드 전달(split 잔재 없음)', () => {

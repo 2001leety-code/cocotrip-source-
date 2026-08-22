@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 
 import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
+import type { SettlementApprovalSummary } from '@/components/mood/MoodSettlementEditor';
 import { formatKRW, MOOD_SURCHARGE_PER_KM, MOOD_AIRPORT_LABEL, normalizeAirportCode, type MoodServiceType } from '@/lib/moodPricing';
 
 const C = {
@@ -42,7 +43,11 @@ interface MoodBreakdownLike {
   baseKRW?: number | null;
   distanceSurchargeKRW?: number | null;
   tollKRW?: number | null;
+  estimatedTollKRW?: number | null;
   km?: number | null;
+  distanceSource?: 'manual' | 'route' | 'booked' | null;
+  actualTotalKm?: number | null;
+  excludedKm?: number | null;
   origin?: string | null;
   destination?: string | null;
   waypoints?: string[] | null;
@@ -66,6 +71,20 @@ export interface MoodBookingLike {
   finalAmountKRW?: number | null;
   actualHours?: number | null;
   adjustmentKRW?: number | null;
+  manualAdjustmentKRW?: number | null;
+  settlementReason?: string | null;
+  tollMode?: 'estimated' | 'none' | 'actual' | 'itemized' | null;
+  tollEntries?: Array<{
+    label: string;
+    date?: string | null;
+    amountKRW: number;
+    status: 'pending' | 'confirmed';
+    includedInSettlement: boolean;
+    evidenceRef?: string | null;
+  }> | null;
+  correctionCount?: number | null;
+  lastCorrectionReason?: string | null;
+  settlementApproval?: SettlementApprovalSummary | null;
 }
 
 interface MoodReceiptModalProps {
@@ -77,6 +96,17 @@ interface MoodReceiptModalProps {
 function fmtBalance(n: number): string {
   const v = Math.round(Number(n) || 0);
   return v < 0 ? `-${Math.abs(v).toLocaleString('ko-KR')}원` : `${v.toLocaleString('ko-KR')}원`;
+}
+
+function approvalDateTime(timestamp: number | null) {
+  if (!timestamp || !Number.isFinite(timestamp)) return '시각 기록 없음';
+  return new Date(timestamp).toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** breakdown → 순서 있는 경유지 리스트(출발 … 도착). */
@@ -148,8 +178,14 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   const tollKRW = Number(bd.tollKRW || 0);
   const hasBreakdown = bd.baseKRW != null || bd.km != null; // 레거시(상세 미기록) 구분
   const km = Number(bd.km || 0);
-  const amountKRW = Number(booking.amountKRW || 0);
+  const bookedAmountKRW = Number(booking.amountKRW || 0);
+  const amountKRW = settled && typeof booking.finalAmountKRW === 'number'
+    ? booking.finalAmountKRW
+    : bookedAmountKRW;
   const ratePerHour = Number(booking.ratePerHour || 0);
+  const displayHours = settled && typeof booking.actualHours === 'number'
+    ? booking.actualHours
+    : Number(booking.durationHours || 0);
   // 거리 단가 — 저장된 breakdown 에서 유도(요율 개정 전 660·후 600 예약 각각 정확 표기). 유도 불가 시 현행 상수.
   const perKm = km > 0 && distanceSurchargeKRW > 0 ? Math.round(distanceSurchargeKRW / km) : MOOD_SURCHARGE_PER_KM;
   const isAirport = booking.serviceType === 'airport';
@@ -239,6 +275,32 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
           />
         )}
 
+        {settled && (
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="rounded-xl p-3" style={{ background: C.chip, border: C.chipBorder }}>
+              <p className="font-bold" style={{ color: C.textDim }}>예약 원본</p>
+              <p className="mt-1" style={{ color: C.text }}>{booking.durationHours || 0}시간</p>
+              <p style={{ color: C.text }}>{Number(booking.breakdown?.km || 0).toLocaleString('ko-KR')}km</p>
+              <p style={{ color: C.text }}>톨비 {formatKRW(Number(booking.breakdown?.tollKRW || 0))}</p>
+              <p className="font-bold" style={{ color: C.accentSolid }}>{formatKRW(bookedAmountKRW)}</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: 'rgba(110,231,183,0.08)', border: '1px solid rgba(110,231,183,0.22)' }}>
+              <p className="font-bold" style={{ color: C.ok }}>실제 이용</p>
+              <p className="mt-1" style={{ color: C.text }}>{displayHours}시간</p>
+              <p style={{ color: C.text }}>{km.toLocaleString('ko-KR')}km</p>
+              <p style={{ color: C.text }}>톨비 {formatKRW(tollKRW)}</p>
+              <p className="font-bold" style={{ color: C.ok }}>{formatKRW(amountKRW)}</p>
+            </div>
+          </div>
+        )}
+
+        {settled && bd.distanceSource === 'manual' && typeof bd.actualTotalKm === 'number' && typeof bd.excludedKm === 'number' && (
+          <div className="rounded-xl p-3 text-xs" style={{ background: C.chip, border: C.chipBorder, color: C.text }}>
+            <p className="text-[11px] font-bold" style={{ color: C.textDim }}>실주행 거리 계산</p>
+            <p className="mt-1">전체 {bd.actualTotalKm.toLocaleString('ko-KR')}km − 제외 {bd.excludedKm.toLocaleString('ko-KR')}km = <b style={{ color: C.ok }}>정산 {km.toLocaleString('ko-KR')}km</b></p>
+          </div>
+        )}
+
         {/* 요금 내역 — 산식 포함 (2026-07-04: 어떻게 계산됐는지 + 톨비 0원도 명시) */}
         <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: C.chip, border: C.chipBorder }}>
           <p className="text-[11px] font-bold" style={{ color: C.textDim }}>요금 내역</p>
@@ -247,10 +309,10 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
             <div className={rowStyle} style={{ color: C.textDim }}>
               <span>
                 기본요금
-                {!isAirport && booking.durationHours
+                {!isAirport && displayHours
                   ? (ratePerHour > 0
-                      ? ` (${formatKRW(ratePerHour)}/시간 × ${booking.durationHours}시간)`
-                      : ` (${booking.durationHours}시간)`)
+                      ? ` (${formatKRW(ratePerHour)}/시간 × ${displayHours}시간)`
+                      : ` (${displayHours}시간)`)
                   : ' (공항 정액)'}
               </span>
               <span style={{ color: C.text }}>{formatKRW(baseKRW)}</span>
@@ -277,8 +339,25 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
           {/* 톨비 — 0원도 항상 표시: '통행료 없는 경로'와 '기록 없음'을 구분 */}
           {hasBreakdown && !isAirport && (
             <div className={rowStyle} style={{ color: C.textDim }}>
-              <span>톨비{tollKRW <= 0 ? ' (통행료 없는 경로)' : ''}</span>
+              <span>
+                톨비{tollKRW <= 0 ? ' (통행료 없는 경로)' : ''}
+                {settled && booking.tollMode && booking.tollMode !== 'estimated' ? ` · ${booking.tollMode === 'itemized' ? '항목별 실제값' : booking.tollMode === 'actual' ? '실제 합계' : '미지불'}` : ''}
+              </span>
               <span style={{ color: C.text }}>+{formatKRW(tollKRW)}</span>
+            </div>
+          )}
+          {settled && typeof bd.estimatedTollKRW === 'number' && bd.estimatedTollKRW !== tollKRW && (
+            <div className={rowStyle} style={{ color: C.textDim }}>
+              <span>예약 예상 톨비</span>
+              <span>{formatKRW(bd.estimatedTollKRW)} → {formatKRW(tollKRW)}</span>
+            </div>
+          )}
+          {settled && typeof booking.manualAdjustmentKRW === 'number' && booking.manualAdjustmentKRW !== 0 && (
+            <div className={rowStyle} style={{ color: C.textDim }}>
+              <span>기타 금액 조정</span>
+              <span style={{ color: booking.manualAdjustmentKRW > 0 ? C.danger : C.ok }}>
+                {booking.manualAdjustmentKRW > 0 ? '+' : '−'}{formatKRW(Math.abs(booking.manualAdjustmentKRW))}
+              </span>
             </div>
           )}
           {!hasBreakdown && (
@@ -292,9 +371,32 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
           </div>
         </div>
 
+        {settled && booking.tollMode === 'itemized' && Array.isArray(booking.tollEntries) && booking.tollEntries.length > 0 && (
+          <div className="rounded-xl p-3" style={{ background: C.chip, border: C.chipBorder }}>
+            <p className="text-[11px] font-bold" style={{ color: C.textDim }}>톨비 항목</p>
+            <div className="mt-2 flex flex-col gap-2">
+              {booking.tollEntries.map((entry, index) => (
+                <div key={`${entry.date || ''}-${entry.label}-${index}`} className="text-[11px]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold" style={{ color: entry.includedInSettlement ? C.text : C.textDim }}>{entry.label}</p>
+                      <p className="truncate" style={{ color: C.textDim }}>
+                        {entry.date || '일시 미기록'} · {entry.status === 'pending' ? '미확정' : '확정'}
+                        {!entry.includedInSettlement ? ' · 정산 제외' : ''}
+                      </p>
+                    </div>
+                    <span style={{ color: entry.includedInSettlement ? C.text : C.textDim }}>{formatKRW(entry.amountKRW)}</span>
+                  </div>
+                  {entry.evidenceRef && <p className="mt-0.5 truncate text-[10px]" style={{ color: C.textDim }}>증빙: {entry.evidenceRef}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 잔액 (차감 후) */}
         <div className="rounded-xl p-3 flex items-center justify-between" style={{ background: C.chip, border: C.chipBorder }}>
-          <span className="text-xs" style={{ color: C.textDim }}>차감 후 잔액</span>
+          <span className="text-xs" style={{ color: C.textDim }}>{settled ? '정산 후 잔액' : '예약 직후 잔액'}</span>
           {hasRunningBalance ? (
             <span className="text-sm font-bold" style={{ color: runningBalance < 0 ? C.danger : C.text }}>
               {fmtBalance(runningBalance)}
@@ -325,6 +427,25 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
                 <span style={{ color: booking.adjustmentKRW > 0 ? C.danger : C.ok }}>
                   {booking.adjustmentKRW > 0 ? '+' : '−'}{formatKRW(Math.abs(booking.adjustmentKRW))}
                 </span>
+              </div>
+            )}
+            {booking.settlementReason && (
+              <div className="pt-1 text-[11px]" style={{ color: C.textDim, borderTop: `1px solid ${C.line}` }}>
+                <span className="font-semibold">정산 사유:</span> {booking.settlementReason}
+              </div>
+            )}
+            {!!booking.correctionCount && (
+              <div className="text-[11px]" style={{ color: '#fca5a5' }}>
+                정정 {booking.correctionCount}회{booking.lastCorrectionReason ? ` · 마지막 사유: ${booking.lastCorrectionReason}` : ''}
+              </div>
+            )}
+            {booking.settlementApproval?.status === 'approved' && (
+              <div className="mt-1 rounded-xl p-3 text-[11px]" style={{ background: C.chip, border: C.chipBorder }}>
+                <p className="font-bold" style={{ color: C.ok }}>✓ 양측 금액 확인 완료 · 제안 버전 {booking.settlementApproval.version}</p>
+                <div className="mt-2 flex flex-col gap-1" style={{ color: C.textDim }}>
+                  <p className="break-all"><span className="font-semibold" style={{ color: C.text }}>운영자 확인</span> · {booking.settlementApproval.proposedByEmail} · {approvalDateTime(booking.settlementApproval.proposedAt)}</p>
+                  <p className="break-all"><span className="font-semibold" style={{ color: C.text }}>MOOD 확인</span> · {booking.settlementApproval.approvedByEmail || '확인자 기록 없음'} · {approvalDateTime(booking.settlementApproval.approvedAt)}</p>
+                </div>
               </div>
             )}
           </div>
