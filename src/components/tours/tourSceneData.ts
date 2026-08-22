@@ -127,23 +127,15 @@ export const TOUR_SCENES: Record<string, TourScene[]> = {
         zh: '拥有六百年历史的韩屋街道，嘉会洞31号是标志性拍照点。这里住着真正的居民，参观需保持安静，上午11点到下午1点之间人流最少。',
       },
     },
+    // 2026-08-22 후속 감사로 "인사동·익선동, 골목의 점심" 장면 삭제.
+    // 그 장면이 쓰던 '/서울/서울 (1).jpg' 는 실제로 북촌한옥마을 사진이라
+    // (Type1_북촌한옥마을_라이브스튜디오_dJ6Ara.jpg 와 md5 동일) 바로 위 북촌 장면과
+    // 같은 동네를 "인사동"이라 캡션하고 있었다. public/ 에 인사동·익선동 실사진이 없어
+    // 다른 장소 사진 재사용 대신 장면 자체를 뺀다 — 경주가 4장면인 것과 같은 원칙.
     {
-      photo: '/서울/서울 (1).jpg',
-      title: {
-        ko: '인사동·익선동, 골목의 점심',
-        en: 'Insadong & Ikseondong: Lunch in the Alleys',
-        ja: '仁寺洞・益善洞、路地のランチ',
-        zh: '仁寺洞·益善洞，巷弄里的午餐',
-      },
-      body: {
-        ko: '전통 공예점과 갤러리, 찻집이 이어지는 인사동 골목을 걷다 익선동 한옥 카페골목까지 도보로 잇는다. 점심은 한정식이나 비빔밥이 잘 어울리는 동네다.',
-        en: "Alleys of traditional craft shops, galleries, and tea houses lead the walk from Insadong over to Ikseondong's hanok cafe lane. Lunch here leans toward a Korean set table or bibimbap.",
-        ja: '伝統工芸店やギャラリー、茶屋が連なる仁寺洞の路地を歩き、益善洞の韓屋カフェ通りまで足を延ばす。昼食は韓定食やビビンバが似合う街だ。',
-        zh: '穿过传统工艺店、画廊与茶屋相连的仁寺洞小巷，再步行至益善洞的韩屋咖啡街。在这里，午餐最适合韩定食或拌饭。',
-      },
-    },
-    {
-      photo: '/서울/서울 (10).jpg',
+      // 2026-08-21 사진 전수 감사: 기존 '/서울/서울 (10).jpg' 는 김장(김치 만들기) 사진
+      // (Type1_김치 만들기_한국관광공사 김지호_Kg5oKa(1).jpg 와 md5 동일) → 시장 사진으로 교체.
+      photo: '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
       title: {
         ko: '광장시장, 백 년의 먹자골목',
         en: 'Gwangjang Market: A Century of Street Food',

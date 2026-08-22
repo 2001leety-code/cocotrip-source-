@@ -41,9 +41,12 @@ function tourRecordSlice(id: string): string {
 
 // 씬 수는 "사진이 실제 그 장소인 것"만 채운 결과 — 경주는 석굴암·동궁 실사진이
 // 레포에 없어 4개다. 늘리려면 진짜 사진을 먼저 넣어라(다른 장소 사진 재사용 금지).
+// 2026-08-22: 서울도 5 → 4. "인사동·익선동" 장면이 쓰던 '/서울/서울 (1).jpg' 가
+// 실제로는 북촌한옥마을 사진이어서(바로 위 북촌 장면과 같은 동네) 장면을 삭제했다.
+// public/ 에 인사동·익선동 실사진이 없다 — 경주와 같은 원칙으로 채우지 않고 비운다.
 const SCENE_COUNTS: Record<string, number> = {
   'tour-dmz': 5,
-  'tour-seoul-city': 5,
+  'tour-seoul-city': 4,
   'tour-gyeongju': 4,
 };
 
