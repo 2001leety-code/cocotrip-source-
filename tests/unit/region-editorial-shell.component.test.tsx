@@ -60,8 +60,9 @@ describe('region editorial shell rendering', () => {
     const { container } = renderRegion('seoul');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Seoul' })).toBeInTheDocument();
-    expect(container.querySelectorAll('.region-editorial-gallery img')).toHaveLength(20);
-    expect(container.querySelector('.region-editorial-facts')).toHaveTextContent('21 photos');
+    // 2026-08-22: 21 → 20장 (해방촌-남산야경.jpg = "AI로 생성한 콘텐츠" 워터마크 이미지 제거).
+    expect(container.querySelectorAll('.region-editorial-gallery img')).toHaveLength(19);
+    expect(container.querySelector('.region-editorial-facts')).toHaveTextContent('20 photos');
     expect(container.querySelector('.region-editorial-cta a[href="/planner"]')).toBeInTheDocument();
     expect(usePageMetaMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Seoul' }));
     expect(usePageMetaMock).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Seoul | CocoTrip' }));

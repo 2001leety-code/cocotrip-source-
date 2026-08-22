@@ -388,7 +388,9 @@ const TOURS_RAW: Tour[] = [
       '/tourists/people-seoul-gyeongbokgung-hanbok.webp',
       '/3Xgcka_북촌한옥마을(1).webp',
       '/서울/서울 (1).jpg',
-      '/서울/서울 (3).jpg',
+      // 2026-08-22 후속 감사 제거: '/서울/서울 (3).jpg' 는 위 '/JnR5Ie_경복궁(1).webp' 와
+      // 같은 사진의 JPEG 재인코딩본(둘 다 3648x5472, 근정문 앞 같은 인물 2명) → 캐러셀 중복.
+      // md5 는 다르므로(포맷 변형) 해시 비교로는 못 잡는다 → 테스트의 FORMAT_VARIANT_GROUPS 로 잠금.
       '/서울/서울 (7).jpg',
       '/서울/서울 (10).jpg',
       '/1uA0qa_반포대교(1).webp',
@@ -609,7 +611,9 @@ const TOURS_RAW: Tour[] = [
       '/서울/서울 (2).jpg',
       '/서울/서울 (14).jpg',
       '/서울/서울 (15).jpg',
-      '/서울/해방촌-남산야경.jpg',
+      // 2026-08-22 후속 감사 제거: '/서울/해방촌-남산야경.jpg' 는 좌하단에 "AI로 생성한 콘텐츠"
+      // 워터마크가 픽셀로 박힌 AI 생성 이미지다(998x666 로 주변 KTO 원본과 규격도 다름).
+      // 실제 투어 정류지·갤러리 사진으로 쓸 수 없다 → 테스트의 AI_GENERATED_PHOTOS 로 잠금.
       '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
       '/tourists/people-seoul-ddp-night.webp',
     ],
@@ -938,7 +942,10 @@ const TOURS_RAW: Tour[] = [
       //  - '/부산/부산 (1).jpg' = 서울 광장시장 사진(도시 불일치)
       //  - '/부산/부산 (7).jpg' = 위 Type1_자갈치시장 과 md5 동일한 복제본(갤러리에 같은 사진 2번)
       '/부산/부산 (3).jpg',
-      '/부산/부산 (5).jpg',
+      // 2026-08-22 후속 감사: '/부산/부산 (5).jpg' 는 아래 광안리 stop 사진과 md5 동일
+      // (5D1CB386C0858A694080BBBFF8B789ED). 경로만 달라 브라우저가 같은 850KB 를 두 번 받았다
+      // → 같은 파일의 내용 있는 이름으로 통일해 URL 1개로.
+      '/Type1_부산 광안대교_한국관광공사 이범수_BTr8Za(1).jpg',
       '/tourists/people-busan-gamcheon.webp',
       '/tourists/people-busan-jagalchi.webp',
     ],
@@ -1069,7 +1076,10 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     {
       time: '22:00', name: { ko: '해방촌', en: 'Haebangchon', ja: '解放村', zh: '解放村' },
       lat: 37.54354, lng: 126.98559,
-      stay_min: 60, photo: '/서울/해방촌-남산야경.jpg',
+      // 2026-08-22 후속 감사: 기존 '/서울/해방촌-남산야경.jpg' 는 좌하단에 "AI로 생성한 콘텐츠"
+      // 워터마크가 찍힌 AI 생성 이미지였다 → 실제 정류지 사진으로 쓸 수 없어 제거.
+      // public/ 에 해방촌 실사진이 없어 추측 대체 대신 사진 없이 렌더.
+      stay_min: 60,
       description: { ko: '남산 자락 옛 달동네에 자리잡은 핫플 골목. 루프탑 바, 빈티지 카페, 외국인 친화 펍이 모인 야경 산책 코스.', en: "Trendy hillside neighborhood under Namsan — rooftop bars, vintage cafés, expat-friendly pubs lit up at night.", ja: '南山の麓、レトロな路地に若者文化が集う街。ルーフトップバーやヴィンテージカフェの夜景散策。', zh: '南山脚下的潮人街区，云集天台酒吧、复古咖啡馆、外国人友好酒馆的夜景漫步路线。' },
       entry_fee_krw: 0,
       tip: { ko: '신흥시장·해방촌 오거리 추천. 카페/바 1잔 별도 결제. 가이드가 추천 코스 안내.', en: 'Sinheung Market and HBC 5-way junction recommended. Drinks paid separately. Guide will suggest spots.', ja: '新興市場・解放村五差路がおすすめ。カフェ・バー代は別途。', zh: '推荐新兴市场和解放村五路口。饮品另付。导游会推荐路线。' },

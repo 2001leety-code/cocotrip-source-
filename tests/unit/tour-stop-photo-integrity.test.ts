@@ -17,6 +17,14 @@ import { TOURS } from '../../src/data/tours';
 //    B. 등록된 md5 가 public/ 실제 파일과 일치해야 한다(파일이 바뀌면 재확인 강제).
 //    C. stop 이름(ko/en)이 그 사진의 허용 토큰을 포함해야 한다(장소 불일치 차단).
 //    + 내용 중복도 하드코딩 목록이 아니라 실제 md5 로 계산한다.
+//
+// 2026-08-22 후속 감사(독립 리뷰 지적 반영) — 위 3종에 뚫려 있던 구멍 3개를 막는다:
+//    D. **AI 생성 이미지 차단**: '/서울/해방촌-남산야경.jpg' 는 그림 안에 "AI로 생성한 콘텐츠"
+//       워터마크가 박혀 있었는데 레지스트리가 이를 "검증본"으로 통과시키고 있었다.
+//    E. **포맷 변형 중복 복구**: 중복 판정을 md5 로 바꾸면서 "같은 사진을 webp/jpg 로 각각 구운"
+//       경우를 못 잡게 됐다. 2026-06-10 반포 사고가 바로 그 유형이라 사람이 묶은 목록을 되살린다.
+//    F. **갤러리↔stops 교차 중복**: 두 목록을 따로 보던 탓에 같은 사진이 경로만 달리해
+//       한 페이지에서 두 번 로드돼도 통과했다 → 합쳐서 본다(같은 경로는 1장으로 셈).
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../public');
 
@@ -78,11 +86,6 @@ const VERIFIED_PHOTO_SUBJECTS: Record<string, { subject: string; matches: string
     matches: ['반포', 'Banpo'],
     md5: '032D8487042E28EFD8F70BE115AF3797',
   },
-  '/서울/해방촌-남산야경.jpg': {
-    subject: '남산 N서울타워를 품은 서울 야경 광역샷 — 촬영 지점이 해방촌인지는 미확인(파일명 근거만)',
-    matches: ['해방촌', 'Haebangchon'],
-    md5: '91B803D93364B5F6F7CAEAF2FF3974FB',
-  },
   '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg': {
     subject: '남한강 위 세 봉우리와 정자 — 도담삼봉',
     matches: ['도담삼봉', 'Dodamsambong'],
@@ -120,8 +123,51 @@ const VERIFIED_PHOTO_SUBJECTS: Record<string, { subject: string; matches: string
   },
 };
 
+/**
+ * 2026-08-22 후속 감사 — **AI 생성 이미지 차단 목록**.
+ * 파일을 열면 그림 안에 "AI로 생성한 콘텐츠" 워터마크가 픽셀로 박혀 있다.
+ * 실제로 가는 투어의 정류지·갤러리 사진으로 쓰면 고객에게 없는 장면을 판 것이 된다.
+ * md5 는 "그 파일이 맞는지" 확인용 — 파일이 바뀌면 다시 열어보고 판단하라고 깨진다.
+ */
+const AI_GENERATED_PHOTOS: Record<string, { reason: string; md5: string }> = {
+  '/서울/해방촌-남산야경.jpg': {
+    reason: '좌하단에 "AI로 생성한 콘텐츠" 워터마크 (998x666, 주변 KTO 원본과 규격도 다름)',
+    md5: '91B803D93364B5F6F7CAEAF2FF3974FB',
+  },
+};
+
+/**
+ * 2026-08-22 후속 감사 — **포맷만 다른 같은 사진** 목록(md5 로는 절대 못 잡는 중복).
+ * 같은 원본을 webp/jpg 로 각각 인코딩하면 바이트가 달라 해시가 갈린다.
+ * 2026-06-10 사고(반포 분수 사진이 4벌 → 나이트 갤러리에 3번 노출)가 바로 이 유형이라,
+ * 해시 자동계산으로 바꾸면서 이 목록을 지우면 그 사고를 다시 못 잡는다.
+ * 한 그룹은 한 투어(갤러리+stops 합쳐서)에서 1개까지만.
+ * 새 그룹 추가 = 두 파일을 실제로 열어 같은 사진인지 눈으로 확인한 뒤.
+ */
+const FORMAT_VARIANT_GROUPS: string[][] = [
+  // 반포대교 달빛무지개분수 — webp 1벌 + jpg 3벌(jpg 3개는 서로 md5 동일)
+  [
+    '/1uA0qa_반포대교(1).webp',
+    '/Type1_반포대교_한국관광공사 이범수_1uA0qa(1).jpg',
+    '/서울/서울 (11).jpg',
+    '/서울/서울 (18).jpg',
+  ],
+  // 경복궁 근정문 앞 한복 인물 2명 — 둘 다 3648x5472 동일 프레임, 인코딩만 다름
+  ['/JnR5Ie_경복궁(1).webp', '/서울/서울 (3).jpg'],
+];
+
 const nameMatchesSubject = (stopNameKo: string, stopNameEn: string, matches: string[]) =>
   matches.some((m) => stopNameKo.includes(m) || stopNameEn.toLowerCase().includes(m.toLowerCase()));
+
+/** 한 투어가 그 페이지에서 실제로 불러오는 사진 URL 전부 (갤러리 + stops, 경로 기준 중복 제거). */
+const tourPhotoUrls = (tour: (typeof TOURS)[number]): string[] => [
+  ...new Set(
+    [
+      ...(tour.images || []),
+      ...(tour.stops || []).map((s) => stopPhotoPath(s.photo)),
+    ].filter((p): p is string => !!p && p.startsWith('/')),
+  ),
+];
 
 const stopPhotoEntries = () =>
   TOURS.flatMap((tour) =>
@@ -149,32 +195,69 @@ describe('투어 stop 사진 정합 (사진 중복/누락 잠금)', () => {
     }
   });
 
-  // 하드코딩 목록이 아니라 public/ 실제 파일 md5 로 계산 — 새 복제본이 추가돼도 자동으로 잡힌다.
-  it('한 투어의 갤러리/stops 안에 내용이 같은 사진(파일명만 다른 복제본) 금지', () => {
+  // public/ 실제 파일 md5 로 계산 — 새 복제본이 추가돼도 자동으로 잡힌다.
+  // 2026-08-22: 갤러리와 stops 를 따로 보던 것을 **합쳐서** 본다. 경로가 다르면 브라우저는
+  // 같은 사진이라도 두 번 내려받고, 화면에도 같은 사진이 두 번 나오기 때문(같은 경로면 1장으로 셈).
+  it('한 투어가 부르는 사진(갤러리+stops) 중 내용이 같은 것이 2개 이상이면 실패', () => {
     const dupReport: string[] = [];
     for (const tour of TOURS) {
-      const lists: Array<[string, string[]]> = [
-        ['갤러리', (tour.images || []).filter((p) => p.startsWith('/'))],
-        [
-          'stops',
-          (tour.stops || [])
-            .map((s) => stopPhotoPath(s.photo))
-            .filter((p): p is string => !!p && p.startsWith('/')),
-        ],
-      ];
-      for (const [label, paths] of lists) {
-        const byHash = new Map<string, string[]>();
-        for (const p of paths) {
-          if (!existsSync(join(PUBLIC_DIR, p))) continue; // 실재 검사는 아래 케이스가 담당
-          const h = md5Of(p);
-          byHash.set(h, [...(byHash.get(h) || []), p]);
-        }
-        for (const [h, paths2] of byHash) {
-          if (paths2.length > 1) dupReport.push(`${tour.slug} ${label}: ${paths2.join(' == ')} (md5 ${h})`);
-        }
+      const byHash = new Map<string, string[]>();
+      for (const p of tourPhotoUrls(tour)) {
+        if (!existsSync(join(PUBLIC_DIR, p))) continue; // 실재 검사는 아래 케이스가 담당
+        const h = md5Of(p);
+        byHash.set(h, [...(byHash.get(h) || []), p]);
+      }
+      for (const [h, paths] of byHash) {
+        if (paths.length > 1) dupReport.push(`${tour.slug}: ${paths.join(' == ')} (md5 ${h})`);
       }
     }
     expect(dupReport, `내용 동일 사진이 한 투어 안에 2번 이상 실림:\n${dupReport.join('\n')}`).toEqual([]);
+  });
+
+  // md5 는 "바이트가 같은가"만 본다 → 같은 사진을 webp/jpg 로 각각 구우면 못 잡는다.
+  // 2026-06-10 반포 분수 사고가 그 유형이라 사람이 눈으로 묶은 목록을 함께 돌린다.
+  it('포맷만 다른 같은 사진(webp vs jpg)이 한 투어에 2개 이상이면 실패', () => {
+    const dupReport: string[] = [];
+    for (const tour of TOURS) {
+      const urls = tourPhotoUrls(tour);
+      for (const group of FORMAT_VARIANT_GROUPS) {
+        const hits = urls.filter((p) => group.includes(p));
+        if (hits.length > 1) dupReport.push(`${tour.slug}: ${hits.join(' ≈ ')} (같은 사진의 포맷 변형)`);
+      }
+    }
+    expect(
+      dupReport,
+      `같은 사진이 포맷만 바뀐 채 한 투어에 두 번 실렸다 (한 벌만 남길 것):\n${dupReport.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  // 실제로 가는 투어에 AI 로 만든 그림을 실을 수 없다. 정류지·갤러리 양쪽 다 차단.
+  it('AI 생성 이미지는 stop 사진에도 갤러리에도 쓰지 않는다', () => {
+    const violations: string[] = [];
+    for (const tour of TOURS) {
+      for (const p of tourPhotoUrls(tour)) {
+        const banned = AI_GENERATED_PHOTOS[p];
+        if (banned) violations.push(`${tour.slug}: ${p} — ${banned.reason}`);
+      }
+    }
+    expect(
+      violations,
+      `AI 생성 이미지가 실투어 사진으로 쓰였다:\n${violations.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  // 차단 목록의 근거(그 파일이 정말 그 파일인지)도 md5 로 고정 — 파일이 바뀌면 다시 열어보라고 깨진다.
+  it('AI 생성 이미지 차단 목록의 md5 가 public/ 실제 파일과 일치한다', () => {
+    const drift: string[] = [];
+    for (const [path, entry] of Object.entries(AI_GENERATED_PHOTOS)) {
+      if (!existsSync(join(PUBLIC_DIR, path))) {
+        drift.push(`${path}: 파일 없음 (목록에서 지울지 판단 필요)`);
+        continue;
+      }
+      const actual = md5Of(path);
+      if (actual !== entry.md5) drift.push(`${path}: 등록 ${entry.md5} != 실제 ${actual}`);
+    }
+    expect(drift, `AI 차단 목록 대상 파일이 바뀌었다. 다시 열어보고 판단할 것:\n${drift.join('\n')}`).toEqual([]);
   });
 
   it('stop 사진 파일이 public/ 에 실재 (깨진 경로 차단)', () => {

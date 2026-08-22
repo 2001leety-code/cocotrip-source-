@@ -12,7 +12,9 @@ const LANGUAGES: Language[] = ['ko', 'en', 'ja', 'zh'];
 const REGION_IDS = ['ganghwa', 'seoul', 'incheon', 'jeonju', 'paju', 'gyeongju', 'danyang', 'busan', 'chuncheon'] as const;
 const GALLERY_COUNTS: Record<(typeof REGION_IDS)[number], number> = {
   ganghwa: 18,
-  seoul: 20,
+  // 2026-08-22: 서울 21 → 20장 (해방촌-남산야경.jpg = "AI로 생성한 콘텐츠" 워터마크 이미지 제거).
+  // 갤러리는 images.slice(1) 이라 20장 중 19장 렌더.
+  seoul: 19,
   incheon: 8,
   jeonju: 21,
   paju: 8,
