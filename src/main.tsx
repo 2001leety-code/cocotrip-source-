@@ -11,6 +11,7 @@ import { initGA } from './lib/analytics'
 import { bootPostHog } from './lib/posthog'
 import { hasAnalyticsConsent, onConsentChange } from './lib/consent'
 import { initSentry } from './lib/sentry'
+import { startPrerenderReadySignal } from './lib/prerenderReady.mjs'
 
 // D1: activate shadcn .dark tokens before React mount (avoids FOUC).
 // Done here (not index.html class="dark") to avoid PDF_KOREAN_FONT lint
@@ -87,11 +88,16 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// 프리렌더(빌드후 puppeteer) 캡처 신호 — 초기 렌더 + usePageMeta(useEffect) settle 후 dispatch.
-// @prerenderer 가 PRERENDER 빌드에서 이 이벤트를 기다렸다 HTML 캡처. 일반 런타임엔 무해(1회 발생).
-if (typeof window !== 'undefined') {
-  const signal = () => document.dispatchEvent(new Event('prerender-ready'));
-  // 2.5s 고정 settle — 비동기 데이터(투어/지역) + usePageMeta(title/canonical useEffect) 완료 보장.
-  // 프리렌더 캡처 타이밍용. 런타임 사용자엔 무해(리스너 없는 이벤트 1회).
-  setTimeout(signal, 2500);
+// 프리렌더(빌드후 puppeteer) 캡처 신호.
+//
+// 🔴 2026-08-23 이전에는 `setTimeout(signal, 2500)` 한 줄이었다. 2.5초는 "다 됐다" 의
+//    증거가 아니라 짐작이고, 청크가 늦거나 실패한 라우트는 **빈 껍데기가 정적 HTML 로
+//    구워져 배포**됐다 — 아무 에러 없이. 지금은 화면 내용으로 판정한다(본문·canonical·
+//    robots, 가이드 상세는 본문 도착 + Article 스키마까지). 규칙 원본과 이유는
+//    src/lib/prerenderReady.mjs, 산출물 감사는 scripts/audit-prerender-artifacts.mjs.
+//
+// PRERENDER 빌드에서만 돈다 — 일반 prod 번들에서는 `__PRERENDER_BUILD__` 가 false 라
+// 이 블록이 통째로 사라진다(손님 브라우저는 폴링하지 않는다).
+if (__PRERENDER_BUILD__ && typeof window !== 'undefined') {
+  startPrerenderReadySignal(document);
 }

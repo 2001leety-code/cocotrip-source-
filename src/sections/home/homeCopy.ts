@@ -59,6 +59,14 @@ export interface HomeCopy {
     dayLabel: string;
     stopsLabel: string;
   };
+  /** 지역 페이지로 들어가는 유일한 공개 입구. 문구는 지역 지식을 주장하지 않는다 —
+   *  각 지역이 무엇인지는 그 페이지의 i18n 이 이미 들고 있고, 여기서는 그 페이지가
+   *  무엇을 담고 있는지만 말한다. */
+  regions: {
+    eyebrow: string;
+    heading: string;
+    lede: string;
+  };
   closing: {
     reviewsEyebrow: string;
     reviewsHeading: string;
@@ -131,6 +139,11 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       dayLabel: 'Day 1',
       stopsLabel: 'stops',
     },
+    regions: {
+      eyebrow: 'Regions',
+      heading: 'Nine Korean regions, one page each',
+      lede: 'Every page carries the same three things: what there is to see, our own photographs of the place, and which of our tours and planner cities reach it.',
+    },
     closing: {
       reviewsEyebrow: 'Reviews',
       reviewsHeading: 'We do not print a score we cannot show you',
@@ -201,6 +214,11 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: '지도에서 열기',
       dayLabel: '1일차',
       stopsLabel: '곳',
+    },
+    regions: {
+      eyebrow: '지역',
+      heading: '한국 아홉 개 지역, 한 곳당 한 페이지',
+      lede: '어느 페이지든 담는 것은 같습니다 — 무엇을 볼 수 있는지, 그곳에서 직접 찍은 사진, 그리고 어떤 투어와 플래너 도시가 그 지역에 닿는지.',
     },
     closing: {
       reviewsEyebrow: '후기',
@@ -273,6 +291,11 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       dayLabel: '1日目',
       stopsLabel: 'ヶ所',
     },
+    regions: {
+      eyebrow: '地域',
+      heading: '韓国の9地域、1地域につき1ページ',
+      lede: 'どのページも載せるものは同じです — 何が見られるか、現地で撮った写真、そしてどのツアーとプランナー対応都市がその地域に届くか。',
+    },
     closing: {
       reviewsEyebrow: 'レビュー',
       reviewsHeading: 'お見せできない点数は書きません',
@@ -343,6 +366,11 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: '在地图中打开',
       dayLabel: '第1天',
       stopsLabel: '处',
+    },
+    regions: {
+      eyebrow: '地区',
+      heading: '韩国九个地区，每个地区一个页面',
+      lede: '每个页面收录的内容相同：可以看什么、我们在当地拍摄的照片，以及哪些旅游产品和行程规划城市能到达该地区。',
     },
     closing: {
       reviewsEyebrow: '评价',

@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { EcEmpty, EcError, EcLoading } from '@/components/ui/states';
 import { sanitizeGuideHtml } from '@/lib/sanitizeGuideHtml';
-import { fill, readingMinutes, type GuideCopy, type GuideDoc } from './guideCopy';
+import { fill, readingMinutes, type GuideCopy, type GuideDoc, type GuideMeta } from './guideCopy';
 
 /**
  * /guide/:slug — one article, on paper.
@@ -32,9 +32,12 @@ interface Props {
    *  in which case the reading time is simply not shown. */
   words?: number;
   onRetry?: () => void;
+  /** 같은 주제를 공유하는 다른 글. 없으면 섹션 자체를 그리지 않는다 — 자리를 채우려고
+   *  관계없는 글을 넣는 것은 빈 자리보다 나쁘다. 선정 규칙은 `relatedGuides.ts`. */
+  related?: readonly GuideMeta[];
 }
 
-export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
+export function GuideArticleBody({ copy, status, doc, words, onRetry, related = [] }: Props) {
   const c = copy.article;
   const minutes = readingMinutes(words);
   const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
@@ -136,6 +139,33 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
                     ))}
                   </div>
                 </section>
+              )}
+
+              {/* 글끼리 잇는 유일한 통로. 평범한 앵커라 프리렌더 HTML 에 `<a href>` 로
+                  그대로 실린다 — JS 를 돌리지 않는 크롤러도 다음 글로 건너간다.
+                  `nav` + 자기 제목으로 이름표를 달아 스크린리더에서도 목록 하나로 읽힌다. */}
+              {related.length > 0 && (
+                <nav className="mt-12 border-t border-ec-line pt-6" aria-labelledby="guide-related">
+                  <h2 id="guide-related" className="ec-eyebrow">{c.related}</h2>
+                  <ul className="mt-2">
+                    {related.map((item) => (
+                      <li key={item.slug}>
+                        <Link
+                          to={`/guide/${item.slug}`}
+                          className="group flex min-h-[44px] items-center gap-3 border-b border-ec-line py-3"
+                        >
+                          <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ec-ink">
+                            {item.title}
+                          </span>
+                          <ArrowRight
+                            className="h-4 w-4 shrink-0 text-ec-ink-3 transition-transform duration-ec-base ease-ec-standard group-hover:translate-x-0.5"
+                            aria-hidden
+                          />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
               )}
 
               <div className="mt-10">

@@ -11,6 +11,7 @@ import { Footer } from '@/sections/Footer';
 import { pickGuideCopy, type GuideDoc, type GuideMeta } from '@/sections/guide/guideCopy';
 import { GuideIndexBody } from '@/sections/guide/GuideIndexBody';
 import { GuideArticleBody, type GuideArticleStatus } from '@/sections/guide/GuideArticleBody';
+import { pickRelatedGuides } from '@/sections/guide/relatedGuides';
 import guidesIndex from '@/content/guides/_index.json';
 import '@/styles/guide-editorial.css';
 
@@ -91,6 +92,9 @@ export function GuideDetailPage() {
   // 읽는 시간은 목록이 본문에서 계산해 둔 낱말 수에서만 나온다. 목록에 없는 글이면
   // (직접 URL 로 들어온 신규 파일 등) 그 줄을 아예 그리지 않는다 — 지어내지 않는다.
   const meta = GUIDES.find((g) => g.slug === slug);
+  // 같은 주제를 공유하는 다른 글 2~3편. 목록 메타(_index.json)만 읽으므로 본문 청크를
+  // 더 받지 않고, 순서는 완전 결정론이라 새로고침마다 흔들리지 않는다.
+  const related = pickRelatedGuides(slug, GUIDES);
   const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
   const hasSafeBody = safeHtml.trim().length > 0;
   const status: GuideArticleStatus = !loader
@@ -134,7 +138,14 @@ export function GuideDetailPage() {
 
   return (
     <Shell>
-      <GuideArticleBody copy={copy} status={status} doc={readyDoc} words={meta?.words} onRetry={retry} />
+      <GuideArticleBody
+        copy={copy}
+        status={status}
+        doc={readyDoc}
+        words={meta?.words}
+        onRetry={retry}
+        related={related}
+      />
     </Shell>
   );
 }

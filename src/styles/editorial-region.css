@@ -241,6 +241,44 @@
   color: var(--ec-text-secondary);
 }
 
+/* 지역 → 지역 앵커 (2026-08-23). 지역 9개는 서로 이어져 있지 않았다 — 크롤러에게도
+   사람에게도 막다른 페이지였다. 명소 목록과 같은 괘선 리듬을 쓰되 행 높이는 낮춘다:
+   이건 읽을 카드가 아니라 건너갈 목록이다. 44px 은 손가락 최소 높이. */
+.region-editorial-other {
+  padding-bottom: 96px;
+}
+
+.region-editorial-other-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ec-line-strong);
+  list-style: none;
+}
+
+.region-editorial-other-link {
+  display: flex;
+  min-height: 44px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px 18px 0;
+  border-bottom: 1px solid var(--ec-line);
+  color: inherit;
+}
+
+.region-editorial-other-link .ec-h3 {
+  font-size: 17px;
+}
+
+.region-editorial-other-link .ec-body-sm {
+  color: var(--ec-text-secondary);
+}
+
+.region-editorial-other-link:hover .ec-h3 {
+  color: var(--ec-brand);
+}
+
 .region-editorial-cta {
   padding-block: 72px 80px;
   border-top: 1px solid var(--ec-line);
@@ -277,6 +315,10 @@
 }
 
 @media (max-width: 900px) {
+  .region-editorial-other-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .region-editorial-hero-grid {
     grid-template-columns: 1fr;
   }
@@ -301,6 +343,10 @@
 }
 
 @media (max-width: 640px) {
+  .region-editorial-other-list {
+    grid-template-columns: 1fr;
+  }
+
   .region-editorial-not-found {
     padding-block: 64px 88px;
   }

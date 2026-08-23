@@ -6,6 +6,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { RegionSeoInfo } from '@/components/region/RegionSeoInfo';
 import { CITY_CHIPS } from '@/components/WizardForm/data';
+import { REGION_IDS, regionPath } from '@/data/regions';
 import '@/styles/editorial-region.css';
 
 const regionImages: Record<string, string[]> = {
@@ -93,6 +94,7 @@ const SHELL_COPY: Record<RegionLanguage, {
   browseTours: string;
   phone: string;
   facts: (places: number, photos: number) => string;
+  otherRegions: string;
 }> = {
   ko: {
     eyebrow: '한국 지역 안내',
@@ -104,6 +106,7 @@ const SHELL_COPY: Record<RegionLanguage, {
     browseTours: '투어 둘러보기',
     phone: '전화 문의',
     facts: (places, photos) => `명소 ${places}곳 · 사진 ${photos}장`,
+    otherRegions: '다른 지역',
   },
   en: {
     eyebrow: 'Korea region guide',
@@ -115,6 +118,7 @@ const SHELL_COPY: Record<RegionLanguage, {
     browseTours: 'Browse tours',
     phone: 'Call CocoTrip',
     facts: (places, photos) => `${places} places · ${photos} photos`,
+    otherRegions: 'Other regions',
   },
   ja: {
     eyebrow: '韓国地域ガイド',
@@ -126,6 +130,7 @@ const SHELL_COPY: Record<RegionLanguage, {
     browseTours: 'ツアーを見る',
     phone: '電話で問い合わせ',
     facts: (places, photos) => `スポット${places}か所 · 写真${photos}枚`,
+    otherRegions: 'ほかの地域',
   },
   zh: {
     eyebrow: '韩国地区指南',
@@ -137,6 +142,7 @@ const SHELL_COPY: Record<RegionLanguage, {
     browseTours: '浏览旅游产品',
     phone: '电话咨询',
     facts: (places, photos) => `${places}个景点 · ${photos}张照片`,
+    otherRegions: '其他地区',
   },
 };
 
@@ -171,6 +177,17 @@ export function RegionDetail() {
   const images = isKnownRegionId && regionId ? regionImages[regionId] : [];
   const galleryImages = images.slice(1);
   const plannerCovered = Boolean(regionId && CITY_CHIPS.some((chip) => chip.key === regionId));
+  // 지역끼리 잇는 앵커. 이 페이지들은 홈에서만 들어올 수 있었고 서로는 이어져 있지
+  // 않았다 — 이름·한 줄 설명은 각 지역의 i18n 에서 그대로 가져오므로 여기서 새 사실을
+  // 만들지 않는다. 번역이 비면 그 지역은 목록에서 빠진다.
+  const otherRegions = REGION_IDS.flatMap((id) => {
+    if (id === regionId) return [];
+    const entry = t.regionDetail?.[id as keyof typeof t.regionDetail] as
+      { title?: unknown; subtitle?: unknown } | undefined;
+    const title = typeof entry?.title === 'string' ? entry.title : '';
+    const subtitle = typeof entry?.subtitle === 'string' ? entry.subtitle : '';
+    return title ? [{ id, title, subtitle }] : [];
+  });
 
   usePageMeta({
     title: regionData?.title || t.regionDetail?.notFound || 'Region not found',
@@ -255,6 +272,25 @@ export function RegionDetail() {
             <section className="region-editorial-evidence ec-container">
               <RegionSeoInfo regionId={regionId || ''} regionTitle={regionData.title} language={language} t={t} />
             </section>
+
+            {otherRegions.length > 0 && (
+              <section className="region-editorial-other ec-container" aria-labelledby="region-other">
+                <header className="region-editorial-section-heading">
+                  <p className="ec-eyebrow">{copy.eyebrow}</p>
+                  <h2 id="region-other" className="ec-h2">{copy.otherRegions}</h2>
+                </header>
+                <ul className="region-editorial-other-list" role="list">
+                  {otherRegions.map((region) => (
+                    <li key={region.id}>
+                      <Link to={regionPath(region.id)} className="region-editorial-other-link">
+                        <span className="ec-h3">{region.title}</span>
+                        {region.subtitle && <span className="ec-body-sm">{region.subtitle}</span>}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section className="region-editorial-cta">
               <div className="ec-container">

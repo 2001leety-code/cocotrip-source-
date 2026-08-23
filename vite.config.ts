@@ -25,6 +25,11 @@ if (process.env.PRERENDER === '1' && !PRERENDER_EXEC_PATH && process.env.VERCEL)
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  // 프리렌더 준비 판정(src/lib/prerenderReady.mjs)을 켜는 스위치. 일반 prod 번들에서는
+  // false 로 접혀 그 코드가 통째로 tree-shake 된다 — 손님 브라우저는 폴링하지 않는다.
+  define: {
+    __PRERENDER_BUILD__: JSON.stringify(process.env.PRERENDER === '1'),
+  },
   // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
   // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
   server: {
