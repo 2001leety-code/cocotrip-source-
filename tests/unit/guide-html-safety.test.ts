@@ -76,6 +76,17 @@ describe('guide HTML shared sanitizer', () => {
     expect(node.html).toContain('<a href="https://example.com/path">safe link</a>');
   });
 
+  it('플래너 CTA는 style/핸들러를 버리고 guide-cta/guide-cta-link class만 남긴다', () => {
+    const dirty = '<div class="guide-cta evil" style="background:red" onclick="alert(1)">'
+      + '<a href="/planner" class="guide-cta-link evil" style="color:red" onclick="alert(1)">Build my custom Korea itinerary with CocoTrip →</a></div>';
+    const node = auditGuideHtml(dirty);
+    expect(node.changed).toBe(true);
+    expect(node.html).not.toMatch(/style=|onclick=/);
+    expect(node.html).toContain('<div class="guide-cta">');
+    expect(node.html).toContain('<a href="/planner" class="guide-cta-link">Build my custom Korea itinerary with CocoTrip →</a>');
+    expect(sanitizeGuideHtml(dirty)).toBe(node.html);
+  });
+
   it('정제 결과는 다시 정제해도 바뀌지 않는다', () => {
     const once = auditGuideHtml(MALICIOUS).html;
     const twice = auditGuideHtml(once);

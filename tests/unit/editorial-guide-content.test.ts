@@ -302,6 +302,41 @@ describe('_index.json 파생 필드 ↔ 실제 본문 (드리프트 잠금)', ()
   });
 });
 
+describe('플래너 CTA — style 대신 class, 44px 터치 타깃', () => {
+  // guideHtmlPolicy.mjs가 본문 style 속성을 전부 버리므로(FORBID_ATTR), CTA를 카드/
+  // 버튼처럼 보이게 하는 유일한 경로는 sanitizer가 살려주는 class + 이 CSS뿐이다.
+  it('guide-cta/guide-cta-link CSS가 44px 버튼 토큰으로 정의되어 있다', () => {
+    const css = read('src/styles/guide-editorial.css');
+    expect(css).toMatch(/\.ec-prose\s+\.guide-cta\s*\{/);
+    expect(css).toMatch(/\.ec-prose\s+a\.guide-cta-link\s*\{/);
+    expect(css).toMatch(/min-height:\s*var\(--ec-button-height\)/);
+  });
+
+  it('sanitizer allowlist가 guide-cta/guide-cta-link class를 살려준다', () => {
+    const policy = read('src/lib/guideHtmlPolicy.mjs');
+    expect(policy).toMatch(/['"]guide-cta['"]/);
+    expect(policy).toMatch(/['"]guide-cta-link['"]/);
+  });
+
+  // #1339 계열 회귀: CTA가 inline style로 되돌아가면 sanitizer가 그걸 통째로 지워
+  // 평범한 밑줄 링크로 격하된다. 본문에 CTA가 있는 글은 전부 class 기반이어야 한다.
+  it('본문에 플래너 CTA가 있는 글은 전부 inline style 대신 guide-cta class를 쓴다', () => {
+    const docOf = (slug: string) => JSON.parse(read(`${GUIDE_DIR}/${slug}.json`)) as { html: string };
+    let ctaGuides = 0;
+    for (const g of guidesIndex) {
+      const html = docOf(g.slug).html;
+      if (!/href="\/planner"/.test(html)) continue;
+      const ctaBlock = /<div[^>]*><a href="\/planner"[^>]*>[^<]*<\/a><\/div>/.exec(html);
+      if (!ctaBlock) continue; // in-paragraph plain links (no box) are out of scope
+      ctaGuides += 1;
+      expect(ctaBlock[0], `${g.slug} CTA`).toContain('class="guide-cta"');
+      expect(ctaBlock[0], `${g.slug} CTA`).toContain('class="guide-cta-link"');
+      expect(ctaBlock[0], `${g.slug} CTA`).not.toMatch(/style=/);
+    }
+    expect(ctaGuides).toBeGreaterThan(0);
+  });
+});
+
 describe('시각 언어 — 다크 셸·그라데이션·글로우·글래스 금지', () => {
   const FORBIDDEN: [RegExp, string][] = [
     [/bg-clip-text/, 'gradient text'],
