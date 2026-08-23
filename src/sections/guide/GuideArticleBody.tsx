@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { EcEmpty, EcError, EcLoading } from '@/components/ui/states';
+import { sanitizeGuideHtml } from '@/lib/sanitizeGuideHtml';
 import { fill, readingMinutes, type GuideCopy, type GuideDoc } from './guideCopy';
 
 /**
@@ -36,6 +37,7 @@ interface Props {
 export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
   const c = copy.article;
   const minutes = readingMinutes(words);
+  const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
 
   return (
     <main className="ec-root">
@@ -114,12 +116,14 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry }: Props) {
                 </p>
               )}
 
-              {/* Our own bot-generated content (collection verifies no script,
-                  iframe or inline handler). `.ec-prose` is defined in
+              {/* Defense in depth: import-time audit and this browser-time sanitizer
+                  share one allowlist. A stale legacy JSON or compromised source still
+                  cannot render scripts, handlers, unsafe URLs, forms, SVG or styles.
+                  `.ec-prose` is defined in
                   src/styles/guide-editorial.css — deliberately a new class, so
                   the dark `.guide-article` rules in index.css simply stop
                   applying instead of being fought with specificity. */}
-              <div className="ec-prose mt-8" dangerouslySetInnerHTML={{ __html: doc.html }} />
+              <div className="ec-prose mt-8" dangerouslySetInnerHTML={{ __html: safeHtml }} />
 
               {doc.labels.length > 0 && (
                 <section className="mt-12 border-t border-ec-line pt-6">

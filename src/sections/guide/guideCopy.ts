@@ -39,6 +39,8 @@ export type GuideMeta = {
   labels: string[];
   image?: string;
   words?: number;
+  /** Brain projection only. Legacy Blogger JSON files predate this field. */
+  contentSha256?: string;
 };
 
 /** A full article chunk (`src/content/guides/<slug>.json`). */

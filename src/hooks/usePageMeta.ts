@@ -1,13 +1,19 @@
 import { useEffect } from 'react';
 
+let robotsOverrideSequence = 0;
+
 interface PageMeta {
   title: string;
   description: string;
   ogImage?: string;
   ogUrl?: string;
+  /** Brain guide projection hash. Omitted on legacy and non-guide pages. */
+  contentSha256?: string;
+  /** Page state override. App route policy respects this marker until this hook cleans it up. */
+  robots?: 'index, follow' | 'noindex, nofollow';
 }
 
-export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
+export function usePageMeta({ title, description, ogImage, ogUrl, contentSha256, robots }: PageMeta) {
   useEffect(() => {
     // Title
     document.title = title ? `${title} | CocoTrip` : 'CocoTrip — Premium Korea Travel';
@@ -92,5 +98,52 @@ export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
       }
       canonical.href = canonicalHref;
     }
-  }, [title, description, ogImage, ogUrl]);
+
+    // Known routes can still be unsafe to index while their chunk is loading/failed or their
+    // sanitized body is empty. Mark this as a page-state override so App's async route policy
+    // cannot race in later and replace noindex with index.
+    let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+    const previousRobots = robotsMeta
+      ? {
+          content: robotsMeta.content,
+          marker: robotsMeta.dataset.pageMetaRobotsOverride || '',
+        }
+      : null;
+    let robotsOverrideToken = '';
+    if (robots) {
+      if (!robotsMeta) {
+        robotsMeta = document.createElement('meta');
+        robotsMeta.name = 'robots';
+        document.head.appendChild(robotsMeta);
+      }
+      robotsMeta.content = robots;
+      robotsOverrideSequence += 1;
+      robotsOverrideToken = `page-meta-${robotsOverrideSequence}`;
+      robotsMeta.dataset.pageMetaRobotsOverride = robotsOverrideToken;
+    }
+
+    // Brain은 배포 뒤 이 값과 canonical/JSON-LD를 읽기 전용으로 대조한다.
+    // 다른 라우트나 hash가 없는 legacy 글로 이동하면 이전 글의 meta를 반드시 제거한다.
+    const hashMeta = document.querySelector('meta[name="cocotrip:content-sha256"]') as HTMLMetaElement | null;
+    if (contentSha256 && /^[a-f0-9]{64}$/.test(contentSha256)) {
+      const target = hashMeta || document.createElement('meta');
+      target.name = 'cocotrip:content-sha256';
+      target.content = contentSha256;
+      if (!hashMeta) document.head.appendChild(target);
+    } else {
+      hashMeta?.remove();
+    }
+    return () => {
+      const current = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+      if (robotsOverrideToken && current?.dataset.pageMetaRobotsOverride === robotsOverrideToken) {
+        if (!previousRobots) {
+          current.remove();
+        } else {
+          current.content = previousRobots.content;
+          if (previousRobots.marker) current.dataset.pageMetaRobotsOverride = previousRobots.marker;
+          else delete current.dataset.pageMetaRobotsOverride;
+        }
+      }
+    };
+  }, [title, description, ogImage, ogUrl, contentSha256, robots]);
 }

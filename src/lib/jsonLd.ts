@@ -54,8 +54,9 @@ export function buildArticleJsonLd(params: {
   published: string;
   updated?: string;
   image?: string;
+  contentSha256?: string;
 }): Record<string, unknown> {
-  const { path, title, description, published, updated, image } = params;
+  const { path, title, description, published, updated, image, contentSha256 } = params;
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -69,6 +70,9 @@ export function buildArticleJsonLd(params: {
     inLanguage: 'en',
   };
   if (image) jsonLd.image = abs(image);
+  if (contentSha256 && /^[a-f0-9]{64}$/.test(contentSha256)) {
+    jsonLd.identifier = `urn:sha256:${contentSha256}`;
+  }
   return jsonLd;
 }
 

@@ -86,3 +86,7 @@ tests/screenshots/mobile-home-v2-light/
 
 # Playwright Vercel bypass storageState (CI 생성, 커밋 안 함)
 tests/.auth/
+
+# Brain guide projection repo lock (crash residue only; never content)
+/.guide-projection.lock
+/.guide-projection.lock.*.stale

@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { buildArticleJsonLd, buildFaqJsonLd, buildBreadcrumbJsonLd } from '../../src/lib/jsonLd';
+import { guideCanonicalUrl } from '../../src/lib/seoRoutes';
 
 describe('buildArticleJsonLd', () => {
   const base = {
@@ -27,6 +28,18 @@ describe('buildArticleJsonLd', () => {
   it('이미 절대 URL 인 image 는 건드리지 않는다', () => {
     const a = buildArticleJsonLd({ ...base, image: 'https://cocotripkr.com/a.webp' });
     expect(a.image).toBe('https://cocotripkr.com/a.webp');
+  });
+
+  it('가이드 canonical 절대 URL 을 Article mainEntityOfPage 에 그대로 쓴다', () => {
+    const canonical = guideCanonicalUrl('best-seoul-street-food-markets-2026');
+    const article = buildArticleJsonLd({ ...base, path: canonical });
+    expect((article.mainEntityOfPage as Record<string, string>)['@id']).toBe(canonical);
+  });
+
+  it('Brain projection hash가 있으면 운영 URL에서 확인할 수 있는 identifier로 보존한다', () => {
+    const hash = 'a'.repeat(64);
+    expect(buildArticleJsonLd({ ...base, contentSha256: hash }).identifier).toBe(`urn:sha256:${hash}`);
+    expect(buildArticleJsonLd({ ...base, contentSha256: 'not-a-hash' })).not.toHaveProperty('identifier');
   });
 
   it('image 가 없으면 image 키 자체를 넣지 않는다 (빈 값 송출 금지)', () => {

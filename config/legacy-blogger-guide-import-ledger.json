@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "scope": "legacy-blogger-migration-only",
+  "latestSourceDate": "2026-08-22",
+  "canonicalBase": "https://cocotripkr.com/guide",
+  "reviews": [
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/jeonju-markets-food-guide-2024-ultimate.html",
+      "slug": "jeonju-markets-food-guide-2024-ultimate",
+      "title": "Jeonju Markets & Food Guide 2024: Ultimate First-Timer's Guide",
+      "contentSha256": "8e71f6bc2ec9acd3788f6f728d6e9b8c75d110d11925797d069ffa4b2d3af0ee",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme and title year does not match the 2026 publication date; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/gyeongju-markets-food-first-timers.html",
+      "slug": "gyeongju-markets-food-first-timers",
+      "title": "Gyeongju Markets & Food: A First-Timer's Guide (2026)",
+      "contentSha256": "95e745a31f4295ba29d8020459484c5c493ed02734cf87930b86f2397dd02f31",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/best-seoul-markets-for-first-time.html",
+      "slug": "best-seoul-markets-for-first-time",
+      "title": "Best Seoul Markets for First-Time Visitors 2026",
+      "contentSha256": "1d220a5e4c251f49d121c3addfc346a92657081bec83b5006534589163448ef2",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/jecheon-markets-food-guide-2024-your.html",
+      "slug": "jecheon-markets-food-guide-2024-your",
+      "title": "Jecheon Markets & Food Guide 2024: Your First-Timer's Guide",
+      "contentSha256": "989932b17dd97f0143d626937b77277f2fe51c424cc7cbc83fd55fe0fd29070f",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme and title year does not match the 2026 publication date; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/mokpo-markets-food-guide-2024-first.html",
+      "slug": "mokpo-markets-food-guide-2024-first",
+      "title": "Mokpo Markets & Food Guide 2024: First Timer's Guide",
+      "contentSha256": "a1ff02e2e90bdfb8a5fd6ed639ec0251588e49af57e1ae2b0684a362e866e492",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme and title year does not match the 2026 publication date; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/yeosu-food-market-guide-2026-what-first.html",
+      "slug": "yeosu-food-market-guide-2026-what-first",
+      "title": "Yeosu Food & Market Guide 2026: What First-Timers Need to Know",
+      "contentSha256": "4e3d14ec153127bb969fe5d0f50d7caeb6daccc7055d3131cc42690e08a808cf",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/daejeon-markets-your-first-timers-food.html",
+      "slug": "daejeon-markets-your-first-timers-food",
+      "title": "Daejeon Markets: Your First-Timer's Food Guide 2026",
+      "contentSha256": "33ff1ca75e22450e83282acdb52800c08f64f44416966cbe1f164fac5113f304",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/gangneung-markets-your-first-timers.html",
+      "slug": "gangneung-markets-your-first-timers",
+      "title": "Gangneung Markets: Your First-Timer's Foodie Guide (2026)",
+      "contentSha256": "34c7fb804e2358609c8b8ac7570f28a802c8a93f7d82f82ad8c320bdbcece2c7",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/incheon-markets-for-first-timers-2026.html",
+      "slug": "incheon-markets-for-first-timers-2026",
+      "title": "Incheon Markets for First-Timers 2026: Your Foodie Guide",
+      "contentSha256": "c37746d5f7308d32e06902983b61798e00f02c563269200bd9cbf37cd9579dbd",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Repeated market/food theme; requires a new review before import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/is-korea-safe-for-solo-travelers-2026.html",
+      "slug": "is-korea-safe-for-solo-travelers-2026",
+      "title": "Is Korea Safe for Solo Travelers? A 2026 Guide",
+      "contentSha256": "da15622a129cd27d5d86ee1bb83478a124ba8ea7e65b7e94283609b2df3ddb49",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Migration backlog requires a fresh quality review before canonical import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/08/seoul-rainy-day-guide-2026-indoor-plans.html",
+      "slug": "seoul-rainy-day-guide-2026-indoor-plans",
+      "title": "Seoul Rainy Day Guide 2026: Indoor Plans That Don't Feel Like Backups",
+      "contentSha256": "dde5ff05924d148cc5359dd6415b1118ee9af4f70226ee51aeaca1a754ec4e9f",
+      "decision": "hold",
+      "recordedBy": "migration-safety-audit",
+      "recordedAt": "2026-08-23T00:00:00+09:00",
+      "reason": "Migration backlog requires a fresh quality review before canonical import."
+    },
+    {
+      "sourceUrl": "https://cocotripkr.blogspot.com/2026/07/4-seoul-cafe-neighborhoods-worth-your.html",
+      "slug": "4-seoul-cafe-neighborhoods-worth-your",
+      "title": "4 Seoul cafe neighborhoods worth your time in 2026",
+      "contentSha256": "126753c24691afef663d3e8d8e470f479b6fdcdce75a98e1593b450337af7a0b",
+      "decision": "rejected",
+      "reviewedBy": "operator-directed-consolidation",
+      "reviewedAt": "2026-08-23T12:33:27+09:00",
+      "redirectTo": "https://cocotripkr.com/guide/seoul-cafe-guide-2026-best",
+      "reason": "Duplicate Seoul cafe-neighborhood search intent; permanently consolidate URL signals into the surviving guide without merging unverified body claims."
+    }
+  ]
+}
