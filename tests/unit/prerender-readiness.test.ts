@@ -14,8 +14,9 @@
  *   4) INDEXABLE_ROUTES 전부가 감사 대상이다 — 산출물 경로 매핑에 구멍이 없다.
  *   5) dist 에 프리렌더 산출물이 실제로 있으면 전 경로를 그 자리에서 감사한다.
  */
-import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { afterAll, describe, it, expect, vi } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 
@@ -34,7 +35,10 @@ import {
   artifactPathFor,
   auditArtifactHtml,
   auditArtifacts,
+  formatAuditReport,
+  prerenderAuditPlugin,
   routesFromSitemap,
+  runPrerenderAudit,
 } from '../../scripts/audit-prerender-artifacts.mjs';
 
 const ROOT = process.cwd();
@@ -321,10 +325,202 @@ describe('빌드 배선', () => {
     expect(config).toMatch(/__PRERENDER_BUILD__:\s*JSON\.stringify\(process\.env\.PRERENDER === '1'\)/);
   });
 
-  it('프리렌더 빌드 명령이 감사를 함께 돌린다', () => {
+  it('프리렌더 빌드 명령이 일반 빌드로 위임한다 (게이트는 빌드 안에 있다)', () => {
     const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
     expect(pkg.scripts['seo:audit-prerender']).toContain('audit-prerender-artifacts');
     expect(pkg.scripts['build:prerender']).toContain('build-prerender');
-    expect(read('scripts', 'build-prerender.mjs')).toContain('seo:audit-prerender');
+    // 배포가 쓰는 명령은 이것이다. 셸 의존 문법(`PRERENDER=1 ...`)을 끼워 넣지 않는다.
+    expect(pkg.scripts.build).toBe('tsc -b && vite build');
+  });
+});
+
+/**
+ * 🔴 검토에서 잡힌 P1 (2026-08-23): 감사가 `npm run build:prerender` 라는 별도 스크립트로만
+ *    닿았다. 배포는 `npm run build` 를 PRERENDER=1 로 돌리고 레포에 buildCommand 재정의도
+ *    없으니, **배포 경로는 감사를 한 번도 지나가지 않았다** — 미완성 산출물이 구워져도
+ *    빌드는 0으로 끝났다. 그래서 게이트를 빌드 수명주기(`closeBundle`) 안으로 옮겼다.
+ *
+ * 여기서 증명하는 것
+ *   1) PRERENDER 꺼짐 → 플러그인 자체가 없다(일반 빌드가 라우트별 산출물을 요구하지 않음).
+ *   2) PRERENDER 켜짐 → 빌드가 감사를 돌리고, 실패는 throw 로 전파된다(빌드 exit != 0).
+ *   3) 조용한 통과가 없다 — 목록이 비었거나 dist 가 없으면 그것도 실패다.
+ *   4) 감사는 프로세스당 정확히 한 번.
+ */
+describe('프로덕션 게이트 배선 (PRERENDER=1 npm run build)', () => {
+  const ROUTES = ['/', '/tours'];
+
+  function fixtureDist(files: Record<string, string>): string {
+    const dir = mkdtempSync(path.join(tmpdir(), 'prerender-audit-'));
+    for (const [rel, html] of Object.entries(files)) {
+      const file = path.join(dir, rel);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, html);
+    }
+    tempDirs.push(dir);
+    return dir;
+  }
+
+  const completeDist = () => fixtureDist({
+    'index.html': page({ route: '/' }),
+    'tours/index.html': page({ route: '/tours' }),
+  });
+
+  const tempDirs: string[] = [];
+  afterAll(() => {
+    for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('PRERENDER 가 꺼져 있으면 플러그인을 만들지 않는다', () => {
+    expect(prerenderAuditPlugin({ enabled: false })).toBeNull();
+    expect(prerenderAuditPlugin({})).toBeNull();
+  });
+
+  it('vite.config 가 PRERENDER 환경변수로만 게이트를 켠다', () => {
+    const config = read('vite.config.ts');
+    expect(config).toContain('prerenderAuditPlugin');
+    expect(config).toMatch(/prerenderAuditPlugin\(\{\s*enabled:\s*process\.env\.PRERENDER === '1'\s*\}\)/);
+    // 플러그인 배열 안에 있어야 빌드 수명주기를 탄다 — 주석이나 죽은 코드가 아니다.
+    const plugins = config.slice(config.indexOf('plugins: ['), config.indexOf('resolve: {'));
+    expect(plugins).toContain('prerenderAuditPlugin({ enabled: process.env.PRERENDER === \'1\' })');
+  });
+
+  it('켜지면 빌드 전용 플러그인이 나온다', () => {
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: completeDist() });
+    expect(plugin).not.toBeNull();
+    expect(plugin.apply).toBe('build');
+    expect(typeof plugin.closeBundle).toBe('function');
+  });
+
+  it('산출물이 멀쩡하면 빌드를 통과시킨다', () => {
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: completeDist() });
+    expect(() => plugin.closeBundle()).not.toThrow();
+  });
+
+  it('산출물이 없으면 빌드를 세운다 (조용한 0 종료 없음)', () => {
+    const dist = fixtureDist({ 'index.html': page({ route: '/' }) }); // /tours 누락
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: dist });
+    expect(() => plugin.closeBundle()).toThrowError(/prerender artifact audit failed[\s\S]*missing artifact/);
+  });
+
+  it('미완성 표시가 붙은 산출물이면 빌드를 세운다', () => {
+    const dist = fixtureDist({
+      'index.html': page({ route: '/' }),
+      'tours/index.html': page({ route: '/tours', incomplete: 'main text too short' }),
+    });
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: dist });
+    expect(() => plugin.closeBundle()).toThrowError(/prerender incomplete/);
+  });
+
+  it('빈 껍데기가 구워졌으면 빌드를 세운다', () => {
+    const dist = fixtureDist({
+      'index.html': page({ route: '/' }),
+      'tours/index.html': page({ route: '/tours', main: '' }),
+    });
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: dist });
+    expect(() => plugin.closeBundle()).toThrowError(/main text too short/);
+  });
+
+  it('프로세스당 정확히 한 번만 감사한다', () => {
+    const dist = completeDist();
+    const plugin = prerenderAuditPlugin({ enabled: true, routes: ROUTES, distDir: dist });
+    plugin.closeBundle();
+    // 첫 감사 뒤 산출물을 부숴도 두 번째 호출은 아무것도 하지 않는다 = 한 번만 돌았다.
+    rmSync(path.join(dist, 'tours'), { recursive: true, force: true });
+    expect(() => plugin.closeBundle()).not.toThrow();
+  });
+
+  it('입력이 비면 통과가 아니라 실패다', () => {
+    expect(runPrerenderAudit({ routes: [], distDir: completeDist() }).ok).toBe(false);
+    expect(runPrerenderAudit({ routes: ROUTES, distDir: path.join(ROOT, '__no_dist__') }))
+      .toMatchObject({ ok: false, results: [] });
+    expect(runPrerenderAudit({ routes: null, sitemapFile: path.join(ROOT, '__no_sitemap__.xml') }).ok)
+      .toBe(false);
+  });
+
+  /**
+   * 위 항목들이 "플러그인이 throw 한다" 까지 증명한다면, 이건 마지막 한 칸 —
+   * **그 throw 가 실제 vite 빌드를 실패로 끝내는가** 를 진짜 빌드로 확인한다.
+   * (작은 임시 프로젝트라 1~2초. 프리렌더는 돌리지 않는다.)
+   */
+  it('closeBundle 의 throw 가 실제 vite 빌드를 실패시킨다', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'prerender-gate-build-'));
+    tempDirs.push(root);
+    writeFileSync(path.join(root, 'main.js'), 'export const entry = 1;');
+    const outDir = path.join(root, 'dist');
+    mkdirSync(outDir, { recursive: true });
+
+    const { build } = await import('vite');
+    await expect(build({
+      root,
+      logLevel: 'silent',
+      build: {
+        outDir,
+        emptyOutDir: false,
+        rollupOptions: { input: path.join(root, 'main.js') },
+      },
+      // 산출물이 하나도 없는 dist → 감사 실패 → 빌드 실패여야 한다.
+      plugins: [prerenderAuditPlugin({ enabled: true, routes: ['/tours'], distDir: outDir })],
+    })).rejects.toThrow(/prerender artifact audit failed/);
+  }, 60000);
+
+  it('감사 보고가 실패 라우트와 이유를 남긴다 (조용히 죽지 않는다)', () => {
+    const dist = fixtureDist({ 'index.html': page({ route: '/' }) });
+    const report = formatAuditReport(runPrerenderAudit({ routes: ROUTES, distDir: dist }));
+    expect(report).toContain('FAIL /tours');
+    expect(report).toContain('1/2 routes passed');
+  });
+
+  it('CLI 진입점과 빌드 플러그인이 같은 판정을 쓴다', () => {
+    const src = read('scripts', 'audit-prerender-artifacts.mjs');
+    expect((src.match(/runPrerenderAudit\(/g) || []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('build:prerender 래퍼가 감사를 두 번 돌리지 않고 자기를 다시 부르지 않는다', () => {
+    const wrapper = read('scripts', 'build-prerender.mjs');
+    expect(wrapper).not.toContain('seo:audit-prerender');
+    expect(wrapper).not.toContain('build:prerender');
+    expect((wrapper.match(/run\(\[/g) || []).length).toBe(1);
+  });
+});
+
+/**
+ * 위 블록이 소스를 읽어 배선을 확인한다면, 여기서는 **실제 vite 설정을 그대로 불러**
+ * 플러그인 목록을 본다 — 문자열 대조가 아니라 `npm run build` 가 받게 될 바로 그 배열이다.
+ * 두 상태를 봐야 하므로 모듈 캐시를 비우고 두 번 부른다.
+ */
+describe('vite 설정이 내놓는 실제 플러그인 목록', () => {
+  const before = process.env.PRERENDER;
+  afterAll(() => {
+    if (before === undefined) delete process.env.PRERENDER;
+    else process.env.PRERENDER = before;
+  });
+
+  async function pluginNames(prerender: string | undefined): Promise<string[]> {
+    vi.resetModules();
+    if (prerender === undefined) delete process.env.PRERENDER;
+    else process.env.PRERENDER = prerender;
+    const mod = await import('../../vite.config.ts') as { default: unknown };
+    const config = (typeof mod.default === 'function'
+      ? await (mod.default as (env: unknown) => unknown)({ command: 'build', mode: 'production' })
+      : mod.default) as { plugins: unknown[] };
+    return config.plugins
+      .flat(10)
+      .filter(Boolean)
+      .map((p) => (p as { name?: string }).name)
+      .filter((n): n is string => typeof n === 'string');
+  }
+
+  it('PRERENDER=1 이면 빌드가 감사 플러그인을 받는다', async () => {
+    const names = await pluginNames('1');
+    expect(names).toContain('Prerender Plugin');
+    expect(names).toContain('cocotrip-prerender-artifact-audit');
+    // 정확히 한 번만 등록된다 — 두 번 들어가면 47라우트를 두 번 읽는다.
+    expect(names.filter((n) => n === 'cocotrip-prerender-artifact-audit')).toHaveLength(1);
+  });
+
+  it('PRERENDER 가 꺼져 있으면 일반 빌드에는 감사 플러그인이 없다', async () => {
+    const names = await pluginNames(undefined);
+    expect(names).not.toContain('Prerender Plugin');
+    expect(names).not.toContain('cocotrip-prerender-artifact-audit');
   });
 });

@@ -73,38 +73,105 @@ export function auditArtifacts(distDir, routes) {
   });
 }
 
-function main(argv) {
-  const distDir = argv[2] || 'dist';
-  const sitemapFile = path.join('public', 'sitemap.xml');
-  if (!existsSync(sitemapFile)) {
-    console.error(`[prerender-audit] no ${sitemapFile}`);
-    return 2;
-  }
-  if (!existsSync(distDir)) {
-    console.error(`[prerender-audit] no build output at ${distDir} — run a PRERENDER=1 build first`);
-    return 2;
-  }
+/**
+ * 감사 1회분. CLI 도 Vite 플러그인도 이 함수 하나를 쓴다 — 두 진입점이 서로 다른 판정을
+ * 하면 안 된다.
+ *
+ * 입력이 깨진 경우(sitemap 없음·목록 0건·산출물 디렉토리 없음)는 **통과가 아니라 실패**다.
+ * "볼 게 없으니 초록" 은 게이트처럼 보이는 초록불이고, 이 파일이 존재하는 이유가 그것이다.
+ *
+ * @returns {{ ok: boolean, fatal: string|null, results: Array<{route:string,ok:boolean,reasons:string[]}> }}
+ */
+export function runPrerenderAudit(options = {}) {
+  const distDir = options.distDir || 'dist';
+  const sitemapFile = options.sitemapFile || path.join('public', 'sitemap.xml');
+  const fail = (fatal) => ({ ok: false, fatal, results: [] });
 
-  let routes;
-  try {
-    routes = routesFromSitemap(readFileSync(sitemapFile, 'utf8'));
-  } catch (err) {
-    console.error(`[prerender-audit] ${err.message}`);
-    return 2;
+  let routes = options.routes || null;
+  if (!routes) {
+    if (!existsSync(sitemapFile)) return fail(`no ${sitemapFile}`);
+    try {
+      routes = routesFromSitemap(readFileSync(sitemapFile, 'utf8'));
+    } catch (err) {
+      return fail(err.message);
+    }
   }
-  if (routes.length === 0) {
-    console.error('[prerender-audit] sitemap has no URLs — refusing to pass on an empty set');
-    return 2;
-  }
+  if (routes.length === 0) return fail('route list is empty — refusing to pass on an empty set');
+  if (!existsSync(distDir)) return fail(`no build output at ${distDir}`);
 
   const results = auditArtifacts(distDir, routes);
-  const failed = results.filter((r) => !r.ok);
-  for (const result of failed) {
-    console.error(`[prerender-audit] FAIL ${result.route}`);
-    for (const reason of result.reasons) console.error(`    · ${reason}`);
+  return { ok: results.every((r) => r.ok), fatal: null, results };
+}
+
+/** 감사 결과를 사람이 읽을 줄로. CLI·플러그인이 같은 문장을 낸다. */
+export function formatAuditReport(audit) {
+  const lines = [];
+  if (audit.fatal) lines.push(`[prerender-audit] ${audit.fatal}`);
+  for (const result of audit.results.filter((r) => !r.ok)) {
+    lines.push(`[prerender-audit] FAIL ${result.route}`);
+    for (const reason of result.reasons) lines.push(`    · ${reason}`);
   }
-  console.log(`[prerender-audit] ${results.length - failed.length}/${results.length} routes passed`);
-  return failed.length > 0 ? 1 : 0;
+  if (audit.results.length > 0) {
+    const passed = audit.results.filter((r) => r.ok).length;
+    lines.push(`[prerender-audit] ${passed}/${audit.results.length} routes passed`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * 🔴 이 플러그인이 **실제 프로덕션 게이트**다 (2026-08-23 검토 지적 반영).
+ *
+ * 처음에는 감사를 `npm run build:prerender` 라는 별도 npm 스크립트에만 걸어 두었다.
+ * 그런데 배포는 `npm run build` 를 PRERENDER=1 로 돌린다 — 레포에 buildCommand 재정의도
+ * 없다. 즉 **배포 경로가 감사를 한 번도 지나가지 않았고**, 타임아웃·미완성 산출물이
+ * 그대로 구워져도 빌드는 0으로 끝났다. 게이트가 있다고 적어 놓은 게이트가 없었던 것이다.
+ *
+ * 그래서 감사를 빌드 수명주기 안으로 옮긴다:
+ *   · `closeBundle` = 번들이 디스크에 다 쓰인 뒤. 프리렌더 플러그인은 `generateBundle`
+ *     (order: 'post') 에서 HTML 을 번들에 emit 하므로, 이 시점엔 파일이 이미 있다.
+ *   · 실패하면 그냥 throw — Vite 빌드가 0 이 아닌 코드로 죽는다.
+ *   · PRERENDER 가 꺼져 있으면 플러그인 자체를 만들지 않는다(`null`). 일반 빌드는
+ *     라우트별 산출물을 요구받지 않는다.
+ *   · `ranOnce` 로 프로세스당 한 번만. 같은 빌드에서 SW/환경별로 `closeBundle` 이
+ *     여러 번 불릴 수 있는데, 감사를 47라우트씩 두 번 돌릴 이유가 없다.
+ *
+ * @returns {import('vite').Plugin | null}
+ */
+export function prerenderAuditPlugin(options = {}) {
+  if (!options.enabled) return null;
+  let ranOnce = false;
+  let outDir = options.distDir || null;
+
+  return {
+    name: 'cocotrip-prerender-artifact-audit',
+    apply: 'build',
+    enforce: 'post',
+    configResolved(config) {
+      if (!options.distDir) outDir = config?.build?.outDir || 'dist';
+    },
+    closeBundle() {
+      if (ranOnce) return;
+      ranOnce = true;
+      const audit = runPrerenderAudit({ ...options, distDir: outDir || 'dist' });
+      const report = formatAuditReport(audit);
+      if (audit.ok) {
+        if (report) console.log(report);
+        return;
+      }
+      throw new Error(`prerender artifact audit failed\n${report}`);
+    },
+  };
+}
+
+export function main(argv = []) {
+  const audit = runPrerenderAudit({ distDir: argv[2] || 'dist' });
+  const report = formatAuditReport(audit);
+  if (audit.ok) {
+    if (report) console.log(report);
+    return 0;
+  }
+  console.error(report);
+  return audit.fatal ? 2 : 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {

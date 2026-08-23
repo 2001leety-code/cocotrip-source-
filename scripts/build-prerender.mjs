@@ -5,8 +5,11 @@
  * (npm 은 Windows 에서 cmd.exe 로 실행하고, cmd 에는 인라인 env prefix 문법이 없다).
  * 개발 기계가 Windows 이고 빌드 기계가 Linux 이므로 양쪽에서 같은 명령이 돌아야 한다.
  *
- * 빌드가 초록이어도 감사가 빨간불이면 이 스크립트는 실패로 끝난다 — 프리렌더는
- * "돌았다" 가 아니라 "모든 색인 경로가 쓸 만한 HTML 로 나왔다" 여야 통과다.
+ * 🔴 여기서 감사를 따로 부르지 않는다. 산출물 감사는 `vite.config.ts` 의
+ *    `prerenderAuditPlugin` 이 빌드 안에서 돌린다 — 배포가 쓰는 경로가 바로 그것이기
+ *    때문이다. 이 스크립트가 감사를 한 번 더 부르면 47라우트를 두 번 읽을 뿐이고,
+ *    "게이트가 이 래퍼에 달려 있다" 는 잘못된 인상을 다시 만든다.
+ *    이 파일은 편의용 진입점일 뿐, 게이트가 아니다.
  */
 import { spawnSync } from 'node:child_process';
 
@@ -20,4 +23,3 @@ function run(args) {
 }
 
 run(['run', 'build']);
-run(['run', 'seo:audit-prerender']);
