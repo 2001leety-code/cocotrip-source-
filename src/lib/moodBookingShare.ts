@@ -7,7 +7,7 @@
 
 export type MoodBookingSharePhase = 'expected' | 'final';
 export type MoodBookingShareTollStatus = 'paid' | 'not-paid' | 'adjusted' | 'none';
-export type MoodBookingShareTollMode = 'estimated' | 'none' | 'actual';
+export type MoodBookingShareTollMode = 'estimated' | 'none' | 'actual' | 'itemized';
 export type MoodBookingSharePayer = 'mood' | 'influencer';
 export type MoodCourseSharePreset = 'staff' | 'shared-airport' | 'event' | 'custom';
 
@@ -141,6 +141,13 @@ export function normalizeMoodCoursePercentages(
   return Array.from({ length: count }, () => fallback);
 }
 
+/** 새 경유지를 도착지 앞에 넣을 때 기존 도착지 부담률(0 포함)을 그대로 복제한다. */
+export function appendMoodCoursePercentage(items: number[]): number[] {
+  const lastPercentage = items[items.length - 1];
+  const inheritedPercentage = lastPercentage === undefined ? 100 : lastPercentage;
+  return [...items.slice(0, -1), inheritedPercentage, inheritedPercentage];
+}
+
 export function moodCourseSharePreset(percentages: number[]): MoodCourseSharePreset {
   if (percentages.length && percentages.every((value) => value === 100)) return 'staff';
   if (percentages.length && percentages.every((value) => value === 50)) return 'shared-airport';
@@ -247,6 +254,7 @@ export function getMoodShareTollPresentation(
   if (finalCost.tollMode === 'none') return { label: '실제 톨비', detail: tollNote || '미지불' };
   if (finalCost.tollMode === 'estimated') return { label: '실제 톨비', detail: '예상대로 지불' };
   if (finalCost.tollMode === 'actual') return { label: '실제 톨비', detail: tollNote || '실제 금액 반영' };
+  if (finalCost.tollMode === 'itemized') return { label: '실제 톨비', detail: tollNote || '항목별 실제 금액 반영' };
   const explicit = finalCost.tollStatus;
   if (explicit === 'not-paid') return { label: '실제 톨비', detail: tollNote || '미지불' };
   if (explicit === 'none') return { label: '실제 톨비', detail: '통행료 없음' };

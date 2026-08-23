@@ -25,6 +25,8 @@ vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   }),
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
   isAdminEmail: (allowlist: any, email: string) => allowlist.admins.includes(email),
+  isSettlementApproverEmail: (allowlist: any, email: string) =>
+    (allowlist.settlementApproverEmails || []).includes(email) && !allowlist.admins.includes(email),
   normEmail: (email: string) => String(email || '').toLowerCase().trim(),
 }));
 

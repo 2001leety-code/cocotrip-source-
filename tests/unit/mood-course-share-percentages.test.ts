@@ -24,12 +24,15 @@ vi.mock('../../api/_shared/user-auth.js', () => ({
 
 vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   getMoodAllowlist: async () => ({
-    emails: ['staff@x.com'],
+    emails: ['staff@x.com', 'approver@x.com'],
     admins: ['staff@x.com'],
+    settlementApproverEmails: ['approver@x.com'],
     clientId: 'COMPANY_A',
   }),
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
   isAdminEmail: (allowlist: any, email: string) => allowlist.admins.includes(email),
+  isSettlementApproverEmail: (allowlist: any, email: string) =>
+    (allowlist.settlementApproverEmails || []).includes(email) && !allowlist.admins.includes(email),
   normEmail: (email: string) => String(email || '').toLowerCase().trim(),
 }));
 
@@ -242,6 +245,56 @@ async function callSettle(body: Record<string, any>) {
   return { response, json: JSON.parse(response.body || '{}') };
 }
 
+async function callSettlePreview(body: Record<string, any>) {
+  const { default: handler } = await import('../../api/mood-settle-preview.js');
+  const response = makeResponse();
+  await handler({
+    method: 'POST',
+    url: '/api/mood-settle-preview',
+    headers: { host: 'unit.test', authorization: 'Bearer token' },
+    body,
+  } as any, response as any);
+  return { response, json: JSON.parse(response.body || '{}') };
+}
+
+async function callSettleRespond(body: Record<string, any>) {
+  const { default: handler } = await import('../../api/mood-settle-respond.js');
+  const response = makeResponse();
+  await handler({
+    method: 'POST',
+    url: '/api/mood-settle-respond',
+    headers: { host: 'unit.test', authorization: 'Bearer token' },
+    body,
+  } as any, response as any);
+  return { response, json: JSON.parse(response.body || '{}') };
+}
+
+/**
+ * 운영자 제안 → MOOD 승인자 승인까지 한 번에 태운다.
+ * 코스 부담률은 제안에 실려 저장되고, 최종 예약 문서에는 승인 시점에만 커밋된다.
+ */
+async function settleThroughApproval(body: Record<string, any>) {
+  const bookingId = String(body.bookingId);
+  const expectedRevision = Number((store.get(`mood_bookings/${bookingId}`) as any)?.revision || 0);
+  const previewInput = { ...body, expectedRevision };
+  const preview = await callSettlePreview(previewInput);
+  if (preview.response.statusCode !== 200) return { stage: 'preview' as const, ...preview };
+  const propose = await callSettle({
+    ...previewInput,
+    previewHash: preview.json.data.previewHash,
+    idempotencyKey: `settle-propose-${bookingId}`,
+  });
+  if (propose.response.statusCode !== 200) return { stage: 'propose' as const, ...propose };
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'approver', emailVerified: true });
+  const approve = await callSettleRespond({
+    proposalId: propose.json.data.proposalId,
+    action: 'approve',
+    idempotencyKey: `settle-approve-${bookingId}`,
+  });
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', uid: 'staff', emailVerified: true });
+  return { stage: 'approve' as const, ...approve, propose };
+}
+
 function docsIn(collection: string) {
   const prefix = `${collection}/`;
   return [...store.entries()]
@@ -343,6 +396,7 @@ function seedSettleBooking() {
   });
 }
 
+/** 제안 API 의 사전 게이트(개정·지문·멱등키)는 통과시키고, 코스 부담률 검증만 남긴다. */
 function settleBody(courseMoodPercentages: any) {
   return {
     bookingId: 'booking-settle',
@@ -350,6 +404,9 @@ function settleBody(courseMoodPercentages: any) {
     tollMode: 'estimated',
     manualAdjustmentKRW: 0,
     settlementReason: '',
+    expectedRevision: Number((store.get('mood_bookings/booking-settle') as any)?.revision || 0),
+    previewHash: 'a'.repeat(64),
+    idempotencyKey: 'course-percent-settle-request',
     origin: '실제 출발지',
     waypoints: ['실제 경유지 1', '실제 경유지 2'],
     destination: '실제 도착지',
@@ -708,7 +765,7 @@ describe('비율 저장·조회·멱등 계약', () => {
     legacyBooking.coursePayers = ['mood', 'influencer', 'mood'];
     store.set('mood_bookings/booking-settle', legacyBooking);
 
-    const { response } = await callSettle({
+    const { response } = await settleThroughApproval({
       bookingId: 'booking-settle',
       actualHours: 4,
       tollMode: 'estimated',
@@ -717,6 +774,7 @@ describe('비율 저장·조회·멱등 계약', () => {
     });
 
     expect(response.statusCode).toBe(200);
+    // 승인 전에는 예약이 confirmed 로 남아 있었고, 승인 시점에만 승격된 비율이 커밋된다.
     expect(store.get('mood_bookings/booking-settle')).toMatchObject({
       status: 'completed',
       courseMoodPercentages: [100, 0, 100],

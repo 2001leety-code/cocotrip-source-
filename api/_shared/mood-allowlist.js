@@ -5,6 +5,7 @@
  *   {
  *     emails:  string[]   // 운영자 + 광고사 직원 — 조회/예약 가능
  *     admins:  string[]   // 운영자만 — 충전(topup) 가능
+ *     settlementApproverEmails: string[] // MOOD 금액 승인자 — 없으면 승인 불가(fail-closed)
  *     clientId: string    // v1 단일 client 가정 — 모든 예약/조회가 이 client 기준
  *   }
  *
@@ -24,18 +25,21 @@ function normEmail(e) {
 /**
  * mood_config/allowlist 문서를 읽어 정규화된 형태로 반환.
  * @param {FirebaseFirestore.Firestore} db - admin SDK Firestore
- * @returns {Promise<{ emails: string[], admins: string[], clientId: string | null }>}
+ * @returns {Promise<{ emails: string[], admins: string[], settlementApproverEmails: string[], clientId: string | null }>}
  */
 export async function getMoodAllowlist(db) {
   const snap = await db.collection(ALLOWLIST_PATH[0]).doc(ALLOWLIST_PATH[1]).get();
   if (!snap.exists) {
-    return { emails: [], admins: [], clientId: null };
+    return { emails: [], admins: [], settlementApproverEmails: [], clientId: null };
   }
   const data = snap.data() || {};
   const emails = Array.isArray(data.emails) ? data.emails.map(normEmail).filter(Boolean) : [];
   const admins = Array.isArray(data.admins) ? data.admins.map(normEmail).filter(Boolean) : [];
+  const settlementApproverEmails = Array.isArray(data.settlementApproverEmails)
+    ? data.settlementApproverEmails.map(normEmail).filter(Boolean)
+    : [];
   const clientId = typeof data.clientId === 'string' && data.clientId.trim() ? data.clientId.trim() : null;
-  return { emails, admins, clientId };
+  return { emails, admins, settlementApproverEmails, clientId };
 }
 
 /**
@@ -52,4 +56,16 @@ export function isAllowedEmail(allowlist, email) {
  */
 export function isAdminEmail(allowlist, email) {
   return allowlist.admins.includes(normEmail(email));
+}
+
+/**
+ * 인증된 email 이 MOOD 최종 정산 금액을 승인할 수 있는지.
+ * 목록이 없거나 잘못된 경우 빈 배열로 정규화되므로 반드시 false(fail-closed)다.
+ * 운영자(admin)는 이 목록에 실수로 함께 들어가도 두 번째 승인자가 될 수 없다.
+ */
+export function isSettlementApproverEmail(allowlist, email) {
+  const approvers = Array.isArray(allowlist && allowlist.settlementApproverEmails)
+    ? allowlist.settlementApproverEmails
+    : [];
+  return approvers.includes(normEmail(email)) && !isAdminEmail(allowlist, email);
 }

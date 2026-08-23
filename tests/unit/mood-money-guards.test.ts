@@ -24,6 +24,8 @@ vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   getMoodAllowlist: async () => ({ emails: ['staff@x.com', 'admin@x.com'], admins: ['admin@x.com'], clientId: 'COMPANY_A' }),
   isAllowedEmail: (al: any, email: string) => al.emails.includes(email),
   isAdminEmail: (al: any, email: string) => al.admins.includes(email),
+  isSettlementApproverEmail: (al: any, email: string) =>
+    (al.settlementApproverEmails || []).includes(email) && !al.admins.includes(email),
   normEmail: (e: string) => String(e || '').toLowerCase().trim(),
 }));
 

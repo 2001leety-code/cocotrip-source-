@@ -23,7 +23,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
+import { getMoodAllowlist, isAllowedEmail, isAdminEmail, isSettlementApproverEmail } from './_shared/mood-allowlist.js';
 import { decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 
 export const maxDuration = 15;
@@ -131,7 +131,7 @@ function validateBreakdownMoney(value) {
   ['otherAdjustmentKRW', 'manualAdjustmentKRW'].forEach((field) => {
     validateOptionalMoney(value[field]);
   });
-  ['km', 'routeKm', 'airportDetourKm', 'durationMin'].forEach((field) => {
+  ['km', 'routeKm', 'airportDetourKm', 'durationMin', 'actualTotalKm', 'excludedKm'].forEach((field) => {
     const numericValue = value[field];
     if (
       numericValue !== undefined
@@ -143,6 +143,125 @@ function validateBreakdownMoney(value) {
   });
 }
 
+function validateTollEntries(value) {
+  if (value === undefined || value === null) return;
+  if (!Array.isArray(value)) invalidBookingMoney('INVALID_BOOKING_MONEY');
+  let includedTotal = 0;
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') invalidBookingMoney('INVALID_BOOKING_MONEY');
+    validateOptionalMoney(entry.amountKRW, { minimum: 0 });
+    if (
+      typeof entry.label !== 'string'
+      || !entry.label.trim()
+      || (entry.status !== 'pending' && entry.status !== 'confirmed')
+      || typeof entry.includedInSettlement !== 'boolean'
+    ) {
+      invalidBookingMoney('INVALID_BOOKING_MONEY');
+    }
+    if (entry.includedInSettlement) includedTotal += entry.amountKRW;
+  });
+  if (!Number.isSafeInteger(includedTotal) || includedTotal > 1000000) invalidBookingMoney('INVALID_BOOKING_MONEY');
+}
+
+function normalizedSettlementApproval(booking) {
+  const value = booking.settlementApproval;
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (!['awaiting_mood', 'changes_requested', 'approved', 'withdrawn'].includes(value.status)) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (value.mode !== 'initial' && value.mode !== 'correction') invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (typeof value.proposalId !== 'string' || value.proposalId.length < 8 || value.proposalId.length > 200) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (!Number.isInteger(value.version) || value.version <= 0 || value.version !== booking.settlementProposalVersion) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (
+    !Number.isSafeInteger(value.bookedAmountKRW)
+    || value.bookedAmountKRW < 0
+    || value.bookedAmountKRW !== booking.amountKRW
+    || !Number.isSafeInteger(value.finalAmountKRW)
+    || value.finalAmountKRW < 0
+    || !Number.isSafeInteger(value.deltaKRW)
+    || !Number.isSafeInteger(value.proposedBalanceKRW)
+    || !Number.isSafeInteger(value.proposedResultingBalanceKRW)
+  ) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (value.mode === 'initial' && value.previousFinalAmountKRW !== null) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (value.mode === 'correction' && (!Number.isSafeInteger(value.previousFinalAmountKRW) || value.previousFinalAmountKRW < 0)) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  const comparisonAmount = value.mode === 'initial' ? value.bookedAmountKRW : value.previousFinalAmountKRW;
+  if (!Number.isSafeInteger(comparisonAmount) || value.finalAmountKRW - comparisonAmount !== value.deltaKRW) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (
+    typeof value.actualHours !== 'number'
+    || !Number.isFinite(value.actualHours)
+    || value.actualHours <= 0
+  ) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (!value.finalBreakdown || typeof value.finalBreakdown !== 'object' || Array.isArray(value.finalBreakdown)) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  validateBreakdownMoney(value.finalBreakdown);
+  if (!['estimated', 'none', 'actual', 'itemized'].includes(value.tollMode)) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (value.tollMode === 'itemized') {
+    if (!Array.isArray(value.tollEntries)) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+    validateTollEntries(value.tollEntries);
+  }
+  else if (value.tollEntries !== null) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (!Number.isInteger(value.pendingIncludedTollCount) || value.pendingIncludedTollCount < 0) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  const actualPendingCount = Array.isArray(value.tollEntries)
+    ? value.tollEntries.filter((entry) => entry.includedInSettlement && entry.status === 'pending').length
+    : 0;
+  if (actualPendingCount !== value.pendingIncludedTollCount) invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  if (
+    typeof value.proposedByEmail !== 'string'
+    || !value.proposedByEmail.trim()
+    || !Number.isSafeInteger(value.proposedAt)
+    || value.proposedAt < 0
+  ) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  if (value.status === 'approved' && (
+    typeof value.approvedByEmail !== 'string'
+    || !value.approvedByEmail.trim()
+    || !Number.isSafeInteger(value.approvedAt)
+    || value.approvedAt < 0
+  )) {
+    invalidBookingMoney('INVALID_SETTLEMENT_APPROVAL');
+  }
+  return {
+    status: value.status,
+    mode: value.mode,
+    proposalId: value.proposalId,
+    version: value.version,
+    bookedAmountKRW: value.bookedAmountKRW,
+    previousFinalAmountKRW: value.previousFinalAmountKRW,
+    finalAmountKRW: value.finalAmountKRW,
+    deltaKRW: value.deltaKRW,
+    actualHours: value.actualHours,
+    finalBreakdown: value.finalBreakdown,
+    tollMode: value.tollMode,
+    tollEntries: value.tollEntries,
+    settlementReason: typeof value.settlementReason === 'string' && value.settlementReason ? value.settlementReason : null,
+    proposedBalanceKRW: value.proposedBalanceKRW,
+    proposedResultingBalanceKRW: value.proposedResultingBalanceKRW,
+    pendingIncludedTollCount: value.pendingIncludedTollCount,
+    proposedByEmail: value.proposedByEmail,
+    proposedAt: value.proposedAt,
+    changeRequestReason: typeof value.changeRequestReason === 'string' && value.changeRequestReason ? value.changeRequestReason : null,
+    approvedByEmail: typeof value.approvedByEmail === 'string' && value.approvedByEmail ? value.approvedByEmail : null,
+    approvedAt: Number.isSafeInteger(value.approvedAt) ? value.approvedAt : null,
+  };
+}
+
 function validateBookingMoney(booking) {
   validateOptionalMoney(booking.ratePerHour, { minimum: 0 });
   validateOptionalMoney(booking.balanceAfterKRW);
@@ -152,6 +271,7 @@ function validateBookingMoney(booking) {
   validateOptionalMoney(booking.estimatedTollKRW, { minimum: 0 });
   validateBreakdownMoney(booking.breakdown);
   validateBreakdownMoney(booking.finalBreakdown);
+  validateTollEntries(booking.tollEntries);
 }
 
 export default async function handler(req, res) {
@@ -190,6 +310,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음' }));
     }
     const admin = isAdminEmail(allowlist, email);
+    const canApproveSettlement = isSettlementApproverEmail(allowlist, email);
 
     const url = new URL(req.url, `https://${req.headers.host}`);
     const queryClientId = (url.searchParams.get('clientId') || '').trim();
@@ -242,6 +363,7 @@ export default async function handler(req, res) {
         invalidBookingMoney('INVALID_BOOKING_AMOUNT');
       }
       validateBookingMoney(b);
+      const settlementApproval = normalizedSettlementApproval(b);
       const courseShare = normalizedCourseShare(b);
       if (!courseShare.ok) invalidBookingMoney('INVALID_COURSE_SHARE');
       const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
@@ -277,6 +399,10 @@ export default async function handler(req, res) {
         manualAdjustmentKRW: typeof b.manualAdjustmentKRW === 'number' ? b.manualAdjustmentKRW : null,
         settlementReason: typeof b.settlementReason === 'string' && b.settlementReason ? b.settlementReason : null,
         tollMode: typeof b.tollMode === 'string' ? b.tollMode : null,
+        tollEntries: Array.isArray(b.tollEntries) ? b.tollEntries : null,
+        correctionCount: Number.isInteger(b.correctionCount) && b.correctionCount >= 0 ? b.correctionCount : 0,
+        lastCorrectionReason: typeof b.lastCorrectionReason === 'string' && b.lastCorrectionReason ? b.lastCorrectionReason : null,
+        settlementApproval,
         note: typeof b.note === 'string' && b.note ? b.note : null, // 예약 메모 (항공편 등, 2026-07-05)
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
@@ -291,6 +417,7 @@ export default async function handler(req, res) {
         client: { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
         bookings,
         isAdmin: admin,
+        canApproveSettlement,
       },
     }));
   } catch (err) {
@@ -298,6 +425,7 @@ export default async function handler(req, res) {
       err.code === 'INVALID_BOOKING_AMOUNT'
       || err.code === 'INVALID_BOOKING_MONEY'
       || err.code === 'INVALID_COURSE_SHARE'
+      || err.code === 'INVALID_SETTLEMENT_APPROVAL'
     )) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: err.code }));
