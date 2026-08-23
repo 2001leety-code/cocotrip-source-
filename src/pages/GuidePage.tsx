@@ -4,6 +4,8 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildArticleJsonLd, buildBreadcrumbJsonLd } from '@/lib/jsonLd';
+import { guideCanonicalUrl } from '@/lib/seoRoutes';
+import { sanitizeGuideHtml } from '@/lib/sanitizeGuideHtml';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { pickGuideCopy, type GuideDoc, type GuideMeta } from '@/sections/guide/guideCopy';
@@ -42,7 +44,12 @@ function Shell({ children }: { children: React.ReactNode }) {
 export default function GuideIndexPage() {
   const { language } = useLanguage();
   const copy = pickGuideCopy(language);
-  usePageMeta({ title: copy.index.title, description: copy.index.lede, ogImage: '/hero-hanok-real.webp' });
+  usePageMeta({
+    title: copy.index.title,
+    description: copy.index.lede,
+    ogImage: '/hero-hanok-real.webp',
+    ogUrl: guideCanonicalUrl(),
+  });
   // 빵부스러기 이름은 화면에 보이는 섹션명(masthead eyebrow)과 같은 문구다 —
   // 마크업과 보이는 것이 달라지면 안 된다.
   useJsonLd('guide-breadcrumb', buildBreadcrumbJsonLd([['CocoTrip', '/'], [copy.index.title, '/guide']]));
@@ -67,14 +74,6 @@ export function GuideDetailPage() {
 
   // 없는 글(loader 자체가 없음)과 못 불러온 글(청크 fetch 실패)은 사용자가 할 수 있는
   // 일이 다르다 — 하나는 목록으로, 하나는 재시도다. 전환 전에는 둘 다 "글 없음"이었다.
-  const status: GuideArticleStatus = !loader
-    ? 'missing'
-    : !done
-      ? 'loading'
-      : loaded.doc
-        ? 'ready'
-        : 'error';
-
   useEffect(() => {
     if (!slug || !loader) return;
     let cancelled = false;
@@ -92,33 +91,50 @@ export function GuideDetailPage() {
   // 읽는 시간은 목록이 본문에서 계산해 둔 낱말 수에서만 나온다. 목록에 없는 글이면
   // (직접 URL 로 들어온 신규 파일 등) 그 줄을 아예 그리지 않는다 — 지어내지 않는다.
   const meta = GUIDES.find((g) => g.slug === slug);
-  const firstImg = doc ? /<img[^>]+src="([^"]+)"/.exec(doc.html)?.[1] : undefined;
+  const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
+  const hasSafeBody = safeHtml.trim().length > 0;
+  const status: GuideArticleStatus = !loader
+    ? 'missing'
+    : !done
+      ? 'loading'
+      : loaded.doc && hasSafeBody
+        ? 'ready'
+        : 'error';
+  const readyDoc = status === 'ready' ? doc : null;
+  const firstImg = safeHtml ? /<img[^>]+src="([^"]+)"/.exec(safeHtml)?.[1] : undefined;
   const ogImage = firstImg || meta?.image || '/hero-hanok-real.webp';
+  const canonicalUrl = slug ? guideCanonicalUrl(slug) : guideCanonicalUrl();
+  const pageTitle = readyDoc?.title || meta?.title || copy.index.title;
+  const pageDescription = readyDoc?.description || meta?.description || copy.index.lede;
 
   usePageMeta({
-    title: doc ? doc.title : copy.index.title,
-    description: doc ? doc.description : copy.index.lede,
+    title: pageTitle,
+    description: pageDescription,
     ogImage,
+    ogUrl: canonicalUrl,
+    contentSha256: readyDoc?.contentSha256,
+    robots: status === 'ready' ? 'index, follow' : 'noindex, nofollow',
   });
   // 글이 로드된 뒤에만 Article 을 내보낸다 — 로딩 중 껍데기에 스키마를 붙이면
   // 제목·날짜가 빈 Article 이 크롤러에 잡힌다.
-  useJsonLd('guide-article', doc && slug
+  useJsonLd('guide-article', readyDoc && slug
     ? buildArticleJsonLd({
-        path: `/guide/${slug}`,
-        title: doc.title,
-        description: doc.description,
-        published: doc.published,
-        updated: doc.updated,
+        path: canonicalUrl,
+        title: readyDoc.title,
+        description: readyDoc.description,
+        published: readyDoc.published,
+        updated: readyDoc.updated,
         image: firstImg,
+        contentSha256: readyDoc.contentSha256,
       })
     : null);
-  useJsonLd('guide-breadcrumb', doc && slug
-    ? buildBreadcrumbJsonLd([['CocoTrip', '/'], [copy.index.title, '/guide'], [doc.title, `/guide/${slug}`]])
+  useJsonLd('guide-breadcrumb', readyDoc && slug
+    ? buildBreadcrumbJsonLd([['CocoTrip', '/'], [copy.index.title, '/guide'], [readyDoc.title, `/guide/${slug}`]])
     : null);
 
   return (
     <Shell>
-      <GuideArticleBody copy={copy} status={status} doc={doc} words={meta?.words} onRetry={retry} />
+      <GuideArticleBody copy={copy} status={status} doc={readyDoc} words={meta?.words} onRetry={retry} />
     </Shell>
   );
 }

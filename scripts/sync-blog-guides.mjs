@@ -1,128 +1,191 @@
-// blogspot 새 글 → /guide 동기화 (추가 전용).
+// Blogger 후보 → cocotripkr.com/guide 동기화.
 //
-// Brain 봇이 cocotripkr.blogspot.com 에 새 글을 쓰면 이 스크립트가:
-//   공개 피드 수집 → HTML 변환 → src/content/guides/<slug>.json 생성
-//   → _index.json 갱신 → public/sitemap.xml 에 URL 추가
-// seoRoutes·프리렌더·잠금테스트는 전부 _index.json 파생이라 나머지는 자동.
-//
-// 추가 전용 원칙 (2026-08-01 강화 — 감사에서 나온 결함 3개 수리):
-//   ① 기존 글 JSON 은 절대 덮어쓰지 않는다 — blogspot 원문이 "요약+링크" 스텁으로
-//      교체되더라도 로컬 전문이 원본으로 남는다.
-//   ② _index.json 도 **로컬 파일이 원천** — 피드 기준 재구성 금지. 피드에서 빠진
-//      로컬 글이 목록·색인에서 소리 없이 증발하던 구조를 제거했다.
-//   ③ slug 충돌(연/월만 다른 동명 slug)은 조용히 스킵하지 않고 **에러로 중단**한다
-//      (sourceUrl 대조 — 기록이 없으면 판별 불가로 역시 에러).
-//   ④ --check 는 차이를 발견하면 **exit 1** — 자동화에서 드리프트가 성공으로
-//      위장되지 않는다. (스텁 교체 뒤에는 차이가 '정상'이므로 --check 는
-//      스텁 전환 전 파리티 검증 용도다.)
+// 대표 원문은 항상 https://cocotripkr.com/guide/<slug> 이다. Blogger 공개 피드는
+// 후보 수집 통로일 뿐 승인 근거가 아니다. 새 글을 쓰려면
+// config/legacy-blogger-guide-import-ledger.json 에 현재 콘텐츠 지문과 검토 결과가 있어야 한다.
+// 이 경로는 2026-08-22까지 쌓인 11건을 격리·정리하는 이관 전용이다. 이후 새 글의
+// 장기 정본은 Brain content_queue 승인 manifest → 웹 projection 계약을 쓴다.
 //
 // 사용:
-//   node scripts/sync-blog-guides.mjs           # 새 글 동기화
-//   node scripts/sync-blog-guides.mjs --check   # 변환 파리티 자가검증(쓰기 없음, 차이=exit 1)
-//   node scripts/sync-blog-guides.mjs --dry-run # 뭘 추가할지 보여주고 쓰기 없음
+//   node scripts/sync-blog-guides.mjs --audit   # 후보/승인 상태 출력, 쓰기 없음(기본값)
+//   node scripts/sync-blog-guides.mjs --check   # CI 드리프트 검사, 미검토·미동기화면 실패
+//   node scripts/sync-blog-guides.mjs --apply   # manifest 가 완결된 경우 승인 글만 추가
+//   node scripts/sync-blog-guides.mjs --dry-run # --audit 별칭
 //
-// 실행 후: npm run build && npx vitest run tests/unit/sitemap-canonical-consistency.test.ts
-//          → 브랜치 커밋 → PR. 색인 요청은 node scripts/submit-indexnow.mjs
+// 안전선:
+//   - 공개 피드에 있다는 이유만으로는 절대 쓰지 않는다.
+//   - 새 후보 하나라도 pending/invalid 이면 --apply 전체를 쓰기 전에 중단한다.
+//   - approved 는 quality verdict=pass + score>=92 만 인정한다.
+//   - rejected/hold 는 가져오지 않으며, 기존 로컬 글은 덮어쓰거나 삭제하지 않는다.
+//   - 승인 후 제목/본문/날짜/라벨이 바뀌면 SHA-256 불일치로 다시 막힌다.
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { entryToGuide, classifyExisting, buildIndexFromLocalMeta } from './sync-blog-guides.lib.mjs';
+import {
+  entryToGuide,
+  classifyExisting,
+  buildIndexFromLocalMeta,
+  classifyGuideCandidates,
+  buildPendingReview,
+  GUIDE_CANONICAL_BASE,
+  LEGACY_BLOGGER_CUTOFF_PUBLISHED,
+  classifyPostCutoffBloggerTeaser,
+  extractCanonicalGuideSlugFromTeaser,
+} from './sync-blog-guides.lib.mjs';
+import { auditGuideHtml } from './guide-html-safety.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GUIDES_DIR = path.join(ROOT, 'src', 'content', 'guides');
 const INDEX_PATH = path.join(GUIDES_DIR, '_index.json');
 const SITEMAP_PATH = path.join(ROOT, 'public', 'sitemap.xml');
+const MANIFEST_PATH = path.join(ROOT, 'config', 'legacy-blogger-guide-import-ledger.json');
 const FEED_URL = 'https://cocotripkr.blogspot.com/feeds/posts/default?alt=json&max-results=500';
 
-const CHECK = process.argv.includes('--check');
-const DRY = process.argv.includes('--dry-run');
+const args = new Set(process.argv.slice(2));
+const knownArgs = new Set(['--audit', '--check', '--apply', '--dry-run']);
+for (const arg of args) if (!knownArgs.has(arg)) throw new Error(`unknown option: ${arg}`);
+const selectedModes = ['--audit', '--check', '--apply', '--dry-run'].filter((arg) => args.has(arg));
+if (selectedModes.length > 1) throw new Error(`choose one mode: ${selectedModes.join(', ')}`);
 
-const res = await fetch(FEED_URL);
-if (!res.ok) throw new Error(`feed fetch ${res.status}`);
-const feed = (await res.json()).feed;
-const guides = (feed.entry || []).map(entryToGuide).filter(Boolean);
-console.log(`blogspot 피드: ${guides.length}편`);
+const MODE = args.has('--apply')
+  ? 'apply'
+  : args.has('--check')
+    ? 'check'
+    : 'audit';
 
-const localFiles = readdirSync(GUIDES_DIR).filter((f) => f.endsWith('.json') && f !== '_index.json');
+const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
+const response = await fetch(FEED_URL);
+if (!response.ok) throw new Error(`feed fetch ${response.status}`);
+const payload = await response.json();
+const guides = ((payload.feed && payload.feed.entry) || []).map(entryToGuide).filter(Boolean);
+for (const guide of guides) {
+  const htmlAudit = auditGuideHtml(guide.html);
+  guide.html = htmlAudit.html;
+  Object.defineProperty(guide, 'sanitizationChanged', {
+    value: htmlAudit.changed,
+    enumerable: false,
+  });
+}
+console.log(`Blogger feed: ${guides.length} guides (mode=${MODE})`);
+
+const duplicateFeedSlugs = [...new Set(guides
+  .filter((guide, index) => guides.findIndex((item) => item.slug === guide.slug) !== index)
+  .map((guide) => guide.slug))];
+const duplicateFeedSources = [...new Set(guides
+  .filter((guide, index) => guides.findIndex((item) => item.sourceUrl === guide.sourceUrl) !== index)
+  .map((guide) => guide.sourceUrl))];
+if (duplicateFeedSlugs.length || duplicateFeedSources.length) {
+  throw new Error(`duplicate feed identity: slugs=${duplicateFeedSlugs.join(',')} sources=${duplicateFeedSources.join(',')}`);
+}
+
+const localFiles = readdirSync(GUIDES_DIR).filter((file) => file.endsWith('.json') && file !== '_index.json');
 const readLocal = (slug) => JSON.parse(readFileSync(path.join(GUIDES_DIR, `${slug}.json`), 'utf8'));
-const localSlugs = new Set(localFiles.map((f) => f.replace(/\.json$/, '')));
+const localSlugs = new Set(localFiles.map((file) => file.replace(/\.json$/, '')));
 
-if (CHECK) {
-  // 파이프라인 자가검증 — 피드 재변환 결과가 저장본과 일치하는가.
-  let same = 0;
-  let diffCount = 0;
-  for (const g of guides) {
-    if (!localSlugs.has(g.slug)) { console.log(`  로컬에 없음(신규 후보): ${g.slug}`); continue; }
-    const stored = readLocal(g.slug);
-    const diffs = ['title', 'description', 'published', 'html'].filter(
-      (k) => JSON.stringify(stored[k]) !== JSON.stringify(g[k]),
-    );
-    if (JSON.stringify([...stored.labels].sort()) !== JSON.stringify([...g.labels].sort())) diffs.push('labels');
-    if (diffs.length === 0) { same++; continue; }
-    diffCount++;
-    console.log(`  차이: ${g.slug} → ${diffs.join(', ')}`);
-    for (const k of diffs) {
-      if (k === 'html') {
-        let i = 0;
-        while (stored.html[i] === g.html[i]) i++;
-        console.log(`    html @${i}: stored=${JSON.stringify(stored.html.slice(i - 30, i + 60))}`);
-        console.log(`             feed  =${JSON.stringify(g.html.slice(i - 30, i + 60))}`);
-      } else {
-        console.log(`    ${k}: stored=${JSON.stringify(stored[k])} feed=${JSON.stringify(g[k])}`);
-      }
-    }
-  }
-  console.log(`일치 ${same} / ${guides.length}`);
-  // 🔴 차이가 있으면 실패로 끝난다 — exit 0 이면 자동화가 드리프트를 성공으로 읽는다.
-  process.exit(diffCount > 0 ? 1 : 0);
-}
-
-// slug 충돌 검사 — 같은 slug 인데 다른 글(sourceUrl 불일치)이면 조용한 스킵 금지.
+// 같은 slug 인데 다른 Blogger 글이면 조용히 스킵하지 않는다.
 const collisions = [];
-for (const g of guides) {
-  if (!localSlugs.has(g.slug)) continue;
-  const verdict = classifyExisting(readLocal(g.slug).sourceUrl, g.sourceUrl);
-  if (verdict === 'collision') collisions.push(`${g.slug}: 로컬≠피드 (${g.sourceUrl})`);
-  if (verdict === 'unknown') collisions.push(`${g.slug}: 로컬 JSON 에 sourceUrl 없음 — 동일 글 여부 판별 불가`);
+const postCutoffTeasers = [];
+for (const guide of guides) {
+  if (guide.published > LEGACY_BLOGGER_CUTOFF_PUBLISHED) {
+    const canonical = extractCanonicalGuideSlugFromTeaser(guide.html);
+    const localDoc = canonical.ok && localSlugs.has(canonical.slug) ? readLocal(canonical.slug) : null;
+    const teaser = classifyPostCutoffBloggerTeaser(guide, localDoc);
+    if (teaser.ok) postCutoffTeasers.push(guide);
+    else collisions.push(`${guide.slug}: invalid post-cutoff Blogger teaser (${teaser.reason})`);
+    continue;
+  }
+  if (!localSlugs.has(guide.slug)) continue;
+  const localDoc = readLocal(guide.slug);
+  const verdict = classifyExisting(localDoc.sourceUrl, guide.sourceUrl);
+  if (verdict === 'collision') collisions.push(`${guide.slug}: local source differs from feed (${guide.sourceUrl})`);
+  if (verdict === 'unknown') collisions.push(`${guide.slug}: local sourceUrl missing`);
 }
+for (const guide of postCutoffTeasers) console.log(`  TEASER ${guide.published} ${guide.slug}`);
 if (collisions.length) {
-  console.error('🔴 slug 충돌/판별불가 — 새 글이 조용히 증발하는 것을 막기 위해 중단:');
-  for (const c of collisions) console.error('  ' + c);
+  for (const collision of collisions) console.error(`COLLISION ${collision}`);
   process.exit(1);
 }
 
-const fresh = guides.filter((g) => !localSlugs.has(g.slug));
-if (fresh.length === 0) {
-  console.log('새 글 없음 — 할 일 없음.');
+const acceptedTeaserSources = new Set(postCutoffTeasers.map((guide) => guide.sourceUrl));
+const candidates = guides.filter((guide) => !localSlugs.has(guide.slug)
+  && !acceptedTeaserSources.has(guide.sourceUrl));
+const reviewState = classifyGuideCandidates(candidates, manifest);
+
+console.log(
+  `Candidates ${candidates.length}: approved=${reviewState.approved.length}, `
+  + `rejected=${reviewState.rejected.length}, hold=${reviewState.held.length}, `
+  + `pending=${reviewState.pending.length}, invalid=${reviewState.invalid.length}`,
+);
+
+for (const item of reviewState.approved) console.log(`  APPROVED ${item.guide.published} ${item.guide.slug}`);
+for (const item of reviewState.rejected) console.log(`  REJECTED ${item.guide.published} ${item.guide.slug}`);
+for (const item of reviewState.held) console.log(`  HOLD ${item.guide.published} ${item.guide.slug}`);
+for (const guide of candidates) {
+  if (guide.sanitizationChanged) console.log(`  SANITIZED ${guide.published} ${guide.slug}`);
+}
+for (const item of reviewState.invalid) {
+  const slug = item.guide ? item.guide.slug : 'manifest';
+  const hash = item.contentSha256 ? ` currentSha256=${item.contentSha256}` : '';
+  console.error(`  INVALID ${slug}: ${item.reason}${hash}`);
+}
+
+if (reviewState.pending.length) {
+  console.log('Pending review records (copy, then fill the decision and reviewer fields):');
+  console.log(JSON.stringify(reviewState.pending.map((item) => buildPendingReview(item.guide)), null, 2));
+}
+
+if (MODE === 'audit') {
+  console.log('Audit only: no files changed.');
   process.exit(0);
 }
 
-for (const g of fresh) console.log(`  신규: ${g.published} ${g.slug}`);
-if (DRY) { console.log('(dry-run — 쓰기 생략)'); process.exit(0); }
+if (MODE === 'check') {
+  const driftCount = reviewState.pending.length + reviewState.invalid.length + reviewState.approved.length;
+  if (driftCount > 0) {
+    console.error('Guide drift detected: review pending/invalid or approved content not yet synced.');
+    process.exit(1);
+  }
+  console.log('Guide import state is closed: no unreviewed or approved-unsynced candidates.');
+  process.exit(0);
+}
 
-// 개별 글 JSON — 추가 전용 (기존 파일 불변)
-for (const g of fresh) writeFileSync(path.join(GUIDES_DIR, `${g.slug}.json`), JSON.stringify(g));
+// --apply is all-or-nothing at the review gate. A single unknown candidate blocks every write.
+if (reviewState.pending.length || reviewState.invalid.length) {
+  console.error('Apply refused: every candidate needs an exact valid approved/rejected/hold review. No files changed.');
+  process.exit(1);
+}
 
-// _index.json — 로컬 파일 전체에서 재구성 (피드가 아니라 로컬이 원천).
-// 기존 CRLF·1-space 스타일 보존(diff 최소화).
-const allSlugs = [...new Set([...localFiles.map((f) => f.replace(/\.json$/, '')), ...fresh.map((g) => g.slug)])];
-writeFileSync(
-  INDEX_PATH,
-  JSON.stringify(buildIndexFromLocalMeta(allSlugs.map(readLocal)), null, 1).replace(/\n/g, '\r\n'),
-);
+const fresh = reviewState.approved.map((item) => item.guide);
+if (fresh.length === 0) {
+  console.log('No approved guides to add. No files changed.');
+  process.exit(0);
+}
 
-// sitemap — 마지막 /guide/ 줄 뒤에 삽입 (잠금테스트가 seoRoutes 와 대조해 검산).
+// 모든 파생 결과를 먼저 계산·검증한 뒤에만 쓰기를 시작한다.
+const localDocs = localFiles.map((file) => readLocal(file.replace(/\.json$/, '')));
+const nextIndex = JSON.stringify(buildIndexFromLocalMeta([...localDocs, ...fresh]), null, 1).replace(/\n/g, '\r\n');
 const sitemap = readFileSync(SITEMAP_PATH, 'utf8');
-const lines = sitemap.split('\n');
+const sitemapLines = sitemap.split('\n');
 let lastGuide = -1;
-lines.forEach((l, i) => { if (l.includes('cocotripkr.com/guide/')) lastGuide = i; });
-if (lastGuide === -1) throw new Error('sitemap 에 /guide/ 항목이 없음 — 수동 확인 필요');
-const eol = lines[lastGuide].endsWith('\r') ? '\r' : '';
-const inserts = fresh.map((g) => `  <url><loc>https://cocotripkr.com/guide/${g.slug}</loc></url>${eol}`);
-lines.splice(lastGuide + 1, 0, ...inserts);
-writeFileSync(SITEMAP_PATH, lines.join('\n'));
+sitemapLines.forEach((line, index) => { if (line.includes(`${GUIDE_CANONICAL_BASE}/`)) lastGuide = index; });
+if (lastGuide === -1) throw new Error('sitemap has no /guide/ entry');
+for (const guide of fresh) {
+  const canonicalUrl = `${GUIDE_CANONICAL_BASE}/${guide.slug}`;
+  if (sitemap.includes(`<loc>${canonicalUrl}</loc>`)) {
+    throw new Error(`sitemap already contains approved candidate without local file: ${canonicalUrl}`);
+  }
+}
+const eol = sitemapLines[lastGuide].endsWith('\r') ? '\r' : '';
+const inserts = fresh.map((guide) => `  <url><loc>${GUIDE_CANONICAL_BASE}/${guide.slug}</loc></url>${eol}`);
+sitemapLines.splice(lastGuide + 1, 0, ...inserts);
+const nextSitemap = sitemapLines.join('\n');
 
-console.log(`완료: ${fresh.length}편 추가. 다음 →`);
-console.log('  npm run build && npx vitest run tests/unit/sitemap-canonical-consistency.test.ts');
-console.log('  커밋·PR 후 배포되면: node scripts/submit-indexnow.mjs');
+for (const guide of fresh) {
+  writeFileSync(path.join(GUIDES_DIR, `${guide.slug}.json`), JSON.stringify(guide));
+}
+writeFileSync(INDEX_PATH, nextIndex);
+writeFileSync(SITEMAP_PATH, nextSitemap);
+
+console.log(`Added ${fresh.length} approved guides. Canonical destination: ${GUIDE_CANONICAL_BASE}/<slug>`);
+console.log('Next: npm run build && npx vitest run tests/unit/sync-blog-guides.test.ts tests/unit/sitemap-canonical-consistency.test.ts');

@@ -236,7 +236,7 @@ describe('읽는 시간 — 실제 낱말 수에서만 파생', () => {
     expect(readingMinutes(WORDS_PER_MINUTE * 3)).toBe(3);
   });
 
-  it('실제 글 21편이 전부 1~15분 사이로 떨어진다 (파생식 sanity)', () => {
+  it('현재 active 글 전부가 1~15분 사이로 떨어진다 (개수 비고정 파생식 sanity)', () => {
     for (const g of guidesIndex) {
       const minutes = readingMinutes(g.words);
       expect(minutes, `${g.slug} has no word count`).not.toBeNull();
@@ -248,10 +248,28 @@ describe('읽는 시간 — 실제 낱말 수에서만 파생', () => {
 
 describe('_index.json 파생 필드 ↔ 실제 본문 (드리프트 잠금)', () => {
   const files = readdirSync(path.join(ROOT, GUIDE_DIR)).filter((f) => f.endsWith('.json') && f !== '_index.json');
-  const docOf = (slug: string) => JSON.parse(read(`${GUIDE_DIR}/${slug}.json`)) as { html: string };
+  const docOf = (slug: string) => JSON.parse(read(`${GUIDE_DIR}/${slug}.json`)) as {
+    title: string;
+    description: string;
+    updated: string;
+    html: string;
+  };
 
   it('목록 항목 수 == 로컬 글 파일 수', () => {
     expect(guidesIndex.length).toBe(files.length);
+  });
+
+  it('GSC 고노출·0클릭 서울 시장 글은 검색 의도형 제목/설명을 상세와 목록에 같이 쓴다', () => {
+    const slug = 'best-seoul-street-food-markets-2026';
+    const expected = {
+      title: 'Seoul Night Markets & Street Food 2026: Gwangjang, Myeongdong, Mangwon',
+      description: 'Compare must-try food, opening hours, typical prices, cash/card and ordering tips for Gwangjang, Myeongdong and Mangwon markets in Seoul in 2026.',
+      updated: '2026-08-23',
+    };
+    const detail = docOf(slug);
+    const index = guidesIndex.find((guide) => guide.slug === slug);
+    expect({ title: detail.title, description: detail.description, updated: detail.updated }).toEqual(expected);
+    expect(index && { title: index.title, description: index.description, updated: index.updated }).toEqual(expected);
   });
 
   // image/words 는 사람이 적는 값이 아니라 본문에서 계산된 값이다. 손으로 고치거나

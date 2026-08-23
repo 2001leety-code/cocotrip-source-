@@ -124,6 +124,11 @@
   },
   "redirects": [
     {
+      "source": "/guide/4-seoul-cafe-neighborhoods-worth-your",
+      "destination": "https://cocotripkr.com/guide/seoul-cafe-guide-2026-best",
+      "permanent": true
+    },
+    {
       "source": "/:path(.*)",
       "has": [{ "type": "host", "value": "www.cocotripkr.com" }],
       "destination": "https://cocotripkr.com/:path",

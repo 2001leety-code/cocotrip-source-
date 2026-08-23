@@ -24,6 +24,17 @@
 // 상대 경로 import 인 이유: 이 파일은 vite.config.ts(esbuild 번들, '@' alias 미적용)에서도 읽힌다.
 import guidesIndex from '../content/guides/_index.json';
 
+/** 공개 URL·canonical·sitemap 이 함께 쓰는 대표 도메인. */
+export const SITE_ORIGIN = 'https://cocotripkr.com';
+
+/** Blogger 는 수집 통로이고, 가이드 대표 원문은 이 경로다. */
+export const GUIDE_CANONICAL_BASE = `${SITE_ORIGIN}/guide`;
+
+export function guideCanonicalUrl(slug?: string): string {
+  const clean = (slug || '').trim();
+  return clean ? `${GUIDE_CANONICAL_BASE}/${clean}` : GUIDE_CANONICAL_BASE;
+}
+
 const GUIDE_ROUTES: readonly string[] = [
   '/guide',
   ...(guidesIndex as { slug: string }[]).map((g) => `/guide/${g.slug}`),
@@ -115,9 +126,6 @@ export function isNoindexPath(pathname: string): boolean {
   const p = normalize(pathname);
   return !INDEXABLE_ROUTES.includes(p);
 }
-
-/** sitemap.xml 에 들어가야 하는 절대 URL. canonical 과 동일한 non-www 도메인. */
-export const SITE_ORIGIN = 'https://cocotripkr.com';
 
 export function sitemapUrls(): string[] {
   return INDEXABLE_ROUTES.map((r) => (r === '/' ? `${SITE_ORIGIN}/` : `${SITE_ORIGIN}${r}`));

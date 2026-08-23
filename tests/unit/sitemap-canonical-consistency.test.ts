@@ -16,9 +16,16 @@
  *   6) /community 는 색인 보류 (공개 글 0건)
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { INDEXABLE_ROUTES, NOINDEX_ROUTES, isNoindexPath, sitemapUrls } from '../../src/lib/seoRoutes';
+import {
+  INDEXABLE_ROUTES,
+  NOINDEX_ROUTES,
+  isNoindexPath,
+  sitemapUrls,
+  guideCanonicalUrl,
+} from '../../src/lib/seoRoutes';
+import guidesIndex from '../../src/content/guides/_index.json';
 
 const root = process.cwd();
 const read = (...p: string[]) => readFileSync(join(root, ...p), 'utf8');
@@ -29,6 +36,17 @@ const viteConfig = read('vite.config.ts');
 const appTsx = read('src', 'App.tsx');
 const toursTs = read('src', 'data', 'tours.ts');
 const regionsTsx = read('src', 'sections', 'Regions.tsx');
+const vercelConfig = JSON.parse(read('vercel.json')) as {
+  redirects: { source: string; destination: string; permanent: boolean }[];
+};
+const legacyLedger = JSON.parse(read('config', 'legacy-blogger-guide-import-ledger.json')) as {
+  reviews: {
+    slug: string;
+    decision: string;
+    contentSha256: string;
+    redirectTo?: string;
+  }[];
+};
 
 const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 
@@ -40,12 +58,22 @@ describe('sitemap canonical 도메인 정합', () => {
   it('index.html 기본 robots 는 index (noindex 는 라우트별로 App.tsx 가 덮는다)', () => {
     expect(indexHtml).toMatch(/name="robots"\s+content="index/);
     expect(appTsx).toContain('isNoindexPath');
+    expect(appTsx).toContain('pageMetaRobotsOverride');
   });
 
   it('모든 <loc> 이 non-www 도메인 (canonical 과 동일) — www 재유입 방지', () => {
     for (const loc of locs) {
       expect(loc, `${loc} 가 www 또는 다른 도메인`).toMatch(/^https:\/\/cocotripkr\.com(\/|$)/);
       expect(loc).not.toMatch(/www\./);
+    }
+  });
+
+  it('모든 가이드의 대표 원문은 cocotripkr.com/guide 이고 sitemap 에 있다', () => {
+    expect(locs).toContain(guideCanonicalUrl());
+    for (const guide of guidesIndex) {
+      const canonical = guideCanonicalUrl(guide.slug);
+      expect(canonical).toMatch(/^https:\/\/cocotripkr\.com\/guide\/[a-z0-9-]+$/);
+      expect(locs).toContain(canonical);
     }
   });
 });
@@ -66,6 +94,35 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
   it('changefreq·priority 는 쓰지 않는다 (구글이 무시 — 조치했다는 착시 방지)', () => {
     expect(sitemap).not.toContain('<changefreq>');
     expect(sitemap).not.toContain('<priority>');
+  });
+});
+
+describe('중복 서울 카페 guide URL 신호 통합', () => {
+  const retired = '4-seoul-cafe-neighborhoods-worth-your';
+  const survivor = 'seoul-cafe-guide-2026-best';
+  const retiredPath = `/guide/${retired}`;
+
+  it('옛 URL은 파일·검색 목록·sitemap에서 빠지고 생존 URL은 그대로 남는다', () => {
+    expect(existsSync(join(root, 'src', 'content', 'guides', `${retired}.json`))).toBe(false);
+    expect(guidesIndex.some((guide) => guide.slug === retired)).toBe(false);
+    expect(INDEXABLE_ROUTES).not.toContain(retiredPath);
+    expect(locs).not.toContain(guideCanonicalUrl(retired));
+    expect(guidesIndex.some((guide) => guide.slug === survivor)).toBe(true);
+    expect(locs).toContain(guideCanonicalUrl(survivor));
+  });
+
+  it('Vercel permanent redirect와 legacy 재수입 거부 ledger가 같은 생존 URL을 가리킨다', () => {
+    expect(vercelConfig.redirects).toContainEqual({
+      source: retiredPath,
+      destination: guideCanonicalUrl(survivor),
+      permanent: true,
+    });
+    const review = legacyLedger.reviews.find((entry) => entry.slug === retired);
+    expect(review).toMatchObject({
+      decision: 'rejected',
+      contentSha256: '126753c24691afef663d3e8d8e470f479b6fdcdce75a98e1593b450337af7a0b',
+      redirectTo: guideCanonicalUrl(survivor),
+    });
   });
 });
 

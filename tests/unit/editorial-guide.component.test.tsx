@@ -147,6 +147,17 @@ describe('/guide/:slug 본문', () => {
     expect(prose.innerHTML).toContain('<h2>Seongsu</h2>');
   });
 
+  it('legacy JSON에 악성 HTML이 남아 있어도 브라우저 렌더 직전에 다시 정제한다', () => {
+    const { container } = renderArticle({
+      doc: doc({
+        html: '<p onclick="alert(1)">Body</p><script>alert(1)</script><img src="data:text/html,x" onerror="alert(1)">',
+      }),
+    });
+    const prose = container.querySelector('.ec-prose')!;
+    expect(prose.innerHTML).toContain('<p>Body</p>');
+    expect(prose.innerHTML).not.toMatch(/script|onclick|onerror|data:/i);
+  });
+
   it('본문이 영어라는 사실을 UI 언어로 말한다', () => {
     renderArticle();
     expect(screen.getByText(copy.article.bodyLanguage)).toBeInTheDocument();

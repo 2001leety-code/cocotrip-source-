@@ -229,7 +229,9 @@ function RobotsMeta() {
       }
       // 🔴 2026-07-30 (P1-4): 서버 원문이 같은 경로에 `X-Robots-Tag: noindex, nofollow` 를 붙인다
       //   (vercel.json). 런타임 메타가 `follow` 를 말하면 두 신호가 어긋나므로 문구를 맞춘다.
-      tag.content = isNoindexPath(location.pathname) ? 'noindex, nofollow' : 'index, follow';
+      if (!tag.dataset.pageMetaRobotsOverride) {
+        tag.content = isNoindexPath(location.pathname) ? 'noindex, nofollow' : 'index, follow';
+      }
     });
     return () => { cancelled = true; };
   }, [location.pathname]);
