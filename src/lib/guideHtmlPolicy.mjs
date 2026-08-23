@@ -20,6 +20,12 @@ export const GUIDE_HTML_ALLOWED_ATTR = Object.freeze([
 
 const URL_ATTRS = new Set(['href', 'src']);
 const NUMERIC_ATTRS = new Set(['width', 'height', 'colspan', 'rowspan']);
+// `style` is FORBID_ATTR'd for every guide article — this is the only class
+// allowlist, so any CTA/box design in guide bodies must be one of these tokens
+// with matching CSS in src/styles/guide-editorial.css. `guide-cta`/`guide-cta-link`
+// carry the planner CTA card; keep both repo content and Brain projection HTML
+// (scripts/brain-guide-projection.lib.mjs shares this exact module) on these tokens.
+const ALLOWED_CLASSES = new Set(['post-summary', 'guide-cta', 'guide-cta-link']);
 const configuredPurifiers = new WeakSet();
 
 export function isSafeGuideUrl(rawValue) {
@@ -50,7 +56,7 @@ function configurePurifier(purifier) {
     }
 
     if (name === 'class') {
-      const kept = value.split(/\s+/).filter((token) => token === 'post-summary');
+      const kept = value.split(/\s+/).filter((token) => ALLOWED_CLASSES.has(token));
       if (kept.length === 0) data.keepAttr = false;
       else data.attrValue = kept.join(' ');
       return;

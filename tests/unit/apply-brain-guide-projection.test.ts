@@ -85,6 +85,18 @@ function secondManifest() {
   };
 }
 
+const LOCK_ACQUIRED_MARKER = '__LOCK_ACQUIRED__';
+
+/**
+ * Spawns a child that runs applyBrainGuideProjection. Windows full-suite runs fork ~600 test
+ * files concurrently, so this grandchild's own process-start + ESM-import latency is highly
+ * variable — polling for the lock file to appear on disk within a fixed short deadline flaked
+ * under that contention (the file only lands once the slow child actually reaches
+ * acquireProjectionLock). `lockAcquired` instead resolves off a marker the worker writes to its
+ * own stdout from inside `afterLockAcquired` — a deterministic signal tied to the real event,
+ * not wall-clock — and rejects immediately (with captured stderr) if the child errors or exits
+ * first, so a genuine bug still fails fast instead of hanging.
+ */
 function runProjectionWorker(root: string, candidate: ReturnType<typeof manifest>, holdMs: number) {
   const workerPath = path.join(root, 'projection-worker.mjs');
   const moduleUrl = new URL('../../scripts/apply-brain-guide-projection.lib.mjs', import.meta.url).href;
@@ -96,9 +108,10 @@ function runProjectionWorker(root: string, candidate: ReturnType<typeof manifest
     '    root: payload.root,',
     '    manifest: payload.manifest,',
     '    lockWaitMs: 5000,',
-    '    afterLockAcquired: payload.holdMs > 0',
-    '      ? () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, payload.holdMs)',
-    '      : undefined,',
+    '    afterLockAcquired: () => {',
+    `      process.stdout.write(${JSON.stringify(LOCK_ACQUIRED_MARKER)});`,
+    '      if (payload.holdMs > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, payload.holdMs);',
+    '    },',
     '  });',
     '  process.stdout.write(JSON.stringify(result));',
     '} catch (error) {',
@@ -110,20 +123,48 @@ function runProjectionWorker(root: string, candidate: ReturnType<typeof manifest
   const child = spawn(process.execPath, [workerPath, payload], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
+  let spawnError: Error | null = null;
   child.stdout.on('data', (chunk) => { stdout += String(chunk); });
   child.stderr.on('data', (chunk) => { stderr += String(chunk); });
+  child.on('error', (error) => { spawnError = error; });
   const done = new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
-    child.on('close', (code) => resolve({ code, stdout, stderr }));
+    child.on('close', (code) => resolve({
+      code,
+      stdout,
+      stderr: spawnError ? `${stderr}\n[spawn error] ${spawnError.message}` : stderr,
+    }));
   });
-  return { child, done };
-}
-
-async function waitForPath(file: string, timeoutMs = 3_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (!existsSync(file)) {
-    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${file}`);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  const lockAcquired = new Promise<void>((resolve, reject) => {
+    const settle = () => {
+      child.stdout.off('data', onData);
+      child.off('close', onClose);
+      child.off('error', onError);
+    };
+    const onData = () => {
+      if (stdout.includes(LOCK_ACQUIRED_MARKER)) {
+        settle();
+        resolve();
+      }
+    };
+    const onClose = (code: number | null) => {
+      settle();
+      reject(new Error(
+        `worker exited (code ${code}) before acquiring the projection lock: ${stderr || spawnError?.message || '(no stderr)'}`,
+      ));
+    };
+    const onError = (error: Error) => {
+      settle();
+      reject(error);
+    };
+    if (stdout.includes(LOCK_ACQUIRED_MARKER)) {
+      resolve();
+      return;
+    }
+    child.stdout.on('data', onData);
+    child.on('close', onClose);
+    child.on('error', onError);
+  });
+  return { child, done, lockAcquired };
 }
 
 function bytes(root: string) {
@@ -239,11 +280,14 @@ describe('approved Brain guide atomic projection', () => {
     expect(bytes(clean).sitemap).not.toBe(cleanBefore.sitemap);
   });
 
+  // 전체 스위트(fork 640개) 경합에서 grandchild 프로세스 2개(각자 own ESM import)를 spawn하는
+  // 이 테스트의 실측 최악치는 12.3s (vitest.config.ts 의 cold-import 실측과 같은 종류의 부하,
+  // 다만 grandchild spawn 이 겹쳐 더 큼). 같은 1.8배 여유 방식을 적용해 25s로 고정.
   it('병렬 apply 두 개를 repo lock으로 직렬화해 index/sitemap 항목을 모두 보존한다', async () => {
     const root = createFixtureRoot();
     const first = runProjectionWorker(root, manifest(), 600);
     expect(first.child.pid).toBeTypeOf('number');
-    await waitForPath(path.join(root, '.guide-projection.lock'));
+    await first.lockAcquired;
     const second = runProjectionWorker(root, secondManifest(), 0);
 
     const [firstResult, secondResult] = await Promise.all([first.done, second.done]);
@@ -259,7 +303,7 @@ describe('approved Brain guide atomic projection', () => {
     const sitemap = readFileSync(path.join(root, 'public', 'sitemap.xml'), 'utf8');
     expect(sitemap.match(new RegExp(manifest().slug, 'g'))).toHaveLength(1);
     expect(sitemap.match(new RegExp(secondManifest().slug, 'g'))).toHaveLength(1);
-  }, 10_000);
+  }, 25_000);
 
   it('오래됐고 소유 process가 끝난 lock만 회수하며 finally에서 새 lock을 지운다', async () => {
     const root = createFixtureRoot();

@@ -116,6 +116,38 @@
   white-space: nowrap;
 }
 
+/* Planner CTA. `style=` is stripped by guideHtmlPolicy.mjs on every guide body,
+   so `class="guide-cta"`/`class="guide-cta-link"` (the only other tokens that
+   allowlist keeps) are the sole way this box can be designed — same rule for
+   the 19 shipped articles and any future Brain projection HTML, since both
+   paths share that one sanitizer module. Button reuses the site's own
+   `.ec-btn-primary` token pair so it reads as a real CTA, not a stray link. */
+.ec-prose .guide-cta {
+  margin: 1.8em 0;
+  padding: 18px 20px;
+  border: 1px solid var(--ec-line-strong);
+  border-radius: var(--ec-radius-lg);
+  background: var(--ec-brand-wash);
+  text-align: center;
+}
+.ec-prose a.guide-cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--ec-button-height);
+  padding: 0 22px;
+  border-radius: var(--ec-button-radius);
+  background: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: none;
+  transition: background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-prose a.guide-cta-link:hover { background: var(--ec-button-primary-bg-hover); color: var(--ec-button-primary-fg); }
+
 /* A long URL or station code must not push the column past the viewport. */
 .ec-prose { overflow-wrap: break-word; }
 
