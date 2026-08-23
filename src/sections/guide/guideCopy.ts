@@ -92,6 +92,8 @@ export interface GuideCopy {
     freshness: string;
     loading: string;
     topics: string;
+    /** 다른 글로 잇는 섹션의 이름표. 관계를 주장하는 문장이 아니라 제목 한 줄이다. */
+    related: string;
     error: { title: string; body: string; retry: string };
     notFound: { title: string; body: string; cta: string };
   };
@@ -123,6 +125,7 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       freshness: 'This article was last updated on {date}. Fares, opening hours and prices change — confirm with the official operator before you travel.',
       loading: 'Loading this guide',
       topics: 'Topics',
+      related: 'Related guides',
       error: {
         title: 'This guide did not load',
         body: 'Check your connection and try again.',
@@ -160,6 +163,7 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       freshness: '이 글은 {date}에 마지막으로 갱신됐습니다. 요금·운영시간·가격은 바뀔 수 있으니 출발 전에 공식 운영처에서 확인하세요.',
       loading: '가이드를 불러오는 중',
       topics: '주제',
+      related: '관련 가이드',
       error: {
         title: '가이드를 불러오지 못했어요',
         body: '연결 상태를 확인한 뒤 다시 시도해 주세요.',
@@ -197,6 +201,7 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       freshness: 'この記事の最終更新は{date}です。料金・営業時間・価格は変わることがあります。ご出発前に公式の運営元でご確認ください。',
       loading: 'ガイドを読み込んでいます',
       topics: 'トピック',
+      related: '関連ガイド',
       error: {
         title: 'ガイドを読み込めませんでした',
         body: '接続を確認して、もう一度お試しください。',
@@ -234,6 +239,7 @@ export const GUIDE_COPY: Record<GuideLang, GuideCopy> = {
       freshness: '本文最后更新于{date}。票价、营业时间与价格可能变动，出行前请向官方运营方确认。',
       loading: '正在载入指南',
       topics: '主题',
+      related: '相关指南',
       error: {
         title: '未能载入该指南',
         body: '请检查网络连接后重试。',

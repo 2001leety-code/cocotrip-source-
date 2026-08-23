@@ -6,6 +6,10 @@
     "module": "ESNext",
     "types": ["node"],
     "skipLibCheck": true,
+    /* vite.config.ts 가 scripts/audit-prerender-artifacts.mjs(프리렌더 산출물 게이트)를
+       불러온다. tsconfig.app.json 이 guideHtmlPolicy.mjs 때문에 이미 켜 둔 것과 같은 설정 —
+       `checkJs` 는 켜지 않으므로 .mjs 본문은 타입검사 대상이 아니다. */
+    "allowJs": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",

@@ -33,6 +33,8 @@
     "plan:test": "node scripts/plan-local/run.mjs",
     "plan:record": "node scripts/plan-local/record.mjs",
     "seo:indexnow": "node scripts/submit-indexnow.mjs",
+    "seo:audit-prerender": "node scripts/audit-prerender-artifacts.mjs",
+    "build:prerender": "node scripts/build-prerender.mjs",
     "guide:legacy-audit": "node scripts/sync-blog-guides.mjs --audit",
     "guide:legacy-check": "node scripts/sync-blog-guides.mjs --check",
     "guide:legacy-sync": "node scripts/sync-blog-guides.mjs --apply",

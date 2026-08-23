@@ -8,6 +8,10 @@ import prerender from "@prerenderer/rollup-plugin"
 // 어긋나 `/charter` 가 3년치 낡은 "로그인벽" 전제로 빠져 있던 것이 그 사고였다.
 // 단일 원천: src/lib/seoRoutes.ts (잠금 테스트가 sitemap 과 일치를 강제).
 import { INDEXABLE_ROUTES } from "./src/lib/seoRoutes"
+// 프리렌더 산출물 감사. 배포는 `npm run build` 를 PRERENDER=1 로 돌리므로 게이트는
+// 반드시 빌드 수명주기 안에 있어야 한다 — 별도 npm 스크립트에만 걸면 배포 경로가
+// 감사를 지나가지 않는다(2026-08-23 검토 지적). 이유는 그 파일 상단에 적혀 있다.
+import { prerenderAuditPlugin } from "./scripts/audit-prerender-artifacts.mjs"
 
 // PRERENDER=1 빌드에서만 사용.
 const PRERENDER_ROUTES = [...INDEXABLE_ROUTES];
@@ -25,6 +29,11 @@ if (process.env.PRERENDER === '1' && !PRERENDER_EXEC_PATH && process.env.VERCEL)
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  // 프리렌더 준비 판정(src/lib/prerenderReady.mjs)을 켜는 스위치. 일반 prod 번들에서는
+  // false 로 접혀 그 코드가 통째로 tree-shake 된다 — 손님 브라우저는 폴링하지 않는다.
+  define: {
+    __PRERENDER_BUILD__: JSON.stringify(process.env.PRERENDER === '1'),
+  },
   // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
   // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
   server: {
@@ -143,6 +152,10 @@ export default defineConfig({
         },
       },
     })] : []),
+    // 프리렌더가 끝난 뒤(= 번들이 디스크에 쓰인 뒤) 색인 대상 산출물 전부를 감사한다.
+    // 하나라도 비었거나 미완성 표시가 붙어 있으면 여기서 빌드가 죽는다.
+    // PRERENDER 가 꺼져 있으면 플러그인 자체가 만들어지지 않는다(일반 빌드 무변).
+    prerenderAuditPlugin({ enabled: process.env.PRERENDER === '1' }),
   ],
   resolve: {
     alias: {

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { REGION_IDS } from '@/data/regions';
 import { pickHomeCopy, type HomeLang } from './homeCopy';
 import { useNextTrip } from './useNextTrip';
 import { EditorialHero } from './EditorialHero';
@@ -8,6 +9,7 @@ import { CapabilityLedger } from './CapabilityLedger';
 import { ServiceModules } from './ServiceModules';
 import { ItinerarySpecimen } from './ItinerarySpecimen';
 import { ClosingSections } from './ClosingSections';
+import { RegionLinks, type RegionLink } from './RegionLinks';
 
 /**
  * Home — Korea Editorial Concierge (2026-08-10).
@@ -24,11 +26,27 @@ import { ClosingSections } from './ClosingSections';
 
 const SPECIMEN_ID = 'sample-day';
 
+/**
+ * 지역 이름·한 줄 설명은 지역 페이지가 쓰는 그 값(`t.regionDetail.<id>`)에서만 온다.
+ * 번역이 비어 있는 지역은 목록에서 빠진다 — 홈이 지역 지식의 두 번째 원천이 되면 안 된다.
+ */
+function regionLinks(t: unknown): RegionLink[] {
+  const table = (t as { regionDetail?: Record<string, unknown> })?.regionDetail;
+  if (!table) return [];
+  return REGION_IDS.flatMap((id) => {
+    const entry = table[id] as { title?: unknown; subtitle?: unknown } | undefined;
+    const title = typeof entry?.title === 'string' ? entry.title : '';
+    const subtitle = typeof entry?.subtitle === 'string' ? entry.subtitle : '';
+    return title && subtitle ? [{ id, title, subtitle }] : [];
+  });
+}
+
 export function HomeEditorial() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as HomeLang;
   const copy = pickHomeCopy(lang);
   const nextTrip = useNextTrip();
+  const regions = regionLinks(t);
 
   return (
     <main className="ec-root">
@@ -57,6 +75,7 @@ export function HomeEditorial() {
       <CapabilityLedger copy={copy} />
       <ServiceModules copy={copy} lang={lang} />
       <ItinerarySpecimen copy={copy} lang={lang} id={SPECIMEN_ID} />
+      <RegionLinks copy={copy} regions={regions} />
       <ClosingSections copy={copy} />
     </main>
   );
