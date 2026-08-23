@@ -13,7 +13,7 @@
  *     하단에 공개되어 있는 값이다.
  *
  * 🔴 여기 있는 것은 그 두 곳을 **잇는 제목뿐**이다. 면허번호·보증·응대시간·가격·자격을
- *    새로 적지 않는다. `tests/unit/about-content.test.ts` 가 금지 문구로 잠근다.
+ *    새로 적지 않는다. `tests/unit/about-content.component.test.tsx` 가 금지 문구로 잠근다.
  */
 
 export type AboutLang = 'ko' | 'en' | 'ja' | 'zh';

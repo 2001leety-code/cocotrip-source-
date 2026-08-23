@@ -18,7 +18,7 @@ import { pickAboutCopy } from './aboutCopy';
  * 지금 본문은 **이미 검증된 두 원천만** 잇는다 — 이 파일은 새 사실을 만들지 않는다:
  *   · `sections/home/homeCopy.ts` (서비스 3종 · 데이터 근거 · 안 하는 약속)
  *   · `t.footer.*` (상호·대표·주소·등록번호·연락처 — 이미 전 페이지 하단에 있는 값)
- * 면허번호·보증·응대시간·가격을 새로 적지 않는다. `tests/unit/about-content.test.ts` 가 잠근다.
+ * 면허번호·보증·응대시간·가격을 새로 적지 않는다. `tests/unit/about-content.component.test.tsx` 가 잠근다.
  *
  * 화면은 한 개의 반응형 트리다(홈·가이드·지역과 같은 Editorial 토큰). 예전의
  * `useIsMobile` 분기는 같은 페이지를 두 벌 유지하게 만들었을 뿐이다.

@@ -142,7 +142,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     regions: {
       eyebrow: 'Regions',
       heading: 'Nine Korean regions, one page each',
-      lede: 'Every page carries the same three things: what there is to see, our own photographs of the place, and which of our tours and planner cities reach it.',
+      lede: 'Every page carries the same three things: what there is to see, a photo set for the place, and which of our tours and planner cities reach it.',
     },
     closing: {
       reviewsEyebrow: 'Reviews',
@@ -218,7 +218,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     regions: {
       eyebrow: '지역',
       heading: '한국 아홉 개 지역, 한 곳당 한 페이지',
-      lede: '어느 페이지든 담는 것은 같습니다 — 무엇을 볼 수 있는지, 그곳에서 직접 찍은 사진, 그리고 어떤 투어와 플래너 도시가 그 지역에 닿는지.',
+      lede: '어느 페이지든 담는 것은 같습니다 — 무엇을 볼 수 있는지, 그 지역 사진 모음, 그리고 어떤 투어와 플래너 도시가 그 지역에 닿는지.',
     },
     closing: {
       reviewsEyebrow: '후기',
@@ -294,7 +294,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     regions: {
       eyebrow: '地域',
       heading: '韓国の9地域、1地域につき1ページ',
-      lede: 'どのページも載せるものは同じです — 何が見られるか、現地で撮った写真、そしてどのツアーとプランナー対応都市がその地域に届くか。',
+      lede: 'どのページも載せるものは同じです — 何が見られるか、その地域の写真、そしてどのツアーとプランナー対応都市がその地域に届くか。',
     },
     closing: {
       reviewsEyebrow: 'レビュー',
@@ -370,7 +370,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     regions: {
       eyebrow: '地区',
       heading: '韩国九个地区，每个地区一个页面',
-      lede: '每个页面收录的内容相同：可以看什么、我们在当地拍摄的照片，以及哪些旅游产品和行程规划城市能到达该地区。',
+      lede: '每个页面收录的内容相同：可以看什么、该地区的照片，以及哪些旅游产品和行程规划城市能到达该地区。',
     },
     closing: {
       reviewsEyebrow: '评价',

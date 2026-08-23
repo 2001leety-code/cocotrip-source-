@@ -15,7 +15,7 @@ import type { GuideMeta } from './guideCopy';
  *
  * 그래서 주제는 **각 글의 제목·label 에서 사람이 읽어 붙인 분류**다. 새 사실을 지어내지
  * 않는다(글 제목이 말하는 것 이상을 적지 않는다). 새 글이 들어오면 여기 없어서
- * `tests/unit/guide-related.test.ts` 가 빨개진다 — 조용히 빈 섹션이 되지 않는다.
+ * `tests/unit/guide-related.component.test.tsx` 가 빨개진다 — 조용히 빈 섹션이 되지 않는다.
  *
  * 정렬은 완전 결정론이다: 겹친 주제 수 ↓ → 발행일 ↓ → slug ↑. 무작위·시간 의존 없음.
  */

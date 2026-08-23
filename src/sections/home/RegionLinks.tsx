@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { regionPath } from '@/data/regions';
 import type { HomeCopy } from './homeCopy';
@@ -18,6 +19,41 @@ import type { HomeCopy } from './homeCopy';
  * 여기서 지역에 대한 새 사실을 만들지 않는다.
  */
 
+/** 이 섹션의 앵커 이름. `id` 와 링크 대상이 한 상수에서 나온다. */
+export const REGIONS_SECTION_ID = 'regions';
+const REGIONS_HASH = `#${REGIONS_SECTION_ID}`;
+
+/**
+ * `/#regions` 로 들어왔을 때 이 섹션까지 내려준다 (2026-08-23).
+ *
+ * 🔴 왜 필요한가: 브라우저의 기본 해시 점프는 **문서를 새로 받을 때** 일어난다. About 이나
+ *    지역 상세에서 `/#regions` 를 누르면 SPA 라우팅이라 문서를 새로 받지 않고, 게다가 홈은
+ *    lazy 청크라 그 시점엔 이 섹션이 아직 DOM 에 없다. 그래서 아무 데도 안 간다.
+ *
+ * 그래서 착지를 **섹션 자신이** 책임진다 — 이 컴포넌트가 마운트되는 순간이 곧 대상이
+ * 존재하게 되는 순간이다.
+ *
+ * 지켜야 하는 것
+ *   · 해시가 정확히 `#regions` 일 때만. 그냥 홈(`/`)에 온 손님을 끌어내리면 안 된다
+ *     (visual baseline 이 "이름과 다른 화면"을 찍게 만든 그 사고가 바로 이것이다).
+ *   · `prefers-reduced-motion: reduce` 면 smooth 를 쓰지 않는다 — 전정기관 문제를 가진
+ *     사용자에게 부드러운 스크롤은 증상이다.
+ *   · SSR·프리렌더에서 안전해야 한다. window·matchMedia·scrollIntoView 가 없을 수 있으니
+ *     전부 존재를 확인하고, 없으면 아무 일도 하지 않는다(프리렌더 경로엔 해시가 없다).
+ */
+function useRegionsHashLanding(target: React.RefObject<HTMLElement | null>) {
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== REGIONS_HASH) return;
+    const element = target.current;
+    if (!element || typeof element.scrollIntoView !== 'function') return;
+    const reduceMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }, [hash, target]);
+}
+
 export interface RegionLink {
   id: string;
   title: string;
@@ -30,12 +66,22 @@ interface Props {
 }
 
 export function RegionLinks({ copy, regions }: Props) {
+  // 훅은 조건부 return 위에 있어야 한다 — 목록이 비는 언어에서 훅 순서가 달라지면 안 된다.
+  const section = useRef<HTMLElement | null>(null);
+  useRegionsHashLanding(section);
+
   if (regions.length === 0) return null;
   const c = copy.regions;
 
   return (
-    // RegionDetail 의 "지역 목록으로" 링크가 /#regions 를 가리킨다 — 그 앵커의 착지점.
-    <section id="regions" className="border-b border-ec-line" aria-labelledby="home-regions">
+    // RegionDetail 의 "지역 목록으로" 링크와 /about 의 지역 링크가 /#regions 를 가리킨다 —
+    // 그 앵커의 착지점이자, 위 훅이 스크롤시킬 대상이다.
+    <section
+      ref={section}
+      id={REGIONS_SECTION_ID}
+      className="border-b border-ec-line"
+      aria-labelledby="home-regions"
+    >
       <div className="ec-container-wide py-12 md:py-16">
         <p className="ec-eyebrow">{c.eyebrow}</p>
         <h2 id="home-regions" className="ec-h2 mt-4 max-w-[24ch]">{c.heading}</h2>

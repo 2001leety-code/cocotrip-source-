@@ -16,7 +16,7 @@
  *      빼라는 뜻이다(얇은 페이지를 색인시키는 것이 가장 나쁜 선택지다).
  */
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
@@ -154,6 +154,149 @@ describe('홈 → 지역 (크롤 가능한 앵커)', () => {
       expect(c.heading.trim().length, `${lang} heading`).toBeGreaterThan(0);
       expect(c.lede.trim().length, `${lang} lede`).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * 사진 출처 주장 금지 (2026-08-23 검토 지적).
+ *
+ * 홈의 지역 섹션 문구가 "우리가 직접 찍은 사진" 이라고 말하고 있었다. 레포에는 그걸
+ * 뒷받침할 근거가 없다 — 촬영자·소유·출처 기록이 어디에도 없고, 실제로 서울 이미지
+ * 한 장은 AI 생성 워터마크가 발견돼 빠졌다(RegionDetail.tsx 의 2026-08-22 주석).
+ * 페이지가 무엇을 담는지는 말해도 되지만, 그 사진이 누구 것인지는 말할 수 없다.
+ */
+describe('지역 문구가 사진 출처를 주장하지 않는다', () => {
+  const BANNED = [
+    /our own photo/i,
+    /\bwe (took|shot|photograph)/i,
+    /photograph(s|ed)? (we|by us)/i,
+    /직접 찍은/,
+    /우리가 찍은/,
+    /現地で撮った/,
+    /自分たちで撮/,
+    /我们.{0,4}拍摄/,
+  ];
+
+  it.each(['en', 'ko', 'ja', 'zh'] as const)('%s: 촬영자·소유를 주장하지 않는다', (lang) => {
+    const c = pickHomeCopy(lang).regions;
+    for (const line of [c.eyebrow, c.heading, c.lede]) {
+      for (const rule of BANNED) {
+        expect(rule.test(line), `${lang}: "${line}" matches ${rule}`).toBe(false);
+      }
+    }
+  });
+
+  it('그래도 페이지가 사진을 담는다는 사실은 남는다 (빈 약속으로 만들지 않는다)', () => {
+    expect(pickHomeCopy('en').regions.lede).toMatch(/photo/i);
+    expect(pickHomeCopy('ko').regions.lede).toMatch(/사진/);
+    expect(pickHomeCopy('ja').regions.lede).toMatch(/写真/);
+    expect(pickHomeCopy('zh').regions.lede).toMatch(/照片/);
+  });
+});
+
+/**
+ * `/#regions` 착지 (2026-08-23 검토 지적).
+ *
+ * 🔴 브라우저의 해시 점프는 문서를 새로 받을 때만 일어난다. /about 이나 지역 상세에서
+ *    `/#regions` 를 눌러도 SPA 라우팅이라 문서를 새로 받지 않고, 홈은 lazy 청크라 그
+ *    시점엔 이 섹션이 DOM 에 없다 — 결과적으로 아무 데도 가지 않았다.
+ *
+ * 잠그는 것
+ *   1) 해시가 `#regions` 일 때 이 섹션으로 스크롤한다 (고치기 전에는 호출 0회라 실패).
+ *   2) 그냥 홈(`/`)이나 다른 해시에서는 **절대** 스크롤하지 않는다 — 아무 이유 없이
+ *      끌려 내려가는 홈은 그 자체가 버그이고, visual baseline 도 함께 망가진다.
+ *   3) `prefers-reduced-motion: reduce` 면 smooth 를 쓰지 않는다.
+ *   4) `scrollIntoView` 가 없는 환경(SSR·프리렌더)에서 터지지 않는다.
+ */
+describe('/#regions 착지', () => {
+  const regions = REGION_IDS.map((id) => {
+    const entry = (en as unknown as { regionDetail: Record<string, { title: string; subtitle: string }> })
+      .regionDetail[id];
+    return { id, title: entry.title, subtitle: entry.subtitle };
+  });
+
+  type ScrollCall = { element: Element; options: unknown };
+  let calls: ScrollCall[] = [];
+  const originalScroll = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+  beforeEach(() => {
+    calls = [];
+    // jsdom 은 scrollIntoView 를 구현하지 않는다. 스파이를 직접 심어 호출을 기록한다.
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value(this: Element, options: unknown) { calls.push({ element: this, options }); },
+    });
+  });
+
+  afterEach(() => {
+    if (originalScroll) Object.defineProperty(Element.prototype, 'scrollIntoView', originalScroll);
+    else delete (Element.prototype as unknown as Record<string, unknown>).scrollIntoView;
+    if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    else delete (window as unknown as Record<string, unknown>).matchMedia;
+  });
+
+  function renderAt(entry: string) {
+    return render(
+      <MemoryRouter initialEntries={[entry]}>
+        <RegionLinks copy={pickHomeCopy('en')} regions={regions} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('#regions 로 들어오면 그 섹션으로 스크롤한다', () => {
+    const { container } = renderAt('/#regions');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].element).toBe(container.querySelector('#regions'));
+    expect(calls[0].element.id).toBe('regions');
+  });
+
+  it('해시 없이 홈에 온 손님은 끌려 내려가지 않는다', () => {
+    renderAt('/');
+    expect(calls).toEqual([]);
+  });
+
+  it('다른 해시에는 반응하지 않는다', () => {
+    renderAt('/#tours');
+    renderAt('/#region');
+    renderAt('/#regions-extra');
+    expect(calls).toEqual([]);
+  });
+
+  it('모션 감소 설정이면 smooth 를 쓰지 않는다', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ matches: query.includes('prefers-reduced-motion'), media: query }),
+    });
+    renderAt('/#regions');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].options).toMatchObject({ behavior: 'auto' });
+  });
+
+  it('모션 감소 설정이 아니면 smooth 로 내려간다', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ matches: false, media: query }),
+    });
+    renderAt('/#regions');
+    expect(calls[0].options).toMatchObject({ behavior: 'smooth' });
+  });
+
+  it('scrollIntoView 가 없는 환경(SSR·프리렌더)에서도 터지지 않는다', () => {
+    delete (Element.prototype as unknown as Record<string, unknown>).scrollIntoView;
+    expect(() => renderAt('/#regions')).not.toThrow();
+  });
+
+  it('목록이 비어 섹션을 안 그리는 언어에서도 터지지 않는다', () => {
+    expect(() => render(
+      <MemoryRouter initialEntries={['/#regions']}>
+        <RegionLinks copy={pickHomeCopy('en')} regions={[]} />
+      </MemoryRouter>,
+    )).not.toThrow();
+    expect(calls).toEqual([]);
   });
 });
 
