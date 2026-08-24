@@ -149,6 +149,10 @@ describe('CourseBuilderShell — 시간 입력 접근성 이름', () => {
 
     const timeInputs = screen.getAllByLabelText('Time', { selector: 'input[type="time"]' });
     expect(timeInputs).toHaveLength(2);
+    // Regression: both time inputs carry safe w-[132px] class to prevent clipping
+    timeInputs.forEach((input) => {
+      expect(input.className).toContain('w-[132px]');
+    });
   });
 });
 

@@ -559,7 +559,7 @@ export function CourseBuilderShell() {
             <div className="flex flex-wrap items-center gap-1.5">
               <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
                 <Clock className="h-3 w-3" />
-                <input type="time" aria-label={t.time} value={newTime} onChange={(e) => setNewTime(e.target.value)} className={`${INPUT} w-[104px] px-1.5`} />
+                <input type="time" aria-label={t.time} value={newTime} onChange={(e) => setNewTime(e.target.value)} className={`${INPUT} w-[132px] px-1.5`} />
               </label>
               <div className="flex gap-1">
                 {CATEGORIES.map((c) => (
@@ -927,7 +927,7 @@ function StopRow({
             className={INPUT}
           />
           <div className="flex flex-wrap items-center gap-1.5">
-            <input type="time" aria-label={t.time} value={stop.time} onChange={(e) => onPatch({ time: e.target.value })} className={`${INPUT} w-[104px] px-1.5`} />
+            <input type="time" aria-label={t.time} value={stop.time} onChange={(e) => onPatch({ time: e.target.value })} className={`${INPUT} w-[132px] px-1.5`} />
             <div className="flex gap-1">
               {CATEGORIES.map((c) => (
                 <button
