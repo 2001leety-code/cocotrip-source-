@@ -29,8 +29,10 @@ import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 import { WizardStepHint } from './WizardStepHint';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
-import { getAirportOptions } from './helpers';
+import { getAirportOptions, isKnownAirportValue } from './helpers';
 import { hasMeaningfulWizardContent, hasMeaningfulWizardContentStrict } from './snapshotContent';
+import { computeWizardGate } from './wizardGate';
+import { parseDateOnly, kstTomorrowLocalDate } from './dateOnly';
 
 // PR-D (2026-06-01): resume "이어서 작성" modal 과노출 fix 의 기능 플래그.
 // OFF(기본) = 기존 동작 byte-identical. ON 일 때만 좁힌 트리거 적용:
@@ -144,7 +146,7 @@ export interface WizardInitialValues {
   freeText?: string;
 }
 
-export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues }) {
+export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = false }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues; isRevision?: boolean }) {
   const { t, language } = useLanguage();
   const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
@@ -217,17 +219,27 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // Step 1: food preferences
   const [dietPrefs, setDietPrefs]   = useState<string[]>([]);
   const [dietaryRestrictions, setDietaryRestrictions] = useState<string[]>([]);
+  // 2026-08-24 (planner-trust-course): dietaryRestrictions === [] is ambiguous —
+  // it means either "never touched this group" or "explicitly tapped None".
+  // Review must not claim "None" (a safety-relevant statement) for a traveler
+  // who simply hasn't answered yet. This flag disambiguates; it's Review-display
+  // only and never forwarded to the backend.
+  const [dietaryRestrictionsTouched, setDietaryRestrictionsTouched] = useState(false);
   const [priceRange, setPriceRange] = useState('Any');
   // P10: spice tolerance + Korean dish bucket list (separate from style chips).
   const [spiceLevel, setSpiceLevel] = useState<string>('medium');
   const [bucketDishes, setBucketDishes] = useState<string[]>([]);
 
-  // Step 2: travel details — default start = tomorrow (Option A: 기본값 내일)
-  const [dateRange, setDateRange]             = useState<DateRange | undefined>(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return { from: tomorrow, to: undefined };
-  });
+  // Step 2: travel details — default start = tomorrow (Option A: 기본값 내일).
+  // 2026-08-24 (planner-trust-course): KST tomorrow, not the browser's local
+  // tomorrow — a traveler in Honolulu/Los Angeles (west of UTC) can have a
+  // browser-local "today" that's already KST tomorrow, at which point
+  // `new Date(); +1 day` defaults to a day the wizard/backend consider today
+  // or even yesterday in Korea. wizardGate's "must start >= KST tomorrow" rule
+  // and this default now share the same clock.
+  const [dateRange, setDateRange]             = useState<DateRange | undefined>(() => (
+    { from: kstTomorrowLocalDate(), to: undefined }
+  ));
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   // P142 (2026-05-22): 출국 공항/터미널 분리. 빈 문자열 = arrivalTerminal 폴백.
@@ -336,10 +348,15 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       setDietaryRestrictions(iv.dietaryRestrictions);
     }
     if (iv.startDate) {
-      const from = new Date(iv.startDate);
-      if (!Number.isNaN(from.getTime())) {
-        const to = iv.endDate ? new Date(iv.endDate) : undefined;
-        setDateRange({ from, to: to && !Number.isNaN(to.getTime()) ? to : undefined });
+      // 2026-08-24 (planner-trust-course): `new Date('yyyy-MM-dd')` parses as
+      // UTC midnight — renders as the PREVIOUS local calendar day in any
+      // timezone west of UTC. parseDateOnly builds a local-midnight Date from
+      // the numeric Y/M/D instead, and rejects noncanonical/nonexistent dates
+      // (a corrupted revision link) rather than silently accepting them.
+      const from = parseDateOnly(iv.startDate);
+      if (from) {
+        const to = iv.endDate ? parseDateOnly(iv.endDate) : null;
+        setDateRange({ from, to: to || undefined });
       }
     }
     if (iv.pax && iv.pax > 0) setPaxInput(String(iv.pax));
@@ -468,16 +485,23 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
           (a): a is string => typeof a === 'string' && ['Halal', 'Vegan', 'Vegetarian'].includes(a),
         )
       : [];
-    setDietaryRestrictions(Array.isArray(v.dietaryRestrictions) ? v.dietaryRestrictions : legacySnapAllergies);
+    const restoredDietaryRestrictions = Array.isArray(v.dietaryRestrictions) ? v.dietaryRestrictions : legacySnapAllergies;
+    setDietaryRestrictions(restoredDietaryRestrictions);
+    // Old snapshots don't carry the touched flag. A restored non-empty selection
+    // proves the traveler answered; a restored empty one is left untouched
+    // (Review shows "Not selected", never a fabricated "None").
+    setDietaryRestrictionsTouched(restoredDietaryRestrictions.length > 0);
     setPriceRange(v.priceRange ?? 'Any');
     setSpiceLevel(v.spiceLevel ?? 'medium');
     setBucketDishes(Array.isArray(v.bucketDishes) ? v.bucketDishes : []);
-    // dateRange 복원: ISO 문자열 → Date 변환. 잘못된 값이면 undefined.
+    // dateRange 복원: yyyy-MM-dd 문자열 → local calendar Date. 잘못된 값이면 undefined.
+    // 2026-08-24 (planner-trust-course): parseDateOnly, not `new Date(string)` —
+    // same UTC-midnight-vs-local-midnight bug as the revision prefill above.
     if (v.dateRangeFrom) {
-      const from = new Date(v.dateRangeFrom);
-      if (!Number.isNaN(from.getTime())) {
-        const to = v.dateRangeTo ? new Date(v.dateRangeTo) : undefined;
-        setDateRange({ from, to: to && !Number.isNaN(to.getTime()) ? to : undefined });
+      const from = parseDateOnly(v.dateRangeFrom);
+      if (from) {
+        const to = v.dateRangeTo ? parseDateOnly(v.dateRangeTo) : null;
+        setDateRange({ from, to: to || undefined });
       }
     }
     setPaxInput(v.paxInput ?? '2');
@@ -518,7 +542,23 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // 예전에는 framer 가 나가는 요소를 먼저 0ms 로 다시 그려야 해서 커밋을 둘로 쪼갰지만
     // (jumpToStep), 이제 애니메이션이 mount 를 막지 않으므로 그 우회가 필요 없다.
     setNoStepAnim(true);
-    setStep(pendingStep);
+    // 2026-08-24 (planner-trust-course, F): pendingStep 은 snapshot 저장 당시의 step
+    // 이라 신뢰할 수 없다 — snapshot 이 옛 버전이거나(예약상태 필드 도입 전) 저장 이후 요구
+    // 필드가 늘었으면, 그 값을 그대로 setStep 하면 예약상태/필수 필드 없이 Review 로 점프한다.
+    // 위 render-time unlockedStep 은 아직 반영 전(batch)인 이전 state 기준이라 여기선 못 쓴다 —
+    // 방금 복원한 v 값으로 같은 공식을 다시 계산해 클램프한다.
+    const { unlockedStep: restoredUnlockedStep } = computeWizardGate({
+      reservationStatus: v.reservationStatus || null,
+      arrivalAirport: v.arrivalTerminal || '',
+      arrivalTime: v.arrivalTime || '',
+      mainCity: v.mainCity || '',
+      selectedActivities: Array.isArray(v.selectedActivities) ? v.selectedActivities : [],
+      startDate: v.dateRangeFrom || '',
+      endDate: v.dateRangeTo || '',
+      pax: parseInt(v.paxInput || '', 10),
+      isRevision,
+    });
+    setStep(Math.min(pendingStep, restoredUnlockedStep));
     setResumeOpen(false);
     setPendingSnap(null);
   }
@@ -554,7 +594,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // Only fall back to 3 when no dates picked at all.
   const datesPicked = !!(dateRange?.from && dateRange?.to);
   const durationDays = datesPicked ? Math.max(1, nights + 1) : 3;
-  const pax = parseInt(paxInput) || 2;
+  // 2026-08-24 (planner-trust-course, F): no `|| 2` fallback — the initial
+  // paxInput state is '2', but once the traveler clears the field or types 0,
+  // that must stay invalid (NaN/0) and block the gate, not silently become 2.
+  const pax = parseInt(paxInput, 10);
   // P142 (2026-05-22) → P-launch (2026-05-31): 출국 공항.
   //   ⚠️ 이전엔 `departureTerminal || arrivalTerminal` 로 미선택 시 *입국 공항*을 강제 →
   //   다도시(서울→부산) plan 에서 출국이 '부산→인천(ICN)' 으로 잘못 안내 = 비행기 놓침 risk.
@@ -563,12 +606,20 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   //   사용자가 dropdown 에서 명시 선택하면 그 값 그대로 존중 (override 안 함 = 안전).
   const departureAirport = departureTerminal;
 
-  const airportOptions = getAirportOptions(mainCityKey || 'seoul');
+  // 2026-08-24 (planner-trust-course): pass the key through, never `|| 'seoul'` —
+  // an empty mainCityKey (no city chosen yet, e.g. Step 0 before Step 1) must
+  // show the global airport list (getAirportOptions handles '' itself), not
+  // silently narrow to Seoul's 3 options.
+  const airportOptions = getAirportOptions(mainCityKey);
 
-  // Reset airport when mainCity changes
+  // Reset airport when mainCity changes — but only if the picked code isn't a
+  // globally known airport at all. Per-city AIRPORT_OPTIONS lists are a UI
+  // shortlist, not a validity boundary: a traveler who picked PUS while no
+  // city was chosen yet (Step 0's global list), then later selects Busan or
+  // Seoul as their city, must not have that valid airport silently erased
+  // just because it isn't Seoul's own narrowed list.
   useEffect(() => {
-    const validValues = airportOptions.map(o => o.value);
-    if (arrivalTerminal && !validValues.includes(arrivalTerminal)) {
+    if (arrivalTerminal && !isKnownAirportValue(arrivalTerminal)) {
       // 도시가 바뀌어 무효가 된 값만 비운다. 비우고 나면 조건이 false 가 되어 수렴한다.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setArrivalTerminal('');
@@ -576,7 +627,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // P142: 다도시에서 mainCity 변경 시 departureTerminal 도 검증.
     // 출국지 도시가 mainCity 와 다를 수 있어 airportOptions 검사 skip — 단도시면
     // 같이 reset, 다도시면 별도 도시 공항 옵션 사용 가능 (사용자 자유).
-    if (departureTerminal && !validValues.includes(departureTerminal) && cityKeys.length <= 1) {
+    if (departureTerminal && !isKnownAirportValue(departureTerminal) && cityKeys.length <= 1) {
       setDepartureTerminal('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -635,9 +686,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     const parts: string[] = [];
     if (s.mainCity) parts.push(s.mainCity);
     if (s.dateRangeFrom && s.dateRangeTo) {
-      const from = new Date(s.dateRangeFrom);
-      const to = new Date(s.dateRangeTo);
-      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
+      // 2026-08-24 (planner-trust-course): parseDateOnly, not `new Date(string)` —
+      // same UTC-midnight-vs-local-midnight bug as the resume/revision restores above.
+      const from = parseDateOnly(s.dateRangeFrom);
+      const to = parseDateOnly(s.dateRangeTo);
+      if (from && to) {
         const nightsCount = Math.max(0, differenceInCalendarDays(to, from));
         if (nightsCount > 0) parts.push(`${nightsCount}N${nightsCount + 1}D`);
       }
@@ -648,8 +701,22 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   }
 
   // validation
-  const canGoStep1 = mainCity !== '' && selectedActivities.length > 0;
-  const canGoStep3 = startDate !== '' && endDate !== '' && pax >= 1 && arrivalTerminal !== '';
+  // step0 (Reservation): mirrors WizardStep0Reservation's own `canContinue` —
+  // status picked, and if a flight was booked, airport + arrival time filled.
+  // Furthest step reachable by jumping ahead (not editing back) given current
+  // answers — step1 (Food) has no required fields of its own, so it and step2
+  // (Details) unlock together once step0/step1 validate.
+  // 2026-08-24: future-step tick clicks used to jump anywhere with zero
+  // validation. `goToStep` below only allows i <= step (edit/back, always ok)
+  // or i <= unlockedStep (validated forward jump).
+  // 2026-08-24 (planner-trust-course, F): formula lives in wizardGate.ts —
+  // shared with handleGenerate's pre-submit revalidation and
+  // applyResumeSnapshot's restored-step clamp, so the KST-date/pax rules can't
+  // drift between the three call sites.
+  const { canStep0: canGoStep0, canStep1: canGoStep1, canStep3: canGoStep3, unlockedStep } = computeWizardGate({
+    reservationStatus, arrivalAirport: arrivalTerminal, arrivalTime,
+    mainCity, selectedActivities, startDate, endDate, pax, isRevision,
+  });
 
   // helpers local to the container
   function getCityName(key: string) {
@@ -764,11 +831,21 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   function toggleDietaryRestriction(key: string) {
     haptic('select');
+    setDietaryRestrictionsTouched(true);
     if (key === 'None') { setDietaryRestrictions([]); return; }
     setDietaryRestrictions(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
   }
 
   async function handleGenerate() {
+    // 2026-08-24: revalidate right before the request leaves the browser —
+    // don't trust that unlockedStep gating alone kept the answers valid (the
+    // user can always edit an earlier step back to empty and hit this button
+    // from a stale render). No fallback here: a missing destination/dates/
+    // airport must send the user back to fix it, never a fabricated '-'/TBD/
+    // 'Seoul' default becoming part of the request.
+    if (!canGoStep0) { goToStep(0); return; }
+    if (!canGoStep1) { goToStep(1); return; }
+    if (!canGoStep3) { goToStep(3); return; }
     haptic('select');
     setErrorMsg('');
     // Ask for notification permission at submit time — generation runs 30-90s
@@ -776,8 +853,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // or unsupported the rest of the flow is unaffected.
     void requestNotifyPermission();
     try { if (mainCity) localStorage.setItem('cocotrip_last_region', mainCity); } catch { /* silent */ }
-    const sd = startDate || new Date().toISOString().split('T')[0];
-    const ed = endDate || new Date(Date.now() + durationDays * 86400000).toISOString().split('T')[0];
+    const sd = startDate;
+    const ed = endDate;
 
     try {
       const totalLuggage = luggageSmall + luggageMedium + luggageLarge;
@@ -809,7 +886,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         : hotelAddress;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
-        regions: allCities.length > 0 ? allCities : ['Seoul'],
+        regions: allCities,
+        // 2026-08-24 (planner-trust-course): stable key for the primary city —
+        // backend resolves exact-city context/validation from this, not by
+        // re-parsing the localized `regions` display text.
+        cityKey: mainCityKey || undefined,
         categories: selectedActivities, transport: 'staria', pax, durationDays,
         freeText: freeText || '',
         arrival_airport: arrivalTerminal,
@@ -935,7 +1016,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     if (k && !selectedCityKeys.includes(k)) selectedCityKeys.push(k);
   }
 
+  // 2026-08-24: only allow jumping to a step that's <= the current step (back/edit,
+  // always allowed) or <= unlockedStep (forward, but only once its prerequisites
+  // validate). A blocked click never calls setStep, so it can't fire
+  // wizard_step_advanced (that effect only fires when `step` actually changes).
   function goToStep(i: number) {
+    if (i > step && i > unlockedStep) return;
     haptic('tap');
     setStep(i);
   }
@@ -980,16 +1066,28 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
             {STEPS.map((s, i) => {
               const done = i < step;
               const current = i === step;
+              const reachable = i <= step || i <= unlockedStep;
+              // 2026-08-24 (planner-trust-course): the step label span is
+              // `hidden sm:inline` on non-current steps at mobile widths, so it
+              // can't be the button's only accessible name — a screen reader on
+              // a 390px viewport would announce nothing but a bare number.
+              // aria-label carries a stable "Step N: Label" name in every
+              // state/width; the visible number/check/label stay as-is.
+              const stepAriaLabel = (p.wizardStepRailLabel || 'Step {n}: {label}')
+                .replace('{n}', String(i + 1)).replace('{label}', s.label);
               return (
                 <li key={s.label}>
                   <button
                     type="button"
                     onClick={() => goToStep(i)}
+                    disabled={!reachable}
+                    aria-disabled={!reachable}
                     aria-current={current ? 'step' : undefined}
-                    className={`ec-steptick ${done ? 'ec-steptick-done' : ''}`}
+                    aria-label={stepAriaLabel}
+                    className={`ec-steptick ${done ? 'ec-steptick-done' : ''} ${reachable ? '' : 'opacity-40'}`}
                   >
-                    {done ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="ec-figure text-[11px]">{i + 1}</span>}
-                    <span className={current ? '' : 'hidden sm:inline'}>{s.label}</span>
+                    {done ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="ec-figure text-[11px]" aria-hidden>{i + 1}</span>}
+                    <span className={current ? '' : 'hidden sm:inline'} aria-hidden>{s.label}</span>
                   </button>
                 </li>
               );
@@ -1034,7 +1132,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
                   hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
-                  mainCityKey={mainCityKey || 'seoul'}
+                  // 2026-08-24 (planner-trust-course): pass the raw key through — an
+                  // empty mainCityKey (city not chosen yet, this step runs first)
+                  // must show the global airport list, never a silent Seoul narrow.
+                  mainCityKey={mainCityKey}
                   onNext={() => goToStep(1)}
                 />
               )}
@@ -1112,16 +1213,29 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
               {step === 4 && (
                 <WizardStep3Review
                   p={p}
-                  allCities={allCities} startDate={startDate} endDate={endDate}
-                  arrivalTerminal={arrivalTerminal} pax={pax}
-                  selectedActivities={selectedActivities} hotelAddress={hotelAddress}
+                  language={language}
+                  reservationStatus={reservationStatus}
+                  arrivalTerminal={arrivalTerminal} arrivalTime={arrivalTime}
+                  allCities={allCities} cityKeys={cityKeys}
+                  arrivalCityKey={arrivalCityKey} departureCityKey={departureCityKey}
+                  selectedActivities={selectedActivities} freeText={freeText}
+                  dietPrefs={dietPrefs}
+                  dietaryRestrictions={dietaryRestrictions}
+                  dietaryRestrictionsTouched={dietaryRestrictionsTouched}
+                  priceRange={priceRange} spiceLevel={spiceLevel} bucketDishes={bucketDishes}
+                  startDate={startDate} endDate={endDate} pax={pax}
+                  departureTerminal={departureTerminal} departureTime={departureTime}
+                  hotelAddress={hotelAddress}
                   // 2026-05-21 (P134 분기 #34/#35 fix): 다도시 + 호텔 anchor 미리보기 props
                   mainCityKey={mainCityKey}
                   hotelByCity={hotelByCity}
                   recommendedZones={recommendedZones}
                   isMultiCity={isMultiCity}
+                  tourPace={tourPace} tourStartTime={tourStartTime} tourEndTime={tourEndTime}
+                  companions={companions}
+                  luggageSmall={luggageSmall} luggageMedium={luggageMedium} luggageLarge={luggageLarge}
+                  wantAccom={wantAccom} accomBudget={accomBudget}
                   isLoading={isLoading} errorMsg={errorMsg}
-                  language={language}
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
                 />
               )}

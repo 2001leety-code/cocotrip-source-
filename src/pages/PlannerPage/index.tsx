@@ -53,6 +53,8 @@ export default function PlannerPage() {
   const revisionMode = searchParams.get('revision') === 'true';
   const revisionPlanId = searchParams.get('planId') || null;
   const revisionToken = searchParams.get('token') || null;
+  // Revision bypass safety: both flag AND planId required to enter revision flow
+  const validRevisionContext = revisionMode && !!revisionPlanId;
   // W4: 사유 + avoidList URL params (RevisionCard → RevisionReasonModal → here)
   const revisionReason = searchParams.get('revisionReason') || null;
   const revisionNote = searchParams.get('revisionNote') || null;
@@ -78,7 +80,7 @@ export default function PlannerPage() {
   // reach `initialValues` untouched and be rendered as the destination.
   const revisionRegions = (searchParams.get('prefillRegions') || '').split(',').filter(Boolean);
   const deepLinkRegions = filterSupportedRegions(searchParams.get('prefillRegions'));
-  const prefillValues = revisionMode ? {
+  const prefillValues = validRevisionContext ? {
     startDate: searchParams.get('prefillStartDate') || '',
     endDate: searchParams.get('prefillEndDate') || '',
     regions: revisionRegions,
@@ -124,7 +126,7 @@ export default function PlannerPage() {
   const {
     status, resultQuick, errorMsg, errorCode,
     isGeneratingPlan, planError, planErrorCode, lastValues,
-    handleSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
+    handleSubmit, handleRevisionSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
   } = usePlannerHandlers({ language, userEmail, setUserEmail });
 
   const localizedError = resolveErrorMessage(errorCode, errorMsg, (p as { errors?: Record<string, string> }).errors);
@@ -252,7 +254,12 @@ export default function PlannerPage() {
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
           <div ref={wizardRef} tabIndex={-1} className="scroll-mt-20">
             <WizardSeenProbe className="ec-panel">
-              <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
+              <WizardForm
+                onSubmit={validRevisionContext ? handleRevisionSubmit : handleSubmit}
+                isLoading={status === 'loadingQuick'}
+                initialValues={prefillValues}
+                isRevision={validRevisionContext}
+              />
             </WizardSeenProbe>
           </div>
         )}
@@ -301,7 +308,11 @@ export default function PlannerPage() {
         {/* Quick Success */}
         {status === 'quickSuccess' && resultQuick && (
           <div id="planner-quick-result" className="space-y-6">
-            <QuickPreviewCard resultQuick={resultQuick} p={p} language={language} />
+            {/* 2026-08-24 (planner-trust-course, revision entitlement): a revision
+                submit never calls /api/ai-planner-quick (see handleRevisionSubmit) —
+                resultQuick is a non-displayed placeholder, not a real preview, so
+                the card that would render it stays hidden. */}
+            {!validRevisionContext && <QuickPreviewCard resultQuick={resultQuick} p={p} language={language} />}
             <PurchaseSection
               p={p}
               language={language}
@@ -311,7 +322,7 @@ export default function PlannerPage() {
               planError={localizedPlanError}
               resultQuick={resultQuick}
               lastValues={lastValues}
-              revisionMode={revisionMode}
+              revisionMode={validRevisionContext}
               revisionPlanId={revisionPlanId}
               revisionToken={revisionToken}
               revisionReason={revisionReason}

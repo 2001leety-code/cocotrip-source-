@@ -7,6 +7,10 @@ import { cityNameToAreaKey } from '../lib/formatters';
 import { auth as firebaseAuth } from '@/lib/firebase';
 import { isGuestAnonEnabled, shouldAttachGuestAnonToken } from '@/lib/guestReader';
 import { markPlannerPendingComplete } from '@/lib/analytics';
+import { track as posthogTrack } from '@/lib/posthog';
+import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
+import { buildReservationStatusField } from '../lib/reservationStatusField';
+import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -47,6 +51,24 @@ type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSu
 export type PlannerErrorCode =
   | 'GEMINI_TIMEOUT'
   | 'GEMINI_ERROR'
+  // 2026-08-24 (planner-trust-course, E/quick preview): stable quick-preview error codes.
+  | 'MISSING_DESTINATION'
+  | 'INVALID_DURATION'
+  | 'INVALID_PAX'
+  | 'MISSING_AIRPORT'
+  | 'UNSUPPORTED_CITY'
+  | 'CITY_DATA_UNAVAILABLE'
+  | 'DIETARY_PREVIEW_UNAVAILABLE'
+  // 2026-08-24 (planner-trust-course, client-hardening): permanent-data-gap and
+  // rate-protection codes the server can now return (ai-planner-quick.js) — the
+  // client union stayed a step behind the server's actual set.
+  | 'PREFERENCE_DATA_UNAVAILABLE'
+  | 'RATE_PROTECTION_DEGRADED'
+  | 'INVALID_REQUEST'
+  | 'CITY_MISMATCH'
+  | 'MISSING_RESERVATION_STATUS'
+  | 'INVALID_RESERVATION_STATUS'
+  | 'MISSING_ARRIVAL_TIME'
   | 'PAYMENT_REQUIRED'
   | 'PAYMENT_INCOMPLETE'
   // 결제 신뢰 검증 실패 계열 (paymentGate, 2026-07-15). 지역화 필수 —
@@ -97,6 +119,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   const [planErrorCode, setPlanErrorCode] = useState<PlannerErrorCode | null>(null);
   const lastValues = useRef<PlannerFormValues | null>(null);
 
+  // 2026-08-24 (planner-trust-course, fail-closed success): a 200 only unlocks
+  // quickSuccess/PurchaseSection when the body is shaped exactly like a usable
+  // day-one preview — not merely present. Validation now lives in
+  // `parseQuickPreviewResponse` (quickPreviewContract.ts), the SAME parser
+  // `QuickPreviewCard` renders from — one shared reading of the payload, not
+  // two independently-drifting ones.
+
   function normalizeFetchError(err: unknown, codeFromServer?: string, detailsFromServer?: string): ErrorPayload {
     if (codeFromServer) {
       return { code: codeFromServer as PlannerErrorCode, details: detailsFromServer || '' };
@@ -119,68 +148,84 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStreamStep(1);
     setStreamAgent('gemini');
     
-    const MAX_RETRIES = 2;
-    const payload = JSON.stringify({ 
-      destination: (values.regions || []).join(', ') || 'Seoul',
-      preferences: (values.categories || []).join(', ') || '',
-      categories: values.categories || ['culture'],
-      durationDays: values.durationDays || 3,
-      pax: values.pax || 2,
-      language,
-      regions: values.regions || ['Seoul'],
-      dietPrefs: values.dietPrefs || [],
-      dietaryRestrictions: values.dietaryRestrictions || [],
-      priceRange: values.priceRange || 'Any',
-      special_request: values.freeText || '',
-    });
+    // 2026-08-24 (planner-trust-course, fail-closed retry budget): at most 2
+    // HTTP attempts total, and the 2nd only happens after an actual transport
+    // failure (fetch() itself throwing, typically TypeError) on the 1st. A
+    // response the server actually sent — any 4xx/5xx, GEMINI_ERROR, or a
+    // malformed 200 — is terminal and is never retried: retrying a real
+    // validation/quota/city-mismatch rejection just repeats the same failure
+    // (or double-spends a rate-limited/paid backend call) for no benefit.
+    const MAX_ATTEMPTS = 2;
+    const payload = JSON.stringify(buildQuickPreviewPayload(values, language));
+    void posthogTrack('preview_requested', { language });
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    function fail(code: PlannerErrorCode, details: string) {
+      setErrorCode(code);
+      setErrorMsg(details);
+      setStatus('error');
+      void posthogTrack('preview_degraded_or_failed', { language, code });
+    }
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      let res: Response;
       try {
-        const res = await fetch('/api/ai-planner-quick', {
+        res = await fetch('/api/ai-planner-quick', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: payload,
         });
-
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          const msg = errBody.details || errBody.error || `Server error (${res.status})`;
-          if ((res.status === 404 || res.status >= 500) && attempt < MAX_RETRIES) {
-            console.warn(`[Planner] Attempt ${attempt + 1} got ${res.status}, retrying in 1.5s...`);
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-          const e = new Error(msg) as Error & { code?: string; details?: string };
-          e.code = errBody.code;
-          e.details = errBody.details;
-          throw e;
-        }
-
-        const json = await res.json();
-        const quickData = json.data;
-        setResultQuick(quickData);
-        setStatus('quickSuccess');
-        setTimeout(() => {
-          document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-        return;
       } catch (err) {
-        if (attempt < MAX_RETRIES && err instanceof TypeError) {
-          console.warn(`[Planner] Network error on attempt ${attempt + 1}, retrying...`);
+        if (attempt < MAX_ATTEMPTS && err instanceof TypeError) {
+          console.warn(`[Planner] Network error on attempt ${attempt}, retrying...`);
           await new Promise(r => setTimeout(r, 1500));
           continue;
         }
-        const payload = normalizeFetchError(
-          err,
-          (err as { code?: string }).code,
-          (err as { details?: string }).details || (err as Error).message,
-        );
-        setErrorCode(payload.code);
-        setErrorMsg(payload.details || (err instanceof Error ? err.message : 'Unknown error.'));
-        setStatus('error');
+        const p = normalizeFetchError(err);
+        fail(p.code, p.details || (err instanceof Error ? err.message : 'Unknown error.'));
         return;
       }
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = errBody.details || errBody.error || `Server error (${res.status})`;
+        const p = normalizeFetchError(new Error(msg), errBody.code, errBody.details);
+        fail(p.code, p.details || msg);
+        return;
+      }
+
+      const json = await res.json().catch(() => null);
+      if (!json || json.ok !== true || !parseQuickPreviewResponse(json.data, language)) {
+        fail('INVALID_RESPONSE', 'The preview response was malformed.');
+        return;
+      }
+
+      setResultQuick(json.data);
+      setStatus('quickSuccess');
+      void posthogTrack('preview_success', { language });
+      setTimeout(() => {
+        document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return;
     }
+  }
+
+  // 1b: Revision submit (2026-08-24, planner-trust-course, preserve paid revision
+  // access). A revision link's city can be a historical non-10-chip city
+  // (Sokcho/Tongyeong/Andong/...) that the new quick-preview exact-city gate
+  // (cityResolver's UNSUPPORTED_CITY/CITY_MISMATCH) would reject outright — but
+  // the traveler already paid for that plan and is entitled to regenerate it.
+  // So a revision submit never calls /api/ai-planner-quick at all: it just
+  // stashes the (possibly-old-city) form values for handleRevisionRegenerate
+  // and flips to the same 'quickSuccess' status the real flow uses, so
+  // PurchaseSection's existing revision branch (gated on revisionMode +
+  // revisionPlanId, not on resultQuick's contents) renders. `resultQuick` gets
+  // a placeholder object, not real preview data — PlannerPage hides
+  // QuickPreviewCard in revision mode, and PurchaseSection's revision branch
+  // never reads resultQuick's fields.
+  async function handleRevisionSubmit(values: PlannerFormValues) {
+    lastValues.current = values;
+    setResultQuick({ __revisionPlaceholder: true });
+    setStatus('quickSuccess');
   }
 
   // LOCKED region -- handlePaymentSuccess lifted verbatim from legacy PlannerPage.tsx L1414-1493
@@ -307,6 +352,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
           ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
           ...(values.departure_city ? { departure_city: values.departure_city } : {}),
+          // 2026-08-24 (planner-trust-course, D): reservation_status is ALWAYS
+          // serialized after the Wizard gate — same canonical helper as the
+          // quick preview and revision submit (reservationStatusField.ts).
+          ...buildReservationStatusField(values),
         }),
       });
 
@@ -470,6 +519,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
           ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
           ...(values.departure_city ? { departure_city: values.departure_city } : {}),
+          // 2026-08-24 (planner-trust-course, D): revision submit used to
+          // forward no reservation_status at all — same canonical field as
+          // quick preview / normal full submit now, after the Wizard gate.
+          ...buildReservationStatusField(values),
         }),
       });
 
@@ -533,6 +586,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     planErrorCode,
     lastValues,
     handleSubmit,
+    handleRevisionSubmit,
     handlePaymentSuccess,
     handleRevisionRegenerate,
     handleReset,

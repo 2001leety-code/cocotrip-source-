@@ -18,9 +18,12 @@ interface Props {
   placeholder?: string;
   className?: string;
   lang?: 'ko' | 'en' | 'ja' | 'zh';
+  /** Optional — connects a visible <label htmlFor> to the inner input. Callers
+   *  that don't pass it keep the previous unlabelled behavior (backward compat). */
+  id?: string;
 }
 
-export function HotelSuggestInput({ value, onChange, placeholder, className, lang = 'en' }: Props) {
+export function HotelSuggestInput({ value, onChange, placeholder, className, lang = 'en', id }: Props) {
   const [items, setItems] = useState<PlaceItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,6 +65,7 @@ export function HotelSuggestInput({ value, onChange, placeholder, className, lan
   return (
     <div className="relative">
       <input
+        id={id}
         type="text"
         value={value}
         onChange={(e) => handleInput(e.target.value)}

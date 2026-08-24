@@ -88,7 +88,7 @@ describe('filterSupportedRegions — 공개 쿼리 허용키 검증', () => {
 describe('PlannerPage 배선 — 공개 딥링크만 거르고 revision 계약은 그대로', () => {
   const planner = read('src/pages/PlannerPage/index.tsx');
   const revisionBlock = planner.slice(
-    planner.indexOf('revisionMode ? {'),
+    planner.indexOf('validRevisionContext ? {'),
     planner.indexOf('} : ('),
   );
 

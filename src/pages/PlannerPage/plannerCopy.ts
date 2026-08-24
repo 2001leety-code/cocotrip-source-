@@ -16,8 +16,9 @@
  * printed Korean at English, Japanese and Chinese readers).
  *
  * ── Positioning ──────────────────────────────────────────────────────────
- * The product in front of the traveller is: **you give us dates, cities, pace
- * and dietary rules, and we write a Korea itinerary you can actually execute.**
+ * The product in front of the traveller is: **you give us your booking status,
+ * dates, cities, pace and dietary rules, and we write a Korea itinerary you
+ * can actually execute.**
  * The model that writes it is mechanism, not headline — it belongs in technical
  * and legal context (loading phases, terms), never on a mode card or a CTA.
  * `tests/unit/editorial-planner-journey.test.ts` fails if it creeps back.
@@ -36,7 +37,7 @@ export interface PlannerCopy {
     headline: string;
     lede: string;
     inputsHeading: string;
-    /** The four things the traveller actually answers. Order is the wizard's. */
+    /** The five things the traveller actually answers. Order is the wizard's. */
     inputs: { label: string; note: string }[];
   };
   modes: {
@@ -98,6 +99,16 @@ export interface PlannerCopy {
     eyebrow: string;
     narrativeFallback: string;
     stopsLabel: string;
+    /** Heads the `reflectedConditions` list. 2026-08-24 (planner-trust-course,
+     *  honest coverage): names what was *sent*, not a claim that the model
+     *  *used* every one of them — "used"/"reflected"/"based on" all read as a
+     *  proven outcome the preview doesn't verify. */
+    basedOnLabel: string;
+    /** Heads the `deferredCategories` list (2026-08-24, planner-trust-course
+     *  C) — categories this endpoint has no verified data to shape day one
+     *  with. Must say they apply to the FULL itinerary, never imply this
+     *  preview already reflected them. */
+    deferredHeading: string;
   };
 }
 
@@ -108,10 +119,11 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
   en: {
     masthead: {
       eyebrow: 'Trip planner — Korea',
-      headline: 'Answer four things. Get a Korea itinerary you can actually run.',
-      lede: 'Dates, cities, how fast you like to move, and what you cannot eat. What comes back is a timed day-by-day plan built on our own Korea data — real places, the transit leg between them, and a map pin on every stop.',
+      headline: 'Answer five things. Get a Korea itinerary you can actually run.',
+      lede: 'What you have already booked, dates, cities, how fast you like to move, and Halal/Vegan/Vegetarian needs. What comes back is a timed day-by-day plan built on our own Korea data — real places, the transit leg between them, and a map pin on every stop.',
       inputsHeading: 'What you answer',
       inputs: [
+        { label: 'Booking status', note: "What you've already booked — flight, hotel, both, or nothing yet — so day one starts from your real arrival, not a guess." },
         { label: 'Dates', note: 'Arrival and departure, and the hour your flight lands. Day one starts from the airport rather than from a guess.' },
         { label: 'Cities', note: 'One base or several. Intercity legs come back with the train or bus you would actually take.' },
         { label: 'Pace', note: 'Half day through packed. It changes how many stops a day holds, not only the wording.' },
@@ -121,9 +133,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
     modes: {
       heading: 'Choose how to start',
       guided: {
-        kicker: 'Answer four things',
+        kicker: 'Answer five things',
         title: 'Write my itinerary',
-        body: 'A short brief — dates, cities, pace, diet. You get timed stops, the transit leg between each one, restaurants filtered to your rules, and a map you can open on the street.',
+        body: 'A short brief — booking status, dates, cities, pace, diet. You get timed stops, the transit leg between each one, restaurants filtered to your rules, and a map you can open on the street.',
       },
       builder: {
         kicker: 'Bring your own list',
@@ -173,16 +185,19 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: 'Preview — day 1',
       narrativeFallback: 'Your itinerary has been written. Day one is below.',
       stopsLabel: 'stops',
+      basedOnLabel: 'Conditions sent to this preview',
+      deferredHeading: 'Applied to the full itinerary, not this preview',
     },
   },
 
   ko: {
     masthead: {
       eyebrow: '여행 플래너 — 한국',
-      headline: '네 가지만 답하면, 그대로 다닐 수 있는 한국 일정이 나옵니다.',
-      lede: '날짜, 도시, 이동 속도, 못 먹는 음식. 이 네 가지를 넣으면 자체 한국 데이터로 시간대별 일정을 씁니다. 실재하는 장소, 장소 사이의 이동 구간, 모든 정거장의 지도 좌표까지 포함합니다.',
-      inputsHeading: '답하시는 네 가지',
+      headline: '다섯 가지만 답하면, 그대로 다닐 수 있는 한국 일정이 나옵니다.',
+      lede: '이미 예약한 것, 날짜, 도시, 이동 속도, 할랄/비건/채식 여부. 이 다섯 가지를 넣으면 자체 한국 데이터로 시간대별 일정을 씁니다. 실재하는 장소, 장소 사이의 이동 구간, 모든 정거장의 지도 좌표까지 포함합니다.',
+      inputsHeading: '답하시는 다섯 가지',
       inputs: [
+        { label: '예약 현황', note: '항공권·호텔 중 이미 예약한 게 있는지. 짐작이 아니라 실제 도착 상황에서부터 1일차를 계산합니다.' },
         { label: '날짜', note: '입국·출국 날짜와 비행기 도착 시각. 1일차를 짐작이 아니라 공항에서부터 계산합니다.' },
         { label: '도시', note: '한 도시든 여러 도시든. 도시 사이 구간은 실제로 타게 될 기차·버스로 나옵니다.' },
         { label: '이동 속도', note: '반나절부터 빡빡하게까지. 문구만 바뀌는 게 아니라 하루에 담기는 정거장 수가 달라집니다.' },
@@ -192,9 +207,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
     modes: {
       heading: '시작 방법 고르기',
       guided: {
-        kicker: '네 가지에 답하기',
+        kicker: '다섯 가지에 답하기',
         title: '일정 대신 써 드립니다',
-        body: '날짜·도시·속도·식이만 답하면 됩니다. 시각이 찍힌 정거장, 구간마다의 이동 수단, 조건으로 걸러낸 식당, 그리고 현장에서 바로 여는 지도를 받습니다.',
+        body: '예약 현황·날짜·도시·속도·식이만 답하면 됩니다. 시각이 찍힌 정거장, 구간마다의 이동 수단, 조건으로 걸러낸 식당, 그리고 현장에서 바로 여는 지도를 받습니다.',
       },
       builder: {
         kicker: '내 목록 가져오기',
@@ -244,16 +259,19 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: '미리보기 — 1일차',
       narrativeFallback: '여행 일정을 작성했습니다. 1일차는 아래에 있습니다.',
       stopsLabel: '곳',
+      basedOnLabel: '이 미리보기에 전달된 조건',
+      deferredHeading: '이 미리보기가 아닌 전체 일정에 반영됩니다',
     },
   },
 
   ja: {
     masthead: {
       eyebrow: '旅行プランナー — 韓国',
-      headline: '4つ答えるだけ。そのまま動ける韓国の旅程になります。',
-      lede: '日付、都市、移動のペース、食べられないもの。この4つを入れると、独自の韓国データで時間ごとの旅程を書きます。実在する場所、場所と場所をつなぐ移動区間、全スポットの地図座標つきです。',
-      inputsHeading: 'お答えいただく4つ',
+      headline: '5つ答えるだけ。そのまま動ける韓国の旅程になります。',
+      lede: 'すでに予約したもの、日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望。この5つを入れると、独自の韓国データで時間ごとの旅程を書きます。実在する場所、場所と場所をつなぐ移動区間、全スポットの地図座標つきです。',
+      inputsHeading: 'お答えいただく5つ',
       inputs: [
+        { label: '予約状況', note: '航空券・ホテルのうちすでに予約済みのもの。推測ではなく実際の到着状況から1日目を組み立てます。' },
         { label: '日付', note: '入国・出国の日付と、飛行機が着く時刻。1日目を推測ではなく空港から組み立てます。' },
         { label: '都市', note: '1都市でも複数でも。都市間の区間は実際に乗る列車・バスで返します。' },
         { label: 'ペース', note: '半日からぎっしりまで。文言だけでなく、1日に入るスポットの数が変わります。' },
@@ -263,9 +281,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
     modes: {
       heading: 'はじめ方を選ぶ',
       guided: {
-        kicker: '4つに答える',
+        kicker: '5つに答える',
         title: '旅程を書いてもらう',
-        body: '日付・都市・ペース・食事条件に答えるだけ。時刻つきのスポット、区間ごとの移動手段、条件で絞ったレストラン、そして現地ですぐ開ける地図をお渡しします。',
+        body: '予約状況・日付・都市・ペース・食事条件に答えるだけ。時刻つきのスポット、区間ごとの移動手段、条件で絞ったレストラン、そして現地ですぐ開ける地図をお渡しします。',
       },
       builder: {
         kicker: '自分のリストから',
@@ -315,16 +333,19 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: 'プレビュー — 1日目',
       narrativeFallback: '旅程を作成しました。1日目は下にあります。',
       stopsLabel: 'ヶ所',
+      basedOnLabel: 'このプレビューに送信された条件',
+      deferredHeading: 'このプレビューではなく、全旅程に反映されます',
     },
   },
 
   zh: {
     masthead: {
       eyebrow: '行程规划 — 韩国',
-      headline: '只需回答四项，就能拿到可以直接执行的韩国行程。',
-      lede: '日期、城市、行程节奏、不能吃的东西。填好这四项，我们用自有的韩国数据写出分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
-      inputsHeading: '你要回答的四项',
+      headline: '只需回答五项，就能拿到可以直接执行的韩国行程。',
+      lede: '已经预订的内容、日期、城市、行程节奏、清真/纯素/素食需求。填好这五项，我们用自有的韩国数据写出分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
+      inputsHeading: '你要回答的五项',
       inputs: [
+        { label: '预订情况', note: '机票、酒店中已经订好的部分——第一天从你真实的抵达情况开始算，而不是靠猜。' },
         { label: '日期', note: '入境与离境日期，以及航班落地的时间。第一天从机场开始算，而不是靠猜。' },
         { label: '城市', note: '一座城市或多座都行。城际区间会给出你实际要坐的火车或大巴。' },
         { label: '节奏', note: '从半天到排满。变的不只是措辞，而是一天能装下几个站点。' },
@@ -334,9 +355,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
     modes: {
       heading: '选择开始方式',
       guided: {
-        kicker: '回答四项',
+        kicker: '回答五项',
         title: '帮我写行程',
-        body: '只要回答日期、城市、节奏和饮食条件。你会拿到带时刻的站点、每段之间的交通方式、按条件筛过的餐厅，以及在路上就能打开的地图。',
+        body: '只要回答预订情况、日期、城市、节奏和饮食条件。你会拿到带时刻的站点、每段之间的交通方式、按条件筛过的餐厅，以及在路上就能打开的地图。',
       },
       builder: {
         kicker: '用我的清单',
@@ -386,6 +407,8 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: '预览 — 第 1 天',
       narrativeFallback: '行程已经写好，第一天在下面。',
       stopsLabel: '处',
+      basedOnLabel: '已发送给本预览的条件',
+      deferredHeading: '不在此预览中体现，将应用于完整行程',
     },
   },
 };

@@ -27,7 +27,7 @@ describe('ai-planner-quick — 비용 DoS rate-limit', () => {
     checkIpRateLimitMock.mockResolvedValueOnce({ ok: false, status: 429, retryAfterSec: 1800, error: 'Too many plan previews' });
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test' }, body: { destination: 'Seoul' } } as any, res as any);
+    await handler({ method: 'POST', headers: { 'content-type': 'application/json', host: 'unit.test' }, body: { destination: 'Seoul' } } as any, res as any);
     expect(res.statusCode).toBe(429);
     expect(JSON.parse(res.body).code).toBe('RATE_LIMITED');
     expect(res.headers['Retry-After']).toBe('1800');
@@ -36,7 +36,7 @@ describe('ai-planner-quick — 비용 DoS rate-limit', () => {
     checkIpRateLimitMock.mockReset();
     checkIpRateLimitMock.mockResolvedValueOnce({ ok: false, status: 429, retryAfterSec: 60, error: 'x' });
     const handler = (await import('../../api/ai-planner-quick.js')).default;
-    await handler({ method: 'POST', headers: { host: 'unit.test' }, body: {} } as any, makeRes() as any);
+    await handler({ method: 'POST', headers: { 'content-type': 'application/json', host: 'unit.test' }, body: {} } as any, makeRes() as any);
     expect(checkIpRateLimitMock).toHaveBeenCalledWith(expect.objectContaining({ collection: 'quick_plan_rate_limits' }));
   });
 });

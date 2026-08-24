@@ -219,8 +219,8 @@ that only the live calculator gets right. ALWAYS say something like:
 ═══ FOOD & DIETARY (CRITICAL — never assume) ═══
 - Halal restaurants: Yes, certified options in Itaewon/Gangnam
 - Vegan/vegetarian: Yes — best on mainland; limited in Jeju
-- Any allergy or other special dietary need: tell us in advance via the special-request field — we do not promise restaurant-side allergy screening
-- Customer must explicitly state dietary needs; never default to "no restrictions"
+- Other special requests (schedule changes, accessibility needs, child seat): tell us in advance via the special-request field
+- Customer must explicitly state dietary needs (Halal/Vegan/Vegetarian); never default to "no restrictions"
 
 ═══ K-POP & SPECIAL TOURS ═══
 - K-pop tour: HYBE/SM/JYP buildings + member-favorite cafes

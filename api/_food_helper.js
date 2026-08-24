@@ -11,7 +11,63 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { isDietaryTrusted } from './_shared/dietary-trust.js';
+import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence } from './_shared/dietary-trust.js';
+import { displayNamesFor } from './_shared/cityResolver.js';
+
+// ── Row integrity predicate (2026-08-24, planner-trust-course #3) ──────────
+// The `city` field on some real _food_index.json rows is simply wrong (e.g.
+// "Everhalal - Halal Bulgogi near Everland" is tagged city:"busan" but its
+// address is in Yongin, Gyeonggi; "Cheolgil Busan Jip Beomgye" is tagged
+// city:"busan" but is actually in Anyang). Trusting `row.city === cityKey`
+// alone lets these leak into an exact-city quick-preview context as if they
+// were local. This predicate is the strict gate for BOTH the general and the
+// trusted-dietary exact-city candidate paths — never relax it per-caller.
+const EXCLUDE_BUSINESS_RE = /(마트|슈퍼|수입\s*식품|화장품|성원|모스크|mosque|supermarket|import\s*food|cosmetic)/i;
+const KOREA_LAT_RANGE = [32.5, 39.5];
+const KOREA_LNG_RANGE = [124, 132];
+
+function hasStableIdentity(row) {
+  return !!(row.placeId || row.googleMapsUrl || row.naverLink);
+}
+
+function isFiniteKoreaLatLng(row) {
+  const lat = Number(row.lat);
+  const lng = Number(row.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  return lat >= KOREA_LAT_RANGE[0] && lat <= KOREA_LAT_RANGE[1] && lng >= KOREA_LNG_RANGE[0] && lng <= KOREA_LNG_RANGE[1];
+}
+
+function isRealFoodBusiness(row) {
+  const hay = `${row.cuisine || ''} ${row.cuisineKo || ''} ${row.name || ''} ${row.nameEn || ''}`;
+  return !EXCLUDE_BUSINESS_RE.test(hay);
+}
+
+function addressMatchesCity(address, cityKey) {
+  const addr = String(address || '').toLowerCase();
+  const aliases = displayNamesFor(cityKey);
+  return aliases.some((alias) => addr.includes(String(alias).toLowerCase()));
+}
+
+/**
+ * Strict row-integrity gate for exact-city quick-preview food candidates —
+ * nonempty name/address, finite Korea lat/lng, a stable place identity, an
+ * address that actually names the requested city (not just a `city` field
+ * that may be wrong), and a real restaurant/cafe/food business (excludes
+ * supermarkets/marts, import-food retail, cosmetics shops, religious
+ * facilities that only carry a "halal" cuisine label for their own kitchen).
+ * @param {object} row
+ * @param {string} cityKey
+ * @returns {boolean}
+ */
+export function isValidExactCityFoodRow(row, cityKey) {
+  if (!row || typeof row !== 'object') return false;
+  if (!String(row.name || '').trim() || !String(row.address || '').trim()) return false;
+  if (!isFiniteKoreaLatLng(row)) return false;
+  if (!hasStableIdentity(row)) return false;
+  if (!isRealFoodBusiness(row)) return false;
+  if (!addressMatchesCity(row.address, cityKey)) return false;
+  return true;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -128,7 +184,7 @@ function matchesPriceRange(item, priceRange) {
 }
 
 // ── Cuisine keyword matching for Seafood/Meat/Spicy/Street ──────────────
-function matchesCuisinePrefs(item, dietPrefs) {
+export function matchesCuisinePrefs(item, dietPrefs) {
   if (!dietPrefs || dietPrefs.length === 0) return true;
 
   // If only Vegan or Halal selected, tag-based filtering handles it
@@ -150,9 +206,14 @@ function matchesCuisinePrefs(item, dietPrefs) {
         }
         break;
       case 'Meat':
-        if (cuisine.includes('korean') || cuisine.includes('bbq') ||
+        // 2026-08-24 (planner-trust-course, hardening #5): a generic
+        // `cuisine.includes('korean')` used to match ANY Korean-cuisine row
+        // (a coffee shop tagged cuisine:"Korean" would pass) — narrowed to
+        // explicit BBQ/meat tokens only (ko + en, beef/pork/chicken).
+        if (cuisine.includes('bbq') || cuisine.includes('meat') ||
             name.includes('고기') || name.includes('bbq') || name.includes('삼겹') ||
             name.includes('갈비') || name.includes('beef') || name.includes('pork') ||
+            name.includes('chicken') || name.includes('닭') ||
             name.includes('한우') || name.includes('구이') || name.includes('숙성')) {
           return true;
         }
@@ -174,8 +235,10 @@ function matchesCuisinePrefs(item, dietPrefs) {
     }
   }
 
-  // If no specific cuisine match, still include general Korean food
-  return cuisinePrefs.includes('Meat') && cuisine.includes('korean');
+  // 2026-08-24 (planner-trust-course, hardening #5): no generic-Korean
+  // fallback — a row must match one of the explicit style keyword checks
+  // above (Seafood/Meat/Spicy/Street) or it does not match this style at all.
+  return false;
 }
 
 /**
@@ -300,4 +363,158 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   // "verified": true = 식당 실재(DB 등재) 확인일 뿐 dietary 안전 인증이 아니다
   //   (dietary-trust.js SSOT 가 halal/vegan 인증 등급을 별도 관리).
   return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.\n---`;
+}
+
+// ── Strict exact-city trusted dietary candidates (2026-08-24, planner-trust-course) ──
+// getFoodContext() above intentionally relaxes city coverage ("too few results ->
+// use all cities") and can add a general fallback when a specific tag comes up
+// short. For halal/vegan/vegetarian requests specifically it already refuses the
+// general fallback (SAFETY, B5/P309) — but it will still relax the *city* filter,
+// which means a Gangneung halal request could get Seoul halal restaurants
+// presented as if they were local. The free quick preview needs zero relaxation:
+// exact city, trusted evidence tier only, or an explicit "unavailable" signal —
+// never another city's restaurants standing in.
+
+/**
+ * Exact-city, trusted-evidence-only dietary candidates. No city relaxation, no
+ * cross-city substitution. `dietaryEvidenceFor` already excludes `unverified`
+ * (naver_local/ai_curated) — this only adds the exact-city constraint.
+ *
+ * Multi-select (e.g. Halal+Vegan) requires EVERY requested diet to be
+ * satisfied by the SAME row (AND, not OR) — a halal-only restaurant must
+ * never stand in for a Halal+Vegan request just because it matched one of
+ * the two. `evidence` carries one entry per requested diet so every tier is
+ * shown honestly (a row can be halal_certified for one diet and
+ * vegan_options for another — never collapse to a single tier).
+ * 2026-08-24 (planner-trust-course, hardening #5): `stylePrefs` (Seafood/
+ * Meat/Street) is ANDed onto the SAME row as the dietary evidence — a
+ * Halal+Seafood request must never fall back to a halal-only restaurant with
+ * no seafood evidence just because it was the top-rated halal row. Empty/
+ * omitted `stylePrefs` skips this filter entirely (dietary-only request).
+ * @param {string} cityKey UI city key
+ * @param {string[]} dietaryList e.g. ['Halal'] | ['Halal', 'Vegan']
+ * @param {number} [maxItems]
+ * @param {string[]} [stylePrefs] e.g. ['Seafood'] — non-cuisine keys ignored
+ * @returns {Array<{row: object, evidence: Array<{diet: string, tag: string, verification_status: string}>}>}
+ */
+export function getExactCityTrustedDietaryCandidates(cityKey, dietaryList, maxItems = 10, stylePrefs = []) {
+  const diets = (dietaryList || []).map((d) => String(d).toLowerCase()).filter((d) => ['halal', 'vegan', 'vegetarian'].includes(d));
+  if (!cityKey || diets.length === 0) return [];
+  const styles = (stylePrefs || []).filter(isCuisineStyleKey);
+  const index = getFoodIndex();
+  const rows = index.filter((r) => r.city === cityKey && isValidExactCityFoodRow(r, cityKey));
+  const out = [];
+  for (const row of rows) {
+    if (styles.length > 0 && !matchesCuisinePrefs(row, styles)) continue; // same-row style intersection
+    const evidence = [];
+    for (const diet of diets) {
+      const ev = dietaryEvidenceFor(row, diet);
+      if (!ev) break; // AND: any unmatched requested diet disqualifies this row
+      evidence.push(ev);
+    }
+    if (evidence.length === diets.length) out.push({ row, evidence });
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+// ── Strict exact-city GENERAL food candidates (2026-08-24, planner-trust-course A) ──
+// getFoodContext() above relaxes city ("too few -> use all cities") and injects
+// price/rating/menu-adjacent details. For a non-dietary "Food"/"K-BBQ" interest
+// in the free quick preview, the same exact-city-only, no-fabrication rule as
+// attractions applies: identity (name+address) only, no price/hours/Michelin/
+// menu claims (those change and this endpoint has no freshness guarantee).
+
+// 2026-08-24 (planner-trust-course #4, food-style support): WizardStep1Food's
+// non-dietary style keys are Seafood/Meat/Street (Spicy also exists in the
+// shared matchesCuisinePrefs matcher above but isn't a wizard-exposed style
+// for this endpoint's scope). Halal/Vegan/Vegetarian never reach this
+// function — those go through the trusted-dietary path exclusively and are
+// filtered out here so a style-only request never re-triggers dietary logic.
+const CUISINE_STYLE_KEYS = ['Seafood', 'Meat', 'Street'];
+export function isCuisineStyleKey(key) {
+  return CUISINE_STYLE_KEYS.includes(String(key || ''));
+}
+
+/**
+ * Exact-city general food candidates — no dietary filter, no city relaxation.
+ * When `stylePrefs` (Seafood/Meat/Street) is non-empty, rows are filtered
+ * deterministically by the existing cuisine/name/tag matcher — a style
+ * request that has zero matching exact-city rows returns an EMPTY array
+ * (never silently falls back to the unfiltered set), so the caller can fail
+ * closed with PREFERENCE_DATA_UNAVAILABLE rather than claim the style was
+ * reflected when it wasn't.
+ * @param {string} cityKey one of api/_shared/cityResolver.js UI_CITY_KEYS
+ * @param {number} [maxItems]
+ * @param {string[]} [stylePrefs] e.g. ['Seafood'] — non-cuisine keys ignored
+ * @returns {Array<object>} raw index rows for that city only (may be empty)
+ */
+export function getExactCityGeneralFoodCandidates(cityKey, maxItems = 8, stylePrefs = []) {
+  if (!cityKey) return [];
+  const styles = (stylePrefs || []).filter(isCuisineStyleKey);
+  const index = getFoodIndex();
+  let rows = index.filter((r) => r.city === cityKey && isValidExactCityFoodRow(r, cityKey));
+  if (styles.length > 0) rows = rows.filter((r) => matchesCuisinePrefs(r, styles));
+  return rows
+    .slice()
+    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || String(a.nameEn || a.name || '').localeCompare(String(b.nameEn || b.name || '')))
+    .slice(0, maxItems);
+}
+
+/**
+ * Strict exact-city general food context string for prompt injection —
+ * identity/address only, never price/hours/Michelin/menu claims. Each line
+ * carries a deterministic style tag (SEAFOOD/MEAT/STREET) when the row
+ * matched one of the requested styles, so the model can see which stop
+ * satisfies which requested style without guessing.
+ * @returns {{ contextString: string, candidates: Array<object> }}
+ */
+export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePrefs = [] } = {}) {
+  const candidates = getExactCityGeneralFoodCandidates(cityKey, maxItems, stylePrefs);
+  if (candidates.length === 0) return { contextString: '', candidates: [] };
+  const styles = (stylePrefs || []).filter(isCuisineStyleKey);
+  const cityLabel = String(cityKey).charAt(0).toUpperCase() + String(cityKey).slice(1);
+  const lines = candidates.map((r) => {
+    const matchedStyles = styles.filter((s) => matchesCuisinePrefs(r, [s]));
+    const styleTag = matchedStyles.length > 0 ? ` [${matchedStyles.map((s) => s.toUpperCase()).join('/')}]` : '';
+    return `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})${styleTag}\n    📍 ${r.address}`;
+  });
+  const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} RESTAURANTS (exact-city only — identity/address only, no price/hours/menu claims) ---\n` +
+    `Use ONLY restaurants from this list for meal stops. Do not invent others, do not claim exact prices, hours, Michelin status, or specific menu items.\n${lines.join('\n')}\n---`;
+  return { contextString, candidates };
+}
+
+/**
+ * Strict exact-city trusted dietary context for prompt injection. Every line
+ * carries its honest evidence tier (certified vs. friendly-not-certified) —
+ * never relabeled as one thing when it's the other (CLAUDE.md dietary-safety).
+ * @returns {{ contextString: string, candidates: ReturnType<typeof getExactCityTrustedDietaryCandidates> }}
+ */
+export function getExactCityTrustedFoodContext({ cityKey, dietaryList, language = 'en', maxItems = 10, stylePrefs = [] } = {}) {
+  const candidates = getExactCityTrustedDietaryCandidates(cityKey, dietaryList, maxItems, stylePrefs);
+  if (candidates.length === 0) return { contextString: '', candidates: [] };
+
+  const cityLabel = String(cityKey).charAt(0).toUpperCase() + String(cityKey).slice(1);
+  const lines = candidates.map(({ row: r, evidence }) => {
+    // evidence = one entry per requested diet on this row — show every tier
+    // honestly instead of collapsing to one (a row can be certified for one
+    // diet and friendly-only for another).
+    const tierLines = evidence.map((ev) => {
+      const note = describeDietaryEvidence(ev.verification_status, language);
+      const tierLabel = ev.verification_status === 'halal_certified' || ev.verification_status === 'vegan_restaurant'
+        ? 'CERTIFIED' : 'FRIENDLY (not certified)';
+      return `[${ev.diet.toUpperCase()} — ${tierLabel}] ⚠️ ${note}`;
+    });
+    return (
+      `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})\n` +
+      `    📍 ${r.address}\n` +
+      tierLines.map((l) => `    ${l}`).join('\n')
+    );
+  });
+  const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} DIETARY-SAFE RESTAURANTS (exact-city, trusted evidence only) ---\n` +
+    `Use ONLY restaurants from this list for meal recommendations. Do not invent others.\n` +
+    `Each entry's tier is honest: CERTIFIED = manually verified; FRIENDLY = listed as offering ` +
+    `this diet but certification is NOT confirmed — say so, do not call it "certified".\n` +
+    `${lines.join('\n\n')}\n---`;
+  return { contextString, candidates };
 }

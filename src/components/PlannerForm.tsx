@@ -117,6 +117,18 @@ export interface PlannerFormValues {
   // 미입력 시 entry_city = mainCityKey 가 폴백 (backward compat).
   arrival_city?: string;
   departure_city?: string;
+  // 2026-08-24 (planner-trust-course): stable UI city key for the *primary*
+  // city (WizardForm CITY_CHIPS key, e.g. 'seoul'/'gangneung'/'yeosu') — sent
+  // unconditionally (unlike entry_city, which is multi-city-only) so the
+  // backend can resolve the exact city without parsing free-text `regions`.
+  cityKey?: string;
+  // 2026-08-24 (planner-trust-course, quick-preview intent): what the traveler
+  // has already booked. Mirrors WizardStep0Reservation's own `ReservationStatus`
+  // union (kept as a separate literal here, not an import, to avoid a
+  // WizardForm/PlannerForm circular import) and api/_shared/quickPreviewIntent.js's
+  // RESERVATION_STATUSES allowlist. Threaded through to both the quick-preview
+  // and full-plan payloads.
+  reservation_status?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done';
 }
 
 interface Props {

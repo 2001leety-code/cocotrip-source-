@@ -151,9 +151,10 @@ describe('public/llms.txt 에 AI 행위자 표기가 없다', () => {
     for (const p of AI_ACTOR_PATTERNS) expect(bodyWithoutAudienceHeading).not.toMatch(p);
   });
 
-  it('플래너 항목은 여전히 실제 경로/기능(날짜·인원·예산·식이)을 설명한다', () => {
+  it('플래너 항목은 여전히 실제 경로/기능(날짜·인원·예산·식이)을 설명한다 — 알레르기 주장 없이 할랄/비건/베지테리언만', () => {
     expect(txt).toMatch(/Trip planner/);
-    expect(txt).toMatch(/halal, vegetarian, allergies/);
+    expect(txt).toMatch(/halal, vegan, vegetarian/);
+    expect(txt).not.toMatch(/allerg/i);
     expect(txt).toMatch(/cocotripkr\.com\/planner/);
   });
 

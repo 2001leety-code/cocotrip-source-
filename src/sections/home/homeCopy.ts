@@ -114,7 +114,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: 'Written for you',
         title: 'A day-by-day Korea itinerary',
-        body: 'Answer a short brief — dates, cities, how fast you like to move, what you cannot eat. You get timed stops, the transit leg between each one, restaurant picks filtered to your diet, and a map you can open on the street.',
+        body: 'Answer a short brief — dates, cities, how fast you like to move, Halal/Vegan/Vegetarian needs. You get timed stops, the transit leg between each one, restaurant picks filtered to your diet, and a map you can open on the street.',
         cta: 'Start the brief',
       },
       charter: {
@@ -165,7 +165,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '한국 — 일정·프라이빗 투어·전세차량',
       headline: '여행 조건을 알려주세요. 그대로 실행할 수 있는 한국 일정을 씁니다.',
-      lede: '날짜, 도시, 이동 속도, 못 먹는 음식을 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
+      lede: '날짜, 도시, 이동 속도, 할랄/비건/채식 여부를 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
       ctaPrimary: '일정 만들기',
       ctaSecondary: '완성된 플랜 보기',
       pickCity: '도시부터 고르기',
@@ -190,7 +190,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '직접 작성',
         title: '일자별 한국 일정',
-        body: '짧은 질문에 답하면 됩니다. 날짜, 도시, 선호하는 이동 속도, 못 먹는 음식. 시간이 찍힌 정거장, 각 구간의 이동 수단, 식이 조건으로 걸러낸 식당, 그리고 현장에서 바로 열 수 있는 지도를 받습니다.',
+        body: '짧은 질문에 답하면 됩니다. 날짜, 도시, 선호하는 이동 속도, 할랄/비건/채식 여부. 시간이 찍힌 정거장, 각 구간의 이동 수단, 식이 조건으로 걸러낸 식당, 그리고 현장에서 바로 열 수 있는 지도를 받습니다.',
         cta: '조건 입력 시작',
       },
       charter: {
@@ -241,7 +241,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '韓国 — 旅程・プライベートツアー・貸切車',
       headline: '旅の条件を教えてください。そのまま実行できる韓国の旅程をお作りします。',
-      lede: '日付、都市、移動のペース、食べられないものを入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
+      lede: '日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望を入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
       ctaPrimary: '旅程をつくる',
       ctaSecondary: '完成した旅程を見る',
       pickCity: '都市から選ぶ',
@@ -266,7 +266,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '個別に作成',
         title: '日ごとの韓国旅程',
-        body: '短い質問に答えるだけです。日付、都市、好みの移動ペース、食べられないもの。時刻つきのスポット、区間ごとの移動手段、食事条件で絞り込んだレストラン、そして現地ですぐ開ける地図をお渡しします。',
+        body: '短い質問に答えるだけです。日付、都市、好みの移動ペース、ハラール・ヴィーガン・ベジタリアンの希望。時刻つきのスポット、区間ごとの移動手段、食事条件で絞り込んだレストラン、そして現地ですぐ開ける地図をお渡しします。',
         cta: '条件を入力する',
       },
       charter: {
@@ -342,7 +342,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '为你撰写',
         title: '逐日的韩国行程',
-        body: '回答几个问题即可：日期、城市、喜欢的节奏、不能吃的东西。你会拿到带时刻的站点、每段之间的交通方式、按饮食条件筛过的餐厅，以及在路上就能打开的地图。',
+        body: '回答几个问题即可：日期、城市、喜欢的节奏、清真/纯素/素食需求。你会拿到带时刻的站点、每段之间的交通方式、按饮食条件筛过的餐厅，以及在路上就能打开的地图。',
         cta: '开始填写条件',
       },
       charter: {

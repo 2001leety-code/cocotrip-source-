@@ -94,7 +94,7 @@ export function WizardStep1Food(props: Step1Props) {
       {/* Diet style chips */}
       <div>
         <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>
-        <p className="ec-help mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
+        <p className="ec-help mb-3">{p.wizardFoodStyleHint || 'Pick the cuisines and dining styles you enjoy'}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {FOOD_STYLE_KEYS.map((key) => {
             const nameKey = `food${key}` as keyof typeof p;

@@ -201,6 +201,11 @@ export type PostHogEventName =
   | 'payment_started'
   | 'payment_completed'
   | 'payment_failed'
+  // 2026-08-24: 빠른 미리보기 (ai-planner-quick) 퍼널. 요청 시작·성공·실패 3지점.
+  // 속성: language, code (실패 시에만).
+  | 'preview_requested'
+  | 'preview_success'
+  | 'preview_degraded_or_failed'
   // P1 마케팅 퍼널 (2026-07-11 운영자 보완 지시): GA4(광고 귀속)와 이중 전송.
   // PostHog = 제품 퍼널 조회(admin-posthog-funnel) 데이터 소스. PII 없는 속성만.
   | 'promo_view'
