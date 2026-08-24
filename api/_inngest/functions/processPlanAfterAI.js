@@ -293,12 +293,17 @@ export const processPlanAfterAI = inngest.createFunction(
     const foodIndexForQuality = await step.run('recommendedRestaurants', async () => {
       // 2026-08-24: language/styles 전달 — 이 helper 끝의 종단 식이/식사 게이트 입력.
       //   게이트가 실패하면 이 step 이 throw → persistPlan 미실행 (위반본 저장 금지, fail-closed).
+      // planner-intent-v1: avoidStopNames/blockModeUsed 도 전달해야 한다 — 없으면 이 worker
+      //   경로에서 recommended_restaurants 가 avoid 필터를 안 받고, 끝의 assertNoAvoidedStopsRemain
+      //   안전망이 blockModeUsed 를 몰라 stage 라벨을 잘못 찍는다 (sync 경로 handlerCore 와 동형이어야 함).
       return applyRecommendedRestaurants(itinAfterBackfill, {
         area: ctx.area,
         dietPrefs: ctx.dietPrefs,
         regions: ctx.regions,
         language: ctx.language,
         styles: ctx.styles,
+        avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [],
+        blockModeUsed: ctx.plannerMode === 'block_mode',
       });
     });
 
@@ -333,6 +338,7 @@ export const processPlanAfterAI = inngest.createFunction(
         language: ctx.language,
         dietary: ctx.dietPrefs,
         foodIndex: foodIndexForQuality,
+        plannerIntent: ctx.plannerIntent || null,
         plannerMode: ctx.plannerMode,
         abReason: ctx.abReason,
         abBucket: ctx.abBucket,

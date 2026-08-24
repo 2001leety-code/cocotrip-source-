@@ -41,6 +41,7 @@ import {
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
+import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 // 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
 // unverified(naver_local/ai_curated) 행은 점수 경쟁 전에 후보에서 탈락시킨다.
@@ -374,6 +375,57 @@ export function shouldUseBlockMode(city, durationDays, dietPrefs, availableBlock
  * @param {object} geminiClient — { apiKey, model? }
  * @returns {Promise<{ day_selections: Array<{day:number, block_id:string, tweak_notes?:string}>, language: string }>}
  */
+/**
+ * planner-intent-v1 (2026-08-24): the Wizard answers block-mode used to drop.
+ *
+ * These reached the legacy/Gemini path through userMessageBuilder but never
+ * block-mode, so the same traveller got a materially different plan depending
+ * on which pipeline their request happened to take. Everything is optional —
+ * an unanswered field is OMITTED rather than sent as a fabricated default,
+ * because a JSON key that says `"reservation_status": "nothing"` is a claim
+ * about the traveller's bookings, not a neutral placeholder.
+ *
+ * @param {object} userInput
+ * @returns {object} JSON-safe context block
+ */
+export function buildTravelerContextForBlocks(userInput) {
+  const u = userInput || {};
+  const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const arr = (v) => (Array.isArray(v) && v.length > 0 ? v : undefined);
+  const rec = (v) => (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0 ? v : undefined);
+  const rev = u.revision && typeof u.revision === 'object' ? u.revision : null;
+  const mealBudget = str(u.meal_budget);
+  // planner-intent-v1: companions + foodStyles were reaching the legacy/Gemini prompt
+  // (userMessageBuilder) but never block-mode's selector — a "family with kids" or
+  // "loves spicy street food" traveller got the same block picks as anyone else.
+  const foodStyles = u.plannerIntent && Array.isArray(u.plannerIntent.foodStyles) ? u.plannerIntent.foodStyles : [];
+  return {
+    reservation_status: str(u.reservation_status),
+    arrival_city: str(u.arrival_city),
+    departure_city: str(u.departure_city),
+    hotel_address: str(u.hotel_address),
+    hotels_by_city: rec(u.hotelByCity),
+    recommended_zone: str(u.recommended_zone),
+    recommended_zones: rec(u.recommended_zones),
+    tour_pace: str(u.tour_pace),
+    zone_intensity: str(u.pace),
+    companions: str(u.companions),
+    food_styles: arr(foodStyles),
+    spice_level: str(u.spice_level),
+    bucket_dishes: arr(u.bucket_dishes),
+    // 'Any' carries no preference — sending it would read as a deliberate choice.
+    meal_budget: mealBudget && mealBudget !== 'Any' ? mealBudget : undefined,
+    luggage: u.luggage && typeof u.luggage === 'object' ? u.luggage : undefined,
+    want_accommodation: u.want_accommodation ? true : undefined,
+    accommodation_budget: u.want_accommodation ? str(u.accommodation_budget) : undefined,
+    revision_reasons: rev ? arr(rev.reasonCodes) : undefined,
+    revision_note: rev ? str(rev.note) : undefined,
+    // 🔴 Advisory only. The deterministic removal happens in avoidStops.js after
+    // the last mutation — a model instruction is not an enforcement mechanism.
+    avoid_stop_names: rev ? arr(rev.avoidStopNames) : undefined,
+  };
+}
+
 export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   if (!Array.isArray(blocks) || blocks.length === 0) {
     throw new Error('selectBlocksWithGemini: no blocks available');
@@ -402,6 +454,8 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    // planner-intent-v1 (2026-08-24): the rest of what the traveller actually answered.
+    ...buildTravelerContextForBlocks(userInput),
     available_blocks: blockCards,
   });
 
@@ -531,6 +585,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 5. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs (halal/vegan/vegetarian). The system already filtered the available_blocks to dietary-compatible ones; you only need to focus on preference variety.
 6. tweak_notes is optional and short. NEVER use it to invent new stops — actual stop substitutions happen later.
 7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.${activityRules}
+8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days; "couple"/"friends" → packed/nightlife-leaning blocks are fine). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -1535,7 +1590,19 @@ export function shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs = []) {
  * @param {object|null} perDayCity — { 1: 'seoul', 2: 'seoul', 3: 'busan', ... } 명시 매핑
  * @returns {string[]} 길이 = durationDays, 각 day 의 city (1-indexed array[day-1])
  */
-export function buildCityPerDay(cities, durationDays, perDayCity = null) {
+export function buildCityPerDay(cities, durationDays, perDayCity = null, bookends = null) {
+  // planner-intent-v1 (2026-08-24): explicit entry/exit cities win over the even
+  // split. The traveller marks these in the Wizard cycle precisely because the
+  // pick ORDER isn't the visit order — a Seoul-then-Busan pick with a Seoul exit
+  // used to produce a plan that ended in Busan, i.e. at the wrong airport.
+  // 2026-08-24: bookends win even when perDayCity is also set — explicit
+  // arrival/departure cities are the traveller's airport commitment, and a
+  // per-day map that disagrees with them would silently strand the traveller
+  // in the wrong city on the day they need to catch a flight.
+  if (bookends && (bookends.arrivalCityKey || bookends.departureCityKey)) {
+    const perDay = buildCityPerDayWithBookends(cities, durationDays, bookends);
+    if (perDay.length === Number(durationDays)) return perDay;
+  }
   if (perDayCity && typeof perDayCity === 'object') {
     const result = [];
     for (let d = 1; d <= durationDays; d++) {
@@ -1608,6 +1675,9 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    // planner-intent-v1 (2026-08-24): same traveller context the single-city
+    // selector now gets — entry/exit cities matter most here.
+    ...buildTravelerContextForBlocks(userInput),
     day_schedule: daySchedule,
   });
 
@@ -1726,6 +1796,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 5. Match user styles to block.best_for and block.theme.
 6. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs.
 7. Day 1 should be standard intensity. Last day can be lighter for departure prep.${activityRules}
+8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -2049,7 +2120,11 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   }
 
   const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
-  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null);
+  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null, {
+    // planner-intent-v1: normalizeRegionKey — '부산' 같은 현지어 입력도 영문 cityKey 와 맞춘다 (P321).
+    arrivalCityKey: normalizeRegionKey(String(userInput.arrival_city || '').split('_')[0]),
+    departureCityKey: normalizeRegionKey(String(userInput.departure_city || '').split('_')[0]),
+  });
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
   // (2026-06-03) 선택한 취미 = 전용 day 보장 (flag OFF 기본 = no-op). 도시별 후보에서 매칭 → city 정합 가드 통과.

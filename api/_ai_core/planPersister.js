@@ -1146,6 +1146,10 @@ export async function savePlanSkeleton(adminDb, {
   //   skeleton 과 최종 persistPlan 이 같은 문서를 써야 claim 이 그 planId 로 완성 여부를 직접
   //   읽어 복구할 수 있다. null/undefined = 기존 randomUUID 동작 byte-identical.
   planIdOverride = null,
+  // planner-intent-v1 (2026-08-24): skeleton 은 persistPlan 의 set() 전체 덮어쓰기로 곧
+  // 교체되므로 여기 누락은 최종 저장 정확성에 영향 없다 — 있으면 早期 로딩 화면에서도
+  // input.planner_intent_v1 을 읽을 수 있게 같이 저장한다.
+  plannerIntent = null,
 }) {
   if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
 
@@ -1178,6 +1182,7 @@ export async function savePlanSkeleton(adminDb, {
       language: language || 'en',
       vehicle: vehicle || null,
       regions: Array.isArray(body?.regions) && body.regions.length > 0 ? body.regions : (area ? [area] : []),
+      ...(plannerIntent ? { planner_intent_v1: plannerIntent } : {}),
     },
     pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
     revisionCredits: 2,
@@ -1395,6 +1400,11 @@ export async function persistPlan(adminDb, {
   // (격리된 익명 uid) 라도 accessToken 발급 — 게스트는 로그인 세션이 없어 공유 링크/접근 토큰
   // 필요. 플래그 OFF 시 항상 false → accessToken 식이 기존 (uid ? null : random) 과 동일.
   forceGuestToken = false,
+  // planner-intent-v1 (2026-08-24): requestShaper/handlerCore 가 이미 정규화한 단일 intent.
+  //   있으면 input.planner_intent_v1 로 그대로 저장하고, dietaryRestrictions 는 이 값을 우선
+  //   신뢰한다 (allergy 값은 normalizePlannerIntentV1 이 이미 걸러냈다 — 재도입 경로 없음).
+  //   null (미전달 호출부·과거 테스트) = 기존 body.* 재구성 동작 그대로.
+  plannerIntent = null,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -1499,7 +1509,13 @@ export async function persistPlan(adminDb, {
       // 필드는 여기서 다시 흘려보내지 않는다(requestShaper 가 이미 legacy alias 를
       // Halal/Vegan/Vegetarian 만 dietaryRestrictions 로 승격 완료, body.allergies 원본은 버림).
       dietary: Array.isArray(dietaryRaw) ? dietaryRaw : null,
-      dietaryRestrictions: Array.isArray(body.dietaryRestrictions) ? body.dietaryRestrictions : null,
+      dietaryRestrictions: plannerIntent
+        ? plannerIntent.dietaryRestrictions
+        : (Array.isArray(body.dietaryRestrictions) ? body.dietaryRestrictions : null),
+      // planner-intent-v1 (2026-08-24): the single normalized shape, persisted verbatim.
+      //   Retry/revision prefill and admin audit can read this instead of re-deriving
+      //   ~20 separate input.* fields from a raw body that may not exist anymore.
+      ...(plannerIntent ? { planner_intent_v1: plannerIntent } : {}),
       // B3 S0 (P311, 2026-05-30): paypalOrderId persist — plan-발급 멱등성 추적 + 재시도
       // 식별. 실패한 plan 재시도 시 같은 orderId 로 기존 ready plan 조회 가능. PayPal 17자
       // orderId / ADMIN-BYPASS-/TEST-/MANUAL- prefix 모두 보존 (audit 용도).

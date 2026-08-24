@@ -129,6 +129,12 @@ export interface PlannerFormValues {
   // RESERVATION_STATUSES allowlist. Threaded through to both the quick-preview
   // and full-plan payloads.
   reservation_status?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done';
+  // 2026-08-24 (planner-intent-v1): ordered, stable UI city keys for EVERY
+  // selected city (WizardForm CITY_CHIPS keys) — unlike `cityKey` (primary
+  // city only), this preserves the traveler's full multi-city ordering so
+  // the server can build a day-by-day city sequence without parsing the
+  // localized `regions` display text.
+  cityKeys?: string[];
 }
 
 interface Props {

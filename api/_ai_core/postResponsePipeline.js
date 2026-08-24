@@ -34,6 +34,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
 import { assertFinalItineraryValid } from './finalItineraryGate.js';
+import { assertNoAvoidedStopsRemain, filterAvoidedRestaurantBuckets } from './avoidStops.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -337,7 +338,7 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
  * @returns foodIndex (handlerCore 가 persistPlan 에 forward).
  */
 export async function applyRecommendedRestaurants(itinerary, ctx) {
-  const { area, dietPrefs, regions, blockModeUsed, language, styles } = ctx;
+  const { area, dietPrefs, regions, blockModeUsed, language, styles, avoidStopNames } = ctx;
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.
   // 2026-05-05 regression fix: 이전엔 general만 노출 → vegan/halal 사용자도
@@ -359,6 +360,10 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     console.warn('[planner] recommended_restaurants failed:', recErr.message);
     itinerary.recommended_restaurants = { general: [] };
   }
+  // planner-intent-v1 (2026-08-24): recommended_restaurants comes straight from the
+  // food DB, not from the itinerary's stops — the avoid-list removal above never
+  // sees it, so an avoided restaurant could resurface here even on a clean plan.
+  itinerary.recommended_restaurants = filterAvoidedRestaurantBuckets(itinerary.recommended_restaurants, avoidStopNames);
   // P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 validateResponse(legacy 의 dietary
   //   검증처)를 handlerCore:319 `if(!itinerary)` 가드로 우회 → food stop 최종 후 halal/vegan/vegetarian
   //   coverage warning 재검증 (warning-only, P280 retry loop 회피). legacy 는 validateResponse 가 처리.
@@ -372,6 +377,14 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   //   유일한 식이 검증처다. 실패 = throw → 저장·응답 안 함. warning 박제로 통과시키지 않는다
   //   (applyBlockModeDietaryWarnings 의 coverage warning 은 그대로 두되, critical 은 별개).
   //   식이 요구 없는 손님은 no-op (기존 동작 무변).
+  // ── 재생성 avoid 리스트 — 최종 안전망 (planner-intent-v1, 2026-08-24) ────────
+  //   실제 제거는 이제 route enrichment "전" (handlerCore/worker — removeAvoidedStopsOrThrow)
+  //   에서 끝난다. 여기서 다시 지우면 이미 transit_from_prev/adjacency 가 붙은 stop 배열을
+  //   변형해 인접 구간 데이터가 stale 해진다 — 그래서 여기는 **assert-only**: 제거가
+  //   실제로 됐는지 재확인만 하고, 남아있으면(배선 버그) 조용히 통과시키지 않고 throw.
+  //   식이 게이트 "앞" 에 둔다 — 필터로 바뀐 최종 일정이 식이 검증을 받아야 한다.
+  assertNoAvoidedStopsRemain(itinerary, avoidStopNames, blockModeUsed ? 'block_mode' : 'post_response');
+
   assertFinalItineraryValid(
     itinerary,
     { language, dietary: dietPrefs, styles, foodIndex: foodIndexForQuality },

@@ -65,6 +65,9 @@ export function buildUserMessage({
     spiceLevel, bucketDishes, priceRange,
     pace, wantAccom, accomBudget, language,
     companions, // UIUX P3 (2026-07-13): 동행 유형 — userInput JSON 소프트 힌트
+    // planner-intent-v1 (2026-08-24): 예약 현황. buildPrompt 의 reservation_status
+    // 분기가 이 값을 기대하는데 requestShaper 가 아예 안 뽑아서 항상 undefined 였다.
+    reservationStatus,
   } = shaped;
 
   // 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J / dietary-safety.md).
@@ -157,6 +160,10 @@ export function buildUserMessage({
       ? recommendedZones
       : undefined,
     mobility,
+    // planner-intent-v1 (2026-08-24): 예약 현황 — 미전달(옛 client)이면 키 자체를 빼서
+    // "예약 상태 미상" 을 유지한다. 'nothing' 으로 채우면 "아무것도 예약 안 함" 이라는
+    // 없는 사실을 프롬프트에 박아 넣게 된다(항공권 있는 손님에게 항공권 광고 문구).
+    reservation_status: reservationStatus || undefined,
     // 2026-05-10 (P1): luggage — RouteAgent late-night/heavy-luggage 분기 + Gemini.
     luggage: luggage || undefined,
     special_request: specialRequest || undefined,

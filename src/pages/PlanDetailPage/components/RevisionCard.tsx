@@ -14,8 +14,78 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Sparkles, Lock } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { authFetch } from '@/lib/authFetch';
+import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlanDocument } from '../types';
 import { RevisionReasonModal, type RevisionReasonPayload } from './RevisionReasonModal';
+import { writePlannerRevisionSnapshot } from '@/pages/PlannerPage/lib/plannerRevisionSnapshot';
+
+// 2026-08-24 (planner-intent-v1 §3): the FULL safe brief for "다시 만들기",
+// keyed to this specific plan (writePlannerRevisionSnapshot binds it to
+// `planId`) — PlannerPage/Wizard reads it once and prefers it over the
+// legacy URL query params below, which stay only as a fallback for an old
+// shared link. Extracted defensively: `plan.input` shape varies across plan
+// generations (legacy vs enriched), so every read is a typeof-guarded
+// fallback chain, never a direct cast.
+function extractPlannerValuesFromPlan(plan: PlanDocument): Partial<PlannerFormValues> {
+  const inp = (plan.input || {}) as Record<string, unknown>;
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v : undefined);
+  const arr = (v: unknown): string[] | undefined =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : undefined;
+  const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const map = (v: unknown): Record<string, string> | undefined =>
+    v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, string>) : undefined;
+
+  const days = plan.itinerary?.days;
+  const lastDay = Array.isArray(days) && days.length ? days[days.length - 1] : null;
+
+  const values: Partial<PlannerFormValues> = {
+    regions: arr(inp.regions),
+    cityKey: str(inp.cityKey),
+    cityKeys: arr(inp.cityKeys),
+    startDate: str(inp.startDate),
+    endDate: str(inp.endDate) || (lastDay ? str(lastDay.date) : undefined),
+    // Bug fix (planner-intent-v1 §3): the request body forwards `styles`,
+    // never `categories` — reading `inp.categories` here always missed.
+    categories: arr(inp.styles) || arr(inp.categories),
+    pax: num(inp.pax) || num(inp.adults),
+    arrival_airport: str(inp.arrival_airport),
+    departure_airport: str(inp.departure_airport),
+    arrival_time: str(inp.arrivalTime) || str(inp.arrival_time),
+    departure_time: str(inp.departureTime) || str(inp.departure_time),
+    tour_start_time: str(inp.tourStartTime) || str(inp.tour_start_time),
+    tour_end_time: str(inp.tourEndTime) || str(inp.tour_end_time),
+    hotel_address: str(inp.hotel_address),
+    hotelByCity: map(inp.hotelByCity),
+    recommended_zone: str(inp.recommended_zone),
+    recommended_zones: map(inp.recommended_zones),
+    arrival_city: str(inp.arrival_city),
+    departure_city: str(inp.departure_city),
+    entry_city: str(inp.entry_city),
+    reservation_status: str(inp.reservation_status) as PlannerFormValues['reservation_status'],
+    tourPace: str(inp.tourPace),
+    dietPrefs: arr(inp.dietPrefs),
+    priceRange: str(inp.priceRange),
+    spiceLevel: str(inp.spiceLevel),
+    bucketDishes: arr(inp.bucketDishes),
+    companions: str(inp.companions),
+    wantAccom: typeof inp.wantAccom === 'boolean' ? inp.wantAccom : undefined,
+    accomBudget: str(inp.accomBudget),
+    // Bug fix (planner-intent-v1 §3): Firestore persists this as
+    // `specialRequest` (camelCase — see PlanDocument.input) — `inp.freeText`
+    // was never the actual field, so the free-text brief was always dropped.
+    freeText: str(inp.specialRequest) || str(inp.freeText) || str(inp.special_request),
+  };
+  if (inp.luggage && typeof inp.luggage === 'object') {
+    const l = inp.luggage as { small?: unknown; medium?: unknown; large?: unknown };
+    values.luggage = { small: Number(l.small) || 0, medium: Number(l.medium) || 0, large: Number(l.large) || 0 };
+  }
+  // dietaryRestrictions: canonical field wins; legacy `allergies` is
+  // migrated elsewhere in this file already (Halal/Vegan/Vegetarian only) —
+  // writePlannerRevisionSnapshot's own sanitizer re-filters regardless.
+  const dietaryRestrictionsRaw = arr(inp.dietaryRestrictions);
+  if (dietaryRestrictionsRaw) values.dietaryRestrictions = dietaryRestrictionsRaw;
+  return values;
+}
 
 interface RevisionCardProps {
   plan: PlanDocument;
@@ -132,6 +202,17 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
     const reasonParam = payload?.reasons?.join(',') || '';
     const noteParam = payload?.customNote || '';
 
+    // 2026-08-24 (planner-intent-v1 §3): write the FULL safe brief, bound to
+    // this planId, before navigating — PlannerPage/Wizard prefers this over
+    // the legacy URL params below (which stay only as a fallback).
+    if (planId) {
+      writePlannerRevisionSnapshot(planId, extractPlannerValuesFromPlan(plan), {
+        reasonCodes: payload?.reasons || [],
+        note: noteParam,
+        avoidStopNames: allStopNames,
+      });
+    }
+
     // 2026-05-09 (B9-37): plan.input 핵심 필드를 URL prefill 로 직렬화 — 사용자
     // 신고 "다시 만들기 시 form 데이터 prefill 안 됨 (비행기/시간/날짜 매번 재입력)".
     // PlannerPage 가 useSearchParams 에서 추출 → WizardForm initialValues 로 주입.
@@ -153,7 +234,9 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
     setIfStr('prefillStartDate', inp.startDate);
     setIfStr('prefillEndDate', (inp as { endDate?: unknown }).endDate);
     setIfArr('prefillRegions', (inp as { regions?: unknown }).regions);
-    setIfArr('prefillCategories', (inp as { categories?: unknown }).categories);
+    // Bug fix (planner-intent-v1 §3): the request body forwards `styles`,
+    // never `categories` — this always read an absent field.
+    setIfArr('prefillCategories', (inp as { styles?: unknown }).styles || (inp as { categories?: unknown }).categories);
     setIfNum('prefillPax', inp.pax ?? inp.adults);
     setIfStr('prefillArrival', inp.arrival_airport);
     setIfStr('prefillHotel', inp.hotel_address);
@@ -169,9 +252,13 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
         ? legacyAllergiesRaw.filter((v): v is string => typeof v === 'string' && ['Halal', 'Vegan', 'Vegetarian'].includes(v))
         : undefined;
     setIfArr('prefillDietaryRestrictions', dietaryRestrictionsForPrefill);
-    const freeTxt = (inp as { freeText?: unknown }).freeText;
-    if (typeof freeTxt === 'string' && freeTxt.trim()) {
-      prefillEntries['prefillFreeText'] = freeTxt.slice(0, 200);
+    // Bug fix (planner-intent-v1 §3): Firestore persists this as
+    // `specialRequest` (camelCase — PlanDocument.input) — `inp.freeText`
+    // was never the actual field name, so this always read undefined.
+    const freeTxtRaw = (inp as { specialRequest?: unknown; freeText?: unknown }).specialRequest
+      || (inp as { specialRequest?: unknown; freeText?: unknown }).freeText;
+    if (typeof freeTxtRaw === 'string' && freeTxtRaw.trim()) {
+      prefillEntries['prefillFreeText'] = freeTxtRaw.slice(0, 200);
     }
 
     const params = new URLSearchParams({

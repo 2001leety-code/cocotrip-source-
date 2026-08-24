@@ -129,6 +129,12 @@ interface PlannerSnapshotValues {
    *  라이프사이클 신호 — autosaveValues 에는 직렬화하지 않고(markWizardDirtyExit 가
    *  저장된 snapshot 에 직접 기록), 복원(applyResumeSnapshot) 시에도 무시. optional. */
   dirtyExit?: boolean;
+  /** 2026-08-24 (planner-intent-v1 §4): 다도시 plan 의 명시적 입국/출국 도시 —
+   *  옛 snapshot 엔 없음(optional), 복원 시 '' 폴백. */
+  arrivalCityKey?: string;
+  departureCityKey?: string;
+  /** 2026-08-24 (planner-intent-v1 §4): 도시별 호텔 주소. 옛 snapshot 엔 없음(optional). */
+  hotelByCity?: Record<string, string>;
 }
 
 // 2026-05-09 (B9-37): RevisionCard → PlannerPage → WizardForm 으로 흘러오는
@@ -144,6 +150,26 @@ export interface WizardInitialValues {
   dietary?: string[];
   dietaryRestrictions?: string[];
   freeText?: string;
+  // 2026-08-24 (planner-intent-v1 §3/§4): additive fields carried by the
+  // versioned revision snapshot (plannerRevisionSnapshot.ts) — a caller that
+  // doesn't have them (legacy URL prefill) simply omits them; every field
+  // below is optional and independently applied.
+  departureAirport?: string;
+  arrivalTime?: string;
+  departureTime?: string;
+  tourStartTime?: string;
+  tourEndTime?: string;
+  hotelByCity?: Record<string, string>;
+  recommendedZone?: string;
+  recommendedZones?: Record<string, string>;
+  arrivalCityKey?: string;
+  departureCityKey?: string;
+  reservationStatus?: ReservationStatus | null;
+  tourPace?: TourPace;
+  companions?: '' | 'solo' | 'couple' | 'family' | 'friends';
+  luggage?: { small: number; medium: number; large: number };
+  wantAccom?: boolean;
+  accomBudget?: string;
 }
 
 export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = false }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues; isRevision?: boolean }) {
@@ -362,6 +388,34 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     if (iv.pax && iv.pax > 0) setPaxInput(String(iv.pax));
     if (iv.arrivalAirport) setArrivalTerminal(iv.arrivalAirport);
     if (iv.hotelAddress) setHotelAddress(iv.hotelAddress);
+    // 2026-08-24 (planner-intent-v1 §3): fields carried by the versioned
+    // revision snapshot — each applied independently, missing ones keep
+    // their existing default (same "additive, never required" contract as
+    // the fields above).
+    if (iv.departureAirport) setDepartureTerminal(iv.departureAirport);
+    if (iv.arrivalTime) setArrivalTime(iv.arrivalTime);
+    if (iv.departureTime) setDepartureTime(iv.departureTime);
+    if (iv.tourStartTime) setTourStartTime(iv.tourStartTime);
+    if (iv.tourEndTime) setTourEndTime(iv.tourEndTime);
+    if (iv.hotelByCity && Object.keys(iv.hotelByCity).length) setHotelByCity(iv.hotelByCity);
+    if (iv.recommendedZones && Object.keys(iv.recommendedZones).length) {
+      setRecommendedZones(iv.recommendedZones);
+    } else if (iv.recommendedZone && iv.regions && iv.regions[0]) {
+      const key = CITY_CHIPS.find(c => c.key === String(iv.regions![0]).toLowerCase().trim())?.key;
+      if (key) setRecommendedZones({ [key]: iv.recommendedZone });
+    }
+    if (iv.arrivalCityKey) setArrivalCityKey(iv.arrivalCityKey);
+    if (iv.departureCityKey) setDepartureCityKey(iv.departureCityKey);
+    if (iv.reservationStatus) setReservationStatus(iv.reservationStatus);
+    if (iv.tourPace) setTourPace(iv.tourPace);
+    if (iv.companions) setCompanions(iv.companions);
+    if (iv.luggage) {
+      setLuggageSmall(iv.luggage.small || 0);
+      setLuggageMedium(iv.luggage.medium || 0);
+      setLuggageLarge(iv.luggage.large || 0);
+    }
+    if (typeof iv.wantAccom === 'boolean') setWantAccom(iv.wantAccom);
+    if (iv.accomBudget) setAccomBudget(iv.accomBudget);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -535,8 +589,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
         setRecommendedZones({});
       }
     }
-    setTourPace((v.tourPace as TourPace) ?? 'full');
-    setCompanions((v.companions as '' | 'solo' | 'couple' | 'family' | 'friends') ?? '');
+    setTourPace((v.tourPace as TourPace) || 'full');
+    setCompanions((v.companions as '' | 'solo' | 'couple' | 'family' | 'friends') || '');
+    // 2026-08-24 (planner-intent-v1 §4): 다도시 입국/출국 도시 + 도시별 호텔 복원.
+    setArrivalCityKey(v.arrivalCityKey || '');
+    setDepartureCityKey(v.departureCityKey || '');
+    setHotelByCity(v.hotelByCity && typeof v.hotelByCity === 'object' ? v.hotelByCity : {});
     // #resume-instant: 애니 억제와 step 점프를 같은 이벤트에서 함께 건다 → 한 커밋에 반영되어
     // 그 커밋의 렌더가 곧바로 "애니 없는 점프"로 확정된다(제자리 즉시 복원).
     // 예전에는 framer 가 나가는 요소를 먼저 0ms 로 다시 그려야 해서 커밋을 둘로 쪼갰지만
@@ -669,6 +727,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     arrivalTime, departureTime,
     luggageSmall, luggageMedium, luggageLarge,
     wantAccom, accomBudget, recommendedZones, tourPace, companions,
+    // 2026-08-24 (planner-intent-v1 §4): additive — restores across resume,
+    // same as every other field in this object.
+    arrivalCityKey, departureCityKey, hotelByCity,
     // PR-D 주의: dirtyExit 는 일부러 여기 넣지 않는다. 이 라이프사이클 마커는
     // markWizardDirtyExit 가 저장된 snapshot 에 직접(out-of-band) 기록한다. 여기에
     // 넣으면(예: false 고정) autosave 가 디바운스마다 마커를 덮어써 사고 이탈 신호가
@@ -891,6 +952,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
         // backend resolves exact-city context/validation from this, not by
         // re-parsing the localized `regions` display text.
         cityKey: mainCityKey || undefined,
+        // 2026-08-24 (planner-intent-v1): ordered stable keys for every
+        // selected city, not just the primary — plannerIntent.ts's cityKeys
+        // reads this directly instead of re-deriving order from `regions`.
+        cityKeys: cityKeys.length ? cityKeys : undefined,
         categories: selectedActivities, transport: 'staria', pax, durationDays,
         freeText: freeText || '',
         arrival_airport: arrivalTerminal,
