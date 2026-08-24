@@ -8,9 +8,13 @@
  * 로그인 시 toItinerarySlots() 로 그대로 Firestore 저장(users/{uid}/itineraries).
  */
 
+/** 'fixed' = time 이 예약 등 확정 시각. 'window' = time~windowEnd 범위 내. 없으면 자유/메모성 시간. */
+export type CourseTimeConstraint = 'fixed' | 'window';
+
 export interface CourseStop {
   id: string;
-  /** "09:30" — 빈 문자열 허용(시간 미정) */
+  /** "09:30" — 빈 문자열 허용(시간 미정). timeConstraint 가 없으면 이 값은 사용자 메모성 자유시간일 뿐,
+   *  reservation_required 등 어떤 필드도 이 값을 자동으로 확정 예약시각으로 승격하지 않는다. */
   time: string;
   title: string;
   /** 'food' | 'sight' | 'show' | 'stay' | 'etc' — UI 칩 표시용 */
@@ -18,6 +22,16 @@ export interface CourseStop {
   memo: string;
   lat?: number;
   lng?: number;
+  /** 체류 시간(분), 1..1440 정수만 유효. (planner-trust-course, 2026-08-24, additive v1) */
+  stayMinutes?: number;
+  /** 'fixed'|'window' 만 유효. AI 재배치의 anchor 판정 기준. */
+  timeConstraint?: CourseTimeConstraint;
+  /** timeConstraint='window' 일 때만 의미 — "HH:MM", time(시작) 보다 늦어야 함. */
+  windowEnd?: string;
+  /** 서버 candidate catalog 의 candidateId 대응 — 추천에서 추가된 장소만 지님. */
+  placeKey?: string;
+  /** 'cocotrip-attractions' 만 유효(현재 유일 출처). */
+  placeSource?: 'cocotrip-attractions';
 }
 
 export interface CourseDay {
@@ -50,6 +64,89 @@ export function isValidTime(t: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 }
 
+/** "HH:MM"(24h), 빈 문자열 불허 — windowEnd 는 항상 구체 시각이어야 함. */
+function isValidClock(t: unknown): t is string {
+  return typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+}
+
+export function isValidStayMinutes(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 1440;
+}
+
+export function isValidTimeConstraint(v: unknown): v is CourseTimeConstraint {
+  return v === 'fixed' || v === 'window';
+}
+
+export function isValidPlaceSource(v: unknown): v is 'cocotrip-attractions' {
+  return v === 'cocotrip-attractions';
+}
+
+/** placeKey 최대 길이 — candidate catalog key 는 짧은 slug 라 넉넉한 상한. */
+const MAX_PLACE_KEY = 128;
+
+/**
+ * v1 확장필드(stayMinutes/timeConstraint/windowEnd/placeKey/placeSource) 검증 — 트러스트 경계
+ * (외부에서 온 stop: 공유 링크 해시 디코드, 서버 API payload)에서 사용. 필드가 아예 없으면 통과
+ * (구버전 링크/드래프트 호환) — "명시적으로 있는데 형식이 틀림"만 malformed 로 잡는다.
+ *
+ * 'fixed' 앵커는 확정 시각(time)이 있어야 하고, 'window' 앵커는 time(시작)~windowEnd(끝) 둘 다
+ * 있어야 하며 windowEnd > time 이어야 한다. windowEnd 만 있고 timeConstraint!='window' 인
+ * 불일치 상태도 malformed. placeKey/placeSource 는 반드시 짝으로 있어야 한다(한쪽만 있으면
+ * malformed). 이 함수가 false 를 반환하면 호출부는 그 stop 을 자유시간으로 조용히 강등하지
+ * 말고 fail-closed(드롭 또는 전체 payload 거부) 해야 한다.
+ */
+export function isValidStopConstraints(s: {
+  time?: unknown; stayMinutes?: unknown; timeConstraint?: unknown; windowEnd?: unknown;
+  placeKey?: unknown; placeSource?: unknown;
+} | null | undefined): boolean {
+  if (!s || typeof s !== 'object') return true; // 값 자체가 없음 — malformed 판정 대상 아님(null-safe)
+  if (s.stayMinutes !== undefined && !isValidStayMinutes(s.stayMinutes)) return false;
+  if (s.placeKey !== undefined || s.placeSource !== undefined) {
+    if (typeof s.placeKey !== 'string' || !s.placeKey.trim() || s.placeKey.length > MAX_PLACE_KEY) return false;
+    if (!isValidPlaceSource(s.placeSource)) return false;
+  }
+  if (s.timeConstraint === undefined) {
+    // windowEnd 만 단독으로 있는 불일치 상태 방지
+    if (s.windowEnd !== undefined) return false;
+    return true;
+  }
+  if (!isValidTimeConstraint(s.timeConstraint)) return false;
+  if (!isValidClock(s.time)) return false;
+  if (s.timeConstraint === 'window') {
+    if (!isValidClock(s.windowEnd)) return false;
+    if ((s.windowEnd as string) <= (s.time as string)) return false;
+  } else if (s.windowEnd !== undefined) {
+    return false; // 'fixed' 인데 windowEnd 가 붙어있는 불일치 상태
+  }
+  return true;
+}
+
+/**
+ * v1 확장필드 정합성 정리 — 순수함수(원본 불변, 새 객체 반환).
+ *
+ * mode='lenient'(기본, UI 입력 — addStop/addStops/updateStop 등) — 안 맞는 필드만 조용히
+ *   제거하고 stop 은 항상 돌려준다(null 이 아님). 사용자가 폼에 잘못 입력해도 그 장소 자체가
+ *   사라지면 안 되기 때문 — payload 전체·stop 하나를 거부하지 않는다.
+ * mode='strict'(외부 신뢰 불가 입력 — 공유 링크 해시 디코드 등, isValidStopConstraints 의
+ *   트러스트 경계와 동일) — 확장필드가 "명시적으로 있는데 형식이 틀림" 이면 stop 전체를
+ *   버린다(null 반환) — 조용한 강등 금지, 호출부가 그 stop 을 드롭해야 한다.
+ */
+export function normalizeStopExtras(stop: CourseStop, mode: 'lenient' | 'strict' = 'lenient'): CourseStop | null {
+  if (mode === 'strict') {
+    return isValidStopConstraints(stop) ? stop : null;
+  }
+  const next = { ...stop };
+  if (next.stayMinutes !== undefined && !isValidStayMinutes(next.stayMinutes)) delete next.stayMinutes;
+  if (next.placeKey !== undefined || next.placeSource !== undefined) {
+    const trimmedKey = typeof next.placeKey === 'string' ? next.placeKey.trim().slice(0, MAX_PLACE_KEY) : '';
+    const pairOk = !!trimmedKey && isValidPlaceSource(next.placeSource);
+    if (pairOk) next.placeKey = trimmedKey;
+    else { delete next.placeKey; delete next.placeSource; }
+  }
+  if (!isValidStopConstraints(next)) { delete next.timeConstraint; delete next.windowEnd; }
+  return next;
+}
+
 function touch(d: CourseDraft, now: number): CourseDraft {
   return { ...d, updatedAt: now };
 }
@@ -61,7 +158,7 @@ export function addStop(
   if (d.days[dayIdx].stops.length >= COURSE_MAX_STOPS_PER_DAY) return d;
   const title = partial.title.trim();
   if (!title) return d;
-  const stop: CourseStop = { ...partial, title, id: genStopId(now) };
+  const stop = normalizeStopExtras({ ...partial, title, id: genStopId(now) }) as CourseStop;
   const days = d.days.map((day, i) => (i === dayIdx ? { stops: [...day.stops, stop] } : day));
   return touch({ ...d, days }, now);
 }
@@ -85,7 +182,7 @@ export function addStops(
     .map((partial) => ({ ...partial, title: String(partial?.title || '').trim() }))
     .filter((partial) => !!partial.title)
     .slice(0, remaining)
-    .map((partial) => ({ ...partial, id: genStopId(now) }));
+    .map((partial) => normalizeStopExtras({ ...partial, id: genStopId(now) }) as CourseStop);
   if (!additions.length) return d;
   const days = d.days.map((day, i) => (i === dayIdx ? { stops: [...day.stops, ...additions] } : day));
   return touch({ ...d, days }, now);
@@ -105,7 +202,8 @@ export function updateStop(
       stops: day.stops.map((s) => {
         if (s.id !== stopId) return s;
         changed = true;
-        return { ...s, ...patch, title: patch.title !== undefined ? patch.title.trim() : s.title };
+        const merged = { ...s, ...patch, title: patch.title !== undefined ? patch.title.trim() : s.title };
+        return normalizeStopExtras(merged) as CourseStop;
       }),
     };
   });
@@ -165,6 +263,27 @@ export function reorderStops(
   return touch({ ...d, days }, now);
 }
 
+/**
+ * Day 내 stop 을 특정 인덱스로 옮긴다(드래그 1칸 이동 등 단일 재배치용).
+ * reorderStops(전체 순서 배열 교체)와 달리 stopId + 목적 인덱스만 받는다.
+ * toIndex 는 day 범위로 클램프. 이동이 실제로 없으면 no-op(동일 참조).
+ */
+export function moveStopWithinDay(
+  d: CourseDraft, dayIdx: number, stopId: string, toIndex: number, now: number = Date.now(),
+): CourseDraft {
+  if (dayIdx < 0 || dayIdx >= d.days.length) return d;
+  const stops = d.days[dayIdx].stops;
+  const fromIndex = stops.findIndex((s) => s.id === stopId);
+  if (fromIndex === -1) return d;
+  const clamped = Math.max(0, Math.min(toIndex, stops.length - 1));
+  if (clamped === fromIndex) return d;
+  const next = [...stops];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(clamped, 0, moved);
+  const days = d.days.map((day, i) => (i === dayIdx ? { stops: next } : day));
+  return touch({ ...d, days }, now);
+}
+
 export function addDay(d: CourseDraft, now: number = Date.now()): CourseDraft {
   if (d.days.length >= COURSE_MAX_DAYS) return d;
   return touch({ ...d, days: [...d.days, { stops: [] }] }, now);
@@ -199,7 +318,7 @@ export function decodeSharedCourse(encoded: string, now: number = Date.now()): C
         stops: stops.slice(0, COURSE_MAX_STOPS_PER_DAY).flatMap((s) => {
           const title = typeof s?.title === 'string' ? s.title.trim() : '';
           if (!title) return [];
-          return [{
+          const candidate: CourseStop = {
             id: typeof s.id === 'string' && s.id ? s.id : genStopId(now),
             time: typeof s.time === 'string' && isValidTime(s.time) ? s.time : '',
             title: title.slice(0, 120),
@@ -207,7 +326,16 @@ export function decodeSharedCourse(encoded: string, now: number = Date.now()): C
             memo: typeof s.memo === 'string' ? s.memo.slice(0, 500) : '',
             ...(typeof s.lat === 'number' && Number.isFinite(s.lat) ? { lat: s.lat } : {}),
             ...(typeof s.lng === 'number' && Number.isFinite(s.lng) ? { lng: s.lng } : {}),
-          }];
+            ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+            ...(s.timeConstraint !== undefined ? { timeConstraint: s.timeConstraint } : {}),
+            ...(s.windowEnd !== undefined ? { windowEnd: s.windowEnd } : {}),
+            ...(s.placeKey !== undefined ? { placeKey: s.placeKey } : {}),
+            ...(s.placeSource !== undefined ? { placeSource: s.placeSource } : {}),
+          };
+          // 외부 신뢰 불가 입력(공유 링크 해시) — 확장필드가 명시적으로 있는데 형식이
+          // 틀리면 이 stop 전체를 fail-closed 로 드롭한다(조용한 강등 금지).
+          const normalized = normalizeStopExtras(candidate, 'strict');
+          return normalized ? [normalized] : [];
         }),
       };
     });
@@ -220,7 +348,7 @@ export function decodeSharedCourse(encoded: string, now: number = Date.now()): C
 
 // ── useItinerary 호환 변환 (로그인 시 '내 계정에 저장' ↔ '내 코스 불러오기') ──
 
-/** 계정 저장 슬롯 shape — ItinerarySlot 호환 + 코스 복원용 확장 필드(category/lat/lng). */
+/** 계정 저장 슬롯 shape — ItinerarySlot 호환 + 코스 복원용 확장 필드(category/lat/lng + v1 확장). */
 export interface CourseSlotShape {
   productId: string;
   productType: 'planner';
@@ -230,19 +358,30 @@ export interface CourseSlotShape {
   category?: string;
   lat?: number;
   lng?: number;
+  stayMinutes?: number;
+  timeConstraint?: CourseTimeConstraint;
+  windowEnd?: string;
+  placeKey?: string;
+  placeSource?: 'cocotrip-attractions';
 }
 
 /** CourseStop → ItinerarySlot shape (useItinerary.createItineraryWithSlots 인자와 호환). */
 export function toItinerarySlot(s: CourseStop): CourseSlotShape {
+  const clean = normalizeStopExtras(s) as CourseStop;
   return {
-    productId: `course-${s.id}`,
+    productId: `course-${clean.id}`,
     productType: 'planner',
-    name: s.title,
-    ...(s.time ? { timeStart: s.time } : {}),
-    ...(s.memo ? { notes: s.memo } : {}),
-    ...(s.category ? { category: s.category } : {}),
-    ...(typeof s.lat === 'number' && Number.isFinite(s.lat) ? { lat: s.lat } : {}),
-    ...(typeof s.lng === 'number' && Number.isFinite(s.lng) ? { lng: s.lng } : {}),
+    name: clean.title,
+    ...(clean.time ? { timeStart: clean.time } : {}),
+    ...(clean.memo ? { notes: clean.memo } : {}),
+    ...(clean.category ? { category: clean.category } : {}),
+    ...(typeof clean.lat === 'number' && Number.isFinite(clean.lat) ? { lat: clean.lat } : {}),
+    ...(typeof clean.lng === 'number' && Number.isFinite(clean.lng) ? { lng: clean.lng } : {}),
+    ...(clean.stayMinutes !== undefined ? { stayMinutes: clean.stayMinutes } : {}),
+    ...(clean.timeConstraint !== undefined ? { timeConstraint: clean.timeConstraint } : {}),
+    ...(clean.windowEnd !== undefined ? { windowEnd: clean.windowEnd } : {}),
+    ...(clean.placeKey !== undefined ? { placeKey: clean.placeKey } : {}),
+    ...(clean.placeSource !== undefined ? { placeSource: clean.placeSource } : {}),
   };
 }
 
@@ -254,6 +393,11 @@ export interface SlotLike {
   category?: string;
   lat?: number;
   lng?: number;
+  stayMinutes?: unknown;
+  timeConstraint?: unknown;
+  windowEnd?: unknown;
+  placeKey?: unknown;
+  placeSource?: unknown;
 }
 
 /**
@@ -268,7 +412,7 @@ export function fromItinerarySlots(
     stops: (Array.isArray(slots) ? slots : []).slice(0, COURSE_MAX_STOPS_PER_DAY).flatMap((sl) => {
       const title = typeof sl?.name === 'string' ? sl.name.trim() : '';
       if (!title) return [];
-      return [{
+      const candidate: CourseStop = {
         id: genStopId(now),
         time: typeof sl.timeStart === 'string' && isValidTime(sl.timeStart) ? sl.timeStart : '',
         title: title.slice(0, 120),
@@ -276,7 +420,14 @@ export function fromItinerarySlots(
         memo: typeof sl.notes === 'string' ? sl.notes.slice(0, 500) : '',
         ...(typeof sl.lat === 'number' && Number.isFinite(sl.lat) ? { lat: sl.lat } : {}),
         ...(typeof sl.lng === 'number' && Number.isFinite(sl.lng) ? { lng: sl.lng } : {}),
-      }];
+        ...(sl.stayMinutes !== undefined ? { stayMinutes: sl.stayMinutes as number } : {}),
+        ...(sl.timeConstraint !== undefined ? { timeConstraint: sl.timeConstraint as CourseTimeConstraint } : {}),
+        ...(sl.windowEnd !== undefined ? { windowEnd: sl.windowEnd as string } : {}),
+        ...(sl.placeKey !== undefined ? { placeKey: sl.placeKey as string } : {}),
+        ...(sl.placeSource !== undefined ? { placeSource: sl.placeSource as 'cocotrip-attractions' } : {}),
+      };
+      // 계정 저장본 — 손실 방지 우선(lenient): 확장필드가 안 맞아도 장소 자체는 복원한다.
+      return [normalizeStopExtras(candidate) as CourseStop];
     }),
   }));
   if (!days.length) return emptyDraft(now);

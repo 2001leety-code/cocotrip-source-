@@ -42,6 +42,10 @@ const DEFAULTS = {
   // same cost/latency profile as `block`. Own role (not reusing `block`) so an
   // operator can tune/rollback the quick-preview model independently.
   quick: 'gemini-3.5-flash',
+  // 2026-08-24 (planner-trust-course #4/#5): course-ai 동선 최적화 + 후보 선택 —
+  // JSON-only, 짧은 입력(장소 20개 이하) — Flash 충분. 독립 role 이라 course-ai 회귀 시
+  // GEMINI_COURSE_MODEL 만으로 롤백 가능(다른 role 영향 0).
+  course: 'gemini-3.5-flash',
 };
 
 const ROLE_ENV_MAP = {
@@ -50,6 +54,7 @@ const ROLE_ENV_MAP = {
   classifier: 'GEMINI_CLASSIFIER_MODEL',
   translate: 'GEMINI_TRANSLATE_MODEL',
   quick: 'GEMINI_QUICK_MODEL',
+  course: 'GEMINI_COURSE_MODEL',
 };
 
 /**
@@ -65,7 +70,7 @@ const ROLE_ENV_MAP = {
  *   4. GEMINI_{ROLE}_MODEL — 모듈별 미세 control
  *   5. DEFAULTS — 코드 default
  *
- * @param {'main'|'block'|'classifier'|'translate'|'quick'} role - 모듈 식별자
+ * @param {'main'|'block'|'classifier'|'translate'|'quick'|'course'} role - 모듈 식별자
  * @param {object} [opts]
  * @param {boolean} [opts.isAdminBypass] - P171 (2026-05-23): admin Test Mode 면
  *   env GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자가 Pro→Flash 품질 직접 비교용).

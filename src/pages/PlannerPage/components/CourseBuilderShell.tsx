@@ -11,9 +11,9 @@
  *   가짜 지도/가짜 환승/가짜 AI 패널은 제거(허위 데이터 + 큰 박스 남발 금지).
  * - i18n = 컴포넌트 로컬 4-lang 딕셔너리 (AddressAutocomplete 패턴).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarDays, Check, Clock, ExternalLink, MapPin,
+  CalendarDays, Check, ChevronDown, ChevronUp, Clock, ExternalLink, MapPin,
   PencilLine, Plus, Share2, Sparkles, Trash2, X, Wand2, LogIn,
   Layers3, Loader2, Map as MapIcon,
 } from 'lucide-react';
@@ -24,9 +24,13 @@ import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import { useItinerary } from '@/hooks/useItinerary';
 import { naverMapSearchUrl } from '@/lib/naverMap';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { useCourseBuilder } from './courseBuilder/useCourseBuilder';
 import {
-  googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, COURSE_MAX_STOPS_PER_DAY, type CourseStop,
+  googleMapsUrl, toItinerarySlot, COURSE_MAX_DAYS, COURSE_MAX_STOPS_PER_DAY,
+  isValidStayMinutes, type CourseStop, type CourseTimeConstraint,
 } from './courseBuilder/courseOps';
 import { recoCities, recoForCity, type RecoPlace } from './courseBuilder/recommendations';
 import {
@@ -36,6 +40,7 @@ import { CoursePlaceSearch, type CoursePlacePick } from './courseBuilder/CourseP
 import { CourseMiniMap } from './courseBuilder/CourseMiniMap';
 import type { TransitStepLike } from '@/lib/routeSegments';
 import { fillPrice } from '@/lib/aiPlannerPrice';
+import { trackCourseBuilderEvent, type CourseBuilderSource } from './courseBuilder/courseBuilderAnalytics';
 
 // ── i18n (4-lang 컴포넌트 로컬 — AddressAutocomplete 패턴) ───────────────
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -71,6 +76,10 @@ const I18N: Record<Lang, Record<string, string>> = {
     routeTemplateEmpty: 'No verified route for this city yet.',
     routeTemplateAdded: '{count} stops added from a verified route.',
     routeTemplateFull: 'This day already has the maximum number of stops.',
+    tcLabel: 'Time', tcFree: 'Free', tcFixed: 'Fixed time', tcWindow: 'Time window',
+    windowEndLabel: 'Until', stayLabel: 'Stay (min)', stayPh: 'e.g. 60',
+    moveUp: 'Move {title} up', moveDown: 'Move {title} down',
+    closeDialog: 'Close',
   },
   ko: {
     day: 'Day', addDay: '+ 일차', delDay: '이 일차를 삭제할까요?', newCourse: '새 코스',
@@ -101,6 +110,10 @@ const I18N: Record<Lang, Record<string, string>> = {
     routeTemplateEmpty: '이 도시에는 아직 검증 코스가 없어요.',
     routeTemplateAdded: '검증 코스에서 {count}곳을 추가했어요.',
     routeTemplateFull: '이 Day에는 더 이상 장소를 추가할 수 없어요.',
+    tcLabel: '시간', tcFree: '자유', tcFixed: '시간 확정', tcWindow: '방문 시간대',
+    windowEndLabel: '까지', stayLabel: '체류(분)', stayPh: '예: 60',
+    moveUp: '{title} 위로 이동', moveDown: '{title} 아래로 이동',
+    closeDialog: '닫기',
   },
   ja: {
     day: 'Day', addDay: '+ 日目', delDay: 'この日を削除しますか？', newCourse: '新規コース',
@@ -131,6 +144,10 @@ const I18N: Record<Lang, Record<string, string>> = {
     routeTemplateEmpty: 'この都市には検証済みコースがまだありません。',
     routeTemplateAdded: '検証済みコースから{count}か所追加しました。',
     routeTemplateFull: 'このDayにはこれ以上場所を追加できません。',
+    tcLabel: '時間', tcFree: '自由', tcFixed: '確定時刻', tcWindow: '訪問時間帯',
+    windowEndLabel: 'まで', stayLabel: '滞在（分）', stayPh: '例: 60',
+    moveUp: '{title}を上へ移動', moveDown: '{title}を下へ移動',
+    closeDialog: '閉じる',
   },
   zh: {
     day: 'Day', addDay: '+ 天', delDay: '删除这一天？', newCourse: '新行程',
@@ -161,6 +178,10 @@ const I18N: Record<Lang, Record<string, string>> = {
     routeTemplateEmpty: '该城市暂无验证路线。',
     routeTemplateAdded: '已从验证路线添加{count}个地点。',
     routeTemplateFull: '当天地点数量已达上限。',
+    tcLabel: '时间', tcFree: '自由', tcFixed: '确定时间', tcWindow: '时间段',
+    windowEndLabel: '至', stayLabel: '停留(分钟)', stayPh: '例: 60',
+    moveUp: '将{title}上移', moveDown: '将{title}下移',
+    closeDialog: '关闭',
   },
 };
 
@@ -189,6 +210,10 @@ export function CourseBuilderShell() {
   const [newTime, setNewTime] = useState('');
   const [newCat, setNewCat] = useState<string>('sight');
   const [newMemo, setNewMemo] = useState('');
+  // 시간 제약(자유/확정/시간대) + 체류시간 — planner-trust-course v1 확장(2026-08-24).
+  const [newTc, setNewTc] = useState<'' | CourseTimeConstraint>('');
+  const [newWindowEnd, setNewWindowEnd] = useState('');
+  const [newStayMinutes, setNewStayMinutes] = useState('');
   // 인라인 수정 대상
   const [editingId, setEditingId] = useState<string | null>(null);
   // 추천 도시 필터
@@ -236,22 +261,82 @@ export function CourseBuilderShell() {
 
   const day = cb.draft.days[cb.activeDay] || { stops: [] };
 
+  // course_builder_started — 이 에디팅 세션에서 "새 장소 추가"가 처음 성공한 순간 정확히 1회.
+  // 드래프트/계정/공유 코스 로딩(useCourseBuilder 초기 state)은 이 ref 를 절대 건드리지 않는다 —
+  // 그 경로는 addStop/addStops 핸들러를 거치지 않기 때문에 자동으로 제외된다.
+  const startedFiredRef = useRef(false);
+  const fireStarted = (source: CourseBuilderSource) => {
+    if (startedFiredRef.current) return;
+    startedFiredRef.current = true;
+    trackCourseBuilderEvent('course_builder_started', { source, language: nameLang });
+  };
+
+  useEffect(() => {
+    trackCourseBuilderEvent('course_builder_opened', { language: nameLang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 폼의 시간제약 상태를 CourseStop 확장필드로 변환. 'free' 는 필드 자체를 생략(자유시간). */
+  const buildTimeFields = (): Partial<CourseStop> => {
+    if (newTc === 'fixed') return { timeConstraint: 'fixed' };
+    if (newTc === 'window' && newWindowEnd) return { timeConstraint: 'window', windowEnd: newWindowEnd };
+    return {};
+  };
+  const buildStayField = (): Partial<CourseStop> => {
+    const n = Number(newStayMinutes);
+    return isValidStayMinutes(n) ? { stayMinutes: n } : {};
+  };
+  const resetAddForm = () => {
+    setNewTitle(''); setNewTime(''); setNewMemo(''); setNewTc(''); setNewWindowEnd(''); setNewStayMinutes('');
+  };
+
   const handleAdd = () => {
     if (!newTitle.trim()) return;
-    cb.addStop(cb.activeDay, { title: newTitle, time: newTime, category: newCat, memo: newMemo });
-    setNewTitle(''); setNewTime(''); setNewMemo('');
+    fireStarted('manual');
+    cb.addStop(cb.activeDay, {
+      title: newTitle, time: newTime, category: newCat, memo: newMemo,
+      ...buildTimeFields(), ...buildStayField(),
+    });
+    resetAddForm();
   };
 
   // 자동완성에서 장소 선택 → 좌표까지 저장 (지도 동선 가능). 주소는 memo 로 보존.
   const handlePickPlace = (p: CoursePlacePick) => {
+    fireStarted('place_search');
     cb.addStop(cb.activeDay, {
       title: p.title, time: newTime, category: newCat,
       memo: p.address || newMemo,
       ...(typeof p.lat === 'number' ? { lat: p.lat } : {}),
       ...(typeof p.lng === 'number' ? { lng: p.lng } : {}),
+      ...buildTimeFields(), ...buildStayField(),
     });
-    setNewTitle(''); setNewTime(''); setNewMemo('');
+    resetAddForm();
   };
+
+  // 비동기 stale-result 안전망 — 현재 Day·stop 들의 "판단에 관련된 값"이 바뀌면(추가/삭제/
+  // 순서/좌표/시간/시간제약/체류시간, 또는 Day 전환) 이전 요청의 응답은 더 이상 유효하지
+  // 않다. basisKey 가 바뀔 때마다 generation 을 올리고 진행 중 요청을 abort, 화면에 남아있던
+  // 이전 결과(routeSegs/aiRecos)도 지운다 — 다른 Day/바뀐 코스에 옛 응답이 얹혀 보이는 것 방지.
+  const basisKey = useMemo(
+    () => `${cb.activeDay}:${day.stops.map((s, i) => [
+      s.id, i, s.lat, s.lng, s.time, s.timeConstraint || '', s.windowEnd || '', s.stayMinutes ?? '',
+    ].join('|')).join(';')}`,
+    [cb.activeDay, day.stops],
+  );
+  const generationRef = useRef(0);
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const isFirstBasisRef = useRef(true);
+  useEffect(() => {
+    if (isFirstBasisRef.current) { isFirstBasisRef.current = false; return; }
+    generationRef.current += 1;
+    routeAbortRef.current?.abort();
+    routeAbortRef.current = null;
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
+    setRouteSegs([]);
+    setAiRecos([]);
+  }, [basisKey]);
 
   // 실경로 조회 — 활성 Day 의 좌표 있는 stop 을 course-route(TMAP)로 보내 실제
   // 대중교통 경로를 받는다. 인증 불필요(공개 기능), 서버가 IP rate-limit·구간 상한으로 방어.
@@ -264,20 +349,36 @@ export function CourseBuilderShell() {
         && (s.lng as number) >= -180 && (s.lng as number) <= 180,
     );
     if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
+    const myGen = generationRef.current;
+    routeAbortRef.current?.abort();
+    const controller = new AbortController();
+    routeAbortRef.current = controller;
+    const startedAt = performance.now();
     setRouteBusy(true);
     try {
       const res = await fetch('/api/course-route', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stops: stops.map((s) => ({ lat: s.lat, lng: s.lng, name: s.title })) }),
+        signal: controller.signal,
       });
       const json = await res.json().catch(() => null);
+      if (myGen !== generationRef.current) return; // 그 사이 Day/코스가 바뀜 — 폐기
       const segs = Array.isArray(json?.segments) ? json.segments : [];
       setRouteSegs(segs);
       if (!segs.length) showFlash(t.routeNone);
-    } catch {
+      trackCourseBuilderEvent('course_builder_route_result', {
+        success: segs.length > 0, reason: segs.length > 0 ? 'ok' : 'no_route',
+        durationMs: performance.now() - startedAt, language: nameLang,
+      });
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return; // 취소 — 폐기(에러 아님)
+      if (myGen !== generationRef.current) return;
       showFlash(t.routeFail);
+      trackCourseBuilderEvent('course_builder_route_result', {
+        success: false, reason: 'network_error', durationMs: performance.now() - startedAt, language: nameLang,
+      });
     } finally {
-      setRouteBusy(false);
+      if (myGen === generationRef.current) setRouteBusy(false);
     }
   };
 
@@ -286,57 +387,88 @@ export function CourseBuilderShell() {
     const stops = day.stops.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
     // 2026-07-17: 기존엔 t.aiBusy('최적화 중…')를 안내문으로 오용 — 전용 문구로 교체.
     if (stops.length < 2) { showFlash(t.aiNeedTwo); return; }
+    const myGen = generationRef.current;
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    const startedAt = performance.now();
     setAiBusy(true);
     try {
       // authFetch = Firebase 토큰 첨부 → course-ai 가 유료 플래너 구매자(aiFeaturesUnlocked)만 허용.
       const res = await authFetch('/api/course-ai', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          stops: day.stops.map((s) => ({ id: s.id, title: s.title, category: s.category, lat: s.lat, lng: s.lng })),
+          stops: day.stops.map((s) => ({
+            id: s.id, title: s.title, category: s.category, lat: s.lat, lng: s.lng,
+            ...(s.time ? { time: s.time } : {}),
+            ...(s.timeConstraint ? { timeConstraint: s.timeConstraint } : {}),
+            ...(s.windowEnd ? { windowEnd: s.windowEnd } : {}),
+            ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+          })),
           lang: nameLang,
         }),
+        signal: controller.signal,
       });
       const json = await res.json().catch(() => ({}));
+      if (myGen !== generationRef.current) return; // Day/코스가 그 사이 바뀜 — 폐기
       // 무료/비로그인 = 유료 AI 기능 잠김 → 업셀 안내(에러 아님).
-      if (res.status === 403 && json?.code === 'AI_FEATURE_LOCKED') { showFlash(fillPrice(t.aiLocked, language)); return; }
+      if (res.status === 403 && json?.code === 'AI_FEATURE_LOCKED') {
+        showFlash(fillPrice(t.aiLocked, language));
+        trackCourseBuilderEvent('course_builder_optimize_result', { success: false, reason: 'locked', durationMs: performance.now() - startedAt, language: nameLang });
+        return;
+      }
       if (json?.ok) {
         if (Array.isArray(json.optimizedOrder) && json.optimizedOrder.length) {
           cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));
         }
         setAiRecos(Array.isArray(json.nearby) ? json.nearby : []);
+        trackCourseBuilderEvent('course_builder_optimize_result', { success: true, reason: 'ok', durationMs: performance.now() - startedAt, language: nameLang });
       } else {
         // 2026-07-17: 서버 실패(!ok)도 무피드백이었음 — 사용자 안내(코스 데이터는 무변).
         showFlash(t.aiFail);
+        trackCourseBuilderEvent('course_builder_optimize_result', { success: false, reason: 'server_error', durationMs: performance.now() - startedAt, language: nameLang });
       }
-    } catch {
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return; // 취소 — 폐기(에러 아님)
+      if (myGen !== generationRef.current) return;
       // 2026-07-17: 네트워크 실패 시 조용히 무시 → 버튼만 원복되고 아무 일도 없는 것처럼 보이던 갭.
       showFlash(t.aiFail);
+      trackCourseBuilderEvent('course_builder_optimize_result', { success: false, reason: 'network_error', durationMs: performance.now() - startedAt, language: nameLang });
     } finally {
-      setAiBusy(false);
+      if (myGen === generationRef.current) setAiBusy(false);
     }
   };
 
   const handleAddAiReco = (n: AiNearby) => {
+    fireStarted('ai_recommendation');
     cb.addStop(cb.activeDay, { title: n.name, time: '', category: n.category || 'sight', memo: '', lat: n.lat, lng: n.lng });
     setAiRecos((prev) => prev.filter((x) => x !== n));
   };
 
   const handleSaveWithMeta = async () => {
     setSaving(true);
+    const startedAt = performance.now();
     try {
       const title = saveTitle.trim() || `Course ${saveDate}`;
       const slotsPerDay = cb.draft.days.map((d) => d.stops.map(toItinerarySlot));
       const id = await createItineraryWithSlots(title, saveDate, slotsPerDay);
       showFlash(id ? t.saveDone : t.saveFail);
       if (id) setShowSave(false);
+      trackCourseBuilderEvent('course_builder_saved', {
+        success: !!id, reason: id ? 'ok' : 'server_error', durationMs: performance.now() - startedAt, language: nameLang,
+      });
     } catch {
       showFlash(t.saveFail);
+      trackCourseBuilderEvent('course_builder_saved', {
+        success: false, reason: 'network_error', durationMs: performance.now() - startedAt, language: nameLang,
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleAddReco = (p: RecoPlace) => {
+    fireStarted('recommendation');
     cb.addStop(cb.activeDay, {
       title: p.name[nameLang] || p.name.en, time: '', category: p.theme === 'food' ? 'food' : 'sight',
       memo: '', lat: p.lat, lng: p.lng,
@@ -351,13 +483,19 @@ export function CourseBuilderShell() {
       return;
     }
     const stops = zoneCourseTemplateToStops(template, nameLang).slice(0, remaining);
+    fireStarted('verified_route');
     cb.addStops(cb.activeDay, stops);
     showFlash(t.routeTemplateAdded.replace('{count}', String(stops.length)));
   };
 
   const handleShare = async () => {
+    if (cb.totalStops === 0) return; // 빈 코스 — fetch/native share/clipboard 전부 시도 금지
+    const startedAt = performance.now();
     const url = await cb.share();
     showFlash(url ? t.shareCopied : t.shareFail);
+    trackCourseBuilderEvent('course_builder_shared', {
+      success: !!url, reason: url ? 'ok' : 'network_error', durationMs: performance.now() - startedAt, language: nameLang,
+    });
   };
 
   return (
@@ -436,6 +574,37 @@ export function CourseBuilderShell() {
                   </button>
                 ))}
               </div>
+            </div>
+            {/* 시간제약(자유/확정/시간대) + 체류시간 — planner-trust-course v1. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-ec-ink-3">{t.tcLabel}</span>
+              <div className="flex gap-1">
+                {([['', t.tcFree], ['fixed', t.tcFixed], ['window', t.tcWindow]] as const).map(([v, label]) => (
+                  <button
+                    key={v || 'free'}
+                    type="button"
+                    aria-pressed={newTc === v}
+                    onClick={() => setNewTc(v)}
+                    className={`ec-option ec-option-sm ${newTc === v ? 'is-selected' : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {newTc === 'window' && (
+                <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
+                  {t.windowEndLabel}
+                  <input type="time" value={newWindowEnd} onChange={(e) => setNewWindowEnd(e.target.value)} className={`${INPUT} w-[104px] px-1.5`} />
+                </label>
+              )}
+              <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
+                {t.stayLabel}
+                <input
+                  type="number" min={1} max={1440} step={5} value={newStayMinutes} placeholder={t.stayPh}
+                  onChange={(e) => setNewStayMinutes(e.target.value)}
+                  className={`${INPUT} w-[72px] px-1.5`}
+                />
+              </label>
             </div>
             <div className="flex gap-1.5">
               <input value={newMemo} onChange={(e) => setNewMemo(e.target.value)} placeholder={t.memoPh} className={`${INPUT} flex-1 min-w-0`} />
@@ -516,6 +685,7 @@ export function CourseBuilderShell() {
                 key={stop.id}
                 stop={stop}
                 index={idx}
+                total={day.stops.length}
                 t={t}
                 editing={editingId === stop.id}
                 dayCount={cb.draft.days.length}
@@ -525,6 +695,7 @@ export function CourseBuilderShell() {
                 onPatch={(patch) => cb.updateStop(cb.activeDay, stop.id, patch)}
                 onDelete={() => { if (window.confirm(t.delConfirm)) cb.removeStop(cb.activeDay, stop.id); }}
                 onMove={(toDay) => { cb.moveStopToDay(cb.activeDay, stop.id, toDay); setEditingId(null); }}
+                onReorder={(toIndex) => cb.moveStopWithinDay(cb.activeDay, stop.id, toIndex)}
               />
             ))}
           </div>
@@ -534,7 +705,8 @@ export function CourseBuilderShell() {
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={handleShare}
+            onClick={() => { void handleShare(); }}
+            disabled={cb.totalStops === 0}
             className="ec-btn ec-btn-primary ec-btn-sm"
           >
             <Share2 className="h-3.5 w-3.5" /> {t.share}
@@ -567,7 +739,7 @@ export function CourseBuilderShell() {
           >
             {t.newCourse}
           </button>
-          <span className="ml-auto flex items-center gap-1 text-[9.5px] text-ec-ink-3 sm:text-[10.5px]">
+          <span className="ml-auto flex items-center gap-1 text-[9.5px] text-ec-ink-3 sm:text-[10.5px]" role="status" aria-live="polite">
             {flash ? (
               <span className="font-bold text-ec-success">{flash}</span>
             ) : (
@@ -666,56 +838,69 @@ export function CourseBuilderShell() {
         </div>
       </aside>
 
-      {/* ── 저장 모달 (제목/여행 날짜) — 로그인 사용자만 진입 ── */}
-      {showSave && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowSave(false); }}
-        >
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowSave(false)} />
-          <div className="relative w-full max-w-xs rounded-ec-md border border-ec-line bg-ec-raised p-4 flex flex-col gap-3 shadow-ec-overlay">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-black text-ec-ink">{t.saveAccount}</p>
-              <button type="button" onClick={() => setShowSave(false)} className="rounded-ec-sm p-1 text-ec-ink-3 hover:bg-ec-sunken"><X className="h-4 w-4" /></button>
-            </div>
+      {/* ── 저장 모달 (제목/여행 날짜) — 로그인 사용자만 진입. Radix Dialog: 포커스 트랩·
+          Escape 닫기·트리거로 포커스 복귀는 프리미티브가 보장 — 여기서는 초기 포커스
+          (제목 입력)·실제 form submit·필수값·busy state·44px 닫기 버튼만 배선한다. */}
+      <Dialog open={showSave} onOpenChange={(open) => { if (!open) setShowSave(false); }}>
+        <DialogContent showCloseButton={false} className="max-w-xs">
+          <button
+            type="button"
+            onClick={() => setShowSave(false)}
+            aria-label={t.closeDialog}
+            className="absolute right-2 top-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ec-sm text-ec-ink-3 hover:bg-ec-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <DialogHeader>
+            <DialogTitle>{t.saveAccount}</DialogTitle>
+            <DialogDescription className="sr-only">{t.saveAccount}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => { e.preventDefault(); if (saveTitle.trim()) void handleSaveWithMeta(); }}
+          >
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-ec-ink-3">{t.saveTitleField}</span>
-              <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} placeholder={t.saveTitlePh} className={INPUT} />
+              <input
+                autoFocus
+                required
+                value={saveTitle}
+                onChange={(e) => setSaveTitle(e.target.value)}
+                placeholder={t.saveTitlePh}
+                className={INPUT}
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-ec-ink-3">{t.saveDateField}</span>
-              <input type="date" value={saveDate} onChange={(e) => setSaveDate(e.target.value)} className={INPUT} />
+              <input type="date" required value={saveDate} onChange={(e) => setSaveDate(e.target.value)} className={INPUT} />
             </label>
-            <div className="flex gap-2">
+            <DialogFooter>
               <button
-                type="button"
-                onClick={() => { void handleSaveWithMeta(); }}
+                type="submit"
                 disabled={saving}
+                aria-busy={saving}
                 className="ec-btn ec-btn-primary flex-1"
               >
                 {saving ? t.aiBusy : t.saveCta}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowSave(false)}
-                className="ec-btn ec-btn-secondary"
-              >
+              <button type="button" onClick={() => setShowSave(false)} className="ec-btn ec-btn-secondary">
                 {t.cancel}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ── 스탑 1행 (표시/인라인 수정) ─────────────────────────────────────────
 function StopRow({
-  stop, index, t, editing, dayCount, activeDay, onEdit, onDone, onPatch, onDelete, onMove,
+  stop, index, total, t, editing, dayCount, activeDay, onEdit, onDone, onPatch, onDelete, onMove, onReorder,
 }: {
   stop: CourseStop;
   index: number;
+  total: number;
   t: Record<string, string>;
   editing: boolean;
   dayCount: number;
@@ -725,11 +910,14 @@ function StopRow({
   onPatch: (patch: Partial<Omit<CourseStop, 'id'>>) => void;
   onDelete: () => void;
   onMove: (toDay: number) => void;
+  onReorder: (toIndex: number) => void;
 }) {
   const naverUrl = naverMapSearchUrl(stop.title);
   const gUrl = googleMapsUrl(stop);
+  const orderBtnClass = 'flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ec-sm text-ec-ink-3 hover:bg-ec-sunken disabled:opacity-30 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2';
 
   if (editing) {
+    const tc: '' | CourseTimeConstraint = stop.timeConstraint || '';
     return (
       <div className="rounded-ec-md border border-ec-brand bg-ec-brand-wash p-2.5">
         <div className="grid gap-1.5">
@@ -753,6 +941,39 @@ function StopRow({
                 </button>
               ))}
             </div>
+          </div>
+          {/* 시간제약 + 체류시간 — planner-trust-course v1(2026-08-24). */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-ec-ink-3">{t.tcLabel}</span>
+            <div className="flex gap-1">
+              {([['', t.tcFree], ['fixed', t.tcFixed], ['window', t.tcWindow]] as const).map(([v, label]) => (
+                <button
+                  key={v || 'free'}
+                  type="button"
+                  aria-pressed={tc === v}
+                  onClick={() => onPatch(v === '' ? { timeConstraint: undefined, windowEnd: undefined } : { timeConstraint: v })}
+                  className={`ec-option ec-option-sm ${tc === v ? 'is-selected' : ''}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {tc === 'window' && (
+              <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
+                {t.windowEndLabel}
+                <input type="time" value={stop.windowEnd || ''} onChange={(e) => onPatch({ windowEnd: e.target.value })} className={`${INPUT} w-[104px] px-1.5`} />
+              </label>
+            )}
+            <label className="flex items-center gap-1 text-[10px] text-ec-ink-3">
+              {t.stayLabel}
+              <input
+                type="number" min={1} max={1440} step={5}
+                value={stop.stayMinutes ?? ''}
+                onChange={(e) => onPatch({ stayMinutes: e.target.value ? Number(e.target.value) : undefined })}
+                placeholder={t.stayPh}
+                className={`${INPUT} w-[72px] px-1.5`}
+              />
+            </label>
           </div>
           <input value={stop.memo} onChange={(e) => onPatch({ memo: e.target.value })} placeholder={t.memoPh} className={INPUT} />
           <div className="flex flex-wrap items-center gap-1.5">
@@ -789,27 +1010,62 @@ function StopRow({
   // 순서 번호 — 시간이 없는 stop 은 시간 컬럼에 순번을 대신 보여준다("인쇄된 일정표"에도
   // 시간 미정 항목은 순서로 남는다). 드래그 아이콘은 실제 드래그 미지원이라 없음(오해 방지).
   // 순서변경은 Move(다른 Day 이동)·AI 최적화로. 2026-07-05.
+  const tcText = stop.timeConstraint === 'fixed' ? t.tcFixed
+    : stop.timeConstraint === 'window' ? `${t.tcWindow}${stop.windowEnd ? ` ${t.windowEndLabel} ${stop.windowEnd}` : ''}`
+      : '';
+
   return (
     <div className="ec-timeline-row">
       <div className="ec-timeline-time">{stop.time || `#${index + 1}`}</div>
-      <div className="min-w-0">
-        <span className="ec-chip ec-chip-brand">
-          {t[CAT_KEY[stop.category] || 'catEtc']}
-        </span>
-        <p className="mt-1 text-[13.5px] font-bold leading-snug text-ec-ink">{stop.title}</p>
-        {stop.memo && <p className="mt-0.5 text-[11px] leading-relaxed text-ec-ink-3">{stop.memo}</p>}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <a href={naverUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
-            <ExternalLink className="h-2.5 w-2.5" /> {t.naver}
-          </a>
-          <a href={gUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
-            <ExternalLink className="h-2.5 w-2.5" /> {t.google}
-          </a>
-          <button type="button" onClick={onEdit} className="ml-auto rounded-ec-sm px-2 py-1 text-[11px] font-bold text-ec-ink-3 hover:text-ec-ink">
-            {t.edit}
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <span className="ec-chip ec-chip-brand">
+            {t[CAT_KEY[stop.category] || 'catEtc']}
+          </span>
+          <p className="mt-1 text-[13.5px] font-bold leading-snug text-ec-ink">{stop.title}</p>
+          {stop.memo && <p className="mt-0.5 text-[11px] leading-relaxed text-ec-ink-3">{stop.memo}</p>}
+          {(tcText || stop.stayMinutes !== undefined) && (
+            <p className="mt-0.5 text-[10px] text-ec-ink-3">
+              {tcText}
+              {tcText && stop.stayMinutes !== undefined ? ' · ' : ''}
+              {stop.stayMinutes !== undefined ? `${t.stayLabel} ${stop.stayMinutes}` : ''}
+            </p>
+          )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <a href={naverUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
+              <ExternalLink className="h-2.5 w-2.5" /> {t.naver}
+            </a>
+            <a href={gUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[11px] font-bold text-ec-ink-2 hover:text-ec-ink">
+              <ExternalLink className="h-2.5 w-2.5" /> {t.google}
+            </a>
+            <button type="button" onClick={onEdit} className="ml-auto rounded-ec-sm px-2 py-1 text-[11px] font-bold text-ec-ink-3 hover:text-ec-ink">
+              {t.edit}
+            </button>
+            <button type="button" aria-label={t.delete} onClick={onDelete} className="rounded-ec-sm p-1 text-ec-ink-3 hover:text-ec-critical">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        {/* 접근성 수동 순서변경 — 실제 드래그는 지원하지 않는다(위 주석). 44x44 터치 타깃 +
+            가시적 포커스 링. 경계(첫/끝)에서는 disabled(스크린리더에 이동 불가로 안내). */}
+        <div className="flex shrink-0 flex-col">
+          <button
+            type="button"
+            onClick={() => onReorder(index - 1)}
+            disabled={index === 0}
+            aria-label={t.moveUp.replace('{title}', stop.title)}
+            className={orderBtnClass}
+          >
+            <ChevronUp className="h-4 w-4" />
           </button>
-          <button type="button" aria-label={t.delete} onClick={onDelete} className="rounded-ec-sm p-1 text-ec-ink-3 hover:text-ec-critical">
-            <X className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={() => onReorder(index + 1)}
+            disabled={index === total - 1}
+            aria-label={t.moveDown.replace('{title}', stop.title)}
+            className={orderBtnClass}
+          >
+            <ChevronDown className="h-4 w-4" />
           </button>
         </div>
       </div>

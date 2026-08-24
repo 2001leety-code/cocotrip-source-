@@ -9,7 +9,8 @@ import { describe, it, expect } from 'vitest';
 import {
   COURSE_MAX_DAYS, COURSE_MAX_STOPS_PER_DAY,
   addDay, addStop, decodeSharedCourse, emptyDraft, encodeCourseForShare,
-  isValidTime, moveStopToDay, removeDay, removeStop, toItinerarySlot, updateStop, googleMapsUrl,
+  isValidStopConstraints, isValidTime, moveStopToDay, moveStopWithinDay, normalizeStopExtras,
+  removeDay, removeStop, toItinerarySlot, updateStop, googleMapsUrl,
 } from '../../src/pages/PlannerPage/components/courseBuilder/courseOps';
 
 const stop = (title: string, extra: Record<string, unknown> = {}) => ({
@@ -187,5 +188,139 @@ describe('계정 저장 ↔ 불러오기 라운드트립 (2026-07-04 내 코스 
     expect(restored.days[0].stops).toHaveLength(1);
     expect(restored.days[0].stops[0].category).toBe('etc');
     expect(restored.days[0].stops[0].time).toBe('10:00');
+  });
+
+  it('v1 확장필드(stayMinutes/timeConstraint/placeKey)도 toItinerarySlot ↔ fromItinerarySlots 왕복 보존', async () => {
+    const { toItinerarySlot, fromItinerarySlots } = await import('../../src/pages/PlannerPage/components/courseBuilder/courseOps');
+    let d = emptyDraft(1000);
+    d = addStop(d, 0, {
+      title: '경복궁', time: '09:00', category: 'sight', memo: '', stayMinutes: 90,
+      timeConstraint: 'fixed', placeKey: 'gyeongbokgung', placeSource: 'cocotrip-attractions',
+    });
+    const slots = d.days[0].stops.map(toItinerarySlot);
+    const restored = fromItinerarySlots([slots], 2000);
+    const s0 = restored.days[0].stops[0];
+    expect(s0.stayMinutes).toBe(90);
+    expect(s0.timeConstraint).toBe('fixed');
+    expect(s0.placeKey).toBe('gyeongbokgung');
+    expect(s0.placeSource).toBe('cocotrip-attractions');
+  });
+});
+
+describe('v1 확장필드 — stayMinutes/timeConstraint/windowEnd/placeKey (additive, 2026-08-24)', () => {
+  it('isValidStopConstraints — 필드 없음/구버전은 통과, null-safe', () => {
+    expect(isValidStopConstraints(undefined)).toBe(true);
+    expect(isValidStopConstraints(null)).toBe(true);
+    expect(isValidStopConstraints({})).toBe(true);
+    expect(isValidStopConstraints({ time: '09:00' })).toBe(true); // timeConstraint 없으면 자유시간
+  });
+
+  it('stayMinutes — 1..1440 정수만 유효', () => {
+    expect(isValidStopConstraints({ stayMinutes: 90 })).toBe(true);
+    expect(isValidStopConstraints({ stayMinutes: 0 })).toBe(false);
+    expect(isValidStopConstraints({ stayMinutes: 1441 })).toBe(false);
+    expect(isValidStopConstraints({ stayMinutes: 12.5 })).toBe(false);
+  });
+
+  it("timeConstraint='fixed' — 확정 시각(time) 필수, windowEnd 동반 시 malformed", () => {
+    expect(isValidStopConstraints({ timeConstraint: 'fixed', time: '09:00' })).toBe(true);
+    expect(isValidStopConstraints({ timeConstraint: 'fixed', time: '' })).toBe(false);
+    expect(isValidStopConstraints({ timeConstraint: 'fixed', time: '09:00', windowEnd: '10:00' })).toBe(false);
+  });
+
+  it("timeConstraint='window' — time~windowEnd 필수, windowEnd > time", () => {
+    expect(isValidStopConstraints({ timeConstraint: 'window', time: '09:00', windowEnd: '11:00' })).toBe(true);
+    expect(isValidStopConstraints({ timeConstraint: 'window', time: '11:00', windowEnd: '09:00' })).toBe(false);
+    expect(isValidStopConstraints({ timeConstraint: 'window', time: '09:00' })).toBe(false); // windowEnd 없음
+  });
+
+  it('windowEnd 단독(timeConstraint 없음)은 불일치 — malformed', () => {
+    expect(isValidStopConstraints({ windowEnd: '10:00' })).toBe(false);
+  });
+
+  it('placeKey/placeSource — 반드시 짝, 빈 문자열/과도한 길이/미지 source 는 malformed', () => {
+    expect(isValidStopConstraints({ placeKey: 'gyeongbokgung', placeSource: 'cocotrip-attractions' })).toBe(true);
+    expect(isValidStopConstraints({ placeKey: 'gyeongbokgung' })).toBe(false); // placeSource 없음
+    expect(isValidStopConstraints({ placeSource: 'cocotrip-attractions' })).toBe(false); // placeKey 없음
+    expect(isValidStopConstraints({ placeKey: '', placeSource: 'cocotrip-attractions' })).toBe(false);
+    expect(isValidStopConstraints({ placeKey: 'x'.repeat(200), placeSource: 'cocotrip-attractions' })).toBe(false);
+    expect(isValidStopConstraints({ placeKey: 'ok', placeSource: 'other' as never })).toBe(false);
+  });
+
+  it('normalizeStopExtras(lenient) — 불량 필드만 조용히 제거, stop 은 항상 반환', () => {
+    const s = stop('경복궁', { stayMinutes: -5, timeConstraint: 'window', time: '09:00' }); // windowEnd 없음
+    const cleaned = normalizeStopExtras(s as never)!;
+    expect(cleaned).not.toBeNull();
+    expect('stayMinutes' in cleaned).toBe(false);
+    expect('timeConstraint' in cleaned).toBe(false); // window 인데 windowEnd 없어 통째로 제거
+    expect(cleaned.title).toBe('경복궁'); // stop 자체는 보존
+  });
+
+  it('normalizeStopExtras(strict) — malformed 는 stop 전체 드롭(null), 유효/무필드는 통과', () => {
+    const bad = stop('X', { timeConstraint: 'fixed', time: '' });
+    expect(normalizeStopExtras(bad as never, 'strict')).toBeNull();
+    const good = stop('X', { timeConstraint: 'fixed', time: '09:00' });
+    expect(normalizeStopExtras(good as never, 'strict')).not.toBeNull();
+    const legacy = stop('X');
+    expect(normalizeStopExtras(legacy as never, 'strict')).not.toBeNull();
+  });
+
+  it('addStop/updateStop — 불량 확장필드는 조용히 제거되고 장소는 남는다(lenient)', () => {
+    let d = emptyDraft(1000);
+    d = addStop(d, 0, stop('경복궁', { stayMinutes: 9999 }));
+    expect(d.days[0].stops[0].title).toBe('경복궁');
+    expect('stayMinutes' in d.days[0].stops[0]).toBe(false);
+
+    d = addStop(d, 0, stop('N타워', { timeConstraint: 'fixed', time: '10:00' }));
+    const id = d.days[0].stops[1].id;
+    d = updateStop(d, 0, id, { timeConstraint: 'window' as never }); // time 없이 window 로 바꾸면 malformed → 제거
+    expect(d.days[0].stops[1].title).toBe('N타워'); // 장소는 그대로
+    expect('timeConstraint' in d.days[0].stops[1]).toBe(false);
+  });
+
+  it('decodeSharedCourse — 구버전 링크(확장필드 없음)는 그대로 읽힘', () => {
+    let d = emptyDraft(1000);
+    d = addStop(d, 0, stop('경복궁', { time: '09:00' }));
+    const decoded = decodeSharedCourse(encodeCourseForShare(d), 2000)!;
+    expect(decoded.days[0].stops[0].title).toBe('경복궁');
+    expect('stayMinutes' in decoded.days[0].stops[0]).toBe(false);
+  });
+
+  it('decodeSharedCourse — 유효 확장필드는 라운드트립, 명시적 malformed 는 fail-closed 로 그 stop 만 드롭', () => {
+    // addStop 은 UI 입력(lenient)이라 malformed 확장필드를 즉시 정리해버리므로, 여기서는
+    // 조작된 원본 payload(해시 조작 등 트러스트 경계 시나리오)를 직접 구성해 decode 를 검증한다.
+    const evil = {
+      v: 1,
+      days: [{
+        stops: [
+          { title: '경복궁', time: '09:00', stayMinutes: 60, timeConstraint: 'fixed', placeKey: 'gyeongbokgung', placeSource: 'cocotrip-attractions' },
+          { title: '망가진곳', timeConstraint: 'fixed', time: '' }, // fixed 인데 time 없음 — malformed
+        ],
+      }],
+    };
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(evil))));
+    const decoded = decodeSharedCourse(b64, 2000)!;
+    expect(decoded.days[0].stops).toHaveLength(1); // 망가진 stop 은 드롭, 나머지는 살아남음
+    const s0 = decoded.days[0].stops[0];
+    expect(s0.title).toBe('경복궁');
+    expect(s0.stayMinutes).toBe(60);
+    expect(s0.timeConstraint).toBe('fixed');
+    expect(s0.placeKey).toBe('gyeongbokgung');
+  });
+});
+
+describe('moveStopWithinDay — 같은 day 내 단일 재배치', () => {
+  it('지정 인덱스로 이동, 범위 클램프, no-op 은 동일 참조', () => {
+    let d = emptyDraft(1000);
+    d = addStop(d, 0, stop('A'));
+    d = addStop(d, 0, stop('B'));
+    d = addStop(d, 0, stop('C'));
+    const idA = d.days[0].stops[0].id;
+    const moved = moveStopWithinDay(d, 0, idA, 2);
+    expect(moved.days[0].stops.map((s) => s.title)).toEqual(['B', 'C', 'A']);
+    expect(moveStopWithinDay(d, 0, idA, 0)).toBe(d); // 이미 0번 — no-op
+    expect(moveStopWithinDay(d, 0, 'no-such', 1)).toBe(d);
+    const clamped = moveStopWithinDay(d, 0, idA, 99);
+    expect(clamped.days[0].stops.map((s) => s.title)).toEqual(['B', 'C', 'A']);
   });
 });

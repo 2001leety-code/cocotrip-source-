@@ -11,7 +11,7 @@
  */
 import type { Language } from '@/i18n';
 import { fetchPublishedZoneCourses, type ZoneCourseDoc } from '@/lib/zone-courses-firestore';
-import type { CourseStop } from './courseOps';
+import { isValidStayMinutes, type CourseStop } from './courseOps';
 
 /** 화면에 한 번에 보여줄 검증 코스 개수. 목록이 길면 고르기가 더 어려워진다. */
 const MAX_TEMPLATES = 4;
@@ -116,5 +116,7 @@ export function zoneCourseTemplateToStops(
     // toPublishedTemplate 이 이미 걸러낸 장소들이라 null 이 나올 수 없다.
     lat: toCoord(stop.lat) as number,
     lng: toCoord(stop.lng) as number,
+    // 운영자가 검증한 체류시간 — 범위 밖(0·음수·비정수)이면 자유시간으로 떨어뜨린다(코스빌더 쪽에서 다시 검증됨).
+    ...(isValidStayMinutes(stop.stay_min) ? { stayMinutes: stop.stay_min } : {}),
   }));
 }
