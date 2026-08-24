@@ -67,7 +67,7 @@ npm run plan:test -- sample
 ## 동작 원리 (오프라인 보장)
 
 `run.mjs` 가 prod 모듈 import **전에** `installMocks()` 로 세 boundary 를 치환한다
-(`module.registerHooks`, prod 코드 0 수정):
+(`module.register`, Node 20.6+, prod 코드 0 수정):
 
 | 치환 대상 | 효과 |
 |---|---|
@@ -99,7 +99,10 @@ scripts/plan-local/
   record.mjs            # 1회성: 실 Firestore+Gemini → fixtures
   run.mjs               # 오프라인 러너 (plan:test)
   _pipeline.mjs         # POST-Gemini 파이프라인 실행 + 콘솔 요약
-  _mocks.mjs            # module.registerHooks 인터셉트 + mock adminDb
+  _mocks.mjs            # module.register 설치 + mock adminDb
+  _loader.mjs           # Node 20+ ESM import 경계 리다이렉트
+  _firestore-admin-mock.mjs
+  _transit-provider-mock.mjs
   _axios-mock.mjs       # 하네스 axios (geocoding 좌표표 응답)
   fixtures/
     sample-blocks.json      # 서울+부산 5일 실 zone_courses 블록 5개
