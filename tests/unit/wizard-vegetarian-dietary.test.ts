@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { checkDietaryCoverage } from '../../api/_shared/dietary-trust.js';
-import { ALLERGY_KEYS } from '../../src/components/WizardForm/data';
+import { DIETARY_RESTRICTION_KEYS } from '../../src/components/WizardForm/data';
 
 const read = (rel: string) => readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), rel), 'utf8');
 
@@ -19,17 +19,17 @@ const trustedVegan = { name: '비건식당', city: 'seoul', tag: 'vegan', verifi
 const trustedHalal = { name: '할랄식당', city: 'seoul', tag: 'halal', verification_status: 'muslim_friendly', rating: 4.6, reviewCount: 80 };
 
 describe('위자드 Vegetarian 노출', () => {
-  it('ALLERGY_KEYS 에 Vegetarian 포함, Halal·Vegan 과 함께, None 은 마지막', () => {
-    expect(ALLERGY_KEYS).toContain('Vegetarian');
-    expect(ALLERGY_KEYS).toContain('Halal');
-    expect(ALLERGY_KEYS).toContain('Vegan');
-    expect(ALLERGY_KEYS[ALLERGY_KEYS.length - 1]).toBe('None');
+  it('DIETARY_RESTRICTION_KEYS 에 Vegetarian 포함, Halal·Vegan 과 함께, None 은 마지막', () => {
+    expect(DIETARY_RESTRICTION_KEYS).toContain('Vegetarian');
+    expect(DIETARY_RESTRICTION_KEYS).toContain('Halal');
+    expect(DIETARY_RESTRICTION_KEYS).toContain('Vegan');
+    expect(DIETARY_RESTRICTION_KEYS[DIETARY_RESTRICTION_KEYS.length - 1]).toBe('None');
   });
 
-  it('i18n allergyVegetarian 4언어 존재', () => {
+  it('i18n dietaryRestrictionVegetarian 4언어 존재', () => {
     for (const lang of ['en', 'ko', 'ja', 'zh']) {
       const locale = JSON.parse(read(`../../src/i18n/locales/${lang}.json`));
-      expect(locale.planner?.allergyVegetarian, `${lang}.json allergyVegetarian 누락`).toBeTruthy();
+      expect(locale.planner?.dietaryRestrictionVegetarian, `${lang}.json dietaryRestrictionVegetarian 누락`).toBeTruthy();
     }
   });
 });

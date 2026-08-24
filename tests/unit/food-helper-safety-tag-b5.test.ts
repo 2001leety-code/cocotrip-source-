@@ -54,18 +54,15 @@ describe('B5 (P309) — getTagsForDiet SAFETY tag 폴백 차단', () => {
     expect(getTagsForDiet(['Meat', 'Seafood'])).toEqual(['general']);
   });
 
-  it('알레르기 단독 (Nuts) → allergen 태그 + general (식당 추천 가능)', () => {
-    // P189: allergen 만 선택 + food style 미선택 → general 포함 (추천 가능).
-    const tags = getTagsForDiet(['Nuts']);
-    expect(tags).toContain('allergen:nuts');
-    expect(tags).toContain('general');
+  it('2026-08-24: 레거시 알레르겐 값(Nuts) 단독 → [general] (allergen 태그 제거됨, 안전 무시)', () => {
+    // 알레르겐 4종(Nuts/Shellfish/Gluten/Dairy) 입력은 wizard 에서 제거됨(data.tsx ALLERGY_KEYS).
+    // 레거시 클라이언트/저장된 세션이 여전히 보내면 default 분기로 떨어져 general 로 처리된다.
+    expect(getTagsForDiet(['Nuts'])).toEqual(['general']);
   });
 
-  it('🔴 SAFETY: Halal + Nuts → [halal, allergen:nuts] (general 없음)', () => {
-    // halal 있으면 allergen-only general 폴백도 차단 (allergenPrefs general 추가 가드).
+  it('🔴 SAFETY: Halal + 레거시 Nuts → [halal] (general 없음, Nuts 는 무해 무시)', () => {
     const tags = getTagsForDiet(['Halal', 'Nuts']);
-    expect(tags).toContain('halal');
-    expect(tags).toContain('allergen:nuts');
+    expect(tags).toEqual(['halal']);
     expect(tags).not.toContain('general');
   });
 

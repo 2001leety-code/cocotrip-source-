@@ -101,12 +101,12 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: 'Korea-only data, not a general travel search',
       lede: 'We do not hand your trip to a generic search index. Restaurants, routes and intercity legs come from data we maintain for Korea specifically, which is why a plan can be followed rather than only read.',
       items: [
-        { figure: '3,166', label: 'restaurants in our Korea database', note: 'Coordinates and allergen flags for nuts, shellfish, gluten and dairy on every entry; a cuisine type on nearly all of them.' },
+        { figure: '3,166', label: 'restaurants in our Korea database', note: 'Coordinates on every entry, a cuisine type on nearly all of them, and a verification tier (operator-certified, Google-sourced, or unverified) for halal and vegan picks.' },
         { figure: '25', label: 'Korean cities covered', note: 'Seoul and Busan through Gyeongju, Jeonju, Sokcho, Yeosu and Tongyeong.' },
         { figure: 'Leg by leg', label: 'transit between stops, with its source', note: 'Where a route lookup returns a result we use its line, direction and duration. Where it does not, the leg is an estimate and the plan labels it as one.' },
       ],
       trustLine: 'Licensed Korean tour operator · payment through PayPal · English support, every day',
-      limits: 'What we do not claim: live opening hours, live seat availability, or that a restaurant is certified safe for your allergy. Confirm anything medical with the venue.',
+      limits: 'What we do not claim: live opening hours, live seat availability, or that every halal/vegan match is operator-certified — most are Google-sourced "friendly" listings, not certifications. Confirm anything medical or religious with the venue.',
     },
     modules: {
       eyebrow: 'Three ways to travel with us',
@@ -114,7 +114,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: 'Written for you',
         title: 'A day-by-day Korea itinerary',
-        body: 'Answer a short brief — dates, cities, how fast you like to move, what you cannot eat. You get timed stops, the transit leg between each one, restaurant picks filtered to your diet, and a map you can open on the street.',
+        body: 'Answer a short brief — dates, cities, how fast you like to move, Halal/Vegan/Vegetarian needs. You get timed stops, the transit leg between each one, restaurant picks filtered to your diet, and a map you can open on the street.',
         cta: 'Start the brief',
       },
       charter: {
@@ -165,7 +165,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '한국 — 일정·프라이빗 투어·전세차량',
       headline: '여행 조건을 알려주세요. 그대로 실행할 수 있는 한국 일정을 씁니다.',
-      lede: '날짜, 도시, 이동 속도, 못 먹는 음식을 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
+      lede: '날짜, 도시, 이동 속도, 할랄/비건/채식 여부를 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
       ctaPrimary: '일정 만들기',
       ctaSecondary: '완성된 플랜 보기',
       pickCity: '도시부터 고르기',
@@ -177,12 +177,12 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '일반 여행 검색이 아니라 한국 전용 데이터',
       lede: '범용 검색 결과를 그대로 옮기지 않습니다. 식당, 이동 경로, 도시 간 구간 모두 한국을 위해 직접 관리하는 데이터에서 나옵니다. 그래서 읽고 마는 일정이 아니라 따라갈 수 있는 일정이 됩니다.',
       items: [
-        { figure: '3,166', label: '자체 한국 식당 데이터', note: '좌표와 견과·갑각류·글루텐·유제품 알레르기 표시는 전 항목 보유, 음식 종류는 대부분 보유합니다.' },
+        { figure: '3,166', label: '자체 한국 식당 데이터', note: '전 항목에 좌표, 대부분에 음식 종류를 보유하며, 할랄·비건 항목에는 검증 등급(운영자 인증/구글 기반/미검증)을 표시합니다.' },
         { figure: '25', label: '수록 도시', note: '서울·부산부터 경주, 전주, 속초, 여수, 통영까지.' },
         { figure: '구간별', label: '정거장 사이 이동, 출처를 함께', note: '실시간 경로 조회가 되는 구간은 노선·방향·소요 시간을 그대로 씁니다. 안 되는 구간은 추정으로 계산하고, 플랜에 추정이라고 적습니다.' },
       ],
       trustLine: '관광사업 등록 업체 · PayPal 결제 · 영어 응대 상시',
-      limits: '주장하지 않는 것: 실시간 영업시간, 실시간 좌석 현황, 알레르기 안전 보증. 건강과 관련된 사항은 반드시 현장에 직접 확인하세요.',
+      limits: '주장하지 않는 것: 실시간 영업시간, 실시간 좌석 현황, 모든 할랄·비건 매칭이 인증되었다는 보증(대부분은 구글 기반 "친화" 등급이며 인증이 아닙니다). 건강·종교 관련 사항은 반드시 현장에 직접 확인하세요.',
     },
     modules: {
       eyebrow: '함께 여행하는 세 가지 방법',
@@ -190,7 +190,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '직접 작성',
         title: '일자별 한국 일정',
-        body: '짧은 질문에 답하면 됩니다. 날짜, 도시, 선호하는 이동 속도, 못 먹는 음식. 시간이 찍힌 정거장, 각 구간의 이동 수단, 식이 조건으로 걸러낸 식당, 그리고 현장에서 바로 열 수 있는 지도를 받습니다.',
+        body: '짧은 질문에 답하면 됩니다. 날짜, 도시, 선호하는 이동 속도, 할랄/비건/채식 여부. 시간이 찍힌 정거장, 각 구간의 이동 수단, 식이 조건으로 걸러낸 식당, 그리고 현장에서 바로 열 수 있는 지도를 받습니다.',
         cta: '조건 입력 시작',
       },
       charter: {
@@ -241,7 +241,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
     hero: {
       eyebrow: '韓国 — 旅程・プライベートツアー・貸切車',
       headline: '旅の条件を教えてください。そのまま実行できる韓国の旅程をお作りします。',
-      lede: '日付、都市、移動のペース、食べられないものを入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
+      lede: '日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望を入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
       ctaPrimary: '旅程をつくる',
       ctaSecondary: '完成した旅程を見る',
       pickCity: '都市から選ぶ',
@@ -253,12 +253,12 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '一般的な旅行検索ではなく、韓国専用のデータ',
       lede: '汎用の検索結果をそのまま並べることはしません。レストラン、移動ルート、都市間の移動はすべて、韓国のために自社で管理しているデータから引いています。だから読むだけでなく、実際に辿れる旅程になります。',
       items: [
-        { figure: '3,166', label: '自社の韓国レストランデータ', note: '座標とナッツ・甲殻類・グルテン・乳製品のアレルギー表示は全件、料理ジャンルはほぼ全件で保持しています。' },
+        { figure: '3,166', label: '自社の韓国レストランデータ', note: '全件に座標、ほぼ全件に料理ジャンルを保持し、ハラル・ビーガン項目には検証段階（運営者認証・Google由来・未検証）を表示します。' },
         { figure: '25', label: '収録都市', note: 'ソウル・釜山から慶州、全州、束草、麗水、統営まで。' },
         { figure: '区間ごと', label: 'スポット間の移動を、出典つきで', note: 'リアルタイム経路が取得できた区間は路線・方向・所要時間をそのまま使います。取得できない区間は推定で算出し、旅程にも推定と明記します。' },
       ],
       trustLine: '観光事業登録済み · PayPal決済 · 英語対応は毎日',
-      limits: '主張しないこと：リアルタイムの営業時間、リアルタイムの空席状況、アレルギー安全の保証。健康に関わることは必ず現地でご確認ください。',
+      limits: '主張しないこと：リアルタイムの営業時間、リアルタイムの空席状況、すべてのハラル・ビーガン一致が認証済みであるという保証（大半はGoogle由来の「フレンドリー」判定で認証ではありません）。健康・宗教に関わることは必ず現地でご確認ください。',
     },
     modules: {
       eyebrow: '一緒に旅する3つの方法',
@@ -266,7 +266,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '個別に作成',
         title: '日ごとの韓国旅程',
-        body: '短い質問に答えるだけです。日付、都市、好みの移動ペース、食べられないもの。時刻つきのスポット、区間ごとの移動手段、食事条件で絞り込んだレストラン、そして現地ですぐ開ける地図をお渡しします。',
+        body: '短い質問に答えるだけです。日付、都市、好みの移動ペース、ハラール・ヴィーガン・ベジタリアンの希望。時刻つきのスポット、区間ごとの移動手段、食事条件で絞り込んだレストラン、そして現地ですぐ開ける地図をお渡しします。',
         cta: '条件を入力する',
       },
       charter: {
@@ -329,12 +329,12 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       heading: '不是通用旅行搜索，而是韩国专用数据',
       lede: '我们不会把通用搜索结果直接搬过来。餐厅、路线和城际交通都来自我们专为韩国维护的数据，所以行程不只是能读，而是能照着走。',
       items: [
-        { figure: '3,166', label: '自有韩国餐厅数据', note: '每条都带坐标与坚果、甲壳类、麸质、乳制品过敏标记；菜系信息覆盖绝大多数条目。' },
+        { figure: '3,166', label: '自有韩国餐厅数据', note: '每条都带坐标，绝大多数带菜系信息；清真、纯素条目附验证等级(运营方认证/谷歌来源/未验证)。' },
         { figure: '25', label: '收录城市', note: '从首尔、釜山到庆州、全州、束草、丽水、统营。' },
         { figure: '逐段', label: '站点之间的交通，并标注来源', note: '能查到实时路径的路段，直接采用其线路、方向和耗时。查不到的路段按估算处理，并在行程里标明是估算。' },
       ],
       trustLine: '已注册旅行社 · PayPal 支付 · 英语支持全天候',
-      limits: '我们不主张的：实时营业时间、实时余位、过敏安全保证。涉及健康的事项请务必向商家当面确认。',
+      limits: '我们不主张的：实时营业时间、实时余位、所有清真/纯素匹配均经认证(多数为谷歌来源的"友好"标注，非认证)。涉及健康或宗教的事项请务必向商家当面确认。',
     },
     modules: {
       eyebrow: '同行的三种方式',
@@ -342,7 +342,7 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       plan: {
         kicker: '为你撰写',
         title: '逐日的韩国行程',
-        body: '回答几个问题即可：日期、城市、喜欢的节奏、不能吃的东西。你会拿到带时刻的站点、每段之间的交通方式、按饮食条件筛过的餐厅，以及在路上就能打开的地图。',
+        body: '回答几个问题即可：日期、城市、喜欢的节奏、清真/纯素/素食需求。你会拿到带时刻的站点、每段之间的交通方式、按饮食条件筛过的餐厅，以及在路上就能打开的地图。',
         cta: '开始填写条件',
       },
       charter: {

@@ -77,12 +77,12 @@ describe('hasMeaningfulWizardContentStrict — 의미있는 시그널 ≥2 (PR-D
   });
 
   it('SAFETY: 알레르기 단독 → true', () => {
-    expect(hasMeaningfulWizardContentStrict({ allergies: ['peanuts'] })).toBe(true);
+    expect(hasMeaningfulWizardContentStrict({ dietaryRestrictions: ['peanuts'] })).toBe(true);
   });
 
   it('빈 식이/알레르기 배열은 시그널 아님 (단독 false)', () => {
     expect(hasMeaningfulWizardContentStrict({ dietPrefs: [] })).toBe(false);
-    expect(hasMeaningfulWizardContentStrict({ allergies: [] })).toBe(false);
+    expect(hasMeaningfulWizardContentStrict({ dietaryRestrictions: [] })).toBe(false);
   });
 
   it('기본 paxInput="2" 는 시그널로 세지 않음', () => {

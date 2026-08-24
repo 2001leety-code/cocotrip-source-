@@ -208,3 +208,62 @@ export function getAttractionsContext({ city, styles = [], language = 'en', maxL
     sections.join('\n\n') +
     `\n---`;
 }
+
+// ── Strict exact-city candidates (2026-08-24, planner-trust-course) ─────────
+// getAttractionsContext()/normCity() above intentionally relax to "all cities"
+// or "seoul" when a city has too little data (P190 — better a Seoul museum
+// suggestion than an empty prompt for the full paid planner). The free quick
+// preview must not: a traveller who typed Gangneung/Suwon/Yeosu/Daegu and
+// gets a Seoul-grounded context has no way to know the "verified" places
+// aren't in their city. This section only ever returns rows whose `city`
+// field is the exact resolved key — never all-city, never seoul.
+
+/**
+ * Exact-city attraction candidates — no relax-to-all-city, no seoul default.
+ * @param {string} cityKey one of api/_shared/cityResolver.js UI_CITY_KEYS
+ * @returns {Array<object>} raw index rows for that city only (may be empty)
+ */
+export function getExactCityAttractionCandidates(cityKey) {
+  const index = getAttractionsIndex();
+  if (!cityKey) return [];
+  return index.filter((a) => a.city === cityKey);
+}
+
+/**
+ * Strict exact-city attractions context string for prompt injection.
+ * Returns '' if the city has zero attraction rows (caller decides whether an
+ * empty context is fatal — for the quick preview it is, via a 422).
+ * @param {object} opts
+ * @param {string} opts.cityKey
+ * @param {string} [opts.language]
+ * @param {number} [opts.maxLocations]
+ * @returns {{ contextString: string, candidates: Array<object> }}
+ */
+export function getExactCityAttractionsContext({ cityKey, language = 'en', maxLocations = 10, styleFilter = [] } = {}) {
+  let pool = getExactCityAttractionCandidates(cityKey);
+  // 2026-08-24 (planner-trust-course #9): when the traveler selected Temple/
+  // Night, prioritize/filter to that theme (existing _source/theme data) —
+  // may result in 0 candidates for a thin city; caller decides that's fatal.
+  const activeStyles = (styleFilter || []).filter((s) => STYLE_TO_SOURCE[s]);
+  if (activeStyles.length > 0) {
+    const allowedSources = new Set(activeStyles.flatMap((s) => STYLE_TO_SOURCE[s]));
+    pool = pool.filter((a) => allowedSources.has(a._source || a.theme));
+  }
+  const candidates = pool.slice(0, maxLocations);
+  if (candidates.length === 0) return { contextString: '', candidates: [] };
+
+  // 2026-08-24 (planner-trust-course): no admission-fee/hours claims in the
+  // quick-preview context — hours change, fees change, and this endpoint has
+  // no freshness guarantee on either. Budget stays a user preference only,
+  // never an exact number derived from this list.
+  const langKey = ['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en';
+  const lines = candidates.map((a) => {
+    const displayName = (a.name && (a.name[langKey] || a.name.en || a.name.ko)) || a.key || '';
+    const koName = (a.name && a.name.ko) || '';
+    return `  • ${displayName}${koName && koName !== displayName ? ` (${koName})` : ''}`;
+  });
+  const cityLabel = String(cityKey).charAt(0).toUpperCase() + String(cityKey).slice(1);
+  const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} ATTRACTIONS (exact-city only — do not use for another city) ---\n` +
+    `Use EXACT names from this list for named attractions/landmarks:\n${lines.join('\n')}\n---`;
+  return { contextString, candidates };
+}

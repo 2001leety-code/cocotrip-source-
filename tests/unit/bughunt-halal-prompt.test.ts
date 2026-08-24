@@ -1,18 +1,19 @@
 /**
  * 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J). 회귀 차단.
  *
- * 배경: P10 이후 WizardForm 은 Halal/Vegan 을 ALLERGY_KEYS(=allergies 배열)에 둔다(data.tsx).
- *   userMessageBuilder 는 Gemini userMessage 의 `diet_preferences` 키엔 dietPrefs(Seafood/Meat/
- *   Street 등)만, `food_allergies` 키엔 allergies(Halal/Vegan/Nuts/...)를 넣었다.
- *   그런데 buildSystemPrompt 의 가장 구체적 식이 지시(buildPrompt.js `### Diet preferences:` —
+ * 배경: WizardForm 은 Halal/Vegan/Vegetarian 을 DIETARY_RESTRICTION_KEYS(=dietaryRestrictions 배열)에 둔다(data.tsx).
+ *   buildSystemPrompt 의 가장 구체적 식이 지시(buildPrompt.js `### Diet preferences:` —
  *   Halal → ONLY halal-certified / NEVER pork, Vegan → ONLY plant-based / NEVER fish sauce·anchovy)
  *   는 `If diet_preferences includes "Halal"/"Vegan"` 으로 `diet_preferences` 키에 게이트된다.
- *   → Halal/Vegan 이 food_allergies 로만 전달되면 이 강한 지시가 첫 Gemini 호출서 미발화 →
+ *   → Halal/Vegan 이 diet_preferences 로 안 올라가면 이 강한 지시가 첫 Gemini 호출서 미발화 →
  *     첫 응답에 돼지/주류·동물성 혼입 위험 (HIGH 안전).
  *
- * Fix: userMessageBuilder 가 allergies 안의 Halal/Vegan(/Vegetarian) 을 diet_preferences 에도
- *   합쳐 노출 → `### Diet preferences:` 게이트가 첫 응답서 발화. food_allergies 는 원본 유지
- *   (알레르기 비스크리닝 notice + SAFETY 백스톱 무손상).
+ * Fix: userMessageBuilder 가 dietaryRestrictions 안의 Halal/Vegan(/Vegetarian) 을 diet_preferences 에도
+ *   합쳐 노출 → `### Diet preferences:` 게이트가 첫 응답서 발화.
+ *
+ * 2026-08-24 (planner trust): allergen 4종(Nuts/Shellfish/Gluten/Dairy) + food_allergies 필드는
+ *   제거됨 — WizardForm DIETARY_RESTRICTION_KEYS 는 이제 Halal/Vegan/Vegetarian/None 만 보낸다. 레거시
+ *   클라이언트가 옛 알레르겐 값을 여전히 보내도 diet_preferences 에 절대 누출되지 않는다.
  *
  * 회귀 시: diet_preferences 가 dietPrefs 만 담아 Halal/Vegan 미발화 → 첫 응답 식이 위반 위험 복귀.
  */
@@ -50,7 +51,7 @@ function makeShaped(overrides: any = {}) {
     luggage: 'medium',
     specialRequest: '',
     dietPrefs: [],
-    allergies: [],
+    dietaryRestrictions: [],
     spiceLevel: 'medium',
     bucketDishes: [],
     priceRange: 'Any',
@@ -91,47 +92,53 @@ function extractUserInput(msg: string): any {
 }
 
 describe('버그헌트 #5 (halal) — Halal/Vegan diet_preferences 발화', () => {
-  it('Halal 이 allergies 로만 와도 diet_preferences 에 포함된다 (게이트 발화)', () => {
+  it('Halal 이 dietaryRestrictions 로만 와도 diet_preferences 에 포함된다 (게이트 발화)', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: [], allergies: ['Halal'] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: ['Halal'] }),
       body: {},
       ...CTX,
     });
     const ui = extractUserInput(msg);
     expect(ui.diet_preferences).toBeDefined();
     expect(ui.diet_preferences).toContain('Halal');
-    // food_allergies 도 원본 유지 (알레르기 백스톱 무손상)
-    expect(ui.food_allergies).toContain('Halal');
+    expect(ui.food_allergies).toBeUndefined(); // 필드 자체가 제거됨 (2026-08-24)
   });
 
-  it('Vegan 이 allergies 로만 와도 diet_preferences 에 포함된다', () => {
+  it('Vegan 이 dietaryRestrictions 로만 와도 diet_preferences 에 포함된다', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: [], allergies: ['Vegan'] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: ['Vegan'] }),
       body: {},
       ...CTX,
     });
     const ui = extractUserInput(msg);
     expect(ui.diet_preferences).toContain('Vegan');
-    expect(ui.food_allergies).toContain('Vegan');
   });
 
-  it('Halal + Nuts 혼합: Halal 은 diet_preferences, Nuts 는 diet_preferences 에 누출 안 됨', () => {
+  it('Vegetarian 이 dietaryRestrictions 로만 와도 diet_preferences 에 포함된다', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: [], allergies: ['Halal', 'Nuts'] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: ['Vegetarian'] }),
       body: {},
       ...CTX,
     });
     const ui = extractUserInput(msg);
-    // Halal 만 diet 게이트로 올라감
-    expect(ui.diet_preferences).toContain('Halal');
-    expect(ui.diet_preferences).not.toContain('Nuts');
-    // 알레르기 백스톱: Nuts + Halal 모두 food_allergies 에 그대로
-    expect(ui.food_allergies).toEqual(expect.arrayContaining(['Halal', 'Nuts']));
+    expect(ui.diet_preferences).toContain('Vegetarian');
   });
 
-  it('dietPrefs + allergies(Halal) 공존: 둘 다 diet_preferences, 중복 없음', () => {
+  it('레거시 알레르겐 값(Nuts) 은 diet_preferences 에 절대 누출되지 않는다', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: ['Seafood', 'Halal'], allergies: ['Halal'] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: ['Halal', 'Nuts'] }),
+      body: {},
+      ...CTX,
+    });
+    const ui = extractUserInput(msg);
+    expect(ui.diet_preferences).toContain('Halal');
+    expect(ui.diet_preferences).not.toContain('Nuts');
+    expect(ui.food_allergies).toBeUndefined();
+  });
+
+  it('dietPrefs + dietaryRestrictions(Halal) 공존: 둘 다 diet_preferences, 중복 없음', () => {
+    const msg = buildUserMessage({
+      shaped: makeShaped({ dietPrefs: ['Seafood', 'Halal'], dietaryRestrictions: ['Halal'] }),
       body: {},
       ...CTX,
     });
@@ -142,21 +149,21 @@ describe('버그헌트 #5 (halal) — Halal/Vegan diet_preferences 발화', () =
     expect(halalCount).toBe(1);
   });
 
-  it('식이 무선택(allergies=Nuts 만): diet_preferences 미정의, food_allergies 만', () => {
+  it('식이 무선택(dietaryRestrictions=Nuts 만, 레거시 값): diet_preferences 미정의', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: [], allergies: ['Nuts'] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: ['Nuts'] }),
       body: {},
       ...CTX,
     });
     const ui = extractUserInput(msg);
-    // Halal/Vegan 없으면 diet_preferences 비어 undefined 유지 (불필요 발화 방지)
+    // Halal/Vegan/Vegetarian 없으면 diet_preferences 비어 undefined 유지 (불필요 발화 방지)
     expect(ui.diet_preferences).toBeUndefined();
-    expect(ui.food_allergies).toContain('Nuts');
+    expect(ui.food_allergies).toBeUndefined();
   });
 
   it('완전 무선택: diet_preferences / food_allergies 둘 다 undefined', () => {
     const msg = buildUserMessage({
-      shaped: makeShaped({ dietPrefs: [], allergies: [] }),
+      shaped: makeShaped({ dietPrefs: [], dietaryRestrictions: [] }),
       body: {},
       ...CTX,
     });
@@ -165,7 +172,7 @@ describe('버그헌트 #5 (halal) — Halal/Vegan diet_preferences 발화', () =
     expect(ui.food_allergies).toBeUndefined();
   });
 
-  it('source — buildPrompt 의 diet_preferences 게이트가 Halal/Vegan 강한 지시 보유 (백스톱 동반)', () => {
+  it('source — buildPrompt 의 diet_preferences 게이트가 Halal/Vegan 강한 지시 보유', () => {
     const bp = readFileSync(
       resolve(__dirname, '../../api/_ai_core/buildPrompt.js'),
       'utf8',
@@ -173,8 +180,9 @@ describe('버그헌트 #5 (halal) — Halal/Vegan diet_preferences 발화', () =
     // 게이트 문구 존재 — 본 수정이 발화시키려는 대상
     expect(bp).toMatch(/If diet_preferences includes "Halal"/);
     expect(bp).toMatch(/If diet_preferences includes "Vegan"/);
-    // food_allergies SAFETY 백스톱도 그대로 (약화 금지)
     expect(bp).toMatch(/Halal\s*→\s*ONLY verified halal/i);
     expect(bp).toMatch(/Vegan\s*→\s*ZERO animal products/i);
+    // food_allergies SAFETY 섹션은 제거됨 (2026-08-24) — 재도입 회귀 감지.
+    expect(bp).not.toMatch(/food_allergies/);
   });
 });

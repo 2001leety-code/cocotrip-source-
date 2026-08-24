@@ -1,81 +1,211 @@
-// Step 3: summary review + the free day-one preview.
+// Step 3: canonical-intent review + the free day-one preview.
 //
-// 2026-08-10 follow-up: the action block used to be a price card. It printed
-// the full-plan amount, said "Generate AI Itinerary" and closed with "Takes
-// about 15 seconds after payment" — above a button that calls
-// `/api/ai-planner-quick`, which is free and returns day one only. Pressing it
-// charges nothing, so this card now quotes nothing: it names the free preview,
-// says the full itinerary is a separate paid step, and leaves the amount where
-// money is actually asked for (`AiPlannerPricingNote` before the brief,
-// `PurchaseSection` after the preview). Locked by
+// 2026-08-24 (planner-trust-course): rewritten from a 4-card summary into a
+// full review of every answer the traveler gave across steps 0-3. No medical
+// allergy UI/copy anywhere — the wizard only ever collected Halal/Vegan/
+// Vegetarian (religious/ethical restrictions with a real trust chain, see
+// .claude/rules/dietary-safety.md), never allergens. Every group below is a
+// real <button> that routes to the exact step that owns those fields, so
+// "Tap any card to edit" (kept below) is now literally true instead of
+// aspirational copy.
+//
+// 2026-08-10 follow-up (still true): the action block used to be a price
+// card. It printed the full-plan amount, said "Generate AI Itinerary" and
+// closed with "Takes about 15 seconds after payment" — above a button that
+// calls `/api/ai-planner-quick`, which is free and returns day one only.
+// Pressing it charges nothing, so this card quotes nothing: it names the
+// free preview, says the full itinerary is a separate paid step, and leaves
+// the amount where money is actually asked for (`AiPlannerPricingNote`
+// before the brief, `PurchaseSection` after the preview). Locked by
 // `tests/unit/planner-free-preview-truthfulness.test.ts`.
 import type { ReactNode } from 'react';
-import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Hotel, Navigation } from 'lucide-react';
+import { MapPin, ChevronLeft, Plane, Sparkles, Check, UtensilsCrossed, Compass } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
-import { formatDateShort } from './helpers';
+import { parseDateOnly } from './dateOnly';
 import type { WizardDict } from './types';
+import type { ReservationStatus } from './WizardStep0Reservation';
+import type { TourPace } from './WizardStep2Details';
 import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 
 // 2026-08-04: helpers.tsx 에서 옮겨 왔다 (마크업 그대로). 소비처가 이 파일 하나뿐인데
 // 순수 함수 모듈에 섞여 있어 fast-refresh 가 위저드를 통째로 리마운트하게 만들고 있었다.
 // export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
-function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex w-full items-center justify-between gap-3">
-      <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-ec-ink-3">{icon} {label}</span>
-      <span className="ec-figure min-w-0 flex-1 truncate text-right text-[14px]">{value}</span>
+    <div className="flex w-full items-start justify-between gap-3 py-1">
+      <span className="shrink-0 text-[12px] text-ec-ink-3">{label}</span>
+      <span className="min-w-0 flex-1 text-right text-[13px] text-ec-ink-2">{value}</span>
     </div>
   );
 }
 
+// Whole-group button — every field in the group routes to the one step that
+// owns it, so the group itself (not each row) is the keyboard-accessible
+// edit target. aria-label spells out the group name + "Edit" for screen
+// readers, since the visible content is several stacked rows, not one line.
+function EditGroup({ icon, title, ariaLabel, onClick, children }: { icon: ReactNode; title: string; ariaLabel: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={ariaLabel}
+      className="w-full rounded-ec-md border border-ec-line px-3.5 py-3 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken hover:border-ec-line-3">
+      <span className="flex items-center gap-2 text-[13px] font-bold text-ec-ink mb-1.5">
+        {icon} {title}
+      </span>
+      <div className="space-y-0.5">{children}</div>
+    </button>
+  );
+}
+
+function cap(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+const RES_STATUS_LABELS: Record<string, { key: string; fb: string }> = {
+  nothing: { key: 'resNothingTitle', fb: 'Nothing booked yet' },
+  flight: { key: 'resFlightTitle', fb: 'Flight booked' },
+  flight_hotel: { key: 'resFlightHotelTitle', fb: 'Flight + hotel booked' },
+  all_done: { key: 'resAllDoneTitle', fb: 'All booked through CocoTrip' },
+};
+
+const ACCOM_BUDGET_INDEX: Record<string, string> = { budget: '1', moderate: '2', luxury: '3' };
+
 interface Step3Props {
   p: WizardDict;
-  allCities: string[];
-  startDate: string;
-  endDate: string;
-  arrivalTerminal: string;
-  pax: number;
-  selectedActivities: string[];
-  hotelAddress: string;
-  // 2026-05-21 (P134 분기 #34/#35 fix): 다도시 + 호텔 anchor 미리보기 props.
-  // mainCityKey: 단도시면 그 도시, 다도시면 entry city.
-  // hotelByCity: 다도시 시 도시별 호텔 Record (cityKey → address).
-  // recommendedZones: 호텔 미입력 시 zone 중심 fallback (cityKey → zoneKey).
-  // 운영자 의도 (P134): 호텔 입력 여부와 무관하게 매일 동선 구조 (호텔→이동→장소→...→복귀) 유지.
-  // Review step 에서 사용자가 "왜 호텔 입력하면 디테일 ↑" 인지 + 다도시 plan 도 한눈에.
+  language?: string;
+
+  // Step 0: reservation
+  reservationStatus?: ReservationStatus | null;
+  arrivalTerminal?: string;
+  arrivalTime?: string;
+
+  // Step 1: destinations
+  allCities?: string[];
+  cityKeys?: string[];
+  arrivalCityKey?: string;
+  departureCityKey?: string;
+  selectedActivities?: string[];
+  freeText?: string;
+
+  // Step 2: food
+  dietPrefs?: string[];
+  dietaryRestrictions?: string[];
+  /** Distinguishes "user tapped None" (explicit) from "never touched this group" —
+   *  both leave dietaryRestrictions === []. See index.tsx toggleDietaryRestriction. */
+  dietaryRestrictionsTouched?: boolean;
+  priceRange?: string;
+  spiceLevel?: string;
+  bucketDishes?: string[];
+
+  // Step 3: details
+  startDate?: string;
+  endDate?: string;
+  pax?: number;
+  departureTerminal?: string;
+  departureTime?: string;
+  hotelAddress?: string;
   mainCityKey?: string;
   hotelByCity?: Record<string, string>;
   recommendedZones?: Record<string, string>;
   isMultiCity?: boolean;
-  isLoading: boolean;
-  errorMsg: string;
-  // 사용자 언어 — 가격 secondary 환산 표시용 (en→KRW / ko→KRW / ja→JPY / zh→CNY).
-  language?: string;
-  onEditStep: (step: number) => void;
-  onGenerate: () => void;
+  tourPace?: TourPace;
+  tourStartTime?: string;
+  tourEndTime?: string;
+  companions?: '' | 'solo' | 'couple' | 'family' | 'friends';
+  luggageSmall?: number;
+  luggageMedium?: number;
+  luggageLarge?: number;
+  wantAccom?: boolean;
+  accomBudget?: string;
+
+  isLoading?: boolean;
+  errorMsg?: string;
+  onEditStep?: (step: number) => void;
+  onGenerate?: () => void;
 }
 
 export function WizardStep3Review(props: Step3Props) {
   const {
-    p, allCities, startDate, endDate, arrivalTerminal, pax, selectedActivities, hotelAddress,
-    mainCityKey, hotelByCity, recommendedZones, isMultiCity,
-    isLoading, errorMsg, language, onEditStep, onGenerate,
+    p, language,
+    reservationStatus = null, arrivalTerminal = '', arrivalTime = '',
+    allCities = [], cityKeys = [], arrivalCityKey = '', departureCityKey = '', selectedActivities = [], freeText = '',
+    dietPrefs = [], dietaryRestrictions = [], dietaryRestrictionsTouched = false, priceRange = '', spiceLevel = '', bucketDishes = [],
+    startDate = '', endDate = '', pax = 0, departureTerminal = '', departureTime = '', hotelAddress = '',
+    mainCityKey = '', hotelByCity, recommendedZones, isMultiCity = false,
+    tourPace = 'moderate', tourStartTime = '', tourEndTime = '', companions = '',
+    luggageSmall = 0, luggageMedium = 0, luggageLarge = 0, wantAccom = false, accomBudget = '',
+    isLoading = false, errorMsg = '', onEditStep = () => {}, onGenerate = () => {},
   } = props;
 
   const c = pickPlannerCopy(language || 'en');
-  const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
+  const notSelected = p.wizardNotSelected || 'Not selected';
+  const editLabel = p.editLabel || 'Edit';
 
-  // 2026-05-21 (P134 분기 #34/#35 fix): destination 다도시 시 "Seoul → Busan" 형식.
-  const destinationValue = isMultiCity && allCities.length > 1
-    ? allCities.join(' → ')
-    : (allCities[0] || '-');
+  // Review dates use Intl + the local-calendar parser, never a fixed English
+  // month-name table — a ko/ja/zh traveler sees their own month names.
+  const localeTag = language === 'ko' ? 'ko-KR' : language === 'ja' ? 'ja-JP' : language === 'zh' ? 'zh-CN' : 'en-US';
+  function formatReviewDate(dateStr: string): string {
+    const d = parseDateOnly(dateStr);
+    if (!d) return '';
+    return d.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' });
+  }
+
+  // --- Group 1: Reservation & flight ---
+  const resStatusMeta = reservationStatus ? RES_STATUS_LABELS[reservationStatus] : null;
+  const reservationValue = resStatusMeta ? (p[resStatusMeta.key] || resStatusMeta.fb) : notSelected;
+  const showArrivalDetail = reservationStatus === 'flight' || reservationStatus === 'flight_hotel';
+  const arrivalAirportValue = (AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-') + (arrivalTime ? ` · ${arrivalTime}` : '');
+
+  // --- Group 2: Destination & activities ---
+  const citiesDisplay = allCities.length > 0
+    ? allCities.map((name, i) => {
+        const key = cityKeys[i] || '';
+        if (!isMultiCity || !key) return name;
+        const role = key === arrivalCityKey ? (p.wizardArrivalBadge || 'Arrival')
+          : key === departureCityKey ? (p.wizardDepartureBadge || 'Departure')
+          : '';
+        return role ? `${name} (${role})` : name;
+      }).join(' → ')
+    : '-';
+  const activitiesValue = selectedActivities.map(a => p[`act${a}`] || a).join(', ') || notSelected;
+  const specialRequestValue = freeText.trim() ? freeText.trim() : notSelected;
+
+  // --- Group 3: Food & dietary ---
+  const foodStylesValue = dietPrefs.map(k => p[`food${k}`] || k).join(', ') || notSelected;
+  let dietaryValue: string;
+  if (dietaryRestrictions.length > 0) {
+    dietaryValue = dietaryRestrictions.map(k => p[`dietaryRestriction${k}`] || k).join(', ');
+  } else if (dietaryRestrictionsTouched) {
+    dietaryValue = p.dietaryRestrictionNone || 'None';
+  } else {
+    dietaryValue = notSelected;
+  }
+  const priceValue = p[`price${priceRange}`] || priceRange || notSelected;
+  const spiceValue = p[`spice${cap(spiceLevel)}`] || spiceLevel || notSelected;
+  const bucketValue = bucketDishes.map(k => p[`bucket${cap(k)}`] || k).join(', ') || notSelected;
+
+  // --- Group 4: Trip details ---
+  // startDate/endDate both inclusive (last travel day shown, not the day after) —
+  // same repo-wide convention as src/components/charter/Step5DateOptions.tsx.
+  const datesValue = startDate && endDate ? `${formatReviewDate(startDate)} - ${formatReviewDate(endDate)}` : notSelected;
+  const paxValue = `${pax} ${p.wizardPaxUnit || 'pax'}`;
+  const departureAirportValue = (departureTerminal ? (AIRPORT_DISPLAY[departureTerminal] || departureTerminal) : (p.wizardDepartureSameAsArrival || 'Same as arrival airport'))
+    + (departureTime ? ` · ${departureTime}` : '');
+  const tourPaceValue = p[`tourPace${cap(tourPace)}`] || tourPace;
+  const tourWindowValue = `${tourStartTime || '09:00'} - ${tourEndTime || '21:00'}`;
+  const companionsValue = companions ? (p[`companions${cap(companions)}`] || companions) : notSelected;
+  const luggageParts: string[] = [];
+  if (luggageSmall > 0) luggageParts.push(`${luggageSmall} ${p.luggageSmall || 'Carry-on'}`);
+  if (luggageMedium > 0) luggageParts.push(`${luggageMedium} ${p.luggageMedium || 'Medium'}`);
+  if (luggageLarge > 0) luggageParts.push(`${luggageLarge} ${p.luggageLarge || 'Large'}`);
+  const luggageValue = luggageParts.length > 0 ? luggageParts.join(' · ') : notSelected;
+  const accomValue = wantAccom
+    ? `${p.accomOptIn || 'Suggest hotels for me'} — ${p[`accomBudget${ACCOM_BUDGET_INDEX[accomBudget] || '2'}`] || accomBudget}`
+    : notSelected;
 
   // 2026-05-21 (P134 분기 #34/#35 fix): 호텔 anchor 효과 미리보기.
   // 호텔 입력 도시 = "🏨 도시: 주소" / 호텔 없는 도시 = "📍 도시: zone".
   const hotelEntries: Array<{ city: string; address: string }> = [];
   const zoneEntries: Array<{ city: string; zone: string }> = [];
   if (isMultiCity && allCities.length > 1) {
-    // 다도시: mainCity 의 entry hotel + hotelByCity 의 모든 키
     if (mainCityKey) {
       const mainAddr = (hotelByCity && hotelByCity[mainCityKey]) || hotelAddress;
       if (mainAddr) hotelEntries.push({ city: allCities[0], address: mainAddr });
@@ -96,7 +226,6 @@ export function WizardStep3Review(props: Step3Props) {
       }
     }
   } else {
-    // 단도시
     if (hotelAddress) hotelEntries.push({ city: allCities[0] || '', address: hotelAddress });
     else if (mainCityKey && recommendedZones && recommendedZones[mainCityKey]) {
       zoneEntries.push({ city: allCities[0] || '', zone: recommendedZones[mainCityKey] });
@@ -107,55 +236,73 @@ export function WizardStep3Review(props: Step3Props) {
     <div className="space-y-5">
       <h2 className="ec-question">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
-      {/* Summary cards */}
-      <div className="ec-panel space-y-3 sm:space-y-4">
-        <div className="divide-y divide-ec-line">
-          <button onClick={() => onEditStep(0)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
-            <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={destinationValue} />
-          </button>
-          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
-            <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
-          </button>
-          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
-            <SummaryCard icon={<Plane className="w-4 h-4" />} label={p.wizardAirport || 'Airport'} value={airportLabel} />
-          </button>
-          <button onClick={() => onEditStep(2)} className="flex min-h-[44px] w-full items-center rounded-ec-sm px-1 py-2.5 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken">
-            <SummaryCard icon={<Users className="w-4 h-4" />} label={p.wizardTravelers || 'Travelers'} value={`${pax} ${p.wizardPaxUnit || 'pax'}`} />
-          </button>
-        </div>
-
-        <div className="text-xs text-ec-ink-3 space-y-1 border-t border-ec-line pt-3">
-          <p><span className="text-ec-ink-3">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-ec-ink-2">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
-
-          {/* 2026-05-21 (P134 분기 #34 fix): 호텔 입력 도시 anchor */}
-          {hotelEntries.map((e, i) => (
-            <p key={`hotel-${i}`} className="flex items-start gap-1.5">
-              <Hotel className="w-3 h-3 mt-0.5 text-ec-brand" />
-              <span className="text-ec-ink-3">
-                {hotelEntries.length > 1 || zoneEntries.length > 0 ? `${e.city}: ` : `${p.wizardHotelLabel || 'Hotel'}: `}
-              </span>
-              <span className="text-ec-ink-2">{e.address}</span>
-            </p>
-          ))}
-
-          {/* 2026-05-21 (P134 분기 #34 fix): zone 중심 fallback — 호텔 없는 도시 */}
-          {zoneEntries.map((e, i) => (
-            <p key={`zone-${i}`} className="flex items-start gap-1.5">
-              <Navigation className="w-3 h-3 mt-0.5 text-ec-ink-3" />
-              <span className="text-ec-ink-3">
-                {hotelEntries.length > 0 || zoneEntries.length > 1 ? `${e.city}: ` : `${p.wizardZoneCenterLabel || 'Zone center'}: `}
-              </span>
-              <span className="text-ec-ink-2">{e.zone}</span>
-            </p>
-          ))}
-
-          {/* 호텔도 zone 도 없는 경우 — backend 가 default fallback */}
-          {hotelEntries.length === 0 && zoneEntries.length === 0 && (
-            <p className="text-ec-ink-3 italic">
-              {p.wizardNoAnchorHint || 'Each day gets a practical starting point, set from the cities and dates above.'}
-            </p>
+      <div className="ec-panel space-y-2.5 sm:space-y-3">
+        <EditGroup
+          icon={<Plane className="w-4 h-4 text-ec-brand" />}
+          title={p.wizardReviewGroupReservation || 'Reservation & flight'}
+          ariaLabel={`${p.wizardReviewGroupReservation || 'Reservation & flight'} — ${editLabel}`}
+          onClick={() => onEditStep(0)}
+        >
+          <ReviewRow label={p.resTitle || 'Reservation status'} value={reservationValue} />
+          {showArrivalDetail && (
+            <ReviewRow label={p.wizardAirport || 'Airport'} value={arrivalAirportValue} />
           )}
-        </div>
+        </EditGroup>
+
+        <EditGroup
+          icon={<MapPin className="w-4 h-4 text-ec-brand" />}
+          title={p.wizardReviewGroupDestination || 'Destination & activities'}
+          ariaLabel={`${p.wizardReviewGroupDestination || 'Destination & activities'} — ${editLabel}`}
+          onClick={() => onEditStep(1)}
+        >
+          <ReviewRow label={p.wizardDestination || 'Destination'} value={citiesDisplay} />
+          <ReviewRow label={p.wizardActivitiesLabel || 'Activities'} value={activitiesValue} />
+          <ReviewRow label={p.wizardFreeInput || 'Special request'} value={specialRequestValue} />
+        </EditGroup>
+
+        <EditGroup
+          icon={<UtensilsCrossed className="w-4 h-4 text-ec-brand" />}
+          title={p.wizardReviewGroupFood || 'Food & dietary'}
+          ariaLabel={`${p.wizardReviewGroupFood || 'Food & dietary'} — ${editLabel}`}
+          onClick={() => onEditStep(2)}
+        >
+          <ReviewRow label={p.wizardFoodStyleLabel || 'Food styles'} value={foodStylesValue} />
+          <ReviewRow label={p.wizardFoodDietaryRestrictionLabel || 'Dietary restrictions'} value={dietaryValue} />
+          <ReviewRow label={p.wizardFoodPriceLabel || 'Meal budget'} value={priceValue} />
+          <ReviewRow label={p.wizardFoodSpiceLabel || 'Spice tolerance'} value={spiceValue} />
+          <ReviewRow label={p.wizardFoodBucketLabel || 'Korean bucket list'} value={bucketValue} />
+        </EditGroup>
+
+        <EditGroup
+          icon={<Compass className="w-4 h-4 text-ec-brand" />}
+          title={p.wizardReviewGroupDetails || 'Trip details'}
+          ariaLabel={`${p.wizardReviewGroupDetails || 'Trip details'} — ${editLabel}`}
+          onClick={() => onEditStep(3)}
+        >
+          <ReviewRow label={p.wizardDates || 'Dates'} value={datesValue} />
+          <ReviewRow label={p.wizardTravelers || 'Travelers'} value={paxValue} />
+          <ReviewRow label={p.wizardAirport || 'Arrival airport'} value={arrivalAirportValue} />
+          <ReviewRow label={(p as Record<string, string>).wizardWhichDepartureAirport || 'Departure airport'} value={departureAirportValue} />
+          {hotelEntries.map((e, i) => (
+            <ReviewRow key={`hotel-${i}`}
+              label={hotelEntries.length > 1 || zoneEntries.length > 0 ? e.city : (p.wizardHotelLabel || 'Hotel')}
+              value={e.address} />
+          ))}
+          {zoneEntries.map((e, i) => (
+            <ReviewRow key={`zone-${i}`}
+              label={hotelEntries.length > 0 || zoneEntries.length > 1 ? e.city : (p.wizardZoneCenterLabel || 'Zone center')}
+              value={e.zone} />
+          ))}
+          {hotelEntries.length === 0 && zoneEntries.length === 0 && (
+            <ReviewRow label={p.wizardHotelLabel || 'Hotel'}
+              value={p.wizardNoAnchorHint || 'Each day gets a practical starting point, set from the cities and dates above.'} />
+          )}
+          <ReviewRow label={p.tourPaceLabel || 'Daily tour pace'} value={tourPaceValue} />
+          <ReviewRow label={`${(p as Record<string, string>).tourStartTimeLabel || 'Tour start'} – ${(p as Record<string, string>).tourEndTimeLabel || 'Tour end'}`} value={tourWindowValue} />
+          <ReviewRow label={p.companionsLabel || 'Companions'} value={companionsValue} />
+          <ReviewRow label={p.luggageTitle || 'Luggage'} value={luggageValue} />
+          <ReviewRow label={p.accomOptIn || 'Accommodation recommendation'} value={accomValue} />
+        </EditGroup>
 
         <p className="text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
@@ -198,7 +345,7 @@ export function WizardStep3Review(props: Step3Props) {
       </div>
 
       {/* Back */}
-      <button onClick={() => onEditStep(2)}
+      <button onClick={() => onEditStep(3)}
         aria-label={p.planner_prev || 'Back'}
         className="ec-btn ec-btn-secondary w-full">
         <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}

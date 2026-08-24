@@ -19,7 +19,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
-import { WizardForm } from '@/components/WizardForm';
+import { WizardForm, type WizardInitialValues } from '@/components/WizardForm';
 import { filterSupportedRegions } from '@/components/WizardForm/cityKeys';
 import { AIIntroModal } from '@/components/AIIntroModal';
 import '@/styles/editorial-planner.css';
@@ -37,6 +37,7 @@ import { CourseBuilderShell } from './components/CourseBuilderShell';
 import { AiPlannerPricingNote } from './components/AiPlannerPricingNote';
 import { PlannerSeoInfo } from './components/PlannerSeoInfo';
 import { WizardSeenProbe } from './components/WizardSeenProbe';
+import { readPlannerRevisionSnapshot, clearPlannerRevisionSnapshot } from './lib/plannerRevisionSnapshot';
 
 type PlannerMode = 'ai' | 'course';
 
@@ -53,6 +54,8 @@ export default function PlannerPage() {
   const revisionMode = searchParams.get('revision') === 'true';
   const revisionPlanId = searchParams.get('planId') || null;
   const revisionToken = searchParams.get('token') || null;
+  // Revision bypass safety: both flag AND planId required to enter revision flow
+  const validRevisionContext = revisionMode && !!revisionPlanId;
   // W4: 사유 + avoidList URL params (RevisionCard → RevisionReasonModal → here)
   const revisionReason = searchParams.get('revisionReason') || null;
   const revisionNote = searchParams.get('revisionNote') || null;
@@ -78,17 +81,52 @@ export default function PlannerPage() {
   // reach `initialValues` untouched and be rendered as the destination.
   const revisionRegions = (searchParams.get('prefillRegions') || '').split(',').filter(Boolean);
   const deepLinkRegions = filterSupportedRegions(searchParams.get('prefillRegions'));
-  const prefillValues = revisionMode ? {
-    startDate: searchParams.get('prefillStartDate') || '',
-    endDate: searchParams.get('prefillEndDate') || '',
-    regions: revisionRegions,
-    categories: (searchParams.get('prefillCategories') || '').split(',').filter(Boolean),
-    pax: parseInt(searchParams.get('prefillPax') || '0', 10) || undefined,
-    arrivalAirport: searchParams.get('prefillArrival') || '',
-    hotelAddress: searchParams.get('prefillHotel') || '',
-    dietary: (searchParams.get('prefillDiet') || '').split(',').filter(Boolean),
-    allergies: (searchParams.get('prefillAllergies') || '').split(',').filter(Boolean),
-    freeText: searchParams.get('prefillFreeText') || '',
+
+  // 2026-08-24 (planner-intent-v1 §3): the versioned snapshot RevisionCard
+  // wrote (bound to THIS planId — readPlannerRevisionSnapshot returns null
+  // for any mismatch) carries the full safe brief; the URL prefill* params
+  // above are read only as a fallback for an old shared link that predates
+  // the snapshot or landed after private-mode/sessionStorage blocked it.
+  const revisionSnapshot = validRevisionContext
+    ? readPlannerRevisionSnapshot(revisionPlanId || '')
+    : null;
+  // Read once: consumed into `prefillValues` below on this render, then
+  // cleared so a later revision on a DIFFERENT plan never sees it again.
+  useEffect(() => {
+    if (revisionSnapshot) clearPlannerRevisionSnapshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!revisionSnapshot]);
+
+  const snapshotValues = revisionSnapshot?.values;
+  const prefillValues: WizardInitialValues | undefined = validRevisionContext ? {
+    startDate: snapshotValues?.startDate || searchParams.get('prefillStartDate') || '',
+    endDate: snapshotValues?.endDate || searchParams.get('prefillEndDate') || '',
+    regions: snapshotValues?.regions || revisionRegions,
+    categories: snapshotValues?.categories || (searchParams.get('prefillCategories') || '').split(',').filter(Boolean),
+    pax: snapshotValues?.pax || parseInt(searchParams.get('prefillPax') || '0', 10) || undefined,
+    arrivalAirport: snapshotValues?.arrival_airport || searchParams.get('prefillArrival') || '',
+    hotelAddress: snapshotValues?.hotel_address || searchParams.get('prefillHotel') || '',
+    dietary: snapshotValues?.dietPrefs || (searchParams.get('prefillDiet') || '').split(',').filter(Boolean),
+    dietaryRestrictions: snapshotValues?.dietaryRestrictions
+      || (searchParams.get('prefillDietaryRestrictions') || '').split(',').filter(Boolean),
+    freeText: snapshotValues?.freeText || searchParams.get('prefillFreeText') || '',
+    // The fields below have no legacy URL-param equivalent — snapshot-only.
+    departureAirport: snapshotValues?.departure_airport,
+    arrivalTime: snapshotValues?.arrival_time,
+    departureTime: snapshotValues?.departure_time,
+    tourStartTime: snapshotValues?.tour_start_time,
+    tourEndTime: snapshotValues?.tour_end_time,
+    hotelByCity: snapshotValues?.hotelByCity,
+    recommendedZone: snapshotValues?.recommended_zone,
+    recommendedZones: snapshotValues?.recommended_zones,
+    arrivalCityKey: snapshotValues?.arrival_city || snapshotValues?.entry_city,
+    departureCityKey: snapshotValues?.departure_city,
+    reservationStatus: snapshotValues?.reservation_status,
+    tourPace: snapshotValues?.tourPace as WizardInitialValues['tourPace'],
+    companions: snapshotValues?.companions as WizardInitialValues['companions'],
+    luggage: snapshotValues?.luggage,
+    wantAccom: snapshotValues?.wantAccom,
+    accomBudget: snapshotValues?.accomBudget,
   } : (deepLinkRegions.length ? { regions: deepLinkRegions } : undefined);
 
   usePageMeta({
@@ -124,7 +162,7 @@ export default function PlannerPage() {
   const {
     status, resultQuick, errorMsg, errorCode,
     isGeneratingPlan, planError, planErrorCode, lastValues,
-    handleSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
+    handleSubmit, handleRevisionSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
   } = usePlannerHandlers({ language, userEmail, setUserEmail });
 
   const localizedError = resolveErrorMessage(errorCode, errorMsg, (p as { errors?: Record<string, string> }).errors);
@@ -252,7 +290,12 @@ export default function PlannerPage() {
         {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
           <div ref={wizardRef} tabIndex={-1} className="scroll-mt-20">
             <WizardSeenProbe className="ec-panel">
-              <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
+              <WizardForm
+                onSubmit={validRevisionContext ? handleRevisionSubmit : handleSubmit}
+                isLoading={status === 'loadingQuick'}
+                initialValues={prefillValues}
+                isRevision={validRevisionContext}
+              />
             </WizardSeenProbe>
           </div>
         )}
@@ -301,7 +344,11 @@ export default function PlannerPage() {
         {/* Quick Success */}
         {status === 'quickSuccess' && resultQuick && (
           <div id="planner-quick-result" className="space-y-6">
-            <QuickPreviewCard resultQuick={resultQuick} p={p} language={language} />
+            {/* 2026-08-24 (planner-trust-course, revision entitlement): a revision
+                submit never calls /api/ai-planner-quick (see handleRevisionSubmit) —
+                resultQuick is a non-displayed placeholder, not a real preview, so
+                the card that would render it stays hidden. */}
+            {!validRevisionContext && <QuickPreviewCard resultQuick={resultQuick} p={p} language={language} />}
             <PurchaseSection
               p={p}
               language={language}
@@ -311,7 +358,7 @@ export default function PlannerPage() {
               planError={localizedPlanError}
               resultQuick={resultQuick}
               lastValues={lastValues}
-              revisionMode={revisionMode}
+              revisionMode={validRevisionContext}
               revisionPlanId={revisionPlanId}
               revisionToken={revisionToken}
               revisionReason={revisionReason}

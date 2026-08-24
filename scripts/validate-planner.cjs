@@ -124,20 +124,41 @@ function detectTipLang(stop) {
   return 'mixed';
 }
 
+// 2026-08-24: 다양성 비교쌍(rep1/rep2) 은 둘 다 "생성 증거"(성공 응답 + stops 존재)가
+// 있어야 overlap 비교가 성립한다. 하나라도 없으면 명시적 실패로 표시한다 — 과거엔
+// { overlap: 1, note: 'missing data' } 로 뭉개서 overlap_ratio 필드 자체가 없었고,
+// daily-health-check 는 그 필드를 아예 안 봤으므로 결측이 조용히 통과했다.
+//
+// overlap_ratio 는 반올림하지 않는다 — 29.99%(통과)와 30%(실패) 경계를 반올림하면
+// 뭉개진다. 화면 출력에서만 Math.round 로 보기 좋게 자른다.
 function calcDiversity(results) {
   const rep1 = results.find(r => r.scenario.id === 'seoul-meat-rep1');
   const rep2 = results.find(r => r.scenario.id === 'seoul-meat-rep2');
-  if (!rep1?.stops?.length || !rep2?.stops?.length) return { overlap: 1, note: 'missing data' };
+  if (!rep1?.stops?.length || !rep2?.stops?.length) {
+    return {
+      overlap_ratio: null,
+      overlap_count: null,
+      total_stops: null,
+      shared: [],
+      ok: false,
+      reason: '다양성 비교쌍(seoul-meat-rep1/rep2) 생성 증거 누락 — overlap 계산 불가',
+    };
+  }
 
   const names1 = new Set(rep1.stops.map(s => s.name));
   const names2 = new Set(rep2.stops.map(s => s.name));
-  const overlap = [...names1].filter(n => names2.has(n)).length;
+  const shared = [...names1].filter(n => names2.has(n));
+  const overlap = shared.length;
   const total = Math.max(names1.size, names2.size);
+  const overlap_ratio = total > 0 ? (overlap / total * 100) : 0;
+  const ok = overlap_ratio < 30;
   return {
     overlap_count: overlap,
     total_stops: total,
-    overlap_ratio: total > 0 ? Math.round(overlap / total * 100) : 0,
-    shared: [...names1].filter(n => names2.has(n)),
+    overlap_ratio,
+    shared,
+    ok,
+    reason: ok ? null : `중복률 ${overlap_ratio.toFixed(2)}% ≥ 30% 임계값`,
   };
 }
 
@@ -358,8 +379,12 @@ async function runAll() {
     }
   }
 
-  console.log(`\n  🎲 다양성: 중복률 ${diversity.overlap_ratio ?? '?'}% (${diversity.overlap_count ?? 0}/${diversity.total_stops ?? 0})`);
-  if (diversity.shared?.length) {
+  const overlapDisplay = typeof diversity.overlap_ratio === 'number' ? Math.round(diversity.overlap_ratio) : '?';
+  console.log(`\n  🎲 다양성: 중복률 ${overlapDisplay}% (${diversity.overlap_count != null ? diversity.overlap_count : 0}/${diversity.total_stops != null ? diversity.total_stops : 0})`);
+  if (diversity.reason) {
+    console.log(`    ⚠ ${diversity.reason}`);
+  }
+  if (diversity.shared && diversity.shared.length) {
     console.log(`    중복 장소: ${diversity.shared.join(', ')}`);
   }
 
@@ -389,7 +414,14 @@ async function runAll() {
   }
 }
 
-runAll().catch(err => {
-  console.error('Fatal:', err);
-  process.exit(1);
-});
+// 순수 헬퍼 export — daily-health-check.mjs 및 unit test 가 네트워크 없이 재사용한다.
+// require() 만으로 아래 runAll() 이 실행되면 안 되므로(비용 발생하는 라이브 Gemini 호출),
+// 직접 실행(node validate-planner.cjs)일 때만 돈다.
+module.exports = { calcDiversity, analyzeIssues, extractStops, detectTipLang, scenarios };
+
+if (require.main === module) {
+  runAll().catch(err => {
+    console.error('Fatal:', err);
+    process.exit(1);
+  });
+}

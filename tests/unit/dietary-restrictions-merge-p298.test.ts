@@ -1,20 +1,25 @@
 /**
- * P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건 allergies → dietaryAll 합집합 통합 회귀 차단.
+ * P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건 dietaryRestrictions → dietaryAll 합집합 통합 회귀 차단.
  *
  * 배경: WizardForm P10 (2026-04-24) 가 'Halal'/'Vegan' 을 style preference 에서
- *   ALLERGY_KEYS (data.tsx:237) 로 이동 → WizardStep1Food.tsx:65,67 에서 allergies
- *   배열로 체크. 그러나 handlerCore 는 dietPrefs 만 식이 검증·필터·추천·저장·dispatch
- *   체인에 전달 → 2026-04-24~05-29 할랄/비건 검증이 통째로 죽음 (무슬림/비건이
- *   9900원 내고 받은 plan 에 돼지고기집/육류 무검증 통과 = CLAUDE.md J 건강위험 1등급).
+ *   DIETARY_RESTRICTION_KEYS (data.tsx, 2026-08-24 이전엔 ALLERGY_KEYS) 로 이동 →
+ *   WizardStep1Food.tsx 에서 dietaryRestrictions 배열로 체크. 그러나 handlerCore 는
+ *   dietPrefs 만 식이 검증·필터·추천·저장·dispatch 체인에 전달 → 2026-04-24~05-29
+ *   할랄/비건 검증이 통째로 죽음 (무슬림/비건이 9900원 내고 받은 plan 에 돼지고기집/
+ *   육류 무검증 통과 = CLAUDE.md J 건강위험 1등급).
  *
  * 6월 상용화 audit (wf_f41a5123-db8) B1 발견 → 직접 grep 으로 7지점 확인 (audit 은 5지점
  *   보고, dispatch 경로 L358/L372 누락).
  *
- * Fix: dietaryAll = [...new Set([...dietPrefs, ...allergies])].filter(d => d && d !== 'None')
+ * Fix: dietaryAll = [...new Set([...dietPrefs, ...dietaryRestrictions])].filter(d => d && d !== 'None')
  *   → 7지점 (getFoodContext / logMetrics / blockMode / runGeminiPipeline / dispatch×2 /
  *   applyRecommendedRestaurants / savePlan) 모두 dietaryAll 전달.
  *
  * 회귀 시: 7지점 중 하나라도 dietPrefs 단독 → 그 경로에서 할랄/비건 누락 (건강위험 재발).
+ *
+ * 명명: 캐노니컬 필드는 dietaryRestrictions. `dietPrefs`는 구 클라이언트 호환용 inbound
+ *   별칭(deprecated)일 뿐 — 신규 코드는 dietaryRestrictions 로 쓰고, 이 테스트는 두 값의
+ *   합집합(dietaryAll)이 전달 체인 전 지점에 도달하는지만 검증한다.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -22,17 +27,17 @@ import { resolve } from 'node:path';
 
 const ROOT = resolve(__dirname, '../..');
 
-describe('P298 dietary/allergies 합집합 통합 (SAFETY-CRITICAL)', () => {
+describe('P298 dietary/dietaryRestrictions 합집합 통합 (SAFETY-CRITICAL)', () => {
   const src = readFileSync(resolve(ROOT, 'api/_ai_core/handlerCore.js'), 'utf8');
 
   // ── dietaryAll 선언 ────────────────────────────────────────────────────────
 
-  it('dietaryAll 합집합 선언 (dietPrefs ∪ allergies, None 제외)', () => {
+  it('dietaryAll 합집합 선언 (dietPrefs ∪ dietaryRestrictions, None 제외)', () => {
     expect(src).toContain('P298');
     expect(src).toContain('SAFETY-CRITICAL');
     // new Set 합집합 + None 필터
     expect(src).toMatch(/const dietaryAll\s*=\s*\[\.\.\.new Set\(\[\.\.\.\(Array\.isArray\(dietPrefs\)/);
-    expect(src).toMatch(/\.\.\.\(Array\.isArray\(allergies\)/);
+    expect(src).toMatch(/\.\.\.\(Array\.isArray\(dietaryRestrictions\)/);
     expect(src).toMatch(/\.filter\(\(d\)\s*=>\s*d\s*&&\s*d\s*!==\s*['"]None['"]\)/);
   });
 
@@ -46,8 +51,10 @@ describe('P298 dietary/allergies 합집합 통합 (SAFETY-CRITICAL)', () => {
     expect(src).toMatch(/diet:\s*dietaryAll\.join/);
   });
 
-  it('지점3 — block_mode userInput dietPrefs: dietaryAll (allergies 키 유지)', () => {
-    expect(src).toMatch(/userInput:\s*\{[^}]*dietPrefs:\s*dietaryAll[^}]*allergies/);
+  it('지점3 — block_mode userInput dietPrefs: dietaryAll', () => {
+    // 2026-08-24 (allergy removal): blockMode.js 는 dietPrefs 만 읽는다 — 별도 allergies/
+    // dietaryRestrictions 키는 dead pass-through라 제거됐다. dietPrefs: dietaryAll 만 확인.
+    expect(src).toMatch(/userInput:\s*\{[^}]*dietPrefs:\s*dietaryAll/);
   });
 
   it('지점4 — runGeminiPipeline dietary: dietaryAll', () => {

@@ -23,7 +23,7 @@ export interface PlannerSnapshotContentShape {
   selectedActivities?: string[];
   freeText?: string;
   dietPrefs?: string[];
-  allergies?: string[];
+  dietaryRestrictions?: string[];
   bucketDishes?: string[];
   dateRangeTo?: string | null;
   arrivalTerminal?: string;
@@ -62,7 +62,7 @@ export function hasMeaningfulWizardContent(v: PlannerSnapshotContentShape | null
     v.selectedActivities?.length ||
     v.freeText ||
     v.dietPrefs?.length ||
-    v.allergies?.length ||
+    v.dietaryRestrictions?.length ||
     v.dateRangeTo ||
     v.arrivalTerminal ||
     v.hotelAddress ||
@@ -79,7 +79,7 @@ export function hasMeaningfulWizardContent(v: PlannerSnapshotContentShape | null
 // 로도 통과 → resume modal 이 여전히 자주 뜸. 운영자 의도는 "정말 중단됐을 때만".
 // 임계값을 ≥2 로 올려 "잠깐 둘러보다 만진 1개" 노이즈를 더 걸러냄.
 //
-// SAFETY 예외: 식이제한(dietPrefs) / 알레르기(allergies) 는 단독이어도 통과.
+// SAFETY 예외: 식이제한(dietPrefs) / 종교적·윤리적 식이제한(dietaryRestrictions) 는 단독이어도 통과.
 // 고객 건강 직결 데이터라 "halal 1개만 골라둔" 상태를 잃게 만들면 안 됨 (J 등급).
 //
 // 이 함수는 VITE_FEATURE_RESUME_DIRTY_EXIT='true' 일 때의 좁힌 트리거에서만 쓰임.
@@ -93,7 +93,7 @@ export function countMeaningfulWizardSignals(v: PlannerSnapshotContentShape | nu
   if (v.selectedActivities?.length) n++;
   if (v.freeText) n++;
   if (v.dietPrefs?.length) n++;
-  if (v.allergies?.length) n++;
+  if (v.dietaryRestrictions?.length) n++;
   if (v.dateRangeTo) n++;
   if (v.arrivalTerminal) n++;
   if (v.hotelAddress) n++;
@@ -106,8 +106,8 @@ export function countMeaningfulWizardSignals(v: PlannerSnapshotContentShape | nu
 
 export function hasMeaningfulWizardContentStrict(v: PlannerSnapshotContentShape | null | undefined): boolean {
   if (!v) return false;
-  // SAFETY: 식이/알레르기는 단독이어도 의미있는 콘텐츠 (건강 데이터 — 잃으면 안 됨).
-  if (v.dietPrefs?.length || v.allergies?.length) return true;
+  // SAFETY: 식이제한은 단독이어도 의미있는 콘텐츠 (건강/종교 데이터 — 잃으면 안 됨).
+  if (v.dietPrefs?.length || v.dietaryRestrictions?.length) return true;
   // 그 외에는 명시적 사용자 시그널 ≥2개 요구 (과노출 완화).
   return countMeaningfulWizardSignals(v) >= 2;
 }

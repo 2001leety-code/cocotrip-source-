@@ -33,7 +33,7 @@ const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https
 
 /**
  * 🔴 2026-07-30 (P1-2): PII 필드 **차단 목록**을 `analyticsProps` 의 **허용 목록**으로 바꿨다.
- *   차단 목록은 "우리가 미리 떠올린 이름" 만 막는다 — `revisionNote`·`allergies`·`token` 처럼
+ *   차단 목록은 "우리가 미리 떠올린 이름" 만 막는다 — `revisionNote`·`prefillDietaryRestrictions`·`token` 처럼
  *   나중에 생긴 필드는 그대로 통과했다. 기본 거부여야 새 필드가 샐 자리가 없다.
  */
 function sanitize(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
@@ -201,6 +201,11 @@ export type PostHogEventName =
   | 'payment_started'
   | 'payment_completed'
   | 'payment_failed'
+  // 2026-08-24: 빠른 미리보기 (ai-planner-quick) 퍼널. 요청 시작·성공·실패 3지점.
+  // 속성: language, code (실패 시에만).
+  | 'preview_requested'
+  | 'preview_success'
+  | 'preview_degraded_or_failed'
   // P1 마케팅 퍼널 (2026-07-11 운영자 보완 지시): GA4(광고 귀속)와 이중 전송.
   // PostHog = 제품 퍼널 조회(admin-posthog-funnel) 데이터 소스. PII 없는 속성만.
   | 'promo_view'

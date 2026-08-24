@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   COURSE_STORAGE_KEY, type CourseDraft, type CourseStop,
   addDay, addStop, addStops, decodeSharedCourse, emptyDraft, encodeCourseForShare,
-  moveStopToDay, removeDay, removeStop, reorderStops, updateStop,
+  moveStopToDay, moveStopWithinDay, normalizeStopExtras, removeDay, removeStop, reorderStops, updateStop,
 } from './courseOps';
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -30,7 +30,17 @@ function loadDraft(): CourseDraft {
     const raw = localStorage.getItem(COURSE_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as CourseDraft;
-      if (parsed?.v === 1 && Array.isArray(parsed.days) && parsed.days.length) return parsed;
+      if (parsed?.v === 1 && Array.isArray(parsed.days) && parsed.days.length) {
+        // 로컬 저장본도 안전망 — 이전 세션/버그로 뒤틀린 확장필드가 있어도 조용히 정리
+        // (lenient: 장소 자체는 잃지 않음, addStop/updateStop 과 동일 원칙).
+        return {
+          ...parsed,
+          days: parsed.days.map((day) => ({
+            stops: (Array.isArray(day?.stops) ? day.stops : [])
+              .map((s) => normalizeStopExtras(s) as CourseStop),
+          })),
+        };
+      }
     }
   } catch { /* 손상 저장본/해시 — 새 코스로 */ }
   return emptyDraft();
@@ -70,6 +80,10 @@ export function useCourseBuilder() {
     moveStopToDay: useCallback((fromDay: number, stopId: string, toDay: number) => {
       setDraft((d) => moveStopToDay(d, fromDay, stopId, toDay));
     }, []),
+    /** 같은 Day 안에서 stop 을 한 칸 위/아래로 옮긴다 — 접근성 순서변경 버튼용. */
+    moveStopWithinDay: useCallback((dayIdx: number, stopId: string, toIndex: number) => {
+      setDraft((d) => moveStopWithinDay(d, dayIdx, stopId, toIndex));
+    }, []),
     // AI 동선 최적화 결과(새 방문순서 id 배열) 적용. courseOps 가 손실 방지 보장.
     reorderStops: useCallback((dayIdx: number, orderedIds: string[]) => {
       setDraft((d) => reorderStops(d, dayIdx, orderedIds));
@@ -91,6 +105,8 @@ export function useCourseBuilder() {
    * API 실패(오프라인·레이트리밋) 시 기존 해시 방식으로 폴백(공유 자체는 항상 동작).
    */
   const share = useCallback(async (): Promise<string | null> => {
+    const shareableStops = draft.days.reduce((n, day) => n + day.stops.length, 0);
+    if (shareableStops === 0) return null; // 빈 코스는 fetch/native share/clipboard 시도 전 차단
     let url = `${window.location.origin}/planner#course=${encodeCourseForShare(draft)}`; // 폴백
     try {
       const res = await fetch('/api/course-share', {

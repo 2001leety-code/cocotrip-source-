@@ -22,6 +22,53 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
+import { runFinalItineraryValidation, buildFinalGateError } from './finalItineraryGate.js';
+
+/**
+ * 식이 검증을 통과한 시점의 일정 스냅샷 (2026-08-24).
+ * pattern retry 는 plan 을 통째로 새로 받아 **구조만** 재검증한다 — 그 재작성본이 식이를
+ * 어기면 검증 통과본을 조용히 밀어낸다. 되돌릴 원본을 여기서 떠 둔다.
+ * 식이 요구가 없으면 null (비용 0, 기존 동작 무변).
+ */
+function snapshotItinerary(itinerary, dietaryArr) {
+  if (!Array.isArray(dietaryArr) || dietaryArr.length === 0) return null;
+  try {
+    return JSON.parse(JSON.stringify(itinerary));
+  } catch (err) {
+    console.warn('[finalGate] snapshot failed (proceeding without revert option):', err.message);
+    return null;
+  }
+}
+
+/**
+ * 종단 게이트 — 마지막 mutation 뒤 1회. 실패 시 **마지막 검증 통과본으로 복구**, 그마저
+ * 실패하면 throw. 경고 주입으로 대체하지 않는다 (.claude/rules/dietary-safety.md).
+ *
+ * @param {object} itinerary       현재(재작성됐을 수 있는) 일정
+ * @param {object|null} lastValid  식이 검증 통과 시점 스냅샷
+ * @param {object} ctx             { language, dietary, styles, foodIndex }
+ * @param {string} stage           'legacy' | '3pass'
+ * @param {(it: object) => void} [prepareRestore] 복구본에도 적용해야 하는 후처리(applyDBMatcher 등)
+ */
+function enforceFinalGate(itinerary, lastValid, ctx, stage, prepareRestore) {
+  const result = runFinalItineraryValidation(itinerary, ctx);
+  if (result.ok) return itinerary;
+  console.error(`[finalGate] ${stage} final validation FAILED (${result.code}):`, JSON.stringify({
+    violations: result.violations.slice(0, 5),
+    zeroFoodDays: result.zeroFoodDays.slice(0, 5),
+  }));
+  if (lastValid) {
+    try { if (prepareRestore) prepareRestore(lastValid); }
+    catch (prepErr) { console.warn(`[finalGate] ${stage} restore prepare failed:`, prepErr.message); }
+    const revalidated = runFinalItineraryValidation(lastValid, ctx);
+    if (revalidated.ok) {
+      console.warn(`[finalGate] ${stage}: reverted to last dietary-validated itinerary (rewrite discarded)`);
+      lastValid._final_gate_reverted = stage;
+      return lastValid;
+    }
+  }
+  throw buildFinalGateError(result, ctx.dietary, stage);
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // P169 (2026-05-23): Gemini Streaming + 점진 Firestore Write
@@ -1299,7 +1346,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
     // 2026-07-11 (3단계-C): legacy 경로와 동일한 결정론적 교체 — 두 경로 다 (block_mode 사각 교훈).
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
-      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area);
+      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area, language);
       if (_rep.replaced > 0) {
         console.log('[planner] dietary deterministic replacement (3pass):', _rep.detail.join(' | '));
         issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
@@ -1363,6 +1410,9 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
     selfHealLodgingBookend(itinerary);
+    // 여기까지의 itinerary 는 식이 검증(위 dietary 분기)을 통과한 마지막 상태다. 아래 pattern
+    // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
+    const lastDietValid3pass = snapshotItinerary(itinerary, dietaryArr);
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
@@ -1441,10 +1491,18 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.error('[planner] soft warning check failed:', warnErr.message);
     }
 
-    // B6 (P310 2026-05-30): allergyPrefs(dietaryArr) 전달 — P189 allergen DB 필터 활성 (GAP B).
-    // detectAllergenViolation 이 pref.toLowerCase() 처리 + Halal/Vegan 은 allergens 키 없어 무시.
-    // 현재 DB allergens 전 행 false → 실효 0 이나 dead code 활성 + retrofit 후 효과 (R-P189 정합).
-    applyDBMatcher(itinerary, foodIndex, area, language, dietaryArr);
+    applyDBMatcher(itinerary, foodIndex, area, language);
+
+    // ── 종단 게이트 (2026-08-24): 이 경로의 **마지막 mutation** 뒤 1회. pattern retry 재작성본·
+    //    Pass3 enrich·applyDBMatcher 치환이 식이를 깨뜨렸으면 여기서 막는다. 복구 가능하면
+    //    마지막 검증 통과본으로 되돌리고, 아니면 throw (저장·응답 금지).
+    itinerary = enforceFinalGate(
+      itinerary,
+      lastDietValid3pass,
+      { language, dietary: dietaryArr, styles: body?.styles, foodIndex },
+      '3pass',
+      (restored) => applyDBMatcher(restored, foodIndex, area, language),
+    );
 
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
   } else {
@@ -1554,7 +1612,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // 검증된(unverified 제외) DB 후보로 교체 후 재검증. 후보 부족 시 완화 없이
     // 기존 retry→throw 경로 유지 (교체는 검증 완화가 아님 — 재검증 필수).
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
-      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area);
+      const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area, language);
       if (_rep.replaced > 0) {
         console.log('[planner] dietary deterministic replacement (legacy):', _rep.detail.join(' | '));
         issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
@@ -1630,6 +1688,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
     selfHealLodgingBookend(itinerary);
+    // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
+    const lastDietValidLegacy = snapshotItinerary(itinerary, dietaryArr);
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
@@ -1716,10 +1776,16 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.error('[planner] soft warning check failed:', warnErr.message);
     }
 
-    // B6 (P310 2026-05-30): allergyPrefs(dietaryArr) 전달 — P189 allergen DB 필터 활성 (GAP B).
-    // detectAllergenViolation 이 pref.toLowerCase() 처리 + Halal/Vegan 은 allergens 키 없어 무시.
-    // 현재 DB allergens 전 행 false → 실효 0 이나 dead code 활성 + retrofit 후 효과 (R-P189 정합).
-    applyDBMatcher(itinerary, foodIndex, area, language, dietaryArr);
+    applyDBMatcher(itinerary, foodIndex, area, language);
+
+    // ── 종단 게이트 (2026-08-24) — 3pass 분기와 동일 규칙. 상세 주석은 위 참조.
+    itinerary = enforceFinalGate(
+      itinerary,
+      lastDietValidLegacy,
+      { language, dietary: dietaryArr, styles: body?.styles, foodIndex },
+      'legacy',
+      (restored) => applyDBMatcher(restored, foodIndex, area, language),
+    );
   }
 
   // P195: handlerCore.js 가 cacheMetadata 를 pop 후 buildAdminDebug 에 전달 → _debug

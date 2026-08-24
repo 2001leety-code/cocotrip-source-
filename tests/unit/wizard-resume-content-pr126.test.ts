@@ -61,9 +61,9 @@ describe('hasMeaningfulWizardContent — P126 false-positive 차단', () => {
     expect(hasMeaningfulWizardContent({ freeText: 'HYBE building' })).toBe(true);
   });
 
-  it('dietPrefs / allergies 입력 → true', () => {
+  it('dietPrefs / dietaryRestrictions 입력 → true', () => {
     expect(hasMeaningfulWizardContent({ dietPrefs: ['halal'] })).toBe(true);
-    expect(hasMeaningfulWizardContent({ allergies: ['peanuts'] })).toBe(true);
+    expect(hasMeaningfulWizardContent({ dietaryRestrictions: ['peanuts'] })).toBe(true);
     expect(hasMeaningfulWizardContent({ dietPrefs: [] })).toBe(false);
   });
 
@@ -112,7 +112,7 @@ describe('hasMeaningfulWizardContent — P126 false-positive 차단', () => {
       freeText: '',
       selectedActivities: [],
       dietPrefs: [],
-      allergies: [],
+      dietaryRestrictions: [],
       bucketDishes: [],
     })).toBe(false);
   });

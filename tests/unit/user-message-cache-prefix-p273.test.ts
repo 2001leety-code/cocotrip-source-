@@ -78,7 +78,7 @@ describe('P273 userMessage cache-friendly 순서 (prefix determinism)', () => {
       luggage: 'medium',
       specialRequest: '',
       dietPrefs: [],
-      allergies: [],
+      dietaryRestrictions: [],
       spiceLevel: 'medium',
       bucketDishes: [],
       priceRange: 'Any',

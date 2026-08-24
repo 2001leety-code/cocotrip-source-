@@ -2885,7 +2885,6 @@ const RULES = [
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
-  ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
   ['P192_geminiThinkingOutputConflict', P192_geminiThinkingOutputConflict],
@@ -8586,81 +8585,9 @@ function P168_pass3BackgroundAsync({ changed }) {
   return null;
 }
 
-// ── P189 (2026-05-25) — Allergen Schema Safety (SAFETY-CRITICAL) ─────────────
-/**
- * P189_allergenSchemaSafety — SAFETY-CRITICAL (2026-05-25)
- *
- * _food_helper.js 의 getTagsForDiet 에서 Nuts/Shellfish/Gluten/Dairy 가
- * 'general' 로 fallback 되면 fail.
- *
- * 배경: 위자드 Step2 알레르기 4종 선택 → getTagsForDiet → 'general' 폴백 →
- *       일반 식당 무작위 추천 → 견과 알레르기 손님께 견과 식당 추천 가능 = 건강 위험.
- *
- * 검사:
- *   1. _food_helper.js 수정 시: Nuts/Shellfish/Gluten/Dairy case 에 'general' 폴백 없음
- *   2. _food_helper.js 수정 시: filterByAllergens 함수 존재
- *   3. _food_helper.js 수정 시: ALLERGEN_KEYS 상수 존재
- */
-function P189_allergenSchemaSafety({ changed }) {
-  const FILE = 'api/_food_helper.js';
-  if (!isModified(FILE, changed)) return { skipped: true };
-  const content = getChangedFileContent(FILE);
-  if (!content) return { skipped: true };
-
-  const violations = [];
-
-  // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지.
-  const ALLERGEN_CASES = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
-  for (const allergen of ALLERGEN_CASES) {
-    const caseStartRe = new RegExp(`case\\s+['"]${allergen}['"]\\s*:`);
-    const caseStart = caseStartRe.exec(content);
-    if (!caseStart) {
-      violations.push(
-        `${FILE}: '${allergen}' case 블록 없음 — 알레르기 처리 코드 누락 (P189 SAFETY-CRITICAL)`
-      );
-      continue;
-    }
-    const afterCase = content.slice(caseStart.index + caseStart[0].length);
-    const breakIdx = afterCase.indexOf('break;');
-    const caseBlock = breakIdx >= 0 ? afterCase.slice(0, breakIdx) : afterCase.slice(0, 300);
-
-    const hasAllergenHandling = /allergenPrefs|ALLERGEN_TAG_PREFIX/.test(caseBlock);
-    if (!hasAllergenHandling) {
-      violations.push(
-        `${FILE}: '${allergen}' case 블록에 allergenPrefs 또는 ALLERGEN_TAG_PREFIX 참조 없음 — 'general' 폴백 위험 (P189 SAFETY-CRITICAL)`
-      );
-    }
-
-    if (/tags\.add\(['"]general['"]\)/.test(caseBlock)) {
-      violations.push(
-        `${FILE}: '${allergen}' case 블록 내 tags.add('general') 직접 호출 — 알레르기 손님 일반 식당 추천 위험 (P189 SAFETY-CRITICAL)`
-      );
-    }
-  }
-
-  // 검사 2: filterByAllergens 함수 존재
-  if (!/function\s+filterByAllergens/.test(content)) {
-    violations.push(
-      `${FILE}: filterByAllergens 함수 누락 — allergens 필드 기반 식당 제외 불가 (P189)`
-    );
-  }
-
-  // 검사 3: ALLERGEN_KEYS 상수 존재
-  if (!/ALLERGEN_KEYS/.test(content)) {
-    violations.push(
-      `${FILE}: ALLERGEN_KEYS 상수 누락 — 알레르기 키 목록 관리 불가 (P189)`
-    );
-  }
-
-  if (violations.length > 0) {
-    fail(
-      'P189_allergenSchemaSafety',
-      violations.join(' | '),
-      'P189 SAFETY-CRITICAL — 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 은 general 폴백 금지. allergen:<name> 태그 + filterByAllergens + ALLERGEN_KEYS 필수. 메뉴판에 알레르기 표시 없이 견과 손님께 견과 식당 추천 = 건강 위험.',
-    );
-  }
-  return null;
-}
+// P189_allergenSchemaSafety 제거됨 (2026-08-24, planner trust) — 알레르겐 4종
+// (Nuts/Shellfish/Gluten/Dairy) 입력·필터·태그 자체가 wizard/백엔드에서 제거됐다.
+// _food_index.json allergens 필드가 미수집이라 실효가 없었고 오인 위험만 있었다.
 
 // ── P190 (2026-05-25) — Attractions helper usage guard ───────────────────────
 /**
@@ -10796,73 +10723,55 @@ function checkP235FirestoreErrorDistinction({ changed }) {
 
 // R-P240: block_mode allergies 미전달 SAFETY — handlerCore tryRunBlockMode userInput.allergies 의무
 // ----------------------------------------------------------------------------
-// P240 lesson (2026-05-27): tryRunBlockMode 호출 시 userInput 에 allergies 누락 →
-// block 선택 Gemini prompt 에 외국인 알레르기 정보 미전달 = 건강 위험.
-// 비유: "땅콩 알레르기 있는 손님 메뉴판에서 알레르기 정보 빼고 주문 받는 웨이터"
+// P240 lesson (2026-05-27): tryRunBlockMode 호출 시 userInput 에 allergies(=Halal/Vegan/
+// Vegetarian 소스) 누락 → block 선택 Gemini prompt 에 식이 정보 미전달 = 위반 위험.
 // fix: handlerCore.js 구조분해 + tryRunBlockMode userInput 에 allergies 추가.
+//
+// 2026-08-24 (planner trust): 알레르겐 4종(Nuts/Shellfish/Gluten/Dairy) 입력 + food_allergies
+// 필드는 제거됨 — wizard ALLERGY_KEYS 는 이제 Halal/Vegan/Vegetarian/None 만 보낸다.
+// 이 룰은 더 이상 food_allergies 존재를 요구하지 않는다(요구하면 항상 fail).
 //
 // 룰:
 //   1. handlerCore.js 변경 시 shaped 구조분해에 allergies 있어야 함.
-//   2. handlerCore.js 변경 시 tryRunBlockMode 호출 userInput 에 allergies 있어야 함.
-//   3. blockMode.js 변경 시 selectBlocksWithGemini / selectBlocksMultiCity 의 userMessage 에 food_allergies 있어야 함.
+//   2. handlerCore.js 변경 시 tryRunBlockMode 호출 userInput 에 allergies(dietPrefs 병합원) 있어야 함.
 
 /**
- * R-P240: block_mode allergies 미전달 SAFETY 감시.
+ * R-P240: block_mode allergies(halal/vegan/vegetarian 소스) 미전달 SAFETY 감시.
  */
 function P240_blockModeAllergenSafety({ changed }) {
   const HANDLER = 'api/_ai_core/handlerCore.js';
-  const BLOCK = 'api/_ai_core/blockMode.js';
 
   const changedFiles = (changed || []).map(c => typeof c === 'string' ? c : c.path || c.file || '');
   const handlerChanged = changedFiles.some(f => f.replace(/\\/g, '/').includes('handlerCore'));
-  const blockChanged = changedFiles.some(f => f.replace(/\\/g, '/').includes('blockMode'));
 
-  if (!handlerChanged && !blockChanged) return null;
+  if (!handlerChanged) return null;
 
   const issues = [];
 
-  if (handlerChanged) {
-    try {
-      const handler = (changed || []).find(c => {
-        const f = typeof c === 'string' ? c : c.file || c.path || '';
-        return f.replace(/\\/g, '/').includes('handlerCore');
-      });
-      const src = handler && typeof handler === 'object' ? (handler.content || '') : '';
-      // 구조분해에 allergies 있어야 함
-      if (src && !/dietPrefs,\s*allergies/.test(src) && !/allergies,/.test(src.split('tryRunBlockMode')[0] || src)) {
-        issues.push(`${HANDLER}: shaped 구조분해에 allergies 없음 — P240 fix 후 회귀`);
-      }
-      // tryRunBlockMode 호출 userInput 에 allergies 있어야 함
-      const blockModeCall = src && src.match(/tryRunBlockMode\([^)]*userInput\s*:\s*\{[^}]*\}/);
-      if (blockModeCall && !/allergies/.test(blockModeCall[0])) {
-        issues.push(`${HANDLER}: tryRunBlockMode userInput 에 allergies 없음 — SAFETY-CRITICAL: 외국인 알레르기 block 선택 미반영`);
-      }
-    } catch { /* file read error — skip */ }
-  }
-
-  if (blockChanged) {
-    try {
-      const blockFile = (changed || []).find(c => {
-        const f = typeof c === 'string' ? c : c.file || c.path || '';
-        return f.replace(/\\/g, '/').includes('blockMode');
-      });
-      const src = blockFile && typeof blockFile === 'object' ? (blockFile.content || '') : '';
-      // selectBlocksWithGemini 의 userMessage 에 food_allergies 있어야 함
-      if (src && /selectBlocksWithGemini/.test(src) && !/food_allergies/.test(src)) {
-        issues.push(`${BLOCK}: selectBlocksWithGemini userMessage 에 food_allergies 없음 — P240 fix 후 회귀`);
-      }
-    } catch { /* skip */ }
-  }
+  try {
+    const handler = (changed || []).find(c => {
+      const f = typeof c === 'string' ? c : c.file || c.path || '';
+      return f.replace(/\\/g, '/').includes('handlerCore');
+    });
+    const src = handler && typeof handler === 'object' ? (handler.content || '') : '';
+    // 구조분해에 allergies 있어야 함
+    if (src && !/dietPrefs,\s*allergies/.test(src) && !/allergies,/.test(src.split('tryRunBlockMode')[0] || src)) {
+      issues.push(`${HANDLER}: shaped 구조분해에 allergies 없음 — P240 fix 후 회귀`);
+    }
+    // tryRunBlockMode 호출 userInput 에 allergies 있어야 함
+    const blockModeCall = src && src.match(/tryRunBlockMode\([^)]*userInput\s*:\s*\{[^}]*\}/);
+    if (blockModeCall && !/allergies/.test(blockModeCall[0])) {
+      issues.push(`${HANDLER}: tryRunBlockMode userInput 에 allergies 없음 — SAFETY: halal/vegan/vegetarian block 선택 미반영`);
+    }
+  } catch { /* file read error — skip */ }
 
   if (issues.length === 0) return null;
   return {
     rule: 'P240_blockModeAllergenSafety',
     file: HANDLER,
     message:
-      'R-P240 SAFETY-CRITICAL: block_mode allergies 미전달 회귀 감지. ' +
-      '비유: "땅콩 알레르기 손님 메뉴판에서 알레르기 정보 뺀 주문" = 건강 위험. ' +
+      'R-P240 SAFETY: block_mode allergies(halal/vegan/vegetarian 소스) 미전달 회귀 감지. ' +
       'handlerCore.js shaped 구조분해 allergies + tryRunBlockMode userInput.allergies 의무. ' +
-      'blockMode.js selectBlocksWithGemini/MultiCity userMessage food_allergies 의무. ' +
       '발견: ' + issues.join(' | '),
   };
 }

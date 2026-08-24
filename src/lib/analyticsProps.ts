@@ -3,7 +3,7 @@
  *
  * 🔴 고친 문제
  *   1) `trackPageView(location.pathname + location.search)` — 쿼리스트링을 그대로 GA4 로 보냈다.
- *      우리 URL 의 쿼리에는 `token`(공유 링크), `prefillHotel`·`prefillDiet`·`allergies`(플래너
+ *      우리 URL 의 쿼리에는 `token`(공유 링크), `prefillHotel`·`prefillDiet`·`prefillDietaryRestrictions`(플래너
  *      사전입력), `revisionNote`·`freeText`(자유 입력) 같은 **손님이 쓴 문장과 접근 토큰**이 들어간다.
  *   2) PostHog 자동 pageview/pageleave 가 `$current_url` 에 쿼리·해시를 통째로 실었다.
  *   3) URL 을 통째로 담는 속성(`target_url` 등)이 이벤트마다 흩어져 있었다.

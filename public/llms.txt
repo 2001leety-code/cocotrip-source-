@@ -17,7 +17,7 @@ to this on the payment screen before checkout.
 
 ## Plan a trip
 
-- [Trip planner](https://cocotripkr.com/planner): a day-by-day Korea itinerary auto-written from your dates, party size, budget and dietary needs (halal, vegetarian, allergies), using real Korean places, subway/bus routes and walking directions.
+- [Trip planner](https://cocotripkr.com/planner): a day-by-day Korea itinerary auto-written from your dates, party size, budget and dietary needs (halal, vegan, vegetarian), using real Korean places, subway/bus routes and walking directions.
 - [Private charter](https://cocotripkr.com/charter): car and driver — airport transfers, full-day charter tours, multi-day intercity routes, concert shuttles. Quote without an account; pricing, inclusions and FAQ are on the page.
 - [Guided tours](https://cocotripkr.com/tours): fixed-itinerary day tours with set departure points.
 

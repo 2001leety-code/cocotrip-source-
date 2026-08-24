@@ -1,31 +1,13 @@
 /**
- * AI Planner Full v2 — Vercel handler 진입점 (P129, 2026-05-21).
- *
- * Refactored from api/ai-planner-full.js (800L → 50L wrapper).
- * Behavior-preserving extraction — request shaping, userMessage 조립,
- * post-response pipeline 은 각각 별 모듈 (requestShaper / userMessageBuilder /
- * postResponsePipeline) 로 분리됐다. 본 모듈은 그 모듈들을 합성하는
- * orchestrator + try/catch/finally + step instrumentation (P96).
- *
- * Flow:
- *   1. CORS preflight / method gate
- *   2. withStep('verifyAuth') → Firebase ID token 검증
- *   3. withStep('paymentGate') → PayPal/revision 게이트
- *   4. shapeRequest(body, email) → 정규화된 입력
- *   5. decidePlannerMode (uid/email/sessionId → bucket → 3pass/legacy)
- *   6. buildUserMessage + spotContext + foodContext + zone/hotel blocks
- *   7. withStep('avoidClause') + revisionInstruction
- *   8. block-mode (P128) | legacy runGeminiPipeline (withStep('gemini'))
- *   9. withStep('routeEnrich') + backfills + T-money
- *   10. recommended_restaurants + pricing
- *   11. withStep('persistPlan') → Firestore
- *   12. respond 200 — non-blocking email/sheets/telegram/push
- *   13. catch: respond 500 (res first) → telegram+sentry (fire-and-forget)
- *   14. finally: clearTimeout(hangWarnTimer)
- *
- * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode +
- * legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan
- * critical violation throw.
+ * AI Planner Full v2 — Vercel handler 진입점 (P129, 2026-05-21). Refactored from
+ * api/ai-planner-full.js (800L → 50L wrapper). Behavior-preserving extraction — request
+ * shaping (requestShaper) / userMessage 조립 (userMessageBuilder) / post-response
+ * (postResponsePipeline) 는 각각 별 모듈. 본 모듈은 그 모듈들을 합성하는 orchestrator +
+ * try/catch/finally + step instrumentation (P96).
+ * Flow: CORS/method gate → verifyAuth → paymentGate → shapeRequest → decidePlannerMode → buildUserMessage →
+ * avoidClause/revisionInstruction → block-mode | gemini → routeEnrich → backfills/recommended_restaurants/pricing →
+ * persistPlan → respond 200 (non-blocking email/sheets/telegram/push) → catch: respond 500 first, then telegram+sentry → finally: clearTimeout.
+ * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
 import { captureError } from '../_shared/sentry.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
@@ -49,6 +31,7 @@ import { buildAvoidClause } from './avoidListQuery.js';
 import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
 import { buildAdminDebug } from './debugInfo.js';
 import { tryRunBlockMode } from './blockMode.js';
+import { removeAvoidedStopsOrThrow } from './avoidStops.js';
 import {
   triggerPass3BackgroundIfPending,
   shouldUseStreaming,
@@ -89,10 +72,8 @@ export default async function handler(req, res) {
   // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
   // 'unknown' 그대로 sentry 에 기록.
   let resolvedPlannerMode = 'unknown';
-  // P96 (2026-05-19): step-level elapsed instrumentation. 기존엔 START + TOTAL
-  // 두 로그만 있어 hang 시 어느 step 에서 멈췄는지 prod logs 로도 진단 불가.
-  // withStep 으로 핵심 await 마다 ENTER + DONE/FAILED elapsed 로그. catch 블록
-  // 의 hangWarn alert 는 5분 Vercel cap 도달 30초 전 (4분30초) 발사. P218: ms → "NNNms (Xh Y분 Z초)".
+  // P96 (2026-05-19): step-level elapsed instrumentation (기존 START+TOTAL 만으론 hang 시 진단 불가).
+  // withStep 으로 핵심 await 마다 ENTER+DONE/FAILED elapsed 로그. catch 의 hangWarn 은 5분 cap 30초 전 발사. P218: fmtMs.
   function fmtMs(ms) { const n=Math.round(Number(ms)||0); if(n<1000) return `${n}ms`; const t=Math.floor(n/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60,p=[];if(h)p.push(`${h}h`);if(m)p.push(`${m}분`);p.push(`${s}초`);return `${n}ms (${p.join(' ')})`; }
   let currentStep = 'init';
   let currentStepStart = handlerStart;
@@ -147,8 +128,7 @@ export default async function handler(req, res) {
   if (hangWarnTimer.unref) hangWarnTimer.unref();
 
   console.log('[planner] === START ===');
-  // batch 9 fix (PR-N, 2026-05-09): env 변수 유무 진단 — handler 진입 즉시.
-  // 키 값은 노출 X, 길이/존재만 노출. 5/9 prod 500 빈 body 회귀 추적용.
+  // batch 9 fix (PR-N, 2026-05-09): env 변수 유무 진단 — handler 진입 즉시. 키 값 노출 X, 길이/존재만.
   console.log('[planner] env check:', {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY ? `set(len=${process.env.GEMINI_API_KEY.length})` : 'MISSING',
     FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
@@ -202,14 +182,21 @@ export default async function handler(req, res) {
       arrival_airport, departure_airport, hotel_address, hotelByCity,
       mobility, uid,
       recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
-      dietPrefs, allergies, priceRange,
+      dietPrefs, dietaryRestrictions, priceRange,
       revisionReason, revisionNote, avoidListBody,
       arrivalTime, departureTime, tourStartTime, tourEndTime, sessionId, companions, // P239: tourStartTime (09:00) / #tour-end: tourEndTime (21:00) / UIUX P3: companions 동행유형('' = 무영향)
+      // planner-intent-v1 (2026-08-24): 정규화된 단일 intent 객체 + 그동안 통째로
+      // 떨어져 나가던 필드들. 아래 block-mode / persist / Inngest 가 전부 이 값을 읽는다
+      // (각 경로가 raw body 를 제각기 다시 파싱하던 구조를 끝낸다).
+      plannerIntent, reservationStatus,
+      arrivalCity, departureCity,
+      spiceLevel, bucketDishes, luggage, pace,
+      wantAccom, accomBudget,
     } = shaped;
     lastUid = uid;
     const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
-    // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 allergies 칸으로 들어옴 (WizardForm P10 4/24 ALLERGY_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
-    const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(allergies) ? allergies : [])])].filter((d) => d && d !== 'None');
+    // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
+    const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
     enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll }); // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422 (dietaryCoverageGate.js)
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
@@ -268,6 +255,8 @@ export default async function handler(req, res) {
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));
+    // planner-intent-v1: revision avoid list — used below (removal) and by postResponsePipeline (assert-only).
+    const avoidStopNames = gate.isRevision && plannerIntent.revision ? plannerIntent.revision.avoidStopNames : [];
 
     // ── W4 revision instruction (사유 → Gemini 추가 지시) ────────────────────
     // gate.isRevision이 true일 때만 revision instruction 추가 (일반 신규 플랜 불필요).
@@ -289,9 +278,25 @@ export default async function handler(req, res) {
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
-    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies + P239: tour_start_time 의무. PR-E: mobility (활동 블록 SAFETY 거동 제약 필터, FEATURE_ACTIVITY_BLOCKS ON 시에만 효과).
+    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: dietaryRestrictions + P239: tour_start_time 의무. PR-E: mobility (활동 블록 SAFETY 거동 제약 필터, FEATURE_ACTIVITY_BLOCKS ON 시에만 효과).
     // P271: userInput 에 arrival_airport/departure_airport/pax 추가 — expand 가 arrival_guide/departure_guide minimal default 채움 (self_heal placeholder 회피).
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs: dietaryAll, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, tour_end_time: tourEndTime, arrival_airport, departure_airport, pax, mobility, companions } })));
+    // 참고: blockMode.js 는 dietPrefs(dietaryAll 합집합)만 읽는다 — 여기 dietPrefs 는 이미 dietaryRestrictions 를 합쳐 넣었으므로 별도 필드 전달 불필요.
+    // planner-intent-v1: block-mode gets the full normalized answer set below (not just
+    //   a 14-field slice) — arrival/departure cities, hotels, zones, pace, spice, bucket
+    //   dishes, meal budget, luggage, reservation status, and revision reason/note/avoid.
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: {
+      durationDays, dietPrefs: dietaryAll, styles, special_request: specialRequest, language, startDate,
+      arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, tour_end_time: tourEndTime,
+      arrival_airport, departure_airport, pax, mobility, companions,
+      arrival_city: arrivalCity, departure_city: departureCity,
+      hotel_address, hotelByCity, recommended_zone: recommendedZone, recommended_zones: recommendedZones,
+      tour_pace: plannerIntent.tourPace, pace,
+      spice_level: spiceLevel, bucket_dishes: bucketDishes, meal_budget: priceRange,
+      luggage, reservation_status: reservationStatus,
+      want_accommodation: wantAccom, accommodation_budget: wantAccom ? accomBudget : '',
+      revision: gate.isRevision ? (plannerIntent.revision || { reasonCodes: [], note: '', avoidStopNames: [] }) : null,
+      plannerIntent,
+    } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
@@ -338,6 +343,9 @@ export default async function handler(req, res) {
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
     }));
 
+    // avoid-list removal — before route enrichment + Inngest dispatch (sync+worker adjacency correct).
+    removeAvoidedStopsOrThrow(itinerary, avoidStopNames, blockModeUsed ? 'block_mode' : PLANNER_MODE);
+
     // P169/P186/P222/P319: PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false). Vercel serverless instance freeze 회피 (P222 hang lesson). admin-bypass _debug 포함. P319(2026-05-31): early-response=freeze 유발 → 뒤처리 워커 있을 때만(shouldDispatchToInngest) 전송, 없으면 동기(P222 ready 100% 보장) — 워커 미sync 시 stub-stuck 출시 blocker fix(P311 e2e), P318 dispatch 게이트와 동일 조건.
     if (streamingPlanId && !streamingResponseSent && shouldDispatchToInngest() && String(process.env.PLANNER_STREAMING_EARLY_RESPONSE || '').toLowerCase() === 'true') {
       const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
@@ -345,8 +353,7 @@ export default async function handler(req, res) {
       streamingResponseSent = true;
     }
 
-    // P230 (2026-05-27): block-mode + Inngest 통합 — skeleton + dispatch + early response 단일 helper.
-    // 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 재사용. P231: blkInn.skeletonCtx → dispatchFn 전달.
+    // P230/P231: block-mode + Inngest 통합 — skeleton + dispatch + early response 단일 helper. 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 재사용(blkInn.skeletonCtx → dispatchFn 전달).
     const blkInn = blockModeUsed && !streamingPlanId
       ? await tryBlockModeInngestPath({
           adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid, email, area,
@@ -357,7 +364,7 @@ export default async function handler(req, res) {
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
             area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
-            isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim,
+            isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
@@ -368,11 +375,8 @@ export default async function handler(req, res) {
     // dispatch 실패 → inline fallback. 같은 claim 을 계속 쓴다(새로 선점하지 않는다).
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
-    // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
-    // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
-    // P231 (2026-05-27): skeletonCtx 전달 — worker Step 0 가 full skeleton 저장 (PLANNER_SKELETON_IN_WORKER=true 시).
-    // P0: issuanceClaim 전달 + dispatch 성공 시 소유권 이관 표시(handler release 금지).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim })) { issuance.handOff(); return; }
+    // P220/P230/P231/P0: Inngest dispatch — streaming+ENV+토글 시 post-Gemini 를 별 invocation 으로(ENV/throw 시 inline fallback). block-mode 는 위에서 처리 완료 → skip, legacy streaming 만 진입. skeletonCtx 는 worker Step 0 full skeleton 저장용. issuanceClaim 전달 + dispatch 성공 시 소유권 이관(handler release 금지).
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -382,13 +386,13 @@ export default async function handler(req, res) {
     console.log('[planner] Step 3: Saving to Firestore...');
 
     // ── Backfills + T-money + recommended restaurants + pricing ───────────
-    // P290 (2026-05-29): ctx 확장 (hotel_address / hotelAddressFromBody / recommendedZone) — selfHealLodgingBookend personalize. day.lodging 없는 block_mode plan 의 synthesized lodging stop 에 사용자 입력 호텔 반영.
-    // #1227 후속 (2026-08-04): 출국일 항공 컷을 legacy 에도 걸려면 shaped 값이 필요하다.
-    //   raw body 는 'HH:mm:ss' / snake_case 로 올 수 있어 컷이 조용히 skip 된다.
+    // P290/#1227: ctx 확장(hotel_address/hotelAddressFromBody/recommendedZone) — lodging bookend personalize. 출국일 항공 컷은 legacy 도 shaped 값 필요(raw body 'HH:mm:ss'/snake_case 면 컷이 조용히 skip).
     applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed, departureTime, departure_airport });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
-    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language });
+    //   2026-08-24: 이 helper 끝에서 종단 식이/식사 게이트가 돈다 (postResponsePipeline) — 저장 전 마지막 mutation 지점.
+    //   planner-intent-v1: avoidStopNames 는 재생성일 때만 — 신규 생성은 avoid 개념이 없다.
+    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames });
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -396,16 +400,14 @@ export default async function handler(req, res) {
     const priceKRW = estimatedTripKRW;   // 저장 필드명은 하위호환 유지
     const priceUSD = estimatedTripUSD;
 
-    // ── Firestore 저장 + Loyalty ──────────────────────────────────────────
-    // Phase 4 (2026-05-13): plannerMode + abReason + abBucket — admin
-    // dashboard 에서 mode 별 qualityScore 비교 위함. legacy vs 3-pass 평균
-    // 차이 + diet/unverified/route 카운트 차이를 운영자가 직접 확인 가능.
+    // ── Firestore 저장 + Loyalty (Phase 4: plannerMode+abReason+abBucket — admin dashboard mode 별 qualityScore 비교용) ──
     const { planId, planUrl } = await withStep('persistPlan', () => savePlan(adminDb, {
       body, itinerary, uid: planOwnerUid, forceGuestToken, vehicle, priceKRW, priceUSD,
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
       dietary: dietaryAll, foodIndex: foodIndexForQuality,
+      plannerIntent,  // persistPlan persists this verbatim as input.planner_intent_v1.
       cacheMetadata: itinerary?._cache_metadata || null,  // P266: P195 cache instrumentation explicit pass-through (geminiPipeline:1515 attach → debugInfo:42 pop 전)
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,
@@ -416,7 +418,8 @@ export default async function handler(req, res) {
     planPersisted = true; // 버그헌트 A: plan 저장 성공 → 무료쿠폰 정당 소비(catch 롤백 안 함)
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing });
+    //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
@@ -443,10 +446,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
 
-    // batch 9 fix (PR-N, 2026-05-09): 응답을 먼저 보내고 부수 작업은 fire-and-forget.
-    // 이전: await captureError 가 throw 하면 catch 블록 자체가 abort → res.end 못 보냄
-    //       → Vercel 500 + 빈 body. 운영자가 client console 에서 정확한 에러 못 봄.
-    // 변경: res.end() 먼저, telemetry/sentry 는 setImmediate 로 분리.
+    // batch 9 fix (PR-N): 응답 먼저 보내고 부수작업은 fire-and-forget (이전: await captureError throw 시 catch abort → res.end 못 보냄).
     if (!res.headersSent) {
       const statusCode = error.statusCode || 500;
       const code = error.code || 'INTERNAL_ERROR';

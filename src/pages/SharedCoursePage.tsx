@@ -11,6 +11,7 @@ import { Header } from '@/sections/Header';
 import { CourseMiniMap } from './PlannerPage/components/courseBuilder/CourseMiniMap';
 import {
   googleMapsUrl,
+  normalizeStopExtras,
   persistDraft,
   type CourseDay,
   type CourseDraft,
@@ -193,7 +194,14 @@ function normaliseStop(value: unknown, index: number): CourseStop | null {
   };
   if (typeof input.lat === 'number' && Number.isFinite(input.lat)) stop.lat = input.lat;
   if (typeof input.lng === 'number' && Number.isFinite(input.lng)) stop.lng = input.lng;
-  return stop;
+  if (input.stayMinutes !== undefined) stop.stayMinutes = input.stayMinutes as number;
+  if (input.timeConstraint !== undefined) stop.timeConstraint = input.timeConstraint as CourseStop['timeConstraint'];
+  if (input.windowEnd !== undefined) stop.windowEnd = input.windowEnd as string;
+  if (input.placeKey !== undefined) stop.placeKey = input.placeKey as string;
+  if (input.placeSource !== undefined) stop.placeSource = input.placeSource as CourseStop['placeSource'];
+  // 서버 응답도 신뢰 불가 입력으로 취급(fail-closed) — 확장필드가 명시적으로 있는데
+  // 형식이 틀리면 이 stop 은 표시하지 않는다(partial 배지로 사용자에게 알림).
+  return normalizeStopExtras(stop, 'strict');
 }
 
 function normaliseCourse(data: unknown): { course: CourseDraft; partial: boolean } | null {

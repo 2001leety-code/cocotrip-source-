@@ -5,7 +5,7 @@
  * 이 테스트는 다음 6가지를 보장한다:
  *
  *   1. buildSystemPrompt() 결과 길이 ≤ 44,000 chars (현재 45K 대비 -3%+ — 회귀 차단)
- *   2. SAFETY-CRITICAL 키워드 보존: food_allergies / VERIFIED ATTRACTIONS DATABASE /
+ *   2. SAFETY-CRITICAL 키워드 보존: VERIFIED ATTRACTIONS DATABASE /
  *      Trekking / Hallasan / LODGING BOOKEND / B-13 모두 존재
  *   3. MULTI-CITY HANDLING 섹션 존재 (다도시 plan 작동 보장)
  *   4. MEAL PLANNING 섹션 존재 + B-MEAL 3-tier 규칙
@@ -38,8 +38,9 @@ describe('P194: buildSystemPrompt 압축 — SAFETY 보존 + 크기 제한', () 
   });
 
   // ─── 2. SAFETY-CRITICAL 키워드 보존 ─────────────────────────────────────
-  it('P194-2: food_allergies 섹션 보존 (식이제한 SAFETY)', () => {
-    expect(prompt).toContain('food_allergies');
+  it('P194-2: Halal/Vegan SAFETY-CRITICAL 섹션 보존 (식이제한 SAFETY)', () => {
+    expect(prompt).toContain('ONLY verified halal');
+    expect(prompt).toContain('ZERO animal products');
   });
 
   it('P194-2: VERIFIED ATTRACTIONS DATABASE 보존 (P190 attraction 주입)', () => {

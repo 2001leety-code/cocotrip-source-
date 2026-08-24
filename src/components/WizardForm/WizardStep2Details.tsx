@@ -20,6 +20,7 @@ import { getDepartureAirportOptions } from './helpers';
 import { CITY_NAME_BY_KEY } from './zoneHelpers';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 import { HotelSuggestInput } from './HotelSuggestInput';
+import { formatDateOnly, kstTodayISO, kstTomorrowLocalDate } from './dateOnly';
 
 const ZoneRecommender = lazy(() =>
   import('./ZoneRecommender').then(m => ({ default: m.ZoneRecommender })),
@@ -226,6 +227,12 @@ export function WizardStep2Details(props: Step2Props) {
   // 입력 가드: 사용자가 Next를 눌러야 오류 표시
   const [showErrors, setShowErrors] = useState(false);
   const dateOk = !!(dateRange?.from && dateRange?.to);
+  // 2026-08-24 (planner-trust-course): same KST "must start tomorrow or later"
+  // rule as wizardGate/computeWizardGate — catches a start date that was set
+  // programmatically (resume/revision restore) rather than through this
+  // calendar's own (now KST-aware) `disabled` days, and shows why instead of
+  // leaving the traveler stuck on a Next button with no explanation.
+  const dateKstOk = !dateRange?.from || formatDateOnly(dateRange.from) > kstTodayISO();
   const airportOk = !!arrivalTerminal || flightInfoFromStep0;
   // canGoStep3 의 세 조건 중 인원만 화면에 표시가 없었다 — 음수를 넣으면 아무 문구 없이
   // Next 만 죽었다(2026-08-18).
@@ -239,6 +246,7 @@ export function WizardStep2Details(props: Step2Props) {
   const d = p as Record<string, string>;
   const missing: MissingField[] = [
     ...(dateOk ? [] : [{ key: 'dates', label: d.wizardMissingDates || 'Select your travel dates', ref: dateRef }]),
+    ...(dateOk && !dateKstOk ? [{ key: 'datesKst', label: d.wizardDateKstBlocked || 'Your start date has already passed in Korea time (KST). Please pick a later date.', ref: dateRef }] : []),
     ...(paxOk ? [] : [{ key: 'pax', label: d.wizardMissingPax || 'Enter how many travelers (1 or more)', ref: paxRef }]),
     ...(airportOk ? [] : [{ key: 'airport', label: d.wizardMissingAirport || 'Select your arrival airport', ref: airportRef }]),
   ];
@@ -272,22 +280,25 @@ export function WizardStep2Details(props: Step2Props) {
         {showErrors && !dateOk && (
           <p className="ec-error-note mt-2" role="alert">{d.wizardMissingDates || 'Please select travel dates'}</p>
         )}
-        <div className={`ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && !dateOk ? 'border-ec-critical' : ''}`}>
+        {showErrors && dateOk && !dateKstOk && (
+          <p className="ec-error-note mt-2" role="alert">
+            {d.wizardDateKstBlocked || 'Your start date has already passed in Korea time (KST). Please pick a later date.'}
+          </p>
+        )}
+        <div className={`ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && (!dateOk || !dateKstOk) ? 'border-ec-critical' : ''}`}>
           <DayPicker
             mode="range"
             selected={dateRange}
             onSelect={setDateRange}
             locale={calendarLocale}
             numberOfMonths={isMobile ? 1 : 2}
-            disabled={(d) => {
-              // AI 플래너 정책: 오늘 시작 불가 (day1 = today 차단).
-              // 내일 이후만 선택 가능. 서버와 정책 일치.
-              const todayMidnight = new Date();
-              todayMidnight.setHours(0, 0, 0, 0);
-              const tomorrow = new Date(todayMidnight);
-              tomorrow.setDate(todayMidnight.getDate() + 1);
-              return d < tomorrow;
-            }}
+            // AI 플래너 정책: 오늘 시작 불가 (day1 = today 차단). 내일 이후만 선택
+            // 가능 — 서버와 정책 일치. 2026-08-24 (planner-trust-course): KST
+            // tomorrow, not the browser's local tomorrow — wizardGate's
+            // `startsInTime` rule and this calendar now share one clock, so a
+            // traveler in Honolulu/Los Angeles can't pick a day the backend
+            // will then reject.
+            disabled={(day) => day < kstTomorrowLocalDate()}
             showOutsideDays={false}
             style={RDP_STYLE_VARS}
             classNames={{
@@ -370,11 +381,11 @@ export function WizardStep2Details(props: Step2Props) {
 
       {/* Travelers */}
       <div ref={paxRef} tabIndex={-1} className="scroll-mt-4 outline-none">
-        <p className="ec-question">{p.planner_step2_adults || 'How many travelers?'}</p>
+        <label htmlFor="wizard-pax-input" className="ec-question block">{p.planner_step2_adults || 'How many travelers?'}</label>
         {showErrors && !paxOk && (
           <p className="ec-error-note mt-2" role="alert">{d.wizardMissingPax || 'Enter how many travelers (1 or more)'}</p>
         )}
-        <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
+        <input id="wizard-pax-input" type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
           className={`ec-field ec-figure mt-2.5 ${showErrors && !paxOk ? 'border-ec-critical' : ''}`} />
       </div>
 
@@ -617,9 +628,10 @@ export function WizardStep2Details(props: Step2Props) {
                 const cityIcon = meta?.icon || '📍';
                 const value = hotelByCity[ck] || '';
                 const labelTpl = p.multicityHotelLabel || '{city} hotel';
+                const inputId = `wizard-hotel-city-${ck}`;
                 return (
                   <div key={ck}>
-                    <label className="text-[12px] text-ec-ink-2 mb-1.5 flex items-center gap-1.5 font-medium">
+                    <label htmlFor={inputId} className="text-[12px] text-ec-ink-2 mb-1.5 flex items-center gap-1.5 font-medium">
                       <span>{cityIcon}</span>
                       <span>{labelTpl.replace('{city}', cityName)}</span>
                       {ck === mainCityKey && (
@@ -629,6 +641,7 @@ export function WizardStep2Details(props: Step2Props) {
                       )}
                     </label>
                     <HotelSuggestInput
+                      id={inputId}
                       value={value}
                       onChange={(v) => setHotelByCity({ ...hotelByCity, [ck]: v })}
                       placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
@@ -671,12 +684,12 @@ export function WizardStep2Details(props: Step2Props) {
         ) : (
           /* 단도시 — 기존 단일 input + ZoneRecommender (regression 0) */
           <div>
-            <p className="ec-question">
+            <label htmlFor="wizard-hotel-single" className="ec-question block">
               {p.hotel_address_title || 'Where are you staying?'}
               <span className="text-ec-brand ml-1.5 text-[11px] font-normal">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
-            </p>
+            </label>
             <div className="mt-2.5">
-              <HotelSuggestInput value={hotelAddress}
+              <HotelSuggestInput id="wizard-hotel-single" value={hotelAddress}
                 onChange={(v) => setHotelAddress(v)}
                 placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
                 lang={lang}
@@ -721,14 +734,14 @@ export function WizardStep2Details(props: Step2Props) {
       <div className={flightInfoFromStep0 ? 'grid grid-cols-1 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
         {!flightInfoFromStep0 && (
           <div>
-            <p className="ec-question">{p.arrivalTime || 'Arrival time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></p>
-            <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+            <label htmlFor="wizard-arrival-time" className="ec-question block">{p.arrivalTime || 'Arrival time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></label>
+            <input id="wizard-arrival-time" type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
               className="ec-field ec-figure mt-2" />
           </div>
         )}
         <div>
-          <p className="ec-question">{p.departureTime || 'Departure time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></p>
-          <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
+          <label htmlFor="wizard-departure-time" className="ec-question block">{p.departureTime || 'Departure time'} <span className="text-ec-ink-3 text-[11px] font-normal">({p.wizardOptional || 'optional'})</span></label>
+          <input id="wizard-departure-time" type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
             className="ec-field ec-figure mt-2" />
         </div>
       </div>

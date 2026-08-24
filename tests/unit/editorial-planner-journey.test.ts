@@ -128,8 +128,10 @@ describe('planner positioning — the capability is the headline, not the mechan
           : typeof o;
     const en = shape(PLANNER_COPY.en);
     for (const l of LOCALES) expect(shape(PLANNER_COPY[l]), l).toBe(en);
-    // Four inputs, named — this is the product promise, not decoration.
-    for (const l of LOCALES) expect(PLANNER_COPY[l].masthead.inputs).toHaveLength(4);
+    // Five inputs, named — this is the product promise, not decoration.
+    // (2026-08-24: was 4 — the copy omitted the reservation/booking-status
+    // step the wizard actually has. See WizardForm STEPS.)
+    for (const l of LOCALES) expect(PLANNER_COPY[l].masthead.inputs).toHaveLength(5);
   });
 
   it('does not print one language at readers of another', () => {
@@ -311,8 +313,18 @@ describe('planner journey states', () => {
     expect(LOADING).toMatch(/slowNote/);
   });
 
-  it('the preview falls back in the reader\'s own language', () => {
-    expect(PREVIEW).toMatch(/narrativeFallback/);
+  it('the preview never shows a malformed/wrong-language narrative — it fails closed instead', () => {
+    // 2026-08-24 (planner-trust-course, client hardening B): the card used to
+    // coerce a bad `marketingNarrative` into a localized fallback string
+    // (`narrativeFallback` via `resolveNarrative`). It now renders from
+    // `parseQuickPreviewResponse` (quickPreviewContract.ts), which REJECTS a
+    // response with an unusable narrative outright — the card renders nothing
+    // rather than a coerced/garbled substitute, and `usePlannerHandlers`
+    // keeps `status: 'error'` so the reader sees the recoverable error state,
+    // not a broken card. `pickPlannerCopy` still supplies every other
+    // reader-language string that DOES reach the card (eyebrow, labels, etc.).
+    expect(PREVIEW).toMatch(/parseQuickPreviewResponse/);
+    expect(PREVIEW).toMatch(/if \(!parsed\) return null/);
     expect(PREVIEW).toMatch(/pickPlannerCopy/);
   });
 

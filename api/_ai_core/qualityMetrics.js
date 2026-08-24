@@ -237,7 +237,7 @@ function countBadAddressPrefix(stopsList) {
 // 숙소 앵커는 제외한다 — 모든 day 가 lodging 으로 시작·종료하도록 프롬프트가
 // 강제하므로(buildPrompt.js:375, :390) 같은 숙소가 반복되는 건 설계된 구조다.
 // 손님이 알아채는 진짜 중복은 관광지·식당이 다시 나오는 것.
-function countDuplicateStops(stopsList) {
+function groupNonLodgingStopCounts(stopsList) {
   const counted = stopsList.filter(({ stop }) => !isLodging(stop));
   const seen = new Map();
   for (const { stop } of counted) {
@@ -245,9 +245,29 @@ function countDuplicateStops(stopsList) {
     if (!key) continue;
     seen.set(key, (seen.get(key) || 0) + 1);
   }
+  return { counted, seen };
+}
+
+function countDuplicateStops(stopsList) {
+  const { counted, seen } = groupNonLodgingStopCounts(stopsList);
   let dups = 0;
   for (const n of seen.values()) if (n > 1) dups += (n - 1);
   return { total: counted.length, count: dups };
+}
+
+/**
+ * 종단(terminal) 중복 게이트용 — 중복된 stop 이름·건수 그대로 반환한다.
+ * countDuplicateStops 와 같은 groupNonLodgingStopCounts 를 써서 점수 지표와
+ * 종단 게이트가 절대 다른 결과를 내지 않는다(분류·식별 로직 단일 소스).
+ * @param {object} itinerary
+ * @returns {Array<{name: string, count: number}>}
+ */
+export function findDuplicateStops(itinerary) {
+  const stopsList = flattenStops(itinerary);
+  const { seen } = groupNonLodgingStopCounts(stopsList);
+  const out = [];
+  for (const [name, count] of seen) if (count > 1) out.push({ name, count });
+  return out;
 }
 
 // 이 stop 으로 오는 이동에 걸린 시간(분). ODsay/TMAP 실측 우선, 없으면 Gemini 추정.

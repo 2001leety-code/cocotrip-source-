@@ -16,6 +16,9 @@ import { captureError } from './_shared/sentry.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUidFromAuthHeader, hasAiFeatureEntitlement } from './_shared/ai-entitlement.js';
+import { buildCourseAiContract, CourseAiContractError, mergeAnchoredOrder } from './_shared/courseAiContract.js';
+import { getCourseCandidates, rehydrateCandidates } from './_shared/courseCandidateCatalog.js';
+import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -35,18 +38,22 @@ const JSON_HEADERS = {
 const MAX_STOPS = 20;
 
 const SYSTEM_PROMPT = `You optimize a one-day Korea travel course.
-Input: an ordered list of stops the user picked, each with id, name, category (food/sight/show/stay/etc), and lat/lng.
+Input: an ordered list of stops the user picked, each with id, name, category (food/sight/show/stay/etc), lat/lng,
+and optionally time/timeConstraint('fixed'|'window')/windowEnd/stayMinutes for stops with a reservation or a
+visit-time window. Also a CANDIDATES list of nearby real places, each with a candidateId.
 
 TASKS:
 1. Reorder stops into a natural travel route: minimize back-and-forth by geography (lat/lng),
    but respect context — meals(food) around lunch/dinner, a hotel(stay) goes last, a show at its likely time.
-2. Suggest 3-5 nearby places the user did NOT include, that fit the area and theme. Real, well-known Korea places only.
-   Give approximate lat/lng. Do NOT invent obscure spots.
+   Stops with timeConstraint are anchored by the server at their original position regardless of what you
+   return here, so you do not need to keep them literally first/last — just produce a sensible full order.
+2. From CANDIDATES only, pick 3-5 candidateId values that best fit the route's area and theme. Do NOT invent
+   places or ids — choose only values that appear in CANDIDATES. If CANDIDATES is empty, return an empty array.
 
 Return STRICT JSON only, no markdown:
 {
   "optimizedOrder": ["<stop id in new order>", ...],   // MUST contain exactly the input ids, no more, no less
-  "nearby": [ { "name": "<place name>", "lat": 37.5, "lng": 127.0, "category": "food|sight|show|stay|etc", "reason": "<short why, in the user's language>" } ]
+  "nearby": [ { "candidateId": "<id from CANDIDATES>", "reason": "<short why, in the user's language>" } ]
 }`;
 
 /** 최근접 이웃 순서 폴백 — Gemini 실패 시 좌표만으로 동선 근사. */
@@ -92,6 +99,13 @@ export default async function handler(req, res) {
       category: String(s?.category || 'etc').slice(0, 20),
       lat: Number(s?.lat),
       lng: Number(s?.lng),
+      // planner-trust-course v1 확장 — 형식 검증은 buildCourseAiContract 가 fail-closed 로 처리.
+      ...(typeof s?.time === 'string' ? { time: s.time } : {}),
+      ...(s?.timeConstraint !== undefined ? { timeConstraint: s.timeConstraint } : {}),
+      ...(typeof s?.windowEnd === 'string' ? { windowEnd: s.windowEnd } : {}),
+      ...(s?.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+      ...(typeof s?.placeKey === 'string' ? { placeKey: s.placeKey } : {}),
+      ...(s?.placeSource !== undefined ? { placeSource: s.placeSource } : {}),
     }))
     .filter((s) => s.id && s.title);
   const lang = ['ko', 'en', 'ja', 'zh'].includes(body.lang) ? body.lang : 'en';
@@ -99,6 +113,18 @@ export default async function handler(req, res) {
   if (stops.length < 2) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: '장소가 2곳 이상이어야 합니다', code: 'TOO_FEW_STOPS' }));
+  }
+
+  // 🔒 fixed/window anchor 계약 — 형식 불량은 Gemini 호출/과금 전에 400 (fail-closed).
+  let contract;
+  try {
+    contract = buildCourseAiContract(stops);
+  } catch (err) {
+    if (err instanceof CourseAiContractError) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: '장소 시간/체류시간 형식이 잘못됨', code: err.code }));
+    }
+    throw err;
   }
 
   // 🔒 유료 AI 기능 게이트 (운영자 2026-07-07 요금제): AI 동선최적화+주변추천 = $9.90 구매자 전용.
@@ -111,7 +137,25 @@ export default async function handler(req, res) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY || '';
-  const fallbackOrder = nearestNeighborOrder(stops);
+
+  // free(비anchor) id 만 최근접 이웃으로 재배치하고, anchor 는 원래 인덱스로 되돌린다 —
+  // 폴백 경로도 예약/방문시간대 stop 을 절대 밀어내지 않는다.
+  const freeStopsList = contract.stops.filter((s) => !contract.anchorIndexes.has(s.index));
+  const fallbackFreeOrder = nearestNeighborOrder(freeStopsList);
+  const fallbackOrder = mergeAnchoredOrder(contract, fallbackFreeOrder);
+
+  // 주변 추천 후보 — 선택된 stop 들의 중심 좌표 근방, 서버 카탈로그(api/_attractions_index.json)
+  // 에서만 뽑는다. 좌표 있는 stop 이 하나도 없으면 후보 없음(추천 스킵, 위치 추측 금지).
+  const coordStops = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const candidates = coordStops.length
+    ? getCourseCandidates({
+      lat: coordStops.reduce((sum, s) => sum + s.lat, 0) / coordStops.length,
+      lng: coordStops.reduce((sum, s) => sum + s.lng, 0) / coordStops.length,
+      excludeStops: stops,
+      lang,
+      limit: 12,
+    })
+    : [];
 
   if (!apiKey) {
     // 키 없으면 순수계산 순서만 (추천 없음)
@@ -133,12 +177,20 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn', rateLimited: true }));
   }
 
+  const resolvedModel = resolveGeminiModel('course');
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: resolvedModel });
     const userPayload = {
       language: lang,
-      stops: stops.map((s) => ({ id: s.id, name: s.title, category: s.category, lat: s.lat, lng: s.lng })),
+      stops: stops.map((s) => ({
+        id: s.id, name: s.title, category: s.category, lat: s.lat, lng: s.lng,
+        ...(s.time ? { time: s.time } : {}),
+        ...(s.timeConstraint ? { timeConstraint: s.timeConstraint } : {}),
+        ...(s.windowEnd ? { windowEnd: s.windowEnd } : {}),
+        ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+      })),
+      candidates: candidates.map((c) => ({ candidateId: c.candidateId, name: c.name, theme: c.theme })),
     };
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(userPayload) }] }],
@@ -151,35 +203,37 @@ export default async function handler(req, res) {
       },
     });
     // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
-    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('course-ai', 'gemini-2.5-flash', result.response)).catch(() => {});
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('course-ai', resolvedModel, result.response)).catch(() => {});
     const raw = result.response.text() || '';
     let parsed;
     try { parsed = JSON.parse(raw); } catch { parsed = null; }
 
     // optimizedOrder 정합성 — 입력 id 집합과 동일해야(손실/추가 방지). 아니면 폴백.
     const inputIds = new Set(stops.map((s) => s.id));
-    let order = Array.isArray(parsed?.optimizedOrder) ? parsed.optimizedOrder.map(String) : [];
+    const order = Array.isArray(parsed?.optimizedOrder) ? parsed.optimizedOrder.map(String) : [];
     const orderSet = new Set(order);
     const valid = order.length === stops.length
       && order.every((id) => inputIds.has(id))
       && orderSet.size === stops.length;
-    if (!valid) order = fallbackOrder;
+    // 모델이 뭘 반환하든 anchor(fixed/window) 는 서버가 원래 인덱스로 강제한다 —
+    // 모델 출력에서 free id 순서 신호만 뽑아 재삽입(mergeAnchoredOrder 가 집합 불일치 시 자체 폴백).
+    const freeIdSet = new Set(contract.freeIds);
+    const finalOrder = valid
+      ? mergeAnchoredOrder(contract, order.filter((id) => freeIdSet.has(id)))
+      : fallbackOrder;
 
-    // nearby 정제 — 좌표 유효 + 한국 범위 + 상한 5.
-    const nearby = (Array.isArray(parsed?.nearby) ? parsed.nearby : [])
-      .map((n) => ({
-        name: String(n?.name || '').slice(0, 80),
-        lat: Number(n?.lat),
-        lng: Number(n?.lng),
-        category: ['food', 'sight', 'show', 'stay', 'etc'].includes(n?.category) ? n.category : 'sight',
-        reason: String(n?.reason || '').slice(0, 120),
-      }))
-      .filter((n) => n.name && Number.isFinite(n.lat) && Number.isFinite(n.lng)
-        && n.lat >= 33 && n.lat <= 39 && n.lng >= 124 && n.lng <= 132)
-      .slice(0, 5);
+    // nearby — 모델은 candidateId 만 고를 수 있다. name/lat/lng 는 절대 모델 값을 쓰지 않고
+    // 서버 카탈로그에서만 복원(rehydrateCandidates) — 카탈로그에 없는 id 는 조용히 버림.
+    const reasonById = new Map();
+    for (const n of Array.isArray(parsed?.nearby) ? parsed.nearby : []) {
+      const cid = typeof n?.candidateId === 'string' ? n.candidateId.trim() : '';
+      if (cid && !reasonById.has(cid)) reasonById.set(cid, String(n?.reason || '').slice(0, 120));
+    }
+    const nearby = rehydrateCandidates([...reasonById.keys()], lang)
+      .map((c) => ({ ...c, reason: reasonById.get(c.candidateId) || '' }));
 
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: true, optimizedOrder: order, nearby, source: valid ? 'ai' : 'nn' }));
+    return res.end(JSON.stringify({ ok: true, optimizedOrder: finalOrder, nearby, source: valid ? 'ai' : 'nn' }));
   } catch (e) {
     console.warn('[course-ai] Gemini 실패 → 폴백:', e.message);
     await captureError(e, { route: '/api/course-ai' });

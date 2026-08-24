@@ -15,7 +15,7 @@
  *   - 숫자·목록은 SSOT 에서 **파생**한다. 손으로 적어두면 개정 때 이 페이지만 거짓말이 된다.
  *       가격  = lib/aiPlannerPrice (AI_PLANNER_FULL_USD)
  *       도시  = WizardForm/data CITY_CHIPS + 도시명 i18n(`planner.city_<key>`)
- *       식이  = WizardForm/data ALLERGY_KEYS
+ *       식이  = WizardForm/data DIETARY_RESTRICTION_KEYS
  *   - 환불 문구는 실제 결제 화면(`PurchaseSection` 의 `aiPlanNoRefundNotice`)과 같은 말만 쓴다.
  *     ⚠️ i18n 에 `paypalSafeCheckout`("100% refund if unsatisfied")가 남아 있으나 **사용처 0**
  *     인 죽은 문구다. 그 문장을 여기로 가져오면 화면과 반대되는 약속이 된다.
@@ -26,7 +26,7 @@
  *    가격은 FAQ 안에만 둔다 — 질문 형태라 문장이 다르고, FAQPage 스키마에도 필요하다.
  */
 import type { Translations } from '@/i18n';
-import { CITY_CHIPS, ALLERGY_KEYS } from '@/components/WizardForm/data';
+import { CITY_CHIPS, DIETARY_RESTRICTION_KEYS } from '@/components/WizardForm/data';
 import { formatAiPlannerUsd, formatAiPlannerApproxKrw } from '@/lib/aiPlannerPrice';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildFaqJsonLd } from '@/lib/jsonLd';
@@ -222,8 +222,8 @@ export function PlannerSeoInfo({ language, t }: { language: string; t: Translati
   );
 
   // 'None'(제약 없음)은 선택지이지 대응 가능한 제약이 아니다 — 문장에 넣으면 항목 수가 부풀려진다.
-  const dietKeys = ALLERGY_KEYS.filter((k) => k !== 'None');
-  const dietNames = dietKeys.map((k) => p[`allergy${k}`] || k);
+  const dietKeys = DIETARY_RESTRICTION_KEYS.filter((k) => k !== 'None');
+  const dietNames = dietKeys.map((k) => p[`dietaryRestriction${k}`] || k);
 
   const vars: Vars = {
     price: formatAiPlannerUsd(),

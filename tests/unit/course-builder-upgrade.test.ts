@@ -42,17 +42,26 @@ describe('course-ai 배선 불변식', () => {
     const src = readFileSync(resolve(__dirname, '../../api/course-ai.js'), 'utf8');
     expect(src).toMatch(/nearestNeighborOrder/);           // 폴백 순수계산
     expect(src).toMatch(/order\.every\(\(id\) => inputIds\.has\(id\)\)/); // id 정합성(손실/추가 방지)
-    expect(src).toMatch(/if \(!valid\) order = fallbackOrder/); // 불량 시 폴백
+    // 2026-08-24 (planner-trust-course #3): anchor(fixed/window) 강제를 위해
+    // 불량 시 fallbackOrder 로 떨어지는 지점이 mergeAnchoredOrder 경유로 바뀜(courseAiContract.js).
+    expect(src).toMatch(/const finalOrder = valid/);
+    expect(src).toMatch(/mergeAnchoredOrder\(contract, order\.filter/);
+    expect(src).toMatch(/: fallbackOrder;/);
     expect(src).not.toMatch(/(import|require)[^\n]*_food_index/); // CLAUDE.md B-1: 임포트 금지(주석 언급은 허용)
     expect(src).toMatch(/thinkingBudget: 0/);              // 잘림 방지
   });
 
-  it('nearby 좌표 한국범위 + 상한 5 필터', async () => {
+  // 2026-08-24 (planner-trust-course #4): "좌표 범위로 걸러낸 모델 발명 장소"가 아니라
+  // "서버 카탈로그(candidateId)로만 복원" 으로 설계가 바뀌었다 — 실제 신뢰 경계 검증은
+  // tests/unit/course-ai-trust.test.ts 가 핸들러 호출로 담당(모델이 지어낸 candidateId 는
+  // 버려지고, 유효 id 는 서버 name/lat/lng 로만 복원됨을 실행 레벨에서 확인).
+  it('nearby identity 는 서버 카탈로그 rehydrate 경유 — 모델 name/lat/lng 를 직접 신뢰하지 않음', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const src = readFileSync(resolve(__dirname, '../../api/course-ai.js'), 'utf8');
-    expect(src).toMatch(/n\.lat >= 33 && n\.lat <= 39/);
-    expect(src).toMatch(/\.slice\(0, 5\)/);
+    expect(src).toMatch(/rehydrateCandidates/);
+    expect(src).toMatch(/getCourseCandidates/);
+    expect(src).not.toMatch(/n\.lat/); // 모델 응답의 좌표 필드를 더 이상 직접 읽지 않음
   });
 
   it('유료 Gemini 호출 전 IP rate-limit (비용-DoS 방어, place-search 패턴)', async () => {

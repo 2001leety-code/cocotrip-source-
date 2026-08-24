@@ -42,25 +42,50 @@ describe('matchFoodPlaceholder — 프로덕션 스키마(r.tag 문자열) dieta
   });
 });
 
-describe('shapeRequest — 식이/알레르기 payload 손상 throw (CLAUDE.md J silent drop 금지)', () => {
+describe('shapeRequest — 식이제한 payload 손상 throw (CLAUDE.md J silent drop 금지)', () => {
   const base = { city: 'Seoul', days: 2, language: 'en' };
-  it('정상 배열 → 통과', () => {
-    const r = shapeRequest({ ...base, dietPrefs: ['Halal'], allergies: ['Nuts'] }, 'a@b.com');
+  it('정상 배열(canonical dietaryRestrictions) → 통과', () => {
+    const r = shapeRequest({ ...base, dietPrefs: ['Halal'], dietaryRestrictions: ['Vegan'] }, 'a@b.com');
     expect(r.dietPrefs).toEqual(['Halal']);
-    expect(r.allergies).toEqual(['Nuts']);
+    expect(r.dietaryRestrictions).toEqual(['Vegan']);
   });
   it('키 부재(미선택) → 빈배열 (정상, 현행 유지)', () => {
     const r = shapeRequest({ ...base }, 'a@b.com');
     expect(r.dietPrefs).toEqual([]);
-    expect(r.allergies).toEqual([]);
+    expect(r.dietaryRestrictions).toEqual([]);
   });
   it('dietPrefs 가 문자열(전송 손상) → throw (silent [] 금지)', () => {
     expect(() => shapeRequest({ ...base, dietPrefs: 'Halal' }, 'a@b.com')).toThrow(/INVALID_DIETARY_PAYLOAD/);
   });
-  it('allergies 가 문자열(전송 손상) → throw', () => {
-    expect(() => shapeRequest({ ...base, allergies: 'Nuts' }, 'a@b.com')).toThrow(/INVALID_DIETARY_PAYLOAD/);
+  it('dietaryRestrictions 가 문자열(전송 손상) → throw', () => {
+    expect(() => shapeRequest({ ...base, dietaryRestrictions: 'Vegan' }, 'a@b.com')).toThrow(/INVALID_DIETARY_PAYLOAD/);
   });
-  it('allergies 가 객체(손상) → throw', () => {
-    expect(() => shapeRequest({ ...base, allergies: { nuts: true } }, 'a@b.com')).toThrow(/INVALID_DIETARY_PAYLOAD/);
+  it('dietaryRestrictions 가 객체(손상) → throw', () => {
+    expect(() => shapeRequest({ ...base, dietaryRestrictions: { vegan: true } }, 'a@b.com')).toThrow(/INVALID_DIETARY_PAYLOAD/);
+  });
+  it('레거시 allergies 별칭 — Halal/Vegan/Vegetarian 만 dietaryRestrictions 로 승격', () => {
+    const r = shapeRequest({ ...base, allergies: ['Halal', 'Nuts'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual(['Halal']);
+    expect(r).not.toHaveProperty('allergies');
+  });
+  it('레거시 allergies 가 의료 알레르겐만 포함 → dietaryRestrictions 빈배열 (조용히 버림, throw 아님)', () => {
+    const r = shapeRequest({ ...base, allergies: ['Nuts', 'Shellfish'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual([]);
+  });
+  it('canonical dietaryRestrictions 가 있으면 레거시 allergies 는 무시된다', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: ['Vegetarian'], allergies: ['Halal'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual(['Vegetarian']);
+  });
+  it('canonical 혼합(지원·비지원) → 지원값만 필터링 (Nuts·Shellfish 제거, Halal·Vegan 유지)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: ['Nuts', 'Halal', 'Shellfish', 'Vegan'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual(['Halal', 'Vegan']);
+  });
+  it('canonical 전부 비지원값 → 빈배열 (조용히 버림, throw 아님)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: ['Nuts', 'Shellfish', 'Gluten'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual([]);
+  });
+  it('canonical 빈배열 → 레거시 allergies 무시하고 빈배열 유지 (precedence)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: [], allergies: ['Halal'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual([]);
   });
 });

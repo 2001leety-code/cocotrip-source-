@@ -115,6 +115,13 @@ export function buildPlanAiCompletePayload(args) {
     isAdminBypass, identifierForBucketing,
     forceGuestToken,  // FEATURE_GUEST_ANON_AUTH: worker persistPlan accessToken 발급용.
     issuanceClaim,    // P0 (2026-07-15): 유료 PayPal 발급권 { orderId, attemptId, planId }.
+    // planner-intent-v1 (2026-08-24): avoidStopNames — removal already ran in handlerCore
+    //   (before this dispatch), so the itinerary the worker gets is already clean. The
+    //   worker still needs the list for postResponsePipeline's final assert-only check
+    //   and to filter recommended_restaurants (built fresh from the food DB, not from
+    //   the itinerary, so it was never touched by the pre-dispatch removal).
+    avoidStopNames,
+    plannerIntent,    // planner-intent-v1: normalized intent — worker's persistPlan persists it verbatim.
   } = args;
 
   // P256 (2026-05-28): zone_id 도출 — Inngest worker 의 4번째 layer fix.
@@ -156,6 +163,8 @@ export function buildPlanAiCompletePayload(args) {
       // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 면 true → worker persistPlan/skeleton 이
       // accessToken 발급. undefined/false (플래그 OFF) = 기존 동작 byte-identical.
       forceGuestToken: !!forceGuestToken,
+      avoidStopNames: Array.isArray(avoidStopNames) ? avoidStopNames : [],
+      ...(plannerIntent ? { plannerIntent } : {}),
       // P266: P195 cache instrumentation persistence — measure marker survives reconstruction layer.
       //   null = block_mode / 3pass / non-Gemini path. numeric object = legacy 1-pass measurement.
       ...(cacheMetadata ? { cacheMetadata } : {}),
@@ -261,6 +270,10 @@ export async function dispatchOrInlineForHandlerCore({
   //   ⚠️ **구조분해 시그니처다** — 여기 명시하지 않으면 handlerCore 가 넘겨도 에러 없이 조용히
   //     버려지고, worker 가 fencing 없이 plans 를 저장하게 된다(= 이중 발급 창).
   issuanceClaim = null,
+  // planner-intent-v1 (2026-08-24): 같은 이유의 구조분해 시그니처 — 명시 안 하면 worker 가
+  //   avoidStopNames 없이 recommended_restaurants 필터 + 최종 assert 를 건너뛴다.
+  avoidStopNames = [],
+  plannerIntent = null,
 }) {
   return tryDispatchAndLog({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
@@ -271,6 +284,6 @@ export async function dispatchOrInlineForHandlerCore({
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,
     blocksUsed: blockModeUsed ? blocksUsed : null,
-    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim,
+    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim, avoidStopNames, plannerIntent,
   }, handlerStart);
 }

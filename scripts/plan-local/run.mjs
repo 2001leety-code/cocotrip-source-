@@ -92,7 +92,7 @@ async function main() {
   console.log(`\n[plan:test] scenario=${scenario}  blocks=${blocks.length}  days=${(selection.day_selections || []).length}  (offline, 외부호출 0)`);
 
   // installMocks 이후 동적 import — _pipeline 이 끌어오는 prod 모듈이 mock 치환된 상태로 로드됨.
-  const { runOfflinePlan, printPlanSummary } = await import('./_pipeline.mjs');
+  const { runOfflinePlan, printPlanSummary, runPreWriteQualityChecks } = await import('./_pipeline.mjs');
 
   let result;
   try {
@@ -103,7 +103,18 @@ async function main() {
     process.exit(1);
   }
 
-  const { itinerary, pricing, blocksUsed } = result;
+  const { itinerary, pricing, blocksUsed, foodIndex } = result;
+
+  // ── fail-closed 품질 게이트 — 성공 아티팩트를 쓰기 **전에** 돈다 ──
+  // day 수 정확성 / 빈 day / 비-lodging 중복 / 다도시 bookend / 식이·식사커버리지.
+  // 하나라도 실패하면 outputs/plan-<scenario>.json 을 쓰지 않고 nonzero exit.
+  const checks = runPreWriteQualityChecks({ itinerary, userInput, foodIndex });
+  if (!checks.ok) {
+    console.error(`\n❌ [plan:test] 품질 게이트 실패 — 아티팩트를 쓰지 않습니다:`);
+    for (const f of checks.failures) console.error(`   - [${f.check}] ${f.message}`);
+    console.error('');
+    process.exit(1);
+  }
 
   await mkdir(OUTPUTS, { recursive: true });
   const outPath = join(OUTPUTS, `plan-${scenario}.json`);

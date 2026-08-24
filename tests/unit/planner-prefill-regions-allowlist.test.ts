@@ -88,7 +88,7 @@ describe('filterSupportedRegions — 공개 쿼리 허용키 검증', () => {
 describe('PlannerPage 배선 — 공개 딥링크만 거르고 revision 계약은 그대로', () => {
   const planner = read('src/pages/PlannerPage/index.tsx');
   const revisionBlock = planner.slice(
-    planner.indexOf('revisionMode ? {'),
+    planner.indexOf('validRevisionContext ? {'),
     planner.indexOf('} : ('),
   );
 
@@ -103,6 +103,9 @@ describe('PlannerPage 배선 — 공개 딥링크만 거르고 revision 계약�
     expect(revisionBlock.length).toBeGreaterThan(50);
     expect(revisionBlock, 'revision prefill got filtered — 자유 입력 도시가 사라진다')
       .not.toMatch(/deepLinkRegions/);
-    expect(revisionBlock).toMatch(/regions:\s*revisionRegions/);
+    // planner-intent-v1 (2026-08-24): snapshot 복원(plannerRevisionSnapshot)이
+    // revisionRegions 앞에 우선순위로 붙었다 — 필터링(deepLinkRegions)이 아니라
+    // 세션 스냅샷 우선, 없으면 여전히 미필터 revisionRegions 로 fallback.
+    expect(revisionBlock).toMatch(/regions:\s*snapshotValues\?\.regions \|\| revisionRegions/);
   });
 });

@@ -34,6 +34,24 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
+// ── 2026-08-24 (planner-trust) test helper — mocked adminDb that captures every
+//   .collection('plans').doc(id).set(data, opts) call so we can assert exactly
+//   what would have landed in the PUBLIC Firestore doc a guest's onSnapshot reads.
+function makeMockAdminDb() {
+  const calls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
+  return {
+    calls,
+    collection: () => ({
+      doc: (id: string) => ({
+        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
+          calls.push({ id, data, opts });
+          return {};
+        },
+      }),
+    }),
+  };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(__filename, '../../../');
 const BG_PATH = path.join(ROOT, 'api/_ai_core/backgroundPipelines.js');
@@ -173,10 +191,10 @@ describe('P230 block-mode + Inngest 통합 회귀 차단', () => {
   it('P230-B5: tryInitBlockModeForInngest — itinerary 없으면 null 반환', async () => {
     const { tryInitBlockModeForInngest } = await import('../../api/_ai_core/backgroundPipelines.js');
     const result = await tryInitBlockModeForInngest({
-      adminDb: { collection: () => ({}) } as any,
+      adminDb: { collection: () => ({}) },
       uid: 'test', email: 'x@y.z', area: 'seoul', startDate: '2026-06-01',
       guestName: 'G', pax: 2, language: 'en', vehicle: 'staria_8', durationDays: 3, body: {},
-      itinerary: null as any,  // ← 핵심
+      itinerary: null,  // ← 핵심
     });
     expect(result).toBe(null);
   });
@@ -199,5 +217,71 @@ describe('P230 block-mode + Inngest 통합 회귀 차단', () => {
     expect(tryStart).toBeGreaterThan(0);
     expect(callPos).toBeGreaterThan(tryStart);
     expect(callPos).toBeLessThan(catchPos);
+  });
+
+  // ── 2026-08-24 (planner-trust) — real behavioral proof: PUBLIC Firestore doc
+  //   written by tryInitBlockModeForInngest must have itinerary.days === [] until
+  //   the terminal gates run, for BOTH PLANNER_SKELETON_IN_WORKER values. The raw
+  //   block-mode itinerary must still be reachable internally (skeletonCtx /
+  //   savePlanSkeleton doc) — proving we sanitized the write, not the pipeline.
+
+  describe('P230-C: tryInitBlockModeForInngest — public doc sanitization (real adminDb capture)', () => {
+    const rawItinerary = {
+      tour_title: 'Real Trip (unvetted)',
+      days: [
+        { day: 1, stops: [{ name: 'Stop A', display_name: 'Stop A' }] },
+        { day: 2, stops: [{ name: 'Stop B', display_name: 'Stop B' }] },
+      ],
+    };
+    const ORIG_FLAG = process.env.PLANNER_SKELETON_IN_WORKER;
+    afterEach(() => {
+      if (ORIG_FLAG === undefined) delete process.env.PLANNER_SKELETON_IN_WORKER;
+      else process.env.PLANNER_SKELETON_IN_WORKER = ORIG_FLAG;
+    });
+
+    it('P230-C1: PLANNER_SKELETON_IN_WORKER=false (legacy branch) — public merge write has itinerary.days=[] even though input itinerary.days is non-empty', async () => {
+      delete process.env.PLANNER_SKELETON_IN_WORKER;
+      const { tryInitBlockModeForInngest } = await import('../../api/_ai_core/backgroundPipelines.js');
+      const adminDb = makeMockAdminDb();
+      const result = await tryInitBlockModeForInngest({
+        adminDb, uid: 'u1', email: 'x@y.z', area: 'seoul', startDate: '2026-06-01',
+        guestName: 'G', pax: 2, language: 'en', vehicle: 'staria_8', durationDays: 3, body: {},
+        itinerary: rawItinerary,
+      });
+      expect(result).not.toBeNull();
+      // Two .set() calls expected: (1) savePlanSkeleton's initial empty-skeleton set,
+      // (2) the merge that used to carry raw itinerary — now must be sanitized.
+      const mergeCall = adminDb.calls.find((c) => c.opts && c.opts.merge === true);
+      expect(mergeCall).toBeDefined();
+      expect(mergeCall!.data.itinerary.days).toEqual([]);
+      expect(mergeCall!.data.itinerary.tour_title).toBeNull();
+      expect(mergeCall!.data._block_mode_used).toBe(true);
+      // No captured .set() call anywhere should carry the real non-empty days —
+      // proves the fix, not just the merge call in isolation.
+      for (const c of adminDb.calls) {
+        expect((c.data.itinerary?.days || []).length).toBe(0);
+      }
+    });
+
+    it('P230-C2: PLANNER_SKELETON_IN_WORKER=true (P231 stub branch) — stub write carries no itinerary field at all, real data only in returned skeletonCtx (internal)', async () => {
+      process.env.PLANNER_SKELETON_IN_WORKER = 'true';
+      const { tryInitBlockModeForInngest } = await import('../../api/_ai_core/backgroundPipelines.js');
+      const adminDb = makeMockAdminDb();
+      const result = await tryInitBlockModeForInngest({
+        adminDb, uid: 'u1', email: 'x@y.z', area: 'seoul', startDate: '2026-06-01',
+        guestName: 'G', pax: 2, language: 'en', vehicle: 'staria_8', durationDays: 3, body: {},
+        itinerary: rawItinerary,
+      });
+      expect(result).not.toBeNull();
+      // Only one .set() call (the stub) — must not include an itinerary field at all,
+      // i.e. no path for a client onSnapshot to see raw days pre-gate.
+      expect(adminDb.calls.length).toBe(1);
+      expect(adminDb.calls[0].data.itinerary).toBeUndefined();
+      // The real itinerary is NOT lost — it must still flow through skeletonCtx
+      // (internal Inngest event payload, never public-doc-written directly here).
+      expect(result!.skeletonCtx).toBeDefined();
+      expect(result!.skeletonCtx.blockModeItinerary).toBe(rawItinerary);
+      expect(result!.skeletonCtx.blockModeItinerary.days.length).toBe(2);
+    });
   });
 });

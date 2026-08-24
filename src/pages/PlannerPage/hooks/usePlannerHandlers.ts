@@ -7,6 +7,10 @@ import { cityNameToAreaKey } from '../lib/formatters';
 import { auth as firebaseAuth } from '@/lib/firebase';
 import { isGuestAnonEnabled, shouldAttachGuestAnonToken } from '@/lib/guestReader';
 import { markPlannerPendingComplete } from '@/lib/analytics';
+import { track as posthogTrack } from '@/lib/posthog';
+import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
+import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
+import { buildFullPlannerIntentPayload } from '../lib/plannerIntent';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -47,6 +51,24 @@ type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSu
 export type PlannerErrorCode =
   | 'GEMINI_TIMEOUT'
   | 'GEMINI_ERROR'
+  // 2026-08-24 (planner-trust-course, E/quick preview): stable quick-preview error codes.
+  | 'MISSING_DESTINATION'
+  | 'INVALID_DURATION'
+  | 'INVALID_PAX'
+  | 'MISSING_AIRPORT'
+  | 'UNSUPPORTED_CITY'
+  | 'CITY_DATA_UNAVAILABLE'
+  | 'DIETARY_PREVIEW_UNAVAILABLE'
+  // 2026-08-24 (planner-trust-course, client-hardening): permanent-data-gap and
+  // rate-protection codes the server can now return (ai-planner-quick.js) — the
+  // client union stayed a step behind the server's actual set.
+  | 'PREFERENCE_DATA_UNAVAILABLE'
+  | 'RATE_PROTECTION_DEGRADED'
+  | 'INVALID_REQUEST'
+  | 'CITY_MISMATCH'
+  | 'MISSING_RESERVATION_STATUS'
+  | 'INVALID_RESERVATION_STATUS'
+  | 'MISSING_ARRIVAL_TIME'
   | 'PAYMENT_REQUIRED'
   | 'PAYMENT_INCOMPLETE'
   // 결제 신뢰 검증 실패 계열 (paymentGate, 2026-07-15). 지역화 필수 —
@@ -97,6 +119,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   const [planErrorCode, setPlanErrorCode] = useState<PlannerErrorCode | null>(null);
   const lastValues = useRef<PlannerFormValues | null>(null);
 
+  // 2026-08-24 (planner-trust-course, fail-closed success): a 200 only unlocks
+  // quickSuccess/PurchaseSection when the body is shaped exactly like a usable
+  // day-one preview — not merely present. Validation now lives in
+  // `parseQuickPreviewResponse` (quickPreviewContract.ts), the SAME parser
+  // `QuickPreviewCard` renders from — one shared reading of the payload, not
+  // two independently-drifting ones.
+
   function normalizeFetchError(err: unknown, codeFromServer?: string, detailsFromServer?: string): ErrorPayload {
     if (codeFromServer) {
       return { code: codeFromServer as PlannerErrorCode, details: detailsFromServer || '' };
@@ -119,68 +148,84 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStreamStep(1);
     setStreamAgent('gemini');
     
-    const MAX_RETRIES = 2;
-    const payload = JSON.stringify({ 
-      destination: (values.regions || []).join(', ') || 'Seoul',
-      preferences: (values.categories || []).join(', ') || '',
-      categories: values.categories || ['culture'],
-      durationDays: values.durationDays || 3,
-      pax: values.pax || 2,
-      language,
-      regions: values.regions || ['Seoul'],
-      dietPrefs: values.dietPrefs || [],
-      allergies: values.allergies || [],
-      priceRange: values.priceRange || 'Any',
-      special_request: values.freeText || '',
-    });
+    // 2026-08-24 (planner-trust-course, fail-closed retry budget): at most 2
+    // HTTP attempts total, and the 2nd only happens after an actual transport
+    // failure (fetch() itself throwing, typically TypeError) on the 1st. A
+    // response the server actually sent — any 4xx/5xx, GEMINI_ERROR, or a
+    // malformed 200 — is terminal and is never retried: retrying a real
+    // validation/quota/city-mismatch rejection just repeats the same failure
+    // (or double-spends a rate-limited/paid backend call) for no benefit.
+    const MAX_ATTEMPTS = 2;
+    const payload = JSON.stringify(buildQuickPreviewPayload(values, language));
+    void posthogTrack('preview_requested', { language });
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    function fail(code: PlannerErrorCode, details: string) {
+      setErrorCode(code);
+      setErrorMsg(details);
+      setStatus('error');
+      void posthogTrack('preview_degraded_or_failed', { language, code });
+    }
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      let res: Response;
       try {
-        const res = await fetch('/api/ai-planner-quick', {
+        res = await fetch('/api/ai-planner-quick', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: payload,
         });
-
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          const msg = errBody.details || errBody.error || `Server error (${res.status})`;
-          if ((res.status === 404 || res.status >= 500) && attempt < MAX_RETRIES) {
-            console.warn(`[Planner] Attempt ${attempt + 1} got ${res.status}, retrying in 1.5s...`);
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-          const e = new Error(msg) as Error & { code?: string; details?: string };
-          e.code = errBody.code;
-          e.details = errBody.details;
-          throw e;
-        }
-
-        const json = await res.json();
-        const quickData = json.data;
-        setResultQuick(quickData);
-        setStatus('quickSuccess');
-        setTimeout(() => {
-          document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-        return;
       } catch (err) {
-        if (attempt < MAX_RETRIES && err instanceof TypeError) {
-          console.warn(`[Planner] Network error on attempt ${attempt + 1}, retrying...`);
+        if (attempt < MAX_ATTEMPTS && err instanceof TypeError) {
+          console.warn(`[Planner] Network error on attempt ${attempt}, retrying...`);
           await new Promise(r => setTimeout(r, 1500));
           continue;
         }
-        const payload = normalizeFetchError(
-          err,
-          (err as { code?: string }).code,
-          (err as { details?: string }).details || (err as Error).message,
-        );
-        setErrorCode(payload.code);
-        setErrorMsg(payload.details || (err instanceof Error ? err.message : 'Unknown error.'));
-        setStatus('error');
+        const p = normalizeFetchError(err);
+        fail(p.code, p.details || (err instanceof Error ? err.message : 'Unknown error.'));
         return;
       }
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = errBody.details || errBody.error || `Server error (${res.status})`;
+        const p = normalizeFetchError(new Error(msg), errBody.code, errBody.details);
+        fail(p.code, p.details || msg);
+        return;
+      }
+
+      const json = await res.json().catch(() => null);
+      if (!json || json.ok !== true || !parseQuickPreviewResponse(json.data, language)) {
+        fail('INVALID_RESPONSE', 'The preview response was malformed.');
+        return;
+      }
+
+      setResultQuick(json.data);
+      setStatus('quickSuccess');
+      void posthogTrack('preview_success', { language });
+      setTimeout(() => {
+        document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return;
     }
+  }
+
+  // 1b: Revision submit (2026-08-24, planner-trust-course, preserve paid revision
+  // access). A revision link's city can be a historical non-10-chip city
+  // (Sokcho/Tongyeong/Andong/...) that the new quick-preview exact-city gate
+  // (cityResolver's UNSUPPORTED_CITY/CITY_MISMATCH) would reject outright — but
+  // the traveler already paid for that plan and is entitled to regenerate it.
+  // So a revision submit never calls /api/ai-planner-quick at all: it just
+  // stashes the (possibly-old-city) form values for handleRevisionRegenerate
+  // and flips to the same 'quickSuccess' status the real flow uses, so
+  // PurchaseSection's existing revision branch (gated on revisionMode +
+  // revisionPlanId, not on resultQuick's contents) renders. `resultQuick` gets
+  // a placeholder object, not real preview data — PlannerPage hides
+  // QuickPreviewCard in revision mode, and PurchaseSection's revision branch
+  // never reads resultQuick's fields.
+  async function handleRevisionSubmit(values: PlannerFormValues) {
+    lastValues.current = values;
+    setResultQuick({ __revisionPlaceholder: true });
+    setStatus('quickSuccess');
   }
 
   // LOCKED region -- handlePaymentSuccess lifted verbatim from legacy PlannerPage.tsx L1414-1493
@@ -234,6 +279,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // feat/guest-anon-auth-pii: 비로그인 게스트 + 플래그 ON 일 때만 별도 익명 토큰 헤더.
       // 플래그 OFF 또는 로그인 사용자 = {} → fetch 헤더 동일 (기존 동작 불변).
       const guestAnonHeaders = await getGuestAnonHeader(!!authHeaders.Authorization);
+      // 2026-08-24 (planner-intent-v1): the ONE builder NEW and REVISION both
+      // call — see src/pages/PlannerPage/lib/plannerIntent.ts. `flat` carries
+      // every travel-preference field (backward-compatible key names); the
+      // few keys below (paypalOrderId/aiCouponCode/identity/routing `area`)
+      // are request-mechanics, not travel intent, so they stay here.
+      const { flat } = buildFullPlannerIntentPayload(values, language);
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders, ...guestAnonHeaders },
@@ -243,70 +294,18 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           aiCouponCode,  // P1-②: AI 무료 쿠폰 코드 (있으면 paymentGate 가 0원 통과 — paypalOrderId 없이도)
           guestName: 'Guest',
           email: userEmail,
-          startDate: values.startDate,
-          endDate: values.endDate,
-          destination: (values.regions || []).join(', ') || 'Seoul',
-          // 2026-05-10 (P0-1 launch blocker): regions array forward — PR #331 다도시
-          // fix 가 backend 에서 작동하려면 array 형태로 받아야 함. area 는 첫 도시 만.
-          regions: values.regions || ['Seoul'],
-          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
-          preferences: (values.categories || []).join(', ') || '',
-          styles: values.categories || ['culture'],
-          durationDays: values.durationDays || 3,
-          pax: values.pax || 2,
-          language,
-          arrival_airport: values.arrival_airport || '',
-          departure_airport: values.departure_airport || '',
-          hotel_address: values.hotel_address || '',
-          mobility: values.mobility || 'ok',
           uid: values.uid || null,
-          dietPrefs: values.dietPrefs || [],
-          allergies: values.allergies || [],
-          priceRange: values.priceRange || 'Any',
-          special_request: values.freeText || '',
-          // 2026-05-10 (P1 launch blocker): WizardForm 에서 수집했지만 누락된
-          // 필드들 forward. AirportToLodgingGuide / RouteAgent 의 late-night /
-          // heavy-luggage 분기 작동 + Firestore input 보존을 위해 필요.
-          // PlannerFormValues 는 snake_case (arrival_time/departure_time) 로
-          // 정의되어 있고 backend ai-planner-full.js 는 body.arrivalTime
-          // (camelCase) 로 읽으므로 read snake_case → send camelCase 변환.
-          ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
-          ...(values.departure_time ? { departureTime: values.departure_time } : {}),
-          // P239 (2026-05-27): tourStartTime — 운영자 architectural fix forward.
-          // 새벽 도착 시 호텔 transit only + tourStartTime 부터 stops 작성.
-          // snake_case input → camelCase backend (다른 시각 필드와 일관).
-          // default 09:00 → 옛 plan 호환: backend 가 명시 안 받아도 09:00 폴백.
-          ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
-          // #tour-end (2026-06-05): tourEndTime forward — 매일 관광 종료 cap (snake→camel).
-          ...(values.tour_end_time ? { tourEndTime: values.tour_end_time } : {}),
-          ...(values.luggage ? { luggage: values.luggage } : {}),
-          ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
-          ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
-          ...(values.tourPace ? { tourPace: values.tourPace } : {}),
-          // UIUX P3 (2026-07-13): 동행 유형 — 미선택이면 필드 미전송(기존 동작 그대로).
-          ...(values.companions ? { companions: values.companions } : {}),
-          // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
-          recommended_zone: values.recommended_zone || '',
-          // 2026-05-11 (B-2 fix): 도시별 zone Record. 다도시 plan 시 backend
-          // buildPrompt MULTI-CITY HANDLING 섹션이 city 별 zone hint 사용.
-          // 단도시 plan 도 동일 형식 전달 (regression 0 — backend Record.length===1 자동 fallback).
-          ...(values.recommended_zones && Object.keys(values.recommended_zones).length > 0
-            ? { recommended_zones: values.recommended_zones }
-            : {}),
-          // 2026-05-03: zone 대표 주소 (RouteAgent가 공항↔zone 경로 계산용 fallback).
-          recommended_zone_address: values.recommended_zone_address || '',
-          // B9-20 (2026-05-09 round 4): WizardForm 에서 받은 wantAccom/accomBudget
-          // 을 backend 로 forward. 누락 시 ai-planner-full 의 [ACCOMMODATION REQUEST]
-          // 프롬프트 분기가 작동 안 함 → Gemini 가 호텔 추천 자체를 생성 안 함.
-          ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
-          // 2026-05-10 B10-1/B10-2: 다도시 plan 입국 도시 명시 + 도시별 호텔 forward.
-          // backend buildPrompt.js 가 hotelByCity 받으면 day 별 prompt 에 도시별
-          // hotel inject. entry_city 는 RouteAgent 의 entry 공항→첫 호텔 경로 계산용.
-          ...(values.entry_city ? { entry_city: values.entry_city } : {}),
-          ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
-          // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
-          ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
-          ...(values.departure_city ? { departure_city: values.departure_city } : {}),
+          language,
+          // area 는 client-only 라우팅 그룹 키 — plannerIntent.ts 의 intent 필드가
+          // 아니라 이 호출부에서만 파생(첫 도시 기준).
+          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+          // P125 explicit compat forward: `flat` (spread below) is the SSOT and
+          // already derives the same value from values.arrival_city/entry_city
+          // (plannerIntent.ts) — this is a literal fallback only, never a
+          // second source of truth, and flat's spread always wins on conflict.
+          arrival_city: values.arrival_city || undefined,
+          departure_city: values.departure_city || undefined,
+          ...flat,
         }),
       });
 
@@ -415,6 +414,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // feat/guest-anon-auth-pii: revision 경로는 Authorization 필수(위에서 throw)이므로
       // guestAnonHeaders 는 항상 {} = 동작 불변. 호출처 parity 위해 동일하게 spread.
       const guestAnonHeaders = await getGuestAnonHeader(!!authHeaders.Authorization);
+      // 2026-08-24 (planner-intent-v1): the SAME builder handlePaymentSuccess
+      // calls, so a revision can only ever differ by revision metadata/token/
+      // route mechanics below — never by a silently-omitted travel preference
+      // (this used to be missing recommended_zone/recommended_zones/
+      // recommended_zone_address/hotelByCity entirely).
+      const { flat } = buildFullPlannerIntentPayload(values, language, {
+        reasonCodes: revisionReason,
+        note: revisionNote,
+        avoidStopNames: avoidList,
+      });
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders, ...guestAnonHeaders },
@@ -424,52 +433,14 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           revisionToken: revisionToken,
           guestName: 'Guest',
           email: userEmail,
-          startDate: values.startDate,
-          endDate: values.endDate,
-          destination: (values.regions || []).join(', ') || 'Seoul',
-          // 2026-05-10 (P0-1): regions array forward — 다도시 revision 도 작동.
-          regions: values.regions || ['Seoul'],
-          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
-          preferences: (values.categories || []).join(', ') || '',
-          styles: values.categories || ['culture'],
-          durationDays: values.durationDays || 3,
-          pax: values.pax || 2,
-          language,
-          arrival_airport: values.arrival_airport || '',
-          departure_airport: values.departure_airport || '',
-          hotel_address: values.hotel_address || '',
-          mobility: values.mobility || 'ok',
           uid: values.uid || null,
-          dietPrefs: values.dietPrefs || [],
-          allergies: values.allergies || [],
-          priceRange: values.priceRange || 'Any',
-          special_request: values.freeText || '',
-          // 2026-05-10 (P1): WizardForm 누락 필드 forward — paid path 와 동일.
-          // PlannerFormValues = snake_case, backend body 는 camelCase 기대.
-          ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
-          ...(values.departure_time ? { departureTime: values.departure_time } : {}),
-          // P239 (2026-05-27): revision path 도 tourStartTime forward (paid path 와 동일 영역 적용).
-          ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
-          // #tour-end (2026-06-05): revision path 도 tourEndTime forward.
-          ...(values.tour_end_time ? { tourEndTime: values.tour_end_time } : {}),
-          ...(values.luggage ? { luggage: values.luggage } : {}),
-          ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
-          ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
-          ...(values.tourPace ? { tourPace: values.tourPace } : {}),
-          // UIUX P3 (2026-07-13): 동행 유형 — 미선택이면 필드 미전송(기존 동작 그대로).
-          ...(values.companions ? { companions: values.companions } : {}),
-          // W4: revision reason → server buildRevisionInstruction
-          ...(revisionReason ? { revisionReason } : {}),
-          ...(revisionNote   ? { revisionNote }   : {}),
-          ...(avoidList      ? { avoidList }       : {}),
-          // B9-20 (2026-05-09 round 4): revision 에서도 wantAccom forward.
-          ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
-          // 2026-05-10 B10-1/B10-2: revision 에서도 다도시 entry_city + hotelByCity forward.
-          ...(values.entry_city ? { entry_city: values.entry_city } : {}),
-          ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
-          // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
-          ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
-          ...(values.departure_city ? { departure_city: values.departure_city } : {}),
+          language,
+          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+          // P125 explicit compat forward — same literal fallback as
+          // handlePaymentSuccess above; `flat` is the SSOT and wins on conflict.
+          arrival_city: values.arrival_city || undefined,
+          departure_city: values.departure_city || undefined,
+          ...flat,
         }),
       });
 
@@ -533,6 +504,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     planErrorCode,
     lastValues,
     handleSubmit,
+    handleRevisionSubmit,
     handlePaymentSuccess,
     handleRevisionRegenerate,
     handleReset,

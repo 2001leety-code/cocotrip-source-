@@ -34,10 +34,10 @@ export const WIZARD_STEP_HINTS: Record<number, WizardStepHintCopy> = {
   2: {
     title: { ko: '음식 취향', en: 'Food & diet', ja: '食の好み', zh: '饮食偏好' },
     body: {
-      ko: '좋아하는 음식과 식이 제한(할랄·비건·알레르기)을 알려주시면 딱 맞는 맛집만 추천해요.',
-      en: 'Share your tastes and any dietary needs (halal, vegan, allergies) — we’ll match the right restaurants.',
-      ja: '好きな食べ物と食事制限（ハラル・ビーガン・アレルギー）を教えてください。ぴったりのお店だけご提案します。',
-      zh: '告诉我们你的口味和饮食限制（清真、纯素、过敏），我们只推荐合适的餐厅。',
+      ko: '좋아하는 음식과 식이 제한(할랄·비건·채식)을 알려주시면 딱 맞는 맛집만 추천해요.',
+      en: 'Share your tastes and any dietary needs (halal, vegan, vegetarian) — we’ll match the right restaurants.',
+      ja: '好きな食べ物と食事制限（ハラル・ビーガン・ベジタリアン）を教えてください。ぴったりのお店だけご提案します。',
+      zh: '告诉我们你的口味和饮食限制（清真、纯素、素食），我们只推荐合适的餐厅。',
     },
   },
   3: {

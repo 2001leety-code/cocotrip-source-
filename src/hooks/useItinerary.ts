@@ -25,6 +25,13 @@ export interface ItinerarySlot {
   category?: string;
   lat?: number;
   lng?: number;
+  // 코스 빌더 v1 확장(2026-08-24, planner-trust-course) — 체류시간/시간제약/후보 identity.
+  // courseOps.CourseSlotShape 와 짝 — additive, 구버전 문서엔 없어도 정상.
+  stayMinutes?: number;
+  timeConstraint?: 'fixed' | 'window';
+  windowEnd?: string;
+  placeKey?: string;
+  placeSource?: 'cocotrip-attractions';
 }
 
 export interface ItineraryDay {

@@ -36,7 +36,7 @@ interface Step0ResProps {
   // P2 dedup: 호텔도 예약된 경우 (flight_hotel) Step0에서 호텔 주소 같이 받음.
   hotelAddress: string;
   setHotelAddress: (v: string) => void;
-  mainCityKey: string;  // for airport options narrowing (defaults to seoul)
+  mainCityKey: string;  // '' before a city is chosen -> global airport list
   onNext: () => void;
 }
 
@@ -62,7 +62,11 @@ export function WizardStep0Reservation({
   const canContinue = status !== null && (
     !showAirportForm || (!!arrivalAirport && !!arrivalTime)
   );
-  const airportOptions = getAirportOptions(mainCityKey || 'seoul');
+  // 2026-08-24 (planner-trust-course): pass the raw key through — a city
+  // isn't picked yet at this step, and getAirportOptions('') already returns
+  // the deduplicated global list (ICN/PUS/CJU/... + one generic "Already in
+  // Korea"), never a silent Seoul narrow.
+  const airportOptions = getAirportOptions(mainCityKey);
 
   // 2026-08-18: 이 스텝만 CTA 를 `disabled` 로 잠가 두고 있었다. 회색 버튼은 왜 못 누르는지
   // 말해주지 않는다 — 항공편을 골랐는데 도착 시각을 안 넣으면 그냥 안 눌렸다.

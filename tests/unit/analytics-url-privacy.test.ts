@@ -5,7 +5,7 @@
  * 🔴 고친 문제
  *   - `trackPageView(location.pathname + location.search)` — 쿼리스트링을 GA4 로 그대로 보냈다.
  *     우리 URL 쿼리에는 공유 토큰(`token`), 플래너 사전입력(`prefillHotel`·`prefillDiet`·
- *     `allergies`), 자유 입력(`revisionNote`·`freeText`)이 들어간다.
+ *     `prefillDietaryRestrictions`), 자유 입력(`revisionNote`·`freeText`)이 들어간다.
  *   - PostHog 자동 pageview/pageleave 는 `$current_url` 에 쿼리·해시를 통째로 실었다.
  *   - PII 방어가 **차단 목록**이라 나중에 생긴 필드는 그대로 통과했다 → 허용 목록으로 교체.
  */
@@ -20,7 +20,7 @@ import {
 } from '../../src/lib/analyticsProps';
 
 const FORBIDDEN_KEYS = [
-  'token', 'revisionNote', 'prefillHotel', 'prefillDiet', 'allergies', 'freeText',
+  'token', 'revisionNote', 'prefillHotel', 'prefillDiet', 'prefillDietaryRestrictions', 'freeText',
   'email', 'guest_email', 'phone', 'hotel_address', 'name', 'full_name', 'uid', 'userId',
   'notes', 'memo', 'password', 'apiKey', 'idToken',
 ];
@@ -45,7 +45,7 @@ describe('stripUnsafeProps — 기본 거부', () => {
     const out = stripUnsafeProps({
       page_path: '/planner',
       token: 'share-token-abc',
-      allergies: 'peanut, shellfish',
+      prefillDietaryRestrictions: 'Halal, Vegan',
       revisionNote: '호텔을 강남으로 바꿔주세요',
       freeText: '아이가 둘이라 카시트 필요',
       prefillHotel: 'Lotte Hotel Seoul',
@@ -118,8 +118,8 @@ describe('sanitizeCaptureProperties — PostHog before_send 용', () => {
   });
 
   it('우리 속성은 허용 목록으로 다시 거른다', () => {
-    const out = sanitizeCaptureProperties({ $lib: 'web', allergies: 'peanut', value: 89 });
-    expect(out.allergies).toBeUndefined();
+    const out = sanitizeCaptureProperties({ $lib: 'web', prefillDietaryRestrictions: 'Halal', value: 89 });
+    expect(out.prefillDietaryRestrictions).toBeUndefined();
     expect(out.value).toBe(89);
   });
 });
@@ -150,12 +150,12 @@ describe('GA4 전송 실동작 — 쿼리스트링 0건', () => {
     const spy = vi.fn();
     window.gtag = spy;
 
-    analytics.trackPageView('/planner?token=share-secret&allergies=peanut#top');
+    analytics.trackPageView('/planner?token=share-secret&prefillDietaryRestrictions=Halal#top');
 
     expect(spy).toHaveBeenCalledWith('event', 'page_view', expect.objectContaining({ page_path: '/planner' }));
     const payload = JSON.stringify(spy.mock.calls);
     expect(payload).not.toContain('share-secret');
-    expect(payload).not.toContain('peanut');
+    expect(payload).not.toContain('Halal');
     expect(payload).not.toContain('page_title');
   });
 
@@ -184,7 +184,7 @@ describe('GA4 전송 실동작 — 쿼리스트링 0건', () => {
   it('🔴 page_location(=dl) 에도 쿼리·해시가 없다 — gtag 자동 채움 덮어쓰기', async () => {
     const { consent, analytics } = await loadGA();
     consent.setConsent('accepted');
-    window.history.replaceState({}, '', '/planner?token=share-secret&allergies=peanut#frag');
+    window.history.replaceState({}, '', '/planner?token=share-secret&prefillDietaryRestrictions=Halal#frag');
     analytics.initGA();
     const spy = vi.fn();
     window.gtag = spy;
@@ -194,7 +194,7 @@ describe('GA4 전송 실동작 — 쿼리스트링 0건', () => {
 
     const payload = JSON.stringify(spy.mock.calls);
     expect(payload).not.toContain('share-secret');
-    expect(payload).not.toContain('peanut');
+    expect(payload).not.toContain('Halal');
     expect(payload).not.toContain('#frag');
     for (const call of spy.mock.calls) {
       const params = call[2] as Record<string, unknown>;

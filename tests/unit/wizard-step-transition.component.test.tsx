@@ -61,7 +61,18 @@ function stub(name: string) {
     </div>
   );
 }
-vi.mock('../../src/components/WizardForm/WizardStep0Reservation', () => ({ WizardStep0Reservation: stub('예약') }));
+// 2026-08-24 (planner-trust-course, F3): handleGenerate/goToStep 이 이제 canGoStep0
+// (예약상태 선택 여부)도 검증하므로, 이 stub 도 실제 컴포넌트처럼 상태를 채운 뒤에만
+// onNext 를 호출해야 한다 — 안 그러면 모든 "다음" 클릭이 게이트에 막혀 그대로 있다.
+vi.mock('../../src/components/WizardForm/WizardStep0Reservation', () => ({
+  WizardStep0Reservation: ({ setStatus, onNext }: { setStatus: (v: string) => void; onNext?: () => void }) => (
+    <div>
+      <p>예약 화면</p>
+      <button type="button" onClick={() => setStatus('nothing')}>set-status-nothing</button>
+      {onNext && <button type="button" onClick={onNext}>예약 다음</button>}
+    </div>
+  ),
+}));
 vi.mock('../../src/components/WizardForm/WizardStep0Destination', () => ({ WizardStep0Destination: stub('도시') }));
 vi.mock('../../src/components/WizardForm/WizardStep1Food', () => ({ WizardStep1Food: stub('음식') }));
 vi.mock('../../src/components/WizardForm/WizardStep2Details', () => ({ WizardStep2Details: stub('상세') }));
@@ -96,6 +107,7 @@ describe('위자드 step 전환은 애니메이션 프레임에 의존하지 않
     await flushLazy();
     expect(screen.getByText('예약 화면')).toBeTruthy();
 
+    fireEvent.click(screen.getByText('set-status-nothing'));
     fireEvent.click(screen.getByText('예약 다음'));
 
     // 🔴 기다리지 않는다. exit 애니메이션 완료를 기다리는 구현이면 여기서 터진다.
@@ -109,6 +121,7 @@ describe('위자드 step 전환은 애니메이션 프레임에 의존하지 않
   it('한 번에 한 step 만 DOM 에 있다 (두 step 동시 렌더로 인한 깜빡임 방지)', async () => {
     const { container } = renderWizard();
     await flushLazy();
+    fireEvent.click(screen.getByText('set-status-nothing'));
     fireEvent.click(screen.getByText('예약 다음'));
     await flushLazy();
 
@@ -119,6 +132,7 @@ describe('위자드 step 전환은 애니메이션 프레임에 의존하지 않
   it('들어온 step 에 인라인 opacity 가 남지 않는다 (rAF 없이도 결국 보인다)', async () => {
     const { container } = renderWizard();
     await flushLazy();
+    fireEvent.click(screen.getByText('set-status-nothing'));
     fireEvent.click(screen.getByText('예약 다음'));
     await flushLazy();
 
@@ -143,6 +157,7 @@ describe('위자드 step 전환은 애니메이션 프레임에 의존하지 않
   it('뒤로 갈 때도 그 커밋에서 즉시 교체된다', async () => {
     const { container } = renderWizard();
     await flushLazy();
+    fireEvent.click(screen.getByText('set-status-nothing'));
     fireEvent.click(screen.getByText('예약 다음'));
     await flushLazy();
 

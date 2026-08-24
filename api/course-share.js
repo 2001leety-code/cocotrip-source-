@@ -29,6 +29,7 @@ const MAX_STOPS_PER_DAY = 20;
 const MAX_TITLE = 80;
 const MAX_STOP_TITLE = 120;
 const MAX_MEMO = 500;
+const MAX_PLACE_KEY = 128;
 const ID_RE = /^[a-z0-9]{8}$/;
 
 const _ok = (data) => JSON.stringify({ ok: true, ...data });
@@ -39,9 +40,64 @@ function isValidTime(t) {
   return t === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 }
 
+/** "HH:MM"(24h), 빈 문자열 불허 — 프론트 courseOps.isValidClock 과 동일(windowEnd 전용). */
+function isValidClock(t) {
+  return typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+}
+
+function isValidStayMinutes(v) {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 1440;
+}
+
+function isValidTimeConstraint(v) {
+  return v === 'fixed' || v === 'window';
+}
+
+function isValidPlaceSource(v) {
+  return v === 'cocotrip-attractions';
+}
+
 /**
- * 코스 sanitize — 신뢰 불가 입력(프론트 courseOps.decodeSharedCourse 와 동일 규칙).
- * @returns {{days: object[]} | null} 유효 stop 이 1개도 없으면 null.
+ * v1 확장필드 검증 — 프론트 courseOps.isValidStopConstraints 와 동일 규칙(중복 구현,
+ * api/ ↔ src/ 상호 import 금지 — 두 벌 + 각자 테스트 가드).필드가 아예 없으면 통과
+ * (구버전 payload 호환). "명시적으로 있는데 형식이 틀림"만 malformed 로 잡는다.
+ */
+function isValidStopConstraints(s) {
+  if (!s || typeof s !== 'object') return true;
+  if (s.stayMinutes !== undefined && !isValidStayMinutes(s.stayMinutes)) return false;
+  if (s.placeKey !== undefined || s.placeSource !== undefined) {
+    if (typeof s.placeKey !== 'string' || !s.placeKey.trim() || s.placeKey.length > MAX_PLACE_KEY) return false;
+    if (!isValidPlaceSource(s.placeSource)) return false;
+  }
+  if (s.timeConstraint === undefined) {
+    if (s.windowEnd !== undefined) return false;
+    return true;
+  }
+  if (!isValidTimeConstraint(s.timeConstraint)) return false;
+  if (!isValidClock(s.time)) return false;
+  if (s.timeConstraint === 'window') {
+    if (!isValidClock(s.windowEnd)) return false;
+    if (s.windowEnd <= s.time) return false;
+  } else if (s.windowEnd !== undefined) {
+    return false;
+  }
+  return true;
+}
+
+/** sanitizeCourse 가 명시적 malformed constraint/identity 를 만나면 던진다 — 호출부는 400. */
+export class CourseValidationError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'CourseValidationError';
+    this.code = code;
+  }
+}
+
+/**
+ * 코스 sanitize — 신뢰 불가 입력(프론트 courseOps.decodeSharedCourse 와 동일 규칙 + v1 확장).
+ * 확장필드가 명시적으로 있는데 형식이 틀리면 조용히 강등(드롭)하지 않고 CourseValidationError
+ * 를 던져 전체 요청을 거부한다(fail-closed) — 구버전 payload(필드 없음)는 그대로 통과.
+ * @returns {{days: object[]} | null} 유효 stop 이 1개도 없으면 null(빈 코스 — 별개 사유).
  */
 export function sanitizeCourse(input) {
   if (!input || input.v !== 1 || !Array.isArray(input.days)) return null;
@@ -51,6 +107,7 @@ export function sanitizeCourse(input) {
       stops: stops.slice(0, MAX_STOPS_PER_DAY).flatMap((s) => {
         const title = typeof s?.title === 'string' ? s.title.trim() : '';
         if (!title) return [];
+        if (!isValidStopConstraints(s)) throw new CourseValidationError('BAD_STOP_CONSTRAINTS');
         return [{
           id: typeof s.id === 'string' && s.id ? s.id.slice(0, 24) : `s${Math.random().toString(36).slice(2, 10)}`,
           time: typeof s.time === 'string' && isValidTime(s.time) ? s.time : '',
@@ -59,6 +116,11 @@ export function sanitizeCourse(input) {
           memo: typeof s.memo === 'string' ? s.memo.slice(0, MAX_MEMO) : '',
           ...(typeof s.lat === 'number' && Number.isFinite(s.lat) ? { lat: s.lat } : {}),
           ...(typeof s.lng === 'number' && Number.isFinite(s.lng) ? { lng: s.lng } : {}),
+          ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+          ...(s.timeConstraint !== undefined ? { timeConstraint: s.timeConstraint } : {}),
+          ...(s.windowEnd !== undefined ? { windowEnd: s.windowEnd } : {}),
+          ...(s.placeKey !== undefined ? { placeKey: s.placeKey.trim().slice(0, MAX_PLACE_KEY) } : {}),
+          ...(s.placeSource !== undefined ? { placeSource: s.placeSource } : {}),
         }];
       }),
     };
@@ -123,7 +185,16 @@ export default async function handler(req, res) {
     }
 
     const body = typeof req.body === 'object' && req.body ? req.body : {};
-    const course = sanitizeCourse(body.course);
+    let course;
+    try {
+      course = sanitizeCourse(body.course);
+    } catch (err) {
+      if (err instanceof CourseValidationError) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(_err('체류시간/시간제약/장소 식별자 형식이 잘못됨', err.code));
+      }
+      throw err;
+    }
     if (!course) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(_err('코스 내용이 비어있거나 형식이 잘못됨', 'BAD_COURSE'));

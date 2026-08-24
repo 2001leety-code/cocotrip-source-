@@ -41,7 +41,11 @@ import {
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
+import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+// 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
+// unverified(naver_local/ai_curated) 행은 점수 경쟁 전에 후보에서 탈락시킨다.
+import { dietaryEvidenceFor, dietaryTagsOfRow, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 
 // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 어떤 실패도 본 흐름에 영향 0.
 // block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
@@ -371,6 +375,57 @@ export function shouldUseBlockMode(city, durationDays, dietPrefs, availableBlock
  * @param {object} geminiClient — { apiKey, model? }
  * @returns {Promise<{ day_selections: Array<{day:number, block_id:string, tweak_notes?:string}>, language: string }>}
  */
+/**
+ * planner-intent-v1 (2026-08-24): the Wizard answers block-mode used to drop.
+ *
+ * These reached the legacy/Gemini path through userMessageBuilder but never
+ * block-mode, so the same traveller got a materially different plan depending
+ * on which pipeline their request happened to take. Everything is optional —
+ * an unanswered field is OMITTED rather than sent as a fabricated default,
+ * because a JSON key that says `"reservation_status": "nothing"` is a claim
+ * about the traveller's bookings, not a neutral placeholder.
+ *
+ * @param {object} userInput
+ * @returns {object} JSON-safe context block
+ */
+export function buildTravelerContextForBlocks(userInput) {
+  const u = userInput || {};
+  const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const arr = (v) => (Array.isArray(v) && v.length > 0 ? v : undefined);
+  const rec = (v) => (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0 ? v : undefined);
+  const rev = u.revision && typeof u.revision === 'object' ? u.revision : null;
+  const mealBudget = str(u.meal_budget);
+  // planner-intent-v1: companions + foodStyles were reaching the legacy/Gemini prompt
+  // (userMessageBuilder) but never block-mode's selector — a "family with kids" or
+  // "loves spicy street food" traveller got the same block picks as anyone else.
+  const foodStyles = u.plannerIntent && Array.isArray(u.plannerIntent.foodStyles) ? u.plannerIntent.foodStyles : [];
+  return {
+    reservation_status: str(u.reservation_status),
+    arrival_city: str(u.arrival_city),
+    departure_city: str(u.departure_city),
+    hotel_address: str(u.hotel_address),
+    hotels_by_city: rec(u.hotelByCity),
+    recommended_zone: str(u.recommended_zone),
+    recommended_zones: rec(u.recommended_zones),
+    tour_pace: str(u.tour_pace),
+    zone_intensity: str(u.pace),
+    companions: str(u.companions),
+    food_styles: arr(foodStyles),
+    spice_level: str(u.spice_level),
+    bucket_dishes: arr(u.bucket_dishes),
+    // 'Any' carries no preference — sending it would read as a deliberate choice.
+    meal_budget: mealBudget && mealBudget !== 'Any' ? mealBudget : undefined,
+    luggage: u.luggage && typeof u.luggage === 'object' ? u.luggage : undefined,
+    want_accommodation: u.want_accommodation ? true : undefined,
+    accommodation_budget: u.want_accommodation ? str(u.accommodation_budget) : undefined,
+    revision_reasons: rev ? arr(rev.reasonCodes) : undefined,
+    revision_note: rev ? str(rev.note) : undefined,
+    // 🔴 Advisory only. The deterministic removal happens in avoidStops.js after
+    // the last mutation — a model instruction is not an enforcement mechanism.
+    avoid_stop_names: rev ? arr(rev.avoidStopNames) : undefined,
+  };
+}
+
 export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   if (!Array.isArray(blocks) || blocks.length === 0) {
     throw new Error('selectBlocksWithGemini: no blocks available');
@@ -387,9 +442,6 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) block 선택 Gemini 에 명시 의무.
-  // 알레르기 미입력 사용자 = [] (빈 배열) → prompt 에 field 생략 (정상).
-  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 압축된 block 카드만 prompt 에 넣음 — Gemini 가 ID 만 선택하면 되므로 stops/transit 풀 detail X.
   // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
@@ -402,8 +454,8 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
-    // P240 SAFETY: 알레르기 정보 — Gemini 가 해당 식재료 포함 block 제외 의무.
-    food_allergies: allergies.length > 0 ? allergies : undefined,
+    // planner-intent-v1 (2026-08-24): the rest of what the traveller actually answered.
+    ...buildTravelerContextForBlocks(userInput),
     available_blocks: blockCards,
   });
 
@@ -533,6 +585,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 5. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs (halal/vegan/vegetarian). The system already filtered the available_blocks to dietary-compatible ones; you only need to focus on preference variety.
 6. tweak_notes is optional and short. NEVER use it to invent new stops — actual stop substitutions happen later.
 7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.${activityRules}
+8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days; "couple"/"friends" → packed/nightlife-leaning blocks are fine). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -775,16 +828,10 @@ const FOOD_CITY_MAX_KM = 70; // 같은 도시권 최대 반경 — 이 이상 = 
 // ⚠️ SAFETY (CLAUDE.md J): 과거 이 매칭이 r.dietary_tags 만 읽어, 프로덕션(r.tag)에선 halal/vegan
 //    후보가 항상 0 → dietRequired 사용자는 매번 throw→legacy 폴백(fail-closed=안전하나 block_mode
 //    식이 매칭이 죽어 품질 저하)이었다. 두 필드 모두 읽어 실제로 동작하게 한다.
+// (2026-08-24) 구현은 dietary-trust SSOT 로 이동 — 같은 정규화가 세 파일에 복제돼 있으면
+//   한쪽만 고쳐지는 사고가 반복된다. 이름은 호출부 호환을 위해 유지.
 function dietaryTagsOf(r) {
-  if (!r || typeof r !== 'object') return [];
-  const out = [];
-  const dt = r.dietary_tags;
-  if (Array.isArray(dt)) out.push(...dt);
-  else if (dt) out.push(dt);
-  const tg = r.tag;
-  if (Array.isArray(tg)) out.push(...tg);
-  else if (tg) out.push(tg);
-  return out.map((t) => String(t).toLowerCase());
+  return dietaryTagsOfRow(r);
 }
 
 // stop 좌표 추출 — 유효(finite, 0/0 아님)하면 [lat, lng], 아니면 null. (zone_course 큐레이션 좌표.)
@@ -892,8 +939,6 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     ? userDietPrefs.map((d) => String(d).toLowerCase())
     : [];
   const dietRequired = dietary.filter((d) => /halal|vegan|vegetarian/i.test(d));
-  // 선택 알레르겐(nuts/shellfish/gluten/dairy) — dbMatcher detectAllergenViolation 경로와 정합.
-  const allergenSel = dietary.filter((d) => ['nuts', 'shellfish', 'gluten', 'dairy'].includes(d));
 
   // preferred_dietary 가 명시되면 (block stop 운영자 의도) 추가 필터.
   const preferred = Array.isArray(placeholderStop.preferred_dietary)
@@ -902,6 +947,14 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
 
   // 1) SAFETY 후보 — city + cafe + dietRequired(사용자 실제 식이) hard filter.
   //    dietRequired 는 SAFETY-CRITICAL (CLAUDE.md J) — 절대 relax 금지.
+  //
+  //    🔴 2026-08-24: 여기 필터가 **태그만** 봤다. 태그는 절반 이상이 naver 키워드검색·AI 큐레이션
+  //      산출물이라 인증 근거가 0인데(docs/DIETARY-DATA-AUDIT-2026-07-11.md), 아래 점수 정렬은
+  //      rating × log(reviews) 라 "평점 높은 unverified 치킨집(halal 태그)" 이 "평점 낮은
+  //      trusted 할랄식당" 을 이겼다. dietaryStopReplacer/dbMatcher/responseValidator 는 이미
+  //      isDietaryTrusted 로 unverified 를 배제하는데 block_mode 만 뚫려 있었다.
+  //      → 신뢰 등급을 **점수 경쟁 전에** 적용한다. 등급은 evidence 로 stop 까지 전파.
+  const dietEvidenceByRow = new Map();
   const safetyCandidates = foodIndex.filter((r) => {
     if (!r || typeof r !== 'object') return false;
     const rCity = String(r.city || '').toLowerCase();
@@ -922,15 +975,16 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
     const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
-    for (const d of dietRequired) {
-      if (!tags.includes(d)) return false;
-    }
-    // 🔴 알레르겐 게이트 (2026-06-13 SAFE, dbMatcher detectAllergenViolation 경로와 정합):
-    //   선택 알레르겐에 대해 r.allergens[key]===true 면 제외. 현재 allergens 전부 false default
-    //   = no-op이나, 실측 retrofit(수동 큐레이션) 시 block_mode 식당매칭도 자동 보호된다.
-    //   (이전엔 dbMatcher 만 allergen 위반 차단, block_mode 식당매칭은 gap이었음.)
-    for (const a of allergenSel) {
-      if (r.allergens && r.allergens[a] === true) return false;
+    if (dietRequired.length > 0) {
+      const evidence = [];
+      for (const d of dietRequired) {
+        // 태그 일치 + 신뢰 등급(unverified 제외) 둘 다 만족해야 후보. vegetarian 은 SSOT 가
+        // 허용하는 범위(vegan 식당)까지만 커버 — 역방향(vegan 요청을 vegetarian 으로) 은 불가.
+        const ev = dietaryEvidenceFor(r, d, tags);
+        if (!ev) return false;
+        evidence.push(ev);
+      }
+      dietEvidenceByRow.set(r, evidence);
     }
     return true;
   });
@@ -977,14 +1031,53 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
 
   // 중복 방지 (2026-06-02, plan 4d214e83 신고 "같은 식당 6번 반복"): 이미 배정한 식당 제외하고
   // 차순위 선택. 전부 소진(작은 도시 식당 부족) 시에만 1순위 재사용 허용 (graceful).
+  // 선택된 행에 **어떤 등급의 증거로** 통과했는지 붙여 반환 (호출부가 stop 에 전파 →
+  //   화면·tip 이 "인증" 과 "친화" 를 섞어 말하지 않게 한다). foodIndex 는 프로세스 공유
+  //   배열이라 원본을 mutate 하지 않고 얕은 복사본에 얹는다.
+  //   식이 요구가 없으면 원본 그대로 반환 — 기존 동작 byte-identical.
+  const decorate = (row) => {
+    if (!row) return row;
+    const evidence = dietEvidenceByRow.get(row);
+    if (!evidence || evidence.length === 0) return row;
+    return { ...row, dietary_evidence: evidence };
+  };
+
   if (excludeNames instanceof Set && excludeNames.size > 0) {
     const fresh = candidates.find((c) => {
       const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
       return nm && !excludeNames.has(nm);
     });
-    if (fresh) return fresh;
+    if (fresh) return decorate(fresh);
   }
-  return candidates[0];
+  return decorate(candidates[0]);
+}
+
+/**
+ * 매칭된 식당의 등급 증거를 손님 tip 으로 정직하게 옮긴다 (2026-08-24).
+ *
+ * 🔴 muslim_friendly 를 "할랄 인증" 처럼 적으면 안 된다. seed 블록 tip 은 등급을 모르므로
+ *   등급 문구를 **덧붙인다**(덮어쓰지 않음). 등급 문구가 없는(미지의) 등급이면 아무것도 안 붙인다 —
+ *   지어내지 않는다.
+ *
+ * @param {string} baseTip
+ * @param {Array<{verification_status: string}>} evidence
+ * @param {string} language
+ * @returns {string}
+ */
+export function appendDietaryEvidenceTip(baseTip, evidence, language) {
+  if (!Array.isArray(evidence) || evidence.length === 0) return baseTip || '';
+  const seen = new Set();
+  const notes = [];
+  for (const ev of evidence) {
+    const status = ev && ev.verification_status;
+    if (!status || seen.has(status)) continue;
+    seen.add(status);
+    const note = describeDietaryEvidence(status, language);
+    if (note) notes.push(note);
+  }
+  if (notes.length === 0) return baseTip || '';
+  const base = String(baseTip || '').trim();
+  return base ? `${base} ${notes.join(' ')}` : notes.join(' ');
 }
 
 /**
@@ -1151,6 +1244,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       let resolvedAddress = bs.address || '';
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+      // verified 는 "DB 에 실재하는 장소" 라는 뜻만 유지한다(식이 안전과 무관 — AGENTS.md §1-4).
+      //   식이 근거는 등급이 실린 이 필드로만 말한다.
+      let dietaryEvidence = null;
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 자체 좌표 없으면 직전 명소(landmark) 좌표를 넘겨 근접 매칭 활성화.
         const _phLat = Number(bs.lat);
@@ -1169,6 +1265,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           // soft preferred_dietary 보다 매칭 식당의 검증된 속성이 정확.
           const mTags = dietaryTagsOf(matched);
           if (mTags.length) dietaryTags = mTags;
+          if (Array.isArray(matched.dietary_evidence) && matched.dietary_evidence.length > 0) {
+            dietaryEvidence = matched.dietary_evidence;
+          }
         } else if (dietCritical.length > 0) {
           // SAFETY-CRITICAL: dietary 사용자에게 매칭 안 됨 = throw (block-mode 폐기 + legacy fallback).
           const err = new Error(
@@ -1214,9 +1313,12 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         entry_fee_note: bs.entry_fee_note || undefined,
         reservation_required: !!bs.reservation_required,
         local_tag: bs.local_tag || '',
-        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        tip: appendDietaryEvidenceTip((bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '', dietaryEvidence, language),
         verified,
         dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        // 등급 증거 (halal_certified / muslim_friendly / vegan_restaurant / vegan_options).
+        //   verified(=DB 실재) 와 별개 필드 — 둘을 섞으면 "친화" 가 "인증" 으로 승격된다.
+        dietary_evidence: dietaryEvidence || undefined,
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,
@@ -1488,7 +1590,19 @@ export function shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs = []) {
  * @param {object|null} perDayCity — { 1: 'seoul', 2: 'seoul', 3: 'busan', ... } 명시 매핑
  * @returns {string[]} 길이 = durationDays, 각 day 의 city (1-indexed array[day-1])
  */
-export function buildCityPerDay(cities, durationDays, perDayCity = null) {
+export function buildCityPerDay(cities, durationDays, perDayCity = null, bookends = null) {
+  // planner-intent-v1 (2026-08-24): explicit entry/exit cities win over the even
+  // split. The traveller marks these in the Wizard cycle precisely because the
+  // pick ORDER isn't the visit order — a Seoul-then-Busan pick with a Seoul exit
+  // used to produce a plan that ended in Busan, i.e. at the wrong airport.
+  // 2026-08-24: bookends win even when perDayCity is also set — explicit
+  // arrival/departure cities are the traveller's airport commitment, and a
+  // per-day map that disagrees with them would silently strand the traveller
+  // in the wrong city on the day they need to catch a flight.
+  if (bookends && (bookends.arrivalCityKey || bookends.departureCityKey)) {
+    const perDay = buildCityPerDayWithBookends(cities, durationDays, bookends);
+    if (perDay.length === Number(durationDays)) return perDay;
+  }
   if (perDayCity && typeof perDayCity === 'object') {
     const result = [];
     for (let d = 1; d <= durationDays; d++) {
@@ -1537,8 +1651,6 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) 다도시 block 선택 Gemini 에 명시 의무.
-  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 도시별 block 카드 + city-per-day 일정 조합
   // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
@@ -1563,8 +1675,9 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
-    // P240 SAFETY: 알레르기 정보 — 다도시 block 선택 시 해당 식재료 포함 block 제외 의무.
-    food_allergies: allergies.length > 0 ? allergies : undefined,
+    // planner-intent-v1 (2026-08-24): same traveller context the single-city
+    // selector now gets — entry/exit cities matter most here.
+    ...buildTravelerContextForBlocks(userInput),
     day_schedule: daySchedule,
   });
 
@@ -1683,6 +1796,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 5. Match user styles to block.best_for and block.theme.
 6. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs.
 7. Day 1 should be standard intensity. Last day can be lighter for departure prep.${activityRules}
+8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -1803,6 +1917,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let resolvedAddress = bs.address || '';
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+      let dietaryEvidence = null; // 단도시와 동일 — 등급 증거는 verified 와 분리해 전파.
 
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 좌표 없으면 직전 명소 좌표로 근접 매칭 활성화 (단도시와 동일).
@@ -1823,6 +1938,9 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           //   프로덕션(r.tag=문자열)에선 항상 undefined → halal/vegan 검증태그가 stop 에 미전파.
           const mTags = dietaryTagsOf(matched);
           if (mTags.length) dietaryTags = mTags;
+          if (Array.isArray(matched.dietary_evidence) && matched.dietary_evidence.length > 0) {
+            dietaryEvidence = matched.dietary_evidence;
+          }
         } else if (dietCritical.length > 0) {
           const err = new Error(
             `Block-mode multi-city unable to satisfy dietary (${dietCritical.join(', ')}) ` +
@@ -1862,9 +1980,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         entry_fee_note: bs.entry_fee_note || undefined,
         reservation_required: !!bs.reservation_required,
         local_tag: bs.local_tag || '',
-        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        tip: appendDietaryEvidenceTip((bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '', dietaryEvidence, language),
         verified,
         dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        dietary_evidence: dietaryEvidence || undefined,
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,
@@ -2001,7 +2120,11 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   }
 
   const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
-  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null);
+  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null, {
+    // planner-intent-v1: normalizeRegionKey — '부산' 같은 현지어 입력도 영문 cityKey 와 맞춘다 (P321).
+    arrivalCityKey: normalizeRegionKey(String(userInput.arrival_city || '').split('_')[0]),
+    departureCityKey: normalizeRegionKey(String(userInput.departure_city || '').split('_')[0]),
+  });
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
   // (2026-06-03) 선택한 취미 = 전용 day 보장 (flag OFF 기본 = no-op). 도시별 후보에서 매칭 → city 정합 가드 통과.

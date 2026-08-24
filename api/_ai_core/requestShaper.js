@@ -12,6 +12,7 @@
 import { AIRPORT_ADDRESSES } from './constants.js';
 import { inferDepartureAirport } from './airportInference.js';
 import { selectVehicle } from './vehicleAndPrice.js';
+import { normalizePlannerIntentV1 } from '../_shared/plannerIntentV1.js';
 
 export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = false) {
   // ── 입력 파싱 ──────────────────────────────────────────────────────────
@@ -60,12 +61,21 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   const language = body.language || 'en';
 
   const arrival_airport = body.arrival_airport || '';
+  // P125 (2026-05-21): 사용자 명시적 입국/출국 도시 (Wizard cycle UI). moved above the
+  // airport inference below so the explicit departure bookend can key it directly
+  // (planner-intent-v1, 2026-08-24) instead of re-deriving it from a not-yet-built
+  // plannerIntent object.
+  const arrivalCity = String(body.arrival_city || body.arrivalCity || '').trim().toLowerCase();
+  const departureCity = String(body.departure_city || body.departureCity || '').trim().toLowerCase();
   // PDF-issue-4 fix (2026-05-14): 다도시 plan 의 마지막 도시가 도착 도시와 다르면
   // 그 도시 기본 공항으로 inference. 이전: arrival_airport 그대로 fallback →
   // 부산 도착 → 서울 이동 plan 에서 wrap-up "PUS 출발" 표시 (잘못).
   // 운영자 명시 departure_airport 가 있으면 그 값 우선.
+  // planner-intent-v1 (2026-08-24): the explicit departure bookend keys the
+  // inference. Falling back to "last raw region" is only correct when the
+  // traveller never marked an exit city.
   const departure_airport = body.departure_airport
-    || inferDepartureAirport(arrival_airport, body.regions, body.cities)
+    || inferDepartureAirport(arrival_airport, body.regions, body.cities, departureCity)
     || arrival_airport
     || '';
   const hotel_address = body.hotel_address || '';
@@ -86,11 +96,9 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
     }
     return {};
   })();
-  // P125 (2026-05-21): 사용자 명시적 입국/출국 도시 (Wizard cycle UI). 다도시 plan 의
-  // Day 1 city = arrival_city, Day N city = departure_city 강제. 단도시 plan 은
-  // 두 값 동일 또는 미입력 — buildPrompt 가 기존 entry_city / MULTI-CITY HANDLING 로 폴백.
-  const arrivalCity = String(body.arrival_city || body.arrivalCity || '').trim().toLowerCase();
-  const departureCity = String(body.departure_city || body.departureCity || '').trim().toLowerCase();
+  // P125 (2026-05-21): 다도시 plan 의 Day 1 city = arrival_city, Day N city = departure_city
+  // 강제 (arrivalCity/departureCity 는 위로 이동됨 — departure_airport inference 가 먼저 필요).
+  // 단도시 plan 은 두 값 동일 또는 미입력 — buildPrompt 가 기존 entry_city / MULTI-CITY HANDLING 로 폴백.
   const mobility = body.mobility || 'ok';
   const uid = body.uid || null;
 
@@ -130,18 +138,35 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   // 안 했으면 zone anchor 사용. 둘 다 없으면 빈 문자열 (route_to_hotel 생성 안 됨).
   const routeHotelAddress = hotel_address || recommendedZoneAddress;
 
-  // SAFETY (CLAUDE.md J): 식이/알레르기는 silent 빈배열 폴백 금지. 키가 "있는데 비배열"(전송 손상)
-  // 이면 throw — 알레르기 누락이 "제한 없음"으로 처리돼 위반 plan 이 가는 것을 차단(누락 자체가 에러).
-  // 키 부재(미선택)는 정상 → []. (정상 프론트는 array-or-absent 보장. throw 는 handlerCore catch→500:
-  // 위험 plan 대신 명시적 실패가 안전.)
+  // SAFETY (CLAUDE.md J / dietary-safety.md): 식이제한은 silent 빈배열 폴백 금지. 키가
+  // "있는데 비배열"(전송 손상)이면 throw — 누락이 "제한 없음"으로 처리돼 위반 plan 이
+  // 가는 것을 차단(누락 자체가 에러). 키 부재(미선택)는 정상 → []. (정상 프론트는
+  // array-or-absent 보장. throw 는 handlerCore catch→500: 위험 plan 대신 명시적 실패가 안전.)
   if (body.dietPrefs != null && !Array.isArray(body.dietPrefs)) {
     const e = new Error('INVALID_DIETARY_PAYLOAD: dietPrefs must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
+  }
+  if (body.dietaryRestrictions != null && !Array.isArray(body.dietaryRestrictions)) {
+    const e = new Error('INVALID_DIETARY_PAYLOAD: dietaryRestrictions must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
   }
   if (body.allergies != null && !Array.isArray(body.allergies)) {
     const e = new Error('INVALID_DIETARY_PAYLOAD: allergies must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
   }
   const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
-  const allergies = Array.isArray(body.allergies) ? body.allergies : [];
+  // 2026-08-24 (allergy removal): dietaryRestrictions 가 canonical 필드. `allergies` 는
+  // 폐기된 inbound alias — 옛 클라이언트/저장된 revision 링크가 여전히 이 이름으로 보낼 수
+  // 있다. Halal/Vegan/Vegetarian 만 승격하고, 남아 있을 수 있는 의료 알레르겐 값
+  // (Nuts/Shellfish/Gluten/Dairy 등)은 조용히 버린다 — 새로 생성되는 plan 에는 절대
+  // `allergies` 필드를 다시 흘려보내지 않는다(아래 return 에 없음).
+  const DIETARY_RESTRICTION_VALUES = new Set(['Halal', 'Vegan', 'Vegetarian']);
+  const legacyAllergies = Array.isArray(body.allergies)
+    ? body.allergies.filter((v) => DIETARY_RESTRICTION_VALUES.has(v))
+    : [];
+  // 2026-08-24 (security): canonical dietaryRestrictions must also be whitelisted through DIETARY_RESTRICTION_VALUES.
+  // Precedence: canonical (even empty array) wins over legacy allergies. Only fall back to filtered
+  // legacy when canonical is absent.
+  const dietaryRestrictions = Array.isArray(body.dietaryRestrictions)
+    ? body.dietaryRestrictions.filter((v) => DIETARY_RESTRICTION_VALUES.has(v))
+    : legacyAllergies;
   const priceRange = body.priceRange || 'Any';
   // W4 (2026-05-08): revision reason chips + free note + previous plan stop names
   const revisionReason = typeof body.revisionReason === 'string' ? body.revisionReason.slice(0, 200) : '';
@@ -185,6 +210,17 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   const pace = ['relaxed', 'standard', 'packed'].includes(body.pace) ? body.pace
     : (body.tourPace === 'half' || body.tourPace === 'short') ? 'relaxed'
     : (body.tourPace === 'action') ? 'packed' : 'standard';
+  // planner-intent-v1: raw tourPace enum (half/short/full/action) — separate from
+  // the `pace` derivation above, which collapses it to relaxed/standard/packed for
+  // the legacy RouteAgent intensity dial. block-mode's tour_pace instruction wants
+  // the original 4-value enum. Unrecognized value → '' (not thrown — legacy tolerant).
+  const tourPaceRaw = ['half', 'short', 'full', 'action'].includes(body.tourPace) ? body.tourPace : '';
+  // planner-intent-v1: reservation_status never had a flat compat field before this
+  // work (buildPrompt's branch on it always saw undefined) — no legacy behavior to
+  // preserve, so this is simply lenient: an unrecognized value is dropped, not thrown.
+  const reservationStatus = ['nothing', 'flight', 'flight_hotel', 'all_done'].includes(body.reservation_status)
+    ? body.reservation_status
+    : null;
 
   const arrivalAddress = AIRPORT_ADDRESSES[arrival_airport] || '';
   const departureAddress = AIRPORT_ADDRESSES[departure_airport] || AIRPORT_ADDRESSES[arrival_airport] || '';
@@ -193,13 +229,36 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   // 비로그인 게스트 결제 흐름 대비). Phase 4 A/B test decidePlannerMode 입력.
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
 
+  // ── PlannerIntent v1 (2026-08-24) ──────────────────────────────────────
+  // ONE normalized reading of the traveller's answers, additive over the flat
+  // fields above. `legacyShaped` hands normalizePlannerIntentV1 the ALREADY
+  // clamped/truncated/gated values computed above by field name — so a pure
+  // legacy request (no `planner_intent_v1` key) is byte-compatible with the
+  // pre-v1 behavior (same clamps, same truncation, no new throws), and the
+  // money-relevant fields (startDate/durationDays/pax) can never be
+  // overridden by a conflicting explicit v1 value. An explicit
+  // `planner_intent_v1` object IS still strict/fail-closed field-by-field —
+  // see plannerIntentV1.js for the split. Every downstream consumer
+  // (userMessageBuilder / blockMode / planPersister / Inngest) reads the
+  // resulting object instead of re-parsing `body` its own way.
+  const legacyShaped = {
+    regions, arrivalCity, departureCity, startDate, durationDays, pax,
+    language, reservationStatus, tourStartTime, tourEndTime,
+    arrival_airport, departure_airport, arrivalTime, departureTime,
+    hotel_address, hotelByCity, recommendedZone, recommendedZones, recommendedZoneAddress,
+    tourPace: tourPaceRaw, pace, styles, dietPrefs, dietaryRestrictions, priceRange,
+    spiceLevel, bucketDishes, companions, luggage, wantAccom, accomBudget,
+    specialRequest, mobility, revisionReason, revisionNote, avoidListBody,
+  };
+  const plannerIntent = normalizePlannerIntentV1(body, legacyShaped);
+
   return {
     guestName, pax, styles, area, regions, duration, durationDays, startDate,
     email, specialRequest, vehicle, language,
     arrival_airport, departure_airport, hotel_address, hotelByCity,
     arrivalCity, departureCity, mobility, uid,
     recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
-    dietPrefs, allergies, priceRange,
+    dietPrefs, dietaryRestrictions, priceRange,
     revisionReason, revisionNote, avoidListBody,
     wantAccom, accomBudget,
     arrivalTime, departureTime, luggage, spiceLevel, bucketDishes, pace, companions,
@@ -209,5 +268,13 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
     // #tour-end (2026-06-05): tourEndTime export — handlerCore destructure + userMessageBuilder inject + blockMode cap.
     tourEndTime,
     arrivalAddress, departureAddress, sessionId,
+    // planner-intent-v1 (2026-08-24): reservation_status used to be dropped
+    // right here — buildPrompt.js branches on it ("nothing"/"flight"/
+    // "flight_hotel") and every branch was reading undefined. null = the
+    // traveller's client never sent it (legacy link), NOT "nothing".
+    reservationStatus: plannerIntent.reservationStatus,
+    // The normalized contract itself — the single object every downstream
+    // consumer reads instead of re-parsing `body`.
+    plannerIntent,
   };
 }
