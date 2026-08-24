@@ -134,6 +134,24 @@ describe('CourseBuilderShell — 시간제약/체류시간 + 접근성 순서변
   });
 });
 
+describe('CourseBuilderShell — 시간 입력 접근성 이름', () => {
+  it('추가 폼 시간 입력을 로컬라이즈드 accessible name("Time")으로 찾을 수 있다', () => {
+    render(<CourseBuilderShell />);
+    const timeInput = screen.getByLabelText('Time', { selector: 'input[type="time"]' });
+    expect(timeInput).toBeInTheDocument();
+  });
+
+  it('인라인 수정 시간 입력도 같은 accessible name — 추가 폼 것과 합쳐 2개가 잡힌다', async () => {
+    const user = userEvent.setup();
+    render(<CourseBuilderShell />);
+    await addManualStop(user, 'Insadong');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const timeInputs = screen.getAllByLabelText('Time', { selector: 'input[type="time"]' });
+    expect(timeInputs).toHaveLength(2);
+  });
+});
+
 describe('CourseBuilderShell — Radix 저장 다이얼로그', () => {
   beforeEach(() => { mockUser = { uid: 'u1' }; });
 
