@@ -10,7 +10,7 @@
 // actual rendered/submitted output.
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, fireEvent, act, cleanup } from '@testing-library/react';
+import { render, fireEvent, act, cleanup, waitFor } from '@testing-library/react';
 
 vi.hoisted(() => {
   (globalThis as unknown as { requestAnimationFrame: unknown }).requestAnimationFrame = () => 0;
@@ -174,7 +174,9 @@ describe('WizardForm — Review display and onSubmit payload agree (real state, 
     click(container, 'set-luggage');
     click(container, 'set-accom');
     click(container, 'next3');
-    await flushLazy();
+    await waitFor(() => {
+      expect(container.textContent || '').toContain('Flight booked');
+    });
 
     // --- Review (real component) shows the same values ---
     const text = container.textContent || '';
