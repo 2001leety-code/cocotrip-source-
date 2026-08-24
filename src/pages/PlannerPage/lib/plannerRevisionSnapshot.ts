@@ -105,6 +105,9 @@ function sanitizeValues(values: Partial<PlannerFormValues>): PlannerRevisionSnap
   if (sanitizeStrArray(values.regions, 5, 60)) out.regions = sanitizeStrArray(values.regions, 5, 60);
   if (typeof values.cityKey === 'string' && values.cityKey) out.cityKey = values.cityKey.slice(0, 60);
   if (sanitizeStrArray(values.cityKeys, 5, 60)) out.cityKeys = sanitizeStrArray(values.cityKeys, 5, 60);
+  // startDate/endDate carried through verbatim (slice(0,10) = length clamp
+  // only, not a date shift) — both inclusive, same convention as
+  // src/components/charter/Step5DateOptions.tsx.
   if (typeof values.startDate === 'string' && values.startDate) out.startDate = values.startDate.slice(0, 10);
   if (typeof values.endDate === 'string' && values.endDate) out.endDate = values.endDate.slice(0, 10);
   if (sanitizeStrArray(values.categories, 20, 60)) out.categories = sanitizeStrArray(values.categories, 20, 60);

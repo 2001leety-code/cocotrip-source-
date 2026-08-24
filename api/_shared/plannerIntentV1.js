@@ -359,6 +359,8 @@ export function normalizePlannerIntentV1(body, legacyShaped = null) {
   const pax = 'pax' in ls ? ls.pax : readInt(v1, 'pax', { min: 1, max: 50 });
 
   // No legacy flat equivalent — always a strict (optional) v1-only field.
+  // startDate/endDate both inclusive (endDate = last travel day) — same
+  // convention as src/components/charter/Step5DateOptions.tsx.
   const endDate = readDate(v1, 'endDate');
   if (startDate && endDate && endDate < startDate) fail('endDate', 'must not be before startDate');
 

@@ -299,6 +299,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // area 는 client-only 라우팅 그룹 키 — plannerIntent.ts 의 intent 필드가
           // 아니라 이 호출부에서만 파생(첫 도시 기준).
           area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+          // P125 explicit compat forward: `flat` (spread below) is the SSOT and
+          // already derives the same value from values.arrival_city/entry_city
+          // (plannerIntent.ts) — this is a literal fallback only, never a
+          // second source of truth, and flat's spread always wins on conflict.
+          arrival_city: values.arrival_city || undefined,
+          departure_city: values.departure_city || undefined,
           ...flat,
         }),
       });
@@ -430,6 +436,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           uid: values.uid || null,
           language,
           area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+          // P125 explicit compat forward — same literal fallback as
+          // handlePaymentSuccess above; `flat` is the SSOT and wins on conflict.
+          arrival_city: values.arrival_city || undefined,
+          departure_city: values.departure_city || undefined,
           ...flat,
         }),
       });

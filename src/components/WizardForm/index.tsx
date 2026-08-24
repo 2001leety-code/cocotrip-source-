@@ -914,6 +914,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     // or unsupported the rest of the flow is unaffected.
     void requestNotifyPermission();
     try { if (mainCity) localStorage.setItem('cocotrip_last_region', mainCity); } catch { /* silent */ }
+    // startDate/endDate both inclusive (endDate = last travel day, not the day
+    // after) — same convention as src/components/charter/Step5DateOptions.tsx.
     const sd = startDate;
     const ed = endDate;
 

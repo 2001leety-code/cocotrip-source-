@@ -17,6 +17,7 @@ function renderReview(onEditStep = vi.fn()) {
     <WizardStep3Review
       p={{}}
       allCities={['Seoul']}
+      // startDate/endDate both inclusive — Sep 1-3 = 2 nights / 3 days.
       startDate="2026-09-01"
       endDate="2026-09-03"
       arrivalTerminal="ICN"

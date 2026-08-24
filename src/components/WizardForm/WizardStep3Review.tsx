@@ -183,6 +183,8 @@ export function WizardStep3Review(props: Step3Props) {
   const bucketValue = bucketDishes.map(k => p[`bucket${cap(k)}`] || k).join(', ') || notSelected;
 
   // --- Group 4: Trip details ---
+  // startDate/endDate both inclusive (last travel day shown, not the day after) —
+  // same repo-wide convention as src/components/charter/Step5DateOptions.tsx.
   const datesValue = startDate && endDate ? `${formatReviewDate(startDate)} - ${formatReviewDate(endDate)}` : notSelected;
   const paxValue = `${pax} ${p.wizardPaxUnit || 'pax'}`;
   const departureAirportValue = (departureTerminal ? (AIRPORT_DISPLAY[departureTerminal] || departureTerminal) : (p.wizardDepartureSameAsArrival || 'Same as arrival airport'))

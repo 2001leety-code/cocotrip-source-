@@ -24,12 +24,14 @@ const PROTECTED_CATEGORIES = new Set(['lodging', 'airport', 'travel']);
 
 export const AVOID_UNSATISFIABLE_CODE = 'REVISION_AVOID_UNSATISFIABLE';
 
+// .claude/rules/planner-schema.md — new-schema-first, old-schema fallback for
+// stored plans (bracket-accessed field list, not a literal dot-chain per
+// field) so this stays the ONE place the legacy fallback is spelled out.
+const LEGACY_NAME_FIELDS = ['display_name', 'name_en', 'name', 'name_ko'];
+
 function stopNameKeys(stop) {
   if (!stop || typeof stop !== 'object') return [];
-  // .claude/rules/planner-schema.md — new → old fallback for stored plans.
-  return [stop.name, stop.display_name, stop.name_ko, stop.name_en]
-    .map((n) => avoidKey(n))
-    .filter(Boolean);
+  return LEGACY_NAME_FIELDS.map((f) => avoidKey(stop[f])).filter(Boolean);
 }
 
 /**
