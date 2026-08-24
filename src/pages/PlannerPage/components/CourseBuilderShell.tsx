@@ -319,7 +319,7 @@ export function CourseBuilderShell() {
   // 이전 결과(routeSegs/aiRecos)도 지운다 — 다른 Day/바뀐 코스에 옛 응답이 얹혀 보이는 것 방지.
   const basisKey = useMemo(
     () => `${cb.activeDay}:${day.stops.map((s, i) => [
-      s.id, i, s.lat, s.lng, s.time, s.timeConstraint || '', s.windowEnd || '', s.stayMinutes ?? '',
+      s.id, i, s.lat, s.lng, s.time, s.timeConstraint || '', s.windowEnd || '', s.stayMinutes === undefined ? '' : s.stayMinutes,
     ].join('|')).join(';')}`,
     [cb.activeDay, day.stops],
   );
@@ -968,7 +968,7 @@ function StopRow({
               {t.stayLabel}
               <input
                 type="number" min={1} max={1440} step={5}
-                value={stop.stayMinutes ?? ''}
+                value={stop.stayMinutes === undefined ? '' : stop.stayMinutes}
                 onChange={(e) => onPatch({ stayMinutes: e.target.value ? Number(e.target.value) : undefined })}
                 placeholder={t.stayPh}
                 className={`${INPUT} w-[72px] px-1.5`}
