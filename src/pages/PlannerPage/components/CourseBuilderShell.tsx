@@ -510,12 +510,13 @@ export function CourseBuilderShell() {
             <button
               key={i}
               type="button"
+              aria-label={`${t.day} ${i + 1}, ${d.stops.length} ${t.stops}`}
               aria-pressed={i === cb.activeDay}
               onClick={() => cb.setActiveDay(i)}
               className={`ec-option ec-option-sm shrink-0 ${i === cb.activeDay ? 'is-selected' : ''}`}
             >
               {t.day} {i + 1}
-              <span className="ml-1 text-ec-ink-3">{d.stops.length}</span>
+              <span aria-hidden="true" className="ml-1 text-ec-ink-3">({d.stops.length})</span>
             </button>
           ))}
           {cb.draft.days.length < COURSE_MAX_DAYS && (

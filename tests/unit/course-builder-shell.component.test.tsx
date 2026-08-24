@@ -8,6 +8,7 @@
  * 4. 비동기 stale 안전망 — Day 를 바꾼 뒤 도착한 느린 실경로 응답이 화면에 반영되지 않음.
  * 5. 분석 이벤트 — opened 1회(마운트), started 는 최초 유효 추가 1회만(재추가 시 재발화 없음).
  * 6. 결정론적 목업 플로우 — 추가 → 수동 이동 → AI 최적화 → 저장 → 공유.
+ * 7. Day 번호와 장소 수 — 시각·접근성 이름에서 `Day 10`으로 붙지 않음.
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -82,6 +83,15 @@ async function addManualStop(user: ReturnType<typeof userEvent.setup>, title: st
 }
 
 describe('CourseBuilderShell — 빈 코스 공유 안전망', () => {
+  it('Day 번호와 장소 수를 분리해 `Day 10` 오독을 막는다', () => {
+    render(<CourseBuilderShell />);
+
+    const dayTab = screen.getByRole('button', { name: 'Day 1, 0 stops' });
+    expect(dayTab).toHaveTextContent('Day 1(0)');
+    expect(dayTab.querySelector('[aria-hidden="true"]')).toHaveTextContent('(0)');
+    expect(screen.queryByRole('button', { name: 'Day 10' })).not.toBeInTheDocument();
+  });
+
   it('stop 이 0개면 공유 버튼이 disabled — 클릭해도 fetch/share/clipboard 0회', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
