@@ -69,7 +69,7 @@ export interface PlannerFormValues {
   pax?: number;
   durationDays?: number;
   dietPrefs?: string[];
-  allergies?: string[];
+  dietaryRestrictions?: string[];
   priceRange?: string;
   spiceLevel?: string;          // 'none' | 'mild' | 'medium' | 'hot' (P10)
   bucketDishes?: string[];      // KOREAN_BUCKET_LIST keys (P10)

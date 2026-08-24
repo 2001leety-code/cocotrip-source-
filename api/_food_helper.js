@@ -79,25 +79,16 @@ export function resolveCityCode(destination) {
      dest.includes('jeju') ? 'jeju' : 'seoul');
 }
 
-// ── P189 (2026-05-25): allergen tag constants ────────────────────────────
-// WizardForm allergy keys: 'Nuts', 'Shellfish', 'Gluten', 'Dairy'
-// allergen: prefix 는 P189 식별용 — 'general' fallback 으로 흡수 금지.
-// NOTE: 실제 필터링 효과는 _food_index.json 의 allergens 필드가 true 인 row 가
-//       수집된 후 발휘됨. 현재는 모든 row 가 false default → 필터링 무력.
-//       allergen 정보 실측 retrofit 은 별도 cycle (DB 수집 담당자 작업).
-export const ALLERGEN_TAG_PREFIX = 'allergen:';
-export const ALLERGEN_KEYS = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
-
 // ── Diet preference → tag mapping ───────────────────────────────────────
 // WizardForm FOOD_STYLE_KEYS: 'Vegan', 'Halal', 'Seafood', 'Meat', 'Spicy', 'Street'
-// WizardForm ALLERGY_KEYS (P189): 'Nuts', 'Shellfish', 'Gluten', 'Dairy'
+// 2026-08-24 (planner trust): allergen 4종(Nuts/Shellfish/Gluten/Dairy) 고객 입력 제거.
+// _food_index.json 의 allergens 필드가 전부 미수집(false)이라 필터링 효과가 없었고,
+// 선택 UI 존재만으로 "알레르기 대응"이라는 오인을 줄 위험이 있었다 — 기존 저장된
+// legacy allergies 배열에 이 값들이 남아 있어도 아래 switch 의 default 분기로 안전 무시됨.
 export function getTagsForDiet(dietPrefs) {
   if (!dietPrefs || dietPrefs.length === 0) return ['general'];
 
   const tags = new Set();
-  // P189 (2026-05-25): SAFETY-CRITICAL — 알레르기 4종은 'general' 폴백 금지.
-  // allergen:<name> 태그로 분리하여 필터링 체인이 구분할 수 있게 함.
-  const allergenPrefs = [];
   // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan) 존재 여부 선판단.
   // 존재 시 cuisine 선호(Meat/Seafood 등)가 'general' 을 추가하지 못하게 막는다.
   // 이유: Halal+Meat 조합이 ['halal','general'] 이 되면 Step 2 tag filter 에서 일반식당
@@ -108,55 +99,18 @@ export function getTagsForDiet(dietPrefs) {
     switch (pref) {
       case 'Vegan':    tags.add('vegan'); break;
       case 'Halal':    tags.add('halal'); break;
-      // P189: 알레르기 키 — 'general' 폴백 금지. allergen:<name> 별도 태그.
-      case 'Nuts':     allergenPrefs.push('nuts');      tags.add(`${ALLERGEN_TAG_PREFIX}nuts`); break;
-      case 'Shellfish': allergenPrefs.push('shellfish'); tags.add(`${ALLERGEN_TAG_PREFIX}shellfish`); break;
-      case 'Gluten':   allergenPrefs.push('gluten');    tags.add(`${ALLERGEN_TAG_PREFIX}gluten`); break;
-      case 'Dairy':    allergenPrefs.push('dairy');     tags.add(`${ALLERGEN_TAG_PREFIX}dairy`); break;
       case 'Seafood':
       case 'Meat':
       case 'Spicy':
       case 'Street':
       default:
         // B5 (P309): SAFETY tag 존재 시 general 추가 금지 (위 주석 참조).
+        // legacy allergies 값(Nuts/Shellfish/Gluten/Dairy 등)도 여기로 떨어져 무해 처리됨.
         if (!hasSafetyTag) tags.add('general');
         break;
     }
   }
-  // allergen 만 선택됐고 food style 미선택 → general 도 함께 포함 (식당 추천 가능해야 함)
-  // allergen 필터는 식당 제외 용도, general 은 식당 포함 용도 — 구분 명확히.
-  if (allergenPrefs.length > 0 && !tags.has('vegan') && !tags.has('halal') && !tags.has('general')) {
-    tags.add('general');
-  }
   return [...tags];
-}
-
-// ── P189: allergen filter — allergens 필드 활용 식당 제외 ─────────────────
-// 사용자가 알레르기 키 선택 시 해당 allergen.xxx === true 인 식당 제외.
-// 경고: allergens 필드가 모두 false (default) 인 현재 상태에서는 필터링 무력.
-//       allergen 정보 실측 retrofit 완료 후 효과 발휘됨.
-// backward-compat: allergens 필드 없는 legacy row → 포함 (안전 default = 모름 = 포함).
-function filterByAllergens(candidates, dietPrefs) {
-  if (!dietPrefs || dietPrefs.length === 0) return candidates;
-
-  // P189: 선택된 알레르기 키 추출 (소문자)
-  const allergenKeys = dietPrefs
-    .filter(p => ALLERGEN_KEYS.includes(p))
-    .map(p => p.toLowerCase()); // 'Nuts' → 'nuts'
-
-  if (allergenKeys.length === 0) return candidates;
-
-  return candidates.filter(r => {
-    const allergens = r.allergens;
-    // allergens 필드 없는 legacy row → 포함 (backward-compat)
-    // NOTE: allergens 모두 false default 상태에서는 포함됨 — retrofit 후 효과 발휘.
-    if (!allergens || typeof allergens !== 'object') return true;
-    // allergens.nuts === true → 견과 메뉴 있음 → 견과 알레르기 손님 제외
-    for (const key of allergenKeys) {
-      if (allergens[key] === true) return false;
-    }
-    return true;
-  });
 }
 
 // ── Price level mapping ─────────────────────────────────────────────────
@@ -295,21 +249,6 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
     // else: keep priceFiltered (relaxed)
   }
 
-  // ── Step 4b (P189 SAFETY-CRITICAL): allergen filter ──────────────────
-  // allergens.xxx === true 인 식당 제외. allergens 필드 없는 legacy row 는 포함.
-  // 현재 상태: 모든 row allergens = false (default) → 필터 무력이나 코드 준비됨.
-  // 효과 발휘 시점: DB 수집 担당자가 각 식당 allergen 정보 실측 후 retrofit 완료 후.
-  const hasAllergenPrefs = dietPrefs.some(p => ALLERGEN_KEYS.includes(p));
-  if (hasAllergenPrefs) {
-    const allergenFiltered = filterByAllergens(result, dietPrefs);
-    // 필터 후 결과가 절반 이상이면 적용, 아니면 유지 (DB retrofit 전 과도한 제외 방지)
-    if (allergenFiltered.length >= result.length / 2) {
-      result = allergenFiltered;
-    } else {
-      console.warn(`[food-helper P189] allergen filter relaxed: only ${allergenFiltered.length}/${result.length} results after filter — using unfiltered (allergens DB retrofit 필요)`);
-    }
-  }
-
   // ── Step 5: Diversify by dong (neighborhood) — max 3 per dong ─────────
   const dongBuckets = {};
   const diversified = [];
@@ -335,12 +274,7 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   if (!final.length) return '';
 
   // ── Format output ─────────────────────────────────────────────────────
-  // P189 SAFETY: 알레르겐 키(Nuts/Shellfish/Gluten/Dairy)는 DB allergen 데이터가 미수집
-  //   (전부 false=미확인)이라 filterByAllergens 가 무력하다. 헤더 라벨에 넣으면
-  //   "Recommended Nuts Restaurants … VERIFIED" = 알레르겐 검증 추천으로 오표기되므로 제외.
-  const allergenSelected = dietPrefs.filter(p => ALLERGEN_KEYS.includes(p));
-  const labelPrefs = dietPrefs.filter(p => !ALLERGEN_KEYS.includes(p));
-  const dietLabel = labelPrefs.length > 0 ? labelPrefs.join(' & ') : 'Korean';
+  const dietLabel = dietPrefs.length > 0 ? dietPrefs.join(' & ') : 'Korean';
   // Phase 6: Busan DB uses 4.6 threshold; others use 4.5
   const ratingThresholdLabel = cityCode === 'busan' ? '4.6' : '4.5';
   const lines = final.map(r => {
@@ -363,12 +297,7 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   const cityLabel = cityCode.charAt(0).toUpperCase() + cityCode.slice(1);
   const header = `## Recommended ${dietLabel} Restaurants in ${cityLabel} (Rating ≥ ${ratingThresholdLabel})`;
 
-  // P189 SAFETY-CRITICAL: "verified": true = 식당 실재(DB 등재) 확인일 뿐, 알레르겐 안전
-  //   검증이 아니다. allergen DB 미수집(0% 실측) 상태라 이 명단은 알레르겐 스크리닝 안 됨.
-  //   알레르겐 선택 시 "검증된 추천"으로 오인되지 않게 명시 면책 + 매 stop 현장확인 지시.
-  const allergenNotice = allergenSelected.length > 0
-    ? `\n\nALLERGEN SAFETY (${allergenSelected.join(', ')}): "verified": true confirms the restaurant EXISTS in our database — it does NOT confirm the restaurant is safe for these allergies. This list is NOT allergen-screened. NEVER state or imply any stop is allergy-safe; for EVERY food stop add a per-stop caution telling the guest to confirm ${allergenSelected.join('/')} ingredients with the restaurant before eating.`
-    : '';
-
-  return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.${allergenNotice}\n---`;
+  // "verified": true = 식당 실재(DB 등재) 확인일 뿐 dietary 안전 인증이 아니다
+  //   (dietary-trust.js SSOT 가 halal/vegan 인증 등급을 별도 관리).
+  return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.\n---`;
 }

@@ -178,7 +178,7 @@ that only the live calculator gets right. ALWAYS say something like:
 - Free quick preview before you pay, so you can see the plan style first
 - PDF download, restaurants with menu/price, location maps
 - Includes 2 FREE revisions after purchase (3 total generations: initial + 2 edits)
-- Halal/vegan/allergy filters available
+- Halal/vegan/vegetarian filters available
 - Available at: cocotripkr.com/planner
 - AI Plans are digital products delivered immediately and are non-refundable (charter/tour bookings follow the separate cancellation policy below)
 
@@ -219,7 +219,7 @@ that only the live calculator gets right. ALWAYS say something like:
 ═══ FOOD & DIETARY (CRITICAL — never assume) ═══
 - Halal restaurants: Yes, certified options in Itaewon/Gangnam
 - Vegan/vegetarian: Yes — best on mainland; limited in Jeju
-- Allergies (nuts/shellfish): MUST notify in advance — driver pre-confirms with restaurants
+- Any allergy or other special dietary need: tell us in advance via the special-request field — we do not promise restaurant-side allergy screening
 - Customer must explicitly state dietary needs; never default to "no restrictions"
 
 ═══ K-POP & SPECIAL TOURS ═══

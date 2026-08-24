@@ -129,7 +129,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       language,
       regions: values.regions || ['Seoul'],
       dietPrefs: values.dietPrefs || [],
-      allergies: values.allergies || [],
+      dietaryRestrictions: values.dietaryRestrictions || [],
       priceRange: values.priceRange || 'Any',
       special_request: values.freeText || '',
     });
@@ -261,7 +261,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           mobility: values.mobility || 'ok',
           uid: values.uid || null,
           dietPrefs: values.dietPrefs || [],
-          allergies: values.allergies || [],
+          dietaryRestrictions: values.dietaryRestrictions || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
           // 2026-05-10 (P1 launch blocker): WizardForm 에서 수집했지만 누락된
@@ -441,7 +441,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           mobility: values.mobility || 'ok',
           uid: values.uid || null,
           dietPrefs: values.dietPrefs || [],
-          allergies: values.allergies || [],
+          dietaryRestrictions: values.dietaryRestrictions || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
           // 2026-05-10 (P1): WizardForm 누락 필드 forward — paid path 와 동일.

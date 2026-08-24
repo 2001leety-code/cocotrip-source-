@@ -227,94 +227,6 @@ function checkDietaryCoverage(allStops, dietary) {
 }
 
 /**
- * B6 (P310, 2026-05-30): 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 텍스트 기반 검출.
- *
- * 배경 (audit B6):
- *   P189 이 allergen DB 필터 (filterByAllergens) 코드는 준비했으나 _food_index.json
- *   allergens 필드가 전 행 false (실측 미수집) → DB 기반 검출 0건. checkDietaryViolation
- *   은 halal/vegan/vegetarian 만 분기 → Nuts/Shellfish/Gluten/Dairy 검사 전무.
- *   견과류 알레르기 손님이 견과 식당 추천받을 위험 (SAFETY-CRITICAL).
- *
- * 설계 (P280 v1 무한 retry 사고 회피 — 핵심):
- *   - severity='warning' 고정. hasCriticalDietaryViolation 에 안 들어감 (retry trigger X).
- *     critical 로 하면 한식 hidden allergen (간장=밀, 비빔밥=잣) false-positive 폭발 →
- *     매 retry 마다 한식 대부분 위반 → P280 v1 보다 광범위한 무한 loop. 절대 금지.
- *   - 명시적 재료명만 검출 (보수적). 광역 조미료 (간장/고추장 단독) 제외 — 거의 모든
- *     한식 = false-positive. 단일 음절 한글 ('게'/'굴'/'면') 제외 — 다른 단어 오검출.
- *   - name/display_name/tip 만 검사 (reason 제외, 보수적).
- *   - admin panel 가시화 우선. critical 승격은 false-positive rate 측정 + DB retrofit 후.
- *
- * 외부 사례 (allergymenu / FSSAI / Big-9) + buildPrompt.js:732-740 한식 hidden allergen
- * 가이드 교차 검증한 키워드 사전.
- */
-const ALLERGEN_KEYWORDS = {
-  // 견과류 — 강정/약과 (견과 다량 한과) 포함. \bnut\b 로 'donut' 등 오검출 회피.
-  nuts: /peanut|almond|walnut|cashew|pistachio|hazelnut|macadamia|pecan|\bnut\b|땅콩|아몬드|호두|캐슈|피스타치오|견과|강정|약과/i,
-  // 갑각류/조개 — 단일 음절 제외, 구체 재료명 (게장/대게/게살/생굴/굴구이).
-  shellfish: /shrimp|prawn|\bcrab\b|lobster|clam|oyster|mussel|scallop|새우|게장|대게|꽃게|게살|랍스터|조개|생굴|굴구이|홍합|가리비|꼬막/i,
-  // 글루텐 — 면/빵/밀 명시. 간장/고추장 (광역 조미료) 제외 (false-positive 회피).
-  gluten: /\bwheat\b|noodle|ramen|ramyeon|\bbread\b|pancake|dumpling|냉면|밀면|라면|칼국수|수제비|만두|부침개|파전|밀가루/i,
-  // 유제품 — 치즈/크림/우유 명시.
-  dairy: /\bmilk\b|butter|cheese|cream|latte|yogurt|우유|버터|치즈|크림|라떼|요거트|빙수|아이스크림/i,
-};
-
-const ALLERGEN_PREF_MAP = { Nuts: 'nuts', Shellfish: 'shellfish', Gluten: 'gluten', Dairy: 'dairy' };
-
-// #9 (2026-06-20) SAFETY-CRITICAL: block_mode food stop 에 박는 "사용자 표시" 알레르기 고지.
-//   기존 applyBlockModeDietaryWarnings 의 allergen_warning 은 quality_warnings (admin-only) 라
-//   손님이 못 봤다. legacy _food_helper.js:352 는 Gemini 에게 per-stop caution 을 tip 에 넣게
-//   지시 → 손님이 본다. block_mode 는 Gemini per-stop tip 통제가 없으므로 직접 tip 에 주입한다.
-//   4언어 (ko/en/ja/zh) — 손님 언어로. allergen 라벨도 언어별로 번역해 붙인다.
-const BLOCKMODE_ALLERGEN_NOTICE = {
-  ko: (labels) => `⚠️ 알레르기 안내(${labels}): 이 식당은 알레르겐 검증이 되어 있지 않습니다. 식사 전 식당에 ${labels} 알레르기를 반드시 알리고 재료를 직접 확인하세요.`,
-  en: (labels) => `⚠️ Allergy notice (${labels}): this restaurant is not allergen-screened. Before eating, inform the restaurant about your ${labels} allergy and confirm the ingredients yourself.`,
-  ja: (labels) => `⚠️ アレルギー注意(${labels}): この店舗はアレルゲン検査がされていません。食事の前に必ず店舗へ${labels}アレルギーを伝え、食材を直接確認してください。`,
-  zh: (labels) => `⚠️ 过敏提示(${labels})：本餐厅未经过敏原筛查。用餐前请务必告知餐厅您的${labels}过敏情况，并自行确认食材。`,
-};
-// allergen 4종 언어별 라벨 (사용자 표시용). 키 = ALLERGEN_PREF_MAP value.
-const ALLERGEN_LABELS = {
-  nuts: { ko: '견과류', en: 'nuts', ja: 'ナッツ', zh: '坚果' },
-  shellfish: { ko: '갑각류·조개', en: 'shellfish', ja: '甲殻類・貝類', zh: '甲壳类·贝类' },
-  gluten: { ko: '글루텐', en: 'gluten', ja: 'グルテン', zh: '麸质' },
-  dairy: { ko: '유제품', en: 'dairy', ja: '乳製品', zh: '乳制品' },
-};
-function allergenLabel(allergen, lang) {
-  const t = ALLERGEN_LABELS[allergen];
-  if (!t) return allergen;
-  return t[lang] || t.en;
-}
-
-/**
- * food stop 들에서 활성 알레르기 유발 재료 가능성 검출. severity='warning' (retry X).
- * @returns {Array<{stop, allergen}>|null}
- */
-function checkAllergenWarnings(allStops, dietary) {
-  if (!Array.isArray(dietary) || dietary.length === 0) return null;
-  // dietary 에서 알레르기 4종만 추출 (Halal/Vegan 은 checkDietaryViolation 담당).
-  const activeAllergens = [];
-  for (const d of dietary) {
-    const key = ALLERGEN_PREF_MAP[d];
-    if (key) activeAllergens.push(key);
-  }
-  if (activeAllergens.length === 0) return null;
-
-  const foodStops = (allStops || []).filter((s) => s && s.category === 'food');
-  if (foodStops.length === 0) return null;
-
-  const warnings = [];
-  for (const stop of foodStops) {
-    // name/display_name/tip 만 검사 (reason 제외 — 보수적 false-positive 회피).
-    const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''}`;
-    for (const allergen of activeAllergens) {
-      if (ALLERGEN_KEYWORDS[allergen].test(hay)) {
-        warnings.push({ stop: stop.name || stop.display_name || '', allergen });
-      }
-    }
-  }
-  return warnings.length > 0 ? warnings : null;
-}
-
-/**
  * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
  * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
  * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
@@ -1055,22 +967,19 @@ export function checkSoftQualityWarnings(itinerary) {
 
 /**
  * P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 handlerCore:319 `if(!itinerary)` 가드로
- * runGeminiPipeline(= validateResponse, 유일한 dietary/allergen 검증처)을 우회 → dietary_coverage_low /
- * allergen_warning 0건 → 알레르기(견과/갑각류/글루텐/유제품) 무방비 + 할랄/비건 coverage 미박제.
+ * runGeminiPipeline(= validateResponse, 유일한 dietary 검증처)을 우회 → dietary_coverage_low 0건 →
+ * 할랄/비건/채식 coverage 미박제.
  * fix: 후처리에서 동일 검증 함수 재사용 (warning-only, P280 retry loop 회피, buildPrompt 변경 0).
- * violation critical-retry 는 제외 — block_mode 3중 게이트(fetch/eligible/placeholder throw)가 식당
- * 매칭 보장하므로 알레르기 가시화가 최우선 gap. legacy 는 validateResponse 가 이미 처리하므로 본 helper 미호출.
+ * violation critical-retry 는 제외 — legacy 는 validateResponse 가 이미 처리하므로 본 helper 미호출.
  *
- * #9 (2026-06-20) SAFETY-CRITICAL: 위 allergen_warning 은 admin-only (quality_warnings) 라
- *   손님이 못 본다. 알레르기 선택 손님의 block_mode food stop 에 **사용자 표시** 고지
- *   ('inform restaurant about your allergy') 를 tip 에 주입 (legacy _food_helper.js:352 와 동등).
- *   list 가 allergen-screened 가 아니므로 keyword 매칭 stop 만이 아니라 **모든 food stop** 에 박는다
- *   (누락=SAFETY 위반). 4언어 (language) — 손님 언어로.
+ * 2026-08-24: 알레르겐 4종(Nuts/Shellfish/Gluten/Dairy) 관련 검출·사용자 고지 주입은
+ * planner-trust 세션에서 제거됨 — DB allergen 필드가 미수집이라 실효가 없었고 오인 위험만 있었다.
+ * 이 함수는 halal/vegan/vegetarian coverage 경고만 남긴다.
  *
- * @param {object} itinerary - mutated in-place (quality_warnings push + food stop tip 주입)
- * @param {string[]} dietary - dietaryAll (dietPrefs + allergies 합집합, P298)
+ * @param {object} itinerary - mutated in-place (quality_warnings push)
+ * @param {string[]} dietary - dietaryAll (dietPrefs + dietaryRestrictions 합집합, P298 — halal/vegan/vegetarian만)
  * @param {object} [opts]
- * @param {string} [opts.language] - 손님 언어 (ko/en/ja/zh). 사용자 표시 고지 언어 선택.
+ * @param {string} [opts.language] - 손님 언어 (ko/en/ja/zh). 현재 미사용(과거 알레르기 고지용) — 시그니처 호환 유지.
  * @returns {number} 박제된 warning 수
  */
 export function applyBlockModeDietaryWarnings(itinerary, dietary, opts = {}) {
@@ -1090,37 +999,6 @@ export function applyBlockModeDietaryWarnings(itinerary, dietary, opts = {}) {
       message: `P324(block_mode): ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). 운영자 admin 확인 + 사용자 수동 회피 권고.`,
     });
   }
-  const allergenWarnings = checkAllergenWarnings(allStops, dietary) || [];
-  for (const aw of allergenWarnings) {
-    out.push({
-      type: 'allergen_warning',
-      severity: 'warning',
-      stop: aw.stop,
-      allergen: aw.allergen,
-      message: `P324(block_mode): '${aw.stop}' 에 ${aw.allergen} 알레르기 유발 재료 가능성 — 사용자 확인 권고 (운영자 admin panel).`,
-    });
-  }
-
-  // #9: 사용자 표시 알레르기 고지 — 손님이 선택한 알레르기 4종 중 활성된 것만 라벨에 표기.
-  const activeAllergens = [];
-  for (const d of dietary) {
-    const key = ALLERGEN_PREF_MAP[d];
-    if (key && !activeAllergens.includes(key)) activeAllergens.push(key);
-  }
-  if (activeAllergens.length > 0) {
-    const lang = (opts.language && ['ko', 'en', 'ja', 'zh'].includes(opts.language)) ? opts.language : 'en';
-    const labels = activeAllergens.map((a) => allergenLabel(a, lang)).join(', ');
-    const noticeFn = BLOCKMODE_ALLERGEN_NOTICE[lang] || BLOCKMODE_ALLERGEN_NOTICE.en;
-    const noticeText = noticeFn(labels);
-    for (const stop of allStops) {
-      if (!stop || stop.category !== 'food') continue;
-      const existingTip = typeof stop.tip === 'string' ? stop.tip : '';
-      // 멱등성: 재실행/재dispatch 시 중복 주입 방지 (⚠️ 마커 + label 동일 조각 검사).
-      if (existingTip.includes(noticeText)) continue;
-      stop.tip = existingTip ? `${existingTip}\n\n${noticeText}` : noticeText;
-    }
-  }
-
   if (out.length > 0) {
     itinerary.quality_warnings = itinerary.quality_warnings || [];
     itinerary.quality_warnings.push(...out);
@@ -1149,22 +1027,6 @@ export function validateResponse(data, request, foodIndex) {
         match_count: ci.match_count,
         food_stops_count: ci.food_stops_count,
         message: `P280 v2: ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). 운영자 admin panel 확인 + 사용자 수동 회피 권고.`,
-      });
-    }
-  }
-
-  // B6 (P310 2026-05-30): 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 텍스트 기반 검출.
-  // SAFETY-CRITICAL 이지만 severity='warning' (P280 v1 무한 retry 사고 회피). 명시적
-  // 재료명만 → admin 가시화 우선. critical 승격은 false-positive rate 측정 + DB retrofit 후.
-  const allergenWarnings = checkAllergenWarnings(allStops, dietary);
-  if (allergenWarnings) {
-    for (const aw of allergenWarnings) {
-      issues.push({
-        type: 'allergen_warning',
-        severity: 'warning',  // 절대 critical 금지 (retry loop 차단)
-        stop: aw.stop,
-        allergen: aw.allergen,
-        message: `B6: '${aw.stop}' 에 ${aw.allergen} 알레르기 유발 재료 가능성 — 사용자 확인 권고 (운영자 admin panel).`,
       });
     }
   }

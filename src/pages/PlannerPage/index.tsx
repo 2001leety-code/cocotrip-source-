@@ -87,7 +87,7 @@ export default function PlannerPage() {
     arrivalAirport: searchParams.get('prefillArrival') || '',
     hotelAddress: searchParams.get('prefillHotel') || '',
     dietary: (searchParams.get('prefillDiet') || '').split(',').filter(Boolean),
-    allergies: (searchParams.get('prefillAllergies') || '').split(',').filter(Boolean),
+    dietaryRestrictions: (searchParams.get('prefillDietaryRestrictions') || '').split(',').filter(Boolean),
     freeText: searchParams.get('prefillFreeText') || '',
   } : (deepLinkRegions.length ? { regions: deepLinkRegions } : undefined);
 

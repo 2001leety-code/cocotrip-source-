@@ -148,7 +148,7 @@ function flushGaQueue(): void {
 // ── Track Page View (SPA navigation) ────────────────────────────────────
 /**
  * 🔴 2026-07-30 (P1-2): 이전에는 `pathname + search` 를 그대로 보냈다. 우리 쿼리에는 공유
- *   토큰(`?token=`)·플래너 사전입력(`prefillHotel`·`prefillDiet`·`allergies`)·자유 입력
+ *   토큰(`?token=`)·플래너 사전입력(`prefillHotel`·`prefillDiet`·`prefillDietaryRestrictions`)·자유 입력
  *   (`revisionNote`·`freeText`)이 들어간다. 이제 **경로만** 보낸다.
  *   `page_title`(document.title)도 뺐다 — 공유 플랜 제목에 손님이 쓴 문장이 섞일 수 있다.
  */

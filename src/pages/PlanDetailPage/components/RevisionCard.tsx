@@ -158,7 +158,17 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
     setIfStr('prefillArrival', inp.arrival_airport);
     setIfStr('prefillHotel', inp.hotel_address);
     setIfArr('prefillDiet', (inp as { dietary?: unknown }).dietary ?? (inp as { dietPrefs?: unknown }).dietPrefs);
-    setIfArr('prefillAllergies', (inp as { allergies?: unknown }).allergies);
+    // 2026-08-24 (allergy removal): 새 plan 은 input.dietaryRestrictions 에 저장된다.
+    // 옛 plan(레거시)은 input.allergies 뿐 — Halal/Vegan/Vegetarian 만 승격해 prefill,
+    // 남아 있을 수 있는 의료 알레르겐 값(Nuts/Shellfish/Gluten/Dairy)은 조용히 버린다.
+    const dietaryRestrictionsRaw = (inp as { dietaryRestrictions?: unknown }).dietaryRestrictions;
+    const legacyAllergiesRaw = (inp as { allergies?: unknown }).allergies;
+    const dietaryRestrictionsForPrefill = Array.isArray(dietaryRestrictionsRaw)
+      ? dietaryRestrictionsRaw
+      : Array.isArray(legacyAllergiesRaw)
+        ? legacyAllergiesRaw.filter((v): v is string => typeof v === 'string' && ['Halal', 'Vegan', 'Vegetarian'].includes(v))
+        : undefined;
+    setIfArr('prefillDietaryRestrictions', dietaryRestrictionsForPrefill);
     const freeTxt = (inp as { freeText?: unknown }).freeText;
     if (typeof freeTxt === 'string' && freeTxt.trim()) {
       prefillEntries['prefillFreeText'] = freeTxt.slice(0, 200);

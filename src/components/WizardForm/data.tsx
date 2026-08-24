@@ -242,10 +242,10 @@ export const EXPANDED_ACTIVITY_ICONS: Record<string, ReactNode> = {
   HangangPicnic:      <Sunset className="w-5 h-5" />,
 };
 
-// P10 (2026-04-24): 'Halal' moved out of style preferences into ALLERGY_KEYS
-// (renamed "Dietary Restrictions") because it is a religious obligation, not
-// a flavor preference. Same reasoning for 'Vegan' — it's a hard restriction
-// when chosen, not a flavor.
+// P10 (2026-04-24): 'Halal' moved out of style preferences into
+// DIETARY_RESTRICTION_KEYS ("Dietary Restrictions") because it is a religious
+// obligation, not a flavor preference. Same reasoning for 'Vegan' — it's a
+// hard restriction when chosen, not a flavor.
 export const FOOD_STYLE_KEYS = ['Seafood', 'Meat', 'Street'] as const;
 
 export const FOOD_STYLE_ICONS: Record<string, ReactNode> = {
@@ -255,11 +255,16 @@ export const FOOD_STYLE_ICONS: Record<string, ReactNode> = {
 };
 
 // 'None' must remain LAST — Step1Food's toggle treats it as the "clear all"
-// option (selected when allergies array is empty).
+// option (selected when dietaryRestrictions array is empty).
 // 2026-07-13: 'Vegetarian' 추가 — 백엔드 안전 체인(dietary-trust.checkDietaryCoverage lowercase
 // 필터 + vegan-covers-vegetarian, responseValidator /vegetarian/i, _food_helper [VEGETARIAN])이
 // 이미 전부 지원하는데 위자드 UI 만 누락돼 채식 사용자가 표현 불가였음(SAFETY 갭 완결).
-export const ALLERGY_KEYS = ['Halal', 'Vegan', 'Vegetarian', 'Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
+// 2026-08-24 (planner trust): allergen 4종(Nuts/Shellfish/Gluten/Dairy) 제거 — DB allergen
+// 필드가 전부 미수집(false)이라 실제 필터링 효과가 없었고, 선택 시 "알레르기 대응"으로
+// 오인될 위험만 있었다. Halal/Vegan/Vegetarian은 dietary-trust SSOT로 실제 검증됨.
+// 2026-08-24 (allergy removal): ALLERGY_KEYS → DIETARY_RESTRICTION_KEYS 로 개명 — 이 배열은
+// 알레르기가 아니라 종교/윤리적 식이 제한만 담는다(의료 알레르겐은 여기 없음).
+export const DIETARY_RESTRICTION_KEYS = ['Halal', 'Vegan', 'Vegetarian', 'None'] as const;
 export const PRICE_KEYS = ['Budget', 'Moderate', 'Premium', 'Any'] as const;
 
 // P10 매운맛 4단계 슬라이더 (Step1Food에서 사용).

@@ -33,7 +33,7 @@ const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https
 
 /**
  * 🔴 2026-07-30 (P1-2): PII 필드 **차단 목록**을 `analyticsProps` 의 **허용 목록**으로 바꿨다.
- *   차단 목록은 "우리가 미리 떠올린 이름" 만 막는다 — `revisionNote`·`allergies`·`token` 처럼
+ *   차단 목록은 "우리가 미리 떠올린 이름" 만 막는다 — `revisionNote`·`prefillDietaryRestrictions`·`token` 처럼
  *   나중에 생긴 필드는 그대로 통과했다. 기본 거부여야 새 필드가 샐 자리가 없다.
  */
 function sanitize(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {

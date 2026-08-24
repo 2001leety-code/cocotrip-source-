@@ -202,14 +202,14 @@ export default async function handler(req, res) {
       arrival_airport, departure_airport, hotel_address, hotelByCity,
       mobility, uid,
       recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
-      dietPrefs, allergies, priceRange,
+      dietPrefs, dietaryRestrictions, priceRange,
       revisionReason, revisionNote, avoidListBody,
       arrivalTime, departureTime, tourStartTime, tourEndTime, sessionId, companions, // P239: tourStartTime (09:00) / #tour-end: tourEndTime (21:00) / UIUX P3: companions 동행유형('' = 무영향)
     } = shaped;
     lastUid = uid;
     const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
-    // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 allergies 칸으로 들어옴 (WizardForm P10 4/24 ALLERGY_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
-    const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(allergies) ? allergies : [])])].filter((d) => d && d !== 'None');
+    // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
+    const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
     enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll }); // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422 (dietaryCoverageGate.js)
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
@@ -289,9 +289,10 @@ export default async function handler(req, res) {
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
-    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies + P239: tour_start_time 의무. PR-E: mobility (활동 블록 SAFETY 거동 제약 필터, FEATURE_ACTIVITY_BLOCKS ON 시에만 효과).
+    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: dietaryRestrictions + P239: tour_start_time 의무. PR-E: mobility (활동 블록 SAFETY 거동 제약 필터, FEATURE_ACTIVITY_BLOCKS ON 시에만 효과).
     // P271: userInput 에 arrival_airport/departure_airport/pax 추가 — expand 가 arrival_guide/departure_guide minimal default 채움 (self_heal placeholder 회피).
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs: dietaryAll, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, tour_end_time: tourEndTime, arrival_airport, departure_airport, pax, mobility, companions } })));
+    // 참고: blockMode.js 는 dietPrefs(dietaryAll 합집합)만 읽는다 — 여기 dietPrefs 는 이미 dietaryRestrictions 를 합쳐 넣었으므로 별도 필드 전달 불필요.
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs: dietaryAll, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, tour_end_time: tourEndTime, arrival_airport, departure_airport, pax, mobility, companions } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 

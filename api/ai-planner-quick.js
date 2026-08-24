@@ -59,7 +59,6 @@ ${foodPrefs}
 
 Halal 포함 시: 할랄 인증 식당만 추천 (예: 이태원 Eid, Murree, Yang Good). 돼지고기/비할랄 제외.
 Vegan 포함 시: 100% 식물성 식당/메뉴만 추천. 비빔밥(계란/고기 제외), 콩국수, 사찰음식. 젓갈/멸치육수 포함 메뉴 절대 제외.
-알러지 지정 시: 안전 최우선 사항. 해당 알러지 식재료 포함 메뉴 절대 금지. 팁에 "⚠️ 식당에 알러지 알리기" 추가.
 가성비 선택 시: 시장/길거리 음식 우선 (₩5,000-12,000). 고급 선택 시: 미슐랭 레스토랑 (₩50,000+).` : ''}
 
 반드시 아래 JSON 형태로만 응답하세요 (다른 텍스트 없이):
@@ -87,7 +86,6 @@ ${foodPrefs}
 
 If Diet includes "Halal": ONLY recommend halal-certified restaurants (e.g. Eid, Murree, Yang Good in Itaewon). NEVER suggest pork or non-halal meat.
 If Diet includes "Vegan": ONLY recommend plant-based options. Korean vegan dishes: Bibimbap (no egg/meat), Kongguksu, temple food. NEVER suggest fish sauce or anchovy stock.
-If Allergies are listed: This is SAFETY-CRITICAL. NEVER recommend any dish containing the allergen. Add "⚠️ Inform restaurant of allergy" in tips.
 If Meal budget is "Budget": Prioritize street food and markets (₩5,000-12,000). If "Premium": Recommend Michelin-listed restaurants (₩50,000+).
 Reflect these preferences in ALL meal/food recommendations.` : ''}
 
@@ -134,12 +132,19 @@ export default async function handler(req, res) {
     const pax = rawBody.pax || rawBody.members || 2;
 
     // ── Food preferences ──
+    // WizardForm sends Halal/Vegan/Vegetarian via the canonical `dietaryRestrictions`
+    // field (data.tsx DIETARY_RESTRICTION_KEYS) — only these 3 (+None) ever land there.
+    // `allergies` is a deprecated inbound alias from old clients/revision links — only
+    // halal/vegan/vegetarian are promoted from it; any medical allergen values
+    // (Nuts/Shellfish/Gluten/Dairy) are silently dropped.
     const dietPrefs = Array.isArray(rawBody.dietPrefs) ? rawBody.dietPrefs : [];
-    const allergies = Array.isArray(rawBody.allergies) ? rawBody.allergies : [];
+    const dietaryRestrictions = Array.isArray(rawBody.dietaryRestrictions) ? rawBody.dietaryRestrictions : [];
+    const legacyAllergies = Array.isArray(rawBody.allergies) ? rawBody.allergies : [];
+    const dietFromLegacyAllergies = legacyAllergies.filter((a) => /^(halal|vegan|vegetarian)$/i.test(String(a || '')));
+    const dietAll = [...new Set([...dietPrefs, ...dietaryRestrictions, ...dietFromLegacyAllergies])];
     const priceRange = rawBody.priceRange || 'Any';
     const foodPrefParts = [];
-    if (dietPrefs.length) foodPrefParts.push(`Diet: ${dietPrefs.join(', ')}`);
-    if (allergies.length) foodPrefParts.push(`Allergies/Avoid: ${allergies.join(', ')}`);
+    if (dietAll.length) foodPrefParts.push(`Diet: ${dietAll.join(', ')}`);
     if (priceRange && priceRange !== 'Any') foodPrefParts.push(`Meal budget: ${priceRange}`);
     const foodPrefs = foodPrefParts.length > 0 ? foodPrefParts.join('. ') : '';
 

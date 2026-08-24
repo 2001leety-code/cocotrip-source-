@@ -6,13 +6,15 @@
 //   - Korean dish "bucket list" multi-select added so the AI knows
 //     which iconic dishes the user really wants to try
 //
+// 2026-08-24: allergen chips (Nuts/Shellfish/Gluten/Dairy) removed — see data.tsx DIETARY_RESTRICTION_KEYS.
+//
 // Branches #16/#17/#18 (2026-05-21):
 //   - #16 Halal selected → kbbq/jokbal bucket dishes grayed out (pork-based)
 //   - #17 Vegan selected → Seafood/Meat food-style chips + kbbq/samgyetang/jokbal grayed out
 //   - #18 No food selection → spice level slider grayed out
 import { Check, AlertTriangle as TriangleAlert, Flame } from 'lucide-react';
 import { WizardNav } from './WizardNav';
-import { FOOD_STYLE_KEYS, FOOD_STYLE_ICONS, ALLERGY_KEYS, PRICE_KEYS, SPICE_LEVEL_KEYS, KOREAN_BUCKET_LIST } from './data';
+import { FOOD_STYLE_KEYS, FOOD_STYLE_ICONS, DIETARY_RESTRICTION_KEYS, PRICE_KEYS, SPICE_LEVEL_KEYS, KOREAN_BUCKET_LIST } from './data';
 import type { WizardDict } from './types';
 
 // Bucket dishes incompatible with Halal (pork-based).
@@ -30,12 +32,12 @@ interface Step1Props {
   p: WizardDict;
   isMobile: boolean;
   dietPrefs: string[];
-  allergies: string[];
+  dietaryRestrictions: string[];
   priceRange: string;
   spiceLevel: string;
   bucketDishes: string[];
   toggleDiet: (key: string) => void;
-  toggleAllergy: (key: string) => void;
+  toggleDietaryRestriction: (key: string) => void;
   setPriceRange: (key: string) => void;
   setSpiceLevel: (key: string) => void;
   toggleBucketDish: (key: string) => void;
@@ -57,14 +59,14 @@ const BUCKET_LABELS_FALLBACK: Record<string, string> = {
 };
 
 export function WizardStep1Food(props: Step1Props) {
-  const { p, isMobile, dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
-          toggleDiet, toggleAllergy, setPriceRange, setSpiceLevel, toggleBucketDish,
+  const { p, isMobile, dietPrefs, dietaryRestrictions, priceRange, spiceLevel, bucketDishes,
+          toggleDiet, toggleDietaryRestriction, setPriceRange, setSpiceLevel, toggleBucketDish,
           onPrev, onNext } = props;
 
   // Branch #16: Halal selected → pork-based buckets disabled.
-  const isHalal = allergies.includes('Halal');
+  const isHalal = dietaryRestrictions.includes('Halal');
   // Branch #17: Vegan selected → meat/seafood food-styles + meat buckets disabled.
-  const isVegan = allergies.includes('Vegan');
+  const isVegan = dietaryRestrictions.includes('Vegan');
   // Branch #18: No food preference at all → spice disabled.
   const hasAnyFoodPref = dietPrefs.length > 0 || bucketDishes.length > 0;
 
@@ -81,7 +83,7 @@ export function WizardStep1Food(props: Step1Props) {
         <TriangleAlert className="w-4 h-4 text-ec-notice shrink-0 mt-0.5" />
         <div className="text-[12px] text-ec-ink-2 leading-relaxed">
           <p className="font-semibold text-ec-notice mb-0.5">
-            {p.wizardFoodDietaryHighlight || '⚠️ Halal / Vegan / Allergies — please select if applicable'}
+            {p.wizardFoodDietaryHighlight || '⚠️ Halal / Vegan / Vegetarian — please select if applicable'}
           </p>
           <p className="text-ec-ink-3">
             {p.wizardFoodDietaryHint || 'Selecting these helps us recommend restaurants matching your dietary needs along your route. Missing this can lead to unverified suggestions.'}
@@ -126,18 +128,20 @@ export function WizardStep1Food(props: Step1Props) {
         </div>
       </div>
 
-      {/* Allergy chips */}
+      {/* Dietary restriction chips (Halal/Vegan/Vegetarian) — allergen chips(Nuts/Shellfish/
+          Gluten/Dairy) removed 2026-08-24: DB allergen 필드 미수집(항상 false)이라 실제
+          필터링 효과가 없었고 "알레르기 대응"으로 오인될 위험만 있었다. */}
       <div>
         <p className="text-sm text-ec-ink-3 mb-1 font-medium flex items-center gap-1.5">
           <TriangleAlert className="w-3.5 h-3.5 text-ec-notice" />
-          {p.wizardFoodAllergyLabel || 'Allergies / Dietary Restrictions'}
+          {p.wizardFoodDietaryRestrictionLabel || 'Dietary Restrictions'}
         </p>
         <div className="flex flex-wrap gap-2 mt-2">
-          {ALLERGY_KEYS.map((key) => {
-            const label = p[`allergy${key}`] || key;
-            const sel = key === 'None' ? allergies.length === 0 : allergies.includes(key);
+          {DIETARY_RESTRICTION_KEYS.map((key) => {
+            const label = p[`dietaryRestriction${key}`] || key;
+            const sel = key === 'None' ? dietaryRestrictions.length === 0 : dietaryRestrictions.includes(key);
             return (
-              <button key={key} onClick={() => toggleAllergy(key)}
+              <button key={key} onClick={() => toggleDietaryRestriction(key)}
                 aria-pressed={sel}
                 className={`ec-option ec-option-sm ${sel ? 'is-selected' : ''}`}>
                 {sel && <Check className="w-3 h-3 inline mr-1 text-ec-brand" />}

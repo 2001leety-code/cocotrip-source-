@@ -130,18 +130,32 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   // 안 했으면 zone anchor 사용. 둘 다 없으면 빈 문자열 (route_to_hotel 생성 안 됨).
   const routeHotelAddress = hotel_address || recommendedZoneAddress;
 
-  // SAFETY (CLAUDE.md J): 식이/알레르기는 silent 빈배열 폴백 금지. 키가 "있는데 비배열"(전송 손상)
-  // 이면 throw — 알레르기 누락이 "제한 없음"으로 처리돼 위반 plan 이 가는 것을 차단(누락 자체가 에러).
-  // 키 부재(미선택)는 정상 → []. (정상 프론트는 array-or-absent 보장. throw 는 handlerCore catch→500:
-  // 위험 plan 대신 명시적 실패가 안전.)
+  // SAFETY (CLAUDE.md J / dietary-safety.md): 식이제한은 silent 빈배열 폴백 금지. 키가
+  // "있는데 비배열"(전송 손상)이면 throw — 누락이 "제한 없음"으로 처리돼 위반 plan 이
+  // 가는 것을 차단(누락 자체가 에러). 키 부재(미선택)는 정상 → []. (정상 프론트는
+  // array-or-absent 보장. throw 는 handlerCore catch→500: 위험 plan 대신 명시적 실패가 안전.)
   if (body.dietPrefs != null && !Array.isArray(body.dietPrefs)) {
     const e = new Error('INVALID_DIETARY_PAYLOAD: dietPrefs must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
+  }
+  if (body.dietaryRestrictions != null && !Array.isArray(body.dietaryRestrictions)) {
+    const e = new Error('INVALID_DIETARY_PAYLOAD: dietaryRestrictions must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
   }
   if (body.allergies != null && !Array.isArray(body.allergies)) {
     const e = new Error('INVALID_DIETARY_PAYLOAD: allergies must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
   }
   const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
-  const allergies = Array.isArray(body.allergies) ? body.allergies : [];
+  // 2026-08-24 (allergy removal): dietaryRestrictions 가 canonical 필드. `allergies` 는
+  // 폐기된 inbound alias — 옛 클라이언트/저장된 revision 링크가 여전히 이 이름으로 보낼 수
+  // 있다. Halal/Vegan/Vegetarian 만 승격하고, 남아 있을 수 있는 의료 알레르겐 값
+  // (Nuts/Shellfish/Gluten/Dairy 등)은 조용히 버린다 — 새로 생성되는 plan 에는 절대
+  // `allergies` 필드를 다시 흘려보내지 않는다(아래 return 에 없음).
+  const DIETARY_RESTRICTION_VALUES = new Set(['Halal', 'Vegan', 'Vegetarian']);
+  const legacyAllergies = Array.isArray(body.allergies)
+    ? body.allergies.filter((v) => DIETARY_RESTRICTION_VALUES.has(v))
+    : [];
+  const dietaryRestrictions = Array.isArray(body.dietaryRestrictions)
+    ? body.dietaryRestrictions
+    : legacyAllergies;
   const priceRange = body.priceRange || 'Any';
   // W4 (2026-05-08): revision reason chips + free note + previous plan stop names
   const revisionReason = typeof body.revisionReason === 'string' ? body.revisionReason.slice(0, 200) : '';
@@ -199,7 +213,7 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
     arrival_airport, departure_airport, hotel_address, hotelByCity,
     arrivalCity, departureCity, mobility, uid,
     recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
-    dietPrefs, allergies, priceRange,
+    dietPrefs, dietaryRestrictions, priceRange,
     revisionReason, revisionNote, avoidListBody,
     wantAccom, accomBudget,
     arrivalTime, departureTime, luggage, spiceLevel, bucketDishes, pace, companions,

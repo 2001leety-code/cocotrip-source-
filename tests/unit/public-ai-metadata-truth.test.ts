@@ -80,6 +80,67 @@ describe('index.html 공개 메타데이터에 AI 행위자 표기가 없다', (
   });
 });
 
+describe('src/pages/PlannerPage/plannerCopy.ts 가 알레르기·알레르겐 필터링을 주장하지 않는다', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'pages', 'PlannerPage', 'plannerCopy.ts'), 'utf8');
+  const ALLERGY_CLAIM_PATTERNS = [/allerg(y|en)/i, /\bnut\b/i, /shellfish/i, /\bgluten\b/i, /\bdairy\b/i];
+
+  it('EN masthead diet 문구에 알레르기/알레르겐/견과/갑각류/글루텐/유제품 필터링 주장이 없다', () => {
+    const enBlock = src.slice(src.indexOf("en: {"), src.indexOf("ko: {"));
+    for (const p of ALLERGY_CLAIM_PATTERNS) expect(enBlock, `${p}`).not.toMatch(p);
+  });
+
+  it('KO masthead diet 문구에 알레르기/알레르겐/견과/갑각류/글루텐/유제품 필터링 주장이 없다', () => {
+    const koBlock = src.slice(src.indexOf("ko: {"), src.indexOf("ja: {"));
+    for (const p of ALLERGY_CLAIM_PATTERNS) expect(koBlock, `${p}`).not.toMatch(p);
+  });
+
+  it('JA masthead diet 문구에 알레르기/알레르겐/견과/갑각류/글루텐/유제품 필터링 주장이 없다', () => {
+    const jaBlock = src.slice(src.indexOf("ja: {"), src.indexOf("zh: {"));
+    for (const p of ALLERGY_CLAIM_PATTERNS) expect(jaBlock, `${p}`).not.toMatch(p);
+  });
+
+  it('ZH masthead diet 문구에 알레르기/알레르겐/견과/갑각류/글루텐/유제품 필터링 주장이 없다', () => {
+    const zhBlock = src.slice(src.indexOf("zh: {"));
+    for (const p of ALLERGY_CLAIM_PATTERNS) expect(zhBlock, `${p}`).not.toMatch(p);
+  });
+
+  it('할랄/비건/베지테리언 식이 정보는 여전히 모든 언어에 안내된다', () => {
+    const enBlock = src.slice(src.indexOf("en: {"), src.indexOf("ko: {"));
+    expect(enBlock).toMatch(/Halal/);
+    expect(enBlock).toMatch(/vegan/i);
+    expect(enBlock).toMatch(/vegetarian/i);
+
+    const koBlock = src.slice(src.indexOf("ko: {"), src.indexOf("ja: {"));
+    expect(koBlock).toMatch(/할랄/i);
+    expect(koBlock).toMatch(/비건/i);
+    expect(koBlock).toMatch(/베지테리언/i);
+
+    const jaBlock = src.slice(src.indexOf("ja: {"), src.indexOf("zh: {"));
+    expect(jaBlock).toMatch(/ハラル/i);
+    expect(jaBlock).toMatch(/ヴィーガン/i);
+    expect(jaBlock).toMatch(/ベジタリアン/i);
+
+    const zhBlock = src.slice(src.indexOf("zh: {"));
+    expect(zhBlock).toMatch(/清真/);
+    expect(zhBlock).toMatch(/纯素/);
+    expect(zhBlock).toMatch(/素食/);
+  });
+
+  it('모든 언어의 verify tier 개념이 포함된다', () => {
+    const enBlock = src.slice(src.indexOf("en: {"), src.indexOf("ko: {"));
+    expect(enBlock).toMatch(/verification tier/i);
+
+    const koBlock = src.slice(src.indexOf("ko: {"), src.indexOf("ja: {"));
+    expect(koBlock).toMatch(/검증/);
+
+    const jaBlock = src.slice(src.indexOf("ja: {"), src.indexOf("zh: {"));
+    expect(jaBlock).toMatch(/検証/);
+
+    const zhBlock = src.slice(src.indexOf("zh: {"));
+    expect(zhBlock).toMatch(/验证/);
+  });
+});
+
 describe('public/llms.txt 에 AI 행위자 표기가 없다', () => {
   const txt = readLlmsTxt();
   // "## Notes for AI assistants" 는 독자(크롤러)를 부르는 제목이지 서비스 행위자

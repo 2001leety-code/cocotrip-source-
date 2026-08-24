@@ -149,7 +149,7 @@ const I18N: Record<Language, {
         pickup: 'Pickup hotel / address', pickupPh: 'e.g. Lotte Hotel Myeongdong',
         whatsapp: 'WhatsApp ID', whatsappPh: '+1 555 123 4567',
         line: 'LINE ID', linePh: 'cocotrip_user',
-        memo: 'Special requests / notes', memoPh: 'Allergies, kids, accessibility, etc.',
+        memo: 'Special requests / notes', memoPh: 'Kids, accessibility, pickup details, etc.',
         required: 'required', missingFields: 'Please fill in all required fields',
         optional: 'optional',
         addonOnsite: 'Optional · pay on-site (not included in total)',

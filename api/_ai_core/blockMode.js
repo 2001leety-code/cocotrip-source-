@@ -387,9 +387,6 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) block 선택 Gemini 에 명시 의무.
-  // 알레르기 미입력 사용자 = [] (빈 배열) → prompt 에 field 생략 (정상).
-  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 압축된 block 카드만 prompt 에 넣음 — Gemini 가 ID 만 선택하면 되므로 stops/transit 풀 detail X.
   // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
@@ -402,8 +399,6 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
-    // P240 SAFETY: 알레르기 정보 — Gemini 가 해당 식재료 포함 block 제외 의무.
-    food_allergies: allergies.length > 0 ? allergies : undefined,
     available_blocks: blockCards,
   });
 
@@ -892,8 +887,6 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     ? userDietPrefs.map((d) => String(d).toLowerCase())
     : [];
   const dietRequired = dietary.filter((d) => /halal|vegan|vegetarian/i.test(d));
-  // 선택 알레르겐(nuts/shellfish/gluten/dairy) — dbMatcher detectAllergenViolation 경로와 정합.
-  const allergenSel = dietary.filter((d) => ['nuts', 'shellfish', 'gluten', 'dairy'].includes(d));
 
   // preferred_dietary 가 명시되면 (block stop 운영자 의도) 추가 필터.
   const preferred = Array.isArray(placeholderStop.preferred_dietary)
@@ -924,13 +917,6 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
     for (const d of dietRequired) {
       if (!tags.includes(d)) return false;
-    }
-    // 🔴 알레르겐 게이트 (2026-06-13 SAFE, dbMatcher detectAllergenViolation 경로와 정합):
-    //   선택 알레르겐에 대해 r.allergens[key]===true 면 제외. 현재 allergens 전부 false default
-    //   = no-op이나, 실측 retrofit(수동 큐레이션) 시 block_mode 식당매칭도 자동 보호된다.
-    //   (이전엔 dbMatcher 만 allergen 위반 차단, block_mode 식당매칭은 gap이었음.)
-    for (const a of allergenSel) {
-      if (r.allergens && r.allergens[a] === true) return false;
     }
     return true;
   });
@@ -1537,8 +1523,6 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) 다도시 block 선택 Gemini 에 명시 의무.
-  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 도시별 block 카드 + city-per-day 일정 조합
   // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
@@ -1563,8 +1547,6 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
-    // P240 SAFETY: 알레르기 정보 — 다도시 block 선택 시 해당 식재료 포함 block 제외 의무.
-    food_allergies: allergies.length > 0 ? allergies : undefined,
     day_schedule: daySchedule,
   });
 

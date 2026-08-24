@@ -115,7 +115,7 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
         { label: 'Dates', note: 'Arrival and departure, and the hour your flight lands. Day one starts from the airport rather than from a guess.' },
         { label: 'Cities', note: 'One base or several. Intercity legs come back with the train or bus you would actually take.' },
         { label: 'Pace', note: 'Half day through packed. It changes how many stops a day holds, not only the wording.' },
-        { label: 'Diet', note: 'Halal, vegetarian and vegan, plus nut, shellfish, gluten and dairy flags — applied before the plan is written, not after.' },
+        { label: 'Diet', note: 'Halal, vegetarian and vegan — filtered before the plan is written, with a verification tier (operator-certified, Google-sourced, or unverified) on every dietary pick.' },
       ],
     },
     modes: {
@@ -135,11 +135,11 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: 'What the itinerary is built from',
       heading: 'Korea-only data, not a general travel search',
       items: [
-        { figure: FIGURE_RESTAURANTS, label: 'restaurants in our Korea database', note: 'Coordinates and allergen flags for nuts, shellfish, gluten and dairy on every entry.' },
+        { figure: FIGURE_RESTAURANTS, label: 'restaurants in our Korea database', note: 'Coordinates on every entry, plus a verification tier (operator-certified, Google-sourced, or unverified) for halal and vegan picks.' },
         { figure: FIGURE_CITIES, label: 'Korean cities covered', note: 'Seoul and Busan through Gyeongju, Jeonju, Sokcho, Yeosu and Tongyeong.' },
         { figure: 'Leg by leg', label: 'transit between stops, with its source', note: 'Where a route lookup returns a result we use its line and duration. Where it does not, the leg is an estimate and the plan says so.' },
       ],
-      limits: 'What we do not claim: live opening hours, live seat availability, or that a restaurant is certified safe for your allergy. Confirm anything medical with the venue.',
+      limits: 'What we do not claim: live opening hours, live seat availability, or that every halal/vegan match is operator-certified — most are Google-sourced "friendly" listings, not certifications. Confirm anything medical or religious with the venue.',
     },
     wizard: {
       stepOf: 'Step {n} of {total}',
@@ -186,7 +186,7 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
         { label: '날짜', note: '입국·출국 날짜와 비행기 도착 시각. 1일차를 짐작이 아니라 공항에서부터 계산합니다.' },
         { label: '도시', note: '한 도시든 여러 도시든. 도시 사이 구간은 실제로 타게 될 기차·버스로 나옵니다.' },
         { label: '이동 속도', note: '반나절부터 빡빡하게까지. 문구만 바뀌는 게 아니라 하루에 담기는 정거장 수가 달라집니다.' },
-        { label: '식이 조건', note: '할랄·베지테리언·비건과 견과·갑각류·글루텐·유제품 표시. 일정을 쓴 뒤가 아니라 쓰기 전에 걸러냅니다.' },
+        { label: '식이 조건', note: '할랄, 베지테리언, 비건을 검증 등급(운영자 인증, 구글 기반, 미검증)과 함께 걸러냅니다. 일정을 쓴 뒤가 아니라 쓰기 전에 반영됩니다.' },
       ],
     },
     modes: {
@@ -206,11 +206,11 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: '일정을 만드는 재료',
       heading: '일반 여행 검색이 아니라 한국 전용 데이터',
       items: [
-        { figure: FIGURE_RESTAURANTS, label: '자체 한국 식당 데이터', note: '좌표와 견과·갑각류·글루텐·유제품 알레르기 표시를 전 항목이 갖고 있습니다.' },
+        { figure: FIGURE_RESTAURANTS, label: '자체 한국 식당 데이터', note: '전 항목에 좌표를 보유하며, 할랄·비건 항목에는 검증 등급(운영자 인증/구글 기반/미검증)을 표시합니다.' },
         { figure: FIGURE_CITIES, label: '수록 도시', note: '서울·부산부터 경주, 전주, 속초, 여수, 통영까지.' },
         { figure: '구간별', label: '정거장 사이 이동, 출처를 함께', note: '경로 조회가 되는 구간은 노선과 소요 시간을 그대로 씁니다. 안 되는 구간은 추정으로 계산하고 일정에 추정이라고 적습니다.' },
       ],
-      limits: '주장하지 않는 것: 실시간 영업시간, 실시간 좌석 현황, 알레르기 안전 보증. 건강과 관련된 사항은 반드시 현장에 직접 확인하세요.',
+      limits: '주장하지 않는 것: 실시간 영업시간, 실시간 좌석 현황, 모든 할랄·비건 매칭이 인증되었다는 보증(대부분은 구글 기반 "친화" 등급이며 인증이 아닙니다). 건강·종교 관련 사항은 반드시 현장에 직접 확인하세요.',
     },
     wizard: {
       stepOf: '{total}단계 중 {n}단계',
@@ -257,7 +257,7 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
         { label: '日付', note: '入国・出国の日付と、飛行機が着く時刻。1日目を推測ではなく空港から組み立てます。' },
         { label: '都市', note: '1都市でも複数でも。都市間の区間は実際に乗る列車・バスで返します。' },
         { label: 'ペース', note: '半日からぎっしりまで。文言だけでなく、1日に入るスポットの数が変わります。' },
-        { label: '食事条件', note: 'ハラル・ベジタリアン・ヴィーガンと、ナッツ・甲殻類・グルテン・乳製品の表示。旅程を書いた後ではなく、書く前に絞り込みます。' },
+        { label: '食事条件', note: 'ハラル・ベジタリアン・ヴィーガンを検証段階（運営者認証・Google由来・未検証）とともに絞り込みます。旅程を書いた後ではなく、書く前に反映します。' },
       ],
     },
     modes: {
@@ -277,11 +277,11 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: '旅程をつくる材料',
       heading: '一般的な旅行検索ではなく、韓国専用のデータ',
       items: [
-        { figure: FIGURE_RESTAURANTS, label: '自社の韓国レストランデータ', note: '座標と、ナッツ・甲殻類・グルテン・乳製品のアレルギー表示を全件が保持しています。' },
+        { figure: FIGURE_RESTAURANTS, label: '自社の韓国レストランデータ', note: '全件に座標を保持し、ハラル・ビーガン項目には検証段階（運営者認証・Google由来・未検証）を表示します。' },
         { figure: FIGURE_CITIES, label: '収録都市', note: 'ソウル・釜山から慶州、全州、束草、麗水、統営まで。' },
         { figure: '区間ごと', label: 'スポット間の移動を、出典つきで', note: '経路が取得できた区間は路線と所要時間をそのまま使います。取得できない区間は推定で算出し、旅程にも推定と明記します。' },
       ],
-      limits: '主張しないこと：リアルタイムの営業時間、リアルタイムの空席状況、アレルギー安全の保証。健康に関わることは必ず現地でご確認ください。',
+      limits: '主張しないこと：リアルタイムの営業時間、リアルタイムの空席状況、すべてのハラル・ビーガン一致が認証済みであるという保証（大半はGoogle由来の「フレンドリー」判定で認証ではありません）。健康・宗教に関わることは必ず現地でご確認ください。',
     },
     wizard: {
       stepOf: '{total}ステップ中 {n}',
@@ -328,7 +328,7 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
         { label: '日期', note: '入境与离境日期，以及航班落地的时间。第一天从机场开始算，而不是靠猜。' },
         { label: '城市', note: '一座城市或多座都行。城际区间会给出你实际要坐的火车或大巴。' },
         { label: '节奏', note: '从半天到排满。变的不只是措辞，而是一天能装下几个站点。' },
-        { label: '饮食条件', note: '清真、素食、纯素，以及坚果、甲壳类、麸质、乳制品标记。在写行程之前就筛掉，而不是写完再补。' },
+        { label: '饮食条件', note: '清真、素食、纯素用验证等级(运营方认证、谷歌来源、未验证)筛选。在编写行程之前而不是之后进行过滤。' },
       ],
     },
     modes: {
@@ -348,11 +348,11 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
       eyebrow: '行程的原料',
       heading: '不是通用旅行搜索，而是韩国专用数据',
       items: [
-        { figure: FIGURE_RESTAURANTS, label: '自有韩国餐厅数据', note: '每一条都带坐标，以及坚果、甲壳类、麸质、乳制品的过敏标记。' },
+        { figure: FIGURE_RESTAURANTS, label: '自有韩国餐厅数据', note: '每一条都带坐标；清真、纯素条目附验证等级(运营方认证/谷歌来源/未验证)。' },
         { figure: FIGURE_CITIES, label: '收录城市', note: '从首尔、釜山到庆州、全州、束草、丽水、统营。' },
         { figure: '逐段', label: '站点之间的交通，并标注来源', note: '能查到路径的路段，直接采用其线路与耗时。查不到的路段按估算处理，并在行程里标明是估算。' },
       ],
-      limits: '我们不主张的：实时营业时间、实时余位、过敏安全保证。涉及健康的事项请务必向商家当面确认。',
+      limits: '我们不主张的：实时营业时间、实时余位、所有清真/纯素匹配均经认证(多数为谷歌来源的"友好"标注，非认证)。涉及健康或宗教的事项请务必向商家当面确认。',
     },
     wizard: {
       stepOf: '第 {n} 步，共 {total} 步',

@@ -1492,12 +1492,14 @@ export async function persistPlan(adminDb, {
       departure_airport: departure_airport || null,
       hotel_address: hotel_address || null,
       mobility: mobility || null,
-      // P304 (2026-05-30): dietary + allergies persist (admin AdminPlans 가시성 + 미래
-      // 시각검증). P298 SAFETY 작동은 입증 완료 → 본 필드는 admin 표시 + audit 용도.
-      // dietaryRaw 는 위 L1085-1091 에서 dietPrefs/dietary 정규화 완료. body.allergies
-      // 는 wizard ALLERGY_KEYS (Halal/Vegan/Nuts/Shellfish/Gluten/Dairy/None).
+      // P304 (2026-05-30): dietary + dietaryRestrictions persist (admin AdminPlans 가시성 +
+      // 미래 시각검증). P298 SAFETY 작동은 입증 완료 → 본 필드는 admin 표시 + audit 용도.
+      // dietaryRaw 는 dietPrefs/dietary 정규화 완료. 2026-08-24 (allergy removal): 새로
+      // 생성되는 plan 에는 canonical `dietaryRestrictions` 만 저장한다 — 폐기된 `allergies`
+      // 필드는 여기서 다시 흘려보내지 않는다(requestShaper 가 이미 legacy alias 를
+      // Halal/Vegan/Vegetarian 만 dietaryRestrictions 로 승격 완료, body.allergies 원본은 버림).
       dietary: Array.isArray(dietaryRaw) ? dietaryRaw : null,
-      allergies: Array.isArray(body.allergies) ? body.allergies : null,
+      dietaryRestrictions: Array.isArray(body.dietaryRestrictions) ? body.dietaryRestrictions : null,
       // B3 S0 (P311, 2026-05-30): paypalOrderId persist — plan-발급 멱등성 추적 + 재시도
       // 식별. 실패한 plan 재시도 시 같은 orderId 로 기존 ready plan 조회 가능. PayPal 17자
       // orderId / ADMIN-BYPASS-/TEST-/MANUAL- prefix 모두 보존 (audit 용도).

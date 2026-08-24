@@ -89,7 +89,7 @@ interface PlannerSnapshotValues {
   selectedActivities: string[];
   freeText: string;
   dietPrefs: string[];
-  allergies: string[];
+  dietaryRestrictions: string[];
   priceRange: string;
   spiceLevel: string;
   bucketDishes: string[];
@@ -140,7 +140,7 @@ export interface WizardInitialValues {
   arrivalAirport?: string;
   hotelAddress?: string;
   dietary?: string[];
-  allergies?: string[];
+  dietaryRestrictions?: string[];
   freeText?: string;
 }
 
@@ -216,7 +216,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   // Step 1: food preferences
   const [dietPrefs, setDietPrefs]   = useState<string[]>([]);
-  const [allergies, setAllergies]   = useState<string[]>([]);
+  const [dietaryRestrictions, setDietaryRestrictions] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState('Any');
   // P10: spice tolerance + Korean dish bucket list (separate from style chips).
   const [spiceLevel, setSpiceLevel] = useState<string>('medium');
@@ -332,8 +332,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     if (iv.dietary && iv.dietary.length) {
       setDietPrefs(iv.dietary);
     }
-    if (iv.allergies && iv.allergies.length) {
-      setAllergies(iv.allergies);
+    if (iv.dietaryRestrictions && iv.dietaryRestrictions.length) {
+      setDietaryRestrictions(iv.dietaryRestrictions);
     }
     if (iv.startDate) {
       const from = new Date(iv.startDate);
@@ -355,7 +355,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // 기본값 auto-init (L131-135) → autosave 500ms 후 항상 snapshot 저장 → 재방문 시 모달.
   // 사용자는 wizard 만 열고 닫았을 뿐인데 "이어 작성" 발화.
   // Fix: dateRangeFrom 제외 + 명시적 사용자 시그널 (reservationStatus / freeText /
-  // dietPrefs / allergies / paxInput≠default / dateRangeTo 등) 모두 확인.
+  // dietPrefs / dietaryRestrictions / paxInput≠default / dateRangeTo 등) 모두 확인.
   useEffect(() => {
     if (initialValues) return; // revision prefill 우선
     // P316 (2026-05-30): 'planner' + 'planner_paused' 중 ts 최신 snapshot 채택.
@@ -460,7 +460,15 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     setSelectedActivities(Array.isArray(v.selectedActivities) ? v.selectedActivities : []);
     setFreeText(v.freeText ?? '');
     setDietPrefs(Array.isArray(v.dietPrefs) ? v.dietPrefs : []);
-    setAllergies(Array.isArray(v.allergies) ? v.allergies : []);
+    // 2026-08-24 (allergy removal): 옛 autosave snapshot 은 이 필드를 `allergies` 로 저장했다.
+    // Halal/Vegan/Vegetarian 값만 dietaryRestrictions 로 승격 — 남아 있을 수 있는 의료
+    // 알레르겐 값(Nuts/Shellfish/Gluten/Dairy)은 조용히 버린다(더 이상 UI 에 없는 개념).
+    const legacySnapAllergies = Array.isArray((v as unknown as { allergies?: unknown }).allergies)
+      ? (v as unknown as { allergies: unknown[] }).allergies.filter(
+          (a): a is string => typeof a === 'string' && ['Halal', 'Vegan', 'Vegetarian'].includes(a),
+        )
+      : [];
+    setDietaryRestrictions(Array.isArray(v.dietaryRestrictions) ? v.dietaryRestrictions : legacySnapAllergies);
     setPriceRange(v.priceRange ?? 'Any');
     setSpiceLevel(v.spiceLevel ?? 'medium');
     setBucketDishes(Array.isArray(v.bucketDishes) ? v.bucketDishes : []);
@@ -599,7 +607,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     reservationStatus,
     mainCity, mainCityKey, extraCities,
     selectedActivities, freeText,
-    dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
+    dietPrefs, dietaryRestrictions, priceRange, spiceLevel, bucketDishes,
     // P239 (2026-05-27): tourStartTime autosave — wizard reopen 시 복원.
     tourStartTime,
     // #tour-end (2026-06-05): tourEndTime autosave — wizard reopen 시 복원.
@@ -754,10 +762,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     setDietPrefs(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   }
 
-  function toggleAllergy(key: string) {
+  function toggleDietaryRestriction(key: string) {
     haptic('select');
-    if (key === 'None') { setAllergies([]); return; }
-    setAllergies(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
+    if (key === 'None') { setDietaryRestrictions([]); return; }
+    setDietaryRestrictions(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
   }
 
   async function handleGenerate() {
@@ -826,7 +834,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         wantAccom: wantAccom || undefined,
         accomBudget: wantAccom ? accomBudget : undefined,
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
-        allergies: allergies.length > 0 ? allergies : undefined,
+        dietaryRestrictions: dietaryRestrictions.length > 0 ? dietaryRestrictions : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
         spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
         bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
@@ -1050,9 +1058,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
               {step === 2 && (
                 <WizardStep1Food
                   p={p} isMobile={isMobile}
-                  dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
+                  dietPrefs={dietPrefs} dietaryRestrictions={dietaryRestrictions} priceRange={priceRange}
                   spiceLevel={spiceLevel} bucketDishes={bucketDishes}
-                  toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
+                  toggleDiet={toggleDiet} toggleDietaryRestriction={toggleDietaryRestriction} setPriceRange={setPriceRange}
                   setSpiceLevel={setSpiceLevel}
                   toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
                   onPrev={() => goToStep(1)} onNext={() => goToStep(3)}

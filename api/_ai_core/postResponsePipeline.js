@@ -358,10 +358,9 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     console.warn('[planner] recommended_restaurants failed:', recErr.message);
     itinerary.recommended_restaurants = { general: [] };
   }
-  // P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 validateResponse(legacy 의 dietary/
-  //   allergen 검증처)를 handlerCore:319 `if(!itinerary)` 가드로 우회 → food stop 최종 후 coverage +
-  //   알레르기 warning 재검증 (warning-only, P280 retry loop 회피). legacy 는 validateResponse 가 처리.
-  // #9 (2026-06-20): language forward — block_mode food stop 사용자 표시 알레르기 고지 4언어.
+  // P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 validateResponse(legacy 의 dietary
+  //   검증처)를 handlerCore:319 `if(!itinerary)` 가드로 우회 → food stop 최종 후 halal/vegan/vegetarian
+  //   coverage warning 재검증 (warning-only, P280 retry loop 회피). legacy 는 validateResponse 가 처리.
   if (blockModeUsed) applyBlockModeDietaryWarnings(itinerary, dietPrefs, { language });
   return foodIndexForQuality;
 }

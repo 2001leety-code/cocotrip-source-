@@ -61,30 +61,28 @@ export function buildUserMessage({
     tourEndTime,
     hotel_address, hotelByCity, arrivalCity, departureCity,
     recommendedZone, recommendedZones,
-    mobility, luggage, specialRequest, dietPrefs, allergies,
+    mobility, luggage, specialRequest, dietPrefs, dietaryRestrictions,
     spiceLevel, bucketDishes, priceRange,
     pace, wantAccom, accomBudget, language,
     companions, // UIUX P3 (2026-07-13): 동행 유형 — userInput JSON 소프트 힌트
   } = shaped;
 
-  // 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J).
-  // P10 이후 WizardForm 은 Halal/Vegan 을 ALLERGY_KEYS(=allergies 배열)에 둔다(data.tsx).
-  // buildSystemPrompt 의 가장 구체적 식이 지시(buildPrompt.js `### Diet preferences:`:
-  //   Halal → ONLY halal-certified / NEVER pork, Vegan → ONLY plant-based / NEVER fish sauce·anchovy)
-  // 는 Gemini userMessage 의 `diet_preferences` 키 포함 여부에 게이트된다.
-  // Halal/Vegan 이 food_allergies 로만 전달되면 이 강한 지시가 첫 Gemini 호출서 미발화 →
-  // 첫 응답에 돼지/주류·동물성이 섞일 위험. (validateResponse checkDietaryViolation backstop 은
-  // 사후 retry 로 받지만, 첫 응답부터 안전하게 하려면 지시가 발화돼야 함.)
-  // FIX: allergies 안의 Halal/Vegan(/Vegetarian) 을 diet_preferences 에도 합쳐 노출해
-  //      `### Diet preferences:` 게이트가 첫 응답서 발화하게 한다.
-  //      food_allergies 는 그대로 둔다 — 알레르기 비스크리닝 notice + SAFETY 백스톱 유지.
+  // 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J / dietary-safety.md).
+  // WizardForm DIETARY_RESTRICTION_KEYS(data.tsx) 는 Halal/Vegan/Vegetarian/None 만 담는다
+  // (알레르겐 개념 제거, 2026-08-24 allergy removal 로 필드명도 dietaryRestrictions 로 개명).
+  // buildSystemPrompt 의 가장 구체적 식이 지시(buildPrompt.js `### Diet preferences:`)는
+  // Gemini userMessage 의 `diet_preferences` 키 포함 여부에 게이트된다 — dietaryRestrictions
+  // 배열에만 있으면 첫 응답에 미발화 위험 → diet_preferences 에도 합쳐 노출한다.
+  // 레거시 클라이언트/저장된 세션이 옛 알레르겐 값(Nuts/Shellfish/Gluten/Dairy)을 여전히
+  // 보내더라도(requestShaper 의 legacy `allergies` alias 경유) 아래 필터가
+  // halal/vegan/vegetarian 이외는 버리므로 안전 무시된다.
   const safeDietPrefs = Array.isArray(dietPrefs) ? dietPrefs : [];
-  const safeAllergies = Array.isArray(allergies) ? allergies : [];
-  const dietGatedFromAllergies = safeAllergies.filter(
+  const safeDietaryRestrictions = Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [];
+  const dietGatedFromDietaryRestrictions = safeDietaryRestrictions.filter(
     (a) => /^(halal|vegan|vegetarian)$/i.test(String(a || '')),
   );
   // 중복 무해 — Set 으로 정규화. dietPrefs 가 우선 순서 유지.
-  const dietPreferencesForPrompt = [...new Set([...safeDietPrefs, ...dietGatedFromAllergies])];
+  const dietPreferencesForPrompt = [...new Set([...safeDietPrefs, ...dietGatedFromDietaryRestrictions])];
 
   // P273 (2026-05-29): cache-friendly 순서 재배치.
   // STATIC PREFIX (1) → SEMI-STATIC MIDDLE (2) → DYNAMIC SUFFIX (3) → RANDOM TAIL (4).
@@ -162,10 +160,9 @@ export function buildUserMessage({
     // 2026-05-10 (P1): luggage — RouteAgent late-night/heavy-luggage 분기 + Gemini.
     luggage: luggage || undefined,
     special_request: specialRequest || undefined,
-    // 버그헌트 #5: Halal/Vegan(ALLERGY_KEYS 경유) 을 합친 배열 — buildPrompt `### Diet preferences:`
-    // 게이트가 첫 응답서 발화. food_allergies 는 원본 allergies 그대로(알레르기 백스톱 무손상).
+    // 버그헌트 #5: Halal/Vegan/Vegetarian(dietaryRestrictions 경유) 을 합친 배열 — buildPrompt
+    // `### Diet preferences:` 게이트가 첫 응답서 발화하게 한다.
     diet_preferences: dietPreferencesForPrompt.length > 0 ? dietPreferencesForPrompt : undefined,
-    food_allergies: allergies.length > 0 ? allergies : undefined,
     // 2026-05-10 (P1): 매운맛 / 한국 음식 bucket — 식당 매칭 정확도 개선.
     spice_level: spiceLevel || undefined,
     // UIUX P3 (2026-07-13): 동행 유형 — family=아이 동반 페이스·couple=분위기 등 소프트 힌트 (JSON 필드만, 캐시 안전)

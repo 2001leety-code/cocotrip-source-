@@ -757,21 +757,6 @@ Examples:
 If a stop is generic (not driven by user input), use: "전반적인 \${area} 핵심 명소"
 NEVER omit this field.
 
-### Allergy safety (P237 강화 — SAFETY-CRITICAL):
-If food_allergies includes any allergen, NEVER recommend dishes containing that allergen.
-Add warning in tip: "⚠️ Inform restaurant about your [allergen] allergy"
-NOTE: "verified": true confirms the restaurant EXISTS — it does NOT confirm allergen safety. Our database is NOT allergen-screened. NEVER imply any stop is safe for the guest's allergy; the per-stop warning above is MANDATORY for every food stop whenever food_allergies is present.
-
-Korean food hidden allergen guide (P237 세분화):
-- Nuts → 땅콩(peanut sauce), 호두(walnut), 잣(pine nut), 아몬드(almond), 캐슈너트.
-  AVOID: 비빔밥 위 잣, 구절판 땅콩, 떡 견과, 강정, 약과.
-- Shellfish → 새우(shrimp), 게(crab), 랍스터(lobster), 오징어(squid — mollusc).
-  AVOID: 새우젓(kimchi base), 갯마을 젓갈, 해물파전, 새우볶음밥. NOTE: 새우젓 is hidden in 김치/반찬.
-- Gluten → 밀가루(wheat flour), 간장(soy sauce — contains wheat), 고추장.
-  AVOID: 냉면(밀면), 전(부침개), 라면, 간장갈비. NOTE: 쌀국수/쌀밥/채소 안전. 쌀떡 safe.
-- Dairy → 우유(milk), 버터(butter), 치즈(cheese), 크림.
-  AVOID: 크림파스타, 버터구이, 치즈떡볶이, 우유빙수, 에스프레소 라떼.
-
 ### Meal price range:
 If meal_budget is "Budget":
 - Street food, markets, local diners (₩5,000-12,000 per person per meal)
@@ -803,8 +788,6 @@ If meal_budget is "Premium":
 - Be ruthlessly concise. **Shorter response = zero INVALID_JSON**.
 
 ### ⚠️ SAFETY-CRITICAL (OVERRIDE ALL)
-- food_allergies → NEVER recommend allergen dishes. Add "⚠️ [Allergen] allergy — inform staff" to tip.
-  Nuts hidden in: 땅콩소스, 잣비빔밥, 강정, 약과. Shellfish hidden in: 새우젓(kimchi!), 해물파전. Gluten in: 간장, 고추장, 밀면. Dairy in: 크림소스, 버터구이.
 - Halal → ONLY verified halal restaurants. ZERO pork/alcohol/lard.
 - Vegan → ZERO animal products. Watch: 멸치육수, 젓갈, 계란, 김치(often 젓갈)
 

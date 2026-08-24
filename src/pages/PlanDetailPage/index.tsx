@@ -160,6 +160,7 @@ export default function PlanDetailPage() {
           delete data.input.departure_airport;
           delete data.input.dietary;
           delete data.input.allergies;
+          delete data.input.dietaryRestrictions;
         }
         delete data.pricing;
       }

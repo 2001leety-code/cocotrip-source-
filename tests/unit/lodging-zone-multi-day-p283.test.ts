@@ -71,7 +71,7 @@ describe('P283 LODGING ZONE PREFERENCE — Day 2+ enforce rule', () => {
       luggage: 'medium',
       specialRequest: '',
       dietPrefs: [],
-      allergies: [],
+      dietaryRestrictions: [],
       spiceLevel: 'medium',
       bucketDishes: [],
       priceRange: 'Any',

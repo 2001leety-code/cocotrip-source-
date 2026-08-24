@@ -74,12 +74,12 @@ describe('P239 architectural: handlerCore tourStartTime forwarding', () => {
     ).toBe(true);
   });
 
-  // SAFETY-CRITICAL: 트랙 B (P240) allergies 영역 건드리지 않았는지 확인
-  it('P240 영역 (allergies) 유지 — 트랙 B 보존', () => {
+  // SAFETY-CRITICAL: 트랙 B (P240) dietaryRestrictions 영역 건드리지 않았는지 확인
+  it('P240 영역 (dietaryRestrictions→dietPrefs 합집합) 유지 — 트랙 B 보존', () => {
     const src = readFile('api/_ai_core/handlerCore.js');
     const blockModeCall = src.match(/tryRunBlockMode\([\s\S]*?\}\s*\)\s*\)/);
     expect(blockModeCall, 'tryRunBlockMode 호출 누락').toBeTruthy();
-    expect(/allergies/.test(blockModeCall![0]), 'P240 allergies 누락 — track B 회귀').toBe(true);
+    expect(/dietPrefs:\s*dietaryAll/.test(blockModeCall![0]), 'P240 dietPrefs(dietaryAll 합집합) 누락 — track B 회귀').toBe(true);
   });
 });
 
