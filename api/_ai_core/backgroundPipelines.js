@@ -45,7 +45,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { randomUUID } from 'crypto';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
-import { runFinalItineraryValidation } from './finalItineraryGate.js';
+import { runFinalItineraryValidation, runDuplicateStopGate } from './finalItineraryGate.js';
 
 /**
  * plan 발급 완료 후 비차단 알림 3종 — 이메일 / Google Sheets 리드 / 텔레그램+웹푸시.
@@ -122,18 +122,23 @@ export function triggerPass3BackgroundIfPending({ adminDb, planId, language, api
         styles,
         foodIndex: await Promise.resolve(loadFoodIndex()).catch(() => []),
       });
-      if (!gate.ok) {
-        console.error(`[planner] P168 Pass3 background enrich FAILED final validation (${gate.code}) — Firestore overwrite SKIPPED: planId=${planId}`);
+      // 종단 중복 게이트 — 식이 요구 유무와 무관, 같은 지점에서 항상 (2026-08-24).
+      //   background rewrite 가 정상 plan 을 중복 있는 plan 으로 덮어쓰면 안 된다.
+      const dupGate = runDuplicateStopGate(enriched);
+      if (!gate.ok || !dupGate.ok) {
+        const code = !gate.ok ? gate.code : dupGate.code;
+        console.error(`[planner] P168 Pass3 background enrich FAILED final validation (${code}) — Firestore overwrite SKIPPED: planId=${planId}`);
         throttledTelegramAlert({
           key: `pass3-background-invalid:${planId}`,
           channel: 'error',
           severity: 'high',
-          message: `🔴 <b>Pass3 background 결과가 식이 종단 검증 실패 (${gate.code})</b>\n\n<b>planId:</b> <code>${planId}</code>\n\n→ Firestore 덮어쓰기 **중단**. 저장된 검증 통과본 유지. tip 미채움.`,
+          message: `🔴 <b>Pass3 background 결과가 종단 검증 실패 (${code})</b>\n\n<b>planId:</b> <code>${planId}</code>\n\n→ Firestore 덮어쓰기 **중단**. 저장된 검증 통과본 유지. tip 미채움.`,
           context: {
             planId,
-            code: gate.code,
+            code,
             violations: gate.violations.slice(0, 3),
             zeroFoodDays: gate.zeroFoodDays.slice(0, 3),
+            duplicates: dupGate.duplicates.slice(0, 3),
           },
         }).catch(() => {});
         return;
@@ -372,18 +377,19 @@ export async function tryInitBlockModeForInngest({
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
       planIdOverride: reservedPlanId,  // P0: claim 예약 planId (null = 기존 randomUUID)
     });
-    // block-mode 결과를 skeleton 위에 merge — _streaming_in_progress / status / pricing 유지하면서
-    // itinerary.days 만 block-mode 결과로 덮어씀. 사용자는 PlanDetailPage 진입 시 빈 days 가
-    // 아닌 block-mode plan 즉시 표시. routeEnrich 진행은 _streaming_in_progress 로 표시.
+    // 🔴 2026-08-24 (planner-trust): 예전엔 여기서 block-mode raw itinerary(days 포함)를
+    //   그대로 public Firestore doc 에 merge 했다 — routeEnrich/backfill/추천/식이/중복
+    //   종단 게이트(applyRecommendedRestaurants 내부, Step 3)가 돌기 *전*에 손님 브라우저의
+    //   onSnapshot 이 미검증 stop 을 볼 수 있었다. 게이트 통과 전엔 days 는 항상 빈 배열 —
+    //   실제 block-mode 결과는 skeletonCtx.blockModeItinerary (event.data, 내부 전용)로만 흐른다.
     try {
       await adminDb.collection('plans').doc(sk.planId).set({
-        itinerary: { ...itinerary, _streaming_skeleton: true },
+        itinerary: { tour_title: null, days: [], _streaming_skeleton: true },
         _block_mode_used: true,
       }, { merge: true });
     } catch (mergeErr) {
-      // skeleton 은 저장됐으나 itinerary merge 실패 — client 는 empty days 잠시 봤다가
-      // worker 완료 시 채워짐. non-fatal 처리.
-      console.warn('[planner P230] block-mode itinerary merge failed (non-fatal):', mergeErr.message);
+      // skeleton 은 저장됐으나 이 merge 실패 — non-fatal (worker 완료 시 채워짐).
+      console.warn('[planner P230] block-mode stub merge failed (non-fatal):', mergeErr.message);
     }
     console.log('[planner P230] block-mode skeleton saved for Inngest:', sk.planId);
     return { planId: sk.planId, planUrl: sk.planUrl };

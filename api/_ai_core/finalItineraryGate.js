@@ -19,9 +19,11 @@
  * 식이 요구가 없는 손님에겐 완전 no-op (기존 동작 byte-identical).
  */
 import { validateResponse, hasCriticalDietaryViolation } from './responseValidator.js';
+import { findDuplicateStops } from './qualityMetrics.js';
 
 export const FINAL_GATE_DIETARY_CODE = 'DIETARY_VIOLATION';
 export const FINAL_GATE_MEAL_CODE = 'DIETARY_MEAL_COVERAGE_FAILED';
+export const FINAL_GATE_DUPLICATE_CODE = 'DUPLICATE_STOP_VIOLATION';
 
 const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
 
@@ -102,6 +104,48 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
     return { ok: false, code: FINAL_GATE_MEAL_CODE, issues, violations, zeroFoodDays };
   }
   return { ok: true, code: null, issues, violations, zeroFoodDays };
+}
+
+/**
+ * 종단 중복 게이트 — 식이 요구 유무와 무관하게 **항상** 돈다(2026-08-24).
+ * 손님이 알아채는 진짜 중복(관광지·식당 재등장)은 식이 손님만의 문제가 아니다.
+ * qualityMetrics.findDuplicateStops 를 그대로 써서 duplicate_stops 점수 지표와
+ * 같은 분류(호텔/숙소 예외)를 공유한다 — 별도 판정 로직을 두지 않는다.
+ *
+ * @param {object} itinerary
+ * @returns {{ok: boolean, code: string|null, duplicates: Array<{name: string, count: number}>}}
+ */
+export function runDuplicateStopGate(itinerary) {
+  if (!itinerary || typeof itinerary !== 'object') return { ok: true, code: null, duplicates: [] };
+  const duplicates = findDuplicateStops(itinerary);
+  if (duplicates.length > 0) {
+    return { ok: false, code: FINAL_GATE_DUPLICATE_CODE, duplicates };
+  }
+  return { ok: true, code: null, duplicates: [] };
+}
+
+/** 중복 게이트 실패 → 손님에게 낼 에러. @param {string} stage */
+export function buildDuplicateGateError(result, stage) {
+  const names = (result.duplicates || []).map((d) => `${d.name}×${d.count}`).join(', ');
+  const e = new Error(
+    `Duplicate stops found in your itinerary (${names}). To keep quality, we did not save this plan. Please try again or contact support.`
+  );
+  e.code = result.code;
+  e.statusCode = 422;
+  e.stage = stage;
+  e.details = (result.duplicates || []).slice(0, 5);
+  return e;
+}
+
+/**
+ * 종단 중복 검증 + 실패 시 throw. 저장·응답 직전에 쓴다 — 식이 게이트와 동일 지점.
+ * @throws {Error & {code: string, statusCode: 422}}
+ */
+export function assertNoDuplicateStops(itinerary, stage = 'unknown') {
+  const result = runDuplicateStopGate(itinerary);
+  if (result.ok) return result;
+  console.error(`[finalGate] ${stage} FAILED (${result.code}):`, JSON.stringify(result.duplicates.slice(0, 5)));
+  throw buildDuplicateGateError(result, stage);
 }
 
 /**

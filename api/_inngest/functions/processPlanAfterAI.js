@@ -214,11 +214,13 @@ export const processPlanAfterAI = inngest.createFunction(
             pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
             revisionCredits: 2,
             revisionCount: 0,
-            // block-mode itinerary 있으면 days 미리 채움 (PlanDetailPage 즉시 표시).
-            // 없으면 빈 skeleton (legacy streaming 경우).
-            itinerary: blockModeItinerary
-              ? { ...blockModeItinerary, _streaming_skeleton: true }
-              : { tour_title: null, days: [], _streaming_skeleton: true },
+            // 🔴 2026-08-24 (planner-trust): block-mode raw itinerary(days 포함)를 여기서
+            //   public doc 에 먼저 쓰면 Step 1(routeEnrich)~Step 3(recommendedRestaurants —
+            //   종단 dietary/duplicate 게이트가 실제로 도는 곳)이 끝나기 전에 손님의
+            //   onSnapshot 이 미검증 stop 을 볼 수 있다. 게이트를 통과한 결과는 Step 5
+            //   persistPlan 이 쓴다 — 그 전까진 항상 빈 days. blockModeItinerary 는
+            //   ctx.skeletonCtx 를 통해 이 step 안에서만 참조 가능(내부 전용), public doc 엔 안 나간다.
+            itinerary: { tour_title: null, days: [], _streaming_skeleton: true },
             ...(blockModeItinerary ? { _block_mode_used: true } : {}),
             _p231_stub: false, // stub 교체 완료 표시
           };
@@ -291,11 +293,14 @@ export const processPlanAfterAI = inngest.createFunction(
 
     // ── Step 3: recommended_restaurants ──────────────────────────────────────
     const foodIndexForQuality = await step.run('recommendedRestaurants', async () => {
-      // 2026-08-24: language/styles 전달 — 이 helper 끝의 종단 식이/식사 게이트 입력.
+      // 2026-08-24: language/styles/blockModeUsed 전달 — 이 helper 끝의 종단 식이/중복 게이트 입력.
       //   게이트가 실패하면 이 step 이 throw → persistPlan 미실행 (위반본 저장 금지, fail-closed).
       // planner-intent-v1: avoidStopNames/blockModeUsed 도 전달해야 한다 — 없으면 이 worker
       //   경로에서 recommended_restaurants 가 avoid 필터를 안 받고, 끝의 assertNoAvoidedStopsRemain
       //   안전망이 blockModeUsed 를 몰라 stage 라벨을 잘못 찍는다 (sync 경로 handlerCore 와 동형이어야 함).
+      //   blockModeUsed 누락 시 sync path(handlerCore.js)와 달리 block_mode dietary warning 이
+      //   조용히 skip 된다 — ctx.plannerMode 는 dispatchOrInlineForHandlerCore 가 이미
+      //   blockModeUsed ? 'block_mode' : PLANNER_MODE 로 정규화해 둔 값이라 여기서 다시 유도한다.
       return applyRecommendedRestaurants(itinAfterBackfill, {
         area: ctx.area,
         dietPrefs: ctx.dietPrefs,
@@ -373,6 +378,11 @@ export const processPlanAfterAI = inngest.createFunction(
       itinerary: itinAfterBackfill,
       isAdminBypass: !!ctx.isAdminBypass,
       identifierForBucketing: ctx.identifierForBucketing,
+      // 2026-08-24: dietary/styles 누락이면 Pass3 background 의 종단 게이트(runFinalItineraryValidation)
+      //   가 dietary=undefined 로 돌아 halal/vegan coverage 위반을 못 잡는다 — handlerCore.js 의
+      //   sync 호출(dietary: dietaryAll, styles)과 동일하게 맞춘다.
+      dietary: ctx.dietPrefs,
+      styles: ctx.styles,
     });
 
     if (ctx.email) {

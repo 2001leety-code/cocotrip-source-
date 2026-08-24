@@ -157,11 +157,6 @@ export function QualityWarningsPanel({
                   </div>
                 );
               })}
-
-            <div className="text-[12px] text-white/55 italic">
-              ※ multi-city plan 의 lodging_bookend_violation 은 의도된 패턴 (anchor=첫 day 호텔 vs 도시 이동 후 호텔).
-              validator multi-city 미인식 — 별도 후속 fix 후보.
-            </div>
           </div>
         )}
       </div>

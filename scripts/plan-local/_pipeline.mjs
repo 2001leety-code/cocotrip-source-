@@ -27,6 +27,10 @@ import {
   computePricing,
 } from '../../api/_ai_core/postResponsePipeline.js';
 import { loadFoodIndex } from '../../api/_ai_core/geminiPipeline.js';
+// canonical 중복 분류(lodging 예외) — 점수 지표와 종단 게이트가 쓰는 것과 같은 소스.
+import { findDuplicateStops } from '../../api/_ai_core/qualityMetrics.js';
+// 종단 식이/식사커버리지 게이트 — 식이 요구 없으면 no-op.
+import { runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGate.js';
 
 /**
  * fixtures 의 blocks / selection / userinput 으로 오프라인 플랜을 생성한다.
@@ -34,7 +38,7 @@ import { loadFoodIndex } from '../../api/_ai_core/geminiPipeline.js';
  * @param {Array<object>} args.blocks      — zone_courses 블록들 (transit_matrix 포함)
  * @param {object} args.selection          — { day_selections: [{day, block_id, city?, tweak_notes}], language }
  * @param {object} args.userInput          — 정규화된 사용자 입력 (durationDays, regions, area, dietPrefs, ...)
- * @returns {Promise<{itinerary: object, pricing: object, blocksUsed: string[]}>}
+ * @returns {Promise<{itinerary: object, pricing: object, blocksUsed: string[], foodIndex: object[]}>}
  */
 export async function runOfflinePlan({ blocks, selection, userInput }) {
   // 1) mock adminDb 가 보는 블록 등록 (transitCache 의 transit_matrix 조회용).
@@ -129,7 +133,7 @@ export async function runOfflinePlan({ blocks, selection, userInput }) {
   const durationDays = Number(userInput.durationDays) || (itinerary.days || []).length || 1;
   const pricing = { vehicle, ...computePricing(vehicle, durationDays) };
 
-  return { itinerary, pricing, blocksUsed };
+  return { itinerary, pricing, blocksUsed, foodIndex };
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -272,9 +276,6 @@ export function printPlanSummary(itinerary, pricing, { scenario, blocksUsed }) {
   }
   L('═'.repeat(72));
   L('');
-
-  // dev-only 회귀 가드: 다도시 KTX bookend 누락 검사 (배포 전 로컬 캐치).
-  checkMultiCityBookends(itinerary);
 }
 
 /**
@@ -352,4 +353,101 @@ export function checkMultiCityBookends(itinerary) {
   L('');
 
   return { ok: missing.length === 0, cityChangeDays: cityChangeDays.length, missing };
+}
+
+// ── 성공 아티팩트 쓰기 전 fail-closed 품질 게이트 ────────────────────────────
+// run.mjs 가 outputs/plan-<scenario>.json 을 쓰기 **직전**에 호출한다. 하나라도
+// 실패하면 파일을 안 쓰고 nonzero exit — "실패했는데 성공 산출물이 남는" 상황 방지.
+
+/** 요청한 day 수 == 생성된 day 수. */
+export function checkExactDayCount(itinerary, userInput) {
+  const expected = Number(userInput && userInput.durationDays) || 0;
+  const days = (itinerary && Array.isArray(itinerary.days)) ? itinerary.days : [];
+  const actual = days.length;
+  return { ok: expected > 0 && actual === expected, expected, actual };
+}
+
+/** 모든 day 가 stop 1개 이상. */
+export function checkAllDaysNonEmpty(itinerary) {
+  const days = (itinerary && Array.isArray(itinerary.days)) ? itinerary.days : [];
+  const emptyDays = days
+    .map((d, i) => ({ day: Number(d.day) || i + 1, stops: Array.isArray(d.stops) ? d.stops.length : 0 }))
+    .filter((d) => d.stops === 0)
+    .map((d) => d.day);
+  return { ok: emptyDays.length === 0, emptyDays };
+}
+
+/** 비-lodging 중복 stop 0건. qualityMetrics.findDuplicateStops(=lodging 예외)와 같은 소스. */
+export function checkNoDuplicateStops(itinerary) {
+  const duplicates = findDuplicateStops(itinerary);
+  return { ok: duplicates.length === 0, duplicates };
+}
+
+/** halal/vegan/vegetarian 요구 시 종단 식이·식사커버리지 게이트 통과. 요구 없으면 no-op(ok:true). */
+export function checkDietaryCoverage(itinerary, userInput, foodIndex) {
+  const dietary = Array.isArray(userInput && userInput.dietPrefs) ? userInput.dietPrefs : [];
+  const result = runFinalItineraryValidation(itinerary, {
+    language: userInput && userInput.language,
+    dietary,
+    styles: userInput && userInput.styles,
+    foodIndex,
+  });
+  return { ok: result.ok, code: result.code, violations: result.violations, zeroFoodDays: result.zeroFoodDays };
+}
+
+/**
+ * 5개 fail-closed 체크를 전부 돌려 종합 판정. 순수 함수(process.exit/파일쓰기 없음) —
+ * run.mjs 가 결과를 보고 아티팩트 쓰기/exit code 를 결정한다.
+ * @param {{itinerary: object, userInput: object, foodIndex?: object[]}} args
+ * @returns {{ok: boolean, failures: Array<{check: string, message: string, detail: object}>}}
+ */
+export function runPreWriteQualityChecks({ itinerary, userInput, foodIndex }) {
+  const failures = [];
+
+  const dayCount = checkExactDayCount(itinerary, userInput);
+  if (!dayCount.ok) {
+    failures.push({
+      check: 'day_count',
+      message: `요청 day 수(${dayCount.expected}) ≠ 생성 day 수(${dayCount.actual})`,
+      detail: dayCount,
+    });
+  }
+
+  const nonEmpty = checkAllDaysNonEmpty(itinerary);
+  if (!nonEmpty.ok) {
+    failures.push({
+      check: 'empty_day',
+      message: `빈 day 존재: day ${nonEmpty.emptyDays.join(', ')}`,
+      detail: nonEmpty,
+    });
+  }
+
+  const dup = checkNoDuplicateStops(itinerary);
+  if (!dup.ok) {
+    failures.push({
+      check: 'duplicate_stops',
+      message: `비-lodging 중복 stop: ${dup.duplicates.map((d) => `${d.name}×${d.count}`).join(', ')}`,
+      detail: dup,
+    });
+  }
+
+  const bookend = checkMultiCityBookends(itinerary);
+  if (!bookend.ok) {
+    failures.push({
+      check: 'multi_city_bookend',
+      message: `다도시 bookend 누락: day ${bookend.missing.map((m) => m.day).join(', ')}`,
+      detail: bookend,
+    });
+  }
+
+  const dietary = checkDietaryCoverage(itinerary, userInput, foodIndex);
+  if (!dietary.ok) {
+    failures.push({
+      check: 'dietary_coverage',
+      message: `식이/식사커버리지 게이트 실패 (${dietary.code})`,
+      detail: dietary,
+    });
+  }
+
+  return { ok: failures.length === 0, failures };
 }

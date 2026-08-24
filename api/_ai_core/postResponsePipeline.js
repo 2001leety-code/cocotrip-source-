@@ -33,7 +33,7 @@ import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
-import { assertFinalItineraryValid } from './finalItineraryGate.js';
+import { assertFinalItineraryValid, assertNoDuplicateStops } from './finalItineraryGate.js';
 import { assertNoAvoidedStopsRemain, filterAvoidedRestaurantBuckets } from './avoidStops.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
@@ -390,6 +390,9 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     { language, dietary: dietPrefs, styles, foodIndex: foodIndexForQuality },
     blockModeUsed ? 'block_mode' : 'post_response',
   );
+  // ── 종단 중복 게이트 — 식이 요구 유무와 무관하게 항상 (2026-08-24) ─────────
+  //   같은 지점(저장 전 마지막 mutation 뒤)에서 관광지·식당 중복도 fail-closed.
+  assertNoDuplicateStops(itinerary, blockModeUsed ? 'block_mode' : 'post_response');
   return foodIndexForQuality;
 }
 
