@@ -157,6 +157,8 @@ function settlementApproval(
 
 export default function MoodUiHarness() {
   const [changeOpen, setChangeOpen] = useState(false);
+  const [lastRouteOrder, setLastRouteOrder] = useState('');
+  const [lastChangePayload, setLastChangePayload] = useState('');
   const [settlementMode, setSettlementMode] = useState<'initial' | 'correction' | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [settlementResult, setSettlementResult] = useState('');
@@ -175,9 +177,32 @@ export default function MoodUiHarness() {
     window.fetch = async (input, init) => {
       const url = String(input);
       if (url.includes('/api/mood-route')) {
-        return new Response(JSON.stringify({ ok: true, data: { km: 64, tollKRW: 8000, durationMin: 85, points, path: shareData.route?.path } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        const parsed = new URL(url, window.location.origin);
+        const origin = parsed.searchParams.get('origin') || '';
+        const destination = parsed.searchParams.get('destination') || '';
+        const waypoints = (parsed.searchParams.get('waypoints') || '').split('|').filter(Boolean);
+        const order = [origin, ...waypoints, destination];
+        const originalOrder = waypoints.join('|') === '성수동|잠실|강남역';
+        setLastRouteOrder(order.join(' → '));
+        return new Response(JSON.stringify({
+          ok: true,
+          data: {
+            km: originalOrder ? 64 : 71,
+            tollKRW: originalOrder ? 8000 : 9000,
+            durationMin: originalOrder ? 85 : 97,
+            points,
+            path: shareData.route?.path,
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (url.includes('/api/mood-change')) {
+        const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+        setLastChangePayload(JSON.stringify({
+          origin: body.booking?.origin || '',
+          waypoints: body.booking?.waypoints || [],
+          destination: body.booking?.destination || '',
+          courseMoodPercentages: body.booking?.courseMoodPercentages || [],
+        }));
         return new Response(JSON.stringify({ ok: true, data: { revision: 3 } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (url.includes('/api/mood-settle-preview')) {
@@ -264,6 +289,12 @@ export default function MoodUiHarness() {
         <MoodBookingCopyButton data={shareData} />
         <button type="button" onClick={() => setChangeOpen(true)} className="min-h-11 shrink-0 rounded-xl bg-white/10 px-4 text-sm font-black text-white">예약 변경</button>
       </div>
+      {(lastRouteOrder || lastChangePayload) && (
+        <div className="mx-auto mb-4 max-w-[430px] space-y-1 rounded-xl bg-white/5 px-3 py-2 text-[10px] text-white/70">
+          {lastRouteOrder && <p data-testid="mood-harness-route-order">최근 계산 순서: {lastRouteOrder}</p>}
+          {lastChangePayload && <p className="break-all" data-testid="mood-harness-change-payload">최근 저장 요청: {lastChangePayload}</p>}
+        </div>
+      )}
       <MoodBookingShareCard data={shareData} />
       <div className="mx-auto mt-5 max-w-[430px] rounded-2xl bg-white/5 p-3">
         <div className="flex items-start justify-between gap-3">
