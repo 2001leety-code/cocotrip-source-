@@ -19,7 +19,7 @@
  *     기존 retry→throw(DIETARY_VIOLATION) 경로로 진행.
  *   - 검증 완화 아님: 교체 후 validateResponse 를 다시 통과해야 한다 (caller 책임).
  */
-import { isDietaryTrusted } from '../_shared/dietary-trust.js';
+import { isDietaryTrusted, acceptTagsForDiet, dietaryEvidenceFor, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 import { resolveCityCode } from '../_food_helper.js';
 
 const MAX_KM = 8; // 위반 stop 좌표 기준 교체 후보 최대 거리 (동선 보존)
@@ -44,12 +44,8 @@ function collectPlanNames(itinerary) {
   return names;
 }
 
-/** 위반 diet 하나를 커버하는 태그 목록 (vegetarian 은 vegan 식당으로도 안전). */
-function acceptTagsFor(diet) {
-  const d = String(diet || '').toLowerCase();
-  if (d === 'vegetarian') return ['vegetarian', 'vegan'];
-  return [d];
-}
+/** 위반 diet 하나를 커버하는 태그 목록 — 규칙 SSOT = dietary-trust.acceptTagsForDiet. */
+const acceptTagsFor = acceptTagsForDiet;
 
 /**
  * 위반 food stop 들을 교체 시도.
@@ -60,7 +56,7 @@ function acceptTagsFor(diet) {
  * @param {string} area - 요청 도시 (다도시는 stop 좌표 우선)
  * @returns {{replaced: number, failed: number, detail: string[]}}
  */
-export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, area) {
+export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, area, language = 'en') {
   const result = { replaced: 0, failed: 0, detail: [] };
   const violations = (issues || []).filter((i) => i.type === 'dietary_violation');
   if (!violations.length || !Array.isArray(foodIndex) || !foodIndex.length) return result;
@@ -115,8 +111,15 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
     const tagSet = new Set((Array.isArray(target.dietary_tags) ? target.dietary_tags : []).map((t) => String(t).toLowerCase()));
     tagSet.add(String(pick.tag).toLowerCase());
     target.dietary_tags = [...tagSet];
-    // tip: 시간·메뉴 확언 없이 안전 문구로 대체 (영업시간 데이터 없음 — 확언 금지)
-    target.tip = `Verified ${String(pick.tag)} listing from our database. Please confirm opening hours before visiting.`;
+    // 등급 증거를 stop 에 전파 — verified(=DB 실재) 와 별개 필드. (2026-08-24)
+    const evidence = dietaryEvidenceFor(pick, v.diet);
+    if (evidence) target.dietary_evidence = [evidence];
+    // tip: 시간·메뉴 확언 없이 **등급을 숨기지 않는** 문구로 대체 (영업시간 데이터 없음 — 확언 금지).
+    //   🔴 이전 문구 "Verified <tag> listing" 은 muslim_friendly(친화, 인증 아님)까지 "검증된 할랄"
+    //   로 읽혔다 — 등급 분리의 의미를 문구가 무효화. 등급별 문구는 dietary-trust SSOT.
+    target.tip = evidence
+      ? describeDietaryEvidence(evidence.verification_status, language)
+      : `Listed in our ${String(pick.tag)} database. Please confirm with the restaurant and check opening hours before visiting.`;
     target._replaced_for_dietary = v.diet; // 감사 추적
 
     usedNames.add(pickName);

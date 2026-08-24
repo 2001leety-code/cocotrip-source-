@@ -89,10 +89,8 @@ export default async function handler(req, res) {
   // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
   // 'unknown' 그대로 sentry 에 기록.
   let resolvedPlannerMode = 'unknown';
-  // P96 (2026-05-19): step-level elapsed instrumentation. 기존엔 START + TOTAL
-  // 두 로그만 있어 hang 시 어느 step 에서 멈췄는지 prod logs 로도 진단 불가.
-  // withStep 으로 핵심 await 마다 ENTER + DONE/FAILED elapsed 로그. catch 블록
-  // 의 hangWarn alert 는 5분 Vercel cap 도달 30초 전 (4분30초) 발사. P218: ms → "NNNms (Xh Y분 Z초)".
+  // P96 (2026-05-19): step-level elapsed instrumentation (기존 START+TOTAL 만으론 hang 시 진단 불가).
+  // withStep 으로 핵심 await 마다 ENTER+DONE/FAILED elapsed 로그. catch 의 hangWarn 은 5분 cap 30초 전 발사. P218: fmtMs.
   function fmtMs(ms) { const n=Math.round(Number(ms)||0); if(n<1000) return `${n}ms`; const t=Math.floor(n/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60,p=[];if(h)p.push(`${h}h`);if(m)p.push(`${m}분`);p.push(`${s}초`);return `${n}ms (${p.join(' ')})`; }
   let currentStep = 'init';
   let currentStepStart = handlerStart;
@@ -389,7 +387,8 @@ export default async function handler(req, res) {
     applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed, departureTime, departure_airport });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
-    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language });
+    //   2026-08-24: 이 helper 끝에서 종단 식이/식사 게이트가 돈다 (postResponsePipeline) — 저장 전 마지막 mutation 지점.
+    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles });
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -417,7 +416,8 @@ export default async function handler(req, res) {
     planPersisted = true; // 버그헌트 A: plan 저장 성공 → 무료쿠폰 정당 소비(catch 롤백 안 함)
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing });
+    //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
@@ -445,9 +445,7 @@ export default async function handler(req, res) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
 
     // batch 9 fix (PR-N, 2026-05-09): 응답을 먼저 보내고 부수 작업은 fire-and-forget.
-    // 이전: await captureError 가 throw 하면 catch 블록 자체가 abort → res.end 못 보냄
-    //       → Vercel 500 + 빈 body. 운영자가 client console 에서 정확한 에러 못 봄.
-    // 변경: res.end() 먼저, telemetry/sentry 는 setImmediate 로 분리.
+    // (이전엔 await captureError throw 시 catch 자체가 abort → res.end 못 보내 Vercel 500 + 빈 body.)
     if (!res.headersSent) {
       const statusCode = error.statusCode || 500;
       const code = error.code || 'INTERNAL_ERROR';

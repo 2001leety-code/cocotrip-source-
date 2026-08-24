@@ -40,11 +40,12 @@
  */
 import { pass3Enrich } from './threePassPipeline.js';
 import { updatePlanEnrichment, savePlanSkeleton } from './planPersister.js';
-import { isPass3BackgroundEnabled, isStreamingEnabled, buildModel } from './geminiPipeline.js';
+import { isPass3BackgroundEnabled, isStreamingEnabled, buildModel, loadFoodIndex } from './geminiPipeline.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { randomUUID } from 'crypto';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
+import { runFinalItineraryValidation } from './finalItineraryGate.js';
 
 /**
  * plan 발급 완료 후 비차단 알림 3종 — 이메일 / Google Sheets 리드 / 텔레그램+웹푸시.
@@ -90,11 +91,19 @@ export function isSkeletonInWorkerEnabled() {
  * itinerary._pass3_pending === true + isPass3BackgroundEnabled() 일 때만 실행.
  * fire-and-forget — 실패해도 plan 은 정상 저장됨 (non-critical).
  *
- * @param {{ adminDb, planId: string, language: string, apiKey: string, itinerary: object, isAdminBypass?: boolean }} args
+ * 🔴 2026-08-24 (planner-trust): enrich 결과를 **무검증으로 Firestore 에 덮어쓰고 있었다.**
+ *   Pass3 는 Gemini 재호출이라 stop tip/이름을 바꾼다 — 식이 손님에게 위반본이 이미 저장된
+ *   정상 plan 을 조용히 덮어쓸 수 있었고, 사용자는 이후 그 문서만 본다. 이제 종단 검증을
+ *   통과한 경우에만 write 한다. 실패하면 **덮어쓰지 않고** 알림만 — 저장된 plan(검증 통과본)이
+ *   그대로 남는 쪽이 안전하다. tip 미채움은 non-critical.
+ *
+ * @param {{ adminDb, planId: string, language: string, apiKey: string, itinerary: object,
+ *           isAdminBypass?: boolean, dietary?: string[], styles?: string[] }} args
  *   isAdminBypass — P171 (2026-05-23): admin Test Mode 면 background Gemini 호출도
  *   GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자 Pro→Flash 비교 시 background tip 도 Flash).
+ *   dietary/styles — 종단 검증 입력 (없으면 식이 요구 없는 손님 = 검증 no-op).
  */
-export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing }) {
+export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles }) {
   if (!itinerary._pass3_pending || !isPass3BackgroundEnabled()) return;
 
   // fire-and-forget — UnhandledPromiseRejection 방지를 위해 .catch() 필수.
@@ -105,6 +114,31 @@ export function triggerPass3BackgroundIfPending({ adminDb, planId, language, api
       // (사용자가 Flash bucket 이면 main + Pass3 tip 둘 다 Flash).
       const bgModel = buildModel(apiKey, undefined, { isAdminBypass, identifierForBucketing });
       const enriched = await pass3Enrich(bgModel, itinerary, language);
+
+      // 종단 검증 — 실패 시 Firestore overwrite 자체를 건너뛴다 (경고 주입으로 때우지 않는다).
+      const gate = runFinalItineraryValidation(enriched, {
+        language,
+        dietary,
+        styles,
+        foodIndex: await Promise.resolve(loadFoodIndex()).catch(() => []),
+      });
+      if (!gate.ok) {
+        console.error(`[planner] P168 Pass3 background enrich FAILED final validation (${gate.code}) — Firestore overwrite SKIPPED: planId=${planId}`);
+        throttledTelegramAlert({
+          key: `pass3-background-invalid:${planId}`,
+          channel: 'error',
+          severity: 'high',
+          message: `🔴 <b>Pass3 background 결과가 식이 종단 검증 실패 (${gate.code})</b>\n\n<b>planId:</b> <code>${planId}</code>\n\n→ Firestore 덮어쓰기 **중단**. 저장된 검증 통과본 유지. tip 미채움.`,
+          context: {
+            planId,
+            code: gate.code,
+            violations: gate.violations.slice(0, 3),
+            zeroFoodDays: gate.zeroFoodDays.slice(0, 3),
+          },
+        }).catch(() => {});
+        return;
+      }
+
       await updatePlanEnrichment(adminDb, planId, enriched);
       console.log(`[planner] P168 Pass3 background completed: planId=${planId}`);
     } catch (bgErr) {

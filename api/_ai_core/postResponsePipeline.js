@@ -33,6 +33,7 @@ import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
+import { assertFinalItineraryValid } from './finalItineraryGate.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -336,7 +337,7 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
  * @returns foodIndex (handlerCore 가 persistPlan 에 forward).
  */
 export async function applyRecommendedRestaurants(itinerary, ctx) {
-  const { area, dietPrefs, regions, blockModeUsed, language } = ctx;
+  const { area, dietPrefs, regions, blockModeUsed, language, styles } = ctx;
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.
   // 2026-05-05 regression fix: 이전엔 general만 노출 → vegan/halal 사용자도
@@ -362,6 +363,20 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   //   검증처)를 handlerCore:319 `if(!itinerary)` 가드로 우회 → food stop 최종 후 halal/vegan/vegetarian
   //   coverage warning 재검증 (warning-only, P280 retry loop 회피). legacy 는 validateResponse 가 처리.
   if (blockModeUsed) applyBlockModeDietaryWarnings(itinerary, dietPrefs, { language });
+
+  // ── 종단 식이/식사 게이트 (2026-08-24 planner-trust) ────────────────────────
+  //   여기가 **저장 전 마지막 mutation 지점**이다 (routeEnrich → backfill/tour-end cap →
+  //   추천 주입까지 끝난 뒤). HTTP handlerCore 와 Inngest worker 가 둘 다 이 helper 를
+  //   부르므로 게이트를 여기 하나만 두면 두 경로가 같이 막힌다.
+  //   block_mode 는 runGeminiPipeline(=validateResponse)을 통째로 우회하므로 이 지점이
+  //   유일한 식이 검증처다. 실패 = throw → 저장·응답 안 함. warning 박제로 통과시키지 않는다
+  //   (applyBlockModeDietaryWarnings 의 coverage warning 은 그대로 두되, critical 은 별개).
+  //   식이 요구 없는 손님은 no-op (기존 동작 무변).
+  assertFinalItineraryValid(
+    itinerary,
+    { language, dietary: dietPrefs, styles, foodIndex: foodIndexForQuality },
+    blockModeUsed ? 'block_mode' : 'post_response',
+  );
   return foodIndexForQuality;
 }
 

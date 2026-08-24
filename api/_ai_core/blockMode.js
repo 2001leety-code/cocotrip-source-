@@ -42,6 +42,9 @@ import {
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+// 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
+// unverified(naver_local/ai_curated) 행은 점수 경쟁 전에 후보에서 탈락시킨다.
+import { dietaryEvidenceFor, dietaryTagsOfRow, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 
 // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 어떤 실패도 본 흐름에 영향 0.
 // block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
@@ -770,16 +773,10 @@ const FOOD_CITY_MAX_KM = 70; // 같은 도시권 최대 반경 — 이 이상 = 
 // ⚠️ SAFETY (CLAUDE.md J): 과거 이 매칭이 r.dietary_tags 만 읽어, 프로덕션(r.tag)에선 halal/vegan
 //    후보가 항상 0 → dietRequired 사용자는 매번 throw→legacy 폴백(fail-closed=안전하나 block_mode
 //    식이 매칭이 죽어 품질 저하)이었다. 두 필드 모두 읽어 실제로 동작하게 한다.
+// (2026-08-24) 구현은 dietary-trust SSOT 로 이동 — 같은 정규화가 세 파일에 복제돼 있으면
+//   한쪽만 고쳐지는 사고가 반복된다. 이름은 호출부 호환을 위해 유지.
 function dietaryTagsOf(r) {
-  if (!r || typeof r !== 'object') return [];
-  const out = [];
-  const dt = r.dietary_tags;
-  if (Array.isArray(dt)) out.push(...dt);
-  else if (dt) out.push(dt);
-  const tg = r.tag;
-  if (Array.isArray(tg)) out.push(...tg);
-  else if (tg) out.push(tg);
-  return out.map((t) => String(t).toLowerCase());
+  return dietaryTagsOfRow(r);
 }
 
 // stop 좌표 추출 — 유효(finite, 0/0 아님)하면 [lat, lng], 아니면 null. (zone_course 큐레이션 좌표.)
@@ -895,6 +892,14 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
 
   // 1) SAFETY 후보 — city + cafe + dietRequired(사용자 실제 식이) hard filter.
   //    dietRequired 는 SAFETY-CRITICAL (CLAUDE.md J) — 절대 relax 금지.
+  //
+  //    🔴 2026-08-24: 여기 필터가 **태그만** 봤다. 태그는 절반 이상이 naver 키워드검색·AI 큐레이션
+  //      산출물이라 인증 근거가 0인데(docs/DIETARY-DATA-AUDIT-2026-07-11.md), 아래 점수 정렬은
+  //      rating × log(reviews) 라 "평점 높은 unverified 치킨집(halal 태그)" 이 "평점 낮은
+  //      trusted 할랄식당" 을 이겼다. dietaryStopReplacer/dbMatcher/responseValidator 는 이미
+  //      isDietaryTrusted 로 unverified 를 배제하는데 block_mode 만 뚫려 있었다.
+  //      → 신뢰 등급을 **점수 경쟁 전에** 적용한다. 등급은 evidence 로 stop 까지 전파.
+  const dietEvidenceByRow = new Map();
   const safetyCandidates = foodIndex.filter((r) => {
     if (!r || typeof r !== 'object') return false;
     const rCity = String(r.city || '').toLowerCase();
@@ -915,8 +920,16 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
     const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
-    for (const d of dietRequired) {
-      if (!tags.includes(d)) return false;
+    if (dietRequired.length > 0) {
+      const evidence = [];
+      for (const d of dietRequired) {
+        // 태그 일치 + 신뢰 등급(unverified 제외) 둘 다 만족해야 후보. vegetarian 은 SSOT 가
+        // 허용하는 범위(vegan 식당)까지만 커버 — 역방향(vegan 요청을 vegetarian 으로) 은 불가.
+        const ev = dietaryEvidenceFor(r, d, tags);
+        if (!ev) return false;
+        evidence.push(ev);
+      }
+      dietEvidenceByRow.set(r, evidence);
     }
     return true;
   });
@@ -963,14 +976,53 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
 
   // 중복 방지 (2026-06-02, plan 4d214e83 신고 "같은 식당 6번 반복"): 이미 배정한 식당 제외하고
   // 차순위 선택. 전부 소진(작은 도시 식당 부족) 시에만 1순위 재사용 허용 (graceful).
+  // 선택된 행에 **어떤 등급의 증거로** 통과했는지 붙여 반환 (호출부가 stop 에 전파 →
+  //   화면·tip 이 "인증" 과 "친화" 를 섞어 말하지 않게 한다). foodIndex 는 프로세스 공유
+  //   배열이라 원본을 mutate 하지 않고 얕은 복사본에 얹는다.
+  //   식이 요구가 없으면 원본 그대로 반환 — 기존 동작 byte-identical.
+  const decorate = (row) => {
+    if (!row) return row;
+    const evidence = dietEvidenceByRow.get(row);
+    if (!evidence || evidence.length === 0) return row;
+    return { ...row, dietary_evidence: evidence };
+  };
+
   if (excludeNames instanceof Set && excludeNames.size > 0) {
     const fresh = candidates.find((c) => {
       const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
       return nm && !excludeNames.has(nm);
     });
-    if (fresh) return fresh;
+    if (fresh) return decorate(fresh);
   }
-  return candidates[0];
+  return decorate(candidates[0]);
+}
+
+/**
+ * 매칭된 식당의 등급 증거를 손님 tip 으로 정직하게 옮긴다 (2026-08-24).
+ *
+ * 🔴 muslim_friendly 를 "할랄 인증" 처럼 적으면 안 된다. seed 블록 tip 은 등급을 모르므로
+ *   등급 문구를 **덧붙인다**(덮어쓰지 않음). 등급 문구가 없는(미지의) 등급이면 아무것도 안 붙인다 —
+ *   지어내지 않는다.
+ *
+ * @param {string} baseTip
+ * @param {Array<{verification_status: string}>} evidence
+ * @param {string} language
+ * @returns {string}
+ */
+export function appendDietaryEvidenceTip(baseTip, evidence, language) {
+  if (!Array.isArray(evidence) || evidence.length === 0) return baseTip || '';
+  const seen = new Set();
+  const notes = [];
+  for (const ev of evidence) {
+    const status = ev && ev.verification_status;
+    if (!status || seen.has(status)) continue;
+    seen.add(status);
+    const note = describeDietaryEvidence(status, language);
+    if (note) notes.push(note);
+  }
+  if (notes.length === 0) return baseTip || '';
+  const base = String(baseTip || '').trim();
+  return base ? `${base} ${notes.join(' ')}` : notes.join(' ');
 }
 
 /**
@@ -1137,6 +1189,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       let resolvedAddress = bs.address || '';
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+      // verified 는 "DB 에 실재하는 장소" 라는 뜻만 유지한다(식이 안전과 무관 — AGENTS.md §1-4).
+      //   식이 근거는 등급이 실린 이 필드로만 말한다.
+      let dietaryEvidence = null;
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 자체 좌표 없으면 직전 명소(landmark) 좌표를 넘겨 근접 매칭 활성화.
         const _phLat = Number(bs.lat);
@@ -1155,6 +1210,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           // soft preferred_dietary 보다 매칭 식당의 검증된 속성이 정확.
           const mTags = dietaryTagsOf(matched);
           if (mTags.length) dietaryTags = mTags;
+          if (Array.isArray(matched.dietary_evidence) && matched.dietary_evidence.length > 0) {
+            dietaryEvidence = matched.dietary_evidence;
+          }
         } else if (dietCritical.length > 0) {
           // SAFETY-CRITICAL: dietary 사용자에게 매칭 안 됨 = throw (block-mode 폐기 + legacy fallback).
           const err = new Error(
@@ -1200,9 +1258,12 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         entry_fee_note: bs.entry_fee_note || undefined,
         reservation_required: !!bs.reservation_required,
         local_tag: bs.local_tag || '',
-        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        tip: appendDietaryEvidenceTip((bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '', dietaryEvidence, language),
         verified,
         dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        // 등급 증거 (halal_certified / muslim_friendly / vegan_restaurant / vegan_options).
+        //   verified(=DB 실재) 와 별개 필드 — 둘을 섞으면 "친화" 가 "인증" 으로 승격된다.
+        dietary_evidence: dietaryEvidence || undefined,
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,
@@ -1785,6 +1846,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let resolvedAddress = bs.address || '';
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+      let dietaryEvidence = null; // 단도시와 동일 — 등급 증거는 verified 와 분리해 전파.
 
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 좌표 없으면 직전 명소 좌표로 근접 매칭 활성화 (단도시와 동일).
@@ -1805,6 +1867,9 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           //   프로덕션(r.tag=문자열)에선 항상 undefined → halal/vegan 검증태그가 stop 에 미전파.
           const mTags = dietaryTagsOf(matched);
           if (mTags.length) dietaryTags = mTags;
+          if (Array.isArray(matched.dietary_evidence) && matched.dietary_evidence.length > 0) {
+            dietaryEvidence = matched.dietary_evidence;
+          }
         } else if (dietCritical.length > 0) {
           const err = new Error(
             `Block-mode multi-city unable to satisfy dietary (${dietCritical.join(', ')}) ` +
@@ -1844,9 +1909,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         entry_fee_note: bs.entry_fee_note || undefined,
         reservation_required: !!bs.reservation_required,
         local_tag: bs.local_tag || '',
-        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        tip: appendDietaryEvidenceTip((bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '', dietaryEvidence, language),
         verified,
         dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        dietary_evidence: dietaryEvidence || undefined,
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,

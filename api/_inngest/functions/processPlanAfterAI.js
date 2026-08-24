@@ -291,10 +291,14 @@ export const processPlanAfterAI = inngest.createFunction(
 
     // ── Step 3: recommended_restaurants ──────────────────────────────────────
     const foodIndexForQuality = await step.run('recommendedRestaurants', async () => {
+      // 2026-08-24: language/styles 전달 — 이 helper 끝의 종단 식이/식사 게이트 입력.
+      //   게이트가 실패하면 이 step 이 throw → persistPlan 미실행 (위반본 저장 금지, fail-closed).
       return applyRecommendedRestaurants(itinAfterBackfill, {
         area: ctx.area,
         dietPrefs: ctx.dietPrefs,
         regions: ctx.regions,
+        language: ctx.language,
+        styles: ctx.styles,
       });
     });
 

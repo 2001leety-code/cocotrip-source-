@@ -136,7 +136,9 @@ describe('replaceViolatingFoodStops — 결정론적 교체', () => {
     expect(s.name).toBe('할랄식당');
     expect(s.verified).toBe(true);
     expect(s.dietary_tags).toContain('halal');
-    expect(s.tip).toMatch(/confirm opening hours/i); // 영업시간 데이터 없음 — 확언 금지
+    expect(s.tip).toMatch(/not verified/i); // muslim_friendly ≠ 인증 — 등급 구분 명시
+    expect(s.tip).toMatch(/confirm halal status/i);
+    expect(s.tip).toMatch(/opening hours/i); // 영업시간 데이터 없음 — 확언 금지
   });
 
   it('unverified 후보뿐이면 교체하지 않고 failed (이름 생성·완화 금지)', () => {
