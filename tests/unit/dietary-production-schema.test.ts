@@ -76,4 +76,16 @@ describe('shapeRequest — 식이제한 payload 손상 throw (CLAUDE.md J silent
     const r = shapeRequest({ ...base, dietaryRestrictions: ['Vegetarian'], allergies: ['Halal'] }, 'a@b.com');
     expect(r.dietaryRestrictions).toEqual(['Vegetarian']);
   });
+  it('canonical 혼합(지원·비지원) → 지원값만 필터링 (Nuts·Shellfish 제거, Halal·Vegan 유지)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: ['Nuts', 'Halal', 'Shellfish', 'Vegan'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual(['Halal', 'Vegan']);
+  });
+  it('canonical 전부 비지원값 → 빈배열 (조용히 버림, throw 아님)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: ['Nuts', 'Shellfish', 'Gluten'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual([]);
+  });
+  it('canonical 빈배열 → 레거시 allergies 무시하고 빈배열 유지 (precedence)', () => {
+    const r = shapeRequest({ ...base, dietaryRestrictions: [], allergies: ['Halal'] }, 'a@b.com');
+    expect(r.dietaryRestrictions).toEqual([]);
+  });
 });

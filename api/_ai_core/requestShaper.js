@@ -161,8 +161,11 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   const legacyAllergies = Array.isArray(body.allergies)
     ? body.allergies.filter((v) => DIETARY_RESTRICTION_VALUES.has(v))
     : [];
+  // 2026-08-24 (security): canonical dietaryRestrictions must also be whitelisted through DIETARY_RESTRICTION_VALUES.
+  // Precedence: canonical (even empty array) wins over legacy allergies. Only fall back to filtered
+  // legacy when canonical is absent.
   const dietaryRestrictions = Array.isArray(body.dietaryRestrictions)
-    ? body.dietaryRestrictions
+    ? body.dietaryRestrictions.filter((v) => DIETARY_RESTRICTION_VALUES.has(v))
     : legacyAllergies;
   const priceRange = body.priceRange || 'Any';
   // W4 (2026-05-08): revision reason chips + free note + previous plan stop names
