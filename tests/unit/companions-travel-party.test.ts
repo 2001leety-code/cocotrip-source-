@@ -40,7 +40,9 @@ describe('companions 배선 드리프트 가드 (두 경로 + 전 구간)', () =
     expect(src('api/_ai_core/requestShaper.js')).toMatch(/\['solo', 'couple', 'family', 'friends'\]\.includes\(body\.companions\)/);
   });
   it('handlerCore 가 blockMode userInput 에 companions 를 전달한다', () => {
-    expect(src('api/_ai_core/handlerCore.js')).toMatch(/pax, mobility, companions \}/);
+    // planner-intent-v1 (2026-08-24): userInput 객체가 arrival_city/pace/spice 등으로
+    // 확장되며 companions 뒤가 더 이상 `}` 로 바로 안 닫힌다 — trailing comma 로 검증.
+    expect(src('api/_ai_core/handlerCore.js')).toMatch(/pax, mobility, companions,/);
   });
   it('legacy 경로(userMessageBuilder)에도 travel_party 가 있다', () => {
     expect(src('api/_ai_core/userMessageBuilder.js')).toMatch(/travel_party: companions \|\| undefined/);
@@ -49,6 +51,8 @@ describe('companions 배선 드리프트 가드 (두 경로 + 전 구간)', () =
     expect(src('api/_ai_core/planPersister.js')).toMatch(/companions: body\.companions \|\| null/);
   });
   it('프론트 payload 가 미선택 시 필드를 아예 안 보낸다', () => {
-    expect(src('src/pages/PlannerPage/hooks/usePlannerHandlers.ts')).toMatch(/values\.companions \? \{ companions: values\.companions \}/);
+    // planner-intent-v1: 이 매핑도 lib/plannerIntent.ts::flattenPlannerIntentV1 로
+    // 이동했다 — `|| undefined` 값은 JSON.stringify 직렬화 시 키째로 사라져 동일 계약.
+    expect(src('src/pages/PlannerPage/lib/plannerIntent.ts')).toMatch(/companions: intent\.companions \|\| undefined/);
   });
 });

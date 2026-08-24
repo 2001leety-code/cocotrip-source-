@@ -255,7 +255,6 @@ export default async function handler(req, res) {
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));
-
     // planner-intent-v1: revision avoid list — used below (removal) and by postResponsePipeline (assert-only).
     const avoidStopNames = gate.isRevision && plannerIntent.revision ? plannerIntent.revision.avoidStopNames : [];
 

@@ -193,7 +193,7 @@ describe('runPreWriteQualityChecks — 종합 판정 (5개 체크 전부 통과�
       foodIndex: [],
     });
     expect(r.ok).toBe(false);
-    const checks = r.failures.map((f: any) => f.check);
+    const checks = r.failures.map((f: { check: string }) => f.check);
     expect(checks).toContain('day_count');
     expect(checks).toContain('duplicate_stops');
   });
@@ -239,9 +239,9 @@ describe('run.mjs CLI — 성공 아티팩트는 게이트 통과 후에만 쓰�
     let threw = false;
     try {
       execFileSync('node', [RUN_MJS, failScenario], { cwd: ROOT, stdio: 'pipe' });
-    } catch (e: any) {
+    } catch (e) {
       threw = true;
-      expect(e.status).not.toBe(0);
+      expect((e as { status?: number }).status).not.toBe(0);
     }
     expect(threw).toBe(true);
     expect(existsSync(failOutPath)).toBe(false);

@@ -113,8 +113,10 @@ describe('PlannerIntent v1 parity (client -> server)', () => {
 
     // Every travel-preference field is identical — revision never silently
     // drops recommended_zone/recommended_zones/hotelByCity/etc.
-    const { revision: _n, ...newRest } = newIntent;
-    const { revision: _r, ...revRest } = revIntent;
+    const newRest: Record<string, unknown> = { ...newIntent };
+    const revRest: Record<string, unknown> = { ...revIntent };
+    delete newRest.revision;
+    delete revRest.revision;
     expect(revRest).toEqual(newRest);
 
     expect(revIntent.revision).toEqual({

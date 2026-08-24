@@ -38,12 +38,12 @@ import path from 'path';
 //   .collection('plans').doc(id).set(data, opts) call so we can assert exactly
 //   what would have landed in the PUBLIC Firestore doc a guest's onSnapshot reads.
 function makeMockAdminDb() {
-  const calls: Array<{ id: string; data: any; opts: any }> = [];
+  const calls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
   return {
     calls,
-    collection: (_name: string) => ({
+    collection: () => ({
       doc: (id: string) => ({
-        set: async (data: any, opts?: any) => {
+        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
           calls.push({ id, data, opts });
           return {};
         },
@@ -191,10 +191,10 @@ describe('P230 block-mode + Inngest 통합 회귀 차단', () => {
   it('P230-B5: tryInitBlockModeForInngest — itinerary 없으면 null 반환', async () => {
     const { tryInitBlockModeForInngest } = await import('../../api/_ai_core/backgroundPipelines.js');
     const result = await tryInitBlockModeForInngest({
-      adminDb: { collection: () => ({}) } as any,
+      adminDb: { collection: () => ({}) },
       uid: 'test', email: 'x@y.z', area: 'seoul', startDate: '2026-06-01',
       guestName: 'G', pax: 2, language: 'en', vehicle: 'staria_8', durationDays: 3, body: {},
-      itinerary: null as any,  // ← 핵심
+      itinerary: null,  // ← 핵심
     });
     expect(result).toBe(null);
   });

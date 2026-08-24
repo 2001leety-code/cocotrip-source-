@@ -67,8 +67,8 @@ describe('filterAvoidedStops — removal + reindex', () => {
     const result = filterAvoidedStops(itinerary, ['경복궁']);
     expect(result.removed).toBe(1);
     expect(result.invalidDays).toEqual([]);
-    expect(itinerary.days[0].stops.map((s: any) => s.name)).toEqual(['Hotel', '광장시장', 'Hotel']);
-    expect(itinerary.days[0].stops.map((s: any) => s.order)).toEqual([1, 2, 3]);
+    expect(itinerary.days[0].stops.map((s: { name: string }) => s.name)).toEqual(['Hotel', '광장시장', 'Hotel']);
+    expect(itinerary.days[0].stops.map((s: { order: number }) => s.order)).toEqual([1, 2, 3]);
   });
 
   it('fails closed when removal leaves a day with zero activity stops', () => {
@@ -117,9 +117,10 @@ describe('removeAvoidedStopsOrThrow', () => {
     expect(() => removeAvoidedStopsOrThrow(itinerary, ['경복궁'], 'test')).toThrow();
     try {
       removeAvoidedStopsOrThrow(itinerary, ['경복궁'], 'test');
-    } catch (e: any) {
-      expect(e.code).toBe(AVOID_UNSATISFIABLE_CODE);
-      expect(e.statusCode).toBe(422);
+    } catch (e) {
+      const err = e as { code?: string; statusCode?: number };
+      expect(err.code).toBe(AVOID_UNSATISFIABLE_CODE);
+      expect(err.statusCode).toBe(422);
     }
   });
 
@@ -152,7 +153,7 @@ describe('filterAvoidedRestaurantBuckets', () => {
       vegan: [{ name: '경복궁 맛집', category: 'food' }],
     };
     const out = filterAvoidedRestaurantBuckets(buckets, ['경복궁 맛집']);
-    expect(out.general.map((r: any) => r.name)).toEqual(['다른 식당']);
+    expect(out.general.map((r: { name: string }) => r.name)).toEqual(['다른 식당']);
     expect(out.vegan).toEqual([]);
     expect(buckets.general).toHaveLength(2); // original untouched
   });

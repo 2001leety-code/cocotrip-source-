@@ -18,7 +18,7 @@
  *
  * 비유: "접수 창구가 접수증만 발행 (빠름), 뒤에서 담당자가 풀 서류 작성 (worker Step 0)"
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -44,11 +44,11 @@ const handlerSrc = readFileSync(HANDLER_PATH, 'utf-8');
 //   vi.hoisted() is required because vi.mock() factories are hoisted above plain
 //   const declarations — the mock adminDb must exist before that hoisting point.
 const { mockAdminDb, mockCalls, pipelineMocks } = vi.hoisted(() => {
-  const mockCalls: Array<{ id: string; data: any; opts: any }> = [];
+  const mockCalls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
   const mockAdminDb = {
-    collection: (_name: string) => ({
+    collection: () => ({
       doc: (id: string) => ({
-        set: async (data: any, opts?: any) => {
+        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
           mockCalls.push({ id, data, opts });
           return {};
         },
@@ -57,7 +57,7 @@ const { mockAdminDb, mockCalls, pipelineMocks } = vi.hoisted(() => {
   };
   const pipelineMocks = {
     runRouteEnrichment: vi.fn(async () => {}),
-    applyBackfillsAndTmoney: vi.fn((itin: any) => itin),
+    applyBackfillsAndTmoney: vi.fn((itin: unknown) => itin),
     applyRecommendedRestaurants: vi.fn(async () => []),
     computePricing: vi.fn(() => ({ priceKRW: 100000, priceUSD: 75 })),
     savePlan: vi.fn(async () => ({ planId: 'plan-abc', planUrl: '/my-plans/plan-abc' })),
@@ -259,7 +259,7 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
   function makeStep() {
     // step.run(id, cb) normally queues a durable step; for this unit test we just
     // want the callback's Firestore side-effects, so invoke it immediately.
-    return { run: async (_id: string, cb: () => any) => cb() };
+    return { run: async (_id: string, cb: () => unknown) => cb() };
   }
   const logger = { info: () => {}, warn: () => {}, error: () => {} };
 
@@ -291,7 +291,7 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
       },
     };
 
-    const result = await (processPlanAfterAI as any).fn({ event: { data: eventData }, step: makeStep(), logger });
+    const result = await (processPlanAfterAI as unknown as { fn: (args: unknown) => Promise<unknown> }).fn({ event: { data: eventData }, step: makeStep(), logger });
 
     // (1) The Step 0 public write must have empty days, despite non-empty input.
     const skeletonWriteCall = mockCalls.find((c) => c.id === 'plan-abc' && c.data._p231_stub === false);
@@ -338,7 +338,7 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
       },
     };
 
-    await (processPlanAfterAI as any).fn({ event: { data: eventData }, step: makeStep(), logger });
+    await (processPlanAfterAI as unknown as { fn: (args: unknown) => Promise<unknown> }).fn({ event: { data: eventData }, step: makeStep(), logger });
 
     // No 'skeleton-write'-shaped call (identified by the _p231_stub key) at all.
     const skeletonWriteCall = mockCalls.find((c) => Object.prototype.hasOwnProperty.call(c.data, '_p231_stub'));

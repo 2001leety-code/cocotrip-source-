@@ -169,10 +169,18 @@ describe('P239 architectural: Frontend Wizard', () => {
   });
 
   it('usePlannerHandlers.ts — tour_start_time → tourStartTime 변환', () => {
-    const src = readFile('src/pages/PlannerPage/hooks/usePlannerHandlers.ts');
+    // planner-intent-v1 (2026-08-24): 이 변환은 usePlannerHandlers.ts 인라인에서
+    // lib/plannerIntent.ts::buildPlannerIntentV1 로 이동했다 (SSOT 단일화 — 모든
+    // submit 경로가 이 한 함수를 거친다). usePlannerHandlers 는 그 함수를 부른다.
+    const handlersSrc = readFile('src/pages/PlannerPage/hooks/usePlannerHandlers.ts');
     expect(
-      /tour_start_time[\s\S]{0,80}tourStartTime/.test(src),
-      'usePlannerHandlers tour_start_time → backend forwarding 누락'
+      /buildFullPlannerIntentPayload/.test(handlersSrc),
+      'usePlannerHandlers가 buildFullPlannerIntentPayload(SSOT)를 쓰지 않음'
+    ).toBe(true);
+    const intentSrc = readFile('src/pages/PlannerPage/lib/plannerIntent.ts');
+    expect(
+      /tourStartTime[\s\S]{0,80}tour_start_time/.test(intentSrc),
+      'plannerIntent.ts tour_start_time → tourStartTime backend forwarding 누락'
     ).toBe(true);
   });
 });

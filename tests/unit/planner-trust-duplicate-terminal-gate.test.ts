@@ -85,13 +85,14 @@ describe('a) 순수 게이트 — findDuplicateStops / runDuplicateStopGate', ()
   });
 
   it('assertNoDuplicateStops 는 중복이면 stable code 로 throw, 부분성공/저장 없음', () => {
-    let caught: any = null;
+    let caught: unknown = null;
     try { assertNoDuplicateStops({ days: [dupDay(1)] }, 'post_response'); }
     catch (e) { caught = e; }
     expect(caught).toBeTruthy();
-    expect(caught.code).toBe(FINAL_GATE_DUPLICATE_CODE);
-    expect(caught.statusCode).toBe(422);
-    expect(caught.stage).toBe('post_response');
+    const err = caught as { code?: string; statusCode?: number; stage?: string };
+    expect(err.code).toBe(FINAL_GATE_DUPLICATE_CODE);
+    expect(err.statusCode).toBe(422);
+    expect(err.stage).toBe('post_response');
   });
 
   it('assertNoDuplicateStops 는 중복 없으면 조용히 통과', () => {
@@ -115,15 +116,15 @@ describe('c) background Pass3 — 중복 있는 enrich 결과가 Firestore 를 �
 
   beforeEach(() => { vi.resetModules(); vi.restoreAllMocks(); });
 
-  async function runBg(enrichedResult: any) {
+  async function runBg(enrichedResult: Record<string, unknown>) {
     process.env.PLANNER_PASS3_BACKGROUND = 'true';
-    const updates: any[] = [];
-    const settled: any[] = []; // fire-and-forget IIFE 종료 마킹 — 성공/스킵 두 경로 모두 채움
+    const updates: Array<{ planId: string; it: unknown }> = [];
+    const settled: string[] = []; // fire-and-forget IIFE 종료 마킹 — 성공/스킵 두 경로 모두 채움
     vi.doMock('../../api/_ai_core/threePassPipeline.js', () => ({
       pass3Enrich: async () => enrichedResult,
     }));
     vi.doMock('../../api/_ai_core/planPersister.js', () => ({
-      updatePlanEnrichment: async (_db: any, planId: string, it: any) => {
+      updatePlanEnrichment: async (_db: unknown, planId: string, it: unknown) => {
         updates.push({ planId, it });
         settled.push('updated');
       },
@@ -138,7 +139,9 @@ describe('c) background Pass3 — 중복 있는 enrich 결과가 Firestore 를 �
       buildModel: () => ({}),
       loadFoodIndex: async () => [],
     }));
-    const bg: any = await import('../../api/_ai_core/backgroundPipelines.js');
+    const bg = await import('../../api/_ai_core/backgroundPipelines.js') as {
+      triggerPass3BackgroundIfPending: (ctx: Record<string, unknown>) => void;
+    };
     bg.triggerPass3BackgroundIfPending({
       adminDb: {}, planId: 'p1', language: 'en', apiKey: 'k',
       itinerary: JSON.parse(JSON.stringify(validPlan)), dietary: [],
@@ -168,7 +171,9 @@ describe('d) applyRecommendedRestaurants — 실제 실행 순서 (식이 게이
     vi.doMock('../../api/_ai_core/recommendedRestaurants.js', () => ({
       pickRecommendedRestaurantsByStyle: () => ({ general: [] }),
     }));
-    const mod: any = await import('../../api/_ai_core/postResponsePipeline.js');
+    const mod = await import('../../api/_ai_core/postResponsePipeline.js') as {
+      applyRecommendedRestaurants: (itinerary: unknown, ctx: Record<string, unknown>) => Promise<unknown>;
+    };
     return mod.applyRecommendedRestaurants;
   }
 
@@ -200,24 +205,24 @@ describe('d) applyRecommendedRestaurants — 실제 실행 순서 (식이 게이
 
   it('식이 요구 없음 + 중복 있음 → 중복 게이트가 잡아 throw', async () => {
     const applyRecommendedRestaurants = await loadApplyRecommendedRestaurants();
-    let caught: any = null;
+    let caught: unknown = null;
     try {
       await applyRecommendedRestaurants(dupOnlyItinerary(), {
         area: 'seoul', dietPrefs: [], regions: ['seoul'], blockModeUsed: false, language: 'en', styles: [],
       });
     } catch (e) { caught = e; }
-    expect(caught?.code).toBe(FINAL_GATE_DUPLICATE_CODE);
+    expect((caught as { code?: string } | null)?.code).toBe(FINAL_GATE_DUPLICATE_CODE);
   });
 
   it('식이 위반 + 중복 둘 다 있음 → 식이 게이트가 먼저 잡아 throw (중복 게이트까지 안 감)', async () => {
     const applyRecommendedRestaurants = await loadApplyRecommendedRestaurants();
-    let caught: any = null;
+    let caught: unknown = null;
     try {
       await applyRecommendedRestaurants(dietaryAndDupItinerary(), {
         area: 'seoul', dietPrefs: ['vegan'], regions: ['seoul'], blockModeUsed: false, language: 'en', styles: [],
       });
     } catch (e) { caught = e; }
-    expect(caught?.code).toBe(FINAL_GATE_DIETARY_CODE);
+    expect((caught as { code?: string } | null)?.code).toBe(FINAL_GATE_DIETARY_CODE);
   });
 
   it('식이 요구 없음 + 중복 없음 → 정상 통과, foodIndex 반환', async () => {
