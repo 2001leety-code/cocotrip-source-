@@ -105,6 +105,24 @@ describe('MoodBookingShareCard', () => {
     expect(screen.getByText('(추가 주차비)')).toBeInTheDocument();
   });
 
+  it('전체 차량 일정을 구간별 전체 주소·도착·대기·재출발로 보여 준다', () => {
+    const data = shareData();
+    data.startTime = '09:00';
+    data.routeSchedule = [
+      { arrivalTime: null, pickupTime: '09:00' },
+      { arrivalTime: '09:40', pickupTime: '11:40' },
+      { arrivalTime: '12:20', pickupTime: null },
+    ];
+    render(<MoodBookingShareCard data={data} />);
+
+    expect(screen.getByRole('region', { name: '전체 차량 일정' })).toBeInTheDocument();
+    expect(screen.getByText(/서울역 1번 출구.*성수동 촬영장/)).toBeInTheDocument();
+    expect(screen.getByText('출발 09:00 · 도착 09:40')).toBeInTheDocument();
+    expect(screen.getByText('대기 2시간 · 재출발(픽업) 11:40')).toBeInTheDocument();
+    expect(screen.getByText('도착 09:40 · 재출발 11:40 · 대기 2시간')).toBeInTheDocument();
+    expect(screen.getByText('출발 11:40 · 도착 12:20')).toBeInTheDocument();
+  });
+
   it('카드 데이터 계약에 없는 직원 이메일과 잔액은 화면에 나오지 않는다', () => {
     const data = shareData() as MoodBookingShareData & { createdByEmail: string; runningBalanceKRW: number };
     data.createdByEmail = 'secret@example.com';

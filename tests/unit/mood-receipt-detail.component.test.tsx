@@ -89,6 +89,25 @@ describe('MoodReceiptModal — 요금 상세 (2026-07-04)', () => {
     expect(url).toContain('waypoints=');
   });
 
+  it('저장된 도착·재출발 시각과 대기시간을 주소 아래 표시한다', () => {
+    const scheduled = {
+      ...REAL_BOOKING,
+      routeSchedule: [
+        { arrivalTime: null, pickupTime: '09:20' },
+        { arrivalTime: '10:00', pickupTime: '12:00' },
+        { arrivalTime: null, pickupTime: null },
+        { arrivalTime: null, pickupTime: null },
+        { arrivalTime: null, pickupTime: null },
+        { arrivalTime: '18:00', pickupTime: null },
+      ],
+    };
+    render(<MoodReceiptModal booking={scheduled} onClose={() => {}} />);
+
+    expect(screen.getByText('출발 09:20')).toBeTruthy();
+    expect(screen.getByText('도착 10:00 · 재출발 12:00 · 대기 2시간')).toBeTruthy();
+    expect(screen.getByText('도착 18:00')).toBeTruthy();
+  });
+
   it('경로 조회 실패해도 영수증 텍스트는 그대로 (지도만 생략)', async () => {
     authFetchMock.mockRejectedValueOnce(new Error('network'));
     render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);

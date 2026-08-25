@@ -37,6 +37,14 @@ import { MoodBookingShareCard, MoodBookingCopyButton } from '@/components/mood/M
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import { normalizeMoodCoursePercentages, type MoodBookingShareData } from '@/lib/moodBookingShare';
 import {
+  createMoodRouteSchedule,
+  formatMoodRouteScheduleStopSummary,
+  normalizeMoodRouteSchedule,
+  setMoodRouteStopWaitMinutes,
+  validateMoodRouteSchedule,
+  type MoodRouteScheduleStop,
+} from '@/lib/moodRouteSchedule';
+import {
   MOOD_EVENING_BLACKOUT_NOTICE,
   isMoodEveningBlackoutDate,
   isMoodEveningBookingBlocked,
@@ -144,6 +152,8 @@ interface MoodBooking {
   runningBalanceKRW?: number | null;
   /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
   note?: string | null;
+  /** 주소 동선과 같은 순서의 도착·재출발 시각. 요금 계산에는 쓰지 않는다. */
+  routeSchedule?: MoodRouteScheduleStop[] | null;
   /** 공항 예약 메타 — 정액 근거(ICN 110,000 / GMP 80,000). 레거시 예약은 null = 인천 취급. */
   airportCode?: MoodAirportCode | null;
   airportDirection?: 'pickup' | 'sending' | null;
@@ -236,6 +246,22 @@ function routeTextFromBreakdown(bd?: MoodBreakdown | null): string | null {
   return stops.length >= 2 ? stops.join(' → ') : null;
 }
 
+function manualScheduleForRoute(
+  raw: MoodRouteScheduleStop[],
+  waypointValues: string[],
+  startTime: string,
+): MoodRouteScheduleStop[] {
+  const normalized = normalizeMoodRouteSchedule(raw, waypointValues.length + 2, startTime);
+  return [
+    normalized[0],
+    ...waypointValues
+      .map((waypoint, index) => ({ waypoint: waypoint.trim(), schedule: normalized[index + 1] }))
+      .filter((item) => item.waypoint)
+      .map((item) => item.schedule),
+    normalized[normalized.length - 1],
+  ];
+}
+
 function googleDirectionsUrl(bd?: MoodBreakdown | null): string {
   const stops = cleanStops(bd);
   if (stops.length >= 2) {
@@ -314,6 +340,7 @@ function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRout
       lng: points[index]?.lng,
       moodPercentage: courseMoodPercentages[index],
     })),
+    routeSchedule: booking.routeSchedule,
     route: snapshot ? {
       km: snapshot.km || activeBreakdown.routeKm || activeBreakdown.km || null,
       durationMin: snapshot.durationMin || activeBreakdown.durationMin || null,
@@ -383,6 +410,10 @@ export default function MoodPortal() {
   const [origin, setOrigin] = useState('');
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [destination, setDestination] = useState('');
+  const [manualRouteSchedule, setManualRouteSchedule] = useState<MoodRouteScheduleStop[]>(() => (
+    createMoodRouteSchedule(2, '10:00')
+  ));
+  const [manualScheduleOpen, setManualScheduleOpen] = useState(false);
   // AddressAutocomplete(네이버 검색+미니지도 핀) 표시용 병렬 상태. 돈 경로는 위 문자열이 SSOT —
   // 서버가 재지오코딩(P311)하므로 API엔 문자열만 보낸다. AC는 확정 UI·좌표 보너스일 뿐.
   // waypointsAC 는 waypoints 와 인덱스·길이 항상 동기(add/remove/copy 시 함께 갱신).
@@ -656,6 +687,37 @@ export default function MoodPortal() {
     return () => clearTimeout(t);
   }, [origin, waypoints, destination, serviceType]);
 
+  const handleManualStartTimeChange = useCallback((value: string) => {
+    setStartTime(value);
+    setManualRouteSchedule((current) => current.map((stop, index) => (
+      index === 0 ? { ...stop, arrivalTime: null, pickupTime: value || null } : stop
+    )));
+  }, []);
+
+  const updateManualScheduleTime = useCallback((
+    index: number,
+    field: 'arrivalTime' | 'pickupTime',
+    value: string,
+  ) => {
+    setManualRouteSchedule((current) => normalizeMoodRouteSchedule(
+      current,
+      waypoints.length + 2,
+      startTime,
+    ).map((stop, stopIndex) => (
+      stopIndex === index ? { ...stop, [field]: value || null } : stop
+    )));
+  }, [waypoints.length, startTime]);
+
+  const setManualStopWait = useCallback((index: number, minutes: number) => {
+    setManualRouteSchedule((current) => normalizeMoodRouteSchedule(
+      current,
+      waypoints.length + 2,
+      startTime,
+    ).map((stop, stopIndex) => (
+      stopIndex === index ? setMoodRouteStopWaitMinutes(stop, minutes) : stop
+    )));
+  }, [waypoints.length, startTime]);
+
   const handleBook = useCallback(async () => {
     if (!data) return;
     if (isMoodEveningBookingBlocked(date, startTime)) {
@@ -668,6 +730,17 @@ export default function MoodPortal() {
       const wp = waypoints
         .map((s) => s.trim())
         .filter(Boolean);
+      const hasCompleteRoute = !!origin.trim() && !!destination.trim();
+      const routeSchedule = hasCompleteRoute
+        ? manualScheduleForRoute(manualRouteSchedule, waypoints, startTime)
+        : undefined;
+      if (routeSchedule) {
+        const scheduleValidation = validateMoodRouteSchedule(routeSchedule, wp.length + 2, startTime);
+        if (!scheduleValidation.valid) {
+          setFormMsg({ kind: 'err', text: scheduleValidation.issues[0]?.message || '상세 일정 시각을 확인해 주세요.' });
+          return;
+        }
+      }
       const bookingPayload = {
         clientId: data.clientId,
         date,
@@ -677,6 +750,7 @@ export default function MoodPortal() {
         origin: origin.trim() || undefined,
         destination: destination.trim() || undefined,
         waypoints: wp.length ? wp : undefined,
+        routeSchedule,
         airportDirection: serviceType === 'airport' ? airportDirection : undefined,
         airportCode: serviceType === 'airport' ? airportCode : undefined,
         influencerName: influencerName.trim() || undefined,
@@ -717,7 +791,7 @@ export default function MoodPortal() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, influencerName, bookingNote, courseMoodPercentages, loadData]);
+  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, manualRouteSchedule, influencerName, bookingNote, courseMoodPercentages, loadData]);
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
@@ -728,13 +802,24 @@ export default function MoodPortal() {
   const addWaypoint = useCallback(() => {
     setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
     setWaypointsAC((w) => (w.length >= 5 ? w : [...w, null]));
+    setManualRouteSchedule((current) => {
+      if (current.length >= 7) return current;
+      const normalized = normalizeMoodRouteSchedule(current, current.length, startTime);
+      const destinationSchedule = normalized[normalized.length - 1] || { arrivalTime: null, pickupTime: null };
+      return [
+        ...normalized.slice(0, -1),
+        { arrivalTime: null, pickupTime: null },
+        destinationSchedule,
+      ];
+    });
     setCourseMoodPercentages((percentages) => (percentages.length >= 7
       ? percentages
       : [...percentages.slice(0, -1), percentages[percentages.length - 1] === undefined ? 100 : percentages[percentages.length - 1], percentages[percentages.length - 1] === undefined ? 100 : percentages[percentages.length - 1]]));
-  }, []);
+  }, [startTime]);
   const removeWaypoint = useCallback((i: number) => {
     setWaypoints((w) => w.filter((_, idx) => idx !== i));
     setWaypointsAC((w) => w.filter((_, idx) => idx !== i));
+    setManualRouteSchedule((current) => current.filter((_, idx) => idx !== i + 1));
     setCourseMoodPercentages((percentages) => percentages.filter((_, idx) => idx !== i + 1));
   }, []);
   const setWaypointAt = useCallback((i: number, val: string) => {
@@ -783,6 +868,12 @@ export default function MoodPortal() {
     setOrigin(bd.origin || '');
     setDestination(bd.destination || '');
     setWaypoints(wps);
+    setManualRouteSchedule(normalizeMoodRouteSchedule(
+      b.routeSchedule,
+      wps.length + 2,
+      b.startTime || '10:00',
+    ));
+    setManualScheduleOpen(Array.isArray(b.routeSchedule) && b.routeSchedule.length > 0);
     const expectedCourseCount = wps.length + 2;
     setCourseMoodPercentages(normalizeMoodCoursePercentages(
       b.courseMoodPercentages,
@@ -908,6 +999,12 @@ export default function MoodPortal() {
     ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
     { address: destination.trim(), percentageIndex: courseMoodPercentages.length - 1 },
   ].filter((item) => item.address);
+  const manualRouteAddresses = [origin, ...waypoints, destination];
+  const normalizedManualSchedule = normalizeMoodRouteSchedule(
+    manualRouteSchedule,
+    manualRouteAddresses.length,
+    startTime,
+  );
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -1301,7 +1398,7 @@ export default function MoodPortal() {
             <input
               type="time"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => handleManualStartTimeChange(e.target.value)}
               className="rounded-xl px-3 py-2.5 text-sm"
               style={{ ...inputStyle, colorScheme: 'dark' }}
             />
@@ -1442,6 +1539,94 @@ export default function MoodPortal() {
                 현재 도착지: {destination} <span className="opacity-70">— 바꾸려면 위에서 검색</span>
               </p>
             )}
+
+            <div className="rounded-xl p-2.5" style={{ background: 'rgba(2,6,23,0.32)', border: C.inputBorder }}>
+              <button
+                type="button"
+                onClick={() => setManualScheduleOpen((open) => !open)}
+                aria-expanded={manualScheduleOpen}
+                aria-controls="mood-manual-route-schedule"
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                style={{ background: C.inputBg, color: C.text }}
+              >
+                <span>
+                  상세 일정 <span style={{ color: C.textDim }}>· 도착·재출발·대기</span>
+                </span>
+                <span className="shrink-0" style={{ color: C.accentSolid }}>{manualScheduleOpen ? '접기' : '시간 입력'}</span>
+              </button>
+
+              {manualScheduleOpen && (
+                <div id="mood-manual-route-schedule" className="mt-2 flex flex-col gap-2">
+                  <p className="px-1 text-[11px] leading-relaxed" style={{ color: C.textDim }}>
+                    일정 시각은 운영·공유용입니다. 수정해도 이용시간과 금액은 자동으로 바뀌지 않습니다.
+                  </p>
+                  {manualRouteAddresses.map((address, index) => {
+                    const scheduleStop = normalizedManualSchedule[index] || { arrivalTime: null, pickupTime: null };
+                    const isOriginStop = index === 0;
+                    const isDestinationStop = index === manualRouteAddresses.length - 1;
+                    const isWaypointStop = !isOriginStop && !isDestinationStop;
+                    const role = isOriginStop ? '출발지' : isDestinationStop ? '도착지' : `경유지 ${index}`;
+                    return (
+                      <div key={`${role}-${index}`} className="rounded-xl p-3" style={{ background: C.inputBg, border: C.inputBorder }}>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold" style={{ color: C.text }}>{index + 1}. {role}</p>
+                          <p className="truncate text-[11px]" style={{ color: C.textDim }}>{address.trim() || '주소 미입력'}</p>
+                          <p className="mt-1 text-[11px] font-bold" style={{ color: C.accentSolid }}>
+                            {formatMoodRouteScheduleStopSummary(scheduleStop, index, manualRouteAddresses.length)}
+                          </p>
+                        </div>
+                        {isOriginStop ? (
+                          <p className="mt-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: C.card, color: C.textDim }}>
+                            출발 {startTime || '미입력'} · 위 시작 시각과 연결됨
+                          </p>
+                        ) : (
+                          <div className={`mt-2 grid gap-2 ${isWaypointStop ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            <label className="text-[11px] font-bold" style={{ color: C.textDim }}>
+                              도착 시각
+                              <input
+                                type="time"
+                                value={scheduleStop.arrivalTime || ''}
+                                onChange={(event) => updateManualScheduleTime(index, 'arrivalTime', event.target.value)}
+                                className="mt-1 min-h-11 w-full rounded-xl px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                                style={{ ...inputStyle, colorScheme: 'dark' }}
+                              />
+                            </label>
+                            {isWaypointStop && (
+                              <label className="text-[11px] font-bold" style={{ color: C.textDim }}>
+                                재출발(픽업)
+                                <input
+                                  type="time"
+                                  value={scheduleStop.pickupTime || ''}
+                                  onChange={(event) => updateManualScheduleTime(index, 'pickupTime', event.target.value)}
+                                  className="mt-1 min-h-11 w-full rounded-xl px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        {isWaypointStop && (
+                          <div className="mt-2 grid grid-cols-3 gap-2">
+                            {[30, 60, 120].map((minutes) => (
+                              <button
+                                key={minutes}
+                                type="button"
+                                onClick={() => setManualStopWait(index, minutes)}
+                                disabled={!scheduleStop.arrivalTime}
+                                className="min-h-11 rounded-xl px-2 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-40"
+                                style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
+                              >
+                                {minutes === 30 ? '30분' : `${minutes / 60}시간`}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {routeLoading && (
               <p className="text-[11px]" style={{ color: C.textDim }}>경로 계산 중…</p>
             )}
@@ -1590,6 +1775,9 @@ export default function MoodPortal() {
                 const bd = completed && b.finalBreakdown ? b.finalBreakdown : bookedBd;
                 const routeText = routeTextFromBreakdown(bd);
                 const stops = cleanStops(bd);
+                const bookingRouteSchedule = Array.isArray(b.routeSchedule)
+                  ? normalizeMoodRouteSchedule(b.routeSchedule, stops.length, b.startTime)
+                  : null;
                 const expanded = expandedBookingId === b.id;
                 const needsSettlement = b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= todayISO();
                 const settlementApprovalStatus = b.settlementApproval?.status;
@@ -1664,8 +1852,13 @@ export default function MoodPortal() {
                                   >
                                     {i + 1}
                                   </span>
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 flex-1">
                                     <p className="text-xs font-semibold truncate" style={{ color: C.text }}>{stop}</p>
+                                    {bookingRouteSchedule && (
+                                      <p className="text-[10px] font-bold" style={{ color: C.accentSolid }}>
+                                        {formatMoodRouteScheduleStopSummary(bookingRouteSchedule[i], i, stops.length)}
+                                      </p>
+                                    )}
                                     {i < stops.length - 1 && (
                                       <p className="text-[10px]" style={{ color: C.textDim }}>차량 이동</p>
                                     )}

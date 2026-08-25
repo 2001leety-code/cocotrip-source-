@@ -18,13 +18,35 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, RotateCcw, Search, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Clipboard,
+  ClipboardPaste,
+  GripVertical,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
 import { computeMoodTotalKRW, formatKRW, type MoodAirportCode, type MoodServiceType } from '@/lib/moodPricing';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import { normalizeMoodCoursePercentages } from '@/lib/moodBookingShare';
+import {
+  createMoodRouteSchedule,
+  formatMoodRouteScheduleStopSummary,
+  formatMoodRouteScheduleText,
+  formatMoodRouteWait,
+  getMoodRouteWaitMinutes,
+  normalizeMoodRouteSchedule,
+  parseMoodRouteScheduleText,
+  setMoodRouteStopWaitMinutes,
+  validateMoodRouteSchedule,
+  type MoodRouteScheduleStop,
+} from '@/lib/moodRouteSchedule';
 import {
   MOOD_EVENING_BLACKOUT_NOTICE,
   isMoodEveningBookingBlocked,
@@ -40,15 +62,34 @@ interface RouteData {
   points: Array<{ lat: number; lng: number; role: 'origin' | 'waypoint' | 'destination'; index?: number }>;
 }
 
-interface MoodRouteStop {
+interface MoodRouteStop extends MoodRouteScheduleStop {
   id: string;
   address: string;
   moodPercentage: number;
 }
 
+interface MoodSchedulePreview {
+  source: 'text' | 'ai';
+  date: string | null;
+  startTime: string | null;
+  addresses: string[];
+  routeSchedule: MoodRouteScheduleStop[];
+  warnings: string[];
+}
+
+interface MoodParsedScheduleStop {
+  address?: string;
+  label?: string;
+  action?: 'pickup' | 'dropoff' | 'via' | 'arrive';
+  timeHint?: string;
+  date?: string | null;
+  geocodeOk?: boolean;
+}
+
 interface RemovedMoodRouteStop {
   stop: MoodRouteStop;
   index: number;
+  scheduleById: Record<string, MoodRouteScheduleStop>;
 }
 
 interface RouteCalculationState {
@@ -80,9 +121,16 @@ interface SortableRouteStopProps {
   index: number;
   count: number;
   canRemove: boolean;
+  canInsertAfter: boolean;
+  isExpanded: boolean;
   onAddressChange: (id: string, address: string) => void;
   onSelectAddress: (id: string) => void;
   onRemove: (id: string) => void;
+  onInsertAfter: (index: number) => void;
+  onToggleSchedule: (id: string) => void;
+  onTimeChange: (id: string, field: 'arrivalTime' | 'pickupTime', value: string) => void;
+  onSetWait: (id: string, minutes: number) => void;
+  onMove: (id: string, delta: -1 | 1) => void;
 }
 
 function SortableRouteStop({
@@ -90,9 +138,16 @@ function SortableRouteStop({
   index,
   count,
   canRemove,
+  canInsertAfter,
+  isExpanded,
   onAddressChange,
   onSelectAddress,
   onRemove,
+  onInsertAfter,
+  onToggleSchedule,
+  onTimeChange,
+  onSetWait,
+  onMove,
 }: SortableRouteStopProps) {
   const {
     attributes,
@@ -117,6 +172,11 @@ function SortableRouteStop({
       ? 'bg-rose-400'
       : 'bg-amber-400';
   const describedBy = [attributes['aria-describedby'], 'mood-route-reorder-help'].filter(Boolean).join(' ');
+  const scheduleSummary = formatMoodRouteScheduleStopSummary(stop, index, count);
+  const waitMinutes = getMoodRouteWaitMinutes(stop);
+  const isOrigin = index === 0;
+  const isDestination = index === count - 1;
+  const isWaypoint = !isOrigin && !isDestination;
 
   return (
     <li
@@ -124,60 +184,161 @@ function SortableRouteStop({
       style={style}
       data-testid="mood-route-stop"
       data-route-stop-id={stop.id}
-      className={`relative bg-white/[0.025] p-2.5 ${isDragging ? 'z-30 rounded-2xl ring-2 ring-violet-300 shadow-xl shadow-violet-950/40' : ''}`}
+      className={`relative ${isDragging ? 'z-30 rounded-2xl ring-2 ring-violet-300 shadow-xl shadow-violet-950/40' : ''}`}
     >
-      <div className="flex items-center gap-2">
-        <button
-          id={`${stop.id}-reorder`}
-          ref={setActivatorNodeRef}
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label={`${index + 1}번 ${label} 순서 이동`}
-          aria-describedby={describedBy}
-          title="끌어서 순서 변경"
-          className="flex h-11 w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 outline-none transition active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-violet-300"
-        >
-          <GripVertical className="h-5 w-5" aria-hidden="true" />
-        </button>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-2.5">
+        <div className="flex items-center gap-2">
+          <button
+            id={`${stop.id}-reorder`}
+            ref={setActivatorNodeRef}
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`${index + 1}번 ${label} 순서 이동`}
+            aria-describedby={describedBy}
+            title="끌어서 순서 변경"
+            className="flex h-11 w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 outline-none transition active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-violet-300"
+          >
+            <GripVertical className="h-5 w-5" aria-hidden="true" />
+          </button>
 
-        <div className="min-w-0 flex-1">
-          <label htmlFor={inputId} className="mb-1 flex items-center gap-1.5 text-xs font-black text-white">
-            <span className={`h-2 w-2 rounded-full ${markerClass}`} aria-hidden="true" />
-            <span>{index + 1}. {label}</span>
-          </label>
-          <div className="relative">
-            <input
-              id={inputId}
-              value={stop.address}
-              maxLength={300}
-              onChange={(event) => onAddressChange(stop.id, event.target.value)}
-              placeholder={`${label}를 입력하세요`}
-              className="min-h-11 w-full min-w-0 rounded-xl border border-white/15 bg-black/20 py-2 pl-3 pr-12 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-300 focus:ring-1 focus:ring-violet-300"
-            />
+          <div className="min-w-0 flex-1">
+            <label htmlFor={inputId} className="mb-1 flex items-center gap-1.5 text-xs font-black text-white">
+              <span className={`h-2 w-2 rounded-full ${markerClass}`} aria-hidden="true" />
+              <span>{index + 1}. {label}</span>
+            </label>
+            <div className="relative">
+              <input
+                id={inputId}
+                value={stop.address}
+                maxLength={300}
+                onChange={(event) => onAddressChange(stop.id, event.target.value)}
+                placeholder={`${label}를 입력하세요`}
+                className="min-h-11 w-full min-w-0 rounded-xl border border-white/15 bg-black/20 py-2 pl-3 pr-12 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-300 focus:ring-1 focus:ring-violet-300"
+              />
+              <button
+                type="button"
+                onClick={() => onSelectAddress(stop.id)}
+                aria-label={`${index + 1}번 ${label} 주소 검색`}
+                title="주소 검색"
+                className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-xl text-slate-200 outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-violet-300"
+              >
+                <Search className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          {canRemove && (
             <button
               type="button"
-              onClick={() => onSelectAddress(stop.id)}
-              aria-label={`${index + 1}번 ${label} 주소 검색`}
-              title="주소 검색"
-              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-xl text-slate-200 outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-violet-300"
+              onClick={() => onRemove(stop.id)}
+              aria-label={`${index + 1}번 ${label} 삭제`}
+              title="장소 삭제"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-200 outline-none transition hover:bg-rose-500/25 focus-visible:ring-2 focus-visible:ring-rose-300"
             >
-              <Search className="h-4 w-4" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
-          </div>
+          )}
         </div>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={() => onRemove(stop.id)}
-            aria-label={`${index + 1}번 ${label} 삭제`}
-            title="장소 삭제"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-200 outline-none transition hover:bg-rose-500/25 focus-visible:ring-2 focus-visible:ring-rose-300"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+
+        <button
+          type="button"
+          onClick={() => onToggleSchedule(stop.id)}
+          aria-expanded={isExpanded}
+          aria-controls={`${stop.id}-schedule-panel`}
+          aria-label={`${index + 1}번 ${label} 시간 ${isExpanded ? '접기' : '편집'}`}
+          className="mt-2 flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-violet-300/20 bg-violet-400/[0.08] px-3 text-left text-xs font-bold text-slate-200 outline-none transition hover:bg-violet-400/[0.14] focus-visible:ring-2 focus-visible:ring-violet-300"
+        >
+          <span className="min-w-0 flex-1 leading-relaxed">{scheduleSummary}</span>
+          {isExpanded
+            ? <ChevronUp className="h-4 w-4 shrink-0 text-violet-200" aria-hidden="true" />
+            : <ChevronDown className="h-4 w-4 shrink-0 text-violet-200" aria-hidden="true" />}
+        </button>
+
+        {isExpanded && (
+          <div id={`${stop.id}-schedule-panel`} className="mt-2 rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className={`grid gap-2 ${isWaypoint ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {!isOrigin && (
+                <label className="text-xs font-bold text-slate-200">
+                  도착 시각
+                  <input
+                    type="time"
+                    value={stop.arrivalTime || ''}
+                    onChange={(event) => onTimeChange(stop.id, 'arrivalTime', event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-white/15 bg-[#181b25] px-3 text-sm text-white outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-300"
+                  />
+                </label>
+              )}
+              {!isDestination && (
+                <label className="text-xs font-bold text-slate-200">
+                  {isOrigin ? '출발 시각' : '재출발(픽업) 시각'}
+                  <input
+                    type="time"
+                    value={stop.pickupTime || ''}
+                    onChange={(event) => onTimeChange(stop.id, 'pickupTime', event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-white/15 bg-[#181b25] px-3 text-sm text-white outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-300"
+                  />
+                </label>
+              )}
+            </div>
+
+            {isWaypoint && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-black text-white">대기시간 빠른 입력</p>
+                  <p className="text-xs font-bold text-violet-200" aria-live="polite">
+                    {waitMinutes === null ? '도착 시각을 먼저 입력하세요' : `대기 ${formatMoodRouteWait(waitMinutes)}`}
+                  </p>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[30, 60, 120].map((minutes) => (
+                    <button
+                      key={minutes}
+                      type="button"
+                      onClick={() => onSetWait(stop.id, minutes)}
+                      disabled={!stop.arrivalTime}
+                      className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-2 text-xs font-black text-slate-200 outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {minutes === 30 ? '30분' : `${minutes / 60}시간`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onMove(stop.id, -1)}
+                disabled={index === 0}
+                className="min-h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-black text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-35"
+              >
+                위로 이동
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(stop.id, 1)}
+                disabled={index === count - 1}
+                className="min-h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-black text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-35"
+              >
+                아래로 이동
+              </button>
+            </div>
+          </div>
         )}
       </div>
+
+      {canInsertAfter && (
+        <div className="flex justify-center py-1">
+          <button
+            type="button"
+            onClick={() => onInsertAfter(index)}
+            aria-label={`${index + 1}번 ${label} 다음에 경유지 추가`}
+            className="flex min-h-11 items-center gap-1 rounded-full border border-dashed border-violet-300/35 bg-[#11131a] px-4 text-[11px] font-black text-violet-200 outline-none transition hover:bg-violet-400/10 focus-visible:ring-2 focus-visible:ring-violet-300"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> 이 사이에 경유지 추가
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -196,6 +357,7 @@ export interface ChangeableMoodBooking {
   courseMoodPercentages?: number[] | null;
   coursePayers?: Array<'mood' | 'influencer'> | null;
   note?: string | null;
+  routeSchedule?: MoodRouteScheduleStop[] | null;
   breakdown?: {
     origin?: string | null;
     destination?: string | null;
@@ -239,6 +401,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     ...initialWaypoints,
     String(booking.breakdown?.destination || ''),
   ];
+  const initialRouteSchedule = normalizeMoodRouteSchedule(
+    booking.routeSchedule,
+    initialRouteAddresses.length,
+    booking.startTime,
+  );
   const safeBookingId = String(booking.id || 'booking').replace(/[^a-zA-Z0-9_-]/g, '-');
   const [date, setDate] = useState(booking.date || '');
   const [startTime, setStartTime] = useState(booking.startTime || '');
@@ -250,9 +417,16 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     id: `mood-route-stop-${safeBookingId}-${index}`,
     address,
     moodPercentage: initialCourseMoodPercentages[index],
+    ...initialRouteSchedule[index],
   })));
   const [removedRouteStop, setRemovedRouteStop] = useState<RemovedMoodRouteStop | null>(null);
+  const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
   const [routeAnnouncement, setRouteAnnouncement] = useState('');
+  const [showSchedulePaste, setShowSchedulePaste] = useState(false);
+  const [schedulePasteText, setSchedulePasteText] = useState('');
+  const [schedulePreview, setSchedulePreview] = useState<MoodSchedulePreview | null>(null);
+  const [scheduleParsing, setScheduleParsing] = useState(false);
+  const [scheduleTransferMessage, setScheduleTransferMessage] = useState('');
   const [influencerName, setInfluencerName] = useState(booking.influencerName || '');
   const [note, setNote] = useState(booking.note || '');
   const [reason, setReason] = useState('');
@@ -384,6 +558,232 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     ? [routeStops[0], ...routeStops.slice(1, -1).filter((stop) => stop.address.trim()), routeStops[routeStops.length - 1]]
     : [];
   const courseMoodPercentageValues = activeRouteStops.map((stop) => stop.moodPercentage);
+  const routeSchedule = routeStops.map(({ arrivalTime, pickupTime }) => ({ arrivalTime, pickupTime }));
+
+  const handleStartTimeChange = (value: string) => {
+    setStartTime(value);
+    setRouteStops((items) => items.map((item, index) => (
+      index === 0 ? { ...item, pickupTime: value || null } : item
+    )));
+  };
+
+  const updateRouteStopTime = (
+    id: string,
+    field: 'arrivalTime' | 'pickupTime',
+    value: string,
+  ) => {
+    const normalizedValue = value || null;
+    const index = routeStops.findIndex((stop) => stop.id === id);
+    if (index === 0 && field === 'pickupTime') setStartTime(value);
+    setRouteStops((items) => items.map((item) => (
+      item.id === id ? { ...item, [field]: normalizedValue } : item
+    )));
+    setScheduleTransferMessage('일정 시각을 수정했습니다. 청구 이용시간은 자동으로 바뀌지 않습니다.');
+  };
+
+  const setRouteStopWait = (id: string, minutes: number) => {
+    setRouteStops((items) => items.map((item) => (
+      item.id === id ? { ...item, ...setMoodRouteStopWaitMinutes(item, minutes) } : item
+    )));
+    setScheduleTransferMessage(`대기 ${formatMoodRouteWait(minutes)}을 적용했습니다.`);
+  };
+
+  const commitRouteStopOrder = (nextItems: MoodRouteStop[], announcement: string) => {
+    if (nextItems.length < 2) return;
+    const next = nextItems.map((item) => ({ ...item }));
+    const firstTime = next[0].pickupTime || next[0].arrivalTime || startTime || null;
+    next[0].arrivalTime = null;
+    next[0].pickupTime = firstTime;
+    const lastIndex = next.length - 1;
+    next[lastIndex].arrivalTime = next[lastIndex].arrivalTime || next[lastIndex].pickupTime || null;
+    next[lastIndex].pickupTime = null;
+    setRouteStops(next);
+    setStartTime(firstTime || '');
+    setRemovedRouteStop(null);
+    setRouteAnnouncement(announcement);
+  };
+
+  const moveRouteStop = (id: string, delta: -1 | 1) => {
+    const fromIndex = routeStops.findIndex((stop) => stop.id === id);
+    const toIndex = fromIndex + delta;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= routeStops.length) return;
+    const next = arrayMove(routeStops, fromIndex, toIndex);
+    commitRouteStopOrder(next, `${routeStops[fromIndex].address.trim() || '빈 장소'}를 ${delta < 0 ? '위로' : '아래로'} 이동했습니다.`);
+    window.setTimeout(() => document.getElementById(`${id}-reorder`)?.focus(), 0);
+  };
+
+  const copyScheduleText = async () => {
+    const text = formatMoodRouteScheduleText({ date, addresses: routeAddresses, routeSchedule, startTime });
+    if (!text) {
+      setScheduleTransferMessage('전체 일정을 복사하려면 빈 주소를 먼저 확인해 주세요.');
+      return;
+    }
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const copyTarget = document.createElement('textarea');
+        copyTarget.value = text;
+        copyTarget.setAttribute('readonly', '');
+        copyTarget.style.position = 'fixed';
+        copyTarget.style.opacity = '0';
+        document.body.appendChild(copyTarget);
+        copyTarget.select();
+        const copied = document.execCommand('copy');
+        copyTarget.remove();
+        if (!copied) throw new Error('copy failed');
+      }
+      setScheduleTransferMessage('전체 일정을 복사했습니다. 카카오톡에 그대로 붙여넣을 수 있습니다.');
+    } catch {
+      setSchedulePasteText(text);
+      setShowSchedulePaste(true);
+      setScheduleTransferMessage('자동 복사가 막혀 전체 일정을 입력칸에 열었습니다. 길게 눌러 복사해 주세요.');
+    }
+  };
+
+  const buildAiSchedulePreview = (json: Record<string, unknown>): MoodSchedulePreview | null => {
+    const parsedStops = Array.isArray(json.stops) ? json.stops as MoodParsedScheduleStop[] : [];
+    const datedStops = parsedStops.filter((stop) => stop.date);
+    const dates = [...new Set(datedStops.map((stop) => String(stop.date)))].sort();
+    const selectedDate = dates.includes(date) ? date : dates[0] || null;
+    const visibleStops = selectedDate
+      ? parsedStops.filter((stop) => !stop.date || stop.date === selectedDate)
+      : parsedStops;
+    const merged: Array<{ address: string; arrivalTime: string | null; pickupTime: string | null }> = [];
+
+    visibleStops.forEach((stop) => {
+      const address = String(stop.address || stop.label || '').trim();
+      if (!address) return;
+      const time = String(stop.timeHint || '').trim() || null;
+      const previous = merged[merged.length - 1];
+      const row = previous && previous.address.replace(/\s+/g, '') === address.replace(/\s+/g, '')
+        ? previous
+        : { address, arrivalTime: null, pickupTime: null };
+      if (row !== previous) merged.push(row);
+      if (stop.action === 'pickup') row.pickupTime = time;
+      else if (stop.action === 'dropoff' || stop.action === 'arrive') row.arrivalTime = time;
+      else if (!row.arrivalTime) row.arrivalTime = time;
+      else row.pickupTime = time;
+    });
+
+    if (merged.length < 2 || merged.length > MAX_ROUTE_STOPS) return null;
+    const addresses = merged.map((stop) => stop.address);
+    const parsedStartTime = merged[0].pickupTime || merged[0].arrivalTime || startTime || null;
+    const parsedSchedule = normalizeMoodRouteSchedule(merged, merged.length, parsedStartTime);
+    const warnings: string[] = [];
+    if (dates.length > 1 && selectedDate) warnings.push(`여러 날짜 중 ${selectedDate} 일정만 가져왔습니다.`);
+    if (visibleStops.some((stop) => stop.geocodeOk === false)) warnings.push('주소를 찾지 못한 장소가 있어 적용 후 주소를 확인해야 합니다.');
+    if (json.truncated) warnings.push('AI 결과 뒤쪽이 잘렸을 수 있으니 원문과 장소 개수를 대조해 주세요.');
+    return {
+      source: 'ai',
+      date: selectedDate,
+      startTime: parsedStartTime,
+      addresses,
+      routeSchedule: parsedSchedule,
+      warnings,
+    };
+  };
+
+  const analyzeSchedulePaste = async () => {
+    const text = schedulePasteText.trim();
+    setScheduleTransferMessage('');
+    setSchedulePreview(null);
+    if (!text) {
+      setScheduleTransferMessage('붙여넣은 전체 일정을 입력해 주세요.');
+      return;
+    }
+
+    const parsed = parseMoodRouteScheduleText(text);
+    if (parsed.ok) {
+      if (parsed.addresses.length > MAX_ROUTE_STOPS) {
+        setScheduleTransferMessage(`장소는 최대 ${MAX_ROUTE_STOPS}곳까지 적용할 수 있습니다.`);
+        return;
+      }
+      setSchedulePreview({
+        source: 'text',
+        date: parsed.date,
+        startTime: parsed.startTime,
+        addresses: parsed.addresses,
+        routeSchedule: parsed.routeSchedule,
+        warnings: [],
+      });
+      setScheduleTransferMessage('복사 형식으로 읽었습니다. 아래 미리보기를 확인한 뒤 적용해 주세요.');
+      return;
+    }
+
+    if (parsed.addresses.length) {
+      setScheduleTransferMessage(parsed.errors.join(' ') || '전체 일정 형식을 확인해 주세요.');
+      return;
+    }
+
+    setScheduleParsing(true);
+    try {
+      const response = await authFetch('/api/mood-parse-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) throw new Error(json.error || '일정을 분석하지 못했습니다.');
+      const preview = buildAiSchedulePreview(json as Record<string, unknown>);
+      if (!preview) throw new Error(`일정은 주소가 확인된 2~${MAX_ROUTE_STOPS}곳이어야 합니다.`);
+      setSchedulePreview(preview);
+      setScheduleTransferMessage('자유문장을 분석했습니다. 아래 미리보기를 확인한 뒤 적용해 주세요.');
+    } catch (error) {
+      setScheduleTransferMessage(error instanceof Error ? error.message : '일정을 분석하지 못했습니다.');
+    } finally {
+      setScheduleParsing(false);
+    }
+  };
+
+  const applySchedulePreview = () => {
+    if (!schedulePreview) return;
+    const effectiveStartTime = schedulePreview.startTime || startTime || null;
+    const effectiveRouteSchedule = normalizeMoodRouteSchedule(
+      schedulePreview.routeSchedule,
+      schedulePreview.addresses.length,
+      effectiveStartTime,
+    );
+    const scheduleValidation = validateMoodRouteSchedule(
+      effectiveRouteSchedule,
+      schedulePreview.addresses.length,
+      effectiveStartTime,
+    );
+    if (!scheduleValidation.valid) {
+      setScheduleTransferMessage(scheduleValidation.issues[0]?.message || '일정 시각을 확인해 주세요.');
+      return;
+    }
+
+    const percentagePools = new Map<string, number[]>();
+    routeStops.forEach((stop) => {
+      const key = stop.address.trim().replace(/\s+/g, '');
+      const values = percentagePools.get(key) || [];
+      values.push(stop.moodPercentage);
+      percentagePools.set(key, values);
+    });
+    const defaultPercentage = serviceType === 'airport' ? 50 : 100;
+    const nextStops = schedulePreview.addresses.map((address, index) => {
+      addedRouteStopSequence += 1;
+      const key = address.trim().replace(/\s+/g, '');
+      const percentages = percentagePools.get(key) || [];
+      const moodPercentage = percentages.length ? Number(percentages.shift()) : defaultPercentage;
+      return {
+        id: `mood-route-stop-pasted-${addedRouteStopSequence}`,
+        address,
+        moodPercentage,
+        ...effectiveRouteSchedule[index],
+      };
+    });
+    setRouteStops(nextStops);
+    if (schedulePreview.date) setDate(schedulePreview.date);
+    setStartTime(effectiveStartTime || '');
+    setExpandedStopId(null);
+    setRemovedRouteStop(null);
+    setSchedulePreview(null);
+    setShowSchedulePaste(false);
+    setRouteAnnouncement(`전체 일정 ${nextStops.length}곳을 적용했습니다. 저장 전 주소와 시간을 확인해 주세요.`);
+    setScheduleTransferMessage('전체 일정을 화면에 적용했습니다. 아직 저장되지 않았습니다.');
+  };
 
   const updateRouteStopAddress = (id: string, address: string) => {
     setRouteStops((items) => items.map((item) => item.id === id ? { ...item, address } : item));
@@ -406,21 +806,24 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     }));
   };
 
-  const addRouteStop = () => {
+  const addRouteStopAfter = (index: number) => {
     if (routeStops.length >= MAX_ROUTE_STOPS) return;
-    const destinationStop = routeStops[routeStops.length - 1];
-    const inheritedPercentage = destinationStop && typeof destinationStop.moodPercentage === 'number'
-      ? destinationStop.moodPercentage
+    const nextStop = routeStops[index + 1];
+    const inheritedPercentage = nextStop && typeof nextStop.moodPercentage === 'number'
+      ? nextStop.moodPercentage
       : 100;
     addedRouteStopSequence += 1;
+    const emptySchedule = createMoodRouteSchedule(1)[0];
     const newStop: MoodRouteStop = {
       id: `mood-route-stop-added-${addedRouteStopSequence}`,
       address: '',
       moodPercentage: inheritedPercentage,
+      ...emptySchedule,
     };
-    setRouteStops((items) => [...items.slice(0, -1), newStop, items[items.length - 1]]);
+    setRouteStops((items) => [...items.slice(0, index + 1), newStop, ...items.slice(index + 1)]);
+    setExpandedStopId(newStop.id);
     setRemovedRouteStop(null);
-    setRouteAnnouncement('새 경유지를 도착지 앞에 추가했습니다.');
+    setRouteAnnouncement(`${index + 1}번 장소 다음에 새 경유지를 추가했습니다.`);
     window.setTimeout(() => document.getElementById(`${newStop.id}-address`)?.focus(), 0);
   };
 
@@ -430,9 +833,14 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     if (index < 0) return;
     const stop = routeStops[index];
     const nextFocusStop = routeStops[index + 1] || routeStops[index - 1];
-    setRouteStops((items) => items.filter((item) => item.id !== id));
-    setRemovedRouteStop({ stop, index });
-    setRouteAnnouncement(`${stop.address.trim() || '빈 장소'}를 삭제했습니다. 되돌릴 수 있습니다.`);
+    const scheduleById = Object.fromEntries(routeStops.map((item) => [item.id, {
+      arrivalTime: item.arrivalTime,
+      pickupTime: item.pickupTime,
+    }]));
+    const nextItems = routeStops.filter((item) => item.id !== id);
+    commitRouteStopOrder(nextItems, `${stop.address.trim() || '빈 장소'}를 삭제했습니다. 되돌릴 수 있습니다.`);
+    if (expandedStopId === id) setExpandedStopId(null);
+    setRemovedRouteStop({ stop, index, scheduleById });
     window.setTimeout(() => document.getElementById(`${nextFocusStop.id}-reorder`)?.focus(), 0);
   };
 
@@ -440,13 +848,16 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     if (!removedRouteStop || routeStops.length >= MAX_ROUTE_STOPS) return;
     const insertAt = Math.min(removedRouteStop.index, routeStops.length);
     const restoredStop = removedRouteStop.stop;
-    setRouteStops((items) => [
-      ...items.slice(0, insertAt),
+    const nextItems = [
+      ...routeStops.slice(0, insertAt),
       restoredStop,
-      ...items.slice(insertAt),
-    ]);
+      ...routeStops.slice(insertAt),
+    ].map((item) => {
+      const originalSchedule = removedRouteStop.scheduleById[item.id];
+      return originalSchedule ? { ...item, ...originalSchedule } : item;
+    });
+    commitRouteStopOrder(nextItems, `${restoredStop.address.trim() || '빈 장소'}를 다시 넣었습니다.`);
     setRemovedRouteStop(null);
-    setRouteAnnouncement(`${restoredStop.address.trim() || '빈 장소'}를 다시 넣었습니다.`);
     window.setTimeout(() => document.getElementById(`${restoredStop.id}-address`)?.focus(), 0);
   };
 
@@ -471,8 +882,9 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     if (!over || active.id === over.id) return;
     const activeId = String(active.id);
     const overId = String(over.id);
-    setRouteStops((items) => reorderMoodRouteStops(items, activeId, overId));
-    setRemovedRouteStop(null);
+    const next = reorderMoodRouteStops(routeStops, activeId, overId);
+    const moved = routeStops.find((stop) => stop.id === activeId);
+    commitRouteStopOrder(next, `${moved?.address.trim() || '빈 장소'}의 순서를 변경했습니다.`);
   };
 
   const submit = async () => {
@@ -486,6 +898,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     const payloadOrigin = activeRouteStops[0]?.address.trim() || '';
     const payloadDestination = activeRouteStops[activeRouteStops.length - 1]?.address.trim() || '';
     const payloadWaypoints = activeRouteStops.slice(1, -1).map((stop) => stop.address.trim()).filter(Boolean);
+    const payloadRouteSchedule = activeRouteStops.map(({ arrivalTime, pickupTime }) => ({ arrivalTime, pickupTime }));
+    const scheduleValidation = validateMoodRouteSchedule(payloadRouteSchedule, activeRouteStops.length, startTime);
+    if (!scheduleValidation.valid) {
+      return setMessage(scheduleValidation.issues[0]?.message || '경유지별 일정 시각을 확인해 주세요.');
+    }
 
     const payload = {
       bookingId: booking.id,
@@ -504,6 +921,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
         influencerName: influencerName.trim(),
         note: note.trim(),
         courseMoodPercentages: courseMoodPercentageValues,
+        routeSchedule: payloadRouteSchedule,
       },
     };
     const signature = JSON.stringify(payload);
@@ -542,7 +960,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-bold">날짜<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
-          <label className="text-sm font-bold">시작 시각<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
+          <label className="text-sm font-bold">시작 시각<input type="time" value={startTime} onChange={(event) => handleStartTimeChange(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-300" /></label>
           <label className="text-sm font-bold">서비스
             <select value={serviceType} onChange={(event) => setServiceType(event.target.value as MoodServiceType)} className="mt-1 w-full rounded-xl border border-white/15 bg-[#181b25] px-3 py-3">
               <option value="vehicle">차량</option><option value="manager">매니저</option><option value="airport">공항</option>
@@ -586,6 +1004,108 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
             <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-slate-300">{routeStops.length}/7</span>
           </div>
 
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowSchedulePaste((visible) => !visible);
+                setSchedulePreview(null);
+                setScheduleTransferMessage('');
+              }}
+              aria-expanded={showSchedulePaste}
+              aria-controls="mood-schedule-paste-panel"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-300/25 bg-violet-400/10 px-2 text-xs font-black text-violet-100 outline-none transition hover:bg-violet-400/15 focus-visible:ring-2 focus-visible:ring-violet-300"
+            >
+              <ClipboardPaste className="h-4 w-4" aria-hidden="true" /> 전체 일정 붙여넣기
+            </button>
+            <button
+              type="button"
+              onClick={copyScheduleText}
+              disabled={!routeComplete}
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 text-xs font-black text-slate-100 outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Clipboard className="h-4 w-4" aria-hidden="true" /> 전체 일정 복사
+            </button>
+          </div>
+
+          {showSchedulePaste && (
+            <div id="mood-schedule-paste-panel" className="mb-3 rounded-2xl border border-violet-300/20 bg-black/20 p-3">
+              <label htmlFor="mood-schedule-paste-text" className="text-xs font-black text-white">
+                카카오톡 전체 일정
+              </label>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                복사한 일정이나 자유문장을 붙여넣으세요. 분석 결과는 바로 저장되지 않고 먼저 미리보기로 보여드립니다.
+              </p>
+              <textarea
+                id="mood-schedule-paste-text"
+                value={schedulePasteText}
+                onChange={(event) => {
+                  setSchedulePasteText(event.target.value);
+                  setSchedulePreview(null);
+                }}
+                rows={7}
+                maxLength={8000}
+                placeholder={'[차량 전체 일정]\n\n1. 출발 주소 → 도착 주소\n출발 09:00 / 도착 10:00'}
+                className="mt-2 w-full resize-y rounded-xl border border-white/15 bg-[#181b25] px-3 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-slate-500 focus:border-violet-300 focus:ring-1 focus:ring-violet-300"
+              />
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={analyzeSchedulePaste}
+                  disabled={scheduleParsing || !schedulePasteText.trim()}
+                  className="min-h-11 rounded-xl bg-violet-500 px-3 text-xs font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-40"
+                >
+                  {scheduleParsing ? '일정 읽는 중…' : '미리보기 만들기'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSchedulePaste(false);
+                    setSchedulePreview(null);
+                  }}
+                  className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                >
+                  닫기
+                </button>
+              </div>
+
+              {schedulePreview && (
+                <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.07] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-black text-emerald-100">적용 전 미리보기</p>
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-slate-200">
+                      {schedulePreview.source === 'text' ? '복사 형식' : '자유문장 분석'}
+                    </span>
+                  </div>
+                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/25 p-3 font-sans text-xs leading-6 text-slate-100">
+                    {formatMoodRouteScheduleText({
+                      date: schedulePreview.date || date,
+                      addresses: schedulePreview.addresses,
+                      routeSchedule: schedulePreview.routeSchedule,
+                      startTime: schedulePreview.startTime,
+                    })}
+                  </pre>
+                  {schedulePreview.warnings.map((warning) => (
+                    <p key={warning} className="mt-2 text-[11px] font-bold leading-relaxed text-amber-200">⚠️ {warning}</p>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={applySchedulePreview}
+                    className="mt-3 min-h-11 w-full rounded-xl bg-emerald-500 px-3 text-xs font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                  >
+                    이 일정 화면에 적용
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {scheduleTransferMessage && (
+            <p className="mb-3 rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-bold leading-relaxed text-slate-200" role="status" aria-live="polite">
+              {scheduleTransferMessage}
+            </p>
+          )}
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -598,7 +1118,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
             }}
           >
             <SortableContext items={routeStops.map((stop) => stop.id)} strategy={verticalListSortingStrategy}>
-              <ol className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10" aria-label="예약 이동 경로">
+              <ol className="space-y-1" aria-label="예약 이동 경로">
                 {routeStops.map((stop, index) => (
                   <SortableRouteStop
                     key={stop.id}
@@ -606,24 +1126,23 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
                     index={index}
                     count={routeStops.length}
                     canRemove={routeStops.length > 2}
+                    canInsertAfter={routeStops.length < MAX_ROUTE_STOPS && index < routeStops.length - 1}
+                    isExpanded={expandedStopId === stop.id}
                     onAddressChange={updateRouteStopAddress}
                     onSelectAddress={selectAddress}
                     onRemove={removeRouteStop}
+                    onInsertAfter={addRouteStopAfter}
+                    onToggleSchedule={(id) => setExpandedStopId((current) => current === id ? null : id)}
+                    onTimeChange={updateRouteStopTime}
+                    onSetWait={setRouteStopWait}
+                    onMove={moveRouteStop}
                   />
                 ))}
               </ol>
             </SortableContext>
           </DndContext>
 
-          {routeStops.length < MAX_ROUTE_STOPS ? (
-            <button
-              type="button"
-              onClick={addRouteStop}
-              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-violet-300/35 bg-violet-400/10 px-4 text-sm font-black text-violet-200 outline-none hover:bg-violet-400/15 focus-visible:ring-2 focus-visible:ring-violet-300"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" /> 장소 추가
-            </button>
-          ) : (
+          {routeStops.length >= MAX_ROUTE_STOPS && (
             <p className="mt-3 text-center text-xs font-bold text-slate-400" role="status">장소는 최대 7곳까지 추가할 수 있습니다.</p>
           )}
 

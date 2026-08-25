@@ -8,6 +8,7 @@
  * 구 쓰기 필드 booking.coursePayers 는 400으로 거부한다.
  */
 import { createHash } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
@@ -21,6 +22,7 @@ import {
 } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot, decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
+import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 import { notify } from './_shared/notify.js';
 import { checkMoodBookingChangeAvailability } from './_shared/mood-booking-availability.js';
 
@@ -62,6 +64,19 @@ function routeStopCount(breakdown) {
   if (!origin && !destination && waypoints.length === 0) return 0;
   if (!origin || !destination) return null;
   return waypoints.length + 2;
+}
+
+function routeMatchesSnapshot(breakdown, snapshot) {
+  const value = breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) ? breakdown : {};
+  const origin = typeof value.origin === 'string' ? value.origin.trim() : '';
+  const destination = typeof value.destination === 'string' ? value.destination.trim() : '';
+  const rawWaypoints = value.waypoints === undefined || value.waypoints === null ? [] : value.waypoints;
+  if (!Array.isArray(rawWaypoints) || rawWaypoints.some((waypoint) => typeof waypoint !== 'string')) return false;
+  const waypoints = rawWaypoints.map((waypoint) => waypoint.trim());
+  return origin === snapshot.origin
+    && destination === snapshot.destination
+    && waypoints.length === snapshot.waypoints.length
+    && waypoints.every((waypoint, index) => waypoint === snapshot.waypoints[index]);
 }
 
 function normalizeStoredCourseShare(booking) {
@@ -232,6 +247,10 @@ function normalizeSnapshot(raw) {
     courseMoodPercentages = Array.from({ length: stopCount }, (_, index) => index === 0 ? 100 : 0);
   }
   const coursePayers = legacyPayersForPercentages(courseMoodPercentages);
+  const routeScheduleResult = normalizeMoodRouteSchedule(raw.routeSchedule, stopCount, startTime);
+  if (!routeScheduleResult.ok) {
+    return { ok: false, error: routeScheduleResult.error };
+  }
 
   return {
     ok: true,
@@ -251,6 +270,8 @@ function normalizeSnapshot(raw) {
       courseMoodPercentages,
       courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
       coursePayers,
+      hasRouteSchedule: routeScheduleResult.provided,
+      routeSchedule: routeScheduleResult.value,
     },
   };
 }
@@ -268,7 +289,7 @@ function hasAwaitingSettlementApproval(booking) {
   );
 }
 
-function stablePayload({ bookingId, expectedRevision, reason, snapshot }) {
+function stablePayload({ bookingId, expectedRevision, reason, snapshot, includeRouteSchedule = true }) {
   return JSON.stringify({
     bookingId,
     expectedRevision,
@@ -288,8 +309,16 @@ function stablePayload({ bookingId, expectedRevision, reason, snapshot }) {
       influencerName: snapshot.hasInfluencerName ? snapshot.influencerName : null,
       courseMoodPercentages: snapshot.courseMoodPercentages,
       courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
+      ...(includeRouteSchedule ? {
+        hasRouteSchedule: snapshot.hasRouteSchedule,
+        routeSchedule: snapshot.hasRouteSchedule ? snapshot.routeSchedule : null,
+      } : {}),
     },
   });
+}
+
+function idempotencyHashMatches(storedHash, payloadHash, legacyPayloadHash) {
+  return storedHash === payloadHash || Boolean(legacyPayloadHash && storedHash === legacyPayloadHash);
 }
 
 function sha256(value) {
@@ -432,7 +461,15 @@ function idorAllowed(isAdmin, allowlist, booking) {
   return isAdmin || booking.clientId === allowlist.clientId;
 }
 
-async function replayStoredResponse({ db, bookingRef, idempotencyRef, allowlist, isAdmin, payloadHash }) {
+async function replayStoredResponse({
+  db,
+  bookingRef,
+  idempotencyRef,
+  allowlist,
+  isAdmin,
+  payloadHash,
+  legacyPayloadHash,
+}) {
   return db.runTransaction(async (tx) => {
     const [idempotencySnap, bookingSnap] = await Promise.all([
       tx.get(idempotencyRef),
@@ -440,7 +477,7 @@ async function replayStoredResponse({ db, bookingRef, idempotencyRef, allowlist,
     ]);
     if (!idempotencySnap.exists) return { ok: false, missing: true };
     const idempotency = idempotencySnap.data() || {};
-    if (idempotency.payloadHash !== payloadHash) {
+    if (!idempotencyHashMatches(idempotency.payloadHash, payloadHash, legacyPayloadHash)) {
       return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
     }
     if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
@@ -507,6 +544,15 @@ export default async function handler(req, res) {
   }
   const snapshot = normalized.value;
   const payloadHash = sha256(stablePayload({ bookingId, expectedRevision, reason, snapshot }));
+  const legacyPayloadHash = snapshot.hasRouteSchedule
+    ? null
+    : sha256(stablePayload({
+      bookingId,
+      expectedRevision,
+      reason,
+      snapshot,
+      includeRouteSchedule: false,
+    }));
   const idempotencyDocumentId = sha256(`${email}:${idempotencyKey}`);
 
   try {
@@ -544,6 +590,7 @@ export default async function handler(req, res) {
         allowlist,
         isAdmin,
         payloadHash,
+        legacyPayloadHash,
       });
       if (replay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(replay.response));
       return sendJson(res, replay.status || 409, jsonHeaders, { ok: false, error: replay.error || 'IDEMPOTENCY_CONFLICT' });
@@ -607,7 +654,7 @@ export default async function handler(req, res) {
 
       if (idempotencySnap.exists) {
         const stored = idempotencySnap.data() || {};
-        if (stored.payloadHash !== payloadHash) {
+        if (!idempotencyHashMatches(stored.payloadHash, payloadHash, legacyPayloadHash)) {
           return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
         }
         if (!stored.response || typeof stored.response !== 'object') {
@@ -704,6 +751,17 @@ export default async function handler(req, res) {
         courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
         coursePayers: snapshot.coursePayers,
       };
+      const preserveStoredRouteSchedule = !snapshot.hasRouteSchedule
+        && routeMatchesSnapshot(booking.breakdown, snapshot)
+        && String(booking.startTime || '').trim() === snapshot.startTime;
+      const clearStoredRouteSchedule = !snapshot.hasRouteSchedule
+        && !preserveStoredRouteSchedule
+        && hasOwn(booking, 'routeSchedule');
+      if (snapshot.hasRouteSchedule) {
+        bookingPatch.routeSchedule = snapshot.routeSchedule;
+      } else if (clearStoredRouteSchedule) {
+        bookingPatch.routeSchedule = FieldValue.delete();
+      }
       if (snapshot.hasInfluencerName) {
         bookingPatch.influencerName = snapshot.influencerName || null;
       }
@@ -714,6 +772,7 @@ export default async function handler(req, res) {
         coursePayers: storedCourseShare.payers,
       };
       const afterSnapshot = { ...beforeSnapshot, ...bookingPatch };
+      if (clearStoredRouteSchedule) delete afterSnapshot.routeSchedule;
       const response = {
         ok: true,
         data: {

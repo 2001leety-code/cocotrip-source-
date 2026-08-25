@@ -20,6 +20,11 @@ import { authFetch } from '@/lib/authFetch';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import type { SettlementApprovalSummary } from '@/components/mood/MoodSettlementEditor';
 import { formatKRW, MOOD_SURCHARGE_PER_KM, MOOD_AIRPORT_LABEL, normalizeAirportCode, type MoodServiceType } from '@/lib/moodPricing';
+import {
+  formatMoodRouteScheduleStopSummary,
+  normalizeMoodRouteSchedule,
+  type MoodRouteScheduleStop,
+} from '@/lib/moodRouteSchedule';
 
 const C = {
   overlay: 'rgba(5,2,12,0.72)',
@@ -85,6 +90,8 @@ export interface MoodBookingLike {
   correctionCount?: number | null;
   lastCorrectionReason?: string | null;
   settlementApproval?: SettlementApprovalSummary | null;
+  /** 주소 동선과 같은 순서의 도착·재출발 시각(운영 정보, 금액과 분리). */
+  routeSchedule?: MoodRouteScheduleStop[] | null;
 }
 
 interface MoodReceiptModalProps {
@@ -167,6 +174,9 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
   if (!booking) return null;
 
   const stops = stopsFrom(bd);
+  const routeSchedule = Array.isArray(booking.routeSchedule)
+    ? normalizeMoodRouteSchedule(booking.routeSchedule, stops.length, booking.startTime)
+    : null;
   // 공항은 어느 공항인지가 정액을 결정 → 영수증엔 "인천공항"/"김포공항" 으로 표기(레거시=인천).
   const serviceLabel = booking.serviceType === 'airport'
     ? MOOD_AIRPORT_LABEL[normalizeAirportCode(booking.airportCode)]
@@ -247,7 +257,14 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
                 >
                   {i + 1}
                 </span>
-                <p className="min-w-0 text-xs font-semibold" style={{ color: C.text }}>{stop}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold" style={{ color: C.text }}>{stop}</p>
+                  {routeSchedule && (
+                    <p className="mt-0.5 text-[10px] font-bold" style={{ color: C.accentSolid }}>
+                      {formatMoodRouteScheduleStopSummary(routeSchedule[i], i, stops.length)}
+                    </p>
+                  )}
+                </div>
               </div>
             ))}
             {km > 0 && (
