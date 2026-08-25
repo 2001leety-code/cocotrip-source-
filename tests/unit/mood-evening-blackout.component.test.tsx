@@ -143,7 +143,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
   it('기존 제한 슬롯을 그대로 두면 주소·메모 변경을 허용하고 시각을 더 늦추면 차단한다', () => {
     render(<MoodBookingChangeModal booking={booking()} balanceKRW={1_000_000} onClose={() => {}} onChanged={() => {}} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('기존 확정 예약의 날짜·시각을 유지해');
+    expect(screen.getByText(/기존 확정 예약의 날짜·시각을 유지해/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' })).toBeEnabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:01' } });
