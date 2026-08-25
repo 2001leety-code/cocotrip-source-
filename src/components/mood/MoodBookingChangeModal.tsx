@@ -409,7 +409,12 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const safeBookingId = String(booking.id || 'booking').replace(/[^a-zA-Z0-9_-]/g, '-');
   const [date, setDate] = useState(booking.date || '');
   const [startTime, setStartTime] = useState(booking.startTime || '');
-  const [durationHours, setDurationHours] = useState(Number(booking.durationHours) || 3);
+  const initialDurationHours = Number(booking.durationHours) || 3;
+  const [durationHoursInput, setDurationHoursInput] = useState(String(initialDurationHours));
+  const [lastValidDurationHours, setLastValidDurationHours] = useState(initialDurationHours);
+  const durationHours = durationHoursInput.trim() === ''
+    ? lastValidDurationHours
+    : Number(durationHoursInput);
   const [serviceType, setServiceType] = useState<MoodServiceType>(booking.serviceType || 'vehicle');
   const [airportDirection, setAirportDirection] = useState<'pickup' | 'sending'>(booking.airportDirection === 'sending' ? 'sending' : 'pickup');
   const [airportCode, setAirportCode] = useState<MoodAirportCode>(booking.airportCode === 'GMP' ? 'GMP' : 'ICN');
@@ -890,6 +895,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const submit = async () => {
     setMessage('');
     if (!date || !startTime) return setMessage('날짜와 시작 시각을 확인해 주세요.');
+    if (serviceType !== 'airport' && !durationHoursInput.trim()) return setMessage('이용 시간을 입력해 주세요.');
     if (eveningBookingBlocked) return setMessage('선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.');
     if (!reason.trim()) return setMessage('변경 이유를 입력해 주세요.');
     if (routeStarted && !routeComplete) return setMessage('경로의 빈 장소를 모두 입력하거나 삭제해 주세요.');
@@ -972,7 +978,16 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
               <label className="text-sm font-bold">방향<select value={airportDirection} onChange={(event) => setAirportDirection(event.target.value as 'pickup' | 'sending')} className="mt-1 w-full rounded-xl border border-white/15 bg-[#181b25] px-3 py-3"><option value="pickup">픽업</option><option value="sending">샌딩</option></select></label>
             </div>
           ) : (
-            <label className="text-sm font-bold">이용 시간<input type="number" min={1} max={15} step={0.5} value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value) || 1)} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
+            <label className="text-sm font-bold">이용 시간<input type="number" min={1} max={15} step={0.5} value={durationHoursInput} onChange={(event) => {
+              const nextValue = event.target.value;
+              setDurationHoursInput(nextValue);
+              const parsed = Number(nextValue);
+              if (nextValue.trim() && Number.isFinite(parsed) && parsed >= 1 && parsed <= 15) {
+                setLastValidDurationHours(parsed);
+              }
+            }} onBlur={() => {
+              if (!durationHoursInput.trim()) setDurationHoursInput(String(lastValidDurationHours));
+            }} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           )}
           <label className="text-sm font-bold sm:col-span-2">탑승 인플루언서<input value={influencerName} maxLength={100} onChange={(event) => setInfluencerName(event.target.value)} placeholder="공유 화면에 표시할 이름" className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
         </div>
