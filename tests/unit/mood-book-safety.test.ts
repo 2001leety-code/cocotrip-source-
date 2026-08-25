@@ -311,6 +311,57 @@ describe('mood-book 경로 실패 시 과소청구 차단', () => {
   });
 });
 
+describe('mood-book 경로별 일정 저장', () => {
+  const routeSchedule = [
+    { arrivalTime: null, pickupTime: '09:00' },
+    { arrivalTime: '10:00', pickupTime: '12:00' },
+    { arrivalTime: '13:00', pickupTime: null },
+  ];
+
+  it('시각이 잘못된 일정을 경로 계산·잔액 차감 전에 거부한다', async () => {
+    const { response, json } = await callBook({
+      ...BASE_BODY,
+      routeSchedule: [
+        { arrivalTime: null, pickupTime: '09:30' },
+        { arrivalTime: '10:00', pickupTime: '12:00' },
+        { arrivalTime: '13:00', pickupTime: null },
+      ],
+    });
+
+    expect.soft(response.statusCode).toBe(400);
+    expect.soft(json.error).toBe('INVALID_ROUTE_SCHEDULE');
+    expect.soft(computeRouteMock).not.toHaveBeenCalled();
+    expect.soft(bookingDocs()).toHaveLength(0);
+    expect.soft(clientBalance()).toBe(1_000_000);
+  });
+
+  it('일정은 예약·응답에 저장하지만 같은 경로의 금액·잔액 결과를 바꾸지 않는다', async () => {
+    const withoutSchedule = await callBook({
+      ...BASE_BODY,
+      idempotencyKey: 'mood-book-without-route-schedule',
+    });
+    const amountWithoutSchedule = withoutSchedule.json.data.amountKRW;
+    const balanceWithoutSchedule = withoutSchedule.json.data.balanceKRW;
+
+    store.clear();
+    store.set('mood_clients/COMPANY_A', { name: 'Company A', balanceKRW: 1_000_000 });
+    autoId = 0;
+    transactionTail = Promise.resolve();
+
+    const withSchedule = await callBook({
+      ...BASE_BODY,
+      idempotencyKey: 'mood-book-with-route-schedule',
+      routeSchedule,
+    });
+
+    expect.soft(withSchedule.response.statusCode).toBe(200);
+    expect.soft(withSchedule.json.data.amountKRW).toBe(amountWithoutSchedule);
+    expect.soft(withSchedule.json.data.balanceKRW).toBe(balanceWithoutSchedule);
+    expect.soft(withSchedule.json.data.routeSchedule).toEqual(routeSchedule);
+    expect.soft(bookingDocs()[0].routeSchedule).toEqual(routeSchedule);
+  });
+});
+
 describe('mood-book idempotencyKey 중복 차감 차단', () => {
   it('같은 키와 같은 요청을 재전송하면 저장된 성공 응답을 돌려주고 한 번만 차감한다', async () => {
     const first = await callBook(BASE_BODY);

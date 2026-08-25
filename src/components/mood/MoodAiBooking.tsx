@@ -34,6 +34,13 @@ import {
 } from '@/lib/moodPricing';
 import { exceedsWaypointCap, shouldSendRoute, deriveScheduleTiming } from './moodBookingLogic';
 import { isMoodEveningBookingBlocked } from '@/lib/moodBookingAvailability';
+import {
+  formatMoodRouteScheduleStopSummary,
+  normalizeMoodRouteSchedule,
+  normalizeMoodRouteTime,
+  setMoodRouteStopWaitMinutes,
+  type MoodRouteScheduleStop,
+} from '@/lib/moodRouteSchedule';
 
 // ── 디자인 토큰 (MoodPortal 과 동일 팔레트: dark navy + purple/pink) ──
 const C = {
@@ -65,6 +72,9 @@ interface ParsedStop {
   date?: string | null;
   /** 이 stop 의 시각 "HH:mm" (없으면 ''). 시작 시각·이용 시간 자동 채움용 (2026-07-27). */
   timeHint?: string;
+  /** 경로 일정용 시각. 주소·행동과 한 객체에 둬 순서 변경/삭제 때 같이 움직인다. */
+  scheduleArrivalTime?: string | null;
+  schedulePickupTime?: string | null;
   /** 공항 지점 여부 — 픽업/샌딩 방향 판정용 (2026-07-27). */
   isAirport?: boolean;
 }
@@ -113,6 +123,33 @@ const ACTION_BADGE: Record<ParsedStop['action'], { text: string; bg: string; fg:
   arrive: { text: '도착', bg: 'rgba(124,92,252,0.20)', fg: '#c4b5fd' },
   via: { text: '경유', bg: 'rgba(245,158,11,0.18)', fg: '#fcd34d' },
 };
+
+function initializeParsedStopSchedule(stop: ParsedStop): ParsedStop {
+  const time = normalizeMoodRouteTime(stop.timeHint);
+  return {
+    ...stop,
+    scheduleArrivalTime: stop.action === 'pickup' ? null : time,
+    schedulePickupTime: stop.action === 'pickup' ? time : null,
+  };
+}
+
+/** AI 행동 힌트는 초깃값으로만 쓰고, 최종 역할(출발/경유/도착)을 안전하게 강제한다. */
+function routeScheduleFromParsedStops(list: ParsedStop[], startTime: string): MoodRouteScheduleStop[] {
+  const lastIndex = list.length - 1;
+  const raw = list.map((stop, index) => {
+    const hint = normalizeMoodRouteTime(stop.timeHint);
+    const arrivalTime = stop.scheduleArrivalTime === undefined
+      ? (stop.action === 'pickup' ? null : hint)
+      : stop.scheduleArrivalTime;
+    const pickupTime = stop.schedulePickupTime === undefined
+      ? (stop.action === 'pickup' ? hint : null)
+      : stop.schedulePickupTime;
+    if (index === 0) return { arrivalTime: null, pickupTime: normalizeMoodRouteTime(startTime) };
+    if (index === lastIndex) return { arrivalTime: arrivalTime || pickupTime || hint, pickupTime: null };
+    return { arrivalTime, pickupTime };
+  });
+  return normalizeMoodRouteSchedule(raw, list.length, startTime);
+}
 
 function todayISO(): string {
   const d = new Date();
@@ -184,6 +221,10 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   const visibleStops = useMemo(
     () => (activeDate ? stops.filter((s) => s.date === activeDate || !s.date) : stops),
     [stops, activeDate],
+  );
+  const visibleRouteSchedule = useMemo(
+    () => routeScheduleFromParsedStops(visibleStops, startTime),
+    [visibleStops, startTime],
   );
 
   // 이 예약(활성 그룹)에 첨부할 항공편 메모 — "✈️ KE765 15:10". 날짜 있는 항공편은 그룹 일치만.
@@ -362,11 +403,34 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         action: 'via' as const,
         matchedFromPlacebook: false,
         geocodeOk: false,
+        scheduleArrivalTime: null,
+        schedulePickupTime: null,
         // 활성 날짜 그룹에 속하도록 — 날짜 분리 UI 에서 새 장소가 사라지지 않게.
         date: activeDate,
       },
     ]);
   }, [activeDate]);
+
+  const updateStopScheduleTime = useCallback((
+    order: number,
+    field: 'scheduleArrivalTime' | 'schedulePickupTime',
+    value: string,
+  ) => {
+    setStops((prev) => prev.map((stop) => (
+      stop.order === order ? { ...stop, [field]: value || null } : stop
+    )));
+  }, []);
+
+  const setStopWait = useCallback((order: number, minutes: number) => {
+    setStops((prev) => prev.map((stop) => {
+      if (stop.order !== order) return stop;
+      const updated = setMoodRouteStopWaitMinutes({
+        arrivalTime: stop.scheduleArrivalTime || null,
+        pickupTime: stop.schedulePickupTime || null,
+      }, minutes);
+      return { ...stop, schedulePickupTime: updated.pickupTime };
+    }));
+  }, []);
 
   // 동선의 시각들 → 시작 시각·이용 시간 폼 자동 채움 (2026-07-27).
   // 시각이 없거나 해석 불가면 해당 칸은 손대지 않는다(기존 기본값 유지 = 억지 추측 금지).
@@ -405,7 +469,9 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         setParseErr(json?.error || `일정 분석 실패 (${res.status})`);
         return;
       }
-      const parsedStops: ParsedStop[] = Array.isArray(json.stops) ? json.stops : [];
+      const parsedStops: ParsedStop[] = Array.isArray(json.stops)
+        ? json.stops.map((stop: ParsedStop) => initializeParsedStopSchedule(stop))
+        : [];
       const guess: MoodServiceType =
         json.serviceGuess === 'vehicle' || json.serviceGuess === 'airport' ? json.serviceGuess : 'manager';
       const parsedDates: string[] = Array.isArray(json.dates) ? json.dates : [];
@@ -533,6 +599,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
         body.origin = originAddr;
         body.destination = destAddr;
         if (waypointAddrs.length) body.waypoints = waypointAddrs;
+        body.routeSchedule = routeScheduleFromParsedStops(usable, startTime);
         body.courseMoodPercentages = usable.map((_, index) => courseMoodPercentages[index] === undefined ? (serviceType === 'airport' ? 50 : 100) : courseMoodPercentages[index]);
       }
 
@@ -656,8 +723,15 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                 ⚠️ AI 응답이 잘려 뒤쪽 일정이 빠졌을 수 있습니다 — 원문과 동선 개수를 대조하고, 빠진 곳이 있으면 다시 분석하세요. (누락된 채 예약하면 거리요금이 실제보다 적게 계산됩니다)
               </p>
             )}
+            <p className="text-[11px] leading-relaxed" style={{ color: C.textDim }}>
+              각 장소를 펼쳐 도착·재출발 시각을 고칠 수 있습니다. 대기시간은 두 시각으로 자동 표시되며 청구 이용시간과 금액은 바뀌지 않습니다.
+            </p>
             {visibleStops.map((s, i) => {
               const badge = ACTION_BADGE[s.action] || ACTION_BADGE.via;
+              const scheduleStop = visibleRouteSchedule[i] || { arrivalTime: null, pickupTime: null };
+              const isOrigin = i === 0;
+              const isDestination = i === visibleStops.length - 1;
+              const isWaypoint = !isOrigin && !isDestination;
               return (
                 <div
                   key={s.order}
@@ -691,7 +765,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                             className="rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0"
                             style={{ background: 'rgba(148,163,184,0.18)', color: '#cbd5e1' }}
                           >
-                            🕘 {s.timeHint}
+                            🕘 {s.timeHint} · AI 원문
                           </span>
                         )}
                         {s.matchedFromPlacebook && (
@@ -724,7 +798,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         disabled={i === 0}
                         aria-label={`${s.label} 위로`}
                         title="위로"
-                        className="h-6 w-6 rounded-md text-[11px] disabled:opacity-25"
+                        className="h-11 w-11 rounded-lg text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-25"
                         style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
                       >
                         ↑
@@ -735,7 +809,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         disabled={i === visibleStops.length - 1}
                         aria-label={`${s.label} 아래로`}
                         title="아래로"
-                        className="h-6 w-6 rounded-md text-[11px] disabled:opacity-25"
+                        className="h-11 w-11 rounded-lg text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-25"
                         style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
                       >
                         ↓
@@ -745,7 +819,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                         onClick={() => removeStop(s.order)}
                         aria-label={`${s.label} 빼기`}
                         title="이 지점 빼기"
-                        className="h-6 w-6 rounded-md text-[11px]"
+                        className="h-11 w-11 rounded-lg text-sm outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                         style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
                       >
                         ✕
@@ -845,6 +919,65 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
                       )}
                     </div>
                   )}
+
+                  <details className="pl-7">
+                    <summary
+                      className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300 [&::-webkit-details-marker]:hidden"
+                      style={{ background: C.card, border: C.inputBorder, color: C.text }}
+                    >
+                      <span className="min-w-0 truncate">
+                        일정 · {formatMoodRouteScheduleStopSummary(scheduleStop, i, visibleStops.length)}
+                      </span>
+                      <span className="shrink-0" style={{ color: C.accentSolid }}>수정</span>
+                    </summary>
+                    <div className={`mt-2 grid gap-2 ${isWaypoint ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {isOrigin && (
+                        <p className="min-h-11 rounded-xl px-3 py-2.5 text-[11px] leading-relaxed" style={{ background: C.card, border: C.inputBorder, color: C.textDim }}>
+                          출발 시각은 아래 예약 시작 시각과 연결됩니다.
+                        </p>
+                      )}
+                      {!isOrigin && (
+                        <label className="text-[11px] font-bold" style={{ color: C.textDim }}>
+                          도착 시각
+                          <input
+                            type="time"
+                            value={scheduleStop.arrivalTime || ''}
+                            onChange={(event) => updateStopScheduleTime(s.order, 'scheduleArrivalTime', event.target.value)}
+                            className="mt-1 min-h-11 w-full rounded-xl px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                            style={{ ...inputStyle, colorScheme: 'dark' }}
+                          />
+                        </label>
+                      )}
+                      {isWaypoint && (
+                        <label className="text-[11px] font-bold" style={{ color: C.textDim }}>
+                          {isOrigin ? '출발 시각' : '재출발(픽업) 시각'}
+                          <input
+                            type="time"
+                            value={scheduleStop.pickupTime || ''}
+                            onChange={(event) => updateStopScheduleTime(s.order, 'schedulePickupTime', event.target.value)}
+                            className="mt-1 min-h-11 w-full rounded-xl px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                            style={{ ...inputStyle, colorScheme: 'dark' }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                    {isWaypoint && (
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {[30, 60, 120].map((minutes) => (
+                          <button
+                            key={minutes}
+                            type="button"
+                            onClick={() => setStopWait(s.order, minutes)}
+                            disabled={!scheduleStop.arrivalTime}
+                            className="min-h-11 rounded-xl px-2 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-40"
+                            style={{ background: C.card, border: C.inputBorder, color: C.textDim }}
+                          >
+                            {minutes === 30 ? '30분 대기' : `${minutes / 60}시간 대기`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </details>
                 </div>
               );
             })}

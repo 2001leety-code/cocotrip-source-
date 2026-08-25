@@ -15,9 +15,16 @@ import {
   getMoodShareTollPresentation,
   moodSharePayerLabel,
   moodShareStopLabel,
+  resolveMoodBookingShareRouteSchedule,
   type MoodBookingShareCostBreakdown,
   type MoodBookingShareData,
 } from '@/lib/moodBookingShare';
+import {
+  formatMoodRouteScheduleClock,
+  formatMoodRouteScheduleStopSummary,
+  formatMoodRouteWait,
+  getMoodRouteWaitMinutes,
+} from '@/lib/moodRouteSchedule';
 
 export interface MoodBookingShareCardProps {
   data: MoodBookingShareData;
@@ -139,6 +146,7 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
   const activeTotal = finalCost ? finalCost.totalKRW : expected.totalKRW;
   const route = data.route || {};
   const stops = (data.stops || []).filter((stop) => String(stop.address || '').trim());
+  const resolvedSchedule = resolveMoodBookingShareRouteSchedule(data, stops);
   const distribution = allocateMoodShareCostByCourse(activeTotal, stops);
   const influencer = String(data.influencerName || '').trim() || '미입력';
   const duration = hasNumber(data.durationHours) ? ` · ${data.durationHours}시간` : '';
@@ -209,11 +217,51 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
           </div>
           <MoodShareRouteMap stops={stops} route={data.route} />
 
+          {resolvedSchedule && resolvedSchedule.addresses.length > 1 && (
+            <section
+              className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3"
+              aria-label="전체 차량 일정"
+            >
+              <h4 className="text-[12px] font-black text-violet-700">전체 차량 일정</h4>
+              <div className="mt-2 space-y-2">
+                {resolvedSchedule.addresses.slice(0, -1).map((fromAddress, index) => {
+                  const toAddress = resolvedSchedule.addresses[index + 1];
+                  const from = resolvedSchedule.routeSchedule[index];
+                  const to = resolvedSchedule.routeSchedule[index + 1];
+                  const waitMinutes = index + 1 < resolvedSchedule.addresses.length - 1
+                    ? getMoodRouteWaitMinutes(to)
+                    : null;
+                  return (
+                    <div key={`${fromAddress}-${toAddress}-${index}`} className="rounded-xl bg-white px-3 py-2.5 ring-1 ring-violet-100">
+                      <p className="text-[10px] font-black text-violet-600">{index + 1}구간</p>
+                      <p className="mt-1 break-words text-[12px] font-bold leading-relaxed text-slate-800">
+                        {fromAddress}<span className="sr-only">에서</span> <span className="text-violet-500" aria-hidden="true">→</span> {toAddress}
+                      </p>
+                      <p className="mt-1 text-[11px] font-bold tabular-nums text-slate-600">
+                        출발 {formatMoodRouteScheduleClock(from.pickupTime)} · 도착 {formatMoodRouteScheduleClock(to.arrivalTime)}
+                      </p>
+                      {(waitMinutes !== null || to.pickupTime) && index + 1 < resolvedSchedule.addresses.length - 1 && (
+                        <p className="mt-1 text-[11px] font-black tabular-nums text-fuchsia-700">
+                          {waitMinutes !== null ? `대기 ${formatMoodRouteWait(waitMinutes)}` : ''}
+                          {waitMinutes !== null && to.pickupTime ? ' · ' : ''}
+                          {to.pickupTime ? `재출발(픽업) ${to.pickupTime}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <ol className="mt-3 space-y-0 rounded-2xl border border-slate-100 bg-white px-3.5 py-2 shadow-sm">
             {distribution.courseCount ? distribution.courses.map((course, index) => {
               const stop = course.stop;
               const label = String(stop.label || '').trim() || moodShareStopLabel(index, stops.length);
               const influencerLabel = moodSharePayerLabel('influencer', data.influencerName);
+              const scheduleSummary = resolvedSchedule
+                ? formatMoodRouteScheduleStopSummary(resolvedSchedule.routeSchedule[index], index, stops.length)
+                : String(stop.time || '').trim();
               return (
                 <li key={`${stop.address}-${index}`} className="relative flex gap-3 py-2.5">
                   {index < stops.length - 1 && <span className="absolute left-[13px] top-8 h-[calc(100%-18px)] w-px bg-violet-200" aria-hidden="true" />}
@@ -223,7 +271,7 @@ export const MoodBookingShareCard = forwardRef<HTMLElement, MoodBookingShareCard
                   <div className="min-w-0 pt-0.5">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[9px] font-black text-violet-600">{label}</span>
-                      {stop.time && <span className="text-[9px] font-bold text-slate-400">{stop.time}</span>}
+                      {scheduleSummary && <span className="text-[9px] font-bold text-slate-500">{scheduleSummary}</span>}
                     </div>
                     <p className="mt-0.5 break-words text-[11px] font-bold leading-relaxed text-slate-700">{stop.address}</p>
                     <div className="mt-1.5 grid gap-1 text-[9px] font-black">

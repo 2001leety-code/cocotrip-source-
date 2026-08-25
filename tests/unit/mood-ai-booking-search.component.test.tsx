@@ -312,6 +312,26 @@ describe('MoodAiBooking 자동 채움 · 동선 편집', () => {
     expect(screen.getByText(/🕘 15:00/)).toBeTruthy();
   });
 
+  it('중간 도착·재출발 시각을 고치면 routeSchedule로 저장하고 청구 이용시간은 바꾸지 않는다', async () => {
+    await renderAndParse();
+
+    fireEvent.click(screen.getByRole('button', { name: '2시간 대기' }));
+    await waitFor(() => expect(screen.getByText(/대기 2시간/)).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /이대로 예약/ }));
+
+    await waitFor(() => {
+      const bookCall = authFetchMock.mock.calls.find((c) => String(c[0]).includes('mood-book'));
+      expect(bookCall).toBeTruthy();
+      const body = JSON.parse((bookCall![1] as { body: string }).body);
+      expect(body.routeSchedule).toEqual([
+        { arrivalTime: null, pickupTime: '09:30' },
+        { arrivalTime: '11:00', pickupTime: '13:00' },
+        { arrivalTime: '15:00', pickupTime: null },
+      ]);
+      expect(body.durationHours).toBe(6);
+    });
+  });
+
   it('운영자가 시간을 직접 고치면 자동채움 배지가 사라진다', async () => {
     await renderAndParse();
     expect(screen.getByText(/AI가 채움/)).toBeTruthy();

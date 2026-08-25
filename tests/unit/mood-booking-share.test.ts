@@ -111,6 +111,31 @@ describe('MOOD 예약 공유 문구', () => {
     expect(text).toContain('- 기타 조정: +10,000원 (추가 주차비)');
   });
 
+  it('새 경로 일정이 있으면 전체 주소·구간·대기·픽업을 비용과 함께 복사한다', () => {
+    const data = expectedData();
+    data.stops = [
+      { address: '서울특별시 강남구 도산대로 1', moodPercentage: 100 },
+      { address: '서울 종로구 평창길 133', moodPercentage: 50 },
+      { address: '서울특별시 송파구 올림픽로 300', moodPercentage: 0 },
+    ];
+    data.startTime = '09:00';
+    data.routeSchedule = [
+      { arrivalTime: null, pickupTime: '09:00' },
+      { arrivalTime: '09:40', pickupTime: '11:40' },
+      { arrivalTime: '12:20', pickupTime: null },
+    ];
+
+    const text = formatMoodBookingShareText(data);
+    expect(text).toContain('[2026년 8월 15일 차량 전체 일정]');
+    expect(text).toContain('1. 서울특별시 강남구 도산대로 1 → 서울 종로구 평창길 133');
+    expect(text).toContain('출발 09:00 / 도착 09:40');
+    expect(text).toContain('대기 2시간');
+    expect(text).toContain('재출발(픽업) 11:40');
+    expect(text).toContain('2. 서울 종로구 평창길 133 → 서울특별시 송파구 올림픽로 300');
+    expect(text).toContain('동선 및 비용 분담');
+    expect(text).toContain('예약 예상 비용');
+  });
+
   it('5코스·10만원에서 100·50·33·0·67 비율을 코스별로 반영한다', () => {
     const stops: MoodBookingShareStop[] = [100, 50, 33, 0, 67]
       .map((moodPercentage, index) => ({ address: `코스 ${index + 1}`, moodPercentage }));

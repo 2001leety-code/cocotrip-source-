@@ -57,6 +57,11 @@ const bookingDocs = [
       amountKRW: 154_000,
       balanceAfterKRW: 846_000,
       breakdown: bookedBreakdown,
+      routeSchedule: [
+        { arrivalTime: null, pickupTime: '09:00' },
+        { arrivalTime: '10:00', pickupTime: '12:00' },
+        { arrivalTime: '13:00', pickupTime: null },
+      ],
       finalBreakdown,
       revision: 3,
       status: 'completed',
@@ -164,6 +169,11 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
     expect(changed.breakdown).toEqual(bookedBreakdown);
     expect(changed.finalBreakdown).toEqual(finalBreakdown);
     expect(changed.revision).toBe(3);
+    expect(changed.routeSchedule).toEqual([
+      { arrivalTime: null, pickupTime: '09:00' },
+      { arrivalTime: '10:00', pickupTime: '12:00' },
+      { arrivalTime: '13:00', pickupTime: null },
+    ]);
   });
 
   it('레거시·잘못된 revision은 0, 없는 finalBreakdown은 null로 정규화한다', async () => {
@@ -181,6 +191,7 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
 
     expect(byId['legacy-booking'].revision).toBe(0);
     expect(byId['legacy-booking'].finalBreakdown).toBeNull();
+    expect(byId['legacy-booking'].routeSchedule).toBeNull();
     expect(byId['invalid-revision-booking'].revision).toBe(0);
     expect(byId['invalid-revision-booking'].finalBreakdown).toBeNull();
   });

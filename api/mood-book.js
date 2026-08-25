@@ -24,7 +24,8 @@
  * Body: { clientId, date(YYYY-MM-DD), startTime(HH:mm), durationHours, serviceType,
  *         origin?, destination?, waypoints?(string[] | "A|B"),
  *         airportDirection?('pickup'|'sending'), airportCode?('ICN'|'GMP'),
- *         courseMoodPercentages?(integer[]), courseShareSchemaVersion?(2) }
+ *         courseMoodPercentages?(integer[]), courseShareSchemaVersion?(2),
+ *         routeSchedule?({arrivalTime,pickupTime}[]) }
  *   - origin/destination 이 있으면 경로 기반 거리/톨비 추가요금 반영.
  *   - 없으면 거리/톨비 0 (시간 단가 base 만).
  *   - courseMoodPercentages 는 출발·경유·도착 지점 수와 같고 각 값은 0~100 정수.
@@ -41,6 +42,7 @@ import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-a
 import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, normalizeAirportCode, MOOD_AIRPORT_LABEL, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot } from './_shared/mood-route-snapshot.js';
+import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 import { notify } from './_shared/notify.js';
 import {
   checkMoodBookingAvailability,
@@ -226,6 +228,16 @@ export default async function handler(req, res) {
   }
   const courseMoodPercentages = courseMoodPercentagesResult.value;
   const coursePayers = legacyPayersForPercentages(courseMoodPercentages);
+  const routeScheduleResult = normalizeMoodRouteSchedule(
+    body.routeSchedule,
+    origin && destination ? waypoints.length + 2 : 0,
+    String(startTime),
+  );
+  if (!routeScheduleResult.ok) {
+    res.writeHead(400, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: routeScheduleResult.error }));
+  }
+  const routeSchedule = routeScheduleResult.value;
 
   try {
     const db = initAdminDb('mood-book');
@@ -248,6 +260,7 @@ export default async function handler(req, res) {
       origin, destination, waypoints, airportDirection, airportCode, note, influencerName,
       courseMoodPercentages,
       courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+      ...(routeScheduleResult.provided ? { routeSchedule } : {}),
     };
     const payloadHash = createHash('sha256').update(JSON.stringify(requestPayload)).digest('hex');
     const isAdmin = isAdminEmail(allowlist, email);
@@ -416,6 +429,7 @@ export default async function handler(req, res) {
         courseMoodPercentages,
         courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
         coursePayers,
+        ...(routeScheduleResult.provided ? { routeSchedule } : {}),
         note: note || null, // 예약 메모 (항공편 등 — 표시용)
         createdByEmail: email,
         createdAt,
@@ -434,6 +448,7 @@ export default async function handler(req, res) {
         courseMoodPercentages,
         courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
         coursePayers,
+        ...(routeScheduleResult.provided ? { routeSchedule } : {}),
       };
       if (idempotencyRef) {
         tx.set(idempotencyRef, {

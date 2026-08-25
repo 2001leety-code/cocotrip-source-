@@ -25,6 +25,7 @@ import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail, isSettlementApproverEmail } from './_shared/mood-allowlist.js';
 import { decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
+import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -45,6 +46,13 @@ function routeStopCount(breakdown) {
   if (!origin && !destination && waypoints.length === 0) return 0;
   if (!origin || !destination) return null;
   return waypoints.length + 2;
+}
+
+function normalizedRouteSchedule(booking) {
+  const stopCount = routeStopCount(booking.breakdown);
+  if (stopCount === null) return null;
+  const result = normalizeMoodRouteSchedule(booking.routeSchedule, stopCount, String(booking.startTime || ''));
+  return result.ok && result.provided ? result.value : null;
 }
 
 function defaultCourseMoodPercentages(stopCount) {
@@ -380,6 +388,7 @@ export default async function handler(req, res) {
         amountKRW: amount,
         ratePerHour: typeof b.ratePerHour === 'number' ? b.ratePerHour : null, // 영수증 산식 표기용 (2026-07-04)
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
+        routeSchedule: normalizedRouteSchedule(b),
         finalBreakdown: b.finalBreakdown || null,
         // 저장형 path = [{lng,lat}] (Firestore 는 중첩 배열 불가) → 공개 계약 [[lng,lat],...]
         // 으로 되돌린다. 프론트 지도/공유 카드 계약 불변. (api/_shared/mood-route-snapshot.js)

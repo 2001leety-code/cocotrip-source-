@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Firestore와 HTTP 응답을 작게 모사한다. */
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const verifyUserTokenMock = vi.fn();
@@ -364,6 +365,90 @@ describe('mood-change 입력과 경로 안전장치', () => {
   });
 });
 
+describe('mood-change 경로별 일정', () => {
+  const oldSchedule = [
+    { arrivalTime: null, pickupTime: '09:30' },
+    { arrivalTime: '10:20', pickupTime: '11:20' },
+    { arrivalTime: '13:00', pickupTime: null },
+  ];
+  const changedSchedule = [
+    { arrivalTime: null, pickupTime: '09:30' },
+    { arrivalTime: '10:20', pickupTime: '12:20' },
+    { arrivalTime: '14:00', pickupTime: null },
+  ];
+
+  function scheduledBooking(overrides: Record<string, any> = {}) {
+    return booking({
+      amountKRW: 173000,
+      date: '2026-08-20',
+      startTime: '09:30',
+      durationHours: 4,
+      breakdown: {
+        baseKRW: 120000,
+        distanceSurchargeKRW: 48000,
+        tollKRW: 5000,
+        km: 80,
+        origin: '서울역',
+        destination: '인천공항 제1터미널',
+        waypoints: ['성수동'],
+      },
+      routeSchedule: oldSchedule,
+      ...overrides,
+    });
+  }
+
+  it('일정만 바꿔도 금액·차액·잔액은 변하지 않고 시각만 저장한다', async () => {
+    dbState.docs.mood_bookings['booking-1'] = scheduledBooking();
+    const { res, json } = await call(validBody({
+      booking: validSnapshot({ routeSchedule: changedSchedule }),
+    }));
+
+    expect.soft(res.statusCode).toBe(200);
+    expect.soft(json.data.oldAmountKRW).toBe(173000);
+    expect.soft(json.data.amountKRW).toBe(173000);
+    expect.soft(json.data.adjustmentKRW).toBe(0);
+    expect.soft(json.data.balanceKRW).toBe(500000);
+    expect.soft(json.data.booking.routeSchedule).toEqual(changedSchedule);
+    expect.soft(dbState.docs.mood_bookings['booking-1'].routeSchedule).toEqual(changedSchedule);
+  });
+
+  it('기존 화면이 일정을 안 보내도 경로와 시작시각이 같으면 저장된 일정을 보존한다', async () => {
+    dbState.docs.mood_bookings['booking-1'] = scheduledBooking();
+    const { res, json } = await call(validBody());
+
+    expect.soft(res.statusCode).toBe(200);
+    expect.soft(json.data.booking.routeSchedule).toEqual(oldSchedule);
+    expect.soft(dbState.docs.mood_bookings['booking-1'].routeSchedule).toEqual(oldSchedule);
+  });
+
+  it.each([
+    ['시작시각', { startTime: '10:00' }],
+    ['경로', { waypoints: [] }],
+  ])('일정을 안 보낸 예전 화면에서 %s가 바뀌면 낡은 일정을 제거한다', async (_label, snapshotOverrides) => {
+    dbState.docs.mood_bookings['booking-1'] = scheduledBooking();
+    const { res, json } = await call(validBody({
+      booking: validSnapshot(snapshotOverrides),
+    }));
+
+    expect.soft(res.statusCode).toBe(200);
+    expect.soft(Object.prototype.hasOwnProperty.call(json.data.booking, 'routeSchedule')).toBe(false);
+  });
+
+  it('같은 멱등 키에 일정만 다르게 보내도 서로 다른 요청으로 판단한다', async () => {
+    dbState.docs.mood_bookings['booking-1'] = scheduledBooking();
+    const firstBody = validBody({ booking: validSnapshot({ routeSchedule: changedSchedule }) });
+    const first = await call(firstBody);
+    const second = await call({
+      ...firstBody,
+      booking: validSnapshot({ routeSchedule: oldSchedule }),
+    });
+
+    expect.soft(first.res.statusCode).toBe(200);
+    expect.soft(second.res.statusCode).toBe(409);
+    expect.soft(second.json.error).toBe('IDEMPOTENCY_CONFLICT');
+  });
+});
+
 describe('mood-change 원자성, 개정 번호, 멱등성', () => {
   it('확정 상태와 예상 개정 번호가 맞아야 한다', async () => {
     dbState.docs.mood_bookings['booking-1'] = booking({ status: 'completed' });
@@ -454,6 +539,45 @@ describe('mood-change 원자성, 개정 번호, 멱등성', () => {
     expect(dbState.docs.mood_clients.COMPANY_A.balanceKRW).toBe(427000);
     expect(dbState.updates.length + dbState.sets.length).toBe(writesAfterFirst);
     expect(computeRouteMock).toHaveBeenCalledTimes(routeCallsAfterFirst);
+  });
+
+  it('일정 필드 도입 전에 저장한 같은 요청의 성공 응답도 그대로 재생한다', async () => {
+    const legacyStablePayload = JSON.stringify({
+      bookingId: 'booking-1',
+      expectedRevision: 0,
+      reason: '촬영 장소 변경',
+      booking: {
+        date: '2026-08-20',
+        startTime: '09:30',
+        durationHours: 4,
+        serviceType: 'vehicle',
+        origin: '서울역',
+        destination: '인천공항 제1터미널',
+        waypoints: ['성수동'],
+        note: 'KE123 탑승',
+        airportDirection: null,
+        airportCode: null,
+        hasInfluencerName: true,
+        influencerName: '코코',
+        courseMoodPercentages: [100, 0, 0],
+        courseShareSchemaVersion: 2,
+      },
+    });
+    const documentId = createHash('sha256').update('staff@x.com:change-unique-1').digest('hex');
+    const legacyResponse = { ok: true, data: { legacyReplay: true } };
+    dbState.docs.mood_booking_change_idempotency = {
+      [documentId]: {
+        payloadHash: createHash('sha256').update(legacyStablePayload).digest('hex'),
+        response: legacyResponse,
+      },
+    };
+
+    const { res, json } = await call(validBody());
+
+    expect(res.statusCode).toBe(200);
+    expect(json).toEqual(legacyResponse);
+    expect(computeRouteMock).not.toHaveBeenCalled();
+    expect(dbState.updates).toHaveLength(0);
   });
 
   it('같은 키를 다른 payload에 다시 쓰면 충돌로 거부한다', async () => {

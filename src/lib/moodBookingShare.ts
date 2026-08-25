@@ -5,6 +5,12 @@
  * 필요한 값만 이 형태로 옮기면 캡처 카드와 복사 문구가 항상 같은 숫자를 쓴다.
  */
 
+import {
+  formatMoodRouteScheduleText,
+  normalizeMoodRouteSchedule,
+  type MoodRouteScheduleStop,
+} from './moodRouteSchedule';
+
 export type MoodBookingSharePhase = 'expected' | 'final';
 export type MoodBookingShareTollStatus = 'paid' | 'not-paid' | 'adjusted' | 'none';
 export type MoodBookingShareTollMode = 'estimated' | 'none' | 'actual' | 'itemized';
@@ -19,7 +25,10 @@ export interface MoodBookingShareStop {
   payer?: MoodBookingSharePayer | null;
   /** 비워 두면 출발/경유/도착이 순서에 맞게 자동 표시된다. */
   label?: string | null;
+  /** 구형 공유 데이터의 단일 시각. 새 예약은 arrivalTime/pickupTime을 쓴다. */
   time?: string | null;
+  arrivalTime?: string | null;
+  pickupTime?: string | null;
   lat?: number | null;
   lng?: number | null;
 }
@@ -61,6 +70,8 @@ export interface MoodBookingShareData {
   serviceLabel: string;
   durationHours?: number | null;
   stops: MoodBookingShareStop[];
+  /** 경로 주소와 같은 순서의 도착/재출발 시각. 주소는 stops가 SSOT다. */
+  routeSchedule?: MoodRouteScheduleStop[] | null;
   route?: MoodBookingShareRoute | null;
   costs: {
     expected: MoodBookingShareCostBreakdown;
@@ -98,6 +109,11 @@ export interface MoodBookingShareCourseDistribution {
 export interface MoodBookingShareTollPresentation {
   label: string;
   detail: string;
+}
+
+export interface MoodBookingShareResolvedSchedule {
+  addresses: string[];
+  routeSchedule: MoodRouteScheduleStop[];
 }
 
 function finiteMoney(value: number | null | undefined): number {
@@ -224,6 +240,36 @@ export function moodShareStopLabel(index: number, total: number): string {
   return `경유 ${index}`;
 }
 
+/**
+ * 새 routeSchedule을 우선하고, 공유 stop 안의 새 시각을 다음으로 사용한다.
+ * 구형 `time`만 있는 예약은 기존 단일 시각 표시를 그대로 유지하기 위해 일정표로 승격하지 않는다.
+ */
+export function resolveMoodBookingShareRouteSchedule(
+  data: MoodBookingShareData,
+  visibleStops?: MoodBookingShareStop[],
+): MoodBookingShareResolvedSchedule | null {
+  const stops = (visibleStops || data.stops || []).filter((stop) => String(stop.address || '').trim());
+  const hasTopLevelSchedule = Array.isArray(data.routeSchedule) && data.routeSchedule.length > 0;
+  const hasStopSchedule = stops.some((stop) => (
+    !!String(stop.arrivalTime || '').trim()
+    || !!String(stop.pickupTime || '').trim()
+  ));
+  if (!hasTopLevelSchedule && !hasStopSchedule) return null;
+
+  const topLevel = Array.isArray(data.routeSchedule) ? data.routeSchedule : [];
+  const raw = stops.map((stop, index) => {
+    const stored = topLevel[index] || { arrivalTime: null, pickupTime: null };
+    return {
+      arrivalTime: stored.arrivalTime || stop.arrivalTime || (index > 0 ? stop.time || null : null),
+      pickupTime: stored.pickupTime || stop.pickupTime || (index === 0 ? stop.time || data.startTime : null),
+    };
+  });
+  return {
+    addresses: stops.map((stop) => String(stop.address || '').trim()),
+    routeSchedule: normalizeMoodRouteSchedule(raw, stops.length, data.startTime),
+  };
+}
+
 export function formatMoodShareDate(value: string): string {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value || '-';
@@ -315,6 +361,13 @@ export function formatMoodBookingShareText(data: MoodBookingShareData): string {
   if (hasFiniteNumber(route.durationMin)) routeBits.push(`약 ${Math.round(route.durationMin)}분`);
   const duration = hasFiniteNumber(data.durationHours) ? ` · ${data.durationHours}시간` : '';
   const stops = (data.stops || []).filter((stop) => String(stop.address || '').trim());
+  const resolvedSchedule = resolveMoodBookingShareRouteSchedule(data, stops);
+  const scheduleText = resolvedSchedule ? formatMoodRouteScheduleText({
+    date: data.date,
+    addresses: resolvedSchedule.addresses,
+    routeSchedule: resolvedSchedule.routeSchedule,
+    startTime: data.startTime,
+  }) : '';
   const distribution = allocateMoodShareCostByCourse(activeTotal, stops);
   const lines = [
     isFinal ? '[MOOD 이동 정산 안내]' : '[MOOD 이동 예상 안내]',
@@ -323,8 +376,11 @@ export function formatMoodBookingShareText(data: MoodBookingShareData): string {
     `탑승 인플루언서: ${String(data.influencerName || '').trim() || '미입력'}`,
     `일시: ${formatMoodShareDate(data.date)} ${data.startTime || '-'}`,
     `서비스: ${data.serviceLabel || '-'}${duration}`,
+  ];
+  if (scheduleText) lines.push('', scheduleText);
+  lines.push(
     '',
-    '동선',
+    scheduleText ? '동선 및 비용 분담' : '동선',
     ...distribution.courses.map((course, index) => {
       const stop = course.stop;
       const label = String(stop.label || '').trim() || moodShareStopLabel(index, stops.length);
@@ -332,7 +388,7 @@ export function formatMoodBookingShareText(data: MoodBookingShareData): string {
       const influencer = moodSharePayerLabel('influencer', data.influencerName);
       return `${index + 1}. [${label}] ${String(stop.address || '').trim()}${time ? ` · ${time}` : ''} · MOOD ${course.moodPercentage}% ${formatMoodShareKRW(course.moodKRW)} · ${influencer} ${course.influencerPercentage}% ${formatMoodShareKRW(course.influencerKRW)}`;
     }),
-  ];
+  );
 
   if (routeBits.length) lines.push(`이동: ${routeBits.join(' · ')}`);
   lines.push('', '예약 예상 비용', ...expectedCostLines(expected));
