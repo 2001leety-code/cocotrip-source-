@@ -204,6 +204,56 @@ afterEach(() => {
 });
 
 describe('MoodBookingChangeModal 경로 순서 편집', () => {
+  it('9시간을 지운 뒤 6시간을 입력하면 16이 아니라 6으로 저장한다', async () => {
+    render(
+      <MoodBookingChangeModal
+        booking={booking({ durationHours: 9, amountKRW: 270_000 })}
+        balanceKRW={500_000}
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    const durationInput = screen.getByLabelText('이용 시간') as HTMLInputElement;
+    expect(durationInput.value).toBe('9');
+
+    fireEvent.change(durationInput, { target: { value: '' } });
+    expect(durationInput.value).toBe('');
+
+    fireEvent.change(durationInput, { target: { value: '6' } });
+    expect(durationInput.value).toBe('6');
+
+    await finishRouteDebounce();
+    fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '총 예약시간 변경' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const changeCall = authFetchMock.mock.calls.find((call) => String(call[0]).includes('/api/mood-change'));
+    expect(changeCall).toBeTruthy();
+    const submitted = JSON.parse(String((changeCall?.[1] as RequestInit).body || '{}'));
+    expect(submitted.booking.durationHours).toBe(6);
+  });
+
+  it('이용 시간을 비운 채 포커스를 옮기면 마지막 안전값을 복원한다', () => {
+    render(
+      <MoodBookingChangeModal
+        booking={booking({ durationHours: 9, amountKRW: 270_000 })}
+        balanceKRW={500_000}
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    const durationInput = screen.getByLabelText('이용 시간') as HTMLInputElement;
+    fireEvent.change(durationInput, { target: { value: '' } });
+    expect(durationInput.value).toBe('');
+    fireEvent.blur(durationInput);
+    expect(durationInput.value).toBe('9');
+  });
+
   it('출발→경유→도착으로 표시하고 순서 변경 시 주소·0% 부담률·저장값을 함께 옮긴다', async () => {
     const onClose = vi.fn();
     render(
