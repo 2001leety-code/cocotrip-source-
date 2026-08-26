@@ -12,7 +12,26 @@ vi.mock('@/lib/firebase', () => ({ signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/appReady', () => ({ signalAppReady: vi.fn() }));
 vi.mock('@/components/MoodRouteMap', () => ({ MoodRouteMap: () => <div data-testid="mood-route-map" /> }));
 vi.mock('@/components/PwaInstallButton', () => ({ PwaInstallButton: () => null }));
-vi.mock('@/components/charter/AddressAutocomplete', () => ({ AddressAutocomplete: () => null }));
+vi.mock('@/components/charter/AddressAutocomplete', () => ({
+  AddressAutocomplete: ({ label, onChange }: {
+    label: string;
+    onChange: (value: { name: string; address: string; lat: number; lng: number; category: string }) => void;
+  }) => (
+    <button
+      type="button"
+      aria-label={`${label} 테스트 주소 선택`}
+      onClick={() => onChange({
+        name: `${label} 테스트 장소`,
+        address: `서울 ${label} 테스트 주소`,
+        lat: 37.5,
+        lng: 127,
+        category: '테스트',
+      })}
+    >
+      {label} 테스트 주소 선택
+    </button>
+  ),
+}));
 vi.mock('@/components/mood/MoodCourseShareEditor', () => ({ MoodCourseShareEditor: () => null }));
 vi.mock('@/components/mood/MoodGuideModal', () => ({ MoodGuideModal: () => null }));
 vi.mock('@/components/mood/MoodReceiptModal', () => ({ MoodReceiptModal: () => null }));
@@ -39,11 +58,16 @@ const parseResponse = {
   ],
 };
 
+let parsePayload = parseResponse;
+let routeShouldFail = false;
+
 function response(json: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => json };
 }
 
 beforeEach(() => {
+  parsePayload = parseResponse;
+  routeShouldFail = false;
   authFetchMock.mockReset();
   authFetchMock.mockImplementation(async (url: string) => {
     const target = String(url);
@@ -54,8 +78,9 @@ beforeEach(() => {
       });
     }
     if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
-    if (target.includes('/api/mood-parse-schedule')) return response(parseResponse);
+    if (target.includes('/api/mood-parse-schedule')) return response(parsePayload);
     if (target.includes('/api/mood-route')) {
+      if (routeShouldFail) return response({ ok: false, error: '주소를 찾을 수 없음' }, 422);
       return response({ ok: true, data: { km: 10, tollKRW: 0, durationMin: 30, path: [], points: [] } });
     }
     if (target.includes('/api/mood-book')) {
@@ -84,21 +109,83 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });
 
     expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약을 할 수 없습니다');
-    expect(screen.getByRole('button', { name: '오후 6시 이후 예약 불가' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '오후 6시 이후 시작 예약 불가' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '17:59' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '예약하기' })).toBeEnabled();
   });
+
+  it('사진 속 9월 2일·5일 시작 시각은 예약 가능하고 5일의 종료 시각 기준 오해를 풀어 준다', async () => {
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+
+    fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-02' } });
+    fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '14:00' } });
+    expect(screen.getByRole('button', { name: '예약하기' })).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-05' } });
+    fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '14:20' } });
+    expect(screen.getByRole('button', { name: '예약하기' })).toBeEnabled();
+    expect(screen.getByRole('status')).toHaveTextContent('시간 제한 통과');
+    expect(screen.getByRole('status')).toHaveTextContent('주소·동선 확인 후 예약해 주세요');
+  });
+
+  it('수기 예약이 주소 때문에 막히면 날짜 대신 정확한 해결 방법을 버튼에 표시한다', async () => {
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '출발지 테스트 주소 선택' }));
+    expect(screen.getByRole('button', { name: '출발지·도착지를 모두 입력해 주세요' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '도착지 테스트 주소 선택' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '예약하기' })).toBeEnabled());
+  });
+
+  it('주소 경로를 계산하지 못하면 해결 문구를 표시하고 예약 요청을 보내지 않는다', async () => {
+    routeShouldFail = true;
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '출발지 테스트 주소 선택' }));
+    fireEvent.click(screen.getByRole('button', { name: '도착지 테스트 주소 선택' }));
+
+    const blockedButton = await screen.findByRole('button', { name: '주소 확인 후 예약 가능' });
+    expect(blockedButton).toBeDisabled();
+    expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
+  });
 });
 
 describe('MoodAiBooking 임시 저녁 제한 UI', () => {
+  it('사진 속 9월 5일 14시 20분 일정은 AI 분석 뒤 예약 버튼까지 활성화한다', async () => {
+    parsePayload = {
+      ...parseResponse,
+      dates: ['2026-09-05'],
+      stops: [
+        { order: 1, label: '촬영지', address: '서울 촬영지', lat: 37.51, lng: 127.02, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true, date: '2026-09-05', timeHint: '14:20' },
+        { order: 2, label: '행사장', address: '서울 행사장', lat: 37.52, lng: 127.03, action: 'arrive', matchedFromPlacebook: true, geocodeOk: true, date: '2026-09-05', timeHint: '15:00' },
+        { order: 3, label: '종료지', address: '서울 종료지', lat: 37.53, lng: 127.04, action: 'dropoff', matchedFromPlacebook: true, geocodeOk: true, date: '2026-09-05', timeHint: '20:30' },
+      ],
+    };
+
+    render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '9월 5일 14시 20분 출발, 20시 30분 종료' } });
+    fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('시간 제한 통과');
+    expect(screen.getByRole('button', { name: '이대로 예약' })).toBeEnabled();
+    expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
+  });
+
   it('AI가 제한 시각을 채우면 즉시 경고하고, 17:59로 고치기 전에는 요청하지 않는다', async () => {
     render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '9월 10일 18시 서울역 출발, 성수동 도착' } });
     fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
 
-    const blockedButton = await screen.findByRole('button', { name: '오후 6시 이후 예약 불가' });
+    const blockedButton = await screen.findByRole('button', { name: '오후 6시 이후 시작 예약 불가' });
     expect(blockedButton).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약을 할 수 없습니다');
     expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);

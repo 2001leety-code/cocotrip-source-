@@ -33,7 +33,7 @@ import {
   type MoodAirportCode,
 } from '@/lib/moodPricing';
 import { exceedsWaypointCap, shouldSendRoute, deriveScheduleTiming } from './moodBookingLogic';
-import { isMoodEveningBookingBlocked } from '@/lib/moodBookingAvailability';
+import { isMoodEveningBlackoutDate, isMoodEveningBookingBlocked } from '@/lib/moodBookingAvailability';
 import {
   formatMoodRouteScheduleStopSummary,
   normalizeMoodRouteSchedule,
@@ -207,6 +207,9 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
   const [bookMsg, setBookMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([]);
   const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime);
+  const eveningLimitedButAllowed = Boolean(startTime)
+    && isMoodEveningBlackoutDate(date)
+    && !eveningBookingBlocked;
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -1152,6 +1155,12 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
             </p>
           )}
 
+          {eveningLimitedButAllowed && (
+            <p className="text-xs font-semibold" role="status" style={{ color: C.ok }}>
+              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 종료가 오후 6시를 넘어도 괜찮습니다. 주소·동선 확인 후 예약해 주세요.
+            </p>
+          )}
+
           {/* 이용 시간 — 공항은 정액이라 숨김 */}
           {!isFixedPrice && (
             <div className="flex flex-col gap-1.5">
@@ -1287,12 +1296,14 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
               {booking
                 ? '예약 중…'
                 : eveningBookingBlocked
-                  ? '오후 6시 이후 예약 불가'
+                  ? '오후 6시 이후 시작 예약 불가'
                   : hasBlockingStop
                     ? '🔴 주소 확인 후 예약 가능'
                     : hasTooFewStops
                       ? '출발지·도착지 2곳 필요'
-                      : '이대로 예약'}
+                      : tooManyWaypoints
+                        ? '경유지 5개 이하로 줄여 주세요'
+                        : '이대로 예약'}
             </button>
           )}
           {bookMsg && (

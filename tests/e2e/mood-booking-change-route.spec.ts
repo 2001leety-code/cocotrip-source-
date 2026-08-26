@@ -53,9 +53,21 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/mood/dev-ui');
+    const initialBodyOverflow = await page.evaluate(() => document.body.style.overflow);
     await page.getByRole('button', { name: '예약 변경' }).click();
     await expect(page.getByText(/동선 64km/)).toBeVisible();
     await assertVisibleControlsAreTappable(page);
+    expect(await page.evaluate(() => ({
+      body: document.body.style.overflow,
+      dialog: window.getComputedStyle(document.querySelector('[role="dialog"]') as HTMLElement).overflowY,
+    }))).toEqual({ body: 'hidden', dialog: 'auto' });
+
+    const dialogBox = await page.getByRole('dialog').boundingBox();
+    const shareBox = await page.getByRole('region', { name: '코스별 비용 분담 비율' }).boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(shareBox).not.toBeNull();
+    expect(shareBox!.width).toBeGreaterThanOrEqual(328);
+    expect(shareBox!.x - dialogBox!.x).toBeLessThanOrEqual(24);
 
     const rows = page.getByTestId('mood-route-stop');
     await expect(rows).toHaveCount(5);
@@ -85,6 +97,7 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
     await page.getByRole('button', { name: '111,000원 · MOOD 확인 요청' }).click();
 
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe(initialBodyOverflow);
     await expect(page.getByTestId('mood-harness-change-payload')).toContainText('"action":"propose"');
     await expect(page.getByTestId('mood-harness-change-payload')).toContainText(`"quoteId":"${'b'.repeat(64)}"`);
     await page.getByRole('button', { name: 'MOOD 승인자 보기' }).click();

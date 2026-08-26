@@ -227,9 +227,18 @@ describe('MOOD 저녁 예약 제한 서버 정책', () => {
     ['2026-08-23', '18:00', true],
     ['2026-08-14', '18:00', true],
     ['2026-09-12', '18:00', false],
+    ['2026-09-05', '18:00', false],
     ['2026-09-17', '18:00', true],
   ])('%s %s 예약 가능 여부는 %s다', (date, startTime, ok) => {
     expect(checkMoodBookingAvailability(date, startTime).ok).toBe(ok);
+  });
+
+  it.each([
+    ['2026-09-01', '14:00'],
+    ['2026-09-02', '14:00'],
+    ['2026-09-05', '14:20'],
+  ])('사진 속 일정 %s %s은 서버에서도 예약 가능하다', (date, startTime) => {
+    expect(checkMoodBookingAvailability(date, startTime)).toEqual({ ok: true });
   });
 
   it('기존 9월 10일 저녁 예약은 같은 날짜·시각을 유지할 때만 상세를 바꿀 수 있다', () => {
@@ -249,6 +258,22 @@ describe('MOOD 저녁 예약 제한 서버 정책', () => {
 });
 
 describe('mood-book 서버 차단과 멱등 재생', () => {
+  it.each([
+    ['2026-09-02', '14:00'],
+    ['2026-09-05', '14:20'],
+  ])('사진 속 일정 %s %s은 실제 예약 API도 허용한다', async (date, startTime) => {
+    const { res, json } = await callBook(bookBody({
+      date,
+      startTime,
+      idempotencyKey: `photo-${date}-${startTime}`,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(store.get(`mood_bookings/${json.data.bookingId}`)).toMatchObject({ date, startTime });
+    expect(transactionRuns).toBe(1);
+  });
+
   it('새 9월 10일 18시 예약을 경로 계산과 쓰기 전에 409로 막는다', async () => {
     const { res, json } = await callBook(bookBody());
 

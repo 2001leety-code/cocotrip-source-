@@ -33,6 +33,13 @@ describe('MOOD 임시 저녁 예약 제한', () => {
     expect(isMoodEveningBookingBlocked('2026-09-10', '23:59')).toBe(true);
   });
 
+  it('사진 속 9월 1일·2일·5일 일정은 실제 시작 시각 기준으로 예약 가능하다', () => {
+    expect(isMoodEveningBookingBlocked('2026-09-01', '14:00')).toBe(false);
+    expect(isMoodEveningBookingBlocked('2026-09-02', '14:00')).toBe(false);
+    expect(isMoodEveningBookingBlocked('2026-09-05', '14:20')).toBe(false);
+    expect(isMoodEveningBookingBlocked('2026-09-05', '18:00')).toBe(true);
+  });
+
   it('제한 요일 밖 또는 잘못된 날짜·시각은 이 임시 규칙으로 차단하지 않는다', () => {
     expect(isMoodEveningBookingBlocked('2026-09-09', '18:00')).toBe(false);
     expect(isMoodEveningBookingBlocked('2026-02-30', '18:00')).toBe(false);

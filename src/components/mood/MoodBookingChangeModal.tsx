@@ -648,7 +648,7 @@ function BookingChangeApprovalModal({
 
   return (
     <div
-      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3"
+      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-2 sm:p-3"
       onMouseDown={(event) => { if (event.target === event.currentTarget && !inFlightRef.current) onClose(); }}
     >
       <div
@@ -657,7 +657,7 @@ function BookingChangeApprovalModal({
         aria-modal="true"
         aria-labelledby="mood-change-approval-title"
         aria-busy={Boolean(submitting)}
-        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-[#11131a] p-5 text-white shadow-2xl sm:p-7"
+        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-[#11131a] p-3 text-white shadow-2xl sm:p-7"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -771,6 +771,14 @@ function BookingChangeApprovalModal({
 }
 
 export function MoodBookingChangeModal(props: Props) {
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
+
   if (props.booking.bookingChangeApproval?.status === 'awaiting_mood') {
     return <BookingChangeApprovalModal {...props} />;
   }
@@ -1462,7 +1470,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
 
   return (
     <div
-      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3"
+      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-2 sm:p-3"
       onMouseDown={(event) => { if (event.target === event.currentTarget) attemptClose(); }}
     >
       <div
@@ -1471,7 +1479,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
         aria-modal="true"
         aria-labelledby="mood-change-title"
         aria-describedby="mood-change-description"
-        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#11131a] p-5 text-white shadow-2xl sm:p-7"
+        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#11131a] p-3 text-white shadow-2xl sm:p-7"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
@@ -1486,11 +1494,11 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
         </div>
 
         <details open className="group rounded-2xl border border-white/10 bg-white/[0.035]">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300 sm:px-4">
             <span>1. 기본 정보</span>
             <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
           </summary>
-          <div className="grid gap-4 border-t border-white/10 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 border-t border-white/10 p-3 sm:grid-cols-2 sm:p-4">
           <label className="text-sm font-bold">날짜<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           <label className="text-sm font-bold">시작 시각<input type="time" value={startTime} onChange={(event) => handleStartTimeChange(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-300" /></label>
           <label className="text-sm font-bold">서비스
@@ -1520,7 +1528,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
 
         {showEveningBlackoutNotice && <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" role="note">
           <p className="text-xs font-bold text-amber-200">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
-          <p className="mt-1 text-xs text-slate-300">오후 6시 전 시작은 가능하며, 이미 확정된 예약은 그대로 유효합니다.</p>
+          <p className="mt-1 text-xs text-slate-300">오후 6시 전에 시작하면 종료가 6시를 넘어도 변경할 수 있습니다. 이미 확정된 예약은 그대로 유효합니다.</p>
         </div>}
 
         {eveningBookingBlocked && (
@@ -1536,11 +1544,11 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
         </details>
 
         <details open className="group mt-4 rounded-2xl border border-white/10 bg-white/[0.035]">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300 sm:px-4">
             <span>2. 동선·일정</span>
             <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
           </summary>
-        <section className="border-t border-white/10 p-3 sm:p-4" aria-labelledby="mood-route-title">
+        <section className="border-t border-white/10 px-2 pb-3 pt-3 sm:p-4" aria-labelledby="mood-route-title">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h3 id="mood-route-title" className="text-sm font-black text-white">이동 경로</h3>
@@ -1728,7 +1736,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
             <MoodRouteMap origin={origin} destination={destination} waypoints={waypoints.filter(Boolean)} route={route} accent="#a78bfa" inputBg="#171923" inputBorder="1px solid rgba(255,255,255,.12)" textDim="#94a3b8" />
           </div>
           {courseItems.length >= 2 && (
-            <div className="mt-3">
+            <div className="-mx-2 mt-3 sm:mx-0">
               <MoodCourseShareEditor
                 items={courseItems}
                 percentages={courseMoodPercentages}
@@ -1745,11 +1753,11 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
         </details>
 
         <details open className="group mt-4 rounded-2xl border border-white/10 bg-white/[0.035]">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300 sm:px-4">
             <span>3. 금액 확인</span>
             <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
           </summary>
-        <div className="grid grid-cols-3 gap-2 border-t border-violet-400/20 bg-violet-400/10 p-4 text-center">
+        <div className="grid grid-cols-3 gap-2 border-t border-violet-400/20 bg-violet-400/10 p-3 text-center sm:p-4">
           <div><p className="text-xs text-slate-400">변경 전</p><p className="mt-1 font-black">{formatKRW(booking.amountKRW)}</p></div>
           <div><p className="text-xs text-slate-400">변경 후</p><p className="mt-1 font-black text-violet-200" translate="no">{estimateReady ? formatKRW(estimatedAmountKRW) : '미리보기 필요'}</p></div>
           <div><p className="text-xs text-slate-400">잔액 변화</p><p className={`mt-1 font-black ${!estimateReady ? 'text-slate-300' : adjustment > 0 ? 'text-rose-300' : adjustment < 0 ? 'text-emerald-300' : ''}`}>{!estimateReady ? '확인 전' : adjustment === 0 ? '변동 없음' : `${adjustment > 0 ? '-' : '+'}${formatKRW(Math.abs(adjustment))}`}</p></div>
@@ -1758,7 +1766,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
           </p>
         </div>
 
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           <p className="text-xs font-black text-white">바뀐 항목</p>
           {hasChanges ? (
             <div className="mt-2 flex flex-wrap gap-1.5" aria-live="polite">
@@ -1794,7 +1802,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
         </div>
         </details>
 
-        <div className="sticky -bottom-5 z-20 -mx-5 mt-4 border-t border-white/10 bg-[#11131a]/95 px-5 pb-5 pt-3 shadow-[0_-14px_30px_rgba(0,0,0,0.35)] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:px-7 sm:pb-7">
+        <div className="sticky -bottom-3 z-20 -mx-3 mt-4 border-t border-white/10 bg-[#11131a]/95 px-3 pb-3 pt-3 shadow-[0_-14px_30px_rgba(0,0,0,0.35)] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:px-7 sm:pb-7">
           <div className="mb-2 flex items-center justify-between gap-3 text-xs">
             <span className="font-bold text-slate-300">{hasChanges ? `${changedFieldKeys.length}개 항목 변경` : '변경 없음'}</span>
             <span className="font-black text-violet-100" translate="no">{estimateReady ? formatKRW(estimatedAmountKRW) : '금액 확인 전'}</span>
