@@ -270,6 +270,83 @@ function normalizedSettlementApproval(booking) {
   };
 }
 
+function normalizedBookingChangeApproval(booking) {
+  const value = booking.bookingChangeApproval;
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    invalidBookingMoney('INVALID_BOOKING_CHANGE_APPROVAL');
+  }
+  if (!['awaiting_mood', 'approved', 'withdrawn'].includes(value.status)) {
+    invalidBookingMoney('INVALID_BOOKING_CHANGE_APPROVAL');
+  }
+  if (
+    typeof value.quoteId !== 'string'
+    || !/^[a-f0-9]{64}$/.test(value.quoteId)
+    || value.currency !== 'KRW'
+    || !Number.isInteger(value.proposalRevision)
+    || value.proposalRevision < 0
+    || typeof value.proposedByEmail !== 'string'
+    || !value.proposedByEmail.trim()
+    || !Number.isSafeInteger(value.proposedAt)
+    || value.proposedAt <= 0
+    || typeof value.reason !== 'string'
+    || !value.reason.trim()
+    || value.reason.length > 500
+    || !Array.isArray(value.changedFields)
+    || value.changedFields.some((field) => typeof field !== 'string' || !field)
+  ) {
+    invalidBookingMoney('INVALID_BOOKING_CHANGE_APPROVAL');
+  }
+  if (
+    !Number.isSafeInteger(value.oldAmountKRW)
+    || value.oldAmountKRW < 0
+    || !Number.isSafeInteger(value.amountKRW)
+    || value.amountKRW < 0
+    || !Number.isSafeInteger(value.adjustmentKRW)
+    || value.adjustmentKRW !== value.amountKRW - value.oldAmountKRW
+    || !Number.isSafeInteger(value.balanceBeforeKRW)
+    || !Number.isSafeInteger(value.balanceAfterKRW)
+    || value.balanceAfterKRW !== value.balanceBeforeKRW - value.adjustmentKRW
+    || !value.proposedBooking
+    || typeof value.proposedBooking !== 'object'
+    || Array.isArray(value.proposedBooking)
+    || !value.breakdown
+    || typeof value.breakdown !== 'object'
+    || Array.isArray(value.breakdown)
+  ) {
+    invalidBookingMoney('INVALID_BOOKING_CHANGE_APPROVAL');
+  }
+  validateBreakdownMoney(value.breakdown);
+  if (value.status === 'awaiting_mood' && (
+    value.proposalRevision !== (Number.isInteger(booking.revision) ? booking.revision : 0)
+    || value.oldAmountKRW !== booking.amountKRW
+  )) {
+    invalidBookingMoney('INVALID_BOOKING_CHANGE_APPROVAL');
+  }
+  return {
+    status: value.status,
+    quoteId: value.quoteId,
+    proposalRevision: value.proposalRevision,
+    proposedByEmail: value.proposedByEmail,
+    proposedAt: value.proposedAt,
+    reason: value.reason,
+    currency: value.currency,
+    oldAmountKRW: value.oldAmountKRW,
+    amountKRW: value.amountKRW,
+    adjustmentKRW: value.adjustmentKRW,
+    balanceBeforeKRW: value.balanceBeforeKRW,
+    balanceAfterKRW: value.balanceAfterKRW,
+    changedFields: value.changedFields.slice(),
+    proposedBooking: value.proposedBooking,
+    breakdown: value.breakdown,
+    routeSnapshot: decodeRouteSnapshot(value.routeSnapshot),
+    approvedByEmail: typeof value.approvedByEmail === 'string' && value.approvedByEmail ? value.approvedByEmail : null,
+    approvedAt: Number.isSafeInteger(value.approvedAt) ? value.approvedAt : null,
+    withdrawnByEmail: typeof value.withdrawnByEmail === 'string' && value.withdrawnByEmail ? value.withdrawnByEmail : null,
+    withdrawnAt: Number.isSafeInteger(value.withdrawnAt) ? value.withdrawnAt : null,
+  };
+}
+
 function validateBookingMoney(booking) {
   validateOptionalMoney(booking.ratePerHour, { minimum: 0 });
   validateOptionalMoney(booking.balanceAfterKRW);
@@ -372,6 +449,7 @@ export default async function handler(req, res) {
       }
       validateBookingMoney(b);
       const settlementApproval = normalizedSettlementApproval(b);
+      const bookingChangeApproval = normalizedBookingChangeApproval(b);
       const courseShare = normalizedCourseShare(b);
       if (!courseShare.ok) invalidBookingMoney('INVALID_COURSE_SHARE');
       const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
@@ -412,6 +490,7 @@ export default async function handler(req, res) {
         correctionCount: Number.isInteger(b.correctionCount) && b.correctionCount >= 0 ? b.correctionCount : 0,
         lastCorrectionReason: typeof b.lastCorrectionReason === 'string' && b.lastCorrectionReason ? b.lastCorrectionReason : null,
         settlementApproval,
+        bookingChangeApproval,
         note: typeof b.note === 'string' && b.note ? b.note : null, // 예약 메모 (항공편 등, 2026-07-05)
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
@@ -435,6 +514,7 @@ export default async function handler(req, res) {
       || err.code === 'INVALID_BOOKING_MONEY'
       || err.code === 'INVALID_COURSE_SHARE'
       || err.code === 'INVALID_SETTLEMENT_APPROVAL'
+      || err.code === 'INVALID_BOOKING_CHANGE_APPROVAL'
     )) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: err.code }));

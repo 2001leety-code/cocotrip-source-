@@ -22,6 +22,7 @@ import {
   getSettlementDb,
   resetSettlementWorld,
   settlementMocks,
+  writesTo,
 } from './helpers/moodSettlementHarness';
 
 vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: (...a: any[]) => settlementMocks.verifyUserToken(...a) }));
@@ -308,6 +309,69 @@ describe('mood-settle 개정 번호 경쟁 방지', () => {
     const loser = a.status === 409 ? a : b;
     expect(loser.json.error).toBe('BOOKING_CHANGED');
     expect(clientDoc().balanceKRW).toBe(500000);
+  });
+});
+
+describe('mood-settle 예약 변경 승인과 상호 배제', () => {
+  it('예약 변경 MOOD 확인 대기 중에는 미리보기와 정산 제안을 모두 409로 막는다', async () => {
+    resetSettlementWorld({
+      booking: validBooking({ bookingChangeApproval: { status: 'awaiting_mood', quoteId: 'change-quote-1' } }),
+      client: { name: 'MOOD', balanceKRW: 500000 },
+    });
+    const body = validBody({
+      origin: '실제 출발지',
+      destination: '실제 도착지',
+      courseMoodPercentages: [100, 0],
+    });
+
+    const preview = await callPreview(body);
+    const propose = await callSettle(body);
+
+    expect(preview.status).toBe(409);
+    expect(preview.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(propose.status).toBe(409);
+    expect(propose.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(settlementMocks.computeRoute).not.toHaveBeenCalled();
+    expect(getSettlementDb()._writes).toHaveLength(0);
+    expect(clientDoc().balanceKRW).toBe(500000);
+  });
+
+  it('사전 조회 뒤 예약 변경 제안이 생겨도 트랜잭션에서 정산 제안을 막는다', async () => {
+    const body = validBody({
+      origin: '실제 출발지',
+      destination: '실제 도착지',
+      courseMoodPercentages: [100, 0],
+    });
+    delete (body as any).previewHash;
+    const preview = await callPreview(body);
+    expect(preview.status).toBe(200);
+
+    settlementMocks.computeRoute.mockImplementationOnce(async () => {
+      await getSettlementDb().collection('mood_bookings').doc(BOOKING_ID).update({
+        bookingChangeApproval: { status: 'awaiting_mood', quoteId: 'change-quote-race' },
+      });
+      return {
+        ok: true,
+        km: 80,
+        tollKRW: 5000,
+        durationMin: 95,
+        path: [[126.9, 37.5], [127, 37.6]],
+        points: [],
+      };
+    });
+
+    const propose = await callSettle({
+      ...body,
+      previewHash: preview.json.data.previewHash,
+      idempotencyKey: nextKey('change-race'),
+    });
+
+    expect(propose.status).toBe(409);
+    expect(propose.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(writesTo('mood_settlement_proposals')).toHaveLength(0);
+    expect(writesTo('mood_settlement_idempotency')).toHaveLength(0);
+    expect(clientDoc().balanceKRW).toBe(500000);
+    expect(bookingDoc().status).toBe('confirmed');
   });
 });
 

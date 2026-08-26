@@ -26,7 +26,10 @@ import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
-import { MoodBookingChangeModal } from '@/components/mood/MoodBookingChangeModal';
+import {
+  MoodBookingChangeModal,
+  type BookingChangeApprovalSummary,
+} from '@/components/mood/MoodBookingChangeModal';
 import {
   MoodSettlementApprovalPanel,
   MoodSettlementEditor,
@@ -148,6 +151,7 @@ interface MoodBooking {
   correctionCount?: number;
   lastCorrectionReason?: string | null;
   settlementApproval?: SettlementApprovalSummary | null;
+  bookingChangeApproval?: BookingChangeApprovalSummary | null;
   /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
   runningBalanceKRW?: number | null;
   /** 예약 메모 (AI 예약이 항공편 정보 자동 첨부, 2026-07-05). */
@@ -400,11 +404,13 @@ export default function MoodPortal() {
   // 어느 공항인지 — 정액이 다름(인천 110,000 / 김포 80,000). 백엔드가 이 값으로 재계산.
   const [airportCode, setAirportCode] = useState<MoodAirportCode>(MOOD_DEFAULT_AIRPORT_CODE);
   const [submitting, setSubmitting] = useState(false);
+  const [manualBookingComplete, setManualBookingComplete] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [influencerName, setInfluencerName] = useState('');
   const [bookingNote, setBookingNote] = useState('');
   const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([100, 100]);
   const bookingRequestRef = useRef({ signature: '', key: '' });
+  const bookingInFlightRef = useRef(false);
 
   // 경로(주소) 입력 상태 — 경유지는 네이버 지도처럼 개별 추가/삭제(최대 5, 백엔드 한도).
   const [origin, setOrigin] = useState('');
@@ -720,10 +726,16 @@ export default function MoodPortal() {
 
   const handleBook = useCallback(async () => {
     if (!data) return;
+    if (manualBookingComplete) {
+      setPortalTab('status');
+      return;
+    }
+    if (bookingInFlightRef.current) return;
     if (isMoodEveningBookingBlocked(date, startTime)) {
       setFormMsg({ kind: 'err', text: '선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.' });
       return;
     }
+    bookingInFlightRef.current = true;
     setSubmitting(true);
     setFormMsg(null);
     try {
@@ -777,7 +789,7 @@ export default function MoodPortal() {
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
-        bookingRequestRef.current = { signature: '', key: '' };
+        setManualBookingComplete(true);
         setFormMsg({
           kind: 'ok',
           text: `예약 완료 — ${formatKRW(json.data.amountKRW)} 차감, 잔액 ${formatBalance(json.data.balanceKRW)}`,
@@ -789,9 +801,10 @@ export default function MoodPortal() {
     } catch (e) {
       setFormMsg({ kind: 'err', text: e instanceof Error ? e.message : '예약 실패' });
     } finally {
+      bookingInFlightRef.current = false;
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, manualRouteSchedule, influencerName, bookingNote, courseMoodPercentages, loadData]);
+  }, [data, manualBookingComplete, date, startTime, durationHours, serviceType, airportDirection, airportCode, origin, destination, waypoints, manualRouteSchedule, influencerName, bookingNote, courseMoodPercentages, loadData]);
 
   // (충전/광고사 생성 핸들러는 어드민 전용 → /mood 에서 제거. 어드민 관리자 화면으로 이관.)
 
@@ -1009,7 +1022,7 @@ export default function MoodPortal() {
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
   return (
-    <div className="min-h-screen px-4 py-6" style={{ background: C.bgGradient }}>
+    <div className="mood-surface min-h-screen px-4 py-6" style={{ background: C.bgGradient }}>
       <div className="mx-auto w-full max-w-md flex flex-col gap-5">
         {/* 헤더 */}
         <div className="flex items-center justify-between">
@@ -1024,7 +1037,7 @@ export default function MoodPortal() {
               onClick={() => setGuideOpen(true)}
               aria-label="이용 안내"
               title="이용 안내"
-              className="h-7 w-7 rounded-lg text-sm font-bold"
+              className="mood-icon-button h-11 w-11 rounded-xl text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
               style={{ background: 'rgba(124,92,252,0.10)', border: C.inputBorder, color: C.accentSolid }}
             >
               ?
@@ -1065,7 +1078,8 @@ export default function MoodPortal() {
                 key={tab}
                 type="button"
                 onClick={() => setPortalTab(tab)}
-                className="py-2.5 rounded-xl text-sm font-bold transition-all"
+                aria-pressed={active}
+                className="mood-tab min-h-11 rounded-xl px-2 text-sm font-bold"
                 style={{
                   background: active ? C.accent : 'transparent',
                   color: active ? '#fff' : C.textDim,
@@ -1641,16 +1655,18 @@ export default function MoodPortal() {
             )}
 
             {/* 경로 미니맵 — 주소 맞는지 시각 확인 (키 없으면 지도 링크 폴백) */}
-            <MoodRouteMap
-              origin={origin}
-              waypoints={waypoints}
-              destination={destination}
-              route={route}
-              accent={C.accentSolid}
-              inputBg={C.inputBg}
-              inputBorder={C.inputBorder}
-              textDim={C.textDim}
-            />
+            <div className="mood-route-map-touch">
+              <MoodRouteMap
+                origin={origin}
+                waypoints={waypoints}
+                destination={destination}
+                route={route}
+                accent={C.accentSolid}
+                inputBg={C.inputBg}
+                inputBorder={C.inputBorder}
+                textDim={C.textDim}
+              />
+            </div>
             {origin.trim() && destination.trim() && (
               <MoodCourseShareEditor items={manualCourseItems} percentages={courseMoodPercentages} totalKRW={estimate} influencerName={influencerName} onChange={setCourseMoodPercentages} />
             )}
@@ -1690,14 +1706,39 @@ export default function MoodPortal() {
             )}
           </div>
 
-          <button
-            onClick={() => { void handleBook(); }}
-            disabled={submitting || !data || manualEveningBlocked || routeLoading || (!!(origin.trim() || destination.trim()) && (!route || !!routeError))}
-            className="w-full py-3.5 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-            style={{ background: C.accent, color: '#fff' }}
-          >
-            {submitting ? '예약 중…' : manualEveningBlocked ? '오후 6시 이후 예약 불가' : '예약하기'}
-          </button>
+          {manualBookingComplete ? (
+            <div className="grid gap-2 sm:grid-cols-2" role="status" aria-live="polite">
+              <button
+                type="button"
+                onClick={() => setPortalTab('status')}
+                className="mood-primary-action min-h-12 rounded-xl px-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                style={{ background: C.accent, color: '#fff' }}
+              >
+                예약 완료 ✓ · 현황 보기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setManualBookingComplete(false);
+                  setFormMsg(null);
+                  bookingRequestRef.current = { signature: '', key: '' };
+                }}
+                className="min-h-12 rounded-xl px-4 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.text }}
+              >
+                같은 내용으로 한 건 더
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { void handleBook(); }}
+              disabled={submitting || !data || manualEveningBlocked || routeLoading || (!!(origin.trim() || destination.trim()) && (!route || !!routeError))}
+              className="mood-primary-action min-h-12 w-full rounded-xl px-4 font-bold disabled:opacity-50"
+              style={{ background: C.accent, color: '#fff' }}
+            >
+              {submitting ? '예약 중…' : manualEveningBlocked ? '오후 6시 이후 예약 불가' : '예약하기'}
+            </button>
+          )}
 
           {formMsg && (
             <p className="text-xs text-center" style={{ color: formMsg.kind === 'ok' ? C.ok : C.danger }}>
@@ -1710,7 +1751,11 @@ export default function MoodPortal() {
 
         {/* ═══ AI 예약 탭 ═══ 자연어로 예약(파트2 컴포넌트, 자체 완결) */}
         {portalTab === 'ai' && (
-          <MoodAiBooking clientId={data?.clientId || ''} onBooked={() => { void loadData(data?.clientId); }} />
+          <MoodAiBooking
+            clientId={data?.clientId || ''}
+            onBooked={() => { void loadData(data?.clientId); }}
+            onViewStatus={() => setPortalTab('status')}
+          />
         )}
 
         {/* ═══ 현황 탭 (이어서) ═══ 예약 운영 보드 */}
@@ -1782,8 +1827,9 @@ export default function MoodPortal() {
                 const needsSettlement = b.status === 'confirmed' && b.serviceType !== 'airport' && b.date <= todayISO();
                 const settlementApprovalStatus = b.settlementApproval?.status;
                 const hasOpenSettlementProposal = settlementApprovalStatus === 'awaiting_mood' || settlementApprovalStatus === 'changes_requested';
-                const canSettle = !!data?.isAdmin && needsSettlement && !hasOpenSettlementProposal;
-                const awaitingOperator = !data?.isAdmin && needsSettlement && !hasOpenSettlementProposal;
+                const hasOpenBookingChange = b.bookingChangeApproval?.status === 'awaiting_mood';
+                const canSettle = !!data?.isAdmin && needsSettlement && !hasOpenSettlementProposal && !hasOpenBookingChange;
+                const awaitingOperator = !data?.isAdmin && needsSettlement && !hasOpenSettlementProposal && !hasOpenBookingChange;
                 const settlementStatusLabel = settlementApprovalStatus === 'awaiting_mood'
                   ? data?.isAdmin ? 'MOOD 확인 대기' : data?.canApproveSettlement ? '내 금액 확인 필요' : '승인 담당자 확인 대기'
                   : settlementApprovalStatus === 'changes_requested'
@@ -1809,21 +1855,26 @@ export default function MoodPortal() {
                         <span className="block text-sm font-semibold" style={{ color: C.text }}>
                           {b.date} · {b.startTime}
                         </span>
-                        <span className="block text-[11px] truncate" style={{ color: b.status === 'cancelled' ? '#fca5a5' : C.textDim }}>
-                          {serviceName} {serviceTime} · {settlementStatusLabel || (b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정')}
+                        <span className="block text-xs truncate" style={{ color: b.status === 'cancelled' ? '#fca5a5' : C.textDim }}>
+                          {serviceName} {serviceTime} · {hasOpenBookingChange ? (data?.isAdmin ? 'MOOD 변경 확인 대기' : data?.canApproveSettlement ? '내 변경 금액 확인 필요' : '변경 승인 담당자 확인 대기') : settlementStatusLabel || (b.status === 'completed' ? '정산 완료' : b.status === 'cancelled' ? '취소됨 (환불)' : '예약 확정')}
                         </span>
                         {routeText && (
-                          <span className="block text-[11px] truncate" style={{ color: C.textDim }}>{routeText}</span>
+                          <span className="block text-xs truncate" style={{ color: C.textDim }}>{routeText}</span>
                         )}
                         {b.note && (
-                          <span className="block text-[11px] truncate" style={{ color: '#93c5fd' }}>{b.note}</span>
+                          <span className="block text-xs truncate" style={{ color: '#93c5fd' }}>{b.note}</span>
                         )}
                       </button>
                       <div className="text-right shrink-0">
-                        {hasOpenSettlementProposal && b.settlementApproval ? (
+                        {hasOpenBookingChange && b.bookingChangeApproval ? (
+                          <>
+                            <span className="text-sm font-bold" style={{ color: C.accentSolid }}>제안 {formatKRW(b.bookingChangeApproval.amountKRW)}</span>
+                            <p className="text-xs" style={{ color: C.textDim }}>아직 잔액 미반영</p>
+                          </>
+                        ) : hasOpenSettlementProposal && b.settlementApproval ? (
                           <>
                             <span className="text-sm font-bold" style={{ color: C.accentSolid }}>제안 {formatKRW(b.settlementApproval.finalAmountKRW)}</span>
-                            <p className="text-[10px]" style={{ color: C.textDim }}>아직 잔액 미반영</p>
+                            <p className="text-xs" style={{ color: C.textDim }}>아직 잔액 미반영</p>
                           </>
                         ) : (
                           <span className="text-sm font-bold" style={{ color: b.status === 'completed' ? C.ok : C.danger }}>
@@ -1831,7 +1882,7 @@ export default function MoodPortal() {
                           </span>
                         )}
                         {typeof b.runningBalanceKRW === 'number' && (
-                          <p className="text-[11px]" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
+                          <p className="text-xs" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
                             잔액 {formatBalance(b.runningBalanceKRW)}
                           </p>
                         )}
@@ -1847,7 +1898,7 @@ export default function MoodPortal() {
                               {stops.map((stop, i) => (
                                 <div key={`${stop}-${i}`} className="flex gap-2">
                                   <span
-                                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                                     style={{ background: i === 0 ? '#22c55e' : i === stops.length - 1 ? '#ef4444' : C.accentSolid, color: '#fff' }}
                                   >
                                     {i + 1}
@@ -1855,12 +1906,12 @@ export default function MoodPortal() {
                                   <div className="min-w-0 flex-1">
                                     <p className="text-xs font-semibold truncate" style={{ color: C.text }}>{stop}</p>
                                     {bookingRouteSchedule && (
-                                      <p className="text-[10px] font-bold" style={{ color: C.accentSolid }}>
+                                      <p className="text-xs font-bold" style={{ color: C.accentSolid }}>
                                         {formatMoodRouteScheduleStopSummary(bookingRouteSchedule[i], i, stops.length)}
                                       </p>
                                     )}
                                     {i < stops.length - 1 && (
-                                      <p className="text-[10px]" style={{ color: C.textDim }}>차량 이동</p>
+                                      <p className="text-xs" style={{ color: C.textDim }}>차량 이동</p>
                                     )}
                                   </div>
                                 </div>
@@ -1873,7 +1924,7 @@ export default function MoodPortal() {
                           <button
                             type="button"
                             onClick={() => setShareBooking(b)}
-                            className="col-span-2 rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            className="col-span-2 rounded-xl px-3 py-2 text-xs font-semibold"
                             style={{ background: C.accent, color: '#fff' }}
                           >
                             공유·캡처용 동선표 보기
@@ -1881,7 +1932,7 @@ export default function MoodPortal() {
                           <button
                             type="button"
                             onClick={() => setSelectedBooking(b)}
-                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold"
                             style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
                           >
                             영수증
@@ -1890,17 +1941,17 @@ export default function MoodPortal() {
                             <button
                               type="button"
                               onClick={() => setChangeBooking(b)}
-                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold"
                               style={{ background: 'rgba(124,92,252,.18)', border: '1px solid rgba(167,139,250,.35)', color: '#c4b5fd' }}
                             >
-                              예약 내용 변경
+                              {hasOpenBookingChange ? (data?.isAdmin ? '변경 확인 대기 보기' : data?.canApproveSettlement ? '변경 금액 확인' : '변경 제안 보기') : '예약 내용 변경'}
                             </button>
                           )}
                           <a
                             href={naverDirectionsUrl(bd)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="rounded-xl px-3 py-2 text-center text-[11px] font-semibold"
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold"
                             style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
                           >
                             네이버 지도
@@ -1909,7 +1960,7 @@ export default function MoodPortal() {
                             href={googleDirectionsUrl(bd)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="rounded-xl px-3 py-2 text-center text-[11px] font-semibold"
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold"
                             style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
                           >
                             구글 지도
@@ -1917,16 +1968,16 @@ export default function MoodPortal() {
                           <button
                             type="button"
                             onClick={() => copyBookingToForm(b)}
-                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold"
                             style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
                           >
                             같은 내용으로 새 예약
                           </button>
-                          {b.status === 'confirmed' && !hasOpenSettlementProposal && (
+                          {b.status === 'confirmed' && !hasOpenSettlementProposal && !hasOpenBookingChange && (
                             <button
                               type="button"
                               onClick={() => { setCancelConfirmId((id) => (id === b.id ? null : b.id)); setCancelMsg(null); }}
-                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold"
                               style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
                             >
                               예약 취소
@@ -1935,7 +1986,7 @@ export default function MoodPortal() {
                           {canSettle && <button
                             type="button"
                             onClick={() => setSettlementEditor({ booking: b, mode: 'initial' })}
-                            className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold"
                             style={{ background: C.accent, border: '1px solid transparent', color: '#fff' }}
                           >
                             실제 이용 정산
@@ -1944,7 +1995,7 @@ export default function MoodPortal() {
                             <button
                               type="button"
                               onClick={() => setSettlementEditor({ booking: b, mode: 'correction' })}
-                              className="rounded-xl px-3 py-2 text-[11px] font-semibold"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold"
                               style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', color: '#fca5a5' }}
                             >
                               정산 정정
@@ -2069,6 +2120,8 @@ export default function MoodPortal() {
             key={`${changeBooking.id}-${changeBooking.revision || 0}`}
             booking={changeBooking}
             balanceKRW={data?.client.balanceKRW || 0}
+            isAdmin={Boolean(data?.isAdmin)}
+            canApprove={Boolean(data?.canApproveSettlement)}
             onClose={() => setChangeBooking(null)}
             onChanged={() => loadData(data?.clientId)}
           />

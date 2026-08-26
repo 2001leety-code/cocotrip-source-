@@ -160,9 +160,10 @@ function todayISO(): string {
 interface MoodAiBookingProps {
   clientId: string;
   onBooked: () => void;
+  onViewStatus?: () => void;
 }
 
-export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
+export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookingProps) {
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [parseErr, setParseErr] = useState<string | null>(null);
@@ -202,6 +203,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 예약 상태
   const [route, setRoute] = useState<RouteData | null>(null);
   const [booking, setBooking] = useState(false);
+  const [bookingComplete, setBookingComplete] = useState(false);
   const [bookMsg, setBookMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([]);
   const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime);
@@ -243,7 +245,8 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   // 경유지(출발·도착 제외 중간 지점)는 네이버 경로 API 최대 5개. 초과 시 거리요금이 조용히
   // 0원(base-only)으로 청구되므로 예약 차단(과소청구 방지). = geoStops 8개 초과.
   const tooManyWaypoints = exceedsWaypointCap(geoStops.length);
-  const canBook = result != null && visibleStops.length > 0 && !hasBlockingStop && geoStops.length >= 1 && !tooManyWaypoints;
+  const hasTooFewStops = result != null && !hasBlockingStop && geoStops.length < 2;
+  const canBook = result != null && visibleStops.length > 0 && !hasBlockingStop && geoStops.length >= 2 && !tooManyWaypoints;
   const shareItems = geoStops.map((stop, index) => ({
     address: (stop.address || stop.label || '').trim(),
     percentageIndex: index,
@@ -272,6 +275,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
   //    실제 도로 경로선+km·톨 조회. 직선(핀 연결)은 로딩/실패 폴백으로만.
   const routeSeq = useRef(0);
   const bookingRequestRef = useRef({ signature: '', key: '' });
+  const bookingInFlightRef = useRef(false);
   /* eslint-disable react-hooks/set-state-in-effect -- route state follows whether the parsed stop list is usable */
   useEffect(() => {
     const usable = visibleStops.filter((st) => st.geocodeOk && st.lat != null && st.lng != null);
@@ -557,11 +561,17 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
   // ── ⑥ 예약 ──────────────────────────────────────────────
   const handleBook = useCallback(async () => {
+    if (bookingComplete) {
+      onViewStatus?.();
+      return;
+    }
     if (!canBook) return;
+    if (bookingInFlightRef.current) return;
     if (eveningBookingBlocked) {
       setBookMsg({ kind: 'err', text: '선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.' });
       return;
     }
+    bookingInFlightRef.current = true;
     setBooking(true);
     setBookMsg(null);
     try {
@@ -619,7 +629,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
-        bookingRequestRef.current = { signature: '', key: '' };
+        setBookingComplete(true);
         setBookMsg({
           kind: 'ok',
           text: `예약 완료 — ${formatKRW(json.data.amountKRW)} 차감, 잔액 ${formatKRW(json.data.balanceKRW)}`,
@@ -631,12 +641,13 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
     } catch (e) {
       setBookMsg({ kind: 'err', text: e instanceof Error ? e.message : '예약 실패' });
     } finally {
+      bookingInFlightRef.current = false;
       setBooking(false);
     }
-  }, [canBook, eveningBookingBlocked, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
+  }, [bookingComplete, onViewStatus, canBook, eveningBookingBlocked, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
 
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
+    <div className="mood-surface rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
       <div>
         <h2 className="text-sm font-bold" style={{ color: C.text }}>
           AI 일정 예약 <span style={{ color: C.accentSolid }}>✨</span>
@@ -648,6 +659,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
       {/* ① 일정 텍스트 입력 */}
       <textarea
+        aria-label="예약할 전체 일정"
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={'MOOD 일정을 그대로 붙여넣기\n예)\n■ 9:30 이사님 픽업 (인천 강화군 불은면)\n■ 11:00 강남 코엑스 도착\n■ 오후 3시 인천공항 T2 드랍'}
@@ -986,7 +998,7 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
             <button
               type="button"
               onClick={addStop}
-              className="self-start rounded-xl px-3 py-2 text-xs"
+              className="min-h-11 self-start rounded-xl px-3 py-2 text-sm font-medium"
               style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
             >
               + 빠진 장소 추가
@@ -995,16 +1007,18 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
 
           {/* ③ 지도 (좌표 성공 stops 로 경로 미니맵 — 키 없으면 링크 폴백) */}
           {geoStops.length >= 2 && (
-            <MoodRouteMap
-              origin={geoStops[0]?.address || geoStops[0]?.label || ''}
-              waypoints={geoStops.slice(1, -1).map((s) => s.address || s.label)}
-              destination={geoStops[geoStops.length - 1]?.address || geoStops[geoStops.length - 1]?.label || ''}
-              route={route}
-              accent={C.accentSolid}
-              inputBg={C.inputBg}
-              inputBorder={C.inputBorder}
-              textDim={C.textDim}
-            />
+            <div className="mood-route-map-touch">
+              <MoodRouteMap
+                origin={geoStops[0]?.address || geoStops[0]?.label || ''}
+                waypoints={geoStops.slice(1, -1).map((s) => s.address || s.label)}
+                destination={geoStops[geoStops.length - 1]?.address || geoStops[geoStops.length - 1]?.label || ''}
+                route={route}
+                accent={C.accentSolid}
+                inputBg={C.inputBg}
+                inputBorder={C.inputBorder}
+                textDim={C.textDim}
+              />
+            </div>
           )}
 
           {/* ④ 서비스 더블체크 (핵심) */}
@@ -1228,26 +1242,59 @@ export function MoodAiBooking({ clientId, onBooked }: MoodAiBookingProps) {
               <span className="text-lg font-bold" style={{ color: C.accentSolid }}>{formatKRW(estimate.amountKRW)}</span>
             </div>
             {!isFixedPrice ? (
-              <p className="text-[10px]" style={{ color: C.textDim }}>
+              <p className="text-xs" style={{ color: C.textDim }}>
                 * 경로 거리요금·톨비는 예약 시 서버가 자동 반영합니다 (표시는 기본요금 기준).
               </p>
             ) : (
-              <p className="text-[10px]" style={{ color: C.textDim }}>
+              <p className="text-xs" style={{ color: C.textDim }}>
                 * 공항은 직행 정액. 경유지가 있으면 직행 대비 늘어난 거리에 km당 {MOOD_SURCHARGE_PER_KM}원 (예약 시 서버 확정).
               </p>
             )}
           </div>
 
           {/* 예약 버튼 */}
-          <button
-            type="button"
-            onClick={() => { void handleBook(); }}
-            disabled={booking || !canBook || eveningBookingBlocked}
-            className="w-full py-3.5 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
-            style={{ background: C.accent, color: '#fff' }}
-          >
-            {booking ? '예약 중…' : eveningBookingBlocked ? '오후 6시 이후 예약 불가' : hasBlockingStop ? '🔴 주소 확인 후 예약 가능' : '이대로 예약'}
-          </button>
+          {bookingComplete ? (
+            <div className="grid gap-2 sm:grid-cols-2" role="status" aria-live="polite">
+              <button
+                type="button"
+                onClick={() => onViewStatus?.()}
+                className="mood-primary-action min-h-12 rounded-xl px-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                style={{ background: C.accent, color: '#fff' }}
+              >
+                예약 완료 ✓ · 현황 보기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingComplete(false);
+                  setBookMsg(null);
+                  bookingRequestRef.current = { signature: '', key: '' };
+                }}
+                className="min-h-12 rounded-xl px-4 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.text }}
+              >
+                같은 내용으로 한 건 더
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { void handleBook(); }}
+              disabled={booking || !canBook || eveningBookingBlocked}
+              className="mood-primary-action min-h-12 w-full rounded-xl px-4 font-bold disabled:opacity-50"
+              style={{ background: C.accent, color: '#fff' }}
+            >
+              {booking
+                ? '예약 중…'
+                : eveningBookingBlocked
+                  ? '오후 6시 이후 예약 불가'
+                  : hasBlockingStop
+                    ? '🔴 주소 확인 후 예약 가능'
+                    : hasTooFewStops
+                      ? '출발지·도착지 2곳 필요'
+                      : '이대로 예약'}
+            </button>
+          )}
           {bookMsg && (
             <p className="text-xs text-center" style={{ color: bookMsg.kind === 'ok' ? C.ok : C.danger }}>
               {bookMsg.text}

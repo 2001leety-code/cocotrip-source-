@@ -50,4 +50,13 @@ describe('MoodGuideModal', () => {
     expect(container.innerHTML).toBe('');
     expect(document.body.textContent).not.toContain('이용 안내');
   });
+
+  it('대화상자 의미와 위·아래 44px 조작 버튼을 제공한다', () => {
+    render(<MoodGuideModal open onClose={() => {}} />);
+
+    expect(screen.getByRole('dialog', { name: /이용 안내/ })).toHaveAttribute('aria-modal', 'true');
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button.className).toMatch(/(?:h-11|min-h-11)/);
+    });
+  });
 });

@@ -186,6 +186,9 @@ export default async function handler(req, res) {
       if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const booking = bookingSnap.data() || {};
       if (booking.clientId !== proposal.clientId) return { ok: false, status: 409, error: 'PROPOSAL_CLIENT_MISMATCH' };
+      if (booking.bookingChangeApproval && booking.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+      }
       const currentRevision = Number.isInteger(booking.revision) ? booking.revision : 0;
 
       if (action === 'approve') {

@@ -1,9 +1,10 @@
 /**
  * POST /api/mood-change
  *
- * 확정된 MOOD 예약의 전체 스냅샷을 교체하고, 서버에서 현재 요율과 실제 경로를
- * 다시 계산한다. 예약과 고객 잔액, 감사 이벤트, 알림 outbox, 멱등성 응답은 한
- * Firestore 트랜잭션에서 함께 기록한다.
+ * 확정된 MOOD 예약 변경을 처리한다. 금액 영향 변경은 서버가 먼저 15분짜리 미리보기를
+ * 발급하고, 변경 운영자가 제안한 뒤 지정된 MOOD 승인자가 같은 내역을 확인해야 확정된다.
+ * 금액 영향이 없는 변경은 현재 금액과 경로를 그대로 보존한다. 예약과 고객 잔액,
+ * 감사 이벤트, 알림 outbox, 견적 소비, 멱등성 응답은 한 Firestore 트랜잭션에서 함께 기록한다.
  * booking.courseMoodPercentages 는 출발·경유·도착 수와 같은 0~100 정수 배열이며,
  * 구 쓰기 필드 booking.coursePayers 는 400으로 거부한다.
  */
@@ -13,7 +14,12 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
+import {
+  getMoodAllowlist,
+  isAllowedEmail,
+  isAdminEmail,
+  isSettlementApproverEmail,
+} from './_shared/mood-allowlist.js';
 import {
   computeMoodTotalKRW,
   isValidServiceType,
@@ -31,6 +37,8 @@ export const config = { runtime: 'nodejs' };
 
 const CORS_METHODS = 'POST, OPTIONS';
 const COURSE_SHARE_SCHEMA_VERSION = 2;
+const CHANGE_QUOTE_SCHEMA_VERSION = 2;
+const CHANGE_QUOTE_TTL_MS = 15 * 60 * 1000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const REQUIRED_SNAPSHOT_FIELDS = [
@@ -281,12 +289,9 @@ function revisionOf(booking) {
   return Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
-function hasAwaitingSettlementApproval(booking) {
-  return Boolean(
-    booking
-    && booking.settlementApproval
-    && booking.settlementApproval.status === 'awaiting_mood',
-  );
+function hasOpenSettlementApproval(booking) {
+  const status = booking && booking.settlementApproval && booking.settlementApproval.status;
+  return status === 'awaiting_mood' || status === 'changes_requested';
 }
 
 function stablePayload({ bookingId, expectedRevision, reason, snapshot, includeRouteSchedule = true }) {
@@ -321,8 +326,342 @@ function idempotencyHashMatches(storedHash, payloadHash, legacyPayloadHash) {
   return storedHash === payloadHash || Boolean(legacyPayloadHash && storedHash === legacyPayloadHash);
 }
 
+function hasAwaitingBookingChangeApproval(booking) {
+  return Boolean(
+    booking
+    && booking.bookingChangeApproval
+    && booking.bookingChangeApproval.status === 'awaiting_mood',
+  );
+}
+
+function storedRequestSnapshot(snapshot) {
+  return {
+    date: snapshot.date,
+    startTime: snapshot.startTime,
+    durationHours: snapshot.durationHours,
+    serviceType: snapshot.serviceType,
+    origin: snapshot.origin,
+    destination: snapshot.destination,
+    waypoints: snapshot.waypoints,
+    note: snapshot.note,
+    airportDirection: snapshot.airportDirection,
+    airportCode: snapshot.airportCode,
+    ...(snapshot.hasInfluencerName ? { influencerName: snapshot.influencerName || null } : {}),
+    courseMoodPercentages: snapshot.courseMoodPercentages,
+    courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
+    ...(snapshot.hasRouteSchedule ? { routeSchedule: snapshot.routeSchedule } : {}),
+  };
+}
+
+function idempotencyQuoteMatches(storedQuoteId, requestedQuoteId) {
+  const normalizedStoredQuoteId = typeof storedQuoteId === 'string' ? storedQuoteId.trim() : '';
+  return normalizedStoredQuoteId === requestedQuoteId;
+}
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function defaultRouteSchedule(stopCount, startTime) {
+  return Array.from({ length: stopCount }, (_, index) => ({
+    arrivalTime: null,
+    pickupTime: index === 0 ? startTime : null,
+  }));
+}
+
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function storedRouteValues(booking) {
+  const breakdown = booking && booking.breakdown && typeof booking.breakdown === 'object' && !Array.isArray(booking.breakdown)
+    ? booking.breakdown
+    : {};
+  const origin = typeof breakdown.origin === 'string' ? breakdown.origin.trim() : '';
+  const destination = typeof breakdown.destination === 'string' ? breakdown.destination.trim() : '';
+  const rawWaypoints = Array.isArray(breakdown.waypoints) ? breakdown.waypoints : [];
+  const waypoints = rawWaypoints
+    .filter((value) => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return { origin, destination, waypoints };
+}
+
+function diffBookingSnapshot(booking, snapshot) {
+  const storedCourseShare = normalizeStoredCourseShare(booking);
+  if (!storedCourseShare.ok) return { ok: false, error: 'INVALID_STORED_COURSE_SHARE' };
+
+  const storedRoute = storedRouteValues(booking);
+  const storedStartTime = String(booking.startTime || '').trim();
+  const storedServiceType = String(booking.serviceType || '').trim();
+  const stopCount = storedRoute.origin && storedRoute.destination ? storedRoute.waypoints.length + 2 : 0;
+  const fallbackSchedule = defaultRouteSchedule(stopCount, storedStartTime);
+  const storedScheduleResult = normalizeMoodRouteSchedule(booking.routeSchedule, stopCount, storedStartTime);
+  const storedSchedule = storedScheduleResult.ok && storedScheduleResult.provided
+    ? storedScheduleResult.value
+    : fallbackSchedule;
+  const requestedSchedule = snapshot.hasRouteSchedule ? snapshot.routeSchedule : storedSchedule;
+  const storedInfluencerName = String(booking.influencerName || '').trim();
+  const requestedInfluencerName = snapshot.hasInfluencerName ? snapshot.influencerName : storedInfluencerName;
+
+  const priceFields = [];
+  const routePricingFields = [];
+  const financialFields = [];
+  const nonPriceFields = [];
+  const compareRoutePrice = (key, before, after) => {
+    if (!sameValue(before, after)) {
+      priceFields.push(key);
+      routePricingFields.push(key);
+    }
+  };
+  const compareNonPrice = (key, before, after) => {
+    if (!sameValue(before, after)) nonPriceFields.push(key);
+  };
+  const compareFinancial = (key, before, after) => {
+    if (!sameValue(before, after)) financialFields.push(key);
+  };
+
+  compareNonPrice('date', String(booking.date || '').trim(), snapshot.date);
+  compareNonPrice('startTime', storedStartTime, snapshot.startTime);
+  compareRoutePrice('durationHours', storedServiceType === 'airport' ? 0 : Number(booking.durationHours), snapshot.durationHours);
+  compareRoutePrice('serviceType', storedServiceType, snapshot.serviceType);
+  compareRoutePrice('origin', storedRoute.origin, snapshot.origin);
+  compareRoutePrice('destination', storedRoute.destination, snapshot.destination);
+  compareRoutePrice('waypoints', storedRoute.waypoints, snapshot.waypoints);
+  const storedAirportDirection = storedServiceType === 'airport'
+    ? (booking.airportDirection === 'sending' ? 'sending' : 'pickup')
+    : null;
+  const storedAirportCode = storedServiceType === 'airport'
+    ? normalizeAirportCode(booking.airportCode || 'ICN')
+    : null;
+  compareNonPrice('airportDirection', storedAirportDirection, snapshot.airportDirection);
+  compareRoutePrice('airportCode', storedAirportCode, snapshot.airportCode);
+  compareNonPrice('note', String(booking.note || '').trim(), snapshot.note);
+  compareNonPrice('influencerName', storedInfluencerName, requestedInfluencerName);
+  compareFinancial('courseMoodPercentages', storedCourseShare.percentages, snapshot.courseMoodPercentages);
+  compareNonPrice('routeSchedule', storedSchedule, requestedSchedule);
+
+  return {
+    ok: true,
+    priceFields,
+    financialFields,
+    nonPriceFields,
+    changedFields: [...priceFields, ...financialFields, ...nonPriceFields],
+    priceAffecting: priceFields.length + financialFields.length > 0,
+    requiresRoutePricing: routePricingFields.length > 0,
+    hasChanges: priceFields.length + financialFields.length + nonPriceFields.length > 0,
+    storedCourseShare,
+  };
+}
+
+function stableQuotePayload(quote) {
+  return stableJson({
+    schemaVersion: quote.schemaVersion,
+    quoteId: quote.quoteId,
+    bookingId: quote.bookingId,
+    clientId: quote.clientId,
+    actorEmail: quote.actorEmail,
+    expectedRevision: quote.expectedRevision,
+    requestPayloadHash: quote.requestPayloadHash,
+    requestSnapshot: quote.requestSnapshot,
+    reason: quote.reason,
+    currency: quote.currency,
+    oldAmountKRW: quote.oldAmountKRW,
+    amountKRW: quote.amountKRW,
+    adjustmentKRW: quote.adjustmentKRW,
+    balanceBeforeKRW: quote.balanceBeforeKRW,
+    balanceAfterKRW: quote.balanceAfterKRW,
+    ratePerHour: quote.ratePerHour,
+    breakdown: quote.breakdown,
+    routeSnapshot: quote.routeSnapshot,
+    changedFields: quote.changedFields,
+    status: quote.status,
+    proposedByEmail: quote.proposedByEmail,
+    proposedByRole: quote.proposedByRole,
+    proposedAt: quote.proposedAt,
+    proposalRevision: quote.proposalRevision,
+    approvedByEmail: quote.approvedByEmail,
+    approvedAt: quote.approvedAt,
+    withdrawnByEmail: quote.withdrawnByEmail,
+    withdrawnAt: quote.withdrawnAt,
+    createdAt: quote.createdAt,
+    expiresAt: quote.expiresAt,
+    previewExpiresAt: quote.previewExpiresAt,
+  });
+}
+
+function quoteHash(quote) {
+  return sha256(stableQuotePayload(quote));
+}
+
+function validateStoredQuote({ quote, quoteId, booking, email, expectedRevision, payloadHash, now }) {
+  if (!quote || typeof quote !== 'object' || Array.isArray(quote)) return { ok: false, error: 'CHANGE_QUOTE_NOT_FOUND' };
+  if (quote.status === 'consumed') return { ok: false, error: 'CHANGE_QUOTE_ALREADY_USED' };
+  if (quote.status !== 'ready') return { ok: false, error: 'INVALID_CHANGE_QUOTE' };
+  if (
+    quote.schemaVersion !== CHANGE_QUOTE_SCHEMA_VERSION
+    || quote.currency !== 'KRW'
+    || quote.quoteId !== quoteId
+    || quote.bookingId !== booking.id
+    || quote.clientId !== booking.clientId
+    || quote.actorEmail !== email
+    || quote.expectedRevision !== expectedRevision
+    || quote.requestPayloadHash !== payloadHash
+  ) {
+    return { ok: false, error: 'CHANGE_QUOTE_MISMATCH' };
+  }
+  if (!Number.isSafeInteger(quote.expiresAt) || now >= quote.expiresAt) {
+    return { ok: false, error: 'CHANGE_QUOTE_EXPIRED' };
+  }
+  if (typeof quote.integrityHash !== 'string' || quote.integrityHash !== quoteHash(quote)) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  if (
+    !Number.isSafeInteger(quote.oldAmountKRW)
+    || quote.oldAmountKRW < 0
+    || quote.oldAmountKRW !== booking.amountKRW
+    || !Number.isSafeInteger(quote.amountKRW)
+    || quote.amountKRW < 0
+    || !Number.isSafeInteger(quote.adjustmentKRW)
+    || quote.adjustmentKRW !== quote.amountKRW - quote.oldAmountKRW
+    || !Number.isSafeInteger(quote.balanceBeforeKRW)
+    || !Number.isSafeInteger(quote.balanceAfterKRW)
+    || quote.balanceAfterKRW !== quote.balanceBeforeKRW - quote.adjustmentKRW
+    || !quote.breakdown
+    || typeof quote.breakdown !== 'object'
+  ) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  return { ok: true };
+}
+
+function validateAwaitingChangeQuote({ quote, quoteId, booking, now }) {
+  if (!quote || typeof quote !== 'object' || Array.isArray(quote)) {
+    return { ok: false, error: 'CHANGE_PROPOSAL_NOT_FOUND' };
+  }
+  if (quote.status === 'approved') return { ok: false, error: 'CHANGE_QUOTE_ALREADY_USED' };
+  if (quote.status !== 'awaiting_mood') return { ok: false, error: 'CHANGE_PROPOSAL_NOT_PENDING' };
+  const proposedByEmail = typeof quote.proposedByEmail === 'string' ? quote.proposedByEmail.trim().toLowerCase() : '';
+  if (
+    quote.schemaVersion !== CHANGE_QUOTE_SCHEMA_VERSION
+    || quote.currency !== 'KRW'
+    || quote.quoteId !== quoteId
+    || quote.bookingId !== booking.id
+    || quote.clientId !== booking.clientId
+    || !proposedByEmail
+    || proposedByEmail !== quote.actorEmail
+    || quote.proposedByRole !== 'admin'
+    || !Number.isSafeInteger(quote.proposedAt)
+    || quote.proposedAt <= 0
+    || quote.proposedAt > now
+    || !Number.isInteger(quote.proposalRevision)
+    || quote.proposalRevision !== revisionOf(booking)
+    || quote.expiresAt !== null
+    || !Number.isSafeInteger(quote.previewExpiresAt)
+    || quote.previewExpiresAt < quote.createdAt
+  ) {
+    return { ok: false, error: 'CHANGE_PROPOSAL_MISMATCH' };
+  }
+  const approval = booking.bookingChangeApproval;
+  if (
+    !approval
+    || typeof approval !== 'object'
+    || Array.isArray(approval)
+    || approval.status !== 'awaiting_mood'
+    || approval.quoteId !== quoteId
+    || approval.proposalRevision !== quote.proposalRevision
+  ) {
+    return { ok: false, error: 'CHANGE_PROPOSAL_MISMATCH' };
+  }
+  if (stableJson(approval) !== stableJson(bookingChangeApprovalSummary(quote))) {
+    return { ok: false, error: 'CHANGE_PROPOSAL_MISMATCH' };
+  }
+  if (typeof quote.integrityHash !== 'string' || quote.integrityHash !== quoteHash(quote)) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  const normalized = normalizeSnapshot(quote.requestSnapshot);
+  if (!normalized.ok || stableJson(storedRequestSnapshot(normalized.value)) !== stableJson(quote.requestSnapshot)) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  const reason = typeof quote.reason === 'string' ? quote.reason.trim() : '';
+  if (!reason || reason.length > 500) return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  const expectedPayloadHash = sha256(stablePayload({
+    bookingId: quote.bookingId,
+    expectedRevision: quote.expectedRevision,
+    reason,
+    snapshot: normalized.value,
+  }));
+  if (quote.requestPayloadHash !== expectedPayloadHash) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  if (
+    !Number.isSafeInteger(quote.oldAmountKRW)
+    || quote.oldAmountKRW < 0
+    || quote.oldAmountKRW !== booking.amountKRW
+    || !Number.isSafeInteger(quote.amountKRW)
+    || quote.amountKRW < 0
+    || !Number.isSafeInteger(quote.adjustmentKRW)
+    || quote.adjustmentKRW !== quote.amountKRW - quote.oldAmountKRW
+    || !Number.isSafeInteger(quote.balanceBeforeKRW)
+    || !Number.isSafeInteger(quote.balanceAfterKRW)
+    || quote.balanceAfterKRW !== quote.balanceBeforeKRW - quote.adjustmentKRW
+    || !quote.breakdown
+    || typeof quote.breakdown !== 'object'
+    || Array.isArray(quote.breakdown)
+  ) {
+    return { ok: false, error: 'CHANGE_QUOTE_INTEGRITY_FAILED' };
+  }
+  return { ok: true, snapshot: normalized.value, reason };
+}
+
+function publicQuoteResponse(quote) {
+  return {
+    ok: true,
+    data: {
+      preview: true,
+      quoteId: quote.quoteId,
+      expectedRevision: quote.expectedRevision,
+      currency: quote.currency,
+      expiresAt: quote.expiresAt,
+      oldAmountKRW: quote.oldAmountKRW,
+      amountKRW: quote.amountKRW,
+      adjustmentKRW: quote.adjustmentKRW,
+      balanceKRW: quote.balanceAfterKRW,
+      breakdown: quote.breakdown,
+      routeSnapshot: decodeRouteSnapshot(quote.routeSnapshot),
+      changedFields: quote.changedFields,
+    },
+  };
+}
+
+function bookingChangeApprovalSummary(quote, overrides = {}) {
+  return {
+    status: quote.status,
+    quoteId: quote.quoteId,
+    proposalRevision: quote.proposalRevision,
+    proposedByEmail: quote.proposedByEmail,
+    proposedAt: quote.proposedAt,
+    reason: quote.reason,
+    currency: quote.currency,
+    oldAmountKRW: quote.oldAmountKRW,
+    amountKRW: quote.amountKRW,
+    adjustmentKRW: quote.adjustmentKRW,
+    balanceBeforeKRW: quote.balanceBeforeKRW,
+    balanceAfterKRW: quote.balanceAfterKRW,
+    changedFields: quote.changedFields,
+    proposedBooking: quote.requestSnapshot,
+    breakdown: quote.breakdown,
+    routeSnapshot: quote.routeSnapshot,
+    ...overrides,
+  };
 }
 
 function routeFailure(route) {
@@ -366,6 +705,102 @@ function publicResponse(response) {
           : {}),
       },
     },
+  };
+}
+
+function buildAppliedChange({
+  bookingId,
+  booking,
+  snapshot,
+  currentDiff,
+  effectivePricing,
+  balanceKRW,
+  actorEmail,
+  reason,
+  now,
+  quoteId,
+  bookingChangeApproval,
+}) {
+  const oldAmountKRW = booking.amountKRW;
+  const adjustmentKRW = effectivePricing.amountKRW - oldAmountKRW;
+  const newBalanceKRW = balanceKRW - adjustmentKRW;
+  if (!Number.isSafeInteger(adjustmentKRW) || !Number.isSafeInteger(newBalanceKRW)) {
+    return { ok: false, status: 500, error: 'INVALID_CALCULATED_MONEY' };
+  }
+  const nextRevision = revisionOf(booking) + 1;
+  const bookingPatch = {
+    date: snapshot.date,
+    startTime: snapshot.startTime,
+    durationHours: snapshot.durationHours,
+    serviceType: snapshot.serviceType,
+    airportDirection: snapshot.airportDirection,
+    airportCode: snapshot.airportCode,
+    note: snapshot.note || null,
+    revision: nextRevision,
+    updatedAt: now,
+    updatedByEmail: actorEmail,
+    lastChangeReason: reason,
+    courseMoodPercentages: snapshot.courseMoodPercentages,
+    courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
+    coursePayers: snapshot.coursePayers,
+    ...(bookingChangeApproval ? { bookingChangeApproval } : {}),
+  };
+  if (currentDiff.requiresRoutePricing) {
+    bookingPatch.amountKRW = effectivePricing.amountKRW;
+    bookingPatch.ratePerHour = effectivePricing.ratePerHour;
+    bookingPatch.breakdown = effectivePricing.breakdown;
+    bookingPatch.routeSnapshot = effectivePricing.routeSnapshot;
+    bookingPatch.balanceAfterKRW = newBalanceKRW;
+    bookingPatch.lastAdjustmentKRW = adjustmentKRW;
+  }
+  const preserveStoredRouteSchedule = !snapshot.hasRouteSchedule
+    && routeMatchesSnapshot(booking.breakdown, snapshot)
+    && String(booking.startTime || '').trim() === snapshot.startTime;
+  const clearStoredRouteSchedule = !snapshot.hasRouteSchedule
+    && !preserveStoredRouteSchedule
+    && hasOwn(booking, 'routeSchedule');
+  if (snapshot.hasRouteSchedule) {
+    bookingPatch.routeSchedule = snapshot.routeSchedule;
+  } else if (clearStoredRouteSchedule) {
+    bookingPatch.routeSchedule = FieldValue.delete();
+  }
+  if (snapshot.hasInfluencerName) {
+    bookingPatch.influencerName = snapshot.influencerName || null;
+  }
+  const beforeSnapshot = {
+    ...booking,
+    courseMoodPercentages: currentDiff.storedCourseShare.percentages,
+    courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
+    coursePayers: currentDiff.storedCourseShare.payers,
+  };
+  const afterSnapshot = { ...beforeSnapshot, ...bookingPatch };
+  if (clearStoredRouteSchedule) delete afterSnapshot.routeSchedule;
+  const response = {
+    ok: true,
+    data: {
+      bookingId,
+      revision: nextRevision,
+      oldAmountKRW,
+      amountKRW: effectivePricing.amountKRW,
+      adjustmentKRW,
+      balanceKRW: newBalanceKRW,
+      breakdown: effectivePricing.breakdown,
+      changedFields: currentDiff.changedFields,
+      priceAffecting: currentDiff.priceAffecting,
+      quoteId: currentDiff.priceAffecting ? quoteId : null,
+      booking: { id: bookingId, ...afterSnapshot },
+    },
+  };
+  return {
+    ok: true,
+    oldAmountKRW,
+    adjustmentKRW,
+    newBalanceKRW,
+    nextRevision,
+    bookingPatch,
+    beforeSnapshot,
+    afterSnapshot,
+    response,
   };
 }
 
@@ -469,6 +904,8 @@ async function replayStoredResponse({
   isAdmin,
   payloadHash,
   legacyPayloadHash,
+  requestedQuoteId,
+  action,
 }) {
   return db.runTransaction(async (tx) => {
     const [idempotencySnap, bookingSnap] = await Promise.all([
@@ -478,6 +915,12 @@ async function replayStoredResponse({
     if (!idempotencySnap.exists) return { ok: false, missing: true };
     const idempotency = idempotencySnap.data() || {};
     if (!idempotencyHashMatches(idempotency.payloadHash, payloadHash, legacyPayloadHash)) {
+      return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+    }
+    if (idempotency.action && idempotency.action !== action) {
+      return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+    }
+    if (!idempotencyQuoteMatches(idempotency.quoteId, requestedQuoteId)) {
       return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
     }
     if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
@@ -495,6 +938,361 @@ async function replayStoredResponse({
     }
     return { ok: true, response: idempotency.response };
   });
+}
+
+async function approveBookingChange({
+  db,
+  res,
+  jsonHeaders,
+  allowlist,
+  email,
+  bookingId,
+  quoteId,
+  idempotencyKey,
+}) {
+  if (!isSettlementApproverEmail(allowlist, email)) {
+    return sendJson(res, 403, jsonHeaders, { ok: false, error: 'CHANGE_APPROVER_REQUIRED' });
+  }
+  const now = Date.now();
+  const payloadHash = sha256(stableJson({ action: 'approve', bookingId, quoteId }));
+  const idempotencyDocumentId = sha256(`${email}:${idempotencyKey}`);
+  const bookingRef = db.collection('mood_bookings').doc(bookingId);
+  const quoteRef = db.collection('mood_booking_change_quotes').doc(quoteId);
+  const idempotencyRef = db.collection('mood_booking_change_idempotency').doc(idempotencyDocumentId);
+  const auditRef = db.collection('mood_booking_change_events').doc(idempotencyDocumentId);
+  const outboxRef = db.collection('mood_notification_outbox').doc(idempotencyDocumentId);
+
+  const result = await db.runTransaction(async (tx) => {
+    const [idempotencySnap, bookingSnap, quoteSnap] = await Promise.all([
+      tx.get(idempotencyRef),
+      tx.get(bookingRef),
+      tx.get(quoteRef),
+    ]);
+    if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
+    const booking = bookingSnap.data() || {};
+    if (!idorAllowed(false, allowlist, booking)) {
+      return { ok: false, status: 403, error: 'BOOKING_ACCESS_DENIED' };
+    }
+    if (idempotencySnap.exists) {
+      const stored = idempotencySnap.data() || {};
+      if (stored.payloadHash !== payloadHash || !idempotencyQuoteMatches(stored.quoteId, quoteId)) {
+        return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+      }
+      if (!stored.response || typeof stored.response !== 'object') {
+        return { ok: false, status: 409, error: 'IDEMPOTENCY_RESPONSE_MISSING' };
+      }
+      return { ok: true, replayed: true, response: stored.response };
+    }
+    if (!quoteSnap.exists) return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_NOT_FOUND' };
+    const quote = quoteSnap.data() || {};
+    if (quote.status === 'approved') {
+      return { ok: false, status: 409, error: 'CHANGE_QUOTE_ALREADY_USED' };
+    }
+    if (booking.status !== 'confirmed') {
+      return { ok: false, status: 409, error: 'BOOKING_NOT_CHANGEABLE' };
+    }
+    if (hasOpenSettlementApproval(booking)) {
+      return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
+    }
+    if (String(quote.proposedByEmail || '').trim().toLowerCase() === email) {
+      return { ok: false, status: 403, error: 'CHANGE_SELF_APPROVAL_FORBIDDEN' };
+    }
+    const quoteValidation = validateAwaitingChangeQuote({
+      quote,
+      quoteId,
+      booking: { id: bookingId, ...booking },
+      now,
+    });
+    if (!quoteValidation.ok) {
+      return { ok: false, status: 409, error: quoteValidation.error };
+    }
+    if (quote.proposalRevision !== quote.expectedRevision) {
+      return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_MISMATCH' };
+    }
+    const snapshot = quoteValidation.snapshot;
+    const reason = quoteValidation.reason;
+    const availability = checkMoodBookingChangeAvailability(
+      booking.date,
+      booking.startTime,
+      snapshot.date,
+      snapshot.startTime,
+    );
+    if (!availability.ok) {
+      return { ok: false, status: 409, error: availability.error, reason: availability.reason };
+    }
+    const currentDiff = diffBookingSnapshot(booking, snapshot);
+    if (!currentDiff.ok) return { ok: false, status: 409, error: currentDiff.error };
+    if (!currentDiff.hasChanges || !currentDiff.priceAffecting) {
+      return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_MISMATCH' };
+    }
+    if (!sameValue(currentDiff.changedFields, quote.changedFields)) {
+      return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_MISMATCH' };
+    }
+    const clientId = String(booking.clientId || '').trim();
+    if (!clientId) return { ok: false, status: 500, error: 'INVALID_BOOKING_OWNER' };
+    const clientRef = db.collection('mood_clients').doc(clientId);
+    const clientSnap = await tx.get(clientRef);
+    if (!clientSnap.exists) return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
+    const client = clientSnap.data() || {};
+    const balanceKRW = client.balanceKRW;
+    if (!Number.isSafeInteger(balanceKRW) || balanceKRW !== quote.balanceBeforeKRW) {
+      return { ok: false, status: 409, error: 'CHANGE_QUOTE_BALANCE_STALE' };
+    }
+    const creditLimitKRW = client.creditLimitKRW;
+    if (creditLimitKRW !== undefined && creditLimitKRW !== null) {
+      if (!Number.isSafeInteger(creditLimitKRW) || creditLimitKRW <= 0) {
+        return { ok: false, status: 409, error: 'INVALID_CREDIT_LIMIT' };
+      }
+      if (quote.adjustmentKRW > 0 && quote.balanceAfterKRW < -creditLimitKRW) {
+        return {
+          ok: false,
+          status: 409,
+          error: 'CREDIT_LIMIT_EXCEEDED',
+          creditLimitKRW,
+          balanceKRW,
+        };
+      }
+    }
+    const approvedAt = now;
+    const approvedQuote = {
+      ...quote,
+      status: 'approved',
+      approvedByEmail: email,
+      approvedAt,
+    };
+    approvedQuote.integrityHash = quoteHash(approvedQuote);
+    const approvalSummary = bookingChangeApprovalSummary(approvedQuote, {
+      status: 'approved',
+      approvedByEmail: email,
+      approvedAt,
+    });
+    const applied = buildAppliedChange({
+      bookingId,
+      booking,
+      snapshot,
+      currentDiff,
+      effectivePricing: {
+        amountKRW: quote.amountKRW,
+        ratePerHour: quote.ratePerHour,
+        breakdown: quote.breakdown,
+        routeSnapshot: quote.routeSnapshot,
+      },
+      balanceKRW,
+      actorEmail: email,
+      reason,
+      now,
+      quoteId,
+      bookingChangeApproval: approvalSummary,
+    });
+    if (!applied.ok) return applied;
+
+    if (applied.adjustmentKRW !== 0) tx.update(clientRef, { balanceKRW: applied.newBalanceKRW });
+    tx.update(bookingRef, applied.bookingPatch);
+    tx.set(quoteRef, approvedQuote);
+    tx.set(auditRef, {
+      type: 'booking_change_approved',
+      bookingId,
+      clientId,
+      actorEmail: email,
+      proposedByEmail: quote.proposedByEmail,
+      reason,
+      expectedRevision: quote.proposalRevision,
+      revision: applied.nextRevision,
+      oldAmountKRW: applied.oldAmountKRW,
+      newAmountKRW: quote.amountKRW,
+      adjustmentKRW: applied.adjustmentKRW,
+      balanceBeforeKRW: balanceKRW,
+      balanceAfterKRW: applied.newBalanceKRW,
+      changedFields: currentDiff.changedFields,
+      priceAffecting: true,
+      currency: 'KRW',
+      quoteId,
+      before: applied.beforeSnapshot,
+      after: applied.afterSnapshot,
+      createdAt: now,
+    });
+    tx.set(outboxRef, {
+      type: 'mood_booking_change_approved',
+      topic: 'booking',
+      bookingId,
+      clientId,
+      actorEmail: email,
+      proposedByEmail: quote.proposedByEmail,
+      revision: applied.nextRevision,
+      reason,
+      oldAmountKRW: applied.oldAmountKRW,
+      newAmountKRW: quote.amountKRW,
+      adjustmentKRW: applied.adjustmentKRW,
+      changedFields: currentDiff.changedFields,
+      quoteId,
+      currency: 'KRW',
+      status: 'pending',
+      attemptCount: 0,
+      createdAt: now,
+    });
+    tx.set(idempotencyRef, {
+      action: 'approve',
+      bookingId,
+      actorEmail: email,
+      payloadHash,
+      quoteId,
+      currency: 'KRW',
+      status: 'completed',
+      response: applied.response,
+      createdAt: now,
+      completedAt: now,
+    });
+    return {
+      ok: true,
+      replayed: false,
+      response: applied.response,
+      notification: {
+        snapshot,
+        reason,
+        oldAmountKRW: applied.oldAmountKRW,
+        amountKRW: quote.amountKRW,
+        newBalanceKRW: applied.newBalanceKRW,
+      },
+    };
+  });
+
+  if (!result.ok) {
+    return sendJson(res, result.status || 409, jsonHeaders, {
+      ok: false,
+      error: result.error || 'CHANGE_APPROVAL_FAILED',
+      ...(result.reason ? { reason: result.reason } : {}),
+    });
+  }
+  if (!result.replayed) {
+    try {
+      await notify('booking', [
+        '<b>MOOD 예약 변경 양측 확인 완료</b>',
+        `${result.notification.snapshot.date} ${result.notification.snapshot.startTime}`,
+        `${result.notification.oldAmountKRW.toLocaleString('ko-KR')}원 → ${result.notification.amountKRW.toLocaleString('ko-KR')}원`,
+        `잔액 ${result.notification.newBalanceKRW.toLocaleString('ko-KR')}원`,
+        `MOOD 확인: ${email}`,
+      ].join('\n'));
+    } catch (notifyError) {
+      console.warn('[mood-change] approval notify failed:', notifyError && notifyError.message ? notifyError.message : notifyError);
+    }
+  }
+  return sendJson(res, 200, jsonHeaders, publicResponse(result.response));
+}
+
+async function withdrawBookingChange({
+  db,
+  res,
+  jsonHeaders,
+  allowlist,
+  email,
+  bookingId,
+  quoteId,
+  idempotencyKey,
+}) {
+  if (!isAdminEmail(allowlist, email)) {
+    return sendJson(res, 403, jsonHeaders, { ok: false, error: 'ADMIN_REQUIRED' });
+  }
+  const now = Date.now();
+  const payloadHash = sha256(stableJson({ action: 'withdraw', bookingId, quoteId }));
+  const idempotencyDocumentId = sha256(`${email}:${idempotencyKey}`);
+  const bookingRef = db.collection('mood_bookings').doc(bookingId);
+  const quoteRef = db.collection('mood_booking_change_quotes').doc(quoteId);
+  const idempotencyRef = db.collection('mood_booking_change_idempotency').doc(idempotencyDocumentId);
+  const auditRef = db.collection('mood_booking_change_events').doc(idempotencyDocumentId);
+
+  const result = await db.runTransaction(async (tx) => {
+    const [idempotencySnap, bookingSnap, quoteSnap] = await Promise.all([
+      tx.get(idempotencyRef),
+      tx.get(bookingRef),
+      tx.get(quoteRef),
+    ]);
+    if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
+    const booking = bookingSnap.data() || {};
+    if (!idorAllowed(true, allowlist, booking)) {
+      return { ok: false, status: 403, error: 'BOOKING_ACCESS_DENIED' };
+    }
+    if (idempotencySnap.exists) {
+      const stored = idempotencySnap.data() || {};
+      if (stored.payloadHash !== payloadHash || !idempotencyQuoteMatches(stored.quoteId, quoteId)) {
+        return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+      }
+      if (!stored.response || typeof stored.response !== 'object') {
+        return { ok: false, status: 409, error: 'IDEMPOTENCY_RESPONSE_MISSING' };
+      }
+      return { ok: true, replayed: true, response: stored.response };
+    }
+    if (!quoteSnap.exists) return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_NOT_FOUND' };
+    const quote = quoteSnap.data() || {};
+    const quoteValidation = validateAwaitingChangeQuote({
+      quote,
+      quoteId,
+      booking: { id: bookingId, ...booking },
+      now,
+    });
+    if (!quoteValidation.ok) {
+      return { ok: false, status: 409, error: quoteValidation.error };
+    }
+    const nextRevision = revisionOf(booking);
+    const withdrawnQuote = {
+      ...quote,
+      status: 'withdrawn',
+      withdrawnByEmail: email,
+      withdrawnAt: now,
+    };
+    withdrawnQuote.integrityHash = quoteHash(withdrawnQuote);
+    const response = {
+      ok: true,
+      data: {
+        bookingId,
+        quoteId,
+        status: 'withdrawn',
+        revision: nextRevision,
+      },
+    };
+    tx.set(quoteRef, withdrawnQuote);
+    tx.update(bookingRef, {
+      bookingChangeApproval: bookingChangeApprovalSummary(withdrawnQuote, {
+        status: 'withdrawn',
+        withdrawnByEmail: email,
+        withdrawnAt: now,
+      }),
+      revision: nextRevision,
+      updatedAt: now,
+      updatedByEmail: email,
+    });
+    tx.set(auditRef, {
+      type: 'booking_change_withdrawn',
+      bookingId,
+      clientId: booking.clientId,
+      actorEmail: email,
+      quoteId,
+      proposalRevision: quote.proposalRevision,
+      revision: nextRevision,
+      currency: 'KRW',
+      createdAt: now,
+    });
+    tx.set(idempotencyRef, {
+      action: 'withdraw',
+      bookingId,
+      actorEmail: email,
+      payloadHash,
+      quoteId,
+      currency: 'KRW',
+      status: 'completed',
+      response,
+      createdAt: now,
+      completedAt: now,
+    });
+    return { ok: true, replayed: false, response };
+  });
+
+  if (!result.ok) {
+    return sendJson(res, result.status || 409, jsonHeaders, {
+      ok: false,
+      error: result.error || 'CHANGE_WITHDRAW_FAILED',
+    });
+  }
+  return sendJson(res, 200, jsonHeaders, result.response);
 }
 
 export default async function handler(req, res) {
@@ -521,10 +1319,16 @@ export default async function handler(req, res) {
   }
   const email = auth.email;
   const body = parseBody(req);
+  const action = body.action === undefined ? 'confirm' : String(body.action || '').trim();
   const bookingId = typeof body.bookingId === 'string' ? body.bookingId.trim() : '';
   const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+  const requestedQuoteId = typeof body.quoteId === 'string' ? body.quoteId.trim() : '';
   const expectedRevision = body.expectedRevision;
   const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+
+  if (!['preview', 'propose', 'confirm', 'approve', 'withdraw'].includes(action)) {
+    return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_CHANGE_ACTION' });
+  }
 
   if (!validateId(bookingId, 128)) {
     return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_BOOKING_ID' });
@@ -532,27 +1336,38 @@ export default async function handler(req, res) {
   if (!validateId(idempotencyKey, 200)) {
     return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_IDEMPOTENCY_KEY' });
   }
-  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
-    return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_EXPECTED_REVISION' });
+  if (requestedQuoteId && !/^[a-f0-9]{64}$/.test(requestedQuoteId)) {
+    return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_CHANGE_QUOTE_ID' });
   }
-  if (!reason || reason.length > 500) {
-    return sendJson(res, 400, jsonHeaders, { ok: false, error: 'CHANGE_REASON_REQUIRED' });
+  if ((action === 'approve' || action === 'withdraw') && !requestedQuoteId) {
+    return sendJson(res, 400, jsonHeaders, { ok: false, error: 'CHANGE_QUOTE_REQUIRED' });
   }
-  const normalized = normalizeSnapshot(body.booking);
-  if (!normalized.ok) {
-    return sendJson(res, 400, jsonHeaders, { ok: false, error: normalized.error });
+  let snapshot = null;
+  let payloadHash = '';
+  let legacyPayloadHash = null;
+  if (action !== 'approve' && action !== 'withdraw') {
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
+      return sendJson(res, 400, jsonHeaders, { ok: false, error: 'INVALID_EXPECTED_REVISION' });
+    }
+    if (!reason || reason.length > 500) {
+      return sendJson(res, 400, jsonHeaders, { ok: false, error: 'CHANGE_REASON_REQUIRED' });
+    }
+    const normalized = normalizeSnapshot(body.booking);
+    if (!normalized.ok) {
+      return sendJson(res, 400, jsonHeaders, { ok: false, error: normalized.error });
+    }
+    snapshot = normalized.value;
+    payloadHash = sha256(stablePayload({ bookingId, expectedRevision, reason, snapshot }));
+    legacyPayloadHash = snapshot.hasRouteSchedule
+      ? null
+      : sha256(stablePayload({
+        bookingId,
+        expectedRevision,
+        reason,
+        snapshot,
+        includeRouteSchedule: false,
+      }));
   }
-  const snapshot = normalized.value;
-  const payloadHash = sha256(stablePayload({ bookingId, expectedRevision, reason, snapshot }));
-  const legacyPayloadHash = snapshot.hasRouteSchedule
-    ? null
-    : sha256(stablePayload({
-      bookingId,
-      expectedRevision,
-      reason,
-      snapshot,
-      includeRouteSchedule: false,
-    }));
   const idempotencyDocumentId = sha256(`${email}:${idempotencyKey}`);
 
   try {
@@ -566,14 +1381,45 @@ export default async function handler(req, res) {
       return sendJson(res, 403, jsonHeaders, { ok: false, error: 'ACCESS_DENIED' });
     }
     const isAdmin = isAdminEmail(allowlist, email);
+    if (action === 'approve') {
+      return approveBookingChange({
+        db,
+        res,
+        jsonHeaders,
+        allowlist,
+        email,
+        bookingId,
+        quoteId: requestedQuoteId,
+        idempotencyKey,
+      });
+    }
+    if (action === 'withdraw') {
+      return withdrawBookingChange({
+        db,
+        res,
+        jsonHeaders,
+        allowlist,
+        email,
+        bookingId,
+        quoteId: requestedQuoteId,
+        idempotencyKey,
+      });
+    }
     const bookingRef = db.collection('mood_bookings').doc(bookingId);
     const idempotencyRef = db.collection('mood_booking_change_idempotency').doc(idempotencyDocumentId);
+    const quoteDocumentId = action === 'preview' ? idempotencyDocumentId : requestedQuoteId;
+    const quoteRef = quoteDocumentId
+      ? db.collection('mood_booking_change_quotes').doc(quoteDocumentId)
+      : null;
     const auditRef = db.collection('mood_booking_change_events').doc(idempotencyDocumentId);
     const outboxRef = db.collection('mood_notification_outbox').doc(idempotencyDocumentId);
 
-    const [preBookingSnap, preIdempotencySnap] = await Promise.all([
+    const [preBookingSnap, preIdempotencySnap, preQuoteSnap] = await Promise.all([
       bookingRef.get(),
-      idempotencyRef.get(),
+      action === 'confirm' || action === 'propose'
+        ? idempotencyRef.get()
+        : Promise.resolve({ exists: false }),
+      action === 'preview' && quoteRef ? quoteRef.get() : Promise.resolve({ exists: false }),
     ]);
     if (!preBookingSnap.exists) {
       return sendJson(res, 404, jsonHeaders, { ok: false, error: 'BOOKING_NOT_FOUND' });
@@ -582,7 +1428,7 @@ export default async function handler(req, res) {
     if (!idorAllowed(isAdmin, allowlist, preBooking)) {
       return sendJson(res, 403, jsonHeaders, { ok: false, error: 'BOOKING_ACCESS_DENIED' });
     }
-    if (preIdempotencySnap.exists) {
+    if ((action === 'confirm' || action === 'propose') && preIdempotencySnap.exists) {
       const replay = await replayStoredResponse({
         db,
         bookingRef,
@@ -591,54 +1437,281 @@ export default async function handler(req, res) {
         isAdmin,
         payloadHash,
         legacyPayloadHash,
+        requestedQuoteId,
+        action,
       });
       if (replay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(replay.response));
       return sendJson(res, replay.status || 409, jsonHeaders, { ok: false, error: replay.error || 'IDEMPOTENCY_CONFLICT' });
     }
 
-    const availability = checkMoodBookingChangeAvailability(
-      preBooking.date,
-      preBooking.startTime,
-      snapshot.date,
-      snapshot.startTime,
-    );
-    if (!availability.ok) {
-      return sendJson(res, 409, jsonHeaders, {
-        ok: false,
-        error: availability.error,
-        reason: availability.reason,
-      });
+    const deferQuotedConfirmChecks = action === 'propose' && Boolean(requestedQuoteId);
+    let preDiff = null;
+    if (!deferQuotedConfirmChecks) {
+      const availability = checkMoodBookingChangeAvailability(
+        preBooking.date,
+        preBooking.startTime,
+        snapshot.date,
+        snapshot.startTime,
+      );
+      if (!availability.ok) {
+        return sendJson(res, 409, jsonHeaders, {
+          ok: false,
+          error: availability.error,
+          reason: availability.reason,
+        });
+      }
+
+      if (preBooking.status !== 'confirmed') {
+        return sendJson(res, 409, jsonHeaders, { ok: false, error: 'BOOKING_NOT_CHANGEABLE' });
+      }
+      if (hasOpenSettlementApproval(preBooking)) {
+        return sendJson(res, 409, jsonHeaders, { ok: false, error: 'SETTLEMENT_APPROVAL_PENDING' });
+      }
+      if (hasAwaitingBookingChangeApproval(preBooking)) {
+        return sendJson(res, 409, jsonHeaders, { ok: false, error: 'BOOKING_CHANGE_APPROVAL_PENDING' });
+      }
+      if (revisionOf(preBooking) !== expectedRevision) {
+        return sendJson(res, 409, jsonHeaders, {
+          ok: false,
+          error: 'REVISION_CONFLICT',
+          currentRevision: revisionOf(preBooking),
+        });
+      }
+
+      preDiff = diffBookingSnapshot(preBooking, snapshot);
+      if (!preDiff.ok) {
+        return sendJson(res, 409, jsonHeaders, { ok: false, error: preDiff.error });
+      }
+      if (!preDiff.hasChanges) {
+        return sendJson(res, 409, jsonHeaders, { ok: false, error: 'NO_CHANGES' });
+      }
     }
 
-    if (preBooking.status !== 'confirmed') {
-      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'BOOKING_NOT_CHANGEABLE' });
-    }
-    if (hasAwaitingSettlementApproval(preBooking)) {
-      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'SETTLEMENT_APPROVAL_PENDING' });
-    }
-    if (revisionOf(preBooking) !== expectedRevision) {
-      return sendJson(res, 409, jsonHeaders, {
-        ok: false,
-        error: 'REVISION_CONFLICT',
-        currentRevision: revisionOf(preBooking),
+    if (action === 'preview') {
+      if (!isAdmin) {
+        return sendJson(res, 403, jsonHeaders, { ok: false, error: 'ADMIN_REQUIRED' });
+      }
+      if (!preDiff.priceAffecting) {
+        return sendJson(res, 409, jsonHeaders, {
+          ok: false,
+          error: 'CHANGE_QUOTE_NOT_REQUIRED',
+          changedFields: preDiff.changedFields,
+        });
+      }
+      if (!quoteRef) {
+        return sendJson(res, 500, jsonHeaders, { ok: false, error: 'CHANGE_QUOTE_UNAVAILABLE' });
+      }
+      if (preQuoteSnap.exists) {
+        const storedQuote = preQuoteSnap.data() || {};
+        if (storedQuote.requestPayloadHash !== payloadHash) {
+          return sendJson(res, 409, jsonHeaders, { ok: false, error: 'PREVIEW_IDEMPOTENCY_CONFLICT' });
+        }
+        const quoteValidation = validateStoredQuote({
+          quote: storedQuote,
+          quoteId: quoteDocumentId,
+          booking: { id: bookingId, ...preBooking },
+          email,
+          expectedRevision,
+          payloadHash,
+          now: Date.now(),
+        });
+        if (!quoteValidation.ok) {
+          return sendJson(res, 409, jsonHeaders, { ok: false, error: quoteValidation.error });
+        }
+        return sendJson(res, 200, jsonHeaders, publicQuoteResponse(storedQuote));
+      }
+
+      let pricedPreview;
+      if (preDiff.requiresRoutePricing) {
+        pricedPreview = await priceSnapshot(snapshot);
+        if (!pricedPreview.ok) {
+          const status = pricedPreview.error === 'ROUTE_CALCULATION_FAILED' ? 422 : 400;
+          return sendJson(res, status, jsonHeaders, {
+            ok: false,
+            error: pricedPreview.error,
+            ...(pricedPreview.routeError ? { routeError: pricedPreview.routeError } : {}),
+          });
+        }
+      } else {
+        pricedPreview = {
+          ok: true,
+          amountKRW: preBooking.amountKRW,
+          ratePerHour: preBooking.ratePerHour === undefined ? null : preBooking.ratePerHour,
+          breakdown: preBooking.breakdown,
+          routeSnapshot: preBooking.routeSnapshot || null,
+        };
+      }
+
+      if (
+        !Number.isSafeInteger(pricedPreview.amountKRW)
+        || pricedPreview.amountKRW < 0
+        || !pricedPreview.breakdown
+        || typeof pricedPreview.breakdown !== 'object'
+        || Array.isArray(pricedPreview.breakdown)
+      ) {
+        return sendJson(res, 500, jsonHeaders, { ok: false, error: 'INVALID_STORED_PRICING' });
+      }
+
+      const previewNow = Date.now();
+      const previewResult = await db.runTransaction(async (tx) => {
+        const [quoteSnap, bookingSnap] = await Promise.all([
+          tx.get(quoteRef),
+          tx.get(bookingRef),
+        ]);
+        if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
+        const currentBooking = bookingSnap.data() || {};
+        if (!idorAllowed(isAdmin, allowlist, currentBooking)) {
+          return { ok: false, status: 403, error: 'BOOKING_ACCESS_DENIED' };
+        }
+        if (!isAdmin) return { ok: false, status: 403, error: 'ADMIN_REQUIRED' };
+        if (quoteSnap.exists) {
+          const storedQuote = quoteSnap.data() || {};
+          if (storedQuote.requestPayloadHash !== payloadHash) {
+            return { ok: false, status: 409, error: 'PREVIEW_IDEMPOTENCY_CONFLICT' };
+          }
+          const quoteValidation = validateStoredQuote({
+            quote: storedQuote,
+            quoteId: quoteDocumentId,
+            booking: { id: bookingId, ...currentBooking },
+            email,
+            expectedRevision,
+            payloadHash,
+            now: previewNow,
+          });
+          return quoteValidation.ok
+            ? { ok: true, quote: storedQuote }
+            : { ok: false, status: 409, error: quoteValidation.error };
+        }
+        if (currentBooking.status !== 'confirmed') {
+          return { ok: false, status: 409, error: 'BOOKING_NOT_CHANGEABLE' };
+        }
+        if (hasOpenSettlementApproval(currentBooking)) {
+          return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
+        }
+        if (hasAwaitingBookingChangeApproval(currentBooking)) {
+          return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+        }
+        const currentRevision = revisionOf(currentBooking);
+        if (currentRevision !== expectedRevision) {
+          return { ok: false, status: 409, error: 'REVISION_CONFLICT', currentRevision };
+        }
+        const currentAvailability = checkMoodBookingChangeAvailability(
+          currentBooking.date,
+          currentBooking.startTime,
+          snapshot.date,
+          snapshot.startTime,
+        );
+        if (!currentAvailability.ok) {
+          return {
+            ok: false,
+            status: 409,
+            error: currentAvailability.error,
+            reason: currentAvailability.reason,
+          };
+        }
+        const currentDiff = diffBookingSnapshot(currentBooking, snapshot);
+        if (!currentDiff.ok) return { ok: false, status: 409, error: currentDiff.error };
+        if (!currentDiff.hasChanges) return { ok: false, status: 409, error: 'NO_CHANGES' };
+        if (!currentDiff.priceAffecting) return { ok: false, status: 409, error: 'CHANGE_QUOTE_NOT_REQUIRED' };
+
+        const clientId = String(currentBooking.clientId || '').trim();
+        if (!clientId) return { ok: false, status: 500, error: 'INVALID_BOOKING_OWNER' };
+        const clientRef = db.collection('mood_clients').doc(clientId);
+        const clientSnap = await tx.get(clientRef);
+        if (!clientSnap.exists) return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
+        const client = clientSnap.data() || {};
+        const oldAmountKRW = currentBooking.amountKRW;
+        const balanceKRW = client.balanceKRW;
+        if (!Number.isSafeInteger(oldAmountKRW) || oldAmountKRW < 0 || !Number.isSafeInteger(balanceKRW)) {
+          return { ok: false, status: 500, error: 'INVALID_STORED_MONEY' };
+        }
+        const adjustmentKRW = pricedPreview.amountKRW - oldAmountKRW;
+        const nextBalanceKRW = balanceKRW - adjustmentKRW;
+        if (!Number.isSafeInteger(adjustmentKRW) || !Number.isSafeInteger(nextBalanceKRW)) {
+          return { ok: false, status: 500, error: 'INVALID_CALCULATED_MONEY' };
+        }
+        const creditLimitKRW = client.creditLimitKRW;
+        if (creditLimitKRW !== undefined && creditLimitKRW !== null) {
+          if (!Number.isSafeInteger(creditLimitKRW) || creditLimitKRW <= 0) {
+            return { ok: false, status: 409, error: 'INVALID_CREDIT_LIMIT' };
+          }
+          if (adjustmentKRW > 0 && nextBalanceKRW < -creditLimitKRW) {
+            return {
+              ok: false,
+              status: 409,
+              error: 'CREDIT_LIMIT_EXCEEDED',
+              creditLimitKRW,
+              balanceKRW,
+            };
+          }
+        }
+
+        const quote = {
+          schemaVersion: CHANGE_QUOTE_SCHEMA_VERSION,
+          quoteId: quoteDocumentId,
+          bookingId,
+          clientId,
+          actorEmail: email,
+          expectedRevision,
+          requestPayloadHash: payloadHash,
+          requestSnapshot: storedRequestSnapshot(snapshot),
+          reason,
+          currency: 'KRW',
+          oldAmountKRW,
+          amountKRW: pricedPreview.amountKRW,
+          adjustmentKRW,
+          balanceBeforeKRW: balanceKRW,
+          balanceAfterKRW: nextBalanceKRW,
+          ratePerHour: pricedPreview.ratePerHour,
+          breakdown: pricedPreview.breakdown,
+          routeSnapshot: pricedPreview.routeSnapshot,
+          changedFields: currentDiff.changedFields,
+          status: 'ready',
+          proposedByEmail: null,
+          proposedByRole: null,
+          proposedAt: null,
+          proposalRevision: null,
+          createdAt: previewNow,
+          expiresAt: previewNow + CHANGE_QUOTE_TTL_MS,
+          previewExpiresAt: null,
+        };
+        quote.integrityHash = quoteHash(quote);
+        tx.set(quoteRef, quote);
+        return { ok: true, quote };
       });
+
+      if (!previewResult.ok) {
+        return sendJson(res, previewResult.status || 409, jsonHeaders, {
+          ok: false,
+          error: previewResult.error || 'CHANGE_PREVIEW_FAILED',
+          ...(previewResult.reason ? { reason: previewResult.reason } : {}),
+          ...(typeof previewResult.currentRevision === 'number'
+            ? { currentRevision: previewResult.currentRevision }
+            : {}),
+        });
+      }
+      return sendJson(res, 200, jsonHeaders, publicQuoteResponse(previewResult.quote));
     }
 
-    const priced = await priceSnapshot(snapshot);
-    if (!priced.ok) {
-      const status = priced.error === 'ROUTE_CALCULATION_FAILED' ? 422 : 400;
-      return sendJson(res, status, jsonHeaders, {
-        ok: false,
-        error: priced.error,
-        ...(priced.routeError ? { routeError: priced.routeError } : {}),
-      });
+    if (action === 'confirm' && requestedQuoteId) {
+      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'CHANGE_PROPOSAL_REQUIRED' });
+    }
+    if (action === 'propose' && !isAdmin) {
+      return sendJson(res, 403, jsonHeaders, { ok: false, error: 'ADMIN_REQUIRED' });
+    }
+    if (preDiff && preDiff.priceAffecting && action === 'confirm') {
+      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'CHANGE_PROPOSAL_REQUIRED' });
+    }
+    if ((preDiff && preDiff.priceAffecting && !quoteRef) || (action === 'propose' && !quoteRef)) {
+      return sendJson(res, 409, jsonHeaders, { ok: false, error: 'CHANGE_QUOTE_REQUIRED' });
     }
 
     const now = Date.now();
     const transactionResult = await db.runTransaction(async (tx) => {
-      const [idempotencySnap, bookingSnap] = await Promise.all([
+      const [idempotencySnap, bookingSnap, quoteSnap] = await Promise.all([
         tx.get(idempotencyRef),
         tx.get(bookingRef),
+        quoteRef ? tx.get(quoteRef) : Promise.resolve({ exists: false }),
       ]);
       if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const booking = bookingSnap.data() || {};
@@ -657,10 +1730,26 @@ export default async function handler(req, res) {
         if (!idempotencyHashMatches(stored.payloadHash, payloadHash, legacyPayloadHash)) {
           return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
         }
+        if (stored.action && stored.action !== action) {
+          return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+        }
+        if (!idempotencyQuoteMatches(stored.quoteId, requestedQuoteId)) {
+          return { ok: false, status: 409, error: 'IDEMPOTENCY_CONFLICT' };
+        }
         if (!stored.response || typeof stored.response !== 'object') {
           return { ok: false, status: 409, error: 'IDEMPOTENCY_RESPONSE_MISSING' };
         }
         return { ok: true, replayed: true, response: stored.response };
+      }
+      if (requestedQuoteId) {
+        if (!quoteSnap.exists) return { ok: false, status: 409, error: 'CHANGE_QUOTE_NOT_FOUND' };
+        const requestedQuote = quoteSnap.data() || {};
+        if (requestedQuote.status === 'consumed' || requestedQuote.status === 'approved') {
+          return { ok: false, status: 409, error: 'CHANGE_QUOTE_ALREADY_USED' };
+        }
+        if (requestedQuote.status === 'awaiting_mood') {
+          return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_ALREADY_SUBMITTED' };
+        }
       }
       const transactionAvailability = checkMoodBookingChangeAvailability(
         booking.date,
@@ -679,8 +1768,11 @@ export default async function handler(req, res) {
       if (booking.status !== 'confirmed') {
         return { ok: false, status: 409, error: 'BOOKING_NOT_CHANGEABLE' };
       }
-      if (hasAwaitingSettlementApproval(booking)) {
+      if (hasOpenSettlementApproval(booking)) {
         return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
+      }
+      if (hasAwaitingBookingChangeApproval(booking)) {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
       }
       const currentRevision = revisionOf(booking);
       if (currentRevision !== expectedRevision) {
@@ -692,9 +1784,20 @@ export default async function handler(req, res) {
         };
       }
 
-      const storedCourseShare = normalizeStoredCourseShare(booking);
-      if (!storedCourseShare.ok) {
-        return { ok: false, status: 409, error: 'INVALID_STORED_COURSE_SHARE' };
+      const currentDiff = diffBookingSnapshot(booking, snapshot);
+      if (!currentDiff.ok) return { ok: false, status: 409, error: currentDiff.error };
+      if (!currentDiff.hasChanges) return { ok: false, status: 409, error: 'NO_CHANGES' };
+      if (requestedQuoteId && !currentDiff.priceAffecting) {
+        return { ok: false, status: 409, error: 'CHANGE_QUOTE_NOT_REQUIRED' };
+      }
+      if (currentDiff.priceAffecting && action !== 'propose') {
+        return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_REQUIRED' };
+      }
+      if (currentDiff.priceAffecting && !isAdmin) {
+        return { ok: false, status: 403, error: 'ADMIN_REQUIRED' };
+      }
+      if (!currentDiff.priceAffecting && action === 'propose') {
+        return { ok: false, status: 409, error: 'CHANGE_QUOTE_NOT_REQUIRED' };
       }
 
       const oldAmountKRW = booking.amountKRW;
@@ -707,7 +1810,46 @@ export default async function handler(req, res) {
       ) {
         return { ok: false, status: 500, error: 'INVALID_STORED_MONEY' };
       }
-      const adjustmentKRW = priced.amountKRW - oldAmountKRW;
+
+      let effectivePricing;
+      let effectiveQuote = null;
+      if (currentDiff.priceAffecting) {
+        if (!quoteRef || !quoteSnap.exists) {
+          return { ok: false, status: 409, error: 'CHANGE_QUOTE_REQUIRED' };
+        }
+        const storedQuote = quoteSnap.data() || {};
+        const quoteValidation = validateStoredQuote({
+          quote: storedQuote,
+          quoteId: requestedQuoteId,
+          booking: { id: bookingId, ...booking },
+          email,
+          expectedRevision,
+          payloadHash,
+          now: Date.now(),
+        });
+        if (!quoteValidation.ok) {
+          return { ok: false, status: 409, error: quoteValidation.error };
+        }
+        if (storedQuote.balanceBeforeKRW !== balanceKRW) {
+          return { ok: false, status: 409, error: 'CHANGE_QUOTE_BALANCE_STALE' };
+        }
+        effectiveQuote = storedQuote;
+        effectivePricing = {
+          amountKRW: storedQuote.amountKRW,
+          ratePerHour: storedQuote.ratePerHour,
+          breakdown: storedQuote.breakdown,
+          routeSnapshot: storedQuote.routeSnapshot,
+        };
+      } else {
+        effectivePricing = {
+          amountKRW: oldAmountKRW,
+          ratePerHour: booking.ratePerHour,
+          breakdown: booking.breakdown,
+          routeSnapshot: booking.routeSnapshot,
+        };
+      }
+
+      const adjustmentKRW = effectivePricing.amountKRW - oldAmountKRW;
       const newBalanceKRW = balanceKRW - adjustmentKRW;
       if (!Number.isSafeInteger(adjustmentKRW) || !Number.isSafeInteger(newBalanceKRW)) {
         return { ok: false, status: 500, error: 'INVALID_CALCULATED_MONEY' };
@@ -728,6 +1870,104 @@ export default async function handler(req, res) {
         }
       }
 
+      if (currentDiff.priceAffecting) {
+        const proposalRevision = currentRevision;
+        const proposedQuote = {
+          ...effectiveQuote,
+          status: 'awaiting_mood',
+          proposedByEmail: email,
+          proposedByRole: 'admin',
+          proposedAt: now,
+          proposalRevision,
+          previewExpiresAt: effectiveQuote.expiresAt,
+          expiresAt: null,
+        };
+        proposedQuote.integrityHash = quoteHash(proposedQuote);
+        const approvalSummary = bookingChangeApprovalSummary(proposedQuote);
+        const response = {
+          ok: true,
+          data: {
+            bookingId,
+            quoteId: requestedQuoteId,
+            status: 'awaiting_mood',
+            proposalRevision,
+            currency: 'KRW',
+            oldAmountKRW,
+            amountKRW: effectivePricing.amountKRW,
+            adjustmentKRW,
+            balanceKRW: newBalanceKRW,
+            changedFields: currentDiff.changedFields,
+            booking: { id: bookingId, ...booking, revision: proposalRevision, bookingChangeApproval: approvalSummary },
+          },
+        };
+        tx.update(bookingRef, {
+          bookingChangeApproval: approvalSummary,
+          updatedAt: now,
+          updatedByEmail: email,
+        });
+        tx.set(quoteRef, proposedQuote);
+        tx.set(auditRef, {
+          type: 'booking_change_proposed',
+          bookingId,
+          clientId: booking.clientId,
+          actorEmail: email,
+          reason,
+          expectedRevision,
+          proposalRevision,
+          oldAmountKRW,
+          proposedAmountKRW: effectivePricing.amountKRW,
+          adjustmentKRW,
+          balanceBeforeKRW: balanceKRW,
+          proposedBalanceAfterKRW: newBalanceKRW,
+          changedFields: currentDiff.changedFields,
+          currency: 'KRW',
+          quoteId: requestedQuoteId,
+          createdAt: now,
+        });
+        tx.set(outboxRef, {
+          type: 'mood_booking_change_approval_requested',
+          topic: 'booking',
+          bookingId,
+          clientId: booking.clientId,
+          actorEmail: email,
+          proposalRevision,
+          reason,
+          oldAmountKRW,
+          proposedAmountKRW: effectivePricing.amountKRW,
+          adjustmentKRW,
+          changedFields: currentDiff.changedFields,
+          quoteId: requestedQuoteId,
+          currency: 'KRW',
+          status: 'pending',
+          attemptCount: 0,
+          createdAt: now,
+        });
+        tx.set(idempotencyRef, {
+          action: 'propose',
+          bookingId,
+          actorEmail: email,
+          payloadHash,
+          quoteId: requestedQuoteId,
+          currency: 'KRW',
+          status: 'completed',
+          response,
+          createdAt: now,
+          completedAt: now,
+        });
+        return {
+          ok: true,
+          replayed: false,
+          response,
+          notification: {
+            kind: 'proposal',
+            snapshot,
+            reason,
+            oldAmountKRW,
+            amountKRW: effectivePricing.amountKRW,
+          },
+        };
+      }
+
       const nextRevision = currentRevision + 1;
       const bookingPatch = {
         date: snapshot.date,
@@ -737,20 +1977,22 @@ export default async function handler(req, res) {
         airportDirection: snapshot.airportDirection,
         airportCode: snapshot.airportCode,
         note: snapshot.note || null,
-        amountKRW: priced.amountKRW,
-        ratePerHour: priced.ratePerHour,
-        breakdown: priced.breakdown,
-        routeSnapshot: priced.routeSnapshot,
-        balanceAfterKRW: newBalanceKRW,
         revision: nextRevision,
         updatedAt: now,
         updatedByEmail: email,
         lastChangeReason: reason,
-        lastAdjustmentKRW: adjustmentKRW,
         courseMoodPercentages: snapshot.courseMoodPercentages,
         courseShareSchemaVersion: snapshot.courseShareSchemaVersion,
         coursePayers: snapshot.coursePayers,
       };
+      if (currentDiff.requiresRoutePricing) {
+        bookingPatch.amountKRW = effectivePricing.amountKRW;
+        bookingPatch.ratePerHour = effectivePricing.ratePerHour;
+        bookingPatch.breakdown = effectivePricing.breakdown;
+        bookingPatch.routeSnapshot = effectivePricing.routeSnapshot;
+        bookingPatch.balanceAfterKRW = newBalanceKRW;
+        bookingPatch.lastAdjustmentKRW = adjustmentKRW;
+      }
       const preserveStoredRouteSchedule = !snapshot.hasRouteSchedule
         && routeMatchesSnapshot(booking.breakdown, snapshot)
         && String(booking.startTime || '').trim() === snapshot.startTime;
@@ -767,9 +2009,9 @@ export default async function handler(req, res) {
       }
       const beforeSnapshot = {
         ...booking,
-        courseMoodPercentages: storedCourseShare.percentages,
+        courseMoodPercentages: currentDiff.storedCourseShare.percentages,
         courseShareSchemaVersion: COURSE_SHARE_SCHEMA_VERSION,
-        coursePayers: storedCourseShare.payers,
+        coursePayers: currentDiff.storedCourseShare.payers,
       };
       const afterSnapshot = { ...beforeSnapshot, ...bookingPatch };
       if (clearStoredRouteSchedule) delete afterSnapshot.routeSchedule;
@@ -779,16 +2021,27 @@ export default async function handler(req, res) {
           bookingId,
           revision: nextRevision,
           oldAmountKRW,
-          amountKRW: priced.amountKRW,
+          amountKRW: effectivePricing.amountKRW,
           adjustmentKRW,
           balanceKRW: newBalanceKRW,
-          breakdown: priced.breakdown,
+          breakdown: effectivePricing.breakdown,
+          changedFields: currentDiff.changedFields,
+          priceAffecting: currentDiff.priceAffecting,
+          quoteId: currentDiff.priceAffecting ? requestedQuoteId : null,
           booking: { id: bookingId, ...afterSnapshot },
         },
       };
 
-      tx.update(clientRef, { balanceKRW: newBalanceKRW });
+      if (adjustmentKRW !== 0) tx.update(clientRef, { balanceKRW: newBalanceKRW });
       tx.update(bookingRef, bookingPatch);
+      if (currentDiff.priceAffecting && quoteRef) {
+        tx.update(quoteRef, {
+          status: 'consumed',
+          consumedAt: now,
+          consumedByEmail: email,
+          consumedByIdempotencyId: idempotencyDocumentId,
+        });
+      }
       tx.set(auditRef, {
         type: 'booking_changed',
         bookingId,
@@ -798,10 +2051,14 @@ export default async function handler(req, res) {
         expectedRevision,
         revision: nextRevision,
         oldAmountKRW,
-        newAmountKRW: priced.amountKRW,
+        newAmountKRW: effectivePricing.amountKRW,
         adjustmentKRW,
         balanceBeforeKRW: balanceKRW,
         balanceAfterKRW: newBalanceKRW,
+        changedFields: currentDiff.changedFields,
+        priceAffecting: currentDiff.priceAffecting,
+        currency: 'KRW',
+        quoteId: currentDiff.priceAffecting ? requestedQuoteId : null,
         before: beforeSnapshot,
         after: afterSnapshot,
         createdAt: now,
@@ -815,16 +2072,22 @@ export default async function handler(req, res) {
         revision: nextRevision,
         reason,
         oldAmountKRW,
-        newAmountKRW: priced.amountKRW,
+        newAmountKRW: effectivePricing.amountKRW,
         adjustmentKRW,
+        changedFields: currentDiff.changedFields,
+        quoteId: currentDiff.priceAffecting ? requestedQuoteId : null,
+        currency: 'KRW',
         status: 'pending',
         attemptCount: 0,
         createdAt: now,
       });
       tx.set(idempotencyRef, {
+        action: 'confirm',
         bookingId,
         actorEmail: email,
         payloadHash,
+        quoteId: currentDiff.priceAffecting ? requestedQuoteId : null,
+        currency: 'KRW',
         status: 'completed',
         response,
         createdAt: now,
@@ -846,16 +2109,26 @@ export default async function handler(req, res) {
 
     if (!transactionResult.replayed) {
       try {
-        const oldAmount = transactionResult.response.data.oldAmountKRW.toLocaleString('ko-KR');
-        const newAmount = transactionResult.response.data.amountKRW.toLocaleString('ko-KR');
-        const balance = transactionResult.notification.newBalanceKRW.toLocaleString('ko-KR');
-        await notify('booking', [
-          '<b>MOOD 예약 변경</b>',
-          `${snapshot.date} ${snapshot.startTime} | ${snapshot.serviceType}`,
-          `${oldAmount}원 → ${newAmount}원 | 잔액 ${balance}원`,
-          `사유: ${reason}`,
-          `변경: ${email}`,
-        ].join('\n'));
+        if (transactionResult.notification.kind === 'proposal') {
+          await notify('booking', [
+            '<b>MOOD 예약 변경 금액 확인 요청</b>',
+            `${transactionResult.notification.snapshot.date} ${transactionResult.notification.snapshot.startTime}`,
+            `${transactionResult.notification.oldAmountKRW.toLocaleString('ko-KR')}원 → ${transactionResult.notification.amountKRW.toLocaleString('ko-KR')}원`,
+            'MOOD 확인 전 — 예약 금액과 잔액은 아직 바뀌지 않았습니다.',
+            `제안: ${email}`,
+          ].join('\n'));
+        } else {
+          const oldAmount = transactionResult.response.data.oldAmountKRW.toLocaleString('ko-KR');
+          const newAmount = transactionResult.response.data.amountKRW.toLocaleString('ko-KR');
+          const balance = transactionResult.notification.newBalanceKRW.toLocaleString('ko-KR');
+          await notify('booking', [
+            '<b>MOOD 예약 변경</b>',
+            `${snapshot.date} ${snapshot.startTime} | ${snapshot.serviceType}`,
+            `${oldAmount}원 → ${newAmount}원 | 잔액 ${balance}원`,
+            `사유: ${reason}`,
+            `변경: ${email}`,
+          ].join('\n'));
+        }
       } catch (notifyError) {
         console.warn('[mood-change] notify failed:', notifyError && notifyError.message ? notifyError.message : notifyError);
       }

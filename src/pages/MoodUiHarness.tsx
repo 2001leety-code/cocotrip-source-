@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoodBookingChangeModal, type ChangeableMoodBooking } from '@/components/mood/MoodBookingChangeModal';
+import {
+  MoodBookingChangeModal,
+  type BookingChangeApprovalSummary,
+  type ChangeableMoodBooking,
+} from '@/components/mood/MoodBookingChangeModal';
 import { MoodBookingCopyButton, MoodBookingShareCard } from '@/components/mood/MoodBookingShareCard';
 import {
   MoodSettlementApprovalPanel,
@@ -66,6 +70,13 @@ const changeBooking: ChangeableMoodBooking = {
     origin: '서울역',
     waypoints: ['성수동', '잠실', '강남역'],
     destination: '서울시청',
+  },
+  routeSnapshot: {
+    km: 64,
+    tollKRW: 8000,
+    durationMin: 85,
+    points,
+    path: shareData.route?.path || [],
   },
 };
 
@@ -159,6 +170,8 @@ export default function MoodUiHarness() {
   const [changeOpen, setChangeOpen] = useState(false);
   const [lastRouteOrder, setLastRouteOrder] = useState('');
   const [lastChangePayload, setLastChangePayload] = useState('');
+  const [changeRole, setChangeRole] = useState<'operator' | 'approver'>('operator');
+  const [changeApproval, setChangeApproval] = useState<BookingChangeApprovalSummary | null>(null);
   const [settlementMode, setSettlementMode] = useState<'initial' | 'correction' | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [settlementResult, setSettlementResult] = useState('');
@@ -197,12 +210,92 @@ export default function MoodUiHarness() {
       }
       if (url.includes('/api/mood-change')) {
         const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+        const origin = body.booking?.origin || '';
+        const waypoints = Array.isArray(body.booking?.waypoints) ? body.booking.waypoints : [];
+        const destination = body.booking?.destination || '';
+        const order = [origin, ...waypoints, destination];
+        const originalOrder = waypoints.join('|') === '성수동|잠실|강남역';
+        const durationHours = Number(body.booking?.durationHours || changeBooking.durationHours);
+        const changedFields: string[] = [];
+        if (String(body.booking?.date || '') !== changeBooking.date) changedFields.push('date');
+        if (String(body.booking?.startTime || '') !== changeBooking.startTime) changedFields.push('startTime');
+        if (durationHours !== changeBooking.durationHours) changedFields.push('durationHours');
+        if (String(body.booking?.serviceType || '') !== changeBooking.serviceType) changedFields.push('serviceType');
+        if (
+          origin !== changeBooking.breakdown?.origin
+          || destination !== changeBooking.breakdown?.destination
+          || !originalOrder
+        ) changedFields.push('waypoints');
+        if (String(body.booking?.note || '') !== String(changeBooking.note || '')) changedFields.push('note');
+        if (String(body.booking?.influencerName || '') !== String(changeBooking.influencerName || '')) changedFields.push('influencerName');
         setLastChangePayload(JSON.stringify({
-          origin: body.booking?.origin || '',
-          waypoints: body.booking?.waypoints || [],
-          destination: body.booking?.destination || '',
+          action: body.action,
+          quoteId: body.quoteId || null,
+          durationHours: body.booking?.durationHours,
+          origin,
+          waypoints,
+          destination,
           courseMoodPercentages: body.booking?.courseMoodPercentages || [],
         }));
+        if (body.action === 'preview') {
+          setLastRouteOrder(order.join(' → '));
+          const amountKRW = 100000 + Math.max(0, durationHours - 4) * 20000 + (originalOrder ? 0 : 11000);
+          return new Response(JSON.stringify({
+            ok: true,
+            data: {
+              preview: true,
+              quoteId: 'b'.repeat(64),
+              expectedRevision: 2,
+              currency: 'KRW',
+              expiresAt: Date.now() + 15 * 60 * 1000,
+              oldAmountKRW: 100000,
+              amountKRW,
+              adjustmentKRW: amountKRW - 100000,
+              balanceKRW: 500000 - (amountKRW - 100000),
+              changedFields,
+              breakdown: {
+                origin,
+                waypoints,
+                destination,
+                km: originalOrder ? 64 : 71,
+                tollKRW: originalOrder ? 8000 : 9000,
+              },
+              routeSnapshot: {
+                km: originalOrder ? 64 : 71,
+                tollKRW: originalOrder ? 8000 : 9000,
+                durationMin: originalOrder ? 85 : 97,
+                points,
+                path: shareData.route?.path,
+              },
+            },
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (body.action === 'propose') {
+          const amountKRW = 100000 + Math.max(0, durationHours - 4) * 20000 + (originalOrder ? 0 : 11000);
+          setChangeApproval({
+            status: 'awaiting_mood',
+            quoteId: String(body.quoteId || ''),
+            proposalRevision: 2,
+            proposedByEmail: 'operator@cocotrip.test',
+            proposedAt: Date.now(),
+            reason: String(body.reason || ''),
+            currency: 'KRW',
+            oldAmountKRW: 100000,
+            amountKRW,
+            adjustmentKRW: amountKRW - 100000,
+            balanceBeforeKRW: 500000,
+            balanceAfterKRW: 500000 - (amountKRW - 100000),
+            changedFields,
+            proposedBooking: body.booking,
+            breakdown: { origin, waypoints, destination },
+            routeSnapshot: null,
+          });
+          return new Response(JSON.stringify({ ok: true, data: { status: 'awaiting_mood', quoteId: body.quoteId, proposalRevision: 2 } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (body.action === 'approve' || body.action === 'withdraw') {
+          setChangeApproval(null);
+          return new Response(JSON.stringify({ ok: true, data: { status: body.action === 'approve' ? 'approved' : 'withdrawn', revision: 4 } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
         return new Response(JSON.stringify({ ok: true, data: { revision: 3 } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (url.includes('/api/mood-settle-preview')) {
@@ -289,6 +382,10 @@ export default function MoodUiHarness() {
         <MoodBookingCopyButton data={shareData} />
         <button type="button" onClick={() => setChangeOpen(true)} className="min-h-11 shrink-0 rounded-xl bg-white/10 px-4 text-sm font-black text-white">예약 변경</button>
       </div>
+      <div className="mx-auto mb-4 grid max-w-[430px] grid-cols-2 gap-2">
+        <button type="button" onClick={() => setChangeRole('operator')} className="min-h-11 rounded-xl bg-violet-500/20 px-3 text-xs font-black text-white">변경 운영자 보기</button>
+        <button type="button" onClick={() => setChangeRole('approver')} className="min-h-11 rounded-xl bg-violet-500/20 px-3 text-xs font-black text-white">MOOD 승인자 보기</button>
+      </div>
       {(lastRouteOrder || lastChangePayload) && (
         <div className="mx-auto mb-4 max-w-[430px] space-y-1 rounded-xl bg-white/5 px-3 py-2 text-[10px] text-white/70">
           {lastRouteOrder && <p data-testid="mood-harness-route-order">최근 계산 순서: {lastRouteOrder}</p>}
@@ -342,8 +439,10 @@ export default function MoodUiHarness() {
       </div>
       {changeOpen && (
         <MoodBookingChangeModal
-          booking={changeBooking}
+          booking={{ ...changeBooking, revision: changeApproval ? changeApproval.proposalRevision : changeBooking.revision, bookingChangeApproval: changeApproval }}
           balanceKRW={500000}
+          isAdmin={changeRole === 'operator'}
+          canApprove={changeRole === 'approver'}
           onClose={() => setChangeOpen(false)}
           onChanged={() => undefined}
         />

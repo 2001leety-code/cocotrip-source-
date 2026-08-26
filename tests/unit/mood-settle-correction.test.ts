@@ -92,6 +92,29 @@ beforeEach(() => {
 });
 
 describe('MOOD 완료 정산 정정 — 이중 확인', () => {
+  it('예약 변경 MOOD 확인 대기 중에는 정정 미리보기와 제안을 모두 409로 막는다', async () => {
+    resetSettlementWorld({
+      booking: settledBooking({ bookingChangeApproval: { status: 'awaiting_mood', quoteId: 'change-quote-1' } }),
+      client: { name: 'MOOD', balanceKRW: 986440 },
+    });
+    const payload = correctionPayload();
+    const preview = await callPreview(payload);
+    const request = { ...payload };
+    delete (request as Record<string, unknown>).mode;
+    const propose = await callCorrect({
+      ...request,
+      idempotencyKey: 'blocked-change-correction',
+      previewHash: 'a'.repeat(64),
+    });
+
+    expect(preview.status).toBe(409);
+    expect(preview.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(propose.status).toBe(409);
+    expect(propose.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(getSettlementDb()._writes).toHaveLength(0);
+    expect(getSettlementDb()._peek('mood_clients/COMPANY_A')?.balanceKRW).toBe(986440);
+  });
+
   it('제안 단계는 읽기 전용(잔액·finalAmountKRW 불변), 승인해야만 차액·감사·멱등이 한 트랜잭션에 남는다', async () => {
     const payload = correctionPayload();
     const preview = await callPreview(payload);

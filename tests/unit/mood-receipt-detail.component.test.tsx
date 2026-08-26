@@ -153,4 +153,12 @@ describe('MoodReceiptModal — 요금 상세 (2026-07-04)', () => {
     expect(screen.getByText(/operator@cocotrip.test/)).toBeTruthy();
     expect(screen.getByText(/mood-approver@example.com/)).toBeTruthy();
   });
+
+  it('위·아래 닫기 버튼은 모두 44px 터치 높이를 가진다', () => {
+    render(<MoodReceiptModal booking={REAL_BOOKING} onClose={() => {}} />);
+
+    screen.getAllByRole('button', { name: '닫기' }).forEach((button) => {
+      expect(button.className).toMatch(/(?:h-11|min-h-11)/);
+    });
+  });
 });

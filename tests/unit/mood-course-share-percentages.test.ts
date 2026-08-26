@@ -222,6 +222,27 @@ async function callChange(body: Record<string, any>) {
   return { response, json: JSON.parse(response.body || '{}') };
 }
 
+async function callQuotedChange(body: Record<string, any>) {
+  const preview = await callChange({ ...body, action: 'preview' });
+  if (preview.response.statusCode !== 200) return { ...preview, preview };
+  const proposal = await callChange({
+    ...body,
+    action: 'propose',
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-propose`,
+  });
+  if (proposal.response.statusCode !== 200) return { ...proposal, preview, proposal };
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'approver', emailVerified: true });
+  const approval = await callChange({
+    action: 'approve',
+    bookingId: body.bookingId,
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-approve`,
+  });
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', uid: 'staff', emailVerified: true });
+  return { ...approval, preview, proposal };
+}
+
 async function callData() {
   const { default: handler } = await import('../../api/mood-data.js');
   const response = makeResponse();
@@ -638,7 +659,7 @@ describe('비율 저장·조회·멱등 계약', () => {
     seedChangeBooking();
     const changeRequest: Record<string, any> = changeBody();
     delete changeRequest.booking.courseMoodPercentages;
-    const change = await callChange(changeRequest);
+    const change = await callQuotedChange(changeRequest);
 
     expect(change.response.statusCode).toBe(200);
     expect(store.get('mood_bookings/booking-change')?.courseMoodPercentages).toEqual([100, 0, 0, 0]);
@@ -674,9 +695,9 @@ describe('비율 저장·조회·멱등 계약', () => {
     expect(docsIn('mood_bookings')[0].courseMoodPercentages).toEqual(BOOK_PERCENTAGES);
   });
 
-  it('change는 비율을 예약·감사·멱등 응답에 저장하고 같은 키의 비율 변경을 막는다', async () => {
+  it('change는 비율을 예약·감사·멱등 응답에 저장하고 이전 revision의 비율 변경을 막는다', async () => {
     seedChangeBooking();
-    const first = await callChange(changeBody());
+    const first = await callQuotedChange(changeBody());
 
     expect(first.response.statusCode).toBe(200);
     expect(store.get('mood_bookings/booking-change')).toMatchObject({
@@ -685,18 +706,20 @@ describe('비율 저장·조회·멱등 계약', () => {
       coursePayers: null,
     });
     expect(first.json.data.booking.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
-    expect(docsIn('mood_booking_change_events')[0].after.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
-    expect(docsIn('mood_booking_change_idempotency')[0].response.data.booking.courseMoodPercentages)
+    const approvalAudit = docsIn('mood_booking_change_events').find((entry) => entry.type === 'booking_change_approved');
+    expect(approvalAudit?.after.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
+    const approvalIdempotency = docsIn('mood_booking_change_idempotency').find((entry) => entry.action === 'approve');
+    expect(approvalIdempotency?.response.data.booking.courseMoodPercentages)
       .toEqual(CHANGE_PERCENTAGES);
 
     const balanceAfterFirst = store.get('mood_clients/COMPANY_A')?.balanceKRW;
     const conflict = await callChange(changeBody([100, 50, 34, 0]));
 
     expect(conflict.response.statusCode).toBe(409);
-    expect(conflict.json.error).toBe('IDEMPOTENCY_CONFLICT');
+    expect(conflict.json.error).toBe('REVISION_CONFLICT');
     expect(store.get('mood_bookings/booking-change')?.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(balanceAfterFirst);
-    expect(docsIn('mood_booking_change_events')).toHaveLength(1);
+    expect(docsIn('mood_booking_change_events')).toHaveLength(2);
   });
 
   it('mood-data는 0·50·100·33·67 배열의 위치와 길이를 그대로 반환한다', async () => {
@@ -746,10 +769,11 @@ describe('비율 저장·조회·멱등 계약', () => {
     legacyBooking.coursePayers = ['mood', 'influencer', 'mood'];
     store.set('mood_bookings/booking-change', legacyBooking);
 
-    const { response } = await callChange(changeBody());
+    const { response } = await callQuotedChange(changeBody());
 
     expect(response.statusCode).toBe(200);
-    expect(docsIn('mood_booking_change_events')[0].before).toMatchObject({
+    const approvalAudit = docsIn('mood_booking_change_events').find((entry) => entry.type === 'booking_change_approved');
+    expect(approvalAudit?.before).toMatchObject({
       courseMoodPercentages: [100, 0, 100],
       courseShareSchemaVersion: 2,
       coursePayers: ['mood', 'influencer', 'mood'],

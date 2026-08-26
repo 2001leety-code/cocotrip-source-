@@ -16,8 +16,9 @@ vi.mock('../../api/_shared/mood-route.js', () => ({
 
 vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   getMoodAllowlist: async () => ({
-    emails: ['staff@x.com'],
-    admins: [],
+    emails: ['staff@x.com', 'approver@x.com'],
+    admins: ['staff@x.com'],
+    settlementApproverEmails: ['approver@x.com'],
     clientId: 'COMPANY_A',
   }),
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
@@ -206,6 +207,27 @@ async function callChange(body: Record<string, any>) {
   return { res, json: JSON.parse(res.body || '{}') };
 }
 
+async function callQuotedChange(body: Record<string, any>) {
+  const preview = await callChange({ ...body, action: 'preview' });
+  if (preview.res.statusCode !== 200) return { ...preview, preview };
+  const proposal = await callChange({
+    ...body,
+    action: 'propose',
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-propose`,
+  });
+  if (proposal.res.statusCode !== 200) return { ...proposal, preview, proposal };
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'approver-1', emailVerified: true });
+  const approval = await callChange({
+    action: 'approve',
+    bookingId: body.bookingId,
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-approve`,
+  });
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', uid: 'staff-1', emailVerified: true });
+  return { ...approval, preview, proposal };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const key of Object.keys(docs)) delete docs[key];
@@ -287,7 +309,7 @@ describe('MOOD 저녁 제한 신규 예약 서버 안전', () => {
 
 describe('MOOD 저녁 제한 기존 예약 변경 서버 안전', () => {
   it('기존 차단 슬롯의 날짜·시각을 유지하면 주소·금액·메모 변경을 허용한다', async () => {
-    const { res, json } = await callChange(changeBody());
+    const { res, json } = await callQuotedChange(changeBody());
 
     expect.soft(res.statusCode).toBe(200);
     expect.soft(json.ok).toBe(true);
@@ -341,7 +363,7 @@ describe('MOOD 저녁 제한 기존 예약 변경 서버 안전', () => {
     beforeTransaction = () => {
       docs.mood_bookings['existing-blocked'].startTime = '18:31';
     };
-    const { res, json } = await callChange(changeBody());
+    const { res, json } = await callQuotedChange(changeBody());
 
     expect.soft(res.statusCode).toBe(409);
     expect.soft(json.error).toBe('MOOD_EVENING_BOOKING_UNAVAILABLE');

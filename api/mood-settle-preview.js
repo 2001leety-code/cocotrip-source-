@@ -144,6 +144,9 @@ async function handleCorrectionPreview({ body, email, res, headers }) {
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const booking = bookingSnap.data() || {};
+      if (booking.bookingChangeApproval && booking.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+      }
       if (booking.status !== 'completed') return { ok: false, status: 409, error: 'NOT_SETTLED' };
       const revision = Number.isInteger(booking.revision) ? booking.revision : 0;
       if (revision !== expectedRevision) return { ok: false, status: 409, error: 'STALE_REVISION' };
@@ -353,6 +356,10 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'BOOKING_NOT_FOUND' }));
     }
     const pre = preSnap.data() || {};
+    if (pre.bookingChangeApproval && pre.bookingChangeApproval.status === 'awaiting_mood') {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'BOOKING_CHANGE_APPROVAL_PENDING' }));
+    }
     if (pre.status !== 'confirmed') {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'ALREADY_SETTLED' }));
@@ -486,6 +493,9 @@ export default async function handler(req, res) {
       const currentBookingSnap = await tx.get(bookingRef);
       if (!currentBookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const currentBooking = currentBookingSnap.data() || {};
+      if (currentBooking.bookingChangeApproval && currentBooking.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+      }
       const currentRevision = Number.isInteger(currentBooking.revision) ? currentBooking.revision : 0;
       if (currentBooking.status !== 'confirmed' || currentRevision !== preRevision || currentBooking.amountKRW !== originalAmount) {
         return { ok: false, status: 409, error: 'BOOKING_CHANGED' };

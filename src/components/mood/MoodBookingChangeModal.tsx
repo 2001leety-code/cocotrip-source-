@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -19,6 +19,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clipboard,
@@ -31,7 +32,7 @@ import {
 } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
-import { computeMoodTotalKRW, formatKRW, type MoodAirportCode, type MoodServiceType } from '@/lib/moodPricing';
+import { formatKRW, type MoodAirportCode, type MoodServiceType } from '@/lib/moodPricing';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
 import { normalizeMoodCoursePercentages } from '@/lib/moodBookingShare';
@@ -92,12 +93,18 @@ interface RemovedMoodRouteStop {
   scheduleById: Record<string, MoodRouteScheduleStop>;
 }
 
-interface RouteCalculationState {
-  signature: string;
-  state: 'idle' | 'loading' | 'ready' | 'error';
-  route: RouteData | null;
-  directRoute: RouteData | null;
-  error: string;
+interface MoodChangeQuote {
+  quoteId: string;
+  expectedRevision: number;
+  expiresAt: number;
+  oldAmountKRW: number;
+  amountKRW: number;
+  adjustmentKRW: number;
+  balanceKRW: number;
+  breakdown: Record<string, unknown>;
+  routeSnapshot: RouteData | null;
+  changedFields: string[];
+  requestSignature: string;
 }
 
 const MAX_ROUTE_STOPS = 7;
@@ -123,6 +130,7 @@ interface SortableRouteStopProps {
   canRemove: boolean;
   canInsertAfter: boolean;
   isExpanded: boolean;
+  isRecentlyMoved: boolean;
   onAddressChange: (id: string, address: string) => void;
   onSelectAddress: (id: string) => void;
   onRemove: (id: string) => void;
@@ -140,6 +148,7 @@ function SortableRouteStop({
   canRemove,
   canInsertAfter,
   isExpanded,
+  isRecentlyMoved,
   onAddressChange,
   onSelectAddress,
   onRemove,
@@ -186,7 +195,7 @@ function SortableRouteStop({
       data-route-stop-id={stop.id}
       className={`relative ${isDragging ? 'z-30 rounded-2xl ring-2 ring-violet-300 shadow-xl shadow-violet-950/40' : ''}`}
     >
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-2.5">
+      <div className={`rounded-2xl border bg-white/[0.025] p-2.5 ${isRecentlyMoved ? 'mood-route-drop-highlight border-violet-300/70' : 'border-white/10'}`}>
         <div className="flex items-center gap-2">
           <button
             id={`${stop.id}-reorder`}
@@ -343,6 +352,43 @@ function SortableRouteStop({
   );
 }
 
+export interface BookingChangeApprovalSummary {
+  status: 'awaiting_mood' | 'approved' | 'withdrawn';
+  quoteId: string;
+  proposalRevision: number;
+  proposedByEmail: string;
+  proposedAt: number;
+  reason: string;
+  currency: 'KRW';
+  oldAmountKRW: number;
+  amountKRW: number;
+  adjustmentKRW: number;
+  balanceBeforeKRW: number;
+  balanceAfterKRW: number;
+  changedFields: string[];
+  proposedBooking: {
+    date: string;
+    startTime: string;
+    durationHours: number;
+    serviceType: MoodServiceType;
+    origin: string;
+    destination: string;
+    waypoints: string[];
+    note?: string | null;
+    airportDirection?: 'pickup' | 'sending' | null;
+    airportCode?: MoodAirportCode | null;
+    influencerName?: string | null;
+    courseMoodPercentages?: number[] | null;
+    routeSchedule?: MoodRouteScheduleStop[] | null;
+  };
+  breakdown: Record<string, unknown>;
+  routeSnapshot: RouteData | null;
+  approvedByEmail?: string | null;
+  approvedAt?: number | null;
+  withdrawnByEmail?: string | null;
+  withdrawnAt?: number | null;
+}
+
 export interface ChangeableMoodBooking {
   id: string;
   date: string;
@@ -358,16 +404,32 @@ export interface ChangeableMoodBooking {
   coursePayers?: Array<'mood' | 'influencer'> | null;
   note?: string | null;
   routeSchedule?: MoodRouteScheduleStop[] | null;
+  routeSnapshot?: {
+    km?: number;
+    tollKRW?: number;
+    durationMin?: number;
+    path?: [number, number][];
+    points?: RouteData['points'];
+  } | null;
   breakdown?: {
+    baseKRW?: number | null;
+    distanceSurchargeKRW?: number | null;
+    tollKRW?: number | null;
+    estimatedTollKRW?: number | null;
+    otherAdjustmentKRW?: number | null;
+    km?: number | null;
     origin?: string | null;
     destination?: string | null;
     waypoints?: string[] | null;
   } | null;
+  bookingChangeApproval?: BookingChangeApprovalSummary | null;
 }
 
 interface Props {
   booking: ChangeableMoodBooking;
   balanceKRW: number;
+  isAdmin?: boolean;
+  canApprove?: boolean;
   onClose: () => void;
   onChanged: () => Promise<void> | void;
 }
@@ -377,25 +439,357 @@ function makeRequestKey() {
   return `mood-change-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-async function fetchRoute(origin: string, destination: string, waypoints: string[]) {
-  const query = new URLSearchParams({ origin, destination });
-  if (waypoints.length) query.set('waypoints', waypoints.join('|'));
-  const response = await authFetch(`/api/mood-route?${query.toString()}`);
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.ok) throw new Error(json.error || '경로를 계산하지 못했습니다.');
-  return json.data as RouteData;
+function changeErrorMessage(code: string) {
+  const messages: Record<string, string> = {
+    NO_CHANGES: '변경된 내용이 없습니다.',
+    CHANGE_QUOTE_REQUIRED: '금액 미리보기를 다시 확인해 주세요.',
+    CHANGE_QUOTE_EXPIRED: '금액 미리보기 유효시간이 지났습니다. 다시 확인해 주세요.',
+    CHANGE_QUOTE_MISMATCH: '미리보기 뒤 입력값이 달라졌습니다. 금액을 다시 확인해 주세요.',
+    CHANGE_QUOTE_INTEGRITY_FAILED: '금액 미리보기 검증에 실패했습니다. 다시 확인해 주세요.',
+    CHANGE_QUOTE_ALREADY_USED: '이미 처리된 변경입니다. 예약 현황을 새로 확인해 주세요.',
+    CHANGE_QUOTE_BALANCE_STALE: '잔액이 달라져 금액을 다시 확인해야 합니다.',
+    CHANGE_PROPOSAL_MISMATCH: '확인 대기 중인 변경 내용이 달라졌습니다. 운영자에게 다시 요청해 주세요.',
+    CHANGE_PROPOSAL_NOT_PENDING: '이미 처리됐거나 철회된 변경입니다.',
+    CHANGE_APPROVER_REQUIRED: '지정된 MOOD 확인 담당자만 금액을 확정할 수 있습니다.',
+    BOOKING_CHANGE_APPROVAL_PENDING: '이미 MOOD 확인을 기다리는 변경이 있습니다.',
+    ADMIN_REQUIRED: '금액에 영향을 주는 변경은 운영자만 요청할 수 있습니다.',
+    REVISION_CONFLICT: '다른 변경이 먼저 반영됐습니다. 예약 현황을 새로고침해 주세요.',
+    CREDIT_LIMIT_EXCEEDED: '변경 뒤 잔액이 허용 한도를 넘습니다.',
+    ROUTE_CALCULATION_FAILED: '새 동선을 계산하지 못했습니다. 주소를 확인해 주세요.',
+  };
+  return messages[code] || code || '예약을 변경하지 못했습니다.';
 }
 
-export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged }: Props) {
+function pendingDeltaText(value: number) {
+  if (value > 0) return `추가 차감 ${formatKRW(value)}`;
+  if (value < 0) return `잔액 환원 ${formatKRW(-value)}`;
+  return '금액 변동 없음';
+}
+
+function approvalServiceLabel(value: MoodServiceType) {
+  if (value === 'airport') return '공항 이동';
+  if (value === 'manager') return '매니저';
+  return '차량';
+}
+
+function approvalRouteText(origin: string, waypoints: string[], destination: string) {
+  return [origin, ...waypoints, destination].map((value) => String(value || '').trim()).filter(Boolean).join(' → ') || '없음';
+}
+
+function approvalCourseShareText(addresses: string[], percentages: number[] | null | undefined, totalKRW: number) {
+  if (!Array.isArray(percentages) || !percentages.length) return '없음';
+  const courseBaseKRW = Math.floor(totalKRW / percentages.length);
+  return percentages.map((percentage, index) => {
+    const courseKRW = courseBaseKRW + (index === percentages.length - 1 ? totalKRW - courseBaseKRW * percentages.length : 0);
+    const moodKRW = Math.round(courseKRW * percentage / 100);
+    return `${index + 1}. ${addresses[index] || '장소 미입력'} · MOOD ${percentage}% (${formatKRW(moodKRW)})`;
+  }).join('\n');
+}
+
+function BookingChangeApprovalModal({
+  booking,
+  isAdmin = false,
+  canApprove = false,
+  onClose,
+  onChanged,
+}: Props) {
+  const approval = booking.bookingChangeApproval as BookingChangeApprovalSummary;
+  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState<'approve' | 'withdraw' | null>(null);
+  const [message, setMessage] = useState('');
+  const inFlightRef = useRef(false);
+  const requestKeyRef = useRef<Record<'approve' | 'withdraw', string>>({ approve: '', withdraw: '' });
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const finalApproveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const proposed = approval.proposedBooking;
+  const addresses = [proposed.origin, ...(Array.isArray(proposed.waypoints) ? proposed.waypoints : []), proposed.destination]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const schedule = normalizeMoodRouteSchedule(proposed.routeSchedule, addresses.length, proposed.startTime);
+  const originalAddresses = [
+    String(booking.breakdown?.origin || ''),
+    ...(Array.isArray(booking.breakdown?.waypoints) ? booking.breakdown.waypoints : []),
+    String(booking.breakdown?.destination || ''),
+  ].map((value) => value.trim()).filter(Boolean);
+  const originalSchedule = normalizeMoodRouteSchedule(booking.routeSchedule, originalAddresses.length, booking.startTime);
+  const fieldKeys = Array.from(new Set(approval.changedFields.map((field) => (
+    ['origin', 'destination', 'waypoints'].includes(field) ? 'route' : field
+  ))));
+  const fieldLabels: Record<string, string> = {
+    date: '날짜',
+    startTime: '시작 시각',
+    durationHours: '이용 시간',
+    serviceType: '서비스',
+    route: '이동 경로·순서',
+    airportDirection: '공항 방향',
+    airportCode: '공항',
+    courseMoodPercentages: '비용 분담',
+    note: '예약 메모',
+    influencerName: '탑승 인플루언서',
+    routeSchedule: '도착·대기 시간',
+  };
+  const fieldValue = (field: string, next: boolean) => {
+    if (field === 'date') return next ? proposed.date : booking.date;
+    if (field === 'startTime') return next ? proposed.startTime : booking.startTime;
+    if (field === 'durationHours') return `${next ? proposed.durationHours : booking.durationHours}시간`;
+    if (field === 'serviceType') return approvalServiceLabel(next ? proposed.serviceType : booking.serviceType);
+    if (field === 'route') {
+      return next
+        ? approvalRouteText(proposed.origin, proposed.waypoints, proposed.destination)
+        : approvalRouteText(String(booking.breakdown?.origin || ''), booking.breakdown?.waypoints || [], String(booking.breakdown?.destination || ''));
+    }
+    if (field === 'airportDirection') {
+      const value = next ? proposed.airportDirection : booking.airportDirection;
+      return value === 'sending' ? '샌딩' : value === 'pickup' ? '픽업' : '없음';
+    }
+    if (field === 'airportCode') return String((next ? proposed.airportCode : booking.airportCode) || '없음');
+    if (field === 'courseMoodPercentages') {
+      return approvalCourseShareText(
+        next ? addresses : originalAddresses,
+        next ? proposed.courseMoodPercentages : booking.courseMoodPercentages,
+        next ? approval.amountKRW : approval.oldAmountKRW,
+      );
+    }
+    if (field === 'note') return String((next ? proposed.note : booking.note) || '없음');
+    if (field === 'influencerName') return String((next ? proposed.influencerName : booking.influencerName) || '없음');
+    if (field === 'routeSchedule') {
+      return formatMoodRouteScheduleText({
+        date: next ? proposed.date : booking.date,
+        addresses: next ? addresses : originalAddresses,
+        routeSchedule: next ? schedule : originalSchedule,
+        startTime: next ? proposed.startTime : booking.startTime,
+      }) || '없음';
+    }
+    return '변경';
+  };
+  const oldBreakdown = booking.breakdown || {};
+  const proposedBreakdown = approval.breakdown || {};
+  const breakdownValue = (source: Record<string, unknown>, key: string) => {
+    const raw = key === 'tollKRW' && !Number.isSafeInteger(source.tollKRW) ? source.estimatedTollKRW : source[key];
+    return Number.isSafeInteger(raw) ? Number(raw) : null;
+  };
+  const breakdownRows = [
+    ['baseKRW', '기본 이용료'],
+    ['distanceSurchargeKRW', '거리 추가요금'],
+    ['tollKRW', '톨비'],
+    ['otherAdjustmentKRW', '기타 조정'],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    before: breakdownValue(oldBreakdown as Record<string, unknown>, key),
+    after: breakdownValue(proposedBreakdown, key),
+  })).filter((row) => row.before !== null || row.after !== null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (!inFlightRef.current) onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href]',
+      )).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (confirming) finalApproveButtonRef.current?.focus();
+  }, [confirming]);
+
+  const respond = async (action: 'approve' | 'withdraw') => {
+    if (inFlightRef.current) return;
+    if (action === 'withdraw' && !window.confirm('이 변경 제안을 철회할까요? 예약 금액과 잔액은 바뀌지 않습니다.')) return;
+    if (!requestKeyRef.current[action]) requestKeyRef.current[action] = makeRequestKey();
+    inFlightRef.current = true;
+    setSubmitting(action);
+    setMessage('');
+    try {
+      const response = await authFetch('/api/mood-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          bookingId: booking.id,
+          quoteId: approval.quoteId,
+          idempotencyKey: requestKeyRef.current[action],
+        }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) throw new Error(changeErrorMessage(String(json.error || '')));
+      await onChanged();
+      onClose();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '변경 확인을 처리하지 못했습니다.');
+    } finally {
+      inFlightRef.current = false;
+      setSubmitting(null);
+    }
+  };
+
+  return (
+    <div
+      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3"
+      onMouseDown={(event) => { if (event.target === event.currentTarget && !inFlightRef.current) onClose(); }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mood-change-approval-title"
+        aria-busy={Boolean(submitting)}
+        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-[#11131a] p-5 text-white shadow-2xl sm:p-7"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black text-violet-300">운영자 제안 · MOOD 확인 대기</p>
+            <h2 id="mood-change-approval-title" className="mt-1 text-xl font-black">예약 변경 금액 확인</h2>
+            <p className="mt-1 text-xs text-slate-300">확인 전에는 예약 내용·금액·잔액이 바뀌지 않습니다.</p>
+          </div>
+          <button ref={closeButtonRef} type="button" onClick={onClose} disabled={Boolean(submitting)} aria-label="예약 변경 금액 확인 닫기" className="mood-icon-button rounded-full bg-white/5 text-slate-200 disabled:opacity-40"><X className="mx-auto h-5 w-5" /></button>
+        </div>
+
+        <section aria-labelledby="mood-change-price-title" className="mt-5 rounded-2xl border border-violet-300/20 bg-violet-400/10 p-4">
+          <h3 id="mood-change-price-title" className="text-sm font-black">금액 영향</h3>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+            <div><dt className="text-slate-400">기존 금액</dt><dd className="mt-1 text-sm font-black">{formatKRW(approval.oldAmountKRW)}</dd></div>
+            <div><dt className="text-slate-400">제안 금액</dt><dd className="mt-1 text-base font-black text-violet-200">{formatKRW(approval.amountKRW)}</dd></div>
+            <div><dt className="text-slate-400">차액</dt><dd className="mt-1 font-black">{pendingDeltaText(approval.adjustmentKRW)}</dd></div>
+            <div><dt className="text-slate-400">확정 뒤 잔액</dt><dd className="mt-1 font-black">{formatKRW(approval.balanceAfterKRW)}</dd></div>
+          </dl>
+          {breakdownRows.length > 0 && (
+            <div className="mt-4 border-t border-violet-200/15 pt-3">
+              <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 text-xs">
+                <span className="font-black text-slate-300">요금 산식</span><span className="text-right text-slate-400">기존</span><span className="text-right text-violet-200">제안</span>
+                {breakdownRows.map((row) => (
+                  <div key={row.key} className="contents">
+                    <span className="text-slate-300">{row.label}</span>
+                    <span className="text-right font-bold">{row.before === null ? '—' : formatKRW(row.before)}</span>
+                    <span className="text-right font-black text-violet-100">{row.after === null ? '—' : formatKRW(row.after)}</span>
+                  </div>
+                ))}
+              </div>
+              {(breakdownValue(oldBreakdown as Record<string, unknown>, 'km') !== null || breakdownValue(proposedBreakdown, 'km') !== null) && (
+                <p className="mt-3 text-xs text-slate-300">계산 거리 · {breakdownValue(oldBreakdown as Record<string, unknown>, 'km') === null ? '—' : `${breakdownValue(oldBreakdown as Record<string, unknown>, 'km')}km`} → {breakdownValue(proposedBreakdown, 'km') === null ? '—' : `${breakdownValue(proposedBreakdown, 'km')}km`}</p>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section aria-labelledby="mood-change-fields-title" className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+          <h3 id="mood-change-fields-title" className="text-sm font-black">바뀌는 항목 {fieldKeys.length}개</h3>
+          <div className="mt-3 space-y-3">
+            {fieldKeys.map((field) => (
+              <div key={field} className="rounded-xl bg-black/20 p-3">
+                <p className="text-xs font-black text-violet-200">{fieldLabels[field] || field}</p>
+                <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                  <div><p className="text-slate-500">기존</p><p className="mt-1 whitespace-pre-wrap break-words font-semibold text-slate-300">{fieldValue(field, false)}</p></div>
+                  <div><p className="text-violet-300">제안</p><p className="mt-1 whitespace-pre-wrap break-words font-bold text-white">{fieldValue(field, true)}</p></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="mood-change-route-title" className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+          <h3 id="mood-change-route-title" className="text-sm font-black">변경될 일정</h3>
+          <p className="mt-2 text-sm font-bold">{proposed.date} · {proposed.startTime} · {proposed.serviceType === 'airport' ? '공항 이동' : `${proposed.durationHours}시간 차량 이용`}</p>
+          {addresses.length >= 2 && (
+            <ol className="mt-3 space-y-2">
+              {addresses.map((address, index) => {
+                const stop = schedule[index];
+                const waitMinutes = stop ? getMoodRouteWaitMinutes(stop) : null;
+                const timing = index === 0
+                  ? `출발 ${stop?.pickupTime || proposed.startTime}`
+                  : index === addresses.length - 1
+                    ? stop?.arrivalTime ? `도착 ${stop.arrivalTime}` : '도착 시각 미정'
+                    : [
+                      stop?.arrivalTime ? `도착 ${stop.arrivalTime}` : '도착 시각 미정',
+                      waitMinutes === null ? null : `대기 ${formatMoodRouteWait(waitMinutes)}`,
+                      stop?.pickupTime ? `재출발 ${stop.pickupTime}` : null,
+                    ].filter(Boolean).join(' · ');
+                return (
+                  <li key={`${address}-${index}`} className="rounded-xl bg-black/20 px-3 py-2.5">
+                    <p className="text-xs font-black text-violet-200">{index === 0 ? '출발지' : index === addresses.length - 1 ? '도착지' : `경유지 ${index}`}</p>
+                    <p className="mt-1 break-words text-sm font-bold">{address}</p>
+                    <p className="mt-1 text-xs text-slate-300">{timing}</p>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+          <p className="mt-3 rounded-xl bg-black/20 px-3 py-2.5 text-xs text-slate-300">변경 이유 · {approval.reason}</p>
+          <p className="mt-2 text-xs text-slate-400">제안 {new Date(approval.proposedAt).toLocaleString('ko-KR')} · {approval.proposedByEmail}</p>
+        </section>
+
+        {message && <p className="mt-4 rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200" role="alert">{message}</p>}
+
+        <div className="mt-5" aria-live="polite">
+          {isAdmin ? (
+            <div className="space-y-2">
+              <p className="rounded-xl bg-amber-400/10 px-3 py-2.5 text-xs font-bold text-amber-100">MOOD 지정 담당자의 확인을 기다리고 있습니다.</p>
+              <button type="button" onClick={() => { void respond('withdraw'); }} disabled={Boolean(submitting)} className="min-h-12 w-full rounded-2xl border border-white/15 bg-white/5 px-4 text-sm font-black disabled:opacity-40">{submitting === 'withdraw' ? '철회 중…' : '제안 철회 후 다시 수정'}</button>
+            </div>
+          ) : canApprove ? (
+            confirming ? (
+              <div className="rounded-2xl border border-violet-300/25 bg-violet-400/10 p-4">
+                <p id="mood-change-final-impact" className="text-sm font-bold">{formatKRW(approval.oldAmountKRW)}에서 {formatKRW(approval.amountKRW)}으로 바뀌며, {pendingDeltaText(approval.adjustmentKRW)}이 잔액에 반영됩니다.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button ref={finalApproveButtonRef} type="button" onClick={() => { void respond('approve'); }} disabled={Boolean(submitting)} aria-describedby="mood-change-final-impact" className="mood-primary-action min-h-12 rounded-2xl bg-violet-500 px-3 text-sm font-black disabled:opacity-40">{submitting === 'approve' ? '확정 중…' : `${formatKRW(approval.amountKRW)} 최종 확인`}</button>
+                  <button type="button" onClick={() => setConfirming(false)} disabled={Boolean(submitting)} className="min-h-12 rounded-2xl border border-white/15 bg-white/5 px-3 text-sm font-bold disabled:opacity-40">다시 보기</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setConfirming(true)} className="mood-primary-action min-h-14 w-full rounded-2xl bg-violet-500 px-4 text-base font-black">{formatKRW(approval.amountKRW)} 변경 내용 확인</button>
+            )
+          ) : (
+            <p className="rounded-xl bg-white/5 px-3 py-3 text-xs font-bold text-slate-300">읽기 전용 · 지정된 MOOD 담당자의 확인을 기다리고 있습니다.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function MoodBookingChangeModal(props: Props) {
+  if (props.booking.bookingChangeApproval?.status === 'awaiting_mood') {
+    return <BookingChangeApprovalModal {...props} />;
+  }
+  return <MoodBookingChangeEditor {...props} />;
+}
+
+function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose, onChanged }: Props) {
   const showEveningBlackoutNotice = shouldShowMoodEveningBlackoutNotice(moodKstDateISO());
   const initialWaypoints = Array.isArray(booking.breakdown?.waypoints) ? booking.breakdown.waypoints.slice(0, 5) : [];
   const initialPayerCount = initialWaypoints.length + 2;
-  const initialCourseMoodPercentages = normalizeMoodCoursePercentages(
-    booking.courseMoodPercentages,
-    initialPayerCount,
-    booking.coursePayers,
-    booking.serviceType === 'airport' ? 50 : 100,
-  );
+  const hasStoredCourseShare = Array.isArray(booking.courseMoodPercentages) || Array.isArray(booking.coursePayers);
+  const initialCourseMoodPercentages = hasStoredCourseShare
+    ? normalizeMoodCoursePercentages(
+        booking.courseMoodPercentages,
+        initialPayerCount,
+        booking.coursePayers,
+        booking.serviceType === 'airport' ? 50 : 100,
+      )
+    : Array.from({ length: initialPayerCount }, (_, index) => index === 0 ? 100 : 0);
   const initialRouteAddresses = [
     String(booking.breakdown?.origin || ''),
     ...initialWaypoints,
@@ -435,16 +829,16 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const [influencerName, setInfluencerName] = useState(booking.influencerName || '');
   const [note, setNote] = useState(booking.note || '');
   const [reason, setReason] = useState('');
-  const [routeCalculation, setRouteCalculation] = useState<RouteCalculationState>({
-    signature: '',
-    state: 'idle',
-    route: null,
-    directRoute: null,
-    error: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
+  const [quote, setQuote] = useState<MoodChangeQuote | null>(null);
+  const [submittingAction, setSubmittingAction] = useState<'preview' | 'propose' | 'confirm' | null>(null);
   const [message, setMessage] = useState('');
-  const requestRef = useRef({ signature: '', key: '' });
+  const [recentlyMovedStopId, setRecentlyMovedStopId] = useState<string | null>(null);
+  const previewRequestRef = useRef({ signature: '', key: '' });
+  const confirmRequestRef = useRef({ signature: '', key: '' });
+  const submitInFlightRef = useRef(false);
+  const movedHighlightTimerRef = useRef<number | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -457,99 +851,6 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
   const waypoints = routeAddresses.slice(1, -1);
   const routeStarted = routeAddresses.some(Boolean);
   const routeComplete = routeStarted && routeAddresses.every(Boolean);
-  const routeSignature = JSON.stringify({ serviceType, addresses: routeAddresses });
-
-  useEffect(() => {
-    const parsed = JSON.parse(routeSignature) as { serviceType: MoodServiceType; addresses: string[] };
-    const requestedAddresses = parsed.addresses;
-    const requestedOrigin = requestedAddresses[0] || '';
-    const requestedDestination = requestedAddresses[requestedAddresses.length - 1] || '';
-    const requestedWaypoints = requestedAddresses.slice(1, -1);
-    const requestedRouteStarted = requestedAddresses.some(Boolean);
-    const requestedRouteComplete = requestedRouteStarted && requestedAddresses.every(Boolean);
-
-    if (!requestedRouteComplete) {
-      const resetTimer = window.setTimeout(() => {
-        setRouteCalculation({
-          signature: routeSignature,
-          state: 'idle',
-          route: null,
-          directRoute: null,
-          error: '',
-        });
-      }, 0);
-      return () => window.clearTimeout(resetTimer);
-    }
-
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setRouteCalculation({
-        signature: routeSignature,
-        state: 'loading',
-        route: null,
-        directRoute: null,
-        error: '',
-      });
-      try {
-        const requests: Promise<RouteData>[] = [fetchRoute(requestedOrigin, requestedDestination, requestedWaypoints)];
-        if (parsed.serviceType === 'airport' && requestedWaypoints.length) {
-          requests.push(fetchRoute(requestedOrigin, requestedDestination, []));
-        }
-        const result = await Promise.all(requests);
-        if (cancelled) return;
-        setRouteCalculation({
-          signature: routeSignature,
-          state: 'ready',
-          route: result[0],
-          directRoute: result[1] || result[0],
-          error: '',
-        });
-      } catch (error) {
-        if (cancelled) return;
-        setRouteCalculation({
-          signature: routeSignature,
-          state: 'error',
-          route: null,
-          directRoute: null,
-          error: error instanceof Error ? error.message : '경로를 계산하지 못했습니다.',
-        });
-      }
-    }, 550);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [routeSignature]);
-
-  const hasFreshRoute = routeComplete
-    && routeCalculation.signature === routeSignature
-    && routeCalculation.state === 'ready'
-    && !!routeCalculation.route;
-  const currentRouteState = !routeComplete
-    ? 'idle'
-    : routeCalculation.signature === routeSignature
-      ? routeCalculation.state
-      : 'loading';
-  const route = hasFreshRoute ? routeCalculation.route : null;
-  const directRoute = hasFreshRoute ? routeCalculation.directRoute : null;
-  const routeError = routeCalculation.signature === routeSignature ? routeCalculation.error : '';
-  const estimateReady = !routeStarted || hasFreshRoute;
-
-  const estimate = useMemo(() => {
-    const detourKm = serviceType === 'airport' && route && directRoute ? Math.max(0, route.km - directRoute.km) : 0;
-    return computeMoodTotalKRW({
-      serviceType,
-      durationHours: serviceType === 'airport' ? 0 : durationHours,
-      km: route?.km || 0,
-      tollKRW: route?.tollKRW || 0,
-      airportDetourKm: detourKm,
-      airportCode,
-    });
-  }, [serviceType, durationHours, route, directRoute, airportCode]);
-
-  const adjustment = estimate.amountKRW - booking.amountKRW;
-  const nextBalance = balanceKRW - adjustment;
-  const routeBlocked = routeStarted && !hasFreshRoute;
   const originalTimeIsGrandfathered = isMoodEveningBookingBlocked(booking.date, booking.startTime);
   const keepsGrandfatheredTime = originalTimeIsGrandfathered
     && date === booking.date
@@ -564,6 +865,152 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     : [];
   const courseMoodPercentageValues = activeRouteStops.map((stop) => stop.moodPercentage);
   const routeSchedule = routeStops.map(({ arrivalTime, pickupTime }) => ({ arrivalTime, pickupTime }));
+  const payloadOrigin = activeRouteStops[0]?.address.trim() || '';
+  const payloadDestination = activeRouteStops[activeRouteStops.length - 1]?.address.trim() || '';
+  const payloadWaypoints = activeRouteStops.slice(1, -1).map((stop) => stop.address.trim()).filter(Boolean);
+  const payloadRouteSchedule = activeRouteStops.map(({ arrivalTime, pickupTime }) => ({ arrivalTime, pickupTime }));
+  const normalizedDurationHours = serviceType === 'airport' ? 0 : durationHours;
+  const initialActiveAddresses = initialRouteAddresses.some((address) => address.trim())
+    ? initialRouteAddresses.map((address) => address.trim())
+    : [];
+  const currentActiveAddresses = activeRouteStops.map((stop) => stop.address.trim());
+  const initialActiveSchedule = initialActiveAddresses.length ? initialRouteSchedule : [];
+  const initialActivePercentages = initialActiveAddresses.length ? initialCourseMoodPercentages : [];
+
+  const changedFieldKeys: string[] = [];
+  const noteChanged = note.trim() !== String(booking.note || '').trim();
+  const influencerChanged = influencerName.trim() !== String(booking.influencerName || '').trim();
+  const scheduleChanged = JSON.stringify(payloadRouteSchedule) !== JSON.stringify(initialActiveSchedule);
+  const courseShareChanged = JSON.stringify(courseMoodPercentageValues) !== JSON.stringify(initialActivePercentages);
+  if (date !== booking.date) changedFieldKeys.push('date');
+  if (startTime !== booking.startTime) changedFieldKeys.push('startTime');
+  if (normalizedDurationHours !== (booking.serviceType === 'airport' ? 0 : Number(booking.durationHours))) changedFieldKeys.push('durationHours');
+  if (serviceType !== booking.serviceType) changedFieldKeys.push('serviceType');
+  if (JSON.stringify(currentActiveAddresses) !== JSON.stringify(initialActiveAddresses)) changedFieldKeys.push('route');
+  if (serviceType === 'airport' && airportDirection !== (booking.airportDirection === 'sending' ? 'sending' : 'pickup')) changedFieldKeys.push('airportDirection');
+  if (serviceType === 'airport' && airportCode !== (booking.airportCode === 'GMP' ? 'GMP' : 'ICN')) changedFieldKeys.push('airportCode');
+  if (courseShareChanged) changedFieldKeys.push('courseMoodPercentages');
+  if (noteChanged) changedFieldKeys.push('note');
+  if (influencerChanged) changedFieldKeys.push('influencerName');
+  if (scheduleChanged) changedFieldKeys.push('routeSchedule');
+
+  const changedFieldLabels: Record<string, string> = {
+    date: '날짜',
+    startTime: '시작 시각',
+    durationHours: '이용 시간',
+    serviceType: '서비스',
+    route: '이동 경로·순서',
+    airportDirection: '공항 방향',
+    airportCode: '공항',
+    courseMoodPercentages: '비용 분담',
+    note: '예약 메모',
+    influencerName: '탑승 인플루언서',
+    routeSchedule: '장소별 도착·대기 시각',
+  };
+  const hasChanges = changedFieldKeys.length > 0;
+  const quoteRequired = changedFieldKeys.some((key) => ![
+    'date',
+    'startTime',
+    'airportDirection',
+    'note',
+    'influencerName',
+    'routeSchedule',
+  ].includes(key));
+  const requestPayload = {
+    bookingId: booking.id,
+    expectedRevision: Number.isInteger(booking.revision) ? booking.revision : 0,
+    reason: reason.trim(),
+    booking: {
+      date,
+      startTime,
+      durationHours: normalizedDurationHours,
+      serviceType,
+      airportDirection: serviceType === 'airport' ? airportDirection : null,
+      airportCode: serviceType === 'airport' ? airportCode : null,
+      origin: payloadOrigin,
+      destination: payloadDestination,
+      waypoints: payloadWaypoints,
+      influencerName: influencerName.trim(),
+      note: note.trim(),
+      courseMoodPercentages: courseMoodPercentageValues,
+      routeSchedule: payloadRouteSchedule,
+    },
+  };
+  const requestSignature = JSON.stringify(requestPayload);
+  const activeQuote = quote && quote.requestSignature === requestSignature
+    ? quote
+    : null;
+  const estimateReady = !quoteRequired || !!activeQuote;
+  const estimatedAmountKRW = typeof activeQuote?.amountKRW === 'number' ? activeQuote.amountKRW : booking.amountKRW;
+  const adjustment = typeof activeQuote?.adjustmentKRW === 'number' ? activeQuote.adjustmentKRW : 0;
+  const nextBalance = typeof activeQuote?.balanceKRW === 'number' ? activeQuote.balanceKRW : balanceKRW;
+  const routeIdentityChanged = JSON.stringify(currentActiveAddresses) !== JSON.stringify(initialActiveAddresses)
+    || serviceType !== booking.serviceType;
+  const storedRoute = booking.routeSnapshot && typeof booking.routeSnapshot.km === 'number'
+    ? {
+        km: booking.routeSnapshot.km,
+        tollKRW: typeof booking.routeSnapshot.tollKRW === 'number' ? booking.routeSnapshot.tollKRW : 0,
+        durationMin: typeof booking.routeSnapshot.durationMin === 'number' ? booking.routeSnapshot.durationMin : 0,
+        path: Array.isArray(booking.routeSnapshot.path) ? booking.routeSnapshot.path : [],
+        points: Array.isArray(booking.routeSnapshot.points) ? booking.routeSnapshot.points : [],
+      }
+    : null;
+  const route = activeQuote?.routeSnapshot || (!routeIdentityChanged ? storedRoute : null);
+  const routeBlocked = routeStarted && !routeComplete;
+  const hasInvalidatedQuote = !!quote && !activeQuote;
+  const hasUnappliedScheduleDraft = schedulePasteText.trim().length > 0 || schedulePreview !== null;
+  const hasUnsavedChanges = hasChanges || hasUnappliedScheduleDraft;
+  const dirtyRef = useRef(hasUnsavedChanges);
+  const closeHandlerRef = useRef(onClose);
+
+  useEffect(() => {
+    dirtyRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    closeHandlerRef.current = onClose;
+  }, [onClose]);
+
+  const attemptClose = () => {
+    if (submitInFlightRef.current || submittingAction) return;
+    if (dirtyRef.current && !window.confirm('저장하지 않은 변경 내용이 있습니다. 닫을까요?')) return;
+    closeHandlerRef.current();
+  };
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (submitInFlightRef.current) return;
+        if (!dirtyRef.current || window.confirm('저장하지 않은 변경 내용이 있습니다. 닫을까요?')) {
+          closeHandlerRef.current();
+        }
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary',
+      )).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+      if (movedHighlightTimerRef.current !== null) window.clearTimeout(movedHighlightTimerRef.current);
+    };
+  }, []);
 
   const handleStartTimeChange = (value: string) => {
     setStartTime(value);
@@ -593,7 +1040,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     setScheduleTransferMessage(`대기 ${formatMoodRouteWait(minutes)}을 적용했습니다.`);
   };
 
-  const commitRouteStopOrder = (nextItems: MoodRouteStop[], announcement: string) => {
+  const commitRouteStopOrder = (nextItems: MoodRouteStop[], announcement: string, movedId?: string) => {
     if (nextItems.length < 2) return;
     const next = nextItems.map((item) => ({ ...item }));
     const firstTime = next[0].pickupTime || next[0].arrivalTime || startTime || null;
@@ -606,6 +1053,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     setStartTime(firstTime || '');
     setRemovedRouteStop(null);
     setRouteAnnouncement(announcement);
+    if (movedId) {
+      setRecentlyMovedStopId(movedId);
+      if (movedHighlightTimerRef.current !== null) window.clearTimeout(movedHighlightTimerRef.current);
+      movedHighlightTimerRef.current = window.setTimeout(() => setRecentlyMovedStopId(null), 600);
+    }
   };
 
   const moveRouteStop = (id: string, delta: -1 | 1) => {
@@ -613,7 +1065,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     const toIndex = fromIndex + delta;
     if (fromIndex < 0 || toIndex < 0 || toIndex >= routeStops.length) return;
     const next = arrayMove(routeStops, fromIndex, toIndex);
-    commitRouteStopOrder(next, `${routeStops[fromIndex].address.trim() || '빈 장소'}를 ${delta < 0 ? '위로' : '아래로'} 이동했습니다.`);
+    commitRouteStopOrder(next, `${routeStops[fromIndex].address.trim() || '빈 장소'}를 ${delta < 0 ? '위로' : '아래로'} 이동했습니다.`, id);
     window.setTimeout(() => document.getElementById(`${id}-reorder`)?.focus(), 0);
   };
 
@@ -889,82 +1341,156 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
     const overId = String(over.id);
     const next = reorderMoodRouteStops(routeStops, activeId, overId);
     const moved = routeStops.find((stop) => stop.id === activeId);
-    commitRouteStopOrder(next, `${moved?.address.trim() || '빈 장소'}의 순서를 변경했습니다.`);
+    commitRouteStopOrder(next, `${moved?.address.trim() || '빈 장소'}의 순서를 변경했습니다.`, activeId);
   };
 
   const submit = async () => {
+    if (submitInFlightRef.current) return;
     setMessage('');
     if (!date || !startTime) return setMessage('날짜와 시작 시각을 확인해 주세요.');
     if (serviceType !== 'airport' && !durationHoursInput.trim()) return setMessage('이용 시간을 입력해 주세요.');
+    if (serviceType !== 'airport' && (!Number.isFinite(durationHours) || durationHours < 1 || durationHours > 15)) {
+      return setMessage('이용 시간은 1시간 이상 15시간 이하로 입력해 주세요.');
+    }
     if (eveningBookingBlocked) return setMessage('선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.');
+    if (!hasChanges) return setMessage('변경된 내용이 없습니다.');
     if (!reason.trim()) return setMessage('변경 이유를 입력해 주세요.');
+    if (quoteRequired && !isAdmin) return setMessage('금액에 영향을 주는 변경은 운영자만 요청할 수 있습니다.');
     if (routeStarted && !routeComplete) return setMessage('경로의 빈 장소를 모두 입력하거나 삭제해 주세요.');
-    if (routeBlocked) return setMessage('동선 계산이 끝난 뒤 저장할 수 있습니다.');
-
-    const payloadOrigin = activeRouteStops[0]?.address.trim() || '';
-    const payloadDestination = activeRouteStops[activeRouteStops.length - 1]?.address.trim() || '';
-    const payloadWaypoints = activeRouteStops.slice(1, -1).map((stop) => stop.address.trim()).filter(Boolean);
-    const payloadRouteSchedule = activeRouteStops.map(({ arrivalTime, pickupTime }) => ({ arrivalTime, pickupTime }));
     const scheduleValidation = validateMoodRouteSchedule(payloadRouteSchedule, activeRouteStops.length, startTime);
     if (!scheduleValidation.valid) {
       return setMessage(scheduleValidation.issues[0]?.message || '경유지별 일정 시각을 확인해 주세요.');
     }
 
-    const payload = {
-      bookingId: booking.id,
-      expectedRevision: Number.isInteger(booking.revision) ? booking.revision : 0,
-      reason: reason.trim(),
-      booking: {
-        date,
-        startTime,
-        durationHours: serviceType === 'airport' ? 0 : durationHours,
-        serviceType,
-        airportDirection: serviceType === 'airport' ? airportDirection : null,
-        airportCode: serviceType === 'airport' ? airportCode : null,
-        origin: payloadOrigin,
-        destination: payloadDestination,
-        waypoints: payloadWaypoints,
-        influencerName: influencerName.trim(),
-        note: note.trim(),
-        courseMoodPercentages: courseMoodPercentageValues,
-        routeSchedule: payloadRouteSchedule,
-      },
-    };
-    const signature = JSON.stringify(payload);
-    if (requestRef.current.signature !== signature) requestRef.current = { signature, key: makeRequestKey() };
-
-    setSubmitting(true);
+    const needsPreview = quoteRequired && !activeQuote;
+    const requestRef = needsPreview ? previewRequestRef : confirmRequestRef;
+    if (requestRef.current.signature !== requestSignature) {
+      requestRef.current = { signature: requestSignature, key: makeRequestKey() };
+    }
+    submitInFlightRef.current = true;
+    const submitAction = needsPreview ? 'preview' : quoteRequired ? 'propose' : 'confirm';
+    setSubmittingAction(submitAction);
     try {
       const response = await authFetch('/api/mood-change', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, idempotencyKey: requestRef.current.key }),
+        body: JSON.stringify({
+          ...requestPayload,
+          action: submitAction,
+          idempotencyKey: requestRef.current.key,
+          ...(!needsPreview && activeQuote ? { quoteId: activeQuote.quoteId } : {}),
+        }),
       });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.ok) throw new Error(json.error || '예약을 변경하지 못했습니다.');
-      requestRef.current = { signature: '', key: '' };
+      if (!response.ok || !json.ok) {
+        const errorCode = String(json.error || '');
+        if ([
+          'CHANGE_QUOTE_REQUIRED',
+          'CHANGE_QUOTE_EXPIRED',
+          'CHANGE_QUOTE_MISMATCH',
+          'CHANGE_QUOTE_INTEGRITY_FAILED',
+          'CHANGE_QUOTE_ALREADY_USED',
+          'CHANGE_QUOTE_BALANCE_STALE',
+          'CHANGE_QUOTE_NOT_FOUND',
+          'REVISION_CONFLICT',
+          'BOOKING_NOT_CHANGEABLE',
+          'SETTLEMENT_APPROVAL_PENDING',
+        ].includes(errorCode)) {
+          setQuote(null);
+          previewRequestRef.current = { signature: '', key: '' };
+          confirmRequestRef.current = { signature: '', key: '' };
+        }
+        throw new Error(changeErrorMessage(errorCode));
+      }
+      if (needsPreview) {
+        const preview = json.data || {};
+        const quoteId = String(preview.quoteId || '');
+        const previewRevision = Number(preview.expectedRevision);
+        const expiresAt = Number(preview.expiresAt);
+        const oldAmountKRW = Number(preview.oldAmountKRW);
+        const amountKRW = Number(preview.amountKRW);
+        const adjustmentKRW = Number(preview.adjustmentKRW);
+        const nextBalanceKRW = Number(preview.balanceKRW);
+        const breakdown = preview.breakdown;
+        if (
+          !/^[a-f0-9]{64}$/.test(quoteId)
+          || preview.currency !== 'KRW'
+          || previewRevision !== Number(booking.revision || 0)
+          || !Number.isSafeInteger(expiresAt)
+          || expiresAt <= Date.now()
+          || !Number.isSafeInteger(oldAmountKRW)
+          || oldAmountKRW !== booking.amountKRW
+          || !Number.isSafeInteger(amountKRW)
+          || amountKRW < 0
+          || !Number.isSafeInteger(adjustmentKRW)
+          || adjustmentKRW !== amountKRW - oldAmountKRW
+          || !Number.isSafeInteger(nextBalanceKRW)
+          || nextBalanceKRW !== balanceKRW - adjustmentKRW
+          || !breakdown
+          || typeof breakdown !== 'object'
+          || Array.isArray(breakdown)
+        ) {
+          throw new Error('서버 금액 응답을 확인하지 못했습니다. 다시 시도해 주세요.');
+        }
+        setQuote({
+          quoteId,
+          expectedRevision: previewRevision,
+          expiresAt,
+          oldAmountKRW,
+          amountKRW,
+          adjustmentKRW,
+          balanceKRW: nextBalanceKRW,
+          breakdown,
+          routeSnapshot: preview.routeSnapshot || null,
+          changedFields: Array.isArray(preview.changedFields) ? preview.changedFields : [],
+          requestSignature,
+        });
+        confirmRequestRef.current = { signature: '', key: '' };
+        setMessage('');
+        return;
+      }
+      confirmRequestRef.current = { signature: requestSignature, key: requestRef.current.key };
       await onChanged();
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '예약을 변경하지 못했습니다.');
     } finally {
-      setSubmitting(false);
+      submitInFlightRef.current = false;
+      setSubmittingAction(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-label="예약 변경">
-      <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#11131a] p-5 text-white shadow-2xl sm:p-7">
+    <div
+      className="mood-surface fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) attemptClose(); }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mood-change-title"
+        aria-describedby="mood-change-description"
+        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#11131a] p-5 text-white shadow-2xl sm:p-7"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-violet-300">RESERVATION CHANGE</p>
-            <h2 className="mt-1 text-2xl font-black">예약 내용 변경</h2>
-            <p className="mt-1 text-sm text-slate-400">저장할 때 서버가 동선과 금액을 다시 계산하고 차액만 잔액에 반영합니다.</p>
+            <h2 id="mood-change-title" className="mt-1 text-2xl font-black">예약 내용 변경</h2>
+            <p id="mood-change-description" className="mt-1 text-sm leading-relaxed text-slate-300">
+              금액에 영향이 있는 변경은 운영자가 서버 계산 금액을 제안하고, MOOD 담당자가 확인해야 반영됩니다.
+            </p>
           </div>
-          <button type="button" onClick={onClose} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 text-sm outline-none hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-violet-300">닫기</button>
+          <button ref={closeButtonRef} type="button" onClick={attemptClose} className="mood-icon-button min-h-11 shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 text-sm outline-none hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-violet-300">닫기</button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <details open className="group rounded-2xl border border-white/10 bg-white/[0.035]">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+            <span>1. 기본 정보</span>
+            <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+          </summary>
+          <div className="grid gap-4 border-t border-white/10 p-4 sm:grid-cols-2">
           <label className="text-sm font-bold">날짜<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           <label className="text-sm font-bold">시작 시각<input type="time" value={startTime} onChange={(event) => handleStartTimeChange(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-300" /></label>
           <label className="text-sm font-bold">서비스
@@ -990,11 +1516,11 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
             }} className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           )}
           <label className="text-sm font-bold sm:col-span-2">탑승 인플루언서<input value={influencerName} maxLength={100} onChange={(event) => setInfluencerName(event.target.value)} placeholder="공유 화면에 표시할 이름" className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
-        </div>
+          </div>
 
         {showEveningBlackoutNotice && <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" role="note">
           <p className="text-xs font-bold text-amber-200">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
-          <p className="mt-1 text-[11px] text-slate-300">오후 6시 전 시작은 가능하며, 이미 확정된 예약은 그대로 유효합니다.</p>
+          <p className="mt-1 text-xs text-slate-300">오후 6시 전 시작은 가능하며, 이미 확정된 예약은 그대로 유효합니다.</p>
         </div>}
 
         {eveningBookingBlocked && (
@@ -1007,16 +1533,22 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
             기존 확정 예약의 날짜·시각을 유지해 주소·메모 등 다른 내용은 변경할 수 있습니다. 날짜나 시각을 바꾸면 새 제한 규칙이 적용됩니다.
           </p>
         )}
+        </details>
 
-        <section className="mt-5 rounded-2xl bg-white/[0.04] p-3 sm:p-4" aria-labelledby="mood-route-title">
+        <details open className="group mt-4 rounded-2xl border border-white/10 bg-white/[0.035]">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+            <span>2. 동선·일정</span>
+            <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+          </summary>
+        <section className="border-t border-white/10 p-3 sm:p-4" aria-labelledby="mood-route-title">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h3 id="mood-route-title" className="text-sm font-black text-white">이동 경로</h3>
-              <p id="mood-route-reorder-help" className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              <p id="mood-route-reorder-help" className="mt-1 text-xs leading-relaxed text-slate-400">
                 손잡이를 끌어 순서를 바꾸세요. 맨 앞은 출발지, 맨 뒤는 도착지가 됩니다.
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-slate-300">{routeStops.length}/7</span>
+            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-black text-slate-300">{routeStops.length}/7</span>
           </div>
 
           <div className="mb-3 grid grid-cols-2 gap-2">
@@ -1048,7 +1580,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
               <label htmlFor="mood-schedule-paste-text" className="text-xs font-black text-white">
                 카카오톡 전체 일정
               </label>
-              <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">
                 복사한 일정이나 자유문장을 붙여넣으세요. 분석 결과는 바로 저장되지 않고 먼저 미리보기로 보여드립니다.
               </p>
               <textarea
@@ -1088,7 +1620,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
                 <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.07] p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-black text-emerald-100">적용 전 미리보기</p>
-                    <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-slate-200">
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-bold text-slate-200">
                       {schedulePreview.source === 'text' ? '복사 형식' : '자유문장 분석'}
                     </span>
                   </div>
@@ -1101,7 +1633,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
                     })}
                   </pre>
                   {schedulePreview.warnings.map((warning) => (
-                    <p key={warning} className="mt-2 text-[11px] font-bold leading-relaxed text-amber-200">⚠️ {warning}</p>
+                    <p key={warning} className="mt-2 text-xs font-bold leading-relaxed text-amber-200">⚠️ {warning}</p>
                   ))}
                   <button
                     type="button"
@@ -1143,6 +1675,7 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
                     canRemove={routeStops.length > 2}
                     canInsertAfter={routeStops.length < MAX_ROUTE_STOPS && index < routeStops.length - 1}
                     isExpanded={expandedStopId === stop.id}
+                    isRecentlyMoved={recentlyMovedStopId === stop.id}
                     onAddressChange={updateRouteStopAddress}
                     onSelectAddress={selectAddress}
                     onRemove={removeRouteStop}
@@ -1178,49 +1711,123 @@ export function MoodBookingChangeModal({ booking, balanceKRW, onClose, onChanged
           <p className="sr-only" aria-live="polite">{routeAnnouncement}</p>
 
           {routeStarted && !routeComplete && (
-            <p className="mt-3 text-xs font-bold text-amber-200" role="status">빈 장소를 입력하거나 삭제하면 동선을 계산합니다.</p>
+            <p className="mt-3 text-xs font-bold text-amber-200" role="status">빈 장소를 입력하거나 삭제해 주세요.</p>
           )}
-          {currentRouteState === 'loading' && <p className="mt-3 text-xs text-slate-400" role="status">새 순서로 동선을 다시 계산하는 중…</p>}
-          {currentRouteState === 'error' && <p className="mt-3 text-xs font-bold text-rose-300" role="alert">{routeError}</p>}
-          {hasFreshRoute && route && (
+          {submittingAction === 'preview' && <p className="mt-3 text-xs text-slate-300" role="status">서버에서 새 동선과 금액을 계산하는 중…</p>}
+          {quoteRequired && !activeQuote && !routeBlocked && submittingAction !== 'preview' && (
+            <p className="mt-3 rounded-xl bg-violet-400/10 px-3 py-2 text-xs font-bold text-violet-100" role="status">
+              입력을 마치고 금액 미리보기를 누르면 새 동선을 한 번 계산합니다.
+            </p>
+          )}
+          {route && (
             <p className="mt-3 rounded-xl bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200" role="status">
               동선 {route.km}km · 약 {route.durationMin}분 · 예상 통행료 {formatKRW(route.tollKRW)}
             </p>
           )}
-          <div className="mt-3">
+          <div className="mood-route-map-touch mt-3">
             <MoodRouteMap origin={origin} destination={destination} waypoints={waypoints.filter(Boolean)} route={route} accent="#a78bfa" inputBg="#171923" inputBorder="1px solid rgba(255,255,255,.12)" textDim="#94a3b8" />
           </div>
-          {courseItems.length >= 2 && estimateReady && (
+          {courseItems.length >= 2 && (
             <div className="mt-3">
               <MoodCourseShareEditor
                 items={courseItems}
                 percentages={courseMoodPercentages}
-                totalKRW={estimate.amountKRW}
+                totalKRW={estimatedAmountKRW}
                 influencerName={influencerName}
                 onChange={updateCourseMoodPercentages}
               />
             </div>
           )}
           {courseItems.length >= 2 && !estimateReady && (
-            <p className="mt-3 text-xs text-slate-400">비용 분담 금액도 새 동선 계산 후 함께 갱신됩니다.</p>
+            <p className="mt-3 text-xs text-slate-300">현재는 기존 총액 기준입니다. 서버 미리보기 뒤 새 금액으로 갱신됩니다.</p>
           )}
         </section>
+        </details>
 
-        <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4 text-center">
+        <details open className="group mt-4 rounded-2xl border border-white/10 bg-white/[0.035]">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-black outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+            <span>3. 금액 확인</span>
+            <ChevronDown className="h-4 w-4 text-violet-200 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+          </summary>
+        <div className="grid grid-cols-3 gap-2 border-t border-violet-400/20 bg-violet-400/10 p-4 text-center">
           <div><p className="text-xs text-slate-400">변경 전</p><p className="mt-1 font-black">{formatKRW(booking.amountKRW)}</p></div>
-          <div><p className="text-xs text-slate-400">변경 후 예상</p><p className="mt-1 font-black text-violet-200">{estimateReady ? formatKRW(estimate.amountKRW) : '계산 중…'}</p></div>
-          <div><p className="text-xs text-slate-400">잔액 변화</p><p className={`mt-1 font-black ${!estimateReady ? 'text-slate-400' : adjustment > 0 ? 'text-rose-300' : adjustment < 0 ? 'text-emerald-300' : ''}`}>{!estimateReady ? '계산 대기' : adjustment === 0 ? '변동 없음' : `${adjustment > 0 ? '-' : '+'}${formatKRW(Math.abs(adjustment))}`}</p></div>
+          <div><p className="text-xs text-slate-400">변경 후</p><p className="mt-1 font-black text-violet-200" translate="no">{estimateReady ? formatKRW(estimatedAmountKRW) : '미리보기 필요'}</p></div>
+          <div><p className="text-xs text-slate-400">잔액 변화</p><p className={`mt-1 font-black ${!estimateReady ? 'text-slate-300' : adjustment > 0 ? 'text-rose-300' : adjustment < 0 ? 'text-emerald-300' : ''}`}>{!estimateReady ? '확인 전' : adjustment === 0 ? '변동 없음' : `${adjustment > 0 ? '-' : '+'}${formatKRW(Math.abs(adjustment))}`}</p></div>
           <p className="col-span-3 mt-2 border-t border-white/10 pt-2 text-xs text-slate-300">
-            {estimateReady ? `변경 뒤 예상 잔액 ${formatKRW(nextBalance)} · 최종 금액은 서버 계산값으로 확정` : '새 동선 계산이 끝나면 예상 잔액을 표시합니다.'}
+            {estimateReady ? `변경 뒤 잔액 ${formatKRW(nextBalance)}` : '서버 미리보기와 같은 견적으로만 최종 확정됩니다.'}
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="p-4">
+          <p className="text-xs font-black text-white">바뀐 항목</p>
+          {hasChanges ? (
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-live="polite">
+              {changedFieldKeys.map((key) => (
+                <span key={key} className="rounded-full border border-violet-300/25 bg-violet-400/10 px-2.5 py-1 text-xs font-bold text-violet-100">
+                  {changedFieldLabels[key] || key}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 rounded-xl bg-white/5 px-3 py-2 text-xs font-bold text-slate-300" role="status">변경된 내용이 없습니다.</p>
+          )}
+
+          {activeQuote && (
+            <div className="mt-3 rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3" role="status" aria-live="polite">
+              <p className="flex items-center gap-2 text-sm font-black text-emerald-100">
+                <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> 서버 금액 확인 완료
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-200">이 입력값과 예약 개정 번호에 묶인 견적입니다. 입력을 바꾸면 다시 확인해야 합니다.</p>
+            </div>
+          )}
+          {hasInvalidatedQuote && (
+            <p className="mt-3 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100" role="status">
+              미리보기 뒤 입력이 바뀌었습니다. 금액을 다시 확인해 주세요.
+            </p>
+          )}
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-bold">예약 메모<textarea value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} rows={3} className="mt-1 w-full resize-none rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           <label className="text-sm font-bold">변경 이유 <span className="text-rose-300">필수</span><textarea value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="예: 촬영지 변경으로 도착지 수정" className="mt-1 w-full resize-none rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
         </div>
-        {message && <p className="mt-4 rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{message}</p>}
-        <button type="button" onClick={submit} disabled={submitting || routeBlocked || eveningBookingBlocked} className="mt-5 min-h-14 w-full rounded-2xl bg-violet-500 px-4 text-base font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-45">{submitting ? '변경 저장 중…' : eveningBookingBlocked ? '오후 6시 이후 변경 불가' : routeStarted && !routeComplete ? '빈 장소를 확인해 주세요' : routeBlocked ? '동선 계산을 기다려 주세요' : '변경 내용과 차액 확인 후 저장'}</button>
+        {message && <p className="mt-4 rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200" role="alert">{message}</p>}
+        </div>
+        </details>
+
+        <div className="sticky -bottom-5 z-20 -mx-5 mt-4 border-t border-white/10 bg-[#11131a]/95 px-5 pb-5 pt-3 shadow-[0_-14px_30px_rgba(0,0,0,0.35)] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:px-7 sm:pb-7">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-slate-300">{hasChanges ? `${changedFieldKeys.length}개 항목 변경` : '변경 없음'}</span>
+            <span className="font-black text-violet-100" translate="no">{estimateReady ? formatKRW(estimatedAmountKRW) : '금액 확인 전'}</span>
+          </div>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!!submittingAction || routeBlocked || eveningBookingBlocked || !hasChanges || !reason.trim() || (quoteRequired && !isAdmin)}
+            className="mood-primary-action min-h-14 w-full rounded-2xl bg-violet-500 px-4 text-base font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {submittingAction === 'preview'
+              ? '서버 금액 확인 중…'
+              : submittingAction === 'confirm'
+                ? '변경 확정 중…'
+                : submittingAction === 'propose'
+                  ? 'MOOD 확인 요청 중…'
+                : eveningBookingBlocked
+                  ? '오후 6시 이후 변경 불가'
+                  : routeBlocked
+                    ? '빈 장소를 확인해 주세요'
+                    : !hasChanges
+                      ? '변경된 내용이 없습니다'
+                      : !reason.trim()
+                        ? '변경 이유를 입력해 주세요'
+                        : quoteRequired && !isAdmin
+                          ? '금액 변경은 운영자만 요청할 수 있습니다'
+                        : quoteRequired && !activeQuote
+                          ? '변경 내용과 금액 미리보기'
+                          : quoteRequired
+                            ? `${formatKRW(activeQuote?.amountKRW || estimatedAmountKRW)} · MOOD 확인 요청`
+                            : '금액 변동 없이 변경 저장'}
+          </button>
+        </div>
       </div>
     </div>
   );

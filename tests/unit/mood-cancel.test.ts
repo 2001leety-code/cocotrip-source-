@@ -94,6 +94,76 @@ describe('mood-cancel 돈 가드', () => {
     expect(clientUpdate).not.toHaveBeenCalled();
   });
 
+  it('예약 변경 MOOD 확인 대기 중 취소 → 409, 환불·상태 변경 없음', async () => {
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+    bookingData.bookingChangeApproval = { status: 'awaiting_mood', quoteId: 'change-quote-1' };
+
+    const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });
+
+    expect(res.statusCode).toBe(409);
+    expect(json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    expect(bookingUpdate).not.toHaveBeenCalled();
+    expect(clientUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(['awaiting_mood', 'changes_requested'])(
+    '정산 확인 상태가 %s이면 취소 → 409, 환불·상태 변경 없음',
+    async (status) => {
+      verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+      bookingData.settlementApproval = { status, proposalId: 'settlement-1' };
+
+      const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });
+
+      expect(res.statusCode).toBe(409);
+      expect(json.error).toBe('SETTLEMENT_APPROVAL_PENDING');
+      expect(bookingUpdate).not.toHaveBeenCalled();
+      expect(clientUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, null, '352200', Number.NaN, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    '손상된 예약 금액 %s이면 취소를 fail-closed 한다',
+    async (amountKRW) => {
+      verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+      bookingData.amountKRW = amountKRW;
+
+      const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });
+
+      expect(res.statusCode).toBe(409);
+      expect(json.error).toBe('INVALID_BOOKING_AMOUNT');
+      expect(bookingUpdate).not.toHaveBeenCalled();
+      expect(clientUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, null, '100000', Number.NaN, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    '손상된 고객 잔액 %s이면 취소를 fail-closed 한다',
+    async (balanceKRW) => {
+      verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+      clientData.balanceKRW = balanceKRW;
+
+      const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });
+
+      expect(res.statusCode).toBe(409);
+      expect(json.error).toBe('INVALID_CLIENT_BALANCE');
+      expect(bookingUpdate).not.toHaveBeenCalled();
+      expect(clientUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('환불 후 잔액이 안전 정수 범위를 넘으면 취소를 거부한다', async () => {
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
+    bookingData.amountKRW = Number.MAX_SAFE_INTEGER;
+    clientData.balanceKRW = 1;
+
+    const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });
+
+    expect(res.statusCode).toBe(409);
+    expect(json.error).toBe('INVALID_REFUND_BALANCE');
+    expect(bookingUpdate).not.toHaveBeenCalled();
+    expect(clientUpdate).not.toHaveBeenCalled();
+  });
+
   it('정상 취소 — 환불액=amountKRW(SSOT), 잔액 환원, status=cancelled', async () => {
     verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', emailVerified: true });
     const { res, json } = await call({ method: 'POST', body: { bookingId: 'b1' }, headers: {} });

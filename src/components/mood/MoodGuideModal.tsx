@@ -51,7 +51,10 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
     .join(' · ');
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
+      className="mood-surface fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mood-guide-title"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -60,10 +63,10 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
         style={{ background: C.card, border: C.cardBorder }}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold" style={{ color: C.text }}>
+          <h2 id="mood-guide-title" className="text-base font-bold" style={{ color: C.text }}>
             MOOD 포털 <span style={{ color: C.accentSolid }}>이용 안내</span>
           </h2>
-          <button type="button" onClick={onClose} aria-label="닫기" className="p-1.5 rounded-lg text-white/55 hover:bg-white/[0.06]">
+          <button type="button" onClick={onClose} aria-label="닫기" className="mood-icon-button inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/70 hover:bg-white/[0.06]">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -110,7 +113,7 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
               운행 전(예약 확정 상태)이면 전액이 잔액으로 즉시 환불됩니다. 정산이 끝난 예약은 운영자에게 문의하세요.</p>
             <p><b style={{ color: C.text }}>Q. 시간·장소를 바꾸고 싶어요</b><br />
               예약을 펼쳐 <b style={{ color: C.text }}>예약 내용 변경</b>을 누르세요. 날짜·시간·서비스·주소·경유지·메모를 바꿀 수 있고,
-              새 동선 기준 금액과 차액을 확인한 뒤 한 번에 저장합니다.</p>
+              운영자가 새 동선과 금액을 제안하고, MOOD 담당자가 내역을 확인해야 최종 반영됩니다.</p>
             <p><b style={{ color: C.text }}>Q. 인플루언서에게 상세 내용을 보내고 싶어요</b><br />
               <b style={{ color: C.text }}>공유·캡처용 동선표 보기</b>를 누르면 지도·번호 동선·예상/최종 비용과 코스별 부담 금액이 한 카드에 나옵니다.
               화면을 캡처하거나 상세 내용 복사 버튼으로 카카오톡에 붙여 넣으세요.</p>
@@ -128,7 +131,7 @@ export function MoodGuideModal({ open, onClose }: MoodGuideModalProps) {
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-3 rounded-xl text-sm font-bold"
+          className="mood-primary-action min-h-11 w-full rounded-xl px-4 text-sm font-bold"
           style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', color: '#fff' }}
         >
           확인했어요
