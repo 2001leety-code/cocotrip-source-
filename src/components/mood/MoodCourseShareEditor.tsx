@@ -57,9 +57,9 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-black text-white">비용 분담 규칙</p>
-          <p className="mt-0.5 text-[10px] text-slate-400">총액을 코스 수로 나눈 뒤 각 코스 비율을 적용합니다.</p>
+          <p className="mt-0.5 text-xs text-slate-300">총액을 코스 수로 나눈 뒤 각 코스 비율을 적용합니다.</p>
         </div>
-        <span className={`rounded-full px-2 py-1 text-[9px] font-black ${manuallyEdited || preset === 'custom' ? 'bg-amber-400/15 text-amber-200' : 'bg-violet-400/15 text-violet-200'}`}>
+        <span className={`rounded-full px-2 py-1 text-xs font-black ${manuallyEdited || preset === 'custom' ? 'bg-amber-400/15 text-amber-200' : 'bg-violet-400/15 text-violet-200'}`}>
           {manuallyEdited || preset === 'custom' ? '직접 수정됨' : '프리셋 적용'}
         </span>
       </div>
@@ -73,9 +73,9 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
             key={value}
             type="button"
             onClick={() => applyPreset(value)}
-            className={`min-h-12 rounded-lg border px-1.5 py-2 text-[10px] font-black ${preset === value ? 'border-violet-300 bg-violet-500/25 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
+            className={`min-h-12 rounded-lg border px-1.5 py-2 text-xs font-black ${preset === value ? 'border-violet-300 bg-violet-500/25 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
           >
-            {label}<span className="mt-0.5 block text-[9px] font-semibold opacity-75">{detail}</span>
+            {label}<span className="mt-0.5 block text-xs font-semibold opacity-75">{detail}</span>
           </button>
         ))}
       </div>
@@ -83,9 +83,9 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
         {rows.map(({ item, index, courseKRW, moodPercentage, moodKRW, influencerKRW }) => (
           <div key={`${item.percentageIndex}-${item.address}`} className="rounded-lg bg-white/5 p-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-black text-white">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white">{item.address}</span>
-              <label className="flex shrink-0 items-center gap-1 text-[10px] font-black text-violet-200">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-xs font-black text-white">{index + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">{item.address}</span>
+              <label className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-200">
                 MOOD
                 <input
                   type="number"
@@ -101,20 +101,20 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
                     setManuallyEdited(true);
                     onChange(next);
                   }}
-                  className="h-9 w-16 rounded-lg border border-violet-300/30 bg-black/30 px-2 text-right text-xs text-white"
+                  className="h-11 w-16 rounded-lg border border-violet-300/30 bg-black/30 px-2 text-right text-xs text-white"
                 />%
               </label>
               <button
                 type="button"
                 onClick={() => applyToAll(moodPercentage, true)}
-                className="min-h-9 shrink-0 rounded-lg bg-white/10 px-2 text-[9px] font-black text-slate-200"
+                className="min-h-11 shrink-0 rounded-lg bg-white/10 px-2 text-xs font-black text-slate-200"
                 aria-label={`${index + 1}번 코스 MOOD ${moodPercentage}%를 전체 코스에 적용`}
               >
                 전체
               </button>
             </div>
             {!compact && (
-              <div className="mt-1.5 grid grid-cols-2 gap-2 pl-8 text-[9px]">
+              <div className="mt-1.5 grid grid-cols-2 gap-2 pl-8 text-xs">
                 <span className="text-violet-200">MOOD {moodPercentage}% · {formatMoodShareKRW(moodKRW)}</span>
                 <span className="text-pink-200">{influencerLabel} {100 - moodPercentage}% · {formatMoodShareKRW(influencerKRW)}</span>
                 <span className="col-span-2 text-slate-500">코스 금액 {formatMoodShareKRW(courseKRW)}</span>
@@ -123,13 +123,13 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
           </div>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px]">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
         <span className="text-slate-400">전체 적용</span>
-        {[0, 50, 100].map((percentage) => <button key={percentage} type="button" onClick={() => applyToAll(percentage)} className="min-h-8 rounded-full bg-white/10 px-3 font-black text-white">MOOD {percentage}%</button>)}
+        {[0, 50, 100].map((percentage) => <button key={percentage} type="button" onClick={() => applyToAll(percentage)} className="min-h-11 rounded-full bg-white/10 px-3 font-black text-white">MOOD {percentage}%</button>)}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-lg bg-violet-400/10 p-2"><p className="text-[9px] text-slate-400">MOOD 부담 합계</p><p className="text-xs font-black text-violet-200">{formatMoodShareKRW(moodTotal)}</p></div>
-        <div className="rounded-lg bg-pink-400/10 p-2"><p className="truncate text-[9px] text-slate-400">{influencerLabel} 부담 합계</p><p className="text-xs font-black text-pink-200">{formatMoodShareKRW(influencerTotal)}</p></div>
+        <div className="rounded-lg bg-violet-400/10 p-2"><p className="text-xs text-slate-300">MOOD 부담 합계</p><p className="text-sm font-black text-violet-200">{formatMoodShareKRW(moodTotal)}</p></div>
+        <div className="rounded-lg bg-pink-400/10 p-2"><p className="truncate text-xs text-slate-300">{influencerLabel} 부담 합계</p><p className="text-sm font-black text-pink-200">{formatMoodShareKRW(influencerTotal)}</p></div>
       </div>
     </section>
   );

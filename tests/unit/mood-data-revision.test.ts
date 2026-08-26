@@ -45,7 +45,51 @@ const finalBreakdown = {
   waypoints: ['성수동', '여의도'],
 };
 
-const bookingDocs = [
+function pendingChangeBookingData(overrides: Record<string, unknown> = {}) {
+  return {
+    clientId: 'COMPANY_A',
+    date: '2026-08-17',
+    startTime: '09:00',
+    durationHours: 3,
+    serviceType: 'vehicle',
+    amountKRW: 120_000,
+    breakdown: bookedBreakdown,
+    revision: 0,
+    status: 'confirmed',
+    createdByEmail: 'staff@x.com',
+    createdAt: 3,
+    bookingChangeApproval: {
+      status: 'awaiting_mood',
+      quoteId: 'a'.repeat(64),
+      proposalRevision: 0,
+      proposedByEmail: 'admin@x.com',
+      proposedAt: 1_777_000_000_000,
+      reason: '이용 시간 변경',
+      currency: 'KRW',
+      oldAmountKRW: 120_000,
+      amountKRW: 150_000,
+      adjustmentKRW: 30_000,
+      balanceBeforeKRW: 846_000,
+      balanceAfterKRW: 816_000,
+      changedFields: ['durationHours'],
+      proposedBooking: {
+        date: '2026-08-17',
+        startTime: '09:00',
+        durationHours: 4,
+        serviceType: 'vehicle',
+        origin: '서울역',
+        destination: '인천공항',
+        waypoints: ['성수동'],
+      },
+      breakdown: { ...bookedBreakdown, baseKRW: 150_000 },
+      routeSnapshot: null,
+    },
+    ...overrides,
+  };
+}
+
+function baseBookingDocs() {
+  return [
   {
     id: 'changed-booking',
     data: () => ({
@@ -100,7 +144,14 @@ const bookingDocs = [
       createdAt: 0,
     }),
   },
-];
+  {
+    id: 'pending-change-booking',
+    data: () => pendingChangeBookingData(),
+  },
+  ];
+}
+
+let bookingDocs = baseBookingDocs();
 
 const bookingsQuery: any = {
   where() { return bookingsQuery; },
@@ -143,6 +194,7 @@ function makeResponse() {
 }
 
 beforeEach(() => {
+  bookingDocs = baseBookingDocs();
   verifyUserTokenMock.mockReset();
   verifyUserTokenMock.mockResolvedValue({
     ok: true,
@@ -194,5 +246,48 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
     expect(byId['legacy-booking'].routeSchedule).toBeNull();
     expect(byId['invalid-revision-booking'].revision).toBe(0);
     expect(byId['invalid-revision-booking'].finalBreakdown).toBeNull();
+  });
+
+  it('첫 번째 변경의 revision 0 MOOD 확인 대기 요약을 반환한다', async () => {
+    const { default: handler } = await import('../../api/mood-data.js');
+    const response = makeResponse();
+    await handler({
+      method: 'GET',
+      url: '/api/mood-data',
+      headers: { host: 'unit.test', authorization: 'Bearer token' },
+    } as any, response as any);
+
+    expect(response.statusCode).toBe(200);
+    const json = JSON.parse(response.body);
+    const pending = json.data.bookings.find((booking: any) => booking.id === 'pending-change-booking');
+    expect(pending.revision).toBe(0);
+    expect(pending.bookingChangeApproval).toMatchObject({
+      status: 'awaiting_mood',
+      proposalRevision: 0,
+      oldAmountKRW: 120_000,
+      amountKRW: 150_000,
+      adjustmentKRW: 30_000,
+      balanceAfterKRW: 816_000,
+    });
+  });
+
+  it('음수 revision이나 금액 산식이 깨진 변경 대기 요약은 409로 닫는다', async () => {
+    const invalidSummary = pendingChangeBookingData();
+    invalidSummary.bookingChangeApproval = {
+      ...invalidSummary.bookingChangeApproval,
+      proposalRevision: -1,
+      balanceAfterKRW: 999_999,
+    };
+    bookingDocs = [{ id: 'invalid-pending-change', data: () => invalidSummary }];
+    const { default: handler } = await import('../../api/mood-data.js');
+    const response = makeResponse();
+    await handler({
+      method: 'GET',
+      url: '/api/mood-data',
+      headers: { host: 'unit.test', authorization: 'Bearer token' },
+    } as any, response as any);
+
+    expect(response.statusCode).toBe(409);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'INVALID_BOOKING_CHANGE_APPROVAL' });
   });
 });

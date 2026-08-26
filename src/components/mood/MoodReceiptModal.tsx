@@ -207,7 +207,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
+      className="mood-surface fixed inset-0 z-[99999] flex items-center justify-center p-4"
       style={{ background: C.overlay }}
       onClick={onClose}
       role="dialog"
@@ -225,7 +225,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
             <h2 className="text-base font-bold" style={{ color: C.text }}>
               예약 영수증
             </h2>
-            <p className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
+            <p className="mt-0.5 text-xs" style={{ color: C.textDim }}>
               {booking.date || '-'}
               {booking.startTime ? ` · ${booking.startTime}` : ''} · {serviceLabel}
               {settled && <span style={{ color: C.ok }}> · 정산 완료</span>}
@@ -235,7 +235,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="h-8 w-8 shrink-0 rounded-full text-sm font-bold"
+            className="mood-icon-button h-11 w-11 shrink-0 rounded-full text-sm font-bold"
             style={{ background: C.chip, border: C.chipBorder, color: C.textDim }}
           >
             ✕
@@ -245,11 +245,11 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
         {/* 경로 (출발 → 경유 → 도착) */}
         {stops.length > 0 && (
           <div className="rounded-xl p-3 flex flex-col gap-1.5" style={{ background: C.chip, border: C.chipBorder }}>
-            <p className="text-[11px] font-bold" style={{ color: C.textDim }}>동선</p>
+            <p className="text-xs font-bold" style={{ color: C.textDim }}>동선</p>
             {stops.map((stop, i) => (
               <div key={`${stop}-${i}`} className="flex gap-2">
                 <span
-                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                   style={{
                     background: i === 0 ? '#22c55e' : i === stops.length - 1 ? '#ef4444' : C.accentSolid,
                     color: '#fff',
@@ -260,7 +260,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold" style={{ color: C.text }}>{stop}</p>
                   {routeSchedule && (
-                    <p className="mt-0.5 text-[10px] font-bold" style={{ color: C.accentSolid }}>
+                    <p className="mt-0.5 text-xs font-bold" style={{ color: C.accentSolid }}>
                       {formatMoodRouteScheduleStopSummary(routeSchedule[i], i, stops.length)}
                     </p>
                   )}
@@ -268,7 +268,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
               </div>
             ))}
             {km > 0 && (
-              <p className="text-[11px] pt-1" style={{ color: C.textDim }}>
+              <p className="pt-1 text-xs" style={{ color: C.textDim }}>
                 총 {km.toLocaleString('ko-KR')}km{tollKRW > 0 ? ` · 톨비 ${formatKRW(tollKRW)}` : ''}
               </p>
             )}
@@ -277,7 +277,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
 
         {/* 동선 지도 (2026-07-04) — 경로 재조회 성공 시 표시, 실패는 조용히 생략 */}
         {routeLoading && (
-          <p className="text-[11px]" style={{ color: C.textDim }}>동선 지도 불러오는 중…</p>
+          <p className="text-xs" style={{ color: C.textDim }}>동선 지도 불러오는 중…</p>
         )}
         {route && (
           <MoodRouteMap
@@ -293,7 +293,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
         )}
 
         {settled && (
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-xl p-3" style={{ background: C.chip, border: C.chipBorder }}>
               <p className="font-bold" style={{ color: C.textDim }}>예약 원본</p>
               <p className="mt-1" style={{ color: C.text }}>{booking.durationHours || 0}시간</p>
@@ -313,14 +313,14 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
 
         {settled && bd.distanceSource === 'manual' && typeof bd.actualTotalKm === 'number' && typeof bd.excludedKm === 'number' && (
           <div className="rounded-xl p-3 text-xs" style={{ background: C.chip, border: C.chipBorder, color: C.text }}>
-            <p className="text-[11px] font-bold" style={{ color: C.textDim }}>실주행 거리 계산</p>
+            <p className="text-xs font-bold" style={{ color: C.textDim }}>실주행 거리 계산</p>
             <p className="mt-1">전체 {bd.actualTotalKm.toLocaleString('ko-KR')}km − 제외 {bd.excludedKm.toLocaleString('ko-KR')}km = <b style={{ color: C.ok }}>정산 {km.toLocaleString('ko-KR')}km</b></p>
           </div>
         )}
 
         {/* 요금 내역 — 산식 포함 (2026-07-04: 어떻게 계산됐는지 + 톨비 0원도 명시) */}
         <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: C.chip, border: C.chipBorder }}>
-          <p className="text-[11px] font-bold" style={{ color: C.textDim }}>요금 내역</p>
+          <p className="text-xs font-bold" style={{ color: C.textDim }}>요금 내역</p>
 
           {baseKRW > 0 && (
             <div className={rowStyle} style={{ color: C.textDim }}>
@@ -378,7 +378,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
             </div>
           )}
           {!hasBreakdown && (
-            <p className="text-[10px]" style={{ color: C.textDim }}>상세 내역 미기록 예약(레거시) — 합계만 표시</p>
+            <p className="text-xs" style={{ color: C.textDim }}>상세 내역 미기록 예약(레거시) — 합계만 표시</p>
           )}
 
           <div className="h-px my-0.5" style={{ background: C.line }} />
@@ -390,10 +390,10 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
 
         {settled && booking.tollMode === 'itemized' && Array.isArray(booking.tollEntries) && booking.tollEntries.length > 0 && (
           <div className="rounded-xl p-3" style={{ background: C.chip, border: C.chipBorder }}>
-            <p className="text-[11px] font-bold" style={{ color: C.textDim }}>톨비 항목</p>
+            <p className="text-xs font-bold" style={{ color: C.textDim }}>톨비 항목</p>
             <div className="mt-2 flex flex-col gap-2">
               {booking.tollEntries.map((entry, index) => (
-                <div key={`${entry.date || ''}-${entry.label}-${index}`} className="text-[11px]">
+                <div key={`${entry.date || ''}-${entry.label}-${index}`} className="text-xs">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-semibold" style={{ color: entry.includedInSettlement ? C.text : C.textDim }}>{entry.label}</p>
@@ -404,7 +404,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
                     </div>
                     <span style={{ color: entry.includedInSettlement ? C.text : C.textDim }}>{formatKRW(entry.amountKRW)}</span>
                   </div>
-                  {entry.evidenceRef && <p className="mt-0.5 truncate text-[10px]" style={{ color: C.textDim }}>증빙: {entry.evidenceRef}</p>}
+                  {entry.evidenceRef && <p className="mt-0.5 truncate text-xs" style={{ color: C.textDim }}>증빙: {entry.evidenceRef}</p>}
                 </div>
               ))}
             </div>
@@ -417,7 +417,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
           {hasRunningBalance ? (
             <span className="text-sm font-bold" style={{ color: runningBalance < 0 ? C.danger : C.text }}>
               {fmtBalance(runningBalance)}
-              {runningBalance < 0 && <span className="text-[10px] font-normal" style={{ color: C.danger }}> (외상)</span>}
+              {runningBalance < 0 && <span className="text-xs font-normal" style={{ color: C.danger }}> (외상)</span>}
             </span>
           ) : (
             <span className="text-sm" style={{ color: C.textDim }}>기록 없음</span>
@@ -427,7 +427,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
         {/* 정산 완료 시 — 실제 시간 · 최종 금액 · 조정액 */}
         {settled && (
           <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'rgba(110,231,183,0.08)', border: '1px solid rgba(110,231,183,0.22)' }}>
-            <p className="text-[11px] font-bold" style={{ color: C.ok }}>✓ 정산 완료</p>
+            <p className="text-xs font-bold" style={{ color: C.ok }}>✓ 정산 완료</p>
             {booking.actualHours != null && (
               <div className={rowStyle} style={{ color: C.textDim }}>
                 <span>실제 이용 시간</span>
@@ -447,17 +447,17 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
               </div>
             )}
             {booking.settlementReason && (
-              <div className="pt-1 text-[11px]" style={{ color: C.textDim, borderTop: `1px solid ${C.line}` }}>
+              <div className="pt-1 text-xs" style={{ color: C.textDim, borderTop: `1px solid ${C.line}` }}>
                 <span className="font-semibold">정산 사유:</span> {booking.settlementReason}
               </div>
             )}
             {!!booking.correctionCount && (
-              <div className="text-[11px]" style={{ color: '#fca5a5' }}>
+              <div className="text-xs" style={{ color: '#fca5a5' }}>
                 정정 {booking.correctionCount}회{booking.lastCorrectionReason ? ` · 마지막 사유: ${booking.lastCorrectionReason}` : ''}
               </div>
             )}
             {booking.settlementApproval?.status === 'approved' && (
-              <div className="mt-1 rounded-xl p-3 text-[11px]" style={{ background: C.chip, border: C.chipBorder }}>
+              <div className="mt-1 rounded-xl p-3 text-xs" style={{ background: C.chip, border: C.chipBorder }}>
                 <p className="font-bold" style={{ color: C.ok }}>✓ 양측 금액 확인 완료 · 제안 버전 {booking.settlementApproval.version}</p>
                 <div className="mt-2 flex flex-col gap-1" style={{ color: C.textDim }}>
                   <p className="break-all"><span className="font-semibold" style={{ color: C.text }}>운영자 확인</span> · {booking.settlementApproval.proposedByEmail} · {approvalDateTime(booking.settlementApproval.proposedAt)}</p>
@@ -472,7 +472,7 @@ export function MoodReceiptModal({ booking, onClose }: MoodReceiptModalProps) {
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01]"
+          className="mood-primary-action min-h-11 w-full rounded-xl px-4 font-bold"
           style={{ background: C.accent, color: '#fff' }}
         >
           닫기

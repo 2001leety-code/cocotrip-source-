@@ -434,3 +434,68 @@ describe('MoodAiBooking 공항 방향(픽업/샌딩)', () => {
     });
   });
 });
+
+describe('MoodAiBooking 예약 중복 방지와 최소 동선', () => {
+  const TWO_STOP_RESPONSE = {
+    ok: true,
+    serviceGuess: 'vehicle',
+    hasDirector: false,
+    hasAirport: false,
+    truncated: false,
+    stops: [
+      { order: 1, label: '출발', address: '서울역', lat: 37.5547, lng: 126.9706, action: 'pickup', matchedFromPlacebook: true, geocodeOk: true },
+      { order: 2, label: '도착', address: '서울시청', lat: 37.5663, lng: 126.9779, action: 'dropoff', matchedFromPlacebook: true, geocodeOk: true },
+    ],
+  };
+
+  it('장소가 한 곳뿐이면 출발지·도착지 안내와 함께 예약을 막는다', async () => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('mood-parse-schedule')) {
+        return { status: 200, json: async () => ({ ...TWO_STOP_RESPONSE, stops: TWO_STOP_RESPONSE.stops.slice(0, 1) }) };
+      }
+      return { status: 404, json: async () => ({}) };
+    });
+
+    await renderAndParse();
+
+    const button = screen.getByRole('button', { name: '출발지·도착지 2곳 필요' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('mood-book'))).toBe(false);
+  });
+
+  it('예약 중 연속 클릭은 한 번만 보내고, 성공 뒤 명시적으로 새 예약을 선택해야 다시 열린다', async () => {
+    let finishBooking: ((value: unknown) => void) | null = null;
+    const pendingBooking = new Promise((resolve) => { finishBooking = resolve; });
+    const onViewStatus = vi.fn();
+    authFetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('mood-parse-schedule')) {
+        return Promise.resolve({ status: 200, json: async () => TWO_STOP_RESPONSE });
+      }
+      if (String(url).includes('mood-route')) {
+        return Promise.resolve({ status: 200, json: async () => ROUTE_RESPONSE });
+      }
+      if (String(url).includes('mood-book')) return pendingBooking;
+      return Promise.resolve({ status: 404, json: async () => ({}) });
+    });
+
+    render(<MoodAiBooking clientId="mood" onBooked={() => {}} onViewStatus={onViewStatus} />);
+    fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '서울역에서 서울시청' } });
+    fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
+    await waitFor(() => expect(screen.getByText(/동선 2개/)).toBeTruthy());
+
+    const bookButton = screen.getByRole('button', { name: '이대로 예약' });
+    fireEvent.click(bookButton);
+    fireEvent.click(bookButton);
+    expect(authFetchMock.mock.calls.filter((call) => String(call[0]).includes('mood-book'))).toHaveLength(1);
+
+    finishBooking?.({ status: 200, json: async () => ({ ok: true, data: { amountKRW: 90000, balanceKRW: 410000 } }) });
+    const statusButton = await screen.findByRole('button', { name: /예약 완료.*현황 보기/ });
+    fireEvent.click(statusButton);
+    expect(onViewStatus).toHaveBeenCalledTimes(1);
+    expect(authFetchMock.mock.calls.filter((call) => String(call[0]).includes('mood-book'))).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '같은 내용으로 한 건 더' }));
+    expect(screen.getByRole('button', { name: '이대로 예약' })).toBeEnabled();
+  });
+});

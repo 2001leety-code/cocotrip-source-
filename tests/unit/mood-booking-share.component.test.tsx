@@ -186,4 +186,15 @@ describe('MoodCourseShareEditor', () => {
     expect(screen.getAllByRole('spinbutton').map((input) => (input as HTMLInputElement).value)).toEqual(['0', '0', '0']);
     expect(screen.getByText('프리셋 적용')).toBeInTheDocument();
   });
+
+  it('비율 입력과 모든 편집 버튼에 44px 터치 높이를 둔다', () => {
+    render(<EditorHarness />);
+
+    screen.getAllByRole('spinbutton').forEach((input) => {
+      expect(input.className).toMatch(/(?:h-11|min-h-11)/);
+    });
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button.className).toMatch(/min-h-1[12]/);
+    });
+  });
 });

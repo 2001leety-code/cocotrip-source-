@@ -23,7 +23,7 @@ import {
   encodeRoutePath,
   encodeRoutePoints,
 } from '../../api/_shared/mood-route-snapshot.js';
-import { assertFirestoreSafe, createFakeFirestore } from '../helpers/fake-firestore.js';
+import { assertFirestoreSafe, createFakeFirestore, makeBarrier } from '../helpers/fake-firestore.js';
 
 // ── 실제 Naver traoptimal 이 주는 모양의 폴리라인 (서울역 → 인천공항 방면 일부) ──
 const REAL_PATH: Array<[number, number]> = [
@@ -306,7 +306,7 @@ describe('세 쓰기 경로 — 실제 경로가 있어도 Firestore 가 받아�
   });
 
   it('mood-change: 예약 patch·감사 이벤트·멱등 응답 어디에도 중첩 배열이 없다', async () => {
-    const { res, json } = await call('../../api/mood-change.js', {
+    const changeRequest = {
       bookingId: 'booking-1',
       expectedRevision: 0,
       idempotencyKey: 'change-nested-array-1',
@@ -317,14 +317,34 @@ describe('세 쓰기 경로 — 실제 경로가 있어도 Firestore 가 받아�
         durationHours: 4,
         serviceType: 'vehicle',
         origin: '서울역',
-        destination: '인천공항 제1터미널',
+        destination: '김포공항 국내선',
         waypoints: ['성수동'],
         note: '',
         airportDirection: null,
         airportCode: null,
         courseMoodPercentages: [100, 0, 0],
       },
+    };
+    const preview = await call('../../api/mood-change.js', {
+      ...changeRequest,
+      action: 'preview',
     });
+    expect(preview.res.statusCode).toBe(200);
+    const proposal = await call('../../api/mood-change.js', {
+      ...changeRequest,
+      action: 'propose',
+      quoteId: preview.json.data.quoteId,
+      idempotencyKey: 'change-nested-array-propose',
+    });
+    expect(proposal.res.statusCode).toBe(200);
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'uid-approver', emailVerified: true });
+    const approvalBody = {
+      action: 'approve',
+      bookingId: 'booking-1',
+      quoteId: preview.json.data.quoteId,
+      idempotencyKey: 'change-nested-array-approve',
+    };
+    const { res, json } = await call('../../api/mood-change.js', approvalBody);
 
     expect(res.statusCode).toBe(200);
     expect(json.ok).toBe(true);
@@ -333,34 +353,85 @@ describe('세 쓰기 경로 — 실제 경로가 있어도 Firestore 가 받아�
     // HTTP 응답은 기존 공개 계약, Firestore 멱등 문서는 저장 안전형을 유지한다.
     expect(json.data.booking.routeSnapshot.path[0]).toEqual(REAL_PATH[0]);
     const dump = db.__dump();
-    const idempotency = Object.entries(dump).find(([path]) => path.startsWith('mood_booking_change_idempotency/'));
+    const idempotency = Object.entries(dump).find(([path, value]) => (
+      path.startsWith('mood_booking_change_idempotency/')
+      && (value as any).response?.data?.booking?.routeSnapshot
+    ));
     expect((idempotency as any)[1].response.data.booking.routeSnapshot.path[0]).toEqual({
       lng: REAL_PATH[0][0],
       lat: REAL_PATH[0][1],
     });
     expect(nestedArrayFields(dump)).toEqual([]);
 
-    const replay = await call('../../api/mood-change.js', {
+    const replay = await call('../../api/mood-change.js', approvalBody);
+    expect(replay.res.statusCode).toBe(200);
+    expect(replay.json.data.booking.routeSnapshot.path[0]).toEqual(REAL_PATH[0]);
+  });
+
+  it('mood-change: 같은 견적을 동시에 두 번 확정해도 한 요청만 반영한다', async () => {
+    computeRouteMock.mockResolvedValue(realRoute({ km: 100, tollKRW: 6000 }));
+    const changeRequest = {
       bookingId: 'booking-1',
       expectedRevision: 0,
-      idempotencyKey: 'change-nested-array-1',
       reason: '촬영 장소 변경',
       booking: {
-        date: '2026-08-21',
-        startTime: '10:00',
-        durationHours: 4,
+        date: '2026-08-20',
+        startTime: '09:30',
+        durationHours: 5,
         serviceType: 'vehicle',
         origin: '서울역',
-        destination: '인천공항 제1터미널',
+        destination: '김포공항 국내선',
         waypoints: ['성수동'],
         note: '',
         airportDirection: null,
         airportCode: null,
         courseMoodPercentages: [100, 0, 0],
       },
+    };
+    const preview = await call('../../api/mood-change.js', {
+      ...changeRequest,
+      action: 'preview',
+      idempotencyKey: 'change-race-preview',
     });
-    expect(replay.res.statusCode).toBe(200);
-    expect(replay.json.data.booking.routeSnapshot.path[0]).toEqual(REAL_PATH[0]);
+    expect(preview.res.statusCode).toBe(200);
+    const quoteId = preview.json.data.quoteId;
+    const adjustmentKRW = preview.json.data.adjustmentKRW;
+    const proposal = await call('../../api/mood-change.js', {
+      ...changeRequest,
+      action: 'propose',
+      quoteId,
+      idempotencyKey: 'change-race-propose',
+    });
+    expect(proposal.res.statusCode).toBe(200);
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'uid-approver', emailVerified: true });
+    const barrier = makeBarrier(2);
+    db.__beforeCommit = ({ attempt }: { attempt: number }) => attempt === 1 ? barrier.wait() : Promise.resolve();
+
+    const [first, second] = await Promise.all([
+      call('../../api/mood-change.js', {
+        action: 'approve',
+        bookingId: 'booking-1',
+        quoteId,
+        idempotencyKey: 'change-race-approve-a',
+      }),
+      call('../../api/mood-change.js', {
+        action: 'approve',
+        bookingId: 'booking-1',
+        quoteId,
+        idempotencyKey: 'change-race-approve-b',
+      }),
+    ]);
+
+    expect([first.res.statusCode, second.res.statusCode].sort()).toEqual([200, 409]);
+    expect([first.json.error, second.json.error]).toContain('CHANGE_QUOTE_ALREADY_USED');
+    expect(db.__stats.retries).toBeGreaterThanOrEqual(1);
+    expect(db.__get('mood_bookings/booking-1').revision).toBe(1);
+    expect(db.__get('mood_clients/COMPANY_A').balanceKRW).toBe(5_000_000 - adjustmentKRW);
+    expect(db.__get(`mood_booking_change_quotes/${quoteId}`).status).toBe('approved');
+    const dump = db.__dump();
+    expect(Object.keys(dump).filter((path) => path.startsWith('mood_booking_change_events/'))).toHaveLength(2);
+    expect(Object.keys(dump).filter((path) => path.startsWith('mood_notification_outbox/'))).toHaveLength(2);
+    expect(Object.keys(dump).filter((path) => path.startsWith('mood_booking_change_idempotency/'))).toHaveLength(2);
   });
 
   it('mood-settle: finalRouteSnapshot 은 제안에 담기고 MOOD 승인 시 저장형으로 커밋된다', async () => {

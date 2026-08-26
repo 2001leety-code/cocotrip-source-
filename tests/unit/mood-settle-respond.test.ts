@@ -120,6 +120,36 @@ describe('제안 단계 — 돈이 움직이지 않는다', () => {
 });
 
 describe('승인 권한 — fail-closed', () => {
+  it('예약 변경 MOOD 확인 대기 중에는 승인·수정 요청·철회를 모두 409로 막는다', async () => {
+    const proposalId = await proposalIdOrThrow();
+    getSettlementDb()._seed(`mood_bookings/${BOOKING_ID}`, {
+      ...bookingDoc(),
+      bookingChangeApproval: { status: 'awaiting_mood', quoteId: 'change-quote-1' },
+    });
+    const writesBefore = getSettlementDb()._writes.length;
+
+    for (const request of [
+      { email: MOOD_APPROVER_EMAIL, action: 'approve', reason: undefined },
+      { email: MOOD_APPROVER_EMAIL, action: 'request_changes', reason: '예약 변경 검토부터 완료' },
+      { email: ADMIN_EMAIL, action: 'withdraw', reason: '예약 변경 검토부터 완료' },
+    ]) {
+      actAs(request.email);
+      const res = await callRespond({
+        proposalId,
+        action: request.action,
+        reason: request.reason,
+        acknowledgePendingTolls: true,
+        idempotencyKey: `blocked-change-${request.action}`,
+      });
+      expect.soft(res.status).toBe(409);
+      expect.soft(res.json.error).toBe('BOOKING_CHANGE_APPROVAL_PENDING');
+    }
+
+    expect(getSettlementDb()._writes).toHaveLength(writesBefore);
+    expect(clientDoc().balanceKRW).toBe(START_BALANCE);
+    expect(proposalDoc(proposalId).status).toBe('awaiting_mood');
+  });
+
   it('제안한 운영자 본인은 승인할 수 없다', async () => {
     const proposalId = await proposalIdOrThrow();
     const res = await approveAs(ADMIN_EMAIL, proposalId);

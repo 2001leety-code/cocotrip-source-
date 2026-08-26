@@ -229,6 +229,10 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'BOOKING_NOT_FOUND' }));
     }
     const pre = preSnap.data() || {};
+    if (pre.bookingChangeApproval && pre.bookingChangeApproval.status === 'awaiting_mood') {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'BOOKING_CHANGE_APPROVAL_PENDING' }));
+    }
     if (pre.status !== 'confirmed') {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'ALREADY_SETTLED' }));
@@ -443,6 +447,9 @@ export default async function handler(req, res) {
       }
       if (!bSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const b = bSnap.data() || {};
+      if (b.bookingChangeApproval && b.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+      }
       if (b.status !== 'confirmed') return { ok: false, status: 409, error: 'ALREADY_SETTLED' };
       const currentRevision = Number.isInteger(b.revision) ? b.revision : 0;
       if (currentRevision !== preRevision) return { ok: false, status: 409, error: 'BOOKING_CHANGED' };

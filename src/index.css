@@ -4093,3 +4093,70 @@ textarea.community-field {
 .guide-article th, .guide-article td { border: 1px solid rgba(255,255,255,0.12); padding: 8px 10px; text-align: left; }
 .guide-article blockquote { border-left: 3px solid #B668FC; padding-left: 1em; color: rgba(255,255,255,0.6); margin: 1.2em 0; }
 .guide-article .post-summary { color: rgba(255,255,255,0.55); font-size: 1.05rem; }
+
+/* MOOD 전용 조작성 토큰 — 공개 다국어 화면과 공유 캡처 카드는 건드리지 않는다. */
+.mood-surface :where(button, [role='button'], summary) {
+  min-height: 44px;
+}
+
+.mood-surface :where(input:not([type='checkbox']):not([type='radio']), select) {
+  min-height: 44px;
+}
+
+.mood-surface :where(button[aria-label], .mood-icon-button) {
+  min-width: 44px;
+}
+
+.mood-route-map-touch a[href] {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.mood-surface :where(button, input, select, textarea, summary, a):focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 2px;
+}
+
+.mood-primary-action {
+  box-shadow: 0 4px 0 rgba(76, 29, 149, 0.82), 0 10px 24px rgba(76, 29, 149, 0.22);
+  transition-property: transform, box-shadow, background-color, opacity;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+.mood-primary-action:not(:disabled):active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(76, 29, 149, 0.82), 0 5px 14px rgba(76, 29, 149, 0.18);
+}
+
+.mood-tab {
+  transition-property: background-color, color, border-color;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+@keyframes mood-route-drop-confirm {
+  0% { background-color: rgba(167, 139, 250, 0.22); }
+  100% { background-color: rgba(255, 255, 255, 0.025); }
+}
+
+.mood-route-drop-highlight {
+  animation: mood-route-drop-confirm 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mood-primary-action,
+  .mood-tab {
+    transition-duration: 0.01ms !important;
+  }
+
+  .mood-primary-action:not(:disabled):active {
+    transform: none !important;
+  }
+
+  .mood-route-drop-highlight {
+    animation: none !important;
+  }
+}

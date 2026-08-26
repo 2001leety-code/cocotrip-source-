@@ -12,6 +12,7 @@ let capturedDragEnd: ((event: DragEndLike) => void) | null = null;
 const authFetchMock = vi.fn();
 const openDaumPostcodeMock = vi.fn();
 const clipboardWriteTextMock = vi.fn();
+const DEFAULT_QUOTE_ID = 'a'.repeat(64);
 
 vi.mock('@dnd-kit/core', () => ({
   closestCenter: vi.fn(),
@@ -120,6 +121,37 @@ function routeResponse(km: number, tollKRW: number) {
   });
 }
 
+function changePreviewResponse(
+  payload: { booking?: { waypoints?: string[]; durationHours?: number } },
+  quoteId = DEFAULT_QUOTE_ID,
+) {
+  const reordered = payload.booking?.waypoints?.join('|') === '잠실|성수동';
+  const durationHours = Number(payload.booking?.durationHours || 4);
+  const amountKRW = durationHours * 30_000;
+  return jsonResponse({
+    ok: true,
+    data: {
+      quoteId,
+      expectedRevision: 3,
+      currency: 'KRW',
+      expiresAt: Date.now() + 15 * 60 * 1_000,
+      oldAmountKRW: 120_000,
+      amountKRW,
+      adjustmentKRW: amountKRW - 120_000,
+      balanceKRW: 500_000 - (amountKRW - 120_000),
+      breakdown: { baseKRW: amountKRW },
+      routeSnapshot: {
+        km: reordered ? 71 : 64,
+        tollKRW: reordered ? 9_000 : 8_000,
+        durationMin: reordered ? 91 : 84,
+        path: [],
+        points: [],
+      },
+      changedFields: ['durationHours'],
+    },
+  });
+}
+
 function booking(overrides: Partial<ChangeableMoodBooking> = {}): ChangeableMoodBooking {
   return {
     id: 'booking-route-order',
@@ -175,6 +207,80 @@ function routeCalls() {
   return authFetchMock.mock.calls.filter((call) => String(call[0]).includes('/api/mood-route'));
 }
 
+function pendingApprovalBooking(): ChangeableMoodBooking {
+  return booking({
+    amountKRW: 120_000,
+    breakdown: {
+      baseKRW: 100_000,
+      distanceSurchargeKRW: 15_000,
+      tollKRW: 5_000,
+      km: 64,
+      origin: '서울역',
+      waypoints: ['성수동', '잠실'],
+      destination: '서울시청',
+    },
+    bookingChangeApproval: {
+      status: 'awaiting_mood',
+      quoteId: DEFAULT_QUOTE_ID,
+      proposalRevision: 3,
+      proposedByEmail: 'operator@cocotrip.kr',
+      proposedAt: 1_788_000_000_000,
+      reason: '촬영 시간과 비용 분담 변경',
+      currency: 'KRW',
+      oldAmountKRW: 120_000,
+      amountKRW: 150_000,
+      adjustmentKRW: 30_000,
+      balanceBeforeKRW: 500_000,
+      balanceAfterKRW: 470_000,
+      changedFields: ['durationHours', 'courseMoodPercentages', 'routeSchedule'],
+      proposedBooking: {
+        date: '2026-10-01',
+        startTime: '10:00',
+        durationHours: 5,
+        serviceType: 'vehicle',
+        origin: '서울역',
+        waypoints: ['성수동', '잠실'],
+        destination: '서울시청',
+        note: '후문 탑승',
+        influencerName: '테스트 인플루언서',
+        courseMoodPercentages: [100, 25, 0, 33],
+        routeSchedule: [
+          { arrivalTime: null, pickupTime: '10:00' },
+          { arrivalTime: '10:30', pickupTime: '12:30' },
+          { arrivalTime: '13:00', pickupTime: '14:00' },
+          { arrivalTime: '14:30', pickupTime: null },
+        ],
+      },
+      breakdown: {
+        baseKRW: 120_000,
+        distanceSurchargeKRW: 21_000,
+        tollKRW: 9_000,
+        km: 71,
+        origin: '서울역',
+        waypoints: ['성수동', '잠실'],
+        destination: '서울시청',
+      },
+      routeSnapshot: null,
+    },
+  });
+}
+
+function changeCalls() {
+  return authFetchMock.mock.calls.filter((call) => String(call[0]).includes('/api/mood-change'));
+}
+
+function changeBodies() {
+  return changeCalls().map((call) => JSON.parse(String((call[1] as RequestInit).body || '{}')));
+}
+
+async function clickAndFlush(buttonName: string) {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: buttonName }));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   capturedDragEnd = null;
@@ -187,32 +293,43 @@ beforeEach(() => {
     configurable: true,
     value: { writeText: clipboardWriteTextMock },
   });
-  authFetchMock.mockImplementation(async (url: string) => {
+  authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     const target = String(url);
     if (target.includes('/api/mood-route')) {
       const parsed = new URL(target, 'https://unit.test');
       const reordered = parsed.searchParams.get('waypoints') === '잠실|성수동';
       return reordered ? routeResponse(71, 9_000) : routeResponse(64, 8_000);
     }
-    if (target.includes('/api/mood-change')) return jsonResponse({ ok: true, data: { revision: 4 } });
+    if (target.includes('/api/mood-change')) {
+      const payload = JSON.parse(String(init?.body || '{}'));
+      if (payload.action === 'preview') {
+        return changePreviewResponse(payload);
+      }
+      return jsonResponse({ ok: true, data: { revision: 4 } });
+    }
     return jsonResponse({}, 404);
   });
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('MoodBookingChangeModal 경로 순서 편집', () => {
   it('9시간을 지운 뒤 6시간을 입력하면 16이 아니라 6으로 저장한다', async () => {
+    const onChanged = vi.fn();
     render(
       <MoodBookingChangeModal
-        booking={booking({ durationHours: 9, amountKRW: 270_000 })}
+        booking={booking({ durationHours: 9 })}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
-        onChanged={() => undefined}
+        onChanged={onChanged}
       />,
     );
+
+    expect(routeCalls()).toHaveLength(0);
 
     const durationInput = screen.getByLabelText('이용 시간') as HTMLInputElement;
     expect(durationInput.value).toBe('9');
@@ -223,18 +340,25 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     fireEvent.change(durationInput, { target: { value: '6' } });
     expect(durationInput.value).toBe('6');
 
-    await finishRouteDebounce();
     fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '총 예약시간 변경' } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' }));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await clickAndFlush('변경 내용과 금액 미리보기');
 
-    const changeCall = authFetchMock.mock.calls.find((call) => String(call[0]).includes('/api/mood-change'));
-    expect(changeCall).toBeTruthy();
-    const submitted = JSON.parse(String((changeCall?.[1] as RequestInit).body || '{}'));
-    expect(submitted.booking.durationHours).toBe(6);
+    expect(changeBodies()).toHaveLength(1);
+    expect(changeBodies()[0]).toMatchObject({
+      action: 'preview',
+      booking: { durationHours: 6 },
+    });
+    expect(routeCalls()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: '180,000원 · MOOD 확인 요청' })).toBeInTheDocument();
+
+    await clickAndFlush('180,000원 · MOOD 확인 요청');
+    expect(changeBodies()).toHaveLength(2);
+    expect(changeBodies()[1]).toMatchObject({
+      action: 'propose',
+      quoteId: DEFAULT_QUOTE_ID,
+      booking: { durationHours: 6 },
+    });
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
   it('이용 시간을 비운 채 포커스를 옮기면 마지막 안전값을 복원한다', () => {
@@ -254,12 +378,41 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     expect(durationInput.value).toBe('9');
   });
 
+  it('모달을 열기만 하면 경로·변경 API를 호출하지 않고 비금액 메모는 바로 확정한다', async () => {
+    render(
+      <MoodBookingChangeModal
+        booking={booking()}
+        balanceKRW={500_000}
+        isAdmin
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(routeCalls()).toHaveLength(0);
+    expect(changeCalls()).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText('예약 메모'), { target: { value: '주차장 앞에서 만나요' } });
+    fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '메모 추가' } });
+    await clickAndFlush('금액 변동 없이 변경 저장');
+
+    expect(changeBodies()).toHaveLength(1);
+    expect(changeBodies()[0]).toMatchObject({
+      action: 'confirm',
+      booking: { note: '주차장 앞에서 만나요' },
+    });
+    expect(changeBodies()[0]).not.toHaveProperty('quoteId');
+    expect(routeCalls()).toHaveLength(0);
+  });
+
   it('출발→경유→도착으로 표시하고 순서 변경 시 주소·0% 부담률·저장값을 함께 옮긴다', async () => {
     const onClose = vi.fn();
     render(
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={onClose}
         onChanged={() => undefined}
       />,
@@ -277,8 +430,8 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
       expect(handle).toHaveAttribute('aria-describedby', 'DndDescribedBy-test mood-route-reorder-help');
     });
 
-    await finishRouteDebounce();
-    expect(screen.getByText(/동선 64km/)).toBeInTheDocument();
+    expect(routeCalls()).toHaveLength(0);
+    expect(screen.queryByText(/동선 64km/)).not.toBeInTheDocument();
     expect(screen.getByTestId('course-share-values')).toHaveTextContent('"percentages":[100,50,0,33]');
 
     const beforeMoveRows = routeRows();
@@ -287,37 +440,24 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     expect(rowAddresses()).toEqual(['서울역', '잠실', '성수동', '서울시청']);
     expect(within(routeRows()[1]).getByText('2. 경유지 1')).toBeInTheDocument();
     expect(within(routeRows()[2]).getByText('3. 경유지 2')).toBeInTheDocument();
-    expect(screen.getByText('계산 중…')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '동선 계산을 기다려 주세요' })).toBeDisabled();
-    expect(screen.queryByText(/동선 64km/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('course-share-values')).not.toBeInTheDocument();
-
-    await finishRouteDebounce();
-    const latestRouteUrl = String(routeCalls().at(-1)?.[0] || '');
-    expect(new URL(latestRouteUrl, 'https://unit.test').searchParams.get('waypoints')).toBe('잠실|성수동');
-    expect(screen.getByText(/동선 71km/)).toBeInTheDocument();
+    expect(routeCalls()).toHaveLength(0);
     expect(screen.getByTestId('course-share-values')).toHaveTextContent('"addresses":["서울역","잠실","성수동","서울시청"]');
     expect(screen.getByTestId('course-share-values')).toHaveTextContent('"percentages":[100,0,50,33]');
     expect(within(routeRows()[2]).getByText('도착 10:30 · 재출발 12:30 · 대기 2시간')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '촬영 순서 변경' } });
-    fireEvent.click(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' }));
+    fireEvent.click(screen.getByRole('button', { name: '변경 내용과 금액 미리보기' }));
     expect(screen.getByText('전체 일정은 첫 출발부터 마지막 시각까지 15시간 이내여야 합니다.')).toBeInTheDocument();
-    expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-change'))).toBe(false);
+    expect(changeCalls()).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: '3번 경유지 2 시간 편집' }));
     fireEvent.change(screen.getByLabelText('도착 시각'), { target: { value: '14:10' } });
     fireEvent.change(screen.getByLabelText('재출발(픽업) 시각'), { target: { value: '14:20' } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' }));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await clickAndFlush('변경 내용과 금액 미리보기');
 
-    const changeCall = authFetchMock.mock.calls.find((call) => String(call[0]).includes('/api/mood-change'));
-    expect(changeCall).toBeTruthy();
-    const submitted = JSON.parse(String((changeCall?.[1] as RequestInit).body || '{}'));
-    expect(submitted.booking).toMatchObject({
+    expect(changeBodies()).toHaveLength(1);
+    expect(changeBodies()[0]).toMatchObject({ action: 'preview' });
+    expect(changeBodies()[0].booking).toMatchObject({
       origin: '서울역',
       waypoints: ['잠실', '성수동'],
       destination: '서울시청',
@@ -328,6 +468,16 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
         { arrivalTime: '14:10', pickupTime: '14:20' },
         { arrivalTime: '14:30', pickupTime: null },
       ],
+    });
+    expect(routeCalls()).toHaveLength(0);
+    expect(screen.getByText(/동선 71km/)).toBeInTheDocument();
+
+    await clickAndFlush('120,000원 · MOOD 확인 요청');
+    expect(changeBodies()).toHaveLength(2);
+    expect(changeBodies()[1]).toMatchObject({
+      action: 'propose',
+      quoteId: DEFAULT_QUOTE_ID,
+      booking: { origin: '서울역', waypoints: ['잠실', '성수동'], destination: '서울시청' },
     });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -380,6 +530,7 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
@@ -400,24 +551,34 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     expect(screen.getByText('도착 13:00 · 재출발 14:00 · 대기 1시간')).toBeInTheDocument();
   });
 
-  it('부담률만 바꾸면 경로 API를 다시 부르지 않는다', async () => {
+  it('부담률만 바꿔도 서버 견적 후 같은 견적 ID로 확정하며 경로 API는 부르지 않는다', async () => {
     render(
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
     );
-    await finishRouteDebounce();
-    expect(routeCalls()).toHaveLength(1);
+    expect(routeCalls()).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: '테스트 부담률 수정' }));
-    await act(async () => vi.advanceTimersByTimeAsync(1_000));
-
-    expect(routeCalls()).toHaveLength(1);
     expect(screen.getByTestId('course-share-values')).toHaveTextContent('"percentages":[100,25,0,33]');
-    expect(screen.getByText(/동선 64km/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '부담률 변경' } });
+
+    await clickAndFlush('변경 내용과 금액 미리보기');
+    expect(changeBodies()).toHaveLength(1);
+    expect(changeBodies()[0]).toMatchObject({
+      action: 'preview',
+      booking: { courseMoodPercentages: [100, 25, 0, 33] },
+    });
+    expect(routeCalls()).toHaveLength(0);
+
+    await clickAndFlush('120,000원 · MOOD 확인 요청');
+    expect(changeBodies()).toHaveLength(2);
+    expect(changeBodies()[1]).toMatchObject({ action: 'propose', quoteId: DEFAULT_QUOTE_ID });
+    expect(routeCalls()).toHaveLength(0);
   });
 
   it('시간은 한 카드만 펼쳐 편집하고 대기 빠른 입력·시작 시각 동기·전체 일정 복사를 지원한다', async () => {
@@ -425,6 +586,7 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
@@ -508,6 +670,7 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
@@ -528,21 +691,38 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     expect(screen.getByText('출발 10:00')).toBeInTheDocument();
     expect((screen.getByLabelText('이용 시간') as HTMLInputElement).value).toBe('4');
 
-    await finishRouteDebounce();
     fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '시간 없는 일정 적용' } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' }));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    const changeCall = authFetchMock.mock.calls.find((call) => String(call[0]).includes('/api/mood-change'));
-    const submitted = JSON.parse(String((changeCall?.[1] as RequestInit).body || '{}'));
+    await clickAndFlush('변경 내용과 금액 미리보기');
+    const submitted = changeBodies()[0];
+    expect(submitted.action).toBe('preview');
     expect(submitted.booking.startTime).toBe('10:00');
     expect(submitted.booking.durationHours).toBe(4);
     expect(submitted.booking.routeSchedule).toEqual([
       { arrivalTime: null, pickupTime: '10:00' },
       { arrivalTime: null, pickupTime: null },
     ]);
+    await clickAndFlush('120,000원 · MOOD 확인 요청');
+    expect(changeBodies()[1]).toMatchObject({ action: 'propose', quoteId: DEFAULT_QUOTE_ID });
+  });
+
+  it('붙여넣은 일정을 아직 적용하지 않았으면 닫기 전에 경고한다', () => {
+    const onClose = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(
+      <MoodBookingChangeModal
+        booking={booking()}
+        balanceKRW={500_000}
+        onClose={onClose}
+        onChanged={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '전체 일정 붙여넣기' }));
+    fireEvent.change(screen.getByLabelText('카카오톡 전체 일정'), { target: { value: '오전 10시 서울역 출발' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '닫기' })[0]);
+
+    expect(confirmSpy).toHaveBeenCalledWith('저장하지 않은 변경 내용이 있습니다. 닫을까요?');
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('자유문장은 기존 일정 분석 API를 거쳐 미리보기 후 같은 주소의 도착·픽업을 합친다', async () => {
@@ -567,6 +747,7 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
@@ -628,45 +809,152 @@ describe('MoodBookingChangeModal 경로 순서 편집', () => {
     expect(screen.getByText('출발 10:00')).toBeInTheDocument();
   });
 
-  it('이전 순서의 늦은 응답이 새 순서의 금액과 지도를 덮지 못한다', async () => {
-    type Deferred = { resolve: (value: ReturnType<typeof routeResponse>) => void };
-    const pending: Deferred[] = [];
-    authFetchMock.mockImplementation((url: string) => {
-      if (!String(url).includes('/api/mood-route')) return Promise.resolve(jsonResponse({}, 404));
-      return new Promise((resolve) => pending.push({ resolve }));
+  it('견적 뒤 입력을 바꾸면 이전 견적을 무효화하고 새 견적 ID만 확정한다', async () => {
+    const quoteIds = ['b'.repeat(64), 'c'.repeat(64)];
+    let previewCount = 0;
+    authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const target = String(url);
+      if (!target.includes('/api/mood-change')) return jsonResponse({}, 404);
+      const payload = JSON.parse(String(init?.body || '{}'));
+      if (payload.action === 'preview') {
+        const quoteId = quoteIds[previewCount] || quoteIds.at(-1) || DEFAULT_QUOTE_ID;
+        previewCount += 1;
+        return changePreviewResponse(payload, quoteId);
+      }
+      return jsonResponse({ ok: true, data: { revision: 4 } });
     });
 
     render(
       <MoodBookingChangeModal
         booking={booking()}
         balanceKRW={500_000}
+        isAdmin
         onClose={() => undefined}
         onChanged={() => undefined}
       />,
     );
-    await finishRouteDebounce();
-    expect(pending).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText('이용 시간'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '시간 변경' } });
+    await clickAndFlush('변경 내용과 금액 미리보기');
 
-    const beforeMoveRows = routeRows();
-    drag(rowId(beforeMoveRows[2]), rowId(beforeMoveRows[1]));
-    await finishRouteDebounce();
-    expect(pending).toHaveLength(2);
+    expect(screen.getByText('서버 금액 확인 완료')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '150,000원 · MOOD 확인 요청' })).toBeInTheDocument();
+    expect(changeBodies()[0]).toMatchObject({ action: 'preview', booking: { durationHours: 5 } });
 
+    fireEvent.change(screen.getByLabelText('이용 시간'), { target: { value: '6' } });
+    expect(screen.queryByText('서버 금액 확인 완료')).not.toBeInTheDocument();
+    expect(screen.getByText('미리보기 뒤 입력이 바뀌었습니다. 금액을 다시 확인해 주세요.')).toBeInTheDocument();
+
+    const previewButton = screen.getByRole('button', { name: '변경 내용과 금액 미리보기' });
     await act(async () => {
-      pending[1].resolve(routeResponse(71, 9_000));
+      fireEvent.click(previewButton);
+      fireEvent.click(previewButton);
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByText(/동선 71km/)).toBeInTheDocument();
-    expect(screen.getByTestId('mood-route-map')).toHaveAttribute('data-km', '71');
+    expect(changeBodies().filter((body) => body.action === 'preview')).toHaveLength(2);
+    expect(changeBodies()[1]).toMatchObject({ action: 'preview', booking: { durationHours: 6 } });
+
+    await clickAndFlush('180,000원 · MOOD 확인 요청');
+    expect(changeBodies().at(-1)).toMatchObject({
+      action: 'propose',
+      quoteId: quoteIds[1],
+      booking: { durationHours: 6 },
+    });
+    expect(routeCalls()).toHaveLength(0);
+  });
+});
+
+describe('MoodBookingChangeModal MOOD 금액 확인', () => {
+  it('변경 항목·요금 산식·비용 분담을 보여준 뒤 최소 승인 정보만 보낸다', async () => {
+    const onClose = vi.fn();
+    const onChanged = vi.fn();
+    render(
+      <MoodBookingChangeModal
+        booking={pendingApprovalBooking()}
+        balanceKRW={500_000}
+        canApprove
+        onClose={onClose}
+        onChanged={onChanged}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: '예약 변경 금액 확인' })).toBeInTheDocument();
+    expect(screen.getByText('기본 이용료')).toBeInTheDocument();
+    expect(screen.getByText('거리 추가요금')).toBeInTheDocument();
+    expect(screen.getByText('톨비')).toBeInTheDocument();
+    expect(screen.getByText('계산 거리 · 64km → 71km')).toBeInTheDocument();
+    expect(screen.getByText('비용 분담')).toBeInTheDocument();
+    expect(screen.getByText(/2\. 성수동 · MOOD 25%/)).toBeInTheDocument();
+    expect(screen.getAllByText(/5시간/).length).toBeGreaterThan(0);
+
+    await clickAndFlush('150,000원 변경 내용 확인');
+    await clickAndFlush('150,000원 최종 확인');
+
+    expect(changeBodies()).toHaveLength(1);
+    expect(changeBodies()[0]).toMatchObject({
+      action: 'approve',
+      bookingId: 'booking-route-order',
+      quoteId: DEFAULT_QUOTE_ID,
+    });
+    expect(Object.keys(changeBodies()[0]).sort()).toEqual(['action', 'bookingId', 'idempotencyKey', 'quoteId']);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('운영자에게는 승인 버튼을 숨기고 금액·잔액을 바꾸지 않는 철회만 허용한다', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(
+      <MoodBookingChangeModal
+        booking={pendingApprovalBooking()}
+        balanceKRW={500_000}
+        isAdmin
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /150,000원 변경 내용 확인/ })).not.toBeInTheDocument();
+    await clickAndFlush('제안 철회 후 다시 수정');
+    expect(changeBodies()[0]).toMatchObject({ action: 'withdraw', quoteId: DEFAULT_QUOTE_ID });
+    expect(changeBodies()[0]).not.toHaveProperty('amountKRW');
+  });
+
+  it('지정 승인자가 아닌 직원에게는 제안 내역만 읽기 전용으로 보여준다', () => {
+    render(
+      <MoodBookingChangeModal
+        booking={pendingApprovalBooking()}
+        balanceKRW={500_000}
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/읽기 전용/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /150,000원 변경 내용 확인/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /제안 철회/ })).not.toBeInTheDocument();
+  });
+
+  it('최종 확인을 연속으로 눌러도 승인 요청은 한 번만 보낸다', async () => {
+    render(
+      <MoodBookingChangeModal
+        booking={pendingApprovalBooking()}
+        balanceKRW={500_000}
+        canApprove
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '150,000원 변경 내용 확인' }));
+    const finalButton = screen.getByRole('button', { name: '150,000원 최종 확인' });
 
     await act(async () => {
-      pending[0].resolve(routeResponse(64, 8_000));
+      fireEvent.click(finalButton);
+      fireEvent.click(finalButton);
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByText(/동선 71km/)).toBeInTheDocument();
-    expect(screen.queryByText(/동선 64km/)).not.toBeInTheDocument();
-    expect(screen.getByTestId('mood-route-map')).toHaveAttribute('data-km', '71');
+
+    expect(changeBodies().filter((body) => body.action === 'approve')).toHaveLength(1);
   });
 });

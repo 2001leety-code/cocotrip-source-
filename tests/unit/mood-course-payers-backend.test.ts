@@ -19,8 +19,9 @@ vi.mock('../../api/_shared/user-auth.js', () => ({
 
 vi.mock('../../api/_shared/mood-allowlist.js', () => ({
   getMoodAllowlist: async () => ({
-    emails: ['staff@x.com'],
-    admins: [],
+    emails: ['staff@x.com', 'approver@x.com'],
+    admins: ['staff@x.com'],
+    settlementApproverEmails: ['approver@x.com'],
     clientId: 'COMPANY_A',
   }),
   isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
@@ -224,6 +225,27 @@ async function callChange(body: Record<string, any>) {
     body,
   } as any, response as any);
   return { response, json: JSON.parse(response.body || '{}') };
+}
+
+async function callQuotedChange(body: Record<string, any>) {
+  const preview = await callChange({ ...body, action: 'preview' });
+  if (preview.response.statusCode !== 200) return { ...preview, preview };
+  const proposal = await callChange({
+    ...body,
+    action: 'propose',
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-propose`,
+  });
+  if (proposal.response.statusCode !== 200) return { ...proposal, preview, proposal };
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'approver@x.com', uid: 'approver-1', emailVerified: true });
+  const approval = await callChange({
+    action: 'approve',
+    bookingId: body.bookingId,
+    quoteId: preview.json.data.quoteId,
+    idempotencyKey: `${body.idempotencyKey}-approve`,
+  });
+  verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'staff@x.com', uid: 'staff-1', emailVerified: true });
+  return { ...approval, preview, proposal };
 }
 
 function docsIn(collection: string) {
@@ -438,7 +460,7 @@ describe('mood-data coursePayers 조회 계약', () => {
 });
 
 describe('mood-change 코스별 MOOD 부담률 저장·감사·멱등 충돌', () => {
-  it('변경값을 예약과 감사·멱등 응답에 저장하고, 같은 키의 다른 분담값은 409로 막는다', async () => {
+  it('변경값을 예약과 감사·멱등 응답에 저장하고, 이전 revision의 다른 분담값은 409로 막는다', async () => {
     const previousPayers = ['mood', 'influencer', 'influencer'];
     store.set('mood_bookings/booking-change', {
       clientId: 'COMPANY_A',
@@ -463,7 +485,7 @@ describe('mood-change 코스별 MOOD 부담률 저장·감사·멱등 충돌', (
       createdAt: 1,
     });
 
-    const first = await callChange(changeBody());
+    const first = await callQuotedChange(changeBody());
 
     expect(first.response.statusCode).toBe(200);
     expect(store.get('mood_bookings/booking-change')).toMatchObject({
@@ -475,23 +497,25 @@ describe('mood-change 코스별 MOOD 부담률 저장·감사·멱등 충돌', (
     expect(first.json.data.booking.coursePayers).toBeNull();
 
     const audits = docsIn('mood_booking_change_events');
-    expect(audits).toHaveLength(1);
-    expect(audits[0].before.courseMoodPercentages).toEqual([100, 0, 0]);
-    expect(audits[0].after.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
+    expect(audits).toHaveLength(2);
+    const approvalAudit = audits.find((entry) => entry.type === 'booking_change_approved');
+    expect(approvalAudit?.before.courseMoodPercentages).toEqual([100, 0, 0]);
+    expect(approvalAudit?.after.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
 
     const idempotencyDocs = docsIn('mood_booking_change_idempotency');
-    expect(idempotencyDocs).toHaveLength(1);
-    expect(idempotencyDocs[0].response.data.booking.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
+    expect(idempotencyDocs).toHaveLength(2);
+    const approvalIdempotency = idempotencyDocs.find((entry) => entry.action === 'approve');
+    expect(approvalIdempotency?.response.data.booking.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
 
     const balanceAfterFirst = store.get('mood_clients/COMPANY_A')?.balanceKRW;
     const conflictPercentages = [0, 100, 50, 0];
     const conflict = await callChange(changeBody(conflictPercentages));
 
     expect(conflict.response.statusCode).toBe(409);
-    expect(conflict.json.error).toBe('IDEMPOTENCY_CONFLICT');
+    expect(conflict.json.error).toBe('REVISION_CONFLICT');
     expect(store.get('mood_bookings/booking-change')?.courseMoodPercentages).toEqual(CHANGE_PERCENTAGES);
     expect(store.get('mood_clients/COMPANY_A')?.balanceKRW).toBe(balanceAfterFirst);
-    expect(docsIn('mood_booking_change_events')).toHaveLength(1);
+    expect(docsIn('mood_booking_change_events')).toHaveLength(2);
     expect(computeRouteMock).toHaveBeenCalledTimes(1);
   });
 

@@ -4,8 +4,7 @@
  * 정책 (운영자 확정):
  *   - confirmed(운행 전) 만 취소 가능 — 위약금 없이 전액 환원.
  *   - completed(정산 끝) / cancelled(이미 취소) 는 409 — 중복 환불 원천 차단(멱등).
- *   - "변경"은 별도 API 없이 [폼에 복사 → 재예약 → 기존 취소] 흐름 — 금액이 새 경로로
- *     자연 재계산되므로 수정-API 방식보다 돈 계산이 단순·안전.
+ *   - 예약 변경·정산 금액 제안이 MOOD 확인 대기 또는 수정 요청 중이면 먼저 철회·해결해야 취소 가능.
  *
  * 🔴 돈 SSOT: 환불액 = 예약 doc 의 amountKRW (클라 입력 무시). 예약 doc 상태 변경 +
  *    클라이언트 잔액 환원을 한 트랜잭션으로 (P311 멱등성 규약).
@@ -80,8 +79,14 @@ export default async function handler(req, res) {
       }
       // MOOD가 같은 금액 제안을 검토 중일 때 예약을 취소하면 승인 화면과 환불 원장이
       // 서로 다른 예약을 가리키게 된다. 운영자가 제안을 철회한 뒤에만 취소한다.
-      if (b.settlementApproval && b.settlementApproval.status === 'awaiting_mood') {
+      if (
+        b.settlementApproval
+        && (b.settlementApproval.status === 'awaiting_mood' || b.settlementApproval.status === 'changes_requested')
+      ) {
         return { ok: false, status: 409, error: 'SETTLEMENT_APPROVAL_PENDING' };
+      }
+      if (b.bookingChangeApproval && b.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
       }
       // 멱등/상태 게이트 — confirmed 만. completed=정산 끝(환불 대상 아님), cancelled=중복.
       if (b.status !== 'confirmed') {
@@ -97,9 +102,18 @@ export default async function handler(req, res) {
       const cSnap = await tx.get(cRef);
       if (!cSnap.exists) return { ok: false, status: 500, error: '클라이언트 없음' };
 
-      const refundKRW = Number(b.amountKRW) || 0; // 🔴 환불액 = 예약 당시 차감액 (SSOT)
-      const balanceKRW = Number(cSnap.data().balanceKRW) || 0;
+      const refundKRW = b.amountKRW; // 🔴 환불액 = 예약 당시 차감액 (SSOT)
+      if (!Number.isSafeInteger(refundKRW) || refundKRW < 0) {
+        return { ok: false, status: 409, error: 'INVALID_BOOKING_AMOUNT' };
+      }
+      const balanceKRW = cSnap.data().balanceKRW;
+      if (!Number.isSafeInteger(balanceKRW)) {
+        return { ok: false, status: 409, error: 'INVALID_CLIENT_BALANCE' };
+      }
       const newBalance = balanceKRW + refundKRW;
+      if (!Number.isSafeInteger(newBalance)) {
+        return { ok: false, status: 409, error: 'INVALID_REFUND_BALANCE' };
+      }
 
       tx.update(bRef, {
         status: 'cancelled',

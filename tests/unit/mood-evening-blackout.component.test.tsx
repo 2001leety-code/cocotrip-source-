@@ -132,7 +132,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-16T09:00:00+09:00'));
     try {
-      const view = render(<MoodBookingChangeModal booking={booking({ date: '2026-09-16', startTime: '10:00' })} balanceKRW={1_000_000} onClose={() => {}} onChanged={() => {}} />);
+      const view = render(<MoodBookingChangeModal booking={booking({ date: '2026-09-16', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
       expect(screen.queryByRole('note')).not.toBeInTheDocument();
       view.unmount();
     } finally {
@@ -141,10 +141,14 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
   });
 
   it('기존 제한 슬롯을 그대로 두면 주소·메모 변경을 허용하고 시각을 더 늦추면 차단한다', () => {
-    render(<MoodBookingChangeModal booking={booking()} balanceKRW={1_000_000} onClose={() => {}} onChanged={() => {}} />);
+    render(<MoodBookingChangeModal booking={booking()} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
 
     expect(screen.getByText(/기존 확정 예약의 날짜·시각을 유지해/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('1. 출발지'), { target: { value: '서울역' } });
+    fireEvent.change(screen.getByLabelText('2. 도착지'), { target: { value: '서울시청' } });
+    fireEvent.change(screen.getByLabelText('예약 메모'), { target: { value: '기존 시간 유지' } });
+    fireEvent.change(screen.getByLabelText(/변경 이유/), { target: { value: '촬영 동선 변경' } });
+    expect(screen.getByRole('button', { name: '변경 내용과 금액 미리보기' })).toBeEnabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:01' } });
     expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약으로 변경할 수 없습니다');
@@ -152,11 +156,11 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '17:59' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '변경 내용과 차액 확인 후 저장' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '변경 내용과 금액 미리보기' })).toBeEnabled();
   });
 
   it('기존 일반 예약을 다른 제한 슬롯으로 옮기면 저장을 차단한다', () => {
-    render(<MoodBookingChangeModal booking={booking({ date: '2026-09-09', startTime: '10:00' })} balanceKRW={1_000_000} onClose={() => {}} onChanged={() => {}} />);
+    render(<MoodBookingChangeModal booking={booking({ date: '2026-09-09', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
 
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-10' } });
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });

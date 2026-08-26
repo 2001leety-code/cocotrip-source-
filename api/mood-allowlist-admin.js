@@ -1,18 +1,20 @@
 /**
  * /api/mood-allowlist-admin — MOOD 포털 접근 이메일 관리 (운영자 전용)
  *
- * mood_config/allowlist 문서의 두 배열을 편집:
+ * mood_config/allowlist 문서의 세 배열을 편집:
  *   - emails: 조회/예약 권한 (운영자 + 광고사 직원)
  *   - admins: 충전(topup) 권한 (운영자만)
+ *   - settlementApproverEmails: MOOD 금액 확인 담당자(admins 와 겹치지 않음)
  *
  * 인증: Authorization: Bearer <Firebase ID token>.
  *   - 토큰 email 이 mood_config/allowlist.admins (운영자만) 에 없으면 403.
  *   - emailVerified=false 도 403 (defense-in-depth) — 권한 변경 = 민감 경계.
  *
- * GET:  현재 { emails, admins, clientId } 반환. (운영자 전용)
- * POST: { action: 'add'|'remove', list: 'emails'|'admins', email }.
+ * GET:  현재 { emails, admins, settlementApproverEmails, clientId } 반환. (운영자 전용)
+ * POST: { action: 'add'|'remove', list: 'emails'|'admins'|'settlementApproverEmails', email }.
  *   - 정규화 소문자 + 유효 이메일 형식 검증 + 중복 방지.
  *   - Firestore 트랜잭션 (동시 편집 안전 — read-modify-write).
+ *   - 실제 권한 변경은 mood_access_audit 불변 감사 문서와 같이 기록.
  *   - ⚠️ 안전장치: admins 마지막 1인 제거는 거부 (잠금 방지 — admins 0개 금지).
  *   - clientId 는 이 API 로 안 건드림 (별도 관리).
  */
@@ -33,6 +35,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normEmail(e) {
   return String(e || '').toLowerCase().trim();
+}
+
+function normalizedList(value) {
+  const result = [];
+  for (const entry of Array.isArray(value) ? value : []) {
+    const email = normEmail(entry);
+    if (email && !result.includes(email)) result.push(email);
+  }
+  return result;
 }
 
 export default async function handler(req, res) {
@@ -78,7 +89,12 @@ export default async function handler(req, res) {
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({
         ok: true,
-        data: { emails: allowlist.emails, admins: allowlist.admins, clientId: allowlist.clientId },
+        data: {
+          emails: allowlist.emails,
+          admins: allowlist.admins,
+          settlementApproverEmails: allowlist.settlementApproverEmails,
+          clientId: allowlist.clientId,
+        },
       }));
     }
 
@@ -93,9 +109,9 @@ export default async function handler(req, res) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: "action 은 'add' 또는 'remove'" }));
     }
-    if (list !== 'emails' && list !== 'admins') {
+    if (list !== 'emails' && list !== 'admins' && list !== 'settlementApproverEmails') {
       res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: "list 는 'emails' 또는 'admins'" }));
+      return res.end(JSON.stringify({ ok: false, error: '지원하지 않는 권한 목록' }));
     }
     if (!targetEmail || !EMAIL_RE.test(targetEmail)) {
       res.writeHead(400, JSON_HEADERS);
@@ -103,18 +119,18 @@ export default async function handler(req, res) {
     }
 
     const docRef = db.collection(ALLOWLIST_PATH[0]).doc(ALLOWLIST_PATH[1]);
+    const auditRef = db.collection('mood_access_audit').doc();
+    const changedAt = Date.now();
 
     const txResult = await db.runTransaction(async (tx) => {
       const snap = await tx.get(docRef);
       const data = snap.exists ? (snap.data() || {}) : {};
 
       // 정규화 + 중복 제거해 현재 배열 재구성 (config 측 대문자/중복 방어).
-      const rawList = Array.isArray(data[list]) ? data[list] : [];
-      const current = [];
-      for (const e of rawList) {
-        const n = normEmail(e);
-        if (n && !current.includes(n)) current.push(n);
-      }
+      const current = normalizedList(data[list]);
+      const emails = normalizedList(data.emails);
+      const admins = normalizedList(data.admins);
+      const approvers = normalizedList(data.settlementApproverEmails);
 
       const idx = current.indexOf(targetEmail);
       let next;
@@ -123,6 +139,18 @@ export default async function handler(req, res) {
         if (idx !== -1) {
           // 이미 존재 — 멱등 성공 (변경 없음).
           return { ok: true, changed: false, list, action, emails: current };
+        }
+        if (list === 'settlementApproverEmails' && !emails.includes(targetEmail)) {
+          return { ok: false, status: 409, error: '먼저 조회·예약 권한에 이메일을 등록해 주세요.' };
+        }
+        if (list === 'admins' && !emails.includes(targetEmail)) {
+          return { ok: false, status: 409, error: '먼저 조회·예약 권한에 이메일을 등록해 주세요.' };
+        }
+        if (list === 'settlementApproverEmails' && admins.includes(targetEmail)) {
+          return { ok: false, status: 409, error: '금액 제안 운영자와 MOOD 확인 담당자는 같을 수 없습니다. 운영자 권한을 먼저 제거해 주세요.' };
+        }
+        if (list === 'admins' && approvers.includes(targetEmail)) {
+          return { ok: false, status: 409, error: 'MOOD 확인 담당자 권한을 먼저 제거해 주세요.' };
         }
         next = [...current, targetEmail];
       } else {
@@ -135,11 +163,23 @@ export default async function handler(req, res) {
         if (list === 'admins' && current.length <= 1) {
           return { ok: false, status: 409, error: '마지막 운영자는 제거할 수 없습니다 (잠금 방지)' };
         }
+        if (list === 'emails' && (approvers.includes(targetEmail) || admins.includes(targetEmail))) {
+          return { ok: false, status: 409, error: '금액 제안 운영자·MOOD 확인 담당자 권한을 먼저 제거해 주세요.' };
+        }
         next = current.filter((e) => e !== targetEmail);
       }
 
       // 정규화된 배열로 통째 write (기존 대문자/중복 잔재도 함께 청소).
       tx.set(docRef, { [list]: next }, { merge: true });
+      tx.set(auditRef, {
+        actorEmail: email,
+        targetEmail,
+        action,
+        list,
+        beforeIncluded: idx !== -1,
+        afterIncluded: action === 'add',
+        changedAt,
+      });
       return { ok: true, changed: true, list, action, emails: next };
     });
 

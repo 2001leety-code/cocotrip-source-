@@ -217,6 +217,9 @@ export default async function handler(req, res) {
       }
       if (!bSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const b = bSnap.data() || {};
+      if (b.bookingChangeApproval && b.bookingChangeApproval.status === 'awaiting_mood') {
+        return { ok: false, status: 409, error: 'BOOKING_CHANGE_APPROVAL_PENDING' };
+      }
       if (b.status !== 'completed') return { ok: false, status: 409, error: 'NOT_SETTLED' };
       const currentRevision = Number.isInteger(b.revision) ? b.revision : 0;
       if (currentRevision !== expectedRevision) return { ok: false, status: 409, error: 'STALE_REVISION' };
