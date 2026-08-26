@@ -197,4 +197,20 @@ describe('MoodCourseShareEditor', () => {
       expect(button.className).toMatch(/min-h-1[12]/);
     });
   });
+
+  it('모바일에서 코스 주소와 비율 입력을 두 줄로 나누고 중첩 좌우 여백을 줄인다', () => {
+    render(<EditorHarness />);
+
+    const editor = screen.getByRole('region', { name: '코스별 비용 분담 비율' });
+    expect(editor.className).toMatch(/\bp-2\b/);
+    expect(editor.className).toMatch(/\bsm:p-3\b/);
+
+    const address = screen.getByText('서울역');
+    expect(address.className).toMatch(/\bline-clamp-2\b/);
+    expect(address.className).not.toMatch(/\btruncate\b/);
+
+    const firstInput = screen.getByRole('spinbutton', { name: '1번 코스 MOOD 부담 비율' });
+    expect(firstInput.closest('label')?.className).toMatch(/\bgrid\b/);
+    expect(screen.getAllByText('코스 금액 33원')[0].parentElement?.className).not.toMatch(/\bpl-8\b/);
+  });
 });

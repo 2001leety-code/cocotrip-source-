@@ -1007,6 +1007,27 @@ export default function MoodPortal() {
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
   const manualEveningBlocked = isMoodEveningBookingBlocked(date, startTime);
+  const manualEveningLimitedButAllowed = Boolean(startTime)
+    && isMoodEveningBlackoutDate(date)
+    && !manualEveningBlocked;
+  const hasManualOrigin = Boolean(origin.trim());
+  const hasManualDestination = Boolean(destination.trim());
+  const hasAnyManualRouteAddress = hasManualOrigin || hasManualDestination;
+  const manualRouteIncomplete = hasManualOrigin !== hasManualDestination;
+  const manualRouteBlocked = hasAnyManualRouteAddress && (!route || Boolean(routeError));
+  const manualBookingButtonLabel = submitting
+    ? '예약 중…'
+    : manualEveningBlocked
+      ? '오후 6시 이후 시작 예약 불가'
+      : routeLoading
+        ? '경로 계산 중…'
+        : manualRouteIncomplete
+          ? '출발지·도착지를 모두 입력해 주세요'
+          : routeError
+            ? '주소 확인 후 예약 가능'
+            : manualRouteBlocked
+              ? '경로 확인 중…'
+              : '예약하기';
   const manualCourseItems = [
     { address: origin.trim(), percentageIndex: 0 },
     ...waypoints.map((waypoint, index) => ({ address: waypoint.trim(), percentageIndex: index + 1 })),
@@ -1061,7 +1082,7 @@ export default function MoodPortal() {
         >
           <p className="text-xs font-bold">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
           <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.70)' }}>
-            오후 6시 전에 시작하는 예약은 가능합니다. 이미 확정된 예약은 그대로 유효합니다.
+            오후 6시 전에 시작하면 종료가 6시를 넘어도 예약 가능합니다. 이미 확정된 예약은 그대로 유효합니다.
           </p>
         </div>}
 
@@ -1235,6 +1256,10 @@ export default function MoodPortal() {
             })}
           </div>
 
+          <p className="mt-2 text-xs" style={{ color: C.textDim }}>
+            18시+ = 오후 6시 이후에 시작하는 예약만 불가
+          </p>
+
           {selectedDateEveningLimited && (
             <div
               className="mt-3 rounded-xl px-3 py-2.5"
@@ -1245,7 +1270,7 @@ export default function MoodPortal() {
                 {selectedCalendarDate}는 오후 6시 이후 시작 예약 제한일입니다.
               </p>
               <p className="mt-0.5 text-[11px]" style={{ color: C.textDim }}>
-                오후 6시 전 시작은 예약할 수 있고, 이미 확정된 예약은 그대로 유효합니다.
+                오후 6시 전 시작은 예약할 수 있습니다. 종료 시각이 오후 6시를 넘어도 괜찮습니다.
               </p>
             </div>
           )}
@@ -1425,6 +1450,12 @@ export default function MoodPortal() {
               style={{ color: '#fecaca', background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.32)' }}
             >
               선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+            </p>
+          )}
+
+          {manualEveningLimitedButAllowed && (
+            <p className="text-xs font-semibold" role="status" style={{ color: C.ok }}>
+              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 종료가 오후 6시를 넘어도 괜찮습니다. 주소·동선 확인 후 예약해 주세요.
             </p>
           )}
 
@@ -1736,7 +1767,7 @@ export default function MoodPortal() {
               className="mood-primary-action min-h-12 w-full rounded-xl px-4 font-bold disabled:opacity-50"
               style={{ background: C.accent, color: '#fff' }}
             >
-              {submitting ? '예약 중…' : manualEveningBlocked ? '오후 6시 이후 예약 불가' : '예약하기'}
+              {manualBookingButtonLabel}
             </button>
           )}
 

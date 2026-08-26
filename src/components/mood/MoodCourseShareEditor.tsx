@@ -53,7 +53,7 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-black/20 p-3" aria-label="코스별 비용 분담 비율">
+    <section className="rounded-xl border border-white/10 bg-black/20 p-2 sm:p-3" aria-label="코스별 비용 분담 비율">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-black text-white">비용 분담 규칙</p>
@@ -81,12 +81,14 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
       </div>
       <div className="mt-3 space-y-2">
         {rows.map(({ item, index, courseKRW, moodPercentage, moodKRW, influencerKRW }) => (
-          <div key={`${item.percentageIndex}-${item.address}`} className="rounded-lg bg-white/5 p-2">
-            <div className="flex items-center gap-2">
+          <div key={`${item.percentageIndex}-${item.address}`} className="rounded-lg bg-white/5 px-2 py-2.5 sm:p-2.5">
+            <div className="flex items-start gap-2">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-xs font-black text-white">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">{item.address}</span>
-              <label className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-200">
-                MOOD
+              <span className="line-clamp-2 min-w-0 flex-1 break-words text-sm font-semibold leading-5 text-white">{item.address}</span>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <label className="grid min-w-0 flex-1 grid-cols-[auto_minmax(4.5rem,1fr)_auto] items-center gap-1.5 text-xs font-black text-violet-200">
+                <span>MOOD</span>
                 <input
                   type="number"
                   min={0}
@@ -101,22 +103,23 @@ export function MoodCourseShareEditor({ items, percentages, totalKRW, influencer
                     setManuallyEdited(true);
                     onChange(next);
                   }}
-                  className="h-11 w-16 rounded-lg border border-violet-300/30 bg-black/30 px-2 text-right text-xs text-white"
-                />%
+                  className="h-11 min-w-0 w-full rounded-lg border border-violet-300/30 bg-black/30 px-2 text-right text-sm text-white"
+                />
+                <span>%</span>
               </label>
               <button
                 type="button"
                 onClick={() => applyToAll(moodPercentage, true)}
-                className="min-h-11 shrink-0 rounded-lg bg-white/10 px-2 text-xs font-black text-slate-200"
+                className="min-h-11 min-w-[3.25rem] shrink-0 rounded-lg bg-white/10 px-3 text-xs font-black text-slate-200"
                 aria-label={`${index + 1}번 코스 MOOD ${moodPercentage}%를 전체 코스에 적용`}
               >
                 전체
               </button>
             </div>
             {!compact && (
-              <div className="mt-1.5 grid grid-cols-2 gap-2 pl-8 text-xs">
-                <span className="text-violet-200">MOOD {moodPercentage}% · {formatMoodShareKRW(moodKRW)}</span>
-                <span className="text-pink-200">{influencerLabel} {100 - moodPercentage}% · {formatMoodShareKRW(influencerKRW)}</span>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs leading-5">
+                <span className="min-w-0 break-words text-violet-200">MOOD {moodPercentage}% · {formatMoodShareKRW(moodKRW)}</span>
+                <span className="min-w-0 break-words text-pink-200">{influencerLabel} {100 - moodPercentage}% · {formatMoodShareKRW(influencerKRW)}</span>
                 <span className="col-span-2 text-slate-500">코스 금액 {formatMoodShareKRW(courseKRW)}</span>
               </div>
             )}

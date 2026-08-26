@@ -317,6 +317,29 @@ afterEach(() => {
 });
 
 describe('MoodBookingChangeModal 경로 순서 편집', () => {
+  it('모달이 열린 동안 바깥 문서 스크롤을 잠그고 닫히면 원래 설정을 복원한다', () => {
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'scroll';
+
+    const view = render(
+      <MoodBookingChangeModal
+        booking={booking()}
+        balanceKRW={500_000}
+        onClose={() => undefined}
+        onChanged={() => undefined}
+      />,
+    );
+
+    try {
+      expect(document.body.style.overflow).toBe('hidden');
+      view.unmount();
+      expect(document.body.style.overflow).toBe('scroll');
+    } finally {
+      view.unmount();
+      document.body.style.overflow = previousBodyOverflow;
+    }
+  });
+
   it('9시간을 지운 뒤 6시간을 입력하면 16이 아니라 6으로 저장한다', async () => {
     const onChanged = vi.fn();
     render(
