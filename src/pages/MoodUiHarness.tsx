@@ -13,7 +13,9 @@ import {
   type SettlementMode,
 } from '@/components/mood/MoodSettlementEditor';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
+import { MoodBookingBlockManager } from '@/components/mood/MoodBookingBlockManager';
 import type { MoodBookingShareData } from '@/lib/moodBookingShare';
+import type { MoodBookingAvailability } from '@/lib/moodBookingAvailability';
 
 const points = [
   { lat: 37.5547, lng: 126.9706, role: 'origin' as const },
@@ -78,6 +80,21 @@ const changeBooking: ChangeableMoodBooking = {
     points,
     path: shareData.route?.path || [],
   },
+};
+
+const initialBookingAvailability: MoodBookingAvailability = {
+  schemaVersion: 1,
+  revision: 3,
+  rules: [{
+    id: 'legacy-evening-blackout-2026',
+    enabled: true,
+    startDate: '2026-08-15',
+    endDate: '2026-09-15',
+    weekdays: [4, 5, 6],
+    mode: 'starts_from',
+    startTime: '18:00',
+    reason: '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가',
+  }],
 };
 
 const actualTolls = [
@@ -167,6 +184,7 @@ function settlementApproval(
 }
 
 export default function MoodUiHarness() {
+  const [bookingAvailability, setBookingAvailability] = useState(initialBookingAvailability);
   const [changeOpen, setChangeOpen] = useState(false);
   const [lastRouteOrder, setLastRouteOrder] = useState('');
   const [lastChangePayload, setLastChangePayload] = useState('');
@@ -378,6 +396,13 @@ export default function MoodUiHarness() {
 
   return (
     <main className="min-h-screen bg-[#090510] px-3 py-5 sm:px-6">
+      <div className="mx-auto mb-4 max-w-[430px] text-white">
+        <MoodBookingBlockManager
+          availability={bookingAvailability}
+          onUpdated={setBookingAvailability}
+          onReload={() => undefined}
+        />
+      </div>
       <div className="mx-auto mb-4 flex max-w-[430px] gap-2">
         <MoodBookingCopyButton data={shareData} />
         <button type="button" onClick={() => setChangeOpen(true)} className="min-h-11 shrink-0 rounded-xl bg-white/10 px-4 text-sm font-black text-white">예약 변경</button>

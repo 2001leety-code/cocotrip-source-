@@ -164,9 +164,9 @@ const dbMock = {
   collection(name: string) {
     if (name === 'mood_bookings') return bookingsQuery;
     return {
-      doc: () => ({
+      doc: (id: string) => ({
         get: async () => ({
-          exists: true,
+          exists: !(name === 'mood_config' && id === 'booking_availability'),
           data: () => ({ name: 'Company A', balanceKRW: 846_000 }),
         }),
       }),
@@ -218,6 +218,11 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
     const json = JSON.parse(response.body);
     const changed = json.data.bookings.find((booking: any) => booking.id === 'changed-booking');
 
+    expect(json.data.bookingAvailability).toMatchObject({
+      schemaVersion: 1,
+      revision: 0,
+      rules: [expect.objectContaining({ id: 'legacy-evening-blackout-2026' })],
+    });
     expect(changed.breakdown).toEqual(bookedBreakdown);
     expect(changed.finalBreakdown).toEqual(finalBreakdown);
     expect(changed.revision).toBe(3);

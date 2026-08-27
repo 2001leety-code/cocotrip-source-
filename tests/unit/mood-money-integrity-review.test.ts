@@ -108,7 +108,13 @@ function dataDb({ balanceKRW, amountKRW, bookingOverrides = {} }: { balanceKRW: 
   return {
     collection(name: string) {
       if (name === 'mood_bookings') return bookingQuery;
-      return { doc: () => ({ get: async () => snap({ balanceKRW, name: 'MOOD' }) }) };
+      return {
+        doc: (id: string) => ({
+          get: async () => name === 'mood_config' && id === 'booking_availability'
+            ? snap(null)
+            : snap({ balanceKRW, name: 'MOOD' }),
+        }),
+      };
     },
   };
 }

@@ -38,6 +38,7 @@ import {
 } from '@/components/mood/MoodSettlementEditor';
 import { MoodBookingShareCard, MoodBookingCopyButton } from '@/components/mood/MoodBookingShareCard';
 import { MoodCourseShareEditor } from '@/components/mood/MoodCourseShareEditor';
+import { MoodBookingBlockManager } from '@/components/mood/MoodBookingBlockManager';
 import { normalizeMoodCoursePercentages, type MoodBookingShareData } from '@/lib/moodBookingShare';
 import {
   createMoodRouteSchedule,
@@ -48,11 +49,15 @@ import {
   type MoodRouteScheduleStop,
 } from '@/lib/moodRouteSchedule';
 import {
-  MOOD_EVENING_BLACKOUT_NOTICE,
-  isMoodEveningBlackoutDate,
-  isMoodEveningBookingBlocked,
+  MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE,
+  formatMoodBookingRestrictionLabel,
+  formatMoodBookingRuleSummary,
+  getMoodBookingBlockStatus,
+  getMoodBookingDateRestriction,
+  getMoodBookingNoticeRules,
   moodKstDateISO,
-  shouldShowMoodEveningBlackoutNotice,
+  parseMoodBookingAvailability,
+  type MoodBookingAvailability,
 } from '@/lib/moodBookingAvailability';
 import { NAVER_DIRECTIONS_MAX_STOPS, naverMapDirectionsUrl } from '@/lib/naverMap';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
@@ -169,6 +174,7 @@ interface MoodData {
   bookings: MoodBooking[];
   isAdmin: boolean;
   canApproveSettlement: boolean;
+  bookingAvailability: MoodBookingAvailability | null;
 }
 
 type LedgerTab = 'today' | 'upcoming' | 'settle' | 'calendar' | 'all';
@@ -493,7 +499,11 @@ export default function MoodPortal() {
         return;
       }
       setForbidden(false);
-      setData(json.data as MoodData);
+      const rawData = json.data as Omit<MoodData, 'bookingAvailability'> & { bookingAvailability?: unknown };
+      setData({
+        ...rawData,
+        bookingAvailability: parseMoodBookingAvailability(rawData.bookingAvailability),
+      });
     } catch (e) {
       setDataError(e instanceof Error ? e.message : '조회 실패');
     } finally {
@@ -731,8 +741,14 @@ export default function MoodPortal() {
       return;
     }
     if (bookingInFlightRef.current) return;
-    if (isMoodEveningBookingBlocked(date, startTime)) {
-      setFormMsg({ kind: 'err', text: '선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.' });
+    const availabilityStatus = getMoodBookingBlockStatus(date, startTime, data.bookingAvailability);
+    if (availabilityStatus.blocked) {
+      setFormMsg({
+        kind: 'err',
+        text: availabilityStatus.availabilityReady
+          ? `${availabilityStatus.rule?.reason} 때문에 선택한 날짜·시각에는 예약할 수 없습니다.`
+          : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE,
+      });
       return;
     }
     bookingInFlightRef.current = true;
@@ -963,7 +979,9 @@ export default function MoodPortal() {
   const balanceNegative = balance < 0;
   const bookings = data?.bookings || [];
   const today = todayISO();
-  const showEveningBlackoutNotice = shouldShowMoodEveningBlackoutNotice(moodKstDateISO());
+  const bookingAvailability = data ? data.bookingAvailability : null;
+  const bookingAvailabilityReady = Boolean(bookingAvailability);
+  const bookingNoticeRules = getMoodBookingNoticeRules(moodKstDateISO(), bookingAvailability);
   const chronological = (left: MoodBooking, right: MoodBooking) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`);
   const todayBookings = bookings.filter((b) => b.date === today && b.status !== 'completed' && b.status !== 'cancelled').sort(chronological);
   const upcomingBookings = bookings.filter((b) => b.date >= today && b.status !== 'completed' && b.status !== 'cancelled').sort(chronological);
@@ -994,7 +1012,7 @@ export default function MoodPortal() {
   }, {});
   const selectedDateBookings = bookingsByDate[selectedCalendarDate] || [];
   const selectedOverlapCount = overlapByDate[selectedCalendarDate];
-  const selectedDateEveningLimited = isMoodEveningBlackoutDate(selectedCalendarDate);
+  const selectedDateRestriction = getMoodBookingDateRestriction(selectedCalendarDate, bookingAvailability);
   const visibleBookings = ledgerTab === 'today'
     ? todayBookings
     : ledgerTab === 'upcoming'
@@ -1006,10 +1024,13 @@ export default function MoodPortal() {
           : activeBookings;
   // 외상 정책: 잔액 부족해도 예약 허용. 음수 잔액/예상초과는 "안내"만(차단 아님).
   const willGoNegative = balance - estimate < 0;
-  const manualEveningBlocked = isMoodEveningBookingBlocked(date, startTime);
-  const manualEveningLimitedButAllowed = Boolean(startTime)
-    && isMoodEveningBlackoutDate(date)
-    && !manualEveningBlocked;
+  const manualBlockStatus = getMoodBookingBlockStatus(date, startTime, bookingAvailability);
+  const manualBookingBlocked = manualBlockStatus.blocked;
+  const manualDateRestriction = getMoodBookingDateRestriction(date, bookingAvailability);
+  const manualTimeLimitedButAllowed = Boolean(startTime)
+    && Boolean(manualDateRestriction)
+    && !manualDateRestriction?.fullDay
+    && !manualBookingBlocked;
   const hasManualOrigin = Boolean(origin.trim());
   const hasManualDestination = Boolean(destination.trim());
   const hasAnyManualRouteAddress = hasManualOrigin || hasManualDestination;
@@ -1017,8 +1038,12 @@ export default function MoodPortal() {
   const manualRouteBlocked = hasAnyManualRouteAddress && (!route || Boolean(routeError));
   const manualBookingButtonLabel = submitting
     ? '예약 중…'
-    : manualEveningBlocked
-      ? '오후 6시 이후 시작 예약 불가'
+    : manualBookingBlocked
+      ? !manualBlockStatus.availabilityReady
+        ? '예약 차단 설정 확인 필요'
+        : manualBlockStatus.rule?.mode === 'full_day'
+          ? '해당 날짜 예약 불가'
+          : '선택 시각 예약 불가'
       : routeLoading
         ? '경로 계산 중…'
         : manualRouteIncomplete
@@ -1074,17 +1099,45 @@ export default function MoodPortal() {
         </div>
         <MoodGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-        {showEveningBlackoutNotice && <div
+        {!bookingAvailabilityReady && <div
           className="rounded-2xl px-4 py-3"
-          role="note"
-          aria-label="임시 예약 제한 안내"
-          style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.34)', color: '#fde68a' }}
+          role="alert"
+          aria-label="예약 차단 설정 오류"
+          style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.32)', color: '#fecaca' }}
         >
-          <p className="text-xs font-bold">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
-          <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.70)' }}>
-            오후 6시 전에 시작하면 종료가 6시를 넘어도 예약 가능합니다. 이미 확정된 예약은 그대로 유효합니다.
+          <p className="text-xs font-bold">예약 접수 일시 잠금</p>
+          <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.72)' }}>
+            {MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE} 기존 확정 예약은 그대로 유지됩니다.
           </p>
         </div>}
+
+        {bookingNoticeRules.length > 0 && <div
+          className="rounded-2xl px-4 py-3"
+          role="note"
+          aria-label="예약 제한 안내"
+          style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.34)', color: '#fde68a' }}
+        >
+          <p className="text-xs font-bold">예약 제한 안내</p>
+          <ul className="mt-1 space-y-1 text-[11px]">
+            {bookingNoticeRules.map((rule) => (
+              <li key={rule.id}>
+                <span className="font-bold">{formatMoodBookingRuleSummary(rule)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.72)' }}> · {rule.reason}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.70)' }}>
+            시각 제한은 시작 시각에만 적용됩니다. 이미 확정된 예약은 그대로 유효합니다.
+          </p>
+        </div>}
+
+        {data?.isAdmin && (
+          <MoodBookingBlockManager
+            availability={bookingAvailability}
+            onUpdated={(nextAvailability) => setData((current) => current ? { ...current, bookingAvailability: nextAvailability } : current)}
+            onReload={() => loadData(data.clientId)}
+          />
+        )}
 
         {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
         <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
@@ -1198,12 +1251,13 @@ export default function MoodPortal() {
               const hasSettle = dayBookings.some((b) => b.status === 'confirmed' && b.serviceType !== 'airport');
               const selected = selectedCalendarDate === d.iso;
               const isToday = d.iso === today;
-              const isEveningLimited = isMoodEveningBlackoutDate(d.iso);
+              const dateRestriction = getMoodBookingDateRestriction(d.iso, bookingAvailability);
+              const restrictionLabel = dateRestriction ? formatMoodBookingRestrictionLabel(dateRestriction) : '';
               return (
                 <button
                   key={d.iso}
                   type="button"
-                  aria-label={`${d.iso}${isEveningLimited ? ' · 오후 6시 이후 시작 예약 불가' : ''}`}
+                  aria-label={`${d.iso}${dateRestriction ? ` · ${restrictionLabel}` : ''}`}
                   onClick={() => {
                     setSelectedCalendarDate(d.iso);
                     setCalendarMonth(monthKeyFromISO(d.iso));
@@ -1211,18 +1265,18 @@ export default function MoodPortal() {
                   }}
                   className="relative min-h-[46px] rounded-xl px-1 py-1 text-left transition-all"
                   style={{
-                    background: selected ? C.accent : isEveningLimited ? 'rgba(245,158,11,0.08)' : isToday ? 'rgba(124,92,252,0.14)' : C.inputBg,
-                    border: selected ? '1px solid transparent' : isEveningLimited ? '1px solid rgba(245,158,11,0.38)' : C.inputBorder,
+                    background: selected ? C.accent : dateRestriction ? 'rgba(245,158,11,0.08)' : isToday ? 'rgba(124,92,252,0.14)' : C.inputBg,
+                    border: selected ? '1px solid transparent' : dateRestriction ? '1px solid rgba(245,158,11,0.38)' : C.inputBorder,
                     color: d.inMonth ? C.text : 'rgba(255,255,255,0.28)',
                   }}
                 >
                   <span className="block text-[11px] font-bold">{d.day}</span>
-                  {isEveningLimited && (
+                  {dateRestriction && (
                     <span
                       className="absolute right-1 top-1 rounded px-1 py-0.5 text-[8px] font-black"
                       style={{ background: selected ? 'rgba(255,255,255,0.20)' : 'rgba(245,158,11,0.18)', color: selected ? '#fff' : '#fcd34d' }}
                     >
-                      18시+
+                      {dateRestriction.fullDay ? '종일' : `${dateRestriction.startTime?.slice(0, 2)}시+`}
                     </span>
                   )}
                   {dayBookings.length > 0 && (
@@ -1246,7 +1300,7 @@ export default function MoodPortal() {
                     // 운영자 스케줄 있는 날 — 앰버 점. 무드에게도 보임(2026-07-27) → 이 날은 예약을 피하라는 신호.
                     <span
                       className="absolute right-1 h-1.5 w-1.5 rounded-full"
-                      style={{ background: '#fbbf24', top: isEveningLimited ? '1.55rem' : '0.25rem' }}
+                      style={{ background: '#fbbf24', top: dateRestriction ? '1.55rem' : '0.25rem' }}
                       title={`운영자 스케줄: ${scheduleNotes[d.iso]}`}
                       aria-label={`운영자 스케줄 있음: ${scheduleNotes[d.iso]}`}
                     />
@@ -1257,20 +1311,20 @@ export default function MoodPortal() {
           </div>
 
           <p className="mt-2 text-xs" style={{ color: C.textDim }}>
-            18시+ = 오후 6시 이후에 시작하는 예약만 불가
+            종일 = 하루 전체 차단 · 시각+ = 해당 시각부터 시작하는 예약 차단
           </p>
 
-          {selectedDateEveningLimited && (
+          {selectedDateRestriction && (
             <div
               className="mt-3 rounded-xl px-3 py-2.5"
               role="status"
               style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }}
             >
               <p className="text-[11px] font-bold" style={{ color: '#fcd34d' }}>
-                {selectedCalendarDate}는 오후 6시 이후 시작 예약 제한일입니다.
+                {selectedCalendarDate} · {formatMoodBookingRestrictionLabel(selectedDateRestriction)}
               </p>
               <p className="mt-0.5 text-[11px]" style={{ color: C.textDim }}>
-                오후 6시 전 시작은 예약할 수 있습니다. 종료 시각이 오후 6시를 넘어도 괜찮습니다.
+                {selectedDateRestriction.reason} · 이미 확정된 예약은 그대로 유지됩니다.
               </p>
             </div>
           )}
@@ -1443,19 +1497,21 @@ export default function MoodPortal() {
             />
           </label>
 
-          {manualEveningBlocked && (
+          {manualBookingBlocked && (
             <p
               className="rounded-xl px-3 py-2.5 text-xs font-bold"
               role="alert"
               style={{ color: '#fecaca', background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.32)' }}
             >
-              선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+              {manualBlockStatus.availabilityReady
+                ? `${manualBlockStatus.rule?.reason} 때문에 ${date} ${startTime} 시작 예약을 할 수 없습니다.`
+                : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE}
             </p>
           )}
 
-          {manualEveningLimitedButAllowed && (
+          {manualTimeLimitedButAllowed && (
             <p className="text-xs font-semibold" role="status" style={{ color: C.ok }}>
-              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 종료가 오후 6시를 넘어도 괜찮습니다. 주소·동선 확인 후 예약해 주세요.
+              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 제한은 시작 시각에만 적용됩니다. 주소·동선 확인 후 예약해 주세요.
             </p>
           )}
 
@@ -1763,7 +1819,7 @@ export default function MoodPortal() {
           ) : (
             <button
               onClick={() => { void handleBook(); }}
-              disabled={submitting || !data || manualEveningBlocked || routeLoading || (!!(origin.trim() || destination.trim()) && (!route || !!routeError))}
+              disabled={submitting || !data || manualBookingBlocked || routeLoading || (!!(origin.trim() || destination.trim()) && (!route || !!routeError))}
               className="mood-primary-action min-h-12 w-full rounded-xl px-4 font-bold disabled:opacity-50"
               style={{ background: C.accent, color: '#fff' }}
             >
@@ -1784,6 +1840,7 @@ export default function MoodPortal() {
         {portalTab === 'ai' && (
           <MoodAiBooking
             clientId={data?.clientId || ''}
+            bookingAvailability={bookingAvailability}
             onBooked={() => { void loadData(data?.clientId); }}
             onViewStatus={() => setPortalTab('status')}
           />
@@ -2153,6 +2210,7 @@ export default function MoodPortal() {
             balanceKRW={data?.client.balanceKRW || 0}
             isAdmin={Boolean(data?.isAdmin)}
             canApprove={Boolean(data?.canApproveSettlement)}
+            bookingAvailability={bookingAvailability}
             onClose={() => setChangeBooking(null)}
             onChanged={() => loadData(data?.clientId)}
           />

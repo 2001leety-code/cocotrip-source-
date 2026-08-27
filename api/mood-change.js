@@ -30,7 +30,12 @@ import { computeRoute } from './_shared/mood-route.js';
 import { buildRouteSnapshot, decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 import { notify } from './_shared/notify.js';
-import { checkMoodBookingChangeAvailability } from './_shared/mood-booking-availability.js';
+import {
+  checkMoodBookingChangeAvailability,
+  getMoodBookingAvailability,
+  moodBookingAvailabilityFromSnapshot,
+  moodBookingAvailabilityRef,
+} from './_shared/mood-booking-availability.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -940,6 +945,12 @@ async function replayStoredResponse({
   });
 }
 
+async function replayStoredResponseIfPresent(args) {
+  const idempotencySnap = await args.idempotencyRef.get();
+  if (!idempotencySnap.exists) return { ok: false, missing: true };
+  return replayStoredResponse(args);
+}
+
 async function approveBookingChange({
   db,
   res,
@@ -961,12 +972,14 @@ async function approveBookingChange({
   const idempotencyRef = db.collection('mood_booking_change_idempotency').doc(idempotencyDocumentId);
   const auditRef = db.collection('mood_booking_change_events').doc(idempotencyDocumentId);
   const outboxRef = db.collection('mood_notification_outbox').doc(idempotencyDocumentId);
+  const bookingAvailabilityRef = moodBookingAvailabilityRef(db);
 
   const result = await db.runTransaction(async (tx) => {
-    const [idempotencySnap, bookingSnap, quoteSnap] = await Promise.all([
+    const [idempotencySnap, bookingSnap, quoteSnap, bookingAvailabilitySnap] = await Promise.all([
       tx.get(idempotencyRef),
       tx.get(bookingRef),
       tx.get(quoteRef),
+      tx.get(bookingAvailabilityRef),
     ]);
     if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
     const booking = bookingSnap.data() || {};
@@ -1011,11 +1024,13 @@ async function approveBookingChange({
     }
     const snapshot = quoteValidation.snapshot;
     const reason = quoteValidation.reason;
+    const bookingAvailability = moodBookingAvailabilityFromSnapshot(bookingAvailabilitySnap);
     const availability = checkMoodBookingChangeAvailability(
       booking.date,
       booking.startTime,
       snapshot.date,
       snapshot.startTime,
+      bookingAvailability,
     );
     if (!availability.ok) {
       return { ok: false, status: 409, error: availability.error, reason: availability.reason };
@@ -1413,6 +1428,7 @@ export default async function handler(req, res) {
       : null;
     const auditRef = db.collection('mood_booking_change_events').doc(idempotencyDocumentId);
     const outboxRef = db.collection('mood_notification_outbox').doc(idempotencyDocumentId);
+    const bookingAvailabilityRef = moodBookingAvailabilityRef(db);
 
     const [preBookingSnap, preIdempotencySnap, preQuoteSnap] = await Promise.all([
       bookingRef.get(),
@@ -1444,6 +1460,33 @@ export default async function handler(req, res) {
       return sendJson(res, replay.status || 409, jsonHeaders, { ok: false, error: replay.error || 'IDEMPOTENCY_CONFLICT' });
     }
 
+    // 이미 커밋된 동일 요청은 현재 차단 설정이 손상됐더라도 저장 응답을 먼저 재생한다.
+    // 신규 변경만 아래 사전 검사와 commit 트랜잭션에서 최신 설정을 fail-closed로 확인한다.
+    let preBookingAvailability;
+    try {
+      preBookingAvailability = await getMoodBookingAvailability(db);
+    } catch (configError) {
+      // 첫 멱등 조회 직후 동일 요청이 commit됐을 수 있다. 이미 저장된 변경 결과가
+      // 있으면 손상된 최신 설정 오류보다 그 응답을 우선해 재시도 결과를 보존한다.
+      if (action === 'confirm' || action === 'propose') {
+        const lateReplay = await replayStoredResponseIfPresent({
+          db,
+          bookingRef,
+          idempotencyRef,
+          allowlist,
+          isAdmin,
+          payloadHash,
+          legacyPayloadHash,
+          requestedQuoteId,
+          action,
+        });
+        if (lateReplay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(lateReplay.response));
+        if (!lateReplay.missing) {
+          return sendJson(res, lateReplay.status || 409, jsonHeaders, { ok: false, error: lateReplay.error || 'IDEMPOTENCY_CONFLICT' });
+        }
+      }
+      throw configError;
+    }
     const deferQuotedConfirmChecks = action === 'propose' && Boolean(requestedQuoteId);
     let preDiff = null;
     if (!deferQuotedConfirmChecks) {
@@ -1452,8 +1495,27 @@ export default async function handler(req, res) {
         preBooking.startTime,
         snapshot.date,
         snapshot.startTime,
+        preBookingAvailability,
       );
       if (!availability.ok) {
+        // 정책 조회 사이에 같은 요청이 먼저 commit됐다면 저장된 성공 응답이 정본이다.
+        if (action === 'confirm' || action === 'propose') {
+          const lateReplay = await replayStoredResponseIfPresent({
+            db,
+            bookingRef,
+            idempotencyRef,
+            allowlist,
+            isAdmin,
+            payloadHash,
+            legacyPayloadHash,
+            requestedQuoteId,
+            action,
+          });
+          if (lateReplay.ok) return sendJson(res, 200, jsonHeaders, publicResponse(lateReplay.response));
+          if (!lateReplay.missing) {
+            return sendJson(res, lateReplay.status || 409, jsonHeaders, { ok: false, error: lateReplay.error || 'IDEMPOTENCY_CONFLICT' });
+          }
+        }
         return sendJson(res, 409, jsonHeaders, {
           ok: false,
           error: availability.error,
@@ -1554,9 +1616,10 @@ export default async function handler(req, res) {
 
       const previewNow = Date.now();
       const previewResult = await db.runTransaction(async (tx) => {
-        const [quoteSnap, bookingSnap] = await Promise.all([
+        const [quoteSnap, bookingSnap, bookingAvailabilitySnap] = await Promise.all([
           tx.get(quoteRef),
           tx.get(bookingRef),
+          tx.get(bookingAvailabilityRef),
         ]);
         if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
         const currentBooking = bookingSnap.data() || {};
@@ -1595,11 +1658,13 @@ export default async function handler(req, res) {
         if (currentRevision !== expectedRevision) {
           return { ok: false, status: 409, error: 'REVISION_CONFLICT', currentRevision };
         }
+        const currentBookingAvailability = moodBookingAvailabilityFromSnapshot(bookingAvailabilitySnap);
         const currentAvailability = checkMoodBookingChangeAvailability(
           currentBooking.date,
           currentBooking.startTime,
           snapshot.date,
           snapshot.startTime,
+          currentBookingAvailability,
         );
         if (!currentAvailability.ok) {
           return {
@@ -1708,10 +1773,11 @@ export default async function handler(req, res) {
 
     const now = Date.now();
     const transactionResult = await db.runTransaction(async (tx) => {
-      const [idempotencySnap, bookingSnap, quoteSnap] = await Promise.all([
+      const [idempotencySnap, bookingSnap, quoteSnap, bookingAvailabilitySnap] = await Promise.all([
         tx.get(idempotencyRef),
         tx.get(bookingRef),
         quoteRef ? tx.get(quoteRef) : Promise.resolve({ exists: false }),
+        tx.get(bookingAvailabilityRef),
       ]);
       if (!bookingSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const booking = bookingSnap.data() || {};
@@ -1751,11 +1817,13 @@ export default async function handler(req, res) {
           return { ok: false, status: 409, error: 'CHANGE_PROPOSAL_ALREADY_SUBMITTED' };
         }
       }
+      const currentBookingAvailability = moodBookingAvailabilityFromSnapshot(bookingAvailabilitySnap);
       const transactionAvailability = checkMoodBookingChangeAvailability(
         booking.date,
         booking.startTime,
         snapshot.date,
         snapshot.startTime,
+        currentBookingAvailability,
       );
       if (!transactionAvailability.ok) {
         return {

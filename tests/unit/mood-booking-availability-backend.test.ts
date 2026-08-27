@@ -24,6 +24,7 @@ const store = new Map<string, StoredDoc>();
 let transactionRuns = 0;
 let generatedId = 0;
 let beforeTransaction: (() => void) | undefined;
+let beforeAvailabilityRead: (() => void) | undefined;
 
 function keyOf(ref: Ref) {
   return `${ref.collection}/${ref.id}`;
@@ -41,7 +42,14 @@ function makeRef(collection: string, requestedId?: string): Ref {
   const ref: Ref = {
     collection,
     id: requestedId || `generated-${++generatedId}`,
-    get: async () => snapshot(ref),
+    get: async () => {
+      if (collection === 'mood_config' && requestedId === 'booking_availability' && beforeAvailabilityRead) {
+        const hook = beforeAvailabilityRead;
+        beforeAvailabilityRead = undefined;
+        hook();
+      }
+      return snapshot(ref);
+    },
   };
   return ref;
 }
@@ -206,6 +214,7 @@ beforeEach(() => {
   transactionRuns = 0;
   generatedId = 0;
   beforeTransaction = undefined;
+  beforeAvailabilityRead = undefined;
   store.set('mood_bookings/existing-sep10', existingBooking());
   store.set('mood_clients/MOOD', { name: 'MOOD', balanceKRW: 500000 });
   verifyUserTokenMock.mockResolvedValue({
@@ -283,6 +292,106 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
       error: MOOD_EVENING_BLACKOUT_ERROR,
       reason: MOOD_EVENING_BLACKOUT_REASON,
     });
+    expect(computeRouteMock).not.toHaveBeenCalled();
+    expect(transactionRuns).toBe(0);
+  });
+
+  it('설정 문서의 rules:[]은 기존 기본 차단을 명시적으로 해제한다', async () => {
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 1,
+      rules: [],
+    });
+    const { res, json } = await callBook(bookBody({ idempotencyKey: 'explicitly-open-001' }));
+
+    expect(res.statusCode).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(store.get(`mood_bookings/${json.data.bookingId}`)).toMatchObject({
+      date: '2026-09-10',
+      startTime: '18:00',
+    });
+  });
+
+  it('사전 확인 뒤 관리자가 차단하면 예약·잔액 쓰기 트랜잭션에서 다시 막는다', async () => {
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 1,
+      rules: [],
+    });
+    beforeTransaction = () => {
+      store.set('mood_config/booking_availability', {
+        schemaVersion: 1,
+        revision: 2,
+        rules: [{
+          id: 'concurrent-full-day',
+          enabled: true,
+          startDate: '2026-09-10',
+          endDate: '2026-09-10',
+          weekdays: [4],
+          mode: 'full_day',
+          startTime: null,
+          reason: '관리자 긴급 차단',
+        }],
+      });
+    };
+
+    const { res, json } = await callBook(bookBody({ idempotencyKey: 'concurrent-block-001' }));
+
+    expect(res.statusCode).toBe(409);
+    expect(json).toMatchObject({
+      ok: false,
+      error: MOOD_EVENING_BLACKOUT_ERROR,
+      reason: '관리자 긴급 차단',
+    });
+    expect(store.get('mood_clients/MOOD')?.balanceKRW).toBe(500000);
+    expect([...store.keys()].filter((key) => key.startsWith('mood_bookings/generated-'))).toHaveLength(0);
+  });
+
+  it('첫 멱등 조회 뒤 같은 예약이 먼저 성공하고 슬롯이 차단되면 저장 응답을 우선 재생한다', async () => {
+    const body = bookBody({ idempotencyKey: 'book-race-replay-001' });
+    const requestPayload = {
+      clientId: 'MOOD',
+      date: '2026-09-10',
+      startTime: '18:00',
+      durationHours: 3,
+      serviceType: 'vehicle',
+      origin: '',
+      destination: '',
+      waypoints: [],
+      airportDirection: null,
+      airportCode: null,
+      note: '',
+      influencerName: '',
+      courseMoodPercentages: [],
+      courseShareSchemaVersion: 2,
+    };
+    const documentId = sha256(`book:staff@cocotrip.test:${body.idempotencyKey}`);
+    beforeAvailabilityRead = () => {
+      store.set(`mood_idempotency/${documentId}`, {
+        operation: 'book',
+        payloadHash: sha256(JSON.stringify(requestPayload)),
+        responseData: { bookingId: 'race-winner-booking' },
+      });
+      store.set('mood_config/booking_availability', {
+        schemaVersion: 1,
+        revision: 2,
+        rules: [{
+          id: 'race-full-day',
+          enabled: true,
+          startDate: '2026-09-10',
+          endDate: '2026-09-10',
+          weekdays: [4],
+          mode: 'full_day',
+          startTime: null,
+          reason: '동시 차단',
+        }],
+      });
+    };
+
+    const { res, json } = await callBook(body);
+
+    expect(res.statusCode).toBe(200);
+    expect(json).toEqual({ ok: true, data: { bookingId: 'race-winner-booking' } });
     expect(computeRouteMock).not.toHaveBeenCalled();
     expect(transactionRuns).toBe(0);
   });
@@ -408,6 +517,111 @@ describe('mood-change 기존 예약 보호', () => {
     expect(transactionRuns).toBe(1);
   });
 
+  it('이미 커밋된 동일 변경 요청은 이후 차단 설정 문서가 손상돼도 저장 응답을 재생한다', async () => {
+    const body = changeBody({ idempotencyKey: 'change-replay-invalid-config' });
+    const normalizedSnapshot = {
+      date: '2026-09-10',
+      startTime: '18:00',
+      durationHours: 3,
+      serviceType: 'vehicle',
+      origin: '',
+      destination: '',
+      waypoints: [],
+      note: '주소와 메모만 변경',
+      airportDirection: null,
+      airportCode: null,
+      hasInfluencerName: false,
+      influencerName: null,
+      courseMoodPercentages: [],
+      courseShareSchemaVersion: 2,
+    };
+    const stablePayload = JSON.stringify({
+      bookingId: body.bookingId,
+      expectedRevision: body.expectedRevision,
+      reason: body.reason,
+      booking: normalizedSnapshot,
+    });
+    const documentId = sha256(`staff@cocotrip.test:${body.idempotencyKey}`);
+    const storedResponse = { ok: true, data: { bookingId: body.bookingId, revision: 1 } };
+    store.set(`mood_booking_change_idempotency/${documentId}`, {
+      payloadHash: sha256(stablePayload),
+      response: storedResponse,
+    });
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 99,
+      revision: 1,
+      rules: [],
+    });
+
+    const { res, json } = await callChange(body);
+
+    expect(res.statusCode).toBe(200);
+    expect(json).toEqual(storedResponse);
+    expect(store.get('mood_bookings/existing-sep10')).toMatchObject({ revision: 0 });
+  });
+
+  it('첫 멱등 조회 뒤 같은 변경이 먼저 성공하고 슬롯이 차단되면 저장 응답을 우선 재생한다', async () => {
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 1,
+      rules: [],
+    });
+    const body = changeBody({
+      idempotencyKey: 'change-race-replay-001',
+      booking: changeSnapshot({ date: '2026-09-11', startTime: '18:00' }),
+    });
+    const normalizedSnapshot = {
+      date: '2026-09-11',
+      startTime: '18:00',
+      durationHours: 3,
+      serviceType: 'vehicle',
+      origin: '',
+      destination: '',
+      waypoints: [],
+      note: '주소와 메모만 변경',
+      airportDirection: null,
+      airportCode: null,
+      hasInfluencerName: false,
+      influencerName: null,
+      courseMoodPercentages: [],
+      courseShareSchemaVersion: 2,
+    };
+    const stablePayload = JSON.stringify({
+      bookingId: body.bookingId,
+      expectedRevision: body.expectedRevision,
+      reason: body.reason,
+      booking: normalizedSnapshot,
+    });
+    const documentId = sha256(`staff@cocotrip.test:${body.idempotencyKey}`);
+    const storedResponse = { ok: true, data: { bookingId: body.bookingId, revision: 1 } };
+    beforeAvailabilityRead = () => {
+      store.set(`mood_booking_change_idempotency/${documentId}`, {
+        payloadHash: sha256(stablePayload),
+        response: storedResponse,
+      });
+      store.set('mood_config/booking_availability', {
+        schemaVersion: 1,
+        revision: 2,
+        rules: [{
+          id: 'change-race-block',
+          enabled: true,
+          startDate: '2026-09-11',
+          endDate: '2026-09-11',
+          weekdays: [5],
+          mode: 'full_day',
+          startTime: null,
+          reason: '동시 변경 차단',
+        }],
+      });
+    };
+
+    const { res, json } = await callChange(body);
+
+    expect(res.statusCode).toBe(200);
+    expect(json).toEqual(storedResponse);
+    expect(store.get('mood_bookings/existing-sep10')).toMatchObject({ revision: 0 });
+  });
+
   it('사전 확인 뒤 예약 슬롯이 동시에 바뀌면 트랜잭션에서 다시 차단한다', async () => {
     beforeTransaction = () => {
       store.set('mood_bookings/existing-sep10', existingBooking({
@@ -430,5 +644,47 @@ describe('mood-change 기존 예약 보호', () => {
       startTime: '18:00',
       revision: 0,
     });
+  });
+
+  it('사전 확인 뒤 관리자가 새 규칙을 켜면 변경 commit에서 다시 막는다', async () => {
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 1,
+      rules: [],
+    });
+    beforeTransaction = () => {
+      store.set('mood_config/booking_availability', {
+        schemaVersion: 1,
+        revision: 2,
+        rules: [{
+          id: 'concurrent-change-block',
+          enabled: true,
+          startDate: '2026-09-11',
+          endDate: '2026-09-11',
+          weekdays: [5],
+          mode: 'starts_from',
+          startTime: '18:00',
+          reason: '변경 중 긴급 차단',
+        }],
+      });
+    };
+
+    const { res, json } = await callChange(changeBody({
+      booking: changeSnapshot({ date: '2026-09-11', startTime: '18:00' }),
+      idempotencyKey: 'concurrent-change-block-001',
+    }));
+
+    expect(res.statusCode).toBe(409);
+    expect(json).toMatchObject({
+      ok: false,
+      error: MOOD_EVENING_BLACKOUT_ERROR,
+      reason: '변경 중 긴급 차단',
+    });
+    expect(store.get('mood_bookings/existing-sep10')).toMatchObject({
+      date: '2026-09-10',
+      startTime: '18:00',
+      revision: 0,
+    });
+    expect(store.get('mood_clients/MOOD')?.balanceKRW).toBe(500000);
   });
 });

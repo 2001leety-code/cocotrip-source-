@@ -1,17 +1,69 @@
 /**
- * MOOD 임시 저녁 예약 제한 — 화면과 서버가 같은 규칙을 쓰기 위한 프론트 미러.
+ * MOOD 예약 차단 설정의 프론트 미러.
  *
- * 2026-08-15~2026-09-15(양 끝 포함) 중 목·금·토는
- * 시작 시각이 18:00 이상인 예약을 받지 않는다. 17:59까지 시작하는 예약은 허용한다.
+ * - 실제 /mood 화면은 mood-data 가 내려 준 설정만 신뢰한다. 누락·손상 시 fail closed.
+ * - 설정 인자를 생략한 기존 호출은 배포 전 하드코딩 정책을 기본값으로 사용한다.
+ *   (레거시 호출과 독립 단위 테스트 호환용이며, MoodPortal 은 항상 명시적으로 전달한다.)
  */
+export type MoodBookingBlockMode = 'full_day' | 'starts_from';
+
+export interface MoodBookingBlockRule {
+  id: string;
+  enabled: boolean;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  mode: MoodBookingBlockMode;
+  startTime: string | null;
+  reason: string;
+}
+
+export interface MoodBookingAvailability {
+  schemaVersion: 1;
+  revision: number;
+  rules: MoodBookingBlockRule[];
+}
+
+export interface MoodBookingBlockStatus {
+  blocked: boolean;
+  availabilityReady: boolean;
+  rule: MoodBookingBlockRule | null;
+}
+
+export interface MoodBookingDateRestriction {
+  fullDay: boolean;
+  startTime: string | null;
+  reason: string;
+  rules: MoodBookingBlockRule[];
+}
+
+export const MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE = '예약 차단 설정을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요.';
 export const MOOD_EVENING_BLACKOUT_NOTICE = '8월 15일~9월 15일 목·금·토는 오후 6시 이후 시작 예약 불가';
 
-const BLACKOUT_START_DATE = '2026-08-15';
-const BLACKOUT_END_DATE = '2026-09-15';
 const NOTICE_START_DATE = '2026-08-12';
-const BLACKOUT_START_MINUTES = 18 * 60;
-const BLACKOUT_WEEKDAYS = new Set([4, 5, 6]); // 목·금·토 (UTC 기준)
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const RULE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/;
+const MAX_RULES = 50;
+
+export const DEFAULT_MOOD_BOOKING_AVAILABILITY: MoodBookingAvailability = {
+  schemaVersion: 1,
+  revision: 0,
+  rules: [{
+    id: 'legacy-evening-blackout-2026',
+    enabled: true,
+    startDate: '2026-08-15',
+    endDate: '2026-09-15',
+    weekdays: [4, 5, 6],
+    mode: 'starts_from',
+    startTime: '18:00',
+    reason: '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가',
+  }],
+};
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 function isoWeekday(date: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
@@ -39,18 +91,163 @@ function timeMinutes(startTime: string): number | null {
   return hour * 60 + minute;
 }
 
-/** 캘린더에서 '오후 6시 이후 제한일' 표시가 필요한 날짜인지 반환한다. */
-export function isMoodEveningBlackoutDate(date: string): boolean {
-  if (date < BLACKOUT_START_DATE || date > BLACKOUT_END_DATE) return false;
-  const weekday = isoWeekday(date);
-  return weekday !== null && BLACKOUT_WEEKDAYS.has(weekday);
+function parseRule(value: unknown): MoodBookingBlockRule | null {
+  if (!isPlainObject(value)) return null;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const startDate = typeof value.startDate === 'string' ? value.startDate : '';
+  const endDate = typeof value.endDate === 'string' ? value.endDate : '';
+  const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
+  const mode = value.mode;
+  const weekdays = value.weekdays;
+
+  if (!RULE_ID_RE.test(id) || typeof value.enabled !== 'boolean') return null;
+  if (isoWeekday(startDate) === null || isoWeekday(endDate) === null || startDate > endDate) return null;
+  if (!Array.isArray(weekdays) || weekdays.length < 1 || weekdays.length > 7) return null;
+  if (!weekdays.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)) return null;
+  if (new Set(weekdays).size !== weekdays.length) return null;
+  if (mode !== 'full_day' && mode !== 'starts_from') return null;
+  if (mode === 'full_day' && value.startTime !== null) return null;
+  if (mode === 'starts_from' && (typeof value.startTime !== 'string' || timeMinutes(value.startTime) === null)) return null;
+  if (!reason || reason.length > 500) return null;
+
+  return {
+    id,
+    enabled: value.enabled,
+    startDate,
+    endDate,
+    weekdays: [...weekdays].sort((left, right) => left - right),
+    mode,
+    startTime: mode === 'starts_from' ? String(value.startTime) : null,
+    reason,
+  };
 }
 
-/** 해당 날짜·시각 조합으로 새 예약/변경을 막아야 하는지 반환한다. */
-export function isMoodEveningBookingBlocked(date: string, startTime: string): boolean {
-  if (!isMoodEveningBlackoutDate(date)) return false;
+/** 서버 payload 를 엄격히 검사한다. 하나라도 손상되면 일부 규칙만 조용히 적용하지 않는다. */
+export function parseMoodBookingAvailability(value: unknown): MoodBookingAvailability | null {
+  if (!isPlainObject(value)) return null;
+  if (value.schemaVersion !== 1 || !Number.isInteger(value.revision) || Number(value.revision) < 0) return null;
+  if (!Array.isArray(value.rules) || value.rules.length > MAX_RULES) return null;
+  const rules = value.rules.map(parseRule);
+  if (rules.some((rule) => !rule)) return null;
+  const safeRules = rules as MoodBookingBlockRule[];
+  if (new Set(safeRules.map((rule) => rule.id)).size !== safeRules.length) return null;
+  return { schemaVersion: 1, revision: Number(value.revision), rules: safeRules };
+}
+
+function resolveAvailability(value: MoodBookingAvailability | null | undefined): MoodBookingAvailability | null {
+  if (value === undefined) return DEFAULT_MOOD_BOOKING_AVAILABILITY;
+  return parseMoodBookingAvailability(value);
+}
+
+function matchingRules(date: string, availability: MoodBookingAvailability | null | undefined): MoodBookingBlockRule[] {
+  const safe = resolveAvailability(availability);
+  const weekday = isoWeekday(date);
+  if (!safe || weekday === null) return [];
+  // startDate와 endDate는 모두 포함(inclusive)하는 한국 달력 날짜 경계다.
+  return safe.rules.filter((rule) => (
+    rule.enabled
+    && date >= rule.startDate
+    && date <= rule.endDate
+    && rule.weekdays.includes(weekday)
+  ));
+}
+
+/** 해당 날짜 전체에 걸린 차단 요약. 캘린더 배지와 날짜 안내가 함께 쓴다. */
+export function getMoodBookingDateRestriction(
+  date: string,
+  availability?: MoodBookingAvailability | null,
+): MoodBookingDateRestriction | null {
+  const rules = matchingRules(date, availability);
+  if (!rules.length) return null;
+  const fullDayRule = rules.find((rule) => rule.mode === 'full_day');
+  if (fullDayRule) {
+    return { fullDay: true, startTime: null, reason: fullDayRule.reason, rules };
+  }
+  const timed = rules
+    .filter((rule) => rule.startTime)
+    .sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)));
+  if (!timed.length) return null;
+  return { fullDay: false, startTime: timed[0].startTime, reason: timed[0].reason, rules };
+}
+
+/** 신규 예약에 적용되는 차단 상태. 설정 누락·손상은 availabilityReady=false + blocked=true. */
+export function getMoodBookingBlockStatus(
+  date: string,
+  startTime: string,
+  availability?: MoodBookingAvailability | null,
+): MoodBookingBlockStatus {
+  const safe = resolveAvailability(availability);
+  if (!safe) return { blocked: true, availabilityReady: false, rule: null };
   const minutes = timeMinutes(startTime);
-  return minutes !== null && minutes >= BLACKOUT_START_MINUTES;
+  if (isoWeekday(date) === null || minutes === null) {
+    return { blocked: false, availabilityReady: true, rule: null };
+  }
+  const rules = matchingRules(date, safe);
+  const fullDayRule = rules.find((rule) => rule.mode === 'full_day');
+  if (fullDayRule) return { blocked: true, availabilityReady: true, rule: fullDayRule };
+  const timedRule = rules
+    .filter((rule) => rule.startTime && minutes >= Number(timeMinutes(String(rule.startTime))))
+    .sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)))[0];
+  return { blocked: Boolean(timedRule), availabilityReady: true, rule: timedRule || null };
+}
+
+export function isMoodBookingBlocked(
+  date: string,
+  startTime: string,
+  availability?: MoodBookingAvailability | null,
+): boolean {
+  return getMoodBookingBlockStatus(date, startTime, availability).blocked;
+}
+
+/** 정확히 같은 확정 날짜·시각은 새 차단 규칙과 무관하게 유지할 수 있다. */
+export function isMoodBookingChangeBlocked(
+  originalDate: string,
+  originalStartTime: string,
+  nextDate: string,
+  nextStartTime: string,
+  availability?: MoodBookingAvailability | null,
+): boolean {
+  if (originalDate === nextDate && originalStartTime === nextStartTime) return false;
+  return isMoodBookingBlocked(nextDate, nextStartTime, availability);
+}
+
+export function formatMoodBookingTime(value: string | null): string {
+  if (!value || timeMinutes(value) === null) return '';
+  const [hourText, minuteText] = value.split(':');
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const period = hour < 12 ? '오전' : '오후';
+  const displayHour = hour % 12 || 12;
+  return `${period} ${displayHour}시${minute ? ` ${minute}분` : ''}`;
+}
+
+export function formatMoodBookingRuleSummary(rule: MoodBookingBlockRule): string {
+  const start = `${Number(rule.startDate.slice(5, 7))}월 ${Number(rule.startDate.slice(8, 10))}일`;
+  const end = `${Number(rule.endDate.slice(5, 7))}월 ${Number(rule.endDate.slice(8, 10))}일`;
+  const dateRange = rule.startDate === rule.endDate ? start : `${start}~${end}`;
+  const weekdays = rule.weekdays.length === 7
+    ? '매일'
+    : rule.weekdays.map((day) => WEEKDAY_LABELS[day]).join('·');
+  const block = rule.mode === 'full_day'
+    ? '하루 종일 예약 불가'
+    : `${formatMoodBookingTime(rule.startTime)} 이후 시작 예약 불가`;
+  return `${dateRange} ${weekdays} · ${block}`;
+}
+
+export function formatMoodBookingRestrictionLabel(restriction: MoodBookingDateRestriction): string {
+  return restriction.fullDay
+    ? '하루 종일 예약 불가'
+    : `${formatMoodBookingTime(restriction.startTime)} 이후 시작 예약 불가`;
+}
+
+/** 아직 끝나지 않은 활성 규칙만 공지에 노출한다. */
+export function getMoodBookingNoticeRules(
+  date: string,
+  availability?: MoodBookingAvailability | null,
+): MoodBookingBlockRule[] {
+  const safe = resolveAvailability(availability);
+  if (!safe || isoWeekday(date) === null) return [];
+  return safe.rules.filter((rule) => rule.enabled && rule.endDate >= date);
 }
 
 /** 실행 환경의 시간대와 무관한 한국 오늘 날짜를 반환한다. */
@@ -58,7 +255,19 @@ export function moodKstDateISO(now = new Date()): string {
   return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-/** 고정 공지를 보여 줄 기간인지 반환한다. 정책 종료 다음 날부터 자동으로 숨긴다. */
+export function moodKstTimeHHMM(now = new Date()): string {
+  return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(11, 16);
+}
+
+// ── 레거시 helper 이름: 배포 전 하드코딩 규칙을 그대로 보존한다. ──
+export function isMoodEveningBlackoutDate(date: string): boolean {
+  return Boolean(getMoodBookingDateRestriction(date));
+}
+
+export function isMoodEveningBookingBlocked(date: string, startTime: string): boolean {
+  return isMoodBookingBlocked(date, startTime);
+}
+
 export function shouldShowMoodEveningBlackoutNotice(date: string): boolean {
-  return isoWeekday(date) !== null && date >= NOTICE_START_DATE && date <= BLACKOUT_END_DATE;
+  return isoWeekday(date) !== null && date >= NOTICE_START_DATE && date <= DEFAULT_MOOD_BOOKING_AVAILABILITY.rules[0].endDate;
 }

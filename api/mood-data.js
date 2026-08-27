@@ -24,6 +24,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail, isSettlementApproverEmail } from './_shared/mood-allowlist.js';
+import { getMoodBookingAvailability } from './_shared/mood-booking-availability.js';
 import { decodeRouteSnapshot } from './_shared/mood-route-snapshot.js';
 import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 
@@ -396,6 +397,7 @@ export default async function handler(req, res) {
     }
     const admin = isAdminEmail(allowlist, email);
     const canApproveSettlement = isSettlementApproverEmail(allowlist, email);
+    const bookingAvailability = await getMoodBookingAvailability(db);
 
     const url = new URL(req.url, `https://${req.headers.host}`);
     const queryClientId = (url.searchParams.get('clientId') || '').trim();
@@ -504,6 +506,7 @@ export default async function handler(req, res) {
         clientId,
         client: { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
         bookings,
+        bookingAvailability,
         isAdmin: admin,
         canApproveSettlement,
       },
@@ -515,6 +518,7 @@ export default async function handler(req, res) {
       || err.code === 'INVALID_COURSE_SHARE'
       || err.code === 'INVALID_SETTLEMENT_APPROVAL'
       || err.code === 'INVALID_BOOKING_CHANGE_APPROVAL'
+      || err.code === 'INVALID_BOOKING_AVAILABILITY_CONFIG'
     )) {
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: err.code }));
