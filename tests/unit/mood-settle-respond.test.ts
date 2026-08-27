@@ -174,12 +174,13 @@ describe('승인 권한 — fail-closed', () => {
     expect(clientDoc().balanceKRW).toBe(START_BALANCE);
   });
 
-  it('승인자가 운영자 목록에도 들어 있으면 두 번째 승인자가 될 수 없다', async () => {
+  it('비고정 admins 잔재는 직원을 관리자로 승격시키지 않고 확인 전용 권한을 유지한다', async () => {
     resetSettlementWorld({ allowlist: moodAllowlistDoc({ admins: [ADMIN_EMAIL, MOOD_APPROVER_EMAIL] }) });
     const proposalId = await proposalIdOrThrow();
     const res = await approveAs(MOOD_APPROVER_EMAIL, proposalId);
-    expect(res.status).toBe(403);
-    expect(clientDoc().balanceKRW).toBe(START_BALANCE);
+    expect(res.status).toBe(200);
+    expect(res.json.data.status).toBe('approved');
+    expect(clientDoc().balanceKRW).toBe(START_BALANCE - DELTA);
   });
 
   it('다른 회사 소속 승인자는 이 client 제안에 접근하지 못한다', async () => {

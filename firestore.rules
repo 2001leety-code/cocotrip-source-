@@ -512,7 +512,8 @@ service cloud.firestore {
     //   mood_clients   — 광고사 client + 선불 잔액 (balanceKRW)
     //   mood_bookings  — 예약 (잔액 차감 결과)
     //   mood_topups    — 충전 이력
-    //   mood_config    — allowlist (emails/admins/clientId)
+    //   mood_config    — allowlist + 예약 차단 설정
+    //   mood_booking_block_audit — 예약 차단 설정 변경 감사 이력
     //   전부 read/write: if false — 클라이언트 SDK 직접 접근 절대 금지.
     //   모든 read/write 는 백엔드 API (admin SDK) 경유: /api/mood-data, mood-book,
     //   mood-topup. 돈(잔액) 차감은 runTransaction 으로만 → 더블스펜드/음수 불가.
@@ -521,6 +522,7 @@ service cloud.firestore {
     match /mood_bookings/{bookingId} { allow read, write: if false; }
     match /mood_topups/{topupId}     { allow read, write: if false; }
     match /mood_config/{docId}       { allow read, write: if false; }
+    match /mood_booking_block_audit/{requestId} { allow read, write: if false; }
     // mood_settlement_audit — 정산 확정/정정 불변 감사 이력 (mood-settle.js·mood-settle-correct.js
     //   만 admin SDK 로 append). 여태 catch-all 암묵 거부에만 의존했을 항목이라 명시 배치(위
     //   plan_issued_orders 주석과 같은 이유).

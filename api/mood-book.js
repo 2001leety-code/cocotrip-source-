@@ -46,7 +46,10 @@ import { normalizeMoodRouteSchedule } from './_shared/mood-route-schedule.js';
 import { notify } from './_shared/notify.js';
 import {
   checkMoodBookingAvailability,
+  getMoodBookingAvailability,
   isValidMoodBookingDate,
+  moodBookingAvailabilityFromSnapshot,
+  moodBookingAvailabilityRef,
 } from './_shared/mood-booking-availability.js';
 
 export const maxDuration = 15;
@@ -120,6 +123,16 @@ function normalizeCourseMoodPercentages(raw, stopCount, requestedSchemaVersion) 
     return { ok: false, error: 'INVALID_COURSE_MOOD_PERCENTAGES' };
   }
   return { ok: true, value: raw.slice() };
+}
+
+async function readStoredBookingResponse(idempotencyRef, payloadHash) {
+  const existingRequest = await idempotencyRef.get();
+  if (!existingRequest.exists) return { missing: true };
+  const saved = existingRequest.data() || {};
+  if (saved.payloadHash !== payloadHash || saved.operation !== 'book') {
+    return { missing: false, ok: false, error: 'IDEMPOTENCY_CONFLICT' };
+  }
+  return { missing: false, ok: true, responseData: saved.responseData };
 }
 
 export default async function handler(req, res) {
@@ -273,21 +286,43 @@ export default async function handler(req, res) {
 
     // ── 4) 경로 계산 (origin/destination 있을 때만) ─────────
     // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
-    if (idempotencyRef) {
-      const existingRequest = await idempotencyRef.get();
-      if (existingRequest.exists) {
-        const saved = existingRequest.data() || {};
-        if (saved.payloadHash !== payloadHash || saved.operation !== 'book') {
-          res.writeHead(409, JSON_HEADERS);
-          return res.end(JSON.stringify({ ok: false, error: 'IDEMPOTENCY_CONFLICT' }));
-        }
-        res.writeHead(200, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: true, data: saved.responseData }));
-      }
+    const initialReplay = await readStoredBookingResponse(idempotencyRef, payloadHash);
+    if (!initialReplay.missing) {
+      res.writeHead(initialReplay.ok ? 200 : 409, JSON_HEADERS);
+      return res.end(JSON.stringify(initialReplay.ok
+        ? { ok: true, data: initialReplay.responseData }
+        : { ok: false, error: initialReplay.error }));
     }
 
-    const availability = checkMoodBookingAvailability(String(date), String(startTime));
+    let bookingAvailability;
+    try {
+      bookingAvailability = await getMoodBookingAvailability(db);
+    } catch (error) {
+      // 첫 조회 직후 동일 키의 선행 요청이 commit됐을 수 있다. 손상 설정 오류보다
+      // 이미 저장된 성공 응답을 우선 재생해 재시도 결과가 뒤집히지 않게 한다.
+      const lateReplay = await readStoredBookingResponse(idempotencyRef, payloadHash);
+      if (!lateReplay.missing) {
+        res.writeHead(lateReplay.ok ? 200 : 409, JSON_HEADERS);
+        return res.end(JSON.stringify(lateReplay.ok
+          ? { ok: true, data: lateReplay.responseData }
+          : { ok: false, error: lateReplay.error }));
+      }
+      throw error;
+    }
+    const availability = checkMoodBookingAvailability(
+      String(date),
+      String(startTime),
+      bookingAvailability,
+    );
     if (!availability.ok) {
+      // 첫 멱등 조회와 정책 조회 사이에 같은 요청이 성공했으면 그 결과가 정본이다.
+      const lateReplay = await readStoredBookingResponse(idempotencyRef, payloadHash);
+      if (!lateReplay.missing) {
+        res.writeHead(lateReplay.ok ? 200 : 409, JSON_HEADERS);
+        return res.end(JSON.stringify(lateReplay.ok
+          ? { ok: true, data: lateReplay.responseData }
+          : { ok: false, error: lateReplay.error }));
+      }
       res.writeHead(409, JSON_HEADERS);
       return res.end(JSON.stringify({
         ok: false,
@@ -364,6 +399,7 @@ export default async function handler(req, res) {
 
     const clientRef = db.collection('mood_clients').doc(clientId);
     const bookingRef = db.collection('mood_bookings').doc(); // 새 doc id 미리 확보
+    const bookingAvailabilityRef = moodBookingAvailabilityRef(db);
 
     // ── 6) 🔴 원자적 잔액 차감 + 예약 생성 (외상 허용) ─────
     // runTransaction 안에서 read→write. balanceKRW 가 commit 전 변경되면 Firestore
@@ -380,9 +416,26 @@ export default async function handler(req, res) {
           return { ok: true, replayed: true, responseData: saved.responseData };
         }
       }
-      const clientSnap = await tx.get(clientRef);
+      const [clientSnap, bookingAvailabilitySnap] = await Promise.all([
+        tx.get(clientRef),
+        tx.get(bookingAvailabilityRef),
+      ]);
       if (!clientSnap.exists) {
         return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
+      }
+      const currentBookingAvailability = moodBookingAvailabilityFromSnapshot(bookingAvailabilitySnap);
+      const currentAvailability = checkMoodBookingAvailability(
+        String(date),
+        String(startTime),
+        currentBookingAvailability,
+      );
+      if (!currentAvailability.ok) {
+        return {
+          ok: false,
+          status: 409,
+          error: currentAvailability.error,
+          reason: currentAvailability.reason,
+        };
       }
       const clientData = clientSnap.data() || {};
       const balanceKRW = clientData.balanceKRW;
@@ -474,7 +527,11 @@ export default async function handler(req, res) {
 
     if (!txResult.ok) {
       res.writeHead(txResult.status, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: txResult.error }));
+      return res.end(JSON.stringify({
+        ok: false,
+        error: txResult.error,
+        ...(txResult.reason ? { reason: txResult.reason } : {}),
+      }));
     }
     if (txResult.replayed) {
       res.writeHead(200, JSON_HEADERS);

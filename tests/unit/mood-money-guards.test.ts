@@ -99,7 +99,13 @@ function fakeDbForData() {
   return {
     collection(name: string) {
       if (name === 'mood_bookings') return bookingsQuery;
-      return { doc: () => ({ get: async () => clientSnap }) }; // mood_clients
+      return {
+        doc: (id: string) => ({
+          get: async () => name === 'mood_config' && id === 'booking_availability'
+            ? { exists: false, data: () => undefined }
+            : clientSnap,
+        }),
+      }; // mood_clients + 누락된 예약 차단 설정
     },
   };
 }

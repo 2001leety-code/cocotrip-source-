@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   MOOD_EVENING_BLACKOUT_NOTICE,
+  getMoodBookingBlockStatus,
+  getMoodBookingDateRestriction,
   isMoodEveningBlackoutDate,
   isMoodEveningBookingBlocked,
+  isMoodBookingChangeBlocked,
   moodKstDateISO,
+  parseMoodBookingAvailability,
   shouldShowMoodEveningBlackoutNotice,
 } from '../../src/lib/moodBookingAvailability';
 
@@ -58,5 +62,53 @@ describe('MOOD 임시 저녁 예약 제한', () => {
   it('한국 날짜는 실행 환경 시간대와 관계없이 자정 경계가 일정하다', () => {
     expect(moodKstDateISO(new Date('2026-09-15T14:59:59.000Z'))).toBe('2026-09-15');
     expect(moodKstDateISO(new Date('2026-09-15T15:00:00.000Z'))).toBe('2026-09-16');
+  });
+
+  it('서버 설정의 종일·시각 차단을 같은 판정기로 적용한다', () => {
+    const availability = parseMoodBookingAvailability({
+      schemaVersion: 1,
+      revision: 4,
+      rules: [
+        { id: 'holiday', enabled: true, startDate: '2026-10-03', endDate: '2026-10-03', weekdays: [6], mode: 'full_day', startTime: null, reason: '휴무' },
+        { id: 'evening', enabled: true, startDate: '2026-10-01', endDate: '2026-10-31', weekdays: [1], mode: 'starts_from', startTime: '17:30', reason: '저녁 운영' },
+      ],
+    });
+
+    expect(availability).not.toBeNull();
+    expect(getMoodBookingBlockStatus('2026-10-03', '09:00', availability).rule?.id).toBe('holiday');
+    expect(getMoodBookingBlockStatus('2026-10-05', '17:29', availability).blocked).toBe(false);
+    expect(getMoodBookingBlockStatus('2026-10-05', '17:30', availability).rule?.id).toBe('evening');
+    expect(getMoodBookingDateRestriction('2026-10-03', availability)?.fullDay).toBe(true);
+  });
+
+  it('이틀 차단은 시작일과 종료일을 모두 포함하고 다음 날부터 해제한다', () => {
+    const availability = parseMoodBookingAvailability({
+      schemaVersion: 1,
+      revision: 5,
+      rules: [{
+        id: 'two-day-break',
+        enabled: true,
+        startDate: '2026-10-01',
+        endDate: '2026-10-02',
+        weekdays: [0, 1, 2, 3, 4, 5, 6],
+        mode: 'full_day',
+        startTime: null,
+        reason: '이틀 휴무',
+      }],
+    });
+
+    expect(getMoodBookingBlockStatus('2026-10-01', '09:00', availability).blocked).toBe(true);
+    expect(getMoodBookingBlockStatus('2026-10-02', '09:00', availability).blocked).toBe(true);
+    expect(getMoodBookingBlockStatus('2026-10-03', '09:00', availability).blocked).toBe(false);
+  });
+
+  it('누락·손상 설정은 신규 예약을 막되 정확히 같은 확정 날짜·시각은 유지한다', () => {
+    expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: [{ id: 'bad' }] })).toBeNull();
+    const validRule = { id: 'valid-rule', enabled: true, startDate: '2026-10-01', endDate: '2026-10-01', weekdays: [4], mode: 'full_day', startTime: null, reason: '휴무' };
+    expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: [{ ...validRule, id: 'invalid id' }] })).toBeNull();
+    expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: Array.from({ length: 51 }, (_, index) => ({ ...validRule, id: `rule-${index}` })) })).toBeNull();
+    expect(getMoodBookingBlockStatus('2026-09-10', '10:00', null)).toMatchObject({ blocked: true, availabilityReady: false });
+    expect(isMoodBookingChangeBlocked('2026-09-10', '10:00', '2026-09-10', '10:00', null)).toBe(false);
+    expect(isMoodBookingChangeBlocked('2026-09-10', '10:00', '2026-09-10', '10:01', null)).toBe(true);
   });
 });

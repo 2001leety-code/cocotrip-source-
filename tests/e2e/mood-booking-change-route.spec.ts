@@ -44,6 +44,48 @@ async function assertVisibleControlsAreTappable(page: Page) {
 test.describe('MOOD 예약 변경 경로 편집', () => {
   test.skip(!runsAgainstLocalDev, '개발 전용 /mood/dev-ui 하네스에서만 실행합니다.');
 
+  test('390px 관리자 예약 차단 화면은 한 화면 스크롤에서 읽고 조작할 수 있다', async ({ page }) => {
+    const leakedApiRequests = await blockUnexpectedApiTraffic(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/mood/dev-ui');
+
+    const manager = page.locator('details[aria-label="예약 차단 관리"]');
+    await manager.locator('summary').click();
+    await expect(manager.getByText(/기존 확정 예약은 유지됩니다/)).toBeVisible();
+    await expect(manager.getByText(/8월 15일~9월 15일 목·금·토/).first()).toBeVisible();
+    await manager.getByRole('button', { name: '+ 차단 추가' }).click();
+
+    await manager.getByRole('button', { name: '특정 시각부터' }).click();
+    await manager.getByLabel('차단 시작 시각').fill('19:30');
+    await manager.getByLabel('차단 사유').fill('행사 운영으로 배차 불가');
+    await expect(manager.getByRole('button', { name: '규칙 저장' })).toBeEnabled();
+
+    const undersized = await manager.locator('button, input, textarea, summary').evaluateAll((elements) => (
+      elements
+        .filter((element) => {
+          const style = window.getComputedStyle(element);
+          const box = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+        })
+        .map((element) => {
+          const box = element.getBoundingClientRect();
+          return {
+            label: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 40) || element.tagName,
+            width: Math.round(box.width * 10) / 10,
+            height: Math.round(box.height * 10) / 10,
+          };
+        })
+        .filter((item) => item.width < 44 || item.height < 44)
+    ));
+    expect(undersized).toEqual([]);
+    expect(await manager.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return !['auto', 'scroll'].includes(style.overflowY) || element.scrollHeight <= element.clientHeight;
+    })).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(leakedApiRequests).toEqual([]);
+  });
+
   test('390px 모바일에서 순서를 바꾸고 운영자 제안→MOOD 확인으로 한 번만 확정한다', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (message) => {

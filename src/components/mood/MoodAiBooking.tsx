@@ -33,7 +33,12 @@ import {
   type MoodAirportCode,
 } from '@/lib/moodPricing';
 import { exceedsWaypointCap, shouldSendRoute, deriveScheduleTiming } from './moodBookingLogic';
-import { isMoodEveningBlackoutDate, isMoodEveningBookingBlocked } from '@/lib/moodBookingAvailability';
+import {
+  MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE,
+  getMoodBookingBlockStatus,
+  getMoodBookingDateRestriction,
+  type MoodBookingAvailability,
+} from '@/lib/moodBookingAvailability';
 import {
   formatMoodRouteScheduleStopSummary,
   normalizeMoodRouteSchedule,
@@ -159,11 +164,12 @@ function todayISO(): string {
 
 interface MoodAiBookingProps {
   clientId: string;
+  bookingAvailability?: MoodBookingAvailability | null;
   onBooked: () => void;
   onViewStatus?: () => void;
 }
 
-export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookingProps) {
+export function MoodAiBooking({ clientId, bookingAvailability, onBooked, onViewStatus }: MoodAiBookingProps) {
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [parseErr, setParseErr] = useState<string | null>(null);
@@ -206,10 +212,13 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
   const [bookingComplete, setBookingComplete] = useState(false);
   const [bookMsg, setBookMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [courseMoodPercentages, setCourseMoodPercentages] = useState<number[]>([]);
-  const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime);
-  const eveningLimitedButAllowed = Boolean(startTime)
-    && isMoodEveningBlackoutDate(date)
-    && !eveningBookingBlocked;
+  const bookingBlockStatus = getMoodBookingBlockStatus(date, startTime, bookingAvailability);
+  const bookingBlocked = bookingBlockStatus.blocked;
+  const dateRestriction = getMoodBookingDateRestriction(date, bookingAvailability);
+  const timeLimitedButAllowed = Boolean(startTime)
+    && Boolean(dateRestriction)
+    && !dateRestriction?.fullDay
+    && !bookingBlocked;
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
 
@@ -570,8 +579,13 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
     }
     if (!canBook) return;
     if (bookingInFlightRef.current) return;
-    if (eveningBookingBlocked) {
-      setBookMsg({ kind: 'err', text: '선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.' });
+    if (bookingBlocked) {
+      setBookMsg({
+        kind: 'err',
+        text: bookingBlockStatus.availabilityReady
+          ? `${bookingBlockStatus.rule?.reason} 때문에 선택한 날짜·시각에는 예약할 수 없습니다.`
+          : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE,
+      });
       return;
     }
     bookingInFlightRef.current = true;
@@ -647,7 +661,7 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
       bookingInFlightRef.current = false;
       setBooking(false);
     }
-  }, [bookingComplete, onViewStatus, canBook, eveningBookingBlocked, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
+  }, [bookingComplete, onViewStatus, canBook, bookingBlocked, bookingBlockStatus, visibleStops, flightNote, clientId, serviceType, airportCode, airportDirection, date, startTime, durationHours, isFixedPrice, courseMoodPercentages, onBooked]);
 
   return (
     <div className="mood-surface rounded-2xl p-5 flex flex-col gap-4" style={{ background: C.card, border: C.cardBorder }}>
@@ -1145,19 +1159,21 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
             </label>
           </div>
 
-          {eveningBookingBlocked && (
+          {bookingBlocked && (
             <p
               className="rounded-xl px-3 py-2.5 text-xs font-bold"
               role="alert"
               style={{ color: '#fecaca', background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.32)' }}
             >
-              선택한 날짜에는 오후 6시 이후 시작 예약을 할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+              {bookingBlockStatus.availabilityReady
+                ? `${bookingBlockStatus.rule?.reason} 때문에 ${date} ${startTime} 시작 예약을 할 수 없습니다.`
+                : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE}
             </p>
           )}
 
-          {eveningLimitedButAllowed && (
+          {timeLimitedButAllowed && (
             <p className="text-xs font-semibold" role="status" style={{ color: C.ok }}>
-              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 종료가 오후 6시를 넘어도 괜찮습니다. 주소·동선 확인 후 예약해 주세요.
+              ✓ 시간 제한 통과: {date} {startTime} 시작 가능 · 제한은 시작 시각에만 적용됩니다. 주소·동선 확인 후 예약해 주세요.
             </p>
           )}
 
@@ -1289,14 +1305,18 @@ export function MoodAiBooking({ clientId, onBooked, onViewStatus }: MoodAiBookin
             <button
               type="button"
               onClick={() => { void handleBook(); }}
-              disabled={booking || !canBook || eveningBookingBlocked}
+              disabled={booking || !canBook || bookingBlocked}
               className="mood-primary-action min-h-12 w-full rounded-xl px-4 font-bold disabled:opacity-50"
               style={{ background: C.accent, color: '#fff' }}
             >
               {booking
                 ? '예약 중…'
-                : eveningBookingBlocked
-                  ? '오후 6시 이후 시작 예약 불가'
+                : bookingBlocked
+                  ? !bookingBlockStatus.availabilityReady
+                    ? '예약 차단 설정 확인 필요'
+                    : bookingBlockStatus.rule?.mode === 'full_day'
+                      ? '해당 날짜 예약 불가'
+                      : '선택 시각 예약 불가'
                   : hasBlockingStop
                     ? '🔴 주소 확인 후 예약 가능'
                     : hasTooFewStops

@@ -49,10 +49,13 @@ import {
   type MoodRouteScheduleStop,
 } from '@/lib/moodRouteSchedule';
 import {
-  MOOD_EVENING_BLACKOUT_NOTICE,
-  isMoodEveningBookingBlocked,
+  MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE,
+  formatMoodBookingRuleSummary,
+  getMoodBookingBlockStatus,
+  getMoodBookingNoticeRules,
+  isMoodBookingChangeBlocked,
   moodKstDateISO,
-  shouldShowMoodEveningBlackoutNotice,
+  type MoodBookingAvailability,
 } from '@/lib/moodBookingAvailability';
 
 interface RouteData {
@@ -430,6 +433,7 @@ interface Props {
   balanceKRW: number;
   isAdmin?: boolean;
   canApprove?: boolean;
+  bookingAvailability?: MoodBookingAvailability | null;
   onClose: () => void;
   onChanged: () => Promise<void> | void;
 }
@@ -785,8 +789,8 @@ export function MoodBookingChangeModal(props: Props) {
   return <MoodBookingChangeEditor {...props} />;
 }
 
-function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose, onChanged }: Props) {
-  const showEveningBlackoutNotice = shouldShowMoodEveningBlackoutNotice(moodKstDateISO());
+function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, bookingAvailability, onClose, onChanged }: Props) {
+  const bookingNoticeRules = getMoodBookingNoticeRules(moodKstDateISO(), bookingAvailability);
   const initialWaypoints = Array.isArray(booking.breakdown?.waypoints) ? booking.breakdown.waypoints.slice(0, 5) : [];
   const initialPayerCount = initialWaypoints.length + 2;
   const hasStoredCourseShare = Array.isArray(booking.courseMoodPercentages) || Array.isArray(booking.coursePayers);
@@ -859,11 +863,17 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
   const waypoints = routeAddresses.slice(1, -1);
   const routeStarted = routeAddresses.some(Boolean);
   const routeComplete = routeStarted && routeAddresses.every(Boolean);
-  const originalTimeIsGrandfathered = isMoodEveningBookingBlocked(booking.date, booking.startTime);
-  const keepsGrandfatheredTime = originalTimeIsGrandfathered
-    && date === booking.date
-    && startTime === booking.startTime;
-  const eveningBookingBlocked = isMoodEveningBookingBlocked(date, startTime) && !keepsGrandfatheredTime;
+  const originalBlockStatus = getMoodBookingBlockStatus(booking.date, booking.startTime, bookingAvailability);
+  const exactOriginalTime = date === booking.date && startTime === booking.startTime;
+  const keepsGrandfatheredTime = exactOriginalTime && (originalBlockStatus.blocked || !originalBlockStatus.availabilityReady);
+  const nextBlockStatus = getMoodBookingBlockStatus(date, startTime, bookingAvailability);
+  const bookingChangeBlocked = isMoodBookingChangeBlocked(
+    booking.date,
+    booking.startTime,
+    date,
+    startTime,
+    bookingAvailability,
+  );
   const courseMoodPercentages = routeStops.map((stop) => stop.moodPercentage);
   const courseItems = routeStops
     .map((stop, index) => ({ address: stop.address.trim(), percentageIndex: index }))
@@ -1360,7 +1370,11 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
     if (serviceType !== 'airport' && (!Number.isFinite(durationHours) || durationHours < 1 || durationHours > 15)) {
       return setMessage('이용 시간은 1시간 이상 15시간 이하로 입력해 주세요.');
     }
-    if (eveningBookingBlocked) return setMessage('선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.');
+    if (bookingChangeBlocked) {
+      return setMessage(nextBlockStatus.availabilityReady
+        ? `${nextBlockStatus.rule?.reason} 때문에 선택한 날짜·시각으로 변경할 수 없습니다.`
+        : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE);
+    }
     if (!hasChanges) return setMessage('변경된 내용이 없습니다.');
     if (!reason.trim()) return setMessage('변경 이유를 입력해 주세요.');
     if (quoteRequired && !isAdmin) return setMessage('금액에 영향을 주는 변경은 운영자만 요청할 수 있습니다.');
@@ -1526,14 +1540,21 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
           <label className="text-sm font-bold sm:col-span-2">탑승 인플루언서<input value={influencerName} maxLength={100} onChange={(event) => setInfluencerName(event.target.value)} placeholder="공유 화면에 표시할 이름" className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3" /></label>
           </div>
 
-        {showEveningBlackoutNotice && <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" role="note">
-          <p className="text-xs font-bold text-amber-200">📌 {MOOD_EVENING_BLACKOUT_NOTICE}</p>
-          <p className="mt-1 text-xs text-slate-300">오후 6시 전에 시작하면 종료가 6시를 넘어도 변경할 수 있습니다. 이미 확정된 예약은 그대로 유효합니다.</p>
+        {bookingNoticeRules.length > 0 && <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" role="note" aria-label="예약 제한 안내">
+          <p className="text-xs font-bold text-amber-200">예약 제한 안내</p>
+          <ul className="mt-1 space-y-1 text-xs text-slate-200">
+            {bookingNoticeRules.map((rule) => (
+              <li key={rule.id}>{formatMoodBookingRuleSummary(rule)} · {rule.reason}</li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-slate-300">시각 제한은 시작 시각에만 적용됩니다. 이미 확정된 날짜·시각은 그대로 유지할 수 있습니다.</p>
         </div>}
 
-        {eveningBookingBlocked && (
+        {bookingChangeBlocked && (
           <p className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200" role="alert">
-            선택한 날짜에는 오후 6시 이후 시작 예약으로 변경할 수 없습니다. 시작 시각을 오후 6시 전으로 바꿔 주세요.
+            {nextBlockStatus.availabilityReady
+              ? `${nextBlockStatus.rule?.reason} 때문에 ${date} ${startTime} 시작으로 변경할 수 없습니다.`
+              : MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE}
           </p>
         )}
         {keepsGrandfatheredTime && (
@@ -1810,7 +1831,7 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
           <button
             type="button"
             onClick={submit}
-            disabled={!!submittingAction || routeBlocked || eveningBookingBlocked || !hasChanges || !reason.trim() || (quoteRequired && !isAdmin)}
+            disabled={!!submittingAction || routeBlocked || bookingChangeBlocked || !hasChanges || !reason.trim() || (quoteRequired && !isAdmin)}
             className="mood-primary-action min-h-14 w-full rounded-2xl bg-violet-500 px-4 text-base font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {submittingAction === 'preview'
@@ -1819,8 +1840,12 @@ function MoodBookingChangeEditor({ booking, balanceKRW, isAdmin = false, onClose
                 ? '변경 확정 중…'
                 : submittingAction === 'propose'
                   ? 'MOOD 확인 요청 중…'
-                : eveningBookingBlocked
-                  ? '오후 6시 이후 변경 불가'
+                : bookingChangeBlocked
+                  ? !nextBlockStatus.availabilityReady
+                    ? '예약 차단 설정 확인 필요'
+                    : nextBlockStatus.rule?.mode === 'full_day'
+                      ? '해당 날짜로 변경 불가'
+                      : '선택 시각으로 변경 불가'
                   : routeBlocked
                     ? '빈 장소를 확인해 주세요'
                     : !hasChanges

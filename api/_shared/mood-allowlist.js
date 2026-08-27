@@ -4,7 +4,7 @@
  * Firestore `mood_config/allowlist` 문서:
  *   {
  *     emails:  string[]   // 운영자 + 광고사 직원 — 조회/예약 가능
- *     admins:  string[]   // 운영자만 — 충전(topup) 가능
+ *     admins:  string[]   // 고정 운영자 1인의 활성화 스위치 — 충전(topup) 가능
  *     settlementApproverEmails: string[] // MOOD 금액 승인자 — 없으면 승인 불가(fail-closed)
  *     clientId: string    // v1 단일 client 가정 — 모든 예약/조회가 이 client 기준
  *   }
@@ -17,6 +17,10 @@
  */
 
 const ALLOWLIST_PATH = ['mood_config', 'allowlist'];
+
+// MOOD 관리자 권한은 이 단일 계정에만 귀속된다. Firestore admins 배열은
+// 긴급 차단 스위치 역할도 하므로, 이 이메일이 배열에서 빠지면 권한을 주지 않는다.
+export const PRIMARY_MOOD_ADMIN_EMAIL = '2001leety@gmail.com';
 
 function normEmail(e) {
   return String(e || '').toLowerCase().trim();
@@ -55,17 +59,23 @@ export function isAllowedEmail(allowlist, email) {
  * @returns {boolean}
  */
 export function isAdminEmail(allowlist, email) {
-  return allowlist.admins.includes(normEmail(email));
+  const admins = Array.isArray(allowlist && allowlist.admins)
+    ? allowlist.admins.map(normEmail).filter(Boolean)
+    : [];
+  return normEmail(email) === PRIMARY_MOOD_ADMIN_EMAIL
+    && admins.includes(PRIMARY_MOOD_ADMIN_EMAIL);
 }
 
 /**
  * 인증된 email 이 MOOD 최종 정산 금액을 승인할 수 있는지.
  * 목록이 없거나 잘못된 경우 빈 배열로 정규화되므로 반드시 false(fail-closed)다.
- * 운영자(admin)는 이 목록에 실수로 함께 들어가도 두 번째 승인자가 될 수 없다.
+ * 고정 관리자는 admins 설정이 빠져도 이 목록을 통해 확인자로 우회할 수 없다.
  */
 export function isSettlementApproverEmail(allowlist, email) {
   const approvers = Array.isArray(allowlist && allowlist.settlementApproverEmails)
-    ? allowlist.settlementApproverEmails
+    ? allowlist.settlementApproverEmails.map(normEmail).filter(Boolean)
     : [];
-  return approvers.includes(normEmail(email)) && !isAdminEmail(allowlist, email);
+  const normalizedEmail = normEmail(email);
+  return normalizedEmail !== PRIMARY_MOOD_ADMIN_EMAIL
+    && approvers.includes(normalizedEmail);
 }

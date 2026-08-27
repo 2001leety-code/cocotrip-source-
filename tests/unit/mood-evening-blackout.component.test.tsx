@@ -60,6 +60,20 @@ const parseResponse = {
 
 let parsePayload = parseResponse;
 let routeShouldFail = false;
+const bookingAvailability = {
+  schemaVersion: 1,
+  revision: 3,
+  rules: [{
+    id: 'legacy-evening-blackout-2026',
+    enabled: true,
+    startDate: '2026-08-15',
+    endDate: '2026-09-15',
+    weekdays: [4, 5, 6],
+    mode: 'starts_from',
+    startTime: '18:00',
+    reason: '예약 운영 일정',
+  }],
+};
 
 function response(json: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => json };
@@ -74,7 +88,7 @@ beforeEach(() => {
     if (target.includes('/api/mood-data')) {
       return response({
         ok: true,
-        data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: false },
+        data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: false, bookingAvailability },
       });
     }
     if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
@@ -95,21 +109,21 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
   it('고정 공지, 캘린더 표시·선택 설명, 수기 예약 즉시 차단을 함께 보여 준다', async () => {
     render(<MoodPortal />);
 
-    const notice = await screen.findByRole('note', { name: '임시 예약 제한 안내' });
-    expect(notice).toHaveTextContent('8월 15일~9월 15일 목·금·토는 오후 6시 이후 시작 예약 불가');
+    const notice = await screen.findByRole('note', { name: '예약 제한 안내' });
+    expect(notice).toHaveTextContent('8월 15일~9월 15일 목·금·토 · 오후 6시 이후 시작 예약 불가');
     expect(notice).toHaveTextContent('이미 확정된 예약은 그대로 유효합니다');
 
     const limitedDay = screen.getByRole('button', { name: '2026-08-15 · 오후 6시 이후 시작 예약 불가' });
     expect(limitedDay).toHaveTextContent('18시+');
     fireEvent.click(limitedDay);
-    expect(screen.getByRole('status')).toHaveTextContent('2026-08-15는 오후 6시 이후 시작 예약 제한일입니다');
+    expect(screen.getByRole('status')).toHaveTextContent('2026-08-15 · 오후 6시 이후 시작 예약 불가');
 
     fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-08-15' } });
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });
 
-    expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약을 할 수 없습니다');
-    expect(screen.getByRole('button', { name: '오후 6시 이후 시작 예약 불가' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('예약 운영 일정 때문에 2026-08-15 18:00 시작 예약을 할 수 없습니다');
+    expect(screen.getByRole('button', { name: '선택 시각 예약 불가' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '17:59' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -118,7 +132,7 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
 
   it('사진 속 9월 2일·5일 시작 시각은 예약 가능하고 5일의 종료 시각 기준 오해를 풀어 준다', async () => {
     render(<MoodPortal />);
-    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    await screen.findByRole('note', { name: '예약 제한 안내' });
     fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
 
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-02' } });
@@ -134,7 +148,7 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
 
   it('수기 예약이 주소 때문에 막히면 날짜 대신 정확한 해결 방법을 버튼에 표시한다', async () => {
     render(<MoodPortal />);
-    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    await screen.findByRole('note', { name: '예약 제한 안내' });
     fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
 
     fireEvent.click(screen.getByRole('button', { name: '출발지 테스트 주소 선택' }));
@@ -147,7 +161,7 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
   it('주소 경로를 계산하지 못하면 해결 문구를 표시하고 예약 요청을 보내지 않는다', async () => {
     routeShouldFail = true;
     render(<MoodPortal />);
-    await screen.findByRole('note', { name: '임시 예약 제한 안내' });
+    await screen.findByRole('note', { name: '예약 제한 안내' });
     fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
 
     fireEvent.click(screen.getByRole('button', { name: '출발지 테스트 주소 선택' }));
@@ -185,9 +199,9 @@ describe('MoodAiBooking 임시 저녁 제한 UI', () => {
     fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '9월 10일 18시 서울역 출발, 성수동 도착' } });
     fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
 
-    const blockedButton = await screen.findByRole('button', { name: '오후 6시 이후 시작 예약 불가' });
+    const blockedButton = await screen.findByRole('button', { name: '선택 시각 예약 불가' });
     expect(blockedButton).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약을 할 수 없습니다');
+    expect(screen.getByRole('alert')).toHaveTextContent('18:00 이후 예약 불가 때문에 2026-09-10 18:00 시작 예약을 할 수 없습니다');
     expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
 
     fireEvent.change(screen.getByLabelText(/시작 시각/), { target: { value: '17:59' } });
@@ -238,8 +252,8 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
     expect(screen.getByRole('button', { name: '변경 내용과 금액 미리보기' })).toBeEnabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:01' } });
-    expect(screen.getByRole('alert')).toHaveTextContent('오후 6시 이후 시작 예약으로 변경할 수 없습니다');
-    expect(screen.getByRole('button', { name: '오후 6시 이후 변경 불가' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('18:00 이후 예약 불가 때문에 2026-09-10 18:01 시작으로 변경할 수 없습니다');
+    expect(screen.getByRole('button', { name: '선택 시각으로 변경 불가' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '17:59' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -252,6 +266,6 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-10' } });
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });
 
-    expect(screen.getByRole('button', { name: '오후 6시 이후 변경 불가' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '선택 시각으로 변경 불가' })).toBeDisabled();
   });
 });
