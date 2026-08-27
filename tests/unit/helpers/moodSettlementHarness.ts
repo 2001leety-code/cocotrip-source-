@@ -14,8 +14,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Vercel req/res 를 작게 모사한다. */
 import { vi } from 'vitest';
 import { makeFakeDb, type FakeDb } from './fakeFirestore';
+import { PRIMARY_MOOD_ADMIN_EMAIL } from '../../../api/_shared/mood-allowlist.js';
 
-export const ADMIN_EMAIL = 'admin@x.com';
+export const ADMIN_EMAIL = PRIMARY_MOOD_ADMIN_EMAIL;
 export const MOOD_APPROVER_EMAIL = 'finance@moodclient.com';
 export const MOOD_STAFF_EMAIL = 'staff@moodclient.com';
 export const OTHER_COMPANY_EMAIL = 'other@rival.com';

@@ -6,6 +6,7 @@ import {
   moodBookingAvailabilityFromSnapshot,
   normalizeMoodBookingAvailabilityRule,
 } from '../../api/_shared/mood-booking-availability.js';
+import { PRIMARY_MOOD_ADMIN_EMAIL } from '../../api/_shared/mood-allowlist.js';
 
 const verifyUserTokenMock = vi.fn();
 const captureErrorMock = vi.fn();
@@ -56,15 +57,6 @@ vi.mock('../../api/_shared/user-auth.js', () => ({
   verifyUserToken: (...args: any[]) => verifyUserTokenMock(...args),
 }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbMock }));
-vi.mock('../../api/_shared/mood-allowlist.js', () => ({
-  getMoodAllowlist: async () => ({
-    emails: ['admin@x.com', 'staff@x.com'],
-    admins: ['admin@x.com'],
-    clientId: 'MOOD',
-  }),
-  isAllowedEmail: (allowlist: any, email: string) => allowlist.emails.includes(email),
-  isAdminEmail: (allowlist: any, email: string) => allowlist.admins.includes(email),
-}));
 vi.mock('../../api/_shared/cors.js', () => ({ buildAdminJsonCors: () => ({}) }));
 vi.mock('../../api/_shared/sentry.js', () => ({
   captureError: (...args: any[]) => captureErrorMock(...args),
@@ -115,13 +107,13 @@ beforeEach(() => {
   store.clear();
   beforeTransaction = undefined;
   store.set('mood_config/allowlist', {
-    emails: ['admin@x.com', 'staff@x.com'],
-    admins: ['admin@x.com'],
+    emails: [PRIMARY_MOOD_ADMIN_EMAIL, 'staff@x.com'],
+    admins: [PRIMARY_MOOD_ADMIN_EMAIL],
     clientId: 'MOOD',
   });
   verifyUserTokenMock.mockResolvedValue({
     ok: true,
-    email: 'admin@x.com',
+    email: PRIMARY_MOOD_ADMIN_EMAIL,
     uid: 'admin-1',
     emailVerified: true,
   });
@@ -217,7 +209,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
     expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 1 });
     expect(store.get('mood_booking_block_audit/upsert-request-001')).toMatchObject({
       action: 'upsert',
-      actorEmail: 'admin@x.com',
+      actorEmail: PRIMARY_MOOD_ADMIN_EMAIL,
       previousRevision: 0,
       revision: 1,
       ruleId: 'sep-photo-block',
@@ -253,7 +245,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
   it('바깥 권한 확인 뒤 admins에서 회수되면 같은 트랜잭션에서 쓰기를 중단한다', async () => {
     beforeTransaction = () => {
       store.set('mood_config/allowlist', {
-        emails: ['admin@x.com', 'staff@x.com'],
+        emails: [PRIMARY_MOOD_ADMIN_EMAIL, 'staff@x.com'],
         admins: [],
         clientId: 'MOOD',
       });
@@ -266,6 +258,29 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
     expect(result.json.error).toBe('ADMIN_REQUIRED');
     expect(store.get('mood_config/booking_availability')).toBeUndefined();
     expect(store.get('mood_booking_block_audit/revoked-admin-001')).toBeUndefined();
+  });
+
+  it('admins 배열에 잘못 남은 비고정 직원도 예약 차단 정책을 수정하지 못한다', async () => {
+    store.set('mood_config/allowlist', {
+      emails: [PRIMARY_MOOD_ADMIN_EMAIL, 'legacy@x.com'],
+      admins: [PRIMARY_MOOD_ADMIN_EMAIL, 'legacy@x.com'],
+      clientId: 'MOOD',
+    });
+    verifyUserTokenMock.mockResolvedValue({
+      ok: true,
+      email: 'legacy@x.com',
+      uid: 'legacy-1',
+      emailVerified: true,
+    });
+
+    const result = await callApi('POST', {
+      action: 'upsert', expectedRevision: 0, requestId: 'stray-admin-denied-001', rule: CUSTOM_RULE,
+    });
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.json.error).toBe('ADMIN_REQUIRED');
+    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_booking_block_audit/stray-admin-denied-001')).toBeUndefined();
   });
 
   it('delete는 단일 규칙만 제거하고 같은 requestId 재시도에 revision을 재증가시키지 않는다', async () => {

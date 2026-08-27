@@ -3,11 +3,11 @@
  *
  * mood_config/allowlist 문서의 세 배열을 편집:
  *   - emails: 조회/예약 권한 (운영자 + 광고사 직원)
- *   - admins: 충전(topup) 권한 (운영자만)
+ *   - admins: 고정 관리자 1인 + 과거 오설정 정리 대상
  *   - settlementApproverEmails: MOOD 금액 확인 담당자(admins 와 겹치지 않음)
  *
  * 인증: Authorization: Bearer <Firebase ID token>.
- *   - 토큰 email 이 mood_config/allowlist.admins (운영자만) 에 없으면 403.
+ *   - 토큰 email 이 고정 관리자이면서 mood_config/allowlist.admins 에 남아 있지 않으면 403.
  *   - emailVerified=false 도 403 (defense-in-depth) — 권한 변경 = 민감 경계.
  *
  * GET:  현재 { emails, admins, settlementApproverEmails, clientId } 반환. (운영자 전용)
@@ -15,14 +15,18 @@
  *   - 정규화 소문자 + 유효 이메일 형식 검증 + 중복 방지.
  *   - Firestore 트랜잭션 (동시 편집 안전 — read-modify-write).
  *   - 실제 권한 변경은 mood_access_audit 불변 감사 문서와 같이 기록.
- *   - ⚠️ 안전장치: admins 마지막 1인 제거는 거부 (잠금 방지 — admins 0개 금지).
+ *   - admins 추가는 금지하고, 고정 관리자는 제거할 수 없음. 비고정 잔재만 정리 가능.
  *   - clientId 는 이 API 로 안 건드림 (별도 관리).
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
+import {
+  getMoodAllowlist,
+  isAdminEmail,
+  PRIMARY_MOOD_ADMIN_EMAIL,
+} from './_shared/mood-allowlist.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -94,6 +98,7 @@ export default async function handler(req, res) {
           admins: allowlist.admins,
           settlementApproverEmails: allowlist.settlementApproverEmails,
           clientId: allowlist.clientId,
+          primaryAdminEmail: PRIMARY_MOOD_ADMIN_EMAIL,
         },
       }));
     }
@@ -132,10 +137,19 @@ export default async function handler(req, res) {
       const admins = normalizedList(data.admins);
       const approvers = normalizedList(data.settlementApproverEmails);
 
+      // 최초 조회 뒤 권한이 회수될 수 있으므로, 최신 트랜잭션 스냅샷으로 다시 확인한다.
+      // 이 검사는 멱등/no-op 분기보다 앞에 있어야 회수된 actor가 성공 응답도 받지 못한다.
+      if (!isAdminEmail({ admins }, email)) {
+        return { ok: false, status: 403, error: '관리 권한 없음 (운영자 전용)' };
+      }
+
       const idx = current.indexOf(targetEmail);
       let next;
 
       if (action === 'add') {
+        if (list === 'admins' && targetEmail !== PRIMARY_MOOD_ADMIN_EMAIL) {
+          return { ok: false, status: 409, error: 'MOOD 관리자는 고정 계정만 사용할 수 있습니다.' };
+        }
         if (idx !== -1) {
           // 이미 존재 — 멱등 성공 (변경 없음).
           return { ok: true, changed: false, list, action, emails: current };
@@ -159,9 +173,8 @@ export default async function handler(req, res) {
           // 없는 걸 지움 — 멱등 성공 (변경 없음).
           return { ok: true, changed: false, list, action, emails: current };
         }
-        // ⚠️ 잠금 방지 — admins 마지막 1인 제거 금지 (admins 0개 되면 아무도 관리 불가).
-        if (list === 'admins' && current.length <= 1) {
-          return { ok: false, status: 409, error: '마지막 운영자는 제거할 수 없습니다 (잠금 방지)' };
+        if (list === 'admins' && targetEmail === PRIMARY_MOOD_ADMIN_EMAIL) {
+          return { ok: false, status: 409, error: '고정 MOOD 관리자는 제거할 수 없습니다.' };
         }
         if (list === 'emails' && (approvers.includes(targetEmail) || admins.includes(targetEmail))) {
           return { ok: false, status: 409, error: '금액 제안 운영자·MOOD 확인 담당자 권한을 먼저 제거해 주세요.' };
