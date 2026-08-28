@@ -43,7 +43,7 @@ describe('백엔드 — 경로 좌표 반환', () => {
     expect(src).toMatch(/const path\s*=\s*Array\.isArray\(route0\.path\)/);
     expect(src).toMatch(/role:\s*'origin'/);
     expect(src).toMatch(/role:\s*'destination'/);
-    expect(src).toContain('return { ok: true, km, tollKRW, durationMin, path, points }');
+    expect(src).toContain('return { ok: true, distanceMeters: Math.round(distanceMeters), km, tollKRW, durationMin, path, points }');
   });
   it('/api/mood-route 응답 data 에 path/points 포함', () => {
     const src = readFileSync(r('api/mood-route.js'), 'utf8');

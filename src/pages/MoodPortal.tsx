@@ -24,6 +24,7 @@ import { signalAppReady } from '@/lib/appReady';
 import { maxConcurrentCount } from '@/lib/moodOverlap';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import { MoodAiBooking } from '@/components/mood/MoodAiBooking';
+import { MoodQuoteBuilder } from '@/components/mood/MoodQuoteBuilder';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodGuideModal } from '@/components/mood/MoodGuideModal';
 import {
@@ -62,7 +63,8 @@ import {
 import { NAVER_DIRECTIONS_MAX_STOPS, naverMapDirectionsUrl } from '@/lib/naverMap';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
-import { getLocaleSync } from '@/i18n';
+import { getLocaleSync, type Language } from '@/i18n';
+import { useLanguage } from '@/hooks/useLanguage';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -179,8 +181,15 @@ interface MoodData {
 
 type LedgerTab = 'today' | 'upcoming' | 'settle' | 'calendar' | 'all';
 
-/** 상단 3-탭 — 현황 / 수기 예약 / AI 예약. */
-type PortalTab = 'status' | 'manual' | 'ai';
+/** 상단 탭 — 일반 MOOD 직원은 3개, 관리자만 업체 견적 탭까지 4개. */
+type PortalTab = 'status' | 'manual' | 'ai' | 'quote';
+
+const QUOTE_TAB_LABEL: Record<Language, string> = {
+  ko: '견적',
+  en: 'Quote',
+  ja: '見積',
+  zh: '报价',
+};
 
 /** 경로 마커 좌표 (출발/경유/도착) — 지도 핀용. */
 interface MoodRoutePoint {
@@ -385,11 +394,20 @@ function moodShareDataFromBooking(booking: MoodBooking, routeOverride?: MoodRout
 
 export default function MoodPortal() {
   const { user, loading } = useAuth();
+  const { language } = useLanguage();
+  const accountIdentity = user?.uid || user?.email || '';
 
-  const [data, setData] = useState<MoodData | null>(null);
+  // 계정 전환 직후에는 이전 사용자의 응답을 절대 재사용하지 않는다. 같은 계정의
+  // 새로고침은 기존 화면을 유지하되, uid(테스트 대역은 email)가 바뀌면 아래 data
+  // 별칭이 첫 렌더부터 null 이 되어 관리자 UI와 고객 입력 컴포넌트를 즉시 내린다.
+  const [loadedData, setLoadedData] = useState<{ accountIdentity: string; value: MoodData } | null>(null);
+  const data = accountIdentity && loadedData?.accountIdentity === accountIdentity
+    ? loadedData.value
+    : null;
   const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [forbidden, setForbidden] = useState(false);
+  const dataRequestSeq = useRef(0);
 
   // 상단 3-탭 (현황 / 수기 예약 / AI 예약)
   const [portalTab, setPortalTab] = useState<PortalTab>('status');
@@ -482,16 +500,19 @@ export default function MoodPortal() {
   );
   const estimate = breakdown.amountKRW;
 
-  const loadData = useCallback(async (clientId?: string) => {
+  const loadData = useCallback(async (clientId?: string, requestedAccountIdentity = accountIdentity) => {
+    if (!requestedAccountIdentity) return;
+    const requestSeq = ++dataRequestSeq.current;
     setDataLoading(true);
     setDataError(null);
     try {
       const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
       const res = await authFetch(`/api/mood-data${qs}`);
       const json = await res.json().catch(() => ({}));
+      if (requestSeq !== dataRequestSeq.current) return;
       if (res.status === 403) {
         setForbidden(true);
-        setData(null);
+        setLoadedData(null);
         return;
       }
       if (!json?.ok) {
@@ -500,22 +521,42 @@ export default function MoodPortal() {
       }
       setForbidden(false);
       const rawData = json.data as Omit<MoodData, 'bookingAvailability'> & { bookingAvailability?: unknown };
-      setData({
-        ...rawData,
-        bookingAvailability: parseMoodBookingAvailability(rawData.bookingAvailability),
+      setLoadedData({
+        accountIdentity: requestedAccountIdentity,
+        value: {
+          ...rawData,
+          bookingAvailability: parseMoodBookingAvailability(rawData.bookingAvailability),
+        },
       });
     } catch (e) {
+      if (requestSeq !== dataRequestSeq.current) return;
       setDataError(e instanceof Error ? e.message : '조회 실패');
     } finally {
-      setDataLoading(false);
+      if (requestSeq === dataRequestSeq.current) setDataLoading(false);
     }
-  }, []);
+  }, [accountIdentity]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- auth identity change is a privacy boundary: stale customer/admin state must be dropped before the next account response */
+  useEffect(() => {
+    // 같은 uid의 일반 재조회(loadData 호출)는 기존 화면을 유지한다. 여기서는 실제
+    // 로그인 계정 변경/로그아웃 때만 요청 경합과 관리자 전용 탭 상태를 초기화한다.
+    dataRequestSeq.current += 1;
+    setLoadedData(null);
+    setDataError(null);
+    setDataLoading(false);
+    setForbidden(false);
+    setPortalTab('status');
+    if (accountIdentity) void loadData(undefined, accountIdentity);
+  }, [accountIdentity, loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
-    // 로그인 시 1회 데이터 로드 — loadData 내부 setState 는 의도된 fetch-on-mount 패턴.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (user) loadData();
-  }, [user, loadData]);
+    // 권한이 회수되거나 다른 client 데이터를 다시 불러오면 관리자 전용 화면을 즉시 닫는다.
+    if (data && !data.isAdmin && portalTab === 'quote') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPortalTab('status');
+    }
+  }, [data, portalTab]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- selected booking data is copied into the capture preview state */
   useEffect(() => {
@@ -1134,18 +1175,30 @@ export default function MoodPortal() {
         {data?.isAdmin && (
           <MoodBookingBlockManager
             availability={bookingAvailability}
-            onUpdated={(nextAvailability) => setData((current) => current ? { ...current, bookingAvailability: nextAvailability } : current)}
+            onUpdated={(nextAvailability) => setLoadedData((current) => (
+              current && current.accountIdentity === accountIdentity
+                ? { ...current, value: { ...current.value, bookingAvailability: nextAvailability } }
+                : current
+            ))}
             onReload={() => loadData(data.clientId)}
           />
         )}
 
-        {/* 상단 3-탭 (현황 / 수기 예약 / AI 예약) — 다크 pill */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
-          {([
-            ['status', '현황'],
-            ['manual', '수기 예약'],
-            ['ai', 'AI 예약'],
-          ] as const).map(([tab, label]) => {
+        {/* 관리자에게만 업체 견적 탭을 추가한다. 프론트 숨김은 UX이고 API도 관리자 권한을 재검증한다. */}
+        <div className={`grid ${data?.isAdmin ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 rounded-2xl p-1`} style={{ background: 'rgba(10,4,18,0.6)', border: C.cardBorder }}>
+          {(data?.isAdmin
+            ? ([
+                ['status', '현황'],
+                ['manual', '수기 예약'],
+                ['ai', 'AI 예약'],
+                ['quote', QUOTE_TAB_LABEL[language]],
+              ] as const)
+            : ([
+                ['status', '현황'],
+                ['manual', '수기 예약'],
+                ['ai', 'AI 예약'],
+              ] as const)
+          ).map(([tab, label]) => {
             const active = portalTab === tab;
             return (
               <button
@@ -1153,7 +1206,7 @@ export default function MoodPortal() {
                 type="button"
                 onClick={() => setPortalTab(tab)}
                 aria-pressed={active}
-                className="mood-tab min-h-11 rounded-xl px-2 text-sm font-bold"
+                className="mood-tab min-h-11 min-w-0 rounded-xl px-1 text-xs font-bold sm:px-2 sm:text-sm"
                 style={{
                   background: active ? C.accent : 'transparent',
                   color: active ? '#fff' : C.textDim,
@@ -1844,6 +1897,11 @@ export default function MoodPortal() {
             onBooked={() => { void loadData(data?.clientId); }}
             onViewStatus={() => setPortalTab('status')}
           />
+        )}
+
+        {/* 업체별 견적서는 실제 예약·잔액·결제와 분리된 관리자 전용 도구다. */}
+        {portalTab === 'quote' && data?.isAdmin && (
+          <MoodQuoteBuilder />
         )}
 
         {/* ═══ 현황 탭 (이어서) ═══ 예약 운영 보드 */}
