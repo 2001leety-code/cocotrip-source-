@@ -88,6 +88,8 @@ export interface MoodQuoteText {
   routeMode: string;
   routeAutomatic: string;
   routeManual: string;
+  automaticRouteLimit: string;
+  automaticRouteLimitExceeded: string;
   manualDistance: string;
   manualToll: string;
   parking: string;
@@ -159,6 +161,8 @@ const ko: MoodQuoteText = {
   searchPlace: '장소 검색', searchPlaceholder: '장소명 또는 주소', search: '검색', searching: '검색 중…',
   searchNoResults: '검색 결과가 없습니다.', usePlace: '이 장소 사용', quoteSection: '4. 견적 조건', routeMode: '거리 입력 방식',
   routeAutomatic: '주소로 자동 계산', routeManual: '거리 직접 입력', manualDistance: '예상 거리(km)', manualToll: '예상 통행료(원)', parking: '예상 주차비(원)',
+  automaticRouteLimit: '자동 계산은 최대 13개 주소(출발·복귀 주소를 모두 쓰면 운행 포함 장소 11개)까지입니다. 더 많은 일정은 거리 직접 입력을 선택하세요. 수동 일정은 장소 40개까지 유지됩니다.',
+  automaticRouteLimitExceeded: '자동 경로 주소는 최대 13개입니다. 운행 포함 장소를 줄이거나 거리 직접 입력을 선택해 주세요.',
   incidentalAmountHint: '통행료·주차비가 없으면 0을 입력하세요. 원 단위 정수만 사용할 수 있습니다.',
   generatePreview: '견적서 미리보기', generatingPreview: '계산 중…', previewNeedsRefresh: '내용이 바뀌었습니다. 견적서를 다시 계산해 주세요.',
   previewSection: '5. 고객용 문서', routeSummary: '운행 예상', distance: '거리', drivingTime: '이동시간', timeFee: '시간요금',
@@ -194,6 +198,8 @@ const en: MoodQuoteText = {
   addressVerified: 'Address verified', verificationReset: 'Editing an address requires verification again.', moveUp: 'Move up', moveDown: 'Move down', remove: 'Delete',
   searchPlace: 'Search place', searchPlaceholder: 'Place name or address', search: 'Search', searching: 'Searching…', searchNoResults: 'No results found.',
   usePlace: 'Use this place', quoteSection: '4. Quote inputs', routeMode: 'Distance source', routeAutomatic: 'Calculate from addresses', routeManual: 'Enter distance manually',
+  automaticRouteLimit: 'Automatic routing supports up to 13 addresses (11 included stops when both departure and return are set). For longer schedules, enter the distance manually. Manual schedules still support up to 40 stops.',
+  automaticRouteLimitExceeded: 'Automatic routing supports at most 13 addresses. Remove included stops or enter the distance manually.',
   manualDistance: 'Estimated distance (km)', manualToll: 'Estimated tolls (KRW)', parking: 'Estimated parking (KRW)',
   incidentalAmountHint: 'Enter 0 when there is no toll or parking cost. Use whole KRW amounts only.', generatePreview: 'Preview quote',
   generatingPreview: 'Calculating…', previewNeedsRefresh: 'Details changed. Recalculate the quote.', previewSection: '5. Client document', routeSummary: 'Route estimate',
@@ -227,6 +233,8 @@ const ja: MoodQuoteText = {
   moveUp: '上へ', moveDown: '下へ', remove: '削除', searchPlace: '場所検索', searchPlaceholder: '場所名または住所', search: '検索', searching: '検索中…',
   searchNoResults: '検索結果がありません。', usePlace: 'この場所を使用', quoteSection: '4. 見積条件', routeMode: '距離入力方式', routeAutomatic: '住所から自動計算',
   routeManual: '距離を直接入力', manualDistance: '予想距離（km）', manualToll: '予想通行料（ウォン）', parking: '予想駐車料（ウォン）',
+  automaticRouteLimit: '自動計算は最大13住所（出発・帰着住所を両方入力する場合は経路に含む場所11件）までです。それ以上は距離を直接入力してください。手動日程は40件まで維持されます。',
+  automaticRouteLimitExceeded: '自動ルートは最大13住所です。経路に含む場所を減らすか、距離を直接入力してください。',
   incidentalAmountHint: '通行料・駐車料がない場合は0を入力してください。ウォン単位の整数のみ使用できます。',
   generatePreview: '見積書プレビュー', generatingPreview: '計算中…', previewNeedsRefresh: '内容が変更されました。再計算してください。', previewSection: '5. お客様用文書',
   routeSummary: '走行予想', distance: '距離', drivingTime: '移動時間', timeFee: '時間料金', distanceFee: '距離料金', supplyAmount: '供給価額', vat: '付加価値税',
@@ -256,6 +264,8 @@ const zh: MoodQuoteText = {
   optionalSchedule: '可选行程', includeInRoute: '计入行驶路线', addressVerified: '地址已确认', verificationReset: '修改地址后需要重新确认。', moveUp: '上移', moveDown: '下移',
   remove: '删除', searchPlace: '搜索地点', searchPlaceholder: '地点名称或地址', search: '搜索', searching: '搜索中…', searchNoResults: '没有搜索结果。',
   usePlace: '使用此地点', quoteSection: '4. 报价条件', routeMode: '里程输入方式', routeAutomatic: '按地址自动计算', routeManual: '手动输入里程',
+  automaticRouteLimit: '自动路线最多支持13个地址（同时填写出发与返回地址时，可计入路线的地点最多11个）。更多行程请手动输入里程；手动行程仍支持最多40个地点。',
+  automaticRouteLimitExceeded: '自动路线最多支持13个地址。请减少计入路线的地点，或改为手动输入里程。',
   manualDistance: '预计里程（km）', manualToll: '预计过路费（韩元）', parking: '预计停车费（韩元）',
   incidentalAmountHint: '没有过路费或停车费时请输入0，仅可输入以韩元为单位的整数。', generatePreview: '预览报价单', generatingPreview: '计算中…',
   previewNeedsRefresh: '内容已更改，请重新计算报价。', previewSection: '5. 客户文件', routeSummary: '行驶预估', distance: '里程', drivingTime: '行驶时间',

@@ -26,6 +26,10 @@ export const VEHICLE_QUOTE_BILLING_INCREMENTS: readonly BillingIncrementMinutes[
   60,
 ];
 
+// Naver Directions 한 번에 7개 주소를 처리한다. 서버리스 30초 예산 안에서
+// 순차 호출을 두 번으로 제한하기 위해 자동 경로는 최대 13개 주소만 허용한다.
+export const VEHICLE_QUOTE_MAX_AUTOMATIC_ROUTE_ADDRESSES = 13;
+
 export interface VehicleQuoteProfile {
   id: string;
   version: number;

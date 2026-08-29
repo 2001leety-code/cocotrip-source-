@@ -261,6 +261,31 @@ describe('mood vehicle quote builder', () => {
     expect(request.stops[0].addressVerified).toBe(false);
   });
 
+  it('limits automatic routing to 13 addresses but keeps a long schedule usable with manual distance', async () => {
+    activeParsed = {
+      ...activeParsed,
+      stops: Array.from({ length: 12 }, (_, index) => ({
+        ...PARSED.stops[0],
+        order: index + 1,
+        name: index === 0 ? PARSED.stops[0].name : `장소 ${index + 1}`,
+        roadAddress: `서울특별시 경로로 ${index + 1}`,
+      })),
+    };
+    await renderAndAnalyze();
+    const addressChecks = screen.getAllByRole('checkbox', { name: '주소 확인 완료' });
+    expect(addressChecks).toHaveLength(12);
+    addressChecks.forEach((checkbox) => fireEvent.click(checkbox));
+    addressChecks.forEach((checkbox) => expect(checkbox).toBeChecked());
+
+    const previewButton = screen.getByRole('button', { name: '견적서 미리보기' });
+    expect(previewButton).toBeDisabled();
+    expect(screen.getByText(/자동 계산은 최대 13개 주소/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: '거리 직접 입력' }));
+    fireEvent.change(screen.getByLabelText('예상 거리(km)'), { target: { value: '125' } });
+    expect(previewButton).toBeEnabled();
+  });
+
   it('offers a route estimate for tolls but not for parking', async () => {
     render(<MoodQuoteBuilder />);
     await screen.findByRole('option', { name: /MOOD/ });
@@ -427,6 +452,75 @@ describe('mood vehicle quote builder', () => {
     fireEvent.change(screen.getAllByLabelText('일정 내용')[0], { target: { value: '수정된 일정' } });
     expect(screen.queryByTestId('mood-vehicle-quote-preview')).toBeNull();
     expect(screen.getByText('내용이 바뀌었습니다. 견적서를 다시 계산해 주세요.')).toBeTruthy();
+  });
+
+  it('prints only the exact server customer document, without controls or admin inputs', async () => {
+    await renderAndAnalyze();
+    screen.getAllByRole('checkbox', { name: '주소 확인 완료' })
+      .forEach((checkbox) => fireEvent.click(checkbox));
+    fireEvent.click(screen.getByRole('button', { name: '견적서 미리보기' }));
+
+    const preview = await screen.findByTestId('mood-vehicle-quote-preview');
+    const printable = preview.querySelector('[data-mood-quote-print-document]');
+    expect(printable).not.toBeNull();
+    expect(printable?.textContent?.trim()).toBe(PREVIEW.documentText);
+    expect(printable?.querySelector('button, input, textarea, select')).toBeNull();
+    expect(printable).not.toHaveTextContent('받은 일정 전체 붙여넣기');
+
+    fireEvent.click(within(preview).getByRole('button', { name: '인쇄' }));
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts stale parsing, clears the old result on source edits, and applies only the latest text', async () => {
+    render(<MoodQuoteBuilder />);
+    await screen.findByRole('option', { name: /MOOD/ });
+    const firstResponse = deferredResponse();
+    const secondResponse = deferredResponse();
+    let parseRequestCount = 0;
+    authFetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/mood-quote-profiles') {
+        return jsonResponse({ ok: true, data: { profiles: [activeProfile], builtInProfileId: activeProfile.id } });
+      }
+      if (url !== '/api/mood-quote-parse') return jsonResponse({ ok: false });
+      parseRequestCount += 1;
+      return parseRequestCount === 1 ? firstResponse.promise : secondResponse.promise;
+    });
+
+    const source = screen.getByLabelText('받은 일정 전체 붙여넣기');
+    fireEvent.change(source, { target: { value: '첫 번째 일정' } });
+    fireEvent.click(screen.getByRole('button', { name: '일정 분석' }));
+    await waitFor(() => expect(parseRequestCount).toBe(1));
+    const firstParseCall = authFetchMock.mock.calls.find((call) => call[0] === '/api/mood-quote-parse');
+    const firstSignal = firstParseCall?.[1]?.signal as AbortSignal;
+    expect(firstSignal.aborted).toBe(false);
+
+    fireEvent.change(source, { target: { value: '두 번째 일정' } });
+    expect(firstSignal.aborted).toBe(true);
+    expect(screen.queryByRole('button', { name: '시간·장소 확인 완료' })).toBeNull();
+    expect(screen.queryByDisplayValue('기원 위스키 증류소')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '일정 분석' }));
+    await waitFor(() => expect(parseRequestCount).toBe(2));
+
+    const latestParsed = {
+      ...PARSED,
+      stops: [{ ...PARSED.stops[0], name: '최신 일정 장소' }],
+    };
+    await act(async () => {
+      secondResponse.resolve(jsonResponse({ ok: true, data: latestParsed }));
+      await secondResponse.promise;
+    });
+    expect(await screen.findByDisplayValue('최신 일정 장소')).toBeTruthy();
+
+    const olderParsed = {
+      ...PARSED,
+      stops: [{ ...PARSED.stops[0], name: '오래된 일정 장소' }],
+    };
+    await act(async () => {
+      firstResponse.resolve(jsonResponse({ ok: true, data: olderParsed }));
+      await firstResponse.promise;
+    });
+    expect(screen.queryByDisplayValue('오래된 일정 장소')).toBeNull();
+    expect(screen.getByDisplayValue('최신 일정 장소')).toBeTruthy();
   });
 
   it('ignores an older delayed preview after inputs change and only copies the latest response', async () => {

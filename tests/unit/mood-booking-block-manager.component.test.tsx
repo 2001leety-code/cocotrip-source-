@@ -22,6 +22,7 @@ const availability: MoodBookingAvailability = {
     startTime: '18:00',
     reason: '예약 운영 일정',
   }],
+  exceptions: [],
 };
 
 function response(json: unknown, status = 200) {
@@ -61,6 +62,7 @@ describe('MoodBookingBlockManager', () => {
     });
     expect(body.requestId).toMatch(/^mood-block-/);
     await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ revision: 8 })));
+    expect(await screen.findByText('캘린더 반영 완료')).toBeInTheDocument();
   });
 
   it('설정이 없으면 편집 대신 신규 예약 잠금과 다시 불러오기를 제공한다', () => {
@@ -104,5 +106,157 @@ describe('MoodBookingBlockManager', () => {
     expect(secondBody).not.toBeNull();
     expect((secondBody as { requestId: string }).requestId).toBe((firstBody as { requestId: string }).requestId);
     expect((secondBody as { rule: { id: string } }).rule.id).toBe((firstBody as { rule: { id: string } }).rule.id);
+  });
+
+  it('하루만 열기는 ruleIds 없이 예외 초안만 보내고 열린 날짜를 즉시 반영한다', async () => {
+    const onUpdated = vi.fn();
+    authFetchMock.mockResolvedValue(response({
+      ok: true,
+      data: {
+        bookingAvailability: {
+          ...availability,
+          revision: 8,
+          exceptions: [{
+            id: 'open-one-day',
+            enabled: true,
+            startDate: '2026-09-04',
+            endDate: '2026-09-04',
+            ruleIds: ['legacy-evening-blackout-2026'],
+            reason: '촬영 예약 가능',
+          }],
+        },
+      },
+    }));
+
+    render(<MoodBookingBlockManager availability={availability} onUpdated={onUpdated} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '+ 날짜 열기' }));
+    fireEvent.change(screen.getByLabelText('열 날짜'), { target: { value: '2026-09-04' } });
+    fireEvent.change(screen.getByLabelText('여는 사유'), { target: { value: '촬영 예약 가능' } });
+    fireEvent.click(screen.getByRole('button', { name: '이 날짜 열기' }));
+
+    await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(String((authFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body).toMatchObject({
+      action: 'upsert_exception',
+      expectedRevision: 7,
+      exception: {
+        enabled: true,
+        startDate: '2026-09-04',
+        endDate: '2026-09-04',
+        reason: '촬영 예약 가능',
+      },
+    });
+    expect(body.exception.id).toMatch(/^mood-open-date-/);
+    expect(body.exception).not.toHaveProperty('ruleIds');
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ revision: 8 })));
+    expect(screen.getByText('캘린더 반영 완료')).toBeInTheDocument();
+  });
+
+  it('기간 열기는 시작일과 종료일을 양끝 포함 payload로 보낸다', async () => {
+    authFetchMock.mockResolvedValue(response({
+      ok: true,
+      data: {
+        bookingAvailability: {
+          ...availability,
+          revision: 8,
+          exceptions: [{ id: 'open-range', enabled: true, startDate: '2026-09-03', endDate: '2026-09-05', ruleIds: ['legacy-evening-blackout-2026'], reason: '3일 운영' }],
+        },
+      },
+    }));
+
+    render(<MoodBookingBlockManager availability={availability} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '+ 날짜 열기' }));
+    fireEvent.click(screen.getByRole('button', { name: '기간' }));
+    fireEvent.change(screen.getByLabelText('시작일'), { target: { value: '2026-09-03' } });
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-09-05' } });
+    fireEvent.change(screen.getByLabelText('여는 사유'), { target: { value: '3일 운영' } });
+    fireEvent.click(screen.getByRole('button', { name: '이 날짜 열기' }));
+
+    await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(String((authFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.exception).toMatchObject({ startDate: '2026-09-03', endDate: '2026-09-05', reason: '3일 운영' });
+  });
+
+  it('열린 날짜의 다시 차단은 exceptionId로 삭제 요청한다', async () => {
+    const withException: MoodBookingAvailability = {
+      ...availability,
+      exceptions: [{ id: 'open-range', enabled: true, startDate: '2026-09-03', endDate: '2026-09-05', ruleIds: ['legacy-evening-blackout-2026'], reason: '3일 운영' }],
+    };
+    authFetchMock.mockResolvedValue(response({ ok: true, data: { bookingAvailability: { ...availability, revision: 8, exceptions: [] } } }));
+
+    render(<MoodBookingBlockManager availability={withException} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    expect(screen.getByText('영향 규칙 1개 · 3일 운영')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 차단' }));
+
+    await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(String((authFetchMock.mock.calls[0][1] as RequestInit).body))).toMatchObject({
+      action: 'delete_exception',
+      exceptionId: 'open-range',
+      expectedRevision: 7,
+    });
+  });
+
+  it('모든 차단 해제는 두 번 확인한 뒤 하나의 원자 요청만 보낸다', async () => {
+    authFetchMock.mockResolvedValue(response({
+      ok: true,
+      data: { bookingAvailability: { ...availability, revision: 8, rules: availability.rules.map((rule) => ({ ...rule, enabled: false })) } },
+    }));
+    render(<MoodBookingBlockManager availability={availability} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제' }));
+    expect(authFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제 확인' }));
+
+    await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(String((authFetchMock.mock.calls[0][1] as RequestInit).body))).toMatchObject({
+      action: 'set_all_enabled',
+      enabled: false,
+      expectedRevision: 7,
+    });
+  });
+
+  it('409 응답에 최신 설정이 있으면 먼저 반영하고 재시도 안내를 보여 준다', async () => {
+    const onUpdated = vi.fn();
+    const latest = { ...availability, revision: 9, rules: availability.rules.map((rule) => ({ ...rule, enabled: false })) };
+    authFetchMock.mockResolvedValue(response({ ok: false, error: 'REVISION_CONFLICT', data: { bookingAvailability: latest } }, 409));
+    render(<MoodBookingBlockManager availability={availability} onUpdated={onUpdated} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: /사용 중지/ }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ revision: 9 })));
+    expect(screen.getByRole('alert')).toHaveTextContent('최신 변경을 캘린더에 반영했습니다');
+  });
+
+  it('서버 error 필드의 날짜 불일치 코드를 조작 가능한 안내로 바꾼다', async () => {
+    authFetchMock.mockResolvedValue(response({ ok: false, error: 'BOOKING_BLOCK_EXCEPTION_NO_MATCH' }, 409));
+    render(<MoodBookingBlockManager availability={availability} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '+ 날짜 열기' }));
+    fireEvent.change(screen.getByLabelText('열 날짜'), { target: { value: '2026-09-01' } });
+    fireEvent.change(screen.getByLabelText('여는 사유'), { target: { value: '특별 운영' } });
+    fireEvent.click(screen.getByRole('button', { name: '이 날짜 열기' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('적용되는 차단 규칙이 없습니다');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('최신 변경');
+  });
+
+  it.each([
+    ['BOOKING_BLOCK_RULE_LIMIT', '예약 차단 규칙은 최대 50개'],
+    ['BOOKING_BLOCK_EXCEPTION_LIMIT', '열린 날짜는 최대 100개'],
+    ['IDEMPOTENCY_CONFLICT', '같은 요청 번호에 다른 변경 내용'],
+    ['IDEMPOTENCY_RESPONSE_MISSING', '이전 변경 결과를 확인할 수 없습니다'],
+    ['INVALID_BOOKING_AVAILABILITY_CONFIG', '저장된 예약 차단 설정에 문제가 있어 변경할 수 없습니다'],
+  ])('409 %s를 관리자 충돌이 아닌 정확한 안내로 보여 준다', async (error, expectedMessage) => {
+    authFetchMock.mockResolvedValue(response({ ok: false, error }, 409));
+    render(<MoodBookingBlockManager availability={availability} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /사용 중지/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(expectedMessage);
+    expect(alert).not.toHaveTextContent('다른 관리자의 최신 변경');
   });
 });

@@ -5,7 +5,7 @@
 
      2026-07-30:
        · /charter 추가 — 공개 라우트다(로그인벽은 /charter-legacy). 자체 마진 상품이 검색에서 빠져 있었다.
-       · lastmod 없음 — 실제 수정일을 모르면 넣지 않는다. 빌드 시각을 전 URL 에 박으면 거짓 신호가 된다.
+       · lastmod 는 본문·구조를 실제로 크게 고친 URL 에만 넣는다. 빌드 시각을 전 URL 에 박으면 거짓 신호가 된다.
        · changefreq/priority 제거 — 구글이 무시하는 값이다. 남겨 두면 "SEO 조치를 했다" 는 착시를 준다.
        · /community 제외 — 공개·검수된 글이 쌓일 때까지 색인 보류(현재 공개 글 0건).
      외부 blogspot URL은 여기 넣지 않음(타 도메인). -->
@@ -25,40 +25,40 @@
   <url><loc>https://cocotripkr.com/guide/gyeongju-koreas-open-air-museum-guide</loc></url>
   <url><loc>https://cocotripkr.com/guide/seoul-cafe-guide-2026-best</loc></url>
   <url><loc>https://cocotripkr.com/guide/how-to-ace-your-first-k-pop-concert-in</loc></url>
-  <url><loc>https://cocotripkr.com/guide/how-weak-won-makes-korea-cheaper-for</loc></url>
+  <url><loc>https://cocotripkr.com/guide/how-weak-won-makes-korea-cheaper-for</loc><lastmod>2026-08-29</lastmod></url>
   <url><loc>https://cocotripkr.com/guide/how-to-find-halal-food-in-seoul-2026</loc></url>
   <url><loc>https://cocotripkr.com/guide/kpop-big-4-hq-tour-seoul-hybe-sm-jyp-yg</loc></url>
-  <url><loc>https://cocotripkr.com/guide/best-temple-stays-in-korea-2026-guide</loc></url>
-  <url><loc>https://cocotripkr.com/guide/korea-sim-card-vs-esim-vs-pocket-wifi</loc></url>
-  <url><loc>https://cocotripkr.com/guide/seoul-k-beauty-shopping-2026-olive</loc></url>
-  <url><loc>https://cocotripkr.com/guide/incheon-to-seoul-late-night-arex-bus-t</loc></url>
+  <url><loc>https://cocotripkr.com/guide/best-temple-stays-in-korea-2026-guide</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/guide/korea-sim-card-vs-esim-vs-pocket-wifi</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/guide/seoul-k-beauty-shopping-2026-olive</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/guide/incheon-to-seoul-late-night-arex-bus-t</loc><lastmod>2026-08-29</lastmod></url>
   <!-- 핵심 -->
   <url><loc>https://cocotripkr.com/</loc></url>
-  <url><loc>https://cocotripkr.com/tours</loc></url>
+  <url><loc>https://cocotripkr.com/tours</loc><lastmod>2026-08-29</lastmod></url>
   <url><loc>https://cocotripkr.com/planner</loc></url>
   <url><loc>https://cocotripkr.com/charter</loc></url>
 
   <!-- 투어 상세 (src/data/tours.ts) -->
-  <url><loc>https://cocotripkr.com/tours/seoul-city-full-day</loc></url>
+  <url><loc>https://cocotripkr.com/tours/seoul-city-full-day</loc><lastmod>2026-08-29</lastmod></url>
   <url><loc>https://cocotripkr.com/tours/seoul-night-tour</loc></url>
   <url><loc>https://cocotripkr.com/tours/danyang-day-tour</loc></url>
-  <url><loc>https://cocotripkr.com/tours/incheon-ganghwa-tour</loc></url>
-  <url><loc>https://cocotripkr.com/tours/dmz-paju-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/incheon-ganghwa-tour</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/tours/dmz-paju-tour</loc><lastmod>2026-08-29</lastmod></url>
   <url><loc>https://cocotripkr.com/tours/nami-island-chuncheon</loc></url>
-  <url><loc>https://cocotripkr.com/tours/gyeongju-day-tour</loc></url>
-  <url><loc>https://cocotripkr.com/tours/busan-day-tour</loc></url>
+  <url><loc>https://cocotripkr.com/tours/gyeongju-day-tour</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/tours/busan-day-tour</loc><lastmod>2026-08-29</lastmod></url>
   <url><loc>https://cocotripkr.com/tours/korea-multicity-3d2n</loc></url>
 
   <!-- 지역 (src/sections/Regions.tsx) -->
   <url><loc>https://cocotripkr.com/region/seoul</loc></url>
   <url><loc>https://cocotripkr.com/region/chuncheon</loc></url>
-  <url><loc>https://cocotripkr.com/region/paju</loc></url>
-  <url><loc>https://cocotripkr.com/region/ganghwa</loc></url>
-  <url><loc>https://cocotripkr.com/region/busan</loc></url>
-  <url><loc>https://cocotripkr.com/region/danyang</loc></url>
-  <url><loc>https://cocotripkr.com/region/incheon</loc></url>
-  <url><loc>https://cocotripkr.com/region/gyeongju</loc></url>
-  <url><loc>https://cocotripkr.com/region/jeonju</loc></url>
+  <url><loc>https://cocotripkr.com/region/paju</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/ganghwa</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/busan</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/danyang</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/incheon</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/gyeongju</loc><lastmod>2026-08-29</lastmod></url>
+  <url><loc>https://cocotripkr.com/region/jeonju</loc><lastmod>2026-08-29</lastmod></url>
 
   <!-- 정책 -->
   <url><loc>https://cocotripkr.com/about</loc></url>

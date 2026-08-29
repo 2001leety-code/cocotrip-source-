@@ -14,6 +14,14 @@ import { REGION_TOUR_SOURCE, MULTICITY_REGIONS } from '../../src/components/regi
 import { INDEXABLE_ROUTES } from '../../src/lib/seoRoutes';
 import { getToursByRegion } from '../../src/data/tours';
 import { CITY_CHIPS } from '../../src/components/WizardForm/data';
+import {
+  INDEXING_CONTENT_REGION_IDS,
+  REGION_DECISION_GUIDES,
+} from '../../src/components/region/regionDecisionContent';
+import ko from '../../src/i18n/locales/ko.json';
+import en from '../../src/i18n/locales/en.json';
+import ja from '../../src/i18n/locales/ja.json';
+import zh from '../../src/i18n/locales/zh.json';
 
 void React;
 
@@ -35,6 +43,152 @@ const REGION_KO_TITLE: Record<string, string> = {
 const REGION_HAS_BATCHIM = new Set(['seoul', 'busan', 'danyang', 'chuncheon', 'incheon']);
 
 describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
+  it('Crawled-not-indexed 7개 지역만 고유 선택 안내를 갖는다', () => {
+    expect(Object.keys(REGION_DECISION_GUIDES).sort()).toEqual([...INDEXING_CONTENT_REGION_IDS].sort());
+
+    const fingerprints = new Set<string>();
+    for (const regionId of INDEXING_CONTENT_REGION_IDS) {
+      const { container, unmount } = render(
+        <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language="en" />,
+      );
+      const guide = container.querySelector('[data-testid="region-decision-guide"]');
+      expect(guide, `${regionId}: 고유 선택 안내 없음`).not.toBeNull();
+      fingerprints.add(guide?.textContent || '');
+      unmount();
+    }
+    expect(fingerprints.size).toBe(INDEXING_CONTENT_REGION_IDS.length);
+
+    for (const regionId of ['seoul', 'chuncheon']) {
+      const { container, unmount } = render(
+        <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language="en" />,
+      );
+      expect(container.querySelector('[data-testid="region-decision-guide"]')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('고유 선택 안내 문구가 지역 7개 × 4개 언어로 비어 있지 않다', () => {
+    for (const regionId of INDEXING_CONTENT_REGION_IDS) {
+      const guide = REGION_DECISION_GUIDES[regionId];
+      for (const language of ['ko', 'en', 'ja', 'zh'] as const) {
+        expect(guide.bestFor[language].length, `${regionId}.${language}.bestFor`).toBeGreaterThan(40);
+        expect(guide.movement[language].length, `${regionId}.${language}.movement`).toBeGreaterThan(40);
+        if (guide.flow.kind === 'editorial') {
+          expect(guide.flow.lead[language].length, `${regionId}.${language}.flow.lead`).toBeGreaterThan(20);
+          expect(guide.flow.steps.every((step) => step[language].length > 8)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('상품형 하루 흐름은 tours.ts의 실제 stop·시간을 그대로 렌더한다', () => {
+    const allTours = getToursByRegion('All');
+    for (const regionId of INDEXING_CONTENT_REGION_IDS) {
+      const guide = REGION_DECISION_GUIDES[regionId];
+      if (guide.flow.kind !== 'tour') continue;
+
+      const tour = allTours.find((entry) => entry.id === guide.flow.tourId);
+      expect(tour, `${regionId}: ${guide.flow.tourId} 상품 없음`).toBeDefined();
+      expect(tour?.stops?.length, `${regionId}: 실제 stop 없음`).toBeGreaterThan(0);
+
+      const { container, unmount } = render(
+        <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language="en" />,
+      );
+      const guideElement = container.querySelector('[data-testid="region-decision-guide"]');
+      expect(guideElement).toHaveTextContent(tour?.stops?.[0].time || 'missing-time');
+      expect(guideElement).toHaveTextContent(tour?.stops?.[0].name.en || 'missing-stop');
+      expect(guideElement?.querySelector(`a[href="/tours/${tour?.slug}"]`)).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('플래너 링크는 CITY_CHIPS가 실제로 지원하는 지역에만 붙는다', () => {
+    for (const regionId of INDEXING_CONTENT_REGION_IDS) {
+      if (!REGION_DECISION_GUIDES[regionId].actions?.includes('planner')) continue;
+      expect(CITY_CHIPS.some((chip) => chip.key === regionId), `${regionId}: 미지원 플래너 링크`).toBe(true);
+    }
+  });
+
+  it('전주 오목대 일본어 표기를 梧木台로 유지한다', () => {
+    const guide = REGION_DECISION_GUIDES.jeonju;
+    expect(guide.flow.kind).toBe('editorial');
+    if (guide.flow.kind !== 'editorial') return;
+    expect(guide.flow.steps.map((step) => step.ja).join(' ')).toContain('梧木台');
+    expect(guide.flow.steps.map((step) => step.ja).join(' ')).not.toContain('五福台');
+  });
+
+  it('전주 명소 locale은 ko/en을 보존하고 ja/zh 오목대를 梧木台로 맞춘다', () => {
+    expect(ko.regionDetail.jeonju.attractions[4].name).toBe('오목대');
+    expect(en.regionDetail.jeonju.attractions[4].name).toBe('Omokdae');
+    expect(ja.regionDetail.jeonju.attractions[4].name).toBe('梧木台');
+    expect(zh.regionDetail.jeonju.attractions[4].name).toBe('梧木台');
+  });
+
+  it('각 고유 안내는 과하지 않은 2~3개의 실제 내부 href로 다음 콘텐츠에 연결된다', () => {
+    for (const regionId of INDEXING_CONTENT_REGION_IDS) {
+      const { container, unmount } = render(
+        <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language="en" />,
+      );
+      const guide = container.querySelector('[data-testid="region-decision-guide"]');
+      const anchors = [...(guide?.querySelectorAll('a[href]') || [])];
+      const hrefs = anchors.map((anchor) => anchor.getAttribute('href') || '');
+
+      expect(anchors.length, `${regionId}: 링크 수 ${anchors.length}`).toBeGreaterThanOrEqual(2);
+      expect(anchors.length, `${regionId}: 링크 수 ${anchors.length}`).toBeLessThanOrEqual(3);
+      expect(new Set(hrefs).size, `${regionId}: 중복 링크`).toBe(hrefs.length);
+      expect(hrefs.every((href) => href.startsWith('/') && !href.startsWith('//'))).toBe(true);
+      unmount();
+    }
+  });
+
+  it('밝은 지역 화면의 선택 안내에 흰색 전용 색을 다시 넣지 않는다', () => {
+    const { container } = render(
+      <RegionSeoInfo regionId="jeonju" regionTitle="Jeonju" language="en" />,
+    );
+    const guide = container.querySelector('[data-testid="region-decision-guide"]');
+    expect(guide).not.toBeNull();
+    expect(guide?.querySelectorAll('[class*="text-white"], [class*="border-white"], [class*="outline-white"]')).toHaveLength(0);
+    expect(guide).toHaveClass('border-ec-line', 'text-ec-ink-2');
+    expect(guide?.querySelector('nav h3')).toHaveClass('text-ec-ink');
+    for (const link of guide?.querySelectorAll('a[href]') || []) {
+      expect(link).toHaveClass('border-ec-line-2', 'bg-ec-raised', 'text-ec-ink', 'focus-visible:ring-ec-brand');
+      expect(link.querySelector('small')).toHaveClass('text-ec-ink-3');
+    }
+  });
+
+  it('상품 동선과 비예약 하루 제안의 제목을 4개 언어에서 구분한다', () => {
+    const expected = {
+      ko: { tour: '공개 상품의 실제 동선', editorial: '하루 구성 제안 (예약 일정 아님)' },
+      en: { tour: 'Route in the published product', editorial: 'Suggested day shape (not a booked itinerary)' },
+      ja: { tour: '公開商品の実際の行程', editorial: '1日の組み立て案（予約行程ではありません）' },
+      zh: { tour: '公开产品的实际路线', editorial: '一日安排建议（非预订行程）' },
+    } as const;
+
+    for (const language of ['ko', 'en', 'ja', 'zh'] as const) {
+      const tour = render(
+        <RegionSeoInfo regionId="paju" regionTitle="Paju" language={language} />,
+      );
+      expect(tour.container.querySelector('#paju-day-flow')).toHaveTextContent(expected[language].tour);
+      tour.unmount();
+
+      const editorial = render(
+        <RegionSeoInfo regionId="incheon" regionTitle="Incheon" language={language} />,
+      );
+      expect(editorial.container.querySelector('#incheon-day-flow')).toHaveTextContent(expected[language].editorial);
+      expect(editorial.container.querySelector('#incheon-day-flow')).not.toHaveTextContent(expected[language].tour);
+      editorial.unmount();
+    }
+  });
+
+  it('인천 연계 정적 상품을 예약 가능하다고 보장하지 않는다', () => {
+    const movement = REGION_DECISION_GUIDES.incheon.movement;
+    expect(movement.ko).toContain('현재 공개된');
+    expect(movement.en).toContain('current published');
+    expect(movement.ja).toContain('現在公開されている');
+    expect(movement.zh).toContain('当前公开的');
+    expect(Object.values(movement).join(' ')).not.toMatch(/예약 가능한|bookable|予約できる|可预订/);
+  });
+
   it('sitemap 의 지역 페이지가 전부 투어 매핑 표에 있다', () => {
     // 새 지역 페이지를 추가하고 이 표를 안 고치면 그 페이지만 조용히 투어 0건이 된다.
     expect(REGION_IDS.length).toBeGreaterThan(0);

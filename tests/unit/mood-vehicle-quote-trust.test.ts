@@ -316,6 +316,12 @@ describe('mood vehicle quote API — admin/auth/audit invariants', () => {
     expect(source).not.toContain('.limit(100)');
   });
 
+  it('인쇄 CSS는 관리 화면 전체를 숨기고 서버 고객 문서만 다시 보이게 한다', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    expect(source).toMatch(/body:has\(\[data-mood-quote-print-document\]\) \*\s*\{[^}]*visibility:\s*hidden !important/s);
+    expect(source).toMatch(/body:has\(\[data-mood-quote-print-document\]\) \[data-mood-quote-print-document\]\s*\{[^}]*visibility:\s*visible !important/s);
+  });
+
   it('경로 공유 모듈은 기존 km와 함께 정확한 원본 meter 정수도 반환한다', async () => {
     const previousId = process.env.NCP_CLIENT_ID;
     const previousSecret = process.env.NCP_CLIENT_SECRET;

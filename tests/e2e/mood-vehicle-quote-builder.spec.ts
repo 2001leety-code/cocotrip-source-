@@ -140,6 +140,14 @@ test.describe('MOOD 관리자 업체별 차량 견적서', () => {
     const copiedText = await page.evaluate(() => (window as typeof window & { __moodQuoteClipboard?: string }).__moodQuoteClipboard || '');
     expect(copiedText).toBe(exactPreviewText);
 
+    await page.emulateMedia({ media: 'print' });
+    const printDocument = preview.locator('[data-mood-quote-print-document]');
+    await expect(printDocument).toBeVisible();
+    await expect(printDocument).toHaveText(exactPreviewText || '');
+    await expect(builder.getByLabel('받은 일정 전체 붙여넣기')).toBeHidden();
+    await expect(preview.getByRole('button', { name: '전체 일정·견적 복사' })).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
+
     await assertEffectiveTouchTargets(builder);
     await assertSinglePageScroll(page);
     expect(leakedApiRequests).toEqual([]);

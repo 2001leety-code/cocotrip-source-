@@ -29,7 +29,11 @@ vi.mock('@/components/mood/MoodBookingShareCard', () => ({
   MoodBookingCopyButton: () => null,
 }));
 vi.mock('@/components/mood/MoodCourseShareEditor', () => ({ MoodCourseShareEditor: () => null }));
-vi.mock('@/components/mood/MoodBookingBlockManager', () => ({ MoodBookingBlockManager: () => null }));
+vi.mock('@/components/mood/MoodBookingBlockManager', () => ({
+  MoodBookingBlockManager: ({ availability }: { availability?: { revision?: number } | null }) => (
+    <output data-testid="booking-availability-revision">{availability?.revision || 0}</output>
+  ),
+}));
 vi.mock('@/components/mood/MoodQuoteBuilder', () => ({
   MoodQuoteBuilder: () => (
     <section aria-label="관리자 견적 작성기">
@@ -45,7 +49,7 @@ import MoodPortal from '../../src/pages/MoodPortal';
 
 const AVAILABILITY = { schemaVersion: 1, revision: 1, rules: [] };
 
-function moodData(isAdmin: boolean, clientName: string) {
+function moodData(isAdmin: boolean, clientName: string, availabilityRevision = 1) {
   return {
     ok: true,
     data: {
@@ -54,7 +58,7 @@ function moodData(isAdmin: boolean, clientName: string) {
       bookings: [],
       isAdmin,
       canApproveSettlement: false,
-      bookingAvailability: AVAILABILITY,
+      bookingAvailability: { ...AVAILABILITY, revision: availabilityRevision },
     },
   };
 }
@@ -103,6 +107,40 @@ describe('MoodPortal 계정 전환 관리자 상태 격리', () => {
     expect(screen.getByRole('button', { name: '견적' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByDisplayValue('작성 중인 일정')).toBeInTheDocument();
     expect(moodDataCall).toBe(1);
+  });
+
+  it('이전 계정의 늦은 예약 제한 응답이 새 계정의 availability를 덮지 않는다', async () => {
+    const oldAvailabilityRefresh = deferred<ReturnType<typeof response>>();
+    let moodDataCall = 0;
+    let availabilityCall = 0;
+    authFetchMock.mockImplementation((url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        moodDataCall += 1;
+        return Promise.resolve(response(moodData(true, moodDataCall === 1 ? 'ADMIN A' : 'ADMIN B', moodDataCall)));
+      }
+      if (target.includes('/api/mood-booking-blocks')) {
+        availabilityCall += 1;
+        return oldAvailabilityRefresh.promise;
+      }
+      return Promise.resolve(response({ ok: true, notes: {} }));
+    });
+
+    const view = render(<MoodPortal />);
+    expect(await screen.findByTestId('booking-availability-revision')).toHaveTextContent('1');
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(availabilityCall).toBe(1));
+
+    currentUser = { uid: 'second-admin-uid', email: 'second-admin@mood.test' };
+    view.rerender(<MoodPortal />);
+    await waitFor(() => expect(moodDataCall).toBe(2));
+    expect(await screen.findByTestId('booking-availability-revision')).toHaveTextContent('2');
+
+    oldAvailabilityRefresh.resolve(response({
+      ok: true,
+      data: { bookingAvailability: { ...AVAILABILITY, revision: 99 } },
+    }));
+    await waitFor(() => expect(screen.getByTestId('booking-availability-revision')).toHaveTextContent('2'));
   });
 
   it('다른 uid로 바뀌는 즉시 이전 견적 탭과 작성 중 일정을 내린다', async () => {

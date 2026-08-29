@@ -312,6 +312,93 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
     });
   });
 
+  it('저장된 3일~5일 예외는 실제 예약 API에서도 양끝을 포함해 열고 2일은 막는다', async () => {
+    const rule = {
+      id: 'daily-sep-block',
+      enabled: true,
+      startDate: '2026-09-01',
+      endDate: '2026-09-07',
+      weekdays: [0, 1, 2, 3, 4, 5, 6],
+      mode: 'full_day',
+      startTime: null,
+      reason: '9월 첫째 주 종일 차단',
+    };
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 2,
+      rules: [rule],
+      exceptions: [{
+        id: 'open-sep-3-to-5',
+        enabled: true,
+        startDate: '2026-09-03',
+        endDate: '2026-09-05',
+        ruleIds: [rule.id],
+        reason: '3일부터 5일만 예약 허용',
+      }],
+    });
+
+    const blocked = await callBook(bookBody({
+      date: '2026-09-02',
+      startTime: '12:00',
+      idempotencyKey: 'exception-boundary-blocked-002',
+    }));
+    expect(blocked.res.statusCode).toBe(409);
+    expect(transactionRuns).toBe(0);
+
+    const opened = await callBook(bookBody({
+      date: '2026-09-05',
+      startTime: '12:00',
+      idempotencyKey: 'exception-inclusive-open-005',
+    }));
+    expect(opened.res.statusCode).toBe(200);
+    expect(opened.json.ok).toBe(true);
+    expect(store.get(`mood_bookings/${opened.json.data.bookingId}`)).toMatchObject({
+      date: '2026-09-05',
+      startTime: '12:00',
+    });
+  });
+
+  it('예외로 한 규칙을 열어도 겹친 다른 규칙이 실제 예약 API를 계속 막는다', async () => {
+    const firstRule = {
+      id: 'first-overlap',
+      enabled: true,
+      startDate: '2026-09-04',
+      endDate: '2026-09-04',
+      weekdays: [5],
+      mode: 'full_day',
+      startTime: null,
+      reason: '첫 차단',
+    };
+    const secondRule = { ...firstRule, id: 'second-overlap', reason: '겹친 안전 차단' };
+    store.set('mood_config/booking_availability', {
+      schemaVersion: 1,
+      revision: 3,
+      rules: [firstRule, secondRule],
+      exceptions: [{
+        id: 'release-first-only',
+        enabled: true,
+        startDate: '2026-09-04',
+        endDate: '2026-09-04',
+        ruleIds: [firstRule.id],
+        reason: '첫 차단만 해제',
+      }],
+    });
+
+    const result = await callBook(bookBody({
+      date: '2026-09-04',
+      startTime: '12:00',
+      idempotencyKey: 'overlap-still-blocked-001',
+    }));
+
+    expect(result.res.statusCode).toBe(409);
+    expect(result.json).toMatchObject({
+      ok: false,
+      error: MOOD_EVENING_BLACKOUT_ERROR,
+      reason: secondRule.reason,
+    });
+    expect(transactionRuns).toBe(0);
+  });
+
   it('사전 확인 뒤 관리자가 차단하면 예약·잔액 쓰기 트랜잭션에서 다시 막는다', async () => {
     store.set('mood_config/booking_availability', {
       schemaVersion: 1,

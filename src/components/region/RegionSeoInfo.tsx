@@ -35,6 +35,7 @@ import { formatAiPlannerUsd } from '@/lib/aiPlannerPrice';
 import { useJsonLd } from '@/hooks/useJsonLd';
 import { buildFaqJsonLd } from '@/lib/jsonLd';
 import { withEunNeun, withEulReul } from '@/components/region/koreanParticle';
+import { getRegionDecisionGuide } from '@/components/region/regionDecisionContent';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -101,6 +102,13 @@ type Vars = {
 };
 
 const COPY: Record<Lang, {
+  decisionTitle: string;
+  bestForTitle: string;
+  flowTitle: Record<'tour' | 'editorial', string>;
+  movementTitle: string;
+  relatedTitle: string;
+  tourFlowLead: (tourTitle: string) => string;
+  actionLink: (action: 'planner' | 'charter', region: string) => { title: string; description: string };
   waysTitle: string;
   ways: (v: Vars) => string[];
   toursTitle: (v: Vars) => string;
@@ -113,6 +121,18 @@ const COPY: Record<Lang, {
   faq: (v: Vars) => Array<[string, string]>;
 }> = {
   ko: {
+    decisionTitle: '하루를 고르기 전 판단할 것',
+    bestForTitle: '이런 여행자에게 맞아요',
+    flowTitle: {
+      tour: '공개 상품의 실제 동선',
+      editorial: '하루 구성 제안 (예약 일정 아님)',
+    },
+    movementTitle: '도착·이동 판단',
+    relatedTitle: '다음 계획으로 연결',
+    tourFlowLead: (tourTitle) => `현재 ${tourTitle} 상품 데이터에 적힌 순서입니다. 예약 전 상품 상세에서 최신 일정을 다시 확인하세요.`,
+    actionLink: (action, region) => action === 'planner'
+      ? { title: `${region} 일정 만들기`, description: '여행 플래너에서 날짜와 조건을 넣고 시간표와 이동 경로를 만듭니다.' }
+      : { title: `${region} 전세 차량 문의`, description: '고정 상품과 다른 명소를 원하면 차량과 기사 중심의 자유 경로를 문의합니다.' },
     waysTitle: '코코트립으로 가는 방법',
     ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
       tourCount > 0
@@ -164,6 +184,18 @@ const COPY: Record<Lang, {
     },
   },
   en: {
+    decisionTitle: 'Decide before shaping the day',
+    bestForTitle: 'Who this region fits',
+    flowTitle: {
+      tour: 'Route in the published product',
+      editorial: 'Suggested day shape (not a booked itinerary)',
+    },
+    movementTitle: 'Arrival and movement decision',
+    relatedTitle: 'Continue planning',
+    tourFlowLead: (tourTitle) => `This is the sequence in the current ${tourTitle} product data. Recheck the latest itinerary on the product page before booking.`,
+    actionLink: (action, region) => action === 'planner'
+      ? { title: `Build a ${region} plan`, description: 'Enter your dates and conditions in the trip planner to build a timed route.' }
+      : { title: `Ask about a ${region} charter`, description: 'Ask for a vehicle-and-driver route when your stops differ from the set product.' },
     waysTitle: 'Ways to visit with CocoTrip',
     ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
       tourCount > 0
@@ -215,6 +247,18 @@ const COPY: Record<Lang, {
     },
   },
   ja: {
+    decisionTitle: '1日の形を決める前の判断',
+    bestForTitle: 'この地域が合う方',
+    flowTitle: {
+      tour: '公開商品の実際の行程',
+      editorial: '1日の組み立て案（予約行程ではありません）',
+    },
+    movementTitle: '到着・移動の判断',
+    relatedTitle: '次の計画へ',
+    tourFlowLead: (tourTitle) => `現在の「${tourTitle}」商品データに記載された順序です。予約前に商品詳細で最新の行程をご確認ください。`,
+    actionLink: (action, region) => action === 'planner'
+      ? { title: `${region}の旅程を作る`, description: '旅行プランナーに日程と条件を入力し、時刻付きの移動ルートを作ります。' }
+      : { title: `${region}の貸切を相談`, description: '既定商品と異なる名所を巡るなら、車両とドライバー中心の自由ルートを相談します。' },
     waysTitle: 'ココトリップでの行き方',
     ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
       tourCount > 0
@@ -266,6 +310,18 @@ const COPY: Record<Lang, {
     },
   },
   zh: {
+    decisionTitle: '安排一天前先做判断',
+    bestForTitle: '适合这样的旅行者',
+    flowTitle: {
+      tour: '公开产品的实际路线',
+      editorial: '一日安排建议（非预订行程）',
+    },
+    movementTitle: '抵达与移动判断',
+    relatedTitle: '继续规划',
+    tourFlowLead: (tourTitle) => `以下顺序来自当前“${tourTitle}”产品资料。预订前请在产品详情页再次确认最新行程。`,
+    actionLink: (action, region) => action === 'planner'
+      ? { title: `制作${region}行程`, description: '在行程规划工具中填写日期与条件，生成带时间的移动路线。' }
+      : { title: `咨询${region}包车`, description: '若想去固定产品之外的景点，可咨询以车辆和司机为主的自由路线。' },
     waysTitle: '用 CocoTrip 前往的方式',
     ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
       tourCount > 0
@@ -338,6 +394,18 @@ export function RegionSeoInfo({
   const regionTours = source ? getToursByRegion(source) : [];
   const multicityTours = MULTICITY_REGIONS.has(regionId) ? getToursByRegion('Multi-City') : [];
   const tours = [...regionTours, ...multicityTours];
+  const decisionGuide = getRegionDecisionGuide(regionId);
+  const allTours = decisionGuide ? getToursByRegion('All') : [];
+  const decisionFlow = decisionGuide?.flow;
+  const flowTour = decisionFlow?.kind === 'tour'
+    ? allTours.find((tour) => tour.id === decisionFlow.tourId)
+    : undefined;
+  const flowStops = flowTour?.stops || [];
+  const relatedTours = decisionGuide
+    ? decisionGuide.relatedTourIds
+      .map((tourId) => allTours.find((tour) => tour.id === tourId))
+      .filter((tour): tour is Tour => Boolean(tour))
+    : [];
 
   const plannerCovered = CITY_CHIPS.some((chip) => chip.key === regionId);
 
@@ -358,6 +426,101 @@ export function RegionSeoInfo({
   return (
     <section className="region-seo-info mt-12 border-t border-white/10 pt-8 text-white/75">
       <div className="space-y-8 text-[13px] leading-relaxed sm:text-sm">
+        {decisionGuide && (
+          <div data-testid="region-decision-guide" className="col-span-full border-b border-ec-line pb-8 text-ec-ink-2">
+            <h2 className="mb-5 text-base font-bold text-ec-ink sm:text-lg">{c.decisionTitle}</h2>
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              <section aria-labelledby={`${regionId}-best-for`}>
+                <h3 id={`${regionId}-best-for`} className="text-sm font-bold text-ec-ink sm:text-base">
+                  {c.bestForTitle}
+                </h3>
+                <p className="mt-2">{decisionGuide.bestFor[lang]}</p>
+              </section>
+
+              <section aria-labelledby={`${regionId}-movement`}>
+                <h3 id={`${regionId}-movement`} className="text-sm font-bold text-ec-ink sm:text-base">
+                  {c.movementTitle}
+                </h3>
+                <p className="mt-2">{decisionGuide.movement[lang]}</p>
+              </section>
+            </div>
+
+            <section className="mt-6 border-t border-ec-line pt-6" aria-labelledby={`${regionId}-day-flow`}>
+              <h3 id={`${regionId}-day-flow`} className="text-sm font-bold text-ec-ink sm:text-base">
+                {c.flowTitle[decisionGuide.flow.kind]}
+              </h3>
+              {decisionGuide.flow.kind === 'tour' && flowTour && (
+                <p className="mt-2">{c.tourFlowLead(flowTour.title[lang])}</p>
+              )}
+              {decisionGuide.flow.kind === 'editorial' && (
+                <p className="mt-2">{decisionGuide.flow.lead[lang]}</p>
+              )}
+              <ol className="mt-4 grid gap-3 sm:grid-cols-2" role="list">
+                {decisionGuide.flow.kind === 'tour' && flowStops.map((stop) => (
+                  <li key={`${stop.time}-${stop.name.ko}`} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 border-t border-ec-line pt-3">
+                    <time className="font-semibold text-ec-ink">{stop.time}</time>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ec-ink">{stop.name[lang]}</p>
+                      <p className="mt-1">{stop.description[lang]}</p>
+                    </div>
+                  </li>
+                ))}
+                {decisionGuide.flow.kind === 'editorial' && decisionGuide.flow.steps.map((step, index) => (
+                  <li key={step.en} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 border-t border-ec-line pt-3">
+                    <span className="font-semibold text-ec-brand" aria-hidden>{String(index + 1).padStart(2, '0')}</span>
+                    <p>{step[lang]}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <nav className="mt-6 border-t border-ec-line pt-6" aria-labelledby={`${regionId}-related-planning`}>
+              <h3 id={`${regionId}-related-planning`} className="text-sm font-bold text-ec-ink sm:text-base">
+                {c.relatedTitle}
+              </h3>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2" role="list">
+                {relatedTours.map((tour) => (
+                  <li key={tour.id}>
+                    <a
+                      href={`/tours/${tour.slug}`}
+                      className="flex min-h-[44px] min-w-0 flex-col justify-center border border-ec-line-2 bg-ec-raised px-3 py-2 text-ec-ink transition-colors hover:border-ec-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2"
+                    >
+                      <span className="font-semibold">{tour.title[lang]}</span>
+                      <small className="mt-0.5 break-words text-xs text-ec-ink-3">{tour.summary[lang]}</small>
+                    </a>
+                  </li>
+                ))}
+                {decisionGuide.relatedRegion && (
+                  <li>
+                    <a
+                      href={`/region/${decisionGuide.relatedRegion.id}`}
+                      className="flex min-h-[44px] min-w-0 flex-col justify-center border border-ec-line-2 bg-ec-raised px-3 py-2 text-ec-ink transition-colors hover:border-ec-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2"
+                    >
+                      <span className="font-semibold">{decisionGuide.relatedRegion.title[lang]}</span>
+                      <small className="mt-0.5 break-words text-xs text-ec-ink-3">{decisionGuide.relatedRegion.description[lang]}</small>
+                    </a>
+                  </li>
+                )}
+                {(decisionGuide.actions || []).map((action) => {
+                  const linkCopy = c.actionLink(action, regionTitle);
+                  return (
+                    <li key={action}>
+                      <a
+                        href={action === 'planner' ? '/planner' : '/charter'}
+                        className="flex min-h-[44px] min-w-0 flex-col justify-center border border-ec-line-2 bg-ec-raised px-3 py-2 text-ec-ink transition-colors hover:border-ec-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand focus-visible:ring-offset-2"
+                      >
+                        <span className="font-semibold">{linkCopy.title}</span>
+                        <small className="mt-0.5 break-words text-xs text-ec-ink-3">{linkCopy.description}</small>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          </div>
+        )}
+
         <div>
           <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.waysTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>

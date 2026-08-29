@@ -45,13 +45,23 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
   test.skip(!runsAgainstLocalDev, '개발 전용 /mood/dev-ui 하네스에서만 실행합니다.');
 
   test('390px 관리자 예약 차단 화면은 한 화면 스크롤에서 읽고 조작할 수 있다', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
     const leakedApiRequests = await blockUnexpectedApiTraffic(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/mood/dev-ui');
 
     const manager = page.locator('details[aria-label="예약 차단 관리"]');
+    try {
+      await expect(manager).toBeVisible({ timeout: 10000 });
+    } catch {
+      throw new Error(`MOOD 하네스 렌더 실패: ${consoleErrors.join(' | ') || '콘솔 오류 없음'} · body=${(await page.locator('body').innerText()).slice(0, 300)}`);
+    }
     await manager.locator('summary').click();
-    await expect(manager.getByText(/기존 확정 예약은 유지됩니다/)).toBeVisible();
+    await expect(manager.getByText(/기존 확정 예약.*유지됩니다/)).toBeVisible();
     await expect(manager.getByText(/8월 15일~9월 15일 목·금·토/).first()).toBeVisible();
     await manager.getByRole('button', { name: '+ 차단 추가' }).click();
 
@@ -59,6 +69,23 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
     await manager.getByLabel('차단 시작 시각').fill('19:30');
     await manager.getByLabel('차단 사유').fill('행사 운영으로 배차 불가');
     await expect(manager.getByRole('button', { name: '규칙 저장' })).toBeEnabled();
+    await manager.getByRole('button', { name: '취소' }).click();
+
+    await manager.getByRole('button', { name: '+ 날짜 열기' }).click();
+    await manager.getByRole('button', { name: '기간' }).click();
+    await manager.getByLabel('시작일').fill('2026-09-03');
+    await manager.getByLabel('종료일').fill('2026-09-05');
+    await manager.getByLabel('여는 사유').fill('3일간 예약 운영');
+    await manager.getByRole('button', { name: '이 날짜 열기' }).click();
+    await expect(manager.getByText('캘린더 반영 완료')).toBeVisible();
+    await expect(manager.getByText(/열린 날짜 · 9월 3일~9월 5일/)).toBeVisible();
+    await expect(manager.getByText(/영향 규칙 1개/)).toBeVisible();
+
+    await manager.getByRole('button', { name: '모든 차단 해제' }).click();
+    await expect(manager.getByRole('button', { name: '모든 차단 해제 확인' })).toBeVisible();
+    await manager.getByRole('button', { name: '모든 차단 해제 확인' }).click();
+    await expect(manager.getByRole('button', { name: '모든 규칙 다시 켜기' })).toBeVisible();
+    await expect(manager.getByText(/이전 상태 복원이 아니라/)).toBeVisible();
 
     const undersized = await manager.locator('button, input, textarea, summary').evaluateAll((elements) => (
       elements
@@ -83,7 +110,14 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
       return !['auto', 'scroll'].includes(style.overflowY) || element.scrollHeight <= element.clientHeight;
     })).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const desktopBox = await manager.boundingBox();
+    expect(desktopBox).not.toBeNull();
+    expect(desktopBox!.width).toBeLessThanOrEqual(430);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(leakedApiRequests).toEqual([]);
+    expect(consoleErrors).toEqual([]);
   });
 
   test('390px 모바일에서 순서를 바꾸고 운영자 제안→MOOD 확인으로 한 번만 확정한다', async ({ page }) => {

@@ -18,10 +18,20 @@ export interface MoodBookingBlockRule {
   reason: string;
 }
 
+export interface MoodBookingOpenException {
+  id: string;
+  enabled: boolean;
+  startDate: string;
+  endDate: string;
+  ruleIds: string[];
+  reason: string;
+}
+
 export interface MoodBookingAvailability {
   schemaVersion: 1;
   revision: number;
   rules: MoodBookingBlockRule[];
+  exceptions: MoodBookingOpenException[];
 }
 
 export interface MoodBookingBlockStatus {
@@ -45,6 +55,8 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const RULE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/;
 const MAX_RULES = 50;
+const MAX_EXCEPTIONS = 100;
+const MAX_EXCEPTION_DAYS = 366;
 
 export const DEFAULT_MOOD_BOOKING_AVAILABILITY: MoodBookingAvailability = {
   schemaVersion: 1,
@@ -59,6 +71,7 @@ export const DEFAULT_MOOD_BOOKING_AVAILABILITY: MoodBookingAvailability = {
     startTime: '18:00',
     reason: '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가',
   }],
+  exceptions: [],
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -122,6 +135,40 @@ function parseRule(value: unknown): MoodBookingBlockRule | null {
   };
 }
 
+function inclusiveDateCount(startDate: string, endDate: string): number | null {
+  if (isoWeekday(startDate) === null || isoWeekday(endDate) === null || startDate > endDate) return null;
+  const start = Date.parse(`${startDate}T00:00:00.000Z`);
+  const end = Date.parse(`${endDate}T00:00:00.000Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function parseException(value: unknown): MoodBookingOpenException | null {
+  if (!isPlainObject(value)) return null;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const startDate = typeof value.startDate === 'string' ? value.startDate : '';
+  const endDate = typeof value.endDate === 'string' ? value.endDate : '';
+  const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
+  const ruleIds = value.ruleIds;
+  const dayCount = inclusiveDateCount(startDate, endDate);
+
+  if (!RULE_ID_RE.test(id) || typeof value.enabled !== 'boolean') return null;
+  if (dayCount === null || dayCount > MAX_EXCEPTION_DAYS) return null;
+  if (!Array.isArray(ruleIds) || ruleIds.length < 1 || ruleIds.length > MAX_RULES) return null;
+  if (!ruleIds.every((ruleId) => typeof ruleId === 'string' && RULE_ID_RE.test(ruleId))) return null;
+  if (new Set(ruleIds).size !== ruleIds.length) return null;
+  if (!reason || reason.length > 500) return null;
+
+  return {
+    id,
+    enabled: value.enabled,
+    startDate,
+    endDate,
+    ruleIds: [...ruleIds],
+    reason,
+  };
+}
+
 /** 서버 payload 를 엄격히 검사한다. 하나라도 손상되면 일부 규칙만 조용히 적용하지 않는다. */
 export function parseMoodBookingAvailability(value: unknown): MoodBookingAvailability | null {
   if (!isPlainObject(value)) return null;
@@ -131,7 +178,15 @@ export function parseMoodBookingAvailability(value: unknown): MoodBookingAvailab
   if (rules.some((rule) => !rule)) return null;
   const safeRules = rules as MoodBookingBlockRule[];
   if (new Set(safeRules.map((rule) => rule.id)).size !== safeRules.length) return null;
-  return { schemaVersion: 1, revision: Number(value.revision), rules: safeRules };
+  const rawExceptions = value.exceptions === undefined ? [] : value.exceptions;
+  if (!Array.isArray(rawExceptions) || rawExceptions.length > MAX_EXCEPTIONS) return null;
+  const exceptions = rawExceptions.map(parseException);
+  if (exceptions.some((exception) => !exception)) return null;
+  const safeExceptions = exceptions as MoodBookingOpenException[];
+  if (new Set(safeExceptions.map((exception) => exception.id)).size !== safeExceptions.length) return null;
+  const ruleIdSet = new Set(safeRules.map((rule) => rule.id));
+  if (safeExceptions.some((exception) => exception.ruleIds.some((ruleId) => !ruleIdSet.has(ruleId)))) return null;
+  return { schemaVersion: 1, revision: Number(value.revision), rules: safeRules, exceptions: safeExceptions };
 }
 
 function resolveAvailability(value: MoodBookingAvailability | null | undefined): MoodBookingAvailability | null {
@@ -149,6 +204,12 @@ function matchingRules(date: string, availability: MoodBookingAvailability | nul
     && date >= rule.startDate
     && date <= rule.endDate
     && rule.weekdays.includes(weekday)
+    && !safe.exceptions.some((exception) => (
+      exception.enabled
+      && date >= exception.startDate
+      && date <= exception.endDate
+      && exception.ruleIds.includes(rule.id)
+    ))
   ));
 }
 

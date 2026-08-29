@@ -245,6 +245,76 @@ describe('/api/mood-quote-preview 입력 fail-closed', () => {
     expect(json.code).toBe('TOO_MANY_STOPS');
   });
 
+  it('자동 경로는 30초 예산을 넘길 수 있는 14개 주소를 계산 전에 거부한다', async () => {
+    const stops = Array.from({ length: 14 }, (_, index) => ({
+      order: index + 1,
+      name: `자동 장소 ${index + 1}`,
+      roadAddress: `서울특별시 자동로 ${index + 1}`,
+      includeInRoute: true,
+      addressVerified: true,
+    }));
+    const { res, json } = await callPreview(previewBody({
+      routeMode: 'route',
+      departureAddress: '',
+      returnAddress: '',
+      stops,
+    }));
+
+    expect(res.statusCode).toBe(400);
+    expect(json).toMatchObject({
+      code: 'ROUTE_ADDRESS_LIMIT_EXCEEDED',
+      addressCount: 14,
+      maxAddressCount: 13,
+    });
+    expect(computeRouteMock).not.toHaveBeenCalled();
+  });
+
+  it('자동 경로 13개 주소는 7개씩 겹친 두 번의 Directions 호출로 계산한다', async () => {
+    const stops = Array.from({ length: 13 }, (_, index) => ({
+      order: index + 1,
+      name: `자동 장소 ${index + 1}`,
+      roadAddress: `서울특별시 허용로 ${index + 1}`,
+      includeInRoute: true,
+      addressVerified: true,
+    }));
+    computeRouteMock.mockResolvedValue({
+      ok: true,
+      distanceMeters: 1000,
+      tollKRW: 0,
+      durationMin: 10,
+      path: [],
+      points: [],
+    });
+
+    const { res, json } = await callPreview(previewBody({
+      routeMode: 'route',
+      departureAddress: '',
+      returnAddress: '',
+      stops,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(computeRouteMock).toHaveBeenCalledTimes(2);
+    expect(computeRouteMock.mock.calls.map(([request]) => request.waypoints)).toEqual([
+      stops.slice(1, 6).map((stop) => stop.roadAddress),
+      stops.slice(7, 12).map((stop) => stop.roadAddress),
+    ]);
+    expect(json.data.route).toMatchObject({ distanceMeters: 2000, durationMinutes: 20 });
+  });
+
+  it('거리 직접 입력은 기존 한도인 방문지 40개를 그대로 허용한다', async () => {
+    const stops = Array.from({ length: 40 }, (_, index) => ({
+      order: index + 1,
+      name: `수동 장소 ${index + 1}`,
+      includeInRoute: false,
+    }));
+    const { res, json } = await callPreview(previewBody({ stops }));
+
+    expect(res.statusCode).toBe(200);
+    expect(json.data.quoteSnapshot.schedule.stops).toHaveLength(40);
+    expect(computeRouteMock).not.toHaveBeenCalled();
+  });
+
   it.each(['', null, '0', [], [0]])(
     '명시한 수동 실비는 number 정수 외 값을 0으로 바꾸지 않는다: %j',
     async (manualTollKRW) => {

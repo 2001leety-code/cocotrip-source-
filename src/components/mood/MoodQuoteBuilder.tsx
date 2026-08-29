@@ -19,6 +19,7 @@ import {
   unwrapApiData,
   vehicleQuoteBasisPointsToPercentInput,
   VEHICLE_QUOTE_BILLING_INCREMENTS,
+  VEHICLE_QUOTE_MAX_AUTOMATIC_ROUTE_ADDRESSES,
   vehicleQuoteMetersToKilometersInput,
   vehicleQuoteMinutesToHoursInput,
   vehicleQuoteRoutePoints,
@@ -156,6 +157,8 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
   const { language } = useLanguage();
   const t = getMoodQuoteText(language);
   const pasteRef = useRef<HTMLTextAreaElement | null>(null);
+  const parseRequestGenerationRef = useRef(0);
+  const parseAbortControllerRef = useRef<AbortController | null>(null);
   const previewRequestGenerationRef = useRef(0);
   const previewAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -210,6 +213,9 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
   }, []);
 
   useEffect(() => () => {
+    parseRequestGenerationRef.current += 1;
+    parseAbortControllerRef.current?.abort();
+    parseAbortControllerRef.current = null;
     previewRequestGenerationRef.current += 1;
     previewAbortControllerRef.current?.abort();
     previewAbortControllerRef.current = null;
@@ -334,20 +340,56 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
     element.style.height = `${Math.max(168, element.scrollHeight)}px`;
   };
 
+  const invalidateParsedSchedule = () => {
+    parseRequestGenerationRef.current += 1;
+    parseAbortControllerRef.current?.abort();
+    parseAbortControllerRef.current = null;
+    setParsing(false);
+    setParseNeedsConfirm(false);
+    setParseWarnings([]);
+    setServiceDate('');
+    setStartTime('');
+    setEndTime('');
+    setDurationInput('');
+    setDepartureAddress('');
+    setReturnAddress('');
+    setStops([]);
+    setPlaceSearch(null);
+    setNotice(null);
+    invalidatePreview();
+  };
+
   const handleAnalyze = async () => {
-    if (rawText.trim().length < 2) return;
+    const sourceText = rawText.trim();
+    if (sourceText.length < 2) return;
+    const requestGeneration = parseRequestGenerationRef.current + 1;
+    parseRequestGenerationRef.current = requestGeneration;
+    parseAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    parseAbortControllerRef.current = abortController;
     setParsing(true);
     setParseNeedsConfirm(true);
     setParseWarnings([]);
+    setServiceDate('');
+    setStartTime('');
+    setEndTime('');
+    setDurationInput('');
+    setDepartureAddress('');
+    setReturnAddress('');
+    setStops([]);
+    setPlaceSearch(null);
     setNotice(null);
     invalidatePreview();
     try {
       const response = await authFetch('/api/mood-quote-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText.trim() }),
+        body: JSON.stringify({ text: sourceText }),
+        signal: abortController.signal,
       });
+      if (abortController.signal.aborted || requestGeneration !== parseRequestGenerationRef.current) return;
       const json: unknown = await response.json().catch(() => ({}));
+      if (abortController.signal.aborted || requestGeneration !== parseRequestGenerationRef.current) return;
       if (!response.ok) throw new Error(apiErrorMessage(json, t.requestFailed));
       const data = unwrapApiData<VehicleQuoteParseData>(json);
       if (!data) throw new Error(t.requestFailed);
@@ -361,13 +403,18 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
       setStops(parseResponseStops(data));
       setParseNeedsConfirm(true);
       setParseWarnings(Array.isArray(data.warnings) ? data.warnings : []);
-      setPlaceSearch(null);
       setPreviewStale(false);
       invalidatePreview();
     } catch (error) {
+      if (abortController.signal.aborted || requestGeneration !== parseRequestGenerationRef.current) return;
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : t.requestFailed });
     } finally {
-      setParsing(false);
+      if (requestGeneration === parseRequestGenerationRef.current) {
+        if (parseAbortControllerRef.current === abortController) {
+          parseAbortControllerRef.current = null;
+        }
+        setParsing(false);
+      }
     }
   };
 
@@ -467,6 +514,8 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
   const range = profileMinutesRange(selectedProfile);
   const routeStops = stops.filter((stop) => stop.includeInRoute);
   const routePoints = vehicleQuoteRoutePoints({ departureAddress, stops, returnAddress });
+  const automaticRouteWithinLimit = routeMode === 'manual'
+    || routePoints.length <= VEHICLE_QUOTE_MAX_AUTOMATIC_ROUTE_ADDRESSES;
   const durationInRange = durationMinutes !== null
     && durationMinutes >= range.min
     && durationMinutes <= range.max;
@@ -492,6 +541,7 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
     && !parseNeedsConfirm
     && hasEnoughStops
     && addressesReady
+    && automaticRouteWithinLimit
     && manualRouteReady
     && incidentalAmountsReady
     && !previewLoading,
@@ -505,9 +555,10 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
     if (parseNeedsConfirm) messages.push(t.confirmParsedScheduleRequired);
     if (!hasEnoughStops) messages.push(t.needTwoStops);
     if (!addressesReady) messages.push(t.verifyIncludedStops);
+    if (!automaticRouteWithinLimit) messages.push(t.automaticRouteLimitExceeded);
     if (!manualRouteReady) messages.push(t.invalidManualDistance);
     return messages;
-  }, [addressesReady, durationInRange, durationMinutes, hasEnoughStops, manualRouteReady, parseNeedsConfirm, profileDirty, selectedProfile, t]);
+  }, [addressesReady, automaticRouteWithinLimit, durationInRange, durationMinutes, hasEnoughStops, manualRouteReady, parseNeedsConfirm, profileDirty, selectedProfile, t]);
 
   const handlePreview = async () => {
     if (!canGenerate || !selectedProfile || durationMinutes === null) return;
@@ -689,6 +740,7 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
             placeholder={t.pastePlaceholder}
             onChange={(event) => {
               setRawText(event.target.value);
+              invalidateParsedSchedule();
               window.requestAnimationFrame(autoGrowPaste);
             }}
           />
@@ -845,6 +897,7 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
             <QuoteRadio label={t.routeAutomatic} checked={routeMode === 'route'} onChange={() => { setRouteMode('route'); invalidatePreview(); }} />
             <QuoteRadio label={t.routeManual} checked={routeMode === 'manual'} onChange={() => { setRouteMode('manual'); invalidatePreview(); }} />
           </div>
+          <p className="mt-2 text-[11px] leading-5 text-white/45">{t.automaticRouteLimit}</p>
         </fieldset>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {routeMode === 'manual' && (
@@ -915,7 +968,12 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
             </div>
           )}
 
-          <pre className="mt-3 whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/35 p-3 font-sans text-[14px] leading-6 text-white/85">{preview.documentText}</pre>
+          <pre
+            data-mood-quote-print-document
+            className="mt-3 whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/35 p-3 font-sans text-[14px] leading-6 text-white/85"
+          >
+            {preview.documentText}
+          </pre>
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
             <button type="button" className={`${BUTTON} border-transparent bg-gradient-to-r from-violet-600 to-pink-500 text-white`} onClick={handleCopy}>
               {t.copyDocument}

@@ -47,6 +47,7 @@ export const INCIDENTAL_POLICIES = Object.freeze([
 ]);
 
 export const MAX_QUOTE_STOPS = 40;
+export const MAX_AUTOMATIC_QUOTE_ROUTE_ADDRESSES = 13;
 
 const DISTANCE_MODE_SET = new Set(DISTANCE_BILLING_MODES);
 const TOLL_POLICY_SET = new Set(INCIDENTAL_POLICIES);

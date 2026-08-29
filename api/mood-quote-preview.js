@@ -13,6 +13,7 @@ import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeRoute } from './_shared/mood-route.js';
 import {
   BUILT_IN_MOOD_QUOTE_PROFILE,
+  MAX_AUTOMATIC_QUOTE_ROUTE_ADDRESSES,
   calculateVehicleQuote,
   formatVehicleQuoteDocument,
   normalizeVehicleQuoteProfile,
@@ -127,6 +128,14 @@ export function buildQuoteRouteAddresses(schedule) {
     addresses.push(schedule.returnAddress);
   }
   if (addresses.length < 2) return { ok: false, error: 'ROUTE_NEEDS_TWO_ADDRESSES' };
+  if (addresses.length > MAX_AUTOMATIC_QUOTE_ROUTE_ADDRESSES) {
+    return {
+      ok: false,
+      error: 'ROUTE_ADDRESS_LIMIT_EXCEEDED',
+      addressCount: addresses.length,
+      maxAddressCount: MAX_AUTOMATIC_QUOTE_ROUTE_ADDRESSES,
+    };
+  }
   return { ok: true, addresses };
 }
 
@@ -282,6 +291,8 @@ export default async function handler(req, res) {
           error: addressResult.error,
           code: addressResult.error,
           ...(addressResult.stopOrder ? { stopOrder: addressResult.stopOrder } : {}),
+          ...(addressResult.addressCount ? { addressCount: addressResult.addressCount } : {}),
+          ...(addressResult.maxAddressCount ? { maxAddressCount: addressResult.maxAddressCount } : {}),
         });
       }
       const routeResult = await computeLongRoute(addressResult.addresses);

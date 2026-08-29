@@ -13,11 +13,15 @@ import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
 import {
   getMoodBookingAvailability,
+  isValidMoodBookingExceptionId,
   isValidMoodBookingRuleId,
+  moodBookingRuleAffectsDateRange,
   moodBookingAvailabilityFromSnapshot,
   moodBookingAvailabilityRef,
+  MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS,
   MOOD_BOOKING_AVAILABILITY_MAX_RULES,
   MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
+  normalizeMoodBookingAvailabilityExceptionDraft,
   normalizeMoodBookingAvailabilityRule,
 } from './_shared/mood-booking-availability.js';
 
@@ -44,7 +48,13 @@ function normalizedMutation(body) {
   const action = body.action;
   const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : '';
   const expectedRevision = body.expectedRevision;
-  if (action !== 'upsert' && action !== 'delete') {
+  if (
+    action !== 'upsert'
+    && action !== 'delete'
+    && action !== 'upsert_exception'
+    && action !== 'delete_exception'
+    && action !== 'set_all_enabled'
+  ) {
     return { ok: false, error: 'INVALID_BOOKING_BLOCK_ACTION' };
   }
   if (!REQUEST_ID_RE.test(requestId)) {
@@ -60,28 +70,62 @@ function normalizedMutation(body) {
     return { ok: true, action, requestId, expectedRevision, rule: normalized.value };
   }
 
-  const ruleId = typeof body.ruleId === 'string' ? body.ruleId.trim() : '';
-  if (!isValidMoodBookingRuleId(ruleId)) {
-    return { ok: false, error: 'INVALID_BOOKING_BLOCK_RULE_ID' };
+  if (action === 'delete') {
+    const ruleId = typeof body.ruleId === 'string' ? body.ruleId.trim() : '';
+    if (!isValidMoodBookingRuleId(ruleId)) {
+      return { ok: false, error: 'INVALID_BOOKING_BLOCK_RULE_ID' };
+    }
+    return { ok: true, action, requestId, expectedRevision, ruleId };
   }
-  return { ok: true, action, requestId, expectedRevision, ruleId };
+
+  if (action === 'upsert_exception') {
+    const normalized = normalizeMoodBookingAvailabilityExceptionDraft(body.exception);
+    if (!normalized.ok) return normalized;
+    return { ok: true, action, requestId, expectedRevision, exception: normalized.value };
+  }
+
+  if (action === 'delete_exception') {
+    const exceptionId = typeof body.exceptionId === 'string' ? body.exceptionId.trim() : '';
+    if (!isValidMoodBookingExceptionId(exceptionId)) {
+      return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_ID' };
+    }
+    return { ok: true, action, requestId, expectedRevision, exceptionId };
+  }
+
+  if (typeof body.enabled !== 'boolean') {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_ENABLED' };
+  }
+  return { ok: true, action, requestId, expectedRevision, enabled: body.enabled };
 }
 
 function payloadHash(mutation) {
-  const payload = mutation.action === 'upsert'
-    ? {
-      action: mutation.action,
-      expectedRevision: mutation.expectedRevision,
-      requestId: mutation.requestId,
-      rule: mutation.rule,
-    }
-    : {
-      action: mutation.action,
-      expectedRevision: mutation.expectedRevision,
-      requestId: mutation.requestId,
-      ruleId: mutation.ruleId,
-    };
+  const payload = {
+    action: mutation.action,
+    expectedRevision: mutation.expectedRevision,
+    requestId: mutation.requestId,
+  };
+  if (mutation.action === 'upsert') payload.rule = mutation.rule;
+  if (mutation.action === 'delete') payload.ruleId = mutation.ruleId;
+  if (mutation.action === 'upsert_exception') payload.exception = mutation.exception;
+  if (mutation.action === 'delete_exception') payload.exceptionId = mutation.exceptionId;
+  if (mutation.action === 'set_all_enabled') payload.enabled = mutation.enabled;
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function cloneRules(rules) {
+  return rules.map((rule) => ({ ...rule, weekdays: [...rule.weekdays] }));
+}
+
+function cloneExceptions(exceptions) {
+  return exceptions.map((exception) => ({ ...exception, ruleIds: [...exception.ruleIds] }));
+}
+
+function auditType(action) {
+  if (action === 'upsert') return 'booking_block_upserted';
+  if (action === 'delete') return 'booking_block_deleted';
+  if (action === 'upsert_exception') return 'booking_block_exception_upserted';
+  if (action === 'delete_exception') return 'booking_block_exception_deleted';
+  return 'booking_blocks_enabled_changed';
 }
 
 export default async function handler(req, res) {
@@ -170,23 +214,64 @@ export default async function handler(req, res) {
         };
       }
 
-      let nextRules;
+      let nextRules = cloneRules(current.rules);
+      let nextExceptions = cloneExceptions(current.exceptions);
       let ruleId;
+      let exceptionId;
       if (mutation.action === 'upsert') {
         ruleId = mutation.rule.id;
         const existingIndex = current.rules.findIndex((rule) => rule.id === ruleId);
         if (existingIndex === -1 && current.rules.length >= MOOD_BOOKING_AVAILABILITY_MAX_RULES) {
           return { ok: false, status: 409, error: 'BOOKING_BLOCK_RULE_LIMIT' };
         }
-        nextRules = current.rules.map((rule) => ({ ...rule, weekdays: [...rule.weekdays] }));
         if (existingIndex === -1) nextRules.push(mutation.rule);
         else nextRules[existingIndex] = mutation.rule;
-      } else {
+      } else if (mutation.action === 'delete') {
         ruleId = mutation.ruleId;
         if (!current.rules.some((rule) => rule.id === ruleId)) {
           return { ok: false, status: 404, error: 'BOOKING_BLOCK_RULE_NOT_FOUND' };
         }
         nextRules = current.rules.filter((rule) => rule.id !== ruleId);
+        nextExceptions = current.exceptions
+          .map((exception) => ({
+            ...exception,
+            ruleIds: exception.ruleIds.filter((currentRuleId) => currentRuleId !== ruleId),
+          }))
+          .filter((exception) => exception.ruleIds.length > 0);
+      } else if (mutation.action === 'upsert_exception') {
+        exceptionId = mutation.exception.id;
+        const existingIndex = current.exceptions.findIndex((exception) => exception.id === exceptionId);
+        if (
+          existingIndex === -1
+          && current.exceptions.length >= MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS
+        ) {
+          return { ok: false, status: 409, error: 'BOOKING_BLOCK_EXCEPTION_LIMIT' };
+        }
+        const ruleIds = current.rules
+          .filter((rule) => moodBookingRuleAffectsDateRange(
+            rule,
+            mutation.exception.startDate,
+            mutation.exception.endDate,
+          ))
+          .map((rule) => rule.id);
+        if (ruleIds.length === 0) {
+          return { ok: false, status: 409, error: 'BOOKING_BLOCK_EXCEPTION_NO_MATCH' };
+        }
+        const exception = { ...mutation.exception, ruleIds };
+        if (existingIndex === -1) nextExceptions.push(exception);
+        else nextExceptions[existingIndex] = exception;
+      } else if (mutation.action === 'delete_exception') {
+        exceptionId = mutation.exceptionId;
+        if (!current.exceptions.some((exception) => exception.id === exceptionId)) {
+          return { ok: false, status: 404, error: 'BOOKING_BLOCK_EXCEPTION_NOT_FOUND' };
+        }
+        nextExceptions = current.exceptions.filter((exception) => exception.id !== exceptionId);
+      } else {
+        nextRules = current.rules.map((rule) => ({
+          ...rule,
+          weekdays: [...rule.weekdays],
+          enabled: mutation.enabled,
+        }));
       }
 
       const now = Date.now();
@@ -194,6 +279,7 @@ export default async function handler(req, res) {
         schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
         revision: current.revision + 1,
         rules: nextRules,
+        exceptions: nextExceptions,
       };
       tx.set(configRef, {
         ...bookingAvailability,
@@ -201,16 +287,19 @@ export default async function handler(req, res) {
         updatedByEmail: email,
       });
       tx.set(auditRef, {
-        type: mutation.action === 'upsert' ? 'booking_block_upserted' : 'booking_block_deleted',
+        type: auditType(mutation.action),
         action: mutation.action,
         requestId: mutation.requestId,
         payloadHash: requestPayloadHash,
         actorEmail: email,
-        ruleId,
+        ...(ruleId ? { ruleId } : {}),
+        ...(exceptionId ? { exceptionId } : {}),
+        ...(mutation.action === 'set_all_enabled' ? { enabled: mutation.enabled } : {}),
         expectedRevision: mutation.expectedRevision,
         previousRevision: current.revision,
         revision: bookingAvailability.revision,
         before: current,
+        after: bookingAvailability,
         bookingAvailability,
         createdAt: now,
       });
