@@ -526,9 +526,10 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
       },
     }));
 
-    await screen.findByRole('button', { name: '현황' });
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+    });
     expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
-    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
   });
 });
 
