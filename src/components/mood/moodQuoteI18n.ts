@@ -123,6 +123,8 @@ export interface MoodQuoteText {
   durationRange: string;
   needTwoStops: string;
   verifyIncludedStops: string;
+  koreanDisplayRequired: string;
+  koreanDisplayFieldError: string;
   requestFailed: string;
   saveFailed: string;
   previewFailed: string;
@@ -148,8 +150,8 @@ const ko: MoodQuoteText = {
   policyManual: '직접 입력', policyRoute: '경로 예상액', policyIncluded: '요금에 포함', builtIn: '기본 프로필', profileSaved: '업체 프로필을 저장했습니다.',
   inputSection: '2. 일정 입력', pasteLabel: '받은 일정 전체 붙여넣기',
   pastePlaceholder: '카카오톡이나 메일로 받은 날짜, 시간, 장소, 주소를 그대로 붙여넣으세요.',
-  analyze: '일정 분석', analyzing: '분석 중…', analyzeHint: 'AI는 일정만 분리합니다. 주소와 금액은 임의로 만들지 않습니다.',
-  needsConfirm: '분석 결과입니다. 주소와 시간을 직접 확인해 주세요.', moreWarnings: '외 {count}건의 확인사항', confirmParsedSchedule: '시간·장소 확인 완료',
+  analyze: '일정 분석', analyzing: '분석 중…', analyzeHint: '영문 일정의 장소명과 일정 내용은 한글 표시값으로 바꿉니다. 주소와 금액은 임의로 만들지 않습니다.',
+  needsConfirm: '분석 결과입니다. 한글 장소명·일정 내용, 주소와 시간을 직접 확인해 주세요.', moreWarnings: '외 {count}건의 확인사항', confirmParsedSchedule: '시간·장소 확인 완료',
   confirmParsedScheduleRequired: 'AI가 분석한 시간과 장소를 확인 완료해 주세요.', tripFields: '이용 정보', serviceDate: '이용일',
   startTime: '시작 시각', endTime: '종료 시각', durationHours: '총 이용시간(시간)',
   durationInputHint: '숫자를 지운 뒤 원하는 시간을 바로 입력할 수 있습니다.', departureAddress: '차량 출발 주소', departureAddressPlaceholder: '첫 장소가 출발지면 비워 두세요.', returnAddress: '최종 복귀 주소',
@@ -171,6 +173,7 @@ const ko: MoodQuoteText = {
   warningTitle: '확인사항', closeSearch: '검색 닫기', noProfile: '등록된 업체가 없습니다. 새 업체를 만들어 주세요.',
   invalidDuration: '총 이용시간을 숫자로 입력해 주세요.', invalidManualDistance: '예상 거리를 0~3,000km 사이의 숫자로 입력해 주세요.', invalidIncidentalAmounts: '통행료와 주차비는 0~10,000,000 사이의 원 단위 정수로 입력해 주세요.', durationRange: '이 업체의 이용시간 범위를 확인해 주세요.',
   needTwoStops: '출발·경유·복귀 주소 중 운행경로 지점이 2곳 이상 필요합니다.', verifyIncludedStops: '운행경로에 포함된 모든 주소를 확인해 주세요.',
+  koreanDisplayRequired: '입력된 장소명과 일정 내용에는 한글이 한 글자 이상 필요합니다.', koreanDisplayFieldError: '한글을 한 글자 이상 포함해 주세요.',
   requestFailed: '일정을 분석하지 못했습니다.', saveFailed: '업체 프로필을 저장하지 못했습니다.', previewFailed: '견적서를 만들지 못했습니다.',
   profileNameRequired: '업체명을 입력해 주세요.', invalidProfileNumbers: '필수 요금 숫자와 범위를 확인해 주세요. 빈칸이나 저장 단위에 맞지 않는 값은 저장할 수 없습니다.',
   chooseProfile: '업체를 먼저 선택해 주세요.', exactServerCopy: '아래 미리보기와 복사 내용은 서버가 계산한 동일한 문서입니다.',
@@ -207,7 +210,7 @@ const en: MoodQuoteText = {
   parkingFee: 'Parking', total: 'Estimated total', overtime: 'One overtime hour', minutes: 'min', copyDocument: 'Copy full itinerary and quote', copied: 'Copied.',
   copyFailed: 'Could not copy.', print: 'Print', warningTitle: 'Items to confirm', closeSearch: 'Close search', noProfile: 'No company profile. Create one first.',
   invalidDuration: 'Enter total hours as a number.', invalidManualDistance: 'Enter an estimated distance from 0 to 3,000 km.', invalidIncidentalAmounts: 'Enter tolls and parking as whole KRW amounts from 0 to 10,000,000.', durationRange: 'Check this company’s allowed service hours.', needTwoStops: 'At least two usable route points are required across departure, stops, and return.',
-  verifyIncludedStops: 'Verify every address included in the route.', requestFailed: 'Could not analyze the itinerary.', saveFailed: 'Could not save the company profile.',
+  verifyIncludedStops: 'Verify every address included in the route.', koreanDisplayRequired: 'Every non-empty place name and schedule detail must include at least one Korean character.', koreanDisplayFieldError: 'Include at least one Korean character.', requestFailed: 'Could not analyze the itinerary.', saveFailed: 'Could not save the company profile.',
   previewFailed: 'Could not create the quote.', profileNameRequired: 'Enter a company name.', invalidProfileNumbers: 'Check every required rate number and range. Blank values or values that do not convert to whole storage units cannot be saved.', chooseProfile: 'Choose a company first.',
   exactServerCopy: 'The preview and copied text below are the same server-calculated document.',
 };
@@ -241,7 +244,7 @@ const ja: MoodQuoteText = {
   toll: '通行料', parkingFee: '駐車料', total: '最終予想金額', overtime: '超過1時間', minutes: '分', copyDocument: '全日程・見積をコピー', copied: 'コピーしました。',
   copyFailed: 'コピーできませんでした。', print: '印刷', warningTitle: '確認事項', closeSearch: '検索を閉じる', noProfile: '会社がありません。新しく作成してください。',
   invalidDuration: '総利用時間を数字で入力してください。', invalidManualDistance: '予想距離を0～3,000kmの数値で入力してください。', invalidIncidentalAmounts: '通行料と駐車料は0～10,000,000のウォン単位の整数で入力してください。', durationRange: 'この会社の利用可能時間を確認してください。', needTwoStops: '出発・経由・帰着住所のうち、利用可能なルート地点が2か所以上必要です。',
-  verifyIncludedStops: 'ルートに含まれるすべての住所を確認してください。', requestFailed: '日程を分析できませんでした。', saveFailed: '会社プロフィールを保存できませんでした。',
+  verifyIncludedStops: 'ルートに含まれるすべての住所を確認してください。', koreanDisplayRequired: '入力済みの場所名と日程内容には、韓国語を1文字以上含めてください。', koreanDisplayFieldError: '韓国語を1文字以上含めてください。', requestFailed: '日程を分析できませんでした。', saveFailed: '会社プロフィールを保存できませんでした。',
   previewFailed: '見積書を作成できませんでした。', profileNameRequired: '会社名を入力してください。', invalidProfileNumbers: '必須料金の数値と範囲を確認してください。空欄や保存単位に変換できない値は保存できません。', chooseProfile: '先に会社を選択してください。',
   exactServerCopy: '下のプレビューとコピー内容は、サーバーが計算した同じ文書です。',
 };
@@ -272,7 +275,7 @@ const zh: MoodQuoteText = {
   timeFee: '时间费', distanceFee: '里程费', supplyAmount: '供应价', vat: '增值税', toll: '过路费', parkingFee: '停车费', total: '最终预估金额',
   overtime: '超时1小时', minutes: '分钟', copyDocument: '复制完整行程与报价', copied: '已复制。', copyFailed: '复制失败。', print: '打印', warningTitle: '待确认事项',
   closeSearch: '关闭搜索', noProfile: '尚无企业配置，请新建。', invalidDuration: '请用数字输入总使用时间。', invalidManualDistance: '预计里程请输入0至3,000km之间的数字。', invalidIncidentalAmounts: '过路费和停车费请输入0至10,000,000之间的韩元整数。', durationRange: '请确认该企业允许的用车时长。',
-  needTwoStops: '出发、经停和返回地址中至少需要两个可用路线点。', verifyIncludedStops: '请确认路线中所有地点的地址。', requestFailed: '无法分析行程。', saveFailed: '无法保存企业配置。',
+  needTwoStops: '出发、经停和返回地址中至少需要两个可用路线点。', verifyIncludedStops: '请确认路线中所有地点的地址。', koreanDisplayRequired: '已填写的地点名称和行程内容必须至少包含一个韩文字符。', koreanDisplayFieldError: '请至少包含一个韩文字符。', requestFailed: '无法分析行程。', saveFailed: '无法保存企业配置。',
   previewFailed: '无法生成报价单。', profileNameRequired: '请输入企业名称。', invalidProfileNumbers: '请检查所有必填费用数字和范围。空值或无法转换为整数存储单位的值不能保存。', chooseProfile: '请先选择企业。', exactServerCopy: '以下预览与复制内容均为服务器计算的同一份文件。',
 };
 

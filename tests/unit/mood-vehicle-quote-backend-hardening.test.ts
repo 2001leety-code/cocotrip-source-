@@ -210,6 +210,39 @@ describe('/api/mood-quote-preview 입력 fail-closed', () => {
     expect(json.code).toBe('INVALID_ROUTE_MODE');
   });
 
+  it.each([
+    { name: 'The Roof', purpose: '고객 미팅', field: 'name', label: '장소명' },
+    { name: '더 루프', purpose: 'Client meeting', field: 'purpose', label: '일정 내용' },
+  ])('직접 preview POST의 영문 전용 $field 값을 계산 전에 거부한다', async ({ name, purpose, field, label }) => {
+    const { res, json } = await callPreview(previewBody({
+      stops: [{ order: 1, name, purpose, includeInRoute: false }],
+    }));
+
+    expect(res.statusCode).toBe(400);
+    expect(json).toMatchObject({
+      ok: false,
+      code: 'KOREAN_DISPLAY_TEXT_REQUIRED',
+      error: `1번 장소의 ${label}에 한글을 한 글자 이상 입력해 주세요.`,
+      stopOrder: 1,
+      field,
+    });
+    expect(json).not.toHaveProperty('data');
+    expect(computeRouteMock).not.toHaveBeenCalled();
+  });
+
+  it('한글·영문 브랜드 병기와 빈 일정 내용은 preview API에서 허용한다', async () => {
+    const { res, json } = await callPreview(previewBody({
+      stops: [
+        { order: 1, name: '더 루프 (The Roof)', purpose: 'MOOD 협업 미팅', includeInRoute: false },
+        { order: 2, name: '고척스카이돔', purpose: '', includeInRoute: false },
+      ],
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(json.data.documentText).toContain('더 루프 (The Roof)');
+    expect(json.data.documentText).toContain('MOOD 협업 미팅');
+  });
+
   it.each(['', '   ', '0', '0x10', '1e2', null, [], [1], {}])(
     '수동 거리는 실제 JSON number가 아니면 숫자로 강제 변환하지 않는다: %j',
     async (manualDistanceKm) => {

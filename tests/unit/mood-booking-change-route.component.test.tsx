@@ -104,7 +104,22 @@ vi.mock('@/components/mood/MoodCourseShareEditor', () => ({
   ),
 }));
 
-import { MoodBookingChangeModal, type ChangeableMoodBooking } from '../../src/components/mood/MoodBookingChangeModal';
+import {
+  MoodBookingChangeModal as ProductionMoodBookingChangeModal,
+  type ChangeableMoodBooking,
+} from '../../src/components/mood/MoodBookingChangeModal';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
+
+const OPEN_BOOKING_AVAILABILITY = openMoodBookingAvailabilityFixture();
+
+function MoodBookingChangeModal(props: React.ComponentProps<typeof ProductionMoodBookingChangeModal>) {
+  return (
+    <ProductionMoodBookingChangeModal
+      {...props}
+      bookingAvailability={OPEN_BOOKING_AVAILABILITY}
+    />
+  );
+}
 
 function jsonResponse(json: unknown, status = 200) {
   return {

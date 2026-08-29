@@ -2204,6 +2204,13 @@ export default async function handler(req, res) {
 
     return sendJson(res, 200, jsonHeaders, publicResponse(transactionResult.response));
   } catch (error) {
+    if (error && error.code === 'INVALID_BOOKING_AVAILABILITY_CONFIG') {
+      return sendJson(res, 409, jsonHeaders, {
+        ok: false,
+        error: error.code,
+        detail: error.detail || 'INVALID_BOOKING_AVAILABILITY_CONFIG',
+      });
+    }
     console.error('[mood-change] failed:', error && error.message ? error.message : error);
     await captureError(error, { route: '/api/mood-change', email, bookingId });
     return sendJson(res, 500, jsonHeaders, { ok: false, error: 'SERVER_ERROR' });

@@ -54,6 +54,7 @@ function normalizedMutation(body) {
     && action !== 'upsert_exception'
     && action !== 'delete_exception'
     && action !== 'set_all_enabled'
+    && action !== 'initialize'
   ) {
     return { ok: false, error: 'INVALID_BOOKING_BLOCK_ACTION' };
   }
@@ -92,6 +93,10 @@ function normalizedMutation(body) {
     return { ok: true, action, requestId, expectedRevision, exceptionId };
   }
 
+  if (action === 'initialize') {
+    return { ok: true, action, requestId, expectedRevision };
+  }
+
   if (typeof body.enabled !== 'boolean') {
     return { ok: false, error: 'INVALID_BOOKING_BLOCK_ENABLED' };
   }
@@ -121,6 +126,7 @@ function cloneExceptions(exceptions) {
 }
 
 function auditType(action) {
+  if (action === 'initialize') return 'booking_availability_initialized';
   if (action === 'upsert') return 'booking_block_upserted';
   if (action === 'delete') return 'booking_block_deleted';
   if (action === 'upsert_exception') return 'booking_block_exception_upserted';
@@ -202,6 +208,50 @@ export default async function handler(req, res) {
           data: () => audit.bookingAvailability,
         });
         return { ok: true, replayed: true, bookingAvailability };
+      }
+
+      if (mutation.action === 'initialize') {
+        if (configSnap.exists) {
+          let bookingAvailability;
+          try {
+            bookingAvailability = moodBookingAvailabilityFromSnapshot(configSnap);
+          } catch {
+            return { ok: false, status: 409, error: 'BOOKING_AVAILABILITY_REPAIR_REQUIRED' };
+          }
+          return {
+            ok: false,
+            status: 409,
+            error: 'BOOKING_AVAILABILITY_ALREADY_INITIALIZED',
+            bookingAvailability,
+          };
+        }
+        const now = Date.now();
+        const bookingAvailability = {
+          schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
+          revision: 0,
+          rules: [],
+          exceptions: [],
+        };
+        tx.set(configRef, {
+          ...bookingAvailability,
+          updatedAt: now,
+          updatedByEmail: email,
+        });
+        tx.set(auditRef, {
+          type: auditType(mutation.action),
+          action: mutation.action,
+          requestId: mutation.requestId,
+          payloadHash: requestPayloadHash,
+          actorEmail: email,
+          expectedRevision: mutation.expectedRevision,
+          previousRevision: null,
+          revision: bookingAvailability.revision,
+          before: null,
+          after: bookingAvailability,
+          bookingAvailability,
+          createdAt: now,
+        });
+        return { ok: true, replayed: false, bookingAvailability };
       }
 
       const current = moodBookingAvailabilityFromSnapshot(configSnap);

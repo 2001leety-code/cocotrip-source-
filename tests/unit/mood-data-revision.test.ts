@@ -152,6 +152,12 @@ function baseBookingDocs() {
 }
 
 let bookingDocs = baseBookingDocs();
+let bookingAvailabilityDoc: Record<string, unknown> | null = {
+  schemaVersion: 1,
+  revision: 2,
+  rules: [],
+  exceptions: [],
+};
 
 const bookingsQuery: any = {
   where() { return bookingsQuery; },
@@ -166,8 +172,12 @@ const dbMock = {
     return {
       doc: (id: string) => ({
         get: async () => ({
-          exists: !(name === 'mood_config' && id === 'booking_availability'),
-          data: () => ({ name: 'Company A', balanceKRW: 846_000 }),
+          exists: name === 'mood_config' && id === 'booking_availability'
+            ? Boolean(bookingAvailabilityDoc)
+            : true,
+          data: () => name === 'mood_config' && id === 'booking_availability'
+            ? bookingAvailabilityDoc || undefined
+            : { name: 'Company A', balanceKRW: 846_000 },
         }),
       }),
     };
@@ -195,6 +205,7 @@ function makeResponse() {
 
 beforeEach(() => {
   bookingDocs = baseBookingDocs();
+  bookingAvailabilityDoc = { schemaVersion: 1, revision: 2, rules: [], exceptions: [] };
   verifyUserTokenMock.mockReset();
   verifyUserTokenMock.mockResolvedValue({
     ok: true,
@@ -205,6 +216,22 @@ beforeEach(() => {
 });
 
 describe('mood-data 예약 변경·정산 필드 회귀', () => {
+  it('예약 설정 문서가 없으면 포털 데이터는 유지하되 bookingAvailability를 null로 내려 신규 작업을 잠근다', async () => {
+    bookingAvailabilityDoc = null;
+    const { default: handler } = await import('../../api/mood-data.js');
+    const response = makeResponse();
+    await handler({
+      method: 'GET',
+      url: '/api/mood-data',
+      headers: { host: 'unit.test', authorization: 'Bearer token' },
+    } as any, response as any);
+
+    expect(response.statusCode).toBe(200);
+    const json = JSON.parse(response.body);
+    expect(json.data.bookingAvailability).toBeNull();
+    expect(json.data.bookings).toHaveLength(4);
+  });
+
   it('finalBreakdown과 유효한 revision을 손실 없이 반환한다', async () => {
     const { default: handler } = await import('../../api/mood-data.js');
     const response = makeResponse();
@@ -220,8 +247,8 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
 
     expect(json.data.bookingAvailability).toMatchObject({
       schemaVersion: 1,
-      revision: 0,
-      rules: [expect.objectContaining({ id: 'legacy-evening-blackout-2026' })],
+      revision: 2,
+      rules: [],
     });
     expect(changed.breakdown).toEqual(bookedBreakdown);
     expect(changed.finalBreakdown).toEqual(finalBreakdown);

@@ -1,9 +1,9 @@
 /**
  * MOOD 예약 차단 정책의 서버 정본.
  *
- * Firestore `mood_config/booking_availability` 문서가 없을 때만 기존 임시
- * 저녁 제한을 기본값으로 사용한다. 문서가 존재하고 `rules: []` 이면 운영자가
- * 명시적으로 모든 시간을 연 상태다.
+ * Firestore `mood_config/booking_availability` 문서만 정본으로 사용한다.
+ * 문서 누락·손상 시에는 과거 날짜 규칙을 되살리거나 조용히 예약을 열지 않고
+ * 명시적인 설정 오류로 중단한다.
  */
 export const MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION = 1;
 export const MOOD_BOOKING_AVAILABILITY_MAX_RULES = 50;
@@ -12,34 +12,9 @@ export const MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTION_DAYS = 366;
 export const MOOD_BOOKING_AVAILABILITY_CONFIG_COLLECTION = 'mood_config';
 export const MOOD_BOOKING_AVAILABILITY_CONFIG_DOCUMENT = 'booking_availability';
 
-// 기존 프론트와 오류 처리 계약을 유지한다.
-export const MOOD_EVENING_BLACKOUT_ERROR = 'MOOD_EVENING_BOOKING_UNAVAILABLE';
-export const MOOD_EVENING_BLACKOUT_REASON = '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가';
-
-export const MOOD_EVENING_BLACKOUT_POLICY = Object.freeze({
-  startDate: '2026-08-15',
-  endDate: '2026-09-15',
-  startTime: '18:00',
-  weekdays: Object.freeze([4, 5, 6]), // 0=일요일, 4=목요일, 5=금요일, 6=토요일
-});
-
-const DEFAULT_RULE = Object.freeze({
-  id: 'legacy-evening-blackout-2026',
-  enabled: true,
-  startDate: MOOD_EVENING_BLACKOUT_POLICY.startDate,
-  endDate: MOOD_EVENING_BLACKOUT_POLICY.endDate,
-  weekdays: MOOD_EVENING_BLACKOUT_POLICY.weekdays,
-  mode: 'starts_from',
-  startTime: MOOD_EVENING_BLACKOUT_POLICY.startTime,
-  reason: MOOD_EVENING_BLACKOUT_REASON,
-});
-
-export const DEFAULT_MOOD_BOOKING_AVAILABILITY = Object.freeze({
-  schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
-  revision: 0,
-  rules: Object.freeze([DEFAULT_RULE]),
-  exceptions: Object.freeze([]),
-});
+export const MOOD_BOOKING_UNAVAILABLE_ERROR = 'MOOD_BOOKING_UNAVAILABLE';
+export const MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_ERROR = 'MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE';
+export const MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_REASON = '예약 차단 설정을 확인할 수 없습니다. 관리자 설정을 확인해 주세요.';
 
 const AVAILABLE = Object.freeze({ ok: true });
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -237,15 +212,6 @@ export function moodBookingRuleAffectsDateRange(rule, startDate, endDate) {
   return false;
 }
 
-function cloneDefaultAvailability() {
-  return {
-    schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
-    revision: 0,
-    rules: [{ ...DEFAULT_RULE, weekdays: [...DEFAULT_RULE.weekdays] }],
-    exceptions: [],
-  };
-}
-
 function invalidStoredConfig(error) {
   const err = new Error(error);
   err.code = 'INVALID_BOOKING_AVAILABILITY_CONFIG';
@@ -257,10 +223,12 @@ function invalidStoredConfig(error) {
  * Firestore snapshot을 공개 계약으로 바꾼다. 존재하는 빈 rules 배열은 유지한다.
  */
 export function moodBookingAvailabilityFromSnapshot(snapshot) {
-  if (!snapshot || !snapshot.exists) return cloneDefaultAvailability();
+  if (!snapshot || !snapshot.exists) {
+    invalidStoredConfig('MISSING_BOOKING_AVAILABILITY_CONFIG');
+  }
   const data = snapshot.data() || {};
-  // 문서 미생성만 기본 정책이다. 존재하는 문서는 일부 필드가 빠졌더라도
-  // 임의 보정하지 않는다. 특히 `{ rules: [] }`를 전 시간 개방으로 오인하면 안 된다.
+  // 문서가 존재해도 일부 필드가 빠졌다면 임의로 보정하지 않는다.
+  // 특히 `{ rules: [] }`를 전 시간 개방으로 오인하면 안 된다.
   const schemaVersion = data.schemaVersion;
   const revision = data.revision;
   if (schemaVersion !== MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION) {
@@ -322,14 +290,19 @@ export async function getMoodBookingAvailability(db) {
 export function checkMoodBookingAvailability(
   date,
   startTime,
-  bookingAvailability = DEFAULT_MOOD_BOOKING_AVAILABILITY,
+  bookingAvailability,
 ) {
+  if (!bookingAvailability || !Array.isArray(bookingAvailability.rules)) {
+    return {
+      ok: false,
+      error: MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_ERROR,
+      reason: MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_REASON,
+    };
+  }
   const weekday = calendarWeekday(date);
   if (weekday === null || !TIME_RE.test(String(startTime || ''))) return AVAILABLE;
 
-  const rules = Array.isArray(bookingAvailability && bookingAvailability.rules)
-    ? bookingAvailability.rules
-    : DEFAULT_MOOD_BOOKING_AVAILABILITY.rules;
+  const rules = bookingAvailability.rules;
   const knownRuleIds = new Set(rules.map((rule) => rule && rule.id).filter(Boolean));
   const exemptedRuleIds = new Set();
   const rawExceptions = Array.isArray(bookingAvailability && bookingAvailability.exceptions)
@@ -360,10 +333,12 @@ export function checkMoodBookingAvailability(
       exception.enabled !== true
       || date < exception.startDate
       || date > exception.endDate
-    ) {
-      return;
-    }
-    exception.ruleIds.forEach((ruleId) => exemptedRuleIds.add(ruleId));
+    ) return;
+    // 관리자가 연 날짜/기간은 현재 및 이후 겹치는 모든 차단 규칙보다 우선한다.
+    // ruleIds는 참조 무결성/감사 자료이며, 열림 판정 범위는 날짜가 정본이다.
+    rules.forEach((rule) => {
+      if (rule && rule.id) exemptedRuleIds.add(rule.id);
+    });
   });
   // startDate와 endDate는 모두 포함(inclusive)하는 한국 달력 날짜 경계다.
   const matched = rules.find((rule) => (
@@ -379,7 +354,7 @@ export function checkMoodBookingAvailability(
   if (!matched) return AVAILABLE;
   return {
     ok: false,
-    error: MOOD_EVENING_BLACKOUT_ERROR,
+    error: MOOD_BOOKING_UNAVAILABLE_ERROR,
     reason: matched.reason,
     ruleId: matched.id,
   };
@@ -394,8 +369,15 @@ export function checkMoodBookingChangeAvailability(
   existingStartTime,
   requestedDate,
   requestedStartTime,
-  bookingAvailability = DEFAULT_MOOD_BOOKING_AVAILABILITY,
+  bookingAvailability,
 ) {
+  if (!bookingAvailability || !Array.isArray(bookingAvailability.rules)) {
+    return {
+      ok: false,
+      error: MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_ERROR,
+      reason: MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE_REASON,
+    };
+  }
   const requested = checkMoodBookingAvailability(requestedDate, requestedStartTime, bookingAvailability);
   if (requested.ok) return requested;
   return existingDate === requestedDate && existingStartTime === requestedStartTime

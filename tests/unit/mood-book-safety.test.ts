@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
 
 const verifyUserTokenMock = vi.fn();
 const computeRouteMock = vi.fn();
@@ -204,6 +205,7 @@ function clientBalance() {
 
 beforeEach(() => {
   store.clear();
+  store.set('mood_config/booking_availability', openMoodBookingAvailabilityFixture());
   store.set('mood_clients/COMPANY_A', { name: 'Company A', balanceKRW: 1_000_000 });
   autoId = 0;
   transactionTail = Promise.resolve();
@@ -344,6 +346,7 @@ describe('mood-book 경로별 일정 저장', () => {
     const balanceWithoutSchedule = withoutSchedule.json.data.balanceKRW;
 
     store.clear();
+    store.set('mood_config/booking_availability', openMoodBookingAvailabilityFixture());
     store.set('mood_clients/COMPANY_A', { name: 'Company A', balanceKRW: 1_000_000 });
     autoId = 0;
     transactionTail = Promise.resolve();

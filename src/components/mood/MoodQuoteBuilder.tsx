@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLanguage } from '@/hooks/useLanguage';
 import { authFetch } from '@/lib/authFetch';
 import { naverMapSearchUrl } from '@/lib/naverMap';
 import {
@@ -30,6 +29,7 @@ import {
   type VehicleQuotePreviewData,
   type VehicleQuotePreviewRequest,
   type VehicleQuoteProfile,
+  type VehicleQuoteLanguage,
   type VehicleQuoteStop,
 } from '@/lib/vehicleQuote';
 import { getMoodQuoteText } from './moodQuoteI18n';
@@ -151,10 +151,15 @@ function parseResponseStops(data: VehicleQuoteParseData): VehicleQuoteStop[] {
 
 export interface MoodQuoteBuilderProps {
   className?: string;
+  language?: VehicleQuoteLanguage;
 }
 
-export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
-  const { language } = useLanguage();
+function hasKoreanDisplayText(value: string): boolean {
+  const displayText = String(value || '').trim();
+  return !displayText || /[가-힣]/.test(displayText);
+}
+
+export function MoodQuoteBuilder({ className = '', language = 'ko' }: MoodQuoteBuilderProps) {
   const t = getMoodQuoteText(language);
   const pasteRef = useRef<HTMLTextAreaElement | null>(null);
   const parseRequestGenerationRef = useRef(0);
@@ -530,6 +535,9 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
   const parsedManualTollKRW = showManualToll ? parseKRWAmount(manualTollKRW) : 0;
   const parsedParkingKRW = showParking ? parseKRWAmount(parkingKRW) : 0;
   const incidentalAmountsReady = parsedManualTollKRW !== null && parsedParkingKRW !== null;
+  const koreanDisplayTextReady = stops.every((stop) => (
+    hasKoreanDisplayText(stop.name) && hasKoreanDisplayText(stop.purpose)
+  ));
   const parseConfirmationWarnings = [...new Set(parseWarnings)];
   const canGenerate = Boolean(
     selectedProfile
@@ -544,6 +552,7 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
     && automaticRouteWithinLimit
     && manualRouteReady
     && incidentalAmountsReady
+    && koreanDisplayTextReady
     && !previewLoading,
   );
 
@@ -555,10 +564,11 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
     if (parseNeedsConfirm) messages.push(t.confirmParsedScheduleRequired);
     if (!hasEnoughStops) messages.push(t.needTwoStops);
     if (!addressesReady) messages.push(t.verifyIncludedStops);
+    if (!koreanDisplayTextReady) messages.push(t.koreanDisplayRequired);
     if (!automaticRouteWithinLimit) messages.push(t.automaticRouteLimitExceeded);
     if (!manualRouteReady) messages.push(t.invalidManualDistance);
     return messages;
-  }, [addressesReady, automaticRouteWithinLimit, durationInRange, durationMinutes, hasEnoughStops, manualRouteReady, parseNeedsConfirm, profileDirty, selectedProfile, t]);
+  }, [addressesReady, automaticRouteWithinLimit, durationInRange, durationMinutes, hasEnoughStops, koreanDisplayTextReady, manualRouteReady, parseNeedsConfirm, profileDirty, selectedProfile, t]);
 
   const handlePreview = async () => {
     if (!canGenerate || !selectedProfile || durationMinutes === null) return;
@@ -823,8 +833,8 @@ export function MoodQuoteBuilder({ className = '' }: MoodQuoteBuilderProps) {
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <QuoteField label={t.placeName} value={stop.name} onChange={(value) => updateStop(stop.clientId, { name: value })} />
-                  <QuoteField label={t.purpose} value={stop.purpose} onChange={(value) => updateStop(stop.clientId, { purpose: value })} />
+                  <QuoteField label={t.placeName} value={stop.name} error={hasKoreanDisplayText(stop.name) ? '' : t.koreanDisplayFieldError} onChange={(value) => updateStop(stop.clientId, { name: value })} />
+                  <QuoteField label={t.purpose} value={stop.purpose} error={hasKoreanDisplayText(stop.purpose) ? '' : t.koreanDisplayFieldError} onChange={(value) => updateStop(stop.clientId, { purpose: value })} />
                   <QuoteField type="time" label={t.arrivalTime} value={stop.arrivalTime} onChange={(value) => updateStop(stop.clientId, { arrivalTime: value })} />
                   <QuoteField type="time" label={t.departureTime} value={stop.departureTime} onChange={(value) => updateStop(stop.clientId, { departureTime: value })} />
                   <QuoteField label={t.roadAddress} value={stop.roadAddress} onChange={(value) => updateStop(stop.clientId, { roadAddress: value }, true)} />
@@ -997,22 +1007,27 @@ interface QuoteFieldProps {
   inputMode?: 'text' | 'numeric' | 'decimal';
   placeholder?: string;
   className?: string;
+  error?: string;
 }
 
-function QuoteField({ label, value, onChange, type = 'text', inputMode = 'text', placeholder = '', className = '' }: QuoteFieldProps) {
+function QuoteField({ label, value, onChange, type = 'text', inputMode = 'text', placeholder = '', className = '', error = '' }: QuoteFieldProps) {
   return (
-    <label className={`block min-w-0 text-xs font-bold text-white/65 ${className}`}>
-      {label}
-      <input
-        className={`${INPUT} mt-1`}
-        type={type}
-        inputMode={inputMode}
-        value={value}
-        placeholder={placeholder}
-        step={type === 'number' ? 'any' : undefined}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    <div className={`min-w-0 ${className}`}>
+      <label className="block text-xs font-bold text-white/65">
+        {label}
+        <input
+          className={`${INPUT} mt-1 ${error ? 'border-red-300/60 focus-visible:border-red-300 focus-visible:ring-red-400/35' : ''}`}
+          type={type}
+          inputMode={inputMode}
+          value={value}
+          placeholder={placeholder}
+          step={type === 'number' ? 'any' : undefined}
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      {error && <p role="alert" className="mt-1 text-[11px] leading-4 text-red-200">{error}</p>}
+    </div>
   );
 }
 

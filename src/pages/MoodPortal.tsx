@@ -531,6 +531,15 @@ export default function MoodPortal() {
         return;
       }
       if (!json?.ok) {
+        if (json?.error === 'INVALID_BOOKING_AVAILABILITY_CONFIG') {
+          latestAvailabilityRevisionRef.current = -1;
+          latestAvailabilityRef.current = null;
+          setLoadedData((current) => (
+            current?.accountIdentity === requestedAccountIdentity
+              ? { ...current, value: { ...current.value, bookingAvailability: null } }
+              : current
+          ));
+        }
         setDataError(json?.error || `조회 실패 (${res.status})`);
         return;
       }
@@ -618,7 +627,18 @@ export default function MoodPortal() {
         const json = await response.json().catch(() => ({}));
         if (activeAccountIdentityRef.current !== requestedAccountIdentity
           || accountSessionSeqRef.current !== requestedAccountSession) return;
-        if (!response.ok || json?.ok !== true) return;
+        if (!response.ok || json?.ok !== true) {
+          if (json?.error === 'INVALID_BOOKING_AVAILABILITY_CONFIG') {
+            latestAvailabilityRevisionRef.current = -1;
+            latestAvailabilityRef.current = null;
+            setLoadedData((current) => (
+              current?.accountIdentity === requestedAccountIdentity
+                ? { ...current, value: { ...current.value, bookingAvailability: null } }
+                : current
+            ));
+          }
+          return;
+        }
         const nextAvailability = parseMoodBookingAvailability(json?.data?.bookingAvailability);
         if (!nextAvailability) {
           latestAvailabilityRevisionRef.current = -1;
@@ -1336,7 +1356,7 @@ export default function MoodPortal() {
           <MoodBookingBlockManager
             availability={bookingAvailability}
             onUpdated={handleBookingAvailabilityUpdated}
-            onReload={() => loadData(data.clientId)}
+            onReload={refreshBookingAvailability}
           />
         )}
 
@@ -1520,12 +1540,12 @@ export default function MoodPortal() {
                     />
                   )}
                   {!!scheduleNotes[d.iso] && (
-                    // 운영자 스케줄 있는 날 — 앰버 점. 무드에게도 보임(2026-07-27) → 이 날은 예약을 피하라는 신호.
+                    // 운영 메모는 예약 차단과 무관한 중립 정보다. 차단 앰버 배지와 색·문구를 분리한다.
                     <span
-                      className="absolute right-1 h-1.5 w-1.5 rounded-full"
-                      style={{ background: '#fbbf24', top: dateRestriction ? '1.55rem' : '0.25rem' }}
-                      title={`운영자 스케줄: ${scheduleNotes[d.iso]}`}
-                      aria-label={`운영자 스케줄 있음: ${scheduleNotes[d.iso]}`}
+                      className="absolute right-1 h-1.5 w-1.5 rounded-full ring-1 ring-white/30"
+                      style={{ background: C.textDim, top: dateRestriction ? '1.55rem' : '0.25rem' }}
+                      title={`운영 메모(예약 차단 아님): ${scheduleNotes[d.iso]}`}
+                      aria-label={`운영 메모 있음, 예약 차단 아님: ${scheduleNotes[d.iso]}`}
                     />
                   )}
                 </button>
@@ -1534,24 +1554,32 @@ export default function MoodPortal() {
           </div>
 
           <p className="mt-2 text-xs" style={{ color: C.textDim }}>
-            종일 = 하루 전체 차단 · 시각+ = 해당 시각부터 시작하는 예약 차단
+            종일 = 하루 전체 차단 · 시각+ = 해당 시각부터 시작하는 예약 차단 · 회색 점 = 운영 메모(예약 차단 아님)
           </p>
 
           <div
             className="mt-3 rounded-xl px-3 py-2.5"
             role="status"
             aria-label="선택 날짜 예약 상태"
-            style={selectedDateRestriction
-              ? { background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }
-              : { background: 'rgba(110,231,183,0.08)', border: '1px solid rgba(110,231,183,0.25)' }}
+            style={!bookingAvailabilityReady
+              ? { background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)' }
+              : selectedDateRestriction
+                ? { background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }
+                : { background: 'rgba(110,231,183,0.08)', border: '1px solid rgba(110,231,183,0.25)' }}
           >
-            <p className="text-[11px] font-bold" style={{ color: selectedDateRestriction ? '#fcd34d' : C.ok }}>
-              {selectedCalendarDate} · {selectedDateRestriction ? formatMoodBookingRestrictionLabel(selectedDateRestriction) : '예약 가능'}
+            <p className="text-[11px] font-bold" style={{ color: !bookingAvailabilityReady ? C.danger : selectedDateRestriction ? '#fcd34d' : C.ok }}>
+              {selectedCalendarDate} · {!bookingAvailabilityReady
+                ? '예약 차단 설정 확인 필요'
+                : selectedDateRestriction
+                  ? formatMoodBookingRestrictionLabel(selectedDateRestriction)
+                  : '예약 가능'}
             </p>
             <p className="mt-0.5 text-[11px]" style={{ color: 'rgba(255,255,255,0.72)' }}>
-              {selectedDateRestriction
-                ? `${selectedDateRestriction.reason} · 이미 확정된 예약은 그대로 유지됩니다.`
-                : '이 날짜에 적용되는 예약 차단이 없습니다.'}
+              {!bookingAvailabilityReady
+                ? MOOD_BOOKING_AVAILABILITY_UNAVAILABLE_MESSAGE
+                : selectedDateRestriction
+                  ? `${selectedDateRestriction.reason} · 이미 확정된 예약은 그대로 유지됩니다.`
+                  : '이 날짜에 적용되는 예약 차단이 없습니다.'}
             </p>
           </div>
 
@@ -1559,12 +1587,12 @@ export default function MoodPortal() {
           {isAdmin ? (
             <div className="mt-3 flex flex-col gap-1.5 rounded-xl p-3" style={{ background: C.inputBg, border: C.inputBorder }}>
               <span className="text-[11px] font-bold" style={{ color: C.accentSolid }}>
-                📝 {selectedCalendarDate} 내 스케줄 <span style={{ color: '#fcd34d' }}>(무드에게 그대로 보임 — 개인 일정 상세는 쓰지 마세요)</span>
+                📝 {selectedCalendarDate} 운영 메모 <span style={{ color: C.textDim }}>(예약 차단 아님 · 무드에게 그대로 보임)</span>
               </span>
               <textarea
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="예: 오후 일정 있음 — 이 날 예약 잡지 말 것"
+                placeholder="예: 오후 차량 점검 예정"
                 rows={2}
                 maxLength={2000}
                 className="w-full rounded-lg px-2.5 py-2 text-xs resize-y"
@@ -1584,12 +1612,15 @@ export default function MoodPortal() {
                   <span className="text-[11px]" style={{ color: noteMsg.kind === 'ok' ? C.ok : C.danger }}>{noteMsg.text}</span>
                 )}
               </div>
+              <p className="text-[11px]" style={{ color: C.textDim }}>
+                메모만으로 예약을 막지 않습니다. 예약을 막으려면 위 예약 차단 관리에서 규칙을 설정하세요.
+              </p>
             </div>
           ) : scheduleNotes[selectedCalendarDate] ? (
             // 무드 계정 — 읽기 전용. 메모가 있는 날에만 노출(없는 날 빈 박스는 소음).
-            <div className="mt-3 flex flex-col gap-1 rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.30)' }}>
-              <span className="text-[11px] font-bold" style={{ color: '#fcd34d' }}>
-                📝 {selectedCalendarDate} 운영자 스케줄 — 이 날은 배차가 어려울 수 있어요
+            <div className="mt-3 flex flex-col gap-1 rounded-xl p-3" style={{ background: C.inputBg, border: C.inputBorder }}>
+              <span className="text-[11px] font-bold" style={{ color: C.textDim }}>
+                📝 {selectedCalendarDate} 운영 메모 · 예약 차단 아님
               </span>
               <p className="text-xs whitespace-pre-wrap" style={{ color: C.text }}>{scheduleNotes[selectedCalendarDate]}</p>
             </div>
@@ -2074,7 +2105,7 @@ export default function MoodPortal() {
 
         {/* 업체별 견적서는 실제 예약·잔액·결제와 분리된 관리자 전용 도구다. */}
         {portalTab === 'quote' && data?.isAdmin && (
-          <MoodQuoteBuilder />
+          <MoodQuoteBuilder language="ko" />
         )}
 
         {/* ═══ 현황 탭 (이어서) ═══ 예약 운영 보드 */}

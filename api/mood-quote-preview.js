@@ -227,6 +227,29 @@ function scheduleWarnings(schedule, routeMode, computedSpan) {
   return [...new Set(warnings)];
 }
 
+export function validateKoreanQuoteDisplayText(stops) {
+  const scheduleStops = Array.isArray(stops) ? stops : [];
+  for (const stop of scheduleStops) {
+    const order = Number.isSafeInteger(stop.order) && stop.order > 0 ? stop.order : 1;
+    const fields = [
+      { field: 'name', label: '장소명', value: String(stop.name || '').trim() },
+      { field: 'purpose', label: '일정 내용', value: String(stop.purpose || '').trim() },
+    ];
+    for (const item of fields) {
+      if (item.value && !/[가-힣]/.test(item.value)) {
+        return {
+          ok: false,
+          code: 'KOREAN_DISPLAY_TEXT_REQUIRED',
+          error: `${order}번 장소의 ${item.label}에 한글을 한 글자 이상 입력해 주세요.`,
+          stopOrder: order,
+          field: item.field,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
 function hashSnapshot(snapshot) {
   return createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
 }
@@ -281,6 +304,10 @@ export default async function handler(req, res) {
       return send(res, 400, responseHeaders, { ok: false, error: scheduleResult.error, code: scheduleResult.error });
     }
     const schedule = scheduleResult.schedule;
+    const koreanDisplayTextResult = validateKoreanQuoteDisplayText(schedule.stops);
+    if (!koreanDisplayTextResult.ok) {
+      return send(res, 400, responseHeaders, koreanDisplayTextResult);
+    }
     const conflicts = detectQuoteRegionConflicts(schedule.stops);
     let route;
     if (routeMode === 'route') {

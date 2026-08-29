@@ -22,6 +22,9 @@ vi.mock('@/components/MoodRouteMap', () => ({
 }));
 
 import { MoodAiBooking } from '../../src/components/mood/MoodAiBooking';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
+
+const OPEN_BOOKING_AVAILABILITY = openMoodBookingAvailabilityFixture();
 
 const PARSE_RESPONSE = {
   ok: true,
@@ -66,7 +69,7 @@ afterEach(() => {
 });
 
 async function renderAndParse() {
-  render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
+  render(<MoodAiBooking clientId="mood" bookingAvailability={OPEN_BOOKING_AVAILABILITY} onBooked={() => {}} />);
   fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), {
     target: { value: '■ 9:30 이사님 픽업\n■ 오후 3시 인천공항 터미널2 드랍' },
   });
@@ -479,7 +482,14 @@ describe('MoodAiBooking 예약 중복 방지와 최소 동선', () => {
       return Promise.resolve({ status: 404, json: async () => ({}) });
     });
 
-    render(<MoodAiBooking clientId="mood" onBooked={() => {}} onViewStatus={onViewStatus} />);
+    render(
+      <MoodAiBooking
+        clientId="mood"
+        bookingAvailability={OPEN_BOOKING_AVAILABILITY}
+        onBooked={() => {}}
+        onViewStatus={onViewStatus}
+      />,
+    );
     fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '서울역에서 서울시청' } });
     fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
     await waitFor(() => expect(screen.getByText(/동선 2개/)).toBeTruthy());

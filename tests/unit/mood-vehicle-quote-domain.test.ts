@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  apiErrorMessage,
   createVehicleQuoteStop,
   durationHoursFromTimes,
   durationInputToMinutes,
@@ -18,6 +19,40 @@ import {
 import { getMoodQuoteText } from '../../src/components/mood/moodQuoteI18n';
 
 describe('mood vehicle quote client domain', () => {
+  it('견적 API 내부 코드는 등록된 한국어 문구로만 보여준다', () => {
+    expect(apiErrorMessage(
+      { code: 'ROUTE_ADDRESS_NOT_CONFIRMED', error: 'ROUTE_ADDRESS_NOT_CONFIRMED' },
+      '견적서를 만들지 못했습니다.',
+    )).toBe('운행경로에 포함된 모든 주소를 확인해 주세요.');
+    expect(apiErrorMessage(
+      { code: 'DB_UNAVAILABLE', error: 'Firestore unavailable' },
+      '견적서를 만들지 못했습니다.',
+    )).toBe('견적 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    expect(apiErrorMessage(
+      { code: 'PROFILE_VERSION_CONFLICT', error: 'PROFILE_VERSION_CONFLICT' },
+      '업체 프로필을 저장하지 못했습니다.',
+    )).toBe('업체 정보가 다른 화면에서 변경되었습니다. 새로 불러온 뒤 다시 시도해 주세요.');
+  });
+
+  it('미등록 코드·영문 message·영문 fallback은 노출하지 않는다', () => {
+    const unknown = apiErrorMessage(
+      { code: 'SECRET_INTERNAL_FAILURE', error: 'POST only', message: 'Firestore unavailable' },
+      'Request failed',
+    );
+    expect(unknown).toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    expect(unknown).not.toContain('SECRET_INTERNAL_FAILURE');
+    expect(unknown).not.toContain('POST only');
+    expect(unknown).not.toContain('Firestore');
+    expect(apiErrorMessage(
+      { code: 'UNKNOWN_QUOTE_CODE', error: 'UNKNOWN_QUOTE_CODE' },
+      '견적서를 만들지 못했습니다.',
+    )).toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    expect(apiErrorMessage(
+      { code: 'toString', error: '__proto__' },
+      '견적서를 만들지 못했습니다.',
+    )).toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  });
+
   it('keeps the duration field as raw text so replacing 9 with 6 becomes six hours', () => {
     expect(durationInputToMinutes('9')).toBe(540);
     expect(durationInputToMinutes('')).toBeNull();
@@ -46,6 +81,8 @@ describe('mood vehicle quote client domain', () => {
       order: 4,
       name: '더 루프',
       sourceRegion: '서울',
+      sourceName: 'The Roof',
+      sourcePurpose: 'Client meeting',
       roadAddress: '서울특별시 용산구 독서당로35길 4',
       jibunAddress: '서울특별시 용산구 한남동 60-24',
       includeInRoute: false,
@@ -55,12 +92,16 @@ describe('mood vehicle quote client domain', () => {
     expect(stop).toMatchObject({
       order: 1,
       sourceRegion: '서울',
+      sourceName: 'The Roof',
+      sourcePurpose: 'Client meeting',
       roadAddress: '서울특별시 용산구 독서당로35길 4',
       jibunAddress: '서울특별시 용산구 한남동 60-24',
       includeInRoute: false,
       addressVerified: true,
     });
     expect(isVehicleQuoteStopRouteReady(stop)).toBe(true);
+    expect(toVehicleQuotePreviewStops([stop])[0]).not.toHaveProperty('sourceName');
+    expect(toVehicleQuotePreviewStops([stop])[0]).not.toHaveProperty('sourcePurpose');
   });
 
   it('moves the full stop object and strips only the React client id for preview', () => {

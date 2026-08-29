@@ -63,6 +63,8 @@ export interface VehicleQuoteStop {
   departureTime: string;
   name: string;
   purpose: string;
+  sourceName?: string;
+  sourcePurpose?: string;
   sourceRegion: string;
   roadAddress: string;
   jibunAddress: string;
@@ -178,6 +180,8 @@ export function createVehicleQuoteStop(
     departureTime: text(value.departureTime),
     name: text(value.name),
     purpose: text(value.purpose),
+    ...(text(value.sourceName) ? { sourceName: text(value.sourceName) } : {}),
+    ...(text(value.sourcePurpose) ? { sourcePurpose: text(value.sourcePurpose) } : {}),
     sourceRegion: text(value.sourceRegion),
     roadAddress: text(value.roadAddress),
     jibunAddress: text(value.jibunAddress),
@@ -398,11 +402,76 @@ export function unwrapApiData<T>(value: unknown): T | null {
   return envelope.data as T;
 }
 
+const VEHICLE_QUOTE_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  AUTH_REQUIRED: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
+  EMAIL_UNVERIFIED: '이메일 인증을 완료한 뒤 다시 시도해 주세요.',
+  ADMIN_ONLY: '관리자 계정에서만 사용할 수 있습니다.',
+  METHOD_NOT_ALLOWED: '지원하지 않는 요청입니다.',
+  DB_UNAVAILABLE: '견적 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+  INTERNAL_ERROR: '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+  MISSING_TEXT: '분석할 일정을 먼저 붙여넣어 주세요.',
+  TEXT_TOO_LONG: '일정이 너무 깁니다. 12,000자 이하로 나눠 입력해 주세요.',
+  AI_NOT_CONFIGURED: '일정 분석 기능을 사용할 수 없습니다. 관리자 설정을 확인해 주세요.',
+  NO_STOPS_FOUND: '일정에서 방문 장소를 찾지 못했습니다. 내용을 확인하거나 직접 입력해 주세요.',
+  AI_PARSE_FAILED: '일정을 분석하지 못했습니다. 다시 시도하거나 직접 입력해 주세요.',
+  TOO_MANY_STOPS: '방문 장소는 최대 40곳까지 입력할 수 있습니다.',
+  INVALID_ACTION: '지원하지 않는 견적 작업입니다.',
+  INVALID_PROFILE_ID: '업체 정보를 확인한 뒤 다시 시도해 주세요.',
+  INVALID_PROFILE_VERSION: '업체 요금표 버전을 확인한 뒤 다시 시도해 주세요.',
+  INVALID_STORED_PROFILE: '저장된 업체 요금표에 문제가 있습니다. 관리자에게 확인해 주세요.',
+  PROFILE_NOT_FOUND: '선택한 업체 정보를 찾지 못했습니다.',
+  PROFILE_ARCHIVED: '사용이 종료된 업체입니다. 다른 업체를 선택해 주세요.',
+  PROFILE_ALREADY_ARCHIVED: '이미 사용이 종료된 업체입니다.',
+  PROFILE_VERSION_CONFLICT: '업체 정보가 다른 화면에서 변경되었습니다. 새로 불러온 뒤 다시 시도해 주세요.',
+  EXPECTED_VERSION_REQUIRED: '업체 정보를 새로 불러온 뒤 다시 저장해 주세요.',
+  INVALID_EXPECTED_VERSION: '업체 정보 버전을 확인한 뒤 다시 저장해 주세요.',
+  INVALID_CURRENT_VERSION: '저장된 업체 정보 버전에 문제가 있습니다. 관리자에게 확인해 주세요.',
+  BUILT_IN_PROFILE_CANNOT_BE_ARCHIVED: '기본 업체 요금표는 사용 종료할 수 없습니다.',
+  COMPANY_NAME_REQUIRED: '업체명을 입력해 주세요.',
+  INVALID_HOURLY_RATE: '시간당 요금을 확인해 주세요.',
+  INVALID_TIME_RANGE: '최소·최대 이용시간을 확인해 주세요.',
+  INVALID_BILLING_INCREMENT: '시간요금 올림 단위를 확인해 주세요.',
+  INVALID_DISTANCE_METERS: '거리요금 적용 기준을 확인해 주세요.',
+  INVALID_DISTANCE_RATE: '거리요금을 확인해 주세요.',
+  INVALID_DISTANCE_MODE: '거리 계산 방식을 확인해 주세요.',
+  INVALID_VAT_RATE: '부가세율을 확인해 주세요.',
+  INVALID_INCIDENTAL_POLICY: '통행료·주차비 계산 방식을 확인해 주세요.',
+  INVALID_OVERTIME_RATE: '초과 이용요금을 확인해 주세요.',
+  INVALID_SERVICE_DATE: '이용일을 확인해 주세요.',
+  INVALID_SERVICE_TIME: '시작·종료 시각을 확인해 주세요.',
+  INVALID_TIME_MINUTES: '총 이용시간을 확인해 주세요.',
+  MAX_TIME_EXCEEDED: '이 업체의 최대 이용시간을 초과했습니다.',
+  INVALID_ROUTE_MODE: '거리 입력 방식을 다시 선택해 주세요.',
+  ROUTE_ADDRESS_REQUIRED: '운행경로에 포함된 장소의 주소를 입력해 주세요.',
+  ROUTE_ADDRESS_NOT_CONFIRMED: '운행경로에 포함된 모든 주소를 확인해 주세요.',
+  ROUTE_NEEDS_TWO_ADDRESSES: '운행경로에는 주소가 두 곳 이상 필요합니다.',
+  ROUTE_ADDRESS_LIMIT_EXCEEDED: '자동 경로는 주소 13곳까지 지원합니다. 장소를 줄이거나 거리를 직접 입력해 주세요.',
+  ROUTE_LOOKUP_FAILED: '운행경로를 불러오지 못했습니다. 주소를 확인하거나 거리를 직접 입력해 주세요.',
+  INVALID_MANUAL_DISTANCE: '예상 거리를 0~3,000km 사이의 숫자로 입력해 주세요.',
+  INVALID_TOLL_AMOUNT: '통행료를 원 단위 정수로 입력해 주세요.',
+  INVALID_INCIDENTAL_AMOUNT: '통행료와 주차비를 원 단위 정수로 입력해 주세요.',
+  KOREAN_DISPLAY_TEXT_REQUIRED: '장소명과 일정 내용에는 한글을 한 글자 이상 입력해 주세요.',
+});
+
+const VEHICLE_QUOTE_GENERIC_ERROR = '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+function mappedVehicleQuoteError(code: string): string {
+  return Object.prototype.hasOwnProperty.call(VEHICLE_QUOTE_ERROR_MESSAGES, code)
+    ? VEHICLE_QUOTE_ERROR_MESSAGES[code]
+    : '';
+}
+
 export function apiErrorMessage(value: unknown, fallback: string): string {
-  if (!value || typeof value !== 'object') return fallback;
-  const candidate = value as { error?: unknown; message?: unknown };
-  const message = text(candidate.message) || text(candidate.error);
-  return message || fallback;
+  const safeFallback = /[가-힣]/.test(String(fallback || ''))
+    ? String(fallback).trim()
+    : VEHICLE_QUOTE_GENERIC_ERROR;
+  if (!value || typeof value !== 'object') return safeFallback;
+  const candidate = value as { code?: unknown; error?: unknown };
+  const code = text(candidate.code);
+  const errorCode = text(candidate.error);
+  return mappedVehicleQuoteError(code)
+    || mappedVehicleQuoteError(errorCode)
+    || VEHICLE_QUOTE_GENERIC_ERROR;
 }
 
 export async function copyVehicleQuoteText(value: string): Promise<boolean> {
