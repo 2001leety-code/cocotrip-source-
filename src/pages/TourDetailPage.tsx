@@ -26,6 +26,7 @@ import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
 import { TourStopMap } from '@/components/tours/TourStopMap';
+import { TourRouteSummary } from '@/components/tours/TourRouteSummary';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { TourCancellationSection } from '@/components/tours/TourCancellationSection';
@@ -404,7 +405,11 @@ export default function TourDetailPage() {
               <section id="itinerary" className="tour-detail-section">
                 <h2 className="ec-h2 tour-detail-section-heading">{itineraryTitle}</h2>
                 {tour.stops && tour.stops.length > 0 ? (
-                  <><TourStopMap stops={tour.stops} language={language} title={itineraryTitle} /><TourStopList stops={tour.stops} language={language} /></>
+                  <>
+                    <TourRouteSummary tour={tour} language={language} />
+                    <TourStopMap stops={tour.stops} language={language} title={itineraryTitle} />
+                    <TourStopList stops={tour.stops} language={language} />
+                  </>
                 ) : (
                   <div className="tour-detail-empty-itinerary" data-testid="tour-itinerary-empty">
                     <EcEmpty title={copy.itineraryEmptyTitle} body={copy.itineraryEmptyBody} />
