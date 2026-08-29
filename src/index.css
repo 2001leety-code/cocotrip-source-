@@ -517,6 +517,27 @@ html[data-menu-open="true"] .early-bird-banner {
     background-image: none !important;
     background-color: #7C5CFC !important;
   }
+
+  /* MOOD 업체 견적은 서버가 만든 고객용 문서 한 장만 인쇄한다.
+     입력 폼·요금표 편집·관리 버튼은 화면에만 남고 출력물에서는 숨긴다. */
+  body:has([data-mood-quote-print-document]) * {
+    visibility: hidden !important;
+  }
+  body:has([data-mood-quote-print-document]) [data-mood-quote-print-document] {
+    visibility: visible !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    font-size: 11pt !important;
+    line-height: 1.65 !important;
+    white-space: pre-wrap !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════

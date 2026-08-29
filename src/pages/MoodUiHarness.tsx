@@ -14,8 +14,10 @@ import {
 } from '@/components/mood/MoodSettlementEditor';
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodBookingBlockManager } from '@/components/mood/MoodBookingBlockManager';
+import { MoodQuoteBuilder } from '@/components/mood/MoodQuoteBuilder';
 import type { MoodBookingShareData } from '@/lib/moodBookingShare';
 import type { MoodBookingAvailability, MoodBookingOpenException } from '@/lib/moodBookingAvailability';
+import type { VehicleQuotePreviewRequest, VehicleQuoteProfile } from '@/lib/vehicleQuote';
 
 const points = [
   { lat: 37.5547, lng: 126.9706, role: 'origin' as const },
@@ -107,6 +109,178 @@ const actualTolls = [
   { label: '충전(제외내역)', date: '2026-08-20 15:27:25', amountKRW: 10000, status: 'confirmed' as const, includedInSettlement: false, evidenceRef: '하이패스 카드 캡처 2/2' },
 ];
 
+const harnessQuoteProfiles: VehicleQuoteProfile[] = [
+  {
+    id: 'mood-default',
+    version: 1,
+    companyName: 'MOOD',
+    hourlyRateKRW: 30000,
+    minMinutes: 180,
+    maxMinutes: 900,
+    billingIncrementMinutes: 1,
+    distanceThresholdMeters: 50000,
+    distanceRateKRWPerKm: 600,
+    distanceBillingMode: 'all_distance_when_threshold_reached',
+    vatBasisPoints: 1000,
+    tollPolicy: 'route_estimate',
+    parkingPolicy: 'manual',
+    overtimeRateKRW: 33000,
+    overtimeIncludesVat: true,
+    documentTitle: '전용 차량 일정 및 예상 견적',
+    footer: '실제 운행 결과에 따라 이용시간·거리·통행료·주차비가 달라질 수 있습니다.',
+    builtIn: true,
+  },
+  {
+    id: 'partner-demo',
+    version: 3,
+    companyName: '파트너 차량 예시',
+    hourlyRateKRW: 35000,
+    minMinutes: 240,
+    maxMinutes: 720,
+    billingIncrementMinutes: 60,
+    distanceThresholdMeters: 80000,
+    distanceRateKRWPerKm: 700,
+    distanceBillingMode: 'excess_only',
+    vatBasisPoints: 1000,
+    tollPolicy: 'manual',
+    parkingPolicy: 'manual',
+    overtimeRateKRW: 38500,
+    overtimeIncludesVat: true,
+    documentTitle: '파트너 전용 차량 견적',
+    footer: '파트너 업체 테스트 프로필입니다.',
+  },
+];
+
+const harnessParsedQuote = {
+  serviceDate: '2026-09-01',
+  startTime: '08:00',
+  endTime: '20:00',
+  departureAddress: '서울특별시 강남구 신사동 643-18',
+  returnAddress: '서울특별시 강남구 신사동 643-18',
+  needsConfirm: true,
+  conflicts: [],
+  warnings: ['붙여넣은 일정의 주소와 시간을 직접 확인해 주세요.'],
+  stops: [
+    {
+      clientId: 'quote-stop-1', order: 1, arrivalTime: '10:00', departureTime: '12:00',
+      name: '기원 위스키 증류소', purpose: '위스키 협업 관련 조사 및 미팅',
+      sourceRegion: '남양주',
+      roadAddress: '경기도 남양주시 화도읍 녹촌로 259-18', jibunAddress: '경기도 남양주시 화도읍 녹촌리 384-20',
+      naverMapUrl: 'https://naver.me/Fx2gIj9B', optional: false, includeInRoute: true, addressVerified: false,
+      lat: 37.661, lng: 127.352,
+    },
+    {
+      clientId: 'quote-stop-2', order: 2, arrivalTime: '13:00', departureTime: '14:00',
+      name: '왕십리 곱창거리', purpose: '소곱창 점심 식사',
+      sourceRegion: '서울',
+      roadAddress: '서울특별시 성동구 행당동', jibunAddress: '서울특별시 성동구 행당동',
+      naverMapUrl: 'https://naver.me/FM9dQBOv', optional: false, includeInRoute: true, addressVerified: false,
+      lat: 37.561, lng: 127.038,
+    },
+    {
+      clientId: 'quote-stop-3', order: 3, arrivalTime: '14:30', departureTime: '16:00',
+      name: '더 루프', purpose: '카펠라 서울 레지던스 클럽 4층 미팅',
+      sourceRegion: '서울',
+      roadAddress: '서울특별시 용산구 독서당로35길 4, 4층', jibunAddress: '서울특별시 용산구 한남동 60-24',
+      naverMapUrl: 'https://naver.me/5eDY0Qr4', optional: false, includeInRoute: true, addressVerified: false,
+      lat: 37.535, lng: 127.01,
+    },
+    {
+      clientId: 'quote-stop-4', order: 4, arrivalTime: '17:00', departureTime: '19:00',
+      name: '고척스카이돔', purpose: '야구 경기 관람',
+      sourceRegion: '서울',
+      roadAddress: '서울특별시 구로구 경인로 430', jibunAddress: '서울특별시 구로구 고척동 63-6',
+      naverMapUrl: 'https://naver.me/F1a5w2dx', optional: false, includeInRoute: true, addressVerified: false,
+      lat: 37.499, lng: 126.867,
+    },
+  ],
+};
+
+function quoteHarnessDocument(
+  request: VehicleQuotePreviewRequest,
+  breakdown: { timeFeeKRW: number; distanceFeeKRW: number; taxableSupplyKRW: number; vatKRW: number; tollKRW: number; parkingKRW: number; totalKRW: number },
+): string {
+  const confirmRequired = '확인 필요';
+  const stopText = request.stops.map((stop) => [
+    `${stop.arrivalTime || confirmRequired} – ${stop.name || confirmRequired}`,
+    stop.purpose || confirmRequired,
+    stop.name || confirmRequired,
+    stop.roadAddress || confirmRequired,
+    `지번 주소: ${stop.jibunAddress || confirmRequired}`,
+    '',
+    '네이버 지도:',
+    stop.naverMapUrl || confirmRequired,
+  ].join('\n')).join('\n\n');
+  const distanceKm = Number(request.manualDistanceKm || 0);
+  const totalHours = request.totalMinutes / 60;
+  return [
+    '[전용 차량 일정 및 예상 견적]',
+    '',
+    `이용일: ${request.serviceDate}`,
+    `예상 차량 이용시간: ${totalHours}시간`,
+    `예상 이용시간: ${request.startTime} ~ ${request.endTime}`,
+    '',
+    `${request.startTime} – 차량 탑승 및 출발`,
+    request.departureAddress || confirmRequired,
+    '',
+    stopText,
+    '',
+    `${request.endTime}경 – 복귀 장소 도착 및 일정 종료`,
+    request.returnAddress || confirmRequired,
+    '',
+    '[MOOD 차량 예상 견적]',
+    '',
+    `차량 이용시간: ${totalHours}시간 × 시간당 30,000원 = ${breakdown.timeFeeKRW.toLocaleString('ko-KR')}원`,
+    `예상 총 운행거리: 약 ${distanceKm}km`,
+    `거리 요금: ${distanceKm}km × 600원 = ${breakdown.distanceFeeKRW.toLocaleString('ko-KR')}원`,
+    `차량 이용요금 공급가액: ${breakdown.taxableSupplyKRW.toLocaleString('ko-KR')}원`,
+    `부가세 10%: ${breakdown.vatKRW.toLocaleString('ko-KR')}원`,
+    `통행료 및 주차비 예상액: ${(breakdown.tollKRW + breakdown.parkingKRW).toLocaleString('ko-KR')}원`,
+    `부가세·통행료·주차비 포함 최종 예상 금액: ${breakdown.totalKRW.toLocaleString('ko-KR')}원`,
+    '',
+    '※ 실제 이용시간, 운행거리, 통행료 또는 주차비가 예상 범위를 초과하면 추가 금액이 발생할 수 있습니다.',
+    '※ 예정된 이용시간을 초과하는 경우 부가세를 포함해 시간당 33,000원의 추가 차량 이용요금이 발생합니다.',
+  ].join('\n');
+}
+
+const HARNESS_ACCEPTANCE_BREAKDOWN = Object.freeze({
+  currency: 'KRW' as const,
+  timeMinutes: 720,
+  billableMinutes: 720,
+  timeFeeKRW: 360000,
+  distanceFeeKRW: 75000,
+  taxableSupplyKRW: 435000,
+  vatKRW: 43500,
+  tollKRW: 20000,
+  parkingKRW: 10000,
+  incidentalsKRW: 30000,
+  totalKRW: 508500,
+  overtimeRateKRW: 33000,
+});
+
+/**
+ * 오프라인 하네스는 가격 계산기가 아니다. 서버가 이미 계산해 돌려준 것으로 간주하는
+ * 승인 예시(12시간·125km·실비 30,000원) 한 건만 고정 응답한다.
+ */
+function quoteHarnessPreview(request: VehicleQuotePreviewRequest) {
+  const distanceKm = Number(request.manualDistanceKm || 0);
+  const breakdown = HARNESS_ACCEPTANCE_BREAKDOWN;
+  return {
+    profile: harnessQuoteProfiles[0],
+    route: {
+      source: request.routeMode,
+      distanceMeters: Math.round(distanceKm * 1000),
+      distanceKm,
+      durationMinutes: 180,
+      tollKRW: breakdown.tollKRW,
+    },
+    breakdown,
+    documentText: quoteHarnessDocument(request, breakdown),
+    warnings: request.routeMode === 'manual' ? ['예상 운행거리를 관리자가 직접 입력한 견적입니다.'] : [],
+    quoteSnapshot: { profileId: request.profileId, profileVersion: request.profileVersion || 1 },
+  };
+}
+
 const initialSettlementBooking: SettlementBooking = {
   id: 'MOOD-20260820',
   date: '2026-08-20',
@@ -185,6 +359,8 @@ function settlementApproval(
 }
 
 export default function MoodUiHarness() {
+  const [quoteHarnessReady, setQuoteHarnessReady] = useState(false);
+  const [lastQuoteRequest, setLastQuoteRequest] = useState('');
   const [bookingAvailability, setBookingAvailability] = useState(initialBookingAvailability);
   const bookingAvailabilityRef = useRef(initialBookingAvailability);
   const [changeOpen, setChangeOpen] = useState(false);
@@ -209,6 +385,70 @@ export default function MoodUiHarness() {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = String(input);
+      if (url.includes('/api/mood-quote-profiles')) {
+        const method = String(init?.method || 'GET').toUpperCase();
+        if (method === 'POST') {
+          const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+          const saved = {
+            ...harnessQuoteProfiles[0],
+            ...(body.profile || {}),
+            id: String(body.profile?.id || 'company-harness'),
+            version: Number(body.expectedVersion || 0) + 1,
+          };
+          return new Response(JSON.stringify({ ok: true, data: { profile: saved } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({
+          ok: true,
+          data: { profiles: harnessQuoteProfiles, builtInProfileId: 'mood-default' },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.includes('/api/mood-quote-parse')) {
+        return new Response(JSON.stringify({ ok: true, data: harnessParsedQuote }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/mood-quote-preview')) {
+        const body = typeof init?.body === 'string' ? JSON.parse(init.body) as VehicleQuotePreviewRequest : {} as VehicleQuotePreviewRequest;
+        setLastQuoteRequest(JSON.stringify({
+          profileId: body.profileId,
+          totalMinutes: body.totalMinutes,
+          routeMode: body.routeMode,
+          manualDistanceKm: body.manualDistanceKm,
+          manualTollKRW: body.manualTollKRW,
+          parkingKRW: body.parkingKRW,
+          stopCount: Array.isArray(body.stops) ? body.stops.length : 0,
+        }));
+        const isAcceptanceFixture = body.totalMinutes === 720
+          && body.routeMode === 'manual'
+          && Number(body.manualDistanceKm) === 125
+          && Number(body.manualTollKRW) === 20000
+          && Number(body.parkingKRW) === 10000;
+        if (!isAcceptanceFixture) {
+          return new Response(JSON.stringify({ ok: false, error: 'HARNESS_FIXTURE_MISMATCH' }), {
+            status: 422,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ ok: true, data: quoteHarnessPreview(body) }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/place-search')) {
+        return new Response(JSON.stringify({
+          items: [{
+            name: '기원 위스키 증류소',
+            roadAddress: '경기도 남양주시 화도읍 녹촌로 259-18',
+            address: '경기도 남양주시 화도읍 녹촌리 384-20',
+            lat: 37.661,
+            lng: 127.352,
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       if (url.includes('/api/mood-booking-blocks')) {
         const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
         const current = bookingAvailabilityRef.current;
@@ -432,6 +672,9 @@ export default function MoodUiHarness() {
       }
       return originalFetch(input, init);
     };
+    // 하위 MoodQuoteBuilder의 profile effect보다 먼저 mock을 설치한 뒤 렌더한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuoteHarnessReady(true);
     return () => { window.fetch = originalFetch; };
   }, []);
 
@@ -521,6 +764,16 @@ export default function MoodUiHarness() {
           : null}
         onClose={() => setReceiptOpen(false)}
       />
+      {quoteHarnessReady && (
+        <section className="mx-auto mt-6 w-full max-w-[760px]" data-testid="mood-quote-harness">
+          <MoodQuoteBuilder />
+          {lastQuoteRequest && (
+            <p className="mt-2 break-all rounded-xl bg-white/5 px-3 py-2 text-[10px] text-white/65" data-testid="mood-harness-quote-request">
+              최근 견적 요청: {lastQuoteRequest}
+            </p>
+          )}
+        </section>
+      )}
     </main>
   );
 }

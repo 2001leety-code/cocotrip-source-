@@ -111,7 +111,7 @@ function coordParam(c) {
  * @param {{ origin: string, destination: string, waypoints?: string[] }} input
  *   - waypoints: 경유지 배열 (선택). 순서대로 경유.
  * @returns {Promise<
- *     { ok: true, km: number, tollKRW: number, durationMin: number }
+ *     { ok: true, distanceMeters: number, km: number, tollKRW: number, durationMin: number }
  *   | { ok: false, status: number, error: string, detail?: string }
  * >}
  *
@@ -208,7 +208,7 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
     const tollKRW = Math.round(rawTollFare);
 
     // 경로 선(폴리라인) 좌표 [[lng,lat],...] + 출발/경유/도착 마커 좌표 — 지도에 실제 경로 그리기용.
-    // (추가 필드: 기존 km/tollKRW/durationMin 은 그대로 = 가격 계산 무영향.)
+    // raw distanceMeters 를 추가하되 기존 km/tollKRW/durationMin 은 역호환으로 유지한다.
     const path = Array.isArray(route0.path) ? route0.path : [];
     const points = [
       { lat: originCoord.lat, lng: originCoord.lng, role: 'origin' },
@@ -216,7 +216,7 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
       { lat: destCoord.lat, lng: destCoord.lng, role: 'destination' },
     ];
 
-    return { ok: true, km, tollKRW, durationMin, path, points };
+    return { ok: true, distanceMeters: Math.round(distanceMeters), km, tollKRW, durationMin, path, points };
   } catch (err) {
     return { ok: false, status: 502, error: 'DIRECTIONS_FAILED', detail: err?.message };
   }
