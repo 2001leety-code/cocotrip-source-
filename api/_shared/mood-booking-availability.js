@@ -7,6 +7,8 @@
  */
 export const MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION = 1;
 export const MOOD_BOOKING_AVAILABILITY_MAX_RULES = 50;
+export const MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS = 100;
+export const MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTION_DAYS = 366;
 export const MOOD_BOOKING_AVAILABILITY_CONFIG_COLLECTION = 'mood_config';
 export const MOOD_BOOKING_AVAILABILITY_CONFIG_DOCUMENT = 'booking_availability';
 
@@ -36,12 +38,14 @@ export const DEFAULT_MOOD_BOOKING_AVAILABILITY = Object.freeze({
   schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
   revision: 0,
   rules: Object.freeze([DEFAULT_RULE]),
+  exceptions: Object.freeze([]),
 });
 
 const AVAILABLE = Object.freeze({ ok: true });
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const RULE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function calendarWeekday(date) {
   if (!DATE_RE.test(String(date || ''))) return null;
@@ -63,6 +67,23 @@ export function isValidMoodBookingDate(date) {
 
 export function isValidMoodBookingRuleId(id) {
   return RULE_ID_RE.test(String(id || ''));
+}
+
+export function isValidMoodBookingExceptionId(id) {
+  return RULE_ID_RE.test(String(id || ''));
+}
+
+function dateToEpochDay(date) {
+  if (!isValidMoodBookingDate(date)) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / MS_PER_DAY);
+}
+
+function inclusiveDateSpan(startDate, endDate) {
+  const startDay = dateToEpochDay(startDate);
+  const endDay = dateToEpochDay(endDate);
+  if (startDay === null || endDay === null || startDay > endDay) return null;
+  return endDay - startDay + 1;
 }
 
 /**
@@ -130,11 +151,98 @@ export function normalizeMoodBookingAvailabilityRule(raw) {
   };
 }
 
+/**
+ * 클라이언트가 보내는 예외 기간 필드만 검증한다. ruleIds는 서버가 현재 규칙을
+ * 기준으로 트랜잭션 안에서 바인딩하므로 이 입력에서는 받지 않는다.
+ */
+export function normalizeMoodBookingAvailabilityExceptionDraft(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION' };
+  }
+
+  const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+  const startDate = typeof raw.startDate === 'string' ? raw.startDate.trim() : '';
+  const endDate = typeof raw.endDate === 'string' ? raw.endDate.trim() : '';
+  const reason = typeof raw.reason === 'string' ? raw.reason.trim() : '';
+  const dateSpan = inclusiveDateSpan(startDate, endDate);
+
+  if (!isValidMoodBookingExceptionId(id)) {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_ID' };
+  }
+  if (typeof raw.enabled !== 'boolean') {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_ENABLED' };
+  }
+  if (dateSpan === null || dateSpan > MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTION_DAYS) {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_DATE_RANGE' };
+  }
+  if (!reason || reason.length > 500) {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_REASON' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      id,
+      enabled: raw.enabled,
+      startDate,
+      endDate,
+      reason,
+    },
+  };
+}
+
+/**
+ * Firestore에 저장된 예외 하나를 엄격히 검증하고 정규화한다.
+ */
+export function normalizeMoodBookingAvailabilityException(raw) {
+  const draft = normalizeMoodBookingAvailabilityExceptionDraft(raw);
+  if (!draft.ok) return draft;
+  if (
+    !Array.isArray(raw.ruleIds)
+    || raw.ruleIds.length < 1
+    || raw.ruleIds.length > MOOD_BOOKING_AVAILABILITY_MAX_RULES
+    || raw.ruleIds.some((ruleId) => (
+      typeof ruleId !== 'string' || !isValidMoodBookingRuleId(ruleId)
+    ))
+    || new Set(raw.ruleIds).size !== raw.ruleIds.length
+  ) {
+    return { ok: false, error: 'INVALID_BOOKING_BLOCK_EXCEPTION_RULE_IDS' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      ...draft.value,
+      ruleIds: [...raw.ruleIds],
+    },
+  };
+}
+
+/**
+ * 규칙의 날짜·요일 조건이 요청 범위 안의 하루 이상에 걸리는지 확인한다.
+ * enabled는 보지 않는다. 현재 꺼 둔 규칙도 다시 켰을 때 기존 예외가 유지되어야 한다.
+ */
+export function moodBookingRuleAffectsDateRange(rule, startDate, endDate) {
+  if (!rule || !Array.isArray(rule.weekdays)) return false;
+  const overlapStart = rule.startDate > startDate ? rule.startDate : startDate;
+  const overlapEnd = rule.endDate < endDate ? rule.endDate : endDate;
+  const overlapDays = inclusiveDateSpan(overlapStart, overlapEnd);
+  if (overlapDays === null) return false;
+
+  const firstWeekday = calendarWeekday(overlapStart);
+  const daysToCheck = Math.min(overlapDays, 7);
+  for (let offset = 0; offset < daysToCheck; offset += 1) {
+    if (rule.weekdays.includes((firstWeekday + offset) % 7)) return true;
+  }
+  return false;
+}
+
 function cloneDefaultAvailability() {
   return {
     schemaVersion: MOOD_BOOKING_AVAILABILITY_SCHEMA_VERSION,
     revision: 0,
     rules: [{ ...DEFAULT_RULE, weekdays: [...DEFAULT_RULE.weekdays] }],
+    exceptions: [],
   };
 }
 
@@ -164,6 +272,13 @@ export function moodBookingAvailabilityFromSnapshot(snapshot) {
   if (!Array.isArray(data.rules) || data.rules.length > MOOD_BOOKING_AVAILABILITY_MAX_RULES) {
     invalidStoredConfig('INVALID_BOOKING_AVAILABILITY_RULES');
   }
+  const rawExceptions = data.exceptions === undefined ? [] : data.exceptions;
+  if (
+    !Array.isArray(rawExceptions)
+    || rawExceptions.length > MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS
+  ) {
+    invalidStoredConfig('INVALID_BOOKING_AVAILABILITY_EXCEPTIONS');
+  }
 
   const rules = data.rules.map((rule) => {
     const normalized = normalizeMoodBookingAvailabilityRule(rule);
@@ -173,7 +288,19 @@ export function moodBookingAvailabilityFromSnapshot(snapshot) {
   if (new Set(rules.map((rule) => rule.id)).size !== rules.length) {
     invalidStoredConfig('DUPLICATE_BOOKING_BLOCK_RULE_ID');
   }
-  return { schemaVersion, revision, rules };
+  const ruleIds = new Set(rules.map((rule) => rule.id));
+  const exceptions = rawExceptions.map((exception) => {
+    const normalized = normalizeMoodBookingAvailabilityException(exception);
+    if (!normalized.ok) invalidStoredConfig(normalized.error);
+    if (normalized.value.ruleIds.some((ruleId) => !ruleIds.has(ruleId))) {
+      invalidStoredConfig('UNKNOWN_BOOKING_BLOCK_EXCEPTION_RULE_ID');
+    }
+    return normalized.value;
+  });
+  if (new Set(exceptions.map((exception) => exception.id)).size !== exceptions.length) {
+    invalidStoredConfig('DUPLICATE_BOOKING_BLOCK_EXCEPTION_ID');
+  }
+  return { schemaVersion, revision, rules, exceptions };
 }
 
 export function moodBookingAvailabilityRef(db) {
@@ -203,6 +330,41 @@ export function checkMoodBookingAvailability(
   const rules = Array.isArray(bookingAvailability && bookingAvailability.rules)
     ? bookingAvailability.rules
     : DEFAULT_MOOD_BOOKING_AVAILABILITY.rules;
+  const knownRuleIds = new Set(rules.map((rule) => rule && rule.id).filter(Boolean));
+  const exemptedRuleIds = new Set();
+  const rawExceptions = Array.isArray(bookingAvailability && bookingAvailability.exceptions)
+    ? bookingAvailability.exceptions
+    : [];
+  const normalizedExceptions = [];
+  let exceptionsValid = rawExceptions.length <= MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS;
+  rawExceptions.forEach((rawException) => {
+    if (!exceptionsValid) return;
+    const normalized = normalizeMoodBookingAvailabilityException(rawException);
+    if (
+      !normalized.ok
+      || normalized.value.ruleIds.some((ruleId) => !knownRuleIds.has(ruleId))
+    ) {
+      exceptionsValid = false;
+      return;
+    }
+    normalizedExceptions.push(normalized.value);
+  });
+  if (
+    new Set(normalizedExceptions.map((exception) => exception.id)).size
+    !== normalizedExceptions.length
+  ) {
+    exceptionsValid = false;
+  }
+  if (exceptionsValid) normalizedExceptions.forEach((exception) => {
+    if (
+      exception.enabled !== true
+      || date < exception.startDate
+      || date > exception.endDate
+    ) {
+      return;
+    }
+    exception.ruleIds.forEach((ruleId) => exemptedRuleIds.add(ruleId));
+  });
   // startDate와 endDate는 모두 포함(inclusive)하는 한국 달력 날짜 경계다.
   const matched = rules.find((rule) => (
     rule
@@ -212,6 +374,7 @@ export function checkMoodBookingAvailability(
     && Array.isArray(rule.weekdays)
     && rule.weekdays.includes(weekday)
     && (rule.mode === 'full_day' || (rule.mode === 'starts_from' && startTime >= rule.startTime))
+    && !exemptedRuleIds.has(rule.id)
   ));
   if (!matched) return AVAILABLE;
   return {

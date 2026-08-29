@@ -94,6 +94,9 @@ const C = {
   inputBorder: '1px solid rgba(124,92,252,0.18)',
 };
 
+const MOOD_BOOKING_AVAILABILITY_CHANNEL = 'cocotrip-mood-booking-availability';
+const EXTERNAL_AVAILABILITY_REFRESH_DEBOUNCE_MS = 800;
+
 /** 예약 doc 의 금액 분해 (백엔드 mood-data 가 breakdown 으로 저장/반환). */
 interface MoodBreakdown {
   baseKRW?: number;
@@ -390,6 +393,13 @@ export default function MoodPortal() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [forbidden, setForbidden] = useState(false);
+  const latestAvailabilityRevisionRef = useRef(-1);
+  const latestAvailabilityRef = useRef<MoodBookingAvailability | null>(null);
+  const availabilityChannelRef = useRef<BroadcastChannel | null>(null);
+  const availabilityRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const availabilityRefreshQueuedRef = useRef(false);
+  const availabilityRefreshTargetRevisionRef = useRef(-1);
+  const lastExternalRefreshAtRef = useRef(0);
 
   // 상단 3-탭 (현황 / 수기 예약 / AI 예약)
   const [portalTab, setPortalTab] = useState<PortalTab>('status');
@@ -491,6 +501,8 @@ export default function MoodPortal() {
       const json = await res.json().catch(() => ({}));
       if (res.status === 403) {
         setForbidden(true);
+        latestAvailabilityRevisionRef.current = -1;
+        latestAvailabilityRef.current = null;
         setData(null);
         return;
       }
@@ -500,9 +512,22 @@ export default function MoodPortal() {
       }
       setForbidden(false);
       const rawData = json.data as Omit<MoodData, 'bookingAvailability'> & { bookingAvailability?: unknown };
-      setData({
-        ...rawData,
-        bookingAvailability: parseMoodBookingAvailability(rawData.bookingAvailability),
+      const incomingAvailability = parseMoodBookingAvailability(rawData.bookingAvailability);
+      setData((current) => {
+        const stateAvailability = current?.bookingAvailability || null;
+        const refAvailability = latestAvailabilityRef.current;
+        const currentAvailability = stateAvailability && refAvailability
+          ? stateAvailability.revision >= refAvailability.revision ? stateAvailability : refAvailability
+          : stateAvailability || refAvailability;
+        const availabilityIsStale = Boolean(
+          incomingAvailability
+          && currentAvailability
+          && incomingAvailability.revision < currentAvailability.revision,
+        );
+        const nextAvailability = availabilityIsStale ? currentAvailability : incomingAvailability;
+        latestAvailabilityRevisionRef.current = nextAvailability ? nextAvailability.revision : -1;
+        latestAvailabilityRef.current = nextAvailability;
+        return { ...rawData, bookingAvailability: nextAvailability };
       });
     } catch (e) {
       setDataError(e instanceof Error ? e.message : '조회 실패');
@@ -511,11 +536,111 @@ export default function MoodPortal() {
     }
   }, []);
 
+  const handleBookingAvailabilityUpdated = useCallback((nextAvailability: MoodBookingAvailability) => {
+    const previousRevision = latestAvailabilityRevisionRef.current;
+    if (nextAvailability.revision < previousRevision) return;
+    latestAvailabilityRevisionRef.current = nextAvailability.revision;
+    latestAvailabilityRef.current = nextAvailability;
+    setData((current) => current ? { ...current, bookingAvailability: nextAvailability } : current);
+    if (nextAvailability.revision > previousRevision) {
+      availabilityChannelRef.current?.postMessage({
+        type: 'booking-availability-updated',
+        revision: nextAvailability.revision,
+      });
+    }
+  }, []);
+
+  const refreshBookingAvailability = useCallback(() => {
+    if (availabilityRefreshInFlightRef.current) return availabilityRefreshInFlightRef.current;
+    const request = (async () => {
+      try {
+        const response = await authFetch('/api/mood-booking-blocks');
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json?.ok !== true) return;
+        const nextAvailability = parseMoodBookingAvailability(json?.data?.bookingAvailability);
+        if (!nextAvailability) {
+          latestAvailabilityRevisionRef.current = -1;
+          latestAvailabilityRef.current = null;
+          setData((current) => current ? { ...current, bookingAvailability: null } : current);
+          return;
+        }
+        if (nextAvailability.revision < latestAvailabilityRevisionRef.current) return;
+        latestAvailabilityRevisionRef.current = nextAvailability.revision;
+        latestAvailabilityRef.current = nextAvailability;
+        if (nextAvailability.revision >= availabilityRefreshTargetRevisionRef.current) {
+          availabilityRefreshTargetRevisionRef.current = -1;
+        }
+        setData((current) => current ? { ...current, bookingAvailability: nextAvailability } : current);
+      } catch {
+        // 포커스 복귀 동기화 실패는 현재 화면을 유지한다. 다음 포커스/visibility에서 다시 확인한다.
+      } finally {
+        availabilityRefreshInFlightRef.current = null;
+      }
+    })();
+    availabilityRefreshInFlightRef.current = request;
+    return request;
+  }, []);
+
   useEffect(() => {
     // 로그인 시 1회 데이터 로드 — loadData 내부 setState 는 의도된 fetch-on-mount 패턴.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) loadData();
   }, [user, loadData]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    const requestExternalRefresh = (force = false) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (!force && now - lastExternalRefreshAtRef.current < EXTERNAL_AVAILABILITY_REFRESH_DEBOUNCE_MS) return;
+      lastExternalRefreshAtRef.current = now;
+      void refreshBookingAvailability();
+    };
+    const handleFocus = () => requestExternalRefresh();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') requestExternalRefresh();
+    };
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel === 'function') {
+      channel = new BroadcastChannel(MOOD_BOOKING_AVAILABILITY_CHANNEL);
+      availabilityChannelRef.current = channel;
+      channel.onmessage = (event: MessageEvent<unknown>) => {
+        const payload = event.data;
+        if (!payload || typeof payload !== 'object') return;
+        const revision = Number((payload as Record<string, unknown>).revision);
+        const type = (payload as Record<string, unknown>).type;
+        if (type === 'booking-availability-updated' && Number.isInteger(revision) && revision > latestAvailabilityRevisionRef.current) {
+          availabilityRefreshTargetRevisionRef.current = Math.max(availabilityRefreshTargetRevisionRef.current, revision);
+          const activeRequest = availabilityRefreshInFlightRef.current;
+          if (activeRequest && !availabilityRefreshQueuedRef.current) {
+            availabilityRefreshQueuedRef.current = true;
+            void activeRequest.finally(() => {
+              availabilityRefreshQueuedRef.current = false;
+              if (availabilityRefreshTargetRevisionRef.current > latestAvailabilityRevisionRef.current) {
+                lastExternalRefreshAtRef.current = 0;
+                requestExternalRefresh(true);
+              } else {
+                availabilityRefreshTargetRevisionRef.current = -1;
+              }
+            });
+            return;
+          }
+          requestExternalRefresh(true);
+        }
+      };
+    }
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (availabilityChannelRef.current === channel) availabilityChannelRef.current = null;
+      channel?.close();
+    };
+  }, [user, refreshBookingAvailability]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- selected booking data is copied into the capture preview state */
   useEffect(() => {
@@ -1128,13 +1253,14 @@ export default function MoodPortal() {
           </ul>
           <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.70)' }}>
             시각 제한은 시작 시각에만 적용됩니다. 이미 확정된 예약은 그대로 유효합니다.
+            <span className="mt-0.5 block">관리자가 따로 연 날짜는 캘린더의 예약 가능 표시가 우선합니다.</span>
           </p>
         </div>}
 
         {data?.isAdmin && (
           <MoodBookingBlockManager
             availability={bookingAvailability}
-            onUpdated={(nextAvailability) => setData((current) => current ? { ...current, bookingAvailability: nextAvailability } : current)}
+            onUpdated={handleBookingAvailabilityUpdated}
             onReload={() => loadData(data.clientId)}
           />
         )}
@@ -1265,8 +1391,22 @@ export default function MoodPortal() {
                   }}
                   className="relative min-h-[46px] rounded-xl px-1 py-1 text-left transition-all"
                   style={{
-                    background: selected ? C.accent : dateRestriction ? 'rgba(245,158,11,0.08)' : isToday ? 'rgba(124,92,252,0.14)' : C.inputBg,
-                    border: selected ? '1px solid transparent' : dateRestriction ? '1px solid rgba(245,158,11,0.38)' : C.inputBorder,
+                    background: selected && dateRestriction
+                      ? 'rgba(245,158,11,0.22)'
+                      : selected
+                        ? C.accent
+                        : dateRestriction
+                          ? 'rgba(245,158,11,0.08)'
+                          : isToday
+                            ? 'rgba(124,92,252,0.14)'
+                            : C.inputBg,
+                    border: selected && dateRestriction
+                      ? '1px solid rgba(252,211,77,0.82)'
+                      : selected
+                        ? '1px solid transparent'
+                        : dateRestriction
+                          ? '1px solid rgba(245,158,11,0.38)'
+                          : C.inputBorder,
                     color: d.inMonth ? C.text : 'rgba(255,255,255,0.28)',
                   }}
                 >
@@ -1274,7 +1414,7 @@ export default function MoodPortal() {
                   {dateRestriction && (
                     <span
                       className="absolute right-1 top-1 rounded px-1 py-0.5 text-[8px] font-black"
-                      style={{ background: selected ? 'rgba(255,255,255,0.20)' : 'rgba(245,158,11,0.18)', color: selected ? '#fff' : '#fcd34d' }}
+                      style={{ background: selected ? 'rgba(245,158,11,0.28)' : 'rgba(245,158,11,0.18)', color: '#fcd34d' }}
                     >
                       {dateRestriction.fullDay ? '종일' : `${dateRestriction.startTime?.slice(0, 2)}시+`}
                     </span>
@@ -1314,20 +1454,23 @@ export default function MoodPortal() {
             종일 = 하루 전체 차단 · 시각+ = 해당 시각부터 시작하는 예약 차단
           </p>
 
-          {selectedDateRestriction && (
-            <div
-              className="mt-3 rounded-xl px-3 py-2.5"
-              role="status"
-              style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }}
-            >
-              <p className="text-[11px] font-bold" style={{ color: '#fcd34d' }}>
-                {selectedCalendarDate} · {formatMoodBookingRestrictionLabel(selectedDateRestriction)}
-              </p>
-              <p className="mt-0.5 text-[11px]" style={{ color: C.textDim }}>
-                {selectedDateRestriction.reason} · 이미 확정된 예약은 그대로 유지됩니다.
-              </p>
-            </div>
-          )}
+          <div
+            className="mt-3 rounded-xl px-3 py-2.5"
+            role="status"
+            aria-label="선택 날짜 예약 상태"
+            style={selectedDateRestriction
+              ? { background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)' }
+              : { background: 'rgba(110,231,183,0.08)', border: '1px solid rgba(110,231,183,0.25)' }}
+          >
+            <p className="text-[11px] font-bold" style={{ color: selectedDateRestriction ? '#fcd34d' : C.ok }}>
+              {selectedCalendarDate} · {selectedDateRestriction ? formatMoodBookingRestrictionLabel(selectedDateRestriction) : '예약 가능'}
+            </p>
+            <p className="mt-0.5 text-[11px]" style={{ color: 'rgba(255,255,255,0.72)' }}>
+              {selectedDateRestriction
+                ? `${selectedDateRestriction.reason} · 이미 확정된 예약은 그대로 유지됩니다.`
+                : '이 날짜에 적용되는 예약 차단이 없습니다.'}
+            </p>
+          </div>
 
           {/* 운영자 스케줄 — 무드에게도 공개(2026-07-27). 쓰기는 운영자만(서버 mood-notes 가 POST 제한). */}
           {isAdmin ? (

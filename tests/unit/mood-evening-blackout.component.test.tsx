@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authFetchMock = vi.fn();
+const portalRole = vi.hoisted(() => ({
+  isAdmin: false,
+  operatorUser: { email: 'operator@mood.test' },
+  staffUser: { email: 'staff@mood.test' },
+}));
 vi.mock('@/lib/authFetch', () => ({ authFetch: (...args: unknown[]) => authFetchMock(...args) }));
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ user: { email: 'staff@mood.test' }, loading: false }),
+  useAuth: () => ({ user: portalRole.isAdmin ? portalRole.operatorUser : portalRole.staffUser, loading: false }),
 }));
 vi.mock('@/lib/firebase', () => ({ signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/appReady', () => ({ signalAppReady: vi.fn() }));
@@ -80,6 +85,7 @@ function response(json: unknown, status = 200) {
 }
 
 beforeEach(() => {
+  portalRole.isAdmin = false;
   parsePayload = parseResponse;
   routeShouldFail = false;
   authFetchMock.mockReset();
@@ -88,7 +94,7 @@ beforeEach(() => {
     if (target.includes('/api/mood-data')) {
       return response({
         ok: true,
-        data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: false, bookingAvailability },
+        data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: portalRole.isAdmin, bookingAvailability },
       });
     }
     if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
@@ -105,6 +111,10 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('MoodPortal 임시 저녁 제한 UI', () => {
   it('고정 공지, 캘린더 표시·선택 설명, 수기 예약 즉시 차단을 함께 보여 준다', async () => {
     render(<MoodPortal />);
@@ -112,6 +122,7 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
     const notice = await screen.findByRole('note', { name: '예약 제한 안내' });
     expect(notice).toHaveTextContent('8월 15일~9월 15일 목·금·토 · 오후 6시 이후 시작 예약 불가');
     expect(notice).toHaveTextContent('이미 확정된 예약은 그대로 유효합니다');
+    expect(notice).toHaveTextContent('관리자가 따로 연 날짜는 캘린더의 예약 가능 표시가 우선합니다');
 
     const limitedDay = screen.getByRole('button', { name: '2026-08-15 · 오후 6시 이후 시작 예약 불가' });
     expect(limitedDay).toHaveTextContent('18시+');
@@ -170,6 +181,204 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
     const blockedButton = await screen.findByRole('button', { name: '주소 확인 후 예약 가능' });
     expect(blockedButton).toBeDisabled();
     expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
+  });
+
+  it('전체 차단 해제 성공 응답만으로 공지·캘린더 배지를 즉시 없애고 다시 조회하지 않는다', async () => {
+    portalRole.isAdmin = true;
+    let moodDataCalls = 0;
+    authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        moodDataCalls += 1;
+        return response({
+          ok: true,
+          data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: true, canApproveSettlement: false, bookingAvailability },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      if (target.includes('/api/mood-booking-blocks')) {
+        const body = JSON.parse(String(init?.body || '{}'));
+        expect(body).toMatchObject({ action: 'set_all_enabled', enabled: false, expectedRevision: 3 });
+        return response({
+          ok: true,
+          data: {
+            bookingAvailability: {
+              ...bookingAvailability,
+              revision: 4,
+              rules: bookingAvailability.rules.map((rule) => ({ ...rule, enabled: false })),
+              exceptions: [],
+            },
+          },
+        });
+      }
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '예약 제한 안내' });
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제' }));
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제 확인' }));
+
+    expect(await screen.findByText('캘린더 반영 완료')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '2026-08-28' })).not.toHaveTextContent('18시+');
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+    expect(moodDataCalls).toBe(1);
+  });
+
+  it('성공 개정보다 늦은 조회 응답은 덮어쓰지 않고 다른 탭 알림·포커스 조회를 중복 없이 처리한다', async () => {
+    portalRole.isAdmin = true;
+    const channels: Array<{ onmessage: ((event: MessageEvent<unknown>) => void) | null; postMessage: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }> = [];
+    class MockBroadcastChannel {
+      onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
+      postMessage = vi.fn();
+      close = vi.fn();
+      constructor(name: string) { void name; channels.push(this); }
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    let moodDataCalls = 0;
+    let availabilityGetCalls = 0;
+    authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        moodDataCalls += 1;
+        const revision = moodDataCalls === 1 ? 3 : 4;
+        return response({
+          ok: true,
+          data: {
+            clientId: 'mood',
+            client: { name: 'MOOD', balanceKRW: 1_000_000 },
+            bookings: [],
+            isAdmin: true,
+            canApproveSettlement: false,
+            bookingAvailability: { ...bookingAvailability, revision, exceptions: [] },
+          },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      if (target.includes('/api/mood-booking-blocks')) {
+        if (!init?.method || init.method === 'GET') {
+          availabilityGetCalls += 1;
+          return response({ ok: true, data: { bookingAvailability: { ...bookingAvailability, revision: 4, exceptions: [] } } });
+        }
+        JSON.parse(String(init?.body || '{}'));
+        return response({
+          ok: true,
+          data: {
+            bookingAvailability: {
+              ...bookingAvailability,
+              revision: 5,
+              rules: bookingAvailability.rules.map((rule) => ({ ...rule, enabled: false })),
+              exceptions: [],
+            },
+          },
+        });
+      }
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '예약 제한 안내' });
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제' }));
+    fireEvent.click(screen.getByRole('button', { name: '모든 차단 해제 확인' }));
+    await screen.findByText('캘린더 반영 완료');
+    expect(channels).toHaveLength(1);
+    expect(channels[0].postMessage).toHaveBeenCalledWith({ type: 'booking-availability-updated', revision: 5 });
+
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(availabilityGetCalls).toBe(1));
+    expect(moodDataCalls).toBe(1);
+    expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+  });
+
+  it('포커스 차단설정 조회 중에도 예약 완료 뒤 목록·잔액 mood-data 조회를 삼키지 않는다', async () => {
+    let moodDataCalls = 0;
+    let resolveAvailabilityGet: ((value: ReturnType<typeof response>) => void) | null = null;
+    const availabilityGet = new Promise<ReturnType<typeof response>>((resolve) => { resolveAvailabilityGet = resolve; });
+    authFetchMock.mockImplementation(async (url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-booking-blocks')) return availabilityGet;
+      if (target.includes('/api/mood-data')) {
+        moodDataCalls += 1;
+        return response({
+          ok: true,
+          data: {
+            clientId: 'mood',
+            client: { name: 'MOOD', balanceKRW: moodDataCalls === 1 ? 1_000_000 : 880_000 },
+            bookings: [],
+            isAdmin: false,
+            canApproveSettlement: false,
+            bookingAvailability,
+          },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      if (target.includes('/api/mood-book')) return response({ ok: true, data: { amountKRW: 120_000, balanceKRW: 880_000 } });
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '예약 제한 안내' });
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-booking-blocks'))).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+    fireEvent.click(screen.getByRole('button', { name: '예약하기' }));
+    await waitFor(() => expect(moodDataCalls).toBe(2));
+    expect(await screen.findByText('예약 완료 — 120,000원 차감, 잔액 880,000원')).toBeInTheDocument();
+
+    resolveAvailabilityGet?.(response({ ok: true, data: { bookingAvailability } }));
+  });
+
+  it('초기 mood-data가 늦어도 먼저 받은 더 높은 차단설정 개정을 보존한다', async () => {
+    let resolveMoodData: ((value: ReturnType<typeof response>) => void) | null = null;
+    const moodDataResponse = new Promise<ReturnType<typeof response>>((resolve) => { resolveMoodData = resolve; });
+    let availabilityGetCalls = 0;
+    authFetchMock.mockImplementation(async (url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) return moodDataResponse;
+      if (target.includes('/api/mood-booking-blocks')) {
+        availabilityGetCalls += 1;
+        return response({
+          ok: true,
+          data: {
+            bookingAvailability: {
+              ...bookingAvailability,
+              revision: 5,
+              rules: bookingAvailability.rules.map((rule) => ({ ...rule, enabled: false })),
+              exceptions: [],
+            },
+          },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await waitFor(() => expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-data'))).toBe(true));
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(availabilityGetCalls).toBe(1));
+
+    resolveMoodData?.(response({
+      ok: true,
+      data: {
+        clientId: 'mood',
+        client: { name: 'MOOD', balanceKRW: 1_000_000 },
+        bookings: [],
+        isAdmin: false,
+        canApproveSettlement: false,
+        bookingAvailability: { ...bookingAvailability, revision: 4, exceptions: [] },
+      },
+    }));
+
+    await screen.findByRole('button', { name: '현황' });
+    expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
   });
 });
 

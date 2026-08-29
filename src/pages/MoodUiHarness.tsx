@@ -15,7 +15,7 @@ import {
 import { MoodReceiptModal } from '@/components/mood/MoodReceiptModal';
 import { MoodBookingBlockManager } from '@/components/mood/MoodBookingBlockManager';
 import type { MoodBookingShareData } from '@/lib/moodBookingShare';
-import type { MoodBookingAvailability } from '@/lib/moodBookingAvailability';
+import type { MoodBookingAvailability, MoodBookingOpenException } from '@/lib/moodBookingAvailability';
 
 const points = [
   { lat: 37.5547, lng: 126.9706, role: 'origin' as const },
@@ -95,6 +95,7 @@ const initialBookingAvailability: MoodBookingAvailability = {
     startTime: '18:00',
     reason: '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가',
   }],
+  exceptions: [],
 };
 
 const actualTolls = [
@@ -185,6 +186,7 @@ function settlementApproval(
 
 export default function MoodUiHarness() {
   const [bookingAvailability, setBookingAvailability] = useState(initialBookingAvailability);
+  const bookingAvailabilityRef = useRef(initialBookingAvailability);
   const [changeOpen, setChangeOpen] = useState(false);
   const [lastRouteOrder, setLastRouteOrder] = useState('');
   const [lastChangePayload, setLastChangePayload] = useState('');
@@ -207,6 +209,45 @@ export default function MoodUiHarness() {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = String(input);
+      if (url.includes('/api/mood-booking-blocks')) {
+        const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+        const current = bookingAvailabilityRef.current;
+        let nextRules = current.rules;
+        let nextExceptions = current.exceptions;
+        if (body.action === 'upsert' && body.rule) {
+          nextRules = current.rules.some((rule) => rule.id === body.rule.id)
+            ? current.rules.map((rule) => rule.id === body.rule.id ? body.rule : rule)
+            : [...current.rules, body.rule];
+        }
+        if (body.action === 'delete') {
+          nextRules = current.rules.filter((rule) => rule.id !== body.ruleId);
+          nextExceptions = current.exceptions
+            .map((exception) => ({ ...exception, ruleIds: exception.ruleIds.filter((ruleId) => ruleId !== body.ruleId) }))
+            .filter((exception) => exception.ruleIds.length > 0);
+        }
+        if (body.action === 'set_all_enabled') nextRules = current.rules.map((rule) => ({ ...rule, enabled: Boolean(body.enabled) }));
+        if (body.action === 'upsert_exception' && body.exception) {
+          const exception: MoodBookingOpenException = {
+            ...body.exception,
+            ruleIds: current.rules
+              .filter((rule) => body.exception.startDate <= rule.endDate && body.exception.endDate >= rule.startDate)
+              .map((rule) => rule.id),
+          };
+          nextExceptions = current.exceptions.some((item) => item.id === exception.id)
+            ? current.exceptions.map((item) => item.id === exception.id ? exception : item)
+            : [...current.exceptions, exception];
+        }
+        if (body.action === 'delete_exception') nextExceptions = current.exceptions.filter((item) => item.id !== body.exceptionId);
+        const next: MoodBookingAvailability = {
+          schemaVersion: 1,
+          revision: current.revision + 1,
+          rules: nextRules,
+          exceptions: nextExceptions,
+        };
+        bookingAvailabilityRef.current = next;
+        setBookingAvailability(next);
+        return new Response(JSON.stringify({ ok: true, data: { bookingAvailability: next } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       if (url.includes('/api/mood-route')) {
         const parsed = new URL(url, window.location.origin);
         const origin = parsed.searchParams.get('origin') || '';
@@ -399,7 +440,7 @@ export default function MoodUiHarness() {
       <div className="mx-auto mb-4 max-w-[430px] text-white">
         <MoodBookingBlockManager
           availability={bookingAvailability}
-          onUpdated={setBookingAvailability}
+          onUpdated={(next) => { bookingAvailabilityRef.current = next; setBookingAvailability(next); }}
           onReload={() => undefined}
         />
       </div>
