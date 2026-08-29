@@ -49,6 +49,8 @@ const legacyLedger = JSON.parse(read('config', 'legacy-blogger-guide-import-ledg
 };
 
 const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+const lastmods = [...sitemap.matchAll(/<url><loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod><\/url>/g)]
+  .map((match) => [match[1], match[2]] as const);
 
 describe('sitemap canonical 도메인 정합', () => {
   it('canonical 은 non-www (cocotripkr.com)', () => {
@@ -87,8 +89,29 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
     expect(new Set(locs).size).toBe(locs.length);
   });
 
-  it('lastmod 는 넣지 않는다 — 실제 수정일을 모르면 생략(빌드 시각 박기 금지)', () => {
-    expect(sitemap).not.toContain('<lastmod>');
+  it('lastmod 는 2026-08-29에 본문을 크게 고친 18개에만 정확히 둔다', () => {
+    const changed = [
+      '/guide/how-weak-won-makes-korea-cheaper-for',
+      '/guide/best-temple-stays-in-korea-2026-guide',
+      '/guide/korea-sim-card-vs-esim-vs-pocket-wifi',
+      '/guide/seoul-k-beauty-shopping-2026-olive',
+      '/guide/incheon-to-seoul-late-night-arex-bus-t',
+      '/tours',
+      '/tours/seoul-city-full-day',
+      '/tours/incheon-ganghwa-tour',
+      '/tours/dmz-paju-tour',
+      '/tours/gyeongju-day-tour',
+      '/tours/busan-day-tour',
+      '/region/paju',
+      '/region/ganghwa',
+      '/region/busan',
+      '/region/danyang',
+      '/region/incheon',
+      '/region/gyeongju',
+      '/region/jeonju',
+    ].map((path) => `https://cocotripkr.com${path}`);
+
+    expect(lastmods).toEqual(changed.map((url) => [url, '2026-08-29']));
   });
 
   it('changefreq·priority 는 쓰지 않는다 (구글이 무시 — 조치했다는 착시 방지)', () => {
