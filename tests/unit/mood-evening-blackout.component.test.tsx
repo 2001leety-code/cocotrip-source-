@@ -116,6 +116,77 @@ afterEach(() => {
 });
 
 describe('MoodPortal 임시 저녁 제한 UI', () => {
+  it('포커스 재조회에서 설정 누락 오류를 받으면 이전 정상 상태를 버리고 즉시 예약을 잠근다', async () => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        return response({
+          ok: true,
+          data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: false, bookingAvailability },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      if (target.includes('/api/mood-booking-blocks')) {
+        return response({ ok: false, error: 'INVALID_BOOKING_AVAILABILITY_CONFIG', detail: 'MISSING_BOOKING_AVAILABILITY_CONFIG' }, 409);
+      }
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '예약 제한 안내' });
+    window.dispatchEvent(new Event('focus'));
+
+    expect(await screen.findByRole('alert', { name: '예약 차단 설정 오류' })).toHaveTextContent('예약 접수 일시 잠금');
+    expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 차단 설정 확인 필요');
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+    expect(screen.getByRole('button', { name: '예약 차단 설정 확인 필요' })).toBeDisabled();
+  });
+
+  it('운영 메모를 예약 차단과 구분하고 메모만 있는 날짜는 예약 가능으로 표시한다', async () => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        return response({
+          ok: true,
+          data: {
+            clientId: 'mood',
+            client: { name: 'MOOD', balanceKRW: 1_000_000 },
+            bookings: [],
+            isAdmin: false,
+            bookingAvailability: { schemaVersion: 1, revision: 4, rules: [], exceptions: [] },
+          },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: { '2026-08-29': '차량 점검 예정' } });
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    expect(await screen.findByLabelText('운영 메모 있음, 예약 차단 아님: 차량 점검 예정')).toBeInTheDocument();
+    expect(screen.getByText('📝 2026-08-29 운영 메모 · 예약 차단 아님')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+  });
+
+  it('같은 날짜에 운영 메모와 실제 차단이 함께 있어도 차단 배지와 예약 불가 상태를 유지한다', async () => {
+    authFetchMock.mockImplementation(async (url: string) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        return response({
+          ok: true,
+          data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: false, bookingAvailability },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: { '2026-08-29': '차량 점검 예정' } });
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    expect(await screen.findByLabelText('운영 메모 있음, 예약 차단 아님: 차량 점검 예정')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2026-08-29 · 오후 6시 이후 시작 예약 불가' })).toHaveTextContent('18시+');
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('오후 6시 이후 시작 예약 불가');
+  });
+
   it('고정 공지, 캘린더 표시·선택 설명, 수기 예약 즉시 차단을 함께 보여 준다', async () => {
     render(<MoodPortal />);
 
@@ -183,9 +254,10 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
     expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
   });
 
-  it('전체 차단 해제 성공 응답만으로 공지·캘린더 배지를 즉시 없애고 다시 조회하지 않는다', async () => {
+  it('전체 차단 해제 성공 응답을 즉시 반영하고 서버 정본을 다시 확인한다', async () => {
     portalRole.isAdmin = true;
     let moodDataCalls = 0;
+    let availabilityGetCalls = 0;
     authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const target = String(url);
       if (target.includes('/api/mood-data')) {
@@ -197,6 +269,20 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
       }
       if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
       if (target.includes('/api/mood-booking-blocks')) {
+        if (!init?.method || init.method === 'GET') {
+          availabilityGetCalls += 1;
+          return response({
+            ok: true,
+            data: {
+              bookingAvailability: {
+                ...bookingAvailability,
+                revision: 4,
+                rules: bookingAvailability.rules.map((rule) => ({ ...rule, enabled: false })),
+                exceptions: [],
+              },
+            },
+          });
+        }
         const body = JSON.parse(String(init?.body || '{}'));
         expect(body).toMatchObject({ action: 'set_all_enabled', enabled: false, expectedRevision: 3 });
         return response({
@@ -225,6 +311,70 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
     expect(screen.getByRole('button', { name: '2026-08-28' })).not.toHaveTextContent('18시+');
     expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
     expect(moodDataCalls).toBe(1);
+    expect(availabilityGetCalls).toBe(1);
+  });
+
+  it('기간 열기 성공 직후 차단 배지와 예약 버튼을 열고 서버 정본까지 다시 확인한다', async () => {
+    portalRole.isAdmin = true;
+    let availabilityGetCalls = 0;
+    const openedAvailability = {
+      ...bookingAvailability,
+      revision: 4,
+      exceptions: [{
+        id: 'open-september-range',
+        enabled: true,
+        startDate: '2026-09-03',
+        endDate: '2026-09-05',
+        ruleIds: [bookingAvailability.rules[0].id],
+        reason: '촬영 예약 운영',
+      }],
+    };
+    authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes('/api/mood-data')) {
+        return response({
+          ok: true,
+          data: { clientId: 'mood', client: { name: 'MOOD', balanceKRW: 1_000_000 }, bookings: [], isAdmin: true, bookingAvailability },
+        });
+      }
+      if (target.includes('/api/mood-notes')) return response({ ok: true, notes: {} });
+      if (target.includes('/api/mood-booking-blocks')) {
+        if (!init?.method || init.method === 'GET') {
+          availabilityGetCalls += 1;
+          return response({ ok: true, data: { bookingAvailability: openedAvailability } });
+        }
+        const body = JSON.parse(String(init.body || '{}'));
+        expect(body).toMatchObject({
+          action: 'upsert_exception',
+          expectedRevision: 3,
+          exception: { startDate: '2026-09-03', endDate: '2026-09-05' },
+        });
+        return response({ ok: true, data: { bookingAvailability: openedAvailability } });
+      }
+      return response({}, 404);
+    });
+
+    render(<MoodPortal />);
+    await screen.findByRole('note', { name: '예약 제한 안내' });
+    fireEvent.click(screen.getByRole('button', { name: '다음 달' }));
+    expect(screen.getByRole('button', { name: '2026-09-04 · 오후 6시 이후 시작 예약 불가' })).toHaveTextContent('18시+');
+    fireEvent.click(screen.getByText('예약 차단 관리'));
+    fireEvent.click(screen.getByRole('button', { name: '+ 날짜 열기' }));
+    fireEvent.click(screen.getByRole('button', { name: '기간' }));
+    fireEvent.change(screen.getByLabelText('시작일'), { target: { value: '2026-09-03' } });
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-09-05' } });
+    fireEvent.change(screen.getByLabelText('여는 사유'), { target: { value: '촬영 예약 운영' } });
+    fireEvent.click(screen.getByRole('button', { name: '이 날짜 열기' }));
+
+    expect(await screen.findByText('캘린더 반영 완료')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2026-09-04' })).not.toHaveTextContent('18시+');
+    fireEvent.click(screen.getByRole('button', { name: '2026-09-04' }));
+    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+    fireEvent.click(screen.getByRole('button', { name: '수기 예약' }));
+    fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-04' } });
+    fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });
+    expect(screen.getByRole('button', { name: '예약하기' })).toBeEnabled();
+    expect(availabilityGetCalls).toBe(1);
   });
 
   it('성공 개정보다 늦은 조회 응답은 덮어쓰지 않고 다른 탭 알림·포커스 조회를 중복 없이 처리한다', async () => {
@@ -289,7 +439,7 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
 
     window.dispatchEvent(new Event('focus'));
     document.dispatchEvent(new Event('visibilitychange'));
-    await waitFor(() => expect(availabilityGetCalls).toBe(1));
+    await waitFor(() => expect(availabilityGetCalls).toBe(2));
     expect(moodDataCalls).toBe(1);
     expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
     expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
@@ -376,9 +526,10 @@ describe('MoodPortal 임시 저녁 제한 UI', () => {
       },
     }));
 
-    await screen.findByRole('button', { name: '현황' });
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
+    });
     expect(screen.queryByRole('note', { name: '예약 제한 안내' })).not.toBeInTheDocument();
-    expect(screen.getByRole('status', { name: '선택 날짜 예약 상태' })).toHaveTextContent('예약 가능');
   });
 });
 
@@ -394,7 +545,7 @@ describe('MoodAiBooking 임시 저녁 제한 UI', () => {
       ],
     };
 
-    render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
+    render(<MoodAiBooking clientId="mood" bookingAvailability={bookingAvailability} onBooked={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '9월 5일 14시 20분 출발, 20시 30분 종료' } });
     fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
 
@@ -404,13 +555,13 @@ describe('MoodAiBooking 임시 저녁 제한 UI', () => {
   });
 
   it('AI가 제한 시각을 채우면 즉시 경고하고, 17:59로 고치기 전에는 요청하지 않는다', async () => {
-    render(<MoodAiBooking clientId="mood" onBooked={() => {}} />);
+    render(<MoodAiBooking clientId="mood" bookingAvailability={bookingAvailability} onBooked={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText(/MOOD 일정/), { target: { value: '9월 10일 18시 서울역 출발, 성수동 도착' } });
     fireEvent.click(screen.getByRole('button', { name: /일정 분석/ }));
 
     const blockedButton = await screen.findByRole('button', { name: '선택 시각 예약 불가' });
     expect(blockedButton).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent('18:00 이후 예약 불가 때문에 2026-09-10 18:00 시작 예약을 할 수 없습니다');
+    expect(screen.getByRole('alert')).toHaveTextContent('예약 운영 일정 때문에 2026-09-10 18:00 시작 예약을 할 수 없습니다');
     expect(authFetchMock.mock.calls.some((call) => String(call[0]).includes('/api/mood-book'))).toBe(false);
 
     fireEvent.change(screen.getByLabelText(/시작 시각/), { target: { value: '17:59' } });
@@ -442,7 +593,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-16T09:00:00+09:00'));
     try {
-      const view = render(<MoodBookingChangeModal booking={booking({ date: '2026-09-16', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
+      const view = render(<MoodBookingChangeModal booking={booking({ date: '2026-09-16', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin bookingAvailability={bookingAvailability} onClose={() => {}} onChanged={() => {}} />);
       expect(screen.queryByRole('note')).not.toBeInTheDocument();
       view.unmount();
     } finally {
@@ -451,7 +602,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
   });
 
   it('기존 제한 슬롯을 그대로 두면 주소·메모 변경을 허용하고 시각을 더 늦추면 차단한다', () => {
-    render(<MoodBookingChangeModal booking={booking()} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
+    render(<MoodBookingChangeModal booking={booking()} balanceKRW={1_000_000} isAdmin bookingAvailability={bookingAvailability} onClose={() => {}} onChanged={() => {}} />);
 
     expect(screen.getByText(/기존 확정 예약의 날짜·시각을 유지해/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('1. 출발지'), { target: { value: '서울역' } });
@@ -461,7 +612,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
     expect(screen.getByRole('button', { name: '변경 내용과 금액 미리보기' })).toBeEnabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:01' } });
-    expect(screen.getByRole('alert')).toHaveTextContent('18:00 이후 예약 불가 때문에 2026-09-10 18:01 시작으로 변경할 수 없습니다');
+    expect(screen.getByRole('alert')).toHaveTextContent('예약 운영 일정 때문에 2026-09-10 18:01 시작으로 변경할 수 없습니다');
     expect(screen.getByRole('button', { name: '선택 시각으로 변경 불가' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '17:59' } });
@@ -470,7 +621,7 @@ describe('MoodBookingChangeModal 기존 확정 예약 예외', () => {
   });
 
   it('기존 일반 예약을 다른 제한 슬롯으로 옮기면 저장을 차단한다', () => {
-    render(<MoodBookingChangeModal booking={booking({ date: '2026-09-09', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin onClose={() => {}} onChanged={() => {}} />);
+    render(<MoodBookingChangeModal booking={booking({ date: '2026-09-09', startTime: '10:00' })} balanceKRW={1_000_000} isAdmin bookingAvailability={bookingAvailability} onClose={() => {}} onChanged={() => {}} />);
 
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-09-10' } });
     fireEvent.change(screen.getByLabelText('시작 시각'), { target: { value: '18:00' } });

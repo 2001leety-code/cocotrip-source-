@@ -62,7 +62,7 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
     }
     await manager.locator('summary').click();
     await expect(manager.getByText(/기존 확정 예약.*유지됩니다/)).toBeVisible();
-    await expect(manager.getByText(/8월 15일~9월 15일 목·금·토/).first()).toBeVisible();
+    await expect(manager.getByText(/8월 1일~12월 31일 토/).first()).toBeVisible();
     await manager.getByRole('button', { name: '+ 차단 추가' }).click();
 
     await manager.getByRole('button', { name: '특정 시각부터' }).click();
@@ -79,7 +79,7 @@ test.describe('MOOD 예약 변경 경로 편집', () => {
     await manager.getByRole('button', { name: '이 날짜 열기' }).click();
     await expect(manager.getByText('캘린더 반영 완료')).toBeVisible();
     await expect(manager.getByText(/열린 날짜 · 9월 3일~9월 5일/)).toBeVisible();
-    await expect(manager.getByText(/영향 규칙 1개/)).toBeVisible();
+    await expect(manager.getByText(/기간 내 모든 차단 규칙보다 우선/)).toBeVisible();
 
     await manager.getByRole('button', { name: '모든 차단 해제' }).click();
     await expect(manager.getByRole('button', { name: '모든 차단 해제 확인' })).toBeVisible();

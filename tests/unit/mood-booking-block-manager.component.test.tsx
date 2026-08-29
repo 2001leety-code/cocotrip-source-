@@ -69,6 +69,45 @@ describe('MoodBookingBlockManager', () => {
     render(<MoodBookingBlockManager availability={null} onUpdated={() => {}} onReload={() => {}} />);
     expect(screen.getByRole('alert')).toHaveTextContent('신규 예약은 자동으로 잠겨 있습니다');
     expect(screen.getByRole('button', { name: '설정 다시 불러오기' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: '빈 예약 차단 설정 만들기' })).toBeInTheDocument();
+  });
+
+  it('관리자가 두 번 확인하면 누락 설정을 빈 규칙으로 초기화하고 서버 정본을 다시 읽는다', async () => {
+    const onUpdated = vi.fn();
+    const onReload = vi.fn();
+    authFetchMock.mockResolvedValue(response({
+      ok: true,
+      data: {
+        bookingAvailability: { schemaVersion: 1, revision: 0, rules: [], exceptions: [] },
+      },
+    }));
+    render(<MoodBookingBlockManager availability={null} onUpdated={onUpdated} onReload={onReload} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '빈 예약 차단 설정 만들기' }));
+    expect(authFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '빈 설정 생성 확인' }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      revision: 0,
+      rules: [],
+      exceptions: [],
+    }));
+    expect(onReload).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String((authFetchMock.mock.calls[0][1] as RequestInit).body))).toMatchObject({
+      action: 'initialize',
+      expectedRevision: 0,
+    });
+    expect(await screen.findByText('빈 예약 차단 설정을 만들고 캘린더에 반영했습니다.')).toBeInTheDocument();
+  });
+
+  it('빈 설정 생성 확인을 취소하면 서버 요청을 보내지 않는다', () => {
+    render(<MoodBookingBlockManager availability={null} onUpdated={() => {}} onReload={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '빈 예약 차단 설정 만들기' }));
+    fireEvent.click(screen.getByRole('button', { name: '취소' }));
+
+    expect(authFetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '빈 예약 차단 설정 만들기' })).toBeInTheDocument();
   });
 
   it('신규 규칙 저장 응답이 끊겨도 같은 ruleId와 requestId로 안전하게 재시도한다', async () => {
@@ -188,7 +227,7 @@ describe('MoodBookingBlockManager', () => {
 
     render(<MoodBookingBlockManager availability={withException} onUpdated={() => {}} onReload={() => {}} />);
     fireEvent.click(screen.getByText('예약 차단 관리'));
-    expect(screen.getByText('영향 규칙 1개 · 3일 운영')).toBeInTheDocument();
+    expect(screen.getByText('기간 내 모든 차단 규칙보다 우선 · 3일 운영')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '다시 차단' }));
 
     await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));

@@ -233,6 +233,23 @@ beforeEach(() => {
   for (const key of Object.keys(docs)) delete docs[key];
   docs.mood_clients = { COMPANY_A: { name: '무드', balanceKRW: 500_000 } };
   docs.mood_bookings = { 'existing-blocked': structuredClone(EXISTING_BOOKING) };
+  docs.mood_config = {
+    booking_availability: {
+      schemaVersion: 1,
+      revision: 1,
+      rules: [{
+        id: 'evening-operations-block',
+        enabled: true,
+        startDate: '2026-08-15',
+        endDate: '2026-09-15',
+        weekdays: [4, 5, 6],
+        mode: 'starts_from',
+        startTime: '18:00',
+        reason: '운영 일정으로 오후 6시 이후 예약 불가',
+      }],
+      exceptions: [],
+    },
+  };
   writes.length = 0;
   autoId = 0;
   beforeTransaction = undefined;
@@ -265,7 +282,7 @@ describe('MOOD 저녁 제한 신규 예약 서버 안전', () => {
     const { res, json } = await callBook({ ...BOOK_BODY, date, startTime });
 
     expect.soft(res.statusCode).toBe(409);
-    expect.soft(json.error).toBe('MOOD_EVENING_BOOKING_UNAVAILABLE');
+    expect.soft(json.error).toBe('MOOD_BOOKING_UNAVAILABLE');
     expect.soft(computeRouteMock).not.toHaveBeenCalled();
     expect.soft(dbMock.runTransaction).not.toHaveBeenCalled();
     expect.soft(writes).toHaveLength(0);
@@ -336,7 +353,7 @@ describe('MOOD 저녁 제한 기존 예약 변경 서버 안전', () => {
     const { res, json } = await callChange(changeBody(overrides));
 
     expect.soft(res.statusCode).toBe(409);
-    expect.soft(json.error).toBe('MOOD_EVENING_BOOKING_UNAVAILABLE');
+    expect.soft(json.error).toBe('MOOD_BOOKING_UNAVAILABLE');
     expect.soft(computeRouteMock).not.toHaveBeenCalled();
     expect.soft(dbMock.runTransaction).not.toHaveBeenCalled();
     expect.soft(writes).toHaveLength(0);
@@ -353,7 +370,7 @@ describe('MOOD 저녁 제한 기존 예약 변경 서버 안전', () => {
     const { res, json } = await callChange(changeBody({ date: '2026-09-12', startTime: '18:00' }));
 
     expect.soft(res.statusCode).toBe(409);
-    expect.soft(json.error).toBe('MOOD_EVENING_BOOKING_UNAVAILABLE');
+    expect.soft(json.error).toBe('MOOD_BOOKING_UNAVAILABLE');
     expect.soft(computeRouteMock).not.toHaveBeenCalled();
     expect.soft(writes).toHaveLength(0);
     expect.soft(docs).toEqual(before);
@@ -366,7 +383,7 @@ describe('MOOD 저녁 제한 기존 예약 변경 서버 안전', () => {
     const { res, json } = await callQuotedChange(changeBody());
 
     expect.soft(res.statusCode).toBe(409);
-    expect.soft(json.error).toBe('MOOD_EVENING_BOOKING_UNAVAILABLE');
+    expect.soft(json.error).toBe('MOOD_BOOKING_UNAVAILABLE');
     expect.soft(writes).toHaveLength(0);
     expect.soft(docs.mood_bookings['existing-blocked'].revision).toBe(0);
   });

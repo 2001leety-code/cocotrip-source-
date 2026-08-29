@@ -9,10 +9,6 @@ vi.mock('@/lib/authFetch', () => ({
   authFetch: (...args: unknown[]) => authFetchMock(...args),
 }));
 
-vi.mock('@/hooks/useLanguage', () => ({
-  useLanguage: () => ({ language: 'ko' }),
-}));
-
 import { MoodQuoteBuilder } from '../../src/components/mood/MoodQuoteBuilder';
 
 const PROFILE = {
@@ -52,6 +48,8 @@ const PARSED = {
       departureTime: '12:00',
       name: '기원 위스키 증류소',
       purpose: '협업 조사',
+      sourceName: '',
+      sourcePurpose: '',
       sourceRegion: '남양주',
       roadAddress: '경기도 남양주시 화도읍 녹촌로 259-18',
       jibunAddress: '경기도 남양주시 화도읍 녹촌리 384-20',
@@ -66,6 +64,8 @@ const PARSED = {
       departureTime: '19:00',
       name: '고척스카이돔',
       purpose: '야구 경기',
+      sourceName: '',
+      sourcePurpose: '',
       sourceRegion: '서울',
       roadAddress: '서울특별시 구로구 경인로 430',
       jibunAddress: '서울특별시 구로구 고척동 63-6',
@@ -161,6 +161,37 @@ async function renderAndAnalyze(confirmParsedSchedule = true) {
 }
 
 describe('mood vehicle quote builder', () => {
+  it('미등록 서버 오류와 내부 영문 문구를 견적 화면에 노출하지 않는다', async () => {
+    authFetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({
+        ok: false,
+        code: 'SECRET_INTERNAL_FAILURE',
+        error: 'Firestore unavailable',
+        message: 'POST only',
+      }),
+    });
+    render(<MoodQuoteBuilder />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    expect(alert).not.toHaveTextContent('SECRET_INTERNAL_FAILURE');
+    expect(alert).not.toHaveTextContent('Firestore');
+    expect(alert).not.toHaveTextContent('POST only');
+  });
+
+  it('전역 언어와 무관하게 기본 한국어이며 명시한 언어 prop만 사용한다', async () => {
+    const first = render(<MoodQuoteBuilder />);
+    expect(screen.getByRole('heading', { name: '업체 차량 견적서' })).toBeTruthy();
+    await screen.findByRole('option', { name: /MOOD/ });
+    first.unmount();
+
+    render(<MoodQuoteBuilder language="en" />);
+    expect(screen.getByRole('heading', { name: 'Company Vehicle Quote' })).toBeTruthy();
+    await screen.findByRole('option', { name: /MOOD/ });
+  });
+
   it('blocks an AI-parsed quote until the admin confirms the times and places', async () => {
     activeParsed = {
       ...activeParsed,
@@ -172,7 +203,7 @@ describe('mood vehicle quote builder', () => {
 
     const previewButton = screen.getByRole('button', { name: '견적서 미리보기' });
     expect(previewButton).toBeDisabled();
-    expect(screen.getByText('분석 결과입니다. 주소와 시간을 직접 확인해 주세요.')).toBeTruthy();
+    expect(screen.getByText('분석 결과입니다. 한글 장소명·일정 내용, 주소와 시간을 직접 확인해 주세요.')).toBeTruthy();
     expect(screen.getByText('• 1번 장소의 지역 설명과 주소가 다릅니다.')).toBeTruthy();
     expect(screen.getByText('• 2번 장소의 주소 확인이 필요합니다.')).toBeTruthy();
 
@@ -210,6 +241,68 @@ describe('mood vehicle quote builder', () => {
     expect(request.stops).toHaveLength(1);
     expect(request.departureAddress).toBe(PARSED.departureAddress);
     expect(request.returnAddress).toBe(PARSED.returnAddress);
+  });
+
+  it('영문 원문 감사값은 고객 견적 요청에서 제외하고 확인된 한글 표시값만 보낸다', async () => {
+    activeParsed = {
+      ...activeParsed,
+      stops: [{
+        ...activeParsed.stops[0],
+        name: '기원 위스키 증류소',
+        purpose: '위스키 협업 조사 및 미팅',
+        sourceName: 'KI ONE WHISKY DISTILLERY',
+        sourcePurpose: 'Whiskey collaboration research meeting',
+      }],
+    };
+    await renderAndAnalyze();
+    fireEvent.click(screen.getByRole('checkbox', { name: '주소 확인 완료' }));
+    fireEvent.click(screen.getByRole('button', { name: '견적서 미리보기' }));
+
+    await waitFor(() => expect(authFetchMock.mock.calls.some((call) => call[0] === '/api/mood-quote-preview')).toBe(true));
+    const previewCall = authFetchMock.mock.calls.find((call) => call[0] === '/api/mood-quote-preview');
+    const request = JSON.parse(previewCall[1].body);
+    expect(request.stops[0]).toMatchObject({
+      name: '기원 위스키 증류소',
+      purpose: '위스키 협업 조사 및 미팅',
+    });
+    expect(request.stops[0]).not.toHaveProperty('sourceName');
+    expect(request.stops[0]).not.toHaveProperty('sourcePurpose');
+  });
+
+  it('관리자가 장소명·일정 내용을 영문만으로 바꾸면 필드에서 막고 한글·영문 병기는 허용한다', async () => {
+    activeParsed = { ...activeParsed, stops: [activeParsed.stops[0]] };
+    await renderAndAnalyze();
+    fireEvent.click(screen.getByRole('checkbox', { name: '주소 확인 완료' }));
+
+    const placeName = screen.getByLabelText('장소명');
+    const purpose = screen.getByLabelText('일정 내용');
+    const previewButton = screen.getByRole('button', { name: '견적서 미리보기' });
+
+    fireEvent.change(placeName, { target: { value: 'The Roof' } });
+    expect(placeName).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('한글을 한 글자 이상 포함해 주세요.')).toBeTruthy();
+    expect(previewButton).toBeDisabled();
+
+    fireEvent.change(placeName, { target: { value: '더 루프 (The Roof)' } });
+    fireEvent.change(purpose, { target: { value: 'Client meeting' } });
+    expect(purpose).toHaveAttribute('aria-invalid', 'true');
+    expect(previewButton).toBeDisabled();
+
+    fireEvent.change(purpose, { target: { value: '' } });
+    expect(purpose).not.toHaveAttribute('aria-invalid');
+    expect(previewButton).toBeEnabled();
+
+    fireEvent.change(purpose, { target: { value: 'MOOD 협업 미팅' } });
+    expect(previewButton).toBeEnabled();
+    fireEvent.click(previewButton);
+
+    await waitFor(() => expect(authFetchMock.mock.calls.some((call) => call[0] === '/api/mood-quote-preview')).toBe(true));
+    const previewCall = authFetchMock.mock.calls.find((call) => call[0] === '/api/mood-quote-preview');
+    const request = JSON.parse(previewCall[1].body);
+    expect(request.stops[0]).toMatchObject({
+      name: '더 루프 (The Roof)',
+      purpose: 'MOOD 협업 미팅',
+    });
   });
 
   it('keeps sourceRegion attached to its stop after reordering and an address edit', async () => {

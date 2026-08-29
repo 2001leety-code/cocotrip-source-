@@ -88,14 +88,14 @@ const initialBookingAvailability: MoodBookingAvailability = {
   schemaVersion: 1,
   revision: 3,
   rules: [{
-    id: 'legacy-evening-blackout-2026',
+    id: 'demo-saturday-evening-block',
     enabled: true,
-    startDate: '2026-08-15',
-    endDate: '2026-09-15',
-    weekdays: [4, 5, 6],
+    startDate: '2026-08-01',
+    endDate: '2026-12-31',
+    weekdays: [6],
     mode: 'starts_from',
     startTime: '18:00',
-    reason: '2026년 8월 15일~9월 15일 목·금·토 18:00 이후 예약 불가',
+    reason: '토요일 저녁 배차 조정',
   }],
   exceptions: [],
 };
@@ -749,6 +749,7 @@ export default function MoodUiHarness() {
       {changeOpen && (
         <MoodBookingChangeModal
           booking={{ ...changeBooking, revision: changeApproval ? changeApproval.proposalRevision : changeBooking.revision, bookingChangeApproval: changeApproval }}
+          bookingAvailability={initialBookingAvailability}
           balanceKRW={500000}
           isAdmin={changeRole === 'operator'}
           canApprove={changeRole === 'approver'}

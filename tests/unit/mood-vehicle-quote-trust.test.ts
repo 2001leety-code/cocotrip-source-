@@ -57,6 +57,107 @@ describe('mood vehicle quote parse — untrusted AI output', () => {
     expect(parsed.stops[0].addressVerified).toBe(false);
   });
 
+  it('영문 장소명·일정 내용은 원문을 감사값으로 보존하고 한글 표시값만 견적 입력에 사용한다', () => {
+    const address = '384-20 Nokchon-ri Hwado-eup Namyangju-si Gyeonggi-do';
+    const source = `KI ONE WHISKY DISTILLERY\nWhiskey collaboration research meeting\n${address}\nhttps://naver.me/Fx2gIj9B`;
+    const parsed = sanitizeParsedQuoteSchedule({
+      stops: [{
+        order: 1,
+        name: 'KI ONE WHISKY DISTILLERY',
+        nameKo: '기원 위스키 증류소',
+        purpose: 'Whiskey collaboration research meeting',
+        purposeKo: '위스키 협업 조사 및 미팅',
+        roadAddress: address,
+        naverMapUrl: 'https://naver.me/Fx2gIj9B',
+      }],
+    }, source);
+
+    expect(parsed.stops[0]).toMatchObject({
+      name: '기원 위스키 증류소',
+      purpose: '위스키 협업 조사 및 미팅',
+      sourceName: 'KI ONE WHISKY DISTILLERY',
+      sourcePurpose: 'Whiskey collaboration research meeting',
+      roadAddress: address,
+      naverMapUrl: 'https://naver.me/Fx2gIj9B',
+    });
+  });
+
+  it('한글 표시값이 없거나 주소·금액을 섞으면 원문은 보존하고 고객 표시값은 비운다', () => {
+    const source = 'The Roof\nClient meeting';
+    const parsed = sanitizeParsedQuoteSchedule({
+      stops: [{
+        order: 1,
+        name: 'The Roof',
+        nameKo: 'The Roof',
+        purpose: 'Client meeting',
+        purposeKo: '고객 미팅 https://evil.example/1000원',
+      }],
+    }, source);
+
+    expect(parsed.stops[0]).toMatchObject({
+      name: '',
+      purpose: '',
+      sourceName: 'The Roof',
+      sourcePurpose: 'Client meeting',
+    });
+    expect(parsed.warnings).toEqual(expect.arrayContaining([
+      '1번 장소명을 한글로 변환하지 못했습니다. 원문을 보고 한글 장소명을 직접 확인해 주세요.',
+      '1번 일정 내용을 한글로 변환하지 못했습니다. 원문을 보고 한글 내용을 직접 확인해 주세요.',
+    ]));
+  });
+
+  it('원문이 이미 한글이면 AI가 바꾼 한글 후보를 무시하고 exact 원문을 표시한다', () => {
+    const source = '기원 증류소\n협업 미팅';
+    const parsed = sanitizeParsedQuoteSchedule({
+      stops: [{
+        order: 1,
+        name: '기원 증류소',
+        nameKo: '가짜 공장',
+        purpose: '협업 미팅',
+        purposeKo: '할인 협상',
+      }],
+    }, source);
+
+    expect(parsed.stops[0]).toMatchObject({
+      name: '기원 증류소',
+      purpose: '협업 미팅',
+      sourceName: '기원 증류소',
+      sourcePurpose: '협업 미팅',
+    });
+  });
+
+  it.each([
+    '미팅 비용 1,000원.',
+    '미팅 비용 ₩1,000',
+    '미팅 비용 100달러',
+    '미팅 비용 $100',
+    '미팅 비용 ¥1,000',
+    '미팅 비용 €50',
+    '미팅 비용 100엔',
+    '미팅 비용 100위안',
+    '미팅 비용 100 USD',
+  ])('영문 일정의 한글 후보에 통화 금액이 섞이면 보수적으로 제거한다: %s', (purposeKo) => {
+    const source = 'The Roof\nClient meeting';
+    const parsed = sanitizeParsedQuoteSchedule({
+      stops: [{
+        order: 1,
+        name: 'The Roof',
+        nameKo: '더 루프',
+        purpose: 'Client meeting',
+        purposeKo,
+      }],
+    }, source);
+
+    expect(parsed.stops[0]).toMatchObject({
+      name: '더 루프',
+      purpose: '',
+      sourcePurpose: 'Client meeting',
+    });
+    expect(parsed.warnings).toContain(
+      '1번 일정 내용을 한글로 변환하지 못했습니다. 원문을 보고 한글 내용을 직접 확인해 주세요.',
+    );
+  });
+
   it('AI가 원문에 없는 장소명과 방문 목적을 만들면 제거하고 경고한다', () => {
     const parsed = sanitizeParsedQuoteSchedule({
       stops: [{

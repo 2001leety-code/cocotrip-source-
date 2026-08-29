@@ -5,9 +5,25 @@ import {
   checkMoodBookingAvailability,
   checkMoodBookingChangeAvailability,
   isValidMoodBookingDate,
-  MOOD_EVENING_BLACKOUT_ERROR,
-  MOOD_EVENING_BLACKOUT_REASON,
+  MOOD_BOOKING_UNAVAILABLE_ERROR,
 } from '../../api/_shared/mood-booking-availability.js';
+
+const BOOKING_BLOCK_REASON = '운영 일정으로 오후 6시 이후 예약 불가';
+const BOOKING_AVAILABILITY = {
+  schemaVersion: 1,
+  revision: 1,
+  rules: [{
+    id: 'evening-operations-block',
+    enabled: true,
+    startDate: '2026-08-15',
+    endDate: '2026-09-15',
+    weekdays: [4, 5, 6],
+    mode: 'starts_from',
+    startTime: '18:00',
+    reason: BOOKING_BLOCK_REASON,
+  }],
+  exceptions: [],
+};
 
 const verifyUserTokenMock = vi.fn();
 const computeRouteMock = vi.fn();
@@ -217,6 +233,7 @@ beforeEach(() => {
   beforeAvailabilityRead = undefined;
   store.set('mood_bookings/existing-sep10', existingBooking());
   store.set('mood_clients/MOOD', { name: 'MOOD', balanceKRW: 500000 });
+  store.set('mood_config/booking_availability', structuredClone(BOOKING_AVAILABILITY));
   verifyUserTokenMock.mockResolvedValue({
     ok: true,
     email: 'staff@cocotrip.test',
@@ -239,7 +256,7 @@ describe('MOOD 저녁 예약 제한 서버 정책', () => {
     ['2026-09-05', '18:00', false],
     ['2026-09-17', '18:00', true],
   ])('%s %s 예약 가능 여부는 %s다', (date, startTime, ok) => {
-    expect(checkMoodBookingAvailability(date, startTime).ok).toBe(ok);
+    expect(checkMoodBookingAvailability(date, startTime, BOOKING_AVAILABILITY).ok).toBe(ok);
   });
 
   it.each([
@@ -247,17 +264,17 @@ describe('MOOD 저녁 예약 제한 서버 정책', () => {
     ['2026-09-02', '14:00'],
     ['2026-09-05', '14:20'],
   ])('사진 속 일정 %s %s은 서버에서도 예약 가능하다', (date, startTime) => {
-    expect(checkMoodBookingAvailability(date, startTime)).toEqual({ ok: true });
+    expect(checkMoodBookingAvailability(date, startTime, BOOKING_AVAILABILITY)).toEqual({ ok: true });
   });
 
   it('기존 9월 10일 저녁 예약은 같은 날짜·시각을 유지할 때만 상세를 바꿀 수 있다', () => {
-    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '18:00').ok).toBe(true);
-    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '18:30')).toMatchObject({
+    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '18:00', BOOKING_AVAILABILITY).ok).toBe(true);
+    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '18:30', BOOKING_AVAILABILITY)).toMatchObject({
       ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
+      error: MOOD_BOOKING_UNAVAILABLE_ERROR,
     });
-    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-11', '18:00').ok).toBe(false);
-    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '17:59').ok).toBe(true);
+    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-11', '18:00', BOOKING_AVAILABILITY).ok).toBe(false);
+    expect(checkMoodBookingChangeAvailability('2026-09-10', '18:00', '2026-09-10', '17:59', BOOKING_AVAILABILITY).ok).toBe(true);
   });
 
   it.each(['2026-02-30', '2026-13-01', '2026-08-20T18:00+09:00'])(
@@ -289,8 +306,8 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
     expect(res.statusCode).toBe(409);
     expect(json).toEqual({
       ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
-      reason: MOOD_EVENING_BLACKOUT_REASON,
+      error: MOOD_BOOKING_UNAVAILABLE_ERROR,
+      reason: BOOKING_BLOCK_REASON,
     });
     expect(computeRouteMock).not.toHaveBeenCalled();
     expect(transactionRuns).toBe(0);
@@ -358,7 +375,7 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
     });
   });
 
-  it('예외로 한 규칙을 열어도 겹친 다른 규칙이 실제 예약 API를 계속 막는다', async () => {
+  it('열린 날짜는 겹친 다른 규칙이 있어도 실제 예약 API에서 계속 열린다', async () => {
     const firstRule = {
       id: 'first-overlap',
       enabled: true,
@@ -390,13 +407,9 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
       idempotencyKey: 'overlap-still-blocked-001',
     }));
 
-    expect(result.res.statusCode).toBe(409);
-    expect(result.json).toMatchObject({
-      ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
-      reason: secondRule.reason,
-    });
-    expect(transactionRuns).toBe(0);
+    expect(result.res.statusCode).toBe(200);
+    expect(result.json.ok).toBe(true);
+    expect(transactionRuns).toBe(1);
   });
 
   it('사전 확인 뒤 관리자가 차단하면 예약·잔액 쓰기 트랜잭션에서 다시 막는다', async () => {
@@ -427,7 +440,7 @@ describe('mood-book 서버 차단과 멱등 재생', () => {
     expect(res.statusCode).toBe(409);
     expect(json).toMatchObject({
       ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
+      error: MOOD_BOOKING_UNAVAILABLE_ERROR,
       reason: '관리자 긴급 차단',
     });
     expect(store.get('mood_clients/MOOD')?.balanceKRW).toBe(500000);
@@ -552,7 +565,7 @@ describe('mood-change 기존 예약 보호', () => {
     }));
 
     expect(res.statusCode).toBe(409);
-    expect(json.error).toBe(MOOD_EVENING_BLACKOUT_ERROR);
+    expect(json.error).toBe(MOOD_BOOKING_UNAVAILABLE_ERROR);
     expect(computeRouteMock).not.toHaveBeenCalled();
     expect(transactionRuns).toBe(0);
     expect(store.get('mood_bookings/existing-sep10')).toMatchObject({
@@ -722,8 +735,8 @@ describe('mood-change 기존 예약 보호', () => {
     expect(res.statusCode).toBe(409);
     expect(json).toMatchObject({
       ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
-      reason: MOOD_EVENING_BLACKOUT_REASON,
+      error: MOOD_BOOKING_UNAVAILABLE_ERROR,
+      reason: BOOKING_BLOCK_REASON,
     });
     expect(transactionRuns).toBe(1);
     expect(store.get('mood_bookings/existing-sep10')).toMatchObject({
@@ -764,7 +777,7 @@ describe('mood-change 기존 예약 보호', () => {
     expect(res.statusCode).toBe(409);
     expect(json).toMatchObject({
       ok: false,
-      error: MOOD_EVENING_BLACKOUT_ERROR,
+      error: MOOD_BOOKING_UNAVAILABLE_ERROR,
       reason: '변경 중 긴급 차단',
     });
     expect(store.get('mood_bookings/existing-sep10')).toMatchObject({

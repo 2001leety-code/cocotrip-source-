@@ -7,6 +7,7 @@
  * 손실 없이 이어져야 한다.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
 
 const verifyUserTokenMock = vi.fn();
 const computeRouteMock = vi.fn();
@@ -296,6 +297,7 @@ function changeBody(courseMoodPercentages = CHANGE_PERCENTAGES) {
 
 beforeEach(() => {
   store.clear();
+  store.set('mood_config/booking_availability', openMoodBookingAvailabilityFixture());
   store.set('mood_clients/COMPANY_A', {
     name: 'Company A',
     balanceKRW: 1_000_000,

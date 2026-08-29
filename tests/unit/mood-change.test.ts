@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Firestore와 HTTP 응답을 작게 모사한다. */
 import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
 
 const verifyUserTokenMock = vi.fn();
 const computeRouteMock = vi.fn();
@@ -298,6 +299,7 @@ beforeEach(() => {
     clientId: 'COMPANY_A',
   };
   dbState.docs = {
+    mood_config: { booking_availability: openMoodBookingAvailabilityFixture() },
     mood_bookings: { 'booking-1': booking() },
     mood_clients: { COMPANY_A: { name: '무드', balanceKRW: 500000, creditLimitKRW: 300000 } },
   };

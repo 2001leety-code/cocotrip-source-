@@ -1,62 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MOOD_EVENING_BLACKOUT_NOTICE,
   getMoodBookingBlockStatus,
   getMoodBookingDateRestriction,
-  isMoodEveningBlackoutDate,
-  isMoodEveningBookingBlocked,
   isMoodBookingChangeBlocked,
   moodKstDateISO,
   parseMoodBookingAvailability,
-  shouldShowMoodEveningBlackoutNotice,
 } from '../../src/lib/moodBookingAvailability';
 
-describe('MOOD 임시 저녁 예약 제한', () => {
-  it('안내 문구가 기간·요일·기준 시각을 한 번에 설명한다', () => {
-    expect(MOOD_EVENING_BLACKOUT_NOTICE).toBe('8월 15일~9월 15일 목·금·토는 오후 6시 이후 시작 예약 불가');
-  });
-
-  it('기간 안 목·금·토 13일만 캘린더 제한일로 표시한다', () => {
-    const expected = [
-      '2026-08-15',
-      '2026-08-20', '2026-08-21', '2026-08-22',
-      '2026-08-27', '2026-08-28', '2026-08-29',
-      '2026-09-03', '2026-09-04', '2026-09-05',
-      '2026-09-10', '2026-09-11', '2026-09-12',
-    ];
-
-    for (const date of expected) expect(isMoodEveningBlackoutDate(date), date).toBe(true);
-    for (const date of ['2026-08-14', '2026-08-16', '2026-08-19', '2026-09-13', '2026-09-15', '2026-09-16']) {
-      expect(isMoodEveningBlackoutDate(date), date).toBe(false);
-    }
-  });
-
-  it('제한일도 17:59 시작은 허용하고 18:00부터 차단한다', () => {
-    expect(isMoodEveningBookingBlocked('2026-09-10', '17:59')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-09-10', '18:00')).toBe(true);
-    expect(isMoodEveningBookingBlocked('2026-09-10', '23:59')).toBe(true);
-  });
-
-  it('사진 속 9월 1일·2일·5일 일정은 실제 시작 시각 기준으로 예약 가능하다', () => {
-    expect(isMoodEveningBookingBlocked('2026-09-01', '14:00')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-09-02', '14:00')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-09-05', '14:20')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-09-05', '18:00')).toBe(true);
-  });
-
-  it('제한 요일 밖 또는 잘못된 날짜·시각은 이 임시 규칙으로 차단하지 않는다', () => {
-    expect(isMoodEveningBookingBlocked('2026-09-09', '18:00')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-02-30', '18:00')).toBe(false);
-    expect(isMoodEveningBookingBlocked('2026-09-10', '24:00')).toBe(false);
-    expect(isMoodEveningBookingBlocked('not-a-date', '18:00')).toBe(false);
-  });
-
-  it('고정 공지는 사전 안내일부터 종료일까지 보이고 9월 16일에 자동으로 사라진다', () => {
-    expect(shouldShowMoodEveningBlackoutNotice('2026-08-11')).toBe(false);
-    expect(shouldShowMoodEveningBlackoutNotice('2026-08-12')).toBe(true);
-    expect(shouldShowMoodEveningBlackoutNotice('2026-09-15')).toBe(true);
-    expect(shouldShowMoodEveningBlackoutNotice('2026-09-16')).toBe(false);
-    expect(shouldShowMoodEveningBlackoutNotice('not-a-date')).toBe(false);
+describe('MOOD 예약 차단 설정', () => {
+  it('설정을 생략하거나 손상시키면 과거 날짜 규칙을 되살리지 않고 신규 예약을 잠근다', () => {
+    expect(getMoodBookingBlockStatus('2026-09-10', '18:00')).toMatchObject({
+      blocked: true,
+      availabilityReady: false,
+      rule: null,
+    });
+    expect(getMoodBookingDateRestriction('2026-09-10')).toBeNull();
   });
 
   it('한국 날짜는 실행 환경 시간대와 관계없이 자정 경계가 일정하다', () => {
@@ -145,7 +103,7 @@ describe('MOOD 임시 저녁 예약 제한', () => {
     expect(getMoodBookingBlockStatus('2026-09-06', '10:00', availability).blocked).toBe(true);
   });
 
-  it('겹친 규칙 중 예외에 포함되지 않은 다른 규칙이 있으면 계속 차단한다', () => {
+  it('열어 둔 날짜는 이후 겹치는 규칙이 추가돼도 다시 차단되지 않는다', () => {
     const availability = parseMoodBookingAvailability({
       schemaVersion: 1,
       revision: 9,
@@ -157,17 +115,17 @@ describe('MOOD 임시 저녁 예약 제한', () => {
     });
 
     const status = getMoodBookingBlockStatus('2026-09-04', '10:00', availability);
-    expect(status.blocked).toBe(true);
-    expect(status.rule?.id).toBe('later-block');
+    expect(status).toMatchObject({ blocked: false, availabilityReady: true, rule: null });
+    expect(getMoodBookingDateRestriction('2026-09-04', availability)).toBeNull();
   });
 
-  it('누락·손상 설정은 신규 예약을 막되 정확히 같은 확정 날짜·시각은 유지한다', () => {
+  it('누락·손상 설정은 신규 예약과 기존 예약 변경을 모두 잠근다', () => {
     expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: [{ id: 'bad' }] })).toBeNull();
     const validRule = { id: 'valid-rule', enabled: true, startDate: '2026-10-01', endDate: '2026-10-01', weekdays: [4], mode: 'full_day', startTime: null, reason: '휴무' };
     expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: [{ ...validRule, id: 'invalid id' }] })).toBeNull();
     expect(parseMoodBookingAvailability({ schemaVersion: 1, revision: 0, rules: Array.from({ length: 51 }, (_, index) => ({ ...validRule, id: `rule-${index}` })) })).toBeNull();
     expect(getMoodBookingBlockStatus('2026-09-10', '10:00', null)).toMatchObject({ blocked: true, availabilityReady: false });
-    expect(isMoodBookingChangeBlocked('2026-09-10', '10:00', '2026-09-10', '10:00', null)).toBe(false);
+    expect(isMoodBookingChangeBlocked('2026-09-10', '10:00', '2026-09-10', '10:00', null)).toBe(true);
     expect(isMoodBookingChangeBlocked('2026-09-10', '10:00', '2026-09-10', '10:01', null)).toBe(true);
   });
 });

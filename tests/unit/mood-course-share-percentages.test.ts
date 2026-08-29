@@ -7,6 +7,7 @@
  * 원 단위 반올림이나 코스 나머지가 있어도 전체 합계를 잃지 않아야 한다.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
 import {
   allocateMoodShareCostByCourse,
   normalizeMoodCoursePercentages,
@@ -458,6 +459,7 @@ function dataBooking(overrides: Record<string, any>) {
 
 beforeEach(() => {
   store.clear();
+  store.set('mood_config/booking_availability', openMoodBookingAvailabilityFixture());
   store.set('mood_clients/COMPANY_A', {
     name: 'Company A',
     balanceKRW: 1_000_000,

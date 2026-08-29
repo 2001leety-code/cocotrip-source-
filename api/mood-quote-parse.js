@@ -1,8 +1,9 @@
 /**
  * POST /api/mood-quote-parse — 관리자 전용 자유 일정 추출.
  *
- * AI는 사용자가 붙여넣은 문자열을 구조화만 한다. 가격 계산, 주소 검색/보정,
- * 경로 계산은 하지 않는다. 원문에서 확인할 수 없는 주소/지도 링크는 서버가 제거한다.
+ * AI는 사용자가 붙여넣은 문자열을 구조화하고, 장소명·일정 설명의 한글 표시 후보만 만든다.
+ * 가격 계산, 주소 검색/보정, 경로 계산은 하지 않는다. 원문에서 확인할 수 없는
+ * 주소/지도 링크는 서버가 제거한다.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -35,6 +36,7 @@ Extract only facts visibly written in the USER text.
 - Never search, complete, correct, translate, or invent an address.
 - roadAddress, jibunAddress, departureAddress, returnAddress, and naverMapUrl must be exact substrings copied from USER text. If absent, use "".
 - name, purpose, and sourceRegion must be exact substrings copied from USER text. Do not add facts.
+- nameKo and purposeKo are Korean display translations of name and purpose only. If the source is already Korean, copy it unchanged. Keep official brand tokens when needed, but include Korean text. Never add facts, prices, addresses, or links.
 - sourceRegion is an explicitly written regional description for that stop (for example "충남", "Guri", or "Seoul"). Copy it exactly; if absent, use "".
 - Normalize explicit dates to YYYY-MM-DD and explicit times to HH:mm. For every date/time value, also return the exact source substring in its matching *Evidence field. If unknown, use "" for both.
 - optional is true only for text explicitly marked optional/선택/가능하면.
@@ -58,7 +60,9 @@ Return STRICT JSON only:
     "departureTime":"HH:mm or empty",
     "departureTimeEvidence":"exact source departure-time substring or empty",
     "name":"exact place name or empty",
+    "nameKo":"Korean display translation of name or empty",
     "purpose":"short purpose copied from source or empty",
+    "purposeKo":"Korean display translation of purpose or empty",
     "sourceRegion":"exact regional description copied from source or empty",
     "roadAddress":"exact source substring or empty",
     "jibunAddress":"exact source substring or empty",
@@ -110,6 +114,24 @@ function exactSourceValue(sourceText, candidate, maxLength) {
   const source = canonicalForSourceCheck(sourceText);
   const wanted = canonicalForSourceCheck(value);
   if (!wanted || !source.includes(wanted)) return { value: '', dropped: true };
+  return { value, dropped: false };
+}
+
+function koreanDisplayValue(sourceValue, candidate, maxLength) {
+  const original = cleanLine(sourceValue, maxLength);
+  if (!original) return { value: '', dropped: false };
+  if (/[가-힣]/.test(original)) return { value: original, dropped: false };
+  if (candidate === undefined || candidate === null || candidate === '') {
+    return { value: '', dropped: true };
+  }
+  if (typeof candidate !== 'string') return { value: '', dropped: true };
+  const value = cleanLine(candidate, maxLength);
+  if (!value || !/[가-힣]/.test(value)) return { value: '', dropped: true };
+  const hasCurrencySymbol = /[₩￦$＄¥￥€£]/.test(value);
+  const hasCurrencyAmount = /\d[\d,.]*\s*(?:원|달러|엔|위안|파운드|krw|usd|jpy|cny|eur|gbp|won|dollars?|yen|yuan|euros?|pounds?)/i.test(value);
+  if (/https?:\/\//i.test(value) || hasCurrencySymbol || hasCurrencyAmount) {
+    return { value: '', dropped: true };
+  }
   return { value, dropped: false };
 }
 
@@ -242,7 +264,7 @@ function verifiedEvidenceValue({
   return candidateValue;
 }
 
-/** Gemini JSON을 허용 필드만 남기고, 원문에 없는 이름·목적·주소·링크를 fail-closed 제거한다. */
+/** 원문 감사값을 검증하고, 확인 가능한 한글 표시 후보 외 이름·목적·주소·링크를 fail-closed 제거한다. */
 export function sanitizeParsedQuoteSchedule(raw, sourceText) {
   const input = raw && typeof raw === 'object' ? raw : {};
   const departure = exactSourceValue(sourceText, input.departureAddress, 300);
@@ -288,6 +310,8 @@ export function sanitizeParsedQuoteSchedule(raw, sourceText) {
     const order = Number.isSafeInteger(stop.order) && stop.order > 0 ? stop.order : index + 1;
     const name = exactSourceValue(sourceText, stop.name, 150);
     const purpose = exactSourceValue(sourceText, stop.purpose, 500);
+    const nameKo = koreanDisplayValue(name.value, stop.nameKo, 150);
+    const purposeKo = koreanDisplayValue(purpose.value, stop.purposeKo, 500);
     const sourceRegion = exactSourceValue(sourceText, stop.sourceRegion, 100);
     const optionalEvidence = exactSourceValue(sourceText, stop.optionalEvidence, 200);
     const road = exactSourceValue(sourceText, stop.roadAddress, 300);
@@ -295,6 +319,8 @@ export function sanitizeParsedQuoteSchedule(raw, sourceText) {
     const map = safeNaverSourceUrl(sourceText, stop.naverMapUrl);
     if (name.dropped) warnings.push(`${order}번 장소에서 원문에 없는 장소명을 제거했습니다.`);
     if (purpose.dropped) warnings.push(`${order}번 장소에서 원문에 없는 방문 목적을 제거했습니다.`);
+    if (name.value && nameKo.dropped) warnings.push(`${order}번 장소명을 한글로 변환하지 못했습니다. 원문을 보고 한글 장소명을 직접 확인해 주세요.`);
+    if (purpose.value && purposeKo.dropped) warnings.push(`${order}번 일정 내용을 한글로 변환하지 못했습니다. 원문을 보고 한글 내용을 직접 확인해 주세요.`);
     if (sourceRegion.dropped) warnings.push(`${order}번 장소에서 원문에 없는 지역 설명을 제거했습니다.`);
     const hasOptionalEvidence = Boolean(optionalEvidence.value
       && OPTIONAL_EVIDENCE_RE.test(optionalEvidence.value));
@@ -345,8 +371,10 @@ export function sanitizeParsedQuoteSchedule(raw, sourceText) {
       order,
       arrivalTime,
       departureTime,
-      name: name.value,
-      purpose: purpose.value,
+      name: nameKo.value,
+      purpose: purposeKo.value,
+      sourceName: name.value,
+      sourcePurpose: purpose.value,
       sourceRegion: sourceRegion.value,
       roadAddress: road.value,
       jibunAddress: jibun.value,

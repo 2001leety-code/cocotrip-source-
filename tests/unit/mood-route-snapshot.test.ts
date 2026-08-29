@@ -24,6 +24,7 @@ import {
   encodeRoutePoints,
 } from '../../api/_shared/mood-route-snapshot.js';
 import { assertFirestoreSafe, createFakeFirestore, makeBarrier } from '../helpers/fake-firestore.js';
+import { openMoodBookingAvailabilityFixture } from '../helpers/mood-booking-availability';
 
 // ── 실제 Naver traoptimal 이 주는 모양의 폴리라인 (서울역 → 인천공항 방면 일부) ──
 const REAL_PATH: Array<[number, number]> = [
@@ -272,6 +273,7 @@ function nestedArrayFields(dump: Record<string, any>) {
 beforeEach(() => {
   vi.clearAllMocks();
   db = createFakeFirestore({
+    'mood_config/booking_availability': openMoodBookingAvailabilityFixture(),
     'mood_clients/COMPANY_A': { name: '무드', balanceKRW: 5_000_000 },
     'mood_bookings/booking-1': { ...STORED_BOOKING },
   });

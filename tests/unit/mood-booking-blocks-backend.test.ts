@@ -2,7 +2,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkMoodBookingAvailability,
-  DEFAULT_MOOD_BOOKING_AVAILABILITY,
   MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTION_DAYS,
   MOOD_BOOKING_AVAILABILITY_MAX_EXCEPTIONS,
   moodBookingAvailabilityFromSnapshot,
@@ -134,6 +133,12 @@ beforeEach(() => {
     admins: [PRIMARY_MOOD_ADMIN_EMAIL],
     clientId: 'MOOD',
   });
+  store.set('mood_config/booking_availability', {
+    schemaVersion: 1,
+    revision: 0,
+    rules: [],
+    exceptions: [],
+  });
   verifyUserTokenMock.mockResolvedValue({
     ok: true,
     email: PRIMARY_MOOD_ADMIN_EMAIL,
@@ -143,10 +148,12 @@ beforeEach(() => {
 });
 
 describe('예약 차단 정책 정규화', () => {
-  it('설정 문서가 없으면 기존 저녁 차단을 revision 0 기본값으로 반환한다', () => {
-    const availability = moodBookingAvailabilityFromSnapshot({ exists: false });
-    expect(availability).toEqual(DEFAULT_MOOD_BOOKING_AVAILABILITY);
-    expect(checkMoodBookingAvailability('2026-09-10', '18:00', availability).ok).toBe(false);
+  it('설정 문서가 없으면 과거 규칙을 되살리지 않고 명시적인 설정 오류로 중단한다', () => {
+    expect(() => moodBookingAvailabilityFromSnapshot({ exists: false })).toThrow('MISSING_BOOKING_AVAILABILITY_CONFIG');
+    expect(checkMoodBookingAvailability('2026-09-10', '18:00')).toMatchObject({
+      ok: false,
+      error: 'MOOD_BOOKING_AVAILABILITY_CONFIG_UNAVAILABLE',
+    });
   });
 
   it('존재하는 rules:[] 문서는 명시적으로 모든 시간을 연다', () => {
@@ -211,7 +218,7 @@ describe('예약 차단 정책 정규화', () => {
     expect(checkMoodBookingAvailability('2026-09-06', '12:00', rangeAvailability).ok).toBe(false);
   });
 
-  it('겹친 규칙과 나중에 추가한 긴급 규칙은 과거 예외로 우회되지 않는다', () => {
+  it('열어 둔 날짜는 겹친 규칙과 이후 추가 규칙보다 우선한다', () => {
     const overlappingRule = { ...DAILY_RULE, id: 'overlapping-block', reason: '겹친 차단' };
     const emergencyRule = { ...DAILY_RULE, id: 'later-emergency-block', reason: '나중 긴급 차단' };
     const exception = { ...RANGE_EXCEPTION, ruleIds: [DAILY_RULE.id] };
@@ -221,14 +228,14 @@ describe('예약 차단 정책 정규화', () => {
       revision: 1,
       rules: [DAILY_RULE, overlappingRule],
       exceptions: [exception],
-    })).toMatchObject({ ok: false, ruleId: overlappingRule.id });
+    })).toEqual({ ok: true });
 
     expect(checkMoodBookingAvailability('2026-09-04', '12:00', {
       schemaVersion: 1,
       revision: 2,
       rules: [DAILY_RULE, emergencyRule],
       exceptions: [exception],
-    })).toMatchObject({ ok: false, ruleId: emergencyRule.id });
+    })).toEqual({ ok: true });
   });
 
   it('손상된 예외는 fail-closed로 무시하고 저장 문서 파싱도 거부한다', () => {
@@ -293,17 +300,96 @@ describe('예약 차단 정책 정규화', () => {
 });
 
 describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
-  it('허용된 직원 GET은 누락 문서의 기본 정책을 공개 계약 위치로 받는다', async () => {
+  it('허용된 직원 GET도 설정 문서 누락을 명시적인 오류로 받는다', async () => {
     verifyUserTokenMock.mockResolvedValue({
       ok: true,
       email: 'staff@x.com',
       uid: 'staff-1',
       emailVerified: true,
     });
+    store.delete('mood_config/booking_availability');
     const { res, json } = await callApi('GET');
-    expect(res.statusCode).toBe(200);
-    expect(json.data.bookingAvailability).toMatchObject({ schemaVersion: 1, revision: 0 });
-    expect(json.data.bookingAvailability.rules).toHaveLength(1);
+    expect(res.statusCode).toBe(409);
+    expect(json).toMatchObject({
+      ok: false,
+      error: 'INVALID_BOOKING_AVAILABILITY_CONFIG',
+      detail: 'MISSING_BOOKING_AVAILABILITY_CONFIG',
+    });
+  });
+
+  it('관리자는 누락된 설정을 빈 규칙으로 명시적으로 초기화하고 같은 요청을 안전하게 재생한다', async () => {
+    store.delete('mood_config/booking_availability');
+    const body = {
+      action: 'initialize',
+      expectedRevision: 0,
+      requestId: 'initialize-config-001',
+    };
+
+    const first = await callApi('POST', body);
+    expect(first.res.statusCode).toBe(200);
+    expect(first.json.data.bookingAvailability).toEqual({
+      schemaVersion: 1,
+      revision: 0,
+      rules: [],
+      exceptions: [],
+    });
+    expect(store.get('mood_booking_block_audit/initialize-config-001')).toMatchObject({
+      type: 'booking_availability_initialized',
+      before: null,
+      revision: 0,
+    });
+
+    const replay = await callApi('POST', body);
+    expect(replay.res.statusCode).toBe(200);
+    expect(replay.json.data.bookingAvailability).toEqual(first.json.data.bookingAvailability);
+  });
+
+  it('초기화는 기존 손상 설정을 자동으로 덮어쓰지 않는다', async () => {
+    store.set('mood_config/booking_availability', { schemaVersion: 1, revision: 0, rules: 'broken' });
+    const result = await callApi('POST', {
+      action: 'initialize',
+      expectedRevision: 0,
+      requestId: 'initialize-broken-001',
+    });
+
+    expect(result.res.statusCode).toBe(409);
+    expect(result.json.error).toBe('BOOKING_AVAILABILITY_REPAIR_REQUIRED');
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ rules: 'broken' });
+  });
+
+  it('초기화는 정상 설정을 덮어쓰지 않고 최신 설정을 돌려준다', async () => {
+    const before = structuredClone(store.get('mood_config/booking_availability'));
+    const result = await callApi('POST', {
+      action: 'initialize',
+      expectedRevision: 0,
+      requestId: 'initialize-existing-001',
+    });
+
+    expect(result.res.statusCode).toBe(409);
+    expect(result.json.error).toBe('BOOKING_AVAILABILITY_ALREADY_INITIALIZED');
+    expect(result.json.data.bookingAvailability).toEqual(before);
+    expect(store.get('mood_config/booking_availability')).toEqual(before);
+    expect(store.get('mood_booking_block_audit/initialize-existing-001')).toBeUndefined();
+  });
+
+  it('일반 직원은 누락 설정도 초기화하지 못한다', async () => {
+    store.delete('mood_config/booking_availability');
+    verifyUserTokenMock.mockResolvedValue({
+      ok: true,
+      email: 'staff@x.com',
+      uid: 'staff-1',
+      emailVerified: true,
+    });
+    const result = await callApi('POST', {
+      action: 'initialize',
+      expectedRevision: 0,
+      requestId: 'initialize-staff-001',
+    });
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.json.error).toBe('ADMIN_REQUIRED');
+    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_booking_block_audit/initialize-staff-001')).toBeUndefined();
   });
 
   it('미검증 이메일은 조회도 거부하고 일반 직원은 수정하지 못한다', async () => {
@@ -325,21 +411,18 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
       action: 'upsert', expectedRevision: 0, requestId: 'staff-denied-001', rule: CUSTOM_RULE,
     });
     expect(result.res.statusCode).toBe(403);
-    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 0, rules: [] });
     expect(store.get('mood_booking_block_audit/staff-denied-001')).toBeUndefined();
   });
 
-  it('admin upsert는 기본 규칙을 보존하며 revision과 감사기록을 원자적으로 쓴다', async () => {
+  it('admin upsert는 저장된 설정만 기준으로 revision과 감사기록을 원자적으로 쓴다', async () => {
     const body = {
       action: 'upsert', expectedRevision: 0, requestId: 'upsert-request-001', rule: CUSTOM_RULE,
     };
     const first = await callApi('POST', body);
     expect(first.res.statusCode).toBe(200);
     expect(first.json.data.bookingAvailability).toMatchObject({ schemaVersion: 1, revision: 1 });
-    expect(first.json.data.bookingAvailability.rules.map((rule: any) => rule.id)).toEqual([
-      'legacy-evening-blackout-2026',
-      'sep-photo-block',
-    ]);
+    expect(first.json.data.bookingAvailability.rules.map((rule: any) => rule.id)).toEqual(['sep-photo-block']);
     expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 1 });
     expect(store.get('mood_booking_block_audit/upsert-request-001')).toMatchObject({
       action: 'upsert',
@@ -390,7 +473,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
 
     expect(result.res.statusCode).toBe(403);
     expect(result.json.error).toBe('ADMIN_REQUIRED');
-    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 0, rules: [] });
     expect(store.get('mood_booking_block_audit/revoked-admin-001')).toBeUndefined();
   });
 
@@ -413,7 +496,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
 
     expect(result.res.statusCode).toBe(403);
     expect(result.json.error).toBe('ADMIN_REQUIRED');
-    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 0, rules: [] });
     expect(store.get('mood_booking_block_audit/stray-admin-denied-001')).toBeUndefined();
   });
 
@@ -427,9 +510,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
     const first = await callApi('POST', body);
     expect(first.res.statusCode).toBe(200);
     expect(first.json.data.bookingAvailability).toMatchObject({ revision: 2 });
-    expect(first.json.data.bookingAvailability.rules.map((rule: any) => rule.id)).toEqual([
-      'legacy-evening-blackout-2026',
-    ]);
+    expect(first.json.data.bookingAvailability.rules).toEqual([]);
 
     const replay = await callApi('POST', body);
     expect(replay.res.statusCode).toBe(200);
@@ -494,7 +575,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
     expect(conflict.json.error).toBe('IDEMPOTENCY_CONFLICT');
   });
 
-  it('예외 저장 뒤 추가한 긴급 규칙은 예외에 자동 편입되지 않아 계속 차단한다', async () => {
+  it('예외 저장 뒤 추가한 겹치는 규칙도 열린 기간을 다시 차단하지 않는다', async () => {
     store.set('mood_config/booking_availability', {
       schemaVersion: 1,
       revision: 2,
@@ -516,7 +597,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
       '2026-09-04',
       '12:00',
       result.json.data.bookingAvailability,
-    )).toMatchObject({ ok: false, ruleId: emergencyRule.id });
+    )).toEqual({ ok: true });
   });
 
   it('겹치는 규칙이 없는 예외 요청은 설정과 감사기록을 쓰지 않고 명확히 거부한다', async () => {
@@ -662,7 +743,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
     });
 
     expect(result.res.statusCode).toBe(403);
-    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 0, rules: [] });
     expect(store.get('mood_booking_block_audit/staff-disable-all-001')).toBeUndefined();
   });
 
@@ -674,7 +755,7 @@ describe('/api/mood-booking-blocks 인증·멱등·revision', () => {
       rule: { ...CUSTOM_RULE, weekdays: [7] },
     });
     expect(invalid.res.statusCode).toBe(400);
-    expect(store.get('mood_config/booking_availability')).toBeUndefined();
+    expect(store.get('mood_config/booking_availability')).toMatchObject({ revision: 0, rules: [] });
     expect(store.get('mood_booking_block_audit/invalid-rule-001')).toBeUndefined();
 
     store.set('mood_config/booking_availability', {

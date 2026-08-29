@@ -43,7 +43,8 @@ type MutationPayload =
   | { action: 'delete'; ruleId: string }
   | { action: 'upsert_exception'; exception: { id: string; enabled: boolean; startDate: string; endDate: string; reason: string } }
   | { action: 'delete_exception'; exceptionId: string }
-  | { action: 'set_all_enabled'; enabled: boolean };
+  | { action: 'set_all_enabled'; enabled: boolean }
+  | { action: 'initialize' };
 
 const WEEKDAYS = [
   { value: 0, label: '일' },
@@ -149,6 +150,8 @@ function apiErrorMessage(json: Record<string, unknown>, status: number) {
   if (error === 'IDEMPOTENCY_CONFLICT') return '같은 요청 번호에 다른 변경 내용이 들어왔습니다. 화면을 새로 불러온 뒤 다시 시도해 주세요.';
   if (error === 'IDEMPOTENCY_RESPONSE_MISSING') return '이전 변경 결과를 확인할 수 없습니다. 화면을 새로 불러온 뒤 현재 상태를 확인해 주세요.';
   if (error === 'INVALID_BOOKING_AVAILABILITY_CONFIG') return '저장된 예약 차단 설정에 문제가 있어 변경할 수 없습니다. 설정 점검이 필요합니다.';
+  if (error === 'BOOKING_AVAILABILITY_ALREADY_INITIALIZED') return '예약 차단 설정이 이미 생성되어 있습니다. 최신 설정을 다시 불러와 주세요.';
+  if (error === 'BOOKING_AVAILABILITY_REPAIR_REQUIRED') return '기존 설정이 손상되어 자동으로 덮어쓸 수 없습니다. 관리자 점검이 필요합니다.';
   if (error === 'REQUEST_ID_REUSED') return '같은 요청 번호가 다른 변경에 사용됐습니다. 다시 시도해 주세요.';
   return error || `차단 설정 저장 실패 (${status})`;
 }
@@ -159,6 +162,7 @@ export function MoodBookingBlockManager({ availability, onUpdated, onReload }: P
   const [savingKey, setSavingKey] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState('');
   const [releaseAllConfirm, setReleaseAllConfirm] = useState(false);
+  const [initializeConfirm, setInitializeConfirm] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const requestRef = useRef({ signature: '', requestId: '' });
 
@@ -199,11 +203,56 @@ export function MoodBookingBlockManager({ availability, onUpdated, onReload }: P
       }
       requestRef.current = { signature: '', requestId: '' };
       onUpdated(next);
+      // 성공 응답을 먼저 즉시 반영한 뒤 서버 정본을 한 번 더 확인한다.
+      // 열려 있던 다른 탭/오래된 화면의 상태가 남아도 캘린더 배지가 즉시 정리된다.
+      await onReload();
       setMessage({ kind: 'ok', text: '캘린더 반영 완료' });
       return true;
     } catch (error) {
       setMessage({ kind: 'err', text: error instanceof Error ? error.message : '차단 설정 저장에 실패했습니다.' });
       return false;
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const initializeAvailability = async () => {
+    if (savingKey) return;
+    if (!initializeConfirm) {
+      setInitializeConfirm(true);
+      setMessage(null);
+      return;
+    }
+    const signature = JSON.stringify({ action: 'initialize', expectedRevision: 0 });
+    if (requestRef.current.signature !== signature) {
+      requestRef.current = { signature, requestId: makeRequestId('mood-block') };
+    }
+    setSavingKey('initialize');
+    setMessage(null);
+    try {
+      const response = await authFetch('/api/mood-booking-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'initialize',
+          expectedRevision: 0,
+          requestId: requestRef.current.requestId,
+        }),
+      });
+      const json = await response.json().catch(() => ({})) as Record<string, unknown>;
+      const data = json.data && typeof json.data === 'object' ? json.data as Record<string, unknown> : {};
+      const next = parseMoodBookingAvailability(data.bookingAvailability);
+      if (!response.ok || json.ok !== true || !next) {
+        setMessage({ kind: 'err', text: apiErrorMessage(json, response.status) });
+        return;
+      }
+      requestRef.current = { signature: '', requestId: '' };
+      setInitializeConfirm(false);
+      onUpdated(next);
+      await onReload();
+      setMessage({ kind: 'ok', text: '빈 예약 차단 설정을 만들고 캘린더에 반영했습니다.' });
+    } catch (error) {
+      setMessage({ kind: 'err', text: error instanceof Error ? error.message : '예약 차단 설정 초기화에 실패했습니다.' });
     } finally {
       setSavingKey('');
     }
@@ -294,6 +343,9 @@ export function MoodBookingBlockManager({ availability, onUpdated, onReload }: P
         {!availability ? (
           <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3" role="alert">
             <p className="text-xs font-bold text-rose-100">차단 설정을 안전하게 읽지 못했습니다. 신규 예약은 자동으로 잠겨 있습니다.</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-rose-100/80">
+              설정 문서가 없는 경우에만 빈 설정을 직접 만들 수 있습니다. 과거 날짜 차단은 자동으로 복원되지 않습니다.
+            </p>
             <button
               type="button"
               onClick={() => { void onReload(); }}
@@ -301,6 +353,27 @@ export function MoodBookingBlockManager({ availability, onUpdated, onReload }: P
             >
               설정 다시 불러오기
             </button>
+            <button
+              type="button"
+              disabled={Boolean(savingKey)}
+              onClick={() => { void initializeAvailability(); }}
+              className="mt-2 min-h-11 w-full rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:opacity-40"
+            >
+              {savingKey === 'initialize'
+                ? '빈 설정 만드는 중…'
+                : initializeConfirm
+                  ? '빈 설정 생성 확인'
+                  : '빈 예약 차단 설정 만들기'}
+            </button>
+            {initializeConfirm && !savingKey && (
+              <button
+                type="button"
+                onClick={() => setInitializeConfirm(false)}
+                className="mt-1 min-h-11 w-full rounded-xl px-3 text-xs font-bold text-slate-300 outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+              >
+                취소
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -442,7 +515,7 @@ export function MoodBookingBlockManager({ availability, onUpdated, onReload }: P
                             {exception.enabled ? '열린 날짜' : '꺼진 열린 날짜'} · {formatExceptionDateRange(exception)}
                           </p>
                           <p className="mt-1 break-words text-[11px] leading-relaxed text-slate-300">
-                            영향 규칙 {exception.ruleIds.length}개 · {exception.reason}
+                            기간 내 모든 차단 규칙보다 우선 · {exception.reason}
                           </p>
                         </div>
                         <button

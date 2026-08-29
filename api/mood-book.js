@@ -570,6 +570,14 @@ export default async function handler(req, res) {
       data: txResult.responseData,
     }));
   } catch (err) {
+    if (err && err.code === 'INVALID_BOOKING_AVAILABILITY_CONFIG') {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({
+        ok: false,
+        error: err.code,
+        detail: err.detail || 'INVALID_BOOKING_AVAILABILITY_CONFIG',
+      }));
+    }
     // 내부 예외 메시지(Firestore 인덱스 URL·경로·자격증명 힌트)를 클라이언트에 노출하지 않음.
     console.error('[mood-book] failed:', err.message);
     await captureError(err, { route: '/api/mood-book', email });

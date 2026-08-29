@@ -397,7 +397,16 @@ export default async function handler(req, res) {
     }
     const admin = isAdminEmail(allowlist, email);
     const canApproveSettlement = isSettlementApproverEmail(allowlist, email);
-    const bookingAvailability = await getMoodBookingAvailability(db);
+    let bookingAvailability = null;
+    try {
+      bookingAvailability = await getMoodBookingAvailability(db);
+    } catch (availabilityError) {
+      if (!availabilityError || availabilityError.code !== 'INVALID_BOOKING_AVAILABILITY_CONFIG') {
+        throw availabilityError;
+      }
+      // 포털과 기존 예약 조회는 유지하되 신규 예약/변경은 프론트와 API에서
+      // fail-closed한다. 관리자에게는 별도 초기화 버튼이 보인다.
+    }
 
     const url = new URL(req.url, `https://${req.headers.host}`);
     const queryClientId = (url.searchParams.get('clientId') || '').trim();
