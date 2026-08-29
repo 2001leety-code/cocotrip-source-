@@ -34,11 +34,11 @@ describe('guide HTML shared sanitizer', () => {
       }>;
     };
 
-    expect(packageJson.dependencies.dompurify).toBe('3.4.12');
+    expect(packageJson.dependencies.dompurify).toBe('3.4.14');
     expect(packageJson.devDependencies.jsdom).toBe('29.1.1');
-    expect(packageLock.packages[''].dependencies?.dompurify).toBe('3.4.12');
+    expect(packageLock.packages[''].dependencies?.dompurify).toBe('3.4.14');
     expect(packageLock.packages[''].devDependencies?.jsdom).toBe('29.1.1');
-    expect(packageLock.packages['node_modules/dompurify'].version).toBe('3.4.12');
+    expect(packageLock.packages['node_modules/dompurify'].version).toBe('3.4.14');
     expect(packageLock.packages['node_modules/jsdom'].version).toBe('29.1.1');
   });
 
