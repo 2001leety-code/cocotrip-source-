@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { inquiryKind, normalizeInquiryStatus, inquiryContact, REGION_LABELS } from '../../src/lib/inquiryAdmin';
+import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS } from '../../src/lib/inquiryAdmin';
 
 describe('normalizeInquiryStatus — NEW→pending 읽기 정규화', () => {
   it("'NEW'(서버 API 저장값)는 'pending' 으로", () => {
@@ -32,7 +32,8 @@ describe('inquiryKind — 문의 유형 판별', () => {
     expect(inquiryKind({ vehicle: 'bus' })).toBe('bus');
   });
 
-  it('vehicle 없음(차터 배너 모달 문서) → charter', () => {
+  it('vehicle=charter 및 과거 vehicle 없음 문서 → charter', () => {
+    expect(inquiryKind({ vehicle: 'charter' })).toBe('charter');
     expect(inquiryKind({})).toBe('charter');
     expect(inquiryKind({ vehicle: null })).toBe('charter');
     expect(inquiryKind({ vehicle: 'unknown-future' })).toBe('charter');
@@ -45,6 +46,26 @@ describe('inquiryContact — 연락처 폴백 (tour_custom 은 email null 가능
     expect(inquiryContact({ email: null, phone: '010-1234' })).toBe('010-1234');
     expect(inquiryContact({ email: null, phone: null, whatsapp: '+82 10' })).toBe('+82 10');
     expect(inquiryContact({})).toBe('(연락처 없음)');
+  });
+});
+
+describe('isServerVerifiedInquiryQuote — 서버 참고견적/과거 앱 예상가 구분', () => {
+  const verified = {
+    vehicle: 'charter',
+    contractVersion: 'inquiry.v2',
+    quotedKRW: 330000,
+    hours: 8,
+    quote: {
+      currency: 'KRW', amountKRW: 330000, hours: 8,
+      provenance: 'server_pricing_spec', kind: 'reference',
+    },
+  };
+
+  it('서버 계약과 중첩 정본이 모두 일치할 때만 검증 표시', () => {
+    expect(isServerVerifiedInquiryQuote(verified)).toBe(true);
+    expect(isServerVerifiedInquiryQuote({ ...verified, quotedKRW: 1 })).toBe(false);
+    expect(isServerVerifiedInquiryQuote({ ...verified, contractVersion: 'inquiry.v1' })).toBe(false);
+    expect(isServerVerifiedInquiryQuote({ quotedKRW: 330000, hours: 8 })).toBe(false);
   });
 });
 

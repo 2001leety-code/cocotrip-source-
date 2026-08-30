@@ -14,7 +14,7 @@ import { renderHook, act } from '@testing-library/react';
 
 void React;
 
-const authHolder: { user: { uid: string } | null } = { user: null };
+const authHolder: { user: { uid: string; getIdToken: () => Promise<string> } | null } = { user: null };
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => ({ ...authHolder }) }));
 
 const { useChatSession, GUEST_FREE_QUESTIONS } = await import('../../src/hooks/useChatSession');
@@ -22,11 +22,15 @@ const { useChatSession, GUEST_FREE_QUESTIONS } = await import('../../src/hooks/u
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  window.localStorage.clear();
   authHolder.user = null;
   fetchMock.mockReset();
   fetchMock.mockResolvedValue({
     ok: true,
-    json: async () => ({ ok: true, data: { reply: 'hello!' } }),
+    json: async () => ({
+      ok: true,
+      data: { reply: 'hello!', sessionId: 'sess_abcdefghijklmnopqrstuvwxyz123456' },
+    }),
   });
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -57,17 +61,20 @@ describe('guest 3-question gate', () => {
     expect(result.current.messages.filter((m) => m.role === 'user')).toHaveLength(GUEST_FREE_QUESTIONS);
   });
 
-  it('guest requests carry no userId, so the server keys the cap on IP', async () => {
+  it('guest requests carry no userId, so the server owns guest identity via signed cookie', async () => {
     const { result } = renderHook(() => useChatSession('en', true));
     await act(async () => { await result.current.sendMessage('hi'); });
 
     const [, init] = chatCalls()[0];
     const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.userId).toBeFalsy();
+    expect(body).not.toHaveProperty('userId');
+    expect(result.current.sessionId).toBe('sess_abcdefghijklmnopqrstuvwxyz123456');
+    expect(window.localStorage.getItem('cocotrip_chat_session_v1'))
+      .toBe('sess_abcdefghijklmnopqrstuvwxyz123456');
   });
 
   it('signed-in users are never gated (more than 3 sends go through)', async () => {
-    authHolder.user = { uid: 'user-1234' };
+    authHolder.user = { uid: 'user-1234', getIdToken: async () => 'firebase-id-token' };
     const { result } = renderHook(() => useChatSession('en', true));
 
     for (let i = 1; i <= GUEST_FREE_QUESTIONS + 2; i++) {
@@ -79,6 +86,21 @@ describe('guest 3-question gate', () => {
 
     const [, init] = chatCalls()[0];
     const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.userId).toBe('user-1234');
+    expect(body).not.toHaveProperty('userId');
+    const headers = new Headers((init as RequestInit).headers);
+    expect(headers.get('Authorization')).toBe('Bearer firebase-id-token');
+  });
+
+  it('a signed-in token failure never downgrades the request to a guest chat', async () => {
+    authHolder.user = {
+      uid: 'user-1234',
+      getIdToken: async () => { throw new Error('token unavailable'); },
+    };
+    const { result } = renderHook(() => useChatSession('en', true));
+
+    await act(async () => { await result.current.sendMessage('private question'); });
+
+    expect(chatCalls()).toHaveLength(0);
+    expect(result.current.messages.at(-1)?.text).toContain('Connection error');
   });
 });

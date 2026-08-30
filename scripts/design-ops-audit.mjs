@@ -762,7 +762,7 @@ function reportJob() {
     schedule: {
       kind: 'cron',
       expression: '0 1 * * 1',
-      timezone: 'Asia/Seoul',
+      timezone: 'UTC',
       interval_seconds: null,
     },
     write_scope: 'read_only',

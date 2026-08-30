@@ -42,6 +42,8 @@ export interface InlineBookingOption {
   productType: string;       // braintreeCheckout 가 받는 키 (e.g. airport_seoul_central)
   label: string;             // 사용자 표시 라벨 (예: "서울 도심")
   priceKRW: number;
+  /** 서버 산정 USD와 표시가를 주문 생성 전에 대조. */
+  expectedUSD?: number;
   /** 선택 시 옵션 카드 위 추가 안내 (예: 출발-도착 zone 표시) */
   detail?: string;
 }
@@ -477,6 +479,7 @@ export function InlineBookingCard({
               dateStart={date}
               dateEnd={date}
               priceKRW={selected.priceKRW}
+              expectedUSD={selected.expectedUSD}
               lang={lang}
               pickupLocation={pickupAddress || selected.label}
               memo={(() => {

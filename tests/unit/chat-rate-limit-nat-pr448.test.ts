@@ -9,8 +9,8 @@
  * Vercel edge itself reused a small pool of egress IPs, bucketing ALL
  * chat traffic into one counter.
  *
- * Post-fix: `userId` is already mandatory (chat.js handler ~L312 returns
- * 401 if missing), so user-id IS the real abuse-attribution unit. The
+ * Post-fix: signed-in traffic uses the server-verified Firebase uid, so uid
+ * IS the real abuse-attribution unit. The
  * daily-cap doc key is now `usr:${userId}:${dayKey}`. NAT-immune.
  *
  * The 5/5min sliding window still keys on user only (unchanged) — that
@@ -57,8 +57,8 @@ describe('PR #448 W-H14 — sliding-window per-user cap preserved', () => {
 
 describe('PR #448 W-H14 — handler-level invariants', () => {
   // 2026-08-18 퍼널 감사 1번: 로그인 벽 제거 — 401 AUTH_REQUIRED 게이트는
-  // 의도적으로 삭제됐다(게스트 허용). userId 는 원래 클라이언트가 보내는
-  // 미검증 값이라 그 게이트는 방어가 아니었고, 실방어는 레이트리밋이다.
+  // 의도적으로 삭제됐다(게스트 허용). 로그인 uid 는 Firebase token 검증값만 쓰고,
+  // 게스트의 실방어는 IP 레이트리밋 + 서버 서명 세션이다.
   // 게스트는 IP 키 일 15건 — 가짜 uid 당 50건이던 종전 구멍보다 좁다.
   it('the 401 Login-required gate is gone on purpose (guests are allowed)', () => {
     expect(src).not.toMatch(/Login required/);

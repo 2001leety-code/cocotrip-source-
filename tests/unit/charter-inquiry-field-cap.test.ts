@@ -12,7 +12,7 @@ const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
 
 function charterBlock(): string {
   const idx = rules.indexOf('match /charter_inquiries/');
-  return rules.slice(idx, idx + 2400);
+  return rules.slice(idx, idx + 5000);
 }
 
 describe('firestore.rules charter_inquiries — field cap (DoS 가드)', () => {
@@ -27,5 +27,17 @@ describe('firestore.rules charter_inquiries — field cap (DoS 가드)', () => {
     expect(block).toMatch(/notes\s*==\s*null/);
     expect(block).toMatch(/name\s*==\s*null/);
     expect(block).toMatch(/phone\s*==\s*null/);
+  });
+  it('과거 PWA 필드만 허용하고 서버 견적 표시는 클라이언트가 주입할 수 없음', () => {
+    const block = charterBlock();
+    expect(block).toContain('hasOnly([');
+    expect(block).toContain("'itinerarySummary', 'status', 'source', 'createdAt'");
+    expect(block).not.toMatch(/hasOnly\(\[[\s\S]*?'quote'/);
+    expect(block).not.toMatch(/hasOnly\(\[[\s\S]*?'contractVersion'/);
+    expect(block).not.toMatch(/hasOnly\(\[[\s\S]*?'vehicle'/);
+  });
+  it('문의 원문 읽기는 관리자만 허용', () => {
+    const block = charterBlock();
+    expect(block).toMatch(/allow read:\s+if isAdminEmail\(\);/);
   });
 });

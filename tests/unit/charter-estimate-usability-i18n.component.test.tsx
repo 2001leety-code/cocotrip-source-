@@ -85,6 +85,12 @@ describe('CocoStepper — 44×44 hit target + 기존 게이트/의미 보존', (
 
 describe('/charter Step1 출발지 — 4언어 (앱 소유 문구 영어 누출 0)', () => {
   const base = { origin: undefined } as unknown as WizardState;
+  const SEARCH_LABEL = {
+    ko: '공항 또는 도시 검색',
+    en: 'Search airport or city',
+    ja: '空港または都市を検索',
+    zh: '搜索机场或城市',
+  } as const;
 
   it.each(LANGS)('%s: 검색 placeholder 가 해당 언어다', (lang) => {
     const { container, unmount } = render(
@@ -92,6 +98,7 @@ describe('/charter Step1 출발지 — 4언어 (앱 소유 문구 영어 누출 
     );
     const search = container.querySelector('input[type="text"]') as HTMLInputElement;
     expect(search).not.toBeNull();
+    expect(search.getAttribute('aria-label')).toBe(SEARCH_LABEL[lang]);
     const ph = search.getAttribute('placeholder') || '';
     expect(ph.length).toBeGreaterThan(0);
     if (lang === 'ja' || lang === 'zh') {

@@ -173,18 +173,39 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+const CHAT_SESSION_STORAGE_KEY = 'cocotrip_chat_session_v1';
+
+function loadStoredSessionId() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const stored = window.localStorage.getItem(CHAT_SESSION_STORAGE_KEY) || '';
+    return /^sess_[A-Za-z0-9_-]{24,120}$/.test(stored) ? stored : '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberSessionId(value: string) {
+  if (!/^sess_[A-Za-z0-9_-]{24,120}$/.test(value) || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(CHAT_SESSION_STORAGE_KEY, value);
+  } catch { /* 저장 불가 브라우저는 HttpOnly 쿠키만으로 현재 탭을 유지한다. */ }
+}
+
 /** active=true 인 동안 웰컴 초기화 + 운영자 답장 폴링. 위젯은 open, 전면 화면은 mount 상시 true. */
 export function useChatSession(language: Language, active: boolean) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(() => `sess_${generateId()}`);
+  const [sessionId, setSessionId] = useState(loadStoredSessionId);
   const [lastPollTs, setLastPollTs] = useState(0);
   const [quickShown, setQuickShown] = useState(true);
 
   // 활성화 시 웰컴 메시지 초기화
   useEffect(() => {
     if (active && messages.length === 0) {
+      // 기존 위젯 계약: 열리는 순간 웰컴 메시지를 상태에 넣는다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages([{ id: generateId(), role: 'ai', text: WELCOME[language], time: nowTime() }]);
       setQuickShown(true);
     }
@@ -193,22 +214,33 @@ export function useChatSession(language: Language, active: boolean) {
   // 언어 변경 시 웰컴 메시지만 교체
   useEffect(() => {
     if (active && messages.length > 0 && messages[0].role === 'ai') {
+      // 언어 전환 때 현재 웰컴 한 줄만 교체한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages((prev) => [{ ...prev[0], text: WELCOME[language] }, ...prev.slice(1)]);
     }
   }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 관리자 답장 폴링 — 활성 동안 + 사용자가 1번 이상 메시지 보낸 후
+  // 관리자 답장 폴링 — 현재 탭에서 질문했거나, 이전 방문의 서버 세션이 남아 있으면 재개.
+  // 새로고침 뒤에도 늦게 도착한 운영자 답장을 놓치지 않는다.
   useEffect(() => {
     if (!active) return;
-    const userHasSent = messages.some((m) => m.role === 'user');
-    if (!userHasSent) return;
+    const hasChatSession = !!sessionId || messages.some((m) => m.role === 'user');
+    if (!hasChatSession) return;
 
     const POLL_INTERVAL = 8000;
     let cancelled = false;
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/chat-poll?sessionId=${encodeURIComponent(sessionId)}&since=${lastPollTs}`);
+        if (!sessionId) return;
+        const headers = new Headers();
+        if (user) {
+          headers.set('Authorization', `Bearer ${await user.getIdToken()}`);
+        }
+        const res = await fetch(
+          `/api/chat-poll?sessionId=${encodeURIComponent(sessionId)}&since=${lastPollTs}`,
+          { headers, credentials: 'same-origin' },
+        );
         const json = await res.json();
         if (cancelled) return;
         const adminMessages = (json && json.data && json.data.messages) || [];
@@ -233,7 +265,7 @@ export function useChatSession(language: Language, active: boolean) {
 
     const interval = setInterval(poll, POLL_INTERVAL);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [active, sessionId, lastPollTs, messages]);
+  }, [active, sessionId, lastPollTs, messages, user]);
 
   // 게스트 게이트 — 비로그인은 무료 3문답까지. 세션 내 보낸 user 메시지 수로 판정
   // (새로고침하면 초기화되지만 서버 IP 일 15건 캡이 백스톱).
@@ -261,13 +293,23 @@ export function useChatSession(language: Language, active: boolean) {
           .slice(-10) // 최근 10개 메시지 = 5턴
           .map((m) => ({ role: m.role, text: m.text }));
 
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        if (user) {
+          headers.set('Authorization', `Bearer ${await user.getIdToken()}`);
+        }
         const res = await fetch('/api/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: trimmed, messages: history, sessionId, language, userId: user && user.uid }),
+          headers,
+          credentials: 'same-origin',
+          body: JSON.stringify({ message: trimmed, messages: history, sessionId, language }),
         });
         const json = await res.json();
         const payload = json.data;
+        const serverSessionId = payload && payload.sessionId;
+        if (typeof serverSessionId === 'string') {
+          setSessionId(serverSessionId);
+          rememberSessionId(serverSessionId);
+        }
         // 429 / 401은 사용자에게 명확히 안내 (그냥 generic 에러 메시지면 혼란)
         if (!res.ok) {
           const code = json.code || '';

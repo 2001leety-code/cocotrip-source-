@@ -56,6 +56,37 @@ export async function verifyUserToken(req) {
 }
 
 /**
+ * 이메일 보유 여부와 무관하게 Firebase ID token의 uid를 검증한다.
+ * 채팅처럼 전화 로그인 사용자도 허용하되 body.userId를 신뢰하면 안 되는 경로용이다.
+ * Authorization 헤더가 없거나 검증에 실패하면 명시적인 401을 반환한다.
+ *
+ * @param {object} req
+ * @returns {Promise<{ok: true, uid: string, email: string|null, emailVerified: boolean} | {ok: false, status: number, error: string}>}
+ */
+export async function verifyFirebaseIdentityToken(req) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
+  const m = /^Bearer\s+(.+)$/.exec(String(authHeader));
+  if (!m) {
+    return { ok: false, status: 401, error: 'Authorization Bearer token required' };
+  }
+  try {
+    const decoded = await (await getAuthInstance()).verifyIdToken(m[1], true);
+    if (!decoded.uid) {
+      return { ok: false, status: 401, error: 'Token has no uid claim' };
+    }
+    const email = decoded.email ? String(decoded.email).toLowerCase().trim() : null;
+    return {
+      ok: true,
+      uid: decoded.uid,
+      email,
+      emailVerified: !!decoded.email_verified,
+    };
+  } catch (err) {
+    return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };
+  }
+}
+
+/**
  * 게스트 전용 익명 Firebase idToken 검증. 결제 인증(verifyUserToken)과 분리된 채널.
  * x-guest-anon-token 헤더에서 토큰을 읽어 sign_in_provider==='anonymous' 인 경우만 uid 반환.
  * 익명 토큰만 허용 = 실제 계정 uid 사칭(plan.uid 주입)으로 남의 플랜 목록에 주입하는 것 방지.

@@ -153,6 +153,10 @@ describe('planner positioning — the capability is the headline, not the mechan
 /* ── 2. Editorial conversion ───────────────────────────────────────────── */
 
 describe('planner is converted to the editorial system', () => {
+  it('intro close control keeps a 44px target', () => {
+    expect(INTRO_MODAL).toMatch(/ec-btn ec-btn-quiet ec-btn-sm min-h-\[44px\] min-w-\[44px\]/);
+  });
+
   it('the page renders on the editorial root, not a hardcoded dark canvas', () => {
     expect(PLANNER_PAGE).toMatch(/ec-root/);
     expect(PLANNER_PAGE).toMatch(/ec-planner/);

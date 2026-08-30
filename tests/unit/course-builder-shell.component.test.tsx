@@ -11,7 +11,7 @@
  * 7. Day 번호와 장소 수 — 시각·접근성 이름에서 `Day 10`으로 붙지 않음.
  */
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -64,6 +64,7 @@ vi.mock('@/pages/PlannerPage/components/courseBuilder/zoneCourseTemplates', () =
 import { CourseBuilderShell } from '../../src/pages/PlannerPage/components/CourseBuilderShell';
 
 beforeEach(() => {
+  mockUser = null;
   localStorage.clear();
   window.location.hash = '';
   authFetchMock.mockReset();
@@ -71,6 +72,43 @@ beforeEach(() => {
   trackEventMock.mockReset();
   signInMock.mockReset();
   vi.unstubAllGlobals();
+});
+
+describe('CourseBuilderShell — 추천 출처를 사실대로 표시', () => {
+  it('AI 폴백은 CocoTrip 추천으로 표시하고 저장된 stop 에는 위조 가능한 출처 배지를 붙이지 않는다', async () => {
+    const user = userEvent.setup();
+    authFetchMock.mockResolvedValue({
+      status: 200,
+      json: async () => ({
+        ok: true,
+        source: 'nn',
+        nearbySelectionSource: 'catalog',
+        catalogAvailable: true,
+        optimizedOrder: [],
+        nearby: [{
+          candidateId: 'food:trusted-id', placeKey: 'food:trusted-id', placeSource: 'cocotrip-food',
+          name: 'Trusted Restaurant', category: 'food', lat: 37.55, lng: 126.99,
+          reason: 'At collection: 4.8 rating · 200 reviews',
+        }],
+      }),
+    });
+    render(<CourseBuilderShell />);
+    await user.click(screen.getByTestId('place-pick-btn'));
+    await user.click(screen.getByTestId('place-pick-btn'));
+
+    await user.click(await screen.findByRole('button', { name: /AI optimize route/ }));
+    expect(await screen.findByText('CocoTrip nearby picks')).toBeInTheDocument();
+    expect(screen.getByText(/AI route ordering was unavailable/)).toBeInTheDocument();
+    expect(screen.getByText('CocoTrip local data')).toBeInTheDocument();
+
+    const candidateName = screen.getByText('Trusted Restaurant');
+    const candidateCard = candidateName.parentElement?.parentElement;
+    expect(candidateCard).toBeTruthy();
+    await user.click(within(candidateCard as HTMLElement).getByRole('button', { name: '+ Add' }));
+
+    expect(screen.getByText('Trusted Restaurant')).toBeInTheDocument();
+    expect(screen.queryByText('CocoTrip local data')).not.toBeInTheDocument();
+  });
 });
 
 /** 폼에 제목을 채우고 "Add to Day" 버튼을 눌러 자유입력 stop 을 하나 추가한다. */

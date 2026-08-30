@@ -408,6 +408,23 @@ describe('목록 전체 — Korea Editorial Concierge 문서형 셸', () => {
     expect(text).toContain('Browse by destination');
     expect(text).not.toContain('Popular Destinations');
   });
+
+  it.each(LANGS)('%s: 첫 화면 상품은 복제 버튼이 아닌 실제 상세 링크를 재사용한다', (lang) => {
+    const label = {
+      ko: 'CocoTrip 투어 목록',
+      en: 'CocoTrip catalogue',
+      ja: 'CocoTrip ツアー一覧',
+      zh: 'CocoTrip 旅游列表',
+    }[lang];
+    const { container, unmount } = renderPage(lang);
+    const featured = container.querySelector('.tours-catalog-featured');
+    const link = featured?.querySelector('a.tour-catalog-card-link');
+
+    expect(featured?.getAttribute('aria-label')).toBe(label);
+    expect(link?.getAttribute('href')).toBe(`/tours/${TOURS[0].slug}`);
+    expect(link?.querySelector('button')).toBeNull();
+    unmount();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

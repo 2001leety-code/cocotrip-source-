@@ -206,18 +206,52 @@ export const CHARTER_BASE_PRICE = spec.charter_base_price;
 // ────────────────────────────────────────
 // AI 플래너 코스 자동 감지 함수
 // ────────────────────────────────────────
-export function detectCharterRecommendation(places: { name: string; nameEn?: string }[]): {
+const CHARTER_TOUR_KEYS_BY_REGION: Record<string, string[]> = {
+  seoul: ['seoul-city', 'seoul-suburb', 'dmz', 'gangwon', 'ski-resort'],
+  busan: ['busan-day'],
+  gyeongju: ['gyeongju-jeonju'],
+  jeonju: ['gyeongju-jeonju'],
+  gangneung: ['gangwon'],
+  jeju: [],
+};
+
+/** 화면과 문의 API가 같은 주 지역 상품군을 고르기 위한 4개 언어 지역 어댑터. */
+export function charterTourKeysForRegion(region: string | undefined): string[] | null {
+  const normalized = String(region || '').trim().toLowerCase();
+  let regionKey = '';
+  if (normalized.includes('busan') || normalized.includes('부산') || normalized.includes('釜山')) regionKey = 'busan';
+  else if (normalized.includes('gyeongju') || normalized.includes('경주') || normalized.includes('慶州') || normalized.includes('庆州')) regionKey = 'gyeongju';
+  else if (normalized.includes('jeonju') || normalized.includes('전주') || normalized.includes('全州')) regionKey = 'jeonju';
+  else if (normalized.includes('gangneung') || normalized.includes('강릉') || normalized.includes('江陵')) regionKey = 'gangneung';
+  else if (normalized.includes('jeju') || normalized.includes('제주') || normalized.includes('済州') || normalized.includes('濟州') || normalized.includes('济州')) regionKey = 'jeju';
+  else if (normalized.includes('seoul') || normalized.includes('서울') || normalized.includes('ソウル') || normalized.includes('首尔') || normalized.includes('首爾')) regionKey = 'seoul';
+  return regionKey ? CHARTER_TOUR_KEYS_BY_REGION[regionKey] || null : null;
+}
+
+export function detectCharterRecommendation(
+  places: { name: string; nameEn?: string }[],
+  options: { allowedTourKeys?: string[]; preferHighestPrice?: boolean } = {},
+): {
   recommended: boolean;
   tourType: string | null;
   pricing: typeof DAILY_TOUR_PRICES[string] | null;
   reason: string;
 } {
   const allText = places
-    .map((p) => `${p.name} ${p.nameEn ?? ''}`)
+    .map((p) => `${p.name} ${p.nameEn || ''}`)
     .join(' ')
     .toLowerCase();
 
-  for (const [key, tour] of Object.entries(DAILY_TOUR_PRICES)) {
+  const allowed = Array.isArray(options.allowedTourKeys)
+    ? new Set(options.allowedTourKeys)
+    : null;
+  const candidates = Object.entries(DAILY_TOUR_PRICES)
+    .filter(([key]) => !allowed || allowed.has(key));
+  if (options.preferHighestPrice) {
+    candidates.sort(([, a], [, b]) => b.priceKRW - a.priceKRW);
+  }
+
+  for (const [key, tour] of candidates) {
     const matched = tour.keywords.some((kw) => allText.includes(kw.toLowerCase()));
     if (matched) {
       const isSeoulOnly = key === 'seoul-city';

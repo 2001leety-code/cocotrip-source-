@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "policySnapshot": {
+    "checkedAt": "2026-08-30",
+    "maximumAgeDays": 30,
+    "minimumTargetSdk": 36,
+    "effectiveDate": "2026-08-31",
+    "source": "https://developer.android.com/google/play/requirements/target-sdk",
+    "twaSource": "https://developer.android.com/develop/ui/views/layout/webapps/trusted-web-activities",
+    "accountDeletionSource": "https://support.google.com/googleplay/android-developer/answer/13327111?hl=en",
+    "newPersonalAccountClosedTesting": {
+      "createdAfter": "2023-11-13",
+      "minimumTesters": 12,
+      "minimumContinuousDays": 14,
+      "source": "https://support.google.com/googleplay/android-developer/answer/14151465?hl=en"
+    }
+  },
+  "web": {
+    "origin": "https://cocotripkr.com",
+    "startUrl": "/",
+    "manifestUrl": "/manifest.webmanifest",
+    "privacyPolicyUrl": "/privacy",
+    "accountDeletionUrl": "/account-deletion"
+  },
+  "android": {
+    "wrapper": "twa",
+    "sourceDir": "android",
+    "packageName": null,
+    "targetSdk": 36,
+    "versionCode": null,
+    "versionName": null,
+    "playSigningSha256CertificateFingerprints": [],
+    "releaseBundlePath": "android/app/build/outputs/bundle/release/app-release.aab"
+  },
+  "playDeveloperAccount": {
+    "type": null,
+    "createdAt": null,
+    "closedTesting": {
+      "completed": null,
+      "testerCount": null,
+      "continuousDays": null
+    }
+  },
+  "storeListing": {
+    "appIcon512Path": null,
+    "featureGraphic1024x500Path": null,
+    "phoneScreenshotPaths": []
+  },
+  "manualDeclarations": {
+    "accountDeletionProcessApproved": null,
+    "dataSafetyCompleted": null,
+    "adsDeclarationCompleted": null,
+    "contentRatingCompleted": null,
+    "targetAudienceCompleted": null,
+    "reviewAccessPrepared": null
+  }
+}

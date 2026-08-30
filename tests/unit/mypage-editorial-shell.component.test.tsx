@@ -146,6 +146,12 @@ describe('/mypage editorial shell', () => {
     expect(screen.getByText('Tap the heart on any tour to save it here')).toBeTruthy();
   });
 
+  it('exposes the account deletion request path inside My Account', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Request account deletion' }))
+      .toHaveAttribute('href', '/account-deletion');
+  });
+
   it('keeps the development fixture read-only while rendering a review', () => {
     renderPage('/mypage?__fixture=normal&tab=reviews');
     expect(screen.getByText('The route and preparation notes were easy to follow.')).toBeTruthy();

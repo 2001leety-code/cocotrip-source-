@@ -25,9 +25,10 @@ const SOURCES: ReadonlySet<string> = new Set<CourseBuilderSource>([
   'manual', 'place_search', 'recommendation', 'verified_route', 'ai_recommendation',
 ]);
 
-export type CourseBuilderReason = 'ok' | 'network_error' | 'server_error' | 'locked' | 'too_few_stops' | 'no_route' | 'invalid' | 'empty';
+export type CourseBuilderReason = 'ok' | 'network_error' | 'server_error' | 'locked' | 'too_few_stops' | 'no_route' | 'invalid' | 'empty' | 'ai' | 'catalog_fallback' | 'catalog_unavailable';
 const REASONS: ReadonlySet<string> = new Set<CourseBuilderReason>([
   'ok', 'network_error', 'server_error', 'locked', 'too_few_stops', 'no_route', 'invalid', 'empty',
+  'ai', 'catalog_fallback', 'catalog_unavailable',
 ]);
 
 export interface CourseBuilderEventProps {

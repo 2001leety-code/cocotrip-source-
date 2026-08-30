@@ -87,6 +87,8 @@ export const INDEXABLE_ROUTES: readonly string[] = [
  *                     (현재 공개 글 0건. 빈 목록을 색인시키면 저품질 신호만 남는다)
  *   SNS 바이오 허브     /links — 버튼 3개짜리 중계 화면. 목적지와 같은 질의로 경쟁시키면
  *                     얇은 페이지만 하나 더 느는 셈이다
+ *   개인정보 요청       /account-deletion — Play 제출용 요청 흐름. 공개 접근은 허용하지만
+ *                     검색 유입용 콘텐츠가 아니므로 색인하지 않는다
  *
  * ⚠️ 여기 넣는 것만으로는 **런타임 `<meta>` 만** 바뀐다. `vercel.json` 의 X-Robots-Tag
  *    source 에도 같이 넣어야 원문을 받는 크롤러에게 전달된다. 두 곳이 어긋나는 것을
@@ -108,6 +110,7 @@ export const NOINDEX_ROUTES: readonly string[] = [
   '/dev',
   '/community',
   '/links',
+  '/account-deletion',
 ];
 
 /** 끝 슬래시 차이로 판정이 갈리지 않게 정규화. 빈 값은 '/'. */

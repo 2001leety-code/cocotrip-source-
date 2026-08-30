@@ -31,7 +31,7 @@ export interface ItinerarySlot {
   timeConstraint?: 'fixed' | 'window';
   windowEnd?: string;
   placeKey?: string;
-  placeSource?: 'cocotrip-attractions';
+  placeSource?: 'cocotrip-attractions' | 'cocotrip-food';
 }
 
 export interface ItineraryDay {

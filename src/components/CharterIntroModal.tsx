@@ -59,7 +59,7 @@ export function CharterIntroModal() {
       type="button"
       onClick={() => setOpen(true)}
       data-testid="charter-how-it-works"
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs text-white/70 transition-colors hover:border-[#B668FC]/40 hover:text-white"
+      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs text-white/70 transition-colors hover:border-[#B668FC]/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B668FC]/70"
     >
       <HelpCircle size={14} className="shrink-0" />
       {openLabel}

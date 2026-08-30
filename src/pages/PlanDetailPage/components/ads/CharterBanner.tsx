@@ -11,7 +11,7 @@
 // the context to quote without having to ask back.
 import { useState } from 'react';
 import { Car } from 'lucide-react';
-import { detectCharterRecommendation, AIRPORT_TRANSFER_PRICES } from '@/data/charterPricing';
+import { charterTourKeysForRegion, detectCharterRecommendation } from '@/data/charterPricing';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDay, PlanDocument } from '../../types';
 import { CharterInquireModal } from './CharterInquireModal';
@@ -55,19 +55,12 @@ function buildWhatsappPrefill(opts: {
     ? `https://cocotripkr.com/my-plans/${planId}`
     : '';
 
-  // Cross-reference recommended airport transfer if we know arrival airport.
-  // Picks the seoul-central baseline if region unknown.
-  const transferKey = (input.area as string)?.toLowerCase().includes('gangnam')
-    ? 'seoul-gangnam'
-    : 'seoul-central';
-  const transferPrice = AIRPORT_TRANSFER_PRICES[transferKey];
-
   const lines = [
     `Hi CocoTrip! I'd like to book a private charter.`,
     ``,
     `▸ Plan: ${planId || '(in-app)'}${startDate ? ` · Start ${startDate}` : ''}${pax ? ` · ${pax} pax` : ''}`,
-    `▸ Recommended vehicle: Hyundai Staria (8-seat) — ${tourLabel}`,
-    `▸ Quoted: ₩${pricing.priceKRW.toLocaleString()} for ${pricing.hours}h${transferPrice ? ` (+ airport transfer ₩${transferPrice.priceKRW.toLocaleString()})` : ''}`,
+    `▸ Vehicle: to be confirmed — ${tourLabel}`,
+    `▸ Reference estimate: ₩${pricing.priceKRW.toLocaleString()} for ${pricing.hours}h`,
     ``,
     `Itinerary (${dayCount} day${dayCount === 1 ? '' : 's'}):`,
     dayLines || '(see plan link)',
@@ -83,8 +76,20 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
   //    추천 여부에 따라 훅 개수 달라져 "더 많은 훅" 크래시).
   const [inquireOpen, setInquireOpen] = useState(false);
   const p = (t.planner as unknown as Record<string, string | undefined>) || {};
-  const allStops = days.flatMap((d: PlanDay) => d.stops || []);
-  const detection = detectCharterRecommendation(allStops as any);
+  const allStops = days.flatMap((d: PlanDay) => d.stops || []).map((stop) => ({
+    name: [stop.name, stop.display_name, stop['name_ko']]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' '),
+    nameEn: String(stop['name_en'] || ''),
+  }));
+  const input = plan?.input || {};
+  const regions = Array.isArray(input.regions) ? input.regions : [];
+  const primaryRegion = String(regions[0] || input.destination || input.area || input.region || '');
+  const allowedTourKeys = charterTourKeysForRegion(primaryRegion);
+  const detection = detectCharterRecommendation(allStops, allowedTourKeys === null
+    ? { preferHighestPrice: true }
+    : { allowedTourKeys, preferHighestPrice: true });
   if (!detection.recommended || !detection.pricing) return null;
   const { pricing } = detection;
 
@@ -132,14 +137,17 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
           {p.adCharterCtaWa || 'Or send via WhatsApp instead'}
         </a>
       </div>
-      <CharterInquireModal
-        open={inquireOpen} onClose={() => setInquireOpen(false)}
-        plan={plan} days={days}
-        recommendedTour={tourLabel}
-        quotedKRW={pricing.priceKRW}
-        hours={pricing.hours}
-        planId={planId}
-      />
+      {inquireOpen && (
+        <CharterInquireModal
+          open={inquireOpen} onClose={() => setInquireOpen(false)}
+          plan={plan} days={days}
+          recommendedTour={tourLabel}
+          quotedKRW={pricing.priceKRW}
+          hours={pricing.hours}
+          tourKey={detection.tourType || ''}
+          planId={planId}
+        />
+      )}
     </div>
   );
 }

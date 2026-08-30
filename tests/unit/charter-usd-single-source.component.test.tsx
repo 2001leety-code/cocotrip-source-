@@ -20,7 +20,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { charterUsdFromKrw, formatCharterUsd, formatCharterKrwUsd } from '../../src/lib/charterUsd';
+import { charterCheckoutExpectedUsd, charterUsdFromKrw, formatCharterUsd, formatCharterKrwUsd, isPlanDetailDailyCharterProduct } from '../../src/lib/charterUsd';
 import { AIRPORT_TRANSFER_PRICES, CHARTER_USD_FIX_RATE } from '../../src/data/charterPricing';
 import { CharterSeoInfo } from '../../src/components/charter/CharterSeoInfo';
 import en from '../../src/i18n/locales/en.json';
@@ -62,6 +62,24 @@ describe('charterUsdFromKrw — 서버 청구 공식과 동일한 순수 함수'
 
   it('공개 표기는 언어 무관하게 "₩정책가 ($청구 USD)"', () => {
     expect(formatCharterKrwUsd(ICN_SEOUL_KRW)).toBe('₩124,800 ($89 USD)');
+  });
+
+  it('쿠폰 적용 뒤 expectedUSD도 할인된 화면 KRW로 다시 맞춘다', () => {
+    expect(charterCheckoutExpectedUsd(429, 600_000, false)).toBe(429);
+    expect(charterCheckoutExpectedUsd(429, 570_000, true)).toBe(407);
+    expect(charterCheckoutExpectedUsd(undefined, 570_000, true)).toBeUndefined();
+  });
+
+  it('이번 PlanDetail 일일 차터 상품만 할인 후 예상 USD 갱신 대상이다', () => {
+    for (const productType of [
+      'charter_seoul_city', 'charter_seoul_suburb', 'charter_dmz', 'charter_gangwon',
+      'charter_ski', 'charter_gyeongju', 'charter_busan',
+    ]) {
+      expect(isPlanDetailDailyCharterProduct(productType)).toBe(true);
+    }
+    for (const existingProduct of ['charter_multiday', 'charter_transfer', 'kpop_shuttle_roundtrip', 'tour_hourly', 'ai_planner_full']) {
+      expect(isPlanDetailDailyCharterProduct(existingProduct)).toBe(false);
+    }
   });
 });
 
@@ -131,7 +149,9 @@ describe('클라이언트 표시액 ↔ 서버 산정액 대조 배선', () => {
 
   it('PayPalBookingButton 이 expectedUSD 를 주문 생성 body 로 전달한다', () => {
     const btn = src('src/components/PayPalBookingButton.tsx');
-    expect(btn).toMatch(/typeof expectedUSD === 'number' \? \{ expectedUSD \} : \{\}/);
+    expect(btn).toContain('isPlanDetailDailyCharterProduct(productType)');
+    expect(btn).toContain('charterCheckoutExpectedUsd(expectedUSD, effectiveKRW, promoApplied)');
+    expect(btn).toContain("{ expectedUSD: expectedUSDForCheckout }");
   });
 
   it('서버는 불일치 시 주문을 만들지 않고 409 로 거부한다', () => {

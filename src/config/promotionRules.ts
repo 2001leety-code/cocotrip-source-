@@ -56,7 +56,7 @@ export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
   if (category === 'charter') {
     // P2 감사(2026-04-27): 차터를 이미 예약/문의한 손님에겐 광고를 건너뛴다.
     // input.charter_booked = true (차터 PayPal 결제 후 백엔드가 set)
-    // 또는 charter_inquiry_id 존재 (CharterInquireModal 제출 후 set)
+    // 또는 charter_inquiry_id 존재 (CharterInquireModal 서버 접수 후 저장)
     // → 둘 중 하나라도 있으면 스킵.
     if (input.charter_booked === true || input.charter_inquiry_id) return false;
   }

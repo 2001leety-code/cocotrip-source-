@@ -25,6 +25,7 @@ const RegionDetail = lazy(() => import('@/pages/RegionDetail').then(m => ({ defa
 const About = lazy(() => import('@/pages/About'));
 const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
+const AccountDeletion = lazy(() => import('@/pages/AccountDeletion'));
 const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const Admin = lazy(() => import('@/pages/Admin'));
@@ -601,6 +602,7 @@ function AnimatedRoutes() {
           <Route path="/about" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><About /></Suspense>} />
           <Route path="/terms" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><Privacy /></Suspense>} />
+          <Route path="/account-deletion" element={<Suspense fallback={ROUTE_FALLBACK}><AccountDeletion /></Suspense>} />
           <Route path="/travel-terms" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><TravelTerms /></Suspense>} />
           <Route
             path="/mypage"

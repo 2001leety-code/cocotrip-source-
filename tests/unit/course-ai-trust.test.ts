@@ -7,11 +7,16 @@
  * 3. geminiModelResolver — course role 독립 ENV(GEMINI_COURSE_MODEL), usage 기록과 동일 모델.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   buildCourseAiContract, CourseAiContractError, mergeAnchoredOrder,
 } from '../../api/_shared/courseAiContract.js';
-import { getCourseCandidates, rehydrateCandidates } from '../../api/_shared/courseCandidateCatalog.js';
+import {
+  describeCatalogCandidate, distanceKm, getCourseCandidateCatalogStatus, getCourseCandidates,
+  isRecommendationGradeFood, rehydrateCandidates,
+} from '../../api/_shared/courseCandidateCatalog.js';
 
 describe('courseAiContract — anchor 분리/검증', () => {
   it('fixed/window stop 을 anchor 로, 나머지를 free 로 분리', () => {
@@ -91,16 +96,111 @@ describe('mergeAnchoredOrder — anchor 는 항상 원래 인덱스, free 만 �
   });
 });
 
-describe('courseCandidateCatalog — 서버 소유 identity (실 카탈로그 130곳)', () => {
-  it('getCourseCandidates — 서울 좌표 근방에서 서울 후보를 반환(거리순)', () => {
-    const candidates = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 5 });
+describe('courseCandidateCatalog — 서버 소유 identity (관광지 + 추천 등급 일반 식당)', () => {
+  it('Vercel 함수 번들에 두 서버 카탈로그를 명시적으로 포함', () => {
+    const vercel = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8'));
+    expect(vercel.functions['api/course-ai.js']?.includeFiles)
+      .toBe('api/{_attractions_index,_food_index}.json');
+  });
+
+  it('getCourseCandidates — 서울 좌표 근방에서 관광지와 식당을 함께 반환', () => {
+    const candidates = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 12 });
     expect(candidates.length).toBeGreaterThan(0);
-    expect(candidates.length).toBeLessThanOrEqual(5);
+    expect(candidates.length).toBeLessThanOrEqual(12);
+    expect(candidates.some((c) => c.placeSource === 'cocotrip-attractions')).toBe(true);
+    expect(candidates.some((c) => c.placeSource === 'cocotrip-food')).toBe(true);
     for (const c of candidates) {
-      expect(c.placeSource).toBe('cocotrip-attractions');
+      expect(['cocotrip-attractions', 'cocotrip-food']).toContain(c.placeSource);
       expect(c.candidateId).toBe(c.placeKey);
       expect(typeof c.lat).toBe('number');
     }
+  });
+
+  it('서버 카탈로그 두 파일이 실제로 로드됐을 때만 healthy', () => {
+    const status = getCourseCandidateCatalogStatus();
+    expect(status.healthy).toBe(true);
+    expect(status.attractions).toBeGreaterThan(0);
+    expect(status.food).toBeGreaterThan(2_000);
+    expect(status.unavailable).toEqual([]);
+  });
+
+  it('여러 stop 코스는 평균점이 아니라 실제 stop 중 한 곳과 가까운 후보만 반환', () => {
+    const origins = [
+      { lat: 37.5796, lng: 126.9770 },
+      { lat: 37.5133, lng: 127.1001 },
+    ];
+    const candidates = getCourseCandidates({ origins, limit: 12 });
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) {
+      const nearest = Math.min(...origins.map((origin) => (
+        distanceKm(origin.lat, origin.lng, candidate.lat, candidate.lng)
+      )));
+      expect(nearest).toBeLessThanOrEqual(candidate.category === 'food' ? 5 : 20);
+    }
+  });
+
+  it('식당 후보는 general + placeId + 평점/리뷰 하한을 통과한 서버 필드만 노출', () => {
+    const food = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 12 })
+      .find((candidate) => candidate.category === 'food');
+    expect(food).toBeDefined();
+    expect(food?.candidateId).toMatch(/^food:/);
+    expect(food?.placeSource).toBe('cocotrip-food');
+    expect(food?.rating).toBeGreaterThanOrEqual(4.5);
+    expect(food?.reviewCount).toBeGreaterThanOrEqual(20);
+    expect(food).not.toHaveProperty('tag');
+    expect(food).not.toHaveProperty('verification_status');
+  });
+
+  it('general 태그가 잘못 붙어도 이름·분류에 식이 표현이 있으면 후보에서 제외', () => {
+    const rows = JSON.parse(readFileSync(resolve(process.cwd(), 'api/_food_index.json'), 'utf8'));
+    const eligible = rows.filter(isRecommendationGradeFood);
+    expect(eligible.length).toBeGreaterThan(2_000);
+    expect(eligible).toHaveLength(2_064);
+  });
+
+  it.each([
+    { nameEn: 'Muslim-friendly Seoul' },
+    { nameEn: 'Plant-based Seoul' },
+    { nameEn: 'Kosher Seoul' },
+    { name: '알레르기 프리 식당' },
+    { cuisineKo: '무슬림 친화 식당' },
+    { dietary_claim: 'vegan options' },
+    { certification_type: 'halal-certified' },
+    { nameEn: 'Pork-free Seoul' },
+    { nameEn: 'Pescatarian Seoul' },
+    { nameEn: 'Lactose-free Cafe' },
+    { nameEn: 'Islamic-friendly Seoul' },
+    { nameEn: 'Jain Restaurant' },
+    { nameEn: 'Keto Cafe' },
+    { nameEn: 'Shellfish-free dining' },
+    { name: '이슬람 친화 식당' },
+    { name: '저탄고지 식당' },
+  ])('향후 DB 갱신에서 식이·인증 표현 $nameEn$name$cuisineKo$dietary_claim$certification_type 을 fail-closed 제외', (claim) => {
+    expect(isRecommendationGradeFood({
+      tag: 'general', placeId: 'place-id', name: '일반 식당',
+      lat: 37.5, lng: 127, rating: 4.8, reviewCount: 100,
+      ...claim,
+    })).toBe(false);
+  });
+
+  it.each([
+    { name: '프리윌피자' },
+    { name: '현선이네 프리미엄' },
+    { name: '카프리 디 마리' },
+    { name: '르프리크' },
+    { nameEn: 'Eco-friendly Grocerant' },
+  ])('식이 대상어 없는 일반 상호 $name$nameEn 은 잘못 제외하지 않음', (ordinaryName) => {
+    expect(isRecommendationGradeFood({
+      tag: 'general', placeId: 'place-id', name: '일반 식당',
+      lat: 37.5, lng: 127, rating: 4.8, reviewCount: 100,
+      ...ordinaryName,
+    })).toBe(true);
+  });
+
+  it('관광지 설명도 모델 문구가 아니라 카탈로그 출처 사실로 고정', () => {
+    const sight = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 12 })
+      .find((candidate) => candidate.category === 'sight');
+    expect(describeCatalogCandidate(sight, 'ko')).toBe('코코트립 장소 자료에 등록된 곳');
   });
 
   it('이미 선택된 stop 을 placeKey 로 제외', () => {
@@ -108,7 +208,7 @@ describe('courseCandidateCatalog — 서버 소유 identity (실 카탈로그 13
     const first = withoutExclusion[0];
     const withExclusion = getCourseCandidates({
       lat: 37.524, lng: 126.9806, limit: 3,
-      excludeStops: [{ placeKey: first.candidateId, placeSource: 'cocotrip-attractions' }],
+      excludeStops: [{ placeKey: first.candidateId, placeSource: first.placeSource }],
     });
     expect(withExclusion.find((c) => c.candidateId === first.candidateId)).toBeUndefined();
   });
@@ -197,6 +297,12 @@ const STOPS = [
   { id: 'b', title: 'B', category: 'sight', timeConstraint: 'fixed', time: '09:00', lat: 37.52, lng: 126.98 },
   { id: 'c', title: 'C', category: 'sight', lat: 37.58, lng: 126.97 },
 ];
+const offeredForStops = (lang: 'ko' | 'en' | 'ja' | 'zh' = 'en') => getCourseCandidates({
+  origins: STOPS.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+  excludeStops: STOPS,
+  lang,
+  limit: 12,
+});
 
 describe('/api/course-ai — anchor 계약 위반은 Gemini 호출 전에 400', () => {
   it('fixed 인데 time 없음 → 400, Gemini 미호출, 자격 확인도 전에 거부', async () => {
@@ -218,7 +324,12 @@ describe('/api/course-ai — 키 없음(nn 폴백) 은 anchor 를 원래 인덱�
     expect(j.source).toBe('nn');
     expect(j.optimizedOrder[1]).toBe('b');
     expect(new Set(j.optimizedOrder)).toEqual(new Set(['a', 'b', 'c']));
-    expect(j.nearby).toEqual([]);
+    expect(j.nearby.length).toBeGreaterThan(0);
+    expect(j.nearbySource).toBe('cocotrip_catalog');
+    expect(j.nearby.some((candidate: any) => candidate.category === 'food')).toBe(true);
+    expect(j.catalogAvailable).toBe(true);
+    expect(j.nearbySelectionSource).toBe('catalog');
+    expect(j.nearby.every((candidate: any) => candidate.selectionSource === 'catalog')).toBe(true);
   });
 });
 
@@ -237,7 +348,7 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     expect(j.optimizedOrder[1]).toBe('b'); // anchor 는 인덱스 1 그대로
   });
 
-  it('모델이 카탈로그에 없는 candidateId 를 반환해도 nearby 는 버려짐(0건)', async () => {
+  it('모델이 카탈로그에 없는 candidateId 를 반환하면 버리고 서버 폴백 후보만 반환', async () => {
     process.env.GEMINI_API_KEY = 'k';
     geminiMock.mockResolvedValue({
       response: {
@@ -250,12 +361,18 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     const res = mockRes();
     await handler(req(STOPS), res);
     const j = parse(res);
-    expect(j.nearby).toEqual([]);
+    expect(j.nearby.length).toBeGreaterThan(0);
+    expect(j.nearby.find((candidate: any) => candidate.candidateId === 'totally-made-up')).toBeUndefined();
+    expect(j.nearby.find((candidate: any) => candidate.name === 'Fake Place')).toBeUndefined();
+    expect(j.source).toBe('ai');
+    expect(j.nearbySelectionSource).toBe('catalog');
+    expect(j.nearby.every((candidate: any) => candidate.selectionSource === 'catalog')).toBe(true);
   });
 
   it('모델이 유효 candidateId 를 고르면 서버 카탈로그 값(name/lat/lng)으로 복원', async () => {
     process.env.GEMINI_API_KEY = 'k';
-    const real = getCourseCandidates({ lat: 37.55, lng: 126.98, limit: 1 })[0];
+    const real = offeredForStops()
+      .find((candidate) => candidate.category === 'sight')!;
     geminiMock.mockResolvedValue({
       response: {
         text: () => JSON.stringify({
@@ -267,11 +384,51 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     const res = mockRes();
     await handler(req(STOPS), res);
     const j = parse(res);
-    expect(j.nearby).toHaveLength(1);
+    expect(j.nearby.length).toBeGreaterThanOrEqual(3); // 모델 1개 + 서버 카탈로그 최소 보강
     expect(j.nearby[0].candidateId).toBe(real.candidateId);
     expect(j.nearby[0].name).toBe(real.name); // 모델이 준 이름이 아니라 서버 값
     expect(j.nearby[0].lat).toBe(real.lat);
-    expect(j.nearby[0].reason).toBe('근처 명소');
+    expect(j.nearby[0].reason).toBe('Listed in CocoTrip local place data');
+    expect(j.nearbySelectionSource).toBe('mixed');
+    expect(j.nearby[0].selectionSource).toBe('ai');
+    expect(j.nearby.slice(1).every((candidate: any) => candidate.selectionSource === 'catalog')).toBe(true);
+  });
+
+  it('식당 이유는 모델의 식이 주장을 버리고 DB 평점·리뷰 문구로 고정', async () => {
+    process.env.GEMINI_API_KEY = 'k';
+    const food = offeredForStops('en')
+      .find((candidate) => candidate.category === 'food')!;
+    geminiMock.mockResolvedValue({
+      response: {
+        text: () => JSON.stringify({
+          optimizedOrder: ['a', 'b', 'c'],
+          nearby: [{ candidateId: food.candidateId, reason: 'Certified halal and always open' }],
+        }),
+      },
+    });
+    const res = mockRes();
+    await handler(req(STOPS, { lang: 'en' }), res);
+    const picked = parse(res).nearby.find((candidate: any) => candidate.candidateId === food.candidateId);
+    expect(picked).toBeDefined();
+    expect(picked.reason).toMatch(/^At collection:/);
+    expect(picked.reason.toLowerCase()).not.toContain('halal');
+    expect(picked.reason.toLowerCase()).not.toContain('open');
+  });
+
+  it('전체 카탈로그에는 있어도 이번 요청 후보로 제시되지 않은 id 는 거부', async () => {
+    process.env.GEMINI_API_KEY = 'k';
+    const farAway = getCourseCandidates({ lat: 35.1796, lng: 129.0756, limit: 12 })[0];
+    geminiMock.mockResolvedValue({
+      response: {
+        text: () => JSON.stringify({
+          optimizedOrder: ['a', 'b', 'c'],
+          nearby: [{ candidateId: farAway.candidateId, reason: 'Use a real but far-away id' }],
+        }),
+      },
+    });
+    const res = mockRes();
+    await handler(req(STOPS), res);
+    expect(parse(res).nearby.find((candidate: any) => candidate.candidateId === farAway.candidateId)).toBeUndefined();
   });
 });
 

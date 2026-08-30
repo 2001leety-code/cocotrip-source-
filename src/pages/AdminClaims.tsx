@@ -14,7 +14,7 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp
 import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, ExternalLink, Gift } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import { inquiryKind, normalizeInquiryStatus, inquiryContact, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
+import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
 
 type Tab = 'claims' | 'inquiries';
 type Status = 'pending' | 'approved' | 'rejected';
@@ -51,6 +51,14 @@ interface ClaimRow {
   theme?: string | null;
   budget?: string | null;
   inquiryId?: string;
+  contractVersion?: string;
+  quote?: {
+    currency?: string;
+    amountKRW?: number;
+    hours?: number;
+    provenance?: string;
+    kind?: string;
+  } | null;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -352,7 +360,18 @@ export default function AdminClaims() {
 
                     {tab === 'inquiries' && (
                       <div className="text-sm sm:text-[12px] text-white/60 space-y-1 sm:space-y-0.5">
-                        {row.recommendedTour && <p className="break-words">투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}시간</p>}
+                        {typeof row.recommendedTour === 'string' && typeof row.quotedKRW === 'number' && Number.isFinite(row.quotedKRW) && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="break-words">투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{row.quotedKRW.toLocaleString()} / {row.hours || '?'}시간</p>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isServerVerifiedInquiryQuote(row)
+                                ? 'bg-emerald-500/15 text-emerald-300'
+                                : 'bg-amber-500/15 text-amber-300'
+                            }`}>
+                              {isServerVerifiedInquiryQuote(row) ? '서버 계산 참고견적' : '과거 앱 예상가 · 재확인 필요'}
+                            </span>
+                          </div>
+                        )}
                         {row.name && (
                           <p className="break-words">성함: <span className="text-white/80">{row.name}</span>
                             {row.phone && ` · ${row.phone}`}

@@ -20,6 +20,7 @@ const LEGAL_LINKS = [
   { to: '/about', key: 'about' },
   { to: '/terms', key: 'terms' },
   { to: '/privacy', key: 'privacy' },
+  { to: '/account-deletion', key: 'accountDeletion' },
   { to: '/travel-terms', key: 'travelTerms' },
 ] as const;
 

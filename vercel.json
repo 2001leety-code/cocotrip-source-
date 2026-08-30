@@ -114,6 +114,10 @@
       "maxDuration": 60,
       "memory": 512
     },
+    "api/course-ai.js": {
+      "maxDuration": 30,
+      "includeFiles": "api/{_attractions_index,_food_index}.json"
+    },
     "api/pdf/generate.js": {
       "maxDuration": 60,
       "includeFiles": "fonts/**"
@@ -194,7 +198,7 @@
       ]
     },
     {
-      "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community|links)(/.*)?",
+      "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community|links|account-deletion)(/.*)?",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -231,7 +235,7 @@
     },
     { "source": "/", "destination": "/index.html" },
     {
-      "source": "/(about|terms|privacy|travel-terms|tours|planner|charter|charter-new|charter-legacy|booking|map|assistant|cart|mypage|links)",
+      "source": "/(about|terms|privacy|account-deletion|travel-terms|tours|planner|charter|charter-new|charter-legacy|booking|map|assistant|cart|mypage|links)",
       "destination": "/index.html"
     },
     {
