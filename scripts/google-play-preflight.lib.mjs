@@ -14,9 +14,12 @@ function isPlainObject(value) {
 
 function isSafeRelativePath(value) {
   if (typeof value !== 'string' || !value.trim()) return false;
-  if (path.isAbsolute(value)) return false;
-  const normalized = path.normalize(value);
-  return normalized !== '..' && !normalized.startsWith(`..${path.sep}`);
+  const candidate = value.trim();
+  if (candidate.includes('\0')) return false;
+  if (path.posix.isAbsolute(candidate) || path.win32.isAbsolute(candidate)
+    || path.win32.parse(candidate).root) return false;
+  const normalized = path.posix.normalize(candidate.replaceAll('\\', '/'));
+  return normalized !== '..' && !normalized.startsWith('../');
 }
 
 function readText(root, relativePath) {

@@ -131,6 +131,15 @@ describe('Google Play 설정 정본', () => {
     expect(codes).toContain('RELEASE_BUNDLE_PATH_INVALID');
   });
 
+  it('Windows 드라이브 상대경로와 역슬래시 상위 경로도 운영체제와 무관하게 거부한다', () => {
+    const config = readyConfig();
+    config.android.sourceDir = '..\\android';
+    config.android.releaseBundlePath = 'C:release\\app.aab';
+    const codes = validateGooglePlayConfig(config).map((item) => item.code);
+    expect(codes).toContain('ANDROID_SOURCE_DIR_INVALID');
+    expect(codes).toContain('RELEASE_BUNDLE_PATH_INVALID');
+  });
+
   it('TWA·PWA·assetlinks·AAB·스토어 파일이 모두 맞을 때만 통과한다', () => {
     const result = auditGooglePlayReadiness({ root: readyRoot(), config: readyConfig(), today: '2026-08-30' });
     expect(result).toEqual({ ok: true, findings: [] });
