@@ -116,6 +116,17 @@ afterEach(() => {
 });
 
 describe('MoodPortal 임시 저녁 제한 UI', () => {
+  beforeEach(() => {
+    // 임시 운영 정책을 검증하는 테스트이므로 실제 실행 날짜가 바뀌어도
+    // 달력의 기본 선택일과 기대 결과가 흔들리지 않게 Date만 고정한다.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-29T09:00:00+09:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('포커스 재조회에서 설정 누락 오류를 받으면 이전 정상 상태를 버리고 즉시 예약을 잠근다', async () => {
     authFetchMock.mockImplementation(async (url: string) => {
       const target = String(url);
