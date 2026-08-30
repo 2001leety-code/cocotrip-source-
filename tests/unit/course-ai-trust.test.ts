@@ -91,16 +91,30 @@ describe('mergeAnchoredOrder — anchor 는 항상 원래 인덱스, free 만 �
   });
 });
 
-describe('courseCandidateCatalog — 서버 소유 identity (실 카탈로그 130곳)', () => {
-  it('getCourseCandidates — 서울 좌표 근방에서 서울 후보를 반환(거리순)', () => {
-    const candidates = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 5 });
+describe('courseCandidateCatalog — 서버 소유 identity (관광지 + 추천 등급 일반 식당)', () => {
+  it('getCourseCandidates — 서울 좌표 근방에서 관광지와 식당을 함께 반환', () => {
+    const candidates = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 12 });
     expect(candidates.length).toBeGreaterThan(0);
-    expect(candidates.length).toBeLessThanOrEqual(5);
+    expect(candidates.length).toBeLessThanOrEqual(12);
+    expect(candidates.some((c) => c.placeSource === 'cocotrip-attractions')).toBe(true);
+    expect(candidates.some((c) => c.placeSource === 'cocotrip-food')).toBe(true);
     for (const c of candidates) {
-      expect(c.placeSource).toBe('cocotrip-attractions');
+      expect(['cocotrip-attractions', 'cocotrip-food']).toContain(c.placeSource);
       expect(c.candidateId).toBe(c.placeKey);
       expect(typeof c.lat).toBe('number');
     }
+  });
+
+  it('식당 후보는 general + placeId + 평점/리뷰 하한을 통과한 서버 필드만 노출', () => {
+    const food = getCourseCandidates({ lat: 37.5665, lng: 126.978, limit: 12 })
+      .find((candidate) => candidate.category === 'food');
+    expect(food).toBeDefined();
+    expect(food?.candidateId).toMatch(/^food:/);
+    expect(food?.placeSource).toBe('cocotrip-food');
+    expect(food?.rating).toBeGreaterThanOrEqual(4.5);
+    expect(food?.reviewCount).toBeGreaterThanOrEqual(20);
+    expect(food).not.toHaveProperty('tag');
+    expect(food).not.toHaveProperty('verification_status');
   });
 
   it('이미 선택된 stop 을 placeKey 로 제외', () => {
@@ -108,7 +122,7 @@ describe('courseCandidateCatalog — 서버 소유 identity (실 카탈로그 13
     const first = withoutExclusion[0];
     const withExclusion = getCourseCandidates({
       lat: 37.524, lng: 126.9806, limit: 3,
-      excludeStops: [{ placeKey: first.candidateId, placeSource: 'cocotrip-attractions' }],
+      excludeStops: [{ placeKey: first.candidateId, placeSource: first.placeSource }],
     });
     expect(withExclusion.find((c) => c.candidateId === first.candidateId)).toBeUndefined();
   });
@@ -218,7 +232,9 @@ describe('/api/course-ai — 키 없음(nn 폴백) 은 anchor 를 원래 인덱�
     expect(j.source).toBe('nn');
     expect(j.optimizedOrder[1]).toBe('b');
     expect(new Set(j.optimizedOrder)).toEqual(new Set(['a', 'b', 'c']));
-    expect(j.nearby).toEqual([]);
+    expect(j.nearby.length).toBeGreaterThan(0);
+    expect(j.nearbySource).toBe('cocotrip_catalog');
+    expect(j.nearby.some((candidate: any) => candidate.category === 'food')).toBe(true);
   });
 });
 
@@ -237,7 +253,7 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     expect(j.optimizedOrder[1]).toBe('b'); // anchor 는 인덱스 1 그대로
   });
 
-  it('모델이 카탈로그에 없는 candidateId 를 반환해도 nearby 는 버려짐(0건)', async () => {
+  it('모델이 카탈로그에 없는 candidateId 를 반환하면 버리고 서버 폴백 후보만 반환', async () => {
     process.env.GEMINI_API_KEY = 'k';
     geminiMock.mockResolvedValue({
       response: {
@@ -250,12 +266,15 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     const res = mockRes();
     await handler(req(STOPS), res);
     const j = parse(res);
-    expect(j.nearby).toEqual([]);
+    expect(j.nearby.length).toBeGreaterThan(0);
+    expect(j.nearby.find((candidate: any) => candidate.candidateId === 'totally-made-up')).toBeUndefined();
+    expect(j.nearby.find((candidate: any) => candidate.name === 'Fake Place')).toBeUndefined();
   });
 
   it('모델이 유효 candidateId 를 고르면 서버 카탈로그 값(name/lat/lng)으로 복원', async () => {
     process.env.GEMINI_API_KEY = 'k';
-    const real = getCourseCandidates({ lat: 37.55, lng: 126.98, limit: 1 })[0];
+    const real = getCourseCandidates({ lat: 37.55, lng: 126.98, limit: 12 })
+      .find((candidate) => candidate.category === 'sight')!;
     geminiMock.mockResolvedValue({
       response: {
         text: () => JSON.stringify({
@@ -267,11 +286,48 @@ describe('/api/course-ai — Gemini 성공 경로: anchor 강제 + candidateId �
     const res = mockRes();
     await handler(req(STOPS), res);
     const j = parse(res);
-    expect(j.nearby).toHaveLength(1);
+    expect(j.nearby.length).toBeGreaterThanOrEqual(3); // 모델 1개 + 서버 카탈로그 최소 보강
     expect(j.nearby[0].candidateId).toBe(real.candidateId);
     expect(j.nearby[0].name).toBe(real.name); // 모델이 준 이름이 아니라 서버 값
     expect(j.nearby[0].lat).toBe(real.lat);
     expect(j.nearby[0].reason).toBe('근처 명소');
+  });
+
+  it('식당 이유는 모델의 식이 주장을 버리고 DB 평점·리뷰 문구로 고정', async () => {
+    process.env.GEMINI_API_KEY = 'k';
+    const food = getCourseCandidates({ lat: 37.55, lng: 126.98, limit: 12, lang: 'en' })
+      .find((candidate) => candidate.category === 'food')!;
+    geminiMock.mockResolvedValue({
+      response: {
+        text: () => JSON.stringify({
+          optimizedOrder: ['a', 'b', 'c'],
+          nearby: [{ candidateId: food.candidateId, reason: 'Certified halal and always open' }],
+        }),
+      },
+    });
+    const res = mockRes();
+    await handler(req(STOPS, { lang: 'en' }), res);
+    const picked = parse(res).nearby.find((candidate: any) => candidate.candidateId === food.candidateId);
+    expect(picked).toBeDefined();
+    expect(picked.reason).toMatch(/^At collection:/);
+    expect(picked.reason.toLowerCase()).not.toContain('halal');
+    expect(picked.reason.toLowerCase()).not.toContain('open');
+  });
+
+  it('전체 카탈로그에는 있어도 이번 요청 후보로 제시되지 않은 id 는 거부', async () => {
+    process.env.GEMINI_API_KEY = 'k';
+    const farAway = getCourseCandidates({ lat: 35.1796, lng: 129.0756, limit: 12 })[0];
+    geminiMock.mockResolvedValue({
+      response: {
+        text: () => JSON.stringify({
+          optimizedOrder: ['a', 'b', 'c'],
+          nearby: [{ candidateId: farAway.candidateId, reason: 'Use a real but far-away id' }],
+        }),
+      },
+    });
+    const res = mockRes();
+    await handler(req(STOPS), res);
+    expect(parse(res).nearby.find((candidate: any) => candidate.candidateId === farAway.candidateId)).toBeUndefined();
   });
 });
 

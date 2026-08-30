@@ -240,6 +240,7 @@ describe('v1 확장필드 — stayMinutes/timeConstraint/windowEnd/placeKey (add
 
   it('placeKey/placeSource — 반드시 짝, 빈 문자열/과도한 길이/미지 source 는 malformed', () => {
     expect(isValidStopConstraints({ placeKey: 'gyeongbokgung', placeSource: 'cocotrip-attractions' })).toBe(true);
+    expect(isValidStopConstraints({ placeKey: 'food:place-id', placeSource: 'cocotrip-food' })).toBe(true);
     expect(isValidStopConstraints({ placeKey: 'gyeongbokgung' })).toBe(false); // placeSource 없음
     expect(isValidStopConstraints({ placeSource: 'cocotrip-attractions' })).toBe(false); // placeKey 없음
     expect(isValidStopConstraints({ placeKey: '', placeSource: 'cocotrip-attractions' })).toBe(false);

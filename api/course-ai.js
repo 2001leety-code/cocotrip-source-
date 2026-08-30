@@ -5,11 +5,12 @@
  *   ① 방문 순서를 이동 동선이 자연스럽게 재배치 (좌표 근접 + 맥락: 식당은 식사시간대,
  *      숙소는 마지막). ② 근처에 안 넣은 가볼 만한 곳 3~5개 추천(좌표 포함).
  *
- * 인증 없음(플래너 공개 기능) — 대신 입력 상한(장소 20개)과 좌표 유효성으로 남용 방어.
- * Gemini 실패 시 fail-soft: 순서는 최근접 이웃(nearest-neighbor) 순수계산으로 폴백,
- * 추천은 빈 배열. 500 대신 { ok:false, code } 구조화 에러(프론트가 조용히 무시 가능).
+ * Firebase 토큰의 AI 기능 자격을 확인하고, 입력 상한(장소 20개)과 좌표 유효성으로 남용 방어.
+ * Gemini 실패 시 fail-soft: 순서는 최근접 이웃(nearest-neighbor), 추천은 서버 카탈로그의
+ * 결정론적 후보로 폴백한다. 입력 오류만 { ok:false, code } 구조화 응답으로 돌려준다.
  *
- * ⚠️ api/_food_index.json 임포트 금지(CLAUDE.md B-1) — 주변 추천은 Gemini 지식으로만.
+ * 주변 추천 identity 는 서버 카탈로그가 소유한다. 관광지와 추천 등급 일반 식당 중에서만
+ * Gemini 가 candidateId 를 고르며, 모델이 만든 이름·좌표·식이 주장은 응답에 쓰지 않는다.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { captureError } from './_shared/sentry.js';
@@ -17,17 +18,21 @@ import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUidFromAuthHeader, hasAiFeatureEntitlement } from './_shared/ai-entitlement.js';
 import { buildCourseAiContract, CourseAiContractError, mergeAnchoredOrder } from './_shared/courseAiContract.js';
-import { getCourseCandidates, rehydrateCandidates } from './_shared/courseCandidateCatalog.js';
+import {
+  describeCatalogCandidate,
+  getCourseCandidates,
+  rehydrateCandidates,
+} from './_shared/courseCandidateCatalog.js';
 import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-// IP rate-limit — 이 엔드포인트는 무인증 공개인데 Gemini(유료)를 호출하므로 place-search
-// 와 동일하게 비용-DoS 방어. fail-OPEN(Firestore 장애 시 실사용자 안 막음). 시간당 40회.
+// IP rate-limit — 자격 확인 뒤에도 토큰 탈취·공유에 의한 Gemini 비용 폭주를 막는다.
+// fail-OPEN(Firestore 장애 시 실사용자 안 막음). 시간당 40회.
 const _rateDb = initAdminDb('course-ai');
 
-// 공개 기능(플래너) — place-search 와 동일한 개방 CORS(인증 없음, 좌표·상한으로 남용 방어).
+// 웹앱의 Firebase Authorization 헤더를 허용하는 JSON CORS.
 const JSON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -47,8 +52,10 @@ TASKS:
    but respect context — meals(food) around lunch/dinner, a hotel(stay) goes last, a show at its likely time.
    Stops with timeConstraint are anchored by the server at their original position regardless of what you
    return here, so you do not need to keep them literally first/last — just produce a sensible full order.
-2. From CANDIDATES only, pick 3-5 candidateId values that best fit the route's area and theme. Do NOT invent
-   places or ids — choose only values that appear in CANDIDATES. If CANDIDATES is empty, return an empty array.
+2. From CANDIDATES only, pick 3-5 candidateId values that best fit the route's area and theme. Keep a useful
+   mix of food and sights when both categories exist. Do NOT invent places or ids — choose only values that
+   appear in CANDIDATES. Food candidates are general local picks only: never claim halal, vegan, allergy
+   safety, certification, opening status, or live availability. If CANDIDATES is empty, return an empty array.
 
 Return STRICT JSON only, no markdown:
 {
@@ -78,6 +85,44 @@ function nearestNeighborOrder(stops) {
   // 좌표 없는 stop 은 원래 순서로 뒤에
   for (const s of stops) if (!ordered.includes(s.id)) ordered.push(s.id);
   return ordered;
+}
+
+function withSafeCandidateReason(candidate, modelReason, lang) {
+  const catalogReason = describeCatalogCandidate(candidate, lang);
+  return {
+    ...candidate,
+    reason: catalogReason || String(modelReason || '').slice(0, 120),
+  };
+}
+
+function fallbackNearby(candidates, lang) {
+  return candidates.slice(0, 5).map((candidate) => withSafeCandidateReason(candidate, '', lang));
+}
+
+function resolveModelNearby(parsedNearby, candidates, lang) {
+  const offeredIds = new Set(candidates.map((candidate) => candidate.candidateId));
+  const reasonById = new Map();
+  for (const item of Array.isArray(parsedNearby) ? parsedNearby : []) {
+    const candidateId = typeof item?.candidateId === 'string' ? item.candidateId.trim() : '';
+    if (candidateId && offeredIds.has(candidateId) && !reasonById.has(candidateId)) {
+      reasonById.set(candidateId, String(item?.reason || '').slice(0, 120));
+    }
+  }
+
+  const selected = rehydrateCandidates([...reasonById.keys()], lang).slice(0, 5);
+  const selectedIds = new Set(selected.map((candidate) => candidate.candidateId));
+  const minimum = Math.min(3, candidates.length);
+  for (const candidate of candidates) {
+    if (selected.length >= minimum) break;
+    if (selectedIds.has(candidate.candidateId)) continue;
+    selected.push(candidate);
+    selectedIds.add(candidate.candidateId);
+  }
+  return selected.map((candidate) => withSafeCandidateReason(
+    candidate,
+    reasonById.get(candidate.candidateId) || '',
+    lang,
+  ));
 }
 
 export default async function handler(req, res) {
@@ -156,11 +201,18 @@ export default async function handler(req, res) {
       limit: 12,
     })
     : [];
+  const deterministicNearby = fallbackNearby(candidates, lang);
 
   if (!apiKey) {
-    // 키 없으면 순수계산 순서만 (추천 없음)
+    // 키가 없어도 서버 카탈로그 추천은 결정론적으로 제공한다(외부 호출·비용 없음).
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn' }));
+    return res.end(JSON.stringify({
+      ok: true,
+      optimizedOrder: fallbackOrder,
+      nearby: deterministicNearby,
+      source: 'nn',
+      nearbySource: 'cocotrip_catalog',
+    }));
   }
 
   // 유료 Gemini 호출 직전 IP rate-limit. 한도 초과 시 500/429 대신 nn 폴백으로 degrade —
@@ -174,7 +226,14 @@ export default async function handler(req, res) {
   });
   if (!_rate.ok) {
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn', rateLimited: true }));
+    return res.end(JSON.stringify({
+      ok: true,
+      optimizedOrder: fallbackOrder,
+      nearby: deterministicNearby,
+      source: 'nn',
+      nearbySource: 'cocotrip_catalog',
+      rateLimited: true,
+    }));
   }
 
   const resolvedModel = resolveGeminiModel('course');
@@ -190,7 +249,13 @@ export default async function handler(req, res) {
         ...(s.windowEnd ? { windowEnd: s.windowEnd } : {}),
         ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
       })),
-      candidates: candidates.map((c) => ({ candidateId: c.candidateId, name: c.name, theme: c.theme })),
+      candidates: candidates.map((c) => ({
+        candidateId: c.candidateId,
+        name: c.name,
+        theme: c.theme,
+        category: c.category,
+        ...(c.rating ? { rating: c.rating, reviewCount: c.reviewCount } : {}),
+      })),
     };
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(userPayload) }] }],
@@ -222,22 +287,28 @@ export default async function handler(req, res) {
       ? mergeAnchoredOrder(contract, order.filter((id) => freeIdSet.has(id)))
       : fallbackOrder;
 
-    // nearby — 모델은 candidateId 만 고를 수 있다. name/lat/lng 는 절대 모델 값을 쓰지 않고
-    // 서버 카탈로그에서만 복원(rehydrateCandidates) — 카탈로그에 없는 id 는 조용히 버림.
-    const reasonById = new Map();
-    for (const n of Array.isArray(parsed?.nearby) ? parsed.nearby : []) {
-      const cid = typeof n?.candidateId === 'string' ? n.candidateId.trim() : '';
-      if (cid && !reasonById.has(cid)) reasonById.set(cid, String(n?.reason || '').slice(0, 120));
-    }
-    const nearby = rehydrateCandidates([...reasonById.keys()], lang)
-      .map((c) => ({ ...c, reason: reasonById.get(c.candidateId) || '' }));
+    // nearby — 모델은 이번 요청에서 실제 제시한 candidateId 만 고를 수 있다. 이름·좌표·평점은
+    // 서버 카탈로그로 복원하며, 모델 선택이 부족하면 결정론적 후보로 최소 3개까지 채운다.
+    const nearby = resolveModelNearby(parsed?.nearby, candidates, lang);
 
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: true, optimizedOrder: finalOrder, nearby, source: valid ? 'ai' : 'nn' }));
+    return res.end(JSON.stringify({
+      ok: true,
+      optimizedOrder: finalOrder,
+      nearby,
+      source: valid ? 'ai' : 'nn',
+      nearbySource: 'cocotrip_catalog',
+    }));
   } catch (e) {
     console.warn('[course-ai] Gemini 실패 → 폴백:', e.message);
     await captureError(e, { route: '/api/course-ai' });
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: true, optimizedOrder: fallbackOrder, nearby: [], source: 'nn' }));
+    return res.end(JSON.stringify({
+      ok: true,
+      optimizedOrder: fallbackOrder,
+      nearby: deterministicNearby,
+      source: 'nn',
+      nearbySource: 'cocotrip_catalog',
+    }));
   }
 }

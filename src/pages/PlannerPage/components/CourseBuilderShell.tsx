@@ -62,6 +62,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'Auto-saved on this device', stops: 'stops',
     search: 'Search', mapTitle: "This day's route",
     aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
+    dbBadge: 'CocoTrip local data',
     routeShow: 'Show transit route', routeAgain: 'Refresh route', routeBusy: 'Finding route…',
     routeNone: 'No transit route found for these stops', routeFail: "Couldn't load the route",
     aiLocked: 'AI optimize & nearby picks unlock with the {price} planner.',
@@ -96,6 +97,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '이 기기에 자동 저장됨', stops: '개 장소',
     search: '검색', mapTitle: '이 날의 동선',
     aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
+    dbBadge: '코코트립 로컬 자료',
     routeShow: '실제 경로 보기', routeAgain: '경로 다시 계산', routeBusy: '경로 찾는 중…',
     routeNone: '이 구간의 대중교통 경로를 못 찾았어요', routeFail: '경로를 불러오지 못했어요',
     aiLocked: 'AI 동선 최적화·주변 추천은 {price} 플래너에서 열려요.',
@@ -130,6 +132,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: 'この端末に自動保存', stops: 'か所',
     search: '検索', mapTitle: 'この日のルート',
     aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
+    dbBadge: 'CocoTripローカルデータ',
     routeShow: '実際の経路を見る', routeAgain: '経路を再計算', routeBusy: '経路を検索中…',
     routeNone: 'この区間の公共交通の経路が見つかりません', routeFail: '経路を読み込めませんでした',
     aiLocked: 'AIルート最適化・周辺のおすすめは{price}プランで解放。',
@@ -164,6 +167,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     saved: '已自动保存到本设备', stops: '个地点',
     search: '搜索', mapTitle: '当天路线',
     aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
+    dbBadge: 'CocoTrip本地数据',
     routeShow: '查看实际路线', routeAgain: '重新计算路线', routeBusy: '正在查找路线…',
     routeNone: '未找到该区间的公共交通路线', routeFail: '无法加载路线',
     aiLocked: 'AI优化路线·周边推荐需{price}行程解锁。',
@@ -185,7 +189,17 @@ const I18N: Record<Lang, Record<string, string>> = {
   },
 };
 
-interface AiNearby { name: string; lat: number; lng: number; category: string; reason: string; }
+interface AiNearby {
+  candidateId?: string;
+  placeKey?: string;
+  placeSource?: CourseStop['placeSource'];
+  name: string;
+  lat: number;
+  lng: number;
+  category: string;
+  reason: string;
+  address?: string;
+}
 
 const CATEGORIES = ['food', 'sight', 'show', 'stay', 'etc'] as const;
 const CAT_KEY: Record<string, string> = { food: 'catFood', sight: 'catSight', show: 'catShow', stay: 'catStay', etc: 'catEtc' };
@@ -404,6 +418,8 @@ export function CourseBuilderShell() {
             ...(s.timeConstraint ? { timeConstraint: s.timeConstraint } : {}),
             ...(s.windowEnd ? { windowEnd: s.windowEnd } : {}),
             ...(s.stayMinutes !== undefined ? { stayMinutes: s.stayMinutes } : {}),
+            ...(s.placeKey ? { placeKey: s.placeKey } : {}),
+            ...(s.placeSource ? { placeSource: s.placeSource } : {}),
           })),
           lang: nameLang,
         }),
@@ -441,7 +457,16 @@ export function CourseBuilderShell() {
 
   const handleAddAiReco = (n: AiNearby) => {
     fireStarted('ai_recommendation');
-    cb.addStop(cb.activeDay, { title: n.name, time: '', category: n.category || 'sight', memo: '', lat: n.lat, lng: n.lng });
+    const placeKey = n.placeKey || n.candidateId || '';
+    cb.addStop(cb.activeDay, {
+      title: n.name,
+      time: '',
+      category: n.category || 'sight',
+      memo: n.address || '',
+      lat: n.lat,
+      lng: n.lng,
+      ...(placeKey && n.placeSource ? { placeKey, placeSource: n.placeSource } : {}),
+    });
     setAiRecos((prev) => prev.filter((x) => x !== n));
   };
 
@@ -658,6 +683,11 @@ export function CourseBuilderShell() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[11.5px] font-bold text-ec-ink">{n.name}</p>
                         {n.reason && <p className="truncate text-[10px] text-ec-ink-3">{n.reason}</p>}
+                        {n.placeSource && (
+                          <span className="mt-1 inline-flex rounded-full border border-ec-line px-1.5 py-0.5 text-[9px] font-bold text-ec-ink-3">
+                            {t.dbBadge}
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"

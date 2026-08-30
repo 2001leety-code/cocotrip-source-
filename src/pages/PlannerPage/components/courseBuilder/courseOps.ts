@@ -10,6 +10,7 @@
 
 /** 'fixed' = time 이 예약 등 확정 시각. 'window' = time~windowEnd 범위 내. 없으면 자유/메모성 시간. */
 export type CourseTimeConstraint = 'fixed' | 'window';
+export type CoursePlaceSource = 'cocotrip-attractions' | 'cocotrip-food';
 
 export interface CourseStop {
   id: string;
@@ -30,8 +31,8 @@ export interface CourseStop {
   windowEnd?: string;
   /** 서버 candidate catalog 의 candidateId 대응 — 추천에서 추가된 장소만 지님. */
   placeKey?: string;
-  /** 'cocotrip-attractions' 만 유효(현재 유일 출처). */
-  placeSource?: 'cocotrip-attractions';
+  /** 서버가 identity 를 소유한 카탈로그 출처. */
+  placeSource?: CoursePlaceSource;
 }
 
 export interface CourseDay {
@@ -77,8 +78,8 @@ export function isValidTimeConstraint(v: unknown): v is CourseTimeConstraint {
   return v === 'fixed' || v === 'window';
 }
 
-export function isValidPlaceSource(v: unknown): v is 'cocotrip-attractions' {
-  return v === 'cocotrip-attractions';
+export function isValidPlaceSource(v: unknown): v is CoursePlaceSource {
+  return v === 'cocotrip-attractions' || v === 'cocotrip-food';
 }
 
 /** placeKey 최대 길이 — candidate catalog key 는 짧은 slug 라 넉넉한 상한. */
@@ -362,7 +363,7 @@ export interface CourseSlotShape {
   timeConstraint?: CourseTimeConstraint;
   windowEnd?: string;
   placeKey?: string;
-  placeSource?: 'cocotrip-attractions';
+  placeSource?: CoursePlaceSource;
 }
 
 /** CourseStop → ItinerarySlot shape (useItinerary.createItineraryWithSlots 인자와 호환). */
@@ -424,7 +425,7 @@ export function fromItinerarySlots(
         ...(sl.timeConstraint !== undefined ? { timeConstraint: sl.timeConstraint as CourseTimeConstraint } : {}),
         ...(sl.windowEnd !== undefined ? { windowEnd: sl.windowEnd as string } : {}),
         ...(sl.placeKey !== undefined ? { placeKey: sl.placeKey as string } : {}),
-        ...(sl.placeSource !== undefined ? { placeSource: sl.placeSource as 'cocotrip-attractions' } : {}),
+        ...(sl.placeSource !== undefined ? { placeSource: sl.placeSource as CoursePlaceSource } : {}),
       };
       // 계정 저장본 — 손실 방지 우선(lenient): 확장필드가 안 맞아도 장소 자체는 복원한다.
       return [normalizeStopExtras(candidate) as CourseStop];
