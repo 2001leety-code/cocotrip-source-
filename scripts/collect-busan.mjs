@@ -24,7 +24,8 @@
  *   food_data/busan_attraction.json
  *
  * Requires: NAVER_CLIENT_ID, NAVER_CLIENT_SECRET env vars (.env or exported)
- * Next step: node scripts/enrich-busan.mjs  (Google Places 평점 보강)
+ * Next step (유료 호출 명시 승인 필요):
+ *   node scripts/enrich-busan.mjs --allow-paid-google-places --max-paid-requests=20 --cat=cafe
  *            node scripts/build-food-index.js (index 재빌드)
  */
 
@@ -505,7 +506,8 @@ async function main() {
     console.log(`  ${s.cat.padEnd(12)} → ${s.count} items  [${s.path}]`);
   }
   console.log('\nNext steps:');
-  console.log('  1. node scripts/enrich-busan.mjs          # Google Places 평점 보강 (4.6+ 필터)');
+  console.log('  1. node scripts/enrich-busan.mjs --allow-paid-google-places --max-paid-requests=20 --cat=<category>');
+  console.log('     # Google Places 평점 보강 (유료·하드캡 필수, 4.6+ 필터)');
   console.log('  2. node scripts/build-food-index.js       # _food_index.json 재빌드');
 }
 

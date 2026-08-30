@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * CocoTrip 주요 손님 화면 디자인 자동감사.
  *

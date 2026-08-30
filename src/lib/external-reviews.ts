@@ -1,10 +1,6 @@
-// External review fetcher (Google Places).
-// 환경 변수 미설정 시 자동으로 internal fallback. 실제 API 통합은 사용자 키 발급 후.
-//
-// Required env (Vite):
-//   VITE_GOOGLE_PLACES_API_KEY      — Google Places New API key
-//
-// Tour 별 외부 ID 매핑은 src/data/tour-external-ids.ts 에 정의 (사용자가 발급 후 채움).
+// External review compatibility surface.
+// Google Places runtime 호출은 비용 hard-stop 정책으로 비활성화했다.
+// 기존 import/타입 호환을 위해 export 모양은 유지하고 항상 internal fallback 을 사용한다.
 
 export type ExternalRating = {
   rating: number;
@@ -14,38 +10,23 @@ export type ExternalRating = {
   externalUrl?: string;
 };
 
-const GOOGLE_PLACES_KEY = (import.meta as ImportMeta & { env?: { VITE_GOOGLE_PLACES_API_KEY?: string } }).env?.VITE_GOOGLE_PLACES_API_KEY;
-
-/** 외부 API 키가 설정됐는지 (UI에서 fetch 시도 여부 결정용). */
+/** Runtime 외부 리뷰 호출은 항상 비활성. */
 export function hasAnyExternalReviewKey(): boolean {
-  return Boolean(GOOGLE_PLACES_KEY);
+  return false;
 }
 
 /**
- * Google Places (New) API place_id 기준 평점 가져오기.
- * 키 미설정 시 null 반환.
+ * 이전 Google Places 호출부와의 빌드 호환용 no-op.
  */
 export async function fetchGooglePlacesRating(placeId: string): Promise<ExternalRating | null> {
-  if (!GOOGLE_PLACES_KEY || !placeId) return null;
-  try {
-    const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,googleMapsUri&key=${GOOGLE_PLACES_KEY}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json() as { rating?: number; userRatingCount?: number; googleMapsUri?: string };
-    if (!data.rating || !data.userRatingCount) return null;
-    return { rating: data.rating, reviewCount: data.userRatingCount, source: 'google', externalUrl: data.googleMapsUri };
-  } catch {
-    return null;
-  }
+  void placeId;
+  return null;
 }
 
 /**
- * 외부 평점 fetch — Google Places.
+ * 이전 외부 평점 선택 호출부와의 빌드 호환용 no-op.
  */
 export async function fetchBestExternalRating(ids: { googlePlaceId?: string }): Promise<ExternalRating | null> {
-  if (ids.googlePlaceId) {
-    const g = await fetchGooglePlacesRating(ids.googlePlaceId);
-    if (g) return g;
-  }
+  void ids;
   return null;
 }

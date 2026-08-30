@@ -27,6 +27,10 @@ import {
   installAnalyticsGuard,
   type AnalyticsTraffic,
 } from './analytics-network-guard';
+import {
+  assertNoPaidApiAttempts,
+  installPaidApiGuard,
+} from './paid-api-network-guard';
 
 export { ANALYTICS_HOSTS, isAnalyticsUrl } from './analytics-network-guard';
 export type { AnalyticsTraffic } from './analytics-network-guard';
@@ -39,11 +43,14 @@ export const test = base.extend<{ analytics: AnalyticsTraffic }>({
   // 같은 컨텍스트의 새 탭·팝업까지 함께 덮인다.
   // 인자 이름을 use 로 두면 eslint 의 react-hooks 규칙이 React 훅 호출로 오인한다.
   context: async ({ context }, provide) => {
-    const traffic = await installAnalyticsGuard(context);
-    trafficByContext.set(context, traffic);
+    const analytics = await installAnalyticsGuard(context);
+    const paidApi = await installPaidApiGuard(context);
+    trafficByContext.set(context, analytics);
     await provide(context);
     trafficByContext.delete(context);
-    assertNoAnalyticsEscaped(traffic);
+    // 유료 API 시도는 route로 막혔더라도 실패다. 정적 fixture 누락을 즉시 드러낸다.
+    assertNoPaidApiAttempts(paidApi);
+    assertNoAnalyticsEscaped(analytics);
   },
 
   analytics: async ({ context }, provide) => {

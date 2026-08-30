@@ -762,12 +762,11 @@ export async function generatePDF(
     }
 
     // === Sprint 1 Step 4: 일별 요약 박스 ===
-    // 사용자 요청: 총 거리, 추정 비용, 추천 photo.
+    // 사용자 요청: 총 거리, 추정 비용.
     //  - totalWalkM: 모든 stops의 transit_from_prev.total_walk_m 합 (없으면 skip).
     //  - totalTransitMin: 모든 stops의 transit_from_prev.est_min 합 (이동 시간).
     //  - totalStayMin: 모든 stops의 stay_min 합 (관광 시간).
     //  - dayCostKRW: daily_budget_summary[day-1].total_krw (있으면).
-    //  - heroPhoto: 첫 stop의 photo_ref → /api/place-photo proxy.
     const stopsArr = day.stops || [];
     const dayNum = day.day || di + 1;
     let totalWalkM = 0;
@@ -811,11 +810,6 @@ export async function generatePDF(
     }
     const dayBudget = budget.find((b: BudgetRow) => b.day === dayNum);
     const dayCost = dayBudget?.total_krw || 0;
-    const heroPhotoRef = stopsArr.find((s) => s.photo_ref)?.photo_ref;
-    const heroPhotoUrl = heroPhotoRef
-      ? `/api/place-photo?ref=${encodeURIComponent(heroPhotoRef)}&w=400`
-      : '';
-
     const summaryLabels = {
       walk: uiDict?.pdfDailyWalk || 'Walking',
       transit: uiDict?.pdfDailyTransit || 'Transit',
@@ -827,15 +821,10 @@ export async function generatePDF(
     const stayTxt = totalStayMin > 0 ? `${(totalStayMin / 60).toFixed(1)} h` : '—';
     const costTxt = dayCost > 0 ? formatKRW(dayCost) : '—';
 
-    const photoHtml = heroPhotoUrl
-      ? `<img src="${heroPhotoUrl}" style="width:90px;height:60px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="" />`
-      : '';
-
     // display:flex → table 레이아웃으로 교체. html2canvas flex 내 stretch/wrap 불안정.
     // 2026-05-09 (B9-34): pdf-day-summary 클래스 — pagebreak.avoid 매칭 + day header 와 함께 keep.
     html += `<table class="pdf-day-summary" style="width:100%;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:0;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;border-collapse:collapse;">
       <tr>
-        ${photoHtml ? `<td style="width:90px;padding:10px 6px 10px 10px;vertical-align:middle;">${photoHtml}</td>` : ''}
         <td style="padding:10px;vertical-align:middle;">
           <table style="width:100%;font-size:11px;border-collapse:collapse;">
             <tr>
@@ -1338,8 +1327,8 @@ export async function generatePDF(
   // container 내 모든 <img>를 fetch + FileReader로 base64 변환해 inline.
   // 안전장치: 5초 timeout, fail 시 해당 이미지만 포기 (전체 abort X).
   //
-  // PR #454 (Audit Z-H11 — 2026-05-16): Tripadvisor / Google Places /
-  // 기타 CDN 은 CORS 헤더 안 보냄 → 같은 origin (cocotripkr.com) 이 아닌
+  // PR #454 (Audit Z-H11 — 2026-05-16): 승인된 외부 CDN 일부는
+  // CORS 헤더를 안 보냄 → 같은 origin (cocotripkr.com) 이 아닌
   // 이미지는 위 fetch 가 CORS 실패 → 빈 박스 PDF. 외부 origin 이미지는
   // /api/image-proxy 로 보내서 서버가 fetch 한 뒤 CORS 헤더 추가해
   // 반환하도록. SSRF 방어는 image-proxy.js 가 allowlist 로 처리.

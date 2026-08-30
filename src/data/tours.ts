@@ -1018,7 +1018,7 @@ const TOURS_RAW: Tour[] = [
 //
 // ⚠️ 평점(rating/reviewCount/reviewSource)은 의도적으로 제거됨 (#898 후속, 법적 위험).
 // 이전 값(4.7~4.9 + 후기 수)은 실제 집계 근거 없는 허구 수치였음 → 소비자 보호/허위광고 리스크.
-// 검증 가능한 실제 평점은 useTourRating → external-reviews.ts (Google Places, 키 발급 후)
+// 검증 가능한 실제 평점은 useTourRating의 internal 집계만 사용한다. 외부 Places runtime 호출 금지.
 // 또는 ReviewList(Firestore 실후기)로만 노출. 가짜 집계 숫자 재유입 금지.
 // (회귀 방지: tests/unit/no-fake-tour-ratings.test.ts)
 // ─────────────────────────────────────────────────────────────────────────────

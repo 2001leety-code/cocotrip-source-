@@ -42,6 +42,8 @@ function planFixture(language: FixtureLanguage, state: FixtureState) {
             stay_min: 90,
             category: 'attraction',
             display_name: text.stop,
+            // legacy 문서 호환 필드가 있어도 공용 네트워크 가드가 유료 요청 0을 증명한다.
+            photo_ref: 'legacy-google-photo-reference-must-not-be-requested',
             address: '161 Sajik-ro, Jongno-gu, Seoul',
             lat: 37.5796,
             lng: 126.977,

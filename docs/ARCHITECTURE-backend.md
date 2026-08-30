@@ -60,7 +60,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | `api/notify-claim.js` | "Already booked → free plan" claim notification. |
 | `api/chat.js` | One-shot AI chat (Gemini, FAQ/Charter/Special routing). |
 | `api/chat-poll.js` | Customer ChatWidget poll (avoids exposing Firestore). |
-| `api/place-photo.js` | Google Places photo proxy. |
+| `api/place-photo.js` | 과거 클라이언트 호환용 정적 SVG fallback. 외부 호출 없음. Vercel은 `/brand/icon.svg`로 먼저 redirect. |
 | `api/og-image.js` | OG image renderer. `maxDuration=30`, `memory=256`. |
 | `api/pdf/generate.js` | Server-side PDF (uses `_data/*.afm` fonts). |
 | `api/testEmail.js` | Gmail SMTP smoke test. |
@@ -235,7 +235,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 | Firebase Admin | `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (or `GOOGLE_SERVICE_ACCOUNT_KEY` base64 fallback) | Firestore admin | `_shared/firebase-admin.js`, `_ai_core/firestoreAdmin.js` |
 | Naver Maps NCP | `NCP_CLIENT_ID` / `_SECRET` (legacy) **and** `NAVER_CLIENT_ID` / `_SECRET` | Geocoding, directions | `_ai_core/agents/RouteAgent.js`, `recalc-transit.js`, `_crons/traffic-alert.js` |
 | ODsay | `ODSAY_API_KEY` + `SUBWAY_REALTIME_KEY` | Public transit | `_odsay_helper.js`, `_ai_core/routeEnrichment.js` |
-| Google Places | `GOOGLE_PLACES_API_KEY` | Place photos, lat/lng fallback | `place-photo.js`, `RouteAgent.js` |
+| Google Places | 운영 runtime 비활성 | 사진·좌표 자동 호출 금지. 수동 데이터 보강만 명시 승인+최대 100회 하드캡 | `scripts/enrich-*.mjs`, `scripts/_paid-google-places-guard.mjs` |
 | Google Sheets | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` (or `GOOGLE_SERVICE_ACCOUNT_KEY` base64), `GOOGLE_SHEETS_SPREADSHEET_ID` | Leads, feedback, audit | `_google-sheets.js`, `_ai_core/emailNotifier.js`, `admin-bookings.js` |
 | Google Wallet | `GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_CLASS_ID` (+ service account) | Boarding pass JWT | `_create-wallet-pass.js` |
 | Gmail SMTP | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Confirmation + admin emails | `_send-email.js`, `_ai_core/emailNotifier.js`, `testEmail.js` |

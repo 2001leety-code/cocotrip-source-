@@ -140,11 +140,10 @@ describe('PlanDetailPage editorial execution document', () => {
   });
 
   it('localizes conditional stop details on the document surface', () => {
-    for (const key of ['ui.pdfReservationRequired', 'ui.pdfRecommended', 'ui.bookOnline', 'ui.openPhoto']) {
+    for (const key of ['ui.pdfReservationRequired', 'ui.pdfRecommended', 'ui.bookOnline']) {
       expect(STOP).toContain(key);
     }
     expect(STOP).not.toMatch(/>Reservation required<|>Recommended<|> Book online/);
-    expect(STOP).toContain('closeLabel={t.planDetail.reviews.closeImage}');
   });
 
   it('supports normal, loading, empty, error, not-found, permission, and partial state hooks', () => {

@@ -1242,6 +1242,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       let resolvedName = bs.name || '';
       let resolvedDisplay = (bs.name_i18n && bs.name_i18n[language]) || resolvedName;
       let resolvedAddress = bs.address || '';
+      let resolvedCoord = stopCoord(bs);
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
       // verified 는 "DB 에 실재하는 장소" 라는 뜻만 유지한다(식이 안전과 무관 — AGENTS.md §1-4).
@@ -1259,6 +1260,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
+          resolvedCoord = stopCoord(matched) || resolvedCoord;
           verified = true;
           if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
           // 매칭된 식당의 실제 dietary 태그(r.tag/r.dietary_tags)를 stop 에 전파 — seed 의
@@ -1308,6 +1310,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         display_name: resolvedDisplay || resolvedName || '',
         category: bs.category || 'culture',
         address: resolvedAddress || '',
+        ...(resolvedCoord ? { lat: resolvedCoord[0], lng: resolvedCoord[1] } : {}),
         stay_min: Number(bs.stay_min) || 0,
         entry_fee_krw: Number(bs.entry_fee_krw) || 0,
         entry_fee_note: bs.entry_fee_note || undefined,
@@ -1915,6 +1918,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let resolvedName = bs.name || '';
       let resolvedDisplay = (bs.name_i18n && bs.name_i18n[language]) || resolvedName;
       let resolvedAddress = bs.address || '';
+      let resolvedCoord = stopCoord(bs);
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
       let dietaryEvidence = null; // 단도시와 동일 — 등급 증거는 verified 와 분리해 전파.
@@ -1931,6 +1935,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
+          resolvedCoord = stopCoord(matched) || resolvedCoord;
           verified = true;
           if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
           // SAFETY (단도시 L868 정합): 매칭 식당의 dietary 태그를 dietaryTagsOf(r.tag 문자열 +
@@ -1975,6 +1980,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         display_name: resolvedDisplay || resolvedName || '',
         category: bs.category || 'culture',
         address: resolvedAddress || '',
+        ...(resolvedCoord ? { lat: resolvedCoord[0], lng: resolvedCoord[1] } : {}),
         stay_min: Number(bs.stay_min) || 0,
         entry_fee_krw: Number(bs.entry_fee_krw) || 0,
         entry_fee_note: bs.entry_fee_note || undefined,

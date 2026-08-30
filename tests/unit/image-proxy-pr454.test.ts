@@ -25,7 +25,7 @@
  *   (c) the proxy emits the headers html2canvas needs and the security
  *       hardening headers it should
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -48,8 +48,20 @@ describe('PR #454 Z-H11 — SSRF-defended allowlist', () => {
     expect(isAllowed('https://media-cdn.tripadvisor.com/photo.jpg')).toBe(true);
     expect(isAllowed('https://dynamic-media-cdn.tacdn.com/x.jpg')).toBe(true);
     expect(isAllowed('https://lh3.googleusercontent.com/aaa')).toBe(true);
-    expect(isAllowed('https://maps.googleapis.com/maps/api/photo')).toBe(true);
     expect(isAllowed('https://cocotripkr.com/static/foo.png')).toBe(true);
+  });
+
+  it('rejects billable Google Maps endpoints', () => {
+    expect(isAllowed('https://maps.googleapis.com/maps/api/place/photo?key=secret')).toBe(false);
+    expect(isAllowed('https://places.googleapis.com/v1/places/example')).toBe(false);
+  });
+
+  it('rejects legacy paid-photo and recursive proxy paths on every origin', () => {
+    expect(isAllowed('https://cocotripkr.com/api/place-photo?ref=private')).toBe(false);
+    expect(isAllowed('https://cocotripkr.com/api/place-photo/?ref=private')).toBe(false);
+    expect(isAllowed('https://cocotripkr.com/api/%70lace-photo?ref=private')).toBe(false);
+    expect(isAllowed('https://cocotripkr.com/api/image-proxy?url=recursive')).toBe(false);
+    expect(isAllowed('https://old-preview.vercel.app/api/place-photo?ref=private')).toBe(false);
   });
 
   it('rejects arbitrary external hosts (SSRF base case)', () => {
@@ -75,6 +87,7 @@ describe('PR #454 Z-H11 — SSRF-defended allowlist', () => {
     expect(isAllowed('')).toBe(false);
     expect(isAllowed('not-a-url')).toBe(false);
     expect(isAllowed('https://')).toBe(false);
+    expect(isAllowed('https://cocotripkr.com/api/%ZZplace-photo')).toBe(false);
   });
 
   it('rejects URLs with port (IPv6-bracket bypass attempt approximation)', () => {
@@ -86,6 +99,11 @@ describe('PR #454 Z-H11 — SSRF-defended allowlist', () => {
 });
 
 describe('PR #454 Z-H11 — proxy response shape', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it('hardcodes 5 MB cap + 10s timeout (sane defaults)', () => {
     expect(proxyInternals.MAX_BYTES).toBe(5 * 1024 * 1024);
     expect(proxyInternals.FETCH_TIMEOUT_MS).toBe(10_000);
@@ -121,6 +139,57 @@ describe('PR #454 Z-H11 — proxy response shape', () => {
     // header we set is User-Agent.
     expect(proxySrc).toMatch(/headers:\s*\{\s*'User-Agent':[^}]*\}/);
     expect(proxySrc).not.toMatch(/credentials:\s*['"]include['"]/);
+  });
+
+  it('revalidates every redirect and blocks a hop to Google Places', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, {
+      status: 302,
+      headers: {
+        location: 'https://maps.googleapis.com/maps/api/place/photo?key=must-not-leak',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(proxyInternals.fetchWithValidatedRedirects(
+      'https://cocotripkr.com/legacy-image',
+      { headers: { 'User-Agent': 'test' } },
+    )).rejects.toMatchObject({ code: 'REDIRECT_HOST_BLOCKED' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://cocotripkr.com/legacy-image',
+      expect.objectContaining({ redirect: 'manual' }),
+    );
+  });
+
+  it('allows a relative redirect only when the resolved host remains allowlisted', async () => {
+    const imageBytes = new Uint8Array([1, 2, 3]);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, {
+        status: 302,
+        headers: { location: '/final/photo.jpg?token=private' },
+      }))
+      .mockResolvedValueOnce(new Response(imageBytes, {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await proxyInternals.fetchWithValidatedRedirects(
+      'https://media-cdn.tripadvisor.com/start',
+      { headers: { 'User-Agent': 'test' } },
+    );
+
+    expect(result.finalUrl).toBe('https://media-cdn.tripadvisor.com/final/photo.jpg?token=private');
+    expect(result.response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('redacts query secrets and fragments from proxy logs', () => {
+    expect(proxyInternals.redactUrlForLog(
+      'https://maps.googleapis.com/maps/api/place/photo?key=secret&photo_reference=private#fragment',
+    )).toBe('https://maps.googleapis.com/maps/api/place/photo');
+    expect(proxyInternals.redactUrlForLog('not-a-url')).toBe('[invalid-url]');
   });
 });
 

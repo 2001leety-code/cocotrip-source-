@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolvePlaywrightBaseUrl } from './tests/playwright-base-url';
 
 // Note: previously imported `dotenv` for local .env loading, but the package
 // was never declared in package.json — CI failed with ERR_MODULE_NOT_FOUND
@@ -25,7 +26,9 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://cocotripkr.com',
+    baseURL: resolvePlaywrightBaseUrl(),
+    // Service worker fetch는 Playwright route를 우회할 수 있으므로 테스트에서는 막는다.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -10,17 +10,32 @@
  * 멱등: placeId 가 이미 있는 항목은 스킵.
  *
  * Usage:
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-city-restaurants.mjs
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-city-restaurants.mjs --dry  # 첫 5개만
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-city-restaurants.mjs --city=jeju
+ *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-city-restaurants.mjs \
+ *     --allow-paid-google-places --max-paid-requests=20 --city=jeju
+ *   # --dry도 API는 호출하므로 위 유료 호출 승인·상한이 반드시 필요하다.
  */
 
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createPaidRequestGate, parsePaidGooglePlacesConsent } from './_paid-google-places-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+
+// 유료 API는 실수로 실행할 수 없게 명시 승인 + 절대 요청 상한을 먼저 검사한다.
+// 이 검사는 .env를 읽기 전이므로 승인 없는 실행은 키에도 접근하지 않는다.
+const args = process.argv.slice(2);
+let paidConsent;
+try {
+  paidConsent = parsePaidGooglePlacesConsent(args);
+} catch (error) {
+  console.error(`⛔ ${error.message}`);
+  process.exit(2);
+}
+const paidRequestGate = createPaidRequestGate(paidConsent.maxRequests);
+const DRY = args.includes('--dry');
+const cityFilter = (args.find(a => a.startsWith('--city=')) || '').split('=')[1];
 
 // Minimal .env loader (avoid adding dotenv dependency)
 function loadDotEnv(file) {
@@ -47,10 +62,6 @@ if (!API_KEY) {
 const FOOD_DATA_DIR = join(ROOT, '..', '..', 'food_data');
 const CITIES = ['jeju', 'gyeongju', 'jeonju'];
 
-const args = process.argv.slice(2);
-const DRY = args.includes('--dry');
-const cityFilter = args.find(a => a.startsWith('--city='))?.split('=')[1];
-
 const FIND_PLACE_URL = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -68,6 +79,7 @@ async function findPlace({ name, city, lat, lng }) {
     params.set('locationbias', `circle:500@${lat},${lng}`);
   }
   const url = `${FIND_PLACE_URL}?${params.toString()}`;
+  paidRequestGate.reserve();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -131,6 +143,7 @@ async function enrichCity(city) {
       }
     } catch (err) {
       console.error(`  ${i + 1}/${total} — ✗ ${item.name}: ${err.message}`);
+      if (String(err.message || '').startsWith('PAID_REQUEST_CAP_REACHED')) throw err;
       if (err.message.startsWith('Quota')) throw err;
     }
     await sleep(100);  // 10 req/s
@@ -148,7 +161,8 @@ async function enrichCity(city) {
 
 async function main() {
   console.log('🌐 Google Places enrichment — jeju/gyeongju/jeonju');
-  if (DRY) console.log('   (DRY mode — first 5 per city)');
+  console.log(`   PAID REQUEST HARD CAP: ${paidConsent.maxRequests}`);
+  if (DRY) console.log('   (DRY mode — first 5 per city; API calls are still billable)');
 
   const cities = cityFilter ? [cityFilter] : CITIES;
   const results = [];

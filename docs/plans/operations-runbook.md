@@ -190,7 +190,8 @@ KRW: ₩{amountKRW}
 
 이번 세션 다른 사람이 이어서 일할 때 알아야 할 것:
 - main 최신 커밋 + 모든 PR (메모리 [project_cocotrip_phase4_plan.md](project_cocotrip_phase4_plan.md) + 본 런북)
-- 환경 변수: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GMAIL_USER`, `GMAIL_PASS`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `(VITE_TRIPADVISOR_API_KEY, VITE_GOOGLE_PLACES_API_KEY)` — 후 2개 옵션
+- 환경 변수: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GMAIL_USER`, `GMAIL_PASS`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `VITE_TRIPADVISOR_API_KEY`(옵션)
+- Google Maps Platform/Places 키는 웹 런타임과 Vercel 환경변수에 추가하지 않는다. 2026-08-31 비용 hard-stop 정책과 `docs/GOOGLE-PLACES-COST-HARD-STOP-2026-08-31.md`를 따른다.
 - Firestore 컬렉션: `bookings`, `pending_free_claims`, `charter_inquiries`, `tour_availability` (✅ 구현 완료)
 - 관리자 페이지: `/admin`, `/admin/claims`, `/admin/availability`, `/admin/sales` (PR #40 머지 후)
 - 자동화 cron: `daily-report` (07:00 KST), `refund-reminder` (08:00 KST, PR #39 머지 후)
@@ -205,7 +206,7 @@ KRW: ₩{amountKRW}
 | 2 | KakaoTalk 알림채널 | ⏳ 비즈니스 계정 발급 대기 (외국인 전용 — 우선순위 낮음) |
 | 3 | 운전기사 자동 매칭 | ⏸ 보류 (driver pool 미존재) |
 | 4 | 자유 취소 데드라인 reminder (D-4 자동 발송) | ✅ **완료** (PR #39 — 4언어, freeCancelReminderSent 마킹, dryRun 옵션) |
-| 5 | Google Places API 통합 | ⏳ Google Place ID 매핑 채우기 (키 등록됨, Tripadvisor는 가입 부담 대비 효과 약해 스킵 결정) |
+| 5 | Google Places API 통합 | ⛔ **폐기** (2026-08-31 비용 hard-stop — Naver/정적 좌표 사용, 재도입은 별도 비용 승인 필수) |
 | 6 | 매출 대시보드 (월/주/일) | ✅ **완료** (PR #40 — `/admin/sales` Firestore SSOT, KPI/일별/상품별/최근) |
 
 ### 환불 정책 안내 (refund-reminder 발송 기준)

@@ -15,11 +15,9 @@ import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 import { sanitizeStopName } from '@/lib/sanitizeName';
 import { track as posthogTrack } from '@/lib/posthog';
-import { haptic } from '@/lib/haptic';
 import { buildAttractionLink } from '@/config/affiliateLinks';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { AffiliateCard } from '@/components/AffiliateCard';
-import { Lightbox } from './Lightbox';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
 // localStorage 키: `cocotrip:fav:<planId>` → JSON Record<stopKey, true>.
@@ -133,8 +131,6 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
   const [expanded, setExpanded] = useState(false);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const CatIcon = CAT_ICON[stop.category || ''] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -329,46 +325,11 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       </div>
 
       {/* Expanded details — mobile: viewport-based 동적 cap (콘텐츠 잘림 방지).
-          기존 480px 고정은 personalization_reasoning + tip + photos 다 있을 때 잘림 발생.
+          기존 480px 고정은 personalization_reasoning + tip 등 긴 내용이 있을 때 잘림 발생.
           calc(100dvh - 320px): header(56) + tabs(40) + slide progress(40) + collapsed card header(~140) + 여유(44).
           내부 div가 overflow-y-auto이므로 max-h를 넘으면 스크롤. */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[calc(100dvh-320px)] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="space-y-3 border-t border-ec-line px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5" onClick={(e) => e.stopPropagation()}>
-          {/* Sprint 1 Step 3: Photo preview (Google Places). photo_ref 있으면 thumbnail 렌더.
-              expanded 상태에서만 fetch — collapsed 카드 다수 시 비용 절감.
-              loading="lazy" + decoding="async" — 모바일 첫 렌더 우선순위 보호. */}
-          {stop.photo_ref && (
-            <button
-              type="button"
-              onClick={() => { haptic('tap'); setLightboxOpen(true); }}
-              className="group block w-full rounded-ec-sm focus:outline-none"
-              aria-label={(ui.openPhoto || 'Open photo of {{name}}').replace('{{name}}', cleanDisplayName)}
-            >
-              <div className="relative h-44 w-full overflow-hidden rounded-ec-sm border border-ec-line bg-ec-sunken sm:h-52">
-                {/* Subtle shimmer placeholder while loading — fades out under the img. */}
-                {!imageLoaded && (
-                  <div className="absolute inset-0 animate-pulse bg-ec-sunken" />
-                )}
-                <img
-                  src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=600`}
-                  alt={cleanDisplayName}
-                  loading="lazy"
-                  decoding="async"
-                  className={`h-full w-full rounded-ec-sm object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-                  onLoad={() => setImageLoaded(true)}
-                  onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
-                />
-              </div>
-            </button>
-          )}
-          {lightboxOpen && stop.photo_ref && (
-            <Lightbox
-              src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=1600`}
-              alt={cleanDisplayName}
-              closeLabel={t.planDetail.reviews.closeImage}
-              onClose={() => setLightboxOpen(false)}
-            />
-          )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
             <p className="flex items-start gap-1.5 text-[14px] leading-relaxed text-ec-ink-2">
