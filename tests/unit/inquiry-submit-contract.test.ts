@@ -66,41 +66,40 @@ afterEach(() => {
 });
 
 describe('POST /api/inquiry-submit canonical contract', () => {
-  it('accepts the plan-detail charter shape and writes canonical NEW plus legacy aliases', async () => {
+  it('accepts the bus inquiry shape and writes bounded canonical NEW fields', async () => {
     const result = await call({
       email: 'Guest@Example.com',
-      name: '',
+      name: 'Guest User',
       phone: '+82 10 1234 5678',
-      eventDate: '',
-      pax: 2,
-      vehicle: 'charter',
-      details: 'Hotel pickup',
-      notes: 'Hotel pickup',
+      eventDate: '2026-09-02',
+      pax: 20,
+      vehicle: 'bus',
+      details: 'Airport group transfer',
       language: 'en',
-      planId: 'plan-123',
-      recommendedTour: 'Seoul highlights',
-      quotedKRW: 330000,
-      hours: 8,
-      startDate: '2026-09-02',
-      dayCount: 3,
-      itinerarySummary: [{ day: 1, theme: 'Seoul', stopCount: 5 }],
-      source: 'plan_detail_charter_banner',
+      source: 'charter_wizard',
+      wizardSnapshot: {
+        origin: 'Incheon Airport',
+        service: 'airport-transfer',
+        destinationKey: 'seoul',
+        destinationCustom: 'Hotel',
+      },
     });
 
     expect(result).toMatchObject({ status: 200, json: { success: true, status: 'NEW' } });
     expect(writes).toHaveLength(1);
     expect(writes[0].data).toMatchObject({
       status: 'NEW',
-      vehicle: 'charter',
+      vehicle: 'bus',
       email: 'guest@example.com',
-      details: 'Hotel pickup',
-      notes: 'Hotel pickup',
-      planId: 'plan-123',
-      recommendedTour: 'Seoul highlights',
-      quotedKRW: 330000,
-      quoteContextTrusted: false,
+      details: 'Airport group transfer',
       contractVersion: 'inquiry.v1',
-      source: 'plan_detail_charter_banner',
+      source: 'charter_wizard',
+      wizardSnapshot: {
+        origin: 'Incheon Airport',
+        service: 'airport-transfer',
+        destinationKey: 'seoul',
+        destinationCustom: 'Hotel',
+      },
     });
   });
 
