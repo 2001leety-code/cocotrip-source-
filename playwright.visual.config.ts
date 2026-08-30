@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolvePlaywrightBaseUrl } from './tests/playwright-base-url';
 
 /**
  * Visual regression config — distinct from `playwright.config.ts` (e2e).
@@ -38,7 +39,9 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://cocotripkr.com',
+    baseURL: resolvePlaywrightBaseUrl(),
+    // Service worker fetch는 공용 유료 API route 차단을 우회할 수 있다.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     // Vercel bypass — 쿠키 방식 (playwright.config.ts 와 동일, tests/global-setup.ts).
     // extraHTTPHeaders 가 cross-origin 폰트 CORS preflight 깨던 문제 해결(#1006).

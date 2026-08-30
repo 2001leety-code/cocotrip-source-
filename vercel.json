@@ -128,6 +128,11 @@
   },
   "redirects": [
     {
+      "source": "/api/place-photo",
+      "destination": "/brand/icon.svg",
+      "permanent": true
+    },
+    {
       "source": "/guide/4-seoul-cafe-neighborhoods-worth-your",
       "destination": "https://cocotripkr.com/guide/seoul-cafe-guide-2026-best",
       "permanent": true

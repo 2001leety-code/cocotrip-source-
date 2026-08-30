@@ -1,6 +1,6 @@
 # CocoTrip 로드맵 — 상용화 후 미해결 작업 큐
 
-> **최종 업데이트**: 2026-04-28
+> **최종 업데이트**: 2026-08-31 — Google Places runtime 경로 비용 사고로 폐기. 네이버 좌표만 사용.
 > **컨텍스트**: 단일 세션 19개 PR 머지 후 (#118~#134). 베타 런칭 가능 상태.
 > **다음 작업 단위**: Sprint 1 (1주), Sprint 2 (2주), 풀 재설계 (1개월).
 
@@ -11,7 +11,7 @@
 ### ✅ 완료된 본질 개선
 - AI 모델: Gemini 2.5 Flash → **Pro** (instruction following 압도적)
 - Hub-and-spoke 동선 강제 (매일 첫/마지막 stop = 숙소 근처)
-- Google Places geocoding fallback (관광지명 인식)
+- Naver geocoding 유지. Google Places fallback은 2026-08-31 비용 hard-stop으로 폐기
 - 다국어 식당 이름 concat sanitizer (3-layer + DB cleanup 542건)
 - E2E 7-step 자동 검증 (월/수/금)
 - PWA Day 1+2+3 (CSS + plugin + Update Toast)
@@ -60,12 +60,10 @@
 - [ ] Transit 블록 풍부화: 거리/시간 동시 표시, walk 시 "지하철보다 빠름" 라벨
 - [ ] Day 헤더 시각 강화: 그라데이션 + 일자별 테마 아이콘
 
-**P0 — 이미지 미리보기** (3-4일)
-- [ ] Google Places API에서 식당/관광지 photo_reference 가져와 첫 1장 표시
-- [ ] Lazy-load (intersection observer)
-- [ ] Fallback: 카테고리 일러스트
-- [ ] 비용: Photo API ~$7/1000 호출, plan당 ~5-7장 = ~$0.05/plan
-- [ ] **결제 $9.90의 1% — 가치 있음**
+**폐기 — Google Places 이미지 미리보기**
+- [x] 2026-08-31 runtime 호출 제거. 자동검사·공개 proxy의 무제한 호출 위험이 기능 가치보다 큼
+- [x] 일정 카드는 내부 데이터 기반 텍스트/카테고리 시각 요소만 사용
+- [x] 과거 `/api/place-photo` 요청은 외부 API 대신 정적 자산으로 종료
 
 **P1 — Action UX** (1일)
 - [ ] Stop 카드 좌상단에 ⭐ 즐겨찾기 (mypage 연동)

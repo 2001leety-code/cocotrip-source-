@@ -148,7 +148,6 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
     NCP_MAPS_ID: !!_ncp.clientId,
     NCP_MAPS_SECRET: !!_ncp.clientSecret,
     ODSAY: !!process.env.ODSAY_API_KEY,
-    GOOGLE_PLACES: !!process.env.GOOGLE_PLACES_API_KEY,
     inputStops: totalInputStops,
   });
   try {

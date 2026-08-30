@@ -419,20 +419,6 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// ── HOW TO SWAP TO GOOGLE MAPS LATER ────────────────────────────────────────
-// 1. In Google Cloud Console, enable the "Maps JavaScript API" for the project.
-// 2. Create a browser API key and RESTRICT it: Application restriction =
-//    "HTTP referrers", allow `https://cocotripkr.com/*` and
-//    `https://*.vercel.app/*` (preview). API restriction = Maps JavaScript API.
-// 3. Add the key to Vercel env as `VITE_GOOGLE_MAPS_API_KEY` (Production +
-//    Preview), then redeploy with a fresh commit (Vercel "Redeploy" reuses the
-//    old env snapshot).
-// 4. In THIS file, replace the `// ===== MAP PROVIDER (Leaflet) =====` IIFE:
-//    lazy-load the Google loader (e.g. `@googlemaps/js-api-loader`) with
-//    `import.meta.env.VITE_GOOGLE_MAPS_API_KEY`, create a `google.maps.Map`,
-//    add a dark-styled basemap (mapId or `styles`), draw a
-//    `google.maps.Polyline` over `latLngs`, add `AdvancedMarkerElement`s with
-//    the same numbered HTML, and `map.fitBounds(new LatLngBounds(...))`.
-//    Remove the `import('leaflet/dist/leaflet.css')` + `import('leaflet')` lines
-//    and the leaflet deps from package.json. Nothing OUTSIDE this region needs
-//    to change — the component props and the dark card wrapper are unchanged.
+// 비용 정책: 이 지도는 Leaflet + 정적 타일 경로를 유지한다. Google 지도 SDK나
+// 브라우저 키를 다시 넣으려면 비용 상한·도메인 제한·Preview 차단 설계를 별도 PR로
+// 먼저 승인받아야 하며, 런타임 금지 회귀 테스트를 함께 갱신해야 한다.

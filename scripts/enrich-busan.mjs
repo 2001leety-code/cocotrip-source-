@@ -9,10 +9,9 @@
  * 멱등: placeId가 이미 있고 rating > 0인 항목은 스킵.
  *
  * Usage:
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-busan.mjs
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-busan.mjs --dry          # 첫 5개만
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-busan.mjs --cat=cafe     # 단일 카테고리
- *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-busan.mjs --keep-all     # 평점 미달도 보존
+ *   GOOGLE_PLACES_API_KEY=... node scripts/enrich-busan.mjs \
+ *     --allow-paid-google-places --max-paid-requests=20 --cat=cafe
+ *   # --dry도 API는 호출하므로 위 유료 호출 승인·상한이 반드시 필요하다.
  *
  * 완료 후: node scripts/build-food-index.js
  */
@@ -20,9 +19,25 @@
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createPaidRequestGate, parsePaidGooglePlacesConsent } from './_paid-google-places-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+
+// 유료 API는 실수로 실행할 수 없게 명시 승인 + 절대 요청 상한을 먼저 검사한다.
+// 이 검사는 .env를 읽기 전이므로 승인 없는 실행은 키에도 접근하지 않는다.
+const args = process.argv.slice(2);
+let paidConsent;
+try {
+  paidConsent = parsePaidGooglePlacesConsent(args);
+} catch (error) {
+  console.error(`⛔ ${error.message}`);
+  process.exit(2);
+}
+const paidRequestGate = createPaidRequestGate(paidConsent.maxRequests);
+const DRY = args.includes('--dry');
+const KEEP_ALL = args.includes('--keep-all'); // 평점 미달 항목도 파일에 보존
+const catFilter = (args.find(a => a.startsWith('--cat=')) || '').replace('--cat=', '') || null;
 
 // .env 로더
 function loadDotEnv(file) {
@@ -60,12 +75,6 @@ const BUSAN_FILES = {
   attraction: 'busan_attraction.json',
 };
 
-// ── CLI args ────────────────────────────────────────────────────────────────
-const args = process.argv.slice(2);
-const DRY      = args.includes('--dry');
-const KEEP_ALL = args.includes('--keep-all'); // 평점 미달 항목도 파일에 보존
-const catFilter = (args.find(a => a.startsWith('--cat=')) || '').replace('--cat=', '') || null;
-
 // ── Google Places: Find Place From Text ─────────────────────────────────────
 const FIND_PLACE_URL = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
 // Place Details (wheelchair_accessible_entrance, editorial_summary 등)
@@ -87,6 +96,7 @@ async function findPlace({ name, lat, lng }) {
     params.set('locationbias', `circle:800@${lat},${lng}`);
   }
   const url = `${FIND_PLACE_URL}?${params}`;
+  paidRequestGate.reserve();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -114,12 +124,14 @@ async function getPlaceDetails(placeId) {
   });
   const url = `${PLACE_DETAILS_URL}?${params}`;
   try {
+    paidRequestGate.reserve();
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.status === 'OK') return data.result || null;
     return null;
-  } catch {
+  } catch (error) {
+    if (String(error.message || '').startsWith('PAID_REQUEST_CAP_REACHED')) throw error;
     return null;
   }
 }
@@ -176,7 +188,9 @@ async function enrichCategory(cat) {
         item.placeId       = found.place_id;
         item.rating        = found.rating || 0;
         item.reviewCount   = found.user_ratings_total || 0;
-        item.priceLevel    = found.price_level ?? null; // 1~4 (Google)
+        item.priceLevel    = found.price_level === undefined || found.price_level === null
+          ? null
+          : found.price_level; // 1~4 (Google)
         if (found.formatted_address) item.address = found.formatted_address;
         item.googleMapsUrl = `https://www.google.com/maps/place/?q=place_id:${found.place_id}`;
 
@@ -185,14 +199,17 @@ async function enrichCategory(cat) {
           const details = await getPlaceDetails(found.place_id);
           await sleep(110);
           item.hasEnglishMenu      = estimateEnglishMenu(details, found);
-          item.wheelchairAccessible = details?.wheelchair_accessible_entrance ?? null;
+          item.wheelchairAccessible = details?.wheelchair_accessible_entrance === undefined
+            || details?.wheelchair_accessible_entrance === null
+            ? null
+            : details.wheelchair_accessible_entrance;
         }
 
         enriched++;
         if ((i + 1) % 25 === 0 || i + 1 === total) {
           console.log(
             `  [${i + 1}/${total}] ✅ ${item.name} ` +
-            `(${item.rating}★ × ${item.reviewCount} / priceLevel: ${item.priceLevel ?? '?'})`,
+            `(${item.rating}★ × ${item.reviewCount} / priceLevel: ${item.priceLevel === undefined || item.priceLevel === null ? '?' : item.priceLevel})`,
           );
         }
       } else {
@@ -200,6 +217,7 @@ async function enrichCategory(cat) {
       }
     } catch (err) {
       console.error(`  [${i + 1}/${total}] ✗ ${item.name}: ${err.message}`);
+      if (String(err.message || '').startsWith('PAID_REQUEST_CAP_REACHED')) throw err;
       if (err.message.startsWith('Quota')) throw err; // 쿼터 초과 시 즉시 중단
     }
   }
@@ -230,7 +248,8 @@ async function enrichCategory(cat) {
 async function main() {
   console.log('🌐 Google Places enrichment — Busan categories');
   console.log(`   MIN_RATING: ${MIN_RATING}  MIN_REVIEWS: ${MIN_REVIEWS}`);
-  if (DRY)      console.log('   (DRY mode — first 5 per category, not saved)');
+  console.log(`   PAID REQUEST HARD CAP: ${paidConsent.maxRequests}`);
+  if (DRY)      console.log('   (DRY mode — first 5 per category, not saved; API calls are still billable)');
   if (KEEP_ALL) console.log('   (KEEP_ALL — rating filter skipped)');
 
   const categories = catFilter

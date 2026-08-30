@@ -44,7 +44,7 @@ export interface Stop {
   naverMapUrl?: string;
   transit_from_prev?: TransitFromPrev | null;
   travelFromPrev?: TransitFromPrev | null;
-  /** Google Places photo_reference — /api/place-photo?ref=... 로 이미지 fetch (Sprint 1 Step 3) */
+  /** 과거 플랜 호환용 legacy 필드. runtime에서 외부 사진을 가져오지 않는다. */
   photo_ref?: string;
 
   // Editor + RouteAgent metadata

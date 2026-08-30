@@ -36,6 +36,8 @@ const PLAN_FIXTURE = {
           stay_min: 90,
           category: 'attraction',
           display_name: 'Gyeongbokgung Palace',
+          // 과거 저장 문서가 photo_ref를 포함해도 런타임 사진 요청은 0이어야 한다.
+          photo_ref: 'legacy-google-photo-reference-must-not-be-requested',
           address: '161 Sajik-ro, Jongno-gu, Seoul',
           lat: 37.5796,
           lng: 126.977,

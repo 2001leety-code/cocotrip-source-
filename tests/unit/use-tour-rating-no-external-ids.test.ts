@@ -6,18 +6,16 @@
  *   (Google Place ID 미발급 상태에서 placeholder 파일로만 존재)
  *   5/25 sweep 에서 dead 파일로 판단, 삭제.
  *
- *   useTourRating.ts 의 기존 동작:
- *     getTourExternalIds(tourId) → {} (빈 객체)
- *     → ids.googlePlaceId 없음 → early return
- *     → internal fallback 사용
+ *   Google Places 비용 hard-stop 뒤 동작:
+ *     useTourRating.ts 는 외부 key/ID 여부와 무관하게 internal fallback 만 반환한다.
  *
- *   삭제 후 동작:
- *     인라인 빈 객체 `{}` 사용 → 동일 early return → internal fallback 사용.
+ *   현재 동작:
+ *     외부 모듈 import 없이 internal fallback 을 즉시 반환한다.
  *
  * 이 테스트가 검증하는 것:
  *   1. src/data/tour-external-ids.ts 파일이 더 이상 존재하지 않음
  *   2. useTourRating.ts 가 tour-external-ids import 를 더 이상 참조하지 않음
- *   3. useTourRating.ts 가 internal fallback 구조 (external 없으면 fallback 반환) 를 유지함
+ *   3. useTourRating.ts 가 internal fallback 전용 구조를 유지함
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
@@ -49,13 +47,9 @@ describe('useTourRating.ts — tour-external-ids import 제거 확인', () => {
     expect(src).toMatch(/fallback\.reviewSource/);
   });
 
-  it('external 있을 때 external 평점 반환 구조 유지', () => {
-    expect(src).toMatch(/external\.rating/);
-    expect(src).toMatch(/external\.reviewCount/);
-    expect(src).toMatch(/external\.source/);
-  });
-
-  it('hasAnyExternalReviewKey 로 외부 fetch 조건 분기 유지', () => {
-    expect(src).toMatch(/hasAnyExternalReviewKey\(\)/);
+  it('Google Places 외부 fetch 분기가 없음', () => {
+    expect(src).not.toMatch(/hasAnyExternalReviewKey/);
+    expect(src).not.toMatch(/fetchBestExternalRating/);
+    expect(src).not.toMatch(/ExternalRating/);
   });
 });
