@@ -66,6 +66,7 @@ const TL = {
     indexLabel: 'CocoTrip 지역 안내',
     selectorLabel: 'CocoTrip 일정 선택',
     catalogueSectionLabel: 'CocoTrip 투어 목록',
+    featuredActionLabel: '첫 일정 보기',
     conciergeLabel: 'CocoTrip 맞춤 안내',
     destinationsLabel: '지역별 둘러보기',
     destinationsBody: '등록된 일정이 있는 지역만 표시합니다.',
@@ -107,6 +108,7 @@ const TL = {
     indexLabel: 'CocoTrip index',
     selectorLabel: 'CocoTrip selector',
     catalogueSectionLabel: 'CocoTrip catalogue',
+    featuredActionLabel: 'View itinerary',
     conciergeLabel: 'CocoTrip concierge',
     destinationsLabel: 'Browse by destination',
     destinationsBody: 'Only regions with listed itineraries are shown.',
@@ -148,6 +150,7 @@ const TL = {
     indexLabel: 'CocoTrip 地域案内',
     selectorLabel: 'CocoTrip 日程検索',
     catalogueSectionLabel: 'CocoTrip ツアー一覧',
+    featuredActionLabel: '日程を見る',
     conciergeLabel: 'CocoTrip コンシェルジュ',
     destinationsLabel: '地域から探す',
     destinationsBody: '掲載中の日程がある地域のみ表示します。',
@@ -189,6 +192,7 @@ const TL = {
     indexLabel: 'CocoTrip 地区指南',
     selectorLabel: 'CocoTrip 行程筛选',
     catalogueSectionLabel: 'CocoTrip 旅游列表',
+    featuredActionLabel: '查看行程',
     conciergeLabel: 'CocoTrip 定制咨询',
     destinationsLabel: '按地区浏览',
     destinationsBody: '仅显示已有行程的地区。',
@@ -555,7 +559,21 @@ export default function ToursPage() {
           {featuredTour && (
             <aside className="tours-catalog-featured" aria-label={tl.catalogueSectionLabel}>
               <p className="ec-eyebrow">{tl.catalogueSectionLabel}</p>
-              <TourCard tour={featuredTour} language={language} />
+              <Link
+                to={`/tours/${featuredTour.slug}`}
+                className="tour-catalog-card-link tours-catalog-featured-link"
+              >
+                <img
+                  src={featuredTour.thumbnail}
+                  alt={featuredTour.title[language] || featuredTour.title.en}
+                  loading="eager"
+                  decoding="async"
+                />
+                <span className="tours-catalog-featured-copy">
+                  <strong>{featuredTour.title[language] || featuredTour.title.en}</strong>
+                  <span>{tl.featuredActionLabel}<ChevronRight aria-hidden /></span>
+                </span>
+              </Link>
             </aside>
           )}
         </header>
