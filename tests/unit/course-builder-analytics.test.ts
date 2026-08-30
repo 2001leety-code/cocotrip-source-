@@ -21,6 +21,14 @@ describe('trackCourseBuilderEvent', () => {
     expect(trackEventMock).toHaveBeenCalledWith('course_builder_started', { source: 'manual', language: 'ko' });
   });
 
+  it.each(['ai', 'catalog_fallback', 'catalog_unavailable'] as const)(
+    '최적화 결과 출처 %s 는 개인정보 없는 허용 reason 으로 전달',
+    (reason) => {
+      trackCourseBuilderEvent('course_builder_optimize_result', { success: true, reason });
+      expect(trackEventMock).toHaveBeenCalledWith('course_builder_optimize_result', { success: true, reason });
+    },
+  );
+
   it('알 수 없는 source 값은 드롭(속성 자체가 빠짐)', () => {
     trackCourseBuilderEvent('course_builder_started', { source: 'course-abc123' as never, language: 'en' });
     expect(trackEventMock).toHaveBeenCalledWith('course_builder_started', { language: 'en' });

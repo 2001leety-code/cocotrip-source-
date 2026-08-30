@@ -57,7 +57,7 @@ function snapshot(findings: Record<string, any>[] = []): Record<string, any> {
       role: 'design.release_verifier',
       owner: 'design-team',
       scheduler_owner: 'github-actions',
-      schedule: { kind: 'cron', expression: '0 1 * * 1', timezone: 'Asia/Seoul', interval_seconds: null },
+      schedule: { kind: 'cron', expression: '0 1 * * 1', timezone: 'UTC', interval_seconds: null },
       write_scope: 'read_only',
       approval_required: false,
       stale_after_seconds: 691200,

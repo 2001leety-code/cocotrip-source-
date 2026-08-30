@@ -16,6 +16,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let _attractionCatalog = null;
 let _foodCatalog = null;
+const _catalogErrors = new Set();
+const _candidateCache = new Map();
+const _candidateMapCache = new Map();
 
 const CANDIDATE_LANGS = ['ko', 'en', 'ja', 'zh'];
 const ATTRACTION_SOURCE = 'cocotrip-attractions';
@@ -25,12 +28,16 @@ const FOOD_MIN_REVIEWS = 20;
 const FOOD_MAX_DISTANCE_KM = 5;
 const ATTRACTION_MAX_DISTANCE_KM = 20;
 const EARTH_RADIUS_KM = 6371;
+const DIETARY_CLAIM_RE = /\b(?:halal|muslim|islamic|kosher|vegan|vegetarian|pescatarian|jain|keto)\b|\bplant[\s-]*based\b|\b(?:gluten|allerg(?:y|en)|dairy|lactose|nut|peanut|pork|shellfish|egg|sugar)[\s-]*(?:free|friendly)\b|\bdiet(?:ary)?\b|비건|채식|할랄|무슬림|이슬람|코셔|글루텐|알레르기|저탄고지|페스코|락토|유당|돼지고기|갑각류|조개류|견과|素食|清真|无麸质|犹太洁食|ハラール|ムスリム|イスラム|ヴィーガン|ベジタリアン|グルテンフリー/iu;
 
 function loadJsonArray(filename, label) {
   try {
     const parsed = JSON.parse(readFileSync(join(__dirname, '..', filename), 'utf-8'));
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('비어 있거나 배열이 아님');
+    _catalogErrors.delete(label);
+    return parsed;
   } catch (err) {
+    _catalogErrors.add(label);
     console.warn(`[courseCandidateCatalog] ${label} 로드 실패:`, err.message);
     return [];
   }
@@ -42,7 +49,15 @@ function loadAttractionCatalog() {
   return _attractionCatalog;
 }
 
-function isRecommendationGradeFood(row) {
+function hasDietaryClaim(row) {
+  const explicitClaim = [row?.dietary_claim, row?.certification_type]
+    .some((value) => String(value || '').trim() && !/^(none|unknown|n\/a)$/iu.test(String(value).trim()));
+  if (explicitClaim) return true;
+  return [row?.name, row?.nameEn, row?.cuisine, row?.cuisineKo, row?.description, row?.notes]
+    .some((value) => DIETARY_CLAIM_RE.test(String(value || '')));
+}
+
+export function isRecommendationGradeFood(row) {
   return row?.tag === 'general'
     && typeof row.placeId === 'string'
     && !!row.placeId.trim()
@@ -51,7 +66,8 @@ function isRecommendationGradeFood(row) {
     && Number.isFinite(row.lat)
     && Number.isFinite(row.lng)
     && Number(row.rating) >= FOOD_MIN_RATING
-    && Number(row.reviewCount) >= FOOD_MIN_REVIEWS;
+    && Number(row.reviewCount) >= FOOD_MIN_REVIEWS
+    && !hasDietaryClaim(row);
 }
 
 function loadFoodCatalog() {
@@ -102,10 +118,24 @@ function toFoodCandidate(row, lang) {
 }
 
 function allCandidates(lang) {
-  return [
+  if (_candidateCache.has(lang)) return _candidateCache.get(lang);
+  const candidates = [
     ...loadAttractionCatalog().map((row) => toAttractionCandidate(row, lang)),
     ...loadFoodCatalog().map((row) => toFoodCandidate(row, lang)),
   ];
+  _candidateCache.set(lang, candidates);
+  return candidates;
+}
+
+export function getCourseCandidateCatalogStatus() {
+  const attractions = loadAttractionCatalog().length;
+  const food = loadFoodCatalog().length;
+  return {
+    healthy: _catalogErrors.size === 0 && attractions > 0 && food > 0,
+    attractions,
+    food,
+    unavailable: [..._catalogErrors],
+  };
 }
 
 /** 언어 무관 대소문자·공백 제거 비교용 정규화. */
@@ -124,7 +154,7 @@ function toRad(value) {
   return (value * Math.PI) / 180;
 }
 
-function distanceKm(lat1, lng1, lat2, lng2) {
+export function distanceKm(lat1, lng1, lat2, lng2) {
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2
@@ -161,25 +191,16 @@ function isExcluded(candidate, index) {
   return false;
 }
 
-function rankCandidates(candidates, lat, lng, maxDistanceKm) {
-  const hasOrigin = Number.isFinite(lat) && Number.isFinite(lng);
-  if (!hasOrigin) {
-    return candidates.map((candidate) => ({ candidate, distance: Infinity }));
-  }
+function rankCandidates(candidates, origins, maxDistanceKm) {
   return candidates
     .map((candidate) => ({
       candidate,
-      distance: distanceKm(lat, lng, candidate.lat, candidate.lng),
+      distance: Math.min(...origins.map((origin) => (
+        distanceKm(origin.lat, origin.lng, candidate.lat, candidate.lng)
+      ))),
     }))
     .filter((entry) => entry.distance <= maxDistanceKm)
-    .sort((a, b) => {
-      if (a.candidate.category === 'food' && b.candidate.category === 'food') {
-        const scoreA = a.candidate.rating * Math.log10(a.candidate.reviewCount + 10);
-        const scoreB = b.candidate.rating * Math.log10(b.candidate.reviewCount + 10);
-        return (a.distance - b.distance) || (scoreB - scoreA);
-      }
-      return a.distance - b.distance;
-    });
+    .sort((a, b) => a.distance - b.distance);
 }
 
 function interleaveCandidates(foodEntries, attractionEntries, limit) {
@@ -199,6 +220,9 @@ function interleaveCandidates(foodEntries, attractionEntries, limit) {
 export function getCourseCandidates(opts = {}) {
   const lang = CANDIDATE_LANGS.includes(opts.lang) ? opts.lang : 'en';
   const limit = Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : 12;
+  const origins = (Array.isArray(opts.origins) ? opts.origins : [{ lat: opts.lat, lng: opts.lng }])
+    .filter((origin) => Number.isFinite(origin?.lat) && Number.isFinite(origin?.lng));
+  if (origins.length === 0) return [];
   const exclusion = buildExclusionIndex(opts.excludeStops);
   const candidates = allCandidates(lang)
     .filter((candidate) => Number.isFinite(candidate.lat)
@@ -208,14 +232,12 @@ export function getCourseCandidates(opts = {}) {
 
   const food = rankCandidates(
     candidates.filter((candidate) => candidate.category === 'food'),
-    opts.lat,
-    opts.lng,
+    origins,
     FOOD_MAX_DISTANCE_KM,
   );
   const attractions = rankCandidates(
     candidates.filter((candidate) => candidate.category === 'sight'),
-    opts.lat,
-    opts.lng,
+    origins,
     ATTRACTION_MAX_DISTANCE_KM,
   );
   return interleaveCandidates(food, attractions, limit);
@@ -228,7 +250,13 @@ export function getCourseCandidates(opts = {}) {
 export function rehydrateCandidates(candidateIds, lang = 'en') {
   if (!Array.isArray(candidateIds)) return [];
   const wantedLang = CANDIDATE_LANGS.includes(lang) ? lang : 'en';
-  const byId = new Map(allCandidates(wantedLang).map((candidate) => [candidate.candidateId, candidate]));
+  if (!_candidateMapCache.has(wantedLang)) {
+    _candidateMapCache.set(
+      wantedLang,
+      new Map(allCandidates(wantedLang).map((candidate) => [candidate.candidateId, candidate])),
+    );
+  }
+  const byId = _candidateMapCache.get(wantedLang);
   const seen = new Set();
   const out = [];
   for (const rawId of candidateIds) {
@@ -242,10 +270,18 @@ export function rehydrateCandidates(candidateIds, lang = 'en') {
   return out;
 }
 
-/** 식당 추천의 모델 생성 문구를 쓰지 않고 DB 숫자를 그대로 설명한다. */
+/** 모델 생성 문구를 쓰지 않고 서버가 확인 가능한 카탈로그 사실만 설명한다. */
 export function describeCatalogCandidate(candidate, lang = 'en') {
-  if (candidate?.category !== 'food') return '';
   const wantedLang = CANDIDATE_LANGS.includes(lang) ? lang : 'en';
+  if (candidate?.category !== 'food') {
+    const placeCopy = {
+      ko: '코코트립 장소 자료에 등록된 곳',
+      en: 'Listed in CocoTrip local place data',
+      ja: 'CocoTripのローカル場所データに登録',
+      zh: '已收录于CocoTrip本地地点数据',
+    };
+    return placeCopy[wantedLang];
+  }
   const rating = Number(candidate.rating).toFixed(1);
   const reviews = Number(candidate.reviewCount).toLocaleString('en-US');
   const copy = {

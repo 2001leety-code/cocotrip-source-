@@ -61,8 +61,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveAccount: 'Save to my account', saveDone: 'Saved to My Page!', saveFail: 'Save failed — try again',
     saved: 'Auto-saved on this device', stops: 'stops',
     search: 'Search', mapTitle: "This day's route",
-    aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI nearby picks', aiAdd: '+ Add',
+    aiOptimize: 'AI optimize route', aiBusy: 'Optimizing…', aiRecosTitle: 'AI-selected nearby picks', aiAdd: '+ Add',
+    catalogRecosTitle: 'CocoTrip nearby picks', mixedRecosTitle: 'AI + CocoTrip nearby picks',
+    aiFallback: 'AI route ordering was unavailable, so we used distance-based routing.',
+    aiDbBadge: 'AI-selected from CocoTrip data',
+    catalogUnavailable: 'Route order was calculated, but the local place catalog is temporarily unavailable.',
     dbBadge: 'CocoTrip local data',
+    dbCoverage: 'Restaurant data is currently concentrated in Seoul and Busan; other regions may show places only.',
     routeShow: 'Show transit route', routeAgain: 'Refresh route', routeBusy: 'Finding route…',
     routeNone: 'No transit route found for these stops', routeFail: "Couldn't load the route",
     aiLocked: 'AI optimize & nearby picks unlock with the {price} planner.',
@@ -96,8 +101,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveAccount: '내 계정에 저장', saveDone: '마이페이지에 저장됨!', saveFail: '저장 실패 — 다시 시도',
     saved: '이 기기에 자동 저장됨', stops: '개 장소',
     search: '검색', mapTitle: '이 날의 동선',
-    aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI 주변 추천', aiAdd: '+ 추가',
+    aiOptimize: 'AI 동선 최적화', aiBusy: '최적화 중…', aiRecosTitle: 'AI가 고른 주변 추천', aiAdd: '+ 추가',
+    catalogRecosTitle: '코코트립 주변 추천', mixedRecosTitle: 'AI + 코코트립 주변 추천',
+    aiFallback: 'AI 동선 순서를 사용할 수 없어 거리 계산 순서를 적용했어요.',
+    aiDbBadge: '코코트립 자료에서 AI가 선택',
+    catalogUnavailable: '동선 순서는 계산했지만 로컬 장소 자료를 잠시 불러오지 못했어요.',
     dbBadge: '코코트립 로컬 자료',
+    dbCoverage: '식당 자료는 현재 서울·부산 중심이며, 다른 지역은 장소 추천만 보일 수 있어요.',
     routeShow: '실제 경로 보기', routeAgain: '경로 다시 계산', routeBusy: '경로 찾는 중…',
     routeNone: '이 구간의 대중교통 경로를 못 찾았어요', routeFail: '경로를 불러오지 못했어요',
     aiLocked: 'AI 동선 최적화·주변 추천은 {price} 플래너에서 열려요.',
@@ -131,8 +141,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveAccount: 'アカウントに保存', saveDone: 'マイページに保存しました！', saveFail: '保存失敗 — もう一度',
     saved: 'この端末に自動保存', stops: 'か所',
     search: '検索', mapTitle: 'この日のルート',
-    aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AI周辺のおすすめ', aiAdd: '+ 追加',
+    aiOptimize: 'AIルート最適化', aiBusy: '最適化中…', aiRecosTitle: 'AIが選んだ周辺スポット', aiAdd: '+ 追加',
+    catalogRecosTitle: 'CocoTrip周辺スポット', mixedRecosTitle: 'AI + CocoTrip周辺スポット',
+    aiFallback: 'AIのルート順を利用できなかったため、距離順を適用しました。',
+    aiDbBadge: 'CocoTripデータからAIが選択',
+    catalogUnavailable: 'ルート順は計算しましたが、ローカル場所データを一時的に読み込めませんでした。',
     dbBadge: 'CocoTripローカルデータ',
+    dbCoverage: '飲食店データは現在ソウル・釜山が中心で、他地域では場所のみ表示される場合があります。',
     routeShow: '実際の経路を見る', routeAgain: '経路を再計算', routeBusy: '経路を検索中…',
     routeNone: 'この区間の公共交通の経路が見つかりません', routeFail: '経路を読み込めませんでした',
     aiLocked: 'AIルート最適化・周辺のおすすめは{price}プランで解放。',
@@ -166,8 +181,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     saveAccount: '保存到我的账户', saveDone: '已保存到我的页面！', saveFail: '保存失败 — 请重试',
     saved: '已自动保存到本设备', stops: '个地点',
     search: '搜索', mapTitle: '当天路线',
-    aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI周边推荐', aiAdd: '+ 添加',
+    aiOptimize: 'AI优化路线', aiBusy: '优化中…', aiRecosTitle: 'AI挑选的周边地点', aiAdd: '+ 添加',
+    catalogRecosTitle: 'CocoTrip周边地点', mixedRecosTitle: 'AI + CocoTrip周边地点',
+    aiFallback: 'AI路线排序暂时不可用，已采用距离排序。',
+    aiDbBadge: 'AI从CocoTrip数据中选择',
+    catalogUnavailable: '已计算路线顺序，但暂时无法加载本地点数据。',
     dbBadge: 'CocoTrip本地数据',
+    dbCoverage: '餐厅数据目前以首尔和釜山为主，其他地区可能只显示地点推荐。',
     routeShow: '查看实际路线', routeAgain: '重新计算路线', routeBusy: '正在查找路线…',
     routeNone: '未找到该区间的公共交通路线', routeFail: '无法加载路线',
     aiLocked: 'AI优化路线·周边推荐需{price}行程解锁。',
@@ -199,6 +219,7 @@ interface AiNearby {
   category: string;
   reason: string;
   address?: string;
+  selectionSource?: 'ai' | 'catalog';
 }
 
 const CATEGORIES = ['food', 'sight', 'show', 'stay', 'etc'] as const;
@@ -247,6 +268,7 @@ export function CourseBuilderShell() {
   const [routeSegs, setRouteSegs] = useState<{ to?: number; steps_detail?: TransitStepLike[] }[]>([]);
   const [routeBusy, setRouteBusy] = useState(false);
   const [aiRecos, setAiRecos] = useState<AiNearby[]>([]);
+  const [aiRecosMode, setAiRecosMode] = useState<'ai' | 'mixed' | 'catalog'>('catalog');
   // 저장 모달 (제목/날짜)
   const [showSave, setShowSave] = useState(false);
   const [saveTitle, setSaveTitle] = useState('');
@@ -350,6 +372,7 @@ export function CourseBuilderShell() {
     aiAbortRef.current = null;
     setRouteSegs([]);
     setAiRecos([]);
+    setAiRecosMode('catalog');
   }, [basisKey]);
 
   // 실경로 조회 — 활성 Day 의 좌표 있는 stop 을 course-route(TMAP)로 보내 실제
@@ -437,8 +460,16 @@ export function CourseBuilderShell() {
         if (Array.isArray(json.optimizedOrder) && json.optimizedOrder.length) {
           cb.reorderStops(cb.activeDay, json.optimizedOrder.map(String));
         }
+        const usedAi = json.source === 'ai';
+        const nearbyMode = json.nearbySelectionSource === 'ai' || json.nearbySelectionSource === 'mixed'
+          ? json.nearbySelectionSource
+          : 'catalog';
+        setAiRecosMode(nearbyMode);
         setAiRecos(Array.isArray(json.nearby) ? json.nearby : []);
-        trackCourseBuilderEvent('course_builder_optimize_result', { success: true, reason: 'ok', durationMs: performance.now() - startedAt, language: nameLang });
+        if (json.catalogAvailable === false) showFlash(t.catalogUnavailable);
+        else if (!usedAi) showFlash(t.aiFallback);
+        const resultReason = json.catalogAvailable === false ? 'catalog_unavailable' : (usedAi ? 'ai' : 'catalog_fallback');
+        trackCourseBuilderEvent('course_builder_optimize_result', { success: true, reason: resultReason, durationMs: performance.now() - startedAt, language: nameLang });
       } else {
         // 2026-07-17: 서버 실패(!ok)도 무피드백이었음 — 사용자 안내(코스 데이터는 무변).
         showFlash(t.aiFail);
@@ -675,8 +706,12 @@ export function CourseBuilderShell() {
             {aiRecos.length > 0 && (
               <div className="mt-2 rounded-ec-md border border-ec-line bg-ec-brand-wash p-2">
                 <p className="ec-eyebrow mb-1.5 flex items-center gap-1 text-ec-brand">
-                  <Sparkles className="h-3 w-3" /> {t.aiRecosTitle}
+                  <Sparkles className="h-3 w-3" /> {
+                    aiRecosMode === 'ai' ? t.aiRecosTitle
+                      : (aiRecosMode === 'mixed' ? t.mixedRecosTitle : t.catalogRecosTitle)
+                  }
                 </p>
+                <p className="mb-1.5 text-[9px] leading-relaxed text-ec-ink-3">{t.dbCoverage}</p>
                 <div className="flex flex-col gap-1">
                   {aiRecos.map((n, i) => (
                     <div key={i} className="flex items-center gap-2 rounded-ec-sm bg-ec-raised px-2 py-1.5">
@@ -685,7 +720,7 @@ export function CourseBuilderShell() {
                         {n.reason && <p className="truncate text-[10px] text-ec-ink-3">{n.reason}</p>}
                         {n.placeSource && (
                           <span className="mt-1 inline-flex rounded-full border border-ec-line px-1.5 py-0.5 text-[9px] font-bold text-ec-ink-3">
-                            {t.dbBadge}
+                            {n.selectionSource === 'ai' ? t.aiDbBadge : t.dbBadge}
                           </span>
                         )}
                       </div>

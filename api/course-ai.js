@@ -20,6 +20,7 @@ import { verifyUidFromAuthHeader, hasAiFeatureEntitlement } from './_shared/ai-e
 import { buildCourseAiContract, CourseAiContractError, mergeAnchoredOrder } from './_shared/courseAiContract.js';
 import {
   describeCatalogCandidate,
+  getCourseCandidateCatalogStatus,
   getCourseCandidates,
   rehydrateCandidates,
 } from './_shared/courseCandidateCatalog.js';
@@ -60,7 +61,7 @@ TASKS:
 Return STRICT JSON only, no markdown:
 {
   "optimizedOrder": ["<stop id in new order>", ...],   // MUST contain exactly the input ids, no more, no less
-  "nearby": [ { "candidateId": "<id from CANDIDATES>", "reason": "<short why, in the user's language>" } ]
+  "nearby": [ { "candidateId": "<id from CANDIDATES>" } ]
 }`;
 
 /** 최근접 이웃 순서 폴백 — Gemini 실패 시 좌표만으로 동선 근사. */
@@ -87,29 +88,32 @@ function nearestNeighborOrder(stops) {
   return ordered;
 }
 
-function withSafeCandidateReason(candidate, modelReason, lang) {
-  const catalogReason = describeCatalogCandidate(candidate, lang);
+function withSafeCandidateReason(candidate, lang, selectionSource = 'catalog') {
   return {
     ...candidate,
-    reason: catalogReason || String(modelReason || '').slice(0, 120),
+    reason: describeCatalogCandidate(candidate, lang),
+    selectionSource,
   };
 }
 
 function fallbackNearby(candidates, lang) {
-  return candidates.slice(0, 5).map((candidate) => withSafeCandidateReason(candidate, '', lang));
+  return candidates.slice(0, 5).map((candidate) => withSafeCandidateReason(candidate, lang, 'catalog'));
 }
 
 function resolveModelNearby(parsedNearby, candidates, lang) {
   const offeredIds = new Set(candidates.map((candidate) => candidate.candidateId));
-  const reasonById = new Map();
+  const selectedCandidateIds = [];
+  const seen = new Set();
   for (const item of Array.isArray(parsedNearby) ? parsedNearby : []) {
     const candidateId = typeof item?.candidateId === 'string' ? item.candidateId.trim() : '';
-    if (candidateId && offeredIds.has(candidateId) && !reasonById.has(candidateId)) {
-      reasonById.set(candidateId, String(item?.reason || '').slice(0, 120));
+    if (candidateId && offeredIds.has(candidateId) && !seen.has(candidateId)) {
+      selectedCandidateIds.push(candidateId);
+      seen.add(candidateId);
     }
   }
 
-  const selected = rehydrateCandidates([...reasonById.keys()], lang).slice(0, 5);
+  const selected = rehydrateCandidates(selectedCandidateIds, lang).slice(0, 5);
+  const aiSelectedIds = new Set(selected.map((candidate) => candidate.candidateId));
   const selectedIds = new Set(selected.map((candidate) => candidate.candidateId));
   const minimum = Math.min(3, candidates.length);
   for (const candidate of candidates) {
@@ -118,11 +122,17 @@ function resolveModelNearby(parsedNearby, candidates, lang) {
     selected.push(candidate);
     selectedIds.add(candidate.candidateId);
   }
-  return selected.map((candidate) => withSafeCandidateReason(
-    candidate,
-    reasonById.get(candidate.candidateId) || '',
-    lang,
-  ));
+  const source = aiSelectedIds.size === 0
+    ? 'catalog'
+    : (aiSelectedIds.size === selected.length ? 'ai' : 'mixed');
+  return {
+    nearby: selected.map((candidate) => withSafeCandidateReason(
+      candidate,
+      lang,
+      aiSelectedIds.has(candidate.candidateId) ? 'ai' : 'catalog',
+    )),
+    source,
+  };
 }
 
 export default async function handler(req, res) {
@@ -192,10 +202,10 @@ export default async function handler(req, res) {
   // 주변 추천 후보 — 선택된 stop 들의 중심 좌표 근방, 서버 카탈로그(api/_attractions_index.json)
   // 에서만 뽑는다. 좌표 있는 stop 이 하나도 없으면 후보 없음(추천 스킵, 위치 추측 금지).
   const coordStops = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
-  const candidates = coordStops.length
+  const catalogStatus = getCourseCandidateCatalogStatus();
+  const candidates = coordStops.length && catalogStatus.healthy
     ? getCourseCandidates({
-      lat: coordStops.reduce((sum, s) => sum + s.lat, 0) / coordStops.length,
-      lng: coordStops.reduce((sum, s) => sum + s.lng, 0) / coordStops.length,
+      origins: coordStops.map((s) => ({ lat: s.lat, lng: s.lng })),
       excludeStops: stops,
       lang,
       limit: 12,
@@ -211,7 +221,9 @@ export default async function handler(req, res) {
       optimizedOrder: fallbackOrder,
       nearby: deterministicNearby,
       source: 'nn',
-      nearbySource: 'cocotrip_catalog',
+      nearbySelectionSource: 'catalog',
+      nearbySource: catalogStatus.healthy ? 'cocotrip_catalog' : 'unavailable',
+      catalogAvailable: catalogStatus.healthy,
     }));
   }
 
@@ -231,7 +243,9 @@ export default async function handler(req, res) {
       optimizedOrder: fallbackOrder,
       nearby: deterministicNearby,
       source: 'nn',
-      nearbySource: 'cocotrip_catalog',
+      nearbySelectionSource: 'catalog',
+      nearbySource: catalogStatus.healthy ? 'cocotrip_catalog' : 'unavailable',
+      catalogAvailable: catalogStatus.healthy,
       rateLimited: true,
     }));
   }
@@ -289,15 +303,17 @@ export default async function handler(req, res) {
 
     // nearby — 모델은 이번 요청에서 실제 제시한 candidateId 만 고를 수 있다. 이름·좌표·평점은
     // 서버 카탈로그로 복원하며, 모델 선택이 부족하면 결정론적 후보로 최소 3개까지 채운다.
-    const nearby = resolveModelNearby(parsed?.nearby, candidates, lang);
+    const nearbyResult = resolveModelNearby(parsed?.nearby, candidates, lang);
 
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({
       ok: true,
       optimizedOrder: finalOrder,
-      nearby,
+      nearby: nearbyResult.nearby,
       source: valid ? 'ai' : 'nn',
-      nearbySource: 'cocotrip_catalog',
+      nearbySelectionSource: nearbyResult.source,
+      nearbySource: catalogStatus.healthy ? 'cocotrip_catalog' : 'unavailable',
+      catalogAvailable: catalogStatus.healthy,
     }));
   } catch (e) {
     console.warn('[course-ai] Gemini 실패 → 폴백:', e.message);
@@ -308,7 +324,9 @@ export default async function handler(req, res) {
       optimizedOrder: fallbackOrder,
       nearby: deterministicNearby,
       source: 'nn',
-      nearbySource: 'cocotrip_catalog',
+      nearbySelectionSource: 'catalog',
+      nearbySource: catalogStatus.healthy ? 'cocotrip_catalog' : 'unavailable',
+      catalogAvailable: catalogStatus.healthy,
     }));
   }
 }

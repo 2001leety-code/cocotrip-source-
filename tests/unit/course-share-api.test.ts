@@ -157,6 +157,23 @@ describe('POST /api/course-share', () => {
     const getJ = parse(getRes);
     expect(getJ.data.days[0].stops[0].stayMinutes).toBe(90);
   });
+
+  it('코코트립 식당 출처도 짧은 공유 주소에서 보존', async () => {
+    const res = mockRes();
+    const body = {
+      course: {
+        v: 1,
+        days: [{ stops: [{
+          title: '로컬 식당', time: '', category: 'food',
+          placeKey: 'food:google-place-id', placeSource: 'cocotrip-food',
+        }] }],
+      },
+    };
+    await handler({ method: 'POST', headers: {}, body } as any, res);
+    const j = parse(res);
+    expect(j.ok).toBe(true);
+    expect(docs.get(`shared_courses/${j.id}`).days[0].stops[0].placeSource).toBe('cocotrip-food');
+  });
 });
 
 describe('GET /api/course-share', () => {

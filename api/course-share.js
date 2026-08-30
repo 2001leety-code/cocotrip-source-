@@ -54,7 +54,7 @@ function isValidTimeConstraint(v) {
 }
 
 function isValidPlaceSource(v) {
-  return v === 'cocotrip-attractions';
+  return v === 'cocotrip-attractions' || v === 'cocotrip-food';
 }
 
 /**

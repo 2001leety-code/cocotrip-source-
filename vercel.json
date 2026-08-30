@@ -114,6 +114,10 @@
       "maxDuration": 60,
       "memory": 512
     },
+    "api/course-ai.js": {
+      "maxDuration": 30,
+      "includeFiles": "api/{_attractions_index,_food_index}.json"
+    },
     "api/pdf/generate.js": {
       "maxDuration": 60,
       "includeFiles": "fonts/**"
