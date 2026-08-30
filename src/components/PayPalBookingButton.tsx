@@ -14,6 +14,7 @@ import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
 import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
+import { charterCheckoutExpectedUsd, isPlanDetailDailyCharterProduct } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import type { Language } from '@/i18n';
 
@@ -168,6 +169,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const showCouponPicker = discountV2Enabled();
   // customAmountKRW (charter_custom_estimate) 가 있으면 priceKRW override — 5/4 추가
   const priceKRW = customAmountKRW != null && customAmountKRW > 0 ? customAmountKRW : rawPriceKRW;
+  const isCharterFamilyProduct = productType.startsWith('charter_')
+    || productType.startsWith('airport_')
+    || productType.startsWith('combo_');
   console.log('[PayPal Props]', { productType, passengers, dateStart, dateEnd, priceKRW });
   const [paypalReady, setPaypalReady] = useState(false);
   const [loading,     setLoading]     = useState(false);
@@ -223,8 +227,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     if (c.productScope === 'ai-plan') return false; // AI 무료쿠폰 제외(위)
     // 상품 스코프 불일치 쿠폰 숨김 — 투어 전용 쿠폰을 차터/공항/콤보 결제에 노출 X.
     // (서버 applyPromoCode 도 reject 하지만 프론트 picker 가 안 맞는 쿠폰을 보여주던 UX 갭 fix.)
-    const isCharterFamily = productType.startsWith('charter_') || productType.startsWith('airport_') || productType.startsWith('combo_');
-    if ((c.productScope === 'tour-package' || c.productScope === 'tour_package') && isCharterFamily) return false;
+    if ((c.productScope === 'tour-package' || c.productScope === 'tour_package') && isCharterFamilyProduct) return false;
     return true;
   });
   // B-9 (2026-05-12): authUser / authUserId \ub294 \ucef4\ud3ec\ub10c\ud2b8 \uc0c1\ub2e8\uc5d0\uc11c \uc774\ubbf8 \ud638\ucd9c\ub428.
@@ -315,6 +318,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
 
   const effectiveKRW = discountedKRW ?? priceKRW;
+  const expectedUSDForCheckout = isPlanDetailDailyCharterProduct(productType)
+    ? charterCheckoutExpectedUsd(expectedUSD, effectiveKRW, promoApplied)
+    : expectedUSD;
 
   // ── PayPal SDK 동적 로드 ─────────────────────────────────────────
   // 2026-05-03 사용자 신고: prod에서 SDK timeout 발생 + "다시 시도" 버튼이 실제로
@@ -601,7 +607,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           productType, passengers, dateStart, dateEnd, language: lang,
           userEmail,
           // 표시가==청구가 대조용 (서버가 불일치 시 409).
-          ...(typeof expectedUSD === 'number' ? { expectedUSD } : {}),
+          ...(typeof expectedUSDForCheckout === 'number' ? { expectedUSD: expectedUSDForCheckout } : {}),
           // PR-R (2026-05-08): 마감 검증용 — pickupTime + durationDays
           ...(pickupTime ? { pickupTime } : {}),
           ...(typeof durationDays === 'number' ? { durationDays } : {}),
@@ -686,8 +692,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   그대로 준다. 여기서 다시 나눗셈하면 "$89.14 표시 / $89 청구" 같은 소수점 어긋남이 생긴다.
   const estimatedUSD = rateInfo
     ? rateInfo.displayUSD
-    : (typeof expectedUSD === 'number' && expectedUSD > 0
-        ? `$${expectedUSD.toLocaleString('en-US')} USD`
+    : (typeof expectedUSDForCheckout === 'number' && expectedUSDForCheckout > 0
+        ? `$${expectedUSDForCheckout.toLocaleString('en-US')} USD`
         : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`);
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────

@@ -158,6 +158,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
                 defaultDate={startDate}
                 defaultPax={pax}
                 planId={planId}
+                plan={plan}
               />
             </div>
           )}

@@ -78,8 +78,8 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
   // hotels"). 사용자가 입력한 destination / regions[0] (한/영/일/중) 우선,
   // 마지막에만 normalize key 또는 'Seoul' fallback.
   const rawRegion =
-    (input.destination as string) ||
     ((input.regions as string[] | undefined)?.[0]) ||
+    (input.destination as string) ||
     (input.area as string) ||
     'Seoul';
   // 누적된 underscore key (seoul_city, seoul_suburb 등) 가 어떤 경로로든 들어와도
@@ -188,6 +188,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
                 defaultDate={startDate}
                 defaultPax={pax}
                 planId={planId}
+                plan={plan}
               />
             )}
             {extras.includes('carRental') && <CarRentalAd region={region} />}

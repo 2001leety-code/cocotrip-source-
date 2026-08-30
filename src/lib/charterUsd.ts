@@ -16,6 +16,21 @@
  */
 import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
+const PLAN_DETAIL_DAILY_CHARTER_PRODUCTS = new Set([
+  'charter_seoul_city',
+  'charter_seoul_suburb',
+  'charter_dmz',
+  'charter_gangwon',
+  'charter_ski',
+  'charter_gyeongju',
+  'charter_busan',
+]);
+
+/** 이번 PlanDetail 일일 차터 결제 경로만 할인 후 예상 USD 대조를 갱신한다. */
+export function isPlanDetailDailyCharterProduct(productType: string): boolean {
+  return PLAN_DETAIL_DAILY_CHARTER_PRODUCTS.has(String(productType || '').trim());
+}
+
 /**
  * 차터 KRW → 청구 USD (정수). 서버 청구 공식과 동일한 순수 함수.
  * 유효하지 않은 입력은 0 — 호출부가 "표시 안 함" 으로 분기할 수 있게 한다.
@@ -24,6 +39,21 @@ export function charterUsdFromKrw(krwAmount: number | null | undefined): number 
   const krw = Number(krwAmount);
   if (!Number.isFinite(krw) || krw <= 0) return 0;
   return Math.round(krw / CHARTER_USD_FIX_RATE);
+}
+
+/**
+ * 쿠폰 적용 뒤 화면 KRW와 주문 생성 전 expectedUSD를 같은 금액으로 맞춘다.
+ * 할인 전에는 호출부가 약속한 USD를 그대로 보존하고, 할인 후에만 서버와 같은
+ * 고정환율·정수 반올림 공식을 다시 적용한다.
+ */
+export function charterCheckoutExpectedUsd(
+  expectedUsd: number | null | undefined,
+  displayedKrw: number,
+  discountApplied: boolean,
+): number | undefined {
+  const expected = Number(expectedUsd);
+  if (!Number.isFinite(expected) || expected <= 0) return undefined;
+  return discountApplied ? charterUsdFromKrw(displayedKrw) : expected;
 }
 
 /** "$89" — 통화 코드 없이. */

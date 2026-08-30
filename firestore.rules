@@ -354,7 +354,7 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     // charter_inquiries — Plan 페이지에서 "전세차량 견적 요청" (인앱)
     //   create: 누구나 (이메일+요청정보 제출)
-    //   read:   본인(이메일 매칭) 또는 어드민
+    //   read:   어드민만 (고객용 조회 화면 없음; 이메일만 맞춘 직접 조회는 차단)
     //   update/delete: 어드민만
     // ─────────────────────────────────────────────────────────
     match /charter_inquiries/{inquiryId} {
@@ -363,6 +363,13 @@ service cloud.firestore {
       //   PR#445 패턴). 현재 앱은 서버 API로 통합됐지만, 업데이트 전 PWA의 직접 쓰기
       //   호환 기간에는 notes/name/phone cap을 유지한다. 신규 정본 status는 NEW다.
       allow create: if request.resource.data.keys().hasAll(['email', 'status', 'createdAt'])
+                    // 과거 PWA 필드만 허용. vehicle/contractVersion/quote 는 Admin SDK 전용이라
+                    // 클라이언트가 "서버 검증 견적"을 위조할 수 없다.
+                    && request.resource.data.keys().hasOnly([
+                      'email', 'name', 'phone', 'notes', 'planId', 'recommendedTour',
+                      'quotedKRW', 'hours', 'startDate', 'pax', 'dayCount',
+                      'itinerarySummary', 'status', 'source', 'createdAt'
+                    ])
                     && request.resource.data.status == 'pending'
                     && request.resource.data.email is string
                     && request.resource.data.email.size() >= 5
@@ -375,9 +382,29 @@ service cloud.firestore {
                         || (request.resource.data.name is string && request.resource.data.name.size() <= 200))
                     && (!('phone' in request.resource.data)
                         || request.resource.data.phone == null
-                        || (request.resource.data.phone is string && request.resource.data.phone.size() <= 50));
-      allow read:   if isAdminEmail()
-                    || (isSignedIn() && resource.data.email == request.auth.token.email);
+                        || (request.resource.data.phone is string && request.resource.data.phone.size() <= 50))
+                    && (!('recommendedTour' in request.resource.data)
+                        || (request.resource.data.recommendedTour is string && request.resource.data.recommendedTour.size() <= 200))
+                    && (!('planId' in request.resource.data)
+                        || request.resource.data.planId == null
+                        || (request.resource.data.planId is string && request.resource.data.planId.size() <= 200))
+                    && (!('startDate' in request.resource.data)
+                        || request.resource.data.startDate == null
+                        || (request.resource.data.startDate is string && request.resource.data.startDate.size() <= 40))
+                    && (!('pax' in request.resource.data)
+                        || request.resource.data.pax == null
+                        || (request.resource.data.pax is int && request.resource.data.pax >= 1 && request.resource.data.pax <= 999))
+                    && (!('dayCount' in request.resource.data)
+                        || (request.resource.data.dayCount is int && request.resource.data.dayCount >= 0 && request.resource.data.dayCount <= 30))
+                    && (!('source' in request.resource.data)
+                        || (request.resource.data.source is string && request.resource.data.source.size() <= 80))
+                    && (!('quotedKRW' in request.resource.data)
+                        || (request.resource.data.quotedKRW is int && request.resource.data.quotedKRW > 0 && request.resource.data.quotedKRW <= 100000000))
+                    && (!('hours' in request.resource.data)
+                        || (request.resource.data.hours is number && request.resource.data.hours > 0 && request.resource.data.hours <= 24))
+                    && (!('itinerarySummary' in request.resource.data)
+                        || (request.resource.data.itinerarySummary is list && request.resource.data.itinerarySummary.size() <= 7));
+      allow read:   if isAdminEmail();
       allow update, delete: if isAdminEmail();
     }
 

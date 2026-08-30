@@ -32,6 +32,37 @@ export function inquiryContact(row: { email?: string | null; phone?: string | nu
   return row.email || row.phone || row.whatsapp || '(연락처 없음)';
 }
 
+interface InquiryQuoteLike {
+  currency?: string;
+  amountKRW?: number;
+  hours?: number;
+  provenance?: string;
+  kind?: string;
+}
+
+/** 신규 서버 정본 견적인지 판별. 과거 PWA 직접 저장 금액은 항상 미검증으로 남긴다. */
+export function isServerVerifiedInquiryQuote(row: {
+  vehicle?: string | null;
+  contractVersion?: string | null;
+  quotedKRW?: number;
+  hours?: number;
+  quote?: InquiryQuoteLike | null;
+}): boolean {
+  const quote = row.quote;
+  return row.vehicle === 'charter'
+    && row.contractVersion === 'inquiry.v2'
+    && !!quote
+    && quote.currency === 'KRW'
+    && quote.provenance === 'server_pricing_spec'
+    && quote.kind === 'reference'
+    && typeof quote.amountKRW === 'number'
+    && Number.isSafeInteger(quote.amountKRW)
+    && quote.amountKRW === row.quotedKRW
+    && typeof quote.hours === 'number'
+    && Number.isFinite(quote.hours)
+    && quote.hours === row.hours;
+}
+
 export const REGION_LABELS: Record<string, string> = {
   seoul: '서울', busan: '부산', jeju: '제주', other: '기타',
 };
