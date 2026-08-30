@@ -64,6 +64,51 @@
   color: var(--ec-brand);
 }
 
+/* 데스크톱 첫 화면에 실제 상품 진입점을 둔다. 전체 목록 카드와 같은 링크·예약 배선을
+   재사용하되, 중복 노출에서는 식별에 필요한 정보만 남겨 랜딩 히어로가 커지지 않게 한다. */
+.tours-catalog-featured {
+  display: none;
+}
+
+@media (min-width: 981px) {
+  .tours-catalog-masthead {
+    align-items: start;
+  }
+
+  .tours-catalog-featured {
+    display: grid;
+    width: min(352px, 32vw);
+    gap: 10px;
+    margin-top: 0;
+  }
+
+  .tours-catalog-featured .tour-catalog-card-media {
+    height: 148px;
+  }
+
+  .tours-catalog-featured .tour-catalog-card-body {
+    padding: 16px;
+  }
+
+  .tours-catalog-featured .tour-catalog-card-summary,
+  .tours-catalog-featured .tour-catalog-card-facts,
+  .tours-catalog-featured .tour-catalog-card-season,
+  .tours-catalog-featured .tour-catalog-card-included,
+  .tours-catalog-featured .tour-catalog-card-evidence,
+  .tours-catalog-featured .tour-catalog-card-wishlist {
+    display: none;
+  }
+
+  .tours-catalog-featured .tour-catalog-card-price {
+    padding-top: 6px;
+  }
+
+  .tours-catalog-featured .tour-catalog-card-footer {
+    min-height: 44px;
+    padding-top: 10px;
+  }
+}
+
 .tours-catalog-trust {
   padding-block: 40px 44px;
   color: var(--ec-text-on-inverse);
@@ -955,7 +1000,7 @@
 
   .tours-catalog-masthead {
     grid-template-columns: minmax(0, 1fr);
-    padding-block: 14px 12px;
+    padding-block: 10px 8px;
     row-gap: 0;
   }
 
@@ -1039,17 +1084,40 @@
   .tours-catalog-season-mobile {
     display: -webkit-box;
     margin: 0;
-    padding-block: 6px 8px;
+    padding-block: 4px 6px;
     overflow: hidden;
     color: var(--ec-text-secondary);
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.4;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
   }
 
+  .tours-catalog-destinations .ec-eyebrow,
+  .tours-catalog-filter-heading .ec-eyebrow {
+    display: none;
+  }
+
+  .tours-catalog-destinations .ec-h2,
+  .tours-catalog-filter-heading .ec-h2 {
+    margin-top: 0;
+  }
+
+  /* 모바일 바의 '필터'·정렬이 역할을 직접 말하므로 중복 표제는 보조기술에만 남긴다. */
+  .tours-catalog-filter-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .tours-catalog-destinations {
-    padding-block: 20px 16px;
+    padding-block: 12px 8px;
   }
 
   /* 필터 밴드와 결과 사이 이음매는 밴드 하단 패딩 + 계절 문구 자체 패딩이 이미 벌려준다.
@@ -1061,8 +1129,12 @@
   .tours-catalog-section-heading,
   .tours-catalog-results-heading {
     grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .tours-catalog-results-heading {
+    padding-bottom: 8px;
   }
 
   .tours-catalog-section-heading .ec-h2 {
@@ -1087,12 +1159,12 @@
   }
 
   .tours-catalog-region-card {
-    grid-template-rows: 90px auto;
+    grid-template-rows: 64px auto;
   }
 
   .tours-catalog-region-card img,
   .tours-catalog-region-placeholder {
-    height: 90px;
+    height: 64px;
   }
 
   .tours-catalog-region-copy {

@@ -65,6 +65,8 @@ describe('사용자가 누르면 열린다', () => {
     render(<CharterIntroModal />);
     const trigger = screen.getByTestId('charter-how-it-works');
     expect(dialog()).toBeNull();
+    expect(trigger.className).toContain('min-h-[44px]');
+    expect(trigger.className).toContain('focus-visible:ring-2');
 
     act(() => { fireEvent.click(trigger); });
     expect(dialog()).not.toBeNull();

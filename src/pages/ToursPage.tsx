@@ -6,7 +6,6 @@ import {
   CreditCard,
   ExternalLink,
   Languages,
-  Package,
   Phone,
   Search,
   ShieldCheck,
@@ -536,6 +535,7 @@ export default function ToursPage() {
   ];
 
   const seasonTip = SEASON_TIPS[currentSeason(new Date().getMonth() + 1)];
+  const featuredTour = getToursByRegion('All')[0];
 
   return (
     <div
@@ -552,10 +552,12 @@ export default function ToursPage() {
             <h1 className="ec-display">{tl.pageTitle}</h1>
             <p className="ec-body ec-measure tours-catalog-deck">{tl.pageSubtitle}</p>
           </div>
-          <div className="tours-catalog-masthead-mark" aria-hidden>
-            <Package />
-            <span>CocoTrip</span>
-          </div>
+          {featuredTour && (
+            <aside className="tours-catalog-featured" aria-label={tl.catalogueSectionLabel}>
+              <p className="ec-eyebrow">{tl.catalogueSectionLabel}</p>
+              <TourCard tour={featuredTour} language={language} />
+            </aside>
+          )}
         </header>
 
         <section className="tours-catalog-trust" aria-labelledby="tours-trust-title">

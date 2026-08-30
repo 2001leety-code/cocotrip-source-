@@ -92,7 +92,7 @@ export function AIIntroModal() {
           <button
             ref={closeRef}
             onClick={handleClose}
-            className="ec-btn ec-btn-quiet ec-btn-sm shrink-0"
+            className="ec-btn ec-btn-quiet ec-btn-sm min-h-[44px] min-w-[44px] shrink-0"
             aria-label="Close"
             type="button"
           >

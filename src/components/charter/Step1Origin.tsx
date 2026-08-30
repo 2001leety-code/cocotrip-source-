@@ -25,6 +25,12 @@ const SEARCH_PLACEHOLDER: Record<Lang, string> = {
   ja: '空港・都市検索（例: ICN、仁川）',
   zh: '搜索机场·城市（例: ICN、仁川）',
 };
+const SEARCH_LABEL: Record<Lang, string> = {
+  ko: '공항 또는 도시 검색',
+  en: 'Search airport or city',
+  ja: '空港または都市を検索',
+  zh: '搜索机场或城市',
+};
 const NO_MATCH: Record<Lang, string> = {
   ko: '검색 결과 없음 — 아래 자유 주소 검색을 써보세요',
   en: 'No match — try the free address search below',
@@ -153,6 +159,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-label={SEARCH_LABEL[lang]}
           placeholder={SEARCH_PLACEHOLDER[lang]}
           className="min-h-[44px] w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-base text-white outline-none placeholder:text-white/40 focus:border-[#B668FC]/40 sm:py-2.5"
         />
