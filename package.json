@@ -32,6 +32,7 @@
     "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com",
     "audit:design:ops": "node scripts/design-ops-audit.mjs",
     "audit:design:ops:strict": "node scripts/design-ops-audit.mjs --strict",
+    "play:preflight": "node scripts/google-play-preflight.mjs",
     "plan:test": "node scripts/plan-local/run.mjs",
     "plan:record": "node scripts/plan-local/record.mjs",
     "seo:indexnow": "node scripts/submit-indexnow.mjs",

@@ -7,6 +7,7 @@ import {
   Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
   Map as MapIcon, FileText, History, Globe, Ticket, Timer, CloudSun, Sparkles,
+  UserRoundX,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -101,10 +102,10 @@ const REVIEW_COPY = {
 } as const;
 
 const MYPAGE_UI_COPY = {
-  ko: { tabsLabel: '마이페이지 메뉴', loading: '계정 정보를 불러오는 중', loadingReviews: '리뷰를 불러오는 중', balance: '보유', offCoupon: '할인 쿠폰', redeeming: '교환 중', expires: '만료일', copyCode: '쿠폰 코드 복사', fixtureBoundaryTitle: '읽기 전용 미리보기', fixtureBoundaryBody: '실제 예약·코스 정보는 불러오지 않습니다.' },
-  en: { tabsLabel: 'My page sections', loading: 'Loading your account', loadingReviews: 'Loading your reviews', balance: 'Balance', offCoupon: 'OFF coupon', redeeming: 'Redeeming', expires: 'Expires', copyCode: 'Copy coupon code', fixtureBoundaryTitle: 'Read-only preview', fixtureBoundaryBody: 'Live booking and course data is not loaded.' },
-  ja: { tabsLabel: 'マイページのメニュー', loading: 'アカウント情報を読み込み中', loadingReviews: 'レビューを読み込み中', balance: '残高', offCoupon: '割引クーポン', redeeming: '交換中', expires: '有効期限', copyCode: 'クーポンコードをコピー', fixtureBoundaryTitle: '読み取り専用プレビュー', fixtureBoundaryBody: '実際の予約・コース情報は読み込みません。' },
-  zh: { tabsLabel: '我的页面菜单', loading: '正在加载账户信息', loadingReviews: '正在加载评价', balance: '余额', offCoupon: '优惠券', redeeming: '兑换中', expires: '有效期至', copyCode: '复制优惠券代码', fixtureBoundaryTitle: '只读预览', fixtureBoundaryBody: '不会加载真实的预订和课程数据。' },
+  ko: { tabsLabel: '마이페이지 메뉴', loading: '계정 정보를 불러오는 중', loadingReviews: '리뷰를 불러오는 중', balance: '보유', offCoupon: '할인 쿠폰', redeeming: '교환 중', expires: '만료일', copyCode: '쿠폰 코드 복사', fixtureBoundaryTitle: '읽기 전용 미리보기', fixtureBoundaryBody: '실제 예약·코스 정보는 불러오지 않습니다.', accountDeletion: '계정 삭제 요청' },
+  en: { tabsLabel: 'My page sections', loading: 'Loading your account', loadingReviews: 'Loading your reviews', balance: 'Balance', offCoupon: 'OFF coupon', redeeming: 'Redeeming', expires: 'Expires', copyCode: 'Copy coupon code', fixtureBoundaryTitle: 'Read-only preview', fixtureBoundaryBody: 'Live booking and course data is not loaded.', accountDeletion: 'Request account deletion' },
+  ja: { tabsLabel: 'マイページのメニュー', loading: 'アカウント情報を読み込み中', loadingReviews: 'レビューを読み込み中', balance: '残高', offCoupon: '割引クーポン', redeeming: '交換中', expires: '有効期限', copyCode: 'クーポンコードをコピー', fixtureBoundaryTitle: '読み取り専用プレビュー', fixtureBoundaryBody: '実際の予約・コース情報は読み込みません。', accountDeletion: 'アカウント削除リクエスト' },
+  zh: { tabsLabel: '我的页面菜单', loading: '正在加载账户信息', loadingReviews: '正在加载评价', balance: '余额', offCoupon: '优惠券', redeeming: '兑换中', expires: '有效期至', copyCode: '复制优惠券代码', fixtureBoundaryTitle: '只读预览', fixtureBoundaryBody: '不会加载真实的预订和课程数据。', accountDeletion: '申请删除账户' },
 } as const;
 
 const DATE_LOCALE = { ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' } as const;
@@ -540,6 +541,7 @@ export default function MyPage() {
                     { kind: 'tab', tab: 'bookings', icon: History, label: t.nav.bookingHistory || 'Booking History' },
                     { kind: 'tab', tab: 'coupons', icon: Ticket, label: t.nav.coupons || 'Coupons' },
                     { kind: 'tab', tab: 'reviews', icon: Star, label: t.nav.reviews || 'Reviews' },
+                    { kind: 'link', to: '/account-deletion', icon: UserRoundX, label: uiCopy.accountDeletion },
                   ];
                   return items.map((it) => {
                     const Icon = it.icon;
