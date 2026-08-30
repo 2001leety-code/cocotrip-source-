@@ -1,0 +1,77 @@
+{
+  "schema_version": "cocotrip.design-surfaces.v1",
+  "status": "active",
+  "project": "web",
+  "language_storage_key": "cocotrip_lang",
+  "languages": ["ko", "en", "ja", "zh"],
+  "viewports": [
+    {
+      "id": "mobile-390",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "desktop-1280",
+      "width": 1280,
+      "height": 800
+    }
+  ],
+  "policy": {
+    "minimum_major_touch_px": 44,
+    "navigation_timeout_ms": 30000,
+    "settle_timeout_ms": 10000,
+    "block_non_read_methods": true
+  },
+  "surfaces": [
+    {
+      "id": "home",
+      "path": "/",
+      "status": "active",
+      "audience": "public",
+      "requirements": {
+        "visible_h1": true,
+        "primary_action_selector": "a[href=\"/planner\"]"
+      }
+    },
+    {
+      "id": "planner",
+      "path": "/planner",
+      "status": "active",
+      "audience": "public",
+      "requirements": {
+        "visible_h1": true,
+        "primary_action_selector": "[aria-labelledby=\"planner-mode-heading\"] button"
+      }
+    },
+    {
+      "id": "tours",
+      "path": "/tours",
+      "status": "active",
+      "audience": "public",
+      "requirements": {
+        "visible_h1": true,
+        "primary_action_selector": ".tour-catalog-card-link"
+      }
+    },
+    {
+      "id": "charter",
+      "path": "/charter",
+      "status": "active",
+      "audience": "public",
+      "requirements": {
+        "visible_h1": true,
+        "primary_action_selector": "[data-origin-code=\"ICN\"]"
+      }
+    },
+    {
+      "id": "assistant",
+      "path": "/assistant",
+      "status": "active",
+      "audience": "public",
+      "requirements": {
+        "visible_h1": true,
+        "primary_action_selector": ".assistant-editorial-input"
+      }
+    }
+  ]
+}
