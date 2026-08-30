@@ -9,8 +9,9 @@
  * Body:
  *   {
  *     name, email, phone?, whatsapp?, eventDate, pax,
- *     vehicle: 'bus' | 'tour_custom',
+ *     vehicle: 'bus' | 'tour_custom' | 'charter',
  *     details, region?, theme?, budget?,
+ *     planId?, recommendedTour?, quotedKRW?, hours?, startDate?, dayCount?, itinerarySummary?,
  *     language: 'ko'|'en'|'ja'|'zh',
  *     wizardSnapshot: { origin, service, destinationKey, destinationCustom }
  *   }
@@ -30,6 +31,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { detectAndTranslate } from './_shared/translator.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+import { verifyFirebaseIdentityToken } from './_shared/user-auth.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -103,8 +105,14 @@ const JSON_HEADERS = {
 
 // 2026-06-30: vip 선택지 제거 → 신규 협의 폼은 bus 만 허용. (과거 vip 예약 레코드 표시는 별도 라벨로 보존.)
 // 2026-07-02: tour_custom 추가 — 투어 페이지 맞춤형 투어 견적 문의 (결제 없음, 상담만).
-const ALLOWED_VEHICLES = new Set(['bus', 'tour_custom']);
+// 2026-08-30: plan-detail 차터 직접 Firestore write를 서버 계약으로 통합 — charter 추가.
+const ALLOWED_VEHICLES = new Set(['bus', 'tour_custom', 'charter']);
 const ALLOWED_LANGS = new Set(['ko', 'en', 'ja', 'zh']);
+const ALLOWED_SOURCES = new Set([
+  'charter_wizard',
+  'tour_custom_modal',
+  'plan_detail_charter_banner',
+]);
 
 function _err(error, code = 'UNKNOWN_ERROR') {
   return { success: false, error, code };
@@ -144,6 +152,7 @@ export default async function handler(req, res) {
       pax,
       vehicle = '',
       details = '',
+      notes = '',
       region = '',
       theme = '',
       budget = '',
@@ -151,23 +160,66 @@ export default async function handler(req, res) {
       duration = '',
       language = 'en',
       wizardSnapshot = null,
+      planId = '',
+      recommendedTour = '',
+      quotedKRW = 0,
+      hours = 0,
+      startDate = '',
+      dayCount = 0,
+      itinerarySummary = [],
+      source = '',
     } = body;
 
     // 입력 검증 — silent fail X, 명시적 에러 코드.
     // tour_custom (투어 페이지 맞춤 문의): 이메일 또는 전화 중 하나 필수, 날짜/상세는 선택.
     const isTourCustom = String(vehicle) === 'tour_custom';
-    const trimmedName = String(name).trim();
-    const trimmedEmail = String(email).trim().toLowerCase();
+    const isPlanCharter = String(vehicle) === 'charter';
+    const trimmedName = String(name).trim().slice(0, 200);
+    const trimmedEmail = String(email).trim().toLowerCase().slice(0, 200);
     const trimmedPhone = String(phone).trim().slice(0, 40);
     const trimmedWhatsapp = String(whatsapp).trim().slice(0, 40);
     const trimmedEventDate = String(eventDate || '').trim().slice(0, 40);
-    const trimmedDetails = String(details).trim();
+    const trimmedNotes = String(notes || '').trim().slice(0, 5000);
+    const trimmedDetails = String(details || trimmedNotes).trim().slice(0, 5000);
     const trimmedRegion = String(region).trim().slice(0, 40);
     const trimmedTheme = String(theme).trim().slice(0, 200);
     const trimmedBudget = String(budget).trim().slice(0, 40);
     const trimmedTravelStyle = String(travelStyle).trim().slice(0, 40);
     const trimmedDuration = String(duration).trim().slice(0, 40);
-    if (trimmedName.length < 2) {
+    const trimmedPlanId = String(planId || '').trim().slice(0, 200);
+    const trimmedRecommendedTour = String(recommendedTour || '').trim().slice(0, 200);
+    const trimmedStartDate = String(startDate || trimmedEventDate || '').trim().slice(0, 40);
+    const normalizedQuotedKRW = Number.isSafeInteger(Number(quotedKRW))
+      ? Math.min(Math.max(Number(quotedKRW), 0), 100_000_000)
+      : 0;
+    const normalizedHours = Number.isFinite(Number(hours))
+      ? Math.min(Math.max(Number(hours), 0), 168)
+      : 0;
+    const normalizedDayCount = Number.isSafeInteger(Number(dayCount))
+      ? Math.min(Math.max(Number(dayCount), 0), 90)
+      : 0;
+    const normalizedItinerary = Array.isArray(itinerarySummary)
+      ? itinerarySummary.slice(0, 7).map((item, index) => ({
+        day: Number.isSafeInteger(Number(item && item.day)) ? Number(item.day) : index + 1,
+        theme: String((item && item.theme) || '').trim().slice(0, 120),
+        stopCount: Number.isSafeInteger(Number(item && item.stopCount))
+          ? Math.min(Math.max(Number(item.stopCount), 0), 50)
+          : 0,
+      }))
+      : [];
+    const normalizedWizardSnapshot = wizardSnapshot && typeof wizardSnapshot === 'object'
+      ? {
+        origin: String(wizardSnapshot.origin || '').trim().slice(0, 200) || null,
+        service: String(wizardSnapshot.service || '').trim().slice(0, 80) || null,
+        destinationKey: String(wizardSnapshot.destinationKey || '').trim().slice(0, 120) || null,
+        destinationCustom: String(wizardSnapshot.destinationCustom || '').trim().slice(0, 200) || null,
+      }
+      : null;
+    const normalizedSource = ALLOWED_SOURCES.has(String(source))
+      ? String(source)
+      : isPlanCharter ? 'plan_detail_charter_banner' : isTourCustom ? 'tour_custom_modal' : 'charter_wizard';
+
+    if (!isPlanCharter && trimmedName.length < 2) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('name required (min 2 chars)', 'INVALID_NAME')));
     }
@@ -187,7 +239,7 @@ export default async function handler(req, res) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('email required', 'INVALID_EMAIL')));
     }
-    if (!isTourCustom) {
+    if (!isTourCustom && !isPlanCharter) {
       if (!eventDate || typeof eventDate !== 'string') {
         res.writeHead(400, JSON_HEADERS);
         return res.end(JSON.stringify(_err('eventDate required', 'INVALID_DATE')));
@@ -205,27 +257,22 @@ export default async function handler(req, res) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('vehicle not allowed', 'INVALID_VEHICLE')));
     }
-    if (!isTourCustom && trimmedDetails.length < 5) {
+    if (!isTourCustom && !isPlanCharter && trimmedDetails.length < 5) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('details too short', 'INVALID_DETAILS')));
     }
     const lang = ALLOWED_LANGS.has(language) ? language : 'en';
 
-    // 옵션 인증 — 토큰 있으면 uid 추출.
+    // 옵션 인증 — 헤더가 없으면 게스트, 있으면 Firebase 검증 실패를 익명으로 강등하지 않는다.
     let userId = null;
     const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
-    const tokenMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
-    if (tokenMatch) {
-      try {
-        const { getAuth } = await import('firebase-admin/auth');
-        const { getApps } = await import('firebase-admin/app');
-        if (getApps().length > 0) {
-          const decoded = await getAuth().verifyIdToken(tokenMatch[1]);
-          userId = decoded.uid;
-        }
-      } catch (e) {
-        console.warn('[inquiry-submit] token verify failed:', e.message);
+    if (String(authHeader).trim()) {
+      const auth = await verifyFirebaseIdentityToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status || 401, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('Invalid sign-in token', 'AUTH_INVALID')));
       }
+      userId = auth.uid;
     }
 
     const adminDb = initAdminDb('inquiry-submit');
@@ -256,15 +303,27 @@ export default async function handler(req, res) {
       whatsapp: trimmedWhatsapp || null,
       eventDate: trimmedEventDate || null,
       pax: paxNum,
-      vehicle,
+      vehicle: String(vehicle),
       details: trimmedDetails,
+      // 기존 차터 문의 관리 화면·과거 문서 필드 호환. 신규 정본은 details다.
+      notes: isPlanCharter ? (trimmedNotes || trimmedDetails || null) : null,
       region: trimmedRegion || null,
       theme: trimmedTheme || null,
       budget: trimmedBudget || null,
       travelStyle: trimmedTravelStyle || null,
       duration: trimmedDuration || null,
       language: lang,
-      wizardSnapshot: wizardSnapshot || null,
+      wizardSnapshot: normalizedWizardSnapshot,
+      planId: isPlanCharter ? (trimmedPlanId || null) : null,
+      recommendedTour: isPlanCharter ? (trimmedRecommendedTour || null) : null,
+      quotedKRW: isPlanCharter ? normalizedQuotedKRW : null,
+      hours: isPlanCharter ? normalizedHours : null,
+      startDate: isPlanCharter ? (trimmedStartDate || null) : null,
+      dayCount: isPlanCharter ? normalizedDayCount : null,
+      itinerarySummary: isPlanCharter ? normalizedItinerary : null,
+      source: normalizedSource,
+      contractVersion: 'inquiry.v1',
+      quoteContextTrusted: false,
       userId,
       status: 'NEW',
       createdAt: FieldValue.serverTimestamp(),
@@ -278,7 +337,11 @@ export default async function handler(req, res) {
     // 번역 실패는 silent — 원문은 항상 유지.
     try {
       // 신규 협의 폼은 bus / tour_custom (vip 는 더 이상 도달 안 함).
-      const vehicleLabel = isTourCustom ? '맞춤형 투어 (Custom Tour)' : '대형버스 (Bus)';
+      const vehicleLabel = isTourCustom
+        ? '맞춤형 투어 (Custom Tour)'
+        : isPlanCharter
+          ? '플랜 연계 차터 견적 (Plan Charter)'
+          : '대형버스 (Bus)';
       const submittedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 
       // 행사 내용 한글 번역 시도. (tour_custom 은 요청사항 선택 입력 — 비어 있으면 스킵.)
@@ -306,7 +369,11 @@ export default async function handler(req, res) {
       const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
       const lines = [
-        isTourCustom ? '🎯 <b>새 맞춤 투어 문의</b>' : '📨 <b>새 차터 상담 문의</b>',
+        isTourCustom
+          ? '🎯 <b>새 맞춤 투어 문의</b>'
+          : isPlanCharter
+            ? '🚐 <b>새 플랜 연계 차터 견적 문의</b>'
+            : '📨 <b>새 차터 상담 문의</b>',
         '',
         `<b>문의번호:</b> <code>${inquiryId}</code>`,
         `<b>${isTourCustom ? '여행 일자' : '행사 일자'}:</b> ${esc(trimmedEventDate) || '(미정)'}`,
@@ -320,6 +387,13 @@ export default async function handler(req, res) {
           `<b>기간:</b> ${esc(trimmedDuration) || '(미입력)'}`,
           `<b>테마:</b> ${esc(trimmedTheme) || '(미입력)'}`,
           `<b>예산:</b> ${esc(trimmedBudget) || '(미정)'}`,
+        );
+      } else if (isPlanCharter) {
+        lines.push(
+          `<b>플랜:</b> ${esc(trimmedPlanId) || '(미입력)'}`,
+          `<b>추천 투어:</b> ${esc(trimmedRecommendedTour) || '(미입력)'}`,
+          `<b>화면 참고가(서버 미검증):</b> ₩${normalizedQuotedKRW.toLocaleString()} / ${normalizedHours}시간`,
+          `<b>일수:</b> ${normalizedDayCount || '(미입력)'}`,
         );
       }
       lines.push(
@@ -351,10 +425,10 @@ export default async function handler(req, res) {
       console.warn('[inquiry-submit] telegram notify failed:', notifyErr.message);
     }
 
-    console.log('[inquiry-submit] saved:', inquiryId, 'vehicle:', vehicle, 'email:', trimmedEmail);
+    console.log('[inquiry-submit] saved:', inquiryId, 'vehicle:', vehicle);
 
     res.writeHead(200, JSON_HEADERS);
-    return res.end(JSON.stringify({ success: true, inquiryId }));
+    return res.end(JSON.stringify({ success: true, inquiryId, status: 'NEW' }));
   } catch (err) {
     console.error('[inquiry-submit] failed:', err.message);
     await captureError(err, { route: '/api/inquiry-submit', method: req.method });

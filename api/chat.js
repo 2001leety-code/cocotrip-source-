@@ -1,7 +1,7 @@
 /**
  * CocoTripKR — AI Chat Function (Vercel Native)
  * POST /api/chat
- * body: { message, messages, sessionId, language }
+ * body: { message, messages, language } — sessionId/userId는 권한으로 신뢰하지 않음
  * ENV: GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -12,6 +12,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { hashIp } from './_shared/ip-rate-limit.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
+import { resolveChatSessionForPost } from './_shared/chat-session-auth.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('chat');
@@ -24,7 +25,7 @@ const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 // ── Rate limit (Gemini abuse 방어) ──────────────────────────────────
-// 정책: 로그인 userId 5분당 5건 + 일 50건 / 게스트 IP 5분당 5건 + 일 15건.
+// 정책: 로그인 Firebase 검증 uid 5분당 5건 + 일 50건 / 게스트 IP 5분당 5건 + 일 15건.
 //
 // PR #448 (Audit W-H14 — 2026-05-16): daily cap 키를 `ip:${ip}:${dayKey}` →
 // `usr:${userId}:${dayKey}` 로 교체.
@@ -108,7 +109,7 @@ async function checkRateLimit(userId, ip) {
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
@@ -351,18 +352,29 @@ export default wrapHandler(async function handler(req, res) {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   body = body || {};
 
-  const { message, messages = [], sessionId = 'anon', language = 'en', userId } = body;
+  const { message, messages = [], language = 'en' } = body;
   if (!message?.trim()) {
     res.writeHead(400, JSON_CORS);
     return res.end(JSON.stringify(_err('message is required', 'MISSING_FIELDS')));
   }
 
-  // 게스트 허용 (2026-08-18 퍼널 감사 1번 — 로그인 벽 제거). 이전엔 여기서
-  // 401 AUTH_REQUIRED 를 냈지만, userId 는 클라이언트가 보내는 값이라 검증 없는
-  // 게이트였다(아무 문자열이나 통과). 실방어는 아래 레이트리밋 — 게스트는
-  // IP 키 일 15건으로 오히려 기존(가짜 uid 당 50건)보다 좁다.
-  // 형식이 이상한 userId 는 게스트로 취급.
-  const uid = (typeof userId === 'string' && userId.length >= 4) ? userId : null;
+  // body.userId와 body.sessionId는 권한 근거로 사용하지 않는다.
+  // 로그인은 검증된 Firebase uid, 게스트는 서버 서명 HttpOnly 쿠키로 세션을 소유한다.
+  // 기존 게스트 무료 문답은 유지하며 최초 요청에는 서버가 안전한 sessionId를 발급한다.
+  let chatSession;
+  try {
+    chatSession = await resolveChatSessionForPost(req, res);
+  } catch (error) {
+    console.error('[chat] session resolution failed:', error.message);
+    res.writeHead(503, JSON_CORS);
+    return res.end(JSON.stringify(_err('Chat session unavailable', 'SESSION_UNAVAILABLE')));
+  }
+  if (!chatSession.ok) {
+    res.writeHead(chatSession.status || 401, JSON_CORS);
+    return res.end(JSON.stringify(_err(chatSession.error || 'Authentication failed', 'AUTH_INVALID')));
+  }
+  const sessionId = chatSession.sessionId;
+  const uid = chatSession.uid;
 
   // Rate limit — Gemini 메시지당 ~₩0.13. abuse 방어
   // (로그인: 5/5min + 50/day per uid · 게스트: 5/5min + 15/day per IP)
@@ -418,7 +430,7 @@ export default wrapHandler(async function handler(req, res) {
       "I'm sorry, I couldn't process your request. Please contact us via WhatsApp: +82-10-8714-0611";
   } catch (err) {
     console.error('[chat] Gemini error:', err.message);
-    await captureError(err, { route: '/api/chat', userId, language });
+    await captureError(err, { route: '/api/chat', userId: uid, language });
     aiResponse = "I'm sorry, I'm having trouble right now. Please contact us via WhatsApp: +82-10-8714-0611";
   }
 
@@ -429,8 +441,8 @@ export default wrapHandler(async function handler(req, res) {
   //    AI 메시지는 customer가 실제로 본 텍스트를 저장 (escalate 시 placeholder)
   try {
     await Promise.all([
-      saveChatMessage({ sessionId, from: 'customer', text: message }),
-      saveChatMessage({ sessionId, from: 'ai', text: customerReply }),
+      saveChatMessage({ sessionId, from: 'customer', text: message, ownerFields: chatSession.ownerFields }),
+      saveChatMessage({ sessionId, from: 'ai', text: customerReply, ownerFields: chatSession.ownerFields }),
     ]);
   } catch (err) {
     console.warn('[chat] saveChatMessage failed (continuing):', err.message);

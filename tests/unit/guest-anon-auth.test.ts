@@ -119,6 +119,51 @@ describe('api/_shared/user-auth — verifyGuestAnonToken', () => {
   });
 });
 
+describe('api/_shared/user-auth — verifyFirebaseIdentityToken', () => {
+  beforeEach(() => {
+    verifyIdTokenMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it('Bearer가 없으면 uid를 추측하지 않고 401', async () => {
+    const { verifyFirebaseIdentityToken } = await import('../../api/_shared/user-auth.js');
+    await expect(verifyFirebaseIdentityToken({ headers: {} })).resolves.toMatchObject({
+      ok: false,
+      status: 401,
+    });
+    expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('이메일 없는 전화 로그인도 검증된 Firebase uid로 허용', async () => {
+    verifyIdTokenMock.mockResolvedValueOnce({
+      uid: 'phone-user-uid',
+      firebase: { sign_in_provider: 'phone' },
+    });
+    const { verifyFirebaseIdentityToken } = await import('../../api/_shared/user-auth.js');
+    const result = await verifyFirebaseIdentityToken({
+      headers: { authorization: 'Bearer phone-user-token' },
+    });
+    expect(result).toEqual({
+      ok: true,
+      uid: 'phone-user-uid',
+      email: null,
+      emailVerified: false,
+    });
+    expect(verifyIdTokenMock).toHaveBeenCalledWith('phone-user-token', true);
+  });
+
+  it('만료·위조 토큰은 게스트로 낮추지 않고 401', async () => {
+    verifyIdTokenMock.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'auth/id-token-expired' }));
+    const { verifyFirebaseIdentityToken } = await import('../../api/_shared/user-auth.js');
+    await expect(verifyFirebaseIdentityToken({
+      headers: { authorization: 'Bearer expired-token' },
+    })).resolves.toMatchObject({ ok: false, status: 401 });
+  });
+});
+
 // ── planPersister accessToken 로직 (forceGuestToken) ─────────────────────────
 // savePlanSkeleton / persistPlan 모두 동일 식:
 //   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;

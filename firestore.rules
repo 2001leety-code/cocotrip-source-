@@ -360,8 +360,8 @@ service cloud.firestore {
     match /charter_inquiries/{inquiryId} {
       // 2026-06-13 (DoS 헌트): 익명 create 가 사용자-제어 free-text(notes/name/phone) 를
       //   무제한 허용 → 오버사이즈 spam-write 로 Firestore quota/storage 소진 가능(bookings
-      //   PR#445 패턴). 합법 writer(CharterInquireModal)는 notes/name/phone 를 string|null 로
-      //   전송하므로 size cap 은 정상 write 무영향 — 오버사이즈만 거부(additive, 폼 안 깨짐).
+      //   PR#445 패턴). 현재 앱은 서버 API로 통합됐지만, 업데이트 전 PWA의 직접 쓰기
+      //   호환 기간에는 notes/name/phone cap을 유지한다. 신규 정본 status는 NEW다.
       allow create: if request.resource.data.keys().hasAll(['email', 'status', 'createdAt'])
                     && request.resource.data.status == 'pending'
                     && request.resource.data.email is string

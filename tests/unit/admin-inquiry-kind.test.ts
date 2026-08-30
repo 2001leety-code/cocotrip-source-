@@ -32,7 +32,8 @@ describe('inquiryKind — 문의 유형 판별', () => {
     expect(inquiryKind({ vehicle: 'bus' })).toBe('bus');
   });
 
-  it('vehicle 없음(차터 배너 모달 문서) → charter', () => {
+  it('vehicle=charter 및 과거 vehicle 없음 문서 → charter', () => {
+    expect(inquiryKind({ vehicle: 'charter' })).toBe('charter');
     expect(inquiryKind({})).toBe('charter');
     expect(inquiryKind({ vehicle: null })).toBe('charter');
     expect(inquiryKind({ vehicle: 'unknown-future' })).toBe('charter');

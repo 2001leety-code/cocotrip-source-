@@ -50,7 +50,7 @@ export async function recordInquiryMessage({ telegramMessageId, sessionId, langu
  * @param {string} [args.language] — 텍스트의 언어 (ko/en/ja/zh)
  * @param {boolean} [args.translationFailed] — 번역 시도가 실패했는지 (운영자 한글이 그대로 노출됨)
  */
-export async function saveChatMessage({ sessionId, from, text, adminName, originalText, language, translationFailed }) {
+export async function saveChatMessage({ sessionId, from, text, adminName, originalText, language, translationFailed, ownerFields }) {
   if (!sessionId || !from || !text) return false;
   const db = initAdminDb('chat-relay');
   if (!db) return false;
@@ -73,6 +73,7 @@ export async function saveChatMessage({ sessionId, from, text, adminName, origin
     sessionRef.set({
       lastMessageAt: FieldValue.serverTimestamp(),
       lastMessageFrom: from,
+      ...(ownerFields || {}),
     }, { merge: true }),
   ]);
   return true;

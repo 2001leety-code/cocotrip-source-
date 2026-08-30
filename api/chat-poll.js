@@ -6,11 +6,16 @@
  * 받아옴. since(epoch ms) 이후 새 메시지만 반환.
  *
  * 보안:
- *   - sessionId가 추측 어려운 임의 문자열이어야 함 (sess_<UUID>)
- *   - 인증 미적용 — sessionId 자체가 access token 역할
- *   - rate limit은 ChatWidget 측 폴링 간격(8초)으로 자연 제한
+ *   - 로그인 사용자는 Firebase ID token uid와 서명 쿠키를 함께 대조
+ *   - 게스트는 서버가 발급한 HttpOnly 서명 쿠키로 sessionId 소유권 증명
+ *   - 소유자별 서버 1분 상한으로 클라이언트 폴링 간격 우회 방지
  */
 import { getMessagesSince } from './_shared/chat-relay.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import {
+  authorizeChatSessionRead,
+  checkChatPollRateLimit,
+} from './_shared/chat-session-auth.js';
 
 export const maxDuration = 5;
 export const config = { runtime: 'nodejs' };
@@ -21,7 +26,7 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
@@ -37,12 +42,19 @@ export default async function handler(req, res) {
   const sinceStr = url.searchParams.get('since') || '0';
   const since = parseInt(sinceStr, 10) || 0;
 
-  if (!sessionId || !sessionId.startsWith('sess_') || sessionId.length < 8) {
-    res.writeHead(400, JSON_CORS);
-    return res.end(JSON.stringify(_err('Invalid sessionId', 'INVALID_SESSION')));
-  }
-
   try {
+    const access = await authorizeChatSessionRead(req, res, sessionId);
+    if (!access.ok) {
+      res.writeHead(access.status || 401, JSON_CORS);
+      return res.end(JSON.stringify(_err(access.error || 'Chat session denied', access.code || 'SESSION_FORBIDDEN')));
+    }
+
+    const rate = await checkChatPollRateLimit(initAdminDb('chat-poll'), access.rateKey);
+    if (!rate.ok) {
+      res.writeHead(429, { ...JSON_CORS, 'Retry-After': String(rate.retryAfterSec || 60) });
+      return res.end(JSON.stringify(_err('Too many chat polls. Please wait.', 'RATE_LIMIT_POLL')));
+    }
+
     const messages = await getMessagesSince(sessionId, since);
     // customer/ai 메시지는 ChatWidget이 이미 표시 중 — admin 메시지만 반환
     const adminOnly = messages.filter((m) => m.from === 'admin');

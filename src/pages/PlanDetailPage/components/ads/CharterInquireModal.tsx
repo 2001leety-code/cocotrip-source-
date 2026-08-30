@@ -8,9 +8,8 @@
 //   - PayPal integration on approval
 import { useState } from 'react';
 import { X, Send, Loader2, AlertCircle, Check } from 'lucide-react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 import type { PlanDay, PlanDocument } from '../../types';
 
 // 2026-07-17: 전체 영어 하드코딩이던 모달 4언어화 (컴포넌트 로컬 사전 — 레포 관례).
@@ -86,27 +85,37 @@ export function CharterInquireModal({ open, onClose, plan, days, recommendedTour
     setSubmitting(true);
     setError(null);
     try {
-      await addDoc(collection(db, 'charter_inquiries'), {
-        email: email.trim(),
-        name: name.trim() || null,
-        phone: phone.trim() || null,
-        notes: notes.trim() || null,
-        planId: planId || null,
-        recommendedTour,
-        quotedKRW,
-        hours,
-        startDate: input.startDate || null,
-        pax: input.adults || input.pax || null,
-        dayCount,
-        itinerarySummary: days.slice(0, 7).map((d, i) => ({
-          day: d.day || i + 1,
-          theme: d.theme || '',
-          stopCount: (d.stops || []).length,
-        })),
-        status: 'pending',
-        source: 'plan_detail_charter_banner',
-        createdAt: serverTimestamp(),
+      const response = await authFetch('/api/inquiry-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim(),
+          phone: phone.trim(),
+          eventDate: String(input.startDate || ''),
+          pax: Number(input.adults || input.pax || 1),
+          vehicle: 'charter',
+          details: notes.trim(),
+          notes: notes.trim(),
+          language,
+          planId,
+          recommendedTour,
+          quotedKRW,
+          hours,
+          startDate: String(input.startDate || ''),
+          dayCount,
+          itinerarySummary: days.slice(0, 7).map((d, i) => ({
+            day: d.day || i + 1,
+            theme: d.theme || '',
+            stopCount: (d.stops || []).length,
+          })),
+          source: 'plan_detail_charter_banner',
+        }),
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || M.submitFail);
+      }
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : M.submitFail);
