@@ -17,6 +17,7 @@ import {
 import { fetchMarketingMetrics } from '../_shared/morningBriefingMarketing.js';
 import { aggregateDecisionSummary, DECISION_COLLECTION } from '../_shared/decisionQueue.js';
 import { aggregateApiUsage } from '../_shared/apiPricing.js';
+import { mergeOpsV1IntoBriefing } from '../_shared/opsBriefingBridge.js';
 
 const FALLBACK_RATE = 1450;
 
@@ -31,7 +32,7 @@ function ymdKST(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} (${wd})`;
 }
 
-function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections) {
+export function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections, ops) {
   const { revenue, trends, byProduct, aiPlanner, newUsers, errors, customer, meta, window } = agg;
   const L = [
     '☀️ <b>코코트립 모닝 브리핑</b>',
@@ -57,6 +58,26 @@ function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections) 
     L.push(`어제 오류 <b>${errors.total}건</b> (심각 ${sev.critical} · 높음 ${sev.high} · 보통 ${sev.medium} · 낮음 ${sev.low})`);
     if (errors.top.length) L.push(...errors.top.map((t) => `  · ${esc(t.key)} ${t.count}회`));
   }
+  if (ops && Array.isArray(ops.changes) && ops.changes.length > 0) {
+    L.push(`운영원장 변경 감지 <b>${ops.changes.length}건</b>`);
+    L.push(...ops.changes.slice(0, 3).map((item) => `  · ${esc(item.title)}`));
+  }
+  if (ops && Array.isArray(ops.failures) && ops.failures.length > 0) {
+    const failureLabel = {
+      queued: '실행 대기', claimed: '담당 지정', running: '실행 중', validating: '검증 중',
+      awaiting_approval: '승인 대기', succeeded: '완료', partial: '일부 실패', blocked: '차단',
+      failed: '실패', skipped: '건너뜀', stale: '갱신 지연',
+    };
+    const severityLabel = { warning: '경고', critical: '심각', unknown: '상태 미상' };
+    L.push(`운영원장 실패/경보 <b>${ops.failures.length}건</b>`);
+    L.push(...ops.failures.slice(0, 3).map((item) => {
+      const status = item.runStatus === 'succeeded'
+        ? (severityLabel[item.severity] || failureLabel[item.runStatus])
+        : (failureLabel[item.runStatus] || severityLabel[item.severity] || '경보');
+      const detail = item.summary ? ` · ${esc(item.summary)}` : '';
+      return `  · ${esc(item.title)} (${esc(status)})${detail}`;
+    }));
+  }
 
   // 📣 마케팅 (graceful)
   L.push('', '━━━ 📣 마케팅 ━━━');
@@ -73,9 +94,17 @@ function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections) 
   // 📥 결정 대기 (운영자 승인/거절)
   L.push('', '━━━ 📥 결정 대기 ━━━');
   if (decisions && decisions.total > 0) {
-    L.push(`승인/거절 대기 <b>${decisions.total}건</b>`);
-    if (decisions.top.length) L.push(...decisions.top.map((d) => `  · ${esc(d.title)}`));
-    L.push('🌐 cocotripkr.com/admin/decisions');
+    const opsTotal = Number(decisions.opsTotal) || 0;
+    if (opsTotal > 0) {
+      L.push(`확인/승인 대기 <b>${decisions.total}건</b> (운영원장 ${opsTotal}건)`);
+    } else {
+      L.push(`승인/거절 대기 <b>${decisions.total}건</b>`);
+    }
+    if (decisions.top.length) {
+      L.push(...decisions.top.map((d) => `  · ${esc(d.title)}${d.type === 'ops' ? ' <i>(운영원장)</i>' : ''}`));
+    }
+    if (opsTotal > 0) L.push('  · Brain 운영 원장에서 확인');
+    if (opsTotal === 0 || Number(decisions.queueTotal) > 0) L.push('🌐 cocotripkr.com/admin/decisions');
   } else {
     L.push('대기 중인 결정 없음 ✅');
   }
@@ -100,7 +129,10 @@ function buildMessage(agg, rate, marketing, decisions, apiCost, failedSections) 
 // onDemand: 텔레그램 어드민봇 /briefing 에서 직접 호출 가능하도록 export.
 //   내부에서 notifyOperatorLong 으로 운영자 텔레그램에 직접 발송(send-type) — 호출자는
 //   별도 재전송 금지(중복 발송 방지). cron-runner / vercelHandler 경로는 무변경.
-export async function morningBriefingTask() {
+export async function morningBriefingTask(options = {}) {
+  const opsV1Input = options && Object.prototype.hasOwnProperty.call(options, 'opsV1Input')
+    ? options.opsV1Input
+    : undefined;
   const db = initAdminDb();
   if (!db) {
     await notifyOperatorLong('todo', '⚠️ <b>모닝 브리핑</b>\nFirestore 연결 안 됨 (env 확인 필요).', { skipPrefix: true }).catch(() => {});
@@ -145,8 +177,10 @@ export async function morningBriefingTask() {
     cstDocs: docs(cs, '문의'),
   }, { now });
 
-  const decisions = aggregateDecisionSummary(docs(dq, '결정'));
+  const decisionDocs = docs(dq, '결정');
+  const decisions = aggregateDecisionSummary(decisionDocs);
   const apiCost = aggregateApiUsage(docs(au, 'API사용량'));
+  const briefing = mergeOpsV1IntoBriefing({ agg, decisions }, opsV1Input, { existingDecisionDocs: decisionDocs });
 
   // 마케팅 — graceful (네트워크).
   const marketing = await fetchMarketingMetrics(yStartMs, todayStartMs).catch((e) => ({ skipped: true, reason: (e && e.message) || 'error' }));
@@ -154,7 +188,7 @@ export async function morningBriefingTask() {
   let rate = FALLBACK_RATE;
   try { const r = await getUsdToKrwRaw(); if (Number.isFinite(r) && r > 0) rate = r; } catch { /* fallback */ }
 
-  const msg = buildMessage(agg, rate, marketing, decisions, apiCost, failed);
+  const msg = buildMessage(briefing.agg, rate, marketing, briefing.decisions, apiCost, failed, briefing.ops);
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
   if (!result.ok) {
     console.error('[morning-briefing] 텔레그램 발송 실패:', result.error);

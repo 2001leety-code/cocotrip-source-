@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cocotrip:contracts:design-audit-result:v1",
+  "title": "CocoTrip web design audit result v1",
+  "description": "Brain contracts/ops-v1.schema.json을 정본으로 사용하는 웹 디자인 읽기 전용 감사 결과",
+  "allOf": [
+    {
+      "$ref": "urn:cocotrip:contracts:ops:v1"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "ops.v1"
+        },
+        "project": {
+          "const": "web"
+        },
+        "job": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "const": "design.web.weekly-audit"
+            },
+            "role": {
+              "const": "design.release_verifier"
+            },
+            "write_scope": {
+              "const": "read_only"
+            }
+          },
+          "required": ["key", "role", "write_scope"]
+        }
+      },
+      "required": ["schema_version", "project", "job"]
+    }
+  ]
+}

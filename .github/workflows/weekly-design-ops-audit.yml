@@ -1,0 +1,94 @@
+name: Weekly Design Ops Audit
+
+on:
+  schedule:
+    # 월요일 01:00 UTC = 월요일 10:00 KST.
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-design-ops-audit
+  cancel-in-progress: false
+
+jobs:
+  design-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 기존 Playwright 워크플로와 같은 main 범위 캐시를 재사용한다.
+      - name: Cache Playwright chromium
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright chromium (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          ok=""
+          for attempt in 1 2 3; do
+            if timeout 420 npx playwright install --with-deps chromium; then ok=1; break; fi
+            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+          done
+          [ -n "$ok" ]
+
+      - name: Verify Playwright chromium + system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: |
+          npx playwright install chromium
+          npx playwright install-deps chromium
+
+      # 직전 성공 보고서를 작은 캐시로 복원해 finding_key의 new/resolved/unchanged를 계산한다.
+      - name: Restore previous design audit result
+        uses: actions/cache@v4
+        with:
+          path: reports/design-ops/latest.json
+          key: design-ops-history-${{ github.run_id }}
+          restore-keys: |
+            design-ops-history-
+
+      - name: Audit production pages (read-only, no clicks or forms)
+        env:
+          DESIGN_AUDIT_RUN_ID: github-${{ github.run_id }}
+        run: |
+          node scripts/design-ops-audit.mjs \
+            --base-url https://cocotripkr.com \
+            --allow-prod-readonly
+
+      - name: Add report to job summary
+        if: always()
+        run: |
+          if [ -f reports/design-ops/latest.md ]; then
+            cat reports/design-ops/latest.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# 디자인 자동감사 실패" >> "$GITHUB_STEP_SUMMARY"
+            echo "보고서가 만들어지기 전에 감사 실행이 중단됐습니다." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload JSON, Markdown and first-fold screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-design-ops-${{ github.run_id }}
+          path: reports/design-ops
+          if-no-files-found: warn
+          retention-days: 30

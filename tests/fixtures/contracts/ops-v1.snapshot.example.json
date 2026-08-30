@@ -1,0 +1,122 @@
+{
+  "schema_version": "ops.v1",
+  "generated_at": 1788066000,
+  "project": "brain",
+  "job": {
+    "key": "ops.brain.monitor",
+    "title": "Brain 로컬 운영 상태 수집",
+    "project": "brain",
+    "role": "collector",
+    "owner": "operations",
+    "scheduler_owner": "brain.api",
+    "schedule": {
+      "kind": "interval",
+      "expression": null,
+      "timezone": "Asia/Seoul",
+      "interval_seconds": 900
+    },
+    "write_scope": "read_only",
+    "approval_required": false,
+    "stale_after_seconds": 1800,
+    "cost_ceiling_usd": 0
+  },
+  "run": {
+    "id": "run-1788066000-a1b2c3d4",
+    "dedupe_key": "ops.brain.monitor:1986740",
+    "status": "succeeded",
+    "terminal": true,
+    "executor": {
+      "kind": "script",
+      "name": "brain.ops_ledger",
+      "version": "1"
+    },
+    "started_at": 1788066000,
+    "heartbeat_at": 1788066001,
+    "finished_at": 1788066001,
+    "changed": true,
+    "error": null
+  },
+  "summary": {
+    "status": "ok",
+    "changed": true,
+    "source_count": 3,
+    "finding_count": 0
+  },
+  "sources": [
+    {
+      "key": "brain.content_queue",
+      "status": "ok",
+      "observed_at": 1788066000,
+      "last_attempt_at": 1788065400,
+      "last_success_at": 1788065400,
+      "freshness": {
+        "state": "fresh",
+        "age_seconds": 600,
+        "stale_after_seconds": 1800
+      },
+      "metrics": {
+        "pending_review": 2,
+        "scheduled_due": 0,
+        "ambiguous_provider_attempts": 0
+      },
+      "evidence": [
+        {
+          "kind": "sqlite",
+          "ref": "db/content_queue.db#content_queue",
+          "observed_at": 1788066000,
+          "read_only": true
+        }
+      ]
+    },
+    {
+      "key": "brain.publish_dispatcher",
+      "status": "disabled",
+      "observed_at": 1788066000,
+      "last_attempt_at": null,
+      "last_success_at": null,
+      "freshness": {
+        "state": "disabled",
+        "age_seconds": null,
+        "stale_after_seconds": null
+      },
+      "metrics": {
+        "worker_enabled": false,
+        "social_auto_post_enabled": false
+      },
+      "evidence": [
+        {
+          "kind": "file",
+          "ref": "로컬 환경변수의 활성 여부만 확인",
+          "observed_at": 1788066000,
+          "read_only": true
+        }
+      ]
+    },
+    {
+      "key": "brain.social_metrics",
+      "status": "ok",
+      "observed_at": 1788066000,
+      "last_attempt_at": 1788062400,
+      "last_success_at": 1788062400,
+      "freshness": {
+        "state": "fresh",
+        "age_seconds": 3600,
+        "stale_after_seconds": 28800
+      },
+      "metrics": {
+        "enabled": true,
+        "last_error_present": false
+      },
+      "evidence": [
+        {
+          "kind": "sqlite",
+          "ref": "db/social_metrics.db#social_metrics_runs",
+          "observed_at": 1788066000,
+          "read_only": true
+        }
+      ]
+    }
+  ],
+  "findings": []
+}
+

@@ -1,0 +1,503 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cocotrip:contracts:ops:v1",
+  "title": "CocoTrip operations snapshot v1",
+  "description": "실행 도구와 공급자에 독립적인 작업 등록, 실행 상태, 출처 신선도, 검토 항목 계약",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "project",
+    "job",
+    "run",
+    "summary",
+    "sources",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ops.v1"
+    },
+    "generated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "project": {
+      "$ref": "#/$defs/key"
+    },
+    "job": {
+      "$ref": "#/$defs/job"
+    },
+    "run": {
+      "$ref": "#/$defs/run"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "UTC Unix 초"
+    },
+    "nullableTimestamp": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "expression", "timezone", "interval_seconds"],
+      "properties": {
+        "kind": {
+          "enum": ["manual", "interval", "cron", "event", "startup"]
+        },
+        "expression": {
+          "type": ["string", "null"],
+          "maxLength": 240
+        },
+        "timezone": {
+          "type": ["string", "null"],
+          "maxLength": 80
+        },
+        "interval_seconds": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "title",
+        "project",
+        "role",
+        "owner",
+        "scheduler_owner",
+        "schedule",
+        "write_scope",
+        "approval_required",
+        "stale_after_seconds",
+        "cost_ceiling_usd"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "project": {
+          "$ref": "#/$defs/key"
+        },
+        "role": {
+          "$ref": "#/$defs/key"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "scheduler_owner": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "schedule": {
+          "$ref": "#/$defs/schedule"
+        },
+        "write_scope": {
+          "enum": ["read_only", "draft", "external_write"]
+        },
+        "approval_required": {
+          "type": "boolean"
+        },
+        "stale_after_seconds": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "cost_ceiling_usd": {
+          "type": ["number", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": {
+          "enum": ["script", "service", "agent", "human"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "version": {
+          "type": ["string", "null"],
+          "maxLength": 80
+        }
+      }
+    },
+    "runError": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/key"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "retryable": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "dedupe_key",
+        "status",
+        "terminal",
+        "executor",
+        "started_at",
+        "heartbeat_at",
+        "finished_at",
+        "changed",
+        "error"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/key"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "claimed",
+            "running",
+            "validating",
+            "awaiting_approval",
+            "succeeded",
+            "partial",
+            "blocked",
+            "failed",
+            "skipped",
+            "stale"
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "executor": {
+          "$ref": "#/$defs/executor"
+        },
+        "started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "heartbeat_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "finished_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "changed": {
+          "type": ["boolean", "null"]
+        },
+        "error": {
+          "$ref": "#/$defs/runError"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["succeeded", "partial", "blocked", "failed", "skipped"]
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "terminal": {
+                "const": true
+              },
+              "finished_at": {
+                "$ref": "#/$defs/timestamp"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "terminal": {
+                "const": false
+              },
+              "finished_at": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "changed", "source_count", "finding_count"],
+      "properties": {
+        "status": {
+          "enum": ["ok", "warning", "critical", "unknown"]
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "source_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finding_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "age_seconds", "stale_after_seconds"],
+      "properties": {
+        "state": {
+          "enum": ["fresh", "stale", "never", "disabled", "unknown"]
+        },
+        "age_seconds": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "stale_after_seconds": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "observed_at", "read_only"],
+      "properties": {
+        "kind": {
+          "enum": ["sqlite", "file", "http", "test", "log", "metric", "manual"]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "read_only": {
+          "type": "boolean"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "status",
+        "observed_at",
+        "last_attempt_at",
+        "last_success_at",
+        "freshness",
+        "metrics",
+        "evidence"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "status": {
+          "enum": ["ok", "warning", "error", "missing", "disabled", "unknown"]
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "last_attempt_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "last_success_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "freshness": {
+          "$ref": "#/$defs/freshness"
+        },
+        "metrics": {
+          "type": "object"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "riskFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["privacy", "payment", "security", "external_write"],
+      "properties": {
+        "privacy": {
+          "type": "boolean"
+        },
+        "payment": {
+          "type": "boolean"
+        },
+        "security": {
+          "type": "boolean"
+        },
+        "external_write": {
+          "type": "boolean"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "dedupe_key",
+        "severity",
+        "status",
+        "fact",
+        "current",
+        "previous",
+        "proposed_action",
+        "approval_required",
+        "owner",
+        "first_seen_at",
+        "last_seen_at",
+        "next_check_at",
+        "estimated_cost_usd",
+        "risk_flags",
+        "evidence"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "severity": {
+          "enum": ["info", "warning", "critical"]
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "proposed",
+            "approved",
+            "implementing",
+            "verified",
+            "released",
+            "measured",
+            "closed"
+          ]
+        },
+        "fact": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "current": {},
+        "previous": {},
+        "proposed_action": {
+          "type": ["string", "null"],
+          "maxLength": 2000
+        },
+        "approval_required": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "first_seen_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "last_seen_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "next_check_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "estimated_cost_usd": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "risk_flags": {
+          "$ref": "#/$defs/riskFlags"
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    }
+  }
+}
