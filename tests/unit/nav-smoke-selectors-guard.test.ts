@@ -133,6 +133,11 @@ describe('nav 스모크 스펙 — 화면을 구조로 짚는다', () => {
     expect(specCode).toMatch(/getByRole\(\s*['"`]heading['"`]\s*,\s*\{[^}]*\blevel\s*:\s*1/);
   });
 
+  it('투어 상세 진입은 현재 뷰포트에서 보이는 카드만 누른다', () => {
+    // 데스크톱 전용 추천 카드가 DOM 첫 항목이어도 모바일 검사가 숨은 링크를 기다리면 안 된다.
+    expect(specCode).toMatch(/a\[href\^=["']\/tours\/["']\]:visible/);
+  });
+
   it('짝 검사는 다른 test 또는 소멸 뒤의 존재 확인을 빌려 통과하지 않는다', () => {
     const otherTest = `test('a', async () => { expect(page.getByTestId("shell")).toBeVisible(); });\n`
       + `test('b', async () => { expect(page.getByTestId('shell')).toHaveCount(0); });`;

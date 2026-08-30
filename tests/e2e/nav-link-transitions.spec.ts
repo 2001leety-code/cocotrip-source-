@@ -72,7 +72,9 @@ test.describe('SPA Link navigation', () => {
     // 클릭 전에 목록 셸이 **있다**는 것을 먼저 확인한다 — 이게 있어야 아래
     // "목록 셸이 사라졌다" 단언이 공허하지 않다(2026-08-21 사고의 핵심).
     await expect(page.getByTestId('tours-editorial-shell')).toBeVisible({ timeout: 10000 });
-    const detail = page.locator('a[href^="/tours/"]').first();
+    // 데스크톱 전용 추천 카드가 DOM 앞쪽에 있지만 모바일에서는 숨겨진다.
+    // 실제 사용자가 누를 수 있는 첫 카드만 골라 세 뷰포트에서 같은 계약을 검사한다.
+    const detail = page.locator('a[href^="/tours/"]:visible').first();
     await detail.waitFor({ timeout: 10000 });
     const href = await detail.getAttribute('href');
     await detail.click();
