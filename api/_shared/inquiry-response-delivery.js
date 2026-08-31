@@ -8,15 +8,13 @@
 import { randomUUID } from 'crypto';
 import { sendEmail } from '../_send-email.js';
 import { escapeHtml } from './escape.js';
+import { validInquiryResponseEmail } from './inquiry-email.js';
+
+export { validInquiryResponseEmail } from './inquiry-email.js';
 
 export const INQUIRY_DELIVERY_MAX_ATTEMPTS = 3;
 export const INQUIRY_DELIVERY_CLAIM_MS = 10 * 60 * 1000;
 const TERMINAL_INQUIRY_STATUSES = new Set(['rejected', 'responded', 'closed', 'converted']);
-
-export function validInquiryResponseEmail(value) {
-  const email = String(value || '').trim().toLowerCase();
-  return email.length <= 200 && /^\S+@\S+\.\S+$/.test(email) ? email : null;
-}
 
 export function validateApprovedInquiryResponse(subjectValue, bodyValue) {
   const subject = String(subjectValue || '').replace(/[\r\n]+/g, ' ').trim();
@@ -56,6 +54,16 @@ async function claimDelivery(db, inquiryId, options = {}) {
       return { ok: true, alreadySent: true, code: 'ALREADY_SENT', workflow };
     }
     if (TERMINAL_INQUIRY_STATUSES.has(String(data.status || '').trim().toLowerCase())) {
+      if (['not_sent', 'retryable'].includes(workflow.deliveryStatus)) {
+        const cancelledWorkflow = {
+          ...workflow,
+          deliveryStatus: 'cancelled',
+          nextDeliveryAttemptAtMs: null,
+          lastDeliveryErrorCode: 'INQUIRY_CLOSED',
+        };
+        tx.update(ref, { responseWorkflow: cancelledWorkflow, updatedAtMs: now });
+        return { ok: false, code: 'INQUIRY_CLOSED', workflow: cancelledWorkflow };
+      }
       return { ok: false, code: 'INQUIRY_CLOSED', workflow };
     }
     if (workflow.deliveryStatus === 'outcome_unknown') {
@@ -178,10 +186,24 @@ async function finishDelivery(db, claim, patch, now) {
     }
     const terminal = TERMINAL_INQUIRY_STATUSES.has(String(data.status || '').trim().toLowerCase());
     const nextWorkflow = { ...workflow, ...patch };
+    const ackWorkflow = data.ackWorkflow && typeof data.ackWorkflow === 'object'
+      ? data.ackWorkflow
+      : {};
+    const cancelPendingAck = patch.deliveryStatus === 'sent'
+      && ['not_sent', 'retryable'].includes(String(ackWorkflow.deliveryStatus || ''));
     tx.update(claim.ref, {
       responseWorkflow: nextWorkflow,
       updatedAtMs: now,
       ...(patch.deliveryStatus === 'sent' && !terminal ? { status: 'responded' } : {}),
+      ...(cancelPendingAck ? {
+        ackWorkflow: {
+          ...ackWorkflow,
+          deliveryStatus: 'cancelled',
+          nextDeliveryAttemptAtMs: null,
+          lastDeliveryErrorCode: 'FINAL_RESPONSE_SENT',
+        },
+        autoAckCandidate: false,
+      } : {}),
     });
     return nextWorkflow;
   });

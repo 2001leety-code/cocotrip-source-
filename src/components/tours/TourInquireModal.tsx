@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { X, Send, Loader2, AlertCircle, Check } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import { authFetch } from '@/lib/authFetch';
 import type { Language } from '@/i18n';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -262,7 +263,7 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
     setStatus('sending');
     setErrorMsg('');
     try {
-      const res = await fetch('/api/inquiry-submit', {
+      const res = await authFetch('/api/inquiry-submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

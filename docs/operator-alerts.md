@@ -55,24 +55,29 @@ vercel.json `crons` 배열에 등록됨. 다음 배포부터 자동 활성.
 | `TELEGRAM_BOT_TOKEN` | 필수 | 알림 silent skip (console.error) |
 | `TELEGRAM_CHAT_ID` | 필수 | 알림 silent skip (console.error) |
 | `FIREBASE_PROJECT_ID` / `_CLIENT_EMAIL` / `_PRIVATE_KEY` | 필수 | cron 503 응답 |
-| `CRON_SECRET` | 선택 | 미설정 시 인증 우회 (수동 호출 가능) |
+| `CRON_SECRET` | 자동 크론 필수 | 미설정 시 예약 실행은 401로 차단됨. 수동 실행은 운영자 Firebase 토큰만 허용 |
 
 ## 운영자 manual trigger
 
-테스트용 dryRun 호출:
+테스트용 dryRun 호출 (`CRON_SECRET`은 URL이 아닌 Bearer 헤더로 전달):
 ```
-GET /api/cron-runner?job=dispatch-reminder&dryRun=1
-GET /api/cron-runner?job=operator-todo-reminder&dryRun=1
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://cocotripkr.com/api/cron-runner?job=dispatch-reminder&dryRun=1"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://cocotripkr.com/api/cron-runner?job=operator-todo-reminder&dryRun=1"
 ```
 응답에 매칭된 항목 + 메시지 미리보기 포함, Telegram 발송 안 함.
 
 실제 발송:
 ```
-GET /api/cron-runner?job=dispatch-reminder
-GET /api/cron-runner?job=operator-todo-reminder
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://cocotripkr.com/api/cron-runner?job=dispatch-reminder"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://cocotripkr.com/api/cron-runner?job=operator-todo-reminder"
 ```
 
-`CRON_SECRET` 설정된 경우 `&token=$CRON_SECRET` 또는 `x-cron-token` 헤더 필요.
+`x-vercel-cron`, `x-vercel-cron-signature`, URL의 `token`, `x-cron-token`은 인증으로 인정하지 않는다.
+어드민 화면의 수동 실행은 로그인한 운영자 Firebase 토큰을 사용할 수 있다.
 
 ## 환불 요청 경로 검증 (PR-G 작업 결과)
 

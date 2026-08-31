@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { WizardState, VehicleType } from './types';
+import { authFetch } from '@/lib/authFetch';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -140,7 +141,7 @@ export function InquiryForm({ vehicle, state, language }: Props) {
     setStatus('sending');
     setErrorMsg('');
     try {
-      const res = await fetch('/api/inquiry-submit', {
+      const res = await authFetch('/api/inquiry-submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -32,6 +32,80 @@ beforeEach(() => {
 });
 
 describe('InquiryResponsePanel', () => {
+  it('자동 접수 성공을 최종 답변 완료와 분리해 표시한다', () => {
+    render(
+      <InquiryResponsePanel
+        inquiryId="ack-sent-final-open"
+        email="stored@example.com"
+        workflow={workflow}
+        ackWorkflow={{ deliveryStatus: 'sent', deliveredAtMs: Date.now(), deliveryAttempts: 1 }}
+        getIdToken={async () => 'admin-token'}
+      />,
+    );
+
+    expect(screen.getByText('자동 접수: 발송됨')).toBeInTheDocument();
+    expect(screen.getByText(/최종 견적·상담 답변은 아래에서 별도로 검토/)).toBeInTheDocument();
+    expect(screen.getByText('검토 전')).toBeInTheDocument();
+    expect(screen.queryByText('답변 완료')).toBeNull();
+    expect(screen.getByRole('button', { name: /고객 이메일 발송/ })).toBeEnabled();
+  });
+
+  it('자동 접수 결과 불명도 최종 답변 완료로 보이지 않게 경고한다', () => {
+    render(
+      <InquiryResponsePanel
+        inquiryId="ack-unknown-final-open"
+        email="stored@example.com"
+        workflow={workflow}
+        ackWorkflow={{
+          deliveryStatus: 'outcome_unknown',
+          lastDeliveryErrorCode: 'SMTP_TIMEOUT',
+          deliveryAttempts: 1,
+        }}
+        getIdToken={async () => 'admin-token'}
+      />,
+    );
+
+    expect(screen.getByText('자동 접수: 실제 발송 확인 필요')).toBeInTheDocument();
+    expect(screen.getByText(/최종 답변 완료로 처리되지 않았으며 자동 재발송도 하지 않습니다/)).toBeInTheDocument();
+    expect(screen.getByText('코드: SMTP_TIMEOUT')).toBeInTheDocument();
+    expect(screen.queryByText('답변 완료')).toBeNull();
+    expect(screen.getByRole('button', { name: /고객 이메일 발송/ })).toBeEnabled();
+  });
+
+  it('자동 접수 상태만 바뀌어도 운영자가 편집 중인 최종 답변을 지우지 않는다', () => {
+    const view = render(
+      <InquiryResponsePanel
+        inquiryId="editing-while-ack-updates"
+        email="stored@example.com"
+        workflow={workflow}
+        ackWorkflow={{ deliveryStatus: 'retryable', deliveryAttempts: 1 }}
+        getIdToken={async () => 'admin-token'}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('이메일 제목'), {
+      target: { value: 'Operator is editing this subject' },
+    });
+    fireEvent.change(screen.getByLabelText('고객에게 보낼 내용'), {
+      target: { value: 'Operator is still editing this final response.' },
+    });
+
+    view.rerender(
+      <InquiryResponsePanel
+        inquiryId="editing-while-ack-updates"
+        email="stored@example.com"
+        workflow={workflow}
+        ackWorkflow={{ deliveryStatus: 'sent', deliveredAtMs: Date.now(), deliveryAttempts: 2 }}
+        getIdToken={async () => 'admin-token'}
+      />,
+    );
+
+    expect(screen.getByLabelText('이메일 제목')).toHaveValue('Operator is editing this subject');
+    expect(screen.getByLabelText('고객에게 보낼 내용')).toHaveValue(
+      'Operator is still editing this final response.',
+    );
+    expect(screen.getByText('자동 접수: 발송됨')).toBeInTheDocument();
+  });
+
   it('운영자가 검토한 저장 초안과 revision만 고객 발송 API로 보낸다', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(response(200, { ok: true, code: 'SENT' }));

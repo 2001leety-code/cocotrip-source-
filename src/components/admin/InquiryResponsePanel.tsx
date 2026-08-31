@@ -23,6 +23,14 @@ export interface InquiryResponseWorkflow {
   policyVersion?: string | null;
 }
 
+export interface InquiryAckWorkflow {
+  deliveryStatus?: string | null;
+  deliveryAttempts?: number | null;
+  nextDeliveryAttemptAtMs?: number | null;
+  lastDeliveryErrorCode?: string | null;
+  deliveredAtMs?: number | null;
+}
+
 export interface InquiryResponseActionResult {
   ok?: boolean;
   code?: string;
@@ -37,6 +45,7 @@ interface Props {
   inquiryId: string;
   email?: string | null;
   workflow?: InquiryResponseWorkflow | null;
+  ackWorkflow?: InquiryAckWorkflow | null;
   getIdToken: () => Promise<string>;
   /** DEV 하네스 전용. 운영 빌드에서는 전달돼도 무시하고 인증 API만 사용한다. */
   devActionHandler?: InquiryResponseDevActionHandler;
@@ -49,6 +58,16 @@ const DELIVERY_LABELS: Record<string, string> = {
   sent: '답변 완료',
   outcome_unknown: '실제 발송 여부 확인 필요',
   manual_required: '수동 연락 필요',
+  cancelled: '종료된 문의',
+};
+const ACK_LABELS: Record<string, string> = {
+  not_sent: '자동 접수: 미발송',
+  sending: '자동 접수: 발송 확인 중',
+  retryable: '자동 접수: 안전 재시도 대기',
+  sent: '자동 접수: 발송됨',
+  outcome_unknown: '자동 접수: 실제 발송 확인 필요',
+  manual_required: '자동 접수: 운영자 확인 필요',
+  cancelled: '자동 접수: 취소됨',
 };
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9D86FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b14]';
 
@@ -100,7 +119,7 @@ export default function InquiryResponsePanel(props: Props) {
   return <InquiryResponsePanelState key={workflowVersion} {...props} />;
 }
 
-function InquiryResponsePanelState({ inquiryId, email, workflow, getIdToken, devActionHandler }: Props) {
+function InquiryResponsePanelState({ inquiryId, email, workflow, ackWorkflow, getIdToken, devActionHandler }: Props) {
   const subjectId = useId();
   const bodyId = useId();
   const initialResponse = visibleResponse(workflow);
@@ -262,6 +281,39 @@ function InquiryResponsePanelState({ inquiryId, email, workflow, getIdToken, dev
 
   return (
     <section className="mt-4 rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.06] p-3 sm:p-4" aria-label="문의 답변 준비">
+      {ackWorkflow?.deliveryStatus && (
+        <div
+          role={ackWorkflow.deliveryStatus === 'outcome_unknown' ? 'alert' : 'status'}
+          className={`mb-3 rounded-lg border px-3 py-2.5 ${
+            ackWorkflow.deliveryStatus === 'sent'
+              ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+              : ['outcome_unknown', 'manual_required'].includes(ackWorkflow.deliveryStatus)
+                ? 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+                : 'border-white/10 bg-white/[0.04] text-white/70'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <span className="font-bold">
+              {ACK_LABELS[ackWorkflow.deliveryStatus] || `자동 접수: ${ackWorkflow.deliveryStatus}`}
+            </span>
+            {ackWorkflow.deliveredAtMs && (
+              <span className="text-[11px] opacity-75">{formatWhen(ackWorkflow.deliveredAtMs)}</span>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] leading-5 opacity-80">
+            {ackWorkflow.deliveryStatus === 'sent'
+              ? '접수 확인만 발송했습니다. 최종 견적·상담 답변은 아래에서 별도로 검토해 보내야 합니다.'
+              : ackWorkflow.deliveryStatus === 'outcome_unknown'
+                ? '접수 확인 메일의 결과만 불명확합니다. 최종 답변 완료로 처리되지 않았으며 자동 재발송도 하지 않습니다.'
+                : ackWorkflow.deliveryStatus === 'manual_required'
+                  ? '자동 접수 확인은 중단됐습니다. 문의 내용과 연락처를 확인해 직접 처리하세요.'
+                  : '최종 견적·상담 답변 상태와는 별도로 관리됩니다.'}
+          </p>
+          {ackWorkflow.lastDeliveryErrorCode && (
+            <p className="mt-1 break-words text-[10px] opacity-70">코드: {ackWorkflow.lastDeliveryErrorCode}</p>
+          )}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

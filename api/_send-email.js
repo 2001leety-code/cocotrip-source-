@@ -35,6 +35,13 @@ function createTransporter() {
   });
 }
 
+export function maskEmailForLog(value) {
+  const email = String(value || '').trim().toLowerCase();
+  const parts = email.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return '[redacted-recipient]';
+  return `${parts[0].slice(0, 1)}***@${parts[1]}`;
+}
+
 /**
  * 이메일 발송 (공통)
  * @param {object} mailOptions - { to, subject, html, text }
@@ -77,7 +84,7 @@ export async function sendEmail({ to, subject, html, text, attachments = [] }) {
     attachments,
   });
 
-  console.log('[send-email] 발송 성공:', info.messageId, '→', to);
+  console.log('[send-email] 발송 성공:', info.messageId, '→', maskEmailForLog(to));
 
   // Best-effort: bump the daily counter + fire 80% warn alert at threshold.
   // Fire-and-forget — counter accuracy < deliverability.

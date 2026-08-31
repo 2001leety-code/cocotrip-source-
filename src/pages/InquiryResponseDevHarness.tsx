@@ -134,6 +134,11 @@ export default function InquiryResponseDevHarness() {
           key={panelKey}
           inquiryId="dev-inquiry-price-001"
           email={DEMO_EMAIL}
+          ackWorkflow={{
+            deliveryStatus: 'sent',
+            deliveryAttempts: 1,
+            deliveredAtMs: Date.UTC(2026, 7, 31, 6, 0, 0),
+          }}
           getIdToken={async () => { throw new Error('DEV 하네스에서 인증을 요청하면 안 됩니다.'); }}
           devActionHandler={handleAction}
         />

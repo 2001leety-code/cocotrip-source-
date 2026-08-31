@@ -785,16 +785,17 @@ function P43_authIdorBodyTrusted({ changed }) {
 
 /**
  * P44_cronAuthGate — 메모리 P44 (PR #419, Audit CZ3 / WC5).
- * 새 cron 엔드포인트 (api/cron-runner.js + 향후 api/_crons/*) 또는 dispatcher
- * 가 verifyCronRequest 없이 export default handler 패턴을 가지면 fail.
+ * 공유 검증기가 caller-controlled Vercel 헤더를 신뢰하거나, 새 cron 엔드포인트
+ * (api/cron-runner.js + api/_crons/* 직접 handler)가 verifyCronRequest 없이
+ * export default handler 패턴을 가지면 fail.
  *
- * 트리거: api/cron-runner.js 또는 api/_crons/*.js 변경/신규.
+ * 트리거: cron-auth.js, api/cron-runner.js 또는 api/_crons/*.js 변경/신규.
  * 위반 시 fail.
  */
 function P44_cronAuthGate({ changed }) {
   const targets = (changed || []).filter((c) =>
     c.status !== 'D' && /\.js$/.test(c.file) &&
-    (c.file === 'api/cron-runner.js' || c.file.startsWith('api/_crons/')),
+    (c.file === 'api/_shared/cron-auth.js' || c.file === 'api/cron-runner.js' || c.file.startsWith('api/_crons/')),
   );
   if (targets.length === 0) return { skipped: true };
 
@@ -802,13 +803,29 @@ function P44_cronAuthGate({ changed }) {
   for (const { file } of targets) {
     const content = getChangedFileContent(file);
     if (!content) continue;
-    // dispatcher 만 verifyCronRequest 필요 (개별 job 핸들러는 dispatcher 가 보호).
-    if (file === 'api/cron-runner.js') {
+    if (file === 'api/_shared/cron-auth.js') {
+      if (/x-vercel-cron(?:-signature)?/i.test(content)) {
+        violations.push(`${file}: caller-controlled Vercel-looking headers must never authenticate cron requests`);
+      }
+      if (!/CRON_SECRET/.test(content) || !/verifyAdminToken/.test(content)) {
+        violations.push(`${file}: shared verifier must retain CRON_SECRET Bearer and admin-token checks`);
+      }
+      continue;
+    }
+
+    // api/_crons 아래 파일은 현재 전부 HTTP handler다. 함수 문법이나 매개변수 이름을
+    // 바꿔도 검사를 피하지 못하도록 경로 자체를 게이트로 사용한다.
+    const httpCronHandler = file === 'api/cron-runner.js' || file.startsWith('api/_crons/');
+    if (httpCronHandler) {
+      if (/x-vercel-cron(?:-signature)?|x-cron-token/i.test(content)
+        || /(?:req|request)\.query\??\.token/.test(content)) {
+        violations.push(`${file}: caller-controlled cron headers/query tokens are forbidden`);
+      }
       if (!/verifyCronRequest|cron-auth/.test(content)) {
-        violations.push(`${file}: missing verifyCronRequest import — dispatcher must auth-gate before invoking jobs (PR #419 CZ3/WC5)`);
+        violations.push(`${file}: missing verifyCronRequest import — HTTP cron handlers must fail closed before invoking jobs`);
       }
       if (!/await\s+verifyCronRequest\s*\(/.test(content)) {
-        violations.push(`${file}: handler must call \`await verifyCronRequest(req)\` before dispatching`);
+        violations.push(`${file}: handler must call \`await verifyCronRequest(req)\` before any work`);
       }
     }
   }
@@ -817,7 +834,7 @@ function P44_cronAuthGate({ changed }) {
     fail(
       'P44_cronAuthGate',
       `Cron auth gate missing — ${violations.length}건: ${violations.slice(0, 3).join(' | ')}${violations.length > 3 ? ' …' : ''}`,
-      'PR #419 — api/cron-runner.js 는 verifyCronRequest(req) 로 CRON_SECRET / x-vercel-cron / admin token 셋 중 하나를 검증해야 mass email/Telegram spam 차단됨.',
+      'Cron HTTP handler는 verifyCronRequest(req)로 CRON_SECRET Bearer 또는 admin token만 검증해야 함. x-vercel-cron 계열과 URL/query token은 신뢰 금지.',
     );
   }
   return null;

@@ -10,6 +10,11 @@
 
 // 런타임 토글 가능한 백엔드 플래그 (label/desc/default). 신규 플래그는 여기 등록 + 백엔드 read 연결.
 export const RUNTIME_FLAG_KEYS = {
+  inquiry_auto_ack_enabled: {
+    label: '문의 자동 접수확인',
+    desc: '켜면 로그인에서 이메일 소유가 확인되고 서버 검증·시간창·일일상한을 모두 통과한 새 문의에만 접수 확인 메일을 보냅니다. 최종 견적 답변은 계속 사람 승인입니다.',
+    default: false,
+  },
   transfer_margin_guard_enabled: {
     label: 'transfer 최소마진 가드',
     desc: '켜면 transfer 결제가 추정원가×배수 미달 시 차단(협의). ⚠️ 원가모델=추정치 — 실 기사일당/연료 교체 후 권장.',
@@ -52,6 +57,23 @@ export async function getRuntimeFlags(adminDb) {
   } catch (err) {
     console.warn('[runtime-flags] read 실패 → 기본값(안전) 사용:', err.message);
     return _cache || defaults;
+  }
+}
+
+/**
+ * 외부 자동발송용 무캐시·fail-closed 읽기.
+ * 문서 없음, 비 boolean, Firestore 오류는 모두 false이며 과거 캐시를 재사용하지 않는다.
+ */
+export async function getFailClosedRuntimeFlag(adminDb, key) {
+  if (!adminDb || !RUNTIME_FLAG_KEYS[key] || RUNTIME_FLAG_KEYS[key].default !== false) return false;
+  try {
+    const snap = await adminDb.collection(COLLECTION).doc(DOC_ID).get();
+    if (!snap || !snap.exists) return false;
+    const data = snap.data() || {};
+    return data[key] === true;
+  } catch (err) {
+    console.warn('[runtime-flags] 외부 자동화 플래그 read 실패 → OFF:', err.message);
+    return false;
   }
 }
 

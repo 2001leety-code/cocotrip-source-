@@ -22,6 +22,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { captureError } from '../_shared/sentry.js';
 
@@ -174,13 +175,9 @@ export const kpopCalendarTask = async (dryRun = false) => {
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const token = req.query?.token || req.headers['x-cron-token'];
-    const isVercelCron = !!req.headers['x-vercel-cron'] || !!req.headers['x-vercel-cron-signature'];
-    if (!isVercelCron && token !== cronSecret) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized cron' });
-    }
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   }
 
   try {

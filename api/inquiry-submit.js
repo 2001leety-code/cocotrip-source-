@@ -35,6 +35,11 @@ import { detectAndTranslate } from './_shared/translator.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { verifyFirebaseIdentityToken } from './_shared/user-auth.js';
 import {
+  INQUIRY_AUTO_ACK_ELIGIBILITY_VERSION,
+  INQUIRY_SUBMISSION_PROVENANCE,
+} from './_shared/inquiry-auto-ack-constants.js';
+import { validInquiryResponseEmail } from './_shared/inquiry-email.js';
+import {
   buildPlanInquiryContext,
   canAccessPlanForInquiry,
   resolvePlanInquiryQuote,
@@ -235,7 +240,8 @@ export default async function handler(req, res) {
       res.writeHead(400, JSON_HEADERS);
       return res.end(JSON.stringify(_err('name required (min 2 chars)', 'INVALID_NAME')));
     }
-    const emailValid = /\S+@\S+\.\S+/.test(trimmedEmail);
+    const normalizedValidEmail = validInquiryResponseEmail(trimmedEmail);
+    const emailValid = Boolean(normalizedValidEmail);
     if (isTourCustom) {
       // 이메일 또는 전화 중 하나는 필수 — 입력된 이메일이 형식 불량이면 명시적 거부.
       // 전화는 숫자 5자리 이상(길이만 재면 문자 5자도 유일 연락수단으로 통과).
@@ -285,6 +291,7 @@ export default async function handler(req, res) {
 
     // 옵션 인증 — 헤더가 없으면 게스트, 있으면 Firebase 검증 실패를 익명으로 강등하지 않는다.
     let userId = null;
+    let verifiedIdentityEmail = null;
     const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
     if (String(authHeader).trim()) {
       const auth = await verifyFirebaseIdentityToken(req);
@@ -293,6 +300,9 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify(_err('Invalid sign-in token', 'AUTH_INVALID')));
       }
       userId = auth.uid;
+      if (auth.emailVerified === true) {
+        verifiedIdentityEmail = validInquiryResponseEmail(auth.email);
+      }
     }
 
     const adminDb = initAdminDb('inquiry-submit');
@@ -349,6 +359,10 @@ export default async function handler(req, res) {
       planContext = buildPlanInquiryContext(plan);
     }
 
+    const recipientVerifiedForAutoAck = Boolean(
+      normalizedValidEmail && verifiedIdentityEmail === normalizedValidEmail,
+    );
+    const automaticAckGuardVerified = rl.degraded !== true && recipientVerifiedForAutoAck;
     const inquiryId = await createInquiryWithoutOverwrite(adminDb, {
       name: trimmedName,
       email: trimmedEmail || null,
@@ -368,6 +382,15 @@ export default async function handler(req, res) {
       wizardSnapshot: isPlanCharter ? null : normalizedWizardSnapshot,
       source: normalizedSource,
       contractVersion: isPlanCharter ? 'inquiry.v2' : 'inquiry.v1',
+      // 자동 접수 확인은 이 서버 표식과 정상 rate-limit 판정을 모두 요구한다.
+      // 과거 PWA의 익명 Firestore 직접 문서나 보호장치 장애 중 접수된 문서는 수동 처리한다.
+      submissionProvenance: INQUIRY_SUBMISSION_PROVENANCE,
+      autoAckEligibilityVersion: automaticAckGuardVerified
+        ? INQUIRY_AUTO_ACK_ELIGIBILITY_VERSION
+        : null,
+      rateLimitVerifiedForAutoAck: rl.degraded !== true,
+      recipientVerifiedForAutoAck,
+      autoAckCandidate: automaticAckGuardVerified,
       userId,
       ...(isPlanCharter ? {
         planId: trimmedPlanId,
