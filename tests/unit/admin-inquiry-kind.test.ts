@@ -21,6 +21,12 @@ describe('normalizeInquiryStatus — NEW→pending 읽기 정규화', () => {
     expect(normalizeInquiryStatus('approved')).toBe('approved');
     expect(normalizeInquiryStatus('rejected')).toBe('rejected');
   });
+
+  it('응대 워크플로 상태도 대소문자와 무관하게 같은 필터 값으로 맞춘다', () => {
+    expect(normalizeInquiryStatus('RESPONDED')).toBe('responded');
+    expect(normalizeInquiryStatus('Converted')).toBe('converted');
+    expect(normalizeInquiryStatus('')).toBe('pending');
+  });
 });
 
 describe('inquiryKind — 문의 유형 판별', () => {

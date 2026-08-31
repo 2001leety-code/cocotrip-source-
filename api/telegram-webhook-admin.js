@@ -1302,7 +1302,9 @@ async function handleInquiriesCommand(botToken, p) {
     charterOpen.slice(0, 15).forEach((c) => {
       const h = ageHours(c.createdAt, nowMs);
       const aged = h != null ? ` ${h}h` : '';
-      lines.push(` 🚐 <code>${c.id.slice(0, 12)}</code> ${c.name || c.customerName || '-'}${aged}\n   ${String(c.message || c.notes || c.route || '').slice(0, 60)}`);
+      const customer = escapeHtmlLocal(String(c.name || c.customerName || '-').slice(0, 80));
+      const summary = escapeHtmlLocal(String(c.message || c.notes || c.details || c.route || '').slice(0, 60));
+      lines.push(` 🚐 <code>${escapeHtmlLocal(c.id.slice(0, 12))}</code> ${customer}${aged}\n   ${summary}`);
     });
   }
   await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));

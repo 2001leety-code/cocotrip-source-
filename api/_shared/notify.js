@@ -80,6 +80,23 @@ export async function sendDiscord(text) {
   }
 }
 
+/**
+ * Discord mirror payload policy.
+ *
+ * Customer inquiries can contain names, contact details, booking context, or
+ * free-form sensitive text. They are therefore excluded from the generic
+ * Discord mirror unless the operator explicitly enables the channel. Even
+ * when enabled, Discord receives only a fixed pointer with no inquiry body.
+ *
+ * Vercel env opt-in: DISCORD_MIRROR_INQUIRY_ENABLED=true
+ */
+export function discordMirrorText(channel, text, envSource = process.env) {
+  if (channel !== 'inquiry') return text;
+  const enabled = String(envSource.DISCORD_MIRROR_INQUIRY_ENABLED || '').trim().toLowerCase() === 'true';
+  if (!enabled) return null;
+  return '🔒 **고객 문의 도착**\n민감정보 보호를 위해 본문은 생략했습니다. Telegram 문의 채널 또는 관리자 화면에서 확인하세요.';
+}
+
 // PR #451 (Audit Z-H13 — 2026-05-16): Telegram sendMessage hard-caps text at
 // 4096 chars. Pre-fix, notify() forwarded oversized text unchanged; Telegram
 // rejected with "MESSAGE_TOO_LONG" → notify() returned ok:false but the alert
@@ -124,7 +141,8 @@ function resolveToken(channel) {
 export async function notify(channel, text, options = {}) {
   // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 텔레그램과 "병렬"로 디스코드에도 전송(미설정=no-op).
   // 병렬 시작(await 안 함) → 텔레그램이 디스코드를 기다리지 않음(지연 0) → finally 에서 완료 보장(서버리스 drop 방지).
-  const discordMirror = sendDiscord(text);
+  const discordText = discordMirrorText(channel, text);
+  const discordMirror = discordText ? sendDiscord(discordText) : Promise.resolve();
   try {
     const token = resolveToken(channel);
     // 2026-07-11 (3단계-A): options.chatId — 테스트 알림 분리 채널(TELEGRAM_TEST_CHAT_ID) 용

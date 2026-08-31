@@ -38,6 +38,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron-runner?job=inquiry-response-sweep",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron-runner?job=ai-planner-retry-sweep",
       "schedule": "*/5 * * * *"
     },

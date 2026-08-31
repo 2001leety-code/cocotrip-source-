@@ -82,6 +82,9 @@ const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
 // 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
 const MoodPortal = lazy(() => import('@/pages/MoodPortal'));
 const MoodUiHarness = import.meta.env.DEV ? lazy(() => import('@/pages/MoodUiHarness')) : null;
+const InquiryResponseDevHarness = import.meta.env.DEV
+  ? lazy(() => import('@/pages/InquiryResponseDevHarness'))
+  : null;
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
 function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -686,6 +689,16 @@ function AnimatedRoutes() {
               element={
                 <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <MoodUiHarness />
+                </Suspense>
+              }
+            />
+          )}
+          {import.meta.env.DEV && InquiryResponseDevHarness && (
+            <Route
+              path="/dev/inquiry-response"
+              element={
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
+                  <InquiryResponseDevHarness />
                 </Suspense>
               }
             />
