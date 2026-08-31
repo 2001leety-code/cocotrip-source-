@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
 import InquiryResponsePanel, { type InquiryAckWorkflow, type InquiryResponseWorkflow } from '@/components/admin/InquiryResponsePanel';
+import { RuntimeFlagsPanel } from '@/components/admin/RuntimeFlagsPanel';
 
 type Tab = 'claims' | 'inquiries';
 type Status = 'pending' | 'approved' | 'rejected' | 'responded' | 'converted' | 'closed';
@@ -315,6 +316,12 @@ export default function AdminClaims() {
             </button>
           ))}
         </div>
+
+        {tab === 'inquiries' && (
+          <div className="mb-4" aria-label="문의 자동화 설정">
+            <RuntimeFlagsPanel onlyKeys={['inquiry_auto_ack_enabled']} />
+          </div>
+        )}
 
         {/* Filter pills — 모바일 가로 스크롤 가능 */}
         <div className="flex gap-2 mb-2 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">

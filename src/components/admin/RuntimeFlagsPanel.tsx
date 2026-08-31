@@ -4,13 +4,16 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { RuntimeFlagsView, type RuntimeFlagSchema } from '@/components/admin/RuntimeFlagsView';
 
-interface FlagSchema { label: string; desc: string; default: boolean }
+interface RuntimeFlagsPanelProps {
+  onlyKeys?: readonly string[];
+}
 
-export function RuntimeFlagsPanel() {
+export function RuntimeFlagsPanel({ onlyKeys }: RuntimeFlagsPanelProps = {}) {
   const { user } = useAuth();
   const [flags, setFlags] = useState<Record<string, boolean>>({});
-  const [schema, setSchema] = useState<Record<string, FlagSchema>>({});
+  const [schema, setSchema] = useState<Record<string, RuntimeFlagSchema>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -54,7 +57,8 @@ export function RuntimeFlagsPanel() {
     if (key === 'inquiry_auto_ack_enabled' && value) {
       const confirmed = window.confirm(
         '새 문의에 자동 접수 확인 메일을 실제 발송합니다.\n\n'
-        + 'Vercel Production의 워커·자동접수·UTC 시작시각·시간창·일일상한 설정을 먼저 확인했습니까?\n'
+        + 'Vercel Production의 자동접수·UTC 시작시각·시간창·일일상한·공용 처리수 설정을 먼저 확인했습니까?\n'
+        + '접수확인만 운영할 때는 초안·최종답변 워커를 꺼 두어야 합니다.\n'
         + '최종 견적 답변은 계속 운영자가 별도로 검토해 보내야 합니다.',
       );
       if (!confirmed) return;
@@ -63,38 +67,13 @@ export function RuntimeFlagsPanel() {
   };
 
   if (loading) return null;
-  const keys = Object.keys(schema);
-  if (keys.length === 0) return null;
-
   return (
-    <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.06] px-3 sm:px-4 py-3 space-y-2.5">
-      <p className="text-[12px] font-bold text-white/85 flex items-center gap-1.5 flex-wrap">
-        🎛️ 운영 토글
-        <span className="text-[10px] font-normal text-white/45">저장 후 다음 백엔드 실행부터 반영</span>
-      </p>
-      {keys.map((key) => {
-        const on = !!flags[key];
-        return (
-          <div key={key} className="flex items-start justify-between gap-3 pt-1.5 border-t border-white/[0.05] first:border-t-0 first:pt-0">
-            <div className="min-w-0">
-              <p className="text-[12px] text-white/80 font-medium">{schema[key].label}</p>
-              <p className="text-[10.5px] text-white/45 leading-snug">{schema[key].desc}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => requestToggle(key, !on)}
-              disabled={busy === key}
-              className={`min-h-[44px] shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9D86FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b14] disabled:opacity-50 ${
-                on
-                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                  : 'bg-white/[0.04] border-white/[0.12] text-white/55 hover:border-white/25'
-              }`}
-            >
-              {busy === key ? '...' : on ? '✓ 켜짐' : '꺼짐'}
-            </button>
-          </div>
-        );
-      })}
-    </div>
+    <RuntimeFlagsView
+      flags={flags}
+      schema={schema}
+      busy={busy}
+      onlyKeys={onlyKeys}
+      onRequestToggle={requestToggle}
+    />
   );
 }

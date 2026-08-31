@@ -17,7 +17,7 @@
 
 켜기 전 어드민 `/admin/claims`의 문의 탭에서 초안 만들기·수정·발송 확인 흐름을 먼저 점검한다.
 메일 서버에 넘긴 뒤 결과가 불명확하면 자동 재발송하지 않고 운영자 확인 상태로 멈춘다.
-자동 접수 확인만 켤 때는 `INQUIRY_RESPONSE_WORKER_ENABLED=false`를 유지한다. 순서는 `Vercel Production의 AUTO_ACK 4개 값과 공용 BATCH_SIZE 확인 → 배포 → GitHub Actions의 Deploy Firestore Indexes 성공(--wait로 Ready 확인) → 어드민 /admin/payments의 '문의 자동 접수확인' 운영 토글 ON`이다.
+자동 접수 확인만 켤 때는 `INQUIRY_RESPONSE_WORKER_ENABLED=false`를 유지한다. 순서는 `Vercel Production의 AUTO_ACK 4개 값과 공용 BATCH_SIZE 확인 → 배포 → GitHub Actions의 Deploy Firestore Indexes 성공(--wait로 Ready 확인) → 어드민 /admin/claims 문의 탭의 '문의 자동 접수확인' 운영 토글 ON`이다.
 초안 생성·승인된 최종답변 재시도까지 별도로 운영하기로 결정한 경우에만 공유 답변 워커를 ON으로 바꾼다. `NOT_BEFORE`는 자동 접수 확인에만 적용되며 공유 답변 워커를 예약 활성화하지 않는다.
 끄기는 같은 어드민 운영 토글을 먼저 OFF로 바꾸면 다음 5분 워커부터 자동 접수확인의 신규 발송과 자동 재시도가 함께 멈춘다.
 

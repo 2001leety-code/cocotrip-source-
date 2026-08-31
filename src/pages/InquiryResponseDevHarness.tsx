@@ -4,6 +4,7 @@ import InquiryResponsePanel, {
   type InquiryResponseDevActionHandler,
   type InquiryResponseWorkflow,
 } from '@/components/admin/InquiryResponsePanel';
+import { RuntimeFlagsView } from '@/components/admin/RuntimeFlagsView';
 
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9D86FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b14]';
 const DEMO_EMAIL = 'demo.customer@example.invalid';
@@ -30,6 +31,7 @@ export default function InquiryResponseDevHarness() {
   const backendWorkflow = useRef<InquiryResponseWorkflow | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
+  const [autoAckEnabled, setAutoAckEnabled] = useState(false);
 
   const record = (code: string) => {
     setHistory((current) => [...current, code]);
@@ -92,6 +94,7 @@ export default function InquiryResponseDevHarness() {
   const reset = () => {
     backendWorkflow.current = null;
     setHistory([]);
+    setAutoAckEnabled(false);
     setPanelKey((current) => current + 1);
   };
 
@@ -129,6 +132,24 @@ export default function InquiryResponseDevHarness() {
             </ol>
           </div>
         </header>
+
+        <section className="mt-4" aria-label="문의 자동화 설정 미리보기">
+          <RuntimeFlagsView
+            flags={{ inquiry_auto_ack_enabled: autoAckEnabled }}
+            schema={{
+              inquiry_auto_ack_enabled: {
+                label: '문의 자동 접수확인',
+                desc: '정확한 안전 기준을 모두 통과한 새 문의에만 접수 확인 메일 발송',
+                default: false,
+              },
+            }}
+            onlyKeys={['inquiry_auto_ack_enabled']}
+            onRequestToggle={(_key, value) => setAutoAckEnabled(value)}
+          />
+          <p className="mt-2 text-[11px] leading-5 text-amber-200/75">
+            DEV 미리보기입니다. 이 버튼은 화면 상태만 바꾸며 메일·운영 설정을 변경하지 않습니다.
+          </p>
+        </section>
 
         <InquiryResponsePanel
           key={panelKey}
