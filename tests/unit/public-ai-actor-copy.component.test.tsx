@@ -84,6 +84,13 @@ function cardText(tags: string[], language: Lang = 'en'): string {
   return container.textContent || '';
 }
 
+function cardBadgeText(tags: string[], language: Lang = 'en'): string {
+  const { container } = render(
+    <MemoryRouter><TourCard tour={tourWithTags(tags)} language={language} /></MemoryRouter>,
+  );
+  return container.querySelector('.tour-catalog-card-badges')?.textContent || '';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 describe('F3 — /tours 카드 배지: AI-Curated 는 렌더되지 않는다', () => {
   it('AI-Curated 만 남으면 배지 자체가 없다 (Popular/Best Value 와 같은 취급)', () => {
@@ -97,10 +104,10 @@ describe('F3 — /tours 카드 배지: AI-Curated 는 렌더되지 않는다', (
     // 실측 F3 의 원인은 정확 문자열 Set 이었다. 상품 데이터가 'AI Curated' 로 저장되면
     // 그 Set 은 그냥 통과시키고 카드에는 다시 AI 가 찍힌다.
     for (const variant of ['AI Curated', 'ai-curated', 'AI_CURATED', 'aicurated', ' AI-Curated ']) {
-      expect(cardText([variant]), `변형 통과: ${variant}`).not.toMatch(/curated/i);
+      expect(cardBadgeText([variant]), `변형 통과: ${variant}`).not.toMatch(/curated/i);
     }
     for (const variant of ['popular', 'POPULAR', 'Best  Value', 'best-value']) {
-      expect(cardText([variant]), `변형 통과: ${variant}`).not.toMatch(/popular|best/i);
+      expect(cardBadgeText([variant]), `변형 통과: ${variant}`).not.toMatch(/popular|best/i);
     }
   });
 

@@ -102,7 +102,13 @@ async function flushLazy() {
   await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 }
 
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); trackSpy.mockClear(); });
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  // The gate requires a new trip to start after today's KST date. Keep this
+  // test clock fixed so the 2026-09-01 fixture does not expire at midnight.
+  vi.setSystemTime(new Date('2026-08-31T00:00:00.000Z'));
+  trackSpy.mockClear();
+});
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
 function renderWizard() {
