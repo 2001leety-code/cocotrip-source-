@@ -61,4 +61,31 @@ describe('RuntimeFlagsPanel external-send confirmation', () => {
       value: true,
     });
   });
+
+  it('문의 화면은 자동 접수 토글만 표시한다', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(apiResponse({
+      ok: true,
+      flags: {
+        inquiry_auto_ack_enabled: false,
+        margin_guard_enabled: true,
+      },
+      schema: {
+        inquiry_auto_ack_enabled: {
+          label: '문의 자동 접수확인',
+          desc: '새 문의 접수 확인',
+          default: false,
+        },
+        margin_guard_enabled: {
+          label: '마진 가드',
+          desc: '결제 안전 설정',
+          default: true,
+        },
+      },
+    })));
+
+    render(<RuntimeFlagsPanel onlyKeys={['inquiry_auto_ack_enabled']} />);
+
+    expect(await screen.findByText('문의 자동 접수확인')).toBeInTheDocument();
+    expect(screen.queryByText('마진 가드')).toBeNull();
+  });
 });

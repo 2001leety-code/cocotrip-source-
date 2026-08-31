@@ -33,6 +33,10 @@ vi.mock('@/components/admin/InquiryResponsePanel', () => ({
   default: () => <div data-testid="inquiry-response-panel" />,
 }));
 
+vi.mock('@/components/admin/RuntimeFlagsPanel', () => ({
+  RuntimeFlagsPanel: () => <div data-testid="inquiry-runtime-flags" />,
+}));
+
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, collectionName: string) => ({ collectionName }),
   query: (source: { collectionName: string }) => source,
@@ -162,6 +166,7 @@ describe('AdminClaims 조회 상태', () => {
     }]);
 
     openInquiriesTab();
+    expect(screen.getByTestId('inquiry-runtime-flags')).toBeInTheDocument();
     expect(screen.getByTestId('inquiry-response-panel')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '승인' })).toHaveLength(1); // 상태 필터만 남음
     expect(screen.getAllByRole('button', { name: '거절' })).toHaveLength(2); // 상태 필터 + 문의 종료 액션

@@ -6,7 +6,8 @@
  * 3) 최종 답변과 자동 접수 확인은 서로 다른 상태기계로 재시도한다.
  * 4) SMTP 이후 결과를 모르는 발송은 자동 재발송하지 않고 사람 확인으로 격리한다.
  *
- * 초안·재발송은 INQUIRY_RESPONSE_WORKER_ENABLED=true 일 때만 동작한다(기본 OFF).
+ * 초안·최종답변 재발송은 INQUIRY_RESPONSE_WORKER_ENABLED=true 일 때만 동작한다(기본 OFF).
+ * 자동 접수 확인은 위 공유 워커와 독립적으로 자체 환경변수·정확 설정·런타임 스위치를 모두 요구한다.
  * 외부 발송이 없는 오래된 sending 상태 복구는 플래그와 무관하게 동작한다.
  */
 import { initAdminDb } from '../_shared/firebase-admin.js';
@@ -111,16 +112,15 @@ export async function inquiryResponseSweepTask(options = {}) {
   const autoAckConfigurationError = autoAckRequested
     ? resolveAutomaticAckConfigurationError({ activationAtMs, maxAgeMs, dailyCap })
     : null;
-  const runtimeAutoAckEnabled = workerEnabled && autoAckRequested && !autoAckConfigurationError
+  const runtimeAutoAckEnabled = autoAckRequested && !autoAckConfigurationError
     ? await getFailClosedRuntimeFlag(db, 'inquiry_auto_ack_enabled')
     : false;
-  const autoAckEnabled = workerEnabled
-    && autoAckRequested
+  const autoAckEnabled = autoAckRequested
     && !autoAckConfigurationError
     && runtimeAutoAckEnabled;
   const result = {
     ok: true,
-    disabled: !workerEnabled,
+    disabled: !workerEnabled && !autoAckEnabled,
     autoAckRequested,
     autoAckEnabled,
     autoAckRuntimeEnabled: runtimeAutoAckEnabled,
@@ -164,25 +164,24 @@ export async function inquiryResponseSweepTask(options = {}) {
     recordAutomaticAckFailure(result, 'AUTO_ACK_RECOVERY_FAILED');
   }
 
-  if (!workerEnabled) return result;
+  if (workerEnabled) {
+    const newSnap = await db.collection('charter_inquiries')
+      .where('status', 'in', ['NEW', 'pending'])
+      .limit(Math.max(limit * 3, limit))
+      .get();
 
-  const newSnap = await db.collection('charter_inquiries')
-    .where('status', 'in', ['NEW', 'pending'])
-    .limit(Math.max(limit * 3, limit))
-    .get();
-
-  for (const doc of newSnap.docs) {
-    const data = doc.data() || {};
-    if (result.drafted < limit && shouldGenerateInquiryDraft(data, now)) {
-      const drafted = await generateAndStoreInquiryDraft(db, doc.id, {
-        now,
-        actor: 'cron:inquiry-response-sweep',
-        generate: options.generate,
-      });
-      if (drafted.ok && !drafted.skipped) result.drafted += 1;
-      else if (!drafted.ok) result.failed += 1;
+    for (const doc of newSnap.docs) {
+      const data = doc.data() || {};
+      if (result.drafted < limit && shouldGenerateInquiryDraft(data, now)) {
+        const drafted = await generateAndStoreInquiryDraft(db, doc.id, {
+          now,
+          actor: 'cron:inquiry-response-sweep',
+          generate: options.generate,
+        });
+        if (drafted.ok && !drafted.skipped) result.drafted += 1;
+        else if (!drafted.ok) result.failed += 1;
+      }
     }
-
   }
 
   if (autoAckEnabled) {
@@ -235,25 +234,27 @@ export async function inquiryResponseSweepTask(options = {}) {
     }
   }
 
-  const deliverySnap = await db.collection('charter_inquiries')
-    .where('responseWorkflow.deliveryStatus', '==', 'retryable')
-    .limit(Math.max(25, Math.min(100, limit * 20)))
-    .get();
+  if (workerEnabled) {
+    const deliverySnap = await db.collection('charter_inquiries')
+      .where('responseWorkflow.deliveryStatus', '==', 'retryable')
+      .limit(Math.max(25, Math.min(100, limit * 20)))
+      .get();
 
-  const dueFinalRetries = [...deliverySnap.docs].sort((left, right) => (
-    Number(left.data()?.responseWorkflow?.nextDeliveryAttemptAtMs || 0)
-    - Number(right.data()?.responseWorkflow?.nextDeliveryAttemptAtMs || 0)
-  ));
-  for (const doc of dueFinalRetries) {
-    const data = doc.data() || {};
-    const workflow = data.responseWorkflow || {};
-    if (result.retried >= limit) continue;
-    const terminal = ['rejected', 'responded', 'closed', 'converted']
-      .includes(String(data.status || '').trim().toLowerCase());
-    if (!terminal && Number(workflow.nextDeliveryAttemptAtMs || 0) > now) continue;
-    const retry = await retryApprovedInquiryResponse(db, doc.id, { now, send: options.send });
-    if (retry.ok || retry.code === 'RETRY_SCHEDULED') result.retried += 1;
-    else result.failed += 1;
+    const dueFinalRetries = [...deliverySnap.docs].sort((left, right) => (
+      Number(left.data()?.responseWorkflow?.nextDeliveryAttemptAtMs || 0)
+      - Number(right.data()?.responseWorkflow?.nextDeliveryAttemptAtMs || 0)
+    ));
+    for (const doc of dueFinalRetries) {
+      const data = doc.data() || {};
+      const workflow = data.responseWorkflow || {};
+      if (result.retried >= limit) continue;
+      const terminal = ['rejected', 'responded', 'closed', 'converted']
+        .includes(String(data.status || '').trim().toLowerCase());
+      if (!terminal && Number(workflow.nextDeliveryAttemptAtMs || 0) > now) continue;
+      const retry = await retryApprovedInquiryResponse(db, doc.id, { now, send: options.send });
+      if (retry.ok || retry.code === 'RETRY_SCHEDULED') result.retried += 1;
+      else result.failed += 1;
+    }
   }
 
   return result;
