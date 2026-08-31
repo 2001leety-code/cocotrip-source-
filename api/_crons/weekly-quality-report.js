@@ -18,12 +18,12 @@
  *   5. weekly_quality_reports 컬렉션에 보관
  *
  * 인증:
- *   - Vercel cron 자동 호출 시 x-vercel-cron 헤더 또는 query?token=$CRON_SECRET
- *   - cron-runner.js 가 호출되므로 별도 인증은 dispatcher 단에서 처리. 여기서는
- *     ENV 가 없는 로컬 호출도 허용 (CRON_SECRET 미설정 시 통과).
+ *   - CRON_SECRET Bearer 또는 운영자 Firebase 토큰만 허용한다.
+ *   - cron-runner.js 경유와 직접 함수 호출 모두 같은 검증기를 사용한다.
  *
  * 운영자 manual trigger:
- *   curl "https://cocotripkr.com/api/cron-runner?job=weekly-quality-report&token=$CRON_SECRET"
+ *   curl -H "Authorization: Bearer $CRON_SECRET" \
+ *     "https://cocotripkr.com/api/cron-runner?job=weekly-quality-report"
  *
  * 참고:
  *   - 한국어 admin only — i18n 키 추가 X
@@ -32,6 +32,7 @@
  */
 
 import { initAdminDb } from '../_shared/firebase-admin.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { captureError } from '../_shared/sentry.js';
 import {
@@ -258,16 +259,11 @@ const weeklyQualityReportTask = async () => {
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // 선택적 인증: CRON_SECRET 설정 시 token 또는 vercel cron 헤더 검증
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const token = req.query?.token || req.headers['x-cron-token'];
-    const isVercelCron = !!req.headers['x-vercel-cron'] || !!req.headers['x-vercel-cron-signature'];
-    if (!isVercelCron && token !== cronSecret) {
-      res.statusCode = 401;
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ ok: false, error: 'Unauthorized cron' }));
-    }
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    res.statusCode = auth.status;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ ok: false, code: 'AUTH_REQUIRED', error: auth.error }));
   }
 
   try {

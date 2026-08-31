@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- HTTP handler test scaffolding. */
 /**
  * PR #419 — Audit CZ3 / WC5 regression slot.
  *
@@ -6,10 +7,12 @@
  * dispatcher had zero auth — anyone could POST `?job=daily-report` and
  * trigger mass operator alerts.
  *
- * Acceptable callers: CRON_SECRET Bearer, `x-vercel-cron:1` header, or
- * admin Firebase ID token.
+ * Acceptable callers: CRON_SECRET Bearer or admin Firebase ID token.
+ * Caller-supplied Vercel-looking headers are untrusted.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const verifyAdminTokenMock = vi.fn();
 
@@ -71,8 +74,8 @@ function req(method: string, opts: { headers?: Record<string, string>; query?: R
   return {
     method,
     url: `/api/cron-runner${qs}`,
-    headers: opts.headers ?? {},
-    query: opts.query ?? {},
+    headers: opts.headers || {},
+    query: opts.query || {},
   };
 }
 
@@ -101,7 +104,7 @@ describe('PR #419 — cron-runner auth gate', () => {
     expect(jobMocks.dailyReport).not.toHaveBeenCalled();
   });
 
-  it('accepts request with x-vercel-cron: 1 header', async () => {
+  it('rejects a forged x-vercel-cron: 1 header', async () => {
     const handler = (await import('../../api/cron-runner.js')).default;
     const res = makeRes();
     await handler(
@@ -111,8 +114,8 @@ describe('PR #419 — cron-runner auth gate', () => {
       }),
       res as any,
     );
-    expect(res.statusCode).toBe(200);
-    expect(jobMocks.dailyReport).toHaveBeenCalledOnce();
+    expect(res.statusCode).toBe(401);
+    expect(jobMocks.dailyReport).not.toHaveBeenCalled();
   });
 
   it('accepts request with Bearer CRON_SECRET when env var set', async () => {
@@ -162,11 +165,12 @@ describe('PR #419 — cron-runner auth gate', () => {
   });
 
   it('rejects 400 with unknown job even when authed', async () => {
+    process.env.CRON_SECRET = 'super-secret-123';
     const handler = (await import('../../api/cron-runner.js')).default;
     const res = makeRes();
     await handler(
       req('GET', {
-        headers: { 'x-vercel-cron': '1' },
+        headers: { authorization: 'Bearer super-secret-123' },
         query: { job: 'bogus-job-name' },
       }),
       res as any,
@@ -181,16 +185,32 @@ describe('PR #419 — cron-runner auth gate', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('rejects forged x-vercel-cron value (only "1" is accepted)', async () => {
+  it.each([
+    { 'x-vercel-cron': 'true' },
+    { 'x-vercel-cron': '1' },
+    { 'x-vercel-cron-signature': 'anything' },
+  ])('rejects caller-controlled Vercel-looking headers: %o', async (headers) => {
     const handler = (await import('../../api/cron-runner.js')).default;
     const res = makeRes();
     await handler(
       req('GET', {
-        headers: { 'x-vercel-cron': 'true' },
+        headers,
         query: { job: 'daily-report' },
       }),
       res as any,
     );
     expect(res.statusCode).toBe(401);
+  });
+
+  it.each([
+    'dispatch-reminder.js',
+    'kpop-calendar-check.js',
+    'operator-todo-reminder.js',
+    'weekly-quality-report.js',
+  ])('uses the shared fail-closed verifier in %s', (fileName) => {
+    const source = readFileSync(resolve(process.cwd(), 'api/_crons', fileName), 'utf8');
+    expect(source).toMatch(/verifyCronRequest\(req\)/);
+    expect(source).not.toMatch(/x-vercel-cron(?:-signature)?/);
+    expect(source).not.toMatch(/req\.query\?\.token\s*\|\|\s*req\.headers\['x-cron-token'\]/);
   });
 });

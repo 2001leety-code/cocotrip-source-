@@ -15,7 +15,7 @@ import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, Exte
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
-import InquiryResponsePanel, { type InquiryResponseWorkflow } from '@/components/admin/InquiryResponsePanel';
+import InquiryResponsePanel, { type InquiryAckWorkflow, type InquiryResponseWorkflow } from '@/components/admin/InquiryResponsePanel';
 
 type Tab = 'claims' | 'inquiries';
 type Status = 'pending' | 'approved' | 'rejected' | 'responded' | 'converted' | 'closed';
@@ -63,6 +63,7 @@ interface ClaimRow {
     kind?: string;
   } | null;
   responseWorkflow?: InquiryResponseWorkflow | null;
+  ackWorkflow?: InquiryAckWorkflow | null;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -490,6 +491,7 @@ export default function AdminClaims() {
                     inquiryId={row.id}
                     email={row.email}
                     workflow={row.responseWorkflow}
+                    ackWorkflow={row.ackWorkflow}
                     getIdToken={async () => {
                       const token = await user?.getIdToken();
                       if (!token) throw new Error('관리자 로그인이 필요합니다.');

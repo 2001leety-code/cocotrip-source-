@@ -5,18 +5,13 @@
  * anyone hitting `/api/cron-runner?job=daily-report` could fire mass email
  * + Telegram blasts (operator alert spam, customer email quota abuse).
  *
- * Three accepted callers (the union — first match wins):
+ * Two accepted callers (the union — first match wins):
  *
  *   1. Vercel cron — sends `Authorization: Bearer ${CRON_SECRET}` when the
  *      `CRON_SECRET` env var is set on the project. This is the normal
  *      scheduled path triggered by vercel.json `crons`.
  *
- *   2. Vercel platform header — internal cron + Vercel-side replays set
- *      `x-vercel-cron: 1`. Even without CRON_SECRET configured this is
- *      enforced by Vercel as a private signal (request originates from
- *      Vercel's internal scheduler, not the public internet).
- *
- *   3. Authenticated admin — operator running a manual job from
+ *   2. Authenticated admin — operator running a manual job from
  *      `/admin/...` for debugging. Uses the existing `verifyAdminToken`
  *      helper (Bearer Firebase ID token, must match `ADMIN_EMAIL` env).
  *
@@ -46,9 +41,8 @@ function timingSafeEqualStr(a, b) {
 export async function verifyCronRequest(req) {
   const headers = req.headers || {};
   const authHeader = headers.authorization || headers.Authorization || '';
-  const vercelCronHeader = headers['x-vercel-cron'] || headers['X-Vercel-Cron'];
 
-  // (1) CRON_SECRET — preferred when env var is set.
+  // (1) CRON_SECRET — Vercel scheduled requests receive this Bearer value.
   const cronSecret = (process.env.CRON_SECRET || '').trim();
   if (cronSecret) {
     const m = /^Bearer\s+(.+)$/.exec(authHeader);
@@ -57,20 +51,8 @@ export async function verifyCronRequest(req) {
     }
   }
 
-  // (2) Vercel internal cron header — fallback path while operator wires up
-  // CRON_SECRET (Vercel sets `x-vercel-cron: 1` for scheduled invocations
-  // regardless). Cannot be forged by an external caller because Vercel's
-  // edge strips this header from inbound public requests.
-  if (vercelCronHeader && String(vercelCronHeader).trim() === '1') {
-    return { ok: true, source: 'vercel-cron' };
-  }
-
-  // (3) Admin manual invocation — debug path. Requires Firebase ID token
+  // (2) Admin manual invocation — debug path. Requires Firebase ID token
   // matching ADMIN_EMAIL.
-  if (authHeader && /^Bearer\s+/.test(authHeader) && !cronSecret) {
-    // If CRON_SECRET wasn't set we already tried Bearer above and bailed.
-    // Now try admin verification.
-  }
   if (authHeader && /^Bearer\s+/.test(authHeader)) {
     const adminAuth = await verifyAdminToken(req);
     if (adminAuth.ok) {
@@ -81,7 +63,7 @@ export async function verifyCronRequest(req) {
   return {
     ok: false,
     status: 401,
-    error: 'Cron requests require Vercel cron header, CRON_SECRET, or admin token',
+    error: 'Cron requests require CRON_SECRET Bearer or admin token',
   };
 }
 

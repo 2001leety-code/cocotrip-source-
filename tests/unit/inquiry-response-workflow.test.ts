@@ -325,6 +325,39 @@ describe('inquiry response delivery safety', () => {
     expect(send).toHaveBeenCalledOnce();
   });
 
+  it('cancels a pending automatic receipt when the operator final response succeeds', async () => {
+    const { db, docs } = fakeDb({
+      inquiry1: {
+        ...approvedDraft(),
+        autoAckCandidate: false,
+        ackWorkflow: {
+          deliveryStatus: 'retryable',
+          deliveryAttempts: 1,
+          nextDeliveryAttemptAtMs: 300_000,
+        },
+      },
+    });
+    const result = await approveAndSendInquiryResponse(db, 'inquiry1', {
+      expectedDraftRevision: 2,
+      subject: 'Reviewed subject',
+      body: 'This reviewed response is long enough to send to the customer.',
+      approvedBy: 'admin@example.com',
+      now: 1000,
+      send: vi.fn(async () => ({ messageId: 'final-before-ack-retry' })),
+    });
+
+    expect(result.code).toBe('SENT');
+    expect(docs.get('inquiry1')).toMatchObject({
+      status: 'responded',
+      autoAckCandidate: false,
+      ackWorkflow: {
+        deliveryStatus: 'cancelled',
+        nextDeliveryAttemptAtMs: null,
+        lastDeliveryErrorCode: 'FINAL_RESPONSE_SENT',
+      },
+    });
+  });
+
   it('retries only a confirmed pre-send failure', async () => {
     const { db, docs } = fakeDb({ inquiry1: approvedDraft() });
     const preSendError = Object.assign(new Error('quota'), { preSend: true, code: 'QUOTA' });

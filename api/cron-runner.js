@@ -6,8 +6,8 @@
  * Vercel cron paths: /api/cron-runner?job=daily-report etc.
  *
  * Auth (PR #419, Audit CZ3 / WC5 — 2026-05-13): every invocation must
- * present either CRON_SECRET (Bearer), the Vercel `x-vercel-cron: 1`
- * platform header, or an admin Firebase ID token. Otherwise the dispatcher
+ * present either CRON_SECRET (Bearer) or an admin Firebase ID token.
+ * Caller-controlled Vercel-looking headers are never trusted. Otherwise the dispatcher
  * could be called publicly to fire mass email / Telegram blasts (operator
  * spam, customer email quota abuse). Detail in api/_shared/cron-auth.js.
  */

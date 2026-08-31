@@ -97,6 +97,12 @@ afterEach(() => {
 
 describe('POST /api/inquiry-submit canonical contract', () => {
   it('accepts the bus inquiry shape and writes bounded canonical NEW fields', async () => {
+    verifyIdentity.mockResolvedValue({
+      ok: true,
+      uid: 'guest-1',
+      email: 'guest@example.com',
+      emailVerified: true,
+    });
     const result = await call({
       email: 'Guest@Example.com',
       name: 'Guest User',
@@ -113,7 +119,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
         destinationKey: 'seoul',
         destinationCustom: 'Hotel',
       },
-    });
+    }, { authorization: 'Bearer verified-user-token' });
 
     expect(result).toMatchObject({ status: 200, json: { success: true, status: 'NEW' } });
     expect(writes).toHaveLength(1);
@@ -123,6 +129,11 @@ describe('POST /api/inquiry-submit canonical contract', () => {
       email: 'guest@example.com',
       details: 'Airport group transfer',
       contractVersion: 'inquiry.v1',
+      submissionProvenance: 'api:inquiry-submit.v1',
+      autoAckEligibilityVersion: 'inquiry-auto-ack.eligibility.v1',
+      rateLimitVerifiedForAutoAck: true,
+      recipientVerifiedForAutoAck: true,
+      autoAckCandidate: true,
       source: 'charter_wizard',
       wizardSnapshot: {
         origin: 'Incheon Airport',
@@ -290,6 +301,89 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     });
     expect(result).toMatchObject({ status: 503, json: { code: 'RATE_LIMIT_UNAVAILABLE' } });
     expect(writes).toHaveLength(0);
+  });
+
+  it('never marks a phone-only inquiry as an automatic-email candidate', async () => {
+    const result = await call({
+      name: 'Phone Guest',
+      email: '',
+      phone: '+82 10 1234 5678',
+      pax: 2,
+      vehicle: 'tour_custom',
+      language: 'en',
+    });
+
+    expect(result.status).toBe(200);
+    expect(writes[0].data).toMatchObject({
+      email: null,
+      rateLimitVerifiedForAutoAck: true,
+      recipientVerifiedForAutoAck: false,
+      autoAckCandidate: false,
+    });
+  });
+
+  it.each([
+    ['guest without a token', undefined],
+    ['unverified matching email', { ok: true, uid: 'guest-2', email: 'guest@example.com', emailVerified: false }],
+    ['verified different email', { ok: true, uid: 'guest-3', email: 'other@example.com', emailVerified: true }],
+  ])('stores %s for manual handling without an automatic-email candidate', async (_label, identity) => {
+    const headers = identity ? { authorization: 'Bearer user-token' } : {};
+    if (identity) verifyIdentity.mockResolvedValue(identity);
+    const result = await call({
+      name: 'Guest User',
+      email: 'guest@example.com',
+      eventDate: '2026-09-02',
+      pax: 2,
+      vehicle: 'bus',
+      details: 'Airport group transfer',
+      language: 'en',
+    }, headers);
+
+    expect(result.status).toBe(200);
+    expect(writes[0].data).toMatchObject({
+      autoAckEligibilityVersion: null,
+      recipientVerifiedForAutoAck: false,
+      autoAckCandidate: false,
+    });
+  });
+
+  it.each([
+    'victim@example.com,other@example.com',
+    'Name<a@example.com>',
+    'a@b.com;other@example.com',
+  ])('rejects a non-single-mailbox inquiry address: %s', async (email) => {
+    const result = await call({
+      name: 'Guest User',
+      email,
+      eventDate: '2026-09-02',
+      pax: 2,
+      vehicle: 'bus',
+      details: 'Airport group transfer',
+      language: 'en',
+    });
+    expect(result).toMatchObject({ status: 400, json: { code: 'INVALID_EMAIL' } });
+    expect(writes).toHaveLength(0);
+  });
+
+  it('stores a degraded guest inquiry for manual handling but makes it ineligible for auto-ack', async () => {
+    rateLimitResult = { ok: true, degraded: true };
+    const result = await call({
+      name: 'Guest User',
+      email: 'guest@example.com',
+      eventDate: '2026-09-02',
+      pax: 20,
+      vehicle: 'bus',
+      details: 'Airport group transfer',
+      language: 'en',
+    });
+    expect(result.status).toBe(200);
+    expect(writes[0].data).toMatchObject({
+      submissionProvenance: 'api:inquiry-submit.v1',
+      autoAckEligibilityVersion: null,
+      rateLimitVerifiedForAutoAck: false,
+      recipientVerifiedForAutoAck: false,
+      autoAckCandidate: false,
+    });
   });
 
   it('sends a charter-specific Telegram message with the server reference quote only', async () => {

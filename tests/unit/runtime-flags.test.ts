@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getRuntimeFlags, setRuntimeFlag, __resetRuntimeFlagsCache } from '../../api/_shared/runtime-flags.js';
+import { getFailClosedRuntimeFlag, getRuntimeFlags, setRuntimeFlag, __resetRuntimeFlagsCache } from '../../api/_shared/runtime-flags.js';
 import { resolveTransferCheckoutKrw } from '../../api/_shared/charter-transfer-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -33,6 +33,29 @@ describe('getRuntimeFlags — fail-safe (장애 시 기본값 OFF)', () => {
     const db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ transfer_margin_guard_enabled: 'true' }) }) }) }) };
     const flags = await getRuntimeFlags(db);
     expect(flags.transfer_margin_guard_enabled).toBe(false);
+  });
+});
+
+describe('getFailClosedRuntimeFlag — 외부 자동발송은 캐시 없이 OFF', () => {
+  it('문서의 exact boolean true만 허용한다', async () => {
+    const db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ inquiry_auto_ack_enabled: true }) }) }) }) };
+    expect(await getFailClosedRuntimeFlag(db, 'inquiry_auto_ack_enabled')).toBe(true);
+  });
+
+  it('일반 캐시에 true가 있어도 다음 읽기 오류면 false다', async () => {
+    __resetRuntimeFlagsCache();
+    const goodDb = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ inquiry_auto_ack_enabled: true }) }) }) }) };
+    expect((await getRuntimeFlags(goodDb)).inquiry_auto_ack_enabled).toBe(true);
+    const badDb = { collection: () => ({ doc: () => ({ get: async () => { throw new Error('boom'); } }) }) };
+    expect(await getFailClosedRuntimeFlag(badDb, 'inquiry_auto_ack_enabled')).toBe(false);
+  });
+
+  it('문서 없음·문자열 true·알 수 없는 키는 모두 false다', async () => {
+    const missing = { collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }) };
+    const junk = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ inquiry_auto_ack_enabled: 'true' }) }) }) }) };
+    expect(await getFailClosedRuntimeFlag(missing, 'inquiry_auto_ack_enabled')).toBe(false);
+    expect(await getFailClosedRuntimeFlag(junk, 'inquiry_auto_ack_enabled')).toBe(false);
+    expect(await getFailClosedRuntimeFlag(junk, 'not_allowed')).toBe(false);
   });
 });
 

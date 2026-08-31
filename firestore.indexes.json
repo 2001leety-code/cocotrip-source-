@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "charter_inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "autoAckCandidate", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "charter_inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ackWorkflow.deliveryStatus", "order": "ASCENDING" },
+        { "fieldPath": "ackWorkflow.nextDeliveryAttemptAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
