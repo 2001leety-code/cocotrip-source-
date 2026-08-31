@@ -1,15 +1,16 @@
 name: API Health Check
 
-# Lv1 자동 감지 — critical API endpoint 응답 검증.
-# 실패 시 GitHub Actions fail status → 자동으로 이메일 알림 (저장소 watcher 전원).
-# 도입 배경 (2026-04-29 launch D-1): GOOGLE_SERVICE_ACCOUNT_KEY 미등록으로 my-bookings 등 8개
-# endpoint silent fail. 동일 클래스의 silent regression이 prod에 반영되면 즉시 잡히도록.
+# Lv1 자동 감지 — 현재 운영 계약에 맞춰 인증·Firebase Admin·핵심 공개 경로를 검증한다.
+# 고객 개인정보·예약번호·금액·토큰·응답 본문은 로그에 출력하지 않는다.
 
 on:
   schedule:
     # UTC 0/12 = KST 9/21 — 12시간 간격, 월 60분 이내. 비용 0 (무료 tier 안).
     - cron: '0 0,12 * * *'
-  workflow_dispatch: # 수동 실행 (regression 의심 시)
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   api-health:
@@ -17,106 +18,15 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Probe critical API endpoints
-        run: |
-          set -e
-          BASE="https://cocotripkr.com"
-          FAILS=()
+      - uses: actions/checkout@v4
 
-          probe() {
-            local name="$1" url="$2" expect_code="$3"
-            # plan-status 의 정상 404 body도 읽어야 하므로 -f 는 쓰지 않고, HTTP status 를
-            # 별도로 받아 5xx/네트워크 오류를 무조건 실패로 기록한다.
-            local response_file
-            response_file=$(mktemp)
-            local http_status
-            if ! http_status=$(curl --silent --show-error --location --max-time 15 \
-              --output "$response_file" --write-out "%{http_code}" "$url"); then
-              FAILS+=("$name: curl/network failure")
-              rm -f "$response_file"
-              return
-            fi
-            local body
-            body=$(<"$response_file")
-            rm -f "$response_file"
-            if ! [[ "$http_status" =~ ^[0-9]{3}$ ]] || [ "$http_status" -ge 500 ]; then
-              FAILS+=("$name: HTTP $http_status")
-              return
-            fi
-            if [ -z "$body" ]; then
-              FAILS+=("$name: empty body — endpoint dead")
-              return
-            fi
-            if ! echo "$body" | jq -e 'type == "object" and (has("code") or has("ok"))' > /dev/null 2>&1; then
-              FAILS+=("$name: invalid JSON shape — $(echo "$body" | head -c 100)")
-              return
-            fi
-            local code
-            local ok
-            code=$(echo "$body" | jq -r '.code // "OK"')
-            ok=$(echo "$body" | jq -r '.ok // null')
-            # INTERNAL_ERROR 발견 시 즉시 fail
-            if [ "$code" = "INTERNAL_ERROR" ]; then
-              FAILS+=("$name: INTERNAL_ERROR — $(echo "$body" | jq -r '.error // "?"')")
-            # expect_code 없는 endpoint 는 반드시 명시적 ok:true 여야 한다.
-            elif [ -z "$expect_code" ] && [ "$ok" != "true" ]; then
-              FAILS+=("$name: ok=$ok (expected ok:true)")
-            # expect_code 명시했는데 다른 응답 + ok:true도 아니면 fail
-            elif [ -n "$expect_code" ] && [ "$code" != "$expect_code" ] && [ "$ok" != "true" ]; then
-              FAILS+=("$name: unexpected code=$code (expected $expect_code or ok:true)")
-            fi
-            echo "✓ $name → HTTP $http_status code=$code ok=$ok"
-          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-          # 1. my-bookings (Firebase admin Firestore) — ok:true (빈 배열이라도)
-          probe "my-bookings" "$BASE/api/my-bookings?userEmail=health@cocotripkr.com&tier=Bronze" ""
-
-          # 2. check-availability (Firebase admin Firestore)
-          probe "check-availability" "$BASE/api/check-availability?date=2030-12-31&vehicle=staria" ""
-
-          # 3. plan-status — health-check planId 없으니 NOT_FOUND 가 정상 응답
-          probe "plan-status" "$BASE/api/plan-status?planId=health-check-noexist" "NOT_FOUND"
-
-          # 4. routes 200 sanity
-          for path in / /about /charter /tours /planner /tours/seoul-night; do
-            if ! STATUS=$(curl --silent --show-error --head --output /dev/null \
-              --write-out "%{http_code}" --max-time 10 "$BASE$path"); then
-              FAILS+=("route $path: curl/network failure")
-              continue
-            fi
-            if [ "$STATUS" != "200" ]; then
-              FAILS+=("route $path: HTTP $STATUS")
-            else
-              echo "✓ route $path → 200"
-            fi
-          done
-
-          # 5. SW push handler 주입 확인 (PR #166 regression 가드)
-          SW_FILE=$(mktemp)
-          if ! SW_STATUS=$(curl --silent --show-error --location --max-time 10 \
-            --output "$SW_FILE" --write-out "%{http_code}" "$BASE/sw.js"); then
-            FAILS+=("sw.js: curl/network failure")
-            SW=""
-          else
-            SW=$(<"$SW_FILE")
-            if [ "$SW_STATUS" != "200" ]; then
-              FAILS+=("sw.js: HTTP $SW_STATUS")
-            fi
-          fi
-          rm -f "$SW_FILE"
-          for marker in 'addEventListener("push"' 'showNotification' 'notificationclick'; do
-            if ! echo "$SW" | grep -q "$marker"; then
-              FAILS+=("sw.js: missing $marker")
-            fi
-          done
-          [ ${#FAILS[@]} -eq 0 ] && echo "✓ sw.js handlers OK"
-
-          # Verdict
-          if [ ${#FAILS[@]} -gt 0 ]; then
-            echo ""
-            echo "::error::API health check failed (${#FAILS[@]}건):"
-            for f in "${FAILS[@]}"; do echo "  - $f"; done
-            exit 1
-          fi
-          echo ""
-          echo "All API health probes PASS."
+      - name: Probe current production contracts
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+        run: node scripts/api-health-check.mjs

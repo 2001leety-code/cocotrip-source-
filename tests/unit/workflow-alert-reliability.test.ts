@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 const ROOT = process.cwd();
 const readWorkflow = (name: string) => readFileSync(resolve(ROOT, '.github/workflows', name), 'utf8');
+const readScript = (name: string) => readFileSync(resolve(ROOT, 'scripts', name), 'utf8');
 
 describe('운영 감시 워크플로 — 실패를 숨기지 않는다', () => {
   it('daily-health는 모든 핵심 단계 outcome을 합산해 최종 실패로 고정한다', () => {
@@ -68,11 +69,32 @@ describe('운영 감시 워크플로 — 실패를 숨기지 않는다', () => {
     expect(yml).not.toContain('DISCORD_WEBHOOK_URL');
   });
 
-  it('API health curl은 네트워크와 HTTP 5xx를 명시적으로 판정한다', () => {
+  it('API health는 현재 runner를 checkout하고 실패를 숨기지 않는다', () => {
     const yml = readWorkflow('api-health.yml');
 
-    expect(yml).toContain('--write-out "%{http_code}"');
-    expect(yml).toContain('curl/network failure');
-    expect(yml).toContain('[ "$http_status" -ge 500 ]');
+    expect(yml).toContain('actions/checkout@v4');
+    expect(yml).toContain('actions/setup-node@v4');
+    expect(yml).toContain('node scripts/api-health-check.mjs');
+    expect(yml).not.toContain('continue-on-error');
+  });
+
+  it('API health는 현재 인증 계약만 검사하고 폐기된 주소와 PII query를 쓰지 않는다', () => {
+    const yml = readWorkflow('api-health.yml');
+    const script = readScript('api-health-check.mjs');
+
+    for (const secret of ['FIREBASE_WEB_API_KEY', 'HEALTH_CHECK_EMAIL', 'HEALTH_CHECK_PASSWORD']) {
+      expect(yml).toContain(`secrets.${secret}`);
+      expect(script).toContain(`'${secret}'`);
+    }
+    expect(script).toContain('accounts:signInWithPassword');
+    expect(script).toContain('Authorization: `Bearer ${token}`');
+    expect(script).toContain('/api/admin-ai-ops-center?limit=1');
+    expect(script).toContain("expectedStatus: 401");
+    expect(script).toContain("'AUTH_REQUIRED'");
+    expect(script).toContain("expectedStatus: 404");
+    expect(script).toContain("'NOT_FOUND'");
+    expect(script).not.toContain('/api/check-availability');
+    expect(script).not.toContain('/api/my-bookings?userEmail=');
+    expect(script).not.toMatch(/console\.(?:log|error)\([^\n]*(?:payload|password|email|token)/i);
   });
 });
