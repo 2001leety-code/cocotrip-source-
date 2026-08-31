@@ -69,6 +69,9 @@ describe('admin bot 조회 확장 — 검증노트 불변식 (조용히 틀리�
     expect(body).toContain('charter_inquiries');
     expect(body).toContain('cs_tickets');
     expect(body).toMatch(/\[\s*'pending'\s*,\s*'NEW'\s*\]/);
+    // 신규 inquiry-submit 문서는 요청 본문을 details 에 저장한다. 이 폴백이 없으면
+    // Telegram /inquiries 에서 bus/tour_custom 문의 요약이 빈 줄로 보인다.
+    expect(body).toMatch(/c\.message\s*\|\|\s*c\.notes\s*\|\|\s*c\.details\s*\|\|\s*c\.route/);
   });
 
   it('운행: status lowercase 후 canceled 만 제외 (CONFIRMED 하드필터 금지)', () => {

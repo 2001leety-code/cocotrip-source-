@@ -41,6 +41,38 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // 문의 응답 UI는 Firebase/로그인 환경변수 없이도 실물 검증할 수 있어야 한다.
+    // dev 서버에서만 별도 entry를 제공하므로 운영 빌드·라우트·서비스워커에는 들어가지 않는다.
+    {
+      name: 'inquiry-response-dev-harness',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use('/dev/inquiry-response', async (req, res, next) => {
+          if (req.method !== 'GET' || (req.url || '/').split('?')[0] !== '/') return next();
+          try {
+            const html = await server.transformIndexHtml('/dev/inquiry-response', `<!doctype html>
+<html lang="ko" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>문의 AI 응답 패널 DEV 검증</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/inquiry-response-harness-main.tsx"></script>
+  </body>
+</html>`);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(html);
+          } catch (error) {
+            next(error as Error);
+          }
+        });
+      },
+    },
     // DEV-only (로컬 플랜 하네스): scripts/plan-local/outputs/plan-<scenario>.json 을
     //   /local-plans/<scenario>.json 으로 서빙 → PlanDetailPage ?localPlan=<scenario> 가 fetch 해 렌더.
     //   apply:'serve' = dev 서버 전용 (prod 빌드/번들 무관). `npm run plan:test -- <scenario>` 후 사용.

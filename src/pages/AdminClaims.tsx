@@ -15,9 +15,12 @@ import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, Exte
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
+import InquiryResponsePanel, { type InquiryResponseWorkflow } from '@/components/admin/InquiryResponsePanel';
 
 type Tab = 'claims' | 'inquiries';
-type Status = 'pending' | 'approved' | 'rejected';
+type Status = 'pending' | 'approved' | 'rejected' | 'responded' | 'converted' | 'closed';
+type ReviewAction = 'approved' | 'rejected';
+type LoadResult = { requestKey: string; error: boolean };
 
 interface ClaimRow {
   id: string;
@@ -59,6 +62,7 @@ interface ClaimRow {
     provenance?: string;
     kind?: string;
   } | null;
+  responseWorkflow?: InquiryResponseWorkflow | null;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -74,7 +78,10 @@ export default function AdminClaims() {
   const [kindFilter, setKindFilter] = useState<InquiryKind | 'all'>('all');
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [inquiries, setInquiries] = useState<ClaimRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [claimsLoadResult, setClaimsLoadResult] = useState<LoadResult>({ requestKey: '', error: false });
+  const [inquiriesLoadResult, setInquiriesLoadResult] = useState<LoadResult>({ requestKey: '', error: false });
+  const [claimsReloadKey, setClaimsReloadKey] = useState(0);
+  const [inquiriesReloadKey, setInquiriesReloadKey] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후)
@@ -83,16 +90,30 @@ export default function AdminClaims() {
   const [couponFixResult, setCouponFixResult] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
+  const adminSessionKey = isAdmin ? (user?.uid || user?.email || 'admin') : 'guest';
+  const claimsRequestKey = `${adminSessionKey}:${claimsReloadKey}`;
+  const inquiriesRequestKey = `${adminSessionKey}:${inquiriesReloadKey}`;
+  const claimsLoading = isAdmin && claimsLoadResult.requestKey !== claimsRequestKey;
+  const inquiriesLoading = isAdmin && inquiriesLoadResult.requestKey !== inquiriesRequestKey;
+  const claimsError = !claimsLoading && claimsLoadResult.error;
+  const inquiriesError = !inquiriesLoading && inquiriesLoadResult.error;
 
   useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
+    if (!isAdmin) return undefined;
     const cQ = query(collection(db, 'pending_free_claims'), orderBy('createdAt', 'desc'));
-    const iQ = query(collection(db, 'charter_inquiries'), orderBy('createdAt', 'desc'));
-    const u1 = onSnapshot(cQ, snap => {
+    return onSnapshot(cQ, snap => {
       setClaims(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClaimRow)));
-      setLoading(false);
-    }, err => { console.error('claims:', err); setLoading(false); });
-    const u2 = onSnapshot(iQ, snap => {
+      setClaimsLoadResult({ requestKey: claimsRequestKey, error: false });
+    }, err => {
+      console.error('claims:', err);
+      setClaimsLoadResult({ requestKey: claimsRequestKey, error: true });
+    });
+  }, [isAdmin, claimsRequestKey]);
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const iQ = query(collection(db, 'charter_inquiries'), orderBy('createdAt', 'desc'));
+    return onSnapshot(iQ, snap => {
       setInquiries(snap.docs.map(d => {
         const data = d.data() as ClaimRow & { status: string };
         // 서버 API(inquiry-submit)는 status 'NEW' 로 저장 — 읽기 시점에만 pending 으로
@@ -101,13 +122,16 @@ export default function AdminClaims() {
         const status = normalizeInquiryStatus(data.status as string);
         return { ...data, id: d.id, status } as ClaimRow;
       }));
-    }, err => console.error('inquiries:', err));
-    return () => { u1(); u2(); };
-  }, [isAdmin]);
+      setInquiriesLoadResult({ requestKey: inquiriesRequestKey, error: false });
+    }, err => {
+      console.error('inquiries:', err);
+      setInquiriesLoadResult({ requestKey: inquiriesRequestKey, error: true });
+    });
+  }, [isAdmin, inquiriesRequestKey]);
 
   // 2026-05-03: confirm() prompt before destructive ops + optional reject reason.
   // 2026-05-04: 한국어 운영 — admin 본인이 한국 사용자라 영문 prompt/confirm 가독성 떨어짐.
-  const handleAction = useCallback(async (collectionName: string, id: string, email: string, status: Status) => {
+  const handleAction = useCallback(async (collectionName: string, id: string, email: string, status: ReviewAction) => {
     let rejectReason: string | null = null;
     if (status === 'rejected') {
       const reason = window.prompt(`${email} 의 신청을 거절하시겠습니까?\n\n거절 사유 (audit log 에 저장됨, 비워도 됨):`, '');
@@ -131,7 +155,7 @@ export default function AdminClaims() {
     } finally {
       setBusyId(null);
     }
-  }, [user?.email]);
+  }, [user]);
 
   // 회원가입 쿠폰 0건 회원 보정 — uid 또는 email 입력 → /api/admin-coupon-fix 호출
   const handleCouponFix = useCallback(async () => {
@@ -190,11 +214,17 @@ export default function AdminClaims() {
     pending: '대기',
     approved: '승인',
     rejected: '거절',
+    responded: '답변 완료',
+    converted: '전환',
+    closed: '종료',
   };
   const FILTER_LABELS: Record<Status | 'all', string> = {
     pending: '대기',
     approved: '승인',
     rejected: '거절',
+    responded: '답변 완료',
+    converted: '전환',
+    closed: '종료',
     all: '전체',
   };
   const TAB_LABELS: Record<Tab, string> = {
@@ -206,6 +236,17 @@ export default function AdminClaims() {
     tour_custom: '맞춤 투어',
     bus: '버스',
     charter: '차터',
+  };
+  const activeLoading = tab === 'claims' ? claimsLoading : inquiriesLoading;
+  const activeError = tab === 'claims' ? claimsError : inquiriesError;
+  const activeListLabel = tab === 'claims' ? '무료 신청' : '문의';
+  const tabSummary = (target: Tab): string => {
+    const targetLoading = target === 'claims' ? claimsLoading : inquiriesLoading;
+    const targetError = target === 'claims' ? claimsError : inquiriesError;
+    if (targetError) return '확인 실패';
+    if (targetLoading) return '불러오는 중';
+    const rows = target === 'claims' ? claims : inquiries;
+    return `대기 ${rows.filter(row => row.status === 'pending').length}건`;
   };
 
   return (
@@ -268,7 +309,7 @@ export default function AdminClaims() {
               {t === 'claims' ? <FileCheck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
               {TAB_LABELS[t]}
               <span className="ml-1 text-[11px] text-white/55">
-                (대기 {(t === 'claims' ? claims : inquiries).filter(r => r.status === 'pending').length}건)
+                ({tabSummary(t)})
               </span>
             </button>
           ))}
@@ -276,7 +317,7 @@ export default function AdminClaims() {
 
         {/* Filter pills — 모바일 가로 스크롤 가능 */}
         <div className="flex gap-2 mb-2 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">
-          {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
+          {(['pending', 'approved', 'responded', 'rejected', 'all'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3.5 py-1.5 rounded-full text-xs sm:text-[11px] font-bold transition-colors shrink-0 min-h-[44px] whitespace-nowrap ${
                 filter === f ? 'bg-[#7C5CFC]/30 text-white' : 'bg-white/[0.05] text-white/55 hover:text-white/70'
@@ -300,8 +341,33 @@ export default function AdminClaims() {
           </div>
         )}
 
-        {loading ? (
-          <p className="text-white/55 text-sm">불러오는 중…</p>
+        {activeError ? (
+          <div
+            role="alert"
+            data-testid={`${tab}-load-error`}
+            className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 sm:p-4"
+          >
+            <p className="text-sm font-semibold text-rose-200">
+              {activeListLabel} 목록을 불러오지 못했습니다.
+            </p>
+            <p className="mt-1 text-xs text-white/60">
+              현재 {activeListLabel} 항목이 없다는 뜻이 아닙니다. 연결 상태를 확인한 뒤 다시 불러와 주세요.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (tab === 'claims') setClaimsReloadKey(value => value + 1);
+                else setInquiriesReloadKey(value => value + 1);
+              }}
+              className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-rose-300/30 bg-rose-400/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B668FC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b14]"
+            >
+              {activeListLabel} 목록 다시 불러오기
+            </button>
+          </div>
+        ) : activeLoading ? (
+          <p role="status" aria-live="polite" className="text-white/55 text-sm">
+            {activeListLabel} 목록을 불러오는 중…
+          </p>
         ) : filtered.length === 0 ? (
           <p className="text-white/55 text-sm">{filter === 'all' ? '' : `${FILTER_LABELS[filter]} 상태의 `}{TAB_LABELS[tab]} 항목이 없습니다.</p>
         ) : (
@@ -325,7 +391,7 @@ export default function AdminClaims() {
                       )}
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                         row.status === 'pending' ? 'bg-amber-500/15 text-amber-400'
-                        : row.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
+                        : row.status === 'approved' || row.status === 'responded' || row.status === 'converted' ? 'bg-emerald-500/15 text-emerald-400'
                         : 'bg-rose-500/15 text-rose-400'
                       }`}>
                         {STATUS_LABELS[row.status] || row.status}
@@ -403,12 +469,14 @@ export default function AdminClaims() {
 
                   {row.status === 'pending' && (
                     <div className="flex flex-row sm:flex-col gap-2 sm:gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/[0.08]">
-                      <button disabled={busyId === row.id}
-                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, tab === 'claims' ? row.email : inquiryContact(row), 'approved')}
-                        className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
-                        {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        승인
-                      </button>
+                      {tab === 'claims' && (
+                        <button disabled={busyId === row.id}
+                          onClick={() => handleAction('pending_free_claims', row.id, row.email, 'approved')}
+                          className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
+                          {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          승인
+                        </button>
+                      )}
                       <button disabled={busyId === row.id}
                         onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, tab === 'claims' ? row.email : inquiryContact(row), 'rejected')}
                         className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
@@ -417,6 +485,18 @@ export default function AdminClaims() {
                     </div>
                   )}
                 </div>
+                {tab === 'inquiries' && row.status !== 'rejected' && (
+                  <InquiryResponsePanel
+                    inquiryId={row.id}
+                    email={row.email}
+                    workflow={row.responseWorkflow}
+                    getIdToken={async () => {
+                      const token = await user?.getIdToken();
+                      if (!token) throw new Error('관리자 로그인이 필요합니다.');
+                      return token;
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -17,7 +17,7 @@ import type { PlanDay, PlanDocument } from '../../types';
 const INQUIRE_STR = {
   en: {
     title: 'Charter Quote Request',
-    received: 'Request received', receivedDesc: "We'll email you a confirmed quote within 24 hours.", close: 'Close',
+    received: 'Request received', receivedDesc: "A coordinator will verify the route and email the confirmed quote.", close: 'Close',
     email: 'Email *', name: 'Name', phone: 'Phone / WhatsApp',
     notes: 'Notes (pickup point, special requests)', notesPh: 'e.g. pickup from Lotte Hotel at 8:30, baby seat needed',
     context: (dayCount: number, startDate: string, pax: string) => `Your trip context (planId · ${dayCount} day${dayCount === 1 ? '' : 's'} · start ${startDate} · ${pax} pax) will be sent automatically so we can quote without back-and-forth.`,
@@ -28,7 +28,7 @@ const INQUIRE_STR = {
   },
   ko: {
     title: '차터 견적 요청',
-    received: '요청이 접수됐어요', receivedDesc: '24시간 안에 확정 견적을 이메일로 보내드립니다.', close: '닫기',
+    received: '요청이 접수됐어요', receivedDesc: '담당자가 경로를 확인한 뒤 확정 견적을 이메일로 보내드립니다.', close: '닫기',
     email: '이메일 *', name: '이름', phone: '전화 / WhatsApp',
     notes: '요청사항 (픽업 장소, 특이사항)', notesPh: '예: 롯데호텔 8:30 픽업, 유아 카시트 필요',
     context: (dayCount: number, startDate: string, pax: string) => `여행 정보(플랜 ID · ${dayCount}일 · 시작 ${startDate} · ${pax}명)가 자동으로 함께 전송되어 추가 문답 없이 견적을 드릴 수 있어요.`,
@@ -39,7 +39,7 @@ const INQUIRE_STR = {
   },
   ja: {
     title: 'チャーター見積もりリクエスト',
-    received: 'リクエストを受け付けました', receivedDesc: '24時間以内に確定見積もりをメールでお送りします。', close: '閉じる',
+    received: 'リクエストを受け付けました', receivedDesc: '担当者が経路を確認してから、確定見積もりをメールでお送りします。', close: '閉じる',
     email: 'メール *', name: 'お名前', phone: '電話 / WhatsApp',
     notes: 'ご要望（ピックアップ場所・特記事項）', notesPh: '例: ロッテホテル8:30ピックアップ、チャイルドシート必要',
     context: (dayCount: number, startDate: string, pax: string) => `旅行情報（プランID · ${dayCount}日 · 開始 ${startDate} · ${pax}名）が自動送信されるため、やり取りなしで見積もりが可能です。`,
@@ -50,7 +50,7 @@ const INQUIRE_STR = {
   },
   zh: {
     title: '包车报价申请',
-    received: '已收到申请', receivedDesc: '我们将在24小时内通过邮件发送确认报价。', close: '关闭',
+    received: '已收到申请', receivedDesc: '工作人员确认路线后，会通过邮件发送最终报价。', close: '关闭',
     email: '邮箱 *', name: '姓名', phone: '电话 / WhatsApp',
     notes: '备注（上车地点、特殊要求）', notesPh: '例: 乐天酒店8:30接、需要婴儿座椅',
     context: (dayCount: number, startDate: string, pax: string) => `您的行程信息（planId · ${dayCount}天 · 出发 ${startDate} · ${pax}人）会自动一并发送，无需反复沟通即可报价。`,

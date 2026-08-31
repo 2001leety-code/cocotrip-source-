@@ -42,7 +42,7 @@ interface Strings {
 const STRINGS: Record<Lang, Strings> = {
   ko: {
     title: '맞춤형 투어 문의',
-    subtitle: '결제 없이 견적만 받아보세요 — 24시간 내 답변',
+    subtitle: '결제 없이 맞춤 견적을 요청하세요',
     nameLabel: '이름',
     emailLabel: '이메일',
     phoneLabel: '전화',
@@ -64,14 +64,14 @@ const STRINGS: Record<Lang, Strings> = {
     submit: '문의 보내기',
     submitting: '전송 중...',
     successTitle: '문의가 접수되었습니다',
-    successBody: '담당자가 24시간 내에 견적과 함께 답변드립니다.',
+    successBody: '담당자가 내용을 확인한 뒤 맞춤 견적과 함께 답변드립니다.',
     close: '닫기',
     errorToast: '전송 실패. 잠시 후 다시 시도해주세요.',
     optional: '선택',
   },
   en: {
     title: 'Custom Tour Inquiry',
-    subtitle: 'No payment needed — get a quote within 24h',
+    subtitle: 'No payment needed — request a tailored quote',
     nameLabel: 'Name',
     emailLabel: 'Email',
     phoneLabel: 'Phone',
@@ -93,14 +93,14 @@ const STRINGS: Record<Lang, Strings> = {
     submit: 'Send Inquiry',
     submitting: 'Sending...',
     successTitle: 'Inquiry received',
-    successBody: 'We will reply with a tailored quote within 24 hours.',
+    successBody: 'A coordinator will review the details and reply with a tailored quote.',
     close: 'Close',
     errorToast: 'Submission failed. Please try again.',
     optional: 'optional',
   },
   ja: {
     title: 'カスタムツアーお問い合わせ',
-    subtitle: '決済不要 — 24時間以内にお見積もり',
+    subtitle: '決済不要 — オーダーメイドのお見積もりを依頼できます',
     nameLabel: 'お名前',
     emailLabel: 'メール',
     phoneLabel: '電話',
@@ -122,14 +122,14 @@ const STRINGS: Record<Lang, Strings> = {
     submit: '問い合わせる',
     submitting: '送信中...',
     successTitle: 'お問い合わせを受け付けました',
-    successBody: '24時間以内にお見積もりと共にご返答いたします。',
+    successBody: '担当者が内容を確認し、お見積もりとともにご返答します。',
     close: '閉じる',
     errorToast: '送信失敗。しばらくしてから再試行してください。',
     optional: '任意',
   },
   zh: {
     title: '定制旅游咨询',
-    subtitle: '无需付款 — 24小时内提供报价',
+    subtitle: '无需付款 — 可申请定制报价',
     nameLabel: '姓名',
     emailLabel: '邮箱',
     phoneLabel: '电话',
@@ -151,7 +151,7 @@ const STRINGS: Record<Lang, Strings> = {
     submit: '提交咨询',
     submitting: '发送中...',
     successTitle: '咨询已提交',
-    successBody: '我们将在24小时内回复您的定制报价。',
+    successBody: '工作人员会确认详情，并回复定制报价。',
     close: '关闭',
     errorToast: '提交失败。请稍后再试。',
     optional: '选填',
@@ -228,9 +228,11 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
   // + 현재 지역 필터를 프리필(useState 초기값만으로는 재오픈 시 반영 안 됨)
   useEffect(() => {
     if (!open) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- 열림 전환은 새 문의 세션의 명시적 초기화 경계다. */
     setStatus('idle');
     setErrorMsg('');
     setRegion(defaultRegion);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, defaultRegion]);
 
   if (!open) return null;

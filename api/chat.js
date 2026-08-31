@@ -13,6 +13,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { hashIp } from './_shared/ip-rate-limit.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { resolveChatSessionForPost } from './_shared/chat-session-auth.js';
+import { buildChatTelegramMessage } from './_shared/chat-telegram-message.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('chat');
@@ -456,24 +457,20 @@ export default wrapHandler(async function handler(req, res) {
   //    inquiry_messages 매핑에 detected language 저장 → 운영자 reply 시 그 언어로 자동 번역.
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const header = escalate
-      ? `🚨 <b>긴급 — AI 미답변 (담당자 응답 필요)</b>`
-      : `💬 <b>웹 채팅 문의</b>`;
-
     // 고객 메시지 번역 (Korean target).
     let customerKo = null;
     let detectedLang = language;
-    let translateFailedTag = '';
+    let customerTranslationFailed = false;
     try {
       const det = await detectAndTranslate(message, 'ko');
       detectedLang = det.sourceLang || language;
       if (!det.isOriginal) {
         customerKo = det.translation;
-        if (customerKo === null) translateFailedTag = ' ⚠️ 번역 실패';
+        if (customerKo === null) customerTranslationFailed = true;
       }
     } catch (e) {
       console.warn('[chat] customer translate failed:', e.message);
-      translateFailedTag = ' ⚠️ 번역 실패';
+      customerTranslationFailed = true;
     }
 
     // AI 답변(고객 노출용)도 한글이 아니면 운영자용 한글 추가.
@@ -487,15 +484,18 @@ export default wrapHandler(async function handler(req, res) {
       }
     }
 
-    const customerSection = customerKo
-      ? `<b>📨 고객 (${detectedLang}):</b> ${message}\n<b>🇰🇷 번역:</b> ${customerKo}`
-      : `<b>고객${translateFailedTag}:</b> ${message}`;
-    const aiSection = escalate
-      ? `<b>AI 판단:</b> 답변 불가 — 다음과 같이 자동 안내됨\n<i>${customerReply}</i>${internalReply ? `\n<b>AI 노트:</b> ${internalReply}` : ''}`
-      : aiKo
-        ? `<b>AI답변:</b> ${customerReply}\n<b>🇰🇷 번역:</b> ${aiKo}`
-        : `<b>AI답변:</b> ${customerReply}`;
-    const telegramMsg = `${header}\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${detectedLang}\n\n${customerSection}\n${aiSection}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
+    const telegramMsg = buildChatTelegramMessage({
+      escalate,
+      sessionId,
+      detectedLang,
+      customerMessage: message,
+      customerTranslation: customerKo,
+      customerTranslationFailed,
+      customerReply,
+      internalReply,
+      aiTranslation: aiKo,
+      kst,
+    });
     const result = await notify('inquiry', telegramMsg);
     if (result.ok && result.messageId) {
       // 운영자 reply 시 detectedLang으로 번역 → 정확한 언어 매핑이 중요.

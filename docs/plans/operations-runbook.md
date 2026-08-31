@@ -190,7 +190,7 @@ KRW: ₩{amountKRW}
 
 이번 세션 다른 사람이 이어서 일할 때 알아야 할 것:
 - main 최신 커밋 + 모든 PR (메모리 [project_cocotrip_phase4_plan.md](project_cocotrip_phase4_plan.md) + 본 런북)
-- 환경 변수: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GMAIL_USER`, `GMAIL_PASS`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `VITE_TRIPADVISOR_API_KEY`(옵션)
+- 환경 변수: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `VITE_TRIPADVISOR_API_KEY`(옵션)
 - Google Maps Platform/Places 키는 웹 런타임과 Vercel 환경변수에 추가하지 않는다. 2026-08-31 비용 hard-stop 정책과 `docs/GOOGLE-PLACES-COST-HARD-STOP-2026-08-31.md`를 따른다.
 - Firestore 컬렉션: `bookings`, `pending_free_claims`, `charter_inquiries`, `tour_availability` (✅ 구현 완료)
 - 관리자 페이지: `/admin`, `/admin/claims`, `/admin/availability`, `/admin/sales` (PR #40 머지 후)

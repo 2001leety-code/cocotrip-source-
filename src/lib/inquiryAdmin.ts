@@ -19,12 +19,13 @@ export function inquiryKind(row: { vehicle?: string | null }): InquiryKind {
 }
 
 /**
- * status 읽기 정규화 — 서버 저장값 'NEW' 를 표시용 'pending' 으로.
+ * status 읽기 정규화 — 서버의 대문자 상태와 과거 소문자 상태를 한 화면 계약으로.
  * 이거 없으면 tour_custom/버스 문의가 기본 '대기' 필터에서 숨고, 대기 카운트에서
  * 빠지고, 승인/거절 버튼이 안 뜨고, 뱃지가 거절색(rose) 으로 표시된다(고단가 리드 방치).
  */
 export function normalizeInquiryStatus(status: string): string {
-  return status === 'NEW' ? 'pending' : status;
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'new' ? 'pending' : normalized || 'pending';
 }
 
 /** 연락처 표시 폴백 — tour_custom 은 이메일 없이 전화만 가능. */
