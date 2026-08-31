@@ -82,6 +82,83 @@ describe('inquiry response cron contract', () => {
     expect(strictAutomaticAckActivationAtMs(value)).toBe(expected);
   });
 
+  it('공유 답변 워커가 OFF여도 정확한 자동 접수 설정만 실행하고 초안·최종답변 재시도는 조회하지 않는다', async () => {
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_ENABLED = 'true';
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_NOT_BEFORE = '2026-08-31T06:00:00.000Z';
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_MAX_AGE_MINUTES = '30';
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_DAILY_CAP = '20';
+    const queries: Array<Record<string, any>> = [];
+    const generate = vi.fn(() => { throw new Error('draft worker must stay off'); });
+    const send = vi.fn(() => { throw new Error('empty query must not send'); });
+    const db = {
+      collection: vi.fn((name: string) => {
+        if (name === 'admin_config') {
+          return { doc: () => ({ get: async () => ({
+            exists: true,
+            data: () => ({ inquiry_auto_ack_enabled: true }),
+          }) }) };
+        }
+        const query = emptyQuery();
+        queries.push(query);
+        return query;
+      }),
+    };
+
+    const result = await inquiryResponseSweepTask({
+      db,
+      now: Date.UTC(2026, 7, 31, 6, 10),
+      generate,
+      send,
+    });
+    const whereCalls = queries.flatMap((query) => query.where.mock.calls);
+
+    expect(result).toMatchObject({
+      ok: true,
+      disabled: false,
+      autoAckRequested: true,
+      autoAckRuntimeEnabled: true,
+      autoAckEnabled: true,
+      drafted: 0,
+      retried: 0,
+    });
+    expect(whereCalls).toContainEqual(['ackWorkflow.deliveryStatus', '==', 'retryable']);
+    expect(whereCalls).toContainEqual(['autoAckCandidate', '==', true]);
+    expect(whereCalls).not.toContainEqual(['status', 'in', ['NEW', 'pending']]);
+    expect(whereCalls).not.toContainEqual(['responseWorkflow.deliveryStatus', '==', 'retryable']);
+    expect(generate).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('자동 접수가 OFF면 NOT_BEFORE와 무관하게 기존 초안·최종답변 워커 동작을 유지한다', async () => {
+    process.env.INQUIRY_RESPONSE_WORKER_ENABLED = 'true';
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_ENABLED = 'false';
+    process.env.INQUIRY_RESPONSE_AUTO_ACK_NOT_BEFORE = 'not-a-timestamp';
+    const queries: Array<Record<string, any>> = [];
+    const db = {
+      collection: vi.fn(() => {
+        const query = emptyQuery();
+        queries.push(query);
+        return query;
+      }),
+    };
+
+    const result = await inquiryResponseSweepTask({ db, send: vi.fn() });
+    const whereCalls = queries.flatMap((query) => query.where.mock.calls);
+
+    expect(result).toMatchObject({
+      ok: true,
+      disabled: false,
+      autoAckRequested: false,
+      autoAckEnabled: false,
+      autoAckConfigurationError: null,
+    });
+    expect(whereCalls).toContainEqual(['status', 'in', ['NEW', 'pending']]);
+    expect(whereCalls).toContainEqual(['responseWorkflow.deliveryStatus', '==', 'retryable']);
+    expect(whereCalls).not.toContainEqual(['ackWorkflow.deliveryStatus', '==', 'retryable']);
+    expect(whereCalls).not.toContainEqual(['autoAckCandidate', '==', true]);
+    expect(db.collection).not.toHaveBeenCalledWith('admin_config');
+  });
+
   it('숫자 뒤 문자가 붙은 시간창·일일상한은 추정하지 않고 전체 auto-ack을 끈다', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     process.env.INQUIRY_RESPONSE_WORKER_ENABLED = 'true';

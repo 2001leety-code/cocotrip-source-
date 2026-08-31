@@ -7,18 +7,19 @@
 
 | 키 | 기본값 | 자동으로 하는 일 | 자동으로 하지 않는 일 | 넣을 위치 |
 |---|---|---|---|---|
-| `INQUIRY_RESPONSE_WORKER_ENABLED` | OFF | 새 견적 문의의 정책 초안 생성, 확실한 발송 전 실패만 제한 재시도 | 초안 검토·승인, 전화/WhatsApp 발송, 결과 불명 메일 재발송 | **Vercel → Production 환경변수** |
-| `INQUIRY_RESPONSE_BATCH_SIZE` | `3` | 5분마다 처리할 문의 수(1~5) 제한 | 제한 해제 | **Vercel → Production 환경변수** |
-| `INQUIRY_RESPONSE_AUTO_ACK_ENABLED` | OFF | 로그인에서 확인된 이메일과 문의 이메일이 같고 아래 안전조건이 모두 맞는 새 문의만 접수 확인 | 비로그인·미확인 이메일, 최종 견적·예약 확정·과거 문의 발송 | **Vercel → Production 환경변수** |
-| `INQUIRY_RESPONSE_AUTO_ACK_NOT_BEFORE` | 없음(OFF) | 정확한 `YYYY-MM-DDTHH:mm:ss.sssZ` 이후 문의만 허용 | 날짜만 있거나 로컬시각인 값 추정 | **Vercel → Production 환경변수** |
+| `INQUIRY_RESPONSE_WORKER_ENABLED` | OFF | 새 견적 문의의 정책 초안 생성, 승인된 최종답변의 확실한 발송 전 실패만 제한 재시도 | 자동 접수 확인, 초안 검토·승인, 전화/WhatsApp 발송, 결과 불명 메일 재발송 | **Vercel → Production 환경변수** |
+| `INQUIRY_RESPONSE_BATCH_SIZE` | `3` | 5분마다 각 문의 워커가 처리할 수 있는 수(1~5) 제한 | 제한 해제 | **Vercel → Production 환경변수** |
+| `INQUIRY_RESPONSE_AUTO_ACK_ENABLED` | OFF | 공유 답변 워커가 OFF여도 로그인에서 확인된 이메일과 문의 이메일이 같고 아래 안전조건이 모두 맞는 새 문의만 접수 확인 | 비로그인·미확인 이메일, 초안 생성, 최종답변 재시도, 최종 견적·예약 확정·과거 문의 발송 | **Vercel → Production 환경변수** |
+| `INQUIRY_RESPONSE_AUTO_ACK_NOT_BEFORE` | 없음(OFF) | 자동 접수 확인에만 적용하며 정확한 `YYYY-MM-DDTHH:mm:ss.sssZ` 이후 문의만 허용 | 초안·최종답변 워커 시작시각 제한, 날짜만 있거나 로컬시각인 값 추정 | **Vercel → Production 환경변수** |
 | `INQUIRY_RESPONSE_AUTO_ACK_MAX_AGE_MINUTES` | 없음(OFF) | 접수 뒤 자동발송 허용 시간창(5~1440분, 권장 `30`) | 오래된 문의 뒤늦은 발송 | **Vercel → Production 환경변수** |
 | `INQUIRY_RESPONSE_AUTO_ACK_DAILY_CAP` | 없음(OFF) | 하루 전체 상한(1~100, 권장 `20`)과 같은 이메일 하루 1회 | 상한 초과 자동발송 | **Vercel → Production 환경변수** |
 | `inquiry_auto_ack_enabled` | OFF | 위 환경변수가 모두 정확할 때 마지막 발송 허가 | 환경변수 오류 우회 | **어드민 → 운영 토글** |
 
 켜기 전 어드민 `/admin/claims`의 문의 탭에서 초안 만들기·수정·발송 확인 흐름을 먼저 점검한다.
 메일 서버에 넘긴 뒤 결과가 불명확하면 자동 재발송하지 않고 운영자 확인 상태로 멈춘다.
-자동 접수 확인을 켜는 순서는 `Vercel Production 환경변수 5개 확인 → 배포 → GitHub Actions의 Deploy Firestore Indexes 성공(--wait로 Ready 확인) → 어드민 운영 토글 ON`이다.
-끄기는 어드민 운영 토글을 먼저 OFF로 바꾸면 다음 5분 워커부터 신규 발송과 자동 재시도가 함께 멈춘다.
+자동 접수 확인만 켤 때는 `INQUIRY_RESPONSE_WORKER_ENABLED=false`를 유지한다. 순서는 `Vercel Production의 AUTO_ACK 4개 값과 공용 BATCH_SIZE 확인 → 배포 → GitHub Actions의 Deploy Firestore Indexes 성공(--wait로 Ready 확인) → 어드민 /admin/payments의 '문의 자동 접수확인' 운영 토글 ON`이다.
+초안 생성·승인된 최종답변 재시도까지 별도로 운영하기로 결정한 경우에만 공유 답변 워커를 ON으로 바꾼다. `NOT_BEFORE`는 자동 접수 확인에만 적용되며 공유 답변 워커를 예약 활성화하지 않는다.
+끄기는 같은 어드민 운영 토글을 먼저 OFF로 바꾸면 다음 5분 워커부터 자동 접수확인의 신규 발송과 자동 재시도가 함께 멈춘다.
 
 ---
 
