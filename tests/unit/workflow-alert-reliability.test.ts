@@ -72,8 +72,8 @@ describe('운영 감시 워크플로 — 실패를 숨기지 않는다', () => {
   it('API health는 현재 runner를 checkout하고 실패를 숨기지 않는다', () => {
     const yml = readWorkflow('api-health.yml');
 
-    expect(yml).toContain('actions/checkout@v4');
-    expect(yml).toContain('actions/setup-node@v4');
+    expect(yml).toContain('actions/checkout@v7');
+    expect(yml).toContain('actions/setup-node@v7');
     expect(yml).toContain('node scripts/api-health-check.mjs');
     expect(yml).not.toContain('continue-on-error');
   });
