@@ -2,11 +2,15 @@ name: Prod Uptime Smoke
 
 # 상시(매시간) 가벼운 prod 감시 — daily-health.yml(주3회 깊은 Playwright E2E)의 보완.
 # 홈·플래너·핵심 API 200/응답시간만 체크(curl 수준, Gemini/결제 호출 없음 → 거의 공짜).
-# 실패 시 텔레그램 + 디스코드 동시 알림. secret 미설정 시 graceful skip.
+# 실패 시 운영 긴급 채널(Telegram) 1곳에 알리고 GitHub Issue 에 지속 기록한다.
 on:
   schedule:
     - cron: '17 * * * *' # 매시간 17분 (정시 혼잡 회피)
   workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   smoke:
@@ -31,37 +35,104 @@ jobs:
             echo "result=pass" >> "$GITHUB_OUTPUT"
           else
             echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
-      # 텔레그램 — secret 미설정 시 graceful skip (마스킹 때문에 step 내부 [ -z ] 가드).
-      - name: Telegram alert on fail
-        if: steps.smoke.outputs.result == 'fail'
+      # 같은 장애의 열린 issue 를 갱신해 Telegram 전달 실패 여부와 무관하게 기록을 남긴다.
+      # Telegram은 첫 실패에 즉시 보내고, 장기 장애는 마지막 성공 전송 뒤 6시간이 지나야
+      # 다시 보낸다. 매시간 같은 알림이 쌓이는 것을 막되 전송 실패는 다음 실행에서 재시도한다.
+      - name: Open or update uptime issue
+        id: uptime_issue
+        if: always() && steps.smoke.outcome != 'success'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          TITLE="[health] Production uptime smoke failed"
+          OUTPUT_TAIL=$(tail -c 1500 smoke-out.txt 2>/dev/null || echo "(로그 없음)")
+          BODY=$(printf '%s\n' \
+            "> Production uptime smoke가 실패했습니다." \
+            "" \
+            "- run: ${WORKFLOW_URL}" \
+            "- target: https://cocotripkr.com" \
+            "- 시각 (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "" \
+            "## 실행 로그" \
+            "" \
+            "\`\`\`" \
+            "${OUTPUT_TAIL}" \
+            "\`\`\`")
+          ISSUE_NUM=$(gh issue list --repo "$REPOSITORY" --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title == "[health] Production uptime smoke failed") | .number' | head -1)
+          if [ -n "$ISSUE_NUM" ]; then
+            gh issue edit "$ISSUE_NUM" --repo "$REPOSITORY" --body "$BODY"
+            LAST_ALERT=$(gh api "repos/${REPOSITORY}/issues/${ISSUE_NUM}/comments?per_page=100" \
+              --jq '[.[] | select(.body | startswith("<!-- uptime-telegram-alert -->")) | .created_at] | last // ""')
+            ALERT_NOW=false
+            if [ -z "$LAST_ALERT" ]; then
+              ALERT_NOW=true
+            else
+              LAST_ALERT_EPOCH=$(date -u -d "$LAST_ALERT" +%s)
+              NOW_EPOCH=$(date -u +%s)
+              if [ $((NOW_EPOCH - LAST_ALERT_EPOCH)) -ge 21600 ]; then ALERT_NOW=true; fi
+            fi
+            echo "Updated existing issue #${ISSUE_NUM}"
+          else
+            ISSUE_URL=$(gh issue create --repo "$REPOSITORY" --title "$TITLE" --body "$BODY")
+            ISSUE_NUM="${ISSUE_URL##*/}"
+            ALERT_NOW=true
+            echo "Created new issue: $TITLE"
+          fi
+          echo "issue_number=${ISSUE_NUM}" >> "$GITHUB_OUTPUT"
+          echo "telegram_alert=${ALERT_NOW}" >> "$GITHUB_OUTPUT"
+
+      # 정상 회복 뒤에는 같은 장애 issue를 닫아 다음 장애가 새 사건·새 알림으로 시작되게 한다.
+      - name: Close recovered uptime issue
+        if: always() && steps.smoke.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          ISSUE_NUM=$(gh issue list --repo "$REPOSITORY" --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title == "[health] Production uptime smoke failed") | .number' | head -1)
+          if [ -n "$ISSUE_NUM" ]; then
+            gh issue close "$ISSUE_NUM" --repo "$REPOSITORY" \
+              --comment "Production uptime smoke recovered. run: ${WORKFLOW_URL}"
+          fi
+
+      # 텔레그램 — 운영 긴급 채널은 한 곳만 쓴다. secret/API 오류도 숨기지 않는다.
+      - name: Telegram alert on fail
+        if: always() && steps.smoke.outcome != 'success' && (steps.uptime_issue.outputs.telegram_alert == 'true' || steps.uptime_issue.outcome != 'success')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUM: ${{ steps.uptime_issue.outputs.issue_number }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "TELEGRAM secret 미설정 — skip"; exit 0
+            echo "::error::TELEGRAM secret 미설정 — 긴급 알림을 보낼 수 없음"
+            exit 1
           fi
           BODY=$(tail -c 800 smoke-out.txt 2>/dev/null || echo "(로그 없음)")
-          MSG="[Prod Uptime 실패] $(date -u +%Y-%m-%dT%H:%MZ) UTC%0A대상: https://cocotripkr.com%0A%0A${BODY}%0A%0Arun: ${WORKFLOW_URL}"
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          MSG=$(printf '%s\n' \
+            "[Prod Uptime 실패] $(date -u +%Y-%m-%dT%H:%MZ) UTC" \
+            "대상: https://cocotripkr.com" \
+            "" \
+            "${BODY}" \
+            "" \
+            "run: ${WORKFLOW_URL}")
+          curl --fail-with-body --silent --show-error \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
             --data-urlencode "text=${MSG}" \
-            -d "disable_web_page_preview=true" > /dev/null || echo "Telegram API 실패(non-fatal)"
-        continue-on-error: true
-
-      # 디스코드 — webhook URL secret(DISCORD_WEBHOOK_URL). JSON escape 는 node 로 안전하게.
-      - name: Discord alert on fail
-        if: steps.smoke.outputs.result == 'fail'
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "DISCORD_WEBHOOK_URL 미설정 — skip"; exit 0
+            -d "disable_web_page_preview=true" > /dev/null
+          if [ -n "$ISSUE_NUM" ]; then
+            gh issue comment "$ISSUE_NUM" --repo "$REPOSITORY" \
+              --body "<!-- uptime-telegram-alert --> Telegram alert sent at $(date -u +%Y-%m-%dT%H:%M:%SZ)."
           fi
-          node -e "const fs=require('fs'); const out=fs.existsSync('smoke-out.txt')?fs.readFileSync('smoke-out.txt','utf8').slice(-1500):'(로그 없음)'; const content='[Prod Uptime 실패] '+new Date().toISOString()+'\n대상: https://cocotripkr.com\n\n'+out+'\n\nrun: '+process.env.WORKFLOW_URL; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
-          curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "Discord webhook 실패(non-fatal)"
-        continue-on-error: true

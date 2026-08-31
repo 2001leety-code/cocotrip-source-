@@ -80,46 +80,55 @@ export function PlannerEvidence({ copy, isMobile }: { copy: PlannerCopy; isMobil
   const e = copy.evidence;
 
   return (
-    <section className={`border-t border-ec-line bg-ec-sunken ${isMobile ? 'mt-6' : 'mt-12'}`}>
-      <div className="ec-container-wide py-10 md:py-14">
+    <section className={`border-t border-ec-line bg-ec-sunken ${isMobile ? 'mt-5' : 'mt-9'}`}>
+      <div className="ec-container-wide py-5 md:py-7">
         <p className="ec-eyebrow">{e.eyebrow}</p>
-        <h2 className="ec-h3 mt-3 ec-measure">{e.heading}</h2>
+        <details className="planner-evidence-disclosure planner-disclosure mt-2 border-b border-ec-line">
+          <summary className="planner-disclosure-summary">
+            <h2 className="planner-disclosure-heading ec-h3">
+              <span className="ec-measure">{e.heading}</span>
+              <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+            </h2>
+          </summary>
 
-        {/* A `dl` grouping `div` may hold one or more `dt` followed by one or
-            more `dd`, and nothing else — the figure-first version put a `dd`
-            before its `dt` and closed with a bare `p`, so the list carried no
-            term/description pairing at all. Reading order is now term → figure
-            → note; `order-first` on the figure keeps the measurement on top
-            visually, which is the whole point of a ledger. */}
-        <dl className="mt-8 grid sm:grid-cols-3">
-          {e.items.map((item, i) => (
-            <div
-              key={item.label}
-              className={`flex flex-col border-t border-ec-line py-5 sm:py-6 ${
-                i > 0 ? 'sm:border-l sm:pl-6' : ''
-              } ${i < e.items.length - 1 ? 'sm:pr-6' : ''}`}
-            >
-              <dt className="order-2 mt-2.5 text-[14px] font-semibold text-ec-ink">{item.label}</dt>
-              <dd className="order-first ec-figure text-[clamp(26px,3.4vw,40px)] leading-none">{item.figure}</dd>
-              <dd className="order-3 ec-body-sm mt-1.5 text-ec-ink-3">{item.note}</dd>
-            </div>
-          ))}
-        </dl>
+          <div className="planner-disclosure-body">
+            {/* A `dl` grouping `div` may hold one or more `dt` followed by one or
+                more `dd`, and nothing else — the figure-first version put a `dd`
+                before its `dt` and closed with a bare `p`, so the list carried no
+                term/description pairing at all. Reading order is now term → figure
+                → note; `order-first` on the figure keeps the measurement on top
+                visually, which is the whole point of a ledger. */}
+            <dl className="mt-3 grid sm:grid-cols-3">
+              {e.items.map((item, i) => (
+                <div
+                  key={item.label}
+                  className={`flex flex-col border-t border-ec-line py-5 sm:py-6 ${
+                    i > 0 ? 'sm:border-l sm:pl-6' : ''
+                  } ${i < e.items.length - 1 ? 'sm:pr-6' : ''}`}
+                >
+                  <dt className="order-2 mt-2.5 text-[14px] font-semibold text-ec-ink">{item.label}</dt>
+                  <dd className="order-first ec-figure text-[clamp(26px,3.4vw,40px)] leading-none">{item.figure}</dd>
+                  <dd className="order-3 ec-body-sm mt-1.5 text-ec-ink-3">{item.note}</dd>
+                </div>
+              ))}
+            </dl>
 
-        <hr className="ec-rule-strong mt-2 mb-5" />
-        <p className="ec-body-sm ec-measure text-ec-ink-3">{e.limits}</p>
+            <hr className="ec-rule-strong mt-2 mb-5" />
+            <p className="ec-body-sm ec-measure text-ec-ink-3">{e.limits}</p>
 
-        {/* Real Korean photography is the only decoration the system allows, and
-            it carries a hairline rather than a scrim — no text sits on it. */}
-        <img
-          src="/hero-seoul-real.webp"
-          alt=""
-          width={1200}
-          height={320}
-          loading="lazy"
-          decoding="async"
-          className="mt-8 h-[150px] w-full rounded-ec-md border border-ec-line object-cover md:h-[220px]"
-        />
+            {/* Real Korean photography is the only decoration the system allows, and
+                it carries a hairline rather than a scrim — no text sits on it. */}
+            <img
+              src="/hero-seoul-real.webp"
+              alt=""
+              width={1200}
+              height={320}
+              loading="lazy"
+              decoding="async"
+              className="mt-7 h-[150px] w-full rounded-ec-md border border-ec-line object-cover md:h-[220px]"
+            />
+          </div>
+        </details>
       </div>
     </section>
   );

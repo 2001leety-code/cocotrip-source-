@@ -25,26 +25,47 @@ jobs:
 
           probe() {
             local name="$1" url="$2" expect_code="$3"
-            # -f 안 씀: 4xx/5xx도 body가 valid JSON인 경우 검증해야 함 (예: 404 NOT_FOUND).
-            local body=$(curl -s -m 15 "$url" 2>/dev/null)
+            # plan-status 의 정상 404 body도 읽어야 하므로 -f 는 쓰지 않고, HTTP status 를
+            # 별도로 받아 5xx/네트워크 오류를 무조건 실패로 기록한다.
+            local response_file
+            response_file=$(mktemp)
+            local http_status
+            if ! http_status=$(curl --silent --show-error --location --max-time 15 \
+              --output "$response_file" --write-out "%{http_code}" "$url"); then
+              FAILS+=("$name: curl/network failure")
+              rm -f "$response_file"
+              return
+            fi
+            local body
+            body=$(<"$response_file")
+            rm -f "$response_file"
+            if ! [[ "$http_status" =~ ^[0-9]{3}$ ]] || [ "$http_status" -ge 500 ]; then
+              FAILS+=("$name: HTTP $http_status")
+              return
+            fi
             if [ -z "$body" ]; then
               FAILS+=("$name: empty body — endpoint dead")
               return
             fi
-            local code=$(echo "$body" | jq -r '.code // "OK"' 2>/dev/null)
-            local ok=$(echo "$body" | jq -r '.ok // null' 2>/dev/null)
-            if [ "$code" = "null" ] && [ "$ok" = "null" ]; then
+            if ! echo "$body" | jq -e 'type == "object" and (has("code") or has("ok"))' > /dev/null 2>&1; then
               FAILS+=("$name: invalid JSON shape — $(echo "$body" | head -c 100)")
               return
             fi
+            local code
+            local ok
+            code=$(echo "$body" | jq -r '.code // "OK"')
+            ok=$(echo "$body" | jq -r '.ok // null')
             # INTERNAL_ERROR 발견 시 즉시 fail
             if [ "$code" = "INTERNAL_ERROR" ]; then
               FAILS+=("$name: INTERNAL_ERROR — $(echo "$body" | jq -r '.error // "?"')")
+            # expect_code 없는 endpoint 는 반드시 명시적 ok:true 여야 한다.
+            elif [ -z "$expect_code" ] && [ "$ok" != "true" ]; then
+              FAILS+=("$name: ok=$ok (expected ok:true)")
             # expect_code 명시했는데 다른 응답 + ok:true도 아니면 fail
             elif [ -n "$expect_code" ] && [ "$code" != "$expect_code" ] && [ "$ok" != "true" ]; then
               FAILS+=("$name: unexpected code=$code (expected $expect_code or ok:true)")
             fi
-            echo "✓ $name → code=$code ok=$ok"
+            echo "✓ $name → HTTP $http_status code=$code ok=$ok"
           }
 
           # 1. my-bookings (Firebase admin Firestore) — ok:true (빈 배열이라도)
@@ -58,7 +79,11 @@ jobs:
 
           # 4. routes 200 sanity
           for path in / /about /charter /tours /planner /tours/seoul-night; do
-            STATUS=$(curl -sI -o /dev/null -w "%{http_code}" -m 10 "$BASE$path")
+            if ! STATUS=$(curl --silent --show-error --head --output /dev/null \
+              --write-out "%{http_code}" --max-time 10 "$BASE$path"); then
+              FAILS+=("route $path: curl/network failure")
+              continue
+            fi
             if [ "$STATUS" != "200" ]; then
               FAILS+=("route $path: HTTP $STATUS")
             else
@@ -67,7 +92,18 @@ jobs:
           done
 
           # 5. SW push handler 주입 확인 (PR #166 regression 가드)
-          SW=$(curl -s -m 10 "$BASE/sw.js")
+          SW_FILE=$(mktemp)
+          if ! SW_STATUS=$(curl --silent --show-error --location --max-time 10 \
+            --output "$SW_FILE" --write-out "%{http_code}" "$BASE/sw.js"); then
+            FAILS+=("sw.js: curl/network failure")
+            SW=""
+          else
+            SW=$(<"$SW_FILE")
+            if [ "$SW_STATUS" != "200" ]; then
+              FAILS+=("sw.js: HTTP $SW_STATUS")
+            fi
+          fi
+          rm -f "$SW_FILE"
           for marker in 'addEventListener("push"' 'showNotification' 'notificationclick'; do
             if ! echo "$SW" | grep -q "$marker"; then
               FAILS+=("sw.js: missing $marker")

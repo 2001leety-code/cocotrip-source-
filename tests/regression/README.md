@@ -262,7 +262,7 @@ SCENARIO_ARRIVAL_AIRPORT=ICN \
 
 - Gemini: 6 call/week ≈ $0.12/week ≈ $0.50/월
 - GitHub Actions: 6 × ~5분 = ~30분/주 = ~2시간/월 (무료 한도 내)
-- 실패 시 issue 자동 생성 (label `regression,scenario-matrix`)
+- 실패 시 GitHub Issue 자동 생성 (저장소 라벨 존재 여부에 의존하지 않음)
 
 ## 결제 회귀 슈트 (validate-prod-payment.mjs)
 

@@ -1,6 +1,6 @@
 // prod uptime smoke — 가벼운 health (홈·핵심 API 200·응답시간). Gemini/결제 호출 없음(공짜).
 // daily-health.yml(주3회 깊은 Playwright E2E)의 상시(매시간) 보완 — prod 다운을 빨리 감지.
-// 실패 시 workflow 가 텔레그램+디스코드 알림. exit 1 = 하나라도 실패.
+// 실패 시 workflow 가 Telegram 1곳에 긴급 알림 + GitHub Issue 지속 기록. exit 1 = 하나라도 실패.
 const BASE = process.env.BASE_URL || 'https://cocotripkr.com';
 const TIMEOUT_MS = 15000;
 const SLOW_MS = 8000; // 응답 8초 초과 = 느림 경고(실패는 아님)

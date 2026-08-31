@@ -128,6 +128,53 @@
   cursor: not-allowed;
 }
 
+/* ═══ Supporting information disclosure ═════════════════════════════════
+   The planner's long-form proof remains in the DOM for search and for people
+   who want the detail, but it no longer reads as a wall of equal-weight copy.
+   Native details/summary gives us keyboard and state semantics without JS. */
+
+.planner-disclosure {
+  border-top: 1px solid var(--ec-line);
+}
+.planner-disclosure-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--ec-touch-min);
+  padding: 10px 0;
+  color: var(--ec-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+  list-style: none;
+}
+.planner-disclosure-summary::-webkit-details-marker { display: none; }
+.planner-disclosure-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+.planner-disclosure-mark {
+  flex: 0 0 auto;
+  color: var(--ec-brand);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+}
+.planner-disclosure[open] > .planner-disclosure-summary .planner-disclosure-mark {
+  transform: rotate(45deg);
+}
+.planner-disclosure-body {
+  padding: 2px 0 20px;
+}
+
 /* Compact variant for dense chip rows — still 44px tall for the thumb. */
 .ec-option-sm {
   width: auto;
