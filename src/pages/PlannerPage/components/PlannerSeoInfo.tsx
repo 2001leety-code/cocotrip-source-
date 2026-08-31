@@ -38,6 +38,7 @@ type Lang = 'ko' | 'en' | 'ja' | 'zh';
 type Vars = { price: string; approxKrw: string; cities: string; cityCount: number; diets: string };
 
 const COPY: Record<Lang, {
+  highlightsTitle: string; highlights: Array<[string, string]>;
   getTitle: string; get: string[];
   keepTitle: string; keepIntro: string; keep: string[];
   coverageTitle: string; coverage: (v: Vars) => string[];
@@ -45,6 +46,12 @@ const COPY: Record<Lang, {
   faqTitle: string; faq: (v: Vars) => Array<[string, string]>;
 }> = {
   ko: {
+    highlightsTitle: '먼저 확인할 세 가지',
+    highlights: [
+      ['시간까지 정리된 하루 일정', '항공편·숙소·여행 속도를 반영해 날짜별 동선을 짭니다.'],
+      ['실제로 따라가는 이동 경로', '지하철·버스·환승과 마지막 도보 구간까지 안내합니다.'],
+      ['확인된 식당과 저장 가능한 PDF', '관리 목록과 대조한 식당을 담고, 전체 일정을 내려받을 수 있습니다.'],
+    ],
     getTitle: '무엇이 나오나',
     get: [
       '하루 단위 일정 — 날짜별로 어디를 몇 시에 가는지, 식사는 어디서 하는지까지 시각이 붙습니다.',
@@ -85,6 +92,12 @@ const COPY: Record<Lang, {
     ],
   },
   en: {
+    highlightsTitle: 'Three things to know first',
+    highlights: [
+      ['A timed plan for each day', 'Your flights, hotels and travel pace shape the route for every date.'],
+      ['Directions you can actually follow', 'Subways, buses, transfers and the final walk are all included.'],
+      ['Checked restaurants and an offline PDF', 'Restaurants are matched to a curated list, and the complete plan is downloadable.'],
+    ],
     getTitle: 'What you get',
     get: [
       'A day-by-day itinerary — each day laid out with times, including where you eat.',
@@ -125,6 +138,12 @@ const COPY: Record<Lang, {
     ],
   },
   ja: {
+    highlightsTitle: 'まず確認したい3つのポイント',
+    highlights: [
+      ['時刻まで入った一日の旅程', 'フライト・宿泊先・旅のペースを反映し、日付ごとの動線を組み立てます。'],
+      ['実際にたどれる移動ルート', '地下鉄・バス・乗り換えから最後の徒歩区間まで案内します。'],
+      ['確認済みの飲食店と保存できるPDF', '管理リストと照合した店を掲載し、旅程全体をダウンロードできます。'],
+    ],
     getTitle: '受け取れるもの',
     get: [
       '日ごとの旅程 — 日付ごとに、何時にどこへ行くか、食事はどこかまで時刻が入ります。',
@@ -165,6 +184,12 @@ const COPY: Record<Lang, {
     ],
   },
   zh: {
+    highlightsTitle: '先看这三点',
+    highlights: [
+      ['每天都有具体时间的行程', '根据航班、住宿和旅行节奏，安排每个日期的路线。'],
+      ['真正可以照着走的交通路线', '包含地铁、公交、换乘和最后一段步行指引。'],
+      ['核对过的餐厅和可保存的PDF', '餐厅会与维护名单核对，完整行程也可下载保存。'],
+    ],
     getTitle: '你会得到什么',
     get: [
       '逐日行程 — 按日期排好，几点去哪里、在哪里用餐都带时间。',
@@ -239,55 +264,103 @@ export function PlannerSeoInfo({ language, t }: { language: string; t: Translati
   useJsonLd('planner-faq', buildFaqJsonLd(faqEntries));
 
   return (
-    <section className="planner-seo-info mt-12 border-t border-ec-line pt-8">
+    <section className="planner-seo-info mt-10 border-t border-ec-line pt-7">
       <div className="ec-measure">
-        <div>
-          <h2 className="ec-h3 mb-3">{c.getTitle}</h2>
-          <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.get.map((s) => <li key={s} className="ec-body">{s}</li>)}
-          </ul>
-        </div>
+        {/* The old page opened with 22 equally loud information units. Keep the
+            complete, indexable copy below, but let a traveller scan three
+            decisions before choosing whether to read the supporting detail. */}
+        <h2 className="ec-h3">{c.highlightsTitle}</h2>
+        <ol className="planner-highlights mt-4 grid gap-3 md:grid-cols-3 md:gap-5">
+          {c.highlights.map(([title, body], index) => (
+            <li key={title} className="border-t border-ec-line pt-3">
+              <p className="flex items-baseline gap-2 text-[15px] font-semibold leading-snug text-ec-ink">
+                <span aria-hidden="true" className="ec-figure text-ec-brand">0{index + 1}</span>
+                <span>{title}</span>
+              </p>
+              <p className="ec-body mt-1">{body}</p>
+            </li>
+          ))}
+        </ol>
 
-        <hr className="ec-rule my-8" />
+        {/* Native details/summary is keyboard-operable and exposes its state to
+            assistive technology without a second JavaScript accordion. The
+            original four-language SEO and policy copy remains verbatim. */}
+        <div className="planner-disclosure-list mt-6 border-b border-ec-line">
+          <details className="planner-disclosure">
+            <summary className="planner-disclosure-summary">
+              <h2 className="planner-disclosure-heading">
+                <span>{c.getTitle}</span>
+                <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+              </h2>
+            </summary>
+            <div className="planner-disclosure-body">
+              <ul className="space-y-2 pl-4" style={{ listStyleType: 'disc' }}>
+                {c.get.map((s) => <li key={s} className="ec-body">{s}</li>)}
+              </ul>
+            </div>
+          </details>
 
-        <div>
-          <h2 className="ec-h3 mb-3">{c.keepTitle}</h2>
-          <p className="ec-body mb-2">{c.keepIntro}</p>
-          <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.keep.map((s) => <li key={s} className="ec-body">{s}</li>)}
-          </ul>
-        </div>
+          <details className="planner-disclosure">
+            <summary className="planner-disclosure-summary">
+              <h2 className="planner-disclosure-heading">
+                <span>{c.keepTitle}</span>
+                <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+              </h2>
+            </summary>
+            <div className="planner-disclosure-body">
+              <p className="ec-body mb-2">{c.keepIntro}</p>
+              <ul className="space-y-2 pl-4" style={{ listStyleType: 'disc' }}>
+                {c.keep.map((s) => <li key={s} className="ec-body">{s}</li>)}
+              </ul>
+            </div>
+          </details>
 
-        <hr className="ec-rule my-8" />
+          <details className="planner-disclosure">
+            <summary className="planner-disclosure-summary">
+              <h2 className="planner-disclosure-heading">
+                <span>{c.coverageTitle}</span>
+                <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+              </h2>
+            </summary>
+            <div className="planner-disclosure-body">
+              <ul className="space-y-2 pl-4" style={{ listStyleType: 'disc' }}>
+                {c.coverage(vars).map((s) => <li key={s} className="ec-body">{s}</li>)}
+              </ul>
+            </div>
+          </details>
 
-        <div>
-          <h2 className="ec-h3 mb-3">{c.coverageTitle}</h2>
-          <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            {c.coverage(vars).map((s) => <li key={s} className="ec-body">{s}</li>)}
-          </ul>
-        </div>
+          <details className="planner-disclosure">
+            <summary className="planner-disclosure-summary">
+              <h2 className="planner-disclosure-heading">
+                <span>{c.processTitle}</span>
+                <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+              </h2>
+            </summary>
+            <div className="planner-disclosure-body">
+              <ol className="space-y-2 pl-5" style={{ listStyleType: 'decimal' }}>
+                {c.process.map((s) => <li key={s} className="ec-body">{s}</li>)}
+              </ol>
+            </div>
+          </details>
 
-        <hr className="ec-rule my-8" />
-
-        <div>
-          <h2 className="ec-h3 mb-3">{c.processTitle}</h2>
-          <ol className="space-y-1.5 pl-5" style={{ listStyleType: 'decimal' }}>
-            {c.process.map((s) => <li key={s} className="ec-body">{s}</li>)}
-          </ol>
-        </div>
-
-        <hr className="ec-rule my-8" />
-
-        <div>
-          <h2 className="ec-h3 mb-3">{c.faqTitle}</h2>
-          <dl className="space-y-3">
-            {faqEntries.map(([q, a]) => (
-              <div key={q}>
-                <dt className="font-semibold text-ec-ink">{q}</dt>
-                <dd className="ec-body mt-0.5">{a}</dd>
-              </div>
-            ))}
-          </dl>
+          <details className="planner-disclosure">
+            <summary className="planner-disclosure-summary">
+              <h2 className="planner-disclosure-heading">
+                <span>{c.faqTitle}</span>
+                <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+              </h2>
+            </summary>
+            <div className="planner-disclosure-body">
+              <dl className="space-y-4">
+                {faqEntries.map(([q, a]) => (
+                  <div key={q}>
+                    <dt className="font-semibold text-ec-ink">{q}</dt>
+                    <dd className="ec-body mt-1">{a}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </details>
         </div>
       </div>
     </section>

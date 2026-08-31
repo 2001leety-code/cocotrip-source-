@@ -8,7 +8,7 @@ name: L3 — Daily Quality Score Monitor
 #   1. Firebase Auth signInWithPassword → admin idToken
 #   2. GET /api/admin-quality-summary?days=1 (24h 윈도우) + days=7 (베이스라인)
 #   3. 임계 검사 (hard=80 / drop=10pt / min_samples=5)
-#   4. 실패 시 GH issue 자동 생성/업데이트 + (옵션) Telegram alert
+#   4. 실패 시 GH issue 자동 생성/업데이트 + Telegram 긴급 alert
 #
 # Tier 1-A endpoint 정찰 결과 (2026-05-12):
 #   - PR #225 / PR-D 머지 완료 — endpoint live (`/api/admin-quality-summary`)
@@ -20,8 +20,8 @@ name: L3 — Daily Quality Score Monitor
 #   FIREBASE_WEB_API_KEY    — .env 의 VITE_FIREBASE_API_KEY 와 동일 (재사용)
 #   HEALTH_CHECK_EMAIL      — admin 계정 이메일 (재사용)
 #   HEALTH_CHECK_PASSWORD   — admin 계정 비밀번호 (재사용)
-#   TELEGRAM_BOT_TOKEN      — 선택 (없으면 텔레그램 alert 조용히 skip)
-#   TELEGRAM_CHAT_ID        — 선택 (없으면 텔레그램 alert 조용히 skip)
+#   TELEGRAM_BOT_TOKEN      — 운영 긴급 알림
+#   TELEGRAM_CHAT_ID        — 운영 긴급 알림
 
 on:
   schedule:
@@ -96,7 +96,7 @@ jobs:
 
       # ── Alert: GH issue 자동 생성/업데이트 (실패 시만) ──────────────
       - name: Open or update tracking issue
-        if: ${{ steps.check.outputs.exit_code != '0' }}
+        if: ${{ always() && steps.check.outputs.exit_code != '0' }}
         uses: actions/github-script@v7
         with:
           script: |
@@ -148,15 +148,12 @@ jobs:
               '— 이 issue 는 같은 날 다시 fail 하면 코멘트만 추가, 다음 날 새 issue 생성.',
             ].join('\n');
 
-            const labels = ['quality', 'auto-detected', `severity:${severity}`];
-
             // 같은 제목의 open issue 있으면 코멘트 추가, 없으면 새로 생성
             const existing = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'quality',
-              per_page: 30,
+              per_page: 100,
             });
             const hit = existing.data.find((i) => i.title === title);
 
@@ -175,29 +172,28 @@ jobs:
                 repo: context.repo.repo,
                 title,
                 body,
-                labels,
               });
               core.notice(`Opened issue #${created.data.number}`);
               core.exportVariable('QUALITY_ISSUE_NUMBER', String(created.data.number));
             }
 
-      # ── Alert: Telegram (옵션, secrets 미설정 시 graceful skip) ──
+      # ── Alert: Telegram 운영 긴급 채널 ──
       - name: Send Telegram alert
-        if: ${{ steps.check.outputs.exit_code != '0' }}
+        if: ${{ always() && steps.check.outputs.exit_code != '0' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "[telegram] secrets 미설정 — alert skip (GH issue 만 발송됨)"
-            exit 0
+            echo "::error::[telegram] secrets 미설정 — 긴급 알림을 보낼 수 없음"
+            exit 1
           fi
 
           # status JSON 에서 핵심 필드 추출 (jq 글로벌 설치돼 있음)
           STATUS_FILE=quality-alert-status.json
           if [ ! -f "$STATUS_FILE" ]; then
-            echo "[telegram] status file 없음 — skip"
-            exit 0
+            echo "::error::[telegram] status file 없음 — 긴급 알림을 만들 수 없음"
+            exit 1
           fi
 
           SEVERITY=$(jq -r '.severity // "fail"' "$STATUS_FILE")
@@ -215,43 +211,33 @@ jobs:
             *)          ICON="⚪" ;;
           esac
 
-          # HTML 메시지 조립 (notify.js sendMessage 와 동일 parse_mode)
-          TEXT="<b>${ICON} Quality score ${SEVERITY}</b>%0A%0A"
-          TEXT="${TEXT}24h 평균: <b>${AVG24}</b> (samples ${SAMPLES})%0A"
-          TEXT="${TEXT}7d 베이스라인: ${AVG7D}%0A%0A"
-          TEXT="${TEXT}<a href=\"${ISSUE_URL}\">GH Issue #${ISSUE_NUM}</a> · <a href=\"${RUN_URL}\">workflow run</a>%0A%0A"
-          TEXT="${TEXT}<i>대응: /admin/quality 대시보드 + 최근 머지 PR diff 확인</i>"
+          # --data-urlencode가 실제 줄바꿈을 인코딩하도록 먼저 일반 문자열로 조립한다.
+          TEXT=$(printf '%s\n' \
+            "<b>${ICON} Quality score ${SEVERITY}</b>" \
+            "" \
+            "24h 평균: <b>${AVG24}</b> (samples ${SAMPLES})" \
+            "7d 베이스라인: ${AVG7D}" \
+            "" \
+            "<a href=\"${ISSUE_URL}\">GH Issue #${ISSUE_NUM}</a> · <a href=\"${RUN_URL}\">workflow run</a>" \
+            "" \
+            "<i>대응: /admin/quality 대시보드 + 최근 머지 PR diff 확인</i>")
 
-          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          curl --fail-with-body --silent --show-error \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
             --data-urlencode "text=${TEXT}" \
             --data-urlencode "parse_mode=HTML" \
             --data-urlencode "disable_web_page_preview=true" \
-            -o /tmp/tg_response.json -w "[telegram] http=%{http_code}\n"
+            -o /tmp/tg_response.json
 
-          if grep -q '"ok":true' /tmp/tg_response.json; then
-            echo "[telegram] alert sent."
-          else
-            echo "[telegram] response:"
-            cat /tmp/tg_response.json
+          if ! jq -e '.ok == true' /tmp/tg_response.json > /dev/null; then
+            echo "::error::[telegram] API가 성공 응답을 반환하지 않음"
+            exit 1
           fi
-
-      # ── Alert: Discord (옵션, DISCORD_WEBHOOK_URL 미설정 시 graceful skip) ──
-      - name: Send Discord alert
-        if: ${{ steps.check.outputs.exit_code != '0' }}
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "[discord] DISCORD_WEBHOOK_URL 미설정 — skip"
-            exit 0
-          fi
-          node -e "const fs=require('fs'); let s={}; try{s=JSON.parse(fs.readFileSync('quality-alert-status.json','utf8'))}catch(e){} const w=s.window24h||{}; const b=s.baseline7d||{}; const run=process.env.GITHUB_SERVER_URL+'/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+process.env.GITHUB_RUN_ID; const content='[Quality score '+(s.severity||'fail')+']\n24h 평균: '+(w.avgScore!=null?w.avgScore:'null')+' (samples '+(w.sampleCount||0)+')\n7d 베이스라인: '+(b.avgScore!=null?b.avgScore:'n/a')+'\n\n대응: /admin/quality 대시보드 + 최근 머지 PR diff 확인\n\nrun: '+run; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
-          curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "[discord] webhook 실패(non-fatal)"
-        continue-on-error: true
+          echo "[telegram] alert sent."
 
       - name: Fail step (relay exit code)
-        if: ${{ steps.check.outputs.exit_code != '0' }}
+        if: ${{ always() && steps.check.outputs.exit_code != '0' }}
         run: |
           echo "::error::Quality score check failed — see issue + workflow log."
           exit 1

@@ -29,6 +29,7 @@ const AccountDeletion = lazy(() => import('@/pages/AccountDeletion'));
 const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const Admin = lazy(() => import('@/pages/Admin'));
+const AdminAiOpsCenter = lazy(() => import('@/pages/AdminAiOpsCenter'));
 const AdminReviews = lazy(() => import('@/pages/AdminReviews'));
 const AdminClaims = lazy(() => import('@/pages/AdminClaims'));
 const AdminPayments = lazy(() => import('@/pages/AdminPayments'));
@@ -84,6 +85,9 @@ const MoodPortal = lazy(() => import('@/pages/MoodPortal'));
 const MoodUiHarness = import.meta.env.DEV ? lazy(() => import('@/pages/MoodUiHarness')) : null;
 const InquiryResponseDevHarness = import.meta.env.DEV
   ? lazy(() => import('@/pages/InquiryResponseDevHarness'))
+  : null;
+const AdminAiOpsCenterDevHarness = import.meta.env.DEV
+  ? lazy(() => import('@/pages/AdminAiOpsCenterDevHarness'))
   : null;
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
@@ -286,6 +290,7 @@ function AnimatedRoutes() {
               {MobilePlannerResultV2 && <Route path="/preview/mobile-planner" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobilePlannerResultV2 /></Suspense>} />}
               {MobileCharterV2 && <Route path="/preview/mobile-charter" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileCharterV2 /></Suspense>} />}
               {MobileIconsPreview && <Route path="/preview/icons" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileIconsPreview /></Suspense>} />}
+              {AdminAiOpsCenterDevHarness && <Route path="/admin/preview-ai-center" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><AdminAiOpsCenterDevHarness /></Suspense>} />}
             </>
           )}
           <Route
@@ -304,6 +309,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
                   <AdminReviews />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/ai-center"
+            element={
+              <AdminRoute>
+                <Suspense fallback={LEGACY_ROUTE_FALLBACK}>
+                  <AdminAiOpsCenter />
                 </Suspense>
               </AdminRoute>
             }

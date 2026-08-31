@@ -234,7 +234,7 @@ export default function PlannerPage() {
 
       <PlannerMasthead copy={c} isMobile={isMobile} />
 
-      <main className={isMobile ? 'px-4 pb-6 space-y-5' : 'ec-container-wide pb-10 space-y-8'}>
+      <main className={isMobile ? 'px-4 pb-6 space-y-4' : 'ec-container-wide pb-10 space-y-8'}>
         <hr className="ec-rule-strong" />
 
         {/* Mode choice. On a phone the two options are a compact pair and only
@@ -255,6 +255,7 @@ export default function PlannerPage() {
                     key={key}
                     type="button"
                     aria-pressed={active}
+                    aria-label={isMobile ? `${kicker}. ${title}. ${body}` : undefined}
                     onClick={() => setPlannerMode(key)}
                     className={`ec-option ${active ? 'is-selected' : ''}`}
                   >
@@ -265,9 +266,6 @@ export default function PlannerPage() {
                 );
               })}
             </div>
-            <p className="ec-help mt-2 sm:hidden">
-              {plannerMode === 'ai' ? c.modes.guided.body : c.modes.builder.body}
-            </p>
           </section>
         )}
 

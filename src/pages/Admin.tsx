@@ -15,6 +15,7 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
+  Bot,
   BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
@@ -312,6 +313,7 @@ export default function Admin() {
   ];
 
   const quickActions = [
+    { href: '/admin/ai-center', title: 'AI 운영센터', desc: '예약·문의·자동화 한눈에', icon: Bot, tone: 'text-violet-200' },
     { href: '/admin/payments', title: '예약·결제', desc: '입금 확인·환불', icon: CreditCard, tone: 'text-sky-300' },
     { href: '/admin/all-bookings', title: '통합 예약', desc: '무드 + 코코트립', icon: ClipboardList, tone: 'text-violet-300' },
     { href: '/mood#topup', title: '무드 충전', desc: '입금 확인 후 선불 잔액', icon: WalletCards, tone: 'text-pink-300' },

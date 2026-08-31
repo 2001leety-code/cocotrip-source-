@@ -50,8 +50,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'auto-health',
-              per_page: 20,
+              per_page: 100,
             });
             const hit = existing.data.find(i => i.title === title);
 
@@ -69,7 +68,6 @@ jobs:
                 repo: context.repo.repo,
                 title,
                 body,
-                labels: ['auto-health', 'priority:high'],
               });
               core.notice(`Opened issue #${created.data.number}`);
             }

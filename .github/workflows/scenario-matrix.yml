@@ -74,7 +74,6 @@ jobs:
           gh issue create \
             --repo "${{ github.repository }}" \
             --title "🟡 Weekly scenario matrix fail — $(date -u +%Y-%m-%d)" \
-            --label "regression,scenario-matrix" \
             --body "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           시나리오 매트릭스 (주간) 1건 이상 실패. 위 run 의 시나리오별 step log 확인 필요.
