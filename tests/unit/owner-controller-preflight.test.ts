@@ -71,14 +71,14 @@ function readyRoot() {
       compileSdk 36
       defaultConfig {
         applicationId 'com.cocotrip.owner'
-        minSdk 21
+        minSdk 23
         targetSdk 36
         versionCode 1
         versionName '1.0.0'
       }
     }
     dependencies {
-      implementation 'com.google.androidbrowserhelper:android-browser-helper:2.5.0'
+      implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'
     }
   `);
   write(root, 'android-owner/app/src/main/AndroidManifest.xml', `

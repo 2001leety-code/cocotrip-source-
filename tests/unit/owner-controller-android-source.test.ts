@@ -31,6 +31,14 @@ describe('Owner Controller Android 브랜드·빌드 소스', () => {
     expect(read('scripts/owner-controller-release.mjs')).toContain('owner-controller-preflight.mjs');
   });
 
+  it('Google Maven에 실제 배포된 ABH 안정 좌표와 호환 minSdk를 사용한다', () => {
+    const gradle = read('android-owner/app/build.gradle');
+    expect(gradle).toContain("implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'");
+    expect(gradle).toContain('minSdk 23');
+    expect(gradle).not.toContain('android-browser-helper');
+    expect(gradle).not.toContain("androidx.browser:browser:1.8.0");
+  });
+
   it('wrapper는 공식 Gradle 8.11.1 URL과 배포 SHA-256에 고정된다', () => {
     const properties = read('android-owner/gradle/wrapper/gradle-wrapper.properties');
     expect(properties).toContain('gradle-8.11.1-bin.zip');

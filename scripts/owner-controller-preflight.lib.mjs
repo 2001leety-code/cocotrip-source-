@@ -241,7 +241,7 @@ export function auditOwnerControllerReadiness({ root = process.cwd(), config, to
     if (targetSdk !== android.targetSdk) {
       findings.push(finding('ANDROID_TARGET_SDK_MISMATCH', 'android', 'build.gradle의 targetSdk가 설정 정본과 다릅니다.'));
     }
-    if (!/android-browser-helper/.test(gradle) || !/com.google.androidbrowserhelper:android-browser-helper/.test(gradle)) {
+    if (!/com\.google\.androidbrowserhelper:androidbrowserhelper:2\.7\.3/.test(gradle)) {
       findings.push(finding('ANDROID_BROWSER_HELPER_MISSING', 'android', 'android-browser-helper 의존성이 build.gradle에 없습니다.'));
     }
     if (!manifest.includes('android.support.customtabs.trusted.DEFAULT_URL')
