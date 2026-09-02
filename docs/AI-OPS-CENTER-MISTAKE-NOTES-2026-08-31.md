@@ -1,5 +1,7 @@
 # AI 운영센터 오답노트 — 2026-08-31
 
+- Windows 서명 보관 폴더의 상속을 끈 뒤 새 로컬 파일을 만들면 접근 규칙이 비어 실행이 막힐 수 있다. 키·암호·실행기 생성 후 파일별 ACL과 실제 release 명령을 다시 확인한다.
+- `verify:prepush`의 실수 패턴 검사는 `origin/main..HEAD`만 보므로 변경이 아직 커밋 전이면 `no changes`로 건너뛴다. 커밋 뒤 같은 검사를 다시 실행해야 근거가 된다.
 - Android 의존성은 표시 이름을 좌표로 추측하지 않는다. 공식 Google Maven의 실제 groupId·artifactId·version과 POM/AAR 존재 여부를 확인한 뒤 고정한다.
 - `/admin`에서는 고객용 프로모션·쿠키·가입 모달·하단 탭·하단 여백을 모두 격리하고, 운영에 필요한 PWA 업데이트 알림만 유지한다.
 - Firebase `getIdToken`을 변수로 떼어 호출하면 `User`의 `this`가 깨질 수 있다. 반드시 `user.getIdToken()`으로 호출한다.
