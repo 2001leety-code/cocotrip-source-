@@ -22,7 +22,9 @@
     "targetSdk": 36,
     "versionCode": 1,
     "versionName": "1.0.0",
-    "signingSha256CertificateFingerprints": [],
+    "signingSha256CertificateFingerprints": [
+      "BC:BA:58:77:80:DD:01:3A:BD:EE:C4:66:C5:19:43:F0:44:DB:9B:00:0B:7E:4E:D6:5B:39:74:6E:F4:C1:07:FE"
+    ],
     "releaseApkPath": "android-owner/app/build/outputs/apk/release/app-release.apk",
     "twaSigningKeyStore": "android-owner/local.properties"
   },

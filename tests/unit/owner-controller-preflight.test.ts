@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -11,6 +11,7 @@ import {
 
 const roots: string[] = [];
 const FINGERPRINT = Array.from({ length: 32 }, (_, index) => (index + 1).toString(16).padStart(2, '0').toUpperCase()).join(':');
+const RELEASE_FINGERPRINT = 'BC:BA:58:77:80:DD:01:3A:BD:EE:C4:66:C5:19:43:F0:44:DB:9B:00:0B:7E:4E:D6:5B:39:74:6E:F4:C1:07:FE';
 const START_URL = '/admin/ai-center';
 
 function write(root: string, relativePath: string, content: string | Uint8Array = '') {
@@ -138,6 +139,21 @@ describe('Owner Controller 설정 정본', () => {
   it('기본 오너 설정은 P1 기준 필수값 누락이 있으면 fail-closed다', () => {
     const config = readyConfig();
     expect(validateOwnerControllerConfig(config).length).toBe(0);
+  });
+
+  it('실제 공개 설정과 assetlinks는 같은 오너 패키지와 인증서 지문을 사용한다', () => {
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), 'config/owner-controller-release.v1.json'), 'utf8'));
+    const assetlinks = JSON.parse(readFileSync(path.join(process.cwd(), 'public/.well-known/assetlinks.json'), 'utf8'));
+    const target = assetlinks[0].target;
+
+    expect(config.android.packageName).toBe('com.cocotrip.owner');
+    expect(config.android.signingSha256CertificateFingerprints).toEqual([RELEASE_FINGERPRINT]);
+    expect(assetlinks[0].relation).toContain('delegate_permission/common.handle_all_urls');
+    expect(target).toEqual({
+      namespace: 'android_app',
+      package_name: config.android.packageName,
+      sha256_cert_fingerprints: config.android.signingSha256CertificateFingerprints,
+    });
   });
 
   it('sourceDir이 android-owner가 아니면 거부한다', () => {

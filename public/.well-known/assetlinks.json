@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.cocotrip.owner",
+      "sha256_cert_fingerprints": [
+        "BC:BA:58:77:80:DD:01:3A:BD:EE:C4:66:C5:19:43:F0:44:DB:9B:00:0B:7E:4E:D6:5B:39:74:6E:F4:C1:07:FE"
+      ]
+    }
+  }
+]
