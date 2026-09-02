@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "toolchainCompatibilitySnapshot": {
+    "checkedAt": "2026-09-01",
+    "maximumAgeDays": 30,
+    "minimumTargetSdk": 36,
+    "minimumAgpVersion": "8.9.1",
+    "minimumGradleVersion": "8.11.1",
+    "source": "https://developer.android.com/build/releases/gradle-plugin",
+    "twaSource": "https://developer.android.com/develop/ui/views/layout/webapps/trusted-web-activities"
+  },
+  "web": {
+    "origin": "https://cocotripkr.com",
+    "startUrl": "/admin/ai-center",
+    "scope": "/admin/",
+    "manifestUrl": "/manifest-owner-controller.webmanifest"
+  },
+  "android": {
+    "wrapper": "twa",
+    "sourceDir": "android-owner",
+    "packageName": "com.cocotrip.owner",
+    "targetSdk": 36,
+    "versionCode": 1,
+    "versionName": "1.0.0",
+    "signingSha256CertificateFingerprints": [],
+    "releaseApkPath": "android-owner/app/build/outputs/apk/release/app-release.apk",
+    "twaSigningKeyStore": "android-owner/local.properties"
+  },
+  "releaseArtifacts": {
+    "apkPath": "android-owner/app/build/outputs/apk/release/app-release.apk"
+  }
+}

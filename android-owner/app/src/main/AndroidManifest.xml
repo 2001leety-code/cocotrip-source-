@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application
+    android:allowBackup="false"
+    android:icon="@mipmap/ic_launcher"
+    android:label="@string/app_name"
+    android:roundIcon="@mipmap/ic_launcher_round"
+    android:supportsRtl="true"
+    android:theme="@style/Theme.CocoTripOwner"
+    android:usesCleartextTraffic="false">
+    <activity
+      android:name=".OwnerLauncherActivity"
+      android:exported="true"
+      android:launchMode="singleTask"
+      android:theme="@style/Theme.CocoTripOwner">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data
+          android:scheme="https"
+          android:host="cocotripkr.com"
+          android:pathPrefix="/admin" />
+      </intent-filter>
+      <meta-data
+        android:name="android.support.customtabs.trusted.DEFAULT_URL"
+        android:value="https://cocotripkr.com/admin/ai-center" />
+      <meta-data
+        android:name="android.support.customtabs.trusted.PROVIDER_AUTHORITY"
+        android:value="com.cocotrip.owner.fileprovider" />
+      <meta-data
+        android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
+        android:value="com.cocotrip.owner.fileprovider" />
+    </activity>
+    <meta-data
+      android:name="asset_statements"
+      android:resource="@string/asset_statements" />
+  </application>
+</manifest>

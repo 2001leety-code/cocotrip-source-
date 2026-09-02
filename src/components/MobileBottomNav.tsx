@@ -88,6 +88,6 @@ export function MobileBottomNav() {
 /** 하단 네비 높이만큼 콘텐츠 여백 확보 — 페이지 레이아웃 맨 아래에 배치 */
 export function MobileBottomSpacer() {
   const location = useLocation();
-  if (location.pathname === '/community' || location.pathname.startsWith('/community/')) return null;
+  if (location.pathname.startsWith('/admin') || location.pathname === '/community' || location.pathname.startsWith('/community/')) return null;
   return <div className="md:hidden h-[72px]" />;
 }

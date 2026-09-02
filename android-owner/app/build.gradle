@@ -1,0 +1,53 @@
+plugins {
+  id 'com.android.application'
+}
+
+android {
+  namespace 'com.cocotrip.owner'
+  compileSdk 36
+
+  defaultConfig {
+    applicationId 'com.cocotrip.owner'
+    minSdk 21
+    targetSdk 36
+    versionCode 1
+    versionName '1.0.0'
+  }
+
+  signingConfigs {
+    release {
+      def props = new Properties()
+      def localProperties = rootProject.file('local.properties')
+      if (localProperties.exists()) {
+        localProperties.withInputStream { props.load(it) }
+        if (props.containsKey('storeFile')) {
+          def configuredStoreFile = rootProject.file(props.getProperty('storeFile'))
+          if (!configuredStoreFile.isFile()) {
+            throw new GradleException("Configured release storeFile does not exist: ${configuredStoreFile}")
+          }
+          storeFile configuredStoreFile
+        }
+        storePassword System.getenv('OWNER_KEYSTORE_PASSWORD')
+        keyAlias props.getProperty('keyAlias')
+        keyPassword System.getenv('OWNER_KEY_PASSWORD')
+      }
+    }
+  }
+
+  buildTypes {
+    verify {
+      initWith release
+      signingConfig null
+      matchingFallbacks = ['release']
+    }
+    release {
+      minifyEnabled false
+      signingConfig signingConfigs.release
+    }
+  }
+}
+
+dependencies {
+  implementation 'androidx.browser:browser:1.8.0'
+  implementation 'com.google.androidbrowserhelper:android-browser-helper:2.5.0'
+}
