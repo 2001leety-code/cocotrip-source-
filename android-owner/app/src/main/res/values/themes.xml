@@ -1,0 +1,11 @@
+<resources>
+  <style name="Theme.CocoTripOwner" parent="android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:colorAccent">@color/owner_brand_primary</item>
+    <item name="android:navigationBarColor">@color/owner_brand_background</item>
+    <item name="android:statusBarColor">@color/owner_brand_background</item>
+    <item name="android:windowLightNavigationBar">false</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:windowSplashScreenBackground">@color/owner_brand_background</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/owner_brand_icon</item>
+  </style>
+</resources>

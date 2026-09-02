@@ -180,6 +180,7 @@ function GlobalWidgets() {
   // ※ PWA 업데이트 토스트는 예외 — 무드도 새 버전 알림 받게 App 레벨에서 전역 렌더(운영자 요청).
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
+  if (location.pathname.startsWith('/admin')) return null;
 
   // 2026-06-16: 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱/마케팅 chrome
   //   (하단탭·채팅버튼·K-pop 팝업·가입쿠폰)을 숨겨 "프리미엄 여행 제안서"처럼 보이게.
@@ -787,6 +788,7 @@ function NonMoodChrome() {
   const location = useLocation();
   if (
     location.pathname.startsWith('/mood') ||
+    location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/community') ||
     isLinkHubPath(location.pathname)
   ) return null;

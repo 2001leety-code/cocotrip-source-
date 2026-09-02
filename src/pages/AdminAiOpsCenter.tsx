@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { OwnerControllerSetupPanel } from '@/components/OwnerControllerSetupPanel';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -125,6 +126,9 @@ interface ApiResponse {
   error?: string;
 }
 
+const FOREGROUND_REFRESH_DEBOUNCE_MS = 900;
+
+
 const PRIORITY_META: Record<Priority, { label: string; className: string }> = {
   P0: { label: '즉시', className: 'border-rose-400/40 bg-rose-400/15 text-rose-200' },
   P1: { label: '우선', className: 'border-amber-300/35 bg-amber-300/10 text-amber-100' },
@@ -210,6 +214,58 @@ function isExternal(url: string) {
   return /^https?:\/\//.test(url);
 }
 
+function SectionJumpBar({ items }: { items: { id: string; label: string }[] }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#181b22] p-3 sm:p-4">
+      <p className="mb-2 text-xs text-slate-400">한눈에 이동</p>
+      <nav
+        className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        aria-label="운영 센터 섹션 바로가기"
+      >
+        {items.map((item) => (
+          <a
+            key={item.id}
+            href={`#${item.id}`}
+            className="min-h-[44px] shrink-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    </section>
+  );
+}
+
+function RefreshBadge({
+  mode,
+  lastFetchedAt,
+  syncing,
+  isPreview,
+}: {
+  mode: 'server' | 'preview';
+  lastFetchedAt: number | null;
+  syncing: boolean;
+  isPreview: boolean;
+}) {
+  const updated = lastFetchedAt && Number.isFinite(lastFetchedAt) ? `${formatKst(lastFetchedAt)} 기준` : '갱신 대기중';
+  if (mode === 'preview' && lastFetchedAt == null) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-400">
+        미리보기 데이터
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-100">
+      <p className="font-black">{isPreview ? '미리보기 모드' : '운영 연동 모드'}</p>
+      <p className="mt-0.5 text-[11px] text-slate-300">
+        {syncing ? '갱신 중' : '갱신 완료'} · {updated}
+      </p>
+    </div>
+  );
+}
+
 function DeepLink({ to, children, className = '' }: { to: string; children: ReactNode; className?: string }) {
   const common = `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] ${className}`;
   if (isExternal(to)) {
@@ -253,9 +309,9 @@ function SummaryCard({
   );
 }
 
-function WorkQueue({ items }: { items: WorkItem[] }) {
+function WorkQueue({ items, sectionId }: { items: WorkItem[]; sectionId?: string }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="work-queue-title">
+    <section id={sectionId} className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="work-queue-title">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id="work-queue-title" className="text-base font-extrabold text-white">지금 해야 할 일</h2>
@@ -303,9 +359,9 @@ function WorkQueue({ items }: { items: WorkItem[] }) {
   );
 }
 
-function AutomationPanel({ items }: { items: AutomationItem[] }) {
+function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectionId?: string }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="automation-title">
+    <section id={sectionId} className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="automation-title">
       <div>
         <h2 id="automation-title" className="text-base font-extrabold text-white">자동화 상태</h2>
         <p className="mt-1 text-xs text-slate-400">실행 결과가 없는 항목은 미연동으로 표시</p>
@@ -346,7 +402,7 @@ function AutomationPanel({ items }: { items: AutomationItem[] }) {
   );
 }
 
-function ReservationsPanel({ reservations }: { reservations: ReservationItem[] }) {
+function ReservationsPanel({ reservations, sectionId }: { reservations: ReservationItem[]; sectionId?: string }) {
   const [filter, setFilter] = useState<ReservationFilter>('week');
   const visible = useMemo(() => {
     const start = kstDayStart();
@@ -362,7 +418,7 @@ function ReservationsPanel({ reservations }: { reservations: ReservationItem[] }
   ];
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="reservations-title">
+    <section id={sectionId} className="rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="reservations-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 id="reservations-title" className="text-base font-extrabold text-white">통합 예약 흐름</h2>
@@ -442,14 +498,14 @@ function ReservationsPanel({ reservations }: { reservations: ReservationItem[] }
   );
 }
 
-function InboxSummary({ summary }: { summary: OpsSummary }) {
+function InboxSummary({ summary, sectionId }: { summary: OpsSummary; sectionId?: string }) {
   const entries = [
     { label: '웹 문의', count: summary.openInquiries, to: '/admin/claims', icon: Inbox },
     { label: 'CS 문의', count: summary.openCs, to: '/admin/ops?tab=review', icon: Stethoscope },
     { label: '결제 격리', count: summary.paymentReviews, to: '/admin/payment-reviews', icon: ShieldAlert },
   ];
   return (
-    <section className="grid gap-2 sm:grid-cols-3" aria-label="문의와 검토 바로가기">
+    <section id={sectionId} className="grid gap-2 sm:grid-cols-3" aria-label="문의와 검토 바로가기">
       {entries.map((entry) => (
         <DeepLink
           key={entry.label}
@@ -468,9 +524,9 @@ function InboxSummary({ summary }: { summary: OpsSummary }) {
   );
 }
 
-function SourceHealth({ data }: { data: OpsCenterData }) {
+function SourceHealth({ data, sectionId }: { data: OpsCenterData; sectionId?: string }) {
   return (
-    <details className="rounded-2xl border border-white/10 bg-[#181b22] p-3.5 text-sm">
+    <details id={sectionId} className="rounded-2xl border border-white/10 bg-[#181b22] p-3.5 text-sm">
       <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-sm font-bold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
         <span className="flex items-center gap-2">
           <Stethoscope className="h-4 w-4 text-violet-200" aria-hidden="true" />
@@ -512,10 +568,30 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
   const [data, setData] = useState<OpsCenterData | null>(previewData || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(previewData ? Date.parse(previewData.generatedAt) : null);
+  const isMountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const foregroundRefreshUntilRef = useRef(0);
+  const serverMode = previewData == null;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (previewData) {
+      setLastFetchedAt(Date.parse(previewData.generatedAt));
+    }
+  }, [previewData]);
 
   const load = useCallback(async () => {
     if (previewData) return;
     if (!user) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -527,25 +603,60 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
       if (!response.ok || !payload.ok || !payload.data) {
         throw new Error(payload.error ? payload.error : '운영 자료를 불러오지 못했습니다.');
       }
-      setData(payload.data);
+      if (isMountedRef.current) {
+        setData(payload.data);
+        setLastFetchedAt(Date.parse(payload.data.generatedAt));
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '운영 자료를 불러오지 못했습니다.');
+      if (isMountedRef.current) {
+        setError(loadError instanceof Error ? loadError.message : '운영 자료를 불러오지 못했습니다.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+      inFlightRef.current = false;
     }
   }, [previewData, user]);
 
+  const triggerForegroundRefresh = useCallback(() => {
+    if (!serverMode) return;
+    if (document.hidden) return;
+    if (inFlightRef.current) return;
+    const now = Date.now();
+    if (now < foregroundRefreshUntilRef.current) return;
+    foregroundRefreshUntilRef.current = now + FOREGROUND_REFRESH_DEBOUNCE_MS;
+    void load();
+  }, [load, serverMode]);
+
+  const handleForegroundReturn = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) return;
+    triggerForegroundRefresh();
+  }, [triggerForegroundRefresh]);
+
   useEffect(() => {
     const timerId = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timerId);
-  }, [load]);
+    if (serverMode) {
+      window.addEventListener('focus', handleForegroundReturn);
+      document.addEventListener('visibilitychange', handleForegroundReturn);
+    }
+    return () => {
+      window.clearTimeout(timerId);
+      window.removeEventListener('focus', handleForegroundReturn);
+      document.removeEventListener('visibilitychange', handleForegroundReturn);
+    };
+  }, [load, handleForegroundReturn, serverMode]);
+
+  const visibleTimestamp = lastFetchedAt && Number.isFinite(lastFetchedAt) ? lastFetchedAt : null;
+  const mode: 'server' | 'preview' = serverMode ? 'server' : 'preview';
 
   const visibleWorkItems = useMemo(() => data ? data.workItems.filter((item) => item.actionRequired) : [], [data]);
 
   return (
     <div className="min-h-screen bg-[#111318] text-slate-100" translate="no">
       <header className="sticky top-0 z-20 border-b border-white/[0.08] bg-[#111318]/95 backdrop-blur">
-        <div className="mx-auto flex min-h-[64px] w-full max-w-7xl items-center gap-3 px-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[64px] w-full max-w-7xl flex-wrap items-start gap-2 px-3 py-2 sm:flex-nowrap sm:items-center sm:gap-3 sm:px-6 lg:px-8">
           <Link
             to="/admin"
             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
@@ -562,18 +673,18 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
               <p className="truncate text-[11px] text-slate-400">예약 · 문의 · 자동화 한눈에 보기</p>
             </div>
           </div>
-          {data && (
-            <p className="hidden text-[11px] text-slate-500 sm:block">{formatKst(data.generatedAt)} 기준</p>
-          )}
-          <button
-            type="button"
-            onClick={() => { void load(); }}
-            disabled={loading}
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-bold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span className="hidden sm:inline">새로고침</span>
-          </button>
+          <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:ml-0 sm:flex-none sm:flex-nowrap">
+            <RefreshBadge mode={mode} lastFetchedAt={visibleTimestamp} syncing={loading} isPreview={!serverMode} />
+            <button
+              type="button"
+              onClick={() => { void load(); }}
+              disabled={loading}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-bold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <span className="hidden sm:inline">새로고침</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -608,6 +719,7 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
 
         {data && (
           <>
+            <OwnerControllerSetupPanel />
             {data.partialErrors.length > 0 && (
               <div role="alert" className="flex items-start gap-2.5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.08] px-3.5 py-3 text-xs leading-5 text-amber-100">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -615,7 +727,18 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
               </div>
             )}
 
-            <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="운영 핵심 요약">
+            <SectionJumpBar
+              items={[
+                { id: 'ops-summary', label: '요약' },
+                { id: 'ops-queue', label: '긴급업무' },
+                { id: 'ops-automation', label: '자동화' },
+                { id: 'ops-reservation', label: '예약' },
+                { id: 'ops-inbox', label: '문의' },
+                { id: 'ops-source', label: '연결상태' },
+              ]}
+            />
+
+            <section id="ops-summary" className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="운영 핵심 요약">
               <SummaryCard
                 label="처리할 일"
                 value={data.summary.actionRequired}
@@ -647,13 +770,13 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
             </section>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.75fr)]">
-              <WorkQueue items={visibleWorkItems} />
-              <AutomationPanel items={data.automation} />
+              <WorkQueue items={visibleWorkItems} sectionId="ops-queue" />
+              <AutomationPanel items={data.automation} sectionId="ops-automation" />
             </div>
 
-            <ReservationsPanel reservations={data.reservations} />
-            <InboxSummary summary={data.summary} />
-            <SourceHealth data={data} />
+            <ReservationsPanel reservations={data.reservations} sectionId="ops-reservation" />
+            <InboxSummary summary={data.summary} sectionId="ops-inbox" />
+            <SourceHealth data={data} sectionId="ops-source" />
 
             <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-slate-500">
               <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />

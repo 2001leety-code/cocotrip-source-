@@ -36,6 +36,31 @@ service-account.json
 .vercel
 *.log
 tmp/
+android/.gradle
+android/.idea
+android/.cxx
+android/local.properties
+android/*.keystore
+android/*.jks
+android/app/build
+android/build
+android/app/build-outputs
+android/app/build/outputs
+android-owner/.gradle
+android-owner/.idea
+android-owner/.cxx
+android-owner/**/local.properties
+android-owner/**/keystore.properties
+android-owner/**/*.keystore
+android-owner/**/*.jks
+android-owner/**/*.p12
+android-owner/**/*.pfx
+android-owner/**/keys/
+android-owner/**/signing/
+android-owner/app/build
+android-owner/build
+android-owner/app/build-outputs
+android-owner/app/build/outputs
 
 # Planner validation reports (contain API responses, not for repo)
 scripts/planner-report*.json

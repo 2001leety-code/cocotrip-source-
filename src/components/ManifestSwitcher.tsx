@@ -8,22 +8,41 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
+interface ManifestState {
+  manifestHref: string;
+  appleHref: string;
+}
+
+function resolveManifestState(pathname: string): ManifestState {
+  const isMood = pathname.startsWith('/mood');
+  const isOwnerController = pathname.startsWith('/admin/ai-center') || pathname.startsWith('/admin/preview-ai-center');
+
+  return {
+    manifestHref: isMood
+      ? '/manifest-mood.webmanifest'
+      : isOwnerController
+      ? '/manifest-owner-controller.webmanifest'
+      : '/manifest.webmanifest',
+    appleHref: isMood ? '/icons/mood-192.png' : '/icons/icon-192.png',
+  };
+}
+
 export function ManifestSwitcher() {
   const location = useLocation();
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const isMood = location.pathname.startsWith('/mood');
+    const { manifestHref, appleHref } = resolveManifestState(location.pathname);
 
     const link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
     if (link) {
       if (!link.dataset.defaultHref) link.dataset.defaultHref = link.getAttribute('href') || '/manifest.webmanifest';
-      link.setAttribute('href', isMood ? '/manifest-mood.webmanifest' : link.dataset.defaultHref);
+      link.setAttribute('href', manifestHref);
     }
 
     const apple = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null;
     if (apple) {
       if (!apple.dataset.defaultHref) apple.dataset.defaultHref = apple.getAttribute('href') || '/icons/icon-192.png';
-      apple.setAttribute('href', isMood ? '/icons/mood-192.png' : apple.dataset.defaultHref);
+      apple.setAttribute('href', appleHref);
     }
   }, [location.pathname]);
 
