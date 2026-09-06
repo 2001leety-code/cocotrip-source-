@@ -1,5 +1,7 @@
 # AI 운영센터 오답노트 — 2026-08-31
 
+- `data-cocotrip-navigation=reload`는 새로고침 방식만 뜻한다. 이것만으로 서비스워커 자동 업데이트 성공을 판정하지 말고, 수동 새로고침 없는 이전→새 배포 버전 전환과 실제 Android 실행을 별도로 확인한다.
+- 새 worktree는 Vercel 프로젝트 연결 정보가 없다. 이 상태에서 `vercel curl`을 먼저 실행하면 폴더명으로 빈 프로젝트를 만들 수 있으므로, 기존 CocoTrip Vercel 프로젝트에 먼저 link한 뒤 조회한다.
 - Windows 서명 보관 폴더의 상속을 끈 뒤 새 로컬 파일을 만들면 접근 규칙이 비어 실행이 막힐 수 있다. 키·암호·실행기 생성 후 파일별 ACL과 실제 release 명령을 다시 확인한다.
 - `verify:prepush`의 실수 패턴 검사는 `origin/main..HEAD`만 보므로 변경이 아직 커밋 전이면 `no changes`로 건너뛴다. 커밋 뒤 같은 검사를 다시 실행해야 근거가 된다.
 - Android 의존성은 표시 이름을 좌표로 추측하지 않는다. 공식 Google Maven의 실제 groupId·artifactId·version과 POM/AAR 존재 여부를 확인한 뒤 고정한다.

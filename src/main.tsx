@@ -12,6 +12,12 @@ import { bootPostHog } from './lib/posthog'
 import { hasAnalyticsConsent, onConsentChange } from './lib/consent'
 import { initSentry } from './lib/sentry'
 import { startPrerenderReadySignal } from './lib/prerenderReady.mjs'
+import { exposeBuildIdentifier, exposeNavigationDiagnostic } from './lib/buildIdentity'
+
+// 공개 커밋 식별자만 노출한다. 고객 데이터·비밀값은 포함하지 않고 화면에도 표시하지 않는다.
+// 운영 점검은 html[data-cocotrip-build] 또는 meta[name="cocotrip-build"]를 읽는다.
+exposeBuildIdentifier(document, __COCOTRIP_BUILD__);
+exposeNavigationDiagnostic(document, performance);
 
 // D1: activate shadcn .dark tokens before React mount (avoids FOUC).
 // Done here (not index.html class="dark") to avoid PDF_KOREAN_FONT lint

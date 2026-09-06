@@ -12,9 +12,11 @@ import { INDEXABLE_ROUTES } from "./src/lib/seoRoutes"
 // 반드시 빌드 수명주기 안에 있어야 한다 — 별도 npm 스크립트에만 걸면 배포 경로가
 // 감사를 지나가지 않는다(2026-08-23 검토 지적). 이유는 그 파일 상단에 적혀 있다.
 import { prerenderAuditPlugin } from "./scripts/audit-prerender-artifacts.mjs"
+import { injectBuildIdentifierIntoHtml, resolveBuildIdentifier } from "./src/lib/buildIdentity"
 
 // PRERENDER=1 빌드에서만 사용.
 const PRERENDER_ROUTES = [...INDEXABLE_ROUTES];
+const BUILD_IDENTIFIER = resolveBuildIdentifier(process.env);
 
 // Vercel 빌드 시 @sparticuz/chromium 경로 resolve (PRERENDER=1 한정). 로컬은 PUPPETEER_EXECUTABLE_PATH env.
 // 이걸로 운영자는 Vercel env PRERENDER=1 만 켜면 활성화(executablePath 수동 불필요).
@@ -33,6 +35,7 @@ export default defineConfig({
   // false 로 접혀 그 코드가 통째로 tree-shake 된다 — 손님 브라우저는 폴링하지 않는다.
   define: {
     __PRERENDER_BUILD__: JSON.stringify(process.env.PRERENDER === '1'),
+    __COCOTRIP_BUILD__: JSON.stringify(BUILD_IDENTIFIER),
   },
   // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
   // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
@@ -40,6 +43,12 @@ export default defineConfig({
     proxy: { '/api': { target: 'https://cocotripkr.com', changeOrigin: true } },
   },
   plugins: [
+    {
+      name: 'cocotrip-build-identity',
+      transformIndexHtml(html) {
+        return injectBuildIdentifierIntoHtml(html, BUILD_IDENTIFIER);
+      },
+    },
     react(),
     // 문의 응답 UI는 Firebase/로그인 환경변수 없이도 실물 검증할 수 있어야 한다.
     // dev 서버에서만 별도 entry를 제공하므로 운영 빌드·라우트·서비스워커에는 들어가지 않는다.
