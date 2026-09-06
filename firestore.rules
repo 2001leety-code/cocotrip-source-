@@ -67,6 +67,11 @@ service cloud.firestore {
       allow read, write, delete: if isSignedIn()
                               && docId.matches(request.auth.uid + '_.*')
                               && (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid);
+      allow get: if isSignedIn()
+        && docId.size() > request.auth.uid.size() + 1
+        && docId[0:request.auth.uid.size() + 1] == request.auth.uid + '_'
+        && docId.split('_').size() == request.auth.uid.split('_').size() + 1
+        && (resource == null || ('uid' in resource.data && resource.data.uid == request.auth.uid));
     }
 
     // ─────────────────────────────────────────────────────────
