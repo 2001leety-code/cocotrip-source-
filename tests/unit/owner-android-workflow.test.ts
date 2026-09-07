@@ -6,9 +6,12 @@ const workflow = readFileSync('.github/workflows/pr-owner-android.yml', 'utf8');
 const gradleProperties = readFileSync('android-owner/gradle.properties', 'utf8');
 
 describe('PR Owner Android unsigned compile workflow', () => {
-  it('pull_request android-owner 변경에만 최소 읽기 권한으로 실행한다', () => {
+  it('pull_request Android 소스·APK 검사 변경에 최소 읽기 권한으로 실행한다', () => {
     expect(workflow).toMatch(/pull_request:\s*\n\s+paths:/);
     expect(workflow).toContain("- 'android-owner/**'");
+    expect(workflow).toContain("- 'scripts/owner-controller-manifest-verifier.mjs'");
+    expect(workflow).toContain("- 'scripts/owner-controller-artifact-verifier.mjs'");
+    expect(workflow).toContain("- 'tests/unit/owner-controller-manifest-verifier.test.ts'");
     expect(workflow).toMatch(/permissions:\s*\n\s+contents: read/);
     expect(workflow).toContain('timeout-minutes: 20');
     expect(workflow).toContain('cancel-in-progress: true');
@@ -26,6 +29,7 @@ describe('PR Owner Android unsigned compile workflow', () => {
   it('Android 36 사전 설치를 확인할 뿐 SDK 설치·라이선스 동의를 하지 않는다', () => {
     expect(workflow).toContain('platforms/android-36');
     expect(workflow).toContain('build-tools/36.0.0/apksigner');
+    expect(workflow).toContain('test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"');
     expect(workflow).not.toContain('sdkmanager');
     expect(workflow).not.toMatch(/\byes\s*\|/);
     expect(workflow).not.toContain('licenses');
@@ -40,6 +44,8 @@ describe('PR Owner Android unsigned compile workflow', () => {
     expect(workflow).toContain('test -s "$APK"');
     expect(workflow).toContain('unzip -tqq "$APK"');
     expect(workflow).toContain("grep -Fq \"package: name='com.cocotrip.owner'\"");
+    expect(workflow).toContain('node scripts/owner-controller-manifest-verifier.mjs --aapt2 "$AAPT2" --apk "$APK"');
+    expect(workflow.indexOf('node scripts/owner-controller-manifest-verifier.mjs')).toBeLessThan(workflow.indexOf('SIGN_OUTPUT='));
     expect(workflow).toContain('SIGN_STATUS=$?');
     expect(workflow).toContain('if [ "$SIGN_STATUS" -eq 0 ]; then');
     expect(workflow).toContain('test "$SIGN_STATUS" -eq 1');

@@ -36,6 +36,14 @@
         android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
         android:value="com.cocotrip.owner.fileprovider" />
     </activity>
+    <!-- Android Browser Helper creates the site-settings shortcut during startup. -->
+    <activity
+      android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
+      android:exported="false">
+      <meta-data
+        android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL"
+        android:value="https://cocotripkr.com" />
+    </activity>
     <meta-data
       android:name="asset_statements"
       android:resource="@string/asset_statements" />

@@ -6,14 +6,33 @@ Google Play에 올리지 않는 운영자 전용 설치 앱이다. `com.cocotrip
 
 ## 설치 파일과 첫 실행
 
-- 운영자 PC 설치 파일: `C:\Users\dlxod\Downloads\CocoTrip-Owner-v1.0.0.apk`
+- 운영자 PC 설치 파일: `C:\Users\dlxod\Downloads\CocoTrip-Owner-v1.0.1.apk` (`versionCode=2`)
+- v1.0.0은 시작 직후 충돌이 확인된 이전 파일이다. 보존용이며 새 설치에는 사용하지 않는다.
 - 최소 Android 6.0(API 23). 신뢰된 웹 실행은 지원되는 브라우저와 사이트 연결 확인이 필요하다.
 - 휴대폰으로 APK를 옮겨 설치하고 CocoTrip Control 아이콘을 연다. 설치 출처 허용과 Google 로그인은 운영자가 직접 진행한다.
 - 개발 검증은 데이터 케이블 연결 → 개발자 옵션의 USB 디버깅 → 휴대폰의 연결 허용 후 진행한다.
   `adb devices -l`에 승인된 기기가 표시돼야 설치·실행 결과를 기록할 수 있다.
 - 다른 서명으로 설치된 앱 때문에 덮어쓰기가 실패하면 임의 삭제하지 않는다. 기존 앱과 서명을 먼저 확인한다.
 
-## 무엇이 자동으로 업데이트되나
+## Android 시작 충돌 수정 — 1.0.1
+
+2026-09-07 실기기에서 v1.0.0의 `ManageDataLauncherActivity does not exist` 예외를 확인했다.
+Android Browser Helper 2.7.3이 시작 중 참조하는 보조 Activity가 앱 Manifest에 없던 것이 원인이다.
+해당 Activity를 `exported=false`, intent-filter 없음, `MANAGE_SPACE_URL=https://cocotripkr.com`으로 등록했다.
+권한 추가·브라우저 교체·서명키 변경·기존 앱 삭제는 하지 않는다.
+
+- `owner:preflight`: 소스 등록/비공개/고정 주소와 Gradle·설정 버전 일치를 확인한다.
+- `verify:owner-release`: 기존 서명 검사에 최종 APK 병합 Manifest 검사까지 포함한다.
+- PR의 unsigned Android 검사에도 같은 최종 APK 검사를 적용한다. 빌드 전에 올바른 소스만 봐서는 부족하다.
+- 독립 검사: `node scripts/owner-controller-manifest-verifier.mjs --aapt2 <실행파일> --apk <APK>`.
+  실제 기존 1.0.0 파일은 실패하고 수정된 1.0.1은 통과하는 것을 대조했다.
+- 13:17 KST 승인된 삼성 SM_S928N(Android 16/API 36)에 같은 서명으로 교체 설치했다.
+  설치된 `versionCode=2/versionName=1.0.1`, 최초 설치 시각 12:55:32 유지, 새 프로세스의 기존 FATAL 예외 없음과 재실행의 브라우저 Activity 전환을 확인했다.
+- 1.0.1 배포 파일 SHA-256: `577355C48B9A7F0D5E6A6FEB277B2C79A609707433DC054EA7441388AA64D751`.
+- OS 실행 결과와 프로세스 생존은 화면 렌더·주소창 없는 실행·Google 로그인·알림 실수신의 증거가 아니다.
+  휴대폰 실제 화면과 이후 단계는 별도 확인 전까지 미검증으로 둔다.
+
+## 웹 화면과 설치 파일의 업데이트 구분
 
 웹 화면과 기능은 Vercel 배포를 통해 갱신된다. 기존 PWA 업데이트 코드는 앱 진입 직후 새 버전을 확인하면
 사용자 입력·결제 진행 여부와 짧은 대기 시간을 확인한 뒤 적용한다. 이미 작업 중이면 업데이트 선택을 남긴다.

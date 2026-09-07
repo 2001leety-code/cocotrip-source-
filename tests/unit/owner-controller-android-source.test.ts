@@ -1,10 +1,20 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { validateOwnerAndroidSourceContract } from '../../scripts/owner-controller-preflight.lib.mjs';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 
 describe('Owner Controller Android 브랜드·빌드 소스', () => {
+  it('실제 Android 소스에 비공개 관리 화면과 정본에 일치하는 앱 버전이 있다', () => {
+    const config = JSON.parse(read('config/owner-controller-release.v1.json'));
+    expect(validateOwnerAndroidSourceContract({
+      manifest: read('android-owner/app/src/main/AndroidManifest.xml'),
+      gradle: read('android-owner/app/build.gradle'),
+      android: config.android,
+    })).toEqual([]);
+  });
+
   it('공개 브랜드 아이콘 원본을 Android launcher 자산에 그대로 재사용한다', () => {
     const digest = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
     expect(digest('android-owner/app/src/main/res/drawable-nodpi/owner_brand_icon.png'))

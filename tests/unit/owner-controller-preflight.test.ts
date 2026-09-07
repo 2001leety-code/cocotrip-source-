@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import {
   auditOwnerControllerReadiness,
   formatOwnerControllerPreflight,
+  validateOwnerAndroidSourceContract,
   validateOwnerControllerConfig,
 } from '../../scripts/owner-controller-preflight.lib.mjs';
 
@@ -13,6 +14,9 @@ const roots: string[] = [];
 const FINGERPRINT = Array.from({ length: 32 }, (_, index) => (index + 1).toString(16).padStart(2, '0').toUpperCase()).join(':');
 const RELEASE_FINGERPRINT = 'BC:BA:58:77:80:DD:01:3A:BD:EE:C4:66:C5:19:43:F0:44:DB:9B:00:0B:7E:4E:D6:5B:39:74:6E:F4:C1:07:FE';
 const START_URL = '/admin/ai-center';
+const MANAGE_DATA_ACTIVITY = `<activity android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity" android:exported="false">
+  <meta-data android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL" android:value="https://cocotripkr.com" />
+</activity>`;
 
 function write(root: string, relativePath: string, content: string | Uint8Array = '') {
   const target = path.join(root, relativePath);
@@ -41,8 +45,8 @@ function readyConfig() {
       sourceDir: 'android-owner',
       packageName: 'com.cocotrip.owner',
       targetSdk: 36,
-      versionCode: 1,
-      versionName: '1.0.0',
+      versionCode: 2,
+      versionName: '1.0.1',
       signingSha256CertificateFingerprints: [FINGERPRINT],
       releaseApkPath: 'android-owner/app/build/outputs/apk/release/app-release.apk',
       twaSigningKeyStore: 'android-owner/local.properties',
@@ -74,8 +78,8 @@ function readyRoot() {
         applicationId 'com.cocotrip.owner'
         minSdk 23
         targetSdk 36
-        versionCode 1
-        versionName '1.0.0'
+        versionCode 2
+        versionName '1.0.1'
       }
     }
     dependencies {
@@ -85,6 +89,7 @@ function readyRoot() {
   write(root, 'android-owner/app/src/main/AndroidManifest.xml', `
     <manifest>
       <application android:allowBackup="false">
+        ${MANAGE_DATA_ACTIVITY}
         <activity android:name=".OwnerLauncherActivity">
           <intent-filter>
             <action android:name="android.intent.action.VIEW" />
@@ -195,6 +200,55 @@ describe('Owner Controller 설정 정본', () => {
     const result = auditOwnerControllerReadiness({ root, config, today: '2026-09-01', artifactVerifier: verifiedArtifacts });
     expect(result).toEqual({ ok: true, findings: [] });
     expect(formatOwnerControllerPreflight(result)).toContain('PASS');
+  });
+
+  it.each([
+    ['누락', '', 'ANDROID_MANAGE_DATA_ACTIVITY_MISSING'],
+    ['주석 안 가짜 등록', `<!-- ${MANAGE_DATA_ACTIVITY} -->`, 'ANDROID_MANAGE_DATA_ACTIVITY_MISSING'],
+    ['화면 대신 alias 등록', MANAGE_DATA_ACTIVITY.replace('<activity ', '<activity-alias ').replace('</activity>', '</activity-alias>'), 'ANDROID_MANAGE_DATA_ACTIVITY_MISSING'],
+    ['중복 등록', MANAGE_DATA_ACTIVITY + MANAGE_DATA_ACTIVITY, 'ANDROID_MANAGE_DATA_ACTIVITY_MISSING'],
+    ['외부 공개', MANAGE_DATA_ACTIVITY.replace('exported="false"', 'exported="true"'), 'ANDROID_MANAGE_DATA_ACTIVITY_NOT_PRIVATE'],
+    ['공개 설정 생략', MANAGE_DATA_ACTIVITY.replace(' android:exported="false"', ''), 'ANDROID_MANAGE_DATA_ACTIVITY_NOT_PRIVATE'],
+    ['intent-filter 추가', MANAGE_DATA_ACTIVITY.replace('</activity>', '<intent-filter /></activity>'), 'ANDROID_MANAGE_DATA_ACTIVITY_NOT_PRIVATE'],
+    ['다른 원본 주소', MANAGE_DATA_ACTIVITY.replace('https://cocotripkr.com', 'https://example.com'), 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+    ['하위 경로 주소', MANAGE_DATA_ACTIVITY.replace('https://cocotripkr.com', 'https://cocotripkr.com/admin'), 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+    ['메타데이터 누락', MANAGE_DATA_ACTIVITY.replace(/<meta-data[^>]*\/>/, ''), 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+    ['주석 안 메타데이터', MANAGE_DATA_ACTIVITY.replace(/(<meta-data[^>]*\/>)/, '<!-- $1 -->'), 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+    ['다른 Activity의 메타데이터', MANAGE_DATA_ACTIVITY.replace(/<meta-data[^>]*\/>/, '') + '<activity android:name=".Other"><meta-data android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL" android:value="https://cocotripkr.com" /></activity>', 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+    ['중복 메타데이터', MANAGE_DATA_ACTIVITY.replace('</activity>', '<meta-data android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL" android:value="https://cocotripkr.com" /></activity>'), 'ANDROID_MANAGE_SPACE_URL_INVALID'],
+  ])('ManageDataLauncherActivity %s 상태를 사전 검사에서 거부한다', (_label, replacement, expectedCode) => {
+    const root = readyRoot();
+    const manifestPath = 'android-owner/app/src/main/AndroidManifest.xml';
+    const manifest = readFileSync(path.join(root, manifestPath), 'utf8');
+    write(root, manifestPath, manifest.replace(MANAGE_DATA_ACTIVITY, replacement));
+    const result = auditOwnerControllerReadiness({ root, config: readyConfig(), today: '2026-09-01', artifactVerifier: verifiedArtifacts });
+    expect(result.ok).toBe(false);
+    expect(result.findings.map((item) => item.code)).toEqual([expectedCode]);
+  });
+
+  it.each([
+    ['versionCode 1', "versionName '1.0.1'", 'ANDROID_VERSION_CODE_MISMATCH'],
+    ['versionCode 2', "versionName '1.0.0'", 'ANDROID_VERSION_NAME_MISMATCH'],
+    ['// versionCode 2', "versionName '1.0.1'", 'ANDROID_VERSION_CODE_MISMATCH'],
+    ['/* versionCode 2 */', "versionName '1.0.1'", 'ANDROID_VERSION_CODE_MISMATCH'],
+    ['versionCode 2\nversionCode 2', "versionName '1.0.1'", 'ANDROID_VERSION_CODE_MISMATCH'],
+    ['versionCode 2.5', "versionName '1.0.1'", 'ANDROID_VERSION_CODE_MISMATCH'],
+    ['versionCode 2', "// versionName '1.0.1'", 'ANDROID_VERSION_NAME_MISMATCH'],
+    ['versionCode 2', "versionName '1.0.1'\nversionName '1.0.1'", 'ANDROID_VERSION_NAME_MISMATCH'],
+  ])('Gradle 버전 선언 %s / %s를 명확한 정본 일치로 인정하지 않는다', (code, name, expectedCode) => {
+    const findings = validateOwnerAndroidSourceContract({
+      manifest: `<application>${MANAGE_DATA_ACTIVITY}</application>`,
+      gradle: `${code}\n${name}\n`, android: readyConfig().android,
+    });
+    expect(findings.map((item) => item.code)).toEqual([expectedCode]);
+  });
+
+  it('Groovy 대입 문법·CRLF·따옴표가 달라도 같은 비공개 계약이면 통과한다', () => {
+    expect(validateOwnerAndroidSourceContract({
+      manifest: `<application>${MANAGE_DATA_ACTIVITY.replaceAll('"', "'")}</application>`,
+      gradle: '  versionCode = 2; // release\r\n  versionName = "1.0.1";\r\n',
+      android: readyConfig().android,
+    })).toEqual([]);
   });
 
   it('manifest scope 변경 시 FAIL 한다', () => {
