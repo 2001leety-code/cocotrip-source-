@@ -132,6 +132,20 @@ interface ApiResponse {
 const FOREGROUND_REFRESH_DEBOUNCE_MS = 900;
 const WORK_PAGE_SIZE = 10;
 const RESERVATION_PAGE_SIZE = 30;
+const RESERVATION_SOURCES = ['bookings', 'pending_bookings', 'mood_bookings'];
+const WEB_INQUIRY_SOURCES = ['charter_inquiries', 'pending_free_claims'];
+
+/** Display uncertainty only from explicit failures; older fixtures may omit healthy sources. */
+function failedSourceKeys(data: OpsCenterData | null) {
+  return new Set([
+    ...(data?.partialErrors || []),
+    ...(data?.sources || []).filter((source) => !source.ok).map((source) => source.key),
+  ]);
+}
+
+function hasSourceFailure(failed: ReadonlySet<string>, keys: string[]) {
+  return keys.some((key) => failed.has(key));
+}
 
 function useOpsCopy() {
   return adminAiOpsCopy[useLanguage().language];
@@ -257,12 +271,14 @@ function RefreshBadge({
   syncing,
   isPreview,
   failed,
+  partial,
 }: {
   mode: 'server' | 'preview';
   lastFetchedAt: number | null;
   syncing: boolean;
   isPreview: boolean;
   failed: boolean;
+  partial: boolean;
 }) {
   const copy = useOpsCopy();
   const updated = lastFetchedAt && Number.isFinite(lastFetchedAt) ? copy.updatedAt(formatKst(lastFetchedAt, copy.locale)) : copy.refreshPending;
@@ -277,8 +293,8 @@ function RefreshBadge({
   return (
     <div role="status" className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-100">
       <p className="font-bold">{isPreview ? copy.previewMode : copy.serverMode}</p>
-      <p className={`mt-0.5 text-xs ${failed ? 'text-rose-200' : 'text-slate-300'}`}>
-        {syncing ? copy.refreshing : failed ? copy.refreshFailed : lastFetchedAt ? copy.refreshComplete : copy.refreshPending} · {updated}
+      <p className={`mt-0.5 text-xs ${failed ? 'text-rose-200' : partial ? 'text-amber-100' : 'text-slate-300'}`}>
+        {syncing ? copy.refreshing : failed ? copy.refreshFailed : lastFetchedAt ? (partial ? copy.refreshPartial : copy.refreshComplete) : copy.refreshPending} · {updated}
       </p>
     </div>
   );
@@ -302,12 +318,14 @@ function SummaryCard({
   detail,
   tone,
   icon: Icon,
+  partial = false,
 }: {
   label: string;
   value: number;
   detail: string;
   tone: 'rose' | 'violet' | 'sky' | 'amber';
   icon: typeof AlertCircle;
+  partial?: boolean;
 }) {
   const copy = useOpsCopy();
   const tones = {
@@ -322,13 +340,17 @@ function SummaryCard({
         <p className="text-xs font-semibold text-slate-300">{label}</p>
         <Icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
       </div>
-      <p className="mt-2 text-2xl font-black text-white">{value}<span className="ml-0.5 text-sm font-semibold text-slate-300">{copy.countUnit}</span></p>
-      <p className="mt-1 text-[11px] leading-5 text-slate-400">{detail}</p>
+      {partial && value === 0 ? (
+        <p className="mt-2 text-lg font-black text-amber-100">{copy.countUnavailable}</p>
+      ) : (
+        <p className="mt-2 text-2xl font-black text-white">{value}<span className="ml-0.5 text-sm font-semibold text-slate-300">{copy.countUnit}</span></p>
+      )}
+      <p className={`mt-1 text-[11px] leading-5 ${partial ? 'text-amber-100' : 'text-slate-400'}`}>{partial ? copy.partialData : detail}</p>
     </div>
   );
 }
 
-function WorkQueue({ items, sectionId }: { items: WorkItem[]; sectionId?: string }) {
+function WorkQueue({ items, sectionId, partial = false }: { items: WorkItem[]; sectionId?: string; partial?: boolean }) {
   const copy = useOpsCopy();
   const [visibleCount, setVisibleCount] = useState(WORK_PAGE_SIZE);
   const remaining = Math.max(0, items.length - visibleCount);
@@ -337,18 +359,18 @@ function WorkQueue({ items, sectionId }: { items: WorkItem[]; sectionId?: string
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id="work-queue-title" className="text-base font-extrabold text-white">{copy.workTitle}</h2>
-          <p className="mt-1 text-xs text-slate-400">{copy.workDetail}</p>
+          <p className={`mt-1 text-xs ${partial ? 'text-amber-100' : 'text-slate-400'}`}>{partial ? copy.partialData : copy.workDetail}</p>
         </div>
         <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-bold text-slate-200">
-          {copy.count(items.length)}
+          {partial && items.length === 0 ? copy.countUnavailable : copy.count(items.length)}
         </span>
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-4 flex min-h-32 flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-400/25 bg-emerald-400/[0.05] px-4 text-center">
-          <CheckCircle2 className="h-6 w-6 text-emerald-300" aria-hidden="true" />
-          <p className="mt-2 text-sm font-bold text-emerald-100">{copy.workEmpty}</p>
-          <p className="mt-1 text-xs text-slate-400">{copy.workEmptyDetail}</p>
+        <div className={`mt-4 flex min-h-32 flex-col items-center justify-center rounded-2xl border border-dashed px-4 text-center ${partial ? 'border-amber-300/25 bg-amber-300/[0.05]' : 'border-emerald-400/25 bg-emerald-400/[0.05]'}`}>
+          {partial ? <TriangleAlert className="h-6 w-6 text-amber-100" aria-hidden="true" /> : <CheckCircle2 className="h-6 w-6 text-emerald-300" aria-hidden="true" />}
+          <p className={`mt-2 text-sm font-bold ${partial ? 'text-amber-100' : 'text-emerald-100'}`}>{partial ? copy.workPartialEmpty : copy.workEmpty}</p>
+          <p className="mt-1 text-xs text-slate-300">{partial ? copy.workPartialEmptyDetail : copy.workEmptyDetail}</p>
         </div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -391,8 +413,12 @@ function WorkQueue({ items, sectionId }: { items: WorkItem[]; sectionId?: string
   );
 }
 
-function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectionId?: string }) {
+function AutomationPanel({ items, sectionId, failedSources }: { items: AutomationItem[]; sectionId?: string; failedSources: ReadonlySet<string> }) {
   const copy = useOpsCopy();
+  const sourceByKey: Record<string, string> = {
+    email_retry: 'pending_email_retries', processor_retry: 'pending_processor_retries',
+    planner_retry: 'pending_ai_planner_retries', inquiry_auto_ack: 'runtime_flags',
+  };
   return (
     <section id={sectionId} className="scroll-mt-28 rounded-3xl border border-white/10 bg-[#181b22] p-4 sm:p-5" aria-labelledby="automation-title">
       <div>
@@ -401,16 +427,18 @@ function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectio
       </div>
       <div className="mt-4 space-y-2">
         {items.map((item) => {
-          const meta = AUTOMATION_META[item.status];
+          const sourceFailed = failedSources.has(sourceByKey[item.key]);
+          const status = sourceFailed ? 'unknown' : item.status;
+          const meta = AUTOMATION_META[status];
           return (
             <DeepLink
               key={item.key}
               to={item.deepLink}
               className="flex min-h-[58px] items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 hover:bg-white/[0.05]"
             >
-              {item.status === 'ok' ? (
+              {status === 'ok' ? (
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
-              ) : item.status === 'attention' || item.status === 'unknown' ? (
+              ) : status === 'attention' || status === 'unknown' ? (
                 <TriangleAlert className="h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
               ) : (
                 <CircleDot className="h-4 w-4 shrink-0 text-violet-300" aria-hidden="true" />
@@ -418,9 +446,9 @@ function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectio
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-bold text-slate-100">{item.key === 'email_retry' ? copy.outboundEmailRetry : item.label}</span>
-                  <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${meta.className}`}>{copy.automationLabels[item.status]}</span>
+                  <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${meta.className}`}>{item.key === 'email_retry' && status === 'ok' ? copy.sendingQueueEmpty : copy.automationLabels[status]}</span>
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.detail}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{sourceFailed ? copy.sourceFailed : item.detail}</span>
               </span>
               {isExternal(item.deepLink) ? (
                 <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
@@ -431,11 +459,12 @@ function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectio
           );
         })}
       </div>
+      {items.some((item) => item.key === 'email_retry') && <p className="mt-3 text-xs leading-5 text-slate-300">{copy.sendingQueueDetail}</p>}
     </section>
   );
 }
 
-function ReservationsPanel({ reservations, sectionId }: { reservations: ReservationItem[]; sectionId?: string }) {
+function ReservationsPanel({ reservations, sectionId, partial = false }: { reservations: ReservationItem[]; sectionId?: string; partial?: boolean }) {
   const copy = useOpsCopy();
   const location = useLocation();
   const navigate = useNavigate();
@@ -469,6 +498,7 @@ function ReservationsPanel({ reservations, sectionId }: { reservations: Reservat
         <div>
           <h2 id="reservations-title" className="text-base font-extrabold text-white">{copy.reservationsTitle}</h2>
           <p className="mt-1 text-xs text-slate-400">{copy.reservationsDetail}</p>
+          {partial && <p className="mt-1 text-xs text-amber-100">{copy.partialData}</p>}
         </div>
         <div className="flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111318] p-1" role="group" aria-label={copy.reservationFilterLabel}>
           {filters.map((item) => (
@@ -491,7 +521,7 @@ function ReservationsPanel({ reservations, sectionId }: { reservations: Reservat
 
       {visible.length === 0 ? (
         <div className="mt-4 flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-white/10 px-4 text-center text-sm text-slate-400">
-          {copy.reservationsEmpty}
+          {partial ? copy.reservationsPartialEmpty : copy.reservationsEmpty}
         </div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -552,12 +582,12 @@ function ReservationsPanel({ reservations, sectionId }: { reservations: Reservat
   );
 }
 
-function InboxSummary({ summary, sectionId }: { summary: OpsSummary; sectionId?: string }) {
+function InboxSummary({ summary, sectionId, failedSources }: { summary: OpsSummary; sectionId?: string; failedSources: ReadonlySet<string> }) {
   const copy = useOpsCopy();
   const entries = [
-    { label: copy.webInquiries, count: summary.openInquiries, to: '/admin/claims', icon: Inbox },
-    { label: copy.csInquiries, count: summary.openCs, to: '/admin/ops?tab=review', icon: Stethoscope },
-    { label: copy.paymentReviews, count: summary.paymentReviews, to: '/admin/payment-reviews', icon: ShieldAlert },
+    { label: copy.webInquiries, count: summary.openInquiries, to: '/admin/claims', icon: Inbox, partial: hasSourceFailure(failedSources, WEB_INQUIRY_SOURCES) },
+    { label: copy.csInquiries, count: summary.openCs, to: '/admin/ops?tab=review', icon: Stethoscope, partial: failedSources.has('cs_tickets') },
+    { label: copy.paymentReviews, count: summary.paymentReviews, to: '/admin/payment-reviews', icon: ShieldAlert, partial: failedSources.has('payment_reviews') },
   ];
   return (
     <section id={sectionId} className="grid scroll-mt-28 gap-2 sm:grid-cols-3" aria-label={copy.inboxLabel}>
@@ -570,7 +600,8 @@ function InboxSummary({ summary, sectionId }: { summary: OpsSummary; sectionId?:
           <entry.icon className="h-4 w-4 shrink-0 text-violet-200" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-slate-400">{entry.label}</span>
-            <span className="mt-0.5 block text-base font-black text-white">{copy.count(entry.count)}</span>
+            <span className="mt-0.5 block text-base font-black text-white">{entry.partial && entry.count === 0 ? copy.countUnavailable : copy.count(entry.count)}</span>
+            {entry.partial && <span className="mt-0.5 block text-xs text-amber-100">{copy.partialData}</span>}
           </span>
           <ChevronRight className="h-4 w-4 text-slate-500" aria-hidden="true" />
         </DeepLink>
@@ -579,7 +610,7 @@ function InboxSummary({ summary, sectionId }: { summary: OpsSummary; sectionId?:
   );
 }
 
-function SourceHealth({ data, sectionId }: { data: OpsCenterData; sectionId?: string }) {
+function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData; sectionId?: string; failedSources: ReadonlySet<string> }) {
   const copy = useOpsCopy();
   return (
     <details id={sectionId} className="scroll-mt-28 rounded-2xl border border-white/10 bg-[#181b22] p-3.5 text-sm">
@@ -589,20 +620,20 @@ function SourceHealth({ data, sectionId }: { data: OpsCenterData; sectionId?: st
           {copy.sourcesTitle}
         </span>
         <span className="text-xs font-medium text-slate-400">
-          {data.partialErrors.length > 0 ? copy.sourceFailures(data.partialErrors.length) : copy.allSourcesResponded}
+          {failedSources.size > 0 ? copy.sourceFailures(failedSources.size) : copy.allSourcesResponded}
         </span>
       </summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {data.sources.map((source) => (
           <div key={source.key} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
-            {source.ok ? (
+            {source.ok && !failedSources.has(source.key) ? (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden="true" />
             ) : (
               <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-300" aria-hidden="true" />
             )}
             <span className="min-w-0 flex-1 truncate text-xs text-slate-300">{source.label}</span>
             <span className="shrink-0 text-[11px] font-bold text-slate-400">
-              {source.ok ? copy.sourceCount(source.count, source.possiblyTruncated) : copy.sourceFailed}
+              {source.ok && !failedSources.has(source.key) ? copy.sourceCount(source.count, source.possiblyTruncated) : copy.sourceFailed}
             </span>
           </div>
         ))}
@@ -618,6 +649,23 @@ interface AdminAiOpsCenterProps {
   previewData?: OpsCenterData;
   /** DEV fixture only; cannot override errors in the production request path. */
   previewFailure?: string;
+}
+
+function UnconnectedChannels() {
+  const copy = useOpsCopy();
+  return (
+    <section className="rounded-2xl border border-white/10 bg-[#181b22] p-3.5" aria-labelledby="unconnected-channels-title">
+      <h2 id="unconnected-channels-title" className="text-sm font-bold text-slate-200">{copy.additionalConnectionsTitle}</h2>
+      <dl className="mt-2 grid gap-2 sm:grid-cols-3">
+        {[copy.incomingEmail, copy.whatsapp, copy.apiHostingCosts].map((label) => (
+          <div key={label} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.08] px-3 py-2.5">
+            <dt className="text-xs font-semibold text-slate-200">{label}</dt>
+            <dd className="text-xs text-violet-200">{copy.notConnected}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }
 
 export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminAiOpsCenterProps = {}) {
@@ -709,6 +757,10 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
   const mode: 'server' | 'preview' = serverMode ? 'server' : 'preview';
 
   const visibleWorkItems = useMemo(() => data ? data.workItems.filter((item) => item.actionRequired) : [], [data]);
+  const failedSources = useMemo(() => failedSourceKeys(data), [data]);
+  const partial = failedSources.size > 0;
+  const reservationsPartial = hasSourceFailure(failedSources, RESERVATION_SOURCES);
+  const inquiriesPartial = hasSourceFailure(failedSources, [...WEB_INQUIRY_SOURCES, 'cs_tickets']);
 
   return (
     <div className="min-h-screen bg-[#111318] text-slate-100" translate="no">
@@ -746,7 +798,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
       </header>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-8">
-        <RefreshBadge mode={mode} lastFetchedAt={visibleTimestamp} syncing={loading} isPreview={!serverMode} failed={Boolean(error)} />
+        <RefreshBadge mode={mode} lastFetchedAt={visibleTimestamp} syncing={loading} isPreview={!serverMode} failed={Boolean(error)} partial={partial} />
         {error && (
           <div role="alert" className="rounded-2xl border border-rose-400/30 bg-rose-400/10 p-4">
             <div className="flex items-start gap-3">
@@ -779,7 +831,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
 
         {data && (
           <>
-            {data.partialErrors.length > 0 && (
+            {partial && (
               <div role="alert" className="flex items-start gap-2.5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.08] px-3.5 py-3 text-xs leading-5 text-amber-100">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <p><b>{copy.partialErrorTitle}</b> {copy.partialErrorDetail}</p>
@@ -802,6 +854,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
               <SummaryCard
                 label={copy.actionRequired}
                 value={data.summary.actionRequired}
+                partial={partial}
                 detail={copy.urgentCount(data.summary.urgent)}
                 tone="rose"
                 icon={AlertCircle}
@@ -809,6 +862,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
               <SummaryCard
                 label={copy.todayReservations}
                 value={data.summary.todayReservations}
+                partial={reservationsPartial}
                 detail={copy.upcomingCount(data.summary.upcoming7d)}
                 tone="violet"
                 icon={CalendarDays}
@@ -816,6 +870,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
               <SummaryCard
                 label={copy.unansweredInquiries}
                 value={data.summary.openInquiries + data.summary.openCs}
+                partial={inquiriesPartial}
                 detail={copy.inquiryCounts(data.summary.openInquiries, data.summary.openCs)}
                 tone="sky"
                 icon={Inbox}
@@ -823,6 +878,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
               <SummaryCard
                 label={copy.automationAttention}
                 value={data.summary.automationAttention}
+                partial={partial}
                 detail={copy.automationAttentionDetail}
                 tone="amber"
                 icon={TriangleAlert}
@@ -830,13 +886,13 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
             </section>
 
             <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-              <WorkQueue items={visibleWorkItems} sectionId="ops-queue" />
-              <ReservationsPanel reservations={data.reservations} sectionId="ops-reservation" />
+              <WorkQueue items={visibleWorkItems} sectionId="ops-queue" partial={partial} />
+              <ReservationsPanel reservations={data.reservations} sectionId="ops-reservation" partial={reservationsPartial} />
             </div>
 
-            <InboxSummary summary={data.summary} sectionId="ops-inbox" />
-            <AutomationPanel items={data.automation} sectionId="ops-automation" />
-            <SourceHealth data={data} sectionId="ops-source" />
+            <InboxSummary summary={data.summary} sectionId="ops-inbox" failedSources={failedSources} />
+            <AutomationPanel items={data.automation} sectionId="ops-automation" failedSources={failedSources} />
+            <SourceHealth data={data} sectionId="ops-source" failedSources={failedSources} />
 
             <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-slate-500">
               <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -844,6 +900,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
             </p>
           </>
         )}
+        <UnconnectedChannels />
         {serverMode && <OwnerNotificationSetup />}
         <details id="ops-settings" className="scroll-mt-28 rounded-2xl border border-white/10 bg-[#181b22] p-3.5">
           <summary className="flex min-h-[44px] cursor-pointer items-center rounded-lg text-sm font-bold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
