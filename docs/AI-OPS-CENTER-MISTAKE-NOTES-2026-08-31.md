@@ -1,5 +1,6 @@
 # AI 운영센터 오답노트 — 2026-08-31
 
+- 제목 scrollHeight가 clientHeight보다 크다고 곧바로 글자 잘림은 아니다. 실제 Linux 제목에서 176/173으로 새 검사가 실패했지만 line-height:1.02의 기기 글꼴이 overflow:visible인 경우 줄 상자 밖까지 표시될 수 있다. 임계값을 늘리지 말고 텍스트 Range가 제목 자신 및 hidden/clip 조상의 실제 잘림 영역을 벗어나는지 검사한다. 보이는 돌출은 정상, 같은 글자의 hidden/clip은 실패하는 반례로 검증한다.
 - 모바일 가로 넘침 검사에서 window.innerWidth는 넘친 자식 때문에 함께 커질 수 있다. 실제 Chromium 반례를 확인하고 document.documentElement.clientWidth를 기준으로 삼았다. 정상 Pixel 5 축척과 넘침 사례를 함께 검사한다.
 - 웹폰트를 기기 글꼴로 바꾸면 Linux 기준 화면의 글자 폭·줄바꿈도 의도적으로 달라진다. 실패 이미지를 무조건 기준으로 덮지 말고 expected/actual/diff를 사람이 대조한다. 검토된 동일 Linux 실행의 한 장만 갱신하며 비교 1%는 유지하고, 잘린 캡처 밖의 제목 자체와 조상 상자의 overflow 잘림·가로 넘침도 DOM 검사로 잠근다. 제목 자체의 scrollHeight만으로 바깥 상자의 잘림까지 증명할 수는 없다.
 - `picture { display: contents }` 아래 `source`가 grid 항목으로 올라와 사진 위에 빈 행을 만들 수 있다. source는 명시적으로 display:none 처리하고, srcSet만 바꾼 가짜 비교가 아니라 picture를 제거한 원래 img 구조와 카드 전체 높이·텍스트 위치를 비교한다. 실제 390px에서 재현 후 수정했다.

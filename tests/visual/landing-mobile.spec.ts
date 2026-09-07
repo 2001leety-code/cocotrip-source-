@@ -73,8 +73,11 @@ test.describe('Landing page — mobile visual regression', () => {
         range.selectNodeContents(text);
         textRects.push(...Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0));
       }
-      const headingAncestorClips: { tag: string; horizontal: boolean; vertical: boolean }[] = [];
-      for (let ancestor = heading.parentElement;
+      const headingClips: { tag: string; horizontal: boolean; vertical: boolean }[] = [];
+      // A glyph can extend beyond its line box with overflow:visible and remain
+      // fully readable. Detect actual clipping at the h1 itself and its parents,
+      // not scrollHeight > clientHeight alone (observed with native Linux fonts).
+      for (let ancestor: HTMLElement | null = heading;
         ancestor && ancestor !== document.body && ancestor !== document.documentElement;
         ancestor = ancestor.parentElement) {
         const style = getComputedStyle(ancestor);
@@ -94,7 +97,7 @@ test.describe('Landing page — mobile visual regression', () => {
         const bottom = top + ancestor.clientHeight * scaleY;
         const horizontal = clipsX && textRects.some((text) => text.left < left - 1 || text.right > right + 1);
         const vertical = clipsY && textRects.some((text) => text.top < top - 1 || text.bottom > bottom + 1);
-        if (horizontal || vertical) headingAncestorClips.push({ tag: ancestor.tagName, horizontal, vertical });
+        if (horizontal || vertical) headingClips.push({ tag: ancestor.tagName, horizontal, vertical });
       }
       return {
         // On mobile, innerWidth can grow with overflowing content and hide it.
@@ -102,10 +105,8 @@ test.describe('Landing page — mobile visual regression', () => {
         pageWidth: document.documentElement.scrollWidth,
         headerLeft: headerRect.left, headerRight: headerRect.right,
         headingLeft: headingRect.left, headingRight: headingRect.right,
-        headingWidth: heading.clientWidth, headingScrollWidth: heading.scrollWidth,
-        headingHeight: heading.clientHeight, headingScrollHeight: heading.scrollHeight,
         hasHeadingText: textRects.length > 0,
-        headingAncestorClips,
+        headingClips,
       };
     });
     expect(layout, 'header and complete headline must exist').not.toBeNull();
@@ -115,10 +116,8 @@ test.describe('Landing page — mobile visual regression', () => {
     expect(layout.headerRight).toBeLessThanOrEqual(layout.viewport + 1);
     expect(layout.headingLeft).toBeGreaterThanOrEqual(-1);
     expect(layout.headingRight).toBeLessThanOrEqual(layout.viewport + 1);
-    expect(layout.headingScrollWidth).toBeLessThanOrEqual(layout.headingWidth + 1);
-    expect(layout.headingScrollHeight).toBeLessThanOrEqual(layout.headingHeight + 1);
     expect(layout.hasHeadingText, 'complete headline must contain visible text fragments').toBe(true);
-    expect(layout.headingAncestorClips, 'headline text must fit each hidden/clip ancestor padding box').toEqual([]);
+    expect(layout.headingClips, 'headline text must fit its own and each hidden/clip ancestor padding box').toEqual([]);
 
     // viewport 안만 capture — full-page 는 동적 콘텐츠 (광고 / 추천 / 환율
     // 변동 가격) 가 매번 달라서 baseline 안정적이지 않음. above-the-fold
