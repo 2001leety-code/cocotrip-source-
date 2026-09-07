@@ -2,6 +2,7 @@
   "ci": {
     "collect": {
       "numberOfRuns": 1,
+      "puppeteerScript": "./scripts/lighthouse-preview-auth.cjs",
       "settings": {
         "preset": "desktop",
         "skipAudits": ["uses-http2"]
@@ -25,9 +26,6 @@
         "third-party-cookies": "off",
         "is-crawlable": "warn"
       }
-    },
-    "upload": {
-      "target": "temporary-public-storage"
     }
   }
 }

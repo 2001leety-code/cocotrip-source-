@@ -1,45 +1,147 @@
 name: PR Lighthouse (Vercel Preview)
 
-# Runs Lighthouse against the per-PR Vercel preview URL when it's ready.
-# Asserts accessibility ≥ 0.85 (error). Performance/SEO/best-practices are
-# warn-level so they don't block PRs but surface in the report.
+# Only reviewed default-branch tooling can receive the preview bypass secret.
+# The deployed app is measured, never checked out/executed as CI tooling.
+# Existing assertion policy stays in .lighthouserc.json; no errors are soft-passed.
 
 on:
   deployment_status:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: 'Existing successful CocoTrip Preview deployment ID (digits only)'
+        required: true
+        type: string
 
 concurrency:
-  group: pr-lighthouse-${{ github.event.deployment.ref }}
+  group: pr-lighthouse-${{ github.event.deployment.id || inputs.deployment_id }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: read
+  pull-requests: read
 
 jobs:
   lighthouse:
     if: |
-      github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'Preview' &&
-      github.event.deployment.creator.login == 'vercel[bot]'
+      github.repository == '2001leety-code/cocotrip-source-' &&
+      ((github.event_name == 'deployment_status' &&
+        github.event.deployment_status.state == 'success' &&
+        github.event.deployment.environment == 'Preview' &&
+        github.event.deployment.creator.login == 'vercel[bot]') ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout PR head (use deployment ref)
-        uses: actions/checkout@v4
+      - name: Checkout trusted default-branch tools
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.deployment.ref }}
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted-lighthouse
+          persist-credentials: false
+
+      - name: Verify existing same-repository Vercel Preview
+        id: preview
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const helperPath = `${process.env.GITHUB_WORKSPACE}/trusted-lighthouse/scripts/lighthouse-preview-auth.cjs`;
+            if (!fs.existsSync(helperPath)) {
+              core.setFailed('LHCI_TRUSTED_HELPER_NOT_ON_MAIN: merge reviewed tooling, then verify this deployment by ID.');
+              return;
+            }
+            try {
+              const { validatePreviewDeployment } = require(helperPath);
+              const rawId = context.eventName === 'workflow_dispatch'
+                ? context.payload.inputs.deployment_id : String(context.payload.deployment.id);
+              if (!/^[1-9]\d*$/.test(rawId) || !Number.isSafeInteger(Number(rawId))) throw new Error('INVALID_ID');
+              const { data: deployment } = await github.rest.repos.getDeployment({ ...context.repo, deployment_id: Number(rawId) });
+              const { data: statuses } = await github.rest.repos.listDeploymentStatuses({ ...context.repo, deployment_id: Number(rawId), per_page: 1 });
+              const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({ ...context.repo, commit_sha: deployment.sha, per_page: 100 });
+              const trusted = validatePreviewDeployment({ repository: context.payload.repository, deployment, status: statuses[0], pullRequests });
+              core.setOutput('origin', trusted.origin);
+              core.setOutput('sha', trusted.sha);
+            } catch {
+              core.setFailed('LHCI_DEPLOYMENT_NOT_TRUSTED');
+            }
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: trusted-lighthouse/package-lock.json
 
-      - name: Run Lighthouse CI
-        uses: treosh/lighthouse-ci-action@v12
+      - name: Install trusted dependencies without lifecycle scripts
+        working-directory: trusted-lighthouse
+        run: npm ci --ignore-scripts
+
+      # Official treosh v12 tag resolved to this immutable commit. Only its bundled
+      # LHCI CLI is used; the action's upload/annotation behavior is not executed.
+      - name: Checkout pinned Lighthouse CLI distribution
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          urls: |
-            ${{ github.event.deployment_status.target_url }}/
-            ${{ github.event.deployment_status.target_url }}/tours
-            ${{ github.event.deployment_status.target_url }}/charter
-          configPath: ./.lighthouserc.json
-          uploadArtifacts: true
-          temporaryPublicStorage: true
-        continue-on-error: true
+          repository: treosh/lighthouse-ci-action
+          ref: 3e7e23fb74242897f95c0ba9cabad3d0227b9b18
+          path: lighthouse-cli
+          persist-credentials: false
+
+      - name: Prepare fresh isolated measurement directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_dir="$(mktemp -d "$RUNNER_TEMP/lighthouse-preview.XXXXXX")"
+          mkdir "$run_dir/scripts"
+          cp "$GITHUB_WORKSPACE/trusted-lighthouse/.lighthouserc.json" "$run_dir/.lighthouserc.json"
+          cp "$GITHUB_WORKSPACE/trusted-lighthouse/scripts/lighthouse-preview-auth.cjs" "$run_dir/scripts/lighthouse-preview-auth.cjs"
+          ln -s "$GITHUB_WORKSPACE/trusted-lighthouse/node_modules" "$run_dir/node_modules"
+          chrome_path="$(command -v google-chrome || command -v chromium || true)"
+          if [ ! -x "$chrome_path" ]; then echo '::error::LHCI_CHROME_UNAVAILABLE'; exit 1; fi
+          test ! -e "$run_dir/.lighthouseci"
+          echo "LHCI_RUN_DIR=$run_dir" >> "$GITHUB_ENV"
+          echo "CHROME_PATH=$chrome_path" >> "$GITHUB_ENV"
+          echo "LHCI_CLI=$GITHUB_WORKSPACE/lighthouse-cli/node_modules/@lhci/cli/src/cli.js" >> "$GITHUB_ENV"
+
+      - name: Collect three authenticated Preview measurements
+        id: collect
+        shell: bash
+        env:
+          LHCI_PREVIEW_ORIGIN: ${{ steps.preview.outputs.origin }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          cd "$LHCI_RUN_DIR"
+          if ! node "$LHCI_CLI" collect --config=./.lighthouserc.json --chromePath="$CHROME_PATH" \
+            --url="$LHCI_PREVIEW_ORIGIN/" --url="$LHCI_PREVIEW_ORIGIN/tours" --url="$LHCI_PREVIEW_ORIGIN/charter" \
+            > collect-private.log 2>&1; then
+            if grep -q 'LHCI_PREVIEW_AUTH_REJECTED' collect-private.log; then echo '::error::LHCI_PREVIEW_AUTH_REJECTED'; fi
+            echo '::error::LHCI_COLLECT_FAILED'; exit 1
+          fi
+          echo 'LHCI_COLLECT_COMPLETED reports_expected=3'
+
+      - name: Assert unchanged Lighthouse policy
+        id: assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$LHCI_RUN_DIR"
+          if ! node "$LHCI_CLI" assert --config=./.lighthouserc.json > assert-private.log 2>&1; then
+            echo '::error::LHCI_ASSERT_FAILED'; exit 1
+          fi
+          echo 'LHCI_ASSERT_COMPLETED'
+
+      - name: Verify real pages and safe result summary
+        if: always() && steps.collect.outcome == 'success'
+        shell: bash
+        env:
+          LHCI_PREVIEW_ORIGIN: ${{ steps.preview.outputs.origin }}
+        run: |
+          set -euo pipefail
+          cd "$LHCI_RUN_DIR"
+          node "$GITHUB_WORKSPACE/trusted-lighthouse/scripts/verify-lighthouse-preview.mjs" --expected-origin "$LHCI_PREVIEW_ORIGIN"
+      # No upload command or artifact step: raw reports/logs may contain auth-page
+      # query strings. Only fixed codes/counts above leave the ephemeral runner.

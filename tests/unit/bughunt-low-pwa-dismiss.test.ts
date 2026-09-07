@@ -27,14 +27,15 @@ describe('bughunt-low: PWAUpdatePrompt X 버튼 dismiss 수정', () => {
     // dismiss(X) onClick 안에서 setNeedRefresh(false) 를 호출하면
     // 5분 뒤 재표시 로직이 데드 코드가 됨 — 이 패턴이 없어야 fix 상태.
     // onClick 이 aria-label="Dismiss" 앞에 있으므로 onClick 기준으로 검색.
-    const dismissBlock = src.match(/onClick[\s\S]{0,200}aria-label="Dismiss"/);
+    const dismissBlock = src.match(/onClick[\s\S]{0,200}aria-label=\{copy.dismiss\}/);
+    expect(dismissBlock).not.toBeNull();
     const blockText = dismissBlock ? dismissBlock[0] : '';
     expect(blockText).not.toMatch(/setNeedRefresh\s*\(\s*false\s*\)/);
   });
 
   it('X 버튼 onClick 이 setDismissed(true) 를 호출한다', () => {
     // dismiss 는 토스트만 숨기고 needRefresh 는 유지해야 5분 후 재표시 가능.
-    const dismissBlock = src.match(/onClick[\s\S]{0,200}aria-label="Dismiss"/);
+    const dismissBlock = src.match(/onClick[\s\S]{0,200}aria-label=\{copy.dismiss\}/);
     const blockText = dismissBlock ? dismissBlock[0] : '';
     expect(blockText).toMatch(/setDismissed\s*\(\s*true\s*\)/);
   });
@@ -48,7 +49,7 @@ describe('bughunt-low: PWAUpdatePrompt X 버튼 dismiss 수정', () => {
   it('렌더 가드가 needRefresh && !dismissed 조건을 유지한다', () => {
     // L81: if (!needRefresh || dismissed) return null
     // needRefresh 가 true 여야 5분 뒤 재표시가 가능.
-    expect(src).toMatch(/!\s*needRefresh\s*\|\|\s*dismissed/);
+    expect(src).toContain('(!needRefresh && !state.ready) || dismissed');
   });
 
   it('전체 소스에서 nullish 연산자를 사용하지 않는다', () => {

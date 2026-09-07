@@ -104,12 +104,13 @@ describe('PWA 업데이트 토스트 — 무드 포함 전역(운영자 요청)'
 
   it('진입(콜드 스타트) 자동 업데이트 + 세션 중엔 토스트 (#pwa-prompt 보호 유지)', () => {
     const src = readFileSync(r('src/components/PWAUpdatePrompt.tsx'), 'utf8');
-    expect(src).toContain('AUTO_UPDATE_WINDOW_MS');
-    // 진입 창 안에서 자동 적용 (skipWaiting+reload)
-    expect(src).toMatch(/updateServiceWorker\(true\)/);
-    expect(src).toMatch(/loadedAtRef/);
-    // 페이지당 1회 가드
-    expect(src).toMatch(/autoUpdatedRef/);
+    const guard = readFileSync(r('src/lib/pwaUpdateGuard.ts'), 'utf8');
+    expect(src).toContain('guard.scheduleAutomatic(updateServiceWorker)');
+    expect(src).toContain('onNeedReload: guard.onNeedReload');
+    expect(guard).toContain('AUTO_UPDATE_WINDOW_MS = 10_000');
+    expect(guard).toContain('AUTO_UPDATE_IDLE_MS = 1_200');
+    expect(guard).toContain('autoAttempted');
+    expect(guard).toContain('state.reloaded');
   });
 
   it('웹 탭(비-standalone): 알림 UI 없음 + 콜드스타트 조용한 갱신은 허용', () => {
@@ -118,13 +119,18 @@ describe('PWA 업데이트 토스트 — 무드 포함 전역(운영자 요청)'
     // 콜드스타트 조용한 자동 갱신을 탭에도 확장. 토스트 UI는 여전히 설치앱 전용(6/14 결정 유지).
     const src = readFileSync(r('src/components/PWAUpdatePrompt.tsx'), 'utf8');
     expect(src).toContain("display-mode: standalone");
-    expect(src).toMatch(/standaloneRef/);
+    expect(src).toContain('useState(isStandalone)');
     // 탭에선 토스트 렌더 안 함 (UI는 설치앱 전용)
-    expect(src).toMatch(/if\s*\(!standaloneRef\.current\)\s*return null/);
+    expect(src).toContain('standalone={standalone}');
+    expect(src).toMatch(/if\s*\(!standalone\s*\|\|/);
     // 자동 갱신 effect에는 standalone early-return이 없어야 함 (탭도 콜드스타트 갱신)
     expect(src).not.toMatch(/if\s*\(!standaloneRef\.current\)\s*return;/);
     // 대신 안전 가드는 유지 — 상호작용/입력/결제 중이면 스킵
-    expect(src).toMatch(/userInteractedRef\.current\s*\|\|\s*hasFocusedEditable\(\)\s*\|\|\s*isPaymentLikelyInProgress\(\)/);
+    const hook = readFileSync(r('src/hooks/usePwaUpdateGuard.ts'), 'utf8');
+    const guard = readFileSync(r('src/lib/pwaUpdateGuard.ts'), 'utf8');
+    expect(hook).toContain('hasFocusedEditable(document)');
+    expect(hook).toContain('isPaymentLikelyInProgress(document)');
+    expect(guard).toContain('interaction !== request.interaction');
   });
 });
 
