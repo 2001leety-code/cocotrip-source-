@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { verifyOwnerApkManifest } from './owner-controller-manifest-verifier.mjs';
 
 function discoverTools(env) {
   const javaHome = String(env.JAVA_HOME || '');
@@ -54,12 +55,13 @@ export function createOwnerArtifactVerifier({ env = process.env, spawn = spawnSy
     const packageResult = run(resolved.aapt2, ['dump', 'badging', apkPath], env, spawn);
     const packageOutput = `${packageResult.stdout || ''}\n${packageResult.stderr || ''}`;
     const apkPackage = packageOutput.match(/package:\s+name='([^']+)'/)?.[1] || '';
+    const manifestResult = verifyOwnerApkManifest({ aapt2: resolved.aapt2, apkPath, env, spawn });
     const expected = new Set(fingerprints || []);
     return {
       toolsAvailable: true,
       keystoreVerified: keyResult.status === 0 && expected.has(keyFingerprint),
       apkVerified: signerResult.status === 0 && packageResult.status === 0
-        && expected.has(apkFingerprint) && apkPackage === packageName,
+        && expected.has(apkFingerprint) && apkPackage === packageName && manifestResult.ok,
     };
   };
 }

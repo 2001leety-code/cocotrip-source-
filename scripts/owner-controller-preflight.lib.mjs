@@ -11,6 +11,8 @@ const OWNER_SCOPE = '/admin/';
 const OWNER_MANIFEST = '/manifest-owner-controller.webmanifest';
 const OWNER_SOURCE_DIR = 'android-owner';
 const OWNER_RELEASE_APK = 'android-owner/app/build/outputs/apk/release/app-release.apk';
+const OWNER_MANAGE_DATA_ACTIVITY = 'com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity';
+const OWNER_MANAGE_SPACE_METADATA = 'android.support.customtabs.trusted.MANAGE_SPACE_URL';
 
 function finding(code, area, message) {
   return { code, area, message };
@@ -80,6 +82,46 @@ function extractPackageFromGradle(text) {
 function extractTargetSdkFromGradle(text) {
   const match = String(text || '').match(/targetSdk(?:Version)?\s*(?:=\s*)?(\d+)/);
   return match ? Number(match[1]) : null;
+}
+
+function xmlAttribute(tag, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matches = [...tag.matchAll(new RegExp(`\\s${escapedName}\\s*=\\s*(["'])(.*?)\\1`, 'g'))];
+  return matches.length === 1 ? matches[0][2] : '';
+}
+
+// Source-only check: never opens a keystore, APK, account or local signing settings.
+export function validateOwnerAndroidSourceContract({ manifest, gradle, android = {} }) {
+  const findings = [];
+  const xml = String(manifest || '').replace(/<!--[\s\S]*?-->/g, '');
+  const application = xml.match(/<application(?=\s|>)[^>]*>[\s\S]*?<\/application\s*>/);
+  const activities = (application ? application[0] : '').match(/<activity(?=\s|\/?>)[^>]*\/>|<activity(?=\s|>)[^>]*>[\s\S]*?<\/activity\s*>/g) || [];
+  const managers = activities.filter((activity) => xmlAttribute(activity.split('>')[0], 'android:name') === OWNER_MANAGE_DATA_ACTIVITY);
+  if (managers.length !== 1) {
+    findings.push(finding('ANDROID_MANAGE_DATA_ACTIVITY_MISSING', 'android', 'ABH 시작에 필요한 ManageDataLauncherActivity를 한 번만 등록해야 합니다.'));
+  } else {
+    const manager = managers[0];
+    if (xmlAttribute(manager.split('>')[0], 'android:exported') !== 'false' || /<intent-filter\b/.test(manager)) {
+      findings.push(finding('ANDROID_MANAGE_DATA_ACTIVITY_NOT_PRIVATE', 'android', 'ManageDataLauncherActivity는 exported=false이며 intent-filter가 없어야 합니다.'));
+    }
+    const metadata = (manager.match(/<meta-data(?=\s|\/?>)[^>]*>/g) || [])
+      .filter((tag) => xmlAttribute(tag, 'android:name') === OWNER_MANAGE_SPACE_METADATA);
+    if (metadata.length !== 1 || xmlAttribute(metadata[0], 'android:value') !== OWNER_ORIGIN
+      || /\sandroid:resource\s*=/.test(metadata[0])) {
+      findings.push(finding('ANDROID_MANAGE_SPACE_URL_INVALID', 'android', '해당 Activity의 MANAGE_SPACE_URL은 https://cocotripkr.com 하나로 고정해야 합니다.'));
+    }
+  }
+
+  const versionSource = String(gradle || '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const codes = [...versionSource.matchAll(/^\s*versionCode\s*(?:=\s*)?(\d+)\s*;?\s*(?:\/\/[^\r\n]*)?$/gm)];
+  const names = [...versionSource.matchAll(/^\s*versionName\s*(?:=\s*)?(["'])([^"'\r\n]+)\1\s*;?\s*(?:\/\/[^\r\n]*)?$/gm)];
+  if (codes.length !== 1 || Number(codes[0][1]) !== android.versionCode) {
+    findings.push(finding('ANDROID_VERSION_CODE_MISMATCH', 'android', 'build.gradle의 versionCode가 설정 정본과 다르거나 명확하지 않습니다.'));
+  }
+  if (names.length !== 1 || names[0][2] !== android.versionName) {
+    findings.push(finding('ANDROID_VERSION_NAME_MISMATCH', 'android', 'build.gradle의 versionName이 설정 정본과 다르거나 명확하지 않습니다.'));
+  }
+  return findings;
 }
 
 function parseProperties(content) {
@@ -223,6 +265,7 @@ export function auditOwnerControllerReadiness({ root = process.cwd(), config, to
   if (!rootGradle || !gradle || !manifest || !launcher || !strings) {
     findings.push(finding('ANDROID_WRAPPER_MISSING', 'android', 'TWA Android 핵심 소스(Gradle, Manifest, Launcher, strings)가 없습니다.'));
   } else {
+    findings.push(...validateOwnerAndroidSourceContract({ manifest, gradle, android }));
     if (!/com\.android\.application['"]?\s+version\s+['"]8\.9\.1['"]/.test(rootGradle)) {
       findings.push(finding('ANDROID_AGP_VERSION_INVALID', 'android', 'API 36 오너 앱은 Android Gradle Plugin 8.9.1을 사용해야 합니다.'));
     }
@@ -355,7 +398,7 @@ export function auditOwnerControllerReadiness({ root = process.cwd(), config, to
         findings.push(finding('ANDROID_KEYSTORE_VERIFICATION_FAILED', 'android', '키 alias와 인증서 SHA-256 검증에 실패했습니다.'));
       }
       if (verification && verification.toolsAvailable !== false && verification.apkVerified !== true) {
-        findings.push(finding('ANDROID_APK_VERIFICATION_FAILED', 'android', 'APK 서명과 packageName 검증에 실패했습니다.'));
+        findings.push(finding('ANDROID_APK_VERIFICATION_FAILED', 'android', 'APK 서명·packageName·병합 Manifest 검증에 실패했습니다.'));
       }
     }
   }

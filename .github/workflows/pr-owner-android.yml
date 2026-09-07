@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - 'android-owner/**'
+      - 'scripts/owner-controller-manifest-verifier.mjs'
+      - 'scripts/owner-controller-artifact-verifier.mjs'
+      - 'tests/unit/owner-controller-manifest-verifier.test.ts'
+      - 'tests/unit/owner-controller-artifact-verifier.test.ts'
+      - 'tests/unit/owner-android-workflow.test.ts'
       - '.github/workflows/pr-owner-android.yml'
 
 permissions:
@@ -40,6 +45,7 @@ jobs:
           test -n "${ANDROID_SDK_ROOT:-}"
           test -d "$ANDROID_SDK_ROOT/platforms/android-36"
           test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
+          test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
 
       - name: Compile unsigned owner APK
         working-directory: android-owner
@@ -59,6 +65,7 @@ jobs:
           unzip -tqq "$APK"
           BADGING="$("$AAPT2" dump badging "$APK")"
           printf '%s\n' "$BADGING" | grep -Fq "package: name='com.cocotrip.owner'"
+          node scripts/owner-controller-manifest-verifier.mjs --aapt2 "$AAPT2" --apk "$APK"
           set +e
           SIGN_OUTPUT="$("$APKSIGNER" verify --verbose "$APK" 2>&1)"
           SIGN_STATUS=$?
