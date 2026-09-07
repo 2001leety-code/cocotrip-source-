@@ -22,6 +22,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { OwnerControllerSetupPanel } from '@/components/OwnerControllerSetupPanel';
+import { OwnerNotificationSetup } from '@/components/OwnerNotificationSetup';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -689,6 +690,9 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
       </header>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-8">
+        <OwnerControllerSetupPanel>
+          {serverMode && <OwnerNotificationSetup />}
+        </OwnerControllerSetupPanel>
         {error && !data && (
           <div role="alert" className="rounded-2xl border border-rose-400/30 bg-rose-400/10 p-4">
             <div className="flex items-start gap-3">
@@ -719,7 +723,6 @@ export default function AdminAiOpsCenter({ previewData }: AdminAiOpsCenterProps 
 
         {data && (
           <>
-            <OwnerControllerSetupPanel />
             {data.partialErrors.length > 0 && (
               <div role="alert" className="flex items-start gap-2.5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.08] px-3.5 py-3 text-xs leading-5 text-amber-100">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

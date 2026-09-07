@@ -25,7 +25,11 @@ vi.mock('@/hooks/usePageMeta', () => ({
 }));
 
 vi.mock('@/components/OwnerControllerSetupPanel', () => ({
-  OwnerControllerSetupPanel: () => <div data-testid="owner-controller-setup-panel" />,
+  OwnerControllerSetupPanel: ({ children }: { children?: React.ReactNode }) => <div data-testid="owner-controller-setup-panel">{children}</div>,
+}));
+
+vi.mock('@/components/OwnerNotificationSetup', () => ({
+  OwnerNotificationSetup: () => <div data-testid="owner-notification-setup" />,
 }));
 
 const NOW = '2026-09-01T09:00:00+09:00';
@@ -101,6 +105,7 @@ describe('AdminAiOpsCenter 운영/미리보기 모드 로딩 동작', () => {
 
     expect(screen.getByText('미리보기 모드')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(screen.queryByTestId('owner-notification-setup')).not.toBeInTheDocument();
 
     fireEvent(window, new Event('focus'));
     fireEvent(document, new Event('visibilitychange'));
@@ -121,6 +126,14 @@ describe('AdminAiOpsCenter 운영/미리보기 모드 로딩 동작', () => {
       { headers: { Authorization: 'Bearer server-token' } },
     );
     expect(await screen.findByText(/갱신 완료/)).toBeInTheDocument();
+  });
+
+  it('운영 자료 조회가 실패해도 기기 알림 설정을 사용할 수 있다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: false, error: 'test unavailable' }, { status: 503 })));
+    renderPage({});
+    expect(await screen.findByText('운영 자료를 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByTestId('owner-controller-setup-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('owner-notification-setup')).toBeInTheDocument();
   });
 });
 

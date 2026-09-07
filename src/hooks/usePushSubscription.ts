@@ -1,7 +1,7 @@
 // usePushSubscription — Web Push 권한 요청 + Service Worker subscribe + Firestore 저장.
 // Cocotrip plan-ready 알림용. iOS 16.4+ 는 PWA 홈 화면 추가 후에만 동작.
 import { useEffect, useState, useCallback } from 'react';
-import { doc, setDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 
@@ -109,13 +109,16 @@ export function usePushSubscription() {
   }, [user]);
 
   /** 현재 사용자가 subscription 등록돼 있는지 확인. */
-  const isEnabled = useCallback(async (): Promise<boolean> => {
-    if (state !== 'granted' || !user?.uid) return false;
-    const reg = await navigator.serviceWorker.ready;
+  const isEnabled = useCallback(async (options?: { serverOnly?: boolean }): Promise<boolean> => {
+    const permission = options?.serverOnly && typeof Notification !== 'undefined' ? Notification.permission : state;
+    if (permission !== 'granted' || !user?.uid) return false;
+    const reg = options?.serverOnly ? await navigator.serviceWorker.getRegistration() : await navigator.serviceWorker.ready;
+    if (!reg) return false;
     const sub = await reg.pushManager.getSubscription();
     if (!sub) return false;
     const subId = btoa((sub.toJSON() as { endpoint?: string }).endpoint || '').slice(-32);
-    const snap = await getDoc(doc(db, 'push_subscriptions', `${user.uid}_${subId}`));
+    const reference = doc(db, 'push_subscriptions', `${user.uid}_${subId}`);
+    const snap = options?.serverOnly ? await getDocFromServer(reference) : await getDoc(reference);
     return snap.exists();
   }, [state, user]);
 

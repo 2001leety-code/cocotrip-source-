@@ -50,7 +50,7 @@ describe('OwnerControllerSetupPanel', () => {
     await waitFor(() => {
       expect(deferred.prompt).toHaveBeenCalledTimes(1);
       expect(windowState.__deferredInstallPrompt).toBeNull();
-      expect(screen.getByText('Control 설치됨 · 최신 확인')).toBeInTheDocument();
+      expect(screen.getByText('Control 설치됨')).toBeInTheDocument();
       expect(screen.queryByText('오너 컨트롤러 설치')).not.toBeInTheDocument();
       expect(screen.queryByTitle('CocoTrip Control 설치')).not.toBeInTheDocument();
     });
@@ -62,7 +62,7 @@ describe('OwnerControllerSetupPanel', () => {
 
     render(<OwnerControllerSetupPanel />);
 
-    expect(screen.getByText('Control 설치됨 · 최신 확인')).toBeInTheDocument();
+    expect(screen.getByText('Control 설치됨')).toBeInTheDocument();
     expect(screen.queryByText('오너 컨트롤러 설치')).not.toBeInTheDocument();
     expect(screen.queryByText(/기기에서 바로 열리려면/)).not.toBeInTheDocument();
     expect(screen.queryByTitle('CocoTrip Control 설치')).not.toBeInTheDocument();
@@ -78,5 +78,13 @@ describe('OwnerControllerSetupPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('브라우저 메뉴(⋮) > “홈 화면에 추가” 또는 “앱 설치”로 설치하세요.')).toBeInTheDocument();
     });
+  });
+
+  it.each([false, true])('설치 상태=%s에서도 알림 설정 영역을 숨기지 않는다', (standalone) => {
+    mockMatchMedia(standalone);
+    sessionStorage.setItem('pwa_launch_path', '/admin/ai-center');
+    render(<OwnerControllerSetupPanel><button type="button">기기 알림 설정</button></OwnerControllerSetupPanel>);
+    expect(screen.getByRole('button', { name: '기기 알림 설정' })).toBeInTheDocument();
+    expect(screen.queryByText(/최신 확인/)).not.toBeInTheDocument();
   });
 });

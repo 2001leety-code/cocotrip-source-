@@ -119,6 +119,7 @@ describe('CharterInquireModal portal and keyboard access', () => {
 
     const status = await screen.findByRole('status');
     expect(status.textContent).toContain('Request received');
-    expect(document.activeElement).toBe(status.querySelector('button'));
+    // DOM insertion can precede the submitted-state effect that restores focus.
+    await waitFor(() => expect(document.activeElement).toBe(status.querySelector('button')));
   });
 });

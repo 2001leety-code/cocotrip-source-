@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AlertCircle, Download, RefreshCw, Smartphone } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -29,7 +30,7 @@ function toSafeLower(value: string) {
   return String(value || '').toLowerCase();
 }
 
-export function OwnerControllerSetupPanel() {
+export function OwnerControllerSetupPanel({ children }: { children?: ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInOtherPwa, setIsInOtherPwa] = useState(false);
   const [isInstalled, setIsInstalled] = useState(isOwnerStandalone);
@@ -93,8 +94,9 @@ export function OwnerControllerSetupPanel() {
 
   if (isInstalled) {
     return (
+      <div className="space-y-2">
       <section className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] px-3 py-2">
-        <p className="text-xs font-black text-emerald-100">Control 설치됨 · 최신 확인</p>
+        <p className="text-xs font-black text-emerald-100">Control 설치됨</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -104,10 +106,13 @@ export function OwnerControllerSetupPanel() {
           새로고침
         </button>
       </section>
+      {children}
+      </div>
     );
   }
 
   return (
+    <div className="space-y-2">
     <section className="rounded-3xl border border-emerald-300/20 bg-emerald-400/[0.06] p-3.5 sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -180,5 +185,7 @@ export function OwnerControllerSetupPanel() {
         )}
       </div>
     </section>
+    {children}
+    </div>
   );
 }
