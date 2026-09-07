@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Bell, RefreshCw } from 'lucide-react';
 import type { Language } from '@/i18n';
 import {
@@ -23,6 +23,7 @@ export function OwnerNotificationPanel({ adapter, language = 'ko' }: {
   const [longWait, setLongWait] = useState(false);
   const generation = useRef(0);
   const mounted = useRef(false);
+  const recoveryId = useId();
 
   const check = useCallback(async () => {
     if (pendingOwnerEnrollment(adapter.key)) return;
@@ -110,6 +111,9 @@ export function OwnerNotificationPanel({ adapter, language = 'ko' }: {
     else if (snapshot.registered) { label = copy.registered; detail = copy.registeredDetail; }
     else { label = copy.unregistered; detail = copy.unregisteredDetail; }
   }
+  const showRecovery = phase === 'check_failed' || phase === 'enroll_failed'
+    || (phase === 'ready' && snapshot && snapshot.account !== 'loading'
+      && (!signedIn || !supported || !snapshot.configured || denied));
 
   return (
     <section aria-label={copy.title} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
@@ -123,6 +127,7 @@ export function OwnerNotificationPanel({ adapter, language = 'ko' }: {
         <button
           type="button"
           disabled={busy}
+          aria-describedby={showRecovery ? recoveryId : undefined}
           onClick={() => {
             if (canEnroll) void observeEnrollment(enrollOwnerDevice(adapter));
             else void check();
@@ -134,11 +139,12 @@ export function OwnerNotificationPanel({ adapter, language = 'ko' }: {
         </button>
       </div>
       <p className="mt-2 text-xs leading-5 text-amber-100">{copy.dispatch}</p>
+      {showRecovery && <p id={recoveryId} className="mt-2 text-xs leading-5 text-slate-200">{detail}</p>}
       {longWait && phase === 'enrolling' && <p className="mt-2 text-xs leading-5 text-slate-300">{copy.pendingDetail}</p>}
       <details className="mt-1 text-xs text-slate-300">
         <summary className="min-h-[44px] cursor-pointer content-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200">{copy.details}</summary>
         {snapshot && <p className="mb-1">{copy.permission}: {copy.permissions[snapshot.permission]}</p>}
-        <p className="pb-1 leading-5">{detail}</p>
+        {!showRecovery && <p className="pb-1 leading-5">{detail}</p>}
       </details>
     </section>
   );
