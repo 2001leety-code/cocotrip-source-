@@ -112,8 +112,12 @@ describe('공용 셸 조작 target 44×44', () => {
   });
 
   it('로고 링크도 44px 히트 영역을 갖는다', () => {
-    const logo = HEADER_CODE.slice(HEADER_CODE.indexOf('aria-label="CocoTrip"') - 400);
-    expect(logo.slice(0, 500)).toMatch(/min-h-\[44px\]/);
+    // The visible CocoTrip/BETA text now supplies the accessible name. Locate
+    // the actual home-link block, not an obsolete overriding aria-label.
+    const logo = HEADER_CODE.match(/<Link\s+to="\/"[^>]*>[\s\S]*?<\/Link>/)?.[0];
+    expect(logo, 'visible brand home link must exist').toBeTruthy();
+    expect(logo).toMatch(/CocoTrip/);
+    expect(logo).toMatch(/className="[^"]*min-h-\[44px\]/);
   });
 
   it('작은 모바일 헤더는 보조 BETA 배지를 숨겨 조작 버튼이 화면 밖으로 밀리지 않는다', () => {

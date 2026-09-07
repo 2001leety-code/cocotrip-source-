@@ -1,0 +1,3398 @@
+{
+  "recipe": {
+    "version": 1,
+    "format": "webp",
+    "quality": 80,
+    "effort": 6,
+    "kernel": "lanczos3",
+    "fit": "inside",
+    "withoutEnlargement": true
+  },
+  "encoder": {
+    "sharp": "0.35.4",
+    "vips": "8.18.6",
+    "webp": "1.6.0"
+  },
+  "avifRecipe": {
+    "version": 1,
+    "quality": 55,
+    "effort": 6,
+    "position": "centre",
+    "chromaSubsampling": "4:4:4"
+  },
+  "images": {
+    "/JnR5Ie_경복궁(1).webp": {
+      "width": 3648,
+      "height": 5472,
+      "bytes": 904418,
+      "sha256": "e10b241d4bb52b4a506489b4d45115b137f9d4678c5769abe03e7ff054d021bc",
+      "variants": [
+        {
+          "width": 128,
+          "height": 192,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-128.webp",
+          "bytes": 5482,
+          "sha256": "86570e5300c3ddd7f6487c41f46a14bec489bdd24561e74bacb33eca9f6b37eb"
+        },
+        {
+          "width": 192,
+          "height": 288,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-192.webp",
+          "bytes": 10866,
+          "sha256": "dfe9f9d92ce7777b953c364d1de567a4df28fbc1e0d44e86af9b4fff77db8bd4"
+        },
+        {
+          "width": 256,
+          "height": 384,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-256.webp",
+          "bytes": 17744,
+          "sha256": "d413df366b0e5a6224af8013d0e1e091c2c028b1ebd62cd02363e90a5908e360"
+        },
+        {
+          "width": 384,
+          "height": 576,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-384.webp",
+          "bytes": 34500,
+          "sha256": "849b9ea3022a85adb0a56643cebff94ec86744d54ee9da9bbac20989e1df3619"
+        },
+        {
+          "width": 512,
+          "height": 768,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-512.webp",
+          "bytes": 53292,
+          "sha256": "af2d1d7598cf7019347d30405b165d33c59e4df84b4cedaa6ca5eb2643c06055"
+        },
+        {
+          "width": 768,
+          "height": 1152,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-768.webp",
+          "bytes": 96218,
+          "sha256": "911a0e2caae9fc941e00d3e41fde853e674a3ef3f7ddd735dff1e90e890b7bad"
+        },
+        {
+          "width": 1024,
+          "height": 1536,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-1024.webp",
+          "bytes": 144052,
+          "sha256": "f4e754dda204522711afb3ca4e88250a20f5e8c356c0229e4280b76d4da31c3f"
+        },
+        {
+          "width": 1280,
+          "height": 1920,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-1280.webp",
+          "bytes": 196488,
+          "sha256": "a555c58afb6edad37aed3784327f531dae287c69a60054b99ea372e2e213735c"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 192,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-128.avif",
+            "bytes": 3433,
+            "sha256": "962700d33e09f545a7880e2cea7307dfb6e0931fcd9ce45aa5ccc148de581bcc"
+          },
+          {
+            "width": 192,
+            "height": 288,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-192.avif",
+            "bytes": 7243,
+            "sha256": "1c9cbb94ad4627be67c2bec8368e2611e2cfac9c2288b00d4ced157d711115b8"
+          },
+          {
+            "width": 256,
+            "height": 384,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-256.avif",
+            "bytes": 11383,
+            "sha256": "d9717fa7b54d54edf9fd0165902846395fa4bf6d35804fb8bdb3225cd971483c"
+          },
+          {
+            "width": 360,
+            "height": 540,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-360.avif",
+            "bytes": 19371,
+            "sha256": "6477a551e1c98fbdc577856ace6ac9b9ff80d50bd82488969edf492f86bb9c3d"
+          },
+          {
+            "width": 480,
+            "height": 720,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-480.avif",
+            "bytes": 31071,
+            "sha256": "b1cf3491ec5bb626429982aabd7b1f3c7689a2eeef1d013a54448ed58bcd6043"
+          },
+          {
+            "width": 512,
+            "height": 768,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-512.avif",
+            "bytes": 34323,
+            "sha256": "c45bf66aa2b0f5ca288753f5da46e52de2ad6b3913a416713bded01e9969815d"
+          },
+          {
+            "width": 768,
+            "height": 1152,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-768.avif",
+            "bytes": 64647,
+            "sha256": "4cdd3ef7d2c195f3ed3207d0412b4f99de0cba60d0fddf69dcf99876cc2543d6"
+          },
+          {
+            "width": 1024,
+            "height": 1536,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-1024.avif",
+            "bytes": 100865,
+            "sha256": "9e76824582445a4cd68c539e1c9b59ba93a6ad5290d409f22ed46d25211fc655"
+          },
+          {
+            "width": 1280,
+            "height": 1920,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-1280.avif",
+            "bytes": 142687,
+            "sha256": "b52a198a6bdecec1306a86e507437ee949a560bfe669c18efa91f4947a121804"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-128.avif",
+            "bytes": 1521,
+            "sha256": "d295f7594d109798401d087926a30edf933db607f7e43ed24e1a9d877fdc52e9"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-192.avif",
+            "bytes": 2992,
+            "sha256": "f87fb8bf5c90ff65e3c7a08f018c3456887c1704452439e101b1fdc99a33efc3"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-256.avif",
+            "bytes": 4693,
+            "sha256": "1d28b0cd6b2e42b6cad96ee3e4b82a2f3b653c7bb9e2df06928ab7f6a41b68c9"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-360.avif",
+            "bytes": 7918,
+            "sha256": "18de827a0df52c44baf6e42ab2712832ae82c7d048a8423181bad316f210724e"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-480.avif",
+            "bytes": 12148,
+            "sha256": "a7f659fe108589bdca6e172a652bd8d6b128d9dbcb7591cb2e361f89366def62"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-512.avif",
+            "bytes": 13429,
+            "sha256": "d8edf156b935d4f46cc033ae31bf8532ccb4864f3f394e9d8b8c2f64ebc93b2f"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-768.avif",
+            "bytes": 23927,
+            "sha256": "a318c4487b7d7edeaf44e01ee4d1eec0641e21c9d6de4768ea3f13ff7b5f49a5"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-1024.avif",
+            "bytes": 34222,
+            "sha256": "1feda5bc65a723fffef0484141e65dccd62bf95f8db31a0753f579d49504d44c"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-1280.avif",
+            "bytes": 45929,
+            "sha256": "279abf78c31e03e4b463586231cdb7937ea26aa45c9908782a45a58baa0f9a12"
+          }
+        ]
+      }
+    },
+    "/J7FqPa_서울 밤도깨비 야시장(1).webp": {
+      "width": 5472,
+      "height": 3648,
+      "bytes": 4645048,
+      "sha256": "8b6b751dc3032a93f30fc9e08e0efd52d8620c56d1158ca00255e78926ce3f2b",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-128.webp",
+          "bytes": 3408,
+          "sha256": "19f7295b9203cabf1ed01dff66f7f64659528e4787b69e1dcb2b3f9a12b3e6b3"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-192.webp",
+          "bytes": 6424,
+          "sha256": "17ef14133a596e3f37dc35ab87207c2d31fda35d5a2e4449ba3e61f84ffdf8ac"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-256.webp",
+          "bytes": 10680,
+          "sha256": "305c70548d91144c21ff929543e9bec0a05a40bd75fae75ac001f45a4de0ea76"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-384.webp",
+          "bytes": 20096,
+          "sha256": "fed21a97cdb0ca3576d3b9f0621e2a57e7a152a8de484d36a52a3d9189f7f4c7"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-512.webp",
+          "bytes": 32310,
+          "sha256": "e43ad9dcd14ac9576baf23634820c58ac7ad9ce1f3f11a80508760b71879c7e4"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-768.webp",
+          "bytes": 60452,
+          "sha256": "ffb33cd0da415a05cc67259ae30b7523c0ab85206eb1819473d18ba1199dbc5d"
+        },
+        {
+          "width": 1024,
+          "height": 683,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-1024.webp",
+          "bytes": 105534,
+          "sha256": "7ec9ba1a794bcf45da7bd1be5a8b5bb7a4d6788e38fa6465db50006d4c3dfbac"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-1280.webp",
+          "bytes": 163126,
+          "sha256": "3d9476e3a3873f4b3533dc89336566517b2daef442fffc84667e33e92b638319"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-128.avif",
+            "bytes": 2554,
+            "sha256": "efbc8369f580681f48fb0e03249e58e998ba47cb8cb1f9896521b124105e69e9"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-192.avif",
+            "bytes": 4506,
+            "sha256": "55d01cb6228b711f0d02ec27728008587dd36e74b4df8cad1ffabf5fb121c82e"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-256.avif",
+            "bytes": 7039,
+            "sha256": "bb1c3e8e56070d8ce46f42c320869af19693f9a2cd2fcd0dd152ccb7fb91594b"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-360.avif",
+            "bytes": 11687,
+            "sha256": "3c46f435b661b23e1d1f0e1e0fd0be6314c0dcf099db421daa5b8df5831cf48d"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-480.avif",
+            "bytes": 18319,
+            "sha256": "8f8384de8769c4145d51f13bc5bf7e198e2200c757a318887a4289cadc3e372c"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-512.avif",
+            "bytes": 20031,
+            "sha256": "2beb4d1408b49eabed03ca5dea952ede5bb3b28c52f343475df804ae3b8832c7"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-768.avif",
+            "bytes": 36690,
+            "sha256": "bf54e019e9b546d23759013c8cd3197d11ab973adcc4476088c7bc2bff9bc146"
+          },
+          {
+            "width": 1024,
+            "height": 683,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-1024.avif",
+            "bytes": 60106,
+            "sha256": "13c4688cd9b63745e091ff98adf451c12cc83621bc6929c3aa15a5e3699aa842"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-1280.avif",
+            "bytes": 92286,
+            "sha256": "24e4b6b096464fd260b8275c33c38890f275060bd144c1f8a17979b8330d7a3b"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-128.avif",
+            "bytes": 1898,
+            "sha256": "c4d7e2e99a285f1f22d3ec254ea5c3cceadf10f120e61ff7458314405d0ead57"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-192.avif",
+            "bytes": 3763,
+            "sha256": "c90a595b03569ab0f518508098e53195a4c1bb7f1363cc50708f5bcd46875b9e"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-256.avif",
+            "bytes": 6039,
+            "sha256": "78591f692bd39fd7a6b751df20e0bcc8cd3f45364d8c51b8618ddbe529e54d25"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-360.avif",
+            "bytes": 10338,
+            "sha256": "57da64b49a5e4c74cb49ebdca1ec2c0e4b12ee095853bb5d49370363cc49cebf"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-480.avif",
+            "bytes": 15366,
+            "sha256": "e81dd412f038da15a98bd9d3e3071c196933de270b1523d939e4a86c74f0bbac"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-512.avif",
+            "bytes": 17008,
+            "sha256": "961fe2234fc57d502835061eaf4949c92f2528ba4fcd7d8ff0c00d901fe8b469"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-768.avif",
+            "bytes": 31735,
+            "sha256": "ab81cf22c7e34e3c2504e6ee565af50eb876565fad84c1d2ad9c559c0fb71df4"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-1024.avif",
+            "bytes": 51028,
+            "sha256": "96101ed60cf391ba192010dccd21ad087101d33b313e1c99befe59ccaed570ca"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-1280.avif",
+            "bytes": 76741,
+            "sha256": "2d6157f1f04eddd79bfaac405aae07bac45e8422a0b12b06109bafc5ad817825"
+          }
+        ]
+      }
+    },
+    "/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg": {
+      "width": 5464,
+      "height": 3640,
+      "bytes": 1922764,
+      "sha256": "bb42bade8c604c5a3adb8e94314640416dd646c18588415bda9adee52631e37b",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-128.webp",
+          "bytes": 2974,
+          "sha256": "fb1cc9a3ad57c65c47ad312d9f0ec78342902aa9c333f509fae28bf4339655be"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-192.webp",
+          "bytes": 5778,
+          "sha256": "731ef8d0ce13326cb5fc8655c85083902386699844fc100cead1e5f997dd9f9e"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-256.webp",
+          "bytes": 9292,
+          "sha256": "75615423ac89b7e9ed8814b77565d03b72b45db5fffc881971edc65b1d415dae"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-384.webp",
+          "bytes": 18092,
+          "sha256": "1c76944dd3f3a42d43e46b5595680cc1cf75d4921920dbb40e0d18621d3ae9b3"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-512.webp",
+          "bytes": 28936,
+          "sha256": "75342f4db512aec7b1849b87a61c2fd6411c3e7eb76ce73ac54e4b06e1dc82b0"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-768.webp",
+          "bytes": 60642,
+          "sha256": "95923146cef8931bceb0c3a6d626d64dd8614ca8344a4ceb4b95babda4153da5"
+        },
+        {
+          "width": 1024,
+          "height": 682,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-1024.webp",
+          "bytes": 100398,
+          "sha256": "ba288fe7ff64049d47c61194ec2dfc96420b22e299643bc70e0ccd8d4d81af89"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-1280.webp",
+          "bytes": 155702,
+          "sha256": "11f60a42285b910e7c70a09a631e08a895dd38c3cdeddd9531b25a872da172f8"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-128.avif",
+            "bytes": 2306,
+            "sha256": "d620ca76feebbed235e68e640ab6dfbc5ba274e19eebc93631fdf5879b4fa80e"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-192.avif",
+            "bytes": 4103,
+            "sha256": "68bc308bbc0ec407fe4d5821ee10327a508fcce9481c5fd9f574b9aa4e1fae40"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-256.avif",
+            "bytes": 6539,
+            "sha256": "85babcfcc53fd3af5f6ff6a503810addb92990105824a4ce8b36794b43151c42"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-360.avif",
+            "bytes": 10609,
+            "sha256": "a670f8fd8ae403f6b742a5cf1ee20c8c28b4933072db46986a19858f694597c1"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-480.avif",
+            "bytes": 16910,
+            "sha256": "f250a60558a7ca335da36986128b457fad544942fdb659ed82a360d68e2fd24d"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-512.avif",
+            "bytes": 18688,
+            "sha256": "654eab9fde7add160eb62cddfb10e125d9b332df0f09f31763e8998d3e052546"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-768.avif",
+            "bytes": 38355,
+            "sha256": "6dc8feee909b95333ec18ecedea20af4a95bd7c24199b881ea7fa667354bc3ac"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-1024.avif",
+            "bytes": 63583,
+            "sha256": "11de90d332740876914a3c43864e558b4bdb523954ee425fd0e2fbb46b79b1a6"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-1280.avif",
+            "bytes": 97463,
+            "sha256": "c1c28a68108f7ca8521bee2973275c01059dbfb8ef1f4b765d9b8ec77eb2aed6"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-128.avif",
+            "bytes": 1781,
+            "sha256": "3ae42ca7f07bbe46d5bff3673c63d442a15d17a29230c6431aa7a9c5d82f1aac"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-192.avif",
+            "bytes": 3597,
+            "sha256": "4c6850803a5a7752ab77697cad4b47b73b9f620a41c7fbff491c515ead3f2d03"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-256.avif",
+            "bytes": 5551,
+            "sha256": "b94d921f791732b3db1caf56941be8b64ac4d62a81d0ed3f6d005bae9f1be070"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-360.avif",
+            "bytes": 9681,
+            "sha256": "d49c9473e0c4242c7ea32cf77defebbccaaa10c19859bc4219cde1102f88343a"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-480.avif",
+            "bytes": 14646,
+            "sha256": "544d906585e3c35321fdaadd40d7ec6c21c05a9a312ae8637179c0801112250e"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-512.avif",
+            "bytes": 16338,
+            "sha256": "dfb8ddd8be4630e0d5839c2fbc198194dace1640db6555f8cb78e19bf11f8e68"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-768.avif",
+            "bytes": 34480,
+            "sha256": "c88d29dfbcaf3ac692bc75b3eeacf5b9653c5216bacae154280a11fa09e58160"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-1024.avif",
+            "bytes": 56673,
+            "sha256": "a91de106079f71546dad7e9b2e00fc0e6817dfc51d53f3dee4f2301dd520fca0"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-1280.avif",
+            "bytes": 87923,
+            "sha256": "c660ddc6339092035586b519610aeeeb2c7a1bac5e8ef3908225357ea62183af"
+          }
+        ]
+      }
+    },
+    "/region-ganghwa.webp": {
+      "width": 7008,
+      "height": 4672,
+      "bytes": 1409674,
+      "sha256": "579cdd52bf58067e7ba58bd9db85bc1934acc926153b41f912edd9d054e0d351",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-128.webp",
+          "bytes": 1768,
+          "sha256": "fbe9e1bd31be5672c24f1d2dc81b5d789fc097529d5ced8aa9bd3a8117e63e1c"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-192.webp",
+          "bytes": 3440,
+          "sha256": "2bf413299b653f5aa99eab638191549b995e4ff6b8e297b25e0ad7e0a61c63cc"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-256.webp",
+          "bytes": 5474,
+          "sha256": "bcb7dd1826b0188f054335f4b0b9db0fbb271861f2d35a38a26ac1edeedacb57"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-384.webp",
+          "bytes": 10908,
+          "sha256": "ba1a00304aac94a1f104ebcab3a805f1ab4a96208a9395be66219d76899d8952"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-512.webp",
+          "bytes": 17692,
+          "sha256": "70966fc9097e5dd5e2ec0477587008c9bcc1f8b8566c6a54e4ae906a1f49bb9f"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-768.webp",
+          "bytes": 33476,
+          "sha256": "3fa24a1fb37f432fe70ed5d6696a5e618e913b966354b8025b9d9581f2395979"
+        },
+        {
+          "width": 1024,
+          "height": 683,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-1024.webp",
+          "bytes": 54156,
+          "sha256": "705575b4375f0353c5cc7163040d0f1717762039a91b82072afaa28e4e62500e"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-1280.webp",
+          "bytes": 79706,
+          "sha256": "26d4a66f9b11be5043092b520a1d37c150ddd51242e68fbf5dfa048c964e1be3"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-128.avif",
+            "bytes": 1375,
+            "sha256": "3d7fd8265914e88f909d4d1d99b50b4959472f45880639be692966f14bd0038d"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-192.avif",
+            "bytes": 2563,
+            "sha256": "dcc7cc7df16b1ad6019dfeddab7c0947e5564fd87c1d7f0fbe6d790c79345021"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-256.avif",
+            "bytes": 4063,
+            "sha256": "d9280a3671366699723389cfb978fd0a78756cedc3d2ee2816c0db2b45b221ff"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-360.avif",
+            "bytes": 6992,
+            "sha256": "65f94c7154fdcf54b9e25b90d611e42593ea757d448e1b33bb75483864a6dfac"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-480.avif",
+            "bytes": 11560,
+            "sha256": "06cfe3678ab8e23638fc0c496252853ecdb8a742fcaf4ea2770f052f1ab04625"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-512.avif",
+            "bytes": 12857,
+            "sha256": "d75acbfef8431a01dc70f4403dcf4eb7eb13165bece772559143716aeeefcde0"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-768.avif",
+            "bytes": 25626,
+            "sha256": "caeb73f15bfe6d95d1600859f048535abb8befd8cd66b5ed03376ebe9aee948d"
+          },
+          {
+            "width": 1024,
+            "height": 683,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-1024.avif",
+            "bytes": 41484,
+            "sha256": "a2288dacf89846b9c52a7c53ec07dbdd2f6bd4c8b6769e97e705ab799176d74e"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-1280.avif",
+            "bytes": 60463,
+            "sha256": "84efc5f13ca99ea4a9137404d218503a960f2040479693f3032d3bdc13623e5c"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-128.avif",
+            "bytes": 1161,
+            "sha256": "e80cc57b8ef0329af543d63d63b0e17b6c78f2972b63cc915a16a414dbc7a8dd"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-192.avif",
+            "bytes": 2049,
+            "sha256": "db22ab986eb1d12f9b4f0352e0c10c1c77d8f816eb69a7e969fd7d39249a3d30"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-256.avif",
+            "bytes": 3201,
+            "sha256": "0fe3df589583a4ae39afff5ebe2d339b25537981c92e1cf7d7ba8e567606649a"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-360.avif",
+            "bytes": 5790,
+            "sha256": "beef88c1b115e2d6f76591b041e15556ff41e618ea70e51d484f1e4aae17dbba"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-480.avif",
+            "bytes": 9116,
+            "sha256": "b6624ea63591d0eab7a8287ae2ae949f0f5aa0f26c4cfddfcaa6864ee9f25363"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-512.avif",
+            "bytes": 10089,
+            "sha256": "c551859120f998cae77aced8cd654dfad41a72e86b623fcf44e2a27f27085a43"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-768.avif",
+            "bytes": 20330,
+            "sha256": "2aaed6af649f1ff7a710327a9b84e678d37daf3ec962bcb3482a7221a04a2982"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-1024.avif",
+            "bytes": 32867,
+            "sha256": "c8b127f3623352e8b415c9f75d8c5a2d2e72025bf5b2062cecc864a157c3eaf8"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-1280.avif",
+            "bytes": 48455,
+            "sha256": "6fe12e00ae5b2e2886e201a1f8cd70eb74a3abac9a69b379777614fe8da966ba"
+          }
+        ]
+      }
+    },
+    "/region-dmz.webp": {
+      "width": 5616,
+      "height": 3744,
+      "bytes": 1226960,
+      "sha256": "2f0f9fd58fb0317d6887d5007d4edfa4d43bfb73f71e4fa1865ff2ced6064f75",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-128.webp",
+          "bytes": 1750,
+          "sha256": "b1d05fa692151af87079deabc64628d19ebe285bdc6df70478224c6235ad73ad"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-192.webp",
+          "bytes": 3390,
+          "sha256": "f88fa092fcc2d7ab561f1735dc1bd5c429d6a367597a820537268eddaf15384f"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-256.webp",
+          "bytes": 5914,
+          "sha256": "7d2fc12c46ad98b4c7e93b4bfde34135569dbd591ec2b74ff409ea0397b828a5"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-384.webp",
+          "bytes": 12758,
+          "sha256": "829786f003535c91ad276eebccd6121c91b55e832501979bd9b2d9da2395ad46"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-512.webp",
+          "bytes": 21710,
+          "sha256": "e198e1ba55a225769c7b3f766147b1a732c8ea0d40f43cfda0028d16df740aa9"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-768.webp",
+          "bytes": 45384,
+          "sha256": "0c41465c7b952acdfd74fc1b673f6b05c578e82c7dfc89a5c294a7b0209b5422"
+        },
+        {
+          "width": 1024,
+          "height": 683,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-1024.webp",
+          "bytes": 76028,
+          "sha256": "7545c836ec3879126c53a46223b880998ede7a086dc652f7f7f9c5515c951b93"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-1280.webp",
+          "bytes": 113504,
+          "sha256": "3da893e7fc89794585ace3de21eb2471e63441c9ae763035b4b2c15d76132cf1"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-128.avif",
+            "bytes": 1523,
+            "sha256": "af4782c8d14c154add33d0ce5bbf6d5a6092e750b4e395e6373b23fa506292e9"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-192.avif",
+            "bytes": 2594,
+            "sha256": "2ea57e8162a7b29187a76e756c3ebf21cf406ec3d39acdcd122d79546c156bab"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-256.avif",
+            "bytes": 4549,
+            "sha256": "cce43a43d4c4499c1f67a40effaeaf233585fee61a036cf6e3ae94928d3163d1"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-360.avif",
+            "bytes": 8027,
+            "sha256": "51b0da18348a6ffa8724def45dda14220ff57b191dad8889c3399eada5165c34"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-480.avif",
+            "bytes": 13395,
+            "sha256": "400c18ab4363b5ac71c6fae147e3e76fe75280fd68844c693f84059a5bfd9bf7"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-512.avif",
+            "bytes": 15540,
+            "sha256": "b7916175e4ce6577794463a6f866f6e799fb586c51f699a97706c4bedc134aab"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-768.avif",
+            "bytes": 31933,
+            "sha256": "1d2607443ceaa80eca19d8f50ad8a1d331e110e9e09cc90ace85791f90f15312"
+          },
+          {
+            "width": 1024,
+            "height": 683,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-1024.avif",
+            "bytes": 54926,
+            "sha256": "f74fdf7c4183cd9418c5793ff165c034010c0f6c0ef09232ad4a87f468efb162"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-1280.avif",
+            "bytes": 82798,
+            "sha256": "77e82b3a2e8d6ee855cc55cdfb3baa99d697e4bb3cab40e7a9482242b80218af"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-128.avif",
+            "bytes": 1265,
+            "sha256": "d42543951b9a9ec5eb84f421f66c837c1f5db7157cd6f6a26229a86f6f6a264e"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-192.avif",
+            "bytes": 2148,
+            "sha256": "e68795cc1e3e914e321b79177d565c62565f835f47e667bdc359413929e6da3c"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-256.avif",
+            "bytes": 3599,
+            "sha256": "05614630bc5c98481840cbbbb472d0cb4f5301c4a2be61b413ee1e5cf10fa2ce"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-360.avif",
+            "bytes": 6825,
+            "sha256": "29b68ecc7c40448830f71d52742242228a252b3cf8ad09845e47dd0af771a8d6"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-480.avif",
+            "bytes": 11063,
+            "sha256": "4a72d9b48d70f222dad26af2fbd18f5e02699613e4f0dc497cfadda4805e52a0"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-512.avif",
+            "bytes": 12505,
+            "sha256": "c737a811f993eeacd9c167924200432e95641076ed9e50d5d6d4f29e27ad3d05"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-768.avif",
+            "bytes": 25888,
+            "sha256": "05c38673f34cd4a6cac5e981aa4bb6d786b645531c360206859353ec44ee9568"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-1024.avif",
+            "bytes": 44069,
+            "sha256": "83215349973e37bfc24e15b2b998d7edde2e616c7cb7af34d52aca749cf6342a"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-1280.avif",
+            "bytes": 66412,
+            "sha256": "e37380ac87fe26df0938d6df859218d00a8b3c2c92f8f1fdedac23bc34e47702"
+          }
+        ]
+      }
+    },
+    "/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg": {
+      "width": 5000,
+      "height": 3333,
+      "bytes": 2745394,
+      "sha256": "15ae0636030a76a693e0714bf6542696de04ebb691a4563385fcacf72b575189",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-128.webp",
+          "bytes": 4260,
+          "sha256": "c3fd0c58c2cfbc0f626868e2f23042a9f34311ce69731e6555117ec5e506de7c"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-192.webp",
+          "bytes": 8612,
+          "sha256": "2ed89aa724091bcd3b26b1afc70ca6b3022dafb84ab321b4709300186e914131"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-256.webp",
+          "bytes": 15032,
+          "sha256": "776a16eb7a73988196326acc8f173c5d8cecb706f2e59c05790f9ebf3c38a6b9"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-384.webp",
+          "bytes": 30514,
+          "sha256": "a1ace4efa031d73e4063b079192bbbe10329271c8d3511884b7b72a410cc8d6c"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-512.webp",
+          "bytes": 52514,
+          "sha256": "325de7e9e06745ef6e45e41fbe096dc05792a758cc84a448e0d4d6ef480f8690"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-768.webp",
+          "bytes": 115742,
+          "sha256": "616e785640aed7f657d83174375881d2e660fd7e96a7a35071fb72ddd463c47d"
+        },
+        {
+          "width": 1024,
+          "height": 682,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-1024.webp",
+          "bytes": 206100,
+          "sha256": "1e90710cf38e637dad0696d6ee1d9095755aebe6eb28b0c5817e01eba01a6598"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-1280.webp",
+          "bytes": 314994,
+          "sha256": "6b5290b50877c81d1a71ea7cc28f06905d2d16b1e42eddcbb6cc1a5617e452bb"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-128.avif",
+            "bytes": 2861,
+            "sha256": "78730544f0009795d487ad5390a006452de28d1a4108fe7cbcad90b26f322ea8"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-192.avif",
+            "bytes": 5648,
+            "sha256": "5338a773c629933bdf382ed6eeb44df40bb2f7c11021659028094c093015aaef"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-256.avif",
+            "bytes": 9293,
+            "sha256": "06b6040116c271922d02eb722c9c0655e14968d581f81422409cbfbae121e5b9"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-360.avif",
+            "bytes": 16688,
+            "sha256": "225b6ed4fe01dfdc7086677255dd3824bcc8aad0709160ab6c364aaa2654d8a8"
+          },
+          {
+            "width": 480,
+            "height": 319,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-480.avif",
+            "bytes": 27739,
+            "sha256": "f2d768a3d073f60732074637907460ca8b3895c136a63f9f9c753a792b69b208"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-512.avif",
+            "bytes": 31389,
+            "sha256": "eb02133c0bd3ace21b5b8bbe7f47cedf00229b464c3d1d2b0741c745eded1dec"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-768.avif",
+            "bytes": 67495,
+            "sha256": "a7beeccb48671ad04fc65249e0168ff78d27db1485c91b9204b70e7ca84cf059"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-1024.avif",
+            "bytes": 118946,
+            "sha256": "289b6005b4c711a28abf760c2ee55d96534f3cd1bb7052886ef8d5ba969d918b"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-1280.avif",
+            "bytes": 178749,
+            "sha256": "69e46fb396d76ca3ed9598ec7c5475a9691350fb93f407abfefeeb1ba3e4f3d6"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-128.avif",
+            "bytes": 2316,
+            "sha256": "da2744e47e43948d1281bbd80ca36611b36458703ccb9b1f2b75a9e503991c01"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-192.avif",
+            "bytes": 4511,
+            "sha256": "a62a0788d4c3ccefefb0435cb488d8464d02e44491f01431fd3162d75112907e"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-256.avif",
+            "bytes": 7495,
+            "sha256": "ca43ede516f3bf5e729bcb2bde06cbf3d6f20b5393b3710168f560baae6c7450"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-360.avif",
+            "bytes": 13931,
+            "sha256": "fc2092052067c6c25a23c009b4746822a7fea1fa29acae342a6e830b82e2e66b"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-480.avif",
+            "bytes": 22494,
+            "sha256": "af01f9633ba637f67e6fd9c182f07a5b507e1fd6b7940ff6f6ac0f7d31d30d0c"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-512.avif",
+            "bytes": 25336,
+            "sha256": "5a01dc69ea4d214149879c4d0e2c93636343979be0b8ce811bf5b3b4e8cf16f3"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-768.avif",
+            "bytes": 55162,
+            "sha256": "1597b61970449213e72477dc3d379c993aca1b4c23a13871935417af0aa7e725"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1024.avif",
+            "bytes": 95829,
+            "sha256": "b9a7ad9f49acc70f9fa353412807f8b3dac458c7c3adfb58c0f4c824d606eb85"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1280.avif",
+            "bytes": 144537,
+            "sha256": "162af1530f3cf5c9437fb58771fc8ec3a33ce02286ff960409c51952e4137320"
+          }
+        ]
+      }
+    },
+    "/Type1_불국사_두드림_z0WAPa.jpg": {
+      "width": 5507,
+      "height": 3766,
+      "bytes": 1901844,
+      "sha256": "dce12721f0b6b6316cceefe44340c3bd40e304da51a73a78e5ad6edfe1db65ee",
+      "variants": [
+        {
+          "width": 128,
+          "height": 87,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-128.webp",
+          "bytes": 4760,
+          "sha256": "4c370b72b0e2c955816e1adbb228dc5d3f33a7bc0394c2d55b719e22980354f1"
+        },
+        {
+          "width": 192,
+          "height": 131,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-192.webp",
+          "bytes": 9952,
+          "sha256": "909b13223b7857854816e5d83700f41806283d4f514a0f3bd6ded2793ff1928d"
+        },
+        {
+          "width": 256,
+          "height": 175,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-256.webp",
+          "bytes": 16708,
+          "sha256": "f81ffd8eacc231cee91466c0a27598c7c23b0828e73afbe0891aa65e1e34d06b"
+        },
+        {
+          "width": 384,
+          "height": 262,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-384.webp",
+          "bytes": 34510,
+          "sha256": "ceaf8c4461146d1081b35e32691051ad5779b4df44a26959ac07b5700704b50f"
+        },
+        {
+          "width": 512,
+          "height": 350,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-512.webp",
+          "bytes": 55874,
+          "sha256": "d3b0e85e5f52cf13dfd901e036339350b1e6a9eaa9301ad442533351b340e0f0"
+        },
+        {
+          "width": 768,
+          "height": 525,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-768.webp",
+          "bytes": 111882,
+          "sha256": "84c1fdf5de7f401c81399d01214bad1fca28b1037c557ecc7c6f0565b05225d8"
+        },
+        {
+          "width": 1024,
+          "height": 700,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-1024.webp",
+          "bytes": 171198,
+          "sha256": "a8282d29540448c3643071ff07bef79e0f73111b5ce2467dec67bfabed180d1c"
+        },
+        {
+          "width": 1280,
+          "height": 875,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-1280.webp",
+          "bytes": 244618,
+          "sha256": "96f9f532df85cfcc2f4a1318b3c63a656c17d8d7709a14fda38728ffc6d6300d"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 87,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-128.avif",
+            "bytes": 3029,
+            "sha256": "a1fec299883e106edbb0ff0a60e44a8631d8fdbda7ea2570391976a39b427527"
+          },
+          {
+            "width": 192,
+            "height": 131,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-192.avif",
+            "bytes": 6187,
+            "sha256": "4b30e9d2c3dc16173e863fad2a7ade27d6410dc25eaadf103b86ba8b9b68c4a5"
+          },
+          {
+            "width": 256,
+            "height": 175,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-256.avif",
+            "bytes": 10120,
+            "sha256": "27b9aaff248daeaa3bb6a6f81f3d39e38a74484327995bedc35150e0b7f3b4ba"
+          },
+          {
+            "width": 360,
+            "height": 246,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-360.avif",
+            "bytes": 19069,
+            "sha256": "d1d7684b37dc91cd02d42ba6c2689db5b477395b91ef964a75f9e4c99f238f64"
+          },
+          {
+            "width": 480,
+            "height": 328,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-480.avif",
+            "bytes": 31166,
+            "sha256": "9a1fb1e9f3505821276e50f047586752809809d06b1c187ec9839dcbf14473c6"
+          },
+          {
+            "width": 512,
+            "height": 350,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-512.avif",
+            "bytes": 34985,
+            "sha256": "189076bc26de1057b1c996ede13767b1f8b01be59898abd879f84764d7ddebc2"
+          },
+          {
+            "width": 768,
+            "height": 525,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-768.avif",
+            "bytes": 71007,
+            "sha256": "2fff8bbc6828fcb9cd75ed7efc83d75d8fe8c5a51bd435346d1cab139971778b"
+          },
+          {
+            "width": 1024,
+            "height": 700,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1024.avif",
+            "bytes": 112098,
+            "sha256": "ff419e7a9aed3a8ddcb30873256c349656bb516fab8ba07a53d00712dfaf395d"
+          },
+          {
+            "width": 1280,
+            "height": 875,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1280.avif",
+            "bytes": 160665,
+            "sha256": "a75ea7a6d9db2fd12be523f6948d6a664a5cb4b760b4800aec59cc1269101103"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-128.avif",
+            "bytes": 2304,
+            "sha256": "1ada93d0053321d35940d32b63a31836a5ddf63b42b505c362a3ee7535e64017"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-192.avif",
+            "bytes": 4785,
+            "sha256": "b36f06c756f076ad5faddd5841041620c7c94380eda817aab1c3787829550523"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-256.avif",
+            "bytes": 7934,
+            "sha256": "b9deb705e43ead0fba16c66ab9d01a5342a9a86a5f23336e594d42430652853d"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-360.avif",
+            "bytes": 14203,
+            "sha256": "277f3a6b3afe1fdd3258e0b404e96cfd075d4c963733a535556268b3d7812ddc"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-480.avif",
+            "bytes": 23336,
+            "sha256": "2332e0ef03ef3b0d836e22fc1e2f16e7e6c05d0e3b1c0a4f2fd196c76358b14a"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-512.avif",
+            "bytes": 25848,
+            "sha256": "f711193c3f2c7b199059e4c8b6cfdd947584a1e126c5f95bb834dc67748da80e"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-768.avif",
+            "bytes": 52511,
+            "sha256": "f91509605023c7565b625edf7f6a57b26806d553bb0dc8edd50335979f070fea"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1024.avif",
+            "bytes": 81984,
+            "sha256": "6ed3ec4c02d0c9aed4d8c90d520c26eaf995961303b82b82f47980f2ff42a543"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1280.avif",
+            "bytes": 119348,
+            "sha256": "1d8f0f091dea0db5963619e55e0a0acb0fa360e06258f6de9c630bd4d037ec65"
+          }
+        ]
+      }
+    },
+    "/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg": {
+      "width": 4121,
+      "height": 2741,
+      "bytes": 770392,
+      "sha256": "fb7f842227a6837b065e9a53a326892b21f3b942495d50930269766143ae9ecd",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-128.webp",
+          "bytes": 2480,
+          "sha256": "2116b3bea1b7190b2d1e06502a1117c145007539f21925f79e3f916df0d3183c"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-192.webp",
+          "bytes": 4736,
+          "sha256": "0aeb3ef7b83e3f557d3c22f74a30e98e393368de769c0c07e02df3c1635f64e9"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-256.webp",
+          "bytes": 7592,
+          "sha256": "0c74cf95a206ae595a48f9b9cbdbab610e301f3ea4f44ec546a9170d66298875"
+        },
+        {
+          "width": 384,
+          "height": 255,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-384.webp",
+          "bytes": 14708,
+          "sha256": "e317f2ac14bcddc618d0db2cc197494cc5cf181993c2a08ed3f5c87efb8f74ef"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-512.webp",
+          "bytes": 24430,
+          "sha256": "673110086d8b71a5164ebe4ddbba56ef422213b79b5eeee1b61c77af196f380b"
+        },
+        {
+          "width": 768,
+          "height": 511,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-768.webp",
+          "bytes": 47668,
+          "sha256": "3840430a8b0ed2d7d2d94f9f017c7b6dc9ebf2412b2e28d848d10ce1b5a90875"
+        },
+        {
+          "width": 1024,
+          "height": 681,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-1024.webp",
+          "bytes": 79694,
+          "sha256": "f3e3dccedc22f49810736e767a84ae53e7c283341adb9584bfeb9cb20743a1ec"
+        },
+        {
+          "width": 1280,
+          "height": 851,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-1280.webp",
+          "bytes": 114140,
+          "sha256": "b2c075c48b7451148320d7aa7e1e252e5269e7589145197091236b26470f1d1d"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-128.avif",
+            "bytes": 1984,
+            "sha256": "53214828667440d6b4cc10743f802325f918aa8f2bfe3c5ff717d9b6d58ee331"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-192.avif",
+            "bytes": 3337,
+            "sha256": "53a458324bfb935050ac635558fd0cc8c1557d03d4651e3bb74d6f9ef7a1a2f0"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-256.avif",
+            "bytes": 5214,
+            "sha256": "f6628a2bd100e822723099522c6ea7a2d78ee63ca8e4e5058791fd2f37ad83ad"
+          },
+          {
+            "width": 360,
+            "height": 239,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-360.avif",
+            "bytes": 8748,
+            "sha256": "af0eba8dc4641db87404806732d937897919ee249149245c68d4a9ffc5d32521"
+          },
+          {
+            "width": 480,
+            "height": 319,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-480.avif",
+            "bytes": 13594,
+            "sha256": "a8b477a1ccaec7fb83b1e40417927a8501e7d5c7d97eacb291f302eb823b14cf"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-512.avif",
+            "bytes": 15217,
+            "sha256": "0fa936aa0f7a31247fbcb4252b24d84d5044abf679ac39c3447d98339b11dce3"
+          },
+          {
+            "width": 768,
+            "height": 511,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-768.avif",
+            "bytes": 29270,
+            "sha256": "78262b97f0aaed2e7b44bfd06831607f41965fcddba7974e69bc6af68e64b175"
+          },
+          {
+            "width": 1024,
+            "height": 681,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-1024.avif",
+            "bytes": 49218,
+            "sha256": "fa2179c1203a885e8f31f5d6f9abbe1b1e016942764405828e3c7cdb478c52d3"
+          },
+          {
+            "width": 1280,
+            "height": 851,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-1280.avif",
+            "bytes": 72654,
+            "sha256": "81ec8ed3035cff6324b2e2f0ea983c57b520c30acd68b0c2714ca9214d36dbf8"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-128.avif",
+            "bytes": 1661,
+            "sha256": "84237408ec342d74f4b98f4ca864d99b06a27881a41800755797800787583831"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-192.avif",
+            "bytes": 3254,
+            "sha256": "2e65e26459236b2d5e604b820a5408f50e2873d47d98d530015bfae4dbc5fb83"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-256.avif",
+            "bytes": 4680,
+            "sha256": "5c4c9e3e4b1deabde4683201355bb6c50020ae278ccfb634ab0d8bf44b36e454"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-360.avif",
+            "bytes": 7941,
+            "sha256": "79acc9e8b4bd3dd5feea8d59542d1332ffc6b136e90d14ea7b446a71e858b4d0"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-480.avif",
+            "bytes": 13271,
+            "sha256": "098cf144c918c155e4ddfd8717e733caba2ea237cb2b15c301ce4f4cf945c7be"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-512.avif",
+            "bytes": 14424,
+            "sha256": "1d9261c2e3b5c17022ea99c27dbdfbd87373e7cfc6d0f3a050067e65ab0f6482"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-768.avif",
+            "bytes": 28087,
+            "sha256": "bf207a15a197a354929de55ca6f972504d1c2651533a6b283b3990a87dcf00c1"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-1024.avif",
+            "bytes": 47440,
+            "sha256": "3473a5d2ef13c0362b648a8ec66090677892a1f192917991554c284104e9df1f"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-1280.avif",
+            "bytes": 69567,
+            "sha256": "1d688fb96b6f92ae17a20b659619f8117dfc8b7980a6b7e5478ec7a009bcfd98"
+          }
+        ]
+      }
+    },
+    "/hero-gyeongju.webp": {
+      "width": 5464,
+      "height": 3640,
+      "bytes": 1806986,
+      "sha256": "bcc2c67cfa2fcf1c04afe5e96ad1a1ce6c99616af0ff68a1eefb18feb8ca1119",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-128.webp",
+          "bytes": 2928,
+          "sha256": "2f41a015dbe7f3618d463de638bef59f929e3effeb1064e2719cb78c84354686"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-192.webp",
+          "bytes": 5432,
+          "sha256": "5ca30f1854dee769694e8f25006b80c6cacae920908e397a46f2ae2e478115ef"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-256.webp",
+          "bytes": 9264,
+          "sha256": "01b921594de7fb9789ec0827d4d2108342b4fba710a5610bae8f473936009528"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-384.webp",
+          "bytes": 18270,
+          "sha256": "4bb236ca1d5318a8d8289bccf3de15ab88d9b9cf6a3dd45cb4065df09fb09073"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-512.webp",
+          "bytes": 31184,
+          "sha256": "01725195e8e7b75a04512f84d1c22d33aa99e85714a9aa83506636193aa01e01"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-768.webp",
+          "bytes": 63570,
+          "sha256": "fee9fe48d276760cefc6719d264414753b50d30621250cdd4698bc0d6d5455d7"
+        },
+        {
+          "width": 1024,
+          "height": 682,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-1024.webp",
+          "bytes": 110248,
+          "sha256": "a82f9657484a883e13cd5765374d5d4c2fd9b126f656e8fffa1d80c734bf5783"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-1280.webp",
+          "bytes": 164214,
+          "sha256": "866ad3da2a1abf4c204af725956f87d07b1fff1a8c491f3d1a5cc20a2fa24cea"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-128.avif",
+            "bytes": 1989,
+            "sha256": "6d479938a8915141c589762ca21ccea99bce59a56ec3faa5f6bebc0de9f3c064"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-192.avif",
+            "bytes": 3647,
+            "sha256": "722a7ebce56720764561e5b4b940353ebc1c6c9e75ca9255d5bf939c9153964d"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-256.avif",
+            "bytes": 6110,
+            "sha256": "54d81c4b548252176df50e40ff8574c97b22b91e7ac7e75ec5cd306c1a6980ff"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-360.avif",
+            "bytes": 10317,
+            "sha256": "aa23cc240953415109b8669f0f3864dae619fa5748735b604ac2c40cdc4729d5"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-480.avif",
+            "bytes": 17196,
+            "sha256": "046e9f0904cbae573b8a3878dd867dcbd4c4397293bdfcbfcb8f9faa807272f3"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-512.avif",
+            "bytes": 19703,
+            "sha256": "cc4358bf18c44842cea1737e08386f27627f6220e48dd610f84225edb16ec461"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-768.avif",
+            "bytes": 39286,
+            "sha256": "56db1763154a612079901a85563eb932e9eebc7ae7eda69688385534ac929c12"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-1024.avif",
+            "bytes": 66280,
+            "sha256": "68eea18fa75068659e9dbc9a79f36e38006aaab4bf34c6ea2027b43649e560f4"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-1280.avif",
+            "bytes": 99248,
+            "sha256": "cc5d56a3ca890c2985562f1a80277da9e9d21c8a945a5f4a2fd614cff564fb16"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-128.avif",
+            "bytes": 1603,
+            "sha256": "bdd4d42c2b527ca479700ecf76d8c7309a484ad198d63757a83cd357587db0f6"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-192.avif",
+            "bytes": 3195,
+            "sha256": "e49e95fe6aacdba909d0a83d36fd759a990e8c1bbd571bb2348e83d814603818"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-256.avif",
+            "bytes": 4720,
+            "sha256": "5a28345534a2b63eb360bdd6c042bf08b0ad0cbe1ff2b7013c506d0e30024cb8"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-360.avif",
+            "bytes": 8938,
+            "sha256": "b4e205d629ee15f1c3fadff4d9890b54d53dde73500c56380930918653b48783"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-480.avif",
+            "bytes": 14387,
+            "sha256": "e92255e68864609b23d02c299abfcf15c2800d13e4613dca38209c3901532797"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-512.avif",
+            "bytes": 15843,
+            "sha256": "688123a65745a98eb6696c004dffd786c903865b30fd9443e3efac2ecfbbc81d"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-768.avif",
+            "bytes": 32116,
+            "sha256": "fc77fa146445aaf9fd72ecda43104aee451193a5acfc3608f9655bc6af867983"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-1024.avif",
+            "bytes": 53354,
+            "sha256": "ac20c497358b1a3c3b57fe42f7d119d0eb82de2ff0deee1ca06730ca88a6a565"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-1280.avif",
+            "bytes": 79966,
+            "sha256": "5ee535d8916afd031f38932f513ffc8580c5d4152f68fcfda60d318d0680f15e"
+          }
+        ]
+      }
+    },
+    "/region-seoul.jpg": {
+      "width": 3744,
+      "height": 5616,
+      "bytes": 2645575,
+      "sha256": "11da41f64bce17152f41b9b5d952c8d1aac9df2e339c56f876eda4da92e03ac0",
+      "variants": [
+        {
+          "width": 128,
+          "height": 192,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-128.webp",
+          "bytes": 8850,
+          "sha256": "055d8cea4e1a5f223f57d718372d54a12419e8761c27b39f83008faa69ed1ac1"
+        },
+        {
+          "width": 192,
+          "height": 288,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-192.webp",
+          "bytes": 18644,
+          "sha256": "f40989635e1f52705ac27809b3e684807883bbe4011126a5baa08674f139f4a5"
+        },
+        {
+          "width": 256,
+          "height": 384,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-256.webp",
+          "bytes": 31362,
+          "sha256": "4a22a130e3e007c4ff1f635582c8096524b414ca3b9f291ed33caf8ab2390491"
+        },
+        {
+          "width": 384,
+          "height": 576,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-384.webp",
+          "bytes": 66126,
+          "sha256": "46eb5821764c750547170be6cb58fdd5439725f66baefbe865a240359297aa87"
+        },
+        {
+          "width": 512,
+          "height": 768,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-512.webp",
+          "bytes": 116358,
+          "sha256": "18086494e94caeea468ab6ac15f03849d2389a68701b0629419a730882aa74da"
+        },
+        {
+          "width": 768,
+          "height": 1152,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-768.webp",
+          "bytes": 246154,
+          "sha256": "b7ff5414cf2631b7ce3c7ca2640f60229c9e4e2f09249a34db0e096cc93065f7"
+        },
+        {
+          "width": 1024,
+          "height": 1536,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-1024.webp",
+          "bytes": 396158,
+          "sha256": "133f6217f009769f816b0b5b0589eccba4491110d89f4ec092af484bbd86a6fa"
+        },
+        {
+          "width": 1280,
+          "height": 1920,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-1280.webp",
+          "bytes": 583892,
+          "sha256": "189b8189e88eb6be2b1840ea91dc072264083384db156b06446ed4394678733b"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 192,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-128.avif",
+            "bytes": 5827,
+            "sha256": "88c04b66f63ce6992422afa2a585f10ea29f76fb9e2d9590fd2970f9a9970f07"
+          },
+          {
+            "width": 192,
+            "height": 288,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-192.avif",
+            "bytes": 12191,
+            "sha256": "37025831688f1a44ef54333d018346c1766b02f1293c71382aa6c7e8fc5d0209"
+          },
+          {
+            "width": 256,
+            "height": 384,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-256.avif",
+            "bytes": 20525,
+            "sha256": "93dc07ddec02832dc8c971e6b5b3ba4e614636adbe4bd9cb5ef36dd4670ac134"
+          },
+          {
+            "width": 360,
+            "height": 540,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-360.avif",
+            "bytes": 38921,
+            "sha256": "5bb76b607bc46d74c2f807571c5284386d0ccb5025cc6d16a1e538fd2c85f002"
+          },
+          {
+            "width": 480,
+            "height": 720,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-480.avif",
+            "bytes": 69599,
+            "sha256": "a2dae3866018bacc1bba4770fd98138ff52bec0773ff124d4231c75fedfe08c6"
+          },
+          {
+            "width": 512,
+            "height": 768,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-512.avif",
+            "bytes": 78029,
+            "sha256": "ad8fabeb92306524cb5a4ddb564638202868c9cf25803a8ad01125edabc2dad3"
+          },
+          {
+            "width": 768,
+            "height": 1152,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-768.avif",
+            "bytes": 165201,
+            "sha256": "89f514c7df2d089ea20899312d4720a9ea4df8c88191e12bb8e685ca0a6cd424"
+          },
+          {
+            "width": 1024,
+            "height": 1536,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-1024.avif",
+            "bytes": 267971,
+            "sha256": "3af0aff0b7326212b64e62f91e127743faa305b6efa9183e875196dfeaffeb04"
+          },
+          {
+            "width": 1280,
+            "height": 1920,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-1280.avif",
+            "bytes": 384046,
+            "sha256": "afa36329c240055cf720420989700864466822a710551299fbaec36dd2041772"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "height": 96,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-128.avif",
+            "bytes": 3231,
+            "sha256": "3c1d98ede399b56006783a06cc2582c8fd46c8afea2aad8f0aac09ab2f50d80c"
+          },
+          {
+            "width": 192,
+            "height": 144,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-192.avif",
+            "bytes": 6550,
+            "sha256": "4d95dce2ff71543d6626b66658a1478c791efb1f846bd26cca6748faec2c441e"
+          },
+          {
+            "width": 256,
+            "height": 192,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-256.avif",
+            "bytes": 10769,
+            "sha256": "72069d159a8cffb48255bea8e22e9e3a3cfd18baf560b6fa6c054a33c660496b"
+          },
+          {
+            "width": 360,
+            "height": 270,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-360.avif",
+            "bytes": 20005,
+            "sha256": "790644c7e861769b7ca86aa2795901d39bc57ee0104bcb1eb11bfe436a3399e2"
+          },
+          {
+            "width": 480,
+            "height": 360,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-480.avif",
+            "bytes": 34841,
+            "sha256": "b47c0245fbdf8556a34d1447617e6dd8d1e8dce8116b5b444ed1482e2c6527e1"
+          },
+          {
+            "width": 512,
+            "height": 384,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-512.avif",
+            "bytes": 38867,
+            "sha256": "a076390fccce90ea971b20f716d3fda71f126642052397bc392bd2b0b241b07c"
+          },
+          {
+            "width": 768,
+            "height": 576,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-768.avif",
+            "bytes": 84477,
+            "sha256": "d000010c53f105f4fe2f82192efdbf41cecf6318f2e4f4efaad6253cd82e053e"
+          },
+          {
+            "width": 1024,
+            "height": 768,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-1024.avif",
+            "bytes": 135338,
+            "sha256": "f317c4aec6705951235a3943eedb1f4a1327b57be5d97840ac42cf70f28d9cb4"
+          },
+          {
+            "width": 1280,
+            "height": 960,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-1280.avif",
+            "bytes": 194315,
+            "sha256": "cffaea1a41d649729071a0c6e36142322f83ee8c38d92b39b67c45c3c5cea2c2"
+          }
+        ]
+      }
+    },
+    "/region-busan.webp": {
+      "width": 5031,
+      "height": 3479,
+      "bytes": 1344306,
+      "sha256": "cb243d969fecd83cf9dadf6d5bb32a1242ede90440bc61f9fafa582a969b2df6",
+      "variants": [
+        {
+          "width": 128,
+          "height": 89,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-128.webp",
+          "bytes": 3846,
+          "sha256": "ba60a750ae3b0a3a24f1b660546469239a94f1acb60c3ed0cfa76dc7c703af39"
+        },
+        {
+          "width": 192,
+          "height": 133,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-192.webp",
+          "bytes": 7978,
+          "sha256": "b70d408e45b0d4f1f1a2a548943a245094afb494b16c0abe5627166734256e02"
+        },
+        {
+          "width": 256,
+          "height": 177,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-256.webp",
+          "bytes": 13038,
+          "sha256": "898febc6af1f2ac80baa7ff258a3e61ee831e25eebbc1ef71c122e96bd38e643"
+        },
+        {
+          "width": 384,
+          "height": 266,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-384.webp",
+          "bytes": 26462,
+          "sha256": "dd4743b8369b4604135fa4609b644bc7bac190ac7ea7e4154bb4acecb6b86073"
+        },
+        {
+          "width": 512,
+          "height": 354,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-512.webp",
+          "bytes": 43850,
+          "sha256": "c09d603a94d51637205d381f1a520f39b96703c9f30d0cd449eb11d9a6925d9d"
+        },
+        {
+          "width": 768,
+          "height": 531,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-768.webp",
+          "bytes": 84808,
+          "sha256": "2b1e1599fdae2d45b2704708a3a07e15383f4bf299f4ea7a9bbbc47712d343a2"
+        },
+        {
+          "width": 1024,
+          "height": 708,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-1024.webp",
+          "bytes": 136136,
+          "sha256": "6ca8ddf37fb3d693170e4f757413d989b041202dd2c60501687607c4b2530c4c"
+        },
+        {
+          "width": 1280,
+          "height": 885,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-1280.webp",
+          "bytes": 191508,
+          "sha256": "86b7656e442c69850fe634bd6b80cc653ba31f37f629e4bd0c2504bf63d03f72"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 89,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-128.avif",
+            "bytes": 2678,
+            "sha256": "6a0bedddb4b175fbc917b96b9150d7699fff108ea45c210301b5a9819054dc79"
+          },
+          {
+            "width": 192,
+            "height": 133,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-192.avif",
+            "bytes": 5263,
+            "sha256": "10d4632c01272ecab79e1e47e8779dc1b502a175cb825e40432b56acf778fad9"
+          },
+          {
+            "width": 256,
+            "height": 177,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-256.avif",
+            "bytes": 8546,
+            "sha256": "6eada96a3ec203a74ec09bdf24b1ef4c2d0f32fbdce57796c6df87dac6bd0b9e"
+          },
+          {
+            "width": 360,
+            "height": 249,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-360.avif",
+            "bytes": 15143,
+            "sha256": "a27fedac6c6ca7cf1184edc30889e1852aabccd3b5dd1c6f7312d789141f250c"
+          },
+          {
+            "width": 480,
+            "height": 332,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-480.avif",
+            "bytes": 24240,
+            "sha256": "0534c30039133ee726b983a9433cae370c4d22f75418d8fa6af4c34bd06b5053"
+          },
+          {
+            "width": 512,
+            "height": 354,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-512.avif",
+            "bytes": 26672,
+            "sha256": "722d3b0800ccc169fd0c1d76644889adbd047b9bb6ae970efea9f637eb89e0b7"
+          },
+          {
+            "width": 768,
+            "height": 531,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-768.avif",
+            "bytes": 52422,
+            "sha256": "8ecf990e311821d501b5d3f0060cfbe870bde4f53f14b7057f7e17e8907dd1ce"
+          },
+          {
+            "width": 1024,
+            "height": 708,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-1024.avif",
+            "bytes": 82977,
+            "sha256": "f2c061827c5b6375fc7ec21a3edbfc90712578031e60e6746d85c3d3e52a881b"
+          },
+          {
+            "width": 1280,
+            "height": 885,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-1280.avif",
+            "bytes": 118710,
+            "sha256": "a87567e6b127cf2fad3592b37df72867543e629446e41b13fab49443362301a2"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "height": 89,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-128.avif",
+            "bytes": 2652,
+            "sha256": "1d0cfb4728a21b6b4c51d7630a1b96cb6a4574f42bc872707a212dbd239b495a"
+          },
+          {
+            "width": 192,
+            "height": 133,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-192.avif",
+            "bytes": 5263,
+            "sha256": "10d4632c01272ecab79e1e47e8779dc1b502a175cb825e40432b56acf778fad9"
+          },
+          {
+            "width": 256,
+            "height": 177,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-256.avif",
+            "bytes": 8546,
+            "sha256": "6eada96a3ec203a74ec09bdf24b1ef4c2d0f32fbdce57796c6df87dac6bd0b9e"
+          },
+          {
+            "width": 360,
+            "height": 249,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-360.avif",
+            "bytes": 15143,
+            "sha256": "a27fedac6c6ca7cf1184edc30889e1852aabccd3b5dd1c6f7312d789141f250c"
+          },
+          {
+            "width": 480,
+            "height": 332,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-480.avif",
+            "bytes": 24240,
+            "sha256": "0534c30039133ee726b983a9433cae370c4d22f75418d8fa6af4c34bd06b5053"
+          },
+          {
+            "width": 512,
+            "height": 354,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-512.avif",
+            "bytes": 26672,
+            "sha256": "722d3b0800ccc169fd0c1d76644889adbd047b9bb6ae970efea9f637eb89e0b7"
+          },
+          {
+            "width": 768,
+            "height": 531,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-768.avif",
+            "bytes": 52422,
+            "sha256": "8ecf990e311821d501b5d3f0060cfbe870bde4f53f14b7057f7e17e8907dd1ce"
+          },
+          {
+            "width": 1024,
+            "height": 708,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-1024.avif",
+            "bytes": 82977,
+            "sha256": "f2c061827c5b6375fc7ec21a3edbfc90712578031e60e6746d85c3d3e52a881b"
+          },
+          {
+            "width": 1280,
+            "height": 885,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-1280.avif",
+            "bytes": 118710,
+            "sha256": "a87567e6b127cf2fad3592b37df72867543e629446e41b13fab49443362301a2"
+          }
+        ]
+      }
+    },
+    "/region-gyeongju.jpg": {
+      "width": 5616,
+      "height": 3696,
+      "bytes": 2780478,
+      "sha256": "2222f1198c538a92be3a76d42ab316d99e327f02df5244be2dde725b7cbcbce6",
+      "variants": [
+        {
+          "width": 128,
+          "height": 84,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-128.webp",
+          "bytes": 3382,
+          "sha256": "8be7c1ba9786e6c3cce612c425688fd20bb5b596aa00106ca04ca09d42b55d32"
+        },
+        {
+          "width": 192,
+          "height": 126,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-192.webp",
+          "bytes": 6822,
+          "sha256": "f2053ce55572ec25321973557ffb1b3c3f80b25699e496999331a46a7f625081"
+        },
+        {
+          "width": 256,
+          "height": 168,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-256.webp",
+          "bytes": 11602,
+          "sha256": "c9248d60176b8ff260843d2ea1c4285c5ddc2d7c38367672e357ae8c8cb168ed"
+        },
+        {
+          "width": 384,
+          "height": 253,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-384.webp",
+          "bytes": 24386,
+          "sha256": "934939f17dbb37574aa2989660ace9a8cd5debf3f40e48a3d59ac9643a6a0fd4"
+        },
+        {
+          "width": 512,
+          "height": 337,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-512.webp",
+          "bytes": 41070,
+          "sha256": "9b5851c8e1b953060cf2cddd781616f30455ceccaf22c4ac582e6a632f19740a"
+        },
+        {
+          "width": 768,
+          "height": 505,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-768.webp",
+          "bytes": 91326,
+          "sha256": "f87eaa7cbef98b92a744b7b57fd4517641a29f31b870e39f7b11c17aa705a69a"
+        },
+        {
+          "width": 1024,
+          "height": 674,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-1024.webp",
+          "bytes": 156268,
+          "sha256": "686d9cebcbc2c0e885132a75eac5546763b9731a40764714ca836e2887bc8d48"
+        },
+        {
+          "width": 1280,
+          "height": 842,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-1280.webp",
+          "bytes": 249562,
+          "sha256": "7d777d801540bb9f6c10e029615b002882e0052d6c0be0a3878e3f5512622349"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 84,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-128.avif",
+            "bytes": 2297,
+            "sha256": "01e5361980d9b052b0d49ddaa29aa6dcaeaf1e6e78c6750ef79bea19d21fbed2"
+          },
+          {
+            "width": 192,
+            "height": 126,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-192.avif",
+            "bytes": 4668,
+            "sha256": "2482d5cc182f1596b1035d772a32461edcf0d3de41d630afae7708cef83c382f"
+          },
+          {
+            "width": 256,
+            "height": 168,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-256.avif",
+            "bytes": 7232,
+            "sha256": "8b3d87b318b21ee26c9cf8f5a6795718b6796db87e736acabac7fd40ebb09309"
+          },
+          {
+            "width": 360,
+            "height": 237,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-360.avif",
+            "bytes": 13223,
+            "sha256": "e4dfc328a18e9eea222de2247858b1e0a9c4a0b817a5adc7880e9cae2cbb5399"
+          },
+          {
+            "width": 480,
+            "height": 316,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-480.avif",
+            "bytes": 22411,
+            "sha256": "63519ccc718abcc50725a7b3c70d75b08f2ff491229fb0fc67d473149be284b0"
+          },
+          {
+            "width": 512,
+            "height": 337,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-512.avif",
+            "bytes": 25090,
+            "sha256": "1f0b063d7c929f7a920040d3a881c7ad763b3b93905788b8e0ad74ed5532408f"
+          },
+          {
+            "width": 768,
+            "height": 505,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-768.avif",
+            "bytes": 53905,
+            "sha256": "31cbdac31d1433b0b93f699c84bc72804c17fd6f0b5e19a2218f6d5d152fd31e"
+          },
+          {
+            "width": 1024,
+            "height": 674,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-1024.avif",
+            "bytes": 91520,
+            "sha256": "85e929a7f22ef513ae57108f4797709950f05d2f49831d810a7ead50ed365033"
+          },
+          {
+            "width": 1280,
+            "height": 842,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-1280.avif",
+            "bytes": 147585,
+            "sha256": "1df4bfd1a60715758425b485514c585f588bced1024026b10edbb79625267cf1"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "height": 84,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-128.avif",
+            "bytes": 2297,
+            "sha256": "01e5361980d9b052b0d49ddaa29aa6dcaeaf1e6e78c6750ef79bea19d21fbed2"
+          },
+          {
+            "width": 192,
+            "height": 126,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-192.avif",
+            "bytes": 4668,
+            "sha256": "2482d5cc182f1596b1035d772a32461edcf0d3de41d630afae7708cef83c382f"
+          },
+          {
+            "width": 256,
+            "height": 168,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-256.avif",
+            "bytes": 7232,
+            "sha256": "8b3d87b318b21ee26c9cf8f5a6795718b6796db87e736acabac7fd40ebb09309"
+          },
+          {
+            "width": 360,
+            "height": 237,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-360.avif",
+            "bytes": 13357,
+            "sha256": "2ba9da965b35f9ef343a25bf336fba62f6c12308f08a4e4a9949a142b9ea8ef3"
+          },
+          {
+            "width": 480,
+            "height": 316,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-480.avif",
+            "bytes": 22418,
+            "sha256": "d7dd319d65224237aa41e483e9b10eaece615f8eadbe6d816879c29fd31d50b9"
+          },
+          {
+            "width": 512,
+            "height": 337,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-512.avif",
+            "bytes": 25017,
+            "sha256": "42be2d29ff11f7fea59defc98a5ef589589be3cc2c8118530a106dd4e7ce5751"
+          },
+          {
+            "width": 768,
+            "height": 505,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-768.avif",
+            "bytes": 53905,
+            "sha256": "31cbdac31d1433b0b93f699c84bc72804c17fd6f0b5e19a2218f6d5d152fd31e"
+          },
+          {
+            "width": 1024,
+            "height": 674,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-1024.avif",
+            "bytes": 91565,
+            "sha256": "82cafeed085c8a7d2236c0e959010ce388344fdcf5dca00fece7720072c44635"
+          },
+          {
+            "width": 1280,
+            "height": 842,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-1280.avif",
+            "bytes": 147585,
+            "sha256": "1df4bfd1a60715758425b485514c585f588bced1024026b10edbb79625267cf1"
+          }
+        ]
+      }
+    },
+    "/region-danyang.webp": {
+      "width": 5464,
+      "height": 3640,
+      "bytes": 1841672,
+      "sha256": "cb2eea5d8dfe15e4e9832361da914c5a1b4b8cbc6cfc0089264878026e28bc4d",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-128.webp",
+          "bytes": 2900,
+          "sha256": "104913ad1a099996ac39fbf429e352dfe2664266b84fdd4ea424d9e1acc2d52e"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-192.webp",
+          "bytes": 5584,
+          "sha256": "dd9b7275add891afc994b24c0cefe9b619f129feb5049c0a5fb9a2f427f36783"
+        },
+        {
+          "width": 256,
+          "height": 171,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-256.webp",
+          "bytes": 8984,
+          "sha256": "1113b6b21263ae7a18f7e014f780c3d3dd2fb21b547e6e6a17fccc3ee34ca8d6"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-384.webp",
+          "bytes": 17634,
+          "sha256": "9fd665fc54f252d1844e160b338bb28d6e61820bb9cac74e659df56d29e1af55"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-512.webp",
+          "bytes": 29266,
+          "sha256": "1afccc7e54f237d83d21687187ee6ed450190555f8b440d10fefc63da0fb8b1f"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-768.webp",
+          "bytes": 59292,
+          "sha256": "45f8db7cca070d523660bb1b6aa353550b7a0cccb9f86aa7684934f776584dc6"
+        },
+        {
+          "width": 1024,
+          "height": 682,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-1024.webp",
+          "bytes": 99380,
+          "sha256": "e8fe93455a544b436ceb5a1ec1c03a8e02a3cf1a28c1f2fdb0a0fbf47458d9a9"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-1280.webp",
+          "bytes": 145404,
+          "sha256": "afdd94dbca6b095a975093e5b83c25738dc15ab2312403cc6ff3597366fadc27"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-128.avif",
+            "bytes": 2233,
+            "sha256": "e74756989b853a5dafd46f1593a9eb6a6639d03438c7196de7cd7316391006a8"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-192.avif",
+            "bytes": 3971,
+            "sha256": "a390f4646354b5b574d07f44ccefef2122944069e31a7cf6ef54ea9701b25da5"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-256.avif",
+            "bytes": 6203,
+            "sha256": "6dbfde8b6007cb66e939005026d47888e7e3b181af67c67b1779a84932d13ddf"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-360.avif",
+            "bytes": 10475,
+            "sha256": "a2c9e63941b27cc1ac4ed52e000a9b5f85e9a78b8811919e0a234f731c1d0bb3"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-480.avif",
+            "bytes": 16883,
+            "sha256": "74d2f83e645e30a4544408e1fbd47730a67c50f98ffc561b543816a45bab052f"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-512.avif",
+            "bytes": 18759,
+            "sha256": "6e103f55cb719b7c7ee7a33ad68a10678a3da0cf68375c8874f06df9fb2039eb"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-768.avif",
+            "bytes": 37381,
+            "sha256": "0839a9ed462e2e572df29d1550f3059c5ac4d5a25cb4ba47a7c4916da5ff9c99"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-1024.avif",
+            "bytes": 62818,
+            "sha256": "0d24d82ed2cfadf11d99a454181f2a0ac82f739a534497c5d4e2c624769ac02c"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-1280.avif",
+            "bytes": 93136,
+            "sha256": "dab2a08fdee04d61b15f55799910d7797563994cf06537f9372e7e68435dc177"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-128.avif",
+            "bytes": 2233,
+            "sha256": "e74756989b853a5dafd46f1593a9eb6a6639d03438c7196de7cd7316391006a8"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-192.avif",
+            "bytes": 3971,
+            "sha256": "a390f4646354b5b574d07f44ccefef2122944069e31a7cf6ef54ea9701b25da5"
+          },
+          {
+            "width": 256,
+            "height": 171,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-256.avif",
+            "bytes": 6211,
+            "sha256": "147b786a5719669c8ca96d81b7565b3918da018aecb3c951dc7ab7e26135484e"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-360.avif",
+            "bytes": 10475,
+            "sha256": "a2c9e63941b27cc1ac4ed52e000a9b5f85e9a78b8811919e0a234f731c1d0bb3"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-480.avif",
+            "bytes": 16883,
+            "sha256": "74d2f83e645e30a4544408e1fbd47730a67c50f98ffc561b543816a45bab052f"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-512.avif",
+            "bytes": 18759,
+            "sha256": "6e103f55cb719b7c7ee7a33ad68a10678a3da0cf68375c8874f06df9fb2039eb"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-768.avif",
+            "bytes": 37636,
+            "sha256": "c587c4f49b0790d695d0ee56299e8be9e6166cf6a547ae50bf8fac393f59d9ac"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-1024.avif",
+            "bytes": 62818,
+            "sha256": "0d24d82ed2cfadf11d99a454181f2a0ac82f739a534497c5d4e2c624769ac02c"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-1280.avif",
+            "bytes": 93136,
+            "sha256": "dab2a08fdee04d61b15f55799910d7797563994cf06537f9372e7e68435dc177"
+          }
+        ]
+      }
+    },
+    "/hero-banpo.webp": {
+      "width": 4000,
+      "height": 2252,
+      "bytes": 769080,
+      "sha256": "21b985c750d9c1e9410321771bf6d9f368563ebb808af4d1165d9556f8d7cbdb",
+      "variants": [
+        {
+          "width": 128,
+          "height": 72,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-128.webp",
+          "bytes": 1604,
+          "sha256": "e775380154a67f138283c05c38a15cbdc96cc8d1325c06df983deafa69089628"
+        },
+        {
+          "width": 192,
+          "height": 108,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-192.webp",
+          "bytes": 3140,
+          "sha256": "ea8278b40856f6fa43e3da20127e1661e0517c76909cb57d3183ea9842e39357"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-256.webp",
+          "bytes": 5172,
+          "sha256": "9b9b9066c57630fe4e952c3ea074445ed5caa7a315b5fb3fa3f5604e20d7c296"
+        },
+        {
+          "width": 384,
+          "height": 216,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-384.webp",
+          "bytes": 10664,
+          "sha256": "6ec87f159dc618ae1b6e206e7f58fe21e9494568e484371e86e682928126f14b"
+        },
+        {
+          "width": 512,
+          "height": 288,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-512.webp",
+          "bytes": 17500,
+          "sha256": "65c5e73894aca88e8eb1727f8d267f4d079c1a8efa971b497fef045f547eacb9"
+        },
+        {
+          "width": 768,
+          "height": 432,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-768.webp",
+          "bytes": 35666,
+          "sha256": "eaee20d717c9455c9a938a9af8d66ab67c9e9dc76633ff8580c44a198173f2d8"
+        },
+        {
+          "width": 1024,
+          "height": 577,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-1024.webp",
+          "bytes": 57516,
+          "sha256": "fd0feee267831c9faf3b5cda785bf9d16baa8b9e11399f8b023eee9d4f555f2a"
+        },
+        {
+          "width": 1280,
+          "height": 721,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-1280.webp",
+          "bytes": 86204,
+          "sha256": "bd034d63eb05cc10f156b73041e127662631f4e01f6c943f6ebbe2d3245bc225"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 72,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-128.avif",
+            "bytes": 1368,
+            "sha256": "34016aae8a4cd1e03f2f9feeeea90f142124ef7372b7b176114f5cbb43f7fa55"
+          },
+          {
+            "width": 192,
+            "height": 108,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-192.avif",
+            "bytes": 2440,
+            "sha256": "b5653156c268abc747562bf81fdfb5f6cd2ad9fa3dc8e6b57ac7f144c8906b2a"
+          },
+          {
+            "width": 256,
+            "height": 144,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-256.avif",
+            "bytes": 3822,
+            "sha256": "94c4aac9b3abd322324d8528c9cfb2e6d0d6e949dc7958f8ebc6aa9b4ec8cbba"
+          },
+          {
+            "width": 360,
+            "height": 203,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-360.avif",
+            "bytes": 6331,
+            "sha256": "c1605d6d44dd704ab12370225fc76372701d6b7882a1a84978520ff1c50f4d9e"
+          },
+          {
+            "width": 480,
+            "height": 270,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-480.avif",
+            "bytes": 10255,
+            "sha256": "df0bab9e5f041607bd09da83f4f80806128dd68185470dacc45c6d9ef2d228bc"
+          },
+          {
+            "width": 512,
+            "height": 288,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-512.avif",
+            "bytes": 11710,
+            "sha256": "0f9777d85ce3e37f2220ac1069e6a693e4a8b342b98413065500d5141c2ea9e7"
+          },
+          {
+            "width": 768,
+            "height": 432,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-768.avif",
+            "bytes": 23084,
+            "sha256": "c300cc901a9e56c95f92171c66b75d849a54df3a89261d288be90bb794b82462"
+          },
+          {
+            "width": 1024,
+            "height": 577,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-1024.avif",
+            "bytes": 36878,
+            "sha256": "9df9bb66681539db796337202408ac7dc09b8525913364ffdfe70d210fae2160"
+          },
+          {
+            "width": 1280,
+            "height": 721,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-1280.avif",
+            "bytes": 53405,
+            "sha256": "f06521b10043f2cdd79eda2a3a00ed099b5683472d06838d63312217b571a685"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "height": 64,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-128.avif",
+            "bytes": 1314,
+            "sha256": "da2434d82f88401221c30af0b23df8cbdfe274090c74ab02bc17a5c381b9a71d"
+          },
+          {
+            "width": 192,
+            "height": 96,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-192.avif",
+            "bytes": 2356,
+            "sha256": "f45f61c47722b70a79e42cbfbbdd2a644c81284d26a1a354d0cce726a56c50d6"
+          },
+          {
+            "width": 256,
+            "height": 128,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-256.avif",
+            "bytes": 3683,
+            "sha256": "d22b1f8a57ffc30b3205591dabec231683de6ea19b77ad7507569dfb538278d0"
+          },
+          {
+            "width": 360,
+            "height": 180,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-360.avif",
+            "bytes": 6408,
+            "sha256": "2b6536f0f6322c6f3ff09f5c87c5123a7fde835676b946af6bfea36889559d31"
+          },
+          {
+            "width": 480,
+            "height": 240,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-480.avif",
+            "bytes": 10061,
+            "sha256": "5cdefad0d8dfef2b8fff4ddbd6de8a92d5b2da4c305253c6f5a6b2a9e37c9d34"
+          },
+          {
+            "width": 512,
+            "height": 256,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-512.avif",
+            "bytes": 11087,
+            "sha256": "18db6eaab8b7bd6782d6c60c6bcb37e758d14b7f3b8e838d598d002304a14905"
+          },
+          {
+            "width": 768,
+            "height": 384,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-768.avif",
+            "bytes": 22629,
+            "sha256": "20ff8f7f59d61761f5e54b7ef2dc5234b4e4e2def5b6627dde7c3d1922c6b1bc"
+          },
+          {
+            "width": 1024,
+            "height": 512,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-1024.avif",
+            "bytes": 35918,
+            "sha256": "8bb516f15b269cb1d271cc00c4494ddb43b8f8068729e985d3677a00e05bfd2b"
+          },
+          {
+            "width": 1280,
+            "height": 640,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-1280.avif",
+            "bytes": 53307,
+            "sha256": "c0b2bbe5e18a1742e17824d19f2212782aace15ffdb18f5a2ca2409ebd2a95c8"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/seoul.jpg": {
+      "width": 1280,
+      "height": 853,
+      "bytes": 39909,
+      "sha256": "fb3bf9bc03019dff89f8e83a673ab8206e71ed188691f28c2c63adb8c5dac90b",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-128.webp",
+          "bytes": 600,
+          "sha256": "ec58d50b6a5ffa9f8051b0237f640569c378e6a9da0e9c55b857b2280dc3c5cf"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-192.webp",
+          "bytes": 1032,
+          "sha256": "4e3fc76e5124138253efdf618e39a90740ffbf04848d23005d0817fcf08b96f8"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-256.webp",
+          "bytes": 1460,
+          "sha256": "0c19528b5367e5ec1f567ca78f5241cc254b69c1fe3d42c29a43f23c33d2724e"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-384.webp",
+          "bytes": 2534,
+          "sha256": "6335ef4498b48896f4e68c01571eb2f5b0e96d2cb1af1d0a84912a43bfda9211"
+        },
+        {
+          "width": 512,
+          "height": 341,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-512.webp",
+          "bytes": 3516,
+          "sha256": "8794004de85acd6de0bf96bdb611102f516d42b429eba173a4bd809410151136"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-768.webp",
+          "bytes": 5782,
+          "sha256": "05309c1d7b9ec1b9494f2854c100c060844842de69a440018a9364235b99cdaf"
+        },
+        {
+          "width": 1024,
+          "height": 682,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-1024.webp",
+          "bytes": 8400,
+          "sha256": "a559f70a0a8d3bdce1a7c0bed533051c345dc4d29f3f5080e455445439cae69c"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-1280.webp",
+          "bytes": 11964,
+          "sha256": "7f5c7ca08a021bcd4f977e96d4b33bcc273eaaa41f8edb2744d571f00bca42b1"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-128.avif",
+            "bytes": 739,
+            "sha256": "3e863ec3abec53cc203728d361f93c9f64c4ab8b08b6b672946c68c43e12bda4"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-192.avif",
+            "bytes": 1099,
+            "sha256": "779a1c7538c23360bc916d1618fa78a8c178a51e233767880b67dc3d795d3491"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-256.avif",
+            "bytes": 1457,
+            "sha256": "780090ac5f2b1bb6362a6d6028c0c549c018c1eb625e6144e92b4d608a7b7de4"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-360.avif",
+            "bytes": 2031,
+            "sha256": "bab0e1131f30417d6cb3fda71a00b490f6ea66bf656b29c3be746d2f45834ae9"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-480.avif",
+            "bytes": 2767,
+            "sha256": "8656284a2414055635bb8c2222cbe45e5a477b9d31953ea6fe50daae11ca873d"
+          },
+          {
+            "width": 512,
+            "height": 341,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-512.avif",
+            "bytes": 2879,
+            "sha256": "54cbe39b6631fb33e49fce5d840d96edfda33c617df6d8a83f9de5b63827475b"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-768.avif",
+            "bytes": 4242,
+            "sha256": "703f2a5211c4e2de6e3ef96a6b4a4b211711102cec4f14c49e49ddb696a3777d"
+          },
+          {
+            "width": 1024,
+            "height": 682,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-1024.avif",
+            "bytes": 6124,
+            "sha256": "afd172772c5a3c68f7bf588b33ab66b736ffad9ce7d49e8838642a1ceb7031f7"
+          },
+          {
+            "width": 1280,
+            "height": 853,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-1280.avif",
+            "bytes": 8798,
+            "sha256": "27a5ceb7a62219fdcca58450ea7240c953ce94ccea3079cac2f67f406498271f"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/busan.jpg": {
+      "width": 940,
+      "height": 627,
+      "bytes": 35670,
+      "sha256": "10b4da43dfed810000807c8732edd656f505cae10da2130f94b505570aec07f4",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-128.webp",
+          "bytes": 1788,
+          "sha256": "49e911974c772a533b9c9ab2dc92291df76e0dd70fa089d80618bf29bc279114"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-192.webp",
+          "bytes": 2918,
+          "sha256": "acbdad1c84d8bff7c30bae7e33c3e6bd406ab40785d14b7ba8a73c2fb66aad5f"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-256.webp",
+          "bytes": 4286,
+          "sha256": "3aab4e3469cbf37f976a6b2151df794a10de0dff24fcb130e16a01f7792b56c0"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-384.webp",
+          "bytes": 7122,
+          "sha256": "19ea9f6abc6347c934c54757022ffceca85e64f6765268f2a1fa580c6966879f"
+        },
+        {
+          "width": 512,
+          "height": 342,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-512.webp",
+          "bytes": 10590,
+          "sha256": "13b1dbacdbe5f358b50b496769871362407e5a44a82611329a28282814de50ae"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-768.webp",
+          "bytes": 17766,
+          "sha256": "0a7095934879a7820487b60b38c15f26a49b7eb7a22edd0ef1eda472d7dcd842"
+        },
+        {
+          "width": 940,
+          "height": 627,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-940.webp",
+          "bytes": 23270,
+          "sha256": "7d00bbe58a05aec5e60bb6be9671468ef7f64fdca18dfd2020ffa699f8cfa320"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-128.avif",
+            "bytes": 1431,
+            "sha256": "123df597d8eafb071e7c0a1cc77a704741f38c1e0c52b88cd566bb7a6eb59218"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-192.avif",
+            "bytes": 2174,
+            "sha256": "49b4302fece90faeb2cde4611fd4dccf42c2ae212660a5f6ce01e2b41a04688a"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-256.avif",
+            "bytes": 3239,
+            "sha256": "710854384696114b348cc476f0eee4146f1a2209358098a0b877b88d1d44ad35"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-360.avif",
+            "bytes": 5075,
+            "sha256": "d7de548aae5a4f42c9aae514ab744ec6ec2d1f3e9b8bbda008969a89f6eb8556"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-480.avif",
+            "bytes": 7326,
+            "sha256": "0a8ca834a3056a483cab80c57c0ab6b87a7653af905434f91e21894509c9b6ba"
+          },
+          {
+            "width": 512,
+            "height": 342,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-512.avif",
+            "bytes": 8298,
+            "sha256": "1ccbf33e540db6eed844e3b47f862492aeff2677eea5305cd51de62420ea21ab"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-768.avif",
+            "bytes": 13441,
+            "sha256": "13a42807331fb4df51e75c07b59c519891a7e7e0953e52db6d3709ef389ab187"
+          },
+          {
+            "width": 940,
+            "height": 627,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-940.avif",
+            "bytes": 17825,
+            "sha256": "bbf8c21ece95f3fb94da9546c24925bee391f209fb0907110bd36a68b080ae56"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/jeju.jpg": {
+      "width": 940,
+      "height": 627,
+      "bytes": 47215,
+      "sha256": "b4657e7048abfb3755d7247eb8eafcb356f32be8aa5d7f03f41b7235f0138f07",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-128.webp",
+          "bytes": 1612,
+          "sha256": "b1638e7cc5869b061210131bfe6134a7e10780b2ab5001ecb64071c80074e6c2"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-192.webp",
+          "bytes": 2836,
+          "sha256": "0765e88e9ce33ad8a64bb088e3d7cfb18f9b58192e3f436aebeb96edee2f0df7"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-256.webp",
+          "bytes": 4682,
+          "sha256": "21d966500bd582aa3f924892cfaf38cc849329699d69d715e3a3597b7a1719cf"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-384.webp",
+          "bytes": 9130,
+          "sha256": "7a10883ceb4d1121daa14606fe32dcdc8b391967a09e7f59265d48ca1ef85f3d"
+        },
+        {
+          "width": 512,
+          "height": 342,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-512.webp",
+          "bytes": 14564,
+          "sha256": "ec3217e9c0e1a2fac7a67fd66d5a922d592d3c66cc928099f7bafd6e0b495fc7"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-768.webp",
+          "bytes": 27632,
+          "sha256": "2ac4ba230b88342bdd6d3714697bebdf3316e1f4c1447c4977ad8e66de9d9e68"
+        },
+        {
+          "width": 940,
+          "height": 627,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-940.webp",
+          "bytes": 36124,
+          "sha256": "99b6d10336c7d129eff437ae752550fabc575eacb304658fea4972cddbe93bef"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-128.avif",
+            "bytes": 1485,
+            "sha256": "759e1e4f74d708b5ef1861bde2e15673d5f06b7635883100c5b7313d4666524f"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-192.avif",
+            "bytes": 2574,
+            "sha256": "cab0b465704e18394f2596114b955bff7bd775178cdae4b9b34207b54f152223"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-256.avif",
+            "bytes": 3948,
+            "sha256": "cd4cc64fd74b7d02bc652b1cf22afedbc7d21286eb811a8029f0ab38eb1bc2df"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-360.avif",
+            "bytes": 6915,
+            "sha256": "3b88be9e6f74c7824c33e33a6f69166780ce547945a47ca5c1d473109d205f1f"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-480.avif",
+            "bytes": 10961,
+            "sha256": "616b2764acef5d1203b2d11717680a97704076cfd479f1902f327c727822d38e"
+          },
+          {
+            "width": 512,
+            "height": 342,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-512.avif",
+            "bytes": 12499,
+            "sha256": "36130d2b5b25278614343532369ae2bfa73d9b0929b74a95bc0bea856a49f0e2"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-768.avif",
+            "bytes": 22499,
+            "sha256": "335105359ee6684277675a93f06f95344d1ca95caf9f90df8b4052157e078494"
+          },
+          {
+            "width": 940,
+            "height": 627,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-940.avif",
+            "bytes": 28140,
+            "sha256": "7edfac1c51a1b9ad678d36213b55d9fb8183d923cb98984bbd614b814003232b"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/gyeongju.jpg": {
+      "width": 940,
+      "height": 627,
+      "bytes": 71393,
+      "sha256": "493054f9efa214199f139627cd712649d70a19c6e59d33895baafba40bca6d03",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-128.webp",
+          "bytes": 1490,
+          "sha256": "941f844a238e8f1c9bf4f11cac95735b9554675f5f0cb8e427db5660f2abb8c0"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-192.webp",
+          "bytes": 2782,
+          "sha256": "15f1de38e4216a471ac6d68736a0dfb21d8e8d3035c6ae0fa87de47539c1152e"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-256.webp",
+          "bytes": 4936,
+          "sha256": "65b8c0489554961f3032afcb382d87fecf48744713ed4df32377c63e9cc4b09e"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-384.webp",
+          "bytes": 11700,
+          "sha256": "60d7ce6b0995d08ed925ec0965fb509c86156961381c7feb88c8f4ae357b695d"
+        },
+        {
+          "width": 512,
+          "height": 342,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-512.webp",
+          "bytes": 22210,
+          "sha256": "a2428a8cf32ac65088bb58a5dc44644470f503156fe5dff406515c9ac68501ec"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-768.webp",
+          "bytes": 47966,
+          "sha256": "bdda72b5277dce0866c11f26494296a0d1d2413c41ed4b95baac1c6556567738"
+        },
+        {
+          "width": 940,
+          "height": 627,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-940.webp",
+          "bytes": 67638,
+          "sha256": "825d190494a214fb10ba36c5042dc6e0cf31c7e227f0d03fcfe5b5a1eac84be5"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-128.avif",
+            "bytes": 1395,
+            "sha256": "445a14e407019b5864c78f16a4cd89425756cd121bd6f11e9e650778597a03c1"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-192.avif",
+            "bytes": 2282,
+            "sha256": "fd2e64c7c4f7121a7a61087a7df447faeb0ccdb9be112ca4f1b838e756a2097d"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-256.avif",
+            "bytes": 3920,
+            "sha256": "f4712c722ad0268c83210eb3c1ffe15983b185e9d96d9f4aa0ccf39665626a25"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-360.avif",
+            "bytes": 7502,
+            "sha256": "edd5dd3794598763eb199060e11c7bc4273e4b119c749642b9c8919963d5060e"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-480.avif",
+            "bytes": 13235,
+            "sha256": "8f9fac2d6b11f1d9a6832e53ad8c5feb2ceda014e19422ca10dfdc59117274f2"
+          },
+          {
+            "width": 512,
+            "height": 342,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-512.avif",
+            "bytes": 15331,
+            "sha256": "cd8567f50741bcce63f4886d555ccc0daec6e7ae9007a21ad2aba745583585d4"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-768.avif",
+            "bytes": 32179,
+            "sha256": "ed1e206e34e6e97274379095651ee971366c4bb5bc851c8a22f5528ee940c4f2"
+          },
+          {
+            "width": 940,
+            "height": 627,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-940.avif",
+            "bytes": 41973,
+            "sha256": "d48f0b2050615620ff0e3926403ebaa8d23ac71ce87f5bccd36c913d13ec74fb"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/gangneung.jpg": {
+      "width": 940,
+      "height": 627,
+      "bytes": 39524,
+      "sha256": "ef5cd6441829b8ae7d0f30ce042bc293ae56aeb0c1d428383c1ea4fcd49a802b",
+      "variants": [
+        {
+          "width": 128,
+          "height": 85,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-128.webp",
+          "bytes": 1050,
+          "sha256": "baac9b0963d22043d4c5d9434cd4dda75e11302e4314cd41d0ab554b3059f0cd"
+        },
+        {
+          "width": 192,
+          "height": 128,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-192.webp",
+          "bytes": 1866,
+          "sha256": "8f27e144f6165730bc69a2c18178547d8cf883bd445b443bb73fd95710476d5a"
+        },
+        {
+          "width": 256,
+          "height": 170,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-256.webp",
+          "bytes": 3184,
+          "sha256": "4d725adb3849e180c63196be27d7cba1592984ac1bb701b5136498e0f546127a"
+        },
+        {
+          "width": 384,
+          "height": 256,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-384.webp",
+          "bytes": 6738,
+          "sha256": "9fe85db8c9af9f88b9c70cc10bfcfc5e82d626aeaf46f212ddf0d5b0d2dbd79e"
+        },
+        {
+          "width": 512,
+          "height": 342,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-512.webp",
+          "bytes": 11640,
+          "sha256": "f92e679f073989e61581fee7b0a0d01d9d989c5e1349f2c8b55e2622fc191da4"
+        },
+        {
+          "width": 768,
+          "height": 512,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-768.webp",
+          "bytes": 22256,
+          "sha256": "5c7fdcc4bff9d2254f6d1c3217bfbcf19ada0d41c7dd9f5c497088a85ac67c7f"
+        },
+        {
+          "width": 940,
+          "height": 627,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-940.webp",
+          "bytes": 28776,
+          "sha256": "78ef97bcf6275b0169eb765013f974e6f936b849850d685e0535bcc9d592f0bc"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "height": 85,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-128.avif",
+            "bytes": 1032,
+            "sha256": "8e936454885725fc480e33811d886fc77ad60a5e50ad8cea72e9d8801f88cad3"
+          },
+          {
+            "width": 192,
+            "height": 128,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-192.avif",
+            "bytes": 1568,
+            "sha256": "29b075789821f0de08d2beaff6f31b568182fb3d02b2a8deacd581f4ca9d115f"
+          },
+          {
+            "width": 256,
+            "height": 170,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-256.avif",
+            "bytes": 2735,
+            "sha256": "6d9b770707b5c0c30986e1e20590f04d92384b18a0ed7024ac8c2ff2d69c8ceb"
+          },
+          {
+            "width": 360,
+            "height": 240,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-360.avif",
+            "bytes": 4630,
+            "sha256": "ddfacf88338b2f6b18f0623b4438954659b1772c1977639a94a18b26c45291c8"
+          },
+          {
+            "width": 480,
+            "height": 320,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-480.avif",
+            "bytes": 7418,
+            "sha256": "d0f18902bdb05ea53d6c755f40a54ff40827da0d7122bb38b97cb374d7a1630f"
+          },
+          {
+            "width": 512,
+            "height": 342,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-512.avif",
+            "bytes": 8775,
+            "sha256": "d6b7ef12165e0db68743e48eb03acd44fb1850b61265c08e5ef84e7d2513bdaa"
+          },
+          {
+            "width": 768,
+            "height": 512,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-768.avif",
+            "bytes": 16031,
+            "sha256": "1458bdd4da5151cfdd41d85a227a5a13bcb869ec79a92b9bcf8e53e2beb0f1c4"
+          },
+          {
+            "width": 940,
+            "height": 627,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-940.avif",
+            "bytes": 20125,
+            "sha256": "ad7d97f8d541b54f16108f00b90f1978c273c3ea5bb01735b5cca8ef1edb0699"
+          }
+        ]
+      }
+    },
+    "/icons/icon-192.png": {
+      "width": 192,
+      "height": 192,
+      "bytes": 37825,
+      "sha256": "0824ce3131b99da2c7caa25343c3d11238cf5abf45fcc93233572e041ed0d26d",
+      "variants": [
+        {
+          "width": 32,
+          "height": 32,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-32.webp",
+          "bytes": 310,
+          "sha256": "7bdea373201b8d7717f0df87e10693ea4e50a287a0f7da0012e042f5dcf561f7"
+        },
+        {
+          "width": 64,
+          "height": 64,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-64.webp",
+          "bytes": 700,
+          "sha256": "2a04ff314ec0d5af2d71386dd3be5f820137e0ac97f328d9be9917d0ae610efe"
+        },
+        {
+          "width": 96,
+          "height": 96,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-96.webp",
+          "bytes": 1006,
+          "sha256": "d6c08c74fdb61067331eac0c744f8792df863db4f14717e5d80fa5d670de1264"
+        }
+      ],
+      "avif": {}
+    }
+  }
+}

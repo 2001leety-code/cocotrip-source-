@@ -402,7 +402,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 {i18n.stepOf} {currentStep} / {STEP_LABELS.length}
               </div>
-              <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/45 sm:flex">
+              <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/70 sm:flex">
                 <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#00D28C]" /> PayPal</span>
                 <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> {cutoffChipLabel}</span>
               </div>
@@ -425,13 +425,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 <h2 className="text-[18px] font-black leading-tight text-white sm:text-[28px]">
                   {STEP_LABELS[currentStep - 1]}
                 </h2>
-                <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-white/55 sm:mt-2 sm:text-sm">
+                <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-white/70 sm:mt-2 sm:text-sm">
                   {stepHelp[currentStep - 1]}
                 </p>
               </div>
               {desktopAmount && (
                 <div className="hidden rounded-2xl border border-[#B668FC]/25 bg-[#B668FC]/10 px-4 py-3 text-right sm:block">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/70">
                     {language === 'ko' ? '현재 견적' : language === 'ja' ? '現在の見積' : language === 'zh' ? '当前报价' : 'Live quote'}
                   </p>
                   <p className="mt-1 text-lg font-black text-white">{desktopAmount}</p>
@@ -470,12 +470,12 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               ) : (
                 <div className="space-y-4">
                   {loading && (
-                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/55">
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
                       <Loader2 className="w-4 h-4 animate-spin" /> Geocoding...
                     </div>
                   )}
                   {distanceSource && !loading && (
-                    <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55">
+                    <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
                       {language === 'ko' ? '거리 출처' : language === 'ja' ? '距離ソース' : language === 'zh' ? '距离来源' : 'Distance source'}:{' '}
                       <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
                     </p>
@@ -564,13 +564,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
                 </p>
                 {desktopAmount && stickyAmountKRW != null && (
-                  <p className="mt-1 text-xs text-white/45">{`${stickyUsdFixed} USD`}</p>
+                  <p className="mt-1 text-xs text-white/70">{`${stickyUsdFixed} USD`}</p>
                 )}
               </div>
               <div className="space-y-3 p-5">
                 {summaryRows.map((row) => (
                   <div key={row.label} className="rounded-2xl border border-white/[0.08] bg-black/10 px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">{row.label}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{row.label}</p>
                     <p className="mt-1 truncate text-sm font-semibold text-white/80">{row.value}</p>
                   </div>
                 ))}
@@ -584,7 +584,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   <p className="text-sm font-bold text-white">
                     {language === 'ko' ? '현지 운영자가 확인합니다' : language === 'ja' ? '現地運営チームが確認' : language === 'zh' ? '本地团队确认' : 'Checked by our local team'}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                  <p className="mt-1 text-xs leading-relaxed text-white/70">
                     {language === 'ko'
                       ? '차량, 기사, 항공편, 수하물 정보를 결제 전 한 번에 맞춥니다.'
                       : language === 'ja'
@@ -601,12 +601,12 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <Clock3 className="h-4 w-4 text-[#C4956A]" />
                 <p className="mt-2 text-xs font-bold text-white">{cutoffHours}h</p>
-                <p className="text-[11px] text-white/45">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
+                <p className="text-[11px] text-white/70">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <CreditCard className="h-4 w-4 text-[#B9A4FF]" />
                 <p className="mt-2 text-xs font-bold text-white">PayPal</p>
-                <p className="text-[11px] text-white/45">{language === 'ko' ? '보안 결제' : language === 'ja' ? '安全な決済' : language === 'zh' ? '安全支付' : 'secure checkout'}</p>
+                <p className="text-[11px] text-white/70">{language === 'ko' ? '보안 결제' : language === 'ja' ? '安全な決済' : language === 'zh' ? '安全支付' : 'secure checkout'}</p>
               </div>
             </div>
           </div>

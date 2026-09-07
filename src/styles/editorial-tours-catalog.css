@@ -103,7 +103,7 @@
     outline-offset: 3px;
   }
 
-  .tours-catalog-featured-link > img {
+  .tours-catalog-featured-link img {
     width: 100%;
     height: 148px;
     object-fit: cover;
@@ -676,14 +676,14 @@
   border-bottom: 1px solid var(--ec-line);
 }
 
-.tour-catalog-card-media > img {
+.tour-catalog-card-media img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform var(--ec-duration-slow) var(--ec-ease-standard);
 }
 
-.tour-catalog-card:hover .tour-catalog-card-media > img {
+.tour-catalog-card:hover .tour-catalog-card-media img {
   transform: scale(1.015);
 }
 

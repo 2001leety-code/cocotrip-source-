@@ -8,7 +8,8 @@ import { TripEssentialsCards, shouldShowHomeAffiliate } from '@/components/home/
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW, publicBadgeTag } from '@/data/tours';
 import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
-import { COCO, GradientCTA, StatusChip } from '@/components/coco/CocoUI';
+import { GradientCTA, StatusChip } from '@/components/coco/CocoUI';
+import { COCO } from '@/components/coco/tokens';
 import { formatPrice } from '@/lib/exchange-rate';
 import { wttrLangParam, pickWeatherDesc } from '@/lib/weatherDesc';
 import type { Language } from '@/i18n';
@@ -54,7 +55,7 @@ const LANG_LABEL: Record<Language, string> = { en: 'EN', ko: '한', ja: '日', z
 // 메뉴는 탭 시에만 열리므로 정적 fold 스크린샷에 안 잡힘.
 const LANG_FULL: Record<Language, string> = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文' };
 
-// 팔레트 토큰 = CocoUI 단일 원천(COCO)에서 파생 — 가이드 p.2 값 중복 정의 제거(P10 공용화).
+// 팔레트 토큰 = coco/tokens 단일 원천(COCO)에서 파생 — 가이드 p.2 값 중복 정의 제거(P10 공용화).
 const NAVY = COCO.navy;
 const MUTED = COCO.muted;
 const PURPLE = COCO.purple;

@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { formatPrice } from '@/lib/exchange-rate';
+import { HOME_FEATURE_IMAGE_SIZES, HOME_TOUR_IMAGE_SIZES } from '@/lib/responsiveTourImage';
+import { ResponsiveTourImage } from '@/components/ResponsiveTourImage';
 import type { HomeCopy, HomeLang } from './homeCopy';
 
 /**
@@ -58,8 +60,8 @@ export function ServiceModules({ copy, lang }: Props) {
 
           {/* 2 — charter. Narrower panel led by a photograph of the real vehicle. */}
           <article className="lg:col-span-5 lg:pl-10 py-8 border-b border-ec-line lg:border-b-0">
-            <img
-              src="/hero-banpo.webp"
+            <ResponsiveTourImage
+              source="/hero-banpo.webp" sizes={HOME_FEATURE_IMAGE_SIZES} wideFrom={1024}
               alt=""
               aria-hidden
               loading="lazy"
@@ -99,8 +101,8 @@ export function ServiceModules({ copy, lang }: Props) {
                   to={`/tours/${tour.slug}`}
                   className="group flex items-center gap-4 border-t border-ec-line py-4 first:border-t-0 lg:first:border-t"
                 >
-                  <img
-                    src={tour.thumbnail}
+                  <ResponsiveTourImage
+                    source={tour.thumbnail} sizes={HOME_TOUR_IMAGE_SIZES} fallbackWidth={128}
                     alt=""
                     aria-hidden
                     loading="lazy"

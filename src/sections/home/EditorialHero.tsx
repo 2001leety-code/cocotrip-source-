@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { HOME_CITIES, type HomeCopy, type HomeLang } from './homeCopy';
+import { HOME_CITY_IMAGE_SIZES } from '@/lib/responsiveTourImage';
+import { ResponsiveTourImage } from '@/components/ResponsiveTourImage';
 
 /**
  * Hero — the thesis of the page.
@@ -60,8 +62,8 @@ export function EditorialHero({ copy, lang, specimenId }: Props) {
                     to={`/planner?prefillRegions=${city.key}`}
                     className="ec-card-link group relative block overflow-hidden rounded-ec-md border border-ec-line bg-ec-raised"
                   >
-                    <img
-                      src={city.photo}
+                    <ResponsiveTourImage
+                      source={city.photo} sizes={HOME_CITY_IMAGE_SIZES} fallbackWidth={256}
                       alt=""
                       aria-hidden
                       loading="lazy"

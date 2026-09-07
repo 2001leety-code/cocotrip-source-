@@ -37,13 +37,13 @@ export function CapabilityLedger({ copy }: Props) {
           {c.items.map((item, i) => (
             <div
               key={item.label}
-              className={`py-6 sm:py-8 border-b border-ec-line sm:border-b-0 ${
+              className={`flex flex-col py-6 sm:py-8 border-b border-ec-line sm:border-b-0 ${
                 i > 0 ? 'sm:border-l sm:border-ec-line sm:pl-6 lg:pl-8' : ''
               } ${i < c.items.length - 1 ? 'sm:pr-6 lg:pr-8' : ''}`}
             >
-              <dd className="ec-figure text-[clamp(32px,4.4vw,52px)] leading-none">{item.figure}</dd>
-              <dt className="mt-3 text-[15px] font-semibold text-ec-ink">{item.label}</dt>
-              <p className="ec-body-sm mt-2">{item.note}</p>
+              <dt className="order-2 mt-3 text-[15px] font-semibold text-ec-ink">{item.label}</dt>
+              <dd className="order-1 ec-figure text-[clamp(32px,4.4vw,52px)] leading-none">{item.figure}</dd>
+              <dd className="order-3 ec-body-sm mt-2">{item.note}</dd>
             </div>
           ))}
         </dl>

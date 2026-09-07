@@ -1,0 +1,1965 @@
+{
+  "images": {
+    "/JnR5Ie_경복궁(1).webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/gyeongbokgung-e102ebe26a98-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongbokgung-94732a798ff2-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongbokgung-8bf9c7899189-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/J7FqPa_서울 밤도깨비 야시장(1).webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/seoul-night-market-2568cdabe8cf-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/seoul-night-market-5f66e37ad9f6-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/seoul-night-market-d50c2158f7ae-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/dodamsambong-e2fb1f178634-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/dodamsambong-c01a672e0f3e-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/dodamsambong-16552a840869-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-ganghwa.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/ganghwa-88f78ae6f877-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/ganghwa-58ddbeda9a18-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/ganghwa-a5d8e2d9296b-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-dmz.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/dmz-dd0bbf46d785-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/dmz-d56f11656d81-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/dmz-8f87a173844a-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/nami-island-0919e5e62f58-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/nami-island-536e80196987-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/Type1_불국사_두드림_z0WAPa.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/bulguksa-ee5921a8e255-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/gwangandaegyo-1175d47c0caa-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gwangandaegyo-87a15b474485-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gwangandaegyo-71dd61c6e9b8-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/hero-gyeongju.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/gyeongju-hero-8cf6de897805-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongju-hero-b3a2e77524ac-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongju-hero-23d83f3db217-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-seoul.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/seoul-region-e8faba8e2b14-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/seoul-region-3f93b62c5623-original-1280.avif"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/seoul-region-30b1738b0801-region-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-busan.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/busan-region-8626864d2369-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/busan-region-98b9c4f06d42-original-1280.avif"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/busan-region-3d0802711930-region-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-gyeongju.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/gyeongju-region-2bf5b9560ea2-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongju-region-e329cdb8a545-original-1280.avif"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/gyeongju-region-d0202b30831c-region-1280.avif"
+          }
+        ]
+      }
+    },
+    "/region-danyang.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/danyang-region-af3399963170-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/danyang-region-6f912322a7a8-original-1280.avif"
+          }
+        ],
+        "region": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/danyang-region-34b39e07c06c-region-1280.avif"
+          }
+        ]
+      }
+    },
+    "/hero-banpo.webp": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/banpo-feature-3fb7f55f9aaf-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/banpo-feature-faa32b10cdfc-original-1280.avif"
+          }
+        ],
+        "wide": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/banpo-feature-5d177c95fd99-wide-1280.avif"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/seoul.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-768.webp"
+        },
+        {
+          "width": 1024,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-1024.webp"
+        },
+        {
+          "width": 1280,
+          "src": "/responsive-tour-images/seoul-city-1654423a9d47-1280.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-768.avif"
+          },
+          {
+            "width": 1024,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-1024.avif"
+          },
+          {
+            "width": 1280,
+            "src": "/responsive-tour-images/seoul-city-130a67dac259-original-1280.avif"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/busan.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-768.webp"
+        },
+        {
+          "width": 940,
+          "src": "/responsive-tour-images/busan-city-c8686fe13ada-940.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-768.avif"
+          },
+          {
+            "width": 940,
+            "src": "/responsive-tour-images/busan-city-8a83cc741d64-original-940.avif"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/jeju.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-768.webp"
+        },
+        {
+          "width": 940,
+          "src": "/responsive-tour-images/jeju-city-7d536991b318-940.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-768.avif"
+          },
+          {
+            "width": 940,
+            "src": "/responsive-tour-images/jeju-city-52aeed3cd1db-original-940.avif"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/gyeongju.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-768.webp"
+        },
+        {
+          "width": 940,
+          "src": "/responsive-tour-images/gyeongju-city-ada9dd21d8ca-940.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-768.avif"
+          },
+          {
+            "width": 940,
+            "src": "/responsive-tour-images/gyeongju-city-73566ff7a002-original-940.avif"
+          }
+        ]
+      }
+    },
+    "/city-thumbs/gangneung.jpg": {
+      "variants": [
+        {
+          "width": 128,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-128.webp"
+        },
+        {
+          "width": 192,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-192.webp"
+        },
+        {
+          "width": 256,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-256.webp"
+        },
+        {
+          "width": 384,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-384.webp"
+        },
+        {
+          "width": 512,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-512.webp"
+        },
+        {
+          "width": 768,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-768.webp"
+        },
+        {
+          "width": 940,
+          "src": "/responsive-tour-images/gangneung-city-fc83439eb18f-940.webp"
+        }
+      ],
+      "avif": {
+        "original": [
+          {
+            "width": 128,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-128.avif"
+          },
+          {
+            "width": 192,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-192.avif"
+          },
+          {
+            "width": 256,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-256.avif"
+          },
+          {
+            "width": 360,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-360.avif"
+          },
+          {
+            "width": 480,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-480.avif"
+          },
+          {
+            "width": 512,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-512.avif"
+          },
+          {
+            "width": 768,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-768.avif"
+          },
+          {
+            "width": 940,
+            "src": "/responsive-tour-images/gangneung-city-10e6c409f443-original-940.avif"
+          }
+        ]
+      }
+    },
+    "/icons/icon-192.png": {
+      "variants": [
+        {
+          "width": 32,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-32.webp"
+        },
+        {
+          "width": 64,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-64.webp"
+        },
+        {
+          "width": 96,
+          "src": "/responsive-tour-images/cocotrip-mark-9ad75864a427-96.webp"
+        }
+      ],
+      "avif": {}
+    }
+  }
+}

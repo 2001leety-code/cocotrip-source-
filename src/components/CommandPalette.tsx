@@ -5,171 +5,105 @@
  * `useCommandPalette()` 훅으로 어디서든 열 수 있고, Cmd/Ctrl+K 전역 단축키는
  * CommandPaletteProvider 안에서 자동으로 등록된다.
  */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Component, useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Home, Package, Map, FileText, Globe, User, ClipboardList, Shield, ScrollText, MapPin } from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import {
-  CommandDialog,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandSeparator,
-} from '@/components/ui/command';
+import { CommandPaletteContext } from '@/hooks/useCommandPalette';
+import { CommandPaletteStatus } from './CommandPaletteStatus';
+import { loadCommandPaletteDialog } from './loadCommandPaletteDialog';
 
-// ── Region list must stay in sync with src/sections/Regions.tsx ──
-const REGION_IDS = [
-  'seoul',
-  'chuncheon',
-  'paju',
-  'ganghwa',
-  'busan',
-  'danyang',
-  'incheon',
-  'gyeongju',
-  'jeonju',
-] as const;
+// The keyboard listener is always ready. Download the search dialog only when
+// requested; keep it mounted afterwards so its normal close/focus cleanup runs.
+function createDialog() {
+  // A retry gets a new React.lazy instance; a rejected lazy promise is cached.
+  return lazy(loadCommandPaletteDialog);
+}
 
-type PaletteContext = {
-  open: boolean;
-  setOpen: (v: boolean) => void;
-  toggle: () => void;
-};
+class SearchBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
 
-const Ctx = createContext<PaletteContext>({
-  open: false,
-  setOpen: () => {},
-  toggle: () => {},
-});
+function isSearchFocus(element: Element | null): boolean {
+  if (!element) return false;
+  const status = document.querySelector('[data-cocotrip-search-status]');
+  const dialog = document.querySelector('[data-cocotrip-search-input]')?.closest('[role="dialog"]');
+  return !!(status?.contains(element) || dialog?.contains(element));
+}
 
 export function CommandPaletteProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
+  const [DialogComponent, setDialogComponent] = useState(createDialog);
+  const [attempt, setAttempt] = useState(0);
+  const openRef = useRef(false);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
 
-  const toggle = useCallback(() => setOpen((v) => !v), []);
+  const setOpen = useCallback((value: boolean) => {
+    if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = null;
+    if (value && !openRef.current) {
+      openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setHasOpened(true);
+    }
+    openRef.current = value;
+    setOpenState(value);
+    if (!value) {
+      const target = openerRef.current;
+      focusFrameRef.current = requestAnimationFrame(() => {
+        focusFrameRef.current = null;
+        const active = document.activeElement;
+        if (openRef.current || document.visibilityState !== 'visible' || !target?.isConnected) return;
+        // Restore only a released search focus, not another field the traveller chose.
+        if (active === document.body || active === document.documentElement || active === target || isSearchFocus(active)) {
+          target.focus({ preventScroll: true });
+        }
+      });
+    }
+  }, []);
+
+  const toggle = useCallback(() => setOpen(!openRef.current), [setOpen]);
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  const retry = useCallback(() => {
+    setDialogComponent(() => createDialog());
+    setAttempt((value) => value + 1);
+  }, []);
 
   // ── Global Cmd/Ctrl+K handler ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setOpen((v) => !v);
+        toggle();
+      } else if (e.key === 'Escape' && openRef.current) {
+        e.preventDefault();
+        close();
       }
     };
+    const onVisibility = () => {
+      // A late import must not unexpectedly open a dialog in a hidden document.
+      if (document.visibilityState !== 'visible' && openRef.current) close();
+    };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+    };
+  }, [toggle, close]);
 
   return (
-    <Ctx.Provider value={{ open, setOpen, toggle }}>
+    <CommandPaletteContext.Provider value={{ open, setOpen, toggle }}>
       {children}
-      <CommandPalette />
-    </Ctx.Provider>
-  );
-}
-
-export function useCommandPalette() {
-  return useContext(Ctx);
-}
-
-function CommandPalette() {
-  const { open, setOpen } = useContext(Ctx);
-  const { t } = useLanguage();
-  const navigate = useNavigate();
-  const cp = t.commandPalette;
-
-  const go = useCallback(
-    (to: string) => {
-      setOpen(false);
-      navigate(to);
-    },
-    [navigate, setOpen],
-  );
-
-  return (
-    <CommandDialog
-      open={open}
-      onOpenChange={setOpen}
-      title={cp.triggerLabel}
-      description={cp.placeholder}
-    >
-      <CommandInput placeholder={cp.placeholder} />
-      <CommandList>
-        <CommandEmpty>{cp.empty}</CommandEmpty>
-
-        <CommandGroup heading={cp.groups.pages}>
-          <CommandItem onSelect={() => go('/')}>
-            <Home />
-            <span>{cp.items.home}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/tours')}>
-            <Package />
-            <span>{cp.items.tours}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/charter')}>
-            <Map />
-            <span>{cp.items.charter}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/planner')}>
-            <FileText />
-            <span>{cp.items.planner}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/about')}>
-            <Globe />
-            <span>{cp.items.about}</span>
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading={cp.groups.regions}>
-          {REGION_IDS.map((id) => {
-            const label = (t.regions as Record<string, string>)[id] ?? id;
-            return (
-              <CommandItem
-                key={id}
-                value={`${id} ${label}`}
-                onSelect={() => go(`/region/${id}`)}
-              >
-                <MapPin />
-                <span>{label}</span>
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading={cp.groups.account}>
-          <CommandItem onSelect={() => go('/mypage')}>
-            <User />
-            <span>{cp.items.myPage}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/my-plans')}>
-            <ClipboardList />
-            <span>{cp.items.myPlans}</span>
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading={cp.groups.legal}>
-          <CommandItem onSelect={() => go('/terms')}>
-            <ScrollText />
-            <span>{cp.items.terms}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/privacy')}>
-            <Shield />
-            <span>{cp.items.privacy}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go('/travel-terms')}>
-            <ScrollText />
-            <span>{cp.items.travelTerms}</span>
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
-    </CommandDialog>
+      {hasOpened && (
+        <SearchBoundary key={attempt} fallback={<CommandPaletteStatus open={open} failed onClose={close} onRetry={retry} />}>
+          <Suspense fallback={<CommandPaletteStatus open={open} onClose={close} />}>
+            <DialogComponent open={open} setOpen={setOpen} />
+          </Suspense>
+        </SearchBoundary>
+      )}
+    </CommandPaletteContext.Provider>
   );
 }
