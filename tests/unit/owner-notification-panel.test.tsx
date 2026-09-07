@@ -75,6 +75,9 @@ describe('오너 알림 등록과 상태', () => {
     });
     render(<OwnerNotificationPanel adapter={adapter} />);
     await screen.findByText('등록 상태 확인 실패');
+    const recovery = screen.getByText(ownerNotificationCopy.ko.checkFailedDetail);
+    expect(recovery.closest('details')).toBeNull();
+    expect(screen.getByRole('button', { name: '다시 확인' })).toHaveAttribute('aria-describedby', recovery.id);
     expect(screen.queryByText('기기 등록됨')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '다시 확인' }));
     await screen.findByText('기기 등록됨');
@@ -106,6 +109,7 @@ describe('오너 알림 등록과 상태', () => {
     render(<OwnerNotificationPanel adapter={adapter} />);
     fireEvent.click(await screen.findByRole('button', { name: '이 기기 등록' }));
     await screen.findByText('기기 등록 실패');
+    expect(screen.getByText(ownerNotificationCopy.ko.enrollFailedDetail).closest('details')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '등록 재시도' }));
     await screen.findByText('알림 권한 차단됨');
     expect(adapter.enroll).toHaveBeenCalledTimes(2);
@@ -154,5 +158,26 @@ describe('오너 알림 등록과 상태', () => {
     await screen.findByText(ownerNotificationCopy[language].registered);
     expect(screen.getByText(ownerNotificationCopy[language].dispatch)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: ownerNotificationCopy[language].check })).toHaveClass('min-h-[44px]');
+  });
+
+  it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s 오류 상태의 해결 한 문장은 접지 않고 버튼과 연결한다', async (language) => {
+    const copy = ownerNotificationCopy[language];
+    const cases: [Partial<OwnerNotificationSnapshot>, string, string][] = [
+      [{ permission: 'denied' }, copy.denied, copy.deniedDetail],
+      [{ permission: 'unsupported' }, copy.unavailable, copy.unavailableDetail],
+      [{ configured: false }, copy.notConfigured, copy.notConfiguredDetail],
+      [{ account: 'signed_out' }, copy.login, copy.loginDetail],
+    ];
+    for (const [state, label, detail] of cases) {
+      const { adapter } = fixture(state);
+      const view = render(<OwnerNotificationPanel adapter={adapter} language={language} />);
+      await screen.findByText(label);
+      const recovery = screen.getByText(detail);
+      expect(recovery.closest('details')).toBeNull();
+      expect(screen.getByRole('button', { name: copy.check })).toHaveAttribute('aria-describedby', recovery.id);
+      expect(screen.getByText(copy.dispatch)).toBeInTheDocument();
+      expect(adapter.enroll).not.toHaveBeenCalled();
+      view.unmount();
+    }
   });
 });

@@ -65,7 +65,7 @@ export default function OwnerNotificationDevHarness() {
           <button type="button" className={`${button} self-end`} onClick={() => { setRevision((value) => value + 1); setHistory([]); }}>가상 상태 초기화</button>
           {scenario === 'pending' && <button type="button" className={`${button} self-end`} onClick={() => finishPending.current?.()}>진행 중 등록 완료</button>}
         </div>
-        <OwnerControllerSetupPanel>
+        <OwnerControllerSetupPanel language={language}>
           <OwnerNotificationPanel key={adapter.key} adapter={adapter} language={language} />
         </OwnerControllerSetupPanel>
         <details className="text-xs text-slate-400">

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import React, { createContext, useContext, useState } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAiOpsCenter, { type OpsCenterData } from '@/pages/AdminAiOpsCenter';
+import type { Language } from '@/i18n';
 
 void React;
 
@@ -24,6 +25,24 @@ vi.mock('@/hooks/usePageMeta', () => ({
   usePageMeta: () => undefined,
 }));
 
+const languageChange = vi.hoisted(() => vi.fn());
+const TestLanguageContext = createContext<{ language: Language; changeLanguage: (language: Language) => void }>({
+  language: 'ko', changeLanguage: languageChange,
+});
+
+vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => useContext(TestLanguageContext) }));
+
+function TestLanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguage] = useState<Language>('ko');
+  return <TestLanguageContext.Provider value={{
+    language,
+    changeLanguage: (next) => {
+      languageChange(next);
+      setLanguage(next);
+    },
+  }}>{children}</TestLanguageContext.Provider>;
+}
+
 vi.mock('@/components/OwnerControllerSetupPanel', () => ({
   OwnerControllerSetupPanel: ({ children }: { children?: React.ReactNode }) => <div data-testid="owner-controller-setup-panel">{children}</div>,
 }));
@@ -34,6 +53,8 @@ vi.mock('@/components/OwnerNotificationSetup', () => ({
 
 const NOW = '2026-09-01T09:00:00+09:00';
 const FOREGROUND_REFRESH_DEBOUNCE_MS = 900;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_START = Date.parse('2026-09-01T00:00:00+09:00');
 
 function jsonResponse(payload: unknown, init: Omit<ResponseInit, 'body'> = {}) {
   return new Response(JSON.stringify(payload), {
@@ -47,13 +68,13 @@ function makeOpsData(overrides: Partial<OpsCenterData> = {}): OpsCenterData {
   return {
     generatedAt: NOW,
     summary: {
-      actionRequired: 1,
-      urgent: 1,
-      todayReservations: 2,
-      upcoming7d: 4,
-      openInquiries: 1,
+      actionRequired: 0,
+      urgent: 0,
+      todayReservations: 0,
+      upcoming7d: 0,
+      openInquiries: 0,
       openCs: 0,
-      paymentReviews: 1,
+      paymentReviews: 0,
       automationAttention: 0,
       ...overrides.summary,
     },
@@ -71,20 +92,39 @@ function makeOpsData(overrides: Partial<OpsCenterData> = {}): OpsCenterData {
   };
 }
 
-function renderPage(opts: { previewData?: OpsCenterData }) {
-  return render(
-    <MemoryRouter initialEntries={['/admin/ai-center']}>
-      <AdminAiOpsCenter previewData={opts.previewData} />
-    </MemoryRouter>,
-  );
+function NavigationProbe() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return <>
+    <output data-testid="test-location">{location.pathname}{location.search}{location.hash}</output>
+    <button type="button" onClick={() => navigate(-1)}>테스트 뒤로</button>
+  </>;
+}
+
+function PageHarness(opts: { previewData?: OpsCenterData; initialEntries?: string[]; initialIndex?: number }) {
+  return <TestLanguageProvider>
+    <MemoryRouter initialEntries={opts.initialEntries || ['/admin/ai-center']} initialIndex={opts.initialIndex}>
+      <Routes>
+        <Route path="/admin/ai-center" element={<AdminAiOpsCenter previewData={opts.previewData} />} />
+        <Route path="*" element={<div>가짜 원본 화면</div>} />
+      </Routes>
+      <NavigationProbe />
+    </MemoryRouter>
+  </TestLanguageProvider>;
+}
+
+function renderPage(opts: { previewData?: OpsCenterData; initialEntries?: string[]; initialIndex?: number }) {
+  return render(<PageHarness {...opts} />);
 }
 
 function renderStrictPage(opts: { previewData?: OpsCenterData }) {
   return render(
     <React.StrictMode>
-      <MemoryRouter initialEntries={['/admin/ai-center']}>
-        <AdminAiOpsCenter previewData={opts.previewData} />
-      </MemoryRouter>
+      <TestLanguageProvider>
+        <MemoryRouter initialEntries={['/admin/ai-center']}>
+          <AdminAiOpsCenter previewData={opts.previewData} />
+        </MemoryRouter>
+      </TestLanguageProvider>
     </React.StrictMode>,
   );
 }
@@ -92,8 +132,10 @@ function renderStrictPage(opts: { previewData?: OpsCenterData }) {
 beforeEach(() => {
   cleanup();
   authUser.getIdToken.mockClear();
+  languageChange.mockClear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.stubGlobal('fetch', vi.fn(() => { throw new Error('외부 호출 차단: 테스트 응답을 먼저 지정하세요.'); }));
 });
 
 describe('AdminAiOpsCenter 운영/미리보기 모드 로딩 동작', () => {
@@ -216,7 +258,7 @@ describe('AdminAiOpsCenter 포그라운드 갱신 가드', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    resolveSecond(jsonResponse(payload));
+    resolveSecond(jsonResponse({ ok: true, data: payload }));
     await act(async () => {
       await pending;
     });
@@ -241,35 +283,13 @@ describe('AdminAiOpsCenter 포그라운드 갱신 가드', () => {
   });
 });
 
-describe('AdminAiOpsCenter 헤더 레이아웃', () => {
-  it('390px 기준에서 헤더 행은 가로 overflow가 나지 않도록 flex wrap 구조를 유지한다', () => {
-    const headerData = makeOpsData();
-    const payload = {
-      ...headerData,
-      generatedAt: NOW,
-      summary: {
-        ...headerData.summary,
-        actionRequired: 2,
-        urgent: 2,
-        todayReservations: 3,
-        upcoming7d: 8,
-        openInquiries: 2,
-        paymentReviews: 1,
-      },
-    };
-
-    renderPage({ previewData: payload });
-
-    const banner = screen.getByRole('banner');
-    const headerRow = banner.firstElementChild as HTMLElement | null;
+describe('AdminAiOpsCenter 헤더 접근성', () => {
+  it('새로고침은 작은 화면의 숨겨진 텍스트에 의존하지 않고 이름과 최소 터치 크기를 가진다', () => {
+    renderPage({ previewData: makeOpsData() });
     const refreshButton = screen.getByRole('button', { name: '새로고침' });
-    const controls = refreshButton.parentElement as HTMLElement | null;
-
-    expect(headerRow).toBeTruthy();
-    expect(controls).toBeTruthy();
-    expect(headerRow).toHaveClass('flex-wrap');
-    expect(controls).toHaveClass('flex-wrap');
-    expect(controls).toHaveClass('justify-end');
+    expect(refreshButton).toHaveAttribute('aria-label', '새로고침');
+    expect(refreshButton).toHaveClass('min-h-[44px]', 'min-w-[44px]');
+    // jsdom은 미디어쿼리 실제 너비를 재지 않으므로 브라우저 390px 검증을 대신하지 않는다.
   });
 });
 
@@ -287,12 +307,281 @@ describe('AdminAiOpsCenter 언마운트 안전성', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     unmount();
-    resolveFetch(jsonResponse(makeOpsData({ generatedAt: NOW })));
+    resolveFetch(jsonResponse({ ok: true, data: makeOpsData({ generatedAt: NOW }) }));
 
     await act(async () => {
       await Promise.resolve();
     });
 
     expect(consoleError).not.toHaveBeenCalled();
+  });
+});
+
+function makeWorkItems(count: number): OpsCenterData['workItems'] {
+  return Array.from({ length: count }, (_, index) => ({
+    workItemId: `synthetic-work-${index + 1}`, type: 'decision', sourceSystem: 'decision_queue',
+    sourceRecordId: `synthetic-work-${index + 1}`, title: `가짜 확인 업무 ${index + 1}`,
+    status: 'pending', priority: 'P1', nextAction: '내용 확인', actionRequired: true,
+    ageHours: 0, eventDate: '', createdAtMs: DAY_START, deepLink: '/admin/decisions',
+  }));
+}
+
+function makeReservation(offset: number, id = `day-${offset}`): OpsCenterData['reservations'][number] {
+  const tripAtMs = DAY_START + offset * DAY_MS;
+  return {
+    workItemId: `synthetic-reservation-${id}`, sourceSystem: 'bookings', sourceLabel: '코코트립',
+    sourceRecordId: id, bookingRef: id, customerIdentityVerified: false,
+    tripAt: new Date(tripAtMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 10), tripAtMs,
+    reservationStatus: 'confirmed', paymentStatus: 'confirmed', dispatchStatus: 'accepted',
+    replyStatus: 'not_applicable', priority: 'P3', nextAction: '상세 보기', actionRequired: false,
+    updatedAtMs: DAY_START, createdAtMs: DAY_START, deepLink: '/admin/calendar',
+    label: `가짜 예약 ${id}`, isTest: true,
+  };
+}
+
+describe('AdminAiOpsCenter 성공 후 갱신 실패와 회복', () => {
+  it.each(['button', 'foreground'] as const)('%s 갱신 실패는 이전 자료·마지막 성공 시각을 보존하되 오류를 표시하고 재시도할 수 있다', async (trigger) => {
+    const initial = makeOpsData({ workItems: makeWorkItems(1) });
+    const updated = makeOpsData({ generatedAt: '2026-09-01T10:00:00+09:00', workItems: makeWorkItems(2) });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: initial }))
+      .mockResolvedValueOnce(jsonResponse({ ok: false, error: 'SYNTHETIC_REFRESH_FAILURE' }, { status: 503 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: updated }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage({});
+    expect(await screen.findByText('가짜 확인 업무 1')).toBeInTheDocument();
+
+    if (trigger === 'button') fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
+    else fireEvent(window, new Event('focus'));
+
+    const refreshAlert = await screen.findByRole('alert');
+    expect(refreshAlert).toHaveTextContent('SYNTHETIC_REFRESH_FAILURE');
+    expect(refreshAlert).toHaveTextContent('09:00');
+    expect(screen.getByText('가짜 확인 업무 1')).toBeInTheDocument();
+    const refreshStatus = screen.getByText('운영 연동 모드').closest('[role="status"]');
+    expect(refreshStatus).toHaveTextContent('갱신 실패');
+    expect(refreshStatus).not.toHaveTextContent('갱신 완료');
+    expect(refreshStatus).toHaveTextContent('09:00');
+    expect(refreshStatus).not.toHaveTextContent('10:00');
+    expect(screen.getByRole('button', { name: '새로고침' })).not.toBeDisabled();
+
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button'));
+    expect(await screen.findByText('가짜 확인 업무 2')).toBeInTheDocument();
+    expect(screen.queryByText('SYNTHETIC_REFRESH_FAILURE')).not.toBeInTheDocument();
+    expect(refreshStatus).toHaveTextContent('갱신 완료');
+    expect(refreshStatus).toHaveTextContent('10:00');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('AdminAiOpsCenter 누락 없는 목록 더보기', () => {
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(NOW));
+  });
+
+  it('23개 긴급업무를 10개씩 펼쳐 마지막 3개까지 읽을 수 있다', () => {
+    renderPage({ previewData: makeOpsData({ workItems: makeWorkItems(23) }) });
+    const queue = screen.getByRole('region', { name: '지금 해야 할 일' });
+    expect(within(queue).getAllByRole('link')).toHaveLength(10);
+    expect(within(queue).queryByText('가짜 확인 업무 11')).not.toBeInTheDocument();
+
+    fireEvent.click(within(queue).getByRole('button', { name: '10건 더 보기' }));
+    expect(within(queue).getAllByRole('link')).toHaveLength(20);
+    expect(within(queue).getByText('가짜 확인 업무 11')).toBeInTheDocument();
+    const lastWorkButton = within(queue).getByRole('button', { name: '3건 더 보기' });
+    lastWorkButton.focus();
+    fireEvent.click(lastWorkButton);
+    expect(within(queue).getAllByRole('link')).toHaveLength(23);
+    expect(within(queue).getByText('가짜 확인 업무 23')).toBeInTheDocument();
+    expect(within(queue).queryByRole('button', { name: /더 보기/ })).not.toBeInTheDocument();
+    expect(within(queue).getByRole('button', { name: '전체 표시 중' })).toBeDisabled();
+    expect(document.activeElement).toBe(lastWorkButton);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('65개 예약을 30개씩 펼쳐 마지막 5개와 원본 링크까지 표시한다', () => {
+    const reservations = Array.from({ length: 65 }, (_, index) => makeReservation(0, `item-${index + 1}`));
+    renderPage({ previewData: makeOpsData({ reservations }) });
+    const panel = screen.getByRole('region', { name: '통합 예약 흐름' });
+    expect(within(panel).getAllByRole('link')).toHaveLength(30);
+    fireEvent.click(within(panel).getByRole('button', { name: '예약 30건 더 보기' }));
+    expect(within(panel).getAllByRole('link')).toHaveLength(60);
+    const lastReservationButton = within(panel).getByRole('button', { name: '예약 5건 더 보기' });
+    lastReservationButton.focus();
+    fireEvent.click(lastReservationButton);
+    expect(within(panel).getAllByRole('link')).toHaveLength(65);
+    expect(within(panel).getByRole('link', { name: /가짜 예약 item-65/ })).toHaveAttribute('href', '/admin/calendar');
+    expect(within(panel).queryByRole('button', { name: /더 보기/ })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: '전체 표시 중' })).toBeDisabled();
+    expect(document.activeElement).toBe(lastReservationButton);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('예약 행은 고정 폭 4열 대신 이름·날짜 두 칸과 상태 다음 줄 구조를 유지한다', () => {
+    renderPage({ previewData: makeOpsData({ reservations: [makeReservation(0, 'layout')] }) });
+    const panel = screen.getByRole('region', { name: '통합 예약 흐름' });
+    const row = within(panel).getByRole('link', { name: /가짜 예약 layout/ });
+    expect(row).toHaveClass('grid-cols-[minmax(0,1fr)_auto]');
+    expect(row.className).not.toMatch(/minmax\((?:120|160)px/);
+    const statusRow = within(row).getByText('확정').parentElement;
+    expect(statusRow).toHaveClass('col-span-2');
+    expect(statusRow).not.toHaveClass('sm:col-span-1');
+    // 구조 회귀만 보호한다. 실제 1024px 겹침 여부는 브라우저 실측으로 따로 확인한다.
+  });
+
+  it('빈 목록에는 가짜 행이나 더보기 버튼을 만들지 않는다', () => {
+    renderPage({ previewData: makeOpsData() });
+    const queue = screen.getByRole('region', { name: '지금 해야 할 일' });
+    const panel = screen.getByRole('region', { name: '통합 예약 흐름' });
+    expect(within(queue).getByText('지금 급한 업무가 없습니다')).toBeInTheDocument();
+    expect(within(panel).getByText('선택한 기간에 표시할 예약이 없습니다.')).toBeInTheDocument();
+    for (const section of [queue, panel]) {
+      expect(within(section).queryByRole('link')).not.toBeInTheDocument();
+      expect(within(section).queryByRole('button', { name: /더 보기/ })).not.toBeInTheDocument();
+    }
+  });
+});
+
+describe('AdminAiOpsCenter 기간 경계와 복귀', () => {
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(NOW));
+  });
+
+  it('오늘은 한국 자정부터 다음 자정 직전까지이고 오늘 + 7일은 기존 8일 범위를 보존한다', () => {
+    const reservations = [makeReservation(-1), makeReservation(0), makeReservation(1), makeReservation(7), makeReservation(8)];
+    renderPage({ previewData: makeOpsData({ reservations }) });
+    const panel = screen.getByRole('region', { name: '통합 예약 흐름' });
+    expect(within(panel).getByRole('button', { name: '오늘 + 7일' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(panel).getAllByRole('link')).toHaveLength(3);
+    expect(within(panel).getByText('가짜 예약 day-7')).toBeInTheDocument();
+    expect(within(panel).queryByText('가짜 예약 day-8')).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole('button', { name: '오늘' }));
+    expect(within(panel).getAllByRole('link')).toHaveLength(1);
+    expect(within(panel).getByText('가짜 예약 day-0')).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: '최근 전체' }));
+    expect(within(panel).getAllByRole('link')).toHaveLength(5);
+    expect(within(panel).getByText('가짜 예약 day--1')).toBeInTheDocument();
+  });
+
+  it.each(['today', 'week', 'all'] as const)('URL period=%s를 초기 기간으로 읽는다', (period) => {
+    const names = { today: '오늘', week: '오늘 + 7일', all: '최근 전체' };
+    renderPage({ previewData: makeOpsData(), initialEntries: [`/admin/ai-center?period=${period}`] });
+    expect(screen.getByRole('button', { name: names[period] })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('알 수 없는 기간은 안전하게 기본 범위를 표시한다', () => {
+    renderPage({ previewData: makeOpsData(), initialEntries: ['/admin/ai-center?period=unknown'] });
+    expect(screen.getByRole('button', { name: '오늘 + 7일' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('기간 변경은 다른 쿼리·해시를 보존하며 원본 화면에서 뒤로 오면 같은 기간이 복원된다', () => {
+    renderPage({
+      previewData: makeOpsData({ reservations: [makeReservation(-1)] }),
+      initialEntries: ['/admin', '/admin/ai-center?work-list=long&reservations=long#ops-reservation'],
+      initialIndex: 1,
+    });
+    fireEvent.click(screen.getByRole('button', { name: '최근 전체' }));
+    const locationText = screen.getByTestId('test-location').textContent || '';
+    const location = new URL(locationText, 'https://example.invalid');
+    expect(location.searchParams.get('period')).toBe('all');
+    expect(location.searchParams.get('work-list')).toBe('long');
+    expect(location.searchParams.get('reservations')).toBe('long');
+    expect(location.hash).toBe('#ops-reservation');
+
+    fireEvent.click(screen.getByRole('link', { name: /가짜 예약 day--1/ }));
+    expect(screen.getByTestId('test-location')).toHaveTextContent('/admin/calendar');
+    fireEvent.click(screen.getByRole('button', { name: '테스트 뒤로' }));
+    expect(screen.getByRole('button', { name: '최근 전체' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('link', { name: /가짜 예약 day--1/ })).toBeInTheDocument();
+
+    // 기간 선택 자체가 방문 기록을 늘리지 않아 한 번 더 뒤로 가면 원래 관리자 화면이다.
+    fireEvent.click(screen.getByRole('button', { name: '테스트 뒤로' }));
+    expect(screen.getByTestId('test-location').textContent).toBe('/admin');
+  });
+});
+
+describe('AdminAiOpsCenter 운영 우선 배치와 부분 실패', () => {
+  it('긴급업무·예약·문의가 시스템 상태와 설치 설정보다 먼저 나온다', () => {
+    renderPage({ previewData: makeOpsData() });
+    const ordered = ['ops-summary', 'ops-queue', 'ops-reservation', 'ops-inbox', 'ops-automation', 'ops-source']
+      .map((id) => document.getElementById(id));
+    for (let index = 0; index < ordered.length - 1; index += 1) {
+      expect(ordered[index]).not.toBeNull();
+      expect(ordered[index + 1]).not.toBeNull();
+      expect(ordered[index]!.compareDocumentPosition(ordered[index + 1]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+    const setup = screen.getByTestId('owner-controller-setup-panel');
+    expect(ordered[2]!.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(setup.closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('원본 하나의 실패를 빈 전체 자료로 숨기지 않고 성공한 예약과 경고를 함께 표시한다', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(NOW));
+    renderPage({ previewData: makeOpsData({
+      reservations: [makeReservation(0)], partialErrors: ['pending_email_retries'],
+      sources: [{ key: 'pending_email_retries', label: '고객 이메일 재시도', ok: false, count: 0, possiblyTruncated: false }],
+    }) });
+    expect(screen.getByRole('alert')).toHaveTextContent('일부 자료를 확인하지 못했습니다.');
+    expect(screen.getByText('가짜 예약 day-0')).toBeInTheDocument();
+    expect(document.getElementById('ops-source')).toHaveTextContent('1곳 확인 실패');
+  });
+});
+
+describe('AdminAiOpsCenter 화면 언어와 미리보기 자료 교체', () => {
+  it.each([
+    { language: 'en', title: 'AI Operations Center', refresh: 'Refresh', workTitle: 'Tasks to handle now', languageLabel: 'Screen language' },
+    { language: 'ja', title: 'AI運営センター', refresh: '再読み込み', workTitle: '今すぐ対応する業務', languageLabel: '表示言語' },
+    { language: 'zh', title: 'AI运营中心', refresh: '刷新', workTitle: '现在需要处理的事项', languageLabel: '界面语言' },
+  ] as const)('설정에서 $language 선택 시 같은 화면의 제목·버튼·업무 영역이 바뀐다', async ({ language, title, refresh, workTitle, languageLabel }) => {
+    renderPage({ previewData: makeOpsData() });
+    expect(screen.getByRole('heading', { name: 'AI 운영센터' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('앱 설치 및 설정'));
+    const select = screen.getByRole('combobox', { name: '화면 언어' });
+    expect(within(select).getAllByRole('option')).toHaveLength(4);
+    fireEvent.change(select, { target: { value: language } });
+
+    expect(languageChange).toHaveBeenCalledExactlyOnceWith(language);
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'AI 운영센터' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: refresh })).toHaveAttribute('aria-label', refresh);
+    expect(screen.getByRole('region', { name: workTitle })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: languageLabel })).toBe(select);
+    expect(select).toHaveValue(language);
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(authUser.getIdToken).not.toHaveBeenCalled();
+  });
+
+  it('같은 마운트에서 previewData를 교체하면 새 목록·기준 시각을 즉시 표시하고 외부 호출하지 않는다', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(NOW));
+    const original = makeOpsData({
+      workItems: [{ ...makeWorkItems(1)[0], title: '교체 전 가짜 업무' }],
+      reservations: [makeReservation(0, 'original')],
+    });
+    const updated = makeOpsData({
+      generatedAt: '2026-09-01T10:30:00+09:00',
+      workItems: [{ ...makeWorkItems(1)[0], workItemId: 'replacement', title: '교체 후 가짜 업무' }],
+      reservations: [makeReservation(0, 'replacement')],
+    });
+    const view = renderPage({ previewData: original });
+    const status = screen.getByText('미리보기 모드').closest('[role="status"]');
+    expect(status).toHaveTextContent('09:00');
+    expect(screen.getByText('교체 전 가짜 업무')).toBeInTheDocument();
+    expect(screen.getByText('가짜 예약 original')).toBeInTheDocument();
+
+    view.rerender(<PageHarness previewData={updated} />);
+    expect(screen.queryByText('교체 전 가짜 업무')).not.toBeInTheDocument();
+    expect(screen.queryByText('가짜 예약 original')).not.toBeInTheDocument();
+    expect(screen.getByText('교체 후 가짜 업무')).toBeInTheDocument();
+    expect(screen.getByText('가짜 예약 replacement')).toBeInTheDocument();
+    expect(screen.getByText('미리보기 모드').closest('[role="status"]')).toBe(status);
+    expect(status).toHaveTextContent('10:30');
+    expect(status).not.toHaveTextContent('09:00');
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(authUser.getIdToken).not.toHaveBeenCalled();
   });
 });
