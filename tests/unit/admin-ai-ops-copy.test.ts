@@ -104,6 +104,15 @@ describe('AI operations center copy', () => {
     }
   });
 
+  it('labels the customer email queue as sending retries in every language', () => {
+    expect(languages.map((language) => adminAiOpsCopy[language].outboundEmailRetry)).toEqual([
+      '고객 메일 발신 재시도',
+      'Customer email sending retries',
+      '顧客メール送信の再試行',
+      '客户邮件发送重试',
+    ]);
+  });
+
   it('uses singular and plural English item labels without appending a fixed plural unit', () => {
     expect(adminAiOpsCopy.en.count(1)).toBe('1 item');
     expect(adminAiOpsCopy.en.count(2)).toBe('2 items');

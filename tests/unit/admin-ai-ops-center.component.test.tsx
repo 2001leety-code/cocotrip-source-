@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAiOpsCenter, { type OpsCenterData } from '@/pages/AdminAiOpsCenter';
+import { adminAiOpsCopy } from '@/lib/adminAiOpsCopy';
 import type { Language } from '@/i18n';
 
 void React;
@@ -529,6 +530,93 @@ describe('AdminAiOpsCenter 운영 우선 배치와 부분 실패', () => {
 });
 
 describe('AdminAiOpsCenter 화면 언어와 미리보기 자료 교체', () => {
+  it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s 발신 재시도 업무 제목만 구분하고 서버 수량·다음 행동·링크를 보존한다', async (language) => {
+    const emailWork: OpsCenterData['workItems'][number] = {
+      ...makeWorkItems(1)[0], workItemId: 'automation:email_retry', type: 'automation',
+      sourceSystem: 'email_retry', sourceRecordId: 'email_retry', title: '고객 이메일 · 2건',
+      status: 'attention', priority: 'P0', nextAction: '수동 처리 필요', deepLink: '/admin/reconciliation',
+    };
+    const unrelatedWork = {
+      ...emailWork, workItemId: 'automation:processor_retry',
+      sourceSystem: 'processor_retry', sourceRecordId: 'processor_retry',
+    };
+    const data = makeOpsData({ workItems: [emailWork, unrelatedWork] });
+    const original = JSON.stringify(data);
+    renderPage({ previewData: data });
+    fireEvent.click(screen.getByText('앱 설치 및 설정'));
+    fireEvent.change(screen.getByRole('combobox', { name: '화면 언어' }), { target: { value: language } });
+
+    const copy = adminAiOpsCopy[language];
+    const queue = screen.getByRole('region', { name: copy.workTitle });
+    const emailLink = within(queue).getByText(`${copy.outboundEmailRetry} · 2건`).closest('a');
+    expect(emailLink).toHaveAttribute('href', emailWork.deepLink);
+    expect(emailLink).toHaveTextContent(emailWork.nextAction);
+    expect(emailLink).toHaveTextContent(copy.priorityLabels.P0);
+    const unrelatedLink = within(queue).getByText(unrelatedWork.title).closest('a');
+    expect(unrelatedLink).toHaveAttribute('href', unrelatedWork.deepLink);
+    expect(unrelatedLink).not.toHaveTextContent(copy.outboundEmailRetry);
+    expect(within(queue).getAllByRole('link')).toHaveLength(2);
+    expect(JSON.stringify(data)).toBe(original);
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(authUser.getIdToken).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { workItemId: 'automation:other' },
+    { type: 'inquiry' },
+    { sourceSystem: 'other' },
+    { sourceRecordId: 'other' },
+    { title: '고객 이메일 · 원본 형식 변경' },
+    { title: '다른 원본 이름 · 2건' },
+  ])('발신 재시도 식별값이나 제목 형식이 다르면 원문을 보존한다: %j', (override) => {
+    const item: OpsCenterData['workItems'][number] = {
+      ...makeWorkItems(1)[0], workItemId: 'automation:email_retry', type: 'automation',
+      sourceSystem: 'email_retry', sourceRecordId: 'email_retry', title: '고객 이메일 · 2건',
+      ...override,
+    };
+    renderPage({ previewData: makeOpsData({ workItems: [item] }) });
+    const queue = screen.getByRole('region', { name: adminAiOpsCopy.ko.workTitle });
+    expect(within(queue).getByText(item.title)).toBeInTheDocument();
+    expect(queue).not.toHaveTextContent(adminAiOpsCopy.ko.outboundEmailRetry);
+  });
+
+  it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s 이메일 재시도만 발신으로 구분하고 원본 내용·상태·링크를 보존한다', async (language) => {
+    const emailRetry = {
+      key: 'email_retry', label: '고객 이메일', status: 'retrying' as const,
+      pending: 2, manual: 1, count: 3, detail: '가짜 발신 재시도 원문 2건 · 수동 확인 1건',
+      deepLink: '/admin/ops?tab=review',
+    };
+    const unrelated = {
+      key: 'unrelated_email', label: '고객 이메일', status: 'unlinked' as const,
+      pending: 0, manual: 0, count: 0, detail: '가짜 다른 항목의 원문',
+      deepLink: '/admin/claims',
+    };
+    const data = makeOpsData({ automation: [emailRetry, unrelated] });
+    const original = JSON.stringify(data);
+    renderPage({ previewData: data });
+    fireEvent.click(screen.getByText('앱 설치 및 설정'));
+    fireEvent.change(screen.getByRole('combobox', { name: '화면 언어' }), { target: { value: language } });
+
+    const copy = adminAiOpsCopy[language];
+    const automation = screen.getByRole('region', { name: copy.automationTitle });
+    const emailLink = within(automation).getByText(copy.outboundEmailRetry).closest('a');
+    expect(emailLink).toHaveAttribute('href', emailRetry.deepLink);
+    expect(emailLink).toHaveTextContent(emailRetry.detail);
+    expect(emailLink).toHaveTextContent(copy.automationLabels.retrying);
+    expect(emailLink).not.toHaveTextContent('고객 이메일');
+
+    const unrelatedLink = within(automation).getByText(unrelated.label).closest('a');
+    expect(unrelatedLink).toHaveAttribute('href', unrelated.deepLink);
+    expect(unrelatedLink).toHaveTextContent(unrelated.detail);
+    expect(unrelatedLink).toHaveTextContent(copy.automationLabels.unlinked);
+    expect(unrelatedLink).not.toHaveTextContent(copy.outboundEmailRetry);
+    expect(JSON.stringify(data)).toBe(original);
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(authUser.getIdToken).not.toHaveBeenCalled();
+  });
+
   it.each([
     { language: 'en', title: 'AI Operations Center', refresh: 'Refresh', workTitle: 'Tasks to handle now', languageLabel: 'Screen language' },
     { language: 'ja', title: 'AI運営センター', refresh: '再読み込み', workTitle: '今すぐ対応する業務', languageLabel: '表示言語' },

@@ -199,6 +199,17 @@ function ageLabel(hours: number, copy: ReturnType<typeof useOpsCopy>) {
   return copy.ageDays(Math.floor(hours / 24));
 }
 
+function workItemTitle(item: WorkItem, copy: ReturnType<typeof useOpsCopy>) {
+  const isOutboundEmailRetry = item.type === 'automation'
+    && item.workItemId === 'automation:email_retry'
+    && item.sourceSystem === 'email_retry'
+    && item.sourceRecordId === 'email_retry';
+  if (!isOutboundEmailRetry) return item.title;
+  // automationWorkItems supplies this suffix; preserve its count without recalculating it.
+  const countSuffix = item.title.match(/^고객 이메일( · \d+건)$/)?.[1];
+  return countSuffix ? `${copy.outboundEmailRetry}${countSuffix}` : item.title;
+}
+
 function reservationStatusLabel(status: string, copy: ReturnType<typeof useOpsCopy>) {
   const normalized = status.toLowerCase();
   const labels: Record<string, string> = copy.reservationLabels;
@@ -353,7 +364,7 @@ function WorkQueue({ items, sectionId }: { items: WorkItem[]; sectionId?: string
                   {copy.priorityLabels[item.priority]}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-slate-100">{item.title}</span>
+                  <span className="block truncate text-sm font-bold text-slate-100">{workItemTitle(item, copy)}</span>
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400">
                     <span>{item.nextAction}</span>
                     {item.ageHours > 0 && <span>· {ageLabel(item.ageHours, copy)}</span>}
@@ -406,7 +417,7 @@ function AutomationPanel({ items, sectionId }: { items: AutomationItem[]; sectio
               )}
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold text-slate-100">{item.label}</span>
+                  <span className="text-sm font-bold text-slate-100">{item.key === 'email_retry' ? copy.outboundEmailRetry : item.label}</span>
                   <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${meta.className}`}>{copy.automationLabels[item.status]}</span>
                 </span>
                 <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.detail}</span>

@@ -59,6 +59,7 @@ export interface AdminAiOpsCopy {
   allShown: string;
   automationTitle: string;
   automationDetail: string;
+  outboundEmailRetry: string;
   reservationsTitle: string;
   reservationsDetail: string;
   reservationFilterLabel: string;
@@ -152,6 +153,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allShown: '전체 표시 중',
     automationTitle: '자동화 상태',
     automationDetail: '실행 결과가 없는 항목은 미연동으로 표시',
+    outboundEmailRetry: '고객 메일 발신 재시도',
     reservationsTitle: '통합 예약 흐름',
     reservationsDetail: '온라인·입금 대기·MOOD를 원본 식별자로 정리',
     reservationFilterLabel: '예약 기간 필터',
@@ -242,6 +244,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allShown: 'Showing all',
     automationTitle: 'Automation status',
     automationDetail: 'Items without execution results are shown as not connected',
+    outboundEmailRetry: 'Customer email sending retries',
     reservationsTitle: 'Unified reservations',
     reservationsDetail: 'Online, pending deposits and MOOD matched by source identifiers',
     reservationFilterLabel: 'Reservation date filter',
@@ -332,6 +335,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allShown: 'すべて表示中',
     automationTitle: '自動化の状態',
     automationDetail: '実行結果がない項目は未連携と表示',
+    outboundEmailRetry: '顧客メール送信の再試行',
     reservationsTitle: '予約の一元管理',
     reservationsDetail: 'オンライン・入金待ち・MOODを元の識別子で整理',
     reservationFilterLabel: '予約期間フィルター',
@@ -422,6 +426,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allShown: '已显示全部',
     automationTitle: '自动化状态',
     automationDetail: '没有执行结果的项目显示为未连接',
+    outboundEmailRetry: '客户邮件发送重试',
     reservationsTitle: '统一预约管理',
     reservationsDetail: '按原始标识整理在线预约、待汇款预约和MOOD',
     reservationFilterLabel: '预约日期筛选',
