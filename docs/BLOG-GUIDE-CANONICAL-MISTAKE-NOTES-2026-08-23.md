@@ -1,5 +1,8 @@
 # 블로그·가이드 대표 원문 오답노트 — 2026-08-23
 
+- 2026-09-07: 공개 목록과 본문 모듈이 모두 있는 글은 동적 본문을 읽는 잠시 동안도
+  `index, follow`를 유지한다. 없는 slug·본문 실패만 `noindex, nofollow`로 닫는다.
+  이 회귀는 최종 meta만 보면 놓치므로 MutationObserver로 로딩 전 구간을 전부 기록한다.
 - Blogger 공개 피드에 글이 보인다는 사실은 품질 승인 근거가 아니다. 승인 장부나 Brain
   projection manifest가 없으면 감사만 하고 웹 파일을 쓰지 않는다.
 - 외부·동기화 HTML을 `dangerouslySetInnerHTML`에 바로 넣지 않는다. import와 브라우저 렌더

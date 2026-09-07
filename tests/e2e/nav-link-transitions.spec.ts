@@ -88,6 +88,23 @@ test.describe('SPA Link navigation', () => {
 
   test('/guide → guide detail via card Link', async ({ page }) => {
     await page.goto('/guide');
+    await page.evaluate(() => {
+      const state = window as Window & { __guideRobotsHistory?: string[] };
+      state.__guideRobotsHistory = [];
+      const recordRobots = () => {
+        const content = document.querySelector('meta[name="robots"]')?.getAttribute('content');
+        if (content && state.__guideRobotsHistory?.at(-1) !== content) {
+          state.__guideRobotsHistory?.push(content);
+        }
+      };
+      new MutationObserver(recordRobots).observe(document.head, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['content'],
+      });
+      recordRobots();
+    });
     const card = page.locator('a[href^="/guide/"]').first();
     await card.waitFor({ timeout: 10000 });
     await card.click();
@@ -96,6 +113,11 @@ test.describe('SPA Link navigation', () => {
     // 이게 보이면 글이 실제로 도착해 렌더된 것이다(로딩·404·에러 화면과 구분된다).
     await expect(page.getByTestId('guide-article')).toBeVisible({ timeout: 8000 });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 8000 });
+    const robotsHistory = await page.evaluate(() => (
+      window as Window & { __guideRobotsHistory?: string[] }
+    ).__guideRobotsHistory || []);
+    expect(robotsHistory).toContain('index, follow');
+    expect(robotsHistory).not.toContain('noindex, nofollow');
   });
 
   test('/community → /community/new via Link', async ({ page }) => {

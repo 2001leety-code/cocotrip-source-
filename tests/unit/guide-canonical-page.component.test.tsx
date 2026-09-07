@@ -71,12 +71,52 @@ describe('가이드 대표 원문 메타 배선', () => {
     });
   });
 
-  it('known detail 로딩은 목록 canonical로 바꾸지 않고 self-canonical + noindex를 쓴다', () => {
+  it('sitemap과 본문 loader가 있는 상세는 로딩부터 ready까지 self-canonical + index를 유지한다', async () => {
     const canonical = 'https://cocotripkr.com/guide/best-seoul-street-food-markets-2026';
     render(<GuideDetailPage />);
     expect(usePageMetaMock.mock.calls[0][0]).toEqual(expect.objectContaining({
       title: 'Seoul Night Markets & Street Food 2026: Gwangjang, Myeongdong, Mangwon',
       ogUrl: canonical,
+      contentSha256: undefined,
+      robots: 'index, follow',
+    }));
+    expect(useJsonLdMock).toHaveBeenCalledWith('guide-article', null);
+
+    await waitFor(() => {
+      expect(guideArticleBodyMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        status: 'ready',
+      }));
+    });
+    expect(usePageMetaMock.mock.calls.every(([meta]) => meta.robots === 'index, follow')).toBe(true);
+  });
+
+  it('sitemap이나 본문 loader에 없는 slug는 missing + noindex로 닫는다', () => {
+    routeParams.slug = 'not-a-published-guide';
+    const canonical = 'https://cocotripkr.com/guide/not-a-published-guide';
+    render(<GuideDetailPage />);
+
+    expect(guideArticleBodyMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'missing',
+      doc: null,
+    }));
+    expect(usePageMetaMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      ogUrl: canonical,
+      contentSha256: undefined,
+      robots: 'noindex, nofollow',
+    }));
+    expect(useJsonLdMock).toHaveBeenCalledWith('guide-article', null);
+  });
+
+  it('본문 loader만 있고 공개 메타에 없는 _index slug도 missing + noindex로 닫는다', () => {
+    routeParams.slug = '_index';
+    render(<GuideDetailPage />);
+
+    expect(guideArticleBodyMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'missing',
+      doc: null,
+    }));
+    expect(usePageMetaMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      ogUrl: 'https://cocotripkr.com/guide/_index',
       contentSha256: undefined,
       robots: 'noindex, nofollow',
     }));

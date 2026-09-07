@@ -11,6 +11,33 @@ test.describe('guide canonical + safe renderer', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
+    // The article body is a lazy JSON chunk. Record every robots mutation from
+    // before React starts so a short-lived loading-state noindex cannot regress.
+    await page.addInitScript(() => {
+      const state = window as Window & { __robotsHistory?: string[] };
+      state.__robotsHistory = [];
+      const recordRobots = () => {
+        const content = document.querySelector('meta[name="robots"]')?.getAttribute('content');
+        if (content && state.__robotsHistory?.at(-1) !== content) {
+          state.__robotsHistory?.push(content);
+        }
+      };
+      const startObserver = () => {
+        if (!document.documentElement) {
+          setTimeout(startObserver, 0);
+          return;
+        }
+        new MutationObserver(recordRobots).observe(document.documentElement, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['content'],
+        });
+        recordRobots();
+      };
+      startObserver();
+    });
+
     await page.goto(`/guide/${SLUG}`, { waitUntil: 'networkidle' });
     await expect(page.getByTestId('guide-article')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(TITLE);
@@ -19,6 +46,11 @@ test.describe('guide canonical + safe renderer', () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', CANONICAL);
     await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', CANONICAL);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
+    const robotsHistory = await page.evaluate(() => (
+      window as Window & { __robotsHistory?: string[] }
+    ).__robotsHistory || []);
+    expect(robotsHistory).toContain('index, follow');
+    expect(robotsHistory).not.toContain('noindex, nofollow');
 
     const articleJson = JSON.parse(await page.locator('script#guide-article').textContent() || '{}');
     expect(articleJson.mainEntityOfPage['@id']).toBe(CANONICAL);

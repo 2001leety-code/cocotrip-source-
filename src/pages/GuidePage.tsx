@@ -70,18 +70,19 @@ export function GuideDetailPage() {
   // 필요 없어(react-hooks/set-state-in-effect 회피) 이전 글이 잠깐 보이는 일도 없다.
   const [loaded, setLoaded] = useState<{ slug: string; doc: GuideDoc | null } | null>(null);
   const loader = slug ? guideModules[`../content/guides/${slug}.json`] : undefined;
+  const meta = GUIDES.find((g) => g.slug === slug);
   const done = loaded !== null && loaded.slug === slug;
   const doc = done ? loaded.doc : null;
 
   // 없는 글(loader 자체가 없음)과 못 불러온 글(청크 fetch 실패)은 사용자가 할 수 있는
   // 일이 다르다 — 하나는 목록으로, 하나는 재시도다. 전환 전에는 둘 다 "글 없음"이었다.
   useEffect(() => {
-    if (!slug || !loader) return;
+    if (!slug || !meta || !loader) return;
     let cancelled = false;
     loader().then((m) => { if (!cancelled) setLoaded({ slug, doc: m.default }); })
       .catch(() => { if (!cancelled) setLoaded({ slug, doc: null }); });
     return () => { cancelled = true; };
-  }, [slug, loader]);
+  }, [slug, meta, loader]);
 
   // 재시도 = 전체 새로고침. 2026-08-11 Chromium 실측: 동적 import 가 한 번 거절되면
   // 모듈 맵에 실패가 남아 같은 loader 를 다시 불러도 네트워크를 타지 않고 즉시 거절된다
@@ -91,13 +92,16 @@ export function GuideDetailPage() {
 
   // 읽는 시간은 목록이 본문에서 계산해 둔 낱말 수에서만 나온다. 목록에 없는 글이면
   // (직접 URL 로 들어온 신규 파일 등) 그 줄을 아예 그리지 않는다 — 지어내지 않는다.
-  const meta = GUIDES.find((g) => g.slug === slug);
+  // `_index.json` 공개 목록과 같은 slug의 본문 모듈이 모두 있어야 실제 공개 글이다.
+  // 그런 글의 loading은 정상적인 잠시 상태이므로 index 신호를 유지하고,
+  // 목록에 없거나 본문을 못 읽은 글은 아래에서 noindex로 닫는다.
+  const isKnownIndexableGuide = Boolean(meta && loader);
   // 같은 주제를 공유하는 다른 글 2~3편. 목록 메타(_index.json)만 읽으므로 본문 청크를
   // 더 받지 않고, 순서는 완전 결정론이라 새로고침마다 흔들리지 않는다.
   const related = pickRelatedGuides(slug, GUIDES);
   const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
   const hasSafeBody = safeHtml.trim().length > 0;
-  const status: GuideArticleStatus = !loader
+  const status: GuideArticleStatus = !meta || !loader
     ? 'missing'
     : !done
       ? 'loading'
@@ -117,7 +121,9 @@ export function GuideDetailPage() {
     ogImage,
     ogUrl: canonicalUrl,
     contentSha256: readyDoc?.contentSha256,
-    robots: status === 'ready' ? 'index, follow' : 'noindex, nofollow',
+    robots: isKnownIndexableGuide && (status === 'loading' || status === 'ready')
+      ? 'index, follow'
+      : 'noindex, nofollow',
   });
   // 글이 로드된 뒤에만 Article 을 내보낸다 — 로딩 중 껍데기에 스키마를 붙이면
   // 제목·날짜가 빈 Article 이 크롤러에 잡힌다.
