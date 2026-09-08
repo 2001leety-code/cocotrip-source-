@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { START_FRESHNESS_MS, WHATSAPP_PRIVACY_MODE, supportCommand, validSupportMessageId, validSupportSender } from './whatsapp-support-sessions.js';
+import { INBOX_CLOSED_RETENTION_DAYS } from './external-inbox-retention.js';
 
 export const WHATSAPP_INBOX_BODY_LIMIT = 4_194_304;
 export const WHATSAPP_INBOX_BODY_TIMEOUT_MS = 5000;
@@ -136,7 +137,7 @@ export function extractWhatsAppInboxMessages(payload, { config, wabaId, nowMs })
           || incoming.echo || incoming.is_echo || incoming.history || incoming.is_history) { ignored += 1; continue; }
         const sourceAtMs = Number(incoming.timestamp) * 1000;
         if (!Number.isSafeInteger(sourceAtMs) || sourceAtMs < config.captureStartAtMs || sourceAtMs > nowMs
-          || sourceAtMs + config.retentionDays * 86_400_000 <= nowMs) { ignored += 1; continue; }
+          || sourceAtMs + Math.min(config.retentionDays, INBOX_CLOSED_RETENTION_DAYS) * 86_400_000 <= nowMs) { ignored += 1; continue; }
         const kind = TYPES.has(incoming.type) ? incoming.type : 'unknown';
         const text = kind === 'text' && typeof incoming.text?.body === 'string' ? incoming.text.body : '';
         if (supportCommand(kind, text) === 'start' && nowMs - sourceAtMs > START_FRESHNESS_MS) { ignored += 1; continue; }

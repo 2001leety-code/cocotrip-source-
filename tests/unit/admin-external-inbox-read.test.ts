@@ -3,6 +3,7 @@ import {
   externalInboxChannelStatus, externalInboxConfigs, loadExternalInbox, loadExternalInboxDetail, publicExternalInboxMessage,
 } from '../../api/_shared/adminExternalInboxRead.js';
 import { prepareExternalInboxMessage } from '../../api/_shared/external-inbox-store.js';
+import { nextInboxCaseOnMessage } from '../../api/_shared/external-inbox-retention.js';
 import { sessionDocId } from '../../api/_shared/whatsapp-support-sessions.js';
 
 const NOW = Date.parse('2026-09-08T06:00:00.000Z');
@@ -20,11 +21,18 @@ function env() {
 }
 const configs = () => externalInboxConfigs(env(), NOW);
 function prepared(channel = 'email', messageId = 'fake_message') {
-  return prepareExternalInboxMessage({ channel, accountId: channel === 'email' ? 'cocotripkr@gmail.com' : '456',
+  const result = prepareExternalInboxMessage({ channel, accountId: channel === 'email' ? 'cocotripkr@gmail.com' : '456',
     providerMessageId: messageId, providerThreadId: channel === 'email' ? 'fake_thread' : '15550001111', sourceAtMs: NOW - 10_000,
     sender: channel === 'email' ? 'Synthetic sender' : '15550001111', subject: 'Synthetic subject', text: PRIVATE, kind: channel === 'email' ? 'email' : 'text', truncated: true,
     ...(channel === 'whatsapp' ? { whatsappPolicyVersion: 1, whatsappSessionId: sessionDocId('456', '15550001111') } : {}) },
   { nowMs: NOW, retentionDays: 30 });
+  return { ...result, data: { ...result.data, retentionPolicyVersion: undefined, caseId: undefined,
+    expiresAtMs: NOW - 10_000 + 30 * 86_400_000, expiresAt: new Date(NOW - 10_000 + 30 * 86_400_000) } };
+}
+function preparedV2(messageId = 'v2_message') {
+  return prepareExternalInboxMessage({ channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: messageId,
+    providerThreadId: 'v2_thread', sourceAtMs: NOW - 10_000, sender: 'Synthetic sender', subject: 'Synthetic subject',
+    text: PRIVATE, kind: 'email', truncated: true }, { nowMs: NOW, retentionDays: 30 });
 }
 function goodState(channel = 'email', extra: Row = {}) {
   return { accountId: channel === 'email' ? 'cocotripkr@gmail.com' : '456', status: 'connected', captureStartAtMs: START,
@@ -56,8 +64,23 @@ function fakeDb(rows: Record<string, Row> = {}) {
         const selected = Object.entries(rows).filter(([path, row]) => path.startsWith(`${name}/`) && spec.where.every(([key, operator, value]) => {
           expect(operator).toBe('=='); return (key === '__name__' ? path.split('/')[1] : row[key]) === value;
         })).sort(([, a], [, b]) => spec.orders.length ? Number(b.receivedAtMs) - Number(a.receivedAtMs) : 0).slice(0, spec.limit);
-        return { docs: selected.map(([path, row]) => ({ id: path.split('/')[1], data: () => spec.fields.length
-          ? Object.fromEntries(spec.fields.filter(field => field in row).map(field => [field, row[field]])) : row })) };
+        const selectedData = (row: Row) => {
+          if (!spec.fields.length) return row;
+          const result: Row = {};
+          for (const field of spec.fields) {
+            const parts = field.split('.'); let value: unknown = row;
+            for (const part of parts) value = value && typeof value === 'object' ? (value as Row)[part] : undefined;
+            if (value === undefined) continue;
+            let target = result;
+            for (const part of parts.slice(0, -1)) {
+              if (!target[part] || typeof target[part] !== 'object') target[part] = {};
+              target = target[part] as Row;
+            }
+            target[parts[parts.length - 1]] = value;
+          }
+          return result;
+        };
+        return { docs: selected.map(([path, row]) => ({ id: path.split('/')[1], data: () => selectedData(row) })) };
       },
     };
     return query;
@@ -76,7 +99,7 @@ describe('safe channel configuration and connection status', () => {
     const f = fakeDb(); const config = externalInboxConfigs({ WHATSAPP_INBOX_ENABLED: 'true' }, NOW);
     const result = await loadExternalInbox({ db: f.db, configs: config, nowMs: NOW });
     expect(result.channels).toMatchObject([{ channel: 'email', status: 'disabled' }, { channel: 'whatsapp', status: 'not_configured' }]);
-    expect(result).toMatchObject({ messages: [], listStatus: 'not_connected' }); expect(f.queries).toEqual([]);
+    expect(result).toMatchObject({ messages: [], listStatus: 'not_connected', retentionMaintenance: { status: 'not_active' } }); expect(f.queries).toEqual([]);
   });
   it('never calls a failed state lookup zero inquiries or synchronized', () => {
     expect(externalInboxChannelStatus('email', configs().email, goodState(), NOW, true).status).toBe('unknown');
@@ -106,7 +129,55 @@ describe('safe channel configuration and connection status', () => {
   });
 });
 
+describe('retention maintenance summary', () => {
+  const retention = (extra: Row = {}) => ({ ok: true, code: 'RETENTION_COMPLETED', checkedAtMs: NOW - 1000,
+    copies: { purged: 2 }, drafts: { purged: 3 }, ...extra });
+  it('publishes only a fresh successful maintenance summary from the selected retention state', async () => {
+    const f = fakeDb({ 'external_inbox_state/retention': retention() });
+    const result = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
+    expect(result.retentionMaintenance).toEqual({ status: 'ok', checkedAtMs: NOW - 1000, copiesPurged: 2, draftsPurged: 3 });
+    expect(JSON.stringify(result.retentionMaintenance)).not.toContain('RETENTION_COMPLETED');
+    const query = f.queries.find(item => item.collection === 'external_inbox_state' && item.where.some(([, , value]) => value === 'retention'));
+    expect(query?.fields).toEqual(['ok', 'code', 'checkedAtMs', 'copies.purged', 'drafts.purged']);
+  });
+  it('keeps a stale successful run distinct from an unknown maintenance state', async () => {
+    const delayed = fakeDb({ 'external_inbox_state/retention': retention({ checkedAtMs: NOW - 2 * 60 * 60_000 - 1 }) });
+    expect((await loadExternalInbox({ db: delayed.db, configs: configs(), nowMs: NOW })).retentionMaintenance).toMatchObject({ status: 'delayed' });
+    const malformed = fakeDb({ 'external_inbox_state/retention': retention({ copies: { purged: -1 } }) });
+    expect((await loadExternalInbox({ db: malformed.db, configs: configs(), nowMs: NOW })).retentionMaintenance).toMatchObject({ status: 'unknown', copiesPurged: null });
+  });
+  it('reports failed or review-required maintenance as attention without exposing its code', async () => {
+    for (const row of [retention({ ok: false, code: 'RETENTION_SWEEP_UNAVAILABLE' }), retention({ ok: true, code: 'RETENTION_REVIEW_REQUIRED' })]) {
+      const f = fakeDb({ 'external_inbox_state/retention': row });
+      const result = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
+      expect(result.retentionMaintenance).toMatchObject({ status: 'attention' });
+      expect(JSON.stringify(result.retentionMaintenance)).not.toContain('RETENTION_');
+    }
+  });
+  it('does not turn a mailbox list outage into a maintenance outage', async () => {
+    const f = fakeDb({ 'external_inbox_state/retention': retention() }); f.fail.add('external_inbox_messages');
+    const result = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
+    expect(result).toMatchObject({ listStatus: 'unknown', retentionMaintenance: { status: 'ok', copiesPurged: 2 } });
+  });
+});
+
 describe('company/digest/cutover/retention gates on both list and detail', () => {
+  it('requires a bounded matching v2 case and returns only the public case retention state', async () => {
+    const record = preparedV2();
+    const inboxCase = nextInboxCaseOnMessage(null, record.data, NOW);
+    expect(publicExternalInboxMessage(record.docId, record.data, configs(), NOW, true, inboxCase))
+      .toMatchObject({ text: PRIVATE, retention: { caseId: record.data.caseId, status: 'open', revision: 1 } });
+    expect(publicExternalInboxMessage(record.docId, record.data, configs(), NOW, true)).toBeNull();
+    expect(publicExternalInboxMessage(record.docId, { ...record.data, expiresAtMs: NOW + 1 }, configs(), NOW, true, inboxCase)).toBeNull();
+    const f = fakeDb({ [`external_inbox_messages/${record.docId}`]: record.data,
+      [`external_inbox_cases/${record.data.caseId}`]: inboxCase });
+    const list = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
+    expect(list.messages).toHaveLength(1);
+    expect(list.messages[0]).not.toHaveProperty('providerThreadId');
+    expect(f.docReads).toEqual([`external_inbox_cases/${record.data.caseId}`]);
+    expect(await loadExternalInboxDetail({ db: f.db, id: record.docId, configs: configs(), nowMs: NOW }))
+      .toMatchObject({ retention: { caseId: record.data.caseId } });
+  });
   it('only exposes receipts written through the explicit WhatsApp session policy', () => {
     const record = prepared('whatsapp');
     expect(publicExternalInboxMessage(record.docId, record.data, configs(), NOW, true)).toMatchObject({ text: PRIVATE });
@@ -161,8 +232,9 @@ describe('bounded source reads and honest partial failure', () => {
     expect(JSON.stringify(result)).not.toContain(PRIVATE); expect(f.docReads).toEqual([]);
     const list = f.queries.find(query => query.collection === 'external_inbox_messages');
     expect(list).toMatchObject({ limit: 101, orders: ['receivedAtMs:desc'] });
-    expect(list?.fields).toEqual(['channel', 'accountId', 'providerMessageId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId']);
-    for (const query of f.queries.filter(query => query.collection === 'external_inbox_state')) {
+    expect(list?.fields).toEqual(['channel', 'accountId', 'providerMessageId', 'providerThreadId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId', 'retentionPolicyVersion', 'caseId']);
+    for (const query of f.queries.filter(query => query.collection === 'external_inbox_state'
+      && query.where.some(([, , value]) => value !== 'retention'))) {
       expect(query.limit).toBe(1); expect(query.fields).toEqual(['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'lastSuccessAtMs', 'lastReceivedAtMs']);
     }
   });

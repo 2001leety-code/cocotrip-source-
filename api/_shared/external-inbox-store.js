@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { sessionDocId, supportCommand, transitionSupportSession, validateSupportSession,
   validSupportAccount, validSupportMessageId, validSupportSender, START_FRESHNESS_MS, WHATSAPP_SESSIONS_COLLECTION } from './whatsapp-support-sessions.js';
+import { INBOX_CASES_COLLECTION, INBOX_CLOSED_RETENTION_DAYS, inboxCaseId, nextInboxCaseOnMessage } from './external-inbox-retention.js';
 
 export const EXTERNAL_INBOX_MESSAGES_COLLECTION = 'external_inbox_messages';
 export const EXTERNAL_INBOX_STATE_COLLECTION = 'external_inbox_state';
@@ -47,7 +48,8 @@ export function prepareExternalInboxMessage(message, { nowMs, retentionDays }) {
   const sourceAtMs = message.sourceAtMs;
   if (!Number.isSafeInteger(sourceAtMs) || sourceAtMs <= 0) throw invalid('INBOX_SOURCE_TIME_INVALID');
   if (sourceAtMs > nowMs) throw invalid('INBOX_SOURCE_TIME_FUTURE');
-  const expiresAtMs = sourceAtMs + retentionDays * DAY_MS;
+  const v2ReceiptWindowDays = Math.min(retentionDays, INBOX_CLOSED_RETENTION_DAYS);
+  const expiresAtMs = sourceAtMs + v2ReceiptWindowDays * DAY_MS;
   if (!Number.isSafeInteger(expiresAtMs) || expiresAtMs > 8_640_000_000_000_000) throw invalid('INBOX_SOURCE_TIME_INVALID');
   if (expiresAtMs <= nowMs) throw invalid('INBOX_MESSAGE_EXPIRED');
   if (typeof message.kind !== 'string' || !/^[a-z][a-z0-9_]{0,31}$/.test(message.kind)) {
@@ -65,6 +67,7 @@ export function prepareExternalInboxMessage(message, { nowMs, retentionDays }) {
   const docId = createHash('sha256')
     .update(JSON.stringify(['external-inbox.v1', message.channel, accountId, providerMessageId]))
     .digest('hex');
+  const caseId = inboxCaseId({ channel: message.channel, accountId, providerThreadId });
   return { docId, data: {
     channel: message.channel,
     accountId,
@@ -77,9 +80,11 @@ export function prepareExternalInboxMessage(message, { nowMs, retentionDays }) {
     text: text.value,
     kind: message.kind,
     truncated: message.truncated === true || sender.truncated || subject.truncated || text.truncated,
-    expiresAtMs,
-    // A TTL-compatible field is NOT a promise of deletion: the operator must enable Firestore TTL separately.
-    expiresAt: new Date(expiresAtMs),
+    // v2 is case-retained. Receipt time never creates a TTL deletion promise.
+    retentionPolicyVersion: 2,
+    caseId,
+    expiresAtMs: 0,
+    expiresAt: null,
     ...supportProof,
   } };
 }
@@ -130,7 +135,8 @@ export async function writeExternalInboxMessages({ db, messages, nowMs, now = Da
         const sessionId = sessionDocId(accountId, message.sender);
         const current = sessions.get(sessionId);
         if (corrupt.has(sessionId) || (current && !validateSupportSession(current, { accountId, sender: message.sender, sessionId }))
-          || message.sourceAtMs > checkedAtMs || message.sourceAtMs + retentionDays * DAY_MS <= checkedAtMs) { ignored++; continue; }
+          || message.sourceAtMs > checkedAtMs
+          || message.sourceAtMs + Math.min(retentionDays, INBOX_CLOSED_RETENTION_DAYS) * DAY_MS <= checkedAtMs) { ignored++; continue; }
         const next = transitionSupportSession(current, message, { nowMs: checkedAtMs });
         if (next.changed) { sessions.set(sessionId, next.session); changed.add(sessionId); }
         if (!next.allowMessage || current.startedAtMs < captureStartAtMs) { ignored++; continue; }
@@ -140,6 +146,10 @@ export async function writeExternalInboxMessages({ db, messages, nowMs, now = Da
       const messageSnapshots = messageRefs.length ? await getAll(messageRefs) : [];
       const fresh = allowed.filter((_, position) => !messageSnapshots[position].exists);
       const stateSnapshot = fresh.length ? await transaction.get(stateRef) : null;
+      const freshCaseIds = [...new Set(fresh.map(item => item.data.caseId))];
+      const caseRefs = freshCaseIds.map(id => db.collection(INBOX_CASES_COLLECTION).doc(id));
+      const caseSnapshots = caseRefs.length ? await getAll(caseRefs) : [];
+      const cases = new Map(freshCaseIds.map((id, position) => [id, caseSnapshots[position].exists ? caseSnapshots[position].data() : null]));
       // Re-read time after every asynchronous read; a slow read/retry must not authorize expired text.
       const commitAtMs = now();
       if (!Number.isSafeInteger(commitAtMs) || commitAtMs < checkedAtMs) throw invalid('INBOX_CLOCK_INVALID');
@@ -154,7 +164,17 @@ export async function writeExternalInboxMessages({ db, messages, nowMs, now = Da
         if (session.status === 'active' && (commitAtMs >= session.expiresAtMs || commitAtMs - session.startedAtMs > START_FRESHNESS_MS)) continue;
         transaction.set(db.collection(WHATSAPP_SESSIONS_COLLECTION).doc(id), session);
       }
-      for (const item of eligibleFresh) transaction.set(db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(item.docId), item.data);
+      const nextCases = new Map();
+      const committedFresh = [];
+      for (const item of eligibleFresh) {
+        const id = item.data.caseId;
+        const previous = nextCases.has(id) ? nextCases.get(id) : cases.get(id);
+        const data = { ...item.data, receivedAtMs: commitAtMs };
+        committedFresh.push({ ...item, data });
+        nextCases.set(id, nextInboxCaseOnMessage(previous, data, commitAtMs));
+      }
+      for (const item of committedFresh) transaction.set(db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(item.docId), item.data);
+      for (const [id, next] of nextCases) transaction.set(db.collection(INBOX_CASES_COLLECTION).doc(id), next);
       if (eligibleFresh.length) {
         const state = stateSnapshot && stateSnapshot.exists ? stateSnapshot.data() : {};
         const previousReceived = state.accountId === accountId && Number.isSafeInteger(state.lastReceivedAtMs) ? state.lastReceivedAtMs : 0;
@@ -178,7 +198,7 @@ export function planExpiredExternalInboxCleanup(documents, { nowMs, limit = 100 
   const ids = new Set();
   for (const document of documents) {
     const data = document && document.data;
-    if (!data || !['email', 'whatsapp'].includes(data.channel)
+    if (!data || data.retentionPolicyVersion === 2 || !['email', 'whatsapp'].includes(data.channel)
       || !Number.isSafeInteger(data.expiresAtMs) || data.expiresAtMs <= 0 || data.expiresAtMs > nowMs) continue;
     try {
       const expectedId = createHash('sha256')

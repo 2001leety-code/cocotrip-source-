@@ -40,6 +40,7 @@ import previewLeadRecovery from './_crons/preview-lead-recovery.js';
 import inquiryResponseSweep from './_crons/inquiry-response-sweep.js';
 import ownerNotificationSweep from './_crons/owner-notification-sweep.js';
 import companyGmailInboxSweep from './_crons/company-gmail-inbox-sweep.js';
+import externalInboxRetentionSweep from './_crons/external-inbox-retention-sweep.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -83,6 +84,7 @@ const JOBS = {
   'owner-notification-sweep':    ownerNotificationSweep,
   // Explicit company-only cutover/retention + read-only OAuth; OFF performs no worker I/O.
   'company-gmail-inbox-sweep':   companyGmailInboxSweep,
+  'external-inbox-retention-sweep': externalInboxRetentionSweep,
 };
 
 const CORS = {

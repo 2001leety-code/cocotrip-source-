@@ -2,6 +2,10 @@
   "ignoreCommand": "bash scripts/vercel-ignore.sh",
   "crons": [
     {
+      "path": "/api/cron-runner?job=external-inbox-retention-sweep",
+      "schedule": "23 * * * *"
+    },
+    {
       "path": "/api/cron-runner?job=daily-report",
       "schedule": "0 22 * * *"
     },

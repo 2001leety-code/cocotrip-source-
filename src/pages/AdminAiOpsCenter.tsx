@@ -33,7 +33,7 @@ import { AdminWebchatInbox } from '@/components/AdminWebchatInbox';
 import { AdminOperationalChecks } from '@/components/AdminOperationalChecks';
 import type { OperationalChecksData } from '@/lib/adminOperationalChecks';
 import type { WebchatDetail, WebchatOverview } from '@/lib/adminWebchatInboxContract';
-import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
+import type { ExternalInboxOverview, ExternalInboxRetention } from '@/lib/adminExternalInboxCopy';
 import { AdminChannelReadiness, type ChannelResponseReadiness } from '@/components/AdminChannelReadiness';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
@@ -708,6 +708,8 @@ function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData;
 interface AdminAiOpsCenterProps {
   previewData?: OpsCenterData;
   previewExternalInbox?: ExternalInboxOverview;
+  /** DEV fixture only; this never reaches the production inbox endpoint. */
+  previewExternalInboxRetentionAction?: (input: { messageId: string; expectedRevision: number; action: 'close' | 'reopen' | 'protect'; confirmation?: 'ordinary_no_evidence' }) => Promise<ExternalInboxRetention>;
   previewWebchat?: WebchatOverview;
   previewWebchatDetails?: Record<string, WebchatDetail>;
   previewOperationalChecks?: OperationalChecksData;
@@ -732,7 +734,7 @@ function UnconnectedChannels() {
   );
 }
 
-export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
+export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewExternalInboxRetentionAction, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
   const { language, changeLanguage } = useLanguage();
   const copy = useOpsCopy();
   usePageMeta({ title: copy.pageTitle, description: copy.pageDescription });
@@ -965,7 +967,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
         <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
           <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
-          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} />
+          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} retentionAction={previewExternalInboxRetentionAction} />
           <AdminWebchatInbox language={language} previewMode={!serverMode} previewData={previewWebchat} previewDetails={previewWebchatDetails} />
         </div>
         {data && <>
