@@ -46,6 +46,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron-runner?job=company-gmail-inbox-sweep",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron-runner?job=ai-planner-retry-sweep",
       "schedule": "*/5 * * * *"
     },

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminAiOpsCenter, { type OpsCenterData } from '@/pages/AdminAiOpsCenter';
 import { adminAiOpsCopy } from '@/lib/adminAiOpsCopy';
+import { adminExternalInboxCopy } from '@/lib/adminExternalInboxCopy';
 import type { Language } from '@/i18n';
 
 void React;
@@ -199,8 +200,13 @@ describe('AI center partial-data presentation', () => {
     render(page(data({ automation: [emailQueue] })));
     const section = screen.getByRole('region', { name: copy.additionalConnectionsTitle });
     expect(section.closest('details')).toBeNull();
-    expect(within(section).getAllByText(copy.notConnected)).toHaveLength(3);
-    for (const label of [copy.incomingEmail, copy.whatsapp, copy.apiHostingCosts]) expect(within(section).getByText(label)).toBeVisible();
+    expect(within(section).getAllByText(copy.notConnected)).toHaveLength(1);
+    expect(within(section).getByText(copy.apiHostingCosts)).toBeVisible();
+    const inboxCopy = adminExternalInboxCopy[language];
+    const inbox = screen.getByRole('region', { name: inboxCopy.title });
+    expect(within(inbox).getByText(inboxCopy.email)).toBeVisible();
+    expect(within(inbox).getByText(inboxCopy.whatsapp)).toBeVisible();
+    expect(within(inbox).getAllByText(inboxCopy.statuses.disabled)).toHaveLength(2);
     expect(section.textContent).not.toMatch(/[0-9$₩¥]|USD|KRW/);
     expect(within(section).queryAllByRole('button')).toHaveLength(0);
     expect(within(section).queryAllByRole('link')).toHaveLength(0);
