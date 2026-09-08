@@ -38,6 +38,7 @@ import kpopCalendarCheck from './_crons/kpop-calendar-check.js';
 // 2026-08-19 — 무료 미리보기(free-preview) 이탈 회복 이메일 (🔒 PREVIEW_RECOVERY_ENABLED OFF=dryRun).
 import previewLeadRecovery from './_crons/preview-lead-recovery.js';
 import inquiryResponseSweep from './_crons/inquiry-response-sweep.js';
+import ownerNotificationSweep from './_crons/owner-notification-sweep.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -77,6 +78,8 @@ const JOBS = {
   'preview-lead-recovery':       previewLeadRecovery,
   // 고객 문의 AI 초안 + 승인 뒤 확실한 pre-send 실패만 제한 재시도.
   'inquiry-response-sweep':      inquiryResponseSweep,
+  // Owner-only metadata alerts. OFF or incomplete configuration performs no worker I/O.
+  'owner-notification-sweep':    ownerNotificationSweep,
 };
 
 const CORS = {

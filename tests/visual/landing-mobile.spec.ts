@@ -54,6 +54,71 @@ test.describe('Landing page — mobile visual regression', () => {
   });
 
   test('header above the fold remains within viewport', async ({ page }) => {
+    // Native screen fonts intentionally change glyph widths after the PDF-only
+    // Noto split. Keep real layout checks alongside the reviewed Linux snapshot:
+    // the image clip alone cannot prove that the complete headline is readable.
+    const layout = await page.evaluate(() => {
+      const header = document.querySelector('header');
+      const heading = document.querySelector('h1');
+      if (!header || !heading) return null;
+      const headerRect = header.getBoundingClientRect();
+      const headingRect = heading.getBoundingClientRect();
+      // Measure text fragments rather than the h1 box: a wide box may contain
+      // harmless blank space, while a later line can be clipped below the image.
+      const textRects: DOMRect[] = [];
+      const walker = document.createTreeWalker(heading, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if (!(text.textContent || '').trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        textRects.push(...Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0));
+      }
+      const headingClips: { tag: string; horizontal: boolean; vertical: boolean }[] = [];
+      // A glyph can extend beyond its line box with overflow:visible and remain
+      // fully readable. Detect actual clipping at the h1 itself and its parents,
+      // not scrollHeight > clientHeight alone (observed with native Linux fonts).
+      for (let ancestor: HTMLElement | null = heading;
+        ancestor && ancestor !== document.body && ancestor !== document.documentElement;
+        ancestor = ancestor.parentElement) {
+        const style = getComputedStyle(ancestor);
+        if (style.display === 'contents') continue;
+        const clipsX = style.overflowX === 'hidden' || style.overflowX === 'clip';
+        const clipsY = style.overflowY === 'hidden' || style.overflowY === 'clip';
+        if (!clipsX && !clipsY) continue;
+        const rect = ancestor.getBoundingClientRect();
+        const scaleX = ancestor.offsetWidth > 0 ? rect.width / ancestor.offsetWidth : 1;
+        const scaleY = ancestor.offsetHeight > 0 ? rect.height / ancestor.offsetHeight : 1;
+        // Overflow clips at the padding box, not the outer border. Account for
+        // ordinary axis-aligned scaling, but never treat viewport height as a
+        // clipping ancestor: the document can legitimately scroll vertically.
+        const left = rect.left + ancestor.clientLeft * scaleX;
+        const top = rect.top + ancestor.clientTop * scaleY;
+        const right = left + ancestor.clientWidth * scaleX;
+        const bottom = top + ancestor.clientHeight * scaleY;
+        const horizontal = clipsX && textRects.some((text) => text.left < left - 1 || text.right > right + 1);
+        const vertical = clipsY && textRects.some((text) => text.top < top - 1 || text.bottom > bottom + 1);
+        if (horizontal || vertical) headingClips.push({ tag: ancestor.tagName, horizontal, vertical });
+      }
+      return {
+        // On mobile, innerWidth can grow with overflowing content and hide it.
+        viewport: document.documentElement.clientWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        headerLeft: headerRect.left, headerRight: headerRect.right,
+        headingLeft: headingRect.left, headingRight: headingRect.right,
+        hasHeadingText: textRects.length > 0,
+        headingClips,
+      };
+    });
+    expect(layout, 'header and complete headline must exist').not.toBeNull();
+    if (!layout) throw new Error('LANDING_LAYOUT_MISSING');
+    expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.headerLeft).toBeGreaterThanOrEqual(-1);
+    expect(layout.headerRight).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.headingLeft).toBeGreaterThanOrEqual(-1);
+    expect(layout.headingRight).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.hasHeadingText, 'complete headline must contain visible text fragments').toBe(true);
+    expect(layout.headingClips, 'headline text must fit its own and each hidden/clip ancestor padding box').toEqual([]);
+
     // viewport 안만 capture — full-page 는 동적 콘텐츠 (광고 / 추천 / 환율
     // 변동 가격) 가 매번 달라서 baseline 안정적이지 않음. above-the-fold
     // 영역이 P93 같은 layout 회귀의 가장 흔한 발생 지점.

@@ -2,6 +2,7 @@ import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CookieSettings } from '@/components/CookieSettings';
 import type { Translations } from '@/i18n';
+import { RESPONSIVE_BRAND_MARK } from '@/lib/responsiveBrandMark';
 
 /**
  * Common shell footer — Korea Editorial Concierge (2026-08-10).
@@ -37,7 +38,7 @@ export function Footer({ t }: FooterProps) {
           {/* Identity + registration. The numbers are the trust signal. */}
           <div className="md:col-span-5">
             <div className="flex items-center gap-2">
-              <img src="/icons/icon-192.png" alt="" aria-hidden width={28} height={28} className="h-7 w-7 rounded-ec-sm" />
+              <img {...RESPONSIVE_BRAND_MARK} sizes="28px" alt="" aria-hidden width={28} height={28} className="h-7 w-7 rounded-ec-sm" />
               <span className="text-[18px] font-bold tracking-[-0.02em] text-ec-ink">COCOTRIP</span>
             </div>
             <p className="ec-body-sm mt-2">{f.tagline}</p>

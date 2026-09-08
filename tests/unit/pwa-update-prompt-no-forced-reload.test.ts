@@ -17,6 +17,8 @@ const SRC = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../../src/components/PWAUpdatePrompt.tsx'),
   'utf8',
 );
+const GUARD = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/lib/pwaUpdateGuard.ts'), 'utf8');
+const HOOK = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/hooks/usePwaUpdateGuard.ts'), 'utf8');
 
 describe('PWAUpdatePrompt — 강제 자동 새로고침 금지 (P235 회귀 잠금) + 진입 자동업데이트', () => {
   it('경로 기반 강제 업데이트 분기(isOnPlanPage 변수)가 코드에 없어야 함', () => {
@@ -24,20 +26,23 @@ describe('PWAUpdatePrompt — 강제 자동 새로고침 금지 (P235 회귀 잠
   });
 
   it('자동 updateServiceWorker 는 진입(콜드 스타트) 창 가드 뒤에서만 — 세션 중 무조건 호출 금지', () => {
-    expect(SRC).toContain('AUTO_UPDATE_WINDOW_MS');
-    // 진입 창 가드(로드 경과시간 < 창) 직후에만 자동 호출
-    expect(SRC).toMatch(
-      /Date\.now\(\)\s*-\s*loadedAtRef\.current\s*<\s*AUTO_UPDATE_WINDOW_MS[\s\S]{0,180}updateServiceWorker\(true\)/,
-    );
+    expect(SRC).toContain('guard.scheduleAutomatic(updateServiceWorker)');
+    expect(GUARD).toContain('options.now() - loadedAt >= AUTO_UPDATE_WINDOW_MS');
+    expect(GUARD).toContain('loadedAt + AUTO_UPDATE_WINDOW_MS + AUTO_UPDATE_IDLE_MS');
+    expect(GUARD).toContain('options.now() >= request.deadline');
   });
 
   it('수동 [새로고침] 버튼 onClick 유지 (세션 중 경로는 토스트만)', () => {
-    expect(SRC).toContain('onClick={() => updateServiceWorker(true)}');
+    expect(SRC).toContain('onClick={onUpdate}');
+    expect(SRC).toContain('guard.requestManual(updateServiceWorker)');
   });
 
-  it('updateServiceWorker(true) 호출은 정확히 2곳(진입 자동 + 버튼) — 무분별 호출 아님', () => {
-    const calls = (SRC.match(/updateServiceWorker\(true\)/g) || []).length;
-    expect(calls).toBe(2);
+  it('활성화와 리로드의 공통 가드를 우회하지 않는다', () => {
+    expect(SRC).not.toContain('updateServiceWorker(true)');
+    expect(SRC).toContain('onNeedReload: guard.onNeedReload');
+    expect((GUARD.match(/options\.reload\(\)/g) || [])).toHaveLength(1);
+    expect(GUARD).toContain('interaction !== request.interaction');
+    expect(HOOK).toContain('isPaymentLikelyInProgress(document)');
   });
 
   it('prompt 모드 핵심(useRegisterSW)은 유지 — 기능 자체는 살아있음', () => {

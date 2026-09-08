@@ -1,0 +1,22 @@
+[
+  { "source": "/JnR5Ie_경복궁(1).webp", "name": "gyeongbokgung" },
+  { "source": "/J7FqPa_서울 밤도깨비 야시장(1).webp", "name": "seoul-night-market" },
+  { "source": "/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg", "name": "dodamsambong" },
+  { "source": "/region-ganghwa.webp", "name": "ganghwa" },
+  { "source": "/region-dmz.webp", "name": "dmz" },
+  { "source": "/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg", "name": "nami-island" },
+  { "source": "/Type1_불국사_두드림_z0WAPa.jpg", "name": "bulguksa" },
+  { "source": "/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg", "name": "gwangandaegyo" },
+  { "source": "/hero-gyeongju.webp", "name": "gyeongju-hero" },
+  { "source": "/region-seoul.jpg", "name": "seoul-region" },
+  { "source": "/region-busan.webp", "name": "busan-region" },
+  { "source": "/region-gyeongju.jpg", "name": "gyeongju-region" },
+  { "source": "/region-danyang.webp", "name": "danyang-region" },
+  { "source": "/hero-banpo.webp", "name": "banpo-feature" },
+  { "source": "/city-thumbs/seoul.jpg", "name": "seoul-city" },
+  { "source": "/city-thumbs/busan.jpg", "name": "busan-city" },
+  { "source": "/city-thumbs/jeju.jpg", "name": "jeju-city" },
+  { "source": "/city-thumbs/gyeongju.jpg", "name": "gyeongju-city" },
+  { "source": "/city-thumbs/gangneung.jpg", "name": "gangneung-city" },
+  { "source": "/icons/icon-192.png", "name": "cocotrip-mark", "widths": [32, 64, 96] }
+]

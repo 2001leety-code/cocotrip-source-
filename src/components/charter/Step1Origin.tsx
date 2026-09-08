@@ -124,6 +124,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
         key={code}
         type="button"
         data-origin-code={code}
+        aria-pressed={selected}
         onClick={() => patch({
           origin: code,
           originCustom: undefined,
@@ -131,20 +132,20 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           originLat: undefined, originLng: undefined,
           originAddress: undefined, originName: undefined, originCategory: undefined,
         })}
-        className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[92px] sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-4 ${
+        className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] sm:min-h-[92px] sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-4 ${
           selected
             ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 text-white shadow-[0_16px_40px_rgba(124,92,252,0.16)]'
-            : 'border-white/10 bg-white/[0.035] text-white/65 hover:border-[#B668FC]/40 hover:bg-white/[0.055] hover:text-white/90'
+            : 'border-white/10 bg-white/[0.035] text-white/80 hover:border-[#B668FC]/40 hover:bg-white/[0.055] hover:text-white/90'
         }`}
       >
         <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-11 sm:w-11 sm:rounded-2xl ${
-          selected ? 'border-[#B668FC]/35 bg-[#B668FC]/20 text-[#D8C0FF]' : 'border-white/10 bg-white/[0.035] text-white/45 group-hover:text-white/70'
+          selected ? 'border-[#B668FC]/35 bg-[#B668FC]/20 text-[#D8C0FF]' : 'border-white/10 bg-white/[0.035] text-white/70 group-hover:text-white/90'
         }`}>
           <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
         </span>
         <span className="min-w-0">
           <span className="block truncate text-xs font-bold leading-tight sm:text-sm">{title}</span>
-          <span className="mt-0.5 block text-[9px] opacity-55 sm:mt-1 sm:text-[11px]">{sub}</span>
+          <span className="mt-0.5 block text-[9px] text-white/70 sm:mt-1 sm:text-[11px]">{sub}</span>
         </span>
       </button>
     );
@@ -154,14 +155,14 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
     <div className="space-y-2 sm:space-y-4">
       {/* 공항·도시 검색 (트립닷컴식) — 타이핑하면 카드 필터. 비우면 기존 주요/펼치기. */}
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={SEARCH_LABEL[lang]}
           placeholder={SEARCH_PLACEHOLDER[lang]}
-          className="min-h-[44px] w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-base text-white outline-none placeholder:text-white/40 focus:border-[#B668FC]/40 sm:py-2.5"
+          className="min-h-[44px] w-full rounded-xl border border-white/10 bg-white/[0.04] py-1.5 pl-9 pr-3 text-base text-white outline-none placeholder:text-white/70 focus:border-[#B668FC]/40 focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] sm:py-2.5"
         />
       </div>
 
@@ -169,7 +170,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
         filtered.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{filtered.map(card)}</div>
         ) : (
-          <p className="text-center text-white/40 text-sm py-6">
+          <p className="text-center text-white/70 text-sm py-6">
             {NO_MATCH[lang]}
           </p>
         )
@@ -182,7 +183,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
-        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] py-2 text-xs text-white/50 transition-colors hover:bg-white/[0.05] sm:py-2.5"
+        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] py-2 text-xs text-white/70 transition-colors hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] sm:py-2.5"
       >
         {i18n.otherOrigins} ({SECONDARY.length + 1})
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />

@@ -9,7 +9,7 @@ interface Props {
 }
 
 const SEL = 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white';
-const UNSEL = 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20';
+const UNSEL = 'bg-white/[0.04] border-white/[0.08] text-white/70 hover:border-white/20';
 
 export function KpopShuttleBanner({ p }: Props) {
   const { language, t: globalT } = useLanguage();
@@ -84,11 +84,9 @@ export function KpopShuttleBanner({ p }: Props) {
             const isSelected = selectedId === concert.id;
             const isHighlight = concert.highlight;
             return (
-              <button
+              <div
                 key={concert.id}
-                type="button"
-                onClick={() => { setSelectedId(concert.id); setPickup(''); }}
-                className="relative shrink-0 w-[260px] rounded-xl p-4 text-left transition-all duration-200"
+                className="relative shrink-0 w-[260px] rounded-xl transition-all duration-200"
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: isHighlight
@@ -99,6 +97,12 @@ export function KpopShuttleBanner({ p }: Props) {
                   boxShadow: isHighlight ? '0 0 20px rgba(124,92,252,0.15)' : undefined,
                 }}
               >
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => { setSelectedId(concert.id); setPickup(''); }}
+                  className="min-h-[44px] w-full rounded-xl p-4 pb-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)]"
+                >
                 {/* ARMY PICK badge for BTS */}
                 {isHighlight && (
                   <div className="absolute -top-2.5 left-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider text-white"
@@ -137,19 +141,21 @@ export function KpopShuttleBanner({ p }: Props) {
                     </span>
                   )}
                 </div>
+                </button>
 
                 {/* Naver Map */}
                 <a
                   href={concert.naverMapUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label={`${t.naverMap} — ${concert.artist} · ${concert.tourName}`}
                   onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-[#7C5CFC] hover:text-[#A78BFA] transition-colors"
+                  className="mx-4 mb-2 mt-1 inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-lg text-xs font-medium text-white underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)]"
                 >
                   <ExternalLink className="w-3 h-3" />
                   {t.naverMap}
                 </a>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -160,14 +166,15 @@ export function KpopShuttleBanner({ p }: Props) {
         <div className="px-5 pb-5 space-y-4 border-t border-white/[0.06] pt-4">
           {/* Pickup Points */}
           <div>
-            <p className="text-xs text-white/55 mb-2">{t.pickupPoint}</p>
+            <p className="text-xs text-white/70 mb-2">{t.pickupPoint}</p>
             <div className="flex flex-wrap gap-2">
               {(lk === 'ko' ? selected.pickupPointsKo : selected.pickupPoints).map((point, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setPickup(selected.pickupPoints[idx])}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 ${
+                  aria-pressed={pickup === selected.pickupPoints[idx]}
+                  className={`min-h-[44px] px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] ${
                     pickup === selected.pickupPoints[idx] ? SEL : UNSEL
                   }`}
                 >
@@ -182,14 +189,16 @@ export function KpopShuttleBanner({ p }: Props) {
             <button
               type="button"
               onClick={() => setTripType('oneway')}
-              className={`py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 ${tripType === 'oneway' ? SEL : UNSEL}`}
+              aria-pressed={tripType === 'oneway'}
+              className={`min-h-[44px] py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] ${tripType === 'oneway' ? SEL : UNSEL}`}
             >
               {t.oneWay} - {'\u20A9'}{selected.oneWayPrice.toLocaleString('ko-KR')}
             </button>
             <button
               type="button"
               onClick={() => setTripType('roundtrip')}
-              className={`py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 ${tripType === 'roundtrip' ? SEL : UNSEL}`}
+              aria-pressed={tripType === 'roundtrip'}
+              className={`min-h-[44px] py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)] ${tripType === 'roundtrip' ? SEL : UNSEL}`}
             >
               {t.roundTrip} - {'\u20A9'}{selected.roundTripPrice.toLocaleString('ko-KR')}
             </button>
@@ -197,29 +206,31 @@ export function KpopShuttleBanner({ p }: Props) {
 
           {/* Passengers */}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/50">{t.passengers}</span>
+            <span className="text-xs text-white/70">{t.passengers}</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setPax(p => Math.max(1, p - 1))}
-                className="w-7 h-7 rounded-lg border border-white/15 flex items-center justify-center text-white/60 hover:border-white/30 transition-colors"
+                aria-label={globalT.a11y?.decreasePax || 'Decrease passengers'}
+                className="min-w-[44px] min-h-[44px] rounded-lg border border-white/15 flex items-center justify-center text-white/70 hover:border-white/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)]"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-3.5 h-3.5" aria-hidden />
               </button>
               <span className="text-sm font-bold text-white w-6 text-center">{pax}</span>
               <button
                 type="button"
                 onClick={() => setPax(p => Math.min(8, p + 1))}
-                className="w-7 h-7 rounded-lg border border-white/15 flex items-center justify-center text-white/60 hover:border-white/30 transition-colors"
+                aria-label={globalT.a11y?.increasePax || 'Increase passengers'}
+                className="min-w-[44px] min-h-[44px] rounded-lg border border-white/15 flex items-center justify-center text-white/70 hover:border-white/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coco-purple)]"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5" aria-hidden />
               </button>
             </div>
           </div>
 
           {/* Price Calculation */}
           <div className="bg-white/[0.04] rounded-xl px-4 py-3">
-            <div className="flex items-center justify-between text-xs text-white/50">
+            <div className="flex items-center justify-between text-xs text-white/70">
               <span>
                 {tripType === 'oneway' ? t.oneWay : t.roundTrip}: {'\u20A9'}{unitPrice.toLocaleString('ko-KR')} x {pax}
               </span>

@@ -65,7 +65,7 @@ describe('AI operations center copy', () => {
 
   it.each(languages)('%s distinguishes loading, completed, failed and not-yet-refreshed states', (language) => {
     const copy = adminAiOpsCopy[language];
-    expect(new Set([copy.refreshing, copy.refreshComplete, copy.refreshFailed, copy.refreshPending]).size).toBe(4);
+    expect(new Set([copy.refreshing, copy.refreshComplete, copy.refreshPartial, copy.refreshFailed, copy.refreshPending]).size).toBe(5);
     expect(copy.staleTitle).not.toBe(copy.loadErrorTitle);
     expect(copy.staleDetail('17:00')).toContain('17:00');
     expect(copy.partialErrorTitle).not.toBe(copy.workEmpty);
@@ -102,6 +102,27 @@ describe('AI operations center copy', () => {
     for (const language of languages) {
       expect(() => new Intl.DateTimeFormat(adminAiOpsCopy[language].locale)).not.toThrow();
     }
+  });
+
+  it('labels the customer email queue as sending retries in every language', () => {
+    expect(languages.map((language) => adminAiOpsCopy[language].outboundEmailRetry)).toEqual([
+      '고객 메일 발신 재시도',
+      'Customer email sending retries',
+      '顧客メール送信の再試行',
+      '客户邮件发送重试',
+    ]);
+  });
+
+  it.each(languages)('%s distinguishes missing connections, partial counts and an empty sending queue', (language) => {
+    const copy = adminAiOpsCopy[language];
+    expect(copy.countUnavailable).not.toBe(copy.count(0));
+    expect(copy.workPartialEmpty).not.toBe(copy.workEmpty);
+    expect(copy.reservationsPartialEmpty).not.toBe(copy.reservationsEmpty);
+    expect(copy.sendingQueueEmpty).not.toBe(copy.automationLabels.ok);
+    expect(copy.partialData).not.toBe(copy.notConnected);
+    expect(copy.incomingEmail).not.toBe(copy.outboundEmailRetry);
+    expect(copy.updatedAt('17:00')).toContain('17:00');
+    expect(`${copy.apiHostingCosts} ${copy.notConnected}`).not.toMatch(/[0-9$₩¥]|USD|KRW/);
   });
 
   it('uses singular and plural English item labels without appending a fixed plural unit', () => {

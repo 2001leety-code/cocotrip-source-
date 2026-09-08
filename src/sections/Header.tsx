@@ -16,7 +16,8 @@ import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
 import { CartPanel } from '@/components/CartButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
-import { useCommandPalette } from '@/components/CommandPalette';
+import { useCommandPalette } from '@/hooks/useCommandPalette';
+import { RESPONSIVE_BRAND_MARK } from '@/lib/responsiveBrandMark';
 
 /**
  * Common shell header — Korea Editorial Concierge (2026-08-10).
@@ -202,6 +203,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   ];
 
   const isActive = (path: string) => location.pathname === path;
+  const languageShort = languages.find((l) => l.code === language)?.short || 'EN';
   // 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱 chrome(BETA·검색·Wishlist·Cart) 숨김 —
   //   외국인 고객에겐 의미 없는 내부 요소. 다른 페이지는 영향 0(이 경로+shared=1 일 때만 true).
   const isPublicView = location.pathname.startsWith('/my-plans/') &&
@@ -225,15 +227,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           {/* ═══ Left: Logo ═══ */}
           {/* The mark carries the brand gradient (logo identity). The wordmark is
               set in ink — gradient text is out of the system everywhere else. */}
-          <Link to="/" className="flex min-h-[44px] items-center gap-2 shrink-0" aria-label="CocoTrip">
-            <img src="/icons/icon-192.png" alt="" aria-hidden width={32} height={32} className="h-8 w-8 rounded-ec-md" />
+          <Link to="/" className="flex min-h-[44px] items-center gap-2 shrink-0 rounded-ec-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand">
+            <img {...RESPONSIVE_BRAND_MARK} alt="" aria-hidden width={32} height={32} className="h-8 w-8 rounded-ec-md" />
             <span className="text-[19px] md:text-[20px] font-bold tracking-[-0.025em] text-ec-ink">
               CocoTrip
             </span>
             {/* Beta badge — 상용화 전 기대치 조절. 공유 제안서(isPublicView)에선 숨김. */}
             {!isPublicView && (
               <span
-                className="ec-eyebrow hidden sm:inline-flex border border-ec-line-2 rounded-ec-xs px-1.5 py-1 text-ec-ink-3"
+                className="ec-eyebrow hidden sm:inline-flex border border-ec-line-2 rounded-ec-xs px-1.5 py-1"
+                style={{ color: 'var(--ec-text-secondary)' }}
                 title="Beta — feedback welcome"
               >
                 BETA
@@ -346,11 +349,11 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="inline-flex items-center gap-1 min-h-[44px] px-2 rounded-ec-sm text-[13px] font-medium text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink hover:bg-ec-page outline-none"
-                  aria-label={t.nav.language || 'Language'}
+                  className="inline-flex items-center gap-1 min-h-[44px] px-2 rounded-ec-sm text-[13px] font-medium text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink hover:bg-ec-page outline-none focus-visible:ring-2 focus-visible:ring-ec-brand"
+                  aria-label={`${languageShort} · ${t.nav.language || 'Language'}`}
                 >
                   <Globe className="w-4 h-4" />
-                  <span>{languages.find((l) => l.code === language)?.short || 'EN'}</span>
+                  <span>{languageShort}</span>
                   <ChevronDown className="w-3 h-3" aria-hidden />
                 </button>
               </DropdownMenuTrigger>

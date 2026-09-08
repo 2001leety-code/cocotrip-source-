@@ -7,20 +7,7 @@ import { Fragment } from 'react';
 import type { ReactNode, CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
-
-/* 값 SSOT = src/index.css :root --coco-* 블록. 여기는 var 참조만 (파생, 중복 금지). */
-export const COCO = {
-  purple: 'var(--coco-purple)',            /* #7C5CFF */
-  pink: 'var(--coco-pink)',                /* #FF6DB7 */
-  lavender: 'var(--coco-lavender)',        /* #D9D3FF */
-  navy: 'var(--coco-navy)',                /* #0F1230 */
-  muted: 'var(--coco-muted)',              /* #6E6A8F */
-  ctaGradient: 'var(--coco-cta-gradient)', /* 보라→핑크 100deg */
-  ctaShadow: 'var(--coco-cta-shadow)',
-  cardBorder: 'var(--coco-card-border)',
-  cardShadow: 'var(--coco-card-shadow)',
-  pageBg: 'var(--coco-page-bg)',
-} as const;
+import { COCO } from './tokens';
 
 /** 상태칩 — 가이드 p.10 Tags/Badges. variant 별 파스텔 톤. */
 const CHIP_STYLE: Record<string, { bg: string; color: string }> = {
@@ -82,19 +69,20 @@ export function CocoStepper({ current, total, labels, onStepClick, className = '
           return (
             <Fragment key={i}>
               {i > 0 && <span aria-hidden className={`coco-stepper-line${i <= current ? ' is-done' : ''}`} />}
-              <button
-                type="button"
-                role="listitem"
-                aria-label={label}
-                aria-current={active ? 'step' : undefined}
-                aria-disabled={!done && !active ? true : undefined}
-                onClick={() => { if (done && onStepClick) onStepClick(i); }}
-                className="coco-stepper-hit"
-              >
-                <span aria-hidden className={`coco-stepper-dot${done ? ' is-done' : active ? ' is-active' : ''}`}>
-                  {done ? <Check size={12} strokeWidth={3.2} /> : i + 1}
-                </span>
-              </button>
+              <span role="listitem" className="inline-flex shrink-0">
+                <button
+                  type="button"
+                  aria-label={label}
+                  aria-current={active ? 'step' : undefined}
+                  aria-disabled={!done && !active ? true : undefined}
+                  onClick={() => { if (done && onStepClick) onStepClick(i); }}
+                  className="coco-stepper-hit"
+                >
+                  <span aria-hidden className={`coco-stepper-dot${done ? ' is-done' : active ? ' is-active' : ''}`}>
+                    {done ? <Check size={12} strokeWidth={3.2} /> : i + 1}
+                  </span>
+                </button>
+              </span>
             </Fragment>
           );
         })}

@@ -9,6 +9,7 @@ import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { focusOwnerControllerForNotification } from './lib/ownerNotificationNavigation';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
@@ -90,6 +91,7 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
   const target = (event.notification.data && (event.notification.data as { url?: string }).url) || '/';
   event.waitUntil((async () => {
+    if (await focusOwnerControllerForNotification(target, self.location.origin, self.clients)) return;
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of all) {
       if ('focus' in client) {

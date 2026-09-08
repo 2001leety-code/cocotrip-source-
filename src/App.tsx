@@ -89,6 +89,9 @@ const InquiryResponseDevHarness = import.meta.env.DEV
 const AdminAiOpsCenterDevHarness = import.meta.env.DEV
   ? lazy(() => import('@/pages/AdminAiOpsCenterDevHarness'))
   : null;
+const PwaUpdateDevHarness = import.meta.env.DEV
+  ? lazy(() => import('@/pages/PwaUpdateDevHarness'))
+  : null;
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
 function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -292,6 +295,7 @@ function AnimatedRoutes() {
               {MobileCharterV2 && <Route path="/preview/mobile-charter" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileCharterV2 /></Suspense>} />}
               {MobileIconsPreview && <Route path="/preview/icons" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><MobileIconsPreview /></Suspense>} />}
               {AdminAiOpsCenterDevHarness && <Route path="/admin/preview-ai-center" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><AdminAiOpsCenterDevHarness /></Suspense>} />}
+              {PwaUpdateDevHarness && <Route path="/admin/preview-pwa-update" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><PwaUpdateDevHarness /></Suspense>} />}
             </>
           )}
           <Route

@@ -21,6 +21,7 @@ import { formatBudgetDay } from './lib/budgetDayLabel';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
 import { buildActivityGuideHtml } from '@/lib/activityGuides';
+import { preparePdfFonts } from '@/lib/pdfFonts';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
 // PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
@@ -499,11 +500,10 @@ export async function generatePDF(
   const container = document.createElement('div');
   // position:absolute (not fixed) so container can expand beyond viewport height
   // left:0 (not -9999px) so html2canvas can actually render the content
-  // CJK fallback chain: Noto Sans (Google Fonts preloaded) -> OS built-in -> generic
-  // Noto Sans KR/JP/SC are preloaded in index.html for reliable CJK rendering
-  // 2026-05-09 (B9-30): font-display:block 인라인 강제 — index.html 의 stylesheet
-  // 가 lazy chunk 로 분리될 가능성 대비. PDF 컨테이너 한정으로 swap 차단.
-  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Noto Sans KR","Noto Sans JP","Noto Sans SC","Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Hiragino Sans","Yu Gothic","Microsoft JhengHei","Microsoft YaHei","Segoe UI",system-ui,sans-serif;font-display:block;line-height:1.6;z-index:99997;';
+  // CJK fallback chain stays intact. preparePdfFonts loads Noto only for this
+  // export and awaits both weights before capture; screen startup stays native.
+  // font-display is an @font-face descriptor, not a container style property.
+  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Noto Sans KR","Noto Sans JP","Noto Sans SC","Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Hiragino Sans","Yu Gothic","Microsoft JhengHei","Microsoft YaHei","Segoe UI",system-ui,sans-serif;line-height:1.6;z-index:99997;';
   document.body.appendChild(container);
 
   // Color tokens for light PDF
@@ -1259,51 +1259,28 @@ export async function generatePDF(
     return;
   }
 
-  // === Explicit font preload — kick the loader BEFORE waiting on fonts.ready ===
-  // Without explicit load(), fonts.ready may resolve with 0 CJK faces loaded
-  // (Noto Sans KR/JP/SC are CSS-declared but not network-requested until first
-  // glyph render). First-run fail mode: ready resolves, layout uses tofu boxes.
-  const fontsApi = (document as Document & {
-    fonts?: { ready?: Promise<unknown>; load?: (s: string) => Promise<unknown> };
-  }).fonts;
-  if (fontsApi?.load) {
-    await Promise.allSettled([
-      fontsApi.load('14px "Noto Sans KR"'),
-      fontsApi.load('14px "Noto Sans JP"'),
-      fontsApi.load('14px "Noto Sans SC"'),
-    ]);
-  }
+  // PDF-only stylesheet -> actual Unicode subsets (400/700) -> document.fonts.ready.
+  // A CSS/font timeout is a failed preparation, never permission to capture fallback.
+  let fontsPrepared = await preparePdfFonts(container.textContent || '');
 
-  // After explicit load, fonts.ready is reliable. 8s cap as safety net.
-  // 2026-05-09 (B9-30): 5s → 8s. 모바일 4G 환경에서 Noto Sans KR (~120KB) 다운로드 + 파싱
-  // 5s 안에 못 끝내는 사례 보고됨. block display 변경과 함께 첫 방문자 안정성 강화.
-  await Promise.race([
-    fontsApi?.ready || Promise.resolve(),
-    new Promise(resolve => setTimeout(resolve, 8000)),
-  ]);
-
-  // === CJK 폰트 렌더 검증: 더미 문자로 실제 렌더 확인 + 1회 재시도 ===
+  // CJK 더미 문자 너비 확인. 폰트 준비가 끝났지만 너비가 0일 때만 준비를 한 번 더 시도한다.
   const fontTest = document.createElement('span');
   fontTest.style.cssText = 'position:absolute;top:-9999px;font-size:16px;font-family:inherit;';
   fontTest.textContent = '\uD55C\uAE00\u30C6\u30B9\u30C8\u4E2D\u6587';
   container.appendChild(fontTest);
   await new Promise(resolve => setTimeout(resolve, 200));
-  if (fontTest.offsetWidth === 0) {
-    // 1차 재시도: Safari 등 느린 환경 대응
+  if (!fontsPrepared || fontTest.offsetWidth === 0) {
+    // Safari 등 느린 환경의 레이아웃 안정화 대기.
     await new Promise(resolve => setTimeout(resolve, 400));
-    if (fontTest.offsetWidth === 0 && fontsApi?.load) {
-      // 2차 재시도: explicit fontsApi.load 다시 호출 + 더 긴 대기
-      await Promise.allSettled([
-        fontsApi.load('14px "Noto Sans KR"'),
-        fontsApi.load('14px "Noto Sans JP"'),
-        fontsApi.load('14px "Noto Sans SC"'),
-      ]);
+    if (fontsPrepared && fontTest.offsetWidth === 0) {
+      // 추가 준비도 실제 문자/두 굵기를 제한시간 안에 준비해야 한다.
+      fontsPrepared = await preparePdfFonts(container.textContent || '');
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    if (fontTest.offsetWidth === 0) {
-      // 3회 실패 — system font fallback 시 tofu 박스 가능. abort + toast.
+    if (!fontsPrepared || fontTest.offsetWidth === 0) {
+      // 폰트 준비 또는 렌더 검증 실패: 대체 폰트로 계속하지 않고 중단한 뒤 안내한다.
       // Phase 1 (2026-04-27): 이전엔 silent warn → 그대로 진행해 백지/tofu PDF 다운로드.
-      console.error('[PDF] CJK font load failed after 3 retries — aborting to prevent tofu-box PDF');
+      console.error('[PDF] CJK font preparation failed — aborting to prevent tofu-box PDF');
       fontTest.remove();
       document.body.removeChild(container);
       document.body.removeChild(overlay);

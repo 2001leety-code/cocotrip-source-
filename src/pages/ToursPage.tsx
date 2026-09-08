@@ -26,6 +26,8 @@ import type { Language } from '@/i18n';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
 import { trackEvent } from '@/lib/analytics';
 import { matchesTourQuery } from '@/lib/tourSearch';
+import { TOUR_REGION_IMAGE_SIZES } from '@/lib/responsiveTourImage';
+import { ResponsiveTourImage } from '@/components/ResponsiveTourImage';
 import { Header } from '@/sections/Header';
 import '@/styles/editorial-tours-catalog.css';
 
@@ -563,10 +565,10 @@ export default function ToursPage() {
                 to={`/tours/${featuredTour.slug}`}
                 className="tour-catalog-card-link tours-catalog-featured-link"
               >
-                <img
-                  src={featuredTour.thumbnail}
+                <ResponsiveTourImage
+                  source={featuredTour.thumbnail} sizes="(min-width: 1100px) 350px, 32vw" fallbackWidth={384} wideFrom={981}
                   alt={featuredTour.title[language] || featuredTour.title.en}
-                  loading="eager"
+                  loading="lazy"
                   decoding="async"
                 />
                 <span className="tours-catalog-featured-copy">
@@ -624,10 +626,9 @@ export default function ToursPage() {
                   key={key}
                   onClick={() => setActiveRegion(key)}
                   aria-pressed={isActive}
-                  aria-label={`${regionLabel} — ${count} ${tl.toursUnit}`}
                   className="tours-catalog-region-card"
                 >
-                  {image ? <img src={image} alt="" loading="lazy" /> : <span className="tours-catalog-region-placeholder" aria-hidden />}
+                  {image ? <ResponsiveTourImage source={image} sizes={TOUR_REGION_IMAGE_SIZES} fallbackWidth={192} profile="region" alt="" loading="lazy" decoding="async" /> : <span className="tours-catalog-region-placeholder" aria-hidden />}
                   <span className="tours-catalog-region-copy">
                     <strong>{regionLabel}</strong>
                     <small>{count} {tl.toursUnit}</small>

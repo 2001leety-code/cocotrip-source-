@@ -135,6 +135,13 @@ function createPreviewData(now: number, search: string): OpsCenterData {
     }
   }
 
+  if (params.get('email-state') === 'empty') {
+    previewData.workItems = previewData.workItems.filter((item) => item.sourceSystem !== 'email_retry');
+    previewData.automation = previewData.automation.map((item) => item.key === 'email_retry'
+      ? { ...item, status: 'ok', pending: 0, manual: 0, count: 0, detail: '대기 없음' }
+      : item);
+  }
+
   if (params.get('source-state') === 'partial') {
     previewData.partialErrors = ['pending_email_retries'];
     previewData.workItems = previewData.workItems.filter((item) => item.sourceSystem !== 'email_retry');
@@ -143,12 +150,12 @@ function createPreviewData(now: number, search: string): OpsCenterData {
       : item);
   }
 
-  if (params.get('scenario') === 'empty') {
+  if (params.get('scenario') === 'empty' || params.get('scenario') === 'partial-empty') {
     previewData.workItems = [];
     previewData.reservations = [];
     previewData.inboxItems = [];
     previewData.automation = [];
-    previewData.partialErrors = [];
+    previewData.partialErrors = params.get('scenario') === 'partial-empty' ? ['bookings', 'charter_inquiries', 'cs_tickets'] : [];
   }
 
   previewData.sources = previewData.sources.map((source) => {
@@ -159,6 +166,11 @@ function createPreviewData(now: number, search: string): OpsCenterData {
         : previewData.reservations.filter((item) => item.sourceSystem === source.key).length;
     return { ...source, ok: !previewData.partialErrors.includes(source.key), count };
   });
+  // Deliberately omit partialErrors here to exercise the independent source flag.
+  if (params.get('source-state') === 'flag-only') {
+    previewData.partialErrors = [];
+    previewData.sources = previewData.sources.map((source) => source.key === 'pending_email_retries' ? { ...source, ok: false } : source);
+  }
   previewData.summary = {
     actionRequired: previewData.workItems.filter((item) => item.actionRequired).length,
     urgent: previewData.workItems.filter((item) => item.priority === 'P0' || item.priority === 'P1').length,

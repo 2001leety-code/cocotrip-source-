@@ -103,4 +103,25 @@ describe('AI 운영센터 미리보기 자료', () => {
     // Fetch/retry behavior belongs to the real component tests; this is a static browser fixture.
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it('부분 실패 빈 목록은 정상 빈 상태와 별도 시나리오이며 외부 조회 없이 남은 자료의 불확실성을 만든다', () => {
+    const data = renderPreview('?scenario=partial-empty');
+    expect(data.workItems).toEqual([]);
+    expect(data.reservations).toEqual([]);
+    expect(data.inboxItems).toEqual([]);
+    expect(data.partialErrors).toEqual(['bookings', 'charter_inquiries', 'cs_tickets']);
+    expect(data.sources.find((item) => item.key === 'bookings')?.ok).toBe(false);
+    expect(data.summary.automationAttention).toBe(3);
+    expectConsistentSummary(data);
+  });
+
+  it('발신 대기 없음과 별도 source 실패 플래그를 가짜로 구분한다', () => {
+    const emptyQueue = renderPreview('?email-state=empty');
+    expect(emptyQueue.automation.find((item) => item.key === 'email_retry')).toMatchObject({ status: 'ok', count: 0 });
+    expect(emptyQueue.workItems.some((item) => item.sourceSystem === 'email_retry')).toBe(false);
+    cleanup();
+    const flagOnly = renderPreview('?source-state=flag-only');
+    expect(flagOnly.partialErrors).toEqual([]);
+    expect(flagOnly.sources.find((item) => item.key === 'pending_email_retries')?.ok).toBe(false);
+  });
 });
