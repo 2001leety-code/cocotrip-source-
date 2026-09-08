@@ -11,6 +11,14 @@
 
 추가 필수 값 `WHATSAPP_INBOX_PRIVACY_MODE=explicit_sessions_v1`도 **Vercel 서버 환경변수**다. 다른 값이나 미설정은 수신 준비 실패이며, 이전의 번호 일치만으로 저장하는 모드로 돌아가지 않는다. 새 `whatsapp_inbox_sessions` 컬렉션은 서버 관리자 전용이며 일반 클라이언트의 기존 기본 거부 규칙을 유지한다. `/api/admin-whatsapp-privacy`는 수신 OFF여도 올바른 WABA/전화번호/개인정보 모드가 준비되면 제외 연락처를 미리 설정할 수 있다. 이 준비 상태는 수신·AI 자동답장 활성화 증명이 아니다. [개인 대화 보호 계약](WHATSAPP-PRIVATE-CHAT-GUARD-2026-09-08.md)을 먼저 따른다.
 
+## 2026-09-09 추가 — 받은함 보관 자동 정리
+
+새 환경변수·키·권한 변경은 없다. 현재 Gmail·WhatsApp 수신은 기본 OFF이고 이번 작업에서 실제 고객 데이터 삭제는 실행하지 않았다. 일반 문의 v2 사본은 상담을 `ordinary_no_evidence`로 종료한 뒤 30일이 지나야 정리 후보가 된다. 수신 시점의 `expiresAtMs: 0`·`expiresAt: null`은 TTL 삭제 약속이 아니며, 새 수신은 기존 `*_RETENTION_DAYS`와 별도로 최대 30일 나이만 허용한다. 기존 값은 legacy 호환과 수신 신선도 제한용이고 legacy 문서를 자동 이관하지 않는다.
+
+미발송 `draft`·`draft_only`·미시도 `approved` 초안만 최대 7일 정리한다. 이미 보낸 전송 이력은 7일이 지났다고 초안으로 취급하지 않는다. 진행 중 case, 증빙 보호 case, 재개 뒤 새 본문, 공급자 원본, 예약·결제·환불·고객 DB는 자동 삭제하지 않는다. 매시 23분 Production cron은 실제 시각·case revision을 다시 확인하므로 재개·보호·오류는 성공으로 표시하지 않고 검토 필요로 멈춘다.
+
+관리자 받은함에는 `not_active`·`ok`·`delayed`·`attention`·`unknown` 요약만 보인다. 오류 코드·고객 본문은 노출하지 않으며, 늦게 보인 화면 응답이 현재 정리 성공을 보장하지 않는다. 초안 정리에 필요한 `external_inbox_reply_workflows(status ASC, createdAtMs ASC)` 복합 색인은 `firestore.indexes.json`에 선언돼 있다. main 반영 뒤 GitHub Actions가 배포하지만, 운영자는 Firestore Console에서 READY까지 확인한다. 상세 계약과 최종 테스트·배포 기록 칸은 [받은함 보관 운영 설명서](CONTROL-TOWER-RETENTION-2026-09-09.md)를 따른다.
+
 ## 2026-09-08 추가 — 사용액 기록과 알림 진단
 
 새 환경변수는 없다. 기존 관리자 운영센터 요청에서 저장된 Gemini 추정 사용액과 기존 서버 알림 설정의 안전한 상태 값만 보여 준다. `configured`는 실제 발송·휴대폰 수신 증명이 아니고 기본 OFF를 켜지 않는다. 업체 실제 청구액·수신 메일·WhatsApp 자동 연동도 아니다. 세부 기준과 검증은 [작업 기록](OWNER-CONTROLLER-LIVE-OPERATIONS-2026-09-08.md)을 참고한다. 기존 환경변수는 계속 운영자가 **Vercel 대시보드**에서 직접 관리한다.

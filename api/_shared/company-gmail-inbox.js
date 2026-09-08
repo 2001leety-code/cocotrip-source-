@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   EXTERNAL_INBOX_MESSAGES_COLLECTION, EXTERNAL_INBOX_STATE_COLLECTION, prepareExternalInboxMessage,
 } from './external-inbox-store.js';
+import { INBOX_CASES_COLLECTION, INBOX_CLOSED_RETENTION_DAYS, nextInboxCaseOnMessage } from './external-inbox-retention.js';
 
 export const COMPANY_GMAIL_ACCOUNT = 'cocotripkr@gmail.com';
 export const COMPANY_GMAIL_STATE_ID = 'company_gmail';
@@ -99,17 +100,22 @@ async function acquire(db, config, nowMs, owner) {
 /** Every message write and cursor movement is fenced in the same transaction. */
 async function commit(db, control, now, change, prepared = null) {
   const messageRef = prepared ? db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(prepared.docId) : null;
+  const inboxCaseRef = prepared ? db.collection(INBOX_CASES_COLLECTION).doc(prepared.data.caseId) : null;
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(control.ref);
     const current = snap.data();
     if (!snap.exists || current.leaseOwner !== control.owner || current.fence !== control.fence
       || current.leaseUntilMs <= now()) fail('LEASE_LOST');
     const priorMessage = messageRef ? await tx.get(messageRef) : null;
+    const priorCase = inboxCaseRef ? await tx.get(inboxCaseRef) : null;
     // Firestore reads may wait/retry; test the fence again at the write boundary.
-    if (current.leaseUntilMs <= now()) fail('LEASE_LOST');
+    const commitAtMs = now();
+    if (current.leaseUntilMs <= commitAtMs) fail('LEASE_LOST');
     const patch = change(current);
     const created = Boolean(messageRef && !priorMessage.exists);
-    if (created) tx.create(messageRef, prepared.data);
+    const messageData = created ? { ...prepared.data, receivedAtMs: commitAtMs } : null;
+    if (created) tx.create(messageRef, messageData);
+    if (created) tx.set(inboxCaseRef, nextInboxCaseOnMessage(priorCase.exists ? priorCase.data() : null, messageData, commitAtMs));
     tx.update(control.ref, patch);
     return { state: { ...current, ...patch }, created };
   });
@@ -235,7 +241,7 @@ async function prepareMessage(get, id, config, now) {
   const sourceAtMs = typeof message.internalDate === 'string' && /^\d+$/.test(message.internalDate) ? Number(message.internalDate) : NaN;
   if (!safeTime(sourceAtMs) || sourceAtMs > nowMs) fail('GMAIL_MESSAGE_INVALID');
   if (!message.labelIds.includes('INBOX') || sourceAtMs < config.captureStartAtMs
-    || sourceAtMs + config.retentionDays * DAY_MS <= nowMs) return null;
+    || sourceAtMs + Math.min(config.retentionDays, INBOX_CLOSED_RETENTION_DAYS) * DAY_MS <= nowMs) return null;
   const headers = message.payload?.headers;
   if (!Array.isArray(headers) || headers.some((header) => !header || typeof header.name !== 'string' || typeof header.value !== 'string')
     || (message.snippet !== undefined && typeof message.snippet !== 'string')) fail('GMAIL_MESSAGE_INVALID');

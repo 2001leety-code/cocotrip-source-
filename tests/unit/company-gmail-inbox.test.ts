@@ -55,7 +55,7 @@ function memoryStore() {
         const hasMessage = staged.some((entry) => entry.ref.path.startsWith('external_inbox_messages/'));
         if (rejectMessage && hasMessage) throw new Error(PRIVATE);
         for (const entry of staged) {
-          if (!/^(external_inbox_state|external_inbox_messages)\/[A-Za-z0-9_]+$/.test(entry.ref.path)) throw new Error('OUT_OF_SCOPE_WRITE');
+          if (!/^(external_inbox_state|external_inbox_messages|external_inbox_cases)\/[A-Za-z0-9_]+$/.test(entry.ref.path)) throw new Error('OUT_OF_SCOPE_WRITE');
           if (entry.mode === 'create' && rows.has(entry.ref.path)) throw new Error('DUPLICATE_CREATE');
           if (entry.mode === 'update' && !rows.has(entry.ref.path)) throw new Error('MISSING_STATE');
         }
@@ -199,9 +199,9 @@ describe('company identity, read-only provider and private output boundaries', (
       parts: [{ body: { attachmentId: PRIVATE + '_attachment' } }], headers: [{ name: 'From', value: 'sender@example.invalid' }, { name: 'Subject', value: 'Synthetic' }] } })));
     expect(await f.run()).toMatchObject({ ok: true, status: 'connected', created: 1 });
     expect(f.messages()[0]).toMatchObject({ channel: 'email', accountId: COMPANY_GMAIL_ACCOUNT, providerMessageId: 'a', kind: 'email', truncated: true,
-      sourceAtMs: NOW - 10_000, receivedAtMs: NOW, expiresAtMs: NOW - 10_000 + 30 * 86_400_000 });
-    expect(Object.keys(f.messages()[0]).sort()).toEqual(['accountId', 'channel', 'expiresAt', 'expiresAtMs', 'kind', 'providerMessageId',
-      'providerThreadId', 'receivedAtMs', 'sender', 'sourceAtMs', 'subject', 'text', 'truncated'].sort());
+      sourceAtMs: NOW - 10_000, receivedAtMs: NOW, retentionPolicyVersion: 2, caseId: expect.stringMatching(/^[a-f0-9]{64}$/), expiresAtMs: 0, expiresAt: null });
+    expect(Object.keys(f.messages()[0]).sort()).toEqual(['accountId', 'caseId', 'channel', 'expiresAt', 'expiresAtMs', 'kind', 'providerMessageId',
+      'providerThreadId', 'receivedAtMs', 'retentionPolicyVersion', 'sender', 'sourceAtMs', 'subject', 'text', 'truncated'].sort());
     expect(JSON.stringify(f.messages())).not.toContain('_html'); expect(JSON.stringify(f.messages())).not.toContain('_attachment');
   });
   it('bounds even an uncooperative fetch and preserves an unknown/error state', async () => {
@@ -323,6 +323,25 @@ describe('cutover, baseline race, paging and atomic deduplication', () => {
       id === 'archive' ? { labelIds: ['SENT'] } : id === 'old' ? { internalDate: String(NOW - 41 * 86_400_000) }
         : id === 'expired' ? { internalDate: String(NOW - 30 * 86_400_000) } : { internalDate: String(NOW) })));
     expect(await f.run()).toMatchObject({ skipped: 4, created: 1 }); expect(f.messages()[0].providerMessageId).toBe('edge');
+  });
+  it('does not import a 31-day-old new v2 receipt even when legacy configuration permits 90 days', async () => {
+    const f = fixture();
+    f.env.COMPANY_GMAIL_INBOX_CAPTURE_START_AT = new Date(NOW - 40 * 86_400_000).toISOString();
+    f.env.COMPANY_GMAIL_INBOX_RETENTION_DAYS = '90';
+    f.api.list.mockResolvedValue(response({ messages: [{ id: 'late' }] }));
+    f.api.message.mockResolvedValue(response(message('late', { internalDate: String(NOW - 31 * 86_400_000) })));
+    expect(await f.run()).toMatchObject({ skipped: 1, created: 0 });
+    expect(f.messages()).toEqual([]);
+  });
+  it('rejects a same-thread receipt when the stored case is ahead of the actual commit clock', async () => {
+    const f = fixture();
+    f.api.list.mockResolvedValue(response({ messages: [{ id: 'a' }] }));
+    expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 1 });
+    f.setNow(NOW - 1);
+    f.api.history.mockResolvedValue(response({ history: [{ id: '201', messagesAdded: [{ message: { id: 'b' } }] }], historyId: '300' }));
+    f.api.message.mockResolvedValue(response(message('b', { threadId: 'thread_a' })));
+    expect(await f.run()).toMatchObject({ ok: false, code: 'INBOX_SYNC_FAILED' });
+    expect(f.messages()).toHaveLength(1);
   });
   it('applies cutover and INBOX filtering to history label-added and resumed IDs too', async () => {
     const f = fixture(); f.api.history.mockResolvedValue(response({ history: [{ id: '101', labelsAdded: [

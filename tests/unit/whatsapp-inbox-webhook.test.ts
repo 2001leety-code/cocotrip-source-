@@ -308,6 +308,12 @@ describe('pinned inbound receipts and retries', () => {
     expect(extracted.messages[0]).not.toHaveProperty('eligibility');
     expect(extracted.messages[0]).not.toHaveProperty('vehicle');
   });
+  it('does not select a 31-day-old new v2 receipt even if the legacy source window is 90 days', () => {
+    const env = { ...ENV, WHATSAPP_INBOX_CAPTURE_START_AT: new Date(NOW - 40 * 86_400_000).toISOString(), WHATSAPP_INBOX_RETENTION_DAYS: '90' };
+    const late = { ...MESSAGE, timestamp: String((NOW - 31 * 86_400_000) / 1000) };
+    expect(extractWhatsAppInboxMessages(payload([late]), { config: readWhatsAppInboxConfig(env, NOW), wabaId: '111', nowMs: NOW }))
+      .toEqual({ messages: [], ignored: 1 });
+  });
   it('never logs or returns private callback, message or diagnostic values', async () => {
     const log = vi.spyOn(console, 'log');
     const warn = vi.spyOn(console, 'warn');

@@ -20,13 +20,12 @@ const session = { policyVersion: 1, accountId: '222', sender: message.sender, st
 const activeDb = () => createFakeFirestore({ [sessionPath]: session });
 
 describe('external inbox minimal deterministic storage', () => {
-  it('preserves the agreed minimum only and uses server receipt time plus source-based TTL', () => {
+  it('preserves the agreed minimum only and assigns new receipts to case retention', () => {
     const { docId, data } = prepareExternalInboxMessage({ ...message, receivedAtMs: 1, raw: { token: 'forbidden' }, html: '<div>forbidden</div>' }, policy);
     expect(docId).toMatch(/^[a-f0-9]{64}$/);
-    expect(Object.keys(data).sort()).toEqual(['accountId', 'channel', 'expiresAt', 'expiresAtMs', 'kind', 'providerMessageId', 'providerThreadId', 'receivedAtMs', 'sender', 'sourceAtMs', 'subject', 'text', 'truncated'].sort());
+    expect(Object.keys(data).sort()).toEqual(['accountId', 'caseId', 'channel', 'expiresAt', 'expiresAtMs', 'kind', 'providerMessageId', 'providerThreadId', 'receivedAtMs', 'retentionPolicyVersion', 'sender', 'sourceAtMs', 'subject', 'text', 'truncated'].sort());
     expect(data.receivedAtMs).toBe(NOW);
-    expect(data.expiresAtMs).toBe(message.sourceAtMs + 7 * DAY);
-    expect(data.expiresAt).toEqual(new Date(data.expiresAtMs));
+    expect(data).toMatchObject({ retentionPolicyVersion: 2, caseId: expect.stringMatching(/^[a-f0-9]{64}$/), expiresAtMs: 0, expiresAt: null });
     expect(JSON.stringify(data)).not.toContain('forbidden');
   });
 
@@ -55,6 +54,10 @@ describe('external inbox minimal deterministic storage', () => {
   it.each([0, 91, 1.5, undefined, '7'])('has no default retention for invalid policy %s', retentionDays => {
     expect(() => prepareExternalInboxMessage(message, { nowMs: NOW, retentionDays })).toThrow('INBOX_POLICY_INVALID');
   });
+  it('caps new v2 receipt eligibility at the closed-case 30-day window', () => {
+    expect(() => prepareExternalInboxMessage({ ...message, sourceAtMs: NOW - 31 * DAY }, { ...policy, retentionDays: 90 }))
+      .toThrow('INBOX_MESSAGE_EXPIRED');
+  });
   it.each([0, NaN, NOW + 1, NOW - 7 * DAY])('rejects invalid, future or already expired source timestamp %s', sourceAtMs => {
     expect(() => prepareExternalInboxMessage({ ...message, sourceAtMs }, policy)).toThrow();
   });
@@ -70,7 +73,7 @@ describe('external inbox minimal deterministic storage', () => {
     const options = { db, message, ...policy, captureStartAtMs };
     expect(await writeExternalInboxMessage(options)).toEqual({ created: true, duplicate: false });
     const snapshot = db.__dump();
-    expect(Object.keys(snapshot)).toHaveLength(3);
+    expect(Object.keys(snapshot)).toHaveLength(4);
     expect(snapshot[`${EXTERNAL_INBOX_STATE_COLLECTION}/whatsapp`]).toMatchObject({ status: 'connected', accountId: '222', lastReceivedAtMs: NOW, lastAttemptAtMs: NOW, captureStartAtMs, retentionDays: 7 });
     expect(await writeExternalInboxMessage({ ...options, nowMs: NOW + 50, now: () => NOW + 50 })).toEqual({ created: false, duplicate: true });
     expect(db.__dump()).toEqual(snapshot);
@@ -88,10 +91,11 @@ describe('external inbox minimal deterministic storage', () => {
     expect(db.__version(`${EXTERNAL_INBOX_STATE_COLLECTION}/whatsapp`)).toBe(1);
   });
 
-  it('concurrent distinct messages are preserved and an older receipt cannot rewind state', async () => {
+  it('rejects a prior case timestamp ahead of the actual post-read commit clock', async () => {
     const db = activeDb();
     await writeExternalInboxMessage({ db, message, ...policy, nowMs: NOW + 100, now: () => NOW + 100, captureStartAtMs });
-    await writeExternalInboxMessage({ db, message: { ...message, providerMessageId: 'second' }, ...policy, captureStartAtMs });
+    await expect(writeExternalInboxMessage({ db, message: { ...message, providerMessageId: 'second' }, ...policy, captureStartAtMs }))
+      .rejects.toThrow('INBOX_CASE_INVALID');
     expect(db.__get(`${EXTERNAL_INBOX_STATE_COLLECTION}/whatsapp`).lastReceivedAtMs).toBe(NOW + 100);
     expect(Object.keys(db.__dump())).toHaveLength(4);
   });
@@ -109,7 +113,7 @@ describe('external inbox minimal deterministic storage', () => {
     }));
     const messages = Array.from({ length: 1000 }, (_, index) => ({ ...message, providerMessageId: String(index) }));
     expect(await writeExternalInboxMessages({ db, messages, ...policy, captureStartAtMs })).toEqual({ created: 1000, duplicate: 0, ignored: 0 });
-    expect(bulkSizes).toEqual([1, 200, 1, 200, 1, 200, 1, 200, 1, 200]);
+    expect(bulkSizes).toEqual([1, 200, 1, 1, 200, 1, 1, 200, 1, 1, 200, 1, 1, 200, 1]);
     expect(db.__stats.transactions).toBe(5);
     const stateVersion = db.__version('external_inbox_state/whatsapp');
     expect(await writeExternalInboxMessages({ db, messages, ...policy, nowMs: NOW + 1, now: () => NOW + 1, captureStartAtMs })).toEqual({ created: 0, duplicate: 1000, ignored: 0 });
@@ -144,22 +148,29 @@ describe('external inbox minimal deterministic storage', () => {
 describe('expired-cache cleanup is a pure narrow plan, not an enabled deletion job', () => {
   it('only selects expired canonical IDs from the new message collection and never executes', () => {
     const prepared = prepareExternalInboxMessage(message, policy);
-    const documents = [{ id: prepared.docId, data: prepared.data }];
+    const legacyData = { ...prepared.data, retentionPolicyVersion: undefined, caseId: undefined,
+      expiresAtMs: message.sourceAtMs + 7 * DAY, expiresAt: new Date(message.sourceAtMs + 7 * DAY) };
+    const documents = [{ id: prepared.docId, data: legacyData }];
     const result = planExpiredExternalInboxCleanup([
       ...documents, ...documents,
       { id: 'charter_inquiries/private', data: prepared.data },
-      { id: prepared.docId, data: { ...prepared.data, channel: 'booking' } },
-    ], { nowMs: prepared.data.expiresAtMs });
+      { id: prepared.docId, data: { ...legacyData, channel: 'booking' } },
+    ], { nowMs: legacyData.expiresAtMs });
     expect(result).toEqual({ collection: 'external_inbox_messages', docIds: [prepared.docId], executed: false });
     expect(planExpiredExternalInboxCleanup(documents, { nowMs: NOW }).docIds).toEqual([]);
-    expect(documents[0].data).toEqual(prepared.data);
+    expect(documents[0].data).toEqual(legacyData);
   });
   it('bounds each plan and rejects broad or invalid policy', () => {
     const documents = [1, 2].map(id => {
       const prepared = prepareExternalInboxMessage({ ...message, providerMessageId: String(id) }, policy);
-      return { id: prepared.docId, data: prepared.data };
+      return { id: prepared.docId, data: { ...prepared.data, retentionPolicyVersion: undefined, caseId: undefined,
+        expiresAtMs: message.sourceAtMs + 7 * DAY, expiresAt: new Date(message.sourceAtMs + 7 * DAY) } };
     });
     expect(planExpiredExternalInboxCleanup(documents, { nowMs: NOW + 8 * DAY, limit: 1 }).docIds).toHaveLength(1);
     expect(() => planExpiredExternalInboxCleanup(documents, { nowMs: NOW, limit: 101 })).toThrow();
+  });
+  it('never selects v2 case-retained receipts, even if a malformed TTL field is present', () => {
+    const prepared = prepareExternalInboxMessage(message, policy);
+    expect(planExpiredExternalInboxCleanup([{ id: prepared.docId, data: { ...prepared.data, expiresAtMs: NOW - 1 } }], { nowMs: NOW }).docIds).toEqual([]);
   });
 });

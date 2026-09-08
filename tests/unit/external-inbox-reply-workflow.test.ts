@@ -3,7 +3,7 @@ import { createFakeFirestore, makeBarrier } from '../helpers/fake-firestore.js';
 import { sessionDocId } from '../../api/_shared/whatsapp-support-sessions.js';
 import { EXTERNAL_INBOX_REPLY_POLICY_VERSION } from '../../api/_shared/external-inbox-reply-policy.js';
 import { approveExternalInboxReplyDraft, dispatchExternalInboxReply, EXTERNAL_INBOX_REPLY_WORKFLOWS,
-  prepareExternalInboxReplyDraft, REPLY_SEND_TIMEOUT_MS } from '../../api/_shared/external-inbox-reply-workflow.js';
+  prepareExternalInboxReplyDraft, REPLY_SEND_TIMEOUT_MS, EXTERNAL_INBOX_DRAFT_RETENTION_MS } from '../../api/_shared/external-inbox-reply-workflow.js';
 
 const NOW = Date.parse('2026-09-08T08:00:00Z');
 const key = '12345678-1234-4234-8234-123456789abc';
@@ -62,6 +62,15 @@ afterEach(() => {
 });
 
 describe('draft and human approval server ledger', () => {
+  it('keeps an accepted receipt distinguishable from an expired unsent draft', async () => {
+    const input = fixture();
+    input.db.__patch('synthetic_source/current', { expiresAtMs: NOW + 30 * 86_400_000 });
+    const value = await approved(input);
+    expect((await dispatchExternalInboxReply(value)).code).toBe('PROVIDER_ACCEPTED');
+    value.now.mockReturnValue(NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS);
+    expect((await dispatchExternalInboxReply(value)).code).toBe('ALREADY_DISPATCHED');
+    expect(value.send).toHaveBeenCalledTimes(1);
+  });
   it.each([undefined, {}, { replyEnabled: false }, { replyEnabled: 'true' }])('all OFF states %j do no I/O', async flags => {
     const value = fixture(); const original = value.db.__dump();
     for (const operation of [prepareExternalInboxReplyDraft, approveExternalInboxReplyDraft, dispatchExternalInboxReply]) {
@@ -157,6 +166,48 @@ describe('draft and human approval server ledger', () => {
     expect((await approveExternalInboxReplyDraft(value)).code).toBe('REAPPROVAL_REQUIRED');
     expect((await approveExternalInboxReplyDraft({ ...value, renewApproval: true, expectedApprovalExpiresAtMs: oldExpiry })).code).toBe('APPROVED');
     expect(record(value).approval.expiresAtMs).toBe(NOW + 600_000);
+    expect(value.send).not.toHaveBeenCalled();
+  });
+  it('caps every unsubmitted draft at its original seven-day creation time without extending a shorter source expiry', async () => {
+    const value = fixture();
+    value.db.__patch('synthetic_source/current', { expiresAtMs: NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS + 86_400_000 });
+    const preparedValue = await prepared(value);
+    const originalExpiry = record(preparedValue).draftExpiresAtMs;
+    expect(originalExpiry).toBe(NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS);
+    value.now.mockReturnValue(NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS - 1);
+    const edited = await prepareExternalInboxReplyDraft({ ...preparedValue, request: { ...preparedValue.request, key: nextKey, text: 'still unsent' },
+      expectedRevision: preparedValue.expectedRevision, expectedDraftHash: preparedValue.expectedDraftHash });
+    expect(edited.draftExpiresAtMs).toBe(originalExpiry);
+    value.now.mockReturnValue(NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS);
+    expect((await prepareExternalInboxReplyDraft(preparedValue)).code).toBe('DRAFT_EXPIRED');
+    expect((await approveExternalInboxReplyDraft(preparedValue)).code).toBe('DRAFT_EXPIRED');
+    expect((await dispatchExternalInboxReply(preparedValue)).code).toBe('DRAFT_EXPIRED');
+    expect(value.send).not.toHaveBeenCalled();
+
+    const short = fixture();
+    const shortExpiry = NOW + 60_000;
+    short.db.__patch('synthetic_source/current', { expiresAtMs: shortExpiry });
+    expect((await prepareExternalInboxReplyDraft(short)).draftExpiresAtMs).toBe(shortExpiry);
+  });
+  it('uses the original createdAt for legacy drafts rather than granting a new retention window', async () => {
+    const value = fixture();
+    value.db.__patch('synthetic_source/current', { expiresAtMs: NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS + 86_400_000 });
+    const data = await prepared(value);
+    value.db.__patch(path(data), { draftExpiresAtMs: undefined });
+    value.now.mockReturnValue(NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS);
+    expect((await approveExternalInboxReplyDraft(data)).code).toBe('DRAFT_EXPIRED');
+    expect(value.send).not.toHaveBeenCalled();
+  });
+  it('shortening the source deadline also shortens the draft deadline without corrupting the ledger', async () => {
+    const value = await prepared();
+    const shorter = NOW + 60_000;
+    value.db.__patch('synthetic_source/current', { expiresAtMs: shorter });
+    const edited = { ...value, request: { ...value.request, key: nextKey } };
+    const updated = await prepareExternalInboxReplyDraft(edited);
+    expect(updated).toMatchObject({ code: 'DRAFT_PREPARED', draftExpiresAtMs: shorter, expiresAtMs: shorter });
+    expect(record(value).createdAtMs).toBe(NOW);
+    expect((await approveExternalInboxReplyDraft({ ...edited, expectedRevision: updated.revision,
+      expectedDraftHash: updated.draftHash })).code).toBe('APPROVED');
     expect(value.send).not.toHaveBeenCalled();
   });
   it('enforces all reads before writes in prepare, approve, claim and finalization', async () => {

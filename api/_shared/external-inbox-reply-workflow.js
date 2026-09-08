@@ -6,6 +6,7 @@ import { classifyExternalInboxReplyDelivery, EXTERNAL_INBOX_REPLY_POLICY_VERSION
 export const EXTERNAL_INBOX_REPLY_WORKFLOWS = 'external_inbox_reply_workflows';
 export const REPLY_SEND_TIMEOUT_MS = 8000;
 export const REPLY_MAX_SEND_ATTEMPTS = 2;
+export const EXTERNAL_INBOX_DRAFT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const VERSION = 1;
 const STATES = ['draft', 'draft_only', 'approved', 'sending', 'provider_accepted', 'outcome_unknown', 'failed_pre_send', 'cancelled'];
 const HASH = /^[a-f0-9]{64}$/;
@@ -24,6 +25,7 @@ const draftHash = (request, actor) => hash(['external-inbox-reply.draft.v1', act
 const canonical = value => Array.isArray(value) ? value.map(canonical) : object(value)
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const envelopeHash = envelope => hash(canonical(envelope));
+const draftExpiresAt = (createdAtMs, sourceExpiresAtMs) => Math.min(createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS, sourceExpiresAtMs);
 
 function take(value, keys) {
   const output = {};
@@ -107,7 +109,7 @@ function consistentState(record) {
   return !record.retryAllowed;
 }
 
-function validRecord(record, options) {
+export function validExternalInboxReplyWorkflowRecord(record, options = {}) {
   return object(record) && record.schemaVersion === VERSION && record.kind === 'reply'
     && record.sourceHash === options.source && record.actorHash === options.actor
     && record.sourceHash === sourceHash(record.request || {}) && validateExternalInboxReplyRequest(record.request).ok
@@ -116,6 +118,8 @@ function validRecord(record, options) {
     && object(record.envelope) && record.envelopeHash === envelopeHash(record.envelope)
     && time(record.createdAtMs) && time(record.updatedAtMs) && record.updatedAtMs >= record.createdAtMs
     && time(record.expiresAtMs) && record.expiresAtMs === record.envelope.expiresAtMs
+    && (record.draftExpiresAtMs === undefined || (time(record.draftExpiresAtMs)
+      && record.draftExpiresAtMs === draftExpiresAt(record.createdAtMs, record.expiresAtMs)))
     && Number.isInteger(record.attempts) && record.attempts >= 0 && record.attempts <= REPLY_MAX_SEND_ATTEMPTS
     && typeof record.approvalConsumed === 'boolean' && typeof record.retryAllowed === 'boolean'
     && typeof record.attemptId === 'string' && typeof record.providerReceiptHash === 'string'
@@ -130,7 +134,8 @@ function keyValid(key, options) {
 function summary(record, code) {
   return { ok: true, code, sendAllowed: false, status: record.status, revision: record.revision,
     draftHash: record.draftHash, approvalExpiresAtMs: record.approval ? record.approval.expiresAtMs : 0,
-    expiresAtMs: record.expiresAtMs, providerAccepted: Boolean(record.providerReceiptHash), deliveryVerified: false };
+    expiresAtMs: record.expiresAtMs, draftExpiresAtMs: record.draftExpiresAtMs || draftExpiresAt(record.createdAtMs, record.expiresAtMs),
+    providerAccepted: Boolean(record.providerReceiptHash), deliveryVerified: false };
 }
 
 async function read(tx, options) {
@@ -143,10 +148,12 @@ async function read(tx, options) {
   if (!time(nowMs)) return fail('NOW_INVALID');
   const record = recordDoc.exists ? recordDoc.data() : null;
   const key = keyDoc.exists ? keyDoc.data() : null;
-  if (record && !validRecord(record, options)) return fail('LEDGER_CONFLICT');
+  if (record && !validExternalInboxReplyWorkflowRecord(record, options)) return fail('LEDGER_CONFLICT');
   if (key && !keyValid(key, options)) return fail('REQUEST_KEY_CONFLICT');
   if (record && (record.createdAtMs > nowMs || record.updatedAtMs > nowMs)) return fail('LEDGER_TIME_INVALID');
   if (record && nowMs >= record.expiresAtMs) return fail('SOURCE_EXPIRED');
+  if (record && ['draft', 'draft_only', 'approved', 'failed_pre_send'].includes(record.status)
+    && nowMs >= (record.draftExpiresAtMs || draftExpiresAt(record.createdAtMs, record.expiresAtMs))) return fail('DRAFT_EXPIRED');
   if (!contextValid(envelope, options.request, nowMs)) return fail('SOURCE_CONTEXT_INVALID');
   const eligibility = prepareApprovedExternalInboxReply({ ...options, envelope, nowMs, humanApproved: false });
   if (eligibility.code !== 'HUMAN_APPROVAL_REQUIRED'
@@ -159,7 +166,8 @@ async function read(tx, options) {
  * operator and derive resolver/config itself. A body hash is not proof of permission.
  * v1 permits ONE final reply per inbound message, not arbitrary follow-up replies.
  * All operations are OFF without strict replyEnabled=true, including draft storage.
- * Draft content expires with its source; the separately stored approval lasts <=5 min.
+ * Unsent drafts expire at creation +7 days or earlier source expiry; edits never extend this.
+ * Sent/uncertain receipts retain their separate state; approval lasts <=5 minutes.
  * Expiry fields do not themselves enable Firestore TTL or physically erase documents.
  */
 export async function prepareExternalInboxReplyDraft(input = {}) {
@@ -178,13 +186,16 @@ export async function prepareExternalInboxReplyDraft(input = {}) {
           || input.expectedRevision !== record.revision || input.expectedDraftHash !== record.draftHash)) return fail('DRAFT_CONFLICT');
         if (changed) next = { ...record, request: options.request, draftHash: options.contentHash,
           envelope, envelopeHash: currentHash, revision: record.revision + 1, updatedAtMs: nowMs,
-          expiresAtMs: Math.min(record.expiresAtMs, envelope.expiresAtMs), status: draftOnly ? 'draft_only' : 'draft' };
+          expiresAtMs: Math.min(record.expiresAtMs, envelope.expiresAtMs),
+          draftExpiresAtMs: draftExpiresAt(record.createdAtMs, Math.min(record.expiresAtMs, envelope.expiresAtMs)),
+          status: draftOnly ? 'draft_only' : 'draft' };
         if (next.expiresAtMs !== envelope.expiresAtMs) return fail('RETENTION_CHANGED');
       } else {
         if (key) return fail('LEDGER_MISSING');
         next = { schemaVersion: VERSION, kind: 'reply', sourceHash: options.source, actorHash: options.actor,
           request: options.request, draftHash: options.contentHash, envelope, envelopeHash: currentHash, revision: 1,
           status: draftOnly ? 'draft_only' : 'draft', createdAtMs: nowMs, updatedAtMs: nowMs, expiresAtMs: envelope.expiresAtMs,
+          draftExpiresAtMs: draftExpiresAt(nowMs, envelope.expiresAtMs),
           approval: null, approvalConsumed: false, attempts: 0, attemptId: '', retryAllowed: false, providerReceiptHash: '' };
       }
       if (next !== record) tx.set(options.ref, next);
@@ -231,7 +242,7 @@ async function markUncertain(options, attemptId) {
     await options.db.runTransaction(async tx => {
       const doc = await tx.get(options.ref);
       const record = doc.exists ? doc.data() : null;
-      if (!record || !validRecord(record, options) || record.status !== 'sending' || record.attemptId !== attemptId) return;
+      if (!record || !validExternalInboxReplyWorkflowRecord(record, options) || record.status !== 'sending' || record.attemptId !== attemptId) return;
       const nowMs = options.now();
       if (!time(nowMs) || nowMs < record.updatedAtMs) return;
       tx.set(options.ref, { ...record, status: 'outcome_unknown', updatedAtMs: nowMs, retryAllowed: false });
@@ -308,7 +319,7 @@ export async function dispatchExternalInboxReply(input = {}) {
       const doc = await tx.get(options.ref);
       const record = doc.exists ? doc.data() : null;
       const nowMs = options.now();
-      if (!record || !validRecord(record, options) || record.status !== 'sending' || record.attemptId !== attemptId
+      if (!record || !validExternalInboxReplyWorkflowRecord(record, options) || record.status !== 'sending' || record.attemptId !== attemptId
         || !time(nowMs) || nowMs < record.updatedAtMs) return false;
       tx.set(options.ref, { ...record, status, updatedAtMs: nowMs,
         retryAllowed: status === 'failed_pre_send' && record.attempts < REPLY_MAX_SEND_ATTEMPTS,
