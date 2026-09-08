@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, isAnalyticsUrl } from './fixtures/analytics-guard';
 
 // Local synthetic preview only: never log in, read customer records, or send messages.
 for (const width of [390, 1280]) {
@@ -8,6 +8,7 @@ for (const width of [390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       await page.route('**/*', (route) => {
         const url = new URL(route.request().url());
+        if (isAnalyticsUrl(url.href)) return route.fallback();
         if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname.startsWith('/api/')) return route.abort();
         return route.continue();
       });
