@@ -112,6 +112,7 @@ const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 // SNS 프로필의 "link in bio" 목적지. 링크는 API 로 못 바꾸니 바이오엔 이 경로만 고정한다.
 const LinksPage = lazy(() => import('@/pages/LinksPage'));
+const WhatsAppSupportPage = lazy(() => import('@/pages/WhatsAppSupportPage'));
 // DEV-only test harness — prod 빌드에서 chunk 자체가 emit되지 않도록 lazy 호출을 조건부로.
 // import.meta.env.DEV 가 false일 때 import('@/pages/DevTransitTest') 호출 자체가 코드에서 사라짐 → tree-shake 성공.
 const DevTransitTest = import.meta.env.DEV
@@ -200,7 +201,8 @@ function GlobalWidgets() {
   //   버튼 하나를 누르고 끝나야 하는데 하단탭 6개가 그 자리를 두고 경쟁한다.
   //   (쿠키배너는 GDPR 이라 여기서도 유지 — 공유 플랜과 같은 규칙.)
   const isLinkHub = isLinkHubPath(location.pathname);
-  const isBareLanding = isSharedPlan || isCommunity || isLinkHub;
+  // Keep the consent step free of competing navigation/coupon prompts; CookieBanner stays.
+  const isBareLanding = isSharedPlan || isCommunity || isLinkHub || location.pathname === '/whatsapp-support';
 
   return (
     <>
@@ -614,6 +616,7 @@ function AnimatedRoutes() {
           <Route path="/tours/:slug" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><TourDetailPage /></Suspense>} />
           {/* SNS 링크 허브. seoRoutes 목록에 없으므로 noindex — 검색 노출 대상이 아니다. */}
           <Route path="/links" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><LinksPage /></Suspense>} />
+          <Route path="/whatsapp-support" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><WhatsAppSupportPage /></Suspense>} />
           {/* 커뮤니티 UI 껍데기 — 실제 DB·번역·신고·moderation 연결은 Claude handoff 범위. */}
           <Route path="/community" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><CommunityPage /></Suspense>} />
           {/* /community/moderation-preview 공개 데모 라우트 제거(2026-07-12) — 어드민 화면은 /admin/community 게이트 하위만 */}
@@ -794,6 +797,7 @@ function NonMoodChrome() {
     location.pathname.startsWith('/mood') ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/community') ||
+    location.pathname === '/whatsapp-support' ||
     isLinkHubPath(location.pathname)
   ) return null;
   return (

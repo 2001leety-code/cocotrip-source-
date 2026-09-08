@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { sessionDocId, supportCommand, transitionSupportSession, validateSupportSession,
+  validSupportAccount, validSupportMessageId, validSupportSender, START_FRESHNESS_MS, WHATSAPP_SESSIONS_COLLECTION } from './whatsapp-support-sessions.js';
 
 export const EXTERNAL_INBOX_MESSAGES_COLLECTION = 'external_inbox_messages';
 export const EXTERNAL_INBOX_STATE_COLLECTION = 'external_inbox_state';
@@ -54,6 +56,12 @@ export function prepareExternalInboxMessage(message, { nowMs, retentionDays }) {
   const sender = limitedText(message.sender, 320);
   const subject = limitedText(message.subject, 256);
   const text = limitedText(message.text, 4000);
+  const supportProof = {};
+  if (message.channel === 'whatsapp' && (message.whatsappPolicyVersion !== undefined || message.whatsappSessionId !== undefined)) {
+    if (message.whatsappPolicyVersion !== 1 || message.whatsappSessionId !== sessionDocId(accountId, message.sender)) throw invalid('INBOX_SESSION_PROOF_INVALID');
+    supportProof.whatsappPolicyVersion = 1;
+    supportProof.whatsappSessionId = message.whatsappSessionId;
+  }
   const docId = createHash('sha256')
     .update(JSON.stringify(['external-inbox.v1', message.channel, accountId, providerMessageId]))
     .digest('hex');
@@ -72,53 +80,93 @@ export function prepareExternalInboxMessage(message, { nowMs, retentionDays }) {
     expiresAtMs,
     // A TTL-compatible field is NOT a promise of deletion: the operator must enable Firestore TTL separately.
     expiresAt: new Date(expiresAtMs),
+    ...supportProof,
   } };
 }
 
 /** WhatsApp-only state ownership. Gmail uses prepare inside its separate cursor/lease transaction. */
-export async function writeExternalInboxMessage({ db, message, nowMs, retentionDays, captureStartAtMs }) {
-  const result = await writeExternalInboxMessages({ db, messages: [message], nowMs, retentionDays, captureStartAtMs });
+export async function writeExternalInboxMessage({ db, message, nowMs, now, retentionDays, captureStartAtMs }) {
+  const result = await writeExternalInboxMessages({ db, messages: [message], nowMs, now, retentionDays, captureStartAtMs });
   return { created: result.created === 1, duplicate: result.duplicate === 1 };
 }
 
-/** At most 200 selected records per transaction, avoiding a network round trip for every message. */
-export async function writeExternalInboxMessages({ db, messages, nowMs, retentionDays, captureStartAtMs }) {
+/** Session reads and receipt/control writes share one transaction; no private unknown record is prepared. */
+export async function writeExternalInboxMessages({ db, messages, nowMs, now = Date.now, retentionDays, captureStartAtMs }) {
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 1000) throw invalid('INBOX_BATCH_INVALID');
-  const prepared = messages.map(message => prepareExternalInboxMessage(message, { nowMs, retentionDays }));
-  const accountId = prepared[0].data.accountId;
-  if (prepared.some(item => item.data.channel !== 'whatsapp' || item.data.accountId !== accountId)) throw invalid('INBOX_WRITER_CHANNEL_INVALID');
+  if (!Number.isSafeInteger(nowMs) || nowMs <= 0 || !Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 90) throw invalid('INBOX_POLICY_INVALID');
+  const accountId = messages[0] && messages[0].accountId;
+  if (!validSupportAccount(accountId) || messages.some(item => !item || item.channel !== 'whatsapp' || item.accountId !== accountId)) throw invalid('INBOX_WRITER_CHANNEL_INVALID');
+  if (messages.some(item => !validSupportSender(item.sender) || item.providerThreadId !== item.sender || !validSupportMessageId(item.providerMessageId))) throw invalid('INBOX_IDENTIFIER_INVALID');
+  if (messages.some(item => !Number.isSafeInteger(item.sourceAtMs) || item.sourceAtMs <= 0 || item.sourceAtMs > nowMs)) throw invalid('INBOX_SOURCE_TIME_FUTURE');
   if (!Number.isSafeInteger(captureStartAtMs) || captureStartAtMs <= 0
-    || captureStartAtMs > nowMs || prepared.some(item => item.data.sourceAtMs < captureStartAtMs)) {
+    || captureStartAtMs > nowMs || messages.some(item => item.sourceAtMs < captureStartAtMs)) {
     throw invalid('INBOX_CAPTURE_START_INVALID');
   }
-  const unique = [...new Map(prepared.map(item => [item.docId, item])).values()];
+  const unique = [...new Map(messages.map(message => [message.providerMessageId, message])).values()];
+  // A close anywhere in this received batch is committed before any ordinary message/start.
+  // This deliberately discards ambiguous same-batch text instead of briefly reopening a closed chat.
+  unique.sort((a, b) => Number(supportCommand(b.kind, b.text) === 'stop') - Number(supportCommand(a.kind, a.text) === 'stop')
+    || a.sourceAtMs - b.sourceAtMs);
   const stateRef = db.collection(EXTERNAL_INBOX_STATE_COLLECTION).doc('whatsapp');
-  const counts = { created: 0, duplicate: prepared.length - unique.length };
+  const counts = { created: 0, duplicate: messages.length - unique.length, ignored: 0 };
   for (let index = 0; index < unique.length; index += 200) {
     const chunk = unique.slice(index, index + 200);
-    const refs = chunk.map(item => db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(item.docId));
     const result = await db.runTransaction(async transaction => {
-      // Real Admin Firestore provides getAll. The injected race fake tracks individual reads instead.
-      const snapshots = typeof transaction.getAll === 'function'
-        ? await transaction.getAll(...refs) : await Promise.all(refs.map(ref => transaction.get(ref)));
-      const fresh = chunk.filter((_, position) => !snapshots[position].exists);
-      if (!fresh.length) return { created: 0, duplicate: chunk.length };
-      const stateSnapshot = await transaction.get(stateRef);
-      const state = stateSnapshot.exists ? stateSnapshot.data() : {};
-      const previousReceived = state.accountId === accountId && Number.isSafeInteger(state.lastReceivedAtMs)
-        ? state.lastReceivedAtMs : 0;
-      chunk.forEach((item, position) => { if (!snapshots[position].exists) transaction.set(refs[position], item.data); });
-      transaction.set(stateRef, {
-        status: 'connected', accountId,
-        lastAttemptAtMs: Math.max(nowMs, previousReceived),
-        lastSuccessAtMs: Math.max(nowMs, previousReceived),
-        lastReceivedAtMs: Math.max(nowMs, previousReceived),
-        lastErrorCode: '', captureStartAtMs, retentionDays,
-      }, { merge: true });
-      return { created: fresh.length, duplicate: chunk.length - fresh.length };
+      const getAll = refs => typeof transaction.getAll === 'function'
+        ? transaction.getAll(...refs) : Promise.all(refs.map(ref => transaction.get(ref)));
+      const sessionIds = [...new Set(chunk.map(message => sessionDocId(accountId, message.sender)))];
+      const sessionRefs = sessionIds.map(id => db.collection(WHATSAPP_SESSIONS_COLLECTION).doc(id));
+      const snapshots = await getAll(sessionRefs);
+      const sessions = new Map(sessionIds.map((id, position) => [id, snapshots[position].exists ? snapshots[position].data() : null]));
+      const corrupt = new Set(sessionIds.filter((id, position) => snapshots[position].exists
+        && !validateSupportSession(snapshots[position].data(), { accountId,
+          sender: chunk.find(message => sessionDocId(accountId, message.sender) === id).sender, sessionId: id })));
+      const changed = new Set();
+      const allowed = [];
+      let ignored = 0;
+      const checkedAtMs = now();
+      if (!Number.isSafeInteger(checkedAtMs) || checkedAtMs < nowMs) throw invalid('INBOX_CLOCK_INVALID');
+      for (const message of chunk) {
+        const sessionId = sessionDocId(accountId, message.sender);
+        const current = sessions.get(sessionId);
+        if (corrupt.has(sessionId) || (current && !validateSupportSession(current, { accountId, sender: message.sender, sessionId }))
+          || message.sourceAtMs > checkedAtMs || message.sourceAtMs + retentionDays * DAY_MS <= checkedAtMs) { ignored++; continue; }
+        const next = transitionSupportSession(current, message, { nowMs: checkedAtMs });
+        if (next.changed) { sessions.set(sessionId, next.session); changed.add(sessionId); }
+        if (!next.allowMessage || current.startedAtMs < captureStartAtMs) { ignored++; continue; }
+        allowed.push(prepareExternalInboxMessage({ ...message, whatsappPolicyVersion: 1, whatsappSessionId: sessionId }, { nowMs: checkedAtMs, retentionDays }));
+      }
+      const messageRefs = allowed.map(item => db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(item.docId));
+      const messageSnapshots = messageRefs.length ? await getAll(messageRefs) : [];
+      const fresh = allowed.filter((_, position) => !messageSnapshots[position].exists);
+      const stateSnapshot = fresh.length ? await transaction.get(stateRef) : null;
+      // Re-read time after every asynchronous read; a slow read/retry must not authorize expired text.
+      const commitAtMs = now();
+      if (!Number.isSafeInteger(commitAtMs) || commitAtMs < checkedAtMs) throw invalid('INBOX_CLOCK_INVALID');
+      const eligibleFresh = fresh.filter(item => {
+        const session = sessions.get(item.data.whatsappSessionId);
+        return session && session.status === 'active' && commitAtMs < session.expiresAtMs
+          && (!changed.has(item.data.whatsappSessionId) || commitAtMs - session.startedAtMs <= START_FRESHNESS_MS);
+      });
+      ignored += fresh.length - eligibleFresh.length;
+      for (const id of changed) {
+        const session = sessions.get(id);
+        if (session.status === 'active' && (commitAtMs >= session.expiresAtMs || commitAtMs - session.startedAtMs > START_FRESHNESS_MS)) continue;
+        transaction.set(db.collection(WHATSAPP_SESSIONS_COLLECTION).doc(id), session);
+      }
+      for (const item of eligibleFresh) transaction.set(db.collection(EXTERNAL_INBOX_MESSAGES_COLLECTION).doc(item.docId), item.data);
+      if (eligibleFresh.length) {
+        const state = stateSnapshot && stateSnapshot.exists ? stateSnapshot.data() : {};
+        const previousReceived = state.accountId === accountId && Number.isSafeInteger(state.lastReceivedAtMs) ? state.lastReceivedAtMs : 0;
+        transaction.set(stateRef, { status: 'connected', accountId, lastAttemptAtMs: Math.max(commitAtMs, previousReceived),
+          lastSuccessAtMs: Math.max(commitAtMs, previousReceived), lastReceivedAtMs: Math.max(commitAtMs, previousReceived),
+          lastErrorCode: '', captureStartAtMs, retentionDays }, { merge: true });
+      }
+      return { created: eligibleFresh.length, duplicate: allowed.length - fresh.length, ignored };
     });
     counts.created += result.created;
     counts.duplicate += result.duplicate;
+    counts.ignored += result.ignored;
   }
   return counts;
 }

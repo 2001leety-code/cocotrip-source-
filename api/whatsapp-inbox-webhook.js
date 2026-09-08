@@ -53,9 +53,9 @@ export function createWhatsAppInboxHandler({ getEnv = () => process.env, now = D
     try {
       const db = await loadDb();
       const counts = await writeExternalInboxMessages({
-        db, messages: batch.messages, nowMs, retentionDays: config.retentionDays, captureStartAtMs: config.captureStartAtMs,
+        db, messages: batch.messages, nowMs, now, retentionDays: config.retentionDays, captureStartAtMs: config.captureStartAtMs,
       });
-      return response(200, 'RECEIVED', { ...counts, ignored: batch.ignored });
+      return response(200, counts.created ? 'RECEIVED' : 'NO_NEW_MESSAGES', { ...counts, ignored: batch.ignored + counts.ignored });
     } catch {
       // No 200 on failed storage. Provider retries are absorbed by the transaction's stable message ID.
       return response(503, 'INBOX_STORAGE_FAILED');

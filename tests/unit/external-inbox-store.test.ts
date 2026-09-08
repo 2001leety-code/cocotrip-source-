@@ -4,6 +4,7 @@ import {
   EXTERNAL_INBOX_MESSAGES_COLLECTION, EXTERNAL_INBOX_STATE_COLLECTION,
   planExpiredExternalInboxCleanup, prepareExternalInboxMessage, writeExternalInboxMessage, writeExternalInboxMessages,
 } from '../../api/_shared/external-inbox-store.js';
+import { sessionDocId, SESSION_DURATION_MS } from '../../api/_shared/whatsapp-support-sessions.js';
 
 const NOW = Date.parse('2026-09-08T02:00:00Z');
 const DAY = 86_400_000;
@@ -11,8 +12,12 @@ const message = {
   channel: 'whatsapp', accountId: '222', providerMessageId: 'wamid.synthetic', providerThreadId: '821012345678',
   sourceAtMs: NOW - 1000, sender: '821012345678', subject: '', text: 'Synthetic inquiry only', kind: 'text', truncated: false,
 };
-const policy = { nowMs: NOW, retentionDays: 7 };
+const policy = { nowMs: NOW, now: () => NOW, retentionDays: 7 };
 const captureStartAtMs = NOW - DAY;
+const sessionPath = `whatsapp_inbox_sessions/${sessionDocId('222', message.sender)}`;
+const session = { policyVersion: 1, accountId: '222', sender: message.sender, status: 'active', startedAtMs: NOW - 60_000,
+  expiresAtMs: NOW - 60_000 + SESSION_DURATION_MS, updatedAtMs: NOW - 60_000, closedAtMs: 0, lastStartMessageId: 'explicit-start' };
+const activeDb = () => createFakeFirestore({ [sessionPath]: session });
 
 describe('external inbox minimal deterministic storage', () => {
   it('preserves the agreed minimum only and uses server receipt time plus source-based TTL', () => {
@@ -61,18 +66,18 @@ describe('external inbox minimal deterministic storage', () => {
   });
 
   it('writes a message and connection state atomically; duplicate never refreshes state', async () => {
-    const db = createFakeFirestore();
+    const db = activeDb();
     const options = { db, message, ...policy, captureStartAtMs };
     expect(await writeExternalInboxMessage(options)).toEqual({ created: true, duplicate: false });
     const snapshot = db.__dump();
-    expect(Object.keys(snapshot)).toHaveLength(2);
+    expect(Object.keys(snapshot)).toHaveLength(3);
     expect(snapshot[`${EXTERNAL_INBOX_STATE_COLLECTION}/whatsapp`]).toMatchObject({ status: 'connected', accountId: '222', lastReceivedAtMs: NOW, lastAttemptAtMs: NOW, captureStartAtMs, retentionDays: 7 });
-    expect(await writeExternalInboxMessage({ ...options, nowMs: NOW + 50 })).toEqual({ created: false, duplicate: true });
+    expect(await writeExternalInboxMessage({ ...options, nowMs: NOW + 50, now: () => NOW + 50 })).toEqual({ created: false, duplicate: true });
     expect(db.__dump()).toEqual(snapshot);
   });
 
   it('two simultaneous deliveries create exactly one document and one state update', async () => {
-    const db = createFakeFirestore();
+    const db = activeDb();
     const barrier = makeBarrier(2);
     db.__beforeCommit = async ({ attempt }: { attempt: number }) => { if (attempt === 1) await barrier.wait(); };
     const results = await Promise.all([1, 2].map(() => writeExternalInboxMessage({ db, message, ...policy, captureStartAtMs })));
@@ -84,15 +89,15 @@ describe('external inbox minimal deterministic storage', () => {
   });
 
   it('concurrent distinct messages are preserved and an older receipt cannot rewind state', async () => {
-    const db = createFakeFirestore();
-    await writeExternalInboxMessage({ db, message, ...policy, nowMs: NOW + 100, captureStartAtMs });
+    const db = activeDb();
+    await writeExternalInboxMessage({ db, message, ...policy, nowMs: NOW + 100, now: () => NOW + 100, captureStartAtMs });
     await writeExternalInboxMessage({ db, message: { ...message, providerMessageId: 'second' }, ...policy, captureStartAtMs });
     expect(db.__get(`${EXTERNAL_INBOX_STATE_COLLECTION}/whatsapp`).lastReceivedAtMs).toBe(NOW + 100);
-    expect(Object.keys(db.__dump())).toHaveLength(3);
+    expect(Object.keys(db.__dump())).toHaveLength(4);
   });
 
   it('stores 1,000 selected receipts using five bounded transactions and bulk reads', async () => {
-    const db = createFakeFirestore();
+    const db = activeDb();
     const runTransaction = db.runTransaction.bind(db);
     const bulkSizes: number[] = [];
     db.runTransaction = callback => runTransaction(transaction => callback({
@@ -103,11 +108,11 @@ describe('external inbox minimal deterministic storage', () => {
       },
     }));
     const messages = Array.from({ length: 1000 }, (_, index) => ({ ...message, providerMessageId: String(index) }));
-    expect(await writeExternalInboxMessages({ db, messages, ...policy, captureStartAtMs })).toEqual({ created: 1000, duplicate: 0 });
-    expect(bulkSizes).toEqual([200, 200, 200, 200, 200]);
+    expect(await writeExternalInboxMessages({ db, messages, ...policy, captureStartAtMs })).toEqual({ created: 1000, duplicate: 0, ignored: 0 });
+    expect(bulkSizes).toEqual([1, 200, 1, 200, 1, 200, 1, 200, 1, 200]);
     expect(db.__stats.transactions).toBe(5);
     const stateVersion = db.__version('external_inbox_state/whatsapp');
-    expect(await writeExternalInboxMessages({ db, messages, ...policy, nowMs: NOW + 1, captureStartAtMs })).toEqual({ created: 0, duplicate: 1000 });
+    expect(await writeExternalInboxMessages({ db, messages, ...policy, nowMs: NOW + 1, now: () => NOW + 1, captureStartAtMs })).toEqual({ created: 0, duplicate: 1000, ignored: 0 });
     expect(db.__version('external_inbox_state/whatsapp')).toBe(stateVersion);
   });
 
@@ -120,10 +125,10 @@ describe('external inbox minimal deterministic storage', () => {
   });
 
   it('failed transaction commits neither message nor state and can be retried safely', async () => {
-    const db = createFakeFirestore();
+    const db = activeDb();
     db.__beforeCommit = async () => { throw new Error('synthetic storage failure'); };
     await expect(writeExternalInboxMessage({ db, message, ...policy, captureStartAtMs })).rejects.toThrow();
-    expect(db.__dump()).toEqual({});
+    expect(db.__dump()).toEqual({ [sessionPath]: session });
     db.__beforeCommit = null;
     expect((await writeExternalInboxMessage({ db, message, ...policy, captureStartAtMs })).created).toBe(true);
   });

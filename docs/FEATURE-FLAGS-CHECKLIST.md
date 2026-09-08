@@ -5,7 +5,9 @@
 
 ## 2026-09-08 추가 — 회사 메일·WhatsApp 수신
 
-`COMPANY_GMAIL_INBOX_ENABLED`, `WHATSAPP_INBOX_ENABLED`는 기본 OFF다. 회사 계정·인증·시작일·보관기간을 운영자가 **Vercel 대시보드**에서 직접 설정해야 한다. Preview/Development 수신은 코드에서 차단한다. 새 5분 Gmail 작업은 OFF에서 DB/외부 API 작업이 없고, WhatsApp은 서명 확인 뒤 지정 회사 번호만 저장한다. 고객 답장·외부 AI·개인메일·실제 삭제·푸시는 켜지지 않는다. 설정키 전체와 보관/연결 확인 순서는 [수신 연결 실행안](COMPANY-INBOX-CONNECTION-2026-09-08.md)을 따른다. 실제 계정 수신 완료와 코드 준비를 구분한다.
+`COMPANY_GMAIL_INBOX_ENABLED`, `WHATSAPP_INBOX_ENABLED`는 기본 OFF다. 회사 계정·인증·시작일·보관기간을 운영자가 **Vercel 대시보드**에서 직접 설정해야 한다. Preview/Development 수신은 코드에서 차단한다. 새 5분 Gmail 작업은 OFF에서 DB/외부 API 작업이 없고, WhatsApp은 서명 확인 뒤 지정 회사 번호의 명시적 업무 상담만 저장한다. 고객 답장·외부 AI·개인메일·실제 삭제·푸시는 켜지지 않는다. 설정키 전체와 보관/연결 확인 순서는 [수신 연결 실행안](COMPANY-INBOX-CONNECTION-2026-09-08.md)을 따른다. 실제 계정 수신 완료와 코드 준비를 구분한다.
+
+추가 필수 값 `WHATSAPP_INBOX_PRIVACY_MODE=explicit_sessions_v1`도 **Vercel 서버 환경변수**다. 다른 값이나 미설정은 수신 준비 실패이며, 이전의 번호 일치만으로 저장하는 모드로 돌아가지 않는다. 새 `whatsapp_inbox_sessions` 컬렉션은 서버 관리자 전용이며 일반 클라이언트의 기존 기본 거부 규칙을 유지한다. `/api/admin-whatsapp-privacy`는 수신 OFF여도 올바른 WABA/전화번호/개인정보 모드가 준비되면 제외 연락처를 미리 설정할 수 있다. 이 준비 상태는 수신·AI 자동답장 활성화 증명이 아니다. [개인 대화 보호 계약](WHATSAPP-PRIVATE-CHAT-GUARD-2026-09-08.md)을 먼저 따른다.
 
 ## 2026-09-08 추가 — 사용액 기록과 알림 진단
 

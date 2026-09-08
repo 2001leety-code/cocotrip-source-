@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { prepareExternalInboxMessage } from './external-inbox-store.js';
+import { START_FRESHNESS_MS, WHATSAPP_PRIVACY_MODE, supportCommand, validSupportMessageId, validSupportSender } from './whatsapp-support-sessions.js';
 
 export const WHATSAPP_INBOX_BODY_LIMIT = 4_194_304;
 export const WHATSAPP_INBOX_BODY_TIMEOUT_MS = 5000;
@@ -32,6 +32,7 @@ export function readWhatsAppInboxConfig(env = process.env, nowMs = Date.now()) {
   const base = { enabled, ready: false, status: 'disabled', reason: productionOnly ? 'PRODUCTION_ONLY' : 'DISABLED', accountId: '', captureStartAtMs: null, retentionDays: null, missing: [] };
   if (!enabled) return base;
   const missing = [];
+  if (configuredString(env, 'PRIVACY_MODE') !== WHATSAPP_PRIVACY_MODE) missing.push(ENV_PREFIX + 'PRIVACY_MODE');
   for (const key of ['WABA_ID', 'PHONE_NUMBER_ID']) {
     if (!/^\d{1,64}$/.test(configuredString(env, key))) missing.push(ENV_PREFIX + key);
   }
@@ -48,7 +49,7 @@ export function readWhatsAppInboxConfig(env = process.env, nowMs = Date.now()) {
     status: missing.length ? 'not_configured' : 'ready',
     reason: missing.length ? 'MISSING_OR_INVALID_CONFIG' : 'READY',
     accountId: /^\d{1,64}$/.test(configuredString(env, 'PHONE_NUMBER_ID')) ? configuredString(env, 'PHONE_NUMBER_ID') : '',
-    captureStartAtMs, retentionDays, missing,
+    captureStartAtMs, retentionDays, missing, privacyMode: WHATSAPP_PRIVACY_MODE,
   };
 }
 
@@ -112,7 +113,7 @@ export async function readWhatsAppInboxRawBody(request, { timeoutMs = WHATSAPP_I
   }
 }
 
-/** After signature verification only. Discards profiles, media metadata, replies, HTML and raw objects. */
+/** After signature verification only. Candidates are NOT authorized/prepared records yet. */
 export function extractWhatsAppInboxMessages(payload, { config, wabaId, nowMs }) {
   if (!config.ready) throw inputError('CONFIG_NOT_READY');
   if (!payload || payload.object !== 'whatsapp_business_account' || !Array.isArray(payload.entry)) throw inputError('PAYLOAD_INVALID');
@@ -126,28 +127,29 @@ export function extractWhatsAppInboxMessages(payload, { config, wabaId, nowMs })
       const value = change && change.value;
       if (change.field !== 'messages' || !value || value.messaging_product !== 'whatsapp'
         || !value.metadata || value.metadata.phone_number_id !== config.accountId || !Array.isArray(value.messages)) continue;
+      if (value.history || value.smb_message_echoes || value.smb_app_state_sync) continue;
       for (const incoming of value.messages) {
         inspected += 1;
         if (inspected > MAX_BATCH_MESSAGES) throw inputError('BATCH_TOO_LARGE');
         if (!incoming || typeof incoming.timestamp !== 'string' || !/^\d{1,16}$/.test(incoming.timestamp)
-          || typeof incoming.from !== 'string' || !/^\d{1,20}$/.test(incoming.from)) { ignored += 1; continue; }
+          || !validSupportSender(incoming.from) || !validSupportMessageId(incoming.id)
+          || incoming.echo || incoming.is_echo || incoming.history || incoming.is_history) { ignored += 1; continue; }
         const sourceAtMs = Number(incoming.timestamp) * 1000;
         if (!Number.isSafeInteger(sourceAtMs) || sourceAtMs < config.captureStartAtMs || sourceAtMs > nowMs
           || sourceAtMs + config.retentionDays * 86_400_000 <= nowMs) { ignored += 1; continue; }
         const kind = TYPES.has(incoming.type) ? incoming.type : 'unknown';
+        const text = kind === 'text' && typeof incoming.text?.body === 'string' ? incoming.text.body : '';
+        if (supportCommand(kind, text) === 'start' && nowMs - sourceAtMs > START_FRESHNESS_MS) { ignored += 1; continue; }
         const message = {
           channel: 'whatsapp', accountId: config.accountId,
           providerMessageId: incoming.id, providerThreadId: incoming.from,
           sourceAtMs, sender: incoming.from, subject: '',
-          text: kind === 'text' && typeof incoming.text?.body === 'string' ? incoming.text.body : '',
+          text,
           kind, truncated: false,
         };
-        try {
-          const prepared = prepareExternalInboxMessage(message, { nowMs, retentionDays: config.retentionDays });
-          if (seen.has(prepared.docId)) { ignored += 1; continue; }
-          seen.add(prepared.docId);
-          messages.push(prepared.data);
-        } catch { ignored += 1; }
+        if (seen.has(incoming.id)) { ignored += 1; continue; }
+        seen.add(incoming.id);
+        messages.push(message);
       }
     }
   }

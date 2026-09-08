@@ -110,6 +110,7 @@ export const NOINDEX_ROUTES: readonly string[] = [
   '/dev',
   '/community',
   '/links',
+  '/whatsapp-support',
   '/account-deletion',
 ];
 

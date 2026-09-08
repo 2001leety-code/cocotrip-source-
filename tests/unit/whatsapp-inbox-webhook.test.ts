@@ -11,12 +11,14 @@ vi.mock('../../api/_shared/firebase-admin.js', () => {
   return { initAdminDb: imports.initialized };
 });
 import webhook, { createWhatsAppInboxHandler } from '../../api/whatsapp-inbox-webhook.js';
+import { sessionDocId, SESSION_DURATION_MS } from '../../api/_shared/whatsapp-support-sessions.js';
 
 const NOW = Date.parse('2026-09-08T02:00:00Z');
 const ENV = {
   WHATSAPP_INBOX_ENABLED: 'true', WHATSAPP_INBOX_WABA_ID: '111', WHATSAPP_INBOX_PHONE_NUMBER_ID: '222',
   WHATSAPP_INBOX_APP_SECRET: 'synthetic-app-secret-only', WHATSAPP_INBOX_VERIFY_TOKEN: 'synthetic-verify-token-only',
   WHATSAPP_INBOX_CAPTURE_START_AT: '2026-09-08T00:00:00Z', WHATSAPP_INBOX_RETENTION_DAYS: '7',
+  WHATSAPP_INBOX_PRIVACY_MODE: 'explicit_sessions_v1',
 };
 const MESSAGE = { id: 'wamid.synthetic', from: '821012345678', timestamp: String((NOW - 1000) / 1000), type: 'text', text: { body: 'A synthetic question' } };
 function payload(messages: unknown[] = [MESSAGE], waba = '111', phone = '222') {
@@ -32,8 +34,11 @@ function signedRequest(body: string | Buffer = JSON.stringify(payload()), signat
     headers: { 'content-type': 'application/json', 'x-hub-signature-256': signature || `sha256=${createHmac('sha256', ENV.WHATSAPP_INBOX_APP_SECRET).update(raw).digest('hex')}` },
   });
 }
-function setup(env = ENV) {
-  const db = createFakeFirestore();
+function setup(env = ENV, active = false) {
+  const db = createFakeFirestore(active ? { [`whatsapp_inbox_sessions/${sessionDocId('222', MESSAGE.from)}`]: {
+    policyVersion: 1, accountId: '222', sender: MESSAGE.from, status: 'active', startedAtMs: NOW - 60_000,
+    expiresAtMs: NOW - 60_000 + SESSION_DURATION_MS, updatedAtMs: NOW - 60_000, closedAtMs: 0, lastStartMessageId: 'prior-explicit-start',
+  } } : {});
   const loadDb = vi.fn(async () => db);
   const handler = createWhatsAppInboxHandler({ getEnv: () => env, now: () => NOW, loadDb });
   return { handler, db, loadDb };
@@ -82,6 +87,14 @@ describe('WhatsApp mandatory company configuration', () => {
   });
   it('accepts ISO UTC millisecond precision without changing its exact instant', () => {
     expect(readWhatsAppInboxConfig({ ...ENV, WHATSAPP_INBOX_CAPTURE_START_AT: '2026-09-08T00:00:00.123Z' }, NOW).captureStartAtMs).toBe(Date.parse('2026-09-08T00:00:00.123Z'));
+  });
+  it.each(['', 'legacy', ' explicit_sessions_v1', 'explicit_sessions_v1\n'])('requires the exact privacy mode before raw body/DB access (%j)', async mode => {
+    const loadDb = vi.fn();
+    const readBody = vi.fn();
+    const handler = createWhatsAppInboxHandler({ getEnv: () => ({ ...ENV, WHATSAPP_INBOX_PRIVACY_MODE: mode }), now: () => NOW, loadDb, readBody });
+    expect((await handler(signedRequest())).status).toBe(503);
+    expect(loadDb).not.toHaveBeenCalled();
+    expect(readBody).not.toHaveBeenCalled();
   });
 });
 
@@ -171,6 +184,40 @@ describe('raw bytes and callback verification, before any database import', () =
 });
 
 describe('pinned inbound receipts and retries', () => {
+  it('valid signed private conversation without an explicit session reads only the hashed session and writes nothing', async () => {
+    const context = setup();
+    expect(await (await context.handler(signedRequest())).json()).toMatchObject({ code: 'NO_NEW_MESSAGES', created: 0, ignored: 1 });
+    expect(context.db.__stats.reads).toBe(1);
+    expect(context.db.__dump()).toEqual({});
+  });
+  it.each(['history', 'smb_app_state_sync', 'smb_message_echoes'])('never opens a session from historical/contact/echo field %s', async field => {
+    const input = payload([{ ...MESSAGE, text: { body: 'COCOTRIP SUPPORT START' } }]);
+    input.entry[0].changes[0].field = field;
+    const context = setup();
+    expect((await context.handler(signedRequest(JSON.stringify(input)))).status).toBe(200);
+    expect(context.loadDb).not.toHaveBeenCalled();
+    expect(context.db.__dump()).toEqual({});
+  });
+  it.each(['echo', 'is_echo', 'history', 'is_history'])('ignores explicit replay/echo metadata %s before database access', async key => {
+    const context = setup();
+    const input = payload([{ ...MESSAGE, [key]: true, text: { body: 'COCOTRIP SUPPORT START' } }]);
+    expect((await context.handler(signedRequest(JSON.stringify(input)))).status).toBe(200);
+    expect(context.loadDb).not.toHaveBeenCalled();
+  });
+  it('rejects stale START before loading the database and accepts only the original exact command', async () => {
+    const context = setup();
+    const start = { ...MESSAGE, text: { body: 'COCOTRIP SUPPORT START' }, timestamp: String((NOW - 121_000) / 1000) };
+    await context.handler(signedRequest(JSON.stringify(payload([start]))));
+    expect(context.loadDb).not.toHaveBeenCalled();
+    for (const body of ['COCOTRIP SUPPORT START\0', 'COCOTRIP SUPPORT START\n', ' COCOTRIP SUPPORT START']) {
+      await context.handler(signedRequest(JSON.stringify(payload([{ ...MESSAGE, text: { body } }]))));
+      expect(context.db.__dump()).toEqual({});
+    }
+    const response = await context.handler(signedRequest(JSON.stringify(payload([{ ...MESSAGE, text: { body: 'COCOTRIP SUPPORT START' } }]))));
+    expect(await response.json()).toMatchObject({ created: 0 });
+    expect(Object.keys(context.db.__dump())).toHaveLength(1);
+    expect(JSON.stringify(context.db.__dump())).not.toContain('COCOTRIP SUPPORT START');
+  });
   it.each([['999', '222'], ['111', '999']])('ignores another WABA/phone (%s/%s) with DB access zero', async (waba, phone) => {
     const context = setup();
     const result = await context.handler(signedRequest(JSON.stringify(payload([MESSAGE], waba, phone))));
@@ -187,7 +234,7 @@ describe('pinned inbound receipts and retries', () => {
     expect(context.loadDb).not.toHaveBeenCalled();
   });
   it('stores text or unsupported-media kind only, not profile, raw metadata, caption or download URL', async () => {
-    const context = setup();
+    const context = setup(ENV, true);
     const messages = [MESSAGE, { ...MESSAGE, id: 'image-1', type: 'image', text: { body: 'do not store mismatched text' }, image: { id: 'media-token', caption: 'private caption', url: 'https://example.invalid/download' } }];
     const result = await context.handler(signedRequest(JSON.stringify(payload(messages))));
     expect(await result.json()).toMatchObject({ created: 2 });
@@ -198,7 +245,7 @@ describe('pinned inbound receipts and retries', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
   it('handles duplicates within one batch and replay without refreshing lastReceived', async () => {
-    const context = setup();
+    const context = setup(ENV, true);
     const raw = JSON.stringify(payload([MESSAGE, MESSAGE, { ...MESSAGE, id: 'second' }]));
     expect(await (await context.handler(signedRequest(raw))).json()).toMatchObject({ created: 2, ignored: 1 });
     const original = context.db.__dump();
@@ -206,7 +253,7 @@ describe('pinned inbound receipts and retries', () => {
     expect(context.db.__dump()).toEqual(original);
   });
   it('concurrent same webhook commits one message and absorbs the competing delivery', async () => {
-    const context = setup();
+    const context = setup(ENV, true);
     const barrier = makeBarrier(2);
     context.db.__beforeCommit = async ({ attempt }: { attempt: number }) => { if (attempt === 1) await barrier.wait(); };
     const responses = await Promise.all([context.handler(signedRequest()), context.handler(signedRequest())]);
@@ -216,7 +263,7 @@ describe('pinned inbound receipts and retries', () => {
     expect(context.db.__version('external_inbox_state/whatsapp')).toBe(1);
   });
   it('accepts 1,000 one-message updates, then safely acknowledges their full replay', async () => {
-    const context = setup();
+    const context = setup(ENV, true);
     const batchedPayload = { object: 'whatsapp_business_account', entry: Array.from({ length: 1000 }, (_, index) => payload([{ ...MESSAGE, id: String(index) }]).entry[0]) };
     const raw = JSON.stringify(batchedPayload);
     expect(await (await context.handler(signedRequest(raw))).json()).toMatchObject({ created: 1000, duplicate: 0 });
@@ -224,7 +271,7 @@ describe('pinned inbound receipts and retries', () => {
     expect(await (await context.handler(signedRequest(raw))).json()).toMatchObject({ created: 0, duplicate: 1000 });
   });
   it('returns 503 for partial batch save failure and retries only the unsaved item', async () => {
-    const context = setup();
+    const context = setup(ENV, true);
     let commits = 0;
     context.db.__beforeCommit = async () => { commits += 1; if (commits === 2) throw new Error('private diagnostic body'); };
     const raw = JSON.stringify(payload(Array.from({ length: 201 }, (_, index) => ({ ...MESSAGE, id: String(index) }))));

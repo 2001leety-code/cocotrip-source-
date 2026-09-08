@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto';
 import { readCompanyGmailInboxConfig } from './company-gmail-inbox.js';
 import { readWhatsAppInboxConfig } from './whatsapp-inbox.js';
 import { EXTERNAL_INBOX_MESSAGES_COLLECTION, EXTERNAL_INBOX_STATE_COLLECTION } from './external-inbox-store.js';
+import { sessionDocId, validSupportAccount, validSupportSender } from './whatsapp-support-sessions.js';
 
 const DAY_MS = 86_400_000;
 const MAX_MESSAGES = 100;
-const SUMMARY_FIELDS = ['channel', 'accountId', 'providerMessageId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs'];
+const SUMMARY_FIELDS = ['channel', 'accountId', 'providerMessageId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId'];
 const STATE_FIELDS = ['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'lastSuccessAtMs', 'lastReceivedAtMs'];
 const positiveTime = value => Number.isSafeInteger(value) && value > 0;
 const isControl = character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127;
@@ -38,6 +39,9 @@ export function publicExternalInboxMessage(id, data, configs, nowMs, detail = fa
   const config = configs[data.channel];
   if (!config?.ready || data.accountId !== config.accountId || typeof data.providerMessageId !== 'string'
     || !data.providerMessageId || data.providerMessageId.length > 512 || Array.from(data.providerMessageId).some(isControl)) return null;
+  // Legacy/unscoped receipts are NOT proof of customer consent. Do not display their bodies or summaries.
+  if (data.channel === 'whatsapp' && (data.whatsappPolicyVersion !== 1 || !validSupportAccount(config.accountId)
+    || !validSupportSender(data.sender) || data.whatsappSessionId !== sessionDocId(config.accountId, data.sender))) return null;
   const expectedId = createHash('sha256').update(JSON.stringify(['external-inbox.v1', data.channel, data.accountId, data.providerMessageId])).digest('hex');
   if (expectedId !== id || !positiveTime(data.sourceAtMs) || data.sourceAtMs < config.captureStartAtMs || data.sourceAtMs > nowMs
     || !positiveTime(data.receivedAtMs) || data.receivedAtMs > nowMs
