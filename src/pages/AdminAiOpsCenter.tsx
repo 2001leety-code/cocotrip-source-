@@ -29,6 +29,10 @@ import { OwnerDispatchReadiness } from '@/components/OwnerDispatchReadiness';
 import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchReadiness';
 import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
 import { AdminExternalInbox } from '@/components/AdminExternalInbox';
+import { AdminWebchatInbox } from '@/components/AdminWebchatInbox';
+import { AdminOperationalChecks } from '@/components/AdminOperationalChecks';
+import type { OperationalChecksData } from '@/lib/adminOperationalChecks';
+import type { WebchatDetail, WebchatOverview } from '@/lib/adminWebchatInboxContract';
 import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
 import { AdminChannelReadiness, type ChannelResponseReadiness } from '@/components/AdminChannelReadiness';
 
@@ -672,6 +676,9 @@ function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData;
 interface AdminAiOpsCenterProps {
   previewData?: OpsCenterData;
   previewExternalInbox?: ExternalInboxOverview;
+  previewWebchat?: WebchatOverview;
+  previewWebchatDetails?: Record<string, WebchatDetail>;
+  previewOperationalChecks?: OperationalChecksData;
   /** DEV fixture only; cannot override errors in the production request path. */
   previewFailure?: string;
 }
@@ -693,7 +700,7 @@ function UnconnectedChannels() {
   );
 }
 
-export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox }: AdminAiOpsCenterProps = {}) {
+export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
   const { language, changeLanguage } = useLanguage();
   const copy = useOpsCopy();
   usePageMeta({ title: copy.pageTitle, description: copy.pageDescription });
@@ -926,9 +933,11 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
           <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
           <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} />
+          <AdminWebchatInbox language={language} previewMode={!serverMode} previewData={previewWebchat} previewDetails={previewWebchatDetails} />
         </div>
         {data && <>
           <AutomationPanel items={data.automation} sectionId="ops-automation" failedSources={failedSources} />
+          <AdminOperationalChecks language={language} previewMode={!serverMode} previewData={previewOperationalChecks} />
           <SourceHealth data={data} sectionId="ops-source" failedSources={failedSources} />
           <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-slate-500">
             <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{copy.readOnly}

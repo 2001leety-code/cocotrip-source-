@@ -55,6 +55,9 @@ vi.mock('@/components/OwnerNotificationSetup', () => ({
 // The independent company-inbox request/auth/race behavior has its own component suite.
 // This suite retains the original PII-free aggregate request's exact call-count assertions.
 vi.mock('@/components/AdminExternalInbox', () => ({ AdminExternalInbox: () => <div data-testid="company-inbox" /> }));
+// Each independent panel has its own real request/race suite; do not weaken the aggregate count contract.
+vi.mock('@/components/AdminWebchatInbox', () => ({ AdminWebchatInbox: () => <div data-testid="webchat-inbox" /> }));
+vi.mock('@/components/AdminOperationalChecks', () => ({ AdminOperationalChecks: () => <div data-testid="operational-checks" /> }));
 
 const NOW = '2026-09-01T09:00:00+09:00';
 const FOREGROUND_REFRESH_DEBOUNCE_MS = 900;
