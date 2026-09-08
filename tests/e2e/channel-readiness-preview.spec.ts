@@ -1,5 +1,10 @@
 import { expect, test, isAnalyticsUrl } from './fixtures/analytics-guard';
 
+const acknowledgmentTitles: Record<string, string> = {
+  ko: '문의 자동 접수확인', en: 'Automatic inquiry acknowledgment',
+  ja: 'お問い合わせの自動受付確認', zh: '咨询自动收件确认',
+};
+
 // Local synthetic preview only: never log in, read customer records, or send messages.
 for (const width of [390, 1280]) {
   for (const language of ['ko', 'en', 'ja', 'zh']) {
@@ -14,6 +19,7 @@ for (const width of [390, 1280]) {
       });
       await page.addInitScript((lang) => localStorage.setItem('cocotrip_lang', lang), language);
       await page.goto('/admin/preview-ai-center');
+      await expect(page.locator('#ops-automation').getByText(acknowledgmentTitles[language], { exact: true })).toBeVisible();
       const panel = page.getByTestId('channel-readiness');
       const toggle = panel.locator('summary');
       await expect(toggle).toBeVisible();
