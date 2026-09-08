@@ -24,6 +24,14 @@ const sources = JSON.parse(readFileSync(resolve(root, 'scripts/responsive-tour-i
 const widths = [128, 192, 256, 384, 512, 768, 1024, 1280];
 const recipe = { version: 1, format: 'webp', quality: 80, effort: 6, kernel: 'lanczos3', fit: 'inside', withoutEnlargement: true };
 const avifRecipe = { version: 1, quality: 55, effort: 6, position: 'centre', chromaSubsampling: '4:4:4' };
+// The two detailed autumn photographs were compared at 360px and 1280px against
+// their lossless centered source crops. Keep quality/geometry unchanged; 4:2:0
+// reduces color-channel bytes while preserving the luminance detail. Exact
+// source hashes prevent an unrelated/replaced photograph inheriting this recipe.
+const avifSourceRecipes = {
+  '15ae0636030a76a693e0714bf6542696de04ebb691a4563385fcacf72b575189': { ...avifRecipe, version: 2, chromaSubsampling: '4:2:0' },
+  'dce12721f0b6b6316cceefe44340c3bd40e304da51a73a78e5ad6edfe1db65ee': { ...avifRecipe, version: 2, chromaSubsampling: '4:2:0' },
+};
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 function inside(base, path) {
@@ -63,6 +71,7 @@ for (const spec of sources) {
   const sourceWidth = rotated ? metadata.height : metadata.width;
   const sourceHeight = rotated ? metadata.width : metadata.height;
   const sourceHash = hash(source);
+  const sourceAvifRecipe = avifSourceRecipes[sourceHash] || avifRecipe;
   const token = hash(JSON.stringify({ sourceHash, recipe, encoder: manifest.encoder })).slice(0, 12);
   const targets = [...new Set((spec.widths || widths).map((width) => Math.min(width, sourceWidth)))].sort((a, b) => a - b);
   const variants = [];
@@ -92,7 +101,7 @@ for (const spec of sources) {
     if (spec.source === '/hero-banpo.webp' || !spec.source.startsWith('/city-thumbs/') && !['seoul-region', 'busan-region', 'gyeongju-region', 'danyang-region'].includes(spec.name)) profiles.wide = 2;
     if (['seoul-region', 'busan-region', 'gyeongju-region', 'danyang-region'].includes(spec.name)) profiles.region = Math.max(4 / 3, sourceWidth / sourceHeight);
     for (const [profile, ratio] of Object.entries(profiles)) {
-      const avifToken = hash(JSON.stringify({ sourceHash, avifRecipe, profile, ratio, encoder: manifest.encoder })).slice(0, 12);
+      const avifToken = hash(JSON.stringify({ sourceHash, avifRecipe: sourceAvifRecipe, profile, ratio, encoder: manifest.encoder })).slice(0, 12);
       avif[profile] = [];
       const avifWidths = [...new Set([128, 192, 256, 360, 480, 512, 768, 1024, 1280].map((width) => Math.min(width, sourceWidth)))].sort((a, b) => a - b);
       for (const width of avifWidths) {
@@ -101,7 +110,7 @@ for (const spec of sources) {
         const { data, info } = await encodeOrResume(target, () => sharp(source).rotate().resize({ width,
           ...(ratio ? { height: Math.round(width / ratio), fit: 'cover', position: 'centre' } : { fit: 'inside' }),
           withoutEnlargement: true, kernel: recipe.kernel,
-        }).avif({ quality: avifRecipe.quality, effort: avifRecipe.effort, chromaSubsampling: avifRecipe.chromaSubsampling }).toBuffer({ resolveWithObject: true }));
+        }).avif({ quality: sourceAvifRecipe.quality, effort: sourceAvifRecipe.effort, chromaSubsampling: sourceAvifRecipe.chromaSubsampling }).toBuffer({ resolveWithObject: true }));
         if (info.width !== width || Math.abs(info.height - width / (ratio || sourceWidth / sourceHeight)) > 1) throw new Error('AVIF_DIMENSION_MISMATCH');
         if (check) {
           if (!existsSync(target) || !readFileSync(target).equals(data)) throw new Error(`AVIF_REGENERATION_MISMATCH: ${filename}`);
@@ -114,7 +123,8 @@ for (const spec of sources) {
   }
   // Recheck originals after generation, not just before it. Originals are never written.
   if (hash(readFileSync(sourcePath)) !== sourceHash) throw new Error('ORIGINAL_IMAGE_CHANGED');
-  manifest.images[spec.source] = { width: sourceWidth, height: sourceHeight, bytes: source.length, sha256: sourceHash, variants, avif };
+  manifest.images[spec.source] = { width: sourceWidth, height: sourceHeight, bytes: source.length, sha256: sourceHash, variants, avif,
+    ...(sourceAvifRecipe !== avifRecipe ? { avifRecipe: sourceAvifRecipe } : {}) };
   originalBytes += source.length;
 }
 const serialized = `${JSON.stringify(manifest, null, 2)}\n`;

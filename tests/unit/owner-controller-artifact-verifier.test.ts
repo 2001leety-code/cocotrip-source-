@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createOwnerArtifactVerifier } from '../../scripts/owner-controller-artifact-verifier.mjs';
+import { createOwnerArtifactVerifier, matchesOwnerApkVersion } from '../../scripts/owner-controller-artifact-verifier.mjs';
 import { main } from '../../scripts/owner-controller-preflight.mjs';
 
 const FINGERPRINT = Array.from({ length: 32 }, (_, index) => (index + 1).toString(16).padStart(2, '0').toUpperCase()).join(':');
 const HEX_FINGERPRINT = FINGERPRINT.replaceAll(':', '').toLowerCase();
+const VERSION = { versionCode: 2, versionName: '1.0.1' };
 const MANIFEST = `  E: manifest (line=2)
     A: package="com.cocotrip.owner" (Raw: "com.cocotrip.owner")
       E: application (line=27)
@@ -30,7 +31,7 @@ describe('Owner Controller 실제 서명 검증기', () => {
       if (tool.includes('keytool')) return { status: 0, stdout: `SHA256: ${FINGERPRINT}`, stderr: '' };
       if (args.includes('-jar')) return { status: 0, stdout: `Signer #1 certificate SHA-256 digest: ${HEX_FINGERPRINT}`, stderr: '' };
       if (args.includes('xmltree')) return { status: 0, stdout: MANIFEST, stderr: '' };
-      return { status: 0, stdout: "package: name='com.cocotrip.owner'", stderr: '' };
+      return { status: 0, stdout: "package: name='com.cocotrip.owner' versionCode='2' versionName='1.0.1'", stderr: '' };
     });
     const tools = {
       java: 'C:\\Program Files\\Java & Safe\\java.exe',
@@ -39,7 +40,7 @@ describe('Owner Controller 실제 서명 검증기', () => {
       aapt2: 'C:\\Android SDK\\build-tools\\36.0.0\\aapt2.exe',
     };
     const verifier = createOwnerArtifactVerifier({ env: { OWNER_KEYSTORE_PASSWORD: 'secret' }, spawn, tools });
-    const result = verifier({ keystorePath: 'C:\\Owner & Keys\\owner(1).jks', apkPath: 'C:\\Owner & APK\\owner|verify.apk', packageName: 'com.cocotrip.owner', fingerprints: [FINGERPRINT], keyAlias: 'owner^key' });
+    const result = verifier({ keystorePath: 'C:\\Owner & Keys\\owner(1).jks', apkPath: 'C:\\Owner & APK\\owner|verify.apk', packageName: 'com.cocotrip.owner', fingerprints: [FINGERPRINT], keyAlias: 'owner^key', ...VERSION });
     expect(result).toEqual({ toolsAvailable: true, keystoreVerified: true, apkVerified: true });
     expect(spawn.mock.calls.flatMap((call) => call[1])).not.toContain('secret');
     expect(spawn.mock.calls.every((call) => call[2].shell === false)).toBe(true);
@@ -49,19 +50,37 @@ describe('Owner Controller 실제 서명 검증기', () => {
     expect(spawn.mock.calls[3][1]).toEqual(['dump', 'xmltree', 'C:\\Owner & APK\\owner|verify.apk', '--file', 'AndroidManifest.xml']);
   });
 
-  it.each(['missing-manifest', 'dump-failure', 'wrong-package', 'wrong-signature', 'signer-failure', 'badging-failure'])('APK guard rejects %s even if the other evidence passes', (failure) => {
+  it.each(['missing-manifest', 'dump-failure', 'wrong-package', 'wrong-signature', 'signer-failure', 'badging-failure', 'old-code', 'old-name'])('APK guard rejects %s even if the other evidence passes', (failure) => {
     const spawn = vi.fn((tool: string, args: string[]) => {
       if (tool === 'keytool') return { status: 0, stdout: `SHA256: ${FINGERPRINT}`, stderr: '' };
       if (args.includes('-jar')) return { status: failure === 'signer-failure' ? 1 : 0, stdout: `Signer #1 certificate SHA-256 digest: ${failure === 'wrong-signature' ? '00'.repeat(32) : HEX_FINGERPRINT}`, stderr: '' };
       if (args.includes('xmltree')) return { status: failure === 'dump-failure' ? 1 : 0, stdout: failure === 'missing-manifest' ? '' : MANIFEST, stderr: '' };
-      return { status: failure === 'badging-failure' ? 1 : 0, stdout: `package: name='${failure === 'wrong-package' ? 'com.other' : 'com.cocotrip.owner'}'`, stderr: '' };
+      return { status: failure === 'badging-failure' ? 1 : 0, stdout: `package: name='${failure === 'wrong-package' ? 'com.other' : 'com.cocotrip.owner'}' versionCode='${failure === 'old-code' ? '1' : '2'}' versionName='${failure === 'old-name' ? '1.0.0' : '1.0.1'}'`, stderr: '' };
     });
     const verifier = createOwnerArtifactVerifier({
       env: { OWNER_KEYSTORE_PASSWORD: 'secret' }, spawn,
       tools: { java: 'java', keytool: 'keytool', apksignerJar: 'apksigner.jar', aapt2: 'aapt2' },
     });
-    expect(verifier({ keystorePath: 'owner.jks', apkPath: 'owner.apk', packageName: 'com.cocotrip.owner', fingerprints: [FINGERPRINT], keyAlias: 'owner' }))
+    expect(verifier({ keystorePath: 'owner.jks', apkPath: 'owner.apk', packageName: 'com.cocotrip.owner', fingerprints: [FINGERPRINT], keyAlias: 'owner', ...VERSION }))
       .toEqual({ toolsAvailable: true, keystoreVerified: true, apkVerified: false });
+  });
+
+  it.each([
+    "package: name='com.cocotrip.owner'",
+    "package: versionCode='1' versionName='1.0.1'",
+    "package: versionCode='2' versionName='1.0.0'",
+    "package: versionCode='2x' versionName='1.0.1'",
+    "package: versionCode='2' versionCode='1' versionName='1.0.1'",
+    "package: versionCode='2' versionName='1.0.1' versionName='1.0.0'",
+    "package: versionCode='2' versionName='1.0.1'\npackage: versionCode='2' versionName='1.0.1'",
+  ])('rejects missing, stale or ambiguous compiled version %s', output => {
+    expect(matchesOwnerApkVersion(output, VERSION)).toBe(false);
+  });
+  it('accepts exact compiled version, regardless of field order, and rejects missing expectations', () => {
+    const output = "package: name='com.cocotrip.owner' versionName='1.0.1' versionCode='2' platformBuildVersionName='16'";
+    expect(matchesOwnerApkVersion(output, VERSION)).toBe(true);
+    expect(matchesOwnerApkVersion(output)).toBe(false);
+    expect(matchesOwnerApkVersion(output, { versionCode: 2, versionName: '' })).toBe(false);
   });
 
   it('CLI가 생성된 artifactVerifier를 감사 함수에 전달한다', () => {

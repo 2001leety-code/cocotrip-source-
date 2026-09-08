@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -197,9 +197,11 @@ describe('Owner Controller 설정 정본', () => {
   it('TWA·manifest·assetlinks·APK가 모두 맞을 때만 통과한다', () => {
     const root = readyRoot();
     const config = readyConfig();
-    const result = auditOwnerControllerReadiness({ root, config, today: '2026-09-01', artifactVerifier: verifiedArtifacts });
+    const artifactVerifier = vi.fn(verifiedArtifacts);
+    const result = auditOwnerControllerReadiness({ root, config, today: '2026-09-01', artifactVerifier });
     expect(result).toEqual({ ok: true, findings: [] });
     expect(formatOwnerControllerPreflight(result)).toContain('PASS');
+    expect(artifactVerifier).toHaveBeenCalledWith(expect.objectContaining({ versionCode: config.android.versionCode, versionName: config.android.versionName }));
   });
 
   it.each([

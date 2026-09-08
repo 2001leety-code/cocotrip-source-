@@ -34,8 +34,20 @@ function normalizeFingerprint(value) {
   return hex.length === 64 ? hex.match(/.{2}/g).join(':') : '';
 }
 
+/** Compare actual compiled APK metadata, not only the checked-out Gradle sources. */
+export function matchesOwnerApkVersion(output, { versionCode, versionName } = {}) {
+  if (!Number.isSafeInteger(versionCode) || versionCode < 1 || typeof versionName !== 'string' || !versionName.trim()) return false;
+  const packages = String(output || '').split(/\r?\n/).filter(line => /^package:\s/.test(line));
+  if (packages.length !== 1) return false;
+  const codes = [...packages[0].matchAll(/(?:^|\s)versionCode='([^']*)'/g)];
+  const names = [...packages[0].matchAll(/(?:^|\s)versionName='([^']*)'/g)];
+  return codes.length === 1 && names.length === 1
+    && /^\d+$/.test(codes[0][1]) && Number(codes[0][1]) === versionCode
+    && names[0][1] === versionName;
+}
+
 export function createOwnerArtifactVerifier({ env = process.env, spawn = spawnSync, tools } = {}) {
-  return ({ keystorePath, apkPath, packageName, fingerprints, keyAlias }) => {
+  return ({ keystorePath, apkPath, packageName, fingerprints, keyAlias, versionCode, versionName }) => {
     const resolved = tools || discoverTools(env);
     if (!resolved || !env.OWNER_KEYSTORE_PASSWORD || !keyAlias) {
       return { toolsAvailable: false, keystoreVerified: false, apkVerified: false };
@@ -61,7 +73,8 @@ export function createOwnerArtifactVerifier({ env = process.env, spawn = spawnSy
       toolsAvailable: true,
       keystoreVerified: keyResult.status === 0 && expected.has(keyFingerprint),
       apkVerified: signerResult.status === 0 && packageResult.status === 0
-        && expected.has(apkFingerprint) && apkPackage === packageName && manifestResult.ok,
+        && expected.has(apkFingerprint) && apkPackage === packageName && manifestResult.ok
+        && matchesOwnerApkVersion(packageOutput, { versionCode, versionName }),
     };
   };
 }

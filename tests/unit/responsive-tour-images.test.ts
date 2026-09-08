@@ -82,6 +82,35 @@ describe('responsive derivatives preserve existing source photographs', () => {
     }
   });
 
+  it('uses the reviewed color-sampling recipe only for the two exact autumn originals', () => {
+    const reviewed = {
+      '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg': {
+        sha256: '15ae0636030a76a693e0714bf6542696de04ebb691a4563385fcacf72b575189', maximumWide360Bytes: 12660,
+      },
+      '/Type1_불국사_두드림_z0WAPa.jpg': {
+        sha256: 'dce12721f0b6b6316cceefe44340c3bd40e304da51a73a78e5ad6edfe1db65ee', maximumWide360Bytes: 12300,
+      },
+    };
+    const entries = Object.entries(manifest.images).filter(([, entry]) => 'avifRecipe' in entry);
+    expect(entries.map(([source]) => source).sort()).toEqual(Object.keys(reviewed).sort());
+    expect(manifest.avifRecipe).toEqual({ version: 1, quality: 55, effort: 6, position: 'centre', chromaSubsampling: '4:4:4' });
+    for (const [source, entry] of entries) {
+      const expected = reviewed[source as keyof typeof reviewed];
+      expect(entry.sha256).toBe(expected.sha256);
+      if (!('avifRecipe' in entry)) throw new Error('REVIEWED_AVIF_RECIPE_MISSING');
+      expect(entry.avifRecipe).toEqual({ ...manifest.avifRecipe, version: 2, chromaSubsampling: '4:2:0' });
+      const wide = 'wide' in entry.avif ? entry.avif.wide : [];
+      const card = wide.find((variant) => variant.width === 360);
+      expect(card).toMatchObject({ width: 360, height: 180 });
+      expect(card?.bytes).toBeLessThanOrEqual(expected.maximumWide360Bytes);
+    }
+    const generator = text('scripts/build-responsive-tour-images.mjs');
+    expect(generator).toContain('avifSourceRecipes[sourceHash] || avifRecipe');
+    expect(generator).toContain('avifRecipe: sourceAvifRecipe, profile, ratio');
+    expect(generator).toContain('quality: sourceAvifRecipe.quality');
+    expect(generator).toContain('chromaSubsampling: sourceAvifRecipe.chromaSubsampling');
+  });
+
   it('keeps the shared Header logo independent of the complete tour photo manifest', () => {
     expect(brandManifest.variants).toEqual(browserManifest.images['/icons/icon-192.png'].variants);
     expect(brandManifest.variants.map(({ width }) => width)).toEqual([32, 64, 96]);

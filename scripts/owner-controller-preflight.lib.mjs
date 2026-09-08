@@ -389,6 +389,8 @@ export function auditOwnerControllerReadiness({ root = process.cwd(), config, to
         keystorePath: path.resolve(root, signingStorePath),
         apkPath: path.resolve(root, releaseApkPath),
         packageName: android.packageName,
+        versionCode: android.versionCode,
+        versionName: android.versionName,
         fingerprints: fingerprintSet,
         keyAlias: signingKeyAlias,
       });
@@ -398,7 +400,7 @@ export function auditOwnerControllerReadiness({ root = process.cwd(), config, to
         findings.push(finding('ANDROID_KEYSTORE_VERIFICATION_FAILED', 'android', '키 alias와 인증서 SHA-256 검증에 실패했습니다.'));
       }
       if (verification && verification.toolsAvailable !== false && verification.apkVerified !== true) {
-        findings.push(finding('ANDROID_APK_VERIFICATION_FAILED', 'android', 'APK 서명·packageName·병합 Manifest 검증에 실패했습니다.'));
+        findings.push(finding('ANDROID_APK_VERIFICATION_FAILED', 'android', 'APK 서명·packageName·실제 버전·병합 Manifest 검증에 실패했습니다.'));
       }
     }
   }

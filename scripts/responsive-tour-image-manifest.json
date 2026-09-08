@@ -1069,132 +1069,139 @@
           {
             "width": 128,
             "height": 85,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-128.avif",
-            "bytes": 2861,
-            "sha256": "78730544f0009795d487ad5390a006452de28d1a4108fe7cbcad90b26f322ea8"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-128.avif",
+            "bytes": 2592,
+            "sha256": "507234f029bbe1c880ebbfa99fab18b32b8ed470936195e659113b78f39f4797"
           },
           {
             "width": 192,
             "height": 128,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-192.avif",
-            "bytes": 5648,
-            "sha256": "5338a773c629933bdf382ed6eeb44df40bb2f7c11021659028094c093015aaef"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-192.avif",
+            "bytes": 5080,
+            "sha256": "3a3f1b86ff6715872a3ad75e6aebb850b44151b6e38a1ec60d2959ba35468899"
           },
           {
             "width": 256,
             "height": 170,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-256.avif",
-            "bytes": 9293,
-            "sha256": "06b6040116c271922d02eb722c9c0655e14968d581f81422409cbfbae121e5b9"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-256.avif",
+            "bytes": 8323,
+            "sha256": "0bc14720cf9be0c580c6ab7e65cc3f83e0ab18bd56474b687ceaa7c4fe613d8e"
           },
           {
             "width": 360,
             "height": 240,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-360.avif",
-            "bytes": 16688,
-            "sha256": "225b6ed4fe01dfdc7086677255dd3824bcc8aad0709160ab6c364aaa2654d8a8"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-360.avif",
+            "bytes": 14998,
+            "sha256": "597c42caff16e50f40675b64a368ef80fad8050c00a445ae34ae3c4dd64d8094"
           },
           {
             "width": 480,
             "height": 319,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-480.avif",
-            "bytes": 27739,
-            "sha256": "f2d768a3d073f60732074637907460ca8b3895c136a63f9f9c753a792b69b208"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-480.avif",
+            "bytes": 25230,
+            "sha256": "f834cf5b326716563a3bb5b1e8b83ae8543c2a21dbef0df9c42872063f40cfff"
           },
           {
             "width": 512,
             "height": 341,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-512.avif",
-            "bytes": 31389,
-            "sha256": "eb02133c0bd3ace21b5b8bbe7f47cedf00229b464c3d1d2b0741c745eded1dec"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-512.avif",
+            "bytes": 28570,
+            "sha256": "6e5803449df85ca2472825be5e166ede7d7901bb421275b0149d8ce546990610"
           },
           {
             "width": 768,
             "height": 512,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-768.avif",
-            "bytes": 67495,
-            "sha256": "a7beeccb48671ad04fc65249e0168ff78d27db1485c91b9204b70e7ca84cf059"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-768.avif",
+            "bytes": 62137,
+            "sha256": "377fa1279e3094596f2ed71782f3860d34e757e2f79381e440e97934eb041c31"
           },
           {
             "width": 1024,
             "height": 682,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-1024.avif",
-            "bytes": 118946,
-            "sha256": "289b6005b4c711a28abf760c2ee55d96534f3cd1bb7052886ef8d5ba969d918b"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-1024.avif",
+            "bytes": 110986,
+            "sha256": "9b6092eff1b9d6779652bf17f1801d257478ca7caf5125f5df9a6e2e884b60b0"
           },
           {
             "width": 1280,
             "height": 853,
-            "src": "/responsive-tour-images/nami-island-536e80196987-original-1280.avif",
-            "bytes": 178749,
-            "sha256": "69e46fb396d76ca3ed9598ec7c5475a9691350fb93f407abfefeeb1ba3e4f3d6"
+            "src": "/responsive-tour-images/nami-island-f2ffa9dd329d-original-1280.avif",
+            "bytes": 167558,
+            "sha256": "a991ce8efbc93c192dc7e86cea1719666737398b3ec2dbeb6e0bb78a21687ccd"
           }
         ],
         "wide": [
           {
             "width": 128,
             "height": 64,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-128.avif",
-            "bytes": 2316,
-            "sha256": "da2744e47e43948d1281bbd80ca36611b36458703ccb9b1f2b75a9e503991c01"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-128.avif",
+            "bytes": 2051,
+            "sha256": "da8de1a407e1d953ad148549979654fce86c05f39b1cf9dd4e45adf8ba78fbf0"
           },
           {
             "width": 192,
             "height": 96,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-192.avif",
-            "bytes": 4511,
-            "sha256": "a62a0788d4c3ccefefb0435cb488d8464d02e44491f01431fd3162d75112907e"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-192.avif",
+            "bytes": 4046,
+            "sha256": "27ae45edc0a9db37c1016e19284d1d922f5cbac6f1141d4fbffb50fa427d551f"
           },
           {
             "width": 256,
             "height": 128,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-256.avif",
-            "bytes": 7495,
-            "sha256": "ca43ede516f3bf5e729bcb2bde06cbf3d6f20b5393b3710168f560baae6c7450"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-256.avif",
+            "bytes": 6708,
+            "sha256": "6b6c852afedf8d7574b977e438ee71aadd1a6b112271e188baa1e95098a9aa4e"
           },
           {
             "width": 360,
             "height": 180,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-360.avif",
-            "bytes": 13931,
-            "sha256": "fc2092052067c6c25a23c009b4746822a7fea1fa29acae342a6e830b82e2e66b"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-360.avif",
+            "bytes": 12560,
+            "sha256": "317d70c7e570b1ce55d66a952fea94d55470555b28bf0fea755c830c29483cbb"
           },
           {
             "width": 480,
             "height": 240,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-480.avif",
-            "bytes": 22494,
-            "sha256": "af01f9633ba637f67e6fd9c182f07a5b507e1fd6b7940ff6f6ac0f7d31d30d0c"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-480.avif",
+            "bytes": 20338,
+            "sha256": "88905b04847e88d56c6210806a9572e6bb54c6da33cd61c2329eb39345ec15d8"
           },
           {
             "width": 512,
             "height": 256,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-512.avif",
-            "bytes": 25336,
-            "sha256": "5a01dc69ea4d214149879c4d0e2c93636343979be0b8ce811bf5b3b4e8cf16f3"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-512.avif",
+            "bytes": 22987,
+            "sha256": "31d8289fe27b59be897d6618f8d804f0acf98f0e186999d2adbef24a75e2c8eb"
           },
           {
             "width": 768,
             "height": 384,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-768.avif",
-            "bytes": 55162,
-            "sha256": "1597b61970449213e72477dc3d379c993aca1b4c23a13871935417af0aa7e725"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-768.avif",
+            "bytes": 50698,
+            "sha256": "c375bad3be17ac6f0cea62661b02c9dabcb01102a2a48b895007aba3d4b5e0f9"
           },
           {
             "width": 1024,
             "height": 512,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1024.avif",
-            "bytes": 95829,
-            "sha256": "b9a7ad9f49acc70f9fa353412807f8b3dac458c7c3adfb58c0f4c824d606eb85"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-1024.avif",
+            "bytes": 89601,
+            "sha256": "d9105c391320fc19611219bd8754cabcfe0aee43d845da87e5ff7e438ef65941"
           },
           {
             "width": 1280,
             "height": 640,
-            "src": "/responsive-tour-images/nami-island-fac605674884-wide-1280.avif",
-            "bytes": 144537,
-            "sha256": "162af1530f3cf5c9437fb58771fc8ec3a33ce02286ff960409c51952e4137320"
+            "src": "/responsive-tour-images/nami-island-251ad1f986e4-wide-1280.avif",
+            "bytes": 135295,
+            "sha256": "bcad7c46a88d5a3f0b957882ed0b46c840e002f508848eff3f8bd645971b5f69"
           }
         ]
+      },
+      "avifRecipe": {
+        "version": 2,
+        "quality": 55,
+        "effort": 6,
+        "position": "centre",
+        "chromaSubsampling": "4:2:0"
       }
     },
     "/Type1_불국사_두드림_z0WAPa.jpg": {
@@ -1265,132 +1272,139 @@
           {
             "width": 128,
             "height": 87,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-128.avif",
-            "bytes": 3029,
-            "sha256": "a1fec299883e106edbb0ff0a60e44a8631d8fdbda7ea2570391976a39b427527"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-128.avif",
+            "bytes": 2674,
+            "sha256": "3d68c2fbb310ccc63fca0c3a6d8e76e1c5c2498ea38cfccf4323ffc597799fde"
           },
           {
             "width": 192,
             "height": 131,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-192.avif",
-            "bytes": 6187,
-            "sha256": "4b30e9d2c3dc16173e863fad2a7ade27d6410dc25eaadf103b86ba8b9b68c4a5"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-192.avif",
+            "bytes": 5347,
+            "sha256": "8285b6bc674c1ab3d7bc734dd4b66e98ad7dbff5dcaf727ab8cbd7c1d9f6545c"
           },
           {
             "width": 256,
             "height": 175,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-256.avif",
-            "bytes": 10120,
-            "sha256": "27b9aaff248daeaa3bb6a6f81f3d39e38a74484327995bedc35150e0b7f3b4ba"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-256.avif",
+            "bytes": 8782,
+            "sha256": "35e42dfe506b630ecbf448aeeff4747b73009604aba54cbca41a9f14ab65309a"
           },
           {
             "width": 360,
             "height": 246,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-360.avif",
-            "bytes": 19069,
-            "sha256": "d1d7684b37dc91cd02d42ba6c2689db5b477395b91ef964a75f9e4c99f238f64"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-360.avif",
+            "bytes": 16453,
+            "sha256": "b68087373a97e7dfd248dc74e1ffa1177060800fdea1faab4bf9c6b12094e18a"
           },
           {
             "width": 480,
             "height": 328,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-480.avif",
-            "bytes": 31166,
-            "sha256": "9a1fb1e9f3505821276e50f047586752809809d06b1c187ec9839dcbf14473c6"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-480.avif",
+            "bytes": 26612,
+            "sha256": "eb4adccbee89d62def56ef0f68eb7118059ea6673169bbcd1baf54dc1793f3d0"
           },
           {
             "width": 512,
             "height": 350,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-512.avif",
-            "bytes": 34985,
-            "sha256": "189076bc26de1057b1c996ede13767b1f8b01be59898abd879f84764d7ddebc2"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-512.avif",
+            "bytes": 29996,
+            "sha256": "47f7e3ecf3cb8143e16b9cfe885bd3c52e2697b3b7109cfa30bc8bffd56c8b76"
           },
           {
             "width": 768,
             "height": 525,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-768.avif",
-            "bytes": 71007,
-            "sha256": "2fff8bbc6828fcb9cd75ed7efc83d75d8fe8c5a51bd435346d1cab139971778b"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-768.avif",
+            "bytes": 60793,
+            "sha256": "c39ba7220ead255c6de3fcbcce73891cb64522718b061cd0c41b3708e5eb7128"
           },
           {
             "width": 1024,
             "height": 700,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1024.avif",
-            "bytes": 112098,
-            "sha256": "ff419e7a9aed3a8ddcb30873256c349656bb516fab8ba07a53d00712dfaf395d"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-1024.avif",
+            "bytes": 96733,
+            "sha256": "68a2cf3de26c0ee4078cf02bee8dee2c3e95433a0eef466f3ca836183833233d"
           },
           {
             "width": 1280,
             "height": 875,
-            "src": "/responsive-tour-images/bulguksa-7b0a8f9c920b-original-1280.avif",
-            "bytes": 160665,
-            "sha256": "a75ea7a6d9db2fd12be523f6948d6a664a5cb4b760b4800aec59cc1269101103"
+            "src": "/responsive-tour-images/bulguksa-a3cbba4ea4bb-original-1280.avif",
+            "bytes": 141023,
+            "sha256": "d1eb37a46f2ec49bce3afb97a5d94aaea28d12dfbbe22c4ce866bfedf63af674"
           }
         ],
         "wide": [
           {
             "width": 128,
             "height": 64,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-128.avif",
-            "bytes": 2304,
-            "sha256": "1ada93d0053321d35940d32b63a31836a5ddf63b42b505c362a3ee7535e64017"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-128.avif",
+            "bytes": 1972,
+            "sha256": "3fda6060b24df287c1d9e0ee0a8b2fe4c15988c2ad5a9394e32e44bf20096c32"
           },
           {
             "width": 192,
             "height": 96,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-192.avif",
-            "bytes": 4785,
-            "sha256": "b36f06c756f076ad5faddd5841041620c7c94380eda817aab1c3787829550523"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-192.avif",
+            "bytes": 4171,
+            "sha256": "3738d24d21d72b0cfbae043c9d4ca5e8b0b3819eb20a5a983058ff764a8debde"
           },
           {
             "width": 256,
             "height": 128,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-256.avif",
-            "bytes": 7934,
-            "sha256": "b9deb705e43ead0fba16c66ab9d01a5342a9a86a5f23336e594d42430652853d"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-256.avif",
+            "bytes": 6830,
+            "sha256": "eb944aa16f26358b1f411603476b8b2a824e8d2bc2bca9e92df5efad0ba3c28a"
           },
           {
             "width": 360,
             "height": 180,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-360.avif",
-            "bytes": 14203,
-            "sha256": "277f3a6b3afe1fdd3258e0b404e96cfd075d4c963733a535556268b3d7812ddc"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-360.avif",
+            "bytes": 12198,
+            "sha256": "79eebefb855612d391837886943b46b7280cc37b32abf8b469d86d8049e8cdde"
           },
           {
             "width": 480,
             "height": 240,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-480.avif",
-            "bytes": 23336,
-            "sha256": "2332e0ef03ef3b0d836e22fc1e2f16e7e6c05d0e3b1c0a4f2fd196c76358b14a"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-480.avif",
+            "bytes": 19798,
+            "sha256": "fa784c0114ba9142ce7fbe06ea12bbae002370ece0e4ae443b6f84892d398ef3"
           },
           {
             "width": 512,
             "height": 256,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-512.avif",
-            "bytes": 25848,
-            "sha256": "f711193c3f2c7b199059e4c8b6cfdd947584a1e126c5f95bb834dc67748da80e"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-512.avif",
+            "bytes": 21978,
+            "sha256": "1a5e555171317c8c70d279b9383c2aca75a00cf7a88c7c5880f3e7b2f9674408"
           },
           {
             "width": 768,
             "height": 384,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-768.avif",
-            "bytes": 52511,
-            "sha256": "f91509605023c7565b625edf7f6a57b26806d553bb0dc8edd50335979f070fea"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-768.avif",
+            "bytes": 44738,
+            "sha256": "5d44002678419fe88f1a9da3c446287223f78e1a8d4ddf976545adf9237391cf"
           },
           {
             "width": 1024,
             "height": 512,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1024.avif",
-            "bytes": 81984,
-            "sha256": "6ed3ec4c02d0c9aed4d8c90d520c26eaf995961303b82b82f47980f2ff42a543"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-1024.avif",
+            "bytes": 70391,
+            "sha256": "cc99c02005c9b2ea695503f1774bd69cfb8b40737ddbbc80585b35d67fe56790"
           },
           {
             "width": 1280,
             "height": 640,
-            "src": "/responsive-tour-images/bulguksa-2b78f573ec3d-wide-1280.avif",
-            "bytes": 119348,
-            "sha256": "1d8f0f091dea0db5963619e55e0a0acb0fa360e06258f6de9c630bd4d037ec65"
+            "src": "/responsive-tour-images/bulguksa-11c5bd6a19bd-wide-1280.avif",
+            "bytes": 103609,
+            "sha256": "a67dc9ccf9c8b79395dc8920b183281a720b56743e23d4b2a885ed35a4be3bf0"
           }
         ]
+      },
+      "avifRecipe": {
+        "version": 2,
+        "quality": 55,
+        "effort": 6,
+        "position": "centre",
+        "chromaSubsampling": "4:2:0"
       }
     },
     "/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg": {
