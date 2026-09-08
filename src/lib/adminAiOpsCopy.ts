@@ -62,6 +62,9 @@ export interface AdminAiOpsCopy {
   automationTitle: string;
   automationDetail: string;
   outboundEmailRetry: string;
+  autoAckLabel: string;
+  autoAckReadyDetail: string;
+  autoAckNotReadyDetail: string;
   sendingQueueEmpty: string;
   sendingQueueDetail: string;
   partialData: string;
@@ -170,6 +173,9 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     automationTitle: '자동화 상태',
     automationDetail: '실행 결과가 없는 항목은 미연동으로 표시',
     outboundEmailRetry: '고객 메일 발신 재시도',
+    autoAckLabel: '문의 자동 접수확인',
+    autoAckReadyDetail: '서버 설정 준비 · 실제 발송 미검증 · 최종 답변은 승인 후',
+    autoAckNotReadyDetail: '꺼짐 또는 서버 설정 미완료 · 실제 발송 미검증',
     sendingQueueEmpty: '대기 없음',
     sendingQueueDetail: '발신 재시도 대기 상태이며, 실행 성공이나 메일 수신 완료를 뜻하지 않습니다.',
     partialData: '일부 자료 기준',
@@ -275,6 +281,9 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     automationTitle: 'Automation status',
     automationDetail: 'Items without execution results are shown as not connected',
     outboundEmailRetry: 'Customer email sending retries',
+    autoAckLabel: 'Automatic inquiry acknowledgment',
+    autoAckReadyDetail: 'Server configured · delivery unverified · final reply requires approval',
+    autoAckNotReadyDetail: 'Off or server setup incomplete · delivery unverified',
     sendingQueueEmpty: 'Nothing queued',
     sendingQueueDetail: 'This is the sending retry queue, not proof of successful execution or received mail.',
     partialData: 'Partial data only',
@@ -380,6 +389,9 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     automationTitle: '自動化の状態',
     automationDetail: '実行結果がない項目は未連携と表示',
     outboundEmailRetry: '顧客メール送信の再試行',
+    autoAckLabel: 'お問い合わせの自動受付確認',
+    autoAckReadyDetail: 'サーバー設定済み · 実際の送信は未検証 · 最終回答は承認後',
+    autoAckNotReadyDetail: '停止中または設定未完了 · 実際の送信は未検証',
     sendingQueueEmpty: '待機なし',
     sendingQueueDetail: '送信の再試行待ち状態です。実行成功やメール受信完了を示すものではありません。',
     partialData: '一部のデータのみ',
@@ -485,6 +497,9 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     automationTitle: '自动化状态',
     automationDetail: '没有执行结果的项目显示为未连接',
     outboundEmailRetry: '客户邮件发送重试',
+    autoAckLabel: '咨询自动收件确认',
+    autoAckReadyDetail: '服务器配置就绪 · 实际发送未验证 · 最终回复须审批',
+    autoAckNotReadyDetail: '已关闭或配置未完成 · 实际发送未验证',
     sendingQueueEmpty: '无待重试项',
     sendingQueueDetail: '此处显示发送重试队列，不代表执行成功或邮件已接收。',
     partialData: '仅含部分数据',

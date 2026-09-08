@@ -11,6 +11,7 @@ import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { loadRecordedAiUsage } from './_shared/adminRecordedAiUsage.js';
 import { readOwnerDispatchReadiness } from './_shared/ownerDispatchReadiness.js';
+import { readChannelResponseReadiness } from './_shared/channel-response-readiness.js';
 import {
   dedupeConfirmedPendingMirrors,
   normalizeCsTicket,
@@ -201,15 +202,23 @@ export default async function handler(req, res) {
       console.error('[admin-ai-ops-center] runtime_flags read failed:', runtimeResult.reason && runtimeResult.reason.message);
     }
 
+    const channelResponseReadiness = readChannelResponseReadiness({
+      runtimeAutoAckKnown: autoAckKnown,
+      runtimeAutoAckEnabled: autoAckEnabled,
+      nowMs,
+    });
+    const autoAckReadiness = channelResponseReadiness.autoAck;
     const automation = [
       {
         key: 'inquiry_auto_ack',
         label: '문의 자동 접수확인',
-        status: autoAckKnown ? (autoAckEnabled ? 'ok' : 'off') : 'unknown',
+        status: !autoAckKnown ? 'unknown' : autoAckReadiness.ready ? 'ok' : 'off',
         pending: 0,
         manual: 0,
         count: 0,
-        detail: autoAckKnown ? (autoAckEnabled ? '켜짐 · 최종 답변은 사람 승인' : '꺼짐') : '상태 확인 실패',
+        detail: !autoAckKnown ? '상태 확인 실패'
+          : autoAckReadiness.ready ? '켜짐 · 발송 성공은 별도 확인 · 최종 답변은 사람 승인'
+            : autoAckEnabled ? '켜기 요청됨 · 서버 설정 미완료 · 발송 검증 전' : '꺼짐',
         deepLink: '/admin/claims',
       },
       retryQueueHealth(
@@ -258,6 +267,7 @@ export default async function handler(req, res) {
         generatedAt: new Date(nowMs).toISOString(),
         recordedAiUsage: await recordedAiUsageRead,
         ownerDispatchReadiness: readOwnerDispatchReadiness(process.env),
+        channelResponseReadiness,
         summary: aggregate.summary,
         workItems: aggregate.workItems.slice(0, 80),
         reservations: reservations.map(publicReservation),

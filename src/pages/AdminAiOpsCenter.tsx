@@ -30,6 +30,7 @@ import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchR
 import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
 import { AdminExternalInbox } from '@/components/AdminExternalInbox';
 import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
+import { AdminChannelReadiness, type ChannelResponseReadiness } from '@/components/AdminChannelReadiness';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -110,6 +111,7 @@ interface SourceState {
 }
 
 export interface OpsCenterData {
+  channelResponseReadiness?: ChannelResponseReadiness;
   ownerDispatchReadiness?: OwnerDispatchReadinessSnapshot;
   generatedAt: string;
   recordedAiUsage?: RecordedAiUsage;
@@ -467,10 +469,10 @@ function AutomationPanel({ items, sectionId, failedSources }: { items: Automatio
               )}
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold text-slate-100">{item.key === 'email_retry' ? copy.outboundEmailRetry : item.label}</span>
+                  <span className="text-sm font-bold text-slate-100">{item.key === 'email_retry' ? copy.outboundEmailRetry : item.key === 'inquiry_auto_ack' ? copy.autoAckLabel : item.label}</span>
                   <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${meta.className}`}>{item.key === 'email_retry' && status === 'ok' ? copy.sendingQueueEmpty : copy.automationLabels[status]}</span>
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{sourceFailed ? copy.sourceFailed : item.detail}</span>
+                <span className="mt-0.5 block text-[11px] leading-5 text-slate-300">{sourceFailed ? copy.sourceFailed : item.key === 'inquiry_auto_ack' ? status === 'ok' ? copy.autoAckReadyDetail : copy.autoAckNotReadyDetail : item.detail}</span>
               </span>
               {isExternal(item.deepLink) ? (
                 <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
@@ -921,6 +923,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
           </>
         )}
         <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
+          <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
           <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} />
         </div>

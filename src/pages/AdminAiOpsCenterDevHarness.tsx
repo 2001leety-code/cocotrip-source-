@@ -12,9 +12,18 @@ function createPreviewData(now: number, search: string): OpsCenterData {
   const dayStart = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - 9 * HOUR_MS;
   const dateAt = (offset: number) => new Date(dayStart + offset * DAY_MS + 9 * HOUR_MS).toISOString().slice(0, 10);
   const NOW = now;
+  const gate = { ready: false, reason: 'DISABLED', delivery: 'not-verified' as const };
 
   const previewData: OpsCenterData = {
     generatedAt: new Date(NOW).toISOString(),
+    channelResponseReadiness: {
+      autoAck: gate,
+      channels: (['webform', 'webchat', 'email', 'whatsapp', 'instagram', 'tiktok'] as const).map((channel) => ({
+        channel, implementation: 'synthetic-preview', supported: channel !== 'instagram' && channel !== 'tiktok',
+        intake: { status: channel === 'webform' || channel === 'webchat' ? 'implemented' : channel === 'email' || channel === 'whatsapp' ? 'not_ready' : 'not_implemented', detail: 'synthetic-preview' },
+        autoAck: gate, ownerPush: gate,
+      })),
+    },
     summary: {
       actionRequired: 0,
       urgent: 0,
@@ -79,7 +88,7 @@ function createPreviewData(now: number, search: string): OpsCenterData {
     ],
     inboxItems: [],
     automation: [
-      { key: 'inquiry_auto_ack', label: '문의 자동 접수확인', status: 'ok', pending: 0, manual: 0, count: 0, detail: '켜짐 · 최종 답변은 사람 승인', deepLink: '/admin/claims' },
+      { key: 'inquiry_auto_ack', label: '문의 자동 접수확인', status: 'off', pending: 0, manual: 0, count: 0, detail: '가상 설정 꺼짐 · 최종 답변은 사람 승인', deepLink: '/admin/claims' },
       { key: 'processor_retry', label: '예약 후속처리', status: 'ok', pending: 0, manual: 0, count: 0, detail: '대기 없음', deepLink: '/admin/reconciliation' },
       { key: 'email_retry', label: '고객 이메일', status: 'attention', pending: 1, manual: 1, count: 2, detail: '수동 확인 1건', deepLink: '/admin/reconciliation' },
       { key: 'planner_retry', label: 'AI 플래너 생성', status: 'retrying', pending: 1, manual: 0, count: 1, detail: '자동 재시도 1건', deepLink: '/admin/reconciliation' },

@@ -150,7 +150,7 @@ describe('AI center partial-data presentation', () => {
     const processor = { ...emailQueue, key: 'processor_retry', label: '가짜 예약 후속처리' };
     render(page(data({ partialErrors: ['runtime_flags'], automation: [acknowledgement, processor, emailQueue] })));
     const automation = screen.getByRole('region', { name: copy.automationTitle });
-    const acknowledgementLink = within(automation).getByText(acknowledgement.label).closest('a');
+    const acknowledgementLink = within(automation).getByText(copy.autoAckLabel).closest('a');
     expect(acknowledgementLink).toHaveTextContent(copy.automationLabels.unknown);
     expect(acknowledgementLink).not.toHaveTextContent(acknowledgement.detail);
     expect(acknowledgementLink).toHaveAttribute('href', acknowledgement.deepLink);

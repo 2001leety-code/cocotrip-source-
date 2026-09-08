@@ -50,12 +50,13 @@ function memoryStore() {
   const reads: string[] = [];
   const queries: { collection: string; fields: string[]; orders: string[]; after: unknown[] }[] = [];
   const failedCollections = new Set<string>();
+  const failedDocuments = new Set<string>();
   let failCommit = false;
   let failEventCommit = false;
   let failReads = false;
   let chain = Promise.resolve();
   const ref = (filename: string): Ref => ({ path: filename, id: filename.split('/').at(-1) || '',
-    get: async () => { reads.push(filename); if (failReads) throw new Error(PRIVATE); return snapshot(ref(filename), records.get(filename)); } });
+    get: async () => { reads.push(filename); if (failReads || failedDocuments.has(filename)) throw new Error(PRIVATE); return snapshot(ref(filename), records.get(filename)); } });
   const apply = (kind: string, target: Ref, data: Row) => {
     if (![OWNER_EVENT_COLLECTION, OWNER_CONTROL_COLLECTION].includes(target.path.split('/')[0])) throw new Error('SOURCE_WRITE_FORBIDDEN');
     writes.push(target.path);
@@ -125,7 +126,7 @@ function memoryStore() {
       } finally { release(); }
     },
   };
-  return { db, records, writes, reads, queries, failedCollections,
+  return { db, records, writes, reads, queries, failedCollections, failedDocuments,
     setFailCommit: (value: boolean) => { failCommit = value; }, setFailEventCommit: (value: boolean) => { failEventCommit = value; },
     setFailReads: (value: boolean) => { failReads = value; } };
 }
@@ -197,7 +198,12 @@ describe('explicit owner-only activation and privacy policy', () => {
   });
   it.each(['ko', 'en', 'ja', 'zh'])('constructs only fixed PII-free %s payloads', (language) => {
     for (const source of OWNER_SOURCES) {
-      const event = eventFromSource(source.name, PRIVATE, { status: source.name.includes('inquiries') || source.name === 'cs_tickets' ? 'new' : 'confirmed', name: PRIVATE, email: PRIVATE });
+      const data = source.name === 'external_inbox_messages'
+        ? { channel: 'email', accountId: 'company@example.invalid', receivedAtMs: EPOCH, sourceAtMs: EPOCH, expiresAtMs: EPOCH + 86_400_000 }
+        : source.name === 'chat_sessions'
+          ? { ownerNotificationEligible: true }
+          : { status: source.name.includes('inquiries') || source.name === 'cs_tickets' ? 'new' : 'confirmed' };
+      const event = eventFromSource(source.name, PRIVATE, { ...data, name: PRIVATE, email: PRIVATE });
       const payload = ownerPayload(event.kind, event.eventKey, language);
       expect(Object.keys(payload).sort()).toEqual(['body', 'tag', 'title', 'url']);
       expect(payload.url).toBe('/admin/ai-center');
@@ -268,13 +274,150 @@ describe('metadata scanner, cutover and atomic queue/cursor', () => {
     expect(JSON.stringify(f.ledger())).not.toContain(PRIVATE);
     expect(JSON.stringify(f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`))).not.toContain(PRIVATE);
     for (const query of f.queries.filter((entry) => OWNER_SOURCES.some((spec) => spec.name === entry.collection))) {
-      expect(query.orders).toEqual(['createdAt', '__name__']);
+      const spec = OWNER_SOURCES.find((source) => source.name === query.collection);
+      expect(query.orders).toEqual([spec?.timeField, '__name__']);
       expect(query.fields.length).toBeGreaterThan(0);
       expect(query.fields.every((field) => OWNER_SOURCE_FIELDS.includes(field))).toBe(true);
       expect(query.fields).not.toEqual(expect.arrayContaining(['name', 'email', 'phone', 'amount', 'memo']));
     }
     expect(f.writes.every((filename) => filename.startsWith('owner_notification_'))).toBe(true);
     expect(f.send.mock.calls[0][0]).toEqual({ endpoint: ENDPOINT, keys: subscription().keys });
+  });
+
+  it('starts newly added inbox and webchat sources at upgrade time and never backfills them', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      COMPANY_GMAIL_INBOX_ENABLED: 'true', COMPANY_GMAIL_INBOX_EMAIL: 'cocotripkr@gmail.com',
+      COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-client', COMPANY_GMAIL_INBOX_CLIENT_SECRET: 'fake-secret',
+      COMPANY_GMAIL_INBOX_REFRESH_TOKEN: 'fake-token', COMPANY_GMAIL_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z',
+      COMPANY_GMAIL_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const control = f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`) as Row;
+    control.sourceSchemaVersion = 1;
+    delete (control.cursors as Row).external_inbox_messages;
+    delete (control.cursors as Row).chat_sessions;
+    f.records.set('external_inbox_messages/old-receipt', {
+      channel: 'email', accountId: 'cocotripkr@gmail.com', receivedAtMs: EPOCH - 1000, sourceAtMs: EPOCH - 1000, expiresAtMs: EPOCH + 86_400_000,
+    });
+    f.records.set('chat_sessions/old-session', { ownerNotificationEligible: true, ownerNotificationAt: timeAtMs(EPOCH - 1000) });
+    f.setNow(EPOCH + 300_000);
+    expect((await f.run()).code).toBe('CHECKED');
+    expect(f.ledger()).toHaveLength(0);
+    expect(f.send).not.toHaveBeenCalled();
+    expect(Object.keys((f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`)?.cursors || {}) as Row))
+      .toEqual(OWNER_SOURCES.map((source) => source.name));
+  });
+
+  it('treats a missing legacy cursor as corruption instead of silently skipping it', async () => {
+    const f = fixture();
+    await f.run();
+    const control = f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`) as Row;
+    delete (control.cursors as Row).bookings;
+    f.setNow(EPOCH + 300_000);
+    expect(await f.run()).toMatchObject({ ok: false, code: 'CURSOR_INVALID' });
+    expect(f.queries).toEqual([]);
+    expect(f.send).not.toHaveBeenCalled();
+  });
+
+  it('queues a delayed company-email receipt by received time, plus new metadata-only customer chat', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      COMPANY_GMAIL_INBOX_ENABLED: 'true', COMPANY_GMAIL_INBOX_EMAIL: 'cocotripkr@gmail.com',
+      COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-client', COMPANY_GMAIL_INBOX_CLIENT_SECRET: 'fake-secret',
+      COMPANY_GMAIL_INBOX_REFRESH_TOKEN: 'fake-token', COMPANY_GMAIL_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z',
+      COMPANY_GMAIL_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    f.records.set('external_inbox_messages/new-receipt', {
+      channel: 'email', accountId: 'cocotripkr@gmail.com', receivedAtMs: EPOCH + 1000, sourceAtMs: EPOCH - 60_000, expiresAtMs: EPOCH + 86_400_000,
+      sender: PRIVATE, subject: PRIVATE, text: PRIVATE,
+    });
+    f.records.set('chat_sessions/new-session', {
+      ownerNotificationEligible: true, ownerNotificationAt: timeAtMs(EPOCH + 1000), text: PRIVATE,
+    });
+    f.setNow(EPOCH + 300_000);
+    expect((await f.run()).accepted).toBe(2);
+    expect(f.ledger()).toHaveLength(2);
+    expect(JSON.stringify(f.ledger())).not.toContain(PRIVATE);
+    const sourceQueries = f.queries.filter((entry) => ['external_inbox_messages', 'chat_sessions'].includes(entry.collection));
+    expect(sourceQueries.flatMap((entry) => entry.fields)).not.toEqual(expect.arrayContaining(['sender', 'subject', 'text']));
+  });
+
+  it('does not queue WhatsApp text after consent is closed or the message has expired', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      WHATSAPP_INBOX_ENABLED: 'true', WHATSAPP_INBOX_PRIVACY_MODE: 'explicit_sessions_v1',
+      WHATSAPP_INBOX_WABA_ID: '111', WHATSAPP_INBOX_PHONE_NUMBER_ID: '222',
+      WHATSAPP_INBOX_APP_SECRET: 'fake-app-secret', WHATSAPP_INBOX_VERIFY_TOKEN: 'fake-verify-token',
+      WHATSAPP_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z', WHATSAPP_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const sessionId = 'a'.repeat(64);
+    f.records.set(`whatsapp_inbox_sessions/${sessionId}`, {
+      policyVersion: 1, accountId: '222', status: 'closed', startedAtMs: EPOCH - 10_000,
+      expiresAtMs: EPOCH + 3_600_000, closedAtMs: EPOCH, updatedAtMs: EPOCH,
+    });
+    f.records.set('external_inbox_messages/private-receipt', {
+      channel: 'whatsapp', accountId: '222', receivedAtMs: EPOCH + 1000, sourceAtMs: EPOCH + 1000, expiresAtMs: EPOCH + 10_000,
+      whatsappPolicyVersion: 1, whatsappSessionId: sessionId, sender: PRIVATE, text: PRIVATE,
+    });
+    f.setNow(EPOCH + 300_000);
+    expect((await f.run()).accepted).toBe(0);
+    expect(f.ledger()).toHaveLength(0);
+    expect(f.send).not.toHaveBeenCalled();
+  });
+
+  it('queues a new WhatsApp receipt only while its exact consent session is active', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      WHATSAPP_INBOX_ENABLED: 'true', WHATSAPP_INBOX_PRIVACY_MODE: 'explicit_sessions_v1',
+      WHATSAPP_INBOX_WABA_ID: '111', WHATSAPP_INBOX_PHONE_NUMBER_ID: '222',
+      WHATSAPP_INBOX_APP_SECRET: 'fake-app-secret', WHATSAPP_INBOX_VERIFY_TOKEN: 'fake-verify-token',
+      WHATSAPP_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z', WHATSAPP_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const sessionId = 'b'.repeat(64);
+    f.records.set(`whatsapp_inbox_sessions/${sessionId}`, {
+      policyVersion: 1, accountId: '222', status: 'active', startedAtMs: EPOCH - 10_000,
+      expiresAtMs: EPOCH + 3_600_000, closedAtMs: 0, updatedAtMs: EPOCH,
+    });
+    f.records.set('external_inbox_messages/active-receipt', {
+      channel: 'whatsapp', accountId: '222', receivedAtMs: EPOCH + 1000, sourceAtMs: EPOCH + 1000, expiresAtMs: EPOCH + 86_400_000,
+      whatsappPolicyVersion: 1, whatsappSessionId: sessionId, sender: PRIVATE, text: PRIVATE,
+    });
+    f.setNow(EPOCH + 300_000);
+    expect((await f.run()).accepted).toBe(1);
+    expect(f.ledger()).toHaveLength(1);
+    expect(JSON.stringify(f.ledger())).not.toContain(PRIVATE);
+  });
+
+  it('holds the WhatsApp source cursor when its consent-session read fails', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      WHATSAPP_INBOX_ENABLED: 'true', WHATSAPP_INBOX_PRIVACY_MODE: 'explicit_sessions_v1',
+      WHATSAPP_INBOX_WABA_ID: '111', WHATSAPP_INBOX_PHONE_NUMBER_ID: '222',
+      WHATSAPP_INBOX_APP_SECRET: 'fake-app-secret', WHATSAPP_INBOX_VERIFY_TOKEN: 'fake-verify-token',
+      WHATSAPP_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z', WHATSAPP_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const sessionId = 'c'.repeat(64);
+    f.records.set(`whatsapp_inbox_sessions/${sessionId}`, {
+      policyVersion: 1, accountId: '222', status: 'active', startedAtMs: EPOCH - 10_000,
+      expiresAtMs: EPOCH + 3_600_000, closedAtMs: 0, updatedAtMs: EPOCH,
+    });
+    f.records.set('external_inbox_messages/read-failure-receipt', {
+      channel: 'whatsapp', accountId: '222', receivedAtMs: EPOCH + 1000, sourceAtMs: EPOCH + 1000,
+      expiresAtMs: EPOCH + 86_400_000, whatsappPolicyVersion: 1, whatsappSessionId: sessionId,
+    });
+    f.failedDocuments.add(`whatsapp_inbox_sessions/${sessionId}`);
+    f.setNow(EPOCH + 300_000);
+    const cursorBefore = (f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`)?.cursors as Row).external_inbox_messages;
+    const result = await f.run();
+    expect(result).toMatchObject({ code: 'PARTIAL_SOURCE_FAILURE', sourceFailures: [{ source: 'external_inbox_messages', code: 'WHATSAPP_SESSION_READ_FAILED' }] });
+    expect((f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`)?.cursors as Row).external_inbox_messages).toBe(cursorBefore);
+    expect(f.ledger()).toHaveLength(0);
+    expect(f.send).not.toHaveBeenCalled();
   });
   it('continues exact timestamp ties past a page boundary without offset, loss or duplicate queue entries', async () => {
     const f = fixture(); await f.run();
