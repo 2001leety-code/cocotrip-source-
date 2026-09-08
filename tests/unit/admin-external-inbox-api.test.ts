@@ -5,6 +5,7 @@ vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: dependenci
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: dependencies.init }));
 import handler from '../../api/admin-external-inbox.js';
 import { prepareExternalInboxMessage } from '../../api/_shared/external-inbox-store.js';
+import { nextInboxCaseOnMessage } from '../../api/_shared/external-inbox-retention.js';
 
 const NOW = Date.parse('2026-09-08T06:00:00.000Z');
 const START = NOW - 60_000;
@@ -19,9 +20,9 @@ function record(extra: Row = {}) {
   const prepared = prepareExternalInboxMessage({ channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: 'fake_id',
     providerThreadId: 'fake_thread', sourceAtMs: NOW - 1000, sender: 'Synthetic sender', subject: 'Synthetic subject', text: PRIVATE, kind: 'email' },
   { nowMs: NOW, retentionDays: 30 });
-  return { id: prepared.docId, data: { ...prepared.data, ...extra } };
+  return { id: prepared.docId, data: { ...prepared.data, ...extra }, caseData: nextInboxCaseOnMessage(null, prepared.data, NOW) };
 }
-function fakeDb(documents: { id: string; data: Row }[] = []) {
+function fakeDb(documents: { id: string; data: Row; caseData?: Row }[] = []) {
   const reads: string[] = [];
   const writes = vi.fn(() => { throw new Error('WRITE_FORBIDDEN'); });
   let failList = false;
@@ -41,7 +42,10 @@ function fakeDb(documents: { id: string; data: Row }[] = []) {
       doc: (id: string) => ({
         get: async () => { reads.push(`${name}/${id}`); if (failDetail) throw new Error(PRIVATE);
           if (hangDetail) return new Promise<never>(() => {});
-          const found = documents.find(doc => doc.id === id); return { id, exists: Boolean(found), data: () => found?.data }; },
+          const found = name === 'external_inbox_cases'
+            ? documents.find(doc => doc.data.caseId === id && doc.caseData)
+            : documents.find(doc => doc.id === id);
+          return { id, exists: Boolean(found), data: () => name === 'external_inbox_cases' ? found?.caseData : found?.data }; },
         set: writes, update: writes, delete: writes,
       }),
     };
@@ -112,17 +116,18 @@ describe('admin external inbox authorization and configuration boundaries', () =
 
 describe('live helper wiring against synthetic storage only', () => {
   it('lists safe summaries without message body, provider cursor, account, token or writes', async () => {
-    enable(); const f = fakeDb([record({ cursorHistoryId: PRIVATE, accessToken: PRIVATE, html: PRIVATE })]); dependencies.init.mockReturnValue(f.db);
+    enable(); const doc = record({ cursorHistoryId: PRIVATE, accessToken: PRIVATE, html: PRIVATE }); const f = fakeDb([doc]); dependencies.init.mockReturnValue(f.db);
     const result = await request(); expect(result.status).toBe(200); expect(result.body.data.messages).toHaveLength(1);
     expect(result.body.data.messages[0]).not.toHaveProperty('text'); expect(result.body.data.messages[0]).not.toHaveProperty('accountId');
-    expect(JSON.stringify(result)).not.toContain(PRIVATE); expect(f.reads.every(path => path.endsWith(':list'))).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(PRIVATE); expect(f.reads).toContain('external_inbox_messages:list');
+    expect(f.reads).toContain(`external_inbox_cases/${doc.data.caseId}`); expect(f.reads).not.toContain(`external_inbox_messages/${doc.id}`);
     expect(f.writes).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
     expect(result.headers).toMatchObject({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Access-Control-Allow-Origin': 'https://cocotripkr.com' });
   });
   it('returns stored plain preview only for an explicit valid message ID', async () => {
     enable(); const doc = record(); const f = fakeDb([doc]); dependencies.init.mockReturnValue(f.db);
     const result = await request('GET', `?id=${doc.id}`); expect(result.status).toBe(200); expect(result.body.data.text).toBe(PRIVATE);
-    expect(f.reads).toEqual([`external_inbox_messages/${doc.id}`]); expect(f.writes).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+    expect(f.reads).toEqual([`external_inbox_messages/${doc.id}`, `external_inbox_cases/${doc.data.caseId}`]); expect(f.writes).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
     expect(result.headers['Cache-Control']).toBe('no-store');
   });
   it.each([
