@@ -94,6 +94,10 @@ describe('server-only manual external reply policy', () => {
       expect(prepareApprovedExternalInboxReply(value)).toMatchObject({ code: 'REPLY_CONTEXT_MISSING', disposition: 'draft_only', sendAllowed: false });
     }
   });
+  it('preserves the allowed mailbox punctuation after source-lint-safe escaping', () => {
+    const value = input(); value.envelope.recipient = 'guest\x60name@example.invalid';
+    expect(prepareApprovedExternalInboxReply(value).ok).toBe(true);
+  });
   it.each([{ singleMailbox: false }, { headerControls: true }, { autoSubmitted: true }, { listHeader: true },
     { noReply: true }, { ambiguous: true }, { autoSubmitted: undefined }])('fails closed on mailbox metadata %j', patch => {
     const value = input(); Object.assign(value.envelope.policy.email, patch);
