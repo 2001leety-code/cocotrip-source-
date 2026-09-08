@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import type { Language } from '@/i18n';
 import { adminExternalInboxCopy, isExternalInboxDetail, isExternalInboxOverview, type ExternalInboxMessage, type ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
+import { AdminWhatsAppPrivacy } from '@/components/AdminWhatsAppPrivacy';
 
 interface Props { language: Language; previewMode?: boolean; previewData?: ExternalInboxOverview; refreshKey?: number | null }
 type Account = { uid: string; getIdToken: () => Promise<string> } | null;
@@ -142,6 +143,7 @@ function InboxContent({ language, previewMode = false, previewData, refreshKey, 
       <p className="mt-4 text-xs leading-5 text-slate-300">{copy.limited}</p>
     </>}
     <p className="mt-3 text-xs leading-5 text-slate-300">{copy.scope}</p>
+    <AdminWhatsAppPrivacy language={language} previewMode={previewMode} />
   </section>;
 }
 

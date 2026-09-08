@@ -2,6 +2,8 @@ import { useLocation } from 'react-router-dom';
 
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { buildLinkHubDestination } from '@/lib/linkInBio';
+import { useLanguage } from '@/hooks/useLanguage';
+import { whatsappSupportCopy } from '@/lib/whatsappSupportCopy';
 
 /**
  * SNS 프로필의 "link in bio" 목적지 (2026-08-17).
@@ -47,6 +49,8 @@ const DESTINATIONS: Destination[] = [
 
 export default function LinksPage() {
   const { search } = useLocation();
+  const { language } = useLanguage();
+  const supportCopy = whatsappSupportCopy[language];
 
   usePageMeta({
     title: 'CocoTrip — Korea trips planned in minutes',
@@ -93,6 +97,10 @@ export default function LinksPage() {
               </span>
             </a>
           ))}
+          <a href="/whatsapp-support" className="min-h-[44px] rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
+            <span className="block text-base font-bold">{supportCopy.linksTitle}</span>
+            <span className="mt-1 block text-xs text-slate-300">{supportCopy.linksSubtitle}</span>
+          </a>
         </nav>
 
         <a

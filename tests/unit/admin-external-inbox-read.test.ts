@@ -3,6 +3,7 @@ import {
   externalInboxChannelStatus, externalInboxConfigs, loadExternalInbox, loadExternalInboxDetail, publicExternalInboxMessage,
 } from '../../api/_shared/adminExternalInboxRead.js';
 import { prepareExternalInboxMessage } from '../../api/_shared/external-inbox-store.js';
+import { sessionDocId } from '../../api/_shared/whatsapp-support-sessions.js';
 
 const NOW = Date.parse('2026-09-08T06:00:00.000Z');
 const START = NOW - 60_000;
@@ -13,14 +14,16 @@ function env() {
     COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-id', COMPANY_GMAIL_INBOX_CLIENT_SECRET: PRIVATE, COMPANY_GMAIL_INBOX_REFRESH_TOKEN: PRIVATE,
     COMPANY_GMAIL_INBOX_CAPTURE_START_AT: new Date(START).toISOString(), COMPANY_GMAIL_INBOX_RETENTION_DAYS: '30',
     WHATSAPP_INBOX_ENABLED: 'true', WHATSAPP_INBOX_WABA_ID: '123', WHATSAPP_INBOX_PHONE_NUMBER_ID: '456',
+    WHATSAPP_INBOX_PRIVACY_MODE: 'explicit_sessions_v1',
     WHATSAPP_INBOX_APP_SECRET: PRIVATE, WHATSAPP_INBOX_VERIFY_TOKEN: PRIVATE,
     WHATSAPP_INBOX_CAPTURE_START_AT: new Date(START).toISOString(), WHATSAPP_INBOX_RETENTION_DAYS: '30' };
 }
 const configs = () => externalInboxConfigs(env(), NOW);
 function prepared(channel = 'email', messageId = 'fake_message') {
   return prepareExternalInboxMessage({ channel, accountId: channel === 'email' ? 'cocotripkr@gmail.com' : '456',
-    providerMessageId: messageId, providerThreadId: 'fake_thread', sourceAtMs: NOW - 10_000,
-    sender: 'Synthetic sender', subject: 'Synthetic subject', text: PRIVATE, kind: channel === 'email' ? 'email' : 'text', truncated: true },
+    providerMessageId: messageId, providerThreadId: channel === 'email' ? 'fake_thread' : '15550001111', sourceAtMs: NOW - 10_000,
+    sender: channel === 'email' ? 'Synthetic sender' : '15550001111', subject: 'Synthetic subject', text: PRIVATE, kind: channel === 'email' ? 'email' : 'text', truncated: true,
+    ...(channel === 'whatsapp' ? { whatsappPolicyVersion: 1, whatsappSessionId: sessionDocId('456', '15550001111') } : {}) },
   { nowMs: NOW, retentionDays: 30 });
 }
 function goodState(channel = 'email', extra: Row = {}) {
@@ -104,6 +107,14 @@ describe('safe channel configuration and connection status', () => {
 });
 
 describe('company/digest/cutover/retention gates on both list and detail', () => {
+  it('only exposes receipts written through the explicit WhatsApp session policy', () => {
+    const record = prepared('whatsapp');
+    expect(publicExternalInboxMessage(record.docId, record.data, configs(), NOW, true)).toMatchObject({ text: PRIVATE });
+    for (const patch of [{ whatsappPolicyVersion: undefined }, { whatsappPolicyVersion: 2 }, { whatsappSessionId: '' },
+      { whatsappSessionId: sessionDocId('456', '15550002222') }, { sender: '0' }]) {
+      for (const detail of [false, true]) expect(publicExternalInboxMessage(record.docId, { ...record.data, ...patch }, configs(), NOW, detail)).toBeNull();
+    }
+  });
   it('projects a safe list and includes escaped-as-text content only for explicit detail', () => {
     const record = prepared(); const row = { ...record.data, accessToken: PRIVATE, cursorHistoryId: PRIVATE, html: PRIVATE };
     const summary = publicExternalInboxMessage(record.docId, row, configs(), NOW);
@@ -150,7 +161,7 @@ describe('bounded source reads and honest partial failure', () => {
     expect(JSON.stringify(result)).not.toContain(PRIVATE); expect(f.docReads).toEqual([]);
     const list = f.queries.find(query => query.collection === 'external_inbox_messages');
     expect(list).toMatchObject({ limit: 101, orders: ['receivedAtMs:desc'] });
-    expect(list?.fields).toEqual(['channel', 'accountId', 'providerMessageId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs']);
+    expect(list?.fields).toEqual(['channel', 'accountId', 'providerMessageId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId']);
     for (const query of f.queries.filter(query => query.collection === 'external_inbox_state')) {
       expect(query.limit).toBe(1); expect(query.fields).toEqual(['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'lastSuccessAtMs', 'lastReceivedAtMs']);
     }
