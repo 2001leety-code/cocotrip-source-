@@ -39,6 +39,7 @@ import kpopCalendarCheck from './_crons/kpop-calendar-check.js';
 import previewLeadRecovery from './_crons/preview-lead-recovery.js';
 import inquiryResponseSweep from './_crons/inquiry-response-sweep.js';
 import ownerNotificationSweep from './_crons/owner-notification-sweep.js';
+import companyGmailInboxSweep from './_crons/company-gmail-inbox-sweep.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -80,6 +81,8 @@ const JOBS = {
   'inquiry-response-sweep':      inquiryResponseSweep,
   // Owner-only metadata alerts. OFF or incomplete configuration performs no worker I/O.
   'owner-notification-sweep':    ownerNotificationSweep,
+  // Explicit company-only cutover/retention + read-only OAuth; OFF performs no worker I/O.
+  'company-gmail-inbox-sweep':   companyGmailInboxSweep,
 };
 
 const CORS = {

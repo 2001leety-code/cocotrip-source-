@@ -28,6 +28,8 @@ import { OwnerNotificationSetup } from '@/components/OwnerNotificationSetup';
 import { OwnerDispatchReadiness } from '@/components/OwnerDispatchReadiness';
 import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchReadiness';
 import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
+import { AdminExternalInbox } from '@/components/AdminExternalInbox';
+import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -667,6 +669,7 @@ function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData;
 
 interface AdminAiOpsCenterProps {
   previewData?: OpsCenterData;
+  previewExternalInbox?: ExternalInboxOverview;
   /** DEV fixture only; cannot override errors in the production request path. */
   previewFailure?: string;
 }
@@ -677,7 +680,7 @@ function UnconnectedChannels() {
     <section className="rounded-2xl border border-white/10 bg-[#181b22] p-3.5" aria-labelledby="unconnected-channels-title">
       <h2 id="unconnected-channels-title" className="text-sm font-bold text-slate-200">{copy.additionalConnectionsTitle}</h2>
       <dl className="mt-2 grid gap-2 sm:grid-cols-3">
-        {[copy.incomingEmail, copy.whatsapp, copy.apiHostingCosts].map((label) => (
+        {[copy.apiHostingCosts].map((label) => (
           <div key={label} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.08] px-3 py-2.5">
             <dt className="text-xs font-semibold text-slate-200">{label}</dt>
             <dd className="text-xs text-violet-200">{copy.notConnected}</dd>
@@ -688,7 +691,7 @@ function UnconnectedChannels() {
   );
 }
 
-export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminAiOpsCenterProps = {}) {
+export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox }: AdminAiOpsCenterProps = {}) {
   const { language, changeLanguage } = useLanguage();
   const copy = useOpsCopy();
   usePageMeta({ title: copy.pageTitle, description: copy.pageDescription });
@@ -915,16 +918,19 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
               <ReservationsPanel reservations={data.reservations} sectionId="ops-reservation" partial={reservationsPartial} />
             </div>
 
-            <InboxSummary summary={data.summary} sectionId="ops-inbox" failedSources={failedSources} />
-            <AutomationPanel items={data.automation} sectionId="ops-automation" failedSources={failedSources} />
-            <SourceHealth data={data} sectionId="ops-source" failedSources={failedSources} />
-
-            <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-slate-500">
-              <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-              {copy.readOnly}
-            </p>
           </>
         )}
+        <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
+          {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
+          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} />
+        </div>
+        {data && <>
+          <AutomationPanel items={data.automation} sectionId="ops-automation" failedSources={failedSources} />
+          <SourceHealth data={data} sectionId="ops-source" failedSources={failedSources} />
+          <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-slate-500">
+            <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{copy.readOnly}
+          </p>
+        </>}
         <div id="ops-cost" className="scroll-mt-28"><AdminRecordedAiUsage data={data?.recordedAiUsage} language={language} /></div>
         <UnconnectedChannels />
         <OwnerDispatchReadiness readiness={error ? null : data?.ownerDispatchReadiness} language={language} loading={loading} />

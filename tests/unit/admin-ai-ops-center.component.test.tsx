@@ -52,6 +52,10 @@ vi.mock('@/components/OwnerNotificationSetup', () => ({
   OwnerNotificationSetup: () => <div data-testid="owner-notification-setup" />,
 }));
 
+// The independent company-inbox request/auth/race behavior has its own component suite.
+// This suite retains the original PII-free aggregate request's exact call-count assertions.
+vi.mock('@/components/AdminExternalInbox', () => ({ AdminExternalInbox: () => <div data-testid="company-inbox" /> }));
+
 const NOW = '2026-09-01T09:00:00+09:00';
 const FOREGROUND_REFRESH_DEBOUNCE_MS = 900;
 const DAY_MS = 24 * 60 * 60 * 1000;
