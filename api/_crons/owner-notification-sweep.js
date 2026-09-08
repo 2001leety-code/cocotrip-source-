@@ -3,6 +3,9 @@ import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
   sealOwnerCursor, sourceTime, timeAtMs, timeToMs,
 } from '../_shared/owner-notification-policy.js';
+import { readCompanyGmailInboxConfig } from '../_shared/company-gmail-inbox.js';
+import { readWhatsAppInboxConfig } from '../_shared/whatsapp-inbox.js';
+import { WHATSAPP_SESSIONS_COLLECTION } from '../_shared/whatsapp-support-sessions.js';
 import {
   OWNER_CONTROL_COLLECTION, OWNER_EVENT_COLLECTION, OWNER_LEASE_MS, deliverOwnerEvent,
   newOwnerEvent, ownerEventId, pruneExpiredOwnerEvents, readSelectedOwnerDevice,
@@ -12,6 +15,7 @@ const PAGE_SIZE = 10;
 const SEND_LIMIT = 3;
 const RUN_BUDGET_MS = 40_000;
 const SETTLE_MS = 30_000;
+const OWNER_SOURCE_SCHEMA_VERSION = 2;
 
 class OwnerSourceError extends Error {
   constructor(code) { super(code); this.code = code; }
@@ -36,29 +40,65 @@ function queryTime(time, services, spec) {
   return spec.numericTime ? time.ms : services.timestamp(time);
 }
 
+function initialCursor(now, spec, config) {
+  return sealOwnerCursor({ time: timeAtMs(now, spec.numericTime), id: null }, config, spec.name);
+}
+
+function activeWhatsAppSession(session, accountId, sourceAtMs, nowMs) {
+  return session && session.policyVersion === 1 && session.accountId === accountId && session.status === 'active'
+    && Number.isSafeInteger(session.startedAtMs) && Number.isSafeInteger(session.expiresAtMs)
+    && session.startedAtMs < sourceAtMs && sourceAtMs < session.expiresAtMs && nowMs < session.expiresAtMs;
+}
+
+/** No message text, sender, subject or contact record is returned or queued. */
+async function externalInboxEventAllowed(db, data, nowMs, configs) {
+  const config = configs[data.channel];
+  if (!config?.ready || data.accountId !== config.accountId || data.sourceAtMs < config.captureStartAtMs
+    || data.expiresAtMs <= nowMs) return false;
+  if (data.channel !== 'whatsapp') return data.channel === 'email';
+  if (data.whatsappPolicyVersion !== 1 || typeof data.whatsappSessionId !== 'string') return false;
+  try {
+    const snap = await db.collection(WHATSAPP_SESSIONS_COLLECTION).doc(data.whatsappSessionId).get();
+    return snap.exists && activeWhatsAppSession(snap.data(), config.accountId, data.sourceAtMs, nowMs);
+  } catch { throw new OwnerSourceError('WHATSAPP_SESSION_READ_FAILED'); }
+}
+
 async function acquireControl(db, config, device, now, token) {
   const ref = db.collection(OWNER_CONTROL_COLLECTION).doc('v1');
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) {
       const cursors = Object.fromEntries(OWNER_SOURCES.map((spec) => [spec.name,
-        sealOwnerCursor({ time: timeAtMs(now, spec.numericTime), id: null }, config, spec.name)]));
+        initialCursor(now, spec, config)]));
       tx.create(ref, { version: 1, scope: config.scope, deviceHash: device.deviceHash,
-        activatedAtMs: now, cursors, nextSource: 0, lockToken: token, lockUntilMs: now + OWNER_LEASE_MS });
+        sourceSchemaVersion: OWNER_SOURCE_SCHEMA_VERSION, activatedAtMs: now, cursors,
+        nextSource: 0, lockToken: token, lockUntilMs: now + OWNER_LEASE_MS });
       return { code: 'INITIALIZED', ref };
     }
     const state = snap.data();
     if (state.version !== 1 || state.scope !== config.scope || state.deviceHash !== device.deviceHash) return { code: 'CONFIGURATION_CHANGED' };
-    if (!Number.isSafeInteger(state.activatedAtMs) || !Number.isSafeInteger(state.lockUntilMs) || !Number.isInteger(state.nextSource)
+    const sourceSchemaVersion = state.sourceSchemaVersion === undefined ? 1 : state.sourceSchemaVersion;
+    if (!Number.isInteger(sourceSchemaVersion) || sourceSchemaVersion < 1 || sourceSchemaVersion > OWNER_SOURCE_SCHEMA_VERSION
+      || !Number.isSafeInteger(state.activatedAtMs) || !Number.isSafeInteger(state.lockUntilMs) || !Number.isInteger(state.nextSource)
       || state.nextSource < 0 || state.nextSource >= OWNER_SOURCES.length) return { code: 'CONTROL_INVALID' };
     // Validate all persisted cursors before taking a lock. Rotation/corruption never resets the cutover.
+    const cursors = { ...(state.cursors || {}) };
+    const added = {};
     for (const spec of OWNER_SOURCES) {
-      const cursor = openOwnerCursor(state.cursors?.[spec.name], config, spec.name);
+      if (typeof cursors[spec.name] !== 'string') {
+        // Only versioned new metadata sources may start at upgrade time. A missing
+        // legacy cursor is corruption and must never silently skip its backlog.
+        if (!(spec.introducedVersion > sourceSchemaVersion)) return { code: 'CURSOR_INVALID' };
+        cursors[spec.name] = initialCursor(now, spec, config);
+        added[`cursors.${spec.name}`] = cursors[spec.name];
+      }
+      const cursor = openOwnerCursor(cursors[spec.name], config, spec.name);
       if (timeToMs(cursor.time) < state.activatedAtMs) return { code: 'CURSOR_INVALID' };
     }
     if (state.lockUntilMs > now) return { code: 'BUSY' };
-    tx.update(ref, { lockToken: token, lockUntilMs: now + OWNER_LEASE_MS });
-    return { ref, state, code: 'ACQUIRED' };
+    tx.update(ref, { lockToken: token, lockUntilMs: now + OWNER_LEASE_MS,
+      sourceSchemaVersion: OWNER_SOURCE_SCHEMA_VERSION, ...added });
+    return { ref, state: { ...state, cursors }, code: 'ACQUIRED' };
   });
 }
 
@@ -89,6 +129,10 @@ export async function ownerNotificationSweepTask(options = {}) {
   try {
     services = await (options.loadServices || loadServices)();
     const { db } = services;
+    const externalInboxConfigs = {
+      email: readCompanyGmailInboxConfig(options.env || process.env, started),
+      whatsapp: readWhatsAppInboxConfig(options.env || process.env, started),
+    };
     const device = await readSelectedOwnerDevice(services, config);
     if (!device) return { ok: false, enabled: true, code: 'OWNER_DEVICE_REQUIRED' };
     control = await acquireControl(db, config, device, started, token);
@@ -104,9 +148,9 @@ export async function ownerNotificationSweepTask(options = {}) {
         if (timeToMs(cursor.time) > upperMs) continue;
         let sourceFailure = null;
         try {
-          let query = db.collection(spec.name).where('createdAt', '>=', queryTime(cursor.time, services, spec))
-            .where('createdAt', '<=', queryTime(timeAtMs(upperMs, spec.numericTime), services, spec))
-            .orderBy('createdAt', 'asc').orderBy(services.documentId, 'asc').select(...spec.fields);
+          let query = db.collection(spec.name).where(spec.timeField, '>=', queryTime(cursor.time, services, spec))
+            .where(spec.timeField, '<=', queryTime(timeAtMs(upperMs, spec.numericTime), services, spec))
+            .orderBy(spec.timeField, 'asc').orderBy(services.documentId, 'asc').select(...spec.fields);
           if (cursor.id !== null) query = query.startAfter(queryTime(cursor.time, services, spec), cursor.id);
           const snap = await readSource(query.limit(PAGE_SIZE), 'SOURCE_QUERY_FAILED');
           let completed = true;
@@ -116,9 +160,13 @@ export async function ownerNotificationSweepTask(options = {}) {
             // Isolate the source before sealing; this is not persisted-cursor corruption.
             if (!isOwnerSourceId(doc.id)) throw new OwnerSourceError('SOURCE_ID_INVALID');
             const data = doc.data();
-            const time = sourceTime(data.createdAt, spec.numericTime);
+            const time = sourceTime(data[spec.timeField], spec.numericTime);
             if (!time || timeToMs(time) < control.state.activatedAtMs || timeToMs(time) > upperMs) throw new OwnerSourceError('SOURCE_TIME_INVALID');
             let event = eventFromSource(spec.name, doc.id, data);
+            if (event && spec.name === 'external_inbox_messages') {
+              const allowed = await externalInboxEventAllowed(db, data, now(), externalInboxConfigs);
+              if (!allowed) event = null;
+            }
             // A new confirmed mirror of a pre-activation pending booking is not a new reservation.
             if (isOwnerSourceCandidate(spec.name, data) && spec.name === 'bookings' && ['paypal-manual', 'paypal-webhook'].includes(data.provider)) {
               if (!event || typeof data.bookingRef !== 'string' || !data.bookingRef || data.bookingRef.includes('/')) throw new OwnerSourceError('SOURCE_LINK_INVALID');

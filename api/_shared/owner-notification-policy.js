@@ -3,11 +3,19 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } f
 export const OWNER_PUSH_URL = '/admin/ai-center';
 const SOURCE_BASE_FIELDS = ['createdAt', 'status', 'isTest', 'testMode'];
 export const OWNER_SOURCES = Object.freeze([
-  { name: 'pending_bookings', numericTime: false, fields: [...SOURCE_BASE_FIELDS, 'bookingRef'] },
-  { name: 'bookings', numericTime: false, fields: [...SOURCE_BASE_FIELDS, 'paypalEnvironment', 'parentOrderID', 'bookingRef', 'provider'] },
-  { name: 'mood_bookings', numericTime: true, fields: SOURCE_BASE_FIELDS },
-  { name: 'charter_inquiries', numericTime: false, fields: SOURCE_BASE_FIELDS },
-  { name: 'cs_tickets', numericTime: false, fields: SOURCE_BASE_FIELDS },
+  { name: 'pending_bookings', timeField: 'createdAt', numericTime: false, fields: [...SOURCE_BASE_FIELDS, 'bookingRef'] },
+  { name: 'bookings', timeField: 'createdAt', numericTime: false, fields: [...SOURCE_BASE_FIELDS, 'paypalEnvironment', 'parentOrderID', 'bookingRef', 'provider'] },
+  { name: 'mood_bookings', timeField: 'createdAt', numericTime: true, fields: SOURCE_BASE_FIELDS },
+  { name: 'charter_inquiries', timeField: 'createdAt', numericTime: false, fields: SOURCE_BASE_FIELDS },
+  { name: 'cs_tickets', timeField: 'createdAt', numericTime: false, fields: SOURCE_BASE_FIELDS },
+  // Inbox rows are selected without sender, subject or body. The worker rechecks
+  // the active WhatsApp session before it can enqueue a generic owner event.
+  { name: 'external_inbox_messages', timeField: 'receivedAtMs', numericTime: true, introducedVersion: 2,
+    fields: ['receivedAtMs', 'sourceAtMs', 'expiresAtMs', 'channel', 'accountId', 'whatsappPolicyVersion', 'whatsappSessionId'] },
+  // A new customer-chat marker is written separately from chat text. Old sessions
+  // lack this marker and are intentionally never backfilled into owner push.
+  { name: 'chat_sessions', timeField: 'ownerNotificationAt', numericTime: false, introducedVersion: 2,
+    fields: ['ownerNotificationAt', 'ownerNotificationEligible'] },
 ]);
 export const OWNER_SOURCE_FIELDS = Object.freeze([...new Set(OWNER_SOURCES.flatMap((spec) => spec.fields))]);
 const COPY = Object.freeze({
@@ -103,6 +111,14 @@ export function timeToMs(time) {
 
 export function isOwnerSourceCandidate(source, data) {
   if (!OWNER_SOURCES.some((entry) => entry.name === source) || !data) return false;
+  if (source === 'external_inbox_messages') {
+    return ['email', 'whatsapp'].includes(data.channel)
+      && Number.isSafeInteger(data.sourceAtMs) && data.sourceAtMs > 0
+      && Number.isSafeInteger(data.expiresAtMs) && data.expiresAtMs > data.sourceAtMs
+      && validId(data.accountId, 128)
+      && (data.channel !== 'whatsapp' || (data.whatsappPolicyVersion === 1 && HEX.test(data.whatsappSessionId)));
+  }
+  if (source === 'chat_sessions') return data.ownerNotificationEligible === true;
   if (data.isTest === true || data.testMode === true || data.paypalEnvironment === 'sandbox') return false;
   const status = value(data.status).toLowerCase();
   return source === 'charter_inquiries' || source === 'cs_tickets'
@@ -112,7 +128,7 @@ export function isOwnerSourceCandidate(source, data) {
 
 export function eventFromSource(source, id, data) {
   if (!isOwnerSourceId(id) || !isOwnerSourceCandidate(source, data)) return null;
-  if (source === 'charter_inquiries' || source === 'cs_tickets') {
+  if (['charter_inquiries', 'cs_tickets', 'external_inbox_messages', 'chat_sessions'].includes(source)) {
     return { kind: 'inquiry', eventKey: ownerHash('inquiry', source, id) };
   }
   const canonical = source === 'bookings' ? data.parentOrderID || data.bookingRef || id : data.bookingRef || id;

@@ -22,6 +22,7 @@
 import { initAdminDb } from './firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { translate } from './translator.js';
+import { telegramReplyIdentity, readTelegramReplyReceipt, commitTelegramReply, sendTelegramReplyConfirmation } from './telegram-reply-delivery.js';
 
 /**
  * 인쿼리 메시지 → 세션 매핑 저장.
@@ -73,6 +74,11 @@ export async function saveChatMessage({ sessionId, from, text, adminName, origin
     sessionRef.set({
       lastMessageAt: FieldValue.serverTimestamp(),
       lastMessageFrom: from,
+      ...(from === 'customer' ? {
+        // Metadata only. Owner push scans this timestamp, never the message text.
+        ownerNotificationEligible: true,
+        ownerNotificationAt: FieldValue.serverTimestamp(),
+      } : {}),
       ...(ownerFields || {}),
     }, { merge: true }),
   ]);
@@ -95,10 +101,20 @@ export async function saveChatMessage({ sessionId, from, text, adminName, origin
  *   translationFailed?: boolean,
  * }>}
  */
-export async function relayAdminReply({ replyToMessageId, text, adminName }) {
+export async function relayAdminReply({ replyToMessageId, text, adminName, botNamespace, updateId }) {
   if (!replyToMessageId || !text) return { relayed: false };
+  // Legacy main-bot caller has no update_id yet. Keep its existing contract, never key by reply target.
+  const identity = botNamespace !== undefined || updateId !== undefined
+    ? telegramReplyIdentity({ botNamespace, updateId, replyToMessageId, text, adminName: adminName || '관리자' }) : null;
   const db = initAdminDb('chat-relay');
-  if (!db) return { relayed: false };
+  if (!db) {
+    if (identity) throw new Error('RELAY_DATABASE_UNAVAILABLE');
+    return { relayed: false };
+  }
+  if (identity) {
+    const completed = await readTelegramReplyReceipt(db, identity);
+    if (completed) return completed;
+  }
 
   const mapDoc = await db.collection('inquiry_messages').doc(String(replyToMessageId)).get();
   if (!mapDoc.exists) {
@@ -122,13 +138,21 @@ export async function relayAdminReply({ replyToMessageId, text, adminName }) {
       } else {
         translationFailed = true;
       }
-    } catch (err) {
-      console.warn('[chat-relay.relayAdminReply] translate failed:', err.message);
+    } catch {
+      console.warn('[chat-relay.relayAdminReply] translate failed');
       translationFailed = true;
     }
   }
 
-  await saveChatMessage({
+  if (identity) {
+    const payload = { from: 'admin', text: displayText, adminName: adminName || null,
+      ts: FieldValue.serverTimestamp(), language: targetLang };
+    if (translated && text !== displayText) payload.originalText = text;
+    if (translationFailed) payload.translationFailed = true;
+    return commitTelegramReply({ db, identity, sessionId, targetLang, payload,
+      outcome: { translated, translationFailed }, timestamp: () => FieldValue.serverTimestamp() });
+  }
+  const saved = await saveChatMessage({
     sessionId,
     from: 'admin',
     text: displayText,
@@ -137,7 +161,14 @@ export async function relayAdminReply({ replyToMessageId, text, adminName }) {
     language: targetLang,
     translationFailed,
   });
-  return { relayed: true, sessionId, targetLang, translated, translationFailed };
+  return { relayed: saved === true, sessionId, targetLang, translated, translationFailed };
+}
+
+export async function confirmAdminReply({ replyToMessageId, text, adminName, botNamespace, updateId, send }) {
+  const identity = telegramReplyIdentity({ botNamespace, updateId, replyToMessageId, text, adminName: adminName || '관리자' });
+  const db = initAdminDb('chat-relay');
+  if (!db) throw new Error('RELAY_DATABASE_UNAVAILABLE');
+  return sendTelegramReplyConfirmation({ db, identity, send, timestamp: () => FieldValue.serverTimestamp() });
 }
 
 /**

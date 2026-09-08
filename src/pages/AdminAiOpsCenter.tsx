@@ -30,6 +30,7 @@ import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchR
 import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
 import { AdminExternalInbox } from '@/components/AdminExternalInbox';
 import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
+import { AdminChannelReadiness, type ChannelResponseReadiness } from '@/components/AdminChannelReadiness';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -110,6 +111,7 @@ interface SourceState {
 }
 
 export interface OpsCenterData {
+  channelResponseReadiness?: ChannelResponseReadiness;
   ownerDispatchReadiness?: OwnerDispatchReadinessSnapshot;
   generatedAt: string;
   recordedAiUsage?: RecordedAiUsage;
@@ -921,6 +923,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
           </>
         )}
         <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
+          <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
           <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} />
         </div>

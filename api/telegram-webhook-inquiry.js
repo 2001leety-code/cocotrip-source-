@@ -18,7 +18,7 @@
  *   - TELEGRAM_CHAT_ID 일치 검증 (외부 chat_id 무시)
  */
 import { sendBotMessage, verifyWebhookSecret, parseUpdate } from './_shared/telegram-bot.js';
-import { relayAdminReply } from './_shared/chat-relay.js';
+import { relayAdminReply, confirmAdminReply } from './_shared/chat-relay.js';
 
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
@@ -101,16 +101,22 @@ export default async function handler(req, res) {
     return;
   }
 
-  console.log(`[${BOT_TAG}-webhook] cmd:`, parsed.command, '| reply:', parsed.replyToMessageId);
-
   try {
     // 인쿼리 메시지에 reply → 고객 채팅으로 릴레이
     if (parsed.replyToMessageId && parsed.text && !parsed.command) {
-      const result = await relayAdminReply({
+      // Public bot-id prefix is not a token secret. Replacing the bot must create a new namespace.
+      const botId = botToken.split(':')[0];
+      if (!/^\d{1,32}$/.test(botId) || !Number.isSafeInteger(body.update_id) || body.update_id < 0) {
+        res.status(400).json({ ok: false, error: 'INVALID_RELAY_UPDATE' });
+        return;
+      }
+      const relayInput = {
         replyToMessageId: parsed.replyToMessageId,
         text: parsed.text,
         adminName: parsed.fromName || '관리자',
-      });
+        botNamespace: `${BOT_TAG}:${botId}`, updateId: body.update_id,
+      };
+      const result = await relayAdminReply(relayInput);
       if (result.relayed) {
         const langTag = result.targetLang && result.targetLang !== 'ko' ? ` (${result.targetLang})` : '';
         const transTag = result.translationFailed
@@ -118,8 +124,14 @@ export default async function handler(req, res) {
           : result.translated
             ? `\n🌐 자동 번역 적용 (한글 → ${result.targetLang})`
             : '';
-        await sendBotMessage(botToken, parsed.chatId,
-          `✓ 고객에게 전달${langTag}\n세션: <code>${result.sessionId}</code>${transTag}`);
+        const confirmation = await confirmAdminReply({ ...relayInput, send: () => sendBotMessage(botToken, parsed.chatId,
+          `✓ 고객에게 전달${langTag}\n세션: <code>${result.sessionId}</code>${transTag}`) });
+        if (confirmation.retry) {
+          res.status(503).json({ ok: false, error: 'CONFIRMATION_RETRY' });
+          return;
+        }
+        res.status(200).json({ ok: true, confirmation: confirmation.status });
+        return;
       } else {
         await sendBotMessage(botToken, parsed.chatId,
           `매핑된 채팅 세션을 찾을 수 없습니다.\n` +
@@ -155,8 +167,8 @@ export default async function handler(req, res) {
         `자세한 가이드: <code>설명</code>`);
     }
     res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error(`[${BOT_TAG}-webhook] error:`, err);
-    res.status(200).json({ ok: false, error: err.message });
+  } catch {
+    console.error(`[${BOT_TAG}-webhook] failed`);
+    res.status(503).json({ ok: false, error: 'INQUIRY_RETRY' });
   }
 }
