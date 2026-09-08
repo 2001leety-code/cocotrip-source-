@@ -26,6 +26,43 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('company inbox read-only interaction', () => {
+  it('filters, searches and sorts loaded summaries without new requests or body reads', async () => {
+    network.mockResolvedValue(ok({ ...fixture, messages: [message, { ...messageTwo, sourceAtMs: NOW - 9000 }] }));
+    render(<AdminExternalInbox language="ko" />);
+    await screen.findByText('SYNTHETIC inquiry');
+    fireEvent.change(screen.getByLabelText('채널'), { target: { value: 'whatsapp' } });
+    expect(screen.queryByText('SYNTHETIC inquiry')).toBeNull();
+    expect(screen.getByText(messageTwo.sender)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('제목·발신자 검색'), { target: { value: 'not-found' } });
+    expect(screen.getByText(adminExternalInboxCopy.ko.noMatches)).toBeTruthy();
+    expect(screen.queryByText(adminExternalInboxCopy.ko.empty)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '검색·필터 초기화' }));
+    fireEvent.change(screen.getByLabelText('정렬'), { target: { value: 'oldest' } });
+    expect(screen.getAllByRole('listitem')[0].textContent).toContain(messageTwo.sender);
+    expect(network).toHaveBeenCalledTimes(1);
+  });
+  it('closes an open detail and resets pagination when the filter changes', () => {
+    const messages = Array.from({ length: 7 }, (_, index) => ({ ...message, id: index.toString(16).padStart(64, '0'), subject: `SYNTHETIC ${index + 1}` }));
+    render(<AdminExternalInbox language="ko" previewMode previewData={{ ...fixture, messages }} />);
+    fireEvent.click(screen.getByRole('button', { name: '다음 문의' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '내용 보기' })[0]);
+    expect(screen.getByText('[Synthetic preview message]')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('제목·발신자 검색'), { target: { value: 'SYNTHETIC 1' } });
+    expect(screen.queryByText('[Synthetic preview message]')).toBeNull();
+    expect(screen.getByText('SYNTHETIC 1')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '다음 문의' })).toBeNull();
+    expect(network).not.toHaveBeenCalled();
+  });
+  it('clears search and filters with all old account content on account change', async () => {
+    const view = render(<AdminExternalInbox language="ko" />);
+    await screen.findByText('SYNTHETIC inquiry');
+    fireEvent.change(screen.getByLabelText('제목·발신자 검색'), { target: { value: 'SYNTHETIC' } });
+    auth.user = { uid: 'different-synthetic-owner', getIdToken: vi.fn().mockResolvedValue('different-token') };
+    view.rerender(<AdminExternalInbox language="ko" />);
+    expect(screen.queryByLabelText('제목·발신자 검색')).toBeNull();
+    await screen.findByText('SYNTHETIC inquiry');
+    expect((screen.getByLabelText('제목·발신자 검색') as HTMLInputElement).value).toBe('');
+  });
   it('loads summaries only and fetches body only after explicit expansion', async () => {
     render(<AdminExternalInbox language="ko" />);
     await screen.findByText('SYNTHETIC inquiry');

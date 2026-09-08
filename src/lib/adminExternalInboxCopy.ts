@@ -4,6 +4,8 @@ export const adminExternalInboxCopy = {
   ko: {
     title: '회사 메일 · WhatsApp', subtitle: '받은 문의를 한곳에서 확인합니다. 자동 발송은 꺼져 있습니다.',
     email: '회사 Gmail', whatsapp: 'WhatsApp', refresh: '문의 새로고침', loading: '문의 확인 중',
+    allChannels: '모든 채널', channelLabel: '채널', searchLabel: '제목·발신자 검색', orderLabel: '정렬', newest: '최근 문의부터', oldest: '오래된 문의부터', clearFilters: '검색·필터 초기화', noMatches: '조회한 목록에서 일치하는 문의가 없습니다.',
+    filterScope: '검색·정렬은 불러온 목록에만 적용됩니다. 본문은 검색하지 않습니다.',
     failed: '문의를 확인하지 못했습니다. 연결 상태와 목록을 다시 확인해 주세요.',
     empty: '현재 조회 범위에 수신한 문의가 없습니다.', disconnected: '수신 연결이 아직 완료되지 않았습니다.',
     show: '내용 보기', close: '내용 닫기', noSubject: '제목 없음', noSender: '발신자 확인 필요',
@@ -19,6 +21,8 @@ export const adminExternalInboxCopy = {
   en: {
     title: 'Company email · WhatsApp', subtitle: 'Check incoming inquiries together. Automatic sending is off.',
     email: 'Company Gmail', whatsapp: 'WhatsApp', refresh: 'Refresh inquiries', loading: 'Checking inquiries',
+    allChannels: 'All channels', channelLabel: 'Channel', searchLabel: 'Search subject or sender', orderLabel: 'Sort', newest: 'Newest first', oldest: 'Oldest first', clearFilters: 'Reset search and filters', noMatches: 'No matching inquiries in the loaded list.',
+    filterScope: 'Search and sorting apply only to the loaded list. Message bodies are not searched.',
     failed: 'Unable to check inquiries. Please refresh the connection status and list.',
     empty: 'No received inquiries in the current view.', disconnected: 'Incoming connections are not complete yet.',
     show: 'View content', close: 'Close content', noSubject: 'No subject', noSender: 'Sender unavailable',
@@ -34,6 +38,8 @@ export const adminExternalInboxCopy = {
   ja: {
     title: '業務メール · WhatsApp', subtitle: '受信したお問い合わせをまとめて確認。自動送信は無効です。',
     email: '業務用 Gmail', whatsapp: 'WhatsApp', refresh: 'お問い合わせを更新', loading: 'お問い合わせを確認中',
+    allChannels: 'すべてのチャネル', channelLabel: 'チャネル', searchLabel: '件名・送信者を検索', orderLabel: '並び順', newest: '新しい順', oldest: '古い順', clearFilters: '検索・絞り込みをリセット', noMatches: '取得した一覧に一致するお問い合わせはありません。',
+    filterScope: '検索・並び替えは取得した一覧のみが対象です。本文は検索しません。',
     failed: 'お問い合わせを確認できませんでした。接続状態と一覧を再度確認してください。',
     empty: '現在の表示範囲に受信したお問い合わせはありません。', disconnected: '受信接続はまだ完了していません。',
     show: '内容を見る', close: '内容を閉じる', noSubject: '件名なし', noSender: '送信者の確認が必要',
@@ -49,6 +55,8 @@ export const adminExternalInboxCopy = {
   zh: {
     title: '公司邮件 · WhatsApp', subtitle: '集中查看收到的咨询。自动发送已关闭。',
     email: '公司 Gmail', whatsapp: 'WhatsApp', refresh: '刷新咨询', loading: '正在检查咨询',
+    allChannels: '所有渠道', channelLabel: '渠道', searchLabel: '搜索主题或发件人', orderLabel: '排序', newest: '最新优先', oldest: '最早优先', clearFilters: '重置搜索和筛选', noMatches: '已加载的列表中没有匹配的咨询。',
+    filterScope: '搜索和排序仅适用于已加载的列表，不搜索消息正文。',
     failed: '无法检查咨询，请刷新连接状态和列表。',
     empty: '当前查看范围内没有收到的咨询。', disconnected: '接收连接尚未完成。',
     show: '查看内容', close: '关闭内容', noSubject: '无主题', noSender: '需要确认发件人',

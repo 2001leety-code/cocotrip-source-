@@ -536,6 +536,91 @@ describe('AdminAiOpsCenter 운영 우선 배치와 부분 실패', () => {
   });
 });
 
+describe('AdminAiOpsCenter 최근 조회 범위 안내', () => {
+  it.each((['ko', 'en', 'ja', 'zh'] as Language[]).flatMap((language) =>
+    (['recent', 'limited', 'unknown'] as const).map((state) => ({ language, state })),
+  ))('$language $state 상태를 요약 위에 펼쳐 표시하고 조회를 추가하지 않는다', ({ language, state }) => {
+    const data = makeOpsData();
+    if (state === 'limited') data.sources[0].possiblyTruncated = true;
+    if (state === 'unknown') data.sources = [];
+    renderPage({ previewData: data });
+    fireEvent.change(screen.getByRole('combobox', { name: '화면 언어' }), { target: { value: language } });
+    const copy = adminAiOpsCopy[language];
+    const note = screen.getByRole('note', { name: copy.queryRangeLabel });
+    expect(note).toHaveTextContent(state === 'limited' ? copy.queryRangeLimited(180)
+      : state === 'recent' ? copy.queryRangeRecent(180) : copy.queryRangeUnknown);
+    expect(note.closest('details')).toBeNull();
+    const summary = screen.getByRole('region', { name: copy.summaryLabel });
+    expect(note.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary).toHaveAttribute('aria-describedby', note.id);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(authUser.getIdToken).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 0, -1, 1.5, NaN, Infinity, '180'])('잘못된 한도 %s를 정상 조회 범위로 보이지 않게 한다', (limit) => {
+    const data = makeOpsData();
+    data.window.perSourceLimit = limit as number;
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeUnknown);
+    expect(document.getElementById('ops-source')).not.toHaveTextContent(/undefined|NaN|Infinity/);
+  });
+
+  it.each(['sources', 'window', 'possiblyTruncated'] as const)('%s 누락은 명시적 false와 달리 범위 미확인이다', (field) => {
+    const data = makeOpsData();
+    if (field === 'possiblyTruncated') Reflect.deleteProperty(data.sources[0], field);
+    else Reflect.deleteProperty(data, field);
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeUnknown);
+  });
+
+  it.each([false, true])('실패한 출처의 잘림값 %s는 성공한 조회 범위의 근거로 쓰지 않는다', (possiblyTruncated) => {
+    const data = makeOpsData();
+    data.sources[0] = { ...data.sources[0], ok: false, possiblyTruncated };
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeUnknown);
+    expect(screen.getByRole('alert')).toHaveTextContent(adminAiOpsCopy.ko.partialErrorTitle);
+  });
+
+  it('부분오류 목록에 있는 출처는 성공 플래그가 남아 있어도 조회 범위 정상으로 간주하지 않는다', () => {
+    const data = makeOpsData({ partialErrors: ['bookings'] });
+    data.sources[0].possiblyTruncated = true;
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeUnknown);
+  });
+
+  it('성공 출처 제한과 다른 출처 실패는 함께 표시하며 성공 업무·수량·링크는 유지한다', () => {
+    const data = makeOpsData({ workItems: makeWorkItems(1) });
+    data.summary.actionRequired = 1;
+    data.sources[0].possiblyTruncated = true;
+    data.sources.push({ key: 'charter_inquiries', label: '문의', ok: false, count: 0, possiblyTruncated: false });
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeLimited(180));
+    expect(screen.getByRole('alert')).toHaveTextContent(adminAiOpsCopy.ko.partialErrorTitle);
+    expect(screen.getByRole('link', { name: /가짜 확인 업무 1/ })).toHaveAttribute('href', data.workItems[0].deepLink);
+    expect(screen.getByRole('region', { name: adminAiOpsCopy.ko.summaryLabel })).toHaveTextContent('1');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('제한 도달을 확인했지만 한도 숫자는 없으면 숫자를 추측하지 않는다', () => {
+    const data = makeOpsData();
+    data.sources[0].possiblyTruncated = true;
+    Reflect.deleteProperty(data, 'window');
+    renderPage({ previewData: data });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeLimited(null));
+  });
+
+  it('새 자료에서 제한이 해소되면 같은 화면 안내도 중립 범위로 바뀐다', () => {
+    const limited = makeOpsData();
+    limited.sources[0].possiblyTruncated = true;
+    const view = renderPage({ previewData: limited });
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeLimited(180));
+    view.rerender(<PageHarness previewData={makeOpsData()} />);
+    expect(screen.getByRole('note', { name: adminAiOpsCopy.ko.queryRangeLabel })).toHaveTextContent(adminAiOpsCopy.ko.queryRangeRecent(180));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('AdminAiOpsCenter 화면 언어와 미리보기 자료 교체', () => {
   it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s 발신 재시도 업무 제목만 구분하고 서버 수량·다음 행동·링크를 보존한다', async (language) => {
     const emailWork: OpsCenterData['workItems'][number] = {

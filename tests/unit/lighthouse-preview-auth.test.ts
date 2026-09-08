@@ -201,6 +201,7 @@ describe('Lighthouse CI wiring source contracts', () => {
     expect(workflow).toContain('test ! -e "$run_dir/.lighthouseci"');
     expect(workflow.indexOf('node "$LHCI_CLI" collect')).toBeLessThan(workflow.indexOf('node "$LHCI_CLI" assert'));
     expect(workflow.indexOf('node "$LHCI_CLI" assert')).toBeLessThan(workflow.indexOf('Verify real pages and safe result summary'));
+    expect(workflow).toContain('trusted-lighthouse/scripts/verify-lighthouse-preview.mjs" --safe-assertions-summary');
     expect(workflow).toContain("if: always() && steps.collect.outcome == 'success'");
     expect(workflow).not.toMatch(/continue-on-error:|upload-artifact@|temporaryPublicStorage:|node "\$LHCI_CLI" upload/);
     expect(config.ci.upload).toBeUndefined();

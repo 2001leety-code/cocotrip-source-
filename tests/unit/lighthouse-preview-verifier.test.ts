@@ -3,6 +3,8 @@ import path from 'node:path';
 import {
   readLighthousePreviewArtifacts,
   runLighthousePreviewCli,
+  runSafeAssertionSummaryCli,
+  safeLighthouseAssertionSummary,
   verifyLighthousePreview,
 } from '../../scripts/verify-lighthouse-preview.mjs';
 
@@ -52,6 +54,7 @@ function memoryArtifacts() {
         isSymbolicLink: () => links.has(filename),
         isDirectory: () => filename === directory,
         isFile: () => files.has(filename),
+        size: files.get(filename)?.length || 0,
       };
     }),
     readdirSync: vi.fn(() => [...files.keys()].map((filename) => path.basename(filename))),
@@ -86,6 +89,88 @@ describe('pure Lighthouse preview result verification', () => {
     input.assertionResults = [assertion({ passed: true, actual: 0.85 })];
     input.reports[0].categories.performance.score = 0.2;
     expect(verifyLighthousePreview(input).ok).toBe(true);
+  });
+
+  it('returns only fixed policy audit IDs and finite reviewed metric values', () => {
+    const output = safeLighthouseAssertionSummary([
+      assertion({ message: PRIVATE_TEXT, url: `https://elsewhere.invalid/?key=${PRIVATE_TEXT}` }),
+      assertion({ auditId: 'largest-contentful-paint', auditProperty: undefined, name: 'maxNumericValue', level: 'warn', expected: 4000, actual: 4001 }),
+      assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 }),
+      assertion({ auditId: 'unused-javascript', auditProperty: undefined, name: 'maxLength', expected: 0, actual: 3 }),
+      assertion({ auditId: 'image-alt', auditProperty: undefined, name: 'auditRan', expected: 1, actual: 0 }),
+      assertion({ auditProperty: 'performance', level: 'warn', expected: 0.5, actual: 0.4 }),
+    ]);
+    expect(output).toEqual({
+      failures: [
+        { auditId: 'categories:accessibility', level: 'error', actual: 0.84, expected: 0.85 },
+        { auditId: 'largest-contentful-paint', level: 'warn', actual: 4001, expected: 4000 },
+        { auditId: 'document-title', level: 'error', actual: 0.8, expected: 0.9 },
+        { auditId: 'unused-javascript', level: 'error', actual: 3, expected: 0 },
+        { auditId: 'image-alt', level: 'error', actual: 0, expected: 1 },
+        { auditId: 'categories:performance', level: 'warn', actual: 0.4, expected: 0.5 },
+      ],
+      unknownCount: 0,
+      suppressedCount: 0,
+    });
+    expect(JSON.stringify(output)).not.toContain(PRIVATE_TEXT);
+  });
+
+  it.each([
+    ['performance', 'warn', 0.5, 0.4],
+    ['accessibility', 'error', 0.85, 0.84],
+    ['best-practices', 'warn', 0.8, 0.79],
+    ['seo', 'warn', 0.85, 0.84],
+  ])('uses the reviewed categories:%s metric and expected threshold', (category, level, expected, actual) => {
+    const output = safeLighthouseAssertionSummary([
+      assertion({ auditProperty: category, level, expected, actual }),
+    ]);
+    expect(output).toEqual({
+      failures: [{ auditId: `categories:${category}`, level, actual, expected }],
+      unknownCount: 0,
+      suppressedCount: 0,
+    });
+  });
+
+  it.each([
+    ['first-contentful-paint', 3000, 3001],
+    ['largest-contentful-paint', 4000, 4001],
+    ['cumulative-layout-shift', 0.15, 0.16],
+    ['total-blocking-time', 600, 601],
+  ])('uses the reviewed %s maxNumericValue warning threshold', (auditId, expected, actual) => {
+    const output = safeLighthouseAssertionSummary([
+      assertion({ auditId, auditProperty: undefined, name: 'maxNumericValue', level: 'warn', expected, actual }),
+    ]);
+    expect(output).toEqual({
+      failures: [{ auditId, level: 'warn', actual, expected }],
+      unknownCount: 0,
+      suppressedCount: 0,
+    });
+  });
+
+  it.each([
+    assertion({ passed: true }),
+    assertion({ level: 'warn' }),
+    assertion({ expected: 0.84 }),
+    assertion({ actual: Infinity }),
+    assertion({ actual: -0.1 }),
+    assertion({ auditId: 'categories', auditProperty: 'performance' }),
+    { auditId: 'categories', auditProperty: 'accessibility', name: 'minScore', level: 'error', passed: false, expected: '0.85', actual: 0.84, url: PRIVATE_TEXT, message: PRIVATE_TEXT },
+    assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 1_000_001 }),
+  ])('does not expose malformed or free-form assertion data', value => {
+    expect(safeLighthouseAssertionSummary([value]).failures).toEqual([]);
+  });
+
+  it('caps output while preserving fixed unknown and suppressed counts', () => {
+    const valid = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
+    const unknown = assertion({ auditId: `untrusted-${PRIVATE_TEXT}`, auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
+    const malformed = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.91, actual: 0.8 });
+    const output = safeLighthouseAssertionSummary([
+      ...Array.from({ length: 21 }, () => valid), ...Array.from({ length: 100 }, () => unknown), malformed,
+    ]);
+    expect(output.failures).toHaveLength(20);
+    expect(output.unknownCount).toBe(99);
+    expect(output.suppressedCount).toBe(2);
+    expect(JSON.stringify(output)).not.toContain(PRIVATE_TEXT);
   });
 
   it.each([undefined, [], [report()], [report('/'), report('/tours')]])('rejects missing reports (%j)', (reports) => {
@@ -239,6 +324,37 @@ describe('offline fixed-directory CLI adapter', () => {
     expect(stderr.write).toHaveBeenCalledWith('LIGHTHOUSE_PREVIEW_FAIL ASSERTION_URL_MISMATCH,REQUIRED_ASSERTION_FAILED\n');
     expect(JSON.stringify([...stdout.write.mock.calls, ...stderr.write.mock.calls])).not.toContain(PRIVATE_TEXT);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('prints the fixed safe assertion summary from the only permitted artifact filename', () => {
+    const memory = memoryArtifacts();
+    const stdout = { write: vi.fn() };
+    memory.files.set(path.join(memory.directory, 'assertion-results.json'), JSON.stringify([
+      assertion({ message: PRIVATE_TEXT, url: `https://vercel.com/login?key=${PRIVATE_TEXT}` }),
+    ]));
+    expect(runSafeAssertionSummaryCli({ ...memory, stdout })).toBe(0);
+    expect(stdout.write).toHaveBeenCalledWith('LHCI_ASSERTIONS_SAFE {"failures":[{"auditId":"categories:accessibility","level":"error","actual":0.84,"expected":0.85}],"unknownCount":0,"suppressedCount":0}\n');
+    expect(JSON.stringify(stdout.write.mock.calls)).not.toContain(PRIVATE_TEXT);
+    expect(runLighthousePreviewCli(['--safe-assertions-summary'], { ...memory, stdout })).toBe(0);
+  });
+
+  it('uses a fixed unavailable code when the assertion artifact is unsafe or unreadable', () => {
+    const memory = memoryArtifacts();
+    const stdout = { write: vi.fn() };
+    memory.links.add(path.join(memory.directory, 'assertion-results.json'));
+    expect(runSafeAssertionSummaryCli({ ...memory, stdout })).toBe(0);
+    expect(stdout.write).toHaveBeenCalledWith('LHCI_ASSERTIONS_SAFE_UNAVAILABLE\n');
+    expect(JSON.stringify(stdout.write.mock.calls)).not.toContain(PRIVATE_TEXT);
+  });
+
+  it('refuses an oversized assertion artifact before reading it', () => {
+    const memory = memoryArtifacts();
+    const stdout = { write: vi.fn() };
+    const filename = path.join(memory.directory, 'assertion-results.json');
+    memory.files.set(filename, 'x'.repeat(2 * 1024 * 1024 + 1));
+    expect(runSafeAssertionSummaryCli({ ...memory, stdout })).toBe(0);
+    expect(stdout.write).toHaveBeenCalledWith('LHCI_ASSERTIONS_SAFE_UNAVAILABLE\n');
+    expect(memory.filesystem.readFileSync).not.toHaveBeenCalled();
   });
 
   it('rejects arbitrary file arguments and invalid origins before reading any artifact', () => {

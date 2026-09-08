@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { Language } from '@/i18n';
 import { adminExternalInboxCopy, isExternalInboxDetail, isExternalInboxOverview, type ExternalInboxMessage, type ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
 import { AdminWhatsAppPrivacy } from '@/components/AdminWhatsAppPrivacy';
+import { selectInboxMessages } from '@/lib/selectInboxMessages';
 
 interface Props { language: Language; previewMode?: boolean; previewData?: ExternalInboxOverview; refreshKey?: number | null }
 type Account = { uid: string; getIdToken: () => Promise<string> } | null;
@@ -35,8 +36,12 @@ function InboxContent({ language, previewMode = false, previewData, refreshKey, 
   const [detailFailed, setDetailFailed] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const visiblePage = Math.min(page, Math.max(0, Math.ceil((data?.messages.length || 0) / 5) - 1));
-  const visibleMessages = data?.messages.slice(visiblePage * 5, visiblePage * 5 + 5) || [];
+  const [channelFilter, setChannelFilter] = useState<'all' | 'email' | 'whatsapp'>('all');
+  const [query, setQuery] = useState('');
+  const [order, setOrder] = useState<'newest' | 'oldest'>('newest');
+  const filteredMessages = selectInboxMessages(data?.messages || [], { channel: channelFilter, query, order });
+  const visiblePage = Math.min(page, Math.max(0, Math.ceil(filteredMessages.length / 5) - 1));
+  const visibleMessages = filteredMessages.slice(visiblePage * 5, visiblePage * 5 + 5);
   const overviewRequest = useRef<AbortController | null>(null);
   const detailRequest = useRef<AbortController | null>(null);
   const mounted = useRef(true);
@@ -122,7 +127,27 @@ function InboxContent({ language, previewMode = false, previewData, refreshKey, 
         <dd className="mt-2 text-xs leading-5 text-slate-300">{channel.channel === 'email' ? copy.lastSync : copy.lastReceived}: {time(channel.channel === 'email' ? channel.lastSuccessAtMs : channel.lastReceivedAtMs)}</dd>
       </div>)}</dl>
       {data.listStatus !== 'unknown' && data.messages.length === 0 && <p className="mt-4 text-sm leading-6 text-slate-300">{data.listStatus === 'not_connected' ? copy.disconnected : copy.empty}</p>}
-      {data.messages.length > 0 && <ul className="mt-4 space-y-3">{visibleMessages.map(message => <li key={message.id} className="min-w-0 rounded-xl border border-white/10 p-3">
+      {data.messages.length > 0 && <div className="mt-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="min-w-0 text-xs text-slate-300">{copy.channelLabel}
+            <select aria-label={copy.channelLabel} className={`${buttonClass} mt-1 w-full bg-bg-card`} value={channelFilter} onChange={event => { close(); setPage(0); setChannelFilter(event.target.value as typeof channelFilter); }}>
+              <option value="all">{copy.allChannels}</option><option value="email">{copy.email}</option><option value="whatsapp">{copy.whatsapp}</option>
+            </select>
+          </label>
+          <label className="min-w-0 text-xs text-slate-300">{copy.orderLabel}
+            <select aria-label={copy.orderLabel} className={`${buttonClass} mt-1 w-full bg-bg-card`} value={order} onChange={event => { close(); setPage(0); setOrder(event.target.value as typeof order); }}>
+              <option value="newest">{copy.newest}</option><option value="oldest">{copy.oldest}</option>
+            </select>
+          </label>
+        </div>
+        <label className="block text-xs text-slate-300">{copy.searchLabel}
+          <input type="search" autoComplete="off" maxLength={160} className={`${buttonClass} ph-no-capture mt-1 w-full bg-bg-card font-normal`} value={query} onChange={event => { close(); setPage(0); setQuery(event.target.value); }} />
+        </label>
+        <p className="text-xs leading-5 text-slate-300">{copy.filterScope}</p>
+        {(query || channelFilter !== 'all' || order !== 'newest') && <button type="button" className={buttonClass} onClick={() => { close(); setPage(0); setQuery(''); setChannelFilter('all'); setOrder('newest'); }}>{copy.clearFilters}</button>}
+        {filteredMessages.length === 0 && <p role="status" className="text-sm leading-6 text-slate-300">{copy.noMatches}</p>}
+      </div>}
+      {filteredMessages.length > 0 && <ul className="mt-4 space-y-3">{visibleMessages.map(message => <li key={message.id} className="min-w-0 rounded-xl border border-white/10 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300"><span>{copy[message.channel]}</span><time dateTime={new Date(message.sourceAtMs).toISOString()}>{time(message.sourceAtMs)}</time></div>
         <p className="mt-2 break-words text-sm font-semibold [overflow-wrap:anywhere]">{message.channel === 'email' ? message.subject || copy.noSubject : message.sender || copy.noSender}</p>
         {message.channel === 'email' && <p className="mt-1 break-words text-xs leading-5 text-slate-300 [overflow-wrap:anywhere]">{message.sender || copy.noSender}</p>}
@@ -133,11 +158,11 @@ function InboxContent({ language, previewMode = false, previewData, refreshKey, 
           {detail && <><p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-100 [overflow-wrap:anywhere]">{detail.text || copy.emptyText}</p>{(detail.truncated || detail.channel === 'email') && <p className="mt-3 text-xs leading-5 text-slate-300">{copy.clipped}</p>}</>}
         </div>}
       </li>)}</ul>}
-      {data.messages.length > 5 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-300" role="status">{copy.range(visiblePage * 5 + 1, Math.min(visiblePage * 5 + 5, data.messages.length), data.messages.length)}</p>
+      {filteredMessages.length > 5 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-slate-300" role="status">{copy.range(visiblePage * 5 + 1, Math.min(visiblePage * 5 + 5, filteredMessages.length), filteredMessages.length)}</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClass} disabled={visiblePage === 0} onClick={() => { close(); setPage(visiblePage - 1); }}>{copy.previous}</button>
-          <button type="button" className={buttonClass} disabled={(visiblePage + 1) * 5 >= data.messages.length} onClick={() => { close(); setPage(visiblePage + 1); }}>{copy.next}</button>
+          <button type="button" className={buttonClass} disabled={(visiblePage + 1) * 5 >= filteredMessages.length} onClick={() => { close(); setPage(visiblePage + 1); }}>{copy.next}</button>
         </div>
       </div>}
       <p className="mt-4 text-xs leading-5 text-slate-300">{copy.limited}</p>
