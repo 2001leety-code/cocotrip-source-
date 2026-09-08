@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminAiOpsCenter from '@/pages/AdminAiOpsCenter';
 import type { OpsCenterData } from '@/pages/AdminAiOpsCenter';
+import type { WebchatDetail, WebchatOverview } from '@/lib/adminWebchatInboxContract';
+import { operationalWorkflowNames, type OperationalChecksData } from '@/lib/adminOperationalChecks';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -224,5 +226,26 @@ export default function AdminAiOpsCenterDevHarness() {
   const previewData = useMemo(() => createPreviewData(now, search), [now, search]);
   // Static presentation scenario only; this does not simulate or send a network request.
   const previewFailure = new URLSearchParams(search).get('scenario') === 'refresh-failed' ? '가상 갱신 실패' : undefined;
-  return <AdminAiOpsCenter previewData={previewData} previewFailure={previewFailure} />;
+  const sessions: WebchatOverview['sessions'] = ['en', 'ko'].map((lang, index) => ({
+    sessionId: `sess_synthetic_owner_preview_${index}_chat`, lastMessageAtMs: now - (index + 1) * 60_000,
+    lastMessageFrom: 'customer', ownerType: 'guest', language: lang === 'ko' ? 'ko' : 'en',
+  }));
+  const details: Record<string, WebchatDetail> = Object.fromEntries(sessions.map(session => [session.sessionId, {
+    generatedAtMs: now, session, messagesPossiblyTruncated: false,
+    messages: [{ id: 'synthetic_message_1', from: 'customer', text: session.language === 'en' ? 'Can I ask a question about my travel plan? (Synthetic test)' : '여행 일정에 관해 문의하고 싶어요. (합성 시험 자료)',
+      language: session.language, truncated: false, ts: session.lastMessageAtMs }],
+  }]));
+  const checks: OperationalChecksData = {
+    generatedAtMs: now, source: 'github-actions', historyScope: 'latest-100-scheduled-main-runs', readOnly: true,
+    checks: operationalWorkflowNames.map((workflow, index) => {
+      const run = { id: index + 1, status: index === 2 ? 'in_progress' : 'completed', conclusion: index === 2 ? null : index === 1 ? 'failure' : 'success',
+        createdAtMs: now - HOUR_MS, updatedAtMs: now - 60_000, url: `https://github.com/2001leety-code/cocotrip-source-/actions/runs/${index + 1}` };
+      return { key: workflow.slice(0, -4), workflow, latestRun: run, lastSuccessfulRun: run.conclusion === 'success' ? run : null,
+        freshness: index === 3 ? 'stale' : 'fresh', checkedAtMs: now - (index === 3 ? HOUR_MS : 0),
+        runHealth: index === 1 ? 'failed' : index === 2 ? 'running' : 'ok', maxAgeMs: (index === 0 ? 4 : 9) * DAY_MS,
+        reason: index === 3 ? 'GITHUB_TIMEOUT' : null };
+    }),
+  };
+  return <AdminAiOpsCenter previewData={previewData} previewFailure={previewFailure}
+    previewWebchat={{ generatedAtMs: now, sessions, possiblyTruncated: false }} previewWebchatDetails={details} previewOperationalChecks={checks} />;
 }
