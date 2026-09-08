@@ -260,6 +260,21 @@ function SectionJumpBar({ items }: { items: { id: string; label: string }[] }) {
           <a
             key={item.id}
             href={`#${item.id}`}
+            onFocus={(event) => {
+              const link = event.currentTarget;
+              if (!link.matches(':focus-visible')) return;
+              const nav = link.parentElement;
+              if (!nav) return;
+              const visibleLeft = nav.getBoundingClientRect().left + nav.clientLeft;
+              const visibleRight = visibleLeft + nav.clientWidth;
+              const linkRect = link.getBoundingClientRect();
+              const delta = linkRect.left < visibleLeft
+                ? linkRect.left - visibleLeft
+                : Math.max(0, linkRect.right - visibleRight);
+              if (!delta) return;
+              const maxScrollLeft = Math.max(0, nav.scrollWidth - nav.clientWidth);
+              nav.scrollLeft = Math.max(0, Math.min(maxScrollLeft, nav.scrollLeft + delta));
+            }}
             className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
           >
             {item.label}
