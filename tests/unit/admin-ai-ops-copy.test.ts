@@ -8,6 +8,8 @@ const samples: Record<string, Array<string | number | boolean>> = {
   ageHours: [5],
   ageDays: [3],
   urgentCount: [11],
+  queryRangeRecent: [180],
+  queryRangeLimited: [180],
   upcomingCount: [31],
   inquiryCounts: [5, 3],
   count: [31],
@@ -21,6 +23,12 @@ const samples: Record<string, Array<string | number | boolean>> = {
 };
 
 describe('AI operations center copy', () => {
+  it.each(languages)('%s does not claim every source query is chronologically ordered', (language) => {
+    const copy = adminAiOpsCopy[language];
+    const text = [copy.queryRangeLabel, copy.queryRangeRecent(180), copy.queryRangeLimited(180), copy.sourceDetail(180, 3)].join(' ');
+    expect(text).not.toMatch(/latest|recent records|older pending|최신|이전 대기|最新|以前の未対応|最近\d|较早待办/i);
+  });
+
   it('provides exactly the four supported screen languages', () => {
     expect(Object.keys(adminAiOpsCopy).sort()).toEqual([...languages].sort());
   });

@@ -160,6 +160,36 @@ function hasSourceFailure(failed: ReadonlySet<string>, keys: string[]) {
   return keys.some((key) => failed.has(key));
 }
 
+function recentQueryRange(data: OpsCenterData, failed: ReadonlySet<string>) {
+  const rawLimit = data.window?.perSourceLimit;
+  const limit = Number.isSafeInteger(rawLimit) && rawLimit > 0 ? rawLimit : null;
+  const sources = data.sources || [];
+  if (sources.some((source) => source.ok === true && !failed.has(source.key) && source.possiblyTruncated === true)) {
+    return { state: 'limited' as const, limit };
+  }
+  if (limit === null || sources.length === 0 || failed.size > 0
+    || sources.some((source) => source.ok !== true || source.possiblyTruncated !== false)) {
+    return { state: 'unknown' as const, limit };
+  }
+  return { state: 'recent' as const, limit };
+}
+
+function QueryRangeNotice({ data, failedSources }: { data: OpsCenterData; failedSources: ReadonlySet<string> }) {
+  const copy = useOpsCopy();
+  const range = recentQueryRange(data, failedSources);
+  const detail = range.state === 'limited' ? copy.queryRangeLimited(range.limit)
+    : range.state === 'recent' ? copy.queryRangeRecent(range.limit) : copy.queryRangeUnknown;
+  return (
+    <div id="ops-query-range" role="note" aria-label={copy.queryRangeLabel}
+      className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-xs leading-5 ${range.state === 'recent'
+        ? 'border-white/10 bg-white/[0.04] text-slate-300'
+        : 'border-amber-300/25 bg-amber-300/[0.08] text-amber-100'}`}>
+      <Inbox className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <p><b>{copy.queryRangeLabel}</b> · {detail}</p>
+    </div>
+  );
+}
+
 function useOpsCopy() {
   return adminAiOpsCopy[useLanguage().language];
 }
@@ -652,7 +682,7 @@ function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData;
         </span>
       </summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {data.sources.map((source) => (
+        {(data.sources || []).map((source) => (
           <div key={source.key} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
             {source.ok && !failedSources.has(source.key) ? (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden="true" />
@@ -667,7 +697,9 @@ function SourceHealth({ data, sectionId, failedSources }: { data: OpsCenterData;
         ))}
       </div>
       <p className="mt-3 text-[11px] leading-5 text-slate-400">
-        {copy.sourceDetail(data.window.perSourceLimit, data.deduplication.removedMirrorCount)}
+        {Number.isSafeInteger(data.window?.perSourceLimit) && data.window.perSourceLimit > 0
+          ? copy.sourceDetail(data.window.perSourceLimit, data.deduplication.removedMirrorCount)
+          : copy.queryRangeUnknown}
       </p>
     </details>
   );
@@ -887,7 +919,8 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
               ]}
             />
 
-            <section id="ops-summary" className="grid scroll-mt-28 grid-cols-2 gap-2 sm:grid-cols-4" aria-label={copy.summaryLabel}>
+            <QueryRangeNotice data={data} failedSources={failedSources} />
+            <section id="ops-summary" className="grid scroll-mt-28 grid-cols-2 gap-2 sm:grid-cols-4" aria-label={copy.summaryLabel} aria-describedby="ops-query-range">
               <SummaryCard
                 label={copy.actionRequired}
                 value={data.summary.actionRequired}

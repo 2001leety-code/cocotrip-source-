@@ -58,10 +58,19 @@ describe('chat SYSTEM_PROMPT — 가격은 pricing_spec.json SSOT 와 항상 일
   });
 
   it('스타리아 캡틴시트 프리미엄이 SSOT vehicles.staria.captain_premium_krw 와 일치', () => {
-    // 단순 toContain(krw(33000))는 옛 프롬프트의 "Overtime: ₩33,000/hour"와 숫자가
-    // 우연히 같아 오탐 통과한다(overtime_hourly 도 33000) — "captain" 문맥과 함께 확인.
+    // 다른 줄의 overtime 숫자와 매칭되던 정규식 대신 정확한 7인승 추가금 문장을 확인.
     const premium = krw(pricingSpec.vehicles.staria.captain_premium_krw);
-    expect(chatSrc).toMatch(new RegExp(`captain[\\s\\S]{0,40}${premium.replace(/[₩,]/g, '\\$&')}`, 'i'));
+    expect(chatSrc.split('\n')).toContainEqual(expect.stringContaining(`- Staria (7-pax) charter/transfer bookings add a fixed ${premium} captain-seat premium`));
+  });
+
+  it('기본요금 안내가 별도 캡틴시트 추가금 안내와 모순되지 않는다', () => {
+    const baseLine = chatSrc.split('\n').find(line => line.startsWith('- Base:')) || '';
+    const premiumLine = chatSrc.split('\n').find(line => line.startsWith('- Staria (7-pax) charter/transfer')) || '';
+    expect(baseLine).toContain('before applicable extras');
+    expect(baseLine).toContain('premium below applies in addition to this base rate');
+    expect(premiumLine).toContain(`fixed ${krw(pricingSpec.vehicles.staria.captain_premium_krw)} captain-seat premium`);
+    expect(premiumLine).toContain('already included in the Charter page quote');
+    expect(chatSrc).not.toMatch(/no captain premium|captain.{0,30}(?:free|no extra|no additional)/i);
   });
 });
 

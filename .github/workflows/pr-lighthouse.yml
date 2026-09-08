@@ -130,6 +130,9 @@ jobs:
           set -euo pipefail
           cd "$LHCI_RUN_DIR"
           if ! node "$LHCI_CLI" assert --config=./.lighthouserc.json > assert-private.log 2>&1; then
+            # The trusted-main helper emits only fixed reviewed policy labels,
+            # finite bounded values, and capped suppression counts. Raw logs/reports stay private.
+            node "$GITHUB_WORKSPACE/trusted-lighthouse/scripts/verify-lighthouse-preview.mjs" --safe-assertions-summary
             echo '::error::LHCI_ASSERT_FAILED'; exit 1
           fi
           echo 'LHCI_ASSERT_COMPLETED'

@@ -42,6 +42,10 @@ export interface AdminAiOpsCopy {
   language: string;
   setupTitle: string;
   summaryLabel: string;
+  queryRangeLabel: string;
+  queryRangeRecent: (limit: number) => string;
+  queryRangeLimited: (limit: number | null) => string;
+  queryRangeUnknown: string;
   actionRequired: string;
   urgentCount: (count: number) => string;
   todayReservations: string;
@@ -153,6 +157,10 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     language: '화면 언어',
     setupTitle: '앱 설치 및 설정',
     summaryLabel: '운영 핵심 요약',
+    queryRangeLabel: '화면 조회 범위',
+    queryRangeRecent: (limit) => `출처별 최대 ${limit}건을 조회한 결과입니다. 전체 기간 합계가 아닙니다.`,
+    queryRangeLimited: (limit) => `${limit === null ? '일부 출처가 조회 한도' : `일부 출처가 ${limit}건 조회 한도`}에 도달했습니다. 추가 대기 건이 있을 수 있습니다.`,
+    queryRangeUnknown: '조회 범위를 확인하지 못했습니다. 보이는 건수를 전체 대기 건수로 보지 마세요.',
     actionRequired: '처리할 일',
     urgentCount: (count) => `즉시·우선 ${count}건`,
     todayReservations: '오늘 예약',
@@ -208,7 +216,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allSourcesResponded: '예약·문의·자동화 조회 정상',
     sourceFailed: '실패',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}건`,
-    sourceDetail: (limit, removed) => `최근 원본별 ${limit}건 기준 · 확정된 입금 대기 중복 ${removed}건을 명시적 예약 식별자로만 정리했습니다.`,
+    sourceDetail: (limit, removed) => `출처별 최대 ${limit}건 조회 기준 · 확정된 입금 대기 중복 ${removed}건을 명시적 예약 식별자로만 정리했습니다.`,
     loadErrorTitle: '운영 자료를 불러오지 못했습니다',
     loadError: '운영 자료를 불러오지 못했습니다.',
     retry: '다시 불러오기',
@@ -261,6 +269,10 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     language: 'Screen language',
     setupTitle: 'App installation and settings',
     summaryLabel: 'Key operations summary',
+    queryRangeLabel: 'Screen query scope',
+    queryRangeRecent: (limit) => `Based on up to ${limit} queried records per source, not an all-time total.`,
+    queryRangeLimited: (limit) => `${limit === null ? 'Some sources reached their query limit' : `Some sources reached the ${limit}-record query limit`}. Additional pending items may remain outside this view.`,
+    queryRangeUnknown: 'The query scope could not be confirmed. Shown counts are not a complete pending total.',
     actionRequired: 'Action required',
     urgentCount: (count) => `${count} immediate or priority`,
     todayReservations: 'Today’s reservations',
@@ -316,7 +328,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allSourcesResponded: 'Reservation, inquiry and automation queries succeeded',
     sourceFailed: 'Failed',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''} ${count === 1 && !truncated ? 'item' : 'items'}`,
-    sourceDetail: (limit, removed) => `Based on the latest ${limit} records per source. Removed ${removed} confirmed pending-deposit duplicates using explicit reservation identifiers only.`,
+    sourceDetail: (limit, removed) => `Based on up to ${limit} queried records per source. Removed ${removed} confirmed pending-deposit duplicates using explicit reservation identifiers only.`,
     loadErrorTitle: 'Could not load operations data',
     loadError: 'Could not load operations data.',
     retry: 'Try loading again',
@@ -369,6 +381,10 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     language: '表示言語',
     setupTitle: 'アプリのインストールと設定',
     summaryLabel: '運営の主要概要',
+    queryRangeLabel: '画面の取得範囲',
+    queryRangeRecent: (limit) => `各取得元から最大${limit}件を取得した結果です。全期間の合計ではありません。`,
+    queryRangeLimited: (limit) => `${limit === null ? '一部の取得元で取得上限' : `一部の取得元で${limit}件の取得上限`}に達しました。未表示の未対応項目がほかにもある可能性があります。`,
+    queryRangeUnknown: '取得範囲を確認できませんでした。表示件数を未対応項目の全件数として扱わないでください。',
     actionRequired: '対応が必要',
     urgentCount: (count) => `即時・優先 ${count}件`,
     todayReservations: '本日の予約',
@@ -424,7 +440,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allSourcesResponded: '予約・問い合わせ・自動処理の取得は正常',
     sourceFailed: '失敗',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}件`,
-    sourceDetail: (limit, removed) => `各データ元の最新${limit}件が対象です。確定済みの入金待ちの重複${removed}件を、明示的な予約識別子だけで整理しました。`,
+    sourceDetail: (limit, removed) => `各データ元から最大${limit}件を取得した結果です。確定済みの入金待ちの重複${removed}件を、明示的な予約識別子だけで整理しました。`,
     loadErrorTitle: '運営データを読み込めませんでした',
     loadError: '運営データを読み込めませんでした。',
     retry: 'もう一度読み込む',
@@ -477,6 +493,10 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     language: '界面语言',
     setupTitle: '应用安装与设置',
     summaryLabel: '运营重点概览',
+    queryRangeLabel: '页面查询范围',
+    queryRangeRecent: (limit) => `以各来源最多${limit}条查询记录为准，并非全部历史总数。`,
+    queryRangeLimited: (limit) => `${limit === null ? '部分来源达到查询上限' : `部分来源达到${limit}条的查询上限`}。可能还有其他未显示的待办事项。`,
+    queryRangeUnknown: '无法确认查询范围。请勿将显示数量视为全部待办总数。',
     actionRequired: '待处理事项',
     urgentCount: (count) => `立即与优先 ${count}项`,
     todayReservations: '今日预约',
@@ -532,7 +552,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     allSourcesResponded: '预订、咨询及自动化查询正常',
     sourceFailed: '失败',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}项`,
-    sourceDetail: (limit, removed) => `以各数据源最近${limit}条记录为准。仅根据明确的预约标识整理了${removed}条已确认的待汇款重复记录。`,
+    sourceDetail: (limit, removed) => `以各数据源最多${limit}条查询记录为准。仅根据明确的预约标识整理了${removed}条已确认的待汇款重复记录。`,
     loadErrorTitle: '无法加载运营数据',
     loadError: '无法加载运营数据。',
     retry: '重新加载',

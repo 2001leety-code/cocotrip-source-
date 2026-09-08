@@ -4,6 +4,7 @@ import AdminAiOpsCenter from '@/pages/AdminAiOpsCenter';
 import type { OpsCenterData } from '@/pages/AdminAiOpsCenter';
 import type { WebchatDetail, WebchatOverview } from '@/lib/adminWebchatInboxContract';
 import { operationalWorkflowNames, type OperationalChecksData } from '@/lib/adminOperationalChecks';
+import type { ExternalInboxOverview } from '@/lib/adminExternalInboxCopy';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -203,6 +204,9 @@ function createPreviewData(now: number, search: string): OpsCenterData {
     return { ...source, ok: !previewData.partialErrors.includes(source.key), count };
   });
   // Deliberately omit partialErrors here to exercise the independent source flag.
+  if (params.get('query-range') === 'limited') {
+    previewData.sources[0] = { ...previewData.sources[0], possiblyTruncated: true };
+  }
   if (params.get('source-state') === 'flag-only') {
     previewData.partialErrors = [];
     previewData.sources = previewData.sources.map((source) => source.key === 'pending_email_retries' ? { ...source, ok: false } : source);
@@ -226,6 +230,19 @@ export default function AdminAiOpsCenterDevHarness() {
   const previewData = useMemo(() => createPreviewData(now, search), [now, search]);
   // Static presentation scenario only; this does not simulate or send a network request.
   const previewFailure = new URLSearchParams(search).get('scenario') === 'refresh-failed' ? '가상 갱신 실패' : undefined;
+  const externalInbox: ExternalInboxOverview | undefined = new URLSearchParams(search).get('inbox') === 'synthetic' ? {
+    generatedAtMs: now, listStatus: 'ok', possiblyTruncated: false,
+    channels: [
+      { channel: 'email', status: 'synced', lastSuccessAtMs: now, lastReceivedAtMs: null },
+      { channel: 'whatsapp', status: 'received', lastSuccessAtMs: null, lastReceivedAtMs: now },
+    ],
+    messages: Array.from({ length: 7 }, (_, index) => ({
+      id: (index + 1).toString(16).padStart(64, '0'), channel: index % 2 === 0 ? 'email' : 'whatsapp',
+      sourceAtMs: now - (index + 1) * 60_000, receivedAtMs: now,
+      sender: `synthetic-${index + 1}@example.invalid`, subject: `SYNTHETIC inquiry ${index + 1}`,
+      kind: 'text', truncated: false,
+    })),
+  } : undefined;
   const sessions: WebchatOverview['sessions'] = ['en', 'ko'].map((lang, index) => ({
     sessionId: `sess_synthetic_owner_preview_${index}_chat`, lastMessageAtMs: now - (index + 1) * 60_000,
     lastMessageFrom: 'customer', ownerType: 'guest', language: lang === 'ko' ? 'ko' : 'en',
@@ -247,5 +264,5 @@ export default function AdminAiOpsCenterDevHarness() {
     }),
   };
   return <AdminAiOpsCenter previewData={previewData} previewFailure={previewFailure}
-    previewWebchat={{ generatedAtMs: now, sessions, possiblyTruncated: false }} previewWebchatDetails={details} previewOperationalChecks={checks} />;
+    previewWebchat={{ generatedAtMs: now, sessions, possiblyTruncated: false }} previewWebchatDetails={details} previewOperationalChecks={checks} previewExternalInbox={externalInbox} />;
 }
