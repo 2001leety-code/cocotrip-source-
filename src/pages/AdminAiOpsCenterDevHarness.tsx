@@ -97,6 +97,31 @@ function createPreviewData(now: number, search: string): OpsCenterData {
     window: { perSourceLimit: 180, note: '최근 자료 기준' },
   };
 
+  // Synthetic stored-cost scenarios only. This DEV module makes no provider calls.
+  const usageState = params.get('usage-state');
+  if (['ok', 'partial', 'empty', 'unknown', 'zero', 'no-today'].includes(usageState || '')) {
+    const noRecords = usageState === 'empty' || usageState === 'unknown';
+    const recordCount = usageState === 'unknown' ? null : noRecords ? 0 : 3;
+    previewData.recordedAiUsage = {
+      source: 'api_usage', service: 'gemini', currency: 'USD', basis: 'stored-estimate',
+      coverage: 'best-effort-records-only', actualBillConnected: false,
+      status: usageState === 'partial' ? 'partial' : usageState === 'empty' ? 'empty' : usageState === 'unknown' ? 'unknown' : 'ok',
+      generatedAt: new Date(NOW).toISOString(),
+      monthStart: new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - 9 * HOUR_MS).toISOString(),
+      todayStart: new Date(dayStart).toISOString(), queryLimit: 500,
+      recordedCostUsd: noRecords ? null : usageState === 'zero' ? 0 : 1.234567,
+      todayRecordedCostUsd: noRecords || usageState === 'no-today' ? null : usageState === 'zero' ? 0 : 0.123456,
+      recordCount, todayRecordCount: usageState === 'unknown' ? null : noRecords || usageState === 'no-today' ? 0 : 2,
+      excludedCount: usageState === 'unknown' ? null : 0, limitReached: usageState === 'partial',
+      latestRecordAt: noRecords ? null : new Date(usageState === 'no-today' ? dayStart - 1000 : NOW - 1000).toISOString(),
+    };
+  }
+
+  const dispatchState = params.get('owner-dispatch');
+  if (dispatchState === 'off' || dispatchState === 'configured' || dispatchState === 'configuration_required' || dispatchState === 'unknown') {
+    previewData.ownerDispatchReadiness = { state: dispatchState, deliveryVerified: false };
+  }
+
   const pending = previewData.reservations[1];
   previewData.workItems.push({
     workItemId: pending.workItemId, type: 'reservation', sourceSystem: pending.sourceSystem,

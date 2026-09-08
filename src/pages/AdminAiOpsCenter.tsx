@@ -25,6 +25,9 @@ import type { Language } from '@/i18n';
 import { adminAiOpsCopy } from '@/lib/adminAiOpsCopy';
 import { OwnerControllerSetupPanel } from '@/components/OwnerControllerSetupPanel';
 import { OwnerNotificationSetup } from '@/components/OwnerNotificationSetup';
+import { OwnerDispatchReadiness } from '@/components/OwnerDispatchReadiness';
+import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchReadiness';
+import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
 
 type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 type ReservationFilter = 'today' | 'week' | 'all';
@@ -105,7 +108,9 @@ interface SourceState {
 }
 
 export interface OpsCenterData {
+  ownerDispatchReadiness?: OwnerDispatchReadinessSnapshot;
   generatedAt: string;
+  recordedAiUsage?: RecordedAiUsage;
   summary: OpsSummary;
   workItems: WorkItem[];
   reservations: ReservationItem[];
@@ -284,14 +289,14 @@ function RefreshBadge({
   const updated = lastFetchedAt && Number.isFinite(lastFetchedAt) ? copy.updatedAt(formatKst(lastFetchedAt, copy.locale)) : copy.refreshPending;
   if (mode === 'preview' && lastFetchedAt == null) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-400">
+      <div role="status" aria-label={copy.refreshStatus} className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-400">
         {copy.previewData}
       </div>
     );
   }
 
   return (
-    <div role="status" className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-100">
+    <div role="status" aria-label={copy.refreshStatus} className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-100">
       <p className="font-bold">{isPreview ? copy.previewMode : copy.serverMode}</p>
       <p className={`mt-0.5 text-xs ${failed ? 'text-rose-200' : partial ? 'text-amber-100' : 'text-slate-300'}`}>
         {syncing ? copy.refreshing : failed ? copy.refreshFailed : lastFetchedAt ? (partial ? copy.refreshPartial : copy.refreshComplete) : copy.refreshPending} · {updated}
@@ -759,6 +764,10 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
   const visibleWorkItems = useMemo(() => data ? data.workItems.filter((item) => item.actionRequired) : [], [data]);
   const failedSources = useMemo(() => failedSourceKeys(data), [data]);
   const partial = failedSources.size > 0;
+  const overallPartial = partial
+    || data?.recordedAiUsage?.status === 'unknown'
+    || data?.recordedAiUsage?.status === 'partial'
+    || data?.ownerDispatchReadiness?.state === 'unknown';
   const reservationsPartial = hasSourceFailure(failedSources, RESERVATION_SOURCES);
   const inquiriesPartial = hasSourceFailure(failedSources, [...WEB_INQUIRY_SOURCES, 'cs_tickets']);
 
@@ -798,7 +807,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
       </header>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-8">
-        <RefreshBadge mode={mode} lastFetchedAt={visibleTimestamp} syncing={loading} isPreview={!serverMode} failed={Boolean(error)} partial={partial} />
+        <RefreshBadge mode={mode} lastFetchedAt={visibleTimestamp} syncing={loading} isPreview={!serverMode} failed={Boolean(error)} partial={overallPartial} />
         {error && (
           <div role="alert" className="rounded-2xl border border-rose-400/30 bg-rose-400/10 p-4">
             <div className="flex items-start gap-3">
@@ -845,6 +854,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
                 { id: 'ops-reservation', label: copy.reservations },
                 { id: 'ops-inbox', label: copy.inquiries },
                 { id: 'ops-automation', label: copy.automation },
+                { id: 'ops-cost', label: copy.apiHostingCosts },
                 { id: 'ops-source', label: copy.connections },
                 { id: 'ops-settings', label: copy.settings },
               ]}
@@ -900,7 +910,9 @@ export default function AdminAiOpsCenter({ previewData, previewFailure }: AdminA
             </p>
           </>
         )}
+        <div id="ops-cost" className="scroll-mt-28"><AdminRecordedAiUsage data={data?.recordedAiUsage} language={language} /></div>
         <UnconnectedChannels />
+        <OwnerDispatchReadiness readiness={error ? null : data?.ownerDispatchReadiness} language={language} loading={loading} />
         {serverMode && <OwnerNotificationSetup />}
         <details id="ops-settings" className="scroll-mt-28 rounded-2xl border border-white/10 bg-[#181b22] p-3.5">
           <summary className="flex min-h-[44px] cursor-pointer items-center rounded-lg text-sm font-bold text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">

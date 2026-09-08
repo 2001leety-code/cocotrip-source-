@@ -8,6 +8,7 @@ export interface AdminAiOpsCopy {
   subtitle: string;
   adminHome: string;
   refresh: string;
+  refreshStatus: string;
   refreshing: string;
   refreshComplete: string;
   refreshPartial: string;
@@ -115,6 +116,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     subtitle: '예약 · 문의 · 자동화 한눈에 보기',
     adminHome: '관리자 홈으로',
     refresh: '새로고침',
+    refreshStatus: '자료 갱신 상태',
     refreshing: '갱신 중',
     refreshComplete: '갱신 완료',
     refreshPartial: '일부 자료 갱신',
@@ -197,7 +199,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     inboxLabel: '문의와 검토 바로가기',
     sourcesTitle: '자료 연결 상태',
     sourceFailures: (count) => `${count}곳 확인 실패`,
-    allSourcesResponded: '연결된 조회 대상 모두 응답',
+    allSourcesResponded: '예약·문의·자동화 조회 정상',
     sourceFailed: '실패',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}건`,
     sourceDetail: (limit, removed) => `최근 원본별 ${limit}건 기준 · 확정된 입금 대기 중복 ${removed}건을 명시적 예약 식별자로만 정리했습니다.`,
@@ -219,6 +221,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     subtitle: 'Reservations, inquiries and automation at a glance',
     adminHome: 'Back to admin home',
     refresh: 'Refresh',
+    refreshStatus: 'Data refresh status',
     refreshing: 'Refreshing',
     refreshComplete: 'Refresh complete',
     refreshPartial: 'Partially refreshed',
@@ -301,7 +304,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     inboxLabel: 'Inquiry and review shortcuts',
     sourcesTitle: 'Data connection status',
     sourceFailures: (count) => `${count} ${count === 1 ? 'source' : 'sources'} failed`,
-    allSourcesResponded: 'All connected query sources responded',
+    allSourcesResponded: 'Reservation, inquiry and automation queries succeeded',
     sourceFailed: 'Failed',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''} ${count === 1 && !truncated ? 'item' : 'items'}`,
     sourceDetail: (limit, removed) => `Based on the latest ${limit} records per source. Removed ${removed} confirmed pending-deposit duplicates using explicit reservation identifiers only.`,
@@ -323,6 +326,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     subtitle: '予約・お問い合わせ・自動化をまとめて確認',
     adminHome: '管理者ホームへ',
     refresh: '再読み込み',
+    refreshStatus: 'データの更新状況',
     refreshing: '更新中',
     refreshComplete: '更新完了',
     refreshPartial: '一部のデータを更新',
@@ -405,7 +409,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     inboxLabel: 'お問い合わせと確認へのショートカット',
     sourcesTitle: 'データ接続状態',
     sourceFailures: (count) => `${count}か所で確認失敗`,
-    allSourcesResponded: '接続済みの取得元はすべて応答',
+    allSourcesResponded: '予約・問い合わせ・自動処理の取得は正常',
     sourceFailed: '失敗',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}件`,
     sourceDetail: (limit, removed) => `各データ元の最新${limit}件が対象です。確定済みの入金待ちの重複${removed}件を、明示的な予約識別子だけで整理しました。`,
@@ -427,6 +431,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     subtitle: '预约、咨询与自动化一目了然',
     adminHome: '返回管理员首页',
     refresh: '刷新',
+    refreshStatus: '数据刷新状态',
     refreshing: '正在更新',
     refreshComplete: '更新完成',
     refreshPartial: '部分数据已更新',
@@ -509,7 +514,7 @@ export const adminAiOpsCopy: Record<Language, AdminAiOpsCopy> = {
     inboxLabel: '咨询与审核快捷入口',
     sourcesTitle: '数据连接状态',
     sourceFailures: (count) => `${count}个来源检查失败`,
-    allSourcesResponded: '已连接的查询来源全部响应',
+    allSourcesResponded: '预订、咨询及自动化查询正常',
     sourceFailed: '失败',
     sourceCount: (count, truncated) => `${count}${truncated ? '+' : ''}项`,
     sourceDetail: (limit, removed) => `以各数据源最近${limit}条记录为准。仅根据明确的预约标识整理了${removed}条已确认的待汇款重复记录。`,

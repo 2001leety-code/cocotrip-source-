@@ -9,6 +9,8 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { loadRecordedAiUsage } from './_shared/adminRecordedAiUsage.js';
+import { readOwnerDispatchReadiness } from './_shared/ownerDispatchReadiness.js';
 import {
   dedupeConfirmedPendingMirrors,
   normalizeCsTicket,
@@ -132,6 +134,9 @@ export default async function handler(req, res) {
     ? Math.min(requestedLimit, MAX_LIMIT)
     : DEFAULT_LIMIT;
   const nowMs = Date.now();
+  // Independent source: a usage read failure must not turn reservation counts unknown.
+  // Uses existing admin authorization; no new permissions, customer reads or writes.
+  const recordedAiUsageRead = loadRecordedAiUsage(db, nowMs);
 
   const reads = [
     ['bookings', recent(db, 'bookings', limit)],
@@ -251,6 +256,8 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         generatedAt: new Date(nowMs).toISOString(),
+        recordedAiUsage: await recordedAiUsageRead,
+        ownerDispatchReadiness: readOwnerDispatchReadiness(process.env),
         summary: aggregate.summary,
         workItems: aggregate.workItems.slice(0, 80),
         reservations: reservations.map(publicReservation),

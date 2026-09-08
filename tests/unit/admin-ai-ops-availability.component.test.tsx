@@ -30,6 +30,20 @@ function data(overrides: Partial<OpsCenterData> = {}): OpsCenterData {
 function page(value: OpsCenterData) {
   return <MemoryRouter><AdminAiOpsCenter previewData={value} /></MemoryRouter>;
 }
+function recordedUsage(status: 'ok' | 'partial' | 'empty' | 'unknown'): NonNullable<OpsCenterData['recordedAiUsage']> {
+  return {
+    source: 'api_usage', service: 'gemini', currency: 'USD', basis: 'stored-estimate',
+    coverage: 'best-effort-records-only', actualBillConnected: false,
+    status, generatedAt: new Date(NOW).toISOString(),
+    monthStart: '2026-08-31T15:00:00.000Z', todayStart: '2026-09-06T15:00:00.000Z',
+    queryLimit: 500, recordedCostUsd: status === 'unknown' || status === 'empty' ? null : 0.1,
+    todayRecordedCostUsd: status === 'unknown' || status === 'empty' ? null : 0.1,
+    recordCount: status === 'unknown' ? null : status === 'empty' ? 0 : 1,
+    todayRecordCount: status === 'unknown' ? null : status === 'empty' ? 0 : 1,
+    excludedCount: status === 'partial' ? 1 : 0, limitReached: false,
+    latestRecordAt: status === 'unknown' || status === 'empty' ? null : new Date(NOW).toISOString(),
+  };
+}
 function card(label: string) {
   const labelNode = within(screen.getByRole('region', { name: adminAiOpsCopy[state.language].summaryLabel })).getByText(label);
   return labelNode.parentElement!.parentElement!;
@@ -72,9 +86,9 @@ describe('AI center partial-data presentation', () => {
       expect(within(inbox).getByText(label).closest('a')).toHaveTextContent(copy.countUnavailable);
     }
     expect(within(inbox).getByText(copy.paymentReviews).closest('a')).toHaveTextContent(copy.count(0));
-    expect(screen.getByRole('status')).toHaveTextContent(copy.refreshPartial);
-    expect(screen.getByRole('status')).not.toHaveTextContent(copy.refreshComplete);
-    expect(screen.getByRole('status')).toHaveTextContent(copy.updatedAt('').trim());
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshPartial);
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).not.toHaveTextContent(copy.refreshComplete);
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.updatedAt('').trim());
     expect(screen.getByRole('alert')).toHaveTextContent(copy.partialErrorDetail);
     expect(JSON.stringify(value)).toBe(original);
     expect(fetch).not.toHaveBeenCalled();
@@ -91,7 +105,7 @@ describe('AI center partial-data presentation', () => {
     expect(card(copy.todayReservations)).not.toHaveTextContent(copy.countUnavailable);
     expect(card(copy.todayReservations)).toHaveTextContent('0');
     expect(card(copy.unansweredInquiries)).not.toHaveTextContent(copy.partialData);
-    expect(screen.getByRole('status')).toHaveTextContent(copy.refreshPartial);
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshPartial);
     expect(document.getElementById('ops-source')).toHaveTextContent(copy.sourceFailures(1));
     expect(document.getElementById('ops-source')).not.toHaveTextContent(copy.allSourcesResponded);
     const email = within(screen.getByRole('region', { name: copy.automationTitle })).getByText(copy.outboundEmailRetry).closest('a');
@@ -174,8 +188,8 @@ describe('AI center partial-data presentation', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText('자료 확인이 필요합니다')).not.toBeInTheDocument();
     expect(screen.getByText('지금 급한 업무가 없습니다')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('갱신 완료');
-    expect(document.getElementById('ops-source')).toHaveTextContent('연결된 조회 대상 모두 응답');
+    expect(screen.getByRole('status', { name: adminAiOpsCopy.ko.refreshStatus })).toHaveTextContent('갱신 완료');
+    expect(document.getElementById('ops-source')).toHaveTextContent(adminAiOpsCopy.ko.allSourcesResponded);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -196,6 +210,55 @@ describe('AI center partial-data presentation', () => {
     expect(email).not.toHaveTextContent(copy.automationLabels.ok);
     expect(within(automation).getByText(copy.sendingQueueDetail)).toBeVisible();
     expect(email).toHaveAttribute('href', '/admin/reconciliation');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.getIdToken).not.toHaveBeenCalled();
+  });
+
+  it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s includes cost read failures in the named refresh badge without changing reservation or inquiry totals', (language) => {
+    state.language = language;
+    const copy = adminAiOpsCopy[language];
+    const summary = { ...data().summary, todayReservations: 3, openInquiries: 2, openCs: 4 };
+    const failed = data({ summary, recordedAiUsage: recordedUsage('unknown') });
+    const original = JSON.stringify(failed);
+    const view = render(page(failed));
+    for (const status of ['unknown', 'partial'] as const) {
+      view.rerender(page(data({ summary, recordedAiUsage: recordedUsage(status) })));
+      const refresh = screen.getByRole('status', { name: copy.refreshStatus });
+      expect(refresh).toHaveTextContent(copy.refreshPartial);
+      expect(refresh).not.toHaveTextContent(copy.refreshComplete);
+      expect(card(copy.todayReservations)).toHaveTextContent('3');
+      expect(card(copy.todayReservations)).not.toHaveTextContent(copy.partialData);
+      expect(card(copy.unansweredInquiries)).toHaveTextContent('6');
+      expect(card(copy.unansweredInquiries)).not.toHaveTextContent(copy.partialData);
+      expect(document.getElementById('ops-source')).toHaveTextContent(copy.allSourcesResponded);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    }
+    view.rerender(page(data({ summary, recordedAiUsage: recordedUsage('ok') })));
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshComplete);
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).not.toHaveTextContent(copy.refreshPartial);
+    expect(JSON.stringify(failed)).toBe(original);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.getIdToken).not.toHaveBeenCalled();
+  });
+
+  it.each(['ko', 'en', 'ja', 'zh'] as Language[])('%s includes an explicitly unknown dispatch configuration without treating old missing fields as a new failure', (language) => {
+    state.language = language;
+    const copy = adminAiOpsCopy[language];
+    const value = data({ ownerDispatchReadiness: { state: 'unknown', deliveryVerified: false } });
+    const original = JSON.stringify(value);
+    const view = render(page(value));
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshPartial);
+    expect(card(copy.todayReservations)).not.toHaveTextContent(copy.countUnavailable);
+    expect(card(copy.unansweredInquiries)).not.toHaveTextContent(copy.partialData);
+    for (const dispatchState of ['off', 'configured', 'configuration_required'] as const) {
+      view.rerender(page(data({ ownerDispatchReadiness: { state: dispatchState, deliveryVerified: false } })));
+      expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshComplete);
+    }
+    view.rerender(page(data({ recordedAiUsage: recordedUsage('empty') })));
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshComplete);
+    view.rerender(page(data()));
+    expect(screen.getByRole('status', { name: copy.refreshStatus })).toHaveTextContent(copy.refreshComplete);
+    expect(JSON.stringify(value)).toBe(original);
     expect(fetch).not.toHaveBeenCalled();
     expect(state.getIdToken).not.toHaveBeenCalled();
   });
