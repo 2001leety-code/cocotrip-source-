@@ -86,6 +86,17 @@ describe('external inbox unsent-draft retention', () => {
     expect(input.db.__get(`${EXTERNAL_INBOX_REPLY_WORKFLOWS}/reply-unknown`)).toEqual({ status: 'draft', createdAtMs: NOW - EXTERNAL_INBOX_DRAFT_RETENTION_MS });
   });
 
+  it('uses creation plus seven days for an open v2 case whose source deadline is deliberately zero', async () => {
+    const input = fixture();
+    const legacyEnvelope = replyInput(input.db, input.prepared).envelope;
+    input.resolveEnvelope = async () => ({ ...legacyEnvelope, expiresAtMs: 0,
+      consentVersion: 'company-gmail-reply.v2', policy: { ...legacyEnvelope.policy,
+        retention: { policyVersion: 2, caseId: input.prepared.data.caseId, revision: input.inboxCase.revision, status: 'open', deleteAfterMs: 0 } } });
+    await draft(input);
+    expect(record(input.db)).toMatchObject({ expiresAtMs: 0, draftExpiresAtMs: NOW + EXTERNAL_INBOX_DRAFT_RETENTION_MS });
+    expect(await purge(input)).toEqual({ ok: true, code: 'RETENTION_COMPLETED', selected: 1, purged: 1, skipped: 0 });
+  });
+
   it('rechecks inside the transaction and protects sending or otherwise changed records', async () => {
     const input = await draft(); let changed = false;
     input.db.__beforeCommit = async () => {

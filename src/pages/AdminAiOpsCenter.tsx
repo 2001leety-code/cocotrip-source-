@@ -29,6 +29,7 @@ import { OwnerDispatchReadiness } from '@/components/OwnerDispatchReadiness';
 import type { OwnerDispatchReadinessSnapshot } from '@/components/OwnerDispatchReadiness';
 import { AdminRecordedAiUsage, type RecordedAiUsage } from '@/components/AdminRecordedAiUsage';
 import { AdminExternalInbox } from '@/components/AdminExternalInbox';
+import type { CompanyEmailReplyTransport } from '@/components/AdminCompanyEmailReply';
 import { AdminWebchatInbox } from '@/components/AdminWebchatInbox';
 import { AdminOperationalChecks } from '@/components/AdminOperationalChecks';
 import type { OperationalChecksData } from '@/lib/adminOperationalChecks';
@@ -710,6 +711,8 @@ interface AdminAiOpsCenterProps {
   previewExternalInbox?: ExternalInboxOverview;
   /** DEV fixture only; this never reaches the production inbox endpoint. */
   previewExternalInboxRetentionAction?: (input: { messageId: string; expectedRevision: number; action: 'close' | 'reopen' | 'protect'; confirmation?: 'ordinary_no_evidence' }) => Promise<ExternalInboxRetention>;
+  /** DEV fixture only; production reply requests always use the server-authenticated endpoint. */
+  previewCompanyEmailReplyTransport?: CompanyEmailReplyTransport;
   previewWebchat?: WebchatOverview;
   previewWebchatDetails?: Record<string, WebchatDetail>;
   previewOperationalChecks?: OperationalChecksData;
@@ -734,7 +737,7 @@ function UnconnectedChannels() {
   );
 }
 
-export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewExternalInboxRetentionAction, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
+export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewExternalInboxRetentionAction, previewCompanyEmailReplyTransport, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
   const { language, changeLanguage } = useLanguage();
   const copy = useOpsCopy();
   usePageMeta({ title: copy.pageTitle, description: copy.pageDescription });
@@ -967,7 +970,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
         <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
           <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
-          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} retentionAction={previewExternalInboxRetentionAction} />
+          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} retentionAction={previewExternalInboxRetentionAction} companyEmailReplyTransport={previewCompanyEmailReplyTransport} />
           <AdminWebchatInbox language={language} previewMode={!serverMode} previewData={previewWebchat} previewDetails={previewWebchatDetails} />
         </div>
         {data && <>

@@ -11,7 +11,8 @@ export const OWNER_SOURCES = Object.freeze([
   // Inbox rows are selected without sender, subject or body. The worker rechecks
   // the active WhatsApp session before it can enqueue a generic owner event.
   { name: 'external_inbox_messages', timeField: 'receivedAtMs', numericTime: true, introducedVersion: 2,
-    fields: ['receivedAtMs', 'sourceAtMs', 'expiresAtMs', 'channel', 'accountId', 'whatsappPolicyVersion', 'whatsappSessionId'] },
+    fields: ['receivedAtMs', 'sourceAtMs', 'expiresAtMs', 'channel', 'accountId', 'whatsappPolicyVersion', 'whatsappSessionId',
+      'retentionPolicyVersion', 'caseId', 'providerMessageId', 'providerThreadId', 'expiresAt'] },
   // A new customer-chat marker is written separately from chat text. Old sessions
   // lack this marker and are intentionally never backfilled into owner push.
   { name: 'chat_sessions', timeField: 'ownerNotificationAt', numericTime: false, introducedVersion: 2,
@@ -114,7 +115,10 @@ export function isOwnerSourceCandidate(source, data) {
   if (source === 'external_inbox_messages') {
     return ['email', 'whatsapp'].includes(data.channel)
       && Number.isSafeInteger(data.sourceAtMs) && data.sourceAtMs > 0
-      && Number.isSafeInteger(data.expiresAtMs) && data.expiresAtMs > data.sourceAtMs
+      && (data.retentionPolicyVersion === 2
+        ? data.expiresAtMs === 0 && data.expiresAt === null && HEX.test(data.caseId || '')
+          && validId(data.providerMessageId) && validId(data.providerThreadId)
+        : data.retentionPolicyVersion === undefined && Number.isSafeInteger(data.expiresAtMs) && data.expiresAtMs > data.sourceAtMs)
       && validId(data.accountId, 128)
       && (data.channel !== 'whatsapp' || (data.whatsappPolicyVersion === 1 && HEX.test(data.whatsappSessionId)));
   }

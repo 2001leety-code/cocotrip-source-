@@ -9,6 +9,7 @@ import {
   ownerEventId, sendSingleOwnerPush,
 } from '../../api/_shared/owner-notification-delivery.js';
 import ownerHandler, { ownerNotificationSweepTask } from '../../api/_crons/owner-notification-sweep.js';
+import { inboxCaseId, nextInboxCaseOnMessage, transitionInboxCase } from '../../api/_shared/external-inbox-retention.js';
 import { buildCartChildBookings } from '../../api/_shared/cart-capture.js';
 
 const transport = vi.hoisted(() => ({ sendNotification: vi.fn() }));
@@ -342,6 +343,64 @@ describe('metadata scanner, cutover and atomic queue/cursor', () => {
     expect(JSON.stringify(f.ledger())).not.toContain(PRIVATE);
     const sourceQueries = f.queries.filter((entry) => ['external_inbox_messages', 'chat_sessions'].includes(entry.collection));
     expect(sourceQueries.flatMap((entry) => entry.fields)).not.toEqual(expect.arrayContaining(['sender', 'subject', 'text']));
+  });
+
+  it.each(['open', 'protected', 'closed'] as const)('queues v2 company email with %s case despite a zero source deadline', async (status) => {
+    const f = fixture();
+    Object.assign(f.env, {
+      COMPANY_GMAIL_INBOX_ENABLED: 'true', COMPANY_GMAIL_INBOX_EMAIL: 'cocotripkr@gmail.com',
+      COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-client', COMPANY_GMAIL_INBOX_CLIENT_SECRET: 'fake-secret',
+      COMPANY_GMAIL_INBOX_REFRESH_TOKEN: 'fake-token', COMPANY_GMAIL_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z',
+      COMPANY_GMAIL_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const data = { channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: 'fake-v2-email',
+      providerThreadId: 'fake-thread', sourceAtMs: EPOCH + 1000, receivedAtMs: EPOCH + 1000,
+      retentionPolicyVersion: 2, expiresAtMs: 0, expiresAt: null, sender: PRIVATE, subject: PRIVATE, text: PRIVATE };
+    const caseId = inboxCaseId(data);
+    let record = nextInboxCaseOnMessage(null, data, EPOCH + 1000);
+    if (status !== 'open') record = transitionInboxCase(record, { action: status === 'protected' ? 'protect' : 'close',
+      expectedRevision: 1, ...(status === 'closed' ? { confirmation: 'ordinary_no_evidence' } : {}), nowMs: EPOCH + 2000 });
+    const id = ownerHash('external-inbox.v1', data.channel, data.accountId, data.providerMessageId);
+    f.records.set(`external_inbox_messages/${id}`, { ...data, caseId });
+    f.records.set(`external_inbox_cases/${caseId}`, record);
+    f.setNow(EPOCH + 300_000);
+    expect(await f.run()).toMatchObject({ ok: true, accepted: 1 });
+    expect(f.ledger()).toHaveLength(1);
+    expect(JSON.stringify(f.ledger())).not.toContain(PRIVATE);
+    expect(await f.run()).toMatchObject({ ok: true, accepted: 0 });
+    expect(f.send).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['missing', 'read_failure', 'expired_floor', 'wrong_document', 'future_case'] as const)('does not queue a v2 email with %s evidence', async (failure) => {
+    const f = fixture();
+    Object.assign(f.env, {
+      COMPANY_GMAIL_INBOX_ENABLED: 'true', COMPANY_GMAIL_INBOX_EMAIL: 'cocotripkr@gmail.com',
+      COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-client', COMPANY_GMAIL_INBOX_CLIENT_SECRET: 'fake-secret',
+      COMPANY_GMAIL_INBOX_REFRESH_TOKEN: 'fake-token', COMPANY_GMAIL_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z',
+      COMPANY_GMAIL_INBOX_RETENTION_DAYS: '7',
+    });
+    await f.run();
+    const data = { channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: 'fake-v2-email',
+      providerThreadId: 'fake-thread', sourceAtMs: EPOCH + 1000, receivedAtMs: EPOCH + 1000,
+      retentionPolicyVersion: 2, expiresAtMs: 0, expiresAt: null };
+    const caseId = inboxCaseId(data);
+    const record = nextInboxCaseOnMessage(null, data, failure === 'future_case' ? EPOCH + 900_000 : EPOCH + 1000);
+    const id = failure === 'wrong_document' ? 'f'.repeat(64) : ownerHash('external-inbox.v1', data.channel, data.accountId, data.providerMessageId);
+    f.records.set(`external_inbox_messages/${id}`, { ...data, caseId });
+    if (failure !== 'missing') f.records.set(`external_inbox_cases/${caseId}`, { ...record,
+      ...(failure === 'expired_floor' ? { expiredThroughMs: data.receivedAtMs } : {}) });
+    if (failure === 'read_failure') f.failedDocuments.add(`external_inbox_cases/${caseId}`);
+    const cursorBefore = (f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`)?.cursors as Row).external_inbox_messages;
+    f.setNow(EPOCH + 300_000);
+    const result = await f.run();
+    expect(result.accepted).toBe(0);
+    expect(f.send).not.toHaveBeenCalled();
+    expect(f.ledger()).toHaveLength(0);
+    if (['missing', 'read_failure', 'future_case'].includes(failure)) {
+      expect(result.code).toBe('PARTIAL_SOURCE_FAILURE');
+      expect((f.records.get(`${OWNER_CONTROL_COLLECTION}/v1`)?.cursors as Row).external_inbox_messages).toBe(cursorBefore);
+    }
   });
 
   it('does not queue WhatsApp text after consent is closed or the message has expired', async () => {

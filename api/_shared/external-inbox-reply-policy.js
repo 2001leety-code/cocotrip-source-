@@ -27,6 +27,15 @@ const token = (value, max = 512) => typeof value === 'string' && value.length > 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const deny = (code, disposition = 'blocked') => ({ ok: false, code, disposition, sendAllowed: false });
 
+function v2Retention(value, expiresAtMs, nowMs) {
+  if (!plain(value) || value.policyVersion !== 2 || !HEX.test(value.caseId || '') || !Number.isSafeInteger(value.revision)
+    || value.revision < 1 || !['open', 'closed', 'protected'].includes(value.status)
+    || !Number.isSafeInteger(value.deleteAfterMs) || value.deleteAfterMs < 0
+    || !Object.keys(value).every(key => ['policyVersion', 'caseId', 'revision', 'status', 'deleteAfterMs'].includes(key))) return null;
+  if (value.status === 'closed') return time(value.deleteAfterMs) && value.deleteAfterMs > nowMs && expiresAtMs === value.deleteAfterMs ? value : null;
+  return value.deleteAfterMs === 0 && expiresAtMs === 0 ? value : null;
+}
+
 // This is syntax validation, not a claim that the mailbox/domain belongs to a person.
 function mailbox(value) {
   if (!token(value, 254) || /[\s<>,;:"\\]/.test(value)) return false;
@@ -46,7 +55,7 @@ export function validateExternalInboxReplyRequest(request) {
   return { ok: true, code: 'REQUEST_VALID', sendAllowed: false };
 }
 
-function emailPolicy(envelope) {
+function emailPolicy(envelope, deadline) {
   const email = envelope.policy.email;
   if (!plain(email) || email.contextVerified !== true) return deny('REPLY_CONTEXT_MISSING', 'draft_only');
   if (email.singleMailbox !== true || email.headerControls !== false || email.autoSubmitted !== false
@@ -58,7 +67,7 @@ function emailPolicy(envelope) {
     || email.references.some(value => !token(value, 998) || !/^<[^\s<>]+@[^\s<>]+>$/.test(value))) {
     return deny('REPLY_CONTEXT_MISSING', 'draft_only');
   }
-  return { ok: true, deadline: envelope.expiresAtMs,
+  return { ok: true, deadline,
     context: [email.threadId, email.rfcMessageId, email.subject, [...email.references]] };
 }
 
@@ -96,19 +105,24 @@ function candidate({ request, envelope, actorUid, flags, nowMs } = {}) {
   if (policy.direction !== 'inbound' || policy.live !== true || policy.isEcho !== false) return deny('LIVE_INBOUND_REQUIRED');
   if (policy.version !== EXTERNAL_INBOX_REPLY_POLICY_VERSION || !token(envelope.consentVersion, 128)
     || !token(envelope.providerMessageId)) return deny('REPLY_CONTEXT_MISSING', 'draft_only');
-  if (![envelope.captureStartAtMs, envelope.sourceAtMs, envelope.receivedAtMs, envelope.expiresAtMs].every(time)
+  if (![envelope.captureStartAtMs, envelope.sourceAtMs, envelope.receivedAtMs].every(time)
     || envelope.captureStartAtMs > envelope.sourceAtMs || envelope.sourceAtMs > envelope.receivedAtMs
-    || envelope.receivedAtMs > nowMs || envelope.expiresAtMs <= envelope.sourceAtMs
+    || envelope.receivedAtMs > nowMs
     || envelope.sourceAtMs > nowMs || envelope.captureStartAtMs > nowMs) return deny('SOURCE_TIME_INVALID');
-  if (nowMs >= envelope.expiresAtMs) return deny('SOURCE_EXPIRED');
-  const channel = envelope.channel === 'email' ? emailPolicy(envelope) : whatsappPolicy(envelope, nowMs);
+  const retention = v2Retention(policy.retention, envelope.expiresAtMs, nowMs);
+  const legacyExpiry = time(envelope.expiresAtMs) && envelope.expiresAtMs > envelope.sourceAtMs ? envelope.expiresAtMs : 0;
+  if ((Object.hasOwn(policy, 'retention') && !retention) || (!retention && !legacyExpiry)) return deny('SOURCE_TIME_INVALID');
+  if (legacyExpiry && nowMs >= legacyExpiry) return deny('SOURCE_EXPIRED');
+  const deadline = retention ? (retention.status === 'closed' ? retention.deleteAfterMs : 0) : legacyExpiry;
+  const channel = envelope.channel === 'email' ? emailPolicy(envelope, deadline) : whatsappPolicy(envelope, nowMs);
   if (!channel.ok) return channel;
   // Explicit tuples avoid property-order ambiguity and never serialize arbitrary input objects.
   const actorHash = digest(['external-inbox-reply.actor.v1', actorUid]);
   const bindingHash = digest([EXTERNAL_INBOX_REPLY_POLICY_VERSION, request.key, actorHash, request.text,
     envelope.messageId, envelope.channel, envelope.accountId, envelope.providerMessageId, envelope.recipient,
     envelope.expiresAtMs, envelope.captureStartAtMs, envelope.sourceAtMs, envelope.receivedAtMs,
-    envelope.consentVersion, policy.version, channel.context]);
+    envelope.consentVersion, policy.version, retention ? [retention.policyVersion, retention.caseId, retention.revision,
+      retention.status, retention.deleteAfterMs] : null, channel.context]);
   return { ok: true, actorHash, bindingHash, deadline: channel.deadline };
 }
 
@@ -131,7 +145,7 @@ export function prepareApprovedExternalInboxReply(input = {}) {
   return { ok: true, code: 'APPROVAL_PREPARED', sendAllowed: false, approval: {
     policyVersion: EXTERNAL_INBOX_REPLY_POLICY_VERSION, key: input.request.key,
     bindingHash: prepared.bindingHash, actorHash: prepared.actorHash, approvedAtMs: input.nowMs,
-    expiresAtMs: Math.min(input.nowMs + REPLY_APPROVAL_TTL_MS, prepared.deadline), status: 'approved',
+    expiresAtMs: Math.min(input.nowMs + REPLY_APPROVAL_TTL_MS, prepared.deadline || input.nowMs + REPLY_APPROVAL_TTL_MS), status: 'approved',
   } };
 }
 
@@ -153,7 +167,7 @@ export function validateExternalInboxReplyForSend(input = {}) {
     || !time(approval.approvedAtMs) || !time(approval.expiresAtMs) || approval.approvedAtMs > input.nowMs
     || approval.expiresAtMs <= approval.approvedAtMs
     || approval.expiresAtMs > approval.approvedAtMs + REPLY_APPROVAL_TTL_MS) return deny('APPROVAL_INVALID');
-  if (input.nowMs >= approval.expiresAtMs || approval.expiresAtMs > current.deadline) return deny('REAPPROVAL_REQUIRED');
+  if (input.nowMs >= approval.expiresAtMs || (current.deadline > 0 && approval.expiresAtMs > current.deadline)) return deny('REAPPROVAL_REQUIRED');
   if (approval.key !== input.request.key || approval.actorHash !== current.actorHash
     || approval.bindingHash !== current.bindingHash) return deny('REAPPROVAL_REQUIRED');
   return { ok: true, code: 'APPROVED_POLICY_VALID', sendAllowed: true, deliveryVerified: false };
