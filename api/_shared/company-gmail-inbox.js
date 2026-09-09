@@ -3,6 +3,7 @@ import {
   EXTERNAL_INBOX_MESSAGES_COLLECTION, EXTERNAL_INBOX_STATE_COLLECTION, prepareExternalInboxMessage,
 } from './external-inbox-store.js';
 import { INBOX_CASES_COLLECTION, INBOX_CLOSED_RETENTION_DAYS, nextInboxCaseOnMessage } from './external-inbox-retention.js';
+import { normalizeCompanyGmailReplyHeaders } from './company-gmail-reply-source.js';
 
 export const COMPANY_GMAIL_ACCOUNT = 'cocotripkr@gmail.com';
 export const COMPANY_GMAIL_STATE_ID = 'company_gmail';
@@ -234,7 +235,10 @@ async function loadPage(get, state, config) {
 
 async function prepareMessage(get, id, config, now) {
   const message = await get(`messages/${encodeURIComponent(id)}`, [['format', 'metadata'], ['metadataHeaders', 'From'],
-    ['metadataHeaders', 'Subject'], ['fields', 'id,threadId,internalDate,labelIds,snippet,payload/headers']], 'message');
+    ['metadataHeaders', 'Reply-To'], ['metadataHeaders', 'Message-ID'], ['metadataHeaders', 'References'], ['metadataHeaders', 'Subject'],
+    ['metadataHeaders', 'Auto-Submitted'], ['metadataHeaders', 'List-Id'], ['metadataHeaders', 'List-Post'],
+    ['metadataHeaders', 'List-Unsubscribe'], ['metadataHeaders', 'Precedence'], ['metadataHeaders', 'X-Auto-Response-Suppress'],
+    ['fields', 'id,threadId,internalDate,labelIds,snippet,payload/headers']], 'message');
   if (!message) return null;
   const nowMs = now();
   if (message.id !== id || !validId(message.threadId) || !Array.isArray(message.labelIds)) fail('GMAIL_MESSAGE_INVALID');
@@ -246,9 +250,10 @@ async function prepareMessage(get, id, config, now) {
   if (!Array.isArray(headers) || headers.some((header) => !header || typeof header.name !== 'string' || typeof header.value !== 'string')
     || (message.snippet !== undefined && typeof message.snippet !== 'string')) fail('GMAIL_MESSAGE_INVALID');
   const header = (name) => headers.find((item) => item.name.toLowerCase() === name)?.value || '';
-  return prepareExternalInboxMessage({ channel: 'email', accountId: config.accountId, providerMessageId: id,
+  const prepared = prepareExternalInboxMessage({ channel: 'email', accountId: config.accountId, providerMessageId: id,
     providerThreadId: message.threadId, sourceAtMs, sender: header('from'), subject: header('subject'),
     text: message.snippet || '', kind: 'email', truncated: true }, { nowMs, retentionDays: config.retentionDays });
+  return { ...prepared, data: { ...prepared.data, gmailReply: normalizeCompanyGmailReplyHeaders(headers, message.threadId) } };
 }
 
 async function defaultServices() {

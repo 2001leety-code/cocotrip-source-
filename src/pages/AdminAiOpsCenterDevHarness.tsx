@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import AdminAiOpsCenter from "@/pages/AdminAiOpsCenter";
 import type { OpsCenterData } from "@/pages/AdminAiOpsCenter";
@@ -14,6 +14,11 @@ import type {
   ExternalInboxOverview,
   ExternalInboxRetention,
 } from "@/lib/adminExternalInboxCopy";
+import type {
+  CompanyEmailReplyActionInput,
+  CompanyEmailReplyDetail,
+  CompanyEmailReplyWorkflow,
+} from "@/lib/adminCompanyEmailReply";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -581,6 +586,38 @@ export default function AdminAiOpsCenterDevHarness() {
     deleteAfterMs: 0,
     reviewRequired: false,
   });
+  const replyMessageId = "1".padStart(64, "0");
+  const replySourceAtMs = now - 60_000;
+  const [replyWorkflow, setReplyWorkflow] = useState<CompanyEmailReplyWorkflow | null>(
+    () =>
+      params.get("email-reply") === "retry"
+        ? {
+            request: {
+              messageId: replyMessageId,
+              channel: "email",
+              expectedSourceAtMs: replySourceAtMs,
+              text: "Synthetic original reply. No translation.",
+              key: "11111111-1111-4111-8111-111111111111",
+            },
+            status: "failed_pre_send",
+            revision: 1,
+            draftHash: "d".repeat(64),
+            approvalExpiresAtMs: 0,
+            draftExpiresAtMs: now + 7 * DAY_MS,
+            failedAttemptId: "22222222-2222-4222-8222-222222222222",
+            providerAccepted: false,
+            deliveryVerified: false,
+          }
+        : null,
+  );
+  const replyWorkflowRef = useRef(replyWorkflow);
+  const updateReplyWorkflow = useCallback(
+    (next: CompanyEmailReplyWorkflow | null) => {
+      replyWorkflowRef.current = next;
+      setReplyWorkflow(next);
+    },
+    [],
+  );
   const externalInbox: ExternalInboxOverview | undefined =
     params.get("inbox") === "synthetic"
       ? {
@@ -668,6 +705,89 @@ export default function AdminAiOpsCenterDevHarness() {
     },
     [now, params, retentionState],
   );
+  const previewCompanyEmailReplyLoad = useCallback(
+    async (messageId: string) => {
+      const disabled = params.get("email-reply") === "disabled";
+      const workflow = replyWorkflowRef.current;
+      if (messageId !== replyMessageId) throw new Error("REPLY_UNAVAILABLE");
+      if (disabled)
+        return {
+          messageId,
+          sourceAtMs: 0,
+          recipient: "",
+          canCompose: false,
+          canSend: false,
+          reason: "REPLY_DISABLED",
+          workflow: null,
+        } satisfies CompanyEmailReplyDetail;
+      const detail: CompanyEmailReplyDetail = {
+        messageId,
+        sourceAtMs: replySourceAtMs,
+        recipient: "synthetic-recipient@example.invalid",
+        canCompose: !workflow?.providerAccepted,
+        canSend:
+          (workflow?.status === "draft" ||
+            (workflow?.status === "failed_pre_send" &&
+              Boolean(workflow.failedAttemptId))) &&
+          !workflow.providerAccepted,
+        reason: null,
+        workflow,
+      };
+      return detail;
+    },
+    [params, replyMessageId, replySourceAtMs],
+  );
+  const previewCompanyEmailReplyAction = useCallback(
+    async (input: CompanyEmailReplyActionInput) => {
+      const current = replyWorkflowRef.current;
+      if (
+        input.request.messageId !== replyMessageId ||
+        input.request.expectedSourceAtMs !== replySourceAtMs ||
+        params.get("email-reply") === "disabled"
+      )
+        return { ok: false, code: "REPLY_DISABLED" };
+      if (
+        current &&
+        (input.expectedRevision !== current.revision ||
+          input.expectedDraftHash !== current.draftHash)
+      )
+        return { ok: false, code: "DRAFT_CONFLICT" };
+      if (input.action === "draft") {
+        const next: CompanyEmailReplyWorkflow = {
+          request: input.request,
+          status: "draft",
+          revision: (current?.revision || 0) + 1,
+          draftHash: "d".repeat(64),
+          approvalExpiresAtMs: 0,
+          draftExpiresAtMs: now + 7 * DAY_MS,
+          failedAttemptId: "",
+          providerAccepted: false,
+          deliveryVerified: false,
+        };
+        replyWorkflowRef.current = next;
+        updateReplyWorkflow(next);
+        return { ok: true, code: "DRAFT_PREPARED" };
+      }
+      if (
+        !current ||
+        input.confirmed !== true ||
+        input.expectedApprovalExpiresAtMs !== current.approvalExpiresAtMs
+      )
+        return { ok: false, code: "APPROVAL_REQUIRED" };
+      const next: CompanyEmailReplyWorkflow = {
+        ...current,
+        status: "provider_accepted",
+        revision: current.revision + 1,
+        failedAttemptId: "",
+        providerAccepted: true,
+        deliveryVerified: false,
+      };
+      replyWorkflowRef.current = next;
+      updateReplyWorkflow(next);
+      return { ok: true, code: "PROVIDER_ACCEPTED" };
+    },
+    [now, params, replyMessageId, replySourceAtMs, updateReplyWorkflow],
+  );
   const sessions: WebchatOverview["sessions"] = ["en", "ko"].map(
     (lang, index) => ({
       sessionId: `sess_synthetic_owner_preview_${index}_chat`,
@@ -740,6 +860,10 @@ export default function AdminAiOpsCenterDevHarness() {
       previewOperationalChecks={checks}
       previewExternalInbox={externalInbox}
       previewExternalInboxRetentionAction={previewExternalInboxRetentionAction}
+      previewCompanyEmailReplyTransport={{
+        load: previewCompanyEmailReplyLoad,
+        action: previewCompanyEmailReplyAction,
+      }}
     />
   );
 }

@@ -25,7 +25,8 @@ const draftHash = (request, actor) => hash(['external-inbox-reply.draft.v1', act
 const canonical = value => Array.isArray(value) ? value.map(canonical) : object(value)
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const envelopeHash = envelope => hash(canonical(envelope));
-const draftExpiresAt = (createdAtMs, sourceExpiresAtMs) => Math.min(createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS, sourceExpiresAtMs);
+const draftExpiresAt = (createdAtMs, sourceExpiresAtMs) => sourceExpiresAtMs > 0
+  ? Math.min(createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS, sourceExpiresAtMs) : createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS;
 
 function take(value, keys) {
   const output = {};
@@ -40,6 +41,9 @@ function snapshotEnvelope(value) {
   const result = take(value, ['messageId', 'channel', 'accountId', 'providerMessageId', 'recipient',
     'expiresAtMs', 'captureStartAtMs', 'sourceAtMs', 'receivedAtMs', 'consentVersion']);
   result.policy = take(value.policy, ['version', 'accountId', 'accountVerified', 'recipientVerified', 'direction', 'live', 'isEcho']);
+  if (object(value.policy.retention)) {
+    result.policy.retention = take(value.policy.retention, ['policyVersion', 'caseId', 'revision', 'status', 'deleteAfterMs']);
+  }
   if (value.channel === 'email' && object(value.policy.email)) {
     const email = value.policy.email;
     result.policy.email = {};
@@ -69,10 +73,17 @@ function contextValid(value, request, nowMs) {
     || value.policy.direction !== 'inbound' || value.policy.live !== true || value.policy.isEcho !== false
     || value.policy.version !== EXTERNAL_INBOX_REPLY_POLICY_VERSION || !bounded(value.consentVersion, 128)
     || !bounded(value.providerMessageId) || !bounded(value.recipient, 254)
-    || ![value.captureStartAtMs, value.sourceAtMs, value.receivedAtMs, value.expiresAtMs].every(time)
+    || ![value.captureStartAtMs, value.sourceAtMs, value.receivedAtMs].every(time)
     || value.captureStartAtMs > value.sourceAtMs || value.sourceAtMs > value.receivedAtMs
-    || value.receivedAtMs > nowMs || value.expiresAtMs <= nowMs) return false;
-  return true;
+    || value.receivedAtMs > nowMs) return false;
+  const retention = value.policy.retention;
+  if (retention !== undefined) return object(retention) && retention.policyVersion === 2 && /^[a-f0-9]{64}$/.test(retention.caseId || '')
+    && Number.isSafeInteger(retention.revision) && retention.revision > 0 && ['open', 'closed', 'protected'].includes(retention.status)
+    && Number.isSafeInteger(retention.deleteAfterMs) && retention.deleteAfterMs >= 0
+    && Object.keys(retention).every(key => ['policyVersion', 'caseId', 'revision', 'status', 'deleteAfterMs'].includes(key))
+    && (retention.status === 'closed' ? time(retention.deleteAfterMs) && retention.deleteAfterMs > nowMs && value.expiresAtMs === retention.deleteAfterMs
+      : retention.deleteAfterMs === 0 && value.expiresAtMs === 0);
+  return time(value.expiresAtMs) && value.expiresAtMs > nowMs;
 }
 
 function setup(input, dispatch = false) {
@@ -97,12 +108,17 @@ function safeSetup(input, dispatch = false) {
 }
 
 function consistentState(record) {
+  const retryOfAttemptId = record.retryOfAttemptId || '';
+  const initialAttempt = record.attempts === 0 && record.attemptId === '' && retryOfAttemptId === '';
+  const firstAttempt = record.attempts === 1 && ATTEMPT_ID.test(record.attemptId) && retryOfAttemptId === '';
+  const retryAttempt = record.attempts === 2 && ATTEMPT_ID.test(record.attemptId) && ATTEMPT_ID.test(retryOfAttemptId)
+    && record.attemptId !== retryOfAttemptId;
   if (['draft', 'draft_only'].includes(record.status)) return record.approval === null && record.approvalConsumed === false
-    && record.attempts === 0 && record.attemptId === '' && !record.retryAllowed && record.providerReceiptHash === '';
+    && initialAttempt && !record.retryAllowed && record.providerReceiptHash === '';
   if (!object(record.approval) || record.approval.status !== 'approved') return false;
-  if (record.status === 'approved') return record.approvalConsumed === false && record.attempts === 0
-    && record.attemptId === '' && !record.retryAllowed && record.providerReceiptHash === '';
-  if (!record.approvalConsumed || record.attempts < 1 || !ATTEMPT_ID.test(record.attemptId)) return false;
+  if (record.status === 'approved') return record.approvalConsumed === false && !record.retryAllowed && record.providerReceiptHash === ''
+    && (initialAttempt || (record.attempts === 1 && ATTEMPT_ID.test(record.attemptId) && retryOfAttemptId === record.attemptId));
+  if (!record.approvalConsumed || !(firstAttempt || retryAttempt)) return false;
   if (record.status === 'failed_pre_send') return record.retryAllowed === (record.attempts < REPLY_MAX_SEND_ATTEMPTS)
     && record.providerReceiptHash === '';
   if (record.status === 'provider_accepted') return !record.retryAllowed && HASH.test(record.providerReceiptHash);
@@ -117,12 +133,13 @@ export function validExternalInboxReplyWorkflowRecord(record, options = {}) {
     && Number.isSafeInteger(record.revision) && record.revision > 0 && STATES.includes(record.status)
     && object(record.envelope) && record.envelopeHash === envelopeHash(record.envelope)
     && time(record.createdAtMs) && time(record.updatedAtMs) && record.updatedAtMs >= record.createdAtMs
-    && time(record.expiresAtMs) && record.expiresAtMs === record.envelope.expiresAtMs
+    && (record.expiresAtMs === 0 || time(record.expiresAtMs)) && record.expiresAtMs === record.envelope.expiresAtMs
     && (record.draftExpiresAtMs === undefined || (time(record.draftExpiresAtMs)
       && record.draftExpiresAtMs === draftExpiresAt(record.createdAtMs, record.expiresAtMs)))
     && Number.isInteger(record.attempts) && record.attempts >= 0 && record.attempts <= REPLY_MAX_SEND_ATTEMPTS
     && typeof record.approvalConsumed === 'boolean' && typeof record.retryAllowed === 'boolean'
     && typeof record.attemptId === 'string' && typeof record.providerReceiptHash === 'string'
+    && (record.retryOfAttemptId === undefined || typeof record.retryOfAttemptId === 'string')
     && (record.providerReceiptHash === '' || HASH.test(record.providerReceiptHash)) && consistentState(record);
 }
 
@@ -151,7 +168,7 @@ async function read(tx, options) {
   if (record && !validExternalInboxReplyWorkflowRecord(record, options)) return fail('LEDGER_CONFLICT');
   if (key && !keyValid(key, options)) return fail('REQUEST_KEY_CONFLICT');
   if (record && (record.createdAtMs > nowMs || record.updatedAtMs > nowMs)) return fail('LEDGER_TIME_INVALID');
-  if (record && nowMs >= record.expiresAtMs) return fail('SOURCE_EXPIRED');
+  if (record && record.expiresAtMs > 0 && nowMs >= record.expiresAtMs) return fail('SOURCE_EXPIRED');
   if (record && ['draft', 'draft_only', 'approved', 'failed_pre_send'].includes(record.status)
     && nowMs >= (record.draftExpiresAtMs || draftExpiresAt(record.createdAtMs, record.expiresAtMs))) return fail('DRAFT_EXPIRED');
   if (!contextValid(envelope, options.request, nowMs)) return fail('SOURCE_CONTEXT_INVALID');
@@ -186,9 +203,9 @@ export async function prepareExternalInboxReplyDraft(input = {}) {
           || input.expectedRevision !== record.revision || input.expectedDraftHash !== record.draftHash)) return fail('DRAFT_CONFLICT');
         if (changed) next = { ...record, request: options.request, draftHash: options.contentHash,
           envelope, envelopeHash: currentHash, revision: record.revision + 1, updatedAtMs: nowMs,
-          expiresAtMs: Math.min(record.expiresAtMs, envelope.expiresAtMs),
-          draftExpiresAtMs: draftExpiresAt(record.createdAtMs, Math.min(record.expiresAtMs, envelope.expiresAtMs)),
-          status: draftOnly ? 'draft_only' : 'draft' };
+          expiresAtMs: envelope.expiresAtMs,
+          draftExpiresAtMs: draftExpiresAt(record.createdAtMs, envelope.expiresAtMs),
+           status: draftOnly ? 'draft_only' : 'draft' };
         if (next.expiresAtMs !== envelope.expiresAtMs) return fail('RETENTION_CHANGED');
       } else {
         if (key) return fail('LEDGER_MISSING');
@@ -196,11 +213,11 @@ export async function prepareExternalInboxReplyDraft(input = {}) {
           request: options.request, draftHash: options.contentHash, envelope, envelopeHash: currentHash, revision: 1,
           status: draftOnly ? 'draft_only' : 'draft', createdAtMs: nowMs, updatedAtMs: nowMs, expiresAtMs: envelope.expiresAtMs,
           draftExpiresAtMs: draftExpiresAt(nowMs, envelope.expiresAtMs),
-          approval: null, approvalConsumed: false, attempts: 0, attemptId: '', retryAllowed: false, providerReceiptHash: '' };
+          approval: null, approvalConsumed: false, attempts: 0, attemptId: '', retryOfAttemptId: '', retryAllowed: false, providerReceiptHash: '' };
       }
       if (next !== record) tx.set(options.ref, next);
       if (!key) tx.set(options.keyRef, { schemaVersion: VERSION, kind: 'key', sourceHash: options.source,
-        actorHash: options.actor, draftHash: options.contentHash, expiresAtMs: next.expiresAtMs });
+        actorHash: options.actor, draftHash: options.contentHash, expiresAtMs: draftExpiresAt(next.createdAtMs, next.expiresAtMs) });
       return summary(next, next.status === 'draft_only' ? 'DRAFT_ONLY' : next === record ? 'DRAFT_ALREADY_EXISTS' : 'DRAFT_PREPARED');
     });
   } catch { return fail('DRAFT_STORE_UNAVAILABLE'); }
@@ -223,14 +240,23 @@ export async function approveExternalInboxReplyDraft(input = {}) {
         const existing = validateExternalInboxReplyForSend({ ...options, request: record.request, envelope,
           nowMs, approval: record.approval, approvalConsumed: record.approvalConsumed });
         if (existing.ok) return summary(record, 'ALREADY_APPROVED');
-        if (existing.code !== 'REAPPROVAL_REQUIRED' || record.approvalConsumed || record.attempts !== 0
+        if (existing.code !== 'REAPPROVAL_REQUIRED' || record.approvalConsumed || ![0, 1].includes(record.attempts)
           || input.renewApproval !== true || input.expectedApprovalExpiresAtMs !== record.approval.expiresAtMs
           || nowMs < record.approval.expiresAtMs) return fail(existing.code);
       }
-      if (!['draft', 'draft_only', 'approved'].includes(record.status) || record.attempts !== 0 || record.approvalConsumed) return fail('APPROVAL_LOCKED');
+      const retry = record.status === 'failed_pre_send' && record.retryAllowed === true && record.approvalConsumed === true
+        && record.attempts === 1 && ATTEMPT_ID.test(record.attemptId) && (record.retryOfAttemptId || '') === '';
+      const approvable = ['draft', 'draft_only', 'approved'].includes(record.status) && !record.approvalConsumed
+        && !record.retryAllowed && ((record.attempts === 0 && record.attemptId === '' && (record.retryOfAttemptId || '') === '')
+          || (record.status === 'approved' && record.attempts === 1 && ATTEMPT_ID.test(record.attemptId)
+            && record.retryOfAttemptId === record.attemptId));
+      if ((!approvable && !retry) || (retry && (input.retryPreSend !== true || input.expectedFailedAttemptId !== record.attemptId))) {
+        return fail(retry ? 'RETRY_CONFIRMATION_REQUIRED' : 'APPROVAL_LOCKED');
+      }
       const prepared = prepareApprovedExternalInboxReply({ ...options, request: record.request, envelope, nowMs, humanApproved: true });
       if (!prepared.ok) return fail(prepared.code);
-      const next = { ...record, status: 'approved', approval: prepared.approval, updatedAtMs: nowMs };
+      const next = { ...record, status: 'approved', approval: prepared.approval, approvalConsumed: false, retryAllowed: false,
+        retryOfAttemptId: retry ? record.attemptId : record.retryOfAttemptId || '', updatedAtMs: nowMs };
       tx.set(options.ref, next);
       return summary(next, 'APPROVED');
     });
@@ -285,9 +311,10 @@ export async function dispatchExternalInboxReply(input = {}) {
         || input.expectedDraftHash !== record.draftHash || record.envelopeHash !== envelopeHash(envelope)) return fail('DRAFT_CONFLICT');
       if (record.status === 'provider_accepted') return summary(record, 'ALREADY_DISPATCHED');
       if (['sending', 'outcome_unknown'].includes(record.status)) return fail('DELIVERY_UNCERTAIN');
-      const retry = record.status === 'failed_pre_send' && record.retryAllowed === true
-        && record.approvalConsumed === true && record.attempts === 1;
-      if (draftOnly || (!(record.status === 'approved' && !record.approvalConsumed && record.attempts === 0) && !retry)) return fail('APPROVAL_REQUIRED');
+      const approved = record.status === 'approved' && record.approvalConsumed === false && record.retryAllowed === false
+        && ((record.attempts === 0 && record.attemptId === '' && (record.retryOfAttemptId || '') === '')
+          || (record.attempts === 1 && ATTEMPT_ID.test(record.attemptId) && record.retryOfAttemptId === record.attemptId));
+      if (draftOnly || !approved) return fail('APPROVAL_REQUIRED');
       const checked = validateExternalInboxReplyForSend({ ...options, request: record.request, envelope,
         nowMs, approval: record.approval, approvalConsumed: false });
       if (!checked.ok) return fail(checked.code);
@@ -307,7 +334,8 @@ export async function dispatchExternalInboxReply(input = {}) {
     await markUncertain(options, attemptId);
     return fail('DELIVERY_UNCERTAIN');
   }
-  const raw = await invokeSender(options.send, { envelope: claim.envelope, text: claim.text, attemptId });
+  const raw = await invokeSender(options.send, { envelope: claim.envelope, text: claim.text, attemptId,
+    authorizationExpiresAtMs: claim.approvalExpiresAtMs });
   let evidence;
   try { evidence = classifyExternalInboxReplyDelivery(raw); }
   catch { await markUncertain(options, attemptId); return fail('DELIVERY_UNCERTAIN'); }

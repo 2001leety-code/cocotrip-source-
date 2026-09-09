@@ -214,6 +214,7 @@ describe('draft and human approval server ledger', () => {
     const base = fixture(); strictReadOrder(base.db); const value = await approved(base);
     expect((await dispatchExternalInboxReply(value)).code).toBe('PROVIDER_ACCEPTED');
     expect(value.send).toHaveBeenCalledTimes(1);
+    expect(value.send.mock.calls[0][0]).toMatchObject({ authorizationExpiresAtMs: NOW + 300_000, attemptId: expect.any(String) });
   });
 });
 
@@ -280,11 +281,41 @@ describe('exactly one attempted dispatch claim and uncertainty quarantine', () =
     expect(record(value).status).toBe('outcome_unknown');
     expect((await dispatchExternalInboxReply(value)).code).toBe('DELIVERY_UNCERTAIN'); expect(value.send).toHaveBeenCalledTimes(1);
   });
-  it('only verified pre-send failure permits one additional attempt within the original approval', async () => {
+  it('requires a fresh explicit human retry confirmation after one verified pre-send failure', async () => {
     const value = await approved(); value.send.mockResolvedValue({ status: 'failed_pre_send', preSendVerified: true });
     expect((await dispatchExternalInboxReply(value)).code).toBe('PRE_SEND_FAILURE'); expect(record(value).retryAllowed).toBe(true);
-    expect((await dispatchExternalInboxReply(value)).code).toBe('PRE_SEND_FAILURE'); expect(record(value).retryAllowed).toBe(false);
-    expect((await dispatchExternalInboxReply(value)).code).toBe('APPROVAL_REQUIRED'); expect(value.send).toHaveBeenCalledTimes(2);
+    const firstAttemptId = record(value).attemptId;
+    expect((await dispatchExternalInboxReply(value)).code).toBe('APPROVAL_REQUIRED');
+    expect((await approveExternalInboxReplyDraft(value)).code).toBe('RETRY_CONFIRMATION_REQUIRED');
+    expect((await approveExternalInboxReplyDraft({ ...value, retryPreSend: true, expectedFailedAttemptId: 'a'.repeat(36) })).code).toBe('RETRY_CONFIRMATION_REQUIRED');
+    const renewed = await approveExternalInboxReplyDraft({ ...value, retryPreSend: true, expectedFailedAttemptId: firstAttemptId });
+    expect(renewed.code).toBe('APPROVED'); expect(record(value)).toMatchObject({ status: 'approved', attempts: 1,
+      attemptId: firstAttemptId, retryOfAttemptId: firstAttemptId, approvalConsumed: false, retryAllowed: false });
+    expect((await dispatchExternalInboxReply({ ...value, expectedRevision: renewed.revision, expectedDraftHash: renewed.draftHash })).code).toBe('PRE_SEND_FAILURE');
+    expect(record(value)).toMatchObject({ attempts: 2, retryAllowed: false, approvalConsumed: true });
+    expect((await approveExternalInboxReplyDraft({ ...value, retryPreSend: true, expectedFailedAttemptId: record(value).attemptId,
+      expectedRevision: renewed.revision, expectedDraftHash: renewed.draftHash })).code).toBe('APPROVAL_LOCKED');
+    expect(value.send).toHaveBeenCalledTimes(2);
+  });
+  it('allows a retry confirmation to replace an expired approval for at most five new minutes', async () => {
+    const value = await approved(); value.send.mockResolvedValue({ status: 'failed_pre_send', preSendVerified: true });
+    expect((await dispatchExternalInboxReply(value)).code).toBe('PRE_SEND_FAILURE');
+    const failedAttemptId = record(value).attemptId; value.now.mockReturnValue(NOW + 300_000);
+    const retried = await approveExternalInboxReplyDraft({ ...value, retryPreSend: true, expectedFailedAttemptId: failedAttemptId });
+    expect(retried).toMatchObject({ code: 'APPROVED', approvalExpiresAtMs: NOW + 600_000 });
+    expect(record(value).approval.expiresAtMs).toBe(NOW + 600_000);
+  });
+  it.each(['sending', 'outcome_unknown', 'provider_accepted'])('never permits a human retry approval from %s', async status => {
+    const value = await approved();
+    if (status === 'provider_accepted') {
+      expect((await dispatchExternalInboxReply(value)).code).toBe('PROVIDER_ACCEPTED');
+    } else {
+      value.db.__patch(path(value), { status, approvalConsumed: true, attempts: 1,
+        attemptId: '12345678-1234-4234-8234-123456789abc', retryAllowed: false });
+    }
+    expect((await approveExternalInboxReplyDraft({ ...value, retryPreSend: true, expectedFailedAttemptId: '12345678-1234-4234-8234-123456789abc' })).code)
+      .toBe('APPROVAL_LOCKED');
+    expect(value.send).toHaveBeenCalledTimes(status === 'provider_accepted' ? 1 : 0);
   });
   it('does not retry contradictory accepted/pre-send evidence', async () => {
     const value = await approved(); value.send.mockResolvedValue({ ...accepted, status: 'failed_pre_send', preSendVerified: true });

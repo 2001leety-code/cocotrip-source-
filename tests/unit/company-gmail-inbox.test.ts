@@ -75,6 +75,7 @@ function memoryStore() {
 function message(id: string, extra: Row = {}) {
   return { id, threadId: `thread_${id}`, internalDate: String(NOW - 10_000), labelIds: ['INBOX', 'UNREAD'],
     snippet: PRIVATE + '_preview', payload: { headers: [{ name: 'From', value: 'Fake Sender <sender@example.invalid>' },
+      { name: 'Message-ID', value: `<${id}@example.invalid>` }, { name: 'References', value: '' },
       { name: 'Subject', value: PRIVATE + '_subject' }] }, ...extra };
 }
 function response(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status }); }
@@ -108,7 +109,8 @@ function fixture() {
     if (endpoint === 'history') { expect(url.searchParams.get('labelId')).toBe('INBOX'); return api.history(url); }
     if (/^messages\/[A-Za-z0-9_-]+$/.test(endpoint)) {
       expect(url.searchParams.get('format')).toBe('metadata');
-      expect(url.searchParams.getAll('metadataHeaders')).toEqual(['From', 'Subject']);
+      expect(url.searchParams.getAll('metadataHeaders')).toEqual(['From', 'Reply-To', 'Message-ID', 'References', 'Subject',
+        'Auto-Submitted', 'List-Id', 'List-Post', 'List-Unsubscribe', 'Precedence', 'X-Auto-Response-Suppress']);
       expect(url.searchParams.get('fields')).toBe('id,threadId,internalDate,labelIds,snippet,payload/headers');
       return api.message(endpoint.split('/')[1]);
     }
@@ -196,11 +198,15 @@ describe('company identity, read-only provider and private output boundaries', (
   it('stores only metadata/preview and never original HTML, bodies, attachments or labels', async () => {
     const f = fixture(); f.api.list.mockResolvedValue(response({ messages: [{ id: 'a' }] }));
     f.api.message.mockResolvedValue(response(message('a', { raw: PRIVATE + '_raw', payload: { body: { data: PRIVATE + '_html' },
-      parts: [{ body: { attachmentId: PRIVATE + '_attachment' } }], headers: [{ name: 'From', value: 'sender@example.invalid' }, { name: 'Subject', value: 'Synthetic' }] } })));
+      parts: [{ body: { attachmentId: PRIVATE + '_attachment' } }], headers: [{ name: 'From', value: 'sender@example.invalid' },
+        { name: 'Message-ID', value: '<a@example.invalid>' }, { name: 'References', value: '' }, { name: 'Subject', value: 'Synthetic' }] } })));
     expect(await f.run()).toMatchObject({ ok: true, status: 'connected', created: 1 });
     expect(f.messages()[0]).toMatchObject({ channel: 'email', accountId: COMPANY_GMAIL_ACCOUNT, providerMessageId: 'a', kind: 'email', truncated: true,
       sourceAtMs: NOW - 10_000, receivedAtMs: NOW, retentionPolicyVersion: 2, caseId: expect.stringMatching(/^[a-f0-9]{64}$/), expiresAtMs: 0, expiresAt: null });
-    expect(Object.keys(f.messages()[0]).sort()).toEqual(['accountId', 'caseId', 'channel', 'expiresAt', 'expiresAtMs', 'kind', 'providerMessageId',
+    expect(f.messages()[0].gmailReply).toMatchObject({ version: 1, recipient: 'sender@example.invalid', contextVerified: true,
+      singleMailbox: true, headerControls: false, autoSubmitted: false, listHeader: false, noReply: false, ambiguous: false,
+      threadId: 'thread_a', rfcMessageId: '<a@example.invalid>', references: [] });
+    expect(Object.keys(f.messages()[0]).sort()).toEqual(['accountId', 'caseId', 'channel', 'expiresAt', 'expiresAtMs', 'gmailReply', 'kind', 'providerMessageId',
       'providerThreadId', 'receivedAtMs', 'retentionPolicyVersion', 'sender', 'sourceAtMs', 'subject', 'text', 'truncated'].sort());
     expect(JSON.stringify(f.messages())).not.toContain('_html'); expect(JSON.stringify(f.messages())).not.toContain('_attachment');
   });

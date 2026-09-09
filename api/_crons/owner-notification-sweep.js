@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
-  sealOwnerCursor, sourceTime, timeAtMs, timeToMs,
+  sealOwnerCursor, sourceTime, timeAtMs, timeToMs, ownerHash,
 } from '../_shared/owner-notification-policy.js';
 import { readCompanyGmailInboxConfig } from '../_shared/company-gmail-inbox.js';
 import { readWhatsAppInboxConfig } from '../_shared/whatsapp-inbox.js';
-import { WHATSAPP_SESSIONS_COLLECTION } from '../_shared/whatsapp-support-sessions.js';
+import { WHATSAPP_SESSIONS_COLLECTION, sessionDocId, validSupportSender } from '../_shared/whatsapp-support-sessions.js';
+import { INBOX_CASES_COLLECTION, inboxCaseAllowsRead, inboxCaseId, validInboxCase } from '../_shared/external-inbox-retention.js';
 import {
   OWNER_CONTROL_COLLECTION, OWNER_EVENT_COLLECTION, OWNER_LEASE_MS, deliverOwnerEvent,
   newOwnerEvent, ownerEventId, pruneExpiredOwnerEvents, readSelectedOwnerDevice,
@@ -51,12 +52,28 @@ function activeWhatsAppSession(session, accountId, sourceAtMs, nowMs) {
 }
 
 /** No message text, sender, subject or contact record is returned or queued. */
-async function externalInboxEventAllowed(db, data, nowMs, configs) {
+async function externalInboxEventAllowed(db, id, data, nowMs, configs) {
   const config = configs[data.channel];
   if (!config?.ready || data.accountId !== config.accountId || data.sourceAtMs < config.captureStartAtMs
-    || data.expiresAtMs <= nowMs) return false;
+    || !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(data.receivedAtMs)
+    || data.sourceAtMs > data.receivedAtMs || data.receivedAtMs > nowMs) return false;
+  if (data.retentionPolicyVersion === 2) {
+    if (data.expiresAtMs !== 0 || data.expiresAt !== null
+      || id !== ownerHash('external-inbox.v1', data.channel, data.accountId, data.providerMessageId)
+      || data.caseId !== inboxCaseId(data)) return false;
+    let record;
+    try { record = await db.collection(INBOX_CASES_COLLECTION).doc(data.caseId).get(); }
+    catch { throw new OwnerSourceError('INBOX_CASE_READ_FAILED'); }
+    // Missing/corrupt case evidence is not permission to skip a new inquiry forever.
+    if (!record.exists || !validInboxCase(record.data(), data.caseId) || record.data().updatedAtMs > nowMs) {
+      throw new OwnerSourceError('INBOX_CASE_UNAVAILABLE');
+    }
+    if (!inboxCaseAllowsRead(record.data(), data.caseId, nowMs, data)) return false;
+  } else if (data.retentionPolicyVersion !== undefined || data.expiresAtMs <= nowMs) return false;
   if (data.channel !== 'whatsapp') return data.channel === 'email';
   if (data.whatsappPolicyVersion !== 1 || typeof data.whatsappSessionId !== 'string') return false;
+  if (data.retentionPolicyVersion === 2 && (!validSupportSender(data.providerThreadId)
+    || data.whatsappSessionId !== sessionDocId(data.accountId, data.providerThreadId))) return false;
   try {
     const snap = await db.collection(WHATSAPP_SESSIONS_COLLECTION).doc(data.whatsappSessionId).get();
     return snap.exists && activeWhatsAppSession(snap.data(), config.accountId, data.sourceAtMs, nowMs);
@@ -164,7 +181,7 @@ export async function ownerNotificationSweepTask(options = {}) {
             if (!time || timeToMs(time) < control.state.activatedAtMs || timeToMs(time) > upperMs) throw new OwnerSourceError('SOURCE_TIME_INVALID');
             let event = eventFromSource(spec.name, doc.id, data);
             if (event && spec.name === 'external_inbox_messages') {
-              const allowed = await externalInboxEventAllowed(db, data, now(), externalInboxConfigs);
+              const allowed = await externalInboxEventAllowed(db, doc.id, data, now(), externalInboxConfigs);
               if (!allowed) event = null;
             }
             // A new confirmed mirror of a pre-activation pending booking is not a new reservation.

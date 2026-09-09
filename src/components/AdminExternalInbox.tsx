@@ -11,6 +11,10 @@ import {
   type ExternalInboxRetention,
 } from "@/lib/adminExternalInboxCopy";
 import { AdminWhatsAppPrivacy } from "@/components/AdminWhatsAppPrivacy";
+import {
+  AdminCompanyEmailReply,
+  type CompanyEmailReplyTransport,
+} from "@/components/AdminCompanyEmailReply";
 import { selectInboxMessages } from "@/lib/selectInboxMessages";
 
 interface Props {
@@ -24,6 +28,7 @@ interface Props {
     action: "close" | "reopen" | "protect";
     confirmation?: "ordinary_no_evidence";
   }) => Promise<ExternalInboxRetention>;
+  companyEmailReplyTransport?: CompanyEmailReplyTransport;
 }
 type Account = { uid: string; getIdToken: () => Promise<string> } | null;
 const buttonClass =
@@ -90,6 +95,7 @@ function InboxContent({
   previewData,
   refreshKey,
   retentionAction,
+  companyEmailReplyTransport,
   account,
 }: Props & { account: Account }) {
   const copy = adminExternalInboxCopy[language] || adminExternalInboxCopy.en;
@@ -641,6 +647,16 @@ function InboxContent({
                             <p className="mt-3 text-xs leading-5 text-slate-300">
                               {copy.clipped}
                             </p>
+                          )}
+                          {detail.channel === "email" && (
+                            <AdminCompanyEmailReply
+                              key={`${detail.id}:${detail.sourceAtMs}`}
+                              language={language}
+                              messageId={detail.id}
+                              sourceAtMs={detail.sourceAtMs}
+                              account={account}
+                              transport={companyEmailReplyTransport}
+                            />
                           )}
                           {detail.retention && (
                             <div className="mt-4 rounded-xl border border-violet-300/20 p-3 text-sm">

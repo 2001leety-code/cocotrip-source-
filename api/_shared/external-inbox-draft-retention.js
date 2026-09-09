@@ -11,7 +11,8 @@ const PURGEABLE = new Set(['draft', 'draft_only', 'approved']);
 const object = value => Boolean(value && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value)));
 const time = value => Number.isSafeInteger(value) && value > 0 && value <= 8_640_000_000_000_000;
-const draftExpiresAt = (createdAtMs, sourceExpiresAtMs) => Math.min(createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS, sourceExpiresAtMs);
+const draftExpiresAt = (createdAtMs, sourceExpiresAtMs) => sourceExpiresAtMs > 0
+  ? Math.min(createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS, sourceExpiresAtMs) : createdAtMs + EXTERNAL_INBOX_DRAFT_RETENTION_MS;
 const countResult = (ok, code, selected = 0, purged = 0, skipped = 0) => ({ ok, code, selected, purged, skipped });
 
 function eligibleDraft(record, docId, nowMs) {
@@ -19,7 +20,7 @@ function eligibleDraft(record, docId, nowMs) {
     || !validExternalInboxReplyWorkflowRecord(record, { source: record.sourceHash, actor: record.actorHash })
     || record.schemaVersion !== VERSION || record.kind !== 'reply'
     || !PURGEABLE.has(record.status) || record.attempts !== 0 || !time(record.createdAtMs)
-    || !time(record.updatedAtMs) || record.updatedAtMs < record.createdAtMs || !time(record.expiresAtMs)
+    || !time(record.updatedAtMs) || record.updatedAtMs < record.createdAtMs || !(record.expiresAtMs === 0 || time(record.expiresAtMs))
     || !HASH.test(record.sourceHash) || !HASH.test(record.actorHash)
     || !object(record.request) || !object(record.envelope) || typeof record.draftHash !== 'string'
     || !HASH.test(record.draftHash) || !HASH.test(record.envelopeHash) || !Number.isSafeInteger(record.revision)
