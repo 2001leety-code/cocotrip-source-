@@ -204,7 +204,11 @@ describe('AI center partial-data presentation', () => {
     expect(within(section).getByText(copy.apiHostingCosts)).toBeVisible();
     const inboxCopy = adminExternalInboxCopy[language];
     const inbox = screen.getByRole('region', { name: inboxCopy.title });
-    expect(within(inbox).getByText(inboxCopy.email)).toBeVisible();
+    expect(
+      within(inbox).getByText(
+        `${inboxCopy.email} · ${inboxCopy.emailAccounts.primary}`,
+      ),
+    ).toBeVisible();
     expect(within(inbox).getByText(inboxCopy.whatsapp)).toBeVisible();
     expect(within(inbox).getAllByText(inboxCopy.statuses.disabled)).toHaveLength(2);
     expect(section.textContent).not.toMatch(/[0-9$₩¥]|USD|KRW/);
