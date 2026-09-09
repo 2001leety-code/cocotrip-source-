@@ -12,9 +12,11 @@ import {
 import { AdminExternalInbox } from "../../src/components/AdminExternalInbox";
 import {
   adminExternalInboxCopy,
+  externalInboxEmailAccountIds,
   isExternalInboxOverview,
   type ExternalInboxOverview,
 } from "../../src/lib/adminExternalInboxCopy";
+import { adminCompanyEmailReplyCopy } from "../../src/lib/adminCompanyEmailReply";
 void React;
 
 const auth = vi.hoisted(() => ({
@@ -377,6 +379,60 @@ describe("company inbox read-only interaction", () => {
       ).toBe(true);
     },
   );
+  it("keeps the secondary work inbox receive-only and does not mount a reply transport", () => {
+    const secondaryMessage = {
+      ...message,
+      id: "c".repeat(64),
+      accountId: externalInboxEmailAccountIds.secondary,
+      replySupported: false,
+      subject: "SYNTHETIC secondary work inquiry",
+    };
+    const replyTransport = {
+      load: vi.fn(async () => {
+        throw new Error("REPLY_TRANSPORT_MUST_NOT_RUN");
+      }),
+      action: vi.fn(async () => ({ ok: false, code: "REPLY_UNAVAILABLE" })),
+    };
+    const secondaryOverview = {
+      ...fixture,
+      channels: [
+        {
+          ...fixture.channels[0],
+          accountId: externalInboxEmailAccountIds.primary,
+        },
+        {
+          ...fixture.channels[0],
+          accountId: externalInboxEmailAccountIds.secondary,
+        },
+        fixture.channels[1],
+      ],
+      messages: [secondaryMessage],
+    } satisfies ExternalInboxOverview;
+    expect(isExternalInboxOverview(secondaryOverview)).toBe(true);
+    render(
+      <AdminExternalInbox
+        language="en"
+        previewMode
+        companyEmailReplyTransport={replyTransport}
+        previewData={secondaryOverview}
+      />,
+    );
+    expect(
+      screen.getByText(adminExternalInboxCopy.en.secondaryReceiveOnly),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View content" }));
+    expect(
+      screen.getAllByText(adminExternalInboxCopy.en.secondaryReceiveOnly),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("region", {
+        name: adminCompanyEmailReplyCopy.en.title,
+      }),
+    ).toBeNull();
+    expect(replyTransport.load).not.toHaveBeenCalled();
+    expect(replyTransport.action).not.toHaveBeenCalled();
+    expect(network).not.toHaveBeenCalled();
+  });
   it("does not show failed loading as zero messages or leak server errors", async () => {
     network.mockResolvedValue({
       ok: false,
@@ -528,7 +584,37 @@ describe("company inbox read-only interaction", () => {
       {},
       { ...fixture, messages: [{ ...message, sourceAtMs: Infinity }] },
       { ...fixture, messages: [message, message] },
+      { ...fixture, channels: [null, fixture.channels[1]] },
+      { ...fixture, channels: [undefined, fixture.channels[1]] },
       { ...fixture, channels: [fixture.channels[0], fixture.channels[0]] },
+      {
+        ...fixture,
+        channels: [
+          {
+            ...fixture.channels[0],
+            accountId: externalInboxEmailAccountIds.primary,
+          },
+          {
+            ...fixture.channels[0],
+            accountId: externalInboxEmailAccountIds.primary,
+          },
+          fixture.channels[1],
+        ],
+      },
+      {
+        ...fixture,
+        messages: [
+          {
+            ...message,
+            accountId: externalInboxEmailAccountIds.secondary,
+            replySupported: true,
+          },
+        ],
+      },
+      {
+        ...fixture,
+        messages: [{ ...message, accountId: "outside@example.invalid" }],
+      },
       {
         ...fixture,
         channels: [

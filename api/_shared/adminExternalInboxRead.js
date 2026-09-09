@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readCompanyGmailInboxConfig } from './company-gmail-inbox.js';
+import { companyGmailInboxConfigForAccount, readCompanyGmailInboxConfigs } from './company-gmail-inbox-registry.js';
 import { readWhatsAppInboxConfig } from './whatsapp-inbox.js';
 import { EXTERNAL_INBOX_MESSAGES_COLLECTION, EXTERNAL_INBOX_STATE_COLLECTION } from './external-inbox-store.js';
 import {
@@ -10,7 +10,7 @@ import { sessionDocId, validSupportAccount, validSupportSender } from './whatsap
 const DAY_MS = 86_400_000;
 const MAX_MESSAGES = 100;
 const SUMMARY_FIELDS = ['channel', 'accountId', 'providerMessageId', 'providerThreadId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId', 'retentionPolicyVersion', 'caseId'];
-const STATE_FIELDS = ['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'lastSuccessAtMs', 'lastReceivedAtMs'];
+const STATE_FIELDS = ['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'workLabelId', 'lastSuccessAtMs', 'lastReceivedAtMs'];
 const RETENTION_STATE_FIELDS = ['ok', 'code', 'checkedAtMs', 'copies.purged', 'drafts.purged'];
 const positiveTime = value => Number.isSafeInteger(value) && value > 0;
 const isControl = character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127;
@@ -18,16 +18,18 @@ const clean = (value, max) => typeof value === 'string'
   ? Array.from(value).filter(character => !isControl(character) || ['\t', '\n', '\r'].includes(character)).slice(0, max).join('') : '';
 
 export function externalInboxConfigs(env = process.env, nowMs = Date.now()) {
-  return { email: readCompanyGmailInboxConfig(env, nowMs), whatsapp: readWhatsAppInboxConfig(env, nowMs) };
+  return { ...readCompanyGmailInboxConfigs(env, nowMs), whatsapp: readWhatsAppInboxConfig(env, nowMs) };
 }
 
 export function externalInboxChannelStatus(channel, config, state, nowMs, failed = false) {
-  const base = { channel, status: config.status, lastSuccessAtMs: null, lastReceivedAtMs: null };
+  const base = { channel: config.channel || channel, status: config.status, lastSuccessAtMs: null, lastReceivedAtMs: null,
+    ...(config.channel === 'email' ? { accountId: config.accountId } : {}) };
   if (!config.ready) return base;
   if (failed) return { ...base, status: 'unknown' };
   if (!state) return { ...base, status: 'awaiting' };
   if (state.accountId !== config.accountId || state.captureStartAtMs !== config.captureStartAtMs
-    || state.retentionDays !== config.retentionDays) return { ...base, status: 'resync_required' };
+    || state.retentionDays !== config.retentionDays
+    || (config.stateId === 'secondary_gmail' && state.workLabelId !== config.labelId)) return { ...base, status: 'resync_required' };
   if (!['connected', 'syncing', 'error', 'resync_required'].includes(state.status)) return { ...base, status: 'unknown' };
   const lastSuccessAtMs = positiveTime(state.lastSuccessAtMs) && state.lastSuccessAtMs <= nowMs ? state.lastSuccessAtMs : null;
   const lastReceivedAtMs = positiveTime(state.lastReceivedAtMs) && state.lastReceivedAtMs <= nowMs ? state.lastReceivedAtMs : null;
@@ -40,7 +42,8 @@ export function externalInboxChannelStatus(channel, config, state, nowMs, failed
 /** Recheck company/channel/date ownership for every list AND direct-id lookup. Never spread source objects. */
 export function publicExternalInboxMessage(id, data, configs, nowMs, detail = false, inboxCase = null) {
   if (!data || !/^[a-f0-9]{64}$/.test(id) || !['email', 'whatsapp'].includes(data.channel)) return null;
-  const config = configs[data.channel];
+  const config = data.channel === 'email'
+    ? companyGmailInboxConfigForAccount(configs, data.accountId) : configs.whatsapp;
   if (!config?.ready || data.accountId !== config.accountId || typeof data.providerMessageId !== 'string'
     || !data.providerMessageId || data.providerMessageId.length > 512 || Array.from(data.providerMessageId).some(isControl)) return null;
   // Legacy/unscoped receipts are NOT proof of customer consent. Do not display their bodies or summaries.
@@ -65,6 +68,7 @@ export function publicExternalInboxMessage(id, data, configs, nowMs, detail = fa
   const result = { id, channel: data.channel, sourceAtMs: data.sourceAtMs, receivedAtMs: data.receivedAtMs,
     sender: clean(data.sender, 320), subject: clean(data.subject, 256),
     kind: typeof data.kind === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(data.kind) ? data.kind : 'unknown', truncated: data.truncated === true,
+    ...(data.channel === 'email' ? { accountId: data.accountId, replySupported: config.replySupported === true } : {}),
     ...(retention ? { retention } : {}) };
   return detail ? { ...result, text: clean(data.text, 4000) } : result;
 }
@@ -121,7 +125,7 @@ export async function loadExternalInbox({ db, configs, nowMs, timeoutMs = 3000 }
     if (!config.ready) return externalInboxChannelStatus(channel, config, null, nowMs);
     try {
       const state = await bounded(db.collection(EXTERNAL_INBOX_STATE_COLLECTION)
-        .where('__name__', '==', channel === 'email' ? 'company_gmail' : 'whatsapp').select(...STATE_FIELDS).limit(1).get(), timeoutMs);
+        .where('__name__', '==', config.stateId || channel).select(...STATE_FIELDS).limit(1).get(), timeoutMs);
       return externalInboxChannelStatus(channel, config, state.docs[0]?.data(), nowMs);
     } catch { return externalInboxChannelStatus(channel, config, null, nowMs, true); }
   }));

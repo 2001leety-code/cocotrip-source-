@@ -16,8 +16,13 @@ function enable() {
     COMPANY_GMAIL_INBOX_CLIENT_ID: 'fake-only', COMPANY_GMAIL_INBOX_CLIENT_SECRET: PRIVATE, COMPANY_GMAIL_INBOX_REFRESH_TOKEN: PRIVATE,
     COMPANY_GMAIL_INBOX_CAPTURE_START_AT: new Date(START).toISOString(), COMPANY_GMAIL_INBOX_RETENTION_DAYS: '30' })) vi.stubEnv(key, value);
 }
-function record(extra: Row = {}) {
-  const prepared = prepareExternalInboxMessage({ channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: 'fake_id',
+function enableSecondary() {
+  for (const [key, value] of Object.entries({ ENABLED: 'true', EMAIL: '2001leety@gmail.com', CLIENT_ID: 'fake-secondary',
+    CLIENT_SECRET: PRIVATE, REFRESH_TOKEN: PRIVATE, CAPTURE_START_AT: new Date(START).toISOString(),
+    RETENTION_DAYS: '30', LABEL_ID: 'Label_synthetic_work' })) vi.stubEnv('SECONDARY_GMAIL_INBOX_' + key, value);
+}
+function record(extra: Row = {}, accountId = 'cocotripkr@gmail.com') {
+  const prepared = prepareExternalInboxMessage({ channel: 'email', accountId, providerMessageId: 'fake_id',
     providerThreadId: 'fake_thread', sourceAtMs: NOW - 1000, sender: 'Synthetic sender', subject: 'Synthetic subject', text: PRIVATE, kind: 'email' },
   { nowMs: NOW, retentionDays: 30 });
   return { id: prepared.docId, data: { ...prepared.data, ...extra }, caseData: nextInboxCaseOnMessage(null, prepared.data, NOW) };
@@ -65,7 +70,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('REAL_NETWORK_FORBIDDEN'); }));
   dependencies.authorize.mockResolvedValue({ ok: true }); dependencies.init.mockReturnValue(fakeDb().db);
   vi.stubEnv('VERCEL_ENV', 'production');
-  for (const key of ['COMPANY_GMAIL_INBOX_ENABLED', 'WHATSAPP_INBOX_ENABLED']) vi.stubEnv(key, 'false');
+  for (const key of ['COMPANY_GMAIL_INBOX_ENABLED', 'SECONDARY_GMAIL_INBOX_ENABLED', 'WHATSAPP_INBOX_ENABLED']) vi.stubEnv(key, 'false');
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
@@ -91,7 +96,11 @@ describe('admin external inbox authorization and configuration boundaries', () =
   });
   it('returns disabled channels with no Firestore initialization or lookups', async () => {
     const result = await request(); expect(result.status).toBe(200);
-    expect(result.body.data).toMatchObject({ listStatus: 'not_connected', messages: [], channels: [{ status: 'disabled' }, { status: 'disabled' }] });
+    expect(result.body.data).toMatchObject({ listStatus: 'not_connected', messages: [], channels: [
+      { channel: 'email', accountId: 'cocotripkr@gmail.com', status: 'disabled' },
+      { channel: 'email', accountId: '2001leety@gmail.com', status: 'disabled' },
+      { channel: 'whatsapp', status: 'disabled' },
+    ] });
     expect(dependencies.init).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
   it('does not query storage when enabled but required retention/cutover settings are absent', async () => {
@@ -115,14 +124,31 @@ describe('admin external inbox authorization and configuration boundaries', () =
 });
 
 describe('live helper wiring against synthetic storage only', () => {
-  it('lists safe summaries without message body, provider cursor, account, token or writes', async () => {
+  it('lists the fixed email account and safe summaries without message body, provider cursor, token or writes', async () => {
     enable(); const doc = record({ cursorHistoryId: PRIVATE, accessToken: PRIVATE, html: PRIVATE }); const f = fakeDb([doc]); dependencies.init.mockReturnValue(f.db);
     const result = await request(); expect(result.status).toBe(200); expect(result.body.data.messages).toHaveLength(1);
-    expect(result.body.data.messages[0]).not.toHaveProperty('text'); expect(result.body.data.messages[0]).not.toHaveProperty('accountId');
+    expect(result.body.data.messages[0]).not.toHaveProperty('text');
+    expect(result.body.data.messages[0]).toMatchObject({ accountId: 'cocotripkr@gmail.com', replySupported: true });
+    expect(Object.keys(result.body.data.messages[0]).sort()).toEqual([
+      'id', 'channel', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'accountId', 'replySupported', 'retention',
+    ].sort());
     expect(JSON.stringify(result)).not.toContain(PRIVATE); expect(f.reads).toContain('external_inbox_messages:list');
     expect(f.reads).toContain(`external_inbox_cases/${doc.data.caseId}`); expect(f.reads).not.toContain(`external_inbox_messages/${doc.id}`);
     expect(f.writes).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
     expect(result.headers).toMatchObject({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Access-Control-Allow-Origin': 'https://cocotripkr.com' });
+  });
+  it('returns only the enabled secondary mailbox and denies the primary detail with synthetic storage', async () => {
+    enableSecondary();
+    const secondary = record({}, '2001leety@gmail.com'); const primary = record();
+    const f = fakeDb([secondary, primary]); dependencies.init.mockReturnValue(f.db);
+    const result = await request();
+    expect(result.status).toBe(200);
+    expect(result.body.data.messages).toHaveLength(1);
+    expect(result.body.data.messages[0]).toMatchObject({ accountId: '2001leety@gmail.com', replySupported: false });
+    expect(JSON.stringify(result)).not.toContain(PRIVATE);
+    expect((await request('GET', `?id=${secondary.id}`)).body.data).toMatchObject({ accountId: '2001leety@gmail.com', replySupported: false });
+    expect((await request('GET', `?id=${primary.id}`)).status).toBe(404);
+    expect(f.writes).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
   it('returns stored plain preview only for an explicit valid message ID', async () => {
     enable(); const doc = record(); const f = fakeDb([doc]); dependencies.init.mockReturnValue(f.db);
@@ -155,7 +181,11 @@ describe('live helper wiring against synthetic storage only', () => {
     const f = fakeDb(); f.setHangList(); dependencies.init.mockReturnValue(f.db);
     const run = request(); await vi.advanceTimersByTimeAsync(6001);
     const result = await run;
-    expect(result).toMatchObject({ status: 200, body: { ok: true, data: { listStatus: 'unknown', channels: [{ status: 'unknown' }, { status: 'disabled' }] } } });
+    expect(result).toMatchObject({ status: 200, body: { ok: true, data: { listStatus: 'unknown', channels: [
+      { channel: 'email', accountId: 'cocotripkr@gmail.com', status: 'unknown' },
+      { channel: 'email', accountId: '2001leety@gmail.com', status: 'disabled' },
+      { channel: 'whatsapp', status: 'disabled' },
+    ] } } });
     expect(result.headers['Cache-Control']).toBe('no-store'); expect(fetch).not.toHaveBeenCalled();
   });
   it('returns HTTP 503 after the actual bounded detail timeout', async () => {

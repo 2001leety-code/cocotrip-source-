@@ -372,6 +372,29 @@ describe('metadata scanner, cutover and atomic queue/cursor', () => {
     expect(f.send).toHaveBeenCalledTimes(1);
   });
 
+  it('queues only the configured secondary work inbox and never treats the primary account as interchangeable', async () => {
+    const f = fixture();
+    Object.assign(f.env, {
+      SECONDARY_GMAIL_INBOX_ENABLED: 'true', SECONDARY_GMAIL_INBOX_EMAIL: '2001leety@gmail.com',
+      SECONDARY_GMAIL_INBOX_CLIENT_ID: 'fake-secondary-client', SECONDARY_GMAIL_INBOX_CLIENT_SECRET: 'fake-secondary-secret',
+      SECONDARY_GMAIL_INBOX_REFRESH_TOKEN: 'fake-secondary-token', SECONDARY_GMAIL_INBOX_CAPTURE_START_AT: '2026-09-06T00:00:00.000Z',
+      SECONDARY_GMAIL_INBOX_RETENTION_DAYS: '7', SECONDARY_GMAIL_INBOX_LABEL_ID: 'Label_10',
+    });
+    await f.run();
+    for (const [accountId, providerMessageId] of [['2001leety@gmail.com', 'secondary-notice'], ['cocotripkr@gmail.com', 'primary-notice']]) {
+      const data = { channel: 'email', accountId, providerMessageId, providerThreadId: `${providerMessageId}-thread`,
+        sourceAtMs: EPOCH + 1000, receivedAtMs: EPOCH + 1000, retentionPolicyVersion: 2, expiresAtMs: 0, expiresAt: null };
+      const caseId = inboxCaseId(data);
+      const record = nextInboxCaseOnMessage(null, data, EPOCH + 1000);
+      const id = ownerHash('external-inbox.v1', data.channel, data.accountId, data.providerMessageId);
+      f.records.set(`external_inbox_messages/${id}`, { ...data, caseId });
+      f.records.set(`external_inbox_cases/${caseId}`, record);
+    }
+    f.setNow(EPOCH + 300_000);
+    expect(await f.run()).toMatchObject({ ok: true, accepted: 1 });
+    expect(f.ledger()).toHaveLength(1);
+  });
+
   it.each(['missing', 'read_failure', 'expired_floor', 'wrong_document', 'future_case'] as const)('does not queue a v2 email with %s evidence', async (failure) => {
     const f = fixture();
     Object.assign(f.env, {
