@@ -3,6 +3,10 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Language } from "@/i18n";
 import {
   adminExternalInboxCopy,
+  externalInboxAccountId,
+  externalInboxChannelKey,
+  externalInboxEmailAccountIds,
+  externalInboxReplySupported,
   isExternalInboxDetail,
   isExternalInboxOverview,
   isExternalInboxRetention,
@@ -99,6 +103,21 @@ function InboxContent({
   account,
 }: Props & { account: Account }) {
   const copy = adminExternalInboxCopy[language] || adminExternalInboxCopy.en;
+  const accountLabel = (
+    item: Pick<ExternalInboxMessage, "channel" | "accountId">,
+  ) =>
+    item.channel === "email"
+      ? copy.emailAccounts[
+          externalInboxAccountId(item) === externalInboxEmailAccountIds.secondary
+            ? "secondary"
+            : "primary"
+        ]
+      : null;
+  const isSecondaryEmail = (
+    item: Pick<ExternalInboxMessage, "channel" | "accountId">,
+  ) =>
+    item.channel === "email" &&
+    externalInboxAccountId(item) === externalInboxEmailAccountIds.secondary;
   const titleId = useId();
   const [loaded, setLoaded] = useState<ExternalInboxOverview | null>(null);
   const data = previewMode ? previewData || EMPTY_PREVIEW : loaded;
@@ -447,10 +466,18 @@ function InboxContent({
           <dl className="mt-4 grid gap-3 sm:grid-cols-2">
             {data.channels.map((channel) => (
               <div
-                key={channel.channel}
+                key={externalInboxChannelKey(channel)}
                 className="min-w-0 rounded-xl border border-white/10 p-3"
               >
-                <dt className="text-sm font-bold">{copy[channel.channel]}</dt>
+                <dt className="text-sm font-bold">
+                  {copy[channel.channel]}
+                  {channel.channel === "email" && ` · ${accountLabel(channel)}`}
+                </dt>
+                {isSecondaryEmail(channel) && (
+                  <dd className="mt-1 text-xs leading-5 text-slate-300">
+                    {copy.secondaryReceiveOnly}
+                  </dd>
+                )}
                 <dd className="mt-1 text-sm text-violet-200">
                   {copy.statuses[channel.status] || copy.statuses.unknown}
                 </dd>
@@ -593,7 +620,11 @@ function InboxContent({
                   className="min-w-0 rounded-xl border border-white/10 p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-                    <span>{copy[message.channel]}</span>
+                    <span>
+                      {copy[message.channel]}
+                      {message.channel === "email" &&
+                        ` · ${accountLabel(message)}`}
+                    </span>
                     <time dateTime={new Date(message.sourceAtMs).toISOString()}>
                       {time(message.sourceAtMs)}
                     </time>
@@ -643,12 +674,18 @@ function InboxContent({
                           <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-100 [overflow-wrap:anywhere]">
                             {detail.text || copy.emptyText}
                           </p>
+                          {isSecondaryEmail(detail) && (
+                            <p className="mt-3 text-xs leading-5 text-slate-300">
+                              {copy.secondaryReceiveOnly}
+                            </p>
+                          )}
                           {(detail.truncated || detail.channel === "email") && (
                             <p className="mt-3 text-xs leading-5 text-slate-300">
                               {copy.clipped}
                             </p>
                           )}
                           {detail.channel === "email" &&
+                            externalInboxReplySupported(detail) &&
                             (!previewMode || companyEmailReplyTransport) && (
                             <AdminCompanyEmailReply
                               key={`${detail.id}:${detail.sourceAtMs}`}

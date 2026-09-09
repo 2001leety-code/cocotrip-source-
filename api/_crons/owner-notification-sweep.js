@@ -3,7 +3,7 @@ import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
   sealOwnerCursor, sourceTime, timeAtMs, timeToMs, ownerHash,
 } from '../_shared/owner-notification-policy.js';
-import { readCompanyGmailInboxConfig } from '../_shared/company-gmail-inbox.js';
+import { companyGmailInboxConfigForAccount, readCompanyGmailInboxConfigs } from '../_shared/company-gmail-inbox-registry.js';
 import { readWhatsAppInboxConfig } from '../_shared/whatsapp-inbox.js';
 import { WHATSAPP_SESSIONS_COLLECTION, sessionDocId, validSupportSender } from '../_shared/whatsapp-support-sessions.js';
 import { INBOX_CASES_COLLECTION, inboxCaseAllowsRead, inboxCaseId, validInboxCase } from '../_shared/external-inbox-retention.js';
@@ -53,7 +53,8 @@ function activeWhatsAppSession(session, accountId, sourceAtMs, nowMs) {
 
 /** No message text, sender, subject or contact record is returned or queued. */
 async function externalInboxEventAllowed(db, id, data, nowMs, configs) {
-  const config = configs[data.channel];
+  const config = data.channel === 'email'
+    ? companyGmailInboxConfigForAccount(configs, data.accountId) : configs.whatsapp;
   if (!config?.ready || data.accountId !== config.accountId || data.sourceAtMs < config.captureStartAtMs
     || !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(data.receivedAtMs)
     || data.sourceAtMs > data.receivedAtMs || data.receivedAtMs > nowMs) return false;
@@ -146,10 +147,8 @@ export async function ownerNotificationSweepTask(options = {}) {
   try {
     services = await (options.loadServices || loadServices)();
     const { db } = services;
-    const externalInboxConfigs = {
-      email: readCompanyGmailInboxConfig(options.env || process.env, started),
-      whatsapp: readWhatsAppInboxConfig(options.env || process.env, started),
-    };
+    const externalInboxConfigs = { ...readCompanyGmailInboxConfigs(options.env || process.env, started),
+      whatsapp: readWhatsAppInboxConfig(options.env || process.env, started) };
     const device = await readSelectedOwnerDevice(services, config);
     if (!device) return { ok: false, enabled: true, code: 'OWNER_DEVICE_REQUIRED' };
     control = await acquireControl(db, config, device, started, token);

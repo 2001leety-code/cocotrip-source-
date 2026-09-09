@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  COMPANY_GMAIL_ACCOUNT, COMPANY_GMAIL_STATE_ID, companyGmailInboxSweepTask, readCompanyGmailInboxConfig,
+  COMPANY_GMAIL_ACCOUNT, COMPANY_GMAIL_STATE_ID, companyGmailInboxSweepTask, readCompanyGmailInboxConfig, secondaryGmailInboxSweepTask,
 } from '../../api/_shared/company-gmail-inbox.js';
+import { SECONDARY_GMAIL_ACCOUNT, SECONDARY_GMAIL_STATE_ID, readSecondaryGmailInboxConfig } from '../../api/_shared/company-gmail-inbox-registry.js';
 import handler from '../../api/_crons/company-gmail-inbox-sweep.js';
 
 const authorize = vi.hoisted(() => vi.fn());
@@ -22,6 +23,12 @@ function environment() {
     COMPANY_GMAIL_INBOX_CLIENT_ID: PRIVATE + '_ID', COMPANY_GMAIL_INBOX_CLIENT_SECRET: PRIVATE + '_SECRET',
     COMPANY_GMAIL_INBOX_REFRESH_TOKEN: PRIVATE + '_REFRESH', COMPANY_GMAIL_INBOX_CAPTURE_START_AT: new Date(START).toISOString(),
     COMPANY_GMAIL_INBOX_RETENTION_DAYS: '30' };
+}
+function secondaryEnvironment() {
+  return { SECONDARY_GMAIL_INBOX_ENABLED: 'true', SECONDARY_GMAIL_INBOX_EMAIL: SECONDARY_GMAIL_ACCOUNT,
+    SECONDARY_GMAIL_INBOX_CLIENT_ID: PRIVATE + '_SECONDARY_ID', SECONDARY_GMAIL_INBOX_CLIENT_SECRET: PRIVATE + '_SECONDARY_SECRET',
+    SECONDARY_GMAIL_INBOX_REFRESH_TOKEN: PRIVATE + '_SECONDARY_REFRESH', SECONDARY_GMAIL_INBOX_CAPTURE_START_AT: new Date(START).toISOString(),
+    SECONDARY_GMAIL_INBOX_RETENTION_DAYS: '30', SECONDARY_GMAIL_INBOX_LABEL_ID: 'Label_work_inquiries' };
 }
 
 /** Serial, staged transactions reject reads after writes and any original business-collection mutation. */
@@ -88,6 +95,7 @@ function fixture() {
     profile: vi.fn(async () => response({ emailAddress: COMPANY_GMAIL_ACCOUNT, historyId: '100' })),
     list: vi.fn(async (url: URL) => { void url; return response({ messages: [] }); }),
     history: vi.fn(async (url: URL) => { void url; return response({ history: [], historyId: '200' }); }),
+    label: vi.fn(async () => response({ id: 'Label_work_inquiries', name: 'CocoTrip/업무문의', type: 'user' })),
     message: vi.fn(async (id: string) => response(message(id))),
   };
   const fetchImpl = vi.fn(async (input: string, init: RequestInit) => {
@@ -105,22 +113,28 @@ function fixture() {
     expect(url.searchParams.has('access_token')).toBe(false);
     const endpoint = url.pathname.replace('/gmail/v1/users/me/', '');
     if (endpoint === 'profile') return api.profile();
+    if (/^labels\/Label_[A-Za-z0-9_-]+$/.test(endpoint)) {
+      expect(url.searchParams.get('fields')).toBe('id,name,type');
+      return api.label();
+    }
     if (endpoint === 'messages') return api.list(url);
-    if (endpoint === 'history') { expect(url.searchParams.get('labelId')).toBe('INBOX'); return api.history(url); }
+    if (endpoint === 'history') return api.history(url);
     if (/^messages\/[A-Za-z0-9_-]+$/.test(endpoint)) {
       expect(url.searchParams.get('format')).toBe('metadata');
+      if (url.searchParams.get('fields') === 'id,labelIds,internalDate') return (await api.message(endpoint.split('/')[1])).clone();
       expect(url.searchParams.getAll('metadataHeaders')).toEqual(['From', 'Reply-To', 'Message-ID', 'References', 'Subject',
         'Auto-Submitted', 'List-Id', 'List-Post', 'List-Unsubscribe', 'Precedence', 'X-Auto-Response-Suppress']);
       expect(url.searchParams.get('fields')).toBe('id,threadId,internalDate,labelIds,snippet,payload/headers');
-      return api.message(endpoint.split('/')[1]);
+      return (await api.message(endpoint.split('/')[1])).clone();
     }
     throw new Error('FORBIDDEN_PROVIDER_ENDPOINT');
   });
   const loadServices = vi.fn(async () => ({ db: store.db }));
   const run = () => companyGmailInboxSweepTask({ env, fetchImpl, loadServices, now: () => current });
+  const runSecondary = () => secondaryGmailInboxSweepTask({ env, fetchImpl, loadServices, now: () => current });
   const messages = () => [...store.rows].filter(([key]) => key.startsWith('external_inbox_messages/')).map(([, data]) => data);
   const state = () => store.rows.get(STATE) || {};
-  return { ...store, env, api, fetchImpl, loadServices, run, messages, state, setNow: (time: number) => { current = time; } };
+  return { ...store, env, api, fetchImpl, loadServices, run, runSecondary, messages, state, setNow: (time: number) => { current = time; } };
 }
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -128,8 +142,8 @@ afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(
 describe('company Gmail configuration (no account files or provider I/O)', () => {
   it('returns only safe configuration data, not OAuth values', () => {
     const config = readCompanyGmailInboxConfig(environment(), NOW);
-    expect(config).toEqual({ enabled: true, ready: true, status: 'ready', reason: null,
-      accountId: COMPANY_GMAIL_ACCOUNT, captureStartAtMs: START, retentionDays: 30, missing: [] });
+    expect(config).toMatchObject({ enabled: true, ready: true, status: 'ready', reason: null, accountId: COMPANY_GMAIL_ACCOUNT,
+      stateId: COMPANY_GMAIL_STATE_ID, labelId: 'INBOX', replySupported: true, captureStartAtMs: START, retentionDays: 30, missing: [] });
     expect(JSON.stringify(config)).not.toContain(PRIVATE);
   });
   it.each(['', 'false', '1', 'yes', 'TRUE'])('does no I/O when enabled is %s', async (enabled) => {
@@ -270,7 +284,8 @@ describe('cutover, baseline race, paging and atomic deduplication', () => {
   });
   it('pauses at the run budget without skipping the rest of its pending page', async () => {
     const f = fixture(); f.api.list.mockResolvedValue(response({ messages: [{ id: 'a' }, { id: 'b' }] }));
-    f.api.message.mockImplementationOnce(async (id) => { f.setNow(NOW + 40_001); return response(message(id)); });
+    let metadataCalls = 0;
+    f.api.message.mockImplementation(async (id) => { metadataCalls++; if (metadataCalls === 2) f.setNow(NOW + 40_001); return response(message(id)); });
     expect(await f.run()).toMatchObject({ code: 'SYNC_IN_PROGRESS', created: 1 });
     expect(f.state()).toMatchObject({ pending: { ids: ['a', 'b'], index: 1 }, cursorHistoryId: null, lastSuccessAtMs: null });
     expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 1 });
@@ -330,6 +345,86 @@ describe('cutover, baseline race, paging and atomic deduplication', () => {
         : id === 'expired' ? { internalDate: String(NOW - 30 * 86_400_000) } : { internalDate: String(NOW) })));
     expect(await f.run()).toMatchObject({ skipped: 4, created: 1 }); expect(f.messages()[0].providerMessageId).toBe('edge');
   });
+  it('requires the fixed secondary identity and an explicit work label without exposing OAuth values', () => {
+    const secondary = readSecondaryGmailInboxConfig(secondaryEnvironment(), NOW);
+    expect(secondary).toMatchObject({ ready: true, accountId: SECONDARY_GMAIL_ACCOUNT, stateId: SECONDARY_GMAIL_STATE_ID,
+      labelId: 'Label_work_inquiries', replySupported: false });
+    expect(readSecondaryGmailInboxConfig({ ...secondaryEnvironment(), SECONDARY_GMAIL_INBOX_LABEL_ID: '' }, NOW))
+      .toMatchObject({ ready: false, reason: 'CONFIGURATION_REQUIRED' });
+    expect(readSecondaryGmailInboxConfig({ ...secondaryEnvironment(), SECONDARY_GMAIL_INBOX_EMAIL: 'personal@example.invalid' }, NOW))
+      .toMatchObject({ ready: false, reason: 'COMPANY_ACCOUNT_REQUIRED' });
+    expect(readSecondaryGmailInboxConfig({ ...secondaryEnvironment(), SECONDARY_GMAIL_INBOX_LABEL_ID: 'INBOX' }, NOW))
+      .toMatchObject({ ready: false, reason: 'WORK_LABEL_REQUIRED' });
+    expect(JSON.stringify(secondary)).not.toContain(PRIVATE);
+  });
+  it('rechecks the secondary work label before headers or snippets are fetched', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+    f.api.list.mockResolvedValue(response({ messages: [{ id: 'private' }, { id: 'work' }] }));
+    f.api.message.mockImplementation(async id => response(message(id, id === 'private'
+      ? { labelIds: ['INBOX'], snippet: PRIVATE + '_not_read' } : { labelIds: ['Label_work_inquiries'] })));
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE', created: 1, skipped: 1 });
+    expect(f.messages()).toHaveLength(1); expect(f.messages()[0].accountId).toBe(SECONDARY_GMAIL_ACCOUNT);
+    const calls = f.fetchImpl.mock.calls.filter(([url]) => String(url).includes('/messages/private'));
+    expect(calls).toHaveLength(1); expect(new URL(String(calls[0][0])).searchParams.get('fields')).toBe('id,labelIds,internalDate');
+    expect(JSON.stringify(f.messages())).not.toContain('_not_read');
+  });
+  it('requires resynchronization when the secondary label scope changes', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE' });
+    const providerCalls = f.fetchImpl.mock.calls.length;
+    f.env.SECONDARY_GMAIL_INBOX_LABEL_ID = 'Label_changed_scope';
+    expect(await f.runSecondary()).toMatchObject({ code: 'CONFIGURATION_CHANGED', ok: false });
+    expect(f.fetchImpl).toHaveBeenCalledTimes(providerCalls);
+  });
+  it('requires resynchronization when the secondary capture cutover changes', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE' });
+    const providerCalls = f.fetchImpl.mock.calls.length;
+    f.env.SECONDARY_GMAIL_INBOX_CAPTURE_START_AT = new Date(START + 1000).toISOString();
+    expect(await f.runSecondary()).toMatchObject({ code: 'CONFIGURATION_CHANGED', ok: false });
+    expect(f.fetchImpl).toHaveBeenCalledTimes(providerCalls);
+  });
+  it('rejects an unknown, renamed, or system-style work label before any message list/history access', async () => {
+    for (const label of [null, { id: 'Label_work_inquiries', name: 'Other', type: 'user' },
+      { id: 'Label_work_inquiries', name: 'CocoTrip/업무문의', type: 'system' }]) {
+      const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+      f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+      f.api.label.mockResolvedValue(label === null ? response({}, 404) : response(label));
+      expect(await f.runSecondary()).toMatchObject({ ok: false });
+      expect(f.api.list).not.toHaveBeenCalled(); expect(f.api.history).not.toHaveBeenCalled(); expect(f.api.message).not.toHaveBeenCalled();
+    }
+  });
+  it('uses the secondary credentials and rejects a primary-profile token before the label or messages are read', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: COMPANY_GMAIL_ACCOUNT, historyId: '100' }));
+    const result = await f.runSecondary();
+    expect(result).toMatchObject({ ok: false, code: 'COMPANY_ACCOUNT_MISMATCH' });
+    const tokenCall = f.fetchImpl.mock.calls.find(([url]) => String(url) === 'https://oauth2.googleapis.com/token');
+    expect(new URLSearchParams(String(tokenCall?.[1]?.body)).get('client_id')).toBe(PRIVATE + '_SECONDARY_ID');
+    expect(f.api.label).not.toHaveBeenCalled(); expect(f.api.list).not.toHaveBeenCalled();
+  });
+  it('uses the verified custom label for both bootstrap and history requests', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+    f.api.history.mockImplementation(async url => {
+      expect(url.searchParams.get('labelId')).toBe('Label_work_inquiries');
+      return response({ history: [], historyId: '200' });
+    });
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE' });
+    expect(f.api.list.mock.calls[0][0].searchParams.get('labelIds')).toBe('Label_work_inquiries');
+  });
+  it('does not import an expired secondary work-label message', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment());
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '100' }));
+    f.api.list.mockResolvedValue(response({ messages: [{ id: 'expired_work' }] }));
+    f.api.message.mockResolvedValue(response(message('expired_work', { labelIds: ['Label_work_inquiries'],
+      internalDate: String(NOW - 30 * 86_400_000) })));
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE', skipped: 1, created: 0 });
+    expect(f.messages()).toEqual([]);
+  });
   it('does not import a 31-day-old new v2 receipt even when legacy configuration permits 90 days', async () => {
     const f = fixture();
     f.env.COMPANY_GMAIL_INBOX_CAPTURE_START_AT = new Date(NOW - 40 * 86_400_000).toISOString();
@@ -387,8 +482,12 @@ describe('lease fencing and malformed state/page safety', () => {
   it('rejects late metadata and cursor writes after a newer poller has taken the lease', async () => {
     const f = fixture(); f.api.list.mockResolvedValue(response({ messages: [{ id: 'a' }] }));
     let release: (value: Response) => void = () => {};
-    f.api.message.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
-    const first = f.run(); await vi.waitFor(() => expect(f.api.message).toHaveBeenCalledTimes(1));
+    let metadataCalls = 0;
+    f.api.message.mockImplementation((id) => {
+      metadataCalls++;
+      return metadataCalls === 2 ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(response(message(id)));
+    });
+    const first = f.run(); await vi.waitFor(() => expect(f.api.message).toHaveBeenCalledTimes(2));
     f.setNow(NOW + 70_000);
     expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 1 });
     release(response(message('a')));
@@ -397,7 +496,8 @@ describe('lease fencing and malformed state/page safety', () => {
   });
   it('cannot save after its own lease expires even without another poller', async () => {
     const f = fixture(); f.api.list.mockResolvedValue(response({ messages: [{ id: 'a' }] }));
-    f.api.message.mockImplementation(async (id) => { f.setNow(NOW + 65_001); return response(message(id)); });
+    let metadataCalls = 0;
+    f.api.message.mockImplementation(async (id) => { metadataCalls++; if (metadataCalls === 2) f.setNow(NOW + 65_001); return response(message(id)); });
     expect(await f.run()).toMatchObject({ code: 'LEASE_LOST', ok: false });
     expect(f.messages()).toEqual([]); expect(f.state()).toMatchObject({ cursorHistoryId: null, pending: { index: 0 } });
   });

@@ -4,6 +4,7 @@ import { EXTERNAL_INBOX_DRAFT_RETENTION_MS, EXTERNAL_INBOX_REPLY_WORKFLOWS,
   validExternalInboxReplyWorkflowRecord } from './external-inbox-reply-workflow.js';
 import { EXTERNAL_INBOX_MESSAGES_COLLECTION } from './external-inbox-store.js';
 import { INBOX_CASES_COLLECTION, inboxCaseId, validInboxCase } from './external-inbox-retention.js';
+import { companyGmailInboxConfigForAccount } from './company-gmail-inbox-registry.js';
 
 const VERSION = 1;
 const HASH = /^[a-f0-9]{64}$/;
@@ -44,7 +45,8 @@ function tombstone(record, nowMs, expiresAtMs) {
 
 function ownedSource(record, source, inboxCase, configs, nowMs) {
   const data = source && source.exists ? source.data() : null;
-  const config = data && configs[data.channel];
+  const config = data?.channel === 'email'
+    ? companyGmailInboxConfigForAccount(configs, data.accountId) : data && configs[data.channel];
   if (!data || !config || config.ready !== true || !['email', 'whatsapp'].includes(data.channel)
     || data.channel !== record.request.channel || data.accountId !== config.accountId
     || data.retentionPolicyVersion !== 2 || data.expiresAtMs !== 0 || data.expiresAt !== null

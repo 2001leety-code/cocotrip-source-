@@ -4,10 +4,12 @@ import {
 } from './external-inbox-store.js';
 import { INBOX_CASES_COLLECTION, INBOX_CLOSED_RETENTION_DAYS, nextInboxCaseOnMessage } from './external-inbox-retention.js';
 import { normalizeCompanyGmailReplyHeaders } from './company-gmail-reply-source.js';
+import {
+  COMPANY_GMAIL_ACCOUNT, COMPANY_GMAIL_STATE_ID, readCompanyGmailInboxConfig,
+  readSecondaryGmailInboxConfig, SECONDARY_GMAIL_LABEL_NAME, SECONDARY_GMAIL_STATE_ID,
+} from './company-gmail-inbox-registry.js';
 
-export const COMPANY_GMAIL_ACCOUNT = 'cocotripkr@gmail.com';
-export const COMPANY_GMAIL_STATE_ID = 'company_gmail';
-const PREFIX = 'COMPANY_GMAIL_INBOX_';
+export { COMPANY_GMAIL_ACCOUNT, COMPANY_GMAIL_STATE_ID, readCompanyGmailInboxConfig };
 const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/';
 const DAY_MS = 86_400_000;
@@ -24,38 +26,17 @@ class InboxError extends Error {
 }
 
 function fail(code) { throw new InboxError(code); }
-function value(env, key) { return typeof env[PREFIX + key] === 'string' ? env[PREFIX + key].trim() : ''; }
+function value(env, config, key) { return typeof env[config.envPrefix + key] === 'string' ? env[config.envPrefix + key].trim() : ''; }
 function validId(input) { return typeof input === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(input); }
 function validHistory(input) { return typeof input === 'string' && /^[1-9][0-9]{0,39}$/.test(input); }
 function validPage(input) { return input === null || (typeof input === 'string' && input.length > 0 && input.length <= 4096); }
 function safeTime(input) { return Number.isSafeInteger(input) && input > 0; }
 
-/** Configuration presence is NOT a verified connection. Never return credentials to the admin API. */
-export function readCompanyGmailInboxConfig(env = process.env, nowMs = Date.now()) {
-  const productionOnly = env.VERCEL_ENV !== undefined && env.VERCEL_ENV !== 'production';
-  const enabled = value(env, 'ENABLED') === 'true' && !productionOnly;
-  const missing = ['EMAIL', 'CLIENT_ID', 'CLIENT_SECRET', 'REFRESH_TOKEN', 'CAPTURE_START_AT', 'RETENTION_DAYS']
-    .filter((key) => !value(env, key)).map((key) => PREFIX + key);
-  const start = value(env, 'CAPTURE_START_AT');
-  const parsedStart = Date.parse(start);
-  const validStart = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(start)
-    && safeTime(parsedStart) && parsedStart <= nowMs
-    && new Date(parsedStart).toISOString() === start.replace(/(?<!\.\d{3})Z$/, '.000Z');
-  const retention = value(env, 'RETENTION_DAYS');
-  const retentionDays = /^[1-9][0-9]?$/.test(retention) && Number(retention) <= 90 ? Number(retention) : null;
-  let reason = null;
-  if (productionOnly) reason = 'PRODUCTION_ONLY';
-  else if (!enabled) reason = 'DISABLED';
-  else if (missing.length) reason = 'CONFIGURATION_REQUIRED';
-  else if (value(env, 'EMAIL').toLowerCase() !== COMPANY_GMAIL_ACCOUNT) reason = 'COMPANY_ACCOUNT_REQUIRED';
-  else if (!validStart) reason = 'CAPTURE_START_INVALID';
-  else if (!retentionDays) reason = 'RETENTION_INVALID';
-  return { enabled, ready: enabled && !reason, status: !enabled ? 'disabled' : reason ? 'not_configured' : 'ready',
-    reason, accountId: COMPANY_GMAIL_ACCOUNT, captureStartAtMs: validStart ? parsedStart : null, retentionDays, missing };
-}
-
 function fingerprint(config) {
-  return createHash('sha256').update(JSON.stringify([1, config.accountId, config.captureStartAtMs, config.retentionDays])).digest('hex');
+  const parts = config.stateId === COMPANY_GMAIL_STATE_ID
+    ? [1, config.accountId, config.captureStartAtMs, config.retentionDays]
+    : [2, config.accountId, config.captureStartAtMs, config.retentionDays, config.labelId, config.stateId];
+  return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 
 function validateState(state) {
@@ -79,7 +60,7 @@ function validateState(state) {
 }
 
 async function acquire(db, config, nowMs, owner) {
-  const ref = db.collection(EXTERNAL_INBOX_STATE_COLLECTION).doc(COMPANY_GMAIL_STATE_ID);
+  const ref = db.collection(EXTERNAL_INBOX_STATE_COLLECTION).doc(config.stateId);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const prior = snap.exists ? snap.data() : null;
@@ -91,7 +72,8 @@ async function acquire(db, config, nowMs, owner) {
     const state = { ...(prior || { version: 1, phase: 'bootstrap', cursorHistoryId: null, baselineHistoryId: null,
       pageToken: null, pending: null, lastSuccessAtMs: null }),
     configFingerprint: fingerprint(config), accountId: config.accountId, captureStartAtMs: config.captureStartAtMs,
-    retentionDays: config.retentionDays, status: 'syncing', lastAttemptAtMs: nowMs, lastErrorCode: null,
+    retentionDays: config.retentionDays, ...(config.stateId === SECONDARY_GMAIL_STATE_ID ? { workLabelId: config.labelId } : {}),
+    status: 'syncing', lastAttemptAtMs: nowMs, lastErrorCode: null,
     leaseOwner: owner, leaseUntilMs: nowMs + LEASE_MS, fence: (prior?.fence || 0) + 1 };
     tx.set(ref, state);
     return { code: 'ACQUIRED', ref, state, owner, fence: state.fence };
@@ -159,11 +141,11 @@ async function requestJson(fetchImpl, url, init, context, purpose) {
   } finally { clearTimeout(timer); }
 }
 
-async function gmailClient(env, fetchImpl, context) {
+async function gmailClient(env, config, fetchImpl, context) {
   const token = await requestJson(fetchImpl, 'https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: value(env, 'CLIENT_ID'),
-      client_secret: value(env, 'CLIENT_SECRET'), refresh_token: value(env, 'REFRESH_TOKEN') }).toString(),
+    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: value(env, config, 'CLIENT_ID'),
+      client_secret: value(env, config, 'CLIENT_SECRET'), refresh_token: value(env, config, 'REFRESH_TOKEN') }).toString(),
   }, context, 'token');
   const scopes = typeof token.scope === 'string' ? token.scope.split(/\s+/).filter(Boolean) : [];
   if (!scopes.includes(READ_SCOPE) || scopes.some((scope) => /gmail\.|^https:\/\/mail.google.com\//.test(scope) && scope !== READ_SCOPE)) fail('READONLY_SCOPE_REQUIRED');
@@ -182,7 +164,7 @@ function nextPage(data) {
   return page;
 }
 
-function messageIds(data, phase) {
+function messageIds(data, phase, labelId) {
   let entries;
   if (phase === 'bootstrap') {
     entries = data.messages === undefined ? [] : data.messages;
@@ -201,9 +183,9 @@ function messageIds(data, phase) {
           if (field === 'labelsAdded' && (!Array.isArray(change.labelIds) || change.labelIds.some((label) => typeof label !== 'string'))) fail('GMAIL_RESPONSE_INVALID');
           if (field === 'messagesAdded' && change.message.labelIds !== undefined) {
             if (!Array.isArray(change.message.labelIds) || change.message.labelIds.some((label) => typeof label !== 'string')) fail('GMAIL_RESPONSE_INVALID');
-            if (!change.message.labelIds.includes('INBOX')) continue;
+            if (!change.message.labelIds.includes(labelId)) continue;
           }
-          if (field === 'messagesAdded' || (Array.isArray(change.labelIds) && change.labelIds.includes('INBOX'))) entries.push(change.message);
+          if (field === 'messagesAdded' || (Array.isArray(change.labelIds) && change.labelIds.includes(labelId))) entries.push(change.message);
         }
       }
     }
@@ -217,11 +199,11 @@ function messageIds(data, phase) {
 async function loadPage(get, state, config) {
   const bootstrap = state.phase === 'bootstrap';
   const params = bootstrap
-    ? [['maxResults', PAGE_SIZE], ['labelIds', 'INBOX'], ['includeSpamTrash', 'false'],
+    ? [['maxResults', PAGE_SIZE], ['labelIds', config.labelId], ['includeSpamTrash', 'false'],
       // One second overlap plus exact internalDate filtering preserves the cutover boundary.
       ['q', `after:${Math.max(0, Math.floor(config.captureStartAtMs / 1000) - 1)}`],
       ['fields', 'messages(id),nextPageToken']]
-    : [['maxResults', PAGE_SIZE], ['startHistoryId', state.cursorHistoryId || state.baselineHistoryId], ['labelId', 'INBOX'],
+    : [['maxResults', PAGE_SIZE], ['startHistoryId', state.cursorHistoryId || state.baselineHistoryId], ['labelId', config.labelId],
       ['historyTypes', 'messageAdded'], ['historyTypes', 'labelAdded'],
       ['fields', 'history(id,messagesAdded(message(id,labelIds)),labelsAdded(message(id),labelIds)),nextPageToken,historyId']];
   params.push(['pageToken', state.pageToken]);
@@ -229,11 +211,23 @@ async function loadPage(get, state, config) {
   const nextPageToken = nextPage(page);
   if (nextPageToken && nextPageToken === state.pageToken) fail('PAGE_TOKEN_INVALID');
   if (!bootstrap && (!validHistory(page.historyId) || BigInt(page.historyId) < BigInt(state.cursorHistoryId || state.baselineHistoryId))) fail('GMAIL_RESPONSE_INVALID');
-  return { ids: messageIds(page, state.phase), index: 0, nextPageToken,
+  return { ids: messageIds(page, state.phase, config.labelId), index: 0, nextPageToken,
     finalHistoryId: bootstrap ? null : page.historyId };
 }
 
 async function prepareMessage(get, id, config, now) {
+  // This narrow preflight is the only request allowed for non-work-label mail.
+  // It deliberately omits headers and snippet, so private mail cannot enter process memory.
+  const preflight = await get(`messages/${encodeURIComponent(id)}`, [['format', 'metadata'],
+    ['fields', 'id,labelIds,internalDate']], 'message');
+  if (!preflight) return null;
+  const preflightAtMs = now();
+  if (preflight.id !== id || !Array.isArray(preflight.labelIds)) fail('GMAIL_MESSAGE_INVALID');
+  const preflightSourceAtMs = typeof preflight.internalDate === 'string' && /^\d+$/.test(preflight.internalDate)
+    ? Number(preflight.internalDate) : NaN;
+  if (!safeTime(preflightSourceAtMs) || preflightSourceAtMs > preflightAtMs) fail('GMAIL_MESSAGE_INVALID');
+  if (!preflight.labelIds.includes(config.labelId) || preflightSourceAtMs < config.captureStartAtMs
+    || preflightSourceAtMs + Math.min(config.retentionDays, INBOX_CLOSED_RETENTION_DAYS) * DAY_MS <= preflightAtMs) return null;
   const message = await get(`messages/${encodeURIComponent(id)}`, [['format', 'metadata'], ['metadataHeaders', 'From'],
     ['metadataHeaders', 'Reply-To'], ['metadataHeaders', 'Message-ID'], ['metadataHeaders', 'References'], ['metadataHeaders', 'Subject'],
     ['metadataHeaders', 'Auto-Submitted'], ['metadataHeaders', 'List-Id'], ['metadataHeaders', 'List-Post'],
@@ -244,7 +238,7 @@ async function prepareMessage(get, id, config, now) {
   if (message.id !== id || !validId(message.threadId) || !Array.isArray(message.labelIds)) fail('GMAIL_MESSAGE_INVALID');
   const sourceAtMs = typeof message.internalDate === 'string' && /^\d+$/.test(message.internalDate) ? Number(message.internalDate) : NaN;
   if (!safeTime(sourceAtMs) || sourceAtMs > nowMs) fail('GMAIL_MESSAGE_INVALID');
-  if (!message.labelIds.includes('INBOX') || sourceAtMs < config.captureStartAtMs
+  if (!message.labelIds.includes(config.labelId) || sourceAtMs !== preflightSourceAtMs || sourceAtMs < config.captureStartAtMs
     || sourceAtMs + Math.min(config.retentionDays, INBOX_CLOSED_RETENTION_DAYS) * DAY_MS <= nowMs) return null;
   const headers = message.payload?.headers;
   if (!Array.isArray(headers) || headers.some((header) => !header || typeof header.name !== 'string' || typeof header.value !== 'string')
@@ -256,6 +250,13 @@ async function prepareMessage(get, id, config, now) {
   return { ...prepared, data: { ...prepared.data, gmailReply: normalizeCompanyGmailReplyHeaders(headers, message.threadId) } };
 }
 
+/** Verify the human-selected custom Gmail label before any message list/history request. */
+async function verifyWorkLabel(get, config) {
+  if (config.stateId !== SECONDARY_GMAIL_STATE_ID) return;
+  const label = await get(`labels/${encodeURIComponent(config.labelId)}`, [['fields', 'id,name,type']], 'label');
+  if (!label || label.id !== config.labelId || label.name !== SECONDARY_GMAIL_LABEL_NAME || label.type !== 'user') fail('WORK_LABEL_REQUIRED');
+}
+
 async function defaultServices() {
   const { initAdminDb } = await import('./firebase-admin.js');
   const db = initAdminDb('company-gmail-inbox');
@@ -264,11 +265,10 @@ async function defaultServices() {
 }
 
 /** Receive only. No send, label change, mark-read, HTML/body/attachment fetch, AI call or local-token access. */
-export async function companyGmailInboxSweepTask(options = {}) {
+async function gmailInboxSweepTask(options, config) {
   const env = options.env || process.env;
   const now = options.now || Date.now;
   const started = now();
-  const config = readCompanyGmailInboxConfig(env, started);
   if (!config.ready) return { ok: !config.enabled, code: config.reason, enabled: config.enabled, status: config.status };
   const result = { ok: true, code: 'SYNC_IN_PROGRESS', enabled: true, status: 'syncing', scanned: 0, created: 0, duplicates: 0, skipped: 0, pages: 0 };
   let services;
@@ -278,10 +278,11 @@ export async function companyGmailInboxSweepTask(options = {}) {
     control = await acquire(services.db, config, now(), randomUUID());
     if (control.code !== 'ACQUIRED') return { ...result, ok: control.code === 'BUSY', code: control.code,
       status: control.code === 'RESYNC_REQUIRED' ? 'resync_required' : control.code === 'BUSY' ? 'syncing' : 'error' };
-    const get = await gmailClient(env, options.fetchImpl || globalThis.fetch, { now, deadline: started + RUN_MS });
+    const get = await gmailClient(env, config, options.fetchImpl || globalThis.fetch, { now, deadline: started + RUN_MS });
     const profile = await get('profile', [['fields', 'emailAddress,historyId']], 'profile');
-    if (typeof profile.emailAddress !== 'string' || profile.emailAddress.trim().toLowerCase() !== COMPANY_GMAIL_ACCOUNT) fail('COMPANY_ACCOUNT_MISMATCH');
+    if (typeof profile.emailAddress !== 'string' || profile.emailAddress.trim().toLowerCase() !== config.accountId) fail('COMPANY_ACCOUNT_MISMATCH');
     if (!validHistory(profile.historyId)) fail('GMAIL_RESPONSE_INVALID');
+    await verifyWorkLabel(get, config);
     if (!control.state.baselineHistoryId) await commit(services.db, control, now, () => ({ baselineHistoryId: profile.historyId }));
 
     while (now() - started < RUN_MS && result.scanned < MAX_MESSAGES) {
@@ -335,4 +336,19 @@ export async function companyGmailInboxSweepTask(options = {}) {
       } catch { /* The lease expires; never log provider or database errors containing private values. */ }
     }
   }
+}
+
+/** Primary compatibility entry point. The reply source and sender stay primary-only. */
+export async function companyGmailInboxSweepTask(options = {}) {
+  const env = options.env || process.env;
+  const now = options.now || Date.now;
+  return gmailInboxSweepTask(options, readCompanyGmailInboxConfig(env, now()));
+}
+
+/** The secondary mailbox may only be run with its fixed account and label configuration. */
+export async function secondaryGmailInboxSweepTask(options = {}) {
+  const env = options.env || process.env;
+  const now = options.now || Date.now;
+  const config = readSecondaryGmailInboxConfig(env, now());
+  return gmailInboxSweepTask({ ...options, env, now }, config);
 }

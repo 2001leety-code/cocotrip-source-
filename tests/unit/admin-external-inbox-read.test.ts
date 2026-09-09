@@ -29,6 +29,12 @@ function prepared(channel = 'email', messageId = 'fake_message') {
   return { ...result, data: { ...result.data, retentionPolicyVersion: undefined, caseId: undefined,
     expiresAtMs: NOW - 10_000 + 30 * 86_400_000, expiresAt: new Date(NOW - 10_000 + 30 * 86_400_000) } };
 }
+function secondaryEnv() {
+  return { ...env(), SECONDARY_GMAIL_INBOX_ENABLED: 'true', SECONDARY_GMAIL_INBOX_EMAIL: '2001leety@gmail.com',
+    SECONDARY_GMAIL_INBOX_CLIENT_ID: 'secondary-id', SECONDARY_GMAIL_INBOX_CLIENT_SECRET: PRIVATE,
+    SECONDARY_GMAIL_INBOX_REFRESH_TOKEN: PRIVATE, SECONDARY_GMAIL_INBOX_CAPTURE_START_AT: new Date(START).toISOString(),
+    SECONDARY_GMAIL_INBOX_RETENTION_DAYS: '30', SECONDARY_GMAIL_INBOX_LABEL_ID: 'Label_work_inquiries' };
+}
 function preparedV2(messageId = 'v2_message') {
   return prepareExternalInboxMessage({ channel: 'email', accountId: 'cocotripkr@gmail.com', providerMessageId: messageId,
     providerThreadId: 'v2_thread', sourceAtMs: NOW - 10_000, sender: 'Synthetic sender', subject: 'Synthetic subject',
@@ -98,7 +104,8 @@ describe('safe channel configuration and connection status', () => {
   it('distinguishes disabled and incomplete configuration without source reads', async () => {
     const f = fakeDb(); const config = externalInboxConfigs({ WHATSAPP_INBOX_ENABLED: 'true' }, NOW);
     const result = await loadExternalInbox({ db: f.db, configs: config, nowMs: NOW });
-    expect(result.channels).toMatchObject([{ channel: 'email', status: 'disabled' }, { channel: 'whatsapp', status: 'not_configured' }]);
+    expect(result.channels).toMatchObject([{ channel: 'email', accountId: 'cocotripkr@gmail.com', status: 'disabled' },
+      { channel: 'email', accountId: '2001leety@gmail.com', status: 'disabled' }, { channel: 'whatsapp', status: 'not_configured' }]);
     expect(result).toMatchObject({ messages: [], listStatus: 'not_connected', retentionMaintenance: { status: 'not_active' } }); expect(f.queries).toEqual([]);
   });
   it('never calls a failed state lookup zero inquiries or synchronized', () => {
@@ -159,6 +166,31 @@ describe('retention maintenance summary', () => {
     const result = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
     expect(result).toMatchObject({ listStatus: 'unknown', retentionMaintenance: { status: 'ok', copiesPurged: 2 } });
   });
+  it('keeps the fixed secondary mailbox separate in status and public read projections', async () => {
+    const configuration = externalInboxConfigs(secondaryEnv(), NOW);
+    const record = prepareExternalInboxMessage({ channel: 'email', accountId: '2001leety@gmail.com', providerMessageId: 'secondary_message',
+      providerThreadId: 'secondary_thread', sourceAtMs: NOW - 10_000, sender: 'Synthetic sender', subject: 'Synthetic subject',
+      text: PRIVATE, kind: 'email', truncated: true }, { nowMs: NOW, retentionDays: 30 });
+    const inboxCase = nextInboxCaseOnMessage(null, record.data, NOW);
+    const f = fakeDb({ [`external_inbox_messages/${record.docId}`]: record.data,
+      [`external_inbox_cases/${record.data.caseId}`]: inboxCase,
+      'external_inbox_state/company_gmail': goodState(),
+      'external_inbox_state/secondary_gmail': { ...goodState(), accountId: '2001leety@gmail.com', workLabelId: 'Label_work_inquiries' },
+      'external_inbox_state/whatsapp': goodState('whatsapp') });
+    const result = await loadExternalInbox({ db: f.db, configs: configuration, nowMs: NOW });
+    expect(result.channels.filter(channel => channel.channel === 'email')).toMatchObject([
+      { accountId: 'cocotripkr@gmail.com', status: 'synced' }, { accountId: '2001leety@gmail.com', status: 'synced' },
+    ]);
+    expect(result.messages).toMatchObject([{ accountId: '2001leety@gmail.com', channel: 'email', replySupported: false }]);
+    expect(publicExternalInboxMessage(record.docId, { ...record.data, accountId: 'cocotripkr@gmail.com' }, configuration, NOW, true, inboxCase)).toBeNull();
+    expect(f.queries.some(query => query.where.some(([, , value]) => value === 'secondary_gmail'))).toBe(true);
+  });
+  it('shows a changed secondary work-label scope as requiring resynchronization', () => {
+    const configuration = externalInboxConfigs(secondaryEnv(), NOW);
+    const persisted = { ...goodState(), accountId: '2001leety@gmail.com', workLabelId: 'Label_previous_scope' };
+    expect(externalInboxChannelStatus('secondaryEmail', configuration.secondaryEmail, persisted, NOW))
+      .toMatchObject({ channel: 'email', accountId: '2001leety@gmail.com', status: 'resync_required' });
+  });
 });
 
 describe('company/digest/cutover/retention gates on both list and detail', () => {
@@ -189,7 +221,7 @@ describe('company/digest/cutover/retention gates on both list and detail', () =>
   it('projects a safe list and includes escaped-as-text content only for explicit detail', () => {
     const record = prepared(); const row = { ...record.data, accessToken: PRIVATE, cursorHistoryId: PRIVATE, html: PRIVATE };
     const summary = publicExternalInboxMessage(record.docId, row, configs(), NOW);
-    expect(Object.keys(summary).sort()).toEqual(['id', 'channel', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated'].sort());
+    expect(Object.keys(summary).sort()).toEqual(['id', 'channel', 'accountId', 'replySupported', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated'].sort());
     expect(JSON.stringify(summary)).not.toContain(PRIVATE);
     expect(publicExternalInboxMessage(record.docId, row, configs(), NOW, true)).toMatchObject({ text: PRIVATE });
     expect(publicExternalInboxMessage(record.docId, row, configs(), NOW, true)).not.toHaveProperty('html');
@@ -235,7 +267,7 @@ describe('bounded source reads and honest partial failure', () => {
     expect(list?.fields).toEqual(['channel', 'accountId', 'providerMessageId', 'providerThreadId', 'sourceAtMs', 'receivedAtMs', 'sender', 'subject', 'kind', 'truncated', 'expiresAtMs', 'whatsappPolicyVersion', 'whatsappSessionId', 'retentionPolicyVersion', 'caseId']);
     for (const query of f.queries.filter(query => query.collection === 'external_inbox_state'
       && query.where.some(([, , value]) => value !== 'retention'))) {
-      expect(query.limit).toBe(1); expect(query.fields).toEqual(['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'lastSuccessAtMs', 'lastReceivedAtMs']);
+      expect(query.limit).toBe(1); expect(query.fields).toEqual(['accountId', 'status', 'captureStartAtMs', 'retentionDays', 'workLabelId', 'lastSuccessAtMs', 'lastReceivedAtMs']);
     }
   });
   it('keeps an actual empty list distinct from an unavailable list', async () => {
@@ -248,7 +280,8 @@ describe('bounded source reads and honest partial failure', () => {
     const record = prepared(); const f = fakeDb({ [`external_inbox_messages/${record.docId}`]: record.data });
     f.fail.add('external_inbox_state');
     const result = await loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW });
-    expect(result.messages).toHaveLength(1); expect(result.listStatus).toBe('ok'); expect(result.channels.every(channel => channel.status === 'unknown')).toBe(true);
+    expect(result.messages).toHaveLength(1); expect(result.listStatus).toBe('ok');
+    expect(result.channels.filter(channel => channel.accountId !== '2001leety@gmail.com').every(channel => channel.status === 'unknown')).toBe(true);
   });
   it('caps results at 100 and reports possible truncation', async () => {
     const rows: Record<string, Row> = {};
@@ -260,7 +293,7 @@ describe('bounded source reads and honest partial failure', () => {
     vi.useFakeTimers(); const f = fakeDb(); f.hang.add('external_inbox_messages'); f.hang.add('external_inbox_state');
     const run = loadExternalInbox({ db: f.db, configs: configs(), nowMs: NOW, timeoutMs: 20 });
     await vi.advanceTimersByTimeAsync(41);
-    expect(await run).toMatchObject({ listStatus: 'unknown', channels: [{ status: 'unknown' }, { status: 'unknown' }] });
+    expect(await run).toMatchObject({ listStatus: 'unknown', channels: [{ status: 'unknown' }, { status: 'disabled' }, { status: 'unknown' }] });
   });
   it('loads only the explicitly named detail and rechecks ownership before returning text', async () => {
     const record = prepared(); const f = fakeDb({ [`external_inbox_messages/${record.docId}`]: record.data });

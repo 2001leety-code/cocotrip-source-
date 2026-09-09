@@ -633,6 +633,14 @@ export default function AdminAiOpsCenterDevHarness() {
           channels: [
             {
               channel: "email",
+              accountId: "cocotripkr@gmail.com",
+              status: "synced",
+              lastSuccessAtMs: now,
+              lastReceivedAtMs: null,
+            },
+            {
+              channel: "email",
+              accountId: "2001leety@gmail.com",
               status: "synced",
               lastSuccessAtMs: now,
               lastReceivedAtMs: null,
@@ -644,17 +652,34 @@ export default function AdminAiOpsCenterDevHarness() {
               lastReceivedAtMs: now,
             },
           ],
-          messages: Array.from({ length: 7 }, (_, index) => ({
-            id: (index + 1).toString(16).padStart(64, "0"),
-            channel: index % 2 === 0 ? "email" : "whatsapp",
-            sourceAtMs: now - (index + 1) * 60_000,
-            receivedAtMs: now,
-            sender: `synthetic-${index + 1}@example.invalid`,
-            subject: `SYNTHETIC inquiry ${index + 1}`,
-            kind: "text",
-            truncated: false,
-            ...(index === 0 ? { retention: retentionState } : {}),
-          })),
+          messages: Array.from({ length: 7 }, (_, index) => {
+            const isSecondaryEmail = index === 1;
+            const isWhatsApp = index > 1 && index % 2 === 1;
+            return {
+              id: (index + 1).toString(16).padStart(64, "0"),
+              channel: isWhatsApp ? "whatsapp" : "email",
+              sourceAtMs: now - (index + 1) * 60_000,
+              receivedAtMs: now,
+              sender: `synthetic-${index + 1}@example.invalid`,
+              subject: isSecondaryEmail
+                ? "SYNTHETIC secondary work inquiry"
+                : `SYNTHETIC inquiry ${index + 1}`,
+              kind: "text",
+              truncated: false,
+              ...(isSecondaryEmail
+                ? {
+                    accountId: "2001leety@gmail.com" as const,
+                    replySupported: false,
+                  }
+                : isWhatsApp
+                  ? {}
+                  : {
+                      accountId: "cocotripkr@gmail.com" as const,
+                      replySupported: true,
+                    }),
+              ...(index === 0 ? { retention: retentionState } : {}),
+            };
+          }),
         }
       : undefined;
   const previewExternalInboxRetentionAction = useCallback(

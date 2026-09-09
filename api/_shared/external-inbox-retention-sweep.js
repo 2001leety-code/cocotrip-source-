@@ -3,6 +3,7 @@ import { EXTERNAL_INBOX_MESSAGES_COLLECTION } from './external-inbox-store.js';
 import { INBOX_CASES_COLLECTION, inboxCaseId, validInboxCase } from './external-inbox-retention.js';
 import { sessionDocId, validSupportSender } from './whatsapp-support-sessions.js';
 import { EXTERNAL_INBOX_REPLY_WORKFLOWS, validExternalInboxReplyWorkflowRecord } from './external-inbox-reply-workflow.js';
+import { companyGmailInboxConfigForAccount } from './company-gmail-inbox-registry.js';
 
 const HASH = /^[a-f0-9]{64}$/;
 const validTime = value => Number.isSafeInteger(value) && value > 0;
@@ -29,7 +30,8 @@ function removableReply(row, sourceHash, messageId, message, closedAtMs) {
 }
 
 function ownedMessage(id, data, caseId, configs, nowMs) {
-  const config = data && configs[data.channel];
+  const config = data?.channel === 'email'
+    ? companyGmailInboxConfigForAccount(configs, data.accountId) : data && configs[data.channel];
   if (!data || data.retentionPolicyVersion !== 2 || data.caseId !== caseId || !config || !config.ready
     || data.accountId !== config.accountId || data.expiresAtMs !== 0 || data.expiresAt !== null
     || !validTime(data.sourceAtMs) || data.sourceAtMs < config.captureStartAtMs

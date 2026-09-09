@@ -5,6 +5,11 @@ export const adminExternalInboxCopy = {
     title: "회사 메일 · WhatsApp",
     subtitle: "받은 문의를 한곳에서 확인합니다. 자동 발송은 꺼져 있습니다.",
     email: "회사 Gmail",
+    emailAccounts: {
+      primary: "CocoTrip",
+      secondary: "2001leety 업무",
+    },
+    secondaryReceiveOnly: "업무 라벨만 · 수신 전용",
     whatsapp: "WhatsApp",
     refresh: "문의 새로고침",
     loading: "문의 확인 중",
@@ -39,7 +44,7 @@ export const adminExternalInboxCopy = {
     limited:
       "최근 저장 100건 범위입니다. 전체 문의 건수나 미답변 건수가 아닙니다.",
     scope:
-      "설정한 수신 시작일 이후의 회사 받은편지함만 표시합니다. 읽음 처리나 답장은 하지 않습니다.",
+      "설정한 수신 시작일 이후의 회사 받은편지함과 보조 업무 라벨 수신만 표시합니다. 자동 읽음 처리·자동 답장은 하지 않습니다.",
     retentionTitle: "보관 관리",
     retentionStatus: {
       open: "진행 중",
@@ -93,6 +98,11 @@ export const adminExternalInboxCopy = {
     title: "Company email · WhatsApp",
     subtitle: "Check incoming inquiries together. Automatic sending is off.",
     email: "Company Gmail",
+    emailAccounts: {
+      primary: "CocoTrip",
+      secondary: "2001leety work",
+    },
+    secondaryReceiveOnly: "Work label only · receive-only",
     whatsapp: "WhatsApp",
     refresh: "Refresh inquiries",
     loading: "Checking inquiries",
@@ -126,7 +136,7 @@ export const adminExternalInboxCopy = {
     limited:
       "Up to the 100 most recently stored messages. This is not a total or unanswered count.",
     scope:
-      "Only the company inbox after the configured start date is shown. Messages are not marked read or replied to.",
+      "Only company inbox and secondary work-label receipts after the configured start date are shown. Messages are not automatically marked read or automatically replied to.",
     retentionTitle: "Retention",
     retentionStatus: {
       open: "Open",
@@ -179,6 +189,11 @@ export const adminExternalInboxCopy = {
     title: "業務メール · WhatsApp",
     subtitle: "受信したお問い合わせをまとめて確認。自動送信は無効です。",
     email: "業務用 Gmail",
+    emailAccounts: {
+      primary: "CocoTrip",
+      secondary: "2001leety 業務",
+    },
+    secondaryReceiveOnly: "業務ラベルのみ・受信専用",
     whatsapp: "WhatsApp",
     refresh: "お問い合わせを更新",
     loading: "お問い合わせを確認中",
@@ -213,7 +228,7 @@ export const adminExternalInboxCopy = {
     limited:
       "直近に保存した最大100件の範囲です。総件数や未返信件数ではありません。",
     scope:
-      "設定した受信開始日以降の業務用受信箱のみ表示します。既読操作や返信は行いません。",
+      "設定した受信開始日以降の業務用受信箱と補助業務ラベルの受信のみ表示します。自動の既読操作や自動返信は行いません。",
     retentionTitle: "保存管理",
     retentionStatus: {
       open: "進行中",
@@ -266,6 +281,11 @@ export const adminExternalInboxCopy = {
     title: "公司邮件 · WhatsApp",
     subtitle: "集中查看收到的咨询。自动发送已关闭。",
     email: "公司 Gmail",
+    emailAccounts: {
+      primary: "CocoTrip",
+      secondary: "2001leety 工作",
+    },
+    secondaryReceiveOnly: "仅工作标签 · 仅接收",
     whatsapp: "WhatsApp",
     refresh: "刷新咨询",
     loading: "正在检查咨询",
@@ -293,7 +313,7 @@ export const adminExternalInboxCopy = {
     emptyText: "没有可显示的文本，请在原应用中查看附件。",
     clipped: "仅显示部分文本，请在原应用中查看完整内容和附件。",
     limited: "最多显示最近保存的100条，不代表咨询总数或未回复数量。",
-    scope: "仅显示设定开始日期之后的公司收件箱，不会标记已读或回复。",
+    scope: "仅显示设定开始日期之后的公司收件箱和辅助工作标签收件，不会自动标记已读或自动回复。",
     retentionTitle: "保存管理",
     retentionStatus: {
       open: "进行中",
@@ -346,6 +366,17 @@ export const adminExternalInboxCopy = {
 
 export type ExternalInboxChannelState =
   keyof typeof adminExternalInboxCopy.ko.statuses;
+export const externalInboxEmailAccountIds = {
+  primary: "cocotripkr@gmail.com",
+  secondary: "2001leety@gmail.com",
+} as const;
+export type ExternalInboxEmailAccountId =
+  (typeof externalInboxEmailAccountIds)[keyof typeof externalInboxEmailAccountIds];
+export type ExternalInboxAccountItem = {
+  channel: "email" | "whatsapp";
+  accountId?: ExternalInboxEmailAccountId;
+  replySupported?: boolean;
+};
 export interface ExternalInboxMessage {
   id: string;
   channel: "email" | "whatsapp";
@@ -355,6 +386,8 @@ export interface ExternalInboxMessage {
   subject: string;
   kind: string;
   truncated: boolean;
+  accountId?: ExternalInboxEmailAccountId;
+  replySupported?: boolean;
 }
 export interface ExternalInboxRetention {
   caseId: string;
@@ -374,6 +407,7 @@ export interface ExternalInboxOverview {
   generatedAtMs: number;
   channels: {
     channel: "email" | "whatsapp";
+    accountId?: ExternalInboxEmailAccountId;
     status: ExternalInboxChannelState;
     lastSuccessAtMs: number | null;
     lastReceivedAtMs: number | null;
@@ -382,6 +416,49 @@ export interface ExternalInboxOverview {
   possiblyTruncated: boolean;
   listStatus: "ok" | "unknown" | "not_connected";
   retentionMaintenance?: ExternalInboxRetentionMaintenance;
+}
+
+export function externalInboxAccountId(
+  item: Pick<ExternalInboxAccountItem, "channel" | "accountId">,
+) {
+  return item.channel === "email"
+    ? item.accountId || externalInboxEmailAccountIds.primary
+    : null;
+}
+
+export function externalInboxChannelKey(
+  item: Pick<ExternalInboxAccountItem, "channel" | "accountId">,
+) {
+  return `${item.channel}:${externalInboxAccountId(item) || "default"}`;
+}
+
+export function externalInboxReplySupported(item: ExternalInboxAccountItem) {
+  return (
+    item.channel === "email" &&
+    externalInboxAccountId(item) === externalInboxEmailAccountIds.primary &&
+    item.replySupported !== false
+  );
+}
+
+function hasValidExternalInboxAccount(item: ExternalInboxAccountItem) {
+  return (
+    (item.accountId === undefined ||
+      Object.values(externalInboxEmailAccountIds).includes(item.accountId)) &&
+    (item.channel === "email" || item.accountId === undefined) &&
+    (item.channel === "email" || item.replySupported === undefined) &&
+    (externalInboxAccountId(item) !== externalInboxEmailAccountIds.secondary ||
+      item.replySupported === undefined ||
+      item.replySupported === false)
+  );
+}
+
+function hasValidExternalInboxChannel(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const channel = value as ExternalInboxOverview["channels"][number];
+  return (
+    ["email", "whatsapp"].includes(channel.channel) &&
+    hasValidExternalInboxAccount(channel)
+  );
 }
 
 export function isExternalInboxMessage(
@@ -404,7 +481,10 @@ export function isExternalInboxMessage(
     item.subject.length <= 512 &&
     typeof item.kind === "string" &&
     item.kind.length <= 32 &&
-    typeof item.truncated === "boolean"
+    typeof item.truncated === "boolean" &&
+    (item.replySupported === undefined ||
+      typeof item.replySupported === "boolean") &&
+    hasValidExternalInboxAccount(item)
   );
 }
 
@@ -481,8 +561,14 @@ export function isExternalInboxOverview(
     ["ok", "unknown", "not_connected"].includes(item.listStatus) &&
     typeof item.possiblyTruncated === "boolean" &&
     Array.isArray(item.channels) &&
-    item.channels.length === 2 &&
-    new Set(item.channels.map((channel) => channel?.channel)).size === 2 &&
+    item.channels.length >= 2 &&
+    item.channels.length <= 3 &&
+    item.channels.every(hasValidExternalInboxChannel) &&
+    item.channels.filter((channel) => channel?.channel === "whatsapp").length ===
+      1 &&
+    item.channels.filter((channel) => channel?.channel === "email").length >= 1 &&
+    new Set(item.channels.map((channel) => externalInboxChannelKey(channel))).size ===
+      item.channels.length &&
     (item.retentionMaintenance === undefined ||
       isExternalInboxRetentionMaintenance(
         item.retentionMaintenance,
@@ -490,8 +576,6 @@ export function isExternalInboxOverview(
       )) &&
     item.channels.every(
       (channel) =>
-        channel &&
-        ["email", "whatsapp"].includes(channel.channel) &&
         Object.hasOwn(adminExternalInboxCopy.en.statuses, channel.status) &&
         [channel.lastSuccessAtMs, channel.lastReceivedAtMs].every(
           (ms) =>
