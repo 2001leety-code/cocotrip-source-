@@ -292,8 +292,54 @@ describe('cutover, baseline race, paging and atomic deduplication', () => {
     expect(f.api.list).toHaveBeenCalledTimes(1); expect(f.messages()).toHaveLength(2);
   });
   it('treats an empty real page as success, not a failed provider response', async () => {
-    const f = fixture(); expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 0, scanned: 0, status: 'connected' });
+    const f = fixture(); f.api.list.mockResolvedValue(response({ resultSizeEstimate: 0 }));
+    expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 0, scanned: 0, status: 'connected' });
+    expect(f.api.list.mock.calls[0][0].searchParams.get('fields')).toBe('messages(id),nextPageToken,resultSizeEstimate');
     expect(f.state().lastSuccessAtMs).toBe(NOW);
+  });
+  it('accepts an empty bootstrap object and promotes it to history on the next run', async () => {
+    const f = fixture(); f.api.list.mockResolvedValue(response({}));
+    expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', created: 0, scanned: 0 });
+    expect(f.state()).toMatchObject({ phase: 'history', baselineHistoryId: '100', cursorHistoryId: '200', pending: null });
+    expect(f.api.list).toHaveBeenCalledTimes(1); expect(f.api.history).toHaveBeenCalledTimes(1);
+    f.api.history.mockResolvedValue(response({ history: [], historyId: '200' }));
+    expect(await f.run()).toMatchObject({ code: 'SYNC_COMPLETE', status: 'connected' });
+    expect(f.api.list).toHaveBeenCalledTimes(1); expect(f.api.history).toHaveBeenCalledTimes(2);
+    expect(f.state()).toMatchObject({ phase: 'history', cursorHistoryId: '200' });
+  });
+  it('handles an empty secondary work-label page without restarting bootstrap', async () => {
+    const f = fixture(); Object.assign(f.env, secondaryEnvironment(), { SECONDARY_GMAIL_INBOX_LABEL_ID: 'Label_10' });
+    f.api.profile.mockResolvedValue(response({ emailAddress: SECONDARY_GMAIL_ACCOUNT, historyId: '4765990' }));
+    f.api.label.mockResolvedValue(response({ id: 'Label_10', name: 'CocoTrip/업무문의', type: 'user' }));
+    f.api.list.mockResolvedValue(response({ resultSizeEstimate: 0 }));
+    f.api.history.mockResolvedValue(response({ history: [], historyId: '4766000' }));
+    expect(await f.runSecondary()).toMatchObject({ code: 'SYNC_COMPLETE', created: 0, scanned: 0 });
+    expect(f.rows.get('external_inbox_state/secondary_gmail')).toMatchObject({ phase: 'history', baselineHistoryId: '4765990', cursorHistoryId: '4766000', pending: null, workLabelId: 'Label_10' });
+    expect(f.api.list).toHaveBeenCalledTimes(1); expect(f.api.history).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { page: { messages: PRIVATE }, reason: 'invalid_messages' },
+    { page: { nextPageToken: 7 }, reason: 'invalid_next_token' },
+  ])('keeps malformed bootstrap pages fail-closed and logs only a classification', async ({ page, reason }) => {
+    const f = fixture(); f.api.list.mockResolvedValue(response(page));
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await f.run()).toMatchObject({ code: 'GMAIL_RESPONSE_INVALID', ok: false });
+    expect(warning).toHaveBeenCalledWith('[company-gmail-inbox] invalid page response', { reason });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(PRIVATE);
+  });
+  it.each([
+    { body: '', reason: 'empty' },
+    { body: PRIVATE, reason: 'non_json' },
+    { body: 'null', reason: 'null' },
+    { body: '7', reason: 'nonobject' },
+    { body: '[]', reason: 'nonobject' },
+  ])('rejects invalid page bodies as %s without promoting the cursor', async ({ body, reason }) => {
+    const f = fixture(); f.api.list.mockResolvedValue(new Response(body));
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await f.run()).toMatchObject({ code: 'GMAIL_RESPONSE_INVALID', ok: false });
+    expect(f.messages()).toEqual([]); expect(f.state()).toMatchObject({ phase: 'bootstrap', cursorHistoryId: null, pending: null });
+    expect(JSON.stringify(warning.mock.calls)).toContain(`"reason":"${reason}"`);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(PRIVATE);
   });
   it('does not bootstrap silently when the saved history cursor expires', async () => {
     const f = fixture(); await f.run(); f.api.history.mockResolvedValue(response({ error: PRIVATE }, 404));

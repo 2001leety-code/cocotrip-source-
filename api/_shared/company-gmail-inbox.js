@@ -125,10 +125,13 @@ async function requestJson(fetchImpl, url, init, context, purpose) {
           fail('GMAIL_UNAVAILABLE');
         }
         const raw = await response.text();
-        if (raw.length > 512_000) fail('GMAIL_RESPONSE_INVALID');
+        const pageWarning = (reason) => { if (purpose === 'page') console.warn('[company-gmail-inbox] invalid page response', { reason }); };
+        if (raw.length === 0) { pageWarning('empty'); fail('GMAIL_RESPONSE_INVALID'); }
+        if (raw.length > 512_000) { pageWarning('oversized'); fail('GMAIL_RESPONSE_INVALID'); }
         let data;
-        try { data = JSON.parse(raw); } catch { fail('GMAIL_RESPONSE_INVALID'); }
-        if (!data || typeof data !== 'object' || Array.isArray(data)) fail('GMAIL_RESPONSE_INVALID');
+        try { data = JSON.parse(raw); } catch { pageWarning('non_json'); fail('GMAIL_RESPONSE_INVALID'); }
+        if (data === null) { pageWarning('null'); fail('GMAIL_RESPONSE_INVALID'); }
+        if (typeof data !== 'object' || Array.isArray(data)) { pageWarning('nonobject'); fail('GMAIL_RESPONSE_INVALID'); }
         return data;
       })(),
       new Promise((_, reject) => { timer = setTimeout(() => {
@@ -162,6 +165,20 @@ function nextPage(data) {
   const page = data.nextPageToken === undefined ? null : data.nextPageToken;
   if (!validPage(page)) fail('GMAIL_RESPONSE_INVALID');
   return page;
+}
+
+function pageDiagnostic(data) {
+  if (data === '') return 'empty';
+  if (data === null) return 'null';
+  if (typeof data !== 'object' || Array.isArray(data)) return 'nonobject';
+  if (data.messages !== undefined && !Array.isArray(data.messages)) return 'invalid_messages';
+  const page = data.nextPageToken === undefined ? null : data.nextPageToken;
+  if (!validPage(page)) return 'invalid_next_token';
+  return 'invalid_page';
+}
+
+function logInvalidPage(data) {
+  console.warn('[company-gmail-inbox] invalid page response', { reason: pageDiagnostic(data) });
 }
 
 function messageIds(data, phase, labelId) {
@@ -202,16 +219,20 @@ async function loadPage(get, state, config) {
     ? [['maxResults', PAGE_SIZE], ['labelIds', config.labelId], ['includeSpamTrash', 'false'],
       // One second overlap plus exact internalDate filtering preserves the cutover boundary.
       ['q', `after:${Math.max(0, Math.floor(config.captureStartAtMs / 1000) - 1)}`],
-      ['fields', 'messages(id),nextPageToken']]
+      // Keep a response field for zero matches, even when message IDs and paging are absent.
+      ['fields', 'messages(id),nextPageToken,resultSizeEstimate']]
     : [['maxResults', PAGE_SIZE], ['startHistoryId', state.cursorHistoryId || state.baselineHistoryId], ['labelId', config.labelId],
       ['historyTypes', 'messageAdded'], ['historyTypes', 'labelAdded'],
       ['fields', 'history(id,messagesAdded(message(id,labelIds)),labelsAdded(message(id),labelIds)),nextPageToken,historyId']];
   params.push(['pageToken', state.pageToken]);
   const page = await get(bootstrap ? 'messages' : 'history', params, bootstrap ? 'page' : 'history');
-  const nextPageToken = nextPage(page);
+  let nextPageToken;
+  try { nextPageToken = nextPage(page); } catch (error) { logInvalidPage(page); throw error; }
   if (nextPageToken && nextPageToken === state.pageToken) fail('PAGE_TOKEN_INVALID');
   if (!bootstrap && (!validHistory(page.historyId) || BigInt(page.historyId) < BigInt(state.cursorHistoryId || state.baselineHistoryId))) fail('GMAIL_RESPONSE_INVALID');
-  return { ids: messageIds(page, state.phase, config.labelId), index: 0, nextPageToken,
+  let ids;
+  try { ids = messageIds(page, state.phase, config.labelId); } catch (error) { logInvalidPage(page); throw error; }
+  return { ids, index: 0, nextPageToken,
     finalHistoryId: bootstrap ? null : page.historyId };
 }
 
