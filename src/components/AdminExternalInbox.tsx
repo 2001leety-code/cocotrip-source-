@@ -648,7 +648,8 @@ function InboxContent({
                               {copy.clipped}
                             </p>
                           )}
-                          {detail.channel === "email" && (
+                          {detail.channel === "email" &&
+                            (!previewMode || companyEmailReplyTransport) && (
                             <AdminCompanyEmailReply
                               key={`${detail.id}:${detail.sourceAtMs}`}
                               language={language}
