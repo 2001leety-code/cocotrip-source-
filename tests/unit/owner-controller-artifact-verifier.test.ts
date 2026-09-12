@@ -7,6 +7,8 @@ const HEX_FINGERPRINT = FINGERPRINT.replaceAll(':', '').toLowerCase();
 const VERSION = { versionCode: 2, versionName: '1.0.1' };
 const MANIFEST = `  E: manifest (line=2)
     A: package="com.cocotrip.owner" (Raw: "com.cocotrip.owner")
+      E: uses-permission (line=4)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.POST_NOTIFICATIONS"
       E: application (line=27)
           E: activity (line=43)
             A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
@@ -14,6 +16,17 @@ const MANIFEST = `  E: manifest (line=2)
               E: meta-data (line=46)
                 A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.MANAGE_SPACE_URL"
                 A: http://schemas.android.com/apk/res/android:value(0x01010024)="https://cocotripkr.com"
+          E: service (line=50)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.DelegationService"
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+              E: intent-filter (line=53)
+                E: action (line=54)
+                  A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE"
+                E: category (line=56)
+                  A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.DEFAULT"
+          E: activity (line=63)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
 `;
 
 describe('Owner Controller 실제 서명 검증기', () => {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application
     android:allowBackup="false"
     android:icon="@mipmap/ic_launcher"
@@ -44,6 +45,24 @@
         android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL"
         android:value="https://cocotripkr.com" />
     </activity>
+    <!-- Only the verified browser can bind; ABH enforces its stored browser token. -->
+    <service
+      android:name="com.google.androidbrowserhelper.trusted.DelegationService"
+      android:enabled="true"
+      android:exported="true">
+      <meta-data
+        android:name="android.support.customtabs.trusted.SMALL_ICON"
+        android:resource="@drawable/ic_owner_notification" />
+      <intent-filter>
+        <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </service>
+    <!-- ABH requests Android 13+ permission only after the website asks for it. -->
+    <activity
+      android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"
+      android:exported="false"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     <meta-data
       android:name="asset_statements"
       android:resource="@string/asset_statements" />
