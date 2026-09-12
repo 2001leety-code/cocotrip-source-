@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { Language } from '@/i18n';
 import { OwnerControllerSetupPanel } from '@/components/OwnerControllerSetupPanel';
 import { OwnerNotificationPanel } from '@/components/OwnerNotificationPanel';
+import { OwnerDeviceTestPanel } from '@/components/OwnerDeviceTestPanel';
 import type { OwnerNotificationAdapter, OwnerNotificationSnapshot } from '@/lib/ownerNotificationSetup';
 
 type Scenario = 'default' | 'registered' | 'denied' | 'unsupported' | 'signed-out' | 'not-configured' | 'check-failed' | 'enroll-failed' | 'pending';
@@ -12,6 +13,7 @@ export default function OwnerNotificationDevHarness() {
   const [scenario, setScenario] = useState<Scenario>('default');
   const [language, setLanguage] = useState<Language>('ko');
   const [revision, setRevision] = useState(0);
+  const [testScenario, setTestScenario] = useState('ready');
   const [history, setHistory] = useState<string[]>([]);
   const finishPending = useRef<(() => void) | null>(null);
   const standalone = new URLSearchParams(window.location.search).get('standalone') === '1';
@@ -68,6 +70,19 @@ export default function OwnerNotificationDevHarness() {
         <OwnerControllerSetupPanel language={language}>
           <OwnerNotificationPanel key={adapter.key} adapter={adapter} language={language} />
         </OwnerControllerSetupPanel>
+        <label className="flex flex-col gap-1 text-xs text-slate-300">가상 시험 알림 상태
+          <select aria-label="가상 시험 알림 상태" className={button} value={testScenario} onChange={event => setTestScenario(event.target.value)}>
+            {['ready', 'disabled', 'not-selected', 'unknown'].map(value => <option key={value}>{value}</option>)}
+          </select>
+        </label>
+        <OwnerDeviceTestPanel key={`${testScenario}:${revision}`} language={language} adapter={{
+          check: async () => ({ ready: ['ready', 'unknown'].includes(testScenario),
+            code: testScenario === 'disabled' ? 'DISABLED' : testScenario === 'not-selected' ? 'DEVICE_NOT_SELECTED' : 'READY' }),
+          send: async () => {
+            setHistory(items => [...items, 'test-send (memory only)']);
+            return { code: testScenario === 'unknown' ? 'OUTCOME_UNKNOWN' : 'PROVIDER_ACCEPTED', deliveryVerified: false };
+          },
+        }} />
         <details className="text-xs text-slate-400">
           <summary className="min-h-[44px] cursor-pointer content-center">가상 호출 기록</summary>
           <pre className="whitespace-pre-wrap">{history.join('\n') || '호출 없음'}</pre>

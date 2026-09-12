@@ -4,6 +4,8 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 import type { OwnerNotificationAdapter, OwnerNotificationSnapshot } from '@/lib/ownerNotificationSetup';
 import { OwnerNotificationPanel } from './OwnerNotificationPanel';
+import { createOwnerDeviceTestAdapter } from '@/lib/ownerDeviceTest';
+import { OwnerDeviceTestPanel } from './OwnerDeviceTestPanel';
 
 /** Production-only adapter. It keeps the existing per-user push registration and auth contract. */
 export function OwnerNotificationSetup() {
@@ -13,6 +15,7 @@ export function OwnerNotificationSetup() {
   const actions = useRef(push);
   useEffect(() => { actions.current = push; }, [push]);
   const uid = user?.uid || '';
+  const deviceTest = useMemo(() => user && !loading ? createOwnerDeviceTestAdapter(user) : null, [user, loading]);
   const adapter = useMemo<OwnerNotificationAdapter>(() => ({
     key: `owner:${uid}`,
     read: async () => {
@@ -35,5 +38,8 @@ export function OwnerNotificationSetup() {
     enroll: () => actions.current.enable(),
   }), [uid, loading]);
 
-  return <OwnerNotificationPanel key={adapter.key} adapter={adapter} language={language} />;
+  return <>
+    <OwnerNotificationPanel key={adapter.key} adapter={adapter} language={language} />
+    {deviceTest && <OwnerDeviceTestPanel key={adapter.key} adapter={deviceTest} language={language} />}
+  </>;
 }
