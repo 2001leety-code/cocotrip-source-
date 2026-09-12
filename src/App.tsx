@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-route
 import { useEffect, lazy, Suspense } from 'react';
 import { ManifestSwitcher } from '@/components/ManifestSwitcher';
 import { RouteTransition } from '@/components/RouteTransition';
-import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
+import { useLanguage } from '@/hooks/useLanguage';
+import { RouteLanguageProvider } from '@/components/RouteLanguageProvider';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { PromoBanner } from '@/components/PromoBanner';
@@ -137,7 +138,9 @@ import { signalAppReady } from '@/lib/appReady';
 
 function RouteFallback({ ground }: { ground?: 'paper' | 'legacy' }) {
   const { t } = useLanguage();
-  return <EcRouteFallback label={t.a11y?.loadingPage || 'Loading page'} ground={ground} />;
+  const { pathname } = useLocation();
+  const isAdmin = pathname === '/admin' || pathname.startsWith('/admin/');
+  return <EcRouteFallback label={isAdmin ? '화면을 불러오는 중입니다' : t.a11y?.loadingPage || 'Loading page'} ground={ground} />;
 }
 const ROUTE_FALLBACK = <RouteFallback />;
 const LEGACY_ROUTE_FALLBACK = <RouteFallback ground="legacy" />;
@@ -755,9 +758,9 @@ function App() {
   }, []);
 
   return (
-    <LanguageProvider>
+    <BrowserRouter>
+      <RouteLanguageProvider>
       <ErrorBoundary>
-      <BrowserRouter>
         <CommandPaletteProvider>
         <ManifestSwitcher />
         {/* PWA 업데이트 토스트 — 전역(코코트립 + 무드 모두). 새 빌드 배포 시 "새 버전" 알림 → 새로고침. */}
@@ -782,9 +785,9 @@ function App() {
         <AnimatedRoutes />
         <MobileBottomSpacer />
         </CommandPaletteProvider>
-      </BrowserRouter>
       </ErrorBoundary>
-    </LanguageProvider>
+      </RouteLanguageProvider>
+    </BrowserRouter>
   );
 }
 

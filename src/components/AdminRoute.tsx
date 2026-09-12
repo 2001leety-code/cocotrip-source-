@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 
-const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL ?? '').trim().toLowerCase();
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
 
 export function AdminRoute({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] text-[#0f3460]">
-        Loading...
+        관리자 정보를 확인하는 중입니다
       </div>
     );
   }
@@ -45,7 +45,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] p-6">
         <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-          <h1 className="text-xl font-bold text-[#1a1a2e] mb-4">Admin Access</h1>
+          <h1 className="text-xl font-bold text-[#1a1a2e] mb-4">관리자 로그인</h1>
           <p className="text-sm text-gray-600 mb-6">
             관리자 페이지는 소셜 로그인 후에만 접근할 수 있습니다.
           </p>
@@ -64,7 +64,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
           </button>
           {/* Apple 로그인 임시 비활성화 */}
           {(loginError || error) ? (
-            <p className="text-sm text-red-500 mt-4">{loginError ?? error}</p>
+            <p className="text-sm text-red-500 mt-4">{loginError !== null ? loginError : error}</p>
           ) : null}
         </div>
       </div>
@@ -75,7 +75,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] p-6">
         <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-          <h1 className="text-xl font-bold text-[#1a1a2e] mb-4">Access denied</h1>
+          <h1 className="text-xl font-bold text-[#1a1a2e] mb-4">관리자 권한이 필요합니다</h1>
           <p className="text-sm text-gray-600">
             관리자 권한이 없습니다. 현재 계정: <span className="font-semibold">{user.email}</span>
           </p>

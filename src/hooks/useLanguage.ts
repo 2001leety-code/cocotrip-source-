@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { translations, loadLocale, getLocaleSync, type Language, type Translations } from '@/i18n';
 import { track } from '@/lib/posthog';
 
+export type LanguageScope = 'customer' | 'admin';
+
 type LanguageContextValue = {
   language: Language;
   t: Translations;
@@ -15,14 +17,15 @@ const LanguageContext = createContext<LanguageContextValue>({
   changeLanguage: () => {},
 });
 
-const STORAGE_KEY = 'cocotrip_lang';
+const STORAGE_KEY_CUSTOMER = 'cocotrip_lang';
+const STORAGE_KEY_ADMIN = 'cocotrip_admin_lang';
 const SUPPORTED: Language[] = ['en', 'ko', 'ja', 'zh'];
 
-function detectInitialLanguage(): Language {
+function detectCustomerLanguage(): Language {
   // 1. Respect saved user choice
   try {
     if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(STORAGE_KEY) as Language | null;
+      const saved = window.localStorage.getItem(STORAGE_KEY_CUSTOMER) as Language | null;
       if (saved && SUPPORTED.includes(saved)) return saved;
     }
   } catch { /* localStorage unavailable */ }
@@ -47,8 +50,34 @@ function detectInitialLanguage(): Language {
   return 'en';
 }
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>(() => detectInitialLanguage());
+function detectAdminLanguage(): Language {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem(STORAGE_KEY_ADMIN) as Language | null;
+      if (saved && SUPPORTED.includes(saved)) return saved;
+    }
+  } catch { /* localStorage unavailable */ }
+
+  return 'ko';
+}
+
+function detectInitialLanguage(scope: LanguageScope): Language {
+  if (scope === 'admin') {
+    return detectAdminLanguage();
+  }
+  return detectCustomerLanguage();
+}
+
+export function LanguageProvider({
+  children,
+  scope = 'customer',
+}: {
+  children: ReactNode;
+  scope?: LanguageScope;
+}) {
+  const storageKey = scope === 'admin' ? STORAGE_KEY_ADMIN : STORAGE_KEY_CUSTOMER;
+
+  const [language, setLanguage] = useState<Language>(() => detectInitialLanguage(scope));
   // 2026-05-06 번들 다이어트: locale 비동기 로드. 첫 paint 시엔 캐시 또는 EN fallback,
   // 비-EN 사용자는 ~100ms 후 chunk 도착하면 setT 로 정확한 locale 적용.
   const [t, setT] = useState<Translations>(() => getLocaleSync(language));
@@ -73,10 +102,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     });
     try {
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_KEY, lang);
+        window.localStorage.setItem(storageKey, lang);
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [storageKey]);
 
   // Keep <html lang> in sync for SEO / accessibility / system font fallbacks
   useEffect(() => {
@@ -88,13 +117,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // Cross-tab language synchronization via storage event
   useEffect(() => {
     const handler = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && e.newValue && SUPPORTED.includes(e.newValue as Language)) {
+      if (e.key === storageKey && e.newValue && SUPPORTED.includes(e.newValue as Language)) {
         setLanguage(e.newValue as Language);
       }
     };
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
-  }, []);
+  }, [storageKey]);
 
   return createElement(LanguageContext.Provider, { value: { language, t, changeLanguage } }, children);
 }
