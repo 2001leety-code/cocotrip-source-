@@ -1,5 +1,7 @@
 # 기능 플래그 점검표 (2026-07-25, Vercel 실조회 반영)
 
+2026-09-12 본인 폰 시험: 새 플래그/환경변수는 없다. `/api/admin-owner-notification-test`는 기존 **Vercel Production** `OWNER_EVENT_PUSH_ENABLED`와 `OWNER_NOTIFICATION_*` 전체 설정, 관리자 UID 및 지정 구독이 모두 맞을 때만 작동한다. 버튼은 등록·설정·실수신을 자동 완료하지 않는다. [폰 시험 절차](OWNER-NOTIFICATION-RUNBOOK-2026-09-07.md#본인-폰-한-대-시험-2026-09-12)를 따른다.
+
 2026-09-09 규칙 기반 운영 개선: 받은함 로컬 검색/정렬·화면 조회 범위 안내·채팅 캡틴시트 문구 정정·Lighthouse 안전 요약은 새 플래그/환경변수가 없다. 기존 수신/발송 OFF와 원본 권한은 유지한다. 상세: [AI 없는 운영 기능](CONTROL-TOWER-RULES-FIRST-2026-09-09.md).
 
 > 목적: **"코드는 다 만들었는데 손님에겐 안 보이는 기능"** 을 한 장에 모아 켜기/지우기를 결정한다.
