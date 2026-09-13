@@ -9,6 +9,15 @@ const POST_NOTIFICATIONS = 'android.permission.POST_NOTIFICATIONS';
 const NOTIFICATION_ACTIVITY = 'com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity';
 const DELEGATION_SERVICE = 'com.google.androidbrowserhelper.trusted.DelegationService';
 const DELEGATION_ACTION = 'android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE';
+const LAUNCHER = 'com.cocotrip.owner.OwnerLauncherActivity';
+const LAUNCHING_BROWSER = 'android.support.customtabs.trusted.LAUNCHING_BROWSER';
+const LAUNCHING_BROWSER_NAME = 'android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME';
+const LAUNCHER_METADATA = `              E: meta-data (line=40)
+                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER}" (Raw: "${LAUNCHING_BROWSER}")
+                A: ${ANDROID}value(0x01010024)="com.android.chrome" (Raw: "com.android.chrome")
+              E: meta-data (line=41)
+                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER_NAME}" (Raw: "${LAUNCHING_BROWSER_NAME}")
+                A: ${ANDROID}value(0x01010024)="Chrome" (Raw: "Chrome")`;
 const PERMISSION = `      E: uses-permission (line=4)
         A: ${ANDROID}name(0x01010003)="${POST_NOTIFICATIONS}" (Raw: "${POST_NOTIFICATIONS}")`;
 const NOTIFICATION = `          E: activity (line=63)
@@ -37,8 +46,9 @@ ${PERMISSION}
       E: application (line=27)
         A: ${ANDROID}allowBackup(0x01010280)=false
           E: activity (line=37)
-            A: ${ANDROID}name(0x01010003)="com.cocotrip.owner.OwnerLauncherActivity" (Raw: "com.cocotrip.owner.OwnerLauncherActivity")
+            A: ${ANDROID}name(0x01010003)="${LAUNCHER}" (Raw: "${LAUNCHER}")
             A: ${ANDROID}exported(0x01010010)=true
+${LAUNCHER_METADATA}
 ${MANAGE}
 ${SERVICE}
 ${NOTIFICATION}
@@ -103,6 +113,18 @@ describe('Owner APK compiled Manifest guard', () => {
     ['wrong delegation action', DUMP.replace(DELEGATION_ACTION, 'android.intent.action.VIEW')],
     ['extra delegation filter node', DUMP.replace('                E: category', '                E: data (line=55)\n                E: category')],
   ])('rejects notification integration fault: %s', (_reason, dump) => {
+    expect(verifyOwnerManifestDump(dump).ok).toBe(false);
+  });
+
+  it.each([
+    ['missing Chrome package metadata', DUMP.replace(`              E: meta-data (line=40)\n                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER}" (Raw: "${LAUNCHING_BROWSER}")\n                A: ${ANDROID}value(0x01010024)="com.android.chrome" (Raw: "com.android.chrome")\n`, '')],
+    ['missing Chrome name metadata', DUMP.replace(`              E: meta-data (line=41)\n                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER_NAME}" (Raw: "${LAUNCHING_BROWSER_NAME}")\n                A: ${ANDROID}value(0x01010024)="Chrome" (Raw: "Chrome")`, '')],
+    ['duplicated launcher metadata', DUMP.replace(LAUNCHER_METADATA, `${LAUNCHER_METADATA}\n${LAUNCHER_METADATA}`)],
+    ['Samsung Internet replacement', DUMP.replace('com.android.chrome', 'com.sec.android.app.sbrowser')],
+    ['other Chrome replacement', DUMP.replace('com.android.chrome', 'com.android.chrome.beta')],
+    ['metadata on another activity', DUMP.replace(LAUNCHER_METADATA, `          E: activity (line=42)\n            A: ${ANDROID}name(0x01010003)="other.Activity" (Raw: "other.Activity")\n${LAUNCHER_METADATA}`)],
+    ['resource launcher metadata', DUMP.replace(LAUNCHER_METADATA, `${LAUNCHER_METADATA}\n                A: ${ANDROID}resource(0x01010025)=@0x7f0d001e`)],
+  ])('rejects launcher Chrome metadata fault: %s', (_reason, dump) => {
     expect(verifyOwnerManifestDump(dump).ok).toBe(false);
   });
 

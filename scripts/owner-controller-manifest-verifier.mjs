@@ -44,6 +44,19 @@ function verifyNotificationComponents(manifest, application) {
     && node.attributes.get(`${ANDROID}name`) === name);
   const enabled = (node) => !node.attributes.has(`${ANDROID}enabled`)
     || node.attributes.get(`${ANDROID}enabled`) === 'true';
+  const launchers = named(application, 'activity', 'com.cocotrip.owner.OwnerLauncherActivity');
+  if (launchers.length !== 1) return { ok: false, reason: 'APK requires exactly one owner launcher activity' };
+  const browserMetadata = [
+    ['android.support.customtabs.trusted.LAUNCHING_BROWSER', 'com.android.chrome'],
+    ['android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME', 'Chrome'],
+  ];
+  for (const [name, value] of browserMetadata) {
+    const metadata = named(launchers[0], 'meta-data', name);
+    if (metadata.length !== 1 || metadata[0].attributes.get(`${ANDROID}value`) !== value
+      || metadata[0].attributes.has(`${ANDROID}resource`)) {
+      return { ok: false, reason: 'APK requires the app-scoped Chrome notification provider on its launcher' };
+    }
+  }
   const permissions = named(manifest, 'uses-permission', POST_NOTIFICATIONS);
   if (permissions.length !== 1 || permissions[0].attributes.has(`${ANDROID}maxSdkVersion`)) {
     return { ok: false, reason: 'APK requires POST_NOTIFICATIONS without an SDK cap' };

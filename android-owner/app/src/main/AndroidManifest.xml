@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <queries>
+    <package android:name="com.android.chrome" />
+  </queries>
   <application
     android:allowBackup="false"
     android:icon="@mipmap/ic_launcher"
@@ -30,6 +33,13 @@
       <meta-data
         android:name="android.support.customtabs.trusted.DEFAULT_URL"
         android:value="https://cocotripkr.com/admin/ai-center" />
+      <!-- App-only provider: Samsung Internet does not support notification delegation. -->
+      <meta-data
+        android:name="android.support.customtabs.trusted.LAUNCHING_BROWSER"
+        android:value="com.android.chrome" />
+      <meta-data
+        android:name="android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME"
+        android:value="Chrome" />
       <meta-data
         android:name="android.support.customtabs.trusted.PROVIDER_AUTHORITY"
         android:value="com.cocotrip.owner.fileprovider" />

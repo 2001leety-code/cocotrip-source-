@@ -48,6 +48,9 @@ describe('Owner Controller Android 브랜드·빌드 소스', () => {
     expect(manifest).toContain('android:value="https://cocotripkr.com/admin/ai-center"');
     expect(manifest).toContain('android:pathPrefix="/admin"');
     expect(manifest).toContain('android:resource="@string/asset_statements"');
+    expect(manifest).toMatch(/<queries>\s*<package android:name="com\.android\.chrome"\s*\/>\s*<\/queries>/);
+    expect(manifest).toMatch(/android:name="android\.support\.customtabs\.trusted\.LAUNCHING_BROWSER"\s+android:value="com\.android\.chrome"/);
+    expect(manifest).toMatch(/android:name="android\.support\.customtabs\.trusted\.LAUNCHING_BROWSER_NAME"\s+android:value="Chrome"/);
     expect(manifest).toContain('android:resource="@drawable/ic_owner_notification"');
     expect(manifest).toContain('android:theme="@android:style/Theme.Translucent.NoTitleBar"');
     expect(read('android-owner/app/src/main/java/com/cocotrip/owner/OwnerLauncherActivity.java'))

@@ -1,5 +1,19 @@
 # Android 소유자 앱 알림 연결 보완
 
+## 11시 후속: 1.0.2에서도 등록되지 않음
+
+사용자 새 사진은 여전히 기기 미등록/브라우저 권한 요청 전이다. 현재 USB 기기 0개이므로 새로운 실기기 권한 값을 읽은 것은 아니다. 지난 실제 검사에서 실행 브라우저는 Samsung Internet 30이었으며 Google ABH 공식 브라우저 지원표는 Samsung Internet의 기본 TWA 지원과 알림 위임 미지원을 구분한다. 1.0.2의 권한·서비스 보완만으로 이 브라우저 호환성을 해결할 수 없었다. 단, 사진만으로 브라우저 웹 권한 실패의 모든 원인을 확정하지 않는다.
+
+- 최소 후속은 컨트롤러 앱에만 Chrome provider를 지정하는 1.0.3/code 4다. 사용자의 OS 기본 브라우저, 기존 삼성 인터넷 로그인/데이터, 고객 데이터/웹 UI/서버 설정/키는 바꾸지 않는다. Chrome 로그인은 별개 세션이라 사용자가 다시 로그인해야 할 수 있다.
+- ABH 2.7.3 실제 AAR의 javap 바이트코드에서 LAUNCHING_BROWSER/LAUNCHING_BROWSER_NAME 해석, createTwaLauncher의 명시 provider 전달, 미설치/비활성 provider 때 공식 안내창 fallback을 확인했다. Java launcher나 인증서 검증을 재작성하지 않는다. Chrome 자동 설치/활성화 및 권한 강제 승인도 하지 않는다.
+- Spark가 정확한 compiled launcher metadata 검사 코드를 작성했고 root가 기존 검사 함수에 통합했다. 누락·잘못된 브라우저·다른 Activity의 메타데이터·리소스 값·중복을 거부하는 회귀 검사를 추가한다.
+- 11:09에 본인 폰 연결을 확인했고 기존 1.0.2/code 3·OS 알림 권한 false·Chrome 152 활성 설치를 확인했다. 같은 키로 1.0.3/code 4를 서명 빌드/preflight PASS 후 11:10 user0 덮어 설치 Success. 최초 설치시각 유지, OS 기본 브라우저는 설치 전후 모두 com.sec.android.app.sbrowser다. 앱 실행 방식만 바뀌며 기본 브라우저를 바꾼 것이 아니다.
+- 1.0.3 실제 Chrome 실행/권한/구독/서버 등록/수신 확인은 남아 있다. 새 앱 열기, 필요시 본인 로그인 후 AI 센터를 보여 달라고 요청했다. 등록 버튼 반복 요청 전 실제 provider부터 확인한다. 실폰 확인 전 추가 업로드나 머지를 반복하지 않는다. PR1395는 기존 1.0.2 head의 Draft OPEN이다. 이 PR의 원격 Android 컴파일은 PASS, 일부 검사는 docs-only 판정으로 SKIPPED/대체 상태이며 Lighthouse는 FAIL이다. 이를 실제 전체 원격 검사 PASS로 보고하지 않는다.
+- 새 변경 관련 5파일/123개 검사, 변경 ESLint, npm run build, unsigned/signed Android 빌드와 최종 APK 검사 PASS. 기존 1.0.2 APK는 Chrome provider 없음으로 FAIL 대조했다. 전체 11,385개는 이전 1.0.2 검사 기록이고 이번 1.0.3 전체 검사를 다시 돌렸다고 쓰지 않는다.
+- 설치 파일 C:/Users/dlxod/Downloads/CocoTrip-Owner-v1.0.3.apk, SHA-256 ED6ED7D7C80A655AFC980B6101B0FAD4B54577361F831D698465355440843546.
+
+공식 지원표: https://github.com/GoogleChrome/android-browser-helper/blob/main/docs/trusted-web-activity-browser-support.md
+
 ## 실수와 재발 방지
 
 - TWA 실행과 웹 Push 지원만으로 Android 앱 알림이 연결됐다고 판단하지 않는다. 기존 1.0.1에는 POST_NOTIFICATIONS, ABH DelegationService, NotificationPermissionRequestActivity가 모두 없었다.
