@@ -2,31 +2,35 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Language } from "@/i18n";
 import {
   adminCompanyEmailReplyCopy,
+  adminWhatsAppReplyCopy,
+  whatsappReplyBlockedReason,
   isCompanyEmailReplyActionResult,
   isCompanyEmailReplyDetail,
   type CompanyEmailReplyActionInput,
   type CompanyEmailReplyDetail,
+  type ManualReplyChannel,
 } from "@/lib/adminCompanyEmailReply";
 
 type Account = { getIdToken: () => Promise<string> } | null;
 
-export interface CompanyEmailReplyTransport {
+export interface CompanyEmailReplyTransport<C extends ManualReplyChannel = "email"> {
   load: (
     messageId: string,
     signal: AbortSignal,
-  ) => Promise<CompanyEmailReplyDetail>;
+  ) => Promise<CompanyEmailReplyDetail<C>>;
   action: (
-    input: CompanyEmailReplyActionInput,
+    input: CompanyEmailReplyActionInput<C>,
     signal: AbortSignal,
   ) => Promise<{ ok: boolean; code: string }>;
 }
 
-interface Props {
+interface Props<C extends ManualReplyChannel = "email"> {
   language: Language;
   messageId: string;
   sourceAtMs: number;
   account: Account;
-  transport?: CompanyEmailReplyTransport;
+  channel?: C;
+  transport?: CompanyEmailReplyTransport<C>;
 }
 
 const buttonClass =
@@ -98,16 +102,20 @@ function uncertain(code: string) {
   return ["DELIVERY_UNCERTAIN", "REPLY_UNAVAILABLE"].includes(code);
 }
 
-export function AdminCompanyEmailReply({
+export function AdminCompanyEmailReply<C extends ManualReplyChannel = "email">({
   language,
   messageId,
   sourceAtMs,
   account,
   transport,
-}: Props) {
-  const copy = adminCompanyEmailReplyCopy[language] || adminCompanyEmailReplyCopy.en;
+  channel = "email" as C,
+}: Props<C>) {
+  const copy = channel === "whatsapp"
+    ? adminWhatsAppReplyCopy[language] || adminWhatsAppReplyCopy.ko
+    : adminCompanyEmailReplyCopy[language] || adminCompanyEmailReplyCopy.en;
+  const endpoint = channel === "whatsapp" ? "/api/admin-whatsapp-reply" : "/api/admin-company-email-reply";
   const titleId = useId();
-  const [data, setData] = useState<CompanyEmailReplyDetail | null>(null);
+  const [data, setData] = useState<CompanyEmailReplyDetail<C> | null>(null);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -133,7 +141,7 @@ export function AdminCompanyEmailReply({
             if (!account) throw new Error("AUTH_REQUIRED");
             const bearer = await token(account, controller.signal);
             const response = await fetch(
-              `/api/admin-company-email-reply?id=${encodeURIComponent(messageId)}`,
+              `${endpoint}?id=${encodeURIComponent(messageId)}`,
               {
                 headers: { Authorization: `Bearer ${bearer}` },
                 signal: controller.signal,
@@ -141,12 +149,12 @@ export function AdminCompanyEmailReply({
               },
             );
             const payload = await response.json();
-            if (!response.ok || !payload?.ok || !isCompanyEmailReplyDetail(payload.data))
+            if (!response.ok || !payload?.ok || !isCompanyEmailReplyDetail(payload.data, channel))
               throw new Error("REPLY_UNAVAILABLE");
             return payload.data;
           })();
       if (
-        !isCompanyEmailReplyDetail(result) ||
+        !isCompanyEmailReplyDetail(result, channel) ||
         result.messageId !== messageId ||
         (result.sourceAtMs !== sourceAtMs && result.sourceAtMs !== 0)
       )
@@ -168,7 +176,7 @@ export function AdminCompanyEmailReply({
       if (loadRequest.current === controller) loadRequest.current = null;
       if (mounted.current) setLoading(false);
     }
-  }, [account, messageId, sourceAtMs, transport]);
+  }, [account, channel, endpoint, messageId, sourceAtMs, transport]);
 
   useEffect(() => {
     mounted.current = true;
@@ -209,12 +217,12 @@ export function AdminCompanyEmailReply({
     }, 10_000);
     const request = {
       messageId,
-      channel: "email" as const,
+      channel,
       expectedSourceAtMs: sourceAtMs,
       text: draft,
       key: keyRef.current || workflow?.request.key || "",
     };
-    const input: CompanyEmailReplyActionInput =
+    const input: CompanyEmailReplyActionInput<C> =
       action === "draft"
         ? {
             action,
@@ -243,7 +251,7 @@ export function AdminCompanyEmailReply({
         : await (async () => {
             if (!account) throw new Error("AUTH_REQUIRED");
             const bearer = await token(account, controller.signal);
-            const response = await fetch("/api/admin-company-email-reply", {
+            const response = await fetch(endpoint, {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${bearer}`,
@@ -269,8 +277,10 @@ export function AdminCompanyEmailReply({
       if (mounted.current && actionRequest.current === controller) {
         setConfirmed(false);
         await get();
-        if (nextProblem && mounted.current && actionRequest.current === controller)
+        if (nextProblem && mounted.current && actionRequest.current === controller) {
           setProblem(nextProblem);
+          if (action === "send" && nextProblem === "uncertain") setUncertainLock(true);
+        }
       }
     } catch {
       if (mounted.current && actionRequest.current === controller) {
@@ -289,6 +299,9 @@ export function AdminCompanyEmailReply({
   const workflow = data?.workflow || null;
   const editingDiffers = Boolean(workflow && draft !== workflow.request.text);
   const retrying = workflow?.status === "failed_pre_send";
+  const blockedReason = channel === "whatsapp"
+    ? whatsappReplyBlockedReason(language, data?.reason || null)
+    : copy.unavailable;
   return (
     <section
       aria-labelledby={titleId}
@@ -343,7 +356,7 @@ export function AdminCompanyEmailReply({
             )}
           </dl>
           {!data.canCompose && !workflow ? (
-            <p className="mt-3 text-sm leading-6 text-amber-100">{copy.unavailable}</p>
+            <p className="mt-3 text-sm leading-6 text-amber-100">{blockedReason}</p>
           ) : workflow?.providerAccepted ? (
             <div className="mt-3 rounded-lg border border-emerald-300/30 p-3 text-sm leading-6 text-slate-100">
               <p className="font-semibold">{copy.gmailAccepted}</p>
@@ -373,6 +386,9 @@ export function AdminCompanyEmailReply({
                 />
               </label>
               <p className="mt-2 text-xs leading-5 text-slate-300">{copy.draftHint}</p>
+              {channel === "whatsapp" && !data.canSend && data.reason && (
+                <p className="mt-2 text-sm leading-6 text-amber-100">{blockedReason}</p>
+              )}
               <p className="mt-2 text-xs text-slate-300">
                 {workflow ? copy.savedDraft : copy.noDraft}
               </p>

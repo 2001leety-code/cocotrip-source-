@@ -19,6 +19,7 @@ import type {
   CompanyEmailReplyDetail,
   CompanyEmailReplyWorkflow,
 } from "@/lib/adminCompanyEmailReply";
+import { createWhatsAppReplyPreview } from "@/lib/adminWhatsAppReplyPreview";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -578,6 +579,10 @@ export default function AdminAiOpsCenterDevHarness() {
       ? "가상 갱신 실패"
       : undefined;
   const params = useMemo(() => new URLSearchParams(search), [search]);
+  const previewWhatsAppReplyTransport = useMemo(
+    () => createWhatsAppReplyPreview(now, params.get("whatsapp-reply")),
+    [now, params],
+  );
   const [retentionState, setRetentionState] = useState<ExternalInboxRetention>({
     caseId: "c".repeat(64),
     status: "open",
@@ -889,6 +894,7 @@ export default function AdminAiOpsCenterDevHarness() {
         load: previewCompanyEmailReplyLoad,
         action: previewCompanyEmailReplyAction,
       }}
+      previewWhatsAppReplyTransport={previewWhatsAppReplyTransport}
     />
   );
 }

@@ -10,16 +10,18 @@ export type CompanyEmailReplyStatus =
   | "failed_pre_send"
   | "cancelled";
 
-export interface CompanyEmailReplyRequest {
+export type ManualReplyChannel = "email" | "whatsapp";
+
+export interface CompanyEmailReplyRequest<C extends ManualReplyChannel = "email"> {
   messageId: string;
-  channel: "email";
+  channel: C;
   expectedSourceAtMs: number;
   text: string;
   key: string;
 }
 
-export interface CompanyEmailReplyWorkflow {
-  request: CompanyEmailReplyRequest;
+export interface CompanyEmailReplyWorkflow<C extends ManualReplyChannel = "email"> {
+  request: CompanyEmailReplyRequest<C>;
   status: CompanyEmailReplyStatus;
   revision: number;
   draftHash: string;
@@ -30,19 +32,19 @@ export interface CompanyEmailReplyWorkflow {
   deliveryVerified: false;
 }
 
-export interface CompanyEmailReplyDetail {
+export interface CompanyEmailReplyDetail<C extends ManualReplyChannel = "email"> {
   messageId: string;
   sourceAtMs: number;
   recipient: string;
   canCompose: boolean;
   canSend: boolean;
   reason: string | null;
-  workflow: CompanyEmailReplyWorkflow | null;
+  workflow: CompanyEmailReplyWorkflow<C> | null;
 }
 
-export interface CompanyEmailReplyActionInput {
+export interface CompanyEmailReplyActionInput<C extends ManualReplyChannel = "email"> {
   action: "draft" | "send";
-  request: CompanyEmailReplyRequest;
+  request: CompanyEmailReplyRequest<C>;
   expectedRevision?: number;
   expectedDraftHash?: string;
   expectedApprovalExpiresAtMs?: number;
@@ -96,14 +98,15 @@ function text(value: unknown, limit: number): value is string {
   );
 }
 
-export function isCompanyEmailReplyRequest(
+export function isCompanyEmailReplyRequest<C extends ManualReplyChannel = "email">(
   value: unknown,
-): value is CompanyEmailReplyRequest {
+  channel: C = "email" as C,
+): value is CompanyEmailReplyRequest<C> {
   if (!object(value)) return false;
   return (
     typeof value.messageId === "string" &&
     HASH.test(value.messageId) &&
-    value.channel === "email" &&
+    value.channel === channel &&
     time(value.expectedSourceAtMs) &&
     text(value.text, 4000) &&
     value.text.trim().length > 0 &&
@@ -112,12 +115,13 @@ export function isCompanyEmailReplyRequest(
   );
 }
 
-export function isCompanyEmailReplyWorkflow(
+export function isCompanyEmailReplyWorkflow<C extends ManualReplyChannel = "email">(
   value: unknown,
-): value is CompanyEmailReplyWorkflow {
+  channel: C = "email" as C,
+): value is CompanyEmailReplyWorkflow<C> {
   if (!object(value)) return false;
   return (
-    isCompanyEmailReplyRequest(value.request) &&
+    isCompanyEmailReplyRequest(value.request, channel) &&
     typeof value.status === "string" &&
     STATUSES.includes(value.status as CompanyEmailReplyStatus) &&
     typeof value.revision === "number" &&
@@ -136,9 +140,10 @@ export function isCompanyEmailReplyWorkflow(
   );
 }
 
-export function isCompanyEmailReplyDetail(
+export function isCompanyEmailReplyDetail<C extends ManualReplyChannel = "email">(
   value: unknown,
-): value is CompanyEmailReplyDetail {
+  channel: C = "email" as C,
+): value is CompanyEmailReplyDetail<C> {
   if (!object(value)) return false;
   const workflow = value.workflow;
   const disabledWithoutSource =
@@ -152,6 +157,9 @@ export function isCompanyEmailReplyDetail(
       "INBOX_CONNECTION_REQUIRED",
       "COMPANY_ACCOUNT_REQUIRED",
       "DRAFT_EXPIRED",
+      ...(channel === "whatsapp"
+        ? ["DISPATCH_DISABLED", "SENDER_CONFIGURATION_REQUIRED", "SOURCE_CONTEXT_INVALID", "WHATSAPP_CONSENT_REQUIRED", "WHATSAPP_WINDOW_EXPIRED", "WHATSAPP_WINDOW_UNVERIFIED", "REAPPROVAL_REQUIRED", "SOURCE_CHANGED"]
+        : []),
     ].includes(value.reason as string);
   const verifiedSource =
     time(value.sourceAtMs) &&
@@ -164,7 +172,7 @@ export function isCompanyEmailReplyDetail(
     typeof value.canCompose === "boolean" &&
     typeof value.canSend === "boolean" &&
     (value.reason === null || text(value.reason, 128)) &&
-    (workflow === null || isCompanyEmailReplyWorkflow(workflow)) &&
+    (workflow === null || isCompanyEmailReplyWorkflow(workflow, channel)) &&
     (!workflow ||
       (workflow.request.messageId === value.messageId &&
         workflow.request.expectedSourceAtMs === value.sourceAtMs)) &&
@@ -301,3 +309,90 @@ export const adminCompanyEmailReplyCopy = {
     locale: "zh-CN",
   },
 } satisfies Record<Language, object>;
+
+// Keep the email copy/export contract intact while sharing the same reply UI.
+export const adminWhatsAppReplyCopy = {
+  ko: {
+    ...adminCompanyEmailReplyCopy.ko,
+    title: "WhatsApp 수동 답장",
+    unavailable: "이 메시지는 여기서 답장할 수 없습니다. 수신 연결과 현재 상태를 다시 확인해 주세요.",
+    draftHint: "저장만으로 발송되지 않습니다. 초안 사용 기한은 최대 7일이며, 발송 시 고객의 상담 동의가 유효해야 합니다.",
+    approve: "이 원문을 표시된 수신자에게 WhatsApp으로 발송하는 것을 확인합니다.",
+    send: "확인 후 WhatsApp 발송",
+    retryApprove: "WhatsApp에 전달되지 않은 이 답장을 한 번만 다시 보내겠습니다.",
+    retrySend: "확인 후 WhatsApp 재발송",
+    retryHint: "이미 WhatsApp에 요청을 보냈거나 결과를 모르면 다시 보내지 않습니다.",
+    gmailAccepted: "WhatsApp 접수 확인",
+    gmailAcceptedHint: "WhatsApp이 발송 요청을 접수한 상태입니다. 수신자 도착이나 읽음은 확인되지 않았습니다.",
+    dispatchOff: "WhatsApp 수동 발송이 꺼져 있습니다. 초안을 저장해도 메시지는 발송되지 않습니다.",
+    sessionExpired: "답장 가능한 시간이 지났습니다. 고객이 상담 시작에 다시 동의하고 새 문의를 보내야 합니다.",
+    sessionStopped: "고객의 수신 중단 또는 동의 상태로 인해 답장할 수 없습니다. 상태를 확인해 주세요.",
+    connectionRequired: "WhatsApp 수신 연결과 발송 설정을 확인해야 답장할 수 있습니다.",
+    sourceExpired: "원본 메시지를 더 이상 사용할 수 없어 답장할 수 없습니다.",
+  },
+  en: {
+    ...adminCompanyEmailReplyCopy.en,
+    title: "Manual WhatsApp reply",
+    unavailable: "This message cannot be replied to here. Check the incoming connection and current status again.",
+    draftHint: "Saving does not send. Drafts are usable for up to 7 days; customer support consent must still be active when sending.",
+    approve: "I confirm that this original text will be sent to the shown recipient through WhatsApp.",
+    send: "Confirm and send through WhatsApp",
+    retryApprove: "I will resend this reply only once because it was not handed to WhatsApp.",
+    retrySend: "Confirm and resend through WhatsApp",
+    retryHint: "We do not resend after WhatsApp was asked or when the result is unknown.",
+    gmailAccepted: "WhatsApp accepted",
+    gmailAcceptedHint: "WhatsApp accepted the sending request. Recipient delivery or reading is not verified.",
+    dispatchOff: "Manual WhatsApp sending is off. Saving a draft does not send a message.",
+    sessionExpired: "The reply window has expired. The customer must explicitly start a new support session and send a new inquiry.",
+    sessionStopped: "Replies are blocked by the customer's opt-out or consent status. Check the current status.",
+    connectionRequired: "Check the WhatsApp incoming connection and sender configuration before replying.",
+    sourceExpired: "The original message is no longer available for a reply.",
+  },
+  ja: {
+    ...adminCompanyEmailReplyCopy.ja,
+    title: "WhatsApp の手動返信",
+    unavailable: "このメッセージにはここから返信できません。受信接続と現在の状態を再確認してください。",
+    draftHint: "保存だけでは送信されません。下書きは最大7日間使用でき、送信時も顧客の相談への同意が有効である必要があります。",
+    approve: "この原文を表示された宛先へ WhatsApp で送信することを確認します。",
+    send: "確認して WhatsApp から送信",
+    retryApprove: "WhatsApp に渡されなかったこの返信を一度だけ再送します。",
+    retrySend: "確認して WhatsApp から再送",
+    retryHint: "すでに WhatsApp に依頼した場合や結果不明の場合は再送しません。",
+    gmailAccepted: "WhatsApp 受付確認",
+    gmailAcceptedHint: "WhatsApp が送信依頼を受け付けた状態です。相手への到達や開封は確認されていません。",
+    dispatchOff: "WhatsApp の手動送信は無効です。下書きを保存しても送信されません。",
+    sessionExpired: "返信可能な時間が過ぎました。顧客が相談開始に再度同意し、新しい問い合わせを送る必要があります。",
+    sessionStopped: "顧客の受信停止または同意状態により返信できません。現在の状態を確認してください。",
+    connectionRequired: "返信する前に WhatsApp の受信接続と送信設定を確認してください。",
+    sourceExpired: "元のメッセージが利用できないため返信できません。",
+  },
+  zh: {
+    ...adminCompanyEmailReplyCopy.zh,
+    title: "WhatsApp 手动回复",
+    unavailable: "无法在这里回复此消息，请重新检查接收连接和当前状态。",
+    draftHint: "仅保存不会发送。草稿最多可使用7天；发送时客户的咨询同意也必须有效。",
+    approve: "我确认将通过 WhatsApp 向显示的收件人发送此原文。",
+    send: "确认并通过 WhatsApp 发送",
+    retryApprove: "此回复尚未交给 WhatsApp，我将仅重新发送一次。",
+    retrySend: "确认并通过 WhatsApp 重新发送",
+    retryHint: "已请求 WhatsApp 或结果未知时，不会重新发送。",
+    gmailAccepted: "WhatsApp 已接收",
+    gmailAcceptedHint: "WhatsApp 已接收发送请求，未验证收件人送达或已读。",
+    dispatchOff: "WhatsApp 手动发送已关闭。保存草稿不会发送消息。",
+    sessionExpired: "回复时限已过。客户需重新明确同意开始咨询，并发送新的咨询消息。",
+    sessionStopped: "客户的退订或同意状态阻止了回复，请检查当前状态。",
+    connectionRequired: "请先检查 WhatsApp 接收连接和发送设置后再回复。",
+    sourceExpired: "原始消息已不可用，无法回复。",
+  },
+} satisfies Record<Language, Record<keyof (typeof adminCompanyEmailReplyCopy)[Language] | "dispatchOff" | "sessionExpired" | "sessionStopped" | "connectionRequired" | "sourceExpired", string>>;
+
+export function whatsappReplyBlockedReason(language: Language, reason: string | null) {
+  const copy = adminWhatsAppReplyCopy[language] || adminWhatsAppReplyCopy.ko;
+  if (["REPLY_DISABLED", "DISPATCH_DISABLED"].includes(reason || "")) return copy.dispatchOff;
+  if (reason === "WHATSAPP_WINDOW_EXPIRED") return copy.sessionExpired;
+  if (reason === "WHATSAPP_CONSENT_REQUIRED") return copy.sessionStopped;
+  if (["INBOX_CONNECTION_REQUIRED", "SENDER_CONFIGURATION_REQUIRED"].includes(reason || "")) return copy.connectionRequired;
+  if (reason === "DRAFT_EXPIRED") return copy.sourceExpired;
+  if (["REAPPROVAL_REQUIRED", "SOURCE_CHANGED"].includes(reason || "")) return copy.conflict;
+  return copy.unavailable;
+}

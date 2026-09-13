@@ -713,6 +713,7 @@ interface AdminAiOpsCenterProps {
   previewExternalInboxRetentionAction?: (input: { messageId: string; expectedRevision: number; action: 'close' | 'reopen' | 'protect'; confirmation?: 'ordinary_no_evidence' }) => Promise<ExternalInboxRetention>;
   /** DEV fixture only; production reply requests always use the server-authenticated endpoint. */
   previewCompanyEmailReplyTransport?: CompanyEmailReplyTransport;
+  previewWhatsAppReplyTransport?: CompanyEmailReplyTransport<"whatsapp">;
   previewWebchat?: WebchatOverview;
   previewWebchatDetails?: Record<string, WebchatDetail>;
   previewOperationalChecks?: OperationalChecksData;
@@ -737,7 +738,7 @@ function UnconnectedChannels() {
   );
 }
 
-export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewExternalInboxRetentionAction, previewCompanyEmailReplyTransport, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
+export default function AdminAiOpsCenter({ previewData, previewFailure, previewExternalInbox, previewExternalInboxRetentionAction, previewCompanyEmailReplyTransport, previewWhatsAppReplyTransport, previewWebchat, previewWebchatDetails, previewOperationalChecks }: AdminAiOpsCenterProps = {}) {
   const { language, changeLanguage } = useLanguage();
   const copy = useOpsCopy();
   usePageMeta({ title: copy.pageTitle, description: copy.pageDescription });
@@ -970,7 +971,7 @@ export default function AdminAiOpsCenter({ previewData, previewFailure, previewE
         <div id="ops-inbox" className="grid scroll-mt-28 gap-4">
           <AdminChannelReadiness data={error ? null : data?.channelResponseReadiness} language={language} />
           {data && <InboxSummary summary={data.summary} sectionId="ops-web-inbox" failedSources={failedSources} />}
-          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} retentionAction={previewExternalInboxRetentionAction} companyEmailReplyTransport={previewCompanyEmailReplyTransport} />
+          <AdminExternalInbox language={language} previewMode={!serverMode} previewData={previewExternalInbox} refreshKey={lastFetchedAt} retentionAction={previewExternalInboxRetentionAction} companyEmailReplyTransport={previewCompanyEmailReplyTransport} whatsappReplyTransport={previewWhatsAppReplyTransport} />
           <AdminWebchatInbox language={language} previewMode={!serverMode} previewData={previewWebchat} previewDetails={previewWebchatDetails} />
         </div>
         {data && <>
