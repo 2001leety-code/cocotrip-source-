@@ -27,6 +27,7 @@ The adapter pins Graph v26.0 and the official graph.facebook.com host. No redire
 
 ## Mistakes caught and regression coverage
 
+- The first mandatory pre-push run found two direct-import CORS assertions after handler extraction (11684 passed, 2 failed). The check now follows only the two explicitly pinned reply wrappers into the shared CORS helper and adds actual allowed OPTIONS / hostile OPTIONS-GET-POST / unauthenticated GET assertions. No CORS policy was weakened and the full guard is rerun before the first successful remote push.
 - An open/protected v2 case has retention deadline zero (not immediately expired). WhatsApp approval must omit that zero from the minimum and still stop at the support-session deadline. New tests cover open/protected/closed cases.
 - Spark's initial pure payload/receipt draft permitted CR, used an overly broad plain-object check, omitted expected-recipient syntax validation and included one malformed test bracket. Root corrected these before execution and expanded negative tests. Actual model: GPT-5.3-Codex-Spark, medium; payload/receipt implementation and test draft, not a whole-feature attribution.
 - Generic email handler extraction keeps channel and config readers pinned by each server entry point. Existing email API/component regressions are included; no email credential or behavior activation changed.
