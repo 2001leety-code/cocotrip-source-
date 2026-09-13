@@ -1,5 +1,5 @@
 import {
-  extractWhatsAppInboxMessages, readWhatsAppInboxConfig, readWhatsAppInboxRawBody,
+  extractWhatsAppInboxMessages, readWhatsAppInboxConfig, readWhatsAppInboxRawBody, readWhatsAppInboxVerificationConfig,
   verifyWhatsAppInboxChallenge, verifyWhatsAppInboxSignature,
 } from './_shared/whatsapp-inbox.js';
 import { writeExternalInboxMessages } from './_shared/external-inbox-store.js';
@@ -24,8 +24,13 @@ export function createWhatsAppInboxHandler({ getEnv = () => process.env, now = D
     const env = getEnv();
     const nowMs = now();
     const config = readWhatsAppInboxConfig(env, nowMs);
-    if (!config.enabled) return response(503, 'INBOX_DISABLED');
-    if (!config.ready) return response(503, 'INBOX_NOT_CONFIGURED');
+    const verification = request.method === 'GET' && readWhatsAppInboxVerificationConfig(env);
+    if (verification && verification.enabled) {
+      if (!verification.ready) return response(503, 'INBOX_NOT_CONFIGURED');
+    } else {
+      if (!config.enabled) return response(503, 'INBOX_DISABLED');
+      if (!config.ready) return response(503, 'INBOX_NOT_CONFIGURED');
+    }
     if (request.method === 'GET') {
       const challenge = verifyWhatsAppInboxChallenge(request.url, env.WHATSAPP_INBOX_VERIFY_TOKEN);
       return challenge === null ? response(403, 'VERIFICATION_FAILED') : new Response(challenge, {
