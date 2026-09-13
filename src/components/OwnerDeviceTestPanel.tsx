@@ -34,7 +34,7 @@ export function OwnerDeviceTestPanel({ adapter, language = 'ko' }: { adapter: Ow
     : code === 'PROVIDER_ACCEPTED' ? copy.accepted : code === 'OUTCOME_UNKNOWN' ? copy.unknown
     : code === 'SEND_REJECTED' ? copy.rejected : ['BUSY', 'RATE_LIMITED'].includes(code) ? copy.busy
     : code === 'ALREADY_HANDLED' ? copy.alreadyHandled
-    : ['CONTROL_INVALID', 'MAX_TESTS_REACHED'].includes(code) ? copy.review
+    : ['CONTROL_INVALID', 'MAX_TESTS_REACHED', 'DEVICE_RECONNECT_REQUIRED'].includes(code) ? copy.review
     : ['DISABLED', 'CONFIGURATION_REQUIRED', 'PRODUCTION_REQUIRED'].includes(code) ? copy.disabled
     : ['DEVICE_NOT_SELECTED', 'DEVICE_CHANGED', 'OWNER_MISMATCH'].includes(code) ? copy.notSelected
     : shown?.ready ? copy.ready : shown ? copy.notReady : copy.initial;

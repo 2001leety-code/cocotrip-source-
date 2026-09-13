@@ -11,7 +11,8 @@ import { ownerHash } from '../../api/_shared/owner-notification-policy.js';
 import { ownerNotificationTestTask, parseOwnerNotificationTestBody } from '../../api/_shared/owner-notification-test.js';
 
 const nowMs = 1_750_000_000_000;
-const config = { enabled: true, uid: 'owner', subscriptionId: 'owner_device', scope: 'a'.repeat(64), language: 'ko' };
+const config = { enabled: true, uid: 'owner', subscriptionId: 'owner_device',
+  scope: ownerHash('owner-notifications-v1', 'owner', 'owner_device', 'ko', 30), language: 'ko' };
 const device = { deviceHash: 'b'.repeat(64), subscription: {
   endpoint: 'https://fcm.googleapis.com/fcm/send/selected-owner-only', keys: { p256dh: 'public-key', auth: 'auth-key' },
 } };
@@ -21,12 +22,16 @@ const send = (requestId = uuid()) => ({ action: 'send', subscriptionId: config.s
 
 function atomicDb(initial?: any, failedTransactionNumbers = new Set<number>()) {
   let row = initial === undefined ? undefined : structuredClone(initial);
+  let sweepRow: any = { version: 1, scope: ownerHash('owner-notifications-v1', 'owner', 'owner_device', 'ko', 30), deviceHash: device.deviceHash };
   let tail = Promise.resolve();
   let transactionNumber = 0;
-  const snapshot = () => ({ exists: row !== undefined, data: () => structuredClone(row) });
-  const ref = { path: 'owner_notification_control/test', get: vi.fn(async () => snapshot()) };
+  const snapshot = (path: string) => {
+    const value = path.endsWith('/v1') ? sweepRow : row;
+    return { exists: value !== undefined, data: () => structuredClone(value) };
+  };
+  const ref = (path: string) => ({ path, get: vi.fn(async () => snapshot(path)) });
   const db = {
-    collection: vi.fn(() => ({ doc: vi.fn(() => ref) })),
+    collection: vi.fn(() => ({ doc: vi.fn((id: string) => ref(`owner_notification_control/${id}`)) })),
     runTransaction: vi.fn(async (work: any) => {
       let unlock!: () => void;
       const turn = new Promise<void>((resolve) => { unlock = resolve; });
@@ -36,11 +41,13 @@ function atomicDb(initial?: any, failedTransactionNumbers = new Set<number>()) {
       transactionNumber += 1;
       try {
         if (failedTransactionNumbers.has(transactionNumber)) throw new Error('transaction unavailable');
-        return await work({ get: async () => snapshot(), set: (_ref: any, value: any) => { row = structuredClone(value); } });
+        return await work({ get: async (target: any) => snapshot(target.path), set: (target: any, value: any) => {
+          if (target.path.endsWith('/v1')) sweepRow = structuredClone(value); else row = structuredClone(value);
+        } });
       } finally { unlock(); }
     }),
   };
-  return { db, ref, row: () => structuredClone(row) };
+  return { db, ref, row: () => structuredClone(row), setSweep: (value: any) => { sweepRow = structuredClone(value); } };
 }
 
 function env(overrides: Record<string, string> = {}) {
@@ -220,6 +227,22 @@ describe('single-device test atomic ledger', () => {
       .toEqual({ ok: false, code: 'OWNER_TEST_UNAVAILABLE' });
     expect(sender).not.toHaveBeenCalled();
   });
+
+  it.each([{ scope: 'c'.repeat(64) }, { deviceHash: 'd'.repeat(64) }, { version: 2 }])(
+    'blocks a stale/new device test while control is awaiting migration: %j', async patch => {
+      const store = atomicDb();
+      const sender = vi.fn();
+      expect(await ownerNotificationTestTask({ db: store.db, auth: {}, config, input: check(), now: () => nowMs, send: sender }))
+        .toMatchObject({ data: { ready: true } });
+      store.setSweep({ version: 1, scope: config.scope, deviceHash: device.deviceHash, ...patch });
+      expect(await ownerNotificationTestTask({ db: store.db, auth: {}, config, input: check(), now: () => nowMs, send: sender }))
+        .toMatchObject({ data: { ready: false, code: 'DEVICE_RECONNECT_REQUIRED' } });
+      expect(await ownerNotificationTestTask({ db: store.db, auth: {}, config, input: send(), now: () => nowMs, send: sender }))
+        .toMatchObject({ data: { code: 'DEVICE_RECONNECT_REQUIRED' } });
+      expect(sender).not.toHaveBeenCalled();
+      expect(store.row()).toBeUndefined();
+    },
+  );
 
   it('rejects fresh account/device changes before dispatch', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -1,5 +1,7 @@
 # 기능 플래그 점검표 (2026-07-25, Vercel 실조회 반영)
 
+2026-09-13 승인된 본인 기기 재연결: **Vercel → Production → Config**의 선택적 `OWNER_NOTIFICATION_PREVIOUS_SUBSCRIPTION_ID`는 정확한 이전 본인 구독 ID를 지정하는 1회 이관 스위치다. 기존 `OWNER_NOTIFICATION_SUBSCRIPTION_ID`는 운영자가 확인한 새 본인 구독으로 지정한다. 아무 기기를 자동 선택하지 않는다. 이전 계정·언어·보관 기준·암호화 키가 유지되고, 이전 장부/두 기기/새 공개키 쌍이 검증될 때만 cursor와 시험 이력, 최대25개의 종료된 전송 이력을 원자적으로 보존한다. 진행/대기/불명 전송·활성 잠금·충돌·손상은 차단한다. 실패 기록을 재발송하거나 원본 장부를 지우지 않는다. 새 키 입력은 사용자 직접 단계이며, 실제 환경 반영과 휴대폰 수신은 코드 준비와 별도다. 상세는 [재연결 절차](OWNER-NOTIFICATION-RUNBOOK-2026-09-07.md#승인된-키-교정과-기기-재연결-2026-09-13).
+
 2026-09-13 본인 알림 암호화 분리: `OWNER_NOTIFICATION_CURSOR_SECRET`을 **Vercel → Production → Sensitive/Secret 환경변수**로 추가할 수 있다. 서버 전용이며 `VITE_` 접두사/Git/Preview/Development에 넣지 않는다. 최소 32바이트 검증을 유지하고, 신규 설정은 암호학적 난수 32바이트 이상으로 만든다. 미설정 때만 기존 `CRON_SECRET`을 사용해 이전 배포와 호환한다. 명시된 빈 값·잘못된 값은 우회 없이 차단한다. 기존 암호화 장부가 있으면 키 변경/자동 초기화하지 않고 별도 이관 계획이 필요하다. 공용 cron 인증키·대상 기기·언어·보관기간은 이 변경으로 바뀌지 않는다.
 
 2026-09-12 본인 폰 시험: 새 플래그/환경변수는 없다. `/api/admin-owner-notification-test`는 기존 **Vercel Production** `OWNER_EVENT_PUSH_ENABLED`와 `OWNER_NOTIFICATION_*` 전체 설정, 관리자 UID 및 지정 구독이 모두 맞을 때만 작동한다. 버튼은 등록·설정·실수신을 자동 완료하지 않는다. [폰 시험 절차](OWNER-NOTIFICATION-RUNBOOK-2026-09-07.md#본인-폰-한-대-시험-2026-09-12)를 따른다.

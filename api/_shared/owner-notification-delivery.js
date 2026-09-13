@@ -59,6 +59,8 @@ function validStoredEvent(row, id, config, device) {
     && Number.isSafeInteger(row.expiresAtMs) && Number.isSafeInteger(row.nextAttemptAtMs);
 }
 
+export { validStoredEvent as validateOwnerStoredEvent };
+
 /** Each event targets exactly one pinned subscription fingerprint. */
 export async function deliverOwnerEvent(services, config, device, id, {
   now = Date.now, send = sendSingleOwnerPush, token = randomUUID(), timeoutMs = 6500,
