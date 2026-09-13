@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../_shared/log.js';
 import { ownerSweepDiagnostic } from '../_shared/owner-notification-diagnostics.js';
+import { inspectVapidPair } from '../_shared/owner-vapid-diagnostics.js';
 import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
   sealOwnerCursor, sourceTime, timeAtMs, timeToMs, ownerHash,
@@ -263,6 +264,8 @@ export default async function handler(req, res) {
   const { verifyCronRequest } = await import('../_shared/cron-auth.js');
   const authorized = await verifyCronRequest(req);
   if (!authorized.ok) return res.status(401).json({ ok: false, code: 'AUTH_REQUIRED' });
+  const config = readOwnerNotificationConfig(process.env);
+  if (config.enabled) logger.info('[owner-push-auth]', inspectVapidPair(config.publicKey, config.privateKey));
   const result = await ownerNotificationSweepTask();
   if (!result.ok || result.code === 'PARTIAL_SOURCE_FAILURE') {
     logger.warn('[owner-notification-sweep]', ownerSweepDiagnostic(result));
