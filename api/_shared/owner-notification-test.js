@@ -86,8 +86,12 @@ export async function ownerNotificationTestTask({ db, auth, config, input, now =
   catch { return { ok: false, code: 'OWNER_TEST_UNAVAILABLE' }; }
   if (!device) return { ok: false, code: 'OWNER_DEVICE_REQUIRED' };
   const ref = controlRef(db, config);
+  const sweepRef = db.collection(OWNER_NOTIFICATION_TEST_CONTROL).doc('v1');
+  const matchesDevice = snap => !snap.exists || (snap.data()?.version === 1
+    && snap.data()?.scope === config.scope && snap.data()?.deviceHash === device.deviceHash);
   if (input.action === 'check') {
     try {
+      if (!matchesDevice(await sweepRef.get())) return { ok: true, data: { ready: false, code: 'DEVICE_RECONNECT_REQUIRED' } };
       const snap = await ref.get();
       const at = now();
       if (!validTime(at)) return { ok: false, code: 'OWNER_TEST_UNAVAILABLE' };
@@ -99,6 +103,7 @@ export async function ownerNotificationTestTask({ db, auth, config, input, now =
   let claim;
   try {
     claim = await db.runTransaction(async tx => {
+      if (!matchesDevice(await tx.get(sweepRef))) return { code: 'DEVICE_RECONNECT_REQUIRED' };
       const snap = await tx.get(ref);
       const at = now();
       if (!validTime(at)) return { code: 'CONTROL_INVALID' };
@@ -150,4 +155,4 @@ export async function ownerNotificationTestTask({ db, auth, config, input, now =
   return result(code, code === 'PROVIDER_ACCEPTED');
 }
 
-export { UUID_V4 };
+export { UUID_V4, attemptsFromSnapshot as readOwnerTestAttempts, controlId as ownerNotificationTestControlId };

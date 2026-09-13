@@ -102,6 +102,14 @@ describe('this-device test controls', () => {
     expect(screen.queryByRole('button', { name: ownerDeviceTestCopy.ko.send })).not.toBeInTheDocument();
     expect(adapter.send).not.toHaveBeenCalled();
   });
+  it('shows record review instead of another login prompt while device migration is required', async () => {
+    const adapter = { check: vi.fn(async () => ({ ready: false, code: 'DEVICE_RECONNECT_REQUIRED' })), send: vi.fn() };
+    render(<OwnerDeviceTestPanel adapter={adapter} />);
+    fireEvent.click(screen.getByRole('button', { name: ownerDeviceTestCopy.ko.check }));
+    await screen.findByText(ownerDeviceTestCopy.ko.review);
+    expect(screen.queryByRole('button', { name: ownerDeviceTestCopy.ko.send })).not.toBeInTheDocument();
+    expect(adapter.send).not.toHaveBeenCalled();
+  });
   it('quarantines failed send responses even after another successful check', async () => {
     const adapter = { check: vi.fn(async () => ({ ready: true, code: 'READY' })), send: vi.fn(async () => { throw new Error('offline'); }) };
     render(<OwnerDeviceTestPanel adapter={adapter} />);

@@ -101,7 +101,20 @@
 - 운영자가 해당 원본의 연결을 별도 조사해야 한다. 이 worker는 원본/과거 자료를 자동 수정하거나 지우지 않고, 장애 기록을 임의로 건너뛰거나 소급 발송하지 않는다.
 - 제어 장부·암호화 cursor·잠금 자체가 손상되거나 transaction 저장에 실패한 경우는 소스별 문제가 아니므로 전체 실행을 중단한다.
 
-## 외부 호출 없는 재현 검사
+## 승인된 키 교정과 기기 재연결 (2026-09-13)
+
+1. 사용자가 Vercel에서 `VAPID_PRIVATE_KEY`와 공개키 두 항목을 같은 새 쌍으로 저장한다. 공개키만 `VITE_VAPID_PUBLIC_KEY`에 넣으며 기존 `VAPID_SUBJECT`, `CRON_SECRET`, `OWNER_NOTIFICATION_CURSOR_SECRET`은 유지한다. 새 서버 배포의 세 불리언 진단으로 쌍 일치를 확인한다. 저장/배포/수신은 서로 다른 단계다.
+2. 새 앱에서 등록 버튼을 **직접 눌렀을 때만** 기존 applicationServerKey를 비교한다. 같으면 구독 재사용, 다르면 unsubscribe 성공 뒤 새 키로 재등록한다. 읽기/새로고침은 재등록하지 않으며, 키 확인 불가/해지 실패는 진행하지 않는다. 이전 Firestore 구독 문서는 안전 이관의 근거이므로 자동 삭제하지 않는다.
+3. 운영자가 확인한 새 폰 구독 ID를 **Vercel Production** `OWNER_NOTIFICATION_SUBSCRIPTION_ID`로, 기존 선택 ID를 같은 위치의 `OWNER_NOTIFICATION_PREVIOUS_SUBSCRIPTION_ID`로 지정한 뒤 배포한다. 이전 ID 스위치가 없으면 기존 `CONFIGURATION_CHANGED` 차단을 유지한다. Preview/Development에서 이관하지 않는다.
+4. 서버는 같은 본인 관리자, 이전 범위/기기 지문, 새 구독의 공개키, 잠금 만료를 검증한다. 한 transaction에서 모든 이전 cursor를 해제한 뒤 새 범위로 봉인하고 최초 활성 시각·정확한 나노초/문서 위치·원본별 진행 순서/상태를 보존한다. 암호화 키 변경/손상/범위 불일치는 초기화하지 않는다.
+5. 최대8회 시험 이력은 요청 ID·시각·기기 지문·결과와 함께 새 장부에 복사하고 이전 장부를 유지한다. 불명/진행 시험, 이미 존재하는 새 장부는 보류한다. 시험 API도 제어 장부의 현재 기기/범위를 재검증하여 이전 탭이나 이관 전 새 탭에서 횟수를 초기화하지 못한다.
+6. 전송 장부는 최대25개까지 `accepted` 또는 `manual_required`이고 발송 예정 없음/잠금 없음/정상 원래 식별자인 경우만 새 범위의 식별자로 복사한다. 결과·시도 횟수·원래 만료시각을 그대로 보존하고 과거 실패를 재시도하지 않는다. 이전 원본 장부는 그대로 두며, 새 목적지 충돌/다른 범위/대기/재시도/전송 중/불명/상한 초과는 무기록 중단한다.
+7. 이관 실행은 `DEVICE_RECONNECTED`만 반환하고 발송하지 않는다. 다음 실행부터 보존한 진행 위치를 이어간다. 1회 이관 표식이 남으며 자동 재이관하지 않는다. 완료 후 이전 ID 스위치는 제거할 수 있다. 향후 또 다른 기기 변경은 별도 계획이 필요하다.
+8. 마지막으로 선택한 본인 폰 한 대에 시험1건을 보내고 실제 알림 표시·클릭을 확인한다. 공급자 접수만으로 실제 폰 수신 완료라 말하지 않는다.
+
+관련 회귀: `owner-notification-reconnect`, `admin-owner-notification-test`, `owner-notification-subscription-read`, `push-subscription-key`. 실제 기기 권한/구독/수신은 합성 검사의 증명 범위 밖이다.
+
+## 외부 호출 없는 기본 재현 검사
 
 `npx vitest run tests/unit/owner-notification-backend.test.ts`
 

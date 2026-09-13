@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../_shared/log.js';
 import { ownerSweepDiagnostic } from '../_shared/owner-notification-diagnostics.js';
 import { inspectVapidPair } from '../_shared/owner-vapid-diagnostics.js';
+import { reconnectOwnerNotificationDevice } from '../_shared/owner-notification-reconnect.js';
 import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
   sealOwnerCursor, sourceTime, timeAtMs, timeToMs, ownerHash,
@@ -160,6 +161,12 @@ export async function ownerNotificationSweepTask(options = {}) {
     if (!device) return { ok: false, enabled: true, code: 'OWNER_DEVICE_REQUIRED', phase };
     phase = 'CONTROL';
     control = await acquireControl(db, config, device, started, token);
+    const previousId = (options.env || process.env).OWNER_NOTIFICATION_PREVIOUS_SUBSCRIPTION_ID;
+    if (control.code === 'CONFIGURATION_CHANGED' && previousId) {
+      const migrated = await reconnectOwnerNotificationDevice(services, config, previousId, now());
+      // A successful handover sends nothing in this run. The next run resumes preserved progress.
+      return { ok: ['DEVICE_RECONNECTED', 'BUSY'].includes(migrated.code), enabled: true, ...migrated, phase: 'DEVICE_RECONNECT' };
+    }
     if (control.code !== 'ACQUIRED') return { ok: ['INITIALIZED', 'BUSY'].includes(control.code), enabled: true, code: control.code, phase };
 
     phase = 'SOURCES';
