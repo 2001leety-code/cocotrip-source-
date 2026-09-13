@@ -26,6 +26,13 @@ function secretConfigured(value) {
     && !Array.from(value).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127));
 }
 
+/** Bootstrap GET challenge only; never authorizes message receipt or database access. */
+export function readWhatsAppInboxVerificationConfig(env = process.env) {
+  const productionOnly = env.VERCEL_ENV !== undefined && env.VERCEL_ENV !== 'production';
+  const enabled = !productionOnly && configuredString(env, 'VERIFICATION_ENABLED') === 'true';
+  return { enabled, ready: enabled && secretConfigured(configuredString(env, 'VERIFY_TOKEN')) };
+}
+
 /** Safe for admin summaries: no secret or verification-token values are returned. */
 export function readWhatsAppInboxConfig(env = process.env, nowMs = Date.now()) {
   const productionOnly = env.VERCEL_ENV !== undefined && env.VERCEL_ENV !== 'production';
