@@ -53,7 +53,11 @@ export function readOwnerNotificationConfig(env = {}) {
   const language = value(env.OWNER_NOTIFICATION_LANGUAGE);
   const retentionRaw = value(env.OWNER_NOTIFICATION_RETENTION_DAYS);
   const retentionDays = /^\d+$/.test(retentionRaw) ? Number(retentionRaw) : 0;
-  const cursorSecret = value(env.CRON_SECRET);
+  // A dedicated encryption key decouples persisted cursors from cron authentication.
+  // Only an absent key preserves legacy deployments. An explicitly invalid key
+  // must fail closed, never silently fall back or reset encrypted progress.
+  const cursorSecret = value(env.OWNER_NOTIFICATION_CURSOR_SECRET === undefined
+    ? env.CRON_SECRET : env.OWNER_NOTIFICATION_CURSOR_SECRET);
   const publicKey = value(env.VAPID_PUBLIC_KEY);
   const privateKey = value(env.VAPID_PRIVATE_KEY);
   const subject = value(env.VAPID_SUBJECT) || 'mailto:help@cocotripkr.com';
