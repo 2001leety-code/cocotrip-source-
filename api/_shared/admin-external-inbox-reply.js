@@ -16,15 +16,15 @@ const time = input => Number.isSafeInteger(input) && input > 0 && input <= 8_640
 const editable = ['draft', 'draft_only'];
 const locked = ['sending', 'provider_accepted', 'outcome_unknown', 'cancelled'];
 
-function send(req, res, status, body) {
-  res.writeHead(status, { ...buildAdminJsonCors(req, { methods: METHODS, headers: 'Authorization, Content-Type' }),
+function writeResponse(req, res, status, body, jsonCors) {
+  res.writeHead(status, { ...jsonCors(req, { methods: METHODS, headers: 'Authorization, Content-Type' }),
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   return res.end(JSON.stringify(body));
 }
 
-function originAllowed(req) {
+function originAllowed(req, isAllowed) {
   const origin = req.headers?.origin || req.headers?.Origin || '';
-  return !origin || isAdminCorsOriginAllowed(origin);
+  return !origin || isAllowed(origin);
 }
 
 export function validExternalInboxReplyAction(input, channel) {
@@ -134,14 +134,16 @@ function statusFor(result) {
 /** Channel is pinned by each server entry point, never by the request body. */
 export function createAdminExternalInboxReplyHandler({ channel, readInboxConfig, readReplyConfig,
   authenticate = verifyAdminToken, loadDb = defaultLoadDb, now = Date.now, env = process.env,
-  resolverFactory, senderFactory } = {}) {
+  resolverFactory, senderFactory, cors = { buildAdminCors, buildAdminJsonCors, isAdminCorsOriginAllowed } } = {}) {
   if (!['email', 'whatsapp'].includes(channel)
-    || [readInboxConfig, readReplyConfig, resolverFactory, senderFactory].some(value => typeof value !== 'function')) {
+    || [readInboxConfig, readReplyConfig, resolverFactory, senderFactory,
+      cors?.buildAdminCors, cors?.buildAdminJsonCors, cors?.isAdminCorsOriginAllowed].some(value => typeof value !== 'function')) {
     throw new Error('REPLY_HANDLER_CONFIGURATION_INVALID');
   }
+  const send = (req, res, status, body) => writeResponse(req, res, status, body, cors.buildAdminJsonCors);
   return async (req, res) => {
-    if (!originAllowed(req)) return send(req, res, 403, { ok: false, code: 'ORIGIN_NOT_ALLOWED' });
-    if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: METHODS, headers: 'Authorization, Content-Type' })); return res.end(); }
+    if (!originAllowed(req, cors.isAdminCorsOriginAllowed)) return send(req, res, 403, { ok: false, code: 'ORIGIN_NOT_ALLOWED' });
+    if (req.method === 'OPTIONS') { res.writeHead(200, cors.buildAdminCors(req, { methods: METHODS, headers: 'Authorization, Content-Type' })); return res.end(); }
     if (!['GET', 'POST'].includes(req.method)) return send(req, res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
     try {
       const auth = await authenticate(req);

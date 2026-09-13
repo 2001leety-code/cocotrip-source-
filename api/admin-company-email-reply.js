@@ -1,4 +1,5 @@
 import { createAdminExternalInboxReplyHandler, validExternalInboxReplyAction } from './_shared/admin-external-inbox-reply.js';
+import { buildAdminCors, buildAdminJsonCors, isAdminCorsOriginAllowed } from './_shared/cors.js';
 import { readCompanyGmailInboxConfig } from './_shared/company-gmail-inbox.js';
 import { createCompanyGmailReplyResolver } from './_shared/company-gmail-reply-source.js';
 import { createCompanyGmailSender, readCompanyGmailReplyConfig } from './_shared/company-gmail-reply-sender.js';
@@ -10,6 +11,7 @@ export const validCompanyEmailReplyAction = input => validExternalInboxReplyActi
 export function createAdminCompanyEmailReplyHandler(options = {}) {
   return createAdminExternalInboxReplyHandler({ resolverFactory: createCompanyGmailReplyResolver,
     senderFactory: createCompanyGmailSender, ...options, channel: 'email',
+    cors: { buildAdminCors, buildAdminJsonCors, isAdminCorsOriginAllowed },
     readInboxConfig: readCompanyGmailInboxConfig, readReplyConfig: readCompanyGmailReplyConfig });
 }
 

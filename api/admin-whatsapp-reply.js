@@ -1,4 +1,5 @@
 import { createAdminExternalInboxReplyHandler, validExternalInboxReplyAction } from './_shared/admin-external-inbox-reply.js';
+import { buildAdminCors, buildAdminJsonCors, isAdminCorsOriginAllowed } from './_shared/cors.js';
 import { readWhatsAppInboxConfig } from './_shared/whatsapp-inbox.js';
 import { createWhatsAppReplyResolver } from './_shared/whatsapp-reply-source.js';
 import { createWhatsAppReplySender, readWhatsAppReplyConfig } from './_shared/whatsapp-reply-sender.js';
@@ -11,6 +12,7 @@ export const validWhatsAppReplyAction = input => validExternalInboxReplyAction(i
 export function createAdminWhatsAppReplyHandler(options = {}) {
   return createAdminExternalInboxReplyHandler({ resolverFactory: createWhatsAppReplyResolver,
     senderFactory: createWhatsAppReplySender, ...options, channel: 'whatsapp',
+    cors: { buildAdminCors, buildAdminJsonCors, isAdminCorsOriginAllowed },
     readInboxConfig: readWhatsAppInboxConfig, readReplyConfig: readWhatsAppReplyConfig });
 }
 

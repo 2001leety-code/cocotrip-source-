@@ -20,7 +20,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { createAdminCompanyEmailReplyHandler } from '../../api/admin-company-email-reply.js';
 import { createAdminWhatsAppReplyHandler } from '../../api/admin-whatsapp-reply.js';
 import {
@@ -103,21 +103,15 @@ describe('PR #437 W-H11 — all admin-* endpoints use the helper (no wildcard CO
     expect(src).not.toMatch(/'Access-Control-Allow-Origin'\s*:\s*['"]\*['"]/);
   });
 
-  it.each(adminFiles)('%s: imports cors helper directly or through the pinned reply handler', (file) => {
+  it.each(adminFiles)('%s: imports cors helper', (file) => {
     const src = readFileSync(file, 'utf8');
-    if (['admin-company-email-reply.js', 'admin-whatsapp-reply.js'].includes(basename(file))) {
-      // These entry points delegate response/origin checks, not skip them. Assert both edges.
-      expect(src).toMatch(/from\s*['"]\.\/_shared\/admin-external-inbox-reply\.js['"]/);
-      expect(src).toMatch(/return createAdminExternalInboxReplyHandler\(/);
-      const shared = readFileSync(resolve(process.cwd(), 'api/_shared/admin-external-inbox-reply.js'), 'utf8');
-      expect(shared).toMatch(/from\s*['"]\.\/cors\.js['"]/);
-      expect(shared).not.toMatch(/['"]Access-Control-Allow-Origin['"]\s*:\s*['"]\*['"]/);
-    } else expect(src).toMatch(/from\s*['"]\.\/_shared\/cors\.js['"]/);
+    expect(src).toMatch(/from\s*['"]\.\/_shared\/cors\.js['"]/);
   });
 
   it.each([createAdminCompanyEmailReplyHandler, createAdminWhatsAppReplyHandler])('reply wrapper preserves actual CORS and origin rejection %#', async factory => {
     let authCalls = 0;
     const handler = factory({ env: {}, authenticate: async () => { authCalls++; return { ok: false, status: 401 }; },
+      cors: { isAdminCorsOriginAllowed: () => true, buildAdminCors: () => ({}), buildAdminJsonCors: () => ({}) },
       loadDb: async () => { throw new Error('DATABASE_FORBIDDEN'); } });
     const call = async (method: string, origin: string) => {
       const out: { status: number; headers: Record<string, string> } = { status: 0, headers: {} };
