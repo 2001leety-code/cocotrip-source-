@@ -1,5 +1,6 @@
 import { ownerHash } from './owner-notification-policy.js';
 import { readSelectedOwnerDevice, sendSingleOwnerPush } from './owner-notification-delivery.js';
+import { logger } from './log.js';
 
 export const OWNER_NOTIFICATION_TEST_CONTROL = 'owner_notification_control';
 const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -118,7 +119,11 @@ export async function ownerNotificationTestTask({ db, auth, config, input, now =
   let timer;
   try {
     const fresh = await readSelectedOwnerDevice({ db, auth }, config);
-    if (!fresh || fresh.deviceHash !== device.deviceHash || !validTime(now()) || now() - claim.attempt.atMs > 30_000) outcome = 'rejected';
+    if (!fresh || fresh.deviceHash !== device.deviceHash || !validTime(now()) || now() - claim.attempt.atMs > 30_000) {
+      outcome = 'rejected';
+      logger.warn('[owner-notification-test]', { phase: 'PRE_SEND', code: !fresh ? 'DEVICE_UNAVAILABLE'
+        : fresh.deviceHash !== device.deviceHash ? 'DEVICE_CHANGED' : 'ATTEMPT_TIME_INVALID' });
+    }
     else {
       const sent = await Promise.race([
         Promise.resolve().then(() => send(fresh.subscription, fixedPayload(config, input.requestId), config)),
