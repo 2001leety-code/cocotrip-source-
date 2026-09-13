@@ -3,11 +3,15 @@ import { readFileSync } from 'node:fs';
 
 const harness = vi.hoisted(() => ({
   authorize: vi.fn(),
+  info: vi.fn(),
   warn: vi.fn(),
 }));
 
 vi.mock('../../api/_shared/cron-auth.js', () => ({ verifyCronRequest: harness.authorize }));
-vi.mock('../../api/_shared/log.js', () => ({ logger: { warn: harness.warn } }));
+vi.mock('../../api/_shared/log.js', () => ({ logger: { info: harness.info, warn: harness.warn } }));
+vi.mock('../../api/_shared/firebase-admin.js', () => ({
+  initAdminDb: () => { throw new Error('TEST_SERVICES_UNAVAILABLE'); },
+}));
 
 import ownerNotificationSweep, { ownerNotificationSweepTask } from '../../api/_crons/owner-notification-sweep.js';
 import { ownerSweepDiagnostic } from '../../api/_shared/owner-notification-diagnostics.js';
@@ -51,6 +55,7 @@ function response() {
 
 beforeEach(() => {
   harness.authorize.mockReset().mockResolvedValue({ ok: true });
+  harness.info.mockReset();
   harness.warn.mockReset();
 });
 
@@ -161,11 +166,30 @@ describe('owner sweep diagnostic projection and logging', () => {
   it('does not log when unauthorized or OFF', async () => {
     harness.authorize.mockResolvedValueOnce({ ok: false });
     await ownerNotificationSweep({}, response());
+    expect(harness.info).not.toHaveBeenCalled();
     expect(harness.warn).not.toHaveBeenCalled();
 
     vi.stubEnv('OWNER_EVENT_PUSH_ENABLED', 'false');
     await ownerNotificationSweep({}, response());
+    expect(harness.info).not.toHaveBeenCalled();
     expect(harness.warn).not.toHaveBeenCalled();
+  });
+
+  it('logs only fixed VAPID booleans after authorization and preserves the sweep result', async () => {
+    for (const [name, value] of Object.entries(configuredEnv())) vi.stubEnv(name, value);
+    const res = response();
+
+    await ownerNotificationSweep({}, res);
+
+    expect(harness.info).toHaveBeenCalledTimes(1);
+    expect(harness.info).toHaveBeenCalledWith('[owner-push-auth]', {
+      publicKeyValid: expect.any(Boolean), privateKeyValid: expect.any(Boolean), pairMatches: expect.any(Boolean),
+    });
+    const diagnostic = harness.info.mock.calls[0][1];
+    expect(Object.keys(diagnostic).sort()).toEqual(['pairMatches', 'privateKeyValid', 'publicKeyValid']);
+    expect(JSON.stringify(diagnostic)).not.toContain(PRIVATE_SENTINELS[1]);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: false, enabled: true, code: 'OWNER_SWEEP_FAILED' }));
   });
 
   it('keeps the handler warning bound to the sanitized diagnostic helper', () => {
