@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isOwnerAdmin, ownerHash, ownerPayload, validateOwnerSubscription } from './owner-notification-policy.js';
+import { logger } from './log.js';
 
 export const OWNER_EVENT_COLLECTION = 'owner_notification_events';
 export const OWNER_CONTROL_COLLECTION = 'owner_notification_control';
@@ -7,6 +8,7 @@ export const OWNER_LEASE_MS = 120_000;
 export const OWNER_ATTEMPT_LIMIT = 3;
 const NEVER = Number.MAX_SAFE_INTEGER;
 const RETRY_CODES = new Set([429, 500, 502, 503, 504]);
+const REJECT_CODES = new Set([400, 401, 403, 404, 410, 413]);
 
 /** No customer sender reuse: its legacy error logging includes the response body. */
 export async function sendSingleOwnerPush(subscription, payload, config) {
@@ -19,10 +21,13 @@ export async function sendSingleOwnerPush(subscription, payload, config) {
     return response?.statusCode >= 200 && response.statusCode < 300 ? { outcome: 'accepted' } : { outcome: 'unknown' };
   } catch (error) {
     const status = error?.statusCode;
-    if (RETRY_CODES.has(status)) return { outcome: 'retryable' };
-    if ([400, 401, 403, 404, 410, 413].includes(status)) return { outcome: 'rejected' };
+    const knownStatus = RETRY_CODES.has(status) || REJECT_CODES.has(status);
+    const outcome = RETRY_CODES.has(status) ? 'retryable' : REJECT_CODES.has(status) ? 'rejected' : 'unknown';
+    // Fixed classifications only: never log the SDK error, body, headers or keys.
+    logger.warn('[owner-push-delivery]', { phase: knownStatus ? 'PROVIDER' : 'UNKNOWN',
+      outcome, status: knownStatus ? status : null });
     // A timeout/reset may be after provider acceptance. Never automatically retry it.
-    return { outcome: 'unknown' };
+    return { outcome };
   }
 }
 

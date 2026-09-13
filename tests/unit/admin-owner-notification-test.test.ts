@@ -222,12 +222,21 @@ describe('single-device test atomic ledger', () => {
   });
 
   it('rejects fresh account/device changes before dispatch', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const sender = vi.fn(async () => ({ outcome: 'accepted' }));
     vi.mocked(readSelectedOwnerDevice).mockResolvedValueOnce(device as any).mockResolvedValueOnce(null as any);
     expect(await ownerNotificationTestTask({ db: atomicDb().db, auth: {}, config, input: send(uuid('4')), now: () => nowMs, send: sender })).toMatchObject({ data: { code: 'SEND_REJECTED' } });
+    expect(warning).toHaveBeenLastCalledWith('[owner-notification-test]', { phase: 'PRE_SEND', code: 'DEVICE_UNAVAILABLE' });
     vi.mocked(readSelectedOwnerDevice).mockReset().mockResolvedValueOnce(device as any).mockResolvedValueOnce({ ...device, deviceHash: 'c'.repeat(64) } as any);
     expect(await ownerNotificationTestTask({ db: atomicDb().db, auth: {}, config, input: send(uuid('5')), now: () => nowMs, send: sender })).toMatchObject({ data: { code: 'SEND_REJECTED' } });
+    expect(warning).toHaveBeenLastCalledWith('[owner-notification-test]', { phase: 'PRE_SEND', code: 'DEVICE_CHANGED' });
+    vi.mocked(readSelectedOwnerDevice).mockReset().mockResolvedValue(device as any);
+    const expiredClock = vi.fn().mockReturnValue(nowMs + 31_000).mockReturnValueOnce(nowMs).mockReturnValueOnce(nowMs);
+    expect(await ownerNotificationTestTask({ db: atomicDb().db, auth: {}, config, input: send(uuid('6')), now: expiredClock, send: sender })).toMatchObject({ data: { code: 'SEND_REJECTED' } });
+    expect(warning).toHaveBeenLastCalledWith('[owner-notification-test]', { phase: 'PRE_SEND', code: 'ATTEMPT_TIME_INVALID' });
     expect(sender).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledTimes(3);
+    warning.mockRestore();
   });
 
   it('quarantines failed final writes and late acceptance timeouts, with no resend or leaked provider result', async () => {
