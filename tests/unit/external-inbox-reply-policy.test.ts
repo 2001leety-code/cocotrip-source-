@@ -36,6 +36,19 @@ beforeEach(() => { vi.stubGlobal('fetch', vi.fn(() => { throw new Error('NETWORK
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); });
 
 describe('server-only manual external reply policy', () => {
+  it.each(['open', 'protected', 'closed'])('bounds v2 WhatsApp approval by the active session for %s cases', status => {
+    const value = waInput();
+    const session = value.envelope.policy.whatsapp.session;
+    session.startedAtMs = NOW - 7_200_000 + 30_000;
+    session.updatedAtMs = session.startedAtMs;
+    session.expiresAtMs = NOW + 30_000;
+    const expiresAtMs = status === 'closed' ? NOW + 20_000 : 0;
+    const envelope = { ...value.envelope, expiresAtMs, policy: { ...value.envelope.policy,
+      retention: { policyVersion: 2, caseId: 'b'.repeat(64), revision: 1, status, deleteAfterMs: expiresAtMs } } };
+    const prepared = prepareApprovedExternalInboxReply({ ...value, envelope });
+    expect(prepared.ok).toBe(true);
+    expect(prepared.approval.expiresAtMs).toBe(status === 'closed' ? NOW + 20_000 : session.expiresAtMs);
+  });
   it('prepares exact human approval, then validates it without claiming actual delivery', () => {
     const value = approve();
     expect(value.approval.expiresAtMs).toBe(NOW + REPLY_APPROVAL_TTL_MS);

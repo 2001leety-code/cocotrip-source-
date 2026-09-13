@@ -84,7 +84,8 @@ function whatsappPolicy(envelope, nowMs) {
   if (!time(wa.lastCustomerAtMs) || wa.lastCustomerAtMs > nowMs
     || wa.lastCustomerAtMs < envelope.sourceAtMs || wa.lastCustomerAtMs >= session.expiresAtMs
     || nowMs >= wa.lastCustomerAtMs + DAY_MS) return deny('WHATSAPP_WINDOW_EXPIRED');
-  return { ok: true, deadline: Math.min(envelope.expiresAtMs, session.expiresAtMs, wa.lastCustomerAtMs + DAY_MS),
+  return { ok: true, deadline: Math.min(envelope.expiresAtMs > 0 ? envelope.expiresAtMs : session.expiresAtMs,
+    session.expiresAtMs, wa.lastCustomerAtMs + DAY_MS),
     context: [wa.sessionId, session.policyVersion, session.startedAtMs, session.expiresAtMs,
       session.updatedAtMs, session.closedAtMs, session.lastStartMessageId, wa.lastCustomerAtMs] };
 }

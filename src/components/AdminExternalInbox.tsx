@@ -33,6 +33,7 @@ interface Props {
     confirmation?: "ordinary_no_evidence";
   }) => Promise<ExternalInboxRetention>;
   companyEmailReplyTransport?: CompanyEmailReplyTransport;
+  whatsappReplyTransport?: CompanyEmailReplyTransport<"whatsapp">;
 }
 type Account = { uid: string; getIdToken: () => Promise<string> } | null;
 const buttonClass =
@@ -100,6 +101,7 @@ function InboxContent({
   refreshKey,
   retentionAction,
   companyEmailReplyTransport,
+  whatsappReplyTransport,
   account,
 }: Props & { account: Account }) {
   const copy = adminExternalInboxCopy[language] || adminExternalInboxCopy.en;
@@ -694,6 +696,18 @@ function InboxContent({
                               sourceAtMs={detail.sourceAtMs}
                               account={account}
                               transport={companyEmailReplyTransport}
+                            />
+                          )}
+                          {detail.channel === "whatsapp" &&
+                            (!previewMode || whatsappReplyTransport) && (
+                            <AdminCompanyEmailReply
+                              key={`whatsapp:${detail.id}:${detail.sourceAtMs}`}
+                              channel="whatsapp"
+                              language={language}
+                              messageId={detail.id}
+                              sourceAtMs={detail.sourceAtMs}
+                              account={account}
+                              transport={whatsappReplyTransport}
                             />
                           )}
                           {detail.retention && (

@@ -21,6 +21,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createAdminCompanyEmailReplyHandler } from '../../api/admin-company-email-reply.js';
+import { createAdminWhatsAppReplyHandler } from '../../api/admin-whatsapp-reply.js';
 import {
   isAdminCorsOriginAllowed,
   buildAdminCors,
@@ -28,7 +30,7 @@ import {
 } from '../../api/_shared/cors.js';
 
 function reqWith(origin?: string) {
-  return { headers: origin ? { origin } : {} } as any;
+  return { headers: origin ? { origin } : {} };
 }
 
 describe('PR #437 W-H11 — isAdminCorsOriginAllowed', () => {
@@ -53,7 +55,7 @@ describe('PR #437 W-H11 — isAdminCorsOriginAllowed', () => {
     expect(isAdminCorsOriginAllowed('http://cocotripkr.com')).toBe(false); // http on prod domain — block
     expect(isAdminCorsOriginAllowed('https://other-vercel.vercel.app')).toBe(false);
     expect(isAdminCorsOriginAllowed('')).toBe(false);
-    expect(isAdminCorsOriginAllowed(undefined as any)).toBe(false);
+    expect(isAdminCorsOriginAllowed(undefined)).toBe(false);
   });
 });
 
@@ -104,5 +106,33 @@ describe('PR #437 W-H11 — all admin-* endpoints use the helper (no wildcard CO
   it.each(adminFiles)('%s: imports cors helper', (file) => {
     const src = readFileSync(file, 'utf8');
     expect(src).toMatch(/from\s*['"]\.\/_shared\/cors\.js['"]/);
+  });
+
+  it.each([createAdminCompanyEmailReplyHandler, createAdminWhatsAppReplyHandler])('reply wrapper preserves actual CORS and origin rejection %#', async factory => {
+    let authCalls = 0;
+    const handler = factory({ env: {}, authenticate: async () => { authCalls++; return { ok: false, status: 401 }; },
+      cors: { isAdminCorsOriginAllowed: () => true, buildAdminCors: () => ({}), buildAdminJsonCors: () => ({}) },
+      loadDb: async () => { throw new Error('DATABASE_FORBIDDEN'); } });
+    const call = async (method: string, origin: string) => {
+      const out: { status: number; headers: Record<string, string> } = { status: 0, headers: {} };
+      await handler({ method, url: '/?id=' + 'a'.repeat(64), headers: { origin } }, {
+        writeHead: (status: number, headers: Record<string, string>) => { out.status = status; out.headers = headers; },
+        end: () => {},
+      });
+      return out;
+    };
+    const options = await call('OPTIONS', 'https://cocotripkr.com');
+    expect(options.status).toBe(200);
+    expect(options.headers['Access-Control-Allow-Origin']).toBe('https://cocotripkr.com');
+    expect(options.headers.Vary).toBe('Origin');
+    for (const method of ['OPTIONS', 'GET', 'POST']) {
+      const denied = await call(method, 'https://evil.invalid');
+      expect(denied.status).toBe(403);
+      expect(denied.headers['Access-Control-Allow-Origin']).toBeUndefined();
+      expect(denied.headers.Vary).toBe('Origin');
+    }
+    expect(authCalls).toBe(0);
+    expect((await call('GET', 'https://cocotripkr.com')).status).toBe(401);
+    expect(authCalls).toBe(1);
   });
 });
