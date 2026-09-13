@@ -4,6 +4,10 @@ import { pathToFileURL } from 'node:url';
 const ANDROID = 'http://schemas.android.com/apk/res/android:';
 const MANAGE_ACTIVITY = 'com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity';
 const MANAGE_URL_KEY = 'android.support.customtabs.trusted.MANAGE_SPACE_URL';
+const POST_NOTIFICATIONS = 'android.permission.POST_NOTIFICATIONS';
+const NOTIFICATION_ACTIVITY = 'com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity';
+const DELEGATION_SERVICE = 'com.google.androidbrowserhelper.trusted.DelegationService';
+const DELEGATION_ACTION = 'android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE';
 
 // Parse aapt2's compiled XML tree, not the source Manifest. Attributes must belong
 // to the right element; a sibling activity's exported flag or metadata cannot pass.
@@ -33,6 +37,52 @@ function parseTree(dump) {
   return roots;
 }
 
+// Inspect the compiled hierarchy: a name on a sibling or alias is not evidence.
+// The exported ABH service verifies the calling browser with its TokenStore.
+function verifyNotificationComponents(manifest, application) {
+  const named = (parent, type, name) => parent.children.filter((node) => node.name === type
+    && node.attributes.get(`${ANDROID}name`) === name);
+  const enabled = (node) => !node.attributes.has(`${ANDROID}enabled`)
+    || node.attributes.get(`${ANDROID}enabled`) === 'true';
+  const launchers = named(application, 'activity', 'com.cocotrip.owner.OwnerLauncherActivity');
+  if (launchers.length !== 1) return { ok: false, reason: 'APK requires exactly one owner launcher activity' };
+  const browserMetadata = [
+    ['android.support.customtabs.trusted.LAUNCHING_BROWSER', 'com.android.chrome'],
+    ['android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME', 'Chrome'],
+  ];
+  for (const [name, value] of browserMetadata) {
+    const metadata = named(launchers[0], 'meta-data', name);
+    if (metadata.length !== 1 || metadata[0].attributes.get(`${ANDROID}value`) !== value
+      || metadata[0].attributes.has(`${ANDROID}resource`)) {
+      return { ok: false, reason: 'APK requires the app-scoped Chrome notification provider on its launcher' };
+    }
+  }
+  const permissions = named(manifest, 'uses-permission', POST_NOTIFICATIONS);
+  if (permissions.length !== 1 || permissions[0].attributes.has(`${ANDROID}maxSdkVersion`)) {
+    return { ok: false, reason: 'APK requires POST_NOTIFICATIONS without an SDK cap' };
+  }
+  const activities = named(application, 'activity', NOTIFICATION_ACTIVITY);
+  if (activities.length !== 1 || activities[0].attributes.get(`${ANDROID}exported`) !== 'false'
+    || !enabled(activities[0]) || activities[0].children.some((node) => node.name === 'intent-filter')
+    || application.children.some((node) => node.name === 'activity-alias'
+      && (node.attributes.get(`${ANDROID}name`) === NOTIFICATION_ACTIVITY
+        || node.attributes.get(`${ANDROID}targetActivity`) === NOTIFICATION_ACTIVITY))) {
+    return { ok: false, reason: 'APK requires a private, enabled notification permission activity without aliases or intent filters' };
+  }
+  const services = named(application, 'service', DELEGATION_SERVICE);
+  if (services.length !== 1 || services[0].attributes.get(`${ANDROID}exported`) !== 'true'
+    || !enabled(services[0]) || services[0].attributes.has(`${ANDROID}permission`)) {
+    return { ok: false, reason: 'APK requires the enabled ABH notification service with verified-browser binding' };
+  }
+  const filters = services[0].children.filter((node) => node.name === 'intent-filter');
+  if (filters.length !== 1 || filters[0].children.length !== 2
+    || named(filters[0], 'action', DELEGATION_ACTION).length !== 1
+    || named(filters[0], 'category', 'android.intent.category.DEFAULT').length !== 1) {
+    return { ok: false, reason: 'APK requires the exact trusted notification service intent filter' };
+  }
+  return { ok: true, reason: 'APK includes notification permission, private request activity and verified-browser delegation service' };
+}
+
 export function verifyOwnerManifestDump(dump) {
   try {
     const roots = parseTree(dump);
@@ -58,7 +108,7 @@ export function verifyOwnerManifestDump(dump) {
       || metadata[0].attributes.has(`${ANDROID}resource`)) {
       return { ok: false, reason: 'ManageDataLauncherActivity must have the fixed production origin in APK' };
     }
-    return { ok: true, reason: 'APK contains the private ManageDataLauncherActivity and fixed production origin' };
+    return verifyNotificationComponents(manifest, applications[0]);
   } catch {
     return { ok: false, reason: 'Compiled APK manifest could not be parsed safely' };
   }

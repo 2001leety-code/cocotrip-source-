@@ -57,14 +57,22 @@ export function readOwnerNotificationConfig(env = {}) {
   const publicKey = value(env.VAPID_PUBLIC_KEY);
   const privateKey = value(env.VAPID_PRIVATE_KEY);
   const subject = value(env.VAPID_SUBJECT) || 'mailto:help@cocotripkr.com';
-  if (!validId(uid, 128) || !validId(subscriptionId) || !subscriptionId.startsWith(`${uid}_`)
-    || !adminEmail || !Object.hasOwn(COPY, language)
-    || !Number.isSafeInteger(retentionDays) || retentionDays < 1 || retentionDays > 90
-    || Buffer.byteLength(cursorSecret) < 32
-    || !validBase64Key(publicKey, 65) || !validBase64Key(privateKey, 32)
-    || publicKey !== value(env.VITE_VAPID_PUBLIC_KEY)
-    || !/^mailto:[^\s<>]+@[^\s<>]+$/.test(subject)) {
-    return { ok: false, enabled: false, code: 'CONFIGURATION_REQUIRED' };
+  // Fixed codes only. Never return a value, key length, recipient or exception.
+  // Keep the same fail-closed predicates; diagnostics must not relax activation.
+  const issues = [
+    ['OWNER_UID_INVALID', !validId(uid, 128)],
+    ['OWNER_SUBSCRIPTION_INVALID', !validId(subscriptionId) || !subscriptionId.startsWith(`${uid}_`)],
+    ['ADMIN_EMAIL_MISSING', !adminEmail],
+    ['LANGUAGE_INVALID', !Object.hasOwn(COPY, language)],
+    ['RETENTION_INVALID', !Number.isSafeInteger(retentionDays) || retentionDays < 1 || retentionDays > 90],
+    ['CURSOR_SECRET_INVALID', Buffer.byteLength(cursorSecret) < 32],
+    ['VAPID_PUBLIC_KEY_INVALID', !validBase64Key(publicKey, 65)],
+    ['VAPID_PRIVATE_KEY_INVALID', !validBase64Key(privateKey, 32)],
+    ['VAPID_PUBLIC_KEY_MISMATCH', publicKey !== value(env.VITE_VAPID_PUBLIC_KEY)],
+    ['VAPID_SUBJECT_INVALID', !/^mailto:[^\s<>]+@[^\s<>]+$/.test(subject)],
+  ].filter(([, invalid]) => invalid).map(([code]) => code);
+  if (issues.length) {
+    return { ok: false, enabled: false, code: 'CONFIGURATION_REQUIRED', issues };
   }
   // The stable control document rejects changes to this scope; it never silently
   // initializes a new backlog when a recipient, language or retention is changed.

@@ -5,6 +5,32 @@ import { main, verifyOwnerApkManifest, verifyOwnerManifestDump } from '../../scr
 const ANDROID = 'http://schemas.android.com/apk/res/android:';
 const ACTIVITY = 'com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity';
 const KEY = 'android.support.customtabs.trusted.MANAGE_SPACE_URL';
+const POST_NOTIFICATIONS = 'android.permission.POST_NOTIFICATIONS';
+const NOTIFICATION_ACTIVITY = 'com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity';
+const DELEGATION_SERVICE = 'com.google.androidbrowserhelper.trusted.DelegationService';
+const DELEGATION_ACTION = 'android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE';
+const LAUNCHER = 'com.cocotrip.owner.OwnerLauncherActivity';
+const LAUNCHING_BROWSER = 'android.support.customtabs.trusted.LAUNCHING_BROWSER';
+const LAUNCHING_BROWSER_NAME = 'android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME';
+const LAUNCHER_METADATA = `              E: meta-data (line=40)
+                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER}" (Raw: "${LAUNCHING_BROWSER}")
+                A: ${ANDROID}value(0x01010024)="com.android.chrome" (Raw: "com.android.chrome")
+              E: meta-data (line=41)
+                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER_NAME}" (Raw: "${LAUNCHING_BROWSER_NAME}")
+                A: ${ANDROID}value(0x01010024)="Chrome" (Raw: "Chrome")`;
+const PERMISSION = `      E: uses-permission (line=4)
+        A: ${ANDROID}name(0x01010003)="${POST_NOTIFICATIONS}" (Raw: "${POST_NOTIFICATIONS}")`;
+const NOTIFICATION = `          E: activity (line=63)
+            A: ${ANDROID}name(0x01010003)="${NOTIFICATION_ACTIVITY}" (Raw: "${NOTIFICATION_ACTIVITY}")
+            A: ${ANDROID}exported(0x01010010)=false`;
+const SERVICE = `          E: service (line=50)
+            A: ${ANDROID}name(0x01010003)="${DELEGATION_SERVICE}" (Raw: "${DELEGATION_SERVICE}")
+            A: ${ANDROID}exported(0x01010010)=true
+              E: intent-filter (line=53)
+                E: action (line=54)
+                  A: ${ANDROID}name(0x01010003)="${DELEGATION_ACTION}" (Raw: "${DELEGATION_ACTION}")
+                E: category (line=56)
+                  A: ${ANDROID}name(0x01010003)="android.intent.category.DEFAULT" (Raw: "android.intent.category.DEFAULT")`;
 const META = `              E: meta-data (line=46)
                 A: ${ANDROID}name(0x01010003)="${KEY}" (Raw: "${KEY}")
                 A: ${ANDROID}value(0x01010024)="https://cocotripkr.com" (Raw: "https://cocotripkr.com")`;
@@ -16,12 +42,16 @@ const DUMP = `N: android=http://schemas.android.com/apk/res/android (line=2)
   E: manifest (line=2)
     A: ${ANDROID}versionCode(0x0101021b)=2
     A: package="com.cocotrip.owner" (Raw: "com.cocotrip.owner")
+${PERMISSION}
       E: application (line=27)
         A: ${ANDROID}allowBackup(0x01010280)=false
           E: activity (line=37)
-            A: ${ANDROID}name(0x01010003)="com.cocotrip.owner.OwnerLauncherActivity" (Raw: "com.cocotrip.owner.OwnerLauncherActivity")
+            A: ${ANDROID}name(0x01010003)="${LAUNCHER}" (Raw: "${LAUNCHER}")
             A: ${ANDROID}exported(0x01010010)=true
+${LAUNCHER_METADATA}
 ${MANAGE}
+${SERVICE}
+${NOTIFICATION}
           E: provider (line=60)
             A: ${ANDROID}name(0x01010003)="androidx.core.content.FileProvider" (Raw: "androidx.core.content.FileProvider")
             A: ${ANDROID}exported(0x01010010)=false
@@ -57,6 +87,44 @@ describe('Owner APK compiled Manifest guard', () => {
     ['empty output', ''],
     ['source XML is not compiled APK proof', '<manifest package="com.cocotrip.owner"><application /></manifest>'],
   ])('rejects %s', (_reason, dump) => {
+    expect(verifyOwnerManifestDump(dump).ok).toBe(false);
+  });
+
+  it.each([
+    ['missing POST_NOTIFICATIONS', DUMP.replace(`${PERMISSION}\n`, '')],
+    ['duplicate POST_NOTIFICATIONS', DUMP.replace(PERMISSION, `${PERMISSION}\n${PERMISSION}`)],
+    ['POST_NOTIFICATIONS under application', DUMP.replace(PERMISSION, '').replace(
+      `        A: ${ANDROID}allowBackup(0x01010280)=false`,
+      `        A: ${ANDROID}allowBackup(0x01010280)=false\n${PERMISSION.split('\n').map((line) => `    ${line}`).join('\n')}`,
+    )],
+    ['POST_NOTIFICATIONS max SDK cap', DUMP.replace(PERMISSION, `${PERMISSION}\n        A: ${ANDROID}maxSdkVersion(0x01010271)=32`)],
+    ['missing notification permission activity', DUMP.replace(`${NOTIFICATION}\n`, '')],
+    ['duplicate notification permission activity', DUMP.replace(NOTIFICATION, `${NOTIFICATION}\n${NOTIFICATION}`)],
+    ['notification permission activity outside application', DUMP.replace(NOTIFICATION, NOTIFICATION.split('\n').map((line) => line.slice(4)).join('\n'))],
+    ['public notification permission activity', DUMP.replace(NOTIFICATION, NOTIFICATION.replace(')=false', ')=true'))],
+    ['disabled notification permission activity', DUMP.replace(NOTIFICATION, `${NOTIFICATION}\n            A: ${ANDROID}enabled(0x0101000e)=false`)],
+    ['notification permission activity intent filter', DUMP.replace(NOTIFICATION, `${NOTIFICATION}\n              E: intent-filter (line=66)\n                E: action (line=67)\n                  A: ${ANDROID}name(0x01010003)="android.intent.action.VIEW"`)],
+    ['notification permission activity alias', DUMP.replace(NOTIFICATION, `          E: activity-alias (line=63)\n            A: ${ANDROID}name(0x01010003)="${NOTIFICATION_ACTIVITY}" (Raw: "${NOTIFICATION_ACTIVITY}")\n            A: ${ANDROID}targetActivity(0x01010202)="other.Activity" (Raw: "other.Activity")`)],
+    ['missing delegation service', DUMP.replace(`${SERVICE}\n`, '')],
+    ['duplicate delegation service', DUMP.replace(SERVICE, `${SERVICE}\n${SERVICE}`)],
+    ['delegation service outside application', DUMP.replace(SERVICE, SERVICE.split('\n').map((line) => line.slice(4)).join('\n'))],
+    ['disabled delegation service', DUMP.replace(SERVICE, `${SERVICE}\n            A: ${ANDROID}enabled(0x0101000e)=false`)],
+    ['delegation service permission', DUMP.replace(SERVICE, `${SERVICE}\n            A: ${ANDROID}permission(0x01010006)="android.permission.BIND_JOB_SERVICE"`)],
+    ['wrong delegation action', DUMP.replace(DELEGATION_ACTION, 'android.intent.action.VIEW')],
+    ['extra delegation filter node', DUMP.replace('                E: category', '                E: data (line=55)\n                E: category')],
+  ])('rejects notification integration fault: %s', (_reason, dump) => {
+    expect(verifyOwnerManifestDump(dump).ok).toBe(false);
+  });
+
+  it.each([
+    ['missing Chrome package metadata', DUMP.replace(`              E: meta-data (line=40)\n                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER}" (Raw: "${LAUNCHING_BROWSER}")\n                A: ${ANDROID}value(0x01010024)="com.android.chrome" (Raw: "com.android.chrome")\n`, '')],
+    ['missing Chrome name metadata', DUMP.replace(`              E: meta-data (line=41)\n                A: ${ANDROID}name(0x01010003)="${LAUNCHING_BROWSER_NAME}" (Raw: "${LAUNCHING_BROWSER_NAME}")\n                A: ${ANDROID}value(0x01010024)="Chrome" (Raw: "Chrome")`, '')],
+    ['duplicated launcher metadata', DUMP.replace(LAUNCHER_METADATA, `${LAUNCHER_METADATA}\n${LAUNCHER_METADATA}`)],
+    ['Samsung Internet replacement', DUMP.replace('com.android.chrome', 'com.sec.android.app.sbrowser')],
+    ['other Chrome replacement', DUMP.replace('com.android.chrome', 'com.android.chrome.beta')],
+    ['metadata on another activity', DUMP.replace(LAUNCHER_METADATA, `          E: activity (line=42)\n            A: ${ANDROID}name(0x01010003)="other.Activity" (Raw: "other.Activity")\n${LAUNCHER_METADATA}`)],
+    ['resource launcher metadata', DUMP.replace(LAUNCHER_METADATA, `${LAUNCHER_METADATA}\n                A: ${ANDROID}resource(0x01010025)=@0x7f0d001e`)],
+  ])('rejects launcher Chrome metadata fault: %s', (_reason, dump) => {
     expect(verifyOwnerManifestDump(dump).ok).toBe(false);
   });
 

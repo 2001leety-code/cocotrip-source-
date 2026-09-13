@@ -4,16 +4,38 @@ import { main } from '../../scripts/owner-controller-preflight.mjs';
 
 const FINGERPRINT = Array.from({ length: 32 }, (_, index) => (index + 1).toString(16).padStart(2, '0').toUpperCase()).join(':');
 const HEX_FINGERPRINT = FINGERPRINT.replaceAll(':', '').toLowerCase();
-const VERSION = { versionCode: 2, versionName: '1.0.1' };
+const VERSION = { versionCode: 4, versionName: '1.0.3' };
 const MANIFEST = `  E: manifest (line=2)
     A: package="com.cocotrip.owner" (Raw: "com.cocotrip.owner")
+      E: uses-permission (line=4)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.POST_NOTIFICATIONS"
       E: application (line=27)
+          E: activity (line=37)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.cocotrip.owner.OwnerLauncherActivity"
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+              E: meta-data (line=40)
+                A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.LAUNCHING_BROWSER"
+                A: http://schemas.android.com/apk/res/android:value(0x01010024)="com.android.chrome"
+              E: meta-data (line=41)
+                A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME"
+                A: http://schemas.android.com/apk/res/android:value(0x01010024)="Chrome"
           E: activity (line=43)
             A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
             A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
               E: meta-data (line=46)
                 A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.MANAGE_SPACE_URL"
                 A: http://schemas.android.com/apk/res/android:value(0x01010024)="https://cocotripkr.com"
+          E: service (line=50)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.DelegationService"
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+              E: intent-filter (line=53)
+                E: action (line=54)
+                  A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE"
+                E: category (line=56)
+                  A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.DEFAULT"
+          E: activity (line=63)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"
+            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
 `;
 
 describe('Owner Controller 실제 서명 검증기', () => {
@@ -31,7 +53,7 @@ describe('Owner Controller 실제 서명 검증기', () => {
       if (tool.includes('keytool')) return { status: 0, stdout: `SHA256: ${FINGERPRINT}`, stderr: '' };
       if (args.includes('-jar')) return { status: 0, stdout: `Signer #1 certificate SHA-256 digest: ${HEX_FINGERPRINT}`, stderr: '' };
       if (args.includes('xmltree')) return { status: 0, stdout: MANIFEST, stderr: '' };
-      return { status: 0, stdout: "package: name='com.cocotrip.owner' versionCode='2' versionName='1.0.1'", stderr: '' };
+      return { status: 0, stdout: "package: name='com.cocotrip.owner' versionCode='4' versionName='1.0.3'", stderr: '' };
     });
     const tools = {
       java: 'C:\\Program Files\\Java & Safe\\java.exe',
@@ -55,7 +77,7 @@ describe('Owner Controller 실제 서명 검증기', () => {
       if (tool === 'keytool') return { status: 0, stdout: `SHA256: ${FINGERPRINT}`, stderr: '' };
       if (args.includes('-jar')) return { status: failure === 'signer-failure' ? 1 : 0, stdout: `Signer #1 certificate SHA-256 digest: ${failure === 'wrong-signature' ? '00'.repeat(32) : HEX_FINGERPRINT}`, stderr: '' };
       if (args.includes('xmltree')) return { status: failure === 'dump-failure' ? 1 : 0, stdout: failure === 'missing-manifest' ? '' : MANIFEST, stderr: '' };
-      return { status: failure === 'badging-failure' ? 1 : 0, stdout: `package: name='${failure === 'wrong-package' ? 'com.other' : 'com.cocotrip.owner'}' versionCode='${failure === 'old-code' ? '1' : '2'}' versionName='${failure === 'old-name' ? '1.0.0' : '1.0.1'}'`, stderr: '' };
+      return { status: failure === 'badging-failure' ? 1 : 0, stdout: `package: name='${failure === 'wrong-package' ? 'com.other' : 'com.cocotrip.owner'}' versionCode='${failure === 'old-code' ? '3' : '4'}' versionName='${failure === 'old-name' ? '1.0.2' : '1.0.3'}'`, stderr: '' };
     });
     const verifier = createOwnerArtifactVerifier({
       env: { OWNER_KEYSTORE_PASSWORD: 'secret' }, spawn,
@@ -67,20 +89,20 @@ describe('Owner Controller 실제 서명 검증기', () => {
 
   it.each([
     "package: name='com.cocotrip.owner'",
-    "package: versionCode='1' versionName='1.0.1'",
-    "package: versionCode='2' versionName='1.0.0'",
-    "package: versionCode='2x' versionName='1.0.1'",
-    "package: versionCode='2' versionCode='1' versionName='1.0.1'",
-    "package: versionCode='2' versionName='1.0.1' versionName='1.0.0'",
-    "package: versionCode='2' versionName='1.0.1'\npackage: versionCode='2' versionName='1.0.1'",
+    "package: versionCode='3' versionName='1.0.3'",
+    "package: versionCode='4' versionName='1.0.2'",
+    "package: versionCode='4x' versionName='1.0.3'",
+    "package: versionCode='4' versionCode='3' versionName='1.0.3'",
+    "package: versionCode='4' versionName='1.0.3' versionName='1.0.2'",
+    "package: versionCode='4' versionName='1.0.3'\npackage: versionCode='4' versionName='1.0.3'",
   ])('rejects missing, stale or ambiguous compiled version %s', output => {
     expect(matchesOwnerApkVersion(output, VERSION)).toBe(false);
   });
   it('accepts exact compiled version, regardless of field order, and rejects missing expectations', () => {
-    const output = "package: name='com.cocotrip.owner' versionName='1.0.1' versionCode='2' platformBuildVersionName='16'";
+    const output = "package: name='com.cocotrip.owner' versionName='1.0.3' versionCode='4' platformBuildVersionName='16'";
     expect(matchesOwnerApkVersion(output, VERSION)).toBe(true);
     expect(matchesOwnerApkVersion(output)).toBe(false);
-    expect(matchesOwnerApkVersion(output, { versionCode: 2, versionName: '' })).toBe(false);
+    expect(matchesOwnerApkVersion(output, { versionCode: 4, versionName: '' })).toBe(false);
   });
 
   it('CLI가 생성된 artifactVerifier를 감사 함수에 전달한다', () => {

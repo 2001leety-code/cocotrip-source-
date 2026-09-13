@@ -41,6 +41,25 @@ describe('Owner Controller Android 브랜드·빌드 소스', () => {
     expect(read('scripts/owner-controller-release.mjs')).toContain('owner-controller-preflight.mjs');
   });
 
+  it('알림만 요청하고 기존 관리자 진입 주소와 최소 권한을 유지한다', () => {
+    const manifest = read('android-owner/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
+    expect([...manifest.matchAll(/<uses-permission\s+android:name="([^"]+)"/g)].map((match) => match[1]))
+      .toEqual(['android.permission.POST_NOTIFICATIONS']);
+    expect(manifest).toContain('android:value="https://cocotripkr.com/admin/ai-center"');
+    expect(manifest).toContain('android:pathPrefix="/admin"');
+    expect(manifest).toContain('android:resource="@string/asset_statements"');
+    expect(manifest).toMatch(/<queries>\s*<package android:name="com\.android\.chrome"\s*\/>\s*<\/queries>/);
+    expect(manifest).toMatch(/android:name="android\.support\.customtabs\.trusted\.LAUNCHING_BROWSER"\s+android:value="com\.android\.chrome"/);
+    expect(manifest).toMatch(/android:name="android\.support\.customtabs\.trusted\.LAUNCHING_BROWSER_NAME"\s+android:value="Chrome"/);
+    expect(manifest).toContain('android:resource="@drawable/ic_owner_notification"');
+    expect(manifest).toContain('android:theme="@android:style/Theme.Translucent.NoTitleBar"');
+    expect(read('android-owner/app/src/main/java/com/cocotrip/owner/OwnerLauncherActivity.java'))
+      .not.toContain('requestPermissions');
+    const icon = read('android-owner/app/src/main/res/drawable/ic_owner_notification.xml');
+    expect(icon).toContain('android:fillColor="#FFFFFFFF"');
+    expect(icon).toContain('android:viewportWidth="24"');
+  });
+
   it('Google Maven에 실제 배포된 ABH 안정 좌표와 호환 minSdk를 사용한다', () => {
     const gradle = read('android-owner/app/build.gradle');
     expect(gradle).toContain("implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'");
