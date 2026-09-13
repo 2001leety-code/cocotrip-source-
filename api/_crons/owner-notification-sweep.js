@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { logger } from '../_shared/log.js';
+import { ownerSweepDiagnostic } from '../_shared/owner-notification-diagnostics.js';
 import {
   OWNER_SOURCES, eventFromSource, isOwnerSourceCandidate, isOwnerSourceId, openOwnerCursor, readOwnerNotificationConfig,
   sealOwnerCursor, sourceTime, timeAtMs, timeToMs, ownerHash,
@@ -136,24 +138,30 @@ async function advanceCursor(db, control, config, device, spec, cursor, event, n
 /** Metadata-only polling; never modifies booking, inquiry, payment or subscription documents. */
 export async function ownerNotificationSweepTask(options = {}) {
   const config = readOwnerNotificationConfig(options.env || process.env);
-  if (!config.enabled) return { ok: config.ok, code: config.code, enabled: false };
+  if (!config.enabled) return { ok: config.ok, code: config.code, enabled: false,
+    ...(config.ok ? {} : ownerSweepDiagnostic({ code: config.code, phase: 'CONFIGURATION', issues: config.issues })) };
   const now = options.now || Date.now;
   const started = now();
   const token = randomUUID();
   let control;
   let services;
+  let phase = 'SERVICES';
   const result = { ok: true, code: 'CHECKED', enabled: true, scanned: 0, accepted: 0, retryScheduled: 0,
     needsOperator: 0, removed: 0, sourceFailureCount: 0, sourceFailures: [] };
   try {
     services = await (options.loadServices || loadServices)();
     const { db } = services;
+    phase = 'INBOX_CONFIGURATION';
     const externalInboxConfigs = { ...readCompanyGmailInboxConfigs(options.env || process.env, started),
       whatsapp: readWhatsAppInboxConfig(options.env || process.env, started) };
+    phase = 'DEVICE';
     const device = await readSelectedOwnerDevice(services, config);
-    if (!device) return { ok: false, enabled: true, code: 'OWNER_DEVICE_REQUIRED' };
+    if (!device) return { ok: false, enabled: true, code: 'OWNER_DEVICE_REQUIRED', phase };
+    phase = 'CONTROL';
     control = await acquireControl(db, config, device, started, token);
-    if (control.code !== 'ACQUIRED') return { ok: ['INITIALIZED', 'BUSY'].includes(control.code), enabled: true, code: control.code };
+    if (control.code !== 'ACQUIRED') return { ok: ['INITIALIZED', 'BUSY'].includes(control.code), enabled: true, code: control.code, phase };
 
+    phase = 'SOURCES';
     const upperMs = started - SETTLE_MS;
     if (upperMs >= control.state.activatedAtMs) {
       for (let offset = 0; offset < OWNER_SOURCES.length; offset++) {
@@ -222,6 +230,7 @@ export async function ownerNotificationSweepTask(options = {}) {
       }
     }
     if (now() - started < RUN_BUDGET_MS) {
+      phase = 'DELIVERY';
       const due = await db.collection(OWNER_EVENT_COLLECTION).where('nextAttemptAtMs', '<=', now())
         .orderBy('nextAttemptAtMs', 'asc').limit(SEND_LIMIT).get();
       for (const doc of due.docs) {
@@ -231,12 +240,13 @@ export async function ownerNotificationSweepTask(options = {}) {
         else if (delivery.code === 'RETRY_SCHEDULED') result.retryScheduled++;
         else if (['MANUAL_REQUIRED', 'OUTCOME_UNKNOWN', 'EVENT_INVALID'].includes(delivery.code)) result.needsOperator++;
       }
+      phase = 'CLEANUP';
       result.removed = await pruneExpiredOwnerEvents(db, now(), 25, () => now() - started < RUN_BUDGET_MS);
     }
-    return result;
+    return result.code === 'PARTIAL_SOURCE_FAILURE' ? { ...result, phase: 'SOURCES' } : result;
   } catch {
     // Static code only: SDK errors can contain document paths, endpoint URLs or keys.
-    return { ...result, ok: false, code: 'OWNER_SWEEP_FAILED' };
+    return { ...result, ok: false, code: 'OWNER_SWEEP_FAILED', phase };
   } finally {
     if (control?.ref && services) {
       try {
@@ -254,5 +264,8 @@ export default async function handler(req, res) {
   const authorized = await verifyCronRequest(req);
   if (!authorized.ok) return res.status(401).json({ ok: false, code: 'AUTH_REQUIRED' });
   const result = await ownerNotificationSweepTask();
+  if (!result.ok || result.code === 'PARTIAL_SOURCE_FAILURE') {
+    logger.warn('[owner-notification-sweep]', ownerSweepDiagnostic(result));
+  }
   return res.status(result.ok ? 200 : 503).json(result);
 }

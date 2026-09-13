@@ -785,6 +785,40 @@ describe('single-device durable delivery and uncertain outcomes', () => {
 });
 
 describe('transport adapter and schedule contracts, with no external calls', () => {
+  it.each(['SERVICES', 'DEVICE', 'CONTROL', 'DELIVERY'])('reports the fixed %s failure phase without private exception details', async (phase) => {
+    const f = fixture();
+    if (phase === 'SERVICES') f.loadServices.mockRejectedValue(new Error(PRIVATE));
+    if (phase === 'DEVICE') f.auth.getUser.mockRejectedValue(new Error(PRIVATE));
+    if (phase === 'CONTROL') f.setFailCommit(true);
+    if (phase === 'DELIVERY') {
+      await f.run();
+      f.failedCollections.add(OWNER_EVENT_COLLECTION);
+    }
+    const result = await f.run();
+    expect(result).toMatchObject({ ok: false, code: 'OWNER_SWEEP_FAILED', phase });
+    expect(JSON.stringify(result)).not.toContain(PRIVATE);
+    expect(f.send).not.toHaveBeenCalled();
+  });
+  it('logs only fixed configuration diagnostics after cron authentication, without weakening the key gate', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const [name, value] of Object.entries(environment())) vi.stubEnv(name, value);
+    vi.stubEnv('CRON_SECRET', 'private-short-sentinel');
+    const response = { status: vi.fn(), json: vi.fn() }; response.status.mockReturnValue(response);
+    authorize.mockResolvedValue({ ok: false });
+    await ownerHandler({ headers: {} }, response);
+    expect(warning).not.toHaveBeenCalled();
+    authorize.mockResolvedValue({ ok: true });
+    await ownerHandler({ headers: {}, body: { value: PRIVATE } }, response);
+    expect(response.status).toHaveBeenLastCalledWith(503);
+    expect(warning).toHaveBeenCalledExactlyOnceWith('[owner-notification-sweep]', {
+      code: 'CONFIGURATION_REQUIRED', phase: 'CONFIGURATION', issues: ['CURSOR_SECRET_INVALID'],
+    });
+    const output = JSON.stringify([warning.mock.calls, response.json.mock.calls]);
+    for (const secret of [PRIVATE, 'private-short-sentinel', UID, SUB_ID, ENDPOINT, ...Object.values(subscription().keys)]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(transport.sendNotification).not.toHaveBeenCalled();
+  });
   it('refuses unauthenticated handler calls and ignores caller-supplied UID/body when disabled', async () => {
     const fetch = vi.fn(() => { throw new Error('NETWORK_FORBIDDEN'); }); vi.stubGlobal('fetch', fetch);
     vi.stubEnv('OWNER_EVENT_PUSH_ENABLED', 'false');
