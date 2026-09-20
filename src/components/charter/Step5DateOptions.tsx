@@ -13,7 +13,7 @@
 // 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
 //   Step 5 날짜 아래 type="time" 자유 입력으로 이동. 30분 단위 제약 해제.
 //   야간 할증 자동 계산도 여기 onChange 에서 처리.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { WizardState, LodgingLocation, VehicleType, QuoteBreakdown } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
@@ -216,13 +216,19 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   //   영문 성·이름 → customerName 결합 / phone 은 onPhoneChange 로 별도 controlled /
   //   미팅장소·메모 → 매핑 / 메신저 → customerMessenger / 항공편·수하물 → state.airport (공항 서비스 시).
   // ⚠️ 비파괴(non-destructive): BookingInfoForm 은 마운트 시 빈 f 로 onFieldsChange 를 1회 emit 하므로
-  //   값이 빈 필드를 그대로 patch 하면 프로필 prefill(customerName 등)을 덮어쓴다. → 입력값이 있을 때만 patch.
-  //   항공편(flightNumber)은 입력값으로 동기하되, #1012 조회결과(arrival)는 lookupFlight 가 별도 patch 하므로
-  //   여기서 flightNumber 만 갱신 시 arrival 은 건드리지 않는다(조회 도착정보 보존).
+  //   값이 빈 필드를 그대로 patch 하면 프로필 prefill(customerName 등)을 덮어쓴다. → 첫 emit 은 보호.
+  //   항공편(flightNumber)은 실제 변경·삭제 시 동기화하고 조회 도착정보(arrival)는 무효화한다.
+  //   무관한 필드 변경에서는 arrival·terminal·luggage 를 보존한다.
+  const previousBookingFields = useRef<BookingFormData | null>(null);
   const handleFieldsChange = (d: BookingFormData) => {
+    const previous = previousBookingFields.current;
+    previousBookingFields.current = d;
     const next: Partial<WizardState> = {};
     const fullName = `${d.lastName} ${d.firstName}`.trim();
-    if (fullName) next.customerName = fullName;
+    const nameChanged = previous
+      ? d.lastName !== previous.lastName || d.firstName !== previous.firstName
+      : !!fullName;
+    if (nameChanged) next.customerName = d.lastName && d.firstName ? fullName : '';
     if (d.messengerId) next.customerMessenger = `${d.messenger}: ${d.messengerId}`;
     if (d.notes) next.notes = d.notes;
     // MEDIUM fix (2026-06-29): email·meetingPlace silent drop 방지 (BookingInfoForm 필수 수집분).
@@ -230,11 +236,14 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
     if (d.meetingPlace) next.meetingPlace = d.meetingPlace;
     if (isAirport) {
       const lugTotal = d.lugSmall + d.lugMedium + d.lugLarge;
-      const flightChanged = d.flightNo && d.flightNo !== (airport.flightNumber ?? '');
-      if (d.flightNo || lugTotal > 0) {
+      const flightInputChanged = previous
+        ? d.flightNo !== previous.flightNo
+        : !!d.flightNo;
+      const flightChanged = flightInputChanged && d.flightNo !== (airport.flightNumber || '');
+      if (flightInputChanged || lugTotal > 0) {
         next.airport = {
           ...airport,
-          ...(d.flightNo ? { flightNumber: d.flightNo } : {}),
+          ...(flightInputChanged ? { flightNumber: d.flightNo } : {}),
           // 편명이 바뀌면 이전 조회결과 무효화 (사용자가 다시 조회하도록). #1012 동작과 동일.
           ...(flightChanged ? { arrival: undefined } : {}),
           ...(lugTotal > 0 ? { luggage: { small: d.lugSmall, medium: d.lugMedium, large: d.lugLarge } } : {}),
