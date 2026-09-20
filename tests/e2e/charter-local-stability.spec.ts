@@ -1,4 +1,5 @@
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/analytics-guard';
+import type { Locator, Page } from '@playwright/test';
 
 type Guard = {
   external: string[];

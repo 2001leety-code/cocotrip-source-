@@ -45,3 +45,9 @@
 - Step5 SHA256는 `781785f611594260686c0707f7751a2bcd557a90c65feacec20432b29c6d1eb3`, `npm run build`는 EXIT 0이다. 전체 lint는 EXIT 1, 607오류·21경고이며 시작 전후 로그가 동일하다.
 - 오늘 제품 변경은 `Step5DateOptions.tsx` 한 파일이고, 전날 `InquiryForm.tsx`·`charter-local-server.mjs`·`playwright-charter-local.config.ts`는 바이트 동일하게 보존했다. 기존 e2e 검사는 오늘 수정했다. 운영 검증은 별도 범위다.
 - 실제 저장·발송·운영 DB·결제·배포·커밋·push·merge는 확인하거나 실행하지 않았다.
+
+## 2026-09-21 P272 공용 분석 가드 재사용
+
+- P272 검사에서 차터 로컬 스펙의 개별 `@playwright/test` import를 발견해 공용 `analytics-guard`의 `test`·`expect`로 교체했다.
+- 공용 가드는 분석·유료 API 요청을 브라우저 문맥에서 차단하고 빠져나간 요청을 검사하므로 기존 loopback/API 대역 제한과 함께 사용한다.
+- 교체 후 전용 Playwright 10건은 외부 통신 0·pageerror 0으로 통과했고 해당 스펙 targeted ESLint도 통과했다.
