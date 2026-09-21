@@ -43,7 +43,7 @@ const src = readFileSync(
 
 type Stop = { category: string; name: string; start_time: string };
 type Day = { day: number; city?: string; stops: Stop[] };
-type Itinerary = { days: Day[]; arrival_guide?: any; departure_guide?: any };
+type Itinerary = { days: Day[]; arrival_guide?: Record<string, unknown>; departure_guide?: Record<string, unknown> };
 
 function fullDayWithFoodAt(times: string[]): Day {
   return {

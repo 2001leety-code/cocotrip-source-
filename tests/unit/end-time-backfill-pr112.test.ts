@@ -17,6 +17,11 @@
 import { describe, it, expect } from 'vitest';
 import { computeEndTime, backfillStopEndTimes } from '../../api/_ai_core/planPersister.js';
 
+type TestStop = { start_time?: unknown; stay_min?: unknown; end_time?: string; [key: string]: unknown };
+type TestDay = { stops: TestStop[] };
+type TestItinerary = { days: TestDay[] };
+type MalformedItinerary = { days: { stops: TestStop[] | null }[] };
+
 describe('computeEndTime — pure HH:mm + stayMin → HH:mm', () => {
   it.each([
     ['09:00', 60, '10:00'],
@@ -44,7 +49,7 @@ describe('computeEndTime — pure HH:mm + stayMin → HH:mm', () => {
     ['09:00', -1],       // negative stay
     ['09:00', 'invalid'],
   ])('computeEndTime(%j, %j) → null (malformed input)', (start, stay) => {
-    expect(computeEndTime(start as any, stay as any)).toBeNull();
+    expect(computeEndTime(start, stay)).toBeNull();
   });
 
   it('24h+ stay wraps correctly (rare edge case)', () => {
@@ -59,7 +64,7 @@ describe('computeEndTime — pure HH:mm + stayMin → HH:mm', () => {
 
 describe('backfillStopEndTimes — mutation + override-protection', () => {
   it('fills missing end_time on all stops', () => {
-    const itinerary = {
+    const itinerary: TestItinerary = {
       days: [
         {
           stops: [
@@ -76,13 +81,13 @@ describe('backfillStopEndTimes — mutation + override-protection', () => {
     };
     const filled = backfillStopEndTimes(itinerary);
     expect(filled).toBe(3);
-    expect((itinerary.days[0].stops[0] as any).end_time).toBe('10:00');
-    expect((itinerary.days[0].stops[1] as any).end_time).toBe('11:30');
-    expect((itinerary.days[1].stops[0] as any).end_time).toBe('15:30');
+    expect(itinerary.days[0].stops[0].end_time).toBe('10:00');
+    expect(itinerary.days[0].stops[1].end_time).toBe('11:30');
+    expect(itinerary.days[1].stops[0].end_time).toBe('15:30');
   });
 
   it('preserves existing end_time (Gemini/RouteAgent stitched values)', () => {
-    const itinerary = {
+    const itinerary: TestItinerary = {
       days: [{
         stops: [
           { start_time: '09:00', stay_min: 60, end_time: '10:30' },  // already set
@@ -92,12 +97,12 @@ describe('backfillStopEndTimes — mutation + override-protection', () => {
     };
     const filled = backfillStopEndTimes(itinerary);
     expect(filled).toBe(1);
-    expect((itinerary.days[0].stops[0] as any).end_time).toBe('10:30');  // unchanged
-    expect((itinerary.days[0].stops[1] as any).end_time).toBe('11:30');  // filled
+    expect(itinerary.days[0].stops[0].end_time).toBe('10:30');  // unchanged
+    expect(itinerary.days[0].stops[1].end_time).toBe('11:30');  // filled
   });
 
   it('skips malformed stops gracefully (no throw)', () => {
-    const itinerary = {
+    const itinerary: TestItinerary = {
       days: [{
         stops: [
           { start_time: '09:00', stay_min: 60 },         // valid
@@ -110,28 +115,28 @@ describe('backfillStopEndTimes — mutation + override-protection', () => {
     };
     const filled = backfillStopEndTimes(itinerary);
     expect(filled).toBe(1);
-    expect((itinerary.days[0].stops[0] as any).end_time).toBe('10:00');
+    expect(itinerary.days[0].stops[0].end_time).toBe('10:00');
   });
 
   it('handles missing itinerary / days / stops arrays safely', () => {
-    expect(backfillStopEndTimes(undefined as any)).toBe(0);
-    expect(backfillStopEndTimes(null as any)).toBe(0);
-    expect(backfillStopEndTimes({} as any)).toBe(0);
-    expect(backfillStopEndTimes({ days: [] } as any)).toBe(0);
-    expect(backfillStopEndTimes({ days: [{ stops: [] }] } as any)).toBe(0);
-    expect(backfillStopEndTimes({ days: [{ stops: null }] } as any)).toBe(0);
+    expect(backfillStopEndTimes(undefined)).toBe(0);
+    expect(backfillStopEndTimes(null)).toBe(0);
+    expect(backfillStopEndTimes({})).toBe(0);
+    expect(backfillStopEndTimes({ days: [] })).toBe(0);
+    expect(backfillStopEndTimes({ days: [{ stops: [] }] })).toBe(0);
+    expect(backfillStopEndTimes({ days: [{ stops: null }] } as MalformedItinerary)).toBe(0);
   });
 
   it('end_time format always HH:mm with zero-padding', () => {
-    const itinerary = { days: [{ stops: [{ start_time: '08:00', stay_min: 5 }] }] };
+    const itinerary: TestItinerary = { days: [{ stops: [{ start_time: '08:00', stay_min: 5 }] }] };
     backfillStopEndTimes(itinerary);
-    expect((itinerary.days[0].stops[0] as any).end_time).toBe('08:05');  // not '8:5'
-    expect((itinerary.days[0].stops[0] as any).end_time).toMatch(/^\d{2}:\d{2}$/);
+    expect(itinerary.days[0].stops[0].end_time).toBe('08:05');  // not '8:5'
+    expect(itinerary.days[0].stops[0].end_time).toMatch(/^\d{2}:\d{2}$/);
   });
 
   it('plan 4792076e regression — 29/29 stops backfilled', () => {
     // Simulate the actual prod plan structure.
-    const itinerary = {
+    const itinerary: TestItinerary = {
       days: Array.from({ length: 5 }, () => ({
         stops: Array.from({ length: 6 }, () => ({
           start_time: '09:00',
@@ -144,7 +149,7 @@ describe('backfillStopEndTimes — mutation + override-protection', () => {
     expect(filled).toBe(30);  // 5 days × 6 stops
     for (const day of itinerary.days) {
       for (const stop of day.stops) {
-        expect((stop as any).end_time).toBe('10:00');
+        expect(stop.end_time).toBe('10:00');
       }
     }
   });

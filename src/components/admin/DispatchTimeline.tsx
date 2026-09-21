@@ -78,12 +78,18 @@ export default function DispatchTimeline() {
   const [dateOffset, setDateOffset] = useState(0);
   const [drivers, setDrivers] = useState<DriverDoc[]>([]);
   const [bookings, setBookings] = useState<Array<BookingDoc & { id: string }>>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedDate, setLoadedDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const today = new Date();
   today.setDate(today.getDate() + dateOffset);
   const dateStr = today.toISOString().split('T')[0];
+  const [requestedDate, setRequestedDate] = useState(dateStr);
+  if (requestedDate !== dateStr) {
+    setRequestedDate(dateStr);
+    setLoadedDate(null);
+  }
+  const loading = loadedDate !== dateStr;
 
   // 기사 목록은 거의 안 바뀌므로 1회 fetch
   useEffect(() => {
@@ -104,7 +110,6 @@ export default function DispatchTimeline() {
 
   // 선택 날짜의 예약 실시간 구독
   useEffect(() => {
-    setLoading(true);
     const q = query(collection(db, 'bookings'), where('tourDate', '==', dateStr));
     const unsub = onSnapshot(
       q,
@@ -112,12 +117,12 @@ export default function DispatchTimeline() {
         const list: Array<BookingDoc & { id: string }> = [];
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as BookingDoc) }));
         setBookings(list.filter((b) => !isCancelled(b)));
-        setLoading(false);
+        setLoadedDate(dateStr);
       },
       (err) => {
         console.error('[DispatchTimeline] bookings listen error:', err);
         setError(err.message);
-        setLoading(false);
+        setLoadedDate(dateStr);
       },
     );
     return () => unsub();

@@ -19,7 +19,7 @@ describe('extractRoles — schema sanitization', () => {
     expect(extractRoles(undefined)).toEqual([]);
     expect(extractRoles(null)).toEqual([]);
     expect(extractRoles('super-admin')).toEqual([]); // string is not array
-    expect(extractRoles({ super: true } as any)).toEqual([]);
+    expect(extractRoles({ super: true })).toEqual([]);
   });
 
   it('returns [] for empty array', () => {
@@ -32,7 +32,7 @@ describe('extractRoles — schema sanitization', () => {
   });
 
   it('filters out non-string + empty entries', () => {
-    expect(extractRoles(['super-admin', '', 0 as any, null as any, 'cs']))
+    expect(extractRoles(['super-admin', '', 0, null, 'cs']))
       .toEqual(['super-admin', 'cs']);
   });
 });
@@ -40,7 +40,7 @@ describe('extractRoles — schema sanitization', () => {
 describe('requireRole — super-admin bypass + exact match', () => {
   it('returns false for empty roles', () => {
     expect(requireRole([], 'product-manager')).toBe(false);
-    expect(requireRole(undefined as any, 'product-manager')).toBe(false);
+    expect(requireRole(undefined, 'product-manager')).toBe(false);
   });
 
   it('super-admin role passes any neededRole', () => {
@@ -64,8 +64,8 @@ describe('requireRole — super-admin bypass + exact match', () => {
 describe('sanitizeRoles (admin-set-claims) — whitelist enforcement', () => {
   it('returns [] for empty / non-array', () => {
     expect(sanitizeRoles([])).toEqual([]);
-    expect(sanitizeRoles(undefined as any)).toEqual([]);
-    expect(sanitizeRoles('super-admin' as any)).toEqual([]);
+    expect(sanitizeRoles(undefined)).toEqual([]);
+    expect(sanitizeRoles('super-admin')).toEqual([]);
   });
 
   it('allows all 5 canonical roles', () => {

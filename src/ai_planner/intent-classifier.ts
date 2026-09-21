@@ -123,7 +123,7 @@ function firstKeywordMatch(text: string, keywords: readonly string[]): string | 
 function emptyResult(rawText: string, reason: string): ClassifiedModification {
   return {
     intent: 'no_change',
-    raw_text: rawText ?? '',
+    raw_text: rawText || '',
     confidence: 0,
     fallback_reason: reason,
   };
@@ -144,6 +144,7 @@ export function classifyModification(
   rawText: string | null | undefined,
   _currentItinerary?: unknown,
 ): ClassifiedModification {
+  void _currentItinerary;
   // Safe guard — invalid input
   if (typeof rawText !== 'string') {
     return emptyResult('', 'non-string input');

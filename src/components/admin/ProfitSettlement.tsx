@@ -40,9 +40,15 @@ export default function ProfitSettlement() {
   const [saving, setSaving] = useState(false);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [costs, setCosts] = useState<Map<string, CostRow>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => formatYM(new Date()));
+  const [requestedMonth, setRequestedMonth] = useState(month);
+  if (requestedMonth !== month) {
+    setRequestedMonth(month);
+    setLoadedMonth(null);
+  }
+  const loading = loadedMonth !== month;
 
   // 실시간 환율 — 매출 대시보드(admin-sales)·결제(createPaypalOrder)와 동일 SSOT (backend _exchange-rate.js,
   // 운영자 floor 1450 정책 적용). 손익 정산은 운영자 내부 리포트라 기본값을 live 로 채우되,
@@ -69,7 +75,6 @@ export default function ProfitSettlement() {
 
   // bookings 실시간
   useEffect(() => {
-    setLoading(true);
     const monthStart = `${month}-01`;
     const monthEnd = shiftMonth(month, 1) + '-01';
 
@@ -101,12 +106,12 @@ export default function ProfitSettlement() {
         });
         list.sort((a, b) => (a.date < b.date ? 1 : -1));
         setBookings(list);
-        setLoading(false);
+        setLoadedMonth(month);
       },
       (err) => {
         console.error('[ProfitSettlement] bookings listen error:', err);
         setError(err.message);
-        setLoading(false);
+        setLoadedMonth(month);
       },
     );
     return () => unsub();

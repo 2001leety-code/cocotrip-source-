@@ -29,9 +29,26 @@ const src = readFileSync(
 
 // Mock throttledTelegramAlert before importing the SUT so the alert call
 // is observable. We capture invocations in a shared array.
-const alertCalls: any[] = [];
+type AlertArgs = {
+  key?: string;
+  channel?: string;
+  severity?: string;
+  message?: string;
+  context?: { planId?: unknown; durationDays?: number; uid?: unknown };
+  [key: string]: unknown;
+};
+type PlanWriteData = {
+  __truncated?: boolean;
+  __truncated_days_count?: number;
+  __truncated_original_days?: number;
+  __truncated_initial_size_bytes?: number;
+  itinerary?: { _truncated_days?: number; _truncation_note?: string; [key: string]: unknown };
+  [key: string]: unknown;
+};
+
+const alertCalls: AlertArgs[] = [];
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: vi.fn(async (args: any) => {
+  throttledTelegramAlert: vi.fn(async (args: AlertArgs) => {
     alertCalls.push(args);
     return { ok: true, alerted: true };
   }),
@@ -73,13 +90,13 @@ function makeHugeItinerary(days: number, perStopBytes: number) {
 }
 
 function makeAdminDbMock() {
-  const writes: Array<{ collection: string; doc?: string; data: any; merge?: boolean }> = [];
+  const writes: Array<{ collection: string; doc?: string; data: PlanWriteData; merge?: boolean }> = [];
   const make = (collectionName: string) => {
     const docFn = (docId: string) => ({
-      set: vi.fn(async (data: any, opts?: any) => {
+      set: vi.fn(async (data: PlanWriteData, opts?: { merge?: boolean }) => {
         writes.push({ collection: collectionName, doc: docId, data, merge: opts?.merge });
       }),
-      update: vi.fn(async (data: any) => {
+      update: vi.fn(async (data: PlanWriteData) => {
         writes.push({ collection: collectionName, doc: docId, data });
       }),
       get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
@@ -89,7 +106,7 @@ function makeAdminDbMock() {
   };
   const makeSubCollection = (path: string) => ({
     doc: (docId?: string) => ({
-      set: vi.fn(async (data: any, opts?: any) => {
+      set: vi.fn(async (data: PlanWriteData, opts?: { merge?: boolean }) => {
         writes.push({ collection: path, doc: docId, data, merge: opts?.merge });
       }),
     }),
@@ -115,7 +132,7 @@ describe('PR #460 X-H1 — planPersister truncation surfacing', () => {
       regions: ['seoul'],
       days: [{ day: 1, stops: [{ name: 'A' }] }],
     };
-    const result = await persistPlan(db as any, {
+    const result = await persistPlan(db, {
       body: { regions: ['seoul'], adults: 2, children: 0 },
       itinerary,
       uid: 'u-1',
@@ -144,7 +161,7 @@ describe('PR #460 X-H1 — planPersister truncation surfacing', () => {
     expect(planWrite).toBeTruthy();
     expect(planWrite!.data.__truncated).toBeUndefined();
     expect(planWrite!.data.__truncated_days_count).toBeUndefined();
-    expect(planWrite!.data.itinerary._truncated_days).toBeUndefined();
+    expect(planWrite!.data.itinerary!._truncated_days).toBeUndefined();
 
     expect(alertCalls.length).toBe(0);
   });
@@ -154,7 +171,7 @@ describe('PR #460 X-H1 — planPersister truncation surfacing', () => {
     // 14 days × 8 stops × ~10KB filler ≈ 1.12MB raw — guaranteed > 900KB.
     const itinerary = makeHugeItinerary(14, 10_000);
 
-    await persistPlan(db as any, {
+    await persistPlan(db, {
       body: { regions: ['seoul', 'busan', 'jeju'], adults: 2, children: 1 },
       itinerary,
       uid: 'u-truncate',
@@ -188,24 +205,24 @@ describe('PR #460 X-H1 — planPersister truncation surfacing', () => {
     expect(planWrite!.data.__truncated_initial_size_bytes).toBeGreaterThan(900_000);
 
     // Legacy fields still present.
-    expect(planWrite!.data.itinerary._truncated_days).toBeGreaterThan(0);
-    expect(planWrite!.data.itinerary._truncation_note).toMatch(/exceeded Firestore limit/);
+    expect(planWrite!.data.itinerary!._truncated_days).toBeGreaterThan(0);
+    expect(planWrite!.data.itinerary!._truncation_note).toMatch(/exceeded Firestore limit/);
 
     // Alert fired once with dedup key including region+duration.
     expect(alertCalls.length).toBe(1);
-    expect(alertCalls[0].key).toBe('plan-persister-truncate:seoul+busan+jeju:14');
-    expect(alertCalls[0].channel).toBe('admin');
-    expect(alertCalls[0].severity).toBe('high');
-    expect(alertCalls[0].message).toMatch(/Plan truncated/);
-    expect(alertCalls[0].context.planId).toBeTruthy();
-    expect(alertCalls[0].context.durationDays).toBe(14);
+    expect(alertCalls[0]!.key).toBe('plan-persister-truncate:seoul+busan+jeju:14');
+    expect(alertCalls[0]!.channel).toBe('admin');
+    expect(alertCalls[0]!.severity).toBe('high');
+    expect(alertCalls[0]!.message).toMatch(/Plan truncated/);
+    expect(alertCalls[0]!.context!.planId).toBeTruthy();
+    expect(alertCalls[0]!.context!.durationDays).toBe(14);
   });
 
   it('region fallback: regions[] missing → uses area in dedup key', async () => {
     const db = makeAdminDbMock();
     const itinerary = makeHugeItinerary(10, 12_000);
 
-    await persistPlan(db as any, {
+    await persistPlan(db, {
       body: { adults: 2, children: 0 }, // no regions
       itinerary,
       uid: null, // guest
@@ -230,8 +247,8 @@ describe('PR #460 X-H1 — planPersister truncation surfacing', () => {
     });
 
     expect(alertCalls.length).toBe(1);
-    expect(alertCalls[0].key).toBe('plan-persister-truncate:busan:10');
-    expect(alertCalls[0].context.uid).toBe('guest');
+    expect(alertCalls[0]!.key).toBe('plan-persister-truncate:busan:10');
+    expect(alertCalls[0]!.context!.uid).toBe('guest');
   });
 });
 

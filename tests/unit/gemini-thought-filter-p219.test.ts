@@ -38,17 +38,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // import 한 모듈 중 prod env 필요한 게 있을 수 있어 try/catch 로 안전망).
 
 describe('P219 extractTextFromResponse — 런타임 동작', () => {
-  let extractTextFromResponse: any;
-  let extractTextFromChunk: any;
+  let extractTextFromResponse: typeof import('../../api/_ai_core/geminiPipeline.js').extractTextFromResponse;
+  let extractTextFromChunk: typeof import('../../api/_ai_core/geminiPipeline.js').extractTextFromChunk;
   let loaded = false;
 
   beforeAll(async () => {
     try {
       const mod = await import('../../api/_ai_core/geminiPipeline.js');
-      extractTextFromResponse = (mod as any).extractTextFromResponse;
-      extractTextFromChunk = (mod as any).extractTextFromChunk;
+      extractTextFromResponse = mod.extractTextFromResponse;
+      extractTextFromChunk = mod.extractTextFromChunk;
       loaded = typeof extractTextFromResponse === 'function' && typeof extractTextFromChunk === 'function';
-    } catch (e) {
+    } catch {
       // env-dependent import 실패 — 소스 레벨 검사로 fallback (아래 describe).
       loaded = false;
     }

@@ -70,8 +70,9 @@ describe('P116 — source-level invariants (lodging role labeling)', () => {
 
 describe('P116 — computeLodgingRole behavior (re-implemented locally)', () => {
   // Mirror of DayTimeline's computeLodgingRole — same logic for direct test.
+  type Stop = { category: string; name: string };
   function computeLodgingRole(
-    stop: any, si: number, stopsArr: any[], hasIntercity: boolean,
+    stop: Stop, si: number, stopsArr: Stop[], hasIntercity: boolean,
   ): 'checkout' | 'depart' | 'checkin' | 'return' | undefined {
     if (stop.category !== 'lodging') return undefined;
     const isFirst = si === 0;

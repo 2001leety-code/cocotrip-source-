@@ -72,16 +72,18 @@ export default function AdminZoneCourses() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<ZoneCourseDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [previousAuthLoading, setPreviousAuthLoading] = useState(authLoading);
+  if (previousAuthLoading !== authLoading) {
+    setPreviousAuthLoading(authLoading);
+    if (!authLoading) setLoading(true);
+  }
   const [cityFilter, setCityFilter] = useState<ZoneCourseCity | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<ZoneCourseSource | 'all'>('all');
 
   const reload = async () => {
     setLoading(true);
     try {
-      const list = await fetchZoneCoursesList({
-        city: cityFilter,
-        source: sourceFilter,
-      });
+      const list = await fetchZoneCoursesList({ city: cityFilter, source: sourceFilter });
       setItems(list);
     } catch (err) {
       toast.error(`불러오기 실패: ${err instanceof Error ? err.message : 'unknown'}`);
@@ -91,8 +93,15 @@ export default function AdminZoneCourses() {
   };
 
   useEffect(() => {
-    if (!authLoading) void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (authLoading) return;
+    let cancelled = false;
+    void fetchZoneCoursesList({ city: cityFilter, source: sourceFilter })
+      .then((list) => { if (!cancelled) setItems(list); })
+      .catch((err) => {
+        if (!cancelled) toast.error(`불러오기 실패: ${err instanceof Error ? err.message : 'unknown'}`);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [authLoading, cityFilter, sourceFilter]);
 
   const counts = useMemo(() => {
@@ -185,7 +194,10 @@ export default function AdminZoneCourses() {
             <label className="text-[10px] font-bold uppercase text-gray-500">도시</label>
             <select
               value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value as ZoneCourseCity | 'all')}
+              onChange={(e) => {
+                setLoading(true);
+                setCityFilter(e.target.value as ZoneCourseCity | 'all');
+              }}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
             >
               {CITY_FILTERS.map((c) => (
@@ -197,7 +209,10 @@ export default function AdminZoneCourses() {
             <label className="text-[10px] font-bold uppercase text-gray-500">출처</label>
             <select
               value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value as ZoneCourseSource | 'all')}
+              onChange={(e) => {
+                setLoading(true);
+                setSourceFilter(e.target.value as ZoneCourseSource | 'all');
+              }}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
             >
               {SOURCE_FILTERS.map((s) => (

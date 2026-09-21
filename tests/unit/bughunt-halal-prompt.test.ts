@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildUserMessage } from '../../api/_ai_core/userMessageBuilder.js';
 
-function makeShaped(overrides: any = {}) {
+function makeShaped(overrides: Record<string, unknown> = {}) {
   return {
     guestName: 'Sarah',
     pax: 2,
@@ -72,7 +72,9 @@ const CTX = {
 };
 
 /** message 안의 userInput JSON 파싱 (DYNAMIC SUFFIX 구간). */
-function extractUserInput(msg: string): any {
+type UserInput = Record<string, unknown>;
+
+function extractUserInput(msg: string): UserInput {
   // userInputJson 은 '{"guest_name":' 로 시작하는 JSON 객체. variationTail 이 그 뒤에 붙는다.
   const start = msg.indexOf('{"guest_name"');
   expect(start).toBeGreaterThan(-1);
@@ -88,7 +90,7 @@ function extractUserInput(msg: string): any {
     }
   }
   expect(end).toBeGreaterThan(start);
-  return JSON.parse(msg.slice(start, end));
+  return JSON.parse(msg.slice(start, end)) as UserInput;
 }
 
 describe('버그헌트 #5 (halal) — Halal/Vegan diet_preferences 발화', () => {

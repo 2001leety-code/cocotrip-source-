@@ -43,7 +43,7 @@ describe('P283 LODGING ZONE PREFERENCE — Day 2+ enforce rule', () => {
 
   // ── runtime — buildUserMessage 호출 시 LODGING ZONE rule 강화 부분 포함 ──────
 
-  function makeShaped(overrides: any = {}) {
+  function makeShaped(overrides: Record<string, unknown> = {}) {
     return {
       guestName: 'Sarah',
       pax: 2,

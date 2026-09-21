@@ -174,7 +174,7 @@ export function InquiryForm({ vehicle, state, language }: Props) {
     return (
       <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-7 text-center">
         <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-        <p className="text-lg text-emerald-100 font-bold">{s.successToast}</p>
+        <p className="text-lg text-emerald-100 font-bold [.cocotrip-mobile-charter_&]:text-emerald-800">{s.successToast}</p>
       </div>
     );
   }

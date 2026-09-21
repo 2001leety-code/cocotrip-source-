@@ -16,19 +16,20 @@ const FOOD = [
   { name: '대전집', nameEn: 'Daejeon', city: 'daejeon', rating: 4.9, reviewCount: 500, placeId: 'E' },      // 화이트리스트 밖
   { name: '영문명없음', nameEn: '', city: 'seoul', rating: 4.9, reviewCount: 500, placeId: 'F' },           // nameEn 누락
 ];
+type FoodMaterial = { name: string; city: string; cityLabel?: string; priceLabel?: string; priceLabelKo?: string };
 
 describe('selectFoodMaterials — 필터·정규화·결정적 정렬', () => {
-  const mats = selectFoodMaterials(FOOD);
+  const mats: FoodMaterial[] = selectFoodMaterials(FOOD);
   it('고품질(4.5+,리뷰50+) + 화이트리스트(seoul/busan) + 필수필드 = 2곳', () => {
-    expect(mats.map((m: any) => m.name)).toEqual(['종로 한식집', '부산 회집']); // placeId A,B 정렬
+    expect(mats.map((m) => m.name)).toEqual(['종로 한식집', '부산 회집']); // placeId A,B 정렬
   });
   it("Unknown/미정 가격 → 빈 문자열 (가격 주장 안 함)", () => {
-    const busan = mats.find((m: any) => m.city === 'busan');
-    expect(busan.priceLabel).toBe('');
-    expect(busan.priceLabelKo).toBe('');
+    const busan = mats.find((m) => m.city === 'busan');
+    expect(busan!.priceLabel).toBe('');
+    expect(busan!.priceLabelKo).toBe('');
   });
   it('cityLabel 한글 매핑', () => {
-    expect(mats.find((m: any) => m.city === 'seoul').cityLabel).toBe('서울');
+    expect(mats.find((m) => m.city === 'seoul')!.cityLabel).toBe('서울');
   });
   it('빈/undefined 입력 → [] (throw 없음)', () => {
     expect(selectFoodMaterials([])).toEqual([]);

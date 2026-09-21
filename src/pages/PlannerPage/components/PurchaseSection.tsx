@@ -74,8 +74,13 @@ export function PurchaseSection({
   // P1-②(여름 이벤트): 로그인 사용자의 AI 무료 쿠폰(1~3일) 조회 → "무료 쿠폰 사용" 버튼 노출.
   const [aiCoupon, setAiCoupon] = useState<{ code: string; maxDays: number } | null>(null);
   const [isSending, setIsSending] = useState(false); // 진행 버튼 더블클릭 방지 — 0원 결제 1회 보장(결제 적대검증 1🟡). 3초 후 자동 해제(에러 시 재시도 허용).
+  const [previousCouponUser, setPreviousCouponUser] = useState(user);
+  if (previousCouponUser !== user) {
+    setPreviousCouponUser(user);
+    if (!user) setAiCoupon(null);
+  }
   useEffect(() => {
-    if (!user) { setAiCoupon(null); return; }
+    if (!user) return;
     const days = (lastValues?.current?.durationDays as number) || 3;
     let on = true;
     getAvailableAiCoupon(user.uid, days).then((c) => { if (on) setAiCoupon(c); });

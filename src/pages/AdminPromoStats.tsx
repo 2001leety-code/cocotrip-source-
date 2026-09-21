@@ -108,11 +108,18 @@ function CouponCard({
 
 export default function AdminPromoStats() {
   const { user } = useAuth();
-  const [data, setData] = useState<PromoData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
+  const [data, setData] = useState<PromoData | null>(null);
+  const [loading, setLoading] = useState(isAdmin);
+  const [error, setError] = useState<string | null>(null);
+  const [previousUser, setPreviousUser] = useState(user);
+  if (previousUser !== user) {
+    setPreviousUser(user);
+    if (isAdmin) {
+      setLoading(true);
+      setError(null);
+    }
+  }
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -134,8 +141,20 @@ export default function AdminPromoStats() {
   }, [user]);
 
   useEffect(() => {
-    if (isAdmin) void load();
-  }, [isAdmin, load]);
+    if (!isAdmin || !user) return;
+    let cancelled = false;
+    void user.getIdToken()
+      .then((idToken) => fetch('/api/admin-promo-stats', { headers: { Authorization: `Bearer ${idToken}` } }))
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (!json.ok) throw new Error(json.error || 'unknown');
+        setData(json.data as PromoData);
+      })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'unknown'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [isAdmin, user]);
 
   if (!isAdmin) {
     return (

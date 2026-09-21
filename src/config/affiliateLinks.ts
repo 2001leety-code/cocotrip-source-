@@ -58,6 +58,12 @@ export function isAffiliateConfigured(): boolean {
   return /^\d{4,}$/.test(id) && /^\d{4,}$/.test(sid);
 }
 
+/** 신규 홈 제휴 노출은 기능 플래그와 실제 계정 설정이 모두 있어야 한다. */
+export function shouldShowHomeAffiliate(): boolean {
+  const flag = String(import.meta.env.VITE_FEATURE_HOME_AFFILIATE || '').trim() === 'true';
+  return flag && isAffiliateConfigured();
+}
+
 function buildTripAff(): string {
   const allianceId = trimEnv(import.meta.env.VITE_TRIPCOM_AFFILIATE_ID) || LEGACY_ALLIANCE_ID;
   const sid = trimEnv(import.meta.env.VITE_TRIPCOM_SID) || LEGACY_SID;

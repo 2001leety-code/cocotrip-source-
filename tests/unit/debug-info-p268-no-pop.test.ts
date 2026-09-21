@@ -25,9 +25,12 @@ const debugInfoSrc = readFileSync(
 
 import { buildAdminDebug } from '../../api/_ai_core/debugInfo.js';
 
+type CacheMetadata = { cached: number; total: number; output: number };
+type TestItinerary = { _cache_metadata?: CacheMetadata; days?: unknown[]; tour_title?: string };
+
 describe('P268 — buildAdminDebug preserves itinerary._cache_metadata', () => {
   it('admin-bypass + cacheMetadata 있음: _debug 에 노출 + itinerary._cache_metadata 유지', () => {
-    const itinerary: any = {
+    const itinerary: TestItinerary = {
       tour_title: 'Test',
       days: [],
       _cache_metadata: { cached: 5000, total: 25000, output: 8000 },
@@ -51,12 +54,12 @@ describe('P268 — buildAdminDebug preserves itinerary._cache_metadata', () => {
 
     // P268 핵심: itinerary._cache_metadata 가 pop 되지 않고 유지됨
     expect(itinerary._cache_metadata).toBeDefined();
-    expect(itinerary._cache_metadata.cached).toBe(5000);
-    expect(itinerary._cache_metadata.total).toBe(25000);
+    expect(itinerary._cache_metadata!.cached).toBe(5000);
+    expect(itinerary._cache_metadata!.total).toBe(25000);
   });
 
   it('non-admin-bypass: undefined 반환 + itinerary 변경 X', () => {
-    const itinerary: any = {
+    const itinerary: TestItinerary = {
       _cache_metadata: { cached: 1, total: 2, output: 3 },
     };
     const debug = buildAdminDebug({
@@ -75,7 +78,7 @@ describe('P268 — buildAdminDebug preserves itinerary._cache_metadata', () => {
   });
 
   it('itinerary._cache_metadata 없음: cm fallback {0,0,0} + itinerary 변경 X', () => {
-    const itinerary: any = { tour_title: 'No cache' };
+    const itinerary: TestItinerary = { tour_title: 'No cache' };
     const debug = buildAdminDebug({
       gate: { isAdminBypass: true },
       plannerMode: 'legacy',
@@ -93,7 +96,7 @@ describe('P268 — buildAdminDebug preserves itinerary._cache_metadata', () => {
   });
 
   it('buildAdminDebug 2회 연속 호출: itinerary._cache_metadata 유지 (idempotent)', () => {
-    const itinerary: any = {
+    const itinerary: TestItinerary = {
       _cache_metadata: { cached: 1000, total: 10000, output: 2000 },
     };
     const args = {
@@ -112,7 +115,7 @@ describe('P268 — buildAdminDebug preserves itinerary._cache_metadata', () => {
     expect(d1!.totalInputTokens).toBe(10000);
     expect(d2!.totalInputTokens).toBe(10000);
     // P268: 두 번째 호출도 cacheMetadata 정상 — delete 없음
-    expect(itinerary._cache_metadata.total).toBe(10000);
+    expect(itinerary._cache_metadata!.total).toBe(10000);
   });
 });
 

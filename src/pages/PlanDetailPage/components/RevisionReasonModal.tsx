@@ -129,7 +129,6 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
   // 진단 로그: 모달 open prop 변화를 운영자가 추적할 수 있게 함.
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // eslint-disable-next-line no-console
       console.log('[RevisionReasonModal] open prop changed:', open);
     }
   }, [open]);

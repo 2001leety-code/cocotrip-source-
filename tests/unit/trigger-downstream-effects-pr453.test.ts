@@ -74,9 +74,9 @@ describe('PR #453 Z-H7 — triggerAiPlanner helper', () => {
   });
 
   it('returns ok:false on invalid args (caller fire-and-forget safe)', async () => {
-    const r1 = await triggerAiPlanner({} as any);
+    const r1 = await triggerAiPlanner({});
     expect(r1.ok).toBe(false);
-    const r2 = await triggerAiPlanner({ siteUrl: 'x' } as any);
+    const r2 = await triggerAiPlanner({ siteUrl: 'x' });
     expect(r2.ok).toBe(false);
   });
 });
@@ -118,7 +118,7 @@ describe('PR #453 Z-H7 — cron + infra wiring', () => {
 
   it('vercel.json schedules ai-planner-retry-sweep every 5 minutes', () => {
     const json = JSON.parse(vercelJsonSrc);
-    const cron = json.crons.find((c: any) => c.path?.includes('ai-planner-retry-sweep'));
+    const cron = json.crons.find((c: { path?: string }) => c.path?.includes('ai-planner-retry-sweep'));
     expect(cron, 'ai-planner-retry-sweep cron must be registered').toBeTruthy();
     expect(cron.schedule).toBe('*/5 * * * *');
   });

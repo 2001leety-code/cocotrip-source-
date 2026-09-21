@@ -3,7 +3,7 @@
 // impeccable findings → TRUE/BRAND/NOISE 분류가 2026-06-01 수동 트리아지와 일치하는지 검증.
 // (메모리 project_cocotrip_design_deepsearch_2026_06_01: 200 findings → TRUE 7uniq / BRAND 89 / NOISE 99)
 import { describe, it, expect } from 'vitest';
-// @ts-ignore — .mjs 스크립트(타입 선언 없음), 순수 함수만 import.
+// @ts-expect-error — .mjs 스크립트(타입 선언 없음), 순수 함수만 import.
 import { categorize, isNoise, BRAND } from '../../scripts/design-audit.mjs';
 
 const F = (antipattern: string, snippet: string) => ({ antipattern, snippet });

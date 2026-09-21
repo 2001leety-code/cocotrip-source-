@@ -25,7 +25,7 @@
  *   J. wrap boundary: exactly 1440 → cap
  *   K. wrap boundary: 1439 → no cap
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { detectUnreasonableStopTimes, runUnreasonableStopTimesCheck } from '../../api/_ai_core/planPersister.js';
 
 // ─── Mock throttledTelegramAlert (planPersister imports it) ───────────────────
@@ -140,7 +140,7 @@ describe('detectUnreasonableStopTimes — pre-dawn detection', () => {
     ]);
     const alerts = detectUnreasonableStopTimes(itin);
     expect(alerts).toHaveLength(2);
-    expect(alerts.map((a: any) => a.start_time)).toEqual(['00:17', '02:47']);
+    expect(alerts.map((a: { start_time?: string }) => a.start_time)).toEqual(['00:17', '02:47']);
   });
 
   it('04:59 stop → alert (< 05:00)', () => {

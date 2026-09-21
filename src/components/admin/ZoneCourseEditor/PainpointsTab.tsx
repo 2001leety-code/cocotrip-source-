@@ -13,10 +13,22 @@ interface Props {
 
 export function PainpointsTab({ draft }: Props) {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
   const [painpoints, setPainpoints] = useState<PainpointHint[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [automaticRequest, setAutomaticRequest] = useState(() => (
+    user && draft.city ? { user, city: draft.city, zone: draft.zone } : null
+  ));
+  const [previousTarget, setPreviousTarget] = useState(() => ({ city: draft.city, zone: draft.zone }));
+  const [loading, setLoading] = useState(!!automaticRequest);
+
+  if (draft.city !== previousTarget.city || draft.zone !== previousTarget.zone) {
+    setPreviousTarget({ city: draft.city, zone: draft.zone });
+    if (user && draft.city && !loaded && !loading) {
+      setAutomaticRequest({ user, city: draft.city, zone: draft.zone });
+      setLoading(true);
+    }
+  }
 
   const load = async () => {
     if (!user || !draft.city) return;
@@ -37,11 +49,26 @@ export function PainpointsTab({ draft }: Props) {
   };
 
   useEffect(() => {
-    if (draft.city && !loaded && !loading) {
-      void load();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.city, draft.zone]);
+    if (!automaticRequest) return;
+    let cancelled = false;
+    void fetchTrendHints(automaticRequest.user, {
+      city: automaticRequest.city,
+      zone: automaticRequest.zone,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setPainpoints(data.painpoints);
+        setNotices(data.notices);
+        setLoaded(true);
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(`painpoints 로드 실패: ${err instanceof Error ? err.message : 'unknown'}`);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [automaticRequest]);
 
   if (!draft.city) {
     return (

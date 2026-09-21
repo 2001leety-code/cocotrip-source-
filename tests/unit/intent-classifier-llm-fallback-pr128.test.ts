@@ -10,14 +10,14 @@
  *   4. llmClassifyModification — Gemini API mocked to return malformed JSON → graceful no_change
  *   5. combineRuleAndLLMClassification — low-confidence rule-based + successful LLM → LLM result
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock @google/generative-ai 모듈
 const mockGenerateContent = vi.fn();
 vi.mock('@google/generative-ai', () => {
   // class 형태로 mock — new GoogleGenerativeAI(apiKey) 호출 호환.
   class MockGoogleGenerativeAI {
-    constructor(_apiKey: string) {}
+    constructor(apiKey: string) { void apiKey; }
     getGenerativeModel() {
       return {
         generateContent: (...args: unknown[]) => mockGenerateContent(...args),

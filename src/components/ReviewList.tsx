@@ -27,6 +27,15 @@ interface ReviewItem {
   language?: string;
 }
 
+async function requestReviews(targetType: Props['targetType'], targetId: string) {
+  const res = await authFetch('/api/reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'list', targetType, targetId }),
+  });
+  return res.json();
+}
+
 export function ReviewList({ targetType, targetId, surface = 'legacy' }: Props) {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -37,12 +46,7 @@ export function ReviewList({ targetType, targetId, surface = 'legacy' }: Props) 
 
   const fetchReviews = useCallback(async () => {
     try {
-      const res = await authFetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', targetType, targetId }),
-      });
-      const data = await res.json();
+      const data = await requestReviews(targetType, targetId);
       setReviews(data.reviews || []);
       if (user) {
         setHasReviewed(data.reviews?.some((r: ReviewItem) => r.authorUid === user.uid) || false);
@@ -51,7 +55,18 @@ export function ReviewList({ targetType, targetId, surface = 'legacy' }: Props) 
     finally { setLoading(false); }
   }, [targetType, targetId, user]);
 
-  useEffect(() => { fetchReviews(); }, [fetchReviews]);
+  useEffect(() => {
+    let cancelled = false;
+    void requestReviews(targetType, targetId)
+      .then((data) => {
+        if (cancelled) return;
+        setReviews(data.reviews || []);
+        if (user) setHasReviewed(data.reviews?.some((r: ReviewItem) => r.authorUid === user.uid) || false);
+      })
+      .catch(() => { /* silent */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [targetType, targetId, user]);
 
   const handleDelete = (id: string) => {
     setReviews(prev => prev.filter(r => r.id !== id));

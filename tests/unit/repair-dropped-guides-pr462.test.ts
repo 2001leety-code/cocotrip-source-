@@ -36,9 +36,10 @@ const src = readFileSync(
   'utf8',
 );
 
-const alertCalls: any[] = [];
+type AlertCall = { key?: string; channel?: string; severity?: string; message?: string };
+const alertCalls: AlertCall[] = [];
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: vi.fn(async (args: any) => {
+  throttledTelegramAlert: vi.fn(async (args: AlertCall) => {
     alertCalls.push(args);
     return { ok: true, alerted: true };
   }),
@@ -75,9 +76,9 @@ describe('PR #462 X-H3 — detectDroppedKeys helper', () => {
   });
 
   it('defensive: null / undefined repaired returns empty (never throws)', () => {
-    expect(detectDroppedKeys(null as any, null as any)).toEqual([]);
-    expect(detectDroppedKeys('', null as any)).toEqual([]);
-    expect(detectDroppedKeys('{"arrival_guide":{}}', undefined as any)).toEqual([]);
+    expect(detectDroppedKeys(null as unknown, null as unknown)).toEqual([]);
+    expect(detectDroppedKeys('', null as unknown)).toEqual([]);
+    expect(detectDroppedKeys('{"arrival_guide":{}}', undefined as unknown)).toEqual([]);
   });
 });
 
@@ -105,7 +106,7 @@ describe('PR #462 X-H3 — classifyMissingKeys helper', () => {
 
   it('defensive: empty / non-string rawText puts all keys in notEmitted', () => {
     expect(classifyMissingKeys('', ['arrival_guide']).notEmitted).toEqual(['arrival_guide']);
-    expect(classifyMissingKeys(null as any, ['arrival_guide']).notEmitted).toEqual(['arrival_guide']);
+    expect(classifyMissingKeys(null as unknown, ['arrival_guide']).notEmitted).toEqual(['arrival_guide']);
   });
 });
 

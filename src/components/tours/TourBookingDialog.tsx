@@ -254,13 +254,16 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // 2026-06-11 가입 프로필 prefill — phone 만 빈칸일 때 채움 (픽업/WhatsApp/LINE/메모는 프로필 미수집 → 무변경).
   // localStorage 직전입력/사용자 타이핑은 절대 안 덮음(functional update 로 최신 phone 확인). 실패/로그아웃=빈칸 graceful.
   const { profile: prefillProfile } = useUserProfile();
-  const phonePrefilled = useRef(false);
-  useEffect(() => {
-    if (phonePrefilled.current || !prefillProfile) return;
-    phonePrefilled.current = true; // 프로필 도착 후 1회만 (지운 빈칸 재주입 방지 — critique #4)
-    const p = normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode);
-    if (!isEmptyVal(p)) setPhone((cur) => (isEmptyVal(cur) ? p : cur));
-  }, [prefillProfile]);
+  const [previousPrefillProfile, setPreviousPrefillProfile] = useState<typeof prefillProfile | null>(null);
+  const [phonePrefilled, setPhonePrefilled] = useState(false);
+  if (previousPrefillProfile !== prefillProfile) {
+    setPreviousPrefillProfile(prefillProfile);
+    if (!phonePrefilled && prefillProfile) {
+      setPhonePrefilled(true); // 프로필 도착 후 1회만 (지운 빈칸 재주입 방지 — critique #4)
+      const p = normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode);
+      if (!isEmptyVal(p)) setPhone((cur) => (isEmptyVal(cur) ? p : cur));
+    }
+  }
 
   // 2026-07-26: 위 prefill 이 읽는 값을 쓰는 코드가 없어 매 예약마다 재입력이었다 → 저장 배선.
   useProfileContactSync(phone);
@@ -279,14 +282,19 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   );
 
   // 날짜 변경 시 슬롯 선택 reset (날짜별 capacity 변할 수 있어 — 향후 확장 대비)
-  useEffect(() => {
+  const slotResetKey = `${date}:${activeSlots.length}`;
+  const [previousSlotResetKey, setPreviousSlotResetKey] = useState<string | null>(null);
+  if (previousSlotResetKey !== slotResetKey) {
+    setPreviousSlotResetKey(slotResetKey);
     if (activeSlots.length === 0) setSelectedSlotId(null);
-  }, [date, activeSlots.length]);
+  }
 
   // pax 감소 시 한복 인원 clamp (예: 4명→2명 변경 시 hanbokCount 4→2). 증가 시는 무변경.
-  useEffect(() => {
+  const [previousPax, setPreviousPax] = useState<number | null>(null);
+  if (previousPax !== pax) {
+    setPreviousPax(pax);
     setHanbokCount((c) => clampHanbokCount(c, pax));
-  }, [pax]);
+  }
 
   // debounced autosave — 매 키 입력마다 저장 X, 500ms 후 1번. Set 직렬화 array 변환.
   const persistValues = useMemo<TourBookingSnapshot>(() => ({

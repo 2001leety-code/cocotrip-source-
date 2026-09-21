@@ -29,16 +29,24 @@ export function useAutoTranslate(
   language: string,
 ): { isTranslating: boolean; translationError: string | null } {
   const originalItineraryRef = useRef<PlanDocument['itinerary'] | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationState, setTranslationState] = useState({ completed: false, error: null as string | null });
   // Surfaces in IntroSlide/OutroSlide as a yellow chip when non-null. Previously
   // failures were silently logged → user saw English text without knowing why.
-  const [translationError, setTranslationError] = useState<string | null>(null);
   // NOTE: we watch `planLoaded` (boolean) instead of `plan` object identity so this effect
   //   fires exactly once when the Firestore snapshot first lands, and thereafter only when
   //   the user switches language. Watching plan directly would re-trigger on every Firestore
   //   update and re-translate unnecessarily.
   const planLoaded = !!plan?.itinerary;
   const planId: string = (plan as Record<string, unknown>)?.id as string || '';
+  const originalLang = plan?.input?.language || 'en';
+  const translationStateKey = `${language}:${planLoaded}`;
+  const [previousTranslationStateKey, setPreviousTranslationStateKey] = useState(translationStateKey);
+  if (previousTranslationStateKey !== translationStateKey) {
+    setPreviousTranslationStateKey(translationStateKey);
+    setTranslationState({ completed: false, error: null });
+  }
+  const isTranslating = planLoaded && language !== originalLang && !translationState.completed;
+  const translationError = translationState.error;
 
   useEffect(() => {
     if (!planLoaded || !plan?.itinerary) return;
@@ -48,27 +56,25 @@ export function useAutoTranslate(
     }
     const targetLang = language as string;
     // The plan's original language - restore when user switches back
-    const originalLang = plan.input?.language || 'en';
     if (targetLang === originalLang) {
       // Restore original without API call
       if (originalItineraryRef.current) {
         setPlan((prev) => prev ? { ...prev, itinerary: originalItineraryRef.current! } : prev);
       }
-      setTranslationError(null);
       return;
     }
 
     // Translate to target language (with Firestore cache)
     const controller = new AbortController();
-    setIsTranslating(true);
-    setTranslationError(null);
     (async () => {
+      let error: string | null = null;
       try {
         // --- Step 1: Check Firestore cache ---
         if (planId && planId.length > 0) {
           try {
             const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
             const cacheSnap = await getDoc(cacheRef);
+            if (controller.signal.aborted) return;
             if (cacheSnap.exists()) {
               const cached = cacheSnap.data();
               if (cached?.itinerary) {
@@ -83,7 +89,6 @@ export function useAutoTranslate(
                 } else {
                   // Cache HIT — apply immediately
                   setPlan((prev) => prev ? { ...prev, itinerary: cached.itinerary as PlanDocument['itinerary'] } : prev);
-                  setIsTranslating(false);
                   return;
                 }
               }
@@ -102,6 +107,7 @@ export function useAutoTranslate(
           signal: controller.signal,
         });
         const json = await resp.json();
+        if (controller.signal.aborted) return;
         const payload = json.data;
         if (payload.translated) {
           setPlan((prev) => prev ? { ...prev, itinerary: payload.translated } : prev);
@@ -125,13 +131,13 @@ export function useAutoTranslate(
       } catch (e: unknown) {
         if (e instanceof Error && e.name !== 'AbortError') {
           console.error('[translate] failed:', e);
-          setTranslationError(e.message || 'Translation failed');
+          error = e.message || 'Translation failed';
         }
       } finally {
-        setIsTranslating(false);
+        if (!controller.signal.aborted) setTranslationState({ completed: true, error });
       }
     })();
-    return () => { controller.abort(); setIsTranslating(false); };
+    return () => { controller.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, planLoaded]);
 

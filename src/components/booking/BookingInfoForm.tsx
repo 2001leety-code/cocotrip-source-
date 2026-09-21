@@ -9,7 +9,7 @@
 //     자동완성 확인 시 아래 텍스트 input 에 주소 자동 채움. 사용자가 직접 타이핑하면 자동완성 coord 초기화.
 //   externalArrivalTime prop - 호출처(Step5DateOptions)가 /api/flight-status 조회 결과를 전달하면
 //     arrivalTime 입력에 자동 채움(HH:mm 형식). 사용자가 직접 수정 시 input 을 덮어쓰지 않음(isTouched guard).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
@@ -341,16 +341,17 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   };
 
   // #4 항공편 도착시간 외부 채움 — externalArrivalTime(HH:mm) 변경 시 arrivalTime 자동 set.
-  //   사용자가 직접 수정한 적 있으면(arrivalTimeTouched.current=true) 덮어쓰지 않음.
-  const arrivalTimeTouched = useRef(false);
-  useEffect(() => {
-    if (!props.externalArrivalTime) return;
-    if (arrivalTimeTouched.current) return;
-    // "HH:MM:SS" → "HH:MM" 로 잘라 time input 호환 형식 확보.
-    const t = props.externalArrivalTime.slice(0, 5);
-    if (/^\d{2}:\d{2}$/.test(t)) set({ arrivalTime: t });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.externalArrivalTime]);
+  //   사용자가 직접 수정한 적 있으면(arrivalTimeTouched=true) 덮어쓰지 않음.
+  const [arrivalTimeTouched, setArrivalTimeTouched] = useState(false);
+  const [previousExternalArrivalTime, setPreviousExternalArrivalTime] = useState<string | undefined | null>(null);
+  if (previousExternalArrivalTime !== props.externalArrivalTime) {
+    setPreviousExternalArrivalTime(props.externalArrivalTime);
+    if (props.externalArrivalTime && !arrivalTimeTouched) {
+      // "HH:MM:SS" → "HH:MM" 로 잘라 time input 호환 형식 확보.
+      const t = props.externalArrivalTime.slice(0, 5);
+      if (/^\d{2}:\d{2}$/.test(t)) set({ arrivalTime: t });
+    }
+  }
 
   // 전화번호 controlled 위임 — props.phone 제공 시 호출처가 소유 (내부 f.phone 미사용).
   const phoneValue = props.phone !== undefined ? props.phone : f.phone;
@@ -361,16 +362,20 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   // resume 역파싱 — 부모/내부 phoneValue("+82 1012345678" 또는 구 raw "01012345678")를
   //   마운트/prop변경 시 selDial + localNumber 로 분리. 사용자 타이핑 중 덮어쓰지 않도록
   //   합성값(composePhoneValue 결과)과 동일하면 skip (자기 emit 의 echo 무시 = 커서 점프 방지).
-  useEffect(() => {
-    if (!phoneValue) { setLocalNumber(''); return; }
+  const [previousPhoneValue, setPreviousPhoneValue] = useState<string | undefined | null>(null);
+  if (previousPhoneValue !== phoneValue) {
+    setPreviousPhoneValue(phoneValue);
+    if (!phoneValue) {
+      setLocalNumber('');
+    } else {
     // 현재 selDial+localNumber 합성과 같으면(내가 방금 emit 한 값) 역파싱 skip.
-    if (phoneValue === composePhoneValue(selDial, normalizeNationalNumber(localNumber, selDial))) return;
-    const { dial, national } = parsePhoneValue(phoneValue);
-    if (dial) setSelDial(dial);            // "+82 ..." → dial 동기. 구 raw(dial='')는 기존 selDial 유지.
-    setLocalNumber(national);
-    // selDial/localNumber 는 의도적으로 deps 제외 — phoneValue(부모 SSOT) 변할 때만 역파싱.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phoneValue]);
+      if (phoneValue !== composePhoneValue(selDial, normalizeNationalNumber(localNumber, selDial))) {
+        const { dial, national } = parsePhoneValue(phoneValue);
+        if (dial) setSelDial(dial);            // "+82 ..." → dial 동기. 구 raw(dial='')는 기존 selDial 유지.
+        setLocalNumber(national);
+      }
+    }
+  }
 
   // dial 또는 번호 변경 시 합성값 emit — "+{dial} {national}" (공백 1개, leading 0 strip, 이중 prefix strip).
   const emitPhone = (dial: string, rawNumber: string) => {
@@ -561,7 +566,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   <input
                     type="time"
                     value={f.arrivalTime}
-                    onChange={(e) => { arrivalTimeTouched.current = true; set({ arrivalTime: e.target.value }); }}
+                    onChange={(e) => { setArrivalTimeTouched(true); set({ arrivalTime: e.target.value }); }}
                     style={{ ...C.input, colorScheme: 'dark' }}
                     onFocus={focusable}
                     onBlur={blurable}

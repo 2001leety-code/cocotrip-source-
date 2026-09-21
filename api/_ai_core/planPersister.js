@@ -355,7 +355,6 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
       }
       if (!detectedConflict) continue;
       // Re-assign so downstream `conflictingCity` references work uniformly.
-      // eslint-disable-next-line no-const-assign
       const _conflictAsKey = detectedConflict;
 
       // 교정 placeholder 결정 (사용자 hotelByCity > zone > default 순)

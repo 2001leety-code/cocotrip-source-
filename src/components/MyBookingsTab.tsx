@@ -41,6 +41,22 @@ interface Booking {
   };
 }
 
+type BookingLoadResult = { bookings: Booking[]; error: string | null };
+
+async function requestBookings(tier: string): Promise<BookingLoadResult> {
+  try {
+    // PR #418 IDOR fix: Authorization Bearer + verified email server-side.
+    // body/query userEmail 더 이상 안 보냄.
+    const qs = new URLSearchParams({ tier }).toString();
+    const res = await authFetch(`/api/my-bookings?${qs}`);
+    const json = await res.json();
+    if (json.ok) return { bookings: json.data.bookings || [], error: null };
+    return { bookings: [], error: json.error || 'Failed to load bookings' };
+  } catch (err) {
+    return { bookings: [], error: err instanceof Error ? err.message : 'Network error' };
+  }
+}
+
 // 2026-05-04: productType 키 → 사용자 친화 라벨. 4-lang 사전은 i18n 중앙(`mypage.productLabels`)
 // 으로 이전됨 (refactor C3, 2026-05-04). raw 키가 그대로 노출되던 wart 정리.
 function prettyProductLabel(productType: string | undefined, lang: Language): string {
@@ -94,26 +110,46 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   // 사용자가 PNR/세부 정보를 볼 수 없었음 (사용자 신고: "들어가볼 수도 없음").
   const [detailTarget, setDetailTarget] = useState<Booking | null>(null);
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
+  const [automaticRequest, setAutomaticRequest] = useState(() => (
+    userEmail ? { userEmail, tier } : null
+  ));
+  const [previousAutomaticQuery, setPreviousAutomaticQuery] = useState(() => ({ userEmail, tier }));
+
+  // email은 서버가 토큰에서 검증하며 요청 본문에는 실리지 않는다. 다만 실제 로그인
+  // 계정 또는 등급이 바뀌면 기존 effect와 같이 새 목록을 로딩 상태로 전환한다.
+  if (userEmail !== previousAutomaticQuery.userEmail || tier !== previousAutomaticQuery.tier) {
+    setPreviousAutomaticQuery({ userEmail, tier });
+    if (userEmail) {
+      setAutomaticRequest({ userEmail, tier });
+      setLoading(true);
+      setError(null);
+    } else {
+      // 로그인 해제는 화면 내용을 바꾸지 않던 기존 동작을 유지하되, 이전 계정의
+      // 진행 중 자동 조회는 취소해 이후 응답이 state에 닿지 않게 한다.
+      setAutomaticRequest(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      // PR #418 IDOR fix: Authorization Bearer + verified email server-side.
-      // body/query userEmail 더 이상 안 보냄.
-      const qs = new URLSearchParams({ tier }).toString();
-      const res = await authFetch(`/api/my-bookings?${qs}`);
-      const json = await res.json();
-      if (json.ok) setBookings(json.data.bookings || []);
-      else setError(json.error || 'Failed to load bookings');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
-    } finally {
-      setLoading(false);
-    }
+    const result = await requestBookings(tier);
+    if (result.error) setError(result.error);
+    else setBookings(result.bookings);
+    setLoading(false);
   }, [tier]);
 
-  useEffect(() => { if (userEmail) load(); }, [userEmail, load]);
+  useEffect(() => {
+    if (!automaticRequest) return;
+    let cancelled = false;
+    void requestBookings(automaticRequest.tier).then((result) => {
+      if (cancelled) return;
+      if (result.error) setError(result.error);
+      else setBookings(result.bookings);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [automaticRequest]);
 
   // 2026-07-17: 브라우저 기본 prompt/confirm → 인앱 취소 확인 모달.
   //   게이트 의미는 동일 — 명시적 확인 버튼을 눌러야만 /api/cancelBooking(실환불) 호출.

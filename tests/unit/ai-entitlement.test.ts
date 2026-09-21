@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { hasAiFeatureEntitlement } from '../../api/_shared/ai-entitlement.js';
 
-function mockDb(userDoc: any) {
+function mockDb(userDoc: unknown) {
   return {
     collection: () => ({
       doc: () => ({

@@ -92,7 +92,10 @@ describe('PR #450 W-H16 — onSnapshot effect still wired correctly', () => {
   });
 
   it('still gates on !planId and authLoading early', () => {
-    expect(src).toMatch(/if\s*\(\s*!planId\s*\)\s*\{[^}]*setError\(\s*['"]notfound['"]/);
+    // 경로 없는 상태는 lazy 초기값/guarded render에서 확정한다. effect가 동기 setState로
+    // 한 프레임 늦게 처리하면 React의 cascading-render 진단이 다시 생긴다.
+    expect(src).toMatch(/useState[^\n]*\(\(\)\s*=>\s*planId\s*\?\s*null\s*:\s*['"]notfound['"]\)/);
+    expect(src).toMatch(/if\s*\(\s*!planId\s*\)\s*return/);
     expect(src).toMatch(/if\s*\(\s*authLoading\s*\)\s*return/);
   });
 });

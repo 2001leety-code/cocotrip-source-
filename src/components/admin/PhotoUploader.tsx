@@ -3,7 +3,7 @@
 //   - multiple=false: 단일 사진 (썸네일, 미팅 포인트 사진)
 //   - multiple=true: 갤러리 (드래그·드롭 정렬은 ↑↓ 버튼으로 대체)
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Upload, Trash2, Edit2, ChevronUp, ChevronDown, Loader2, Image as ImageIcon } from 'lucide-react';
 import type { TourPhoto, I18nString } from '@/data/tours';
@@ -42,9 +42,9 @@ export function PhotoUploader({
   const [progressMap, setProgressMap] = useState<Record<string, number>>({});
   const [editingAlt, setEditingAlt] = useState<{ photo: TourPhoto; index: number } | null>(null);
 
-  const valueArr: TourPhoto[] = multiple
+  const valueArr: TourPhoto[] = useMemo(() => multiple
     ? (Array.isArray(value) ? value : [])
-    : (value && !Array.isArray(value) ? [value] : []);
+    : (value && !Array.isArray(value) ? [value] : []), [multiple, value]);
 
   const updateValue = useCallback((next: TourPhoto[]) => {
     if (multiple) {

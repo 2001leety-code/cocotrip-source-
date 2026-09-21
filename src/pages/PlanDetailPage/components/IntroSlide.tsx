@@ -1,6 +1,7 @@
 // Intro slide: plan title, date, stats, arrival guide.
 // First slide in the swipe carousel.
 import { Calendar, MapPin, Users, CreditCard, MessageCircle } from 'lucide-react';
+import type { ComponentProps } from 'react';
 import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
@@ -14,6 +15,8 @@ const VEHICLE_LABELS: Record<string, string> = {
   staria_8: 'Private Staria Van (up to 7)', staria: 'Private Staria Van',
   sprinter: 'Mercedes Sprinter (8-12)', bus: 'Private Bus', vip: 'VIP Vehicle',
 };
+type PricingSummary = { vehicleLabel?: string; vehicle?: string };
+type ArrivalGuideProps = ComponentProps<typeof ArrivalGuide>;
 
 interface IntroSlideProps {
   plan: PlanDocument;
@@ -35,9 +38,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   // 노출 버그. ArrivalGuide 컴포넌트는 guide.steps / guide.route_to_hotel 둘 다
   // 비어 있어도 헤더 + 빈 토글 영역을 항상 렌더 → 사용자에게 의미 없는 빈 박스.
   // 둘 중 하나라도 실제 데이터가 있을 때만 마운트.
-  const arrivalRaw = it.arrival_guide as
-    | { steps?: unknown[]; route_to_hotel?: unknown }
-    | undefined;
+  const arrivalRaw = it.arrival_guide as ArrivalGuideProps['guide'] | undefined;
   const hasArrivalContent = !!arrivalRaw && (
     (Array.isArray(arrivalRaw.steps) && arrivalRaw.steps.length > 0) ||
     !!arrivalRaw.route_to_hotel
@@ -89,7 +90,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
         <p className="ec-body-sm mt-3">
           {input.startDate}
           {paxTotal != null ? ` | ${paxTotal} ${ui.planStatTravelers}` : ''}
-          {(() => { const pr = plan.pricing as Record<string, any> | undefined; const v = pr?.vehicleLabel || (pr?.vehicle ? (VEHICLE_LABELS[pr.vehicle] || pr.vehicle) : ''); return v ? ` | ${v}` : ''; })()}
+          {(() => { const pr = plan.pricing as PricingSummary | undefined; const v = pr?.vehicleLabel || (pr?.vehicle ? (VEHICLE_LABELS[pr.vehicle] || pr.vehicle) : ''); return v ? ` | ${v}` : ''; })()}
         </p>
         {localizedRegions.length > 0 && (
           <p className="mt-1.5 text-[14px] font-semibold tracking-wide text-ec-ink-2">
@@ -122,7 +123,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
       </a>
 
       {/* Arrival Guide */}
-      {arrival && <ArrivalGuide guide={arrival as any} />}
+      {arrival && <ArrivalGuide guide={arrival} />}
 
       {/* batch 9 fix (B9-14, 2026-05-09): swipe hint \uc81c\uac70 \u2014 5/3 batch 1 (PR #211) \uc5d0\uc11c
           \uc2a4\uc640\uc774\ud504 \uae30\ub2a5 \uc790\uccb4\ub97c \uc81c\uac70\ud588\uc73c\ub098 \uc548\ub0b4 \ubb38\uad6c\ub9cc \uc794\uc874. i18n key 'swipeHint' \ub294

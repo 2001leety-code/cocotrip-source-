@@ -10,6 +10,10 @@ import { selfHealLodgingBookend } from '../../api/_ai_core/planPersister.js';
 // @ts-expect-error — JS module
 import { applyDepartureDayFlightCap } from '../../api/_ai_core/blockMode.js';
 
+type TestStop = { category?: string; name?: string; address?: string; start_time?: string; [key: string]: unknown };
+type TestDay = { day: number; city?: string; lodging?: { name?: string; address?: string }; stops: TestStop[]; [key: string]: unknown };
+type TestItinerary = { days: TestDay[]; quality_warnings?: Array<Record<string, unknown>>; [key: string]: unknown };
+
 describe('P160 selfHealLodgingBookend', () => {
   it('첫 stop = food → synthetic lodging prepend', () => {
     const itinerary = {
@@ -24,7 +28,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealLodgingBookend(itinerary);
 
@@ -51,7 +55,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealLodgingBookend(itinerary);
 
@@ -75,7 +79,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealLodgingBookend(itinerary);
     expect(healed).toHaveLength(0); // travel 은 OK
@@ -94,7 +98,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     selfHealLodgingBookend(itinerary);
     expect(itinerary.days[0].stops[0].name).toBe('해운대 그랜드 호텔');
@@ -114,7 +118,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealLodgingBookend(itinerary);
     expect(healed).toHaveLength(0);
@@ -123,7 +127,7 @@ describe('P160 selfHealLodgingBookend', () => {
   });
 
   it('빈 stops Day 는 skip', () => {
-    const itinerary = { days: [{ day: 1, city: 'Seoul', stops: [] }] } as any;
+    const itinerary = { days: [{ day: 1, city: 'Seoul', stops: [] }] } as TestItinerary;
     expect(selfHealLodgingBookend(itinerary)).toHaveLength(0);
   });
 
@@ -139,7 +143,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
     selfHealLodgingBookend(itinerary);
     // 14:00 - 60min = 13:00
     expect(itinerary.days[0].stops[0].start_time).toBe('13:00');
@@ -157,7 +161,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
     selfHealLodgingBookend(itinerary);
     // 09:30 - 60min = 08:30 → floor to 09:00
     expect(itinerary.days[0].stops[0].start_time).toBe('09:00');
@@ -174,7 +178,7 @@ describe('P160 selfHealLodgingBookend', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
     const healed = selfHealLodgingBookend(itinerary);
     expect(healed).toHaveLength(1);
     expect(itinerary.days[0].stops[0].name).toContain('숙소'); // P-launch: 호텔(위치 미정)→지역 숙소

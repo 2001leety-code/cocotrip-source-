@@ -95,7 +95,7 @@ describe('PR #443 Z-H12 — missing key path also bounded (no unbounded flood)',
           // No key on purpose — should still get a per-message in-memory throttle.
           message: 'same message body',
           channel: 'error',
-        } as any),
+        } as unknown),
       ),
     );
     const alerted = calls.filter((r) => r.alerted).length;
@@ -105,8 +105,8 @@ describe('PR #443 Z-H12 — missing key path also bounded (no unbounded flood)',
 
   it('different no-key messages each get their own bucket (real distinct alerts not suppressed)', async () => {
     const { throttledTelegramAlert } = await import('../../api/_shared/telegram-throttle.js');
-    const r1 = await throttledTelegramAlert({ message: 'message A', channel: 'error' } as any);
-    const r2 = await throttledTelegramAlert({ message: 'message B', channel: 'error' } as any);
+    const r1 = await throttledTelegramAlert({ message: 'message A', channel: 'error' } as unknown);
+    const r2 = await throttledTelegramAlert({ message: 'message B', channel: 'error' } as unknown);
     expect(r1.alerted).toBe(true);
     expect(r2.alerted).toBe(true);
     expect(NOTIFY_MOCK).toHaveBeenCalledTimes(2);

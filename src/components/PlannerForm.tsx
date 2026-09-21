@@ -170,11 +170,13 @@ function SectionLabel({ icon, text }: { icon?: React.ReactNode; text: string }) 
 }
 
 // ── CalendarPicker ───────────────────────────────────────────────────
-export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lang = 'en' }: {
+type CalendarPickerProps = {
   startDate: string; endDate: string;
   onDateChange: (s: string, e: string) => void;
   p: Record<string, unknown>; lang?: string;
-}) {
+};
+
+export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lang = 'en' }: CalendarPickerProps) {
   const now = new Date();
   const todayStr = isoDate(now.getFullYear(), now.getMonth(), now.getDate());
   // Option A: 기본 뷰는 내일부터 (tomorrow)
@@ -188,12 +190,17 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
   const [picking, setPicking]     = useState<'start' | 'end'>('start');
   const [tmpS, setTmpS]           = useState(startDate || tomorrowStr);
   const [tmpE, setTmpE]           = useState(endDate);
+  const rangeKey = `${startDate}|${endDate}`;
+  const [previousRangeKey, setPreviousRangeKey] = useState(rangeKey);
+  if (previousRangeKey !== rangeKey) {
+    setPreviousRangeKey(rangeKey);
+    setTmpS(startDate || tomorrowStr);
+    setTmpE(endDate);
+  }
   const ref = useRef<HTMLDivElement>(null);
 
   // Option B: 오늘 날짜 선택 시 확인 팝업
   const [todayConfirmPending, setTodayConfirmPending] = useState<{ s: string; e: string } | null>(null);
-
-  useEffect(() => { setTmpS(startDate || tomorrowStr); setTmpE(endDate); }, [startDate, endDate]);
 
   useEffect(() => {
     if (!open) return;

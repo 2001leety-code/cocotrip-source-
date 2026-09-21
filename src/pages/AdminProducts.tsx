@@ -16,39 +16,52 @@ import { resolvePhotoUrl, importStaticTour } from '@/lib/tours-firestore';
 import type { Tour, TourStatus } from '@/data/tours';
 import { TOURS } from '@/data/tours';
 
+async function fetchTours() {
+  try {
+    const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((doc) => ({ ...(doc.data() as Tour), _docId: doc.id }));
+  } catch {
+    const snap = await getDocs(collection(db, 'tours'));
+    return snap.docs.map((doc) => ({ ...(doc.data() as Tour), _docId: doc.id }));
+  }
+}
+
 export default function AdminProducts() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<Array<Tour & { _docId: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [previousAuthLoading, setPreviousAuthLoading] = useState(authLoading);
+  if (previousAuthLoading !== authLoading) {
+    setPreviousAuthLoading(authLoading);
+    if (!authLoading) setLoading(true);
+  }
   const [showStaticImport, setShowStaticImport] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
 
   const reload = async () => {
     setLoading(true);
     try {
-      // 어드민은 모든 status 봐야 함 → orderBy createdAt desc 만 사용 (where 없음)
-      // status 필터 X 상태로 전체 fetch
-      const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      const list = snap.docs.map((d) => ({ ...(d.data() as Tour), _docId: d.id }));
+      const list = await fetchTours();
       setItems(list);
     } catch (err) {
-      // 인덱스/권한 문제 시 ordering 없이 재시도
-      try {
-        const snap = await getDocs(collection(db, 'tours'));
-        const list = snap.docs.map((d) => ({ ...(d.data() as Tour), _docId: d.id }));
-        setItems(list);
-      } catch (err2) {
-        toast.error(`불러오기 실패: ${err2 instanceof Error ? err2.message : 'unknown'}`);
-      }
+      toast.error(`불러오기 실패: ${err instanceof Error ? err.message : 'unknown'}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!authLoading) void reload();
+    if (authLoading) return;
+    let cancelled = false;
+    void fetchTours()
+      .then((list) => { if (!cancelled) setItems(list); })
+      .catch((err) => {
+        if (!cancelled) toast.error(`불러오기 실패: ${err instanceof Error ? err.message : 'unknown'}`);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [authLoading]);
 
   const handleImportStatic = async (staticTour: Tour) => {

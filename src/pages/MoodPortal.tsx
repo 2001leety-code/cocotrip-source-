@@ -16,7 +16,7 @@
  *    Directions 로 km/톨비 계산 → computeMoodTotalKRW 로 예상 금액 분해 표시
  *    (시급×시간 + 거리추가(50km↑) + 톨비). 🔴 실제 청구는 백엔드 재계산(P311).
  */
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
@@ -413,7 +413,6 @@ export default function MoodPortal() {
   const dataRequestSeq = useRef(0);
   const accountSessionSeqRef = useRef(0);
   const activeAccountIdentityRef = useRef(accountIdentity);
-  activeAccountIdentityRef.current = accountIdentity;
   const latestAvailabilityRevisionRef = useRef(-1);
   const latestAvailabilityRef = useRef<MoodBookingAvailability | null>(null);
   const availabilityChannelRef = useRef<BroadcastChannel | null>(null);
@@ -421,6 +420,10 @@ export default function MoodPortal() {
   const availabilityRefreshQueuedRef = useRef(false);
   const availabilityRefreshTargetRevisionRef = useRef(-1);
   const lastExternalRefreshAtRef = useRef(0);
+
+  useLayoutEffect(() => {
+    activeAccountIdentityRef.current = accountIdentity;
+  }, [accountIdentity]);
 
   // 상단 3-탭 (현황 / 수기 예약 / AI 예약)
   const [portalTab, setPortalTab] = useState<PortalTab>('status');

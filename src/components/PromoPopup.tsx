@@ -79,17 +79,6 @@ export function PromoPopup() {
     return () => { cancelled = true; };
   }, []);
 
-  // ESC 닫기
-  useEffect(() => {
-    if (!visible) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
   const handleClose = useCallback(() => {
     recordDismiss();
     setVisible(false);
@@ -99,6 +88,16 @@ export function PromoPopup() {
     recordDismiss();
     setVisible(false);
   }, []);
+
+  // ESC 닫기
+  useEffect(() => {
+    if (!visible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [visible, handleClose]);
 
   if (!visible || !popupConfig) return null;
 

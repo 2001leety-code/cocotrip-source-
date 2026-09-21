@@ -84,27 +84,26 @@ export interface CharterRouteKmResult {
 export function useCharterRouteKm(state: WizardState): CharterRouteKmResult {
   const rc = routeCoordsFromState(state);
   const key = rc ? routeCoordsSignature(rc) : null;
-  const [routeKm, setRouteKm] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [request, setRequest] = useState({ key, coords: rc });
+  const [result, setResult] = useState<{ key: string; km: number | null } | null>(null);
+  // 좌표 시그니처가 같으면 요청은 유지한다(무관한 입력 변경으로 중복 조회하지 않음).
+  if (request.key !== key) setRequest({ key, coords: rc });
 
   useEffect(() => {
+    const { key: requestKey, coords } = request;
+    if (!coords || !requestKey || _cache.has(requestKey)) return;
     let cancelled = false;
-    if (!rc || !key) { setRouteKm(null); setLoading(false); setFailed(false); return; }
-    if (_cache.has(key)) {
-      const km = _cache.get(key) || null;
-      setRouteKm(km); setLoading(false); setFailed(km == null);
-      return;
-    }
-    setLoading(true); setFailed(false);
-    fetchCharterRouteKm(rc).then((km) => {
+    fetchCharterRouteKm(coords).then((km) => {
       if (cancelled) return;
-      setRouteKm(km); setLoading(false); setFailed(km == null);
+      setResult({ key: requestKey, km });
     });
     return () => { cancelled = true; };
-    // key 만 dep — 좌표 시그니처가 같으면 재조회 안 함.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [request]);
 
+  const cached = !!key && _cache.has(key);
+  const resolved = !!key && result?.key === key;
+  const routeKm = key ? (cached ? _cache.get(key) || null : resolved ? result.km : null) : null;
+  const loading = !!key && !cached && !resolved;
+  const failed = !!key && !loading && routeKm == null;
   return { routeKm, routeCoords: rc, loading, failed };
 }

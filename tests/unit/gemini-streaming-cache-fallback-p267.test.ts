@@ -30,10 +30,11 @@ const src = readFileSync(
   'utf8',
 );
 
-import { runGeminiStreaming, extractCacheMetadata } from '../../api/_ai_core/geminiPipeline.js';
+import { runGeminiStreaming } from '../../api/_ai_core/geminiPipeline.js';
 
 /** Mock Gemini model with controllable stream chunks + final response */
-function makeMockModel({ chunks, finalResponse, finalThrow }: any) {
+type MockStreamArgs = { chunks: unknown[]; finalResponse: unknown; finalThrow?: Error };
+function makeMockModel({ chunks, finalResponse, finalThrow }: MockStreamArgs) {
   return {
     generateContentStream: vi.fn(async () => ({
       stream: (async function* () {
@@ -44,7 +45,7 @@ function makeMockModel({ chunks, finalResponse, finalThrow }: any) {
   };
 }
 
-const baseArgs = { model: null as any, systemPrompt: 'sys', userMessage: 'usr', language: 'ko' };
+const baseArgs = { model: null, systemPrompt: 'sys', userMessage: 'usr', language: 'ko' };
 
 describe('P267 — runGeminiStreaming chunk-level usageMetadata fallback', () => {
   it('happy path: final response usageMetadata 있음 → final 값 사용', async () => {

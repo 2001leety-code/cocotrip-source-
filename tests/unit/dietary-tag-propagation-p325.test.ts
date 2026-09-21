@@ -9,9 +9,9 @@
  * (city-mismatch 제외 = DB 인증 식당만). 검증 로직 자체는 그대로 엄격 유지(완화 아님).
  */
 import { describe, it, expect } from 'vitest';
-// @ts-ignore — JS 모듈
+// @ts-expect-error — JS 모듈
 import { applyDBMatcher } from '../../api/_ai_core/dbMatcher.js';
-// @ts-ignore — JS 모듈
+// @ts-expect-error — JS 모듈
 import { validateResponse } from '../../api/_ai_core/responseValidator.js';
 
 // 이름에 halal 토큰이 전혀 없는 DB-verified halal 식당 (실제 DB의 다수 케이스)
@@ -48,7 +48,7 @@ describe('P325 — DB dietary tag propagation (halal false-violation fix)', () =
     const itin = makeItinerary();
     applyDBMatcher(itin, HALAL_DB, 'seoul', 'en');
     const issues = validateResponse(itin, { lang: 'en', dietary: ['Halal'] }, HALAL_DB);
-    const violations = (issues || []).filter((i: any) => i.type === 'dietary_violation');
+    const violations = (issues || []).filter((i: { type?: string }) => i.type === 'dietary_violation');
     expect(violations).toHaveLength(0);
   });
 
@@ -56,7 +56,7 @@ describe('P325 — DB dietary tag propagation (halal false-violation fix)', () =
     const itin = makeItinerary();
     // applyDBMatcher 미실행 → dietary_tags 없음. 이름 'Sinchon Burger' 에 halal 토큰 없음.
     const issues = validateResponse(itin, { lang: 'en', dietary: ['Halal'] }, []);
-    const violations = (issues || []).filter((i: any) => i.type === 'dietary_violation');
+    const violations = (issues || []).filter((i: { type?: string }) => i.type === 'dietary_violation');
     expect(violations.length).toBeGreaterThan(0);
   });
 
@@ -78,8 +78,8 @@ describe('P325 — DB dietary tag propagation (halal false-violation fix)', () =
  * 위 P325 테스트는 매칭→검증 순서라 prod 의 거짓 422 경로를 커버하지 못했음(CI green ≠ prod safe).
  * fix: validateResponse 가 이미 받는 foodIndex 로 검증 시점에 DB 인증(tag)을 직접 대조.
  */
-const dietaryViolations = (issues: any) =>
-  (issues || []).filter((i: any) => i.type === 'dietary_violation');
+const dietaryViolations = (issues: Array<{ type?: string }> | undefined) =>
+  (issues || []).filter((i) => i.type === 'dietary_violation');
 
 describe('2026-07-10 — prod 순서(검증→매칭)에서 DB 인증 인정', () => {
   it('PROD 순서: dbMatcher 없이도 DB halal 인증 식당은 violation 아님', () => {

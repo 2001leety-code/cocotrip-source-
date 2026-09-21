@@ -10,7 +10,7 @@
  *
  * ENV: 각 테스트에서 process.env.PLANNER_STREAMING_ENABLED 명시 변경.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { isStreamingEnabled, tryParsePartialJSON } from '../../api/_ai_core/geminiPipeline.js';
 import { updatePlanProgressive, savePlanSkeleton } from '../../api/_ai_core/planPersister.js';
 

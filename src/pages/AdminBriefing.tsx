@@ -5,6 +5,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { Header } from '@/sections/Header';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import type { User } from 'firebase/auth';
 
 interface Bucket { usd: number; count: number }
 interface BriefingResponse {
@@ -25,6 +26,14 @@ const fmtUSD = (n: number) => `$${(n || 0).toFixed(2)}`;
 const fmtKRW = (n: number) => `₩${Math.round(n || 0).toLocaleString()}`;
 const cardStyle = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' };
 
+async function fetchBriefing(user: User): Promise<BriefingResponse> {
+  const idToken = await user.getIdToken();
+  const res = await fetch('/api/admin-briefing', { headers: { Authorization: `Bearer ${idToken}` } });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || '불러오기 실패');
+  return json;
+}
+
 function KpiCard({ title, bucket, rate }: { title: string; bucket: Bucket; rate: number }) {
   return (
     <div className="rounded-2xl p-5" style={cardStyle}>
@@ -43,18 +52,23 @@ export default function AdminBriefing() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [data, setData] = useState<BriefingResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!user);
   const [error, setError] = useState<string | null>(null);
+  const [previousUser, setPreviousUser] = useState(user);
+  if (previousUser !== user) {
+    setPreviousUser(user);
+    if (user) {
+      setLoading(true);
+      setError(null);
+    }
+  }
 
   const reload = useCallback(async () => {
     if (!user) return;
     setLoading(true); setError(null);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch('/api/admin-briefing', { headers: { Authorization: `Bearer ${idToken}` } });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '불러오기 실패');
-      setData(json);
+      const next = await fetchBriefing(user);
+      setData(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류');
     } finally {
@@ -62,7 +76,15 @@ export default function AdminBriefing() {
     }
   }, [user]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void fetchBriefing(user)
+      .then((next) => { if (!cancelled) setData(next); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : '오류'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const rate = data?.exchangeRate || 1450;
   const products = data ? Object.entries(data.byProduct).filter(([, v]) => v.count > 0) : [];

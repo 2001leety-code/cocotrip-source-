@@ -68,7 +68,7 @@ describe('resolveSourceAndTargets — invalid bodies → null source', () => {
     { korean: '' },                       // empty legacy
     { korean: '   ' },                    // whitespace-only legacy
   ])('rejects malformed body %j', (body) => {
-    const r = resolveSourceAndTargets(body as any);
+    const r = resolveSourceAndTargets(body);
     expect(r.source).toBeNull();
   });
 
@@ -77,7 +77,7 @@ describe('resolveSourceAndTargets — invalid bodies → null source', () => {
     const r = resolveSourceAndTargets({
       source: { lang: 'en', text: 'Royal Palace' },
       korean: '경복궁',
-    } as any);
+    });
     expect(r.source).toEqual({ lang: 'en', text: 'Royal Palace' });
   });
 });

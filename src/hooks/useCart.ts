@@ -22,17 +22,22 @@ import {
 
 export function useCart() {
   const { user } = useAuth();
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.uid;
+  const [items, setItems] = useState<CartItem[]>(() => userId ? [] : getLocalCart());
+  const [loading, setLoading] = useState(!!userId);
+  const [previousUserId, setPreviousUserId] = useState(userId);
+  if (previousUserId !== userId) {
+    setPreviousUserId(userId);
+    if (!userId) {
+      setItems(getLocalCart());
+      setLoading(false);
+    }
+  }
 
   // ── Firestore 실시간 구독 (로그인) / localStorage (게스트) ──
   useEffect(() => {
-    if (!user?.uid) {
-      setItems(getLocalCart());
-      setLoading(false);
-      return;
-    }
-    const uid = user.uid;
+    if (!userId) return;
+    const uid = userId;
     const colRef = collection(db, 'users', uid, 'cart');
 
     // 게스트 cart → 로그인 머지 (1회, 멱등). writer = Firestore setDoc 주입.
@@ -52,14 +57,14 @@ export function useCart() {
       setLoading(false);
     });
     return () => unsub();
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 담기 ──
   const add = useCallback(async (item: Omit<CartItem, 'addedAt'>) => {
     const full: CartItem = { ...item, addedAt: Date.now() };
-    if (user?.uid) {
+    if (userId) {
       try {
-        await setDoc(doc(db, 'users', user.uid, 'cart', item.id), {
+        await setDoc(doc(db, 'users', userId, 'cart', item.id), {
           ...stripUndefined(full),
           serverAddedAt: serverTimestamp(),
         });
@@ -69,22 +74,22 @@ export function useCart() {
     } else {
       setItems(addToLocalCart(full));
     }
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 제거 ──
   const remove = useCallback(async (id: string) => {
-    if (user?.uid) {
-      try { await deleteDoc(doc(db, 'users', user.uid, 'cart', id)); }
+    if (userId) {
+      try { await deleteDoc(doc(db, 'users', userId, 'cart', id)); }
       catch (err) { console.warn('[useCart] remove failed:', err); }
     } else {
       setItems(removeFromLocalCart(id));
     }
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 비우기 ──
   const clear = useCallback(async () => {
-    if (user?.uid) {
-      const uid = user.uid;
+    if (userId) {
+      const uid = userId;
       try {
         await Promise.all(items.map(i => deleteDoc(doc(db, 'users', uid, 'cart', i.id))));
       } catch (err) { console.warn('[useCart] clear failed:', err); }
@@ -92,7 +97,7 @@ export function useCart() {
       clearLocalCart();
       setItems([]);
     }
-  }, [user?.uid, items]);
+  }, [userId, items]);
 
   const isInCart = useCallback((id: string) => items.some(i => i.id === id), [items]);
 

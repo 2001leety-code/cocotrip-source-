@@ -12,7 +12,7 @@ const GOOGLE_REVIEW_URL = 'https://www.google.com/search?q=cocotrip+korea+review
 
 export function GoogleReviews() {
   const { t } = useLanguage();
-  const gr = (t as any).googleReviews || {};
+  const gr = t.googleReviews || {};
 
   const trustSignals = [
     { icon: ShieldCheck, label: gr.trustLicensed || 'Licensed tour operator' },

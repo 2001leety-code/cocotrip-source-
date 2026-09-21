@@ -46,11 +46,11 @@ describe('no fake social proof on homepage', () => {
 });
 
 describe('i18n googleReviews/mobileHome copy is fake-number free in all 4 languages', () => {
-  const locales = { en, ko, ja, zh } as Record<string, any>;
+  const locales = { en, ko, ja, zh };
 
   it('drops the old fabricated keys and adds the new trust + CTA keys', () => {
     for (const [lang, t] of Object.entries(locales)) {
-      const gr = t.googleReviews;
+      const gr = t.googleReviews as typeof t.googleReviews & { basedOn?: unknown };
       expect(gr, `${lang}.googleReviews exists`).toBeTruthy();
       // Removed fake-aggregate keys.
       expect(gr.basedOn, `${lang}.googleReviews.basedOn removed`).toBeUndefined();

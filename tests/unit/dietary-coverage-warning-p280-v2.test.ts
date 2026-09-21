@@ -40,7 +40,7 @@ describe('P280 v2 dietary coverage — severity=warning (retry loop 차단)', ()
 
   // ── runtime ────────────────────────────────────────────────────────────────
 
-  function makeData(stops: Array<any>) {
+  function makeData(stops: Array<unknown>) {
     return { days: [{ stops }] };
   }
 

@@ -16,6 +16,7 @@
  * screenshot 위치: reports/p238-verification/
  */
 import { test, expect } from './fixtures/analytics-guard';
+import type { Page } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 
@@ -24,16 +25,13 @@ const PLAN_P235 = '1b850044-6926-4470-9f80-7299b9c6c2c7';
 const PLAN_RUNNING = '211baae9-3fd5-45b8-b0e4-0c883af3fd7d';
 // plan URL 패턴: /my-plans/:planId (App.tsx 라우트)
 const REPORTS_DIR = 'reports/p238-verification';
-// Firebase auth 토큰 (로컬 .env.local 에서 읽거나 env 주입)
-const FIREBASE_ID_TOKEN = process.env.FIREBASE_ID_TOKEN || '';
-
 // 리포트 디렉토리 생성
 if (!fs.existsSync(REPORTS_DIR)) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
 
 // ── Helper: plan 페이지 로딩 대기 (P233 패턴) ───────────────────────────────
-async function waitForPlanLoad(page: any, planId: string, label: string) {
+async function waitForPlanLoad(page: Page, planId: string, label: string) {
   const planUrl = `${BASE_URL}/my-plans/${planId}`;
   console.log(`[${label}] 접속: ${planUrl}`);
 
@@ -55,7 +53,7 @@ async function waitForPlanLoad(page: any, planId: string, label: string) {
 }
 
 // ── Helper: screenshot 저장 ─────────────────────────────────────────────────
-async function captureScreenshot(page: any, filename: string) {
+async function captureScreenshot(page: Page, filename: string) {
   const filepath = path.join(REPORTS_DIR, filename);
   await page.screenshot({ path: filepath, fullPage: false });
   console.log(`  screenshot 저장: ${filepath}`);
@@ -63,7 +61,7 @@ async function captureScreenshot(page: any, filename: string) {
 }
 
 // ── Plan 렌더 검증 helper ────────────────────────────────────────────────────
-async function assertPlanRendered(page: any, planId: string, label: string): Promise<boolean> {
+async function assertPlanRendered(page: Page, planId: string, label: string): Promise<boolean> {
   // 페이지 제목 또는 본문 텍스트 확인
   const title = await page.title();
   const bodyText = await page.evaluate(() => document.body.innerText.slice(0, 500));
@@ -74,7 +72,6 @@ async function assertPlanRendered(page: any, planId: string, label: string): Pro
   const isLoading = bodyText.length < 100;
 
   // plan 렌더 지표 (tour_title, day, stops 등 키워드)
-  const hasPlanContent = bodyText.includes('투어') || bodyText.includes('Tour') || bodyText.includes('Day') || bodyText.includes('일차');
   const hasDayContent = bodyText.length > 200 && !isNotFound && !isAuthError && !isLoading;
 
   console.log(`  [${label}] title: "${title.slice(0,60)}" | plan content: ${hasDayContent ? '✅' : '❌'} | auth error: ${isAuthError ? '⚠️' : '-'}`);

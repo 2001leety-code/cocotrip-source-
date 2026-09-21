@@ -43,7 +43,12 @@ const ROLE_LABEL: Record<string, string> = { origin: '출발', waypoint: '경유
 export function MoodRouteMap({ origin, waypoints, destination, route, accent, inputBg, inputBorder, textDim }: MoodRouteMapProps) {
   const clientId = import.meta.env.VITE_NCP_MAP_CLIENT_ID as string | undefined;
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [loadResult, setLoadResult] = useState<{ route: RouteData; status: 'ready' | 'error' } | null>(null);
+  const [previousRoute, setPreviousRoute] = useState(route);
+  if (previousRoute !== route) {
+    setPreviousRoute(route);
+    setLoadResult(null);
+  }
   const [authFailed, setAuthFailed] = useState(false);
 
   // 네이버 지도 인증 실패(NCP 도메인 미등록 등) 자가진단 — 전역 콜백을 SDK 가 호출.
@@ -52,16 +57,16 @@ export function MoodRouteMap({ origin, waypoints, destination, route, accent, in
   }, []);
 
   const hasRoute = !!(route && route.path && route.path.length > 1 && route.points && route.points.length > 0);
+  const status = loadResult?.route === route ? loadResult.status : 'loading';
 
   useEffect(() => {
-    if (!clientId || !hasRoute || authFailed || !route) { setStatus('idle'); return; }
+    if (!clientId || !hasRoute || authFailed || !route) return;
     let cancelled = false;
-    setStatus('loading');
     loadNaverMaps(clientId)
       .then(() => {
         if (cancelled || !mapRef.current) return;
         const naver = getNaver();
-        if (!naver || !mapRef.current) { setStatus('error'); return; }
+        if (!naver || !mapRef.current) { setLoadResult({ route, status: 'error' }); return; }
 
         const map = new naver.maps.Map(mapRef.current, {
           center: new naver.maps.LatLng(route.points[0].lat, route.points[0].lng),
@@ -90,9 +95,9 @@ export function MoodRouteMap({ origin, waypoints, destination, route, accent, in
           bounds.extend(ll);
         }
         (map as { fitBounds?: (b: unknown) => void }).fitBounds?.(bounds);
-        setStatus('ready');
+        setLoadResult({ route, status: 'ready' });
       })
-      .catch(() => { if (!cancelled) setStatus('error'); });
+      .catch(() => { if (!cancelled) setLoadResult({ route, status: 'error' }); });
     return () => { cancelled = true; };
   }, [clientId, hasRoute, authFailed, route]);
 

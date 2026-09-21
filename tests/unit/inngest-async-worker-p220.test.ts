@@ -24,7 +24,7 @@
  *   8. handlerCore.js — shouldDispatchToInngest + publishPlanAiComplete import 존재
  *   9. handlerCore.js — inngestDispatched 변수 + try/catch inline fallback 패턴 존재
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -156,7 +156,8 @@ describe('P220 Inngest event + client config', () => {
     const { inngest } = await import('../../api/_inngest/client.js');
     expect(inngest).toBeDefined();
     // Inngest SDK v4: client.id 또는 client.name 노출.
-    const id = (inngest as any).id || (inngest as any).appId || (inngest as any).name;
+    const client = inngest as { id?: string; appId?: string; name?: string };
+    const id = client.id || client.appId || client.name;
     expect(id).toBe('cocotrip');
   });
 });

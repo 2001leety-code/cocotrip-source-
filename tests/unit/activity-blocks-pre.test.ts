@@ -235,12 +235,12 @@ describe('[PR-E SAFETY] buildActivityMeta — 난이도/체력/hazards/부적합
       foodIndex: [{ name: '김밥집', city: 'jeju', type: 'restaurant', dietary_tags: [], rating: 4.5, reviews: 100 }],
     });
     expect(out.days).toHaveLength(1);
-    const day = out.days[0] as Record<string, any>;
+    const day = out.days[0] as { activity_meta?: { difficulty?: string; unsuitable_for?: string[] } };
     expect(day.activity_meta).toBeTruthy();
-    expect(day.activity_meta.difficulty).toBe('expert');
-    expect(day.activity_meta.unsuitable_for).toContain('wheelchair_user');
+    expect(day.activity_meta!.difficulty).toBe('expert');
+    expect(day.activity_meta!.unsuitable_for).toContain('wheelchair_user');
     // SAFETY quality_warning 박제 (운영자 admin panel + 표기 의무 추적)
-    const aw = (out.quality_warnings || []).filter((w: any) => w.type === 'block_mode_activity_day');
+    const aw = (out.quality_warnings || []).filter((w: { type?: string; count?: number }) => w.type === 'block_mode_activity_day');
     expect(aw.length).toBe(1);
     expect(aw[0].count).toBe(1);
   });
@@ -250,7 +250,7 @@ describe('[PR-E SAFETY] buildActivityMeta — 난이도/체력/hazards/부적합
     const sel = { day_selections: [{ day: 1, block_id: 'CITY', tweak_notes: '' }] };
     const out = expandBlocksToItinerary(sel, [city], { durationDays: 1, language: 'en', area: 'seoul', startDate: '2026-06-01' });
     expect(Object.prototype.hasOwnProperty.call(out.days[0], 'activity_meta')).toBe(false);
-    const aw = (out.quality_warnings || []).filter((w: any) => w.type === 'block_mode_activity_day');
+    const aw = (out.quality_warnings || []).filter((w: { type?: string; count?: number }) => w.type === 'block_mode_activity_day');
     expect(aw.length).toBe(0);
   });
 });
@@ -330,7 +330,7 @@ describe('[PR-E] block selection prompt — OFF byte-identical, ON 시 활동 �
 describe('isLimitedMobility — 정상 거동 화이트리스트', () => {
   it('benign/정상 값 → limited=false (활동 블록 유지)', () => {
     for (const m of ['ok', 'none', 'normal', 'good', 'full', 'fine', 'OK', 'Normal', ' normal ', '', null, undefined]) {
-      expect(isLimitedMobility(m as any), `mobility='${m}'`).toBe(false);
+      expect(isLimitedMobility(m as unknown), `mobility='${m}'`).toBe(false);
     }
   });
   it('실제 거동 제약 값 → limited=true (보수적 제외)', () => {

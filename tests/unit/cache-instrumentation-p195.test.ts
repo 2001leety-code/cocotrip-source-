@@ -23,6 +23,9 @@ import { describe, it, expect } from 'vitest';
 import { extractCacheMetadata, accumulateCacheMetadata } from '../../api/_ai_core/geminiPipeline.js';
 import { buildAdminDebug } from '../../api/_ai_core/debugInfo.js';
 
+type CacheMetadata = { cached: number; total: number; output: number };
+type TestItinerary = { _cache_metadata?: CacheMetadata; days?: unknown[] };
+
 describe('P195 extractCacheMetadata — Gemini SDK response 추출', () => {
   it('assertion 1: 정상 usageMetadata 가 있는 response → cached/total/output 정확 추출', () => {
     const mockResponse = {
@@ -96,7 +99,7 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
   };
 
   it('assertion 6: itinerary._cache_metadata → _debug 에 cachedInputTokens + cacheHitRate 노출 (P268: 보존)', () => {
-    const itinerary: any = { _cache_metadata: { cached: 7500, total: 10000, output: 5000 }, days: [] };
+    const itinerary: TestItinerary = { _cache_metadata: { cached: 7500, total: 10000, output: 5000 }, days: [] };
     const debug = buildAdminDebug({ ...baseArgs, itinerary });
     expect(debug).toBeDefined();
     expect(debug!.cachedInputTokens).toBe(7500);
@@ -107,17 +110,17 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
     // 보존 이유: _cache_metadata 가 final layer (Inngest dispatch + savePlan) 까지 살아있어야
     // P266 fix layer 1 (cacheMetadata: itinerary?._cache_metadata || null) 작동.
     expect(itinerary._cache_metadata).toBeDefined();
-    expect(itinerary._cache_metadata.cached).toBe(7500);
+    expect(itinerary._cache_metadata!.cached).toBe(7500);
   });
 
   it('assertion 6b: cacheHitRate 0.1% 단위 round (75.12% → 75.1%)', () => {
-    const itinerary: any = { _cache_metadata: { cached: 7512, total: 10000, output: 5000 } };
+    const itinerary: TestItinerary = { _cache_metadata: { cached: 7512, total: 10000, output: 5000 } };
     const debug = buildAdminDebug({ ...baseArgs, itinerary });
     expect(debug!.cacheHitRate).toBe(75.1);
   });
 
   it('assertion 7: itinerary 에 _cache_metadata 없음 → _debug 에 0 값 (안전 fallback, 3pass 등)', () => {
-    const itinerary: any = { days: [] };
+    const itinerary: TestItinerary = { days: [] };
     const debug = buildAdminDebug({ ...baseArgs, itinerary });
     expect(debug).toBeDefined();
     expect(debug!.cachedInputTokens).toBe(0);
@@ -135,7 +138,7 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
   });
 
   it('assertion 8: 일반 user (isAdminBypass=false) → undefined (보안 — _debug 일반 노출 X)', () => {
-    const itinerary: any = { _cache_metadata: { cached: 7500, total: 10000, output: 5000 } };
+    const itinerary: TestItinerary = { _cache_metadata: { cached: 7500, total: 10000, output: 5000 } };
     const debug = buildAdminDebug({
       ...baseArgs,
       gate: { isAdminBypass: false },
@@ -147,7 +150,7 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
   });
 
   it('assertion 9: total=0 일 때 cacheHitRate=0 (division by zero 안전)', () => {
-    const itinerary: any = { _cache_metadata: { cached: 0, total: 0, output: 0 } };
+    const itinerary: TestItinerary = { _cache_metadata: { cached: 0, total: 0, output: 0 } };
     const debug = buildAdminDebug({ ...baseArgs, itinerary });
     expect(debug!.cacheHitRate).toBe(0);
   });

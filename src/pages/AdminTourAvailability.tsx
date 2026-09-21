@@ -1,6 +1,6 @@
 // /admin/availability — 운영자가 투어별 가용성을 일자 단위로 관리.
 // 토글 흐름: available (default, 빈 셀) → fully_booked → blackout → available
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TOURS } from '@/data/tours';
 import {
   fetchMonthAvailability,
@@ -42,13 +42,16 @@ export default function AdminTourAvailability() {
   const yearMonth = `${year}-${pad(month + 1)}`;
   const total = daysInMonth(year, month);
 
-  const reload = useMemo(() => async () => {
-    if (!tourId) return;
-    const map = await fetchMonthAvailability(tourId, yearMonth);
-    setData(map);
+  const loadMonth = useCallback(() => {
+    return fetchMonthAvailability(tourId, yearMonth);
   }, [tourId, yearMonth]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    if (!tourId) return;
+    let active = true;
+    loadMonth().then(map => { if (active) setData(map); });
+    return () => { active = false; };
+  }, [tourId, loadMonth]);
 
   async function cycleStatus(date: string) {
     const current = data.get(date)?.status || 'available';
@@ -57,7 +60,7 @@ export default function AdminTourAvailability() {
     setBusy(date);
     try {
       await setAvailability(tourId, date, next);
-      await reload();
+      if (tourId) setData(await loadMonth());
     } finally {
       setBusy('');
     }

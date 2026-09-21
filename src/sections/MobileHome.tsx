@@ -70,14 +70,13 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
     })();
   }, [user]);
 
-  const [weatherCity, setWeatherCity] = useState('Seoul');
-
-  useEffect(() => {
+  const [weatherCity] = useState(() => {
     try {
-      const saved = localStorage.getItem('cocotrip_last_region');
-      if (saved) setWeatherCity(saved);
-    } catch { /* silent */ }
-  }, []);
+      return localStorage.getItem('cocotrip_last_region') || 'Seoul';
+    } catch {
+      return 'Seoul';
+    }
+  });
 
   useEffect(() => {
     (async () => {

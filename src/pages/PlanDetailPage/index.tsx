@@ -63,12 +63,13 @@ export default function PlanDetailPage() {
   const { planId } = useParams();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const localScenario = searchParams.get('localPlan');
   const { user, loading: authLoading } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [plan, setPlan] = useState<PlanDocument | null>(null);
   // P235: 'notfound' = 문서 없음 / 'unauthorized' = 접근 거부 / 'autherror' = 인증 만료·JS 캐시 불일치
-  const [error, setError] = useState<'notfound' | 'unauthorized' | 'autherror' | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<'notfound' | 'unauthorized' | 'autherror' | null>(() => planId ? null : 'notfound');
+  const [loading, setLoading] = useState(() => !!planId);
   const [editMode, setEditMode] = useState(false);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -104,18 +105,27 @@ export default function PlanDetailPage() {
   // Firestore reads. Switched to `user?.uid` (stable string) so the
   // effect only re-runs when the actual identity changes.
   const uid = user?.uid ?? null;
+  const dataIdentity = `${planId || ''}\u0000${token || ''}\u0000${uid || ''}\u0000${localScenario || ''}`;
+  const requestIdentity = `${dataIdentity}\u0000${authLoading}`;
+  const [previousRequest, setPreviousRequest] = useState(() => ({ requestIdentity, dataIdentity }));
+  // 경로/공유 토큰/사용자 전환은 새 읽기 상태를 즉시 보여 주되, 인증 복구 중에는
+  // 기존 effect처럼 판단을 미룬다. 비동기 응답은 아래 listener 콜백만 상태를 쓴다.
+  if (requestIdentity !== previousRequest.requestIdentity) {
+    setPreviousRequest({ requestIdentity, dataIdentity });
+    if (!planId || dataIdentity !== previousRequest.dataIdentity || !authLoading) {
+      setError(planId ? null : 'notfound');
+      setLoading(!!planId);
+    }
+  }
   useEffect(() => {
-    if (!planId) { setError('notfound'); setLoading(false); return; }
+    if (!planId) return;
     if (authLoading) return;
-    setError(null);
-    setLoading(true);
 
     // DEV-only (로컬 플랜 하네스): /my-plans/x?localPlan=<scenario> → vite dev 가 서빙하는
     //   /local-plans/<scenario>.json(= scripts/plan-local/outputs/plan-<scenario>.json) 을 fetch 해
     //   PlanDetailPage 로 렌더. `npm run plan:test -- <scenario>` 출력을 prod 처럼 눈으로 확인용.
     //   import.meta.env.DEV 가드 → prod 빌드서 통째 tree-shake(무영향). 소유자로 표시(마스킹 없이 full).
     if (import.meta.env.DEV) {
-      const localScenario = searchParams.get('localPlan');
       if (localScenario && /^[a-z0-9-]+$/i.test(localScenario)) {
         let devCancelled = false;
         fetch(`/local-plans/${localScenario}.json`)
@@ -234,7 +244,7 @@ export default function PlanDetailPage() {
       handleErrLegacy(err);
     });
     return () => { cancelled = true; unsub(); };
-  }, [planId, token, uid, authLoading]);
+  }, [planId, token, uid, authLoading, localScenario]);
 
   // share_visit tracking
   useEffect(() => {
@@ -293,7 +303,7 @@ export default function PlanDetailPage() {
     } finally {
       setIsPdfGenerating(false);
     }
-  }, [plan, t]);
+  }, [plan, t, language]);
 
   // P169: streaming 진행 중 여부 (Firestore _streaming_in_progress 필드)
   const isStreamingInProgress = !loading && plan && plan._streaming_in_progress === true;

@@ -1,7 +1,7 @@
 // Coverage for api/_shared/promo-config.js — 프로모 배너 설정 읽기/쓰기 모듈.
 // fail-safe(에러 db → DEFAULT), setPromoConfig 검증(잘못된 필드/타입 거부, 정상 통과),
 // DEFAULT_PROMO_CONFIG 4언어 존재 확인.
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // firebase-admin/firestore FieldValue mock (setPromoConfig 내부 동적 import)
 vi.mock('firebase-admin/firestore', () => ({

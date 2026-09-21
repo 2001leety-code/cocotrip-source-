@@ -128,7 +128,6 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
   // 진단 로그: modalOpen 변화 추적. 운영자가 사용자 콘솔로그 받을 때 정확한 상태 파악 가능.
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // eslint-disable-next-line no-console
       console.log('[RevisionCard] modalOpen state:', modalOpen, '| credits:', credits);
     }
   }, [modalOpen, credits]);
@@ -322,7 +321,6 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
               // ancestor (SwipeContainer / motion.div) 가 click 을 가로채는 경우 차단.
               e.preventDefault();
               e.stopPropagation();
-              // eslint-disable-next-line no-console
               console.log('[RevisionCard] click | credits:', credits, '| modalOpen(prev):', modalOpen);
               // haptic feedback (모바일 사용자가 클릭 인지 — "안 눌림" 신고 대응).
               if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {

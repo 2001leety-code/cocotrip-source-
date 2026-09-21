@@ -20,9 +20,23 @@ interface Place {
   isDirector: boolean;
 }
 
+async function fetchPlaces(): Promise<Place[]> {
+  const res = await authFetch('/api/mood-places');
+  const json = await res.json().catch(() => ({}));
+  if (!json?.ok) throw new Error(json?.error || `주소록 조회 실패 (${res.status})`);
+  return (Array.isArray(json.places) ? json.places : []).map((p: Partial<Place>) => ({
+    id: String(p.id || ''),
+    name: p.name || '',
+    address: p.address || '',
+    lat: typeof p.lat === 'number' ? p.lat : null,
+    lng: typeof p.lng === 'number' ? p.lng : null,
+    isDirector: p.isDirector === true,
+  }));
+}
+
 export function MoodPlacesManager({ open, onClose }: Props) {
   const [places, setPlaces] = useState<Place[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   // 추가 폼
@@ -34,28 +48,26 @@ export function MoodPlacesManager({ open, onClose }: Props) {
   // 삭제 진행 중인 id
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [previousOpen, setPreviousOpen] = useState(open);
+
+  if (open !== previousOpen) {
+    setPreviousOpen(open);
+    if (open) {
+      setName('');
+      setAddress('');
+      setIsDirector(false);
+      setMsg(null);
+      setLoadErr(null);
+      setLoading(true);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadErr(null);
     try {
-      const res = await authFetch('/api/mood-places');
-      const json = await res.json().catch(() => ({}));
-      if (!json?.ok) {
-        setLoadErr(json?.error || `주소록 조회 실패 (${res.status})`);
-        setPlaces([]);
-        return;
-      }
-      setPlaces(
-        (Array.isArray(json.places) ? json.places : []).map((p: Partial<Place>) => ({
-          id: String(p.id || ''),
-          name: p.name || '',
-          address: p.address || '',
-          lat: typeof p.lat === 'number' ? p.lat : null,
-          lng: typeof p.lng === 'number' ? p.lng : null,
-          isDirector: p.isDirector === true,
-        })),
-      );
+      const nextPlaces = await fetchPlaces();
+      setPlaces(nextPlaces);
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : '주소록 조회 실패');
       setPlaces([]);
@@ -64,15 +76,20 @@ export function MoodPlacesManager({ open, onClose }: Props) {
     }
   }, []);
 
-  // 모달 열릴 때마다: 상태 초기화 + 목록 로드
   useEffect(() => {
     if (!open) return;
-    setName('');
-    setAddress('');
-    setIsDirector(false);
-    setMsg(null);
-    void load();
-  }, [open, load]);
+    let cancelled = false;
+    void fetchPlaces()
+      .then((nextPlaces) => { if (!cancelled) setPlaces(nextPlaces); })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadErr(error instanceof Error ? error.message : '주소록 조회 실패');
+          setPlaces([]);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [open]);
 
   const submitAdd = useCallback(async () => {
     const trimmedName = name.trim();

@@ -8,6 +8,8 @@ import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, pric
 // @ts-expect-error — ESM .js
 import { TRANSIT_SERVICES } from '../../api/_shared/transitServiceConfig.js';
 
+type Finding = { kind?: string; orderID?: string; key?: string; severity?: string };
+
 // 2026-06-10 수정팀(운영 감시원) — 순수 체크 머지 전 검증($0). 발견만, 수정 자동 X.
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 const PROD = 'kpop_shuttle_oneway';
@@ -37,21 +39,21 @@ describe('checkPaymentInvariants — 단방향 오과금 + 무결성', () => {
   ];
   const r = checkPaymentInvariants(bookings, SPEC, {});
   it('오과금(청구>정가) 1건 + 무결성(0원) 1건', () => {
-    expect(r.findings.filter((f: any) => f.kind === 'overcharge')).toHaveLength(1);
-    expect(r.findings.filter((f: any) => f.kind === 'integrity')).toHaveLength(1);
-    expect(r.findings.find((f: any) => f.kind === 'overcharge').orderID).toBe('o1');
+    expect(r.findings.filter((f: Finding) => f.kind === 'overcharge')).toHaveLength(1);
+    expect(r.findings.filter((f: Finding) => f.kind === 'integrity')).toHaveLength(1);
+    expect(r.findings.find((f: Finding) => f.kind === 'overcharge').orderID).toBe('o1');
   });
   it('정가/쿠폰할인은 flag 안 함 (단방향=청구<정가는 쿠폰 가능)', () => {
-    expect(r.findings.find((f: any) => f.orderID === 'o2')).toBeUndefined();
-    expect(r.findings.find((f: any) => f.orderID === 'o3')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.orderID === 'o2')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.orderID === 'o3')).toBeUndefined();
   });
   it('multiday/ai_planner = 사각지대(blindspot 2), 감사 3건(kpop)', () => {
     expect(r.blindspot).toBe(2);
     expect(r.audited).toBe(3);
   });
   it('PENDING·운영자테스트 skip (무결성/오과금에 안 잡힘)', () => {
-    expect(r.findings.find((f: any) => f.orderID === 'o7')).toBeUndefined();
-    expect(r.findings.find((f: any) => f.orderID === 'TEST-x')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.orderID === 'o7')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.orderID === 'TEST-x')).toBeUndefined();
   });
 });
 
@@ -80,10 +82,10 @@ describe('checkErrorSurge — 절대 임계 4/10, 일시오류 제외', () => {
   ];
   const r = checkErrorSurge(errs, {});
   it('11→critical, 5→warning, 3→없음, TIMEOUT 제외', () => {
-    expect(r.findings.find((f: any) => f.key === 'PAYPAL_FAIL').severity).toBe('critical');
-    expect(r.findings.find((f: any) => f.key === 'GEMINI_X').severity).toBe('warning');
-    expect(r.findings.find((f: any) => f.key === 'MINOR')).toBeUndefined();
-    expect(r.findings.find((f: any) => f.key === 'TIMEOUT')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.key === 'PAYPAL_FAIL')!.severity).toBe('critical');
+    expect(r.findings.find((f: Finding) => f.key === 'GEMINI_X')!.severity).toBe('warning');
+    expect(r.findings.find((f: Finding) => f.key === 'MINOR')).toBeUndefined();
+    expect(r.findings.find((f: Finding) => f.key === 'TIMEOUT')).toBeUndefined();
   });
   it('빈 입력 → 0 (throw 없음)', () => {
     expect(checkErrorSurge([], {}).findings).toHaveLength(0);
@@ -95,22 +97,22 @@ describe('checkTransitService — 만료·한도 감시 (매끄러운 전환)', 
   const FAR = Date.parse('2026-06-10T00:00:00+09:00'); // 만료 한참 전
   it('만료 7일 이내 → critical', () => {
     const r = checkTransitService(SVC, { nowMs: Date.parse('2026-10-10T00:00:00+09:00'), activeKey: 'odsay', plansYesterday: 0 });
-    expect(r.findings.find((f: any) => f.kind === 'transit-expiry').severity).toBe('critical');
+    expect(r.findings.find((f: Finding) => f.kind === 'transit-expiry').severity).toBe('critical');
   });
   it('만료 30일 이내 → warning', () => {
     const r = checkTransitService(SVC, { nowMs: Date.parse('2026-09-20T00:00:00+09:00'), activeKey: 'odsay', plansYesterday: 0 });
-    expect(r.findings.find((f: any) => f.kind === 'transit-expiry').severity).toBe('warning');
+    expect(r.findings.find((f: Finding) => f.kind === 'transit-expiry').severity).toBe('warning');
   });
   it('만료 한참 남음 → 만료 finding 없음', () => {
-    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 0 }).findings.find((f: any) => f.kind === 'transit-expiry')).toBeUndefined();
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 0 }).findings.find((f: Finding) => f.kind === 'transit-expiry')).toBeUndefined();
   });
   it('한도 추정 90%+ → critical / 70%+ → warning / 낮으면 없음', () => {
-    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 50, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota').severity).toBe('critical'); // 940/1000
-    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 40, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota').severity).toBe('warning'); // 752/1000
-    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 10, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota')).toBeUndefined();
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 50, callsPerPlan: 18.8 }).findings.find((f: Finding) => f.kind === 'transit-quota').severity).toBe('critical'); // 940/1000
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 40, callsPerPlan: 18.8 }).findings.find((f: Finding) => f.kind === 'transit-quota').severity).toBe('warning'); // 752/1000
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 10, callsPerPlan: 18.8 }).findings.find((f: Finding) => f.kind === 'transit-quota')).toBeUndefined();
   });
   it('유료(tmap_paid, quota null) → 한도 finding 없음', () => {
-    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'tmap_paid', plansYesterday: 9999 }).findings.find((f: any) => f.kind === 'transit-quota')).toBeUndefined();
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'tmap_paid', plansYesterday: 9999 }).findings.find((f: Finding) => f.kind === 'transit-quota')).toBeUndefined();
   });
   it('알 수 없는 provider → findings 0', () => {
     expect(checkTransitService(SVC, { activeKey: 'bogus' }).findings).toHaveLength(0);

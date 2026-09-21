@@ -388,7 +388,7 @@ test.describe('CocoTrip AI Planner Full Flow', () => {
     });
 
     const status = response.status();
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await response.json();
     } catch {
@@ -433,7 +433,7 @@ test.describe('CocoTrip AI Planner Full Flow', () => {
     });
 
     const status = response.status();
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await response.json();
     } catch {

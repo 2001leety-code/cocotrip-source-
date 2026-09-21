@@ -44,7 +44,7 @@ export interface OpenBlobOptions {
 const REVOKE_AFTER_MS = 60_000;
 
 export function detectIOS(ua?: string): boolean {
-  const userAgent = ua ?? (typeof navigator !== 'undefined' ? navigator.userAgent : '');
+  const userAgent = ua !== undefined && ua !== null ? ua : (typeof navigator !== 'undefined' ? navigator.userAgent : '');
   return /iPhone|iPad|iPod/i.test(userAgent);
 }
 
@@ -53,7 +53,6 @@ function fallbackUserAlert(message: string): void {
   // because pdfGenerator runs in many contexts and we'd rather block
   // the user with a dialog than silently do nothing.
   try {
-    // eslint-disable-next-line no-alert
     if (typeof alert === 'function') alert(message);
     else console.warn('[openBlobSafely]', message);
   } catch {
@@ -63,8 +62,8 @@ function fallbackUserAlert(message: string): void {
 
 export function openBlobSafely(options: OpenBlobOptions): BlobOpenResult {
   const { blob, filename, isIOS = detectIOS(), onError = fallbackUserAlert } = options;
-  const doc = options.doc ?? (typeof document !== 'undefined' ? document : undefined);
-  const win = options.win ?? (typeof window !== 'undefined' ? window : undefined);
+  const doc = options.doc !== undefined && options.doc !== null ? options.doc : (typeof document !== 'undefined' ? document : undefined);
+  const win = options.win !== undefined && options.win !== null ? options.win : (typeof window !== 'undefined' ? window : undefined);
 
   if (!doc) {
     onError('Cannot save PDF in this environment.');

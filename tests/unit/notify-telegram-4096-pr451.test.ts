@@ -126,11 +126,11 @@ describe('PR #451 Z-H13 — fetch path actually receives the truncated text', as
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
     process.env.TELEGRAM_CHAT_ID = 'test-chat';
 
-    let capturedBody: any = null;
-    global.fetch = vi.fn(async (_url: any, init: any) => {
-      capturedBody = JSON.parse(init.body);
+    let capturedBody = null as { text: string } | null;
+    global.fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
       return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 });
-    }) as any;
+    });
 
     const { notify } = await import('../../api/_shared/notify.js');
     const huge = 'a'.repeat(10000);
@@ -138,8 +138,8 @@ describe('PR #451 Z-H13 — fetch path actually receives the truncated text', as
     expect(r.ok).toBe(true);
     expect(r.truncated).toBe(true);
     expect(capturedBody).not.toBeNull();
-    expect(typeof capturedBody.text).toBe('string');
-    expect(capturedBody.text.length).toBeLessThanOrEqual(4096);
+    expect(typeof capturedBody!.text).toBe('string');
+    expect(capturedBody!.text.length).toBeLessThanOrEqual(4096);
   });
 });
 

@@ -74,7 +74,7 @@ const CustomerCard = ({ customer, verifiedLabel }: { customer: typeof customers[
 
 export function CustomerGallery() {
   const { t } = useLanguage();
-  const g = (t as any).gallery || {};
+  const g = t.gallery || {};
   const [emblaRef] = useEmblaCarousel({
     loop: true,
     align: 'start',

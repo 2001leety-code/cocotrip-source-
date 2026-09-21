@@ -1,7 +1,7 @@
 // Per-stop card: collapsed header + expandable details (address, tip, reservation,
 // ODsay public-transit route, Naver Map link). Largest leaf of PlanDetailPage.
 // Extracted verbatim from src/pages/PlanDetailPage.tsx (L879-1046) during P2 Lock release.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -137,12 +137,16 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
   // Sprint 1 Step 5: 즐겨찾기 — 페이지 plan id + stop key로 localStorage 영속.
   const { planId } = useParams();
   const stopKey = makeStopKey(stop);
-  const [isFav, setIsFav] = useState(false);
-  useEffect(() => {
-    if (!planId) return;
-    const set = readFavSet(planId);
-    setIsFav(!!set[stopKey]);
-  }, [planId, stopKey]);
+  const favoriteKey = `${planId || ''}:${stopKey}`;
+  const [favoriteState, setFavoriteState] = useState(() => ({
+    key: favoriteKey,
+    isFav: !!readFavSet(planId || '')[stopKey],
+  }));
+  if (favoriteState.key !== favoriteKey) {
+    setFavoriteState({ key: favoriteKey, isFav: !!readFavSet(planId || '')[stopKey] });
+  }
+  const isFav = favoriteState.isFav;
+  const setIsFav = (next: boolean) => setFavoriteState({ key: favoriteKey, isFav: next });
 
   const toggleFav: React.MouseEventHandler = (e) => {
     e.stopPropagation();

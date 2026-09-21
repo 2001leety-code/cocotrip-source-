@@ -36,9 +36,18 @@ const src = readFileSync(
 
 // Capture throttledTelegramAlert invocations before importing the SUT
 // so recordRetryAttempt's alert path is observable.
-const alertCalls: any[] = [];
+type AlertArgs = { key?: string; channel?: string; severity?: string; message?: string; [key: string]: unknown };
+type GenerationConfig = {
+  temperature?: number;
+  thinkingConfig: { thinkingBudget: number };
+  maxOutputTokens: number;
+  responseMimeType: string;
+};
+type ModelOptions = { model: string; generationConfig: GenerationConfig; [key: string]: unknown };
+
+const alertCalls: AlertArgs[] = [];
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: vi.fn(async (args: any) => {
+  throttledTelegramAlert: vi.fn(async (args: AlertArgs) => {
     alertCalls.push(args);
     return { ok: true, alerted: true };
   }),
@@ -47,11 +56,11 @@ vi.mock('../../api/_shared/telegram-throttle.js', () => ({
 // Capture GoogleGenerativeAI.getGenerativeModel calls so we can assert
 // the temperature passed for each model build. Mock must be a class
 // constructor — the SUT calls `new GoogleGenerativeAI(apiKey)`.
-const { genModelCalls } = vi.hoisted(() => ({ genModelCalls: [] as any[] }));
+const { genModelCalls } = vi.hoisted(() => ({ genModelCalls: [] as ModelOptions[] }));
 vi.mock('@google/generative-ai', () => {
   class MockGenAI {
-    constructor(_apiKey: string) { /* noop */ }
-    getGenerativeModel(opts: any) {
+    constructor() { /* noop */ }
+    getGenerativeModel(opts: ModelOptions) {
       genModelCalls.push(opts);
       return { generateContent: async () => ({ response: { text: () => '{}' } }) };
     }

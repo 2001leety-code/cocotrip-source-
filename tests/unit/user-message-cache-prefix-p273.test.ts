@@ -50,7 +50,7 @@ describe('P273 userMessage cache-friendly 순서 (prefix determinism)', () => {
   });
 
   // ── runtime 검증: 실제 buildUserMessage 호출 ──────────────────────────────
-  function makeShaped(overrides: any = {}) {
+  function makeShaped(overrides: Record<string, unknown> = {}) {
     return {
       guestName: 'Sarah',
       pax: 2,

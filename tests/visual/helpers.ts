@@ -20,11 +20,11 @@
  *
  * page.goto 보다 먼저 호출해야 함 (addInitScript 는 이후 navigation 부터 적용).
  */
-export async function suppressCookieBanner(page: { addInitScript: Function }) {
+export async function suppressCookieBanner(page: { addInitScript: (fn: () => void) => Promise<void> }) {
   await page.addInitScript(() => {
     try {
       localStorage.setItem('cocotrip_cookie_consent', 'dismissed');
-    } catch {}
+    } catch { /* Storage can be unavailable in private browsing. */ }
   });
 }
 

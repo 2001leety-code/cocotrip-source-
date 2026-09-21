@@ -8,9 +8,12 @@ import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module
 import { correctPreDawnStopTimes } from '../../api/_ai_core/planPersister.js';
 
+type PredawnStop = { category: string; name: string; start_time: string; stay_min: number; end_time?: string };
+type PredawnItinerary = { days: Array<{ day: number; city: string; stops: PredawnStop[] }>; quality_warnings?: Array<{ kind: string; message?: string }> };
+
 describe('P159 correctPreDawnStopTimes', () => {
   it('Day3 04:30 lodging → 09:00 cascade 재계산', () => {
-    const itinerary = {
+    const itinerary: PredawnItinerary = {
       days: [
         {
           day: 3,
@@ -22,7 +25,7 @@ describe('P159 correctPreDawnStopTimes', () => {
           ],
         },
       ],
-    } as any;
+    };
 
     const corrected = correctPreDawnStopTimes(itinerary);
 
@@ -37,7 +40,7 @@ describe('P159 correctPreDawnStopTimes', () => {
   });
 
   it('정상 시각 (09:00) 은 건드리지 않음', () => {
-    const itinerary = {
+    const itinerary: PredawnItinerary = {
       days: [
         {
           day: 1,
@@ -48,7 +51,7 @@ describe('P159 correctPreDawnStopTimes', () => {
           ],
         },
       ],
-    } as any;
+    };
 
     const corrected = correctPreDawnStopTimes(itinerary);
     expect(corrected).toBe(0);
@@ -58,24 +61,24 @@ describe('P159 correctPreDawnStopTimes', () => {
   });
 
   it('빈 stops Day 는 무시', () => {
-    const itinerary = { days: [{ day: 1, city: 'Seoul', stops: [] }] } as any;
+    const itinerary: PredawnItinerary = { days: [{ day: 1, city: 'Seoul', stops: [] }] };
     expect(correctPreDawnStopTimes(itinerary)).toBe(0);
   });
 
   it('첫 stop 05:00 이상 (경계) 은 통과', () => {
-    const itinerary = {
+    const itinerary: PredawnItinerary = {
       days: [
         {
           day: 1, city: 'Seoul',
           stops: [{ category: 'lodging', name: '호텔', start_time: '05:00', stay_min: 0 }],
         },
       ],
-    } as any;
+    };
     expect(correctPreDawnStopTimes(itinerary)).toBe(0);
   });
 
   it('end_time 동기화', () => {
-    const itinerary = {
+    const itinerary: PredawnItinerary = {
       days: [
         {
           day: 2, city: 'Busan',
@@ -85,7 +88,7 @@ describe('P159 correctPreDawnStopTimes', () => {
           ],
         },
       ],
-    } as any;
+    };
 
     correctPreDawnStopTimes(itinerary);
     expect(itinerary.days[0].stops[0].end_time).toBe('09:00');
@@ -95,12 +98,12 @@ describe('P159 correctPreDawnStopTimes', () => {
   });
 
   it('23:30 cap — cascade 가 24h 넘어가면 23:30 으로 잘림', () => {
-    const stops = [{ category: 'lodging', name: 'h', start_time: '02:00', stay_min: 0 }];
+    const stops: PredawnStop[] = [{ category: 'lodging', name: 'h', start_time: '02:00', stay_min: 0 }];
     // 10개 long stay 더해서 09:00 + 10*(60+30) = 09:00 + 900min = 24:00 overflow
     for (let i = 0; i < 12; i++) {
-      stops.push({ category: 'food' as any, name: `f${i}`, start_time: '00:00', stay_min: 60 });
+      stops.push({ category: 'food', name: `f${i}`, start_time: '00:00', stay_min: 60 });
     }
-    const itinerary = { days: [{ day: 1, city: 'Seoul', stops }] } as any;
+    const itinerary: PredawnItinerary = { days: [{ day: 1, city: 'Seoul', stops }] };
     correctPreDawnStopTimes(itinerary);
     // 마지막 stop 이 23:30 으로 capped
     const lastStop = stops[stops.length - 1];
@@ -108,7 +111,7 @@ describe('P159 correctPreDawnStopTimes', () => {
   });
 
   it('quality_warnings 기존 항목 보존', () => {
-    const itinerary = {
+    const itinerary: PredawnItinerary = {
       days: [
         {
           day: 1, city: 'Busan',
@@ -116,7 +119,7 @@ describe('P159 correctPreDawnStopTimes', () => {
         },
       ],
       quality_warnings: [{ kind: 'existing', message: '기존 warning' }],
-    } as any;
+    };
     correctPreDawnStopTimes(itinerary);
     expect(itinerary.quality_warnings).toHaveLength(2);
     expect(itinerary.quality_warnings[0].kind).toBe('existing');

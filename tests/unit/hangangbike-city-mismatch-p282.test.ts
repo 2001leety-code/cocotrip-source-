@@ -42,7 +42,7 @@ describe('P282 HangangBike city-mismatch validator (P246/P248 follow-up)', () =>
 
   // ── runtime — validateResponse 직접 호출 ───────────────────────────────────
 
-  function makeData(stops: Array<any>) {
+  function makeData(stops: Array<Record<string, unknown>>) {
     return { days: [{ stops }] };
   }
 

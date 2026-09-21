@@ -24,9 +24,15 @@ const loadBlock = (f: string) => JSON.parse(readFileSync(join(ZONE_DIR, `${f}.js
 
 // 실 foodIndex (1.2MB) — 식당 매칭 실데이터.
 const FI_RAW = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../api/_food_index.json'), 'utf8'));
-const FOOD_INDEX: any[] = Array.isArray(FI_RAW) ? FI_RAW : (FI_RAW.restaurants || FI_RAW.data || []);
+type Coordinates = { lat: number; lng: number };
+type FoodRow = Coordinates & { name?: string; dietary_tags?: string[] };
+type TestStop = Partial<Coordinates> & { category?: string; name?: string };
+type SimDay = { day: number; city?: string; stops?: TestStop[] };
+type SimItinerary = { days?: SimDay[] };
+const foodIndexSource = FI_RAW as FoodRow[] | { restaurants?: FoodRow[]; data?: FoodRow[] };
+const FOOD_INDEX: FoodRow[] = Array.isArray(foodIndexSource) ? foodIndexSource : (foodIndexSource.restaurants || foodIndexSource.data || []);
 
-const haversineKm = (a: any, b: any) => {
+const haversineKm = (a: Coordinates | null, b: Coordinates | null) => {
   if (!a || !b || a.lat == null || b.lat == null) return null;
   const R = 6371, dLat = ((b.lat - a.lat) * Math.PI) / 180, dLng = ((b.lng - a.lng) * Math.PI) / 180;
   const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
@@ -39,10 +45,10 @@ const foodCoord = (name: string) => {
 };
 
 // 좌표 있는 stop 만으로 day 전체 경로 km (명소 블록좌표 + 식당 foodIndex 좌표).
-const dayFullPathKm = (stops: any[]) => {
-  const coords: any[] = [];
+const dayFullPathKm = (stops: TestStop[]) => {
+  const coords: Coordinates[] = [];
   for (const s of stops) {
-    if (typeof s.lat === 'number' && s.lat > 30) { coords.push({ lat: s.lat, lng: s.lng }); continue; }
+    if (typeof s.lat === 'number' && s.lat > 30) { coords.push({ lat: s.lat, lng: s.lng as number }); continue; }
     if (s.category === 'food' && s.name) { const c = foodCoord(s.name); if (c) coords.push(c); }
   }
   let km = 0;
@@ -75,7 +81,7 @@ const simulate = (dietPrefs: string[] = []) => {
 };
 
 describe('플랜 로컬 시뮬레이션 (block_mode 다도시, Gemini 없이)', () => {
-  const itin = simulate();
+  const itin = simulate() as SimItinerary;
   const days = itin.days || [];
 
   it('plan 이 2 day 로 조립됨', () => {
@@ -93,9 +99,9 @@ describe('플랜 로컬 시뮬레이션 (block_mode 다도시, Gemini 없이)', 
   it('각 식당이 직전 명소 5km 이내에서 선택됨 (근접 앵커 작동)', () => {
     for (const d of days) {
       const stops = d.stops || [];
-      let prevLandmark: any = null;
+      let prevLandmark: Coordinates | null = null;
       for (const s of stops) {
-        if (typeof s.lat === 'number' && s.lat > 30) { prevLandmark = { lat: s.lat, lng: s.lng }; continue; }
+        if (typeof s.lat === 'number' && s.lat > 30) { prevLandmark = { lat: s.lat, lng: s.lng as number }; continue; }
         if (s.category === 'food' && s.name && prevLandmark) {
           const fc = foodCoord(s.name);
           if (fc) {
@@ -110,7 +116,7 @@ describe('플랜 로컬 시뮬레이션 (block_mode 다도시, Gemini 없이)', 
   });
 
   it('plan 전체에서 같은 식당 중복 배정 없음', () => {
-    const names = days.flatMap((d: any) => (d.stops || []).filter((s: any) => s.category === 'food' && s.name).map((s: any) => s.name));
+    const names = days.flatMap((d) => (d.stops || []).filter((s) => s.category === 'food' && s.name).map((s) => s.name!));
     const dups = names.filter((n: string, i: number) => names.indexOf(n) !== i);
     expect(dups, `중복 식당: ${dups.join(', ')}`).toEqual([]);
   });
@@ -119,16 +125,17 @@ describe('플랜 로컬 시뮬레이션 (block_mode 다도시, Gemini 없이)', 
     // 정답 동작: block_mode 가 할랄 식당을 못 찾으면 BLOCK_MODE_DIETARY_UNSATISFIED throw →
     // caller 가 legacy 로 폴백. 절대 비할랄 실식당을 silent 배정하지 않음. throw 든 정상반환이든
     // "비할랄 실식당 0" 만 보장되면 SAFETY 통과.
-    let halalItin: any;
+    let halalItin: SimItinerary;
     try {
       halalItin = simulate(['halal']);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // throw = 안전(매칭 불가 → legacy 폴백). dietary 관련 throw 인지만 확인.
-      expect(String(e?.code || e?.message || '')).toMatch(/DIETARY|dietary|halal/i);
+      const err = e as { code?: string; message?: string } | null | undefined;
+      expect(String(err?.code || err?.message || '')).toMatch(/DIETARY|dietary|halal/i);
       return;
     }
     // throw 안 했으면(할랄 매칭 성공) — 모든 resolved food 가 할랄 또는 placeholder 여야.
-    const foodStops = (halalItin.days || []).flatMap((d: any) => (d.stops || []).filter((s: any) => s.category === 'food'));
+    const foodStops = (halalItin.days || []).flatMap((d) => (d.stops || []).filter((s) => s.category === 'food'));
     for (const s of foodStops) {
       if (!s.name) continue;
       const isPlaceholderText = String(s.name).startsWith('[추천');

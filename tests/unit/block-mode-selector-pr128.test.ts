@@ -15,7 +15,7 @@
  *   9. expandBlocksToItinerary — stops + start_time + day.date computation
  *  10. expandBlocksToItinerary — SAFETY-CRITICAL throw for unmet dietary
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   getBlockModeEnv,
   shouldUseBlockMode,

@@ -24,12 +24,11 @@ function useGrad() {
     ),
   };
 }
-
 function base(size: number | undefined, props: IconProps) {
   const { size: _s, ...rest } = props;
+  void _s;
   return { width: size || 24, height: size || 24, viewBox: '0 0 24 24', fill: 'none', ...rest };
 }
-
 /** 경로 핀 — 가이드 'Route' (투어/일정) */
 export function IconRoute({ size, ...props }: IconProps) {
   const { id, defs } = useGrad();
@@ -200,15 +199,3 @@ export function IconKpop({ size, ...props }: IconProps) {
     </svg>
   );
 }
-
-/** 카테고리 키 → 아이콘 매핑 (홈 Quick Actions 등에서 사용) */
-export const COCO_CATEGORY_ICONS = {
-  planner: IconAssistant,
-  tours: IconRoute,
-  charter: IconVan,
-  airport: IconPlane,
-  kpop: IconKpop,
-  // 2026-07-19 홈 Quick Actions 개편(가이드 p.1: AI Plan·Charter·Tours·Map·Community)
-  map: IconMap,
-  community: IconGlobe,
-} as const;

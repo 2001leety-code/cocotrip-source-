@@ -62,7 +62,6 @@ export default function TelegramLogs() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    setLoading(true);
     // 최근 100건 (sentAt 기준 내림차순)
     const q = query(
       collection(db, 'dispatch_messages'),

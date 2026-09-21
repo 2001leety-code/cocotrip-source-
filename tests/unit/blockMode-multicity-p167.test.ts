@@ -12,7 +12,6 @@ import { describe, it, expect, afterEach } from 'vitest';
 import {
   fetchAvailableBlocksMultiCity,
   shouldUseBlockModeMultiCity,
-  selectBlocksMultiCity,
   expandBlocksToItineraryMultiCity,
   tryRunBlockMode,
 } from '../../api/_ai_core/blockMode.js';
@@ -316,7 +315,7 @@ describe('[P167 시나리오 4] dietary 매칭 실패 (vegan + 부산) → eligi
           get: async () => ({
             // 항상 empty — get() 실패 없이 아무 결과도 없는 경우 시뮬레이션
             empty: true,
-            forEach: (_cb: unknown) => {},
+            forEach: () => {},
           }),
         };
       },

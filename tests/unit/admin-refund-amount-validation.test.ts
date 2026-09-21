@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- 핸들러/Firestore 모킹 스캐폴딩. */
 /**
  * F1 (2026-07-16) — admin mark-refunded 금액 검증 (behavior test, mutation-proof).
  *
@@ -13,14 +12,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const authHolder: { result: any } = { result: { ok: true, email: 'admin@cocotrip.kr', uid: 'admin1' } };
-const refundSpy = vi.fn(async () => ({ ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } }));
-const auditAdd = vi.fn(async () => undefined);
-const pendingUpdate = vi.fn(async () => undefined);
-const bookingsSet = vi.fn(async () => undefined);
+const authHolder: { result: unknown } = { result: { ok: true, email: 'admin@cocotrip.kr', uid: 'admin1' } };
+const refundSpy = vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; refund: { id: string; status: string } }>>(async () => ({ ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } }));
+const auditAdd = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+const pendingUpdate = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+const bookingsSet = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 
 vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: async () => authHolder.result }));
-vi.mock('../../api/_shared/paypal-refund.js', () => ({ refundPaypalCapture: (...a: any[]) => refundSpy(...a) }));
+vi.mock('../../api/_shared/paypal-refund.js', () => ({ refundPaypalCapture: (...a: unknown[]) => refundSpy(...a) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: vi.fn(async () => undefined) }));
 vi.mock('../../api/_send-email.js', () => ({ sendEmail: vi.fn(async () => undefined) }));
@@ -30,21 +29,21 @@ vi.mock('../../api/_shared/cors.js', () => ({ buildAdminJsonCors: () => ({}) }))
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
 
 // pending_bookings/{ref} = CONFIRMED 원결제 ₩1,000,000 / $714.29. 테스트가 holder 로 오버라이드.
-const pendingHolder: { d: any } = { d: {} };
-const bookingHolder: { d: any } = { d: {} };
+const pendingHolder: { d: Record<string, unknown> } = { d: {} };
+const bookingHolder: { d: Record<string, unknown> } = { d: {} };
 
 function makeDb() {
   return {
     collection: (name: string) => ({
-      add: (...a: any[]) => auditAdd(...a),
-      doc: (id: string) => ({
+      add: (...a: unknown[]) => auditAdd(...a),
+      doc: () => ({
         get: async () => {
           if (name === 'pending_bookings') return { exists: true, data: () => ({ ...pendingHolder.d }) };
           if (name === 'bookings') return { exists: true, data: () => ({ ...bookingHolder.d }) };
           return { exists: false, data: () => undefined };
         },
-        update: (...a: any[]) => pendingUpdate(...a),
-        set: (...a: any[]) => bookingsSet(...a),
+        update: (...a: unknown[]) => pendingUpdate(...a),
+        set: (...a: unknown[]) => bookingsSet(...a),
       }),
     }),
   };
@@ -59,7 +58,7 @@ function mockRes() {
 }
 async function call(body: object) {
   const res = mockRes();
-  await handler({ method: 'POST', url: '/api/admin-booking-action', headers: { host: 'unit.test' }, body } as any, res as any);
+  await handler({ method: 'POST', url: '/api/admin-booking-action', headers: { host: 'unit.test' }, body }, res);
   return { ...res.out, json: res.out.body ? JSON.parse(res.out.body) : null };
 }
 
@@ -142,7 +141,7 @@ describe('F3c-lite — admin 환불 PENDING 관측', () => {
     const r = await call({ bookingRef: 'CT-20260716-001', action: 'mark-refunded', refundedKRW: 500000 });
     expect(r.statusCode).toBe(200);
     // 알럿 중 하나에 PENDING 경고가 포함돼야 한다 (기존 '환불 완료' 텔레그램과 별개)
-    const pendingAlert = notifySpy.mock.calls.some((c: any[]) => String(c[1]).includes('PENDING'));
+    const pendingAlert = notifySpy.mock.calls.some((c: unknown[]) => String(c[1]).includes('PENDING'));
     expect(pendingAlert).toBe(true);                       // ★ 관측 알럿
   });
 });

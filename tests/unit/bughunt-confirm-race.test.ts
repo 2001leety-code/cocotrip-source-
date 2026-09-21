@@ -50,6 +50,13 @@ vi.mock('firebase-admin/firestore', () => ({
 
 import { confirmBookingAsPaid } from '../../api/_shared/booking-confirm.js';
 
+type FakeData = Record<string, unknown>;
+type FakeRef = { __path: string };
+type FakeTx = {
+  get: (ref: FakeRef) => Promise<{ exists: boolean; data: () => FakeData | undefined }>;
+  update: (ref: FakeRef, patch: FakeData) => void;
+};
+
 /**
  * 낙관적 동시성 in-memory Firestore.
  * - pending_bookings/{ref} 한 문서에 version 카운터 유지.
@@ -58,11 +65,11 @@ import { confirmBookingAsPaid } from '../../api/_shared/booking-confirm.js';
  *   바뀌었으면(다른 트랜잭션이 먼저 commit) READ-한-것이 stale → cb 재실행.
  *   이것이 실제 Firestore 트랜잭션의 핵심 보장(serializable)이며 버그를 잡는다.
  */
-function makeFakeDb(initial: Record<string, any>) {
-  const store = new Map<string, { data: any; version: number }>();
+function makeFakeDb(initial: FakeData) {
+  const store = new Map<string, { data: FakeData; version: number }>();
   store.set('pending_bookings/REF', { data: { ...initial }, version: 0 });
 
-  const setCalls: { path: string; data: any }[] = [];
+  const setCalls: { path: string; data: unknown }[] = [];
 
   function docRef(path: string) {
     return {
@@ -71,10 +78,10 @@ function makeFakeDb(initial: Record<string, any>) {
         const e = store.get(path);
         return { exists: !!e, data: () => (e ? { ...e.data } : undefined) };
       },
-      async set(data: any) {
+      async set(data: unknown) {
         setCalls.push({ path, data });
       },
-      async update(patch: any) {
+      async update(patch: FakeData) {
         const e = store.get(path);
         if (!e) throw new Error('update on missing doc');
         e.data = { ...e.data, ...patch };
@@ -87,18 +94,18 @@ function makeFakeDb(initial: Record<string, any>) {
     collection(name: string) {
       return { doc: (id: string) => docRef(`${name}/${id}`) };
     },
-    async runTransaction(cb: (tx: any) => Promise<any>) {
+    async runTransaction(cb: (tx: FakeTx) => Promise<unknown>) {
       // 최대 몇 회 재시도 (Firestore 기본 5회와 동일한 정신).
       for (let attempt = 0; attempt < 5; attempt++) {
         const reads = new Map<string, number>(); // path -> version read
-        const staged: { ref: any; patch: any }[] = [];
-        const tx = {
-          async get(ref: any) {
+        const staged: { ref: FakeRef; patch: FakeData }[] = [];
+        const tx: FakeTx = {
+          async get(ref: FakeRef) {
             const e = store.get(ref.__path);
             reads.set(ref.__path, e ? e.version : -1);
             return { exists: !!e, data: () => (e ? { ...e.data } : undefined) };
           },
-          update(ref: any, patch: any) {
+          update(ref: FakeRef, patch: FakeData) {
             staged.push({ ref, patch });
           },
         };
@@ -158,11 +165,11 @@ describe('버그헌트 #8 — confirmBookingAsPaid 동시 confirm 멱등 (원자
     expect(r2.ok).toBe(true);
 
     // 정확히 한 호출만 전이(부수효과), 다른 하나는 alreadyConfirmed
-    const winners = [r1, r2].filter((r: any) => !r.alreadyConfirmed);
-    const losers = [r1, r2].filter((r: any) => r.alreadyConfirmed);
+    const winners = [r1, r2].filter((r: Record<string, unknown>) => !r.alreadyConfirmed);
+    const losers = [r1, r2].filter((r: Record<string, unknown>) => r.alreadyConfirmed);
     expect(winners).toHaveLength(1);
     expect(losers).toHaveLength(1);
-    expect((losers[0] as any).alreadyConfirmed).toBe(true);
+    expect((losers[0] as Record<string, unknown>).alreadyConfirmed).toBe(true);
 
     // 핵심: booking-processor(부수효과) 1회 · bookings mirror set 1회.
     expect(triggerBookingProcessor).toHaveBeenCalledTimes(1);
@@ -224,7 +231,7 @@ describe('버그헌트 #8 — confirmBookingAsPaid 동시 confirm 멱등 (원자
     ]);
 
     expect(r1.ok && r2.ok).toBe(true);
-    expect([r1, r2].filter((r: any) => r.alreadyConfirmed)).toHaveLength(1);
+    expect([r1, r2].filter((r: Record<string, unknown>) => r.alreadyConfirmed)).toHaveLength(1);
     expect(triggerAiPlanner).toHaveBeenCalledTimes(1);
     expect(triggerBookingProcessor).not.toHaveBeenCalled();
   });

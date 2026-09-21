@@ -59,7 +59,7 @@ function makeDocStub() {
   };
   const doc = {
     createElement: vi.fn((tag: string) => {
-      const el: any = { tagName: tag.toUpperCase(), click: vi.fn(), rel: '', target: '' };
+      const el = { tagName: tag.toUpperCase(), click: vi.fn(), rel: '', target: '' };
       return el;
     }),
     body,

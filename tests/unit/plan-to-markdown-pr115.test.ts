@@ -16,12 +16,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { planToMarkdown } from '../../src/pages/PlanDetailPage/lib/planToMarkdown';
 import { loadLocale } from '../../src/i18n';
+import type { PlanDocument } from '../../src/pages/PlanDetailPage/types';
 
 // 라벨은 planDetail 사전에서 온다 (2026-08-08). ko 는 dynamic import 라 예열이 필요하다
 // — 앱에서는 플랜 화면이 이미 그 언어로 떠 있어 로드돼 있다.
 beforeAll(async () => { await loadLocale('ko'); });
 
-const SAMPLE_PLAN: any = {
+const SAMPLE_PLAN: PlanDocument = {
   planId: '4792076e-93f2-418d-90e3-1feb1657f5b8',
   input: {
     guestName: 'Guest',
@@ -217,9 +218,9 @@ describe('planToMarkdown — graceful degradation', () => {
   });
 
   it('handles empty itinerary safely (no throws)', () => {
-    expect(() => planToMarkdown({} as any)).not.toThrow();
-    expect(() => planToMarkdown({ itinerary: {} } as any)).not.toThrow();
-    expect(() => planToMarkdown({ itinerary: { days: [] } } as any)).not.toThrow();
+    expect(() => planToMarkdown({})).not.toThrow();
+    expect(() => planToMarkdown({ itinerary: {} })).not.toThrow();
+    expect(() => planToMarkdown({ itinerary: { days: [] } })).not.toThrow();
   });
 
   it('renders minimal plan without arrival/departure/intercity', () => {
@@ -228,7 +229,7 @@ describe('planToMarkdown — graceful degradation', () => {
         days: [{ day: 1, stops: [{ order: 1, name: '도시락', start_time: '12:00', category: 'food' }] }],
       },
     };
-    const md = planToMarkdown(minimal as any);
+    const md = planToMarkdown(minimal as PlanDocument);
     expect(md).toContain('## Day 1');
     expect(md).toContain('도시락');
     // No arrival_guide / departure_guide / intercity_transit sections.

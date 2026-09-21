@@ -211,8 +211,9 @@ describe('⑤ 보이지 않은 카드의 허위 노출 0', () => {
 describe('⑥ 제휴 ID 하드코딩을 새 노출로 확대하지 않는다', () => {
   it('🔴 모바일 홈 신규 카드는 플래그 + 설정 둘 다 있어야 켜진다', () => {
     const s = read('src/components/home/TripEssentialsCards.tsx');
-    expect(s).toContain('VITE_FEATURE_HOME_AFFILIATE');
-    expect(s).toContain('isAffiliateConfigured()');
+    const config = read('src/config/affiliateLinks.ts');
+    expect(config).toContain('VITE_FEATURE_HOME_AFFILIATE');
+    expect(config).toContain('isAffiliateConfigured()');
     // 컴포넌트 안에서도 한 번 더 막는다.
     expect(s).toContain('if (!shouldShowHomeAffiliate()) return null;');
   });

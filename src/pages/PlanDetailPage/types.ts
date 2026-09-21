@@ -4,6 +4,7 @@ import type { ActivityMeta } from '@/types/plan';
 /** Firestore plan document — minimal typed shape for type-safe component props.
  *  Fields are optional because the document structure varies (legacy vs enriched plans). */
 export interface PlanDocument {
+  planId?: string;
   uid?: string;
   guestEmail?: string;
   accessToken?: string;
@@ -12,13 +13,18 @@ export interface PlanDocument {
   lastEditedAt?: number;
   pricing?: Record<string, unknown>;
   input?: {
+    guestName?: string;
     language?: string;
     area?: string;
     /** 투어 시작일 (YYYY-MM-DD). **Inclusive** — plan.days[0].date === startDate.
-     *  endDate 필드 없음 (tourDays = days.length 로 계산). */
+     *  tourDays = days.length 로 계산하며 endDate는 레거시 입력 호환용이다. */
     startDate?: string;
+    endDate?: string;
     adults?: number;
     pax?: number;
+    children?: number;
+    vehicle?: string;
+    regions?: string[];
     specialRequest?: string;
     hotel_address?: string;
     arrival_airport?: string;
@@ -119,6 +125,7 @@ export interface PlanStop {
   display_name?: string;
   address?: string;
   start_time?: string;
+  end_time?: string;
   stay_min?: number;
   category?: string;
   entry_fee_krw?: number;
@@ -145,13 +152,25 @@ export interface PlanStop {
   // 렌더 전에 normalizeRecommendedItem로 통일할 것.
   recommended_items?: (string | { name: string; price_krw?: number; note?: string })[];
   transit_from_prev?: TransitSegment;
-  travelFromPrev?: { transitOptions?: { publicTransit?: Record<string, any> } };
+  travelFromPrev?: {
+    transitOptions?: {
+      publicTransit?: {
+        method: string;
+        duration: number;
+        fare: number;
+        steps: { mode?: string; description?: string }[];
+        transfers: number;
+        [key: string]: unknown;
+      };
+    };
+  };
   _userAdded?: boolean;
   [key: string]: unknown;
 }
 
 export interface TransitSegment {
   method?: string;
+  instruction?: string;
   est_min?: number;
   est_fare_krw?: number;
   source?: string;
@@ -163,6 +182,13 @@ export interface TransitSegment {
 export interface ArrivalGuideBlock {
   airport?: string;
   steps?: { step: number; title: string; description?: string; est_min?: number }[];
+  route_to_hotel?: {
+    instruction?: string;
+    summary?: string;
+    est_min?: number;
+    est_fare_krw?: number;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -206,6 +232,9 @@ export interface BudgetRow {
   entry_fees_krw?: number;
   meals_krw?: number;
   total_krw?: number;
+  food_krw?: number;
+  transit_krw?: number;
+  entry_krw?: number;
   [key: string]: unknown;
 }
 
@@ -224,7 +253,13 @@ export interface DepartureGuideBlock {
   // RouteAgent attaches a TransitFromPrev-shaped ODsay route here so the
   // departure UI can reuse the TransitArrow component for hotel→airport.
   // Loosely typed (Record) so DepartureGuide.tsx can cast to TransitFromPrev.
-  route_to_airport?: Record<string, unknown>;
+  route_to_airport?: {
+    instruction?: string;
+    summary?: string;
+    est_min?: number;
+    est_fare_krw?: number;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

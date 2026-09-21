@@ -56,7 +56,7 @@ const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/55 font-semibol
 export default function CharterPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const p = t.planner as any;
+  const p = t.planner as unknown as Record<string, string | undefined>;
   const c = ((t as Record<string, unknown>).charterPage ?? {}) as Record<string, string>;
   const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // pricing data: ko/en only; ja/zh → en fallback
   const llk = (['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'; // language key for luggage labels
@@ -119,7 +119,7 @@ export default function CharterPage() {
       return null;
     }
     return null;
-  }, [vehicle, service, destination, tourType, adults, c, lk]);
+  }, [vehicle, service, destination, tourType, lk]);
 
   // 🔴 2026-07-18: 인원 상한 검증 — 7인승(staria)에 정원 초과 인원 입력해도 1대 가격으로 결제되던 갭.
   //   정원 초과 = PayPal 차단 → 맞춤 견적 CTA (다차량/스프린터 협의).
@@ -291,8 +291,8 @@ export default function CharterPage() {
                   options={[
                     ...ICN_DESTS.map(([key, dest]) => ({
                       value: key,
-                      label: (dest as any)[lk] || key,
-                      sub: `₩${(dest as any).priceKRW?.toLocaleString('ko-KR')}`,
+                      label: dest[lk] || key,
+                      sub: `₩${dest.priceKRW?.toLocaleString('ko-KR')}`,
                     })),
                     { value: '__custom__', label: `✏️ ${c.destCustom ?? '직접 입력'}` },
                   ]}

@@ -55,7 +55,10 @@ describe('영어 화면 — TMAP 경로의 역명·노선명', () => {
   it('회귀 가드 — 로마자가 비면 한글만 렌더된다(수정 전 상태 재현)', () => {
     const route = mapTmapItineraryToRoute(TMAP_ITINERARY)!;
     const stripped = route.steps.map((s: Record<string, unknown>) => {
-      const { lineEn: _l, fromRoman: _f, toRoman: _t, ...rest } = s;
+      const rest = { ...s };
+      delete rest.lineEn;
+      delete rest.fromRoman;
+      delete rest.toRoman;
       return rest;
     });
     render(<TransitArrow transit={{ method: 'subway', est_min: 25, steps_detail: stripped } as never} />);

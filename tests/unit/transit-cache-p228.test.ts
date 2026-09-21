@@ -15,7 +15,7 @@
  *   9. getTransitCacheStats: zoneCount 반영
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // ── Firestore mock ──────────────────────────────────────────────────────────
 const REAL_TM = {
@@ -149,7 +149,6 @@ describe('P228 transitCache — hit/miss/format', () => {
   });
 
   it('second lookup same zone: in-memory hit (Firestore 재호출 없음)', async () => {
-    const { initAdminDb } = await import('../../api/_ai_core/firestoreAdmin.js');
     const { lookupTransitCache } = await importFresh();
     await lookupTransitCache('TEST_ZONE', 1, 2);
     await lookupTransitCache('TEST_ZONE', 1, 2);
