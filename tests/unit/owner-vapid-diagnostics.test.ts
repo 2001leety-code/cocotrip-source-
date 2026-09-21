@@ -2,11 +2,12 @@ import { createECDH } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { inspectVapidPair } from '../../api/_shared/owner-vapid-diagnostics.js';
 
-function syntheticPair() {
+function syntheticPair(lastScalarByte = 1) {
   const ecdh = createECDH('prime256v1');
-  ecdh.generateKeys();
+  const privateBytes = Buffer.alloc(32);
+  privateBytes[31] = lastScalarByte;
+  ecdh.setPrivateKey(privateBytes);
   const publicBytes = ecdh.getPublicKey();
-  const privateBytes = ecdh.getPrivateKey();
   try {
     return { publicKey: publicBytes.toString('base64url'), privateKey: privateBytes.toString('base64url') };
   } finally {
@@ -24,8 +25,8 @@ describe('owner VAPID pair diagnostics', () => {
   });
 
   it('separates valid same-length keys from a mismatched pair', () => {
-    const first = syntheticPair();
-    const second = syntheticPair();
+    const first = syntheticPair(1);
+    const second = syntheticPair(2);
     expect(inspectVapidPair(first.publicKey, second.privateKey)).toEqual({
       publicKeyValid: true, privateKeyValid: true, pairMatches: false,
     });

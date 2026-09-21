@@ -258,7 +258,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('email required', 'INVALID_EMAIL')));
     }
     if (!isTourCustom && !isPlanCharter) {
-      if (!eventDate || typeof eventDate !== 'string') {
+      if (!trimmedEventDate || typeof eventDate !== 'string') {
         res.writeHead(400, JSON_HEADERS);
         return res.end(JSON.stringify(_err('eventDate required', 'INVALID_DATE')));
       }
