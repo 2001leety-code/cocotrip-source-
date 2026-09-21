@@ -23,6 +23,10 @@ import {
   DAILY_TOUR_PRICES,
 } from '../../src/data/charterPricing';
 import type { WizardState, VehicleType } from '../../src/components/charter/types';
+import { RouteAgent } from '../../api/_ai_core/agents/RouteAgent.js';
+import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
+import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
+import { selfHealDepartureGuide } from '../../api/_ai_core/planPersister.js';
 
 const baseState: WizardState = {
   vehicle: 'staria',
@@ -1166,49 +1170,109 @@ describe('B-AI1 — wrap-up departure airport inference (PDF-issue-4)', () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// B-AI2: KTX 전후 transit 누락 (PDF-issue-2, 2026-05-14)
-//   ⚠️ FIX 대기 — RouteAgent 핵심 수정 필요. 후속 PR.
-//   현재: city-change day 에서 intercity_transit 만 표시, 그 전후 (hotel→station,
-//         station→new_hotel) transit 누락. 사용자 PDF "부산호텔→부산역" "서울역→명동호텔"
-//         경로 안 보임.
-//   해야 할 fix: RouteAgent enrichItineraryWithRoute Phase 2.5 + 2.6 에 intercity
-//                bookend transit (hotel→station + station→new_lodging) 추가.
-//   대안: validateResponse 가 intercity 전후 transit 누락을 검출 → reinforced prompt 또는 throw.
+// B-AI2/B-AI3: 다도시 day 의 intercity bookend + lodging context (PDF-issue-2/3)
+// RouteAgent 의 실제 orchestration을 실행한다. ODsay/Naver 경계만 고정 응답으로 대체해
+// 네트워크 없이 city-change day의 PlanDay 계약을 검증한다.
 // ─────────────────────────────────────────────────────────
 
-describe('B-AI2 — KTX 전후 transit 누락 (PDF-issue-2)', () => {
-  it.todo('city-change day intercity_transit 양쪽에 lodging_to_station + station_to_lodging transit 동반 — RouteAgent fix 후 활성');
+describe('B-AI2/B-AI3 — RouteAgent city-change PlanDay contract', () => {
+  it('KTX station bookends, new-city lodging_to_first, lodging_city를 함께 보존하고 validator를 통과한다', async () => {
+    const routeAgent = new RouteAgent('');
+    routeAgent._getTransitData = async () => ({
+      durationMin: 12,
+      distanceKm: 1.2,
+      publicTransit: {
+        method: 'subway',
+        summary: 'offline transit',
+        steps: [],
+        duration: 12,
+        fare: 1250,
+      },
+    });
 
-  it.todo('Gemini intercity_transit.mode=KTX/train 시 from_station + to_station 필드 명시 + transit_from_prev 에 hotel→station segment 추가');
+    const response = await routeAgent.call(JSON.stringify({
+      hotel_address: '해운대',
+      regions: ['Busan', 'Seoul'],
+      recommended_zones: { Seoul: 'myeongdong' },
+      itinerary: {
+        days: [
+          {
+            day: 1,
+            city: 'Busan',
+            stops: [{ order: 1, name: 'Busan stop', category: 'sightseeing', start_time: '09:00', lat: 35.163, lng: 129.164 }],
+          },
+          {
+            day: 2,
+            city: 'Seoul',
+            intercity_transit: { mode: 'KTX', from_city: 'Busan', to_city: 'Seoul', est_min: 165, arrival_at: '11:45' },
+            stops: [{ order: 1, name: 'Seoul stop', category: 'sightseeing', start_time: '13:00', lat: 37.566, lng: 126.978 }],
+          },
+          {
+            day: 3,
+            city: 'Seoul',
+            stops: [{ order: 1, name: 'Second Seoul stop', category: 'sightseeing', start_time: '09:00', lat: 37.57, lng: 126.985 }],
+          },
+        ],
+      },
+    }));
+    const itinerary = JSON.parse(response.rawOutput).itinerary;
+    const cityChangeDay = itinerary.days[1];
+    const continuingSeoulDay = itinerary.days[2];
 
-  it.todo('day.intercity_transit 후 day.places[0].transit_from_prev 가 새 도시 첫 lodging→첫 stop 으로 채워짐');
+    expect(cityChangeDay.intercity_transit).toMatchObject({
+      from_station: '부산역',
+      to_station: '서울역',
+      lodging_to_station: { from_label: '해운대', to_label: '부산역', source: 'odsay' },
+      station_to_lodging: { from_label: '서울역', to_label: '명동', source: 'odsay' },
+    });
+    expect(cityChangeDay.lodging_to_first).toMatchObject({
+      from_label: '명동',
+      anchor_label: '명동',
+      anchor_source: 'multi_city_zone',
+    });
+    expect(cityChangeDay.stops[0].transit_from_prev).toMatchObject({
+      from_label: '명동',
+    });
+    expect(cityChangeDay.lodging_city).toBe('Seoul');
+    expect(continuingSeoulDay.lodging_to_first).toMatchObject({
+      from_label: '명동',
+      anchor_source: 'multi_city_zone',
+    });
+    expect(continuingSeoulDay.lodging_city).toBe('Seoul');
+
+    const request = { regions: ['Busan', 'Seoul'], arrival_airport: 'PUS' };
+    expect(validatePatternStructure(itinerary, request)
+      .filter((error: string) => error.includes('B-LCC'))).toHaveLength(0);
+
+    const invalidItinerary = JSON.parse(JSON.stringify(itinerary));
+    invalidItinerary.days[2].lodging_city = 'Busan';
+    expect(validatePatternStructure(invalidItinerary, request)
+      .filter((error: string) => error.includes('B-LCC')))
+      .toContain('Day 3: lodging_city="Busan" ≠ day.city="Seoul" (B-LCC)');
+  });
 });
 
 // ─────────────────────────────────────────────────────────
-// B-AI3: Day 별 lodging.city 중복 (PDF-issue-3, 2026-05-14)
-//   ⚠️ FIX 대기 — RouteAgent + plan validator 수정 필요. 후속 PR.
-//   현재: Day 3 에서 부산→서울 이동 후 Day 4 의 lodging context 가 여전히 부산
-//         (이전 도시) 으로 남아있어 "부산 해운대구 해운대역 → 호텔 (명동 지역)" 같은
-//         모순 표시.
-//   해야 할 fix: day.lodging 필드 또는 day.lodging_city 추가 → RouteAgent 가 day 별
-//                lodging context 갱신. validateResponse 에 "day.intercity_transit.to_city
-//                이후 day 의 lodging context = to_city" 검증 추가.
+// B-AI4: wrap-up departure airport (PDF-issue-4)
+// 전체 handler E2E는 현재 오프라인 harness가 없다. 아래는 handler가 사용하는 실제
+// requestShaper와 departure guide self-heal을 차례대로 실행하는 경계 테스트다.
 // ─────────────────────────────────────────────────────────
 
-describe('B-AI3 — Day 별 lodging.city 중복 (PDF-issue-3)', () => {
-  it.todo('city-change day 이후 day 의 lodging context = intercity_transit.to_city (이전 city 잔존 X)');
+describe('B-AI4 — inferred departure airport reaches departure guide', () => {
+  it('서울→부산 요청의 실제 shaped airport가 누락된 departure_guide에 PUS로 반영된다', () => {
+    const request = shapeRequest({
+      arrival_airport: 'ICN',
+      regions: ['seoul', 'busan'],
+    }, '');
+    const itinerary = { days: [] as unknown[], departure_guide: {} as { airport?: string } };
 
-  it.todo('plan.itinerary.days[i].lodging_city 추가 — 다도시 plan 에서 day 별 lodging 추적');
+    selfHealDepartureGuide(itinerary, request.departure_airport, {});
 
-  it.todo('validateResponse — day.lodging_city 와 day-1.intercity_transit.to_city 일관성 검증');
-});
+    expect(request.departure_airport).toBe('PUS');
+    expect(itinerary.departure_guide.airport).toBe('PUS');
+  });
 
-// ─────────────────────────────────────────────────────────
-// B-AI4: wrap-up departure airport — plan-level smoke (PDF-issue-4 보강)
-// ─────────────────────────────────────────────────────────
-
-describe('B-AI4 — wrap-up departure airport plan-level (PDF-issue-4 보강)', () => {
-  it.todo('실제 ai-planner-full handler → plan.itinerary.departure_guide.airport = inferred (E2E)');
+  it.todo('offline handler harness: ai-planner-full request → final itinerary.departure_guide.airport=PUS; auth, payment gate, Gemini, Firestore 경계를 함께 격리한 뒤 활성');
 });
 
 // ─────────────────────────────────────────────────────────

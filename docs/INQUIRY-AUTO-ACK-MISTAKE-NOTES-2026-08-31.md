@@ -1,5 +1,14 @@
 # 문의 자동 접수확인 오답노트 (2026-08-31)
 
+## 2026-09-21 비회원 문의의 실제 로컬 저장 검사
+
+- 버스 문의 API가 `eventDate: '   '`를 정상 접수하는 결함을 실제 Firestore 에뮬레이터에서 재현했다. 원인은 원본 날짜의 존재만 확인한 뒤 공백을 제거한 값을 저장하는 순서였다. 버스의 필수 날짜 조건은 이미 계산한 `trimmedEventDate`로 검사한다. 투어 맞춤 문의의 선택 날짜와 PlanDetail의 서버 유래 날짜 정책은 그대로다.
+- `tests/integration/charter-inquiry-storage.test.tsx`는 실제 `InquiryForm → authFetch → loopback HTTP → inquiry-submit → Firestore`를 실행한다. Firebase 초기화·인증 서비스·번역·오류 수집·Telegram의 외부 경계만 대체한다. 실제 저장, 저장 실패, ID 충돌, 순차/동시 요청 제한, 필수 입력, 오류 표시, 중복 클릭을 검사한다.
+- 비회원은 수신자 확인이 되지 않아 자동 접수확인 대상이 아니다. 실제 `automaticallyAcknowledgeInquiry`가 발송 대체 함수를 호출하지 않는 것을 검사하며, 발송 자격을 임의로 완화하지 않는다.
+- 실행은 `python tests/run-inquiry-local.py`. 먼저 Java 21 이상에서 Firestore 에뮬레이터를 `--host 127.0.0.1 --port 18089 --project_id demo-cocotrip-inquiry --single_project_mode true --single_project_mode_error true`로 시작한다. 이 전용 가상 프로젝트 외의 저장소를 연결하지 않는다.
+- 실행기는 운영 환경변수를 전달하지 않고 `FIRESTORE_EMULATOR_HOST`와 `GCLOUD_PROJECT`를 위 가상 프로젝트로 고정한다. `tests/helpers/offline-network.cjs`는 외부 TCP/TLS/DNS/UDP를 차단한다. `--check-isolation`으로 제품 코드 실행 전 격리만 검사할 수 있다. 일반 unit 명령에는 별도 에뮬레이터 검사가 자동으로 포함되지 않는다.
+- 기본 CI의 `inquiry-submit-contract.test.ts`에도 공백 날짜 회귀 검사를 남긴다. 로컬 가상 저장 성공은 운영 문의 저장·Telegram·메일 발송 성공을 의미하지 않는다.
+
 ## 2026-09-21 견적 거리 조회의 입력 전환
 
 - 실제 훅에서 조회 중 패키지 선택 시 로딩이 남고, 경유 경로 변경 시 이전 거리 값이 남는 2실패를 재현했다. 동기 결과는 현재 입력에서 도출하고 비동기 결과는 해당 요청과 연결한다. 금액 산식·거리 API payload·실패 캐시는 보존했다.

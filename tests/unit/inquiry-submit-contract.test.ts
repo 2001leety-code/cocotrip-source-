@@ -144,6 +144,21 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     });
   });
 
+  it('rejects an all-whitespace bus event date before Firestore storage', async () => {
+    const result = await call({
+      name: 'Guest User',
+      email: 'guest@example.com',
+      eventDate: '   ',
+      pax: 20,
+      vehicle: 'bus',
+      details: 'Airport group transfer',
+      language: 'en',
+    });
+
+    expect(result).toMatchObject({ status: 400, json: { code: 'INVALID_DATE' } });
+    expect(writes).toHaveLength(0);
+  });
+
   it('accepts a PlanDetail charter request and stores only the server-derived quote/context', async () => {
     const result = await call({
       email: 'Guest@Example.com',
