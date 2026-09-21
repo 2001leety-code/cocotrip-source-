@@ -26,7 +26,13 @@ vi.mock('@/lib/tour-availability-store', () => ({ fetchMonthAvailability: vi.fn(
 vi.mock('@/lib/analytics', () => ({ trackDateSelect: vi.fn(), trackTourBookingStart: vi.fn(), trackTourStep: vi.fn() }));
 
 import { TOURS } from '../../src/data/tours';
-import { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';
+
+// Firebase adapters are replaced before the actual UI module is evaluated.
+const { TourBookingDialog } = await vi.importActual<{
+  TourBookingDialog: React.ComponentType<{
+    tour: (typeof TOURS)[number]; language: 'en'; trigger: React.ReactNode;
+  }>;
+}>('../../src/components/tours/TourBookingDialog');
 
 const tour = TOURS.find((candidate) => candidate.id === 'tour-seoul-city')!;
 const snapshotKey = `cocotrip:wizard:tour:${tour.id}`;

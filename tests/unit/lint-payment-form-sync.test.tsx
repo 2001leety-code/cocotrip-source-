@@ -30,9 +30,19 @@ vi.mock('@/lib/analytics', () => ({
 vi.mock('@/lib/posthog', () => ({ track: vi.fn() }));
 vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
 
-import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
 import { PurchaseSection } from '../../src/pages/PlannerPage/components/PurchaseSection';
 import { translations } from '../../src/i18n';
+
+// Firebase adapters are replaced before the actual UI module is evaluated.
+const { PayPalBookingButton } = await vi.importActual<{
+  PayPalBookingButton: React.ComponentType<{
+    productType: string; passengers: number; dateStart: string; dateEnd: string;
+    priceKRW: number; expectedUSD: number; lang: string; userEmail: string;
+    termsAgreed: boolean; marketingConsent: boolean;
+    p: { paypalBookBtn: string; paypalLoading: string };
+    onPaymentSuccess: (orderID: string) => void;
+  }>;
+}>('../../src/components/PayPalBookingButton');
 
 const props = {
   eyebrow: 'Booking', title: 'Tour', dateText: '2030-01-01', paxText: '2', isAirport: true,

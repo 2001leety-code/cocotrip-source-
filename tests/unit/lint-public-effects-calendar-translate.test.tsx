@@ -27,6 +27,7 @@ const originalPlan = {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe('public effects state', () => {
+  // Travel startDate/endDate are inclusive: Jan 3–5 covers 3 travel days and 2 nights.
   it('keeps the calendar open while synchronizing only externally changed dates', () => {
     const onDateChange = vi.fn();
     const { rerender } = render(
