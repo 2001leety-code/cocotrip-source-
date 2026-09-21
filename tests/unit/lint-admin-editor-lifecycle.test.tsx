@@ -10,6 +10,9 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { uid: 'editor-user' }, loading: false }) }));
+// ProductEditor/MediaTab → PhotoUploader → storage-upload 의 간접 import가 Firebase 앱을
+// 초기화한다. 실제 편집 UI는 유지하고, 키 없는 CI에서는 외부 Firebase 경계만 대체한다.
+vi.mock('@/lib/firebase', () => ({ auth: {}, db: {}, storage: {} }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: () => null }));
 vi.mock('@/lib/tours-firestore', () => ({
   fetchDraft: state.productDraft, fetchTourById: state.productPublished,
