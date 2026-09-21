@@ -13,7 +13,7 @@
  *   6. /api/plan-status days 필드 반환 검증 (P206 plan-status 확장)
  *   7. planId=null 이면 streaming 이어도 polling 미진입
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // ── mock fetch ────────────────────────────────────────────────────────────────
 // measure-flash-stability-5sample.mjs 를 직접 import 하면 외부 API 호출 + env 의존
@@ -38,6 +38,7 @@ async function pollUntilReady(opts: {
   pollTimeoutMs?: number;
 }): Promise<PollResult> {
   const { planId, getStatus, pollIntervalMs = 50, pollTimeoutMs = 500 } = opts;
+  void planId;
   let finalStatus: PollStatus = 'streaming';
   let pollElapsedMs = 0;
   let pollCalls = 0;
@@ -63,7 +64,7 @@ async function pollUntilReady(opts: {
 describe('P206 plan-status.js 응답 구조 검증', () => {
   it('days 필드가 응답에 포함되어야 함 (P206 확장)', () => {
     // plan-status.js 의 _ok() 응답 형식 검증
-    const mockDoc = {
+    const mockDoc: { status: string; itinerary?: { days?: unknown[]; tour_title?: string }; _streaming_in_progress?: boolean; input?: { area?: string } } = {
       status: 'ready',
       itinerary: {
         tour_title: '서울 5일 투어',
@@ -88,7 +89,7 @@ describe('P206 plan-status.js 응답 구조 검증', () => {
   });
 
   it('streaming 중 skeleton plan 은 days=0 반환', () => {
-    const mockDoc = {
+    const mockDoc: { status: string; itinerary?: { days?: unknown[]; _streaming_skeleton?: boolean }; _streaming_in_progress?: boolean } = {
       status: 'streaming',
       itinerary: {
         days: [], // skeleton
@@ -102,10 +103,10 @@ describe('P206 plan-status.js 응답 구조 검증', () => {
   });
 
   it('days 필드 없는 레거시 plan → days=0 (안전 fallback)', () => {
-    const mockDoc = {
+    const mockDoc: { status: string; itinerary?: { days?: unknown[] } } = {
       status: 'ready',
       // itinerary.days 없음 (legacy plan)
-    } as any;
+    };
 
     const days = (mockDoc.itinerary?.days || []).length;
     expect(days).toBe(0);

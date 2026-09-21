@@ -13,7 +13,7 @@
  *
  * 비용 영향: Flash free tier → 0원 (output token 비용 없음).
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';

@@ -16,8 +16,14 @@ const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json
 const STARIA_BASE_FEE = 50_000;     // useQuoteCalculator.ts:47
 const STARIA_RATE_PER_KM = 1000;    // useQuoteCalculator.ts:48
 const VEHICLE_MULTIPLIER: Record<string, number> = { staria: 1.0, sprinter: 2.0 }; // :38
+type PricingSpec = {
+  vehicles: Record<string, {
+    intercity: { daily_service_fee: number; overnight_driver_fee: number };
+    captain_premium_krw?: number;
+  }>;
+};
 
-function frontendMultiDay(spec: any, vehicle: string, km: number, tourDays: number): number {
+function frontendMultiDay(spec: PricingSpec, vehicle: string, km: number, tourDays: number): number {
   // calcIntercityFormula (L139-142)
   const staria = STARIA_BASE_FEE + km * 2 * STARIA_RATE_PER_KM;
   const intercity = Math.round(staria * VEHICLE_MULTIPLIER[vehicle]);

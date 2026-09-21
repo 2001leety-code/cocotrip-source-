@@ -13,6 +13,11 @@ import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module
 import { selfHealDailyBudget } from '../../api/_ai_core/planPersister.js';
 
+type TestStop = { category?: string; [key: string]: unknown };
+type TestDay = { day: number; stops: TestStop[]; intercity_transit?: { mode?: string; est_fare_krw?: unknown }; [key: string]: unknown };
+type TestBudget = { day?: number; meals_krw?: number; entry_fees_krw?: number; transport_krw?: number; total_krw?: number; [key: string]: unknown };
+type TestItinerary = { days: TestDay[]; daily_budget_summary: TestBudget[]; quality_warnings?: Array<Record<string, unknown>>; [key: string]: unknown };
+
 describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
   it('빈 daily_budget_summary → root array 생성 (pax=1, BudgetTable 필드명)', () => {
     const itinerary = {
@@ -30,7 +35,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealDailyBudget(itinerary, { pax: 1 });
     expect(healed).toBe(1);
@@ -54,7 +59,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
       daily_budget_summary: [
         { day: 1, transport_krw: 5000, meals_krw: 50000, entry_fees_krw: 0, total_krw: 55000 },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealDailyBudget(itinerary);
     expect(healed).toBe(0);
@@ -69,7 +74,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
       daily_budget_summary: [
         { day: 1, transport_krw: 0, entry_fees_krw: 0, meals_krw: 0, total_krw: 0 },
       ],
-    } as any;
+    } as TestItinerary;
 
     const healed = selfHealDailyBudget(itinerary, { pax: 1 });
     expect(healed).toBe(1);
@@ -77,7 +82,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
   });
 
   it('빈 stops → misc 만 (total_krw=10000, pax=1)', () => {
-    const itinerary = { days: [{ day: 1, stops: [] }] } as any;
+    const itinerary = { days: [{ day: 1, stops: [] }] } as TestItinerary;
     selfHealDailyBudget(itinerary, { pax: 1 });
     const b = itinerary.daily_budget_summary[0];
     expect(b.meals_krw).toBe(0);
@@ -86,7 +91,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
   });
 
   it('pax 곱셈 (pax=2)', () => {
-    const itinerary = { days: [{ day: 1, stops: [{ category: 'food' }] }] } as any;
+    const itinerary = { days: [{ day: 1, stops: [{ category: 'food' }] }] } as TestItinerary;
     selfHealDailyBudget(itinerary, { pax: 2 });
     const b = itinerary.daily_budget_summary[0];
     expect(b.meals_krw).toBe(30000); // 1 × 15000 × 2
@@ -99,7 +104,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
         { day: 1, stops: [{ category: 'food' }] },
         { day: 2, stops: [{ category: 'food' }, { category: 'attraction' }] },
       ],
-    } as any;
+    } as TestItinerary;
     const healed = selfHealDailyBudget(itinerary, { pax: 1 });
     expect(healed).toBe(2);
     expect(itinerary.daily_budget_summary.length).toBe(2);
@@ -110,7 +115,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
     const itinerary = {
       days: [{ day: 1, stops: [{ category: 'food' }] }],
       quality_warnings: [{ kind: 'existing', message: '기존' }],
-    } as any;
+    } as TestItinerary;
 
     selfHealDailyBudget(itinerary);
     expect(itinerary.quality_warnings).toHaveLength(2);
@@ -119,9 +124,9 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
   });
 
   it('itinerary null 안전 (return 0)', () => {
-    expect(selfHealDailyBudget(null as any)).toBe(0);
-    expect(selfHealDailyBudget({} as any)).toBe(0);
-    expect(selfHealDailyBudget({ days: [] } as any)).toBe(0);
+    expect(selfHealDailyBudget(null)).toBe(0);
+    expect(selfHealDailyBudget({})).toBe(0);
+    expect(selfHealDailyBudget({ days: [] })).toBe(0);
   });
 
   // ── [#2 HIGH] intercity_transit (KTX/항공) 요금이 예산표 transport_krw 에 반영 ──
@@ -134,7 +139,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
           stops: [{ category: 'food' }, { category: 'attraction' }],
         },
       ],
-    } as any;
+    } as TestItinerary;
     const healed = selfHealDailyBudget(itinerary, { pax: 2 });
     expect(healed).toBe(1);
     const b = itinerary.daily_budget_summary[0];
@@ -144,7 +149,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
   });
 
   it('intercity_transit 없는 day → transport_krw 0 유지 (byte-identical, 회귀 방지)', () => {
-    const itinerary = { days: [{ day: 1, stops: [{ category: 'food' }] }] } as any;
+    const itinerary = { days: [{ day: 1, stops: [{ category: 'food' }] }] } as TestItinerary;
     selfHealDailyBudget(itinerary, { pax: 1 });
     expect(itinerary.daily_budget_summary[0].transport_krw).toBe(0);
   });
@@ -155,7 +160,7 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
         { day: 1, intercity_transit: { mode: 'KTX' }, stops: [] }, // est_fare_krw 누락
         { day: 2, intercity_transit: { mode: 'Bus', est_fare_krw: 'x' }, stops: [] }, // 비숫자
       ],
-    } as any;
+    } as TestItinerary;
     selfHealDailyBudget(itinerary, { pax: 3 });
     expect(itinerary.daily_budget_summary[0].transport_krw).toBe(0);
     expect(itinerary.daily_budget_summary[1].transport_krw).toBe(0);

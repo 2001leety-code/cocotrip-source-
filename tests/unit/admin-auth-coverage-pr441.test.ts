@@ -28,7 +28,7 @@ vi.mock('firebase-admin/auth', () => {
     if (token === 'missing-email') {
       return { email: '', email_verified: true, uid: 'no-email-uid' };
     }
-    const err: any = new Error('invalid signature');
+    const err: Error & { code?: string } = new Error('invalid signature');
     err.code = 'auth/argument-error';
     throw err;
   });
@@ -78,7 +78,7 @@ describe('PR #441 Y-H12 — verifyAdminToken success + reject paths (coverage)',
 
   it('accepts a valid admin token (success path — covers getAuth+verifyIdToken happy branch)', async () => {
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } });
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.email).toBe('2001leety@gmail.com');
@@ -88,7 +88,7 @@ describe('PR #441 Y-H12 — verifyAdminToken success + reject paths (coverage)',
 
   it('rejects when decoded email is unverified (403 Email not verified)', async () => {
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer unverified-email' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer unverified-email' } });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(403);
@@ -98,14 +98,14 @@ describe('PR #441 Y-H12 — verifyAdminToken success + reject paths (coverage)',
 
   it('rejects when email is missing on the decoded token', async () => {
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer missing-email' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer missing-email' } });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(403);
   });
 
   it('rejects when email is not the configured admin (403 Not admin)', async () => {
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer wrong-email' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer wrong-email' } });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(403);
@@ -115,7 +115,7 @@ describe('PR #441 Y-H12 — verifyAdminToken success + reject paths (coverage)',
 
   it('returns 401 when verifyIdToken throws (token verification failed)', async () => {
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer garbage-token-blah' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer garbage-token-blah' } });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(401);
@@ -134,15 +134,15 @@ describe('PR #441 Y-H12 — verifyAdminToken success + reject paths (coverage)',
     process.env.GOOGLE_SERVICE_ACCOUNT_KEY = Buffer.from(JSON.stringify(sa)).toString('base64');
     const mod = await import('../../api/_shared/admin-auth.js');
     mod.__resetAdminAuthCacheForTests();
-    const r = await mod.verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } } as any);
+    const r = await mod.verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } });
     expect(r.ok).toBe(true);
   });
 
   it('cache short-circuit: second call reuses _adminAuth (no second bootstrap)', async () => {
     const { verifyAdminToken, __resetAdminAuthCacheForTests } = await import('../../api/_shared/admin-auth.js');
     __resetAdminAuthCacheForTests();
-    const r1 = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } } as any);
-    const r2 = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } } as any);
+    const r1 = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } });
+    const r2 = await verifyAdminToken({ headers: { authorization: 'Bearer good-admin' } });
     expect(r1.ok).toBe(true);
     expect(r2.ok).toBe(true);
   });

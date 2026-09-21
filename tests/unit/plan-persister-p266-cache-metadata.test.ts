@@ -56,14 +56,19 @@ vi.mock('../../api/_ai_core/qualityMetrics.js', () => ({
 
 import { persistPlan } from '../../api/_ai_core/planPersister.js';
 
+type WriteOptions = { merge?: boolean };
+type CacheMetrics = { cached: number; total: number; output: number; cacheHitRate: number; persistedAt: number };
+type WriteData = Record<string, unknown> & { _debug?: { cacheMetrics?: CacheMetrics } };
+type Write = { collection: string; doc?: string; data: WriteData; merge?: boolean };
+
 function makeAdminDbMock() {
-  const writes: Array<{ collection: string; doc?: string; data: any; merge?: boolean }> = [];
+  const writes: Write[] = [];
   const make = (collectionName: string) => {
     const docFn = (docId: string) => ({
-      set: vi.fn(async (data: any, opts?: any) => {
+      set: vi.fn(async (data: WriteData, opts?: WriteOptions) => {
         writes.push({ collection: collectionName, doc: docId, data, merge: opts?.merge });
       }),
-      update: vi.fn(async (data: any) => {
+      update: vi.fn(async (data: WriteData) => {
         writes.push({ collection: collectionName, doc: docId, data });
       }),
       get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
@@ -73,7 +78,7 @@ function makeAdminDbMock() {
   };
   const makeSubCollection = (path: string) => ({
     doc: (docId?: string) => ({
-      set: vi.fn(async (data: any, opts?: any) => {
+      set: vi.fn(async (data: WriteData, opts?: WriteOptions) => {
         writes.push({ collection: path, doc: docId, data, merge: opts?.merge });
       }),
     }),
@@ -119,23 +124,23 @@ describe('P266 — planPersister cacheMetadata root field persist', () => {
   it('legacy 1-pass: cacheMetadata={cached,total,output} → docToSave._debug.cacheMetrics 저장', async () => {
     const db = makeAdminDbMock();
     const cacheMetadata = { cached: 12000, total: 30000, output: 7000 };
-    await persistPlan(db as any, { ...baseArgs, cacheMetadata });
+    await persistPlan(db, { ...baseArgs, cacheMetadata });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
     expect(planWrite).toBeTruthy();
     expect(planWrite!.data._debug).toBeDefined();
-    expect(planWrite!.data._debug.cacheMetrics).toBeDefined();
-    expect(planWrite!.data._debug.cacheMetrics.cached).toBe(12000);
-    expect(planWrite!.data._debug.cacheMetrics.total).toBe(30000);
-    expect(planWrite!.data._debug.cacheMetrics.output).toBe(7000);
+    expect(planWrite!.data._debug!.cacheMetrics).toBeDefined();
+    expect(planWrite!.data._debug!.cacheMetrics!.cached).toBe(12000);
+    expect(planWrite!.data._debug!.cacheMetrics!.total).toBe(30000);
+    expect(planWrite!.data._debug!.cacheMetrics!.output).toBe(7000);
     // hitRate = 12000 / 30000 * 100 = 40.0
-    expect(planWrite!.data._debug.cacheMetrics.cacheHitRate).toBeCloseTo(40, 1);
-    expect(typeof planWrite!.data._debug.cacheMetrics.persistedAt).toBe('number');
+    expect(planWrite!.data._debug!.cacheMetrics!.cacheHitRate).toBeCloseTo(40, 1);
+    expect(typeof planWrite!.data._debug!.cacheMetrics!.persistedAt).toBe('number');
   });
 
   it('block_mode / non-Gemini: cacheMetadata=null → docToSave._debug 미포함', async () => {
     const db = makeAdminDbMock();
-    await persistPlan(db as any, { ...baseArgs, cacheMetadata: null });
+    await persistPlan(db, { ...baseArgs, cacheMetadata: null });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
     expect(planWrite).toBeTruthy();
@@ -144,7 +149,7 @@ describe('P266 — planPersister cacheMetadata root field persist', () => {
 
   it('cacheMetadata 인자 누락 (back-compat): docToSave._debug 미포함', async () => {
     const db = makeAdminDbMock();
-    await persistPlan(db as any, { ...baseArgs });
+    await persistPlan(db, { ...baseArgs });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
     expect(planWrite).toBeTruthy();
@@ -153,7 +158,7 @@ describe('P266 — planPersister cacheMetadata root field persist', () => {
 
   it('total=0 (Gemini 미호출): docToSave._debug 미포함 — silent skip', async () => {
     const db = makeAdminDbMock();
-    await persistPlan(db as any, { ...baseArgs, cacheMetadata: { cached: 0, total: 0, output: 0 } });
+    await persistPlan(db, { ...baseArgs, cacheMetadata: { cached: 0, total: 0, output: 0 } });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
     expect(planWrite).toBeTruthy();
@@ -162,21 +167,21 @@ describe('P266 — planPersister cacheMetadata root field persist', () => {
 
   it('cached=0 + total>0 (cache miss 정상): cacheHitRate=0 저장', async () => {
     const db = makeAdminDbMock();
-    await persistPlan(db as any, { ...baseArgs, cacheMetadata: { cached: 0, total: 30000, output: 7000 } });
+    await persistPlan(db, { ...baseArgs, cacheMetadata: { cached: 0, total: 30000, output: 7000 } });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
-    expect(planWrite!.data._debug.cacheMetrics.cached).toBe(0);
-    expect(planWrite!.data._debug.cacheMetrics.total).toBe(30000);
-    expect(planWrite!.data._debug.cacheMetrics.cacheHitRate).toBe(0);
+    expect(planWrite!.data._debug!.cacheMetrics!.cached).toBe(0);
+    expect(planWrite!.data._debug!.cacheMetrics!.total).toBe(30000);
+    expect(planWrite!.data._debug!.cacheMetrics!.cacheHitRate).toBe(0);
   });
 
   it('high cache hit rate (>=90%): cacheHitRate 정확 계산', async () => {
     const db = makeAdminDbMock();
-    await persistPlan(db as any, { ...baseArgs, cacheMetadata: { cached: 28000, total: 30000, output: 5000 } });
+    await persistPlan(db, { ...baseArgs, cacheMetadata: { cached: 28000, total: 30000, output: 5000 } });
 
     const planWrite = db._writes.find((w) => w.collection === 'plans');
     // 28000 / 30000 * 100 = 93.333... → round to 93.3
-    expect(planWrite!.data._debug.cacheMetrics.cacheHitRate).toBeCloseTo(93.3, 1);
+    expect(planWrite!.data._debug!.cacheMetrics!.cacheHitRate).toBeCloseTo(93.3, 1);
   });
 });
 

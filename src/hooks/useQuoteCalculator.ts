@@ -11,7 +11,7 @@
 //   day_tour / multi_day 는 기존 calcIntercityFormula (왕복 × 차량 배수) 유지.
 //
 // async 처리 — Geocoding은 fetch이므로 useEffect + useState 패턴.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AIRPORT_TRANSFER_PRICES,
   DAILY_TOUR_PRICES,
@@ -464,79 +464,46 @@ function hasSpecOrMatrixPrice(state: WizardState): boolean {
 // routeKm (FEATURE_CHARTER_WAYPOINTS): 경유지 경로 km — CharterWizard/PaymentPanel 이 useCharterRouteKm 로
 //   조회해 주입. transfer/multi_day 에서 matrix 보다 우선. 미전달=현행 동작(무경유).
 export function useQuoteCalculator(state: WizardState, manualKm?: number | null, routeKm?: number | null): QuoteCalculatorResult {
-  const [externalKm, setExternalKm] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [geocodingFailed, setGeocodingFailed] = useState(false);
-  const [distanceSource, setDistanceSource] = useState<DistanceSourceLabel>(null);
+  const canResolve = !!state.service && !!state.vehicle && !isInquiryOnly(state.vehicle);
+  const matrixHit = canResolve && hasSpecOrMatrixPrice(state);
+  const coords = canResolve && !matrixHit &&
+    typeof state.originLat === 'number' && typeof state.originLng === 'number' &&
+    typeof state.destLat === 'number' && typeof state.destLng === 'number'
+    ? resolveKmFromCoords(state.originLat, state.originLng, state.destLat, state.destLng)
+    : null;
+  const originLabel = state.origin != null ? state.origin : state.originCustom;
+  const destLabel = state.destinationKey != null ? state.destinationKey : state.destinationCustom;
+  const needsLookup = canResolve && !matrixHit && !coords && !!originLabel && !!destLabel;
+  const request = useMemo(() => needsLookup
+    ? { origin: String(originLabel), destination: String(destLabel) }
+    : null, [needsLookup, originLabel, destLabel]);
+  const [resolved, setResolved] = useState<{
+    request: typeof request;
+    km: number | null;
+    source: DistanceSourceLabel;
+  } | null>(null);
 
-  // origin / destination / service / vehicle 변경 시 Geocoding 시도. matrix hit 이면 skip.
+  // 동기 거리와 로딩은 현재 입력에서 도출하고, 비동기 결과는 해당 요청에만 연결한다.
   useEffect(() => {
+    if (!request) return;
     let cancelled = false;
-    setGeocodingFailed(false);
-
-    if (!state.service || !state.vehicle) {
-      setExternalKm(null); setDistanceSource(null); return;
-    }
-    if (isInquiryOnly(state.vehicle)) {
-      setExternalKm(null); setDistanceSource(null); return;
-    }
-
-    if (hasSpecOrMatrixPrice(state)) {
-      // 매트릭스/권역 hit — Geocoding 불필요. distanceSource는 quote.source 기반.
-      setExternalKm(null);
-      setDistanceSource('matrix');
-      return;
-    }
-
-    // PR-H: AddressAutocomplete 가 좌표 두 개 모두 확정해줬으면 — Geocoding 우회.
-    if (
-      typeof state.originLat === 'number' && typeof state.originLng === 'number' &&
-      typeof state.destLat === 'number' && typeof state.destLng === 'number'
-    ) {
-      const r = resolveKmFromCoords(state.originLat, state.originLng, state.destLat, state.destLng);
-      if (r) {
-        setExternalKm(r.km);
-        setDistanceSource('geocoding'); // 'coords' 도 사실상 좌표 기반 추정 — 사용자에겐 동일 라벨.
-        return;
-      }
-    }
-
-    // origin / destination 둘 다 있어야 Geocoding 시도 가능.
-    const originLabel = state.origin ?? state.originCustom;
-    const destLabel = state.destinationKey ?? state.destinationCustom;
-    if (!originLabel || !destLabel) {
-      setExternalKm(null); setDistanceSource(null); return;
-    }
-
-    setLoading(true);
-    resolveKm(String(originLabel), String(destLabel))
+    resolveKm(request.origin, request.destination)
       .then(result => {
         if (cancelled) return;
-        if (result) {
-          setExternalKm(result.km);
-          setDistanceSource(result.source === 'matrix' ? 'matrix' : 'geocoding');
-        } else {
-          setExternalKm(null);
-          setDistanceSource(null);
-          setGeocodingFailed(true);
-        }
+        setResolved({ request, km: result?.km || null, source: result?.source || null });
       })
       .catch(() => {
         if (cancelled) return;
-        setExternalKm(null);
-        setDistanceSource(null);
-        setGeocodingFailed(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setResolved({ request, km: null, source: null });
       });
-
     return () => { cancelled = true; };
-  }, [
-    state.service, state.vehicle, state.origin, state.originCustom,
-    state.destinationKey, state.destinationCustom,
-    state.originLat, state.originLng, state.destLat, state.destLng,
-  ]);
+  }, [request]);
+
+  const current = request && resolved?.request === request ? resolved : null;
+  const externalKm = coords?.km || current?.km || null;
+  const distanceSource: DistanceSourceLabel = matrixHit ? 'matrix' : coords ? 'geocoding' : current?.source || null;
+  const loading = !!request && !current;
+  const geocodingFailed = !!current && current.km == null;
 
   // manualKm > geocoding km — 사용자가 직접 입력했으면 우선.
   const effectiveKm = manualKm != null && manualKm > 0 ? manualKm : externalKm;

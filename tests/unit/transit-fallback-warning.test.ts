@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isPublicTransitMethod,
   shouldShowFallbackWarning,
-} from '../../src/pages/PlanDetailPage/components/TransitArrow';
+} from '../../src/pages/PlanDetailPage/lib/transitArrow';
 
 describe('isPublicTransitMethod', () => {
   it('지하철·버스·복합은 true', () => {

@@ -9,8 +9,6 @@ import {
   PlannerResponseSchema,
   ReviewSchema,
   PlaceSchema,
-  MealSchema,
-  ApiResponseSchema,
 } from '../../src/schemas';
 
 // ══════════════════════════════════════════════

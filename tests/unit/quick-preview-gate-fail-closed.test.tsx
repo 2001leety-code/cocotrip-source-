@@ -87,7 +87,10 @@ describe('quick preview gate — fail-closed on malformed 200', () => {
 
   it('missing candidateId (anticipated server field) stays in error — quickSuccess/PurchaseSection never open', async () => {
     const data = buildValidData();
-    data.spotDetails = (data.spotDetails as Array<Record<string, unknown>>).map(({ candidateId: _candidateId, ...rest }) => rest);
+    data.spotDetails = (data.spotDetails as Array<Record<string, unknown>>).map(({ candidateId, ...rest }) => {
+      void candidateId;
+      return rest;
+    });
     const result = await submit(data);
     expect(result.current.status).toBe('error');
     expect(result.current.errorCode).toBe('INVALID_RESPONSE');

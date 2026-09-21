@@ -111,7 +111,6 @@ export default function ReviewManagement() {
   const [csSubmitting, setCsSubmitting] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
     const q = query(
       collection(db, 'reviews'),
       where('status', '==', 'published'),

@@ -104,6 +104,7 @@ describe('PR #441 Y-H12 — verifyAdminToken behavior preserved', () => {
 });
 
 describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => {
+  type AuthRequest = { headers: Record<string, string> };
   // Save + restore env vars across cases so we don't mutate global state.
   const savedEnv: Record<string, string | undefined> = {};
   const ENV_KEYS = [
@@ -131,7 +132,7 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
   it('returns 401 when Authorization header is missing', async () => {
     process.env.ADMIN_EMAIL = '2001leety@gmail.com';
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: {} } as any);
+    const r = await verifyAdminToken({ headers: {} } as AuthRequest);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(401);
@@ -142,7 +143,7 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
   it('returns 401 when Authorization header is not a Bearer', async () => {
     process.env.ADMIN_EMAIL = '2001leety@gmail.com';
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Basic abc=' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Basic abc=' } } as AuthRequest);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(401);
   });
@@ -150,7 +151,7 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
   it('returns 500 when ADMIN_EMAIL env is not configured', async () => {
     // No ADMIN_EMAIL in env (wiped in beforeEach)
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as AuthRequest);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(500);
@@ -171,7 +172,7 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
     // (no throw).
     const { getApps } = await import('firebase-admin/app');
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as AuthRequest);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       // Either the no-creds 500 OR token-verification 401 (if app was already initialized).
@@ -189,7 +190,7 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
     // No FIREBASE creds — will fail at bootstrap, but it gets past the
     // ADMIN_EMAIL check using the alias.
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
-    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as any);
+    const r = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as AuthRequest);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       // Should NOT be the ADMIN_EMAIL-missing error
@@ -201,11 +202,11 @@ describe('PR #441 Y-H12 — verifyAdminToken execution paths (coverage)', () => 
     process.env.ADMIN_EMAIL = '2001leety@gmail.com';
     const { verifyAdminToken, __resetAdminAuthCacheForTests } = await import('../../api/_shared/admin-auth.js');
     // First call — may cache something
-    await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as any);
+    await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as AuthRequest);
     // Reset should not throw
     expect(() => __resetAdminAuthCacheForTests()).not.toThrow();
     // Second call still works (re-bootstraps)
-    const r2 = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as any);
+    const r2 = await verifyAdminToken({ headers: { authorization: 'Bearer xyz' } } as AuthRequest);
     expect(r2.ok).toBe(false); // no real creds → still fails, but cleanly
   });
 });

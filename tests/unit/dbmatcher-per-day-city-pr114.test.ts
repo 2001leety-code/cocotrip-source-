@@ -31,6 +31,8 @@ vi.mock('../../api/_shared/telegram-throttle.js', () => ({
 
 import { applyDBMatcher } from '../../api/_ai_core/dbMatcher.js';
 
+type MatchedStop = { address?: string; verified?: boolean };
+
 describe('P114 — source-level invariants (per-day matchCity)', () => {
   it('declares dayMatchCity helper inside applyDBMatcher', () => {
     expect(src).toMatch(/function\s+dayMatchCity\s*\(/);
@@ -84,17 +86,17 @@ describe('P114 — runtime behavior (per-day matching)', () => {
     applyDBMatcher(itinerary, foodIndex, 'seoul_city', 'ko');
 
     // Day1 Seoul stop should match Seoul 돼지국밥
-    const d1s1 = itinerary.days[0].stops[0] as any;
+    const d1s1 = itinerary.days[0].stops[0] as MatchedStop;
     expect(d1s1.address).toMatch(/서울/);
     expect(d1s1.verified).toBe(true);
 
     // Day2 Busan Jagalchi should match Busan 자갈치시장 (not Seoul 자갈치)
-    const d2s1 = itinerary.days[1].stops[0] as any;
+    const d2s1 = itinerary.days[1].stops[0] as MatchedStop;
     expect(d2s1.address).toMatch(/부산/);
     expect(d2s1.verified).toBe(true);
 
     // Day2 Busan 돼지국밥 should match Busan version (not Seoul)
-    const d2s2 = itinerary.days[1].stops[1] as any;
+    const d2s2 = itinerary.days[1].stops[1] as MatchedStop;
     expect(d2s2.address).toMatch(/부산/);
     expect(d2s2.verified).toBe(true);
   });
@@ -110,7 +112,7 @@ describe('P114 — runtime behavior (per-day matching)', () => {
     };
     applyDBMatcher(itinerary, foodIndex, 'busan', 'ko');
 
-    const s = itinerary.days[0].stops[0] as any;
+    const s = itinerary.days[0].stops[0] as MatchedStop;
     expect(s.address).toMatch(/부산/);
     expect(s.verified).toBe(true);
   });
@@ -120,7 +122,7 @@ describe('P114 — runtime behavior (per-day matching)', () => {
       days: [{ day: 1, city: 'Busan', stops: [{ order: 1, category: 'food', name: '자갈치시장', address: 'gemini' }] }],
     };
     applyDBMatcher(itinerary, foodIndex, '', 'ko');
-    const s = itinerary.days[0].stops[0] as any;
+    const s = itinerary.days[0].stops[0] as MatchedStop;
     expect(s.address).toMatch(/부산/);
   });
 
@@ -132,7 +134,7 @@ describe('P114 — runtime behavior (per-day matching)', () => {
       }],
     };
     applyDBMatcher(itinerary, foodIndex, 'busan', 'ko');
-    const s = itinerary.days[0].stops[0] as any;
+    const s = itinerary.days[0].stops[0] as MatchedStop;
     // Non-food stops keep their original address
     expect(s.address).toBe('gemini-original');
     expect(s.verified).toBeUndefined();

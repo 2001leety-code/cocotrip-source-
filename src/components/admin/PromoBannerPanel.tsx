@@ -2,7 +2,8 @@
 // /api/admin-promo-config (GET → {banner,popup}, POST {target,config} 저장).
 // 배포 없이 배너 문구/CTA/마감일/켜끄기 + 팝업 제목/내용/이미지/CTA/빈도/켜끄기.
 // RuntimeFlagsPanel 패턴 동일.
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import type { User } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -39,6 +40,12 @@ const FREQ_LABEL: Record<PopupConfig['frequency'], string> = {
 const inputCls = 'flex-1 bg-white/[0.05] border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-white/30 focus:outline-none focus:border-[#7C5CFC]/60 min-h-[36px]';
 const inputFullCls = `w-full ${inputCls}`;
 
+async function fetchPromoConfig(user: User) {
+  const token = await user.getIdToken();
+  const res = await fetch('/api/admin-promo-config', { headers: { Authorization: `Bearer ${token}` } });
+  return res.json();
+}
+
 export function PromoBannerPanel() {
   const { user } = useAuth();
 
@@ -53,22 +60,25 @@ export function PromoBannerPanel() {
   const [popupSaving, setPopupSaving] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [previousUser, setPreviousUser] = useState(user);
+  if (previousUser !== user) {
+    setPreviousUser(user);
+    if (user) setLoading(true);
+  }
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/admin-promo-config', { headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
-      if (json.ok) {
-        // 신 구조: { banner, popup }
+    let cancelled = false;
+    void fetchPromoConfig(user)
+      .then((json) => {
+        if (cancelled || !json.ok) return;
         if (json.banner) { setBanner(json.banner); setBannerDraft(structuredClone(json.banner)); }
         if (json.popup)  { setPopup(json.popup);   setPopupDraft(structuredClone(json.popup)); }
-      }
-    } catch { /* 무시 */ } finally { setLoading(false); }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [user]);
-
-  useEffect(() => { void load(); }, [load]);
 
   // ── 배너 저장 ──
   const saveBanner = async () => {

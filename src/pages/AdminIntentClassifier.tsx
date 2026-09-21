@@ -171,8 +171,30 @@ export default function AdminIntentClassifier() {
   }, []);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    let cancelled = false;
+    void Promise.all([
+      fetchWeeklyStats(),
+      fetchRecentLogs(100),
+      fetchHighFallbackSamples(30),
+    ])
+      .then(([weekly, recent, fallback]) => {
+        if (cancelled) return;
+        setStats(weekly);
+        setRecentLogs(recent);
+        setFallbackSamples(fallback);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[AdminIntentClassifier] load failed:', err);
+        const raw = err instanceof Error ? err.message : String(err);
+        const needsIndex = /index/i.test(raw) && /(requires|필요)/i.test(raw);
+        setError(needsIndex
+          ? 'Firestore 색인이 아직 배포되지 않았습니다. `firebase deploy --only firestore:indexes` 실행 후 다시 시도하세요. (상세 내용은 브라우저 콘솔)'
+          : '데이터를 불러오지 못했습니다. 상세 내용은 브라우저 콘솔을 확인하세요.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const thisWeek = stats?.thisWeek;
   const lastWeek = stats?.lastWeek;
@@ -187,7 +209,7 @@ export default function AdminIntentClassifier() {
     if (fallbackSamples.length === 0) return [] as { text: string; count: number; sampleIntents: string[] }[];
     const counter = new Map<string, { count: number; intents: Set<string> }>();
     for (const log of fallbackSamples) {
-      const text = (log.raw_text || '').toLowerCase().replace(/[\.,!?]/g, ' ');
+      const text = (log.raw_text || '').toLowerCase().replace(/[.,!?]/g, ' ');
       const tokens = text.split(/\s+/).filter((w) => w.length >= 2 && w.length <= 15);
       for (const tok of tokens) {
         const existing = counter.get(tok) || { count: 0, intents: new Set<string>() };

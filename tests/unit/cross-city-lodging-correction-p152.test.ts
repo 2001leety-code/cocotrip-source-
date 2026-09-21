@@ -13,6 +13,10 @@
 import { describe, it, expect } from 'vitest';
 import { correctCrossCityLodgingStops } from '../../api/_ai_core/planPersister.js';
 
+type TestStop = { category?: string; name?: string; address?: string; [key: string]: unknown };
+type TestDay = { day: number; city?: string; stops: TestStop[]; [key: string]: unknown };
+type TestItinerary = { days: TestDay[]; quality_warnings?: Array<Record<string, unknown>>; [key: string]: unknown };
+
 describe('P152 correctCrossCityLodgingStops', () => {
   it('Busan day 에 "명동 호텔" 박힌 stop 을 부산 placeholder 로 교정', () => {
     const itinerary = {
@@ -26,7 +30,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -51,7 +55,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const hotelByCity = { busan: '해운대 그랜드 호텔, 부산광역시 해운대구 마린시티로 12' };
 
@@ -72,7 +76,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const recommendedZones = { seoul: 'hongdae' };
 
@@ -100,7 +104,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -122,7 +126,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -141,7 +145,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -159,7 +163,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
     expect(violations).toHaveLength(0);
@@ -176,7 +180,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -195,7 +199,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -214,7 +218,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
 
@@ -233,7 +237,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
           ],
         },
       ],
-    } as any;
+    } as TestItinerary;
 
     const violations = correctCrossCityLodgingStops(itinerary, {}, {});
     expect(violations).toHaveLength(0);
@@ -253,7 +257,7 @@ describe('P152 correctCrossCityLodgingStops', () => {
       quality_warnings: [
         { kind: 'existing_warning', severity: 'low', message: '기존 warning 1건' },
       ],
-    } as any;
+    } as TestItinerary;
 
     correctCrossCityLodgingStops(itinerary, {}, {});
 

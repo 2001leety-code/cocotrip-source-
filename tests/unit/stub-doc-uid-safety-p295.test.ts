@@ -28,7 +28,6 @@ describe('P295 P231 stub doc uid 누락 SAFETY-CRITICAL fix', () => {
 
   it('source — sync path stub doc 에 uid 포함', () => {
     // P231 sync stub set() 블록 안 uid 포함 검증
-    const stubBlock1 = src.match(/Stub doc saved \(skeleton-in-worker mode\)[\s\S]{0,50}/);
     // 위 검증은 console log 확인 — 본 검증은 set 호출 내용
     // P295 fix 후 uid: uid || null 패턴
     expect(src).toMatch(/_p231_stub:\s*true[\s\S]{0,200}uid:\s*uid\s*\|\|\s*null/);

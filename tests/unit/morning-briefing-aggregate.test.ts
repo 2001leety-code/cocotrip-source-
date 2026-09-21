@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — ESM .js in api/, no type decls
-import { aggregateMorningBriefing, aggregateErrors, kstYesterdayWindow, kstWeekStartMs, kstMonthStartMs, toMs, AI_FEE_USD } from '../../api/_shared/morningBriefingAggregate.js';
+import { aggregateMorningBriefing, aggregateErrors, kstYesterdayWindow, kstWeekStartMs, kstMonthStartMs, AI_FEE_USD } from '../../api/_shared/morningBriefingAggregate.js';
 // @ts-expect-error — ESM .js
 import { normalizeMarketing, buildMarketingSQL } from '../../api/_shared/morningBriefingMarketing.js';
 
@@ -108,6 +108,6 @@ describe('graceful', () => {
     expect(empty.trends.week.usd).toBe(0);
     expect(empty.errors.total).toBe(0);
     expect(empty.customer.newTickets).toBe(0);
-    expect(() => aggregateMorningBriefing(undefined as any, { now: NOW })).not.toThrow();
+    expect(() => aggregateMorningBriefing(undefined, { now: NOW })).not.toThrow();
   });
 });

@@ -23,7 +23,7 @@ import { enforcePaymentAndRevision } from '../../api/_ai_core/paymentGate.js';
 
 /** plans/{id} 하나만 돌려주는 최소 adminDb mock. revision 분기는 credits 차감에 runTransaction 을 쓴다. */
 function mockDb(origData: Record<string, unknown>) {
-  const doc = (_id: string) => ({
+  const doc = () => ({
     get: async () => ({ exists: true, data: () => origData }),
     set: async () => {},
     update: async () => {},

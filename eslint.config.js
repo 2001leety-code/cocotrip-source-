@@ -8,6 +8,14 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    // Workflow supplies the function body; this file intentionally returns its audit results.
+    files: ['.claude/skills/verify-surfaces/cross-surface-audit.js'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: { ecmaFeatures: { globalReturn: true } },
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,

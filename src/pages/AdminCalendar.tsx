@@ -213,7 +213,7 @@ export default function AdminCalendar() {
   // Dispatch Modal States — 예약 카드 → 배차 상세 입력
   const [dispatchBooking, setDispatchBooking] = useState<Booking | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [driversLoading, setDriversLoading] = useState(false);
+  const [driversLoading, setDriversLoading] = useState(true);
   const [dispatchForm, setDispatchForm] = useState({
     driverChatId: '',
     dispatchMemo: '',
@@ -230,12 +230,15 @@ export default function AdminCalendar() {
 
   const nextMonthDate = new Date(year, month + 2, 1);
   const monthRangeEnd = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const [previousMonthRangeEnd, setPreviousMonthRangeEnd] = useState(monthRangeEnd);
+  if (previousMonthRangeEnd !== monthRangeEnd) {
+    setPreviousMonthRangeEnd(monthRangeEnd);
+    setLoading(true);
+    setError(null);
+  }
 
   // Firestore real-time listeners — current month +/- 1
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-
     const prevMonthDate = new Date(year, month - 1, 1);
     const rangeStart = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
 
@@ -290,7 +293,6 @@ export default function AdminCalendar() {
   // 자동 매칭 (drivers 컬렉션 doc 1개 = name + vehicle 1쌍).
   useEffect(() => {
     let cancelled = false;
-    setDriversLoading(true);
     (async () => {
       try {
         const snap = await getDocs(collection(db, 'drivers'));

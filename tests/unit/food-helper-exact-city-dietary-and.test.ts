@@ -36,6 +36,8 @@ const ROWS = [
   { city: 'seoul', name: 'Seoul Dual Diet|', nameEn: 'Seoul Dual Diet', address: 'Seoul 1', lat: 37.55, lng: 126.98, placeId: 'p7', dietary_tags: ['halal', 'vegan'], source: 'manual_review' },
 ];
 
+type Candidate = { row: { nameEn: string }; evidence: Array<{ diet: string }> };
+
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
@@ -58,7 +60,7 @@ describe('getExactCityTrustedDietaryCandidates — AND not OR', () => {
   it('single diet (Halal) matches every halal-tagged exact-city row', async () => {
     const { getExactCityTrustedDietaryCandidates } = await freshFoodHelper();
     const out = getExactCityTrustedDietaryCandidates('gyeongju', ['Halal']);
-    const names = out.map((c: any) => c.row.nameEn);
+    const names = out.map((c: Candidate) => c.row.nameEn);
     expect(names).toEqual(expect.arrayContaining(['Halal Only House', 'Dual Diet Table', 'Certified Halal Grill']));
     expect(names).not.toContain('Vegan Only Cafe');
     expect(names).not.toContain('Naver Guess Halal'); // quarantined source stays excluded
@@ -68,7 +70,7 @@ describe('getExactCityTrustedDietaryCandidates — AND not OR', () => {
   it('🔴 SAFETY: Halal+Vegan requires BOTH on the SAME row (AND) — halal-only or vegan-only never qualifies', async () => {
     const { getExactCityTrustedDietaryCandidates } = await freshFoodHelper();
     const out = getExactCityTrustedDietaryCandidates('gyeongju', ['Halal', 'Vegan']);
-    const names = out.map((c: any) => c.row.nameEn);
+    const names = out.map((c: Candidate) => c.row.nameEn);
     // Old OR bug would have included Halal Only House / Vegan Only Cafe / Certified Halal Grill too.
     expect(names).toEqual(['Dual Diet Table']);
   });
@@ -79,13 +81,13 @@ describe('getExactCityTrustedDietaryCandidates — AND not OR', () => {
     expect(out).toHaveLength(1);
     const evidence = out[0].evidence;
     expect(evidence).toHaveLength(2);
-    expect(evidence.map((e: any) => e.diet).sort()).toEqual(['halal', 'vegan']);
+    expect(evidence.map((e: { diet: string }) => e.diet).sort()).toEqual(['halal', 'vegan']);
   });
 
   it('Vegetarian request is covered by a vegan-tagged row (vegetarian never covers halal-only)', async () => {
     const { getExactCityTrustedDietaryCandidates } = await freshFoodHelper();
     const out = getExactCityTrustedDietaryCandidates('gyeongju', ['Vegetarian']);
-    const names = out.map((c: any) => c.row.nameEn);
+    const names = out.map((c: Candidate) => c.row.nameEn);
     expect(names).toEqual(expect.arrayContaining(['Vegan Only Cafe', 'Dual Diet Table', 'Veggie Spot']));
     expect(names).not.toContain('Halal Only House');
   });

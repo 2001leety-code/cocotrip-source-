@@ -214,7 +214,7 @@ describe('A1-7-2 validateZoneCoursePublish — SAFETY publish gate', () => {
       expect(r.ok).toBe(false);
       if (!r.ok) {
         expect(r.reason).toBe('missing_meta');
-        const missingKeys = r.missingMeta?.missingKeys.map((k) => k.key) ?? [];
+        const missingKeys = r.missingMeta?.missingKeys.map((k) => k.key) || [];
         expect(missingKeys).toContain('recommended_time');
       }
     });
@@ -232,7 +232,8 @@ describe('A1-7-2 validateZoneCoursePublish — SAFETY publish gate', () => {
     });
 
     it('A1-7-2: recommended_time 필드 누락 (undefined) → missing 으로 잡혀 publish 차단', () => {
-      const { recommended_time: _unused, ...metaWithoutTime } = FULL_RUNNING_META;
+      const { recommended_time, ...metaWithoutTime } = FULL_RUNNING_META;
+      void recommended_time;
       const r = validateZoneCoursePublish({
         ...BASIC_OK,
         block_type: 'running_route',

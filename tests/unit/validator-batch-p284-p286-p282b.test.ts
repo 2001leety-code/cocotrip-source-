@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { validateResponse, validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
+import { validateResponse } from '../../api/_ai_core/responseValidator.js';
 
 describe('P284-P286 + P282-B validator batch', () => {
   const srcPath = resolve(__dirname, '../../api/_ai_core/responseValidator.js');
@@ -60,7 +60,7 @@ describe('P284-P286 + P282-B validator batch', () => {
 
   // ── Runtime: P284 hotel single-city ───────────────────────────────────────────
 
-  function makeData(stops: Array<any>) {
+  function makeData(stops: Array<unknown>) {
     return { days: [{ stops }] };
   }
 

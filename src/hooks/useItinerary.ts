@@ -54,19 +54,24 @@ const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function useItinerary() {
   const { user } = useAuth();
+  const userId = user?.uid;
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!userId);
+  const [previousUserId, setPreviousUserId] = useState(userId);
+  if (previousUserId !== userId) {
+    setPreviousUserId(userId);
+    if (!userId) {
+      setItineraries([]);
+      setLoading(false);
+    }
+  }
 
   // ── 실시간 구독 ──
   useEffect(() => {
-    if (!user?.uid) {
-      setItineraries([]);
-      setLoading(false);
-      return;
-    }
+    if (!userId) return;
 
     const q = query(
-      collection(db, 'users', user.uid, 'itineraries'),
+      collection(db, 'users', userId, 'itineraries'),
       orderBy('updatedAt', 'desc'),
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -77,7 +82,7 @@ export function useItinerary() {
     });
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 일정 생성 ──
   const createItinerary = useCallback(async (
@@ -85,7 +90,7 @@ export function useItinerary() {
     startDate: string,
     endDate: string,
   ) => {
-    if (!user?.uid) return null;
+    if (!userId) return null;
 
     const id = genId();
     const start = new Date(startDate);
@@ -111,9 +116,9 @@ export function useItinerary() {
       updatedAt: Date.now(),
     };
 
-    await setDoc(doc(db, 'users', user.uid, 'itineraries', id), itinerary);
+    await setDoc(doc(db, 'users', userId, 'itineraries', id), itinerary);
     return id;
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 슬롯 추가 ──
   const addSlot = useCallback(async (
@@ -121,7 +126,7 @@ export function useItinerary() {
     dayIndex: number,
     slot: Omit<ItinerarySlot, 'slotId'>,
   ) => {
-    if (!user?.uid) return;
+    if (!userId) return;
 
     const it = itineraries.find(i => i.id === itineraryId);
     if (!it) return;
@@ -134,8 +139,8 @@ export function useItinerary() {
     };
     updated.updatedAt = Date.now();
 
-    await setDoc(doc(db, 'users', user.uid, 'itineraries', itineraryId), updated);
-  }, [user?.uid, itineraries]);
+    await setDoc(doc(db, 'users', userId, 'itineraries', itineraryId), updated);
+  }, [userId, itineraries]);
 
   // ── 슬롯 삭제 ──
   const removeSlot = useCallback(async (
@@ -143,7 +148,7 @@ export function useItinerary() {
     dayIndex: number,
     slotId: string,
   ) => {
-    if (!user?.uid) return;
+    if (!userId) return;
 
     const it = itineraries.find(i => i.id === itineraryId);
     if (!it) return;
@@ -156,14 +161,14 @@ export function useItinerary() {
     };
     updated.updatedAt = Date.now();
 
-    await setDoc(doc(db, 'users', user.uid, 'itineraries', itineraryId), updated);
-  }, [user?.uid, itineraries]);
+    await setDoc(doc(db, 'users', userId, 'itineraries', itineraryId), updated);
+  }, [userId, itineraries]);
 
   // ── 일정 삭제 ──
   const deleteItinerary = useCallback(async (itineraryId: string) => {
-    if (!user?.uid) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'itineraries', itineraryId));
-  }, [user?.uid]);
+    if (!userId) return;
+    await deleteDoc(doc(db, 'users', userId, 'itineraries', itineraryId));
+  }, [userId]);
 
   // ── 일정 생성 + 슬롯 일괄 (2026-07-04 코스 빌더 '내 계정에 저장') ──
   // createItinerary 후 addSlot 연쇄는 onSnapshot 반영 지연으로 addSlot 이 문서를
@@ -173,7 +178,7 @@ export function useItinerary() {
     startDate: string,
     slotsPerDay: Omit<ItinerarySlot, 'slotId'>[][],
   ): Promise<string | null> => {
-    if (!user?.uid) return null;
+    if (!userId) return null;
 
     const id = genId();
     const start = new Date(startDate);
@@ -188,7 +193,7 @@ export function useItinerary() {
     });
     const end = days.length ? days[days.length - 1].date : startDate;
 
-    await setDoc(doc(db, 'users', user.uid, 'itineraries', id), {
+    await setDoc(doc(db, 'users', userId, 'itineraries', id), {
       title,
       startDate,
       endDate: end,
@@ -197,7 +202,7 @@ export function useItinerary() {
       updatedAt: Date.now(),
     });
     return id;
-  }, [user?.uid]);
+  }, [userId]);
 
   return {
     itineraries,

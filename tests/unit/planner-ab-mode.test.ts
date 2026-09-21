@@ -24,7 +24,7 @@ describe('parsePct — sanitization', () => {
   it.each([
     ['', 0],
     [undefined, 0],
-    [null as any, 0],
+    [null, 0],
     ['0', 0],
     ['1', 1],
     ['10', 10],
@@ -58,7 +58,7 @@ describe('pickIdentifier — uid > guestEmail > sessionId precedence', () => {
 
   it('returns null when nothing usable', () => {
     expect(pickIdentifier({})).toBeNull();
-    expect(pickIdentifier({ uid: '   ', guestEmail: '', sessionId: undefined as any }))
+    expect(pickIdentifier({ uid: '   ', guestEmail: '', sessionId: undefined }))
       .toBeNull();
   });
 
@@ -225,9 +225,9 @@ describe('decidePlannerMode — env precedence + bucketing', () => {
       env: { PLANNER_AB_3PASS_PCT: 'garbage', PLANNER_MODE: 'unknown' },
     })).not.toThrow();
     expect(() => decidePlannerMode({
-      uid: undefined as any,
-      guestEmail: 42 as any,
-      sessionId: null as any,
+      uid: undefined,
+      guestEmail: 42,
+      sessionId: null,
     })).not.toThrow();
   });
 });
@@ -262,7 +262,7 @@ describe('P102 — isAdminBypass forces legacy (regardless of env/PCT)', () => {
 
   it('isAdminBypass=true survives Vercel BOM/CRLF env corruption', () => {
     // Replicates real prod incident: vercel env pull surfaced PLANNER_MODE as
-    // "﻿3pass\r\n" — BOM + literal CRLF. JS .trim() strips both (per ES
+    // "BOM + 3pass + literal CRLF" — JS .trim() strips both (per ES
     // WhiteSpace spec) → '3pass' → forces 3pass for everyone. Admin Test Mode
     // must remain immune to this latent prod-env hazard.
     const d = decidePlannerMode({
@@ -315,8 +315,8 @@ describe('normalizeMode — only canonical values pass', () => {
     ['  3pass  ', '3pass'],
     ['unknown', 'legacy'],   // unrecognized → safe default
     ['', 'legacy'],
-    [undefined as any, 'legacy'],
-    [null as any, 'legacy'],
+    [undefined, 'legacy'],
+    [null, 'legacy'],
   ])('normalizeMode(%j) === %j', (input, expected) => {
     expect(normalizeMode(input)).toBe(expected);
   });

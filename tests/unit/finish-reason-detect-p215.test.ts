@@ -14,7 +14,7 @@
  *   5. handleFinishReason RECITATION → throw (저작권 차단)
  *   6. lint source 검사 — geminiPipeline.js 에 3종 export 존재
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';

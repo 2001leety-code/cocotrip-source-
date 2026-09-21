@@ -6,12 +6,12 @@ import { aggregateDecisionSummary, enqueueDecision, resolveDecision } from '../.
 
 /** Firestore mock: collection().where().where().limit().get() + .add() + .doc().update(). */
 function mockDb({ dupExists = false } = {}) {
-  const calls: any = { added: null, updated: null };
-  const q: any = { where: () => q, limit: () => q, get: async () => ({ empty: !dupExists, docs: [] }) };
-  const col: any = {
+  const calls: { added: Record<string, unknown> | null; updated: Record<string, unknown> | null } = { added: null, updated: null };
+  const q = { where: () => q, limit: () => q, get: async () => ({ empty: !dupExists, docs: [] }) };
+  const col = {
     where: () => q,
-    add: async (d: any) => { calls.added = d; return { id: 'new1' }; },
-    doc: (id: string) => ({ update: async (d: any) => { calls.updated = { id, ...d }; } }),
+    add: async (d: Record<string, unknown>) => { calls.added = d; return { id: 'new1' }; },
+    doc: (id: string) => ({ update: async (d: Record<string, unknown>) => { calls.updated = { id, ...d }; } }),
   };
   return { db: { collection: () => col }, calls };
 }
@@ -31,7 +31,7 @@ describe('aggregateDecisionSummary — pending 집계 (순수)', () => {
     expect(aggregateDecisionSummary(docs).byType).toEqual({ content_publish: 2, cs_reply: 1 });
   });
   it('top 3 = createdAtMs 내림차순', () => {
-    expect(aggregateDecisionSummary(docs).top.map((t: any) => t.title)).toEqual(['C', 'B', 'A']);
+    expect(aggregateDecisionSummary(docs).top.map((t: { title?: unknown }) => t.title)).toEqual(['C', 'B', 'A']);
   });
   it('빈/undefined → 0 (throw 없음)', () => {
     expect(aggregateDecisionSummary([]).total).toBe(0);
@@ -46,8 +46,8 @@ describe('enqueueDecision — 멱등 + 검증', () => {
     const r = await enqueueDecision(db, item);
     expect(r.ok).toBe(true);
     expect(r.added).toBe(true);
-    expect(calls.added.status).toBe('pending');
-    expect(calls.added.dedupeKey).toBe('content-20000');
+    expect(calls.added!.status).toBe('pending');
+    expect(calls.added!.dedupeKey).toBe('content-20000');
   });
   it('같은 dedupeKey pending 있으면 skip (멱등)', async () => {
     const { db, calls } = mockDb({ dupExists: true });
@@ -57,8 +57,8 @@ describe('enqueueDecision — 멱등 + 검증', () => {
   });
   it('dedupeKey/title 누락 → ok:false (add 안 함)', async () => {
     const { db, calls } = mockDb();
-    expect((await enqueueDecision(db, { title: 'x' } as any)).ok).toBe(false);
-    expect((await enqueueDecision(db, { dedupeKey: 'k' } as any)).ok).toBe(false);
+    expect((await enqueueDecision(db, { title: 'x' })).ok).toBe(false);
+    expect((await enqueueDecision(db, { dedupeKey: 'k' })).ok).toBe(false);
     expect(calls.added).toBeNull();
   });
 });
@@ -68,8 +68,8 @@ describe('resolveDecision — 상태 변경', () => {
     const { db, calls } = mockDb();
     const r = await resolveDecision(db, 'id1', 'approved');
     expect(r.ok).toBe(true);
-    expect(calls.updated.status).toBe('approved');
-    expect(calls.updated.resolvedAtMs).toBeGreaterThan(0);
+    expect(calls.updated!.status).toBe('approved');
+    expect(calls.updated!.resolvedAtMs).toBeGreaterThan(0);
   });
   it('pending/잘못된 상태 → ok:false (update 안 함)', async () => {
     const { db, calls } = mockDb();

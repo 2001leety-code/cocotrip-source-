@@ -29,6 +29,21 @@ interface MockSnap {
   exists: boolean;
   data: () => Record<string, unknown>;
 }
+type MockRef = { path: string };
+type MockTransaction = {
+  get: (ref: MockRef) => Promise<MockSnap>;
+  set: (ref: MockRef, data: Record<string, unknown>, opts?: { merge?: boolean }) => void;
+};
+type PendingEntry = { count?: number };
+type NestedPending = Record<string, Record<string, PendingEntry>>;
+
+function nestedPending(doc: Record<string, unknown>, slotId: string): Record<string, PendingEntry> {
+  return (doc.slot_pending as NestedPending)[slotId];
+}
+
+function slotBookings(doc: Record<string, unknown>): Record<string, number> {
+  return doc.slot_bookings as Record<string, number>;
+}
 
 function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefined> = {}) {
   const store = new Map<string, Record<string, unknown>>();
@@ -40,16 +55,16 @@ function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefi
     return { path };
   }
 
-  async function runTransaction(fn: (tx: any) => Promise<unknown>) {
-    const tx = {
-      get(ref: { path: string }): Promise<MockSnap> {
+  async function runTransaction<T>(fn: (tx: MockTransaction) => Promise<T>): Promise<T> {
+    const tx: MockTransaction = {
+      get(ref: MockRef): Promise<MockSnap> {
         const cur = store.get(ref.path);
         return Promise.resolve({
           exists: cur !== undefined,
           data: () => structuredClone(cur || {}),
         });
       },
-      set(ref: { path: string }, data: Record<string, unknown>, opts: { merge?: boolean } = {}) {
+      set(ref: MockRef, data: Record<string, unknown>, opts: { merge?: boolean } = {}) {
         if (opts.merge && store.has(ref.path)) {
           const cur = store.get(ref.path)!;
           store.set(ref.path, { ...cur, ...data });
@@ -76,16 +91,16 @@ describe('isPendingExpired — pure', () => {
     expect(isPendingExpired(undefined, now)).toBe(true);
   });
   it('returns true for missing expiresAt', () => {
-    expect(isPendingExpired({ count: 2 } as any, now)).toBe(true);
+    expect(isPendingExpired({ count: 2 }, now)).toBe(true);
   });
   it('returns true for malformed expiresAt', () => {
-    expect(isPendingExpired({ count: 2, expiresAt: 'not-a-date' } as any, now)).toBe(true);
+    expect(isPendingExpired({ count: 2, expiresAt: 'not-a-date' }, now)).toBe(true);
   });
   it('returns false when expiresAt > now', () => {
-    expect(isPendingExpired({ count: 2, expiresAt: new Date(now + 1000).toISOString() } as any, now)).toBe(false);
+    expect(isPendingExpired({ count: 2, expiresAt: new Date(now + 1000).toISOString() }, now)).toBe(false);
   });
   it('returns true when expiresAt == now (boundary)', () => {
-    expect(isPendingExpired({ count: 2, expiresAt: new Date(now).toISOString() } as any, now)).toBe(true);
+    expect(isPendingExpired({ count: 2, expiresAt: new Date(now).toISOString() }, now)).toBe(true);
   });
 });
 
@@ -116,7 +131,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
   it('first acquisition succeeds and stores pending entry', async () => {
     const db = makeMockDb();
     const r = await acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -128,7 +143,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     expect(r.remaining).toBe(5);
     const doc = db._peek(PATH)!;
     // 버그헌트 #18: slot_pending 이 orderId 별 중첩 구조 — slot_pending[slotId][orderId].count.
-    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(2);
+    expect(nestedPending(doc, 'slot-a')['ORD-1'].count).toBe(2);
   });
 
   it('rejects when confirmed + pending + pax exceeds capacity', async () => {
@@ -140,7 +155,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
       },
     });
     await expect(acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -159,7 +174,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
       },
     });
     const r = await acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -170,8 +185,8 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     expect(r.ok).toBe(true);
     const doc = db._peek(PATH)!;
     // stale OLD(99) 만료 제거, NEW 3 만 남음 (orderId 별 중첩).
-    expect((doc.slot_pending as any)['slot-a']['NEW'].count).toBe(3);
-    expect((doc.slot_pending as any)['slot-a']['OLD']).toBeUndefined();
+    expect(nestedPending(doc, 'slot-a')['NEW'].count).toBe(3);
+    expect(nestedPending(doc, 'slot-a')['OLD']).toBeUndefined();
   });
 
   it('stacks pending with active lock from different orderId', async () => {
@@ -183,7 +198,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
       },
     });
     const r = await acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -194,8 +209,8 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     expect(r.ok).toBe(true);
     const doc = db._peek(PATH)!;
     // 두 주문이 각자 엔트리로 공존 (덮어쓰기 아님) → 합 4.
-    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(2);
-    expect((doc.slot_pending as any)['slot-a']['ORD-2'].count).toBe(2);
+    expect(nestedPending(doc, 'slot-a')['ORD-1'].count).toBe(2);
+    expect(nestedPending(doc, 'slot-a')['ORD-2'].count).toBe(2);
   });
 
   it('rejects when status=fully_booked regardless of slot capacity', async () => {
@@ -203,7 +218,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
       [PATH]: { status: 'fully_booked' },
     });
     await expect(acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -216,7 +231,7 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
   it('rejects invalid pax', async () => {
     const db = makeMockDb();
     await expect(acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -225,11 +240,11 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
       orderId: 'X',
     })).rejects.toThrow(/Invalid pax/);
     await expect(acquireSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
-      pax: -1 as any,
+      pax: -1,
       capacity: 10,
       orderId: 'X',
     })).rejects.toThrow(/Invalid pax/);
@@ -246,7 +261,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
       },
     });
     const r = await confirmSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -256,7 +271,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
     });
     expect(r.confirmed).toBe(2);
     const doc = db._peek(PATH)!;
-    expect((doc.slot_bookings as any)['slot-a']).toBe(2);
+    expect(slotBookings(doc)['slot-a']).toBe(2);
     // 소비된 pending 은 만료 표시(count 0)로 남는다 — Firestore set(merge) 는 중첩 맵
     // 키를 못 지우므로 삭제로 표현하면 실제 문서에 pending 이 그대로 남는다.
     // (slot-pending-merge-leak.test.ts 가 깊은 병합으로 이 계약을 잠근다.)
@@ -273,7 +288,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
       },
     });
     const r = await confirmSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -294,7 +309,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
       },
     });
     await expect(confirmSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -313,7 +328,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
       },
     });
     const r = await confirmSlotLock({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
       slotId: 'slot-a',
@@ -323,7 +338,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
     });
     expect(r.confirmed).toBe(2);
     const doc = db._peek(PATH)!;
-    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(3); // 5 - 2
+    expect(nestedPending(doc, 'slot-a')['ORD-1'].count).toBe(3); // 5 - 2
   });
 });
 
@@ -335,12 +350,12 @@ describe('sweepExpiredPending — cron logic', () => {
         slot_pending: {
           'slot-a': { count: 2, expiresAt: new Date(now - 1000).toISOString() }, // expired
           'slot-b': { count: 1, expiresAt: new Date(now + 60_000).toISOString() }, // active
-          'slot-c': { count: 3 } as any, // malformed → expired
+          'slot-c': { count: 3 }, // malformed → expired
         },
       },
     });
     const r = await sweepExpiredPending({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
     });
@@ -355,7 +370,7 @@ describe('sweepExpiredPending — cron logic', () => {
 
     // 2nd sweep: idempotent (no expired left).
     const r2 = await sweepExpiredPending({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
     });
@@ -365,7 +380,7 @@ describe('sweepExpiredPending — cron logic', () => {
   it('handles missing doc gracefully', async () => {
     const db = makeMockDb({});
     const r = await sweepExpiredPending({
-      adminDb: db as any,
+      adminDb: db,
       tourId: 'test-tour',
       date: '2026-06-01',
     });

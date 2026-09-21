@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useEffectEvent } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,6 +52,47 @@ interface Booking {
   [key: string]: unknown;
 }
 
+interface VisitorBucket { uniqueVisitors: number; pageviews: number }
+interface VisitorData {
+  today: VisitorBucket; week: VisitorBucket; month: VisitorBucket;
+  topPages: { path: string; pageviews: number }[];
+  excludedAdmin: string | null;
+}
+
+type AdminUser = { getIdToken(): Promise<string> };
+
+async function fetchVisitorData(user: AdminUser): Promise<VisitorData> {
+  const idToken = await user.getIdToken();
+  const resp = await fetch('/api/admin-posthog-visitors', {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.code === 'POSTHOG_DISABLED' ? 'PostHog 미연결' : (json.error || 'unknown'));
+  return json.data as VisitorData;
+}
+
+interface BookingFetchResult {
+  list: Booking[];
+  total: number;
+  headers: string[];
+}
+
+async function fetchAdminBookings(user: AdminUser): Promise<BookingFetchResult> {
+  const idToken = await user.getIdToken();
+  const resp = await fetch('/api/admin-bookings', {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  const payload = data.data || data;
+  const list: Booking[] = payload.bookings || data.bookings || [];
+  const keys = list.length > 0 ? Object.keys(list[0]).filter((k) => k !== 'id') : [];
+  const memoKey = keys.find((k) => /memo|메모/i.test(k));
+  const sliced = keys.slice(0, 8);
+  const headers = memoKey && !sliced.includes(memoKey) ? [...sliced, memoKey] : sliced;
+  return { list, total: payload.total || data.total || list.length, headers };
+}
+
 export default function Admin() {
   const { user, loading, error } = useAuth();
   const { t } = useLanguage();
@@ -73,37 +114,33 @@ export default function Admin() {
   // ── Booking list (Firestore) ──
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingHeaders, setBookingHeaders] = useState<string[]>([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [loadingBookings, setLoadingBookings] = useState(Boolean(user && !loading));
   const [totalBookings, setTotalBookings] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [pushTesting, setPushTesting] = useState(false);
 
   // ── 방문자 통계 (PostHog, 본인 제외) ──
-  interface VisitorBucket { uniqueVisitors: number; pageviews: number }
-  interface VisitorData {
-    today: VisitorBucket; week: VisitorBucket; month: VisitorBucket;
-    topPages: { path: string; pageviews: number }[];
-    excludedAdmin: string | null;
-  }
   const [visitors, setVisitors] = useState<VisitorData | null>(null);
-  const [visitorsLoading, setVisitorsLoading] = useState(false);
+  const [visitorsLoading, setVisitorsLoading] = useState(Boolean(user));
   const [visitorsError, setVisitorsError] = useState<string | null>(null);
+  const [previousUser, setPreviousUser] = useState(user);
+  const [previousAuthLoading, setPreviousAuthLoading] = useState(loading);
+  if (previousUser !== user || previousAuthLoading !== loading) {
+    setPreviousUser(user);
+    setPreviousAuthLoading(loading);
+    if (user && previousUser !== user) {
+      setVisitorsLoading(true);
+      setVisitorsError(null);
+    }
+    if (user && !loading && (previousUser !== user || previousAuthLoading !== loading)) setLoadingBookings(true);
+  }
 
   const loadVisitors = async () => {
     if (!user) return;
     setVisitorsLoading(true);
     setVisitorsError(null);
     try {
-      const idToken = await user.getIdToken();
-      const resp = await fetch('/api/admin-posthog-visitors', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const json = await resp.json();
-      if (!json.ok) {
-        setVisitorsError(json.code === 'POSTHOG_DISABLED' ? 'PostHog 미연결' : (json.error || 'unknown'));
-        return;
-      }
-      setVisitors(json.data);
+      setVisitors(await fetchVisitorData(user));
     } catch (err) {
       setVisitorsError(err instanceof Error ? err.message : 'unknown');
     } finally {
@@ -112,8 +149,13 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (user) void loadVisitors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!user) return;
+    let cancelled = false;
+    void fetchVisitorData(user)
+      .then((data) => { if (!cancelled) setVisitors(data); })
+      .catch((err) => { if (!cancelled) setVisitorsError(err instanceof Error ? err.message : 'unknown'); })
+      .finally(() => { if (!cancelled) setVisitorsLoading(false); });
+    return () => { cancelled = true; };
   }, [user]);
 
   const handleTestPush = async () => {
@@ -154,24 +196,10 @@ export default function Admin() {
     if (!user) return;
     setLoadingBookings(true);
     try {
-      const idToken = await user.getIdToken();
-      const resp = await fetch('/api/admin-bookings', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error);
-      const payload = data.data || data;
-      const list: Booking[] = payload.bookings || data.bookings || [];
-      setBookings(list);
-      setTotalBookings(payload.total || data.total || list.length);
-      // 헤더 자동 추출 (id 제외). airport 정보가 담긴 '메모/memo' 열을 항상 포함시킨다.
-      if (list.length > 0) {
-        const keys = Object.keys(list[0]).filter(k => k !== 'id');
-        const memoKey = keys.find(k => /memo|메모/i.test(k));
-        const sliced = keys.slice(0, 8);
-        const withMemo = memoKey && !sliced.includes(memoKey) ? [...sliced, memoKey] : sliced;
-        setBookingHeaders(withMemo);
-      }
+      const data = await fetchAdminBookings(user);
+      setBookings(data.list);
+      setTotalBookings(data.total);
+      if (data.list.length > 0) setBookingHeaders(data.headers);
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
       toast.error(ta.toasts.bookingsLoadFailed);
@@ -180,11 +208,23 @@ export default function Admin() {
     }
   };
 
+  const showBookingsLoadError = useEffectEvent(() => toast.error(ta.toasts.bookingsLoadFailed));
+
   useEffect(() => {
-    if (user && !loading) {
-      fetchBookings();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!user || loading) return;
+    let cancelled = false;
+    void fetchAdminBookings(user)
+      .then((data) => {
+        if (cancelled) return;
+        setBookings(data.list);
+        setTotalBookings(data.total);
+        if (data.list.length > 0) setBookingHeaders(data.headers);
+      })
+      .catch(() => {
+        if (!cancelled) showBookingsLoadError();
+      })
+      .finally(() => { if (!cancelled) setLoadingBookings(false); });
+    return () => { cancelled = true; };
   }, [user, loading]);
 
   // ── 결제 KPI + 입금 확인 대기 (pending_bookings 실시간, AdminPayments 와 동일 컬렉션) ──
@@ -194,12 +234,16 @@ export default function Admin() {
     createdAt?: { toMillis(): number }; confirmedAt?: { toMillis(): number }; refundedAt?: { toMillis(): number };
   }
   const [pending, setPending] = useState<PendingRow[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pending_bookings'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(
       q,
-      (snap) => setPending(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) })) as PendingRow[]),
+      (snap) => {
+        setNowMs(Date.now());
+        setPending(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) })) as PendingRow[]);
+      },
       (err) => console.error('[admin] pending_bookings listen error:', err),
     );
     return () => unsub();
@@ -211,7 +255,7 @@ export default function Admin() {
       || String(b.paypalTransactionId || '').startsWith('ADMIN-BYPASS-')
       || String(b.id || '').startsWith('ADMIN-BYPASS-');
     const ymd = (ms?: number) => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-    const todayStr = ymd(Date.now());
+    const todayStr = ymd(nowMs);
     const monthStr = todayStr.slice(0, 7);
     const usd = (b: PendingRow) => parseFloat(String(b.priceUSD || 0)) || 0;
     const real = pending.filter((b) => !isTest(b));
@@ -225,7 +269,7 @@ export default function Admin() {
       refundTodayCount: refundToday.length, monthRevenueUSD: monthRevenue,
       testCount: pending.length - real.length,
     };
-  }, [pending]);
+  }, [pending, nowMs]);
 
   const handleCreateTour = async (e: FormEvent) => {
     e.preventDefault();

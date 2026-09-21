@@ -93,6 +93,7 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
 
   useEffect(() => {
     if (!enoughPoints || !containerRef.current) return;
+    const markers = markersRef.current;
     let cancelled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let mapInstance: any = null;
@@ -155,7 +156,7 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
           }
         }
 
-        markersRef.current.clear();
+        markers.clear();
         points.forEach((p) => {
           // 코스 번호핀 — 예전엔 보라→핑크 그라디언트였다. Korea Editorial Concierge 는 액센트가
           // 하나(브랜드 보라)뿐이라 평면 채움으로 바꾼다. var() 는 이 div 가 실제 document 에
@@ -169,7 +170,7 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
           const marker = L.marker([p.lat, p.lng], { icon, title: p.label })
             .addTo(map)
             .bindPopup(popupHtml(p), { closeButton: true });
-          markersRef.current.set(p.order, marker);
+          markers.set(p.order, marker);
         });
 
         // 주변추천 마커 — 코스 번호핀(브랜드 보라 원)과 구분되는 앰버 물방울핀 + 카테고리 이모지.
@@ -199,7 +200,7 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
 
     return () => {
       cancelled = true;
-      markersRef.current.clear();
+      markers.clear();
       if (mapInstance) { try { mapInstance.remove(); } catch { /* disposed */ } mapInstance = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

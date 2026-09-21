@@ -35,11 +35,14 @@ const indexesSrc = readFileSync(
   resolve(process.cwd(), 'firestore.indexes.json'),
   'utf8',
 );
-const indexes = JSON.parse(indexesSrc);
+type AlertCall = { key: string; channel: string; severity: string; message: string };
+type IndexField = { fieldPath: string; order: string };
+type IndexDefinition = { collectionGroup: string; fields: IndexField[] };
+const indexes = JSON.parse(indexesSrc) as { indexes: IndexDefinition[] };
 
-const alertCalls: any[] = [];
+const alertCalls: AlertCall[] = [];
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: vi.fn(async (args: any) => {
+  throttledTelegramAlert: vi.fn(async (args: AlertCall) => {
     alertCalls.push(args);
     return { ok: true, alerted: true };
   }),
@@ -110,7 +113,7 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
     alertCalls.length = 0;
   });
 
-  function makeIndexMissingDb(): any {
+  function makeIndexMissingDb() {
     return {
       collection: () => ({
         orderBy: () => ({
@@ -161,7 +164,7 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
           }),
         }),
       }),
-    } as any;
+    };
     const result = await buildAvoidClause(db, { uid: 'user-1', requestEmail: undefined });
     expect(result).toBe('');
     expect(alertCalls.length).toBe(0);
@@ -175,7 +178,7 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
             where: () => ({
               get: async () => ({
                 size: 2,
-                forEach: (cb: any) => {
+                forEach: (cb: (doc: { data: () => unknown }) => void) => {
                   cb({ data: () => ({ itinerary: { days: [{ stops: [{ category: 'food', name: '광장시장 김밥' }] }] } }) });
                   cb({ data: () => ({ itinerary: { days: [{ stops: [{ category: 'food', name: '부근진토 갈비' }] }] } }) });
                 },
@@ -184,7 +187,7 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
           }),
         }),
       }),
-    } as any;
+    };
     const result = await buildAvoidClause(db, { uid: 'user-1', requestEmail: undefined });
     expect(result).toMatch(/광장시장 김밥/);
     expect(result).toMatch(/부근진토 갈비/);
@@ -194,17 +197,17 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
 
   it('no adminDb or no identifier → returns "" without throwing', async () => {
     expect(await buildAvoidClause(null, { uid: 'u' })).toBe('');
-    expect(await buildAvoidClause({} as any, {})).toBe('');
+    expect(await buildAvoidClause({}, {})).toBe('');
     expect(alertCalls.length).toBe(0);
   });
 });
 
 describe('PR #465 X-H7 — firestore.indexes.json has the required composite indexes', () => {
   function hasIndex(collectionGroup: string, fields: Array<{ fieldPath: string; order: string }>) {
-    return indexes.indexes.some((idx: any) =>
+    return indexes.indexes.some((idx) =>
       idx.collectionGroup === collectionGroup &&
       idx.fields.length === fields.length &&
-      idx.fields.every((f: any, i: number) =>
+      idx.fields.every((f, i) =>
         f.fieldPath === fields[i].fieldPath && f.order === fields[i].order,
       ),
     );

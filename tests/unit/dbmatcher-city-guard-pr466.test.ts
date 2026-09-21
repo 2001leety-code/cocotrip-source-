@@ -34,9 +34,13 @@ const src = readFileSync(
   'utf8',
 );
 
-const alertCalls: any[] = [];
+type AlertArgs = { key?: string; channel?: string; severity?: string; message?: string; [key: string]: unknown };
+type MatcherStop = { category: string; name: string; address?: string; [key: string]: unknown };
+type MatcherFood = { name?: string; city?: string; address?: string; lat?: number; lng?: number; googleMapsUrl?: string; [key: string]: unknown };
+
+const alertCalls: AlertArgs[] = [];
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({
-  throttledTelegramAlert: vi.fn(async (args: any) => {
+  throttledTelegramAlert: vi.fn(async (args: AlertArgs) => {
     alertCalls.push(args);
     return { ok: true, alerted: true };
   }),
@@ -44,8 +48,8 @@ vi.mock('../../api/_shared/telegram-throttle.js', () => ({
 
 import { applyDBMatcher } from '../../api/_ai_core/dbMatcher.js';
 
-type Stop = any;
-function foodStop(name: string, extras: Record<string, any> = {}): Stop {
+type Stop = MatcherStop;
+function foodStop(name: string, extras: Record<string, unknown> = {}): Stop {
   return { category: 'food', name, address: `Gemini address for ${name}`, ...extras };
 }
 function makePlan(stops: Stop[]) {
@@ -150,7 +154,7 @@ describe('PR #466 X-H8 — admin alert fires when mismatch ratio crosses thresho
   function plan(N: number, busanRatio: number) {
     // N total food stops, busanRatio of them get a Busan-only DB entry.
     const stops: Stop[] = [];
-    const foodIndex: any[] = [];
+    const foodIndex: MatcherFood[] = [];
     const busanCount = Math.round(N * busanRatio);
     for (let i = 0; i < N; i++) {
       const name = `식당-${i}`;
@@ -200,7 +204,7 @@ describe('PR #466 X-H8 — admin alert fires when mismatch ratio crosses thresho
     // Different city — different dedup bucket.
     const { itinerary: i2, foodIndex: f2 } = plan(5, 0.6);
     // Swap the cities so Seoul-only entries become other-city for a busan plan.
-    f2.forEach((r: any) => { r.city = r.city === 'seoul' ? 'jeju' : r.city; });
+    f2.forEach((r: MatcherFood) => { r.city = r.city === 'seoul' ? 'jeju' : r.city; });
     applyDBMatcher(i2, f2, 'busan', 'ko');
     expect(alertCalls.map((a) => a.key).sort()).toEqual([
       'dbmatcher-city-mismatch:busan',

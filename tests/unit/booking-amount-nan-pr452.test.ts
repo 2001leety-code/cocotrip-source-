@@ -49,7 +49,7 @@ const helperSrc = readFileSync(
 describe('PR #452 Z-H9 — safeParseAmountUSD behavior', () => {
   it('returns {value: 0, invalid: false} for null/undefined/empty (legitimate zero)', () => {
     for (const input of [null, undefined, '']) {
-      const r = safeParseAmountUSD(input as any);
+      const r = safeParseAmountUSD(input as unknown);
       expect(r.value).toBe(0);
       expect(r.invalid).toBe(false);
     }
@@ -83,9 +83,9 @@ describe('PR #452 Z-H9 — safeParseAmountUSD behavior', () => {
   });
 
   it('does NOT throw on object / array / symbol inputs', () => {
-    expect(() => safeParseAmountUSD({} as any)).not.toThrow();
-    expect(() => safeParseAmountUSD([] as any)).not.toThrow();
-    expect(safeParseAmountUSD({} as any).invalid).toBe(true);
+    expect(() => safeParseAmountUSD({} as unknown)).not.toThrow();
+    expect(() => safeParseAmountUSD([] as unknown)).not.toThrow();
+    expect(safeParseAmountUSD({} as unknown).invalid).toBe(true);
   });
 });
 

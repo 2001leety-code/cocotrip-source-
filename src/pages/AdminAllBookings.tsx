@@ -46,6 +46,16 @@ interface ApiResponse {
   error?: string;
 }
 
+async function fetchAllBookings(user: { getIdToken(): Promise<string> }): Promise<NonNullable<ApiResponse['data']>> {
+  const idToken = await user.getIdToken();
+  const res = await fetch('/api/admin-all-bookings?limit=200', {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const json: ApiResponse = await res.json();
+  if (!res.ok || !json.ok || !json.data) throw new Error(json.error || '불러오기 실패');
+  return json.data;
+}
+
 // 출처별 라벨 + 색 (DESIGN.md: 코코트립=보라 #7C5CFC, 무드=핑크 그라데이션 계열).
 const SOURCE_META: Record<Source, { label: string; badgeClass: string }> = {
   cocotrip: { label: '코코트립', badgeClass: 'bg-[#7C5CFC]/18 text-[#B9A4FF] border-[#7C5CFC]/40' },
@@ -86,27 +96,30 @@ export default function AdminAllBookings() {
   const [items, setItems] = useState<BookingItem[] | null>(null);
   const [counts, setCounts] = useState<{ cocotrip: number; mood: number }>({ cocotrip: 0, mood: 0 });
   const [partialErrors, setPartialErrors] = useState<Record<string, string> | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(user));
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<SourceFilter>('all');
   const [hideTest, setHideTest] = useState(true);
   // 배차 실패 취소 대상 (모달) — 읽기 전용이던 화면에 유일하게 추가된 쓰기 동작.
   const [cancelTarget, setCancelTarget] = useState<BookingItem | null>(null);
+  const [previousUser, setPreviousUser] = useState(user);
+  if (previousUser !== user) {
+    setPreviousUser(user);
+    if (user) {
+      setLoading(true);
+      setError(null);
+    }
+  }
 
   const reload = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch('/api/admin-all-bookings?limit=200', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const json: ApiResponse = await res.json();
-      if (!res.ok || !json.ok || !json.data) throw new Error(json.error || '불러오기 실패');
-      setItems(json.data.items);
-      setCounts(json.data.counts);
-      setPartialErrors(json.data.partialErrors || null);
+      const data = await fetchAllBookings(user);
+      setItems(data.items);
+      setCounts(data.counts);
+      setPartialErrors(data.partialErrors || null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류');
     } finally {
@@ -114,7 +127,24 @@ export default function AdminAllBookings() {
     }
   }, [user]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void fetchAllBookings(user)
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.items);
+        setCounts(data.counts);
+        setPartialErrors(data.partialErrors || null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : '오류');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const filtered = useMemo(() => {
     let r = items || [];

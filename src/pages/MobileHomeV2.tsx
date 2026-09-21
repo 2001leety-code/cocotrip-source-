@@ -4,10 +4,13 @@ import { Sparkles, MapPin, ChevronRight, BookOpen, ArrowRight, CloudSun, User, B
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
-import { TripEssentialsCards, shouldShowHomeAffiliate } from '@/components/home/TripEssentialsCards';
+import { TripEssentialsCards } from '@/components/home/TripEssentialsCards';
+import { shouldShowHomeAffiliate } from '@/config/affiliateLinks';
 import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW, publicBadgeTag } from '@/data/tours';
-import { COCO_CATEGORY_ICONS } from '@/components/icons/CocoIcons';
+import {
+  IconAssistant, IconGlobe, IconMap, IconPlane, IconRoute, IconVan,
+} from '@/components/icons/CocoIcons';
 import { GradientCTA, StatusChip } from '@/components/coco/CocoUI';
 import { COCO } from '@/components/coco/tokens';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -27,6 +30,14 @@ import type { Language } from '@/i18n';
  */
 
 type CategoryKey = 'catPlanner' | 'catTours' | 'catCharter' | 'catMap' | 'catCommunity';
+const COCO_CATEGORY_ICONS = {
+  planner: IconAssistant,
+  tours: IconRoute,
+  charter: IconVan,
+  airport: IconPlane,
+  map: IconMap,
+  community: IconGlobe,
+} as const;
 // 아이콘: 옛 3D PNG → 가이드 p.2 규격 선 아이콘(CocoIcons, 운영자 시안 컨펌 2026-07-12)
 // 2026-07-19: 가이드 p.1 Quick Actions 정렬 — airport(/charter 중복)·kpop(/tours 중복) 타일을
 // Map(/map)·Community(/community) 실화면 진입으로 교체.
@@ -70,23 +81,30 @@ export default function MobileHomeV2() {
   const m = t.mobileHomeV2;
   const regionNames = t.regions as unknown as Record<string, string>;
   const [weather, setWeather] = useState<{ temp: string; desc: string } | null>(null);
-  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  const [unreadAlerts, setUnreadAlerts] = useState<{ uid: string; count: number }>({ uid: '', count: 0 });
+  const userId = user?.uid || '';
+  const [previousUserId, setPreviousUserId] = useState(userId);
+  if (previousUserId !== userId) {
+    setPreviousUserId(userId);
+    if (!user) setUnreadAlerts({ uid: '', count: 0 });
+  }
   const [searchQuery, setSearchQuery] = useState('');
 
   // 알림 뱃지 (UIUX P1, 2026-07-13) — 로그인 시 1회 조회. 실패 = 뱃지 0(무해).
   useEffect(() => {
-    if (!user) { setUnreadAlerts(0); return; }
+    if (!user) return;
     let cancelled = false;
     (async () => {
       try {
         const token = await user.getIdToken();
         const res = await fetch('/api/community-notifications', { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        if (!cancelled && data.ok) setUnreadAlerts(data.data.unread || 0);
+        if (!cancelled && data.ok) setUnreadAlerts({ uid: user.uid, count: data.data.unread || 0 });
       } catch { /* silent */ }
     })();
     return () => { cancelled = true; };
   }, [user]);
+  const shownUnreadAlerts = user && unreadAlerts.uid === userId ? unreadAlerts.count : 0;
 
   usePageMeta({
     title: `${m.headline1} ${m.headline2}`,
@@ -149,9 +167,9 @@ export default function MobileHomeV2() {
             style={{ color: PURPLE, border: CARD_BORDER, boxShadow: '0 6px 16px rgba(48,39,118,0.08)' }}
           >
             <Bell size={15} />
-            {unreadAlerts > 0 && (
+            {shownUnreadAlerts > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white" style={{ background: '#FF6B9D' }}>
-                {unreadAlerts > 9 ? '9+' : unreadAlerts}
+                {shownUnreadAlerts > 9 ? '9+' : shownUnreadAlerts}
               </span>
             )}
           </Link>

@@ -30,6 +30,12 @@ interface MockSnap {
   exists: boolean;
   data: () => Record<string, unknown>;
 }
+interface MockTransaction {
+  get(ref: { path: string }): Promise<MockSnap>;
+  set(ref: { path: string }, data: Record<string, unknown>, opts?: { merge?: boolean }): void;
+}
+type PendingEntry = { count: number; expiresAt?: string; orderId?: string };
+type SlotPending = Record<string, Record<string, PendingEntry> | PendingEntry>;
 
 function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefined> = {}) {
   const store = new Map<string, Record<string, unknown>>();
@@ -41,7 +47,7 @@ function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefi
     return { path };
   }
 
-  async function runTransaction(fn: (tx: any) => Promise<unknown>) {
+  async function runTransaction(fn: (tx: MockTransaction) => Promise<unknown>) {
     const tx = {
       get(ref: { path: string }): Promise<MockSnap> {
         const cur = store.get(ref.path);
@@ -70,9 +76,9 @@ function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefi
 }
 
 const PATH = 'tour_availability/test-tour/dates/2026-06-01';
-const base = { adminDb: undefined as any, tourId: 'test-tour', date: '2026-06-01', slotId: 'slot-a' };
+const base = { adminDb: undefined, tourId: 'test-tour', date: '2026-06-01', slotId: 'slot-a' };
 const slotPending = (db: ReturnType<typeof makeMockDb>) =>
-  (db._peek(PATH)!.slot_pending as any)?.['slot-a'];
+  ((db._peek(PATH)!.slot_pending as SlotPending)?.['slot-a'] as Record<string, PendingEntry>);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // normalizeSlotPendingEntry — 옛/신 구조 정규화
@@ -301,7 +307,7 @@ describe('sweepExpiredPending — 주문 엔트리 단위 sweep', () => {
     });
     const r = await sweepExpiredPending({ ...base, adminDb: db });
     expect(r.swept).toBe(2); // ORD-EXP + ORD-X
-    const pending = db._peek(PATH)!.slot_pending as any;
+    const pending = db._peek(PATH)!.slot_pending as SlotPending;
     // 만료 엔트리는 tombstone(count 0)으로 무력화 — Firestore merge 는 중첩 키를 못 지운다.
     expect(pending['slot-a']['ORD-EXP'].count).toBe(0);
     expect(pending['slot-a']['ORD-OK'].count).toBe(3);

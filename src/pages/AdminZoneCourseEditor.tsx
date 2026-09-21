@@ -74,9 +74,16 @@ export default function AdminZoneCourseEditor() {
   const [blockId, setBlockId] = useState<string>(paramId || '');
   const [tab, setTab] = useState<TabKey>('basic');
   const [loadingDoc, setLoadingDoc] = useState<boolean>(!!paramId);
+  const [previousParamId, setPreviousParamId] = useState(paramId);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [savedClock, setSavedClock] = useState(0);
   const [publishing, setPublishing] = useState(false);
+
+  if (previousParamId !== paramId) {
+    setPreviousParamId(paramId);
+    if (!paramId) setLoadingDoc(false);
+  }
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<Partial<ZoneCourseDoc> | null>(null);
@@ -85,10 +92,7 @@ export default function AdminZoneCourseEditor() {
 
   // 초기 로드 — 기존 blockId 면 draft + published 중 draft 우선
   useEffect(() => {
-    if (!paramId) {
-      setLoadingDoc(false);
-      return;
-    }
+    if (!paramId) return;
     let cancelled = false;
     Promise.all([fetchDraft(paramId), fetchZoneCourseById(paramId)])
       .then(([d, b]) => {
@@ -107,11 +111,9 @@ export default function AdminZoneCourseEditor() {
   }, [paramId]);
 
   // 신규 작성 시 draft.id 가 입력되면 blockId 동기화
-  useEffect(() => {
-    if (isNew && draft.id && draft.id !== blockId) {
-      setBlockId(draft.id);
-    }
-  }, [draft.id, isNew, blockId]);
+  if (!paramId && draft.id && draft.id !== blockId) {
+    setBlockId(draft.id);
+  }
 
   // autosave (1초 throttle, P105 패턴)
   const scheduleAutosave = (next: Partial<ZoneCourseDoc>) => {
@@ -228,14 +230,20 @@ export default function AdminZoneCourseEditor() {
     }
   };
 
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    const interval = setInterval(() => setSavedClock(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [lastSavedAt]);
+
   const savedAgo = useMemo(() => {
     if (!lastSavedAt) return null;
-    const diff = Math.floor((Date.now() - lastSavedAt) / 1000);
+    const diff = Math.floor((savedClock - lastSavedAt) / 1000);
     if (diff < 5) return '방금';
     if (diff < 60) return `${diff}초 전`;
     if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
     return `${Math.floor(diff / 3600)}시간 전`;
-  }, [lastSavedAt]);
+  }, [lastSavedAt, savedClock]);
 
   // block_type 에 따라 sidebar 의 추가 탭 결정 (2026-05-21).
   //   trekking      → 9 탭 + Trekking Meta
@@ -249,11 +257,9 @@ export default function AdminZoneCourseEditor() {
   }, [draft.block_type]);
 
   // block_type 이 바뀌면 더 이상 유효하지 않은 탭에서 basic 으로 폴백.
-  useEffect(() => {
-    if (!tabs.some((t) => t.key === tab)) {
-      setTab('basic');
-    }
-  }, [tabs, tab]);
+  if (!tabs.some((t) => t.key === tab)) {
+    setTab('basic');
+  }
 
   if (authLoading || loadingDoc) {
     return (

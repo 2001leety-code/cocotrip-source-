@@ -223,24 +223,21 @@ export default function AdminAnalytics() {
   const topToursMax = topTours[0]?.count || 1;
 
   // ── Monthly Trend (지난 8개월) ────────────────────────────────────
-  const monthlyTrend: MonthBucket[] = useMemo(() => {
-    const buckets: MonthBucket[] = [];
-    for (let i = 7; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const ymKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${d.getMonth() + 1}월`;
-      buckets.push({ ymKey, monthLabel, count: 0, revenueUSD: 0 });
+  const monthlyTrend: MonthBucket[] = [];
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ymKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const monthLabel = `${d.getMonth() + 1}월`;
+    monthlyTrend.push({ ymKey, monthLabel, count: 0, revenueUSD: 0 });
+  }
+  validBookings.forEach((b) => {
+    const ym = (b.tourDate || '').slice(0, 7);
+    const bucket = monthlyTrend.find((x) => x.ymKey === ym);
+    if (bucket) {
+      bucket.count++;
+      bucket.revenueUSD += parseFloat(String(b.amountUSD || 0));
     }
-    validBookings.forEach((b) => {
-      const ym = (b.tourDate || '').slice(0, 7);
-      const bucket = buckets.find((x) => x.ymKey === ym);
-      if (bucket) {
-        bucket.count++;
-        bucket.revenueUSD += parseFloat(String(b.amountUSD || 0));
-      }
-    });
-    return buckets;
-  }, [validBookings, now]);
+  });
 
   const trendMaxCount = Math.max(1, ...monthlyTrend.map((b) => b.count));
 

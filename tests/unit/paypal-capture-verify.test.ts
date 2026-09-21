@@ -14,7 +14,11 @@ import { describe, it, expect } from 'vitest';
 import { toMinorUnits, verifyCaptureIntegrity } from '../../api/_shared/paypal-capture-verify.js';
 
 /** 정상 capture 응답 골격 */
-function makeCapture(over: Record<string, unknown> = {}) {
+type CaptureNode = { id: string; status: string; amount: { value: string; currency_code?: string } };
+function makeCapture(over: {
+  orderStatus?: string; captureStatus?: string; value?: string; currency?: string; id?: string;
+  purchaseUnits?: Array<{ payments: { captures: CaptureNode[] } }>; captures?: CaptureNode[];
+} = {}) {
   const {
     orderStatus = 'COMPLETED',
     captureStatus = 'COMPLETED',
@@ -23,7 +27,7 @@ function makeCapture(over: Record<string, unknown> = {}) {
     id = 'CAP-1',
     purchaseUnits,
     captures,
-  } = over as Record<string, any>;
+  } = over;
   const node = { id, status: captureStatus, amount: { value, currency_code: currency } };
   return {
     status: orderStatus,
@@ -130,7 +134,7 @@ describe('verifyCaptureIntegrity — 통화', () => {
 
   it('통화 필드 없음 = NO_CURRENCY', () => {
     const cap = makeCapture();
-    delete (cap.purchase_units[0].payments.captures[0] as any).amount.currency_code;
+    delete (cap.purchase_units[0].payments.captures[0] as { amount: { currency_code?: string } }).amount.currency_code;
     const r = verifyCaptureIntegrity({ capture: cap, expectedAmountMinor: 9900, expectedCurrency: 'USD' });
     expect(r.ok).toBe(false);
     expect(r.code).toBe('NO_CURRENCY');

@@ -21,7 +21,7 @@
  */
 import { Globe, Hotel } from 'lucide-react';
 import {
-  buildEsimLink, buildHotelListLink, isAffiliateConfigured,
+  buildEsimLink, buildHotelListLink, shouldShowHomeAffiliate,
 } from '@/config/affiliateLinks';
 import { AffiliateCard } from '@/components/AffiliateCard';
 import { trackAffiliateClick } from '@/lib/affiliateTracking';
@@ -64,11 +64,6 @@ interface Props {
 }
 
 /** 기능 플래그 + 제휴 설정이 **둘 다** 맞을 때만 true. */
-export function shouldShowHomeAffiliate(): boolean {
-  const flag = String(import.meta.env.VITE_FEATURE_HOME_AFFILIATE || '').trim() === 'true';
-  return flag && isAffiliateConfigured();
-}
-
 export function TripEssentialsCards({ language, cityKey }: Props) {
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as Lang;
   const c = COPY[lang];

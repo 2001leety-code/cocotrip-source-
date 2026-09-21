@@ -23,9 +23,36 @@ interface SuspectBooking {
   requiresReconciliation: boolean;
 }
 
+interface CandidateScanData {
+  candidates: SuspectBooking[];
+  scanned: number;
+  rangeSince: string;
+  rangeUntil: string;
+}
+
+async function fetchCandidateScan(user: { getIdToken(): Promise<string> }): Promise<CandidateScanData> {
+  const idToken = await user.getIdToken();
+  const res = await fetch('/api/admin-scan-suspect-bookings', {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Scan failed');
+  return json.data as CandidateScanData;
+}
+
+function friendlyScanError(rawMsg: string): string {
+  if (rawMsg.includes('FAILED_PRECONDITION') || rawMsg.includes('index is currently building')) {
+    return 'Firestore 인덱스 빌드 중입니다. 1~3분 후 새로고침 해주세요.';
+  }
+  if (rawMsg.includes('requires an index')) {
+    return 'Firestore 인덱스 미생성. firebase deploy --only firestore:indexes 실행 또는 에러 메시지의 URL 클릭으로 자동 생성.';
+  }
+  return rawMsg;
+}
+
 export default function AdminReconciliation() {
   const { user, loading } = useAuth();
-  const [scanLoading, setScanLoading] = useState(false);
+  const [scanLoading, setScanLoading] = useState(Boolean(user && !loading));
   const [replayLoading, setReplayLoading] = useState(false);
   const [candidates, setCandidates] = useState<SuspectBooking[]>([]);
   const [scanned, setScanned] = useState(0);
@@ -34,31 +61,32 @@ export default function AdminReconciliation() {
   // 2026-05-04: 쿼리 실패 (FAILED_PRECONDITION 인덱스 빌드 중 등) 와 정상 0건 결과를 UI 에서 구분.
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSucceeded, setScanSucceeded] = useState(false);
+  const [previousUser, setPreviousUser] = useState(user);
+  const [previousAuthLoading, setPreviousAuthLoading] = useState(loading);
+  if (previousUser !== user || previousAuthLoading !== loading) {
+    setPreviousUser(user);
+    setPreviousAuthLoading(loading);
+    if (user && !loading) {
+      setScanLoading(true);
+      setScanError(null);
+      setScanSucceeded(false);
+    }
+  }
 
   const fetchCandidates = useCallback(async () => {
     if (!user) return;
     setScanLoading(true);
     setScanError(null);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch('/api/admin-scan-suspect-bookings', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || 'Scan failed');
-      setCandidates(json.data.candidates || []);
-      setScanned(json.data.scanned || 0);
-      setRangeSince(json.data.rangeSince || '');
-      setRangeUntil(json.data.rangeUntil || '');
+      const data = await fetchCandidateScan(user);
+      setCandidates(data.candidates || []);
+      setScanned(data.scanned || 0);
+      setRangeSince(data.rangeSince || '');
+      setRangeUntil(data.rangeUntil || '');
       setScanSucceeded(true);
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : 'unknown';
-      // FAILED_PRECONDITION 은 인덱스 빌드 중일 때 발생. 친화 메시지로 매핑.
-      const friendlyMsg = rawMsg.includes('FAILED_PRECONDITION') || rawMsg.includes('index is currently building')
-        ? 'Firestore 인덱스 빌드 중입니다. 1~3분 후 새로고침 해주세요.'
-        : rawMsg.includes('requires an index')
-        ? 'Firestore 인덱스 미생성. firebase deploy --only firestore:indexes 실행 또는 에러 메시지의 URL 클릭으로 자동 생성.'
-        : rawMsg;
+      const friendlyMsg = friendlyScanError(rawMsg);
       setScanError(friendlyMsg);
       setScanSucceeded(false);
       toast.error('스캔 실패: ' + friendlyMsg);
@@ -68,8 +96,30 @@ export default function AdminReconciliation() {
   }, [user]);
 
   useEffect(() => {
-    if (user && !loading) fetchCandidates();
-  }, [user, loading, fetchCandidates]);
+    if (!user || loading) return;
+    let cancelled = false;
+    void fetchCandidateScan(user)
+      .then((data) => {
+        if (cancelled) return;
+        setCandidates(data.candidates || []);
+        setScanned(data.scanned || 0);
+        setRangeSince(data.rangeSince || '');
+        setRangeUntil(data.rangeUntil || '');
+        setScanSucceeded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const rawMsg = err instanceof Error ? err.message : 'unknown';
+        const friendlyMsg = friendlyScanError(rawMsg);
+        setScanError(friendlyMsg);
+        setScanSucceeded(false);
+        toast.error('스캔 실패: ' + friendlyMsg);
+      })
+      .finally(() => {
+        if (!cancelled) setScanLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [user, loading]);
 
   const handleReplayAll = async () => {
     if (!user || candidates.length === 0) return;

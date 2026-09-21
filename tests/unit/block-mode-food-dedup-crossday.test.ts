@@ -22,8 +22,12 @@ const seoulFood = [
 // 식당 1곳만 있는 블록 (food placeholder 1 stop) — 같은 블록을 여러 day 가 선택해도 day 마다 달라야 함.
 const lunchBlock = { id: 'BLK_LUNCH', zone: 'seoul', theme: '점심', stops: [{ order: 1, placeholder: 'verified_lunch', category: 'food' }] };
 
-const foodNamesOf = (itin: any): string[] =>
-  (itin.days || []).flatMap((d: any) => (d.stops || []).filter((s: any) => s.verified).map((s: any) => s.name));
+type ItineraryStop = { verified?: boolean; name?: string };
+type ItineraryDay = { stops?: ItineraryStop[] };
+type Itinerary = { days?: ItineraryDay[] };
+
+const foodNamesOf = (itin: Itinerary): (string | undefined)[] =>
+  (itin.days || []).flatMap((d) => (d.stops || []).filter((s) => s.verified).map((s) => s.name));
 
 describe('expandBlocksToItinerary — 크로스-day 식당 dedup (단도시)', () => {
   it('3 day 가 같은 블록 선택 → 3개 모두 다른 식당 (usedFoodNames 누적 입증)', () => {
@@ -65,8 +69,8 @@ describe('expandBlocksToItineraryMultiCity — 크로스-day 식당 dedup (다�
     };
     const itin = expandBlocksToItineraryMultiCity(sel, cityBlocksList, { durationDays: 3, foodIndex: [...seoulFood, ...busanFood], language: 'en', dietPrefs: [] });
     const d = itin.days || [];
-    const seoulDayNames = [d[0], d[1]].map((x: any) => (x.stops || []).find((s: any) => s.verified)?.name);
-    const busanDayName = (d[2].stops || []).find((s: any) => s.verified)?.name;
+    const seoulDayNames = [d[0], d[1]].map((x: ItineraryDay) => (x.stops || []).find((s) => s.verified)?.name);
+    const busanDayName = (d[2].stops || []).find((s) => s.verified)?.name;
     expect(seoulDayNames[0]).toBeTruthy();
     expect(seoulDayNames[1]).toBeTruthy();
     expect(seoulDayNames[0]).not.toBe(seoulDayNames[1]); // 서울 day1 ≠ day2 = 크로스-day dedup

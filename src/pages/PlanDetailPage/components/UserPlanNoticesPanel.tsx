@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { USER_VISIBLE_KINDS } from '../lib/userPlanNotices';
 
 /**
  * 사용자에게 노출할 quality_warning kind 화이트리스트.
@@ -28,16 +29,6 @@ import { useLanguage } from '@/hooks/useLanguage';
  *
  * 회귀 시: USER_VISIBLE_KINDS 에 신규 kind 추가 시 → i18n 4lang text 동시 추가 의무.
  */
-export const USER_VISIBLE_KINDS: Record<string, string> = {
-  arrival_guide_self_healed: 'arrivalGuideSelfHealed',
-  lodging_bookend_self_healed: 'lodgingBookendSelfHealed',
-  cross_city_lodging_corrected: 'crossCityLodgingCorrected',
-  arrival_airport_overridden: 'arrivalAirportOverridden',
-  departure_airport_overridden: 'departureAirportOverridden',
-  dietary_coverage_low: 'dietaryCoverageLow',
-  daily_budget_self_healed: 'dailyBudgetSelfHealed',
-};
-
 interface QualityWarningLike {
   type?: string;
   kind?: string;

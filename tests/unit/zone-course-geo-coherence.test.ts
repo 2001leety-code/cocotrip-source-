@@ -12,9 +12,11 @@ import { computeDayRouteMetrics, isExcessiveDayRoute } from '../../api/_ai_core/
 // 봉은사(강남) → 창덕궁(종로) 교체로 19.1km → 1.6km. 본 테스트가 그 정합을 잠근다.
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '../../src/data/zone_courses');
-const load = (f: string) => JSON.parse(readFileSync(join(DIR, `${f}.json`), 'utf8'));
-const koreaStops = (j: any) =>
-  (j.stops || []).filter((s: any) => typeof s.lat === 'number' && s.lat > 30 && s.lat < 40);
+type Stop = { lat: number; lng: number; name: string; name_i18n?: Record<string, string> };
+type ZoneCourse = { stops: Stop[]; dietary_options?: string[] };
+const load = (f: string): ZoneCourse => JSON.parse(readFileSync(join(DIR, `${f}.json`), 'utf8')) as ZoneCourse;
+const koreaStops = (j: ZoneCourse) =>
+  (j.stops || []).filter((s) => typeof s.lat === 'number' && s.lat > 30 && s.lat < 40);
 
 describe('zone_course 지리 정합 (block_mode zigzag 차단)', () => {
   it('SEOUL_DAY_TEMPLE_CULTURE_STANDARD = 종로 밀집 (봉은사 강남 제거)', () => {
@@ -32,7 +34,7 @@ describe('zone_course 지리 정합 (block_mode zigzag 차단)', () => {
       expect(s.lng, `${s.name} 가 강남권(lng ${s.lng})`).toBeLessThan(127.02);
     }
     // 봉은사가 다시 들어오지 않게 이름 잠금
-    const names = (j.stops || []).map((s: any) => s.name);
+    const names = (j.stops || []).map((s) => s.name);
     expect(names).not.toContain('봉은사');
   });
 

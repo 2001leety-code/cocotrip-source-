@@ -38,18 +38,23 @@ function setLocalWishlist(items: WishlistItem[]) {
 
 export function useWishlist() {
   const { user } = useAuth();
-  const [items, setItems] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.uid;
+  const [items, setItems] = useState<WishlistItem[]>(() => userId ? [] : getLocalWishlist());
+  const [loading, setLoading] = useState(!!userId);
+  const [previousUserId, setPreviousUserId] = useState(userId);
+  if (previousUserId !== userId) {
+    setPreviousUserId(userId);
+    if (!userId) {
+      setItems(getLocalWishlist());
+      setLoading(false);
+    }
+  }
 
   // ── Firestore 실시간 구독 (로그인 시) ──
   useEffect(() => {
-    if (!user?.uid) {
-      setItems(getLocalWishlist());
-      setLoading(false);
-      return;
-    }
+    if (!userId) return;
 
-    const colRef = collection(db, 'users', user.uid, 'wishlist');
+    const colRef = collection(db, 'users', userId, 'wishlist');
     const unsub = onSnapshot(colRef, (snap) => {
       const list: WishlistItem[] = snap.docs.map(d => ({
         id: d.id,
@@ -61,15 +66,15 @@ export function useWishlist() {
     });
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [userId]);
 
   // ── 토글 (추가/제거) ──
   const toggle = useCallback(async (item: Omit<WishlistItem, 'addedAt'>) => {
     const exists = items.some(i => i.id === item.id);
 
-    if (user?.uid) {
+    if (userId) {
       // Firestore
-      const ref = doc(db, 'users', user.uid, 'wishlist', item.id);
+      const ref = doc(db, 'users', userId, 'wishlist', item.id);
       try {
         if (exists) {
           await deleteDoc(ref);
@@ -98,7 +103,7 @@ export function useWishlist() {
       setLocalWishlist(list);
       setItems(list);
     }
-  }, [user?.uid, items]);
+  }, [userId, items]);
 
   // ── 특정 상품이 찜되어 있는지 확인 ──
   const isWishlisted = useCallback((productId: string) => {

@@ -185,7 +185,6 @@ describe('Bug #20 — 수정 코드 nullish 사용 금지 확인', () => {
   it('신규 추가된 크기 검사 블록에 nullish 가 없음', () => {
     // MAX_PLAN_DAYS 상수 선언~totalTexts 체크 사이의 신규 코드 구간
     const startMark = 'MAX_PLAN_DAYS        = 30';
-    const endMark   = 'MAX_TRANSLATE_TEXTS 체크 없음 — Gemini 직전';
     const startIdx = src.indexOf(startMark);
     const endIdx   = src.indexOf('Single Gemini call with two arrays'); // 기존 주석
     expect(startIdx).toBeGreaterThan(-1);

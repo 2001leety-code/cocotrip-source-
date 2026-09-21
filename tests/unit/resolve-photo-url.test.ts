@@ -34,18 +34,21 @@ vi.mock('firebase/firestore', () => ({
 
 import { resolvePhotoUrl, buildPhotoSrcSet } from '../../src/lib/tours-firestore';
 
+type PhotoObject = Exclude<Parameters<typeof resolvePhotoUrl>[0], string | undefined>;
+type SrcSetPhoto = Exclude<Parameters<typeof buildPhotoSrcSet>[0], string | undefined>;
+
 describe('resolvePhotoUrl — Phase 4 backward compat', () => {
   it('string input returned verbatim', () => {
     expect(resolvePhotoUrl('/photos/x.jpg')).toBe('/photos/x.jpg');
   });
 
   it('TourPhoto with http url returns url', () => {
-    expect(resolvePhotoUrl({ url: 'https://storage/x.webp' } as any))
+    expect(resolvePhotoUrl({ url: 'https://storage/x.webp' } as PhotoObject))
       .toBe('https://storage/x.webp');
   });
 
   it('TourPhoto with non-http url falls back to legacy_public_path', () => {
-    expect(resolvePhotoUrl({ url: 'tours/x.jpg', legacy_public_path: '/public/x.jpg' } as any))
+    expect(resolvePhotoUrl({ url: 'tours/x.jpg', legacy_public_path: '/public/x.jpg' } as PhotoObject))
       .toBe('/public/x.jpg');
   });
 
@@ -62,7 +65,7 @@ describe('resolvePhotoUrl — P109 preferredWidth matching', () => {
       '800': 'https://storage/800.webp',
       '1600': 'https://storage/1600.webp',
     },
-  } as any;
+  } satisfies PhotoObject;
 
   it('preferredWidth=400 returns 400 variant', () => {
     expect(resolvePhotoUrl(photo, '400')).toBe('https://storage/400.webp');
@@ -80,12 +83,12 @@ describe('resolvePhotoUrl — P109 preferredWidth matching', () => {
     const partial = {
       url: 'https://storage/orig.webp',
       variants: { '400': 'https://storage/400.webp' }, // 800/1600 absent
-    } as any;
+    } satisfies PhotoObject;
     expect(resolvePhotoUrl(partial, '800')).toBe('https://storage/orig.webp');
   });
 
   it('variants undefined → falls back to original url (Extension 미설치 호환)', () => {
-    const noVariants = { url: 'https://storage/orig.webp' } as any;
+    const noVariants = { url: 'https://storage/orig.webp' } as PhotoObject;
     expect(resolvePhotoUrl(noVariants, '400')).toBe('https://storage/orig.webp');
   });
 
@@ -102,7 +105,7 @@ describe('buildPhotoSrcSet — srcSet attribute builder', () => {
         '800': 'https://s/800.webp',
         '1600': 'https://s/1600.webp',
       },
-    } as any;
+    } satisfies PhotoObject;
     expect(buildPhotoSrcSet(photo))
       .toBe('https://s/400.webp 400w, https://s/800.webp 800w, https://s/1600.webp 1600w');
   });
@@ -110,17 +113,17 @@ describe('buildPhotoSrcSet — srcSet attribute builder', () => {
   it('partial variants — only includes present widths', () => {
     const photo = {
       variants: { '400': 'https://s/400.webp', '1600': 'https://s/1600.webp' },
-    } as any;
+    } satisfies PhotoObject;
     expect(buildPhotoSrcSet(photo))
       .toBe('https://s/400.webp 400w, https://s/1600.webp 1600w');
   });
 
   it('empty variants object → undefined (caller omits srcSet attr)', () => {
-    expect(buildPhotoSrcSet({ variants: {} } as any)).toBeUndefined();
+    expect(buildPhotoSrcSet({ variants: {} } as SrcSetPhoto)).toBeUndefined();
   });
 
   it('variants missing → undefined', () => {
-    expect(buildPhotoSrcSet({ url: 'x' } as any)).toBeUndefined();
+    expect(buildPhotoSrcSet({ url: 'x' } as SrcSetPhoto)).toBeUndefined();
   });
 
   it('string input → undefined (legacy callers safe)', () => {
@@ -134,7 +137,7 @@ describe('buildPhotoSrcSet — srcSet attribute builder', () => {
   it('preserves width ordering (400 < 800 < 1600) even if variants out of order', () => {
     const photo = {
       variants: { '1600': 'X', '400': 'Y', '800': 'Z' },
-    } as any;
+    } satisfies PhotoObject;
     // Output order should still be 400 → 800 → 1600 (img tag UA convention).
     expect(buildPhotoSrcSet(photo)).toBe('Y 400w, Z 800w, X 1600w');
   });

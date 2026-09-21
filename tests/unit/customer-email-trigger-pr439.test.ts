@@ -47,9 +47,6 @@ const rulesSrc = readFileSync(
 );
 
 describe('PR #439 Z-H16 — sendCustomerEmailWithAlert behavior', () => {
-  let savedSendEmail: any;
-  let savedNotify: any;
-
   beforeEach(() => {
     // these mocks are reset between tests
   });
@@ -59,10 +56,10 @@ describe('PR #439 Z-H16 — sendCustomerEmailWithAlert behavior', () => {
   });
 
   function makeDbMock() {
-    const persisted: any[] = [];
+    const persisted: Array<{ status: string; to: string; context: { bookingRef: string } }> = [];
     return {
       collection: vi.fn(() => ({
-        add: vi.fn(async (data: any) => { persisted.push(data); }),
+        add: vi.fn(async (data: { status: string; to: string; context: { bookingRef: string } }) => { persisted.push(data); }),
       })),
       _persisted: persisted,
     };
@@ -78,7 +75,7 @@ describe('PR #439 Z-H16 — sendCustomerEmailWithAlert behavior', () => {
     const mod = await import('../../api/_shared/customer-email-trigger.js?ok=1');
     const db = makeDbMock();
     const r = await mod.sendCustomerEmailWithAlert({
-      db: db as any,
+      db: db as unknown,
       to: 'a@b.com',
       subject: 'hi',
       html: '<p>hi</p>',
@@ -97,7 +94,7 @@ describe('PR #439 Z-H16 — sendCustomerEmailWithAlert behavior', () => {
     const mod = await import('../../api/_shared/customer-email-trigger.js?fail=1');
     const db = makeDbMock();
     const r = await mod.sendCustomerEmailWithAlert({
-      db: db as any,
+      db: db as unknown,
       to: 'lost@user.com',
       subject: 'Confirmation',
       html: '<p>hi</p>',
@@ -115,9 +112,9 @@ describe('PR #439 Z-H16 — sendCustomerEmailWithAlert behavior', () => {
 
   it('returns ok=false on invalid args (never throws — caller stays fire-and-forget safe)', async () => {
     const mod = await import('../../api/_shared/customer-email-trigger.js?args=1');
-    const r1 = await mod.sendCustomerEmailWithAlert({ db: null, to: '', subject: 'x' } as any);
+    const r1 = await mod.sendCustomerEmailWithAlert({ db: null, to: '', subject: 'x' } as unknown);
     expect(r1.ok).toBe(false);
-    const r2 = await mod.sendCustomerEmailWithAlert({ db: null, to: 'a@b.com', subject: '' } as any);
+    const r2 = await mod.sendCustomerEmailWithAlert({ db: null, to: 'a@b.com', subject: '' } as unknown);
     expect(r2.ok).toBe(false);
   });
 
@@ -145,7 +142,7 @@ describe('PR #439 Z-H16 — wire-up across booking-confirm + cron + infra', () =
 
   it('vercel.json schedules email-retry-sweep every 5 minutes', () => {
     const json = JSON.parse(vercelJsonSrc);
-    const cron = json.crons.find((c: any) => c.path?.includes('email-retry-sweep'));
+    const cron = json.crons.find((c: { path?: string }) => c.path?.includes('email-retry-sweep'));
     expect(cron, 'email-retry-sweep cron must be registered').toBeTruthy();
     expect(cron.schedule).toBe('*/5 * * * *');
   });

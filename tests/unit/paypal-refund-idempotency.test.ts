@@ -234,8 +234,9 @@ describe('F5 — 송신 전 확정실패(REFUND_REQUEST_INVALID) vs 송신 후 �
 
   it('🔴 실제 non-ASCII 멱등키 → undici Headers 가 던짐 → REFUND_REQUEST_INVALID', async () => {
     // 모킹된 status 로 뭉개지 않고 실제 Headers 생성자로 ByteString 검증을 트리거한다.
-    global.fetch = vi.fn(async (_url: unknown, init: any) => {
-      new Headers(init.headers);  // 비-ASCII 헤더 값이면 여기서 TypeError(cause 없음)
+    global.fetch = vi.fn(async (_url: unknown, init: unknown) => {
+      const requestInit = init as { headers?: HeadersInit };
+      new Headers(requestInit.headers);  // 비-ASCII 헤더 값이면 여기서 TypeError(cause 없음)
       return { ok: true, status: 201, json: async () => ({ id: 'R', status: 'COMPLETED' }) };
     }) as never;
     const r = await refundPaypalCapture({ captureID: 'CAP-1', idempotencyKey: '예약123' });

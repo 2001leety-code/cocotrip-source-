@@ -27,7 +27,7 @@ let planDoc: { exists: boolean; data: Record<string, unknown> } = { exists: fals
 const updateMock = vi.fn(async () => undefined);
 
 function fakeDb() {
-  const fake: any = {};
+  const fake: Record<string, unknown> = {};
   fake.collection = () => fake;
   fake.doc = () => fake;
   fake.get = async () => ({ exists: planDoc.exists, data: () => planDoc.data });
@@ -107,7 +107,7 @@ function req(opts: {
 async function callHandler(r: ReturnType<typeof req>) {
   const handler = (await import('../../api/log-revision-reason.js')).default;
   const res = makeRes();
-  await handler(r as any, res as any);
+  await handler(r, res);
   return res;
 }
 

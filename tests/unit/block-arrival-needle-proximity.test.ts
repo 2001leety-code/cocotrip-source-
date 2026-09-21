@@ -11,6 +11,13 @@
  */
 import { describe, it, expect } from 'vitest';
 
+type TestStop = {
+  category: string;
+  name: string;
+  start_time_offset_min: number;
+  start_time: string;
+};
+
 const toMin = (hhmm: string) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
   return m ? +m[1] * 60 + +m[2] : -1;
@@ -88,9 +95,9 @@ describe('reorderArrivalStopsByLodgingProximity — 도착일 숙소 근접 재�
     const stops = makeBlocks(true)[0].stops;
     const out = reorderArrivalStopsByLodgingProximity(stops, { enabled: true });
     // 슬롯 0(offset 0, 호텔 다음)에는 가까운 Jogyesa, 슬롯 1(offset 60)에는 먼 Gangnam.
-    const sights = out.filter((s: any) => s.category === 'culture');
-    const slot0 = sights.find((s: any) => s.start_time_offset_min === 0);
-    const slot60 = sights.find((s: any) => s.start_time_offset_min === 60);
+    const sights = out.filter((s: TestStop) => s.category === 'culture');
+    const slot0 = sights.find((s: TestStop) => s.start_time_offset_min === 0)!;
+    const slot60 = sights.find((s: TestStop) => s.start_time_offset_min === 60)!;
     expect(slot0.name, '이른 슬롯(offset 0)에 가까운 Jogyesa').toBe('Jogyesa Near');
     expect(slot60.name, '늦은 슬롯(offset 60)에 먼 Gangnam').toBe('Gangnam Far');
     // 호텔(lodging)은 위치·offset 불변.
@@ -122,19 +129,19 @@ describe('#arrival-needle end-to-end — 밤도착 도착일에 가까운 stop �
     const itin = expandBlocksToItinerary(baseSelections, makeBlocks(true), lateArrivalInput);
     const stops = itin.days[0].stops;
     const sights = stops.filter(
-      (s: any) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
+      (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
     );
     // 짧은 window(21:00~21:30) 에 관광 1개만 생존 — 그게 가까운 Jogyesa 여야 함.
     expect(sights.length, '관광 stop 1개만 생존(22:00 trim)').toBe(1);
     expect(sights[0].name, '생존 관광 = 숙소 근처 Jogyesa (먼 Gangnam 아님)').toBe('Jogyesa Near');
-    expect(sights.every((s: any) => toMin(s.start_time) <= toMin('21:30')), '생존 stop 이 종료 cap 이내').toBe(true);
+    expect(sights.every((s: TestStop) => toMin(s.start_time) <= toMin('21:30')), '생존 stop 이 종료 cap 이내').toBe(true);
   });
 
   it('좌표 없으면 재정렬 무변 → 큐레이션 첫 관광(먼 Gangnam)이 그대로 생존 (회귀 가드)', async () => {
     const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
     const itin = expandBlocksToItinerary(baseSelections, makeBlocks(false), lateArrivalInput);
     const sights = itin.days[0].stops.filter(
-      (s: any) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
+      (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
     );
     expect(sights.length).toBe(1);
     expect(sights[0].name, '좌표 없으면 원본 순서 유지').toBe('Gangnam Far');
@@ -149,7 +156,7 @@ describe('#arrival-needle end-to-end — 밤도착 도착일에 가까운 stop �
       tour_start_time: '09:00',
       tour_end_time: '21:00',
     });
-    const sights = itin.days[0].stops.filter((s: any) => s.category === 'culture');
+    const sights = itin.days[0].stops.filter((s: TestStop) => s.category === 'culture');
     // 큐레이션 순서: 첫 관광 = Gangnam (offset 0 → 09:00), 둘째 = Jogyesa (offset 60 → 10:00).
     expect(sights[0].name, '도착 미입력 → 큐레이션 순서 그대로(첫 관광=Gangnam)').toBe('Gangnam Far');
     expect(sights.length).toBe(2);

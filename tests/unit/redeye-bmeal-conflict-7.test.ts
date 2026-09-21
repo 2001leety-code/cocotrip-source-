@@ -14,6 +14,8 @@
  * 회귀 시: red-eye 출국 plan 이 food 0건이어도 B-MEAL 조식 누락이 다시 fire → trap 재발.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 
 type Stop = { category: string; name: string; start_time: string };
@@ -92,8 +94,6 @@ describe('#7 red-eye (출국 < 09:00) — B-MEAL 조식 면제 (B-EARLY-DEPARTUR
   });
 
   it('source invariant: responseValidator.js 에 isRedEyeDeparture 가드 존재', () => {
-    const { readFileSync } = require('node:fs');
-    const { resolve } = require('node:path');
     const src = readFileSync(resolve(process.cwd(), 'api/_ai_core/responseValidator.js'), 'utf8');
     expect(/isRedEyeDeparture/.test(src)).toBe(true);
     expect(/depHour < 9/.test(src)).toBe(true);

@@ -57,17 +57,19 @@ describe('P183 phase 2 — Gemini responseSchema', () => {
   it('OpenAPI Subset 형식 (대문자 type) — Gemini API 요구', () => {
     // 모든 type 대문자 (OBJECT/ARRAY/STRING/INTEGER/NUMBER/BOOLEAN)
     const VALID_TYPES = new Set(['OBJECT', 'ARRAY', 'STRING', 'INTEGER', 'NUMBER', 'BOOLEAN']);
-    function checkTypes(node: any, path = 'root') {
+    type SchemaNode = { type?: string; properties?: Record<string, SchemaNode>; items?: SchemaNode };
+    function checkTypes(node: unknown, path = 'root') {
       if (!node || typeof node !== 'object') return;
-      if (node.type) {
-        expect(VALID_TYPES.has(node.type), `${path}.type = "${node.type}" must be uppercase OpenAPI Subset`).toBe(true);
+      const schema = node as SchemaNode;
+      if (schema.type) {
+        expect(VALID_TYPES.has(schema.type), `${path}.type = "${schema.type}" must be uppercase OpenAPI Subset`).toBe(true);
       }
-      if (node.properties) {
-        for (const [k, v] of Object.entries(node.properties)) {
+      if (schema.properties) {
+        for (const [k, v] of Object.entries(schema.properties)) {
           checkTypes(v, `${path}.${k}`);
         }
       }
-      if (node.items) checkTypes(node.items, `${path}[]`);
+      if (schema.items) checkTypes(schema.items, `${path}[]`);
     }
     checkTypes(PLAN_RESPONSE_SCHEMA);
   });
@@ -77,17 +79,19 @@ describe('P183 phase 2 — Gemini responseSchema', () => {
     // Pro (2.5) 는 lenient 통과지만 Flash (3.5) 는 strict reject.
     // GenerateContentRequest.generation_config.response_schema.properties[X].items: missing field
     const violations: string[] = [];
-    function walk(node: any, path = 'root') {
+    type SchemaNode = { type?: string; properties?: Record<string, SchemaNode>; items?: SchemaNode };
+    function walk(node: unknown, path = 'root') {
       if (!node || typeof node !== 'object') return;
-      if (node.type === 'ARRAY' && !node.items) {
+      const schema = node as SchemaNode;
+      if (schema.type === 'ARRAY' && !schema.items) {
         violations.push(path);
       }
-      if (node.properties) {
-        for (const [k, v] of Object.entries(node.properties)) {
+      if (schema.properties) {
+        for (const [k, v] of Object.entries(schema.properties)) {
           walk(v, `${path}.${k}`);
         }
       }
-      if (node.items) walk(node.items, `${path}[]`);
+      if (schema.items) walk(schema.items, `${path}[]`);
     }
     walk(PLAN_RESPONSE_SCHEMA);
     expect(violations, `ARRAY without items: ${violations.join(', ')}`).toEqual([]);

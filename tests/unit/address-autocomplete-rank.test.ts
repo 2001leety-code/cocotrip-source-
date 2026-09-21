@@ -3,7 +3,7 @@
  * 쿼리 구문이 이름/주소에 포함된 결과를 앞으로 안정정렬. 결과를 버리거나 좌표를 바꾸지 않음(순서만).
  */
 import { describe, it, expect } from 'vitest';
-import { rankByQueryMatch } from '../../src/components/charter/AddressAutocomplete';
+import { rankByQueryMatch } from '../../src/lib/placeSearch';
 
 type Item = Parameters<typeof rankByQueryMatch>[0][number];
 const mk = (over: Partial<Item>): Item => ({

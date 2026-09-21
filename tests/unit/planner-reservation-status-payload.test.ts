@@ -2,7 +2,7 @@
  * Reservation status payload test (2026-08-24 planner-trust-course issue #4)
  * Ensures both quick preview and full planner request bodies include reservation_status when provided
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { PlannerFormValues } from '../../src/components/PlannerForm';
 
 vi.mock('../../src/lib/firebase', () => ({
@@ -52,12 +52,12 @@ describe('Reservation status payload — quick preview', () => {
   it('buildQuickPreviewPayload includes all four valid reservation_status values', async () => {
     const { buildQuickPreviewPayload } = await import('../../src/pages/PlannerPage/lib/quickPreviewIntent');
 
-    for (const status of ['nothing', 'flight', 'flight_hotel', 'all_done']) {
+    for (const status of ['nothing', 'flight', 'flight_hotel', 'all_done'] as const) {
       const values: Partial<PlannerFormValues> = {
         regions: ['Busan'],
         durationDays: 3,
         pax: 2,
-        reservation_status: status as any,
+        reservation_status: status,
       };
 
       const payload = buildQuickPreviewPayload(values as PlannerFormValues, 'en');

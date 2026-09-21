@@ -1,5 +1,5 @@
 // AltEditorModal — TourPhoto.alt 4-lang 편집 (Phase 1, 2026-05-19)
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { I18nString, TourPhoto } from '@/data/tours';
 
@@ -18,11 +18,13 @@ const LANG_LABEL: Record<keyof I18nString, string> = {
 };
 
 export function AltEditorModal({ photo, open, onSave, onClose }: Props) {
+  const [previousAlt, setPreviousAlt] = useState(photo.alt);
   const [alt, setAlt] = useState<I18nString>(photo.alt);
 
-  useEffect(() => {
+  if (photo.alt !== previousAlt) {
+    setPreviousAlt(photo.alt);
     setAlt(photo.alt);
-  }, [photo.alt]);
+  }
 
   const handleSave = () => {
     onSave(alt);
@@ -48,7 +50,7 @@ export function AltEditorModal({ photo, open, onSave, onClose }: Props) {
               </label>
               <input
                 type="text"
-                value={alt[lang] ?? ''}
+                value={alt[lang] || ''}
                 onChange={(e) => setAlt({ ...alt, [lang]: e.target.value })}
                 placeholder={`Alt text (${lang})`}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC]"

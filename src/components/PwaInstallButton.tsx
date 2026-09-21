@@ -32,11 +32,19 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PwaInstallButton({ t, appScope = '/', browserOpenHint }: PwaInstallButtonProps) {
   const [showModal, setShowModal] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isInApp, setIsInApp] = useState(false); // 카톡·인스타 등 인앱 브라우저 — PWA 설치 이벤트 안 뜸
-  const [inOtherApp, setInOtherApp] = useState(false); // 다른 PWA(예: 코코트립 앱) 안에서 열림 — 프롬프트 불가, 브라우저 안내
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => (
+    (window as unknown as { __deferredInstallPrompt?: BeforeInstallPromptEvent }).__deferredInstallPrompt || null
+  ));
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (!window.matchMedia('(display-mode: standalone)').matches) return false;
+    return launchPath().startsWith('/mood') === appScope.startsWith('/mood');
+  });
+  const [isIOS] = useState(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
+  const [isInApp] = useState(() => /KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\/|NAVER\(inapp/i.test(navigator.userAgent)); // 카톡·인스타 등 인앱 브라우저 — PWA 설치 이벤트 안 뜸
+  const [inOtherApp] = useState(() => (
+    window.matchMedia('(display-mode: standalone)').matches
+    && launchPath().startsWith('/mood') !== appScope.startsWith('/mood')
+  )); // 다른 PWA(예: 코코트립 앱) 안에서 열림 — 프롬프트 불가, 브라우저 안내
   const [showManual, setShowManual] = useState(false); // 설치 프롬프트 없을 때 수동 안내 노출
   const push = usePushSubscription();
   const { user } = useAuth();
@@ -53,30 +61,6 @@ export function PwaInstallButton({ t, appScope = '/', browserOpenHint }: PwaInst
   const m = t.pwaInstall || {};
 
   useEffect(() => {
-    // PWA(standalone)로 실행 중일 때 — "어느 앱으로 켜졌는지"까지 확인 (2026-07-05).
-    // 첫 진입 경로가 /mood 면 MOOD 앱, 아니면 코코트립 앱 실행. 이 버튼의 앱이면 숨기고,
-    // 다른 앱 안(예: 코코트립 앱에서 /mood 열람)이면 계속 노출해 전용 앱 설치를 안내.
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      const launchedMood = launchPath().startsWith('/mood');
-      const buttonIsMood = appScope.startsWith('/mood');
-      if (launchedMood === buttonIsMood) {
-        setIsInstalled(true);
-        return;
-      }
-      setInOtherApp(true); // standalone 안에선 설치 프롬프트 불가 — 브라우저로 열기 안내
-    }
-
-    // iOS 감지
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    setIsIOS(ios);
-
-    // 인앱 브라우저(카톡·인스타·라인·페북 등) — 여기선 PWA 설치 이벤트가 원천적으로 안 떠서 수동 안내 필요.
-    setIsInApp(/KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\/|NAVER\(inapp/i.test(navigator.userAgent));
-
-    // index.html 에서 React 마운트 전에 미리 잡아둔 프롬프트가 있으면 사용 (이벤트 놓침 방지).
-    const early = (window as unknown as { __deferredInstallPrompt?: BeforeInstallPromptEvent }).__deferredInstallPrompt;
-    if (early) setDeferredPrompt(early);
-
     // Android/Chrome: beforeinstallprompt 캡처
     const handler = (e: Event) => {
       e.preventDefault();
@@ -85,9 +69,13 @@ export function PwaInstallButton({ t, appScope = '/', browserOpenHint }: PwaInst
     window.addEventListener('beforeinstallprompt', handler);
 
     // 설치 완료 감지
-    window.addEventListener('appinstalled', () => setIsInstalled(true));
+    const installedHandler = () => setIsInstalled(true);
+    window.addEventListener('appinstalled', installedHandler);
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
   }, []);
 
   // 이미 설치했으면 버튼 숨기기

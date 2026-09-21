@@ -14,7 +14,6 @@ function extractContactRe(file: string): RegExp {
   const src = readFileSync(r(file), 'utf8');
   const m = src.match(/const CONTACT_RE = (\/.+\/i);/);
   if (!m) throw new Error(`CONTACT_RE not found in ${file}`);
-  // eslint-disable-next-line no-eval
   return eval(m[1]) as RegExp;
 }
 

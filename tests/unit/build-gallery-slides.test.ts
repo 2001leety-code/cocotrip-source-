@@ -30,6 +30,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { buildGallerySlides } from '../../src/pages/buildGallerySlides';
+import type { TourPhoto } from '../../src/data/tours';
 
 const LEGACY_IMAGES = ['/a.webp', '/b.jpg'];
 
@@ -42,7 +43,8 @@ describe('buildGallerySlides — photos[] 우선 (variants 배선)', () => {
         '800': 'https://s/800.webp',
         '1600': 'https://s/1600.webp',
       },
-    }] as any;
+    // Legacy fixture intentionally omits the newer alt field.
+    }] as TourPhoto[];
     const slides = buildGallerySlides(LEGACY_IMAGES, photos);
     expect(slides).toHaveLength(1);
     expect(slides[0].src).toBe('https://s/800.webp');
@@ -51,13 +53,15 @@ describe('buildGallerySlides — photos[] 우선 (variants 배선)', () => {
   });
 
   it('photos without variants (backfill 안 된 사진) → src=원본 url, srcSet=undefined', () => {
-    const photos = [{ url: 'https://s/orig.webp' }] as any;
+    // Legacy fixture intentionally omits the newer alt field.
+    const photos = [{ url: 'https://s/orig.webp' }] as TourPhoto[];
     const slides = buildGallerySlides(LEGACY_IMAGES, photos);
     expect(slides).toEqual([{ src: 'https://s/orig.webp', srcSet: undefined }]);
   });
 
   it('legacy_public_path 사진 (정적 → Firestore import) → legacy 경로 폴백', () => {
-    const photos = [{ url: '/x.jpg', legacy_public_path: '/x.jpg' }] as any;
+    // Legacy fixture intentionally omits the newer alt field.
+    const photos = [{ url: '/x.jpg', legacy_public_path: '/x.jpg' }] as TourPhoto[];
     const slides = buildGallerySlides(LEGACY_IMAGES, photos);
     expect(slides[0].src).toBe('/x.jpg');
     expect(slides[0].srcSet).toBeUndefined();

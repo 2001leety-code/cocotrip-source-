@@ -5,6 +5,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { Header } from '@/sections/Header';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import type { User } from 'firebase/auth';
 
 interface DecisionItem {
   id: string;
@@ -29,23 +30,36 @@ const TYPE_LABEL: Record<string, string> = {
   general: '📥 일반',
 };
 
+async function fetchDecisions(user: User): Promise<DecisionItem[]> {
+  const idToken = await user.getIdToken();
+  const res = await fetch('/api/admin-decisions', { headers: { Authorization: `Bearer ${idToken}` } });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || '불러오기 실패');
+  return json.items || [];
+}
+
 export default function AdminDecisions() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [items, setItems] = useState<DecisionItem[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!user);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [previousUser, setPreviousUser] = useState(user);
+  if (previousUser !== user) {
+    setPreviousUser(user);
+    if (user) {
+      setLoading(true);
+      setError(null);
+    }
+  }
 
   const reload = useCallback(async () => {
     if (!user) return;
     setLoading(true); setError(null);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch('/api/admin-decisions', { headers: { Authorization: `Bearer ${idToken}` } });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '불러오기 실패');
-      setItems(json.items || []);
+      const next = await fetchDecisions(user);
+      setItems(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류');
     } finally {
@@ -53,7 +67,15 @@ export default function AdminDecisions() {
     }
   }, [user]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void fetchDecisions(user)
+      .then((next) => { if (!cancelled) setItems(next); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : '오류'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const resolve = useCallback(async (id: string, action: 'approve' | 'reject') => {
     if (!user) return;

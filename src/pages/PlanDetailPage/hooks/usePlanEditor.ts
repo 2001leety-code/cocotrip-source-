@@ -55,16 +55,6 @@ export function usePlanEditor(
     }
   }
 
-  // Schedule transit recalculation (debounced 2s after last edit)
-  const scheduleRecalc = useCallback((dayIdx: number, token: string | null) => {
-    if (recalcTimerRef.current) {
-      clearTimeout(recalcTimerRef.current);
-    }
-    recalcTimerRef.current = setTimeout(() => {
-      recalcTransit(dayIdx, token);
-    }, 2000);
-  }, [planId]);
-
   // Call /api/recalc-transit to refresh stale segments
   const recalcTransit = useCallback(async (dayIdx: number, token: string | null) => {
     if (!planId) return;
@@ -90,6 +80,16 @@ export function usePlanEditor(
       setIsRecalculating(false);
     }
   }, [planId]);
+
+  // Schedule transit recalculation (debounced 2s after last edit)
+  const scheduleRecalc = useCallback((dayIdx: number, token: string | null) => {
+    if (recalcTimerRef.current) {
+      clearTimeout(recalcTimerRef.current);
+    }
+    recalcTimerRef.current = setTimeout(() => {
+      recalcTransit(dayIdx, token);
+    }, 2000);
+  }, [recalcTransit]);
 
   async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;

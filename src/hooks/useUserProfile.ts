@@ -31,15 +31,27 @@ export function useUserProfile(): { profile: PrefillProfile | null; loading: boo
   const [profile, setProfile] = useState<PrefillProfile | null>(uid ? (cache.get(uid) || null) : null);
   // 로그인 유저인데 캐시 미스 OR auth 초기화 중이면 loading (비로그인 오판 방지).
   const [loading, setLoading] = useState<boolean>(authLoading || (!!uid && !cache.has(uid)));
+  const displayName = user?.displayName || null;
+  const email = user?.email || null;
+  const [previousAuthState, setPreviousAuthState] = useState(() => ({ uid, authLoading, displayName, email }));
+
+  // 인증 주체가 바뀌면 이전 계정의 prefill을 같은 렌더에서 내린다. 요청 완료 전의
+  // 빈 상태와 로딩 표시는 effect가 아니라 이 입력 상태에서 정해진다.
+  if (uid !== previousAuthState.uid
+    || authLoading !== previousAuthState.authLoading
+    || displayName !== previousAuthState.displayName
+    || email !== previousAuthState.email) {
+    setPreviousAuthState({ uid, authLoading, displayName, email });
+    setProfile(uid ? (cache.get(uid) || null) : null);
+    setLoading(authLoading || (!!uid && !cache.has(uid)));
+  }
 
   useEffect(() => {
-    if (authLoading) { setLoading(true); return; }       // auth 초기화 중 — 판단 보류
-    if (!uid) { setProfile(null); setLoading(false); return; } // 로그아웃 — 빈칸(현행)
+    if (authLoading || !uid) return; // auth 초기화 중 / 로그아웃 — render state가 빈칸을 유지
     const cached = cache.get(uid);
-    if (cached) { setProfile(cached); setLoading(false); return; }
+    if (cached) return;
 
     let cancelled = false;
-    setLoading(true);
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'users', uid));

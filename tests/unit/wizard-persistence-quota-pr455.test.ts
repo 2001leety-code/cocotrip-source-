@@ -36,13 +36,16 @@ function makeInMemoryStorage(quotaBytes?: number): Storage {
   let size = 0;
   return {
     get length() { return map.size; },
-    key: (i: number) => Array.from(map.keys())[i] ?? null,
+    key: (i: number) => {
+      const found = Array.from(map.keys())[i];
+      return found === undefined ? null : found;
+    },
     getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
     setItem: (k: string, v: string) => {
       const prev = map.get(k);
-      const delta = (v.length) - (prev?.length ?? 0);
+      const delta = (v.length) - (prev ? prev.length : 0);
       if (quotaBytes !== undefined && size + delta > quotaBytes) {
-        const err: Error & { name: string } = new Error('Quota exceeded') as any;
+        const err: Error & { name: string } = new Error('Quota exceeded');
         err.name = 'QuotaExceededError';
         throw err;
       }
@@ -62,19 +65,19 @@ function makeInMemoryStorage(quotaBytes?: number): Storage {
 
 describe('PR #455 W-H15 — isQuotaError detects browser flavors', () => {
   it('matches modern QuotaExceededError name', () => {
-    const e: any = new Error('x'); e.name = 'QuotaExceededError';
+    const e: Error & { name: string } = new Error('x'); e.name = 'QuotaExceededError';
     expect(isQuotaError(e)).toBe(true);
   });
 
   it('matches Safari legacy code 22', () => {
-    const e: any = { code: 22 };
+    const e: { code: number } = { code: 22 };
     expect(isQuotaError(e)).toBe(true);
   });
 
   it('matches Firefox NS_ERROR_DOM_QUOTA_REACHED + code 1014', () => {
-    const e: any = new Error('x'); e.name = 'NS_ERROR_DOM_QUOTA_REACHED';
+    const e: Error & { name: string } = new Error('x'); e.name = 'NS_ERROR_DOM_QUOTA_REACHED';
     expect(isQuotaError(e)).toBe(true);
-    const e2: any = { code: 1014 };
+    const e2: { code: number } = { code: 1014 };
     expect(isQuotaError(e2)).toBe(true);
   });
 
@@ -89,11 +92,11 @@ describe('PR #455 W-H15 — isQuotaError detects browser flavors', () => {
 describe('PR #455 W-H15 — sweepStaleWizardSnapshots removes other-type stale entries', () => {
   let originalLs: Storage | undefined;
   beforeEach(() => {
-    originalLs = (globalThis as any).localStorage;
-    (globalThis as any).localStorage = makeInMemoryStorage();
+    originalLs = globalThis.localStorage;
+    globalThis.localStorage = makeInMemoryStorage();
   });
   afterEach(() => {
-    if (originalLs) (globalThis as any).localStorage = originalLs;
+    if (originalLs) globalThis.localStorage = originalLs;
   });
 
   it('removes stale (>24h) cocotrip:wizard:* keys, keeps fresh ones', () => {
@@ -128,15 +131,15 @@ describe('PR #455 W-H15 — sweepStaleWizardSnapshots removes other-type stale e
 describe('PR #455 W-H15 — safeWizardSetItem retry-on-quota', () => {
   let originalLs: Storage | undefined;
   beforeEach(() => {
-    originalLs = (globalThis as any).localStorage;
+    originalLs = globalThis.localStorage;
   });
   afterEach(() => {
-    if (originalLs) (globalThis as any).localStorage = originalLs;
+    if (originalLs) globalThis.localStorage = originalLs;
     vi.restoreAllMocks();
   });
 
   it('first call succeeds → ok:true (happy path)', () => {
-    (globalThis as any).localStorage = makeInMemoryStorage();
+    globalThis.localStorage = makeInMemoryStorage();
     const r = safeWizardSetItem('charter', '{"a":1}');
     expect(r.ok).toBe(true);
     expect(localStorage.getItem(STORAGE_PREFIX + 'charter')).toBe('{"a":1}');
@@ -145,7 +148,7 @@ describe('PR #455 W-H15 — safeWizardSetItem retry-on-quota', () => {
   it('on quota: sweeps stale OTHER snapshots and retries successfully', () => {
     // Cap large enough for one snapshot but not two simultaneously.
     const ls = makeInMemoryStorage(280);
-    (globalThis as any).localStorage = ls;
+    globalThis.localStorage = ls;
     // Pre-fill with stale 'planner' that fills most of the cap.
     const stale = Date.now() - 25 * 60 * 60 * 1000;
     const stalePayload = JSON.stringify({ ts: stale, values: { large: 'x'.repeat(200) }, step: 0 });
@@ -163,7 +166,7 @@ describe('PR #455 W-H15 — safeWizardSetItem retry-on-quota', () => {
   it('on quota with nothing sweepable: returns ok:false + reason:quota + console.warn', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const ls = makeInMemoryStorage(10); // very tight cap, can't fit even 100 bytes
-    (globalThis as any).localStorage = ls;
+    globalThis.localStorage = ls;
     const r = safeWizardSetItem('charter', '{"a":' + 'x'.repeat(200) + '}');
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('quota');
@@ -175,8 +178,8 @@ describe('PR #455 W-H15 — safeWizardSetItem retry-on-quota', () => {
 
   it('non-quota error: returns ok:false + reason:unavailable (silent — private mode)', () => {
     const ls = makeInMemoryStorage();
-    (ls as any).setItem = () => { throw new TypeError('SecurityError'); };
-    (globalThis as any).localStorage = ls;
+    ls.setItem = () => { throw new TypeError('SecurityError'); };
+    globalThis.localStorage = ls;
     const r = safeWizardSetItem('charter', '{"a":1}');
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('unavailable');

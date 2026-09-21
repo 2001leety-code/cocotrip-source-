@@ -326,7 +326,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 2026-05-03 사용자 신고: prod에서 SDK timeout 발생 + "다시 시도" 버튼이 실제로
   // 재로드를 안 함 → 같은 timeout 재발. loadPaypalSdk를 함수로 추출해 force=true
   // 모드 추가 (script element 강제 제거 후 재생성).
-  function loadPaypalSdk(force = false) {
+  function configurePaypalSdk(
+    force: boolean,
+    { onReady, onError, onReset }: { onReady: () => void; onError: (message: string) => void; onReset: () => void },
+  ) {
     // P314 (2026-05-30): sandbox e2e 모드 — VITE_PAYPAL_ENV==='sandbox' (preview 빌드에만
     // 등록) 일 때 sandbox client-id 로 SDK 로드. prod 빌드엔 VITE_PAYPAL_ENV 미등록 → live.
     // 백엔드 resolveIsSandbox 와 대칭 (백엔드는 런타임 VERCEL_ENV, 프론트는 빌드타임 분리).
@@ -339,7 +342,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       : import.meta.env.VITE_PAYPAL_CLIENT_ID;
     console.log(`[PayPal SDK] mode: ${sandboxMode ? 'SANDBOX' : 'LIVE'} | clientId:`, clientId ? clientId.substring(0, 8) + '...' : '❌ 없음', '| force:', force);
     if (!clientId) {
-      setError(p.paypalSdkError ?? 'PayPal client ID not configured.');
+      onError(p.paypalSdkError ?? 'PayPal client ID not configured.');
       return;
     }
 
@@ -356,17 +359,17 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         console.log('[PayPal SDK] removing existing script (force:', force, '| mismatch:', mismatched, ')');
         existing.remove();
         try { delete window.paypal; } catch { /* ignore */ }
-        setPaypalReady(false);
+        onReset();
         existing = null;
       } else if (window.paypal) {
-        setPaypalReady(true);
+        onReady();
         return;
       } else {
-        existing.addEventListener('load', () => setPaypalReady(true));
+        existing.addEventListener('load', onReady);
         return;
       }
     } else if (!force && window.paypal) {
-      setPaypalReady(true);
+      onReady();
       return;
     }
 
@@ -396,22 +399,34 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // 실행 안 됨 → window.paypal undefined. 명시적 가드 + 친절한 메시지.
       if (typeof window.paypal === 'undefined') {
         console.error('[PayPal SDK] script onload fired but window.paypal undefined — likely ad blocker stub');
-        setError(p.paypalSdkError ?? 'PayPal blocked by ad blocker / browser shields. Please disable for this site and reload.');
+        onError(p.paypalSdkError ?? 'PayPal blocked by ad blocker / browser shields. Please disable for this site and reload.');
         return;
       }
       console.log('[PayPal SDK] loaded successfully, window.paypal ready');
-      setPaypalReady(true);
+      onReady();
     };
     script.onerror = (err) => {
       console.error('PayPal SDK load error:', err);
-      setError(p.paypalSdkError ?? 'Failed to load PayPal SDK. Disable ad blocker for this site and retry.');
+      onError(p.paypalSdkError ?? 'Failed to load PayPal SDK. Disable ad blocker for this site and retry.');
     };
     document.body.appendChild(script);
   }
 
+  function loadPaypalSdk(force = false) {
+    configurePaypalSdk(force, {
+      onReady: () => setPaypalReady(true),
+      onError: (message) => setError(message),
+      onReset: () => setPaypalReady(false),
+    });
+  }
+
   // isSandboxAccount가 바뀔 때마다 재실행 — 이메일 입력 후 올바른 SDK 로드 보장
   useEffect(() => {
-    loadPaypalSdk(false);
+    configurePaypalSdk(false, {
+      onReady: () => setPaypalReady(true),
+      onError: (message) => setError(message),
+      onReset: () => setPaypalReady(false),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSandboxAccount]);
 
@@ -558,7 +573,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       ...sharedConfig,
       style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' },
     }).render(`#paypal-btn-${productType}`);
-  }, [showPaypal, paypalReady, rateInfo]);
+  }, [
+    airport, couponDocId, couponUserId, dateStart, dropoffLocation, effectiveKRW,
+    itineraryData, lang, marketingConsent, memo, onPaymentSuccess, p.paypalCancel,
+    p.paypalError, passengers, pickupLocation, priceKRW, productType, promoApplied,
+    promoCode, rateInfo, showPaypal, paypalReady, slotFields, termsAgreed, userEmail,
+    vehicleType,
+  ]);
 
   // ── SDK 준비 대기 헬퍼 ─────────────────────────────────────────
   // 2026-05-03: 사용자 prod에서 SDK timeout 발생 — 10s가 모바일/저속망에서 부족.

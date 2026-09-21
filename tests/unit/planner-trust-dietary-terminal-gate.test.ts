@@ -29,7 +29,10 @@ const CERTIFIED_HALAL_LOW = {
   name: '이태원 할랄식당', city: 'seoul', cuisine: 'Korean', rating: 3.6, reviewCount: 40,
   lat: 37.5717, lng: 126.9858, tag: 'halal', verification_status: 'halal_certified',
 };
-const FRIENDLY_HALAL = {
+const FRIENDLY_HALAL: {
+  name: string; city: string; cuisine: string; rating: number; reviewCount: number;
+  lat: number; lng: number; tag: string; verification_status: string; dietary_evidence?: unknown;
+} = {
   name: '무슬림 친화 식당', city: 'seoul', cuisine: 'Korean', rating: 4.2, reviewCount: 300,
   lat: 37.5717, lng: 126.9858, tag: 'halal', verification_status: 'muslim_friendly',
 };
@@ -64,7 +67,7 @@ describe('a) 신뢰 후보 — unverified 고평점이 trusted 저평점을 못 
     const m = matchFoodPlaceholder(PH, [FRIENDLY_HALAL], 'seoul', ['halal'], new Set());
     expect(m?.dietary_evidence).toEqual([{ diet: 'halal', tag: 'halal', verification_status: 'muslim_friendly' }]);
     // 원본 foodIndex 행은 오염되지 않는다 (프로세스 공유 배열).
-    expect((FRIENDLY_HALAL as any).dietary_evidence).toBeUndefined();
+    expect(FRIENDLY_HALAL.dietary_evidence).toBeUndefined();
   });
 
   it('식이 요구 없는 손님은 기존 동작 그대로 (평점 1등, 증거 필드 없음)', () => {
@@ -87,15 +90,15 @@ describe('b) trusted 후보 0 → 안정 코드로 실패 (완화 금지)', () =
   const sel = { day_selections: [{ day: 1, block_id: 'B1', tweak_notes: '' }] };
 
   it('unverified 후보밖에 없으면 BLOCK_MODE_DIETARY_UNSATISFIED throw', () => {
-    let caught: any = null;
+    let caught: { code?: string; statusCode?: number } | null = null;
     try {
       expandBlocksToItinerary(sel, [block], {
         durationDays: 1, dietPrefs: ['Halal'], language: 'en', area: 'seoul', foodIndex: [UNVERIFIED_HALAL_TOP],
       });
-    } catch (e) { caught = e; }
+    } catch (e) { caught = e as { code?: string; statusCode?: number }; }
     expect(caught).toBeTruthy();
-    expect(caught.code).toBe('BLOCK_MODE_DIETARY_UNSATISFIED');
-    expect(caught.statusCode).toBe(422);
+    expect(caught!.code).toBe('BLOCK_MODE_DIETARY_UNSATISFIED');
+    expect(caught!.statusCode).toBe(422);
   });
 
   it('trusted 후보가 있으면 정상 확장 + stop 에 증거 전파', () => {
@@ -103,7 +106,9 @@ describe('b) trusted 후보 0 → 안정 코드로 실패 (완화 금지)', () =
       durationDays: 1, dietPrefs: ['Halal'], language: 'en', area: 'seoul',
       foodIndex: [UNVERIFIED_HALAL_TOP, FRIENDLY_HALAL],
     });
-    const food = out.days[0].stops.find((s: any) => s.category === 'food');
+    const food = out.days[0].stops.find((s: { category: string }) => s.category === 'food') as {
+      name: string; dietary_evidence?: Array<{ verification_status: string }>;
+    };
     expect(food.name).toBe('무슬림 친화 식당');
     expect(food.dietary_evidence?.[0].verification_status).toBe('muslim_friendly');
   });
@@ -243,22 +248,22 @@ describe('d) 재작성본이 마지막 검증 통과본을 밀어내지 못한�
     const invalidPlan = { days: [violatingDay(1)], tour_title: 'rewritten' };
     let call = 0;
     vi.doMock('../../api/_ai_core/responseValidator.js', async (orig) => {
-      const actual: any = await orig();
+      const actual = await orig() as Record<string, unknown>;
       return {
         ...actual,
         // 1회차만 pattern 위반 → retry 유도. retry 후에는 통과시켜 "구조는 OK, 식이는 위반" 상황.
         validatePatternStructure: () => (call++ === 0 ? ['B-12 forced'] : []),
       };
     });
-    const gp: any = await import('../../api/_ai_core/geminiPipeline.js');
-    const mkModel = (payload: any) => ({
+    const gp = await import('../../api/_ai_core/geminiPipeline.js');
+    const mkModel = (payload: object) => ({
       generateContent: async () => ({ response: { text: () => JSON.stringify(payload), candidates: [] } }),
     });
-    vi.spyOn(gp, 'buildModel').mockImplementation((_k: any, temp: any) =>
-      mkModel(temp === undefined ? validPlan : invalidPlan) as any);
+    vi.spyOn(gp, 'buildModel').mockImplementation((_k: string, temp?: unknown) =>
+      mkModel(temp === undefined ? validPlan : invalidPlan));
 
     // 종단 게이트 단위 동작으로 확인 (전체 파이프라인은 Gemini SDK 의존 — 여기서는 게이트 계약).
-    const gate: any = await import('../../api/_ai_core/finalItineraryGate.js');
+    const gate = await import('../../api/_ai_core/finalItineraryGate.js');
     const rewritten = gate.runFinalItineraryValidation(invalidPlan, { language: 'en', dietary: ['Vegan'], foodIndex: [] });
     const lastValid = gate.runFinalItineraryValidation(validPlan, { language: 'en', dietary: ['Vegan'], foodIndex: [] });
     expect(rewritten.ok).toBe(false);   // 재작성본은 저장 불가
@@ -280,14 +285,14 @@ describe('e) background Pass3 결과가 검증 실패면 Firestore 를 안 덮�
 
   beforeEach(() => { vi.resetModules(); vi.restoreAllMocks(); });
 
-  async function runBg(enrichedResult: any, dietary: string[]) {
+  async function runBg(enrichedResult: object, dietary: string[]) {
     process.env.PLANNER_PASS3_BACKGROUND = 'true';
-    const updates: any[] = [];
+    const updates: Array<{ planId: string; it: object }> = [];
     vi.doMock('../../api/_ai_core/threePassPipeline.js', () => ({
       pass3Enrich: async () => enrichedResult,
     }));
     vi.doMock('../../api/_ai_core/planPersister.js', () => ({
-      updatePlanEnrichment: async (_db: any, planId: string, it: any) => { updates.push({ planId, it }); },
+      updatePlanEnrichment: async (_db: object, planId: string, it: object) => { updates.push({ planId, it }); },
       savePlanSkeleton: async () => ({ planId: 'x', planUrl: '/x' }),
     }));
     vi.doMock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async () => {} }));
@@ -297,7 +302,7 @@ describe('e) background Pass3 결과가 검증 실패면 Firestore 를 안 덮�
       buildModel: () => ({}),
       loadFoodIndex: async () => [],
     }));
-    const bg: any = await import('../../api/_ai_core/backgroundPipelines.js');
+    const bg = await import('../../api/_ai_core/backgroundPipelines.js');
     bg.triggerPass3BackgroundIfPending({
       adminDb: {}, planId: 'p1', language: 'en', apiKey: 'k',
       itinerary: JSON.parse(JSON.stringify(validPlan)), dietary,

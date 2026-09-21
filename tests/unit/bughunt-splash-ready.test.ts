@@ -37,7 +37,6 @@ describe('Bug #10 — App 최상위 signalAppReady 호출 (모든 진입 경로 
 
   it('App() 함수 내 signalAppReady 호출은 deps=[] (마운트 1회) 이다', () => {
     // App 함수 선택: function App() { ... }
-    const appFnMatch = appSrc.match(/function\s+App\s*\(\s*\)\s*\{([\s\S]*?)^\}/m);
     // 함수 전체가 매치 안 될 수 있으니 App 함수 시작 이후 충분한 범위를 검사
     const appFnStart = appSrc.indexOf('function App()');
     expect(appFnStart).toBeGreaterThan(0);

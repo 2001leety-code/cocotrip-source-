@@ -87,7 +87,6 @@ function extractBuildPlanHtml(source) {
   // export const config, export default handler 제거
   stripped = stripped.replace(/^export\s+(const\s+config[\s\S]*?^};|default\s+async\s+function\s+handler[\s\S]*?^})/gm, '');
 
-  // eslint-disable-next-line no-new-func
   const fn = new Function('escapeHtml', `${stripped}\nreturn buildPlanHtml;`);
   return fn(escapeHtml);
 }

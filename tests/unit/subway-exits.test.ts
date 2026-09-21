@@ -101,7 +101,7 @@ describe('출구 인덱스 무결성', () => {
 
   it('알려진 역의 출구 수가 실제와 맞는다', () => {
     // nullish 연산자는 레포 mojibake 검사기가 깨진 글자로 오인해 커밋을 막는다 → `||` 사용.
-    const count = (n: string) => (rows.find((r) => r[0] === n) || [, , , []])[3].length || 0;
+    const count = (n: string) => (rows.find((r) => r[0] === n) || ['', 0, 0, []])[3].length || 0;
     expect(count('강남')).toBe(12);       // 실제 1~12번
     expect(count('홍대입구')).toBe(9);     // 실제 1~9번
     expect(count('이태원')).toBe(4);       // 실제 1~4번

@@ -138,16 +138,16 @@ export default function PlannerPage() {
     ogImage: '/hero-seoul-real.webp',
   });
 
-  const [userEmail, setUserEmail] = useState<string>('');
   // 2026-05-05: free-claim funnel 제거 — selectedOption / optionBStep 상태 폐기.
 
   // B-9 (2026-05-12): admin sign-in 후 /planner 진입 시 userEmail 자동 prefill.
   // Test Mode 버튼 UX + ADMIN-BYPASS- flow 안정성 — userEmail input 수동 입력 누락
   // 으로 isSandboxAccount=false 가 되어 버튼이 안 보이는 회귀 방지.
   const { user: authUser } = useAuth();
-  useEffect(() => {
-    if (authUser?.email && !userEmail) setUserEmail(authUser.email);
-  }, [authUser?.email, userEmail]);
+  const authEmail = authUser?.email || '';
+  const [userEmail, setUserEmail] = useState<string>(() => authEmail);
+  // 사용자가 직접 수정한 이메일은 그대로 두고, 비어 있을 때만 새 로그인 이메일을 prefill한다.
+  if (authEmail && !userEmail) setUserEmail(authEmail);
 
   // The mobile bottom nav steps aside so the wizard owns the bottom of the
   // screen (index.css keys the rule off this class on <html>).

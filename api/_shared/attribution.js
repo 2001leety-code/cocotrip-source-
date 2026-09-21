@@ -36,7 +36,6 @@ function sanitizeTouch(touch) {
     const v = touch[k];
     if (typeof v !== 'string') continue;
     // 개행·제어문자 제거(저장 오염 방지) → trim → 길이 컷
-    // eslint-disable-next-line no-control-regex
     const t = v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, VALUE_MAX);
     if (!t || isSuspectPiiValue(t)) continue;
     out[k] = t;

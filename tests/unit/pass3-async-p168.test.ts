@@ -8,7 +8,7 @@
  * 4. updatePlanEnrichment → Firestore set merge 호출 assertion
  * 5. background fail 시 updatePlanEnrichment throw → catch 블록만 (throw 안 함)
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 // @ts-expect-error — JS module
 import { isPass3BackgroundEnabled } from '../../api/_ai_core/geminiPipeline.js';
 // @ts-expect-error — JS module

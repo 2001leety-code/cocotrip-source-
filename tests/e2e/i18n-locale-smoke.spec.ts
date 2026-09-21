@@ -69,7 +69,7 @@ for (const locale of ['ko', 'ja', 'zh'] as Locale[]) {
     test.beforeEach(async ({ page }) => {
       // Set locale before any page load so detectInitialLanguage picks it up.
       await page.addInitScript(({ key, value }) => {
-        try { window.localStorage.setItem(key, value); } catch {}
+        try { window.localStorage.setItem(key, value); } catch { /* storage may be unavailable in a fresh context */ }
       }, { key: STORAGE_KEY, value: locale });
     });
 

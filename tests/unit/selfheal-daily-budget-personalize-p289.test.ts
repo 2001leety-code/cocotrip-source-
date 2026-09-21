@@ -36,8 +36,16 @@ describe('P289/B2 selfHealDailyBudget pax personalize (root array)', () => {
 
   // ── runtime (root array) ──────────────────────────────────────────────────
 
-  function makeItinerary(stops: Array<any>) {
-    return { days: [{ day: 1, stops }] } as any;
+  type BudgetRow = {
+    day: number; meals_krw: number; transport_krw: number; entry_fees_krw: number;
+    total_krw: number; _pax?: number; _self_healed?: boolean;
+  };
+  function makeItinerary(stops: Array<{ category: string }>) {
+    // The helper under test adds daily_budget_summary before each assertion.
+    return { days: [{ day: 1, stops }] } as {
+      days: Array<{ day: number; stops: Array<{ category: string }> }>;
+      daily_budget_summary: BudgetRow[];
+    };
   }
 
   it('runtime — pax=2 + 2 food + 1 attraction → root array 곱셈', () => {

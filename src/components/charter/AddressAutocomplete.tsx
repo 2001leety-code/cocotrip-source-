@@ -14,7 +14,7 @@
 // 환경변수: VITE_NAVER_MAP_CLIENT_ID (NaverCloudPlatform Maps ncpClientId).
 // 미설정 시 — 미니 지도는 fallback 텍스트 카드로 노출, 자동완성 자체는 동작.
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useId } from 'react';
 import { MapPin, Edit2, Loader2, X, Check } from 'lucide-react';
 import { rankByQueryMatch, type PlaceSearchItem } from '@/lib/placeSearch';
 
@@ -178,13 +178,7 @@ interface ApiItem extends PlaceSearchItem {
   translationSource?: 'cache' | 'mapping' | 'gemini' | 'partial_fallback' | 'original';
 }
 
-// #4 결과 재정렬 — 구현은 `@/lib/placeSearch` 로 옮겼다(어드민 투어 stop 좌표 채우기와 공용).
-//   기존 import 경로 호환을 위해 여기서 재수출한다.
-export { rankByQueryMatch };
-
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────
-let mapInstanceCounter = 0;
-
 export function AddressAutocomplete({
   value,
   onChange,
@@ -203,28 +197,30 @@ export function AddressAutocomplete({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApiItem | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [mapEl, setMapEl] = useState<string>(() => `cocotrip-map-${++mapInstanceCounter}`);
+  const mapEl = useId();
+  const [previousValue, setPreviousValue] = useState(value);
 
   // 외부 value 변경 추적 — 부모가 reset 시키면 내부도 reset.
-  useEffect(() => {
+  if (value !== previousValue) {
+    setPreviousValue(value);
     if (!value) {
       // confirmed → 다시 풀기
       setSelected(null);
       setQuery('');
       setResults([]);
-      setMapEl(`cocotrip-map-${++mapInstanceCounter}`);
+      setShowDropdown(false);
+      setLoading(false);
+      setError(null);
     }
-  }, [value]);
+  }
 
   // Debounced 검색.
   useEffect(() => {
     if (selected || value) return;
-    if (!query || query.trim().length < 2) {
-      setResults([]);
-      setShowDropdown(false);
-      return;
-    }
+    if (!query || query.trim().length < 2) return;
 
+    let cancelled = false;
+    const controller = new AbortController();
     const handle = setTimeout(async () => {
       setLoading(true);
       setError(null);
@@ -232,9 +228,11 @@ export function AddressAutocomplete({
         // PR-S: 사용자가 한글 입력 시 → lang='ko' (한글 결과) / 그 외 → userLang (번역 결과)
         const queryLang = detectQueryLang(query.trim(), lang);
         const url = `/api/place-search?query=${encodeURIComponent(query.trim())}&limit=10&lang=${queryLang}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
+        if (cancelled) return;
         if (!res.ok) {
           const txt = await res.text().catch(() => '');
+          if (cancelled) return;
           console.warn('[AddressAutocomplete] api error', res.status, txt);
           setError(t.errorMessage);
           setResults([]);
@@ -242,46 +240,49 @@ export function AddressAutocomplete({
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
         const items: ApiItem[] = Array.isArray(data?.items) ? data.items : [];
         // #4: 쿼리 구문 매칭 우선 안정정렬 — 엉뚱한 첫 결과 방지 (순서만; 결과/좌표 불변).
         setResults(rankByQueryMatch(items, query.trim()));
         setShowDropdown(true);
       } catch (e) {
+        if (cancelled) return;
         console.error('[AddressAutocomplete] fetch err:', e);
         setError(t.errorMessage);
         setResults([]);
         setShowDropdown(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, 400);
 
-    return () => clearTimeout(handle);
-  }, [query, selected, value, t.errorMessage]);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+      controller.abort();
+    };
+  }, [query, selected, value, t.errorMessage, lang]);
 
   // ── 미니 지도 동적 임베드 (selected 변경 시) ─────────────────────────────
   const mapInstanceRef = useRef<unknown>(null);
   const markerInstanceRef = useRef<unknown>(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapFailed, setMapFailed] = useState(false);
+  const [mapStatus, setMapStatus] = useState<{ selection: ApiItem | null; ready: boolean; failed: boolean }>({ selection: null, ready: false, failed: false });
+  const mapReady = mapStatus.selection === selected && mapStatus.ready;
+  const mapFailed = mapStatus.selection === selected && mapStatus.failed;
 
   useEffect(() => {
     if (!selected) {
-      setMapReady(false);
-      setMapFailed(false);
       mapInstanceRef.current = null;
       markerInstanceRef.current = null;
       return;
     }
 
     let cancelled = false;
-    setMapReady(false);
-    setMapFailed(false);
 
     loadNaverMapsSdk().then((ok) => {
       if (cancelled) return;
       if (!ok || !window.naver?.maps) {
-        setMapFailed(true);
+        setMapStatus({ selection: selected, ready: false, failed: true });
         return;
       }
       const el = document.getElementById(mapEl);
@@ -291,7 +292,7 @@ export function AddressAutocomplete({
           if (cancelled) return;
           const el2 = document.getElementById(mapEl);
           if (!el2 || !window.naver?.maps) {
-            setMapFailed(true);
+            setMapStatus({ selection: selected, ready: false, failed: true });
             return;
           }
           initMap(el2);
@@ -302,7 +303,7 @@ export function AddressAutocomplete({
     }).catch((err) => {
       if (cancelled) return;
       console.error('[AddressAutocomplete] map load err:', err);
-      setMapFailed(true);
+      setMapStatus({ selection: selected, ready: false, failed: true });
     });
 
     function initMap(el: HTMLElement) {
@@ -326,10 +327,10 @@ export function AddressAutocomplete({
         });
         mapInstanceRef.current = map;
         markerInstanceRef.current = marker;
-        setMapReady(true);
+        setMapStatus({ selection: selected, ready: true, failed: false });
       } catch (e) {
         console.error('[AddressAutocomplete] map init err:', e);
-        setMapFailed(true);
+        setMapStatus({ selection: selected, ready: false, failed: true });
       }
     }
 
@@ -340,6 +341,7 @@ export function AddressAutocomplete({
 
   // ── 핸들러 ──────────────────────────────────────────────────────────────
   const handleSelect = useCallback((item: ApiItem) => {
+    setMapStatus({ selection: item, ready: false, failed: false });
     setSelected(item);
     setShowDropdown(false);
   }, []);
@@ -362,7 +364,6 @@ export function AddressAutocomplete({
   const handleReject = useCallback(() => {
     setSelected(null);
     setShowDropdown(true);
-    setMapEl(`cocotrip-map-${++mapInstanceCounter}`);
   }, []);
 
   const handleChangeRequest = useCallback(() => {
@@ -370,7 +371,8 @@ export function AddressAutocomplete({
     setSelected(null);
     setQuery('');
     setResults([]);
-    setMapEl(`cocotrip-map-${++mapInstanceCounter}`);
+    setLoading(false);
+    setError(null);
   }, [onChange]);
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
@@ -413,7 +415,15 @@ export function AddressAutocomplete({
             id={id}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setLoading(false);
+              if (e.target.value.trim().length < 2) {
+                setResults([]);
+                setShowDropdown(false);
+                setError(null);
+              }
+            }}
             placeholder={placeholder}
             disabled={disabled}
             autoComplete="off"

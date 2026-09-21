@@ -2,7 +2,7 @@
 // 딥링크는 API 키·과금이 없는 URL 이다. 좌표가 없는 구형 플랜에서 깨진 링크를
 // 노출하지 않는 것(=null 반환)이 핵심 계약.
 import { describe, it, expect } from 'vitest';
-import { buildTransitDirectionsLinks } from '../../src/pages/PlanDetailPage/components/TransitArrow';
+import { buildTransitDirectionsLinks } from '../../src/pages/PlanDetailPage/lib/transitArrow';
 
 const withPoints = {
   steps_detail: [

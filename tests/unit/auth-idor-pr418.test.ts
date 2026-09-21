@@ -31,11 +31,27 @@ vi.mock('../../api/_shared/admin-auth.js', () => ({
 // my-bookings / cancelBooking / modifyBooking → initAdminDb('tag')
 // voucher → initAdminDb()
 // reviews → dynamic import('firebase-admin/app')+('firebase-admin/firestore')
-function fakeDb() {
+type FakeTransaction = {
+  get: () => Promise<{ exists: boolean; data: () => Record<string, never> }>;
+  set: () => void;
+  update: () => void;
+};
+type FakeDb = {
+  collection: () => FakeDb;
+  doc: () => FakeDb;
+  where: () => FakeDb;
+  orderBy: () => FakeDb;
+  limit: () => FakeDb;
+  startAfter: () => FakeDb;
+  get: () => Promise<{ exists: boolean; empty: boolean; docs: never[]; data: () => Record<string, never> }>;
+  runTransaction: <T>(fn: (tx: FakeTransaction) => Promise<T>) => Promise<T>;
+};
+
+function fakeDb(): FakeDb {
   // Return an object that satisfies the surface used after the auth gate.
   // Tests intentionally short-circuit at the auth check, so collection() etc.
   // never actually executes when the gate fires.
-  const fake: any = {};
+  const fake = {} as FakeDb;
   fake.collection = () => fake;
   fake.doc = () => fake;
   fake.where = () => fake;
@@ -43,7 +59,7 @@ function fakeDb() {
   fake.limit = () => fake;
   fake.startAfter = () => fake;
   fake.get = async () => ({ exists: false, empty: true, docs: [], data: () => ({}) });
-  fake.runTransaction = async (fn: any) => fn({
+  fake.runTransaction = async (fn) => fn({
     get: async () => ({ exists: false, data: () => ({}) }),
     set: () => undefined,
     update: () => undefined,
@@ -79,6 +95,7 @@ type MockRes = {
   setHeader: (k: string, v: string) => void;
   end: (s?: string | Buffer) => MockRes;
 };
+type TestHandler = (request: ReturnType<typeof req>, response: MockRes) => Promise<unknown>;
 
 function makeRes(): MockRes {
   const res = {
@@ -108,8 +125,8 @@ function req(method: string, opts: { body?: object; query?: Record<string, strin
       host: 'unit.test',
       ...(opts.auth ? { authorization: opts.auth } : {}),
     },
-    query: opts.query ?? {},
-    body: opts.body ?? {},
+    query: opts.query !== undefined && opts.query !== null ? opts.query : {},
+    body: opts.body !== undefined && opts.body !== null ? opts.body : {},
   };
 }
 
@@ -123,9 +140,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
   describe('my-bookings', () => {
     it('returns 401 + AUTH_REQUIRED when token missing', async () => {
       verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Authorization Bearer token required' });
-      const handler = (await import('../../api/my-bookings.js')).default;
+      const handler: TestHandler = (await import('../../api/my-bookings.js')).default;
       const res = makeRes();
-      await handler(req('GET'), res as any);
+      await handler(req('GET'), res);
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
@@ -135,9 +152,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
   describe('voucher', () => {
     it('returns 401 + AUTH_REQUIRED when token missing', async () => {
       verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Authorization Bearer token required' });
-      const handler = (await import('../../api/voucher.js')).default;
+      const handler: TestHandler = (await import('../../api/voucher.js')).default;
       const res = makeRes();
-      await handler(req('GET', { query: { bookingID: 'COCO-1234' } }), res as any);
+      await handler(req('GET', { query: { bookingID: 'COCO-1234' } }), res);
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
@@ -145,9 +162,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
 
     it('rejects 400 with bookingID missing even when authed', async () => {
       verifyUserTokenMock.mockResolvedValueOnce({ ok: true, email: 'a@b.com', uid: 'u' });
-      const handler = (await import('../../api/voucher.js')).default;
+      const handler: TestHandler = (await import('../../api/voucher.js')).default;
       const res = makeRes();
-      await handler(req('GET'), res as any);
+      await handler(req('GET'), res);
       expect(res.statusCode).toBe(400);
     });
   });
@@ -155,9 +172,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
   describe('cancelBooking', () => {
     it('returns 401 + AUTH_REQUIRED when token missing', async () => {
       verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Authorization Bearer token required' });
-      const handler = (await import('../../api/cancelBooking.js')).default;
+      const handler: TestHandler = (await import('../../api/cancelBooking.js')).default;
       const res = makeRes();
-      await handler(req('POST', { body: { bookingID: 'COCO-1' } }), res as any);
+      await handler(req('POST', { body: { bookingID: 'COCO-1' } }), res);
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
@@ -167,9 +184,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
   describe('modifyBooking', () => {
     it('returns 401 + AUTH_REQUIRED when token missing', async () => {
       verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Authorization Bearer token required' });
-      const handler = (await import('../../api/modifyBooking.js')).default;
+      const handler: TestHandler = (await import('../../api/modifyBooking.js')).default;
       const res = makeRes();
-      await handler(req('POST', { body: { bookingID: 'COCO-1', changes: { paxCount: 3 } } }), res as any);
+      await handler(req('POST', { body: { bookingID: 'COCO-1', changes: { paxCount: 3 } } }), res);
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
@@ -180,9 +197,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
     for (const action of ['create', 'my-reviews', 'delete', 'report']) {
       it(`returns 401 + AUTH_REQUIRED for action=${action} when token missing`, async () => {
         verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Authorization Bearer token required' });
-        const handler = (await import('../../api/reviews.js')).default;
+        const handler: TestHandler = (await import('../../api/reviews.js')).default;
         const res = makeRes();
-        await handler(req('POST', { body: { action, reviewId: 'r1' } }), res as any);
+        await handler(req('POST', { body: { action, reviewId: 'r1' } }), res);
         expect(res.statusCode).toBe(401);
         const body = JSON.parse(res.body);
         expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
@@ -192,9 +209,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
     for (const action of ['admin-list', 'moderate']) {
       it(`returns 403 + FORBIDDEN for action=${action} when admin token missing`, async () => {
         verifyAdminTokenMock.mockResolvedValueOnce({ ok: false, status: 403, error: 'Not admin' });
-        const handler = (await import('../../api/reviews.js')).default;
+        const handler: TestHandler = (await import('../../api/reviews.js')).default;
         const res = makeRes();
-        await handler(req('POST', { body: { action, reviewId: 'r1', decision: 'hide' } }), res as any);
+        await handler(req('POST', { body: { action, reviewId: 'r1', decision: 'hide' } }), res);
         expect(res.statusCode).toBe(403);
         const body = JSON.parse(res.body);
         expect(body).toMatchObject({ ok: false, code: 'FORBIDDEN' });
@@ -206,9 +223,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
       // verifyUserToken is NOT called for action=list. The handler will fail
       // later because the firestore mock is null, but the absence of an
       // AUTH_REQUIRED response is what we're testing.
-      const handler = (await import('../../api/reviews.js')).default;
+      const handler: TestHandler = (await import('../../api/reviews.js')).default;
       const res = makeRes();
-      await handler(req('POST', { body: { action: 'list', targetType: 'tour', targetId: 't1' } }), res as any);
+      await handler(req('POST', { body: { action: 'list', targetType: 'tour', targetId: 't1' } }), res);
       expect(verifyUserTokenMock).not.toHaveBeenCalled();
       expect(verifyAdminTokenMock).not.toHaveBeenCalled();
     });

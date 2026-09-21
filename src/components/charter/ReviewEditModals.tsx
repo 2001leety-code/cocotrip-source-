@@ -3,7 +3,7 @@
 // 2026-06-11: 운영자 비전 ② "입력 후 예약정보 한 번 더 띄워 검수 → 잘못 입력한 거 수정 → 결제".
 // 가격 무영향(이름/연락처/메모/항공편) + 가벼운 재계산 필드(날짜/시각)만 인라인. 가격구조(서비스/차종/
 // 출발/목적지)는 위저드 재진입(onBack). 저장 시 onPatchState → CharterNewPage state patch → useQuoteCalculator 자동 재계산.
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 
 export interface EditFieldSpec {
@@ -23,7 +23,12 @@ export function EditFieldModal({
   cancelLabel: string;
 }) {
   const [val, setVal] = useState(spec.value);
-  useEffect(() => { setVal(spec.value); }, [spec.value, spec.key]);
+  const specStateKey = `${spec.key}:${spec.value}`;
+  const [previousSpecStateKey, setPreviousSpecStateKey] = useState(specStateKey);
+  if (previousSpecStateKey !== specStateKey) {
+    setPreviousSpecStateKey(specStateKey);
+    setVal(spec.value);
+  }
 
   const inputCls = 'w-full rounded-xl bg-white/[0.06] border border-white/15 px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#B668FC]/60';
 

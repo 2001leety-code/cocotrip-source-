@@ -26,7 +26,6 @@ import {
   recordProEscalateAttempt,
   checkProEscalateCircuit,
   __resetProEscalateCircuitForTests,
-  buildModel,
 } from '../../api/_ai_core/geminiPipeline.js';
 
 describe('P201 isProEscalateEnabled — ENV gate', () => {
@@ -88,8 +87,6 @@ describe('P201 circuit breaker', () => {
 
   it('assertion 8: 옛 timestamp 자동 제거 (5분 window — manual time travel)', () => {
     // 6분 전 timestamp 5건 push
-    const now = Date.now();
-    const sixMinAgo = now - 6 * 60 * 1000;
     // Direct manipulation via record — recordProEscalateAttempt 만 사용 (window 자동 정리)
     for (let i = 0; i < 5; i++) recordProEscalateAttempt('start');
     expect(checkProEscalateCircuit()).toBe(true);

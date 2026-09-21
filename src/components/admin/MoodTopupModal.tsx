@@ -17,6 +17,25 @@ interface MoodInfo {
   balanceKRW: number;
 }
 
+interface MoodBalanceResult {
+  info: MoodInfo | null;
+  error: string | null;
+}
+
+async function fetchMoodBalance(): Promise<MoodBalanceResult> {
+  const res = await authFetch('/api/mood-data');
+  const json = await res.json().catch(() => ({}));
+  if (!json?.ok) return { info: null, error: json?.error || `잔액 조회 실패 (${res.status})` };
+  return {
+    info: {
+      clientId: json.data.clientId,
+      name: json.data.client?.name || json.data.clientId,
+      balanceKRW: Number(json.data.client?.balanceKRW) || 0,
+    },
+    error: null,
+  };
+}
+
 function fmtKRW(n: number): string {
   return `₩${Math.round(n).toLocaleString('ko-KR')}`;
 }
@@ -29,23 +48,30 @@ export function MoodTopupModal({ open, onClose }: Props) {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [previousOpen, setPreviousOpen] = useState(open);
+
+  if (open !== previousOpen) {
+    setPreviousOpen(open);
+    if (open) {
+      setAmount('');
+      setNote('');
+      setMsg(null);
+      setLoading(true);
+      setLoadErr(null);
+    }
+  }
 
   const loadBalance = useCallback(async () => {
     setLoading(true);
     setLoadErr(null);
     try {
-      const res = await authFetch('/api/mood-data');
-      const json = await res.json().catch(() => ({}));
-      if (!json?.ok) {
-        setLoadErr(json?.error || `잔액 조회 실패 (${res.status})`);
+      const result = await fetchMoodBalance();
+      if (result.error) {
+        setLoadErr(result.error);
         setInfo(null);
         return;
       }
-      setInfo({
-        clientId: json.data.clientId,
-        name: json.data.client?.name || json.data.clientId,
-        balanceKRW: Number(json.data.client?.balanceKRW) || 0,
-      });
+      setInfo(result.info);
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : '잔액 조회 실패');
     } finally {
@@ -56,11 +82,26 @@ export function MoodTopupModal({ open, onClose }: Props) {
   // 모달 열릴 때마다: 상태 초기화 + 현재 잔액 로드
   useEffect(() => {
     if (!open) return;
-    setAmount('');
-    setNote('');
-    setMsg(null);
-    void loadBalance();
-  }, [open, loadBalance]);
+    let cancelled = false;
+    void fetchMoodBalance()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.error) {
+          setLoadErr(result.error);
+          setInfo(null);
+          return;
+        }
+        setInfo(result.info);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setLoadErr(e instanceof Error ? e.message : '잔액 조회 실패');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [open]);
 
   const submit = useCallback(async () => {
     if (!info?.clientId) return;

@@ -14,11 +14,15 @@ describe('P294 UserPlanNoticesPanel', () => {
     '../../src/pages/PlanDetailPage/components/UserPlanNoticesPanel.tsx',
   );
   const src = readFileSync(componentPath, 'utf8');
+  const kindsSrc = readFileSync(
+    resolve(__dirname, '../../src/pages/PlanDetailPage/lib/userPlanNotices.ts'),
+    'utf8',
+  );
 
   // ── source pattern ────────────────────────────────────────────────────────
 
   it('source — USER_VISIBLE_KINDS 화이트리스트 export', () => {
-    expect(src).toMatch(/export const USER_VISIBLE_KINDS/);
+    expect(kindsSrc).toMatch(/export const USER_VISIBLE_KINDS/);
   });
 
   it('source — 7 화이트리스트 kind (positive notices)', () => {
@@ -31,9 +35,7 @@ describe('P294 UserPlanNoticesPanel', () => {
       'dietary_coverage_low',
       'daily_budget_self_healed',
     ];
-    for (const kind of expectedKinds) {
-      expect(src).toContain(kind);
-    }
+    for (const kind of expectedKinds) expect(kindsSrc).toContain(kind);
   });
 
   it("source — severity='critical' 제외 로직 (admin escalation 영역)", () => {

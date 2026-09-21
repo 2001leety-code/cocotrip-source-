@@ -73,7 +73,7 @@ describe('P155 lookupStationCoord fuzzy', () => {
 
   it('null / 빈 string graceful', () => {
     expect(lookupStationCoord('')).toBeNull();
-    expect(lookupStationCoord(null as any)).toBeNull();
-    expect(lookupStationCoord(undefined as any)).toBeNull();
+    expect(lookupStationCoord(null as unknown)).toBeNull();
+    expect(lookupStationCoord(undefined as unknown)).toBeNull();
   });
 });

@@ -99,18 +99,22 @@ function isTestBooking(b: PendingBooking): boolean {
 
 export default function AdminPayments() {
   const { user } = useAuth();
+  const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
   const [filter, setFilter] = useState<StatusFilter>('AWAITING_VERIFICATION');
   const [rows, setRows] = useState<PendingBooking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isAdmin);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [hideTest, setHideTest] = useState(true); // 기본=실결제만 보기(테스트 숨김). 운영자 매일 결제확인 시 실결제 우선 (2026-06-09 재설계)
-
-  const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
+  const [previousIsAdmin, setPreviousIsAdmin] = useState(isAdmin);
+  if (previousIsAdmin !== isAdmin) {
+    setPreviousIsAdmin(isAdmin);
+    if (!isAdmin) setLoading(false);
+  }
 
   // Firestore 실시간 구독
   useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
+    if (!isAdmin) return;
     const q = query(collection(db, 'pending_bookings'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(
       q,

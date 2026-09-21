@@ -15,14 +15,23 @@ vi.mock('../../api/_shared/apiUsageRecorder.js', () => ({ recordUsageFromRespons
 const generateContentMock = vi.fn();
 vi.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: class {
-    getGenerativeModel() { return { generateContent: (...a: any[]) => generateContentMock(...a) }; }
+    getGenerativeModel() { return { generateContent: (...a: unknown[]) => generateContentMock(...a) }; }
   },
 }));
 
-function makeRes(): any {
-  const res: any = {
+type TestResponse = {
+  statusCode?: number;
+  headers: Record<string, string>;
+  body: string;
+  writeHead: (status: number, headers?: Record<string, string>) => TestResponse;
+  end: (body?: string) => TestResponse;
+};
+type PlannerRequest = { method: string; headers: Record<string, string>; body: Record<string, unknown> };
+
+function makeRes(): TestResponse {
+  const res: TestResponse = {
     statusCode: undefined, headers: {}, body: '',
-    writeHead(s: number, h?: any) { res.statusCode = s; if (h) Object.assign(res.headers, h); return res; },
+    writeHead(s: number, h?: Record<string, string>) { res.statusCode = s; if (h) Object.assign(res.headers, h); return res; },
     end(s?: string) { if (s != null) res.body = s; return res; },
   };
   return res;
@@ -46,7 +55,7 @@ describe('ai-planner-quick — time validation', () => {
     }));
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as PlannerRequest, res);
     expect(res.statusCode).not.toBe(200);
     expect(JSON.parse(res.body).code).toBe('GEMINI_ERROR');
   });
@@ -59,7 +68,7 @@ describe('ai-planner-quick — time validation', () => {
     }));
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as PlannerRequest, res);
     expect(res.statusCode).not.toBe(200);
   });
 
@@ -71,7 +80,7 @@ describe('ai-planner-quick — time validation', () => {
     }));
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as PlannerRequest, res);
     expect(res.statusCode).not.toBe(200);
   });
 
@@ -86,7 +95,7 @@ describe('ai-planner-quick — time validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', tour_start_time: '09:00', tour_end_time: '17:00' },
-    } as any, res);
+    } as PlannerRequest, res);
     expect(res.statusCode).toBe(200);
   });
 });
@@ -101,7 +110,7 @@ describe('ai-planner-quick — name normalization', () => {
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
     // Assuming AND CAFE or AND&CAFE is in the exact-city candidates (test data)
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as PlannerRequest, res);
     // Response status depends on whether the name matches exactly. This just verifies no crash.
     expect(res.statusCode).toBeDefined();
   });
@@ -116,7 +125,7 @@ describe('ai-planner-quick — language validation (multi-language prose check)'
     }));
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' } } as PlannerRequest, res);
     expect(res.statusCode).not.toBe(200);
   });
 
@@ -128,7 +137,7 @@ describe('ai-planner-quick — language validation (multi-language prose check)'
     }));
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
-    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'ko' } } as any, res);
+    await handler({ method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' }, body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'ko' } } as PlannerRequest, res);
     expect(res.statusCode).not.toBe(200);
   });
 });
@@ -141,7 +150,7 @@ describe('ai-planner-quick — request shape validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', special_request: hugeString },
-    } as any, res);
+    } as PlannerRequest, res);
     expect(res.statusCode).toBe(422);
     expect(JSON.parse(res.body).code).toBe('INVALID_REQUEST');
     // Gemini should NOT have been called
@@ -154,7 +163,7 @@ describe('ai-planner-quick — request shape validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'xyz' },
-    } as any, res);
+    } as PlannerRequest, res);
     expect(res.statusCode).toBe(422);
     expect(JSON.parse(res.body).code).toBe('INVALID_REQUEST');
   });
@@ -165,7 +174,7 @@ describe('ai-planner-quick — request shape validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', priceRange: 'FreeRange' },
-    } as any, res);
+    } as PlannerRequest, res);
     expect(res.statusCode).toBe(422);
   });
 });
@@ -180,7 +189,7 @@ describe('ai-planner-quick — dietary restrictions validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: ['Halal', 'NutAllergy'] },
-    } as any, res);
+    } as PlannerRequest, res);
     // Result depends on whether test data has Halal in Busan. Either way,
     // NutAllergy should be silently filtered (not rejected), so the request is valid.
     // If Halal coverage exists -> 200 or dietary prompt. If not -> 422.
@@ -194,7 +203,7 @@ describe('ai-planner-quick — dietary restrictions validation', () => {
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: [{diet: 'Halal'}, 123, 'Vegan'] },
-    } as any, res);
+    } as PlannerRequest, res);
     // Should handle gracefully; non-string values filtered at normalization
     expect(res.statusCode).toBeDefined();
   });
@@ -208,7 +217,7 @@ describe('ai-planner-quick — zero-candidate failures fail BEFORE Gemini', () =
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['UnknownCity'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en' },
-    } as any, res);
+    } as PlannerRequest, res);
     // Should fail at city resolution before Gemini
     expect(res.statusCode).not.toBe(200);
   });
@@ -221,7 +230,7 @@ describe('ai-planner-quick — zero-candidate failures fail BEFORE Gemini', () =
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
       body: { regions: ['Busan'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: ['Halal'] },
-    } as any, res);
+    } as PlannerRequest, res);
     // Response status depends on test data; just verify structure
     if (res.statusCode === 422) {
       const body = JSON.parse(res.body);

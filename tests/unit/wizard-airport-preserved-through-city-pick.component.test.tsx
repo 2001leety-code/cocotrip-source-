@@ -9,7 +9,7 @@
 // actual `mainCityKey` wiring + erase-on-change effect are exercised, not a
 // stand-in.
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, act, cleanup, within, waitFor } from '@testing-library/react';
 
 vi.hoisted(() => {

@@ -13,20 +13,27 @@ import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module
 import { calculateTmoney } from '../../api/_ai_core/planPersister.js';
 
+type TmoneyItinerary = {
+  days: Array<{ stops?: Array<Record<string, unknown>> }>;
+  arrival_guide?: Record<string, unknown>;
+  departure_guide?: Record<string, unknown>;
+  t_money_recommended_load?: number;
+};
+
 describe('[#5] calculateTmoney 도착/출발 요금', () => {
   it('arrival route_to_hotel + departure route_to_airport est_fare_krw 합산 (AREX 등)', () => {
-    const itinerary = {
+    const itinerary: TmoneyItinerary = {
       days: [],
       arrival_guide: { route_to_hotel: { est_fare_krw: 4150 } }, // 인천공항 AREX 일반
       departure_guide: { route_to_airport: { est_fare_krw: 4150 } },
-    } as any;
+    };
     calculateTmoney(itinerary);
     // raw = 0(시내) + 4150 + 4150 = 8300 → ×1.1 = 9130 → ceil/5000 → 10000
     expect(itinerary.t_money_recommended_load).toBe(10000);
   });
 
   it('시내 ODsay/Gemini 요금 + 도착/출발 요금 모두 합산', () => {
-    const itinerary = {
+    const itinerary: TmoneyItinerary = {
       days: [
         {
           stops: [
@@ -37,36 +44,36 @@ describe('[#5] calculateTmoney 도착/출발 요금', () => {
       ],
       arrival_guide: { route_to_hotel: { est_fare_krw: 4150 } },
       departure_guide: { route_to_airport: { est_fare_krw: 4150 } },
-    } as any;
+    };
     calculateTmoney(itinerary);
     // raw = 1500 + 1400 + 4150 + 4150 = 11200 → ×1.1 = 12320 → ceil/5000 → 15000
     expect(itinerary.t_money_recommended_load).toBe(15000);
   });
 
   it('route_to_hotel._failed (ODsay 실패, est_fare_krw 없음) → 도착 요금 0 으로 안전 처리', () => {
-    const itinerary = {
+    const itinerary: TmoneyItinerary = {
       days: [],
       arrival_guide: { route_to_hotel: { _failed: true, method: 'unknown' } },
       departure_guide: { route_to_airport: { est_fare_krw: 4150 } },
-    } as any;
+    };
     calculateTmoney(itinerary);
     // raw = 0 + 0(failed) + 4150 = 4150 → ×1.1 = 4565 → ceil/5000 → 5000
     expect(itinerary.t_money_recommended_load).toBe(5000);
   });
 
   it('arrival/departure_guide 자체 부재 → 시내 요금만 반영 (크래시 없음)', () => {
-    const itinerary = {
+    const itinerary: TmoneyItinerary = {
       days: [
         { stops: [{ travelFromPrev: { transitOptions: { publicTransit: { fare: 2000 } } } }] },
       ],
-    } as any;
+    };
     calculateTmoney(itinerary);
     // raw = 2000 → ×1.1 = 2200 → ceil/5000 → 5000
     expect(itinerary.t_money_recommended_load).toBe(5000);
   });
 
   it('구 버그 경로(arex_all_stop.price_krw / to_airport.cost_krw)는 더 이상 읽지 않음', () => {
-    const itinerary = {
+    const itinerary: TmoneyItinerary = {
       days: [],
       // 구 경로에만 값을 둠 — 이제 무시되어야 함
       arrival_guide: {
@@ -77,7 +84,7 @@ describe('[#5] calculateTmoney 도착/출발 요금', () => {
         to_airport: { cost_krw: 88888 },
         route_to_airport: { est_fare_krw: 4150 },
       },
-    } as any;
+    };
     calculateTmoney(itinerary);
     // 구 경로(99999/88888) 무시, 신 경로(4150+4150=8300)만 → ×1.1=9130 → 10000
     expect(itinerary.t_money_recommended_load).toBe(10000);
