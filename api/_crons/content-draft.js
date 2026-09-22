@@ -14,6 +14,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { randomUUID } from 'node:crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
@@ -41,7 +42,53 @@ async function generateDraft(material) {
   }
 }
 
-async function contentDraftTask() {
+const DRAFT_LEASE_MS = 10 * 60 * 1000;
+
+function draftRef(db, dayIndex) {
+  return db.collection('content_drafts').doc(`kst-${dayIndex}`);
+}
+
+async function claimDraft(db, ref, material, now) {
+  if (!db || typeof db.runTransaction !== 'function') return { kind: 'unavailable' };
+  const ownerToken = randomUUID();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const prior = snap.exists ? snap.data() : null;
+    if (prior && prior.hasDraft && prior.draft) return { kind: 'cached', draft: prior.draft, material: prior.material || material };
+    if (prior && prior.generationLeaseUntilMs > now) return { kind: 'busy' };
+    tx.set(ref, {
+      material,
+      status: 'generating',
+      generationLeaseUntilMs: now + DRAFT_LEASE_MS,
+      generationLeaseToken: ownerToken,
+      channel: 'instagram',
+      published: false,
+    }, { merge: true });
+    return { kind: 'generate', ownerToken };
+  });
+}
+
+async function saveDraft(db, ref, material, draft, ownerToken) {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const prior = snap.exists ? snap.data() : null;
+    if (!prior || prior.generationLeaseToken !== ownerToken) return false;
+    tx.set(ref, {
+      material,
+      draft: draft || null,
+      hasDraft: !!draft,
+      status: draft ? 'ready' : 'failed',
+      generationLeaseUntilMs: 0,
+      generationLeaseToken: null,
+      createdAtMs: Date.now(),
+      channel: 'instagram',
+      published: false,
+    }, { merge: true });
+    return true;
+  });
+}
+
+export async function contentDraftTask() {
   if (process.env.CONTENT_WORKER_ENABLED !== 'true') {
     return { statusCode: 200, body: 'disabled (CONTENT_WORKER_ENABLED 미설정)' };
   }
@@ -50,35 +97,55 @@ async function contentDraftTask() {
   try { foodIndex = JSON.parse(readFileSync(join(__dirname, '../_food_index.json'), 'utf-8')); } catch (e) { console.error('[content-draft] food_index 로드 실패:', e && e.message); }
 
   const materials = selectFoodMaterials(foodIndex);
-  const material = pickDailyMaterial(materials, kstDayIndex(new Date()));
+  const dayIndex = kstDayIndex(new Date());
+  let material = pickDailyMaterial(materials, dayIndex);
   if (!material) {
     await notifyOperatorLong('todo', '📝 <b>오늘의 콘텐츠 초안</b>\n소재 없음 (데이터 수집 중).', { skipPrefix: true }).catch(() => {});
     return { statusCode: 200, body: 'no-material' };
   }
 
-  const draft = await generateDraft(material); // null 이면 사실 카드만 (graceful)
+  const db = initAdminDb('cron/content-draft');
+  const ref = db && typeof db.runTransaction === 'function' ? draftRef(db, dayIndex) : null;
+  let useFallbackStorage = !ref;
+  let draft = null;
+  if (ref) {
+    const claim = await claimDraft(db, ref, material, Date.now()).catch(() => ({ kind: 'unavailable' }));
+    if (claim.kind === 'busy') return { statusCode: 200, body: 'already-running' };
+    if (claim.kind === 'cached') {
+      draft = claim.draft;
+      material = claim.material;
+    }
+    if (claim.kind === 'generate') {
+      draft = await generateDraft(material); // null 이면 사실 카드만 (graceful)
+      await saveDraft(db, ref, material, draft, claim.ownerToken).catch((e) => console.error('[content-draft] Firestore 저장 실패:', e && e.message));
+    }
+    if (claim.kind === 'unavailable') {
+      draft = await generateDraft(material);
+      useFallbackStorage = true;
+    }
+  } else {
+    draft = await generateDraft(material); // null 이면 사실 카드만 (graceful)
+  }
   const msg = formatDraftMessage(material, draft);
 
   // Firestore 보관 (admin 웹 조회용). 실패해도 텔레그램은 발송.
   try {
-    const db = initAdminDb('cron/content-draft');
-    if (db) {
+    if (db && useFallbackStorage) {
       await db.collection('content_drafts').add({
         material, draft: draft || null, hasDraft: !!draft,
         createdAtMs: Date.now(), channel: 'instagram', published: false,
       });
-      // P5 의사결정 큐: "발행 검토" 카드 enqueue (멱등=하루 1건). draft 가 있을 때만.
-      if (draft) {
-        await enqueueDecision(db, {
-          type: 'content_publish',
-          title: `오늘 콘텐츠 발행 검토 — ${material.name}`,
-          summary: `${material.cityLabel}${material.dong ? ' ' + material.dong : ''} 맛집 캡션 초안 ${draft.variants.length}안. 검토 후 인스타 발행.`,
-          link: '/admin/decisions',
-          dedupeKey: `content-${kstDayIndex(new Date())}`,
-        }).catch(() => {});
-      }
     }
   } catch (e) { console.error('[content-draft] Firestore 저장 실패:', e && e.message); }
+
+  // P5 의사결정 큐: "발행 검토" 카드 enqueue (멱등=하루 1건). draft 가 있을 때만.
+  if (db && draft) await enqueueDecision(db, {
+    type: 'content_publish',
+    title: `오늘 콘텐츠 발행 검토 — ${material.name}`,
+    summary: `${material.cityLabel}${material.dong ? ' ' + material.dong : ''} 맛집 캡션 초안 ${draft.variants.length}안. 검토 후 인스타 발행.`,
+    link: '/admin/decisions',
+    dedupeKey: `content-${dayIndex}`,
+  }).catch(() => {});
 
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
   if (!result.ok) {

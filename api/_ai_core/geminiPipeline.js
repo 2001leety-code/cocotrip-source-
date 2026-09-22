@@ -343,11 +343,11 @@ export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdmi
   const proModel = buildModel(apiKey, 0.3, { forceModelOverride: proModelId, isAdminBypass, identifierForBucketing });
   recordProEscalateAttempt('start');
   console.log(`[P201] Pro escalate triggered — model=${proModelId}`);
-  const result = await withTimeout(
+  const result = await withTimeout((signal) =>
     proModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
       systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-    }),
+    }, { signal }),
     GEMINI_TIMEOUT_MS,
     'pro-escalate-p201',
   );
@@ -465,7 +465,7 @@ export function _tryExtractPartialDays(accumulated) {
  * @param {string} [args.language]     언어 코드 (현재 unused, 향후 확장용)
  * @returns {string}  최종 accumulated text (repairAndParseJSON 직접 호출 가능)
  */
-export async function runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language }) {
+export async function runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language, signal }) {
   let accumulated = '';
   let lastFirestoreUpdate = 0;
   const FIRESTORE_UPDATE_INTERVAL_MS = 500;
@@ -482,7 +482,7 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
   const streamResult = await model.generateContentStream({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-  });
+  }, { signal });
 
   for await (const chunk of streamResult.stream) {
     // P219: thought:true part 필터 — streaming 시 thought 가 partial JSON 에 섞이면 progressive Firestore write 에 leak. 보안 critical.
@@ -976,11 +976,16 @@ export function __resetFoodIndexCacheForTests() {
   _foodIndexLoading = null;
 }
 
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Gemini API timeout (${label})`)), ms)),
-  ]);
+export function withTimeout(task, ms, label) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`Gemini API timeout (${label})`));
+      controller.abort();
+    }, ms);
+  });
+  return Promise.race([Promise.resolve().then(() => task(controller.signal)), timeout]).finally(() => clearTimeout(timer));
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1032,7 +1037,7 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
   const expandedModel = buildModel(apiKey, 0.95, { isAdminBypass, identifierForBucketing });
   // Flash free tier 내에서 안전한 최대값 (65K).
   // P214: 32K 는 P215 retry 기준값 — retry 시 65K 사용.
-  const expandedResult = await withTimeout(
+  const expandedResult = await withTimeout((signal) =>
     expandedModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
       systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
@@ -1046,7 +1051,7 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
         responseMimeType: 'application/json',
         responseSchema: PLAN_RESPONSE_SCHEMA,
       },
-    }),
+    }, { signal }),
     GEMINI_TIMEOUT_MS,
     'p215-max-tokens-retry',
   );
@@ -1312,7 +1317,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     console.log('[planner] Pass 1/3: Intent generation...');
     let rawText;
     try {
-      rawText = await withTimeout(pass1Intent(model, systemPrompt, userMessage), GEMINI_TIMEOUT_MS, 'pass1');
+      rawText = await withTimeout((signal) => pass1Intent(model, systemPrompt, userMessage, signal), GEMINI_TIMEOUT_MS, 'pass1');
     } catch (err) {
       throw mapGeminiError(err, geminiStart);
     }
@@ -1358,7 +1363,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       const reinforced = buildDietaryReinforcedPrompt(systemPrompt, dietaryArr);
       try {
         // PR #461 (X-H2): retryModel (temperature=0.1) — deterministic re-gen.
-        const retryRaw = await withTimeout(pass1Intent(retryModel, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry');
+        const retryRaw = await withTimeout((signal) => pass1Intent(retryModel, reinforced, userMessage, signal), GEMINI_TIMEOUT_MS, 'pass1-retry');
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -1420,7 +1425,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       const reinforced = buildPatternReinforcedPrompt(systemPrompt, patternErrors);
       try {
         // PR #461 (X-H2): retryModel — temperature 0.1.
-        const retryRaw = await withTimeout(pass1Intent(retryModel, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
+        const retryRaw = await withTimeout((signal) => pass1Intent(retryModel, reinforced, userMessage, signal), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -1516,8 +1521,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.log('[planner P169] streaming mode activated (PLANNER_STREAMING_ENABLED=true)');
       try {
         // P195: runGeminiStreaming 이 { text, cacheMetadata } 반환.
-        const streamReturn = await withTimeout(
-          runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language }),
+        const streamReturn = await withTimeout((signal) =>
+          runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language, signal }),
           GEMINI_TIMEOUT_MS,
           'legacy-streaming',
         );
@@ -1542,11 +1547,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       // 기존 generateContent 흐름 (변경 0)
       let result;
       try {
-        result = await withTimeout(
+        result = await withTimeout((signal) =>
           model.generateContent({
             contents: [{ role: 'user', parts: [{ text: userMessage }] }],
             systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-          }),
+          }, { signal }),
           GEMINI_TIMEOUT_MS,
           'legacy',
         );
@@ -1625,11 +1630,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       try {
         const retryStart = Date.now();
         // PR #461 (X-H2): retryModel — temperature 0.1.
-        const retryResult = await withTimeout(
+        const retryResult = await withTimeout((signal) =>
           retryModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: userMessage }] }],
             systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
-          }),
+          }, { signal }),
           GEMINI_TIMEOUT_MS,
           'legacy-retry',
         );
@@ -1698,11 +1703,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       try {
         const retryStart = Date.now();
         // PR #461 (X-H2): retryModel — temperature 0.1.
-        const retryResult = await withTimeout(
+        const retryResult = await withTimeout((signal) =>
           retryModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: userMessage }] }],
             systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
-          }),
+          }, { signal }),
           GEMINI_TIMEOUT_MS,
           'legacy-retry-pattern',
         );

@@ -114,6 +114,8 @@ export async function detectLanguage(text) {
   if (s.length < 200) return 'en';
 
   // Long non-CJK: ask Gemini for confidence.
+  const cached = cacheGet(`detect:${s}`);
+  if (cached) return cached;
   const client = getClient();
   if (!client) return 'en';
   try {
@@ -125,7 +127,10 @@ export async function detectLanguage(text) {
     const r = await model.generateContent(prompt);
     recordTranslatorUsage('translator-detect', r);
     const out = (r.response.text() || '').trim().toLowerCase();
-    if (['ko', 'en', 'ja', 'zh', 'other'].includes(out)) return out;
+    if (['ko', 'en', 'ja', 'zh', 'other'].includes(out)) {
+      cacheSet(`detect:${s}`, out);
+      return out;
+    }
     return 'en';
   } catch (err) {
     console.warn('[translator.detectLanguage] gemini fallback failed:', err.message);

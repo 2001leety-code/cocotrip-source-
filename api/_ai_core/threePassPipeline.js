@@ -36,7 +36,7 @@ function recordUsage(stage, response) {
 // Calls Gemini with an instruction to output food slots as "intent" objects
 // rather than specific restaurant names. This decouples AI creativity from
 // data accuracy.
-export async function pass1Intent(model, systemPrompt, userMessage) {
+export async function pass1Intent(model, systemPrompt, userMessage, signal) {
   const intentInstruction = `
 IMPORTANT: For ALL food/restaurant stops, instead of naming a specific restaurant,
 output a "food_intent" field describing WHAT the user should eat at that time slot.
@@ -60,7 +60,7 @@ Non-food stops (culture, shopping, nature, etc.) should use real place names as 
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: augmentedSystem }] },
-  });
+  }, { signal });
   recordUsage('3pass-intent', result.response);
 
   // P219: thought:true part 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).

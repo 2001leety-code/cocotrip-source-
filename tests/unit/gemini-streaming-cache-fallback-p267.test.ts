@@ -30,7 +30,7 @@ const src = readFileSync(
   'utf8',
 );
 
-import { runGeminiStreaming } from '../../api/_ai_core/geminiPipeline.js';
+import { runGeminiStreaming, withTimeout } from '../../api/_ai_core/geminiPipeline.js';
 
 /** Mock Gemini model with controllable stream chunks + final response */
 type MockStreamArgs = { chunks: unknown[]; finalResponse: unknown; finalThrow?: Error };
@@ -47,7 +47,50 @@ function makeMockModel({ chunks, finalResponse, finalThrow }: MockStreamArgs) {
 
 const baseArgs = { model: null, systemPrompt: 'sys', userMessage: 'usr', language: 'ko' };
 
+describe('withTimeout — Gemini transport cancellation', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('시간 초과 시 SDK signal을 abort하고 기존 timeout 오류를 유지한다', async () => {
+    vi.useFakeTimers();
+    let aborted = false;
+    const pending = withTimeout((signal) => new Promise((_, reject) => {
+      signal.addEventListener('abort', () => {
+        aborted = true;
+        reject(new Error('transport aborted'));
+      });
+    }), 10, 'unit');
+    const timedOut = expect(pending).rejects.toThrow('Gemini API timeout (unit)');
+
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
+    expect(aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('성공과 동기·비동기 예외 모두 timeout timer를 정리한다', async () => {
+    vi.useFakeTimers();
+    await expect(withTimeout(() => Promise.resolve('ok'), 10, 'unit')).resolves.toBe('ok');
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(withTimeout(() => Promise.reject(new Error('model failed')), 10, 'unit')).rejects.toThrow('model failed');
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(withTimeout(() => { throw new Error('model threw'); }, 10, 'unit')).rejects.toThrow('model threw');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('P267 — runGeminiStreaming chunk-level usageMetadata fallback', () => {
+  it('request signal을 SDK 호출까지 전달한다', async () => {
+    const model = makeMockModel({
+      chunks: [],
+      finalResponse: { usageMetadata: null },
+    });
+    const controller = new AbortController();
+
+    await runGeminiStreaming({ ...baseArgs, model, signal: controller.signal });
+
+    expect(model.generateContentStream.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+
   it('happy path: final response usageMetadata 있음 → final 값 사용', async () => {
     const model = makeMockModel({
       chunks: [
