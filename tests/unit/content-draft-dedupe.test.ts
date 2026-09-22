@@ -3,14 +3,19 @@ import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import { kstDayIndex } from '../../api/_shared/contentDraftSelector.js';
 
 const state = vi.hoisted(() => ({ db: null as ReturnType<typeof createFakeFirestore> | null, notify: { ok: true } as { ok: boolean; error?: string }, generateContent: vi.fn(async () => ({ response: { text: () => '{"variants":[{"hook":"h","ko":"k","en":"e"}],"hashtags":[]}' } })) }));
-vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => state.db }));
-vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperatorLong: vi.fn(async () => state.notify) }));
+const initAdminDbMock = vi.hoisted(() => vi.fn(() => state.db));
+const verifyAdminTokenMock = vi.hoisted(() => vi.fn());
+const notifyOperatorLongMock = vi.hoisted(() => vi.fn(async () => state.notify));
+vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: initAdminDbMock }));
+vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: verifyAdminTokenMock }));
+vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperatorLong: notifyOperatorLongMock }));
 vi.mock('../../api/_shared/decisionQueue.js', () => ({ enqueueDecision: vi.fn(async () => ({ ok: true })) }));
 vi.mock('@google/generative-ai', () => ({ GoogleGenerativeAI: class { getGenerativeModel() { return { generateContent: state.generateContent }; } } }));
 
 describe('content draft durable dedupe', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    initAdminDbMock.mockClear();
     state.notify = { ok: true };
     state.generateContent.mockReset();
     state.generateContent.mockResolvedValue({ response: { text: () => '{"variants":[{"hook":"h","ko":"k","en":"e"}],"hashtags":[]}' } });
@@ -160,5 +165,78 @@ describe('content draft durable dedupe', () => {
     state.notify = { ok: true };
     await expect(contentDraftTask()).resolves.toMatchObject({ statusCode: 200 });
     expect(state.generateContent).toHaveBeenCalledTimes(1);
+  });
+});
+
+type TestResponse = {
+  statusCode?: number;
+  body?: unknown;
+  status: (status: number) => TestResponse;
+  json: (body: unknown) => TestResponse;
+  end: () => TestResponse;
+};
+
+function makeRes(): TestResponse {
+  const res: TestResponse = {
+    statusCode: undefined,
+    body: undefined,
+    status(status: number) { res.statusCode = status; return res; },
+    json(body: unknown) { res.body = body; return res; },
+    end() { return res; },
+  };
+  return res;
+}
+
+describe('content draft HTTP auth gate', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    verifyAdminTokenMock.mockReset();
+    notifyOperatorLongMock.mockClear();
+    state.db = null;
+    state.generateContent.mockClear();
+  });
+
+  it.each([
+    [{}, 'no auth'],
+    [{ 'x-vercel-cron': '1' }, 'forged Vercel header'],
+    [{ authorization: 'Bearer wrong' }, 'wrong bearer'],
+  ])('rejects %s before DB, Gemini, or notification', async (headers) => {
+    vi.stubEnv('CRON_SECRET', 'correct');
+    vi.stubEnv('CONTENT_WORKER_ENABLED', 'true');
+    vi.stubEnv('GEMINI_API_KEY', 'test');
+    verifyAdminTokenMock.mockResolvedValue({ ok: false });
+    initAdminDbMock.mockClear();
+    notifyOperatorLongMock.mockClear();
+    state.db = createFakeFirestore();
+    const handler = (await import('../../api/_crons/content-draft.js')).default;
+    const res = makeRes();
+
+    await handler({ method: 'POST', headers }, res);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
+    expect(initAdminDbMock).not.toHaveBeenCalled();
+    expect(state.generateContent).not.toHaveBeenCalled();
+    expect(notifyOperatorLongMock).not.toHaveBeenCalled();
+    expect(Object.keys(state.db.__dump())).toHaveLength(0);
+  });
+
+  it('accepts cron Bearer and admin token, while OPTIONS stays open', async () => {
+    const handler = (await import('../../api/_crons/content-draft.js')).default;
+    const options = makeRes();
+    await handler({ method: 'OPTIONS', headers: {} }, options);
+    expect(options.statusCode).toBe(200);
+
+    vi.stubEnv('CRON_SECRET', 'correct');
+    const cron = makeRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer correct' } }, cron);
+    expect(cron.statusCode).toBe(200);
+    expect(cron.body).toMatchObject({ ok: true, body: 'disabled (CONTENT_WORKER_ENABLED 미설정)' });
+
+    vi.unstubAllEnvs();
+    verifyAdminTokenMock.mockResolvedValue({ ok: true, email: 'admin@example.com' });
+    const admin = makeRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer admin-token' } }, admin);
+    expect(admin.statusCode).toBe(200);
   });
 });

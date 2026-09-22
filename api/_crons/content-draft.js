@@ -17,6 +17,7 @@ import { dirname, join } from 'path';
 import { randomUUID } from 'node:crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initAdminDb } from '../_shared/firebase-admin.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { resolveGeminiModel } from '../_ai_core/geminiModelResolver.js';
 import { selectFoodMaterials, pickDailyMaterial, kstDayIndex } from '../_shared/contentDraftSelector.js';
@@ -157,6 +158,8 @@ export async function contentDraftTask() {
 
 export default async function vercelHandler(req, res) {
   if (req && req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   try {
     const r = await contentDraftTask();
     return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body });
