@@ -198,11 +198,11 @@ describe('PR #461 X-H2 — source-level invariants (retry sites use retryModel)'
     expect(src).toMatch(/recordRetryAttempt\(\s*['"]pattern-legacy['"]\s*\)/);
   });
 
-  it('3pass retry sites use pass1Intent(retryModel, ...) (NOT model)', () => {
+  it('3pass retry sites use retryModel과 timeout signal을 pass1Intent에 전달한다', () => {
     // 3pass dietary retry
-    expect(src).toMatch(/pass1Intent\(\s*retryModel\s*,\s*reinforced\s*,\s*userMessage\)[\s\S]*?'pass1-retry'/);
+    expect(src).toMatch(/pass1Intent\(\s*retryModel\s*,\s*reinforced\s*,\s*userMessage\s*,\s*signal\)[\s\S]*?'pass1-retry'/);
     // 3pass pattern retry
-    expect(src).toMatch(/pass1Intent\(\s*retryModel\s*,\s*reinforced\s*,\s*userMessage\)[\s\S]*?'pass1-retry-pattern'/);
+    expect(src).toMatch(/pass1Intent\(\s*retryModel\s*,\s*reinforced\s*,\s*userMessage\s*,\s*signal\)[\s\S]*?'pass1-retry-pattern'/);
   });
 
   it('legacy retry sites use retryModel.generateContent (NOT model.generateContent)', () => {
