@@ -60,7 +60,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # 의존성 설치 X — native fetch + fs 만 사용 (node 20 글로벌).
       # validate-prod-regression.mjs 와 동일 패턴.

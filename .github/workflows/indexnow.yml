@@ -41,7 +41,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # npm ci 안 한다 — 스크립트는 전역 fetch 만 쓴다(의존성 0). 설치는 낭비다.
       - name: Submit sitemap URLs to IndexNow

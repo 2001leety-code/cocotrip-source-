@@ -22,6 +22,8 @@
 
 `check:types`는 `npm run build` 별칭이다. `verify:all`도 실제 빌드를 실행한다. `tsc --noEmit`을 타입 통과 근거로 사용하지 않는다. 같은 변경에 `verify:all`, `verify:prepush`, 정상 push를 연속 실행하면 전체 검사가 중복된다. 수정 중에는 관련 검사, 마지막에는 정상 훅을 사용한다. 필수 검사를 삭제하거나 skip하지 않는다.
 
+메일/PDF 보안 의존성 변경 후 실행 환경은 Node 22계열이다. 로컬은 기존 Chromium의 요구 조건을 만족하는 22.17 이상을 사용한다(이번 검증 22.23.2). CI도 22로 맞췄고 Vercel은 원래 22.x였다. 운영 설정·키는 변경하지 않았다. 공유 node_modules에 직접 설치하지 않고 독립 설치와 잠금 파일의 Linux 패키지 보존을 확인한다. 보안 검사는 `npm audit --omit=dev --json` 결과를 기존 `scripts/audit-gate.mjs`로 판정하며, 제거한 extract-zip의 이전 예외도 삭제했다.
+
 일반 Vite 설정에는 운영 API 프록시가 있다. 격리 검사는 `tests/charter-local-server.mjs`처럼 `configFile:false`, 빈 env 디렉터리, 합성 설정, 로컬 API 차단을 사용한다. 브라우저는 별도로 외부 요청/서비스워커를 차단한다. 메일·Sheets SDK는 fetch mock만으로 차단되지 않으므로 각 외부 SDK도 대체한다.
 
 ## Gemini 호출과 비용 확인

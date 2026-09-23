@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       # Node import audit도 브라우저와 같은 DOMPurify allowlist를 쓰므로 jsdom 설치가 필요하다.

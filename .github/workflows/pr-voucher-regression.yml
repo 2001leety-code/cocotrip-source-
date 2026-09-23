@@ -47,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # 의존성 설치 X — voucher 슈트는 native fetch + Buffer 만 사용 (node 20 글로벌)
 

@@ -58,7 +58,7 @@ jobs:
         if: github.event_name == 'deployment_status'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install pdf-parse only (lightweight)
