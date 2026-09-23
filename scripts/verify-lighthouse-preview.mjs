@@ -10,6 +10,7 @@ const MAX_SAFE_ASSERTION_COUNT = 99;
 const MAX_SAFE_ASSERTION_SCAN = 256;
 const MAX_SAFE_AUDIT_LENGTH = 1_000_000;
 const MAX_SAFE_ASSERTION_RESULTS_BYTES = 2 * 1024 * 1024;
+const MAX_SAFE_DIAGNOSTIC_SCAN = 256;
 
 // Fixed against treosh/lighthouse-ci-action 3e7e23f (bundled LHCI 0.15.1),
 // lighthouse:recommended, then this repository's reviewed .lighthouserc.json
@@ -226,6 +227,66 @@ export function verifyLighthousePreview({ expectedOrigin, reports, assertionResu
   return result(codes, reportCount, Array.isArray(assertionResults) ? assertionResults.length : 0, warningCount);
 }
 
+function diagnosticSource(value, expectedOrigin) {
+  if (typeof value !== 'string') return 'unknown';
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return 'unknown';
+    if (url.origin === expectedOrigin) return 'firstParty';
+    if (url.hostname === 'vercel.live') return 'vercelToolbar';
+    return 'other';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function boundedDiagnosticCount(value) {
+  return Math.min(value, 99);
+}
+
+/** Fixed route and numeric/enum-only diagnostics; never returns report text or URLs. */
+export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
+  const origin = previewOrigin(expectedOrigin);
+  if (!origin) return [];
+  const expectedUrl = (route) => `${origin}${route}`;
+  return EXPECTED_PATHS.map((route) => {
+    const report = Array.isArray(reports) && reports.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN)
+      .find((entry) => isRecord(entry) && cleanUrl(entry.requestedUrl)?.href === expectedUrl(route));
+    const audits = isRecord(report?.audits) ? report.audits : {};
+    const sourceCounts = (auditId) => {
+      const counts = { firstParty: 0, vercelToolbar: 0, other: 0, unknown: 0 };
+      const items = audits[auditId]?.details?.items;
+      for (const item of Array.isArray(items) ? items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : []) {
+        const source = item?.sourceLocation?.url || item?.node?.nodeUrl || item?.url;
+        const kind = diagnosticSource(source, origin);
+        counts[kind] = boundedDiagnosticCount(counts[kind] + 1);
+      }
+      return counts;
+    };
+    let totalReflowMs = 0;
+    let attributableCount = 0;
+    let unattributedCount = 0;
+    const groups = audits['forced-reflow-insight']?.details?.items;
+    const bottomUp = Array.isArray(groups) && groups.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN)
+      .findLast((group) => group?.type === 'table');
+    for (const item of Array.isArray(bottomUp?.items) ? bottomUp.items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : []) {
+      const ms = item?.reflowTime;
+      if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) continue;
+      totalReflowMs = Math.min(999999, totalReflowMs + ms);
+      if (item?.source?.type === 'source-location' && typeof item.source.url === 'string') attributableCount = boundedDiagnosticCount(attributableCount + 1);
+      else unattributedCount = boundedDiagnosticCount(unattributedCount + 1);
+    }
+    return {
+      route,
+      reportPresent: Boolean(report),
+      consoleErrors: sourceCounts('errors-in-console'),
+      passiveListeners: sourceCounts('uses-passive-event-listeners'),
+      crawlabilityFailure: audits['is-crawlable']?.score === 0,
+      forcedReflow: { totalMs: Math.round(totalReflowMs), attributableCount, unattributedCount },
+    };
+  });
+}
+
 /**
  * Read only LHCI's original files in the fixed .lighthouseci directory, never paths
  * supplied by manifest.json. treosh also writes duplicate *.report.json exports.
@@ -282,13 +343,14 @@ export function runLighthousePreviewCli(args, {
   cwd = process.cwd(), filesystem, stdout = process.stdout, stderr = process.stderr,
 } = {}) {
   let checked;
+  let artifacts;
   if (args.length === 1 && args[0] === '--safe-assertions-summary') {
     return runSafeAssertionSummaryCli({ cwd, filesystem, stdout });
   }
   if (args.length !== 2 || args[0] !== '--expected-origin') checked = result(['CLI_ARGUMENTS_INVALID']);
   else if (!previewOrigin(args[1])) checked = result(['EXPECTED_ORIGIN_INVALID']);
   else {
-    const artifacts = readLighthousePreviewArtifacts(cwd, filesystem);
+    artifacts = readLighthousePreviewArtifacts(cwd, filesystem);
     checked = artifacts.error
       ? result([artifacts.error])
       : verifyLighthousePreview({ expectedOrigin: args[1], ...artifacts });
@@ -297,6 +359,7 @@ export function runLighthousePreviewCli(args, {
     ? `LIGHTHOUSE_PREVIEW_PASS reports=${checked.reportCount} assertions=${checked.assertionCount} warnings=${checked.warningCount}\n`
     : `LIGHTHOUSE_PREVIEW_FAIL ${checked.codes.join(',')}\n`;
   (checked.ok ? stdout : stderr).write(summary);
+  if (artifacts && !artifacts.error) stdout.write(`LIGHTHOUSE_DIAGNOSTICS ${JSON.stringify(safeLighthouseDiagnosticSummary(artifacts.reports, args[1]))}\n`);
   return checked.ok ? 0 : 1;
 }
 
