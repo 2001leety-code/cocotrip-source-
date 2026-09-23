@@ -2,7 +2,7 @@
  * createCartOrder — 장바구니(멀티상품) PayPal 주문 생성 (sum-one-order, P311).
  *
  * 라인마다 backend 가 _pricing_spec.json 으로 재계산(client priceKRW 무시) → 합산 →
- * 고정 USD 1400 → PayPal 단일 주문 → cart_orders/{orderID} 스냅샷(capture 가 신뢰할 SSOT).
+ * 고정 1350원/USD → 상품별 정수 USD 합산 → PayPal 주문과 cart_orders 스냅샷.
  *
  * ⚠️ flag OFF(FEATURE_CART) = 404 (현행 무영향). 실 캡처 없음(주문 생성까지) — 돈 안 빠짐.
  *    captureCartOrder(PR2d)가 캡처 + 합계 재검증 + 예약 fan-out.
@@ -14,8 +14,9 @@ import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { computeCartTotalKrw } from './_shared/resolve-line-item.js';
+import { computeCartTotalKrw, resolveLineItemKrw } from './_shared/resolve-line-item.js';
 import { acquireSlotLock, releaseSlotLock, readSlotFields, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
+import { toMinorUnits } from './_shared/paypal-capture-verify.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -100,7 +101,7 @@ export default async function handler(req, res) {
     //   라인 booking 에 tourId·tourSlotId·bookingDate·slotCapacity·passengers 가 전부 있으면
     //   PayPal 주문을 만들기 **전에** capacity 를 검증하고 pending 을 올린다(10분 TTL).
     //   슬롯 없는 상품(차터 등)은 readSlotFields 가 null → 자동 스킵 = 기존 동작 그대로.
-    //   금액은 위 computeCartTotalKrw 가 이미 확정했다 — 이 블록은 금액을 만지지 않는다.
+    //   선택한 시간대의 서버 가격 조정도 확인한 뒤 단건과 같은 순서로 옵션·야간할증을 계산한다.
     //   confirm(pending → confirmed)은 captureCartOrder 가 결제 확정 후 수행.
     //   booking.slotCapacity 는 "슬롯 상품이다" 신호로만 쓰고, 잠금 기준 정원은 아래에서
     //   서버가 tours/{tourId} 원본으로 재확인한다(2026-08-08 — 단건 createPaypalOrder 와 동시 수리).
@@ -109,13 +110,13 @@ export default async function handler(req, res) {
       const slot = readSlotFields(computed.lines[i].booking);
       if (!slot) continue;
       if (!slotDb) {
-        console.warn('[createCartOrder] slot pre-lock SKIPPED — adminDb unavailable. line:', i, 'tour:', slot.tourId);
-        continue;
+        await releaseAcquiredSlotLocks('SLOT_VERIFY_FAILED');
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('Could not verify the selected session — please retry', 'SLOT_VERIFY_FAILED')));
       }
       // 🔴 2026-08-08 서버 정원 재확인 — booking.slotCapacity 는 클라이언트 출처라 부풀릴 수 있다.
       //   원본 tours/{tourId}.slots[] 재조회 값으로만 잠근다(미설정 슬롯 = maxPax 폴백).
-      //   결정적 검증 실패 = 주문 불성립(앞 라인 잠금 롤백 후 거부). Firestore 조회 장애(throw)만
-      //   body 값으로 후퇴 — 오늘까지의 신뢰모델보다 나빠지지 않는다. 검증값은 라인 booking 에
+      //   검증 실패·Firestore 장애는 앞 라인 잠금을 되돌린 후 거부한다. 검증값은 라인 booking 에
       //   되써서 cart_orders 스냅샷·captureCartOrder(confirmSlotLock)도 같은 값을 쓰게 한다.
       //   형제 경로 createPaypalOrder.js 도 같은 검증(한쪽만 고침 금지 — 각 wiring 테스트가 잠근다).
       let effectiveCapacity = slot.capacity;
@@ -137,8 +138,20 @@ export default async function handler(req, res) {
         }
         effectiveCapacity = verified.capacity;
         computed.lines[i].booking.slotCapacity = verified.capacity;
+        const priceModifierKrw = Number(verified.priceModifierKrw || 0);
+        const lineKrw = resolveLineItemKrw(SPEC, computed.lines[i].booking, { ...opts, priceModifierKrw });
+        if (!Number.isSafeInteger(priceModifierKrw) || !Number.isSafeInteger(lineKrw) || lineKrw <= 0) {
+          await releaseAcquiredSlotLocks('INVALID_SLOT_PRICE');
+          res.writeHead(409, JSON_CORS);
+          return res.end(JSON.stringify(_err('The selected session price could not be verified', 'INVALID_SLOT_PRICE')));
+        }
+        computed.totalKRW += lineKrw - computed.lines[i].amountKRW;
+        computed.lines[i].amountKRW = lineKrw;
       } catch (verifyErr) {
-        console.warn('[createCartOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message, '| itemIndex:', i);
+        console.warn('[createCartOrder] slot verification failed before payment:', verifyErr.message, '| itemIndex:', i);
+        await releaseAcquiredSlotLocks('SLOT_VERIFY_FAILED');
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('Could not verify the selected session — please retry', 'SLOT_VERIFY_FAILED')));
       }
       // 실제 PayPal orderId 는 아직 없다 — 단건 경로와 같은 PRELOCK 식별자 방식.
       // captureCartOrder 의 confirmSlotLock 이 같은 slot+date 의 active pending 을 소비한다.
@@ -171,9 +184,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // 차터/투어 = 고정 USD 1400 (createPaypalOrder usesFixedUsdRate 정책 동일). 정수 USD.
-    const usdToKrw = SPEC.charter_usd_fix_rate || 1400;
-    const usdAmount = Math.round(computed.totalKRW / usdToKrw).toFixed(2);
+    // 상품마다 단건과 같은 정수 USD를 확정한 뒤 합산한다. 장바구니에 담아도 가격이 달라지지 않는다.
+    const usdToKrw = SPEC.charter_usd_fix_rate || 1350;
+    const lineUsdAmounts = computed.lines.map(line => Math.round(line.amountKRW / usdToKrw).toFixed(2));
+    const lineMinor = lineUsdAmounts.map(value => toMinorUnits(value, 'USD'));
+    const totalMinor = lineMinor.reduce((sum, value) => sum + (value || 0), 0);
+    if (lineMinor.some(value => value === null) || !Number.isSafeInteger(totalMinor) || totalMinor <= 0) {
+      await releaseAcquiredSlotLocks('INVALID_LINE_AMOUNT');
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Cart amounts are invalid', 'INVALID_LINE_AMOUNT')));
+    }
+    const usdAmount = (totalMinor / 100).toFixed(2);
 
     const isSandbox = resolveIsSandbox();
     console.log(`[createCartOrder] mode: ${isSandbox ? 'SANDBOX' : 'LIVE'} | lines:`, computed.lines.length, '| KRW:', computed.totalKRW);
@@ -208,6 +229,7 @@ export default async function handler(req, res) {
             lineId: `L${i}`,
             productType: l.productType,
             amountKRW: l.amountKRW,
+            amountUSD: lineUsdAmounts[i],
             booking: l.booking,
           })),
           createdAt: FieldValue.serverTimestamp(),

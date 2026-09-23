@@ -57,8 +57,8 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: 'clientId 필수' }));
   }
   const amount = Number(amountKRW);
-  // 원화 충전 = 양의 정수만 (소수 잔액 방지)
-  if (!Number.isInteger(amount) || amount <= 0) {
+  // 원화 충전 = 양의 안전 정수만 (부동소수점에서 정확히 표현 가능한 원화 범위 유지)
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: 'amountKRW 는 양의 정수(원)' }));
   }
@@ -88,8 +88,15 @@ export default async function handler(req, res) {
         return { ok: false, status: 404, error: 'CLIENT_NOT_FOUND' };
       }
       const clientData = clientSnap.data() || {};
-      const balanceKRW = Number(clientData.balanceKRW) || 0;
+      const balanceKRW = clientData.balanceKRW;
+      // 저장 잔액 손상 또는 범위 초과는 0원으로 조용히 대체하지 않고 거절한다.
+      if (!Number.isSafeInteger(balanceKRW)) {
+        return { ok: false, status: 409, error: 'INVALID_BALANCE' };
+      }
       const newBalance = balanceKRW + amount;
+      if (!Number.isSafeInteger(newBalance)) {
+        return { ok: false, status: 409, error: 'BALANCE_OVERFLOW' };
+      }
       const at = Date.now();
 
       tx.update(clientRef, { balanceKRW: newBalance });

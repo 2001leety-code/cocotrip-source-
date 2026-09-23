@@ -1,16 +1,15 @@
 /**
- * USD 청구 환율 정책 (2026-06-05 운영자 결정).
+ * USD 청구 환율 정책.
  *
- * 차터 전체(transfer/airport/tour/multiday/kpop/custom)는 정책 고정환율
- * (spec.charter_usd_fix_rate=1400)로 KRW→USD 청구 → live 환율 변동 무관 안정 USD.
- * 원화 약세장 헤지를 고객 USD 안정으로 이전 — 손익분기 ~1400, 실 환율 높을수록 운영자 KRW 수령 ↑.
+ * KRW 가격 상품은 정책 고정환율(spec.charter_usd_fix_rate=1350)로 KRW→USD 청구.
+ * USD 표시·청구 일치를 위해 현재 운영 정책 1,350원/USD를 사용한다.
  *
- * AI 플래너(ai_planner_full)는 이 환율 정책 대상이 아니다 — 2026-07-29 운영자 결정으로
+ * AI 플래너(ai_planner_full)는 USD 정찰가라 KRW→USD 청구 환율 대상이 아니다 —
  * **고정 USD 판매가($9.90)** 가 됐다(환율 계산 자체를 안 탄다). 아래 fixedUsdPriceFor 참조.
  * createPaypalOrder.js 가 호출. 회귀: tests/unit/charter-usd-fix-rate.test.ts.
  */
 
-import { AI_PLANNER_FULL_USD } from './pricing.js';
+import { AI_PLANNER_FULL_USD, loadPricingSpec } from './pricing.js';
 
 /**
  * 🔴 2026-07-29 (운영자 가격 정책): USD 정찰가로 파는 상품표.
@@ -27,21 +26,31 @@ const norm = (productType) => String(productType || '').replace(/-/g, '_');
 
 /** USD 정찰가 상품인가? */
 export function isFixedUsdPriceProduct(productType) {
-  return Object.prototype.hasOwnProperty.call(FIXED_USD_PRICES, norm(productType));
+  const key = norm(productType);
+  if (Object.prototype.hasOwnProperty.call(FIXED_USD_PRICES, key)) return true;
+  const fixedProducts = loadPricingSpec()?.fixed_usd_products || {};
+  return Object.prototype.hasOwnProperty.call(fixedProducts, key);
 }
 
 /**
  * 상품의 고정 USD 판매가. 정찰가 상품이 아니면 null (호출부가 기존 환율 계산을 탄다).
  * @returns {number|null}
  */
-export function fixedUsdPriceFor(productType) {
-  const v = FIXED_USD_PRICES[norm(productType)];
-  return typeof v === 'number' ? v : null;
+export function fixedUsdPriceFor(productType, passengers = 1) {
+  const key = norm(productType);
+  const direct = FIXED_USD_PRICES[key];
+  if (typeof direct === 'number') return direct;
+  const product = loadPricingSpec()?.fixed_usd_products?.[key];
+  if (!product || typeof product.unit_price_usd !== 'number' || !Number.isFinite(product.unit_price_usd) || product.unit_price_usd <= 0) return null;
+  const pax = Number(passengers);
+  if (!Number.isSafeInteger(pax) || pax < 1) return null;
+  const amount = product.pricing_unit === 'passenger' ? product.unit_price_usd * pax : product.unit_price_usd;
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null;
 }
 
 /**
  * @param {string|undefined} productType
- * @returns {boolean} true = 고정환율(차터 전체) / false = live 환율(ai_planner_full 만)
+ * @returns {boolean} true = KRW 가격을 고정환율로 USD화 / false = native USD 가격 (ai_planner_full)
  */
 export function usesFixedUsdRate(productType) {
   return String(productType || '').replace(/-/g, '_') !== 'ai_planner_full';

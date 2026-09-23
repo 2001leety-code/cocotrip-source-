@@ -129,7 +129,7 @@ describe('실제 노출 차터 카드 문의 연결', () => {
     fireEvent.click(screen.getByRole('button', { name: '이 일정으로 견적 문의' }));
     const modal = screen.getByTestId('charter-inquiry-modal');
     expect(modal.getAttribute('data-tour-key')).toBe('seoul-city');
-    expect(modal.getAttribute('data-price')).toBe('330000');
+    expect(modal.getAttribute('data-price')).toBe('337500');
     expect(modal.getAttribute('data-hours')).toBe('8');
     expect(modal.getAttribute('data-plan-id')).toBe('plan-seoul');
   });

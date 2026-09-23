@@ -70,7 +70,7 @@ describe('B-FX2: 음수/0/null/NaN 안전 처리', () => {
   });
 });
 
-describe('B-FX3: 환율 계산 정확성 (KRW_PER_USD=1430 기준)', () => {
+describe('B-FX3: 환율 계산 정확성 (고정 가격 정책 1350 기준)', () => {
   it('KRW_PER_USD 는 pricing_spec.policy_krw_per_usd 와 일치 (env override 없을 때)', () => {
     const policyRate = (pricingSpec as { policy_krw_per_usd?: number }).policy_krw_per_usd;
     // env override 가 없으면 spec 값을 따라야 함.
@@ -83,7 +83,7 @@ describe('B-FX3: 환율 계산 정확성 (KRW_PER_USD=1430 기준)', () => {
     expect(USD_TO_KRW).toBe(KRW_PER_USD);
   });
 
-  it('100,000 KRW → USD 환산 (≈ 100000 / 1430 ≈ 69.93)', () => {
+  it('100,000 KRW → USD 환산 (≈ 100000 / 1350 ≈ 74.07)', () => {
     const usd = convertFromKRW(100_000, 'USD');
     // 환율 변동 시 ±10% 마진 — drift 일찍 잡기.
     expect(usd).toBeGreaterThan(60);
@@ -148,8 +148,8 @@ describe('B-FX5: formatPriceFromUSD — USD-native 입력', () => {
   it('$100 → ko 표시 (₩ 변환)', () => {
     const out = formatPriceFromUSD(100, 'ko');
     expect(out).toMatch(/^₩/);
-    // $100 × 1430 = ₩143,000.
-    expect(out).toContain('143,000');
+    // $100 × 1350 = ₩135,000.
+    expect(out).toContain('135,000');
   });
 
   it('$100 → en 표시 (소수점 유지)', () => {

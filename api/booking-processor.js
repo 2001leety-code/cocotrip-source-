@@ -5,7 +5,7 @@
  * capturePaypalOrder 성공 후 내부적으로 호출됨
  * 실행 순서:
  *  1. Google Sheets에 예약 기록 추가
- *  2. USD/KRW 환율 조회
+ *  2. 주문에 저장된 USD/KRW 금액 확인
  *  3. 예약 번호 생성 (CT-YYYYMMDD-순번)
  *  4. Gemini 1호 → 텔레그램 알림 메시지 생성
  *  5. 텔레그램 → 태연님 알림 전송
@@ -40,8 +40,7 @@ import {
 } from './_ai-employees.js';
 import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
-import { getUsdToKrwRaw } from './_exchange-rate.js';
-import { USD_TO_KRW } from './_shared/exchange-rate.js';
+import { loadPricingSpec } from './_shared/pricing.js';
 import {
   bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField,
   claimStepSafe, finalizeStep, markOutcomeUnknown, CLAIM,
@@ -160,7 +159,7 @@ function generateBookingRef() {
   return `CT-${dateStr}-${seq}`;
 }
 
-// 환율 조회는 _exchange-rate.js 공통 유틸 사용 (getUsdToKrwRaw)
+// 판매 환율은 가격 정본, 완료된 주문은 저장된 거래 금액을 우선한다.
 
 // ── 고객 언어 감지 (간단 휴리스틱) ──────────────────────────────────────
 function detectLanguage(email = '', name = '') {
@@ -263,7 +262,7 @@ const originalHandler = async (event) => {
     orderID,
     payerEmail,
     payerName,
-    amount,     // USD amount string
+    amount: requestAmount,     // USD amount string
     // 예약 상세 정보 (프론트에서 함께 전달)
     product,
     tourDate,
@@ -322,24 +321,29 @@ const originalHandler = async (event) => {
     ].join('\n')).catch((e) => console.warn('[booking-processor] bypass telegram notify 실패:', e.message));
   }
 
-  console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount });
+  console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount: requestAmount });
 
   // capturePaypalOrder에서 전달된 bookingRef가 있으면 그대로 사용 (Firestore↔Sheets 일관성)
   const bookingRef = externalBookingRef || generateBookingRef();
-  let exchangeRate = USD_TO_KRW;
+  let exchangeRate = (loadPricingSpec() || {}).charter_usd_fix_rate || 1350;
   let amountKRW = 0;
 
   // ── 멱등 가드: 이미 끝낸 단계 스킵 (retry 큐 sweep / admin-replay / cart fan-out 중복 방지) ──
-  // 안전 기본: 읽기 실패/마커 없음 = 전 단계 처리. 첫 호출엔 마커 없음 → 기존 단일상품 동작 100% 불변.
+  // 저장 금액 조회가 실패하면 재시도한다. 요청 본문의 금액으로 영수증을 만들지 않는다.
   let stepGuards = bookingStepGuards(null);
+  let storedBooking = null;
   try {
     const db = initAdminDb('booking-processor');
     if (db && orderID) {
       const snap = await db.collection('bookings').doc(orderID).get();
-      if (snap.exists) stepGuards = bookingStepGuards(snap.data());
+      if (snap.exists) {
+        storedBooking = snap.data() || {};
+        stepGuards = bookingStepGuards(storedBooking);
+      }
     }
   } catch (guardErr) {
-    console.warn('[booking-processor] 멱등 마커 읽기 실패 (전 단계 처리):', guardErr.message);
+    console.warn('[booking-processor] 저장 금액·멱등 마커 읽기 실패:', guardErr.message);
+    return respond(503, _err('Could not read the recorded booking amount — please retry', 'ORDER_CHECK_UNAVAILABLE'));
   }
 
   // PR #452 (Audit Z-H9): malformed `amount` (e.g. 'abc') previously NaN-
@@ -347,6 +351,7 @@ const originalHandler = async (event) => {
   // surfacing as $NaN in Sheets / email / voucher and silent loss of
   // loyalty points. safeParseAmountUSD returns 0 on invalid + an
   // `invalid` flag so we can alert operator without blocking the booking.
+  const amount = storedBooking ? storedBooking.amountUSD : requestAmount;
   const amountGuard = safeParseAmountUSD(amount);
   const amountUSDSafe = amountGuard.value;
   if (amountGuard.invalid) {
@@ -370,14 +375,12 @@ const originalHandler = async (event) => {
     }).catch(() => {});
   }
 
-  // ── Step 1: 환율 조회 ────────────────────────────────────────────────
-  try {
-    exchangeRate = await getUsdToKrwRaw();
-    amountKRW = Math.round(amountUSDSafe * exchangeRate);
-    console.log('[booking-processor] 환율:', exchangeRate, '→ KRW:', amountKRW);
-  } catch (err) {
-    console.warn('[booking-processor] 환율 조회 실패, 기본값 사용:', err.message);
+  // 영수증과 전송 자료는 결제 때 저장한 금액을 사용한다. 재시도 때 다시 환산하지 않는다.
+  if (storedBooking && Number.isFinite(storedBooking.capturedExchangeRate) && storedBooking.capturedExchangeRate > 0) {
+    exchangeRate = storedBooking.capturedExchangeRate;
   }
+  amountKRW = storedBooking && Number.isSafeInteger(storedBooking.amountKRW) && storedBooking.amountKRW >= 0
+    ? storedBooking.amountKRW : Math.round(amountUSDSafe * exchangeRate);
 
   // 공항 픽업 정보를 memo에 합쳐 Google Sheets에 노출 (별도 컬럼 추가 없이 태연님 가시성 확보)
   const airportMemoLine = (() => {

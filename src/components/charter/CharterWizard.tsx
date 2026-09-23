@@ -7,7 +7,6 @@ import { CocoStepper } from '@/components/coco/CocoUI';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { formatPrice } from '@/lib/exchange-rate';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
@@ -387,9 +386,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     : language === 'ja' ? `${cutoffHours}時間前締切`
     : language === 'zh' ? `提前${cutoffHours}小时截止`
     : `${cutoffHours}h cutoff`;
-  const desktopAmount = stickyAmountKRW != null
-    ? (language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language))
-    : null;
+  const desktopAmount = stickyAmountKRW != null ? stickyUsdFixed : null;
 
   // 모바일은 하단 패딩 96px 확보(고정 sticky 바가 인플로우 nav/마지막 입력 가리지 않게). 데스크탑 무패딩.
   return (
@@ -561,10 +558,10 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {language === 'ko' ? '예약 요약' : language === 'ja' ? '予約サマリー' : language === 'zh' ? '预订摘要' : 'Trip summary'}
                 </div>
                 <p className="mt-2 text-xl font-black leading-tight text-white">
-                  {desktopAmount || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
+                  {(desktopAmount ? `${desktopAmount} USD` : null) || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
                 </p>
                 {desktopAmount && stickyAmountKRW != null && (
-                  <p className="mt-1 text-xs text-white/70">{`${stickyUsdFixed} USD`}</p>
+                  <p className="mt-1 text-xs text-white/70">{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</p>
                 )}
               </div>
               <div className="space-y-3 p-5">
@@ -628,8 +625,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             <div style={{ minWidth: 0 }}>
               {stickyAmountKRW != null ? (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#15143d' }}>{language === 'en' ? stickyUsdFixed : formatPrice(stickyAmountKRW, language)}</div>
-                  <div style={{ fontSize: 11, color: '#756d96' }}>{`${stickyUsdFixed} USD`}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#15143d' }}>{`${stickyUsdFixed} USD`}</div>
+                  <div style={{ fontSize: 11, color: '#756d96' }}>{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</div>
                 </>
               ) : (
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#756d96' }}>{`${currentStep} / 6`}</div>

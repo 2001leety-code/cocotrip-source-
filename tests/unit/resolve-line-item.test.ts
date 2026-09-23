@@ -14,10 +14,11 @@ import {
 const SPEC = JSON.parse(readFileSync(resolve(process.cwd(), 'api/_pricing_spec.json'), 'utf8'));
 const createOrderSrc = readFileSync(resolve(process.cwd(), 'api/createPaypalOrder.js'), 'utf8');
 const createCartSrc = readFileSync(resolve(process.cwd(), 'api/createCartOrder.js'), 'utf8');
+const resolveLineItemSrc = readFileSync(resolve(process.cwd(), 'api/_shared/resolve-line-item.js'), 'utf8');
 
 describe('resolveKrwAmount — 정본 복제 correctness', () => {
-  it('ai_planner_full = 13300 (fixed)', () => {
-    expect(resolveKrwAmount(SPEC, 'ai_planner_full', 1, 1)).toBe(13300);
+  it('ai_planner_full reference KRW = 13365 at policy rate 1350 (fixed USD remains $9.90)', () => {
+    expect(resolveKrwAmount(SPEC, 'ai_planner_full', 1, 1)).toBe(13_365);
   });
   it('kpop_shuttle = pax × price', () => {
     expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', 3, 1)).toBe(3 * SPEC.kpop_shuttle.price_one_way);
@@ -128,9 +129,11 @@ describe('createPaypalOrder — passenger sanitize + 음수금액 가드 (소스
 });
 
 describe('source-parity 가드 — createPaypalOrder.js 와 상수 동기 (복제 divergence 방지)', () => {
-  it('AI_PLANNER_FULL_KRW 동일 (13300)', () => {
-    expect(AI_PLANNER_FULL_KRW).toBe(13_300);
-    expect(createOrderSrc).toMatch(/AI_PLANNER_FULL_KRW\s*=\s*13_?300/);
+  it('AI_PLANNER_FULL_KRW 는 pricing.js 에서 공유한다 (13365)', () => {
+    expect(AI_PLANNER_FULL_KRW).toBe(13_365);
+    expect(createOrderSrc).toContain("from './_shared/pricing.js'");
+    expect(createOrderSrc).toContain('AI_PLANNER_FULL_KRW, CUSTOM_ESTIMATE_MIN_KRW');
+    expect(resolveLineItemSrc).toContain("import { AI_PLANNER_FULL_KRW } from './pricing.js'");
   });
   it('CHARTER_MAP 키·값 동일', () => {
     for (const key of Object.keys(CHARTER_MAP)) {
@@ -153,8 +156,8 @@ describe('createCartOrder 핸들러 — 안전 wiring 가드', () => {
   it('computeCartTotalKrw 로 SSOT 재계산 (client priceKRW 무시)', () => {
     expect(createCartSrc).toMatch(/computeCartTotalKrw\(SPEC,\s*items/);
   });
-  it('고정 USD 1400 (charter_usd_fix_rate)', () => {
-    expect(createCartSrc).toMatch(/charter_usd_fix_rate\s*\|\|\s*1400/);
+  it('고정 USD 1350 (charter_usd_fix_rate)', () => {
+    expect(createCartSrc).toMatch(/charter_usd_fix_rate\s*\|\|\s*1350/);
   });
   it('cart_orders 스냅샷 저장 (capture SSOT) + 실패 시 명시 에러', () => {
     expect(createCartSrc).toMatch(/cart_orders/);

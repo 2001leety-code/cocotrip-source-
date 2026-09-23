@@ -187,9 +187,10 @@ describe('capture 핸들러 — 불일치 시 후속처리 차단 (source 가드
     expect(singleSrc.slice(mismatchIdx, bookingIdx)).toMatch(/return res\.end/);
   });
 
-  it('단건: 스냅샷 없는 레거시 주문은 기본적으로 진행(배포 시 in-flight 주문 보호) + 플래그로 격리 승격', () => {
-    expect(singleSrc).toMatch(/PAYMENT_STRICT_PROVENANCE/);
-    expect(singleSrc).toMatch(/_strictProvenance/);
+  it('단건: 레거시 호환 플래그와 무관하게 snapshot provenance 를 필수로 검증', () => {
+    expect(singleSrc).toMatch(/if\s*\(\s*!_snap\.exists\s*\)[\s\S]{0,500}NO_ORDER_SNAPSHOT/);
+    expect(singleSrc).toMatch(/expectedCurrency\s*!==\s*'USD'[\s\S]{0,500}INVALID_ORDER_SNAPSHOT/);
+    expect(singleSrc).not.toMatch(/process\.env\.PAYMENT_STRICT_PROVENANCE|_strictProvenance/);
   });
 
   it('cart: 검증 + 격리 + 202', () => {

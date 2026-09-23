@@ -22,6 +22,14 @@ describe('couponMatchesProduct — scope (applyPromoCode mirror)', () => {
     expect(couponMatchesProduct('charter', 'combo_airport_seoul')).toBe(true);
     expect(couponMatchesProduct('charter', 'kpop_shuttle_oneway')).toBe(true);
     expect(couponMatchesProduct('charter', 'tour_package_seoul')).toBe(false);
+    expect(couponMatchesProduct('charter', 'tour_seoul_night')).toBe(true);
+    expect(couponMatchesProduct('charter', 'tour_seoul_day')).toBe(false);
+  });
+  it('both scope → 기존 양 범위와 정확한 야간 SKU 허용', () => {
+    expect(couponMatchesProduct('both', 'charter_busan')).toBe(true);
+    expect(couponMatchesProduct('both', 'tour_package_seoul')).toBe(true);
+    expect(couponMatchesProduct('both', 'tour_seoul_night')).toBe(true);
+    expect(couponMatchesProduct('both', 'tour_seoul_day')).toBe(false);
   });
   it('tour-package scope → tour 만', () => {
     expect(couponMatchesProduct('tour-package', 'tour_package_seoul')).toBe(true);

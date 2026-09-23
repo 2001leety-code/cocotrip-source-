@@ -26,7 +26,7 @@ import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-avail
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
 import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
-import { formatPrice } from '@/lib/exchange-rate';
+import { charterUsdFromKrw } from '@/lib/charterUsd';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete, computeTourBookingTotalKRW, clampHanbokCount } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { resolveSlotCapacity, tourSlotBody } from '@/lib/tourSlotBooking';
@@ -395,10 +395,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   //   ⚠️ addonKRW 를 totalKRW 에 재합산하지 말 것 — P311 위반(표시가>청구가).
   const totalKRW = computeTourBookingTotalKRW(baseKRW, slotModifierKRW);
 
-  // 표시가 = 청구가 (P311): totalStr/usdStr 은 기존 totalKRW 에서 파생만. 재계산 금지.
-  const totalStr = formatKRW(totalKRW);
-  const usdStr = formatPrice(totalKRW, 'en', { withCurrencyCode: true }); // "$NNN USD"
-  const baseDisplayStr = formatKRW(baseKRW);
+  // USD is the booked price; KRW remains a reference derived from the same checkout total.
+  const expectedUSD = charterUsdFromKrw(totalKRW);
+  const totalStr = expectedUSD > 0 ? `$${expectedUSD.toLocaleString('en-US')} USD` : formatKRW(totalKRW);
+  const usdStr = `${formatKRW(totalKRW)} KRW`;
+  const baseDisplayStr = `$${charterUsdFromKrw(baseKRW).toLocaleString('en-US')} USD`;
   const paxText = `${pax} ${language === 'ko' ? '명' : language === 'ja' ? '名' : language === 'zh' ? '人' : 'pax'}`;
   const dateText = date || labels.pickDate;
 
@@ -764,11 +765,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 {labels.priceBase}
                 {tour.priceUnit === 'per_person' && (
                   <span className="text-white/40 ml-1">
-                    ({formatKRW(unitPriceKRW)} × {pax})
+                    (${charterUsdFromKrw(unitPriceKRW).toLocaleString('en-US')} × {pax})
                   </span>
                 )}
               </span>
-              <span>{formatKRW(baseKRW)}</span>
+              <span>${charterUsdFromKrw(baseKRW).toLocaleString('en-US')} USD <small className="text-white/45">({formatKRW(baseKRW)})</small></span>
             </div>
             {/* 2026-06-30: 애드온 소계 라인 제거 — 애드온=무료/현장결제라 총액(=청구가)에 미포함.
                 "+₩X" 표기는 총액에 더해진다는 오해를 줘 P311(표시가>청구가) 인상 → 삭제.
@@ -776,7 +777,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             <div className="h-px bg-white/[0.08] my-1.5" />
             <div className="flex justify-between text-[14px] font-black">
               <span className="text-white">{labels.priceTotal}</span>
-              <span style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
+              <span style={{ color: '#C99FFF' }}>{totalStr}<small className="ml-1 text-white/45">({formatKRW(totalKRW)})</small></span>
             </div>
             {/* batch 9 fix (B9-9, 2026-05-09): 부가세 포함 명시. */}
             <p className="text-[10px] text-white/45 text-right mt-1">
@@ -830,7 +831,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             <div className="space-y-3">
               <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
-                <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
+                <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{totalStr}<small className="ml-1 text-white/45">({formatKRW(totalKRW)})</small></span>
               </div>
             </div>
           }
@@ -901,6 +902,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     dateStart={date}
                     dateEnd={date}
                     priceKRW={totalKRW}
+                    expectedUSD={expectedUSD}
                     p={{}}
                     lang={language}
                     pickupLocation={pickupAddress}
@@ -949,6 +951,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     displayName={`${tour.title[language] || tour.title.en} (${date})`}
                     thumbnailUrl={tour.thumbnail}
                     priceKRW={totalKRW}
+                    priceUSD={expectedUSD}
                     className="w-full inline-flex items-center justify-center gap-1.5 py-3 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
                   />
                 </>

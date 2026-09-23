@@ -411,7 +411,7 @@ export function readSlotFields(booking) {
  * tour.maxPax 폴백 — 이 파일 헤더와 validateSlotNumeric 이 문서화한 기존 규칙 그대로.
  *
  * 반환 계약:
- *   - { ok:true, capacity }  — 검증된 정원. 호출자는 이 값으로만 잠근다.
+ *   - { ok:true, capacity, priceModifierKrw }  — 검증된 정원·슬롯 금액 조정(없으면 0).
  *   - { ok:false, code }     — 결정적 검증 실패(위조 tourId/slotId·꺼진 슬롯·정원 미설정).
  *     정직한 클라이언트는 같은 tours 문서에서 4필드를 만들었으므로 이 상태를 만들지
  *     않는다 → 호출자는 fail-closed(주문 불성립).
@@ -421,7 +421,7 @@ export function readSlotFields(booking) {
  * 문자열 숫자 허용은 readSlotFields 와 같은 이유(Firestore 왕복 형 변화).
  *
  * @param {{ adminDb: object, tourId: string, slotId: string }} args
- * @returns {Promise<{ok:true, capacity:number}|{ok:false, code:string}>}
+ * @returns {Promise<{ok:true, capacity:number, priceModifierKrw:number}|{ok:false, code:string}>}
  */
 export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
   const snap = await adminDb.doc(`tours/${tourId}`).get();
@@ -437,7 +437,12 @@ export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
   };
   const capacity = pos(slot.capacity) || pos(tour.maxPax);
   if (!capacity) return { ok: false, code: 'SLOT_CAPACITY_UNSET' };
-  return { ok: true, capacity };
+  const rawModifier = slot.price_modifier_krw;
+  const priceModifierKrw = rawModifier === undefined || rawModifier === null ? 0 : rawModifier;
+  if (!Number.isSafeInteger(priceModifierKrw)) {
+    return { ok: false, code: 'SLOT_PRICE_MODIFIER_INVALID' };
+  }
+  return { ok: true, capacity, priceModifierKrw };
 }
 
 /**

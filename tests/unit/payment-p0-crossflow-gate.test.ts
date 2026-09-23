@@ -67,19 +67,25 @@ function mockRes() {
   };
 }
 
-/** capture 핸들러용 db mock — cart_orders 존재/throw 를 제어. */
-function captureDb(opts: { cartExists?: boolean; cartThrows?: boolean } = {}) {
+/** capture 핸들러용 db mock — cart_orders 와 주문 당시 서버 snapshot 을 제어. */
+function captureDb(opts: { cartExists?: boolean; cartThrows?: boolean; orderSnapshot?: Record<string, unknown> } = {}) {
   const writes: string[] = [];
+  const reads: string[] = [];
   return {
     _writes: writes,
+    _reads: reads,
     collection(name: string) {
       return {
         doc(id: string) {
           return {
             get: async () => {
+              reads.push(`${name}/${id}`);
               if (name === 'cart_orders') {
                 if (opts.cartThrows) throw new Error('firestore down');
                 return { exists: !!opts.cartExists, data: () => ({}) };
+              }
+              if (name === 'paypal_order_snapshots') {
+                return { exists: !!opts.orderSnapshot, data: () => opts.orderSnapshot || {} };
               }
               return { exists: false, data: () => ({}) };
             },
@@ -165,7 +171,11 @@ describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
   });
 
   it('cart 문서 없음 → cross-flow 로 막지 않고 기존 흐름 진입 (정상 단건 결제 회귀 없음)', async () => {
-    dbHolder.db = captureDb({ cartExists: false });
+    // 단건 캡처는 이제 서버가 만든 snapshot 필수. 이 fixture 는 새 주문의 실제
+    // 상품·USD·KRW provenance 를 제공하고, 나머지 검사는 capture 진입까지 이어지는지 본다.
+    dbHolder.db = captureDb({ cartExists: false, orderSnapshot: {
+      productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000,
+    } });
     const res = mockRes();
     await captureHandler({ method: 'POST', body: { orderID: PAYPAL_ORDER }, headers: {} }, res);
     // cross-flow 로 거부되지 않았음 = 이 가드가 정상 주문을 오탐하지 않음.
@@ -183,6 +193,8 @@ describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
     expect(res._out.status).toBe(200);
     expect(res._out.body?.ok).toBe(true);
     expect((res._out.body?.data as Record<string, unknown> | undefined)?.payerEmail).toBe('buyer@example.com');
+    expect(dbHolder.db && (dbHolder.db as ReturnType<typeof captureDb>)._reads)
+      .toContain(`paypal_order_snapshots/${PAYPAL_ORDER}`);
   });
 
   // 🔴 DB init 실패도 cart lookup 실패와 동일 정책 — 이전엔 throw 해서 outer catch 의

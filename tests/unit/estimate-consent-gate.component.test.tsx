@@ -160,7 +160,7 @@ describe('화면 게이트 — 동의 전에는 결제 불가', () => {
   it('PayPalBookingButton 은 disabled 면 주문 생성 요청 자체를 만들지 않는다', () => {
     const btn = src('src/components/PayPalBookingButton.tsx');
     // 화면 속성만 잠그면 프로그램적 호출로 뚫린다 → 핸들러 첫 줄에서 막아야 한다.
-    expect(btn).toMatch(/async function handleBookClick\(\) \{[\s\S]{0,400}if \(disabled\) return;/);
+    expect(btn).toMatch(/async function handleBookClick\(\) \{[\s\S]{0,400}if \(disabled \|\| orderRequestInFlight\.current\) return;/);
     expect(btn).toMatch(/disabled=\{loading \|\| disabled\}/);
   });
 });

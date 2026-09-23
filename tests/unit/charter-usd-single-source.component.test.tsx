@@ -2,16 +2,12 @@
 /**
  * 차터 USD — 표시가 == 청구가 단일화 (2026-07-30, P0-1).
  *
- * 🔴 운영 실측으로 잡힌 사고: `/charter` 공개 본문이 "Incheon Airport → central Seoul is **$87**"
- *   이라고 적고 있었는데, 같은 상품의 실제 결제는 **$89** 였다.
- *     본문:  formatPrice(124800, 'en') → 124800 / 1430(policy_krw_per_usd) = 87.27 → "$87"
- *     결제:  createPaypalOrder usesFixedUsdRate → Math.round(124800 / 1400) = 89
- *   같은 화면 안에서 "1 USD = 1400 원 고정, 표시 금액이 결제 금액" 이라고 써 놓고 1430 으로
- *   환산한 숫자를 보여 준 것이다.
+ * 과거 `/charter` 문구가 일반 표시 환율과 결제 고정환율을 따로 적용했던 문제를 잠근다.
+ * 현재 표시·서버 단건 주문은 모두 정책 1350원/USD와 정수 달러 반올림을 사용한다.
  *
  * 이 파일이 잠그는 것
  *   1) 순수 함수 `charterUsdFromKrw` 가 서버 공식과 같다.
- *   2) SEO 본문을 **실제로 렌더해** 화면 문자열에 $89 가 있고 $87 이 없다.
+ *   2) SEO 본문을 **실제로 렌더해** 화면 문자열에 $92 가 있고 $87 이 없다.
  *   3) 결제 경로 소스에 일반 표시환율 함수(`formatPrice`·`convertFromKRW`·`KRW_PER_USD`)가
  *      다시 들어오지 못한다.
  */
@@ -20,7 +16,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { charterCheckoutExpectedUsd, charterUsdFromKrw, formatCharterUsd, formatCharterKrwUsd, isPlanDetailDailyCharterProduct } from '../../src/lib/charterUsd';
+import { charterCheckoutExpectedUsd, charterUsdFromKrw, fixedUsdAmountForProduct, formatCharterUsd, formatCharterKrwUsd, isPlanDetailDailyCharterProduct } from '../../src/lib/charterUsd';
 import { AIRPORT_TRANSFER_PRICES, CHARTER_USD_FIX_RATE } from '../../src/data/charterPricing';
 import { CharterSeoInfo } from '../../src/components/charter/CharterSeoInfo';
 import en from '../../src/i18n/locales/en.json';
@@ -33,16 +29,16 @@ function src(rel: string): string {
 }
 
 describe('charterUsdFromKrw — 서버 청구 공식과 동일한 순수 함수', () => {
-  it('고정환율 1400 + 정수 반올림 (createPaypalOrder roundUsdWhole 과 동형)', () => {
-    expect(CHARTER_USD_FIX_RATE).toBe(1400);
-    expect(charterUsdFromKrw(124_800)).toBe(Math.round(124_800 / 1400));
-    expect(charterUsdFromKrw(124_800)).toBe(89);
+  it('고정환율 1350 + 정수 반올림 (createPaypalOrder roundUsdWhole 과 동형)', () => {
+    expect(CHARTER_USD_FIX_RATE).toBe(1350);
+    expect(charterUsdFromKrw(124_800)).toBe(Math.round(124_800 / 1350));
+    expect(charterUsdFromKrw(124_800)).toBe(92);
   });
 
-  it('인천공항 → 서울 도심 = $89 (현재 정책)', () => {
+  it('인천공항 → 서울 도심 = $92 (현재 정책)', () => {
     expect(ICN_SEOUL_KRW).toBe(124_800);
-    expect(charterUsdFromKrw(ICN_SEOUL_KRW)).toBe(89);
-    expect(formatCharterUsd(ICN_SEOUL_KRW)).toBe('$89');
+    expect(charterUsdFromKrw(ICN_SEOUL_KRW)).toBe(92);
+    expect(formatCharterUsd(ICN_SEOUL_KRW)).toBe('$92');
   });
 
   it('🔴 $87 재발 방지 — 표시환율(1430)로 나눈 값과 절대 같지 않아야 한다', () => {
@@ -60,14 +56,21 @@ describe('charterUsdFromKrw — 서버 청구 공식과 동일한 순수 함수'
     expect(formatCharterUsd(0)).toBeNull();
   });
 
-  it('공개 표기는 언어 무관하게 "₩정책가 ($청구 USD)"', () => {
-    expect(formatCharterKrwUsd(ICN_SEOUL_KRW)).toBe('₩124,800 ($89 USD)');
+  it('공개 표기는 언어 무관하게 "$청구 USD (₩정책가)"', () => {
+    expect(formatCharterKrwUsd(ICN_SEOUL_KRW)).toBe('$92 USD (₩124,800)');
   });
 
   it('쿠폰 적용 뒤 expectedUSD도 할인된 화면 KRW로 다시 맞춘다', () => {
     expect(charterCheckoutExpectedUsd(429, 600_000, false)).toBe(429);
-    expect(charterCheckoutExpectedUsd(429, 570_000, true)).toBe(407);
+    expect(charterCheckoutExpectedUsd(429, 570_000, true)).toBe(422);
     expect(charterCheckoutExpectedUsd(undefined, 570_000, true)).toBeUndefined();
+  });
+
+  it('Seoul night 는 $49/인 base를 유지하고 쿠폰 후에는 최종 KRW에서 expectedUSD를 다시 만든다', () => {
+    expect(fixedUsdAmountForProduct('tour_seoul_night', 2)).toBe(98);
+    expect(fixedUsdAmountForProduct('tour_seoul_night', 1.5)).toBeNull();
+    expect(isPlanDetailDailyCharterProduct('tour_seoul_night')).toBe(true);
+    expect(charterCheckoutExpectedUsd(98, 119_070, true)).toBe(88);
   });
 
   it('이번 PlanDetail 일일 차터 상품만 할인 후 예상 USD 갱신 대상이다', () => {
@@ -83,26 +86,26 @@ describe('charterUsdFromKrw — 서버 청구 공식과 동일한 순수 함수'
   });
 });
 
-describe('SEO 본문 실렌더 — 4개 언어 모두 $89, $87 없음', () => {
+describe('SEO 본문 실렌더 — 4개 언어 모두 $92, $87 없음', () => {
   const langs = ['ko', 'en', 'ja', 'zh'] as const;
 
   for (const lang of langs) {
-    it(`${lang}: 본문에 $89 가 있고 $87 은 없다`, () => {
+    it(`${lang}: 본문에 $92 가 있고 $87 은 없다`, () => {
       const { container, unmount } = render(
         <CharterSeoInfo language={lang} t={en as unknown as Translations} />,
       );
       const text = container.textContent || '';
-      expect(text, `${lang} 본문에 청구액 $89 가 없다`).toContain('$89');
+      expect(text, `${lang} 본문에 청구액 $92 가 없다`).toContain('$92');
       expect(text, `${lang} 본문에 표시환율 산출값 $87 이 남아 있다`).not.toContain('$87');
-      expect(text).toContain('₩124,800');
+      expect(text).toContain('$92 USD (₩124,800)');
       unmount();
     });
   }
 
-  it('en 본문의 "price you see is the price you pay" 문장과 같은 화면에 $89 가 있다', () => {
+  it('en 본문의 "price you see is the price you pay" 문장과 같은 화면에 $92 가 있다', () => {
     render(<CharterSeoInfo language="en" t={en as unknown as Translations} />);
     expect(screen.getByText(/price you see is the price you pay/i)).toBeTruthy();
-    expect(document.body.textContent).toContain('$89');
+    expect(document.body.textContent).toContain('$92');
   });
 });
 
@@ -149,7 +152,6 @@ describe('클라이언트 표시액 ↔ 서버 산정액 대조 배선', () => {
 
   it('PayPalBookingButton 이 expectedUSD 를 주문 생성 body 로 전달한다', () => {
     const btn = src('src/components/PayPalBookingButton.tsx');
-    expect(btn).toContain('isPlanDetailDailyCharterProduct(productType)');
     expect(btn).toContain('charterCheckoutExpectedUsd(expectedUSD, effectiveKRW, promoApplied)');
     expect(btn).toContain("{ expectedUSD: expectedUSDForCheckout }");
   });

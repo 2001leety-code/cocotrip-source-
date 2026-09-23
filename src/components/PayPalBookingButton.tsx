@@ -8,13 +8,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
-import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 import { discountV2Enabled } from '@/lib/discountFlags';
 import { charterOptionsBody } from '@/lib/charterExtras';
 import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
-import { charterCheckoutExpectedUsd, isPlanDetailDailyCharterProduct } from '@/lib/charterUsd';
+import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import type { Language } from '@/i18n';
 
@@ -166,7 +165,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   피커를 보이면 화면 할인가 ≠ 실제 정가 청구 + 1회용 쿠폰 소진(capture) = 초과청구·쿠폰 손실.
   //   백엔드 청구·소진 게이트(createPaypalOrder.js:237, capturePaypalOrder coupon pre-lock)와
   //   동일 플래그로 일관 — v2 OFF: 정가·쿠폰 미노출·미소진 / v2 ON: 정상 동작.
-  const showCouponPicker = discountV2Enabled();
+  const isAiPlannerProduct = productType.startsWith('ai-planner') || productType.startsWith('ai_planner');
+  const showCouponPicker = discountV2Enabled() && !isAiPlannerProduct;
   // customAmountKRW (charter_custom_estimate) 가 있으면 priceKRW override — 5/4 추가
   const priceKRW = customAmountKRW != null && customAmountKRW > 0 ? customAmountKRW : rawPriceKRW;
   const isCharterFamilyProduct = productType.startsWith('charter_')
@@ -184,6 +184,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [error,       setError]       = useState<string | null>(null);
   const [rateInfo,    setRateInfo]    = useState<RateInfo | null>(null);
   const buttonsRendered = useRef(false);
+  const orderRequestInFlight = useRef(false);
   // SDK 차단/로드 실패 시 사용자가 paypal.me QR fallback 으로 전환 가능. error 발생 시
   // [QR 로 결제] 버튼 노출 → 클릭 시 PayPalQrPanel 렌더.
   const [useFallback, setUseFallback] = useState(false);
@@ -318,9 +319,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
 
   const effectiveKRW = discountedKRW ?? priceKRW;
-  const expectedUSDForCheckout = isPlanDetailDailyCharterProduct(productType)
-    ? charterCheckoutExpectedUsd(expectedUSD, effectiveKRW, promoApplied)
-    : expectedUSD;
+  const expectedUSDForCheckout = isAiPlannerProduct
+    ? expectedUSD
+    : charterCheckoutExpectedUsd(expectedUSD, effectiveKRW, promoApplied);
+  const checkoutAmountUSD = typeof expectedUSDForCheckout === 'number' && expectedUSDForCheckout > 0
+    ? expectedUSDForCheckout
+    : charterUsdFromKrw(effectiveKRW);
 
   // ── PayPal SDK 동적 로드 ─────────────────────────────────────────
   // 2026-05-03 사용자 신고: prod에서 SDK timeout 발생 + "다시 시도" 버튼이 실제로
@@ -522,12 +526,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             });
             // 홍보 실행안 1순위: GA4 표준 'purchase' 전환 발화 → Google Ads import(value+currency+orderID dedup).
             //   value=USD (PayPal 실제 청구통화 currency=USD 와 일치 — 운영자 "달러로 맞춰" 2026-06-15.
-            //   KRW/CALCULATOR_KRW_PER_USD = 표시 USD 동일. begin_checkout 과 통화 일치 = 깔때기 정합).
+            //   fixed-rate whole-dollar conversion keeps it aligned with the displayed checkout total.
             //   GA_ID 미설정 시 no-op. orderID=거래당 유니크.
             trackPaidConversion({
               transactionId: data.orderID,
               productType,
-              value: Math.round((effectiveKRW / CALCULATOR_KRW_PER_USD) * 100) / 100,
+              value: checkoutAmountUSD,
               currency: 'USD',
             });
             if (onPaymentSuccess) {
@@ -574,7 +578,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' },
     }).render(`#paypal-btn-${productType}`);
   }, [
-    airport, couponDocId, couponUserId, dateStart, dropoffLocation, effectiveKRW,
+    airport, checkoutAmountUSD, couponDocId, couponUserId, dateStart, dropoffLocation, effectiveKRW,
     itineraryData, lang, marketingConsent, memo, onPaymentSuccess, p.paypalCancel,
     p.paypalError, passengers, pickupLocation, priceKRW, productType, promoApplied,
     promoCode, rateInfo, showPaypal, paypalReady, slotFields, termsAgreed, userEmail,
@@ -600,7 +604,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     // 🔴 P0-2: 게이트는 **여기**에도 있어야 한다. CTA 의 disabled 속성만 믿으면 프로그램적 호출
     //   (개발자도구·자동화)로 그대로 주문이 만들어진다. 서버도 fail-closed 지만, 여기서 막아야
     //   "동의 안 했는데 PayPal 창이 뜬" 상태 자체가 생기지 않는다.
-    if (disabled) return;
+    if (disabled || orderRequestInFlight.current) return;
+    orderRequestInFlight.current = true;
     setError(null);
     setLoading(true);
     buttonsRendered.current = false;
@@ -696,14 +701,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       setRateInfo(d);
       setPaypalReady(true);
       // GA4 begin_checkout: 주문 생성 성공 → 결제창 진입 시점. "결제진입→구매" 전환율 측정(GA_ID 미설정 시 no-op).
-      //   value=USD (PayPal 이 USD 로 청구 — currency=USD. KRW/CALCULATOR_KRW_PER_USD = 표시 USD 와 동일).
-      trackBeginCheckout(productType, productType, passengers, Math.round((effectiveKRW / CALCULATOR_KRW_PER_USD) * 100) / 100);
+      //   value=USD; keep analytics aligned with the checkout's displayed whole-dollar value.
+      trackBeginCheckout(productType, productType, passengers, checkoutAmountUSD);
       setShowPaypal(true);
     } catch (err) {
       console.error('[PayPal handleBookClick] catch:', err);
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       setError(msg);
     } finally {
+      orderRequestInFlight.current = false;
       setLoading(false);
     }
   }
@@ -715,7 +721,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     ? rateInfo.displayUSD
     : (typeof expectedUSDForCheckout === 'number' && expectedUSDForCheckout > 0
         ? `$${expectedUSDForCheckout.toLocaleString('en-US')} USD`
-        : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`);
+        : `$${checkoutAmountUSD.toLocaleString('en-US')} USD`);
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   // 🔴 결제 접수 · 예약 확인 중 (PAYMENT_REVIEW) — 성공 화면보다 먼저 분기.
@@ -1061,24 +1067,32 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   <>
                     {/* \uC0AC\uC6A9\uC790 \uC5B8\uC5B4 \uAE30\uBC18 \uD45C\uC2DC. ko/en \uC740 \u20A9, ja\u2192\u00A5JPY, zh\u2192\u00A5CNY. \uC2E4 \uACB0\uC81C\uB294 PayPal USD. */}
                     <span className="text-[13px] text-white/55 line-through">
-                      {lang === 'ja' || lang === 'zh' ? formatPrice(priceKRW, lang) : `\u20A9${priceKRW.toLocaleString('ko-KR')}`}
+                      {typeof expectedUSD === 'number' && expectedUSD > 0
+                        ? `$${charterUsdFromKrw(priceKRW).toLocaleString('en-US')} USD`
+                        : lang === 'ja' || lang === 'zh' ? formatPrice(priceKRW, lang) : `\u20A9${priceKRW.toLocaleString('ko-KR')}`}
                     </span>
                     <span className="text-[15px] font-bold text-emerald-300">
-                      {lang === 'ja' || lang === 'zh' ? formatPrice(effectiveKRW, lang) : `\u20A9${effectiveKRW.toLocaleString('ko-KR')}`}
+                      {typeof expectedUSDForCheckout === 'number'
+                        ? `$${expectedUSDForCheckout.toLocaleString('en-US')} USD`
+                        : lang === 'ja' || lang === 'zh' ? formatPrice(effectiveKRW, lang) : `\u20A9${effectiveKRW.toLocaleString('ko-KR')}`}
                     </span>
                   </>
                 ) : (
                   <span className="text-[15px] font-bold">
                     {/* 고정 USD 상품(차터·AI 플래너)은 언어별 표시통화 환산을 쓰지 않는다 —
                         바로 옆 $ 가 실제 청구액이라, ¥ 로 바꿔 적으면 두 숫자가 서로 다른 환율이 된다. */}
-                    {typeof expectedUSD === 'number' && expectedUSD > 0
-                      ? `\u20A9${priceKRW.toLocaleString('ko-KR')}`
+                    {typeof expectedUSDForCheckout === 'number' && expectedUSDForCheckout > 0
+                      ? `$${expectedUSDForCheckout.toLocaleString('en-US')} USD`
                       : lang === 'ja' || lang === 'zh'
                       ? formatPrice(priceKRW, lang)
                       : (rateInfo?.displayKRW ?? `\u20A9${priceKRW.toLocaleString('ko-KR')}`)}
                   </span>
                 )}
-                <span className="text-xs text-white/70">{estimatedUSD}</span>
+                <span className="text-xs text-white/70">
+                  {typeof expectedUSDForCheckout === 'number' && expectedUSDForCheckout > 0
+                    ? `\u20A9${effectiveKRW.toLocaleString('ko-KR')} KRW`
+                    : estimatedUSD}
+                </span>
               </div>
               {rateInfo && (
                 <span className="text-[11px] text-white/50 mt-0.5">

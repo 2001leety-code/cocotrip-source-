@@ -70,7 +70,7 @@ async function requestMyBookings() {
 beforeEach(() => {
   state.db = firestoreWithBatch(createFakeFirestore({
     [`paypal_order_snapshots/${ORDER_ID}`]: {
-      productType: 'charter_seoul_city', expectedUSD: '200.00', expectedCurrency: 'USD',
+      productType: 'charter_seoul_city', expectedUSD: '200.00', expectedKRW: 270000, usdRate: 1350, expectedCurrency: 'USD',
       passengers: 2, dateStart: DATE,
       slotBooking: { tourId: 'tour-seoul-city', tourSlotId: 'morning', bookingDate: DATE, slotCapacity: 7, passengers: 2 },
     },
@@ -116,7 +116,7 @@ describe('capture booking → same FakeFirestore → my-bookings', () => {
       method: 'POST',
       headers: { authorization: 'Bearer SYNTHETIC_ID_TOKEN' },
       body: {
-        orderID: ORDER_ID, product: 'charter_seoul_city', tourDate: DATE,
+        orderID: ORDER_ID, product: 'charter_seoul_city', tourDate: '2099-01-01',
         pickupLocation: 'Synthetic hotel', paxCount: 2, vehicleType: 'staria',
         customerPhone: '+82 10 1234 5678', memo: 'Synthetic booking', termsAgreed: true,
       },
@@ -126,6 +126,7 @@ describe('capture booking → same FakeFirestore → my-bookings', () => {
     expect(state.db.__get(`bookings/${ORDER_ID}`)).toMatchObject({
       uid: 'synthetic-user', productType: 'charter_seoul_city', tourDate: DATE,
       status: 'CONFIRMED', termsAgreed: true, paymentVerified: true,
+      amountUSD: '200.00', amountKRW: 270000, capturedExchangeRate: 1350,
     });
     expect(state.db.__get(`tour_availability/tour-seoul-city/dates/${DATE}`)).toMatchObject({
       slot_bookings: { morning: 2 }, slot_confirmed: { morning: { [ORDER_ID]: { count: 2 } } },
@@ -158,5 +159,57 @@ describe('capture booking → same FakeFirestore → my-bookings', () => {
     expect(captureRes.out.status).toBe(503);
     expect(captureRes.out.body.code).toBe('ORDER_CHECK_UNAVAILABLE');
     expect(state.fetches).toEqual([]);
+  });
+
+  it.each([undefined, 'false', 'true'])('strict provenance=%s 에서 snapshot 누락은 PayPal 호출 전에 거절한다', async (strictFlag) => {
+    const previousFlag = process.env.PAYMENT_STRICT_PROVENANCE;
+    if (strictFlag === undefined) delete process.env.PAYMENT_STRICT_PROVENANCE;
+    else process.env.PAYMENT_STRICT_PROVENANCE = strictFlag;
+    state.db.__delete(`paypal_order_snapshots/${ORDER_ID}`);
+
+    try {
+      const captureRes = mockRes();
+      await captureHandler({ method: 'POST', headers: {}, body: { orderID: ORDER_ID } }, captureRes);
+
+      expect(captureRes.out.status).toBe(409);
+      expect(captureRes.out.body.code).toBe('NO_ORDER_SNAPSHOT');
+      expect(state.fetches).toEqual([]);
+      expect(state.db.__get(`bookings/${ORDER_ID}`)).toBeUndefined();
+    } finally {
+      if (previousFlag === undefined) delete process.env.PAYMENT_STRICT_PROVENANCE;
+      else process.env.PAYMENT_STRICT_PROVENANCE = previousFlag;
+    }
+  });
+
+  it('snapshot 조회 실패는 PayPal 호출 전에 503 으로 닫힌다', async () => {
+    state.db = {
+      collection(name: string) {
+        return { doc: () => ({ get: async () => {
+          if (name === 'cart_orders') return { exists: false, data: () => ({}) };
+          throw new Error('synthetic snapshot read failure');
+        } }) };
+      },
+    };
+    const captureRes = mockRes();
+    await captureHandler({ method: 'POST', headers: {}, body: { orderID: ORDER_ID } }, captureRes);
+
+    expect(captureRes.out.status).toBe(503);
+    expect(captureRes.out.body.code).toBe('ORDER_CHECK_UNAVAILABLE');
+    expect(state.fetches).toEqual([]);
+  });
+
+  it.each([
+    [{ productType: 'charter_seoul_city', expectedCurrency: 'USD' }, 'INVALID_ORDER_SNAPSHOT'],
+    [{ productType: 'charter_seoul_city', expectedUSD: 'not-money', expectedCurrency: 'USD' }, 'INVALID_ORDER_SNAPSHOT'],
+    [{ productType: 'charter_seoul_city', expectedUSD: '200.00', expectedCurrency: 'KRW' }, 'INVALID_ORDER_SNAPSHOT'],
+  ])('invalid snapshot %j is rejected before PayPal capture', async (snapshot, code) => {
+    state.db.__set(`paypal_order_snapshots/${ORDER_ID}`, snapshot);
+    const captureRes = mockRes();
+    await captureHandler({ method: 'POST', headers: {}, body: { orderID: ORDER_ID } }, captureRes);
+
+    expect(captureRes.out.status).toBe(409);
+    expect(captureRes.out.body.code).toBe(code);
+    expect(state.fetches).toEqual([]);
+    expect(state.db.__get(`bookings/${ORDER_ID}`)).toBeUndefined();
   });
 });

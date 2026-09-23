@@ -18,6 +18,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { verifyUserToken } from './_shared/user-auth.js';
+import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -44,13 +45,13 @@ import { FIXED_COUPON_CAP } from './_shared/coupon-charge.js';
 const GLOBAL_PROMOS = GLOBAL_PROMO_DEFAULTS;
 
 // 차터 고정 청구환율 (spec SSOT, createPaypalOrder 와 동일 로드 패턴) — fixed USD 쿠폰의
-// KRW 환산을 청구와 동형으로 만들기 위함. 로드 실패 시 운영자 정책값 1400.
+// KRW 환산을 청구와 동형으로 만들기 위함. 로드 실패 시 운영자 정책값 1350.
 const __pdir = dirname(fileURLToPath(import.meta.url));
-let CHARTER_USD_FIX_RATE = 1400;
+let CHARTER_USD_FIX_RATE = 1350;
 try {
   const __spec = JSON.parse(readFileSync(join(__pdir, '_pricing_spec.json'), 'utf-8'));
   if (__spec && __spec.charter_usd_fix_rate > 0) CHARTER_USD_FIX_RATE = __spec.charter_usd_fix_rate;
-} catch { /* fallback 1400 유지 */ }
+} catch { /* fallback 1350 유지 */ }
 
 // 정액 쿠폰 차감 후 표시 최소가 — createPaypalOrder MIN_CHARGE_KRW(1,000) 미러.
 const MIN_CHARGE_KRW = 1_000;
@@ -106,13 +107,15 @@ function couponMatchesProduct(productScope, productType) {
            pt.startsWith('combo_airport_') ||
            pt.startsWith('airport_') ||
            pt.startsWith('kpop_shuttle_') ||
+           pt === 'tour_seoul_night' ||
            pt.startsWith('tour_package');
   }
   if (scope === 'charter') {
     return pt.startsWith('charter_') ||
            pt.startsWith('combo_airport_') ||
            pt.startsWith('airport_') ||
-           pt.startsWith('kpop_shuttle_');
+           pt.startsWith('kpop_shuttle_') ||
+           pt === 'tour_seoul_night';
   }
   if (scope === 'tour_package' || scope === 'tour-package') {
     return pt.startsWith('tour_package');
@@ -199,6 +202,18 @@ export default async function handler(req, res) {
     body = body || {};
 
     const { code, originalPrice, codes, productType } = body;
+    // AI planner는 디지털 상품이라 쿠폰/프로모를 받지 않는다. 주문 생성과 같은 공통
+    // 정책을 미리보기에도 적용해 할인 표시 후 주문이 거절되는 표시/청구 불일치를 막는다.
+    const requestedPromoCode = code || (Array.isArray(codes) ? codes.find((entry) => entry) : undefined);
+    const aiPlannerGate = checkAiPlannerCouponPolicy({
+      productType,
+      promoCode: requestedPromoCode,
+      couponDocId: body.couponDocId,
+    });
+    if (!aiPlannerGate.ok) {
+      res.writeHead(aiPlannerGate.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(aiPlannerGate.error, aiPlannerGate.code)));
+    }
 
     // 🔴 IDOR fix: 개인 쿠폰 조회 신원을 body.userId 가 아니라 verifyUserToken 의 auth.uid 로
     //   바인딩한다. 토큰 있으면 본인 uid, 없으면 null → 개인 쿠폰 조회 skip(글로벌 프로모만).
@@ -209,7 +224,7 @@ export default async function handler(req, res) {
 
     // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
     const usdToKrw = await getUsdToKrw();
-    // 정액(fixed USD) 쿠폰 환산율 — 차터(usesFixedUsdRate)는 청구와 동일한 고정환율(1400)로
+    // 정액(fixed USD) 쿠폰 환산율 — 차터(usesFixedUsdRate)는 청구와 동일한 고정환율(1350)로
     // 환산해야 표시=청구 (createPaypalOrder 의 fixed 쿠폰 차감과 동형). 그 외(ai_planner — 쿠폰
     // 자체가 정책상 거부되지만 방어)는 live 환율.
     const couponRateFor = (pt) => (usesFixedUsdRate(pt) ? CHARTER_USD_FIX_RATE : usdToKrw);
@@ -363,7 +378,7 @@ export default async function handler(req, res) {
       }
       if (fsCoupon.type === 'fixed') {
         // 정액 쿠폰 (2026-07-18 fix): KRW/USD 모두 지원 — 이전엔 fixed KRW 를 percent 로 오해석.
-        // USD 는 청구와 동일 환율(차터=고정 1400)로 환산. 청구측 클램프(FIXED_COUPON_CAP)·
+        // USD 는 청구와 동일 환율(차터=고정 1350)로 환산. 청구측 클램프(FIXED_COUPON_CAP)·
         // 최소가 ₩1,000 플로어 = 청구 미러.
         const v = Math.min(fsCoupon.value, fsCoupon.currency === 'KRW' ? FIXED_COUPON_CAP.KRW : FIXED_COUPON_CAP.USD);
         const discountKRW = fsCoupon.currency === 'KRW' ? v : v * couponRateFor(productType);

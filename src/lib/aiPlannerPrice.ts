@@ -20,7 +20,7 @@ export const AI_PLANNER_FULL_USD = 9.90;
 export const AI_PLANNER_ORIGINAL_USD = 19.90;
 
 /** 참고 표시용 KRW. 청구 근거 아님 — 환율 변동 시 실제 청구액과 다를 수 있다. */
-export const AI_PLANNER_REFERENCE_KRW = 13_300;
+export const AI_PLANNER_REFERENCE_KRW = 13_365;
 
 /** 화면 표기용 문자열 ("$9.90"). 하드코딩 금지 — 여기서만 만든다. */
 export function formatAiPlannerUsd(value: number = AI_PLANNER_FULL_USD): string {
@@ -49,7 +49,7 @@ const APPROX_PREFIX: Record<string, string> = {
  * 참고 원화 표기. **청구 금액이 아니다** — 실제 결제는 고정 USD 이고, 손님 카드사가
  * 자체 환율로 원화를 인출하므로 이 값과 다를 수 있다. 그래서 항상 "약"을 붙인다.
  *
- * 참고 환율은 서버 정책값(기본 1,343 = $9.90 기준 ₩13,300)을 쓰되, 호출부가 실환율을
+ * 참고 환율은 서버 정책값(기본 1,350 = $9.90 기준 ₩13,365)을 쓰되, 호출부가 실환율을
  * 넘기면 그 값으로 계산한다(홈·마이페이지가 이미 환율을 들고 있으면 전달).
  */
 export function formatAiPlannerApproxKrw(language = 'en', usdToKrw?: number): string {

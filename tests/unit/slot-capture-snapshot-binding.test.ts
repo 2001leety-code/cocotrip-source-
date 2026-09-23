@@ -18,8 +18,9 @@
  * 이 파일은 단건 경로에 같은 계약을 요구한다.
  *
  * 정책 경계:
- *   - 스냅샷 바인딩 없음/불일치 = fail-closed **for the slot confirm only**. capture 는 돈이 이미
- *     빠진 뒤이므로 HTTP 응답을 깨지 않는다 — confirm 을 포기하고 운영자 알림을 남긴다.
+ *   - 주문 스냅샷 자체가 없거나 불량/조회 실패면 PayPal capture 전에 요청을 거절한다.
+ *   - 유효한 주문 스냅샷은 있지만 슬롯 바인딩이 빠졌거나 불일치하면 capture 가 이미 끝났을 수
+ *     있으므로 슬롯만 확정하지 않고 운영자 알림을 남긴다.
  *   - 슬롯 없는 상품(AI 플래너·차터 등)은 바인딩도 body 슬롯 필드도 없다 → 아무 것도 하지 않는다.
  *
  * 실제 PayPal·Firestore 는 호출하지 않는다 (전 의존 모듈 mock).
@@ -36,7 +37,7 @@ const acquireCalls: Dict[] = [];
 const verifyCalls: Dict[] = [];
 const alerts: Dict[] = [];
 /** fetchServerSlotCapacity 응답 제어 — 정상 / 결정적 거부 / Firestore 장애(throw). */
-const verifyHolder: { result: Dict; throws: boolean } = { result: { ok: true, capacity: 8 }, throws: false };
+const verifyHolder: { result: Dict; throws: boolean } = { result: { ok: true, capacity: 8, priceModifierKrw: 0 }, throws: false };
 /**
  * 알림 mock 게이트 — 알림 Promise 의 **완료 시점**을 테스트가 잡는다.
  *   defer=true  → releaseAlerts() 전까지 resolve 하지 않음 (호출자가 await 하는지 관측).
@@ -198,7 +199,7 @@ beforeEach(() => {
   alertGate.defer = false;
   alertGate.rejectWith = null;
   alertGate.pending.length = 0;
-  verifyHolder.result = { ok: true, capacity: 8 };
+  verifyHolder.result = { ok: true, capacity: 8, priceModifierKrw: 0 };
   verifyHolder.throws = false;
   mockPaypal();
 });
@@ -208,6 +209,7 @@ describe('createPaypalOrder — 슬롯 바인딩을 주문 스냅샷에 영속�
   it('🔴 슬롯 주문 → 스냅샷에 tourId/slotId/date/pax + **서버 검증 정원** 저장 (body 999 무시)', async () => {
     const writes: Array<{ path: string; data: Dict }> = [];
     dbHolder.db = createDb(writes);
+    verifyHolder.result = { ok: true, capacity: 8, priceModifierKrw: 15_000 };
     global.fetch = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: ORDER_ID }) })) as never;
     const res = mockRes();
     await createHandler({
@@ -221,6 +223,7 @@ describe('createPaypalOrder — 슬롯 바인딩을 주문 스냅샷에 영속�
         tourSlotId: PAID_SLOT.tourSlotId,
         bookingDate: PAID_SLOT.bookingDate,
         slotCapacity: 999, // 클라가 부풀린 값 — 스냅샷엔 서버 검증값(8)이 들어가야 한다.
+        priceModifierKrw: 1, // 요청 필드는 무시 — 신뢰된 slot 문서에서만 읽는다.
       },
     }, res);
 
@@ -233,7 +236,15 @@ describe('createPaypalOrder — 슬롯 바인딩을 주문 스냅샷에 영속�
       bookingDate: PAID_SLOT.bookingDate,
       slotCapacity: 8,
       passengers: PAID_SLOT.passengers,
+      priceModifierKrw: 15_000,
     });
+    expect(snap!.data.expectedKRW).toBe(352_500);
+    expect(snap!.data.expectedUSD).toBe('261.00');
+    expect(snap!.data.usdRate).toBe(1350);
+    expect(verifyCalls).toHaveLength(1); // pricing 과 capacity 는 같은 metadata 결과를 재사용한다.
+    expect(global.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      body: expect.stringContaining('261.00'),
+    }));
     // 잠금도 서버 검증 정원으로 (#1258 계약 유지 — 회귀 가드).
     expect(acquireCalls[0]).toMatchObject({ tourId: PAID_SLOT.tourId, slotId: PAID_SLOT.tourSlotId, capacity: 8 });
   });
@@ -285,7 +296,7 @@ describe('🔴 capturePaypalOrder — 위조된 capture body 는 슬롯 확정�
   });
 
   it('confirm 정원 = 서버 재확인 값 (스냅샷 정원과 달라도 서버가 이긴다)', async () => {
-    verifyHolder.result = { ok: true, capacity: 5 };
+    verifyHolder.result = { ok: true, capacity: 5, priceModifierKrw: 0 };
     await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
     expect(confirmCalls[0].capacity).toBe(5);
   });
@@ -321,10 +332,13 @@ describe('🔴 capturePaypalOrder — 스냅샷 슬롯 바인딩 없음 = 슬롯
     expect(alerts.some((a) => JSON.stringify(a).includes('SLOT_SNAPSHOT_MISSING'))).toBe(true);
   });
 
-  it('스냅샷 문서 자체가 없음(레거시/클라 주문) + body 슬롯 주장 → confirm 안 함 + 알림', async () => {
-    await runCapture({ ...FORGED_SLOT, paxCount: 7, product: 'charter_seoul_city' }, null);
+  it('주문 스냅샷 문서 자체가 없음 → capture 전 거절하고 PayPal 호출도 하지 않는다', async () => {
+    const out = await runCapture({ ...FORGED_SLOT, paxCount: 7, product: 'charter_seoul_city' }, null);
+    expect(out.status).toBe(409);
+    expect(out.body?.code).toBe('NO_ORDER_SNAPSHOT');
+    expect(global.fetch).not.toHaveBeenCalled();
     expect(confirmCalls).toHaveLength(0);
-    expect(alerts.some((a) => JSON.stringify(a).includes('SLOT_SNAPSHOT_MISSING'))).toBe(true);
+    expect(alerts.some((a) => JSON.stringify(a).includes('SLOT_SNAPSHOT_MISSING'))).toBe(false);
   });
 
   it('바인딩 없음 + body 도 슬롯 아님(비슬롯 상품) → confirm 없음 **+ 알림도 없음** (회귀·노이즈 0)', async () => {
