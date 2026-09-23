@@ -19,7 +19,6 @@ import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
-import { formatPrice } from '@/lib/exchange-rate';
 
 // ── 타입 ──────────────────────────────────────────────
 type VehicleType = 'staria' | 'sprinter' | 'bus';
@@ -451,18 +450,12 @@ export default function CharterPage() {
                   {quote.priceKRW != null ? (
                     <>
                       <div className="flex items-baseline gap-3 mb-1">
-                        {/* 주 통화 = 사용자 언어 (ko→₩ / en→$ / ja→¥JPY / zh→¥CNY).
-                            보조 = 결제 통화 USD (실 결제 시 PayPal USD 그대로). */}
+                        {/* PayPal settles in USD in every locale; KRW is a reference only. */}
                         <span className="text-3xl font-bold text-white">
-                          {/* 🔴 2026-07-18 환율 이중장부 fix: en(USD) 주 표시는 실제 청구 공식
-                              (고정환율 1400 = quote.priceUSD)과 동일하게. 이전 formatPrice(1430)는
-                              표시 $ < 청구 $. ja/zh 참고 환산은 유지(실 결제는 USD). */}
-                          {language === 'en' ? `$${quote.priceUSD}` : formatPrice(quote.priceKRW, language)}
+                          {`$${quote.priceUSD} USD`}
                         </span>
                         <span className="text-sm text-white/55">
-                          {language === 'en'
-                            ? `≈ ₩${quote.priceKRW.toLocaleString('ko-KR')}`
-                            : `≈ $${quote.priceUSD} USD`}
+                          {`₩${quote.priceKRW.toLocaleString('ko-KR')} KRW`}
                         </span>
                       </div>
                       {EXTRA_CHARGES.roundTripDiscountPercent > 0 && service === 'airport' && (

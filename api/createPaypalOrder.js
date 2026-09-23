@@ -22,11 +22,11 @@ import { resolveTransferCheckoutKrw, transferListBaseKrw } from './_shared/chart
 import { fetchTmapCarRouteKm, extractRouteCoords } from './_tmap_car_route.js';
 import { applyTotalDiscountCap, TOTAL_DISCOUNT_CAP_PCT } from './_shared/total-discount-cap.js';
 import { getRuntimeFlags } from './_shared/runtime-flags.js';
-import { usesFixedUsdRate, isFixedUsdPriceProduct, fixedUsdPriceFor } from './_shared/usd-rate-policy.js';
+import { fixedUsdPriceFor } from './_shared/usd-rate-policy.js';
 // charter_custom_estimate (zone-fallback 추정가 즉시결제) SSOT — 상수/판별을 pricing.js 에서
 // 직접 import 해 sanity range 가 어드민/스캔(admin-scan-suspect-bookings.js) 과 단일 source 로 유지.
 // 하드코딩 시 범위가 drift 되어 한쪽만 바뀌면 정산/차단 기준 불일치 발생.
-import { CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
+import { AI_PLANNER_FULL_KRW, CUSTOM_ESTIMATE_MIN_KRW, CUSTOM_ESTIMATE_MAX_KRW, isCustomEstimateProduct } from './_shared/pricing.js';
 import { buildEstimateConsentRecord } from './_shared/estimate-consent.js';
 // 🔴 2026-07-18 차터 옵션 미청구 fix: 옵션(면허가이드 30만 등)·야간할증이 표시 총액에만 있고
 //   청구에서 통째로 빠지던 돈버그. 프론트 미러 = src/lib/charterExtras.ts (P311).
@@ -84,7 +84,6 @@ const COMBO_PACKAGES_FALLBACK = {
 const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
-const AI_PLANNER_FULL_KRW = 13_300;
 
 // 정액 쿠폰 차감 후 주문 최소가 — $0/음수 주문 방지 플로어 (fixed 쿠폰 ≥ 주문액 케이스).
 const MIN_CHARGE_KRW = 1_000;
@@ -100,6 +99,16 @@ function resolveKrwAmount(productType, passengers, durationDays, vehicle) {
 
   // AI 플래너 — 디지털 상품, fixed price (durationDays 무관)
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
+
+  // Seoul night tour: native USD base is $49/passenger. Convert its base to KRW at the
+  // fixed policy rate so existing eligible discounts and trusted slot modifiers still apply.
+  if (normalized === 'tour_seoul_night') {
+    const product = SPEC.fixed_usd_products?.tour_seoul_night;
+    const pax = Number(passengers);
+    const rate = Number(SPEC.charter_usd_fix_rate) || 1350;
+    if (!product || !Number.isFinite(product.unit_price_usd) || product.unit_price_usd <= 0 || !Number.isSafeInteger(pax) || pax < 1) return null;
+    return Math.round(product.unit_price_usd * pax * rate);
+  }
 
   // K-pop 셔틀 — 인원수 곱셈 (one-way / round-trip 자체가 일자 무관)
   if (normalized === 'kpop_shuttle_oneway' || normalized === 'kpop_shuttle_roundtrip') {
@@ -300,7 +309,38 @@ export default async function handler(req, res) {
     }
     // 🔴 음수/0/NaN 금액 차단 — cart(resolve-line-item.js) 와 정합. 이전 `!krwAmount` 는
     //   음수를 truthy 로 통과시켜 PayPal 에 음수/잘못된 금액이 도달할 수 있었다.
-    if (!(krwAmount > 0)) {
+    if (!Number.isSafeInteger(krwAmount) || !(krwAmount > 0)) {
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err(`Unknown productType or invalid amount: ${productType}`, 'INVALID_PRODUCT')));
+    }
+
+    // Resolve a selected slot once from the trusted tour record before applying discounts.
+    // The slot modifier participates in the quoted KRW total; client-supplied values are ignored.
+    const tourSlotId = typeof body.tourSlotId === 'string' ? body.tourSlotId.trim() : '';
+    const tourId = typeof body.tourId === 'string' ? body.tourId.trim() : '';
+    const bookingDate = typeof body.bookingDate === 'string' ? body.bookingDate.trim() : dateStart;
+    const slotCapacity = Number(body.slotCapacity);
+    let verifiedSlotPricing = null;
+    if (tourSlotId && tourId && bookingDate && Number.isFinite(slotCapacity) && slotCapacity > 0) {
+      const slotPricingDb = initAdminDb('createPaypalOrder-slot-pricing');
+      if (!slotPricingDb) {
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.', 'SLOT_VERIFY_UNAVAILABLE')));
+      }
+      try {
+        verifiedSlotPricing = await fetchServerSlotCapacity({ adminDb: slotPricingDb, tourId, slotId: tourSlotId });
+      } catch (verifyErr) {
+        console.warn('[createPaypalOrder] slot price verification failed:', verifyErr.message);
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.', 'SLOT_VERIFY_UNAVAILABLE')));
+      }
+      if (!verifiedSlotPricing.ok) {
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.', verifiedSlotPricing.code)));
+      }
+      krwAmount += verifiedSlotPricing.priceModifierKrw;
+    }
+    if (!Number.isSafeInteger(krwAmount) || !(krwAmount > 0)) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err(`Unknown productType or invalid amount: ${productType}`, 'INVALID_PRODUCT')));
     }
@@ -350,7 +390,7 @@ export default async function handler(req, res) {
     if (discountV2 && couponDocId && couponUserId && !isAiPlanner) {
       const cv = await verifyCouponForCharge(initAdminDb('createPaypalOrder-coupon'), couponUserId, couponDocId, productType);
       const _minUsd = cv.valid ? (cv.minOrderUSD || 0) : 0;
-      const _minOk = _minUsd <= 0 || krwAmount >= _minUsd * ((SPEC && SPEC.charter_usd_fix_rate) || 1400);
+      const _minOk = _minUsd <= 0 || krwAmount >= _minUsd * ((SPEC && SPEC.charter_usd_fix_rate) || 1350);
       if (cv.valid && !_minOk) {
         console.warn('[createPaypalOrder] coupon below minOrderUSD — 미적용(정가):', couponDocId, `$${_minUsd}`);
       } else if (cv.valid && cv.kind === 'fixed') {
@@ -385,39 +425,16 @@ export default async function handler(req, res) {
     //   슬롯과 아무 것에도 묶여 있지 않았고(=위조 가능), 결제한 슬롯이 아닌 다른 슬롯이 확정되거나
     //   결제한 슬롯의 pending 이 sweep 으로 풀려 오버부킹이 됐다. cart 형제 경로는 이미
     //   cart_orders 스냅샷의 라인 booking 을 신뢰원으로 쓴다 — 같은 계약을 단건에도 적용.
-    const tourSlotId = typeof body.tourSlotId === 'string' ? body.tourSlotId.trim() : '';
-    const tourId = typeof body.tourId === 'string' ? body.tourId.trim() : '';
-    const bookingDate = typeof body.bookingDate === 'string' ? body.bookingDate.trim() : dateStart;
-    const slotCapacity = Number(body.slotCapacity);
     let slotBooking = null;
-    if (tourSlotId && tourId && bookingDate && Number.isFinite(slotCapacity) && slotCapacity > 0) {
+    if (verifiedSlotPricing && tourSlotId && tourId && bookingDate && Number.isFinite(slotCapacity) && slotCapacity > 0) {
       const adminDb = initAdminDb('createPaypalOrder');
       if (!adminDb) {
-        console.warn('[createPaypalOrder] slot pre-lock SKIPPED — adminDb unavailable. tourId:', tourId, 'slot:', tourSlotId);
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.', 'SLOT_VERIFY_UNAVAILABLE')));
       } else {
-        // 🔴 2026-08-08 서버 정원 재확인 — body.slotCapacity 는 클라이언트 출처라 부풀릴 수 있다
-        //   (capacity=999 로 보내면 SLOT_FULL 이 영영 안 걸린다). 원본 tours/{tourId}.slots[] 에서
-        //   재조회한 값으로만 잠근다(미설정 슬롯 = maxPax 폴백, fetchServerSlotCapacity 헤더 참조).
-        //   결정적 검증 실패(위조 투어/슬롯·꺼짐·정원 미설정) = 주문 자체를 안 만든다(fail-closed).
-        //   Firestore 조회 장애(throw)만 body 값으로 후퇴 — 오늘까지의 신뢰모델보다 나빠지지 않는다.
-        //   형제 경로 createCartOrder.js 도 같은 검증(한쪽만 고침 금지 — 각 wiring 테스트가 잠근다).
-        let effectiveCapacity = slotCapacity;
-        try {
-          const verified = await fetchServerSlotCapacity({ adminDb, tourId, slotId: tourSlotId });
-          if (!verified.ok) {
-            console.warn('[createPaypalOrder] slot capacity verify rejected:', verified.code,
-              { tourId, slot: tourSlotId, bodyCapacity: slotCapacity });
-            res.writeHead(409, JSON_CORS);
-            return res.end(JSON.stringify(_err('선택하신 시간대를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.', verified.code)));
-          }
-          if (verified.capacity !== slotCapacity) {
-            console.warn('[createPaypalOrder] slot capacity mismatch — 서버 값 사용:',
-              { tourId, slot: tourSlotId, bodyCapacity: slotCapacity, serverCapacity: verified.capacity });
-          }
-          effectiveCapacity = verified.capacity;
-        } catch (verifyErr) {
-          console.warn('[createPaypalOrder] slot capacity verify failed — body 값으로 후퇴:', verifyErr.message);
-        }
+        // Capacity and price modifier both come from the one trusted source read above.
+        // acquireSlotLock still performs the transactional live availability check.
+        const effectiveCapacity = verifiedSlotPricing.capacity;
         try {
           await acquireSlotLock({
             adminDb,
@@ -433,7 +450,7 @@ export default async function handler(req, res) {
           });
           // 잠금이 성립한 뒤에만 바인딩을 만든다 — 잠기지 않은 좌석을 capture 가 확정하면 안 된다.
           // 정원은 위 서버 재확인값(effectiveCapacity). readSlotFields 가 읽는 필드명과 동일 shape.
-          slotBooking = { tourId, tourSlotId, bookingDate, slotCapacity: effectiveCapacity, passengers };
+          slotBooking = { tourId, tourSlotId, bookingDate, slotCapacity: effectiveCapacity, passengers, priceModifierKrw: verifiedSlotPricing.priceModifierKrw };
           console.log('[createPaypalOrder] slot lock acquired:', { tourId, date: bookingDate, slot: tourSlotId, pax: passengers });
         } catch (slotErr) {
           const code = slotErr.code || 'SLOT_LOCK_FAILED';
@@ -447,18 +464,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2026-06-05 (운영자 결정): 차터 전체(ai_planner_full 제외)는 정책 고정환율(charter_usd_fix_rate=1400)로
-    //   USD 청구 → live 환율 변동 무관 안정 USD. AI 플래너($9.90)만 live 환율. (프론트 Step6Quote ≈$ 표시도 동일 rate.)
-    //   원화 약세장 헤지를 고객 USD 안정으로 이전 — 손익분기 ~1400, 실 환율 높을수록 운영자 KRW 수령 ↑.
-    let usdToKrw;
-    let roundUsdWhole = false;
-    if (usesFixedUsdRate(productType)) {
-      usdToKrw = (SPEC && SPEC.charter_usd_fix_rate) || 1400;
-      roundUsdWhole = true; // 차터 = 깔끔한 정수 USD ($99·$448). AI 플래너는 센트 단위 유지.
-    } else {
-      const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
-      usdToKrw = await getUsdToKrwRaw();
-    }
+    // 고정 KRW 상품은 SSOT 정책 고정환율(1350)로 USD를 만든다. AI 플래너는 $9.90 native USD를
+    //   유지하되 스냅샷의 참고 환율도 정책값으로 기록한다(결제액은 KRW 환산을 사용하지 않음).
+    const usdToKrw = (SPEC && SPEC.charter_usd_fix_rate) || 1350;
+    const roundUsdWhole = !isAiPlanner; // AI 는 $9.90 native USD, 다른 고정 KRW 상품은 정수 달러.
     // 정액(fixed) 쿠폰 차감 (2026-07-18 fix) — 관리자 발급 바우처(₩50,000 등). 정률 프로모의
     // 10% 상한과 별개 정책이라 cap 미적용. USD 쿠폰은 이 주문과 동일 환율로 환산(표시=청구 동형).
     // 주문 최소가 MIN_CHARGE_KRW 플로어 — 쿠폰가치 ≥ 주문액이어도 $0 주문 생성 금지.
@@ -475,8 +484,10 @@ export default async function handler(req, res) {
     //   환율 나눗셈을 아예 타지 않으므로 환율이 어떻든 승인·Capture 금액이 정확히 $9.90 이다.
     //   (이전: ₩13,300 / live 환율 → 1,468 환율에서 $9.06. 화면 $9.90 과 불일치.)
     //   krwAmount 는 이 상품에서 **참고 표시용**으로만 남는다(영수증·리포트).
-    //   다른 상품은 기존 로직(고정환율 1400 또는 live) 그대로 — 영향 없음.
-    const fixedUsd = fixedUsdPriceFor(productType);
+    //   다른 지원 상품은 정책 고정환율 1350으로 계산한다.
+    // AI planner remains an exact native-USD exception. Night tour starts from $49/person KRW
+    // base above so slot modifiers and eligible discounts affect its final whole-dollar amount.
+    const fixedUsd = isAiPlanner ? fixedUsdPriceFor(productType) : null;
     const _usdRaw = fixedUsd != null ? fixedUsd : krwAmount / usdToKrw;
     const usdAmount = fixedUsd != null
       ? fixedUsd.toFixed(2)
@@ -527,6 +538,7 @@ export default async function handler(req, res) {
         // PayPal order 는 위에서 항상 USD 로 생성된다(purchase_units amount.currency_code: 'USD').
         // 명시 저장 → gate 가 legacy 기본값 추정에 의존하지 않게 한다.
         expectedCurrency: 'USD',
+        usdRate: usdToKrw,
         passengers,
         durationDays: durationDays || null,
         dateStart: dateStart || null,

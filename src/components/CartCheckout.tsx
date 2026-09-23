@@ -79,9 +79,12 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const [error, setError] = useState<string | null>(null);
   const [paypalReady, setPaypalReady] = useState(false);
   const rendered = useRef(false);
+  const orderRequestInFlight = useRef(false);
 
   // 1) 주문 생성 — 결제 직전 backend SSOT 재계산 (client priceKRW 무시).
   async function createOrder() {
+    if (orderRequestInFlight.current) return;
+    orderRequestInFlight.current = true;
     setStatus('creating'); setError(null);
     try {
       const res = await fetch('/api/createCartOrder', {
@@ -110,6 +113,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     } catch (e) {
       setError(e instanceof Error ? e.message : 'error');
       setStatus('error');
+    } finally {
+      orderRequestInFlight.current = false;
     }
   }
 
@@ -271,7 +276,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         </span>
       </div>
 
-      {status === 'idle' && (
+      {(status === 'idle' || status === 'error') && (
         <>
           <button onClick={createOrder} disabled={items.length === 0}
             className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors disabled:opacity-50">

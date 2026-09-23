@@ -203,13 +203,20 @@ describe('서버 정원 재확인 배선 — createPaypalOrder (소스 잠금, 2
 
   it('결정적 검증 실패(투어/슬롯 없음·꺼짐·정원 미설정)는 PayPal 주문 생성 전에 거부한다', () => {
     const verify = create.indexOf('await fetchServerSlotCapacity(');
-    const reject = create.indexOf('slot capacity verify rejected', verify);
-    expect(reject, 'fail-closed 거부 경로 없음').toBeGreaterThan(-1);
-    expect(reject).toBeLessThan(create.indexOf('/v2/checkout/orders'));
+    const failClosed = create.indexOf('if (!verifiedSlotPricing.ok)', verify);
+    expect(failClosed, '검증 실패를 거부하는 fail-closed 분기 없음').toBeGreaterThan(-1);
+    expect(failClosed).toBeLessThan(create.indexOf('/v2/checkout/orders'));
+    expect(create.slice(failClosed)).toContain('verifiedSlotPricing.code');
   });
 
-  it('Firestore 조회 장애만 body 값으로 후퇴한다 (결정적 거부와 구분 — 오늘보다 나빠지지 않음)', () => {
-    expect(create).toContain('body 값으로 후퇴');
+  it('Firestore 조회 장애도 PayPal 주문 전에 fail-closed 처리한다', () => {
+    const verify = create.indexOf('await fetchServerSlotCapacity(');
+    const catchBlock = create.indexOf('catch (verifyErr)', verify);
+    const unavailable = create.indexOf("'SLOT_VERIFY_UNAVAILABLE'", catchBlock);
+    expect(catchBlock, '조회 오류 처리 경로 없음').toBeGreaterThan(-1);
+    expect(unavailable, '조회 오류 시 fail-closed 응답 없음').toBeGreaterThan(catchBlock);
+    expect(unavailable).toBeLessThan(create.indexOf('/v2/checkout/orders'));
+    expect(create).not.toContain('body 값으로 후퇴');
   });
 });
 

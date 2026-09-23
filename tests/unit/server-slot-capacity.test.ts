@@ -53,23 +53,38 @@ function call(tour: Record<string, unknown> | undefined, slotId: string) {
 
 describe('fetchServerSlotCapacity — 정원 원본 조회', () => {
   it('슬롯에 capacity 가 있으면 그 값 (body 가 뭐라 했든 무관)', async () => {
-    await expect(call(baseTour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 8 });
+    await expect(call(baseTour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 8, priceModifierKrw: 0 });
   });
 
   it('슬롯 capacity 미설정이면 tour.maxPax 폴백 (문서화된 기존 규칙 유지)', async () => {
-    await expect(call(baseTour, 'slot_pm')).resolves.toEqual({ ok: true, capacity: 7 });
+    await expect(call(baseTour, 'slot_pm')).resolves.toEqual({ ok: true, capacity: 7, priceModifierKrw: 0 });
   });
 
   it('capacity 0·음수는 값이 아니다 → maxPax 폴백 (0 = 전원 차단 사고 방지)', async () => {
     const tour = { ...baseTour, slots: [{ id: 'slot_am', start_time: '09:00', capacity: 0, is_active: true }] };
-    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 7 });
+    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 7, priceModifierKrw: 0 });
     const tour2 = { ...baseTour, slots: [{ id: 'slot_am', start_time: '09:00', capacity: -3, is_active: true }] };
-    await expect(call(tour2, 'slot_am')).resolves.toEqual({ ok: true, capacity: 7 });
+    await expect(call(tour2, 'slot_am')).resolves.toEqual({ ok: true, capacity: 7, priceModifierKrw: 0 });
   });
 
   it('문자열 숫자도 받는다 (Firestore 왕복 형 변화 방어 — readSlotFields 와 같은 이유)', async () => {
     const tour = { maxPax: '7', slots: [{ id: 'slot_am', start_time: '09:00', capacity: '6', is_active: true }] };
-    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 6 });
+    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 6, priceModifierKrw: 0 });
+  });
+
+  it('returns only the integer modifier stored on the selected trusted slot', async () => {
+    const tour = { ...baseTour, slots: [{ id: 'slot_am', capacity: 8, is_active: true, price_modifier_krw: 15000 }] };
+    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 8, priceModifierKrw: 15000 });
+  });
+
+  it('preserves a configured negative modifier as a discount for downstream final-total validation', async () => {
+    const tour = { ...baseTour, slots: [{ id: 'slot_am', capacity: 8, is_active: true, price_modifier_krw: -5000 }] };
+    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: true, capacity: 8, priceModifierKrw: -5000 });
+  });
+
+  it.each([1.5, Number.MAX_SAFE_INTEGER + 1, '15000'])('rejects an invalid trusted slot modifier (%s)', async (modifier) => {
+    const tour = { ...baseTour, slots: [{ id: 'slot_am', capacity: 8, is_active: true, price_modifier_krw: modifier }] };
+    await expect(call(tour, 'slot_am')).resolves.toEqual({ ok: false, code: 'SLOT_PRICE_MODIFIER_INVALID' });
   });
 });
 

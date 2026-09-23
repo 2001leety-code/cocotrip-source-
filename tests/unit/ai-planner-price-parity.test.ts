@@ -7,7 +7,7 @@
  * 이 파일이 잠그는 것:
  *  1. 서버 SSOT 와 프론트 미러가 같은 값
  *  2. 주문 생성이 환율 나눗셈을 타지 않는다 (하이픈/언더바 표기 모두)
- *  3. 다른 상품 가격 정책은 그대로 (차터 = 고정환율 1400 유지)
+ *  3. KRW 상품은 SSOT 1350에 맞고 night tour 는 쿠폰 후 KRW에서 최종 USD를 계산한다
  *  4. 화면 금액과 서버 금액이 다르면 결제를 만들지 않는다
  *  5. 예상 여행비(priceUSD)는 판매가·원장과 완전히 분리돼 있다
  *  6. KRW 는 참고 표시용 — 결제·환불 판정에 쓰이지 않는다
@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { AI_PLANNER_FULL_USD as SERVER_USD } from '../../api/_shared/pricing.js';
+import { AI_PLANNER_FULL_USD as SERVER_USD, loadPricingSpec, resolveKrwAmount } from '../../api/_shared/pricing.js';
 import { fixedUsdPriceFor, isFixedUsdPriceProduct, usesFixedUsdRate } from '../../api/_shared/usd-rate-policy.js';
 import {
   AI_PLANNER_FULL_USD as CLIENT_USD,
@@ -42,6 +42,17 @@ describe('AI 플래너 가격 — 서버 ↔ 프론트 패리티', () => {
     expect(isFixedUsdPriceProduct('ai-planner-full')).toBe(true);
   });
 
+  it('night tour 의 USD 정찰가는 $49/인 base 이고 인원에 따라 늘어난다', () => {
+    expect(fixedUsdPriceFor('tour_seoul_night')).toBe(49);
+    expect(fixedUsdPriceFor('tour-seoul-night', 2)).toBe(98);
+    expect(isFixedUsdPriceProduct('tour-seoul-night')).toBe(true);
+    expect(usesFixedUsdRate('tour_seoul_night')).toBe(true);
+    expect(resolveKrwAmount('tour_seoul_night', 1)).toBe(66_150);
+    expect(resolveKrwAmount('tour_seoul_night', 2)).toBe(132_300);
+    expect(resolveKrwAmount('tour_seoul_night', 1.5)).toBeNull();
+    expect(loadPricingSpec()?.fixed_usd_products.tour_seoul_night.unit_price_usd).toBe(49);
+  });
+
   it('표시 문자열을 한 곳에서만 만든다', () => {
     expect(formatAiPlannerUsd()).toBe('$9.90');
   });
@@ -64,6 +75,17 @@ describe('주문 생성 — 환율 미개입 + 금액 대조', () => {
     // 줄바꿈에 무관하게 "고정가면 환율 안 탄다" 형태를 확인한다.
     expect(code).toMatch(/fixedUsd\s*!=\s*null[\s\S]{0,40}fixedUsd\.toFixed\(2\)/);
     expect(code).toMatch(/fixedUsd\s*!=\s*null\s*\?\s*fixedUsd\s*:\s*krwAmount\s*\/\s*usdToKrw/);
+  });
+
+  it('AI planner 만 최종 native USD override 를 받고 night tour 는 조정된 KRW에서 계산한다', () => {
+    expect(code).toContain('const fixedUsd = isAiPlanner ? fixedUsdPriceFor(productType) : null');
+    expect(code).toContain("normalized === 'tour_seoul_night'");
+    expect(code).toContain('product.unit_price_usd * pax * rate');
+  });
+
+  it('주문 스냅샷 환율은 AI 포함 정책값 1350이며 단건 주문이 live FX를 부르지 않는다', () => {
+    expect(code).toContain('const usdToKrw = (SPEC && SPEC.charter_usd_fix_rate) || 1350');
+    expect(code).not.toContain('getUsdToKrwRaw');
   });
 
   it('화면 금액과 서버 금액이 다르면 409 로 주문을 만들지 않는다', () => {
@@ -112,7 +134,7 @@ describe('예상 여행비 ↔ 판매가 분리', () => {
 
 describe('KRW 는 참고 표시용', () => {
   it('프론트 참고 KRW 상수가 분리돼 있다', () => {
-    expect(AI_PLANNER_REFERENCE_KRW).toBe(13300);
+    expect(AI_PLANNER_REFERENCE_KRW).toBe(13365);
   });
 
   it('🔴 레포 어디에도 가격이 하드코딩돼 있지 않다 (SSOT 한 곳만)', () => {
@@ -161,7 +183,7 @@ describe('KRW 는 참고 표시용', () => {
   it('fillPrice 가 placeholder 를 실제 값으로 채운다', () => {
     expect(fillPrice('{price} 플래너', 'ko')).toBe('$9.90 플래너');
     expect(fillPrice('{origPrice} → {price}', 'en')).toBe('$19.90 → $9.90');
-    expect(fillPrice('{krw}', 'ko')).toBe('약 ₩13,300');
+    expect(fillPrice('{krw}', 'ko')).toBe('약 ₩13,400');
   });
 
   it('환불 전액/부분 판정에 KRW 가 쓰이지 않는다 (USD 비교)', () => {

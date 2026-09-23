@@ -13,14 +13,11 @@
 import type { VehicleType } from '@/components/charter/types';
 import spec from '@/data/pricing_spec.json';
 
-// 2026-06-05: 차터 전체 USD 청구 = charter_usd_fix_rate(1400) 고정 (운영자 결정) → UI 표시 estimate 도 동일 rate = 표시==청구.
-// 우선순위: Vercel env (VITE_KRW_PER_USD) > charter_usd_fix_rate (1400) > policy_krw_per_usd (1430) > 1430.
-// 실제 결제: 차터 = 이 고정 rate(createPaypalOrder), AI 플래너 = backend live rate (api/_exchange-rate.js).
+// 고정 USD 표기/추정은 SSOT 1350 KRW/USD로 계산한다. 예전 VITE_KRW_PER_USD 값은 표시를 바꾸지 못한다.
+// 실제 단건 주문은 server fixed-rate/native-USD 정책이 이 가격과 대조된다.
 const _specRates = spec as { charter_usd_fix_rate?: number; policy_krw_per_usd?: number };
-const POLICY_RATE = typeof _specRates.charter_usd_fix_rate === 'number' ? _specRates.charter_usd_fix_rate
-  : (typeof _specRates.policy_krw_per_usd === 'number' ? _specRates.policy_krw_per_usd : 1430);
-const _envRate = import.meta.env.VITE_KRW_PER_USD;
-const KRW_PER_USD = Number(_envRate === undefined || _envRate === null ? POLICY_RATE : _envRate);
+const KRW_PER_USD = typeof _specRates.charter_usd_fix_rate === 'number' ? _specRates.charter_usd_fix_rate
+  : (typeof _specRates.policy_krw_per_usd === 'number' ? _specRates.policy_krw_per_usd : 1350);
 
 interface VehicleFormula {
   base: number;

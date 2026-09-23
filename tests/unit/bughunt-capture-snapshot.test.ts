@@ -4,7 +4,7 @@
  * createPaypalOrder 가 paypal_order_snapshots/{orderID} 에 {productType, expectedUSD, expectedKRW,
  * passengers, dateStart} 저장 → capturePaypalOrder 가 capture-time 클라 body 대신 이 스냅샷의
  * product/pax/date 를 사용해, 저가 주문으로 고가 서비스를 booking 에 위조 기록하는 공격을 무력화.
- * 스냅샷 없으면(client-side 주문/legacy/쓰기실패) body 유지 = graceful(결제 차단 금지).
+ * 스냅샷이 없거나 기대금액/통화가 유효하지 않으면 PayPal capture 전에 거절한다.
  * (핸들러는 부작용 import 多 → 직접 호출 대신 소스 구조 가드.)
  */
 import { describe, it, expect } from 'vitest';
@@ -57,12 +57,23 @@ describe('버그헌트 #11 — capturePaypalOrder 가 스냅샷으로 body 위�
     expect(snapIdx).toBeGreaterThan(0);
     expect(gateIdx).toBeGreaterThan(snapIdx);
   });
-  it('destructure 가 let (override 가능) — body override 가능하도록', () => {
+  it('destructure 가 let — 서버 스냅샷으로만 예약 필드를 보정', () => {
     expect(captureSrc).toMatch(/let\s*\{\s*orderID,\s*product,/);
   });
-  it('graceful — 스냅샷 없거나 read 실패 시 body 유지(try/catch, 결제 차단 금지)', () => {
-    expect(captureSrc).toMatch(/catch\s*\(\s*_snapErr\s*\)/); // 스냅샷 read 전용 try/catch
-    // _snap.exists 일 때만 override (없으면 body 그대로)
-    expect(captureSrc).toMatch(/_snap\.exists/);
+  it('snapshot 부재/불량은 body fallback 없이 capture 전에 fail-closed', () => {
+    expect(captureSrc).toMatch(/if\s*\(\s*!_snap\.exists\s*\)[\s\S]{0,500}NO_ORDER_SNAPSHOT/);
+    expect(captureSrc).toMatch(/expectedCurrency\s*!==\s*'USD'[\s\S]{0,500}INVALID_ORDER_SNAPSHOT/);
+    expect(captureSrc).toMatch(/catch\s*\(\s*_snapErr\s*\)[\s\S]{0,500}ORDER_CHECK_UNAVAILABLE/);
+    const snapshotGuardIdx = captureSrc.indexOf('NO_ORDER_SNAPSHOT');
+    const paypalTokenIdx = captureSrc.indexOf('getPaypalAccessToken(');
+    expect(snapshotGuardIdx).toBeGreaterThan(-1);
+    expect(paypalTokenIdx).toBeGreaterThan(snapshotGuardIdx);
+  });
+  it('저장한 USD/KRW 견적과 환율을 bookings 에 이어 보존', () => {
+    expect(captureSrc).toMatch(/_snapExpectedUSD\s*=\s*_s\.expectedUSD/);
+    expect(captureSrc).toMatch(/_snapExpectedKRW\s*=\s*_s\.expectedKRW/);
+    expect(captureSrc).toMatch(/_snapUsdRate\s*=\s*_s\.usdRate/);
+    expect(captureSrc).toMatch(/amountKRW\s*=\s*_snapExpectedKRW\s*\|\|/);
+    expect(captureSrc).toMatch(/capturedExchangeRate:\s*usdToKrw/);
   });
 });

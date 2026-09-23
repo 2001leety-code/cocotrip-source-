@@ -19,6 +19,7 @@ import {
 // ── 외부 의존성 전부 목 ────────────────────────────────────────────────
 const appendBooking = vi.fn(async () => ({ appendedRow: '시트1!A2' }));
 const sendBookingConfirmation = vi.fn(async () => undefined);
+const generateConfirmationEmail = vi.fn(async () => ({ subject: 's', html: 'h', text: 't' }));
 let db: ReturnType<typeof createFakeFirestore>;
 
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
@@ -38,7 +39,7 @@ vi.mock('../../api/_send-email.js', () => ({
   buildDefaultConfirmationEmail: () => ({ subject: 's', html: 'h', text: 't' }),
 }));
 vi.mock('../../api/_ai-employees.js', () => ({
-  generateConfirmationEmail: vi.fn(async () => ({ subject: 's', html: 'h', text: 't' })),
+  generateConfirmationEmail: (...args: any[]) => generateConfirmationEmail(...args),
   generateVoucherText: vi.fn(async () => 'voucher'),
 }));
 vi.mock('../../api/_generate-voucher.js', () => ({ generateVoucherPDF: vi.fn(async () => null) }));
@@ -94,9 +95,12 @@ beforeEach(() => {
   appendBooking.mockImplementation(async () => ({ appendedRow: '시트1!A2' }));
   sendBookingConfirmation.mockClear();
   sendBookingConfirmation.mockImplementation(async () => undefined);
+  generateConfirmationEmail.mockClear();
+  generateConfirmationEmail.mockImplementation(async () => ({ subject: 's', html: 'h', text: 't' }));
   db = createFakeFirestore({
     [`bookings/${ORDER}`]: {
       paymentVerified: true, captureID: 'CAP-1', uid: 'u1', amountUSD: 9.9,
+      amountKRW: 14454, capturedExchangeRate: 1460,
       bookingRef: 'CT-20260729-001',
     },
   });
@@ -121,6 +125,38 @@ describe('정상 경로 — 세 단계가 다 끝나야 completed', () => {
     // 외부 결과는 각각 1건
     expect(appendBooking).toHaveBeenCalledTimes(1);
     expect(sendBookingConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  it('시트와 이메일은 요청 본문·현재 환율이 아니라 booking 원장의 저장 금액을 쓴다', async () => {
+    const r = await run({ amount: '999.00' });
+
+    expect(r.body.outcome).toBe(OUTCOME.COMPLETED);
+    const sheetBooking = appendBooking.mock.calls[0][0];
+    const emailBooking = generateConfirmationEmail.mock.calls[0][0];
+    for (const delivered of [sheetBooking, emailBooking]) {
+      expect(delivered).toMatchObject({
+        amountUSD: '9.90',
+        amountKRW: 14454,
+        exchangeRate: 1460,
+      });
+      expect(delivered.amountUSD).not.toBe('999.00');
+    }
+    expect(sendBookingConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  it('booking 원장 초기 조회 실패는 503으로 닫고 요청 본문으로 계속 처리하지 않는다', async () => {
+    db = {
+      collection: () => ({ doc: () => ({ get: async () => { throw new Error('synthetic Firestore read failure'); } }) }),
+    } as unknown as ReturnType<typeof createFakeFirestore>;
+
+    const r = await run({ amount: '999.00' });
+
+    expect(r.statusCode).toBe(503);
+    expect(r.body).toMatchObject({ ok: false, code: 'ORDER_CHECK_UNAVAILABLE' });
+    expect(appendBooking).not.toHaveBeenCalled();
+    expect(generateConfirmationEmail).not.toHaveBeenCalled();
+    expect(sendBookingConfirmation).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

@@ -5,16 +5,15 @@
 // TOURS_RAW 의 priceFrom 은 spec 매핑 없을 때 (multicity 등) fallback.
 // ─────────────────────────────────────────────────────────────────────────────
 import pricingSpec from './pricing_spec.json';
+import { fixedUsdAmountForProduct } from '@/lib/charterUsd';
 
-// P1 #5 fix (2026-05-13): 환율 SSOT — pricing_spec.policy_krw_per_usd (1430) 우선.
-// Vercel env (VITE_KRW_PER_USD) > SSOT > hardcoded fallback. 실 결제 환산은 backend live rate 사용.
-const POLICY_RATE = (pricingSpec as { policy_krw_per_usd?: number }).policy_krw_per_usd || 1430;
-const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD || POLICY_RATE);
+// Sales amounts use the same fixed conversion contract as checkout.
+const CHARTER_USD_FIX_RATE = (pricingSpec as { charter_usd_fix_rate?: number }).charter_usd_fix_rate || 1350;
 
 /** Tour ID → pricing_spec.daily_tour_prices key. null이면 spec에 없음 (fallback 사용). */
 const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
   'tour-seoul-city':     'seoul-city',
-  'tour-seoul-night':    'seoul-city',     // 야간 surcharge는 결제 시 addon 또는 별도 정책
+  'tour-seoul-night':    null,             // join-in 야간 투어는 그룹 차터와 다른 고정 1인 요금 SKU
   'tour-danyang':        'seoul-suburb',   // 단양은 서울 근교 인터시티 기준
   'tour-ganghwa':        'seoul-suburb',
   'tour-dmz':            'dmz',
@@ -24,11 +23,25 @@ const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
   'tour-multicity-3d':   null,             // 멀티데이는 spec daily 가격 없음 → priceFrom fallback
 };
 
-/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD.
+/** Server charge SKU per public tour. The price-spec key above is intentionally independent. */
+const TOUR_TO_PRODUCT_TYPE: Record<string, string | null> = {
+  'tour-seoul-city': 'charter_seoul_city',
+  'tour-seoul-night': 'tour_seoul_night',
+  'tour-danyang': 'charter_seoul_suburb',
+  'tour-ganghwa': 'charter_seoul_suburb',
+  'tour-dmz': 'charter_dmz',
+  'tour-nami-chuncheon': 'charter_seoul_suburb',
+  'tour-gyeongju': 'charter_gyeongju',
+  'tour-busan-day': 'charter_busan',
+  'tour-multicity-3d': null,
+};
+
+/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × fixed checkout rate.
  *  priceUnit='per_person' 투어는 spec 매핑 무시하고 priceFrom × KRW만 사용 (1인당 가격). */
 export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0, priceUnit: 'group' | 'per_person' = 'group'): number {
   if (priceUnit === 'per_person') {
-    return fallbackPriceFromUSD * KRW_PER_USD;
+    const fixedUsd = fixedUsdAmountForProduct(getTourProductType(tourId) || '', 1);
+    return (fixedUsd || fallbackPriceFromUSD) * CHARTER_USD_FIX_RATE;
   }
   const key = TOUR_TO_CHARTER_KEY[tourId];
   if (key) {
@@ -36,14 +49,12 @@ export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0, priceU
     const krw = spec?.[key]?.priceKRW;
     if (typeof krw === 'number') return krw;
   }
-  return fallbackPriceFromUSD * KRW_PER_USD;
+  return fallbackPriceFromUSD * CHARTER_USD_FIX_RATE;
 }
 
-/** PayPal createPaypalOrder.js productType 형식. tour-{slug} → charter_{key}. */
+/** PayPal createPaypalOrder.js allowed charge SKU. */
 export function getTourProductType(tourId: string): string | null {
-  const key = TOUR_TO_CHARTER_KEY[tourId];
-  if (!key) return null;
-  return `charter_${key.replace(/-/g, '_')}`;
+  return TOUR_TO_PRODUCT_TYPE[tourId] || null;
 }
 
 export type VehicleType = 'Staria' | 'Sprinter' | 'SprinterMid' | 'Bus';
@@ -376,7 +387,7 @@ const TOURS_RAW: Tour[] = [
       ja: 'スタリア専用車両と英語対応ドライバーでソウルの名所を巡ります。景福宮の静かな朝、北村韓屋村の路地、明洞ショッピング、漢江の夕日まで。通行料・駐車場がすべて込み。',
       zh: '乘坐专属Staria面包车，配备英语司机，游览首尔主要景点。景福宫清晨、北村韩屋村小巷、明洞购物、汉江日落。过路费·停车费全含。',
     },
-    priceFrom: 208,
+    priceFrom: 250,
     currency: 'USD',
     durationDays: 1,
     durationHours: 9,
@@ -1287,7 +1298,7 @@ export const TOURS: Tour[] = TOURS_RAW.map((t) => {
   // priceFrom (USD) 도 spec 기반으로 자동 갱신. spec 없으면 raw priceFrom 유지.
   // priceUnit='per_person' 투어는 spec 무시하고 raw priceFrom (USD) 그대로 사용.
   const priceFromUSD = (t.priceUnit !== 'per_person' && TOUR_TO_CHARTER_KEY[t.id])
-    ? Math.round(priceKRW / KRW_PER_USD)
+    ? Math.round(priceKRW / CHARTER_USD_FIX_RATE)
     : t.priceFrom;
   return {
     ...t,

@@ -12,7 +12,7 @@ import {
 
 describe('PlanDetail charter inquiry server quote SSOT', () => {
   it.each([
-    ['seoul-city', 330000, 8],
+    ['seoul-city', 337500, 8],
     ['seoul-suburb', 343200, 8],
     ['dmz', 343200, 8],
     ['gangwon', 436800, 10],

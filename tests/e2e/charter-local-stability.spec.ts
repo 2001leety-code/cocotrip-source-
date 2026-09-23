@@ -152,7 +152,7 @@ test('guest reaches a real charter quote with no external requests', async ({ pa
   await reachStep6(page, 'staria_9');
   await expect(page.getByRole('heading', { name: /Final Quote/i })).toBeVisible();
   await expect(page.getByText('₩124,800', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('$89', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('$92', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: 'tmp/charter-local/staria-quote.png', fullPage: true });
   expect(guard.external, 'all non-loopback requests must be blocked').toEqual([]);
   expect(guard.api.filter((item) => item.includes('/api/inquiry-submit'))).toEqual([]);

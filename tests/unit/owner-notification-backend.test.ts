@@ -638,9 +638,9 @@ describe('metadata scanner, cutover and atomic queue/cursor', () => {
   });
   it('uses the real pure cart child builder output to group one parent instead of line IDs', async () => {
     const f = fixture(); await f.run();
-    const children = buildCartChildBookings('fake-cart-order', { usdRate: 1400, lines: [
-      { lineId: 'L1', productType: 'charter', amountKRW: 14000, booking: {} },
-      { lineId: 'L2', productType: 'charter', amountKRW: 28000, booking: {} },
+    const children = buildCartChildBookings('fake-cart-order', { usdRate: 1400, usdAmount: '30.00', lines: [
+      { lineId: 'L1', productType: 'charter', amountKRW: 14000, amountUSD: '10.00', booking: {} },
+      { lineId: 'L2', productType: 'charter', amountKRW: 28000, amountUSD: '20.00', booking: {} },
     ] }, {});
     for (const child of children) f.seed('bookings', child.childOrderID, { ...child.bookingDoc, paypalEnvironment: 'live' });
     f.setNow(EPOCH + 300_000); await f.run(); expect(f.ledger()).toHaveLength(1);

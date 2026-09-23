@@ -102,6 +102,8 @@ describe('createPaypalOrder — 스냅샷 성공 시 정상 주문', () => {
     expect(snapshotWrites[0].path).toBe(`paypal_order_snapshots/${ORDER_ID}`);
     expect(snapshotWrites[0].data.productType).toBe('ai_planner_full');
     expect(snapshotWrites[0].data.expectedUSD).toBeTruthy();
+    expect(snapshotWrites[0].data.expectedKRW).toBe(13_365);
+    expect(snapshotWrites[0].data.usdRate).toBe(1350);
     // 통화 명시 저장 — gate 가 legacy 기본값 추정에 의존하지 않게.
     expect(snapshotWrites[0].data.expectedCurrency).toBe('USD');
   });

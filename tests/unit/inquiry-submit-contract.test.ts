@@ -46,6 +46,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 const { default: handler } = await import('../../api/inquiry-submit.js');
+const SEOUL_CITY_INQUIRY_KRW = 337500;
 
 function call(body: Record<string, unknown>, headers: Record<string, string> = {}) {
   let status = 0;
@@ -168,7 +169,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
       details: 'Baby seat please',
       planId: 'public-seoul-plan',
       expectedTourKey: 'seoul-city',
-      expectedAmountKRW: 330000,
+      expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW,
       expectedHours: 8,
       quotedKRW: 1,
       recommendedTour: 'FORGED',
@@ -184,7 +185,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
       json: {
         success: true,
         status: 'NEW',
-        quote: { tourKey: 'seoul-city', amountKRW: 330000, hours: 8, currency: 'KRW' },
+        quote: { tourKey: 'seoul-city', amountKRW: SEOUL_CITY_INQUIRY_KRW, hours: 8, currency: 'KRW' },
       },
     });
     expect(writes).toHaveLength(1);
@@ -197,7 +198,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
       notes: 'Baby seat please',
       planId: 'public-seoul-plan',
       recommendedTour: 'Seoul City Tour',
-      quotedKRW: 330000,
+      quotedKRW: SEOUL_CITY_INQUIRY_KRW,
       hours: 8,
       startDate: '2026-09-10',
       eventDate: '2026-09-10',
@@ -207,7 +208,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
         currency: 'KRW',
         pricingKey: 'seoul-city',
         pricingVersion: '2.0.0',
-        amountKRW: 330000,
+        amountKRW: SEOUL_CITY_INQUIRY_KRW,
         hours: 8,
         provenance: 'server_pricing_spec',
         kind: 'reference',
@@ -229,7 +230,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
 
     expect(result).toMatchObject({
       status: 409,
-      json: { success: false, code: 'QUOTE_CHANGED', quote: { amountKRW: 330000 } },
+      json: { success: false, code: 'QUOTE_CHANGED', quote: { amountKRW: SEOUL_CITY_INQUIRY_KRW } },
     });
     expect(writes).toHaveLength(0);
   });
@@ -240,7 +241,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
       vehicle: 'charter',
       planId: 'public-seoul-plan',
       expectedTourKey: 'seoul-city',
-      expectedAmountKRW: 330000,
+      expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW,
       expectedHours: 10,
     });
 
@@ -261,7 +262,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     verifyIdentity.mockResolvedValue({ ok: true, uid: 'owner-1' });
     const owner = await call({
       email: 'owner@example.com', vehicle: 'charter', planId: 'private-owner-plan',
-      expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     }, { authorization: 'Bearer valid-owner-token' });
     expect(owner.status).toBe(200);
     expect(JSON.stringify(writes[0].data)).not.toContain('guest-secret');
@@ -269,7 +270,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     writes.length = 0;
     const guest = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'private-owner-plan',
-      accessToken: 'guest-secret', expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      accessToken: 'guest-secret', expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(guest.status).toBe(200);
     expect(JSON.stringify(writes[0].data)).not.toContain('guest-secret');
@@ -282,7 +283,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     });
     const denied = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'private-plan',
-      expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(denied).toMatchObject({ status: 403, json: { code: 'PLAN_ACCESS_DENIED' } });
 
@@ -292,7 +293,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     });
     const noMatch = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'public-no-match',
-      expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(noMatch).toMatchObject({ status: 422, json: { code: 'NO_CHARTER_RECOMMENDATION' } });
     expect(writes).toHaveLength(0);
@@ -302,7 +303,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     forcedCollisions = 1;
     const result = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'public-seoul-plan',
-      expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(result.status).toBe(200);
     expect(writes).toHaveLength(1);
@@ -312,7 +313,7 @@ describe('POST /api/inquiry-submit canonical contract', () => {
     rateLimitResult = { ok: true, degraded: true };
     const result = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'public-seoul-plan',
-      expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(result).toMatchObject({ status: 503, json: { code: 'RATE_LIMIT_UNAVAILABLE' } });
     expect(writes).toHaveLength(0);
@@ -410,14 +411,14 @@ describe('POST /api/inquiry-submit canonical contract', () => {
 
     const result = await call({
       email: 'guest@example.com', vehicle: 'charter', planId: 'public-seoul-plan',
-      accessToken: 'must-not-leak', expectedTourKey: 'seoul-city', expectedAmountKRW: 330000, expectedHours: 8,
+      accessToken: 'must-not-leak', expectedTourKey: 'seoul-city', expectedAmountKRW: SEOUL_CITY_INQUIRY_KRW, expectedHours: 8,
     });
     expect(result.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const request = fetchSpy.mock.calls[0][1] as RequestInit;
     const telegramBody = JSON.parse(String(request.body));
     expect(telegramBody.text).toContain('새 플랜 차터 견적 문의');
-    expect(telegramBody.text).toContain('서버 계산 참고견적:</b> ₩330,000 / 8시간');
+    expect(telegramBody.text).toContain(`서버 계산 참고견적:</b> ₩${SEOUL_CITY_INQUIRY_KRW.toLocaleString('en-US')} / 8시간`);
     expect(telegramBody.text).not.toContain('대형버스');
     expect(telegramBody.text).not.toContain('must-not-leak');
   });

@@ -13,10 +13,12 @@
  * client items[].priceKRW 완전 불신 — productType + 식별 키만으로 재계산 (변조 차단).
  */
 import { resolveMultiDayCheckoutKrw, captainPremiumKrw } from './charter-multiday-price.js';
-import { isCharterExtrasProduct, charterExtrasKrw } from './charter-extras.js';
+import { isCharterExtrasProduct, charterExtrasKrw, sanitizeCharterOptions, deriveNightFromPickup } from './charter-extras.js';
 import { resolveTourCheckoutKrw } from './tour-price.js';
 import { resolveTransferCheckoutKrw } from './charter-transfer-price.js';
 import { isAiPlannerProduct } from './ai-planner-policy.js';
+import { fixedUsdPriceFor } from './usd-rate-policy.js';
+import { AI_PLANNER_FULL_KRW } from './pricing.js';
 
 // ⚠️ createPaypalOrder.js 와 byte-identical 유지 (source-parity 테스트 가드).
 export const CHARTER_MAP = {
@@ -36,7 +38,7 @@ export const COMBO_PACKAGES_FALLBACK = {
   combo_airport_busan:   { airport_key: 'seoul-central', tour_key: 'busan-day' },
 };
 export const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
-export const AI_PLANNER_FULL_KRW = 13_300;
+export { AI_PLANNER_FULL_KRW };
 
 /**
  * 정본 resolveKrwAmount — createPaypalOrder.js L78-129 와 동일 공식 (SPEC 인자화).
@@ -51,6 +53,11 @@ export function resolveKrwAmount(SPEC, productType, passengers, durationDays, ve
   const captain = captainPremiumKrw(SPEC, vehicle);
 
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
+
+  if (normalized === 'tour_seoul_night') {
+    const usd = fixedUsdPriceFor(normalized, passengers);
+    return usd === null ? null : usd * (SPEC.charter_usd_fix_rate || 1350);
+  }
 
   if (normalized === 'kpop_shuttle_oneway' || normalized === 'kpop_shuttle_roundtrip') {
     // 🔴 가격 가드 (createPaypalOrder.js 정본 미러): passengers 를 양의 정수로 정규화 —
@@ -105,7 +112,7 @@ export function resolveKrwAmount(SPEC, productType, passengers, durationDays, ve
  * 라인 dispatch — createPaypalOrder.js L205-218 와 동일 분기. flag 는 opts 로 주입(순수).
  * @param {object} SPEC
  * @param {object} booking  CartItemBooking (productType + 식별 키)
- * @param {object} [opts]  {multidayEnabled, tourHourlyEnabled, transferEnabled, marginGuardEnabled, discountV2}
+ * @param {object} [opts]  {multidayEnabled, tourHourlyEnabled, transferEnabled, marginGuardEnabled, discountV2, priceModifierKrw}
  * @returns {number|null}
  */
 export function resolveLineItemKrw(SPEC, booking, opts = {}) {
@@ -124,11 +131,16 @@ export function resolveLineItemKrw(SPEC, booking, opts = {}) {
     core = resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays, booking.vehicle);
   }
   if (core == null || !(core > 0)) return core;
+  core += opts.priceModifierKrw || 0;
+  if (!Number.isSafeInteger(core) || core <= 0) return null;
 
   // 🔴 차터 옵션·야간할증 가산 (2026-07-18 돈버그 fix) — createPaypalOrder 단건 경로와 동일.
   //   booking.options 는 charterCartItem.ts 가 위저드 state.options 를 boolean 으로 담는다.
   if (isCharterExtrasProduct(productType)) {
-    const extras = charterExtrasKrw(SPEC, core, { vehicle: booking.vehicle, options: booking.options });
+    const options = sanitizeCharterOptions(booking.options);
+    const night = deriveNightFromPickup(booking.pickupTime);
+    if (night !== null) options.night = night;
+    const extras = charterExtrasKrw(SPEC, core, { vehicle: booking.vehicle, options });
     if (extras.totalKRW > 0) return core + extras.totalKRW;
   }
   return core;

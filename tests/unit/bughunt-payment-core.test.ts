@@ -101,32 +101,21 @@ describe('버그 #2 — 프론트 쿠폰 피커는 discountV2 활성 시에만 �
   });
 });
 
-describe('버그 #15 — capture 환율은 라이브 FX SSOT 로 통일 (정적 1430 제거)', () => {
-  it('정적 1430 폴백이 더 이상 존재하지 않는다', () => {
-    // 이전 코드: Number(env.KRW_USD_RATE) || Number(env.VITE_USD_KRW_RATE) || 1430.
-    // 회귀 가드: 어떤 형태로든 1430 정적 환율 폴백이 capture 에 다시 들어오면 실패.
-    expect(captureSrc).not.toMatch(/\|\|\s*1430/);
-    expect(captureSrc).not.toMatch(/process\.env\.KRW_USD_RATE/);
-    expect(captureSrc).not.toMatch(/process\.env\.VITE_USD_KRW_RATE/);
+describe('버그 #15 — capture 는 주문 생성 시 저장한 환율·원화 견적을 보존', () => {
+  it('capture 경로에서 라이브 환율을 새로 조회하지 않는다', () => {
+    expect(captureSrc).not.toMatch(/getUsdToKrwRaw/);
+    expect(captureSrc).not.toMatch(/KRW_USD_RATE|VITE_USD_KRW_RATE/);
   });
 
-  it('booking-processor 와 동일한 getUsdToKrwRaw 라이브 환율을 사용한다', () => {
-    expect(captureSrc).toMatch(/import\(\s*['"]\.\/_exchange-rate\.js['"]\s*\)/);
-    expect(captureSrc).toMatch(/getUsdToKrwRaw\s*\(\s*\)/);
+  it('주문 스냅샷의 환율과 원화 견적을 우선하고 legacy 기록에만 명시된 고정가 fallback 사용', () => {
+    expect(captureSrc).toMatch(/const\s+usdToKrw\s*=\s*_snapUsdRate\s*\|\|/);
+    expect(captureSrc).toMatch(/_snapExpectedKRW\s*\/\s*Number\(_snapExpectedUSD\)/);
+    expect(captureSrc).toMatch(/charter_usd_fix_rate\s*\|\|\s*1350/);
+    expect(captureSrc).toMatch(/const\s+amountKRW\s*=\s*_snapExpectedKRW\s*\|\|\s*Math\.round/);
   });
 
-  it('환율 실패 시 정책 floor(1450)로 폴백한다 (1430 의존 제거)', () => {
-    expect(captureSrc).toMatch(/let\s+usdToKrw\s*=\s*1450/);
-  });
-
-  it('환율 조회는 best-effort — try/catch 로 감싸 결제(capture)를 막지 않는다', () => {
-    // try { ... await import('./_exchange-rate.js') ... getUsdToKrwRaw() ... } catch (rateErr)
-    // (indexOf 는 주석의 getUsdToKrwRaw 언급을 먼저 잡으므로, try{...}catch 블록 패턴으로 검증.)
-    expect(captureSrc).toMatch(/try\s*\{[\s\S]{0,300}getUsdToKrwRaw[\s\S]{0,200}catch\s*\(/);
-  });
-
-  it('저장되는 capturedExchangeRate / amountKRW 가 동일한 usdToKrw 값을 쓴다', () => {
-    expect(captureSrc).toMatch(/amountKRW\s*=\s*Math\.round\(\s*parseFloat\([^)]*\)\s*\*\s*usdToKrw\s*\)/);
+  it('amountKRW 와 capturedExchangeRate 는 snapshot 기반으로 확정한 값으로 보존', () => {
     expect(captureSrc).toMatch(/capturedExchangeRate:\s*usdToKrw/);
+    expect(captureSrc).toMatch(/amountKRW,\s*capturedExchangeRate:\s*usdToKrw/);
   });
 });

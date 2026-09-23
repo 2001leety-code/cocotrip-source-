@@ -5,27 +5,22 @@
  *   en → USD ($), ja → JPY (¥), zh → CNY (¥), ko → KRW (₩)
  *   백엔드 결제는 항상 USD (PayPal) — 본 모듈은 **표시 환산만** 담당.
  *
- * 환율 SSOT (우선순위 위→아래):
- *   1. Vercel env (VITE_KRW_PER_USD / VITE_KRW_PER_JPY / VITE_KRW_PER_CNY)
- *   2. pricing_spec.json policy_krw_per_usd (USD 만 — 결제 환율 일치)
- *   3. hardcoded fallback (JPY 10.5, CNY 200 — 시장 평균, 2026-05-13 기준)
+ * 환율 SSOT: USD = pricing_spec.json policy_krw_per_usd (고정 1350, USD env override 무시).
+ * JPY/CNY 는 Vercel env 또는 시장 평균 폴백을 사용한다.
  *
- * 실제 결제 환율은 backend `api/_exchange-rate.js` 의 live rate 사용.
- * 이 모듈 값은 UI 표시·estimate 용. 결제 직전 명시 표시 ("Pay $230 USD") 필수.
- *
- * 후속 (선택): live rate fetch — 1시간 1회 캐싱 + 실패 시 hardcode 폴백.
+ * 신규 KRW 상품의 USD 결제도 동일한 1350 고정환율을 사용한다.
+ * 결제 직전에는 실제 청구 통화 USD를 명시한다.
  */
 import spec from '@/data/pricing_spec.json';
 
-const POLICY_KRW_PER_USD = (spec as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+const POLICY_KRW_PER_USD = (spec as { policy_krw_per_usd?: number }).policy_krw_per_usd || 1350;
 
-// 환율 SSOT — env override > spec > hardcoded fallback.
-// USD: pricing_spec.json 의 policy_krw_per_usd (1430) 와 일치 — priceUSD 환산 결과도 동일.
-export const KRW_PER_USD: number = Number(import.meta.env.VITE_KRW_PER_USD ?? POLICY_KRW_PER_USD);
+// fixed price policy: stale VITE_KRW_PER_USD deployment values must not change USD display.
+export const KRW_PER_USD: number = POLICY_KRW_PER_USD;
 // JPY: 시장 평균 ~ 10.5 KRW / 1 JPY (2026-05-13 기준). env override 가능.
-export const KRW_PER_JPY: number = Number(import.meta.env.VITE_KRW_PER_JPY ?? 10.5);
+export const KRW_PER_JPY: number = Number(import.meta.env.VITE_KRW_PER_JPY == null ? 10.5 : import.meta.env.VITE_KRW_PER_JPY);
 // CNY: 시장 평균 ~ 200 KRW / 1 CNY (2026-05-13 기준). env override 가능.
-export const KRW_PER_CNY: number = Number(import.meta.env.VITE_KRW_PER_CNY ?? 200);
+export const KRW_PER_CNY: number = Number(import.meta.env.VITE_KRW_PER_CNY == null ? 200 : import.meta.env.VITE_KRW_PER_CNY);
 
 // Legacy 별칭 — AdminAnalytics 등 backward-compat 용도. 신규 코드는 KRW_PER_USD 사용.
 export const USD_TO_KRW = KRW_PER_USD;
@@ -46,7 +41,7 @@ const LANGUAGE_TO_CURRENCY: Record<DisplayLanguage, DisplayCurrency> = {
 export function getCurrencyForLanguage(language: string | null | undefined): DisplayCurrency {
   if (!language) return 'USD';
   const lang = (language as DisplayLanguage);
-  return LANGUAGE_TO_CURRENCY[lang] ?? 'USD';
+  return LANGUAGE_TO_CURRENCY[lang] || 'USD';
 }
 
 /**
@@ -99,12 +94,12 @@ export interface FormatPriceOptions {
  *
  * 예시 (krwAmount = 330_000):
  *   - ko: "₩330,000"
- *   - en: "$231"           (~330_000 / 1430)
+ *   - en: "$244"           (~330_000 / 1350)
  *   - ja: "¥31,429"        (~330_000 / 10.5)
  *   - zh: "¥1,650"         (~330_000 / 200)
  *
- * options.withCurrencyCode = true 시: "$231 USD" / "¥31,429 JPY" 등 — 결제 직전 명시용.
- * options.approximate = true 시: "$231~" / "₩330,000~" — 카드/타일 "최저" 표시용.
+ * options.withCurrencyCode = true 시: "$244 USD" / "¥31,429 JPY" 등 — 결제 직전 명시용.
+ * options.approximate = true 시: "$244~" / "₩330,000~" — 카드/타일 "최저" 표시용.
  * krwAmount ≤ 0 또는 invalid 시: options.emptyLabel (기본 '—') 반환.
  */
 export function formatPrice(
@@ -149,7 +144,7 @@ export function formatPriceFromUSD(
   options: FormatPriceOptions = {},
 ): string {
   if (usdAmount == null || !Number.isFinite(usdAmount) || usdAmount <= 0) {
-    return options.emptyLabel ?? '—';
+    return options.emptyLabel == null ? '—' : options.emptyLabel;
   }
   // USD → KRW 환산 후 다시 formatPrice 흐름 재사용 (단일 진실 경로).
   const krw = usdAmount * KRW_PER_USD;

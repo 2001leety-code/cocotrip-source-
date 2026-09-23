@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { buildCartChildBookings } from '../../api/_shared/cart-capture.js';
+import { buildCartChildBookings, cartLineUsdAmounts } from '../../api/_shared/cart-capture.js';
 
 const captureSrc = readFileSync(resolve(process.cwd(), 'api/captureCartOrder.js'), 'utf8');
 
@@ -47,6 +47,14 @@ describe('buildCartChildBookings — 라인 child + fan-out', () => {
     expect(buildCartChildBookings('', snapshot, {})).toEqual([]);
     expect(buildCartChildBookings('ORD9', null, {})).toEqual([]);
     expect(buildCartChildBookings('ORD9', { lines: 'x' }, {})).toEqual([]);
+  });
+  it('이전 주문의 홀수 센트도 부모 금액과 정확히 일치한다', () => {
+    const amounts = cartLineUsdAmounts({ ...snapshot, usdAmount: '200.01' });
+    expect(amounts).toEqual(['100.01', '100.00']);
+  });
+  it('저장된 라인 금액이 부모와 다르거나 일부만 있으면 거절한다', () => {
+    expect(() => cartLineUsdAmounts({ ...snapshot, lines: snapshot.lines.map(line => ({ ...line, amountUSD: '99.00' })) })).toThrow('INVALID_CART_AMOUNTS');
+    expect(() => cartLineUsdAmounts({ ...snapshot, lines: [{ ...snapshot.lines[0], amountUSD: '100.00' }, snapshot.lines[1]] })).toThrow('INVALID_CART_AMOUNTS');
   });
 });
 

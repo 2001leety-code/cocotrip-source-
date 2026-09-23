@@ -27,11 +27,12 @@ export function couponMatchesProduct(productScope, productType) {
   if (scope === 'both') {
     return pt.startsWith('charter_') || pt.startsWith('combo_airport_') ||
            pt.startsWith('airport_') || pt.startsWith('kpop_shuttle_') ||
-           pt.startsWith('tour_package');
+           pt.startsWith('tour_package') || pt === 'tour_seoul_night';
   }
   if (scope === 'charter') {
     return pt.startsWith('charter_') || pt.startsWith('combo_airport_') ||
-           pt.startsWith('airport_') || pt.startsWith('kpop_shuttle_');
+           pt.startsWith('airport_') || pt.startsWith('kpop_shuttle_') ||
+           pt === 'tour_seoul_night';
   }
   if (scope === 'tour_package' || scope === 'tour-package') {
     return pt.startsWith('tour_package');

@@ -55,9 +55,9 @@ const COMBO_PACKAGES_FALLBACK = {
 const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 
 // AI 플래너 가격 정책 (2026-05-05 운영자 확정 — Option B):
-//   정가 (originalKRW)     : ₩26,600 / $19.90
-//   Launch promo (-50%)    : -₩13,300
-//   최종 결제 (finalKRW)    : ₩13,300 / $9.90
+//   정가 (originalKRW)     : ₩26,600 / $19.90 (기존 표시값)
+//   Launch promo (-50%)    : -₩13,300 (기존 표시값)
+//   고정 판매가            : $9.90 (KRW 13,365 는 1350 정책환율 참고값)
 //
 // 마케팅 카피 "첫 100명 한정 50% OFF" 는 광고용 — 실제 카운트 enforcement 없음
 // (계속 50% 할인 적용). 정가/할인 분리 기록은 Firestore booking 의
@@ -70,10 +70,10 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 //   (화면·마케팅은 $9.90 고정) → 표시가 ≠ 청구가.
 //   이제 USD 가 정본이고 KRW 는 **참고 표시용**이다. 결제·환불 판정에 KRW 를 쓰지 않는다.
 //   ⚠️ 이 값은 실제 PayPal 승인/Capture 금액이다. 바꾸면 판매가가 바뀐다.
-//   ⚠️ 차터 등 다른 상품은 기존 정책(고정환율 1400) 그대로 — 영향 없음.
+//   ⚠️ 차터 등 KRW 기반 다른 상품은 정책환율 1350을 쓴다.
 export const AI_PLANNER_FULL_USD = 9.90;
 /** 참고 표시용 KRW (영수증·리포트). 청구 근거 아님. */
-const AI_PLANNER_FULL_KRW = 13_300;
+export const AI_PLANNER_FULL_KRW = 13_365;
 export const AI_PLANNER_FULL_ORIGINAL_KRW = 26_600;
 export const AI_PLANNER_LAUNCH_DISCOUNT_RATE = 0.50;
 export const AI_PLANNER_LAUNCH_LABEL = 'Launch Special — 첫 100명 한정 50% OFF';
@@ -152,6 +152,15 @@ export function resolveKrwAmount(productType, passengers) {
   const normalized = productType.replace(/-/g, '_');
 
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
+
+  if (normalized === 'tour_seoul_night') {
+    const product = spec.fixed_usd_products && spec.fixed_usd_products.tour_seoul_night;
+    const pax = Number(passengers);
+    const rate = Number(spec.charter_usd_fix_rate) || 1350;
+    if (!product || !Number.isFinite(product.unit_price_usd) || product.unit_price_usd <= 0 || !Number.isSafeInteger(pax) || pax < 1) return null;
+    const amount = Math.round(product.unit_price_usd * pax * rate);
+    return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
+  }
 
   // charter_custom_estimate — body의 customAmountKRW 사용. 호출처가 직접 처리하므로
   // 여기선 null 반환 (호출처가 isCustomEstimateProduct로 분기 후 별도 처리).

@@ -20,7 +20,7 @@ import { featureEnabled } from './_shared/feature-flag.js';
 import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { notify } from './_shared/notify.js';
-import { buildCartChildBookings } from './_shared/cart-capture.js';
+import { buildCartChildBookings, cartLineUsdAmounts } from './_shared/cart-capture.js';
 import { confirmSlotLock, readSlotFields } from './_shared/slot-capacity.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
@@ -76,6 +76,12 @@ export default async function handler(req, res) {
     if (!Array.isArray(snapshot.lines) || snapshot.lines.length === 0) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err('Cart snapshot has no lines', 'EMPTY_SNAPSHOT')));
+    }
+    try {
+      cartLineUsdAmounts(snapshot);
+    } catch {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Cart amounts could not be verified. Please create a new order.', 'INVALID_CART_AMOUNTS')));
     }
 
     const isSandbox = resolveIsSandbox();

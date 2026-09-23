@@ -21,6 +21,7 @@ import { sanitizeAttribution } from './_shared/attribution.js';
 import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-verify.js';
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { internalApiBase } from './_shared/internal-base-url.js';
+import { loadPricingSpec } from './_shared/pricing.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -118,9 +119,8 @@ export default async function handler(req, res) {
     // 🔴 cross-flow 가드 (money-critical) — 장바구니 주문을 단건 endpoint 로 캡처하는 경로 차단.
     //
     //   cart 주문은 cart_orders/{orderID} 에만 있고 단건 스냅샷(paypal_order_snapshots/{orderID})
-    //   에는 없다. 스냅샷이 없으면 아래 금액 검증이 스킵되므로(PAYMENT_STRICT_PROVENANCE 기본 off),
-    //   싼 cart 주문을 승인한 뒤 이 endpoint 에 비싼 product/pax 를 body 로 보내면 낮은 금액으로
-    //   고가 예약이 CONFIRMED 로 기록될 수 있다.
+    //   에는 없다. 아래 단건 스냅샷 필수 검증과 별개로 cart 전용 오류를 먼저 반환해
+    //   정상 장바구니 결제로 재시도하게 한다.
     //
     //   배치 이유:
     //     - PayPal capture 호출 **전** = 돈이 움직이지 않음 → 사용자는 정상 cart 경로로 안전하게 재시도.
@@ -150,8 +150,8 @@ export default async function handler(req, res) {
 
     // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
     // 가져와 capture-time body 위조(저가결제로 고가서비스 booking 기록)를 무력화. AI-planner-gate 등 모든
-    // 후속 로직이 보정된 product 를 쓰도록 gate 전에 수행. 스냅샷 없으면(client-side 주문/legacy/쓰기실패)
-    // body 유지 = graceful(결제 차단 금지).
+    // 후속 로직이 보정된 product 를 쓰도록 gate 전에 수행. 서버 주문 근거가 없으면
+    // 돈이 움직이기 전에 거절한다. 클라이언트 본문으로 가격·상품을 대신하지 않는다.
     //
     // 🔴 금액 검증 (신규): 이전 주석은 "PayPal 이 capture 금액을 order amount 로 강제하므로 금액은
     //   위조 불가" 였다. 그것은 PayPal **내부** 일관성에만 참이고, "이 order 가 우리 서버 견적에서
@@ -163,18 +163,30 @@ export default async function handler(req, res) {
     //   create 가 잠근 슬롯과 아무 것에도 묶여 있지 않아, 바꿔 보내면 (a) 결제하지 않은 슬롯이
     //   confirmed 되고 (b) 결제한 슬롯의 pending 은 sweep 으로 풀려 무제한 오버부킹이 됐다.
     let _snapExpectedUSD = null;
+    let _snapExpectedKRW = null;
+    let _snapUsdRate = null;
     let _snapEstimateConsent = null;
     let _snapSlotBooking = null;
     try {
       const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
       if (_snapDb) {
         const _snap = await _snapDb.collection('paypal_order_snapshots').doc(orderID).get();
+        if (!_snap.exists) {
+          res.writeHead(409, JSON_CORS);
+          return res.end(JSON.stringify(_err('Order details are missing. Please create a new order.', 'NO_ORDER_SNAPSHOT')));
+        }
         if (_snap.exists) {
           const _s = _snap.data() || {};
+          if (!_s.productType || _s.expectedCurrency !== 'USD' || toMinorUnits(_s.expectedUSD, 'USD') === null) {
+            res.writeHead(409, JSON_CORS);
+            return res.end(JSON.stringify(_err('Order details could not be verified. Please create a new order.', 'INVALID_ORDER_SNAPSHOT')));
+          }
           if (_s.productType) product = _s.productType;
           if (_s.passengers != null) paxCount = _s.passengers;
-          if (!tourDate && _s.dateStart) tourDate = _s.dateStart;
+          if (_s.dateStart) tourDate = _s.dateStart;
           if (_s.expectedUSD != null) _snapExpectedUSD = _s.expectedUSD;
+          if (Number.isSafeInteger(_s.expectedKRW) && _s.expectedKRW > 0) _snapExpectedKRW = _s.expectedKRW;
+          if (Number.isFinite(_s.usdRate) && _s.usdRate > 0) _snapUsdRate = _s.usdRate;
           // 🔴 P0-2: 추정가 정산조건 동의는 **주문 생성 시점에 서버가 만든 기록**만 신뢰한다.
           //   capture body 로 받지 않는다 — 받으면 결제 직전에 위조로 채워 넣을 수 있다.
           if (_s.estimateConsent) _snapEstimateConsent = _s.estimateConsent;
@@ -184,7 +196,9 @@ export default async function handler(req, res) {
         }
       }
     } catch (_snapErr) {
-      console.warn('[capturePaypalOrder] order snapshot read failed (graceful, body 유지):', _snapErr.message);
+      console.warn('[capturePaypalOrder] order snapshot read failed before capture:', _snapErr.message);
+      res.writeHead(503, JSON_CORS);
+      return res.end(JSON.stringify(_err('Could not verify the order right now — please retry', 'ORDER_CHECK_UNAVAILABLE')));
     }
     // 5필드 전부 갖춘 바인딩만 통과(cart 형제 경로와 같은 헬퍼 — 반쪽 잠금 금지). 없으면 null.
     const _snapSlot = readSlotFields(_snapSlotBooking);
@@ -412,33 +426,11 @@ export default async function handler(req, res) {
     //   서버 snapshot(expectedUSD)과 대조. 이전에 이 경로엔 금액 검증이 **전혀 없었고**
     //   booking currency 는 'USD' 하드코딩이었다.
     //
-    //   ⚠️ 마이그레이션 안전장치: snapshot 이 없는 order(레거시 / client-side 주문 / create 시
-    //     snapshot 쓰기 실패 — createPaypalOrder 의 snapshot 쓰기는 best-effort)는 expectedUSD 를
-    //     알 수 없다. 이를 즉시 fail-closed 하면 **배포 시점 in-flight 주문이 깨진다**.
-    //     → 기본 = "알림 후 진행"(기존 동작 유지). PAYMENT_STRICT_PROVENANCE=true 로 켜면 격리.
-    //     snapshot 이 **있는** order 는 플래그와 무관하게 항상 엄격 검증된다(= 실질 보안 이득).
+    //   snapshot 은 위에서 필수 검증했다. 운영 플래그와 무관하게 모든 capture 를 대조한다.
     const _expectedMinor = toMinorUnits(_snapExpectedUSD, 'USD');
-    const _strictProvenance = featureEnabled(process.env.PAYMENT_STRICT_PROVENANCE);
-    let _verdict = null;
-    if (_expectedMinor === null && !_strictProvenance) {
-      console.warn('[capturePaypalOrder] snapshot expectedUSD 없음 — 금액 검증 스킵(관대 모드):', orderID);
-      throttledTelegramAlert({
-        key: 'capture-no-snapshot',
-        channel: 'admin',
-        severity: 'warning',
-        message: [
-          '⚠️ <b>단건 capture — 주문 스냅샷 없음 (금액 미검증 진행)</b>',
-          `<b>OrderID:</b> <code>${orderID}</code> <b>CaptureID:</b> <code>${captureID}</code>`,
-          '→ 레거시/클라이언트 주문 또는 create 시 스냅샷 쓰기 실패 = provenance 확인 불가.',
-          '→ 이런 주문이 0 이 되면 PAYMENT_STRICT_PROVENANCE=true 로 격리 전환 가능.',
-        ].join('\n'),
-        context: { orderID, captureID, source: 'capturePaypalOrder' },
-      }).catch(() => {});
-    } else {
-      _verdict = verifyCaptureIntegrity({
-        capture, expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD',
-      });
-    }
+    const _verdict = verifyCaptureIntegrity({
+      capture, expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD',
+    });
 
     if (_verdict && _verdict.pending) {
       // 🔴 PENDING = PayPal 리스크 홀드 / eCheck = **정상 결제 흐름** (금액·통화는 이미 정합 확인됨).
@@ -534,22 +526,10 @@ export default async function handler(req, res) {
     // 저장. 이전엔 amountUSD 만 저장 → cancelBooking.js:167 의
     // `(booking.amountKRW || 0) * policy.refundRatio` 가 항상 0 → 마이페이지
     // 환불 영수증에 "₩0 환불" 표기 → 사용자 신고 폭주.
-    // 🔴 회계 버그 fix (2026-06-14): 거래일 환율을 시스템 FX SSOT 라이브 환율로 통일.
-    //   이전엔 정적 env 두 개를 OR 로 묶고 마지막에 상수 폴백 → booking-processor.js:224 는
-    //   getUsdToKrwRaw() 라이브를 쓰는데 Firestore bookings 엔 정적값 저장 → 같은 거래에 두 KRW
-    //   공존 + 회계 부정확. 이제 getUsdToKrwRaw()(라이브 4소스 + floor 1450) 로 통일.
-    //   ⚠️ best-effort — 환율 조회 실패/타임아웃 시에도 결제(capture)는 절대 막지 않고 정책 floor
-    //   (1450)로 폴백(이전 정적 상수 의존 제거). 라이브 경로 자체가 _exchange-rate.js 내부에서
-    //   try/catch + 폴백을 보장하지만, import 실패 등 만일에 대비해 외곽도 try/catch.
-    let usdToKrw = 1450; // 정책 floor (RATE_FLOOR) — 라이브 실패 시 안전 폴백.
-    try {
-      const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
-      const liveRate = await getUsdToKrwRaw();
-      if (Number.isFinite(liveRate) && liveRate > 0) usdToKrw = liveRate;
-    } catch (rateErr) {
-      console.warn('[capturePaypalOrder] live FX fetch failed, using floor 1450:', rateErr.message);
-    }
-    const amountKRW = Math.round(parseFloat(amount || '0') * usdToKrw);
+    // 주문 때 확정한 금액·환율을 보존한다. 이전 주문의 기록도 현재 환율로 재가격하지 않는다.
+    const usdToKrw = _snapUsdRate || (_snapExpectedKRW ? _snapExpectedKRW / Number(_snapExpectedUSD) : 0)
+      || (loadPricingSpec() || {}).charter_usd_fix_rate || 1350;
+    const amountKRW = _snapExpectedKRW || Math.round(_verdict.amountMinor * usdToKrw / 100);
     //
     // PR #444 (Audit Y-H14 — 2026-05-16): bookings doc write was best-effort
     // with a silent console.error catch. If the write failed (Firestore brownout,
@@ -620,7 +600,7 @@ export default async function handler(req, res) {
       amountUSD: amount,
       amountKRW,
       capturedExchangeRate: usdToKrw,
-      // 검증 통과 시 = PayPal capture 응답에서 실제 확인된 통화. 검증 스킵(스냅샷 없는 레거시)이면 'USD' 가정.
+      // PayPal capture 응답에서 검증한 통화.
       currency: (_verdict && _verdict.currency) || 'USD',
       // 🔴 2026-07-29: 이 예약이 **어느 PayPal 환경**에서 만들어졌는지. 웹훅이 환경을 넘나들며
       //   문서를 건드리지 못하게 하는 근거값이다(샌드박스 웹훅이 운영 예약을 환불처리하는 사고 차단).
