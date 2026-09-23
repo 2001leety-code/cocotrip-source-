@@ -167,6 +167,11 @@ export function createFakeFirestore(seed = {}, options = {}) {
   const collectionApi = (col, filters = [], order = null, max = null) => ({
     // 실제 Firestore 처럼 인자 없는 doc() 은 새 id 를 미리 발급한다 (mood-book 이 이렇게 쓴다).
     doc: (id) => docApi(`${col}/${id === undefined ? `auto-${(autoId += 1)}` : id}`),
+    async add(data) {
+      const ref = docApi(`${col}/auto-${(autoId += 1)}`);
+      await ref.set(data);
+      return ref;
+    },
     where: (field, op, value) => {
       if (op !== '==') throw new Error(`fake-firestore: unsupported operator ${op}`);
       return collectionApi(col, [...filters, { field, value }], order, max);
@@ -189,7 +194,7 @@ export function createFakeFirestore(seed = {}, options = {}) {
         });
       }
       const docs = (max === null ? entries : entries.slice(0, max)).map(([p]) => snapshotOf(p));
-      return { empty: docs.length === 0, size: docs.length, docs };
+      return { empty: docs.length === 0, size: docs.length, docs, forEach: (fn) => docs.forEach(fn) };
     },
   });
 

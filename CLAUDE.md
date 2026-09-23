@@ -38,7 +38,7 @@ React/Vite 프론트 + `api/` serverless 백엔드 + Firestore.
 npm run build        # tsc -b && vite build — 타입검증은 이것만 신뢰(tsc --noEmit는 solution tsconfig라 no-op)
 npm run test:unit    # vitest
 npm run plan:test    # 오프라인 플랜 하네스 (키·비용 0)
-npm run verify:all   # types + mojibake + unit
+npm run verify:all   # 실제 build(check:types 별칭) + mojibake + unit
 ```
 
 표면별(스크린/PDF/이메일/공유·OG) 정밀 검증 → Skill `verify-web`·`verify-surfaces`(규모별 빠른/전체 모드).

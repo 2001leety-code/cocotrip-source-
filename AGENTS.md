@@ -61,7 +61,7 @@ npm run plan:test  # 오프라인 플랜 하네스 (API 키·비용 0)
 ```
 
 - `tsc --noEmit` 은 이 레포에서 solution tsconfig 라 **no-op(허수 통과)** — 타입 근거로 쓰지 말 것.
-- ⚠️ `npm run verify:all` 안의 `check:types` 가 바로 그 `tsc --noEmit` 이다. **verify:all 초록 = 타입 통과 아님.** `npm run build` 를 따로 돌려라.
+- `check:types`는 `npm run build`의 별칭이다. `verify:all`은 이 실제 빌드와 mojibake·unit 검사를 실행한다. 타입 근거는 실제 빌드 결과로 확인한다.
 - **UI 를 바꿨으면 dev 서버를 띄워 실제 화면을 보고 판단한 뒤 머지.** 로그인 벽은 핑계가 아니다 — 테스트 하네스로 뚫는다. 절차는 `.claude/skills/verify-web/SKILL.md`.
 - **미검증은 미검증이라 보고한다.** 구글 로그인·실결제(PayPal)·크롤러 OG·실기기 PWA 는 오프라인으로 증명 불가 → "미검증 — 운영자 확인 필요"로 따로 적는다. "됐다 가정" 금지.
 
@@ -95,4 +95,4 @@ npm run plan:test  # 오프라인 플랜 하네스 (API 키·비용 0)
 - [ ] PDF 컨테이너가 `position:absolute; left:0` 인가
 - [ ] 새 사용자노출 텍스트에 ko/en/ja/zh 가 다 있나
 - [ ] 모바일 수정이 데스크톱 그리드를 안 깨뜨리나
-- [ ] `npm run build` 를 실제로 돌렸나 (verify:all 로 대체 불가)
+- [ ] `npm run build` 를 실제로 돌렸나 (`check:types`·`verify:all`의 빌드 결과도 확인 가능)

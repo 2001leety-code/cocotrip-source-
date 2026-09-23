@@ -84,6 +84,12 @@ describe('운영 의존성 취약점 게이트', () => {
     expect(r.code, r.out).toBe(1);
   });
 
+  it.each(['GHSA-jmr9-qjv8-65gv', 'GHSA-7pqw-9j4j-h8q3'])('제거한 extract-zip이 다시 들어오면 %s를 차단한다', (id) => {
+    const r = runGate(report([advisory('high', 'extract-zip', `https://github.com/advisories/${id}`)]));
+    expect(r.code, r.out).toBe(1);
+    expect(r.out).toContain('extract-zip');
+  });
+
   it('moderate·low 는 게이트 대상이 아니다', () => {
     const r = runGate(report([advisory('moderate', 'uuid', 'https://github.com/advisories/GHSA-moderate-x')]));
     expect(r.code, r.out).toBe(0);
