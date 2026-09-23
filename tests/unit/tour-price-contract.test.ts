@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { TOURS, getTourPriceKRW, getTourProductType } from '../../src/data/tours';
 import { charterUsdFromKrw, fixedUsdAmountForProduct } from '../../src/lib/charterUsd';
+import pricingSpec from '../../src/data/pricing_spec.json';
+import serverPricingSpec from '../../api/_pricing_spec.json';
 
 describe('tour checkout price contract', () => {
+  it('keeps both 8-hour Staria base tariffs at $250 in the browser and server price books', () => {
+    for (const spec of [pricingSpec, serverPricingSpec]) {
+      for (const vehicle of ['staria', 'staria_9'] as const) {
+        expect(spec.vehicles[vehicle].metro_charter.h8).toBe(337_500);
+        expect(charterUsdFromKrw(spec.vehicles[vehicle].metro_charter.h8)).toBe(250);
+      }
+    }
+  });
+
   it('maps the join-in night tour to its $49-per-person SKU and keeps displayed totals aligned', () => {
     const night = TOURS.find((tour) => tour.id === 'tour-seoul-night');
     expect(night).toBeTruthy();
