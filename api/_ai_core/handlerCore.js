@@ -18,7 +18,6 @@ import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SAFETY: Trekking/Hallasan
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
@@ -27,7 +26,7 @@ import { enforcePaymentAndRevision, restoreAiPlanCoupon } from './paymentGate.js
 import { createIssuanceContext } from '../_shared/plan-issuance.js';
 import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
-import { buildAvoidClause } from './avoidListQuery.js';
+import { buildAvoidContext } from './avoidListQuery.js';
 import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
 import { buildAdminDebug } from './debugInfo.js';
 import { tryRunBlockMode } from './blockMode.js';
@@ -254,7 +253,7 @@ export default async function handler(req, res) {
     const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
-    const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));
+    const { clause: avoidClause, foodNames: recentFoodNames, blockIds: recentBlockIds } = await withStep('avoidClause', () => buildAvoidContext(adminDb, { uid, requestEmail }));
     // planner-intent-v1: revision avoid list — used below (removal) and by postResponsePipeline (assert-only).
     const avoidStopNames = gate.isRevision && plannerIntent.revision ? plannerIntent.revision.avoidStopNames : [];
 
@@ -295,6 +294,7 @@ export default async function handler(req, res) {
       luggage, reservation_status: reservationStatus,
       want_accommodation: wantAccom, accommodation_budget: wantAccom ? accomBudget : '',
       revision: gate.isRevision ? (plannerIntent.revision || { reasonCodes: [], note: '', avoidStopNames: [] }) : null,
+      ...(gate.isRevision ? {} : { recentFoodNames, recentBlockIds }),
       plannerIntent,
     } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
