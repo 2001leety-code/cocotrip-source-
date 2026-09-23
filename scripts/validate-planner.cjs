@@ -12,9 +12,9 @@
  * LIVE bypass). 이전 TEST- prefix 는 BRAINTREE_ENV='production' 인 prod 에서 403
  * reject (audit P1-A) — 5/12~5/24 12일간 자율 검증 silent fail root cause.
  *
- * Caveat (P102): ADMIN-BYPASS- → decidePlannerMode 가 'legacy' 강제. 본 검증은
- * P164/P165/P166/P169/P171 효과 측정 가능. P167/P168/P172 (3pass/block-mode/PCT
- * bucketing) 는 별도 (실제 결제 또는 staging). docs/AUTOMATION.md 8 절 참조.
+ * Caveat (P102): ADMIN-BYPASS- 는 Gemini pipeline mode 를 'legacy' 로 강제하지만,
+ * handler 는 그 전에 block-mode 를 별도로 시도한다. 성공한 block-mode 는 후속 legacy/3pass 전체 일정 생성 파이프라인을 건너뛰므로
+ * 실제 경로는 응답 _debug 의 blockModeUsed/plannerMode 로 확인한다.
  */
 const fs = require('fs');
 const path = require('path');
@@ -113,6 +113,34 @@ function extractStops(data) {
       stay_min: s.stay_min || 0,
     }))
   );
+}
+
+function extractPlannerDiagnostics(data) {
+  const nestedDebug = data && data.data && data.data._debug;
+  const directDebug = data && data._debug;
+  const debug = nestedDebug && typeof nestedDebug === 'object' && !Array.isArray(nestedDebug)
+    ? nestedDebug
+    : directDebug && typeof directDebug === 'object' && !Array.isArray(directDebug)
+      ? directDebug
+      : {};
+  const blockModeUsed = typeof debug.blockModeUsed === 'boolean' ? debug.blockModeUsed : null;
+  const plannerMode = debug.plannerMode === 'legacy' || debug.plannerMode === '3pass'
+    ? debug.plannerMode
+    : null;
+  const diagnostics = {
+    plannerPath: blockModeUsed === true ? 'block_mode'
+      : blockModeUsed === false && plannerMode ? plannerMode : 'unknown',
+    blockModeUsed: blockModeUsed === null ? 'unknown' : blockModeUsed,
+    plannerMode: plannerMode || 'unknown',
+  };
+
+  if (blockModeUsed === true) {
+    diagnostics.blocksUsed = Array.isArray(debug.blocksUsed)
+      ? debug.blocksUsed.slice(0, 14).filter((id) => typeof id === 'string'
+        && id.length <= 128 && /^[A-Za-z0-9_-]+$/.test(id))
+      : [];
+  }
+  return diagnostics;
 }
 
 function detectTipLang(stop) {
@@ -230,9 +258,8 @@ async function runAll() {
         // ADMIN_BYPASS_EMAILS 또는 hardcoded fallback `2001leety@gmail.com`) 인증 시
         // LIVE 모드 결제 우회 가능. TEST- prefix 는 BRAINTREE_ENV='production' 인 prod
         // 에서 403 reject (audit P1-A) — 5/12 부터 자율 검증 silent fail 의 root cause.
-        // Caveat (P102): ADMIN-BYPASS- → decidePlannerMode 가 'legacy' 강제. 따라서
-        // 본 검증은 prompt/output (P164/P166) + duration (P165) + streaming (P169) +
-        // admin Flash (P171) 효과 측정 가능 — 3pass/block-mode (P167/P168) 는 별도.
+        // Caveat (P102): ADMIN-BYPASS- 는 Gemini 경로를 legacy 로 강제하지만,
+        // handler 는 먼저 block-mode 를 시도하며 성공하면 후속 legacy/3pass 전체 일정 생성 파이프라인을 건너뛴다.
         paypalOrderId: `ADMIN-BYPASS-VALIDATE-${s.id}-${Date.now()}`,
       };
 
@@ -263,6 +290,8 @@ async function runAll() {
 
       const data = await resp.json();
       const stops = extractStops(data);
+      const plannerDiagnostics = extractPlannerDiagnostics(data);
+      console.log(`   Planner diagnostics: ${JSON.stringify(plannerDiagnostics)}`);
 
       // Tier 2-D: shared 9-metric scorer applied to itinerary directly.
       const itin = data?.data?.itinerary || data?.itinerary || data;
@@ -318,6 +347,7 @@ async function runAll() {
         issue_count: dedupedIssues.length,
         qualityScore,
         departure_overrun: departureOverrun,
+        planner_diagnostics: plannerDiagnostics,
         stops,
       });
 
@@ -417,7 +447,7 @@ async function runAll() {
 // 순수 헬퍼 export — daily-health-check.mjs 및 unit test 가 네트워크 없이 재사용한다.
 // require() 만으로 아래 runAll() 이 실행되면 안 되므로(비용 발생하는 라이브 Gemini 호출),
 // 직접 실행(node validate-planner.cjs)일 때만 돈다.
-module.exports = { calcDiversity, analyzeIssues, extractStops, detectTipLang, scenarios };
+module.exports = { calcDiversity, analyzeIssues, extractStops, extractPlannerDiagnostics, detectTipLang, scenarios };
 
 if (require.main === module) {
   runAll().catch(err => {

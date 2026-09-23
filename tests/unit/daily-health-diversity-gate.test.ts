@@ -14,8 +14,45 @@
  * 둘 다 네트워크/Gemini 호출 없이 순수 데이터로 검증한다.
  */
 import { describe, it, expect } from 'vitest';
-import { calcDiversity } from '../../scripts/validate-planner.cjs';
+import { calcDiversity, extractPlannerDiagnostics } from '../../scripts/validate-planner.cjs';
 import { evaluateHealthRecord } from '../../scripts/daily-health-check.mjs';
+
+describe('extractPlannerDiagnostics — 최소 실행 경로 진단', () => {
+  it('block-mode 사용 여부가 Gemini plannerMode보다 우선하고 코스 ID만 보존한다', () => {
+    const diagnostics = extractPlannerDiagnostics({ data: { _debug: {
+      blockModeUsed: true,
+      plannerMode: 'legacy',
+      blocksUsed: ['seoul_course-1', 'bad.id', 'x'.repeat(129), '서울코스', 'seoul_course_2'],
+      email: 'private@example.test',
+      apiKey: 'private-key-value',
+      special_request: 'free text must not escape',
+    } } });
+
+    expect(diagnostics).toEqual({
+      plannerPath: 'block_mode',
+      blockModeUsed: true,
+      plannerMode: 'legacy',
+      blocksUsed: ['seoul_course-1', 'seoul_course_2'],
+    });
+  });
+
+  it('block-mode=false이면 허용된 legacy/3pass만 경로로 쓰고 그 밖에는 unknown', () => {
+    expect(extractPlannerDiagnostics({ _debug: { blockModeUsed: false, plannerMode: 'legacy' } }).plannerPath).toBe('legacy');
+    expect(extractPlannerDiagnostics({ _debug: { blockModeUsed: false, plannerMode: '3pass' } }).plannerPath).toBe('3pass');
+    expect(extractPlannerDiagnostics({ _debug: { plannerMode: 'legacy' } })).toEqual({
+      plannerPath: 'unknown', blockModeUsed: 'unknown', plannerMode: 'legacy',
+    });
+    expect(extractPlannerDiagnostics({})).toEqual({
+      plannerPath: 'unknown', blockModeUsed: 'unknown', plannerMode: 'unknown',
+    });
+  });
+
+  it('코스 ID는 최대 14개만 저장한다', () => {
+    const blocksUsed = Array.from({ length: 15 }, (_, index) => `course_${index}`);
+    const diagnostics = extractPlannerDiagnostics({ _debug: { blockModeUsed: true, blocksUsed } });
+    expect(diagnostics.blocksUsed).toEqual(blocksUsed.slice(0, 14));
+  });
+});
 
 // ── calcDiversity — overlap 경계값 ──────────────────────────────────────
 describe('calcDiversity — overlap 경계값 (< 30 통과, >= 30 실패)', () => {
