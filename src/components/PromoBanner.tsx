@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackPromoView, trackPromoClick, trackPromoDismiss } from '@/lib/analytics';
+import { fetchPromoConfig } from '@/lib/promoConfig';
 
 const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 
@@ -102,13 +103,12 @@ export function PromoBanner() {
     // 이미 닫혔으면 fetch 불필요
     if (dismissed) return;
     let cancelled = false;
-    fetch('/api/promo-config')
-      .then((r) => r.json())
+    fetchPromoConfig()
       .then((json) => {
         if (!cancelled && json && json.ok) {
           // 신 구조: { banner, popup } / 구 구조: { config } — 하위 호환
-          const cfg = json.banner || json.config;
-          if (cfg) setRemoteConfig(cfg as PromoConfig);
+          const cfg = (json.banner || json.config) as PromoConfig | undefined;
+          if (cfg) setRemoteConfig(cfg);
         }
       })
       .catch(() => { /* fail-safe: 코드상수 폴백 */ });
