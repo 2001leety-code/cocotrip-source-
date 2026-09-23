@@ -262,7 +262,7 @@ const originalHandler = async (event) => {
     orderID,
     payerEmail,
     payerName,
-    amount,     // USD amount string
+    amount: requestAmount,     // USD amount string
     // 예약 상세 정보 (프론트에서 함께 전달)
     product,
     tourDate,
@@ -321,7 +321,7 @@ const originalHandler = async (event) => {
     ].join('\n')).catch((e) => console.warn('[booking-processor] bypass telegram notify 실패:', e.message));
   }
 
-  console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount });
+  console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount: requestAmount });
 
   // capturePaypalOrder에서 전달된 bookingRef가 있으면 그대로 사용 (Firestore↔Sheets 일관성)
   const bookingRef = externalBookingRef || generateBookingRef();
@@ -351,7 +351,8 @@ const originalHandler = async (event) => {
   // surfacing as $NaN in Sheets / email / voucher and silent loss of
   // loyalty points. safeParseAmountUSD returns 0 on invalid + an
   // `invalid` flag so we can alert operator without blocking the booking.
-  const amountGuard = safeParseAmountUSD(storedBooking ? storedBooking.amountUSD : amount);
+  const amount = storedBooking ? storedBooking.amountUSD : requestAmount;
+  const amountGuard = safeParseAmountUSD(amount);
   const amountUSDSafe = amountGuard.value;
   if (amountGuard.invalid) {
     console.error('[booking-processor] amount NaN guard tripped:', { orderID, rawAmount: String(amount).slice(0, 100) });

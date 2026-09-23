@@ -97,7 +97,8 @@ describe('PR #452 Z-H9 — booking-processor wires the guard', () => {
   });
 
   it('validates the saved booking amount first and only falls back to the safe request amount', () => {
-    expect(procSrc).toMatch(/safeParseAmountUSD\(\s*storedBooking\s*\?\s*storedBooking\.amountUSD\s*:\s*amount\s*\)/);
+    expect(procSrc).toMatch(/const\s+amount\s*=\s*storedBooking\s*\?\s*storedBooking\.amountUSD\s*:\s*requestAmount/);
+    expect(procSrc).toMatch(/safeParseAmountUSD\(\s*amount\s*\)/);
     // The booking record must prefer its saved charge snapshot; request is legacy fallback only.
     expect(procSrc).toMatch(/amountUSDSafe/);
     expect(procSrc).toMatch(/const\s+booking\s*=\s*\{[\s\S]*?amountUSD:\s*amountUSDSafe\.toFixed\(2\)/);
