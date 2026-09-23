@@ -512,10 +512,10 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     const safe = [];
     for (let i = 1; i <= durationDays; i++) {
       const existing = daySelections.find((d) => Number(d?.day) === i);
-      if (existing && existing.block_id) {
+      if (existing && existing.block_id && blocks.some((b) => b.id === String(existing.block_id).trim())) {
         safe.push({
           day: i,
-          block_id: String(existing.block_id),
+          block_id: String(existing.block_id).trim(),
           tweak_notes: typeof existing.tweak_notes === 'string' ? existing.tweak_notes.slice(0, 400) : '',
         });
       } else {
@@ -524,7 +524,7 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
         safe.push({ day: i, block_id: fallback.id, tweak_notes: 'auto-fallback (Gemini omitted day)' });
       }
     }
-    return { day_selections: safe, language, cacheMetadata };
+    return { day_selections: repairRepeatedBlockSelections(safe, safe.map(() => blocks)), language, cacheMetadata };
   }
 
   // Validate block IDs.
@@ -541,7 +541,41 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
       tweak_notes: typeof d?.tweak_notes === 'string' ? d.tweak_notes.slice(0, 400) : '',
     };
   });
-  return { day_selections: cleaned, language, cacheMetadata };
+  return { day_selections: repairRepeatedBlockSelections(cleaned, cleaned.map(() => blocks)), language, cacheMetadata };
+}
+
+/** Replace repeated normal-day blocks only when that day has an unused normal block. */
+function repairRepeatedBlockSelections(daySelections, blocksByDay) {
+  const reserved = new Set();
+  daySelections.forEach((selection, index) => {
+    const selected = (blocksByDay[index] || []).find((block) => block.id === selection.block_id);
+    if (selected) reserved.add(selected.id);
+  });
+
+  const used = new Set();
+  return daySelections.map((selection, index) => {
+    const candidates = blocksByDay[index] || [];
+    const selected = candidates.find((block) => block.id === selection.block_id);
+    const duplicate = used.has(selection.block_id);
+    const selectedType = String(selected?.block_type || '').toLowerCase();
+    if (!duplicate || (selected && selectedType && selectedType !== 'city_day')) {
+      if (selected) used.add(selected.id);
+      return selection;
+    }
+
+    const replacement = candidates.find((block) => {
+      const type = String(block.block_type || '').toLowerCase();
+      return (!type || type === 'city_day') && !reserved.has(block.id) && !used.has(block.id);
+    });
+    if (!replacement) {
+      if (selected) used.add(selected.id);
+      return selection;
+    }
+
+    reserved.add(replacement.id);
+    used.add(replacement.id);
+    return { ...selection, block_id: replacement.id, tweak_notes: '' };
+  });
 }
 
 /**
@@ -1755,7 +1789,10 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     });
   }
 
-  return { day_selections: safe, language, cacheMetadata };
+  const blocksByDay = cityPerDay.map((city) =>
+    cityBlocksList.find((entry) => entry.city === city)?.blocks || [],
+  );
+  return { day_selections: repairRepeatedBlockSelections(safe, blocksByDay), language, cacheMetadata };
 }
 
 /**
