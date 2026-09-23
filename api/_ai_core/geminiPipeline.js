@@ -1414,7 +1414,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    selfHealLodgingBookend(itinerary);
+    selfHealLodgingBookend(itinerary, { language });
     // 여기까지의 itinerary 는 식이 검증(위 dietary 분기)을 통과한 마지막 상태다. 아래 pattern
     // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
     const lastDietValid3pass = snapshotItinerary(itinerary, dietaryArr);
@@ -1692,7 +1692,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    selfHealLodgingBookend(itinerary);
+    selfHealLodgingBookend(itinerary, { language });
     // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
     const lastDietValidLegacy = snapshotItinerary(itinerary, dietaryArr);
     let patternErrors = validatePatternStructure(itinerary, body || {});

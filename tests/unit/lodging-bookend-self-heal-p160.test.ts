@@ -15,6 +15,25 @@ type TestDay = { day: number; city?: string; lodging?: { name?: string; address?
 type TestItinerary = { days: TestDay[]; quality_warnings?: Array<Record<string, unknown>>; [key: string]: unknown };
 
 describe('P160 selfHealLodgingBookend', () => {
+  it('언어가 전달되면 합성 숙소 표시는 번역하고 지도용 이름과 실제 숙소명은 보존한다', () => {
+    const generated = { days: [{ day: 1, city: 'Busan', stops: [
+      { category: 'food', name: '해운대 시장', start_time: '10:00' },
+      { category: 'attraction', name: '광안리', start_time: '14:00' },
+    ] }] } as TestItinerary;
+    selfHealLodgingBookend(generated, { language: 'en' });
+    expect(generated.days[0].stops[0].name).toBe('해운대 지역 숙소');
+    expect(generated.days[0].stops[0].display_name).toBe('Accommodation in the Haeundae area');
+    expect(generated.days[0].stops[0].tip).toContain('Leave your luggage');
+
+    const provided = { days: [{ day: 1, city: 'Busan', lodging: { name: 'Ocean View Hotel' }, stops: [
+      { category: 'food', name: '해운대 시장', start_time: '10:00' },
+      { category: 'attraction', name: '광안리', start_time: '14:00' },
+    ] }] } as TestItinerary;
+    selfHealLodgingBookend(provided, { language: 'en' });
+    expect(provided.days[0].stops[0].name).toBe('Ocean View Hotel');
+    expect(provided.days[0].stops[0].display_name).toBe('Ocean View Hotel');
+  });
+
   it('첫 stop = food → synthetic lodging prepend', () => {
     const itinerary = {
       days: [

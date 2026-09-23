@@ -250,6 +250,7 @@ export const processPlanAfterAI = inngest.createFunction(
       await runRouteEnrichment(itinerary, {
         apiKey: ctx.apiKey,
         body: ctx.body,
+        language: ctx.language,
         hotel_address: ctx.hotel_address,
         arrival_airport: ctx.arrival_airport,
         departure_airport: ctx.departure_airport,

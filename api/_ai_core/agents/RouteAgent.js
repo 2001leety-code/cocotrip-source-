@@ -761,6 +761,7 @@ export class RouteAgent extends BaseAgent {
         const { clientId, clientSecret } = resolveNcpKeys();
         // Support both Gemini output formats
         const rawItinerary = data.itinerary || {};
+        const language = ['ko', 'en', 'ja', 'zh'].includes(data.language) ? data.language : 'ko';
         const hotelAddress = data.hotel_address || '';
         const region = data.area || data.region || '';
         const charterProductType = regionToCharterProduct(region);
@@ -1971,15 +1972,27 @@ export class RouteAgent extends BaseAgent {
                             // 좌표 있는 케이스 (Naver fallback) — 거리 + 택시 권장 stub.
                             const taxiFareKrw = (transit.drivingMin || fallbackMin) * 200 + 4800;
                             const distStr = (typeof distKm === 'number' && Number.isFinite(distKm))
-                                ? `약 ${distKm.toFixed(1)}km`
-                                : '단거리';
-                            enrichedSteps = [
-                                `이동 거리: ${distStr}`,
-                                `예상 시간: 약 ${fallbackMin}분 (차량 기준)`,
-                                `택시 추정: 약 ${Math.round(taxiFareKrw / 100) * 100}원 — 카카오T / Uber 권장`,
-                            ];
+                                ? ({
+                                    ko: `약 ${distKm.toFixed(1)}km`,
+                                    en: `About ${distKm.toFixed(1)} km`,
+                                    ja: `約${distKm.toFixed(1)}km`,
+                                    zh: `约${distKm.toFixed(1)}公里`,
+                                }[language])
+                                : ({ ko: '단거리', en: 'Short distance', ja: '短距離', zh: '短距离' }[language]);
+                            const labels = {
+                                ko: [`이동 거리: ${distStr}`, `예상 시간: 약 ${fallbackMin}분 (차량 기준)`, `택시 추정: 약 ${Math.round(taxiFareKrw / 100) * 100}원 — 카카오T / Uber 권장`],
+                                en: [`Distance: ${distStr}`, `Estimated time: about ${fallbackMin} min by car`, `Estimated taxi fare: about ₩${Math.round(taxiFareKrw / 100) * 100} — Kakao T / Uber recommended`],
+                                ja: [`移動距離: ${distStr}`, `所要時間: 車で約${fallbackMin}分`, `タクシー料金の目安: 約${Math.round(taxiFareKrw / 100) * 100}ウォン — Kakao T / Uber を推奨`],
+                                zh: [`移动距离: ${distStr}`, `预计时间: 驾车约${fallbackMin}分钟`, `出租车费用估算: 约${Math.round(taxiFareKrw / 100) * 100}韩元 — 建议使用 Kakao T / Uber`],
+                            };
+                            enrichedSteps = labels[language];
                             if (isLateNight) {
-                                enrichedSteps.push('야간 시간대 — 지하철·버스 막차 종료 가능. 택시·카카오T 안전');
+                                enrichedSteps.push({
+                                    ko: '야간 시간대 — 지하철·버스 막차 종료 가능. 택시·카카오T 안전',
+                                    en: 'Late at night, subway and bus service may have ended. Consider a taxi via Kakao T.',
+                                    ja: '深夜は地下鉄・バスの運行が終了している場合があります。Kakao T でタクシーをご利用ください。',
+                                    zh: '深夜时段地铁和公交可能已停运，可考虑使用 Kakao T 叫车。',
+                                }[language]);
                             }
                         }
                         place.transit_from_prev = {

@@ -519,10 +519,30 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     const ctxFallbackAddress = tripCtxHotel
       || (tripCtxZone ? `${dayCityKor || dayCityLc} ${tripCtxZone}` : '');
 
+    const synName = day?.lodging?.name || ctxFallbackName || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
+    const genericDisplay = {
+      seoul: { ko: '명동 지역 숙소', en: 'Accommodation in the Myeongdong area', ja: '明洞エリアの宿泊施設', zh: '明洞地区住宿' },
+      busan: { ko: '해운대 지역 숙소', en: 'Accommodation in the Haeundae area', ja: '海雲台エリアの宿泊施設', zh: '海云台地区住宿' },
+      jeju: { ko: '제주시 지역 숙소', en: 'Accommodation in Jeju City', ja: '済州市内の宿泊施設', zh: '济州市住宿' },
+      gyeongju: { ko: '보문 지역 숙소', en: 'Accommodation in the Bomun area', ja: '普門エリアの宿泊施設', zh: '普门地区住宿' },
+      jeonju: { ko: '한옥마을 지역 숙소', en: 'Accommodation in the Hanok Village area', ja: '韓屋村エリアの宿泊施設', zh: '韩屋村地区住宿' },
+      gangneung: { ko: '경포 지역 숙소', en: 'Accommodation in the Gyeongpo area', ja: '鏡浦エリアの宿泊施設', zh: '镜浦地区住宿' },
+      sokcho: { ko: '속초해변 지역 숙소', en: 'Accommodation near Sokcho Beach', ja: '束草海水浴場付近の宿泊施設', zh: '束草海水浴场附近住宿' },
+    }[dayCityLc];
+    const displayName = day?.lodging?.name || tripCtxHotel
+      ? synName
+      : tripCtxZone
+        ? ({
+            ko: `${tripCtxZone} 지역 숙소`,
+            en: `Accommodation in the ${tripCtxZone} area`,
+            ja: `${tripCtxZone}エリアの宿泊施設`,
+            zh: `${tripCtxZone}地区住宿`,
+          }[language])
+        : (genericDisplay ? genericDisplay[language] : synName);
+    // The same synthesized hotel label is used for departure and return.
+    const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
     // 첫 stop 이 lodging 이 아니면 prepend
     if (stops[0]?.category !== 'lodging') {
-      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
-      const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 숙소 출발 시각(logical) — 첫 활동 시각에서 **실제 이동 시간**을 빼서 만든다.
       //
       // 🔴 2026-08-03: 옛 규칙은 "첫 stop − 60분, 09:00 바닥" 이라 이동 시간을 아예
@@ -576,7 +596,7 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
       stops.unshift({
         category: 'lodging',
         name: synName,
-        display_name: synName,
+        display_name: displayName,
         address: synAddress,
         start_time: synStart,
         stay_min: 0,
@@ -594,8 +614,6 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     // 마지막 stop 이 lodging/travel/airport 가 아니면 append (lodging)
     const last = stops[stops.length - 1];
     if (last && !['lodging', 'travel', 'airport'].includes(last.category)) {
-      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
-      const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 마지막 stop end_time 또는 start_time 후 1시간
       let synStart = '21:00';
       const lastTimeStr = String(last.end_time || last.start_time || '');
@@ -610,7 +628,7 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
       stops.push({
         category: 'lodging',
         name: synName,
-        display_name: synName,
+        display_name: displayName,
         address: synAddress,
         start_time: synStart,
         stay_min: 0,

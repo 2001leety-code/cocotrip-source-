@@ -135,7 +135,7 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
   }
 }
 
-export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_address, arrival_airport, departure_airport, pax, zone_id }) {
+export async function enrichItineraryWithRoute(itinerary, { apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax, zone_id }) {
   const routeStart = Date.now();
   // B-11 diag (2026-05-12): root cause 진단용 — 어느 환경 변수가 없는지, 입력 stop
   // 수가 얼마나 되는지, 출력에 transit 가 attach 됐는지 한 줄에 요약. 머지 후
@@ -162,6 +162,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
         departure_guide: itinerary.departure_guide,
       },
       hotel_address: hotel_address || '',
+      language: language || body?.language || 'ko',
       arrival_airport,
       departure_airport,
       // Wizard inputs used for smart airport-transport recommendation

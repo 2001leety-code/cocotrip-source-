@@ -118,6 +118,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   const [planError, setPlanError] = useState<string | null>(null);
   const [planErrorCode, setPlanErrorCode] = useState<PlannerErrorCode | null>(null);
   const lastValues = useRef<PlannerFormValues | null>(null);
+  const quickSubmitInFlight = useRef(false);
 
   // 2026-08-24 (planner-trust-course, fail-closed success): a 200 only unlocks
   // quickSuccess/PurchaseSection when the body is shaped exactly like a usable
@@ -139,7 +140,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   }
 
   // 1: Quick preview (free) -- ai-planner-quick call with auto-retry
-  async function handleSubmit(values: PlannerFormValues) {
+  async function submitQuickPreview(values: PlannerFormValues) {
     lastValues.current = values;
     setStatus('loadingQuick');
     setResultQuick(null);
@@ -206,6 +207,19 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
       return;
+    }
+  }
+
+  // All free-preview callers share this hook instance. Ignore a second submit
+  // while the first is pending; the guard is released on every outcome so a
+  // later retry can start a fresh request.
+  async function handleSubmit(values: PlannerFormValues) {
+    if (quickSubmitInFlight.current) return;
+    quickSubmitInFlight.current = true;
+    try {
+      return await submitQuickPreview(values);
+    } finally {
+      quickSubmitInFlight.current = false;
     }
   }
 

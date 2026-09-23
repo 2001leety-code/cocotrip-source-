@@ -90,7 +90,7 @@ export function applyTourEndCap(itinerary, tourEndTime) {
  */
 export async function runRouteEnrichment(itinerary, ctx) {
   const {
-    apiKey, body, hotel_address /* effective for RouteAgent */,
+    apiKey, body, language, hotel_address /* effective for RouteAgent */,
     arrival_airport, departure_airport, pax,
     recommendedZone, recommendedZoneAddress, hotelAddressFromBody,
     // P253 (2026-05-27): block_mode 에서 첫 번째 blocksUsed 항목 = Firestore zone_courses doc ID.
@@ -201,7 +201,7 @@ export async function runRouteEnrichment(itinerary, ctx) {
   try {
     await Promise.race([
       enrichItineraryWithRoute(itinerary, {
-        apiKey, body, hotel_address, arrival_airport, departure_airport, pax,
+        apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax,
         // P253: zone_id 전달 — RouteAgent 의 transitCache lookup 에 필요.
         zone_id,
       }),
