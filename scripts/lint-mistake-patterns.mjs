@@ -5184,7 +5184,7 @@ function P90_dbmatcherCityGuard({ changed }) {
  * api/_ai_core/avoidListQuery.js 의 Firestore composite-index 누락 silent
  * catch 면 fail. 또한 firestore.indexes.json 의 plans.uid/email 인덱스 누락 검출.
  * - isFirestoreIndexMissingError + extractIndexCreationUrl export 필수
- * - catch 에서 alert 호출 + fail-OPEN (return '') 보존
+ * - catch 에서 alert 호출 + 구조화된 빈 이력 반환 (legacy wrapper 는 clause='' 반환)
  * - plans.uid+createdAt / plans.email+createdAt 인덱스 firestore.indexes.json 에 존재
  */
 function P89_avoidListIndexAlert({ changed }) {
@@ -5223,9 +5223,24 @@ function P89_avoidListIndexAlert({ changed }) {
       if (!/throttledTelegramAlert\(\{[\s\S]*?avoid-list-index-missing[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
         violations.push(`${CODE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
       }
-      // fail-OPEN preserved — catch 안에 return ''
-      if (!/return\s+['"]['"]\s*;/.test(c)) {
-        violations.push(`${CODE}: catch 안의 return '' 누락 — fail-OPEN 깨짐 (non-critical path 보장 X)`);
+      // buildAvoidContext has an explicit empty shape for no identity, no history,
+      // and query failure. Keep the shape and catch path fail-open, while the
+      // legacy buildAvoidClause wrapper continues returning only the clause string.
+      const contextStart = c.indexOf('export async function buildAvoidContext(');
+      const wrapperStart = c.indexOf('export async function buildAvoidClause(', contextStart);
+      const contextFn = contextStart >= 0
+        ? c.slice(contextStart, wrapperStart >= 0 ? wrapperStart : c.length)
+        : '';
+      if (!/const\s+empty\s*=\s*\{\s*clause:\s*['"]['"]\s*,\s*foodNames:\s*\[\]\s*,\s*blockIds:\s*\[\]\s*\}/.test(contextFn)) {
+        violations.push(`${CODE}: buildAvoidContext empty result must contain clause, foodNames, and blockIds`);
+      }
+      const catchStart = contextFn.indexOf('} catch (err) {');
+      const catchBlock = catchStart >= 0 ? contextFn.slice(catchStart) : '';
+      if (!/return\s+empty\s*;/.test(catchBlock)) {
+        violations.push(`${CODE}: buildAvoidContext query failure must return the complete empty context (fail-open)`);
+      }
+      if (!/export\s+async\s+function\s+buildAvoidClause\s*\([^)]*\)\s*\{[\s\S]*?return\s+context\.clause\s*;/.test(c)) {
+        violations.push(`${CODE}: legacy buildAvoidClause wrapper must return context.clause`);
       }
     }
   }

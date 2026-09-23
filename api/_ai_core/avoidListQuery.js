@@ -42,8 +42,9 @@ export function extractIndexCreationUrl(err) {
   return match ? match[0] : '';
 }
 
-export async function buildAvoidClause(adminDb, { uid, requestEmail }) {
-  if (!adminDb || (!uid && !requestEmail)) return '';
+export async function buildAvoidContext(adminDb, { uid, requestEmail }) {
+  const empty = { clause: '', foodNames: [], blockIds: [] };
+  if (!adminDb || (!uid && !requestEmail)) return empty;
   try {
     let q = adminDb.collection('plans').orderBy('createdAt', 'desc').limit(3);
     if (uid) {
@@ -53,21 +54,33 @@ export async function buildAvoidClause(adminDb, { uid, requestEmail }) {
     }
     const snap = await q.get();
     const usedNames = new Set();
+    const usedBlocks = new Set();
     snap.forEach((doc) => {
       const plan = doc.data();
-      const days = plan.itinerary?.days || [];
+      const days = Array.isArray(plan?.itinerary?.days) ? plan.itinerary.days : [];
       for (const day of days) {
-        for (const stop of day.stops || []) {
-          if (stop.category === 'food' && stop.name) {
-            usedNames.add(stop.name);
+        const stops = Array.isArray(day?.stops) ? day.stops : [];
+        for (const stop of stops) {
+          if (stop?.category === 'food' && typeof stop.name === 'string' && stop.name.trim()) {
+            usedNames.add(stop.name.trim());
           }
+          if (typeof stop?.source_block_id === 'string') usedBlocks.add(stop.source_block_id);
         }
+        if (typeof day?.source_block_id === 'string') usedBlocks.add(day.source_block_id);
+      }
+      for (const id of Array.isArray(plan?.blocksUsed) ? plan.blocksUsed : []) {
+        if (typeof id === 'string') usedBlocks.add(id);
       }
     });
-    if (usedNames.size === 0) return '';
-    const names = [...usedNames].slice(0, 20).join(', ');
+    const foodNames = [...usedNames].filter((name) => typeof name === 'string' && name.trim()).slice(0, 20);
+    const blockIds = [...usedBlocks].filter((id) => /^[A-Za-z0-9_-]{1,128}$/.test(id)).slice(0, 42);
+    if (foodNames.length === 0 && blockIds.length === 0) return empty;
+    const names = foodNames.join(', ');
     console.log(`[planner] AVOID list: ${usedNames.size} restaurants from ${snap.size} recent plans`);
-    return `\n\n[AVOID LIST — DO NOT USE THESE RESTAURANTS]\nThe user has already received plans with these restaurants. Pick DIFFERENT ones:\n${names}`;
+    const clause = foodNames.length > 0
+      ? `\n\n[AVOID LIST — DO NOT USE THESE RESTAURANTS]\nThe user has already received plans with these restaurants. Pick DIFFERENT ones:\n${names}`
+      : '';
+    return { clause, foodNames, blockIds };
   } catch (err) {
     console.warn('[planner] AVOID list query failed:', err.message);
 
@@ -100,6 +113,12 @@ export async function buildAvoidClause(adminDb, { uid, requestEmail }) {
       }).catch(() => {});
     }
 
-    return '';
+    return empty;
   }
+}
+
+// Compatibility wrapper for legacy callers that only need prompt text.
+export async function buildAvoidClause(adminDb, identity) {
+  const context = await buildAvoidContext(adminDb, identity);
+  return context.clause;
 }

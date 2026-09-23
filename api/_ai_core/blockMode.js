@@ -420,6 +420,9 @@ export function buildTravelerContextForBlocks(userInput) {
     accommodation_budget: u.want_accommodation ? str(u.accommodation_budget) : undefined,
     revision_reasons: rev ? arr(rev.reasonCodes) : undefined,
     revision_note: rev ? str(rev.note) : undefined,
+    recent_block_ids: Array.isArray(u.recentBlockIds)
+      ? u.recentBlockIds.filter((id) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id)).slice(0, 42)
+      : undefined,
     // 🔴 Advisory only. The deterministic removal happens in avoidStops.js after
     // the last mutation — a model instruction is not an enforcement mechanism.
     avoid_stop_names: rev ? arr(rev.avoidStopNames) : undefined,
@@ -620,6 +623,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 6. tweak_notes is optional and short. NEVER use it to invent new stops — actual stop substitutions happen later.
 7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.${activityRules}
 8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days; "couple"/"friends" → packed/nightlife-leaning blocks are fine). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
+9. If recent_block_ids is present, treat it as a soft tie-breaker only: prioritize personal constraints, dietary needs, bookings, and schedule fit; avoid those blocks only when an equally suitable alternative exists.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -957,7 +961,7 @@ export function reorderArrivalStopsByLodgingProximity(blockStops, opts = {}) {
   return result;
 }
 
-export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
+export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null, recentNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
   const cityLc = String(city || '').trim().toLowerCase();
@@ -1076,14 +1080,43 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     return { ...row, dietary_evidence: evidence };
   };
 
-  if (excludeNames instanceof Set && excludeNames.size > 0) {
-    const fresh = candidates.find((c) => {
+  const currentFresh = excludeNames instanceof Set && excludeNames.size > 0
+    ? candidates.find((c) => {
       const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
       return nm && !excludeNames.has(nm);
-    });
-    if (fresh) return decorate(fresh);
+    })
+    : candidates[0];
+  const baseline = currentFresh || candidates[0];
+  const baselineName = String((baseline && (baseline.name || baseline.name_ko || baseline.display_name)) || '').trim();
+  if (!(recentNames instanceof Set) || recentNames.size === 0 || !baselineName || !recentNames.has(baselineName)) {
+    return decorate(baseline);
   }
-  return decorate(candidates[0]);
+
+  const isCurrentFresh = (c) => {
+    const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
+    return nm && (!(excludeNames instanceof Set) || !excludeNames.has(nm));
+  };
+  const baselineLat = Number(baseline.lat);
+  const baselineLng = Number(baseline.lng);
+  const baselineHasCoords = Number.isFinite(baselineLat) && baselineLat !== 0 && Number.isFinite(baselineLng) && baselineLng !== 0;
+  let recentAlternative = null;
+  if (!hasAnchor) {
+    recentAlternative = candidates.find((c) => {
+      if (!isCurrentFresh(c)) return false;
+      const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
+      return nm && !recentNames.has(nm);
+    });
+  } else if (baselineHasCoords) {
+    const baselineDistance = foodDistanceKm(aLat, aLng, baselineLat, baselineLng);
+    recentAlternative = candidates.find((c) => {
+      if (!isCurrentFresh(c)) return false;
+      const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
+      const lat = Number(c.lat), lng = Number(c.lng);
+      return nm && !recentNames.has(nm) && Number.isFinite(lat) && lat !== 0 && Number.isFinite(lng) && lng !== 0
+        && foodDistanceKm(aLat, aLng, lat, lng) <= baselineDistance;
+    });
+  }
+  return decorate(recentAlternative || baseline);
 }
 
 /**
@@ -1192,6 +1225,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
   const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
   const foodIndex = Array.isArray(userInput?.foodIndex) ? userInput.foodIndex : [];
+  const recentFoodNames = new Set(Array.isArray(userInput?.recentFoodNames) ? userInput.recentFoodNames.filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim()).slice(0, 20) : []);
   const area = String(userInput?.area || '').toLowerCase();
   const startDate = userInput?.startDate || null;
   const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
@@ -1289,7 +1323,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         const anchorBs = (!_phHasOwn && lastAnchorLat != null)
           ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
           : bs;
-        const matched = matchFoodPlaceholder(anchorBs, foodIndex, area, dietPrefs, usedFoodNames);
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, area, dietPrefs, usedFoodNames, recentFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
@@ -1837,6 +1871,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 6. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs.
 7. Day 1 should be standard intensity. Last day can be lighter for departure prep.${activityRules}
 8. If companions is present, weigh block intensity/theme accordingly (e.g. "family" → avoid the most physically demanding blocks on non-activity days). If food_styles is present, prefer blocks whose best_for/theme match those cuisines when otherwise tied.
+9. If recent_block_ids is present, treat it as a soft tie-breaker only: prioritize personal constraints, dietary needs, bookings, and schedule fit; avoid those blocks only when an equally suitable alternative exists.
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -1873,6 +1908,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
   const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
   const foodIndex = Array.isArray(userInput?.foodIndex) ? userInput.foodIndex : [];
+  const recentFoodNames = new Set(Array.isArray(userInput?.recentFoodNames) ? userInput.recentFoodNames.filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim()).slice(0, 20) : []);
   const startDate = userInput?.startDate || null;
   const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
   const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
@@ -1967,7 +2003,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         const anchorBs = (!_phHasOwn && lastAnchorLat != null)
           ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
           : bs;
-        const matched = matchFoodPlaceholder(anchorBs, foodIndex, dayCityKey, dietPrefs, usedFoodNames);
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, dayCityKey, dietPrefs, usedFoodNames, recentFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;

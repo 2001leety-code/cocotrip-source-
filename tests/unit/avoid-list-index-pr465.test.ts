@@ -30,7 +30,11 @@ import { resolve } from 'node:path';
 const avoidSrc = readFileSync(
   resolve(process.cwd(), 'api/_ai_core/avoidListQuery.js'),
   'utf8',
-);
+).replace(/\r\n/g, '\n');
+const lintSrc = readFileSync(
+  resolve(process.cwd(), 'scripts/lint-mistake-patterns.mjs'),
+  'utf8',
+).replace(/\r\n/g, '\n');
 const indexesSrc = readFileSync(
   resolve(process.cwd(), 'firestore.indexes.json'),
   'utf8',
@@ -50,6 +54,7 @@ vi.mock('../../api/_shared/telegram-throttle.js', () => ({
 
 import {
   buildAvoidClause,
+  buildAvoidContext,
   isFirestoreIndexMissingError,
   extractIndexCreationUrl,
 } from '../../api/_ai_core/avoidListQuery.js';
@@ -257,12 +262,41 @@ describe('PR #465 X-H7 — source-level invariants', () => {
     expect(avoidSrc).toMatch(/code\s*===\s*['"]FAILED_PRECONDITION['"]\s*\|\|\s*code\s*===\s*['"]9['"]/);
   });
 
-  it('AVOID-clause fail-OPEN preserved: catch ends with return ""', () => {
-    // The catch block must still terminate with `return '';` (the
-    // non-critical-path contract). The alert call is fire-and-forget; the
-    // function must NEVER throw. Slice goes UP TO the closing `}\n}` of
-    // the function, so the inner `return '';` is what we need to assert.
-    const catchBlock = avoidSrc.slice(avoidSrc.indexOf('} catch (err) {'), avoidSrc.indexOf('}\n}'));
-    expect(catchBlock).toMatch(/return\s+['"]['"]\s*;/);
+  it('structured avoid-context failure remains fail-open with empty values', async () => {
+    const db = {
+      collection: () => ({
+        orderBy: () => ({
+          limit: () => ({
+            where: () => ({ get: async () => { throw new Error('offline synthetic'); } }),
+          }),
+        }),
+      }),
+    };
+    await expect(buildAvoidContext(db, { uid: 'user-1' }))
+      .resolves.toEqual({ clause: '', foodNames: [], blockIds: [] });
+  });
+
+  it('P89 accepts the structured empty contract and catches omitted or malformed results', () => {
+    const start = lintSrc.indexOf('function P89_avoidListIndexAlert(');
+    const end = lintSrc.indexOf('function P88_bmealSnackSlot', start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const p89Source = lintSrc.slice(start, end);
+    const p89Failures: string[] = [];
+    const runP89 = (content: string) => {
+      p89Failures.length = 0;
+      const isModified = (file: string, changed: Array<{ file: string; status: string }>) => changed.some((row) => row.file === file && row.status !== 'D');
+      const getChangedFileContent = (file: string) => file === 'api/_ai_core/avoidListQuery.js' ? content : '';
+      const fail = (rule: string, msg: string) => p89Failures.push(`${rule}: ${msg}`);
+      const p89 = new Function('isModified', 'getChangedFileContent', 'fail', `${p89Source}; return P89_avoidListIndexAlert;`)(isModified, getChangedFileContent, fail);
+      p89({ changed: [{ file: 'api/_ai_core/avoidListQuery.js', status: 'M' }] });
+      return [...p89Failures];
+    };
+
+    expect(runP89(avoidSrc)).toEqual([]);
+    const missingField = avoidSrc.replace('foodNames: [], blockIds: []', 'blockIds: []');
+    expect(runP89(missingField).join('\n')).toMatch(/empty result must contain clause, foodNames, and blockIds/);
+    const malformedCatch = avoidSrc.replace('    return empty;\n  }\n}\n\n// Compatibility wrapper', "    return { clause: '', foodNames: [] };\n  }\n}\n\n// Compatibility wrapper");
+    expect(runP89(malformedCatch).join('\n')).toMatch(/query failure must return the complete empty context/);
   });
 });
