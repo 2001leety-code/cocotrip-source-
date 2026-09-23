@@ -89,6 +89,19 @@ describe('buildAccountingSheets — 4 시트 + 세무 잠정칸', () => {
   );
   const sheets = buildAccountingSheets(data);
 
+  it('실제 XLSX 압축을 만들고 4개 시트와 한글 내용을 복원한다', async () => {
+    const { default: writeXlsxFile } = await import('write-excel-file/node');
+    const { unzipSync, strFromU8 } = await import('fflate');
+    const bytes = await writeXlsxFile(sheets).toBuffer();
+    const files = unzipSync(bytes);
+    expect(Object.keys(files).filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))).toHaveLength(4);
+    const xml = Object.values(files).map((value) => strFromU8(value)).join('\n');
+    expect(xml).toContain('매출장');
+    expect(xml).toContain('세무사확인필요');
+    expect(xml).toContain('CT-A');
+    expect(xml).toContain('14375');
+  });
+
   it('시트 4개 + 이름 (매출장/비용장/월별손익요약/환율기록)', () => {
     expect(sheets.map((s) => s.sheet)).toEqual(['매출장', '비용장', '월별손익요약', '환율기록']);
   });

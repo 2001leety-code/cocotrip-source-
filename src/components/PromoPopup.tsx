@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
+import { fetchPromoConfig } from '@/lib/promoConfig';
 
 // localStorage 키
 const POPUP_KEY = 'coco_promo_popup_v1';
@@ -65,8 +66,7 @@ export function PromoPopup() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/promo-config')
-      .then((r) => r.json())
+    fetchPromoConfig()
       .then((json) => {
         if (cancelled || !json || !json.ok) return;
         const cfg = json.popup as PopupConfig | undefined;
