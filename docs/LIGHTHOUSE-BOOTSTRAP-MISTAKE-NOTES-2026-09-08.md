@@ -1,5 +1,16 @@
 # 보호된 미리보기 검사 도구 최초 설치
 
+## 2026-09-24 보호된 설치 설정 파일의 쿠키 누락
+
+- main의 진단 수정(PR1418) 후 검사 35969794949 첫 실행은 수집 단계에서 중단됐다. 한 번 재실행하자 세 경로 수집이 완료됐고, 각 경로에서 CORS 2건·리소스 로드 오류 2건이 확인됐다. HTTP 400–599 요청은 없었다. 최초 수집 실패를 페이지 결함으로 계산하거나 재시도 성공을 정책 통과로 보고하지 않는다.
+- 현재 빌드가 만드는 `<link rel="manifest">`에는 쿠키 전달 설정이 없었다. 실제 Chromium과 루프백 서버 두 개로 재현한 결과, 기존 태그는 이미 가진 HttpOnly 쿠키를 전달하지 않아 인증 화면으로 리디렉션되고 CORS 오류가 발생했다. 같은 태그에 `crossorigin="use-credentials"`를 적용하면 쿠키가 전달되고 리디렉션·CORS 오류가 모두 사라졌다. 실제 운영 인증값이나 고객 데이터는 사용하지 않았다.
+- 이미 설치된 VitePWA의 `useCredentials: true` 옵션으로 빌드 태그를 수정한다. CocoTrip·MOOD·오너 설정 파일 경로는 모두 같은 출처의 고정 경로이며 기존 ManifestSwitcher는 해당 속성을 보존한다. 인증 우회, CORS 허용 범위 확대, 미리보기 보호 해제, 쿠키·키 발급은 하지 않는다. 근거: [Vite PWA 공식 FAQ](https://vite-pwa-org.netlify.app/guide/faq#web-app-manifest-and-401-status-code-unauthorized).
+- 스크롤 경고는 세 경로 모두 미리보기와 같은 출처 1건으로 확인됐지만 정확한 함수는 미확정이다. 같은 출처라는 사실만으로 제품 코드와 미리보기에 주입된 스크립트를 구분할 수 없다. 직접 등록한 PWA 입력 감지와 React의 스크롤 관련 이벤트는 이미 passive를 사용하므로 추측으로 변경하지 않는다.
+- 미사용 CSS·JS, 요청 의존성, Preview 색인 차단, 변동하는 출처 미상 리플로우와 미분류 판정은 별도 잔여 항목이다. 로컬 쿠키 재현 통과가 원격 CORS 전체 해소나 실제 설치·업데이트·문의 저장·결제 성공을 증명하지 않는다. 원격 적용 후 동일 검사로 따로 대조한다.
+- 회귀 검사는 `npm run build` 후 `npx playwright test tests/e2e/manifest-cookie-credentials.spec.ts --project="Desktop Chrome" --workers=1 --reporter=line`으로 실행한다. 실제 생성된 HTML 태그를 사용하고 쿠키 누락 대조군의 실패와 수정군의 성공을 한 검사에서 확인했다(1개 통과). 모든 요청은 루프백 두 출처로 제한한다. 기존 PWA 검사 38개와 격리 dev 홈·MOOD 화면/인트로 자산도 통과했다.
+
+오답노트: 인증 쿠키가 브라우저에 있어도 manifest 요청은 기본적으로 쿠키를 보내지 않는다. 보호를 끄는 대신 정상 요청에 필요한 속성을 사용한다. 검사 장치도 화면의 숨겨진 첫 링크나 임의 글자 수가 아니라 해당 화면의 실제 표시 요소를 기준으로 판정한다. 루프백 전용 E2E도 공용 analytics-guard의 test/context를 사용한다. 최초 푸시 전 P272가 직접 import를 차단했고, 공용 도구를 실제로 사용하도록 수정한 뒤 브라우저 재검사와 오답 린트가 통과했다.
+
 ## 2026-09-24 스크롤 경고 출처 판독 수정
 
 - 고정 Lighthouse 12.6.1의 `uses-passive-event-listeners`는 출처를 `details.items[].source.url`에 저장한다. 기존 요약기는 이 필드를 읽지 않아 실제 출처가 있어도 `unknown`으로 분류했다. 설치된 audit 구현과 같은 구조의 회귀 검사로 수정했다.
