@@ -11,6 +11,7 @@ const MAX_SAFE_ASSERTION_SCAN = 256;
 const MAX_SAFE_AUDIT_LENGTH = 1_000_000;
 const MAX_SAFE_ASSERTION_RESULTS_BYTES = 2 * 1024 * 1024;
 const MAX_SAFE_DIAGNOSTIC_SCAN = 256;
+const MAX_SAFE_DIAGNOSTIC_GROUPS = 32;
 
 // Fixed against treosh/lighthouse-ci-action 3e7e23f (bundled LHCI 0.15.1),
 // lighthouse:recommended, then this repository's reviewed .lighthouserc.json
@@ -244,6 +245,45 @@ function boundedDiagnosticCount(value) {
   return Math.min(value, 99);
 }
 
+function consoleErrorKind(description) {
+  if (typeof description !== 'string') return 'other';
+  const text = description.slice(0, 2000).toLowerCase();
+  if (text.includes('cors') || text.includes('cross-origin') || text.includes('access-control-allow-origin')) return 'cors';
+  if (text.includes('content security policy') || text.includes('content-security-policy')) return 'csp';
+  if (text.includes('failed to load resource') || text.includes('failed to fetch') || text.includes('net::err_')) return 'resourceLoad';
+  if (text.includes('uncaught') || /\b(typeerror|referenceerror|syntaxerror|rangeerror|urierror)\b/.test(text)) return 'runtime';
+  return 'other';
+}
+
+function failedNetworkRequestSummary(items, expectedOrigin) {
+  const counts = new Map();
+  const scanned = Array.isArray(items) ? items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : [];
+  for (const item of scanned) {
+    const statusCode = item?.statusCode;
+    if (!Number.isInteger(statusCode) || statusCode < 400 || statusCode > 599) continue;
+    let url;
+    try { url = new URL(item.url); } catch { url = null; }
+    const pathname = url?.pathname || '';
+    const requestClass = pathname === '/api/promo-config' ? 'promo-config'
+      : pathname === '/api/reviews' ? 'reviews'
+        : pathname.startsWith('/api/') ? 'other-api'
+          : item.resourceType === 'Document' ? 'document'
+            : pathname.startsWith('/assets/') || ['Script', 'Stylesheet', 'Image', 'Font', 'Media', 'Manifest'].includes(item.resourceType)
+              ? 'static-asset' : 'other';
+    const source = diagnosticSource(item?.url, expectedOrigin);
+    const key = `${source}|${requestClass}|${statusCode}`;
+    counts.set(key, boundedDiagnosticCount((counts.get(key) || 0) + 1));
+  }
+  const entries = [...counts.entries()];
+  return {
+    items: entries.slice(0, MAX_SAFE_DIAGNOSTIC_GROUPS).map(([key, count]) => {
+      const [source, requestClass, statusCode] = key.split('|');
+      return { source, requestClass, statusCode: Number(statusCode), count };
+    }),
+    suppressedCount: boundedDiagnosticCount(Math.max(0, entries.length - MAX_SAFE_DIAGNOSTIC_GROUPS)),
+  };
+}
+
 /** Fixed route and numeric/enum-only diagnostics; never returns report text or URLs. */
 export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
   const origin = previewOrigin(expectedOrigin);
@@ -257,12 +297,18 @@ export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
       const counts = { firstParty: 0, vercelToolbar: 0, other: 0, unknown: 0 };
       const items = audits[auditId]?.details?.items;
       for (const item of Array.isArray(items) ? items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : []) {
-        const source = item?.sourceLocation?.url || item?.node?.nodeUrl || item?.url;
+        const source = item?.source?.url || item?.sourceLocation?.url || item?.node?.nodeUrl || item?.url;
         const kind = diagnosticSource(source, origin);
         counts[kind] = boundedDiagnosticCount(counts[kind] + 1);
       }
       return counts;
     };
+    const consoleErrorKinds = { cors: 0, csp: 0, resourceLoad: 0, runtime: 0, other: 0 };
+    const consoleItems = audits['errors-in-console']?.details?.items;
+    for (const item of Array.isArray(consoleItems) ? consoleItems.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : []) {
+      const kind = consoleErrorKind(item?.description);
+      consoleErrorKinds[kind] = boundedDiagnosticCount(consoleErrorKinds[kind] + 1);
+    }
     let totalReflowMs = 0;
     let attributableCount = 0;
     let unattributedCount = 0;
@@ -280,7 +326,9 @@ export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
       route,
       reportPresent: Boolean(report),
       consoleErrors: sourceCounts('errors-in-console'),
+      consoleErrorKinds,
       passiveListeners: sourceCounts('uses-passive-event-listeners'),
+      failedNetworkRequests: failedNetworkRequestSummary(audits['network-requests']?.details?.items, origin),
       crawlabilityFailure: audits['is-crawlable']?.score === 0,
       forcedReflow: { totalMs: Math.round(totalReflowMs), attributableCount, unattributedCount },
     };

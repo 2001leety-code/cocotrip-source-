@@ -333,14 +333,25 @@ describe('offline fixed-directory CLI adapter', () => {
     const reports = PATHS.map((pathname) => report(pathname));
     reports[0].audits = {
       'errors-in-console': { details: { items: [
-        { sourceLocation: { url: ORIGIN + '/bundle.js?key=' + PRIVATE_TEXT }, message: PRIVATE_TEXT },
-        { sourceLocation: { url: 'https://vercel.live/toolbar.js?token=' + PRIVATE_TEXT } },
-        { sourceLocation: { url: ORIGIN.replace('.vercel.app', '.vercel.app:444') + '/script.js' } },
-        { sourceLocation: { url: PRIVATE_TEXT } },
+        { sourceLocation: { url: ORIGIN + '/bundle.js?key=' + PRIVATE_TEXT }, description: 'Failed to load resource ' + PRIVATE_TEXT },
+        { sourceLocation: { url: 'https://vercel.live/toolbar.js?token=' + PRIVATE_TEXT }, description: 'Content Security Policy blocked ' + PRIVATE_TEXT },
+        { sourceLocation: { url: ORIGIN.replace('.vercel.app', '.vercel.app:444') + '/script.js' }, description: 'Uncaught TypeError: ' + PRIVATE_TEXT },
+        { sourceLocation: { url: PRIVATE_TEXT }, description: PRIVATE_TEXT },
+        { sourceLocation: { url: ORIGIN + '/cors.js?token=' + PRIVATE_TEXT }, description: 'Access-Control-Allow-Origin: ' + PRIVATE_TEXT },
       ] } },
-      'uses-passive-event-listeners': { details: { items: [{ node: { nodeUrl: ORIGIN + '/app.js' } }] } },
+      'uses-passive-event-listeners': { details: { items: [{ source: { type: 'source-location', url: ORIGIN + '/app.js' } }] } },
       'crawlable-anchors': { score: 0, details: { items: [{ url: hostile }] } },
       'is-crawlable': { score: 1 },
+      'network-requests': { details: { items: [
+        { url: ORIGIN + '/api/promo-config?key=' + PRIVATE_TEXT, statusCode: 500, resourceType: 'Fetch' },
+        { url: ORIGIN + '/api/reviews?key=' + PRIVATE_TEXT, statusCode: 404, resourceType: 'XHR' },
+        { url: ORIGIN + '/api/private?key=' + PRIVATE_TEXT, statusCode: 403, resourceType: 'Fetch' },
+        { url: ORIGIN + '/assets/app.js?key=' + PRIVATE_TEXT, statusCode: 503, resourceType: 'Script' },
+        { url: 'https://vercel.live/toolbar.js?key=' + PRIVATE_TEXT, statusCode: 502, resourceType: 'Script' },
+        { url: hostile, statusCode: 499, resourceType: 'Fetch' },
+        { url: ORIGIN + '/api/pending', statusCode: 0, resourceType: 'Fetch' },
+        { url: ORIGIN + '/api/invalid', statusCode: 600, resourceType: 'Fetch' },
+      ] } },
       'forced-reflow-insight': { details: { items: [
         { type: 'table', items: [{ reflowTime: 30, source: { type: 'source-location', url: hostile } }] },
         { type: 'table', items: [
@@ -354,8 +365,20 @@ describe('offline fixed-directory CLI adapter', () => {
     expect(summary[0]).toEqual({
       route: '/',
       reportPresent: true,
-      consoleErrors: { firstParty: 1, vercelToolbar: 1, other: 1, unknown: 1 },
+      consoleErrors: { firstParty: 2, vercelToolbar: 1, other: 1, unknown: 1 },
+      consoleErrorKinds: { cors: 1, csp: 1, resourceLoad: 1, runtime: 1, other: 1 },
       passiveListeners: { firstParty: 1, vercelToolbar: 0, other: 0, unknown: 0 },
+      failedNetworkRequests: {
+        items: [
+          { source: 'firstParty', requestClass: 'promo-config', statusCode: 500, count: 1 },
+          { source: 'firstParty', requestClass: 'reviews', statusCode: 404, count: 1 },
+          { source: 'firstParty', requestClass: 'other-api', statusCode: 403, count: 1 },
+          { source: 'firstParty', requestClass: 'static-asset', statusCode: 503, count: 1 },
+          { source: 'vercelToolbar', requestClass: 'static-asset', statusCode: 502, count: 1 },
+          { source: 'other', requestClass: 'other', statusCode: 499, count: 1 },
+        ],
+        suppressedCount: 0,
+      },
       crawlabilityFailure: false,
       forcedReflow: { totalMs: 100, attributableCount: 1, unattributedCount: 1 },
     });
@@ -370,12 +393,26 @@ describe('offline fixed-directory CLI adapter', () => {
 
   it('caps diagnostic arrays and numeric totals and ignores non-finite measurements', () => {
     const input = report();
+    const networkItems = [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        url: `${ORIGIN}/api/promo-config?key=${PRIVATE_TEXT}`,
+        statusCode: 400 + index,
+        resourceType: 'Fetch',
+      })),
+      ...Array.from({ length: 300 }, () => ({ url: ORIGIN + '/api/promo-config', statusCode: 503, resourceType: 'Fetch' })),
+    ];
     input.audits = {
       'errors-in-console': { details: { items: Array.from({ length: 300 }, () => ({ url: ORIGIN + '/' })) } },
+      'network-requests': { details: { items: networkItems } },
       'forced-reflow-insight': { details: { items: [{ type: 'table', items: Array.from({ length: 300 }, () => ({ reflowTime: 100000, source: { type: 'text', value: '[unattributed]' } })) }] } },
     };
     const output = safeLighthouseDiagnosticSummary([input], ORIGIN)[0];
     expect(output.consoleErrors.firstParty).toBe(99);
+    expect(output.failedNetworkRequests.items).toHaveLength(32);
+    expect(output.failedNetworkRequests.items[0]).toEqual({ source: 'firstParty', requestClass: 'promo-config', statusCode: 400, count: 1 });
+    expect(output.failedNetworkRequests.items[31].statusCode).toBe(431);
+    expect(output.failedNetworkRequests.suppressedCount).toBe(9);
+    expect(JSON.stringify(output.failedNetworkRequests)).not.toContain(PRIVATE_TEXT);
     expect(output.forcedReflow).toEqual({ totalMs: 999999, attributableCount: 0, unattributedCount: 99 });
     expect(safeLighthouseDiagnosticSummary([report()], ORIGIN)[1]).toMatchObject({ reportPresent: false });
   });
