@@ -135,6 +135,8 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
+      // Protected Preview serves the manifest only with the same-origin bypass cookie.
+      useCredentials: true,
       includeAssets: [
         'favicon.png',
         'icons/icon-192.png',
