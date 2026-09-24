@@ -4,6 +4,7 @@ import {
   readLighthousePreviewArtifacts,
   runLighthousePreviewCli,
   runSafeAssertionSummaryCli,
+  safeLighthouseDiagnosticSummary,
   safeLighthouseAssertionSummary,
   verifyLighthousePreview,
 } from '../../scripts/verify-lighthouse-preview.mjs';
@@ -322,8 +323,61 @@ describe('offline fixed-directory CLI adapter', () => {
     ]));
     expect(runLighthousePreviewCli(['--expected-origin', ORIGIN], options)).toBe(1);
     expect(stderr.write).toHaveBeenCalledWith('LIGHTHOUSE_PREVIEW_FAIL ASSERTION_URL_MISMATCH,REQUIRED_ASSERTION_FAILED\n');
+    expect(stdout.write.mock.calls.some(([line]) => String(line).startsWith('LIGHTHOUSE_DIAGNOSTICS '))).toBe(true);
     expect(JSON.stringify([...stdout.write.mock.calls, ...stderr.write.mock.calls])).not.toContain(PRIVATE_TEXT);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('summarizes only bounded route, source enums, crawlability, and finite reflow metrics', () => {
+    const hostile = `https://elsewhere.invalid/?key=${PRIVATE_TEXT}`;
+    const reports = PATHS.map((pathname) => report(pathname));
+    reports[0].audits = {
+      'errors-in-console': { details: { items: [
+        { sourceLocation: { url: ORIGIN + '/bundle.js?key=' + PRIVATE_TEXT }, message: PRIVATE_TEXT },
+        { sourceLocation: { url: 'https://vercel.live/toolbar.js?token=' + PRIVATE_TEXT } },
+        { sourceLocation: { url: ORIGIN.replace('.vercel.app', '.vercel.app:444') + '/script.js' } },
+        { sourceLocation: { url: PRIVATE_TEXT } },
+      ] } },
+      'uses-passive-event-listeners': { details: { items: [{ node: { nodeUrl: ORIGIN + '/app.js' } }] } },
+      'crawlable-anchors': { score: 0, details: { items: [{ url: hostile }] } },
+      'is-crawlable': { score: 1 },
+      'forced-reflow-insight': { details: { items: [
+        { type: 'table', items: [{ reflowTime: 30, source: { type: 'source-location', url: hostile } }] },
+        { type: 'table', items: [
+          { reflowTime: 30, source: { type: 'source-location', url: hostile } },
+          { reflowTime: 70, source: { type: 'text', value: '[unattributed]' } },
+          { reflowTime: Number.NaN, source: { type: 'text', value: PRIVATE_TEXT } },
+        ] },
+      ] } },
+    };
+    const summary = safeLighthouseDiagnosticSummary(reports, ORIGIN);
+    expect(summary[0]).toEqual({
+      route: '/',
+      reportPresent: true,
+      consoleErrors: { firstParty: 1, vercelToolbar: 1, other: 1, unknown: 1 },
+      passiveListeners: { firstParty: 1, vercelToolbar: 0, other: 0, unknown: 0 },
+      crawlabilityFailure: false,
+      forcedReflow: { totalMs: 100, attributableCount: 1, unattributedCount: 1 },
+    });
+    expect(summary).toHaveLength(3);
+    expect(JSON.stringify(summary)).not.toContain(PRIVATE_TEXT);
+    expect(JSON.stringify(summary)).not.toContain('elsewhere.invalid');
+    expect(JSON.stringify(summary)).not.toContain('toolbar.js');
+    expect(safeLighthouseDiagnosticSummary(reports, 'https://bad-origin.example')).toEqual([]);
+    reports[0].audits['is-crawlable'] = { score: 0 };
+    expect(safeLighthouseDiagnosticSummary(reports, ORIGIN)[0].crawlabilityFailure).toBe(true);
+  });
+
+  it('caps diagnostic arrays and numeric totals and ignores non-finite measurements', () => {
+    const input = report();
+    input.audits = {
+      'errors-in-console': { details: { items: Array.from({ length: 300 }, () => ({ url: ORIGIN + '/' })) } },
+      'forced-reflow-insight': { details: { items: [{ type: 'table', items: Array.from({ length: 300 }, () => ({ reflowTime: 100000, source: { type: 'text', value: '[unattributed]' } })) }] } },
+    };
+    const output = safeLighthouseDiagnosticSummary([input], ORIGIN)[0];
+    expect(output.consoleErrors.firstParty).toBe(99);
+    expect(output.forcedReflow).toEqual({ totalMs: 999999, attributableCount: 0, unattributedCount: 99 });
+    expect(safeLighthouseDiagnosticSummary([report()], ORIGIN)[1]).toMatchObject({ reportPresent: false });
   });
 
   it('prints the fixed safe assertion summary from the only permitted artifact filename', () => {
