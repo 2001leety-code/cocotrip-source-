@@ -25,11 +25,17 @@ type EditorialFlow = {
   steps: LocalizedText[];
 };
 
+type OfficialSource = {
+  href: string;
+  label: LocalizedText;
+};
+
 export type RegionDecisionGuide = {
   bestFor: LocalizedText;
   movement: LocalizedText;
   flow: ProductFlow | EditorialFlow;
   relatedTourIds: string[];
+  officialSources?: OfficialSource[];
   relatedRegion?: {
     id: string;
     title: LocalizedText;
@@ -53,10 +59,10 @@ type IndexingContentRegionId = (typeof INDEXING_CONTENT_REGION_IDS)[number];
 export const REGION_DECISION_GUIDES: Record<IndexingContentRegionId, RegionDecisionGuide> = {
   paju: {
     bestFor: {
-      ko: '임진각·DMZ 평화의 길처럼 분단의 현장을 이해하는 여행과 헤이리·출판도시의 예술·책 공간 중 무엇을 우선할지 먼저 고르고 싶은 여행자에게 맞습니다.',
-      en: 'Paju suits travelers choosing between a border-history day around Imjingak and the DMZ Peace Trail, and an art-and-books day around Heyri and Paju Book City.',
-      ja: '臨津閣・DMZ平和の道を中心に境界の歴史を学ぶ日と、ヘイリ・出版都市で芸術や本に触れる日のどちらを優先するか決めたい方に向いています。',
-      zh: '坡州适合想先在两种主题中做选择的旅行者：以临津阁、DMZ和平之路为主的边境历史之旅，或以Heyri艺术村、出版都市为主的艺术与书籍之旅。',
+      ko: '임진각·DMZ 평화관광처럼 분단의 현장을 이해하는 여행과 헤이리·출판도시의 예술·책 공간 중 무엇을 우선할지 먼저 고르고 싶은 여행자에게 맞습니다.',
+      en: 'Paju suits travelers choosing between a border-history day around Imjingak and DMZ Peace Tourism, and an art-and-books day around Heyri and Paju Book City.',
+      ja: '臨津閣・DMZ平和観光を中心に境界の歴史を学ぶ日と、ヘイリ・出版都市で芸術や本に触れる日のどちらを優先するか決めたい方に向いています。',
+      zh: '坡州适合想先在两种主题中做选择的旅行者：以临津阁、DMZ和平观光为主的边境历史之旅，或以Heyri艺术村、出版都市为主的艺术与书籍之旅。',
     },
     movement: {
       ko: '현재 고정 상품은 임진각에서 시작해 제3땅굴·도라산 전망대·도라산역으로 이어지는 DMZ 중심 코스입니다. 헤이리·프로방스·출판도시가 주목적이면 같은 상품에 포함됐다고 가정하지 말고 전세 차량 경로를 따로 문의하세요.',
@@ -64,6 +70,15 @@ export const REGION_DECISION_GUIDES: Record<IndexingContentRegionId, RegionDecis
       ja: '現在の既定商品は、臨津閣から第3トンネル・都羅山展望台・都羅山駅へ進むDMZ中心のコースです。ヘイリ、プロヴァンス、出版都市が主目的なら同じ商品に含まれると考えず、別の貸切ルートをご相談ください。',
       zh: '当前固定产品以DMZ为中心，从临津阁依次前往第三隧道、都罗山观景台和都罗山站。若主要想去Heyri、普罗旺斯或出版都市，请不要默认它们包含在同一产品内，应另行咨询包车路线。',
     },
+    officialSources: [{
+      href: 'https://tour.paju.go.kr/user/tour/place/BD_tourPlaceInfoView.do?cntntsSn=374&menuCode=1&q_gubunCode=1004',
+      label: {
+        ko: '파주 DMZ 평화관광: 신분증·입장 및 운영 변경 안내',
+        en: 'Paju DMZ Peace Tourism: ID, entry and operating changes',
+        ja: '坡州DMZ平和観光：本人確認・入場・運営変更',
+        zh: '坡州DMZ和平观光：证件、入场及运营变更',
+      },
+    }],
     flow: { kind: 'tour', tourId: 'tour-dmz' },
     relatedTourIds: ['tour-dmz'],
     actions: ['charter'],
@@ -81,6 +96,26 @@ export const REGION_DECISION_GUIDES: Record<IndexingContentRegionId, RegionDecis
       ja: '現在の既定商品はソウル往復の車両で、伝燈寺・広城堡・東幕海辺を順に結びます。海辺や干潟が目的なら先に潮の案内を確認し、歴史遺産が中心なら屋外体験を必須にする必要はありません。',
       zh: '当前固定产品以首尔往返车辆依次连接传灯寺、广城堡和东幕海边。若海边或滩涂是重点，请先查看潮汐提示；若以历史遗迹为主，也不必把户外体验设为必选。',
     },
+    officialSources: [
+      {
+        href: 'https://www.khoa.go.kr/oceandata/oceaninfo/map.do?oceaninfoId=forecast',
+        label: {
+          ko: '국립해양조사원: 방문 날짜의 조석 예보 확인',
+          en: 'KHOA: check the tide forecast for your visit date',
+          ja: '韓国海洋調査院：訪問日の潮汐予報を確認',
+          zh: '韩国海洋调查院：查询出行日期的潮汐预报',
+        },
+      },
+      {
+        href: 'https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=79178',
+        label: {
+          ko: '한국관광공사: 동막해변·갯벌 안내',
+          en: 'Korea Tourism Organization: Dongmak Beach and mudflat guide',
+          ja: '韓国観光公社：東幕海辺・干潟の案内',
+          zh: '韩国旅游发展局：东幕海边与滩涂介绍',
+        },
+      },
+    ],
     flow: { kind: 'tour', tourId: 'tour-ganghwa' },
     relatedTourIds: ['tour-ganghwa'],
     relatedRegion: {
@@ -150,6 +185,26 @@ export const REGION_DECISION_GUIDES: Record<IndexingContentRegionId, RegionDecis
       ja: '現在公開されている仁川関連商品は、江華島を中心とするソウル往復コースです。空港送迎が含まれると決めつけず、商品ページで送迎条件をご確認ください。仁川市内が目的なら、下の3つから軸を一つ選んでプランナーで動線を作ります。',
       zh: '当前公开的仁川相关产品，是以江华岛为主的首尔往返路线。请勿默认包含机场接送，应在产品页面确认接送条件。若重点是仁川市区，请先从下方三条主线中选一条，再用规划工具安排动线。',
     },
+    officialSources: [
+      {
+        href: 'https://english.seoul.go.kr/service/entry/getting-to-seoul-from-incheon-airport/',
+        label: {
+          ko: '서울시: AREX·공항버스 등 서울 이동 선택지',
+          en: 'Seoul Metropolitan Government: AREX and bus options',
+          ja: 'ソウル市：AREX・空港バスなど市内への移動手段',
+          zh: '首尔市政府：AREX及机场巴士等进城方式',
+        },
+      },
+      {
+        href: 'https://www.airport.kr/ap_en/1504/subview.do',
+        label: {
+          ko: '인천공항: 공항버스 노선·승차 정보 검색',
+          en: 'Incheon Airport: search airport bus routes and boarding details',
+          ja: '仁川空港：空港バスの路線・乗車情報を検索',
+          zh: '仁川机场：查询机场巴士线路与乘车信息',
+        },
+      },
+    ],
     flow: {
       kind: 'editorial',
       lead: {

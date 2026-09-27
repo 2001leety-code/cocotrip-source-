@@ -130,7 +130,7 @@ describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
         <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language="en" />,
       );
       const guide = container.querySelector('[data-testid="region-decision-guide"]');
-      const anchors = [...(guide?.querySelectorAll('a[href]') || [])];
+      const anchors = [...(guide?.querySelectorAll('a[href^="/"]') || [])];
       const hrefs = anchors.map((anchor) => anchor.getAttribute('href') || '');
 
       expect(anchors.length, `${regionId}: 링크 수 ${anchors.length}`).toBeGreaterThanOrEqual(2);
@@ -138,6 +138,49 @@ describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
       expect(new Set(hrefs).size, `${regionId}: 중복 링크`).toBe(hrefs.length);
       expect(hrefs.every((href) => href.startsWith('/') && !href.startsWith('//'))).toBe(true);
       unmount();
+    }
+  });
+
+  it('인천·파주·강화도는 4개 언어 공식 출처 링크를 안전하게 렌더한다', () => {
+    const expectedSources: Record<string, string[]> = {
+      incheon: [
+        'https://english.seoul.go.kr/service/entry/getting-to-seoul-from-incheon-airport/',
+        'https://www.airport.kr/ap_en/1504/subview.do',
+      ],
+      paju: [
+        'https://tour.paju.go.kr/user/tour/place/BD_tourPlaceInfoView.do?cntntsSn=374&menuCode=1&q_gubunCode=1004',
+      ],
+      ganghwa: [
+        'https://www.khoa.go.kr/oceandata/oceaninfo/map.do?oceaninfoId=forecast',
+        'https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=79178',
+      ],
+    };
+    const cautionPhrases = {
+      ko: '방문 전에 출처에서 확인하세요',
+      en: 'check the source before your visit',
+      ja: '訪問前にリンク先をご確認ください',
+      zh: '请在出行前查看来源页面',
+    } as const;
+
+    for (const [regionId, hrefs] of Object.entries(expectedSources)) {
+      for (const language of ['ko', 'en', 'ja', 'zh']) {
+        const { container, unmount } = render(
+          <RegionSeoInfo regionId={regionId} regionTitle={regionId.toUpperCase()} language={language} />,
+        );
+        const guide = container.querySelector('[data-testid="region-decision-guide"]');
+        const sourceLinks = [...(guide?.querySelectorAll('a[href^="https://"]') || [])];
+        const sourceSection = guide?.querySelector(`#${regionId}-official-sources`)?.closest('section');
+        expect(sourceLinks.map((link) => link.getAttribute('href')), `${regionId}.${language} hrefs`).toEqual(hrefs);
+        for (const link of sourceLinks) {
+          expect(link.textContent?.trim().length, `${regionId}.${language} label`).toBeGreaterThan(8);
+          expect(link).toHaveAttribute('target', '_blank');
+          expect(link.getAttribute('rel')?.split(' ')).toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
+          expect(link).toHaveClass('min-h-[44px]', 'flex', 'items-center');
+        }
+        expect(sourceSection?.textContent, `${regionId}.${language} caution`).toContain(cautionPhrases[language as keyof typeof cautionPhrases]);
+        expect(sourceSection?.textContent).toMatch(/not endorse|보증하거나 추천|保証・推奨|背书或推荐/);
+        unmount();
+      }
     }
   });
 
@@ -187,6 +230,15 @@ describe('RegionSeoInfo — 색인 거부를 막는 본문', () => {
     expect(movement.ja).toContain('現在公開されている');
     expect(movement.zh).toContain('当前公开的');
     expect(Object.values(movement).join(' ')).not.toMatch(/예약 가능한|bookable|予約できる|可预订/);
+  });
+
+  it('파주 DMZ 평화관광을 별도 DMZ 평화의 길과 혼동하지 않는다', () => {
+    const bestFor = REGION_DECISION_GUIDES.paju.bestFor;
+    expect(bestFor.ko).toContain('DMZ 평화관광');
+    expect(bestFor.en).toContain('DMZ Peace Tourism');
+    expect(bestFor.ja).toContain('DMZ平和観光');
+    expect(bestFor.zh).toContain('DMZ和平观光');
+    expect(Object.values(bestFor).join(' ')).not.toMatch(/DMZ 평화의 길|DMZ Peace Trail|DMZ平和の道|DMZ和平之路/);
   });
 
   it('sitemap 의 지역 페이지가 전부 투어 매핑 표에 있다', () => {
