@@ -269,6 +269,49 @@ function diagnosticSource(value, expectedOrigin) {
   }
 }
 
+function passiveListenerSourceClass(value, expectedOrigin) {
+  if (typeof value !== 'string') return 'unknown';
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return 'unknown';
+    if (url.hostname === 'vercel.live') return 'vercel-toolbar';
+    if (url.origin !== expectedOrigin) return 'third-party';
+    const pathname = url.pathname;
+    if (['/', '/tours', '/charter'].includes(pathname)) return 'document';
+    if (pathname === '/_vercel/feedback' || pathname.startsWith('/_vercel/feedback/')) return 'vercel-toolbar';
+    if (!pathname.startsWith('/assets/')) return 'unknown';
+    if (/^\/assets\/entry-[a-z\d_-]+\.js$/i.test(pathname)) return 'app-entry';
+    if (/^\/assets\/vendor-react-[a-z\d_-]+\.js$/i.test(pathname)) return 'react-runtime';
+    if (/^\/assets\/(?:vendor-firebase-core|firebase-auth)-[a-z\d_-]+\.js$/i.test(pathname)) return 'firebase-auth/core';
+    if (/^\/assets\/vendor-motion-[a-z\d_-]+\.js$/i.test(pathname)) return 'motion';
+    if (pathname.startsWith('/assets/')) return 'other-static';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function safeSourcePosition(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 1_000_000 ? value : undefined;
+}
+
+function passiveListenerSummary(items, expectedOrigin) {
+  const scanned = Array.isArray(items) ? items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : [];
+  const result = [];
+  for (const item of scanned) {
+    const source = item?.source || item?.sourceLocation || {};
+    const sourceUrl = source.url || item?.node?.nodeUrl || item?.url;
+    const detail = { sourceClass: passiveListenerSourceClass(sourceUrl, expectedOrigin) };
+    const lineNumber = safeSourcePosition(typeof source.lineNumber === 'number' ? source.lineNumber : item?.lineNumber);
+    const columnNumber = safeSourcePosition(typeof source.columnNumber === 'number' ? source.columnNumber : item?.columnNumber);
+    if (lineNumber !== undefined) detail.lineNumber = lineNumber;
+    if (columnNumber !== undefined) detail.columnNumber = columnNumber;
+    result.push(detail);
+    if (result.length >= MAX_SAFE_DIAGNOSTIC_GROUPS) break;
+  }
+  return result;
+}
+
 function boundedDiagnosticCount(value) {
   return Math.min(value, 99);
 }
@@ -355,7 +398,10 @@ export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
       reportPresent: Boolean(report),
       consoleErrors: sourceCounts('errors-in-console'),
       consoleErrorKinds,
-      passiveListeners: sourceCounts('uses-passive-event-listeners'),
+      passiveListeners: {
+        ...sourceCounts('uses-passive-event-listeners'),
+        items: passiveListenerSummary(audits['uses-passive-event-listeners']?.details?.items, origin),
+      },
       failedNetworkRequests: failedNetworkRequestSummary(audits['network-requests']?.details?.items, origin),
       crawlabilityFailure: audits['is-crawlable']?.score === 0,
       forcedReflow: { totalMs: Math.round(totalReflowMs), attributableCount, unattributedCount },

@@ -90,6 +90,12 @@ jobs:
           path: lighthouse-cli
           persist-credentials: false
 
+      # The pinned trace analyzer mixed JS/layout stacks from different threads.
+      # Verify its exact source and positive controls before collecting any report.
+      - name: Isolate pinned Lighthouse reflow analysis by process and thread
+        shell: bash
+        run: node "$GITHUB_WORKSPACE/trusted-lighthouse/scripts/patch-lighthouse-reflow.mjs" "$GITHUB_WORKSPACE/lighthouse-cli"
+
       - name: Prepare fresh isolated measurement directory
         shell: bash
         run: |
