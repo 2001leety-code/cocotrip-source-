@@ -161,12 +161,51 @@ describe('pure Lighthouse preview result verification', () => {
     expect(safeLighthouseAssertionSummary([value]).failures).toEqual([]);
   });
 
+  it.each([
+    ...['bootup-time', 'first-meaningful-paint', 'mainthread-work-breakdown',
+      'max-potential-fid', 'speed-index', 'interactive', 'dom-size-insight',
+      'dom-size', 'is-on-https', 'server-response-time', 'is-crawlable']
+      .map(auditId => [auditId, 'minScore', 0.9, 0.5] as const),
+    ...['duplicated-javascript', 'legacy-javascript', 'cache-insight',
+      'modern-image-formats', 'render-blocking-insight', 'render-blocking-resources',
+      'uses-long-cache-ttl'].map(auditId => [auditId, 'maxLength', 0, 2] as const),
+  ])('classifies the pinned %s warning without changing its level', (auditId, name, expected, actual) => {
+    const input = assertion({ auditId, auditProperty: undefined, name, level: 'warn', expected, actual,
+      message: PRIVATE_TEXT, url: `${ORIGIN}/?key=${PRIVATE_TEXT}` });
+    expect(safeLighthouseAssertionSummary([input])).toEqual({
+      failures: [{ auditId, level: 'warn', expected, actual }], unknownCount: 0, suppressedCount: 0,
+    });
+    const missing = { ...input, name: 'auditRan', expected: 1, actual: 0 };
+    expect(safeLighthouseAssertionSummary([missing]).failures).toEqual([
+      { auditId, level: 'warn', expected: 1, actual: 0 },
+    ]);
+    expect(safeLighthouseAssertionSummary([{ ...input, level: 'error' }])).toEqual({
+      failures: [], unknownCount: 0, suppressedCount: 1,
+    });
+  });
+
+  it('groups only identical validated metrics so repeated routes do not consume the output cap', () => {
+    const warning = assertion({ auditId: 'dom-size-insight', auditProperty: undefined,
+      name: 'minScore', level: 'warn', expected: 0.9, actual: 0.5 });
+    const output = safeLighthouseAssertionSummary([
+      ...Array.from({ length: 120 }, () => warning),
+      { ...warning, actual: 0.6 }, { ...warning, expected: 0.8 },
+      assertion({ auditId: PRIVATE_TEXT }),
+    ]);
+    expect(output).toEqual({ failures: [
+      { auditId: 'dom-size-insight', level: 'warn', expected: 0.9, actual: 0.5, occurrences: 99 },
+      { auditId: 'dom-size-insight', level: 'warn', expected: 0.9, actual: 0.6 },
+    ], unknownCount: 1, suppressedCount: 1 });
+    expect(JSON.stringify(output)).not.toContain(PRIVATE_TEXT);
+  });
+
   it('caps output while preserving fixed unknown and suppressed counts', () => {
     const valid = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
     const unknown = assertion({ auditId: `untrusted-${PRIVATE_TEXT}`, auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
     const malformed = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.91, actual: 0.8 });
     const output = safeLighthouseAssertionSummary([
-      ...Array.from({ length: 21 }, () => valid), ...Array.from({ length: 100 }, () => unknown), malformed,
+      ...Array.from({ length: 21 }, (_, index) => ({ ...valid, actual: index / 100 })),
+      ...Array.from({ length: 100 }, () => unknown), malformed,
     ]);
     expect(output.failures).toHaveLength(20);
     expect(output.unknownCount).toBe(99);
