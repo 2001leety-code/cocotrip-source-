@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle, signInWithLine, handleRedirectResult } from '@/lib/firebase';
+import { signInWithGoogle, signInWithLine, handleRedirectResult } from '@/lib/firebase-auth';
 import { useLanguage } from '@/hooks/useLanguage';
 import '@/styles/editorial-auth-required.css';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —

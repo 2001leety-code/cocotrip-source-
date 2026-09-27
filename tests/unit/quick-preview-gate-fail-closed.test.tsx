@@ -22,6 +22,7 @@ import { renderHook, act } from '@testing-library/react';
 import type { PlannerFormValues } from '../../src/components/PlannerForm';
 
 vi.mock('../../src/lib/firebase', () => ({ auth: { currentUser: null } }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('../../src/lib/guestReader', () => ({
   isGuestAnonEnabled: () => false,

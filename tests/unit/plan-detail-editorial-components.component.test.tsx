@@ -42,6 +42,7 @@ vi.mock('@/hooks/useLanguage', () => ({
 }));
 
 vi.mock('@/lib/firebase', () => ({ storage: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));
 vi.mock('firebase/storage', () => ({
   ref: vi.fn(),
   uploadBytes: vi.fn(),

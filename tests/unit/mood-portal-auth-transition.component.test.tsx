@@ -11,7 +11,7 @@ vi.mock('@/hooks/useAuth', () => ({
 }));
 vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => ({ language: 'ko' }) }));
 vi.mock('@/lib/authFetch', () => ({ authFetch: (...args: unknown[]) => authFetchMock(...args) }));
-vi.mock('@/lib/firebase', () => ({ signInWithGoogle: vi.fn() }));
+vi.mock('@/lib/firebase-auth', () => ({ signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/appReady', () => ({ signalAppReady: vi.fn() }));
 vi.mock('@/components/MoodRouteMap', () => ({ MoodRouteMap: () => null }));
 vi.mock('@/components/PwaInstallButton', () => ({ PwaInstallButton: () => null }));

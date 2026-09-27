@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
@@ -35,6 +33,10 @@ export function useNextTrip(): NextTrip | null {
     let cancelled = false;
     (async () => {
       try {
+        const [{ collection, query, where, getDocs }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        if (cancelled) return;
         const snap = await getDocs(query(collection(db, 'plans'), where('uid', '==', uid)));
         const now = Date.now();
         let nearest: NextTrip | null = null;

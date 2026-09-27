@@ -24,6 +24,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => authState.current }));
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('@/lib/authFetch', () => ({ authFetch }));
 vi.mock('@/lib/firebase', () => ({ db: {}, signInWithGoogle: vi.fn(), getAvailableAiCoupon }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: {}, signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({
   trackPaidConversion: vi.fn(), trackBeginCheckout: vi.fn(), getAttributionSnapshot: () => null,
 }));

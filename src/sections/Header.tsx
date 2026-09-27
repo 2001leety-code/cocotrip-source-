@@ -10,7 +10,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Language, Translations } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
-import { auth, signInWithGoogle } from '@/lib/firebase';
+import { auth, signInWithGoogle } from '@/lib/firebase-auth';
 import { signOut } from 'firebase/auth';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';

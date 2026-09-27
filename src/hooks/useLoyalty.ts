@@ -12,10 +12,6 @@
  */
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import {
-  doc, onSnapshot, collection, query, orderBy, limit,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { isAdminEmail } from '@/lib/admin';
 
 export type TierType = 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
@@ -111,85 +107,101 @@ export function useLoyalty() {
     const adminNow = isAdminEmail(user?.email);
     const unsubs: (() => void)[] = [];
 
-    // 1. User document (tier, coins)
-    unsubs.push(
-      onSnapshot(
-        doc(db, 'users', uid),
-        (snap) => {
-          if (cancelled) return;
-          const data = snap.data();
-          if (!data) {
-            // 🔴 회원 문서가 없는 계정은 "도착했고 값이 없음"으로 **명시 기록**한다.
-            //   예전처럼 아무것도 안 쓰면 이전 계정의 등급·코인이 그대로 남는다.
-            setLoyaltySlot({ uid, value: null });
-            return;
-          }
-          const tier = (data.tier as TierType) || 'Bronze';
-          setLoyaltySlot({
-            uid,
-            value: {
-              tier,
-              // 숫자 필드라 nullish 병합과 `|| 0` 이 동일 결과다. 레포 pre-commit 가드가
-              // nullish 연산자를 mojibake 신호로 차단해 `|| 0` 을 쓴다 (동작 변화 없음).
-              tripCoins: data.tripCoins || 0,
-              totalSpentUSD: data.totalSpentUSD || 0,
-              bookingCount: data.bookingCount || 0,
-              earnRate: TIER_EARN_RATE[tier],
+    void (async () => {
+      try {
+        const [{ doc, onSnapshot, collection, query, orderBy, limit }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        if (cancelled) return;
+        // 1. User document (tier, coins)
+        unsubs.push(
+          onSnapshot(
+            doc(db, 'users', uid),
+            (snap) => {
+              if (cancelled) return;
+              const data = snap.data();
+              if (!data) {
+                // 🔴 회원 문서가 없는 계정은 "도착했고 값이 없음"으로 **명시 기록**한다.
+                //   예전처럼 아무것도 안 쓰면 이전 계정의 등급·코인이 그대로 남는다.
+                setLoyaltySlot({ uid, value: null });
+                return;
+              }
+              const tier = (data.tier as TierType) || 'Bronze';
+              setLoyaltySlot({
+                uid,
+                value: {
+                  tier,
+                  // 숫자 필드라 nullish 병합과 `|| 0` 이 동일 결과다. 레포 pre-commit 가드가
+                  // nullish 연산자를 mojibake 신호로 차단해 `|| 0` 을 쓴다 (동작 변화 없음).
+                  tripCoins: data.tripCoins || 0,
+                  totalSpentUSD: data.totalSpentUSD || 0,
+                  bookingCount: data.bookingCount || 0,
+                  earnRate: TIER_EARN_RATE[tier],
+                },
+              });
             },
-          });
-        },
-        // 구독 오류에도 이전 계정 자료가 남지 않게 현재 uid 의 빈 값으로 확정한다.
-        () => { if (!cancelled) setLoyaltySlot({ uid, value: null }); },
-      )
-    );
+            // 구독 오류에도 이전 계정 자료가 남지 않게 현재 uid 의 빈 값으로 확정한다.
+            () => { if (!cancelled) setLoyaltySlot({ uid, value: null }); },
+          )
+        );
 
-    // 2. Coupons
-    unsubs.push(
-      onSnapshot(
-        collection(db, 'users', uid, 'coupons'),
-        (snap) => {
-          if (cancelled) return;
-          const all = snap.docs.map(d => ({
-            id: d.id,
-            ...(d.data() as Omit<Coupon, 'id'>),
-          }));
-          // 🔴 만료 판정은 **스냅샷 콜백(이벤트)** 에서 한다. 렌더 중 시계를 읽으면
-          //   같은 입력에 다른 결과가 나와 렌더가 불안정해진다(react-hooks/purity).
-          // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.
-          // 🔴 2026-07-29: 회수(isRevoked)된 쿠폰은 **어드민에게도** 숨긴다.
-          //   결제 5경로가 이미 isRevoked 로 거절하므로, 목록에만 남으면
-          //   "보이는데 안 되는" 쿠폰이 된다.
-          const now = Date.now();
-          const active = all.filter(
-            c => c.isRevoked !== true && (adminNow || !c.isUsed) && c.expiresAt > now,
-          );
-          setCouponSlot({ uid, value: { all, active } });
-        },
-        () => { if (!cancelled) setCouponSlot({ uid, value: EMPTY_COUPON_DATA }); },
-      )
-    );
+        // 2. Coupons
+        unsubs.push(
+          onSnapshot(
+            collection(db, 'users', uid, 'coupons'),
+            (snap) => {
+              if (cancelled) return;
+              const all = snap.docs.map(d => ({
+                id: d.id,
+                ...(d.data() as Omit<Coupon, 'id'>),
+              }));
+              // 🔴 만료 판정은 **스냅샷 콜백(이벤트)** 에서 한다. 렌더 중 시계를 읽으면
+              //   같은 입력에 다른 결과가 나와 렌더가 불안정해진다(react-hooks/purity).
+              // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.
+              // 🔴 2026-07-29: 회수(isRevoked)된 쿠폰은 **어드민에게도** 숨긴다.
+              //   결제 5경로가 이미 isRevoked 로 거절하므로, 목록에만 남으면
+              //   "보이는데 안 되는" 쿠폰이 된다.
+              const now = Date.now();
+              const active = all.filter(
+                c => c.isRevoked !== true && (adminNow || !c.isUsed) && c.expiresAt > now,
+              );
+              setCouponSlot({ uid, value: { all, active } });
+            },
+            () => { if (!cancelled) setCouponSlot({ uid, value: EMPTY_COUPON_DATA }); },
+          )
+        );
 
-    // 3. Point history (최근 30건)
-    unsubs.push(
-      onSnapshot(
-        query(
-          collection(db, 'users', uid, 'pointHistory'),
-          orderBy('createdAt', 'desc'),
-          limit(30),
-        ),
-        (snap) => {
-          if (cancelled) return;
-          setHistorySlot({
-            uid,
-            value: snap.docs.map(d => ({
-              id: d.id,
-              ...(d.data() as Omit<PointLog, 'id'>),
-            })),
-          });
-        },
-        () => { if (!cancelled) setHistorySlot({ uid, value: EMPTY_HISTORY }); },
-      )
-    );
+        // 3. Point history (최근 30건)
+        unsubs.push(
+          onSnapshot(
+            query(
+              collection(db, 'users', uid, 'pointHistory'),
+              orderBy('createdAt', 'desc'),
+              limit(30),
+            ),
+            (snap) => {
+              if (cancelled) return;
+              setHistorySlot({
+                uid,
+                value: snap.docs.map(d => ({
+                  id: d.id,
+                  ...(d.data() as Omit<PointLog, 'id'>),
+                })),
+              });
+            },
+            () => { if (!cancelled) setHistorySlot({ uid, value: EMPTY_HISTORY }); },
+          )
+        );
+      } catch (err) {
+        if (cancelled) return;
+        unsubs.forEach(fn => fn());
+        unsubs.length = 0;
+        setLoyaltySlot({ uid, value: null });
+        setCouponSlot({ uid, value: EMPTY_COUPON_DATA });
+        setHistorySlot({ uid, value: EMPTY_HISTORY });
+        console.warn('[useLoyalty] subscription failed:', err);
+      }
+    })();
 
     return () => { cancelled = true; unsubs.forEach(fn => fn()); };
     // user.email 은 어드민 판정(쿠폰 노출 규칙)에 쓰이므로 의존성에 포함한다.

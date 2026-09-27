@@ -1,8 +1,6 @@
 // usePushSubscription — Web Push 권한 요청 + Service Worker subscribe + Firestore 저장.
 // Cocotrip plan-ready 알림용. iOS 16.4+ 는 PWA 홈 화면 추가 후에만 동작.
 import { useState, useCallback } from 'react';
-import { doc, setDoc, deleteDoc, getDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import {
   getConfiguredVapidPublicKey,
@@ -51,6 +49,9 @@ export function usePushSubscription() {
       const subJson = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
       const endpoint = subJson.endpoint || '';
       const subId = btoa(endpoint).slice(-32);
+      const [{ doc, setDoc, serverTimestamp }, { db }] = await Promise.all([
+        import('firebase/firestore'), import('@/lib/firebase.js'),
+      ]);
       await setDoc(doc(db, 'push_subscriptions', `${user.uid}_${subId}`), {
         uid: user.uid, endpoint, keys: subJson.keys || {}, vapidPublicKey: configured.value,
         userAgent: navigator.userAgent, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
@@ -70,6 +71,9 @@ export function usePushSubscription() {
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
         const subId = btoa((sub.toJSON() as { endpoint?: string }).endpoint || '').slice(-32);
+        const [{ doc, deleteDoc }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
         await deleteDoc(doc(db, 'push_subscriptions', `${user.uid}_${subId}`));
         await sub.unsubscribe();
       }
@@ -92,6 +96,9 @@ export function usePushSubscription() {
     const existingKey = getPushSubscriptionApplicationServerKeyBytes(sub.options?.applicationServerKey);
     if (!existingKey || !isSameVapidPublicKey(existingKey, configured.bytes)) return false;
     const subId = btoa((sub.toJSON() as { endpoint?: string }).endpoint || '').slice(-32);
+    const [{ doc, getDoc, getDocFromServer }, { db }] = await Promise.all([
+      import('firebase/firestore'), import('@/lib/firebase.js'),
+    ]);
     const reference = doc(db, 'push_subscriptions', `${user.uid}_${subId}`);
     const snap = options?.serverOnly ? await getDocFromServer(reference) : await getDoc(reference);
     return snap.exists();

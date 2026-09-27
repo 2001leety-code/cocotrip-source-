@@ -49,6 +49,7 @@ vi.mock('firebase/auth', () => ({
 }));
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('@/lib/firebase', () => ({ db: {}, auth: { get currentUser() { return authUser.current; } }, signInWithGoogle: vi.fn() }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { get currentUser() { return authUser.current; } }, signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({
   trackDateSelect: vi.fn(), trackTourBookingStart: vi.fn(), trackTourStep: vi.fn(),
   trackPaidConversion: vi.fn(), trackBeginCheckout: vi.fn(), getAttributionSnapshot: vi.fn(() => null),

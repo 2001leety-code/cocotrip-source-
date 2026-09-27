@@ -14,6 +14,7 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot: vi.fn(), serverTimestamp: vi.fn(),
 }));
 vi.mock('@/lib/firebase', () => ({ auth: {}, db: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));
 
 import { CartCheckout } from '../../src/components/CartCheckout';
 import { LanguageProvider } from '../../src/hooks/useLanguage';

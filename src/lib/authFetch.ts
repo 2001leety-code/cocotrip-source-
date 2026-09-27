@@ -20,7 +20,7 @@
  * mistake-lint can catch raw `fetch('/api/...')` against the protected
  * endpoint allowlist (see scripts/check-mistake-lint.mjs P43 rule).
  */
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase-auth';
 
 export async function authFetch(
   input: RequestInfo | URL,

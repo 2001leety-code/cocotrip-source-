@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => ({ user: state.user }) }));
-vi.mock('@/lib/firebase', () => ({ db: {} }));
+vi.mock('../../src/lib/firebase', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, ...parts: string[]) => parts.join('/'),
   doc: (_db: unknown, ...parts: string[]) => parts.join('/'),
@@ -25,6 +25,7 @@ describe('user collection callbacks retain uid-only identity', () => {
   it('keeps callbacks stable for the same uid and directs writes to the current uid', async () => {
     state.user = { uid: 'synthetic-a' };
     const hook = renderHook(() => ({ cart: useCart(), wishlist: useWishlist(), itinerary: useItinerary() }));
+    await act(async () => { await vi.dynamicImportSettled(); });
     const original = hook.result.current;
     state.user = { uid: 'synthetic-a' };
     hook.rerender();
@@ -40,6 +41,7 @@ describe('user collection callbacks retain uid-only identity', () => {
     state.user = { uid: 'synthetic-b' };
     hook.rerender();
     expect(hook.result.current.cart.add).not.toBe(original.cart.add);
+    await act(async () => { await vi.dynamicImportSettled(); });
     await act(async () => {
       await hook.result.current.cart.remove('cart-id');
       await hook.result.current.wishlist.toggle({ id: 'wish-id', productType: 'tour', name: 'Synthetic tour' });
@@ -64,9 +66,10 @@ describe('user collection callbacks retain uid-only identity', () => {
     expect(state.remove).not.toHaveBeenCalled();
   });
 
-  it('restores guest collections and clears the displayed itinerary when uid becomes absent', () => {
+  it('restores guest collections and clears the displayed itinerary when uid becomes absent', async () => {
     state.user = { uid: 'synthetic-user' };
     const hook = renderHook(() => ({ cart: useCart(), wishlist: useWishlist(), itinerary: useItinerary() }));
+    await act(async () => { await vi.dynamicImportSettled(); });
     localStorage.setItem('COCO_WISHLIST', JSON.stringify([{ id: 'guest-wish', productType: 'tour', name: 'Guest wish', addedAt: 1 }]));
     state.user = null;
     hook.rerender();

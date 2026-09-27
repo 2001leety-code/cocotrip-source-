@@ -10,7 +10,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { useCharterFunnelTracking } from './useCharterFunnelTracking';
 import { resolveDestinationKeyLabel } from './destinationDisplayLabels';

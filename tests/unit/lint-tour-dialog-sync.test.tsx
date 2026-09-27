@@ -22,6 +22,7 @@ const { authState, firestore } = vi.hoisted(() => ({
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => authState.current }));
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('@/lib/firebase', () => ({ db: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { get currentUser() { return authState.current.user; } } }));
 vi.mock('@/lib/tour-availability-store', () => ({ fetchMonthAvailability: vi.fn(async () => new Map()) }));
 vi.mock('@/lib/analytics', () => ({ trackDateSelect: vi.fn(), trackTourBookingStart: vi.fn(), trackTourStep: vi.fn() }));
 

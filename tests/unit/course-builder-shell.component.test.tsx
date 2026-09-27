@@ -21,7 +21,7 @@ let mockUser: { uid: string } | null = null;
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: mockUser, loading: false, error: null }) }));
 
 const signInMock = vi.fn();
-vi.mock('@/lib/firebase', () => ({ signInWithGoogle: () => signInMock(), auth: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ signInWithGoogle: () => signInMock(), auth: {} }));
 
 const authFetchMock = vi.fn();
 vi.mock('@/lib/authFetch', () => ({ authFetch: (...args: unknown[]) => authFetchMock(...args) }));

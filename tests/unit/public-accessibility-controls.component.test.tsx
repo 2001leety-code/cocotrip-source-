@@ -14,7 +14,7 @@ import type { WizardState } from '../../src/components/charter/types';
 void React;
 vi.mock('../../src/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
-vi.mock('../../src/lib/firebase', () => ({ auth: {}, signInWithGoogle: vi.fn() }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: {}, signInWithGoogle: vi.fn() }));
 vi.mock('firebase/auth', () => ({ signOut: vi.fn() }));
 vi.mock('../../src/components/LoyaltyBadge', () => ({ LoyaltyBadge: () => null }));
 vi.mock('../../src/components/WishlistButton', () => ({ WishlistPanel: () => null }));

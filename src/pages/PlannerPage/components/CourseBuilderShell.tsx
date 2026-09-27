@@ -20,7 +20,7 @@ import {
 
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { authFetch } from '@/lib/authFetch';
 import { useItinerary } from '@/hooks/useItinerary';
 import { naverMapSearchUrl } from '@/lib/naverMap';

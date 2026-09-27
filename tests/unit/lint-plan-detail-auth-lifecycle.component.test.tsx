@@ -13,6 +13,7 @@ vi.mock('../../src/hooks/useAuth', () => ({
   useAuth: () => ({ user: null, loading: authLoading }),
 }));
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
   onSnapshot: vi.fn(),

@@ -61,7 +61,8 @@ const HISTORY: Record<string, Array<Record<string, unknown>>> = {
 };
 
 /** 한 갈래만 골라 발화시킨다 — 도착 순서 조합을 만들기 위해서. */
-function emit(uid: string, kind: 'user' | 'coupons' | 'pointHistory') {
+async function emit(uid: string, kind: 'user' | 'coupons' | 'pointHistory') {
+  await act(async () => { await vi.dynamicImportSettled(); });
   act(() => {
     for (const s of subs) {
       if (!s.live || s.uid !== uid || s.kind !== kind) continue;
@@ -75,7 +76,8 @@ function emit(uid: string, kind: 'user' | 'coupons' | 'pointHistory') {
 }
 
 /** 회원 문서가 **없는** 계정. */
-function emitMissingUserDoc(uid: string) {
+async function emitMissingUserDoc(uid: string) {
+  await act(async () => { await vi.dynamicImportSettled(); });
   act(() => {
     for (const s of subs) {
       if (s.live && s.uid === uid && s.kind === 'user') s.cb({ id: uid, data: () => undefined });
@@ -83,7 +85,8 @@ function emitMissingUserDoc(uid: string) {
   });
 }
 
-function emitError(uid: string, kind: string) {
+async function emitError(uid: string, kind: string) {
+  await act(async () => { await vi.dynamicImportSettled(); });
   act(() => {
     for (const s of subs) {
       if (s.live && s.uid === uid && s.kind === kind) s.err(new Error('permission-denied'));
@@ -107,23 +110,23 @@ beforeEach(() => {
 });
 
 /** A 로 로그인해 세 갈래가 전부 도착한 상태를 만든다. */
-function loadFullyAsA() {
+async function loadFullyAsA() {
   authHolder.user = { uid: 'A' };
   const h = renderHook(() => useLoyalty());
-  for (const k of ORDERS[0]) emit('A', k);
+  for (const k of ORDERS[0]) await emit('A', k);
   return h;
 }
 
 describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   it('A 전부 로드 → B 회원 문서만 도착: A 쿠폰·이력이 0개로 보인다', async () => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.coupons).toHaveLength(2);
     expect(result.current.pointHistory).toHaveLength(1);
 
     authHolder.user = { uid: 'B' };
     rerender();
-    emit('B', 'user');           // 🔴 회원 문서만 도착
+    await emit('B', 'user');           // 🔴 회원 문서만 도착
 
     expect(result.current.coupons).toHaveLength(0);
     expect(result.current.activeCoupons).toHaveLength(0);
@@ -132,14 +135,14 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   });
 
   it('B 회원 문서가 없어도 A 의 등급·코인이 남지 않는다', async () => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loyalty?.tripCoins).toBe(756986));
 
     authHolder.user = { uid: 'B' };
     rerender();
-    emitMissingUserDoc('B');
-    emit('B', 'coupons');
-    emit('B', 'pointHistory');
+    await emitMissingUserDoc('B');
+    await emit('B', 'coupons');
+    await emit('B', 'pointHistory');
 
     // 세 갈래 모두 B 것으로 도착 → 노출은 되지만 값은 "없음"이어야 한다.
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -148,13 +151,13 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   });
 
   it.each(ORDERS)('도착 순서 %s 에서도 계정 혼용이 없다', async (...order) => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     authHolder.user = { uid: 'B' };
     rerender();
     for (const kind of order) {
-      emit('B', kind);
+      await emit('B', kind);
       // 마지막 갈래 전까지는 A 자료가 단 하나도 새면 안 된다.
       const isLast = kind === order[order.length - 1];
       if (!isLast) {
@@ -170,7 +173,7 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   });
 
   it('A → 로그아웃 → B 경유도 A 자료가 남지 않는다', async () => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     authHolder.user = null;                       // 로그아웃
@@ -183,20 +186,20 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
     authHolder.user = { uid: 'B' };
     rerender();
     expect(result.current.coupons).toHaveLength(0);
-    for (const k of ORDERS[0]) emit('B', k);
+    for (const k of ORDERS[0]) await emit('B', k);
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.loyalty?.tier).toBe('Silver');
   });
 
   it('구독 오류가 나도 이전 계정 자료가 노출되지 않는다', async () => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.coupons).toHaveLength(2));
 
     authHolder.user = { uid: 'B' };
     rerender();
-    emit('B', 'user');
-    emitError('B', 'coupons');          // 🔴 쿠폰 구독 실패
-    emit('B', 'pointHistory');
+    await emit('B', 'user');
+    await emitError('B', 'coupons');          // 🔴 쿠폰 구독 실패
+    await emit('B', 'pointHistory');
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.coupons).toHaveLength(0);      // A 것으로 대체되지 않는다
@@ -204,13 +207,13 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   });
 
   it('구독 해제 뒤 늦게 도착한 A 콜백이 B 를 덮지 못한다', async () => {
-    const { result, rerender } = loadFullyAsA();
+    const { result, rerender } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loading).toBe(false));
     const staleA = subs.find(s => s.uid === 'A' && s.kind === 'coupons');
 
     authHolder.user = { uid: 'B' };
     rerender();
-    for (const k of ORDERS[0]) emit('B', k);
+    for (const k of ORDERS[0]) await emit('B', k);
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // 해제된 A 구독이 뒤늦게 발화 — B 화면은 그대로여야 한다.
@@ -222,7 +225,7 @@ describe('useLoyalty — 계정 전환 개인정보 잔상 (FAIL-13)', () => {
   });
 
   it('회수(isRevoked) 쿠폰은 사용 가능 목록에서 계속 빠진다', async () => {
-    const { result } = loadFullyAsA();
+    const { result } = await loadFullyAsA();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.coupons.map(c => c.id)).toEqual(['a-live', 'a-revoked']);
     expect(result.current.activeCoupons.map(c => c.id)).toEqual(['a-live']);

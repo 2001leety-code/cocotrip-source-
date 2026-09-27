@@ -15,6 +15,7 @@ const { fakeDb, fakeAuth, trackShare, updateDoc, doc, authListener, toastError }
 vi.mock('firebase/auth', () => ({ onAuthStateChanged: (...args: unknown[]) => authListener(...args as [unknown, (user: null) => void]) }));
 vi.mock('firebase/firestore', () => ({ doc: (...args: unknown[]) => doc(...args), updateDoc: (...args: unknown[]) => updateDoc(...args) }));
 vi.mock('@/lib/firebase', () => ({ auth: fakeAuth, db: fakeDb }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: fakeAuth }));
 vi.mock('@/lib/analytics', () => ({ trackShare: (...args: unknown[]) => trackShare(...args) }));
 vi.mock('@/lib/posthog', () => ({ track: vi.fn(async () => {}) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...args: unknown[]) => toastError(...args), info: vi.fn() } }));

@@ -11,10 +11,6 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
-import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { stripUndefined, type CartItem } from '@/lib/cart-types';
 import {
   getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart,
@@ -38,25 +34,39 @@ export function useCart() {
   useEffect(() => {
     if (!userId) return;
     const uid = userId;
-    const colRef = collection(db, 'users', uid, 'cart');
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    void (async () => {
+      try {
+        const [{ collection, doc, setDoc, onSnapshot, serverTimestamp }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        if (cancelled) return;
+        const colRef = collection(db, 'users', uid, 'cart');
 
-    // 게스트 cart → 로그인 머지 (1회, 멱등). writer = Firestore setDoc 주입.
-    void mergeGuestCart((item) => setDoc(
-      doc(db, 'users', uid, 'cart', item.id),
-      { ...stripUndefined(item), serverAddedAt: serverTimestamp() },
-      { merge: true },
-    ));
+        // 게스트 cart → 로그인 머지 (1회, 멱등). writer = Firestore setDoc 주입.
+        void mergeGuestCart((item) => setDoc(
+          doc(db, 'users', uid, 'cart', item.id),
+          { ...stripUndefined(item), serverAddedAt: serverTimestamp() },
+          { merge: true },
+        ));
 
-    const unsub = onSnapshot(colRef, (snap) => {
-      const list: CartItem[] = snap.docs.map(d => ({
-        id: d.id,
-        ...(d.data() as Omit<CartItem, 'id'>),
-      }));
-      list.sort((a, b) => b.addedAt - a.addedAt);
-      setItems(list);
-      setLoading(false);
-    });
-    return () => unsub();
+        unsubscribe = onSnapshot(colRef, (snap) => {
+          if (cancelled) return;
+          const list: CartItem[] = snap.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as Omit<CartItem, 'id'>),
+          }));
+          list.sort((a, b) => b.addedAt - a.addedAt);
+          setItems(list);
+          setLoading(false);
+        });
+      } catch (err) {
+        if (!cancelled) setLoading(false);
+        console.warn('[useCart] subscription failed:', err);
+      }
+    })();
+    return () => { cancelled = true; unsubscribe?.(); };
   }, [userId]);
 
   // ── 담기 ──
@@ -64,6 +74,9 @@ export function useCart() {
     const full: CartItem = { ...item, addedAt: Date.now() };
     if (userId) {
       try {
+        const [{ doc, setDoc, serverTimestamp }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
         await setDoc(doc(db, 'users', userId, 'cart', item.id), {
           ...stripUndefined(full),
           serverAddedAt: serverTimestamp(),
@@ -79,7 +92,12 @@ export function useCart() {
   // ── 제거 ──
   const remove = useCallback(async (id: string) => {
     if (userId) {
-      try { await deleteDoc(doc(db, 'users', userId, 'cart', id)); }
+      try {
+        const [{ doc, deleteDoc }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        await deleteDoc(doc(db, 'users', userId, 'cart', id));
+      }
       catch (err) { console.warn('[useCart] remove failed:', err); }
     } else {
       setItems(removeFromLocalCart(id));
@@ -91,6 +109,9 @@ export function useCart() {
     if (userId) {
       const uid = userId;
       try {
+        const [{ doc, deleteDoc }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
         await Promise.all(items.map(i => deleteDoc(doc(db, 'users', uid, 'cart', i.id))));
       } catch (err) { console.warn('[useCart] clear failed:', err); }
     } else {

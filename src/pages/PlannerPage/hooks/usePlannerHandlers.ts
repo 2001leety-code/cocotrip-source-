@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import { cityNameToAreaKey } from '../lib/formatters';
-import { auth as firebaseAuth } from '@/lib/firebase';
+import { auth as firebaseAuth } from '@/lib/firebase-auth.js';
 import { isGuestAnonEnabled, shouldAttachGuestAnonToken } from '@/lib/guestReader';
 import { markPlannerPendingComplete } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';

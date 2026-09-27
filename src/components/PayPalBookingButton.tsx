@@ -5,7 +5,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
 import { formatPrice } from '@/lib/exchange-rate';
