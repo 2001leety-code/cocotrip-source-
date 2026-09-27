@@ -378,7 +378,7 @@ describe('offline fixed-directory CLI adapter', () => {
         { sourceLocation: { url: PRIVATE_TEXT }, description: PRIVATE_TEXT },
         { sourceLocation: { url: ORIGIN + '/cors.js?token=' + PRIVATE_TEXT }, description: 'Access-Control-Allow-Origin: ' + PRIVATE_TEXT },
       ] } },
-      'uses-passive-event-listeners': { details: { items: [{ source: { type: 'source-location', url: ORIGIN + '/app.js' } }] } },
+      'uses-passive-event-listeners': { details: { items: [{ source: { type: 'source-location', url: ORIGIN + '/assets/entry-main.js?key=' + PRIVATE_TEXT, lineNumber: 0, columnNumber: 8 } }] } },
       'crawlable-anchors': { score: 0, details: { items: [{ url: hostile }] } },
       'is-crawlable': { score: 1 },
       'network-requests': { details: { items: [
@@ -406,7 +406,10 @@ describe('offline fixed-directory CLI adapter', () => {
       reportPresent: true,
       consoleErrors: { firstParty: 2, vercelToolbar: 1, other: 1, unknown: 1 },
       consoleErrorKinds: { cors: 1, csp: 1, resourceLoad: 1, runtime: 1, other: 1 },
-      passiveListeners: { firstParty: 1, vercelToolbar: 0, other: 0, unknown: 0 },
+      passiveListeners: {
+        firstParty: 1, vercelToolbar: 0, other: 0, unknown: 0,
+        items: [{ sourceClass: 'app-entry', lineNumber: 0, columnNumber: 8 }],
+      },
       failedNetworkRequests: {
         items: [
           { source: 'firstParty', requestClass: 'promo-config', statusCode: 500, count: 1 },
@@ -454,6 +457,44 @@ describe('offline fixed-directory CLI adapter', () => {
     expect(JSON.stringify(output.failedNetworkRequests)).not.toContain(PRIVATE_TEXT);
     expect(output.forcedReflow).toEqual({ totalMs: 999999, attributableCount: 0, unattributedCount: 99 });
     expect(safeLighthouseDiagnosticSummary([report()], ORIGIN)[1]).toMatchObject({ reportPresent: false });
+  });
+
+  it('returns only fixed source classes and bounded source positions for passive listeners', () => {
+    const input = report();
+    input.audits = { 'uses-passive-event-listeners': { details: { items: [
+      { source: { url: `${ORIGIN}/assets/vendor-react-abc123.js?token=${PRIVATE_TEXT}#private`, lineNumber: 4, columnNumber: 7 } },
+      { source: { url: `${ORIGIN}/_vercel/feedback/toolbar.js?token=${PRIVATE_TEXT}`, lineNumber: -1, columnNumber: Number.POSITIVE_INFINITY } },
+      { source: { url: `https://vercel.live/toolbar.js?token=${PRIVATE_TEXT}`, lineNumber: 8, columnNumber: 9 } },
+      { source: { url: `${ORIGIN}/tours?token=${PRIVATE_TEXT}`, lineNumber: 1_000_001, columnNumber: 3 } },
+      { source: { url: `https://third.example/assets/app.js?token=${PRIVATE_TEXT}`, lineNumber: 1.5, columnNumber: 2 } },
+      { source: { url: `https://bad host.invalid/${PRIVATE_TEXT}`, lineNumber: 2, columnNumber: 3 } },
+      { source: { url: `${ORIGIN}/assets/vendor-firebase-core-abc123.js`, lineNumber: 2, columnNumber: 3 } },
+      { source: { url: `${ORIGIN}/assets/firebase-auth-abc123.js`, lineNumber: 2, columnNumber: 3 } },
+      { source: { url: `${ORIGIN}/assets/vendor-motion-abc123.js`, lineNumber: 2, columnNumber: 3 } },
+      { source: { url: `${ORIGIN}/assets/other.js`, lineNumber: 2, columnNumber: 3 } },
+      { source: { url: `${ORIGIN}/app.js`, lineNumber: 2, columnNumber: 3 } },
+      ...Array.from({ length: 40 }, () => ({ source: { url: `${ORIGIN}/assets/entry-x.js`, lineNumber: 2, columnNumber: 3 } })),
+    ] } } };
+    const result = safeLighthouseDiagnosticSummary([input], ORIGIN)[0].passiveListeners;
+    expect(result.items).toHaveLength(32);
+    expect(result.items.slice(0, 11)).toEqual([
+      { sourceClass: 'react-runtime', lineNumber: 4, columnNumber: 7 },
+      { sourceClass: 'vercel-toolbar' },
+      { sourceClass: 'vercel-toolbar', lineNumber: 8, columnNumber: 9 },
+      { sourceClass: 'document', columnNumber: 3 },
+      { sourceClass: 'third-party', columnNumber: 2 },
+      { sourceClass: 'unknown', lineNumber: 2, columnNumber: 3 },
+      { sourceClass: 'firebase-auth/core', lineNumber: 2, columnNumber: 3 },
+      { sourceClass: 'firebase-auth/core', lineNumber: 2, columnNumber: 3 },
+      { sourceClass: 'motion', lineNumber: 2, columnNumber: 3 },
+      { sourceClass: 'other-static', lineNumber: 2, columnNumber: 3 },
+      { sourceClass: 'unknown', lineNumber: 2, columnNumber: 3 },
+    ]);
+    expect(JSON.stringify(result)).not.toContain(PRIVATE_TEXT);
+    expect(JSON.stringify(result)).not.toContain('vendor-react-abc123.js');
+    expect(JSON.stringify(result)).not.toContain('token=');
+    expect(JSON.stringify(result)).not.toContain('#private');
+    expect(safeLighthouseDiagnosticSummary([report()], ORIGIN)[0].passiveListeners.items).toEqual([]);
   });
 
   it('prints the fixed safe assertion summary from the only permitted artifact filename', () => {
