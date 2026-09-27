@@ -1,6 +1,6 @@
 // CharterNewPage — 위저드 기반 신규 차터 견적/예약 플로우.
 // wizard.onComplete → 결제 패널 전환 (PayPalBookingButton 또는 WhatsApp 견적 요청)
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, MessageCircle, Pencil } from 'lucide-react';
 import { Header } from '@/sections/Header';
@@ -13,13 +13,12 @@ import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { CharterSeoInfo } from '@/components/charter/CharterSeoInfo';
 import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
-import { PayPalBookingButton } from '@/components/PayPalBookingButton';
-import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { buildCharterCartItem } from '@/components/charter/charterCartItem';
 import { CartAddButton } from '@/components/CartButton';
 import { isFeatureFlagOn } from '@/lib/featureFlag';
-import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewEditModals';
+import { EditFieldModal } from '@/components/charter/ReviewEditModals';
+import type { EditFieldSpec } from '@/components/charter/ReviewEditModals';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useCharterRouteKm } from '@/lib/charterRouteKm';
@@ -33,6 +32,9 @@ import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
 import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
 import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
 import { resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
+
+const PayPalBookingButton = lazy(() => import('@/components/PayPalBookingButton').then(({ PayPalBookingButton }) => ({ default: PayPalBookingButton })));
+const RefundPolicyModal = lazy(() => import('@/components/tours/RefundPolicyModal').then(({ RefundPolicyModal }) => ({ default: RefundPolicyModal })));
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -87,23 +89,27 @@ export default function CharterNewPage() {
 
       <main className={`mx-auto max-w-6xl px-4 ${isMobile ? 'pb-8' : 'pb-20'}`}>
         {!completedState ? (
-          <CharterWizard
-            initialState={initial}
-            onComplete={(state, c) => {
-              setCompletedState(state);
-              setConsent(c ?? { termsAgreed: false, marketingConsent: false });
-            }}
-            language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
-          />
+          <Suspense fallback={<div role="status" aria-live="polite" className="py-8 text-center text-sm text-white/60">{t.planner.loading}</div>}>
+            <CharterWizard
+              initialState={initial}
+              onComplete={(state, c) => {
+                setCompletedState(state);
+                setConsent(c ?? { termsAgreed: false, marketingConsent: false });
+              }}
+              language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
+            />
+          </Suspense>
         ) : (
-          <PaymentPanel
-            state={completedState}
-            consent={consent}
-            userEmail={user?.email ?? ''}
-            language={language as 'ko' | 'en' | 'ja' | 'zh'}
-            onBack={() => { setCompletedState(null); setConsent({ termsAgreed: false, marketingConsent: false }); }}
-            onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
-          />
+          <Suspense fallback={<div role="status" aria-live="polite" className="py-8 text-center text-sm text-white/60">{t.planner.loading}</div>}>
+            <PaymentPanel
+              state={completedState}
+              consent={consent}
+              userEmail={user?.email ?? ''}
+              language={language as 'ko' | 'en' | 'ja' | 'zh'}
+              onBack={() => { setCompletedState(null); setConsent({ termsAgreed: false, marketingConsent: false }); }}
+              onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
+            />
+          </Suspense>
         )}
 
         {/* K-pop 콘서트 셔틀 — 2026-07-25 이식.

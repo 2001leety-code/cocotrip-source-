@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { lazy, Suspense, useState, useMemo } from 'react';
 import { Music, MapPin, Calendar, ExternalLink, Star, Minus, Plus, ArrowRight, Info } from 'lucide-react';
 import { getUpcomingConcerts } from '@/data/kpopConcerts';
-import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useLanguage } from '@/hooks/useLanguage';
+
+const PayPalBookingButton = lazy(() => import('@/components/PayPalBookingButton').then(({ PayPalBookingButton }) => ({ default: PayPalBookingButton })));
 
 interface Props {
   p: Record<string, string | undefined>;
@@ -242,19 +243,21 @@ export function KpopShuttleBanner({ p }: Props) {
 
           {/* PayPal Button */}
           {canBook && (
-            <PayPalBookingButton
-              productType={tripType === 'oneway' ? 'kpop_shuttle_oneway' : 'kpop_shuttle_roundtrip'}
-              passengers={pax}
-              dateStart={selected.dates[0]}
-              dateEnd={selected.dates[selected.dates.length - 1]}
-              priceKRW={totalPrice}
-              p={p}
-              lang={language}
-              pickupLocation={pickup}
-              dropoffLocation={selected.venue}
-              vehicleType="staria"
-              memo={`${selected.artist} - ${selected.tourName}`}
-            />
+            <Suspense fallback={<span role="status" aria-live="polite" className="text-xs text-white/55">{globalT.planner.loading}</span>}>
+              <PayPalBookingButton
+                productType={tripType === 'oneway' ? 'kpop_shuttle_oneway' : 'kpop_shuttle_roundtrip'}
+                passengers={pax}
+                dateStart={selected.dates[0]}
+                dateEnd={selected.dates[selected.dates.length - 1]}
+                priceKRW={totalPrice}
+                p={p}
+                lang={language}
+                pickupLocation={pickup}
+                dropoffLocation={selected.venue}
+                vehicleType="staria"
+                memo={`${selected.artist} - ${selected.tourName}`}
+              />
+            </Suspense>
           )}
 
           {/* Ticket Note */}
