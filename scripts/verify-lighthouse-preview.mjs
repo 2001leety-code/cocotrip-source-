@@ -47,6 +47,18 @@ const RECOMMENDED_MAX_LENGTH_ERROR_AUDITS = new Set([
   'efficient-animated-content', 'offscreen-images', 'unminified-css', 'unminified-javascript',
   'unused-css-rules', 'unused-javascript', 'uses-optimized-images', 'uses-responsive-images',
 ]);
+// The pinned recommended preset also emits warnings. is-crawlable is this
+// repository's warn override; omitted warnings must not become unknown errors.
+const RECOMMENDED_MIN_SCORE_WARN_AUDITS = new Set([
+  'bootup-time', 'first-meaningful-paint', 'mainthread-work-breakdown',
+  'max-potential-fid', 'speed-index', 'interactive', 'dom-size-insight',
+  'dom-size', 'is-on-https', 'server-response-time', 'is-crawlable',
+]);
+const RECOMMENDED_MAX_LENGTH_WARN_AUDITS = new Set([
+  'duplicated-javascript', 'legacy-javascript', 'cache-insight',
+  'modern-image-formats', 'render-blocking-insight', 'render-blocking-resources',
+  'uses-long-cache-ttl',
+]);
 const SAFE_CATEGORY_RULES = new Map([
   ['performance', { level: 'warn', expected: 0.5 }],
   ['accessibility', { level: 'error', expected: 0.85 }],
@@ -99,11 +111,13 @@ function categoryRule(assertion) {
 function recommendedRule(assertion) {
   if (typeof assertion.auditId !== 'string' || assertion.auditProperty !== undefined) return null;
   const { auditId } = assertion;
-  if (RECOMMENDED_MIN_SCORE_ERROR_AUDITS.has(auditId)) {
-    return { auditId, level: 'error', expected: 0.9, name: 'minScore', min: 0, max: 1 };
+  if (RECOMMENDED_MIN_SCORE_ERROR_AUDITS.has(auditId) || RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(auditId)) {
+    return { auditId, level: RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(auditId) ? 'warn' : 'error',
+      expected: 0.9, name: 'minScore', min: 0, max: 1 };
   }
-  if (RECOMMENDED_MAX_LENGTH_ERROR_AUDITS.has(auditId)) {
-    return { auditId, level: 'error', expected: 0, name: 'maxLength', min: 0, max: MAX_SAFE_AUDIT_LENGTH };
+  if (RECOMMENDED_MAX_LENGTH_ERROR_AUDITS.has(auditId) || RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(auditId)) {
+    return { auditId, level: RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(auditId) ? 'warn' : 'error',
+      expected: 0, name: 'maxLength', min: 0, max: MAX_SAFE_AUDIT_LENGTH };
   }
   const numericExpected = SAFE_MAX_NUMERIC_WARN_RULES.get(auditId);
   if (numericExpected !== undefined) {
@@ -129,6 +143,8 @@ function knownAssertionIdentity(assertion) {
   return typeof assertion.auditId === 'string'
     && (RECOMMENDED_MIN_SCORE_ERROR_AUDITS.has(assertion.auditId)
       || RECOMMENDED_MAX_LENGTH_ERROR_AUDITS.has(assertion.auditId)
+      || RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(assertion.auditId)
+      || RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(assertion.auditId)
       || SAFE_MAX_NUMERIC_WARN_RULES.has(assertion.auditId));
 }
 
@@ -152,7 +168,19 @@ export function safeLighthouseAssertionSummary(assertionResults) {
     const valid = assertion.level === rule.level && assertion.name === rule.name
       && assertion.expected === rule.expected && typeof assertion.actual === 'number'
       && Number.isFinite(assertion.actual) && assertion.actual >= rule.min && assertion.actual <= rule.max;
-    if (!valid || summary.failures.length >= MAX_SAFE_ASSERTION_FAILURES) {
+    if (!valid) {
+      summary.suppressedCount = boundedCount(summary.suppressedCount + 1);
+      continue;
+    }
+    // Identical failures across routes should not hide later audit types.
+    // Keep the existing output cap; only add a bounded repetition count.
+    const repeated = summary.failures.find((failure) => failure.auditId === rule.auditId
+      && failure.level === rule.level && failure.actual === assertion.actual && failure.expected === rule.expected);
+    if (repeated) {
+      repeated.occurrences = boundedCount((repeated.occurrences || 1) + 1);
+      continue;
+    }
+    if (summary.failures.length >= MAX_SAFE_ASSERTION_FAILURES) {
       summary.suppressedCount = boundedCount(summary.suppressedCount + 1);
       continue;
     }

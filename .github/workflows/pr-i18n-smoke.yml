@@ -157,8 +157,10 @@ jobs:
           # Vercel Pro Deployment Protection bypass — preview URLs return 401
           # without this. See playwright.config.ts for the header wiring.
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          PLAYWRIGHT_HTML_OUTPUT_DIR: tests/report/i18n-locale-smoke
         run: |
           npx playwright test tests/e2e/i18n-locale-smoke.spec.ts \
+            --output test-results/i18n-locale-smoke \
             --project='Desktop Chrome' \
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
@@ -170,8 +172,10 @@ jobs:
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          PLAYWRIGHT_HTML_OUTPUT_DIR: tests/report/nav-link-transitions
         run: |
           npx playwright test tests/e2e/nav-link-transitions.spec.ts \
+            --output test-results/nav-link-transitions \
             --project='Desktop Chrome' \
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
@@ -187,11 +191,13 @@ jobs:
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          PLAYWRIGHT_HTML_OUTPUT_DIR: tests/report/analytics-charter
         run: |
           npx playwright test \
             tests/e2e/analytics-guard.spec.ts \
             tests/e2e/charter-entry-friction.spec.ts \
             tests/e2e/charter-funnel-probe.spec.ts \
+            --output test-results/analytics-charter \
             --project='Desktop Chrome' \
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
@@ -206,5 +212,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-pr-${{ github.run_id }}
-          path: tests/report
+          path: tests/report/
           retention-days: 14
