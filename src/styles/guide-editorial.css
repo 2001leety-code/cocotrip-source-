@@ -5,13 +5,8 @@
    cannot put utility classes on. Everything else on the two guide screens is
    built from `.ec-*` classes and `ec-` Tailwind utilities.
 
-   Why a new class instead of restyling `.guide-article`: that selector lives in
-   `src/index.css` and is written for the dark system (white-alpha ink, #B668FC
-   links). Another PR is editing that file right now, and overriding it from an
-   async chunk would mean winning a load-order race on every property. Switching
-   the component to `.ec-prose` makes the old rules simply stop matching — no
-   cascade fight, no shared line to conflict on. The dead `.guide-article` block
-   is removed with the rest of the dark cascade when that PR lands.
+   `.ec-prose` replaced the old dark `.guide-article` class. Its unused global
+   rules were removed from index.css; article styles stay in this lazy chunk.
 
    Values are semantic tokens only (src/styles/editorial.css). No hex here.
    ═══════════════════════════════════════════════════════════════════════════ */

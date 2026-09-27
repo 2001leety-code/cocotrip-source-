@@ -381,15 +381,14 @@ describe('시각 언어 — 다크 셸·그라데이션·글로우·글래스 �
 });
 
 describe('스코프 — 다른 레인의 파일을 건드리지 않는다', () => {
-  // #1275 가 src/index.css 와 src/i18n/locales/*.json 을 동시에 고치고 있다.
-  // 본문 프로즈 스타일은 index.css 의 `.guide-article`(다크) 을 덮어쓰는 대신
-  // 새 클래스로 갈아탄다 — 특이도 싸움도, 같은 줄 충돌도 없다.
-  it('본문 프로즈는 index.css 의 .guide-article 이 아니라 자체 .ec-prose 를 쓴다', () => {
+  // 본문은 공통 CSS의 예전 `.guide-article` 규칙 대신 lazy guide CSS의 `.ec-prose`를 쓴다.
+  it('본문 프로즈는 죽은 전역 .guide-article 없이 자체 .ec-prose 를 쓴다', () => {
     const page = read('src/pages/GuidePage.tsx');
     const article = read('src/sections/guide/GuideArticleBody.tsx');
     expect(`${page}${article}`, 'still bound to the dark .guide-article cascade').not.toMatch(
       /className="[^"]*\bguide-article\b/,
     );
+    expect(read('src/index.css')).not.toContain('.guide-article');
     expect(read('src/styles/guide-editorial.css')).toMatch(/\.ec-prose\b/);
     expect(page).toMatch(/guide-editorial\.css/);
   });
