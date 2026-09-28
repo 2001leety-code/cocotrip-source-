@@ -302,8 +302,12 @@ function passiveListenerSummary(items, expectedOrigin) {
     const source = item?.source || item?.sourceLocation || {};
     const sourceUrl = source.url || item?.node?.nodeUrl || item?.url;
     const detail = { sourceClass: passiveListenerSourceClass(sourceUrl, expectedOrigin) };
-    const lineNumber = safeSourcePosition(typeof source.lineNumber === 'number' ? source.lineNumber : item?.lineNumber);
-    const columnNumber = safeSourcePosition(typeof source.columnNumber === 'number' ? source.columnNumber : item?.columnNumber);
+    const lineNumber = safeSourcePosition(typeof source.line === 'number' ? source.line
+      : typeof source.lineNumber === 'number' ? source.lineNumber
+        : typeof item?.line === 'number' ? item.line : item?.lineNumber);
+    const columnNumber = safeSourcePosition(typeof source.column === 'number' ? source.column
+      : typeof source.columnNumber === 'number' ? source.columnNumber
+        : typeof item?.column === 'number' ? item.column : item?.columnNumber);
     if (lineNumber !== undefined) detail.lineNumber = lineNumber;
     if (columnNumber !== undefined) detail.columnNumber = columnNumber;
     result.push(detail);
