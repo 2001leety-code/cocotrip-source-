@@ -423,6 +423,15 @@ describe('offline fixed-directory CLI adapter', () => {
       },
       crawlabilityFailure: false,
       forcedReflow: { totalMs: 100, attributableCount: 1, unattributedCount: 1 },
+      unusedResources: {
+        css: { count: 0, totalBytes: 0, wastedBytes: 0, wastedPercent: 0 },
+        javascript: { count: 0, totalBytes: 0, wastedBytes: 0, wastedPercent: 0 },
+      },
+      networkDependencyTree: {
+        longestChainMs: 0, nodeCount: 0, maxDepth: 0,
+        assetClasses: { css: 0, javascript: 0, other: 0 },
+        sources: { firstParty: 0, thirdParty: 0, unknown: 0 },
+      },
     });
     expect(summary).toHaveLength(3);
     expect(JSON.stringify(summary)).not.toContain(PRIVATE_TEXT);
@@ -503,6 +512,44 @@ describe('offline fixed-directory CLI adapter', () => {
     expect(JSON.stringify(result)).not.toContain('token=');
     expect(JSON.stringify(result)).not.toContain('#private');
     expect(safeLighthouseDiagnosticSummary([report()], ORIGIN)[0].passiveListeners.items).toEqual([]);
+  });
+
+  it('summarizes unused assets and dependency chains with bounded safe fields', () => {
+    const input = report();
+    input.audits = {
+      'unused-css-rules': { details: { items: [
+        { url: `https://host.invalid/private.css?key=${PRIVATE_TEXT}`, totalBytes: 1200, wastedBytes: 800, wastedPercent: 66.7 },
+        { url: `https://host.invalid/private.js?key=${PRIVATE_TEXT}`, totalBytes: 900, wastedBytes: 500, wastedPercent: 55 },
+      ] } },
+      'unused-javascript': { details: { items: [
+        { url: `https://host.invalid/private.js?key=${PRIVATE_TEXT}`, totalBytes: 5000, wastedBytes: 4000, wastedPercent: 80 },
+        { url: `https://host.invalid/private.mjs?key=${PRIVATE_TEXT}`, totalBytes: 999999999, wastedBytes: -1, wastedPercent: 140 },
+      ] } },
+      'network-dependency-tree-insight': { details: {
+        longestChain: { duration: 432.4 },
+        chains: { rootRequestId: { url: `${ORIGIN}/root.js?key=${PRIVATE_TEXT}`, children: {
+          styleRequestId: { url: `https://host.invalid/style.css?token=${PRIVATE_TEXT}`, children: {
+            appRequestId: { url: `${ORIGIN}/app.js?token=${PRIVATE_TEXT}` },
+          } },
+        } } },
+      } },
+    };
+    const summary = safeLighthouseDiagnosticSummary([input], ORIGIN)[0];
+    expect(summary.unusedResources).toEqual({
+      css: { count: 1, totalBytes: 1200, wastedBytes: 800, wastedPercent: 67 },
+      javascript: { count: 2, totalBytes: 999999999, wastedBytes: 4000, wastedPercent: 100 },
+    });
+    expect(summary.networkDependencyTree).toEqual({
+      longestChainMs: 432,
+      nodeCount: 3,
+      maxDepth: 3,
+      assetClasses: { css: 1, javascript: 2, other: 0 },
+      sources: { firstParty: 2, thirdParty: 1, unknown: 0 },
+    });
+    expect(JSON.stringify(summary)).not.toContain(PRIVATE_TEXT);
+    expect(JSON.stringify(summary)).not.toContain('host.invalid');
+    expect(JSON.stringify(summary)).not.toContain('private.js');
+    expect(JSON.stringify(summary)).not.toContain('token=');
   });
 
   it('prints the fixed safe assertion summary from the only permitted artifact filename', () => {

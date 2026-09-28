@@ -326,6 +326,7 @@ export const processPlanAfterAI = inngest.createFunction(
         body: ctx.body,
         itinerary: itinAfterBackfill,
         uid: ctx.uid,
+        verifiedHistoryUid: ctx.verifiedHistoryUid,
         vehicle: ctx.vehicle,
         priceKRW,
         priceUSD,

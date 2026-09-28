@@ -184,7 +184,7 @@ describe('full planner journey: real handler → route/post-response → persist
 
     const { planId } = result.json.data;
     const stored = boundary.db?.__get(`plans/${planId}`);
-    expect(stored).toMatchObject({ planId, status: 'ready', itinerary: { tour_title: generated.tour_title } });
+    expect(stored).toMatchObject({ planId, status: 'ready', verifiedHistoryUid: 'synthetic-planner-user', itinerary: { tour_title: generated.tour_title } });
     expect(stored?.itinerary.days[0].stops.some((stop: { name: string }) => stop.name === 'Haeundae Beach')).toBe(true);
     const lodgings = stored?.itinerary.days[0].stops.filter((stop: { category: string }) => stop.category === 'lodging');
     expect(lodgings).toHaveLength(2);
@@ -224,7 +224,7 @@ describe('full planner journey: real handler → route/post-response → persist
       await runWorker({ event, logger: console, step: { run: async (_name, fn) => fn() } });
     } else expect(boundary.sendEvent).not.toHaveBeenCalled();
     const stored = boundary.db?.__get(`plans/${result.json.data.planId}`);
-    expect(stored).toMatchObject({ status: 'ready', plannerMode: 'block_mode', blocksUsed: [haeundae.id] });
+    expect(stored).toMatchObject({ status: 'ready', plannerMode: 'block_mode', verifiedHistoryUid: 'synthetic-planner-user', blocksUsed: [haeundae.id] });
     expect(boundary.generate).toHaveBeenCalledTimes(1);
     const readRes = response();
     await getPlanHandler({ method: 'GET', query: { planId: stored?.planId, token: stored?.accessToken } }, readRes);

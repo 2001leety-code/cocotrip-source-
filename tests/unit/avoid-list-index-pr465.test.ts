@@ -119,21 +119,16 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
   });
 
   function makeIndexMissingDb() {
+    const query: Record<string, unknown> = {};
+    for (const method of ['where', 'orderBy', 'limit']) query[method] = () => query;
+    query.get = async () => {
+      const err = Object.assign(new Error(
+        'The query requires an index. You can create it here: https://console.firebase.google.com/project/cocotrip/firestore/indexes?create_composite=XYZ',
+      ), { code: 'FAILED_PRECONDITION' });
+      throw err;
+    };
     return {
-      collection: () => ({
-        orderBy: () => ({
-          limit: () => ({
-            where: () => ({
-              get: async () => {
-                const err = Object.assign(new Error(
-                  'The query requires an index. You can create it here: https://console.firebase.google.com/project/cocotrip/firestore/indexes?create_composite=XYZ',
-                ), { code: 'FAILED_PRECONDITION' });
-                throw err;
-              },
-            }),
-          }),
-        }),
-      }),
+      collection: () => query,
     };
   }
 
@@ -142,7 +137,7 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
     const result = await buildAvoidClause(db, { uid: 'user-1', requestEmail: undefined });
     expect(result).toBe('');
     expect(alertCalls.length).toBe(1);
-    expect(alertCalls[0].key).toBe('avoid-list-index-missing:uid');
+    expect(alertCalls[0].key).toBe('avoid-list-index-missing:verifiedHistoryUid');
     expect(alertCalls[0].channel).toBe('admin');
     expect(alertCalls[0].severity).toBe('high');
     expect(alertCalls[0].message).toMatch(/AVOID list Firestore index missing/);
@@ -150,49 +145,34 @@ describe('PR #465 X-H7 — buildAvoidClause alert on index missing', () => {
     expect(alertCalls[0].message).toMatch(/1-click create/);
   });
 
-  it('email query + index missing → fires alert with kind=email (separate dedup)', async () => {
+  it('guest email is not used as a history identity and performs no query', async () => {
     const db = makeIndexMissingDb();
-    const result = await buildAvoidClause(db, { uid: undefined, requestEmail: 'guest@example.com' });
+    const result = await buildAvoidClause(db, { uid: null, requestEmail: 'guest@example.com' });
     expect(result).toBe('');
-    expect(alertCalls.length).toBe(1);
-    expect(alertCalls[0].key).toBe('avoid-list-index-missing:email');
+    expect(alertCalls.length).toBe(0);
   });
 
   it('non-index error (e.g. permission denied) → returns "" but NO alert', async () => {
-    const db = {
-      collection: () => ({
-        orderBy: () => ({
-          limit: () => ({
-            where: () => ({
-              get: async () => { throw new Error('permission denied'); },
-            }),
-          }),
-        }),
-      }),
-    };
+    const query: Record<string, unknown> = {};
+    for (const method of ['where', 'orderBy', 'limit']) query[method] = () => query;
+    query.get = async () => { throw new Error('permission denied'); };
+    const db = { collection: () => query };
     const result = await buildAvoidClause(db, { uid: 'user-1', requestEmail: undefined });
     expect(result).toBe('');
     expect(alertCalls.length).toBe(0);
   });
 
   it('happy path (no error) → returns AVOID clause AND no alert', async () => {
-    const db = {
-      collection: () => ({
-        orderBy: () => ({
-          limit: () => ({
-            where: () => ({
-              get: async () => ({
+    const query: Record<string, unknown> = {};
+    for (const method of ['where', 'orderBy', 'limit']) query[method] = () => query;
+    query.get = async () => ({
                 size: 2,
                 forEach: (cb: (doc: { data: () => unknown }) => void) => {
                   cb({ data: () => ({ itinerary: { days: [{ stops: [{ category: 'food', name: '광장시장 김밥' }] }] } }) });
                   cb({ data: () => ({ itinerary: { days: [{ stops: [{ category: 'food', name: '부근진토 갈비' }] }] } }) });
                 },
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
+              });
+    const db = { collection: () => query };
     const result = await buildAvoidClause(db, { uid: 'user-1', requestEmail: undefined });
     expect(result).toMatch(/광장시장 김밥/);
     expect(result).toMatch(/부근진토 갈비/);
@@ -221,6 +201,13 @@ describe('PR #465 X-H7 — firestore.indexes.json has the required composite ind
   it('plans.uid + createdAt DESC index is defined', () => {
     expect(hasIndex('plans', [
       { fieldPath: 'uid', order: 'ASCENDING' },
+      { fieldPath: 'createdAt', order: 'DESCENDING' },
+    ])).toBe(true);
+  });
+
+  it('plans.verifiedHistoryUid + createdAt DESC index is defined', () => {
+    expect(hasIndex('plans', [
+      { fieldPath: 'verifiedHistoryUid', order: 'ASCENDING' },
       { fieldPath: 'createdAt', order: 'DESCENDING' },
     ])).toBe(true);
   });

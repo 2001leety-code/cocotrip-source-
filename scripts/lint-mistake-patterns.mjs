@@ -5182,10 +5182,10 @@ function P90_dbmatcherCityGuard({ changed }) {
 /**
  * P89_avoidListIndexAlert — 메모리 P89 (PR #465, Audit X-H7).
  * api/_ai_core/avoidListQuery.js 의 Firestore composite-index 누락 silent
- * catch 면 fail. 또한 firestore.indexes.json 의 plans.uid/email 인덱스 누락 검출.
+ * catch 면 fail. 또한 최근 이력 조회용 복합 인덱스 누락 검출.
  * - isFirestoreIndexMissingError + extractIndexCreationUrl export 필수
  * - catch 에서 alert 호출 + 구조화된 빈 이력 반환 (legacy wrapper 는 clause='' 반환)
- * - plans.uid+createdAt / plans.email+createdAt 인덱스 firestore.indexes.json 에 존재
+ * - plans.verifiedHistoryUid+createdAt 인덱스 firestore.indexes.json 에 존재
  */
 function P89_avoidListIndexAlert({ changed }) {
   const CODE = 'api/_ai_core/avoidListQuery.js';
@@ -5257,16 +5257,10 @@ function P89_avoidListIndexAlert({ changed }) {
             entry.fields.every((f, i) => f.fieldPath === fields[i].fieldPath && f.order === fields[i].order),
           );
         if (!hasIndex('plans', [
-          { fieldPath: 'uid', order: 'ASCENDING' },
+          { fieldPath: 'verifiedHistoryUid', order: 'ASCENDING' },
           { fieldPath: 'createdAt', order: 'DESCENDING' },
         ])) {
-          violations.push(`${INDEXES}: plans.uid+createdAt DESC 인덱스 누락 → avoidListQuery 매 호출 fail (X-H7)`);
-        }
-        if (!hasIndex('plans', [
-          { fieldPath: 'email', order: 'ASCENDING' },
-          { fieldPath: 'createdAt', order: 'DESCENDING' },
-        ])) {
-          violations.push(`${INDEXES}: plans.email+createdAt DESC 인덱스 누락 → guest 사용자 avoidListQuery fail`);
+          violations.push(`${INDEXES}: plans.verifiedHistoryUid+createdAt DESC 인덱스 누락 → 인증 사용자 avoidListQuery 실패`);
         }
       } catch (parseErr) {
         violations.push(`${INDEXES}: JSON parse 실패 (${parseErr.message}) — firebase deploy 거부`);

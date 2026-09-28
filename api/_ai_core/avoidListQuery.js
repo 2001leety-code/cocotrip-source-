@@ -9,14 +9,8 @@
  * Non-critical: any Firestore failure here returns an empty string so the
  * planner proceeds without the AVOID clause rather than failing the request.
  *
- * PR #465 (Audit X-H7 — 2026-05-16): Firestore composite-index detection.
- * Pre-fix: missing `plans.uid+createdAt` / `plans.email+createdAt` indexes
- * threw FAILED_PRECONDITION on EVERY user. catch was console.warn-only —
- * operator never knew the AVOID clause was disabled in prod, users got
- * repeat restaurants ("왜 매번 같은 식당 추천?" complaints). Now we
- * detect the index-missing error pattern, fire a once-per-window admin
- * alert with the Firebase-provided index-creation URL, and still return
- * '' (fail-OPEN — AVOID clause is non-critical to plan delivery).
+ * Only verifiedHistoryUid is eligible for this query. Legacy `uid` and email
+ * fields are not proof of ownership and are deliberately ignored.
  */
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
@@ -42,16 +36,11 @@ export function extractIndexCreationUrl(err) {
   return match ? match[0] : '';
 }
 
-export async function buildAvoidContext(adminDb, { uid, requestEmail }) {
+export async function buildAvoidContext(adminDb, { uid }) {
   const empty = { clause: '', foodNames: [], blockIds: [] };
-  if (!adminDb || (!uid && !requestEmail)) return empty;
+  if (!adminDb || !uid) return empty;
   try {
-    let q = adminDb.collection('plans').orderBy('createdAt', 'desc').limit(3);
-    if (uid) {
-      q = q.where('uid', '==', uid);
-    } else {
-      q = q.where('email', '==', requestEmail);
-    }
+    const q = adminDb.collection('plans').where('verifiedHistoryUid', '==', uid).orderBy('createdAt', 'desc').limit(3);
     const snap = await q.get();
     const usedNames = new Set();
     const usedBlocks = new Set();
@@ -86,7 +75,7 @@ export async function buildAvoidContext(adminDb, { uid, requestEmail }) {
 
     // PR #465 (X-H7): index-missing path — operator MUST know.
     if (isFirestoreIndexMissingError(err)) {
-      const queryKind = uid ? 'uid' : 'email';
+      const queryKind = 'verifiedHistoryUid';
       const indexUrl = extractIndexCreationUrl(err);
       throttledTelegramAlert({
         key: `avoid-list-index-missing:${queryKind}`,

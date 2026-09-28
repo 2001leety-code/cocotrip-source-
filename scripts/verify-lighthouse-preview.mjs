@@ -320,6 +320,59 @@ function boundedDiagnosticCount(value) {
   return Math.min(value, 99);
 }
 
+function safeDiagnosticInteger(value) {
+  return Number.isFinite(value) && value > 0 ? Math.min(999999999, Math.round(value)) : 0;
+}
+
+function safeAssetClass(value) {
+  let pathname = '';
+  try { pathname = new URL(value).pathname.toLowerCase(); } catch { return 'other'; }
+  if (/\.css$/.test(pathname)) return 'css';
+  if (/\.m?js$/.test(pathname)) return 'javascript';
+  return 'other';
+}
+
+function unusedResourceSummary(audits, auditId, assetClass) {
+  const summary = { count: 0, totalBytes: 0, wastedBytes: 0, wastedPercent: 0 };
+  const items = audits[auditId]?.details?.items;
+  for (const item of Array.isArray(items) ? items.slice(0, MAX_SAFE_DIAGNOSTIC_SCAN) : []) {
+    if (safeAssetClass(item?.url) !== assetClass) continue;
+    summary.count = boundedDiagnosticCount(summary.count + 1);
+    summary.totalBytes = Math.min(999999999, summary.totalBytes + safeDiagnosticInteger(item?.totalBytes));
+    summary.wastedBytes = Math.min(999999999, summary.wastedBytes + safeDiagnosticInteger(item?.wastedBytes));
+    if (Number.isFinite(item?.wastedPercent)) summary.wastedPercent = Math.max(summary.wastedPercent,
+      Math.min(100, Math.max(0, Math.round(item.wastedPercent))));
+  }
+  return summary;
+}
+
+function networkDependencySummary(audit, expectedOrigin) {
+  const summary = { longestChainMs: 0, nodeCount: 0, maxDepth: 0,
+    assetClasses: { css: 0, javascript: 0, other: 0 }, sources: { firstParty: 0, thirdParty: 0, unknown: 0 } };
+  const details = audit?.details;
+  summary.longestChainMs = safeDiagnosticInteger(details?.longestChain?.duration);
+  let scanned = 0;
+  const visit = (nodes, depth) => {
+    if (!isRecord(nodes)) return;
+    for (const node of Object.values(nodes)) {
+      if (!isRecord(node) || scanned >= MAX_SAFE_DIAGNOSTIC_SCAN) break;
+      scanned++;
+      summary.nodeCount = boundedDiagnosticCount(summary.nodeCount + 1);
+      summary.maxDepth = Math.min(MAX_SAFE_DIAGNOSTIC_SCAN, Math.max(summary.maxDepth, depth));
+      const request = isRecord(node.request) ? node.request : isRecord(node.node) ? node.node : node;
+      const url = request.url || request.devtoolsNode?.url;
+      const kind = safeAssetClass(url);
+      summary.assetClasses[kind] = boundedDiagnosticCount(summary.assetClasses[kind] + 1);
+      const source = diagnosticSource(url, expectedOrigin);
+      const sourceClass = source === 'firstParty' ? 'firstParty' : source === 'other' ? 'thirdParty' : 'unknown';
+      summary.sources[sourceClass] = boundedDiagnosticCount(summary.sources[sourceClass] + 1);
+      visit(node.children, depth + 1);
+    }
+  };
+  visit(details?.chains, 1);
+  return summary;
+}
+
 function consoleErrorKind(description) {
   if (typeof description !== 'string') return 'other';
   const text = description.slice(0, 2000).toLowerCase();
@@ -407,6 +460,11 @@ export function safeLighthouseDiagnosticSummary(reports, expectedOrigin) {
         items: passiveListenerSummary(audits['uses-passive-event-listeners']?.details?.items, origin),
       },
       failedNetworkRequests: failedNetworkRequestSummary(audits['network-requests']?.details?.items, origin),
+      unusedResources: {
+        css: unusedResourceSummary(audits, 'unused-css-rules', 'css'),
+        javascript: unusedResourceSummary(audits, 'unused-javascript', 'javascript'),
+      },
+      networkDependencyTree: networkDependencySummary(audits['network-dependency-tree-insight'], origin),
       crawlabilityFailure: audits['is-crawlable']?.score === 0,
       forcedReflow: { totalMs: Math.round(totalReflowMs), attributableCount, unattributedCount },
     };

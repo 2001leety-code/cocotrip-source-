@@ -19,6 +19,13 @@ import { describe, it, expect } from 'vitest';
 import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
 
 describe('planner-intent-v1 — money boundary (startDate/durationDays/pax)', () => {
+  it('uses verified token uid and discards spoofed body uid (guests have no history identity)', () => {
+    expect(shapeRequest({ uid: 'victim' }, 'test@example.com', false, 'verified-user').uid).toBeNull();
+    expect(shapeRequest({ uid: 'verified-user' }, 'test@example.com', false, 'verified-user').uid).toBe('verified-user');
+    expect(shapeRequest({}, 'test@example.com', false, 'verified-user').uid).toBeNull();
+    expect(shapeRequest({ uid: 'victim' }, null, true, null).uid).toBeNull();
+  });
+
   it('conflicting explicit v1 durationDays/startDate/pax never override the shaped flat values', () => {
     const body = {
       pax: 3,
