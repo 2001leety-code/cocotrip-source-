@@ -106,6 +106,8 @@ const COPY: Record<Lang, {
   bestForTitle: string;
   flowTitle: Record<'tour' | 'editorial', string>;
   movementTitle: string;
+  officialSourcesTitle: string;
+  officialSourcesNote: string;
   relatedTitle: string;
   tourFlowLead: (tourTitle: string) => string;
   actionLink: (action: 'planner' | 'charter', region: string) => { title: string; description: string };
@@ -128,6 +130,8 @@ const COPY: Record<Lang, {
       editorial: '하루 구성 제안 (예약 일정 아님)',
     },
     movementTitle: '도착·이동 판단',
+    officialSourcesTitle: '공식 안내 확인',
+    officialSourcesNote: '운영·교통·입장 정보는 바뀔 수 있으니 방문 전에 출처에서 확인하세요. 이 출처는 코코트립 상품을 보증하거나 추천하지 않습니다.',
     relatedTitle: '다음 계획으로 연결',
     tourFlowLead: (tourTitle) => `현재 ${tourTitle} 상품 데이터에 적힌 순서입니다. 예약 전 상품 상세에서 최신 일정을 다시 확인하세요.`,
     actionLink: (action, region) => action === 'planner'
@@ -191,6 +195,8 @@ const COPY: Record<Lang, {
       editorial: 'Suggested day shape (not a booked itinerary)',
     },
     movementTitle: 'Arrival and movement decision',
+    officialSourcesTitle: 'Check official information',
+    officialSourcesNote: 'Transport, entry and operating details can change; check the source before your visit. These sources do not endorse or recommend CocoTrip products.',
     relatedTitle: 'Continue planning',
     tourFlowLead: (tourTitle) => `This is the sequence in the current ${tourTitle} product data. Recheck the latest itinerary on the product page before booking.`,
     actionLink: (action, region) => action === 'planner'
@@ -254,6 +260,8 @@ const COPY: Record<Lang, {
       editorial: '1日の組み立て案（予約行程ではありません）',
     },
     movementTitle: '到着・移動の判断',
+    officialSourcesTitle: '公式案内を確認',
+    officialSourcesNote: '交通・入場・運営情報は変更される場合があります。訪問前にリンク先をご確認ください。各機関はCocoTripの商品を保証・推奨するものではありません。',
     relatedTitle: '次の計画へ',
     tourFlowLead: (tourTitle) => `現在の「${tourTitle}」商品データに記載された順序です。予約前に商品詳細で最新の行程をご確認ください。`,
     actionLink: (action, region) => action === 'planner'
@@ -317,6 +325,8 @@ const COPY: Record<Lang, {
       editorial: '一日安排建议（非预订行程）',
     },
     movementTitle: '抵达与移动判断',
+    officialSourcesTitle: '查看官方信息',
+    officialSourcesNote: '交通、入场及运营信息可能变更，请在出行前查看来源页面。相关机构并未为CocoTrip产品背书或推荐。',
     relatedTitle: '继续规划',
     tourFlowLead: (tourTitle) => `以下顺序来自当前“${tourTitle}”产品资料。预订前请在产品详情页再次确认最新行程。`,
     actionLink: (action, region) => action === 'planner'
@@ -444,6 +454,28 @@ export function RegionSeoInfo({
                 </h3>
                 <p className="mt-2">{decisionGuide.movement[lang]}</p>
               </section>
+              {decisionGuide.officialSources && (
+                <section className="sm:col-span-2" aria-labelledby={`${regionId}-official-sources`}>
+                  <h3 id={`${regionId}-official-sources`} className="text-sm font-bold text-ec-ink sm:text-base">
+                    {c.officialSourcesTitle}
+                  </h3>
+                  <ul className="mt-2 space-y-1.5">
+                    {decisionGuide.officialSources.map((source) => (
+                      <li key={source.href}>
+                        <a
+                          href={source.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex min-h-[44px] items-center underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ec-brand"
+                        >
+                          {source.label[lang]}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-ec-ink-3">{c.officialSourcesNote}</p>
+                </section>
+              )}
             </div>
 
             <section className="mt-6 border-t border-ec-line pt-6" aria-labelledby={`${regionId}-day-flow`}>
