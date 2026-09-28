@@ -91,8 +91,8 @@ describe('owner WhatsApp privacy boundaries', () => {
     expect(screen.getByText(copy.closed)).toBeTruthy();
     expect(network.mock.calls[1][1].body).toBe(JSON.stringify({ action, sender: session.sender }));
     expect(screen.queryByText(copy.active)).toBeNull();
-    if (action === 'close') expect(document.activeElement).toBe(screen.getByText(copy.saved));
-    else expect(document.activeElement).toBe(screen.getByRole('button', { name: `${copy.block}: ${session.sender}` }));
+    if (action === 'close') await waitFor(() => expect(document.activeElement).toBe(screen.getByText(copy.saved)));
+    else await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: `${copy.block}: ${session.sender}` })));
   });
   it.each(['post-error', 'refresh-error', 'unchanged', 'malformed', 'truncated-missing'] as const)('does not claim completion after %s', async failure => {
     render(<AdminWhatsAppPrivacy language="ko" />);
