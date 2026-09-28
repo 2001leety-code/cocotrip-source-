@@ -19,6 +19,7 @@ import { resolvePlanAccess } from '../../api/get-plan.js';
 function makePlan(overrides = {}) {
   return {
     uid: 'user-abc',
+    verifiedHistoryUid: 'verified-user-abc',
     guestEmail: 'guest@example.com',
     accessToken: 'secret-tok-123',
     isPublic: false,
@@ -89,6 +90,7 @@ describe('resolvePlanAccess — 토큰 불일치 + isPublic (masked)', () => {
 
   it('uid 가 없다', () => {
     expect(result.plan.uid).toBeUndefined();
+    expect(result.plan.verifiedHistoryUid).toBeUndefined();
   });
 
   it('guestEmail 이 없다', () => {

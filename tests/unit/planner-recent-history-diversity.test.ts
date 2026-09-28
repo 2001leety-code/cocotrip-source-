@@ -7,6 +7,7 @@ vi.mock('@google/generative-ai', () => ({
 vi.mock('../../api/_shared/apiUsageRecorder.js', () => ({ recordGeminiUsage: vi.fn() }));
 
 import { buildAvoidContext } from '../../api/_ai_core/avoidListQuery.js';
+import { buildPlanAiCompletePayload } from '../../api/_ai_core/inngestDispatch.js';
 import { calcDiversity } from '../../scripts/validate-planner.cjs';
 import { tryRunBlockMode } from '../../api/_ai_core/blockMode.js';
 
@@ -34,7 +35,7 @@ const fakeDb = {
       where: (field: string, _op: string, value: unknown) => { filters.push([field, value]); return query; },
       get: async () => {
         if (name === 'plans') {
-          const rows = savedPlans.filter((p) => filters.every(([key, value]) => key === 'uid' ? p.uid === value : key === 'email' ? p.email === value : true));
+          const rows = savedPlans.filter((p) => filters.every(([key, value]) => p[key] === value));
           return { size: rows.length, forEach: (cb: (doc: { data: () => unknown }) => void) => rows.forEach((p) => cb({ data: () => p })) };
         }
         const city = filters.find(([key]) => key === 'city')?.[1];
@@ -47,7 +48,7 @@ const fakeDb = {
 };
 
 const input = { durationDays: 2, language: 'en', area: 'seoul', foodIndex, dietPrefs: ['Meat'], tour_start_time: '09:00' };
-const identity = { uid: 'synthetic-user', requestEmail: undefined };
+const identity = { uid: 'synthetic-user' };
 const selections = (ids: string[]) => ({ day_selections: ids.map((id, i) => ({ day: i + 1, block_id: id })) });
 const itineraryStops = (result: { itinerary: { days?: Array<{ stops?: Array<{ name?: string }> }> } }) =>
   (result.itinerary.days || []).flatMap((d) => d.stops || []).map((s) => s.name || '');
@@ -66,6 +67,14 @@ async function generate(ids: string[], history: { foodNames: string[]; blockIds:
 
 afterEach(() => { sdk.generateContent.mockReset(); vi.unstubAllEnvs(); });
 describe('recent plan history reaches actual block selector and food expansion', () => {
+  it('carries verified history identity into the durable worker payload', () => {
+    const payload = buildPlanAiCompletePayload({
+      itinerary: {}, streamingPlanId: 'plan-1', body: {}, uid: 'guest-owner',
+      verifiedHistoryUid: 'verified-user',
+    });
+    expect(payload.ctx).toMatchObject({ uid: 'guest-owner', verifiedHistoryUid: 'verified-user' });
+  });
+
   it.each([
     [['SYN_A', 'SYN_B'], ['SYN_C', 'SYN_D']],
     [['SYN_A', 'SYN_C'], ['SYN_E', 'SYN_F']],
@@ -81,7 +90,7 @@ describe('recent plan history reaches actual block selector and food expansion',
     const firstStops = itineraryStops(first as { itinerary: { days?: Array<{ stops?: Array<{ name?: string }> }> } });
     const firstFood = (first as { itinerary: { days: Array<{ stops: Array<{ category: string; name: string }> }> } }).itinerary.days
       .flatMap((d) => d.stops.filter((s) => s.category === 'food').map((s) => s.name));
-    savedPlans.push({ uid: identity.uid, itinerary: (first as { itinerary: unknown }).itinerary, blocksUsed: left });
+    savedPlans.push({ verifiedHistoryUid: identity.uid, itinerary: (first as { itinerary: unknown }).itinerary, blocksUsed: left });
 
     const baseline = await generate(right, emptyHistory);
     const baselineStops = itineraryStops(baseline as { itinerary: { days?: Array<{ stops?: Array<{ name?: string }> }> } });
@@ -120,6 +129,17 @@ describe('recent plan history reaches actual block selector and food expansion',
     const result = await generate(['SYN_A', 'SYN_B'], history);
     expect(result.skipped).toBe(false);
     expect(sdk.generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('only reads newly verified history for the matching authenticated user', async () => {
+    savedPlans.length = 0;
+    savedPlans.push(
+      { verifiedHistoryUid: 'synthetic-user', itinerary: { days: [{ stops: [{ category: 'food', name: 'Trusted Recent' }] }] }, blocksUsed: ['TRUSTED'] },
+      { verifiedHistoryUid: 'other-user', itinerary: { days: [{ stops: [{ category: 'food', name: 'Other User' }] }] }, blocksUsed: ['OTHER'] },
+      { uid: 'synthetic-user', guestEmail: 'synthetic@example.test', itinerary: { days: [{ stops: [{ category: 'food', name: 'Legacy Unverified' }] }] }, blocksUsed: ['LEGACY'] },
+    );
+    expect(await buildAvoidContext(fakeDb, { uid: null })).toEqual({ clause: '', foodNames: [], blockIds: [] });
+    expect(await buildAvoidContext(fakeDb, identity)).toMatchObject({ foodNames: ['Trusted Recent'], blockIds: ['TRUSTED'] });
   });
 
   it('keeps current-plan dedup, dietary safety, and anchored distance guard', async () => {

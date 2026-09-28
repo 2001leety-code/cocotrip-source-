@@ -1383,7 +1383,7 @@ export function runDepartureOverrunCheck(itinerary, { body, departure_airport } 
 }
 
 export async function persistPlan(adminDb, {
-  body, itinerary, uid, vehicle, priceKRW, priceUSD,
+  body, itinerary, uid, verifiedHistoryUid, vehicle, priceKRW, priceUSD,
   guestName, pax, styles, area, duration, startDate, email,
   specialRequest, arrival_airport, departure_airport,
   hotel_address, mobility, language,
@@ -1504,6 +1504,7 @@ export async function persistPlan(adminDb, {
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),
     uid: uid || null,
+    ...(verifiedHistoryUid ? { verifiedHistoryUid } : {}),
     accessToken,
     guestEmail: email || null,
     input: {

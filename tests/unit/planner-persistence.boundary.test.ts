@@ -31,6 +31,7 @@ const baseArgs = {
   body: { regions: ['seoul'], adults: 2, children: 0, paypalOrderId: 'ADMIN-BYPASS-persist-test' },
   itinerary,
   uid: 'planner-test-user',
+  verifiedHistoryUid: 'verified-planner-test-user',
   vehicle: 'sedan',
   priceKRW: 26600,
   priceUSD: 18.6,
@@ -65,6 +66,7 @@ describe('real persistPlan → Firestore boundary', () => {
     expect(db.__get('plans/plan-persist-test')).toMatchObject({
       planId: 'plan-persist-test',
       status: 'ready',
+      verifiedHistoryUid: 'verified-planner-test-user',
       itinerary,
     });
   });

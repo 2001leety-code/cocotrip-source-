@@ -109,7 +109,7 @@ export function buildPlanAiCompletePayload(args) {
     hotelByCity,
     area, dietPrefs, regions,
     vehicle, durationDays,
-    uid, guestName, styles, duration, startDate, email,
+    uid, verifiedHistoryUid, guestName, styles, duration, startDate, email,
     specialRequest, mobility, language,
     plannerMode, abReason, abBucket, blocksUsed,
     isAdminBypass, identifierForBucketing,
@@ -153,7 +153,7 @@ export function buildPlanAiCompletePayload(args) {
       hotelByCity,
       area, dietPrefs, regions,
       vehicle, durationDays,
-      uid, guestName, styles, duration, startDate, email,
+      uid, verifiedHistoryUid, guestName, styles, duration, startDate, email,
       specialRequest, mobility, language,
       plannerMode, abReason, abBucket, blocksUsed,
       zone_id,  // P256: Inngest worker layer 4 — transit cache hit 0% round 3 fix
@@ -260,7 +260,7 @@ export async function dispatchOrInlineForHandlerCore({
   skeletonCtx,  // P231: skeleton-in-worker 모드 시 full skeleton 파라미터. null = 기존 동작.
   apiKey, body, routeHotelAddress, hotel_address,
   arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
-  area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
+  area, dietPrefs, regions, vehicle, durationDays, uid, verifiedHistoryUid, guestName, styles, duration, startDate, email,
   specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed,
   abDecision, isAdminBypass, identifierForBucketing, handlerStart,
   // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid (=planOwnerUid) 가 부여된 경우 true.
@@ -279,7 +279,7 @@ export async function dispatchOrInlineForHandlerCore({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
     apiKey, body, routeHotelAddress, hotelAddressFromBody: hotel_address,
     arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
-    area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
+    area, dietPrefs, regions, vehicle, durationDays, uid, verifiedHistoryUid, guestName, styles, duration, startDate, email,
     specialRequest, mobility, language,
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,

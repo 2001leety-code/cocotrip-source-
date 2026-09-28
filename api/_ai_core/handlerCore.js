@@ -149,10 +149,10 @@ export default async function handler(req, res) {
       res.writeHead(auth.status, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
     }
-    if (guestCheckoutAllowed) body.uid = null; // 게스트 IDOR 방지 — plan 소유자는 익명 토큰(resolveGuestAnonOwner)으로만
+    // Trust only verified token identity; guest owner is resolved separately below.
+    body.uid = auth.ok && body.uid === auth.uid ? auth.uid : null;
     const authenticatedEmail = auth.ok ? auth.email : null;
     lastEmail = authenticatedEmail;
-
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
     const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid));
     if (gate.rejection) {
@@ -174,7 +174,7 @@ export default async function handler(req, res) {
     }
 
     // ── 입력 정규화 (requestShaper) ────────────────────────────────────────
-    const shaped = shapeRequest(body, authenticatedEmail, guestCheckoutAllowed); // #8: 게스트 알림 email 폴백
+    const shaped = shapeRequest(body, authenticatedEmail, guestCheckoutAllowed, auth.ok ? auth.uid : null); // #8: 게스트 알림 email 폴백
     const {
       guestName, pax, styles, area, regions, duration, durationDays, startDate,
       email, specialRequest, vehicle, language,
@@ -193,7 +193,6 @@ export default async function handler(req, res) {
       wantAccom, accomBudget,
     } = shaped;
     lastUid = uid;
-    const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
     // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
     const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
     enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll }); // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422 (dietaryCoverageGate.js)
@@ -225,6 +224,7 @@ export default async function handler(req, res) {
       `bucket=${abDecision.bucket ?? '-'}`,
     );
     const { planOwnerUid, forceGuestToken } = await resolveGuestAnonOwner(req, uid); // FEATURE_GUEST_ANON_AUTH (OFF=기존 동작, 상세 user-auth.js)
+    const verifiedHistoryUid = auth.ok ? auth.uid : (forceGuestToken ? planOwnerUid : null);
     console.log('[ai-planner-full] Request:', JSON.stringify({ styles, area, duration, pax, vehicle, arrival_airport, mobility }));
     console.log('[ai-planner-full] ENV:', { gemini: !!process.env.GEMINI_API_KEY, firebase: !!adminDb, gmail: !!process.env.GMAIL_USER });
 
@@ -253,7 +253,7 @@ export default async function handler(req, res) {
     const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
-    const { clause: avoidClause, foodNames: recentFoodNames, blockIds: recentBlockIds } = await withStep('avoidClause', () => buildAvoidContext(adminDb, { uid, requestEmail }));
+    const { clause: avoidClause, foodNames: recentFoodNames, blockIds: recentBlockIds } = await withStep('avoidClause', () => buildAvoidContext(adminDb, { uid: verifiedHistoryUid }));
     // planner-intent-v1: revision avoid list — used below (removal) and by postResponsePipeline (assert-only).
     const avoidStopNames = gate.isRevision && plannerIntent.revision ? plannerIntent.revision.avoidStopNames : [];
 
@@ -362,7 +362,7 @@ export default async function handler(req, res) {
           dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
             streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
-            area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email,
+            area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
           }),
@@ -376,7 +376,7 @@ export default async function handler(req, res) {
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220/P230/P231/P0: Inngest dispatch — streaming+ENV+토글 시 post-Gemini 를 별 invocation 으로(ENV/throw 시 inline fallback). block-mode 는 위에서 처리 완료 → skip, legacy streaming 만 진입. skeletonCtx 는 worker Step 0 full skeleton 저장용. issuanceClaim 전달 + dispatch 성공 시 소유권 이관(handler release 금지).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent })) { issuance.handOff(); return; }
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -390,8 +390,7 @@ export default async function handler(req, res) {
     applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed, departureTime, departure_airport });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
-    //   2026-08-24: 이 helper 끝에서 종단 식이/식사 게이트가 돈다 (postResponsePipeline) — 저장 전 마지막 mutation 지점.
-    //   planner-intent-v1: avoidStopNames 는 재생성일 때만 — 신규 생성은 avoid 개념이 없다.
+    // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
     const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames });
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
@@ -403,6 +402,7 @@ export default async function handler(req, res) {
     // ── Firestore 저장 + Loyalty (Phase 4: plannerMode+abReason+abBucket — admin dashboard mode 별 qualityScore 비교용) ──
     const { planId, planUrl } = await withStep('persistPlan', () => savePlan(adminDb, {
       body, itinerary, uid: planOwnerUid, forceGuestToken, vehicle, priceKRW, priceUSD,
+      verifiedHistoryUid,
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,

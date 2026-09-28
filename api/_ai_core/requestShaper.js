@@ -14,7 +14,7 @@ import { inferDepartureAirport } from './airportInference.js';
 import { selectVehicle } from './vehicleAndPrice.js';
 import { normalizePlannerIntentV1 } from '../_shared/plannerIntentV1.js';
 
-export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = false) {
+export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = false, authenticatedUid = null) {
   // ── 입력 파싱 ──────────────────────────────────────────────────────────
   const guestName = body.guest_name || body.guestName || 'Guest';
   const paxRaw = Number(body.pax) || Number(body.guest_count) || 2;
@@ -100,7 +100,7 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   // 강제 (arrivalCity/departureCity 는 위로 이동됨 — departure_airport inference 가 먼저 필요).
   // 단도시 plan 은 두 값 동일 또는 미입력 — buildPrompt 가 기존 entry_city / MULTI-CITY HANDLING 로 폴백.
   const mobility = body.mobility || 'ok';
-  const uid = body.uid || null;
+  const uid = authenticatedUid && body.uid === authenticatedUid ? authenticatedUid : null;
 
   // Sprint 2 #5: zone hint (string key like 'myeongdong'). Used as a soft
   // anchor for hub-and-spoke when no hotel_address provided. Ignored when
