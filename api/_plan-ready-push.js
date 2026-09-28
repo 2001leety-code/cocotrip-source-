@@ -15,6 +15,7 @@ const BODIES = {
   ja: 'カスタム旅程 — 今すぐご確認ください',
   zh: '专属行程 — 立即查看',
 };
+const AUTOMATED_CHECK_ORDER_PREFIXES = ['ADMIN-BYPASS-VALIDATE-', 'ADMIN-BYPASS-E2E-', 'ADMIN-BYPASS-REGRESSION-'];
 
 /** 사용자에게 plan-ready 푸시 알림 1회 발송. */
 export async function sendPlanReadyPush(adminDb, uid, ctx) {
@@ -32,6 +33,9 @@ export async function sendPlanReadyPush(adminDb, uid, ctx) {
 
 /** Telegram 운영 채널에 plan 생성 알림. */
 export async function sendPlanCreatedTelegram(ctx) {
+  if (AUTOMATED_CHECK_ORDER_PREFIXES.some((prefix) => String(ctx.orderId || '').startsWith(prefix))) {
+    return { skipped: 'automated-check' };
+  }
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     await sendMessage(

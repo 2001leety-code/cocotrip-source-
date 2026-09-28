@@ -441,7 +441,7 @@ export default async function handler(req, res) {
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
     // ── 알림 3종: 이메일 / Sheets 리드 / Telegram+Push (전부 non-blocking) ──
     //    backgroundPipelines.js 로 추출 (2026-07-15) — cap 테스트가 지시하는 위치. 동작 무변경.
-    sendPlanReadyNotifications({ adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language });
+    sendPlanReadyNotifications({ adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language, orderId: body.paypalOrderId });
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
