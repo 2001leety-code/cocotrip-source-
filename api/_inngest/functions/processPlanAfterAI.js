@@ -415,6 +415,7 @@ export const processPlanAfterAI = inngest.createFunction(
         durationDays: ctx.durationDays,
         pax: ctx.pax,
         planId,
+        orderId: ctx.body?.paypalOrderId,
       });
       if (ctx.uid) {
         sendPlanReadyPush(adminDb, ctx.uid, {

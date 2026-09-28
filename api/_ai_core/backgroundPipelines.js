@@ -61,7 +61,7 @@ import { runFinalItineraryValidation, runDuplicateStopGate } from './finalItiner
  *   - push 는 동적 import (버그헌트 #12: unhandled rejection 차단용 .catch 유지).
  */
 export function sendPlanReadyNotifications({
-  adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language,
+  adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language, orderId,
 }) {
   if (email) {
     sendNotificationEmail({
@@ -73,7 +73,7 @@ export function sendPlanReadyNotifications({
       .catch((e) => console.warn('[planner] Sheets error:', e.message));
   }
   import('../_plan-ready-push.js').then(({ sendPlanCreatedTelegram, sendPlanReadyPush }) => {
-    sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId });
+    sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId, orderId });
     if (uid) sendPlanReadyPush(adminDb, uid, { planId, planUrl, tourTitle: itinerary.tour_title, language });
   }).catch((e) => console.warn('[ai-planner-full] plan-ready-push import/dispatch failed:', e?.message));
 }
