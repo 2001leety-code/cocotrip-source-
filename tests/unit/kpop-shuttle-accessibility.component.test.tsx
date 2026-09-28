@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { loadLocale, type Language } from '../../src/i18n';
 
@@ -64,18 +64,18 @@ describe('K-pop selection and map are separate accessible controls', () => {
     expect(alpha.getAttribute('aria-pressed')).toBe('true');
     expect(fake.paymentProps).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: language === 'ko' ? 'Alpha 승차장' : 'Alpha pickup' }));
-    expect(fake.paymentProps).toHaveBeenLastCalledWith(expect.objectContaining({
+    await waitFor(() => expect(fake.paymentProps).toHaveBeenLastCalledWith(expect.objectContaining({
       productType: 'kpop_shuttle_oneway', passengers: 2, dateStart: '2099-09-01', dateEnd: '2099-09-01',
       priceKRW: 200, lang: language, pickupLocation: 'Alpha pickup', dropoffLocation: 'Alpha fixture venue',
       vehicleType: 'staria', memo: 'Alpha - Alpha fixture tour',
-    }));
+    })));
     const betaMap = screen.getByRole('link', { name: /— Beta · Beta fixture tour$/ });
     // Cancel native navigation in the test, not in the product. The React handler still runs.
     betaMap.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(betaMap);
     expect(alpha.getAttribute('aria-pressed')).toBe('true');
     expect(beta.getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByTestId('fake-payment-boundary')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('fake-payment-boundary')).toBeTruthy());
     beta.focus();
     await user.keyboard(' ');
     expect(beta.getAttribute('aria-pressed')).toBe('true');

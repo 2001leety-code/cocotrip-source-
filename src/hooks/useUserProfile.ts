@@ -6,8 +6,6 @@
 // invalidate export — 프로필을 갱신한 폼이 저장 직후 호출해 캐시를 무효화한다.
 // 2026-07-26: needsOnboarding 캐시 분기 제거. PR#996 이 온보딩 페이지를 폐기한 뒤 그 필드를 쓰는 코드가 0이 됐다.
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 export interface PrefillProfile {
@@ -54,6 +52,10 @@ export function useUserProfile(): { profile: PrefillProfile | null; loading: boo
     let cancelled = false;
     (async () => {
       try {
+        const [{ doc, getDoc }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        if (cancelled) return;
         const snap = await getDoc(doc(db, 'users', uid));
         if (cancelled) return;
         const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;

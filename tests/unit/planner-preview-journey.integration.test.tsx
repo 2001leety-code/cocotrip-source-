@@ -13,6 +13,7 @@ import quickHandler from '../../api/ai-planner-quick.js';
 
 const boundary = vi.hoisted(() => ({ model: vi.fn(), writes: new Map<string, unknown>(), requests: [] as Record<string, unknown>[] }));
 vi.mock('../../src/lib/firebase', () => ({ auth: { currentUser: null } }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: (_auth: unknown, callback: (user: null) => void) => { callback(null); return () => {}; },
 }));

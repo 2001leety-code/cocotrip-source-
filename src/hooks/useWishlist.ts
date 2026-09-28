@@ -7,10 +7,6 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
-import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 const LS_KEY = 'COCO_WISHLIST';
 
@@ -54,18 +50,31 @@ export function useWishlist() {
   useEffect(() => {
     if (!userId) return;
 
-    const colRef = collection(db, 'users', userId, 'wishlist');
-    const unsub = onSnapshot(colRef, (snap) => {
-      const list: WishlistItem[] = snap.docs.map(d => ({
-        id: d.id,
-        ...(d.data() as Omit<WishlistItem, 'id'>),
-      }));
-      list.sort((a, b) => b.addedAt - a.addedAt);
-      setItems(list);
-      setLoading(false);
-    });
-
-    return () => unsub();
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    void (async () => {
+      try {
+        const [{ collection, onSnapshot }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        if (cancelled) return;
+        const colRef = collection(db, 'users', userId, 'wishlist');
+        unsubscribe = onSnapshot(colRef, (snap) => {
+          if (cancelled) return;
+          const list: WishlistItem[] = snap.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as Omit<WishlistItem, 'id'>),
+          }));
+          list.sort((a, b) => b.addedAt - a.addedAt);
+          setItems(list);
+          setLoading(false);
+        });
+      } catch (err) {
+        if (!cancelled) setLoading(false);
+        console.warn('[useWishlist] subscription failed:', err);
+      }
+    })();
+    return () => { cancelled = true; unsubscribe?.(); };
   }, [userId]);
 
   // ── 토글 (추가/제거) ──
@@ -74,8 +83,11 @@ export function useWishlist() {
 
     if (userId) {
       // Firestore
-      const ref = doc(db, 'users', userId, 'wishlist', item.id);
       try {
+        const [{ doc, setDoc, deleteDoc, serverTimestamp }, { db }] = await Promise.all([
+          import('firebase/firestore'), import('@/lib/firebase.js'),
+        ]);
+        const ref = doc(db, 'users', userId, 'wishlist', item.id);
         if (exists) {
           await deleteDoc(ref);
         } else {

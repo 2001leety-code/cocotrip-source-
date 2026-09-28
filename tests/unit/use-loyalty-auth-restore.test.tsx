@@ -41,7 +41,8 @@ vi.mock('firebase/firestore', () => ({
 const { useLoyalty } = await import('../../src/hooks/useLoyalty');
 
 /** 회원 문서 + 빈 하위 컬렉션 도착을 흉내 낸다(이 파일의 관심사는 등급 표시다). */
-function emitUserDoc(uid: string, data: Record<string, unknown> | undefined) {
+async function emitUserDoc(uid: string, data: Record<string, unknown> | undefined) {
+  await act(async () => { await vi.dynamicImportSettled(); });
   act(() => {
     for (const cb of snapCallbacks) cb({ id: uid, data: () => data });
     for (const cb of subCallbacks) cb({ docs: [] });
@@ -70,7 +71,7 @@ describe('useLoyalty — 인증 복원 중 잘못된 값 노출 금지', () => {
     expect(result.current.loading).toBe(true);   // 문서 미도착
     expect(result.current.loyalty).toBeNull();
 
-    emitUserDoc('u1', { tier: 'Platinum', tripCoins: 756986, totalSpentUSD: 253205, bookingCount: 260 });
+    await emitUserDoc('u1', { tier: 'Platinum', tripCoins: 756986, totalSpentUSD: 253205, bookingCount: 260 });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.loyalty?.tier).toBe('Platinum');
     expect(result.current.loyalty?.tripCoins).toBe(756986);
@@ -88,7 +89,7 @@ describe('useLoyalty — 인증 복원 중 잘못된 값 노출 금지', () => {
     authHolder.user = { uid: 'new1' };
     authHolder.loading = false;
     const { result } = renderHook(() => useLoyalty());
-    emitUserDoc('new1', undefined);
+    await emitUserDoc('new1', undefined);
     await waitFor(() => expect(result.current.loading).toBe(false));
   });
 
@@ -96,7 +97,7 @@ describe('useLoyalty — 인증 복원 중 잘못된 값 노출 금지', () => {
     authHolder.user = { uid: 'u1' };
     authHolder.loading = false;
     const { result, rerender } = renderHook(() => useLoyalty());
-    emitUserDoc('u1', { tier: 'Platinum', tripCoins: 999 });
+    await emitUserDoc('u1', { tier: 'Platinum', tripCoins: 999 });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // 계정 전환 — 새 uid 문서가 오기 전에는 다시 로딩이어야 한다.

@@ -87,10 +87,12 @@ describe('lint identity lifecycle — profile and bookings', () => {
     const view = renderHook(() => useUserProfile());
     expect(view.result.current).toEqual({ profile: null, loading: true });
 
+    await waitFor(() => expect(getDocMock).toHaveBeenCalledTimes(1));
     currentUser = { uid: 'profile-b', email: 'b@test.invalid' };
     view.rerender();
     expect(view.result.current).toEqual({ profile: null, loading: true });
 
+    await waitFor(() => expect(getDocMock).toHaveBeenCalledTimes(2));
     a.resolve(profileSnapshot({ name: 'A 비공개 이름' }));
     await new Promise((done) => setTimeout(done, 0));
     expect(view.result.current.profile).toBeNull();

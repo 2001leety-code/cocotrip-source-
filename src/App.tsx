@@ -129,7 +129,7 @@ const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ def
 const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
 const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponModal').then(m => ({ default: m.OnboardingCouponModal })));
-import { handleRedirectResult } from '@/lib/firebase';
+import { handleRedirectResult } from '@/lib/firebase-auth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture } from '@/lib/analytics';

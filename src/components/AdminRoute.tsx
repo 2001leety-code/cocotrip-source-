@@ -3,7 +3,7 @@ import { useMemo, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
 

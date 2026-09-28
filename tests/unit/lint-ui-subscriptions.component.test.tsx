@@ -23,22 +23,36 @@ vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, embla.api] })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); embla.listeners.clear(); });
 
 describe('external UI subscriptions', () => {
-  it('reads the current mobile width, updates on breakpoint changes, and unsubscribes', () => {
-    const listeners = new Set<() => void>();
-    const removeEventListener = vi.fn((_event: string, callback: () => void) => listeners.delete(callback));
-    vi.stubGlobal('matchMedia', vi.fn(() => ({
-      addEventListener: (_event: string, callback: () => void) => listeners.add(callback), removeEventListener,
+  it('uses the matching media query snapshot, updates on breakpoint changes, and unsubscribes', () => {
+    let isMobile = true;
+    const listeners = new Set<(event: Event) => void>();
+    const addEventListener = vi.fn((_event: string, callback: (event: Event) => void) => listeners.add(callback));
+    const removeEventListener = vi.fn((_event: string, callback: (event: Event) => void) => listeners.delete(callback));
+    const innerWidth = vi.fn(() => 390);
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, get: innerWidth });
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === '(max-width: 767px)' && isMobile,
+      addEventListener,
+      removeEventListener,
     })));
-    vi.stubGlobal('innerWidth', 390);
-    const hook = renderHook(() => useIsMobile());
-    expect(hook.result.current).toBe(true);
-    act(() => { vi.stubGlobal('innerWidth', 768); listeners.forEach(callback => callback()); });
-    expect(hook.result.current).toBe(false);
-    act(() => { vi.stubGlobal('innerWidth', 767); listeners.forEach(callback => callback()); });
-    expect(hook.result.current).toBe(true);
-    hook.unmount();
-    expect(listeners.size).toBe(0);
-    expect(removeEventListener).toHaveBeenCalledTimes(1);
+
+    try {
+      const hook = renderHook(() => useIsMobile());
+      expect(hook.result.current).toBe(true);
+      expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 767px)');
+      expect(innerWidth).not.toHaveBeenCalled();
+      act(() => { isMobile = false; listeners.forEach(callback => callback(new Event('change'))); });
+      expect(hook.result.current).toBe(false);
+      act(() => { isMobile = true; listeners.forEach(callback => callback(new Event('change'))); });
+      expect(hook.result.current).toBe(true);
+      hook.unmount();
+      expect(listeners.size).toBe(0);
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalInnerWidth) Object.defineProperty(window, 'innerWidth', originalInnerWidth);
+      else delete (window as unknown as Record<string, unknown>).innerWidth;
+    }
   });
 
   it('keeps carousel controls in sync with selection/reinitialization and removes both listeners', () => {

@@ -1,7 +1,7 @@
 // CharterWizard — 6단계 스테퍼.
 // 2026-05-07 정책 B: matrix miss → Geocoding 우선. Bus/VIP 차량은 가격 카드 대신 InquiryForm.
 // 2026-05-10 (B9-35 잔여): wizard 진행 자동 저장 + 24h 이내 재진입 시 ResumeWizardModal.
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { lazy, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Clock3, CreditCard, Loader2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import { CocoStepper } from '@/components/coco/CocoUI';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
@@ -10,19 +10,13 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useProfileContactSync } from '@/hooks/useProfileContactSync';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { useCharterFunnelTracking } from './useCharterFunnelTracking';
 import { resolveDestinationKeyLabel } from './destinationDisplayLabels';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
-import { Step2Service } from './Step2Service';
-import { Step3Destination } from './Step3Destination';
-import { Step4PaxVehicle } from './Step4PaxVehicle';
-import { Step5DateOptions } from './Step5DateOptions';
-import { Step6Quote } from './Step6Quote';
-import { InquiryForm } from './InquiryForm';
 import { getWizardI18n } from './wizard-i18n';
 import { isValidInternationalPhone } from '@/lib/phone-validation';
 import { resolveProductType } from './resolveProductType';
@@ -39,6 +33,13 @@ import { charterUsdFromKrw } from '@/lib/charterUsd';
 //   투어 8시간(api/_shared/booking-cutoff.js = lib/bookingCutoff)이라 화면만 거짓이었다.
 //   숫자는 정책 상수에서 파생한다 — 하드코딩 재발은 booking-cutoff-parity 테스트가 막는다.
 import { CHARTER_VEHICLE_CUTOFF_HOURS, getCutoffHours } from '@/lib/bookingCutoff';
+
+const Step2Service = lazy(() => import('./Step2Service').then(({ Step2Service }) => ({ default: Step2Service })));
+const Step3Destination = lazy(() => import('./Step3Destination').then(({ Step3Destination }) => ({ default: Step3Destination })));
+const Step4PaxVehicle = lazy(() => import('./Step4PaxVehicle').then(({ Step4PaxVehicle }) => ({ default: Step4PaxVehicle })));
+const Step5DateOptions = lazy(() => import('./Step5DateOptions').then(({ Step5DateOptions }) => ({ default: Step5DateOptions })));
+const Step6Quote = lazy(() => import('./Step6Quote').then(({ Step6Quote }) => ({ default: Step6Quote })));
+const InquiryForm = lazy(() => import('./InquiryForm').then(({ InquiryForm }) => ({ default: InquiryForm })));
 
 // localStorage 에 저장하는 charter wizard snapshot — state + manualKm + step.
 // state object 만 저장하면 manualKm (Geocoding fail 후 사용자 직접 km 입력) 가
@@ -326,9 +327,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const goNext = () => {
     // 2026-06-19 (운영자 B 결정): 하드 로그인 게이트 제거 — 비로그인도 견적(6단계) 본다.
     // 강제 리드캡처 대신 6단계 "가입하면 최대 10% 할인" 카드로 소프트 유도("가입유도 하되 게스트 가능").
-    setCurrentStep(s => Math.min(6, s + 1));
+    setCurrentStep(Math.min(6, currentStep + 1));
   };
-  const goPrev = () => setCurrentStep(s => Math.max(1, s - 1));
+  const goPrev = () => setCurrentStep(Math.max(1, currentStep - 1));
 
   // 모바일(<768px) 전용 sticky 바 — 기존 useIsMobile 훅(=max-width:767px) 재사용(데스크탑 미렌더).
   const isMobile = useIsMobile();

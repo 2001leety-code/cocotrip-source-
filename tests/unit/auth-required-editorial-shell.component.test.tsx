@@ -25,7 +25,7 @@ vi.mock('../../src/hooks/useLanguage', () => ({
   useLanguage: () => ({ language: authState.language }),
 }));
 
-vi.mock('../../src/lib/firebase', () => firebaseMocks);
+vi.mock('../../src/lib/firebase-auth.js', () => firebaseMocks);
 
 const { AuthRequired } = await import('../../src/components/AuthRequired');
 

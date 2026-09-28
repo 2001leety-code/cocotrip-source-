@@ -19,6 +19,7 @@ vi.mock('firebase-admin/auth', () => ({
 }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TEST_TIMESTAMP' } }));
 vi.mock('@/lib/firebase', () => ({ auth: state.auth }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: state.auth }));
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'synthetic-paypal-token', baseUrl: 'https://paypal.invalid' }),
   resolveIsSandbox: () => true,

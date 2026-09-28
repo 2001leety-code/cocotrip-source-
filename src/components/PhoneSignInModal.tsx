@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
-import { setUpRecaptchaVerifier, signInWithPhone, verifyPhoneCode } from '@/lib/firebase';
+import { setUpRecaptchaVerifier, signInWithPhone, verifyPhoneCode } from '@/lib/firebase-auth';
 // 국가번호 SSOT — PhoneSignInModal(로그인 전화인증) + BookingInfoForm(예약폼 국가번호) 공유.
 // 동일 배열 import 로 전환했을 뿐 동작 무변경 (회귀 0).
 import { COUNTRIES, DEFAULT_DIAL_BY_LANG, flagOf } from '@/lib/country-dials';

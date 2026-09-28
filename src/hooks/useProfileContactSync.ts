@@ -13,8 +13,6 @@
 //    수정 금지 영역이고, prefill 은 결제 성사 여부와 무관한 편의 기능이다.
 //  - 🔴 graceful: 실패해도 절대 throw 하지 않는다. 예약 폼은 항상 정상 동작해야 한다.
 import { useEffect, useRef } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { invalidateProfileCache } from '@/hooks/useUserProfile';
 // 저장 판단은 firebase-free 모듈에 둔다 — 이 훅은 lib/firebase 를 끌어와서
@@ -39,11 +37,23 @@ export function useProfileContactSync(phone: string | null | undefined): void {
     if (!next) return;
 
     savedRef.current = next; // 낙관적 — 실패해도 재시도 폭주보다 조용한 스킵이 낫다
-    setDoc(doc(db, 'users', uid), { phoneNumber: next }, { merge: true })
-      .then(() => invalidateProfileCache(uid)) // 다음 폼 마운트가 새 값으로 prefill
+    let cancelled = false;
+    let writing = false;
+    Promise.all([import('firebase/firestore'), import('@/lib/firebase.js')])
+      .then(async ([{ doc, setDoc }, { db }]) => {
+        if (cancelled) return;
+        writing = true;
+        await setDoc(doc(db, 'users', uid), { phoneNumber: next }, { merge: true });
+        invalidateProfileCache(uid); // 다음 폼 마운트가 새 값으로 prefill
+      })
       .catch((e) => {
+        if (cancelled) return;
         savedRef.current = null; // 다음 변경 때 다시 시도
         console.warn('[useProfileContactSync] save failed:', e);
       });
+    return () => {
+      cancelled = true;
+      if (!writing && savedRef.current === next) savedRef.current = null;
+    };
   }, [uid, phone]);
 }

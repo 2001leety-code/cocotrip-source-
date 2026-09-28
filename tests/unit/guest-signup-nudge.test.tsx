@@ -158,7 +158,7 @@ describe('PayPalBookingButton — 게스트 넛지 배선 가드', () => {
   });
 
   it('handleGuestSignup 이 signInWithGoogle 을 호출(로그인 실행부는 부모가 소유)', () => {
-    expect(src).toMatch(/import\s*\{\s*signInWithGoogle\s*\}\s*from\s*'@\/lib\/firebase'/);
+    expect(src).toMatch(/import\s*\{\s*signInWithGoogle\s*\}\s*from\s*'@\/lib\/firebase-auth'/);
     expect(src).toMatch(/async function handleGuestSignup\(\)[\s\S]*?await signInWithGoogle\(\)/);
   });
 

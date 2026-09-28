@@ -24,7 +24,7 @@ vi.mock('../../src/hooks/useChatSession', async (importOriginal) => ({
   useChatSession: chatSessionMock,
 }));
 vi.mock('../../src/hooks/usePageMeta', () => ({ usePageMeta: vi.fn() }));
-vi.mock('../../src/lib/firebase', () => ({ signInWithGoogle: vi.fn() }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ signInWithGoogle: vi.fn() }));
 vi.mock('../../src/lib/analytics', () => ({ trackChatOpen: trackChatOpenMock }));
 
 const { default: AssistantPage } = await import('../../src/pages/AssistantPage');

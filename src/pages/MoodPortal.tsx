@@ -18,7 +18,7 @@
  */
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { authFetch } from '@/lib/authFetch';
 import { signalAppReady } from '@/lib/appReady';
 import { maxConcurrentCount } from '@/lib/moodOverlap';

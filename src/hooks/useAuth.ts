@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase-auth';
 
 /**
  * Firebase Auth wrapper.
@@ -39,7 +39,8 @@ export function useAuth() {
         setLoading(false);
       },
       (e) => {
-        setError(e?.message ?? 'Auth listener error');
+        const message = e?.message;
+        setError(message === null || message === undefined ? 'Auth listener error' : message);
         setLoading(false);
       }
     );
@@ -56,7 +57,8 @@ export function useAuth() {
       user.getIdToken(true).catch((e) => {
         // Best-effort — next API call's authFetch will retry refresh
         // and the user sees no disruption unless creds are truly revoked.
-        console.warn('[useAuth] periodic token refresh failed:', e?.message ?? e);
+        const message = e?.message;
+        console.warn('[useAuth] periodic token refresh failed:', message === null || message === undefined ? e : message);
       });
     }, 50 * 60 * 1000);
 
@@ -65,7 +67,8 @@ export function useAuth() {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         user.getIdToken(true).catch((e) => {
-          console.warn('[useAuth] foreground token refresh failed:', e?.message ?? e);
+          const message = e?.message;
+          console.warn('[useAuth] foreground token refresh failed:', message === null || message === undefined ? e : message);
         });
       }
     };

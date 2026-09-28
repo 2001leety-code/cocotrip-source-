@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bot, MessageCircle, X, Send, Plus, Maximize2 } from 'lucide-react';
 import { translations, type Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { trackChatOpen } from '@/lib/analytics';
 // 채팅 코어(상태·/api/chat·운영자 폴링)와 문구 상수는 useChatSession 으로 추출 —
 // /assistant 전면 화면(AssistantPage)과 공유 (2026-07-19 Task 3).

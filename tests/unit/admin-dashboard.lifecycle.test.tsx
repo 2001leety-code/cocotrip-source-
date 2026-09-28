@@ -12,6 +12,7 @@ const authState = vi.hoisted(() => ({ user: { getIdToken: vi.fn(async () => 'syn
 vi.stubGlobal('fetch', fetchMock);
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => authState }));
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { get currentUser() { return authState.user; } } }));
 vi.mock('firebase/firestore', () => ({
   addDoc: vi.fn(), collection: vi.fn(), serverTimestamp: vi.fn(), query: vi.fn(), orderBy: vi.fn(),
   onSnapshot: vi.fn((_query: unknown, onNext: (snapshot: { docs: Array<{ id: string; data: () => Record<string, unknown> }> }) => void) => {

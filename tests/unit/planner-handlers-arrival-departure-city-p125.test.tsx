@@ -15,6 +15,9 @@ import type { PlannerFormValues } from '../../src/components/PlannerForm';
 vi.mock('../../src/lib/firebase', () => ({
   auth: { currentUser: { getIdToken: async () => 'test-id-token' } },
 }));
+vi.mock('../../src/lib/firebase-auth.js', () => ({
+  auth: { currentUser: { getIdToken: async () => 'test-id-token' } },
+}));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('../../src/lib/guestReader', () => ({
   isGuestAnonEnabled: () => false,

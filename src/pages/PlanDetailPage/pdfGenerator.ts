@@ -298,7 +298,7 @@ async function tryServerPdf(plan: PlanDocument, opts: { force?: boolean } = {}):
   const planId = (plan as { id?: string }).id;
   if (!planId) return null;
   try {
-    const { auth } = await import('@/lib/firebase');
+    const { auth } = await import('@/lib/firebase-auth.js');
     const user = auth.currentUser;
     if (!user) return null;
     const idToken = await user.getIdToken();

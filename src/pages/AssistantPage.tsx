@@ -5,7 +5,7 @@ import { ArrowLeft, Bot, MessageCircle, Send } from 'lucide-react';
 import type { Language } from '@/i18n';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase-auth';
 import { trackChatOpen } from '@/lib/analytics';
 import {
   useChatSession,

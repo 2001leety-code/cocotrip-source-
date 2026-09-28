@@ -13,7 +13,7 @@ vi.mock('@/lib/authFetch', () => ({ authFetch: (...args: unknown[]) => authFetch
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: portalRole.isAdmin ? portalRole.operatorUser : portalRole.staffUser, loading: false }),
 }));
-vi.mock('@/lib/firebase', () => ({ signInWithGoogle: vi.fn() }));
+vi.mock('@/lib/firebase-auth', () => ({ signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/appReady', () => ({ signalAppReady: vi.fn() }));
 vi.mock('@/components/MoodRouteMap', () => ({ MoodRouteMap: () => <div data-testid="mood-route-map" /> }));
 vi.mock('@/components/PwaInstallButton', () => ({ PwaInstallButton: () => null }));
