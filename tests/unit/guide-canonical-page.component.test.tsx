@@ -65,7 +65,7 @@ describe('가이드 대표 원문 메타 배선', () => {
         'guide-article',
         expect.objectContaining({
           mainEntityOfPage: expect.objectContaining({ '@id': canonical }),
-          dateModified: '2026-08-23',
+          dateModified: '2026-10-02',
         }),
       );
     });

@@ -55,6 +55,7 @@ function Journey({ values = initial }: { values?: WizardInitialValues }) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   localStorage.clear(); sessionStorage.clear(); boundary.writes.clear(); boundary.requests.length = 0;
   vi.stubEnv('GEMINI_API_KEY', 'offline-journey-test');
   boundary.model.mockReset().mockResolvedValue({ response: { text: () => JSON.stringify(modelReply) } });
@@ -69,7 +70,13 @@ beforeEach(() => {
     return new Response(payload, { status: code, headers: { 'Content-Type': 'application/json' } });
   }));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('planner wizard → real quick handler → rendered preview', () => {
   async function openReview() {

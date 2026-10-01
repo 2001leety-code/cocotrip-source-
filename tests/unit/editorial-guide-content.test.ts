@@ -264,7 +264,7 @@ describe('_index.json 파생 필드 ↔ 실제 본문 (드리프트 잠금)', ()
     const expected = {
       title: 'Seoul Night Markets & Street Food 2026: Gwangjang, Myeongdong, Mangwon',
       description: 'Compare must-try food, opening hours, typical prices, cash/card and ordering tips for Gwangjang, Myeongdong and Mangwon markets in Seoul in 2026.',
-      updated: '2026-08-23',
+      updated: '2026-10-02',
     };
     const detail = docOf(slug);
     const index = guidesIndex.find((guide) => guide.slug === slug);
