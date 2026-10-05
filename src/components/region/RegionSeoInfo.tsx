@@ -1,14 +1,10 @@
 /**
  * /region/<id> 공개 정보 섹션 (2026-08-06).
  *
- * 왜 만드는가: GSC 실측에서 지역 페이지 9개가 크롤러 기준 **1,611~1,747자** 였다.
- * 색인된 `/charter` 는 4,980자, 색인이 거부된 `/planner` 는 939자였다 — 지역 페이지는
- * 그 사이 위험 구간에 통째로 들어 있다. 페이지가 가진 고유 본문이 소개문 한 단락(135~218자)
- * 과 명소 5개 카드뿐이라서 그렇다.
- *
- * 🔴 갔다가 거부당한 페이지(`Crawled – not indexed`)는 안 가본 페이지보다 나쁘다. 구글이
- *    다시 오지 않아 사람이 색인 요청으로 밀어넣어야 한다(`/planner` 가 그 상태였다).
- *    그래서 색인 요청을 넣기 **전에** 본문을 채운다.
+ * 목적: 지역별 여행 선택과 실제 제공 상품의 관계를 공개 본문으로 안내한다.
+ * 본문 길이만으로 Google의 미색인 원인을 확정할 수 없으며, 색인된 같은 형식의
+ * 지역 페이지도 있다. 기존 요청을 반복하지 않고 실제 방문자에게 필요한 내용을 개선한다.
+ * 연결된 상품이 해당 지역의 모든 명소를 방문한다는 뜻은 아니다.
  *
  * 원칙 (`CharterSeoInfo`·`PlannerSeoInfo` 와 동일)
  *   - 숨은 문구·키워드 나열 금지. 여기 있는 문장은 전부 화면에 보이고 사람이 읽는 내용이다.
@@ -138,17 +134,17 @@ const COPY: Record<Lang, {
       ? { title: `${region} 일정 만들기`, description: '여행 플래너에서 날짜와 조건을 넣고 시간표와 이동 경로를 만듭니다.' }
       : { title: `${region} 전세 차량 문의`, description: '고정 상품과 다른 명소를 원하면 차량과 기사 중심의 자유 경로를 문의합니다.' },
     waysTitle: '코코트립으로 가는 방법',
-    ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
+    ways: ({ region, tourCount, tourTitles, plannerCovered, plannerPrice }) => [
       tourCount > 0
-        ? `정해진 투어 예약 — ${region} 코스가 이미 짜여 있습니다. 차량과 기사가 포함되고 픽업 장소에서 만납니다.`
+        ? `정해진 투어 — ${tourTitles}. 상품 상세에서 실제 방문 장소와 픽업·복귀 장소를 확인하세요. 차량과 기사가 포함됩니다.`
         : `전세 차량 — ${withEunNeun(region)} 정해진 투어 상품이 아직 없어서, 차량과 기사를 시간 단위로 빌려 손님이 원하는 곳으로 갑니다.`,
-      '전세 차량 — 일정을 손님이 정하고 차량과 기사만 빌립니다. 공항 픽업, 하루 대절, 여러 날 장거리 모두 됩니다.',
+      ...(tourCount > 0 ? ['전세 차량 — 일정을 손님이 정하고 차량과 기사만 빌립니다. 공항 픽업, 하루 대절, 여러 날 장거리 모두 됩니다.'] : []),
       plannerCovered
         ? `여행 플래너 — 도시·날짜·여행 조건을 넣으면 ${withEulReul(region)} 포함한 일정이 한국 현지 데이터로 자동 작성됩니다. 지하철·버스 실제 경로와 도보 지도가 붙고 PDF 로 받습니다. 전체 일정 ${plannerPrice}, 뼈대 미리보기는 무료입니다.`
         : `여행 플래너 — 현재 ${withEunNeun(region)} 자동 일정 대상 도시가 아닙니다. ${withEunNeun(region)} 전세 차량으로 가고, 자동 일정은 대상 도시에서 쓰시면 됩니다.`,
     ],
     toursTitle: ({ region }) => `${region} 투어 상품`,
-    toursIntro: ({ region, tourCount }) => `${region}에서 예약할 수 있는 투어 ${tourCount}건입니다. 아래 값은 상품 정보 그대로이고, 실제 결제 금액은 인원과 날짜에 따라 예약 화면에서 확정됩니다.`,
+    toursIntro: ({ region, tourCount, tourTitles }) => `${region} 안내에 연결된 공개 상품 ${tourCount}건입니다 — ${tourTitles}. 모든 지역 명소가 포함된다는 뜻은 아닙니다. 아래 값은 상품 정보 그대로이고, 실제 결제 금액은 인원과 날짜에 따라 예약 화면에서 확정됩니다.`,
     toursNone: ({ region }) => `${withEunNeun(region)} 정해진 투어 상품이 아직 없습니다. 전세 차량으로 방문하실 수 있고, 원하시는 코스를 알려 주시면 견적을 드립니다.`,
     includedTitle: '요금에 포함되는 것',
     includedLabel: '포함',
@@ -203,17 +199,17 @@ const COPY: Record<Lang, {
       ? { title: `Build a ${region} plan`, description: 'Enter your dates and conditions in the trip planner to build a timed route.' }
       : { title: `Ask about a ${region} charter`, description: 'Ask for a vehicle-and-driver route when your stops differ from the set product.' },
     waysTitle: 'Ways to visit with CocoTrip',
-    ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
+    ways: ({ region, tourCount, tourTitles, plannerCovered, plannerPrice }) => [
       tourCount > 0
-        ? `Book a set tour — the ${region} route is already planned. A private vehicle and driver are included, and you meet at the pickup point.`
+        ? `Set tour — ${tourTitles}. Check the product page for the actual stops, pickup and return point. A private vehicle and driver are included.`
         : `Private charter — ${region} has no set tour product yet, so you hire the vehicle and driver by the hour and go where you want.`,
-      'Private charter — you decide the route and hire only the vehicle and driver. Airport pickups, full-day charters and multi-day trips are all available.',
+      ...(tourCount > 0 ? ['Private charter — you decide the route and hire only the vehicle and driver. Airport pickups, full-day charters and multi-day trips are all available.'] : []),
       plannerCovered
         ? `Trip planner — give it your city, dates and trip conditions and an itinerary that includes ${region} is written automatically from Korean local data. It carries real subway and bus routes between stops, walking maps, and a PDF. The full itinerary is ${plannerPrice}; the outline preview is free.`
         : `Trip planner — ${region} is not one of the cities the automatic planner covers right now. Visit ${region} by charter or tour, and use the planner for the cities it does cover.`,
     ],
     toursTitle: ({ region }) => `${region} tours`,
-    toursIntro: ({ region, tourCount }) => `${tourCount} tour${tourCount === 1 ? '' : 's'} you can book in ${region}. The figures below come straight from the product data; the amount you actually pay is confirmed at booking based on party size and date.`,
+    toursIntro: ({ region, tourCount, tourTitles }) => `${tourCount} published product${tourCount === 1 ? '' : 's'} linked from this ${region} guide — ${tourTitles}. These do not cover every regional attraction. The figures below come straight from the product data; the amount you actually pay is confirmed at booking based on party size and date.`,
     toursNone: ({ region }) => `There is no set tour product for ${region} yet. You can still visit by private charter — tell us where you want to go and we will quote the route.`,
     includedTitle: 'What the price covers',
     includedLabel: 'Included',
@@ -268,17 +264,17 @@ const COPY: Record<Lang, {
       ? { title: `${region}の旅程を作る`, description: '旅行プランナーに日程と条件を入力し、時刻付きの移動ルートを作ります。' }
       : { title: `${region}の貸切を相談`, description: '既定商品と異なる名所を巡るなら、車両とドライバー中心の自由ルートを相談します。' },
     waysTitle: 'ココトリップでの行き方',
-    ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
+    ways: ({ region, tourCount, tourTitles, plannerCovered, plannerPrice }) => [
       tourCount > 0
-        ? `決まったツアーを予約 — ${region} のコースはすでに組まれています。専用車両とドライバーが含まれ、送迎場所で合流します。`
+        ? `既定ツアー — ${tourTitles}。実際の訪問先、送迎・帰着場所は商品詳細でご確認ください。専用車両とドライバーが含まれます。`
         : `貸切チャーター — ${region} はまだ既定のツアー商品がないため、車両とドライバーを時間単位で借りてご希望の場所へ向かいます。`,
-      '貸切チャーター — 行程はお客様が決め、車両とドライバーだけを借ります。空港送迎、1日貸切、複数日の長距離すべて対応します。',
+      ...(tourCount > 0 ? ['貸切チャーター — 行程はお客様が決め、車両とドライバーだけを借ります。空港送迎、1日貸切、複数日の長距離すべて対応します。'] : []),
       plannerCovered
         ? `旅行プランナー — 都市・日程・旅行条件を入力すると、${region} を含む旅程が韓国の現地データで自動作成されます。地点間の地下鉄・バスの実際のルートと徒歩の地図が付き、PDF で受け取れます。全旅程 ${plannerPrice}、骨組みのプレビューは無料です。`
         : `旅行プランナー — 現在 ${region} は自動作成の対象都市ではありません。${region} はチャーターでの訪問となり、自動作成は対象都市でご利用ください。`,
     ],
     toursTitle: ({ region }) => `${region} のツアー商品`,
-    toursIntro: ({ region, tourCount }) => `${region} で予約できるツアー ${tourCount} 件です。以下は商品情報のままの数値で、実際のお支払い額は人数と日程に応じて予約画面で確定します。`,
+    toursIntro: ({ region, tourCount, tourTitles }) => `${region}ガイドから紹介する公開商品${tourCount}件 — ${tourTitles}。地域の全名所を巡る商品ではありません。以下は商品情報の数値で、実際のお支払い額は人数と日程に応じて予約画面で確定します。`,
     toursNone: ({ region }) => `${region} はまだ既定のツアー商品がありません。貸切チャーターでの訪問は可能です。ご希望の場所をお知らせいただければお見積りします。`,
     includedTitle: '料金に含まれるもの',
     includedLabel: '含まれる',
@@ -333,17 +329,17 @@ const COPY: Record<Lang, {
       ? { title: `制作${region}行程`, description: '在行程规划工具中填写日期与条件，生成带时间的移动路线。' }
       : { title: `咨询${region}包车`, description: '若想去固定产品之外的景点，可咨询以车辆和司机为主的自由路线。' },
     waysTitle: '用 CocoTrip 前往的方式',
-    ways: ({ region, tourCount, plannerCovered, plannerPrice }) => [
+    ways: ({ region, tourCount, tourTitles, plannerCovered, plannerPrice }) => [
       tourCount > 0
-        ? `预订固定行程 — ${region} 的路线已经排好，含专属车辆和司机，在接送点会合。`
+        ? `固定行程 — ${tourTitles}。请在产品详情中查看实际景点、接送与返程地点，含专属车辆和司机。`
         : `包车 — ${region} 目前还没有固定行程产品，可按小时租用车辆和司机，去你想去的地方。`,
-      '包车 — 行程由你决定，只租车辆和司机。机场接送、整日包车、多日长途都可以。',
+      ...(tourCount > 0 ? ['包车 — 行程由你决定，只租车辆和司机。机场接送、整日包车、多日长途都可以。'] : []),
       plannerCovered
         ? `行程规划 — 填写城市、日期和出行条件后，用韩国本地数据自动生成包含 ${region} 的行程，附地点之间的地铁和公交实际路线、步行地图，并可下载 PDF。完整行程 ${plannerPrice}，框架预览免费。`
         : `行程规划 — 目前 ${region} 不在自动规划的城市范围内。前往 ${region} 请用包车或跟团，自动规划可用于已覆盖的城市。`,
     ],
     toursTitle: ({ region }) => `${region} 的行程产品`,
-    toursIntro: ({ region, tourCount }) => `${region} 可预订的行程共 ${tourCount} 个。以下数值直接来自产品资料，实际支付金额会在预订页面按人数和日期确定。`,
+    toursIntro: ({ region, tourCount, tourTitles }) => `${region}指南关联的公开产品共${tourCount}个 — ${tourTitles}，并不包含该地区所有景点。以下数值来自产品资料，实际支付金额会在预订页面按人数和日期确定。`,
     toursNone: ({ region }) => `${region} 目前还没有固定行程产品。你仍可以包车前往，告诉我们想去的地方，我们会给出路线和报价。`,
     includedTitle: '费用包含什么',
     includedLabel: '包含',

@@ -5,6 +5,7 @@ import {
   getTourRouteEditorial,
   TOUR_ROUTE_LABELS,
 } from '@/pages/tourRouteEditorial';
+import { hasReliableEditorialTiming } from '@/lib/tourTiming';
 
 function txt(field: I18nString, language: Language): string {
   return field[language] || field.en;
@@ -37,8 +38,9 @@ export function TourRouteSummary({ tour, language }: { tour: Tour; language: Lan
   if (!editorial || stops.length === 0) return null;
 
   const headingId = `tour-route-summary-${tour.id}`;
-  const firstTime = stops[0].time;
-  const lastTime = stops[stops.length - 1].time;
+  const timingIsReliable = hasReliableEditorialTiming(tour.id, stops, tour.durationHours, tour.durationDays);
+  const firstTime = timingIsReliable ? stops[0].time : '';
+  const lastTime = timingIsReliable ? stops[stops.length - 1].time : '';
   const localSchedule = firstTime === lastTime ? firstTime : `${firstTime}–${lastTime}`;
 
   return (
@@ -67,9 +69,15 @@ export function TourRouteSummary({ tour, language }: { tour: Tour; language: Lan
         </div>
         <div className="min-w-0 px-2 py-3 last:pr-0 sm:px-3">
           <dt className="text-[11px] leading-tight text-ec-ink-3">{txt(TOUR_ROUTE_LABELS.localSchedule, language)}</dt>
-          <dd className="mt-1 text-sm font-bold tabular-nums text-ec-ink">{localSchedule}</dd>
+          <dd className="mt-1 text-sm font-bold tabular-nums text-ec-ink">{timingIsReliable ? localSchedule : '—'}</dd>
         </div>
       </dl>
+
+      {!timingIsReliable && (
+        <p className="mt-3 text-xs leading-relaxed text-ec-ink-3">
+          {txt(TOUR_ROUTE_LABELS.timingConfirmation, language)}
+        </p>
+      )}
 
       <div className="mt-4">
         <p className="text-xs font-bold text-ec-ink-3">{txt(TOUR_ROUTE_LABELS.stopOrder, language)}</p>

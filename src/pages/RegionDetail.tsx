@@ -79,6 +79,7 @@ type RegionLanguage = 'ko' | 'en' | 'ja' | 'zh';
 
 type RegionData = {
   title: string;
+  seoTitle?: string;
   subtitle: string;
   description: string;
   attractions: { name: string; desc: string }[];
@@ -86,6 +87,7 @@ type RegionData = {
 
 const SHELL_COPY: Record<RegionLanguage, {
   eyebrow: string;
+  guideTitle: (region: string) => string;
   notFoundBody: string;
   nextStep: string;
   ctaTitle: (region: string) => string;
@@ -98,6 +100,7 @@ const SHELL_COPY: Record<RegionLanguage, {
 }> = {
   ko: {
     eyebrow: '한국 지역 안내',
+    guideTitle: (region) => `${region} 여행 가이드`,
     notFoundBody: '주소를 다시 확인하거나 다른 지역 안내를 살펴보세요.',
     nextStep: '다음 단계',
     ctaTitle: (region) => `${region} 방문을 준비하세요`,
@@ -110,6 +113,7 @@ const SHELL_COPY: Record<RegionLanguage, {
   },
   en: {
     eyebrow: 'Korea region guide',
+    guideTitle: (region) => `${region} travel guide`,
     notFoundBody: 'Check the address or choose another Korea region guide.',
     nextStep: 'Next step',
     ctaTitle: (region) => `Prepare your visit to ${region}`,
@@ -122,6 +126,7 @@ const SHELL_COPY: Record<RegionLanguage, {
   },
   ja: {
     eyebrow: '韓国地域ガイド',
+    guideTitle: (region) => `${region}旅行ガイド`,
     notFoundBody: 'URLを確認するか、別の地域ガイドをご覧ください。',
     nextStep: '次のステップ',
     ctaTitle: (region) => `${region}への旅を準備する`,
@@ -134,6 +139,7 @@ const SHELL_COPY: Record<RegionLanguage, {
   },
   zh: {
     eyebrow: '韩国地区指南',
+    guideTitle: (region) => `${region}旅行指南`,
     notFoundBody: '请检查网址，或浏览其他韩国地区指南。',
     nextStep: '下一步',
     ctaTitle: (region) => `准备前往${region}`,
@@ -190,7 +196,7 @@ export function RegionDetail() {
   });
 
   usePageMeta({
-    title: regionData?.title || t.regionDetail?.notFound || 'Region not found',
+    title: regionData?.seoTitle || regionData?.title || t.regionDetail?.notFound || 'Region not found',
     description: regionData?.description || copy.notFoundBody,
     ogImage: images[0] || '/hero-seoul.webp',
   });
@@ -219,7 +225,7 @@ export function RegionDetail() {
               <div className="region-editorial-hero-grid">
                 <div className="region-editorial-hero-copy">
                   <p className="ec-eyebrow">{copy.eyebrow}</p>
-                  <h1 id="region-title" className="ec-display">{regionData.title}</h1>
+                  <h1 id="region-title" className="ec-display">{regionData.seoTitle ? copy.guideTitle(regionData.title) : regionData.title}</h1>
                   <p className="region-editorial-deck">{regionData.subtitle}</p>
                   <p className="ec-body">{regionData.description}</p>
                   <p className="region-editorial-facts ec-figure">
