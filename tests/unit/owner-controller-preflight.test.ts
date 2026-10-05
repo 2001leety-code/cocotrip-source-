@@ -143,7 +143,7 @@ describe('Owner Controller 설정 정본', () => {
   });
   it('기본 오너 설정은 P1 기준 필수값 누락이 있으면 fail-closed다', () => {
     const config = readyConfig();
-    expect(validateOwnerControllerConfig(config).length).toBe(0);
+    expect(validateOwnerControllerConfig(config, { today: '2026-09-01' }).length).toBe(0);
   });
 
   it('실제 공개 설정과 assetlinks는 같은 오너 패키지와 인증서 지문을 사용한다', () => {

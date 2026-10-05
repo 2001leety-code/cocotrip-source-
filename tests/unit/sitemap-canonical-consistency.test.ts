@@ -89,7 +89,7 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
     expect(new Set(locs).size).toBe(locs.length);
   });
 
-  it('lastmod 는 2026-08-29에 본문을 크게 고친 18개에만 정확히 둔다', () => {
+  it('lastmod 는 실제로 본문을 크게 고친 18개에만 정확히 둔다', () => {
     const changed = [
       '/guide/how-weak-won-makes-korea-cheaper-for',
       '/guide/best-temple-stays-in-korea-2026-guide',
@@ -111,7 +111,12 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
       '/region/jeonju',
     ].map((path) => `https://cocotripkr.com${path}`);
 
-    expect(lastmods).toEqual(changed.map((url) => [url, '2026-08-29']));
+    expect(lastmods).toEqual(changed.map((url) => [
+      url,
+      ['/region/paju', '/region/ganghwa', '/region/incheon'].some((path) => url.endsWith(path))
+        ? '2026-09-27'
+        : '2026-08-29',
+    ]));
   });
 
   it('changefreq·priority 는 쓰지 않는다 (구글이 무시 — 조치했다는 착시 방지)', () => {
