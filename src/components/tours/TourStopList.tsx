@@ -44,17 +44,18 @@ function stayLabel(min: number, lang: Language): string {
 interface TourStopListProps {
   stops: TourStop[];
   language: Language;
+  timingIsReliable?: boolean;
 }
 
-export function TourStopList({ stops, language }: TourStopListProps) {
+export function TourStopList({ stops, language, timingIsReliable = true }: TourStopListProps) {
   return (
     <div className="space-y-2">
       {stops.map((stop, i) => (
         <div key={i}>
-          {stop.transit_from_prev && i > 0 && (
+          {timingIsReliable && stop.transit_from_prev && i > 0 && (
             <TransitArrow transit={stop.transit_from_prev} language={language} />
           )}
-          <TourStopCard stop={stop} language={language} />
+          <TourStopCard stop={stop} language={language} timingIsReliable={timingIsReliable} />
         </div>
       ))}
     </div>
@@ -72,7 +73,7 @@ function TransitArrow({ transit, language }: { transit: TourTransit; language: L
   );
 }
 
-function TourStopCard({ stop, language }: { stop: TourStop; language: Language }) {
+function TourStopCard({ stop, language, timingIsReliable }: { stop: TourStop; language: Language; timingIsReliable: boolean }) {
   const name = txt(stop.name, language);
   const description = txt(stop.description, language);
   const tip = txt(stop.tip, language);
@@ -93,17 +94,21 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xs font-bold tabular-nums text-ec-brand">
-            {stop.time}
-          </span>
+          {timingIsReliable && (
+            <span className="text-xs font-bold tabular-nums text-ec-brand">
+              {stop.time}
+            </span>
+          )}
           <h3 className="min-w-0 text-base font-bold text-ec-ink">{name}</h3>
         </div>
 
         <div className="mb-2 flex items-center gap-3 text-xs text-ec-ink-3">
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {stayLabel(stop.stay_min, language)}
-          </span>
+          {timingIsReliable && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {stayLabel(stop.stay_min, language)}
+            </span>
+          )}
           <span className="flex items-center gap-1">
             <MapPin className="w-3 h-3" />
             {entryFeeLabel(stop.entry_fee_krw, language)}

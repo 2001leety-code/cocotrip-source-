@@ -37,10 +37,10 @@ export const TOUR_ROUTE_LABELS: Record<string, I18nString> = {
     zh: '公开站点',
   },
   localSchedule: {
-    ko: '현지 일정',
-    en: 'On-site schedule',
-    ja: '現地日程',
-    zh: '当地行程',
+    ko: '첫·마지막 정류장 도착 시간',
+    en: 'First / last listed arrival',
+    ja: '最初・最後の立ち寄り先の到着時刻',
+    zh: '首末站点到达时间',
   },
   stopOrder: {
     ko: '방문 순서',
@@ -53,6 +53,12 @@ export const TOUR_ROUTE_LABELS: Record<string, I18nString> = {
     en: 'Region & trip guides',
     ja: '地域・旅行ガイド',
     zh: '地区与旅行指南',
+  },
+  timingConfirmation: {
+    ko: '픽업·복귀 장소 및 교통 상황에 따라 세부 시간은 예약 전에 확인',
+    en: 'Confirm detailed times before booking; pickup, return, and traffic may affect the schedule.',
+    ja: '送迎場所や交通状況により、詳細な時間は予約前にご確認ください',
+    zh: '接送地点和交通状况可能影响具体时间，请在预订前确认',
   },
 };
 

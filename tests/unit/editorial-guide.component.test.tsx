@@ -16,10 +16,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { GuideIndexBody } from '../../src/sections/guide/GuideIndexBody';
 import { GuideArticleBody } from '../../src/sections/guide/GuideArticleBody';
 import { GUIDE_COPY, readingMinutes, type GuideMeta, type GuideDoc } from '../../src/sections/guide/guideCopy';
+import { INDEXABLE_ROUTES } from '../../src/lib/seoRoutes';
+import guidesIndexRaw from '../../src/content/guides/_index.json';
 
 void React;
 
@@ -56,6 +60,14 @@ const renderArticle = (props: Partial<React.ComponentProps<typeof GuideArticleBo
       <GuideArticleBody copy={copy} status="ready" doc={doc()} {...props} />
     </MemoryRouter>,
   );
+
+const storedGuide = (slug: string): GuideDoc =>
+  JSON.parse(readFileSync(path.join(process.cwd(), 'src/content/guides', `${slug}.json`), 'utf8')) as GuideDoc;
+
+const renderStoredArticle = (slug: string) => {
+  const stored = storedGuide(slug);
+  return renderArticle({ doc: stored, words: stored.words });
+};
 
 describe('/guide 목록', () => {
   it('제목은 h1 하나, 각 글은 /guide/<slug> 로 간다', () => {
@@ -194,5 +206,60 @@ describe('/guide/:slug 본문', () => {
     expect(container.textContent).not.toMatch(/undefined|NaN|\{date\}|\{n\}/);
     expect(screen.queryByText(new RegExp(copy.article.freshness.split('{date}')[0].trim()))).toBeNull();
     expect(screen.queryByText(new RegExp(copy.readTime.split('{n}')[1].trim()))).toBeNull();
+  });
+
+  it('뷰티 쇼핑 본문에는 Chuncheon 닭갈비 골목 사진이 뷰티 이미지로 나오지 않는다', () => {
+    const { container } = renderStoredArticle('seoul-k-beauty-shopping-2026-olive');
+    const prose = container.querySelector('.ec-prose')!;
+    const renderedImages = [...prose.querySelectorAll('img')].map((image) => image.getAttribute('src'));
+    expect(renderedImages).not.toContain(
+      'https://cocotripkr.com/blog-images/2026/seoul-k-beauty-shopping-2026-olive-young-tax-refund-guide-670aa0442db1.webp',
+    );
+    expect(renderedImages).not.toContain(
+      'https://cocotripkr.com/blog-images/2026/seoul-k-beauty-shopping-2026-olive-young-tax-refund-guide-7fb460144a20.webp',
+    );
+  });
+
+  it('경주 박물관과 템플스테이 가이드가 경주 지역·투어로 이어지는 실제 링크를 렌더한다', () => {
+    const cases = [
+      {
+        slug: 'gyeongju-koreas-open-air-museum-guide',
+        links: [
+          { name: /Korea temple stay guide/i, href: '/guide/best-temple-stays-in-korea-2026-guide' },
+          { name: /Gyeongju area guide/i, href: '/region/gyeongju' },
+          { name: /Gyeongju History Day Tour/i, href: '/tours/gyeongju-day-tour' },
+        ],
+      },
+      {
+        slug: 'best-temple-stays-in-korea-2026-guide',
+        links: [
+          { name: /CocoTrip Gyeongju guide/i, href: '/guide/gyeongju-koreas-open-air-museum-guide' },
+          { name: /Gyeongju area guide/i, href: '/region/gyeongju' },
+        ],
+      },
+    ] as const;
+
+    for (const article of cases) {
+      const { container, unmount } = renderStoredArticle(article.slug);
+      const prose = container.querySelector('.ec-prose')!;
+      for (const target of article.links) {
+        const link = within(prose).getByRole('link', { name: target.name });
+        expect(link).toHaveAttribute('href', target.href);
+        expect(INDEXABLE_ROUTES, `${article.slug} target ${target.href}`).toContain(target.href);
+      }
+      unmount();
+    }
+  });
+
+  it('사진이 없는 뷰티 가이드의 목록 카드도 플레이스홀더 사진을 렌더하지 않는다', () => {
+    const beauty = (guidesIndexRaw as GuideMeta[]).find((guide) => guide.slug === 'seoul-k-beauty-shopping-2026-olive')!;
+    const { container } = renderIndex([beauty]);
+    const renderedImages = [...container.querySelectorAll('img')].map((image) => image.getAttribute('src'));
+    expect(renderedImages).not.toContain(
+      'https://cocotripkr.com/blog-images/2026/seoul-k-beauty-shopping-2026-olive-young-tax-refund-guide-670aa0442db1.webp',
+    );
+    expect(renderedImages).not.toContain(
+      'https://cocotripkr.com/blog-images/2026/seoul-k-beauty-shopping-2026-olive-young-tax-refund-guide-7fb460144a20.webp',
+    );
   });
 });

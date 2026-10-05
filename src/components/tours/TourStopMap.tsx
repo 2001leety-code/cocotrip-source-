@@ -41,9 +41,10 @@ interface TourStopMapProps {
   stops: TourStop[];
   language: Language;
   title: string;
+  showStopTimes?: boolean;
 }
 
-export function TourStopMap({ stops, language, title }: TourStopMapProps) {
+export function TourStopMap({ stops, language, title, showStopTimes = true }: TourStopMapProps) {
   // 좌표를 가진 stop 이 2개 미만이면 지도를 아예 안 그린다(CourseMiniMap 도 null 을 반환하지만,
   // Suspense·컨테이너를 만들기 전에 여기서 먼저 끊어 불필요한 청크 로드를 막는다).
   // 판정은 `@/lib/tourStopCoords` 한 곳 — 어드민의 "좌표 n곳 입력됨" 표시와 같은 기준이어야
@@ -53,7 +54,10 @@ export function TourStopMap({ stops, language, title }: TourStopMapProps) {
   return (
     <div className="tour-detail-stop-map mb-5">
       <Suspense fallback={<div className="h-[220px] animate-pulse rounded-ec-md bg-ec-sunken" />}>
-        <CourseMiniMap stops={toCourseStops(stops, language)} title={title} />
+        <CourseMiniMap
+          stops={toCourseStops(showStopTimes ? stops : stops.map((stop) => ({ ...stop, time: '' })), language)}
+          title={title}
+        />
       </Suspense>
     </div>
   );

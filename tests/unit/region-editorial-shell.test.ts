@@ -47,7 +47,7 @@ describe('region detail editorial shell', () => {
     expect(page).toContain('to="/tours"');
     expect(page).toContain('href="https://wa.me/821087140611"');
     expect(page).toContain('plannerCovered &&');
-    expect(page).toContain("title: regionData?.title || t.regionDetail?.notFound || 'Region not found'");
+    expect(page).toContain("title: regionData?.seoTitle || regionData?.title || t.regionDetail?.notFound || 'Region not found'");
     expect(page).not.toMatch(/fetch\(|addDoc\(|setDoc\(|updateDoc\(|deleteDoc\(/);
   });
 });

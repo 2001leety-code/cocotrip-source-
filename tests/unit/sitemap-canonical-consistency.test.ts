@@ -89,8 +89,10 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
     expect(new Set(locs).size).toBe(locs.length);
   });
 
-  it('lastmod 는 2026-08-29에 본문을 크게 고친 18개에만 정확히 둔다', () => {
+  it('lastmod 는 실제 콘텐츠 변경일만 반영하고 수정하지 않은 페이지의 날짜는 유지한다', () => {
     const changed = [
+      '/guide',
+      '/guide/gyeongju-koreas-open-air-museum-guide',
       '/guide/how-weak-won-makes-korea-cheaper-for',
       '/guide/best-temple-stays-in-korea-2026-guide',
       '/guide/korea-sim-card-vs-esim-vs-pocket-wifi',
@@ -111,7 +113,32 @@ describe('sitemap ↔ 색인 manifest 일치', () => {
       '/region/jeonju',
     ].map((path) => `https://cocotripkr.com${path}`);
 
-    expect(lastmods).toEqual(changed.map((url) => [url, '2026-08-29']));
+    const updatedOnOctober5 = new Set([
+      '/guide',
+      '/guide/gyeongju-koreas-open-air-museum-guide',
+      '/guide/best-temple-stays-in-korea-2026-guide',
+      '/guide/seoul-k-beauty-shopping-2026-olive',
+      '/tours/seoul-city-full-day',
+      '/tours/incheon-ganghwa-tour',
+      '/tours/gyeongju-day-tour',
+      '/region/paju',
+      '/region/ganghwa',
+      '/region/busan',
+      '/region/danyang',
+      '/region/incheon',
+      '/region/gyeongju',
+      '/region/jeonju',
+    ]);
+    expect(lastmods).toEqual(changed.map((url) => [
+      url,
+      updatedOnOctober5.has(new URL(url).pathname) ? '2026-10-05' : '2026-08-29',
+    ]));
+
+    for (const guide of guidesIndex.filter((item) => updatedOnOctober5.has(`/guide/${item.slug}`))) {
+      const document = JSON.parse(read('src', 'content', 'guides', `${guide.slug}.json`));
+      expect(guide.updated).toBe('2026-10-05');
+      expect(document.updated).toBe(guide.updated);
+    }
   });
 
   it('changefreq·priority 는 쓰지 않는다 (구글이 무시 — 조치했다는 착시 방지)', () => {
