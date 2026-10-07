@@ -31,6 +31,7 @@ React/Vite 프론트 + `api/` serverless 백엔드 + Firestore.
 - **식당 DB:** `api/_food_index.json` (재생성 = `scripts/build-food-index.js`). `api/_food_helper.js`가 프롬프트에 주입.
 - **프론트 플랜 상세:** `src/pages/PlanDetailPage/` (index + `components/` + `pdfGenerator.ts`). 타입 = `src/types/plan.ts`.
 - **필드 참조 시 신·구 폴백 유지** (Firestore 기존 플랜 호환). → `.claude/rules/planner-schema.md`.
+- **AI 보조 도구:** 서브에이전트 `.claude/agents/`, 코드 지도 `npm run graph:*`(Graft), MCP `codebase-memory-mcp`. 결과는 힌트일 뿐 — 편집 전 파일 직접 확인. `graft init`·벤더 설치 스크립트 실행 금지(전역 설정·훅 주입). → `docs/AI-AGENT-TOOLS.md`.
 
 ## 검증 (변경 시)
 

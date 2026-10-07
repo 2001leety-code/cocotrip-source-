@@ -115,3 +115,10 @@ tests/.auth/
 # Brain guide projection repo lock (crash residue only; never content)
 /.guide-projection.lock
 /.guide-projection.lock.*.stale
+
+# AI 개발 도구 로컬 캐시 — 재생성 가능, 커밋 금지 (docs/AI-AGENT-TOOLS.md)
+# Graft(@nanonets/graft) 코드 그래프 캐시 + 로컬 설정
+/graft/
+/.graft/
+# codebase-memory-mcp persistence 산출물 (persistence:true 금지 — 혹시 생겨도 커밋 안 함)
+.codebase-memory/
