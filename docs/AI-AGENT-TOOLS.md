@@ -68,10 +68,15 @@
 | `~/.cache/codebase-memory-mcp/` | 코드 인덱스 DB (코드 사본처럼 다룬다) | 상세 문서 제거 절 참고 |
 | `outputs/openmontage-briefs/` (gitignore) | 영상 브리프 + 사진 사본 | 사용 후 삭제 |
 
+## 확인됨 (2026-10-07, claude.ai/code 클라우드 세션 재시작 후)
+
+- 서브에이전트 16개가 세션의 에이전트 목록에 모두 로드됐다.
+- 프로젝트 MCP `codebase-memory-mcp` 가 세션에 연결됐다. `list_projects` (39,941 nodes) 와 `search_graph` (`verifyCaptureIntegrity` → `api/_shared/paypal-capture-verify.js`) 가 실제로 응답했다.
+
 ## 미검증 — 운영자 확인 필요
 
-- 서브에이전트가 실제 Claude Code 세션의 `/agents` 에 뜨는지, 설명 기반 자동 위임이 의도대로 동작하는지 (라이브 세션에서만 확인 가능).
-- 프로젝트 MCP 승인 프롬프트 UX: 로컬 Claude Code 와 claude.ai/code 클라우드 세션 각각. 핸드셰이크·색인·검색은 이 컨테이너에서 실제로 확인했다.
+- 설명 기반 **자동 위임**이 의도대로 동작하는지 (어떤 요청에 어떤 에이전트가 불리는지는 실사용으로 확인).
+- 로컬 Claude Code 의 프로젝트 MCP 승인 프롬프트 UX (클라우드 세션 연결은 위에서 확인).
 - Windows·macOS 실기기에서 `scripts/graft.mjs` · `scripts/codebase-memory-mcp.mjs` 실행 (Linux x64 에서만 실측).
 - OpenMontage 설치·렌더링 자체, Remotion 상업 라이선스, KTO 사진 출처표기 조건.
 
