@@ -49,7 +49,13 @@
     "guide:legacy-check": "node scripts/sync-blog-guides.mjs --check",
     "guide:legacy-sync": "node scripts/sync-blog-guides.mjs --apply",
     "guide:brain-check": "node scripts/validate-brain-guide-projection.mjs",
-    "guide:brain-sync": "node scripts/apply-brain-guide-projection.mjs --apply"
+    "guide:brain-sync": "node scripts/apply-brain-guide-projection.mjs --apply",
+    "graph:build": "node scripts/graft.mjs build . --only-dir src --only-dir api --only-dir tests",
+    "graph:map": "node scripts/graft.mjs map",
+    "graph:impact": "node scripts/graft.mjs blast . --base origin/main --depth 2 --no-owners --format markdown",
+    "graph:viz": "node scripts/graft.mjs viz --no-open",
+    "cbm:setup": "node scripts/codebase-memory-mcp.mjs setup",
+    "marketing:video-brief": "node scripts/export-openmontage-brief.mjs"
   },
   "overrides": {
     "qs": "^6.15.3",

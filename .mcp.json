@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codebase-memory-mcp": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const path = require('node:path'), fs = require('node:fs'); const start = process.env.CLAUDE_PROJECT_DIR || process.cwd(); let dir = start; while (!fs.existsSync(path.join(dir, 'scripts', 'codebase-memory-mcp.mjs')) && path.dirname(dir) !== dir) dir = path.dirname(dir); import(require('node:url').pathToFileURL(path.join(dir, 'scripts', 'codebase-memory-mcp.mjs')).href).then((m) => m.main(['mcp'])).catch((e) => { process.stderr.write('[codebase-memory-mcp bootstrap] cannot load scripts/codebase-memory-mcp.mjs searching up from ' + start + ': ' + (e && e.message) + '\\n'); process.exit(1); });"
+      ]
+    }
+  }
+}

@@ -23,6 +23,7 @@ Codex 진입 규칙. 이 레포 = React/Vite 프론트 + `api/` serverless + Fir
 | UI 디자인·밀도·접근성 점검 | `.claude/skills/cocotrip-design-review/SKILL.md` |
 | PWA·서비스워커·스플래시 | `.claude/skills/cocotrip-pwa-release/SKILL.md` |
 | 화면 실물 검증 / 표면 간 검증 | `.claude/skills/verify-web/SKILL.md`, `.claude/skills/verify-surfaces/SKILL.md` |
+| AI 보조 도구 (코드 지도 `npm run graph:*`·codebase-memory MCP·영상 브리프·`.claude/agents/`) | `docs/AI-AGENT-TOOLS.md` — `graft init`·벤더 설치 스크립트 실행 금지 |
 
 `.claude/skills/**` 는 Claude 용 포장이지만 **내용은 Codex 에도 그대로 적용된다** — 자동으로 뜨지 않을 뿐이다.
 
