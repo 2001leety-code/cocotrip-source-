@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * OpenMontage 영상 brief 내보내기 CLI.
  *

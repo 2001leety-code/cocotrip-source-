@@ -11,6 +11,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { CourseStop } from './courseOps';
 import { pointsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
+import { CARTO_VOYAGER_URL, CARTO_TILE_OPTIONS } from '@/lib/basemap';
 
 interface NearbyPlace { name: string; lat?: number; lng?: number; category?: string; reason?: string; }
 
@@ -111,10 +112,8 @@ export function CourseMiniMap({ stops, title, nearby, routeSegments }: CourseMin
         mapInstance = map;
 
         // voyager = 밝은 컬러 타일(주변 상점·지명 보임). dark_all 은 너무 어두워 핀·동선 안 보였음.
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          subdomains: 'abcd', maxZoom: 20,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        }).addTo(map);
+        // 2026-09-29 부터 CARTO 키 필수 → src/lib/basemap.ts 단일 출처.
+        L.tileLayer(CARTO_VOYAGER_URL, { ...CARTO_TILE_OPTIONS }).addTo(map);
 
         // (2026-07-19) 실경로 우선 — /api/course-route 가 준 TMAP 좌표가 있으면
         // 도로·철도를 따라 노선 공식 색으로 그린다. (2026-07-28) 좌표 없는 구간은
