@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapPinned } from 'lucide-react';
+import { CARTO_VOYAGER_URL, CARTO_TILE_OPTIONS } from '@/lib/basemap';
 
 import type {
   MoodBookingShareRoute,
@@ -104,14 +105,8 @@ export function MoodShareRouteMap({ stops, route, className = '' }: MoodShareRou
         });
         mapInstance = map;
 
-        L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          {
-            subdomains: 'abcd',
-            maxZoom: 20,
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-          },
-        ).addTo(map);
+        // 2026-09-29 부터 CARTO 키 필수 → src/lib/basemap.ts 단일 출처.
+        L.tileLayer(CARTO_VOYAGER_URL, { ...CARTO_TILE_OPTIONS }).addTo(map);
 
         // 밝은 지도 위에서도 실제 도로선이 또렷하도록 흰색 테두리 뒤에 보라색 선을 겹친다.
         L.polyline(mapData.path, {

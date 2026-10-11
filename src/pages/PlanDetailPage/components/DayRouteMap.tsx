@@ -23,6 +23,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { segmentTiringReasons } from '../lib/routeInsight';
 import { pointsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
 import { naverMapDirectionsUrl, NAVER_DIRECTIONS_MAX_STOPS } from '@/lib/naverMap';
+import { CARTO_VOYAGER_URL, CARTO_TILE_OPTIONS } from '@/lib/basemap';
 
 interface DayRouteMapProps {
   stops: PlanStop[];
@@ -187,17 +188,9 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
         });
         mapInstance = map;
 
-        // CARTO voyager basemap — free, no key, English labels. 밝은 컬러라 핀·동선·주변 상점이 잘 보임
-        // (기존 dark_all 은 너무 어두워 동선/핀이 묻혔음).
-        L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          {
-            subdomains: 'abcd',
-            maxZoom: 20,
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          },
-        ).addTo(map);
+        // CARTO voyager basemap — English labels; 밝은 컬러라 핀·동선·주변 상점이 잘 보임
+        // (기존 dark_all 은 너무 어두워 동선/핀이 묻혔음). 2026-09-29 부터 키 필수 → src/lib/basemap.ts 단일 출처.
+        L.tileLayer(CARTO_VOYAGER_URL, { ...CARTO_TILE_OPTIONS }).addTo(map);
 
         // Route polylines.
         // (2026-07-19) 실경로 우선: TMAP passShape 좌표가 있으면 도로·철도를 따라 그리고
