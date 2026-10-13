@@ -79,7 +79,7 @@ export function resolveLlmModel(role, opts = {}) {
 export async function isLlmKillSwitchOn({ env = process.env, adminDb } = {}) {
   if (trim(env.LLM_KILL_SWITCH) === '1' || trim(env.LLM_KILL_SWITCH).toLowerCase() === 'true') return true;
   const db = adminDb === undefined ? safeDb() : adminDb;
-  if (!db) return false;
+  if (!db || typeof db.collection !== 'function') return false; // 테스트 스텁 {} 등 — fail-open
   try {
     const flags = await getRuntimeFlags(db);
     return flags.llm_kill_switch === true;
@@ -99,9 +99,9 @@ export async function checkDailyCallLimit({ env = process.env, adminDb, now = Da
   const limit = Number(env.LLM_DAILY_CALL_LIMIT) > 0 ? Number(env.LLM_DAILY_CALL_LIMIT) : DEFAULT_DAILY_LIMIT;
   const db = adminDb === undefined ? safeDb() : adminDb;
   if (!db) return { allowed: true, count: 0, limit };
-  const ref = db.collection('llm_guard').doc(kstDay(now));
   let count = 0;
   try {
+    const ref = db.collection('llm_guard').doc(kstDay(now));
     // ponytail: read-then-write (동시 요청 몇 건 누락 가능) — 상한 가드는 근사치면 충분. 정확 필요 시 transaction.
     const snap = await ref.get();
     count = (Number((snap && snap.exists && snap.data() || {}).count) || 0) + 1;
