@@ -8,8 +8,7 @@
  * 위한 방어 경계이며 현재 세 문의 유형에서는 실행되지 않는다.
  */
 import { createHash } from 'crypto';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { resolveGeminiModel } from '../_ai_core/geminiModelResolver.js';
+import { createLlmModel, resolveLlmApiKey, resolveLlmModel } from './llm/index.js'; // LLM 공급자 전환
 
 export const INQUIRY_RESPONSE_POLICY_VERSION = 'inquiry-response.v4';
 export const INQUIRY_DRAFT_MAX_ATTEMPTS = 3;
@@ -219,7 +218,8 @@ export async function generateInquiryResponseDraft(inquiry = {}, options = {}) {
       errorCode: null,
     };
   }
-  const apiKey = String(options.apiKey || process.env.GEMINI_API_KEY || '').trim();
+  let apiKey = String(options.apiKey || '').trim();
+  if (!apiKey) { try { apiKey = resolveLlmApiKey('classifier'); } catch { /* 미설정 */ } }
   if (!apiKey) {
     return {
       ...fallback,
@@ -230,21 +230,20 @@ export async function generateInquiryResponseDraft(inquiry = {}, options = {}) {
     };
   }
 
-  const modelName = options.model || resolveGeminiModel('classifier');
+  const modelName = options.model || resolveLlmModel('classifier');
   try {
     let text;
     if (options.generateText) {
       text = await options.generateText(buildInquiryDraftPrompt(inquiry), modelName);
     } else {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
+      const model = createLlmModel({
+        ...(options.model ? { model: options.model } : {}),
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.2,
           maxOutputTokens: 700,
         },
-      });
+      }, { role: 'classifier', stage: 'inquiry-draft', apiKey, timeoutMs: 15000 });
       const result = await model.generateContent(buildInquiryDraftPrompt(inquiry));
       text = result.response.text();
     }

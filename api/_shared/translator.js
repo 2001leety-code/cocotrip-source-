@@ -26,7 +26,7 @@
  *
  * Env: reuses GEMINI_API_KEY (already set in production for ai-planner-full / chat).
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey, resolveLlmModel } from './llm/index.js';
 import { readFileSync } from 'fs';
 import { recordGeminiUsage } from './apiUsageRecorder.js';
 
@@ -37,7 +37,7 @@ function recordTranslatorUsage(stage, r) {
     if (!um) return;
     recordGeminiUsage({
       stage,
-      model: 'gemini-2.5-flash',
+      model: resolveLlmModel('translate', { geminiFallback: GEMINI_VERSION }),
       cm: {
         total: Number(um.promptTokenCount) || 0,
         cached: Number(um.cachedContentTokenCount) || 0,
@@ -56,13 +56,11 @@ import {
 const GEMINI_VERSION = 'gemini-2.5-flash';
 
 // ── Internal: lazy genAI client ──
-let _genAI = null;
+// LLM 공급자 전환 (2026-10-13): getGenerativeModel 모양만 유지 — 3개 호출부 불변.
 function getClient() {
-  if (_genAI) return _genAI;
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  _genAI = new GoogleGenerativeAI(key);
-  return _genAI;
+  let apiKey = '';
+  try { apiKey = resolveLlmApiKey('translate'); } catch { return null; }
+  return { getGenerativeModel: (cfg) => createLlmModel(cfg, { role: 'translate', stage: 'translator', apiKey, timeoutMs: 15000 }) };
 }
 
 // ── Internal: simple LRU cache ──
