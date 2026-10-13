@@ -5,13 +5,12 @@
  * 가격 계산, 주소 검색/보정, 경로 계산은 하지 않는다. 원문에서 확인할 수 없는
  * 주소/지도 링크는 서버가 제거한다.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js'; // LLM 공급자 전환
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
-import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
 import { recordUsageFromResponse } from './_shared/apiUsageRecorder.js';
 import {
   formatQuoteRegionConflictWarning,
@@ -415,9 +414,8 @@ function parseGeminiJson(text) {
 }
 
 async function extractSchedule(text, apiKey) {
-  const modelId = resolveGeminiModel('classifier');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: modelId });
+  const model = createLlmModel({}, { role: 'classifier', stage: 'mood-quote-parse', apiKey, timeoutMs: 17000 }); // maxDuration 20
+  const modelId = model.modelId;
   const result = await model.generateContent({
     contents: [{
       role: 'user',
@@ -473,7 +471,8 @@ export default async function handler(req, res) {
   if (text.length > MAX_TEXT_LENGTH) {
     return send(res, 400, headers, { ok: false, error: `text 는 ${MAX_TEXT_LENGTH}자 이하`, code: 'TEXT_TOO_LONG' });
   }
-  const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+  let apiKey = '';
+  try { apiKey = resolveLlmApiKey('classifier'); } catch { /* 미설정 */ }
   if (!apiKey) {
     return send(res, 503, headers, { ok: false, error: 'AI 설정 누락', code: 'AI_NOT_CONFIGURED' });
   }
