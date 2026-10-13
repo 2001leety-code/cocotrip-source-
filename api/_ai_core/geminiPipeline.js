@@ -668,7 +668,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
  *
  * 형식: OpenAPI Subset (Gemini 2.5 Pro 지원). type 대문자 (OBJECT/ARRAY/STRING/INTEGER/NUMBER).
  */
-export const PLAN_RESPONSE_SCHEMA = {
+const PLAN_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   // P291 (2026-05-29): properties hint 확장 — P276+P277 의도 (arrival_guide.steps /
   //   daily_budget_summary 통째 누락 차단) 의 cache miss 0 대안.
