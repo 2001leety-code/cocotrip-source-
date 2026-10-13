@@ -6,8 +6,8 @@
 
 | Step | 내용 | 비용 |
 |---|---|---|
-| `daily-health-check.mjs` | 엔드포인트 ping (homepage, plan-status, planner) + `validate-planner.cjs` 5 시나리오 실행 | Gemini 5회 호출 (~$0.05) |
-| `full-plan-translation-pdf.spec.ts` | E2E smoke — plan 생성 → 구조 검증 → blind `car·25분` 0건 → 번역 → PDF auth gate | Gemini 1회 (~$0.10) |
+| `daily-health-check.mjs` | 엔드포인트 ping (homepage, plan-status, planner) + `validate-planner.cjs` 5 시나리오 실행 | **LLM 0회** (2026-10-13: `x-llm-mock` → 플랜 픽스처, 후속 파이프라인만 검증). `workflow_dispatch` + `real_llm=true` 일 때만 실호출(5회, Sonnet ≈$0.6) |
+| `full-plan-translation-pdf.spec.ts` | E2E smoke — plan 생성 → 구조 검증 → blind `car·25분` 0건 → 번역 → PDF auth gate | **LLM 0회** (mock). `real_llm=true` 수동 실행 시 2회(플랜+번역 ≈$0.13) |
 | `health-log.jsonl` commit | repo 에 자율점검 이력 누적 | (push 권한 필요) |
 
 ## 2. 필수 GitHub Secrets (운영자 1회 등록)
@@ -97,7 +97,7 @@ P167/P168/P172 완전 측정은 별도 수단 필요.
 node scripts/validate-planner.cjs
 # → "FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 필수. ..."
 
-# secret 설정 후 → 5 시나리오 정상 실행 (~5분, Gemini 5회 호출)
+# secret 설정 후 → 5 시나리오 정상 실행 (mock = 유료 LLM 0회. 실호출은 REAL_LLM=1 명시 — 5회 ≈$0.6)
 $env:FIREBASE_WEB_API_KEY = "..."
 $env:HEALTH_CHECK_PASSWORD = "..."
 node scripts/validate-planner.cjs

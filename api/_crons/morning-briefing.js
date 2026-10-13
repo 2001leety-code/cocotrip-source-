@@ -112,7 +112,7 @@ export function buildMessage(agg, rate, marketing, decisions, apiCost, failedSec
   // 💸 AI 사용 (이번달, 자동측정 — api_usage 트래커)
   L.push('', '━━━ 💸 AI 사용 (이번달) ━━━');
   if (apiCost && apiCost.totalUsd > 0) {
-    L.push(`Gemini 예상 <b>${fmtUsd(apiCost.totalUsd)}</b> (${fmtKrw(apiCost.totalUsd, rate)})`);
+    L.push(`AI(LLM) 예상 <b>${fmtUsd(apiCost.totalUsd)}</b> (${fmtKrw(apiCost.totalUsd, rate)})`); // 2026-10-13: Gemini+Claude 합산(api_usage 전 service)
     Object.entries(apiCost.byModel).sort((a, b) => b[1].usd - a[1].usd).slice(0, 4)
       .forEach(([m, v]) => L.push(`  · ${esc(m)} 출력 ${Math.round((v.output || 0) / 1000)}K토큰 ${fmtUsd(v.usd)}`));
   } else {
