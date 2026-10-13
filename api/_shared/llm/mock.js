@@ -126,6 +126,26 @@ export function buildMockBlockSelection({ userText }) {
   return { day_selections };
 }
 
+const LANG_MARK = { Japanese: 'テスト訳', Chinese: '测试译', Korean: '테스트 번역', English: 'test translation' };
+
+/** translate-plan 프롬프트: "Translate the input into <Lang>." + "Input:\n{descriptive:[],transit:[]}" → 같은 길이 배열 echo. */
+function mockTranslatePlan(prompt) {
+  const lang = (String(prompt).match(/into ([A-Za-z]+)/) || [])[1] || 'English';
+  const mark = LANG_MARK[lang] || LANG_MARK.English;
+  const idx = String(prompt).lastIndexOf('Input:');
+  let input = { descriptive: [], transit: [] };
+  try { input = JSON.parse(String(prompt).slice(idx + 'Input:'.length).trim()); } catch { /* keep empty */ }
+  const tag = (t) => `${t} (${mark})`;
+  return JSON.stringify({
+    descriptive: (input.descriptive || []).map(tag),
+    transit: (input.transit || []).map(tag),
+  });
+}
+
+const STAGE_FIXTURES = {
+  'translate-plan': mockTranslatePlan,
+};
+
 const ROLE_FIXTURES = {
   quick: () => JSON.stringify({ title: 'Mock quick preview', summary: 'mock', stops: [] }),
   course: () => JSON.stringify({ order: [], suggestions: [] }),
@@ -134,8 +154,9 @@ const ROLE_FIXTURES = {
   chat: () => 'Hello! (mock reply)',
 };
 
-function fixtureText(role, request) {
+function fixtureText(role, stage, request) {
   const userText = typeof request === 'string' ? request : (request?.contents || []).map((c) => (c.parts || []).map((p) => p.text || '').join('')).join('\n');
+  if (STAGE_FIXTURES[stage]) return STAGE_FIXTURES[stage](userText);
   if (role === 'main') return JSON.stringify(buildMockPlan({ userText }));
   if (role === 'block') return JSON.stringify(buildMockBlockSelection({ userText }));
   const f = ROLE_FIXTURES[role];
@@ -152,15 +173,15 @@ function toResponse(text, promptText) {
   };
 }
 
-export function createMockModel(config, { role, modelId, onUsage }) {
+export function createMockModel(config, { role, stage, modelId, onUsage }) {
   const promptOf = (request) => (typeof request === 'string' ? request : JSON.stringify(request || {}));
   async function generateContent(request) {
-    const response = toResponse(fixtureText(role, request), promptOf(request));
+    const response = toResponse(fixtureText(role, stage, request), promptOf(request));
     onUsage && onUsage(response.usageMetadata, 0);
     return { response };
   }
   async function generateContentStream(request) {
-    const response = toResponse(fixtureText(role, request), promptOf(request));
+    const response = toResponse(fixtureText(role, stage, request), promptOf(request));
     const text = response.text();
     async function* iterate() {
       for (let i = 0; i < text.length; i += 200) {

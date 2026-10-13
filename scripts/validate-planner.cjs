@@ -268,6 +268,9 @@ async function runAll() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
+          // LLM 공급자 전환 (2026-10-13): 자동 실행은 유료 LLM 을 부르지 않는다 — 서버가 admin-bypass
+          // 주문에서만 이 헤더를 인정해 플랜 픽스처로 후속 파이프라인을 검증. 실 LLM 품질 확인은 REAL_LLM=1 수동.
+          'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1',
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(300000), // 5 min timeout

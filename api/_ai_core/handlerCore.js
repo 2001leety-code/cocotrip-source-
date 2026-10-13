@@ -10,7 +10,7 @@
  * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
 import { captureError } from '../_shared/sentry.js';
-import { resolveLlmApiKey } from '../_shared/llm/index.js';
+import { resolveLlmApiKey, adoptLlmMock, enterLlmMockContext } from '../_shared/llm/index.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
@@ -65,12 +65,11 @@ export default async function handler(req, res) {
     res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED')));
   }
+  enterLlmMockContext(req); // LLM 공급자 전환 (2026-10-13): CI 의 x-llm-mock → 게이트 통과 후 adoptLlmMock
 
   const handlerStart = Date.now();
-  // Phase 4 A/B test (2026-05-13): mode trace 변수 — try 블록 밖에서 선언해
-  // 초기 throw 시에도 catch 블록의 sentry/log 가 안전하게 read 할 수 있게.
-  // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
-  // 'unknown' 그대로 sentry 에 기록.
+  // Phase 4 A/B test (2026-05-13): mode trace 변수 — try 밖 선언 (초기 throw 시에도 catch 의 sentry/log 가 read).
+  // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전 throw 면 'unknown' 그대로 sentry 기록.
   let resolvedPlannerMode = 'unknown';
   // P96 (2026-05-19): step-level elapsed instrumentation (기존 START+TOTAL 만으론 hang 시 진단 불가).
   // withStep 으로 핵심 await 마다 ENTER+DONE/FAILED elapsed 로그. catch 의 hangWarn 은 5분 cap 30초 전 발사. P218: fmtMs.
@@ -163,6 +162,7 @@ export default async function handler(req, res) {
     }
     // 버그헌트 A(2026-06-27): 무료쿠폰이 게이트에서 소비됨 — 이후 plan 생성 실패 시 catch 에서 롤백하려고 정보 보관.
     if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
+    if (gate.isAdminBypass) adoptLlmMock('admin-bypass + x-llm-mock'); // LLM 공급자 전환: CI 테스트 주문만 mock (유료 호출 0)
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
@@ -227,9 +227,7 @@ export default async function handler(req, res) {
     const { planOwnerUid, forceGuestToken } = await resolveGuestAnonOwner(req, uid); // FEATURE_GUEST_ANON_AUTH (OFF=기존 동작, 상세 user-auth.js)
     const verifiedHistoryUid = auth.ok ? auth.uid : (forceGuestToken ? planOwnerUid : null);
     console.log('[ai-planner-full] Request:', JSON.stringify({ styles, area, duration, pax, vehicle, arrival_airport, mobility }));
-    console.log('[ai-planner-full] ENV:', { gemini: !!process.env.GEMINI_API_KEY, firebase: !!adminDb, gmail: !!process.env.GMAIL_USER });
 
-    console.log('[planner] Step 1: Calling Gemini...');
 
     // ── Gemini 호출 준비 ───────────────────────────────────────────────────
     const apiKey = resolveLlmApiKey('main'); // LLM 공급자 전환: gemini 면 GEMINI_API_KEY, claude/mock 이면 자리표시

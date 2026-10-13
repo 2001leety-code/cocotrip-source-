@@ -36,7 +36,7 @@
  *
  * 실패는 fail-soft — 500 이 아니라 구조화된 { ok:false, error, code } 로 반환.
  */
-import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js';
+import { createLlmModel, resolveLlmApiKey, runWithLlmContext, wantsLlmMock } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
@@ -604,7 +604,10 @@ export default async function handler(req, res) {
     let rawFlights = [];
     let truncated = false;
     try {
-      const extracted = await extractStops(rawText, apiKey);
+      // LLM 공급자 전환: CI(mood-smoke) 의 x-llm-mock → allowlist 통과한 요청만 mock (유료 호출 0).
+      const extracted = wantsLlmMock(req)
+        ? await runWithLlmContext({ provider: 'mock' }, () => extractStops(rawText, apiKey))
+        : await extractStops(rawText, apiKey);
       rawStops = extracted.stops;
       rawFlights = extracted.flights;
       truncated = extracted.truncated;

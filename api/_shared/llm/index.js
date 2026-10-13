@@ -32,6 +32,31 @@ export function runWithLlmContext(ctx, fn) { return llmContext.run(ctx || {}, fn
 export function getLlmContext() { return llmContext.getStore() || {}; }
 
 /**
+ * 자동 실행(CI) 전용 헤더. 값 '1' 일 때만. 호출부가 자체 인증 게이트(admin-bypass / allowlist) 를
+ * 통과한 뒤 컨텍스트 provider 를 'mock' 으로 바꾼다 — 헤더만으로 결제·권한을 우회하지 않는다.
+ */
+export const LLM_MOCK_HEADER = 'x-llm-mock';
+export function wantsLlmMock(req) {
+  const h = req && req.headers ? req.headers[LLM_MOCK_HEADER] : undefined;
+  return String(Array.isArray(h) ? h[0] : (h || '')).trim() === '1';
+}
+/**
+ * 핸들러 첫 줄에서 호출: 헤더가 있으면 이 요청의 비동기 체인 전체에 mockRequested 표시
+ * (AsyncLocalStorage.enterWith — provider 전환은 게이트 통과 후 adoptLlmMock 이 한다).
+ */
+export function enterLlmMockContext(req) {
+  llmContext.enterWith({ mockRequested: wantsLlmMock(req) });
+}
+/** 호출부가 자체 인증 게이트(admin-bypass 등)를 확인한 뒤 호출 — 이 요청의 모든 LLM 호출을 mock 으로. */
+export function adoptLlmMock(reason) {
+  const ctx = getLlmContext();
+  if (!ctx.mockRequested) return false;
+  ctx.provider = 'mock';
+  console.log(`[llm] provider=mock for this request (${reason}) — 유료 호출 0`);
+  return true;
+}
+
+/**
  * 호출부의 `apiKey` 인자/`apiKey required` 검사 호환용. gemini 공급자면 GEMINI_API_KEY(없으면 throw),
  * claude/mock 이면 자리표시 문자열(실제 키는 어댑터가 env 에서 직접 읽음).
  */
@@ -145,7 +170,7 @@ export function createLlmModel(config = {}, ctx = {}) {
   };
 
   let inner;
-  if (provider === 'mock') inner = createMockModel(config, { role, modelId, onUsage });
+  if (provider === 'mock') inner = createMockModel(config, { role, stage, modelId, onUsage });
   else if (provider === 'claude') {
     inner = createClaudeModel(config, {
       modelId, role, timeoutMs, onUsage, plannerRoles: PLANNER_ROLES,

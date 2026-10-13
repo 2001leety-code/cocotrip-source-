@@ -121,6 +121,8 @@ async function main() {
   try {
     const { status, body } = await jsonFetch('/api/mood-parse-schedule', idToken, {
       method: 'POST',
+      // LLM 공급자 전환 (2026-10-13): 자동 실행 = 유료 LLM 호출 0 (REAL_LLM=1 수동 실행만 실호출).
+      headers: { 'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1' },
       body: JSON.stringify({ text: SAMPLE_SCHEDULE }),
     });
     // 계약: ok=true, stops 배열(≥1), serviceGuess ∈ {airport,vehicle,manager},

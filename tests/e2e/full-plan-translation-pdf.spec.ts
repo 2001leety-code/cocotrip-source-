@@ -28,6 +28,8 @@ const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com'; // T
 //   ⚠️ 이 경로는 **실제 플랜 문서를 운영 Firestore 에 만든다**. 그래서 워크플로에서
 //      주 1회(월)만 돌도록 게이트했다(daily-health.yml 참조).
 const TEST_ORDER_ID = `ADMIN-BYPASS-E2E-${Date.now()}`;
+// LLM 공급자 전환 (2026-10-13): 자동 실행 = 유료 LLM 호출 0. REAL_LLM=1 수동 실행만 실호출.
+const LLM_MOCK_HEADER = { 'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1' };
 
 // 2026-05-04 PR #247 (audit P0-#2) 머지로 /api/ai-planner-full 가
 // verifyUserToken 호출 → Authorization: Bearer <idToken> 필수.
@@ -117,6 +119,7 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${idToken}`,
+        ...LLM_MOCK_HEADER,
       },
       timeout: 180_000,
     });
@@ -207,7 +210,7 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
     if (!plan) { console.log('⏭ 5. Plan not generated, skipping'); return; }
     const res = await request.post(`${BASE_URL}/api/translate-plan`, {
       data: { plan: plan.itinerary, targetLang: 'ja' },
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...LLM_MOCK_HEADER },
       timeout: 60_000,
     });
     if (res.status() === 401) {

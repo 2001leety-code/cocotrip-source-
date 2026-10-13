@@ -21,7 +21,7 @@
 // every api/*.js as ESM. The previous CommonJS form crashed at module-load on
 // every invocation ("FUNCTION_INVOCATION_FAILED"), masking earlier ja/zh
 // translation failures behind warm Firestore cache hits.
-import { createLlmModel } from './_shared/llm/index.js';
+import { createLlmModel, runWithLlmContext, wantsLlmMock } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 const _rateDb = initAdminDb('translate-plan');
@@ -41,7 +41,14 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 const TRANSLATE_FIELDS = ['display_name', 'tip', 'entry_fee_note'];
 const TRANSLATE_ITEM_FIELDS = ['name', 'note'];
 
-export default async function handler(req, res) {
+// LLM 공급자 전환 (2026-10-13): CI(e2e) 의 x-llm-mock → 이 요청만 mock 번역(유료 호출 0). 결제·권한 영향 없음.
+export default function handler(req, res) {
+  return wantsLlmMock(req)
+    ? runWithLlmContext({ provider: 'mock' }, () => translateHandler(req, res))
+    : translateHandler(req, res);
+}
+
+async function translateHandler(req, res) {
   if (req.method !== 'POST') return res.status(405).json(_err('POST only', 'METHOD_NOT_ALLOWED'));
 
   // 비용 DoS: 무인증 + Gemini 번역(호출당 비용). per-IP 시간당 20건. db 없으면 fail-open.
