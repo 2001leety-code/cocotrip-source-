@@ -9,10 +9,10 @@
  *
  * CONTEXT: CocoTripKR, cocotripkr.com
  * OWNER: 태연 (태오/Tae-o)
- * STACK: Netlify Functions (ESM), @google/generative-ai
+ * STACK: Vercel Functions (ESM), api/_shared/llm 공용 어댑터 (LLM 공급자 전환 2026-10-13)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel } from './_shared/llm/index.js';
 
 // ── 공통 사업 정보 컨텍스트 ─────────────────────────────────────────────
 const BUSINESS_CONTEXT = `
@@ -38,10 +38,10 @@ const BUSINESS_CONTEXT = `
 
 // ── Gemini 클라이언트 초기화 ───────────────────────────────────────────
 function getGeminiModel(systemInstruction, jsonMode = false) {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  // LLM 공급자 전환 (2026-10-13): 공용 어댑터. 확인메일/바우처 = 짧은 생성 → 기본(haiku) 역할.
   const config = { model: 'gemini-2.5-flash', systemInstruction };
   if (jsonMode) config.generationConfig = { responseMimeType: 'application/json' };
-  return genAI.getGenerativeModel(config);
+  return createLlmModel(config, { role: 'cx', stage: 'ai-employees', apiKey: process.env.GEMINI_API_KEY || '' });
 }
 
 // Robust JSON extraction from AI response text
