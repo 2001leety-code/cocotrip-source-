@@ -21,7 +21,7 @@
 // every api/*.js as ESM. The previous CommonJS form crashed at module-load on
 // every invocation ("FUNCTION_INVOCATION_FAILED"), masking earlier ja/zh
 // translation failures behind warm Firestore cache hits.
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 const _rateDb = initAdminDb('translate-plan');
@@ -29,7 +29,6 @@ const _rateDb = initAdminDb('translate-plan');
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Bumped when the translator emits new fields; useAutoTranslate compares this
 // against cached.translatorVersion and re-translates on mismatch so old caches
@@ -204,10 +203,11 @@ export default async function handler(req, res) {
     // temperature: 0 — translation is a strict mapping task, and at the default
     // creative temperature Gemini occasionally returns the response array out of
     // order, which breaks the index-based writeback (we'd attach 蚕室 to 강남).
-    const model = genAI.getGenerativeModel({
+    // LLM 공급자 전환: maxOutputTokens 명시 (Claude max_tokens 기본 4096 은 플랜 번역에 부족).
+    const model = createLlmModel({
       model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0, responseMimeType: 'application/json' },
-    });
+      generationConfig: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 16000 },
+    }, { role: 'translate', stage: 'translate-plan', apiKey: process.env.GEMINI_API_KEY || '', timeoutMs: 50000 }); // maxDuration 60
 
     const transitRule = isCJKTarget
       ? `Convert each Korean station/line name to its Hanja form in ${langName}. Examples: "강남" -> "${targetLang === 'ja' ? '江南' : '江南'}", "2호선" -> "${targetLang === 'ja' ? '2号線' : '2号线'}", "신분당선" -> "${targetLang === 'ja' ? '新盆唐線' : '新盆唐线'}", "잠실" -> "${targetLang === 'ja' ? '蚕室' : '蚕室'}". For Korean station names without a standard Hanja equivalent, use the most common ${langName} reading. For Korean bus type words like "일반"/"좌석"/"공항"/"마을", translate to ${langName} (e.g. "${targetLang === 'ja' ? '一般/座席/空港/村' : '普通/座席/机场/区间'}").`
@@ -229,7 +229,7 @@ ${JSON.stringify({ descriptive: descTexts, transit: transitTexts })}`;
 
     const result = await model.generateContent(prompt);
     // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
-    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('translate-plan', 'gemini-2.5-flash', result.response)).catch(() => {});
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('translate-plan', model.modelId, result.response)).catch(() => {});
     const responseText = result.response.text();
 
     // Robust JSON extract: outermost braces
