@@ -24,6 +24,7 @@ function firstJsonObject(text) {
   try { return JSON.parse(String(text || '')); } catch { return lastJsonObject(text); }
 }
 
+// day N 날짜 = startDate + (N-1). startDate inclusive (day 1 = 출발일 당일), end = startDate + days - 1 inclusive.
 function addDays(iso, n) {
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return undefined;

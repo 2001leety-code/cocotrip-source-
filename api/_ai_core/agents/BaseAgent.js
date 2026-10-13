@@ -1,20 +1,20 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createLlmModel } from "../../_shared/llm/index.js";
 import { SYSTEM_PROMPTS, MODEL, MAX_TOKENS } from "../config.js";
 export class BaseAgent {
-    genAI;
+    apiKey;
     agentKey;
     systemPrompt;
     constructor(apiKey, agentKey) {
-        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.apiKey = apiKey; // LLM 공급자 전환 (2026-10-13): SDK 는 공용 어댑터가 생성
         this.agentKey = agentKey;
         this.systemPrompt = SYSTEM_PROMPTS[agentKey] || "";
     }
     // onChunk: optional callback(text) called for each streamed token — use to write SSE chunks in real-time
     async call(userPrompt, onChunk) {
-        const model = this.genAI.getGenerativeModel({
+        const model = createLlmModel({
             model: MODEL,
             systemInstruction: this.systemPrompt,
-        });
+        }, { role: 'agent', stage: `agent-${this.agentKey}`, apiKey: this.apiKey });
         try {
             const streamResult = await model.generateContentStream({
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],

@@ -12,7 +12,7 @@
  *   - Timeout (>240s)                   → throws Error with code GEMINI_TIMEOUT, statusCode 504.
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmModel, resolveLlmProvider } from '../_shared/llm/index.js';
 import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure, checkSoftQualityWarnings } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
@@ -152,9 +152,10 @@ export function logCacheMetrics(stage, cm) {
   // 사용량 트래커 (fire-and-forget, 완전 guard — 본 plan 생성 흐름 무영향).
   // stage 로 모델 추론: pro-escalate=Pro, 그 외=main(resolveGeminiModel). recorder 내부 await 안 함.
   try {
-    const model = /pro/i.test(stage)
+    // LLM 공급자 전환: 라벨 = 실제 공급자 모델 (claude 면 CLAUDE_MODEL_PLANNER, gemini 면 기존 resolver).
+    const model = (/pro/i.test(stage) && resolveLlmProvider('main') === 'gemini')
       ? ((process.env.P181_PRO_ESCALATE_MODEL || '').trim() || 'gemini-2.5-pro')
-      : resolveGeminiModel('main');
+      : resolveLlmModel('main');
     recordGeminiUsage({ stage, model, cm });
   } catch { /* 트래커 실패는 본 흐름에 영향 0 */ }
 }
@@ -599,7 +600,8 @@ export function isPass3BackgroundEnabled() {
  *   미지정 시 기존 동작 (P135 Pro 유지). backward-compat 100%.
  */
 export function buildModel(apiKey, temperatureOverride, opts = {}) {
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // LLM 공급자 전환 (2026-10-13): SDK 직접 생성 → 공용 어댑터(createLlmModel). 아래 generationConfig 는
+  // Gemini 모양 그대로 두고, claude 공급자가 temperature/thinking 을 떼고 responseSchema 를 변환한다.
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
   // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
   // P171 (2026-05-23): isAdminBypass=true 일 때 GEMINI_ADMIN_BYPASS_MODEL 우선.
@@ -621,7 +623,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   const isFlash = modelId.toLowerCase().includes('flash');
   const thinkingBudget = isFlash ? 0 : -1;
 
-  return genAI.getGenerativeModel({
+  return createLlmModel({
     model: modelId,
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
@@ -654,7 +656,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       // Gemini 가 추가 field 출력 OK. 점진 strict 화 가능.
       responseSchema: PLAN_RESPONSE_SCHEMA,
     },
-  });
+  }, { role: 'main', stage: 'planner-main', apiKey, forceModelOverride: opts.forceModelOverride, isAdminBypass: opts.isAdminBypass, identifierForBucketing: opts.identifierForBucketing });
 }
 
 /**

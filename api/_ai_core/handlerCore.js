@@ -10,6 +10,7 @@
  * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
 import { captureError } from '../_shared/sentry.js';
+import { resolveLlmApiKey } from '../_shared/llm/index.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
@@ -231,8 +232,7 @@ export default async function handler(req, res) {
     console.log('[planner] Step 1: Calling Gemini...');
 
     // ── Gemini 호출 준비 ───────────────────────────────────────────────────
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
-    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+    const apiKey = resolveLlmApiKey('main'); // LLM 공급자 전환: gemini 면 GEMINI_API_KEY, claude/mock 이면 자리표시
 
     let spotContext = '';
     try { spotContext = getSpotContext(area, 6) || ''; }

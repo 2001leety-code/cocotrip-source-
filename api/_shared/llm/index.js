@@ -31,6 +31,17 @@ const llmContext = new AsyncLocalStorage();
 export function runWithLlmContext(ctx, fn) { return llmContext.run(ctx || {}, fn); }
 export function getLlmContext() { return llmContext.getStore() || {}; }
 
+/**
+ * 호출부의 `apiKey` 인자/`apiKey required` 검사 호환용. gemini 공급자면 GEMINI_API_KEY(없으면 throw),
+ * claude/mock 이면 자리표시 문자열(실제 키는 어댑터가 env 에서 직접 읽음).
+ */
+export function resolveLlmApiKey(role, env = process.env) {
+  if (resolveLlmProvider(role, env) !== 'gemini') return 'managed-by-llm-adapter';
+  const key = trim(env.GEMINI_API_KEY);
+  if (!key) throw new Error('GEMINI_API_KEY not configured');
+  return key;
+}
+
 export class LlmBlockedError extends Error {
   constructor(code, message) { super(message); this.code = code; this.statusCode = 503; }
 }

@@ -13,6 +13,7 @@
 
 import { extractTextFromResponse } from './geminiPipeline.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+import { resolveLlmModel } from '../_shared/llm/index.js';
 
 // 사용량 실측 기록 — fire-and-forget, 절대 throw 안 함(recorder 내부 완전 guard).
 // 3-pass 는 legacy(logCacheMetrics 경유)와 달리 기록이 전혀 없었음(2026-07-09 비용 가시화).
@@ -22,7 +23,7 @@ function recordUsage(stage, response) {
     if (!um) return;
     recordGeminiUsage({
       stage,
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: resolveLlmModel('main'), // LLM 공급자 전환: 3-pass 는 main 모델을 그대로 쓴다
       cm: {
         total: Number(um.promptTokenCount) || 0,
         cached: Number(um.cachedContentTokenCount) || 0,
