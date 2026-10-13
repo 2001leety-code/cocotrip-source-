@@ -2,7 +2,7 @@
 // ⚠️ fire-and-forget + 완전 guard: 절대 plan 생성 흐름을 막거나 throw 하지 않는다.
 //    트래커 실패 = 조용히 skip(본 흐름 영향 0). 일부 write 유실은 허용(best-effort).
 import { initAdminDb } from './firebase-admin.js';
-import { estimateGeminiCostUsd } from './apiPricing.js';
+import { estimateGeminiCostUsd, serviceForModel } from './apiPricing.js';
 
 function kstDayStr(ms) {
   const d = new Date(ms + 9 * 3600 * 1000);
@@ -41,7 +41,7 @@ export async function recordGeminiUsage({ stage, model, cm } = {}) {
     if (!db) return;
     const ms = Date.now();
     await db.collection('api_usage').add({
-      service: 'gemini',
+      service: serviceForModel(model),
       model: String(model || 'unknown'),
       stage: String(stage || ''),
       input_tokens: Number(cm.total) || 0,

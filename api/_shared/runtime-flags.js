@@ -15,6 +15,11 @@ export const RUNTIME_FLAG_KEYS = {
     desc: '켜면 로그인에서 이메일 소유가 확인되고 서버 검증·시간창·일일상한을 모두 통과한 새 문의에만 접수 확인 메일을 보냅니다. 최종 견적 답변은 계속 사람 승인입니다.',
     default: false,
   },
+  llm_kill_switch: {
+    label: 'LLM 호출 전면 중단 (킬스위치)',
+    desc: '켜면 플래너·챗·번역 등 모든 AI(LLM) 호출을 즉시 503 으로 막습니다(공급자 불문). 비용 폭주·사고 시 재배포 없이 사용. 끄면 바로 복구.',
+    default: false,
+  },
   transfer_margin_guard_enabled: {
     label: 'transfer 최소마진 가드',
     desc: '켜면 transfer 결제가 추정원가×배수 미달 시 차단(협의). ⚠️ 원가모델=추정치 — 실 기사일당/연료 교체 후 권장.',
