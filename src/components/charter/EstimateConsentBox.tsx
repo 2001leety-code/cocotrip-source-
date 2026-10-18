@@ -26,20 +26,20 @@ export function EstimateConsentBox({ language, agreed, onChange }: Props) {
   return (
     <div
       data-testid="estimate-consent-box"
-      className="rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-3 space-y-2.5"
+      className="rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-3 space-y-2.5 charter-funnel-legal-box"
     >
-      <p className="text-[11px] leading-relaxed text-amber-100/90 sm:text-xs">
+      <p className="text-[11px] leading-relaxed text-amber-100/90 sm:text-xs charter-funnel-legal-disclaimer">
         {i18n.estimatePayDisclaimer}
       </p>
-      <label className="flex cursor-pointer items-start gap-2.5">
+      <label className="flex cursor-pointer items-start gap-2.5 charter-funnel-legal-label">
         <input
           type="checkbox"
           data-testid="estimate-consent-checkbox"
           checked={agreed}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-[#B668FC]"
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#B668FC] charter-funnel-legal-checkbox"
         />
-        <span className="text-[11px] font-semibold leading-relaxed text-white/85 sm:text-xs">
+        <span className="text-[11px] font-semibold leading-relaxed text-white/85 sm:text-xs charter-funnel-legal-label-text">
           {i18n.estimatePayAgreeLabel}
         </span>
       </label>

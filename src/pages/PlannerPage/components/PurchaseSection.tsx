@@ -138,10 +138,10 @@ export function PurchaseSection({
   }, [wantsPreviewTips, userEmail, language]);
 
   return (
-    <section className="ec-panel">
+    <section className="ec-panel customer-planner-purchase">
       {/* 가격 표시 — 값은 전부 lib/aiPlannerPrice SSOT 에서 온다(하드코딩 금지).
           AI 플래너는 쿠폰 미적용 정책(디지털 상품) — 모든 사용자 동일 가격. */}
-      <div className="border-b border-ec-line pb-5">
+      <div className="border-b border-ec-line pb-5 customer-purchase-price">
         <p className="ec-body-sm text-ec-ink-3">
           <span className="line-through">{formatAiPlannerUsd(AI_PLANNER_ORIGINAL_USD)}</span>
           <span className="ml-2">{p.originalPrice}</span>
@@ -152,7 +152,7 @@ export function PurchaseSection({
               (환율에 따라 이 KRW 와 실제 결제 원화 인출액이 다를 수 있다). */}
           <span className="ec-body-sm text-ec-ink-3">/ {formatAiPlannerApproxKrw(language)}</span>
         </div>
-        <p className="mt-2 text-[13px] font-semibold text-ec-brand">
+        <p className="mt-2 text-[13px] font-semibold text-ec-brand customer-purchase-note">
           50% OFF · <span className="font-normal text-ec-ink-3">{p.launchPrice}</span>
         </p>
         {/* "First 100 customers" 가짜 한정 문구 제거 (2026-06-14) — 실제 카운터가 없어 구글 광고
@@ -167,7 +167,7 @@ export function PurchaseSection({
         </p>
       </div>
 
-      <h3 className="ec-h3 mt-5">{p.fullPlanTitle}</h3>
+      <h3 className="ec-h3 mt-5 customer-purchase-title">{p.fullPlanTitle}</h3>
       <p className="ec-body-sm ec-measure mt-2 text-ec-ink-3">{p.fullPlanDesc}</p>
 
       {/* Feature checklist */}
@@ -184,7 +184,7 @@ export function PurchaseSection({
       <div className="mt-6 flex flex-col gap-4">
         {/* Email input — required for the paid flow */}
         <label className="block">
-          <span className="ec-eyebrow">{p.emailPlaceholder}</span>
+          <span className="ec-eyebrow customer-purchase-field-label">{p.emailPlaceholder}</span>
           <input
             type="email"
             value={userEmail}
@@ -197,7 +197,7 @@ export function PurchaseSection({
 
         {/* Preview-lead opt-in (2026-08-19) — optional, unchecked by default. Fires
             /api/preview-lead fire-and-forget on check + valid email; never gates payment. */}
-        <label className="flex items-start gap-2.5 cursor-pointer">
+        <label className="flex items-start gap-2.5 cursor-pointer customer-purchase-consent">
           <input
             type="checkbox"
             checked={wantsPreviewTips}
@@ -215,11 +215,11 @@ export function PurchaseSection({
         {/* Feature recap (compact, was the OptionAButton list) */}
         <ul className="ec-panel-quiet space-y-1">
           {[p.optionAfeature1, p.optionAfeature2, p.optionAfeature3, p.optionAfeature4, p.optionAfeature5].map((f) => (
-            <li key={f} className="flex gap-2 text-[13px] text-ec-ink-2">
+            <li key={f} className="flex gap-2 text-[13px] text-ec-ink-2 customer-purchase-recap">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-brand" aria-hidden /><span>{f}</span>
             </li>
           ))}
-          <li className="flex gap-2 text-[13px] font-semibold text-ec-ink">
+          <li className="flex gap-2 text-[13px] font-semibold text-ec-ink customer-purchase-recap">
             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ec-brand" aria-hidden />
             <span>{p.optionAfeatureRevision || '2 Free Revisions included'}</span>
           </li>
@@ -354,7 +354,7 @@ export function PurchaseSection({
         )}
 
         {/* Satisfaction guarantee */}
-        <p className="flex items-center gap-2 border-t border-ec-line pt-3 text-[13px] text-ec-ink-3">
+        <p className="flex items-center gap-2 border-t border-ec-line pt-3 text-[13px] text-ec-ink-3 customer-purchase-note">
           <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>{p.upgradeNotice}</span>
         </p>

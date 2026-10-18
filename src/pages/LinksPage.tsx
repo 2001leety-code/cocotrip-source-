@@ -1,9 +1,14 @@
+import '@/styles/home-dope.css';
+import '@/styles/home-dope-static.css';
 import { useLocation } from 'react-router-dom';
+import { ArrowRight, Plane } from 'lucide-react';
 
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { buildLinkHubDestination } from '@/lib/linkInBio';
 import { useLanguage } from '@/hooks/useLanguage';
 import { whatsappSupportCopy } from '@/lib/whatsappSupportCopy';
+import { SkyLayer } from '@/sections/home/SkyLayer';
+import { pickHomeCopy } from '@/sections/home/homeCopy';
 
 /**
  * SNS 프로필의 "link in bio" 목적지 (2026-08-17).
@@ -47,10 +52,29 @@ const DESTINATIONS: Destination[] = [
   },
 ];
 
+/** Eyebrow only; every other string on the hub is the existing English copy. */
+const EYEBROW: Record<string, string> = {
+  ko: 'CocoTrip · 채널 안내',
+  en: 'CocoTrip · Links',
+  ja: 'CocoTrip · リンク',
+  zh: 'CocoTrip · 链接',
+};
+
+/** Pass chips: the place names the tours subtitle already lists. */
+const CHIPS = ['Seoul', 'Busan', 'Gyeongju', 'DMZ'];
+
+/**
+ * 2026-10-11: Home 의 어휘(하늘 히어로 + 패스 카드)로 다시 입혔다. 패스는 순환하지 않는
+ * 정적 카드다. 모든 href 는 그대로 `buildLinkHubDestination` 을 거친다(UTM 유지).
+ */
 export default function LinksPage() {
   const { search } = useLocation();
   const { language } = useLanguage();
   const supportCopy = whatsappSupportCopy[language];
+  const sky = pickHomeCopy(language).hero.sky;
+  const [planner, tours] = DESTINATIONS;
+  const href = (destination: Destination) =>
+    buildLinkHubDestination(destination.path, search, destination.content);
 
   usePageMeta({
     title: 'CocoTrip — Korea trips planned in minutes',
@@ -60,56 +84,85 @@ export default function LinksPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210] px-5 py-12">
-      <main className="mx-auto flex w-full max-w-md flex-col items-center">
-        <img
-          src="/brand/logo-mark-1024.png"
-          alt="CocoTrip"
-          width={72}
-          height={72}
-          className="mb-5 h-18 w-18 rounded-2xl"
-        />
-        <h1 className="text-center text-2xl font-black tracking-tight text-white">CocoTrip</h1>
-        <p className="mt-2 mb-8 text-center text-sm text-white/70">
-          Korea trips planned in minutes 🇰🇷
-        </p>
+    <main className="ec-root home-dope home-dope--static min-h-screen">
+      <section className="home-dope-hero">
+        <SkyLayer playLabel={sky.play} pauseLabel={sky.pause} />
 
-        <nav className="flex w-full flex-col gap-3" aria-label="CocoTrip links">
-          {DESTINATIONS.map((destination) => (
-            <a
-              key={destination.content}
-              href={buildLinkHubDestination(destination.path, search, destination.content)}
-              className={
-                destination.primary
-                  ? 'rounded-2xl bg-white px-5 py-4 text-center text-[#0a0412] shadow-lg transition-transform active:scale-[0.98]'
-                  : 'rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-center text-white transition-transform active:scale-[0.98]'
-              }
-            >
-              <span className="block text-base font-bold">{destination.title}</span>
-              <span
-                className={
-                  destination.primary
-                    ? 'mt-1 block text-xs text-[#0a0412]/70'
-                    : 'mt-1 block text-xs text-white/60'
-                }
-              >
-                {destination.subtitle}
+        <div className="home-dope-hero__inner">
+          <div className="home-dope-hero__copy">
+            <p className="ec-eyebrow home-dope-eyebrow">{EYEBROW[language] || EYEBROW.en}</p>
+            <h1 className="home-dope-h1" lang="en" aria-label="Korea trips planned in minutes">
+              <span aria-hidden="true" className="home-dope-h1__line">
+                <span className="is-serif">Korea trips</span>
               </span>
-            </a>
-          ))}
-          <a href="/whatsapp-support" className="min-h-[44px] rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">
-            <span className="block text-base font-bold">{supportCopy.linksTitle}</span>
-            <span className="mt-1 block text-xs text-slate-300">{supportCopy.linksSubtitle}</span>
-          </a>
-        </nav>
+              <span aria-hidden="true" className="home-dope-h1__line">
+                <span className="is-sans">planned in minutes</span>
+              </span>
+            </h1>
+            <p className="home-dope-lede" lang="en">
+              Plan a Korea trip in minutes with a free AI itinerary, or book a private tour or charter vehicle.
+            </p>
+            <div className="home-dope-hero__cta" lang="en">
+              <a href={href(planner)} className="home-dope-btn home-dope-btn--primary">
+                {planner.title}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </a>
+              <a href={href(tours)} className="home-dope-btn home-dope-btn--ghost">
+                {tours.title}
+              </a>
+            </div>
+          </div>
 
-        <a
-          href="mailto:cocotripkr@gmail.com"
-          className="mt-8 text-xs text-white/50 underline underline-offset-4"
-        >
-          cocotripkr@gmail.com
-        </a>
-      </main>
-    </div>
+          <div className="home-dope-pass-wrap">
+            <div className="home-dope-pass" data-collapsed="false">
+              <div className="home-dope-pass__body">
+                <div className="home-dope-pass__head">
+                  <p className="home-dope-pass__title">
+                    <Plane className="h-4 w-4 shrink-0" aria-hidden />
+                    CocoTrip
+                  </p>
+                  <div className="home-dope-pass__controls">
+                    <span className="home-dope-sample">@cocotripkr</span>
+                  </div>
+                </div>
+
+                <div className="home-dope-pass__cycle" lang="en">
+                  <div>
+                    <ul className="home-dope-pass__chips">
+                      {CHIPS.map((chip) => <li key={chip}>{chip}</li>)}
+                    </ul>
+                    <nav aria-label="CocoTrip links">
+                      <ol className="home-dope-pass__stops">
+                        {DESTINATIONS.map((destination, i) => (
+                          <li key={destination.content}>
+                            <a href={href(destination)}>
+                              <span className="ec-figure">{String(i + 1).padStart(2, '0')}</span> {destination.title}
+                              <span className="block text-[12px] opacity-80">{destination.subtitle}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ol>
+                    </nav>
+                  </div>
+                </div>
+
+                <p className="home-dope-pass__start" lang="en">WhatsApp · Email</p>
+
+                <div className="home-dope-pass__cta">
+                  <a href="/whatsapp-support" className="home-dope-btn home-dope-btn--primary">
+                    {supportCopy.linksTitle}
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </a>
+                  <p className="m-0 text-[13px] leading-5 opacity-80">{supportCopy.linksSubtitle}</p>
+                  <a href="mailto:cocotripkr@gmail.com" className="home-dope-textlink">
+                    cocotripkr@gmail.com
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

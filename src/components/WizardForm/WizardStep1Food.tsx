@@ -71,7 +71,7 @@ export function WizardStep1Food(props: Step1Props) {
   const hasAnyFoodPref = dietPrefs.length > 0 || bucketDishes.length > 0;
 
   return (
-    <div className="space-y-5">
+    <div className="wizard-stage wizard-stage--food space-y-5">
       <div>
         <h2 className="ec-question mb-1">{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
         <p className="ec-help">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
@@ -79,8 +79,8 @@ export function WizardStep1Food(props: Step1Props) {
 
       {/* 5/7 추가 — 할랄/비건 명시 안내 (사용자 요구사항). 식이제한 사용자가 누락하면
           unverified_restaurant 위험 + 건강 안전 이슈 → 명시적 강조. */}
-      <div className="flex items-start gap-2.5 px-4 py-3 rounded-ec-md border border-ec-line bg-ec-sunken">
-        <TriangleAlert className="w-4 h-4 text-ec-notice shrink-0 mt-0.5" />
+      {/* The translated copy already leads with ⚠️ — no second decorative icon. */}
+      <div className="wizard-safety-note flex items-start gap-2.5 px-4 py-3 rounded-ec-md border border-ec-line bg-ec-sunken">
         <div className="text-[12px] text-ec-ink-2 leading-relaxed">
           <p className="font-semibold text-ec-notice mb-0.5">
             {p.wizardFoodDietaryHighlight || '⚠️ Halal / Vegan / Vegetarian — please select if applicable'}
@@ -95,7 +95,7 @@ export function WizardStep1Food(props: Step1Props) {
       <div>
         <p className="text-sm text-ec-ink-3 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>
         <p className="ec-help mb-3">{p.wizardFoodStyleHint || 'Pick the cuisines and dining styles you enjoy'}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="wizard-pick-grid grid grid-cols-2 sm:grid-cols-3 gap-2">
           {FOOD_STYLE_KEYS.map((key) => {
             const nameKey = `food${key}` as keyof typeof p;
             const subKey = `food${key}Sub` as keyof typeof p;
@@ -163,7 +163,7 @@ export function WizardStep1Food(props: Step1Props) {
             </span>
           )}
         </p>
-        <div className={`grid grid-cols-4 gap-1.5 ${!hasAnyFoodPref ? 'opacity-40 pointer-events-none' : ''}`}>
+        <div className={`wizard-spice-options flex flex-wrap gap-2 ${!hasAnyFoodPref ? 'opacity-40 pointer-events-none' : ''}`}>
           {SPICE_LEVEL_KEYS.map((key) => {
             const fallback = SPICE_LABELS_FALLBACK[key];
             const label = (p[`spice${key.charAt(0).toUpperCase()}${key.slice(1)}`] as string) || fallback.label;
@@ -221,7 +221,7 @@ export function WizardStep1Food(props: Step1Props) {
       {/* Price range */}
       <div>
         <p className="text-sm text-ec-ink-3 mb-2.5 font-medium">{p.wizardFoodPriceLabel || 'Meal Budget'}</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="wizard-price-grid grid grid-cols-2 gap-2">
           {PRICE_KEYS.map((key) => {
             const label = p[`price${key}`] || key;
             const range = p[`price${key}Range`] || '';

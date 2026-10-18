@@ -16,21 +16,23 @@
 //
 // No API key required (CARTO dark basemap, free). Theme: dark purple/pink to
 // match the rest of PlanDetailPage.
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import type { PlanStop } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { segmentTiringReasons } from '../lib/routeInsight';
-import { pointsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
+import { chunkPath, pointsToSegments, stepsToSegments, type RoutePoint, type TransitStepLike } from '@/lib/routeSegments';
 import { naverMapDirectionsUrl, NAVER_DIRECTIONS_MAX_STOPS } from '@/lib/naverMap';
 import { CARTO_VOYAGER_URL, CARTO_TILE_OPTIONS } from '@/lib/basemap';
 
 interface DayRouteMapProps {
   stops: PlanStop[];
+  routeScopeKey?: string;
 }
 
 /** A stop reduced to the minimum the map needs. */
 interface MapPoint {
+  identity: string;
   lat: number;
   lng: number;
   order: number;        // 1-based visit order (the pin number)
@@ -43,6 +45,20 @@ interface MapPoint {
 
 const isFiniteNum = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v);
+
+function isRouteStep(value: unknown): value is TransitStepLike {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const step = value as Record<string, unknown>;
+  if (['mode', 'routeColor', 'busNo', 'line', 'lineKo'].some(key => step[key] !== undefined && typeof step[key] !== 'string')) return false;
+  if (step.path !== undefined && !chunkPath(step.path)) return false;
+  if (step.fromPoint !== undefined && step.fromPoint !== null) {
+    if (typeof step.fromPoint !== 'object' || Array.isArray(step.fromPoint)) return false;
+    const point = step.fromPoint as Record<string, unknown>;
+    if (!isFiniteNum(point.lat) || !isFiniteNum(point.lng)
+      || (point.name !== undefined && point.name !== null && typeof point.name !== 'string')) return false;
+  }
+  return true;
+}
 
 /** Pull display name with the project's standard fallback chain. */
 function stopLabel(stop: PlanStop): string {
@@ -61,7 +77,13 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
     if (!isFiniteNum(lat) || !isFiniteNum(lng)) continue; // skip stops without coords
     // Guard against obviously invalid coordinates (off-globe).
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+    const stopRecord = stop as unknown as Record<string, unknown>;
     points.push({
+      identity: JSON.stringify([
+        stopRecord.id || stopRecord.stop_id || stopRecord.place_id || '',
+        stopRecord.name || stopRecord.name_ko || stopRecord.name_en || stopRecord.display_name || '',
+        stopRecord.category || '',
+      ]),
       lat,
       lng,
       order: n,
@@ -83,37 +105,78 @@ function toMapPoints(stops: PlanStop[]): MapPoint[] {
 // 통째로 안 그려지던 구멍 제거. 변환·폴백 로직은 코스 빌더와 공유 → lib/routeSegments.
 
 type MapLabels = {
-  title: string; easy: string; hard: string; showRoute: string; loading: string;
-  none: string; openNaver: string; naverCapped: string;
+  title: string; easy: string; hard: string; showRoute: string; retryMissing: string; loading: string;
+  none: string; partial: string; capped: string; unavailable: string; rateLimited: string;
+  openNaver: string; naverCapped: string;
 };
 
 function mapLabels(language: string): MapLabels {
   switch (language) {
-    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 찾지 못했어요.', openNaver: '네이버 지도', naverCapped: `네이버 지도는 한 번에 ${NAVER_DIRECTIONS_MAX_STOPS}곳까지 안내해요. 앞의 ${NAVER_DIRECTIONS_MAX_STOPS}곳만 표시합니다.` };
-    case 'ja': return { title: '今日のルート', easy: '移動しやすい区間', hard: '負担の大きい区間', showRoute: '実際の経路を見る', loading: '経路を検索中…', none: 'この日の公共交通ルートを見つけられませんでした。', openNaver: 'NAVERマップ', naverCapped: `NAVERマップは1ルートにつき${NAVER_DIRECTIONS_MAX_STOPS}か所まで案内できます。最初の${NAVER_DIRECTIONS_MAX_STOPS}か所を表示します。` };
-    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', loading: '正在查找路线…', none: '未找到当天的公共交通路线。', openNaver: 'NAVER地图', naverCapped: `NAVER地图每条路线最多支持${NAVER_DIRECTIONS_MAX_STOPS}个地点。现显示前${NAVER_DIRECTIONS_MAX_STOPS}个。` };
-    default: return { title: "Today's route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', loading: 'Finding route…', none: 'No transit route was found for this day.', openNaver: 'Naver Map', naverCapped: `Naver Map supports up to ${NAVER_DIRECTIONS_MAX_STOPS} places per route. Showing the first ${NAVER_DIRECTIONS_MAX_STOPS}.` };
+    case 'ko': return { title: '오늘의 동선', easy: '쉬운 이동', hard: '힘든 구간', showRoute: '실제 경로 보기', retryMissing: '빠진 경로 다시 찾기', loading: '경로 찾는 중…', none: '이 동선의 대중교통 경로를 찾지 못했어요.', partial: '일부 구간의 대중교통 경로를 찾지 못했어요. 빠진 구간은 직선으로 표시합니다.', capped: '찾은 대중교통 경로를 표시했어요. 나머지 연결은 직선으로 표시합니다.', unavailable: '지금은 경로를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.', rateLimited: '경로 요청이 많아 잠시 제한되었어요. 잠시 후 다시 시도해 주세요.', openNaver: '네이버 지도', naverCapped: `네이버 지도는 한 번에 ${NAVER_DIRECTIONS_MAX_STOPS}곳까지 안내해요. 앞의 ${NAVER_DIRECTIONS_MAX_STOPS}곳만 표시합니다.` };
+    case 'ja': return { title: '今日のルート', easy: '移動しやすい区間', hard: '負担の大きい区間', showRoute: '実際の経路を見る', retryMissing: '不足している経路を再検索', loading: '経路を検索中…', none: 'この日の公共交通ルートを見つけられませんでした。', partial: '一部区間の公共交通ルートを見つけられませんでした。不足区間は直線で表示しています。', capped: '取得できた公共交通ルートを表示しています。残りの区間は直線で表示しています。', unavailable: '現在ルートを読み込めませんでした。しばらくしてからもう一度お試しください。', rateLimited: 'ルート検索が集中しています。しばらく待ってからもう一度お試しください。', openNaver: 'NAVERマップ', naverCapped: `NAVERマップは1ルートにつき${NAVER_DIRECTIONS_MAX_STOPS}か所まで案内できます。最初の${NAVER_DIRECTIONS_MAX_STOPS}か所を表示します。` };
+    case 'zh': return { title: '今日路线', easy: '轻松路段', hard: '较累路段', showRoute: '查看实际路线', retryMissing: '重新查找缺失路线', loading: '正在查找路线…', none: '未找到当天的公共交通路线。', partial: '部分路段未找到公共交通路线，缺失部分以直线显示。', capped: '已显示可用的公共交通路线，其余连接以直线显示。', unavailable: '暂时无法加载路线，请稍后重试。', rateLimited: '路线请求过多，请稍等片刻后重试。', openNaver: 'NAVER地图', naverCapped: `NAVER地图每条路线最多支持${NAVER_DIRECTIONS_MAX_STOPS}个地点。现显示前${NAVER_DIRECTIONS_MAX_STOPS}个。` };
+    default: return { title: "Today's route", easy: 'Easy', hard: 'Challenging', showRoute: 'Show transit route', retryMissing: 'Retry missing routes', loading: 'Finding route…', none: 'No transit route was found for this day.', partial: "Transit routes couldn't be found for some parts of this day. Missing parts are shown as straight lines.", capped: 'Transit routes are shown where available. Any remaining connections are shown as straight lines.', unavailable: "Couldn't load transit routes right now. Please try again in a moment.", rateLimited: 'Too many route requests right now. Please wait a moment and try again.', openNaver: 'Naver Map', naverCapped: `Naver Map supports up to ${NAVER_DIRECTIONS_MAX_STOPS} places per route. Showing the first ${NAVER_DIRECTIONS_MAX_STOPS}.` };
   }
 }
 
-export function DayRouteMap({ stops }: DayRouteMapProps) {
+// none/partial: the lookup answered but some looked-up legs came back without a usable
+// route (the API cannot tell "no route" from a skipped per-leg error, hence "couldn't find").
+// capped: every looked-up leg arrived but the API reported its leg budget (not retryable).
+// The flag compares all legs, not the looked-up ones, so the copy never says which part
+// is straight (e.g. a skipped very short first leg can be the only straight one).
+// unavailable/rateLimited: the request itself failed — earlier routes are kept.
+type RouteMessage = 'none' | 'partial' | 'capped' | 'unavailable' | 'rateLimited';
+
+type RouteState = {
+  identity: string;
+  legs: Record<number, TransitStepLike[]>;
+  busy: boolean;
+  message: RouteMessage | null;
+  /** Whether a manual (re)lookup is still useful for this identity. */
+  retry: boolean;
+};
+
+type RouteRequest = { identity: string; generation: number; controller: AbortController };
+
+export function DayRouteMap({ stops, routeScopeKey = '' }: DayRouteMapProps) {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Stable id so multiple day maps on one page never collide.
   const domId = useId().replace(/[:]/g, '');
-  const [failed, setFailed] = useState(false);
-
-  // Compute points once per render — cheap, and we need the count to decide
-  // whether to render at all *before* hooks run conditionally.
+  const [failedIdentity, setFailedIdentity] = useState<string | null>(null);
   const labels = mapLabels(language);
   const points = toMapPoints(stops);
   const enoughPoints = points.length >= 2;
-  // (2026-07-19) 구형 플랜 구제 — 저장된 경로가 없으면 버튼으로 course-route 를 불러
-  // 지도만 실경로로 바꾼다. Firestore 는 건드리지 않는다(읽기 전용 개선).
-  // 응답의 segment.to = points 인덱스 → 구간별로 꽂아 폴백 로직을 그대로 태운다.
-  const [fetchedLegs, setFetchedLegs] = useState<Record<number, TransitStepLike[]>>({});
-  const [routeBusy, setRouteBusy] = useState(false);
-  const [routeMsg, setRouteMsg] = useState<string | null>(null);
+  // Raw coordinates, original stop numbering and canonical identity distinguish
+  // different visits. Display-language changes still refresh marker text below.
+  const routeIdentity = JSON.stringify([routeScopeKey, points.map(p => [p.lat, p.lng, p.order, p.identity])]);
+  const identityRef = useRef(routeIdentity);
+  // Committed identity, updated synchronously during commit before any response
+  // callback can run; a discarded render never marks its identity as current.
+  useLayoutEffect(() => {
+    identityRef.current = routeIdentity;
+  }, [routeIdentity]);
+  const requestRef = useRef<RouteRequest | null>(null);
+  const generationRef = useRef(0);
+  const [routeState, setRouteState] = useState<RouteState>({ identity: '', legs: {}, busy: false, message: null, retry: true });
+  if (routeState.identity !== routeIdentity) {
+    setRouteState({ identity: routeIdentity, legs: {}, busy: false, message: null, retry: true });
+  }
+  // Ignore old legs in the first render of a new scope, before effect cleanup.
+  const currentScope = routeState.identity === routeIdentity;
+  const fetchedLegs = currentScope ? routeState.legs : {};
+  const fetchedCount = Object.keys(fetchedLegs).length;
+  const routeBusy = currentScope && routeState.busy;
+  const routeMsg = currentScope && routeState.message ? labels[routeState.message] : null;
+  const retryAllowed = currentScope ? routeState.retry : true;
+
+  useEffect(() => () => {
+    const request = requestRef.current;
+    if (request?.identity === routeIdentity) {
+      request.controller.abort();
+      requestRef.current = null;
+      generationRef.current += 1;
+    }
+  }, [routeIdentity]);
 
   const routePoints: RoutePoint[] = points.map((p, i) => ({
     lat: p.lat,
@@ -122,28 +185,74 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
     legHard: p.hard,
   }));
   const { segments, realLegs } = pointsToSegments(routePoints);
-  const canFetchRoute = realLegs === 0 && enoughPoints;
+  // Saved routes suppress the lookup as before; once this view fetched some legs, the
+  // same button retries only while the last answer left looked-up legs missing or failed.
+  const canFetchRoute = enoughPoints && retryAllowed && (fetchedCount > 0 || realLegs === 0);
 
   const fetchRoute = async () => {
-    setRouteBusy(true);
-    setRouteMsg(null);
+    if (!canFetchRoute || requestRef.current?.identity === routeIdentity) return;
+    requestRef.current?.controller.abort();
+    const request = { identity: routeIdentity, generation: ++generationRef.current, controller: new AbortController() };
+    // Synchronous lock: consecutive clicks cannot start duplicate requests.
+    requestRef.current = request;
+    const isCurrent = () => requestRef.current === request
+      && generationRef.current === request.generation
+      && identityRef.current === request.identity
+      && !request.controller.signal.aborted;
+    // A failed or partial retry never drops legs this view already validated.
+    const settle = (legs: Record<number, TransitStepLike[]>, message: RouteMessage | null, retry: boolean) =>
+      setRouteState({ identity: routeIdentity, legs, busy: true, message, retry });
+    settle(fetchedLegs, null, true);
     try {
       const res = await fetch('/api/course-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stops: points.map((p) => ({ lat: p.lat, lng: p.lng, name: p.label })) }),
+        signal: request.controller.signal,
       });
+      if (!isCurrent()) return;
       const json = await res.json().catch(() => null);
-      const legs: Record<number, TransitStepLike[]> = {};
-      for (const s of (Array.isArray(json?.segments) ? json.segments : []) as Array<{ to?: number; steps_detail?: TransitStepLike[] }>) {
-        if (typeof s?.to === 'number' && Array.isArray(s.steps_detail)) legs[s.to] = s.steps_detail;
+      if (!isCurrent()) return;
+      if (res.status === 429) {
+        settle(fetchedLegs, 'rateLimited', true);
+        return;
       }
-      setFetchedLegs(legs);
-      if (!Object.keys(legs).length) setRouteMsg(labels.none);
+      if (!res.ok || json?.ok !== true || !Array.isArray(json.segments)) {
+        settle(fetchedLegs, 'unavailable', true);
+        return;
+      }
+      const legs: Record<number, TransitStepLike[]> = { ...fetchedLegs };
+      for (const segment of json.segments) {
+        const to = segment?.to;
+        if (Number.isInteger(to) && to >= 1 && to < points.length
+          && Array.isArray(segment.steps_detail)
+          && segment.steps_detail.every(isRouteStep)
+          && stepsToSegments(segment.steps_detail).length > 0) {
+          legs[to] = segment.steps_detail;
+        }
+      }
+      // legsLookedUp counts the legs the API actually tried (very short legs are skipped,
+      // capped stops at its leg budget); the same stops yield the same tried set, so merged
+      // legs below that count mean some tried legs are still missing.
+      const found = Object.keys(legs).length;
+      const looked = Number.isInteger(json.legsLookedUp) && json.legsLookedUp >= 0 ? json.legsLookedUp : null;
+      if (looked === null) {
+        // Response without the count: only an empty result is known to be incomplete.
+        settle(legs, found ? null : 'none', !found);
+      } else if (found < looked) {
+        settle(legs, found ? 'partial' : 'none', true);
+      } else if (!found) {
+        settle(legs, 'none', false);
+      } else {
+        settle(legs, json.capped === true ? 'capped' : null, false);
+      }
     } catch {
-      setRouteMsg(labels.none);
+      if (isCurrent()) settle(fetchedLegs, 'unavailable', true);
     } finally {
-      setRouteBusy(false);
+      if (isCurrent()) {
+        requestRef.current = null;
+        setRouteState(previous => previous.identity === routeIdentity ? { ...previous, busy: false } : previous);
+      }
     }
   };
 
@@ -154,7 +263,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
     points.slice(0, NAVER_DIRECTIONS_MAX_STOPS).map((p) => ({ lat: p.lat, lng: p.lng, name: p.label })),
   );
   // effect 의존성용 서명 — 좌표 배열을 그대로 넣으면 매 렌더 재실행된다.
-  const segmentsKey = `${segments.length}:${segments.reduce((n, s) => n + s.path.length, 0)}`;
+  const renderSignature = JSON.stringify({
+    markers: points.map(p => [p.lat, p.lng, p.order, p.label, p.time, p.hard]),
+    segments: segments.map(segment => [segment.path, segment.color, segment.dashed, segment.label, segment.board]),
+  });
 
   useEffect(() => {
     if (!enoughPoints || !containerRef.current) return;
@@ -295,7 +407,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           if (!cancelled) map.invalidateSize();
         }, 0);
       } catch {
-        if (!cancelled) setFailed(true);
+        if (!cancelled && identityRef.current === routeIdentity) setFailedIdentity(routeIdentity);
       }
     })();
 
@@ -308,10 +420,10 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
     };
     // points is derived from stops; re-init when the stop set changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enoughPoints, JSON.stringify(points.map((p) => [p.lat, p.lng, p.order])), segmentsKey]);
+  }, [enoughPoints, routeIdentity, renderSignature]);
 
   // Graceful no-op: fewer than 2 mappable stops, or the map library failed.
-  if (!enoughPoints || failed) return null;
+  if (!enoughPoints || failedIdentity === routeIdentity) return null;
 
   // 힘든 구간이 하나라도 있을 때만 범례 노출(전부 쉬우면 단일 스타일이라 불필요).
   const hasHard = points.some((p) => p.hard);
@@ -335,7 +447,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
               disabled={routeBusy}
               className="ec-btn ec-btn-secondary min-h-[44px] px-3 text-[12px] disabled:opacity-50"
             >
-              {routeBusy ? labels.loading : labels.showRoute}
+              {routeBusy ? labels.loading : fetchedCount > 0 ? labels.retryMissing : labels.showRoute}
             </button>
           )}
           {/* (2026-07-28) 하루 동선을 네이버 지도로 — 핀 여러 개 + 경유 동선.
@@ -363,7 +475,7 @@ export function DayRouteMap({ stops }: DayRouteMapProps) {
           style={{ height: 240, zIndex: 0 }}
         />
       </div>
-      {routeMsg && <p className="mt-2 px-0.5 text-[12px] text-ec-ink-2">{routeMsg}</p>}
+      {routeMsg && <p role="status" className="mt-2 px-0.5 text-[12px] text-ec-ink-2">{routeMsg}</p>}
       {/* 잘라낸 사실을 숨기지 않는다 — 네이버 경유지 상한을 넘긴 날은 명시. */}
       {naverCapped && naverUrl && (
         <p className="mt-2 px-0.5 text-[12px] text-ec-ink-3">{labels.naverCapped}</p>

@@ -58,30 +58,75 @@ const COPY: Record<'ko' | 'en' | 'ja' | 'zh', Copy> = {
   },
 };
 
+/**
+ * 첫 입력(예약 상태) 화면 전용 짧은 문구 (2026-10-07). 세 줄 + 환율 고지 모두 그대로 있고
+ * 길이만 줄였다. 둘 다 DOM 에 있고 editorial-planner.css 가 첫 스텝에서만 짧은 쪽을 보인다
+ * (숨긴 쪽은 display:none). 2~5단계와 다른 화면은 위 COPY 원문 그대로.
+ * {price} = USD, {krw} = 원화 참고값 — 둘 다 아래에서 lib/aiPlannerPrice.ts 로 한 번씩만 만든다.
+ */
+const SHORT: Record<keyof typeof COPY, Omit<Copy, 'heading'>> = {
+  ko: {
+    free: '결제 전 1일차 일정 개요 무료',
+    coupon: '신규 가입 쿠폰: 1~3일 일정 무료',
+    paid: '전체 일정 {price}: 일별 동선·교통·지도·PDF 포함',
+    note: '표시된 USD로 결제됩니다. 참고 원화: {krw} (카드사 환율에 따라 달라짐).',
+  },
+  en: {
+    free: 'Day 1 outline free before you pay',
+    coupon: 'New-member signup coupon: 1–3 day itinerary free',
+    paid: 'Full itinerary {price}: daily route, transit, map, PDF',
+    note: 'Charged the shown USD amount. {krw} is an estimate; card FX may differ.',
+  },
+  ja: {
+    free: '支払い前に1日目の概要を無料で確認',
+    coupon: '新規登録クーポン: 1〜3日の旅程が無料',
+    paid: '全旅程 {price}: 日別ルート・交通・地図・PDF込み',
+    note: '表示のUSD額で請求。{krw}は目安で、カード会社の為替レートにより異なります。',
+  },
+  zh: {
+    free: '付款前免费查看第1天概要',
+    coupon: '新会员注册优惠券: 1–3天行程免费',
+    paid: '完整行程 {price}: 含每日路线、交通、地图、PDF',
+    note: '按显示的美元金额扣款。{krw}仅供参考，随发卡行汇率变化。',
+  },
+};
+
 export function AiPlannerPricingNote({ language }: Props) {
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as keyof typeof COPY;
   const c = COPY[lang];
-  const price = `${formatAiPlannerUsd()} (${formatAiPlannerApproxKrw(lang)})`;
+  const s = SHORT[lang];
+  const usd = formatAiPlannerUsd();
+  const krw = formatAiPlannerApproxKrw(lang);
+  const price = `${usd} (${krw})`;
 
-  const rows = [c.free, c.coupon, c.paid.replace('{price}', price)];
+  const rows = [
+    { full: c.free, short: s.free },
+    { full: c.coupon, short: s.coupon },
+    { full: c.paid.replace('{price}', price), short: s.paid.replace('{price}', usd) },
+  ];
 
   return (
     <section className="ai-planner-pricing-note">
       <p className="ec-eyebrow">{c.heading}</p>
       <ul className="mt-1.5 border-t border-ec-line sm:mt-2">
-        {rows.map((text, i) => (
+        {rows.map((row, i) => (
           <li
-            key={text}
+            key={row.full}
             className={`border-b border-ec-line py-2 text-[13px] leading-snug sm:py-2.5 sm:text-[14px] ${
               i === rows.length - 1 ? 'font-semibold text-ec-ink' : 'text-ec-ink-2'
             }`}
           >
-            {text}
+            <span className="ai-planner-pricing-note__full">{row.full}</span>
+            <span className="ai-planner-pricing-note__short hidden">{row.short}</span>
           </li>
         ))}
       </ul>
-      {/* 원화는 참고값이라는 고지는 줄이지 않는다 — 소비자 사전 고지다. */}
-      <p className="mt-1.5 text-[12px] leading-snug text-ec-ink-3 sm:mt-2 sm:text-[13px]">{c.note}</p>
+      {/* 원화는 참고값이라는 고지는 줄이지 않는다 — 소비자 사전 고지다. 첫 스텝의 짧은 문구도
+          같은 뜻(표시된 USD 로 청구 · 원화는 참고값 · 카드사 환율에 따라 다름)을 그대로 담는다. */}
+      <p className="mt-1.5 text-[12px] leading-snug text-ec-ink-3 sm:mt-2 sm:text-[13px]">
+        <span className="ai-planner-pricing-note__full">{c.note}</span>
+        <span className="ai-planner-pricing-note__short hidden">{s.note.replace('{krw}', krw)}</span>
+      </p>
     </section>
   );
 }

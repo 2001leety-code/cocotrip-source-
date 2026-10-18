@@ -1,7 +1,7 @@
 // WizardForm container: holds shared wizard state + routes between steps.
 // Previously src/components/WizardForm.tsx (798L) — split into step components
 // under src/components/WizardForm/* for P3 Lock release.
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, type ReactNode } from 'react';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Plane, Check,
 } from 'lucide-react';
@@ -172,10 +172,37 @@ export interface WizardInitialValues {
   accomBudget?: string;
 }
 
-export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = false }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues; isRevision?: boolean }) {
+/**
+ * Renders nothing. Sits beside the lazy step inside <Suspense>, so it only mounts
+ * once the step's chunk has resolved — then, if a keyboard step change asked for
+ * it, moves focus to that step's question heading (tabIndex -1: the next Tab
+ * lands on the step's first control).
+ */
+function StepFocusOnReady({ pendingRef, bodyRef }: {
+  pendingRef: { current: boolean };
+  bodyRef: { current: HTMLDivElement | null };
+}) {
+  useEffect(() => {
+    if (!pendingRef.current) return;
+    pendingRef.current = false;
+    const heading = bodyRef.current?.querySelector<HTMLElement>('h2');
+    if (!heading) return;
+    heading.setAttribute('tabindex', '-1');
+    heading.scrollIntoView({ block: 'center', behavior: 'instant' });
+    heading.focus({ preventScroll: true });
+  }, [pendingRef, bodyRef]);
+  return null;
+}
+
+export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = false, pricingNote, onPricingNoteHosted }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues; isRevision?: boolean; pricingNote?: ReactNode; onPricingNoteHosted?: (hosted: boolean) => void }) {
   const { t, language } = useLanguage();
   const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
+  // Last input modality inside the wizard (true = keyboard) + a one-shot request
+  // to focus the next step's question heading after a keyboard step change.
+  const keyboardNavRef = useRef(false);
+  const focusPendingRef = useRef(false);
+  const stepBodyRef = useRef<HTMLDivElement>(null);
 
   // wizard_started (PostHog) — 깔때기 상단 진입 지표. WizardForm 이 처음 마운트될 때
   // 1회만 발화 → 시작→생성→결제 전환율의 분모(시작 수) 확보. payment_started 등 기존
@@ -1090,6 +1117,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
   function goToStep(i: number) {
     if (i > step && i > unlockedStep) return;
     haptic('tap');
+    // Keyboard-driven moves hand focus to the new question once it is mounted
+    // (StepFocusOnReady below); pointer moves and resume jumps never set this.
+    if (keyboardNavRef.current && i !== step) focusPendingRef.current = true;
     setStep(i);
   }
 
@@ -1102,7 +1132,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
         onContinue={applyResumeSnapshot}
         onRestart={discardResumeSnapshot}
       />
-      <div className="w-full">
+      <div
+        className="w-full"
+        onKeyDownCapture={() => { keyboardNavRef.current = true; }}
+        onPointerDownCapture={() => { keyboardNavRef.current = false; }}
+      >
         {/* Step indicator — Swiss: the progress *is* a rule that fills, and one
             tick per step underneath it. The previous version was a gradient
             capsule with a pill badge; on paper that reads as ornament, and the
@@ -1165,8 +1199,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
         <div className="max-w-2xl mx-auto">
           {/* #wizard-step-hints (운영자 #3): 스텝별 친절 설명 — 첫 도달 시 1회 + "?" 재보기 (비차단).
               key={step} — 스텝마다 새로 마운트해서 "이 스텝을 봤는가" 를 초기값으로 한 번에 정한다.
-              (2026-08-04: 예전엔 effect 로 다시 열어 매 스텝 렌더가 한 번 더 돌고 배너가 깜빡였다.) */}
-          <WizardStepHint key={step} step={step} />
+              (2026-08-04: 예전엔 effect 로 다시 열어 매 스텝 렌더가 한 번 더 돌고 배너가 깜빡였다.)
+              2026-10-07: 스텝 본문(질문·다음 버튼) 뒤로 이동 — 390px 첫 화면에서 입력이 먼저 보이게.
+              DOM 순서 = 화면 순서. 실제 안전 안내는 각 스텝 내부에 그대로. */}
           {/* step 전환 = key 가 바뀌면 그 커밋에서 즉시 교체. 진입 슬라이드는 CSS 애니메이션.
               2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
               step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense
@@ -1184,6 +1219,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
           <div className="wizard-step-viewport">
             <div
               key={`step-${step}`}
+              ref={stepBodyRef}
               className={shownStep.animate ? 'wizard-step-enter' : undefined}
             >
               <Suspense fallback={
@@ -1221,6 +1257,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
                   dateRange={dateRange} setDateRange={setDateRange}
+                  pricingNote={pricingNote} onPricingNoteHosted={onPricingNoteHosted}
                 />
               )}
               {step === 2 && (
@@ -1306,14 +1343,19 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
                 />
               )}
+              <StepFocusOnReady pendingRef={focusPendingRef} bodyRef={stepBodyRef} />
               </Suspense>
             </div>
+          </div>
+
+          <div className="wizard-step-hint-slot mt-4">
+            <WizardStepHint key={step} step={step} />
           </div>
 
           {/* 하단 신뢰 4항목 (가이드 P3) — 정적, 제품 실약속(빠른설정·안전취향·4언어·편집가능). 없는 지표/리뷰수 금지.
               2026-08-10: 보라 테두리 배지 4개 → 한 줄 하이라인 목록. 같은 문구, 같은 순서.
               네 개의 동일한 카드는 정보를 더 주지 않으면서 위저드의 마지막 시선을 가져간다. */}
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-ec-line pt-3">
+          <ul className="wizard-trust-list mt-6 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-ec-line pt-3">
             {[p.trustFastSetup, p.trustSafePrefs, p.trustMultilingual, p.trustEditable].map((label) => (
               <li key={label} className="ec-body-sm text-ec-ink-3">{label}</li>
             ))}

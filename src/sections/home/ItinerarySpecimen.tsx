@@ -1,6 +1,12 @@
-import { MapPin, Train, Bus, Footprints, Car } from 'lucide-react';
+import { useRef, useState, type KeyboardEvent } from 'react';
+import { MapPin, Train, Bus, Footprints, Car, ArrowUpRight } from 'lucide-react';
 import { EXAMPLE_PLANS, type ExamplePlan, type ExampleTransitMode } from '@/data/example-plans';
+import { naverMapDirectionsUrl } from '@/lib/naverMap';
 import type { HomeCopy, HomeLang } from './homeCopy';
+import { SplitHeading } from './SplitHeading';
+
+const fillPair = (template: string, from: string, to: string) =>
+  template.replace('{from}', from).replace('{to}', to);
 
 /**
  * The signature element: a real day, set as a timetable.
@@ -46,23 +52,56 @@ function SpecimenSheet({ plan, lang, copy }: { plan: ExamplePlan; lang: HomeLang
         <span className="ec-chip shrink-0 text-[11px]">{c.sampleBadge}</span>
       </header>
 
+      <p className="home-dope-leg-note">{c.transitNote}</p>
       <ol className="flex-1 px-5 py-4">
         {plan.stops.map((stop, i) => (
           <li key={`${plan.region}-${i}`}>
             {/* transit leg from the previous stop */}
-            {stop.transit && (() => {
+            {stop.transit && i > 0 && (() => {
+              const prev = plan.stops[i - 1];
               const Icon = TRANSIT_ICON[stop.transit.mode] || Car;
+              const from = prev.name[lang];
+              const to = stop.name[lang];
+              // Exactly two endpoints, so Naver keeps the transit mode. Current
+              // lines/times live on the map; the sample label is the only fact
+              // shown here (it already carries mode and estimate).
+              const href = naverMapDirectionsUrl(
+                [{ lat: prev.lat, lng: prev.lng, name: from }, { lat: stop.lat, lng: stop.lng, name: to }],
+                'transit',
+              );
               return (
-                // The label wraps rather than truncating: measured at 390px,
+                // Everything wraps rather than truncating: measured at 390px,
                 // `truncate` cut "Subway L2→L1 (transfer at Seomyeon) · ~50 min"
                 // at 222px and the transfer station — the useful half — was the
-                // part that disappeared. `min-w-0` stays because a flex item's
-                // default min-width is auto, which would otherwise let the row's
-                // min-content push the document past the viewport.
-                <p className="flex items-start gap-2 py-2 pl-[64px] text-[12px] text-ec-ink-3">
-                  <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="min-w-0">{stop.transit.label[lang]}</span>
-                </p>
+                // part that disappeared. `min-w-0` keeps a flex item's automatic
+                // min-width from pushing the document past the viewport.
+                <div className="home-dope-leg" data-mode={stop.transit.mode}>
+                  <Icon className="home-dope-leg__icon" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="home-dope-leg__route">
+                      <span>{from}</span>
+                      <span aria-hidden> → </span>
+                      <span className="sr-only"> – </span>
+                      <span>{to}</span>
+                    </p>
+                    <p className="home-dope-leg__label">
+                      {stop.transit.label[lang]}
+                      {stop.transit.mode === 'car' && <> · {c.carNote}</>}
+                    </p>
+                  </div>
+                  {href && (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="home-dope-leg__link"
+                      aria-label={fillPair(c.transitLinkAria, from, to)}
+                    >
+                      {c.transitLink}
+                      <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    </a>
+                  )}
+                </div>
               );
             })()}
 
@@ -105,23 +144,72 @@ function SpecimenSheet({ plan, lang, copy }: { plan: ExamplePlan; lang: HomeLang
   );
 }
 
+/**
+ * Home A (2026-10-07): one sheet at a time instead of three side by side.
+ * The first plan is visible on first paint; the region tabs (ARIA tabs,
+ * arrow keys / Home / End) switch between all EXAMPLE_PLANS.
+ */
 export function ItinerarySpecimen({ copy, lang, id }: Props) {
   const c = copy.specimen;
+  const [active, setActive] = useState(0);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const plan = EXAMPLE_PLANS[active] || EXAMPLE_PLANS[0];
+
+  const select = (i: number) => {
+    const n = EXAMPLE_PLANS.length;
+    const next = (i + n) % n;
+    setActive(next);
+    const tab = tabs.current[next];
+    if (tab) tab.focus();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    const moves: Record<string, number> = {
+      ArrowRight: active + 1, ArrowDown: active + 1, ArrowLeft: active - 1, ArrowUp: active - 1,
+      Home: 0, End: EXAMPLE_PLANS.length - 1,
+    };
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    select(moves[e.key]);
+  };
+
   return (
     <section id={id} className="scroll-mt-20 border-b border-ec-line bg-ec-sunken">
       <div className="ec-container-wide py-12 md:py-16">
         <div className="grid gap-6 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-5">
             <p className="ec-eyebrow">{c.eyebrow}</p>
-            <h2 className="ec-h2 mt-4">{c.heading}</h2>
+            <SplitHeading text={c.heading} className="ec-h2 mt-4" />
           </div>
           <p className="ec-body ec-measure lg:col-span-7 lg:pt-9">{c.lede}</p>
         </div>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {EXAMPLE_PLANS.map((plan) => (
+        <div className="mt-8 grid gap-5 lg:grid-cols-12 lg:gap-12">
+          <div role="tablist" aria-label={c.tabsLabel} className="home-dope-tabs lg:col-span-4" onKeyDown={onKeyDown}>
+            {EXAMPLE_PLANS.map((p, i) => (
+              <button
+                key={p.region}
+                ref={(el) => { tabs.current[i] = el; }}
+                type="button"
+                role="tab"
+                id={`${id}-tab-${p.region}`}
+                aria-selected={i === active}
+                aria-controls={`${id}-panel`}
+                tabIndex={i === active ? 0 : -1}
+                className="home-dope-tab"
+                onClick={() => setActive(i)}
+              >
+                {p.regionLabel[lang]}
+              </button>
+            ))}
+          </div>
+          <div
+            role="tabpanel"
+            id={`${id}-panel`}
+            aria-labelledby={`${id}-tab-${plan.region}`}
+            className="min-w-0 lg:col-span-8"
+          >
             <SpecimenSheet key={plan.region} plan={plan} lang={lang} copy={copy} />
-          ))}
+          </div>
         </div>
       </div>
     </section>

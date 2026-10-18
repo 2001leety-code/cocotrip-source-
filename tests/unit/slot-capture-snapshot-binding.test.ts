@@ -122,23 +122,60 @@ function snapshotDoc(extra: Dict = {}): Dict {
   };
 }
 
-/** capture 핸들러용 db — paypal_order_snapshots 문서만 제어하면 충분하다. */
-function captureDb(snapshot: Dict | null) {
+const isPlain = (v: unknown): v is Dict => !!v && typeof v === 'object' && !Array.isArray(v);
+function mergeDeep(base: unknown, patch: Dict): Dict {
+  if (!isPlain(base)) return { ...patch };
+  const out: Dict = { ...base };
+  for (const [key, value] of Object.entries(patch)) out[key] = isPlain(value) && isPlain(base[key]) ? mergeDeep(base[key], value) : value;
+  return out;
+}
+
+/**
+ * capture 핸들러용 in-memory Firestore. 주문 스냅샷만 시드하고, 나머지(used_paypal_orders attempt·
+ * bookings·pending_processor_retries)는 핸들러가 공유 결제 헬퍼로 실제로 읽고 쓴다.
+ * attempt 헬퍼는 트랜잭션 안에서 claimToken 을 재확인하므로 상태 보존이 필수다.
+ * 트랜잭션 쓰기는 콜백 종료 후 한 번에 반영(커밋)한다.
+ */
+function captureDb(snapshot: Dict | null, orderId = ORDER_ID) {
   const writes: Array<{ path: string; data: Dict }> = [];
-  const docRef = (name: string, id: string) => ({
-    get: async () => (name === 'paypal_order_snapshots' && snapshot
-      ? { exists: true, data: () => snapshot }
-      : { exists: false, data: () => ({}) }),
-    set: async (data: Dict) => { writes.push({ path: `${name}/${id}`, data }); },
-    update: async (data: Dict) => { writes.push({ path: `update:${name}/${id}`, data }); },
-    delete: async () => {},
-  });
+  const store = new Map<string, Dict>();
+  if (snapshot) store.set(`paypal_order_snapshots/${orderId}`, snapshot);
+  type Ref = { __path: string };
+  const read = (path: string) => {
+    const data = store.get(path);
+    return { exists: !!data, data: () => (data ? structuredClone(data) : undefined) };
+  };
+  const apply = (op: 'set' | 'update' | 'delete', path: string, data: Dict = {}, merge = false) => {
+    writes.push({ path: op === 'set' ? path : `${op}:${path}`, data });
+    if (op === 'delete') { store.delete(path); return; }
+    if (op === 'update' && !store.has(path)) throw new Error(`NOT_FOUND ${path}`);
+    store.set(path, op === 'update' || merge ? mergeDeep(store.get(path), data) : { ...data });
+  };
+  const docRef = (name: string, id: string) => {
+    const path = `${name}/${id}`;
+    return {
+      __path: path,
+      get: async () => read(path),
+      set: async (data: Dict, options?: { merge?: boolean }) => apply('set', path, data, !!(options && options.merge)),
+      update: async (data: Dict) => apply('update', path, data),
+      delete: async () => apply('delete', path),
+    };
+  };
   return {
     _writes: writes,
+    _store: store,
     collection: (name: string) => ({ doc: (id: string) => docRef(name, id) }),
-    runTransaction: async (fn: (tx: Dict) => Promise<unknown>) =>
-      fn({ get: async () => ({ exists: false, data: () => ({}) }), set: () => {}, update: () => {} }),
-    batch: () => ({ set: () => {}, commit: async () => {} }),
+    runTransaction: async (fn: (tx: Dict) => Promise<unknown>) => {
+      const staged: Array<() => void> = [];
+      const result = await fn({
+        get: async (ref: Ref) => read(ref.__path),
+        set: (ref: Ref, data: Dict, options?: { merge?: boolean }) => { staged.push(() => apply('set', ref.__path, data, !!(options && options.merge))); },
+        update: (ref: Ref, data: Dict) => { staged.push(() => apply('update', ref.__path, data)); },
+        delete: (ref: Ref) => { staged.push(() => apply('delete', ref.__path)); },
+      });
+      staged.forEach((commit) => commit());
+      return result;
+    },
   };
 }
 
@@ -163,25 +200,29 @@ function mockRes() {
   };
 }
 
-/** PayPal capture 응답 — 금액·통화는 스냅샷과 정합(무결성 검증 통과 → 슬롯 단계 도달). */
+/**
+ * PayPal capture 응답 — 금액·통화는 스냅샷과 정합(무결성 검증 통과 → 슬롯 단계 도달).
+ * 실 Response 처럼 text() 를 제공하고(핸들러는 text 로 읽어 파싱 실패를 UNKNOWN 으로 분류),
+ * 요청 URL 의 주문 ID 를 그대로 돌려준다(다른 주문 ID 응답은 capture-id-mismatch = UNKNOWN).
+ */
 function mockPaypal(value = '236.00') {
-  global.fetch = vi.fn(async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      id: ORDER_ID,
+  global.fetch = vi.fn(async (url: unknown) => {
+    const match = /\/v2\/checkout\/orders\/([^/]+)\/capture$/.exec(String(url));
+    const body = {
+      id: match ? match[1] : ORDER_ID,
       status: 'COMPLETED',
       payer: { email_address: 'buyer@example.com', name: { given_name: 'Ada', surname: 'L' } },
       purchase_units: [{
         payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value, currency_code: 'USD' } }] },
       }],
-    }),
-  })) as never;
+    };
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+  }) as never;
 }
 
 /** await 하지 않고 시작 — handler Promise 의 완료 시점을 테스트가 관측한다. */
 function startCapture(body: Dict, snapshot: Dict | null, orderId = ORDER_ID) {
-  dbHolder.db = captureDb(snapshot);
+  dbHolder.db = captureDb(snapshot, orderId);
   const res = mockRes();
   return captureHandler({ method: 'POST', headers: {}, body: { orderID: orderId, ...body } }, res)
     .then(() => res._out);
@@ -280,8 +321,13 @@ describe('🔴 capturePaypalOrder — 위조된 capture body 는 슬롯 확정�
       pax: PAID_SLOT.passengers,
       orderId: ORDER_ID,
     });
-    // 공격자가 고른 값이 어떤 인자로도 새어 들어가지 않는다.
-    const flat = JSON.stringify(confirmCalls[0]);
+    // 공격자가 고른 값이 어떤 confirm 인자로도 새어 들어가지 않는다.
+    // adminDb 는 DB 핸들(테스트 mock 이 저장 이력을 들고 있어 동결된 원본 intent 의 body 도 보인다)이라
+    // 비교 대상에서 빼고, 나머지 인자가 정확히 슬롯 확정 필드뿐인지 먼저 고정한다.
+    expect(confirmCalls[0].adminDb).toBe(dbHolder.db);
+    const confirmArgs = Object.fromEntries(Object.entries(confirmCalls[0]).filter(([key]) => key !== 'adminDb'));
+    expect(Object.keys(confirmArgs).sort()).toEqual(['capacity', 'date', 'orderId', 'pax', 'slotId', 'tourId']);
+    const flat = JSON.stringify(confirmArgs);
     expect(flat).not.toContain(FORGED_SLOT.tourId);
     expect(flat).not.toContain(FORGED_SLOT.tourSlotId);
     expect(flat).not.toContain(FORGED_SLOT.bookingDate);
@@ -320,6 +366,11 @@ describe('🔴 capturePaypalOrder — 위조된 capture body 는 슬롯 확정�
     const out = await runCapture(forgedBody, snapshotDoc({ slotBooking: PAID_SLOT }));
     expect(out.status).toBe(200);
     expect(out.body?.ok).toBe(true);
+    // 확정 응답의 근거 = durable 예약 + 재처리 intent + 종결된 attempt (빈 200 이 아니다).
+    const store = (dbHolder.db as ReturnType<typeof captureDb>)._store;
+    expect(store.get(`bookings/${ORDER_ID}`)).toMatchObject({ status: 'CONFIRMED', captureID: 'CAP-1', productType: 'charter_seoul_city' });
+    expect(store.get(`pending_processor_retries/${ORDER_ID}`)).toBeTruthy();
+    expect(store.get(`used_paypal_orders/${ORDER_ID}`)).toMatchObject({ finalized: true, bookingDurable: true, stages: { slot: { state: 'completed' } } });
   });
 });
 

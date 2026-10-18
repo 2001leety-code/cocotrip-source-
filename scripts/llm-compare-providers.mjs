@@ -11,12 +11,31 @@
  *
  * 평가 항목(계획서 4-b): JSON 파싱 · 필수 키(days/arrival_guide/departure_guide) · 일수 일치 · 구조(B-10/12/14/15) ·
  *   식이 critical 0 · 언어(ko/en/ja/zh) · 길이(chars) · 토큰/비용/소요시간.
+ *
+ * 종료 코드 (2026-10-17): 0 = 모든 행 통과 · 1 = 한 공급자라도 실패(호출 에러·구조 오류 포함) 또는
+ *   행/시나리오 누락·중복 · 2 = --confirm-cost 없음 · 3 = 사전 추정 비용이 --max-usd 초과 ·
+ *   4 = --evaluate 입력 파일 불량 · 5 = --scenarios 에 모르는/중복 ID (호출 전 중단).
+ *   산출물에 expectedScenarios(실행한 시나리오 ID 목록)와 행별 scenarioId 를 기록한다.
+ *   실패해도 결과 JSON 은 먼저 저장한다. 판정 = scripts/integration/llm-compare-outcome.mjs.
+ *   --evaluate=<결과 json> : 호출 0회, 저장된 결과만 다시 판정해 같은 종료 코드를 낸다.
+ * ⚠️ --max-usd 는 실행 전 **추정치** 검사일 뿐, 실제 누적 지출 상한이 아니다.
  */
 import { performance } from 'node:perf_hooks';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { evaluateCompareRun, formatOutcome } from './integration/llm-compare-outcome.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
+if (args.evaluate) {
+  let saved;
+  try { saved = JSON.parse(readFileSync(String(args.evaluate), 'utf8')); } catch (e) {
+    console.error(`[compare] --evaluate 입력을 읽지 못했습니다: ${e && e.message}`);
+    process.exit(4);
+  }
+  const outcome = evaluateCompareRun(saved);
+  console.log(formatOutcome(outcome));
+  process.exit(outcome.exitCode);
+}
 if (!args['confirm-cost']) {
   console.error('유료 호출입니다. 비용 확인 후 --confirm-cost 를 붙여 다시 실행하세요.');
   process.exit(2);
@@ -32,7 +51,14 @@ const ALL = {
   'seoul-ja':    { area: 'seoul', durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], priceRange: 'Moderate', language: 'ja' },
   'seoul-zh':    { area: 'seoul', durationDays: 1, pax: 3, dietPrefs: ['Meat'],       priceRange: 'Premium',  language: 'zh' },
 };
-const SCEN = String(args.scenarios || Object.keys(ALL).join(',')).split(',').map((s) => s.trim()).filter((k) => ALL[k]);
+// 시나리오 ID = ALL 키. 모르는 ID 를 조용히 버리면 "요청한 시나리오 통째 누락"이 통과로 보인다 → 호출 전 중단.
+const REQUESTED = String(args.scenarios || Object.keys(ALL).join(',')).split(',').map((s) => s.trim()).filter(Boolean);
+const UNKNOWN = REQUESTED.filter((k) => !Object.prototype.hasOwnProperty.call(ALL, k));
+const SCEN = [...new Set(REQUESTED)];
+if (!SCEN.length || UNKNOWN.length || SCEN.length !== REQUESTED.length) {
+  console.error(`[compare] --scenarios 불량 (unknown=${UNKNOWN.join(',') || '-'} duplicate=${SCEN.length !== REQUESTED.length} empty=${!SCEN.length}). 허용: ${Object.keys(ALL).join(',')}`);
+  process.exit(5);
+}
 
 const { buildSystemPrompt } = await import('../api/_ai_core/buildPrompt.js');
 const { buildUserMessage } = await import('../api/_ai_core/userMessageBuilder.js');
@@ -61,7 +87,7 @@ function buildInputs(key) {
   let foodContext = ''; try { foodContext = getFoodContext(s.area, dietaryAll, s.priceRange, Math.min(40, Math.max(10, s.durationDays * 4))) || ''; } catch { /* ignore */ }
   let attractionsContext = ''; try { attractionsContext = getAttractionsContext({ city: s.area, styles: body.styles, language: s.language, maxLocations: 6 }) || ''; } catch { /* ignore */ }
   const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext: '', runningContext: '' });
-  return { s, body, shaped, dietaryAll, systemPrompt: buildSystemPrompt(s.language), userMessage };
+  return { id: key, s, body, shaped, dietaryAll, systemPrompt: buildSystemPrompt(s.language), userMessage };
 }
 
 // 사전 비용 추정 (입력 chars/4 ≈ 토큰, 출력 8K 토큰 가정)
@@ -78,7 +104,8 @@ if (est > MAX_USD) { console.error('추정 비용이 상한을 넘습니다. 중
 const results = [];
 for (const p of prepared) {
   for (const prov of PROVIDERS) {
-    const row = { scenario: p.s.area + '-' + p.s.durationDays + 'd-' + p.s.dietPrefs[0] + '-' + p.s.language, provider: prov };
+    // scenarioId = 판정 키(ALL 키), scenario = 표시 라벨(기존 산출물 호환).
+    const row = { scenarioId: p.id, scenario: p.s.area + '-' + p.s.durationDays + 'd-' + p.s.dietPrefs[0] + '-' + p.s.language, provider: prov };
     try {
       await runWithLlmContext({ provider: prov }, async () => {
         row.model = resolveLlmModel('main');
@@ -121,6 +148,10 @@ for (const p of prepared) {
 
 const out = String(args.out || `scripts/plan-local/outputs/llm-compare-${Date.now()}.json`);
 mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), providers: PROVIDERS, results }, null, 2));
+const outcome = evaluateCompareRun({ providers: PROVIDERS, expectedScenarios: SCEN, results });
+writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), providers: PROVIDERS, expectedScenarios: SCEN, results, outcome }, null, 2));
 const spent = results.reduce((a, r) => a + (r.usd || 0), 0);
 console.log(`\n[compare] 실호출 ${results.filter((r) => !r.error).length}/${results.length} · 실비용 ≈ $${spent.toFixed(4)} · 저장 ${out}`);
+console.log(formatOutcome(outcome));
+// 어떤 공급자든 실패하면 0 이 아닌 코드 — 결과 파일은 위에서 이미 저장됨.
+process.exitCode = outcome.exitCode;

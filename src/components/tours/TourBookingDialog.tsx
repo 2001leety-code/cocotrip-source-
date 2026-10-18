@@ -534,7 +534,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         </DialogHeader>
 
         {step === 1 && (
-        <div className="space-y-4 mt-2">
+        <div className="space-y-4 mt-2 customer-booking-body">
           {/* Pax stepper */}
           <div>
             <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
@@ -652,7 +652,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     type="button"
                     onClick={() => isAvailable && setDriverLang(l)}
                     disabled={!isAvailable}
-                    className="flex-1 text-[12px] font-semibold py-2 rounded-xl transition-colors"
+                    className="flex-1 text-[12px] font-semibold py-2 rounded-xl transition-colors customer-booking-choice"
                     style={
                       isActive
                         ? { background: 'rgba(140,200,255,0.18)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
@@ -688,7 +688,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     key={a.id}
                     type="button"
                     onClick={() => toggleAddon(a.id)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition-colors"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition-colors customer-booking-choice"
                     style={
                       checked
                         ? { background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.35)' }
@@ -775,7 +775,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 "+₩X" 표기는 총액에 더해진다는 오해를 줘 P311(표시가>청구가) 인상 → 삭제.
                 각 애드온 참고가는 위 옵션 목록에서 유지(현장결제 라벨과 함께). */}
             <div className="h-px bg-white/[0.08] my-1.5" />
-            <div className="flex justify-between text-[14px] font-black">
+            <div className="flex justify-between text-[14px] font-black customer-booking-total">
               <span className="text-white">{labels.priceTotal}</span>
               <span style={{ color: '#C99FFF' }}>{totalStr}<small className="ml-1 text-white/45">({formatKRW(totalKRW)})</small></span>
             </div>

@@ -47,9 +47,9 @@ const LUGGAGE_SIZES = [
 ];
 
 // ── 스타일 상수 ─────────────────────────────────────
-const SEL  = 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/10 text-[#B668FC] shadow-[0_0_15px_rgba(182,104,252,0.15)]';
-const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#B668FC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(182,104,252,0.1)] transition-all';
-const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/55 font-semibold mb-3';
+const SEL  = 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/10 text-[#B668FC] shadow-[0_0_15px_rgba(182,104,252,0.15)] customer-charter-option';
+const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#B668FC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(182,104,252,0.1)] transition-all customer-charter-option';
+const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/55 font-semibold mb-3 customer-charter-label';
 
 // ── 메인 컴포넌트 ────────────────────────────────────
 export default function CharterPage() {
@@ -159,7 +159,7 @@ export default function CharterPage() {
     || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
 
   return (
-    <div className={`${isMobile ? 'm-page' : 'min-h-screen'} ${REFINED ? 'refined-charter' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
+    <div className={`customer-charter-legacy ${isMobile ? 'm-page' : 'min-h-screen'} ${REFINED ? 'refined-charter' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* Hero */}
@@ -168,7 +168,7 @@ export default function CharterPage() {
           ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
           : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-6 customer-charter-back">
             <ArrowLeft className="w-3.5 h-3.5" />{c.backToHome ?? '홈으로'}
           </Link>
           <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold tracking-wider uppercase mb-4 ${
@@ -178,10 +178,10 @@ export default function CharterPage() {
           }`}>
             {isMobile ? <Sparkles className="w-3.5 h-3.5" /> : <Car className="w-3.5 h-3.5" />}{c.badge ?? '전세차량 견적'}
           </div>
-          <h1 className={`text-2xl sm:text-3xl font-bold leading-tight mb-2 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
+          <h1 className={`customer-charter-title text-2xl sm:text-3xl font-bold leading-tight mb-2 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
             {c.heroTitle ?? '코코트립 전세차량 견적'}
           </h1>
-          <p className="text-white/50 text-sm">{c.heroSubtitle ?? '공항 픽업 · 일일 투어 · K-pop 셔틀 · 단체 투어'}</p>
+          <p className="text-white/50 text-sm customer-charter-lead">{c.heroSubtitle ?? '공항 픽업 · 일일 투어 · K-pop 셔틀 · 단체 투어'}</p>
           {/* 이용 방법은 자동으로 띄우지 않고 원하는 사람만 연다 (2026-08-01, CharterIntroModal 주석 참조). */}
           <div className="mt-3"><CharterIntroModal /></div>
         </div>
@@ -190,7 +190,7 @@ export default function CharterPage() {
       <main className={`max-w-2xl mx-auto px-4 space-y-6 pt-6 ${isMobile ? 'pb-6' : 'pb-20'}`}>
 
         {/* 신규 6단계 위저드 안내 배너 (레거시 페이지에서 승격 유도) */}
-        <Link to="/charter" className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#B668FC]/35 bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/5 hover:from-[#B668FC]/15 hover:to-[#FF6B9D]/10 transition-colors">
+        <Link to="/charter" className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#B668FC]/35 bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/5 hover:from-[#B668FC]/15 hover:to-[#FF6B9D]/10 transition-colors customer-charter-banner">
           <Sparkles className="w-4 h-4 text-[#B668FC] shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-white leading-tight">✨ 신규 6단계 위저드 견적</p>
@@ -200,7 +200,7 @@ export default function CharterPage() {
         </Link>
 
         {/* ── 1. 차량 선택 ── */}
-        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'}`}>
+        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'} customer-charter-card`}>
           <div className={`${LABEL} flex items-center gap-1.5`}><Car className="w-3 h-3" />{c.vehicleSelect ?? '차량 선택'}</div>
           <div className="grid grid-cols-3 gap-3">
             {(Object.entries(VEHICLE_TYPES) as [VehicleType, typeof VEHICLE_TYPES[VehicleType]][]).map(([key, veh]) => (
@@ -240,7 +240,7 @@ export default function CharterPage() {
         </div>
 
         {/* ── 2. 서비스 유형 ── */}
-        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'}`} style={isMobile ? { animationDelay: '0.1s' } : undefined}>
+        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'} customer-charter-card`} style={isMobile ? { animationDelay: '0.1s' } : undefined}>
           <p className={LABEL}>{c.serviceType ?? '서비스 유형'}</p>
           <div className="flex flex-wrap gap-2">
             {SERVICE_ITEMS.map(s => (
@@ -258,7 +258,7 @@ export default function CharterPage() {
         {/* ── 3. 상세 정보 (K-pop 아닐 때만 표시) ── */}
         {service !== 'kpop' && (
           <>
-            <div className={`${isMobile ? 'm-card m-appear p-5 space-y-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 space-y-5'}`} style={isMobile ? { animationDelay: '0.2s' } : undefined}>
+            <div className={`${isMobile ? 'm-card m-appear p-5 space-y-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 space-y-5'} customer-charter-card`} style={isMobile ? { animationDelay: '0.2s' } : undefined}>
               <p className={LABEL}>{c.details ?? '상세 정보'}</p>
 
           {/* 공항 픽업 — 드롭다운 기반 */}
@@ -541,7 +541,7 @@ export default function CharterPage() {
             )}
 
             {/* 추가 정보 */}
-            <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5'}`} style={isMobile ? { animationDelay: '0.3s' } : undefined}>
+            <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5'} customer-charter-card`} style={isMobile ? { animationDelay: '0.3s' } : undefined}>
               <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
               <ul className="space-y-1.5 text-xs text-white/55 leading-relaxed">
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included1 ?? '차량 1대 기준 (인원 추가 시 차량 추가)'}</span></li>
@@ -571,13 +571,13 @@ function ContactCTAs({ waUrl, emailUrl, c }: { waUrl: string; emailUrl: string; 
   return (
     <div className="flex flex-col sm:flex-row gap-3">
       <a href={waUrl} target="_blank" rel="noopener noreferrer"
-        className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
+        className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95 customer-charter-action"
         style={{ background: '#25D366' }}>
         <MessageCircle className="w-4 h-4" />
         {c.waQuote ?? 'WhatsApp 견적 문의'}
       </a>
       <a href={emailUrl}
-        className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border border-white/20 text-sm font-medium text-white/65 hover:border-white/35 hover:text-white/85 transition-all">
+        className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border border-white/20 text-sm font-medium text-white/65 hover:border-white/35 hover:text-white/85 transition-all customer-charter-action customer-charter-action-secondary">
         <Mail className="w-4 h-4" />
         {c.emailQuote ?? '이메일 문의'}
       </a>

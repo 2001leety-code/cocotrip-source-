@@ -15,6 +15,8 @@ import {
   chooseReaderContext,
   shouldAttachGuestAnonToken,
 } from '../../src/lib/guestReader';
+import { projectPublicPlan } from '../../api/_shared/public-plan-projection.js';
+import { resolvePlanAccess } from '../../api/get-plan.js';
 
 const ROOT = resolve(__dirname, '../..');
 
@@ -77,7 +79,35 @@ describe('소스 회귀 가드 — 플래그 게이트 + OFF 경로 보존', () 
     expect(src).not.toContain('ensureGuestAnon');
     expect(src).not.toContain('chooseReaderContext');
     // 마스킹 로직 보존 (방어심층 — 멱등)
-    expect(src).toContain('delete data.accessToken');
+    // 2026-10-10 recovery rewrite: `delete data.accessToken` (field blacklist) → projectPublicPlan() allowlist
+    //   applied to every viewer that is neither owner nor token holder.
+    expect(src).toMatch(/import\s*\{[^}]*\bprojectPublicPlan\b[^}]*\}\s*from/);
+    expect(src).toMatch(/ownerCheck\s*\|\|\s*hasToken\s*\?\s*data\s*:\s*projectPublicPlan\(data,/);
+    // non-owner/non-token/non-public is rejected before any data reaches state
+    expect(src).toMatch(/!ownerCheck\s*&&\s*!hasToken\s*&&\s*!isPublicShared\)\s*\{\s*setError\('unauthorized'\)/);
+  });
+
+  it('accessToken / regenerationToken never reach the public reader (projectPublicPlan allowlist, client + api/get-plan.js)', () => {
+    const plan = {
+      id: 'p1', planId: 'p1', uid: 'owner-uid', isPublic: true, title: 'Seoul 3 days',
+      accessToken: 'SECRET-ACCESS-TOKEN-123456', regenerationToken: 'SECRET-REGEN-TOKEN-654321',
+      input: { language: 'en', email: 'guest@example.com', accessToken: 'SECRET-ACCESS-TOKEN-123456' },
+    };
+    const projected = projectPublicPlan(plan);
+    expect(projected).not.toHaveProperty('accessToken');
+    expect(projected).not.toHaveProperty('regenerationToken');
+    expect(projected).not.toHaveProperty('uid');
+    expect(JSON.stringify(projected)).not.toContain('SECRET-ACCESS-TOKEN-123456');
+    expect(JSON.stringify(projected)).not.toContain('SECRET-REGEN-TOKEN-654321');
+    // server side: public (no token) = projected, wrong token = projected, right token = full, private = denied
+    const pub = resolvePlanAccess({ ...plan }, '');
+    expect(pub.access).toBe('masked');
+    expect(JSON.stringify(pub.plan)).not.toContain('SECRET-ACCESS-TOKEN-123456');
+    expect(resolvePlanAccess({ ...plan }, 'wrong-token').access).toBe('masked');
+    expect(resolvePlanAccess({ ...plan }, plan.accessToken).access).toBe('full');
+    expect(resolvePlanAccess({ ...plan, isPublic: false }, '').access).toBe('denied');
+    // the server file really routes through the shared projection
+    expect(readFileSync(resolve(ROOT, 'api/get-plan.js'), 'utf8')).toMatch(/projectPublicPlan\(plan/);
   });
 
   it('usePlannerHandlers: 결제 Authorization 헤더 불변 + 익명은 별도 헤더만', () => {

@@ -1,14 +1,13 @@
 // Intro slide: plan title, date, stats, arrival guide.
 // First slide in the swipe carousel.
-import { Calendar, MapPin, Users, CreditCard, MessageCircle } from 'lucide-react';
+import { CreditCard, MessageCircle } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDocument } from '../types';
-import { getPlanDetailDict, getPlanDetailUI } from '../types';
-import { countVisibleStops } from '../lib/planStats';
+import { getPlanDetailDict } from '../types';
 
 // 차량 내부키 → 고객용 라벨 (vehicleLabel[백엔드 humanize] 없을 때만 폴백 — staria_8 같은 raw 키 노출 방지).
 const VEHICLE_LABELS: Record<string, string> = {
@@ -30,10 +29,8 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
-  const ui = getPlanDetailUI(t);
 
   const it = plan.itinerary || {};
-  const days = it.days || [];
   // B9-29 (2026-05-09): arrival_guide 누락/빈 객체 시 통계 카드 아래 빈 placeholder
   // 노출 버그. ArrivalGuide 컴포넌트는 guide.steps / guide.route_to_hotel 둘 다
   // 비어 있어도 헤더 + 빈 토글 영역을 항상 렌더 → 사용자에게 의미 없는 빈 박스.
@@ -54,24 +51,23 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
     return regionNames[key.toLowerCase()] || regionNames[key] || key;
   }).filter(Boolean);
 
-  // 2026-06-23 (운영자 #3): pax 누락 시 "undefined pax" / 통계카드 "Pax: undefined" 노출 버그.
-  // adults(없으면 pax)를 안전하게 숫자화 — 둘 다 없으면 null → 해당 세그먼트/카드 값 숨김.
-  const adultsNum = Number(input.adults);
-  const paxRaw = Number(input.pax);
-  const childrenNum = Number(input.children || 0);
-  const hasAdults = Number.isFinite(adultsNum) && adultsNum > 0;
-  const hasPax = Number.isFinite(paxRaw) && paxRaw > 0;
-  // 총 인원: adults(+children) 우선, 없으면 pax. 둘 다 없으면 null.
-  const paxTotal = hasAdults
-    ? adultsNum + (Number.isFinite(childrenNum) ? childrenNum : 0)
-    : hasPax
-      ? paxRaw
-      : null;
+  const pricing = plan.pricing as PricingSummary | undefined;
+  const vehicleLabel = pricing?.vehicleLabel || (pricing?.vehicle ? (VEHICLE_LABELS[pricing.vehicle] || pricing.vehicle) : '');
+
+  // JA 라벨이 좁은 폰에서 '旅 / 程' 로 쪼개지지 않도록 '旅程' 앞에서만 줄바꿈 허용 (문구 자체는 그대로).
+  const whatsAppLabel = sw.customizeWhatsApp || 'Customize this trip on WhatsApp';
+  const whatsAppSplitAt = whatsAppLabel.indexOf('旅程');
+  const whatsAppChunks = whatsAppSplitAt > 0
+    ? [whatsAppLabel.slice(0, whatsAppSplitAt), whatsAppLabel.slice(whatsAppSplitAt)]
+    : null;
+
+  const tMoneyLoad = Number(it.t_money_recommended_load);
+  const hasTMoneyLoad = Number.isFinite(tMoneyLoad) && tMoneyLoad > 0;
 
   return (
     <div>
       {/* Intro status and quick actions */}
-      <div className="mb-8 border-b border-ec-line pb-6">
+      <div className="mb-4">
         {isTranslating && (
           <div className="ec-chip ec-chip-brand mb-3" role="status" aria-live="polite">
             <div className="h-3 w-3 animate-pulse rounded-full bg-ec-brand" aria-hidden />
@@ -87,39 +83,29 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
         <div className="flex items-center">
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
-        <p className="ec-body-sm mt-3">
-          {input.startDate}
-          {paxTotal != null ? ` | ${paxTotal} ${ui.planStatTravelers}` : ''}
-          {(() => { const pr = plan.pricing as PricingSummary | undefined; const v = pr?.vehicleLabel || (pr?.vehicle ? (VEHICLE_LABELS[pr.vehicle] || pr.vehicle) : ''); return v ? ` | ${v}` : ''; })()}
-        </p>
-        {localizedRegions.length > 0 && (
+        {vehicleLabel && <p className="ec-body-sm mt-3" data-testid="plan-intro-vehicle">{vehicleLabel}</p>}
+        {localizedRegions.length > 1 && (
           <p className="mt-1.5 text-[14px] font-semibold tracking-wide text-ec-ink-2">
             {localizedRegions.join('  →  ')}
           </p>
         )}
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-2 mb-6">
-        {[
-          { icon: <Calendar className="w-4 h-4" />, label: ui.planStatDays || sw.introDaysLabel || 'Days', value: String(days.length || '-') },
-          { icon: <MapPin className="w-4 h-4" />, label: ui.planStatStops || 'Stops', value: String(countVisibleStops(days)) },
-          // 2026-06-23 (운영자 #3): paxTotal null 시 '-' 폴백 (Days 카드와 동일 패턴) — "undefined" 방지.
-          { icon: <Users className="w-4 h-4" />, label: ui.planStatTravelers || 'Travelers', value: paxTotal != null ? String(paxTotal) : '-' },
-          { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
-        ].map((item, i) => (
-          <div key={i} className="min-w-0 border-y border-ec-line px-2 py-3">
-            <span className="mb-1 flex text-ec-brand">{item.icon}</span>
-            <p className="truncate text-[12px] text-ec-ink-3">{item.label}</p>
-            <p className="ec-figure mt-1 truncate text-[14px]">{item.value}</p>
-          </div>
-        ))}
-      </div>
+      {/* 일수·장소·인원·출발일은 마스트헤드에 한 번만 표시 — 여기선 T-money 권장 충전액만 유지 (유효 양수일 때만). */}
+      {hasTMoneyLoad && (
+        <div className="mb-6 flex items-center gap-3 border-y border-ec-line px-2 py-3" data-testid="plan-intro-tmoney">
+          <CreditCard className="h-4 w-4 shrink-0 text-ec-brand" aria-hidden />
+          <p className="text-[14px] text-ec-ink-3">T-money</p>
+          <p className="ec-figure ml-auto text-[14px]">{formatKRW(tMoneyLoad)}</p>
+        </div>
+      )}
 
       {/* 상단 고객 CTA — 공유 제안서에서 바로 맞춤/문의 (전환 동선 앞당김). */}
       <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
-        className="ec-btn ec-btn-secondary mb-6 w-full">
-        <MessageCircle className="h-5 w-5 text-ec-success" aria-hidden /> {sw.customizeWhatsApp || 'Customize this trip on WhatsApp'}
+        className="plan-intro-whatsapp ec-btn ec-btn-secondary mb-6 w-full">
+        <MessageCircle className="h-5 w-5 text-ec-success" aria-hidden /> <span className="plan-intro-whatsapp-label">{whatsAppChunks
+          ? whatsAppChunks.map((chunk, i) => <span key={i} className="plan-intro-whatsapp-chunk">{chunk}</span>)
+          : whatsAppLabel}</span>
       </a>
 
       {/* Arrival Guide */}

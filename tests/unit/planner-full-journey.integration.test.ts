@@ -80,6 +80,33 @@ const generated = {
   arrival_guide: { airport: 'PUS', steps: [] },
 };
 
+// B-AI4 (charterPricing TODO 1275): two-city model output with NO departure airport —
+// no departure_guide and no PUS token anywhere — so a saved PUS can only come from the
+// handler's own shaped departure_airport. The last day ends on a neutral 'travel' stop
+// (B-10/B-15 departure-day shape); lodging bookends are left to the real self-heal.
+const seoulBusanGenerated = {
+  tour_title: 'Synthetic Seoul to Busan trip',
+  regions: ['seoul', 'busan'],
+  days: [{
+    day: 1, city: 'seoul', theme: 'Palaces and markets',
+    stops: [
+      { name: 'Gyeongbokgung Palace', display_name: 'Gyeongbokgung Palace', category: 'attraction', start_time: '10:00', stay_min: 90, address: 'Seoul', tip: 'See the palace' },
+      { name: 'Seoul Lunch House', display_name: 'Seoul Lunch House', category: 'food', start_time: '12:00', stay_min: 60, address: 'Seoul', tip: 'Try a local lunch' },
+      { name: 'Bukchon Hanok Village', display_name: 'Bukchon Hanok Village', category: 'attraction', start_time: '14:00', stay_min: 60, address: 'Seoul', tip: 'Walk the alleys' },
+      { name: 'Insadong', display_name: 'Insadong', category: 'attraction', start_time: '16:00', stay_min: 60, address: 'Seoul', tip: 'Browse the shops' },
+      { name: 'Seoul Dinner House', display_name: 'Seoul Dinner House', category: 'food', start_time: '18:00', stay_min: 60, address: 'Seoul', tip: 'Enjoy dinner' },
+    ],
+  }, {
+    day: 2, city: 'busan', theme: 'Coast before the flight',
+    stops: [
+      { name: 'Haeundae Beach', display_name: 'Haeundae Beach', category: 'attraction', start_time: '10:00', stay_min: 60, address: 'Busan', tip: 'Enjoy the coast' },
+      { name: 'Busan Lunch House', display_name: 'Busan Lunch House', category: 'food', start_time: '12:00', stay_min: 60, address: 'Busan', tip: 'Try a local lunch' },
+      { name: 'Airport transfer', display_name: 'Airport transfer', category: 'travel', start_time: '15:00', stay_min: 60, address: 'Busan', tip: 'Head out for your flight' },
+    ],
+  }],
+  arrival_guide: { airport: 'ICN', steps: [] },
+};
+
 type ApiHandler = (req: Record<string, unknown>, res: {
   statusCode?: number; headersSent?: boolean; payload?: string;
   writeHead: (code: number) => void; end: (payload?: string) => void;
@@ -256,5 +283,36 @@ describe('full planner journey: real handler → route/post-response → persist
     expect(result.statusCode).toBe(500);
     expect(result.json.ok).toBe(false);
     expect(Object.keys(db.__dump()).some((path) => path.startsWith('plans/'))).toBe(false);
+  });
+
+  it('Seoul→Busan without departure_airport persists the inferred PUS departure guide', async () => {
+    // Same paid snapshot/capture as the other cases: the gate compares the order
+    // snapshot with the PayPal capture (paymentGate.js), not with durationDays.
+    const body: Record<string, unknown> = { ...requestBody(), regions: ['Seoul', 'Busan'], durationDays: 2, arrival_airport: 'ICN' };
+    expect(body).not.toHaveProperty('departure_airport');
+    expect(JSON.stringify(seoulBusanGenerated)).not.toContain('PUS');
+    boundary.generate.mockResolvedValue({ response: { text: () => JSON.stringify(seoulBusanGenerated), usageMetadata: {} } });
+
+    const result = await runPlanner(body);
+    expect(result.statusCode).toBe(200);
+    expect(result.json).toMatchObject({ ok: true, data: { firestoreSaved: true } });
+    expect(boundary.generate).toHaveBeenCalledTimes(1);
+    const fetchUrls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(fetchUrls.length).toBeGreaterThan(0);
+    expect(new Set(fetchUrls)).toEqual(new Set([`https://paypal.invalid/v2/checkout/orders/${PAYPAL_ORDER}`]));
+    expect(boundary.db?.__get(`plan_issued_orders/${PAYPAL_ORDER}`)).toMatchObject({ status: 'ISSUED' });
+    await vi.waitFor(() => expect(boundary.sendMail).toHaveBeenCalledTimes(1));
+
+    const { planId } = result.json.data;
+    const stored = boundary.db?.__get(`plans/${planId}`);
+    expect(stored).toMatchObject({ planId, status: 'ready', verifiedHistoryUid: 'synthetic-planner-user' });
+    expect(stored?.itinerary.departure_guide.airport).toBe('PUS');
+    expect(stored?.itinerary.arrival_guide.airport).toBe('ICN');
+    expect(stored?.itinerary.days.map((day: { city?: string }) => String(day.city || '').toLowerCase())).toEqual(['seoul', 'busan']);
+
+    const readRes = response();
+    await getPlanHandler({ method: 'GET', query: { planId, token: stored?.accessToken } }, readRes);
+    expect(readRes.statusCode).toBe(200);
+    expect(JSON.parse(readRes.payload).plan).toEqual(stored);
   });
 });

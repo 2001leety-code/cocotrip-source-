@@ -21,7 +21,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
     ...(transferOn ? [{ id: 'transfer' as ServiceMode, title: i18n.svcTransfer, desc: i18n.svcTransferDesc, Icon: ArrowLeftRight }] : []),
   ];
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+    <div className="charter-funnel-step-body grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
       {OPTIONS.map(opt => {
         const selected = state.service === opt.id;
         return (
@@ -31,7 +31,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
             data-testid="charter-service-card"
             data-service={opt.id}
             onClick={() => patch({ service: opt.id })}
-            className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[118px] sm:items-start sm:gap-4 sm:rounded-2xl sm:p-4 ${
+            className={`charter-funnel-option group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[118px] sm:items-start sm:gap-4 sm:rounded-2xl sm:p-4 ${
               selected
                 ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#FF6B9D]/10 shadow-[0_16px_40px_rgba(124,92,252,0.16)]'
                 : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
@@ -43,7 +43,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
               <opt.Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
             </span>
             <span className="min-w-0 pt-0.5">
-              <span className={`block text-xs font-bold leading-tight sm:text-[15px] ${selected ? 'text-white' : 'text-white/82'}`}>{opt.title}</span>
+              <span className={`charter-funnel-option-title block text-xs font-bold leading-tight sm:text-[15px] ${selected ? 'text-white' : 'text-white/82'}`}>{opt.title}</span>
               <span className="mt-0.5 block truncate text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:line-clamp-2 sm:text-xs">{opt.desc}</span>
             </span>
           </button>

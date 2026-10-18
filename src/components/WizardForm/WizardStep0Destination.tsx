@@ -11,7 +11,7 @@
 // 배지 + route 표시 모두 4페이지 (WizardStep2Details) 로 이전. 본 페이지는
 // 도시 chips 만 단순 토글 (선택/해제). 입국/출국 의도는 4페이지의 명시적
 // chips 에서만 설정.
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from 'react';
 import { Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { WizardNav } from './WizardNav';
@@ -50,6 +50,10 @@ interface Step0Props {
   // 기존 startDate 가 있으면 그 시점 보존, 없으면 default 한 달 후.
   dateRange?: DateRange;
   setDateRange: (range: DateRange | undefined) => void;
+  // Phone only: the page's single pricing note, hosted inside the ticket before the nav.
+  // `onPricingNoteHosted(true)` tells the page to stop rendering its own copy (no duplicate).
+  pricingNote?: ReactNode;
+  onPricingNoteHosted?: (hosted: boolean) => void;
   // P161 (2026-05-23): 입국/출국 마킹 props 제거 (arrivalCityKey / departureCityKey /
   // setArrivalCityKey / setDepartureCityKey). 4페이지 (WizardStep2Details) 에서 처리.
 }
@@ -59,7 +63,7 @@ export function WizardStep0Destination(props: Step0Props) {
     p, isMobile, mainCity, selectedCityKeys, selectedActivities, freeText,
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
     allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
-    dateRange, setDateRange,
+    dateRange, setDateRange, pricingNote, onPricingNoteHosted,
   } = props;
 
   // P161 (2026-05-23): 도시 chip 클릭 = 단순 토글 (선택 / 해제). 입국/출국 cycle 은
@@ -67,6 +71,30 @@ export function WizardStep0Destination(props: Step0Props) {
   function handleCityClick(cityName: string, key: string) {
     toggleCity(cityName, key);
   }
+
+  // Phone (<= 767.98px, same query as the stylesheet): Quick Start moves after the city grid,
+  // so the DOM order matches the visual order.
+  const [phone, setPhone] = useState(() => (
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 767.98px)').matches
+  ));
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const sync = () => setPhone(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  // The ticket hosts the one pricing note on phones; layout effect so the page's own copy is
+  // gone before paint (never two notes on screen).
+  const pricingHosted = phone && !!pricingNote;
+  useLayoutEffect(() => {
+    if (!pricingHosted || !onPricingNoteHosted) return undefined;
+    onPricingNoteHosted(true);
+    return () => onPricingNoteHosted(false);
+  }, [pricingHosted, onPricingNoteHosted]);
 
   // 입력 가드: 사용자가 Next를 한 번 눌러야 오류 표시 (첫 진입 시 빨간 테두리 없음)
   const [showErrors, setShowErrors] = useState(false);
@@ -102,58 +130,68 @@ export function WizardStep0Destination(props: Step0Props) {
     [selectedCityKeys]
   );
 
+  const presetButtons = (
+    <div className="flex flex-wrap gap-2">
+      {[
+        { label: p.presetFirst || '3 Days Seoul Highlights', city: 'seoul', acts: ['Food', 'Photo', 'Shopping'], days: 3 },
+        { label: p.presetSecond || 'Seoul + Busan 5 Days', city: 'seoul', extra: ['busan'], acts: ['Food', 'Photo', 'Temple'], days: 5 },
+        { label: p.presetThird || 'K-pop Fan Trip', city: 'seoul', acts: ['Kpop', 'Shopping', 'Photo'] },
+        { label: p.presetFourth || 'Foodie Tour Seoul', city: 'seoul', acts: ['Food', 'Night', 'Shopping'] },
+        { label: p.presetFifth || 'Jeju Nature Healing', city: 'jeju', acts: ['Photo', 'Food', 'Temple'] },
+      ].map((preset: { label: string; city: string; extra?: string[]; acts: string[]; days?: number }) => (
+        <button key={preset.label} onClick={() => {
+          const cityName = getCityName(preset.city);
+          setMainCity(cityName); setMainCityKey(preset.city);
+          if (preset.extra) setExtraCities(preset.extra.map((k: string) => getCityName(k)));
+          setSelectedActivities(preset.acts);
+          // B-1 (2026-05-11): preset 에 days 명시 (3 Days / 5 Days) 시 캘린더 sync.
+          // 기존 출발일 보존, 없으면 한 달 후 default. 사용자가 캘린더에서 자유롭게 변경 가능.
+          if (preset.days) {
+            const start = dateRange?.from || new Date(Date.now() + 30 * 86400000);
+            const end = new Date(start.getTime() + (preset.days - 1) * 86400000);
+            setDateRange({ from: start, to: end });
+          }
+        }}
+          className="ec-option ec-option-sm">
+          {preset.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Phone: everything after the question sits on one ticket surface (question stays above it).
+  // Desktop: a Fragment, so the DOM is exactly what it was.
+  const Ticket = (phone ? 'div' : Fragment) as ElementType;
+  const ticketProps = phone ? { className: 'wizard-dest-ticket' } : {};
+
   return (
-    <div className="space-y-5">
+    <div className="wizard-stage wizard-stage--dest space-y-5">
       <div>
         <h2 className="text-[17px] sm:text-lg font-bold text-ec-ink mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
         <p className="text-[13px] sm:text-sm text-ec-ink-3">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
       </div>
 
+      <Ticket {...ticketProps}>
       {showErrors && (
         <WizardMissingSummary title={d.wizardMissingTitle || 'Still needed before you continue'} missing={missing} />
       )}
 
-      {/* Quick Start Presets */}
-      {!mainCity && (
+      {/* Quick Start Presets — desktop: above the cities. Phone: after the city grid (below). */}
+      {!mainCity && !phone && (
         <div>
           <p className="text-sm text-ec-ink-3 mb-2 font-medium flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-ec-brand" />
             {p.presetLabel || 'Quick Start'}
           </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: p.presetFirst || '3 Days Seoul Highlights', city: 'seoul', acts: ['Food', 'Photo', 'Shopping'], days: 3 },
-              { label: p.presetSecond || 'Seoul + Busan 5 Days', city: 'seoul', extra: ['busan'], acts: ['Food', 'Photo', 'Temple'], days: 5 },
-              { label: p.presetThird || 'K-pop Fan Trip', city: 'seoul', acts: ['Kpop', 'Shopping', 'Photo'] },
-              { label: p.presetFourth || 'Foodie Tour Seoul', city: 'seoul', acts: ['Food', 'Night', 'Shopping'] },
-              { label: p.presetFifth || 'Jeju Nature Healing', city: 'jeju', acts: ['Photo', 'Food', 'Temple'] },
-            ].map((preset: { label: string; city: string; extra?: string[]; acts: string[]; days?: number }) => (
-              <button key={preset.label} onClick={() => {
-                const cityName = getCityName(preset.city);
-                setMainCity(cityName); setMainCityKey(preset.city);
-                if (preset.extra) setExtraCities(preset.extra.map((k: string) => getCityName(k)));
-                setSelectedActivities(preset.acts);
-                // B-1 (2026-05-11): preset 에 days 명시 (3 Days / 5 Days) 시 캘린더 sync.
-                // 기존 출발일 보존, 없으면 한 달 후 default. 사용자가 캘린더에서 자유롭게 변경 가능.
-                if (preset.days) {
-                  const start = dateRange?.from || new Date(Date.now() + 30 * 86400000);
-                  const end = new Date(start.getTime() + (preset.days - 1) * 86400000);
-                  setDateRange({ from: start, to: end });
-                }
-              }}
-                className="ec-option ec-option-sm">
-                {preset.label}
-              </button>
-            ))}
-          </div>
+          {presetButtons}
         </div>
       )}
 
       {/* City chips with lucide icons */}
       {/* tabIndex={-1}: 프로그램에서 포커스를 주려면 필요하다(탭 순서엔 안 들어간다). */}
       <div ref={cityRef} tabIndex={-1} className="scroll-mt-4 outline-none">
-        <p className="text-sm text-ec-ink-3 mb-3 font-medium">
-          {p.tripAreaLabel || 'Select Cities'}
+        <p className="wizard-dest-label text-sm text-ec-ink-3 mb-3 font-medium">
+          <span className="wizard-dest-label__text">{p.tripAreaLabel || 'Select Cities'}</span>
           {allCities.length > 0 && (
             <span className="ml-2 text-ec-brand font-bold">{allCities.length} {p.wizardCitySelected || 'selected'}</span>
           )}
@@ -163,7 +201,7 @@ export function WizardStep0Destination(props: Step0Props) {
         )}
         {/* P161 (2026-05-23): 다도시 plan 시 입국/출국 cycle 안내 + arrival/departure 배지 +
             route 표시 모두 4페이지 (WizardStep2Details) 로 이전. 본 페이지는 도시 선택만. */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="wizard-city-grid grid grid-cols-2 gap-2">
           {CITY_CHIPS.map(({ key, icon }) => {
             const cityName = getCityName(key);
             const sel = isCitySelected(cityName);
@@ -181,8 +219,8 @@ export function WizardStep0Destination(props: Step0Props) {
                     <span className={`w-11 h-11 rounded-ec-md flex items-center justify-center shrink-0 border border-ec-line ${sel ? 'bg-ec-brand-wash text-ec-brand' : 'bg-ec-sunken text-ec-ink-3'}`}>{icon}</span>
                   )}
                   <span className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold truncate">{cityName}</p>
-                    {isMain && <p className="text-[10px] text-ec-brand font-medium">{p.wizardMainBase || 'Main base'}</p>}
+                    <p className="wizard-city-name text-[13px] font-semibold truncate">{cityName}</p>
+                    {isMain && <p className="wizard-city-main text-[10px] text-ec-brand font-medium">{p.wizardMainBase || 'Main base'}</p>}
                   </span>
                   {sel && <Check className="w-4 h-4 text-ec-brand shrink-0" />}
                 </span>
@@ -191,6 +229,19 @@ export function WizardStep0Destination(props: Step0Props) {
           })}
         </div>
       </div>
+
+      {!mainCity && phone && (
+        <div>
+          <details className="wizard-quick-start">
+            <summary className="wizard-quick-start__summary">
+              <Sparkles className="w-3.5 h-3.5 text-ec-brand" />
+              {p.presetLabel || 'Quick Start'}
+              <ChevronDown className="wizard-quick-start__chevron w-4 h-4 shrink-0" aria-hidden="true" />
+            </summary>
+            {presetButtons}
+          </details>
+        </div>
+      )}
 
       {/* Activities — P9: city-aware, universal chips first then city-specific */}
       <div ref={activityRef} tabIndex={-1} className="scroll-mt-4 outline-none">
@@ -203,7 +254,7 @@ export function WizardStep0Destination(props: Step0Props) {
             ? (p.wizardActivitiesHintCity || `Tailored for ${allCities.join(', ')}`)
             : (p.wizardActivitiesHint || 'Select all that apply')}
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="wizard-pick-grid grid grid-cols-2 sm:grid-cols-3 gap-2">
           {activityKeys.map((key) => {
             const nameKey = `act${key}` as keyof typeof p;
             const subKey = `act${key}Sub` as keyof typeof p;
@@ -247,7 +298,7 @@ export function WizardStep0Destination(props: Step0Props) {
             <p className="text-[11px] text-ec-ink-3 leading-relaxed">
               {p.moreActivitiesHint || 'Active outdoor + free local culture. Most cost ₩0.'}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="wizard-pick-grid grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACTIVITY_CHIPS_EXPANDED.map(({ key, free }) => {
                 const nameKey = `act${key}` as keyof typeof p;
                 const sel = selectedActivities.includes(key);
@@ -285,6 +336,9 @@ export function WizardStep0Destination(props: Step0Props) {
           className="ec-field resize-none" />
       </div>
 
+      {/* Phone: the one pricing note, moved (not copied) in front of the nav. */}
+      {pricingHosted && <div className="wizard-dest-ticket__price">{pricingNote}</div>}
+
       {/* Nav — back to reservation status if available */}
       <WizardNav
         onPrev={onPrev}
@@ -293,6 +347,8 @@ export function WizardStep0Destination(props: Step0Props) {
         nextLabel={p.wizardFoodTitle || 'Next: Food Preferences'}
         isMobile={isMobile}
       />
+      {phone && <span className="wizard-dest-ticket__barcode" aria-hidden="true" />}
+      </Ticket>
     </div>
   );
 }

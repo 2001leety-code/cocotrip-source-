@@ -28,6 +28,7 @@ import { dayLabelParts, formatDayLabel } from '../lib/dayLabel';
 interface DayTimelineProps {
   day: PlanDay;
   dayIndex: number;
+  routeScopeKey?: string;
   editMode: boolean;
   isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
@@ -105,7 +106,7 @@ function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): st
   return undefined;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner, routeScopeKey }: DayTimelineProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -128,7 +129,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const lastTime = stops[stops.length - 1]?.start_time;
   const timeRange = firstTime && lastTime ? `${firstTime} – ${lastTime}` : firstTime || lastTime || '';
   // 'placesUnit' (곳/places) 사용 — pd.transit.stops 는 지하철 정거장 의미라 부적절
-  const stopCountLabel = (pd as { placesUnit?: string }).placesUnit || 'places';
+  // placesUnit 은 planDetail 이 아닌 planner 네임스페이스에 존재.
+  const stopCountLabel = ((t as unknown as { planner?: { placesUnit?: string } }).planner?.placesUnit) || 'places';
   const tourStartTime = (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time
     || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tourStartTime
     || '09:00';
@@ -198,8 +200,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   }
 
   return (
-    <section className="mb-8 md:mb-12">
-      <div className="mb-5 border-b border-ec-line-2 pb-5">
+    <section className="plan-night-day mb-8 md:mb-12">
+      <div className="plan-night-day-head mb-5 border-b border-ec-line-2 pb-5">
         <div>
           {/* DAY 라벨 + 일자 번호 */}
           <div className="mb-1.5 flex items-baseline gap-1.5">
@@ -211,7 +213,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
           </div>
 
           {/* Theme — 큰 글씨 강조 */}
-          <h2 className="ec-h3 mb-3 text-[clamp(21px,2.4vw,30px)]">
+          <h2 className="plan-night-day-title ec-h3 mb-3 text-[clamp(21px,2.4vw,30px)]">
             {day.theme || formatDayLabel(language, dayNumber)}
           </h2>
 
@@ -252,7 +254,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       {/* Per-day route map (ulruru-style): numbered pins + polyline in visit order.
           Renders nothing when <2 stops carry valid coords. Lazy-loads Leaflet so
           it never bloats the main bundle. Sits at the top of the day's content. */}
-      <DayRouteMap stops={stops} />
+      <DayRouteMap stops={stops} routeScopeKey={routeScopeKey} />
 
       {/* B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 카드 (KTX/항공/버스).
           intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출.
@@ -459,7 +461,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       {/* UIUX P4 (2026-07-13): 하루 하단 총계 3칩 — 도보/교통/교통비. 실측 데이터 있을 때만.
           편집 모드에선 순서 변경 중이라 stale 수치 노출 방지 위해 숨김. */}
       {!editMode && dayTotals.hasAny && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="plan-night-day-totals mt-3 flex items-center gap-2">
           {dayTotals.walkMin > 0 && (
             <div className="flex flex-1 items-center justify-center gap-1.5 border-y border-ec-line py-2">
               <Footprints className="h-3.5 w-3.5 text-ec-brand" />
@@ -577,7 +579,7 @@ function IntercityTransitCard({
 
   return (
     <div className="my-3">
-      <div className="ec-card px-3 py-3 sm:px-4 sm:py-3.5">
+      <div className="plan-night-leg ec-card px-3 py-3 sm:px-4 sm:py-3.5">
         <div className="flex items-start gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ec-sm bg-ec-brand sm:h-9 sm:w-9">
             <Icon className="h-4 w-4 text-ec-on-brand sm:h-5 sm:w-5" />

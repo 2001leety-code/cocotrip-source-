@@ -15,6 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -185,6 +186,67 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [rateInfo,    setRateInfo]    = useState<RateInfo | null>(null);
   const buttonsRendered = useRef(false);
   const orderRequestInFlight = useRef(false);
+  // 🔴 2026-10-10 payment recovery: pointer persisted BEFORE capture; synchronous duplicate guard; the same
+  //   order is reconciled through the capture endpoint ({orderID} only). Cleared only on durable success or
+  //   provider-proven nonpayment. While present: no new order, no SDK reload, no QR fallback.
+  const { recovery, remember, clearRecovery } = usePaymentRecovery('single');
+  const captureInFlight = useRef(false);
+  const [reconciling, setReconciling] = useState(false);
+  const rc = recoveryCopy(lang);
+  async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean) {
+    if (outcome.kind === 'final') {
+      clearRecovery(orderID);
+      const result = outcome.data as { payerName?: string; payerEmail?: string; amount?: string };
+      if (fresh) {
+        void posthogTrack('payment_completed', { planType: productType, amount: priceKRW, currency: 'KRW' });
+        trackPaidConversion({ transactionId: orderID, productType, value: checkoutAmountUSD, currency: 'USD' });
+      }
+      // A restored pointer for a different product never feeds this product's success callback.
+      const sameProduct = fresh || recovery?.productType === productType;
+      if (onPaymentSuccess && sameProduct) { setShowPaypal(false); await onPaymentSuccess(orderID); return; }
+      setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
+      setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
+      return;
+    }
+    if (outcome.kind === 'review') {
+      remember({ orderID, flow: 'single', paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true, productType });
+      setPaymentReview({ orderID, captureID: outcome.captureID, paymentCaptured: outcome.captured });
+      setShowPaypal(false); setLoading(false); setRateInfo(null);
+      return;
+    }
+    if (outcome.kind === 'pending') { remember({ orderID, flow: 'single', paymentStatus: outcome.status, review: false, productType }); setShowPaypal(false); setRateInfo(null); return; }
+    if (outcome.kind === 'auth_required') {
+      // 403 is answered before the provider is called: no money moved. A fresh order from this page session
+      // must not lock the whole flow (2026-10-10 R2); only a restored pointer keeps the "same device" notice.
+      if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
+      remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true, productType }); setShowPaypal(false); setRateInfo(null); return;
+    }
+    if (outcome.kind === 'not_captured') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false; return; }
+    // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
+    if (outcome.kind === 'refunded') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
+    // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
+    // fresh request ask the server once for durable evidence (an absent attempt record => NOT_CAPTURED).
+    void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
+    setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false;
+    if (fresh) {
+      const evidence = await reconcilePayment('single', orderID);
+      if (evidence.kind === 'not_captured') { clearRecovery(orderID); return; }
+      if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyCaptureOutcome(evidence, orderID, false); return; }
+    }
+    remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
+  }
+  async function checkSameOrder() {
+    if (!recovery || reconciling) return;
+    setReconciling(true);
+    try { await applyCaptureOutcome(await reconcilePayment(recovery.flow, recovery.orderID), recovery.orderID, false); }
+    finally { setReconciling(false); }
+  }
+  // Latest-callback refs for the PayPal Buttons effect: the SDK config captured once at render time must
+  // call the current handlers without adding them to the effect deps (which would re-render the buttons
+  // and could re-trigger capture/reconcile work).
+  const applyOutcomeRef = useRef(applyCaptureOutcome);
+  const rememberRef = useRef(remember);
+  useEffect(() => { applyOutcomeRef.current = applyCaptureOutcome; rememberRef.current = remember; });
   // SDK 차단/로드 실패 시 사용자가 paypal.me QR fallback 으로 전환 가능. error 발생 시
   // [QR 로 결제] 버튼 노출 → 클릭 시 PayPalQrPanel 렌더.
   const [useFallback, setUseFallback] = useState(false);
@@ -425,17 +487,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
 
   // isSandboxAccount가 바뀔 때마다 재실행 — 이메일 입력 후 올바른 SDK 로드 보장
+  // 🔴 2026-10-10: while a recovery pointer is unresolved the SDK is NOT initialised, loaded or reloaded
+  //   (nothing may run behind the pending panel). Normal initialisation resumes once the pointer clears.
   useEffect(() => {
+    if (recovery) return;
     configurePaypalSdk(false, {
       onReady: () => setPaypalReady(true),
       onError: (message) => setError(message),
       onReset: () => setPaypalReady(false),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSandboxAccount]);
+  }, [isSandboxAccount, recovery]);
 
   // ── PayPal Buttons 렌더링 ────────────────────────────────────────
   useEffect(() => {
+    if (recovery) return;
     if (!showPaypal || !paypalReady || !rateInfo || buttonsRendered.current) return;
     if (!window.paypal) return;
 
@@ -445,6 +511,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // 모바일 호환: 주문은 미리 생성됨 → ID만 동기 반환 (async 금지 — 모바일 팝업 차단 방지)
       createOrder: () => rateInfo.orderID,
       onApprove: async (data: { orderID: string }) => {
+        if (captureInFlight.current) return;
+        captureInFlight.current = true;
+        // Pointer first — if the capture request vanishes (tab close, network), the order is still known.
+        rememberRef.current({ orderID: data.orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
         try {
           // PR-J fix: 글로벌 프로모 코드 (COCO5/COCO10/EARLY50) 사용량 increment 는
           // capturePaypalOrder runTransaction (L176-194) 가 처리. 여기서 promoCode 를
@@ -497,63 +567,17 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           if (import.meta.env.DEV) {
             console.log('[PayPal onApprove] capture result:', JSON.stringify(json));
           }
-          // 🔴 결제는 캡처됐지만 서버의 capture 무결성 검증이 불일치 → 예약 미확정(PAYMENT_REVIEW, HTTP 202).
-          //   일반 성공/실패 **어느 쪽으로도** 처리하면 안 된다:
-          //     - 성공 표시 = 미확정 예약을 확정으로 오인 + GA4 purchase/posthog 전환 오발화(허위 매출).
-          //     - 실패 표시 = 사용자가 재결제 → 이중청구.
-          //   → 전용 "결제 접수 · 확인 중" 화면. 전환 미발화, 재시도 유도 없음.
-          if (json.finalized === false || json.bookingStatus === 'PAYMENT_REVIEW') {
-            setPaymentReview({
-              orderID: json.orderID || data.orderID,
-              captureID: json.captureID || '',
-              paymentCaptured: json.paymentCaptured !== false,
-            });
-            setShowPaypal(false);
-            setLoading(false);
-            // rateInfo 를 비워 결제 폼으로 되돌아가지 못하게 한다 — 이 주문은 이미 PayPal 에서
-            // 처리됐고 lock 이 걸려 재시도는 409 다. 재결제 유도 = 이중청구 위험.
-            setRateInfo(null);
-            return;
-          }
-          const isSuccess = json.ok === true;
-          const result = json.data;
-          if (isSuccess) {
-            void posthogTrack('payment_completed', {
-              planType: productType,
-              amount: priceKRW,
-              currency: 'KRW',
-              planId: (result && typeof result === 'object' && 'planId' in result) ? (result as { planId?: string }).planId : undefined,
-            });
-            // 홍보 실행안 1순위: GA4 표준 'purchase' 전환 발화 → Google Ads import(value+currency+orderID dedup).
-            //   value=USD (PayPal 실제 청구통화 currency=USD 와 일치 — 운영자 "달러로 맞춰" 2026-06-15.
-            //   fixed-rate whole-dollar conversion keeps it aligned with the displayed checkout total.
-            //   GA_ID 미설정 시 no-op. orderID=거래당 유니크.
-            trackPaidConversion({
-              transactionId: data.orderID,
-              productType,
-              value: checkoutAmountUSD,
-              currency: 'USD',
-            });
-            if (onPaymentSuccess) {
-              setShowPaypal(false);
-              await onPaymentSuccess(data.orderID);
-              return;
-            }
-            setSuccessData(result);
-            setShowSuccess(true);
-            setShowPaypal(false);
-          } else {
-            const msg = json.error ?? result?.error ?? p.paypalError;
-            console.error('[PayPal onApprove] 실패:', msg);
-            void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
-            setError(msg);
-            setShowPaypal(false);
-          }
+          // 🔴 PAYMENT_REVIEW / PAYMENT_RECOVERY_PENDING are neither success nor failure: success would fire
+          //   conversions for an unconfirmed booking, failure would invite a second payment (double charge).
+          //   Only a durable finalized answer for THIS orderID is success; fetch/JSON exceptions stay pending.
+          await applyOutcomeRef.current(classifyCaptureResponse(json, data.orderID), data.orderID, true);
         } catch (captureErr) {
-          console.error('[PayPal onApprove] catch:', captureErr);
-          void posthogTrack('payment_failed', { planType: productType, reason: 'capture_exception' });
-          setError(captureErr instanceof Error ? captureErr.message : JSON.stringify(captureErr));
+          console.error('[PayPal onApprove] result unknown (pointer kept):', captureErr);
+          rememberRef.current({ orderID: data.orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
           setShowPaypal(false);
+          setRateInfo(null);
+        } finally {
+          captureInFlight.current = false;
         }
       },
       onCancel: () => {
@@ -581,7 +605,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     airport, checkoutAmountUSD, couponDocId, couponUserId, dateStart, dropoffLocation, effectiveKRW,
     itineraryData, lang, marketingConsent, memo, onPaymentSuccess, p.paypalCancel,
     p.paypalError, passengers, pickupLocation, priceKRW, productType, promoApplied,
-    promoCode, rateInfo, showPaypal, paypalReady, slotFields, termsAgreed, userEmail,
+    promoCode, rateInfo, recovery, showPaypal, paypalReady, slotFields, termsAgreed, userEmail,
     vehicleType,
   ]);
 
@@ -604,7 +628,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     // 🔴 P0-2: 게이트는 **여기**에도 있어야 한다. CTA 의 disabled 속성만 믿으면 프로그램적 호출
     //   (개발자도구·자동화)로 그대로 주문이 만들어진다. 서버도 fail-closed 지만, 여기서 막아야
     //   "동의 안 했는데 PayPal 창이 뜬" 상태 자체가 생기지 않는다.
-    if (disabled || orderRequestInFlight.current) return;
+    if (disabled || orderRequestInFlight.current || recovery) return;
     orderRequestInFlight.current = true;
     setError(null);
     setLoading(true);
@@ -625,8 +649,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         throw new Error(sdkTimeoutMsg);
       }
 
-      // 2. 주문 생성
-      const res = await fetch('/api/createPaypalOrder', {
+      // 2. 주문 생성 (authFetch: 로그인 시 owner uid 를 서버가 주문에 묶는다 — 같은 주문 복구 권한)
+      const res = await authFetch('/api/createPaypalOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -697,6 +721,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         setError(json.code === 'SLOT_FULL' ? sl.SLOT_FULL : sl.DATE_UNAVAILABLE);
         return;
       }
+      // 🔴 Server refuses a new order while an earlier capture in this browser is unresolved (either flow).
+      if (!res.ok && json.code === 'PAYMENT_RECOVERY_PENDING' && typeof json.orderID === 'string') {
+        remember({ orderID: json.orderID, flow: json.flow === 'cart' ? 'cart' : 'single', paymentStatus: json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN', review: false });
+        return;
+      }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
       setRateInfo(d);
       setPaypalReady(true);
@@ -737,12 +766,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const captured = paymentReview.paymentCaptured;
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden">
+        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden customer-paypal-review-panel">
           <div className="px-6 pt-8 pb-6 text-center">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
               <span className="text-3xl" aria-hidden="true">🕒</span>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{captured ? rl.title : rl.titleNc}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1 customer-paypal-heading">{captured ? rl.title : rl.titleNc}</h2>
             <p className="text-sm text-white/60">{captured ? rl.subtitle : rl.subtitleNc}</p>
           </div>
           <div className="px-6 pb-6 space-y-3">
@@ -778,13 +807,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="cocotrip-mobile-paypal-success w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out]">
+        <div className="cocotrip-mobile-paypal-success w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out] customer-paypal-success-panel">
           {/* Header with gradient */}
           <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: 'linear-gradient(180deg, rgba(124,92,252,0.15) 0%, transparent 100%)' }}>
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.3)]">
               <Check className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{cl.title}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1 customer-paypal-heading">{cl.title}</h2>
             <p className="text-sm text-white/50">{cl.subtitle}</p>
           </div>
           
@@ -882,6 +911,24 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     );
   }
 
+  // 🔴 Unresolved same-order payment: hides create / SDK reload / QR until the server answers durably.
+  if (recovery) {
+    return (
+      <div className="cocotrip-mobile-paypal rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 space-y-2 customer-paypal-recovery">
+        <p className="text-sm font-semibold text-amber-200">{recoveryHeadline(recovery, lang)}</p>
+        <p className="text-xs text-white/70">{rc.detail}</p>
+        <p className="text-xs text-amber-300">{rc.warn}</p>
+        <div className="flex justify-between text-xs text-white/70"><span>{rc.order}</span><span className="font-mono text-white/90">{recovery.orderID}</span></div>
+        {error && <p className="text-xs text-red-300">{error}</p>}
+        <div className="flex gap-2">
+          <button type="button" onClick={checkSameOrder} disabled={reconciling || recovery.authRequired === true}
+            className="flex-1 min-h-[40px] rounded-lg text-sm font-semibold bg-[#7C5CFC] text-white disabled:opacity-50">{reconciling ? rc.checking : rc.check}</button>
+          <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="flex-1 min-h-[40px] py-2 rounded-lg border border-white/15 text-white/70 text-sm text-center">{rc.contact}</a>
+        </div>
+      </div>
+    );
+  }
+
   // SDK 차단·로드 실패 시 사용자가 fallback 으로 전환 → paypal.me QR 패널 노출.
   // PayPal 본 사이트 redirect (외부) 라 paypalobjects.com SDK CDN 차단 영향 무관.
   if (useFallback) {
@@ -969,8 +1016,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                       <Sparkles className="w-4 h-4 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-bold text-white leading-tight">{pl.adTitle}</p>
-                      <p className="text-[11px] text-white/65 leading-snug mt-1">{fillPrice(pl.adBody, lang)}</p>
+                      <p className="text-[12.5px] font-bold text-white leading-tight customer-paypal-coupon-copy">{pl.adTitle}</p>
+                      <p className="text-[11px] text-white/65 leading-snug mt-1 customer-paypal-coupon-copy">{fillPrice(pl.adBody, lang)}</p>
                       <Link
                         to="/planner"
                         onClick={() => haptic('tap')}
@@ -981,7 +1028,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                       </Link>
                     </div>
                   </div>
-                  <p className="text-[10px] text-white/35 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                  <p className="text-[10px] text-white/35 mt-2.5 pt-2.5 border-t border-white/[0.05] customer-paypal-coupon-copy">
                     {pl.pickerEmpty}
                   </p>
                 </div>
@@ -1003,7 +1050,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-bold text-white truncate">{c.label}</p>
-                            <p className="text-[10.5px] text-white/45 mt-0.5">{pl.expires}: {expDate}</p>
+                            <p className="text-[10.5px] text-white/45 mt-0.5 customer-paypal-coupon-meta">{pl.expires}: {expDate}</p>
                           </div>
                           <span className="text-[14px] font-black text-[#B668FC] shrink-0">{valueLabel}</span>
                         </button>
@@ -1017,21 +1064,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         </div>
       )}
       {promoError && (
-        <div className="flex items-center gap-1.5 text-xs text-red-400">
+        <div className="flex items-center gap-1.5 text-xs text-red-400 customer-paypal-promo-error">
           <AlertCircle className="w-3.5 h-3.5" />
           {promoError}
         </div>
       )}
       {promoApplied && (
-        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs text-emerald-300">
+        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 customer-paypal-promo-applied">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-300 customer-paypal-promo-text">
             <Check className="w-3.5 h-3.5" />
             {/* \uC774\uC288 37 fix: percent \uCFE0\uD3F0\uC77C \uB54C\uB9CC (-N%) \uD45C\uC2DC, fixed-amount\uB294 \uC6B0\uCE21 \u20A9\uCC28\uAC10\uC561\uC73C\uB85C \uCDA9\uBD84.
                 discountRate\uAC00 \uAE54\uB054\uD55C percent (5/10/20%)\uC77C \uB54C\uB9CC percent \uD45C\uAE30 \u2014 \uD658\uC728 \uD658\uC0B0\uB41C
                 fixed-amount\uB294 5.4% \uAC19\uC740 \uC5B4\uC0C9\uD55C \uC218\uCE58\uAC00 \uB098\uC624\uBBC0\uB85C \uC0DD\uB7B5. */}
             {pl.success}{discountRate != null && Number.isInteger(discountRate * 100) && discountRate > 0 ? ` (-${Math.round(discountRate * 100)}%)` : ''}
           </div>
-          <span className="text-xs font-bold text-emerald-300">{'-\u20A9'}{savedAmount.toLocaleString('ko-KR')}</span>
+          <span className="text-xs font-bold text-emerald-300 customer-paypal-promo-text">{'-\u20A9'}{savedAmount.toLocaleString('ko-KR')}</span>
         </div>
       )}
 
@@ -1151,7 +1198,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
            5/7 추가: SDK 차단 케이스 (한국 ISP의 paypalobjects.com 일부 차단) 대비
            "QR 로 결제" fallback 버튼 — paypal.me 외부 redirect 흐름. */}
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-2">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-2 customer-paypal-error">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-red-300">{error}</p>
             <button

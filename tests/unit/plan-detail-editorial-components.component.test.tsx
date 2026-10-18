@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlanDocumentMasthead } from '../../src/pages/PlanDetailPage/components/PlanDocumentMasthead';
 import { getPlanDocumentStatus } from '../../src/pages/PlanDetailPage/lib/planStats';
+import { IntroSlide } from '../../src/pages/PlanDetailPage/components/IntroSlide';
 import { PlanDocumentState } from '../../src/pages/PlanDetailPage/components/PlanDocumentState';
 import { ConfirmDialog } from '../../src/pages/PlanDetailPage/components/ConfirmDialog';
 import { ReviewWriteModal } from '../../src/components/ReviewWriteModal';
@@ -13,9 +14,11 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { uid: 'reviewer-1', displayName: 'Reviewer', photoURL: null } }),
 }));
 
+const mockLanguage = vi.hoisted(() => ({ current: 'en' }));
+
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
-    language: 'en',
+    language: mockLanguage.current,
     t: {
       a11y: { close: 'Close' },
       reviews: { errSubmit: 'Could not submit', errNetwork: 'Network error', submitting: 'Submitting', rewardNote: 'Reward note' },
@@ -87,7 +90,32 @@ function planWithInput(input: Record<string, unknown>): PlanDocument {
   } as unknown as PlanDocument;
 }
 
+// jsdom has no matchMedia. Answer the queries the masthead actually asks (use-mobile's
+// max-width and prefers-reduced-motion) from explicit state; the default is a desktop
+// viewport without reduced motion, so the phone-only sky layer stays unmounted.
+const mediaState = { mobile: false, reducedMotion: false };
+
+function stubMatchMedia() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(max-width: 767px)'
+      ? mediaState.mobile
+      : query === '(prefers-reduced-motion: reduce)'
+        ? mediaState.reducedMotion
+        : false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+}
+
 beforeEach(() => {
+  mediaState.mobile = false;
+  mediaState.reducedMotion = false;
+  stubMatchMedia();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -96,6 +124,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mockLanguage.current = 'en';
   vi.unstubAllGlobals();
   document.body.style.overflow = '';
 });
@@ -119,6 +148,34 @@ describe('plan detail editorial components', () => {
       <PlanDocumentMasthead plan={planWithInput({ adults: 2, children: 1 })} status="ready" ui={mastheadUi} />,
     );
     expect(within(screen.getByText('Travelers').parentElement as HTMLElement).getByText('3')).toBeTruthy();
+  });
+
+  it('shows the start date once, localized, on the same calendar day', () => {
+    render(<PlanDocumentMasthead plan={planWithInput({ startDate: '2026-09-12', adults: 2 })} status="ready" ui={mastheadUi} />);
+    const masthead = screen.getByTestId('plan-document-masthead');
+    expect(masthead.textContent).not.toContain('2026-09-12');
+    expect(masthead.textContent!.split('Sep 12, 2026').length - 1).toBe(1);
+  });
+
+  it('localizes the rendered start date in all four languages on the same day', () => {
+    const locales: Record<string, string> = { ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' };
+    for (const [language, locale] of Object.entries(locales)) {
+      mockLanguage.current = language;
+      const expected = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' })
+        .format(new Date(2026, 8, 12));
+      const { unmount } = render(
+        <PlanDocumentMasthead plan={planWithInput({ startDate: '2026-09-12', adults: 2 })} status="ready" ui={mastheadUi} />,
+      );
+      const value = within(screen.getByText('Start date').parentElement?.parentElement as HTMLElement).getByText(expected);
+      expect(value.textContent).toContain('12');
+      expect(value.textContent).not.toContain('2026-09-12');
+      unmount();
+    }
+  });
+
+  it('falls back to the original start date text when the date is invalid', () => {
+    render(<PlanDocumentMasthead plan={planWithInput({ startDate: '2026-02-31', adults: 2 })} status="ready" ui={mastheadUi} />);
+    expect(within(screen.getByText('Start date').parentElement?.parentElement as HTMLElement).getByText('2026-02-31')).toBeTruthy();
   });
 
   it('recognizes both current and legacy truncated plan shapes', () => {
@@ -165,6 +222,33 @@ describe('plan detail editorial components', () => {
       />,
     );
     expect(within(screen.getByText('Stops').parentElement as HTMLElement).getByText('1')).toBeTruthy();
+  });
+
+  it('IntroSlide hides the whole T-money row unless the load is a valid positive number', () => {
+    const renderIntro = (load: unknown) => {
+      const itinerary: Record<string, unknown> = { tour_title: 'Seoul plan', days: [] };
+      if (load !== 'missing') itinerary.t_money_recommended_load = load;
+      return render(
+        <IntroSlide
+          plan={{ input: {}, itinerary } as unknown as PlanDocument}
+          planId="plan-1"
+          isTranslating={false}
+        />,
+      );
+    };
+
+    for (const invalid of [0, 'missing', Number.NaN]) {
+      const { unmount } = renderIntro(invalid);
+      expect(screen.queryByTestId('plan-intro-tmoney')).toBeNull();
+      expect(screen.queryByText('T-money')).toBeNull();
+      unmount();
+    }
+
+    renderIntro(15000);
+    const row = screen.getByTestId('plan-intro-tmoney');
+    expect(within(row).getByText('T-money')).toBeTruthy();
+    expect(row.textContent).toContain('15,000');
+    expect(row.querySelector('svg')).not.toBeNull();
   });
 
   it('keeps an invalid photo error visible in the paper review modal', () => {

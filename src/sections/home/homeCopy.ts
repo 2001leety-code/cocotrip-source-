@@ -21,7 +21,10 @@ export type HomeLang = 'ko' | 'en' | 'ja' | 'zh';
  *  recomputes both numbers from the real file and fails on drift. */
 export const FOOD_DB = {
   restaurants: 3166,
+  // "수록 도시" = 식당 10곳 이상 실린 도시. 2026-10-10 주소 기준 city 교정으로 1~2행짜리 소도시 키 9개가
+  // 생겼지만 그건 커버리지가 아니다(distinct 키 34). 임계값은 테스트가 실제 파일로 재계산해 잠근다.
   cities: 25,
+  cityMinRestaurants: 10,
 } as const;
 
 export interface HomeCopy {
@@ -34,6 +37,27 @@ export interface HomeCopy {
     pickCity: string;
     otherCities: string;
     photoCredit: string;
+    /**
+     * The h1 as four visual lines of serif/sans segments. Concatenated (then
+     * trimmed) it must equal `headline`, which stays the accessible name.
+     * Line 4 describes the personalised planner only — no speed/duration claim.
+     * `roman` = upright serif (v3 "Your"); other serif segments are italic.
+     */
+    headlineLines: { text: string; serif?: boolean; roman?: boolean }[][];
+    /** Labels for the sample pass (values cycle through EXAMPLE_PLANS). */
+    pass: {
+      title: string; from: string; to: string;
+      pause: string; resume: string;
+      /** `{n}` / `{m}` are replaced with the plan position and count. */
+      planOf: string;
+      open: string; close: string;
+      /** Heading above the two pass actions. */
+      startHeading: string;
+      /** `{from}` / `{to}` are replaced with the first and last stop. */
+      routeAria: string;
+    };
+    /** Accessible names of the hero sky video play/pause button. */
+    sky: { play: string; pause: string };
   };
   ledger: {
     eyebrow: string;
@@ -50,7 +74,11 @@ export interface HomeCopy {
     charter: { kicker: string; title: string; body: string; cta: string };
     tours: { kicker: string; title: string; body: string; cta: string };
   };
+  /** Mono titles of the three service rows (home A). Names only, no claims. */
+  rows: { planner: string; tours: string; charter: string };
   specimen: {
+    /** Accessible name of the region tab list. */
+    tabsLabel: string;
     eyebrow: string;
     heading: string;
     lede: string;
@@ -58,6 +86,14 @@ export interface HomeCopy {
     mapLink: string;
     dayLabel: string;
     stopsLabel: string;
+    /** One note above the stops: the legs are a static sample, not live. */
+    transitNote: string;
+    /** Per-leg external link text (opens Naver Map public-transit directions). */
+    transitLink: string;
+    /** `{from}` / `{to}` — accessible name of that link. */
+    transitLinkAria: string;
+    /** Shown after a car leg's existing time so it is not read as transit time. */
+    carNote: string;
   };
   /** 지역 페이지로 들어가는 유일한 공개 입구. 문구는 지역 지식을 주장하지 않는다 —
    *  각 지역이 무엇인지는 그 페이지의 i18n 이 이미 들고 있고, 여기서는 그 페이지가
@@ -88,13 +124,28 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
   en: {
     hero: {
       eyebrow: 'Korea — itineraries, private tours, charter',
-      headline: 'Tell us the trip. We write the Korea itinerary you can actually run.',
-      lede: 'Your dates, cities, pace and dietary rules go in. What comes back is a timed day-by-day plan built on our own Korea database — real places, the transit leg between them, and a map pin on every stop.',
+      headline: 'Your next Korea trip, planned for you.',
+      lede: 'Dates, cities, pace.\nA timed plan with real places.',
+      headlineLines: [
+        [{ text: 'Your ', serif: true, roman: true }, { text: 'next ', serif: true }],
+        [{ text: 'Korea trip, ', serif: false }],
+        [{ text: 'planned ', serif: false }],
+        [{ text: 'for you.', serif: true }],
+      ],
+      pass: {
+        title: 'Sample day pass', from: 'From', to: 'To',
+        pause: 'Pause sample rotation', resume: 'Resume sample rotation',
+        planOf: 'Sample plan {n} of {m}',
+        open: 'Open sample pass', close: 'Close sample pass',
+        startHeading: 'Start your plan',
+        routeAria: 'From {from} to {to}',
+      },
+      sky: { play: 'Play sky video', pause: 'Pause sky video' },
       ctaPrimary: 'Start your itinerary',
       ctaSecondary: 'See a finished plan',
       pickCity: 'Start with a city',
       otherCities: 'Somewhere else',
-      photoCredit: 'Photography: Korea Tourism Organization',
+      photoCredit: 'Sky video & image: bellergy / Pixabay',
     },
     ledger: {
       eyebrow: 'What the plan is built from',
@@ -130,7 +181,9 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
         cta: 'Browse tours',
       },
     },
+    rows: { planner: 'PLANNER', tours: 'TOURS', charter: 'CHARTER' },
     specimen: {
+      tabsLabel: 'Sample region',
       eyebrow: 'Sample output',
       heading: 'This is what a day looks like',
       lede: 'Day one from three regions, exactly as the planner writes it: clock times, the transit leg between stops, and real coordinates behind every map link.',
@@ -138,6 +191,10 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: 'Open in maps',
       dayLabel: 'Day 1',
       stopsLabel: 'stops',
+      transitNote: 'Sample routes. Times are estimates, not live — check current routes in the map.',
+      transitLink: 'Transit directions',
+      transitLinkAria: 'Public transit directions from {from} to {to} (Naver Map, opens in a new tab)',
+      carNote: 'by car',
     },
     regions: {
       eyebrow: 'Regions',
@@ -164,13 +221,28 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
   ko: {
     hero: {
       eyebrow: '한국 — 일정·프라이빗 투어·전세차량',
-      headline: '여행 조건을 알려주세요. 그대로 실행할 수 있는 한국 일정을 씁니다.',
-      lede: '날짜, 도시, 이동 속도, 할랄/비건/채식 여부를 넣으면 자체 한국 데이터로 시간대별 일정을 만들어 드립니다. 실재하는 장소, 장소 사이의 이동 구간, 그리고 모든 정거장의 지도 좌표까지 포함합니다.',
+      headline: '당신의 다음 한국 여행, 꼭 맞춘 일정으로.',
+      lede: '날짜, 도시, 속도.\n실제 장소로 채운 시간대별 일정.',
+      headlineLines: [
+        [{ text: '당신의 ', serif: true, roman: true }, { text: '다음 ', serif: true }],
+        [{ text: '한국 여행, ', serif: false }],
+        [{ text: '꼭 맞춘 ', serif: false }],
+        [{ text: '일정으로.', serif: true }],
+      ],
+      pass: {
+        title: '샘플 하루 패스', from: '출발', to: '도착',
+        pause: '예시 순환 일시정지', resume: '예시 순환 다시 재생',
+        planOf: '예시 일정 {m}개 중 {n}번째',
+        open: '예시 패스 펼치기', close: '예시 패스 접기',
+        startHeading: '내 일정 시작하기',
+        routeAria: '{from}에서 {to}까지',
+      },
+      sky: { play: '하늘 영상 재생', pause: '하늘 영상 일시정지' },
       ctaPrimary: '일정 만들기',
       ctaSecondary: '완성된 플랜 보기',
       pickCity: '도시부터 고르기',
       otherCities: '다른 지역',
-      photoCredit: '사진: 한국관광공사',
+      photoCredit: '하늘 영상·이미지: bellergy / Pixabay',
     },
     ledger: {
       eyebrow: '일정을 만드는 재료',
@@ -206,7 +278,9 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
         cta: '투어 둘러보기',
       },
     },
+    rows: { planner: '플래너', tours: '투어', charter: '전세차량' },
     specimen: {
+      tabsLabel: '예시 지역',
       eyebrow: '실제 결과물',
       heading: '하루가 이렇게 나옵니다',
       lede: '세 개 지역의 1일차를, 플래너가 쓰는 형식 그대로. 시각, 정거장 사이 이동 구간, 그리고 모든 지도 링크 뒤의 실제 좌표까지.',
@@ -214,6 +288,10 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: '지도에서 열기',
       dayLabel: '1일차',
       stopsLabel: '곳',
+      transitNote: '예시 동선입니다. 소요시간은 추정치이며 실시간이 아닙니다 — 현재 경로는 지도에서 확인하세요.',
+      transitLink: '대중교통 길찾기',
+      transitLinkAria: '{from}에서 {to}까지 대중교통 길찾기 (네이버 지도, 새 탭)',
+      carNote: '차량 기준',
     },
     regions: {
       eyebrow: '지역',
@@ -240,13 +318,28 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
   ja: {
     hero: {
       eyebrow: '韓国 — 旅程・プライベートツアー・貸切車',
-      headline: '旅の条件を教えてください。そのまま実行できる韓国の旅程をお作りします。',
-      lede: '日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望を入力すると、独自の韓国データで時間ごとの旅程を作成します。実在する場所、場所と場所をつなぐ移動区間、そして全スポットの地図座標つきです。',
+      headline: 'あなたの次の韓国旅行、ぴったりのプランで。',
+      lede: '日付、都市、ペース。\n実在の場所でつくる時間ごとの旅程。',
+      headlineLines: [
+        [{ text: 'あなたの', serif: true, roman: true }, { text: '次の', serif: true }],
+        [{ text: '韓国旅行、', serif: false }],
+        [{ text: 'ぴったりの', serif: false }],
+        [{ text: 'プランで。', serif: true }],
+      ],
+      pass: {
+        title: 'サンプル一日パス', from: '出発', to: '到着',
+        pause: 'サンプルの切り替えを一時停止', resume: 'サンプルの切り替えを再開',
+        planOf: 'サンプル旅程 {m}件中{n}件目',
+        open: 'サンプルパスを開く', close: 'サンプルパスを閉じる',
+        startHeading: '旅程づくりを始める',
+        routeAria: '{from}から{to}まで',
+      },
+      sky: { play: '空の映像を再生', pause: '空の映像を一時停止' },
       ctaPrimary: '旅程をつくる',
       ctaSecondary: '完成した旅程を見る',
       pickCity: '都市から選ぶ',
       otherCities: 'ほかの地域',
-      photoCredit: '写真：韓国観光公社',
+      photoCredit: '空の映像・画像：bellergy / Pixabay',
     },
     ledger: {
       eyebrow: '旅程をつくる材料',
@@ -282,7 +375,9 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
         cta: 'ツアーを見る',
       },
     },
+    rows: { planner: 'プランナー', tours: 'ツアー', charter: '貸切車' },
     specimen: {
+      tabsLabel: 'サンプルの地域',
       eyebrow: '実際の出力',
       heading: '1日はこう出てきます',
       lede: '3地域の1日目を、プランナーが書く形式そのままで。時刻、スポット間の移動区間、そしてすべての地図リンクの裏にある実在の座標まで。',
@@ -290,6 +385,10 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: '地図で開く',
       dayLabel: '1日目',
       stopsLabel: 'ヶ所',
+      transitNote: 'サンプルの動線です。所要時間は推定でリアルタイムではありません — 現在のルートは地図で確認してください。',
+      transitLink: '公共交通の経路',
+      transitLinkAria: '{from}から{to}までの公共交通の経路（NAVER地図・新しいタブ）',
+      carNote: '車での目安',
     },
     regions: {
       eyebrow: '地域',
@@ -316,13 +415,28 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
   zh: {
     hero: {
       eyebrow: '韩国 — 行程·私人包团·包车',
-      headline: '告诉我们出行条件，我们写出可以直接执行的韩国行程。',
-      lede: '输入日期、城市、行程节奏和饮食忌口，我们用自有的韩国数据生成分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
+      headline: '你的下一次韩国旅行，为你规划。',
+      lede: '日期、城市、节奏。\n按时段排好、全是真实地点的行程。',
+      headlineLines: [
+        [{ text: '你的', serif: true, roman: true }, { text: '下一次', serif: true }],
+        [{ text: '韩国旅行，', serif: false }],
+        [{ text: '为你', serif: false }],
+        [{ text: '规划。', serif: true }],
+      ],
+      pass: {
+        title: '示例一日通行证', from: '出发', to: '到达',
+        pause: '暂停示例轮播', resume: '继续示例轮播',
+        planOf: '示例行程 第{n}个，共{m}个',
+        open: '展开示例通行证', close: '收起示例通行证',
+        startHeading: '开始你的行程',
+        routeAria: '从{from}到{to}',
+      },
+      sky: { play: '播放天空视频', pause: '暂停天空视频' },
       ctaPrimary: '开始制定行程',
       ctaSecondary: '查看完整行程',
       pickCity: '先选城市',
       otherCities: '其他地区',
-      photoCredit: '照片：韩国观光公社',
+      photoCredit: '天空视频与图片：bellergy / Pixabay',
     },
     ledger: {
       eyebrow: '行程的原料',
@@ -358,7 +472,9 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
         cta: '浏览产品',
       },
     },
+    rows: { planner: '行程规划', tours: '旅游产品', charter: '包车' },
     specimen: {
+      tabsLabel: '示例地区',
       eyebrow: '真实产出',
       heading: '一天长这样',
       lede: '三个地区的第一天，就按行程生成的原样：时刻、站点之间的交通区间，以及每个地图链接背后的真实坐标。',
@@ -366,6 +482,10 @@ export const HOME_COPY: Record<HomeLang, HomeCopy> = {
       mapLink: '在地图中打开',
       dayLabel: '第1天',
       stopsLabel: '处',
+      transitNote: '示例路线。用时为估算，并非实时 — 当前路线请在地图中查看。',
+      transitLink: '公共交通路线',
+      transitLinkAria: '从{from}到{to}的公共交通路线（Naver 地图，新标签页打开）',
+      carNote: '按驾车计',
     },
     regions: {
       eyebrow: '地区',

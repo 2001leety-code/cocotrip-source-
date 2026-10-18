@@ -17,10 +17,13 @@ const editorialMarker = '/* Community public shell — editorial migration layer
 const editorialStart = communityCss.indexOf(editorialMarker);
 const compatibilityMarker = '/* Community lazy CSS compatibility';
 const compatibilityStart = communityCss.indexOf(compatibilityMarker);
+const refreshMarker = '/* Community customer night refresh */';
+const refreshStart = communityCss.indexOf(refreshMarker);
 const touchMarker = '/* Community moderation touch targets';
 const touchStart = communityCss.indexOf(touchMarker);
 const baseCss = communityCss.slice(0, editorialStart);
-const editorialCss = communityCss.slice(editorialStart, compatibilityStart).replace(/\n$/, '');
+const editorialCss = communityCss.slice(editorialStart, refreshStart >= 0 ? refreshStart : compatibilityStart).replace(/\n$/, '');
+const refreshCss = refreshStart >= 0 ? communityCss.slice(refreshStart, compatibilityStart) : '';
 const compatibilityCss = communityCss.slice(compatibilityStart, touchStart);
 const touchCss = communityCss.slice(touchStart);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -66,6 +69,32 @@ describe('community CSS belongs to its lazy route module', () => {
     expect(Buffer.byteLength(baseCss)).toBe(35_900);
     expect(hash(baseCss)).toBe('0940c6d7a1ff889bb8e1f36bbeb525206e9bfe1d3bd23523a647c24365fd4895');
     expect(hash(editorialCss)).toBe('91c45e41c267ffdd3d25e4a05e142f40862ceb369c77b7e11eebeddbd3c9cf5b');
+  });
+
+  it('keeps the customer night refresh as a separate, scoped, token-only block', () => {
+    expect(refreshStart).toBeGreaterThan(editorialStart);
+    expect(compatibilityStart).toBeGreaterThan(refreshStart);
+    expect(touchStart).toBeGreaterThan(compatibilityStart);
+    expect(communityCss.indexOf(refreshMarker, refreshStart + 1)).toBe(-1);
+    const css = postcss.parse(refreshCss);
+    const selectors: string[] = [];
+    css.walkRules((rule) => { selectors.push(...rule.selectors); });
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const selector of selectors) {
+      expect(selector.startsWith('.ec-night .community-app'), selector).toBe(true);
+      expect(selector).not.toMatch(/moderation|mod-|danger|risk/);
+    }
+    const atRules: string[] = [];
+    css.walkAtRules((rule) => { atRules.push(rule.name); });
+    expect(atRules.every((name) => name === 'media')).toBe(true);
+    css.walkDecls((declaration) => {
+      const text = `${declaration.prop}:${declaration.value}`;
+      expect(Boolean(declaration.important), text).toBe(false);
+      expect(declaration.value, text).not.toMatch(/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|\b(?:white|black)\b/i);
+      expect(text).not.toMatch(/^display:\s*none$|^visibility:\s*hidden$/);
+      expect(declaration.prop).not.toMatch(/^(?:-webkit-)?animation/);
+      expect(declaration.value, text).not.toMatch(/\b\d*\.?\d+m?s\b/);
+    });
   });
 
   it('enlarges only the three measured moderation control classes to at least 44px', () => {

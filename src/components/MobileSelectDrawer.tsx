@@ -22,6 +22,8 @@ interface MobileSelectDrawerProps {
   placeholder?: string;
   title?: string;
   icon?: React.ReactNode;
+  /** Extra classes for the portalled drawer surface — customer pages pass `ec-night`. */
+  contentClassName?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function MobileSelectDrawer({
   placeholder = 'Select...',
   title = 'Select',
   icon,
+  contentClassName = '',
 }: MobileSelectDrawerProps) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -83,7 +86,7 @@ export function MobileSelectDrawer({
       <div className="relative">
         {triggerButton}
         <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent className="ec-root max-h-[70vh] border-ec-line bg-ec-raised">
+          <DrawerContent className={`ec-root ${contentClassName} max-h-[70vh] border-ec-line bg-ec-raised`}>
             <DrawerHeader className="border-b border-ec-line pb-3">
               <DrawerTitle className="ec-h3 text-center">
                 {title}

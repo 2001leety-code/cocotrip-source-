@@ -65,7 +65,7 @@ export default function About() {
   ];
 
   return (
-    <div className="ec-root min-h-screen">
+    <div className="ec-root min-h-screen customer-about">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <main className="ec-root">

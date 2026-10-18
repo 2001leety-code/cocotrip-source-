@@ -110,7 +110,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-7">
+    <div className="charter-funnel-step-body space-y-3 sm:space-y-7">
       <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3">
         <CounterPanel
           label={i18n.adultLabel}
@@ -132,7 +132,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
             <Users className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold leading-tight text-white sm:text-sm">{pax} {PAX_UNIT[lang]}</p>
+            <p className="charter-funnel-value text-xs font-bold leading-tight text-white sm:text-sm">{pax} {PAX_UNIT[lang]}</p>
             <p className="truncate text-[9px] leading-relaxed text-white/50 sm:text-xs">{i18n.totalPaxNote(pax, paxCap)}</p>
           </div>
         </div>
@@ -144,7 +144,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:text-xs">
+        <label className="charter-funnel-field-label mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:text-xs">
           {i18n.vehicleLabel}
         </label>
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-3">
@@ -156,7 +156,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
                 key={v}
                 type="button"
                 onClick={() => selectVehicle(v)}
-                className={`group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[112px] sm:items-start sm:gap-3 sm:rounded-2xl sm:p-4 ${
+                className={`charter-funnel-option group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[112px] sm:items-start sm:gap-3 sm:rounded-2xl sm:p-4 ${
                   selected
                     ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/18 to-[#EA537E]/10 shadow-[0_16px_44px_rgba(124,92,252,0.18)]'
                     : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/45 hover:bg-white/[0.055]'
@@ -171,9 +171,9 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-black leading-tight text-white sm:text-sm">{name}</span>
-                  <span className="mt-0.5 block text-[9px] font-semibold text-white/55 sm:mt-1 sm:text-xs">{vehiclePaxRangeLabel(v, lang)}</span>
+                  <span className="charter-funnel-option-sub mt-0.5 block text-[9px] font-semibold text-white/55 sm:mt-1 sm:text-xs">{vehiclePaxRangeLabel(v, lang)}</span>
                   {recommended === v && (
-                    <span className="mt-0.5 inline-flex rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-300 sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[11px]">
+                    <span className="charter-funnel-badge mt-0.5 inline-flex rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-300 sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[11px]">
                       {i18n.recommendedTag}
                     </span>
                   )}
@@ -193,7 +193,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
       {(vehicle === 'sprinter' || vehicle === 'bus') && (
         <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-4">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-200/85 leading-relaxed">{i18n.legalGuideWarn}</p>
+          <p className="charter-funnel-body text-sm text-amber-200/85 leading-relaxed">{i18n.legalGuideWarn}</p>
         </div>
       )}
     </div>

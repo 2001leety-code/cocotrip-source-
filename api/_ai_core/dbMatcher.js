@@ -15,7 +15,42 @@
  * throttled admin alert fires when mismatch ratio crosses a threshold.
  */
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { isDietaryTrusted } from '../_shared/dietary-trust.js';
+import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence, isCertifiedDietaryStatus } from '../_shared/dietary-trust.js';
+import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
+
+// 2026-10-10: stop 의 출처·등급 사실은 DB/규칙 소유. Gemini 가 그대로 써 오거나 위조한
+// 값이 살아남지 않도록 매칭 전에 지우고, 아래에서 매칭된 row 로만 다시 채운다.
+// 다른 단계 마커(_replaced_for_dietary, _resolvedFrom 등)는 대상 아님 — 목록에 있는 것만.
+const AI_PROVENANCE_FIELDS = ['dietary_evidence', 'verification_status', 'source_url', 'certification_type', 'verified_by', 'verified_at'];
+const MATCHER_META_FIELDS = ['_dbMatchedName', '_dbLat', '_dbLng', '_db_city_mismatch', '_isChainMatch'];
+
+// 2026-10-10: 식이 요청 유무와 무관 — DB 등급이 certified 가 아니면 AI 인증 문장은 남기지 않는다.
+// 정직 등급 문구(부정형: "NOT verified", "확인되지 않", "未確認", "未经核实")는 보존.
+const DIETARY_CERT_CLAIM = /(halal|vegan|vegetarian)[\s-]*certifi|certifi\w*[\s-]+(halal|vegan|vegetarian)|100\s*%\s*(halal|vegan|vegetarian|plant)|fully\s+(halal|vegan)\b|(할랄|비건|채식)\s*인증|인증\s*(받은\s*|된\s*)?(할랄|비건)|(ハラール|ヴィーガン|ビーガン)認証|(清真|纯素|素食)认证/i;
+const DIETARY_CLAIM_NEGATED = /\bnot\s+(verified|certified)\b|확인되지\s*않|未確認|未经核实/i;
+const DIETARY_PROSE_FIELDS = ['tip', 'tip_en', 'description', 'reason'];
+
+function stripUnbackedDietaryClaims(stop, evidence) {
+  if (evidence && isCertifiedDietaryStatus(evidence.verification_status)) return;
+  for (const f of DIETARY_PROSE_FIELDS) {
+    if (typeof stop[f] !== 'string' || !DIETARY_CERT_CLAIM.test(stop[f])) continue;
+    // 문장 단위(원래 구분자 보존) — 주장 문장만 빼고 나머지는 그대로 둔다.
+    stop[f] = (stop[f].match(/[^.!?。！？]+[.!?。！？]*\s*|[.!?。！？]+\s*/g) || [])
+      .filter((s) => !DIETARY_CERT_CLAIM.test(s) || DIETARY_CLAIM_NEGATED.test(s)).join('').trim();
+  }
+}
+
+function stripServerOwnedFields(stop) {
+  if (!stop || typeof stop !== 'object') return;
+  for (const f of AI_PROVENANCE_FIELDS) delete stop[f];
+  for (const f of MATCHER_META_FIELDS) delete stop[f];
+}
+
+// city 필드가 같아도 주소가 다른 도시를 가리키는 row(예: city=busan, 주소=용인)는
+// 같은 도시 매칭으로 치지 않는다 → 기존 cross-city 분기(verified=false, 좌표 미override).
+function isRowInCity(row, city) {
+  return (row.city || '').toLowerCase() === city && isRowCityConsistent(row);
+}
 
 // ── P227 (2026-05-27): 전국 체인 브랜드 목록 ──────────────────────────────
 // 이 브랜드들은 전국 매장이 있으나 foodIndex 에 1개 city 에만 row 가 존재하는 경우
@@ -139,7 +174,7 @@ const CITY_MISMATCH_MIN_MATCHES = 3;
  * flag as a city-mismatch).
  */
 function findFoodIndexMatch(foodIndex, stopName, stopDisplayName, cityFilter) {
-  const cityOk = (r) => !cityFilter || (r.city || '').toLowerCase() === cityFilter;
+  const cityOk = (r) => !cityFilter || isRowInCity(r, cityFilter);
 
   // 1차: 정확 매칭 (name 또는 nameEn)
   let match = foodIndex.find(r => {
@@ -176,7 +211,10 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   if (!foodIndex || foodIndex.length === 0) {
     // foodIndex 없어도 다국어 sanitize는 수행
     const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
-    for (const stop of allStops) sanitizeStopNames(stop, lang);
+    for (const stop of allStops) {
+      sanitizeStopNames(stop, lang);
+      stripServerOwnedFields(stop);
+    }
     return;
   }
 
@@ -204,11 +242,15 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
     for (const stop of (day.stops || [])) {
     // 모든 stop에 sanitize 적용 (food 카테고리 외에도 hallucination 가능)
     sanitizeStopNames(stop, lang);
+    stripServerOwnedFields(stop);
 
     if (stop.category !== 'food') continue;
+    // AI 가 써 온 식이 태그는 주장일 뿐 — 아래에서 매칭된 trusted row 증거로만 다시 채운다.
+    delete stop.dietary_tags;
+    let dietaryEvidence = null;
 
     const stopName = (stop.name || stop.name_ko || '').trim();
-    if (!stopName) { dbUnmatched++; continue; }
+    if (!stopName) { stripUnbackedDietaryClaims(stop, null); dbUnmatched++; continue; }
 
     const stopDisplayName = (stop.display_name || stop.name_en || '').toLowerCase();
 
@@ -221,7 +263,7 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
 
     if (!match) {
       const fallback = findFoodIndexMatch(foodIndex, stopName, stopDisplayName, null);
-      if (fallback && matchCity && (fallback.city || '').toLowerCase() !== matchCity) {
+      if (fallback && matchCity && !isRowInCity(fallback, matchCity)) {
         // P114 후속 (2026-05-22): landmark/market name 인 경우 cross-city fallback
         // SKIP. plan 9845a69e Day 4 "자갈치" (Busan landmark) 가 Seoul 종로 "자갈치"
         // 식당과 매칭되던 33% city-mismatch noise. Landmark = 시장 / 거리 / 광장 /
@@ -301,11 +343,18 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
       if (!isCityMismatch && match.tag && isDietaryTrusted(match)) {
         const _dt = String(match.tag).toLowerCase();
         if (_dt === 'halal' || _dt === 'vegan' || _dt === 'vegetarian') {
-          const _set = new Set(
-            (Array.isArray(stop.dietary_tags) ? stop.dietary_tags : []).map((t) => String(t).toLowerCase())
-          );
-          _set.add(_dt);
-          stop.dietary_tags = [..._set];
+          stop.dietary_tags = [_dt];
+          // 등급 증거·정직 문구는 매칭된 trusted row 에서만 파생 (verified 와 별개).
+          // 문구는 1회만 — 종단 게이트 복구본 재실행·replacer 문구가 이미 있어도 중복 금지.
+          const evidence = dietaryEvidenceFor(match, _dt);
+          dietaryEvidence = evidence;
+          if (evidence) {
+            stop.dietary_evidence = [evidence];
+            const note = describeDietaryEvidence(evidence.verification_status, lang);
+            const tipField = !stop.tip && stop.tip_en ? 'tip_en' : 'tip';
+            const tip = typeof stop[tipField] === 'string' ? stop[tipField].trim() : '';
+            if (note && !tip.includes(note)) stop[tipField] = tip ? `${tip} ${note}` : note;
+          }
         }
       }
       // P227 bugfix: chain match (전국 체인) 은 _dbMatchedName / _db_city_mismatch 미설정.
@@ -321,9 +370,11 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
         };
       }
 
+      stripUnbackedDietaryClaims(stop, dietaryEvidence);
       dbMatched++;
     } else {
       stop.verified = false;
+      stripUnbackedDietaryClaims(stop, null);
       dbUnmatched++;
     }
     } // end per-stop (P114)

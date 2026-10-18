@@ -1,0 +1,1166 @@
+/*
+ * Customer night look — approved v3 (public/home-dope/design-v3.html), 2026-10-07.
+ *
+ * Imported once from src/App.tsx. Every rule is scoped under `.ec-night`, which
+ * App.tsx puts on a `display: contents` wrapper for customer routes only
+ * (src/lib/customerNight.ts) and Header.tsx puts on its Radix popover content.
+ * No `:root`, `html`, `body` or `!important`; admin, /mood, DEV harnesses and
+ * /charter-legacy never carry the class. The PDF export container is appended
+ * to <body>, outside the wrapper, so it keeps the paper tokens.
+ *
+ * Only the semantic and component `--ec-*` tokens are re-pointed. Component
+ * tokens are computed once on :root in editorial.css, so they are repeated here.
+ * Pages that paint with literal light colours (no `.ec-root`) are not touched.
+ */
+
+@font-face {
+  font-family: 'V3 Serif';
+  src: url('/home-dope/v3-InstrumentSerif-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'V3 Serif';
+  src: url('/home-dope/v3-InstrumentSerif-Italic.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+.ec-night,
+.cocotrip-mobile-phone-modal,
+.cocotrip-mobile-cart-checkout,
+.cocotrip-mobile-booking-dialog,
+.cocotrip-mobile-booking-form,
+.cocotrip-mobile-paypal,
+.cocotrip-mobile-paypal-success,
+.customer-cart-panel,
+.customer-paypal-qr,
+.customer-planner-purchase,
+.customer-charter-legacy,
+.customer-about,
+.customer-account-deletion,
+.customer-support-page,
+.customer-links,
+.customer-legal-document,
+.auth-required-shell,
+.customer-paypal-review-panel,
+.customer-bookings-root {
+  /* Latin display serif; CJK glyphs fall through to the existing sans chain. */
+  --ec-night-serif: 'V3 Serif', Inter, 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', system-ui, serif;
+
+  --ec-surface-page: #0a0b14;
+  --ec-surface-raised: #11132a;
+  --ec-surface-sunken: #0b1033;
+  --ec-surface-shell: rgba(10, 12, 30, 0.55);
+  --ec-surface-shell-solid: #0a0b14;
+  --ec-surface-inverse: #ffffff;
+
+  --ec-text-primary: #ffffff;
+  --ec-text-secondary: rgba(255, 255, 255, 0.8);
+  --ec-text-muted: rgba(255, 255, 255, 0.68);
+  --ec-text-faint: rgba(255, 255, 255, 0.56);
+  --ec-text-on-brand: #0a0b14;
+  --ec-text-on-inverse: #0a0b14;
+
+  --ec-line: rgba(255, 255, 255, 0.12);
+  --ec-line-strong: rgba(255, 255, 255, 0.22);
+  --ec-line-contrast: rgba(255, 255, 255, 0.28);
+
+  --ec-brand: #c9b8ff;
+  --ec-brand-hover: #e4dbff;
+  --ec-brand-wash: rgba(201, 184, 255, 0.14);
+
+  --ec-success: #86d9ae;
+  --ec-critical: #ff9a90;
+  --ec-notice: #f2c46d;
+
+  --ec-shadow-raise: none;
+  --ec-shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.5);
+  --ec-focus-ring: 0 0 0 2px #0a0b14, 0 0 0 4px #c9b8ff;
+
+  /* component tokens */
+  --ec-button-radius: 999px;
+  --ec-button-primary-bg: #c9b8ff;
+  --ec-button-primary-bg-hover: #e4dbff;
+  --ec-button-primary-fg: #0a0b14;
+  --ec-button-secondary-fg: #ffffff;
+  --ec-button-secondary-line: #ffffff;
+  --ec-card-bg: rgba(255, 255, 255, 0.06);
+  --ec-card-line: rgba(255, 255, 255, 0.28);
+  --ec-card-radius: 10.8px;
+  --ec-shell-bg: rgba(10, 12, 30, 0.55);
+  --ec-shell-line: rgba(255, 255, 255, 0.12);
+  --ec-shell-blur: 10px;
+  --ec-field-bg: #0f1128;
+  --ec-field-line: rgba(255, 255, 255, 0.28);
+}
+
+/* Native controls and scrollbars follow the dark surface — only inside token pages. */
+.ec-night .ec-root,
+.ec-night.ec-root {
+  color-scheme: dark;
+}
+
+/* Popover content in a portal carries `.ec-night` itself; give it the raised surface. */
+.ec-night[data-radix-menu-content],
+.ec-night[role='menu'] {
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-primary);
+  border-color: var(--ec-line-contrast);
+}
+
+/* Display type: serif 400 for titles, sans stays for body and UI. */
+.ec-night .ec-display,
+.ec-night .ec-h2,
+.ec-night .ec-h3 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Compact inner-page titles: 28–36 phone, up to 48 desktop. Home sets its own h1. */
+.ec-night .ec-display {
+  font-size: clamp(28px, 4.2vw, 48px);
+  line-height: 1.08;
+}
+
+.ec-night .ec-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Buttons: lavender pill primary, white-outline pill secondary, 44px targets. */
+.ec-night .ec-btn {
+  border-radius: 999px;
+  min-height: 44px;
+}
+
+.ec-night .ec-btn-secondary {
+  background: transparent;
+  border-color: var(--ec-button-secondary-line);
+}
+
+.ec-night .ec-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Chips: outlined pills; the brand chip is lavender outline + text, not a block. */
+.ec-night .ec-chip {
+  border-radius: 999px;
+}
+
+.ec-night .ec-chip-brand {
+  background: transparent;
+  border-color: var(--ec-brand);
+  color: var(--ec-brand);
+}
+
+.ec-night .ec-card {
+  box-shadow: none;
+}
+
+.ec-night .ec-field:focus-visible {
+  border-color: var(--ec-brand);
+}
+
+/* Planner option + step rail tokens are computed on :root in editorial-planner.css
+   (paper wash), so they are repeated here — the selected mode card was a pale
+   lavender block under white text. */
+.ec-night {
+  --ec-option-bg: rgba(255, 255, 255, 0.04);
+  --ec-option-line: rgba(255, 255, 255, 0.28);
+  --ec-option-line-hover: rgba(255, 255, 255, 0.5);
+  --ec-option-bg-selected: rgba(201, 184, 255, 0.14);
+  --ec-option-line-selected: #c9b8ff;
+  --ec-steprail-track: rgba(255, 255, 255, 0.22);
+  --ec-steprail-fill: #c9b8ff;
+}
+
+.ec-night .ec-option.is-selected .ec-eyebrow,
+.ec-night .ec-option[aria-pressed='true'] .ec-eyebrow {
+  color: #c9b8ff;
+}
+
+/* Inverse bands (trust strip, concierge, region CTA, bookings boundary): the night
+   inverse surface stays white for toasts, so these page bands re-point it
+   locally to a dark hairline panel with white text. */
+.ec-night .tours-catalog-trust,
+.ec-night .tours-catalog-concierge,
+.ec-night .region-editorial-cta,
+.ec-night .my-plans-bookings-boundary {
+  --ec-surface-inverse: var(--ec-surface-sunken);
+  --ec-text-on-inverse: #ffffff;
+  border-block: 1px solid var(--ec-line-contrast);
+}
+
+.ec-night .tours-catalog-trust-grid,
+.ec-night .tours-catalog-trust-item,
+.ec-night .tours-catalog-trust-item + .tours-catalog-trust-item {
+  border-color: var(--ec-line-strong);
+}
+
+.ec-night .tours-catalog-trust-item svg {
+  color: var(--ec-brand);
+}
+
+.ec-night .tours-catalog-trust-item p {
+  color: var(--ec-text-muted);
+}
+
+/* Legacy mobile shell (Terms/Privacy/TravelTerms on phones): purple-black gradient
+   in index.css → the v3 page surface. */
+.ec-night .m-page {
+  background: var(--ec-surface-page);
+}
+
+/* 404 carries `.ec-night` on its own <main> (the `*` route is outside the wrapper). */
+.ec-night.not-found-editorial {
+  background: var(--ec-surface-page);
+  color: var(--ec-text-primary);
+}
+
+/* /charter wizard (CharterNewPage root carries `.ec-charter`): the step components paint
+   with literal #B668FC / pink gradient utilities. Re-point exactly those utilities to the
+   v3 lavender inside the scope — markup, steps and logic untouched. /charter-legacy
+   (CharterPage) never carries `.ec-charter`. Map tiles and status colours are not matched. */
+.ec-night .ec-charter .bg-gradient-to-br {
+  background-image: none;
+  background-color: rgba(201, 184, 255, 0.1);
+}
+
+.ec-night .ec-charter .border-\[\#B668FC\] {
+  border-color: var(--ec-brand);
+}
+
+.ec-night .ec-charter .border-\[\#B668FC\]\/25,
+.ec-night .ec-charter .border-\[\#B668FC\]\/30,
+.ec-night .ec-charter .border-\[\#B668FC\]\/35,
+.ec-night .ec-charter .border-\[\#B668FC\]\/40 {
+  border-color: rgba(201, 184, 255, 0.36);
+}
+
+.ec-night .ec-charter .hover\:border-\[\#B668FC\]\/40:hover,
+.ec-night .ec-charter .hover\:border-\[\#B668FC\]\/45:hover {
+  border-color: rgba(201, 184, 255, 0.5);
+}
+
+.ec-night .ec-charter .focus\:border-\[\#B668FC\]\/40:focus,
+.ec-night .ec-charter .focus\:border-\[\#B668FC\]\/55:focus,
+.ec-night .ec-charter .focus\:border-\[\#B668FC\]\/60:focus {
+  border-color: var(--ec-brand);
+}
+
+.ec-night .ec-charter .bg-\[\#B668FC\]\/5,
+.ec-night .ec-charter .bg-\[\#B668FC\]\/08 {
+  background-color: rgba(201, 184, 255, 0.06);
+}
+
+.ec-night .ec-charter .bg-\[\#B668FC\]\/10,
+.ec-night .ec-charter .bg-\[\#B668FC\]\/15,
+.ec-night .ec-charter .bg-\[\#B668FC\]\/20 {
+  background-color: var(--ec-brand-wash);
+}
+
+.ec-night .ec-charter .bg-\[\#B668FC\] {
+  background-color: var(--ec-brand);
+}
+
+/* Step 5 option checkbox: the white tick vanished on the lavender fill. */
+.ec-night .ec-charter .bg-\[\#B668FC\] > .bg-white {
+  background-color: #0a0b14;
+}
+
+.ec-night .ec-charter .text-\[\#B668FC\],
+.ec-night .ec-charter .hover\:text-\[\#B668FC\]\/80:hover,
+.ec-night .ec-charter .group:hover .group-hover\:text-\[\#B668FC\] {
+  color: var(--ec-brand);
+}
+
+.ec-night .ec-charter .accent-\[\#B668FC\] {
+  accent-color: var(--ec-brand);
+}
+
+
+/* ===== Customer visual unification — owner D (static pages, support, links, charter-legacy, payment surfaces) ===== */
+
+/* About: compact editorial introduction */
+.customer-about > main .ec-container-wide,
+.customer-account-deletion > main .ec-container-wide {
+  padding-block: clamp(28px, 4.5vw, 52px);
+}
+
+.customer-about .ec-h2,
+.customer-account-deletion .ec-h2 {
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+}
+
+.customer-about .ec-body,
+.customer-account-deletion .ec-body {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ec-text-secondary);
+}
+
+.customer-about .ec-body-sm,
+.customer-account-deletion .ec-body-sm {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Account deletion: low-solid form card */
+.customer-account-deletion .customer-document-card {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
+  box-shadow: none;
+}
+
+.customer-account-deletion .ec-btn {
+  min-height: 48px;
+  font-size: 16px;
+  border-radius: var(--ec-button-radius);
+}
+
+/* Support (WhatsApp) */
+.ec-night .customer-support-page {
+  background-color: var(--ec-surface-page);
+  color: var(--ec-text-primary);
+}
+
+.customer-support-page .customer-support-card {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-support-page .customer-support-title {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.customer-support-page .customer-support-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ec-text-muted);
+}
+
+.customer-support-page .customer-support-field {
+  font-size: 16px;
+  background-color: var(--ec-field-bg);
+  border-color: var(--ec-field-line);
+}
+
+.customer-support-page .customer-support-consent {
+  font-size: 15px;
+  line-height: 1.5;
+  border-color: var(--ec-line-contrast);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-support-page .customer-support-checkbox {
+  accent-color: var(--ec-brand);
+}
+
+.customer-support-page .customer-support-submit {
+  min-height: 48px;
+  font-size: 16px;
+  border-radius: var(--ec-button-radius);
+}
+
+.customer-support-page .customer-support-submit-ready {
+  background-color: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+}
+
+.customer-support-page .customer-support-submit-ready:hover {
+  background-color: var(--ec-button-primary-bg-hover);
+}
+
+/* Legal documents: readable single column, header/footer untouched */
+.customer-legal-document > main h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  text-align: left;
+  color: var(--ec-text-primary);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  animation: none;
+}
+
+.customer-legal-document > main h2 {
+  font-size: clamp(18px, 2.4vw, 22px);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ec-text-primary);
+  border-bottom-width: 1px;
+  border-bottom-color: var(--ec-line-strong);
+}
+
+.customer-legal-document > main p,
+.customer-legal-document > main li {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ec-text-secondary);
+}
+
+.customer-legal-document > main p {
+  max-width: 75ch;
+}
+
+.customer-legal-document > main > div.max-w-4xl {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Links: simple rows */
+div.customer-links {
+  background-color: var(--ec-surface-page);
+}
+
+.customer-links .customer-links-title {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.customer-links .customer-links-lead {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ec-text-secondary);
+}
+
+.customer-links .customer-links-row {
+  min-height: 48px;
+  background-color: var(--ec-card-bg);
+  border-color: var(--ec-card-line);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-links .customer-links-note {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-muted);
+}
+
+.customer-links .customer-links-footer {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--ec-text-muted);
+}
+
+/* 404: scoped to its existing root */
+.ec-night.not-found-editorial--app .not-found-editorial__title {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__action {
+  min-height: 44px;
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__action:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+/* Charter legacy: honest functional form */
+.customer-charter-legacy .customer-charter-title {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--ec-text-primary);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  animation: none;
+}
+
+.customer-charter-legacy .customer-charter-lead {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ec-text-secondary);
+}
+
+.customer-charter-legacy .customer-charter-back {
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--ec-text-secondary);
+}
+
+.customer-charter-legacy .customer-charter-banner {
+  background-image: none;
+  background-color: var(--ec-brand-wash);
+  border-color: var(--ec-brand);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-charter-legacy .customer-charter-action {
+  min-height: 48px;
+  font-size: 15px;
+  border-radius: var(--ec-button-radius);
+}
+
+.customer-charter-legacy .customer-charter-action-secondary {
+  color: var(--ec-text-secondary);
+  border-color: var(--ec-line-contrast);
+}
+
+.customer-charter-legacy input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.customer-charter-legacy select,
+.customer-charter-legacy textarea {
+  font-size: 16px;
+}
+
+.customer-charter-legacy input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.customer-charter-legacy select {
+  min-height: 44px;
+}
+
+/* Cart panel (portal) */
+div.customer-cart-panel {
+  background-color: var(--ec-surface-raised);
+  border-left-color: var(--ec-line-strong);
+  color: var(--ec-text-primary);
+}
+
+.customer-cart-panel .customer-cart-header {
+  background-color: var(--ec-surface-raised);
+  border-bottom-color: var(--ec-line-strong);
+}
+
+.customer-cart-panel .customer-cart-icon {
+  color: var(--ec-brand);
+}
+
+.customer-cart-panel .customer-cart-note {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-brand);
+}
+
+.customer-cart-panel .customer-cart-price {
+  font-size: 16px;
+}
+
+.customer-cart-panel .customer-cart-meta {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.customer-cart-panel .customer-cart-remove {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.customer-cart-panel .customer-cart-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .customer-cart-panel .customer-cart-remove {
+    opacity: 1;
+  }
+}
+
+.customer-cart-panel .customer-cart-checkout {
+  min-height: 48px;
+  font-size: 16px;
+  border-radius: var(--ec-button-radius);
+  background-color: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+}
+
+.customer-cart-panel .customer-cart-checkout:hover {
+  background-color: var(--ec-button-primary-bg-hover);
+}
+
+.customer-cart-panel .customer-cart-clear {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+/* PayPal QR panel (SDK iframe untouched) */
+.customer-paypal-qr .customer-paypal-qr-copy {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.customer-paypal-qr .customer-paypal-qr-error {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customer-paypal-qr label {
+  font-size: 14px;
+}
+
+.customer-paypal-qr input {
+  font-size: 16px;
+  min-height: 44px;
+}
+
+.customer-paypal-qr .customer-paypal-qr-secondary,
+.customer-paypal-qr .customer-paypal-qr-primary {
+  min-height: 48px;
+}
+
+/* Planner purchase */
+.customer-planner-purchase .customer-purchase-note {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.customer-planner-purchase .ec-btn {
+  min-height: 48px;
+  font-size: 16px;
+  border-radius: var(--ec-button-radius);
+}
+
+.customer-planner-purchase input:not([type='checkbox']):not([type='radio']),
+.customer-planner-purchase select,
+.customer-planner-purchase textarea {
+  font-size: 16px;
+}
+
+.customer-planner-purchase input:not([type='checkbox']):not([type='radio']),
+.customer-planner-purchase select {
+  min-height: 44px;
+}
+
+/* Phone sign-in modal */
+.cocotrip-mobile-phone-modal input,
+.cocotrip-mobile-phone-modal select {
+  font-size: 16px;
+  min-height: 44px;
+}
+
+.cocotrip-mobile-phone-modal button {
+  min-height: 44px;
+}
+
+.cocotrip-mobile-phone-modal label {
+  font-size: 14px;
+}
+
+.cocotrip-mobile-phone-modal .text-\[11px\] {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Cart checkout */
+.cocotrip-mobile-cart-checkout .text-\[\#C4956A\] {
+  font-size: 16px;
+}
+
+.cocotrip-mobile-cart-checkout .text-amber-300,
+.cocotrip-mobile-cart-checkout .text-white\/45,
+.cocotrip-mobile-cart-checkout .text-red-400\/80 {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cocotrip-mobile-cart-checkout .bg-\[\#7C5CFC\] {
+  min-height: 44px;
+  border-radius: var(--ec-button-radius);
+  background-color: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+}
+
+/* Tour booking dialog + booking form */
+.cocotrip-mobile-booking-dialog .text-\[10px\],
+.cocotrip-mobile-booking-dialog .text-\[11px\] {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cocotrip-mobile-booking-dialog .text-\[10px\].uppercase,
+.cocotrip-mobile-booking-dialog .text-\[11px\].uppercase {
+  font-size: 12px;
+}
+
+.cocotrip-mobile-booking-form input:not([type='checkbox']):not([type='radio']),
+.cocotrip-mobile-booking-form select,
+.cocotrip-mobile-booking-form textarea {
+  font-size: 16px;
+}
+
+.cocotrip-mobile-booking-form input:not([type='checkbox']):not([type='radio']),
+.cocotrip-mobile-booking-form select {
+  min-height: 44px;
+}
+
+/* PayPal booking button */
+.cocotrip-mobile-paypal button {
+  min-height: 44px;
+}
+
+.cocotrip-mobile-paypal .text-red-300 {
+  font-size: 14px;
+}
+
+.cocotrip-mobile-paypal-success .text-white\/50 {
+  font-size: 14px;
+  color: var(--ec-text-muted);
+}
+
+/* Safe focus-visible outlines on owned controls */
+.customer-about :is(a, button):focus-visible,
+.customer-account-deletion :is(a, button):focus-visible,
+.customer-support-page :is(a, button, input, select, summary):focus-visible,
+.customer-links :is(a, button):focus-visible,
+.customer-legal-document > main :is(a, button):focus-visible,
+.customer-charter-legacy :is(a, button, input, select, textarea):focus-visible,
+.customer-cart-panel :is(a, button):focus-visible,
+.customer-paypal-qr :is(a, button, input):focus-visible,
+.customer-planner-purchase :is(a, button, input, select, textarea):focus-visible,
+.cocotrip-mobile-phone-modal :is(button, input, select):focus-visible,
+.cocotrip-mobile-cart-checkout :is(a, button):focus-visible,
+.cocotrip-mobile-booking-dialog :is(a, button):focus-visible,
+.cocotrip-mobile-booking-form :is(a, button, input, select, textarea):focus-visible,
+.cocotrip-mobile-paypal :is(a, button, input, select):focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .customer-about .ec-h2,
+  .customer-account-deletion .ec-h2,
+  .customer-support-page .customer-support-title,
+  .customer-legal-document > main h1,
+  .customer-links .customer-links-title,
+  .ec-night.not-found-editorial--app .not-found-editorial__title,
+  .customer-charter-legacy .customer-charter-title {
+    font-size: clamp(32px, 3.2vw, 40px);
+  }
+}
+
+
+
+
+/* ===== Customer finance/booking presentation coherence (neutral matte panels, readable type; inline paints and semantic colours untouched) ===== */
+
+/* Cart panel */
+.customer-cart-panel .customer-cart-title {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.customer-cart-panel .customer-cart-item {
+  background-color: var(--ec-card-bg);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-cart-panel .customer-cart-item-name {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* Cart checkout (default / review / success) */
+.cocotrip-mobile-cart-checkout .customer-checkout-title {
+  font-family: var(--ec-night-serif);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.cocotrip-mobile-cart-checkout .customer-checkout-state-title {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.cocotrip-mobile-cart-checkout .customer-checkout-item {
+  background-color: var(--ec-card-bg);
+  border-radius: var(--ec-card-radius);
+}
+
+.cocotrip-mobile-cart-checkout .customer-checkout-row {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cocotrip-mobile-cart-checkout .customer-checkout-back {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.cocotrip-mobile-cart-checkout.customer-checkout-default {
+  color: var(--ec-text-primary);
+}
+
+.cocotrip-mobile-cart-checkout .customer-checkout-review-icon,
+.cocotrip-mobile-cart-checkout .customer-checkout-success-icon {
+  line-height: 1.2;
+}
+
+/* Tour booking dialog body (popover portal and sticky footer untouched) */
+.cocotrip-mobile-booking-dialog .customer-booking-body .text-\[12px\] {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cocotrip-mobile-booking-dialog .customer-booking-choice {
+  min-height: 44px;
+}
+
+.cocotrip-mobile-booking-dialog .customer-booking-total {
+  font-size: 16px;
+}
+
+.cocotrip-mobile-booking-dialog .customer-booking-total small {
+  font-size: 14px;
+}
+
+/* Booking info form: interactive targets (native checkbox boxes untouched) */
+.cocotrip-mobile-booking-form .customer-booking-promo-apply,
+.cocotrip-mobile-booking-form .customer-booking-promo-remove,
+.cocotrip-mobile-booking-form .customer-booking-agree-row,
+.cocotrip-mobile-booking-form .customer-booking-addon-row {
+  min-height: 44px;
+}
+
+/* Planner purchase */
+section.customer-planner-purchase {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
+  box-shadow: none;
+}
+
+.customer-planner-purchase .customer-purchase-price {
+  border-bottom-color: var(--ec-line-strong);
+}
+
+.customer-planner-purchase .customer-purchase-title {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.customer-planner-purchase .customer-purchase-field-label {
+  font-size: 14px;
+}
+
+.customer-planner-purchase .customer-purchase-recap {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customer-planner-purchase .customer-purchase-consent {
+  min-height: 44px;
+}
+
+/* PayPal booking button wrappers (SDK buttons, brand blue and status colours untouched) */
+.customer-paypal-review-panel {
+  background-image: none;
+  background-color: var(--ec-surface-raised);
+}
+
+.cocotrip-mobile-paypal-success.customer-paypal-success-panel {
+  background-image: none;
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  box-shadow: none;
+}
+
+.customer-paypal-heading {
+  font-family: var(--ec-night-serif);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.cocotrip-mobile-paypal .customer-paypal-coupon-copy {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cocotrip-mobile-paypal .customer-paypal-coupon-meta {
+  font-size: 14px;
+  color: var(--ec-text-muted);
+}
+
+.cocotrip-mobile-paypal .customer-paypal-promo-error,
+.cocotrip-mobile-paypal .customer-paypal-promo-text {
+  font-size: 14px;
+}
+
+.cocotrip-mobile-paypal .customer-paypal-error p {
+  font-size: 14px;
+}
+
+.cocotrip-mobile-paypal .customer-paypal-error button {
+  font-size: 14px;
+  min-height: 44px;
+}
+
+/* PayPal QR panel (QR white zone and brand/test/warning paint untouched) */
+.customer-paypal-qr .customer-paypal-qr-heading {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.customer-paypal-qr .customer-paypal-qr-step {
+  font-size: 16px;
+}
+
+.customer-paypal-qr .customer-paypal-qr-label {
+  font-size: 14px;
+}
+
+.customer-paypal-qr label > span {
+  font-size: 14px;
+}
+
+.customer-paypal-qr .customer-paypal-qr-link,
+.customer-paypal-qr .customer-paypal-qr-copybtn {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.customer-paypal-qr .customer-paypal-qr-notconfigured {
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-paypal-qr.customer-paypal-qr-default {
+  color: var(--ec-text-primary);
+}
+
+/* My bookings (status badges excluded from all rules below) */
+.customer-bookings-root .customer-bookings-title {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.customer-bookings-root .customer-booking-card {
+  background-color: var(--ec-card-bg);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-bookings-root .customer-booking-card:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+.customer-bookings-root .customer-booking-card-title {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.customer-bookings-root .customer-booking-card-meta {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customer-bookings-root .customer-booking-action {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.customer-bookings-root .customer-booking-cancel-modal,
+.customer-bookings-root .customer-booking-modify-modal,
+.customer-bookings-root .customer-booking-detail-modal {
+  background-color: var(--ec-surface-raised);
+}
+
+.customer-bookings-root .customer-booking-modify-modal,
+.customer-bookings-root .customer-booking-detail-modal {
+  border-color: var(--ec-line-contrast);
+}
+
+.customer-bookings-root .customer-booking-cancel-modal label {
+  font-size: 14px;
+}
+
+.customer-bookings-root .customer-booking-cancel-modal textarea {
+  font-size: 16px;
+}
+
+.customer-bookings-root .customer-booking-cancel-modal button,
+.customer-bookings-root .customer-booking-modify-modal button,
+.customer-bookings-root .customer-booking-detail-modal button {
+  min-height: 44px;
+}
+
+.customer-bookings-root .customer-booking-modify-modal input,
+.customer-bookings-root .customer-booking-modify-modal textarea {
+  font-size: 16px;
+}
+
+.customer-bookings-root .customer-booking-modify-modal input {
+  min-height: 44px;
+}
+
+.customer-bookings-root .customer-booking-modify-modal p,
+.customer-bookings-root .customer-booking-detail-modal p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customer-bookings-root .customer-booking-modify-modal p.uppercase {
+  font-size: 14px;
+}
+
+.customer-bookings-root .customer-booking-modify-modal h3,
+.customer-bookings-root .customer-booking-detail-modal .customer-booking-detail-title {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.customer-bookings-root .customer-booking-detail-modal .customer-booking-detail-label {
+  font-size: 14px;
+}
+
+.customer-bookings-root .customer-booking-detail-modal button {
+  font-size: 14px;
+}
+
+/* Booking status timeline (no nowrap/geometry changes) */
+.customer-booking-timeline,
+.customer-booking-timeline-canceled {
+  line-height: 1.3;
+}
+
+.customer-booking-timeline .customer-booking-timeline-label {
+  font-size: 14px;
+}
+
+.customer-booking-timeline-canceled .customer-booking-timeline-canceled-label {
+  font-size: 14px;
+}
+
+/* Phone sign-in modal */
+.cocotrip-mobile-phone-modal .customer-phone-title {
+  font-family: var(--ec-night-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.cocotrip-mobile-phone-modal .customer-phone-help {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-muted);
+}
+
+.cocotrip-mobile-phone-modal .customer-phone-back,
+.cocotrip-mobile-phone-modal .customer-phone-close {
+  font-size: 14px;
+}
+
+/* Charter legacy (customer-charter-legacy only; provider/quote paint untouched) */
+.customer-charter-legacy .customer-charter-card {
+  background-color: var(--ec-card-bg);
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
+}
+
+.customer-charter-legacy .customer-charter-label {
+  font-size: 14px;
+  color: var(--ec-text-muted);
+}
+
+.customer-charter-legacy .customer-charter-option {
+  min-height: 44px;
+}
+
+.customer-charter-legacy .customer-charter-card > div > p.text-xs {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customer-charter-legacy .customer-charter-card > ul.text-xs {
+  font-size: 14px;
+}
+
+.customer-charter-legacy .customer-charter-card > p.uppercase {
+  font-size: 14px;
+}
+
+
+
+.customer-bookings-root .customer-bookings-empty-helper {
+  color: var(--ec-text-muted);
+  font-size: 14px;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-charter-legacy .customer-charter-action[class~="active:scale-95"]:active,
+  .ec-night .ec-charter .charter-funnel-wizard .charter-funnel-action[class~="active:scale-[0.99]"]:active {
+    transform: none;
+  }
+}
+
+/* Shared tactile press on customer `.ec-btn` (2026-10-17): short colour/opacity/
+   transform transition and a 1px sink while pressed; no hover motion, no shadow.
+   The exclusion sits in :where(), so the transition stays at (0,2,0) and page rules
+   that already own a press (plan result phones) keep theirs. Excluded: Home and the
+   static pages wearing `.home-dope`, the site header/footer, the approved planner
+   first and destination steps, tabs, and the PayPal hosts (SDK iframes are out of
+   reach anyway). Disabled / aria-disabled buttons never move. */
+.ec-night .ec-btn:where(:not([role='tab'], :is(.home-dope, .home-dope-chrome, header.ec-no-print, footer.ec-no-print, .ec-planner:has(.wizard-stage--dest), .ec-planner:has(.wizard-res-ticket), .cocotrip-mobile-paypal, .customer-paypal-qr) .ec-btn)) {
+  transition-property: background-color, border-color, color, opacity, transform;
+  transition-duration: var(--ec-duration-fast);
+  transition-timing-function: var(--ec-ease-standard);
+}
+
+.ec-night .ec-btn:where(:not([role='tab'], :is(.home-dope, .home-dope-chrome, header.ec-no-print, footer.ec-no-print, .ec-planner:has(.wizard-stage--dest), .ec-planner:has(.wizard-res-ticket), .cocotrip-mobile-paypal, .customer-paypal-qr) .ec-btn)):not(:disabled):not([aria-disabled='true']):active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-night .ec-btn:where(:not([role='tab'], :is(.home-dope, .home-dope-chrome, header.ec-no-print, footer.ec-no-print, .ec-planner:has(.wizard-stage--dest), .ec-planner:has(.wizard-res-ticket), .cocotrip-mobile-paypal, .customer-paypal-qr) .ec-btn)) {
+    transition-property: background-color, border-color, color, opacity;
+  }
+
+  .ec-night .ec-btn:where(:not([role='tab'], :is(.home-dope, .home-dope-chrome, header.ec-no-print, footer.ec-no-print, .ec-planner:has(.wizard-stage--dest), .ec-planner:has(.wizard-res-ticket), .cocotrip-mobile-paypal, .customer-paypal-qr) .ec-btn)):not(:disabled):not([aria-disabled='true']):active {
+    transform: none;
+  }
+}
+

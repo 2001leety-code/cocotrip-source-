@@ -1,0 +1,2213 @@
+/*
+ * Home — dope.security-inspired local mock (2026-10-07).
+ *
+ * Imported only from src/sections/home/index.tsx, so it rides the lazy home
+ * chunk. Every selector is scoped to `.home-dope` (the home <main>) or
+ * `.home-dope-chrome` (header, mobile nav, footer, menus on the home route).
+ * No `:root`, `html` or `body` rules: other routes never match these classes.
+ *
+ * The palette is remapped by re-pointing the existing `--ec-*` tokens here,
+ * so the lower home sections (ledger, modules, specimen, regions, closing)
+ * turn dark without JSX changes.
+ */
+
+@font-face {
+  font-family: 'Lora Home Dope';
+  src: url('/home-dope/Lora-Italic.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+.home-dope,
+.home-dope-chrome {
+  --ec-surface-page: #090909;
+  --ec-surface-raised: #121214;
+  --ec-surface-sunken: #090909;
+  --ec-surface-shell: rgba(9, 9, 9, 0.55);
+  --ec-surface-shell-solid: #090909;
+  --ec-surface-inverse: #f7f9fa;
+  --ec-text-primary: #f7f9fa;
+  --ec-text-secondary: rgba(247, 249, 250, 0.8);
+  --ec-text-muted: rgba(247, 249, 250, 0.68);
+  --ec-text-faint: rgba(247, 249, 250, 0.56);
+  --ec-text-on-brand: #090909;
+  --ec-text-on-inverse: #090909;
+  --ec-line: rgba(247, 249, 250, 0.12);
+  --ec-line-strong: rgba(247, 249, 250, 0.22);
+  --ec-line-contrast: rgba(247, 249, 250, 0.34);
+  --ec-brand: #af50ff;
+  --ec-brand-hover: #e1bdff;
+  --ec-brand-wash: rgba(175, 80, 255, 0.16);
+
+  /* Component tokens in editorial.css are `var()`s computed once on :root, so
+     re-pointing the palette above does not reach them. Re-point them here too. */
+  --ec-shell-bg: rgba(9, 9, 9, 0.55);
+  --ec-shell-line: rgba(247, 249, 250, 0.12);
+  --ec-button-primary-bg: #af50ff;
+  --ec-button-primary-bg-hover: #e1bdff;
+  --ec-button-primary-fg: #090909;
+  --ec-button-secondary-fg: #f7f9fa;
+  --ec-button-secondary-line: rgba(247, 249, 250, 0.34);
+  --ec-card-bg: #121214;
+  --ec-card-line: rgba(247, 249, 250, 0.12);
+  --ec-field-bg: #121214;
+  --ec-field-line: rgba(247, 249, 250, 0.22);
+}
+
+/* Shared height of the sticky header; the hero slides under it. */
+.home-dope {
+  --home-dope-header-h: 56px;
+}
+
+@media (min-width: 768px) {
+  .home-dope {
+    --home-dope-header-h: 64px;
+  }
+}
+
+.ec-root.home-dope {
+  background-color: #090909;
+  color: #f7f9fa;
+}
+
+.home-dope :focus-visible,
+.home-dope-chrome :focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 3px;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+.home-dope .home-dope-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: min(100svh, 880px);
+  /* Pull the hero up under the translucent header so the sky shows through it. */
+  margin-top: calc(var(--home-dope-header-h) * -1);
+  padding: calc(var(--home-dope-header-h) + clamp(32px, 6vh, 72px)) 0 clamp(40px, 6vh, 72px);
+  background-color: #090909;
+}
+
+.home-dope.home-dope--with-strip .home-dope-hero {
+  margin-top: 0;
+}
+
+/* Sky (option B, animated still): navy → pink base, star field, the licensed
+   still tinted by the base (luminosity blend), own SVG clouds, travelling route. */
+.home-dope .home-dope-sky {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(180deg, #0b1440 0%, #1b2a6b 38%, #6b4aa6 68%, #e7a0c8 100%);
+}
+
+.home-dope .home-dope-sky::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 55% 0;
+  z-index: 1;
+  opacity: 0.5;
+  background:
+    radial-gradient(circle, #ffffff 0.8px, transparent 1.4px) 0 0 / 97px 83px,
+    radial-gradient(circle, #ffffff 0.6px, transparent 1.2px) 31px 17px / 151px 127px,
+    radial-gradient(circle, #e1bdff 1px, transparent 1.6px) 63px 41px / 223px 181px;
+}
+
+.home-dope .home-dope-hero__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 60%;
+  opacity: 0.62;
+  mix-blend-mode: luminosity;
+  /* Fade the still out over the lower third so it can't grey the pink band. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 85%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 85%);
+  transform-origin: 50% 60%;
+  animation: home-dope-plate-drift 60s ease-in-out infinite alternate;
+}
+
+.home-dope .home-dope-cloud {
+  position: absolute;
+  z-index: 2;
+  height: auto;
+  will-change: transform;
+}
+
+/* Speeds: 170vw per cycle → at 1440 a ≈ 41px/s, b ≈ 27px/s (≥ 80px per 3 s). */
+.home-dope .home-dope-cloud--a {
+  top: 14%;
+  left: 0;
+  width: clamp(320px, 44vw, 640px);
+  opacity: 0.7;
+  animation: home-dope-cloud-ltr 60s linear -21s infinite;
+}
+
+.home-dope .home-dope-cloud--b {
+  top: 58%;
+  left: 0;
+  width: clamp(260px, 36vw, 520px);
+  opacity: 0.55;
+  animation: home-dope-cloud-rtl 90s linear -37s infinite;
+}
+
+.home-dope .home-dope-route {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1px;
+  stroke-dasharray: 6 10;
+  animation: home-dope-route-travel 24s linear infinite;
+}
+
+@keyframes home-dope-plate-drift {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+
+@keyframes home-dope-cloud-ltr {
+  from { transform: translate3d(-60vw, 0, 0); }
+  to { transform: translate3d(110vw, 0, 0); }
+}
+
+@keyframes home-dope-cloud-rtl {
+  from { transform: translate3d(110vw, 0, 0); }
+  to { transform: translate3d(-60vw, 0, 0); }
+}
+
+@keyframes home-dope-route-travel {
+  to { stroke-dashoffset: -320; }
+}
+
+/* Readability scrim: at most 35% from the top down so the navy reads as navy
+   and the lower quarter stays the #e7a0c8 band; only the last 6% fades to the
+   page black. The copy column gets its own darker shade behind the text. */
+.home-dope .home-dope-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(9, 9, 9, 0.55) 0%, rgba(9, 9, 9, 0.3) 46%, rgba(9, 9, 9, 0) 72%),
+    linear-gradient(180deg, rgba(9, 9, 9, 0.35) 0%, rgba(9, 9, 9, 0.15) 40%, rgba(9, 9, 9, 0.08) 75%, rgba(9, 9, 9, 0.1) 94%, #090909 100%);
+}
+
+.home-dope .home-dope-hero__inner {
+  position: relative;
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4.6vw, 64px);
+  display: grid;
+  /* minmax(0, 1fr): a bare 1fr track grows to its content's min-content width (the city rail), overflowing the phone viewport. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-hero__inner {
+    grid-template-columns: 55fr 45fr;
+    align-items: center;
+    gap: clamp(32px, 4vw, 72px);
+  }
+}
+
+.home-dope .home-dope-hero__copy {
+  min-width: 0;
+}
+
+.home-dope .home-dope-eyebrow {
+  color: rgba(247, 249, 250, 0.72);
+}
+
+/* One h1, four compressed lines; serif italic and sans mix inside a line.
+   Stops (font-size / line-height / max-width): 390 46/38/326, 768 56/46/92vw,
+   1024 64/52/440, 1172 76/60.8/500, 1440 88/70.4/560. Line 4 (the trail line)
+   is set smaller but keeps the line pitch, so the box is always 4 × lh.
+   Lora is Latin-only, so CJK serif words fall back to the system serif upright. */
+.home-dope .home-dope-h1 {
+  --h1-fs: 46px;
+  --h1-lh: 38px;
+  margin: 16px 0 0;
+  max-width: 326px;
+  font-size: var(--h1-fs);
+  line-height: var(--h1-lh);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  color: #f7f9fa;
+}
+
+@media (min-width: 768px) {
+  .home-dope .home-dope-h1 { --h1-fs: 56px; --h1-lh: 46px; max-width: 92vw; }
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-h1 { --h1-fs: 64px; --h1-lh: 52px; max-width: 440px; }
+}
+
+@media (min-width: 1172px) {
+  .home-dope .home-dope-h1 { --h1-fs: 76px; --h1-lh: 60.8px; max-width: 500px; }
+}
+
+@media (min-width: 1440px) {
+  .home-dope .home-dope-h1 { --h1-fs: 88px; --h1-lh: 70.4px; max-width: 560px; }
+}
+
+.home-dope .home-dope-h1__line {
+  display: block;
+  line-height: var(--h1-lh);
+  white-space: nowrap;
+}
+
+.home-dope .home-dope-h1 .is-serif {
+  font-family: 'Lora Home Dope', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: -0.02em;
+  color: #e1bdff;
+}
+
+.home-dope .home-dope-h1:lang(ko) .is-serif,
+.home-dope .home-dope-h1:lang(ja) .is-serif,
+.home-dope .home-dope-h1:lang(zh) .is-serif,
+.ec-planner .planner-title:lang(ko) .planner-title-serif,
+.ec-planner .planner-title:lang(ja) .planner-title-serif,
+.ec-planner .planner-title:lang(zh) .planner-title-serif {
+  font-style: normal;
+  font-family: ui-serif, 'Noto Serif KR', 'Noto Serif JP', 'Noto Serif SC', Georgia, serif;
+}
+
+.home-dope .home-dope-h1:lang(ko),
+.home-dope .home-dope-h1:lang(ja),
+.home-dope .home-dope-h1:lang(zh) {
+  --h1-lh: calc(var(--h1-fs) * 0.94);
+  letter-spacing: -0.02em;
+}
+
+.home-dope .home-dope-h1__line--trail {
+  position: relative;
+  font-size: calc(var(--h1-fs) * 0.72);
+  opacity: 0.72;
+}
+
+/* Plane trail under line 4: draws once on mount, plane parks at the end. */
+.home-dope .home-dope-trail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.home-dope .home-dope-trail__track {
+  position: absolute;
+  inset: 0;
+  border-bottom: 2px dashed rgba(225, 189, 255, 0.75);
+  transform: translateY(-9px);
+  animation: home-dope-trail-draw 1400ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both;
+}
+
+.home-dope .home-dope-trail__plane {
+  position: absolute;
+  right: 0;
+  bottom: -11px;
+  width: 20px;
+  height: 20px;
+  color: #f7f9fa;
+  transform: rotate(45deg);
+}
+
+@keyframes home-dope-trail-draw {
+  from { transform: translate(-100%, -9px); }
+  to { transform: translate(0, -9px); }
+}
+
+/* Scramble: ghost copy holds the box, live copy paints on top of it. */
+.home-dope .home-dope-scramble {
+  display: inline-grid;
+}
+
+.home-dope .home-dope-scramble__ghost,
+.home-dope .home-dope-scramble__live {
+  grid-area: 1 / 1;
+}
+
+.home-dope .home-dope-scramble__ghost {
+  visibility: hidden;
+}
+
+.home-dope .home-dope-scramble__live {
+  width: 0;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.home-dope .home-dope-lede {
+  margin: 20px 0 0;
+  max-width: 34ch;
+  font-size: 17px;
+  line-height: 1.55;
+  color: rgba(247, 249, 250, 0.84);
+}
+
+@media (min-width: 1280px) {
+  .home-dope .home-dope-lede {
+    font-size: 20px;
+  }
+}
+
+/* ── Sample boarding pass ─────────────────────────────────────────────────── */
+
+.home-dope .home-dope-pass {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto;
+  border-radius: 20px;
+  border: 1px solid rgba(247, 249, 250, 0.28);
+  background-color: rgba(9, 9, 9, 0.38);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  /* Ticket notch cut into the top-left edge. */
+  -webkit-mask: radial-gradient(circle at 0 28px, transparent 12px, #000 13px);
+  mask: radial-gradient(circle at 0 28px, transparent 12px, #000 13px);
+  color: #f7f9fa;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .home-dope .home-dope-pass {
+    background-color: rgba(20, 20, 26, 0.85);
+  }
+}
+
+.home-dope .home-dope-pass__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 22px 22px;
+}
+
+.home-dope .home-dope-pass__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-dope .home-dope-pass__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f7f9fa;
+}
+
+/* Mandatory "Sample" marker. Not optional: the pass is never a real ticket. */
+.home-dope .home-dope-sample {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e1bdff;
+  color: #090909;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.home-dope .home-dope-pass__meta {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(247, 249, 250, 0.78);
+}
+
+/* min-content floor: a column is never narrower than its longest word, so
+   "Gyeongbokgung" stays whole; long names wrap between words only. */
+.home-dope .home-dope-pass__route {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.home-dope .home-dope-pass__route > div {
+  min-width: 0;
+}
+
+.home-dope .home-dope-pass__route > div:last-child {
+  text-align: right;
+}
+
+.home-dope .home-dope-pass__label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(247, 249, 250, 0.72);
+}
+
+.home-dope .home-dope-pass__value {
+  margin: 4px 0 0;
+  font-size: clamp(15px, 1.4vw, 19px);
+  font-weight: 600;
+  line-height: 1.25;
+  /* break-word (not anywhere) keeps the min-content width at a whole word. */
+  overflow-wrap: break-word;
+  word-break: keep-all;
+}
+
+.home-dope .home-dope-pass__arrow {
+  margin-bottom: 4px;
+  color: #e1bdff;
+}
+
+.home-dope .home-dope-pass__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-dope .home-dope-pass__chips li {
+  padding: 4px 10px;
+  border: 1px solid rgba(247, 249, 250, 0.34);
+  border-radius: 999px;
+  font-size: 12px;
+  color: rgba(247, 249, 250, 0.9);
+}
+
+.home-dope .home-dope-pass__cta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.home-dope .home-dope-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.home-dope .home-dope-btn--primary {
+  background: #af50ff;
+  color: #090909;
+}
+
+.home-dope .home-dope-btn--primary:hover {
+  background: #e1bdff;
+}
+
+.home-dope .home-dope-btn--ghost {
+  border: 1px solid #f7f9fa;
+  color: #f7f9fa;
+  background: transparent;
+}
+
+.home-dope .home-dope-btn--ghost:hover {
+  border-color: #e1bdff;
+  color: #e1bdff;
+}
+
+/* Barcode stub: decorative only, hidden from assistive tech. */
+.home-dope .home-dope-pass__stub {
+  position: relative;
+  min-height: 44px;
+  border-top: 1px dashed rgba(247, 249, 250, 0.4);
+}
+
+.home-dope .home-dope-pass__barcode {
+  position: absolute;
+  inset: 12px 16px;
+  opacity: 0.55;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #f7f9fa 0 2px, transparent 2px 4px,
+    #f7f9fa 4px 5px, transparent 5px 8px,
+    #f7f9fa 8px 11px, transparent 11px 12px,
+    #f7f9fa 12px 13px, transparent 13px 16px
+  );
+}
+
+@media (min-width: 768px) {
+  .home-dope .home-dope-pass {
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .home-dope .home-dope-pass__body {
+    padding: 28px 28px 28px;
+  }
+
+  .home-dope .home-dope-pass__stub {
+    min-height: 0;
+    border-top: 0;
+    border-left: 1px dashed rgba(247, 249, 250, 0.4);
+  }
+
+  .home-dope .home-dope-pass__barcode {
+    inset: 20px 14px;
+    background-image: repeating-linear-gradient(
+      0deg,
+      #f7f9fa 0 2px, transparent 2px 4px,
+      #f7f9fa 4px 5px, transparent 5px 8px,
+      #f7f9fa 8px 11px, transparent 11px 12px,
+      #f7f9fa 12px 13px, transparent 13px 16px
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-hero__inner {
+    align-items: start;
+  }
+
+  .home-dope .home-dope-pass-wrap {
+    justify-self: end;
+    width: min(512px, 100%);
+    margin-top: 8px;
+  }
+
+  .home-dope .home-dope-pass {
+    max-height: 576px;
+  }
+
+  .home-dope .home-dope-pass__body {
+    padding: 36px 36px 36px;
+    gap: 28px;
+  }
+
+  .home-dope .home-dope-pass__title {
+    font-size: 17px;
+  }
+}
+
+/* Phones: tighter stacking so the pass's primary CTA lands inside 390x844. */
+@media (max-width: 767px) {
+  .home-dope .home-dope-hero {
+    padding-top: calc(var(--home-dope-header-h) + 24px);
+  }
+
+  .home-dope .home-dope-hero__inner {
+    gap: 24px;
+  }
+
+  .home-dope .home-dope-lede {
+    margin-top: 14px;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .home-dope .home-dope-pass__body {
+    gap: 14px;
+    padding: 20px 18px 18px;
+  }
+}
+
+/* Primary CTA in the pass: the planner is the first thing the eye lands on. */
+@media (min-width: 768px) {
+  .home-dope .home-dope-btn {
+    min-height: 56px;
+  }
+}
+
+/* ── City rail ────────────────────────────────────────────────────────────── */
+
+.home-dope .home-dope-rail {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: clamp(40px, 6vh, 72px);
+  padding-top: 20px;
+  border-top: 1px solid rgba(247, 249, 250, 0.12);
+}
+
+.home-dope .home-dope-rail__list {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 2px 0 6px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.home-dope .home-dope-rail__list::-webkit-scrollbar {
+  display: none;
+}
+
+.home-dope .home-dope-rail__list > li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.home-dope .home-dope-city {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 16px 6px 6px;
+  border: 1px solid rgba(247, 249, 250, 0.2);
+  border-radius: 999px;
+  color: #f7f9fa;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: border-color 180ms ease;
+}
+
+.home-dope .home-dope-city:hover {
+  border-color: #e1bdff;
+}
+
+.home-dope .home-dope-city--other {
+  border-style: dashed;
+  padding-left: 16px;
+  color: rgba(247, 249, 250, 0.84);
+}
+
+.home-dope .home-dope-city__thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.home-dope .home-dope-credit {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: rgba(247, 249, 250, 0.6);
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-rail__list {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+}
+
+/* ── Pass: cycling content, controls, phone stub ─────────────────────────── */
+
+.home-dope .home-dope-pass-wrap {
+  min-width: 0;
+}
+
+.home-dope .home-dope-pass__summary,
+.home-dope .home-dope-pass__more,
+.home-dope .home-dope-hero__cta {
+  display: none;
+}
+
+.home-dope .home-dope-pass__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-dope .home-dope-pass__pause,
+.home-dope .home-dope-pass__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(247, 249, 250, 0.34);
+  border-radius: 999px;
+  color: #f7f9fa;
+  background: transparent;
+}
+
+.home-dope .home-dope-pass__cycle {
+  min-height: 0;
+}
+
+.home-dope .home-dope-pass__cycle > div {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.home-dope .home-dope-flip {
+  animation: home-dope-flip-in 240ms ease-out both;
+}
+
+@keyframes home-dope-flip-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.home-dope .home-dope-pass__barcode {
+  animation: home-dope-barcode 300ms ease-out both;
+}
+
+@keyframes home-dope-barcode {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.home-dope .home-dope-pass__dots {
+  display: flex;
+  gap: 4px;
+}
+
+.home-dope .home-dope-pass__dot {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.home-dope .home-dope-pass__dot::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  background: rgba(247, 249, 250, 0.4);
+  transition: background-color 180ms ease, inset 180ms ease;
+}
+
+.home-dope .home-dope-pass__dot[aria-current='true']::after {
+  inset: 7px 2px;
+  background: #e1bdff;
+}
+
+/* Phones: header → h1 → 2-line lede → one primary CTA → collapsed pass stub. */
+@media (max-width: 767px) {
+  .home-dope .home-dope-hero {
+    align-items: flex-start;
+  }
+
+  .home-dope .home-dope-cloud {
+    opacity: 0.3;
+  }
+
+  .home-dope .home-dope-lede {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .home-dope .home-dope-hero__cta {
+    display: flex;
+    margin-top: 16px;
+  }
+
+  .home-dope .home-dope-pass__summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 10px 10px 18px;
+  }
+
+  .home-dope .home-dope-pass__summary-text {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-dope .home-dope-pass__toggle {
+    width: 44px;
+    height: 44px;
+  }
+
+  .home-dope .home-dope-pass__toggle svg {
+    transition: transform 180ms ease;
+  }
+
+  .home-dope .home-dope-pass[data-collapsed='false'] .home-dope-pass__toggle svg {
+    transform: rotate(180deg);
+  }
+
+  .home-dope .home-dope-pass[data-collapsed='true'] .home-dope-pass__body,
+  .home-dope .home-dope-pass[data-collapsed='true'] .home-dope-pass__stub {
+    display: none;
+  }
+
+  .home-dope .home-dope-pass__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e1bdff;
+  }
+}
+
+/* ── Below-hero sections (home A, 2026-10-07) ───────────────────────────────
+   Replaces the 300vh pinned services story: everything here is normal flow
+   at every width, so focus, hash links and reduced motion need no special
+   path. */
+
+/* Service rows — dark 112px rows, mono tracked title, thin border, arrow. */
+.home-dope .home-dope-rows__list {
+  display: grid;
+  gap: 12px;
+}
+
+.home-dope .home-dope-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 88px;
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: var(--ec-surface-sunken);
+  color: var(--ec-text-1, #f7f9fa);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.home-dope .home-dope-row:hover {
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.home-dope .home-dope-row:focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 2px;
+}
+
+.home-dope .home-dope-row__title {
+  display: inline-grid;
+  flex: 0 0 auto;
+  min-width: 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans SC', monospace;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-dope .home-dope-row__ghost,
+.home-dope .home-dope-row__live {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.home-dope .home-dope-row__ghost {
+  visibility: hidden;
+}
+
+/* Glyphs are Latin; the ghost holds the real title's box so nothing shifts. */
+.home-dope .home-dope-row__live {
+  width: 0;
+  min-width: 100%;
+  overflow: hidden;
+}
+
+.home-dope .home-dope-row__desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+.home-dope .home-dope-row__arrow {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  transition: transform 160ms ease;
+}
+
+.home-dope .home-dope-row:hover .home-dope-row__arrow,
+.home-dope .home-dope-row:focus-visible .home-dope-row__arrow {
+  transform: translateX(4px);
+}
+
+@media (min-width: 768px) {
+  .home-dope .home-dope-row {
+    min-height: 112px;
+    padding: 20px 32px;
+    gap: 32px;
+  }
+
+  .home-dope .home-dope-row__title {
+    flex-basis: 34%;
+    font-size: clamp(28px, 3.2vw, 44px);
+  }
+
+  .home-dope .home-dope-row__desc {
+    font-size: 16px;
+  }
+
+  .home-dope .home-dope-row__arrow {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Text link with a 44px hit area. */
+.home-dope .home-dope-textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e1bdff;
+}
+
+/* Tour strip — three columns on desktop, scroll-snap ~1.2 cards on phones. */
+.home-dope .home-dope-proof__list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 82%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
+}
+
+.home-dope .home-dope-proof__list > li {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+.home-dope .home-dope-proof__card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.home-dope .home-dope-proof__card:focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 2px;
+}
+
+.home-dope .home-dope-proof__img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
+  object-fit: cover;
+}
+
+.home-dope .home-dope-proof__meta {
+  display: block;
+  padding: 14px 16px 16px;
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-proof__list {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+}
+
+.home-dope .home-dope-conditions {
+  border-top: 1px solid var(--ec-line);
+  padding-top: 16px;
+}
+
+.home-dope .home-dope-details {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+}
+
+.home-dope .home-dope-details__summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.home-dope .home-dope-details__body {
+  padding: 0 16px 16px;
+}
+
+/* Sample-day region tabs. */
+.home-dope .home-dope-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: start;
+}
+
+.home-dope .home-dope-tab {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+  background: transparent;
+}
+
+.home-dope .home-dope-tab[aria-selected='true'] {
+  background: #f7f9fa;
+  border-color: #f7f9fa;
+  color: #0b1033;
+}
+
+.home-dope .home-dope-tab:focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-tabs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-dope .home-dope-tab {
+    text-align: left;
+    border-radius: 8px;
+  }
+}
+
+.home-dope .home-dope-split__word {
+  display: inline-block;
+}
+
+/* ── Chrome: header, mobile nav, footer, menus on the home route ─────────── */
+
+/* The header and mobile-nav backgrounds are inline `var(--ec-shell-bg)` /
+   `var(--ec-surface-shell-solid)`. Re-pointing those tokens on the element
+   is what recolours them, so no inline style or !important is needed. */
+.home-dope-chrome.ec-root {
+  color: #f7f9fa;
+}
+
+/* ── Reduced motion: no transitions or animations on the home route. ─────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope *,
+  .home-dope-chrome * {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Static sky, parked trail, settled pass: no keyframe runs at all. */
+  .home-dope .home-dope-hero__photo,
+  .home-dope .home-dope-cloud,
+  .home-dope .home-dope-route,
+  .home-dope .home-dope-trail__track,
+  .home-dope .home-dope-flip,
+  .home-dope .home-dope-pass__barcode {
+    animation: none !important;
+  }
+
+  .home-dope .home-dope-trail__track {
+    transform: translateY(-9px);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .home-dope-chrome {
+    --ec-shell-bg: rgba(20, 20, 26, 0.9);
+  }
+}
+
+/* Compact header (home, 768–1279px): the nav is replaced by the hamburger, so the
+   utility rail anchors right at every width in this band (lg:ml-0 would otherwise
+   pull it back against the logo). The full-screen menu aligns to the 64px header. */
+.home-dope-chrome .home-dope-rail-compact {
+  margin-left: auto;
+}
+
+.home-dope-chrome.home-dope-menu-compact {
+  padding-top: 4rem;
+}
+
+/* ═══ Approved v3 layer (public/home-dope/design-v3.html, 2026-10-07) ═══════
+   Last in the file on purpose: re-points the palette to the shared customer
+   night tokens (customer-night.css) so home == inner pages, swaps the sky to
+   the local cloud video, and sets v3 type/pass geometry. Every functional
+   element above (pass cycle/pause/dots, CTAs, city rail) is kept. */
+
+.home-dope,
+.home-dope-chrome {
+  --ec-surface-page: #0a0b14;
+  --ec-surface-raised: #11132a;
+  --ec-surface-sunken: #0b1033;
+  --ec-surface-shell: rgba(10, 12, 30, 0.55);
+  --ec-surface-shell-solid: #0a0b14;
+  --ec-text-primary: #ffffff;
+  --ec-text-secondary: rgba(255, 255, 255, 0.8);
+  --ec-text-muted: rgba(255, 255, 255, 0.68);
+  --ec-text-faint: rgba(255, 255, 255, 0.56);
+  --ec-text-on-brand: #0a0b14;
+  --ec-line: rgba(255, 255, 255, 0.12);
+  --ec-line-strong: rgba(255, 255, 255, 0.22);
+  --ec-line-contrast: rgba(255, 255, 255, 0.28);
+  --ec-brand: #c9b8ff;
+  --ec-brand-hover: #e4dbff;
+  --ec-brand-wash: rgba(201, 184, 255, 0.14);
+  --ec-shell-bg: rgba(10, 12, 30, 0.35);
+  --ec-button-primary-bg: #c9b8ff;
+  --ec-button-primary-bg-hover: #e4dbff;
+  --ec-button-primary-fg: #0a0b14;
+  --ec-button-secondary-line: #ffffff;
+  --ec-card-bg: rgba(255, 255, 255, 0.06);
+  --ec-card-line: rgba(255, 255, 255, 0.28);
+  --ec-field-bg: #0f1128;
+  --ec-field-line: rgba(255, 255, 255, 0.28);
+  --v3-serif: 'V3 Serif', Georgia, 'Times New Roman', serif;
+}
+
+.ec-root.home-dope,
+.home-dope .home-dope-hero {
+  background-color: #0a0b14;
+}
+
+.home-dope {
+  font-weight: 500;
+}
+
+/* Sky: poster still is the background; the video sits on top when allowed. */
+/* 2026-10-07 brighter sky: one filter on the layer itself, so the poster
+   background and the video get the same tone and are never filtered twice
+   (the video below carries no filter of its own). */
+.home-dope .home-dope-sky {
+  background: #0b1033 url('/home-dope/v3-cloud-poster.jpg') 50% 65% / cover no-repeat;
+  filter: saturate(0.95) brightness(1.08);
+}
+
+.home-dope .home-dope-sky::before {
+  inset: 0;
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(11, 16, 51, 0.75) 0%, rgba(11, 16, 51, 0) 35%);
+}
+
+.home-dope .home-dope-sky__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 65%;
+}
+
+.home-dope .home-dope-hero::after {
+  background:
+    linear-gradient(90deg, rgba(10, 11, 20, 0.55) 0%, rgba(10, 11, 20, 0) 45%),
+    linear-gradient(180deg, rgba(10, 11, 20, 0) 90%, #0a0b14 100%);
+}
+
+.home-dope .home-dope-hero {
+  min-height: min(100svh, 960px);
+}
+
+/* h1: v3 Instrument Serif for the serif words, Inter 500 for the rest. */
+.home-dope .home-dope-h1 {
+  --h1-fs: clamp(44px, 13vw, 54px);
+  --h1-lh: 1;
+  max-width: 100%;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+@media (min-width: 768px) {
+  .home-dope .home-dope-h1 { --h1-fs: 64px; --h1-lh: 0.98; max-width: 92vw; }
+}
+
+@media (min-width: 1200px) {
+  .home-dope .home-dope-h1 { --h1-fs: 76px; max-width: 560px; }
+}
+
+@media (min-width: 1440px) {
+  .home-dope .home-dope-h1 { --h1-fs: 88px; }
+}
+
+/* The /planner title shares Home's serif (Latin italic, CJK upright above).
+   .ec-planner has no --v3-serif, hence the same stack as the fallback. */
+.home-dope .home-dope-h1 .is-serif,
+.ec-planner .planner-masthead .planner-title-serif {
+  font-family: var(--v3-serif, 'V3 Serif', Georgia, 'Times New Roman', serif);
+  font-style: italic;
+  letter-spacing: 0;
+  color: #ffffff;
+}
+
+/* v3 sets the opening word ("Your") upright; the rest of the serif stays italic. */
+.home-dope .home-dope-h1 .is-serif.is-roman {
+  font-style: normal;
+}
+
+/* Room under "for you." so the dashed trail runs below the descenders, not through them. */
+.home-dope .home-dope-h1__line--trail {
+  margin-top: 0.08em;
+  padding-bottom: 0.42em;
+  opacity: 0.55;
+}
+
+.home-dope .home-dope-lede {
+  margin-top: 24px;
+  max-width: 34ch;
+  font-size: 18px;
+  line-height: 1.3;
+  color: #ffffff;
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-lede { font-size: 22px; }
+}
+
+/* "See a finished plan ▶" — v3 play link, every width. */
+.home-dope .home-dope-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+  margin-top: 24px;
+  font-size: 18px;
+  color: #ffffff;
+}
+
+.home-dope .home-dope-play i {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #ffffff;
+  border-radius: 50%;
+  color: #c9b8ff;
+  transition: background 0.18s;
+}
+
+.home-dope .home-dope-play:hover i,
+.home-dope .home-dope-play:focus-visible i {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (min-width: 1024px) {
+  .home-dope .home-dope-play { font-size: 22px; }
+  .home-dope .home-dope-play i { width: 60px; height: 60px; }
+}
+
+/* Buttons: lavender pill primary, white-outline pill ghost. */
+/* /planner's first-step Continue is the same pill. Its 180ms transition comes
+   from .ec-btn's duration token, so reduced motion still applies. */
+.home-dope .home-dope-btn,
+.ec-planner .wizard-res-ticket .wizard-res-cta {
+  min-height: 48px;
+  border-radius: 999px;
+}
+
+.home-dope .home-dope-btn--primary,
+.ec-planner .wizard-res-ticket .wizard-res-cta {
+  background: #c9b8ff;
+  border-color: #c9b8ff;
+  color: #0a0b14;
+}
+
+.home-dope .home-dope-btn--primary:hover,
+.ec-planner .wizard-res-ticket .wizard-res-cta:hover {
+  background: #e4dbff;
+}
+
+.home-dope .home-dope-btn--ghost {
+  background: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+}
+
+/* Pass: v3 translucent ticket with notch + dashed right rail. */
+/* Same material on /planner's question card while the first step is shown —
+   material only: the notch mask stays Home's, nothing interactive is masked. */
+.home-dope .home-dope-pass,
+.ec-planner .planner-question:has(.wizard-res-ticket),
+.ec-planner .planner-question:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) {
+  border-radius: 10.8px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+.home-dope .home-dope-pass {
+  -webkit-mask: radial-gradient(circle 9px at 0 36px, transparent 98%, #000 100%);
+  mask: radial-gradient(circle 9px at 0 36px, transparent 98%, #000 100%);
+}
+
+.home-dope .home-dope-sample,
+.home-dope .home-dope-pass__label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #ffffff;
+}
+
+.home-dope .home-dope-pass__value {
+  font-size: 22px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.home-dope .home-dope-pass__chips li {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+.home-dope .home-dope-pass__stops {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.home-dope .home-dope-pass__stops li {
+  position: relative;
+  padding: 0 0 12px 20px;
+}
+
+.home-dope .home-dope-pass__stops li::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #ffffff;
+  border-radius: 50%;
+}
+
+.home-dope .home-dope-pass__stops li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 15px;
+  bottom: 2px;
+  border-left: 1px dotted rgba(255, 255, 255, 0.7);
+}
+
+.home-dope .home-dope-pass__start {
+  margin: 20px 0 14px;
+  font-family: var(--v3-serif);
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.home-dope .home-dope-pass__cta {
+  display: grid;
+  gap: 12px;
+}
+
+.home-dope .home-dope-pass__stub {
+  border-left: 1px dashed rgba(255, 255, 255, 0.28);
+  background: transparent;
+}
+
+.home-dope .home-dope-pass__barcode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  background: none;
+}
+
+.home-dope .home-dope-pass__barcode i {
+  display: block;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+@media (min-width: 1280px) {
+  .home-dope .home-dope-hero__inner {
+    grid-template-columns: minmax(0, 1fr) 511px;
+  }
+
+  .home-dope .home-dope-pass {
+    width: 511px;
+    min-height: 576px;
+  }
+
+  .home-dope .home-dope-pass__stub {
+    width: 60px;
+  }
+}
+
+/* Desktop fit: route, chips, three timed stops, dots and both CTAs must sit
+   inside the capped 576px pass, so the rhythm is tightened, nothing hidden. */
+@media (min-width: 1024px) {
+  .home-dope .home-dope-pass__body {
+    padding: 24px 28px;
+    gap: 14px;
+  }
+
+  .home-dope .home-dope-pass__cycle > div {
+    gap: 10px;
+  }
+
+  .home-dope .home-dope-pass__value {
+    font-size: 20px;
+  }
+
+  .home-dope .home-dope-pass__stops {
+    margin-top: 6px;
+  }
+
+  .home-dope .home-dope-pass__stops li {
+    padding-bottom: 6px;
+  }
+
+  .home-dope .home-dope-pass__start {
+    margin: 0;
+    font-size: 28px;
+  }
+
+  .home-dope .home-dope-pass__cta {
+    gap: 8px;
+  }
+}
+
+/* City rail → quiet v3 text row along the bottom. */
+.home-dope .home-dope-city {
+  border: 0;
+  background: transparent;
+  padding-inline: 4px;
+  min-height: 44px;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.home-dope .home-dope-city:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.home-dope .home-dope-city__thumb {
+  display: none;
+}
+
+/* Phones: h1, lede, play link, planner CTA, city row. The pass is hidden; the
+   play link keeps #sample-day one tap away. */
+@media (max-width: 767px) {
+  .home-dope .home-dope-pass-wrap {
+    display: none;
+  }
+
+  .home-dope .home-dope-hero__cta {
+    margin-top: 12px;
+  }
+}
+
+/* Lower sections: serif display headings, outlined surfaces, no shadows. */
+.home-dope .ec-h2,
+.home-dope .ec-h3 {
+  /* CJK headings fall through to the sans chain, not a system Mincho/Song. */
+  font-family: 'V3 Serif', Inter, 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.home-dope .ec-btn {
+  border-radius: 999px;
+}
+
+.home-dope .ec-btn-secondary {
+  background: transparent;
+  border-color: #ffffff;
+}
+
+.home-dope .ec-card,
+.home-dope .ec-card-link {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope .home-dope-sky__video {
+    display: none;
+  }
+}
+
+/* ── 2026-10-07 annotations ── */
+
+/* Sky play/pause: outside the aria-hidden sky, top-right under the header so it
+   never sits on the CTA, the city rail or the mobile bottom nav. */
+.home-dope .home-dope-sky-toggle {
+  position: absolute;
+  top: calc(var(--home-dope-header-h) + 8px);
+  right: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(10, 11, 20, 0.55);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.home-dope .home-dope-sky-toggle:hover {
+  background: rgba(10, 11, 20, 0.75);
+}
+
+@media (min-width: 768px) {
+  .home-dope .home-dope-sky-toggle { right: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope .home-dope-sky-toggle { display: none; }
+}
+
+/* #sample-day transit legs: previous → next stop, the existing label, and one
+   external directions link per leg. Wraps on phones. */
+.home-dope .home-dope-leg-note {
+  margin: 0;
+  padding: 12px 20px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.home-dope .home-dope-leg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 10px;
+  margin: 4px 0 4px 64px;
+  padding: 8px 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.home-dope .home-dope-leg__icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.home-dope .home-dope-leg__route {
+  margin: 0;
+  font-weight: 600;
+  color: #ffffff;
+  overflow-wrap: anywhere;
+}
+
+.home-dope .home-dope-leg__label {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.home-dope .home-dope-leg__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .home-dope .home-dope-leg { margin-left: 0; }
+  .home-dope .home-dope-leg__link { margin-left: 26px; }
+}
+
+/* Footer (home only): company/contact block folded behind one summary row. */
+.home-dope-chrome .home-dope-footer-info__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.home-dope-chrome .home-dope-footer-info__summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-dope-chrome .home-dope-footer-info__chevron {
+  transition: transform 160ms ease;
+}
+
+.home-dope-chrome .home-dope-footer-info[open] .home-dope-footer-info__chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope-chrome .home-dope-footer-info__chevron { transition: none; }
+}
+
+/* ── Chrome follow-up (2026-10-07): chat trigger, hamburger, menu entry ──── */
+
+/* Chat trigger (ChatWidget.tsx): compact dark tile instead of the pale round
+   button. It carries `.home-dope-chrome` itself (it is fixed outside the header),
+   so the tokens resolve on the element; position stays inline in the component. */
+.home-dope-chrome.home-dope-chat-trigger {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--ec-line-strong);
+  background: var(--ec-surface-raised);
+  color: var(--ec-text-primary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.home-dope-chrome.home-dope-chat-trigger:hover {
+  border-color: var(--ec-line-contrast);
+  background: var(--ec-surface-sunken);
+}
+
+.home-dope-chrome.home-dope-chat-trigger:focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 3px;
+}
+
+/* Full-screen menu open (Header sets data-menu-open on <html>): the chat trigger
+   and panel sit above it (z 10000/9999). visibility, not opacity, so neither is
+   clickable or keyboard-reachable; ChatWidget keeps its open state underneath. */
+html[data-menu-open='true'] .home-dope-chat-trigger,
+html[data-menu-open='true'] .home-dope-chat-panel {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Hamburger: two currentColor bars that cross into an X. */
+.home-dope-chrome .home-dope-burger {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 10px;
+}
+
+.home-dope-chrome .home-dope-burger > span {
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform 220ms ease, top 220ms ease;
+}
+
+.home-dope-chrome .home-dope-burger > span:first-child { top: 0; }
+.home-dope-chrome .home-dope-burger > span:last-child { top: 8.5px; }
+
+.home-dope-chrome .home-dope-burger[data-open='true'] > span { top: 4.25px; }
+.home-dope-chrome .home-dope-burger[data-open='true'] > span:first-child { transform: rotate(45deg); }
+.home-dope-chrome .home-dope-burger[data-open='true'] > span:last-child { transform: rotate(-45deg); }
+
+/* Menu panel: the cloud poster behind the header strip + login region, darkened
+   to the page colour, so the menu reads as part of the home sky. Decorative only. */
+.home-dope-chrome.home-dope-menu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(3.5rem + 120px);
+  background:
+    linear-gradient(180deg, rgba(10, 11, 20, 0.45) 0%, rgba(10, 11, 20, 0.78) 60%, #0a0b14 100%),
+    url('/home-dope/v3-cloud-poster.jpg') center 40% / cover no-repeat;
+  pointer-events: none;
+}
+
+.home-dope-chrome.home-dope-menu.home-dope-menu-compact::before {
+  height: calc(4rem + 120px);
+}
+
+/* Entry only: close stays instant (the panel unmounts). */
+.home-dope-chrome .home-dope-menu__body {
+  position: relative;
+  animation: home-dope-menu-in 220ms ease-out both;
+}
+
+.home-dope-chrome .home-dope-menu__main nav > a {
+  animation: home-dope-menu-in 220ms ease-out both;
+}
+
+.home-dope-chrome .home-dope-menu__main nav > a:nth-child(2) { animation-delay: 30ms; }
+.home-dope-chrome .home-dope-menu__main nav > a:nth-child(3) { animation-delay: 60ms; }
+.home-dope-chrome .home-dope-menu__main nav > a:nth-child(4) { animation-delay: 90ms; }
+.home-dope-chrome .home-dope-menu__main nav > a:nth-child(n + 5) { animation-delay: 120ms; }
+
+@keyframes home-dope-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope-chrome.home-dope-chat-trigger,
+  .home-dope-chrome .home-dope-burger > span {
+    transition: none;
+  }
+
+  .home-dope-chrome .home-dope-menu__body,
+  .home-dope-chrome .home-dope-menu__main nav > a {
+    animation: none;
+  }
+}
+
+/* ── Menu content (2026-10-07): editorial sheet on the same ec tokens ──────
+   Header.tsx only adds neutral wrappers (account / main / groups / admin / strip)
+   on home; DOM order (account → routes → trips/rewards → admin → strip) is the
+   tab order. Phone: one column, trips/rewards as a 2-col compact grid.
+   ≥768: routes left, account + trips/rewards right, settings/support/legal strip. */
+.home-dope-chrome .home-dope-menu__body .ec-eyebrow { margin-bottom: 8px; }
+.home-dope-chrome .home-dope-menu__body .ec-rule { margin-bottom: 0; }
+
+.home-dope-chrome .home-dope-menu__account > * { margin-bottom: 24px; }
+
+.home-dope-chrome .home-dope-menu__main nav > a {
+  min-height: 56px;
+  padding-block: 10px;
+}
+.home-dope-chrome .home-dope-menu__main nav > a > span > svg { display: none; }
+.home-dope-chrome .home-dope-menu__main nav > a > span > span {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.home-dope-chrome .home-dope-menu__groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 20px;
+  margin-top: 28px;
+}
+.home-dope-chrome .home-dope-menu__groups > div { margin-top: 0; min-width: 0; }
+.home-dope-chrome .home-dope-menu__groups a {
+  min-height: 44px;
+  padding-block: 8px;
+}
+.home-dope-chrome .home-dope-menu__groups a > span { gap: 8px; min-width: 0; }
+.home-dope-chrome .home-dope-menu__groups a > span > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.home-dope-chrome .home-dope-menu__groups a > span > span {
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.home-dope-chrome .home-dope-menu__groups a > svg { display: none; }
+
+.home-dope-chrome .home-dope-menu__admin { margin-top: 28px; }
+.home-dope-chrome .home-dope-menu__admin a { min-height: 44px; padding-block: 8px; }
+
+.home-dope-chrome .home-dope-menu__strip {
+  margin-top: 32px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ec-line);
+}
+.home-dope-chrome .home-dope-menu__strip > div { margin-top: 20px; }
+.home-dope-chrome .home-dope-menu__strip a,
+.home-dope-chrome .home-dope-menu__strip button { min-height: 44px; }
+.home-dope-chrome .home-dope-menu__strip > div > a { padding-block: 8px; }
+.home-dope-chrome .home-dope-menu__strip > div > a > span:not(.ml-auto) { font-size: 14px; }
+.home-dope-chrome .home-dope-menu__strip button[aria-pressed] { min-width: 44px; padding-inline: 14px; }
+.home-dope-chrome .home-dope-menu__strip > div:not(:last-child) > button { padding-block: 8px; }
+
+/* Footer: copyright + legal on one wrapping line; legal links get 44px hit rows. */
+.home-dope-chrome .home-dope-menu__strip > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding-top: 12px;
+}
+.home-dope-chrome .home-dope-menu__strip > div:last-child > p { text-align: left; }
+.home-dope-chrome .home-dope-menu__strip > div:last-child > div {
+  margin-top: 0;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+.home-dope-chrome .home-dope-menu__strip > div:last-child a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding-inline: 2px;
+}
+
+@media (min-width: 768px) {
+  .home-dope-chrome .home-dope-menu__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas:
+      'main account'
+      'main groups'
+      'main admin'
+      'strip strip';
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 32px;
+    align-content: start;
+    max-width: 1040px;
+    margin-inline: auto;
+    padding-inline: 32px;
+  }
+  .home-dope-chrome .home-dope-menu__account { grid-area: account; }
+  .home-dope-chrome .home-dope-menu__main { grid-area: main; }
+  .home-dope-chrome .home-dope-menu__groups { grid-area: groups; margin-top: 0; }
+  .home-dope-chrome .home-dope-menu__admin { grid-area: admin; }
+  .home-dope-chrome .home-dope-menu__strip {
+    grid-area: strip;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    column-gap: 32px;
+    align-items: start;
+  }
+  .home-dope-chrome .home-dope-menu__strip > div:last-child { grid-column: 1 / -1; }
+  .home-dope-chrome .home-dope-menu__main nav > a > span > span { font-size: 22px; }
+}
+
+/* ── Open chat panel (2026-10-07): ChatWidget.tsx swaps its inline look for
+   these hooks on home only; position/size stay inline. No gradients. ────── */
+.home-dope-chrome.home-dope-chat-panel {
+  border-radius: 16px;
+  border: 1px solid var(--ec-line-strong);
+  background: var(--ec-surface-page);
+  color: var(--ec-text-primary);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: home-dope-chat-in 160ms ease-out both;
+}
+
+/* Keep clear of the 56px/64px header above the inline bottom offset. */
+@media (max-width: 767px) {
+  .home-dope-chrome.home-dope-chat-panel { max-height: calc(100dvh - 140px - 68px); }
+}
+@media (min-width: 768px) {
+  .home-dope-chrome.home-dope-chat-panel { max-height: calc(100dvh - 88px - 76px); }
+}
+
+@keyframes home-dope-chat-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+.home-dope-chat-panel .home-dope-chat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 6px 8px 14px;
+  background: var(--ec-surface-raised);
+  border-bottom: 1px solid var(--ec-line);
+}
+.home-dope-chat-panel .home-dope-chat__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ec-line);
+  color: var(--ec-brand);
+}
+.home-dope-chat-panel .home-dope-chat__title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.home-dope-chat-panel .home-dope-chat__subtitle { font-size: 12px; line-height: 1.3; color: var(--ec-text-muted); }
+
+.home-dope-chat-panel .home-dope-chat__icon-btn,
+.home-dope-chat-panel .home-dope-chat__plus,
+.home-dope-chat-panel .home-dope-chat__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ec-text-secondary);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.home-dope-chat-panel .home-dope-chat__icon-btn:hover { background: var(--ec-brand-wash); color: var(--ec-text-primary); }
+
+.home-dope-chat-panel .home-dope-chat__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+.home-dope-chat-panel .home-dope-chat__bubble {
+  max-width: 82%;
+  padding: 9px 12px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid var(--ec-line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ec-text-primary);
+  font-size: 13.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.home-dope-chat-panel .home-dope-chat__bubble--user {
+  border-color: transparent;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ec-brand);
+  color: var(--ec-text-on-brand);
+}
+.home-dope-chat-panel .home-dope-chat__bubble--admin {
+  border-left: 3px solid #fbbf24;
+  border-radius: 4px 14px 14px 4px;
+}
+.home-dope-chat-panel .home-dope-chat__staff {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fcd34d;
+}
+.home-dope-chat-panel .home-dope-chat__time {
+  margin-top: 4px;
+  padding-inline: 2px;
+  font-size: 11px;
+  color: var(--ec-text-faint);
+}
+.home-dope-chat-panel .home-dope-chat__time--user { text-align: right; }
+
+.home-dope-chat-panel .home-dope-chat__quick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.home-dope-chat-panel .home-dope-chat__chip,
+.home-dope-chat-panel .home-dope-chat__faq-item {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ec-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ec-text-primary);
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.home-dope-chat-panel .home-dope-chat__chip:hover,
+.home-dope-chat-panel .home-dope-chat__faq-item:hover {
+  border-color: var(--ec-brand);
+  background: var(--ec-brand-wash);
+}
+
+.home-dope-chat-panel .home-dope-chat__loading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid var(--ec-line);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.home-dope-chat-panel .home-dope-chat__wa {
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-top: 1px solid var(--ec-line);
+}
+.home-dope-chat-panel .home-dope-chat__wa-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 13px;
+  color: var(--ec-text-muted);
+  text-decoration: none;
+}
+.home-dope-chat-panel .home-dope-chat__wa-link:hover { color: var(--ec-text-primary); }
+
+/* Guest gate: auto height so title, desc, button and error always show. */
+.home-dope-chat-panel .home-dope-chat__gate {
+  flex-shrink: 0;
+  padding: 14px;
+  border-top: 1px solid var(--ec-line);
+  background: var(--ec-surface-raised);
+}
+.home-dope-chat-panel .home-dope-chat__gate-title { margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+.home-dope-chat-panel .home-dope-chat__gate-desc { margin-bottom: 12px; font-size: 12.5px; line-height: 1.45; color: var(--ec-text-muted); }
+/* Google button keeps Google's white surface + 4-colour mark. */
+.home-dope-chat-panel .home-dope-chat__google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.home-dope-chat-panel .home-dope-chat__google:disabled { opacity: 0.65; cursor: progress; }
+.home-dope-chat-panel .home-dope-chat__gate-error {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  color: #fca5a5;
+}
+
+.home-dope-chat-panel .home-dope-chat__composer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ec-line);
+  background: var(--ec-surface-raised);
+}
+.home-dope-chat-panel .home-dope-chat__plus { border-color: var(--ec-line-strong); border-radius: 50%; }
+.home-dope-chat-panel .home-dope-chat__plus:hover { border-color: var(--ec-brand); }
+.home-dope-chat-panel .home-dope-chat__plus[aria-expanded='true'] {
+  border-color: var(--ec-brand);
+  background: var(--ec-brand-wash);
+  color: var(--ec-text-primary);
+}
+.home-dope-chat-panel .home-dope-chat__plus[aria-expanded='true'] svg { transform: rotate(45deg); }
+.home-dope-chat-panel .home-dope-chat__plus svg { transition: transform 160ms ease; }
+
+.home-dope-chat-panel .home-dope-chat__input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  border: 1px solid var(--ec-field-line);
+  background: var(--ec-field-bg);
+  color: var(--ec-text-primary);
+  font-size: 14px;
+  outline: none;
+}
+.home-dope-chat-panel .home-dope-chat__input::placeholder { color: var(--ec-text-faint); }
+.home-dope-chat-panel .home-dope-chat__input:focus-visible { border-color: var(--ec-brand); outline: 2px solid #e1bdff; outline-offset: 1px; }
+.home-dope-chat-panel .home-dope-chat__input:disabled { opacity: 0.6; cursor: wait; }
+
+.home-dope-chat-panel .home-dope-chat__send { border-radius: 50%; }
+.home-dope-chat-panel .home-dope-chat__send:not(:disabled) {
+  background: var(--ec-brand);
+  color: var(--ec-text-on-brand);
+}
+.home-dope-chat-panel .home-dope-chat__send:not(:disabled):hover { background: var(--ec-brand-hover); }
+.home-dope-chat-panel .home-dope-chat__send:disabled {
+  border-color: var(--ec-line);
+  color: var(--ec-text-faint);
+  cursor: not-allowed;
+}
+
+.home-dope-chat-panel .home-dope-chat__faq {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 8px;
+  right: 8px;
+  z-index: 10;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--ec-line-strong);
+  background: var(--ec-surface-raised);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.home-dope-chat-panel .home-dope-chat__faq-title {
+  margin-bottom: 8px;
+  padding-left: 4px;
+  font-size: 12px;
+  color: var(--ec-text-muted);
+}
+
+.home-dope-chat-panel button:focus-visible,
+.home-dope-chat-panel a:focus-visible {
+  outline: 2px solid #e1bdff;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dope-chrome.home-dope-chat-panel { animation: none; }
+  .home-dope-chat-panel .home-dope-chat__icon-btn,
+  .home-dope-chat-panel .home-dope-chat__plus,
+  .home-dope-chat-panel .home-dope-chat__plus svg,
+  .home-dope-chat-panel .home-dope-chat__send,
+  .home-dope-chat-panel .home-dope-chat__chip,
+  .home-dope-chat-panel .home-dope-chat__faq-item { transition: none; }
+  .home-dope-chat-panel .home-dope-chat__loading > span { animation: none !important; opacity: 0.7; }
+}

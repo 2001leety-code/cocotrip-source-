@@ -105,6 +105,9 @@ describe('2026-07-10 — prod 순서(검증→매칭)에서 DB 인증 인정', (
 });
 
 describe('2026-07-10 — 부정문("no pork") 거짓 conflict fix', () => {
+  const halalEvidence = [{
+    name: 'Halal Kitchen', city: 'seoul', tag: 'halal', verification_status: 'halal_certified',
+  }];
   const halalStop = (tip: string) => ({
     days: [{
       city: 'seoul',
@@ -115,19 +118,19 @@ describe('2026-07-10 — 부정문("no pork") 거짓 conflict fix', () => {
 
   it('"Halal certified — no pork served" 안심 문구는 violation 아님', () => {
     const issues = validateResponse(halalStop('Halal certified — no pork served here.'),
-                                    { lang: 'en', dietary: ['Halal'] }, []);
+                                    { lang: 'en', dietary: ['Halal'] }, halalEvidence);
     expect(dietaryViolations(issues)).toHaveLength(0);
   });
 
   it('"pork-free menu" 도 violation 아님', () => {
     const issues = validateResponse(halalStop('100% pork-free menu, halal verified.'),
-                                    { lang: 'en', dietary: ['Halal'] }, []);
+                                    { lang: 'en', dietary: ['Halal'] }, halalEvidence);
     expect(dietaryViolations(issues)).toHaveLength(0);
   });
 
   it('"돼지고기 없음" 한국어 부정문도 violation 아님', () => {
     const issues = validateResponse(halalStop('할랄 인증 — 돼지고기 없음.'),
-                                    { lang: 'en', dietary: ['Halal'] }, []);
+                                    { lang: 'en', dietary: ['Halal'] }, halalEvidence);
     expect(dietaryViolations(issues)).toHaveLength(0);
   });
 
@@ -152,7 +155,9 @@ describe('2026-07-10 — 부정문("no pork") 거짓 conflict fix', () => {
         display_name: 'Green Table', dietary_tags: ['vegan'],
         tip: '100% vegan — no meat, no fish used in any dish.' }] }],
     };
-    const issues = validateResponse(itin, { lang: 'en', dietary: ['Vegan'] }, []);
+    const issues = validateResponse(itin, { lang: 'en', dietary: ['Vegan'] }, [{
+      name: 'Green Table', city: 'seoul', tag: 'vegan', verification_status: 'vegan_restaurant',
+    }]);
     expect(dietaryViolations(issues)).toHaveLength(0);
   });
 });

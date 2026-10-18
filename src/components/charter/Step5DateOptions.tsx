@@ -254,7 +254,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   };
 
   return (
-    <div className="space-y-6">
+    <div className="charter-funnel-step-body space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         {/* 날짜 */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
@@ -284,7 +284,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             placeholder="HH:mm"
             className={inputCls}
             style={{ colorScheme: 'dark' }} />
-          <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">
+          <p className="charter-funnel-field-help text-[11px] text-white/45 mt-2 px-1 leading-snug">
             {i18n.bookingCutoffNote(cutoffHours)}
           </p>
         </div>
@@ -300,7 +300,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       )}
 
       {/* 배차 실패 시 자동취소 고지 — 결제 전에 반드시 보이게 (운영자 2026-07-28). */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] text-white/60 flex items-start gap-2">
+      <div className="charter-funnel-note charter-funnel-note-neutral rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] text-white/60 flex items-start gap-2">
         <span className="text-base leading-none">🚐</span>
         <span>{i18n.dispatchFailAutoCancelNote}</span>
       </div>
@@ -349,7 +349,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
                 );
               })}
             </div>
-            <p className="text-xs text-white/55 mt-2">{i18n.lodgingNote}</p>
+            <p className="charter-funnel-field-help text-xs text-white/55 mt-2">{i18n.lodgingNote}</p>
           </div>
         </>
       )}
@@ -388,14 +388,14 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             checked={!!state.options?.childSeat} onChange={v => patch({ options: { ...state.options, childSeat: v } })} />
         </div>
         {isNight && (
-          <p className="text-xs text-amber-300 mt-3">⚠ {i18n.nightWarn(EXTRA_CHARGES.nightSurchargePercent)}</p>
+          <p className="charter-funnel-note text-xs text-amber-300 mt-3">⚠ {i18n.nightWarn(EXTRA_CHARGES.nightSurchargePercent)}</p>
         )}
         {/* 공항 서비스 시 수하물 → 차량 수 권장 안내 (BookingInfoForm 캐리어 카운터 입력값 기준) */}
         {isAirport && (() => {
           const lug = state.airport?.luggage ?? {};
           const total = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
           return (
-            <p className={`text-[11px] mt-3 px-1 leading-snug ${total >= 7 ? 'text-amber-300' : 'text-white/45'}`}>
+            <p className={`charter-funnel-field-help text-[11px] mt-3 px-1 leading-snug ${total >= 7 ? 'text-amber-300' : 'text-white/45'}`}>
               {total >= 7 ? '⚠ ' : ''}{vehicleLuggageNote(state.vehicle, total, langCode)}
             </p>
           );
@@ -447,10 +447,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
                 className="min-h-[44px] w-full px-4 py-2.5 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
                 {flightLoading ? '…' : i18n.flightLookup}
               </button>
-              <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
-              {flightErr && <p className="text-[11px] text-amber-300 mt-1">{flightErr}</p>}
+              <p className="charter-funnel-field-help text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
+              {flightErr && <p className="charter-funnel-note text-[11px] text-amber-300 mt-1">{flightErr}</p>}
               {arr?.lookedUp && (
-                <div className="mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
+                <div className="charter-funnel-note mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
                   ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
                   {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
                   {arr.status ? ` · ${arr.status}` : ''}
@@ -465,10 +465,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   );
 }
 
-const inputCls = 'w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-black/15 text-white/90 text-sm outline-none transition-colors focus:border-[#B668FC]/55 focus:bg-black/20';
+const inputCls = 'charter-funnel-control w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-black/15 text-white/90 text-sm outline-none transition-colors focus:border-[#B668FC]/55 focus:bg-black/20';
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
+  return <p className="charter-funnel-field-label text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
 }
 
 function OptionPill({ label, sub, checked, onChange }: { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -476,7 +476,7 @@ function OptionPill({ label, sub, checked, onChange }: { label: string; sub: str
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`flex min-h-[46px] items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+      className={`charter-funnel-option-label flex min-h-[46px] items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
         checked ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'
       }`}
     >
@@ -484,7 +484,7 @@ function OptionPill({ label, sub, checked, onChange }: { label: string; sub: str
         {checked && <span className="w-1.5 h-1.5 rounded-sm bg-white" />}
       </span>
       <span>{label}</span>
-      <span className="text-white/55 text-xs">{sub}</span>
+      <span className="charter-funnel-option-sub text-white/55 text-xs">{sub}</span>
     </button>
   );
 }

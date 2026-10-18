@@ -22,7 +22,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -402,6 +402,177 @@ describe('목록 전체 — Korea Editorial Concierge 문서형 셸', () => {
     expect(panel?.querySelectorAll('fieldset').length).toBeGreaterThanOrEqual(4);
     expect(panel?.querySelectorAll('legend').length).toBeGreaterThanOrEqual(4);
     expect(main?.querySelector('[data-testid="tours-grid"]')).not.toBeNull();
+  });
+
+  it('DOM 순서: 필터 → 상품 목록 → 지역 탐색 (지역 레일은 목록 뒤, 여전히 동작)', () => {
+    const { container } = renderPage('ko');
+    const panel = container.querySelector('[data-testid="tours-filter-panel"]')!;
+    const grid = container.querySelector('[data-testid="tours-grid"]')!;
+    const rail = container.querySelector('[data-testid="tours-region-rail"]')!;
+    expect(panel.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(grid.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const regionButton = rail.querySelector('button')!;
+    fireEvent.click(regionButton);
+    expect(regionButton.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('지역 선택(재선택 포함)은 결과 섹션으로 이동하고 감속 설정이면 smooth 를 쓰지 않는다', () => {
+    const scrollIntoView = vi.fn();
+    const originalScroll = Element.prototype.scrollIntoView;
+    const originalMatchMedia = window.matchMedia;
+    const originalRaf = window.requestAnimationFrame;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(0); return 1; };
+    try {
+      const { container } = renderPage('ko');
+      const regionButton = container.querySelector('[data-testid="tours-region-rail"] button')!;
+
+      fireEvent.click(regionButton);
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'start' });
+      expect(scrollIntoView.mock.contexts[0]).toBe(container.querySelector('.tours-catalog-results'));
+
+      window.matchMedia = ((q: string) => ({
+        matches: true, media: q, onchange: null,
+        addListener: () => {}, removeListener: () => {},
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+      fireEvent.click(regionButton);
+      expect(regionButton.getAttribute('aria-pressed')).toBe('true');
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'start' });
+    } finally {
+      Element.prototype.scrollIntoView = originalScroll;
+      window.matchMedia = originalMatchMedia;
+      window.requestAnimationFrame = originalRaf;
+    }
+  });
+
+  describe('검색 조건 URL 복원', () => {
+    function LocationProbe() {
+      const location = useLocation();
+      const navigationType = useNavigationType();
+      return <output data-testid="probe" data-type={navigationType}>{location.pathname}{location.search}</output>;
+    }
+    function renderAt(url: string) {
+      mockLanguage.current = 'ko';
+      return render(<MemoryRouter initialEntries={[url]}><ToursPage /><LocationProbe /></MemoryRouter>);
+    }
+    const probe = (container: HTMLElement) => container.querySelector('[data-testid="probe"]') as HTMLElement;
+    const cardCount = (container: HTMLElement) => container.querySelectorAll('[data-testid="tours-grid"] .tour-catalog-card').length;
+
+    it('q/region/sort URL 로 검색·지역·정렬을 복원하고 DMZ 상품 1건만 보인다', () => {
+      const { container } = renderAt('/tours?q=DMZ&region=DMZ&sort=price-asc');
+      expect((container.querySelector('input[type="search"]') as HTMLInputElement).value).toBe('DMZ');
+      expect(container.querySelector('[data-testid="tours-region-rail"] button[aria-pressed="true"]')?.textContent).toContain('DMZ');
+      expect((container.querySelector('select') as HTMLSelectElement).value).toBe('price-asc');
+      expect(cardCount(container)).toBe(1);
+    });
+
+    it('알 수 없는 region/sort 는 All/default 로 안전하게 처리한다', () => {
+      const { container } = renderAt('/tours?region=Atlantis&sort=bogus');
+      expect(container.querySelectorAll('[data-testid="tours-region-rail"] button[aria-pressed="true"]').length).toBeLessThanOrEqual(1);
+      const chips = Array.from(container.querySelector('[data-testid="tours-filter-panel"] fieldset')!.querySelectorAll('button'));
+      const allChip = chips.find((button) => button.textContent === '전체')!;
+      const dmzChip = chips.find((button) => (button.textContent || '').includes('DMZ'))!;
+      expect(allChip.getAttribute('aria-pressed')).toBe('true');
+      expect(dmzChip.getAttribute('aria-pressed')).toBe('false');
+      expect(chips.filter((button) => button.getAttribute('aria-pressed') === 'true')).toEqual([allChip]);
+      expect((container.querySelector('select') as HTMLSelectElement).value).toBe('default');
+      expect(cardCount(container)).toBeGreaterThan(1);
+      expect(container.querySelector('[data-testid="tours-results-count"] strong')?.textContent).toBe('9');
+    });
+
+    it('검색 입력은 history 를 쌓지 않고(replace) 다른 parameter 를 유지한다', () => {
+      const { container } = renderAt('/tours?utm=keep');
+      const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'D' } });
+      fireEvent.change(input, { target: { value: 'DM' } });
+      expect(probe(container).dataset.type).toBe('REPLACE');
+      expect(probe(container).textContent).toBe('/tours?utm=keep&q=DM');
+    });
+
+    it('입력 지움 후 지역/정렬 이동 뒤 Back/Forward 마다 URL q·입력·결과가 일치하고 오래된 큐 값이 되살아나지 않는다', () => {
+      function HistoryButtons() {
+        const navigate = useNavigate();
+        return (
+          <>
+            <button type="button" data-testid="hist-back" onClick={() => navigate(-1)} />
+            <button type="button" data-testid="hist-forward" onClick={() => navigate(1)} />
+          </>
+        );
+      }
+      mockLanguage.current = 'ko';
+      const { container } = render(
+        <MemoryRouter initialEntries={['/tours']}><ToursPage /><LocationProbe /><HistoryButtons /></MemoryRouter>,
+      );
+      const input = () => container.querySelector('input[type="search"]') as HTMLInputElement;
+      const press = (id: string) => fireEvent.click(container.querySelector(`[data-testid="${id}"]`) as HTMLElement);
+      const search = () => new URLSearchParams(probe(container).textContent!.split('?')[1] || '');
+      const expectSync = (q: string, region: string | null, sort: string | null) => {
+        expect(search().get('q') || '').toBe(q);
+        expect(search().get('region')).toBe(region);
+        expect(search().get('sort')).toBe(sort);
+        expect(input().value).toBe(q);
+        if (q === 'DMZ') expect(cardCount(container)).toBe(1);
+        if (q === '') expect(cardCount(container)).toBeGreaterThan(0);
+      };
+      ['D', 'DM', 'DMZ'].forEach((value) => fireEvent.change(input(), { target: { value } }));
+      expectSync('DMZ', null, null);
+      const dmz = Array.from(container.querySelectorAll('[data-testid="tours-region-rail"] button')).find((b) => (b.textContent || '').includes('DMZ'))!;
+      fireEvent.click(dmz);
+      fireEvent.change(input(), { target: { value: '' } });
+      expectSync('', 'DMZ', null);
+      fireEvent.change(container.querySelector('select') as HTMLSelectElement, { target: { value: 'price-asc' } });
+      expectSync('', 'DMZ', 'price-asc');
+      press('hist-back');
+      expectSync('', 'DMZ', null);
+      press('hist-back');
+      expectSync('DMZ', null, null);
+      press('hist-forward');
+      expectSync('', 'DMZ', null);
+      press('hist-forward');
+      expectSync('', 'DMZ', 'price-asc');
+    });
+
+    it('전체 필터 초기화는 q/region/sort 만 지우고 다른 parameter 는 유지한다', () => {
+      const { container } = renderAt('/tours?utm=keep&q=zzqqxx&region=DMZ&sort=price-desc');
+      const reset = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '필터 초기화')!;
+      fireEvent.click(reset);
+      expect(probe(container).textContent).toBe('/tours?utm=keep');
+      expect((container.querySelector('input[type="search"]') as HTMLInputElement).value).toBe('');
+      expect((container.querySelector('select') as HTMLSelectElement).value).toBe('default');
+      expect(container.querySelector('[data-testid="tours-region-rail"] button[aria-pressed="true"]')).toBeNull();
+      expect(cardCount(container)).toBeGreaterThan(1);
+    });
+
+    it('지역·정렬 변경은 다른 parameter 를 유지한다', () => {
+      const { container } = renderAt('/tours?utm=keep&q=DMZ');
+      const dmz = Array.from(container.querySelectorAll('[data-testid="tours-region-rail"] button')).find((b) => (b.textContent || '').includes('DMZ'))!;
+      fireEvent.click(dmz);
+      fireEvent.change(container.querySelector('select') as HTMLSelectElement, { target: { value: 'price-asc' } });
+      const search = new URLSearchParams(probe(container).textContent!.split('?')[1]);
+      expect(Object.fromEntries(search)).toEqual({ utm: 'keep', q: 'DMZ', region: 'DMZ', sort: 'price-asc' });
+    });
+  });
+
+  it('결과 표제는 네 언어 모두 투어 목록이고 개수는 정확한 필터 결과 수다', () => {
+    for (const [lang, label] of [['ko', '투어 목록'], ['en', 'Tour list'], ['ja', 'ツアー一覧'], ['zh', '旅游线路列表']] as const) {
+      const { container, unmount } = renderPage(lang);
+      expect(container.querySelector('#tours-results-title')?.textContent).toBe(label);
+      const cards = container.querySelectorAll('[data-testid="tours-grid"] .tour-catalog-card').length;
+      expect(container.querySelector('[data-testid="tours-results-count"] strong')?.textContent).toBe(String(cards));
+      unmount();
+    }
+    expect(read('src/pages/ToursPage.tsx')).not.toContain('현재 일정');
+  });
+
+  it('모바일 계절 안내 본문은 sr-only 와 섞이지 않은 전용 요소에 전문이 들어간다', () => {
+    const { container } = renderPage('ko');
+    const text = container.querySelector('[data-testid="tours-season-mobile-text"]')!;
+    expect(text.querySelector('.sr-only')).toBeNull();
+    expect((text.textContent || '').trim().length).toBeGreaterThan(0);
+    expect(read('src/styles/editorial-tours-catalog.css')).toMatch(/\.tours-catalog-season-mobile-text\s*\{[^}]*-webkit-line-clamp:\s*[2-9]/);
   });
 
   it('근거 없는 인기 목적지 주장을 지역 탐색 안내로 바꾼다', () => {

@@ -13,6 +13,7 @@
  *
  * ⚠️ SAFETY: 이 모듈은 "증거 강화"용 — 검증 완화 용도로 절대 사용 금지 (CLAUDE.md J).
  */
+import { isRowCityConsistent } from './food-row-provenance.js';
 
 export const DIETARY_TAGS = ['halal', 'vegan', 'vegetarian'];
 
@@ -25,6 +26,11 @@ export const TRUSTED_DIETARY_STATUS = [
 // 격리 대상 소스 (운영자 검증 전까지 unverified)
 const QUARANTINE_SOURCES = ['naver_local', 'ai_curated_2026_05_21'];
 
+// 친화 등급 자동 파생을 허용하는 명시 source (2026-10-10). source 필드 부재 = 기존
+// Google Places 기반 레코드(레거시 규칙 유지). 그 외 명시 source(예: trend_harness_promoted,
+// 미래 수집기)는 운영자가 여기 추가하기 전까지 unverified — 미지의 출처가 등급을 얻지 않는다.
+const AUTO_TIER_SOURCES = [];
+
 /**
  * 레코드의 verification_status 파생 (인덱스 빌드·마이그레이션 공용).
  * 이미 수동 부여된 halal_certified/vegan_restaurant 는 보존.
@@ -35,6 +41,8 @@ export function deriveVerificationStatus(row) {
   const existing = row.verification_status;
   if (existing === 'halal_certified' || existing === 'vegan_restaurant') return existing; // 수동 승격 보존
   if (QUARANTINE_SOURCES.includes(row.source)) return 'unverified';
+  const hasSource = row.source !== undefined && row.source !== null && String(row.source).trim() !== '';
+  if (hasSource && !AUTO_TIER_SOURCES.includes(row.source)) return 'unverified'; // 미지의 명시 source — fail-safe
   // Google Places 기반 (placeId + 실측 평점) — 실존 확인, 인증서 검증은 아님
   return tag === 'halal' ? 'muslim_friendly' : 'vegan_options';
 }
@@ -149,13 +157,15 @@ export function isCertifiedDietaryStatus(status) {
  * - dietary 태그가 아닌 레코드(general 등)는 신뢰 문제 자체가 없음 → true
  * - verification_status 없는 옛 인덱스 레코드는 소스로 폴백 파생 (fail-safe:
  *   격리 소스면 false — 필드 부재가 신뢰 승격이 되면 안 됨)
+ * - 태그는 dietaryEvidenceFor 와 같이 dietaryTagsOfRow 로 읽는다 (tag + dietary_tags).
+ *   dietary 태그가 여럿이면 각 태그의 파생 등급이 전부 trusted 여야 한다.
  */
 export function isDietaryTrusted(row) {
   if (!row) return false;
-  const tag = String(row.tag || '').toLowerCase();
-  if (!DIETARY_TAGS.includes(tag)) return true;
-  const vs = row.verification_status || deriveVerificationStatus(row);
-  return TRUSTED_DIETARY_STATUS.includes(vs);
+  const dietTags = dietaryTagsOfRow(row).filter((t) => DIETARY_TAGS.includes(t));
+  if (dietTags.length === 0) return true;
+  if (row.verification_status) return TRUSTED_DIETARY_STATUS.includes(row.verification_status);
+  return dietTags.every((t) => TRUSTED_DIETARY_STATUS.includes(deriveVerificationStatus({ ...row, tag: t })));
 }
 
 /**
@@ -173,8 +183,10 @@ export function checkDietaryCoverage(foodIndex, cities, dietaryList) {
     for (const diet of safety) {
       // vegetarian 요청은 vegan 식당으로도 커버 가능 (역은 불가) — 규칙 SSOT = acceptTagsForDiet
       const acceptTags = acceptTagsForDiet(diet);
+      // 주소가 city 필드와 모순되는 행(예: city:busan, 주소 용인)은 그 도시의 증거가 아니다.
       const has = (foodIndex || []).some((r) =>
-        r && r.city === city && acceptTags.includes(String(r.tag || '').toLowerCase()) && isDietaryTrusted(r));
+        r && r.city === city && acceptTags.includes(String(r.tag || '').toLowerCase()) && isDietaryTrusted(r)
+        && isRowCityConsistent(r));
       if (!has) missing.push({ city, diet });
     }
   }

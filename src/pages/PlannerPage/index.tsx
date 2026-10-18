@@ -22,11 +22,14 @@ import { Footer } from '@/sections/Footer';
 import { WizardForm, type WizardInitialValues } from '@/components/WizardForm';
 import { filterSupportedRegions } from '@/components/WizardForm/cityKeys';
 import { AIIntroModal } from '@/components/AIIntroModal';
+// Home's stylesheet carries the shared chrome, title serif, ticket and CTA that
+// /planner reuses — imported here so a direct /planner visit has them too.
+import '@/styles/home-dope.css';
 import '@/styles/editorial-planner.css';
 import { PAGE_STYLE } from './constants';
 import { pickPlannerCopy } from './plannerCopy';
 import { focusAndReveal } from '@/lib/motion';
-import { PlannerMasthead, PlannerEvidence } from './components/PlannerMasthead';
+import { PlannerMasthead, PlannerBriefNotes, PlannerEvidence } from './components/PlannerMasthead';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
@@ -224,6 +227,22 @@ export default function PlannerPage() {
     { key: 'ai', ...c.modes.guided },
     { key: 'course', ...c.modes.builder },
   ];
+  const activeMode = MODES.find((m) => m.key === plannerMode) || MODES[0];
+
+  // Mobile destination step only: the wizard hosts this one note inside its ticket (before
+  // the navigation) and reports it here, so the stage stops rendering its own — one instance,
+  // never two. Other steps and desktop keep the prior placement at the top of the stage.
+  const [pricingHosted, setPricingHosted] = useState(false);
+  const pricingNote = <AiPlannerPricingNote language={language} />;
+
+  // 2026-10-07 (compact workspace): presentation only. While the guided brief
+  // is on screen, desktop splits into a rail (headline + mode) and a stage
+  // (price note, then the current question). Everything else — the course
+  // builder, the result, the loading screen — gets the full width. The flag
+  // only changes class names; the element tree is identical either way, so
+  // the wizard keeps its one instance across idle / error / loadingQuick.
+  const splitWorkspace = plannerMode === 'ai'
+    && (status === 'idle' || status === 'error' || status === 'loadingQuick');
 
   return (
     <div className="ec-root ec-planner">
@@ -232,71 +251,70 @@ export default function PlannerPage() {
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <PlannerMasthead copy={c} isMobile={isMobile} />
+      <main className={`planner-main ${isMobile ? 'px-4 pb-6' : 'ec-container-wide pb-10'}`}>
+        <div className={`planner-workspace ${splitWorkspace ? 'is-split' : ''}`}>
+          <div className="planner-rail">
+            <PlannerMasthead copy={c} />
 
-      <main className={isMobile ? 'px-4 pb-6 space-y-4' : 'ec-container-wide pb-10 space-y-8'}>
-        <hr className="ec-rule-strong" />
-
-        {/* Mode choice. On a phone the two options are a compact pair and only
-            the chosen one explains itself underneath — full cards pushed the
-            wizard's first question to y=901 on a 390×844 screen, and the one
-            thing this page has already been burned by (2026-08-06) is the first
-            question sitting below the fold. Desktop has the room, so it keeps
-            the full cards. */}
-        <div className="grid gap-4 lg:grid-cols-12 lg:gap-8">
-        {status === 'idle' && (
-          <section aria-labelledby="planner-mode-heading" className="lg:col-span-7">
-            <h2 id="planner-mode-heading" className="ec-eyebrow">{c.modes.heading}</h2>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-3 sm:gap-3">
-              {MODES.map(({ key, kicker, title, body }) => {
-                const active = plannerMode === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={active}
-                    aria-label={isMobile ? `${kicker}. ${title}. ${body}` : undefined}
-                    onClick={() => setPlannerMode(key)}
-                    className={`ec-option ${active ? 'is-selected' : ''}`}
-                  >
-                    <span className="ec-eyebrow block">{kicker}</span>
-                    <span className="ec-question mt-1 block sm:mt-1.5">{title}</span>
-                    <span className="ec-body-sm mt-1 hidden text-ec-ink-3 sm:block">{body}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* 🔴 2026-07-30: 가격을 여기서 **처음** 밝힌다.
-            그동안 이 화면에는 금액이 한 글자도 없었고, 상단 배너만 "무료" 를 크게 말했다.
-            손님은 전부 공짜인 줄 알고 들어왔다가 결제 단계에서 처음 $9.90 을 만난다.
-            무료로 주는 것(미리보기·가입 쿠폰)과 파는 것(전체 일정)을 갈라서 먼저 적는다.
-            2026-08-10: 데스크톱에서 모드 선택 **옆** 칸으로 옮겼다. 세로로 쌓으면 위저드
-            첫 질문이 1280×720 화면 밖(y=823)으로 밀린다 — 고지 위치는 그대로 "설문 전"
-            이면서 첫 화면 안에 들어온다. 모바일은 폭이 없으니 그대로 아래에 쌓인다. */}
-        {plannerMode === 'ai' && (status === 'idle' || status === 'error') && (
-          <div className={status === 'idle' ? 'lg:col-span-5' : 'lg:col-span-12'}>
-            <AiPlannerPricingNote language={language} />
+            {/* Mode choice — two one-line buttons. The long description of the
+                chosen mode sits in a native disclosure below the form (with the
+                other supporting notes) and still describes the pressed button;
+                full cards pushed the first question to y=901 on a 390×844
+                screen (2026-08-06), and on this page nothing outranks the first
+                question. */}
+            {status === 'idle' && (
+              <section aria-labelledby="planner-mode-heading" className="planner-modes">
+                <h2 id="planner-mode-heading" className="ec-eyebrow">{c.modes.heading}</h2>
+                <div className="planner-mode-row">
+                  {MODES.map(({ key, title }) => {
+                    const active = plannerMode === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={active}
+                        aria-describedby={active ? 'planner-mode-desc' : undefined}
+                        onClick={() => setPlannerMode(key)}
+                        className={`planner-mode-btn ${active ? 'is-selected' : ''}`}
+                      >
+                        {title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
           </div>
-        )}
-        </div>
 
-        {/* Wizard form. The wrapper is the retry target — `WizardSeenProbe`
-            already owns its own ref for the visibility probe. */}
-        {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div ref={wizardRef} tabIndex={-1} className="scroll-mt-20">
-            <WizardSeenProbe className="ec-panel">
-              <WizardForm
-                onSubmit={validRevisionContext ? handleRevisionSubmit : handleSubmit}
-                isLoading={status === 'loadingQuick'}
-                initialValues={prefillValues}
-                isRevision={validRevisionContext}
-              />
-            </WizardSeenProbe>
-          </div>
-        )}
+          <div className="planner-stage">
+            {/* 🔴 2026-07-30: 가격을 여기서 **처음** 밝힌다.
+                그동안 이 화면에는 금액이 한 글자도 없었고, 상단 배너만 "무료" 를 크게 말했다.
+                손님은 전부 공짜인 줄 알고 들어왔다가 결제 단계에서 처음 $9.90 을 만난다.
+                무료로 주는 것(미리보기·가입 쿠폰)과 파는 것(전체 일정)을 갈라서 먼저 적는다.
+                2026-10-07: 오른쪽 스테이지의 맨 위, 위저드 바로 앞. DOM 에서도 화면에서도
+                설문보다 먼저 오고, 접히거나 숨지 않는다. */}
+            {plannerMode === 'ai' && (status === 'idle' || status === 'error') && !pricingHosted && (
+              <div className="planner-price">
+                {pricingNote}
+              </div>
+            )}
+
+            {/* Wizard form. The wrapper is the retry target — `WizardSeenProbe`
+                already owns its own ref for the visibility probe. */}
+            {plannerMode === 'ai' && (status === 'idle' || status === 'error' || status === 'loadingQuick') && (
+              <div ref={wizardRef} tabIndex={-1} className="scroll-mt-20">
+                <WizardSeenProbe className="ec-panel planner-question">
+                  <WizardForm
+                    onSubmit={validRevisionContext ? handleRevisionSubmit : handleSubmit}
+                    isLoading={status === 'loadingQuick'}
+                    initialValues={prefillValues}
+                    isRevision={validRevisionContext}
+                    pricingNote={pricingNote}
+                    onPricingNoteHosted={setPricingHosted}
+                  />
+                </WizardSeenProbe>
+              </div>
+            )}
 
         {/* Error — the shared editorial state. It announces itself (assertive
             live region), says what to do next, and says that nothing was
@@ -307,16 +325,30 @@ export default function PlannerPage() {
             screen whose reader was at scrollY 1180, and y=2682 at 390×844 with
             scrollY 1884. It belongs where the traveller already is, next to the
             brief that failed, and it takes focus on arrival. */}
-        {status === 'error' && (
-          <PlannerErrorPanel
-            title={p.errorTitle}
-            body={[localizedError, c.error.retryHint].filter(Boolean).join(' ')}
-            retryLabel={p.retry}
-            onRetry={handleRetry}
-          />
-        )}
+            {status === 'error' && (
+              <PlannerErrorPanel
+                title={p.errorTitle}
+                body={[localizedError, c.error.retryHint].filter(Boolean).join(' ')}
+                retryLabel={p.retry}
+                onRetry={handleRetry}
+              />
+            )}
 
-        {plannerMode === 'course' && status === 'idle' && <CourseBuilderShell />}
+            {plannerMode === 'course' && status === 'idle' && <CourseBuilderShell />}
+          </div>
+        </div>
+
+        {/* The five inputs and the long-form description, collapsed, after the
+            brief — they used to stand above it as five paragraphs. The mode
+            description leads them; the closed <details> keeps its text in the
+            DOM, so `aria-describedby` on the pressed mode button still resolves. */}
+        {status === 'idle' && (
+          <details className="planner-mode-more">
+            <summary>{activeMode.kicker}</summary>
+            <p id="planner-mode-desc" className="ec-body-sm text-ec-ink-3">{activeMode.body}</p>
+          </details>
+        )}
+        {(status === 'idle' || status === 'error') && <PlannerBriefNotes copy={c} />}
 
         {/* 2026-08-06: 크롤러가 보는 정적 본문. 위저드는 상호작용이라 프리렌더에 1단계 껍데기만
             남았고, `<main>` 본문이 939자여서 구글이 크롤하고도 색인을 거부했다

@@ -26,6 +26,11 @@ import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-v
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { internalApiBase } from './_shared/internal-base-url.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import {
+  isSameOrderProven, isLegacyOpenSnapshot, verifyBearerUid, validateIntent, acquirePaymentAttempt, reconcileCapture, summarizeVerifiedCapture,
+  persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, makeRetryPersister, recordProcessorResult, updateAttempt,
+  releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
+} from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -84,33 +89,67 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Cart amounts could not be verified. Please create a new order.', 'INVALID_CART_AMOUNTS')));
     }
 
+    // Same-order authority: original checkout capability cookie or the authenticated owner (legacy snapshots stay open).
+    const verifiedUid = await verifyBearerUid(req.headers && req.headers.authorization);
+    const sameOrderProven = isSameOrderProven({ req, flow: 'cart', orderID, snapshot, verifiedUid });
+    if (!sameOrderProven && !isLegacyOpenSnapshot(snapshot)) {
+      res.writeHead(403, JSON_CORS);
+      return res.end(JSON.stringify(_err('The original checkout session is required for this order', 'RECOVERY_AUTH_REQUIRED')));
+    }
+    const reconcileOnly = body.reconcile === true;
+
     const isSandbox = resolveIsSandbox();
     if (isSandbox) console.warn('[captureCartOrder] SANDBOX MODE — 실제 결제 아님 (preview e2e)');
     const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox);
 
-    // 1. 이중 캡처 차단 락 (capturePaypalOrder L114-147 복제, orderID 단위).
-    const lockRef = db.collection('used_paypal_orders').doc(orderID);
+    // 1. Attempt record (used_paypal_orders lock + frozen intent + exclusive claim). Storage failure => capture 0.
+    let intent;
     try {
-      await db.runTransaction(async (tx) => {
-        const existing = await tx.get(lockRef);
-        if (existing.exists) {
-          const data = existing.data() || {};
-          const stale = data.status === 'pending' && data.createdAtMs && (Date.now() - Number(data.createdAtMs)) > 30_000;
-          if (data.status === 'captured' || !stale) throw new Error('DUPLICATE_ORDER');
-        }
-        tx.set(lockRef, { status: 'pending', createdAt: new Date().toISOString(), createdAtMs: Date.now(), userEmail, product: 'cart' });
-      });
-    } catch (lockErr) {
-      if (lockErr.message === 'DUPLICATE_ORDER') {
-        res.writeHead(409, JSON_CORS);
-        return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
-      }
-      throw lockErr;
+      intent = validateIntent({ version: 1, body: { userEmail, lineCount: snapshot.lines.length }, uid: verifiedUid || null });
+    } catch (intentErr) {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err(intentErr.message, intentErr.code || 'RECOVERY_INTENT_INVALID')));
     }
+    const acquired = await acquirePaymentAttempt({
+      db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', requestKey: `${orderID}-cart-cap`, intent, userEmail, product: 'cart',
+      createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven,
+    });
+    if (acquired.kind === 'absent') {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify({ ...notCapturedResponse({ orderID, flow: 'cart', reason: 'no_attempt_record' }), evidence: 'no_attempt_record' }));
+    }
+    if (acquired.kind === 'unauthorized') {
+      console.warn('[captureCartOrder] recovery refused without same-order proof:', orderID);
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
+    }
+    if (acquired.kind === 'finalized') {
+      const stored = acquired.lock.finalResponse || { status: 200, body: _ok({ orderID, message: 'Cart booking already confirmed.' }) };
+      res.writeHead(stored.status || 200, JSON_CORS);
+      return res.end(JSON.stringify({ ...stored.body, replayed: true }));
+    }
+    if (acquired.kind === 'duplicate') {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
+    }
+    if (acquired.kind === 'in_progress') {
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: acquired.lock.captureVerified ? 'CAPTURED' : 'CAPTURE_UNKNOWN', inProgress: true })));
+    }
+    if (acquired.kind === 'cross_flow') {
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('This order must be paid through single checkout', 'CROSS_FLOW_ORDER')));
+    }
+    if (acquired.kind === 'environment') {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order belongs to a different PayPal environment', 'ORDER_ENVIRONMENT_MISMATCH')));
+    }
+    const attempt = acquired.attempt;
+    const stages = (attempt.lock && attempt.lock.stages) || {};
+    const savedEmail = attempt.recovering ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
 
-    // 2. 캡처 — 실패 시 락 해제(재시도 허용).
-    let capture;
-    try {
+    // 2. 캡처/대조 — unknown 은 락 유지 + 202, provider 가 증명한 미결제만 락 해제.
+    const postCapture = async () => {
       const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
         method: 'POST',
         headers: {
@@ -118,22 +157,41 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'PayPal-Request-Id': `${orderID}-cart-cap`,
         },
+        signal: AbortSignal.timeout(25_000),
       });
-      capture = await captureRes.json();
-      if (capture.status !== 'COMPLETED') throw new Error(`Capture status: ${capture.status || 'unknown'}`);
-    } catch (captureErr) {
-      lockRef.delete().catch(() => {});
-      throw captureErr;
+      const text = await captureRes.text();
+      let body = null; let parseError = null;
+      try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
+      return { status: captureRes.status, body, parseError };
+    };
+    const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
+    if (reconciled.state === 'not_captured') {
+      await discardAttempt(attempt).catch(() => {});
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'cart', reason: reconciled.reason })));
     }
-    lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() }).catch(() => {});
+    if (reconciled.state !== 'captured') {
+      console.error('[captureCartOrder] capture result UNKNOWN — lock retained:', orderID, reconciled.reason);
+      await updateAttempt(attempt, { captureState: 'unknown', lastUnknownReason: reconciled.reason || 'unknown', lastUnknownAtMs: Date.now() }).catch(() => {});
+      await releaseAttemptClaim(attempt);
+      await throttledTelegramAlert({
+        key: `cart-capture-unknown-${orderID}`, channel: 'admin', severity: 'warning',
+        message: [`🕒 <b>CART capture 결과 미상 (주문 락 유지)</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, `<b>사유:</b> ${reconciled.reason}`].join('\n'),
+        context: { orderID, reason: reconciled.reason },
+      }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+    }
+    const capture = reconciled.capture || null;
+    const stored = reconciled.verified || null;
 
-    const captureNode = capture.purchase_units && capture.purchase_units[0]
+    const captureNode = capture && capture.purchase_units && capture.purchase_units[0]
       && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures
       && capture.purchase_units[0].payments.captures[0];
-    const payerEmail = (capture.payer && capture.payer.email_address) || '';
-    const payerName = `${(capture.payer && capture.payer.name && capture.payer.name.given_name) || ''} ${(capture.payer && capture.payer.name && capture.payer.name.surname) || ''}`.trim();
-    const capturedUsd = (captureNode && captureNode.amount && captureNode.amount.value) || '';
-    const captureID = (captureNode && captureNode.id) || '';
+    const payerEmail = stored ? stored.payerEmail : ((capture.payer && capture.payer.email_address) || '');
+    const payerName = stored ? stored.payerName : `${(capture.payer && capture.payer.name && capture.payer.name.given_name) || ''} ${(capture.payer && capture.payer.name && capture.payer.name.surname) || ''}`.trim();
+    const capturedUsd = stored ? stored.amountValue : ((captureNode && captureNode.amount && captureNode.amount.value) || '');
+    const captureID = stored ? stored.captureID : ((captureNode && captureNode.id) || '');
 
     // 3. ⚠️ capture 무결성 검증 (money-critical) — amount(정수 minor) + currency +
     //    개별 capture status + purchase-unit/capture cardinality 를 스냅샷과 대조.
@@ -144,9 +202,9 @@ export default async function handler(req, res) {
     //      돈은 이미 캡처됐으므로 일반 실패로 버리지 않는다(사용자 재결제 = 이중청구).
     //      자동환불도 하지 않는다 — 운영자 판단(cocotrip-money-safety).
     const expectedMinor = toMinorUnits(snapshot.usdAmount, 'USD');
-    const verdict = verifyCaptureIntegrity({
-      capture, expectedAmountMinor: expectedMinor, expectedCurrency: 'USD',
-    });
+    const verdict = stored
+      ? { ok: !stored.pending, pending: stored.pending, code: stored.pending ? 'CAPTURE_PENDING' : undefined, detail: 'replayed verified capture', captureID, amountMinor: stored.amountMinor, currency: stored.currency }
+      : verifyCaptureIntegrity({ capture, expectedAmountMinor: expectedMinor, expectedCurrency: 'USD' });
     if (verdict.pending) {
       // 🔴 PENDING = PayPal 리스크 홀드 / eCheck = 정상 결제 흐름 (금액·통화는 이미 정합).
       //   격리하면 booking doc 이 없어 홀드 해제 webhook 이 예약을 못 찾음 → 돈만 정산되고 예약 없음.
@@ -204,6 +262,7 @@ export default async function handler(req, res) {
         ].join('\n'),
         context: { orderID, captureID, code: verdict.code, reviewRecorded },
       }).catch((e) => { console.error('[captureCartOrder] mismatch 알림 실패:', e?.message); });
+      await updateAttempt(attempt, { status: 'captured', captureState: 'captured', reviewQuarantined: true, captureID, claimUntil: 0 }).catch(() => {});
 
       // 202 Accepted — 예약 미확정. retryable:false (재결제 = 이중청구).
       // paymentCaptured 는 실제 capture status 파생 (돈 안 움직인 verdict 에 "결제됨" 이라 하지 않음).
@@ -212,66 +271,59 @@ export default async function handler(req, res) {
     }
 
     // 4. 라인별 child booking doc batch + 부모 carts/{orderID} + cart_orders status.
-    const children = buildCartChildBookings(orderID, snapshot, { payerEmail, payerName, userEmail, captureID });
-    // 🔴 ghost 예약 fix (버그헌트 #4 2026-06-19): batch.commit() 실패해도 catch 가 return 없어 아래
-    //   booking-processor fan-out 이 강행 → booking doc 없는 childOrderID 로 확인메일/텔레그램 유령발송
-    //   + my-bookings/cancel/voucher 404. batchOk 로 게이트(성공 시에만 발송).
-    let batchOk = false;
-    try {
-      const batch = db.batch();
-      for (const child of children) {
-        batch.set(db.collection('bookings').doc(child.childOrderID), {
-          ...child.bookingDoc,
-          rawCapturePayload: { captureID, amount: (captureNode && captureNode.amount) || null, status: capture.status || '' },
+    const children = buildCartChildBookings(orderID, snapshot, { payerEmail, payerName, userEmail: savedEmail, captureID });
+    // 🔴 Mandatory durable boundary (ghost-booking fix 버그헌트 #4 + 2026-10-10 recovery): parent carts doc,
+    //   cart_orders status, EVERY stable child `${orderID}__${lineId}` and each child's processor retry intent
+    //   commit in ONE transaction. Failure => 202 finalized:false, no fan-out; same-order replay repairs it.
+    const captureVerified = stored || summarizeVerifiedCapture({ verdict, capture, payerEmail, payerName, amountValue: capturedUsd, captureID });
+    const rawCapturePayload = { captureID, amount: (captureNode && captureNode.amount) || (stored ? { value: stored.amountValue, currency_code: stored.currency } : null), status: capture ? (capture.status || '') : stored.orderStatus };
+    const persisted = await withBackoff(() => persistBookingsAtomically({
+      db, attempt, timestamp: FieldValue.serverTimestamp(), lockPatch: { captureVerified, captureID },
+      bookings: children.map((child) => ({
+        orderID: child.childOrderID, payload: child.processorPayload, source: 'captureCartOrder',
+        doc: {
+          ...child.bookingDoc, rawCapturePayload,
           // 🔴 2026-07-29: 이 예약이 어느 PayPal 환경에서 만들어졌는지 (환경 교차 웹훅 차단 근거).
           paypalEnvironment: isSandbox ? 'sandbox' : 'live',
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-      }
-      batch.set(db.collection('carts').doc(orderID), {
-        orderID, captureID, status: 'CONFIRMED',
-        totalKRW: snapshot.totalKRW, usdAmount: snapshot.usdAmount, usdRate: snapshot.usdRate,
-        lineCount: children.length, payerEmail, userEmail,
-        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      batch.set(db.collection('cart_orders').doc(orderID), {
-        status: 'captured', captureID, capturedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      await batch.commit();
-      batchOk = true;
-    } catch (batchErr) {
-      // CRITICAL — 캡처됐는데 booking doc 저장 실패. alert (운영자 admin-replay 복구).
-      throttledTelegramAlert({
-        key: 'cart-bookings-write-fail',
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+        },
+      })),
+      parents: [
+        { ref: db.collection('carts').doc(orderID), onlyIfMissing: true, data: {
+          orderID, captureID, status: 'CONFIRMED',
+          totalKRW: snapshot.totalKRW, usdAmount: snapshot.usdAmount, usdRate: snapshot.usdRate,
+          lineCount: children.length, payerEmail, userEmail: savedEmail,
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+        } },
+        { ref: db.collection('cart_orders').doc(orderID), data: { status: 'captured', captureID, capturedAt: FieldValue.serverTimestamp() } },
+      ],
+    }));
+    const batchOk = persisted.ok;
+    if (!batchOk) {
+      const batchErr = persisted.error || new Error('unknown');
+      await updateAttempt(attempt, { status: 'captured', captureState: 'captured', captureVerified, captureID }).catch(() => {});
+      await releaseAttemptClaim(attempt);
+      await throttledTelegramAlert({
+        key: `cart-bookings-write-fail-${orderID}`,
         channel: 'admin',
         severity: 'critical',
         message: [
-          '🚨 <b>CART booking doc 저장 실패 (결제 완료됨)</b>',
+          '🚨 <b>CART booking doc 저장 실패 (결제 완료됨 · 202 미확정 응답)</b>',
           `<b>OrderID:</b> <code>${orderID}</code> <b>CaptureID:</b> <code>${captureID}</code>`,
           `<b>금액:</b> $${snapshot.usdAmount} / ₩${(snapshot.totalKRW || 0).toLocaleString('ko-KR')}`,
           `<b>사유:</b> ${(batchErr.message || 'unknown').slice(0, 250)}`,
-          '→ my-bookings/cancel/voucher 깨짐. 운영자 수동 복구.',
+          '→ 손님 화면은 "예약 확인 중"(확정 아님). 같은 주문 재확인이 저장을 복구한다.',
         ].join('\n'),
         context: { orderID, captureID, source: 'captureCartOrder' },
       }).catch(() => {});
+      console.error('[captureCartOrder] mandatory persistence failed → fan-out 스킵(유령예약 방지):', orderID);
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURED' })));
     }
+    const markStage = (stage, patch) => updateAttempt(attempt, { stages: { [stage]: { ...patch, atMs: Date.now() } } });
 
-    // 5. 라인별 booking-processor fan-out (payload.orderID=childOrderID 부모 doc 충돌 회피,
-    //    retryDocId=childOrderID 라인별 독립 retry). 부분 실패 = 롤백 없음(retry 큐 + 알림).
-    //    병렬 await — retry 큐가 실패 라인 포착 보장 후 응답.
-    const siteUrl = internalApiBase();
-    // 🔴 #4: batch.commit() 성공 시에만 fan-out — 실패 시 booking doc 없어 유령발송 방지.
-    //   batch 실패는 위 critical 알림 + 운영자 admin-replay(booking doc 생성 후 재발송)로 복구.
-    if (batchOk) {
-      await Promise.allSettled(children.map((child) => triggerBookingProcessor({
-        db, siteUrl, payload: child.processorPayload, source: 'captureCartOrder', notify, retryDocId: child.retryDocId,
-      })));
-    } else {
-      console.error('[captureCartOrder] batch.commit 실패 → booking-processor fan-out 스킵(유령예약 방지), 운영자 admin-replay 필요:', orderID);
-    }
-
-    // 5-1. 🔴 2026-08-08 투어 슬롯 정원 확정 (단건 capturePaypalOrder 형제 경로).
+    // 5-1. 🔴 2026-08-08 투어 슬롯 정원 확정 (단건 capturePaypalOrder 형제 경로) — runs BEFORE the held
+    //    intents are released so the cron can never dispatch a line while mandatory checks are still settling.
     //   createCartOrder 가 올려둔 pending 을 confirmed 로 넘긴다. 예약 doc 저장 성공(batchOk)
     //   뒤에만 — 예약이 없는데 좌석만 차지하면 정원이 영구 오염된다(단건 bookingWriteOk 게이트 동형).
     //   slot 필드가 없는 라인(차터 등)은 readSlotFields 가 null → 스킵 = 기존 동작.
@@ -280,6 +332,19 @@ export default async function handler(req, res) {
       for (const line of snapshot.lines) {
         const slot = readSlotFields(line && line.booking);
         if (!slot) continue;
+        const stageKey = `slot_${line.lineId || 'L0'}`;
+        if (stages[stageKey]) {
+          if (stages[stageKey].state === 'started') {
+            await throttledTelegramAlert({ key: `cart-slot-AMBIGUOUS-${orderID}-${stageKey}`, channel: 'admin', severity: 'high', message: `⚠️ <b>CART 슬롯 confirm 결과 불명 (이전 시도 중단) — 재실행 안 함</b>\n<b>OrderID:</b> <code>${orderID}</code> <b>line:</b> ${line.lineId || '?'}`, context: { orderID, lineId: line.lineId || null } }).catch(() => {});
+          }
+          continue;
+        }
+        try {
+          await markStage(stageKey, { state: 'started' });
+        } catch (markErr) {
+          console.error('[captureCartOrder] slot stage marker failed — confirm skipped (ambiguity guard):', markErr.message);
+          continue;
+        }
         try {
           await confirmSlotLock({
             adminDb: db,
@@ -291,9 +356,11 @@ export default async function handler(req, res) {
             orderId: orderID,
           });
           console.log('[captureCartOrder] slot confirmed:', { orderID, tourId: slot.tourId, date: slot.date, slot: slot.slotId, pax: slot.pax });
+          await markStage(stageKey, { state: 'completed' }).catch(() => {});
         } catch (slotErr) {
           const code = slotErr.code || 'SLOT_CONFIRM_FAILED';
           console.error('[captureCartOrder] slot confirm failed:', code, slotErr.message);
+          await markStage(stageKey, { state: 'failed', code }).catch(() => {});
           await throttledTelegramAlert({
             key: `cart-slot-confirm-${code}`,
             channel: 'admin',
@@ -315,14 +382,55 @@ export default async function handler(req, res) {
       }
     }
 
-    // 6. 응답
-    res.writeHead(200, JSON_CORS);
-    res.end(JSON.stringify(_ok({
+    // 5. 라인별 booking-processor fan-out (payload.orderID=childOrderID, retryDocId=childOrderID). Held intents
+    //    are opened in one transaction only now; a failed release keeps every line non-runnable (202, replay
+    //    releases). Only runnable lines dispatch; persisters never reset attempts or terminal states.
+    const siteUrl = internalApiBase();
+    const timestamp = FieldValue.serverTimestamp();
+    let retryStatus;
+    try {
+      retryStatus = await releaseHeldIntents({ db, attempt, timestamp, intents: children.map((child) => ({ retryDocId: child.retryDocId, bookingId: child.childOrderID })) });
+    } catch (releaseErr) {
+      console.error('[captureCartOrder] held intent release failed — fan-out skipped (202):', releaseErr.message);
+      if (releaseErr.code !== 'CLAIM_LOST') await releaseAttemptClaim(attempt);
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify({ ...pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURED' }), reviewReason: releaseErr.code === 'CLAIM_LOST' ? 'claim_lost' : 'intent_release_failed' }));
+    }
+    const stoppedLines = children.filter((child) => retryStatus[child.retryDocId] === 'stopped');
+    if (stoppedLines.length > 0) {
+      console.warn('[captureCartOrder] stopped child bookings not dispatched:', orderID, stoppedLines.map((c) => c.childOrderID));
+      await throttledTelegramAlert({ key: `cart-booking-stopped-at-release-${orderID}`, channel: 'admin', severity: 'high', message: `⚠️ <b>CART 라인 예약이 환불/취소 상태라 후속처리 미실행</b>\n<b>OrderID:</b> <code>${orderID}</code>\n<b>lines:</b> ${stoppedLines.map((c) => c.lineId).join(', ')}`, context: { orderID } }).catch(() => {});
+    }
+    if (stoppedLines.length === children.length) {
+      const stoppedBody = { ...pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURED' }), bookingStatus: 'BOOKING_STOPPED', reviewReason: 'booking_stopped' };
+      await finalizeAttempt(attempt, { finalOutcome: 'booking_stopped', finalResponse: { status: 202, body: stoppedBody } }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(stoppedBody));
+    }
+    await Promise.allSettled(children.filter((child) => shouldDispatchRetry(retryStatus[child.childOrderID])).map(async (child) => {
+      const result = await triggerBookingProcessor({
+        db, siteUrl, payload: child.processorPayload, source: 'captureCartOrder', notify, retryDocId: child.retryDocId,
+        persistRetry: makeRetryPersister({ db, timestamp }),
+      });
+      await recordProcessorResult({ db, orderID: child.childOrderID, retryDocId: child.retryDocId, result, timestamp }).catch((e) => {
+        console.error('[captureCartOrder] processor state persist failed:', child.childOrderID, e.message);
+      });
+    }));
+
+    // 6. 응답 (+ minimal replay record for later authorized same-order calls — no contact data).
+    const successBody = _ok({
       orderID, captureID, payerEmail, payerName,
       lineCount: children.length,
       amount: capturedUsd, currency: 'USD',
       message: '장바구니 예약이 확정되었습니다. 상품별 확인 이메일을 발송 중입니다.',
-    })));
+    });
+    successBody.finalized = true;
+    await finalizeAttempt(attempt, {
+      finalOutcome: 'confirmed',
+      finalResponse: { status: 200, body: { ok: true, finalized: true, data: { orderID, lineCount: children.length, amount: capturedUsd, currency: 'USD', message: 'Cart booking confirmed.' } } },
+    }).catch((e) => { console.error('[captureCartOrder] finalize marker failed (bookings durable; replay-safe):', e.message); });
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(successBody));
   } catch (err) {
     console.error('[captureCartOrder] Error:', err);
     res.writeHead(500, JSON_CORS);

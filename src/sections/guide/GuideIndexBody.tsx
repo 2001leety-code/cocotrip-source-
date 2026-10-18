@@ -87,7 +87,7 @@ export function GuideIndexBody({ copy, guides }: Props) {
     .at(-1);
 
   return (
-    <main className="ec-root">
+    <main className="ec-root guide-index-editorial">
       <section className="border-b border-ec-line">
         <div className="ec-container-wide py-10 md:py-14">
           <p className="ec-eyebrow">{c.title}</p>

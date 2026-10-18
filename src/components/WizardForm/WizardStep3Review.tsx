@@ -32,9 +32,9 @@ import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
 // export 하지 않는다 — 다시 공유 모듈로 빼면 같은 문제가 돌아온다.
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex w-full items-start justify-between gap-3 py-1">
-      <span className="shrink-0 text-[12px] text-ec-ink-3">{label}</span>
-      <span className="min-w-0 flex-1 text-right text-[13px] text-ec-ink-2">{value}</span>
+    <div className="wizard-dossier-row flex w-full items-start justify-between gap-3 py-1">
+      <span className="wizard-dossier-key shrink-0 text-[12px] text-ec-ink-3">{label}</span>
+      <span className="wizard-dossier-value min-w-0 flex-1 text-right text-[13px] text-ec-ink-2">{value}</span>
     </div>
   );
 }
@@ -46,8 +46,8 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 function EditGroup({ icon, title, ariaLabel, onClick, children }: { icon: ReactNode; title: string; ariaLabel: string; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-label={ariaLabel}
-      className="w-full rounded-ec-md border border-ec-line px-3.5 py-3 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken hover:border-ec-line-3">
-      <span className="flex items-center gap-2 text-[13px] font-bold text-ec-ink mb-1.5">
+      className="wizard-dossier-group w-full rounded-ec-md border border-ec-line px-3.5 py-3 text-left transition-colors duration-ec-base ease-ec-standard hover:bg-ec-sunken hover:border-ec-line-3">
+      <span className="wizard-dossier-title flex items-center gap-2 text-[13px] font-bold text-ec-ink mb-1.5">
         {icon} {title}
       </span>
       <div className="space-y-0.5">{children}</div>
@@ -233,10 +233,10 @@ export function WizardStep3Review(props: Step3Props) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="wizard-stage wizard-stage--review space-y-5">
       <h2 className="ec-question">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
-      <div className="ec-panel space-y-2.5 sm:space-y-3">
+      <div className="wizard-dossier ec-panel space-y-2.5 sm:space-y-3">
         <EditGroup
           icon={<Plane className="w-4 h-4 text-ec-brand" />}
           title={p.wizardReviewGroupReservation || 'Reservation & flight'}
@@ -304,11 +304,11 @@ export function WizardStep3Review(props: Step3Props) {
           <ReviewRow label={p.accomOptIn || 'Accommodation recommendation'} value={accomValue} />
         </EditGroup>
 
-        <p className="text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
+        <p className="wizard-dossier-hint text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
       {/* What the purchase contains — not what the button below hands over. */}
-      <div className="ec-panel">
+      <div className="wizard-review-includes ec-panel">
         <h3 className="ec-h3 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-ec-brand" /> {p.wizardWhatYouGet || 'The full itinerary includes'}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {([p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean) as string[]).map((item: string, i: number) => (
@@ -325,7 +325,7 @@ export function WizardStep3Review(props: Step3Props) {
           the old card, and with the amount gone a centred column of three short
           lines reads as an advert. Set as a paragraph, the eyebrow leads and the
           button is the only heavy element. */}
-      <div className="rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 sm:p-5">
+      <div className="wizard-review-cta rounded-ec-md border border-ec-line bg-ec-brand-wash p-3.5 sm:p-5">
         <p className="ec-eyebrow">{c.wizard.previewEyebrow}</p>
         <p className="ec-body-sm ec-measure mt-1.5 text-ec-ink-2">{c.wizard.previewLede}</p>
 

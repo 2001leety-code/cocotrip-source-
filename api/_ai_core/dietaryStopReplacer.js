@@ -9,6 +9,7 @@
  * 교체 후보 조건 (전부 만족):
  *   - 같은 도시 (resolveCityCode 기준)
  *   - dietary 태그 일치 + isDietaryTrusted (unverified 제외)
+ *   - isRowCityConsistent (주소가 city 필드와 모순되는 행 제외)
  *   - 위반 stop 좌표가 있으면 반경 MAX_KM 내 (동선 보존), 없으면 도시 전체에서 최고 평점
  *   - 플랜에 이미 등장한 식당 제외 (중복 방지)
  *   ⚠️ 영업시간: DB 에 영업시간 데이터가 없어 검사 불가 — 정직하게 한계 명시.
@@ -21,6 +22,8 @@
  */
 import { isDietaryTrusted, acceptTagsForDiet, dietaryEvidenceFor, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 import { resolveCityCode } from '../_food_helper.js';
+import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
+import { resolveUiCityKey } from '../_shared/cityResolver.js';
 
 const MAX_KM = 8; // 위반 stop 좌표 기준 교체 후보 최대 거리 (동선 보존)
 
@@ -67,10 +70,11 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
   for (const v of violations) {
     // 위반 stop 찾기 (label 매칭 — validateResponse 와 동일 라벨 규칙)
     let target = null;
+    let dayCity = null; // UI city key of the day that owns the stop; null when unknown (no seoul fallback)
     for (const day of itinerary?.days || []) {
       for (const s of day?.stops || []) {
         const label = (s?.name || s?.display_name || '').split('|')[0].trim();
-        if (label && label === v.stop) { target = s; break; }
+        if (label && label === v.stop) { target = s; dayCity = resolveUiCityKey(day?.city) || resolveUiCityKey(area); break; }
       }
       if (target) break;
     }
@@ -81,6 +85,10 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
     const candidates = foodIndex.filter((r) => {
       if (!accept.includes(String(r.tag || '').toLowerCase())) return false;
       if (!isDietaryTrusted(r)) return false; // unverified 절대 금지
+      if (!isRowCityConsistent(r)) return false; // 주소가 city 필드와 모순 — 좌표/도시 근거 불신
+      // 2026-10-10: the 8km radius alone trusted the MODEL's coordinates — a Busan day with Seoul coords pulled
+      // Seoul restaurants (final gate then blocked → paid retry). A candidate must belong to the day's city.
+      if (dayCity && String(r.city || '').toLowerCase() !== dayCity) return false;
       const nm = String(r.name || '').split('|')[0].trim();
       if (usedNames.has(nm) || (r.nameEn && usedNames.has(r.nameEn))) return false;
       if (hasCoord && Number.isFinite(r.lat) && Number.isFinite(r.lng)) {

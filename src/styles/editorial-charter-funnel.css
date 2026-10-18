@@ -1,0 +1,392 @@
+/*
+ * Charter funnel visual pass. Every selector is scoped under .ec-night .ec-charter and a
+ * charter-funnel- hook. No token declarations, no !important, no layout/overflow changes.
+ */
+
+/* 1. introduction */
+.ec-night .ec-charter .charter-funnel-introduction .charter-funnel-title {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.ec-night .ec-charter .charter-funnel-introduction .charter-funnel-lead {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ec-text-muted);
+}
+
+.ec-night .ec-charter .charter-funnel-introduction .charter-funnel-back {
+  min-height: 44px;
+  font-size: 14px;
+  /* inline-flex Home 링크와 badge 가 데스크톱에서 붙지 않게 */
+  margin-inline-end: 8px;
+}
+
+.ec-night .ec-charter .charter-funnel-introduction .charter-funnel-badge {
+  font-size: 12px;
+}
+
+.ec-night .ec-charter .charter-funnel-introduction .charter-funnel-back:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+/* 2. wizard shell: neutral document panels (selectable cards are not touched) */
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-nav,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-panel,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-summary-panel {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line);
+  box-shadow: none;
+}
+
+/* Outer frames on Home's ticket corner and line; fill stays opaque, rows and
+   receipts inside keep their own lines and dashed tear rules. */
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-nav,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-panel,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-summary-panel {
+  border-color: var(--ec-card-line);
+  border-radius: var(--ec-card-radius);
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-summary-row {
+  background-color: var(--ec-surface-sunken);
+  border-color: var(--ec-line);
+}
+
+/* 요약 값(EN 목적지 등)은 truncate 대신 줄바꿈 — 값 문자열·행 레이아웃 무변경 */
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-summary-row > p:last-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-badge {
+  font-size: 12px;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-trust-chips {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-heading {
+  font-size: clamp(22px, 5.5vw, 26px);
+  line-height: 1.2;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-help {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-caption {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (min-width: 768px) {
+  .ec-night .ec-charter .charter-funnel-introduction .charter-funnel-title {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+
+  .ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-heading {
+    font-size: clamp(28px, 3vw, 32px);
+  }
+
+  .ec-night .ec-charter .charter-funnel-wizard .charter-funnel-step-help {
+    font-size: 15px;
+  }
+}
+
+/* shared readable text hooks (font metrics only; status hues stay on the elements) */
+.ec-night .ec-charter .charter-funnel-note {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ec-night .ec-charter .charter-funnel-note-neutral {
+  color: var(--ec-text-muted);
+}
+
+.ec-night .ec-charter .charter-funnel-body {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ec-night .ec-charter .charter-funnel-heading {
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+/* 3. step forms */
+.ec-night .ec-charter .charter-funnel-step-body .charter-funnel-field-label,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-field-label,
+.ec-night .ec-charter .charter-funnel-inquiry-form .charter-funnel-field-label {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ec-night .ec-charter .charter-funnel-field-help {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ec-night .ec-charter .charter-funnel-option-title {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.ec-night .ec-charter .charter-funnel-option-sub {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ec-night .ec-charter .charter-funnel-option-label {
+  line-height: 1.4;
+}
+
+.ec-night .ec-charter .charter-funnel-value {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-step-body .charter-funnel-badge {
+  font-size: 12px;
+}
+
+@media (min-width: 640px) {
+  .ec-night .ec-charter .charter-funnel-option-title {
+    font-size: 15px;
+  }
+}
+
+.ec-night .ec-charter .charter-funnel-control {
+  font-size: 16px;
+  min-height: 44px;
+  background-color: var(--ec-field-bg);
+}
+
+.ec-night .ec-charter .charter-funnel-control:not(:focus) {
+  border-color: var(--ec-field-line);
+}
+
+.ec-night .ec-charter .charter-funnel-control:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+.ec-night .ec-charter .charter-funnel-action,
+.ec-night .ec-charter .charter-funnel-action-secondary,
+.ec-night .ec-charter .charter-funnel-link-action,
+.ec-night .ec-charter .charter-funnel-edit-back,
+.ec-night .ec-charter .charter-funnel-row-edit {
+  min-height: 44px;
+}
+
+.ec-night .ec-charter .charter-funnel-action {
+  font-size: 16px;
+}
+
+.ec-night .ec-charter .charter-funnel-action-secondary,
+.ec-night .ec-charter .charter-funnel-link-action,
+.ec-night .ec-charter .charter-funnel-edit-back,
+.ec-night .ec-charter .charter-funnel-row-edit {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-action:focus-visible,
+.ec-night .ec-charter .charter-funnel-action-secondary:focus-visible,
+.ec-night .ec-charter .charter-funnel-link-action:focus-visible,
+.ec-night .ec-charter .charter-funnel-edit-back:focus-visible,
+.ec-night .ec-charter .charter-funnel-row-edit:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+/* 4. quote, receipts, inquiry */
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-quote-document {
+  line-height: 1.55;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-receipt {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  box-shadow: none;
+}
+
+.ec-night .ec-charter .charter-funnel-receipt-heading {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.ec-night .ec-charter .charter-funnel-receipt-row-label {
+  line-height: 1.45;
+  padding-inline-end: 12px;
+}
+
+.ec-night .ec-charter .charter-funnel-receipt-row-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-receipt-row-label,
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-receipt-row-value {
+  font-size: 15px;
+}
+
+.ec-night .ec-charter .charter-funnel-quote-chips {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-inquiry-form .charter-funnel-field :is(input, textarea) {
+  font-size: 16px;
+  background-color: var(--ec-field-bg);
+}
+
+.ec-night .ec-charter .charter-funnel-inquiry-form .charter-funnel-field input {
+  min-height: 44px;
+}
+
+.ec-night .ec-charter .charter-funnel-inquiry-form .charter-funnel-field :is(input, textarea):not(:focus) {
+  border-color: var(--ec-field-line);
+}
+
+.ec-night .ec-charter .charter-funnel-inquiry-form .charter-funnel-field :is(input, textarea):focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+/* 5. payment review (payable / estimate / WhatsApp branches keep their own hues) */
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-payment-summary {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+  box-shadow: none;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-row-label {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-row-value {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-total-label {
+  font-size: 15px;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-link-row {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-link-row > a {
+  padding-block: 12px;
+}
+
+/* PayPal 예약 버튼(#0070BA)의 마지막 캡션(VAT 포함) — 10px·white/45 는 대비 부족.
+   금액 줄·PayPal 파란 배경은 그대로, 이 페이지 결제 패널 안에서만 적용. */
+.ec-night .ec-charter .charter-funnel-payment .cocotrip-mobile-paypal > button > .flex-col > span:last-child {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ec-text-primary);
+}
+
+/* 모바일(≤768px) index.css 라이트 시트가 `.cocotrip-mobile-paypal [class*="text-white"]` 를 #15143d,
+   `[class*="text-white/"]` 를 #756d96 로 !important 덮어써서, 파란(#0070BA) 버튼 위 금액이 남색·VAT 가 회색이 된다.
+   이 결제 패널의 초기 예약 버튼 안에서만 흰 글씨로 되돌린다. 프로모 취소선(흐린 흰색+line-through)·
+   할인 금액(emerald) 구분, disabled opacity 는 그대로. */
+.ec-night .ec-charter .charter-funnel-payment .cocotrip-mobile-paypal > button:has(> .flex-col) {
+  color: #ffffff !important;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .cocotrip-mobile-paypal > button > .flex-col [class*="text-white/"] {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .cocotrip-mobile-paypal > button > .flex-col .line-through {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .cocotrip-mobile-paypal > button > .flex-col > span:last-child {
+  color: #ffffff !important;
+}
+
+/* 결제 요약 값은 잘라내지 않고 줄바꿈 — 목적지처럼 긴 값도 360~430 폭에서 전부 보인다. 총액 줄은 별도 요소라 무관. */
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-payment-summary .charter-funnel-row {
+  align-items: flex-start;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-payment-summary .charter-funnel-row-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.ec-night .ec-charter .charter-funnel-payment .charter-funnel-payment-summary .charter-funnel-row-edit {
+  text-align: right;
+}
+
+/* 7. service information */
+.ec-night .ec-charter .charter-funnel-service-information .charter-funnel-service-body {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.ec-night .ec-charter .charter-funnel-service-information .charter-funnel-service-heading {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+  font-size: clamp(20px, 2.6vw, 24px);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+
+
+/* 8. legal consent readability (estimate consent box; amber warning hues stay on the element) */
+.ec-night .ec-charter [data-testid="estimate-consent-box"] .charter-funnel-legal-disclaimer {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ec-night .ec-charter [data-testid="estimate-consent-box"] .charter-funnel-legal-label {
+  min-height: 44px;
+}
+
+.ec-night .ec-charter [data-testid="estimate-consent-box"] .charter-funnel-legal-label-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ec-text-primary);
+}
+
+.ec-night .ec-charter [data-testid="estimate-consent-box"] .charter-funnel-legal-checkbox:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+
+
+/* 9. summary mini-cards and neutral cutoff note (closed/imminent states untouched) */
+.ec-night .ec-charter .charter-funnel-summary-note-card {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line);
+  box-shadow: none;
+}
+
+.ec-night .ec-charter .charter-funnel-summary-note-value {
+  font-size: 14px;
+}
+
+.ec-night .ec-charter .charter-funnel-summary-note-caption,
+.ec-night .ec-charter .charter-funnel-cutoff-neutral {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-secondary);
+}
+

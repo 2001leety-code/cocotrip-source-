@@ -189,7 +189,28 @@ describe('PlanDetailPage editorial execution document', () => {
     expect(LIGHTBOX).toContain("e.key === 'Tab'");
     expect(LIGHTBOX).toContain('previousFocus?.focus()');
     expect(INTRO).not.toContain('<h2');
-    expect(INTRO).toContain('countVisibleStops');
+    // Days/stops/travelers/date live once in the masthead; intro keeps vehicle, route sequence, T-money.
+    expect(INTRO).not.toContain('countVisibleStops');
+    expect(INTRO).not.toContain('input.startDate');
+    expect(INTRO).toContain('data-testid="plan-intro-tmoney"');
+    expect(INTRO).toContain('vehicleLabel');
+    expect(INTRO).toContain('sw.customizeWhatsApp');
+    expect(DAY).toContain('planner?.placesUnit');
+    expect(DAY).not.toContain('(pd as { placesUnit?: string })');
+    // Directions + Naver + Google share one 44px row in the lavender action colour.
+    expect(STOP).toContain('data-testid="plan-stop-map-row"');
+    expect(STOP).toContain('min-h-[44px] flex-1');
+    expect(STOP).not.toMatch(/text-\[13px\] text-ec-success/);
+    // Accessible names keep the full localized label and include the visible word.
+    expect(STOP).toContain("${ui.openNaverMap || 'Open in Naver Map'} (Naver)");
+    expect(STOP).toContain("${ui.openGoogleMap || 'Open in Google Maps'} (Google)");
+    expect(STOP).toContain('aria-label={naverAriaLabel}');
+    expect(STOP).toContain('aria-label={googleAriaLabel}');
+    for (const lang of ['ko', 'en', 'ja', 'zh']) {
+      const locale = JSON.parse(read(`src/i18n/locales/${lang}.json`));
+      expect(locale.planDetail.swipe.customizeWhatsApp).toBeTruthy();
+      expect(locale.planner.placesUnit).toBeTruthy();
+    }
     expect(read('src/pages/PlanDetailPage/components/ShareButton.tsx')).toContain('data-testid="plan-share-mini"');
     expect(read('src/pages/PlanDetailPage/components/ShareButton.tsx')).toContain('min-h-[44px]');
     expect(CONFIRM).toContain('}, [open]);');

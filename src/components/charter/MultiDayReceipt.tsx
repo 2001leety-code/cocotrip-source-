@@ -32,9 +32,9 @@ const L: Record<string, Record<Lang, string>> = {
 function Row({ label, value, accent }: { label: string; value: string; accent?: 'good' | 'muted' | 'bold' }) {
   const valCls = accent === 'good' ? 'text-emerald-300' : accent === 'bold' ? 'text-white text-lg font-bold' : accent === 'muted' ? 'text-white/55' : 'text-white/85';
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className={accent === 'bold' ? 'text-base text-white/70' : 'text-sm text-white/65'}>{label}</span>
-      <span className={`text-sm ${valCls}`}>{value}</span>
+    <div className="charter-funnel-receipt-row flex items-center justify-between py-1.5">
+      <span className={accent === 'bold' ? 'charter-funnel-receipt-row-label text-base text-white/70' : 'charter-funnel-receipt-row-label text-sm text-white/65'}>{label}</span>
+      <span className={`charter-funnel-receipt-row-value text-sm ${valCls}`}>{value}</span>
     </div>
   );
 }
@@ -59,8 +59,8 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, rou
   const extras = charterExtrasKrw(q.total, vehicle, options);
   const grandTotal = q.total + extras.totalKRW;
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-1">
-      <p className="text-base font-bold text-white/85 mb-4">{lbl('title')}</p>
+    <div className="charter-funnel-receipt rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-1">
+      <p className="charter-funnel-receipt-heading text-base font-bold text-white/85 mb-4">{lbl('title')}</p>
       <Row label={`${lbl('distance')} (${km}km)`} value={KRW(q.distancePart)} />
       <Row label={`${lbl('daily')} × ${q.days}`} value={KRW(q.dailyFee * q.days)} accent="muted" />
       {q.nights > 0 && <Row label={`${lbl('overnight')} × ${q.nights}`} value={KRW(q.overnightFee * q.nights)} accent="muted" />}
@@ -79,7 +79,7 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, rou
       )}
       {extras.totalKRW > 0 && <div className="border-t border-white/10 my-2" />}
       <Row label={lbl('total')} value={KRW(grandTotal)} accent="bold" />
-      <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
+      <p className="charter-funnel-note charter-funnel-note-neutral mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
   );
 }

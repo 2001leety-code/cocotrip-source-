@@ -15,6 +15,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { CartItemBooking } from '@/lib/cart-types';
 import { SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
+import { authFetch } from '@/lib/authFetch';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
 function getPaypal(): PaypalButtonsApi | undefined {
@@ -80,19 +82,54 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const [paypalReady, setPaypalReady] = useState(false);
   const rendered = useRef(false);
   const orderRequestInFlight = useRef(false);
+  // 🔴 2026-10-10 payment recovery (cart): pointer before capture, duplicate guard, same-order reconcile via
+  //   /api/captureCartOrder {orderID}. The cart stays intact while pending; it is cleared only on durable success.
+  const { recovery, remember, clearRecovery } = usePaymentRecovery('cart');
+  const captureInFlight = useRef(false);
+  const [reconciling, setReconciling] = useState(false);
+  const rc = recoveryCopy(language);
+  async function applyOutcome(outcome: CaptureOutcome, orderId: string, fresh: boolean) {
+    if (outcome.kind === 'final') { clearRecovery(orderId); setStatus('success'); await clear(); return; }
+    if (outcome.kind === 'review') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
+    if (outcome.kind === 'pending') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
+    if (outcome.kind === 'auth_required') {
+      // 403 precedes the provider call (no charge). A fresh order never locks the flow (2026-10-10 R2).
+      if (fresh) { clearRecovery(orderId); setError(rc.authRequired); setStatus('error'); return; }
+      remember({ orderID: orderId, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
+    }
+    if (outcome.kind === 'not_captured') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
+    // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
+    if (outcome.kind === 'refunded') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
+    // Generic error: keep the pointer unless the server gives durable evidence of no capture.
+    setError(outcome.message); setStatus('error');
+    if (fresh) {
+      const evidence = await reconcilePayment('cart', orderId);
+      if (evidence.kind === 'not_captured') { clearRecovery(orderId); return; }
+      if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
+    }
+    remember({ orderID: orderId, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
+  }
+  async function checkSameOrder() {
+    if (!recovery || reconciling) return;
+    setReconciling(true);
+    try { await applyOutcome(await reconcilePayment(recovery.flow, recovery.orderID), recovery.orderID, false); } finally { setReconciling(false); }
+  }
 
   // 1) 주문 생성 — 결제 직전 backend SSOT 재계산 (client priceKRW 무시).
   async function createOrder() {
-    if (orderRequestInFlight.current) return;
+    if (orderRequestInFlight.current || recovery) return;
     orderRequestInFlight.current = true;
     setStatus('creating'); setError(null);
     try {
-      const res = await fetch('/api/createCartOrder', {
+      const res = await authFetch('/api/createCartOrder', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items, userEmail: user?.email || '' }),
       });
       const json = await res.json();
-      if (json.ok && json.data && json.data.orderID) {
+      if (json.code === 'PAYMENT_RECOVERY_PENDING' && typeof json.orderID === 'string') {
+        remember({ orderID: json.orderID, flow: json.flow === 'single' ? 'single' : 'cart', paymentStatus: json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN', review: false });
+        setStatus('idle');
+      } else if (json.ok && json.data && json.data.orderID) {
         setOrderID(json.data.orderID);
         setTotal({ usd: json.data.usdAmount, krw: json.data.totalKRW });
         setStatus('ready');
@@ -156,24 +193,23 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     pp.Buttons({
       createOrder: () => orderID,
       onApprove: async (data: { orderID: string }) => {
+        if (captureInFlight.current) return;
+        captureInFlight.current = true;
+        remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
         setStatus('processing');
         try {
-          const res = await fetch('/api/captureCartOrder', {
+          const res = await authFetch('/api/captureCartOrder', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ orderID: data.orderID, userEmail: user?.email || '' }),
           });
-          const json = await res.json();
-          // 🔴 결제 캡처됨 + 무결성 불일치 → 예약 미확정(HTTP 202). 성공으로 표시하면 미확정 예약을
-          //   확정으로 오인시키고, 실패로 표시하면 사용자가 재결제해 이중청구가 된다 → 전용 상태.
-          //   장바구니는 비운다 — 남겨두면 같은 항목으로 재결제할 수 있어 중복 결제 위험.
-          if (json.finalized === false || json.bookingStatus === 'PAYMENT_REVIEW') {
-            setStatus('review'); await clear();
-          }
-          else if (json.ok) { setStatus('success'); await clear(); }
-          else { setError(json.error || 'Capture failed'); setStatus('error'); }
-        } catch (e) {
-          setError(e instanceof Error ? e.message : 'capture error');
-          setStatus('error');
+          // 🔴 review / recovery-pending are neither success nor failure (double-charge guard); only a durable
+          //   finalized answer for this orderID clears the pointer and the cart. Exceptions stay pending.
+          await applyOutcome(classifyCaptureResponse(await res.json(), data.orderID), data.orderID, true);
+        } catch {
+          remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
+          setStatus('idle');
+        } finally {
+          captureInFlight.current = false;
         }
       },
       onCancel: () => { setStatus('ready'); rendered.current = false; },
@@ -186,8 +222,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   if (status === 'review') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
-        <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
-        <p className="text-white font-semibold mb-1">{c.checkoutReview || 'Payment received'}</p>
+        <div className="text-4xl mb-3 customer-checkout-review-icon" aria-hidden="true">🕒</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutReview || 'Payment received'}</p>
         <p className="text-white/55 text-sm mb-3">
           {c.checkoutReviewSub || 'Your booking is pending verification. We will contact you by email once confirmed.'}
         </p>
@@ -201,11 +237,29 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     );
   }
 
+  // 'review' already returned above, so only 'success' needs excluding here.
+  if (recovery && status !== 'success') {
+    return (
+      <div className="cocotrip-mobile-cart-checkout p-6 text-center customer-checkout-recovery">
+        <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{recoveryHeadline(recovery, language)}</p>
+        <p className="text-white/55 text-sm mb-2">{rc.detail}</p>
+        <p className="text-amber-300 text-xs mb-3 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2">{rc.warn}</p>
+        <p className="text-xs text-white/60 mb-4">{rc.order}: <span className="font-mono text-white/90">{recovery.orderID}</span></p>
+        {error && <p className="text-red-400/80 text-xs mb-3">{error}</p>}
+        <button onClick={checkSameOrder} disabled={reconciling || recovery.authRequired === true}
+          className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white disabled:opacity-50">
+          {reconciling ? rc.checking : rc.check}
+        </button>
+      </div>
+    );
+  }
+
   if (status === 'success') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
-        <div className="text-4xl mb-3">✅</div>
-        <p className="text-white font-semibold mb-1">{c.checkoutDone || 'Booking confirmed!'}</p>
+        <div className="text-4xl mb-3 customer-checkout-success-icon">✅</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutDone || 'Booking confirmed!'}</p>
         <p className="text-white/55 text-sm mb-5">{c.checkoutDoneSub || 'Confirmation emails are on the way.'}</p>
         <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
           {c.close || 'Done'}
@@ -218,17 +272,17 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const displaySumKRW = items.reduce((s, it) => s + (Number(it.priceKRW) || 0), 0);
 
   return (
-    <div className="cocotrip-mobile-cart-checkout p-5">
+    <div className="cocotrip-mobile-cart-checkout p-5 customer-checkout-default">
       {/* 검수 헤더 */}
       <div className="mb-3">
-        <p className="text-white font-semibold text-sm">{REVIEW_TEXT.title[lng]}</p>
+        <p className="text-white font-semibold text-sm customer-checkout-title">{REVIEW_TEXT.title[lng]}</p>
         <p className="text-white/50 text-xs mt-0.5">{REVIEW_TEXT.sub[lng]}</p>
       </div>
 
       {/* 항목별 전체 내역 (검수) */}
       <div className="space-y-2.5 mb-4">
         {items.map((item) => (
-          <div key={item.id} className="bg-white/[0.04] rounded-xl p-3 border border-white/5">
+          <div key={item.id} className="bg-white/[0.04] rounded-xl p-3 border border-white/5 customer-checkout-item">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-white text-sm font-medium break-words">{item.displayName}</p>
               {item.priceUSD ? <span className="text-[#C4956A] text-sm font-semibold shrink-0">${item.priceUSD}</span> : null}
@@ -237,7 +291,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
               {formatBookingDetails(item.booking, language).map((row, i) => (
                 row.full ? (
                   // 긴 메모/요청사항 — 우측 좁은 칸 X, 전체폭 stacked + " | " 줄바꿈으로 가독성.
-                  <div key={i} className="text-xs pt-1 border-t border-white/5">
+                  <div key={i} className="text-xs pt-1 border-t border-white/5 customer-checkout-row">
                     <span className="text-white/60 block mb-1">{row.label}</span>
                     <ol className="text-white/90 leading-relaxed space-y-0.5">
                       {row.value.split(' | ').map((part, j) => (
@@ -249,7 +303,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
                     </ol>
                   </div>
                 ) : (
-                  <div key={i} className="flex justify-between gap-3 text-xs">
+                  <div key={i} className="flex justify-between gap-3 text-xs customer-checkout-row">
                     <span className="text-white/60 shrink-0">{row.label}</span>
                     <span className="text-white/90 text-right break-words font-medium">{row.value}</span>
                   </div>
@@ -283,7 +337,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
             {REVIEW_TEXT.confirm[lng]}
           </button>
           {onBack && (
-            <button onClick={onBack} className="w-full mt-2 text-xs text-white/50 hover:text-white/80 py-1.5">
+            <button onClick={onBack} className="w-full mt-2 text-xs text-white/50 hover:text-white/80 py-1.5 customer-checkout-back">
               {REVIEW_TEXT.back[lng]}
             </button>
           )}

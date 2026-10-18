@@ -55,9 +55,12 @@ const REFUND_TIMEOUT_MS = 20_000;
  * @param {string} [args.currency='USD'] — capture 통화. booking.currency 가 있으면 넘길 것.
  * @param {string} [args.note] — PayPal note_to_payer (shown on PayPal receipt).
  * @param {boolean} [args.isSandbox=false]
- * @returns {Promise<{ok: true, refund: object} | {ok: false, code: string, error: string, status: number}>}
+ * @param {boolean} [args.receipt=false] — `Prefer: return=representation` 요청(환불 금액·통화가 담긴 영수증).
+ *   기본(minimal) 응답엔 amount 가 없다. 고객 화면 종결 증명이 필요한 호출자만 켠다. 호출 횟수·멱등키 불변.
+ * @returns {Promise<{ok: true, final: boolean, refund: object, httpStatus: number} | {ok: false, code: string, error: string, status: number}>}
+ *   `httpStatus` 는 부가 메타데이터 — 기존 호출자의 ok/final 판정은 그대로다.
  */
-export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD, currency, note, isSandbox = false }) {
+export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD, currency, note, isSandbox = false, receipt = false }) {
   if (!captureID) {
     return { ok: false, code: 'NO_CAPTURE_ID', error: 'captureID required', status: 400 };
   }
@@ -113,6 +116,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
         'Content-Type': 'application/json',
         // 🔴 이중환불 방어. 같은 키 재시도 = PayPal 이 최초 환불을 그대로 반환.
         'PayPal-Request-Id': `refund:${idempotencyKey}`,
+        ...(receipt ? { Prefer: 'return=representation' } : {}),
       },
       body: JSON.stringify(body),
       // 무한 대기 금지 — 서버리스가 먼저 죽으면 우리는 결과를 영영 모르고 사용자는 재시도한다.
@@ -123,11 +127,13 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
     //   COMPLETED 만 **종단 성공**이다. PENDING(eCheck·리스크홀드)은 나중에 FAILED 로 뒤집힐 수 있어
     //   REFUNDED 로 확정하면 미환불 은폐가 된다. ok:true 는 유지(기존 계약 보존)하되 final 로 구분한다.
     //   미지의 신규 값은 아래 fail-safe 로 떨어져 ok:false 가 된다(열린 enum 방어).
+    //   httpStatus 는 판정에 쓰지 않는다(기존 계약). 엄격한 종결 증명은 호출자가 별도 검증한다
+    //   (payment-fulfillment-recovery.js provenFullRefundID — HTTP 2xx·전액·통화·refund id).
     if (refundData.status === 'COMPLETED') {
-      return { ok: true, final: true, refund: refundData };
+      return { ok: true, final: true, refund: refundData, httpStatus: res.status };
     }
     if (refundData.status === 'PENDING') {
-      return { ok: true, final: false, pending: true, refund: refundData };
+      return { ok: true, final: false, pending: true, refund: refundData, httpStatus: res.status };
     }
     // 이전엔 HTTP status 를 아예 보지 않고 body 의 status 필드만 봤다. 4xx/5xx 로 body 가 비어도
     // 'unknown' 만 남아 진단이 불가능했다 → HTTP status 를 에러에 포함한다(동작은 동일: ok:false).

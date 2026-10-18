@@ -140,6 +140,10 @@ const RDP_STYLE_VARS = {
   '--rdp-accent-background-color': 'var(--ec-brand-wash)',
   '--rdp-range_start-background': 'var(--ec-brand-wash)',
   '--rdp-range_end-background': 'var(--ec-brand-wash)',
+  // 시작/끝 날짜는 --rdp-accent-color(=ec-brand) 로 채워진다 — 기본 white 글자는
+  // 밝은 brand 위에서 대비가 안 나오므로 primary 버튼과 같은 전경색 쌍을 쓴다.
+  '--rdp-range_start-color': 'var(--ec-button-primary-fg)',
+  '--rdp-range_end-color': 'var(--ec-button-primary-fg)',
   '--rdp-today-color': 'var(--ec-text-faint)',
   '--rdp-selected-border': '0',
   '--rdp-disabled-opacity': '1',
@@ -147,6 +151,8 @@ const RDP_STYLE_VARS = {
   '--rdp-day-width': '44px',
   '--rdp-day_button-height': '44px',
   '--rdp-day_button-width': '44px',
+  '--rdp-nav_button-height': '44px',
+  '--rdp-nav_button-width': '44px',
 } as CSSProperties;
 
 function LuggageCounter({ label, sub, value, setValue, maxReached }: { label: string; sub: string; value: number; setValue: (v: number) => void; maxReached?: boolean }) {
@@ -261,7 +267,7 @@ export function WizardStep2Details(props: Step2Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="wizard-stage wizard-stage--details space-y-6">
       <div>
         <h2 className="ec-h3">{p.planner_step2_date || 'Travel Details'}</h2>
         <p className="ec-help mt-1">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
@@ -285,7 +291,7 @@ export function WizardStep2Details(props: Step2Props) {
             {d.wizardDateKstBlocked || 'Your start date has already passed in Korea time (KST). Please pick a later date.'}
           </p>
         )}
-        <div className={`ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && (!dateOk || !dateKstOk) ? 'border-ec-critical' : ''}`}>
+        <div className={`wizard-date-calendar ec-panel-quiet overflow-x-auto mt-2.5 ${showErrors && (!dateOk || !dateKstOk) ? 'border-ec-critical' : ''}`}>
           <DayPicker
             mode="range"
             selected={dateRange}
@@ -301,14 +307,18 @@ export function WizardStep2Details(props: Step2Props) {
             disabled={(day) => day < kstTomorrowLocalDate()}
             showOutsideDays={false}
             style={RDP_STYLE_VARS}
+            // DayPicker merges classNames shallowly over its defaults, so each
+            // overridden key keeps its own rdp-* class first — without
+            // rdp-month_caption the caption row loses --rdp-nav-height and the
+            // nav chevrons sit on the weekday header.
             classNames={{
-              months: 'justify-center',
-              month_caption: 'text-ec-ink font-bold text-[15px]',
-              weekday: 'text-ec-ink-3 text-xs font-medium opacity-100',
-              button_previous: 'text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
-              button_next: 'text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
-              day_button: 'transition-colors enabled:hover:bg-ec-brand-wash',
-              disabled: 'text-ec-ink-4',
+              months: 'rdp-months justify-center',
+              month_caption: 'rdp-month_caption text-ec-ink font-bold text-[15px]',
+              weekday: 'rdp-weekday text-ec-ink-3 text-xs font-medium opacity-100',
+              button_previous: 'rdp-button_previous text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
+              button_next: 'rdp-button_next text-ec-brand hover:bg-ec-brand-wash rounded-full transition-colors',
+              day_button: 'rdp-day_button transition-colors enabled:hover:bg-ec-brand-wash',
+              disabled: 'rdp-disabled text-ec-ink-4',
             }}
           />
         </div>
@@ -568,6 +578,7 @@ export function WizardStep2Details(props: Step2Props) {
                 label: opt.label,
               }))}
               icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
+              contentClassName="ec-night"
             />
           </div>
         </div>
@@ -594,6 +605,7 @@ export function WizardStep2Details(props: Step2Props) {
                 label: opt.label,
               }))}
               icon={<Plane className="w-4 h-4 text-ec-ink-3" />}
+              contentClassName="ec-night"
             />
           </div>
           {departureTerminal && departureTerminal !== arrivalTerminal && (

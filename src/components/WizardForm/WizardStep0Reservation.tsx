@@ -6,7 +6,7 @@
 // guessed during preview generation. Asking up front also lets us short-circuit
 // users who already booked everything → free-plan flow (P4 FreeClaimForm).
 //
-// 4 quadrant cards:
+// 4 choices (one full-width row each since 2026-10-07):
 //   nothing       — flight + hotel both not booked yet
 //   flight        — flight booked, hotel not
 //   flight_hotel  — both booked, AI plan still wanted
@@ -15,7 +15,7 @@
 // "flight" / "flight_hotel" reveal a mini-form (airport + arrival HH:MM) so
 // real airport/time data is captured early. Hotel address still goes in step 3.
 import { useRef, useState } from 'react';
-import { Plane, Hotel, CheckCheck, X, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { WizardDict } from './types';
 import { getAirportOptions } from './helpers';
 import { WizardMissingSummary } from './WizardMissing';
@@ -40,11 +40,11 @@ interface Step0ResProps {
   onNext: () => void;
 }
 
-const QUADS: { key: ReservationStatus; icon: React.ReactNode; titleKey: string; titleFb: string; subKey: string; subFb: string }[] = [
-  { key: 'nothing',      icon: <X className="w-5 h-5" />,          titleKey: 'resNothingTitle',     titleFb: 'Nothing booked yet',           subKey: 'resNothingSub',     subFb: 'Just exploring options' },
-  { key: 'flight',       icon: <Plane className="w-5 h-5" />,      titleKey: 'resFlightTitle',      titleFb: 'Flight booked',                subKey: 'resFlightSub',      subFb: 'Need hotel + plan' },
-  { key: 'flight_hotel', icon: <Hotel className="w-5 h-5" />,      titleKey: 'resFlightHotelTitle', titleFb: 'Flight + hotel booked',        subKey: 'resFlightHotelSub', subFb: 'Just need the itinerary' },
-  { key: 'all_done',     icon: <CheckCheck className="w-5 h-5" />, titleKey: 'resAllDoneTitle',     titleFb: 'All booked through CocoTrip',  subKey: 'resAllDoneSub',     subFb: 'Just need the day-by-day plan' },
+const QUADS: { key: ReservationStatus; titleKey: string; titleFb: string; subKey: string; subFb: string }[] = [
+  { key: 'nothing',      titleKey: 'resNothingTitle',     titleFb: 'Nothing booked yet',           subKey: 'resNothingSub',     subFb: 'Just exploring options' },
+  { key: 'flight',       titleKey: 'resFlightTitle',      titleFb: 'Flight booked',                subKey: 'resFlightSub',      subFb: 'Need hotel + plan' },
+  { key: 'flight_hotel', titleKey: 'resFlightHotelTitle', titleFb: 'Flight + hotel booked',        subKey: 'resFlightHotelSub', subFb: 'Just need the itinerary' },
+  { key: 'all_done',     titleKey: 'resAllDoneTitle',     titleFb: 'All booked through CocoTrip',  subKey: 'resAllDoneSub',     subFb: 'Just need the day-by-day plan' },
 ];
 
 export function WizardStep0Reservation({
@@ -97,10 +97,12 @@ export function WizardStep0Reservation({
   }
 
   return (
-    <div className="space-y-3.5 sm:space-y-5">
+    // `wizard-res-ticket` is a presentation marker only: the planner page paints its
+    // question card as Home's ticket while this step is on screen (home-dope.css).
+    <div className="wizard-res-ticket space-y-3.5 sm:space-y-5">
       <div>
         <h2 className="text-[16px] sm:text-lg font-bold mb-1 text-ec-ink">
-          {p.resTitle || 'Where are you in your trip planning?'}
+          {p.resBookingQuestion || p.resTitle || 'Where are you in your trip planning?'}
         </h2>
         <p className="text-[12px] sm:text-sm text-ec-ink-3 leading-relaxed">
           {p.resSub || "We'll tailor the rest of the form based on what you've already booked"}
@@ -112,10 +114,10 @@ export function WizardStep0Reservation({
       )}
 
       {/* tabIndex={-1}: 프로그램에서 포커스를 주려면 필요하다(탭 순서엔 안 들어간다). */}
-      <div ref={statusRef} tabIndex={-1} className="grid grid-cols-2 gap-2 scroll-mt-4 outline-none">
+      <div ref={statusRef} tabIndex={-1} className="wizard-res-rows scroll-mt-4 outline-none">
         {QUADS.map(q => {
           const sel = status === q.key;
-          const title = (p[q.titleKey as keyof typeof p] as string) || q.titleFb;
+          const title = p[`${q.titleKey}Short`] || p[q.titleKey] || q.titleFb;
           const sub = (p[q.subKey as keyof typeof p] as string) || q.subFb;
           return (
             // 2026-05-03 fix: 사용자가 'flight_hotel' 선택 후 호텔 입력했다가 다른 상태로 바꿀 때
@@ -134,17 +136,16 @@ export function WizardStep0Reservation({
                 setArrivalAirport('');
               }
             }}
-              className={`ec-option min-h-[64px] sm:min-h-[78px] ${sel ? 'is-selected' : ''}`}>
-              <span className="flex items-center gap-2.5">
-                <span
-                  className={`w-8 h-8 rounded-ec-md flex items-center justify-center shrink-0 border border-ec-line ${sel ? 'bg-ec-brand-wash text-ec-brand' : 'bg-ec-sunken text-ec-ink-3'}`}
-                >
-                  {q.icon}
-                </span>
-                <span className="min-w-0">
-                  <p className="text-[12px] sm:text-[13px] font-bold leading-tight line-clamp-2">{title}</p>
-                  <p className="text-[9.5px] sm:text-[10px] text-ec-ink-3 leading-tight mt-0.5 line-clamp-1">{sub}</p>
-                </span>
+              className={`wizard-res-row ${sel ? 'is-selected' : ''}`}>
+              {/* 2026-10-07 (Home cohesion): one full-width row per choice, labels wrap
+                  instead of clamping. The check mark carries the selected state
+                  alongside colour; aria-pressed stays the source of truth. */}
+              <span className="wizard-res-row__text">
+                <span className="wizard-res-row__title">{title}</span>
+                <span className="wizard-res-row__sub">{sub}</span>
+              </span>
+              <span className="wizard-res-row__mark" aria-hidden>
+                {sel && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
               </span>
             </button>
           );
@@ -206,11 +207,14 @@ export function WizardStep0Reservation({
 
       {/* 2026-08-18: `disabled` 를 걷었다. 못 넘어가는 이유를 말해 주는 쪽이 회색 버튼보다 낫다.
           되돌리려면 위 handleNext 주석부터 읽을 것 — 잠금 테스트가 이 자리를 지킨다. */}
-      <button onClick={handleNext} type="button"
-        className="ec-btn ec-btn-primary w-full">
-        {/* P133: all_done 분기도 동일 CTA — 구 funnel 오해 소지 제거. resNext 재사용. */}
-        {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />
-      </button>
+      {/* 2026-10-07: the dashed tear line above the CTA is the ticket stub — decoration only. */}
+      <div className="wizard-res-stub">
+        <button onClick={handleNext} type="button"
+          className="ec-btn ec-btn-primary wizard-res-cta w-full">
+          {/* P133: all_done 분기도 동일 CTA — 구 funnel 오해 소지 제거. resNext 재사용. */}
+          {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 }

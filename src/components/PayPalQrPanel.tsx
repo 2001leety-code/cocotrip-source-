@@ -293,7 +293,7 @@ export function PayPalQrPanel({
 
   if (!username) {
     return (
-      <div className="bg-white/[0.04] border border-amber-500/30 rounded-xl p-5 text-center">
+      <div className="bg-white/[0.04] border border-amber-500/30 rounded-xl p-5 text-center customer-paypal-qr customer-paypal-qr-notconfigured">
         <AlertCircle className="w-6 h-6 mx-auto mb-2 text-amber-300" />
         <p className="text-sm text-white/80">{L.notConfigured}</p>
       </div>
@@ -302,14 +302,14 @@ export function PayPalQrPanel({
 
   if (reported) {
     return (
-      <div className="rounded-xl p-5 text-center" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(34,197,94,0.04))', border: '1px solid rgba(16,185,129,0.30)' }}>
+      <div className="rounded-xl p-5 text-center customer-paypal-qr customer-paypal-qr-reported" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(34,197,94,0.04))', border: '1px solid rgba(16,185,129,0.30)' }}>
         <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
           <Check className="w-7 h-7 text-emerald-300" />
         </div>
-        <p className="text-base font-bold text-white">{L.reportedTitle}</p>
-        <p className="text-[12px] text-white/65 mt-2 leading-relaxed">{L.reportedDesc}</p>
+        <p className="text-base font-bold text-white customer-paypal-qr-heading">{L.reportedTitle}</p>
+        <p className="text-[12px] text-white/65 mt-2 leading-relaxed customer-paypal-qr-copy">{L.reportedDesc}</p>
         <div className="mt-4 inline-block px-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.1]">
-          <p className="text-[10px] text-white/45 uppercase tracking-wider">{L.reportedHint}</p>
+          <p className="text-[10px] text-white/45 uppercase tracking-wider customer-paypal-qr-label">{L.reportedHint}</p>
           <p className="text-sm font-mono font-bold text-white">{bookingRef}</p>
         </div>
       </div>
@@ -317,7 +317,7 @@ export function PayPalQrPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 customer-paypal-qr customer-paypal-qr-default">
       {/* Admin TEST 모드 배너 — 일반 사용자 무영향 */}
       {isAdminTest && (
         <div className="rounded-xl p-3.5 border" style={{
@@ -338,14 +338,14 @@ export function PayPalQrPanel({
           <Smartphone className="w-5 h-5 text-[#3CB6FF]" />
         </div>
         <div>
-          <p className="text-base font-bold text-white">{L.title}</p>
-          <p className="text-[11px] text-white/55 mt-0.5">{L.step1Desc}</p>
+          <p className="text-base font-bold text-white customer-paypal-qr-heading">{L.title}</p>
+          <p className="text-[11px] text-white/55 mt-0.5 customer-paypal-qr-copy">{L.step1Desc}</p>
         </div>
       </div>
 
       {/* Step 1: QR + 금액 + 메모 */}
       <div className="space-y-3">
-        <p className="text-sm font-bold text-white">{L.step1Title}</p>
+        <p className="text-sm font-bold text-white customer-paypal-qr-step">{L.step1Title}</p>
 
         {/* QR 코드 */}
         {qrDataUrl ? (
@@ -361,7 +361,7 @@ export function PayPalQrPanel({
 
         {/* 금액 */}
         <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
-          <p className="text-[10px] text-white/45 uppercase tracking-wider">{L.amountLabel}</p>
+          <p className="text-[10px] text-white/45 uppercase tracking-wider customer-paypal-qr-label">{L.amountLabel}</p>
           <p className="text-lg font-bold text-white">${usdAmount} USD <span className="text-[12px] text-white/55 font-normal">≈ ₩{priceKRW.toLocaleString('ko-KR')}</span></p>
         </div>
 
@@ -372,7 +372,7 @@ export function PayPalQrPanel({
             <button
               type="button"
               onClick={copyMemo}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all customer-paypal-qr-copybtn ${
                 memoCopied
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                   : 'bg-amber-500/15 text-amber-200 border border-amber-500/30 hover:bg-amber-500/25'
@@ -383,7 +383,7 @@ export function PayPalQrPanel({
             </button>
           </div>
           <p className="text-base font-mono font-bold text-amber-100">{bookingRef}</p>
-          <p className="text-[10px] text-amber-300/70 mt-1.5 leading-snug">{L.refHint}</p>
+          <p className="text-[10px] text-amber-300/70 mt-1.5 leading-snug customer-paypal-qr-copy">{L.refHint}</p>
         </div>
 
         {/* QR 안 되면 직접 링크 */}
@@ -391,7 +391,7 @@ export function PayPalQrPanel({
           href={paypalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 text-[11px] text-[#3CB6FF] hover:text-[#79D0FF] py-1"
+          className="flex items-center justify-center gap-1.5 text-[11px] text-[#3CB6FF] hover:text-[#79D0FF] py-1 customer-paypal-qr-link"
         >
           <ExternalLink className="w-3 h-3" />
           {L.openLink}
@@ -401,8 +401,8 @@ export function PayPalQrPanel({
       {/* Step 2: 결제 완료 신고 */}
       <div className="space-y-2.5 border-t border-white/[0.06] pt-4">
         <div>
-          <p className="text-sm font-bold text-white">{L.step2Title}</p>
-          <p className="text-[12px] text-white/55 mt-0.5 leading-relaxed">{L.step2Desc}</p>
+          <p className="text-sm font-bold text-white customer-paypal-qr-step">{L.step2Title}</p>
+          <p className="text-[12px] text-white/55 mt-0.5 leading-relaxed customer-paypal-qr-copy">{L.step2Desc}</p>
         </div>
 
         <label className="block">
@@ -432,7 +432,7 @@ export function PayPalQrPanel({
         </label>
 
         {error && (
-          <div className="text-[12px] text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+          <div className="text-[12px] text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 customer-paypal-qr-error">
             {error}
           </div>
         )}
@@ -443,7 +443,7 @@ export function PayPalQrPanel({
               type="button"
               onClick={onBack}
               disabled={submitting}
-              className="px-4 py-3 rounded-xl text-sm font-semibold text-white/70 border border-white/[0.15] hover:bg-white/[0.05] disabled:opacity-50"
+              className="px-4 py-3 rounded-xl text-sm font-semibold text-white/70 border border-white/[0.15] hover:bg-white/[0.05] disabled:opacity-50 customer-paypal-qr-secondary"
             >
               {L.back}
             </button>
@@ -452,7 +452,7 @@ export function PayPalQrPanel({
             type="button"
             onClick={handleReport}
             disabled={submitting}
-            className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 customer-paypal-qr-primary"
             style={{ background: 'linear-gradient(135deg, #0070BA, #003087)' }}
           >
             {submitting ? (

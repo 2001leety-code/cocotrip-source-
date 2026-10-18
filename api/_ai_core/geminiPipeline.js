@@ -1197,18 +1197,21 @@ function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
   ];
   if (wantsHalal) {
     parts.push(
-      '- Halal: ONLY recommend restaurants explicitly certified or verified Halal.',
+      '- Halal: ONLY recommend restaurants from the provided list whose line is marked [HALAL].',
+      '  [HALAL] means our DB lists halal-friendly evidence for that restaurant - it is NOT halal certification.',
       '  NEVER recommend restaurants serving pork (돼지/삼겹), bacon, ham, or alcohol.',
       '  Mark each food stop with `dietary_tags: ["halal"]` AND mention "halal" or "할랄" in the tip.',
       // 2026-07-10: 안심 문구("no pork served")의 pork 단어가 검증기 conflict 로 걸려 재시도도
       // 실패하던 원인 — 금지어 자체를 아예 쓰지 말라고 명시.
       '  Do NOT write the words "pork/돼지/삼겹" anywhere in tips/reasons — not even in',
-      '  reassurances like "no pork served". Phrase it positively: "100% halal menu".',
+      '  reassurances like "no pork served". Phrase it positively and without certification claims,',
+      '  e.g. "halal-friendly menu (listed in our DB)". Never write "certified", "100%", or "인증" unless the restaurant line is marked [HALAL] AND that same line states halal certification for that restaurant ([HALAL — CERTIFIED]).',
+      '  A [HALAL] marker by itself is never certification; a CERTIFIED label for another diet (e.g. [VEGAN — CERTIFIED]) is never halal certification.',
     );
   }
   if (wantsVegan) {
     parts.push(
-      '- Vegan: ONLY plant-based restaurants. NEVER recommend places serving',
+      '- Vegan: ONLY plant-based restaurants. NEVER claim "100% vegan"/"vegan restaurant" unless the line is marked [VEGAN] in the provided list. NEVER recommend places serving',
       '  beef/chicken/pork/fish/seafood (소고기/돼지/닭/생선/해산물) — even as an option.',
       '  Mark each food stop with `dietary_tags: ["vegan"]` AND mention "vegan" or "비건" in the tip.',
     );

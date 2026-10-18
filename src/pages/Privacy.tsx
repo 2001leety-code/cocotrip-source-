@@ -1,4 +1,7 @@
+import '@/styles/home-dope.css';
+import '@/styles/home-dope-static.css';
 import type { ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { CookieSettings } from '@/components/CookieSettings';
@@ -196,13 +199,41 @@ const CONTENT = {
 
 type ArticleData = (typeof CONTENT)['en']['articles'][number];
 
-const PageSection = ({ title, children, isMobile }: { title: string; children: ReactNode; isMobile?: boolean }) => (
-  <section className="mb-8">
-    <h2 className={`text-xl font-semibold pb-2 mb-4 border-b-2 ${
-      isMobile ? 'text-white border-[#B668FC]/30' : 'text-white border-[#FF6B9D]/40'
-    }`}>{title}</h2>
-    <div className={`space-y-4 text-sm leading-relaxed ${isMobile ? 'text-white/50' : 'text-white/70'}`}>{children}</div>
+/** Wrapper labels only (2026-10-11, home vocabulary). The legal text above is untouched. */
+const LABELS = {
+  ko: { kicker: '법적 고지', article: '조항' },
+  en: { kicker: 'Legal', article: 'Article' },
+  ja: { kicker: '法的情報', article: '条項' },
+  zh: { kicker: '法律信息', article: '条款' },
+};
+
+const num = (i: number) => String(i + 1).padStart(2, '0');
+
+const PageSection = ({ index, title, chip, children }: { index: number; title: string; chip: string; children: ReactNode }) => (
+  <section id={`article-${index + 1}`} className="scroll-mt-24 border-t border-ec-line p-5 first:border-t-0 md:p-8">
+    <div className="flex items-start justify-between gap-4">
+      <h2 className="ec-h3"><span className="ec-figure mr-2">{num(index)}</span>{title}</h2>
+      <span className="ec-chip shrink-0">{chip}</span>
+    </div>
+    <div className="ec-body mt-4 max-w-[62ch] space-y-4 text-ec-ink-2">{children}</div>
   </section>
+);
+
+/** Table of contents in Home's service-row vocabulary; each row anchors to its article. */
+const LegalToc = ({ label, titles }: { label: string; titles: string[] }) => (
+  <nav aria-label={label} className="home-dope-services home-dope-rows mt-10">
+    <ul className="home-dope-rows__list">
+      {titles.map((title, i) => (
+        <li key={i}>
+          <a href={`#article-${i + 1}`} className="home-dope-row">
+            <span className="home-dope-row__title">{num(i)}</span>
+            <span className="home-dope-row__desc font-semibold">{title}</span>
+            <ArrowRight className="home-dope-row__arrow" aria-hidden />
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
 );
 
 type PrivacyArticleExt = ArticleData & {
@@ -216,6 +247,7 @@ export default function Privacy() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
+  const labels = LABELS[language as keyof typeof LABELS] || LABELS.en;
 
   usePageMeta({
     title: content.pageTitle,
@@ -223,52 +255,59 @@ export default function Privacy() {
   });
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]'}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#0a0b14]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
-        <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
-          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-4xl sm:text-5xl sm:mb-12 font-display font-normal tracking-tight'}`}>{content.pageTitle}</h1>
+      <main className="ec-root home-dope home-dope--static" lang={language}>
+        <section className="border-b border-ec-line bg-ec-sunken">
+          <div className="ec-container-wide py-12 md:py-16">
+            <p className="ec-eyebrow home-dope-eyebrow">{labels.kicker} · {content.pageTitle}</p>
+            <h1 className="ec-h2 mt-4">{content.pageTitle}</h1>
 
-          {/* 🔴 2026-07-30 (P1-1): 쿠키·분석 설정 진입점.
-              Footer 에도 넣었지만 **모바일 화면 일부는 Footer 를 렌더하지 않는다**(이 페이지 포함,
-              모바일 홈·About 도 마찬가지). 개인정보 처리방침은 쿠키 배너와 모든 푸터가 링크하는
-              곳이라, 여기 두면 어느 화면에서든 도달할 수 있다. */}
-          <div className="mb-8 flex justify-center">
-            <CookieSettings className="inline-flex min-h-[44px] items-center rounded-xl border border-[#B668FC]/40 bg-[#B668FC]/10 px-4 text-[13px] font-semibold text-white hover:bg-[#B668FC]/20 transition-colors" />
+            {/* 🔴 2026-07-30 (P1-1): 쿠키·분석 설정 진입점.
+                Footer 에도 넣었지만 **모바일 화면 일부는 Footer 를 렌더하지 않는다**(이 페이지 포함,
+                모바일 홈·About 도 마찬가지). 개인정보 처리방침은 쿠키 배너와 모든 푸터가 링크하는
+                곳이라, 여기 두면 어느 화면에서든 도달할 수 있다. */}
+            <div className="mt-6 flex">
+              <CookieSettings className="inline-flex min-h-[44px] items-center rounded-xl border border-[#B668FC]/40 bg-[#B668FC]/10 px-4 text-[13px] font-semibold text-white hover:bg-[#B668FC]/20 transition-colors" />
+            </div>
+            <LegalToc label={content.pageTitle} titles={content.articles.map((a) => a.title)} />
           </div>
-
-          {content.articles.map((article: ArticleData, idx: number) => {
-            const a = article as PrivacyArticleExt;
-            return (
-            <PageSection key={idx} title={a.title} isMobile={isMobile}>
-              <p>{a.body}</p>
-              {a.list && (
-                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
-                  {a.list.map((item: string, i: number) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              )}
-              {a.contacts && (
-                <ul className={`list-none space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
-                  {a.contacts.map((c, i: number) => (
-                    <li key={i}><strong>{c.label}:</strong> {c.value}</li>
-                  ))}
-                </ul>
-              )}
-              {a.footer && (
-                <>
-                  <p>{a.footer}</p>
+        </section>
+        <div className="ec-container-wide py-12 md:py-16">
+          <article className="ec-card max-w-4xl p-0">
+            {content.articles.map((article: ArticleData, idx: number) => {
+              const a = article as PrivacyArticleExt;
+              return (
+              <PageSection key={idx} index={idx} title={a.title} chip={labels.article}>
+                <p>{a.body}</p>
+                {a.list && (
                   <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
-                    {(a.footerList || []).map((item: string, i: number) => (
+                    {a.list.map((item: string, i: number) => (
                       <li key={i}>{item}</li>
                     ))}
                   </ul>
-                </>
-              )}
-            </PageSection>
-            );
-          })}
+                )}
+                {a.contacts && (
+                  <ul className={`list-none space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
+                    {a.contacts.map((c, i: number) => (
+                      <li key={i}><strong>{c.label}:</strong> {c.value}</li>
+                    ))}
+                  </ul>
+                )}
+                {a.footer && (
+                  <>
+                    <p>{a.footer}</p>
+                    <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
+                      {(a.footerList || []).map((item: string, i: number) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </PageSection>
+              );
+            })}
+          </article>
         </div>
       </main>
       {!isMobile && <Footer t={t} />}

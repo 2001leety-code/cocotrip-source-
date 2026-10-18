@@ -1023,3 +1023,116 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+
+/* Customer night: MyPage purpose pass (selectors only, no token declarations) */
+.ec-night .mypage-editorial .mypage-editorial-name {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-email {
+  font-size: 14px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-profile,
+.ec-night .mypage-editorial .mypage-editorial-nexttrip,
+.ec-night .mypage-editorial .mypage-editorial-redeem,
+.ec-night .mypage-editorial .mypage-editorial-adcard {
+  border-color: var(--ec-line);
+  background: var(--ec-surface-raised);
+}
+
+.ec-night .mypage-editorial .mypage-editorial-tab {
+  font-size: 15px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-nav-item {
+  font-size: 15px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-stat-label {
+  font-size: 11px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-stat-sub,
+.ec-night .mypage-editorial .mypage-editorial-plan-date,
+.ec-night .mypage-editorial .mypage-editorial-redeem-note,
+.ec-night .mypage-editorial .mypage-editorial-nexttrip-date,
+.ec-night .mypage-editorial .mypage-editorial-log-date {
+  font-size: 12px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-wishlist-type,
+.ec-night .mypage-editorial .mypage-editorial-coupon-used {
+  font-size: 11px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-redeem-bonus {
+  font-size: 11px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-plan-title,
+.ec-night .mypage-editorial .mypage-editorial-wishlist-name {
+  font-size: 14px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-coupon-label,
+.ec-night .mypage-editorial .mypage-editorial-log-desc {
+  font-size: 15px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-adcard-title,
+.ec-night .mypage-editorial .mypage-editorial-adcard-body {
+  font-size: 14px;
+}
+
+.ec-night .mypage-editorial .mypage-editorial-review-stars .is-filled {
+  color: var(--ec-notice);
+}
+
+.ec-night .mypage-editorial .mypage-editorial-plan-card:hover,
+.ec-night .mypage-editorial .mypage-editorial-wishlist-card:hover,
+.ec-night .mypage-editorial .mypage-editorial-nexttrip:hover {
+  border-color: var(--ec-line-contrast);
+}
+
+@media (min-width: 768px) {
+  .ec-night .mypage-editorial .mypage-editorial-main {
+    padding-top: calc(var(--ec-shell-height-md) + 36px);
+    padding-bottom: 80px;
+  }
+
+  .ec-night .mypage-editorial .mypage-editorial-profile {
+    gap: 16px;
+    padding: 22px;
+  }
+
+  .ec-night .mypage-editorial .mypage-editorial-tabs {
+    margin-top: 24px;
+  }
+
+  .ec-night .mypage-editorial .mypage-editorial-panel {
+    padding-top: 22px;
+  }
+
+  .ec-night .mypage-editorial .mypage-editorial-section-label {
+    margin-top: 24px;
+  }
+
+  .ec-night .mypage-editorial .mypage-editorial-redeem {
+    padding: 20px;
+  }
+}
+
+
+/* Coordinator-approved title contract: mobile <=32px, desktop 32-40px. */
+@media (min-width: 768px) {
+  .ec-night .mypage-editorial .mypage-editorial-name {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

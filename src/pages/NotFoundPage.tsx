@@ -43,7 +43,7 @@ export default function NotFoundPage() {
       <style>{NOT_FOUND_EDITORIAL_CSS}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main
-        className="not-found-editorial not-found-editorial--app ec-root"
+        className="not-found-editorial not-found-editorial--app ec-root ec-night"
         data-testid="not-found-editorial"
         role="main"
         aria-labelledby="not-found-title"

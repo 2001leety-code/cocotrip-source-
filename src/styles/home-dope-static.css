@@ -1,0 +1,62 @@
+/*
+ * Static pages on the home vocabulary (2026-10-11): /links, /whatsapp-support,
+ * /terms, /privacy, /travel-terms. Imported right after home-dope.css by those
+ * pages only, and every rule is scoped to `.home-dope--static`, so Home itself
+ * never matches. No new colours: this only undoes Home-only layout decisions
+ * (header pull-up, desktop-hidden hero CTA, phone-hidden pass, 576px pass cap,
+ * nowrap h1 lines, 2-line lede clamp) for pages whose content must all show.
+ */
+
+/* /links and /whatsapp-support render no header: do not pull the hero under one. */
+.home-dope.home-dope--static .home-dope-hero {
+  margin-top: 0;
+  padding-top: clamp(32px, 6vh, 72px);
+}
+
+/* Longer page titles and CJK wrap instead of running off the hero. */
+.home-dope.home-dope--static .home-dope-h1__line {
+  white-space: normal;
+}
+
+.home-dope.home-dope--static .home-dope-lede {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.home-dope.home-dope--static .home-dope-hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* Home hides the pass on phones (its play link covers it); here the pass is the content. */
+.home-dope.home-dope--static .home-dope-pass-wrap {
+  display: block;
+}
+
+.home-dope.home-dope--static .home-dope-pass {
+  max-height: none;
+}
+
+/* Hub stops are links: full opacity for legibility, 44px targets, dot on line 1. */
+.home-dope.home-dope--static .home-dope-pass__stops {
+  opacity: 1;
+}
+
+.home-dope.home-dope--static .home-dope-pass__stops a {
+  display: block;
+  min-height: 44px;
+  padding: 4px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-dope.home-dope--static .home-dope-pass__stops li::before {
+  top: 11px;
+}
+
+.home-dope.home-dope--static .home-dope-pass__stops li:not(:last-child)::after {
+  top: 20px;
+}

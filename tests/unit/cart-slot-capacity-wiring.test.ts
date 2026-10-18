@@ -258,13 +258,25 @@ describe('captureCartOrder 배선 (소스 잠금)', () => {
     expect(cap).toMatch(/await confirmSlotLock\(/);
   });
 
+  // 2026-10-10: 예약 doc 저장은 인라인 batch(batchOk = true)에서 공유 트랜잭션 persistBookingsAtomically 로
+  //   이동했다. batchOk 는 이제 그 결과(persisted.ok)다. 계약은 같다 — 저장이 확정된 뒤에만 좌석을 확정한다.
   it('🔴 예약 doc 저장 성공(batchOk) 뒤에만 확정한다 (단건 bookingWriteOk 게이트와 동형)', () => {
-    const batchOk = cap.indexOf('batchOk = true');
     // import 줄이 아니라 실제 호출 지점으로 비교.
+    const persist = cap.indexOf('persistBookingsAtomically(');
+    const gate = cap.indexOf('batchOk = persisted.ok');
+    const failure = cap.indexOf('if (!batchOk)');
     const confirm = cap.indexOf('await confirmSlotLock(');
-    expect(batchOk).toBeGreaterThan(-1);
-    expect(confirm).toBeGreaterThan(batchOk);
-    expect(cap.slice(batchOk, confirm)).toMatch(/if \(batchOk\)/);
+    expect(persist, '공유 저장 트랜잭션 호출 없음').toBeGreaterThan(-1);
+    expect(gate, '저장 결과로 batchOk 를 정하지 않는다').toBeGreaterThan(persist);
+    // 라인 child 예약 doc 전부가 같은 트랜잭션 호출에 들어간다.
+    expect(cap.slice(persist, gate)).toMatch(/children\.map/);
+    expect(cap.slice(persist, gate)).toMatch(/bookingDoc/);
+    // 저장 실패는 좌석 확정 전에 응답을 끝낸다.
+    expect(failure).toBeGreaterThan(gate);
+    expect(confirm).toBeGreaterThan(failure);
+    expect(cap.slice(failure, confirm)).toMatch(/return res\.end/);
+    // 확정 루프 자체도 batchOk 게이트 안에 있다.
+    expect(cap.slice(failure, confirm)).toMatch(/if \(batchOk\)/);
   });
 
   it('확정 실패는 응답을 깨지 않고 운영자 알림으로 남긴다 (돈은 이미 캡처됨)', () => {

@@ -43,14 +43,10 @@ service cloud.firestore {
 
       allow create, delete: if false;
 
-      // Translation cache — owner read/write, 공개 플랜은 공유 방문자(비로그인 포함) read 허용.
-      // fix/plan-pii-wire-leak (2026-06-20): useAutoTranslate 가 이 캐시를 클라이언트 SDK(db)로
-      //   읽는다(useAutoTranslate.ts L70). 부모 plans read 를 소유자 전용으로 좁히면서 공유
-      //   방문자(비소유자)의 캐시 read 가 막혀 매 방문 재번역(Gemini 비용↑)되므로, 공개 플랜
-      //   캐시는 read 허용한다. 캐시 doc 은 번역된 itinerary 만 담고 PII 없음 → 공개 read 안전.
-      //   write 는 소유자 전용 유지(비소유자 cache 오염 차단; 공유 방문자는 read-only).
+      // Owner translations may contain private itinerary details.
+      // Public and token-only viewers bypass these raw caches.
       match /translations/{lang} {
-        allow read: if get(/databases/$(database)/documents/plans/$(planId)).data.isPublic == true
+        allow read: if isAdminEmail()
                  || (request.auth != null
                      && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid);
         allow write: if request.auth != null

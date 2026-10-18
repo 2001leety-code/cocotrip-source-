@@ -908,7 +908,7 @@ export function CourseBuilderShell() {
           Escape 닫기·트리거로 포커스 복귀는 프리미티브가 보장 — 여기서는 초기 포커스
           (제목 입력)·실제 form submit·필수값·busy state·44px 닫기 버튼만 배선한다. */}
       <Dialog open={showSave} onOpenChange={(open) => { if (!open) setShowSave(false); }}>
-        <DialogContent showCloseButton={false} className="max-w-xs">
+        <DialogContent showCloseButton={false} className="ec-night max-w-xs border-ec-line bg-ec-raised text-ec-ink">
           <button
             type="button"
             onClick={() => setShowSave(false)}

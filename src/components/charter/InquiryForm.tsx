@@ -172,7 +172,7 @@ export function InquiryForm({ vehicle, state, language }: Props) {
 
   if (status === 'success') {
     return (
-      <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-7 text-center">
+      <div className="charter-funnel-inquiry-status rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-7 text-center">
         <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
         <p className="text-lg text-emerald-100 font-bold [.cocotrip-mobile-charter_&]:text-emerald-800">{s.successToast}</p>
       </div>
@@ -184,10 +184,10 @@ export function InquiryForm({ vehicle, state, language }: Props) {
   const vehicleDisplay = s.vehicleBus;
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="charter-funnel-inquiry-form space-y-5">
       <div className="rounded-2xl border border-[#B668FC]/30 bg-[#B668FC]/5 p-5">
-        <h3 className="text-lg font-bold text-white mb-1">{s.title}</h3>
-        <p className="text-xs text-white/55">{s.vehicleLabel}: <span className="text-white/85">{vehicleDisplay}</span></p>
+        <h3 className="charter-funnel-heading text-lg font-bold text-white mb-1">{s.title}</h3>
+        <p className="charter-funnel-note charter-funnel-note-neutral text-xs text-white/55">{s.vehicleLabel}: <span className="text-white/85">{vehicleDisplay}</span></p>
       </div>
 
       <Field label={s.nameLabel} required>
@@ -230,8 +230,8 @@ export function InquiryForm({ vehicle, state, language }: Props) {
       )}
 
       <button type="submit" disabled={!valid || status === 'sending'}
-        className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
-        style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
+        className="charter-funnel-action w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+        style={{ background: 'var(--ec-button-primary-bg, #c9b8ff)', color: 'var(--ec-button-primary-fg, #0a0b14)' }}>
         {status === 'sending' ? (
           <><Loader2 className="w-4 h-4 animate-spin" /> {s.submitting}</>
         ) : (
@@ -249,12 +249,12 @@ function Field({ label, hint, required, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <label className="block text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">
+    <div className="charter-funnel-field">
+      <label className="charter-funnel-field-label block text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">
         {label}{required && <span className="text-red-400 ml-1">*</span>}
       </label>
       {children}
-      {hint && <p className="mt-2 text-xs text-white/40">{hint}</p>}
+      {hint && <p className="charter-funnel-field-help charter-funnel-note-neutral mt-2 text-xs text-white/40">{hint}</p>}
     </div>
   );
 }

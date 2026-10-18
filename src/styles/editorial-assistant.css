@@ -612,3 +612,69 @@
     background-color: ButtonFace;
   }
 }
+
+/* Night editorial refinement — legible conversation, stable composer */
+.ec-night .assistant-editorial-page .assistant-editorial-heading-copy h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-heading-copy p {
+  font-size: 0.9375rem;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-thread-heading h2,
+.ec-night .assistant-editorial-page .assistant-editorial-toolbox h2,
+.ec-night .assistant-editorial-page .assistant-editorial-access-card h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-message p {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-message--admin {
+  border-color: var(--ec-notice);
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-composer {
+  flex-shrink: 0;
+  border-top-color: var(--ec-line-strong);
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-input {
+  font-size: 1rem;
+  min-height: 48px;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-auth-error {
+  color: var(--ec-critical);
+  border-left-color: var(--ec-critical);
+  font-size: 0.9375rem;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-quick-question,
+.ec-night .assistant-editorial-page .assistant-editorial-faq {
+  min-height: 44px;
+  font-size: 0.875rem;
+}
+
+.ec-night .assistant-editorial-page .assistant-editorial-google:disabled,
+.ec-night .assistant-editorial-page .assistant-editorial-quick-question:disabled,
+.ec-night .assistant-editorial-page .assistant-editorial-faq:disabled,
+.ec-night .assistant-editorial-page .assistant-editorial-send:disabled {
+  color: var(--ec-text-muted);
+  border-color: var(--ec-line-strong);
+  background-color: var(--ec-surface-sunken);
+}
+
+/* Root-approved size-bound correction; original Claude output is preserved in generated.json. */
+@media (min-width: 768px) {
+  .ec-night .assistant-editorial-page .assistant-editorial-heading-copy h1 {
+    font-size: clamp(32px, 3vw, 36px);
+  }
+}

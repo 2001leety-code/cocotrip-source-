@@ -316,6 +316,19 @@ export default function TourDetailPage() {
             <span className="tour-detail-breadcrumb-current">{title}</span>
           </nav>
 
+          <div className="tour-detail-stage">
+            <ImageGallery
+              key={tour.slug}
+              images={tour.images}
+              photos={tour.photos}
+              title={title}
+              isNight={tour.isNightTour}
+              language={language}
+              emptyLabel={copy.imageUnavailable}
+              nightLabel={copy.nightTourLabel}
+            />
+          </div>
+
           <header className="tour-detail-masthead" data-testid="tour-detail-ready">
             <div className="tour-detail-masthead-copy">
               <p className="ec-eyebrow">{copy.documentLabel} · {region}</p>
@@ -345,18 +358,8 @@ export default function TourDetailPage() {
             </div>
           )}
 
-          <section className="tour-detail-stage" aria-label={copy.factsLabel}>
-            <ImageGallery
-              key={tour.slug}
-              images={tour.images}
-              photos={tour.photos}
-              title={title}
-              isNight={tour.isNightTour}
-              language={language}
-              emptyLabel={copy.imageUnavailable}
-              nightLabel={copy.nightTourLabel}
-            />
-            <aside className="tour-detail-facts">
+          <section className="tour-detail-facts" aria-label={copy.factsLabel}>
+            <div>
               <p className="ec-eyebrow">{copy.factsLabel}</p>
               <div className="tour-detail-facts-list">
                 <div className="tour-detail-fact"><Clock className="h-5 w-5" /><strong>{durationLabel}</strong></div>
@@ -366,15 +369,14 @@ export default function TourDetailPage() {
                   <div className="tour-detail-fact"><Star className="h-5 w-5" /><strong>{resolvedRating.rating.toFixed(1)}{resolvedRating.reviewCount ? ` (${resolvedRating.reviewCount})` : ''}</strong></div>
                 )}
               </div>
-            </aside>
+            </div>
+            {/* MRT 벤치마킹 P1 — grounded 신뢰 조건 3종 (사진 → 상품 정보 → 조건 순서) */}
+            <div className="tour-detail-conditions" data-testid="tour-detail-trust-badges">
+              <span className="tour-detail-condition"><ShieldCheck className="h-4 w-4" />{freeCancelBadge}</span>
+              <span className="tour-detail-condition"><CalendarCheck className="h-4 w-4" />{instantConfirmBadge}</span>
+              <span className="tour-detail-condition"><CreditCard className="h-4 w-4" />{paypalLabel}</span>
+            </div>
           </section>
-
-          {/* MRT 벤치마킹 P1 — grounded 신뢰 배지 3종 (갤러리+한눈에 보기 바로 아래) */}
-          <div className="flex flex-wrap gap-2 pb-2 pt-4" data-testid="tour-detail-trust-badges">
-            <span className="ec-chip"><ShieldCheck className="h-3.5 w-3.5" />{freeCancelBadge}</span>
-            <span className="ec-chip"><CalendarCheck className="h-3.5 w-3.5" />{instantConfirmBadge}</span>
-            <span className="ec-chip"><CreditCard className="h-3.5 w-3.5" />{paypalLabel}</span>
-          </div>
 
           <TourSectionTabs tabs={sectionTabs} ariaLabel={copy.documentLabel} />
 
@@ -483,74 +485,69 @@ export default function TourDetailPage() {
 
       {/* ── 하단 고정 CTA 바 ── */}
       <div
-        className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 pb-4 md:pb-6 pt-3"
-        style={{
-          background: 'linear-gradient(to top, rgba(8,11,20,0.98) 0%, rgba(8,11,20,0.90) 60%, transparent 100%)',
-          backdropFilter: 'blur(12px)',
-        }}
+        className="tour-detail-booking-bar fixed bottom-14 md:bottom-0 left-0 right-0 z-50"
+        data-testid="tour-detail-booking-bar"
       >
-        <div className="tour-detail-booking-meta mb-2.5" data-testid="tour-detail-booking-meta">
-          {/* No Hidden Fees + PayPal 배지 */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" style={{ color: '#B668FC' }} />
-              <span data-testid="tour-detail-trust-fees" className="text-[10px] font-bold" style={{ color: '#B668FC' }}>
-                {noHiddenFees}
+        <div className="tour-detail-booking-inner">
+          <div className="tour-detail-booking-meta" data-testid="tour-detail-booking-meta">
+            {/* No Hidden Fees + PayPal 배지 */}
+            <div className="tour-detail-booking-trust">
+              <span className="tour-detail-booking-trust-item">
+                <ShieldCheck aria-hidden />
+                <span data-testid="tour-detail-trust-fees" className="tour-detail-booking-fees">
+                  {noHiddenFees}
+                </span>
+              </span>
+              <span className="tour-detail-booking-trust-item">
+                <CreditCard aria-hidden />
+                <span data-testid="tour-detail-trust-paypal" className="tour-detail-booking-paypal">
+                  {paypalLabel}
+                </span>
               </span>
             </div>
-            <span className="w-px h-3 bg-white/10" />
-            <div className="flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5" style={{ color: '#FF6B9D' }} />
-              <span data-testid="tour-detail-trust-paypal" className="text-[10px] font-bold" style={{ color: 'rgba(255,107,157,0.80)' }}>
-                {paypalLabel}
-              </span>
-            </div>
+
+            {/* PR-R (2026-05-08): 예약 마감 정책 안내 — 가격 카드 위에 한 줄 */}
+            <p data-testid="tour-detail-cutoff-note" className="tour-detail-booking-cutoff">📅 {cutoffNote}</p>
           </div>
 
-          {/* PR-R (2026-05-08): 예약 마감 정책 안내 — 가격 카드 위에 한 줄 */}
-          <p data-testid="tour-detail-cutoff-note" className="mt-1.5 text-[10px] text-white/55">📅 {cutoffNote}</p>
-        </div>
-
-        {/* 가격 + 예약 버튼 */}
-        <div className="flex items-center gap-3">
-          <div
-            className="flex-1 px-4 py-3 rounded-2xl"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
-          >
-            <p className="text-[10px] text-white/55 uppercase tracking-wider mb-0.5">{fromLabel}</p>
-            <p className="text-[20px] font-black text-white leading-none">
-              ${tour.priceFrom.toLocaleString()}
-              <span className="text-[11px] text-white/55 font-medium ml-1">USD</span>
-              {tour.priceUnit === 'per_person' && (
-                <span className="text-[11px] text-white/70 font-medium ml-1">
-                  {language === 'ko' ? '/인' : language === 'ja' ? '/人' : language === 'zh' ? '/人' : '/person'}
-                </span>
-              )}
-            </p>
-            <RefundPolicyModal
+          {/* 가격 + 예약 버튼 */}
+          <div className="tour-detail-booking-row">
+            <div className="tour-detail-booking-price" data-testid="tour-detail-booking-price">
+              <p className="tour-detail-booking-amount">
+                <span className="tour-detail-booking-from">{fromLabel}</span>
+                <strong>${tour.priceFrom.toLocaleString()}</strong>
+                <span className="tour-detail-booking-unit">USD</span>
+                {tour.priceUnit === 'per_person' && (
+                  <span className="tour-detail-booking-unit">
+                    {language === 'ko' ? '/인' : language === 'ja' ? '/人' : language === 'zh' ? '/人' : '/person'}
+                  </span>
+                )}
+              </p>
+              <RefundPolicyModal
+                language={language}
+                trigger={
+                  <button className="tour-detail-booking-refund">
+                    {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
+                  </button>
+                }
+              />
+            </div>
+            <TourBookingDialog
+              tour={tour}
               language={language}
               trigger={
-                <button className="text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline mt-1 text-left">
-                  {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
+                <button
+                  type="button"
+                  className="ec-btn ec-btn-primary tour-detail-booking-cta"
+                  data-testid="tour-detail-book-cta"
+                  onClick={() => trackBookNow('tour')}
+                >
+                  <CalendarCheck aria-hidden />
+                  {bookLabel}
                 </button>
               }
             />
           </div>
-          <TourBookingDialog
-            tour={tour}
-            language={language}
-            trigger={
-              <button
-                type="button"
-                className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
-                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-                onClick={() => trackBookNow('tour')}
-              >
-                <CalendarCheck className="w-4 h-4" />
-                {bookLabel}
-              </button>
-            }
-          />
         </div>
       </div>
     </TourDetailShell>

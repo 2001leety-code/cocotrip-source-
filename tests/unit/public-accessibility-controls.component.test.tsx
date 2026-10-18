@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -27,7 +27,29 @@ import { CapabilityLedger } from '../../src/sections/home/CapabilityLedger';
 import { CocoStepper } from '../../src/components/coco/CocoUI';
 import { Step1Origin } from '../../src/components/charter/Step1Origin';
 
-afterEach(cleanup);
+// jsdom has no matchMedia. Header asks for its home compact band
+// '(min-width: 768px) and (max-width: 1279px)'; these accessibility contracts are
+// for the desktop header, so it answers false unless a test opts into the band.
+// use-mobile is mocked above, so the 768px mobile query is never asked.
+const COMPACT_HEADER_QUERY = '(min-width: 768px) and (max-width: 1279px)';
+const media = { compactBand: false };
+beforeEach(() => {
+  media.compactBand = false;
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === COMPACT_HEADER_QUERY ? media.compactBand : false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 const LANGS: Language[] = ['ko', 'en', 'ja', 'zh'];
 
 describe('public header accessible names', () => {
@@ -62,6 +84,41 @@ describe('public header accessible names', () => {
     korean.focus();
     await user.keyboard('{Enter}');
     expect(onLanguageChange).toHaveBeenCalledExactlyOnceWith('ko');
+  });
+
+  // Source/class contract only (jsdom has no layout): the 1024px pixel check is the
+  // plan-result-night-local e2e overflow assertion.
+  it.each(LANGS)('%s: from 1024px the rail keeps named 44px sign-in and inquiry controls, labels only from 1280px', async (language) => {
+    const t = await loadLocale(language);
+    render(<MemoryRouter initialEntries={['/my-plans/example']}><Header language={language} t={t} onLanguageChange={vi.fn()} /></MemoryRouter>);
+    const signInName = t.nav.signIn || 'Sign In';
+    const signIn = screen.getByRole('button', { name: signInName });
+    expect(signIn.className).toContain('min-h-[44px]');
+    expect(signIn.className).toContain('min-w-[44px]');
+    expect(within(signIn).getByText(signInName).className).toBe('hidden xl:inline');
+    const inquiryName = t.nav.inquiry || '1:1 Inquiry';
+    const inquiry = screen.getByRole('link', { name: inquiryName });
+    expect(inquiry.getAttribute('href')).toBe('https://wa.me/821087140611');
+    expect(inquiry.className).toContain('min-h-[44px]');
+    expect(inquiry.className).toContain('min-w-[44px]');
+    expect(within(inquiry).getByText(inquiryName).className).toBe('lg:hidden xl:inline');
+    // Every nav destination stays inline; only its padding tightens below 1280.
+    for (const to of ['/charter', '/tours', '/planner', '/community', '/about']) {
+      const link = document.querySelector(`header nav a[href="${to}"]`)!;
+      expect(link.className).toContain('px-3 xl:px-4');
+    }
+  });
+
+  it('home compact band keeps its menu and full sign-in/inquiry labels', async () => {
+    media.compactBand = true;
+    const t = await loadLocale('en');
+    render(<MemoryRouter initialEntries={['/']}><Header language="en" t={t} onLanguageChange={vi.fn()} /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: t.nav.navigation || 'Navigation' })).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('header nav')).toBeNull();
+    const signIn = screen.getByRole('button', { name: t.nav.signIn || 'Sign In' });
+    expect(within(signIn).getByText(t.nav.signIn || 'Sign In').className).toBe('');
+    const inquiry = screen.getByRole('link', { name: t.nav.inquiry || '1:1 Inquiry' });
+    expect(within(inquiry).getByText(t.nav.inquiry || '1:1 Inquiry').className).toBe('');
   });
 
   it('shared proposal still hides BETA and has the unmodified home route', async () => {
@@ -158,6 +215,10 @@ describe('source-only contrast and regional name guards (not pixel measurements)
     expect(button).toContain('<small>{count} {tl.toursUnit}</small>');
     expect(button).not.toContain('aria-label=');
     expect(button).toContain('aria-pressed={isActive}');
-    expect(button).toContain('onClick={() => setActiveRegion(key)}');
+    // The card now routes through selectRegion (select + move to results; keyboard
+    // activation also moves focus). It must still set the region from its own key.
+    expect(button).toContain('onClick={(event) => selectRegion(key, event.detail === 0)}');
+    const selectRegion = source.match(/const selectRegion = \([^)]*\) => \{[\s\S]*?\n {2}\};/)?.[0] || '';
+    expect(selectRegion).toContain('setActiveRegion(key);');
   });
 });

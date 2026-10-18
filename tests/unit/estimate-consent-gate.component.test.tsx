@@ -160,7 +160,13 @@ describe('화면 게이트 — 동의 전에는 결제 불가', () => {
   it('PayPalBookingButton 은 disabled 면 주문 생성 요청 자체를 만들지 않는다', () => {
     const btn = src('src/components/PayPalBookingButton.tsx');
     // 화면 속성만 잠그면 프로그램적 호출로 뚫린다 → 핸들러 첫 줄에서 막아야 한다.
-    expect(btn).toMatch(/async function handleBookClick\(\) \{[\s\S]{0,400}if \(disabled \|\| orderRequestInFlight\.current\) return;/);
+    // 2026-10-10 recovery rewrite: guard `disabled || orderRequestInFlight.current` → same guard + `|| recovery` (unresolved payment also blocks a new order); consent gate still first statement.
+    expect(btn).toMatch(/async function handleBookClick\(\) \{[\s\S]{0,400}if \(disabled \|\| orderRequestInFlight\.current \|\| recovery\) return;/);
+    // the consent gate comes before any order-creation side effect in the handler
+    const h = btn.indexOf('async function handleBookClick()');
+    const gate = btn.indexOf('if (disabled || orderRequestInFlight.current || recovery) return;', h);
+    expect(gate).toBeGreaterThan(h);
+    expect(btn.slice(h, gate)).not.toMatch(/setLoading\(|authFetch\(|orderRequestInFlight\.current = true/);
     expect(btn).toMatch(/disabled=\{loading \|\| disabled\}/);
   });
 });

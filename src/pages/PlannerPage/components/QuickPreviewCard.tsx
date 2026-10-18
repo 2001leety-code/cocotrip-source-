@@ -26,6 +26,7 @@ import { MapPin } from 'lucide-react';
 import type { PlannerDict } from '../types';
 import { pickPlannerCopy } from '../plannerCopy';
 import { parseQuickPreviewResponse, buildGoogleMapsUrl } from '../lib/quickPreviewContract';
+import '@/styles/plan-result-night.css';
 
 export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Record<string, unknown>; p: PlannerDict; language: string }) {
   const c = pickPlannerCopy(language);
@@ -39,7 +40,7 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Re
   const mapLabel = p.quickPreviewMapLabel || 'Map';
 
   return (
-    <section className="ec-panel">
+    <section className="plan-preview-night ec-panel" data-testid="quick-preview-card">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="ec-eyebrow">{c.preview.eyebrow}</p>
         {themes.length > 0 && (
@@ -56,7 +57,7 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Re
       </div>
 
       {reflectedConditions.length > 0 && (
-        <p className="ec-body-sm mt-3 text-ec-ink-3">
+        <p className="plan-night-conditions ec-body-sm mt-3 text-ec-ink-3">
           {c.preview.basedOnLabel}: {reflectedConditions.join(' · ')}
         </p>
       )}
@@ -90,7 +91,7 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Re
                   )}
                 </div>
                 {stop.transit && <p className="ec-body-sm mt-1 text-ec-ink-3">{stop.transit}</p>}
-                {stop.tip && <p className="ec-body-sm mt-0.5 text-ec-ink-3">{stop.tip}</p>}
+                {stop.tip && <p className="plan-night-preview-tip ec-body-sm mt-0.5 text-ec-ink-3">{stop.tip}</p>}
               </div>
             </li>
           );
@@ -98,7 +99,7 @@ export function QuickPreviewCard({ resultQuick, p, language }: { resultQuick: Re
       </ol>
 
       {deferredCategories.length > 0 && (
-        <p className="ec-body-sm mt-3 text-ec-ink-3">
+        <p className="plan-night-conditions ec-body-sm mt-3 text-ec-ink-3">
           {c.preview.deferredHeading}: {deferredCategories.map((cat) => p[`act${cat}`] || cat).join(' · ')}
         </p>
       )}

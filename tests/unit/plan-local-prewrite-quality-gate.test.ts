@@ -231,19 +231,24 @@ describe('run.mjs CLI — 성공 아티팩트는 게이트 통과 후에만 쓰�
 
   it('통과 케이스(sample) — exit 0 + 아티팩트 기록됨', () => {
     if (existsSync(passOutPath)) unlinkSync(passOutPath);
-    execFileSync('node', [RUN_MJS, passScenario], { cwd: ROOT, stdio: 'pipe' });
+    execFileSync(process.execPath, [RUN_MJS, passScenario], { cwd: ROOT, stdio: 'pipe' });
     expect(existsSync(passOutPath)).toBe(true);
   });
 
   it('실패 케이스(day 수 불일치) — nonzero exit + 아티팩트 미기록', () => {
-    let threw = false;
+    // throw 만으로는 통과시키지 않는다: 가드 거부·spawn 실패도 throw 하므로 run.mjs 의 실제 게이트 진단을 확인한다.
+    let failure: { status?: number | null; stderr?: Buffer | string } | null = null;
     try {
-      execFileSync('node', [RUN_MJS, failScenario], { cwd: ROOT, stdio: 'pipe' });
+      execFileSync(process.execPath, [RUN_MJS, failScenario], { cwd: ROOT, stdio: 'pipe' });
     } catch (e) {
-      threw = true;
-      expect((e as { status?: number }).status).not.toBe(0);
+      failure = e as { status?: number | null; stderr?: Buffer | string };
     }
-    expect(threw).toBe(true);
+    expect(failure).not.toBeNull();
+    const stderr = String(failure?.stderr || '');
+    expect(failure?.status, stderr).toBe(1);
+    expect(stderr).toContain('품질 게이트 실패 — 아티팩트를 쓰지 않습니다');
+    expect(stderr).toMatch(/\[day_count\] 요청 day 수\(99\) ≠ 생성 day 수\(\d+\)/);
+    expect(stderr).not.toContain('OFFLINE_GUARD_DENIED');
     expect(existsSync(failOutPath)).toBe(false);
   });
 });

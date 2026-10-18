@@ -1,4 +1,7 @@
+import '@/styles/home-dope.css';
+import '@/styles/home-dope-static.css';
 import type { ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -115,19 +118,48 @@ const CONTENT = {
 
 type ArticleData = (typeof CONTENT)['en']['articles'][number];
 
-const PageSection = ({ title, children, isMobile }: { title: string; children: ReactNode; isMobile?: boolean }) => (
-  <section className="mb-8">
-    <h2 className={`text-xl font-semibold pb-2 mb-4 border-b-2 ${
-      isMobile ? 'text-white border-[#B668FC]/30' : 'text-white border-[#FF6B9D]/40'
-    }`}>{title}</h2>
-    <div className={`space-y-4 text-sm leading-relaxed ${isMobile ? 'text-white/50' : 'text-white/70'}`}>{children}</div>
+/** Wrapper labels only (2026-10-11, home vocabulary). The legal text above is untouched. */
+const LABELS = {
+  ko: { kicker: '법적 고지', article: '조항' },
+  en: { kicker: 'Legal', article: 'Article' },
+  ja: { kicker: '法的情報', article: '条項' },
+  zh: { kicker: '法律信息', article: '条款' },
+};
+
+const num = (i: number) => String(i + 1).padStart(2, '0');
+
+const PageSection = ({ index, title, chip, children }: { index: number; title: string; chip: string; children: ReactNode }) => (
+  <section id={`article-${index + 1}`} className="scroll-mt-24 border-t border-ec-line p-5 first:border-t-0 md:p-8">
+    <div className="flex items-start justify-between gap-4">
+      <h2 className="ec-h3"><span className="ec-figure mr-2">{num(index)}</span>{title}</h2>
+      <span className="ec-chip shrink-0">{chip}</span>
+    </div>
+    <div className="ec-body mt-4 max-w-[62ch] space-y-4 text-ec-ink-2">{children}</div>
   </section>
+);
+
+/** Table of contents in Home's service-row vocabulary; each row anchors to its article. */
+const LegalToc = ({ label, titles }: { label: string; titles: string[] }) => (
+  <nav aria-label={label} className="home-dope-services home-dope-rows mt-10">
+    <ul className="home-dope-rows__list">
+      {titles.map((title, i) => (
+        <li key={i}>
+          <a href={`#article-${i + 1}`} className="home-dope-row">
+            <span className="home-dope-row__title">{num(i)}</span>
+            <span className="home-dope-row__desc font-semibold">{title}</span>
+            <ArrowRight className="home-dope-row__arrow" aria-hidden />
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
 );
 
 export default function Terms() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
+  const labels = LABELS[language as keyof typeof LABELS] || LABELS.en;
 
   usePageMeta({
     title: content.pageTitle,
@@ -135,26 +167,33 @@ export default function Terms() {
   });
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]'}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#0a0b14]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
-        <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
-          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-4xl sm:text-5xl sm:mb-12 font-display font-normal tracking-tight'}`}>{content.pageTitle}</h1>
-          
-          {content.articles.map((article: ArticleData, idx: number) => (
-            <PageSection key={idx} title={article.title} isMobile={isMobile}>
-              {article.body.split('\n\n').map((paragraph, pIdx) => (
-                <p key={pIdx}>{paragraph}</p>
-              ))}
-              {'list' in article && (article as ArticleData & { list?: string[] }).list && (
-                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
-                  {((article as ArticleData & { list?: string[] }).list!).map((item: string, i: number) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              )}
-            </PageSection>
-          ))}
+      <main className="ec-root home-dope home-dope--static" lang={language}>
+        <section className="border-b border-ec-line bg-ec-sunken">
+          <div className="ec-container-wide py-12 md:py-16">
+            <p className="ec-eyebrow home-dope-eyebrow">{labels.kicker} · {content.pageTitle}</p>
+            <h1 className="ec-h2 mt-4">{content.pageTitle}</h1>
+            <LegalToc label={content.pageTitle} titles={content.articles.map((a) => a.title)} />
+          </div>
+        </section>
+        <div className="ec-container-wide py-12 md:py-16">
+          <article className="ec-card max-w-4xl p-0">
+            {content.articles.map((article: ArticleData, idx: number) => (
+              <PageSection key={idx} index={idx} title={article.title} chip={labels.article}>
+                {article.body.split('\n\n').map((paragraph, pIdx) => (
+                  <p key={pIdx}>{paragraph}</p>
+                ))}
+                {'list' in article && (article as ArticleData & { list?: string[] }).list && (
+                  <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/75' : ''}`}>
+                    {((article as ArticleData & { list?: string[] }).list!).map((item: string, i: number) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </PageSection>
+            ))}
+          </article>
         </div>
       </main>
       {!isMobile && <Footer t={t} />}

@@ -260,24 +260,24 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
   useJsonLd('charter-faq', buildFaqJsonLd(faqEntries));
 
   return (
-    <section className="charter-seo-info mt-12 border-t border-white/10 pt-8 text-white/75">
-      <div className="space-y-8 text-[13px] leading-relaxed sm:text-sm">
+    <section className="charter-seo-info charter-funnel-service-information mt-12 border-t border-white/10 pt-8 text-white/75">
+      <div className="charter-funnel-service-body space-y-8 text-[13px] leading-relaxed sm:text-sm">
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.servicesTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.servicesTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             {c.services.map((s) => <li key={s}>{s}</li>)}
           </ul>
         </div>
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.pricingTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.pricingTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             {c.pricing({ icnSeoulPrice, nightPct, usdRate: CHARTER_USD_FIX_RATE }).map((s) => <li key={s}>{s}</li>)}
           </ul>
         </div>
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.vehiclesTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.vehiclesTitle}</h2>
           <p className="mb-2">{c.vehiclesNote}</p>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             {vehicles.map((v) => (
@@ -290,14 +290,14 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
         </div>
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.processTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.processTitle}</h2>
           <ol className="space-y-1.5 pl-5" style={{ listStyleType: 'decimal' }}>
             {c.process.map((s) => <li key={s}>{s}</li>)}
           </ol>
         </div>
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.faqTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.faqTitle}</h2>
           <dl className="space-y-3">
             {faqEntries.map(([q, a]) => (
               <div key={q}>
@@ -309,7 +309,7 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
         </div>
 
         <div>
-          <h2 className="mb-3 text-base font-bold text-white sm:text-lg">{c.trustTitle}</h2>
+          <h2 className="charter-funnel-service-heading mb-3 text-base font-bold text-white sm:text-lg">{c.trustTitle}</h2>
           <ul className="space-y-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             {c.trust({ tolerancePct: ESTIMATE_RECONCILE_TOLERANCE_PCT }).map((s) => <li key={s}>{s}</li>)}
             {/* 등록번호는 footer i18n 값 재사용 — 두 벌로 관리하면 갱신 때 한쪽만 바뀐다. */}

@@ -177,9 +177,33 @@ describe('planner is converted to the editorial system', () => {
     expect(PLANNER_CSS).toMatch(/safe-area-inset-bottom/);
   });
 
+  // Contract change (user-approved): the old rule banned every gradient. The
+  // first-step workspace now carries Home's still cloud, faded by an alpha
+  // `mask-image: radial-gradient(...)` (plus its -webkit- duplicate). That mask
+  // paints no colour, so it is the one allowed gradient — only in that one
+  // decorative selector. Gradient backgrounds, gradient text and glow stay
+  // banned everywhere, including inside that block.
+  const CLOUD_SELECTOR = '.ec-planner .planner-workspace:has(.wizard-res-ticket)::before';
+  const MASK_LINE = /(?:-webkit-)?mask-image:\s*radial-gradient\([^;]*\);/g;
+
+  it('the only planner gradient is the first-step cloud alpha mask', () => {
+    const code = codeOf(PLANNER_CSS);
+    expect(code.split(`${CLOUD_SELECTOR} {`).length - 1).toBe(1);
+    const start = code.indexOf(`${CLOUD_SELECTOR} {`);
+    const block = code.slice(start, code.indexOf('}', start) + 1);
+    expect(block.match(MASK_LINE)).toHaveLength(2);
+    expect(/linear-gradient|radial-gradient/.test(block.replace(MASK_LINE, ''))).toBe(false);
+    expect(/(^|[^-])mask-image/.test(code.replace(block, ''))).toBe(false);
+  });
+
   it('no banned visual language in the converted sources', () => {
     for (const [name, src] of [...PLANNER_SOURCES, ['editorial-planner.css', PLANNER_CSS]] as [string, string][]) {
-      const code = codeOf(src);
+      let code = codeOf(src);
+      if (name === 'editorial-planner.css') {
+        const start = code.indexOf(`${CLOUD_SELECTOR} {`);
+        const block = code.slice(start, code.indexOf('}', start) + 1);
+        code = code.replace(block, block.replace(MASK_LINE, ''));
+      }
       expect(`${name} gradient: ${/linear-gradient|radial-gradient/.test(code)}`).toBe(`${name} gradient: false`);
       expect(`${name} gradient-text: ${/bg-clip-text/.test(code)}`).toBe(`${name} gradient-text: false`);
       expect(`${name} glow: ${/0 0 \d+px rgba/.test(code)}`).toBe(`${name} glow: false`);
@@ -518,5 +542,41 @@ describe('planner metadata and SEO body — Korea data, not an AI comparison', (
     for (const marker of [/Korea/, /한국/, /韓国/, /韩国/, /dietary/, /식사/, /食事/, /饮食/]) {
       expect(`${marker.source}: ${marker.test(blob)}`).toBe(`${marker.source}: true`);
     }
+  });
+});
+
+describe('Food stage polish', () => {
+  const FOOD = codeOf(read('src/components/WizardForm/WizardStep1Food.tsx'));
+  const note = FOOD.slice(FOOD.indexOf('wizard-safety-note'), FOOD.indexOf('wizardFoodStyleLabel'));
+  const laterCss = codeOf(PLANNER_CSS.slice(PLANNER_CSS.indexOf('Night dossier')));
+
+  it('the dietary warning shows ⚠️ once (from copy) and keeps both safety lines open at 14px', () => {
+    expect(note).not.toMatch(/<TriangleAlert/);
+    expect(note).toMatch(/wizardFoodDietaryHighlight/);
+    expect(note).toMatch(/wizardFoodDietaryHint/);
+    expect(note).not.toMatch(/<details|<summary|aria-expanded/);
+    for (const loc of ['en', 'ko', 'ja', 'zh']) {
+      const copy = (read(`src/i18n/locales/${loc}.json`).match(/"wizardFoodDietaryHighlight":\s*"([^"]*)"/) || [])[1] || '';
+      expect(`${loc}: ${(copy.match(/⚠️/g) || []).length}`).toBe(`${loc}: 1`);
+    }
+    expect(laterCss).toMatch(/\.wizard-stage--food \.wizard-safety-note \.text-\\\[12px\\\] \{ font-size: 14px; \}/);
+  });
+
+  it('spice levels wrap content-fit with 44px controls, keeping levels, examples and the disabled reason', () => {
+    expect(FOOD).toMatch(/wizard-spice-options flex flex-wrap/);
+    expect(FOOD).not.toMatch(/grid-cols-4/);
+    expect(FOOD).toMatch(/SPICE_LEVEL_KEYS\.map/);
+    expect(FOOD).toMatch(/\{sub\}/);
+    expect(FOOD).toMatch(/disabled=\{!hasAnyFoodPref\}/);
+    expect(FOOD).toMatch(/setSpiceLevel\(key\)/);
+    expect(FOOD).toMatch(/wizardSpiceDisabledNoFood/);
+    expect(laterCss).toMatch(/\.wizard-spice-options > \.ec-option \{[^}]*min-height: 44px/);
+    expect(laterCss).toMatch(/\.wizard-spice-options > \.ec-option \{[^}]*width: auto;\s*max-width: 100%;/);
+  });
+
+  it('picked food styles keep the unpicked footprint; vegan exclusions stay', () => {
+    expect(laterCss).toMatch(/\.wizard-stage--food \.wizard-pick-grid > \.ec-option\[aria-pressed='true'\] \{\s*border-color: transparent;/);
+    expect(FOOD).toMatch(/disabled=\{veganDisabled\}/);
+    expect(FOOD).toMatch(/VEGAN_INCOMPATIBLE_FOOD_STYLES\.has\(key\)/);
   });
 });

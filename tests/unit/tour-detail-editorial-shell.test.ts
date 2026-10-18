@@ -86,7 +86,10 @@ describe('tour detail editorial shell', () => {
     expect(page).toContain("trackBookNow('tour')");
     expect(page).toContain('PayPal Secure Pay');
     expect(page).toContain('tour-detail-booking-meta');
-    expect(css).toMatch(/\.tour-detail-booking-meta\s*\{[^}]*background:\s*rgb\(8 11 20\)/s);
+    // Booking meta is a flat line: no own background, border or shadow box.
+    const bookingMeta = css.match(/\.tour-detail-booking-meta\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(bookingMeta).toMatch(/padding:\s*0;/);
+    expect(bookingMeta).not.toMatch(/background|border|box-shadow/);
   });
 
   it('does not repeat unsupported guide or review provenance claims', () => {

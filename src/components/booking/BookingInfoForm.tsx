@@ -263,9 +263,9 @@ type FormStrings = (typeof STR)['ko'];
 const C = {
   card: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 22, backdropFilter: 'blur(20px)' } as React.CSSProperties,
   input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.92)', fontSize: 16, fontFamily: 'inherit', outline: 'none' } as React.CSSProperties,
-  label: { display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: '0 0 9px', fontWeight: 500 } as React.CSSProperties,
+  label: { display: 'block', fontSize: 14, color: 'rgba(255,255,255,0.65)', margin: '0 0 9px', fontWeight: 500 } as React.CSSProperties,
   req: { color: '#FF6B9D' } as React.CSSProperties,
-  opt: { fontSize: 12, color: 'rgba(255,255,255,0.4)' } as React.CSSProperties,
+  opt: { fontSize: 14, color: 'rgba(255,255,255,0.4)' } as React.CSSProperties,
 };
 
 function SectionHead({ title, sub }: { title: string; sub: string }) {
@@ -273,8 +273,8 @@ function SectionHead({ title, sub }: { title: string; sub: string }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 24 }}>
       <span style={{ display: 'flex', width: 32, height: 32, borderRadius: 9, background: 'rgba(124,92,252,0.12)', border: '1px solid rgba(124,92,252,0.25)', alignItems: 'center', justifyContent: 'center', color: '#B9A4FF', flex: '0 0 auto', fontSize: 15 }}>•</span>
       <div>
-        <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em' }}>{title}</div>
-        {sub ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{sub}</div> : null}
+        <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</div>
+        {sub ? <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>{sub}</div> : null}
       </div>
     </div>
   );
@@ -284,7 +284,7 @@ function Counter({ label, value, onChange }: { label: string; value: number; onC
   const btn: React.CSSProperties = { width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 18, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '9px 14px' }}>
-      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</span>
+      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)' }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <button type="button" onClick={() => onChange(Math.max(0, value - 1))} style={btn}>{'−'}</button>
         <span style={{ width: 18, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>{value}</span>
@@ -453,16 +453,16 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         <div style={{ ...C.card, display: 'flex', gap: 14, alignItems: 'center' }}>
           {props.thumbnailUrl && <img src={props.thumbnailUrl} alt="" style={{ width: 74, height: 74, borderRadius: 12, objectFit: 'cover', flex: '0 0 auto' }} />}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.16em', color: '#B9A4FF', textTransform: 'uppercase', marginBottom: 5 }}>{props.eyebrow}</div>
-            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, marginBottom: 8, letterSpacing: '-0.01em' }}>{props.title}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '.16em', color: '#B9A4FF', textTransform: 'uppercase', marginBottom: 5 }}>{props.eyebrow}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3, marginBottom: 8, letterSpacing: '-0.01em' }}>{props.title}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <Chip>{props.dateText}</Chip>
               <Chip>{props.paxText}</Chip>
               {/* 총금액 항상 노출 — 모달/모바일에서 우측 결제정보 카드가 아래로 밀려도 요약에서 즉시 확인.
                   값=prop totalStr 그대로(재계산 X · PayPal priceKRW 와 동일 source). */}
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, color: '#C99FFF', background: 'rgba(182,104,252,0.12)', border: '1px solid rgba(182,104,252,0.30)', padding: '4px 9px', borderRadius: 9999, whiteSpace: 'nowrap' }}>{totalStr}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, fontWeight: 800, color: '#C99FFF', background: 'rgba(182,104,252,0.12)', border: '1px solid rgba(182,104,252,0.30)', padding: '4px 9px', borderRadius: 9999, whiteSpace: 'nowrap' }}>{totalStr}</span>
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>{s.freeCancel24h}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#00D28C', marginTop: 8, fontWeight: 600 }}>{s.freeCancel24h}</div>
           </div>
         </div>
 
@@ -499,12 +499,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   onBlur={blurable}
                 />
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.phoneHint}</div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.phoneHint}</div>
             </div>
             <div>
               <label style={C.label}>{s.email} <span style={C.req}>*</span></label>
               <input value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" inputMode="email" style={C.input} onFocus={focusable} onBlur={blurable} />
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.emailHint}</div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.emailHint}</div>
             </div>
           </div>
           <div>
@@ -515,7 +515,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               </select>
               <input value={f.messengerId} onChange={(e) => set({ messengerId: e.target.value })} placeholder={s.messengerPh} style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, lineHeight: 1.5 }}>{s.messengerHint}</div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginTop: 8, lineHeight: 1.5 }}>{s.messengerHint}</div>
           </div>
         </div>
 
@@ -550,7 +550,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               onFocus={focusable}
               onBlur={blurable}
             />
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{meetingFreeTypeHint}</div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{meetingFreeTypeHint}</div>
           </div>
           {isAirport && (
             <>
@@ -608,17 +608,17 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <SectionHead title={s.promoSection} sub={s.promoSub} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
             <input value={f.discountCode} onChange={(e) => set({ discountCode: e.target.value.toUpperCase() })} placeholder={s.promoPh} style={{ ...C.input, flex: '1 1 auto', minWidth: 0, textTransform: 'uppercase' }} onFocus={focusable} onBlur={blurable} />
-            <button type="button" onClick={() => applyCode(f.discountCode)} style={{ flex: '0 0 auto', padding: '0 22px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{s.promoApply}</button>
+            <button type="button" onClick={() => applyCode(f.discountCode)} className="customer-booking-promo-apply" style={{ flex: '0 0 auto', padding: '0 22px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{s.promoApply}</button>
           </div>
           {appliedCode && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(0,210,140,0.3)', background: 'rgba(0,210,140,0.08)', marginBottom: 13 }}>
-              <span style={{ flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.85)' }}><b style={{ color: '#00D28C' }}>{appliedCode}</b> {s.promoApplied}</span>
-              <button type="button" onClick={() => { setAppliedCode(''); set({ discountCode: '' }); }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>{s.promoRemove}</button>
+              <span style={{ flex: 1, fontSize: 14, color: 'rgba(255,255,255,0.85)' }}><b style={{ color: '#00D28C' }}>{appliedCode}</b> {s.promoApplied}</span>
+              <button type="button" onClick={() => { setAppliedCode(''); set({ discountCode: '' }); }} className="customer-booking-promo-remove" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 14, textDecoration: 'underline' }}>{s.promoRemove}</button>
             </div>
           )}
           {/* 2026-07-07: 가짜 공개코드(WELCOME12/10 — 서버 미존재, 클릭 시 실패) 제거.
               실제 5% 쿠폰은 가입 시 개인 코드로 발급 → 마이페이지에서 확인·입력. */}
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginBottom: 4, lineHeight: 1.5 }}>
             {s.promoHint}
           </div>
         </div>
@@ -646,7 +646,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           </div>
           {/* 🔴 법적 근거 링크 — 이 약관 카드가 약관 SSOT 이므로 /privacy·/terms 링크를 유지(법무 근거 보존 의무).
               (2026-06-30 SMS 본인인증 제거 후 약관 동의 게이트의 단일 소유처.) */}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>
             <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>{s.privacyLink}</Link>
             <span> · </span>
             <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'underline' }}>{s.termsLink}</Link>
@@ -656,7 +656,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         {/* CTA */}
         <div>
           {/* 신뢰 바 — 결제 직전 안심(PayPal·무료취소·KTO). 가이드 §6. 표시만, 결제 무관. */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '9px 12px', borderRadius: 10, background: 'rgba(0,210,140,0.06)', marginBottom: 12, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '9px 12px', borderRadius: 10, background: 'rgba(0,210,140,0.06)', marginBottom: 12, fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#00D28C', fontSize: 12 }}>🔒</span> {trustItems[0]}</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#00D28C', fontSize: 12 }}>✓</span> {trustItems[1]}</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#B9A4FF', fontSize: 12 }}>🛡</span> {trustItems[2]}</span>
@@ -666,14 +666,14 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           ) : (
             <>
               {error && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,100,100,0.3)', background: 'rgba(255,100,100,0.08)', marginBottom: 11, fontSize: 13, color: '#ffb4b4' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,100,100,0.3)', background: 'rgba(255,100,100,0.08)', marginBottom: 11, fontSize: 14, color: '#ffb4b4' }}>
                   {s.errRequired(meetingLabel)}
                 </div>
               )}
               <button type="button" onClick={submit} style={{ width: '100%', padding: 16, border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#7C5CFC 0%,#EA537E 100%)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 24px rgba(124,92,252,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '-0.01em' }}>
                 {ctaLabel} <span style={{ opacity: 0.85, fontWeight: 700 }}>{totalStr}</span>
               </button>
-              <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 11, lineHeight: 1.6 }}>
+              <div style={{ textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.3)', marginTop: 11, lineHeight: 1.6 }}>
                 {s.disclaimer}
               </div>
             </>
@@ -684,7 +684,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
       {/* ── RIGHT RAIL ── */}
       <div style={{ flex: '1 1 300px', maxWidth: 360, minWidth: 280, position: 'sticky', top: 74, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ ...C.card, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>{s.payInfo}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>{s.payInfo}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             <PayRow label={`${s.payBase} · ${props.paxText}`} value={baseStr} />
             {/* 🔧 2026-07-18: 차터 옵션·야간할증·할인 내역 — 총액과 기본요금 차액이 설명되도록. */}
@@ -697,21 +697,21 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '15px 0' }} />
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>{s.payTotal}</span>
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>{s.payTotal}</span>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{totalStr}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{usdStr}</div>
+              <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{totalStr}</div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>{usdStr}</div>
             </div>
           </div>
         </div>
 
         <div style={{ ...C.card, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>{s.cancelPolicy}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 14, letterSpacing: '-0.01em' }}>{s.cancelPolicy}</div>
           {/* 🔧 2026-07-18: 조건 문구 대비 상향(0.45→0.72 + 굵게) — 굵은 제목("무료 취소"/"수수료
               100%")만 읽으면 모순처럼 보이던 정적 2행 안내표. 조건이 제목만큼 읽히게. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#00D28C' }}>{s.cancelFreeTitle}</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFreeDesc}</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B6B' }}>{s.cancelFeeTitle}</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFeeDesc}</div></div>
+            <div><div style={{ fontSize: 14, fontWeight: 700, color: '#00D28C' }}>{s.cancelFreeTitle}</div><div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFreeDesc}</div></div>
+            <div><div style={{ fontSize: 14, fontWeight: 700, color: '#FF6B6B' }}>{s.cancelFeeTitle}</div><div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>{s.cancelFeeDesc}</div></div>
           </div>
         </div>
 
@@ -729,15 +729,15 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
 // ── 보조 컴포넌트 ──────────────────────────────────────────────
 function Chip({ children }: { children: React.ReactNode }) {
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', padding: '4px 9px', borderRadius: 9999 }}>{children}</span>;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', padding: '4px 9px', borderRadius: 9999 }}>{children}</span>;
 }
 
 function AddonRow({ label, desc, price, checked, onChange }: { label: string; desc: string; price: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', cursor: 'pointer' }}>
+    <label className="customer-booking-addon-row" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', cursor: 'pointer' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>{desc}</div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>{desc}</div>
       </div>
       <span style={{ fontSize: 14, fontWeight: 700, color: '#C4956A', whiteSpace: 'nowrap' }}>{price}</span>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: '#7C5CFC', cursor: 'pointer', flex: '0 0 auto' }} />
@@ -747,9 +747,9 @@ function AddonRow({ label, desc, price, checked, onChange }: { label: string; de
 
 function AgreeRow({ checked, onChange, text, req, reqLabel, optLabel }: { checked: boolean; onChange: (v: boolean) => void; text: string; req?: boolean; reqLabel: string; optLabel: string }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 4px', cursor: 'pointer' }}>
+    <label className="customer-booking-agree-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 4px', cursor: 'pointer' }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#7C5CFC', marginTop: 1, flex: '0 0 auto' }} />
-      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5 }}>
+      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5 }}>
         <span style={{ color: req ? '#FF6B9D' : 'rgba(255,255,255,0.4)', fontWeight: 600 }}>({req ? reqLabel : optLabel})</span> {text}
       </span>
     </label>
@@ -759,7 +759,7 @@ function AgreeRow({ checked, onChange, text, req, reqLabel, optLabel }: { checke
 function PayRow({ label, value, pink }: { label: string; value: string; pink?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-      <span style={{ fontSize: 13, color: pink ? '#FF9EC2' : 'rgba(255,255,255,0.55)' }}>{label}</span>
+      <span style={{ fontSize: 14, color: pink ? '#FF9EC2' : 'rgba(255,255,255,0.55)' }}>{label}</span>
       {value && <span style={{ fontSize: 14, fontWeight: 600, color: pink ? '#FF9EC2' : '#fff', whiteSpace: 'nowrap' }}>{value}</span>}
     </div>
   );
@@ -769,7 +769,7 @@ function Trust({ title, sub }: { title: string; sub: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
       <span style={{ color: '#00D28C', flex: '0 0 auto', marginTop: 1, fontWeight: 700 }}>✓</span>
-      <div><div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{title}</div><div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{sub}</div></div>
+      <div><div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{title}</div><div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>{sub}</div></div>
     </div>
   );
 }

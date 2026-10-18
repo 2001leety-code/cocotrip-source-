@@ -14,6 +14,7 @@ export function MobileBottomNav() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+  const homeChrome = location.pathname === '/' ? ' home-dope-chrome' : '';
 
   const nav = t.nav as Record<string, string | undefined>;
   const six = NAV_PRESET === 'six';
@@ -53,7 +54,7 @@ export function MobileBottomNav() {
   // the same "rule, not pill" language the desktop nav uses.
   return (
     <nav
-      className="ec-root ec-no-print mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden border-t border-ec-line"
+      className={`ec-root ec-no-print mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden border-t border-ec-line${homeChrome}`}
       style={{
         background: 'var(--ec-surface-shell-solid)',
         paddingBottom: 'env(safe-area-inset-bottom)',

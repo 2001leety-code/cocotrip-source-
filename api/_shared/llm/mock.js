@@ -142,11 +142,27 @@ function mockTranslatePlan(prompt) {
   });
 }
 
+/**
+ * mood-parse-schedule 프롬프트 출력 스키마 고정 응답 — { stops:[{order,rawText,personOrPlace,addressHint,action,timeHint,dateHint}], flights:[] }.
+ * action 은 핸들러 ALLOWED_ACTIONS 안의 값만, 마지막 stop 은 공항(mood-smoke 기대 serviceGuess=airport).
+ * 좌표·주소는 지어내지 않는다 — 핸들러가 주소록/지오코딩으로 채운다. needsConfirm 은 핸들러가 설정.
+ */
+export const MOOD_PARSE_FIXTURE = Object.freeze({
+  stops: [
+    { order: 1, rawText: '09:30 신라호텔 픽업', personOrPlace: '신라호텔', addressHint: '서울 중구 동호로 249', action: 'pickup', timeHint: '09:30', dateHint: '' },
+    { order: 2, rawText: '11:00 강남 코엑스 도착', personOrPlace: '강남 코엑스', addressHint: '서울 강남구 영동대로 513', action: 'arrive', timeHint: '11:00', dateHint: '' },
+    { order: 3, rawText: '오후 3시 인천공항 T2 드랍', personOrPlace: '인천공항 T2', addressHint: '', action: 'dropoff', timeHint: '15:00', dateHint: '' },
+  ],
+  flights: [],
+});
+
 const STAGE_FIXTURES = {
   'translate-plan': mockTranslatePlan,
+  'mood-parse': () => JSON.stringify(MOOD_PARSE_FIXTURE),
 };
 
 const ROLE_FIXTURES = {
+  mood: () => JSON.stringify(MOOD_PARSE_FIXTURE),
   quick: () => JSON.stringify({ title: 'Mock quick preview', summary: 'mock', stops: [] }),
   course: () => JSON.stringify({ order: [], suggestions: [] }),
   classifier: () => JSON.stringify({ intent: 'unknown', confidence: 0 }),

@@ -593,8 +593,13 @@ export default async function handler(req, res) {
     }
 
     // ── ① Gemini 로 stops 추출 ──
+    // LLM 공급자 전환: CI(mood-smoke) 의 x-llm-mock → 인증·allowlist 통과한 요청만 mock (유료 호출 0).
+    // mock 결정을 키 해석보다 먼저 한다 — 키 해석도 mock 컨텍스트 안에서 해야 기본(gemini)·키 없음
+    // 환경의 mock 요청이 AI_NOT_CONFIGURED 로 막히지 않는다. 킬스위치 가드는 어댑터에서 그대로 적용.
+    const useMock = wantsLlmMock(req);
+    const inLlmScope = (fn) => (useMock ? runWithLlmContext({ provider: 'mock' }, fn) : fn());
     let apiKey = '';
-    try { apiKey = resolveLlmApiKey('mood'); } catch { /* 미설정 */ }
+    try { apiKey = inLlmScope(() => resolveLlmApiKey('mood')); } catch { /* 미설정 */ }
     if (!apiKey) {
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'AI 설정 누락 (GEMINI_API_KEY)', code: 'AI_NOT_CONFIGURED' }));
@@ -604,10 +609,7 @@ export default async function handler(req, res) {
     let rawFlights = [];
     let truncated = false;
     try {
-      // LLM 공급자 전환: CI(mood-smoke) 의 x-llm-mock → allowlist 통과한 요청만 mock (유료 호출 0).
-      const extracted = wantsLlmMock(req)
-        ? await runWithLlmContext({ provider: 'mock' }, () => extractStops(rawText, apiKey))
-        : await extractStops(rawText, apiKey);
+      const extracted = await inLlmScope(() => extractStops(rawText, apiKey));
       rawStops = extracted.stops;
       rawFlights = extracted.flights;
       truncated = extracted.truncated;

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { ManifestSwitcher } from '@/components/ManifestSwitcher';
 import { RouteTransition } from '@/components/RouteTransition';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -9,6 +9,8 @@ import { Header } from '@/sections/Header';
 import { PromoBanner } from '@/components/PromoBanner';
 import { PromoPopup } from '@/components/PromoPopup';
 import { isLinkHubPath } from '@/lib/linkInBio';
+import { isCustomerNightPath } from '@/lib/customerNight';
+import '@/styles/customer-night.css';
 // Home — one responsive Editorial Concierge tree (2026-08-10). Lazy: it pulls
 // tours.ts (~92 KB raw) + the example-plan data, which must not enter the eager
 // first-paint bundle guarded by .size-limit.json.
@@ -780,14 +782,28 @@ function App() {
             → chrome 숨김과 계측을 분리한다. PageViewTracker 는 null 만 반환하므로
               "무드는 별도 사이트처럼" 이라는 원래 의도는 하나도 안 깨진다. */}
         <PageViewTracker />
-        <GlobalWidgets />
-        <NonMoodChrome />
-        <AnimatedRoutes />
-        <MobileBottomSpacer />
+        <CustomerNightScope>
+          <GlobalWidgets />
+          <NonMoodChrome />
+          <AnimatedRoutes />
+          <MobileBottomSpacer />
+        </CustomerNightScope>
         </CommandPaletteProvider>
       </ErrorBoundary>
       </RouteLanguageProvider>
     </BrowserRouter>
+  );
+}
+
+// v3 night look (src/styles/customer-night.css) for customer routes only.
+// `display: contents` keeps the box tree exactly as before on every route —
+// the wrapper only carries the token class; admin/mood/dev get no class.
+function CustomerNightScope({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <div className={isCustomerNightPath(pathname) ? 'ec-night' : undefined} style={{ display: 'contents' }}>
+      {children}
+    </div>
   );
 }
 

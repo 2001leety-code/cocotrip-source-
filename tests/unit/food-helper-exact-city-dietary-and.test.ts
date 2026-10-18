@@ -21,19 +21,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // needed updating to stay realistic).
 const ROWS = [
   // halal-only, friendly tier (no explicit verification_status -> derived)
-  { city: 'gyeongju', name: 'Halal Only House|', nameEn: 'Halal Only House', address: 'Gyeongju-si 1', lat: 35.84, lng: 129.21, placeId: 'p1', dietary_tags: ['halal'], source: 'manual_review' },
+  { city: 'gyeongju', name: 'Halal Only House|', nameEn: 'Halal Only House', address: 'Gyeongju-si 1', lat: 35.84, lng: 129.21, placeId: 'p1', dietary_tags: ['halal'] },
   // vegan-only, friendly tier
-  { city: 'gyeongju', name: 'Vegan Only Cafe|', nameEn: 'Vegan Only Cafe', address: 'Gyeongju-si 2', lat: 35.84, lng: 129.22, placeId: 'p2', dietary_tags: ['vegan'], source: 'manual_review' },
+  { city: 'gyeongju', name: 'Vegan Only Cafe|', nameEn: 'Vegan Only Cafe', address: 'Gyeongju-si 2', lat: 35.84, lng: 129.22, placeId: 'p2', dietary_tags: ['vegan'] },
   // BOTH halal AND vegan on the same row — the only row that should satisfy a Halal+Vegan request
-  { city: 'gyeongju', name: 'Dual Diet Table|', nameEn: 'Dual Diet Table', address: 'Gyeongju-si 3', lat: 35.84, lng: 129.23, placeId: 'p3', dietary_tags: ['halal', 'vegan'], source: 'manual_review' },
+  { city: 'gyeongju', name: 'Dual Diet Table|', nameEn: 'Dual Diet Table', address: 'Gyeongju-si 3', lat: 35.84, lng: 129.23, placeId: 'p3', dietary_tags: ['halal', 'vegan'] },
   // halal certified tier (explicit, manual)
-  { city: 'gyeongju', name: 'Certified Halal Grill|', nameEn: 'Certified Halal Grill', address: 'Gyeongju-si 4', lat: 35.84, lng: 129.24, placeId: 'p4', dietary_tags: ['halal'], verification_status: 'halal_certified', source: 'manual_review' },
+  { city: 'gyeongju', name: 'Certified Halal Grill|', nameEn: 'Certified Halal Grill', address: 'Gyeongju-si 4', lat: 35.84, lng: 129.24, placeId: 'p4', dietary_tags: ['halal'], verification_status: 'halal_certified' },
   // vegetarian-labeled row -> vegetarian requests may be covered by vegan too, tested separately
-  { city: 'gyeongju', name: 'Veggie Spot|', nameEn: 'Veggie Spot', address: 'Gyeongju-si 5', lat: 35.84, lng: 129.25, placeId: 'p5', dietary_tags: ['vegan'], source: 'manual_review' },
+  { city: 'gyeongju', name: 'Veggie Spot|', nameEn: 'Veggie Spot', address: 'Gyeongju-si 5', lat: 35.84, lng: 129.25, placeId: 'p5', dietary_tags: ['vegan'] },
   // quarantined source -> must stay excluded even though tags match (unverified)
   { city: 'gyeongju', name: 'Naver Guess Halal|', nameEn: 'Naver Guess Halal', address: 'Gyeongju-si 6', lat: 35.84, lng: 129.26, placeId: 'p6', dietary_tags: ['halal', 'vegan'], source: 'naver_local' },
   // different city -> must never leak in as if it were Gyeongju
-  { city: 'seoul', name: 'Seoul Dual Diet|', nameEn: 'Seoul Dual Diet', address: 'Seoul 1', lat: 37.55, lng: 126.98, placeId: 'p7', dietary_tags: ['halal', 'vegan'], source: 'manual_review' },
+  { city: 'seoul', name: 'Seoul Dual Diet|', nameEn: 'Seoul Dual Diet', address: 'Seoul 1', lat: 37.55, lng: 126.98, placeId: 'p7', dietary_tags: ['halal', 'vegan'] },
 ];
 
 type Candidate = { row: { nameEn: string }; evidence: Array<{ diet: string }> };
