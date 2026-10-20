@@ -1,7 +1,7 @@
 // Step 4: 인원 (어른/아이) + 차종 자동 추천 · i18n
 // 2026-06-30: 차종 4종 — staria(프리미엄 비즈니스 캡틴시트) / staria_9(9인승) / sprinter / bus.
 //   staria·staria_9 = 즉시결제(가이드 없음), sprinter·bus = 가이드 필수(legalGuideWarn). vip(의전) 선택지 제거.
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Car, Bus, AlertTriangle, Minus, Plus, Users } from 'lucide-react';
 import { VEHICLE_TYPES } from '@/data/charterPricing';
 import { VEHICLE_GALLERY } from '@/data/vehicleImages';
@@ -9,7 +9,8 @@ import type { WizardState, VehicleType } from './types';
 import { getWizardI18n } from './wizard-i18n';
 
 // 차종 실차 사진 갤러리 — hero 1장 + 썸네일 클릭 전환. (차종 바뀌면 key 로 리셋)
-function VehicleGallery({ images }: { images: string[] }) {
+// 썸네일은 이미지뿐이라 접근 이름이 없었다 → 차종명(4언어) + "n/총" 으로 이름, 현재 사진은 aria-pressed.
+function VehicleGallery({ images, name }: { images: string[]; name: string }) {
   const [idx, setIdx] = useState(0);
   if (!images.length) return null;
   return (
@@ -20,6 +21,8 @@ function VehicleGallery({ images }: { images: string[] }) {
       <div className="flex gap-2 overflow-x-auto pb-1">
         {images.map((src, i) => (
           <button key={src} type="button" onClick={() => setIdx(i)}
+            aria-label={`${name} ${i + 1}/${images.length}`}
+            aria-pressed={i === idx}
             className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
               i === idx ? 'border-[#B668FC]' : 'border-transparent opacity-55 hover:opacity-90'
             }`}>
@@ -60,6 +63,10 @@ function vehiclePaxRangeLabel(v: VehicleType, lang: Lang): string {
   return lang === 'ko' ? `${range}인` : `${range}${unit}`;
 }
 
+// ± 버튼 접근 이름 — 아이콘뿐이라 이름이 없었다. "어른 줄이기" 처럼 패널 라벨 뒤에 붙인다.
+const COUNTER_DECREASE: Record<Lang, string> = { ko: '줄이기', en: 'decrease', ja: '減らす', zh: '减少' };
+const COUNTER_INCREASE: Record<Lang, string> = { ko: '늘리기', en: 'increase', ja: '増やす', zh: '增加' };
+
 const STARIA_TIER: Record<Lang, string> = {
   ko: '프리미엄 비즈니스', en: 'Premium Business', ja: 'プレミアムビジネス', zh: '尊享商务',
 };
@@ -79,6 +86,7 @@ interface Props {
 export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
   const lang: Lang = language;
   const i18n = getWizardI18n(language);
+  const vehicleLabelId = useId();
 
   // 어른/아이 분리 — paxCount는 derived (어른+아이)
   const adult = state.adultCount ?? state.paxCount ?? 2;
@@ -114,12 +122,14 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
       <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3">
         <CounterPanel
           label={i18n.adultLabel}
+          lang={lang}
           value={adult}
           onDecrease={() => setAdult(adult - 1)}
           onIncrease={() => setAdult(adult + 1)}
         />
         <CounterPanel
           label={i18n.childLabel}
+          lang={lang}
           value={child}
           onDecrease={() => setChild(child - 1)}
           onIncrease={() => setChild(child + 1)}
@@ -144,10 +154,10 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
       </div>
 
       <div>
-        <label className="charter-funnel-field-label mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:text-xs">
+        <p id={vehicleLabelId} className="charter-funnel-field-label mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:text-xs">
           {i18n.vehicleLabel}
-        </label>
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-3">
+        </p>
+        <div role="group" aria-labelledby={vehicleLabelId} className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-3">
           {(['staria_9', 'staria', 'sprinter', 'bus'] as VehicleType[]).map(v => {
             const selected = vehicle === v;
             const name = vehicleDisplayName(v, lang);
@@ -155,6 +165,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
               <button
                 key={v}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => selectVehicle(v)}
                 className={`charter-funnel-option group flex min-h-[48px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all sm:min-h-[112px] sm:items-start sm:gap-3 sm:rounded-2xl sm:p-4 ${
                   selected
@@ -186,7 +197,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
 
       {/* 선택 차종 실차 사진 (staria=7인 갈색 캡틴 / staria_9=9인 검정). key 로 차종 전환 시 리셋. */}
       {VEHICLE_GALLERY[vehicle] && (
-        <VehicleGallery key={vehicle} images={VEHICLE_GALLERY[vehicle]!} />
+        <VehicleGallery key={vehicle} images={VEHICLE_GALLERY[vehicle]!} name={vehicleDisplayName(vehicle, lang)} />
       )}
 
       {/* sprinter/bus 만 가이드 법적 필수 안내. staria·staria_9(9인승)=가이드 없음 → 미표시. */}
@@ -202,26 +213,29 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
 
 function CounterPanel({
   label,
+  lang,
   value,
   onDecrease,
   onIncrease,
 }: {
   label: string;
+  lang: Lang;
   value: number;
   onDecrease: () => void;
   onIncrease: () => void;
 }) {
+  const labelId = useId();
   return (
-    <div className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-1.5 sm:block sm:min-h-0 sm:rounded-2xl sm:p-4">
-      <label className="block min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:whitespace-normal sm:text-xs">{label}</label>
+    <div role="group" aria-labelledby={labelId} className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-1.5 sm:block sm:min-h-0 sm:rounded-2xl sm:p-4">
+      <p id={labelId} className="block min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-white/55 sm:mb-3 sm:whitespace-normal sm:text-xs">{label}</p>
       {/* 2026-08-11: ± 는 모바일에서 28px 였다 → 44px(WCAG 2.5.5). 열 폭도 44px 로 맞춘다. */}
       <div className="grid w-[142px] shrink-0 grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-1 sm:w-auto sm:grid-cols-[48px_minmax(0,1fr)_48px] sm:gap-3">
-        <button type="button" onClick={onDecrease}
+        <button type="button" onClick={onDecrease} aria-label={`${label} ${COUNTER_DECREASE[lang]}`}
           className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
           <Minus className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
         </button>
-        <div className="text-center text-xl font-black leading-none text-white sm:text-4xl">{value}</div>
-        <button type="button" onClick={onIncrease}
+        <div aria-live="polite" className="text-center text-xl font-black leading-none text-white sm:text-4xl">{value}</div>
+        <button type="button" onClick={onIncrease} aria-label={`${label} ${COUNTER_INCREASE[lang]}`}
           className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/75 transition-colors hover:bg-white/[0.08] sm:h-12 sm:w-12 sm:rounded-2xl">
           <Plus className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
         </button>

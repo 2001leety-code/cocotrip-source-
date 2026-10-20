@@ -174,7 +174,7 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--ec-text-secondary);
-  transition: color 120ms ease, border-color 120ms ease;
+  transition: color var(--ec-duration-fast) var(--ec-ease-standard), border-color var(--ec-duration-fast) var(--ec-ease-standard);
 }
 
 .plan-result-night .plan-night-tabs [role='tab']:hover {
@@ -257,7 +257,7 @@
   border-radius: 0;
   background: none;
   box-shadow: none;
-  transition: background-color 120ms ease;
+  transition: background-color var(--ec-duration-fast) var(--ec-ease-standard);
 }
 
 .plan-result-night .plan-night-day .plan-night-stop:hover {
@@ -436,7 +436,7 @@
 
 /* Expand/collapse: subtle and short. */
 .plan-result-night .plan-night-stop > .transition-all {
-  transition-duration: 120ms;
+  transition-duration: var(--ec-duration-fast);
 }
 
 /* ── Transit leg between stops: a single indented line, not a card ────────── */
@@ -792,8 +792,8 @@
      alone carries a <= 2px inset depth that flattens while pressed. */
   .plan-result-night .ec-btn:not([role='tab']) {
     transition-property: transform, box-shadow, background-color, border-color, color;
-    transition-duration: 120ms;
-    transition-timing-function: ease-out;
+    transition-duration: var(--ec-duration-fast);
+    transition-timing-function: var(--ec-ease-standard);
   }
 
   .plan-result-night .ec-btn:not([role='tab']):not(:disabled):active {

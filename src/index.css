@@ -1051,7 +1051,7 @@ html[data-menu-open="true"] .early-bird-banner {
   }
 
   .cocotrip-mobile-inquiry-modal button:not([style*="linear-gradient"]) {
-    min-height: 34px !important;
+    min-height: 44px !important;
   }
 }
 

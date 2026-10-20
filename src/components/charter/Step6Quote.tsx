@@ -25,6 +25,23 @@ const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
 // 차터 USD = 청구 공식 SSOT(lib/charterUsd) → 표시가==청구가. 반올림도 그쪽 한 곳에만 있다.
 const USD = (krw: number) => `≈ $${charterUsdFromKrw(krw).toLocaleString('en-US')}`;
 
+// 2026-10-18 P2: 포함/제외 뱃지 표시 라벨 (표시 전용). 키셋 = useQuoteCalculator includes/excludes.
+//   en 은 원래 키 그대로, 모르는 키도 원래 키 그대로 표시. quote 배열·key 는 건드리지 않는다.
+const INCLUDE_EXCLUDE_LABELS: Record<string, Record<'ko' | 'ja' | 'zh', string>> = {
+  fuel: { ko: '유류비', ja: '燃料費', zh: '燃油费' },
+  tolls: { ko: '통행료', ja: '高速料金', zh: '过路费' },
+  parking: { ko: '주차비', ja: '駐車料金', zh: '停车费' },
+  meals: { ko: '식사', ja: '食事', zh: '餐饮' },
+  attractions: { ko: '관광지 입장료', ja: '観光地入場料', zh: '景点门票' },
+  drinks: { ko: '음료', ja: '飲み物', zh: '饮料' },
+  shopping: { ko: '쇼핑', ja: 'ショッピング', zh: '购物' },
+};
+function includeExcludeLabel(key: string, language: string): string {
+  if (language !== 'ko' && language !== 'ja' && language !== 'zh') return key;
+  if (!Object.prototype.hasOwnProperty.call(INCLUDE_EXCLUDE_LABELS, key)) return key;
+  return INCLUDE_EXCLUDE_LABELS[key][language];
+}
+
 export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
   if (!quote) {
@@ -137,8 +154,8 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
         </div>
 
         {/* 합계 행 */}
-        <div className="flex items-end justify-between gap-4 border-t border-white/10 bg-black/10 px-5 py-5 sm:px-6">
-          <span className="text-base font-bold text-white/70">{i18n.receiptTotal}</span>
+        <div className="charter-funnel-receipt-total flex items-end justify-between gap-4 border-t border-white/10 bg-black/10 px-5 py-5 sm:px-6">
+          <span className="charter-funnel-total-label text-base font-bold text-white/70">{i18n.receiptTotal}</span>
           <div className="text-right">
             <div className="text-3xl font-black leading-tight text-white">{KRW(quote.subtotalKRW)}</div>
             <div className="charter-funnel-note text-xs text-white/55 mt-1">{USD(quote.subtotalKRW)}</div>
@@ -177,10 +194,10 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
       {/* 포함/제외 뱃지 */}
       <div className="charter-funnel-quote-chips flex flex-wrap gap-2 text-xs">
         {quote.includes.map(i => (
-          <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {i}</span>
+          <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {includeExcludeLabel(i, language)}</span>
         ))}
         {quote.excludes.map(e => (
-          <span key={e} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {e}</span>
+          <span key={e} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {includeExcludeLabel(e, language)}</span>
         ))}
       </div>
 

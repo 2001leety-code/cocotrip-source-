@@ -497,8 +497,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {geocodingFailed && (
                     <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
                       <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
-                      <label className="charter-funnel-field-label block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
+                      <label htmlFor="charter-manual-km" className="charter-funnel-field-label block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
                       <input
+                        id="charter-manual-km"
                         type="number"
                         min={1}
                         value={manualKm ?? ''}
@@ -506,7 +507,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                           const n = Number(e.target.value);
                           setManualKm(Number.isFinite(n) && n > 0 ? n : null);
                         }}
-                        className="charter-funnel-control w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
+                        className="charter-funnel-control min-h-[44px] w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
                       />
                     </div>
                   )}

@@ -2193,10 +2193,18 @@ textarea.community-field {
 }
 
 .community-app .community-photo-add {
+  position: relative;
   min-width: 84px;
   min-height: 84px;
   color: var(--ec-brand);
   border-color: var(--ec-line-contrast);
+}
+
+/* The file input is visually hidden (sr-only), not `hidden`, so it stays keyboard-reachable;
+   its focus ring is drawn on the visible tile with the same outline as other community controls. */
+.community-app .community-photo-add:focus-within {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
 }
 
 .community-app .community-compose-safety,

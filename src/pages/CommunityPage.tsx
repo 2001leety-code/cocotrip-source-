@@ -58,7 +58,7 @@ type Copy = {
   write: string; translate: string; showOriginal: string; translatedFrom: string; translating: string;
   translateFailed: string; replies: string; save: string; report: string; reportTitle: string;
   reportHelp: string; reportReasons: [string, string, string, string]; reportDone: string;
-  cancel: string; submit: string; categories: string; all: string;
+  cancel: string; submit: string; categories: string; all: string; photoRemove: string;
   communityGuide: string; guideBody: string;
   navHome: string; navExplore: string; navCreate: string; navAlerts: string; navProfile: string;
   back: string; comments: string; replyPlaceholder: string;
@@ -91,7 +91,7 @@ const COPY: Record<Language, Copy> = {
     reportHelp: 'Your report is private. A moderator will review the original post and its translation.',
     reportReasons: ['Spam or advertising', 'Harassment or hate', 'Sexual or unsafe content', 'Scam or false information'],
     reportDone: 'Report received. Thank you for keeping the community safe.',
-    cancel: 'Cancel', submit: 'Send report', categories: 'Browse topics', all: 'All',
+    cancel: 'Cancel', submit: 'Send report', categories: 'Browse topics', all: 'All', photoRemove: 'Remove photo',
     communityGuide: 'Travel kindly', guideBody: 'Keep personal details private and meet new people in public places.',
     navHome: 'Feed', navExplore: 'Explore', navCreate: 'Post', navAlerts: 'Alerts', navProfile: 'Profile', back: 'Back', comments: 'Comments',
     replyPlaceholder: 'Join the conversation', composeTitle: 'Share with the community', composeSubtitle: 'Ask, recommend, or find people for your Korea trip.',
@@ -124,7 +124,7 @@ const COPY: Record<Language, Copy> = {
     reportHelp: '신고 내용은 공개되지 않으며 운영자가 원문과 번역문을 함께 확인합니다.',
     reportReasons: ['도배 또는 광고', '괴롭힘 또는 혐오 표현', '성적이거나 위험한 내용', '사기 또는 허위 정보'],
     reportDone: '신고가 접수됐어요. 안전한 커뮤니티를 만들어 주셔서 감사합니다.',
-    cancel: '취소', submit: '신고 보내기', categories: '주제 둘러보기', all: '전체',
+    cancel: '취소', submit: '신고 보내기', categories: '주제 둘러보기', all: '전체', photoRemove: '사진 삭제',
     communityGuide: '안전하게 여행하기', guideBody: '개인정보는 공개하지 말고 새로운 사람과는 공공장소에서 만나세요.',
     navHome: '피드', navExplore: '탐색', navCreate: '작성', navAlerts: '알림', navProfile: '내 정보', back: '뒤로', comments: '댓글',
     replyPlaceholder: '대화에 참여해 보세요', composeTitle: '커뮤니티에 공유하기', composeSubtitle: '한국 여행 질문, 추천, 동행 모집을 올려보세요.',
@@ -157,7 +157,7 @@ const COPY: Record<Language, Copy> = {
     reportHelp: '報告内容は公開されません。運営者が原文と翻訳を確認します。',
     reportReasons: ['スパム・広告', '嫌がらせ・ヘイト', '性的・危険な内容', '詐欺・虚偽情報'],
     reportDone: '報告を受け付けました。安全なコミュニティへのご協力ありがとうございます。',
-    cancel: 'キャンセル', submit: '報告を送信', categories: 'トピックを見る', all: 'すべて',
+    cancel: 'キャンセル', submit: '報告を送信', categories: 'トピックを見る', all: 'すべて', photoRemove: '写真を削除',
     communityGuide: '安全に旅する', guideBody: '個人情報は公開せず、新しい人とは公共の場所で会いましょう。',
     navHome: 'フィード', navExplore: '探索', navCreate: '投稿', navAlerts: '通知', navProfile: 'プロフィール', back: '戻る', comments: 'コメント',
     replyPlaceholder: '会話に参加しましょう', composeTitle: 'コミュニティに共有', composeSubtitle: '韓国旅行の質問、おすすめ、旅仲間の募集を投稿しましょう。',
@@ -190,7 +190,7 @@ const COPY: Record<Language, Copy> = {
     reportHelp: '举报内容不会公开，管理员会同时查看原文和译文。',
     reportReasons: ['垃圾信息或广告', '骚扰或仇恨言论', '色情或危险内容', '诈骗或虚假信息'],
     reportDone: '已收到举报。感谢你共同维护安全的社区。',
-    cancel: '取消', submit: '发送举报', categories: '浏览话题', all: '全部',
+    cancel: '取消', submit: '发送举报', categories: '浏览话题', all: '全部', photoRemove: '删除照片',
     communityGuide: '安全出行', guideBody: '请勿公开个人信息，与新朋友见面请选择公共场所。',
     navHome: '动态', navExplore: '探索', navCreate: '发布', navAlerts: '通知', navProfile: '我的', back: '返回', comments: '评论',
     replyPlaceholder: '参与讨论吧', composeTitle: '与社区分享', composeSubtitle: '发布韩国旅行问题、推荐或寻找同伴。',
@@ -676,7 +676,7 @@ function PostCard({ post, expanded = false, onDeleted }: { post: ApiPost; expand
         </button>
       )}
       <div className="community-post-actions">
-        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={toggleLike} aria-label={copy.like}>
+        <button type="button" className={liked ? 'is-active is-liked' : ''} onClick={toggleLike} aria-label={copy.like} aria-pressed={liked}>
           <Heart size={18} fill={liked ? 'currentColor' : 'none'} /><span>{likeCount}</span>
         </button>
         <Link to={`/community/post/${post.id}`}><MessageCircle size={18} /><span>{post.replyCount} {copy.replies}</span></Link>
@@ -748,23 +748,31 @@ export default function CommunityPage() {
   const [prevSearch, setPrevSearch] = useState(location.search);
   if (location.search !== prevSearch) {
     setPrevSearch(location.search);
-    if (requestedView === 'popular') setTab('popular');
-    const topicParam = params.get('topic');
-    if (topicParam) setTopic(topicParam);
+    // 쿼리가 빠지면 기본값으로 되돌린다 — /community 로 돌아왔는데 옛 인기 탭·토픽이 남지 않게.
+    setTab(requestedView === 'popular' ? 'popular' : 'latest');
+    setTopic(params.get('topic'));
   }
 
   // usePageMeta 가 '| CocoTrip' 접미사를 붙임 — 중복 방지 위해 여기선 안 붙인다.
   usePageMeta({ title: copy.community, description: copy.exploreKorea });
   useEffect(() => { signalAppReady(); }, []);
 
+  // 가장 최근 요청만 결과를 반영한다 — 탭 전환·재시도·인증 변경으로 요청이 겹치면
+  // 늦게 끝난 옛 응답이 새 목록·로딩·에러를 덮어쓰지 않게.
+  const feedRequestRef = useRef(0);
   const load = useCallback(async (sort: 'latest' | 'popular') => {
+    feedRequestRef.current += 1;
+    const requestId = feedRequestRef.current;
     setError(false);
     setPosts(null);
     try {
       const token = user ? await user.getIdToken() : null;
+      if (requestId !== feedRequestRef.current) return;
       const data = await apiGet(`/api/community-posts?sort=${sort}`, token);
+      if (requestId !== feedRequestRef.current) return;
       setPosts(data.posts);
     } catch {
+      if (requestId !== feedRequestRef.current) return;
       setError(true);
       setPosts([]);
     }
@@ -772,8 +780,9 @@ export default function CommunityPage() {
 
   // 탭 변경·인증 확정 시 조회. load 가 첫 줄에서 setPosts(null) 로 로딩 상태를 만들므로
   // 린트가 "effect 안 setState" 로 잡지만, 의도된 fetch-on-mount 패턴 (AdminReviews 전례).
+  // 정리 시 진행 중 요청을 무효화한다(키 변경·인증 로딩 재진입·언마운트).
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (!authLoading) void load(tab); }, [tab, load, authLoading]);
+  useEffect(() => { if (!authLoading) void load(tab); return () => { feedRequestRef.current += 1; }; }, [tab, load, authLoading]);
 
   const visible = useMemo(() => {
     if (!posts) return null;
@@ -813,9 +822,10 @@ export default function CommunityPage() {
           <div className="md:hidden">
             <CommunityProductBridge mobile />
           </div>
-          <div className="community-tabs" role="tablist">
+          {/* 최신/인기는 같은 목록의 정렬 토글(전환할 tabpanel·화살표 키 없음) → 주제 필터와 같은 aria-pressed 버튼 그룹. */}
+          <div className="community-tabs" role="group" aria-label={`${copy.latest} / ${copy.popular}`}>
             {(['latest', 'popular'] as const).map((key) => (
-              <button type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key)}>
+              <button type="button" aria-pressed={tab === key} className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key)}>
                 {copy[key]}
               </button>
             ))}
@@ -939,14 +949,33 @@ export function CommunityPostPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<'not-found' | 'request' | null>(null);
   const [reply, setReply] = useState('');
-  const [sending, setSending] = useState(false);
+  // 전송 표시는 시작한 글·로그인에 묶는다 — 다른 글로 옮기면 옛 전송이 새 글 버튼을 잠그지 않는다.
+  const [sendingFor, setSendingFor] = useState<{ postId: string | undefined; user: typeof user } | null>(null);
+  const sending = sendingFor !== null && sendingFor.postId === postId && sendingFor.user === user;
   const [replyNotice, setReplyNotice] = useState<string | null>(null);
 
   usePageMeta({ title: post ? post.title : copy.community, description: post ? post.body.slice(0, 140) : copy.exploreKorea });
 
+  // 가장 최근 요청만 글·댓글·에러·로딩을 바꾼다 — 다른 글로 이동·재시도가 겹칠 때
+  // 옛 응답이 현재 글을 덮어쓰거나 진행 중인 로딩을 끄지 않게.
+  const postRequestRef = useRef(0);
+  // 지금 화면의 글·로그인 수명. 인증 확인 중·언마운트 시 null. 옛 글에서 만든 load·전송 완료가
+  // 카운터를 올려 현재 요청을 취소하거나 새 글 화면을 바꾸지 않게 호출 시점에 대조한다.
+  const liveRouteRef = useRef<{ postId: string | undefined; user: typeof user } | null>(null);
+  useEffect(() => {
+    const live = authLoading ? null : { postId, user };
+    liveRouteRef.current = live;
+    return () => { if (liveRouteRef.current === live) liveRouteRef.current = null; };
+  }, [postId, user, authLoading]);
+
   const load = useCallback(async () => {
+    const live = liveRouteRef.current;
+    if (!live || live.postId !== postId || live.user !== user) return;
+    postRequestRef.current += 1;
+    const requestId = postRequestRef.current;
     if (!postId) {
       setPost(null);
+      setReplies([]);
       setLoadError('not-found');
       setLoading(false);
       return;
@@ -955,7 +984,9 @@ export function CommunityPostPage() {
     setLoadError(null);
     try {
       const token = user ? await user.getIdToken() : null;
+      if (requestId !== postRequestRef.current) return;
       const data = await apiGet(`/api/community-posts?id=${encodeURIComponent(postId)}`, token);
+      if (requestId !== postRequestRef.current) return;
       if (!data.post) {
         setPost(null);
         setReplies([]);
@@ -965,36 +996,42 @@ export function CommunityPostPage() {
       setPost(data.post);
       setReplies(data.replies);
     } catch (error) {
+      if (requestId !== postRequestRef.current) return;
       setPost(null);
       setReplies([]);
       setLoadError(error instanceof CommunityApiError && error.status === 404 ? 'not-found' : 'request');
     } finally {
-      setLoading(false);
+      if (requestId === postRequestRef.current) setLoading(false);
     }
   }, [postId, user]);
 
   // 인증 확정 시 글 조회. load 가 첫 줄에서 setLoading(true) 를 하므로 린트가 잡지만,
-  // 의도된 fetch-on-mount 패턴 (AdminReviews 전례).
+  // 의도된 fetch-on-mount 패턴 (AdminReviews 전례). 정리 시 진행 중 요청을 무효화한다.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (!authLoading) void load(); }, [load, authLoading]);
+  useEffect(() => { if (!authLoading) void load(); return () => { postRequestRef.current += 1; }; }, [load, authLoading]);
 
   const submitReply = async () => {
     if (!post || !reply.trim()) return;
     if (!user) { navigate('/mypage'); return; }
-    setSending(true);
+    // 시작한 수명이 그대로일 때만 입력·안내·재조회를 바꾼다. 전송 자체는 그대로 끝까지 보낸다.
+    const scope = liveRouteRef.current;
+    const isCurrent = () => scope !== null && liveRouteRef.current === scope;
+    const mine = { postId, user };
+    setSendingFor(mine);
     setReplyNotice(null);
     try {
       const token = await user.getIdToken();
       const result = await apiPost('/api/community-post-actions', {
         action: 'reply', postId: post.id, body: reply.trim(), authorName: displayName(user),
       }, token);
+      if (!isCurrent()) return;
       setReply('');
       if (result.status === 'review') setReplyNotice(copy.postInReview);
       else await load();
     } catch {
-      setReplyNotice(copy.replyFailed);
+      if (isCurrent()) setReplyNotice(copy.replyFailed);
     } finally {
-      setSending(false);
+      setSendingFor((current) => (current === mine ? null : current));
     }
   };
 
@@ -1023,7 +1060,7 @@ export function CommunityPostPage() {
             {user ? (
               <div className="community-reply-box">
                 <span className="community-avatar">{displayName(user).slice(0, 1).toUpperCase()}</span>
-                <input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={copy.replyPlaceholder} maxLength={500}
+                <input value={reply} onChange={(event) => setReply(event.target.value)} aria-label={copy.replyPlaceholder} placeholder={copy.replyPlaceholder} maxLength={500}
                   onKeyDown={(event) => { if (event.key === 'Enter') void submitReply(); }} />
                 <button type="button" className="community-icon-button" disabled={!reply.trim() || sending} onClick={submitReply} aria-label={copy.submit}>
                   {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
@@ -1240,14 +1277,14 @@ export function CommunityComposePage() {
             {photos.map((p, index) => (
               <div key={p.preview} className="community-photo-thumb">
                 <img src={p.preview} alt="" />
-                <button type="button" onClick={() => removePhoto(index)} aria-label={copy.cancel}><X size={14} /></button>
+                <button type="button" onClick={() => removePhoto(index)} aria-label={`${copy.photoRemove} ${index + 1}`}><X size={14} /></button>
               </div>
             ))}
             {photos.length < 3 && (
               <label className="community-photo-add">
                 <ImagePlus size={22} />
                 <span>{copy.addPhotos}</span>
-                <input type="file" accept="image/*" multiple hidden onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+                <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
               </label>
             )}
           </div>

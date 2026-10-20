@@ -171,7 +171,10 @@
   color: var(--ec-text-primary);
   border: 1px solid var(--ec-line-contrast);
   border-radius: var(--ec-radius-pill);
-  transition: border-color 120ms ease-out;
+  /* Same press role as the shared .ec-btn: the 1px :active sink eases instead of snapping. */
+  transition-property: border-color, transform;
+  transition-duration: var(--ec-duration-fast);
+  transition-timing-function: var(--ec-ease-standard);
 }
 
 .tour-detail-gallery-control:hover {

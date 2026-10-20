@@ -2,7 +2,7 @@
 // CharterInquireModal(플랜 상세) 패턴 복제·개조 — 결제 없음, 상담 접수만.
 // POST /api/inquiry-submit (vehicle='tour_custom') → Firestore charter_inquiries + 텔레그램 알림.
 // 4-lang ko/en/ja/zh. 모바일 밀도 우선: 입력칸 작게, 2열 배치.
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { X, Send, Loader2, AlertCircle, Check } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
 import { authFetch } from '@/lib/authFetch';
@@ -203,12 +203,14 @@ interface Props {
 }
 
 const inputCls =
-  'w-full px-2.5 py-2 rounded-lg bg-white/[0.04] border border-white/12 text-white/85 text-[13px] placeholder:text-white/30 outline-none focus:border-[#B668FC]/45';
+  'w-full min-h-[44px] px-2.5 py-2 rounded-lg bg-white/[0.04] border border-white/12 text-white/85 text-[13px] placeholder:text-white/30 outline-none focus:border-[#B668FC]/45';
 
 export function TourInquireModal({ open, onClose, language, defaultRegion = '' }: Props) {
   const lang: Lang =
     language === 'ko' ? 'ko' : language === 'ja' ? 'ja' : language === 'zh' ? 'zh' : 'en';
   const s = STRINGS[lang];
+  // 보이는 라벨 ↔ 입력 연결용 id 접두사 (placeholder 가 이름 대용이 되지 않게).
+  const fieldId = useId();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -305,19 +307,21 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
     >
       <div
         className="cocotrip-mobile-inquiry-modal w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#B668FC]/25 bg-[#120a1f]"
+        role="dialog"
+        aria-labelledby={`${fieldId}-title`}
         onClick={e => e.stopPropagation()}
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] sticky top-0 bg-[#120a1f] z-10">
           <div className="min-w-0">
-            <p className="text-[14px] font-bold text-white">{s.title}</p>
+            <p id={`${fieldId}-title`} className="text-[14px] font-bold text-white">{s.title}</p>
             <p className="text-[11px] text-white/50 mt-0.5">{s.subtitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={s.close}
-            className="text-white/55 hover:text-white/80 min-h-[40px] min-w-[40px] flex items-center justify-center shrink-0"
+            className="text-white/55 hover:text-white/80 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -333,7 +337,7 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
             <button
               type="button"
               onClick={onClose}
-              className="mt-4 px-6 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/15 min-h-[40px]"
+              className="mt-4 px-6 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/15 min-h-[44px]"
             >
               {s.close}
             </button>
@@ -342,62 +346,62 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
           <form onSubmit={submit} className="p-4 space-y-2.5">
             {/* 이름 */}
             <div>
-              <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+              <label htmlFor={`${fieldId}-name`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                 {s.nameLabel} <span className="text-red-400">*</span>
               </label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
+              <input id={`${fieldId}-name`} type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
             </div>
 
             {/* 이메일 | 전화 — 둘 중 하나 필수 */}
             <div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                  <label htmlFor={`${fieldId}-email`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                     {s.emailLabel}
                   </label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputCls} />
+                  <input id={`${fieldId}-email`} aria-describedby={`${fieldId}-contact-hint`} type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                  <label htmlFor={`${fieldId}-phone`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                     {s.phoneLabel}
                   </label>
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                  <input id={`${fieldId}-phone`} aria-describedby={`${fieldId}-contact-hint`} type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                     placeholder="+82-10-0000-0000" className={inputCls} />
                 </div>
               </div>
-              <p className="mt-1 text-[10px] text-white/40">{s.contactHint} <span className="text-red-400">*</span></p>
+              <p id={`${fieldId}-contact-hint`} className="mt-1 text-[10px] text-white/55">{s.contactHint} <span className="text-red-400">*</span></p>
             </div>
 
             {/* WhatsApp | 여행 날짜 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <label htmlFor={`${fieldId}-whatsapp`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {s.whatsappLabel} <span className="text-white/35 normal-case">({s.optional})</span>
                 </label>
-                <input type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} className={inputCls} />
+                <input id={`${fieldId}-whatsapp`} type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} className={inputCls} />
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <label htmlFor={`${fieldId}-date`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {s.dateLabel}
                 </label>
-                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className={inputCls} />
+                <input id={`${fieldId}-date`} type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className={inputCls} />
               </div>
             </div>
 
             {/* 인원 | 지역 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <label htmlFor={`${fieldId}-pax`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {s.paxLabel}
                 </label>
-                <input type="number" min={1} max={999} value={pax}
+                <input id={`${fieldId}-pax`} type="number" min={1} max={999} value={pax}
                   onChange={e => setPax(Math.min(999, Math.max(1, Number(e.target.value) || 1)))} className={inputCls} />
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <label htmlFor={`${fieldId}-region`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {s.regionLabel}
                 </label>
-                <select value={region} onChange={e => setRegion(e.target.value as RegionValue)}
+                <select id={`${fieldId}-region`} value={region} onChange={e => setRegion(e.target.value as RegionValue)}
                   className={`${inputCls} cursor-pointer`}>
                   <option value="">{s.regionUnset}</option>
                   <option value="seoul">{s.regionSeoul}</option>
@@ -411,10 +415,10 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
             {/* 여행 스타일(페이스, 라디오) | 기간(select) — 가이드 P7 Custom Tour */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <p id={`${fieldId}-style`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {TRAVEL_STYLE_LABEL[lang]}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
+                </p>
+                <div role="group" aria-labelledby={`${fieldId}-style`} className="flex flex-wrap gap-1.5">
                   {TRAVEL_STYLE_OPTIONS.map(opt => {
                     const active = travelStyle === opt.value;
                     return (
@@ -423,7 +427,7 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
                         type="button"
                         onClick={() => setTravelStyle(active ? '' : opt.value)}
                         aria-pressed={active}
-                        className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors"
+                        className="inline-flex min-h-[44px] items-center text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors"
                         style={
                           active
                             ? { background: 'rgba(182,104,252,0.18)', border: '1px solid rgba(182,104,252,0.50)', color: '#D0A8FF' }
@@ -437,10 +441,10 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+                <label htmlFor={`${fieldId}-duration`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                   {DURATION_LABEL[lang]}
                 </label>
-                <select value={duration} onChange={e => setDuration(e.target.value)}
+                <select id={`${fieldId}-duration`} value={duration} onChange={e => setDuration(e.target.value)}
                   className={`${inputCls} cursor-pointer`}>
                   <option value="">{s.regionUnset}</option>
                   {DURATION_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label[lang]}</option>)}
@@ -450,10 +454,10 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
 
             {/* 테마 멀티선택 칩 (≤5) */}
             <div>
-              <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+              <p id={`${fieldId}-theme`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                 {s.themeLabel} <span className="text-white/35 normal-case">({themes.size}/5)</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5">
+              </p>
+              <div role="group" aria-labelledby={`${fieldId}-theme`} className="flex flex-wrap gap-1.5">
                 {THEME_OPTIONS.map(opt => {
                   const active = themes.has(opt.value);
                   const atCap = !active && themes.size >= 5;
@@ -462,7 +466,8 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
                       key={opt.value}
                       type="button"
                       onClick={() => toggleTheme(opt.value)}
-                      className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors ${atCap ? 'opacity-40' : ''}`}
+                      aria-pressed={active}
+                      className={`inline-flex min-h-[44px] items-center text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors ${atCap ? 'opacity-40' : ''}`}
                       style={
                         active
                           ? { background: 'rgba(182,104,252,0.18)', border: '1px solid rgba(182,104,252,0.50)', color: '#D0A8FF' }
@@ -478,10 +483,10 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
 
             {/* 예산 */}
             <div>
-              <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+              <label htmlFor={`${fieldId}-budget`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                 {s.budgetLabel}
               </label>
-              <select value={budget} onChange={e => setBudget(e.target.value)}
+              <select id={`${fieldId}-budget`} value={budget} onChange={e => setBudget(e.target.value)}
                 className={`${inputCls} cursor-pointer`}>
                 <option value="">{s.budgetUndecided}</option>
                 {BUDGET_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
@@ -490,10 +495,10 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
 
             {/* 요청사항 */}
             <div>
-              <label className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
+              <label htmlFor={`${fieldId}-details`} className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">
                 {s.detailsLabel} <span className="text-white/35 normal-case">({s.optional})</span>
               </label>
-              <textarea rows={3} value={details} onChange={e => setDetails(e.target.value)}
+              <textarea id={`${fieldId}-details`} rows={3} value={details} onChange={e => setDetails(e.target.value)}
                 placeholder={s.detailsPlaceholder}
                 className={`${inputCls} resize-none`} />
             </div>
@@ -515,7 +520,7 @@ export function TourInquireModal({ open, onClose, language, defaultRegion = '' }
             <button
               type="submit"
               disabled={!valid || status === 'sending'}
-              className="w-full py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+              className="w-full min-h-[44px] py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
               style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
             >
               {status === 'sending'

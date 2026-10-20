@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SlotPicker — TourBookingDialog 시간 슬롯 선택 (Phase 1, 2026-05-19)
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useId } from 'react';
 import { Clock, Users, Check } from 'lucide-react';
 import type { TourSlot, I18nString } from '@/data/tours';
 import type { Language } from '@/i18n';
@@ -54,6 +54,8 @@ export function SlotPicker({ slots, selectedSlotId, onChange, language }: Props)
     () => slots.filter((s) => s.is_active !== false).sort((a, b) => a.start_time.localeCompare(b.start_time)),
     [slots],
   );
+  // 다중 슬롯 목록을 "시간 선택" 제목으로 묶는 그룹 이름 (early return 전에 호출).
+  const headingId = useId();
 
   // 활성 슬롯 1개면 자동 선택
   useEffect(() => {
@@ -92,11 +94,11 @@ export function SlotPicker({ slots, selectedSlotId, onChange, language }: Props)
 
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
+      <p id={headingId} className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
         <Clock className="w-3 h-3" />
         {HEADING[language] || HEADING.en}
-      </label>
-      <div className="space-y-1.5">
+      </p>
+      <div role="group" aria-labelledby={headingId} className="space-y-1.5">
         {activeSlots.map((slot) => (
           <SlotOption
             key={slot.id}
@@ -128,7 +130,7 @@ function SlotOption({
     <button
       type="button"
       onClick={onSelect}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+      className="w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
       style={{
         background: selected ? 'rgba(182,104,252,0.10)' : 'rgba(255,255,255,0.025)',
         border: selected ? '1px solid rgba(182,104,252,0.40)' : '1px solid rgba(255,255,255,0.07)',

@@ -4,9 +4,16 @@
  * Imported once from src/App.tsx. Every rule is scoped under `.ec-night`, which
  * App.tsx puts on a `display: contents` wrapper for customer routes only
  * (src/lib/customerNight.ts) and Header.tsx puts on its Radix popover content.
- * No `:root`, `html`, `body` or `!important`; admin, /mood, DEV harnesses and
+ * No `:root`, `html` or `!important`; admin, /mood, DEV harnesses and
  * /charter-legacy never carry the class. The PDF export container is appended
  * to <body>, outside the wrapper, so it keeps the paper tokens.
+ *
+ * One narrow `body` exception: `body:has(.not-found-editorial--app)`. The app 404
+ * (`*` route) sits outside the customer wrapper by the deliberate
+ * isCustomerNightPath allowlist, so its shell and portals painted light around
+ * the night <main>. The selector only matches while the app 404 root is mounted
+ * and stops matching as soon as the route leaves it. The server standalone 404
+ * uses `.not-found-editorial--standalone` and is not matched.
  *
  * Only the semantic and component `--ec-*` tokens are re-pointed. Component
  * tokens are computed once on :root in editorial.css, so they are repeated here.
@@ -47,7 +54,9 @@
 .customer-legal-document,
 .auth-required-shell,
 .customer-paypal-review-panel,
-.customer-bookings-root {
+.customer-bookings-root,
+body:has(.not-found-editorial--app),
+body:has(.not-found-editorial--app) .ec-root {
   /* Latin display serif; CJK glyphs fall through to the existing sans chain. */
   --ec-night-serif: 'V3 Serif', Inter, 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', system-ui, serif;
 
@@ -96,6 +105,12 @@
   --ec-shell-blur: 10px;
   --ec-field-bg: #0f1128;
   --ec-field-line: rgba(255, 255, 255, 0.28);
+}
+
+/* App 404 shell: page surface behind header/footer/portals while the 404 root is mounted. */
+body:has(.not-found-editorial--app) {
+  background: var(--ec-surface-page);
+  color-scheme: dark;
 }
 
 /* Native controls and scrollbars follow the dark surface — only inside token pages. */
@@ -284,6 +299,23 @@
   accent-color: var(--ec-brand);
 }
 
+/* Selected option cards (steps 1, 2, 4) drop the purple glow — v3 has no glow
+   token; the lavender border + wash already mark the selection. Step 3's selected
+   card uses the same option wash instead of the legacy purple-black, and the
+   lilac icon/caption text joins the brand role. */
+.ec-night .ec-charter [class~="shadow-[0_16px_40px_rgba(124,92,252,0.16)]"]:not(:focus-visible),
+.ec-night .ec-charter [class~="shadow-[0_16px_44px_rgba(124,92,252,0.18)]"]:not(:focus-visible) {
+  box-shadow: none;
+}
+
+.ec-night .ec-charter .bg-\[\#251B33\] {
+  background-color: var(--ec-option-bg-selected);
+}
+
+.ec-night .ec-charter .text-\[\#D8C0FF\] {
+  color: var(--ec-brand);
+}
+
 
 /* ===== Customer visual unification — owner D (static pages, support, links, charter-legacy, payment surfaces) ===== */
 
@@ -325,6 +357,20 @@
   min-height: 48px;
   font-size: 16px;
   border-radius: var(--ec-button-radius);
+}
+
+/* CTA 문구가 좁은 폭에서 마지막 낱말(JA 送る)만 다음 줄로 떨어지지 않게 — 문구·아이콘·높이 그대로 */
+.customer-account-deletion .customer-account-deletion-cta-label {
+  min-width: 0;
+  text-wrap: balance;
+}
+
+.customer-account-deletion .customer-account-deletion-cta-label:lang(ja) {
+  word-break: auto-phrase;
+}
+
+.customer-account-deletion .customer-account-deletion-cta-label:lang(ko) {
+  word-break: keep-all;
 }
 
 /* Support (WhatsApp) */
@@ -475,6 +521,17 @@ div.customer-links {
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: -0.01em;
+  color: var(--ec-text-primary);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__eyebrow,
+.ec-night.not-found-editorial--app .not-found-editorial__figure {
+  color: var(--ec-text-muted);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__document,
+.ec-night.not-found-editorial--app .not-found-editorial__content {
+  border-color: var(--ec-line);
 }
 
 .ec-night.not-found-editorial--app .not-found-editorial__body {
@@ -485,6 +542,26 @@ div.customer-links {
 
 .ec-night.not-found-editorial--app .not-found-editorial__action {
   min-height: 44px;
+  border-color: var(--ec-button-secondary-line);
+  border-radius: var(--ec-button-radius);
+  background: transparent;
+  color: var(--ec-button-secondary-fg);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__action:hover {
+  border-color: var(--ec-button-secondary-line);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__action--primary {
+  border-color: var(--ec-button-primary-bg);
+  background: var(--ec-button-primary-bg);
+  color: var(--ec-button-primary-fg);
+}
+
+.ec-night.not-found-editorial--app .not-found-editorial__action--primary:hover {
+  border-color: var(--ec-button-primary-bg-hover);
+  background: var(--ec-button-primary-bg-hover);
 }
 
 .ec-night.not-found-editorial--app .not-found-editorial__action:focus-visible {
@@ -847,6 +924,110 @@ div.customer-cart-panel {
   font-size: 14px;
 }
 
+/* Add-on toggle mark: paint moved from inline style; state follows the button's
+   aria-pressed. Desktop keeps the previous transparent / white-20% box and
+   #B668FC fill. The tick sets `stroke` on the svg so a colour override on
+   `text-white` cannot darken it. Button, label, price and handler untouched. */
+.customer-tour-addon-toggle .customer-tour-addon-mark {
+  box-sizing: border-box;
+  min-width: 16px;
+  min-height: 16px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.customer-tour-addon-toggle[aria-pressed='true'] .customer-tour-addon-mark {
+  background: #b668fc;
+  border-color: #b668fc;
+}
+
+.customer-tour-addon-toggle[aria-pressed='true'] .customer-tour-addon-mark svg {
+  stroke: #ffffff;
+}
+
+/* Mobile dialog paints white: unchecked box gets a readable #756d96 boundary,
+   checked box #7C5CFF with a white tick. */
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog .customer-tour-addon-toggle .customer-tour-addon-mark {
+    background: #ffffff;
+    border: 1.5px solid #756d96;
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-tour-addon-toggle[aria-pressed='true'] .customer-tour-addon-mark {
+    background: #7c5cff;
+    border-color: #7c5cff;
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-tour-addon-toggle[aria-pressed='true'] .customer-tour-addon-mark svg {
+    stroke: #ffffff;
+  }
+}
+
+/* Step 2 Back: 44px target (label, colours and handler untouched). */
+.cocotrip-mobile-booking-dialog .cocotrip-tour-booking-back {
+  min-height: 44px;
+}
+
+/* Tour dialog chrome/field roles (2026-10-19). PC paints the dark shell; the mobile
+   dialog is light (index.css), so the roles flip to the inverse tokens below. The
+   mobile placeholder mixes the two existing inverse tokens so it stays readable on
+   white instead of the legacy #9b93b7. No :root or shared token changes. */
+.cocotrip-mobile-booking-dialog {
+  --tour-booking-chrome-bg: var(--ec-surface-shell-solid);
+  --tour-booking-field-bg: var(--ec-field-bg);
+  --tour-booking-field-fg: var(--ec-text-primary);
+  --tour-booking-field-placeholder: var(--ec-text-muted);
+}
+
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog {
+    --tour-booking-chrome-bg: var(--ec-surface-inverse);
+    --tour-booking-field-bg: var(--ec-surface-inverse);
+    --tour-booking-field-fg: var(--ec-text-on-inverse);
+    --tour-booking-field-placeholder: color-mix(in srgb, var(--ec-text-on-inverse) 60%, var(--ec-surface-inverse));
+  }
+}
+
+/* Header + common Close share the first grid cell and stay pinned while the dialog
+   body scrolls. ui/dialog.tsx untouched; dialog height/overflow untouched. Sticky
+   footer sits at z-index 10, so header 11 and Close 12. The header paints an opaque
+   role surface (was `inherit`, which picked up the translucent dialog gradient). */
+.cocotrip-mobile-booking-dialog > [data-slot='dialog-header'] {
+  grid-area: 1 / 1;
+  position: sticky;
+  top: 0;
+  z-index: 11;
+  padding-inline-end: 52px;
+  background: var(--tour-booking-chrome-bg);
+}
+
+/* Header backdrop spans the dialog top padding (24px max) and the grid gap (16px)
+   so scrolled body content never shows above or below the pinned header. No
+   horizontal extension, flow height, overflow or scroll container change. */
+.cocotrip-mobile-booking-dialog > [data-slot='dialog-header']::before {
+  content: '';
+  position: absolute;
+  inset: -24px 0 -16px;
+  background: var(--tour-booking-chrome-bg);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.cocotrip-mobile-booking-dialog > [data-slot='dialog-close'] {
+  grid-area: 1 / 1;
+  position: sticky;
+  top: 0;
+  right: 0;
+  z-index: 12;
+  justify-self: end;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+}
+
 /* Booking info form: interactive targets (native checkbox boxes untouched) */
 .cocotrip-mobile-booking-form .customer-booking-promo-apply,
 .cocotrip-mobile-booking-form .customer-booking-promo-remove,
@@ -1091,6 +1272,81 @@ section.customer-planner-purchase {
 .cocotrip-mobile-phone-modal .customer-phone-back,
 .cocotrip-mobile-phone-modal .customer-phone-close {
   font-size: 14px;
+}
+
+/* Tour booking dialog, mobile only (2026-10-19). The dialog portals to <body>,
+   outside `.ec-night`, so these are scoped by the dialog class instead.
+   - Add-ons heading wraps: the long on-site note drops under the title, full text.
+   - Step 1 footer: the one `!important` overrides index.css
+     `.cocotrip-mobile-booking-footer { position: static !important }` so Next
+     stays reachable; Step 2 and other modals keep the static footer.
+   - Messenger row stacks; `!important` is needed to beat the inline 128px column. */
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog .customer-tour-addons-heading {
+    flex-wrap: wrap;
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-tour-addons-heading > p:first-child {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-tour-addons-heading > p:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cocotrip-mobile-booking-dialog[data-tour-step='1'] > [data-slot='dialog-footer'] {
+    position: sticky !important;
+    bottom: 0;
+    align-self: end;
+    /* Opaque ink below the sticky footer covers the dialog's bottom padding strip
+       (scrolled content showed through); paint only, no flow/overflow change. */
+    box-shadow: 0 24px 0 var(--tour-booking-chrome-bg);
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-booking-messenger-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .cocotrip-mobile-booking-dialog .customer-booking-messenger-row > * {
+    min-width: 0;
+  }
+
+  /* Footer: index.css fades the top edge to transparent, so scrolled body text
+     showed through. Tour dialog only gets the opaque role surface; the shared
+     index.css rule and its border-top stay as they are. */
+  .cocotrip-mobile-booking-dialog .cocotrip-mobile-booking-footer {
+    background: var(--tour-booking-chrome-bg) !important;
+  }
+}
+
+/* PC footer: opaque base colour under any existing gradient (no image change). */
+.cocotrip-mobile-booking-dialog .cocotrip-mobile-booking-footer {
+  background-color: var(--tour-booking-chrome-bg);
+}
+
+/* Messenger select/input: opaque field surface plus role value/placeholder colours
+   (dark PC, light mobile). `!important` beats inline paint and the index.css mobile
+   list; size, padding, border, focus outline untouched. */
+.cocotrip-mobile-booking-dialog .customer-booking-messenger-row :is(input, select) {
+  background-color: var(--tour-booking-field-bg) !important;
+  color: var(--tour-booking-field-fg) !important;
+}
+
+.cocotrip-mobile-booking-dialog .customer-booking-messenger-row input::placeholder {
+  color: var(--tour-booking-field-placeholder) !important;
+  opacity: 1;
+}
+
+/* Mobile tour dialog: the other booking-form fields share the messenger placeholder
+   role instead of the index.css legacy mobile placeholder. Colour only; PC and the
+   other mobile modals stay as they are. */
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog .cocotrip-mobile-booking-form :is(input, textarea)::placeholder {
+    color: var(--tour-booking-field-placeholder) !important;
+    opacity: 1;
+  }
 }
 
 /* Charter legacy (customer-charter-legacy only; provider/quote paint untouched) */

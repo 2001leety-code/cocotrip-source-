@@ -28,6 +28,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
           <button
             key={opt.id}
             type="button"
+            aria-pressed={selected}
             data-testid="charter-service-card"
             data-service={opt.id}
             onClick={() => patch({ service: opt.id })}

@@ -214,7 +214,15 @@
 .ec-night .ec-charter .charter-funnel-wizard .charter-funnel-receipt {
   background-color: var(--ec-surface-raised);
   border-color: var(--ec-line-strong);
+  border-radius: var(--ec-card-radius);
   box-shadow: none;
+}
+
+/* Total row: the same dashed tear line the tour booking stub and the result
+   masthead use before their key figure. Row content, amounts and VAT notes untouched. */
+.ec-night .ec-charter .charter-funnel-wizard .charter-funnel-receipt-total {
+  border-top-style: dashed;
+  border-top-color: var(--ec-line-strong);
 }
 
 .ec-night .ec-charter .charter-funnel-receipt-heading {
@@ -225,6 +233,24 @@
 .ec-night .ec-charter .charter-funnel-receipt-row-label {
   line-height: 1.45;
   padding-inline-end: 12px;
+  text-wrap: balance;
+}
+
+/* 좁은 폭에서 라벨이 낱자로 끊기지 않게(KO 포/함, JA 駐/車込み) — 문구·금액 위치는 그대로.
+   언어 판정은 문서/조상 lang 속성 기준. 미지원 브라우저는 기존 줄바꿈 유지. */
+.ec-night .ec-charter .charter-funnel-receipt-row-label:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.ec-night .ec-charter .charter-funnel-receipt-row-label:lang(ja) {
+  word-break: auto-phrase;
+}
+
+/* 견적 합계 라벨(KO 360 에서 포/함 낱자 분리) — 문구·금액 그대로, KO 만. */
+.ec-night .ec-charter .charter-funnel-total-label:lang(ko) {
+  word-break: keep-all;
+  text-wrap: balance;
 }
 
 .ec-night .ec-charter .charter-funnel-receipt-row-value {

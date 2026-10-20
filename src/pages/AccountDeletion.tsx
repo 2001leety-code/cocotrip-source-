@@ -47,7 +47,7 @@ export default function AccountDeletion() {
                 href={REQUEST_MAILTO}
                 className="ec-btn ec-btn-primary mt-6 min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ec-brand"
               >
-                {copy.cta}
+                <span className="customer-account-deletion-cta-label">{copy.cta}</span>
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
               <p className="ec-body-sm mt-5 text-ec-ink-2">{copy.signInNote}</p>
