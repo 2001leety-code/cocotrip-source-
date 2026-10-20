@@ -10,8 +10,41 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildCartChildBookings, cartLineUsdAmounts } from '../../api/_shared/cart-capture.js';
+import { acquirePaymentAttempt } from '../../api/_shared/payment-fulfillment-recovery.js';
 
 const captureSrc = readFileSync(resolve(process.cwd(), 'api/captureCartOrder.js'), 'utf8');
+
+type Doc = Record<string, unknown>;
+type Ref = { __path: string };
+/** In-memory Firestore — transaction writes are staged and committed when the callback resolves (serial only). */
+function memoryDb() {
+  const store = new Map<string, Doc>();
+  const read = (path: string) => {
+    const data = store.get(path);
+    return { exists: !!data, data: () => (data ? structuredClone(data) : undefined) };
+  };
+  const db = {
+    store,
+    transactions: 0,
+    collection: (name: string) => ({ doc: (id: string): Ref => ({ __path: `${name}/${id}` }) }),
+    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      db.transactions += 1;
+      const staged: Array<() => void> = [];
+      const result = await fn({
+        get: async (ref: Ref) => read(ref.__path),
+        set: (ref: Ref, data: Doc, opts?: { merge?: boolean }) => {
+          staged.push(() => { store.set(ref.__path, opts && opts.merge ? { ...(store.get(ref.__path) || {}), ...data } : { ...data }); });
+        },
+      });
+      staged.forEach((commit) => commit());
+      return result;
+    },
+  };
+  return db;
+}
+const cartAttempt = (db: ReturnType<typeof memoryDb>, orderID: string) => acquirePaymentAttempt({
+  db, orderID, flow: 'cart', environment: 'live', requestKey: `${orderID}-cart-cap`, intent: { version: 1, body: { lineCount: 2 } }, product: 'cart',
+});
 
 describe('buildCartChildBookings — 라인 child + fan-out', () => {
   const snapshot = {
@@ -66,10 +99,16 @@ describe('captureCartOrder 핸들러 — 머니 안전 가드 (source)', () => {
     expect(captureSrc).toMatch(/CART_PROMO_UNSUPPORTED/);
     expect(captureSrc).toMatch(/body\.promoCode\s*\|\|\s*body\.couponDocId/);
   });
-  it('used_paypal_orders 트랜잭션 락 (이중청구 차단)', () => {
-    expect(captureSrc).toMatch(/used_paypal_orders/);
-    expect(captureSrc).toMatch(/DUPLICATE_ORDER/);
-    expect(captureSrc).toMatch(/runTransaction/);
+  // 2026-10-10: used_paypal_orders 트랜잭션 락은 인라인 runTransaction 에서 공유 헬퍼
+  //   acquirePaymentAttempt 로 이동했다. 핸들러 배선은 여기서, 락 동작은 아래 describe 에서 고정한다.
+  it('used_paypal_orders 트랜잭션 락 (이중청구 차단) — 공유 acquirePaymentAttempt 경유', () => {
+    expect(captureSrc).toMatch(/import\s*\{[^}]*\bacquirePaymentAttempt\b[^}]*\}\s*from\s*'\.\/_shared\/payment-fulfillment-recovery\.js'/);
+    const acquireCall = captureSrc.indexOf('acquirePaymentAttempt({');
+    const captureCall = captureSrc.indexOf('/capture`');
+    expect(acquireCall).toBeGreaterThan(-1);
+    expect(captureCall).toBeGreaterThan(acquireCall); // 락 획득이 PayPal capture POST 보다 먼저
+    expect(captureSrc.slice(acquireCall, captureCall)).toMatch(/flow:\s*'cart'/);
+    expect(captureSrc).toMatch(/acquired\.kind === 'duplicate'[\s\S]*?DUPLICATE_ORDER/);
   });
   it('capture 무결성 검증 — 스냅샷 기준 amount(정수 minor) + currency + status', () => {
     expect(captureSrc).toMatch(/toMinorUnits\(snapshot\.usdAmount/);
@@ -103,5 +142,36 @@ describe('captureCartOrder 핸들러 — 머니 안전 가드 (source)', () => {
   });
   it('자동환불 없음 (capture 후 롤백 금지 + promo 거부=환불경로 없음)', () => {
     expect(captureSrc).not.toMatch(/refundPaypalCapture/);
+  });
+});
+
+// 실제 동시 경합의 원자성은 Firestore 트랜잭션이 보장한다(이 mock 은 직렬 실행만 모델링).
+describe('acquirePaymentAttempt — cart 주문 락 동작 (used_paypal_orders)', () => {
+  it('락 획득은 트랜잭션 안에서 일어나고, 같은 주문의 다음 요청은 claim 하지 못한다 (capture 1회)', async () => {
+    const db = memoryDb();
+    const first = await cartAttempt(db, 'CART-1');
+    const second = await cartAttempt(db, 'CART-1');
+    expect(first.kind).toBe('claimed');
+    expect(second.kind).toBe('in_progress');
+    expect(db.transactions).toBe(2);
+    expect(db.store.get('used_paypal_orders/CART-1')).toMatchObject({ flow: 'cart', status: 'pending', captureState: 'none' });
+  });
+
+  it('완료된 주문은 finalized 로 재생만 하고 다시 claim 하지 않는다', async () => {
+    const db = memoryDb();
+    db.store.set('used_paypal_orders/CART-2', { flow: 'cart', environment: 'live', intent: { body: {} }, finalized: true, finalResponse: { status: 200 } });
+    expect((await cartAttempt(db, 'CART-2')).kind).toBe('finalized');
+  });
+
+  it('레거시 captured 락(intent 없음)은 duplicate → 핸들러 DUPLICATE_ORDER', async () => {
+    const db = memoryDb();
+    db.store.set('used_paypal_orders/CART-3', { status: 'captured', createdAtMs: 1 });
+    expect((await cartAttempt(db, 'CART-3')).kind).toBe('duplicate');
+  });
+
+  it('단건 흐름이 잡은 같은 주문 ID 는 cart 로 claim 하지 못한다 (cross_flow)', async () => {
+    const db = memoryDb();
+    db.store.set('used_paypal_orders/CART-4', { flow: 'single', environment: 'live', intent: { body: {} }, claimUntil: 0 });
+    expect((await cartAttempt(db, 'CART-4')).kind).toBe('cross_flow');
   });
 });

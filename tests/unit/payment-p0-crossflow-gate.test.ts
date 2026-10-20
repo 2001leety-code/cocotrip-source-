@@ -67,40 +67,69 @@ function mockRes() {
   };
 }
 
-/** capture 핸들러용 db mock — cart_orders 와 주문 당시 서버 snapshot 을 제어. */
-function captureDb(opts: { cartExists?: boolean; cartThrows?: boolean; orderSnapshot?: Record<string, unknown> } = {}) {
+type Doc = Record<string, unknown>;
+const isPlain = (v: unknown): v is Doc => !!v && typeof v === 'object' && !Array.isArray(v);
+function mergeDeep(base: unknown, patch: Doc): Doc {
+  if (!isPlain(base)) return { ...patch };
+  const out: Doc = { ...base };
+  for (const [key, value] of Object.entries(patch)) out[key] = isPlain(value) && isPlain(base[key]) ? mergeDeep(base[key], value) : value;
+  return out;
+}
+
+/**
+ * capture 핸들러용 in-memory Firestore — cart_orders 와 주문 당시 서버 snapshot 을 제어.
+ * 결제 attempt 헬퍼는 used_paypal_orders 를 트랜잭션으로 읽고/쓰므로(claimToken 검증 포함)
+ * 상태를 실제로 보존해야 한다. 트랜잭션 쓰기는 콜백이 끝난 뒤 한 번에 반영(커밋)한다.
+ */
+function captureDb(opts: { cartExists?: boolean; cartThrows?: boolean; orderSnapshot?: Doc } = {}) {
   const writes: string[] = [];
   const reads: string[] = [];
+  const store = new Map<string, Doc>();
+  if (opts.cartExists) store.set(`cart_orders/${PAYPAL_ORDER}`, {});
+  if (opts.orderSnapshot) store.set(`paypal_order_snapshots/${PAYPAL_ORDER}`, opts.orderSnapshot);
+  type Ref = { __path: string };
+  const read = (path: string) => {
+    reads.push(path);
+    if (opts.cartThrows && path.startsWith('cart_orders/')) throw new Error('firestore down');
+    const data = store.get(path);
+    return { exists: !!data, data: () => (data ? structuredClone(data) : undefined) };
+  };
+  const apply = (op: 'set' | 'update' | 'delete', path: string, data: Doc = {}, merge = false) => {
+    writes.push(op === 'update' ? `update:${path}` : path);
+    if (op === 'delete') { store.delete(path); return; }
+    if (op === 'update' && !store.has(path)) throw new Error(`NOT_FOUND ${path}`);
+    store.set(path, op === 'update' || merge ? mergeDeep(store.get(path), data) : { ...data });
+  };
   return {
     _writes: writes,
     _reads: reads,
+    _store: store,
     collection(name: string) {
       return {
         doc(id: string) {
+          const path = `${name}/${id}`;
           return {
-            get: async () => {
-              reads.push(`${name}/${id}`);
-              if (name === 'cart_orders') {
-                if (opts.cartThrows) throw new Error('firestore down');
-                return { exists: !!opts.cartExists, data: () => ({}) };
-              }
-              if (name === 'paypal_order_snapshots') {
-                return { exists: !!opts.orderSnapshot, data: () => opts.orderSnapshot || {} };
-              }
-              return { exists: false, data: () => ({}) };
-            },
-            set: async () => { writes.push(`${name}/${id}`); },
-            update: async () => { writes.push(`update:${name}/${id}`); },
-            delete: async () => {},
+            __path: path,
+            get: async () => read(path),
+            set: async (data: Doc, options?: { merge?: boolean }) => apply('set', path, data, !!(options && options.merge)),
+            update: async (data: Doc) => apply('update', path, data),
+            delete: async () => apply('delete', path),
           };
         },
       };
     },
     runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       writes.push('runTransaction');
-      return fn({ get: async () => ({ exists: false, data: () => ({}) }), set: () => {}, update: () => {} });
+      const staged: Array<() => void> = [];
+      const result = await fn({
+        get: async (ref: Ref) => read(ref.__path),
+        set: (ref: Ref, data: Doc, options?: { merge?: boolean }) => { staged.push(() => apply('set', ref.__path, data, !!(options && options.merge))); },
+        update: (ref: Ref, data: Doc) => { staged.push(() => apply('update', ref.__path, data)); },
+        delete: (ref: Ref) => { staged.push(() => apply('delete', ref.__path)); },
+      });
+      staged.forEach((commit) => commit());
+      return result;
     },
-    batch: () => ({ set: () => {}, commit: async () => {} }),
   };
 }
 
@@ -121,9 +150,10 @@ const CAPTURE_OK = {
 describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
   beforeEach(() => {
     fetchCalls.length = 0;
+    // capture 경로는 응답을 text() 로 읽어 JSON 파싱 실패를 UNKNOWN 으로 분류한다(실 fetch Response 계약).
     global.fetch = vi.fn(async (url: unknown) => {
       fetchCalls.push(String(url));
-      return { ok: true, status: 200, json: async () => CAPTURE_OK };
+      return { ok: true, status: 200, json: async () => CAPTURE_OK, text: async () => JSON.stringify(CAPTURE_OK) };
     }) as never;
   });
 
@@ -193,8 +223,13 @@ describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
     expect(res._out.status).toBe(200);
     expect(res._out.body?.ok).toBe(true);
     expect((res._out.body?.data as Record<string, unknown> | undefined)?.payerEmail).toBe('buyer@example.com');
-    expect(dbHolder.db && (dbHolder.db as ReturnType<typeof captureDb>)._reads)
-      .toContain(`paypal_order_snapshots/${PAYPAL_ORDER}`);
+    const db = dbHolder.db as ReturnType<typeof captureDb>;
+    expect(db._reads).toContain(`paypal_order_snapshots/${PAYPAL_ORDER}`);
+    // 정상 흐름의 durable 결과 — 예약·재처리 intent 저장 + attempt 종결.
+    expect(db._store.get(`bookings/${PAYPAL_ORDER}`)).toMatchObject({ status: 'CONFIRMED', captureID: 'CAP-1' });
+    expect(db._store.get(`pending_processor_retries/${PAYPAL_ORDER}`)).toBeTruthy();
+    expect(db._store.get(`used_paypal_orders/${PAYPAL_ORDER}`)).toMatchObject({ finalized: true, bookingDurable: true });
+    expect(fetchCalls.filter((u) => u.includes('/capture'))).toHaveLength(1);
   });
 
   // 🔴 DB init 실패도 cart lookup 실패와 동일 정책 — 이전엔 throw 해서 outer catch 의
@@ -618,7 +653,8 @@ describe('firestore.rules — payment_reviews (정적, 실평가 미검증)', ()
 // ═════════════ 소스 불변식 (행위 테스트 보조 — 앵커 존재를 먼저 단언) ═════════════
 describe('capturePaypalOrder — cross-flow 배치 불변식 (소스)', () => {
   const crossFlowIdx = captureSrc.indexOf("collection('cart_orders')");
-  const lockIdx = captureSrc.indexOf("collection('used_paypal_orders')");
+  // 단건 lock(used_paypal_orders attempt)은 공유 헬퍼 acquirePaymentAttempt 호출이 획득한다.
+  const lockIdx = captureSrc.indexOf('acquirePaymentAttempt({');
   const tokenIdx = captureSrc.indexOf('getPaypalAccessToken(');
   const captureCallIdx = captureSrc.indexOf('/capture`');
 

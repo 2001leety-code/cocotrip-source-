@@ -8,10 +8,7 @@ import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { confirmSlotLock, fetchServerSlotCapacity, readSlotFields } from './_shared/slot-capacity.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
-import {
-  triggerBookingProcessor,
-  PENDING_PROCESSOR_RETRIES_COLLECTION,
-} from './_shared/booking-processor-trigger.js';
+import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
@@ -22,6 +19,12 @@ import { toMinorUnits, verifyCaptureIntegrity } from './_shared/paypal-capture-v
 import { recordPaymentReview, buildPaymentReviewResponse } from './_shared/payment-review.js';
 import { internalApiBase } from './_shared/internal-base-url.js';
 import { loadPricingSpec } from './_shared/pricing.js';
+import {
+  isSameOrderProven, isLegacyOpenSnapshot, validateIntent, acquirePaymentAttempt, reconcileCapture, summarizeVerifiedCapture,
+  persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, recordTerminalBeforeRefund, markRefundCompleted, provenFullRefundID,
+  makeRetryPersister, recordProcessorResult, updateAttempt,
+  releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
+} from './_shared/payment-fulfillment-recovery.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -167,6 +170,8 @@ export default async function handler(req, res) {
     let _snapUsdRate = null;
     let _snapEstimateConsent = null;
     let _snapSlotBooking = null;
+    let _snapRecoveryDigest = null;
+    let _snapOwnerUid = null;
     try {
       const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
       if (_snapDb) {
@@ -192,6 +197,8 @@ export default async function handler(req, res) {
           if (_s.estimateConsent) _snapEstimateConsent = _s.estimateConsent;
           // 🔴 F2: 슬롯 확정의 유일한 근거. 없으면 아래에서 confirm 을 포기한다(body 로 대체 금지).
           if (_s.slotBooking) _snapSlotBooking = _s.slotBooking;
+          if (_s.recoveryDigest) _snapRecoveryDigest = _s.recoveryDigest;
+          if (_s.ownerUid) _snapOwnerUid = _s.ownerUid;
           console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType, hasExpectedUSD: _snapExpectedUSD != null });
         }
       }
@@ -221,6 +228,20 @@ export default async function handler(req, res) {
 
     console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
 
+    // 🔴 Same-order authority (2026-10-10 recovery contract): the browser that created the order
+    //   (HttpOnly capability cookie) or the authenticated owner. Snapshots without either field are the
+    //   documented legacy boundary for a NORMAL first capture only; recovery/replay of a saved intent
+    //   always needs proof. A bare orderID is never authority to replay someone's order.
+    let verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
+    const _recoverySnapshot = { recoveryDigest: _snapRecoveryDigest, ownerUid: _snapOwnerUid };
+    const _sameOrderProven = isSameOrderProven({ req, flow: 'single', orderID, snapshot: _recoverySnapshot, verifiedUid: verifiedBuyerUid });
+    if (!_sameOrderProven && !isLegacyOpenSnapshot(_recoverySnapshot)) {
+      res.writeHead(403, JSON_CORS);
+      return res.end(JSON.stringify(_err('The original checkout session is required for this order', 'RECOVERY_AUTH_REQUIRED')));
+    }
+    // Same-order reconcile ({orderID, reconcile:true}): never starts a new attempt from a bare orderID.
+    const _reconcileOnly = body.reconcile === true;
+
     // 1. Access Token + baseUrl from shared helper.
     // P314 (2026-05-30): sandbox e2e 토글. capture = 실제 돈 빠지는 곳 → resolveIsSandbox
     // 이중 가드 (VERCEL_ENV!=='production' AND PAYPAL_ENV==='sandbox') 로 prod 무조건 live.
@@ -241,38 +262,6 @@ export default async function handler(req, res) {
     // capture 실패 시 lock 삭제 (재시도 허용).
     const dbForLock = initAdminDb('capturePaypalOrder');
     if (!dbForLock) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
-    const lockRef = dbForLock.collection('used_paypal_orders').doc(orderID);
-    try {
-      await dbForLock.runTransaction(async (tx) => {
-        const existing = await tx.get(lockRef);
-        if (existing.exists) {
-          const data = existing.data() || {};
-          // 이미 captured 상태면 진짜 중복. pending 인데 30초 이상 stale 이면
-          // 이전 cold-start fail 가능성 — 재시도 허용.
-          const stale = data.status === 'pending'
-            && data.createdAtMs
-            && (Date.now() - Number(data.createdAtMs)) > 30_000;
-          if (data.status === 'captured' || !stale) {
-            throw new Error('DUPLICATE_ORDER');
-          }
-          // stale pending → overwrite 로 재시도.
-        }
-        tx.set(lockRef, {
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          createdAtMs: Date.now(),
-          userEmail,
-          product: product || 'unknown',
-        });
-      });
-    } catch (lockErr) {
-      if (lockErr.message === 'DUPLICATE_ORDER') {
-        console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
-        res.writeHead(409, JSON_CORS);
-        return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
-      }
-      throw lockErr;
-    }
 
     // 1.6 쿠폰 PRE-LOCK — PR #427 (Audit CY4 — 2026-05-14).
     //
@@ -302,11 +291,92 @@ export default async function handler(req, res) {
     //   프론트는 authFetch 로 토큰 전송 = 정상 쿠폰 결제 무영향, 게스트(#969)는 쿠폰 없어 무관.
     let _couponOwnerVerified = false;
     if (couponDocId && couponUserId) {
-      const _authUid = await verifyTokenUid(req.headers?.authorization);
-      _couponOwnerVerified = !!_authUid && _authUid === couponUserId;
+      _couponOwnerVerified = !!verifiedBuyerUid && verifiedBuyerUid === couponUserId;
       if (!_couponOwnerVerified) {
         console.warn('[capturePaypalOrder] coupon ownership mismatch — 쿠폰 경로 스킵(IDOR 가드):', orderID);
       }
+    }
+    let bookingAttribution = sanitizeAttribution(attribution);
+    // 🔴 Immutable pre-capture intent: everything a replay needs, frozen BEFORE any PayPal call.
+    //   Storage/oversize/validation failure => zero capture calls. A retry never replaces these values.
+    let intent;
+    try {
+      intent = validateIntent({
+        version: 1,
+        body: {
+          product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone,
+          couponApplied: !!couponApplied, memo, itineraryData: itineraryData || null, userEmail: userEmail || '',
+          airport: airport || null, promoCode: promoCode || null, language: language || null,
+          termsAgreed: termsAgreed === true, termsAgreedAt: termsAgreedAt || '',
+          marketingConsent: marketingConsent === true, marketingConsentAt: marketingConsentAt || '',
+          attribution: bookingAttribution || null,
+          bodyClaimsSlot: _bodyClaimsSlot, bodySlot: { tourId: tourId || null, tourSlotId: tourSlotId || null, bookingDate: bookingDate || null, slotCapacity: slotCapacity || null },
+        },
+        uid: verifiedBuyerUid || null,
+        coupon: (discountV2 && couponDocId && couponUserId && _couponOwnerVerified) ? { couponDocId, couponUserId } : null,
+        discountV2: discountV2 === true,
+      });
+    } catch (intentErr) {
+      console.warn('[capturePaypalOrder] intent rejected before capture:', intentErr.message);
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err(intentErr.message, intentErr.code || 'RECOVERY_INTENT_INVALID')));
+    }
+
+    // 1.5 Attempt record = the old used_paypal_orders lock, now carrying the intent + exclusive claim.
+    const _environment = _isSandboxCapture ? 'sandbox' : 'live';
+    const acquired = await acquirePaymentAttempt({
+      db: dbForLock, orderID, flow: 'single', environment: _environment, requestKey: `${orderID}-cap`,
+      intent, userEmail, product: product || 'unknown', createIfMissing: !_reconcileOnly, allowRecovery: _sameOrderProven,
+    });
+    if (acquired.kind === 'absent') {
+      // No attempt record = this contract never called the provider for this order (records are created
+      // before any POST and discarded only on provider-proven nonpayment). Durable evidence of no capture.
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify({ ...notCapturedResponse({ orderID, flow: 'single', reason: 'no_attempt_record' }), evidence: 'no_attempt_record' }));
+    }
+    if (acquired.kind === 'unauthorized') {
+      // Existing attempt but no proof of same-order ownership: generic answer, no private data, no writes.
+      console.warn('[capturePaypalOrder] recovery refused without same-order proof:', orderID);
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
+    }
+    if (acquired.kind === 'finalized') {
+      // Same authorized caller asking again after completion: replay the recorded minimal answer.
+      const stored = acquired.lock.finalResponse || { status: 200, body: _ok({ orderID, message: 'Booking already confirmed.' }) };
+      res.writeHead(stored.status || 200, JSON_CORS);
+      return res.end(JSON.stringify({ ...stored.body, replayed: true }));
+    }
+    if (acquired.kind === 'duplicate') {
+      console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
+    }
+    if (acquired.kind === 'in_progress') {
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: acquired.lock.captureVerified ? 'CAPTURED' : 'CAPTURE_UNKNOWN', inProgress: true })));
+    }
+    if (acquired.kind === 'cross_flow') {
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Cart orders must be paid through cart checkout', 'CROSS_FLOW_ORDER')));
+    }
+    if (acquired.kind === 'environment') {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Order belongs to a different PayPal environment', 'ORDER_ENVIRONMENT_MISMATCH')));
+    }
+    const attempt = acquired.attempt;
+    const stages = (attempt.lock && attempt.lock.stages) || {};
+    if (attempt.recovering) {
+      // Replay uses ONLY the saved intent — capture-time body and identity never replace it.
+      const saved = attempt.lock.intent;
+      ({ product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone,
+        couponApplied, memo, itineraryData, userEmail, airport, promoCode, language,
+        termsAgreed, termsAgreedAt, marketingConsent, marketingConsentAt } = saved.body);
+      verifiedBuyerUid = saved.uid || null;
+      bookingAttribution = saved.body.attribution || null;
+      couponDocId = saved.coupon ? saved.coupon.couponDocId : null;
+      couponUserId = saved.coupon ? saved.coupon.couponUserId : null;
+      _couponOwnerVerified = !!saved.coupon;
+      intent = saved;
     }
     const couponLockRef = (discountV2 && couponDocId && couponUserId && _couponOwnerVerified)
       ? dbForLock.collection('users').doc(couponUserId)
@@ -336,67 +406,70 @@ export default async function handler(req, res) {
       } catch (couponErr) {
         const code = couponErr.message || 'UNKNOWN';
         console.warn('[capturePaypalOrder] coupon pre-lock failed:', code, '| orderID:', orderID);
-        // orderID lock 해제 — 사용자가 다른 쿠폰/쿠폰 없이 재시도 가능.
-        lockRef.delete().catch((e) => {
-          console.warn('[capturePaypalOrder] lock release after coupon fail (non-fatal):', e.message);
-        });
+        if (attempt.recovering) {
+          // Money may already be captured — never abandon the order over a coupon; operator decides.
+          console.error('[capturePaypalOrder] coupon pre-lock failed during recovery — continuing without coupon:', orderID);
+          notifyOperator('coupon-race', `<code>${orderID}</code>\n복구 중 쿠폰 선점 실패: ${code} — 예약은 계속 진행, 쿠폰 수동 확인`).catch(() => {});
+        } else {
+          // capture 0회 — 주문 lock 해제, 사용자가 다른 쿠폰/쿠폰 없이 재시도 가능.
+          await discardAttempt(attempt).catch((e) => {
+            console.warn('[capturePaypalOrder] lock release after coupon fail (non-fatal):', e.message);
+          });
         // 운영자 알림 — 쿠폰 race 발생을 인지 (수동 환불 불필요 — capture 안 일어났음).
         notifyOperator('coupon-race',
           `<code>${orderID}</code>\n사유: ${code}\n쿠폰: ${couponDocId} (uid ${couponUserId.slice(0, 8)})\n→ capture 전 차단 — 환불 불필요`
         ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
-        res.writeHead(409, JSON_CORS);
-        return res.end(JSON.stringify(_err(`Coupon unavailable: ${code}`, code)));
+          res.writeHead(409, JSON_CORS);
+          return res.end(JSON.stringify(_err(`Coupon unavailable: ${code}`, code)));
+        }
       }
     }
 
-    // 2. Capture — wrapped so we can release BOTH locks on failure.
-    let capture;
-    try {
+    // 2. Capture / reconcile. Existing or unknown attempts GET the order first; a fresh attempt POSTs
+    //    under the exclusive claim with the stable idempotency key. Timeout / 5xx / bad JSON keep the
+    //    order lock AND the coupon reservation (UNKNOWN, 202). Only provider-proven nonpayment releases.
+    const postCapture = async () => {
       const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          // P790 (2026-06-03): PayPal 공식 멱등성 헤더 — 네트워크 timeout 재시도 시 PayPal 이 새 capture
-          // 대신 캐시 응답 반환. orderID 기반 키 = 재시도 동일 키. (이중청구는 used_paypal_orders 락 +
-          // PayPal 서버측 완료주문 재-capture 거부로 이미 차단 — 본 헤더는 defense-in-depth.)
+          // P790 (2026-06-03): PayPal 공식 멱등성 헤더 — 재시도/복구는 항상 같은 키를 쓴다.
           'PayPal-Request-Id': `${orderID}-cap`,
         },
+        signal: AbortSignal.timeout(25_000),
       });
-      capture = await captureRes.json();
-      if (capture.status !== 'COMPLETED') {
-        throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
-      }
-    } catch (captureErr) {
-      // Release orderID lock so the user can retry. We don't await — the
-      // response path stays fast and a leftover lock auto-expires via the
-      // 30s stale check above.
-      lockRef.delete().catch((delErr) => {
-        console.warn('[capturePaypalOrder] lock release failed (CY1 retry path):', delErr.message);
-      });
-      // PR #427 (CY4): release coupon too — capture never happened so the
-      // coupon discount wasn't actually consumed. Without this, a network
-      // blip during capture would burn the user's coupon.
+      const text = await captureRes.text();
+      let body = null; let parseError = null;
+      try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
+      return { status: captureRes.status, body, parseError };
+    };
+    const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
+    if (reconciled.state === 'not_captured') {
+      // PR #427 (CY4): capture never happened — release coupon + order lock so the user can pay again.
       if (couponLockRef) {
-        couponLockRef.update({
-          isUsed: false,
-          usedAt: null,
-          usedOrderID: null,
-          pendingCapture: false,
-        }).catch((e) => {
+        couponLockRef.update({ isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false }).catch((e) => {
           console.warn('[capturePaypalOrder] coupon release after capture fail (non-fatal):', e.message);
         });
       }
-      throw captureErr;
+      await discardAttempt(attempt).catch((delErr) => {
+        console.warn('[capturePaypalOrder] lock release failed (CY1 retry path):', delErr.message);
+      });
+      console.warn('[capturePaypalOrder] capture not completed:', orderID, reconciled.reason);
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'single', reason: reconciled.reason })));
     }
-    // Mark lock as captured so future retries are correctly rejected.
-    // 🟡 동시성 fix (버그헌트 #10 2026-06-19): await — fire-and-forget 면 Firestore 일시장애 시 lock 이
-    //   'pending' 으로 남아 30초 후 재캡처(ALREADY_CAPTURED)→쿠폰 오롤백·사용자 오류. 실패 시 운영자 알림.
-    try {
-      await lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() });
-    } catch (e) {
-      console.warn('[capturePaypalOrder] lock status update failed:', e.message);
-      notifyOperator('lock-update-fail', `<code>${orderID}</code> capture 성공 후 lock status 갱신 실패 — 재시도 시 재캡처 위험, 수동 확인 권장.`).catch(() => {});
+    if (reconciled.state !== 'captured') {
+      console.error('[capturePaypalOrder] capture result UNKNOWN — reservations retained:', orderID, reconciled.reason);
+      await updateAttempt(attempt, { captureState: 'unknown', lastUnknownReason: reconciled.reason || 'unknown', lastUnknownAtMs: Date.now() }).catch(() => {});
+      await releaseAttemptClaim(attempt);
+      await throttledTelegramAlert({
+        key: `single-capture-unknown-${orderID}`, channel: 'admin', severity: 'warning',
+        message: [`🕒 <b>단건 capture 결과 미상 (주문·쿠폰 예약 유지)</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, `<b>사유:</b> ${reconciled.reason}`, '→ 같은 주문 재확인 시 PayPal GET 으로 대조. 새 결제 생성은 차단됨.'].join('\n'),
+        context: { orderID, reason: reconciled.reason },
+      }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
     }
     // PR #427 (CY4): finalise coupon — clear the pendingCapture flag so the
     // coupon is unambiguously "spent" rather than "in-flight".
@@ -408,12 +481,14 @@ export default async function handler(req, res) {
       }
     }
 
+    const capture = reconciled.capture || null;
+    const _stored = reconciled.verified || null;
     // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
-    const captureNode = capture.purchase_units?.[0]?.payments?.captures?.[0];
-    const payerEmail = capture.payer?.email_address ?? '';
-    const payerName = `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
-    const amount = captureNode?.amount?.value ?? '';
-    const captureID = captureNode?.id ?? '';
+    const captureNode = capture ? capture.purchase_units?.[0]?.payments?.captures?.[0] : null;
+    const payerEmail = _stored ? _stored.payerEmail : (capture.payer?.email_address ?? '');
+    const payerName = _stored ? _stored.payerName : `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
+    const amount = _stored ? _stored.amountValue : (captureNode?.amount?.value ?? '');
+    const captureID = _stored ? _stored.captureID : (captureNode?.id ?? '');
     const hasPayer = !!payerEmail;
     const hasCapture = !!captureID;
     const hasAmount = !!amount;
@@ -423,14 +498,11 @@ export default async function handler(req, res) {
 
     // 🔴 capture 무결성 검증 (money-critical) — _shared/paypal-capture-verify.js (cart 와 공통 SSOT).
     //   amount(정수 minor) + currency + 개별 capture status + purchase-unit/capture cardinality 를
-    //   서버 snapshot(expectedUSD)과 대조. 이전에 이 경로엔 금액 검증이 **전혀 없었고**
-    //   booking currency 는 'USD' 하드코딩이었다.
-    //
-    //   snapshot 은 위에서 필수 검증했다. 운영 플래그와 무관하게 모든 capture 를 대조한다.
+    //   서버 snapshot(expectedUSD)과 대조. A stored verified summary is replayed as-is (verified once).
     const _expectedMinor = toMinorUnits(_snapExpectedUSD, 'USD');
-    const _verdict = verifyCaptureIntegrity({
-      capture, expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD',
-    });
+    const _verdict = _stored
+      ? { ok: !_stored.pending, pending: _stored.pending, code: _stored.pending ? 'CAPTURE_PENDING' : undefined, detail: 'replayed verified capture', captureID, amountMinor: _stored.amountMinor, currency: _stored.currency }
+      : verifyCaptureIntegrity({ capture, expectedAmountMinor: _expectedMinor, expectedCurrency: 'USD' });
 
     if (_verdict && _verdict.pending) {
       // 🔴 PENDING = PayPal 리스크 홀드 / eCheck = **정상 결제 흐름** (금액·통화는 이미 정합 확인됨).
@@ -501,6 +573,8 @@ export default async function handler(req, res) {
         ].filter(Boolean).join('\n'),
         context: { orderID, captureID, code: _verdict.code, reviewRecorded: _reviewRecorded },
       }).catch((e) => { console.error('[capturePaypalOrder] mismatch 알림 실패:', e?.message); });
+      // Quarantined attempt: not finalized, never re-captured; new orders stay blocked until the review resolves.
+      await updateAttempt(attempt, { status: 'captured', captureState: 'captured', reviewQuarantined: true, captureID, claimUntil: 0 }).catch(() => {});
 
       // 202 Accepted — 예약 미확정. retryable:false (재결제 = 이중청구).
       // paymentCaptured 는 실제 capture status 에서 파생 (돈이 안 움직인 verdict 에 "결제됨" 이라 하지 않음).
@@ -513,10 +587,10 @@ export default async function handler(req, res) {
     // PayPal capture 응답에서 민감정보 없는 필드만 추려서 Firestore에 보존 (디버깅 + 운영자 매칭용).
     const rawCapturePayload = {
       payer: { email_address: payerEmail },
-      amount: captureNode?.amount ?? null,
+      amount: captureNode?.amount ?? (_stored ? { value: _stored.amountValue, currency_code: _stored.currency } : null),
       captureID,
-      status: capture.status ?? '',
-      create_time: captureNode?.create_time ?? capture.create_time ?? '',
+      status: capture ? (capture.status ?? '') : _stored.orderStatus,
+      create_time: captureNode?.create_time ?? capture?.create_time ?? '',
     };
 
     // 2.4 bookings/{orderID} 정식 레코드 생성 — cancel/modify/my-bookings API가 조회.
@@ -541,13 +615,8 @@ export default async function handler(req, res) {
     //     (operator can recover via /api/admin-replay-booking-notifications)
     //   - payment is NOT rolled back — money was captured, the right move is
     //     to recover the booking record, not refund
-    const bookingAttribution = sanitizeAttribution(attribution);
-    // 🔴 2026-07-29 (#3 신뢰 가능한 uid 연결): 구매자 uid 를 **검증된 Firebase ID 토큰에서만**
-    //   뽑아 예약 문서에 남긴다. 이전에는 이 값이 어디에도 저장되지 않아, 뒤따르는
-    //   booking-processor 가 요청 body 의 userId 를 그대로 믿고 포인트를 적립했다
-    //   (= 외부에서 남의 uid 로 코인 발급 가능). 이제 원장은 이 필드만 본다.
-    //   비로그인 게스트 결제는 null → 적립 대상 아님(정상).
-    const verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
+    // 🔴 2026-07-29 (#3 신뢰 가능한 uid 연결): 구매자 uid 는 **검증된 Firebase ID 토큰에서만**
+    //   (verifiedBuyerUid, 위에서 1회 검증 + intent 에 동결). 비로그인 게스트 결제는 null.
     const processorPayload = {
       orderID,
       payerEmail,
@@ -619,48 +688,27 @@ export default async function handler(req, res) {
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
-    const BOOKING_WRITE_BACKOFF_MS = [200, 500, 1000];
-    let bookingWriteOk = false;
-    let lastBookingErr = null;
-    for (let attempt = 0; attempt < BOOKING_WRITE_BACKOFF_MS.length; attempt++) {
-      try {
-        const db = initAdminDb('capturePaypalOrder');
-        if (!db) throw new Error('Firestore unavailable');
-        const batch = db.batch();
-        batch.set(db.collection('bookings').doc(orderID), bookingDocPayload, { merge: true });
-        batch.set(db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(orderID), {
-          orderID,
-          retryDocId: orderID,
-          payload: processorPayload,
-          source: 'capturePaypalOrder',
-          status: 'pending',
-          outcome: 'retryable',
-          attempts: 0,
-          intentCreatedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: false });
-        await batch.commit();
-        bookingWriteOk = true;
-        break;
-      } catch (bookingErr) {
-        lastBookingErr = bookingErr;
-        const msg = bookingErr.message || String(bookingErr);
-        console.error(`[capturePaypalOrder] bookings doc write failed (attempt ${attempt + 1}/${BOOKING_WRITE_BACKOFF_MS.length}):`, msg);
-        if (attempt < BOOKING_WRITE_BACKOFF_MS.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, BOOKING_WRITE_BACKOFF_MS[attempt]));
-        }
-      }
-    }
+    // 🔴 Mandatory durable boundary: booking + processor retry intent + verified capture summary in ONE
+    //   transaction (existing booking/intent docs are never replaced). Failure => 202 finalized:false,
+    //   no slot / promo / processor / confirmed UI. Same-order replay reconstructs the missing state.
+    const captureVerified = _stored || summarizeVerifiedCapture({ verdict: _verdict, capture, payerEmail, payerName, amountValue: amount, captureID });
+    const persisted = await withBackoff(() => persistBookingsAtomically({
+      db: dbForLock, attempt, timestamp: FieldValue.serverTimestamp(), lockPatch: { captureVerified, captureID },
+      bookings: [{ orderID, doc: bookingDocPayload, payload: processorPayload, source: 'capturePaypalOrder' }],
+    }));
+    const bookingWriteOk = persisted.ok;
     if (!bookingWriteOk) {
-      // CRITICAL — payment captured but reservation record missing. Throttled
-      // alert (dedup per orderID prefix to prevent storm on Firestore outage).
-      // Operator recovers via /api/admin-replay-booking-notifications.
-      throttledTelegramAlert({
-        key: 'bookings-doc-write-fail',
+      const lastBookingErr = persisted.error;
+      console.error('[capturePaypalOrder] mandatory booking persistence failed:', lastBookingErr && lastBookingErr.message);
+      await updateAttempt(attempt, { status: 'captured', captureState: 'captured', captureVerified, captureID }).catch(() => {});
+      await releaseAttemptClaim(attempt);
+      // CRITICAL — payment captured but reservation record missing. Same-order replay repairs it.
+      await throttledTelegramAlert({
+        key: `bookings-doc-write-fail-${orderID}`,
         channel: 'admin',
         severity: 'critical',
         message: [
-          '🚨 <b>CRITICAL — bookings doc 저장 실패 (PayPal 결제 완료됨)</b>',
+          '🚨 <b>CRITICAL — bookings doc 저장 실패 (PayPal 결제 완료됨 · 202 미확정 응답)</b>',
           '',
           `<b>OrderID:</b> <code>${orderID}</code>`,
           `<b>CaptureID:</b> <code>${captureID}</code>`,
@@ -668,12 +716,16 @@ export default async function handler(req, res) {
           `<b>이메일:</b> ${payerEmail || userEmail || '(none)'}`,
           `<b>최종 사유:</b> ${(lastBookingErr?.message || 'unknown').slice(0, 250)}`,
           '',
-          '→ user 결제 완료. my-bookings / cancel / voucher 모두 깨짐 상태.',
-          `→ 복구: <code>POST /api/admin-replay-booking-notifications {bookingId:"${orderID}"}</code>`,
+          '→ 손님 화면은 "예약 확인 중"(확정 아님). 같은 주문 재확인이 저장을 복구한다.',
+          `→ 수동: <code>POST /api/admin-replay-booking-notifications {bookingId:"${orderID}"}</code>`,
         ].join('\n'),
         context: { orderID, captureID, amountUSD: amount, amountKRW, source: 'capturePaypalOrder' },
       }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURED' })));
     }
+    const retryStatusBefore = persisted.value.retryStatus[orderID] || 'pending';
+    const markStage = (stage, patch) => updateAttempt(attempt, { stages: { [stage]: { ...patch, atMs: Date.now() } } });
 
     // AI 해금과 구매 쿠폰은 검증된 예약 문서를 읽는 booking-processor에서
     // 멱등 처리한다. Capture 함수 종료와 함께 후속 작업이 사라지는 경로를 없앤다.
@@ -688,7 +740,18 @@ export default async function handler(req, res) {
     //   create 가 잠근 슬롯과 묶여 있지 않아 capture 때 값을 갈아끼우면 결제하지 않은 슬롯이
     //   확정되고 결제한 슬롯은 sweep 으로 풀렸다. cart 형제 경로(captureCartOrder)는 이미
     //   cart_orders 스냅샷 라인에서 readSlotFields 로 읽는다 — 같은 계약을 단건에도 맞춘다.
-    if (bookingWriteOk && _snapSlot) {
+    // Stage markers: a started/completed/failed slot stage is never re-run on replay (confirm is not
+    //   order-idempotent — re-running would consume capacity twice). Started-but-unfinished = quarantined.
+    let slotStageClaimed = false;
+    if (bookingWriteOk && _snapSlot && !stages.slot) {
+      try { await markStage('slot', { state: 'started' }); slotStageClaimed = true; } catch (e) {
+        console.error('[capturePaypalOrder] slot stage marker failed — confirm skipped (ambiguity guard):', e.message);
+        await throttledTelegramAlert({ key: `slot-confirm-STAGE_MARK_FAILED-${orderID}`, channel: 'admin', severity: 'high', message: `⚠️ <b>슬롯 confirm 보류 — 단계 기록 실패</b>\n<b>OrderID:</b> <code>${orderID}</code>\n→ 수동 좌석 확정 검토.`, context: { orderID } }).catch(() => {});
+      }
+    } else if (bookingWriteOk && _snapSlot && stages.slot && stages.slot.state === 'started') {
+      await throttledTelegramAlert({ key: `slot-confirm-AMBIGUOUS-${orderID}`, channel: 'admin', severity: 'high', message: `⚠️ <b>슬롯 confirm 결과 불명 (이전 시도 중단) — 재실행 안 함</b>\n<b>OrderID:</b> <code>${orderID}</code>\n→ tour_availability 수동 확인.`, context: { orderID } }).catch(() => {});
+    }
+    if (slotStageClaimed) {
       try {
         const db = initAdminDb('capturePaypalOrder.slotConfirm');
         if (db) {
@@ -731,10 +794,12 @@ export default async function handler(req, res) {
             orderId: orderID,
           });
           console.log('[capturePaypalOrder] slot confirmed:', { tourId: _snapSlot.tourId, date: _snapSlot.date, slot: _snapSlot.slotId, pax: _snapSlot.pax });
+          await markStage('slot', { state: 'completed' }).catch(() => {});
         }
       } catch (slotErr) {
         const code = slotErr.code || 'SLOT_CONFIRM_FAILED';
         console.error('[capturePaypalOrder] slot confirm failed:', code, slotErr.message);
+        await markStage('slot', { state: 'failed', code }).catch(() => {});
         // SLOT_FULL_AT_CAPTURE = overbooking risk — operator 즉시 인지 필요.
         const severity = code === 'SLOT_FULL_AT_CAPTURE' ? 'critical' : 'high';
         // ⚠️ await 필수 — 서버리스는 res.end() 뒤 실행을 중단할 수 있다(fire-and-forget = 알림 유실).
@@ -760,7 +825,7 @@ export default async function handler(req, res) {
           context: { orderID, tourId: _snapSlot.tourId, bookingDate: _snapSlot.date, tourSlotId: _snapSlot.slotId, paxCount: _snapSlot.pax, slotCapacity: _snapSlot.capacity, code },
         }).catch((e) => { console.error('[capturePaypalOrder] slot-confirm 알림 실패:', e?.message); });
       }
-    } else if (bookingWriteOk && _bodyClaimsSlot) {
+    } else if (bookingWriteOk && !_snapSlot && _bodyClaimsSlot && !attempt.recovering) {
       // 🔴 F2 fail-closed(슬롯 한정): 클라는 슬롯 예약이라 하는데 create 스냅샷에 바인딩이 없다.
       //   원인은 둘 중 하나다 — (a) capture body 위조/스냅샷 없는 레거시·클라 직접 주문,
       //   (b) 이 배포 **직전** 에 만들어져 바인딩 없이 저장된 in-flight 주문.
@@ -800,10 +865,28 @@ export default async function handler(req, res) {
     // 내부에서 일어나며, 초과 시 PayPal capture 를 즉시 환불 + booking 도큐먼트도
     // refunded 로 마킹 + 운영자 알림. 사용자 UX 는 약간 나빠지지만 (charged-then-
     // refunded) 회계 정합성은 유지된다.
-    if (promoCode && typeof promoCode === 'string') {
-      const upper = promoCode.toUpperCase();
-      if (KNOWN_GLOBAL_PROMO_CODES.includes(upper)) {
-        const db = initAdminDb('capturePaypalOrder');
+    // 🔴 incrementGlobalPromoUsage is NOT order-idempotent (stores only lastOrderID) — the promo stage
+    //   runs at most once per order. A started-but-unrecorded stage means the increment (and possibly the
+    //   limit verdict) is unknown: fail closed — no processor, no confirmed answer, operator review.
+    const _promoUpper = (promoCode && typeof promoCode === 'string') ? promoCode.toUpperCase() : '';
+    const _promoKnown = !!_promoUpper && KNOWN_GLOBAL_PROMO_CODES.includes(_promoUpper);
+    const _promoQuarantine = async (why) => {
+      console.error('[capturePaypalOrder] promo stage unresolved — fail closed (no processor, 202):', orderID, why);
+      await updateAttempt(attempt, { promoStageUnknown: true, promoStageUnknownReason: why, claimUntil: 0 }).catch(() => {});
+      await throttledTelegramAlert({ key: `promo-stage-AMBIGUOUS-${orderID}`, channel: 'admin', severity: 'high', message: `⚠️ <b>글로벌 프로모 사용량 반영 결과 불명 — 재실행 안 함 · 예약 미확정(202)</b>\n<b>OrderID:</b> <code>${orderID}</code> <b>code:</b> ${_promoUpper}\n<b>사유:</b> ${why}\n→ global_promo_usage 수동 확인 후 used_paypal_orders.stages.promo 를 정리하세요.`, context: { orderID, why } }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify({ ...pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURED' }), reviewReason: 'promo_stage_unknown' }));
+    };
+    if (_promoKnown && stages.promo && stages.promo.state !== 'completed') return _promoQuarantine('stage_started_without_record');
+    if (_promoKnown && !stages.promo) {
+      const upper = _promoUpper;
+      const db = initAdminDb('capturePaypalOrder');
+      let promoStageClaimed = false;
+      try { await markStage('promo', { state: 'started', code: upper }); promoStageClaimed = true; } catch (e) {
+        console.error('[capturePaypalOrder] promo stage marker failed — increment skipped (ambiguity guard):', e.message);
+      }
+      if (!promoStageClaimed) return _promoQuarantine('stage_marker_write_failed');
+      if (promoStageClaimed) {
         if (db) {
           let promoResult;
           try {
@@ -818,8 +901,33 @@ export default async function handler(req, res) {
           if (promoResult && !promoResult.ok && promoResult.code === 'PROMO_LIMIT_EXCEEDED') {
             console.warn('[capturePaypalOrder] PROMO_LIMIT_EXCEEDED race detected:',
               { orderID, promoCode: upper, usedCount: promoResult.usedCount, maxUses: promoResult.maxUses });
+            // 0) 🔴 Durable terminal result BEFORE any external refund: every same-order replay from now on
+            //    gets this 409 (never confirmed, never a second increment or refund). If this cannot be
+            //    recorded, the refund stays with the operator (fail closed, 202).
+            const promoBody = _err(
+              `Promo code "${upper}" reached its usage limit. A manual refund will be issued — operator notified.`,
+              'PROMO_LIMIT_EXCEEDED'
+            );
+            try {
+              // Atomic: lock terminal + booking REFUND_PENDING + retry intent closed (held intent never opens).
+              await recordTerminalBeforeRefund({
+                db: dbForLock, attempt, orderID, retryDocIds: [orderID], refundReason: 'PROMO_LIMIT_EXCEEDED', timestamp: FieldValue.serverTimestamp(),
+                lockPatch: {
+                  stages: { promo: { state: 'completed', code: upper, limitExceeded: true, atMs: Date.now() } },
+                  finalOutcome: 'promo_refund_required', finalResponse: { status: 409, body: promoBody },
+                },
+              });
+            } catch (recordErr) {
+              notifyOperator('coupon-race', `<code>${orderID}</code>\n사유: PROMO_LIMIT_EXCEEDED (${upper}) — 종결 기록 실패, 자동환불 보류\n→ 수동 환불 필요`).catch(() => {});
+              return _promoQuarantine(`limit_exceeded_record_failed: ${recordErr.message}`);
+            }
+            console.warn('[capturePaypalOrder] booking stopped as', 'REFUND_PENDING', '— terminal recorded before refund:', orderID);
+            notifyOperator('coupon-race',
+              `<code>${orderID}</code>\n사유: PROMO_LIMIT_EXCEEDED (${upper})\n사용: ${promoResult.usedCount}/${promoResult.maxUses}\n자동환불 시도 중 — 후속 알림이 없으면 수동환불 필요`
+            ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
             // 1) Refund the PayPal capture (we already charged the user).
             let refundOk = false;
+            let provenRefundID = null; // strict receipt proof — gates only the terminal client answer (step 4)
             try {
               const refundRes = await refundPaypalCapture({
                 captureID,
@@ -833,23 +941,21 @@ export default async function handler(req, res) {
                 currency: _verdict && _verdict.currency,
                 note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
                 isSandbox: _isSandboxCapture,
+                receipt: true,
               });
               // 🔴 F3b (2026-07-16): PENDING(비종단)을 REFUNDED 로 확정하면 미환불 은폐다. final 이
               //   true(=COMPLETED)일 때만 REFUNDED, PENDING 은 아래 REFUND_PENDING 분기로 떨어뜨린다.
               //   (helper F3a 가 PENDING 에 final:false 를 준다 — paypal-refund-idempotency.test.ts 보증.)
               refundOk = !!(refundRes?.ok && refundRes?.final);
+              provenRefundID = provenFullRefundID(refundRes, { amountMinor: _verdict && _verdict.amountMinor, currency: _verdict && _verdict.currency });
             } catch (refundErr) {
               console.error('[capturePaypalOrder] auto-refund failed (operator must refund manually):', refundErr.message);
             }
-            // 2) Mark the booking as refunded so cancel/modify/voucher paths
-            //    don't treat it as active.
+            // 2) The booking is already REFUND_PENDING (written atomically with the terminal record above);
+            //    a completed refund upgrades it to REFUNDED. Nothing else is ever downgraded.
+            let refundTransitioned = false;
             try {
-              await db.collection('bookings').doc(orderID).set({
-                status: refundOk ? 'REFUNDED' : 'REFUND_PENDING',
-                refundReason: 'PROMO_LIMIT_EXCEEDED',
-                refundedAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-              }, { merge: true });
+              if (refundOk) refundTransitioned = await markRefundCompleted({ db, orderID, timestamp: FieldValue.serverTimestamp(), refundID: provenRefundID || undefined });
             } catch (markErr) {
               console.error('[capturePaypalOrder] booking refund-mark failed (non-fatal):', markErr.message);
             }
@@ -868,15 +974,35 @@ export default async function handler(req, res) {
             notifyOperator('coupon-race',
               `<code>${orderID}</code>\n사유: PROMO_LIMIT_EXCEEDED (${upper})\n사용: ${promoResult.usedCount}/${promoResult.maxUses}\n자동환불: ${refundOk ? '성공' : '실패 — 수동환불 필요'}`
             ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
-            // 4) User response — explain refund.
+            // 4) User response — explain refund. The terminal record was written before the refund; only
+            //    the message is refreshed with the refund outcome (best effort).
+            const refundedBody = refundOk
+              ? _err(`Promo code "${upper}" reached its usage limit. Your payment has been refunded — please retry without the promo code.`, 'PROMO_LIMIT_EXCEEDED')
+              : promoBody;
+            // Terminal proof for the client (releases its recovery pointer): ONLY a strictly proven full refund
+            //   whose booking transition THIS call confirmed. It is answered only once stored, so the
+            //   same-order replay returns the same proof; otherwise the old body (pointer stays) is answered.
+            const proofBody = provenRefundID && refundTransitioned
+              ? { ...refundedBody, orderID, finalized: true, paymentStatus: 'REFUNDED', refundID: provenRefundID }
+              : null;
+            let answerBody = refundedBody;
+            if (proofBody) {
+              try {
+                await updateAttempt(attempt, { finalOutcome: 'promo_refunded', finalResponse: { status: 409, body: proofBody } });
+                answerBody = proofBody;
+              } catch (storeErr) {
+                console.error('[capturePaypalOrder] refund proof not stored — answering without proof:', storeErr.message);
+              }
+            }
+            if (answerBody !== proofBody) {
+              await updateAttempt(attempt, { finalOutcome: refundOk ? 'promo_refunded' : 'promo_refund_pending', finalResponse: { status: 409, body: refundedBody } }).catch(() => {});
+            }
             res.writeHead(409, JSON_CORS);
-            return res.end(JSON.stringify(_err(
-              refundOk
-                ? `Promo code "${upper}" reached its usage limit. Your payment has been refunded — please retry without the promo code.`
-                : `Promo code "${upper}" reached its usage limit. A manual refund will be issued — operator notified.`,
-              'PROMO_LIMIT_EXCEEDED'
-            )));
+            return res.end(JSON.stringify(answerBody));
           }
+          await markStage('promo', { state: 'completed', code: upper, ok: !!(promoResult && promoResult.ok), crashed: promoResult === null }).catch(() => {});
+        } else {
+          await markStage('promo', { state: 'completed', code: upper, skipped: 'no_db' }).catch(() => {});
         }
       }
     }
@@ -896,49 +1022,55 @@ export default async function handler(req, res) {
     // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
     // resolve 하므로 정상 흐름에 영향 없음. 45s + Vercel maxDuration 60s 안에 안전.
     const siteUrl = internalApiBase();
-    const processorResult = await triggerBookingProcessor({
-      db: dbForLock,
-      siteUrl,
-      payload: processorPayload,
-      source: 'capturePaypalOrder',
-      notify,
-      timeoutMs: 45_000,
-    });
+    // Replay never re-dispatches a done / manual-intervention / permanent-failure intent, and durable
+    //   retry records are written through persisters that keep attempts and terminal states intact.
+    // Mandatory checks settled without a terminal outcome: open the held intent for normal dispatch. If the
+    //   release cannot be recorded the intent stays non-runnable and the answer stays 202 (replay releases it).
+    let retryStatusNow = retryStatusBefore;
     try {
-      const processorBatch = dbForLock.batch();
-      const retryRef = dbForLock.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(orderID);
-      const bookingRef = dbForLock.collection('bookings').doc(orderID);
-      if (processorResult.ok) {
-        processorBatch.set(retryRef, {
-          status: 'done',
-          outcome: processorResult.outcome || 'completed',
-          completedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        processorBatch.set(bookingRef, {
-          processorStatus: 'completed',
-          processorOutcome: processorResult.outcome || 'completed',
-          processorCompletedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-      } else {
-        processorBatch.set(bookingRef, {
-          processorStatus: processorResult.docStatus || 'pending',
-          processorOutcome: processorResult.outcome || 'retryable',
-          processorLastError: processorResult.reason || 'unknown',
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+      retryStatusNow = (await releaseHeldIntents({ db: dbForLock, attempt, intents: [{ retryDocId: orderID, bookingId: orderID }], timestamp: FieldValue.serverTimestamp() }))[orderID];
+    } catch (releaseErr) {
+      // CLAIM_LOST (another worker owns the attempt) or a storage failure: nothing was opened, answer 202.
+      console.error('[capturePaypalOrder] held intent release failed — processor not dispatched (202):', releaseErr.message);
+      if (releaseErr.code !== 'CLAIM_LOST') await releaseAttemptClaim(attempt);
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify({ ...pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURED' }), reviewReason: releaseErr.code === 'CLAIM_LOST' ? 'claim_lost' : 'intent_release_failed' }));
+    }
+    if (retryStatusNow === 'stopped') {
+      // Booking was stopped (refund / cancel) while the mandatory checks ran: no processor, no new charge or
+      // refund here. The attempt is finalized with this same non-active answer so replays stay effect-free.
+      const stoppedBody = { ...pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURED' }), bookingStatus: 'BOOKING_STOPPED', reviewReason: 'booking_stopped' };
+      console.warn('[capturePaypalOrder] booking stopped before release — not dispatched, not confirmed:', orderID);
+      await throttledTelegramAlert({ key: `booking-stopped-at-release-${orderID}`, channel: 'admin', severity: 'high', message: `⚠️ <b>예약이 환불/취소 상태라 후속처리 미실행</b>\n<b>OrderID:</b> <code>${orderID}</code>\n→ 결제는 캡처됨. 환불 완료 여부를 확인하세요.`, context: { orderID } }).catch(() => {});
+      await finalizeAttempt(attempt, { finalOutcome: 'booking_stopped', finalResponse: { status: 202, body: stoppedBody } }).catch(() => {});
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(stoppedBody));
+    }
+    let processorResult;
+    if (shouldDispatchRetry(retryStatusNow)) {
+      processorResult = await triggerBookingProcessor({
+        db: dbForLock,
+        siteUrl,
+        payload: processorPayload,
+        source: 'capturePaypalOrder',
+        notify,
+        persistRetry: makeRetryPersister({ db: dbForLock, timestamp: FieldValue.serverTimestamp() }),
+        timeoutMs: 45_000,
+      });
+      try {
+        await recordProcessorResult({ db: dbForLock, orderID, retryDocId: orderID, result: processorResult, timestamp: FieldValue.serverTimestamp() });
+      } catch (processorStateErr) {
+        // 성공 표시 저장이 실패해도 Capture 전에 만든 pending intent가 남아
+        // cron이 같은 orderID로 안전하게 수렴한다.
+        console.error('[capturePaypalOrder] processor state persist failed:', processorStateErr.message);
       }
-      await processorBatch.commit();
-    } catch (processorStateErr) {
-      // 성공 표시 저장이 실패해도 Capture 전에 만든 pending intent가 남아
-      // cron이 같은 orderID로 안전하게 수렴한다.
-      console.error('[capturePaypalOrder] processor state persist failed:', processorStateErr.message);
+    } else {
+      console.log('[capturePaypalOrder] processor intent not runnable on replay:', orderID, retryStatusNow);
+      processorResult = { ok: retryStatusNow === 'done', outcome: retryStatusNow === 'done' ? 'completed' : retryStatusNow };
     }
 
     // 4. 결제·예약 확정 응답. 후속 실패는 durable queue가 별도로 재처리한다.
-    res.writeHead(200, JSON_CORS);
-    res.end(JSON.stringify(_ok({
+    const successBody = _ok({
       orderID,
       payerEmail,
       payerName,
@@ -946,7 +1078,15 @@ export default async function handler(req, res) {
       currency: 'USD',
       processorOutcome: processorResult.outcome || 'retryable',
       message: '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.',
-    })));
+    });
+    successBody.finalized = true;
+    // Minimal replay record (no contact data) for later same-order calls from the authorized caller.
+    await finalizeAttempt(attempt, {
+      finalOutcome: 'confirmed', processorOutcome: processorResult.outcome || 'retryable',
+      finalResponse: { status: 200, body: { ok: true, finalized: true, data: { orderID, amount, currency: 'USD', processorOutcome: processorResult.outcome || 'retryable', message: 'Booking confirmed.' } } },
+    }).catch((finalizeErr) => { console.error('[capturePaypalOrder] finalize marker failed (booking durable; replay-safe):', finalizeErr.message); });
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(successBody));
   } catch (err) {
     console.error('[capturePaypalOrder] Error:', err);
     res.writeHead(500, JSON_CORS);

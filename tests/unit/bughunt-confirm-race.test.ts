@@ -54,6 +54,7 @@ type FakeData = Record<string, unknown>;
 type FakeRef = { __path: string };
 type FakeTx = {
   get: (ref: FakeRef) => Promise<{ exists: boolean; data: () => FakeData | undefined }>;
+  set: (ref: FakeRef, data: FakeData, opts?: { merge?: boolean }) => void;
   update: (ref: FakeRef, patch: FakeData) => void;
 };
 
@@ -69,7 +70,7 @@ function makeFakeDb(initial: FakeData) {
   const store = new Map<string, { data: FakeData; version: number }>();
   store.set('pending_bookings/REF', { data: { ...initial }, version: 0 });
 
-  const setCalls: { path: string; data: unknown }[] = [];
+  const setCalls: { path: string; data: unknown; replace?: boolean; existed?: boolean }[] = [];
 
   function docRef(path: string) {
     return {
@@ -98,12 +99,18 @@ function makeFakeDb(initial: FakeData) {
       // 최대 몇 회 재시도 (Firestore 기본 5회와 동일한 정신).
       for (let attempt = 0; attempt < 5; attempt++) {
         const reads = new Map<string, number>(); // path -> version read
-        const staged: { ref: FakeRef; patch: FakeData }[] = [];
+        const staged: { ref: FakeRef; patch: FakeData; replace?: boolean }[] = [];
         const tx: FakeTx = {
           async get(ref: FakeRef) {
             const e = store.get(ref.__path);
             reads.set(ref.__path, e ? e.version : -1);
             return { exists: !!e, data: () => (e ? { ...e.data } : undefined) };
+          },
+          // 2026-10-10: mirror + retry intent now commit inside the same transaction (tx.set).
+          //   Writes are recorded at COMMIT only — an attempt that loses the optimistic race and retries
+          //   never reached Firestore, so it must not count as a mirror creation.
+          set(ref: FakeRef, data: FakeData, opts?: { merge?: boolean }) {
+            staged.push({ ref, patch: data, replace: !opts?.merge });
           },
           update(ref: FakeRef, patch: FakeData) {
             staged.push({ ref, patch });
@@ -125,9 +132,13 @@ function makeFakeDb(initial: FakeData) {
         }
         // apply staged writes
         for (const w of staged) {
-          const e = store.get(w.ref.__path)!;
-          e.data = { ...e.data, ...w.patch };
+          const e = store.get(w.ref.__path) || { data: {}, version: 0 };
+          if (w.ref.__path.startsWith('bookings/') && w.replace !== undefined) {
+            setCalls.push({ path: w.ref.__path, data: w.patch, replace: w.replace, existed: store.has(w.ref.__path) });
+          }
+          e.data = w.replace ? { ...w.patch } : { ...e.data, ...w.patch };
           e.version += 1;
+          store.set(w.ref.__path, e);
         }
         return result;
       }
@@ -171,16 +182,33 @@ describe('버그헌트 #8 — confirmBookingAsPaid 동시 confirm 멱등 (원자
     expect(losers).toHaveLength(1);
     expect((losers[0] as Record<string, unknown>).alreadyConfirmed).toBe(true);
 
-    // 핵심: booking-processor(부수효과) 1회 · bookings mirror set 1회.
+    // 핵심: booking-processor(부수효과) 1회 · bookings mirror 생성 정확히 1회.
+    //   2026-10-10: 경합한 두 번째 확인은 mirror 를 새로 만들지 않는다. 허용되는 추가 쓰기는
+    //   voucher 마커 메타데이터의 merge 뿐이며, 그것도 기존 데이터를 대체하지 않는다.
     expect(triggerBookingProcessor).toHaveBeenCalledTimes(1);
-    expect(setCalls.filter((c) => c.path.startsWith('bookings/'))).toHaveLength(1);
+    const mirrorWrites = setCalls.filter((c) => c.path.startsWith('bookings/'));
+    const creations = mirrorWrites.filter((c) => c.replace === true);
+    expect(creations).toHaveLength(1);
+    expect(creations[0].existed).toBe(false);
+    // The race winner decides the id (webhook => its TX id, admin => bookingRef); the loser reuses it.
+    const winnerId = (winners[0] as { bookingId: string }).bookingId;
+    expect((losers[0] as { bookingId: string }).bookingId).toBe(winnerId);
+    expect(creations[0].path).toBe(`bookings/${winnerId}`);
+    for (const merge of mirrorWrites.filter((c) => c.replace === false)) {
+      expect(Object.keys(merge.data as Record<string, unknown>)).toEqual(['voucherSentAtState']);
+    }
+    const mirror = store.get(`bookings/${winnerId}`)!.data;
+    expect(mirror).toMatchObject({ captureID: winnerId, bookingRef: 'REF', userEmail: 'buyer@example.com', amountUSD: '99.00' });
+    expect(mirror.voucherSentAtState).not.toBe('outcome_unknown'); // fresh confirmation keeps its voucher sendable
 
     // 최종 문서는 CONFIRMED, 단 한 번 전이.
     expect(store.get('pending_bookings/REF')!.data.status).toBe('CONFIRMED');
   });
 
-  it('이미 CONFIRMED 인 doc → 부수효과 0, alreadyConfirmed:true, bookingId 유지', async () => {
-    const { db, setCalls } = makeFakeDb({
+  // 2026-10-10 recovery contract: an already-CONFIRMED pending whose mirror is MISSING is repaired once
+  // (original transaction id, no customer email, voucher history quarantined); a second call does nothing.
+  it('이미 CONFIRMED + mirror 누락 → 원래 TX id 로 1회 복구, 확인메일 0, 재호출 부수효과 0', async () => {
+    const { db, setCalls, store } = makeFakeDb({
       ...BASE_PENDING,
       status: 'CONFIRMED',
       paypalTransactionId: 'EXISTING-TX',
@@ -189,10 +217,15 @@ describe('버그헌트 #8 — confirmBookingAsPaid 동시 confirm 멱등 (원자
     const r = await confirmBookingAsPaid({ db, bookingRef: 'REF', paypalTransactionId: 'TX-NEW', source: 'webhook' });
 
     expect(r).toMatchObject({ ok: true, alreadyConfirmed: true, bookingId: 'EXISTING-TX' });
-    expect(triggerBookingProcessor).not.toHaveBeenCalled();
     expect(triggerAiPlanner).not.toHaveBeenCalled();
     expect(sendCustomerEmailWithAlert).not.toHaveBeenCalled();
-    expect(setCalls.filter((c) => c.path.startsWith('bookings/'))).toHaveLength(0);
+    expect(setCalls.filter((c) => c.path.startsWith('bookings/'))).toHaveLength(1);
+    expect(setCalls[0].path).toBe('bookings/EXISTING-TX');
+    expect(store.get('bookings/EXISTING-TX')!.data.voucherSentAtState).toBe('outcome_unknown');
+    expect(triggerBookingProcessor).toHaveBeenCalledTimes(1);
+
+    await confirmBookingAsPaid({ db, bookingRef: 'REF', source: 'admin', adminUid: 'admin-1' });
+    expect(setCalls.filter((c) => c.path.startsWith('bookings/'))).toHaveLength(1);
   });
 
   it('단일 confirm(경합 없음) → 정상 전이 + 부수효과 1회 + 기존 응답 형태', async () => {
