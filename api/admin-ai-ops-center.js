@@ -97,7 +97,8 @@ function recent(db, collectionName, limit) {
 
 function activeRetries(db, collectionName, limit) {
   return db.collection(collectionName)
-    .where('status', 'in', ['pending', 'manual-intervention', 'permanent-failure'])
+    // 'held' (2026-10-20): capture-time intents that were never opened must be visible to the operator.
+    .where('status', 'in', ['pending', 'held', 'manual-intervention', 'permanent-failure'])
     .limit(limit)
     .get();
 }

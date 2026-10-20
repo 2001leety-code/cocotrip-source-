@@ -229,18 +229,22 @@ export default async function handler(req, res) {
     console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
 
     // 🔴 Same-order authority (2026-10-10 recovery contract): the browser that created the order
-    //   (HttpOnly capability cookie) or the authenticated owner. Snapshots without either field are the
-    //   documented legacy boundary for a NORMAL first capture only; recovery/replay of a saved intent
-    //   always needs proof. A bare orderID is never authority to replay someone's order.
+    //   (HttpOnly capability cookie) or the authenticated owner. Proof is what lets a caller read, adopt or
+    //   replay an EXISTING attempt: without it acquirePaymentAttempt (allowRecovery=false) answers an existing
+    //   record with the generic DUPLICATE_ORDER and writes nothing, and a same-order reconcile is refused up
+    //   front (403). A NORMAL first capture needs no proof (2026-10-20 payments review): a browser that blocks
+    //   cookies must still be able to pay, exactly as before the recovery contract — the attempt record it
+    //   creates is then closed to everyone without proof. A bare orderID is never authority to replay
+    //   someone's order. Snapshots without digest/owner are the documented legacy boundary.
     let verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
     const _recoverySnapshot = { recoveryDigest: _snapRecoveryDigest, ownerUid: _snapOwnerUid };
     const _sameOrderProven = isSameOrderProven({ req, flow: 'single', orderID, snapshot: _recoverySnapshot, verifiedUid: verifiedBuyerUid });
-    if (!_sameOrderProven && !isLegacyOpenSnapshot(_recoverySnapshot)) {
+    // Same-order reconcile ({orderID, reconcile:true}): never starts a new attempt from a bare orderID.
+    const _reconcileOnly = body.reconcile === true;
+    if (_reconcileOnly && !_sameOrderProven && !isLegacyOpenSnapshot(_recoverySnapshot)) {
       res.writeHead(403, JSON_CORS);
       return res.end(JSON.stringify(_err('The original checkout session is required for this order', 'RECOVERY_AUTH_REQUIRED')));
     }
-    // Same-order reconcile ({orderID, reconcile:true}): never starts a new attempt from a bare orderID.
-    const _reconcileOnly = body.reconcile === true;
 
     // 1. Access Token + baseUrl from shared helper.
     // P314 (2026-05-30): sandbox e2e 토글. capture = 실제 돈 빠지는 곳 → resolveIsSandbox

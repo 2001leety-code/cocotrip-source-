@@ -158,19 +158,30 @@ describe('capturePaypalOrder — capture once, persist atomically, replay from s
 });
 
 describe('capturePaypalOrder — same-order authority', () => {
-  it('a snapshot bound to a capability refuses capture without the cookie or the owner token (no provider call, no record)', async () => {
-    const state = await call(baseBody, {});
-    expect(state.status).toBe(403);
-    expect(state.body.code).toBe('RECOVERY_AUTH_REQUIRED');
-    expect(provider.calls).toHaveLength(0);
-    expect(db.rows.has(LOCK)).toBe(false);
+  it('a cookie-less browser may still make the FIRST capture; the record it creates is then closed to callers without proof', async () => {
+    provider.push({ method: 'POST', throwName: 'TimeoutError' });
+    const first = await call(baseBody, {});
+    expect(first.status).toBe(202);
+    expect(provider.calls).toHaveLength(1);
+    expect(db.rows.has(LOCK)).toBe(true);
+    const before = JSON.stringify(db.rows.get(LOCK));
+    const again = await call({ ...baseBody, memo: 'STRANGER' }, {});
+    expect(again.status).toBe(409);
+    expect(again.body.code).toBe('DUPLICATE_ORDER');
+    expect(JSON.stringify(db.rows.get(LOCK))).toBe(before);
+    const reconcile = await call({ orderID: ORDER, reconcile: true }, {});
+    expect(reconcile.status).toBe(403);
+    expect(reconcile.body.code).toBe('RECOVERY_AUTH_REQUIRED');
+    expect(provider.calls).toHaveLength(1);
   });
 
   it('the authenticated owner may capture without the cookie; another user may not', async () => {
     provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } });
     expect((await call(baseBody, { authorization: 'Bearer owner-uid' })).status).toBe(200);
     expect(db.rows.get(`bookings/${ORDER}`).uid).toBe('owner-uid');
-    expect((await call(baseBody, { authorization: 'Bearer other-uid' })).status).toBe(403);
+    const other = await call(baseBody, { authorization: 'Bearer other-uid' });
+    expect(other.status).toBe(409);
+    expect(other.body.code).toBe('DUPLICATE_ORDER');
   });
 
   it('an unresolved attempt is never adopted, re-claimed or revealed to a caller without proof; a legacy snapshot allows only the first normal capture', async () => {
@@ -178,7 +189,8 @@ describe('capturePaypalOrder — same-order authority', () => {
     expect((await call(baseBody)).status).toBe(202);
     const before = JSON.stringify(db.rows.get(LOCK));
     const stranger = await call({ ...baseBody, memo: 'STRANGER' }, { authorization: 'Bearer other-uid' });
-    expect(stranger.status).toBe(403);
+    expect(stranger.status).toBe(409);
+    expect(stranger.body.code).toBe('DUPLICATE_ORDER');
     expect(JSON.stringify(db.rows.get(LOCK))).toBe(before);
     expect(provider.calls).toHaveLength(1);
 

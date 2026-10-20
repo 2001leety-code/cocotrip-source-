@@ -89,14 +89,17 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Cart amounts could not be verified. Please create a new order.', 'INVALID_CART_AMOUNTS')));
     }
 
-    // Same-order authority: original checkout capability cookie or the authenticated owner (legacy snapshots stay open).
+    // Same-order authority: original checkout capability cookie or the authenticated owner. Proof gates reading or
+    // replaying an EXISTING attempt (reconcile => 403 here; an existing record without proof => generic
+    // DUPLICATE_ORDER via allowRecovery=false). A normal first capture needs no proof — cookie-blocking browsers
+    // must still be able to pay (2026-10-20 payments review). Legacy snapshots (no digest/owner) stay open.
     const verifiedUid = await verifyBearerUid(req.headers && req.headers.authorization);
     const sameOrderProven = isSameOrderProven({ req, flow: 'cart', orderID, snapshot, verifiedUid });
-    if (!sameOrderProven && !isLegacyOpenSnapshot(snapshot)) {
+    const reconcileOnly = body.reconcile === true;
+    if (reconcileOnly && !sameOrderProven && !isLegacyOpenSnapshot(snapshot)) {
       res.writeHead(403, JSON_CORS);
       return res.end(JSON.stringify(_err('The original checkout session is required for this order', 'RECOVERY_AUTH_REQUIRED')));
     }
-    const reconcileOnly = body.reconcile === true;
 
     const isSandbox = resolveIsSandbox();
     if (isSandbox) console.warn('[captureCartOrder] SANDBOX MODE — 실제 결제 아님 (preview e2e)');

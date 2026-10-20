@@ -17,6 +17,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/hooks/useCart', () => ({ useCart: () => ({ items: [{ id: 'item-1', displayName: 'Airport pickup', priceUSD: '100', priceKRW: 135000, booking: { dateStart: '2026-12-01', passengers: 2 } }], clear: mocks.clear }) }));
 vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => ({ t: {}, language: 'en' }) }));
 vi.mock('@/lib/firebase-auth', () => ({ signInWithGoogle: vi.fn(), auth: { currentUser: null } }));
+vi.mock('@/lib/firebase', () => ({ auth: {}, db: {} }));
 vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
 vi.mock('@/lib/exchange-rate', () => ({ formatPrice: (n: number) => String(n) }));
 vi.mock('@/lib/discountFlags', () => ({ discountV2Enabled: () => false }));

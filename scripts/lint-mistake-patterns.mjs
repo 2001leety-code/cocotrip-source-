@@ -6350,19 +6350,20 @@ function P68_bookingsWriteRetryAlert({ changed }) {
 
   const violations = [];
 
-  // Retry shape
-  if (!/BOOKING_WRITE_BACKOFF_MS\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(content)) {
-    violations.push(`${FILE}: BOOKING_WRITE_BACKOFF_MS [200, 500, 1000] missing — Y-H14 needs retry-with-backoff`);
-  }
-  if (!/let\s+bookingWriteOk\s*=\s*false/.test(content)) {
-    violations.push(`${FILE}: bookingWriteOk tracker missing`);
-  }
-  if (!/for\s*\(\s*let\s+attempt\s*=\s*0\s*;\s*attempt\s*<\s*BOOKING_WRITE_BACKOFF_MS\.length/.test(content)) {
-    violations.push(`${FILE}: retry loop over BOOKING_WRITE_BACKOFF_MS missing`);
+  // Retry shape — PR #444 inline loop, or (2026-10-20 recovery contract) withBackoff() around the atomic
+  // persistBookingsAtomically() whose default delays are [200, 500, 1000] in payment-fulfillment-recovery.js.
+  const inlineRetry = /BOOKING_WRITE_BACKOFF_MS\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(content)
+    && /let\s+bookingWriteOk\s*=\s*false/.test(content)
+    && /for\s*\(\s*let\s+attempt\s*=\s*0\s*;\s*attempt\s*<\s*BOOKING_WRITE_BACKOFF_MS\.length/.test(content);
+  const contractRetry = /await\s+withBackoff\s*\(\s*\(\)\s*=>\s*persistBookingsAtomically\s*\(/.test(content)
+    && /const\s+bookingWriteOk\s*=\s*persisted\.ok/.test(content)
+    && /withBackoff\s*\(\s*task\s*,\s*delaysMs\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(getChangedFileContent('api/_shared/payment-fulfillment-recovery.js'));
+  if (!inlineRetry && !contractRetry) {
+    violations.push(`${FILE}: booking write retry missing — Y-H14 needs BOOKING_WRITE_BACKOFF_MS [200, 500, 1000] + let bookingWriteOk = false + retry loop, or withBackoff(() => persistBookingsAtomically(...)) with const bookingWriteOk = persisted.ok`);
   }
 
   // Critical alert wire-up
-  if (!/throttledTelegramAlert\s*\(\s*\{[\s\S]*?key:\s*['"]bookings-doc-write-fail['"]/.test(content)) {
+  if (!/throttledTelegramAlert\s*\(\s*\{[\s\S]*?key:\s*[`'"]bookings-doc-write-fail/.test(content)) {
     violations.push(`${FILE}: throttledTelegramAlert with key='bookings-doc-write-fail' missing — operator must learn of payment-without-booking`);
   }
   // The alert must mention admin-replay-booking-notifications (operator recovery path)
@@ -7201,6 +7202,21 @@ function P48_voucherCjkFont({ changed }) {
 }
 
 /**
+ * 2026-10-20 (payment fulfillment-recovery contract): the handler no longer runs the used_paypal_orders
+ * transaction inline. The lock is acquired by acquirePaymentAttempt() in api/_shared/payment-fulfillment-recovery.js
+ * (db.runTransaction + tx.get + claimToken/claimUntil lease) and that call must precede the /capture POST.
+ */
+function delegatesLockToRecoveryContract(content) {
+  if (!/from\s+['"]\.\/_shared\/payment-fulfillment-recovery\.js['"]/.test(content)) return false;
+  const acquireAt = content.search(/await\s+acquirePaymentAttempt\s*\(/);
+  const captureAt = content.search(/\/v2\/checkout\/orders\/[^\n]*\/capture/);
+  if (acquireAt < 0 || captureAt < 0 || acquireAt > captureAt) return false;
+  const module = getChangedFileContent('api/_shared/payment-fulfillment-recovery.js');
+  const fn = module.match(/export\s+async\s+function\s+acquirePaymentAttempt\s*\([\s\S]{0,2500}/);
+  return !!fn && /db\.runTransaction\s*\(/.test(fn[0]) && /tx\.get\s*\(/.test(fn[0]) && /claimUntil/.test(fn[0]);
+}
+
+/**
  * P49_paymentIntegrity — 메모리 P49 (PR #425, Audit CY1/CY2/CY5).
  * 결제 무결성 회귀 차단:
  *   - capturePaypalOrder.js: used_paypal_orders lock 이 runTransaction 빠짐 (CY1)
@@ -7215,8 +7231,8 @@ function P49_paymentIntegrity({ changed }) {
     const content = getChangedFileContent('api/capturePaypalOrder.js');
     if (content) {
       const lockBlock = content.match(/used_paypal_orders[\s\S]{0,1200}/);
-      if (lockBlock && !/runTransaction/.test(lockBlock[0])) {
-        violations.push("api/capturePaypalOrder.js: used_paypal_orders lock missing runTransaction — race-safe acquire required (CY1)");
+      if (lockBlock && !/runTransaction/.test(lockBlock[0]) && !delegatesLockToRecoveryContract(content)) {
+        violations.push("api/capturePaypalOrder.js: used_paypal_orders lock missing runTransaction — race-safe acquire required (CY1), or delegate it to acquirePaymentAttempt() (payment-fulfillment-recovery.js) called before the /capture POST");
       }
       if (!/amountKRW\s*[,:]/.test(content)) {
         violations.push("api/capturePaypalOrder.js: amountKRW missing from booking doc — cancelBooking will refund ₩0 (CY2)");
@@ -8306,6 +8322,44 @@ function runSelfTest() {
         'tests/global-setup.ts': 'export default async function globalSetup() {}\n',
       },
       expectRule: 'P272_e2eAnalyticsGuardImport',
+    },
+    {
+      label: 'P49 (false positive 차단): used_paypal_orders lock delegated to acquirePaymentAttempt (recovery contract) — silent',
+      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      head: {
+        'api/_shared/payment-fulfillment-recovery.js': "export async function acquirePaymentAttempt({ db, orderID }) {\n  const ref = db.collection('used_paypal_orders').doc(orderID);\n  return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });\n}\n",
+        'api/capturePaypalOrder.js': "import { acquirePaymentAttempt } from './_shared/payment-fulfillment-recovery.js';\n// used_paypal_orders is owned by the recovery contract\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nconst captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {});\nconst bookingDoc = { amountKRW: 1 };\n",
+      },
+      expectRule: 'P49_paymentIntegrity',
+      expectClean: true,
+    },
+    {
+      label: 'P49 (true positive): acquirePaymentAttempt called only AFTER the /capture POST — delegation does not count',
+      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      head: {
+        'api/_shared/payment-fulfillment-recovery.js': "export async function acquirePaymentAttempt({ db, orderID }) {\n  const ref = db.collection('used_paypal_orders').doc(orderID);\n  return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });\n}\n",
+        'api/capturePaypalOrder.js': "import { acquirePaymentAttempt } from './_shared/payment-fulfillment-recovery.js';\n// used_paypal_orders comment only\nconst captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {});\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nconst bookingDoc = { amountKRW: 1 };\n",
+      },
+      expectRule: 'P49_paymentIntegrity',
+    },
+    {
+      label: 'P68 (false positive 차단): withBackoff(() => persistBookingsAtomically(...)) + template-literal alert key — silent',
+      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      head: {
+        'api/_shared/payment-fulfillment-recovery.js': 'export async function withBackoff(task, delaysMs = [200, 500, 1000]) { return { ok: true }; }\n',
+        'api/capturePaypalOrder.js': "const persisted = await withBackoff(() => persistBookingsAtomically({ db }));\nconst bookingWriteOk = persisted.ok;\nif (!bookingWriteOk) {\n  await throttledTelegramAlert({ key: `bookings-doc-write-fail-${orderID}`, severity: 'critical', message: 'POST /api/admin-replay-booking-notifications' });\n  return res.end(JSON.stringify(pendingPaymentResponse({ orderID })));\n}\n",
+      },
+      expectRule: 'P68_bookingsWriteRetryAlert',
+      expectClean: true,
+    },
+    {
+      label: 'P68 (true positive): recovery-contract shape whose write-fail branch refunds',
+      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      head: {
+        'api/_shared/payment-fulfillment-recovery.js': 'export async function withBackoff(task, delaysMs = [200, 500, 1000]) { return { ok: true }; }\n',
+        'api/capturePaypalOrder.js': "const persisted = await withBackoff(() => persistBookingsAtomically({ db }));\nconst bookingWriteOk = persisted.ok;\nif (!bookingWriteOk) {\n  await refundPaypalCapture({ captureID });\n  await throttledTelegramAlert({ key: `bookings-doc-write-fail-${orderID}`, message: 'admin-replay-booking-notifications' });\n}\n",
+      },
+      expectRule: 'P68_bookingsWriteRetryAlert',
     },
   ];
 

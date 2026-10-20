@@ -103,12 +103,14 @@ describe('captureCartOrder — parent + every stable child + each intent commit 
     expect(db.rows.get(`pending_processor_retries/${ORDER}__L0`)).toEqual(terminal);
   });
 
-  it('refuses capture without the capability cookie, and refuses recovery by bare orderID', async () => {
-    expect((await call({ orderID: ORDER }, {})).status).toBe(403);
-    expect(provider.calls).toHaveLength(0);
+  it('allows the first capture without the capability cookie (cookie-blocked browsers can pay), but refuses recovery by bare orderID', async () => {
     provider.push({ method: 'POST', throwName: 'TimeoutError' });
-    expect((await call({ orderID: ORDER })).status).toBe(202);
+    expect((await call({ orderID: ORDER }, {})).status).toBe(202);
+    expect(provider.calls).toHaveLength(1);
     const before = JSON.stringify(db.rows.get(LOCK));
+    const again = await call({ orderID: ORDER }, {});
+    expect(again.status).toBe(409);
+    expect(again.body.code).toBe('DUPLICATE_ORDER');
     expect((await call({ orderID: ORDER, reconcile: true }, {})).status).toBe(403);
     expect(JSON.stringify(db.rows.get(LOCK))).toBe(before);
     expect(provider.calls).toHaveLength(1);
