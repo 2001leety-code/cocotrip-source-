@@ -136,7 +136,14 @@ test.describe('Plan detail editorial document visual smoke', () => {
     await page.getByTestId('section-tabs-scroll').getByRole('tab', { name: 'Day 1' }).click();
     const routeMap = page.getByTestId('day-route-map');
     await expect(routeMap).toContainText('Bukchon Hanok Village');
-    await routeMap.scrollIntoViewIfNeeded();
+    // 2026-10-20: the plan-night document (#1439) is compact enough that the day
+    // map is already in view after ~270px of scroll, which leaves the tab strip
+    // ~190px above its sticky offset (top: 56px); scrollIntoViewIfNeeded scrolls
+    // the minimum. Pin the map's top to the viewport instead: the strip sits above
+    // the map in flow, so it must be stuck under the header by then. 'instant'
+    // overrides html { scroll-behavior: smooth } so the boxes below are measured
+    // after the scroll, not mid-animation.
+    await routeMap.evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
 
     const headerBox = await page.locator('header.ec-no-print').boundingBox();
     const stickyTabsBox = await page.getByTestId('section-tabs-scroll').locator('..').boundingBox();
