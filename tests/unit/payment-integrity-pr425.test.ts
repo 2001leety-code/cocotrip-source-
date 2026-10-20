@@ -18,61 +18,9 @@
  * scope for fast vitest CI. The shape checks catch the original bug
  * pattern AND any future refactor that drops the safeguards.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  acquirePaymentAttempt, classifyCaptureResponse, reconcileCapture, discardAttempt, releaseAttemptClaim,
-} from '../../api/_shared/payment-fulfillment-recovery.js';
-
-type Doc = Record<string, unknown>;
-type Ref = { __path: string };
-const isPlain = (v: unknown): v is Doc => !!v && typeof v === 'object' && !Array.isArray(v);
-function mergeDeep(base: unknown, patch: Doc): Doc {
-  if (!isPlain(base)) return { ...patch };
-  const out: Doc = { ...base };
-  for (const [key, value] of Object.entries(patch)) out[key] = isPlain(value) && isPlain(base[key]) ? mergeDeep(base[key], value) : value;
-  return out;
-}
-/** In-memory Firestore — transaction writes are staged and committed when the callback resolves (serial only). */
-function memoryDb() {
-  const store = new Map<string, Doc>();
-  const read = (path: string) => {
-    const data = store.get(path);
-    return { exists: !!data, data: () => (data ? structuredClone(data) : undefined) };
-  };
-  const db = {
-    store,
-    transactions: 0,
-    collection: (name: string) => ({ doc: (id: string): Ref => ({ __path: `${name}/${id}` }) }),
-    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
-      db.transactions += 1;
-      const staged: Array<() => void> = [];
-      const result = await fn({
-        get: async (ref: Ref) => read(ref.__path),
-        set: (ref: Ref, data: Doc, opts?: { merge?: boolean }) => {
-          staged.push(() => { store.set(ref.__path, opts && opts.merge ? mergeDeep(store.get(ref.__path), data) : { ...data }); });
-        },
-        delete: (ref: Ref) => { staged.push(() => { store.delete(ref.__path); }); },
-      });
-      staged.forEach((commit) => commit());
-      return result;
-    },
-  };
-  return db;
-}
-const ORDER = 'PR425-ORDER';
-const LOCK = `used_paypal_orders/${ORDER}`;
-async function claim(db: ReturnType<typeof memoryDb>, nowMs = Date.now()) {
-  const acquired = await acquirePaymentAttempt({
-    db, orderID: ORDER, flow: 'single', environment: 'live', requestKey: `${ORDER}-cap`, intent: { version: 1, body: {} }, nowMs,
-  });
-  return acquired;
-}
-const reconcile = (attempt: unknown, postCapture: () => Promise<unknown>) =>
-  reconcileCapture({ attempt, orderID: ORDER, baseUrl: 'https://api.mock', accessToken: 't', postCapture });
-
-afterEach(() => { vi.unstubAllGlobals(); });
 
 const capture = readFileSync(
   resolve(process.cwd(), 'api/capturePaypalOrder.js'),
@@ -92,100 +40,18 @@ const paypalRefund = readFileSync(
 );
 
 describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable', () => {
-  // 2026-10-10: the used_paypal_orders read+write moved from an inline runTransaction into the
-  //   shared acquirePaymentAttempt helper. The handler must acquire it before the capture POST, and
-  //   the helper must do the check-and-set inside one transaction.
-  it('lock acquire uses runTransaction (race-safe) via acquirePaymentAttempt before capture', async () => {
-    const acquireCall = capture.indexOf('acquirePaymentAttempt({');
-    const captureCall = capture.indexOf('/capture`');
-    expect(acquireCall).toBeGreaterThan(-1);
-    expect(captureCall).toBeGreaterThan(acquireCall);
-
-    const db = memoryDb();
-    const first = await claim(db);
-    const second = await claim(db);
-    expect(first.kind).toBe('claimed');
-    expect(second.kind).toBe('in_progress'); // a second request cannot start another capture
-    expect(db.transactions).toBe(2);
+  it('lock acquire uses runTransaction (race-safe)', () => {
+    // Must wrap the used_paypal_orders read+write in runTransaction so two
+    // concurrent capture requests can't both pass the check.
+    const lockSection = capture.match(/used_paypal_orders[\s\S]{0,1200}/);
+    expect(lockSection, 'used_paypal_orders block must exist').not.toBeNull();
+    expect(lockSection![0]).toMatch(/runTransaction/);
   });
 
-  // Old contract (CY1): delete the lock on every capture error. That was unsafe — a timeout, 5xx or
-  //   unparsable 2xx does not prove the money did not move, and deleting the lock let the customer
-  //   pay again (double charge). New contract: only provider-proven nonpayment releases the lock;
-  //   UNKNOWN keeps it and the same order is reconciled with a PayPal GET on retry.
-  it('classifies only explicit provider rejection as NOT_CAPTURED; ambiguity is UNKNOWN', () => {
-    expect(classifyCaptureResponse({ status: 422, body: { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'INSTRUMENT_DECLINED' }] } }, ORDER))
-      .toMatchObject({ state: 'not_captured', reason: 'INSTRUMENT_DECLINED' });
-    expect(classifyCaptureResponse({ status: 500, body: { name: 'INTERNAL_SERVER_ERROR' } }, ORDER).state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 200, body: null, parseError: 'Unexpected token' }, ORDER).state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 201, body: { id: ORDER, status: 'PENDING' } }, ORDER).state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 201, body: { id: 'OTHER', status: 'COMPLETED' } }, ORDER).state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 422, body: { details: [{ issue: 'ORDER_ALREADY_CAPTURED' }] } }, ORDER).state).toBe('already_captured');
-  });
-
-  it.each([
-    ['5xx', async () => ({ status: 503, body: { name: 'SERVICE_UNAVAILABLE' }, parseError: null })],
-    ['timeout', async () => { throw Object.assign(new Error('timed out'), { name: 'TimeoutError' }); }],
-    ['bad JSON', async () => ({ status: 200, body: null, parseError: 'Unexpected end of JSON input' })],
-  ])('capture %s → UNKNOWN and the lock is retained (no re-payment window)', async (_kind, postCapture) => {
-    const db = memoryDb();
-    const acquired = await claim(db);
-    const result = await reconcile(acquired.attempt, postCapture);
-    expect(result.state).toBe('unknown');
-    expect(db.store.get(LOCK)).toMatchObject({ captureState: 'posted' });
-  });
-
-  it('explicit NOT_CAPTURED → discardAttempt releases the lock so the customer can pay again', async () => {
-    const db = memoryDb();
-    const acquired = await claim(db);
-    const result = await reconcile(acquired.attempt, async () => ({
-      status: 422, body: { details: [{ issue: 'INSTRUMENT_DECLINED' }] }, parseError: null,
-    }));
-    expect(result.state).toBe('not_captured');
-    await discardAttempt(acquired.attempt);
-    expect(db.store.has(LOCK)).toBe(false);
-    expect((await claim(db)).kind).toBe('claimed');
-  });
-
-  it('a lock carrying verified-capture evidence is never discarded', async () => {
-    const db = memoryDb();
-    const acquired = await claim(db);
-    db.store.set(LOCK, { ...db.store.get(LOCK), captureVerified: { captureID: 'CAP-1' } });
-    await expect(discardAttempt(acquired.attempt)).rejects.toMatchObject({ code: 'CLAIM_LOST' });
-    expect(db.store.has(LOCK)).toBe(true);
-  });
-
-  it('retry after UNKNOWN re-claims the same order and reconciles with GET first (no second POST)', async () => {
-    const db = memoryDb();
-    const now = Date.now();
-    const acquired = await claim(db, now);
-    await reconcile(acquired.attempt, async () => ({ status: 504, body: { name: 'GATEWAY_TIMEOUT' }, parseError: null }));
-    await releaseAttemptClaim(acquired.attempt);
-
-    const order = { id: ORDER, status: 'COMPLETED', purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED' }] } }] };
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify(order) }));
-    vi.stubGlobal('fetch', fetchMock);
-    const retry = await claim(db, now + 1000);
-    expect(retry.kind).toBe('claimed');
-    expect(retry.attempt.recovering).toBe(true);
-    const postCapture = vi.fn();
-    const result = await reconcile(retry.attempt, postCapture);
-    expect(result).toMatchObject({ state: 'captured', source: 'get' });
-    expect(postCapture).not.toHaveBeenCalled();
-    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(`https://api.mock/v2/checkout/orders/${ORDER}`);
-  });
-
-  it('handler discards the attempt only on not_captured; the UNKNOWN branch keeps it and answers 202', () => {
-    const notCaptured = capture.indexOf("reconciled.state === 'not_captured'");
-    const unknown = capture.indexOf("reconciled.state !== 'captured'");
-    expect(notCaptured).toBeGreaterThan(-1);
-    expect(unknown).toBeGreaterThan(notCaptured);
-    expect(capture.slice(notCaptured, unknown)).toMatch(/discardAttempt\(attempt\)/);
-    const unknownBranch = capture.slice(unknown, capture.indexOf('return res.end', unknown));
-    expect(unknownBranch).not.toMatch(/discardAttempt|\.delete\(/);
-    expect(unknownBranch).toMatch(/releaseAttemptClaim\(attempt\)/);
-    expect(unknownBranch).toMatch(/writeHead\(202/);
-    expect(capture).not.toMatch(/lockRef\.delete\(\)/);
+  it('lock is released on capture failure (no permanent lockout)', () => {
+    // After a capture exception we must delete (or invalidate) the lock so
+    // a retry can succeed. The "stale pending" allowance also works.
+    expect(capture).toMatch(/lockRef\.delete\(\)/);
   });
 
   it('lock is upgraded to status=captured on success', () => {

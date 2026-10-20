@@ -21,29 +21,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { classifyCaptureResponse, discardAttempt } from '../../api/_shared/payment-fulfillment-recovery.js';
 
 const src = readFileSync(
   resolve(process.cwd(), 'api/capturePaypalOrder.js'),
   'utf8',
 );
-// 2026-10-10 recovery rewrite: handler branches the capture result by reconciled.state — slice each branch.
-const notCapturedIdx = src.indexOf("reconciled.state === 'not_captured'");
-const unknownIdx = src.indexOf("reconciled.state !== 'captured'", notCapturedIdx);
-const notCapturedBranch = src.slice(notCapturedIdx, unknownIdx);
-const unknownBranch = src.slice(unknownIdx, src.indexOf('pendingCapture: false', unknownIdx));
-
-// Fake Firestore: one attempt doc, runTransaction runs the callback against it.
-function fakeAttempt(lock: Record<string, unknown>) {
-  const state = { deleted: false };
-  const ref = {};
-  const tx = {
-    get: async () => ({ exists: true, data: () => lock }),
-    delete: () => { state.deleted = true; },
-  };
-  const db = { runTransaction: async (fn: (t: typeof tx) => Promise<void>) => fn(tx) };
-  return { attempt: { db, ref, claimToken: 't1' }, state };
-}
 
 describe('PR #427 CY4 — coupon is pre-locked before capture', () => {
   it('coupon transaction runs BEFORE the PayPal capture fetch', () => {
@@ -79,29 +61,12 @@ describe('PR #427 CY4 — coupon is pre-locked before capture', () => {
 });
 
 describe('PR #427 CY4 — capture failure rolls back the coupon', () => {
-  // 2026-10-10 recovery rewrite: `catch (captureErr)` always releases coupon → release ONLY on provider-proven
-  //   nonpayment (reconciled.state === 'not_captured'); UNKNOWN (timeout/5xx/unparsable) KEEPS the coupon.
-  it('provider-proven nonpayment releases the coupon (isUsed=false) and the order lock, then answers 409', () => {
-    expect(notCapturedIdx).toBeGreaterThan(-1);
-    expect(unknownIdx).toBeGreaterThan(notCapturedIdx);
-    expect(notCapturedBranch).toMatch(/couponLockRef\.update\(\s*\{[^}]*isUsed:\s*false/);
-    expect(notCapturedBranch).toMatch(/discardAttempt\(attempt\)/);
-    expect(notCapturedBranch).toMatch(/res\.writeHead\(\s*409/);
-  });
-
-  it('UNKNOWN capture result KEEPS the coupon and the order lock and answers 202 (no double charge / coupon reuse)', () => {
-    expect(unknownBranch).not.toMatch(/isUsed:\s*false/);
-    expect(unknownBranch).not.toMatch(/discardAttempt\(/);
-    expect(unknownBranch).toMatch(/res\.writeHead\(\s*202/);
-  });
-
-  it('what counts as nonpayment vs unknown (behavior of the classifier that drives the release)', () => {
-    // definitive PayPal 422 decline → nonpayment (release)
-    expect(classifyCaptureResponse({ status: 422, body: { details: [{ issue: 'INSTRUMENT_DECLINED' }] } }, 'O1').state).toBe('not_captured');
-    // timeout/5xx/unparsable/generic 4xx → unknown (keep)
-    expect(classifyCaptureResponse({ status: 503, body: { name: 'SERVICE_UNAVAILABLE' } }, 'O1').state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 200, body: null, parseError: 'bad json' }, 'O1').state).toBe('unknown');
-    expect(classifyCaptureResponse({ status: 429, body: { name: 'RATE_LIMIT' } }, 'O1').state).toBe('unknown');
+  it('capture catch block releases the coupon (isUsed=false)', () => {
+    // Find the capture-error catch block and verify it touches couponLockRef.
+    const captureIdx = src.indexOf('catch (captureErr)');
+    expect(captureIdx).toBeGreaterThan(-1);
+    const section = src.slice(captureIdx, captureIdx + 1500);
+    expect(section).toMatch(/couponLockRef[\s\S]*?isUsed:\s*false/);
   });
 });
 
@@ -110,20 +75,7 @@ describe('PR #427 CY4 — coupon-fail releases the order lock so the user can re
     const couponCatchIdx = src.indexOf('catch (couponErr)');
     expect(couponCatchIdx).toBeGreaterThan(-1);
     const section = src.slice(couponCatchIdx, couponCatchIdx + 1500);
-    // 2026-10-10 recovery rewrite: `lockRef.delete()` → discardAttempt(attempt) (transactional delete of used_paypal_orders/{orderID})
-    expect(section).toMatch(/discardAttempt\(attempt\)/);
-  });
-
-  it('discardAttempt deletes the order lock on a fresh claim, but never one whose capture is verified/durable', async () => {
-    const fresh = fakeAttempt({ claimToken: 't1' });
-    await discardAttempt(fresh.attempt);
-    expect(fresh.state.deleted).toBe(true);
-    const paid = fakeAttempt({ claimToken: 't1', captureVerified: { amountValue: '10.00' } });
-    await expect(discardAttempt(paid.attempt)).rejects.toMatchObject({ code: 'CLAIM_LOST' });
-    expect(paid.state.deleted).toBe(false);
-    const durable = fakeAttempt({ claimToken: 't1', bookingDurable: true });
-    await expect(discardAttempt(durable.attempt)).rejects.toMatchObject({ code: 'CLAIM_LOST' });
-    expect(durable.state.deleted).toBe(false);
+    expect(section).toMatch(/lockRef\.delete\(\)/);
   });
 
   it('coupon catch block returns 409 (not 500) so the client knows to retry', () => {

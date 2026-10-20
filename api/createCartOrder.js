@@ -17,7 +17,6 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { computeCartTotalKrw, resolveLineItemKrw } from './_shared/resolve-line-item.js';
 import { acquireSlotLock, releaseSlotLock, readSlotFields, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { toMinorUnits } from './_shared/paypal-capture-verify.js';
-import { findUnfinishedCheckout, newCheckoutCapability, checkoutCookie, verifyBearerUid } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -73,21 +72,6 @@ export default async function handler(req, res) {
     body = body || {};
     const items = Array.isArray(body.items) ? body.items : null;
     if (!items) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('items array required', 'MISSING_ITEMS'))); }
-
-    // 🔴 2026-10-10 recovery contract: unresolved earlier capture in this browser (either flow) blocks new orders.
-    try {
-      const unfinished = await findUnfinishedCheckout({ db: initAdminDb('createCartOrder-recovery'), req });
-      if (unfinished) {
-        res.writeHead(409, JSON_CORS);
-        return res.end(JSON.stringify(unfinished));
-      }
-    } catch (recoveryErr) {
-      console.error('[createCartOrder] unfinished-checkout check failed → blocked (fail-closed):', recoveryErr.message);
-      res.writeHead(503, JSON_CORS);
-      return res.end(JSON.stringify(_err('Could not verify earlier payments right now — please retry', 'RECOVERY_CHECK_UNAVAILABLE')));
-    }
-    const checkoutCapability = newCheckoutCapability();
-    const ownerUid = await verifyBearerUid(req.headers && req.headers.authorization);
 
     // 라인별 flag — createPaypalOrder 와 동일 env. transfer 마진가드는 런타임 override(fail-safe OFF).
     const _rtFlags = await getRuntimeFlags(initAdminDb('createCartOrder-rtflags'));
@@ -248,8 +232,6 @@ export default async function handler(req, res) {
             amountUSD: lineUsdAmounts[i],
             booking: l.booking,
           })),
-          recoveryDigest: checkoutCapability.digest,
-          ownerUid: ownerUid || null,
           createdAt: FieldValue.serverTimestamp(),
         });
       } else {
@@ -263,7 +245,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Cart order snapshot failed — please retry', 'SNAPSHOT_FAILED')));
     }
 
-    res.writeHead(200, { ...JSON_CORS, 'Set-Cookie': checkoutCookie('cart', order.id, checkoutCapability.secret, req) });
+    res.writeHead(200, JSON_CORS);
     res.end(JSON.stringify(_ok({
       orderID: order.id,
       usdAmount,

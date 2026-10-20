@@ -94,17 +94,7 @@ describe('PayPalBookingButton — GA4 전환 배선 가드 (dead-code 회귀 방
   });
   it("결제 성공(purchase) 경로에서 orderID + checkout USD 로 호출", () => {
     // PayPal 청구통화=USD 와 일치. value 는 쿠폰/할인 후 표시·기대 금액과 같은 정수 USD.
-    // 2026-10-10 recovery rewrite: inline `transactionId: data.orderID` in onApprove → trackPaidConversion inside
-    //   applyCaptureOutcome(outcome, orderID, fresh) on the 'final' outcome; orderID is still data.orderID from onApprove.
-    expect(src).toMatch(/trackPaidConversion\(\{[\s\S]*?transactionId:\s*orderID[\s\S]*?value:\s*checkoutAmountUSD[\s\S]*?currency:\s*'USD'/);
-    // the call sits inside applyCaptureOutcome's `final` branch, gated on a fresh capture
-    const fnIdx = src.indexOf('async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean)');
-    expect(fnIdx).toBeGreaterThan(-1);
-    const callIdx = src.indexOf('trackPaidConversion({', fnIdx);
-    expect(callIdx).toBeGreaterThan(fnIdx);
-    expect(src.slice(fnIdx, callIdx)).toMatch(/outcome\.kind === 'final'[\s\S]*?if \(fresh\)/);
-    // onApprove feeds applyCaptureOutcome with the PayPal data.orderID and fresh=true
-    expect(src).toMatch(/applyOutcomeRef\.current\(classifyCaptureResponse\(json,\s*data\.orderID\),\s*data\.orderID,\s*true\)/);
+    expect(src).toMatch(/trackPaidConversion\(\{[\s\S]*?transactionId:\s*data\.orderID[\s\S]*?value:\s*checkoutAmountUSD[\s\S]*?currency:\s*'USD'/);
   });
   it('결제창 진입(begin_checkout) 시점에 trackBeginCheckout 호출 — 깔때기 측정', () => {
     expect(src).toMatch(/trackBeginCheckout\(productType,\s*productType,\s*passengers,\s*checkoutAmountUSD\)/);

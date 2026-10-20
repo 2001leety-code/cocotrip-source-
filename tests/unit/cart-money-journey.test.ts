@@ -17,16 +17,12 @@ import captureCartOrder from '../../api/captureCartOrder.js';
 
 const ORDER = 'SYNTHETICCART001';
 function response() {
-  const out = { status: 0, json: null, cookie: null };
-  return { out, writeHead(status, headers) { out.status = status; out.cookie = (headers && headers['Set-Cookie']) || null; }, end(body) { out.json = body ? JSON.parse(body) : null; } };
+  const out = { status: 0, json: null };
+  return { out, writeHead(status) { out.status = status; }, end(body) { out.json = body ? JSON.parse(body) : null; } };
 }
-// 2026-10-10 recovery contract: the browser that created the order proves same-order authority with the
-// HttpOnly checkout cookie, so this journey carries the create response cookie into every later call.
-let cookieJar = '';
 async function call(handler, body) {
   const res = response();
-  await handler({ method: 'POST', headers: cookieJar ? { cookie: cookieJar } : {}, body }, res);
-  if (res.out.cookie) cookieJar = res.out.cookie.split(';')[0];
+  await handler({ method: 'POST', headers: {}, body }, res);
   return res.out;
 }
 const item = (id) => ({ id, productType: 'charter_seoul_city', priceKRW: 330000, displayName: 'Synthetic private tour', booking: { productType: 'charter_seoul_city', passengers: 2, dateStart: '2030-01-05', dateEnd: '2030-01-05', pickupTime: '09:00' } });
@@ -39,7 +35,7 @@ beforeEach(() => {
     const writes = [];
     return { set(ref, data, options) { writes.push(() => ref.set(data, options)); }, async commit() { for (const write of writes) await write(); } };
   };
-  state.calls = []; state.charged = ''; state.captureOverride = null; cookieJar = '';
+  state.calls = []; state.charged = ''; state.captureOverride = null;
   vi.stubGlobal('fetch', vi.fn(async (input, init = {}) => {
     const url = String(input); state.calls.push(url);
     if (url === 'https://paypal.invalid/v2/checkout/orders') {
@@ -67,11 +63,8 @@ it.each([1, 2])('keeps the captured USD equal to the %i private-tour booking amo
   expect(childCents).toBe(capturedCents);
   expect(children.every(row => row.amountUSD === '250.00')).toBe(true);
   expect(children.every(row => row.capturedExchangeRate === 1350)).toBe(true);
-  // 2026-10-10 recovery rewrite: a proven same-order replay answers the stored final response (idempotent,
-  // `replayed:true`) instead of 409 — the money guarantee is unchanged: the provider capture ran exactly once.
   const repeated = await call(captureCartOrder, { orderID: ORDER });
-  expect(repeated.status, JSON.stringify(repeated.json)).toBe(200);
-  expect(repeated.json).toMatchObject({ ok: true, finalized: true, replayed: true });
+  expect(repeated.status).toBe(409);
   expect(state.calls.filter(url => url.endsWith('/capture'))).toHaveLength(1);
 });
 

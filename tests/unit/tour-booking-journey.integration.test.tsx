@@ -92,14 +92,14 @@ beforeEach(() => {
       return { ok: res.out.status === 200, status: res.out.status, json: async () => res.out.body } as Response;
     }
     if (url === `https://paypal.invalid/v2/checkout/orders/${ORDER_ID}/capture`) {
-      // 2026-10-10 recovery rewrite: the capture handler reads the provider body as text (then parses), so a
-      // json-only stub would be classified as "outcome unknown" (202). Expose both.
-      const capture = {
-        id: ORDER_ID, status: 'COMPLETED',
-        payer: { email_address: 'guest@example.test', name: { given_name: 'Synthetic', surname: 'Guest' } },
-        purchase_units: [{ payments: { captures: [{ id: 'SYNTHETIC-CAPTURE', status: 'COMPLETED', amount: { value: '200.00', currency_code: 'USD' } }] } }],
-      };
-      return { ok: true, status: 200, json: async () => capture, text: async () => JSON.stringify(capture) } as Response;
+      return {
+        ok: true, status: 200,
+        json: async () => ({
+          id: ORDER_ID, status: 'COMPLETED',
+          payer: { email_address: 'guest@example.test', name: { given_name: 'Synthetic', surname: 'Guest' } },
+          purchase_units: [{ payments: { captures: [{ id: 'SYNTHETIC-CAPTURE', status: 'COMPLETED', amount: { value: '200.00', currency_code: 'USD' } }] } }],
+        }),
+      } as Response;
     }
     if (url === 'https://cocotripkr.com/api/booking-processor') {
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, data: { outcome: 'completed' } }) } as Response;

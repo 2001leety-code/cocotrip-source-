@@ -33,7 +33,6 @@ vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
 
 import { PurchaseSection } from '../../src/pages/PlannerPage/components/PurchaseSection';
 import { translations } from '../../src/i18n';
-import { recoveryKey } from '../../src/lib/paymentRecovery';
 
 // Firebase adapters are replaced before the actual UI module is evaluated.
 const { PayPalBookingButton } = await vi.importActual<{
@@ -60,9 +59,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   delete window.paypal;
-  // The payment recovery pointer persists in jsdom localStorage; a leftover one blocks the next checkout.
-  localStorage.removeItem(recoveryKey('single'));
-  localStorage.removeItem(recoveryKey('cart'));
 });
 
 function EchoingPhoneForm({ onEcho }: { onEcho: (phone: string) => void }) {
@@ -118,21 +114,15 @@ describe('PayPalBookingButton payment handoff', () => {
         return { render: vi.fn(), isEligible: () => true };
       }),
     };
-    // Current API: order creation and capture both go through authFetch (the identity-carrying transport that
-    // lets the server bind the owner to the order). Plain fetch must not be used for either payment call.
-    const unauthenticatedFetch = vi.fn(async () => { throw new Error('payment APIs must use authFetch'); });
-    vi.stubGlobal('fetch', unauthenticatedFetch);
-    authFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/createPaypalOrder') {
-        return { ok: true, json: async () => ({ ok: true, data: { orderID: 'ORDER-123', usdAmount: '10.00', currentRate: 1300, displayKRW: '₩13,000', displayUSD: '$10.00' } }) };
-      }
-      if (url === '/api/capturePaypalOrder') {
-        // Durable success shape for this orderID (finalized booking).
-        return { ok: true, json: async () => ({ ok: true, finalized: true, data: { orderID: 'ORDER-123', payerName: 'Guest', payerEmail: 'guest@example.com', amount: '10.00' } }) };
-      }
-      throw new Error(`unexpected authFetch ${url}`);
+    const createOrder = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, data: { orderID: 'ORDER-123', usdAmount: '10.00', currentRate: 1300, displayKRW: '₩13,000', displayUSD: '$10.00' } }),
+    }));
+    vi.stubGlobal('fetch', createOrder);
+    authFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, data: { orderID: 'ORDER-123', payerName: 'Guest', payerEmail: 'guest@example.com', amount: '10.00' } }),
     });
-    const callsTo = (url: string) => authFetch.mock.calls.filter(([calledUrl]) => calledUrl === url);
     const onPaymentSuccess = vi.fn();
 
     const view = render(
@@ -157,9 +147,7 @@ describe('PayPalBookingButton payment handoff', () => {
     fireEvent.click(view.getByRole('button', { name: /book with paypal/i }));
 
     await waitFor(() => expect(buttonsConfig).toBeDefined());
-    const createCalls = callsTo('/api/createPaypalOrder');
-    expect(createCalls).toHaveLength(1);
-    expect(JSON.parse(createCalls[0][1].body)).toMatchObject({
+    expect(JSON.parse(createOrder.mock.calls[0][1].body)).toMatchObject({
       productType: 'ai_planner', passengers: 2, expectedUSD: 10, termsAgreed: true,
     });
 
@@ -167,16 +155,11 @@ describe('PayPalBookingButton payment handoff', () => {
       await (buttonsConfig?.onApprove as (data: { orderID: string }) => Promise<void>)({ orderID: 'ORDER-123' });
     });
 
-    const captureCalls = callsTo('/api/capturePaypalOrder');
-    expect(captureCalls).toHaveLength(1);
-    expect(JSON.parse(captureCalls[0][1].body)).toMatchObject({
+    expect(JSON.parse(authFetch.mock.calls[0][1].body)).toMatchObject({
       orderID: 'ORDER-123', product: 'ai_planner', termsAgreed: true, marketingConsent: true,
     });
-    expect(JSON.parse(captureCalls[0][1].body).termsAgreedAt).toEqual(expect.any(String));
-    expect(unauthenticatedFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(authFetch.mock.calls[0][1].body).termsAgreedAt).toEqual(expect.any(String));
     expect(onPaymentSuccess).toHaveBeenCalledWith('ORDER-123');
-    // Durable success for this order clears the recovery pointer written before capture.
-    expect(localStorage.getItem(recoveryKey('single'))).toBeNull();
   });
 });
 

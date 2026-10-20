@@ -1,32 +1,250 @@
-/** Shared admin/webhook confirmation: booking and retry intent commit together. */
-import { randomUUID } from 'node:crypto';
+/**
+ * Shared booking confirmation logic.
+ *
+ * Used by both:
+ *   - /api/admin-booking-action      (source='admin')   운영자 수동 [입금 확인]
+ *   - /api/paypal-webhook            (source='webhook') PayPal IPN 자동 매칭
+ *
+ * 역할:
+ *   1) pending_bookings/{bookingRef} 의 status='CONFIRMED' 전환 (멱등)
+ *   2) bookings 정식 컬렉션 mirror (사용자 MyPage / 어드민 통합 view 호환)
+ *   3) AI 플래너 / booking-processor fire-and-forget 트리거
+ *   4) 텔레그램 booking #2 알림
+ *   5) 사용자 4-lang 결제 확정 이메일
+ *
+ * 이미 CONFIRMED 상태면 부수효과 모두 스킵하고 alreadyConfirmed:true 반환.
+ */
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
 import { triggerBookingProcessor } from './booking-processor-trigger.js';
 import { sendCustomerEmailWithAlert } from './customer-email-trigger.js';
 import { triggerAiPlanner } from './ai-planner-trigger.js';
-import { internalApiBase } from './internal-base-url.js';
 import { throttledTelegramAlert } from './telegram-throttle.js';
+import { internalApiBase } from './internal-base-url.js';
 
-const CLOSED_QUEUE_STATES = ['done', 'manual-intervention', 'permanent-failure'];
-// REFUND_PENDING (terminal-before-refund) is stopped too: never reconfirmed, never dispatched.
-const STOPPED_BOOKING_STATES = ['CANCELLED', 'CANCELED', 'REFUNDED', 'REFUND_PENDING'];
+async function sendCustomerConfirmEmail(db, booking) {
+  if (!booking?.customerEmail) return { ok: true, skipped: 'no-email' };
+  const { subject, html, text } = buildManualPaymentEmail('confirmed', booking);
+  // PR #439 (Audit Z-H16): helper now writes to pending_email_retries +
+  // fires operator Telegram alert on failure (was silent .catch(()=>{})).
+  return sendCustomerEmailWithAlert({
+    db,
+    to: booking.customerEmail,
+    subject, html, text,
+    context: {
+      bookingRef: booking.bookingRef || null,
+      emailType: 'manual-payment-confirmed',
+      language: booking.language || 'en',
+      source: 'booking-confirm',
+    },
+  });
+}
 
-function bookingMirror(pending, bookingRef, bookingId, source, adminUid) {
-  const originalSource = pending.confirmedBySource || source;
-  return {
+function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
+  try {
+    const siteUrl = internalApiBase();
+    const isAiPlanner = String(pending.productType || '').startsWith('ai-planner');
+
+    if (isAiPlanner) {
+      if (pending.itineraryData && pending.itineraryData.regions) {
+        const aiPayload = {
+          ...pending.itineraryData,
+          paypalOrderId: `MANUAL-${bookingRef}`,
+          email: pending.customerEmail,
+          language: pending.language || 'en',
+          uid: pending.userId || null,
+        };
+        console.log('[booking-confirm] triggering AI planner for', bookingRef);
+        // PR #453 (Audit Z-H7 — 2026-05-16): replaced silent-failure fetch().catch()
+        // with triggerAiPlanner helper — non-2xx + timeout now record a retry doc
+        // (pending_ai_planner_retries) + operator alert instead of being lost.
+        // 5-min cron 'ai-planner-retry-sweep' auto-retries up to 3 times.
+        void triggerAiPlanner({
+          db,
+          siteUrl,
+          bookingRef,
+          payload: aiPayload,
+          source: 'booking-confirm',
+          notify,
+        });
+      } else {
+        // PR #453 (Z-H7): previously console.warn only — operator never saw it.
+        // User paid for AI planner but the input data is missing → can't auto
+        // recover. Critical alert so operator can contact user.
+        console.warn('[booking-confirm] AI planner requested but itineraryData missing — manual trigger required:', bookingRef);
+        throttledTelegramAlert({
+          key: 'ai-planner-itinerary-missing',
+          channel: 'booking',
+          severity: 'critical',
+          message: [
+            `🚨 <b>AI Planner 결제 완료, itineraryData 누락 — 수동 개입</b>`,
+            ``,
+            `<b>예약번호:</b> <code>${bookingRef}</code>`,
+            `<b>이메일:</b> ${pending.customerEmail || '(none)'}`,
+            `<b>productType:</b> ${pending.productType}`,
+            ``,
+            `→ user 가 결제했지만 wizard input 없음 → AI 플랜 생성 불가`,
+            `→ user 에게 wizard 재진입 안내 + 수동 환불 검토`,
+          ].join('\n'),
+          context: { bookingRef, customerEmail: pending.customerEmail, productType: pending.productType },
+        }).catch(() => {});
+      }
+    } else {
+      // PR #436 (Audit Y-H8 — 2026-05-16): replaced silent-failure fetch() with
+      // triggerBookingProcessor helper — non-2xx + timeout now record a retry
+      // doc + operator alert instead of being lost.
+      // PR #455 (P55): KRW_USD_RATE > VITE_USD_KRW_RATE > 1430 default
+      // (was stale 1380 hardcode).
+      const usdToKrwFallback = Number(process.env.KRW_USD_RATE)
+        || Number(process.env.VITE_USD_KRW_RATE)
+        || 1430;
+      const processorPayload = {
+        orderID: bookingId,
+        payerEmail: pending.customerEmail,
+        payerName: (pending.customerEmail || '').split('@')[0],
+        amount: pending.priceUSD || (Number(pending.priceKRW) / usdToKrwFallback).toFixed(2),
+        product: pending.productType,
+        tourDate: pending.dateStart || '',
+        pickupLocation: pending.pickupLocation || '',
+        dropoffLocation: pending.dropoffLocation || '',
+        paxCount: pending.passengers || 1,
+        vehicleType: pending.vehicleType || '',
+        memo: pending.memo || '',
+        itineraryData: pending.itineraryData || null,
+        airport: pending.airport || null,
+      };
+      void triggerBookingProcessor({
+        db,
+        siteUrl,
+        payload: processorPayload,
+        source: 'booking-confirm',
+        notify,
+      });
+    }
+  } catch (procErr) {
+    // PR #453 (Z-H7): previously console.warn only — silent if both branches
+    // threw synchronously. Alert operator with the error message.
+    console.error('[booking-confirm] downstream effects failed:', procErr.message);
+    throttledTelegramAlert({
+      key: 'booking-confirm-downstream-throw',
+      channel: 'admin',
+      severity: 'critical',
+      message: [
+        `🚨 <b>booking-confirm downstream 효과 함수 throw</b>`,
+        ``,
+        `<b>예약번호:</b> <code>${bookingRef || '-'}</code>`,
+        `<b>BookingId:</b> <code>${bookingId || '-'}</code>`,
+        `<b>에러:</b> ${(procErr.message || 'unknown').replace(/[<>&]/g, '_').slice(0, 250)}`,
+        ``,
+        `→ user 결제 완료. AI planner / booking-processor 트리거 실패 가능.`,
+        `→ admin-replay-booking-notifications 로 복구 검토.`,
+      ].join('\n'),
+      context: { bookingRef, bookingId, error: procErr.message },
+    }).catch(() => {});
+  }
+}
+
+/**
+ * @param {object} args
+ * @param {FirebaseFirestore.Firestore} args.db
+ * @param {string} args.bookingRef            예: 'CT-20260506-001'
+ * @param {string} [args.paypalTransactionId] PayPal capture id (admin 입력 또는 webhook resource.id)
+ * @param {'admin'|'webhook'} args.source
+ * @param {string} [args.adminUid]            source='admin' 일 때
+ * @param {string} [args.adminEmail]
+ * @returns {Promise<{ok:true, bookingId:string, alreadyConfirmed?:boolean}|{ok:false, code:string, error:string}>}
+ */
+export async function confirmBookingAsPaid({
+  db,
+  bookingRef,
+  paypalTransactionId,
+  source,
+  adminUid = null,
+  adminEmail = null,
+}) {
+  if (!db) return { ok: false, code: 'NO_DB', error: 'Firestore admin db required' };
+  if (!bookingRef) return { ok: false, code: 'MISSING_BOOKING_REF', error: 'bookingRef required' };
+  if (source !== 'admin' && source !== 'webhook') {
+    return { ok: false, code: 'INVALID_SOURCE', error: `source must be 'admin' or 'webhook'` };
+  }
+
+  const pendingRef = db.collection('pending_bookings').doc(bookingRef);
+
+  const bookingId = paypalTransactionId || bookingRef;
+
+  // 1. pending_bookings 갱신 — 원자적 멱등 게이트 (버그 #8 fix)
+  //
+  //   webhook(자동) 과 admin mark-paid(운영자 클릭) 가 동시에 호출되면 (또는
+  //   webhook 중복 전달), 둘 다 트랜잭션 밖에서 status!=='CONFIRMED' 를 읽고
+  //   각자 update 후 부수효과(booking-processor / AI 플래너 / 확정 이메일)를
+  //   실행 → 이중 부수효과. read → 상태확인 → update 를 단일 트랜잭션으로 감싸
+  //   'PENDING/sent → CONFIRMED' 전이를 단 한 호출만 통과하게 만든다.
+  //   Firestore 트랜잭션은 read 한 문서가 commit 전 변경되면 자동 재시도하므로
+  //   경합한 두 번째 호출은 재시도 시 status==='CONFIRMED' 를 보고 멱등 처리된다.
+  //   ⚠️ 트랜잭션 콜백 안에서는 read+update 만 — 외부 I/O(이메일/HTTP/텔레그램)
+  //   금지(재시도 시 중복 실행됨). 부수효과는 트랜잭션 밖에서 didTransition 일 때만.
+  const txResult = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(pendingRef);
+    if (!snap.exists) {
+      return { notFound: true };
+    }
+    const data = snap.data();
+
+    // 멱등 — 이미 CONFIRMED 면 (다른 호출이 이미 전이시킴) 전이 스킵
+    if (data.status === 'CONFIRMED') {
+      return {
+        pending: data,
+        didTransition: false,
+        existingId: data.paypalTransactionId || bookingRef,
+      };
+    }
+
+    const updatePayload = {
+      status: 'CONFIRMED',
+      paypalTransactionId: paypalTransactionId || null,
+      confirmedAt: FieldValue.serverTimestamp(),
+      confirmedBySource: source,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (source === 'admin') {
+      updatePayload.confirmedByUid = adminUid;
+    }
+    tx.update(pendingRef, updatePayload);
+
+    // 이 호출이 전이를 성사시킨 유일한 호출 → 부수효과 실행 권한 획득
+    return { pending: data, didTransition: true, existingId: null };
+  });
+
+  if (txResult.notFound) {
+    return { ok: false, code: 'NOT_FOUND', error: `pending_bookings/${bookingRef} not found` };
+  }
+
+  const pending = txResult.pending;
+
+  // 멱등 — 전이를 통과하지 못한 호출(이미 CONFIRMED 였음)은 부수효과 모두 스킵
+  if (!txResult.didTransition) {
+    return { ok: true, bookingId: txResult.existingId, alreadyConfirmed: true };
+  }
+
+  // 2. bookings mirror
+  await db.collection('bookings').doc(bookingId).set({
     captureID: bookingId,
     bookingRef,
-    provider: originalSource === 'webhook' ? 'paypal-webhook' : 'paypal-manual',
+    provider: source === 'webhook' ? 'paypal-webhook' : 'paypal-manual',
     status: 'CONFIRMED',
-    paymentStatus: originalSource === 'webhook' ? 'webhook_confirmed' : 'manual_confirmed',
+    paymentStatus: source === 'webhook' ? 'webhook_confirmed' : 'manual_confirmed',
     amountKRW: pending.priceKRW,
     amountUSD: pending.priceUSD || null,
     userEmail: pending.customerEmail,
     customerPhone: pending.customerPhone || null,
     productType: pending.productType,
     tourDate: pending.dateStart || '',
+    // PR #426 (Audit CY3 — 2026-05-14): persist tourTime so cancelBooking /
+    // modifyBooking / my-bookings use the actual tour start hour for
+    // window calculations. pending.tourTime may come from manual-payment-
+    // request or admin entry; missing → legacy '00:00' fallback in
+    // evaluateRefundPolicy.
     tourTime: pending.tourTime || '',
     tourEndDate: pending.dateEnd || '',
     paxCount: pending.passengers || 1,
@@ -38,224 +256,34 @@ function bookingMirror(pending, bookingRef, bookingId, source, adminUid) {
     itineraryData: pending.itineraryData || null,
     paymentMethod: pending.paymentMethod || 'paypal-me-qr',
     paypalMeUrl: pending.paypalMeUrl || null,
-    confirmedByAdminUid: pending.confirmedByUid || (source === 'admin' ? adminUid : null),
-    confirmedBySource: originalSource,
-    createdAt: pending.confirmedAt || FieldValue.serverTimestamp(),
+    confirmedByAdminUid: source === 'admin' ? adminUid : null,
+    confirmedBySource: source,
+    createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
-  };
-}
+  }, { merge: true });
 
-function processorPayload(booking, bookingId) {
-  const usdToKrwFallback = Number(process.env.KRW_USD_RATE) || Number(process.env.VITE_USD_KRW_RATE) || 1430;
-  return {
-    orderID: bookingId,
-    payerEmail: booking.userEmail,
-    payerName: (booking.userEmail || '').split('@')[0],
-    amount: booking.amountUSD || (Number(booking.amountKRW) / usdToKrwFallback).toFixed(2),
-    product: booking.productType,
-    tourDate: booking.tourDate || '',
-    pickupLocation: booking.pickupLocation || '',
-    dropoffLocation: booking.dropoffLocation || '',
-    paxCount: booking.paxCount || 1,
-    vehicleType: booking.vehicleType || '',
-    memo: booking.memo || '',
-    itineraryData: booking.itineraryData || null,
-    airport: booking.airport || null,
-  };
-}
+  // 3. fire-and-forget downstream (with failure capture — see PR #436)
+  triggerDownstreamEffects({ db, pending, bookingRef, bookingId });
 
-async function sendCustomerConfirmEmail(pendingRef, pending, bookingRef) {
-  if (!pending.customerEmail) return;
-  try {
-    const content = buildManualPaymentEmail('confirmed', pending);
-    // db:null — no automatic pending_email_retries entry: an ambiguous send must not be auto-resent.
-    const sent = await sendCustomerEmailWithAlert({ db: null, to: pending.customerEmail, ...content, context: { bookingRef, emailType: 'manual-payment-confirmed' } });
-    if (!sent || sent.ok !== true) throw new Error((sent && sent.reason) || 'send-failed');
-    await pendingRef.update({ confirmationEmailState: 'completed' });
-  } catch (error) {
-    // The atomic confirmation already recorded UNKNOWN; neither send nor its receipt is replayed.
-    console.error('[booking-confirm] confirmation email outcome unknown:', error.message);
-    await notify('booking', `⚠️ <b>결제 확정 안내메일 결과 미상</b>\n예약: <code>${bookingRef}</code>\n→ 자동 재발송하지 않습니다. 실제 수신 여부를 확인한 뒤 수동 처리하세요.`).catch(() => {});
-  }
-}
+  // 4. 텔레그램 booking #2
+  const sourceLabel = source === 'webhook' ? '🤖 자동 매칭 (PayPal Webhook)' : '✅ 입금 확인 완료 (PayPal 매칭)';
+  const telText = [
+    `<b>${sourceLabel}</b>`,
+    '',
+    `<b>예약번호:</b> <code>${bookingRef}</code>`,
+    `<b>상품:</b> ${pending.productType}`,
+    `<b>금액:</b> ₩${Number(pending.priceKRW).toLocaleString('ko-KR')}`,
+    `<b>이메일:</b> ${pending.customerEmail}`,
+    paypalTransactionId ? `<b>PayPal TX:</b> <code>${paypalTransactionId}</code>` : null,
+    source === 'admin' && adminEmail ? `<b>처리:</b> ${adminEmail}` : null,
+    '',
+    '📩 <i>고객에게 결제 확정 안내 이메일 자동 발송 처리 중</i>',
+  ].filter(Boolean).join('\n');
+  notify('booking', telText).catch(() => {});
 
-async function dispatchIntent({ db, pendingRef, queueRef, bookingId, bookingRef, isAi, payload, claimToken }) {
-  let result;
-  try {
-    // The durable intent belongs to this transaction; helpers must not overwrite it on failure.
-    // `notify` restored 2026-10-10: the helpers alert the operator on non-2xx/timeout (PR #436/#453 contract).
-    result = isAi
-      ? await triggerAiPlanner({ db: null, siteUrl: internalApiBase(), bookingRef, payload, source: 'booking-confirm', notify })
-      : await triggerBookingProcessor({ db: null, siteUrl: internalApiBase(), payload, source: 'booking-confirm', notify });
-  } catch (error) {
-    result = { ok: false, reason: error.message, outcome: 'retryable' };
-    console.error('[booking-confirm] downstream effects failed:', error.message);
-    await throttledTelegramAlert({
-      key: 'booking-confirm-downstream-throw',
-      channel: 'admin',
-      severity: 'critical',
-      message: [
-        `🚨 <b>booking-confirm downstream 효과 함수 throw</b>`, ``,
-        `<b>예약번호:</b> <code>${bookingRef || '-'}</code>`, `<b>BookingId:</b> <code>${bookingId || '-'}</code>`,
-        `<b>에러:</b> ${(error.message || 'unknown').replace(/[<>&]/g, '_').slice(0, 250)}`, ``,
-        `→ user 결제 완료. 재시도 큐(pending)에 남김 — 크론 재시도 실패 시 수동 처리.`,
-      ].join('\n'),
-      context: { bookingRef, bookingId },
-    }).catch(() => {});
-  }
-  // Validated helper contract only: triggerBookingProcessor returns ok:true solely when the processor body's
-  // outcome is semantically 'completed' (never raw HTTP 2xx); ok:false carries docStatus/outcome. AI: ok:true
-  // = accepted (pre-existing semantics), ok:false = cron retry. Anything else is an unproven side effect:
-  // quarantine as manual-intervention / outcome_unknown instead of re-dispatching.
-  const validated = result && typeof result === 'object' && typeof result.ok === 'boolean';
-  const status = !validated ? 'manual-intervention'
-    : result.ok ? 'done'
-      : isAi ? 'pending'
-        : result.docStatus || 'pending';
-  const outcome = !validated ? 'outcome_unknown' : status === 'done' ? 'completed' : result.outcome || 'retryable';
-  const failureReason = !validated ? `dispatch-result-unknown: ${result && result.reason ? result.reason : 'invalid-helper-result'}`
-    : status === 'done' ? null : result.reason || null;
-  if (!validated) {
-    // Quarantined intents are not swept by the retry cron: without an alert the customer gets nothing.
-    console.error('[booking-confirm] dispatch result not validated — quarantined:', bookingId);
-    await throttledTelegramAlert({
-      key: 'booking-confirm-dispatch-unknown',
-      channel: 'admin',
-      severity: 'critical',
-      message: [
-        `🚨 <b>booking-confirm 후속 처리 결과 미상 — 수동 개입</b>`, ``,
-        `<b>예약번호:</b> <code>${bookingRef || '-'}</code>`, `<b>BookingId:</b> <code>${bookingId || '-'}</code>`,
-        `<b>사유:</b> ${String(failureReason || '').replace(/[<>&]/g, '_').slice(0, 250)}`, ``,
-        `→ 큐 상태 manual-intervention. 크론이 자동 재시도하지 않음 — AI ops 센터에서 확인.`,
-      ].join('\n'),
-      context: { bookingRef, bookingId },
-    }).catch(() => {});
-  }
-  await db.runTransaction(async (tx) => {
-    const pendingSnap = await tx.get(pendingRef);
-    const queueSnap = await tx.get(queueRef);
-    const pending = pendingSnap.data() || {};
-    const queue = queueSnap.data() || {};
-    if (pending.confirmationFulfillment?.claimToken !== claimToken || CLOSED_QUEUE_STATES.includes(queue.status)) return;
-    tx.update(queueRef, {
-      status,
-      outcome,
-      stepStatus: (validated && result.stepStatus) || queue.stepStatus || null,
-      lastFailureReason: failureReason,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.update(pendingRef, { confirmationFulfillment: { bookingId, claimToken, phase: status, leaseUntilMs: 0 } });
-  });
-}
+  // 5. 사용자 confirm 이메일 — PR #439 (Z-H16): helper 가 실패 시 운영자 알림
+  // + pending_email_retries 등록 (silent loss 차단). fire-and-forget 유지.
+  void sendCustomerConfirmEmail(db, pending);
 
-/** Callers retain admin/webhook authorization and payment verification. */
-export async function confirmBookingAsPaid({ db, bookingRef, paypalTransactionId, source, adminUid = null, adminEmail = null }) {
-  if (!db) return { ok: false, code: 'NO_DB', error: 'Firestore admin db required' };
-  if (!bookingRef) return { ok: false, code: 'MISSING_BOOKING_REF', error: 'bookingRef required' };
-  if (source !== 'admin' && source !== 'webhook') {
-    return { ok: false, code: 'INVALID_SOURCE', error: `source must be 'admin' or 'webhook'` };
-  }
-  const pendingRef = db.collection('pending_bookings').doc(bookingRef);
-  const claimToken = randomUUID();
-  const nowMs = Date.now();
-  const repair = await db.runTransaction(async (tx) => {
-    const pendingSnap = await tx.get(pendingRef);
-    if (!pendingSnap.exists) return { error: 'NOT_FOUND' };
-    const pending = pendingSnap.data();
-    const alreadyConfirmed = pending.status === 'CONFIRMED';
-    const bookingId = alreadyConfirmed ? pending.paypalTransactionId || bookingRef : paypalTransactionId || bookingRef;
-    const bookingRefDoc = db.collection('bookings').doc(bookingId);
-    const isAi = String(pending.productType || '').startsWith('ai-planner');
-    const queueRef = db.collection(isAi ? 'pending_ai_planner_retries' : 'pending_processor_retries').doc(isAi ? bookingRef : bookingId);
-    const bookingSnap = await tx.get(bookingRefDoc);
-    const queueSnap = await tx.get(queueRef);
-    const existingBooking = bookingSnap.exists ? bookingSnap.data() : null;
-    const queue = queueSnap.exists ? queueSnap.data() : null;
-    if (STOPPED_BOOKING_STATES.includes(String(pending.status || '').toUpperCase())
-      || STOPPED_BOOKING_STATES.includes(String(existingBooking?.status || '').toUpperCase())
-      || (existingBooking?.bookingRef && existingBooking.bookingRef !== bookingRef)
-      || (existingBooking?.captureID && existingBooking.captureID !== bookingId)
-      || (queue?.payload?.orderID && queue.payload.orderID !== bookingId)) return { error: 'CONFIRMATION_CONFLICT' };
-
-    const original = queue?.bookingSnapshot || bookingMirror(pending, bookingRef, bookingId, source, adminUid);
-    const booking = existingBooking || { ...original };
-    // Legacy = confirmed before this contract: no fulfilment record and no queue. A fresh concurrent
-    // confirmation (fulfilment/queue present) is NOT legacy — its voucher must stay sendable.
-    const legacy = alreadyConfirmed && !pending.confirmationFulfillment && !queue;
-    if (!booking.voucherSentAt && !booking.voucherSentAtState) {
-      const emailStep = queue?.stepStatus?.email;
-      const marker = queue?.status === 'done' || emailStep === 'completed' ? 'completed'
-        : emailStep === 'outcome_unknown' || legacy ? 'outcome_unknown' : null;
-      // A missing legacy marker cannot prove that the customer never received a voucher.
-      if (marker) {
-        booking.voucherSentAtState = marker;
-        if (existingBooking) tx.set(bookingRefDoc, { voucherSentAtState: marker }, { merge: true });
-      }
-    }
-    if (!bookingSnap.exists) tx.set(bookingRefDoc, booking);
-    const payload = queue?.payload || (isAi ? {
-      ...(pending.itineraryData || {}), paypalOrderId: `MANUAL-${bookingRef}`,
-      email: booking.userEmail, language: pending.language || 'en', uid: pending.userId || null,
-    } : processorPayload({ ...original, ...booking }, bookingId));
-    const legacyAi = isAi && legacy;
-    const missingAiInput = isAi && !payload.regions;
-    // AI intents start 'in_progress' (cron sweeps only 'pending') so direct dispatch and the sweep never
-    // double-generate; an expired lease lets a later confirmation re-dispatch an abandoned in_progress intent.
-    const queueStatus = queue?.status || (legacyAi || missingAiInput ? 'manual-intervention' : isAi ? 'in_progress' : 'pending');
-    if (!queue) tx.set(queueRef, {
-      bookingRef, orderID: bookingId, retryDocId: isAi ? bookingRef : bookingId,
-      payload, bookingSnapshot: booking, source: 'booking-confirm', status: queueStatus,
-      attempts: 0, firstFailureAt: FieldValue.serverTimestamp(),
-      ...(legacyAi || missingAiInput ? { lastFailureReason: 'ai-issuance-requires-verification' } : {}),
-    });
-    const priorClaim = pending.confirmationFulfillment;
-    const dispatch = (queueStatus === 'pending' || queueStatus === 'in_progress') && !(Number(priorClaim?.leaseUntilMs) > nowMs);
-    if (dispatch && queue && queue.status === 'in_progress') tx.update(queueRef, { lastClaimReset: FieldValue.serverTimestamp() });
-    const confirmationPatch = alreadyConfirmed ? {} : {
-      status: 'CONFIRMED', paypalTransactionId: paypalTransactionId || null,
-      confirmedAt: FieldValue.serverTimestamp(), confirmedBySource: source,
-      ...(source === 'admin' ? { confirmedByUid: adminUid } : {}),
-    };
-    tx.update(pendingRef, {
-      ...confirmationPatch,
-      updatedAt: FieldValue.serverTimestamp(),
-      confirmationEmailState: pending.confirmationEmailState || (!pending.customerEmail ? 'skipped_not_applicable' : legacy ? 'legacy_outcome_unknown' : 'outcome_unknown'),
-      confirmationFulfillment: dispatch
-        ? { bookingId, claimToken, phase: 'in_progress', leaseUntilMs: nowMs + 5 * 60 * 1000 }
-        : priorClaim || { bookingId, claimToken: null, phase: queueStatus, leaseUntilMs: 0 },
-    });
-    return { pending, bookingId, queueRef, isAi, payload, alreadyConfirmed, dispatch, missingAiInput: missingAiInput && !queue };
-  });
-  if (repair.error) return { ok: false, code: repair.error, error: repair.error === 'NOT_FOUND' ? `pending_bookings/${bookingRef} not found` : 'Recorded booking cannot be reconfirmed automatically' };
-  const { pending, bookingId, alreadyConfirmed } = repair;
-
-  if (!alreadyConfirmed) {
-    const sourceLabel = source === 'webhook' ? '🤖 자동 매칭 (PayPal Webhook)' : '✅ 입금 확인 완료 (PayPal 매칭)';
-    await notify('booking', [
-      `<b>${sourceLabel}</b>`, '', `<b>예약번호:</b> <code>${bookingRef}</code>`,
-      `<b>상품:</b> ${pending.productType}`, `<b>금액:</b> ₩${Number(pending.priceKRW).toLocaleString('ko-KR')}`,
-      `<b>이메일:</b> ${pending.customerEmail}`,
-      paypalTransactionId ? `<b>PayPal TX:</b> <code>${paypalTransactionId}</code>` : null,
-      source === 'admin' && adminEmail ? `<b>처리:</b> ${adminEmail}` : null,
-    ].filter(Boolean).join('\n')).catch(() => {});
-    await sendCustomerConfirmEmail(pendingRef, pending, bookingRef);
-  }
-  if (repair.missingAiInput) {
-    // Paid AI planner without wizard input: queued as manual-intervention (never swept) — operator must act.
-    console.warn('[booking-confirm] AI planner requested but itineraryData missing — manual trigger required:', bookingRef);
-    await throttledTelegramAlert({
-      key: 'ai-planner-itinerary-missing',
-      channel: 'booking',
-      severity: 'critical',
-      message: [
-        `🚨 <b>AI Planner 결제 완료, itineraryData 누락 — 수동 개입</b>`, ``,
-        `<b>예약번호:</b> <code>${bookingRef}</code>`, `<b>이메일:</b> ${pending.customerEmail || '(none)'}`,
-        `<b>productType:</b> ${pending.productType}`, ``,
-        `→ user 가 결제했지만 wizard input 없음 → AI 플랜 생성 불가`, `→ user 에게 wizard 재진입 안내 + 수동 환불 검토`,
-      ].join('\n'),
-      context: { bookingRef, customerEmail: pending.customerEmail, productType: pending.productType },
-    }).catch(() => {});
-  }
-  if (repair.dispatch) await dispatchIntent({ db, pendingRef, ...repair, bookingRef, claimToken });
-  return { ok: true, bookingId, ...(alreadyConfirmed ? { alreadyConfirmed: true } : {}) };
+  return { ok: true, bookingId };
 }
