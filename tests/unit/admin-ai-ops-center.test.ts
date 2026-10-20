@@ -127,6 +127,10 @@ describe('AI 운영센터 우선순위 회귀 방지', () => {
     const health = retryQueueHealth('processor_retry', '예약 후속처리', [fresh, orphan, { status: 'pending' }], true, NOW);
     expect(health).toMatchObject({ status: 'attention', held: 1, pending: 1, manual: 0, count: 2 });
     expect(health.detail).toBe('held 고아 1건');
-    expect(automationWorkItems([health]).map((item) => item.sourceSystem)).toEqual(['processor_retry']);
+    const items = automationWorkItems([health]);
+    expect(items.map((item) => item.sourceSystem)).toEqual(['processor_retry']);
+    expect(items[0]).toMatchObject({ priority: 'P0', nextAction: '수동 처리 필요 (held 고아)' });
+    const retrying = retryQueueHealth('processor_retry', '예약 후속처리', [{ status: 'pending' }], true, NOW);
+    expect(automationWorkItems([retrying])[0]).toMatchObject({ priority: 'P1', nextAction: '자동 재시도 확인' });
   });
 });

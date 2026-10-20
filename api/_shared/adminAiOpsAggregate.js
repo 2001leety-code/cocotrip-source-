@@ -368,8 +368,9 @@ export function automationWorkItems(automation) {
       sourceRecordId: item.key,
       title: `${item.label} · ${item.count}건`,
       status: item.status,
-      priority: item.manual > 0 ? 'P0' : 'P1',
-      nextAction: item.manual > 0 ? '수동 처리 필요' : '자동 재시도 확인',
+      // held orphans are never retried automatically (2026-10-20): they are operator work, like manual-intervention.
+      priority: item.manual > 0 || (item.held || 0) > 0 ? 'P0' : 'P1',
+      nextAction: (item.held || 0) > 0 ? '수동 처리 필요 (held 고아)' : item.manual > 0 ? '수동 처리 필요' : '자동 재시도 확인',
       actionRequired: true,
       ageHours: 0,
       eventDate: '',
