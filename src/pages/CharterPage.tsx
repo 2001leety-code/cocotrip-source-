@@ -142,6 +142,7 @@ export default function CharterPage() {
     setStartDate(s); setEndDate(e);
   }
 
+  // 여행 시작·종료일은 inclusive: 박수 = 종료일 - 시작일, 일수 = 박수 + 1 (당일 = 0박 1일).
   const nights = startDate && endDate
     ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000))
     : 0;

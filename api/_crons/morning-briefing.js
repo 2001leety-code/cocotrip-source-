@@ -18,6 +18,7 @@ import { fetchMarketingMetrics } from '../_shared/morningBriefingMarketing.js';
 import { aggregateDecisionSummary, DECISION_COLLECTION } from '../_shared/decisionQueue.js';
 import { aggregateApiUsage } from '../_shared/apiPricing.js';
 import { mergeOpsV1IntoBriefing } from '../_shared/opsBriefingBridge.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 
 const FALLBACK_RATE = 1450;
 
@@ -199,6 +200,10 @@ export async function morningBriefingTask(options = {}) {
 
 export default async function vercelHandler(req, res) {
   if (req && req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const r = await morningBriefingTask();
     return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body });
